@@ -56,7 +56,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
             type="search"
             defaultValue={currentFilters.q ?? ""}
             placeholder={t("searchPlaceholder")}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="h-12 border border-gray-300 rounded-lg px-3 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-green-400"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 updateFilter("q", (e.target as HTMLInputElement).value);
@@ -72,7 +72,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
           <select
             value={currentFilters.category ?? ""}
             onChange={(e) => updateFilter("category", e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
             <option value="">{t("allCategories")}</option>
             {CATEGORIES.map((cat) => (
@@ -90,7 +90,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
             type="date"
             defaultValue={currentFilters.from ?? ""}
             onChange={(e) => updateFilter("from", e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </div>
 
@@ -101,7 +101,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
             type="date"
             defaultValue={currentFilters.to ?? ""}
             onChange={(e) => updateFilter("to", e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </div>
 
@@ -111,7 +111,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
           <select
             value={currentFilters.paid ?? ""}
             onChange={(e) => updateFilter("paid", e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
             <option value="">{t("allPaid")}</option>
             <option value="free">{t("freeOnly")}</option>
@@ -125,7 +125,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
           <select
             value={currentFilters.status ?? ""}
             onChange={(e) => updateFilter("status", e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
             <option value="">{t("allStatus")}</option>
             <option value="active">{t("activeOnly")}</option>
