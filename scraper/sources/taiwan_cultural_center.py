@@ -22,8 +22,8 @@ from .base import BaseScraper, Event
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://jp.taiwan.culture.tw"
-# The activity list URL — if the page structure changes, update this path.
-ACTIVITY_LIST_URL = f"{BASE_URL}/activi/type_list"
+# The activity list URL
+ACTIVITY_LIST_URL = f"{BASE_URL}/News3.aspx?n=365&sms=10657"
 
 
 def _safe_text(page: Page, selector: str) -> Optional[str]:
@@ -56,8 +56,8 @@ def _extract_dates(text: Optional[str]) -> tuple[Optional[datetime], Optional[da
     """
     if not text:
         return None, None
-    # Match two date-like tokens separated by common range indicators
-    parts = re.split(r"[～~〜\-–—]", text)
+    # Only split on range indicators (not on hyphen, which is used in YYYY-MM-DD)
+    parts = re.split(r"[～~〜]|(?<=\d)\s*[–—]\s*(?=\d)", text)
     start = _parse_date(parts[0]) if len(parts) >= 1 else None
     end = _parse_date(parts[1]) if len(parts) >= 2 else None
     return start, end
@@ -117,22 +117,21 @@ class TaiwanCulturalCenterScraper(BaseScraper):
         current_page = 1
 
         while True:
-            url = f"{ACTIVITY_LIST_URL}?page={current_page}"
+            url = f"{ACTIVITY_LIST_URL}&p={current_page}"
             logger.info("Fetching list page %d: %s", current_page, url)
             try:
                 page.goto(url, wait_until="networkidle", timeout=30_000)
             except PWTimeout:
                 page.goto(url, wait_until="domcontentloaded", timeout=30_000)
 
-            # Collect all <a> tags that point to activity detail pages
-            anchors = page.query_selector_all("a[href*='/activi/']")
+            # Collect all <a> tags that point to article detail pages
+            anchors = page.query_selector_all("a[href*='News_Content']")
             page_links = []
             for a in anchors:
                 href = a.get_attribute("href") or ""
-                # Skip the list page itself and pagination links
-                if "/activi/type_list" in href or not href:
+                if not href:
                     continue
-                full = href if href.startswith("http") else f"{BASE_URL}{href}"
+                full = href if href.startswith("http") else f"{BASE_URL}/{href}"
                 if full not in links:
                     page_links.append(full)
 
@@ -157,12 +156,10 @@ class TaiwanCulturalCenterScraper(BaseScraper):
             page.goto(url, wait_until="domcontentloaded", timeout=30_000)
 
         # --- Title ---
-        # Try common heading selectors; adjust if the site structure changes
         name_ja = (
-            _safe_text(page, "h1.title")
+            _safe_text(page, ".simple-text.title")
+            or _safe_text(page, ".group.page-content h2")
             or _safe_text(page, "h1")
-            or _safe_text(page, ".event-title")
-            or _safe_text(page, "h2.title")
         )
         if not name_ja:
             logger.warning("Could not find title at %s, skipping.", url)
@@ -170,36 +167,26 @@ class TaiwanCulturalCenterScraper(BaseScraper):
 
         # --- Description ---
         description_ja = (
-            _safe_text(page, ".content-body")
-            or _safe_text(page, ".event-detail")
-            or _safe_text(page, ".description")
-            or _safe_text(page, "article")
+            _safe_text(page, ".essay")
+            or _safe_text(page, ".area-essay")
+            or _safe_text(page, ".group.page-content")
         )
 
         # --- Date ---
-        date_text = (
-            _safe_text(page, ".date")
-            or _safe_text(page, ".event-date")
-            or _safe_text(page, "[class*='date']")
-        )
-        start_date, end_date = _extract_dates(date_text)
+        # Format on site: "日付：2026-04-07"
+        raw_date = _safe_text(page, ".list-text.detail")
+        if raw_date:
+            raw_date = raw_date.replace("日付：", "").replace("日付:", "").strip()
+        start_date, end_date = _extract_dates(raw_date)
 
         # --- Location ---
-        location_name = (
-            _safe_text(page, ".venue")
-            or _safe_text(page, ".location")
-            or _safe_text(page, "[class*='venue']")
-            or _safe_text(page, "[class*='place']")
-        )
+        # Site does not expose a dedicated location field; default to the center
+        location_name = "台北駐日経済文化代表処 台湾文化センター"
 
         # --- Price ---
-        price_text = (
-            _safe_text(page, ".fee")
-            or _safe_text(page, ".price")
-            or _safe_text(page, "[class*='fee']")
-            or _safe_text(page, "[class*='price']")
-        )
-        is_paid = _is_paid(price_text)
+        # Extract from description text if available
+        price_text = None
+        is_paid = _is_paid(description_ja)
 
         # --- Source ID: use URL path as stable identifier ---
         source_id = hashlib.md5(url.encode()).hexdigest()[:16]
