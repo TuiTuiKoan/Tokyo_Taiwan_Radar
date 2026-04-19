@@ -13,7 +13,7 @@ interface Props {
     from?: string;
     to?: string;
     paid?: string;
-    status?: string;
+    timeMode?: string;
   };
 }
 
@@ -31,10 +31,10 @@ export default function FilterBar({ locale, currentFilters }: Props) {
   const [draft, setDraft] = useState({
     q: currentFilters.q ?? "",
     category: currentFilters.category ?? "",
-    from: currentFilters.from ?? todayStr(),
+    from: currentFilters.from ?? "",
     to: currentFilters.to ?? "",
     paid: currentFilters.paid ?? "",
-    status: currentFilters.status ?? "",
+    timeMode: currentFilters.timeMode ?? "active",
   });
 
   const set = (key: string, value: string) =>
@@ -49,14 +49,13 @@ export default function FilterBar({ locale, currentFilters }: Props) {
   }, [draft, pathname, router]);
 
   const clearAll = useCallback(() => {
-    const reset = { q: "", category: "", from: todayStr(), to: "", paid: "", status: "" };
+    const reset = { q: "", category: "", from: "", to: "", paid: "", timeMode: "active" };
     setDraft(reset);
     router.push(pathname);
   }, [pathname, router]);
 
   const hasFilters = Object.entries(draft).some(([k, v]) => {
-    if (k === "from") return v !== todayStr();
-    if (k === "to") return Boolean(v);
+    if (k === "timeMode") return v !== "active";
     return Boolean(v);
   });
 
@@ -93,52 +92,6 @@ export default function FilterBar({ locale, currentFilters }: Props) {
           </select>
         </div>
 
-        {/* Date from */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("dateFrom")}</label>
-          <div className="flex gap-1">
-            <input
-              type="date"
-              value={draft.from}
-              onChange={(e) => set("from", e.target.value)}
-              className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            />
-            <button
-              onClick={() => set("from", "")}
-              className={`h-12 px-2 text-xs rounded-lg border transition ${
-                draft.from === ""
-                  ? "bg-green-600 text-white border-green-600"
-                  : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              ALL
-            </button>
-          </div>
-        </div>
-
-        {/* Date to */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("dateTo")}</label>
-          <div className="flex gap-1">
-            <input
-              type="date"
-              value={draft.to}
-              onChange={(e) => set("to", e.target.value)}
-              className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            />
-            <button
-              onClick={() => set("to", "")}
-              className={`h-12 px-2 text-xs rounded-lg border transition ${
-                draft.to === ""
-                  ? "bg-green-600 text-white border-green-600"
-                  : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              ALL
-            </button>
-          </div>
-        </div>
-
         {/* Paid filter */}
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-medium">{t("paid")}</label>
@@ -153,19 +106,47 @@ export default function FilterBar({ locale, currentFilters }: Props) {
           </select>
         </div>
 
-        {/* Status filter */}
+        {/* Time mode */}
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("status")}</label>
+          <label className="text-xs text-gray-500 font-medium">{t("timeMode")}</label>
           <select
-            value={draft.status}
-            onChange={(e) => set("status", e.target.value)}
+            value={draft.timeMode}
+            onChange={(e) => {
+              set("timeMode", e.target.value);
+              if (e.target.value === "active") {
+                setDraft((prev) => ({ ...prev, timeMode: "active", from: "", to: "" }));
+              }
+            }}
             className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
-            <option value="">{t("allStatus")}</option>
-            <option value="active">{t("activeOnly")}</option>
-            <option value="ended">{t("endedOnly")}</option>
+            <option value="active">{t("timeModeActive")}</option>
+            <option value="past">{t("timeModePast")}</option>
           </select>
         </div>
+
+        {/* Date range (only when searching past) */}
+        {draft.timeMode === "past" && (
+          <>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">{t("dateFrom")}</label>
+              <input
+                type="date"
+                value={draft.from}
+                onChange={(e) => set("from", e.target.value)}
+                className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">{t("dateTo")}</label>
+              <input
+                type="date"
+                value={draft.to}
+                onChange={(e) => set("to", e.target.value)}
+                className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+            </div>
+          </>
+        )}
 
         {/* Apply button */}
         <button

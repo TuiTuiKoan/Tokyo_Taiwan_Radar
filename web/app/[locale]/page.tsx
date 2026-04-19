@@ -13,8 +13,8 @@ interface PageProps {
     category?: string;
     from?: string;
     to?: string;
-    paid?: string;   // "free" | "paid" | ""
-    status?: string; // "active" | "ended" | ""
+    paid?: string;
+    timeMode?: string; // "active" | "past"
   }>;
 }
 
@@ -32,8 +32,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
 
   const supabase = await createClient();
 
-  // Default from-date to today if not explicitly set
-  const fromDate = sp.from === undefined ? todayStr() : sp.from;
+  const timeMode = sp.timeMode ?? "active";
 
   // -- Build query --
   let query = supabase
@@ -55,12 +54,19 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     query = query.contains("category", [sp.category]);
   }
 
-  // Date filters
-  if (fromDate) {
-    query = query.or(`end_date.gte.${fromDate},end_date.is.null`);
-  }
-  if (sp.to) {
-    query = query.lte("start_date", sp.to);
+  // Time mode filter
+  if (timeMode === "active") {
+    // Show only ongoing events: end_date >= today or end_date is null
+    const today = todayStr();
+    query = query.or(`end_date.gte.${today},end_date.is.null`);
+  } else if (timeMode === "past") {
+    // Search past period with optional date range
+    if (sp.from) {
+      query = query.gte("start_date", sp.from);
+    }
+    if (sp.to) {
+      query = query.lte("start_date", sp.to);
+    }
   }
 
   // Paid filter
@@ -68,14 +74,6 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     query = query.eq("is_paid", false);
   } else if (sp.paid === "paid") {
     query = query.eq("is_paid", true);
-  }
-
-  // Status filter — "ended" means end_date is in the past
-  const now = new Date().toISOString();
-  if (sp.status === "active") {
-    query = query.or(`end_date.gte.${now},end_date.is.null`);
-  } else if (sp.status === "ended") {
-    query = query.lt("end_date", now);
   }
 
   const { data: events, error } = await query;
@@ -86,7 +84,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
 
   return (
     <div>
-      <FilterBar locale={locale} currentFilters={{ ...sp, from: fromDate }} />
+      <FilterBar locale={locale} currentFilters={sp} />
 
       {!events || events.length === 0 ? (
         <p className="text-center text-gray-500 mt-16 text-lg">
