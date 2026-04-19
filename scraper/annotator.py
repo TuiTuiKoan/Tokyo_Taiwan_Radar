@@ -28,6 +28,8 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 from openai import OpenAI
 from supabase import create_client, Client
 
+from category_feedback import load_corrections, build_feedback_prompt
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -58,10 +60,11 @@ CRITICAL DATE EXTRACTION RULES:
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
 2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, report
-   - "performing_arts" = music, concerts, live performances, dance, theater, stage shows, opera
-   - "senses" = art, exhibitions, photography, design, workshops, creative experiences
+   - "movie" = film screenings, movie events, documentary showings, film festivals. IMPORTANT: any event with 上映, 映画, film, screening, cinema in its title or description MUST include "movie" as a category, even if it also involves talks or other elements.
+   - "performing_arts" = music, concerts, live performances, dance, theater, stage shows, opera (but NOT film screenings)
+   - "senses" = art, exhibitions, photography, design, workshops, creative experiences (but NOT film screenings or book events)
    - "lifestyle_food" = food, cooking, tea, restaurants, cafes, lifestyle events, daily life culture
-   - "books_media" = books, literature, publishing, authors, readings, media, journalism
+   - "books_media" = books, literature, publishing, authors, readings, book launch events, media, journalism
    - "report" = event reports/recaps (only if the text IS a report about a past event, not an upcoming event)
    - An event can have multiple categories
 3. Translate the event name and a concise summary description into all three languages (ja, zh, en).
@@ -122,8 +125,9 @@ def _get_openai() -> OpenAI:
     return OpenAI(api_key=api_key)
 
 
-def _annotate_one(client: OpenAI, raw_title: str, raw_description: str) -> dict:
+def _annotate_one(client: OpenAI, raw_title: str, raw_description: str, feedback_prompt: str = "") -> dict:
     """Send raw event data to GPT-4o-mini and return structured annotation."""
+    system_content = SYSTEM_PROMPT + feedback_prompt
     user_content = f"Raw Title: {raw_title or '(no title)'}\n\nRaw Description:\n{raw_description or '(no description)'}"
 
     # Truncate very long descriptions to stay within token limits
@@ -133,7 +137,7 @@ def _annotate_one(client: OpenAI, raw_title: str, raw_description: str) -> dict:
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_content},
             {"role": "user", "content": user_content},
         ],
         response_format={"type": "json_object"},
@@ -149,7 +153,7 @@ def _annotate_one(client: OpenAI, raw_title: str, raw_description: str) -> dict:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system_content},
                 {"role": "user", "content": user_content},
             ],
             response_format={"type": "json_object"},
@@ -168,6 +172,12 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
     """Fetch pending events from DB, annotate with AI, and update."""
     sb = _get_supabase()
     ai = _get_openai()
+
+    # Load category feedback from admin corrections
+    corrections = load_corrections(sb)
+    feedback_prompt = build_feedback_prompt(corrections)
+    if corrections:
+        logger.info("Loaded %d category corrections as few-shot examples", len(corrections))
 
     # Fetch events to annotate
     query = sb.table("events").select("*")
@@ -193,7 +203,7 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
         logger.info("[%d/%d] Annotating: %s", i, len(events), raw_title[:60])
 
         try:
-            annotation = _annotate_one(ai, raw_title, raw_desc)
+            annotation = _annotate_one(ai, raw_title, raw_desc, feedback_prompt)
 
             # Validate and sanitize
             categories = _validate_categories(annotation.get("category", []))

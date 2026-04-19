@@ -143,14 +143,39 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     };
 
     if (editingId) {
+      // Check if category was changed — save correction for AI feedback loop
+      const originalEvent = events.find((e) => e.id === editingId);
+      const categoryChanged = originalEvent &&
+        JSON.stringify([...(originalEvent.category || [])].sort()) !==
+        JSON.stringify([...(form.category || [])].sort());
+
       const { data, error } = await supabase
         .from("events")
         .update(payload)
         .eq("id", editingId)
         .select()
         .single();
-      if (!error && data) {
+      if (error) {
+        console.error("Update failed:", error);
+        alert(`Save failed: ${error.message}`);
+      } else if (data) {
         setEvents((prev) => prev.map((e) => (e.id === editingId ? (data as Event) : e)));
+
+        // Save category correction for AI learning (fire-and-forget)
+        if (categoryChanged && originalEvent) {
+          supabase
+            .from("category_corrections")
+            .upsert({
+              event_id: editingId,
+              raw_title: originalEvent.raw_title,
+              raw_description: (originalEvent.raw_description || "").slice(0, 500),
+              ai_category: originalEvent.category || [],
+              corrected_category: form.category,
+            }, { onConflict: "event_id" })
+            .then(({ error: corrErr }) => {
+              if (corrErr) console.warn("Category correction save failed:", corrErr.message);
+            });
+        }
       }
     } else {
       const { data, error } = await supabase
@@ -158,7 +183,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         .insert({ ...payload, source_id: `manual-${Date.now()}` })
         .select()
         .single();
-      if (!error && data) {
+      if (error) {
+        console.error("Insert failed:", error);
+        alert(`Save failed: ${error.message}`);
+      } else if (data) {
         setEvents((prev) => [data as Event, ...prev]);
       }
     }
