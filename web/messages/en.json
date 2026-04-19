@@ -57,6 +57,7 @@
     "rawData": "Raw Data",
     "rawTitle": "Original Title",
     "rawDescription": "Original Content",
+    "selectionReason": "Why this event was selected",
     "annotationStatus": "Processing Status",
     "statusPending": "Pending",
     "statusAnnotated": "Processed",

@@ -242,10 +242,11 @@ export default async function EventDetailPage({ params }: PageProps) {
       )}
 
       {/* ===== Raw Data (Layer 1) ===== */}
-      {(event.raw_title || event.raw_description) && (
+      {(event.raw_title || event.raw_description || event.selection_reason) && (
         <RawDataSection
           rawTitle={event.raw_title}
           rawDescription={event.raw_description}
+          selectionReason={event.selection_reason}
         />
       )}
     </article>

@@ -57,6 +57,7 @@
     "rawData": "原始資料",
     "rawTitle": "原始標題",
     "rawDescription": "原始內容",
+    "selectionReason": "為何收錄此活動",
     "annotationStatus": "處理狀態",
     "statusPending": "待處理",
     "statusAnnotated": "已整理",

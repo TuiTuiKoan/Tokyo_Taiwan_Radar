@@ -57,6 +57,7 @@
     "rawData": "元データ",
     "rawTitle": "元のタイトル",
     "rawDescription": "元の内容",
+    "selectionReason": "このイベントが選ばれた理由",
     "annotationStatus": "処理状況",
     "statusPending": "処理待ち",
     "statusAnnotated": "処理済み",

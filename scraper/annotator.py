@@ -82,6 +82,7 @@ Respond with valid JSON matching this schema:
   "business_hours": "opening hours" or null,
   "is_paid": false or true or null,
   "price_info": "price details" or null,
+  "selection_reason": "1-2 sentence explanation in Japanese of why this event is related to Taiwan and was selected for inclusion",
   "sub_events": [
     {
       "name_ja": "sub-event name in Japanese",
@@ -216,6 +217,11 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
             # Ensure end_date is not null when start_date exists
             if update_data["start_date"] and not update_data["end_date"]:
                 update_data["end_date"] = update_data["start_date"]
+
+            # Try to include selection_reason (column may not exist yet)
+            selection_reason = annotation.get("selection_reason")
+            if selection_reason:
+                update_data["selection_reason"] = selection_reason
 
             sb.table("events").update(update_data).eq("id", eid).execute()
             logger.info("  ✓ annotated (categories: %s)", categories)
