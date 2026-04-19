@@ -110,18 +110,22 @@ export default async function EventDetailPage({ params }: PageProps) {
                 </td>
               </tr>
             )}
-            {/* Dates */}
+            {/* Start date */}
             <tr>
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("startDate")}</td>
               <td className="px-4 py-3">
                 {event.start_date
                   ? new Date(event.start_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })
                   : "—"}
-                {event.end_date && event.end_date !== event.start_date && (
-                  <span className="text-gray-400">
-                    {" "}– {new Date(event.end_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}
-                  </span>
-                )}
+              </td>
+            </tr>
+            {/* End date */}
+            <tr>
+              <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("endDate")}</td>
+              <td className="px-4 py-3">
+                {event.end_date
+                  ? new Date(event.end_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })
+                  : "—"}
                 {ended && (
                   <span className="ml-2 text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
                     {t("ended")}
@@ -130,26 +134,20 @@ export default async function EventDetailPage({ params }: PageProps) {
               </td>
             </tr>
             {/* Location */}
-            {event.location_name && (
-              <tr>
-                <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("location")}</td>
-                <td className="px-4 py-3">{event.location_name}</td>
-              </tr>
-            )}
+            <tr>
+              <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("location")}</td>
+              <td className="px-4 py-3">{event.location_name || "—"}</td>
+            </tr>
             {/* Address */}
-            {event.location_address && (
-              <tr>
-                <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("address")}</td>
-                <td className="px-4 py-3">{event.location_address}</td>
-              </tr>
-            )}
+            <tr>
+              <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("address")}</td>
+              <td className="px-4 py-3">{event.location_address || "—"}</td>
+            </tr>
             {/* Business hours */}
-            {event.business_hours && (
-              <tr>
-                <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("hours")}</td>
-                <td className="px-4 py-3">{event.business_hours}</td>
-              </tr>
-            )}
+            <tr>
+              <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("hours")}</td>
+              <td className="px-4 py-3">{event.business_hours || "—"}</td>
+            </tr>
             {/* Price */}
             <tr>
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("paid")}</td>
@@ -167,10 +165,10 @@ export default async function EventDetailPage({ params }: PageProps) {
               </td>
             </tr>
             {/* Source link */}
-            {event.source_url && (
-              <tr>
-                <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("source")}</td>
-                <td className="px-4 py-3">
+            <tr>
+              <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("source")}</td>
+              <td className="px-4 py-3">
+                {event.source_url ? (
                   <a
                     href={event.source_url}
                     target="_blank"
@@ -179,9 +177,11 @@ export default async function EventDetailPage({ params }: PageProps) {
                   >
                     {t("viewOriginal")} ↗
                   </a>
-                </td>
-              </tr>
-            )}
+                ) : (
+                  "—"
+                )}
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
