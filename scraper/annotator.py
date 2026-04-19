@@ -45,18 +45,26 @@ SYSTEM_PROMPT = """You are an expert event data analyst specializing in Taiwan-r
 
 Given the raw title and description of an event (usually in Japanese), extract structured data and translate into three languages.
 
-IMPORTANT RULES:
-1. end_date MUST NOT be null. If only one date is found, use it as BOTH start_date AND end_date. If no date is found at all, leave both as null.
-2. Extract ALL dates mentioned in the text body, not just the header.
-3. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
-4. Categories must be from this list: movie, music, senses, retail, nature, tech, tourism, culture, gender, geopolitics, report
+CRITICAL DATE EXTRACTION RULES:
+1. You MUST extract dates from ALL parts of the text: title, body, headers, and footers.
+2. Look for date patterns like: 2025年10月8日, 10/8, 10月8日, 2025-10-08, etc.
+3. If the event spans multiple days (e.g., "10/8 and 10/10"), start_date = first date, end_date = last date.
+4. If only one date is mentioned, use it as BOTH start_date AND end_date.
+5. end_date MUST NOT be null if any date can be found anywhere in the text. Try harder to find dates.
+6. If the title contains a date like "（10/8・10/10）", extract those dates even if the body is vague.
+7. When the year is not explicitly stated, infer it from context. If unclear, assume the nearest future occurrence.
+8. For ongoing exhibitions/screenings with a date range (e.g., "4月5日〜6月30日"), use the full range.
+
+OTHER RULES:
+1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
+2. Categories must be from this list: movie, music, senses, retail, nature, tech, tourism, culture, gender, geopolitics, report
    - "senses" = art, exhibitions, literature, books, photography, design, workshops, creative experiences
    - "report" = event reports/recaps (only if the text IS a report about a past event, not an upcoming event)
    - An event can have multiple categories
-5. Translate the event name and a concise summary description into all three languages (ja, zh, en).
-6. The description should be a clean, concise summary (2-4 sentences), NOT a copy of the raw text.
-7. Extract location, address, business hours, and pricing from the text if available.
-8. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
+3. Translate the event name and a concise summary description into all three languages (ja, zh, en).
+4. The description should be a clean, concise summary (2-4 sentences), NOT a copy of the raw text.
+5. Extract location, address, business hours, and pricing from the text if available.
+6. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
 
 Respond with valid JSON matching this schema:
 {
