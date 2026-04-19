@@ -51,7 +51,8 @@ export type Category =
   | "tourism"
   | "culture"
   | "gender"
-  | "geopolitics";
+  | "geopolitics"
+  | "report";
 
 export const CATEGORIES: Category[] = [
   "movie",
@@ -64,6 +65,7 @@ export const CATEGORIES: Category[] = [
   "culture",
   "gender",
   "geopolitics",
+  "report",
 ];
 
 export const LOCALES: Locale[] = ["zh", "en", "ja"];

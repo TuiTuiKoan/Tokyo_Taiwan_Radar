@@ -35,7 +35,8 @@
     "tourism": "Tourism",
     "culture": "Culture",
     "gender": "Gender Issues",
-    "geopolitics": "International Relations"
+    "geopolitics": "International Relations",
+    "report": "Report"
   },
   "event": {
     "source": "Source",

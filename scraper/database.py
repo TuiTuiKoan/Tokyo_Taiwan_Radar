@@ -58,7 +58,50 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         "is_paid": event.is_paid,
         "price_info": event.price_info,
         "is_active": event.is_active,
+        "parent_event_id": event.parent_event_id,
     }
+
+
+def find_parent_event_id(name_ja: str | None, source_name: str) -> str | None:
+    """
+    Try to find a parent event in the database by fuzzy-matching the name.
+    For a report like '映画「X」トークイベント レポート', we strip the
+    report-related suffixes and search for events whose name contains the
+    remaining title fragment.
+    """
+    import re
+    if not name_ja:
+        return None
+
+    # Strip report-related suffixes to get the core event name
+    stripped = re.sub(
+        r'[\s\u3000]*(トークイベント|イベント)?\s*(レポート|レビュー|報告|まとめ|振り返り|記録|紀錄|recap|report|review).*$',
+        '', name_ja, flags=re.IGNORECASE
+    ).strip()
+
+    if not stripped or len(stripped) < 4:
+        return None
+
+    client = _get_client()
+    try:
+        # Search for events with a similar name that are NOT reports themselves
+        result = (
+            client.table("events")
+            .select("id,category")
+            .ilike("name_ja", f"%{stripped}%")
+            .eq("source_name", source_name)
+            .limit(5)
+            .execute()
+        )
+        for row in result.data:
+            # Skip other reports
+            if "report" in (row.get("category") or []):
+                continue
+            return row["id"]
+    except Exception as exc:
+        logger.warning("Parent lookup failed for '%s': %s", stripped, exc)
+
+    return None
 
 
 def upsert_events(events: list[Event]) -> None:

@@ -34,6 +34,7 @@ class Event:
     is_paid: Optional[bool] = None
     price_info: Optional[str] = None
     is_active: bool = True
+    parent_event_id: Optional[str] = None
 
 
 class BaseScraper(ABC):

@@ -26,7 +26,7 @@ from sources.taiwan_cultural_center import TaiwanCulturalCenterScraper
 from sources.peatix import PeatixScraper
 from translator import fill_translations
 from classifier import classify
-from database import upsert_events
+from database import upsert_events, find_parent_event_id
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -78,9 +78,31 @@ def run() -> None:
             event.description_ja, event.description_zh, event.description_en,
         )
 
-    # Save to database
-    logger.info("Upserting to Supabase...")
+    # Save to database (first pass — so parent events exist for linking)
+    logger.info("Upserting to Supabase (pass 1)...")
     upsert_events(all_events)
+
+    # Link report-type events to their parent events
+    logger.info("Linking report events to parents...")
+    reports_to_update = []
+    for event in all_events:
+        if "report" in event.category:
+            parent_id = find_parent_event_id(event.name_ja, event.source_name)
+            if parent_id:
+                event.parent_event_id = parent_id
+                # Set end_date to start_date to mark as ended
+                if event.start_date:
+                    event.end_date = event.start_date
+                reports_to_update.append(event)
+                logger.info(
+                    "Linked report '%s' → parent %s",
+                    event.source_id, parent_id
+                )
+
+    if reports_to_update:
+        logger.info("Upserting %d linked reports (pass 2)...", len(reports_to_update))
+        upsert_events(reports_to_update)
+
     logger.info("Done!")
 
 
