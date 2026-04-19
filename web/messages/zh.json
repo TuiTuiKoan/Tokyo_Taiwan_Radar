@@ -48,7 +48,12 @@
     "save": "收藏",
     "unsave": "取消收藏",
     "viewOriginal": "查看原始連結",
-    "ended": "已結束"
+    "ended": "已結束",
+    "subEvents": "附屬活動",
+    "parentEvent": "主要活動",
+    "viewParent": "返回主要活動",
+    "address": "地址",
+    "description": "活動說明"
   },
   "auth": {
     "loginTitle": "登入",

@@ -48,7 +48,12 @@
     "save": "Save",
     "unsave": "Unsave",
     "viewOriginal": "View original",
-    "ended": "Ended"
+    "ended": "Ended",
+    "subEvents": "Related Events",
+    "parentEvent": "Main Event",
+    "viewParent": "Back to main event",
+    "address": "Address",
+    "description": "Description"
   },
   "auth": {
     "loginTitle": "Login",

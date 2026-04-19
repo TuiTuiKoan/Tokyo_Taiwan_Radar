@@ -27,6 +27,7 @@ export interface Event {
   is_paid: boolean | null;
   price_info: string | null;
   is_active: boolean;
+  parent_event_id: string | null;
   created_at: string;
   updated_at: string;
 }

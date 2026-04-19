@@ -48,7 +48,12 @@
     "save": "保存",
     "unsave": "保存解除",
     "viewOriginal": "元のページを見る",
-    "ended": "終了"
+    "ended": "終了",
+    "subEvents": "関連イベント",
+    "parentEvent": "メインイベント",
+    "viewParent": "メインイベントに戻る",
+    "address": "住所",
+    "description": "説明"
   },
   "auth": {
     "loginTitle": "ログイン",
