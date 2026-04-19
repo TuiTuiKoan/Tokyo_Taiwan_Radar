@@ -32,8 +32,8 @@ export default async function HomePage({ params, searchParams }: PageProps) {
 
   const supabase = await createClient();
 
-  // Default from-date to today if not set
-  const fromDate = sp.from ?? todayStr();
+  // Default from-date to today if not explicitly set
+  const fromDate = sp.from === undefined ? todayStr() : sp.from;
 
   // -- Build query --
   let query = supabase
@@ -55,13 +55,10 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     query = query.contains("category", [sp.category]);
   }
 
-  // Date filters — show events that are NOT ended yet:
-  // 1. end_date >= today (event hasn't ended)
-  // 2. end_date is null AND start_date >= today (no end_date, starts today or later)
-  // 3. end_date is null AND start_date is null (unknown dates, show by default)
-  // 4. end_date is null AND start_date < today (already started, unknown end — show it)
-  // Simplified: show if end_date >= today, OR end_date is null
-  query = query.or(`end_date.gte.${fromDate},end_date.is.null`);
+  // Date filters
+  if (fromDate) {
+    query = query.or(`end_date.gte.${fromDate},end_date.is.null`);
+  }
   if (sp.to) {
     query = query.lte("start_date", sp.to);
   }

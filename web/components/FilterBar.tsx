@@ -54,9 +54,11 @@ export default function FilterBar({ locale, currentFilters }: Props) {
     router.push(pathname);
   }, [pathname, router]);
 
-  const hasFilters = Object.entries(draft).some(([k, v]) =>
-    k === "from" ? v !== todayStr() : Boolean(v)
-  );
+  const hasFilters = Object.entries(draft).some(([k, v]) => {
+    if (k === "from") return v !== todayStr();
+    if (k === "to") return Boolean(v);
+    return Boolean(v);
+  });
 
   return (
     <div className="bg-gray-50 rounded-xl p-4 mb-2">
@@ -94,23 +96,47 @@ export default function FilterBar({ locale, currentFilters }: Props) {
         {/* Date from */}
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-medium">{t("dateFrom")}</label>
-          <input
-            type="date"
-            value={draft.from}
-            onChange={(e) => set("from", e.target.value)}
-            className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
+          <div className="flex gap-1">
+            <input
+              type="date"
+              value={draft.from}
+              onChange={(e) => set("from", e.target.value)}
+              className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+            <button
+              onClick={() => set("from", "")}
+              className={`h-12 px-2 text-xs rounded-lg border transition ${
+                draft.from === ""
+                  ? "bg-green-600 text-white border-green-600"
+                  : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              ALL
+            </button>
+          </div>
         </div>
 
         {/* Date to */}
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-medium">{t("dateTo")}</label>
-          <input
-            type="date"
-            value={draft.to}
-            onChange={(e) => set("to", e.target.value)}
-            className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
+          <div className="flex gap-1">
+            <input
+              type="date"
+              value={draft.to}
+              onChange={(e) => set("to", e.target.value)}
+              className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+            <button
+              onClick={() => set("to", "")}
+              className={`h-12 px-2 text-xs rounded-lg border transition ${
+                draft.to === ""
+                  ? "bg-green-600 text-white border-green-600"
+                  : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              ALL
+            </button>
+          </div>
         </div>
 
         {/* Paid filter */}
