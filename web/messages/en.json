@@ -90,7 +90,9 @@
     "descEn": "Description (English)",
     "nameJa": "Name (Japanese)",
     "nameZh": "Name (Chinese)",
-    "nameEn": "Name (English)"
+    "nameEn": "Name (English)",
+    "parentEvent": "Parent event",
+    "noParent": "(None — standalone event)"
   },
   "saved": {
     "title": "Saved Events",

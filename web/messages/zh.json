@@ -90,7 +90,9 @@
     "descEn": "說明（英文）",
     "nameJa": "名稱（日文）",
     "nameZh": "名稱（中文）",
-    "nameEn": "名稱（英文）"
+    "nameEn": "名稱（英文）",
+    "parentEvent": "所屬主活動",
+    "noParent": "（無，此為獨立活動）"
   },
   "saved": {
     "title": "我的收藏",

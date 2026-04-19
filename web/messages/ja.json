@@ -90,7 +90,9 @@
     "descEn": "説明（英語）",
     "nameJa": "名前（日本語）",
     "nameZh": "名前（中国語）",
-    "nameEn": "名前（英語）"
+    "nameEn": "名前（英語）",
+    "parentEvent": "親イベント",
+    "noParent": "（なし — 独立イベント）"
   },
   "saved": {
     "title": "お気に入り",

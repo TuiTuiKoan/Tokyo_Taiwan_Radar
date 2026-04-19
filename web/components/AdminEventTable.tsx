@@ -30,6 +30,7 @@ const EMPTY_FORM = {
   source_name: "manual",
   original_language: "zh",
   is_active: true,
+  parent_event_id: "" as string,
 };
 
 export default function AdminEventTable({ events: initialEvents, locale }: Props) {
@@ -65,6 +66,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       source_name: event.source_name,
       original_language: event.original_language,
       is_active: event.is_active,
+      parent_event_id: event.parent_event_id ?? "",
     });
     setShowNew(false);
   }
@@ -99,6 +101,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       ...form,
       start_date: form.start_date || null,
       end_date: form.end_date || null,
+      parent_event_id: form.parent_event_id || null,
       source_id: editingId ? undefined : `manual-${Date.now()}`,
     };
 
@@ -160,6 +163,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             tCat={tCat}
             updateField={updateField}
             toggleCategory={toggleCategory}
+            events={events}
+            editingId={editingId}
+            locale={locale}
           />
           <div className="flex gap-3 mt-4">
             <button
@@ -259,13 +265,21 @@ function EventForm({
   tCat,
   updateField,
   toggleCategory,
+  events,
+  editingId,
+  locale,
 }: {
   form: typeof EMPTY_FORM;
   t: any;
   tCat: any;
   updateField: (k: string, v: any) => void;
   toggleCategory: (cat: string) => void;
+  events: Event[];
+  editingId: string | null;
+  locale: Locale;
 }) {
+  // Exclude self from parent candidates
+  const parentCandidates = events.filter((e) => e.id !== editingId);
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Multilingual names */}
@@ -399,6 +413,23 @@ function EventForm({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Parent event */}
+      <div className="md:col-span-2">
+        <label className="block text-xs text-gray-500 mb-1">{t("parentEvent")}</label>
+        <select
+          value={form.parent_event_id}
+          onChange={(e) => updateField("parent_event_id", e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+        >
+          <option value="">{t("noParent")}</option>
+          {parentCandidates.map((e) => (
+            <option key={e.id} value={e.id}>
+              {getEventName(e, locale)} ({e.start_date?.slice(0, 10) ?? "—"})
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Multilingual descriptions */}
