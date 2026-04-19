@@ -26,13 +26,14 @@
   },
   "categories": {
     "movie": "電影",
-    "music": "音樂",
+    "performing_arts": "表演藝術",
     "senses": "台灣五感",
     "retail": "品牌消費",
     "nature": "自然",
     "tech": "科技",
     "tourism": "旅遊",
-    "culture": "文化",
+    "lifestyle_food": "生活風格・飲食",
+    "books_media": "書・媒體",
     "gender": "性別議題",
     "geopolitics": "國際關係",
     "report": "紀錄報導"

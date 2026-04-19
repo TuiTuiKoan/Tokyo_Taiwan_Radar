@@ -48,26 +48,28 @@ export type Locale = "zh" | "en" | "ja";
 
 export type Category =
   | "movie"
-  | "music"
+  | "performing_arts"
   | "senses"
   | "retail"
   | "nature"
   | "tech"
   | "tourism"
-  | "culture"
+  | "lifestyle_food"
+  | "books_media"
   | "gender"
   | "geopolitics"
   | "report";
 
 export const CATEGORIES: Category[] = [
   "movie",
-  "music",
+  "performing_arts",
   "senses",
   "retail",
   "nature",
   "tech",
   "tourism",
-  "culture",
+  "lifestyle_food",
+  "books_media",
   "gender",
   "geopolitics",
   "report",

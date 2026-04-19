@@ -82,6 +82,23 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     console.error("Error fetching events:", error);
   }
 
+  // Build parent event name map for child events
+  const parentIds = [...new Set(
+    (events ?? []).map((e: Event) => e.parent_event_id).filter(Boolean)
+  )] as string[];
+  let parentMap: Record<string, Event> = {};
+  if (parentIds.length > 0) {
+    const { data: parents } = await supabase
+      .from("events")
+      .select("*")
+      .in("id", parentIds);
+    if (parents) {
+      for (const p of parents) {
+        parentMap[p.id] = p as Event;
+      }
+    }
+  }
+
   return (
     <div>
       <FilterBar locale={locale} currentFilters={sp} />
@@ -139,6 +156,11 @@ export default async function HomePage({ params, searchParams }: PageProps) {
                     ))}
                   </div>
                   <p className="text-sm font-medium text-gray-900 group-hover:text-green-700 line-clamp-2 leading-snug">
+                    {event.parent_event_id && parentMap[event.parent_event_id] && (
+                      <span className="block text-xs text-green-600 font-normal mb-0.5 truncate">
+                        ↳ {getEventName(parentMap[event.parent_event_id], locale)}
+                      </span>
+                    )}
                     {name}
                   </p>
                   {event.location_name && (

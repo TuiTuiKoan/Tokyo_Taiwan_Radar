@@ -26,13 +26,14 @@
   },
   "categories": {
     "movie": "映画",
-    "music": "音楽",
+    "performing_arts": "パフォーミングアーツ",
     "senses": "台湾の感性",
     "retail": "ブランド・ショッピング",
     "nature": "自然",
     "tech": "テクノロジー",
     "tourism": "観光",
-    "culture": "文化",
+    "lifestyle_food": "ライフスタイル・グルメ",
+    "books_media": "書籍・メディア",
     "gender": "ジェンダー",
     "geopolitics": "国際関係",
     "report": "レポート"

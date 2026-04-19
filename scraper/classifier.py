@@ -3,7 +3,7 @@ Keyword-based semantic categoriser for Taiwan events.
 
 Each event can receive multiple category tags. Categories match the
 frontend CATEGORIES type in web/lib/types.ts:
-  movie | music | senses | retail | nature | tech | tourism | culture | gender | geopolitics
+  movie | performing_arts | senses | retail | nature | tech | tourism | lifestyle_food | books_media | gender | geopolitics
 """
 
 from typing import Optional
@@ -20,27 +20,37 @@ _RULES: list[tuple[str, list[str]]] = [
         "映画", "film", "cinema", "上映", "スクリーニング", "screening",
         "ドキュメンタリー", "documentary", "電影", "影展", "影片",
     ]),
-    ("music", [
+    ("performing_arts", [
         "音楽", "music", "concert", "コンサート", "live", "ライブ", "演奏",
         "jazz", "ジャズ", "歌", "sing", "band", "バンド", "音樂", "演唱",
-        "公演", "performance",
+        "公演", "performance", "舞踊", "dance", "ダンス", "バレエ", "ballet",
+        "演劇", "theater", "theatre", "舞台", "stage", "オペラ", "opera",
+        "舞蹈", "表演", "劇場",
     ]),
     ("senses", [
-        "文学", "literature", "本", "book", "書籍", "読書", "朗読",
-        "作家", "author", "writer", "creator", "クリエイター", "創作",
         "展覧", "exhibition", "展示", "アート", "art", "絵", "painting",
         "写真", "photo", "gallery", "ギャラリー", "デザイン", "design",
         "漫画", "manga", "イラスト", "illustration",
         "文化体験", "workshop", "ワークショップ",
-        "書", "文學", "書籍", "繪本", "展覽",
+        "展覽",
+    ]),
+    ("lifestyle_food", [
+        "グルメ", "gourmet", "食", "food", "料理", "cuisine", "レストラン",
+        "restaurant", "カフェ", "cafe", "茶", "tea", "酒", "sake", "beer",
+        "ビール", "wine", "ワイン", "スイーツ", "sweets", "お菓子",
+        "飲食", "餐廳", "肉まん", "点心", "給食", "ごはん",
+        "ライフスタイル", "lifestyle", "生活",
+    ]),
+    ("books_media", [
+        "文学", "literature", "本", "book", "書籍", "読書", "朗読",
+        "作家", "author", "writer", "出版", "publishing", "刊行",
+        "書", "文學", "繪本", "メディア", "media", "ジャーナリズム",
+        "journalism", "雑誌", "magazine", "媒體",
     ]),
     ("retail", [
         "shop", "ショップ", "店", "brand", "ブランド", "マルシェ",
         "marché", "market", "マーケット", "物産", "フェア", "fair",
-        "グルメ", "gourmet", "食", "food", "料理", "cuisine", "レストラン",
-        "restaurant", "カフェ", "cafe", "茶", "tea", "酒", "sake", "beer",
-        "ビール", "wine", "ワイン", "スイーツ", "sweets", "お菓子",
-        "飲食", "餐廳", "品牌",
+        "品牌",
     ]),
     ("nature", [
         "自然", "nature", "outdoor", "アウトドア", "hiking", "ハイキング",
@@ -65,12 +75,6 @@ _RULES: list[tuple[str, list[str]]] = [
         "国際", "international", "両岸", "cross-strait", "台海",
         "安全保障", "security", "民主", "democracy", "人権", "human rights",
         "選挙", "election", "独立", "independence",
-    ]),
-    ("culture", [
-        # Broad fallback — matched last
-        "台湾文化", "文化", "culture", "伝統", "tradition", "習慣", "custom",
-        "祭", "festival", "祭り", "フェスティバル", "taiwan",
-        "台湾", "台灣", "臺灣",
     ]),
 ]
 
@@ -110,6 +114,6 @@ def classify(
 
     # Always have at least one tag
     if not found:
-        found = ["culture"]
+        found = ["senses"]
 
     return found

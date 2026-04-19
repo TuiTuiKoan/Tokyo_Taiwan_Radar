@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 # Valid categories (must match web/lib/types.ts)
 # ---------------------------------------------------------------------------
 VALID_CATEGORIES = [
-    "movie", "music", "senses", "retail", "nature",
-    "tech", "tourism", "culture", "gender", "geopolitics", "report",
+    "movie", "performing_arts", "senses", "retail", "nature",
+    "tech", "tourism", "lifestyle_food", "books_media", "gender", "geopolitics", "report",
 ]
 
 # ---------------------------------------------------------------------------
@@ -57,8 +57,11 @@ CRITICAL DATE EXTRACTION RULES:
 
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
-2. Categories must be from this list: movie, music, senses, retail, nature, tech, tourism, culture, gender, geopolitics, report
-   - "senses" = art, exhibitions, literature, books, photography, design, workshops, creative experiences
+2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, report
+   - "performing_arts" = music, concerts, live performances, dance, theater, stage shows, opera
+   - "senses" = art, exhibitions, photography, design, workshops, creative experiences
+   - "lifestyle_food" = food, cooking, tea, restaurants, cafes, lifestyle events, daily life culture
+   - "books_media" = books, literature, publishing, authors, readings, media, journalism
    - "report" = event reports/recaps (only if the text IS a report about a past event, not an upcoming event)
    - An event can have multiple categories
 3. Translate the event name and a concise summary description into all three languages (ja, zh, en).
@@ -74,7 +77,7 @@ Respond with valid JSON matching this schema:
   "description_ja": "Japanese summary (2-4 sentences)",
   "description_zh": "Traditional Chinese summary (2-4 sentences)",
   "description_en": "English summary (2-4 sentences)",
-  "category": ["culture"],
+  "category": ["senses"],
   "start_date": "2026-01-15T00:00:00" or null,
   "end_date": "2026-01-15T00:00:00" or null,
   "location_name": "venue name" or null,
@@ -158,7 +161,7 @@ def _annotate_one(client: OpenAI, raw_title: str, raw_description: str) -> dict:
 
 def _validate_categories(cats: list) -> list[str]:
     """Filter to only valid category strings."""
-    return [c for c in cats if isinstance(c, str) and c in VALID_CATEGORIES] or ["culture"]
+    return [c for c in cats if isinstance(c, str) and c in VALID_CATEGORIES] or ["senses"]
 
 
 def annotate_pending_events(re_annotate_all: bool = False) -> None:

@@ -45,6 +45,42 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"annotated" | "raw">("annotated");
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function toggleSort(key: string) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  function getSorted(list: Event[]) {
+    if (!sortKey) return list;
+    return [...list].sort((a, b) => {
+      let va: any, vb: any;
+      if (sortKey === "name") {
+        va = getEventName(a, locale);
+        vb = getEventName(b, locale);
+      } else if (sortKey === "raw_title") {
+        va = a.raw_title || getEventName(a, locale);
+        vb = b.raw_title || getEventName(b, locale);
+      } else {
+        va = (a as any)[sortKey];
+        vb = (b as any)[sortKey];
+      }
+      if (va == null) va = "";
+      if (vb == null) vb = "";
+      if (typeof va === "boolean") { va = va ? 1 : 0; vb = vb ? 1 : 0; }
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }
+
+  const sortArrow = (key: string) =>
+    sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
 
   function startEdit(event: Event) {
     setEditingId(event.id);
@@ -223,28 +259,28 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           <thead>
             {viewMode === "annotated" ? (
               <tr className="border-b text-left text-gray-500">
-                <th className="py-2 pr-4 font-medium">{t("name")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("name")}>{t("name")}{sortArrow("name")}</th>
                 <th className="py-2 pr-4 font-medium">{t("category")}</th>
-                <th className="py-2 pr-4 font-medium">{t("startDate")}</th>
-                <th className="py-2 pr-4 font-medium">{t("endDate")}</th>
-                <th className="py-2 pr-4 font-medium">{t("sourceName")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
                 <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
-                <th className="py-2 pr-4 font-medium">{t("isPaid")}</th>
-                <th className="py-2 pr-4 font-medium">{t("isActive")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_paid")}>{t("isPaid")}{sortArrow("is_paid")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_active")}>{t("isActive")}{sortArrow("is_active")}</th>
                 <th className="py-2" />
               </tr>
             ) : (
               <tr className="border-b text-left text-gray-500">
-                <th className="py-2 pr-4 font-medium">{t("name")}</th>
-                <th className="py-2 pr-4 font-medium">{t("sourceName")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("raw_title")}>{t("name")}{sortArrow("raw_title")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
                 <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
-                <th className="py-2 pr-4 font-medium">{t("annotationStatus")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatus")}{sortArrow("annotation_status")}</th>
                 <th className="py-2" />
               </tr>
             )}
           </thead>
           <tbody>
-            {events.map((event) => (
+            {getSorted(events).map((event) => (
               viewMode === "annotated" ? (
                 <tr key={event.id} className="border-b hover:bg-gray-50 transition">
                   <td className="py-2 pr-4 max-w-xs truncate">

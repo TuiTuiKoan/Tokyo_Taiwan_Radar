@@ -26,13 +26,14 @@
   },
   "categories": {
     "movie": "Film",
-    "music": "Music",
+    "performing_arts": "Performing Arts",
     "senses": "Taiwan Senses",
     "retail": "Brands & Shopping",
     "nature": "Nature",
     "tech": "Technology",
     "tourism": "Tourism",
-    "culture": "Culture",
+    "lifestyle_food": "Lifestyle & Food",
+    "books_media": "Books & Media",
     "gender": "Gender Issues",
     "geopolitics": "International Relations",
     "report": "Report"
