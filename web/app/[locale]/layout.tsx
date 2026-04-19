@@ -31,13 +31,9 @@ export default async function LocaleLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale}>
-      <body>
-        <NextIntlClientProvider messages={messages}>
-          <Navbar locale={locale as Locale} />
-          <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
-        </NextIntlClientProvider>
-      </body>
-    </html>
+    <NextIntlClientProvider messages={messages}>
+      <Navbar locale={locale as Locale} />
+      <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
+    </NextIntlClientProvider>
   );
 }

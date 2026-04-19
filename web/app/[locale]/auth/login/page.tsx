@@ -24,7 +24,8 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${origin}/${locale}`,
+        // Must match the URL added in Supabase → Authentication → URL Configuration
+        redirectTo: `${origin}/auth/callback?next=/${locale}`,
       },
     });
   }
@@ -38,7 +39,8 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${origin}/${locale}`,
+        // Must match the URL added in Supabase → Authentication → URL Configuration
+        emailRedirectTo: `${origin}/auth/callback?next=/${locale}`,
       },
     });
     if (error) {

@@ -1,0 +1,186 @@
+SETUP GUIDE — Tokyo Taiwan Radar
+=================================
+依序完成以下步驟即可上線。每個步驟後面都有「驗證方式」確認成功。
+
+─────────────────────────────────────────
+STEP 1 │ 把程式碼推上 GitHub
+─────────────────────────────────────────
+
+1. 前往 https://github.com/new
+   - Repository name: tokyo-taiwan-radar
+   - 選 Private 或 Public 皆可
+   - 「不要」勾選 Add a README
+   - 點 Create repository
+
+2. 在終端機執行（把 YOUR_USERNAME 換成你的 GitHub 帳號）：
+
+   cd "/Users/flyingship/development/Tokyo Taiwan Radar"
+   git remote add origin https://github.com/YOUR_USERNAME/tokyo-taiwan-radar.git
+   git push -u origin main
+
+✓ 驗證：重新整理 GitHub 頁面，看到 scraper/、web/、supabase/ 等資料夾即成功。
+
+─────────────────────────────────────────
+STEP 2 │ 建立 Supabase 專案
+─────────────────────────────────────────
+
+1. 前往 https://supabase.com → Sign Up（可用 GitHub 帳號）
+2. 點 New Project，填入：
+   - Name: tokyo-taiwan-radar
+   - Database Password: 設定強密碼並記下來
+   - Region: Northeast Asia (Tokyo) ← 選離日本最近的
+3. 等待 ~2 分鐘讓專案建立完成
+
+4. 在 Supabase 左側選單 → SQL Editor → 點 + New query
+   貼上 supabase/migrations/001_initial.sql 的全部內容 → 點 Run
+
+5. 取得 API 金鑰：
+   左側選單 → Settings → API
+   複製：
+   - Project URL（例如 https://abcdef.supabase.co）
+   - anon public key（以 eyJ 開頭，較短那個）
+   - service_role key（以 eyJ 開頭，較長那個，請保密！）
+
+✓ 驗證：Table Editor → 應看到 events、saved_events、user_roles 三張表。
+
+─────────────────────────────────────────
+STEP 3 │ 申請 DeepL API 金鑰
+─────────────────────────────────────────
+
+1. 前往 https://www.deepl.com/pro-api
+2. 點 Sign up for free（免費方案每月 50 萬字元）
+3. 登入後前往 https://www.deepl.com/account/summary
+4. 找到「Authentication Key for DeepL API」，複製金鑰
+
+✓ 驗證：金鑰格式類似 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx
+
+─────────────────────────────────────────
+STEP 4 │ 設定環境變數
+─────────────────────────────────────────
+
+A. 爬蟲用（複製範本並填入）：
+   在終端機執行：
+   cp "/Users/flyingship/development/Tokyo Taiwan Radar/scraper/.env.example" \
+      "/Users/flyingship/development/Tokyo Taiwan Radar/scraper/.env"
+
+   用文字編輯器打開 scraper/.env，填入：
+   SUPABASE_URL=https://你的專案ID.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=eyJ...（service_role key）
+   DEEPL_API_KEY=你的DeepL金鑰
+
+B. 網站用：
+   cp "/Users/flyingship/development/Tokyo Taiwan Radar/web/.env.local.example" \
+      "/Users/flyingship/development/Tokyo Taiwan Radar/web/.env.local"
+
+   填入：
+   NEXT_PUBLIC_SUPABASE_URL=https://你的專案ID.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...（anon public key，不是 service_role）
+   NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
+✓ 驗證爬蟲是否能連線：
+   source venv/bin/activate
+   python -c "from supabase import create_client; import os; from dotenv import load_dotenv; load_dotenv('scraper/.env'); c=create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY']); print('Supabase OK')"
+
+─────────────────────────────────────────
+STEP 5 │ 啟用 Supabase Auth（Google 登入）
+─────────────────────────────────────────
+
+A. 設定 Google OAuth：
+   1. 前往 https://console.cloud.google.com
+   2. 建立新專案（或選已有的）
+   3. APIs & Services → OAuth consent screen → External → Create
+      填入 App name: Tokyo Taiwan Radar，儲存
+   4. APIs & Services → Credentials → + Create Credentials → OAuth client ID
+      - Application type: Web application
+      - Authorized redirect URIs 加入：
+        https://你的專案ID.supabase.co/auth/v1/callback
+   5. 複製 Client ID 和 Client Secret
+
+B. 在 Supabase 設定：
+   Authentication → Providers → Google → Enable
+   貼上 Client ID 和 Client Secret → Save
+
+C. 設定重導向 URL：
+   Authentication → URL Configuration
+   - Site URL: http://localhost:3000（開發時）
+   - Redirect URLs 加入：
+     http://localhost:3000/auth/callback
+     https://你的Vercel網域.vercel.app/auth/callback（部署後再加）
+
+✓ 驗證：執行 npm run dev → 前往 localhost:3000/zh/auth/login → 點 Google 登入
+
+─────────────────────────────────────────
+STEP 6 │ 安裝套件 & 本地測試
+─────────────────────────────────────────
+
+A. 安裝爬蟲套件：
+   bash setup_scraper.sh
+
+B. 測試本地網站：
+   cd web
+   npm run dev
+   打開瀏覽器前往 http://localhost:3000
+
+✓ 驗證：看到「Tokyo Taiwan Radar」首頁，語言切換按鈕正常
+
+─────────────────────────────────────────
+STEP 7 │ 用 GitHub Actions 設定每日爬蟲
+─────────────────────────────────────────
+
+1. 前往 GitHub repo → Settings → Secrets and variables → Actions
+2. 點 New repository secret，依序新增：
+   - Name: SUPABASE_URL       Value: https://你的專案ID.supabase.co
+   - Name: SUPABASE_SERVICE_ROLE_KEY  Value: eyJ...（service_role key）
+   - Name: DEEPL_API_KEY      Value: 你的DeepL金鑰
+
+3. 前往 GitHub repo → Actions → Daily Scraper
+   點 Run workflow → Run workflow（手動測試）
+
+✓ 驗證：等 ~5 分鐘，Supabase Table Editor → events 表應出現資料
+
+─────────────────────────────────────────
+STEP 8 │ 部署到 Vercel
+─────────────────────────────────────────
+
+1. 前往 https://vercel.com → Sign Up with GitHub
+2. 點 Add New → Project → 選 tokyo-taiwan-radar repo
+3. 重要設定：
+   - Root Directory: web  ← 點 Edit，輸入 web
+   - Framework Preset: Next.js（自動偵測）
+4. Environment Variables，新增：
+   - NEXT_PUBLIC_SUPABASE_URL = https://你的專案ID.supabase.co
+   - NEXT_PUBLIC_SUPABASE_ANON_KEY = eyJ...（anon key）
+5. 點 Deploy，等待 ~3 分鐘
+
+6. 部署完成後，複製 Vercel 給的網域（例如 tokyo-taiwan-radar.vercel.app）
+7. 回到 Supabase → Authentication → URL Configuration
+   - Site URL 改為: https://tokyo-taiwan-radar.vercel.app
+   - Redirect URLs 再加: https://tokyo-taiwan-radar.vercel.app/auth/callback
+
+✓ 驗證：打開 https://tokyo-taiwan-radar.vercel.app → 看到首頁
+
+─────────────────────────────────────────
+STEP 9 │ 設定自己為管理員
+─────────────────────────────────────────
+
+1. 先用 Google 登入網站一次（這樣你的帳號才存在於 auth.users 表中）
+2. Supabase → Table Editor → auth.users
+   找到你的帳號，複製 id（uuid 格式）
+3. Table Editor → user_roles → Insert Row：
+   - user_id: 貼上你的 uuid
+   - role: admin
+4. 前往 https://你的網域/zh/admin → 確認可以進入管理後台
+
+─────────────────────────────────────────
+完成！
+─────────────────────────────────────────
+你的平台現在具備：
+✅ 每日自動爬蟲（台灣文化中心 + Peatix）
+✅ DeepL 三語翻譯（中/英/日）
+✅ 活動列表篩選與搜尋
+✅ Google + Email 登入
+✅ 使用者收藏功能
+✅ 管理員後台 CRUD
+
+如需新增更多爬蟲來源，在 scraper/sources/ 新增一個 .py 檔案，
+繼承 BaseScraper 並在 scraper/main.py 的 SCRAPERS 清單加入即可。
