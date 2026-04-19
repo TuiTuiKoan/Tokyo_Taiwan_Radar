@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { getTranslations } from "next-intl/server";
 import { type Locale, type Event, CATEGORIES, getEventName } from "@/lib/types";
-import EventCard from "@/components/EventCard";
 import FilterBar from "@/components/FilterBar";
+import Link from "next/link";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
@@ -16,13 +16,22 @@ interface PageProps {
   }>;
 }
 
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default async function HomePage({ params, searchParams }: PageProps) {
   const { locale } = await params;
   const sp = await searchParams;
   const t = await getTranslations("filters");
   const tGeneral = await getTranslations("general");
+  const tEvent = await getTranslations("event");
+  const tCat = await getTranslations("categories");
 
   const supabase = await createClient();
+
+  // Default from-date to today if not set
+  const fromDate = sp.from ?? todayStr();
 
   // -- Build query --
   let query = supabase
@@ -45,9 +54,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
   }
 
   // Date filters
-  if (sp.from) {
-    query = query.gte("start_date", sp.from);
-  }
+  query = query.gte("start_date", fromDate);
   if (sp.to) {
     query = query.lte("start_date", sp.to);
   }
@@ -75,19 +82,73 @@ export default async function HomePage({ params, searchParams }: PageProps) {
 
   return (
     <div>
-      <FilterBar locale={locale} currentFilters={sp} />
+      <FilterBar locale={locale} currentFilters={{ ...sp, from: fromDate }} />
 
       {!events || events.length === 0 ? (
         <p className="text-center text-gray-500 mt-16 text-lg">
           {tGeneral("noResults")}
         </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-          {events.map((event: Event) => (
-            <EventCard key={event.id} event={event} locale={locale} />
-          ))}
+        <div className="flex flex-col divide-y divide-gray-100 mt-4 border border-gray-100 rounded-xl overflow-hidden bg-white">
+          {events.map((event: Event) => {
+            const name = getEventName(event, locale);
+            const ended = event.end_date && new Date(event.end_date) < new Date();
+            return (
+              <Link
+                key={event.id}
+                href={`/${locale}/events/${event.id}`}
+                className="flex items-start gap-4 px-4 py-3 hover:bg-green-50 transition group"
+              >
+                {/* Date column */}
+                <div className="w-16 flex-shrink-0 text-center pt-0.5">
+                  {event.start_date ? (
+                    <>
+                      <div className="text-xs text-gray-400">
+                        {new Date(event.start_date).toLocaleDateString(locale, { month: "short" })}
+                      </div>
+                      <div className="text-2xl font-bold text-gray-700 leading-none">
+                        {new Date(event.start_date).getDate()}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-gray-300">—</div>
+                  )}
+                </div>
+
+                {/* Main content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    {ended ? (
+                      <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
+                        {tEvent("ended")}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-green-600 font-medium">●</span>
+                    )}
+                    {event.is_paid === false && (
+                      <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                        {tEvent("free")}
+                      </span>
+                    )}
+                    {event.category?.slice(0, 2).map((cat) => (
+                      <span key={cat} className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                        {tCat(cat as any)}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-sm font-medium text-gray-900 group-hover:text-green-700 line-clamp-2 leading-snug">
+                    {name}
+                  </p>
+                  {event.location_name && (
+                    <p className="text-xs text-gray-400 mt-0.5">📍 {event.location_name}</p>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
+

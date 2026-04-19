@@ -22,19 +22,20 @@
     "endedOnly": "已結束",
     "search": "搜尋關鍵字",
     "searchPlaceholder": "搜尋活動名稱或說明...",
-    "reset": "清除篩選"
+    "reset": "清除篩選",
+    "apply": "套用篩選"
   },
   "categories": {
     "movie": "電影",
-    "book": "書籍",
-    "creator": "創作者",
-    "shop": "店家",
-    "brand": "品牌",
+    "music": "音樂",
+    "senses": "台灣五感",
+    "retail": "品牌消費",
     "nature": "自然",
     "tech": "科技",
     "tourism": "旅遊",
     "culture": "文化",
-    "literature": "文學"
+    "gender": "性別議題",
+    "geopolitics": "國際關係"
   },
   "event": {
     "source": "資料來源",

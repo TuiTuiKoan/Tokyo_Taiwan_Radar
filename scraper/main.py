@@ -25,6 +25,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 from sources.taiwan_cultural_center import TaiwanCulturalCenterScraper
 from sources.peatix import PeatixScraper
 from translator import fill_translations
+from classifier import classify
 from database import upsert_events
 
 # ---------------------------------------------------------------------------
@@ -68,6 +69,14 @@ def run() -> None:
             fill_translations(event)
         except Exception as exc:
             logger.error("Translation failed for event %s: %s", event.source_id, exc)
+
+    # Auto-classify events (overwrites scraper-assigned categories)
+    logger.info("Running semantic classifier...")
+    for event in all_events:
+        event.category = classify(
+            event.name_ja, event.name_zh, event.name_en,
+            event.description_ja, event.description_zh, event.description_en,
+        )
 
     # Save to database
     logger.info("Upserting to Supabase...")

@@ -22,19 +22,20 @@
     "endedOnly": "終了",
     "search": "キーワード検索",
     "searchPlaceholder": "イベントを検索...",
-    "reset": "リセット"
+    "reset": "リセット",
+    "apply": "絞り込む"
   },
   "categories": {
     "movie": "映画",
-    "book": "書籍",
-    "creator": "クリエイター",
-    "shop": "ショップ",
-    "brand": "ブランド",
+    "music": "音楽",
+    "senses": "台湾の感性",
+    "retail": "ブランド・ショッピング",
     "nature": "自然",
     "tech": "テクノロジー",
     "tourism": "観光",
     "culture": "文化",
-    "literature": "文学"
+    "gender": "ジェンダー",
+    "geopolitics": "国際関係"
   },
   "event": {
     "source": "出典",

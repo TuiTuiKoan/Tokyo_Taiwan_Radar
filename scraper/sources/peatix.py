@@ -19,10 +19,23 @@ logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://peatix.com/search"
 
-# Keywords that suggest a Taiwan-related event
+# Keywords that suggest a Taiwan-related event in Tokyo
 TAIWAN_KEYWORDS = [
-    "台湾", "Taiwan", "臺灣", "台灣",
-    "台湾料理", "台湾文化", "台湾映画",
+    "台湾",
+    "Taiwan",
+    "臺灣",
+    "台灣",
+    "台湾映画",
+    "台湾料理",
+    "台湾文化",
+    "台湾音楽",
+    "台湾フェス",
+    "台湾祭",
+    "台湾展",
+    "台日",
+    "日台",
+    "台湾語",
+    "台湾夜市",
 ]
 
 # Location filter — Tokyo metropolitan area

@@ -22,19 +22,20 @@
     "endedOnly": "Ended",
     "search": "Search",
     "searchPlaceholder": "Search events...",
-    "reset": "Clear filters"
+    "reset": "Clear filters",
+    "apply": "Apply filters"
   },
   "categories": {
     "movie": "Film",
-    "book": "Books",
-    "creator": "Creators",
-    "shop": "Shops",
-    "brand": "Brands",
+    "music": "Music",
+    "senses": "Taiwan Senses",
+    "retail": "Brands & Shopping",
     "nature": "Nature",
     "tech": "Technology",
     "tourism": "Tourism",
     "culture": "Culture",
-    "literature": "Literature"
+    "gender": "Gender Issues",
+    "geopolitics": "International Relations"
   },
   "event": {
     "source": "Source",

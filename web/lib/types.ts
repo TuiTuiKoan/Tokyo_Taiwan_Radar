@@ -42,27 +42,27 @@ export type Locale = "zh" | "en" | "ja";
 
 export type Category =
   | "movie"
-  | "book"
-  | "creator"
-  | "shop"
-  | "brand"
+  | "music"
+  | "senses"
+  | "retail"
   | "nature"
   | "tech"
   | "tourism"
   | "culture"
-  | "literature";
+  | "gender"
+  | "geopolitics";
 
 export const CATEGORIES: Category[] = [
   "movie",
-  "book",
-  "creator",
-  "shop",
-  "brand",
+  "music",
+  "senses",
+  "retail",
   "nature",
   "tech",
   "tourism",
   "culture",
-  "literature",
+  "gender",
+  "geopolitics",
 ];
 
 export const LOCALES: Locale[] = ["zh", "en", "ja"];
