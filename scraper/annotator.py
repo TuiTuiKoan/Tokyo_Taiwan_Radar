@@ -126,11 +126,25 @@ def _annotate_one(client: OpenAI, raw_title: str, raw_description: str) -> dict:
         ],
         response_format={"type": "json_object"},
         temperature=0.1,
-        max_tokens=2000,
+        max_tokens=4000,
     )
 
     text = response.choices[0].message.content
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # Retry once with higher token budget
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+            max_tokens=6000,
+        )
+        return json.loads(response.choices[0].message.content)
 
 
 def _validate_categories(cats: list) -> list[str]:
