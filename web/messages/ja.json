@@ -1,0 +1,99 @@
+{
+  "nav": {
+    "home": "イベント",
+    "saved": "お気に入り",
+    "admin": "管理",
+    "login": "ログイン",
+    "logout": "ログアウト"
+  },
+  "filters": {
+    "title": "絞り込み",
+    "category": "カテゴリ",
+    "allCategories": "すべて",
+    "dateFrom": "開始日",
+    "dateTo": "終了日",
+    "paid": "料金",
+    "allPaid": "すべて",
+    "freeOnly": "無料のみ",
+    "paidOnly": "有料のみ",
+    "status": "状態",
+    "allStatus": "すべて",
+    "activeOnly": "開催中",
+    "endedOnly": "終了",
+    "search": "キーワード検索",
+    "searchPlaceholder": "イベントを検索...",
+    "reset": "リセット"
+  },
+  "categories": {
+    "movie": "映画",
+    "book": "書籍",
+    "creator": "クリエイター",
+    "shop": "ショップ",
+    "brand": "ブランド",
+    "nature": "自然",
+    "tech": "テクノロジー",
+    "tourism": "観光",
+    "culture": "文化",
+    "literature": "文学"
+  },
+  "event": {
+    "source": "出典",
+    "location": "会場",
+    "hours": "営業時間",
+    "startDate": "開始",
+    "endDate": "終了",
+    "free": "無料",
+    "paid": "有料",
+    "save": "保存",
+    "unsave": "保存解除",
+    "viewOriginal": "元のページを見る",
+    "ended": "終了"
+  },
+  "auth": {
+    "loginTitle": "ログイン",
+    "loginDesc": "ログインしてイベントを保存しましょう",
+    "loginGoogle": "Googleでログイン",
+    "loginEmail": "Emailでログイン",
+    "email": "メールアドレス",
+    "magicLinkSent": "ログインリンクをメールで送信しました。ご確認ください。",
+    "logout": "ログアウト"
+  },
+  "admin": {
+    "title": "管理画面",
+    "newEvent": "イベントを追加",
+    "edit": "編集",
+    "delete": "削除",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "confirmDelete": "このイベントを削除しますか？この操作は元に戻せません。",
+    "name": "イベント名",
+    "category": "カテゴリ",
+    "startDate": "開始日",
+    "endDate": "終了日",
+    "location": "会場",
+    "address": "住所",
+    "hours": "営業時間",
+    "isPaid": "有料",
+    "priceInfo": "料金詳細",
+    "sourceUrl": "元のURL",
+    "sourceName": "ソース名",
+    "isActive": "サイトに表示",
+    "language": "元の言語",
+    "descJa": "説明（日本語）",
+    "descZh": "説明（中国語）",
+    "descEn": "説明（英語）",
+    "nameJa": "名前（日本語）",
+    "nameZh": "名前（中国語）",
+    "nameEn": "名前（英語）"
+  },
+  "saved": {
+    "title": "お気に入り",
+    "empty": "まだイベントを保存していません",
+    "loginPrompt": "お気に入りを見るにはログインしてください"
+  },
+  "general": {
+    "loading": "読み込み中...",
+    "noResults": "条件に合うイベントがありません",
+    "error": "エラーが発生しました。後でもう一度お試しください。"
+  }
+}

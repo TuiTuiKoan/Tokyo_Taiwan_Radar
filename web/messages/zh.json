@@ -1,0 +1,99 @@
+{
+  "nav": {
+    "home": "活動列表",
+    "saved": "我的收藏",
+    "admin": "管理後台",
+    "login": "登入",
+    "logout": "登出"
+  },
+  "filters": {
+    "title": "篩選",
+    "category": "活動類型",
+    "allCategories": "全部類型",
+    "dateFrom": "開始日期",
+    "dateTo": "結束日期",
+    "paid": "費用",
+    "allPaid": "全部",
+    "freeOnly": "僅免費",
+    "paidOnly": "僅收費",
+    "status": "狀態",
+    "allStatus": "全部",
+    "activeOnly": "進行中",
+    "endedOnly": "已結束",
+    "search": "搜尋關鍵字",
+    "searchPlaceholder": "搜尋活動名稱或說明...",
+    "reset": "清除篩選"
+  },
+  "categories": {
+    "movie": "電影",
+    "book": "書籍",
+    "creator": "創作者",
+    "shop": "店家",
+    "brand": "品牌",
+    "nature": "自然",
+    "tech": "科技",
+    "tourism": "旅遊",
+    "culture": "文化",
+    "literature": "文學"
+  },
+  "event": {
+    "source": "資料來源",
+    "location": "地點",
+    "hours": "營業時間",
+    "startDate": "開始日期",
+    "endDate": "結束日期",
+    "free": "免費",
+    "paid": "收費",
+    "save": "收藏",
+    "unsave": "取消收藏",
+    "viewOriginal": "查看原始連結",
+    "ended": "已結束"
+  },
+  "auth": {
+    "loginTitle": "登入",
+    "loginDesc": "登入後可收藏活動",
+    "loginGoogle": "使用 Google 登入",
+    "loginEmail": "使用 Email 登入",
+    "email": "Email",
+    "magicLinkSent": "我們已寄送登入連結到你的 Email，請查收！",
+    "logout": "登出"
+  },
+  "admin": {
+    "title": "管理後台",
+    "newEvent": "新增活動",
+    "edit": "編輯",
+    "delete": "刪除",
+    "save": "儲存",
+    "cancel": "取消",
+    "confirmDelete": "確認刪除此活動？此操作無法復原。",
+    "name": "活動名稱",
+    "category": "類型",
+    "startDate": "開始日期",
+    "endDate": "結束日期",
+    "location": "地點",
+    "address": "地址",
+    "hours": "營業時間",
+    "isPaid": "是否收費",
+    "priceInfo": "費用說明",
+    "sourceUrl": "原始連結",
+    "sourceName": "來源名稱",
+    "isActive": "顯示於網站",
+    "language": "原始語言",
+    "descJa": "說明（日文）",
+    "descZh": "說明（中文）",
+    "descEn": "說明（英文）",
+    "nameJa": "名稱（日文）",
+    "nameZh": "名稱（中文）",
+    "nameEn": "名稱（英文）"
+  },
+  "saved": {
+    "title": "我的收藏",
+    "empty": "你還沒有收藏任何活動",
+    "loginPrompt": "請先登入才能查看收藏"
+  },
+  "general": {
+    "loading": "載入中...",
+    "noResults": "目前沒有符合條件的活動",
+    "error": "發生錯誤，請稍後再試"
+  }
+}

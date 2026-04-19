@@ -1,0 +1,99 @@
+{
+  "nav": {
+    "home": "Events",
+    "saved": "Saved",
+    "admin": "Admin",
+    "login": "Login",
+    "logout": "Logout"
+  },
+  "filters": {
+    "title": "Filters",
+    "category": "Category",
+    "allCategories": "All Categories",
+    "dateFrom": "From",
+    "dateTo": "To",
+    "paid": "Price",
+    "allPaid": "All",
+    "freeOnly": "Free only",
+    "paidOnly": "Paid only",
+    "status": "Status",
+    "allStatus": "All",
+    "activeOnly": "Ongoing",
+    "endedOnly": "Ended",
+    "search": "Search",
+    "searchPlaceholder": "Search events...",
+    "reset": "Clear filters"
+  },
+  "categories": {
+    "movie": "Film",
+    "book": "Books",
+    "creator": "Creators",
+    "shop": "Shops",
+    "brand": "Brands",
+    "nature": "Nature",
+    "tech": "Technology",
+    "tourism": "Tourism",
+    "culture": "Culture",
+    "literature": "Literature"
+  },
+  "event": {
+    "source": "Source",
+    "location": "Location",
+    "hours": "Hours",
+    "startDate": "Start",
+    "endDate": "End",
+    "free": "Free",
+    "paid": "Paid",
+    "save": "Save",
+    "unsave": "Unsave",
+    "viewOriginal": "View original",
+    "ended": "Ended"
+  },
+  "auth": {
+    "loginTitle": "Login",
+    "loginDesc": "Login to save events",
+    "loginGoogle": "Continue with Google",
+    "loginEmail": "Continue with Email",
+    "email": "Email",
+    "magicLinkSent": "Check your email — we sent you a login link!",
+    "logout": "Logout"
+  },
+  "admin": {
+    "title": "Admin",
+    "newEvent": "New Event",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirmDelete": "Delete this event? This cannot be undone.",
+    "name": "Event name",
+    "category": "Category",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "location": "Location",
+    "address": "Address",
+    "hours": "Business hours",
+    "isPaid": "Is paid",
+    "priceInfo": "Price details",
+    "sourceUrl": "Original URL",
+    "sourceName": "Source name",
+    "isActive": "Show on site",
+    "language": "Original language",
+    "descJa": "Description (Japanese)",
+    "descZh": "Description (Chinese)",
+    "descEn": "Description (English)",
+    "nameJa": "Name (Japanese)",
+    "nameZh": "Name (Chinese)",
+    "nameEn": "Name (English)"
+  },
+  "saved": {
+    "title": "Saved Events",
+    "empty": "You haven't saved any events yet",
+    "loginPrompt": "Please login to view saved events"
+  },
+  "general": {
+    "loading": "Loading...",
+    "noResults": "No events match your filters",
+    "error": "Something went wrong. Please try again."
+  }
+}
