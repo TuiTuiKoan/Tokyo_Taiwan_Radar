@@ -53,8 +53,11 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     query = query.contains("category", [sp.category]);
   }
 
-  // Date filters
-  query = query.gte("start_date", fromDate);
+  // Date filters — use end_date (or start_date when end_date is null) to
+  // correctly include ongoing multi-day events and exclude ended ones.
+  query = query.or(
+    `end_date.gte.${fromDate},and(end_date.is.null,start_date.gte.${fromDate})`
+  );
   if (sp.to) {
     query = query.lte("start_date", sp.to);
   }
