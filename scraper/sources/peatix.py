@@ -207,6 +207,8 @@ class PeatixScraper(BaseScraper):
             original_language=original_language,
             name_ja=name_ja,
             description_ja=description_ja,
+            raw_title=name_ja,
+            raw_description=description_ja,
             start_date=start_date,
             location_name=location_name,
             location_address=location_address,

@@ -198,10 +198,12 @@ class TaiwanCulturalCenterScraper(BaseScraper):
             original_language="ja",
             name_ja=name_ja,
             description_ja=description_ja,
+            raw_title=name_ja,
+            raw_description=description_ja,
             start_date=start_date,
             end_date=end_date,
             location_name=location_name,
             is_paid=is_paid,
             price_info=price_text,
-            category=["culture"],  # Default; can be refined with ML/keyword matching later
+            category=["culture"],
         )

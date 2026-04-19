@@ -1,8 +1,8 @@
 """
 Main scraper orchestrator.
 
-Runs all source scrapers, translates missing fields via DeepL,
-then upserts everything to Supabase.
+Runs all source scrapers, saves raw data to Supabase,
+then runs the AI annotator to extract structured fields.
 
 Usage:
     python main.py
@@ -10,7 +10,7 @@ Usage:
 Environment variables required (set in .env):
     SUPABASE_URL
     SUPABASE_SERVICE_ROLE_KEY
-    DEEPL_API_KEY
+    OPENAI_API_KEY
 """
 
 import logging
@@ -24,9 +24,8 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from sources.taiwan_cultural_center import TaiwanCulturalCenterScraper
 from sources.peatix import PeatixScraper
-from translator import fill_translations
-from classifier import classify
-from database import upsert_events, find_parent_event_id
+from database import upsert_events
+from annotator import annotate_pending_events
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -62,46 +61,13 @@ def run() -> None:
 
     logger.info("Total events scraped: %d", len(all_events))
 
-    # Translate missing language fields
-    logger.info("Running translations via DeepL...")
-    for event in all_events:
-        try:
-            fill_translations(event)
-        except Exception as exc:
-            logger.error("Translation failed for event %s: %s", event.source_id, exc)
-
-    # Auto-classify events (overwrites scraper-assigned categories)
-    logger.info("Running semantic classifier...")
-    for event in all_events:
-        event.category = classify(
-            event.name_ja, event.name_zh, event.name_en,
-            event.description_ja, event.description_zh, event.description_en,
-        )
-
-    # Save to database (first pass — so parent events exist for linking)
-    logger.info("Upserting to Supabase (pass 1)...")
+    # Save raw data to database (annotation_status = 'pending')
+    logger.info("Upserting raw events to Supabase...")
     upsert_events(all_events)
 
-    # Link report-type events to their parent events
-    logger.info("Linking report events to parents...")
-    reports_to_update = []
-    for event in all_events:
-        if "report" in event.category:
-            parent_id = find_parent_event_id(event.name_ja, event.source_name)
-            if parent_id:
-                event.parent_event_id = parent_id
-                # Set end_date to start_date to mark as ended
-                if event.start_date:
-                    event.end_date = event.start_date
-                reports_to_update.append(event)
-                logger.info(
-                    "Linked report '%s' → parent %s",
-                    event.source_id, parent_id
-                )
-
-    if reports_to_update:
-        logger.info("Upserting %d linked reports (pass 2)...", len(reports_to_update))
-        upsert_events(reports_to_update)
+    # Run AI annotator on pending events
+    logger.info("Running AI annotator on pending events...")
+    annotate_pending_events()
 
     logger.info("Done!")
 

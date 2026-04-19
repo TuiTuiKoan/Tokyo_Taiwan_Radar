@@ -54,7 +54,15 @@
     "parentEvent": "メインイベント",
     "viewParent": "メインイベントに戻る",
     "address": "住所",
-    "description": "説明"
+    "description": "説明",
+    "rawData": "元データ",
+    "rawTitle": "元のタイトル",
+    "rawDescription": "元の内容",
+    "annotationStatus": "処理状況",
+    "statusPending": "処理待ち",
+    "statusAnnotated": "処理済み",
+    "statusError": "エラー",
+    "category": "カテゴリ"
   },
   "auth": {
     "loginTitle": "ログイン",
@@ -93,7 +101,14 @@
     "nameZh": "名前（中国語）",
     "nameEn": "名前（英語）",
     "parentEvent": "親イベント",
-    "noParent": "（なし — 独立イベント）"
+    "noParent": "（なし — 独立イベント）",
+    "viewRaw": "元データ",
+    "viewAnnotated": "整理済み",
+    "reannotate": "再分析",
+    "annotationStatus": "処理状況",
+    "pending": "処理待ち",
+    "annotated": "処理済み",
+    "sourceLink": "ソースリンク"
   },
   "saved": {
     "title": "お気に入り",

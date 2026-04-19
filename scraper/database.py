@@ -59,6 +59,9 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         "price_info": event.price_info,
         "is_active": event.is_active,
         "parent_event_id": event.parent_event_id,
+        "raw_title": event.raw_title,
+        "raw_description": event.raw_description,
+        "annotation_status": "pending",
     }
 
 

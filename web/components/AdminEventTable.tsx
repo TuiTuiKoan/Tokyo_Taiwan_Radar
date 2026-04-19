@@ -44,6 +44,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<"annotated" | "raw">("annotated");
 
   function startEdit(event: Event) {
     setEditingId(event.id);
@@ -137,19 +138,50 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     setEvents((prev) => prev.filter((e) => e.id !== id));
   }
 
+  async function handleReannotate(id: string) {
+    await supabase.from("events").update({ annotation_status: "pending" }).eq("id", id);
+    setEvents((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, annotation_status: "pending" } : e))
+    );
+  }
+
   const isEditing = editingId !== null || showNew;
 
   return (
     <div>
-      {/* New event button */}
-      {!isEditing && (
-        <button
-          onClick={startNew}
-          className="mb-4 bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition"
-        >
-          + {t("newEvent")}
-        </button>
-      )}
+      {/* View toggle + New event button */}
+      <div className="flex items-center gap-3 mb-4">
+        {!isEditing && (
+          <button
+            onClick={startNew}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition"
+          >
+            + {t("newEvent")}
+          </button>
+        )}
+        <div className="flex rounded-lg border border-gray-300 overflow-hidden ml-auto">
+          <button
+            onClick={() => setViewMode("annotated")}
+            className={`px-3 py-1.5 text-xs font-medium transition ${
+              viewMode === "annotated"
+                ? "bg-green-600 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            {t("viewAnnotated")}
+          </button>
+          <button
+            onClick={() => setViewMode("raw")}
+            className={`px-3 py-1.5 text-xs font-medium transition ${
+              viewMode === "raw"
+                ? "bg-green-600 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            {t("viewRaw")}
+          </button>
+        </div>
+      </div>
 
       {/* Inline form */}
       {isEditing && (
@@ -189,67 +221,135 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="border-b text-left text-gray-500">
-              <th className="py-2 pr-4 font-medium">名稱</th>
-              <th className="py-2 pr-4 font-medium">來源</th>
-              <th className="py-2 pr-4 font-medium">開始</th>
-              <th className="py-2 pr-4 font-medium">費用</th>
-              <th className="py-2 pr-4 font-medium">顯示</th>
-              <th className="py-2" />
-            </tr>
+            {viewMode === "annotated" ? (
+              <tr className="border-b text-left text-gray-500">
+                <th className="py-2 pr-4 font-medium">{t("name")}</th>
+                <th className="py-2 pr-4 font-medium">{t("category")}</th>
+                <th className="py-2 pr-4 font-medium">{t("startDate")}</th>
+                <th className="py-2 pr-4 font-medium">{t("endDate")}</th>
+                <th className="py-2 pr-4 font-medium">{t("sourceName")}</th>
+                <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
+                <th className="py-2 pr-4 font-medium">{t("isPaid")}</th>
+                <th className="py-2 pr-4 font-medium">{t("isActive")}</th>
+                <th className="py-2" />
+              </tr>
+            ) : (
+              <tr className="border-b text-left text-gray-500">
+                <th className="py-2 pr-4 font-medium">{t("name")}</th>
+                <th className="py-2 pr-4 font-medium">{t("sourceName")}</th>
+                <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
+                <th className="py-2 pr-4 font-medium">{t("annotationStatus")}</th>
+                <th className="py-2" />
+              </tr>
+            )}
           </thead>
           <tbody>
             {events.map((event) => (
-              <tr
-                key={event.id}
-                className="border-b hover:bg-gray-50 transition"
-              >
-                <td className="py-2 pr-4 max-w-xs truncate">
-                  {getEventName(event, locale)}
-                </td>
-                <td className="py-2 pr-4 text-gray-500 text-xs">
-                  {event.source_name}
-                </td>
-                <td className="py-2 pr-4 text-gray-500 text-xs">
-                  {event.start_date
-                    ? new Date(event.start_date).toLocaleDateString("zh")
-                    : "—"}
-                </td>
-                <td className="py-2 pr-4">
-                  {event.is_paid === false ? (
-                    <span className="text-blue-600 text-xs">免費</span>
-                  ) : event.is_paid === true ? (
-                    <span className="text-amber-600 text-xs">收費</span>
-                  ) : (
-                    <span className="text-gray-400 text-xs">—</span>
-                  )}
-                </td>
-                <td className="py-2 pr-4">
-                  <span
-                    className={`text-xs ${
-                      event.is_active ? "text-green-600" : "text-gray-400"
-                    }`}
-                  >
-                    {event.is_active ? "●" : "○"}
-                  </span>
-                </td>
-                <td className="py-2">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => startEdit(event)}
-                      className="text-blue-600 hover:underline text-xs"
-                    >
-                      {t("edit")}
-                    </button>
-                    <button
-                      onClick={() => handleDelete(event.id)}
-                      className="text-red-500 hover:underline text-xs"
-                    >
-                      {t("delete")}
-                    </button>
-                  </div>
-                </td>
-              </tr>
+              viewMode === "annotated" ? (
+                <tr key={event.id} className="border-b hover:bg-gray-50 transition">
+                  <td className="py-2 pr-4 max-w-xs truncate">
+                    {getEventName(event, locale)}
+                  </td>
+                  <td className="py-2 pr-4">
+                    <div className="flex flex-wrap gap-1">
+                      {event.category?.slice(0, 3).map((cat) => (
+                        <span key={cat} className="bg-green-50 text-green-700 text-[10px] px-1.5 py-0.5 rounded-full">
+                          {tCat(cat as any)}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="py-2 pr-4 text-gray-500 text-xs whitespace-nowrap">
+                    {event.start_date
+                      ? new Date(event.start_date).toLocaleDateString("zh")
+                      : "—"}
+                  </td>
+                  <td className="py-2 pr-4 text-gray-500 text-xs whitespace-nowrap">
+                    {event.end_date
+                      ? new Date(event.end_date).toLocaleDateString("zh")
+                      : "—"}
+                  </td>
+                  <td className="py-2 pr-4 text-gray-500 text-xs">
+                    {event.source_name}
+                  </td>
+                  <td className="py-2 pr-4">
+                    {event.source_url && (
+                      <a
+                        href={event.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline text-xs"
+                      >
+                        ↗
+                      </a>
+                    )}
+                  </td>
+                  <td className="py-2 pr-4">
+                    {event.is_paid === false ? (
+                      <span className="text-blue-600 text-xs">免費</span>
+                    ) : event.is_paid === true ? (
+                      <span className="text-amber-600 text-xs">收費</span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-4">
+                    <span className={`text-xs ${event.is_active ? "text-green-600" : "text-gray-400"}`}>
+                      {event.is_active ? "●" : "○"}
+                    </span>
+                  </td>
+                  <td className="py-2">
+                    <div className="flex gap-2">
+                      <button onClick={() => startEdit(event)} className="text-blue-600 hover:underline text-xs">
+                        {t("edit")}
+                      </button>
+                      <button onClick={() => handleDelete(event.id)} className="text-red-500 hover:underline text-xs">
+                        {t("delete")}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={event.id} className="border-b hover:bg-gray-50 transition">
+                  <td className="py-2 pr-4 max-w-sm">
+                    <p className="text-xs text-gray-800 line-clamp-2">{event.raw_title || getEventName(event, locale)}</p>
+                  </td>
+                  <td className="py-2 pr-4 text-gray-500 text-xs">
+                    {event.source_name}
+                  </td>
+                  <td className="py-2 pr-4">
+                    {event.source_url && (
+                      <a href={event.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
+                        ↗
+                      </a>
+                    )}
+                  </td>
+                  <td className="py-2 pr-4">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      event.annotation_status === "annotated"
+                        ? "bg-green-50 text-green-700"
+                        : event.annotation_status === "error"
+                        ? "bg-red-50 text-red-600"
+                        : "bg-yellow-50 text-yellow-700"
+                    }`}>
+                      {t(event.annotation_status === "annotated" ? "annotated" : "pending")}
+                    </span>
+                  </td>
+                  <td className="py-2">
+                    <div className="flex gap-2">
+                      <button onClick={() => startEdit(event)} className="text-blue-600 hover:underline text-xs">
+                        {t("edit")}
+                      </button>
+                      <button onClick={() => handleReannotate(event.id)} className="text-purple-600 hover:underline text-xs">
+                        {t("reannotate")}
+                      </button>
+                      <button onClick={() => handleDelete(event.id)} className="text-red-500 hover:underline text-xs">
+                        {t("delete")}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
             ))}
           </tbody>
         </table>

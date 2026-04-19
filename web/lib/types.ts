@@ -28,6 +28,10 @@ export interface Event {
   price_info: string | null;
   is_active: boolean;
   parent_event_id: string | null;
+  raw_title: string | null;
+  raw_description: string | null;
+  annotation_status: string;
+  annotated_at: string | null;
   created_at: string;
   updated_at: string;
 }

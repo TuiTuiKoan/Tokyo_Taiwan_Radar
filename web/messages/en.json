@@ -54,7 +54,15 @@
     "parentEvent": "Main Event",
     "viewParent": "Back to main event",
     "address": "Address",
-    "description": "Description"
+    "description": "Description",
+    "rawData": "Raw Data",
+    "rawTitle": "Original Title",
+    "rawDescription": "Original Content",
+    "annotationStatus": "Processing Status",
+    "statusPending": "Pending",
+    "statusAnnotated": "Processed",
+    "statusError": "Error",
+    "category": "Category"
   },
   "auth": {
     "loginTitle": "Login",
@@ -93,7 +101,14 @@
     "nameZh": "Name (Chinese)",
     "nameEn": "Name (English)",
     "parentEvent": "Parent event",
-    "noParent": "(None — standalone event)"
+    "noParent": "(None — standalone event)",
+    "viewRaw": "Raw Data",
+    "viewAnnotated": "Annotated",
+    "reannotate": "Re-analyze",
+    "annotationStatus": "Status",
+    "pending": "Pending",
+    "annotated": "Processed",
+    "sourceLink": "Source Link"
   },
   "saved": {
     "title": "Saved Events",

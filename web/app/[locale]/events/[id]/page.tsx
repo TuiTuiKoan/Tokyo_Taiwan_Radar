@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale, type Event, getEventName, getEventDescription } from "@/lib/types";
 import SaveButton from "@/components/SaveButton";
+import RawDataSection from "@/components/RawDataSection";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -238,6 +239,14 @@ export default async function EventDetailPage({ params }: PageProps) {
             })}
           </div>
         </div>
+      )}
+
+      {/* ===== Raw Data (Layer 1) ===== */}
+      {(event.raw_title || event.raw_description) && (
+        <RawDataSection
+          rawTitle={event.raw_title}
+          rawDescription={event.raw_description}
+        />
       )}
     </article>
   );

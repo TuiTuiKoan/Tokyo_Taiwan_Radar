@@ -36,6 +36,10 @@ class Event:
     is_active: bool = True
     parent_event_id: Optional[str] = None
 
+    # Raw layer — original scraped text before AI annotation
+    raw_title: Optional[str] = None
+    raw_description: Optional[str] = None
+
 
 class BaseScraper(ABC):
     """All source scrapers must implement this interface."""

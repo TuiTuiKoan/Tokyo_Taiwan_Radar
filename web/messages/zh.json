@@ -54,7 +54,15 @@
     "parentEvent": "主要活動",
     "viewParent": "返回主要活動",
     "address": "地址",
-    "description": "活動說明"
+    "description": "活動說明",
+    "rawData": "原始資料",
+    "rawTitle": "原始標題",
+    "rawDescription": "原始內容",
+    "annotationStatus": "處理狀態",
+    "statusPending": "待處理",
+    "statusAnnotated": "已整理",
+    "statusError": "處理失敗",
+    "category": "活動類別"
   },
   "auth": {
     "loginTitle": "登入",
@@ -93,7 +101,14 @@
     "nameZh": "名稱（中文）",
     "nameEn": "名稱（英文）",
     "parentEvent": "所屬主活動",
-    "noParent": "（無，此為獨立活動）"
+    "noParent": "（無，此為獨立活動）",
+    "viewRaw": "原始資料",
+    "viewAnnotated": "已整理",
+    "reannotate": "重新分析",
+    "annotationStatus": "處理狀態",
+    "pending": "待處理",
+    "annotated": "已整理",
+    "sourceLink": "來源連結"
   },
   "saved": {
     "title": "我的收藏",
