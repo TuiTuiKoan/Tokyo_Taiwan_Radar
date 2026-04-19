@@ -5,6 +5,8 @@ import { type Locale, type Event, getEventName, getEventDescription } from "@/li
 import SaveButton from "@/components/SaveButton";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 interface PageProps {
   params: Promise<{ locale: Locale; id: string }>;
 }

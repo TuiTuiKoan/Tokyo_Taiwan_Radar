@@ -4,6 +4,8 @@ import { type Locale, type Event, CATEGORIES, getEventName } from "@/lib/types";
 import FilterBar from "@/components/FilterBar";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 interface PageProps {
   params: Promise<{ locale: Locale }>;
   searchParams: Promise<{
