@@ -65,41 +65,68 @@ def _event_to_row(event: Event) -> dict[str, Any]:
 def find_parent_event_id(name_ja: str | None, source_name: str) -> str | None:
     """
     Try to find a parent event in the database by fuzzy-matching the name.
-    For a report like '映画「X」トークイベント レポート', we strip the
-    report-related suffixes and search for events whose name contains the
-    remaining title fragment.
+    For a report like '映画「X」トークイベント レポート', we extract the
+    core title (e.g. the text in 『...』 or 「...」 brackets) and search
+    for events whose name contains that title.
     """
     import re
     if not name_ja:
         return None
 
-    # Strip report-related suffixes to get the core event name
+    client = _get_client()
+
+    # Strategy 1: Extract title from brackets like 『X』 or 「X」
+    bracket_match = re.search(r'[『「](.+?)[』」]', name_ja)
+    if bracket_match:
+        title = bracket_match.group(1).strip()
+        if len(title) >= 3:
+            try:
+                result = (
+                    client.table("events")
+                    .select("id,category")
+                    .ilike("name_ja", f"%{title}%")
+                    .eq("source_name", source_name)
+                    .limit(10)
+                    .execute()
+                )
+                for row in result.data:
+                    if "report" in (row.get("category") or []):
+                        continue
+                    return row["id"]
+            except Exception as exc:
+                logger.warning("Parent lookup (bracket) failed for '%s': %s", title, exc)
+
+    # Strategy 2: Strip report suffixes and search with shorter fragment
+    # Use [\s\u3000]* between chars to handle stray whitespace (e.g. "トー クイベント")
     stripped = re.sub(
-        r'[\s\u3000]*(トークイベント|イベント)?\s*(レポート|レビュー|報告|まとめ|振り返り|記録|紀錄|recap|report|review).*$',
+        r'[\s\u3000]*(ト[\s]*ー[\s]*ク[\s]*イ[\s]*ベ[\s]*ン[\s]*ト|トークイベント|イベント)?[\s\u3000]*(レ[\s]*ポ[\s]*ー[\s]*ト|レポート|レビュー|報告|まとめ|振り返り|記録|紀錄|recap|report|review).*$',
         '', name_ja, flags=re.IGNORECASE
     ).strip()
 
     if not stripped or len(stripped) < 4:
         return None
 
-    client = _get_client()
+    # Use only the last meaningful segment (after the last dash/hyphen)
+    segments = re.split(r'\s*[-\-－—]\s*', stripped)
+    search_term = segments[-1].strip() if len(segments) > 1 else stripped
+    if len(search_term) < 4:
+        search_term = stripped
+
     try:
-        # Search for events with a similar name that are NOT reports themselves
         result = (
             client.table("events")
             .select("id,category")
-            .ilike("name_ja", f"%{stripped}%")
+            .ilike("name_ja", f"%{search_term}%")
             .eq("source_name", source_name)
-            .limit(5)
+            .limit(10)
             .execute()
         )
         for row in result.data:
-            # Skip other reports
             if "report" in (row.get("category") or []):
                 continue
             return row["id"]
     except Exception as exc:
-        logger.warning("Parent lookup failed for '%s': %s", stripped, exc)
+        logger.warning("Parent lookup failed for '%s': %s", search_term, exc)
 
     return None
 
