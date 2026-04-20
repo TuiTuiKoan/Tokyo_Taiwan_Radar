@@ -128,6 +128,11 @@ export default async function HomePage({ params, searchParams }: PageProps) {
                       <div className="text-2xl font-bold text-gray-700 leading-none">
                         {new Date(event.start_date).getDate()}
                       </div>
+                      {event.end_date && event.end_date.slice(0, 10) !== event.start_date.slice(0, 10) && (
+                        <div className="text-[10px] text-gray-800 mt-0.5 leading-tight">
+                          ~{new Date(event.end_date).toLocaleDateString(locale, { month: "numeric", day: "numeric" })}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="text-xs text-gray-300">—</div>
