@@ -7,6 +7,7 @@ for Taiwan-related keywords and collects structured event data.
 
 import hashlib
 import logging
+import re
 import time
 from datetime import datetime
 from typing import Optional
@@ -60,12 +61,63 @@ def _parse_peatix_date(raw: Optional[str]) -> Optional[datetime]:
         "%Y-%m-%dT%H:%M:%S",
         "%Y/%m/%d",
         "%Y年%m月%d日",
+        # English formats used by Peatix (e.g. "Mon, May 12, 2025")
+        "%a, %b %d, %Y",
+        "%b %d, %Y",
     ):
         try:
             return datetime.strptime(raw, fmt)
         except ValueError:
             continue
     return None
+
+
+def _extract_peatix_dates(page_text: str) -> tuple[Optional[datetime], Optional[datetime]]:
+    """
+    Extract start and end dates from Peatix page text.
+
+    Peatix renders date/time like:
+        DATE AND TIME
+        Mon, May 12, 2025
+        1:00 PM - 2:00 PM GMT+09:00
+    """
+    # Find the date line: e.g. "Mon, May 12, 2025" or "Sat, Apr 19, 2026"
+    date_match = re.search(
+        r'((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4})',
+        page_text
+    )
+    if not date_match:
+        # Fallback: try Japanese date pattern
+        jp_match = re.search(r'(\d{4}[年/]\d{1,2}[月/]\d{1,2}日?)', page_text)
+        if jp_match:
+            start = _parse_peatix_date(jp_match.group(1))
+            return start, start
+        return None, None
+
+    date_str = date_match.group(1)  # e.g. "Mon, May 12, 2025"
+    start = _parse_peatix_date(date_str)
+    if not start:
+        return None, None
+
+    # Look for time range on the following lines: "1:00 PM - 2:00 PM"
+    time_match = re.search(
+        r'(\d{1,2}:\d{2}\s*[AP]M)\s*[-–]\s*(\d{1,2}:\d{2}\s*[AP]M)',
+        page_text[date_match.start():date_match.start() + 200]
+    )
+    if time_match:
+        try:
+            start_time = datetime.strptime(
+                f"{date_str} {time_match.group(1).replace(' ', '')}", "%a, %b %d, %Y %I:%M%p"
+            )
+            end_time = datetime.strptime(
+                f"{date_str} {time_match.group(2).replace(' ', '')}", "%a, %b %d, %Y %I:%M%p"
+            )
+            return start_time, end_time
+        except ValueError:
+            pass
+
+    # No time range found — same-day event, start = end
+    return start, start
 
 
 class PeatixScraper(BaseScraper):
@@ -172,12 +224,18 @@ class PeatixScraper(BaseScraper):
         )
 
         # --- Date ---
+        # Extract dates from full page text using regex (more reliable than CSS selectors
+        # since Peatix uses English-format dates in a structured section, not a stable class)
+        start_date, end_date = _extract_peatix_dates(page_text)
+        # Also try CSS selectors as a fallback for the raw text snippet
         date_text = (
             _safe_text(page, ".event-date-time")
             or _safe_text(page, ".date-time")
-            or _safe_text(page, "[class*='date']")
+            or _safe_text(page, "[class*='date-time']")
         )
-        start_date = _parse_peatix_date(date_text)
+        if not start_date and date_text:
+            start_date = _parse_peatix_date(date_text)
+            end_date = start_date
 
         # --- Location ---
         location_name = (
@@ -200,6 +258,16 @@ class PeatixScraper(BaseScraper):
         # Detect language from title (Peatix events are mostly Japanese)
         original_language = "ja"
 
+        # Prepend date text to raw_description so the AI annotator always sees the date
+        # even when the description body doesn't contain it
+        date_prefix = ""
+        if start_date:
+            date_prefix = f"開催日時: {start_date.strftime('%Y年%m月%d日')}"
+            if end_date and end_date != start_date:
+                date_prefix += f"〜{end_date.strftime('%Y年%m月%d日')}"
+            date_prefix += "\n\n"
+        raw_desc_with_date = date_prefix + (description_ja or "")
+
         return Event(
             source_name=self.SOURCE_NAME,
             source_id=source_id,
@@ -208,8 +276,9 @@ class PeatixScraper(BaseScraper):
             name_ja=name_ja,
             description_ja=description_ja,
             raw_title=name_ja,
-            raw_description=description_ja,
+            raw_description=raw_desc_with_date,
             start_date=start_date,
+            end_date=end_date,
             location_name=location_name,
             location_address=location_address,
             is_paid=is_paid,
