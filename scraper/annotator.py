@@ -51,11 +51,12 @@ CRITICAL DATE EXTRACTION RULES:
 1. You MUST extract dates from ALL parts of the text: title, body, headers, and footers.
 2. Look for date patterns like: 2025年10月8日, 10/8, 10月8日, 2025-10-08, etc.
 3. If the event spans multiple days (e.g., "10/8 and 10/10"), start_date = first date, end_date = last date.
-4. If only one date is mentioned, use it as BOTH start_date AND end_date.
+4. SINGLE-DAY RULE: If only one date is mentioned — or if you judge the event to be a single-day occurrence — set end_date = start_date exactly. NEVER leave end_date null when start_date is known.
 5. end_date MUST NOT be null if any date can be found anywhere in the text. Try harder to find dates.
 6. If the title contains a date like "（10/8・10/10）", extract those dates even if the body is vague.
 7. When the year is not explicitly stated, infer it from context. If unclear, assume the nearest future occurrence.
 8. For ongoing exhibitions/screenings with a date range (e.g., "4月5日〜6月30日"), use the full range.
+9. JUDGMENT: Use your reasoning to decide if an event is single-day vs multi-day. A concert, one-time screening, or one-time talk = single day (end_date = start_date). An exhibition, festival, or course = may span many days.
 
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
