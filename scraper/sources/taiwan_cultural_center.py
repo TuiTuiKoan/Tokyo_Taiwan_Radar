@@ -40,6 +40,9 @@ def _parse_date(raw: Optional[str]) -> Optional[datetime]:
     if not raw:
         return None
     raw = raw.strip()
+    # Strip day-of-week / holiday markers in brackets: （月・祝） or (火) → removed
+    # Only strip brackets whose content starts with a non-digit (keeps e.g. (2026))
+    raw = re.sub(r'[（(][^）)\d][^）)]*[）)]', '', raw).strip()
     for fmt in ("%Y/%m/%d", "%Y.%m.%d", "%Y-%m-%d", "%Y年%m月%d日"):
         try:
             return datetime.strptime(raw, fmt)
@@ -61,6 +64,76 @@ def _extract_dates(text: Optional[str]) -> tuple[Optional[datetime], Optional[da
     start = _parse_date(parts[0]) if len(parts) >= 1 else None
     end = _parse_date(parts[1]) if len(parts) >= 2 else None
     return start, end
+
+
+# Structured date labels that appear in event body text.
+# Captures the rest of the line (up to 120 chars) so that date strings
+# with parenthetical day-of-week markers like「2026年5月4日（月・祝）～5日（火・祝）」
+# are captured in full and cleaned by _parse_date / _extract_event_dates_from_body.
+_BODY_DATE_LABELS = re.compile(
+    r"[■●▶◆◇・]?\s*"
+    r"(?:日\s*時|開催日時|日時|会期|開催期間|期間|開催日|イベント日時)"
+    r"\s*[：:]"
+    r"\s*(.{5,120})",
+    re.MULTILINE,
+)
+
+# Slash-style date in title: "M/DD(曜)" e.g. "3/17(火)"
+_TITLE_SLASH_DATE = re.compile(r"(\d{1,2})/(\d{1,2})[（(][月火水木金土日祝・]+[）)]")
+
+
+def _extract_event_dates_from_body(
+    text: Optional[str],
+) -> tuple[Optional[datetime], Optional[datetime]]:
+    """Tier 1: look for structured event-date labels inside body text."""
+    if not text:
+        return None, None
+    for m in _BODY_DATE_LABELS.finditer(text):
+        raw = m.group(1).strip()
+        # Strip day-of-week / holiday markers before range-splitting
+        clean = re.sub(r'[（(][^）)\d][^）)]*[）)]', '', raw).strip()
+        # Split on range separator
+        parts = re.split(r'[～~〜]|(?<=\d)\s*[–—]\s*(?=\d)', clean, maxsplit=1)
+        start_raw = parts[0].strip()
+        end_raw = parts[1].strip() if len(parts) > 1 else None
+        start = _parse_date(start_raw)
+        if start and end_raw:
+            # Handle abbreviated ends: "5日" → inject year+month; "3月5日" → inject year
+            if not re.match(r'\d{4}', end_raw):
+                if re.match(r'\d{1,2}月', end_raw):
+                    end_raw = f"{start.year}年{end_raw}"
+                elif re.match(r'\d{1,2}日', end_raw):
+                    end_raw = f"{start.year}年{start.month}月{end_raw}"
+            end = _parse_date(end_raw)
+        else:
+            end = None
+        if start:
+            return start, end
+    return None, None
+
+
+def _extract_date_from_title(
+    title: Optional[str], post_date: Optional[datetime]
+) -> Optional[datetime]:
+    """Tier 2: parse a slash-style date like '3/17(火)' from the title."""
+    if not title or not post_date:
+        return None
+    m = _TITLE_SLASH_DATE.search(title)
+    if not m:
+        return None
+    month, day = int(m.group(1)), int(m.group(2))
+    year = post_date.year
+    try:
+        candidate = datetime(year, month, day)
+    except ValueError:
+        return None
+    # If the candidate is more than 30 days before post_date, try next year
+    if (post_date - candidate).days > 30:
+        try:
+            candidate = datetime(year + 1, month, day)
+        except ValueError:
+            return None
+    return candidate
 
 
 def _is_paid(text: Optional[str]) -> Optional[bool]:
@@ -173,11 +246,33 @@ class TaiwanCulturalCenterScraper(BaseScraper):
         )
 
         # --- Date ---
-        # Format on site: "日付：2026-04-07"
-        raw_date = _safe_text(page, ".list-text.detail")
-        if raw_date:
-            raw_date = raw_date.replace("日付：", "").replace("日付:", "").strip()
-        start_date, end_date = _extract_dates(raw_date)
+        # "日付：YYYY-MM-DD" at the page bottom is the PUBLISH date, not the event date.
+        # We read it as post_date and use it only as a Tier-3 fallback.
+        raw_post = _safe_text(page, ".list-text.detail")
+        if raw_post:
+            raw_post = raw_post.replace("日付：", "").replace("日付:", "").strip()
+        post_date = _parse_date(raw_post)
+
+        # Tier 1: structured label in body (日時:, 会期:, 開催日:, …)
+        start_date, end_date = _extract_event_dates_from_body(description_ja)
+
+        # Tier 2: slash date in title (e.g. "3/17(火)")
+        if start_date is None:
+            start_date = _extract_date_from_title(name_ja, post_date)
+
+        # Tier 3: fall back to publish date so start_date is never null
+        if start_date is None:
+            start_date = post_date
+
+        # Prepend extracted event date to raw_description for annotator context
+        date_prefix = ""
+        if start_date and start_date != post_date:
+            date_prefix = f"開催日時: {start_date.strftime('%Y年%m月%d日')}"
+            if end_date:
+                date_prefix += f" ～ {end_date.strftime('%Y年%m月%d日')}"
+            date_prefix += "\n"
+        if date_prefix and description_ja:
+            description_ja = date_prefix + description_ja
 
         # --- Location ---
         # Site does not expose a dedicated location field; default to the center
