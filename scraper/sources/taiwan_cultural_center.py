@@ -81,6 +81,38 @@ _BODY_DATE_LABELS = re.compile(
 # Slash-style date in title: "M/DD(曜)" e.g. "3/17(火)"
 _TITLE_SLASH_DATE = re.compile(r"(\d{1,2})/(\d{1,2})[（(][月火水木金土日祝・]+[）)]")
 
+# Prose date in body: "MM月DD日(曜)" with no label, common in report articles
+_PROSE_DATE = re.compile(r"(\d{1,2})月(\d{1,2})日[（(][月火水木金土日祝・]+[）)]")
+
+# Title keywords that mark an article as a report/recap
+_REPORT_KEYWORDS = re.compile(r"レポート|レポ|報告|記録|アーカイブ|recap", re.IGNORECASE)
+
+
+def _extract_prose_date_from_body(
+    text: Optional[str], post_date: Optional[datetime]
+) -> Optional[datetime]:
+    """Tier 1.5: find first kanji-style date in prose body (no label required).
+
+    Matches '10月25日(土)' and infers the year from post_date.
+    Used for report/recap articles where the event date appears in passing.
+    """
+    if not text or not post_date:
+        return None
+    m = _PROSE_DATE.search(text)
+    if not m:
+        return None
+    month, day = int(m.group(1)), int(m.group(2))
+    for year in (post_date.year, post_date.year - 1, post_date.year + 1):
+        try:
+            candidate = datetime(year, month, day)
+        except ValueError:
+            continue
+        # Accept dates up to 180 days before the publish date (reports lag events)
+        delta = (post_date - candidate).days
+        if 0 <= delta <= 180:
+            return candidate
+    return None
+
 
 def _extract_event_dates_from_body(
     text: Optional[str],
@@ -256,6 +288,10 @@ class TaiwanCulturalCenterScraper(BaseScraper):
         # Tier 1: structured label in body (日時:, 会期:, 開催日:, …)
         start_date, end_date = _extract_event_dates_from_body(description_ja)
 
+        # Tier 1.5: prose date in body e.g. "10月25日(土)に開催された" (report articles)
+        if start_date is None:
+            start_date = _extract_prose_date_from_body(description_ja, post_date)
+
         # Tier 2: slash date in title (e.g. "3/17(火)")
         if start_date is None:
             start_date = _extract_date_from_title(name_ja, post_date)
@@ -283,6 +319,11 @@ class TaiwanCulturalCenterScraper(BaseScraper):
         price_text = None
         is_paid = _is_paid(description_ja)
 
+        # --- Category ---
+        categories = ["culture"]
+        if name_ja and _REPORT_KEYWORDS.search(name_ja):
+            categories.append("report")
+
         # --- Source ID: use URL path as stable identifier ---
         source_id = hashlib.md5(url.encode()).hexdigest()[:16]
 
@@ -300,5 +341,5 @@ class TaiwanCulturalCenterScraper(BaseScraper):
             location_name=location_name,
             is_paid=is_paid,
             price_info=price_text,
-            category=["culture"],
+            category=categories,
         )
