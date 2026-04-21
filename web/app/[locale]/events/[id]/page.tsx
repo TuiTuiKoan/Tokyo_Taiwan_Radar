@@ -247,6 +247,7 @@ export default async function EventDetailPage({ params }: PageProps) {
           rawTitle={event.raw_title}
           rawDescription={event.raw_description}
           selectionReason={event.selection_reason}
+          locale={locale}
         />
       )}
     </article>

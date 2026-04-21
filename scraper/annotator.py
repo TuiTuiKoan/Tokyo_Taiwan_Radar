@@ -89,7 +89,11 @@ Respond with valid JSON matching this schema:
   "business_hours": "opening hours" or null,
   "is_paid": false or true or null,
   "price_info": "price details" or null,
-  "selection_reason": "1-2 sentence explanation in Japanese of why this event is related to Taiwan and was selected for inclusion",
+  "selection_reason": {
+    "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
+    "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
+    "en": "1-2 sentences in English explaining why this event is Taiwan-related and was selected"
+  },
   "sub_events": [
     {
       "name_ja": "sub-event name in Japanese",
@@ -235,6 +239,9 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
             # Try to include selection_reason (column may not exist yet)
             selection_reason = annotation.get("selection_reason")
             if selection_reason:
+                # If AI returned a multilingual dict, JSON-encode it
+                if isinstance(selection_reason, dict):
+                    selection_reason = json.dumps(selection_reason, ensure_ascii=False)
                 update_data["selection_reason"] = selection_reason
 
             sb.table("events").update(update_data).eq("id", eid).execute()

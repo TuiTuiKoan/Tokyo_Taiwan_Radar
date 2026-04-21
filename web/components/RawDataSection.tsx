@@ -4,20 +4,37 @@ interface Props {
   rawTitle: string | null;
   rawDescription: string | null;
   selectionReason: string | null;
+  locale: string;
 }
 
-export default function RawDataSection({ rawTitle, rawDescription, selectionReason }: Props) {
+function parseSelectionReason(raw: string | null, locale: string): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      const map = parsed as Record<string, string>;
+      return map[locale] || map["ja"] || null;
+    }
+  } catch {
+    // legacy: plain string (Japanese only)
+  }
+  return raw;
+}
+
+export default function RawDataSection({ rawTitle, rawDescription, selectionReason, locale }: Props) {
   const t = useTranslations("event");
 
   if (!rawTitle && !rawDescription && !selectionReason) return null;
 
+  const displayedReason = parseSelectionReason(selectionReason, locale);
+
   return (
     <div className="mb-8">
       {/* Selection Reason */}
-      {selectionReason && (
+      {displayedReason && (
         <div className="mb-4 border border-amber-200 bg-amber-50 rounded-xl p-4">
           <h2 className="text-sm font-medium text-amber-700 mb-1">{t("selectionReason")}</h2>
-          <p className="text-sm text-amber-900">{selectionReason}</p>
+          <p className="text-sm text-amber-900">{displayedReason}</p>
         </div>
       )}
 
