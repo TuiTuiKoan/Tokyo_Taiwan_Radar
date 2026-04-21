@@ -21,8 +21,8 @@ class Event:
     description_zh: Optional[str] = None
     description_en: Optional[str] = None
 
-    # List of categories from: movie, book, creator, shop, brand,
-    # nature, tech, tourism, culture, literature
+    # Values from canonical list: movie, performing_arts, senses, retail, nature,
+    # tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, report
     category: list[str] = field(default_factory=list)
 
     start_date: Optional[datetime] = None
@@ -48,3 +48,16 @@ class BaseScraper(ABC):
     def scrape(self) -> list[Event]:
         """Scrape the source and return a list of structured Event objects."""
         ...
+
+    def explore(self, url: str) -> dict:
+        """Interactive exploration hook for Chrome MCP agents (local dev only).
+
+        Override in a subclass to return a dict of discovered selectors and
+        sample data for a given URL.  Not called by the production pipeline.
+        Raises NotImplementedError by default so agents know to implement it.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement explore(). "
+            "Use a Chrome MCP agent to navigate the page interactively, "
+            "then implement this method with the discovered selectors."
+        )

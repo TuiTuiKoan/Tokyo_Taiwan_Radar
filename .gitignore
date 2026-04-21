@@ -32,3 +32,6 @@ npm-debug.log*
 .vercel
 .env*.local
 supabase/.temp/
+
+# Agent scratch space (local only, not committed)
+.copilot-tracking/

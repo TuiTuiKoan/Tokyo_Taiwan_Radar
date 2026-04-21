@@ -9,7 +9,7 @@ import hashlib
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeout
@@ -26,6 +26,29 @@ TAIWAN_KEYWORDS = [
     "Taiwan",
     "臺灣",
     "台灣",
+    "台北",
+    "高雄",
+    "台中",
+    "台南",
+    "花蓮",
+    "宜蘭",
+    "台東",
+    "金門",
+    "澎湖",
+    "蘭嶼",
+    "綠島",
+    "新竹",
+    "苗栗",
+    "彰化",
+    "南投",
+    "嘉義",
+    "屏東",
+    "宜蘭",
+    "桃園",
+    "台北市"
+    "高雄市",
+    "台中市",
+    "台南市",
     "台湾映画",
     "台湾料理",
     "台湾文化",
@@ -41,6 +64,9 @@ TAIWAN_KEYWORDS = [
 
 # Location filter — Tokyo metropolitan area
 LOCATION_FILTER = "JP-13"  # Tokyo prefecture code in Peatix
+
+# Only keep events whose start_date is within this window from today
+DATE_LOOKBACK_DAYS = 90
 
 
 def _safe_text(page: Page, selector: str) -> Optional[str]:
@@ -140,6 +166,8 @@ class PeatixScraper(BaseScraper):
             )
             page = context.new_page()
 
+            cutoff = datetime.now() - timedelta(days=DATE_LOOKBACK_DAYS)
+
             for keyword in TAIWAN_KEYWORDS:
                 links = self._search_events(page, keyword)
                 for url in links:
@@ -149,7 +177,14 @@ class PeatixScraper(BaseScraper):
                     try:
                         event = self._scrape_detail(page, url)
                         if event:
-                            events.append(event)
+                            if event.start_date and event.start_date < cutoff:
+                                logger.debug(
+                                    "Peatix: skipping old event %s (%s)",
+                                    event.name_ja,
+                                    event.start_date.date(),
+                                )
+                            else:
+                                events.append(event)
                         time.sleep(1.5)
                     except Exception as exc:
                         logger.error("Peatix: failed to scrape %s: %s", url, exc)
@@ -164,7 +199,7 @@ class PeatixScraper(BaseScraper):
         links: list[str] = []
         search_page = 1
 
-        while search_page <= 5:  # Limit to 5 search result pages per keyword
+        while search_page <= 20:  # Limit to 20 search result pages per keyword
             url = f"{SEARCH_URL}?q={keyword}&l={LOCATION_FILTER}&page={search_page}"
             logger.info("Peatix search: %s (page %d)", keyword, search_page)
             try:

@@ -58,6 +58,8 @@ export type Category =
   | "books_media"
   | "gender"
   | "geopolitics"
+  | "art"
+  | "lecture"
   | "report";
 
 export const CATEGORIES: Category[] = [
@@ -72,6 +74,8 @@ export const CATEGORIES: Category[] = [
   "books_media",
   "gender",
   "geopolitics",
+  "art",
+  "lecture",
   "report",
 ];
 

@@ -36,6 +36,8 @@
     "books_media": "Books & Media",
     "gender": "Gender Issues",
     "geopolitics": "International Relations",
+    "art": "Art",
+    "lecture": "Lecture",
     "report": "Report"
   },
   "event": {

@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 VALID_CATEGORIES = [
     "movie", "performing_arts", "senses", "retail", "nature",
-    "tech", "tourism", "lifestyle_food", "books_media", "gender", "geopolitics", "report",
+    "tech", "tourism", "lifestyle_food", "books_media", "gender", "geopolitics",
+    "art", "lecture", "report",
 ]
 
 # ---------------------------------------------------------------------------
@@ -60,7 +61,7 @@ CRITICAL DATE EXTRACTION RULES:
 
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
-2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, report
+2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, report
    - "movie" = film screenings, movie events, documentary showings, film festivals. IMPORTANT: any event with 上映, 映画, film, screening, cinema in its title or description MUST include "movie" as a category, even if it also involves talks or other elements.
    - "performing_arts" = music, concerts, live performances, dance, theater, stage shows, opera (but NOT film screenings)
    - "senses" = art, exhibitions, photography, design, workshops, creative experiences (but NOT film screenings or book events)
