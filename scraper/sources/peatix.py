@@ -106,10 +106,28 @@ def _extract_peatix_dates(page_text: str) -> tuple[Optional[datetime], Optional[
         DATE AND TIME
         Mon, May 12, 2025
         1:00 PM - 2:00 PM GMT+09:00
+
+    Or for archive/replay events with a long sale window:
+        DATE AND TIME
+        Fri, Apr 24, 2026 - Wed, Mar 31, 2027
     """
-    # Find the date line: e.g. "Mon, May 12, 2025" or "Sat, Apr 19, 2026"
+    _WEEKDAY = r'(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)'
+    _DATE = r'(?:' + _WEEKDAY + r'),\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}'
+
+    # First: try to match a date RANGE on one line: "Day, Mon DD, YYYY - Day, Mon DD, YYYY"
+    range_match = re.search(
+        r'(' + _DATE + r')\s*[-–]\s*(' + _DATE + r')',
+        page_text
+    )
+    if range_match:
+        start = _parse_peatix_date(range_match.group(1))
+        end = _parse_peatix_date(range_match.group(2))
+        if start and end:
+            return start, end
+
+    # Second: single date line, e.g. "Mon, May 12, 2025"
     date_match = re.search(
-        r'((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4})',
+        r'(' + _DATE + r')',
         page_text
     )
     if not date_match:
@@ -272,6 +290,16 @@ class PeatixScraper(BaseScraper):
             start_date = _parse_peatix_date(date_text)
             end_date = start_date
 
+        # Extract the DATE AND TIME block from page_text so the annotator sees it
+        # even if the event description body does not contain the date.
+        date_block = ""
+        dt_match = re.search(
+            r'DATE AND TIME\s*\n(.{5,120})',
+            page_text
+        )
+        if dt_match:
+            date_block = f"DATE AND TIME: {dt_match.group(1).strip()}\n\n"
+
         # --- Location ---
         location_name = (
             _safe_text(page, ".venue-name")
@@ -301,7 +329,7 @@ class PeatixScraper(BaseScraper):
             if end_date and end_date != start_date:
                 date_prefix += f"〜{end_date.strftime('%Y年%m月%d日')}"
             date_prefix += "\n\n"
-        raw_desc_with_date = date_prefix + (description_ja or "")
+        raw_desc_with_date = date_block + date_prefix + (description_ja or "")
 
         return Event(
             source_name=self.SOURCE_NAME,

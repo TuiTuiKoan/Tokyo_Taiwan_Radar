@@ -83,9 +83,52 @@ _TITLE_SLASH_DATE = re.compile(r"(\d{1,2})/(\d{1,2})[（(][月火水木金土日
 
 # Prose date in body: "MM月DD日(曜)" with no label, common in report articles
 _PROSE_DATE = re.compile(r"(\d{1,2})月(\d{1,2})日[（(][月火水木金土日祝・]+[）)]")
-
+# Tier 1.3: unlabeled kanji date range in body — "MM月DD日〜MM月DD日" (no day-of-week required)
+# Also handles YYYY年MM月DD日〜 prefix if year is present
+_PROSE_DATE_RANGE = re.compile(
+    r'((?:\d{4}年)?\d{1,2}月\d{1,2}日)[^\d年]{0,6}[～~〜][^\d年]{0,6}'
+    r'((?:\d{4}年)?\d{1,2}月\d{1,2}日)'
+)
 # Title keywords that mark an article as a report/recap
 _REPORT_KEYWORDS = re.compile(r"レポート|レポ|報告|記録|アーカイブ|recap", re.IGNORECASE)
+
+
+def _extract_prose_date_range_from_body(
+    text: Optional[str], post_date: Optional[datetime]
+) -> tuple[Optional[datetime], Optional[datetime]]:
+    """Tier 1.3: find an unlabeled kanji date range like '11月28日〜12月14日'.
+
+    No label or day-of-week marker required.  Year is inferred from post_date
+    using the same ±365-day window as Tier 1.5.
+    """
+    if not text or not post_date:
+        return None, None
+    m = _PROSE_DATE_RANGE.search(text)
+    if not m:
+        return None, None
+
+    def _infer(raw: str) -> Optional[datetime]:
+        # raw is like "11月28日" or "2025年11月28日"
+        raw = raw.strip()
+        if re.match(r'\d{4}年', raw):
+            return _parse_date(raw)
+        month_m = re.match(r'(\d{1,2})月(\d{1,2})日', raw)
+        if not month_m:
+            return None
+        month, day = int(month_m.group(1)), int(month_m.group(2))
+        for year in (post_date.year, post_date.year + 1, post_date.year - 1):
+            try:
+                candidate = datetime(year, month, day)
+            except ValueError:
+                continue
+            delta = (candidate - post_date).days
+            if -365 <= delta <= 365:
+                return candidate
+        return None
+
+    start = _infer(m.group(1))
+    end = _infer(m.group(2))
+    return start, end
 
 
 def _extract_prose_date_from_body(
@@ -288,6 +331,10 @@ class TaiwanCulturalCenterScraper(BaseScraper):
         # Tier 1: structured label in body (日時:, 会期:, 開催日:, …)
         start_date, end_date = _extract_event_dates_from_body(description_ja)
 
+        # Tier 1.3: unlabeled kanji date range e.g. "11月28日〜12月14日"
+        if start_date is None:
+            start_date, end_date = _extract_prose_date_range_from_body(description_ja, post_date)
+
         # Tier 1.5: prose date in body e.g. "10月25日(土)に開催された" (report articles)
         if start_date is None:
             start_date = _extract_prose_date_from_body(description_ja, post_date)
@@ -302,7 +349,7 @@ class TaiwanCulturalCenterScraper(BaseScraper):
 
         # Prepend extracted event date to raw_description for annotator context
         date_prefix = ""
-        if start_date and start_date != post_date:
+        if start_date:
             date_prefix = f"開催日時: {start_date.strftime('%Y年%m月%d日')}"
             if end_date:
                 date_prefix += f" ～ {end_date.strftime('%Y年%m月%d日')}"
