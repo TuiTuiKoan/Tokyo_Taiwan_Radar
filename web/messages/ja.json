@@ -111,7 +111,8 @@
     "annotationStatus": "処理状況",
     "pending": "処理待ち",
     "annotated": "処理済み",
-    "sourceLink": "ソースリンク"
+    "sourceLink": "ソースリンク",
+    "back": "一覧に戻る"
   },
   "saved": {
     "title": "お気に入り",

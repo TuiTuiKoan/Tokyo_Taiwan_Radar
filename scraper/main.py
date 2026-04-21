@@ -32,6 +32,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from sources.taiwan_cultural_center import TaiwanCulturalCenterScraper
 from sources.peatix import PeatixScraper
+from sources.taioan_dokyokai import TaioanDokyokaiScraper
 from database import upsert_events
 from annotator import annotate_pending_events
 
@@ -51,6 +52,7 @@ logger = logging.getLogger(__name__)
 SCRAPERS = [
     TaiwanCulturalCenterScraper(),
     PeatixScraper(),
+    TaioanDokyokaiScraper(),
 ]
 
 

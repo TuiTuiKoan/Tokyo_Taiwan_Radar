@@ -111,7 +111,8 @@
     "annotationStatus": "處理狀態",
     "pending": "待處理",
     "annotated": "已整理",
-    "sourceLink": "來源連結"
+    "sourceLink": "來源連結",
+    "back": "返回列表"
   },
   "saved": {
     "title": "我的收藏",

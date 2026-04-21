@@ -111,7 +111,8 @@
     "annotationStatus": "Status",
     "pending": "Pending",
     "annotated": "Processed",
-    "sourceLink": "Source Link"
+    "sourceLink": "Source Link",
+    "back": "Back to list"
   },
   "saved": {
     "title": "Saved Events",

@@ -3,35 +3,14 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { type Event, type Locale, CATEGORIES, getEventName } from "@/lib/types";
+import { type Event, type Locale, getEventName } from "@/lib/types";
 import { useRouter } from "next/navigation";
+import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 
 interface Props {
   events: Event[];
   locale: Locale;
 }
-
-const EMPTY_FORM = {
-  name_ja: "",
-  name_zh: "",
-  name_en: "",
-  description_ja: "",
-  description_zh: "",
-  description_en: "",
-  category: [] as string[],
-  start_date: "",
-  end_date: "",
-  location_name: "",
-  location_address: "",
-  business_hours: "",
-  is_paid: false,
-  price_info: "",
-  source_url: "",
-  source_name: "manual",
-  original_language: "zh",
-  is_active: true,
-  parent_event_id: "" as string,
-};
 
 export default function AdminEventTable({ events: initialEvents, locale }: Props) {
   const t = useTranslations("admin");
@@ -40,9 +19,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const supabase = createClient();
 
   const [events, setEvents] = useState<Event[]>(initialEvents);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
-  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"annotated" | "raw">("annotated");
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -80,42 +58,16 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   }
 
   const sortArrow = (key: string) =>
-    sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
-
-  function startEdit(event: Event) {
-    setEditingId(event.id);
-    setForm({
-      name_ja: event.name_ja ?? "",
-      name_zh: event.name_zh ?? "",
-      name_en: event.name_en ?? "",
-      description_ja: event.description_ja ?? "",
-      description_zh: event.description_zh ?? "",
-      description_en: event.description_en ?? "",
-      category: event.category ?? [],
-      start_date: event.start_date?.slice(0, 10) ?? "",
-      end_date: event.end_date?.slice(0, 10) ?? "",
-      location_name: event.location_name ?? "",
-      location_address: event.location_address ?? "",
-      business_hours: event.business_hours ?? "",
-      is_paid: event.is_paid ?? false,
-      price_info: event.price_info ?? "",
-      source_url: event.source_url,
-      source_name: event.source_name,
-      original_language: event.original_language,
-      is_active: event.is_active,
-      parent_event_id: event.parent_event_id ?? "",
-    });
-    setShowNew(false);
-  }
+    sortKey === key
+      ? <span className="ml-0.5 text-gray-800">{sortDir === "asc" ? "▲" : "▼"}</span>
+      : <span className="ml-0.5 text-gray-300">▲</span>;
 
   function startNew() {
     setShowNew(true);
-    setEditingId(null);
     setForm({ ...EMPTY_FORM });
   }
 
-  function cancelEdit() {
-    setEditingId(null);
+  function cancelNew() {
     setShowNew(false);
   }
 
@@ -132,67 +84,26 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     }));
   }
 
-  async function handleSave() {
+  async function handleSaveNew() {
     setSaving(true);
-    const payload = {
-      ...form,
-      start_date: form.start_date || null,
-      end_date: form.end_date || null,
-      parent_event_id: form.parent_event_id || null,
-      source_id: editingId ? undefined : `manual-${Date.now()}`,
-    };
-
-    if (editingId) {
-      // Check if category was changed — save correction for AI feedback loop
-      const originalEvent = events.find((e) => e.id === editingId);
-      const categoryChanged = originalEvent &&
-        JSON.stringify([...(originalEvent.category || [])].sort()) !==
-        JSON.stringify([...(form.category || [])].sort());
-
-      const { data, error } = await supabase
-        .from("events")
-        .update(payload)
-        .eq("id", editingId)
-        .select()
-        .single();
-      if (error) {
-        console.error("Update failed:", error);
-        alert(`Save failed: ${error.message}`);
-      } else if (data) {
-        setEvents((prev) => prev.map((e) => (e.id === editingId ? (data as Event) : e)));
-
-        // Save category correction for AI learning (fire-and-forget)
-        if (categoryChanged && originalEvent) {
-          supabase
-            .from("category_corrections")
-            .upsert({
-              event_id: editingId,
-              raw_title: originalEvent.raw_title,
-              raw_description: (originalEvent.raw_description || "").slice(0, 500),
-              ai_category: originalEvent.category || [],
-              corrected_category: form.category,
-            }, { onConflict: "event_id" })
-            .then(({ error: corrErr }) => {
-              if (corrErr) console.warn("Category correction save failed:", corrErr.message);
-            });
-        }
-      }
-    } else {
-      const { data, error } = await supabase
-        .from("events")
-        .insert({ ...payload, source_id: `manual-${Date.now()}` })
-        .select()
-        .single();
-      if (error) {
-        console.error("Insert failed:", error);
-        alert(`Save failed: ${error.message}`);
-      } else if (data) {
-        setEvents((prev) => [data as Event, ...prev]);
-      }
+    const { data, error } = await supabase
+      .from("events")
+      .insert({
+        ...form,
+        start_date: form.start_date || null,
+        end_date: form.end_date || null,
+        parent_event_id: form.parent_event_id || null,
+        source_id: `manual-${Date.now()}`,
+      })
+      .select()
+      .single();
+    if (error) {
+      console.error("Insert failed:", error);
+      alert(`Save failed: ${error.message}`);
+    } else if (data) {
+      setEvents((prev) => [data as Event, ...prev]);
     }
-
     setSaving(false);
-    setEditingId(null);
     setShowNew(false);
   }
 
@@ -209,13 +120,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     );
   }
 
-  const isEditing = editingId !== null || showNew;
-
   return (
     <div>
       {/* View toggle + New event button */}
       <div className="flex items-center gap-3 mb-4">
-        {!isEditing && (
+        {!showNew && (
           <button
             onClick={startNew}
             className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition"
@@ -247,32 +156,30 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         </div>
       </div>
 
-      {/* Inline form */}
-      {isEditing && (
+      {/* New event inline form */}
+      {showNew && (
         <div className="border border-green-300 rounded-xl p-6 mb-6 bg-green-50">
-          <h2 className="font-bold text-lg mb-4">
-            {editingId ? t("edit") : t("newEvent")}
-          </h2>
-          <EventForm
+          <h2 className="font-bold text-lg mb-4">{t("newEvent")}</h2>
+          <AdminEventForm
             form={form}
             t={t}
             tCat={tCat}
             updateField={updateField}
             toggleCategory={toggleCategory}
             events={events}
-            editingId={editingId}
+            editingId={null}
             locale={locale}
           />
           <div className="flex gap-3 mt-4">
             <button
-              onClick={handleSave}
+              onClick={handleSaveNew}
               disabled={saving}
               className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
             >
               {saving ? "..." : t("save")}
             </button>
             <button
-              onClick={cancelEdit}
+              onClick={cancelNew}
               className="border border-gray-300 px-4 py-2 rounded-lg text-sm hover:bg-gray-50"
             >
               {t("cancel")}
@@ -364,7 +271,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   </td>
                   <td className="py-2">
                     <div className="flex gap-2">
-                      <button onClick={() => startEdit(event)} className="text-blue-600 hover:underline text-xs">
+                      <button
+                        onClick={() => router.push(`/${locale}/admin/${event.id}`)}
+                        className="text-blue-600 hover:underline text-xs"
+                      >
                         {t("edit")}
                       </button>
                       <button onClick={() => handleDelete(event.id)} className="text-red-500 hover:underline text-xs">
@@ -401,7 +311,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   </td>
                   <td className="py-2">
                     <div className="flex gap-2">
-                      <button onClick={() => startEdit(event)} className="text-blue-600 hover:underline text-xs">
+                      <button
+                        onClick={() => router.push(`/${locale}/admin/${event.id}`)}
+                        className="text-blue-600 hover:underline text-xs"
+                      >
                         {t("edit")}
                       </button>
                       <button onClick={() => handleReannotate(event.id)} className="text-purple-600 hover:underline text-xs">
@@ -418,198 +331,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           </tbody>
         </table>
       </div>
-    </div>
-  );
-}
-
-// ----- Sub-component: form fields -----
-function EventForm({
-  form,
-  t,
-  tCat,
-  updateField,
-  toggleCategory,
-  events,
-  editingId,
-  locale,
-}: {
-  form: typeof EMPTY_FORM;
-  t: any;
-  tCat: any;
-  updateField: (k: string, v: any) => void;
-  toggleCategory: (cat: string) => void;
-  events: Event[];
-  editingId: string | null;
-  locale: Locale;
-}) {
-  // Exclude self from parent candidates
-  const parentCandidates = events.filter((e) => e.id !== editingId);
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {/* Multilingual names */}
-      {(["ja", "zh", "en"] as const).map((lang) => (
-        <div key={lang}>
-          <label className="block text-xs text-gray-500 mb-1">
-            {t(`name${lang.charAt(0).toUpperCase() + lang.slice(1)}` as any)}
-          </label>
-          <input
-            type="text"
-            value={(form as any)[`name_${lang}`]}
-            onChange={(e) => updateField(`name_${lang}`, e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
-        </div>
-      ))}
-
-      {/* Dates */}
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("startDate")}</label>
-        <input
-          type="date"
-          value={form.start_date}
-          onChange={(e) => updateField("start_date", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-        />
-      </div>
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("endDate")}</label>
-        <input
-          type="date"
-          value={form.end_date}
-          onChange={(e) => updateField("end_date", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-        />
-      </div>
-
-      {/* Location */}
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("location")}</label>
-        <input
-          type="text"
-          value={form.location_name}
-          onChange={(e) => updateField("location_name", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-        />
-      </div>
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("address")}</label>
-        <input
-          type="text"
-          value={form.location_address}
-          onChange={(e) => updateField("location_address", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-        />
-      </div>
-
-      {/* Hours */}
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("hours")}</label>
-        <input
-          type="text"
-          value={form.business_hours}
-          onChange={(e) => updateField("business_hours", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-        />
-      </div>
-
-      {/* Source URL */}
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("sourceUrl")}</label>
-        <input
-          type="url"
-          value={form.source_url}
-          onChange={(e) => updateField("source_url", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-        />
-      </div>
-
-      {/* Paid */}
-      <div className="flex items-center gap-3">
-        <input
-          type="checkbox"
-          id="is_paid"
-          checked={form.is_paid}
-          onChange={(e) => updateField("is_paid", e.target.checked)}
-          className="w-4 h-4"
-        />
-        <label htmlFor="is_paid" className="text-sm">{t("isPaid")}</label>
-      </div>
-
-      {/* Active */}
-      <div className="flex items-center gap-3">
-        <input
-          type="checkbox"
-          id="is_active"
-          checked={form.is_active}
-          onChange={(e) => updateField("is_active", e.target.checked)}
-          className="w-4 h-4"
-        />
-        <label htmlFor="is_active" className="text-sm">{t("isActive")}</label>
-      </div>
-
-      {/* Price info */}
-      <div className="md:col-span-2">
-        <label className="block text-xs text-gray-500 mb-1">{t("priceInfo")}</label>
-        <input
-          type="text"
-          value={form.price_info}
-          onChange={(e) => updateField("price_info", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-        />
-      </div>
-
-      {/* Categories */}
-      <div className="md:col-span-2">
-        <label className="block text-xs text-gray-500 mb-2">{t("category")}</label>
-        <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => toggleCategory(cat)}
-              className={`px-3 py-1 rounded-full text-xs border transition ${
-                form.category.includes(cat)
-                  ? "bg-green-600 text-white border-green-600"
-                  : "border-gray-300 hover:border-green-400"
-              }`}
-            >
-              {tCat(cat)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Parent event */}
-      <div className="md:col-span-2">
-        <label className="block text-xs text-gray-500 mb-1">{t("parentEvent")}</label>
-        <select
-          value={form.parent_event_id}
-          onChange={(e) => updateField("parent_event_id", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-        >
-          <option value="">{t("noParent")}</option>
-          {parentCandidates.map((e) => (
-            <option key={e.id} value={e.id}>
-              {getEventName(e, locale)} ({e.start_date?.slice(0, 10) ?? "—"})
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Multilingual descriptions */}
-      {(["ja", "zh", "en"] as const).map((lang) => (
-        <div key={lang} className="md:col-span-2">
-          <label className="block text-xs text-gray-500 mb-1">
-            {t(`desc${lang.charAt(0).toUpperCase() + lang.slice(1)}` as any)}
-          </label>
-          <textarea
-            rows={3}
-            value={(form as any)[`description_${lang}`]}
-            onChange={(e) => updateField(`description_${lang}`, e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
-        </div>
-      ))}
     </div>
   );
 }
