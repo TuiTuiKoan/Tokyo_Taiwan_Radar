@@ -83,6 +83,8 @@ BLOCKED_ORGANIZER_PATTERNS: frozenset[str] = frozenset([
     "台日交流會",
     "日台交流会",
     "日台交流會",
+    "アンダーバー東京国際交流",
+    "UnderBar TOKYO",
 ])
 
 
@@ -275,6 +277,17 @@ class PeatixScraper(BaseScraper):
         page_text = page.inner_text("body") or ""
         if not any(kw in page_text for kw in TAIWAN_KEYWORDS):
             logger.debug("Peatix: skipping non-Taiwan event %s", url)
+            return None
+
+        # False-positive guard: 台東区 is a Tokyo ward, not Taiwan.
+        # Skip if the only Taiwan keyword hit is 台東 and the page also contains 台東区,
+        # meaning 台東 appears solely as part of 台東区 with no other Taiwan signals.
+        _TAIWAN_KW_NO_TAITO = [kw for kw in TAIWAN_KEYWORDS if kw != "台東"]
+        if (
+            "台東区" in page_text
+            and not any(kw in page_text for kw in _TAIWAN_KW_NO_TAITO)
+        ):
+            logger.info("Peatix: only '\u53f0東区' (Tokyo ward) found, skipping: %s", url)
             return None
 
         # --- Title ---
