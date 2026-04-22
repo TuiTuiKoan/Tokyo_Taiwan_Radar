@@ -73,6 +73,9 @@ DATE_LOOKBACK_DAYS = 90
 BLOCKED_TITLE_PATTERNS: frozenset[str] = frozenset([
     "Q-B-CONTINUED",
     "Soul Food Assassins",
+    "人氣主題！🇹🇼台日交流",
+    "台日交流会",
+    "台日交流會",
 ])
 
 
