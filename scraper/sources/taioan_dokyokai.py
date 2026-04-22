@@ -282,6 +282,10 @@ class TaioanDokyokaiScraper(BaseScraper):
             start_date = pub_date
             end_date = pub_date
 
+        # Rule: single-day events must have end_date = start_date (never null)
+        if start_date and end_date is None:
+            end_date = start_date
+
         # --- Location ---
         location_name = _extract_location(description_ja)
 

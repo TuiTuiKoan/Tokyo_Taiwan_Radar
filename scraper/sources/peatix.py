@@ -68,6 +68,13 @@ LOCATION_FILTER = "JP-13"  # Tokyo prefecture code in Peatix
 # Only keep events whose start_date is within this window from today
 DATE_LOOKBACK_DAYS = 90
 
+# Events whose titles match any of these patterns are excluded — they contain
+# 台北 only in a speaker bio / book title, not in the actual event content.
+BLOCKED_TITLE_PATTERNS: frozenset[str] = frozenset([
+    "Q-B-CONTINUED",
+    "Soul Food Assassins",
+])
+
 
 def _safe_text(page: Page, selector: str) -> Optional[str]:
     try:
@@ -161,7 +168,7 @@ def _extract_peatix_dates(page_text: str) -> tuple[Optional[datetime], Optional[
             pass
 
     # No time range found — same-day event, start = end
-    return start, start
+        # (Caller enforces end_date = start_date when end is still None)
 
 
 class PeatixScraper(BaseScraper):
@@ -269,6 +276,12 @@ class PeatixScraper(BaseScraper):
         if not name_ja:
             return None
 
+        # Blocklist: skip events whose titles match known false-positive patterns.
+        # We check name_ja (scraped title) so this fires before any translation.
+        if any(pat in name_ja for pat in BLOCKED_TITLE_PATTERNS):
+            logger.info("Peatix: blocked title pattern matched, skipping: %s", name_ja[:60])
+            return None
+
         # --- Description ---
         description_ja = (
             _safe_text(page, ".event-description")
@@ -330,6 +343,10 @@ class PeatixScraper(BaseScraper):
                 date_prefix += f"〜{end_date.strftime('%Y年%m月%d日')}"
             date_prefix += "\n\n"
         raw_desc_with_date = date_block + date_prefix + (description_ja or "")
+
+        # Rule: single-day events must have end_date = start_date (never null)
+        if start_date and end_date is None:
+            end_date = start_date
 
         return Event(
             source_name=self.SOURCE_NAME,

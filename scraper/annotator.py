@@ -222,8 +222,11 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
                 "description_zh": annotation.get("description_zh"),
                 "description_en": annotation.get("description_en"),
                 "category": categories,
-                "start_date": annotation.get("start_date"),
-                "end_date": annotation.get("end_date"),
+                # Preserve scraper-set dates when GPT returns null — GPT may fail to
+                # extract dates from long descriptions, but the scraper already found
+                # and prepended them in 開催日時: format.
+                "start_date": annotation.get("start_date") or event.get("start_date"),
+                "end_date": annotation.get("end_date") or event.get("end_date"),
                 "location_name": annotation.get("location_name") or event.get("location_name"),
                 "location_address": annotation.get("location_address") or event.get("location_address"),
                 "business_hours": annotation.get("business_hours") or event.get("business_hours"),

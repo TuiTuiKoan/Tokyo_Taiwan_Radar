@@ -92,6 +92,57 @@ _PROSE_DATE_RANGE = re.compile(
 # Title keywords that mark an article as a report/recap
 _REPORT_KEYWORDS = re.compile(r"レポート|レポ|報告|記録|アーカイブ|recap", re.IGNORECASE)
 
+# Tier 1b: dot-separated date in labeled body section — e.g. "10.11 Sat" or "10.11 (Sat)"
+# Matches M.DD or MM.DD followed by an English weekday abbreviation
+_DOTDAY_DATE = re.compile(
+    r'(\d{1,2}\.\d{2})\s*(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)',
+    re.IGNORECASE,
+)
+# Label prefix for Tier 1b — same set as Tier 1 body labels
+_DOTDAY_LABEL_SECTION = re.compile(
+    r'[■●▶◆◇・]?\s*'
+    r'(?:日\s*時|開催日時|日時|会期|開催期間|期間|開催日|イベント日時)'
+    r'\s*[：:]\s*(.{1,200})',
+    re.MULTILINE | re.DOTALL,
+)
+
+
+def _extract_dotday_date_from_body(
+    text: Optional[str], post_date: Optional[datetime]
+) -> Optional[datetime]:
+    """Tier 1b: detect M.DD Day format inside a labeled date section.
+
+    Handles patterns like:
+      日時：10.11 Sat 16:30～19:00（開 16:00）
+
+    Year is inferred from post_date using the same ±180-day window as Tier 1.5.
+    """
+    if not text or not post_date:
+        return None
+    # Only search within a labeled date section
+    sec_m = _DOTDAY_LABEL_SECTION.search(text)
+    if not sec_m:
+        return None
+    section_text = sec_m.group(1)[:200]
+    m = _DOTDAY_DATE.search(section_text)
+    if not m:
+        return None
+    raw = m.group(1)  # e.g. "10.11"
+    parts = raw.split('.')
+    try:
+        month, day = int(parts[0]), int(parts[1])
+    except (IndexError, ValueError):
+        return None
+    for year in (post_date.year, post_date.year + 1, post_date.year - 1):
+        try:
+            candidate = datetime(year, month, day)
+        except ValueError:
+            continue
+        delta = abs((candidate - post_date).days)
+        if delta <= 180:
+            return candidate
+    return None
+
 
 def _extract_prose_date_range_from_body(
     text: Optional[str], post_date: Optional[datetime]
@@ -331,6 +382,10 @@ class TaiwanCulturalCenterScraper(BaseScraper):
         # Tier 1: structured label in body (日時:, 会期:, 開催日:, …)
         start_date, end_date = _extract_event_dates_from_body(description_ja)
 
+        # Tier 1b: dot-separated date in labeled section e.g. "10.11 Sat"
+        if start_date is None:
+            start_date = _extract_dotday_date_from_body(description_ja, post_date)
+
         # Tier 1.3: unlabeled kanji date range e.g. "11月28日〜12月14日"
         if start_date is None:
             start_date, end_date = _extract_prose_date_range_from_body(description_ja, post_date)
@@ -346,6 +401,10 @@ class TaiwanCulturalCenterScraper(BaseScraper):
         # Tier 3: fall back to publish date so start_date is never null
         if start_date is None:
             start_date = post_date
+
+        # Rule: single-day events must have end_date = start_date (never null)
+        if start_date and end_date is None:
+            end_date = start_date
 
         # Prepend extracted event date to raw_description for annotator context
         date_prefix = ""
