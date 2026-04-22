@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { LOCALES, type Locale } from "@/lib/types";
 import "../globals.css";
 import Navbar from "@/components/Navbar";
+import { Analytics } from "@vercel/analytics/react";
 
 export const metadata: Metadata = {
   title: "Tokyo Taiwan Radar",
@@ -37,6 +38,7 @@ export default async function LocaleLayout({
       <footer className="border-t border-gray-100 mt-12 py-4 text-center text-xs text-gray-400">
         營運維護：對對觀 2026
       </footer>
+      <Analytics />
     </NextIntlClientProvider>
   );
 }

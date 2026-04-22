@@ -151,9 +151,10 @@ def _annotate_one(client: OpenAI, raw_title: str, raw_description: str, feedback
         max_tokens=4000,
     )
 
+    usage = response.usage  # may be None in rare cases
     text = response.choices[0].message.content
     try:
-        return json.loads(text)
+        return json.loads(text), usage
     except json.JSONDecodeError:
         # Retry once with higher token budget
         response = client.chat.completions.create(
@@ -166,7 +167,8 @@ def _annotate_one(client: OpenAI, raw_title: str, raw_description: str, feedback
             temperature=0.1,
             max_tokens=6000,
         )
-        return json.loads(response.choices[0].message.content)
+        usage = response.usage
+        return json.loads(response.choices[0].message.content), usage
 
 
 def _validate_categories(cats: list) -> list[str]:
@@ -211,6 +213,11 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
 
     logger.info("Found %d events to annotate", len(events))
 
+    # Accumulate usage for scraper_runs logging
+    total_tokens_in = 0
+    total_tokens_out = 0
+    events_ok = 0
+
     for i, event in enumerate(events, 1):
         eid = event["id"]
         raw_title = event.get("raw_title") or event.get("name_ja") or ""
@@ -219,7 +226,10 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
         logger.info("[%d/%d] Annotating: %s", i, len(events), raw_title[:60])
 
         try:
-            annotation = _annotate_one(ai, raw_title, raw_desc, feedback_prompt)
+            annotation, usage = _annotate_one(ai, raw_title, raw_desc, feedback_prompt)
+            if usage:
+                total_tokens_in += usage.prompt_tokens or 0
+                total_tokens_out += usage.completion_tokens or 0
 
             # Validate and sanitize
             categories = _validate_categories(annotation.get("category", []))
@@ -260,6 +270,7 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
                 update_data["selection_reason"] = selection_reason
 
             sb.table("events").update(update_data).eq("id", eid).execute()
+            events_ok += 1
             logger.info("  ✓ annotated (categories: %s)", categories)
 
             # Handle sub-events
@@ -310,6 +321,27 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
 
         # Rate limiting — avoid hitting OpenAI too fast
         time.sleep(0.5)
+
+    # -------------------------------------------------------------------
+    # Write scraper_runs record
+    # GPT-4o-mini pricing: $0.15 / 1M input tokens, $0.60 / 1M output tokens
+    # -------------------------------------------------------------------
+    cost = (total_tokens_in * 0.15 + total_tokens_out * 0.60) / 1_000_000
+    try:
+        sb.table("scraper_runs").insert({
+            "source": "annotator",
+            "events_processed": events_ok,
+            "openai_tokens_in": total_tokens_in,
+            "openai_tokens_out": total_tokens_out,
+            "cost_usd": round(cost, 6),
+            "notes": f"re_annotate_all={re_annotate_all}, total={len(events)}",
+        }).execute()
+        logger.info(
+            "scraper_runs logged: %d events, %d in / %d out tokens, $%.6f",
+            events_ok, total_tokens_in, total_tokens_out, cost,
+        )
+    except Exception as exc:
+        logger.warning("Could not write scraper_runs (table may not exist yet): %s", exc)
 
     logger.info("Annotation complete.")
 

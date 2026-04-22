@@ -30,6 +30,12 @@ from dotenv import load_dotenv
 # Load .env file from the same directory as this script
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
+import sentry_sdk
+
+_SENTRY_DSN = os.environ.get("SENTRY_DSN")
+if _SENTRY_DSN:
+    sentry_sdk.init(dsn=_SENTRY_DSN, traces_sample_rate=0.1)
+
 from sources.taiwan_cultural_center import TaiwanCulturalCenterScraper
 from sources.peatix import PeatixScraper
 from sources.taioan_dokyokai import TaioanDokyokaiScraper
