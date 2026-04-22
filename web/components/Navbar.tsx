@@ -12,10 +12,10 @@ interface Props {
   locale: Locale;
 }
 
-const LOCALE_LABELS: Record<Locale, string> = {
-  zh: "繁中",
-  en: "EN",
-  ja: "日本語",
+const LOCALE_FLAGS: Record<Locale, string> = {
+  zh: "🇹🇼",
+  en: "🇬🇧",
+  ja: "🇯🇵",
 };
 
 export default function Navbar({ locale }: Props) {
@@ -23,6 +23,7 @@ export default function Navbar({ locale }: Props) {
   const pathname = usePathname();
   const supabase = createClient();
   const [user, setUser] = useState<User | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
@@ -37,7 +38,6 @@ export default function Navbar({ locale }: Props) {
     window.location.reload();
   }
 
-  // Build locale-switched path
   function localePath(targetLocale: Locale) {
     const segments = pathname.split("/");
     segments[1] = targetLocale;
@@ -55,52 +55,119 @@ export default function Navbar({ locale }: Props) {
           🇹🇼 Tokyo Taiwan Radar
         </Link>
 
-        {/* Main nav */}
-        <nav className="flex items-center gap-4 text-sm">
-          <Link href={`/${locale}`} className="hover:text-green-700 transition">
-            {t("home")}
-          </Link>
-          {user && (
-            <Link href={`/${locale}/saved`} className="hover:text-green-700 transition">
-              {t("saved")}
+        <div className="flex items-center gap-1">
+          {/* Desktop nav links */}
+          <nav className="hidden md:flex items-center gap-4 text-sm mr-2">
+            <Link href={`/${locale}`} className="hover:text-green-700 transition">
+              {t("home")}
             </Link>
-          )}
+            {user && (
+              <Link href={`/${locale}/saved`} className="hover:text-green-700 transition">
+                {t("saved")}
+              </Link>
+            )}
+          </nav>
 
-          {/* Language switcher */}
-          <div className="flex gap-1 ml-2">
+          {/* Language switcher — flags */}
+          <div className="flex gap-0.5">
             {LOCALES.map((loc) => (
               <Link
                 key={loc}
                 href={localePath(loc)}
-                className={`px-2 py-1 rounded text-xs border transition ${
+                title={loc.toUpperCase()}
+                className={`w-8 h-8 flex items-center justify-center rounded text-lg transition ${
                   loc === locale
-                    ? "bg-green-600 text-white border-green-600"
-                    : "border-gray-300 hover:border-green-500"
+                    ? "bg-green-100 ring-2 ring-green-500"
+                    : "opacity-50 hover:opacity-100 hover:bg-gray-100"
                 }`}
               >
-                {LOCALE_LABELS[loc]}
+                {LOCALE_FLAGS[loc]}
               </Link>
             ))}
           </div>
 
-          {/* Auth */}
+          {/* Auth — icon only */}
           {user ? (
             <button
               onClick={handleLogout}
-              className="ml-2 text-gray-500 hover:text-red-500 transition text-xs"
+              title={t("logout")}
+              className="w-8 h-8 flex items-center justify-center rounded hover:bg-red-50 text-gray-500 hover:text-red-500 transition"
             >
-              {t("logout")}
+              {/* Logout icon */}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
             </button>
           ) : (
             <Link
               href={`/${locale}/auth/login`}
-              className="ml-2 bg-green-600 text-white px-3 py-1.5 rounded-md text-xs hover:bg-green-700 transition"
+              title={t("login")}
+              className="w-8 h-8 flex items-center justify-center rounded bg-green-600 text-white hover:bg-green-700 transition"
             >
-              {t("login")}
+              {/* Person icon */}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
             </Link>
           )}
-        </nav>
+
+          {/* Hamburger — mobile only */}
+          <button
+            className="md:hidden w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 transition ml-1"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* Mobile dropdown menu */}
+      {menuOpen && (
+        <nav className="md:hidden border-t border-gray-100 bg-white shadow-md">
+          <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-1 text-sm">
+            <Link
+              href={`/${locale}`}
+              onClick={() => setMenuOpen(false)}
+              className="px-3 py-2.5 rounded-md hover:bg-green-50 hover:text-green-700 transition"
+            >
+              {t("home")}
+            </Link>
+            {user && (
+              <Link
+                href={`/${locale}/saved`}
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2.5 rounded-md hover:bg-green-50 hover:text-green-700 transition"
+              >
+                {t("saved")}
+              </Link>
+            )}
+            {user && (
+              <button
+                onClick={() => { setMenuOpen(false); handleLogout(); }}
+                className="text-left px-3 py-2.5 rounded-md text-red-500 hover:bg-red-50 transition"
+              >
+                {t("logout")}
+              </button>
+            )}
+          </div>
+        </nav>
+      )}
     </header>
   );
 }
