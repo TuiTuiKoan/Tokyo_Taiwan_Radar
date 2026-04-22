@@ -26,7 +26,7 @@
   },
   "categories": {
     "movie": "電影",
-    "performing_arts": "表演藝術",
+    "performing_arts": "音樂・表演藝術",
     "senses": "台灣五感",
     "retail": "品牌消費",
     "nature": "自然",
@@ -38,7 +38,7 @@
     "geopolitics": "國際關係",
     "art": "藝術",
     "lecture": "講座",
-    "report": "紀錄報導"
+    "report": "活動紀錄"
   },
   "event": {
     "source": "資料來源",

@@ -174,6 +174,16 @@ def _validate_categories(cats: list) -> list[str]:
     return [c for c in cats if isinstance(c, str) and c in VALID_CATEGORIES] or ["senses"]
 
 
+_LECTURE_KEYWORDS = frozenset(["座談", "講座", "座談会", "座談會"])
+
+
+def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
+    """Add 'lecture' tag if the text contains lecture-related keywords."""
+    if "lecture" not in categories and any(kw in text for kw in _LECTURE_KEYWORDS):
+        return categories + ["lecture"]
+    return categories
+
+
 def annotate_pending_events(re_annotate_all: bool = False) -> None:
     """Fetch pending events from DB, annotate with AI, and update."""
     sb = _get_supabase()
@@ -213,6 +223,7 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
 
             # Validate and sanitize
             categories = _validate_categories(annotation.get("category", []))
+            categories = _inject_keyword_categories(categories, raw_title + " " + raw_desc)
 
             update_data: dict[str, Any] = {
                 "name_ja": annotation.get("name_ja") or raw_title,
@@ -255,6 +266,7 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
             sub_events = annotation.get("sub_events", [])
             for j, sub in enumerate(sub_events):
                 sub_cats = _validate_categories(sub.get("category", categories))
+                sub_cats = _inject_keyword_categories(sub_cats, sub.get("name_ja", "") + " " + (sub.get("description_ja") or ""))
                 sub_start = sub.get("start_date")
                 sub_end = sub.get("end_date") or sub_start
 
