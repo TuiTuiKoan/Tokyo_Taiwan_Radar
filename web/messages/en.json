@@ -126,7 +126,10 @@
     "copySkillNote": "Copy skill note",
     "skillNoteCopied": "Copied!",
     "noReports": "No reports yet",
-    "viewEvent": "View event"
+    "viewEvent": "View event",
+    "bulkDelete": "Delete selected",
+    "confirmBulkDelete": "Delete {count} events? This cannot be undone.",
+    "selectedCount": "{count} selected"
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",

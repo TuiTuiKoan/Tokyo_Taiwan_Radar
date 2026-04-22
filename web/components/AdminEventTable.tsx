@@ -25,6 +25,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [viewMode, setViewMode] = useState<"annotated" | "raw">("annotated");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function toggleSort(key: string) {
     if (sortKey === key) {
@@ -111,6 +113,45 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     if (!window.confirm(t("confirmDelete"))) return;
     await supabase.from("events").delete().eq("id", id);
     setEvents((prev) => prev.filter((e) => e.id !== id));
+    setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    const msg = t("confirmBulkDelete", { count: selected.size });
+    if (!window.confirm(msg)) return;
+    setBulkDeleting(true);
+    const ids = Array.from(selected);
+    await supabase.from("events").delete().in("id", ids);
+    setEvents((prev) => prev.filter((e) => !selected.has(e.id)));
+    setSelected(new Set());
+    setBulkDeleting(false);
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    const visible = getSorted(events).map((e) => e.id);
+    const allSelected = visible.every((id) => selected.has(id));
+    if (allSelected) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        visible.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        visible.forEach((id) => next.add(id));
+        return next;
+      });
+    }
   }
 
   async function handleReannotate(id: string) {
@@ -189,11 +230,41 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       )}
 
       {/* Events table */}
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm">
+          <span className="text-red-700 font-medium">{t("selectedCount", { count: selected.size })}</span>
+          <button
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="ml-auto bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition"
+          >
+            {bulkDeleting ? "..." : t("bulkDelete")}
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="text-gray-500 hover:text-gray-700 text-xs transition"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Events table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
             {viewMode === "annotated" ? (
               <tr className="border-b text-left text-gray-500">
+                <th className="py-2 pr-2 w-8">
+                  <input
+                    type="checkbox"
+                    checked={getSorted(events).length > 0 && getSorted(events).every((e) => selected.has(e.id))}
+                    onChange={toggleSelectAll}
+                    className="rounded cursor-pointer"
+                    title="全選"
+                  />
+                </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("name")}>{t("name")}{sortArrow("name")}</th>
                 <th className="py-2 pr-4 font-medium">{t("category")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
@@ -206,6 +277,15 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               </tr>
             ) : (
               <tr className="border-b text-left text-gray-500">
+                <th className="py-2 pr-2 w-8">
+                  <input
+                    type="checkbox"
+                    checked={getSorted(events).length > 0 && getSorted(events).every((e) => selected.has(e.id))}
+                    onChange={toggleSelectAll}
+                    className="rounded cursor-pointer"
+                    title="全選"
+                  />
+                </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("raw_title")}>{t("name")}{sortArrow("raw_title")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
                 <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
@@ -218,6 +298,14 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             {getSorted(events).map((event) => (
               viewMode === "annotated" ? (
                 <tr key={event.id} className="border-b hover:bg-gray-50 transition">
+                  <td className="py-2 pr-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(event.id)}
+                      onChange={() => toggleSelect(event.id)}
+                      className="rounded cursor-pointer"
+                    />
+                  </td>
                   <td className="py-2 pr-4 max-w-xs truncate">
                     {getEventName(event, locale)}
                   </td>
@@ -285,6 +373,14 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 </tr>
               ) : (
                 <tr key={event.id} className="border-b hover:bg-gray-50 transition">
+                  <td className="py-2 pr-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(event.id)}
+                      onChange={() => toggleSelect(event.id)}
+                      className="rounded cursor-pointer"
+                    />
+                  </td>
                   <td className="py-2 pr-4 max-w-sm">
                     <p className="text-xs text-gray-800 line-clamp-2">{event.raw_title || getEventName(event, locale)}</p>
                   </td>

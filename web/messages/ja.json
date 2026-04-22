@@ -126,7 +126,10 @@
     "copySkillNote": "スキルノートをコピー",
     "skillNoteCopied": "コピーしました！",
     "noReports": "報告はまだありません",
-    "viewEvent": "イベントを見る"
+    "viewEvent": "イベントを見る",
+    "bulkDelete": "選択を削除",
+    "confirmBulkDelete": "{count}件のイベントを削除しますか？この操作は元に戻せません。",
+    "selectedCount": "{count}件選択中"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",
