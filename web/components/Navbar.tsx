@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type Locale, LOCALES } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
 
@@ -18,12 +18,31 @@ const LOCALE_FLAGS: Record<Locale, string> = {
   ja: "🇯🇵",
 };
 
+const LOCALE_LABELS: Record<Locale, string> = {
+  zh: "繁中",
+  en: "EN",
+  ja: "日本語",
+};
+
 export default function Navbar({ locale }: Props) {
   const t = useTranslations("nav");
   const pathname = usePathname();
   const supabase = createClient();
   const [user, setUser] = useState<User | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
+  const langRef = useRef<HTMLDivElement>(null);
+
+  // Close language dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+        setLangOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
@@ -68,22 +87,41 @@ export default function Navbar({ locale }: Props) {
             )}
           </nav>
 
-          {/* Language switcher — flags */}
-          <div className="flex gap-0.5">
-            {LOCALES.map((loc) => (
-              <Link
-                key={loc}
-                href={localePath(loc)}
-                title={loc.toUpperCase()}
-                className={`w-8 h-8 flex items-center justify-center rounded text-lg transition ${
-                  loc === locale
-                    ? "bg-green-100 ring-2 ring-green-500"
-                    : "opacity-50 hover:opacity-100 hover:bg-gray-100"
-                }`}
-              >
-                {LOCALE_FLAGS[loc]}
-              </Link>
-            ))}
+          {/* Language switcher — globe icon + dropdown */}
+          <div className="relative" ref={langRef}>
+            <button
+              onClick={() => setLangOpen((o) => !o)}
+              title={locale.toUpperCase()}
+              aria-expanded={langOpen}
+              aria-label="Switch language"
+              className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500 hover:text-green-700 transition"
+            >
+              {/* Globe icon */}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+            </button>
+
+            {langOpen && (
+              <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[110px] z-50">
+                {LOCALES.map((loc) => (
+                  <Link
+                    key={loc}
+                    href={localePath(loc)}
+                    onClick={() => setLangOpen(false)}
+                    className={`flex items-center gap-2 px-3 py-2 text-sm transition hover:bg-green-50 hover:text-green-700 ${
+                      loc === locale ? "font-semibold text-green-700" : "text-gray-700"
+                    }`}
+                  >
+                    <span>{LOCALE_FLAGS[loc]}</span>
+                    <span>{LOCALE_LABELS[loc]}</span>
+                    {loc === locale && <span className="ml-auto text-green-500 text-xs">✓</span>}
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Auth — icon only */}
