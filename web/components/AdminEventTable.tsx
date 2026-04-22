@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { type Event, type Locale, getEventName } from "@/lib/types";
+import { type Event, type Locale, getEventName, CATEGORIES } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 
@@ -27,6 +27,29 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Inline filters
+  const [filterQ, setFilterQ] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterPaid, setFilterPaid] = useState("");
+  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
+
+  function getFiltered(list: Event[]) {
+    return list.filter((e) => {
+      if (filterQ) {
+        const q = filterQ.toLowerCase();
+        const name = getEventName(e, locale).toLowerCase();
+        const raw = (e.raw_title || "").toLowerCase();
+        if (!name.includes(q) && !raw.includes(q)) return false;
+      }
+      if (filterCategory && !(e.category || []).includes(filterCategory)) return false;
+      if (filterPaid === "free" && e.is_paid !== false) return false;
+      if (filterPaid === "paid" && e.is_paid !== true) return false;
+      if (filterActive === "active" && !e.is_active) return false;
+      if (filterActive === "inactive" && e.is_active) return false;
+      return true;
+    });
+  }
 
   function toggleSort(key: string) {
     if (sortKey === key) {
@@ -137,7 +160,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   }
 
   function toggleSelectAll() {
-    const visible = getSorted(events).map((e) => e.id);
+    const visible = getSorted(getFiltered(events)).map((e) => e.id);
     const allSelected = visible.every((id) => selected.has(id));
     if (allSelected) {
       setSelected((prev) => {
@@ -158,6 +181,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     await supabase.from("events").update({ annotation_status: "pending" }).eq("id", id);
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, annotation_status: "pending" } : e))
+    );
+  }
+
+  async function handleToggleActive(id: string, newValue: boolean) {
+    await supabase.from("events").update({ is_active: newValue }).eq("id", id);
+    setEvents((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, is_active: newValue } : e))
     );
   }
 
@@ -229,7 +259,65 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         </div>
       )}
 
-      {/* Events table */}
+      {/* Inline filter bar */}
+      <div className="bg-gray-50 rounded-xl px-4 py-3 mb-3 flex flex-wrap gap-3 items-end">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium">{t("name")}</label>
+          <input
+            type="search"
+            value={filterQ}
+            onChange={(e) => setFilterQ(e.target.value)}
+            placeholder="搜尋活動..."
+            className="h-9 border border-gray-300 rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+          >
+            <option value="">{t("filterAll")}</option>
+            {CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>{tCat(cat as any)}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium">{t("isPaid")}</label>
+          <select
+            value={filterPaid}
+            onChange={(e) => setFilterPaid(e.target.value)}
+            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+          >
+            <option value="">{t("filterAll")}</option>
+            <option value="free">免費</option>
+            <option value="paid">收費</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium">{t("isActive")}</label>
+          <select
+            value={filterActive}
+            onChange={(e) => setFilterActive(e.target.value as any)}
+            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+          >
+            <option value="all">{t("filterAll")}</option>
+            <option value="active">{t("filterActive")}</option>
+            <option value="inactive">{t("filterInactive")}</option>
+          </select>
+        </div>
+        {(filterQ || filterCategory || filterPaid || filterActive !== "all") && (
+          <button
+            onClick={() => { setFilterQ(""); setFilterCategory(""); setFilterPaid(""); setFilterActive("all"); }}
+            className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
+          >
+            清除篩選
+          </button>
+        )}
+      </div>
+
       {/* Bulk action bar */}
       {selected.size > 0 && (
         <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm">
@@ -259,7 +347,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 <th className="py-2 pr-2 w-8">
                   <input
                     type="checkbox"
-                    checked={getSorted(events).length > 0 && getSorted(events).every((e) => selected.has(e.id))}
+                    checked={getSorted(getFiltered(events)).length > 0 && getSorted(getFiltered(events)).every((e) => selected.has(e.id))}
                     onChange={toggleSelectAll}
                     className="rounded cursor-pointer"
                     title="全選"
@@ -280,7 +368,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 <th className="py-2 pr-2 w-8">
                   <input
                     type="checkbox"
-                    checked={getSorted(events).length > 0 && getSorted(events).every((e) => selected.has(e.id))}
+                    checked={getSorted(getFiltered(events)).length > 0 && getSorted(getFiltered(events)).every((e) => selected.has(e.id))}
                     onChange={toggleSelectAll}
                     className="rounded cursor-pointer"
                     title="全選"
@@ -295,7 +383,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             )}
           </thead>
           <tbody>
-            {getSorted(events).map((event) => (
+            {getSorted(getFiltered(events)).map((event) => (
               viewMode === "annotated" ? (
                 <tr key={event.id} className="border-b hover:bg-gray-50 transition">
                   <td className="py-2 pr-2">
@@ -353,12 +441,29 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     )}
                   </td>
                   <td className="py-2 pr-4">
-                    <span className={`text-xs ${event.is_active ? "text-green-600" : "text-gray-400"}`}>
-                      {event.is_active ? "●" : "○"}
-                    </span>
+                    <button
+                      onClick={() => handleToggleActive(event.id, !event.is_active)}
+                      title={event.is_active ? t("filterActive") : t("filterInactive")}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus:outline-none ${
+                        event.is_active ? "bg-green-500" : "bg-gray-300"
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform duration-200 ${
+                        event.is_active ? "translate-x-4" : "translate-x-0.5"
+                      }`} />
+                    </button>
                   </td>
                   <td className="py-2">
                     <div className="flex gap-2">
+                      <a
+                        href={`/${locale}/events/${event.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-500 hover:text-green-700 text-xs"
+                        title={t("viewFrontend")}
+                      >
+                        ↗
+                      </a>
                       <button
                         onClick={() => router.push(`/${locale}/admin/${event.id}`)}
                         className="text-blue-600 hover:underline text-xs"
@@ -407,6 +512,15 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   </td>
                   <td className="py-2">
                     <div className="flex gap-2">
+                      <a
+                        href={`/${locale}/events/${event.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-500 hover:text-green-700 text-xs"
+                        title={t("viewFrontend")}
+                      >
+                        ↗
+                      </a>
                       <button
                         onClick={() => router.push(`/${locale}/admin/${event.id}`)}
                         className="text-blue-600 hover:underline text-xs"
