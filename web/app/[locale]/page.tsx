@@ -39,7 +39,6 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     .from("events")
     .select("*")
     .eq("is_active", true)
-    .is("parent_event_id", null)   // sub-events are shown in parent detail page only
     .order("start_date", { ascending: true });
 
   // Keyword search (ILIKE across all language name fields)

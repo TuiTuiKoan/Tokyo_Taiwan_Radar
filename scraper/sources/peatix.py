@@ -74,8 +74,15 @@ BLOCKED_TITLE_PATTERNS: frozenset[str] = frozenset([
     "Q-B-CONTINUED",
     "Soul Food Assassins",
     "人氣主題！🇹🇼台日交流",
+])
+
+# Events whose Peatix group/organizer name matches any of these patterns are excluded.
+# Used for organizers who run social mixer events (聯誼/交流会) not suited for this radar.
+BLOCKED_ORGANIZER_PATTERNS: frozenset[str] = frozenset([
     "台日交流会",
     "台日交流會",
+    "日台交流会",
+    "日台交流會",
 ])
 
 
@@ -283,6 +290,18 @@ class PeatixScraper(BaseScraper):
         # We check name_ja (scraped title) so this fires before any translation.
         if any(pat in name_ja for pat in BLOCKED_TITLE_PATTERNS):
             logger.info("Peatix: blocked title pattern matched, skipping: %s", name_ja[:60])
+            return None
+
+        # Blocklist: skip events from organizers known to run social-mixer events.
+        # Peatix shows the group name in a link to /group/; fall back to text selectors.
+        organizer_name = (
+            _safe_text(page, "a[href*='/group/']")
+            or _safe_text(page, ".group-name")
+            or _safe_text(page, "[class*='organizer']")
+            or ""
+        )
+        if organizer_name and any(pat in organizer_name for pat in BLOCKED_ORGANIZER_PATTERNS):
+            logger.info("Peatix: blocked organizer '%s', skipping: %s", organizer_name[:40], name_ja[:60])
             return None
 
         # --- Description ---
