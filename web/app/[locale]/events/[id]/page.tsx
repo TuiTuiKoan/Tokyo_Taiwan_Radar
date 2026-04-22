@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { type Locale, type Event, getEventName, getEventDescription } from "@/lib/types";
 import SaveButton from "@/components/SaveButton";
 import RawDataSection from "@/components/RawDataSection";
+import ReportSection from "@/components/ReportSection";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -248,6 +249,7 @@ export default async function EventDetailPage({ params }: PageProps) {
           rawDescription={event.raw_description}
           selectionReason={event.selection_reason}
           locale={locale}
+          reportSection={<ReportSection eventId={event.id} locale={locale} />}
         />
       )}
     </article>

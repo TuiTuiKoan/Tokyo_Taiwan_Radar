@@ -1,26 +1,29 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { type Locale, type Event, CATEGORIES } from "@/lib/types";
-import AdminEventTable from "@/components/AdminEventTable";
+import { type Locale } from "@/lib/types";
+import AdminReportsTable, { type ReportRow } from "@/components/AdminReportsTable";
 import Link from "next/link";
+
+export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
 }
 
-export default async function AdminPage({ params }: PageProps) {
+export default async function AdminReportsPage({ params }: PageProps) {
   const { locale } = await params;
   const t = await getTranslations("admin");
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     redirect(`/${locale}/auth/login`);
   }
 
-  // Check admin role
   const { data: roleRow } = await supabase
     .from("user_roles")
     .select("role")
@@ -31,10 +34,9 @@ export default async function AdminPage({ params }: PageProps) {
     redirect(`/${locale}`);
   }
 
-  // Fetch all events (including inactive) for admin view
-  const { data: events } = await supabase
-    .from("events")
-    .select("*")
+  const { data: reports } = await supabase
+    .from("event_reports")
+    .select("*, events(name_ja, name_zh, name_en, source_url, source_name)")
     .order("created_at", { ascending: false });
 
   return (
@@ -43,19 +45,19 @@ export default async function AdminPage({ params }: PageProps) {
 
       {/* Tab nav */}
       <div className="flex gap-1 border-b border-gray-200 mb-6">
-        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">
-          {t("eventsTab")}
-        </span>
         <Link
-          href={`/${locale}/admin/reports`}
+          href={`/${locale}/admin`}
           className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
         >
-          {t("reports")}
+          {t("eventsTab")}
         </Link>
+        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">
+          {t("reports")}
+        </span>
       </div>
 
-      <AdminEventTable
-        events={(events ?? []) as Event[]}
+      <AdminReportsTable
+        reports={(reports ?? []) as ReportRow[]}
         locale={locale}
       />
     </div>

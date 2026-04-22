@@ -112,7 +112,32 @@
     "pending": "待處理",
     "annotated": "已整理",
     "sourceLink": "來源連結",
-    "back": "返回列表"
+    "back": "返回列表",
+    "eventsTab": "活動列表",
+    "reports": "問題回報",
+    "statusPending": "待審核",
+    "statusConfirmed": "已確認",
+    "statusDismissed": "已忽略",
+    "statusReviewed": "已審核",
+    "confirmReport": "確認問題",
+    "dismissReport": "忽略",
+    "adminNotes": "管理員備註",
+    "adminNotesPlaceholder": "記錄此問題的補充說明...",
+    "copySkillNote": "複製技能備註",
+    "skillNoteCopied": "已複製！",
+    "noReports": "目前沒有提報",
+    "viewEvent": "查看活動"
+  },
+  "report": {
+    "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",
+    "submitReport": "提報問題",
+    "irrelevant": "主題與台灣無關",
+    "wrongDetails": "時間・地點等內文顯示錯誤",
+    "wrongCategory": "分類錯誤",
+    "submit": "送出",
+    "cancel": "取消",
+    "successMessage": "已收到提報，感謝回饋！",
+    "errorMessage": "提報失敗，請稍後再試"
   },
   "saved": {
     "title": "我的收藏",

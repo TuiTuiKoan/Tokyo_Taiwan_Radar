@@ -112,7 +112,32 @@
     "pending": "処理待ち",
     "annotated": "処理済み",
     "sourceLink": "ソースリンク",
-    "back": "一覧に戻る"
+    "back": "一覧に戻る",
+    "eventsTab": "イベント一覧",
+    "reports": "問題報告",
+    "statusPending": "未確認",
+    "statusConfirmed": "確認済み",
+    "statusDismissed": "却下",
+    "statusReviewed": "確認済み・却下",
+    "confirmReport": "問題を確認",
+    "dismissReport": "却下",
+    "adminNotes": "管理者メモ",
+    "adminNotesPlaceholder": "この問題についてのメモを記録...",
+    "copySkillNote": "スキルノートをコピー",
+    "skillNoteCopied": "コピーしました！",
+    "noReports": "報告はまだありません",
+    "viewEvent": "イベントを見る"
+  },
+  "report": {
+    "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",
+    "submitReport": "問題を報告",
+    "irrelevant": "台湾と関係のない内容",
+    "wrongDetails": "日時・場所などの情報が誤っている",
+    "wrongCategory": "カテゴリが間違っている",
+    "submit": "送信",
+    "cancel": "キャンセル",
+    "successMessage": "ご報告ありがとうございます！",
+    "errorMessage": "送信に失敗しました。しばらくしてから再度お試しください。"
   },
   "saved": {
     "title": "お気に入り",

@@ -112,7 +112,32 @@
     "pending": "Pending",
     "annotated": "Processed",
     "sourceLink": "Source Link",
-    "back": "Back to list"
+    "back": "Back to list",
+    "eventsTab": "Events",
+    "reports": "Reports",
+    "statusPending": "Pending",
+    "statusConfirmed": "Confirmed",
+    "statusDismissed": "Dismissed",
+    "statusReviewed": "Reviewed",
+    "confirmReport": "Confirm issue",
+    "dismissReport": "Dismiss",
+    "adminNotes": "Admin notes",
+    "adminNotesPlaceholder": "Add notes about this issue...",
+    "copySkillNote": "Copy skill note",
+    "skillNoteCopied": "Copied!",
+    "noReports": "No reports yet",
+    "viewEvent": "View event"
+  },
+  "report": {
+    "aiDisclaimer": "AI selection may have errors — report issues here",
+    "submitReport": "Report an issue",
+    "irrelevant": "Topic unrelated to Taiwan",
+    "wrongDetails": "Incorrect date, location, or details",
+    "wrongCategory": "Wrong category",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "successMessage": "Report received — thank you!",
+    "errorMessage": "Failed to submit. Please try again."
   },
   "saved": {
     "title": "Saved Events",

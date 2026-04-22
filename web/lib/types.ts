@@ -44,6 +44,17 @@ export interface SavedEvent {
   created_at: string;
 }
 
+export interface EventReport {
+  id: string;
+  event_id: string;
+  report_types: string[];
+  locale: string | null;
+  status: "pending" | "confirmed" | "dismissed";
+  admin_notes: string | null;
+  confirmed_at: string | null;
+  created_at: string;
+}
+
 export type Locale = "zh" | "en" | "ja";
 
 export type Category =

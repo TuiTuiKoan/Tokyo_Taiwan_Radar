@@ -5,6 +5,7 @@ interface Props {
   rawDescription: string | null;
   selectionReason: string | null;
   locale: string;
+  reportSection?: React.ReactNode;
 }
 
 function parseSelectionReason(raw: string | null, locale: string): string | null {
@@ -21,7 +22,7 @@ function parseSelectionReason(raw: string | null, locale: string): string | null
   return raw;
 }
 
-export default function RawDataSection({ rawTitle, rawDescription, selectionReason, locale }: Props) {
+export default function RawDataSection({ rawTitle, rawDescription, selectionReason, locale, reportSection }: Props) {
   const t = useTranslations("event");
 
   if (!rawTitle && !rawDescription && !selectionReason) return null;
@@ -35,6 +36,7 @@ export default function RawDataSection({ rawTitle, rawDescription, selectionReas
         <div className="mb-4 border border-amber-200 bg-amber-50 rounded-xl p-4">
           <h2 className="text-sm font-medium text-amber-700 mb-1">{t("selectionReason")}</h2>
           <p className="text-sm text-amber-900">{displayedReason}</p>
+          {reportSection}
         </div>
       )}
 
