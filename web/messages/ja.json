@@ -131,7 +131,7 @@
     "statsRecentRuns": "最近の実行履歴",
     "statsRunAt": "実行時刻",
     "statsSource": "ソース",
-    "statsNoRuns": "実行履歴なし（annotator を先に実行してください）"
+    "statsNoRuns": "実行履歴なし（annotator を先に実行してください）",
     "statusPending": "未確認",
     "statusConfirmed": "確認済み",
     "statusDismissed": "却下",

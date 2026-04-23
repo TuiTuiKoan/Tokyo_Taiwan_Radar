@@ -131,7 +131,7 @@
     "statsRecentRuns": "Recent Runs",
     "statsRunAt": "Time",
     "statsSource": "Source",
-    "statsNoRuns": "No runs yet (run annotator first)"
+    "statsNoRuns": "No runs yet (run annotator first)",
     "statusPending": "Pending",
     "statusConfirmed": "Confirmed",
     "statusDismissed": "Dismissed",

@@ -131,7 +131,7 @@
     "statsRecentRuns": "最近執行紀錄",
     "statsRunAt": "執行時間",
     "statsSource": "來源",
-    "statsNoRuns": "尚無執行紀錄（需先執行 annotator）"
+    "statsNoRuns": "尚無執行紀錄（需先執行 annotator）",
     "statusPending": "待審核",
     "statusConfirmed": "已確認",
     "statusDismissed": "已忽略",
