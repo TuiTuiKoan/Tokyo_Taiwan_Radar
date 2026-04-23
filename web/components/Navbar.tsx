@@ -10,6 +10,7 @@ import type { User } from "@supabase/supabase-js";
 
 interface Props {
   locale: Locale;
+  isAdmin?: boolean;
 }
 
 const LOCALE_FLAGS: Record<Locale, string> = {
@@ -24,7 +25,7 @@ const LOCALE_LABELS: Record<Locale, string> = {
   ja: "日本語",
 };
 
-export default function Navbar({ locale }: Props) {
+export default function Navbar({ locale, isAdmin }: Props) {
   const t = useTranslations("nav");
   const pathname = usePathname();
   const supabase = createClient();
@@ -83,6 +84,11 @@ export default function Navbar({ locale }: Props) {
             {user && (
               <Link href={`/${locale}/saved`} className="hover:text-green-700 transition">
                 {t("saved")}
+              </Link>
+            )}
+            {isAdmin && (
+              <Link href={`/${locale}/admin`} className="hover:text-green-700 transition font-medium text-green-700">
+                {t("admin")}
               </Link>
             )}
           </nav>
@@ -193,6 +199,15 @@ export default function Navbar({ locale }: Props) {
                 className="px-3 py-2.5 rounded-md hover:bg-green-50 hover:text-green-700 transition"
               >
                 {t("saved")}
+              </Link>
+            )}
+            {isAdmin && (
+              <Link
+                href={`/${locale}/admin`}
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2.5 rounded-md hover:bg-green-50 hover:text-green-700 transition font-medium"
+              >
+                {t("admin")}
               </Link>
             )}
             {user && (
