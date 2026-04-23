@@ -23,6 +23,13 @@ handoffs:
 
 Discovers, evaluates, and profiles new event data sources (websites, APIs, ticketing platforms) that surface Taiwan-related cultural events in Tokyo. Outputs structured source profiles saved to `.copilot-tracking/research/sources/`.
 
+## Session Start Checklist
+1. Read `.github/skills/researcher/SKILL.md` — apply all rules before starting.
+
+## After a Source Evaluation Error
+1. Append an entry to `.github/skills/researcher/history.md` (newest at top): date, error, fix, lesson.
+2. If the lesson generalizes, add or update a rule in `SKILL.md`.
+
 ## Role
 
 - Find platforms and websites that list Taiwan-related events in Tokyo

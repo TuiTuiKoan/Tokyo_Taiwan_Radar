@@ -29,6 +29,13 @@ handoffs:
 
 Builds and debugs scrapers for all data sources. Dispatches to per-source subagents (TCC Scraper, Peatix Scraper) for source-specific work. For new sources without a dedicated subagent, implements directly.
 
+## Session Start Checklist
+1. Read `.github/skills/scraper-expert/SKILL.md` — apply all rules before starting.
+
+## After Fixing a Scraper Bug
+1. Append an entry to `.github/skills/scraper-expert/history.md` (newest at top): date, error, fix, lesson.
+2. If the lesson generalizes, add or update a rule in `SKILL.md`.
+
 ## Role
 
 - Select the correct subagent for the target source
