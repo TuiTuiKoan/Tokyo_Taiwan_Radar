@@ -9,11 +9,8 @@ const nextConfig: NextConfig = {};
 export default withSentryConfig(
   withNextIntl(nextConfig),
   {
-    // Silent build output
     silent: true,
-    // Disable source map upload (requires SENTRY_AUTH_TOKEN env var if enabled)
-    sourcemaps: { disable: true },
-    // Don't create a Sentry release on every build
-    autoInstrumentServerFunctions: false,
+    // Upload source maps only when SENTRY_AUTH_TOKEN is available
+    sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
   }
 );

@@ -39,7 +39,7 @@ if _SENTRY_DSN:
 from sources.taiwan_cultural_center import TaiwanCulturalCenterScraper
 from sources.peatix import PeatixScraper
 from sources.taioan_dokyokai import TaioanDokyokaiScraper
-from database import upsert_events
+from database import upsert_events, _get_client
 from annotator import annotate_pending_events
 
 # ---------------------------------------------------------------------------
@@ -93,11 +93,24 @@ def run(dry_run: bool = False, source: str | None = None) -> None:
 
     for scraper in active_scrapers:
         source_label = type(scraper).__name__
+        source_key = _scraper_key(scraper)
         logger.info("=== Starting scraper: %s ===", source_label)
         try:
             events = scraper.scrape()
             logger.info("%s: scraped %d events", source_label, len(events))
             all_events.extend(events)
+
+            if not dry_run:
+                upsert_events(events)
+                try:
+                    _get_client().table("scraper_runs").insert({
+                        "source": source_key,
+                        "events_processed": len(events),
+                        "deepl_chars": getattr(scraper, "_deepl_chars_used", 0),
+                    }).execute()
+                    logger.info("%s: logged %d events to scraper_runs", source_label, len(events))
+                except Exception as log_exc:
+                    logger.warning("%s: could not write scraper_runs: %s", source_label, log_exc)
         except Exception as exc:
             logger.error("%s: scraper failed: %s", source_label, exc)
 
@@ -113,10 +126,7 @@ def run(dry_run: bool = False, source: str | None = None) -> None:
         ))
         return
 
-    # Save raw data to database (annotation_status = 'pending')
-    logger.info("Upserting raw events to Supabase...")
-    upsert_events(all_events)
-
+    # Upsert is done per-source in the loop above.
     # Run AI annotator on pending events
     logger.info("Running AI annotator on pending events...")
     annotate_pending_events()
