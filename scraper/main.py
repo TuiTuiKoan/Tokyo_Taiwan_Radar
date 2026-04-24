@@ -40,6 +40,7 @@ from sources.taiwan_cultural_center import TaiwanCulturalCenterScraper
 from sources.peatix import PeatixScraper
 from sources.taioan_dokyokai import TaioanDokyokaiScraper
 from sources.iwafu import IwafuScraper
+from sources.taiwan_festival_tokyo import TaiwanFestivalTokyoScraper
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
 
@@ -61,6 +62,7 @@ SCRAPERS = [
     PeatixScraper(),
     TaioanDokyokaiScraper(),
     IwafuScraper(),
+    TaiwanFestivalTokyoScraper(),
 ]
 
 
