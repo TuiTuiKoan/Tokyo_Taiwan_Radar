@@ -49,7 +49,9 @@ const FEASIBILITY: Record<string, string> = {
 
 const GITHUB_REPO = "TuiTuiKoan/Tokyo_Taiwan_Radar";
 
-function buildIssueUrl(src: ResearchReport["content"]["top_sources"][0]) {
+type TopSource = NonNullable<ResearchReport["content"]["top_sources"]>[number];
+
+function buildIssueUrl(src: TopSource) {
   const title = encodeURIComponent(`feat(scraper): add ${src.name} source`);
   const body = encodeURIComponent(
     `## 來源資訊\n` +
