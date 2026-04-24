@@ -57,18 +57,24 @@ def _url_to_slug(url: str) -> str:
     return slug[:60]
 
 
-def _find_source_profile(name: str) -> Path | None:
-    """Find a .md profile file in SOURCES_DIR whose filename roughly matches the source name."""
+def _find_source_profile(name: str, url: str = "") -> Path | None:
+    """Find a .md profile file in SOURCES_DIR whose filename roughly matches the source name or URL."""
     if not SOURCES_DIR.exists():
         return None
     name_slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-    # Exact slug match first
+    url_slug = re.sub(r"https?://", "", url)
+    url_slug = re.sub(r"[^a-z0-9]+", "-", url_slug.lower()).strip("-")[:60]
+
+    # Exact slug match (name-based)
     exact = SOURCES_DIR / f"{name_slug}.md"
     if exact.exists():
         return exact
-    # Partial match: find any .md whose stem is a substring of the name slug
+
+    # Check all .md files for partial match against name OR url slug
     for f in SOURCES_DIR.glob("*.md"):
-        if f.stem in name_slug or name_slug in f.stem:
+        stem = f.stem
+        if (stem in name_slug or name_slug in stem or
+                stem in url_slug or url_slug[:len(stem)] == stem):
             return f
     return None
 
@@ -158,7 +164,7 @@ def update_source(url: str, status: str, create_issue: bool = False) -> None:
 
     # Optionally create a GitHub Issue and advance to 'recommended'
     if create_issue:
-        profile_path = _find_source_profile(name)
+        profile_path = _find_source_profile(name, url)
         if not profile_path:
             logger.warning("No source profile .md found for '%s' — Issue body will be minimal", name)
         issue_url = create_github_issue(name, url, profile_path)
