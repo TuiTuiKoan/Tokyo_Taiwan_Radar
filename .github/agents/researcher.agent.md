@@ -2,17 +2,6 @@
 name: Researcher
 description: "Discovers and evaluates new Taiwan-related event sources for the Tokyo Taiwan Radar scraper pipeline"
 model: claude-sonnet-4-5
-tools:
-  - fetch_webpage
-  - read_file
-  - list_dir
-  - file_search
-  - grep_search
-  - semantic_search
-  - create_file
-  - run_in_terminal
-  - vscode_askQuestions
-  - memory
 handoffs:
   - label: "🏗️ Design the pipeline"
     agent: Architect
@@ -88,13 +77,15 @@ For each promising source, answer:
    ```
 2. Save a summary to `.copilot-tracking/research/research-log.md`.
 3. **Update the DB status** by running in terminal from the repo root:
-   ```bash
-   source venv/bin/activate && python scraper/update_source.py --url <exact-url> --status researched
-   ```
-   For sources that are not viable:
-   ```bash
-   source venv/bin/activate && python scraper/update_source.py --url <exact-url> --status not-viable
-   ```
+   - For **recommended** sources (creates GitHub Issue automatically):
+     ```bash
+     source venv/bin/activate && python scraper/update_source.py --url <exact-url> --status researched --create-issue
+     ```
+   - For sources that are not viable:
+     ```bash
+     source venv/bin/activate && python scraper/update_source.py --url <exact-url> --status not-viable
+     ```
+   `--create-issue` requires `GITHUB_TOKEN` in `scraper/.env` (classic token with `repo` scope or fine-grained with Issues: write). It automatically advances the status to `recommended` and saves the Issue URL to the DB.
 4. Hand off recommended sources to Architect for pipeline design.
 
 ---
