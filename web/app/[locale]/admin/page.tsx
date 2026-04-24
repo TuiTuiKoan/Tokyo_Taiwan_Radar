@@ -96,6 +96,12 @@ export default async function AdminPage({ params }: PageProps) {
         >
           {t("statsTab")}
         </Link>
+        <Link
+          href={`/${locale}/admin/research`}
+          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
+        >
+          {t("researchTab")}
+        </Link>
       </div>
 
       <AdminEventTable

@@ -2,7 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale } from "@/lib/types";
-import AdminReportsTable, { type ReportRow } from "@/components/AdminReportsTable";
+import AdminResearchTable, {
+  type ResearchReport,
+} from "@/components/AdminResearchTable";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +13,7 @@ interface PageProps {
   params: Promise<{ locale: Locale }>;
 }
 
-export default async function AdminReportsPage({ params }: PageProps) {
+export default async function AdminResearchPage({ params }: PageProps) {
   const { locale } = await params;
   const t = await getTranslations("admin");
 
@@ -35,9 +37,10 @@ export default async function AdminReportsPage({ params }: PageProps) {
   }
 
   const { data: reports } = await supabase
-    .from("event_reports")
-    .select("*, events(name_ja, name_zh, name_en, source_url, source_name)")
-    .order("created_at", { ascending: false });
+    .from("research_reports")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(50);
 
   return (
     <div>
@@ -51,25 +54,27 @@ export default async function AdminReportsPage({ params }: PageProps) {
         >
           {t("eventsTab")}
         </Link>
-        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">
+        <Link
+          href={`/${locale}/admin/reports`}
+          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
+        >
           {t("reports")}
-        </span>
+        </Link>
         <Link
           href={`/${locale}/admin/stats`}
           className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
         >
           {t("statsTab")}
         </Link>
-        <Link
-          href={`/${locale}/admin/research`}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
-        >
+        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">
           {t("researchTab")}
-        </Link>
+        </span>
       </div>
 
-      <AdminReportsTable
-        reports={(reports ?? []) as ReportRow[]}
+      <h2 className="text-lg font-semibold mb-3">{t("researchTitle")}</h2>
+
+      <AdminResearchTable
+        reports={(reports ?? []) as ResearchReport[]}
         locale={locale}
       />
     </div>
