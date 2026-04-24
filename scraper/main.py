@@ -43,6 +43,8 @@ from sources.iwafu import IwafuScraper
 from sources.taiwan_festival_tokyo import TaiwanFestivalTokyoScraper
 from sources.koryu import KoryuScraper
 from sources.taiwan_kyokai import TaiwanKyokaiScraper
+from sources.doorkeeper import DoorkeeperScraper
+from sources.connpass import ConnpassScraper
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
 
@@ -67,6 +69,8 @@ SCRAPERS = [
     TaiwanFestivalTokyoScraper(),
     KoryuScraper(),
     TaiwanKyokaiScraper(),
+    DoorkeeperScraper(),
+    ConnpassScraper(),
 ]
 
 

@@ -5,6 +5,7 @@ model: claude-sonnet-4-5
 agents:
   - TCC Scraper
   - Peatix Scraper
+  - Community Platforms Scraper
 handoffs:
   - label: "🧪 Run tests"
     agent: Tester
@@ -36,7 +37,11 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 
 1. Read `.github/instructions/scraper.instructions.md` — BaseScraper interface, conventions, date extraction rules.
 2. Identify the target source from the user request.
-3. Dispatch to the appropriate subagent if one exists (TCC Scraper for `taiwan_cultural_center`, Peatix Scraper for `peatix`); otherwise proceed directly in Phase 2.
+3. Dispatch to the appropriate subagent if one exists:
+   - **TCC Scraper** → `taiwan_cultural_center`
+   - **Peatix Scraper** → `peatix`
+   - **Community Platforms Scraper** → `connpass` or `doorkeeper`
+4. Otherwise proceed directly in Phase 2.
 
 ### Phase 2: Develop / Debug
 
