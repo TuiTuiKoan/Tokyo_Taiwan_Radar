@@ -2,22 +2,9 @@
 name: Scraper Expert
 description: "Builds, debugs, and validates scrapers for Tokyo Taiwan Radar — dispatches to per-source subagents"
 model: claude-sonnet-4-5
-disable-model-invocation: true
 agents:
   - TCC Scraper
   - Peatix Scraper
-tools:
-  - read_file
-  - list_dir
-  - file_search
-  - grep_search
-  - semantic_search
-  - create_file
-  - replace_string_in_file
-  - multi_replace_string_in_file
-  - run_in_terminal
-  - get_errors
-  - vscode_askQuestions
 handoffs:
   - label: "🧪 Run tests"
     agent: Tester

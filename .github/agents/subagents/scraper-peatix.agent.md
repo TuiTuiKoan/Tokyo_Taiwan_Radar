@@ -3,13 +3,6 @@ name: Peatix Scraper
 description: "Scrapes Peatix Taiwan-related events in Tokyo — subagent of Scraper Expert"
 user-invocable: false
 model: claude-sonnet-4-5
-tools:
-  - read_file
-  - fetch_webpage
-  - replace_string_in_file
-  - multi_replace_string_in_file
-  - run_in_terminal
-  - get_errors
 ---
 
 # Peatix Scraper

@@ -2,19 +2,6 @@
 name: Engineer
 description: "Full-stack implementation, CI/CD, and deployment for Tokyo Taiwan Radar"
 model: claude-sonnet-4-5
-tools:
-  - read_file
-  - list_dir
-  - file_search
-  - grep_search
-  - semantic_search
-  - create_file
-  - replace_string_in_file
-  - multi_replace_string_in_file
-  - run_in_terminal
-  - get_errors
-  - vscode_askQuestions
-  - memory
 handoffs:
   - label: "🏗️ Plan this first"
     agent: Architect
