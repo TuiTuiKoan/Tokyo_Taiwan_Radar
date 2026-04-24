@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
+import type { ResearchSource } from "@/components/AdminSourcesTable";
 
 export interface ResearchReport {
   id: number;
@@ -31,6 +32,7 @@ export interface ResearchReport {
 interface Props {
   reports: ResearchReport[];
   locale: string;
+  sources?: ResearchSource[];
 }
 
 const ICONS: Record<string, string> = {
@@ -81,10 +83,21 @@ function fmtDate(iso: string) {
   });
 }
 
-export default function AdminResearchTable({ reports, locale }: Props) {
+export default function AdminResearchTable({ reports, locale, sources = [] }: Props) {
   const t = useTranslations("admin");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [rows, setRows] = useState(reports);
+
+  // Build a lookup: normalised URL → current status from research_sources
+  const sourceStatusMap = new Map<string, string>();
+  for (const s of sources) {
+    try {
+      const key = new URL(s.url).hostname;
+      sourceStatusMap.set(key, s.status);
+    } catch {
+      sourceStatusMap.set(s.url, s.status);
+    }
+  }
 
   async function markReviewed(id: number) {
     const supabase = createClient();
@@ -160,25 +173,67 @@ export default function AdminResearchTable({ reports, locale }: Props) {
                       📌 {t("researchSources")}
                     </h4>
                     <div className="space-y-2">
-                      {content.top_sources.map((src, i) => {
+                      {/* Deduplicate by URL within this report */}
+                      {content.top_sources
+                        .filter((src, idx, arr) =>
+                          arr.findIndex((s) => s.url === src.url) === idx
+                        )
+                        .map((src, i) => {
                         const verified = src.url_verified;
                         const catKey = src.agent_category || src.category;
+                        // Look up current status from research_sources
+                        let currentStatus: string | undefined;
+                        try {
+                          const hostname = new URL(src.url).hostname;
+                          currentStatus = sourceStatusMap.get(hostname);
+                        } catch {
+                          currentStatus = sourceStatusMap.get(src.url);
+                        }
+                        const isDone = currentStatus === "implemented";
+                        const isNotViable = currentStatus === "not-viable";
+                        const isResearched = currentStatus === "researched";
+                        const isDimmed = isDone || isNotViable;
+
+                        const statusBadgeStyles: Record<string, string> = {
+                          implemented: "bg-green-100 text-green-700",
+                          "not-viable": "bg-gray-100 text-gray-500 line-through",
+                          researched: "bg-blue-100 text-blue-700",
+                          recommended: "bg-purple-100 text-purple-700",
+                          candidate: "bg-amber-100 text-amber-700",
+                        };
+                        const statusLabel: Record<string, string> = {
+                          implemented: "✅ 已實作",
+                          "not-viable": "🚫 已排除",
+                          researched: "🔍 已研究",
+                          recommended: "⭐ 推薦",
+                          candidate: "🔄 候選",
+                        };
+
                         return (
                           <div
                             key={i}
                             className={`rounded-lg p-3 text-sm border ${
-                              verified
-                                ? "bg-green-50 border-green-100"
-                                : "bg-gray-50 border-gray-100 opacity-60"
+                              isDimmed
+                                ? "bg-gray-50 border-gray-100 opacity-50"
+                                : verified
+                                  ? "bg-green-50 border-green-100"
+                                  : "bg-gray-50 border-gray-100 opacity-60"
                             }`}
                           >
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <span>{ICONS[catKey] ?? "📎"}</span>
-                              <span className="font-medium">{src.name}</span>
+                              <span className={`font-medium ${isDimmed ? "line-through text-gray-400" : ""}`}>
+                                {src.name}
+                              </span>
                               <span className="text-gray-400 text-xs">
                                 {FEASIBILITY[src.scraping_feasibility] ?? "?"}
                               </span>
-                              {verified !== undefined && (
+                              {currentStatus && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${statusBadgeStyles[currentStatus] ?? "bg-gray-100 text-gray-500"}`}>
+                                  {statusLabel[currentStatus] ?? currentStatus}
+                                </span>
+                              )}
+                              {!currentStatus && verified !== undefined && (
                                 <span
                                   className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
                                     verified
@@ -198,33 +253,39 @@ export default function AdminResearchTable({ reports, locale }: Props) {
                             >
                               {src.url}
                             </a>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
-                              <div>{t("researchFrequency")}: {src.frequency}</div>
-                              <div>{t("researchFeasibility")}: {src.scraping_feasibility}</div>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {t("researchReason")}: {src.reason}
-                            </p>
-                            {/* Create scraper GitHub Issue button */}
-                            <div className="mt-2">
-                              {verified ? (
-                                <a
-                                  href={buildIssueUrl(src)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-                                >
-                                  📋 {t("researchCreateIssue")}
-                                </a>
-                              ) : (
-                                <span
-                                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-200 text-gray-400 rounded-lg cursor-not-allowed"
-                                  title="URL 尚未驗證，無法建立 Issue"
-                                >
-                                  📋 {t("researchCreateIssue")}
-                                </span>
-                              )}
-                            </div>
+                            {!isDimmed && (
+                              <>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
+                                  <div>{t("researchFrequency")}: {src.frequency}</div>
+                                  <div>{t("researchFeasibility")}: {src.scraping_feasibility}</div>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {t("researchReason")}: {src.reason}
+                                </p>
+                                {/* Create scraper GitHub Issue button — only for non-implemented, non-excluded */}
+                                {!isResearched && (
+                                  <div className="mt-2">
+                                    {verified ? (
+                                      <a
+                                        href={buildIssueUrl(src)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                                      >
+                                        📋 {t("researchCreateIssue")}
+                                      </a>
+                                    ) : (
+                                      <span
+                                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-200 text-gray-400 rounded-lg cursor-not-allowed"
+                                        title="URL 尚未驗證，無法建立 Issue"
+                                      >
+                                        📋 {t("researchCreateIssue")}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </div>
                         );
                       })}

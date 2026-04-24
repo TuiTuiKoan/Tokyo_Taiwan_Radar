@@ -92,6 +92,7 @@ export default async function AdminResearchPage({ params }: PageProps) {
       <AdminResearchTable
         reports={(reports ?? []) as ResearchReport[]}
         locale={locale}
+        sources={(sources ?? []) as ResearchSource[]}
       />
     </div>
   );
