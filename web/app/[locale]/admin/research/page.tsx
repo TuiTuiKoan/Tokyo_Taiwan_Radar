@@ -5,6 +5,9 @@ import { type Locale } from "@/lib/types";
 import AdminResearchTable, {
   type ResearchReport,
 } from "@/components/AdminResearchTable";
+import AdminSourcesTable, {
+  type ResearchSource,
+} from "@/components/AdminSourcesTable";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +45,12 @@ export default async function AdminResearchPage({ params }: PageProps) {
     .order("created_at", { ascending: false })
     .limit(50);
 
+  const { data: sources } = await supabase
+    .from("research_sources")
+    .select("*")
+    .order("last_seen_at", { ascending: false })
+    .limit(200);
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">{t("title")}</h1>
@@ -71,7 +80,14 @@ export default async function AdminResearchPage({ params }: PageProps) {
         </span>
       </div>
 
-      <h2 className="text-lg font-semibold mb-3">{t("researchTitle")}</h2>
+      {/* Sources section */}
+      <h2 className="text-lg font-semibold mb-3">{t("sourcesTitle")}</h2>
+      <AdminSourcesTable
+        sources={(sources ?? []) as ResearchSource[]}
+      />
+
+      {/* Daily reports section */}
+      <h2 className="text-lg font-semibold mt-8 mb-3">{t("researchTitle")}</h2>
 
       <AdminResearchTable
         reports={(reports ?? []) as ResearchReport[]}

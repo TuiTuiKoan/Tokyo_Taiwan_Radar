@@ -10,6 +10,7 @@ tools:
   - grep_search
   - semantic_search
   - create_file
+  - run_in_terminal
   - vscode_askQuestions
   - memory
 handoffs:
@@ -25,6 +26,7 @@ Discovers, evaluates, and profiles new event data sources (websites, APIs, ticke
 
 ## Session Start Checklist
 1. Read `.github/skills/researcher/SKILL.md` — apply all rules before starting.
+2. Run Step 0 immediately: check for candidate files before doing any manual search.
 
 ## After a Source Evaluation Error
 1. Append an entry to `.github/skills/researcher/history.md` (newest at top): date, error, fix, lesson.
@@ -38,7 +40,14 @@ Discovers, evaluates, and profiles new event data sources (websites, APIs, ticke
 
 ## Required Steps
 
-### Step 1: Search
+### Step 0: Load Candidates (ALWAYS run first)
+
+1. Run `list_dir` on `.copilot-tracking/research/candidates/` — list all `.json` files.
+2. If files exist: `read_file` each one to load candidate data (name, url, category, reason, etc.).
+3. These are URL-verified sources discovered by the daily `researcher.py` run. Treat them as the research queue.
+4. If NO candidate files exist: proceed to Step 1 (manual search). If candidates exist, skip Step 1 and go directly to Step 2 using the candidate URLs.
+
+### Step 1: Search (skip if Step 0 found candidates)
 
 1. Read `.github/copilot-instructions.md` to understand the project context and existing sources.
 2. Read `scraper/sources/` to see what is already scraped — do not duplicate.
@@ -78,7 +87,15 @@ For each promising source, answer:
    Notes: <ToS, rate limits, edge cases>
    ```
 2. Save a summary to `.copilot-tracking/research/research-log.md`.
-3. Hand off recommended sources to Architect for pipeline design.
+3. **Update the DB status** by running in terminal from the repo root:
+   ```bash
+   source venv/bin/activate && python scraper/update_source.py --url <exact-url> --status researched
+   ```
+   For sources that are not viable:
+   ```bash
+   source venv/bin/activate && python scraper/update_source.py --url <exact-url> --status not-viable
+   ```
+4. Hand off recommended sources to Architect for pipeline design.
 
 ---
 

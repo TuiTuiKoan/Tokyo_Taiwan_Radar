@@ -14,10 +14,12 @@ Usage:
 import json
 import logging
 import os
+import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -118,6 +120,9 @@ SOURCE_SCHEMA = """{
 
 EXISTING_SOURCES = "peatix.com, roc-taiwan.org/jp (Taiwan Cultural Center), taioan-dokyokai"
 
+# Where candidate JSON files are written for @Researcher agent to pick up
+CANDIDATES_DIR = Path(__file__).parent.parent / ".copilot-tracking" / "research" / "candidates"
+
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -164,9 +169,10 @@ def _verify_url(url: str) -> dict:
 # Per-category agent
 # ---------------------------------------------------------------------------
 class CategoryAgent:
-    def __init__(self, category: dict, client: OpenAI):
+    def __init__(self, category: dict, client: OpenAI, known_urls: dict[str, str] | None = None):
         self.category = category
         self.client = client
+        self.known_urls = known_urls or {}
 
     def run(self) -> CategoryResult:
         cat = self.category
@@ -185,7 +191,8 @@ class CategoryAgent:
                             f"Search for: {cat['query_ja']}\n"
                             f"Also search: {cat['query_en']}\n\n"
                             f"Find up to 3 event source websites NOT already in: {EXISTING_SOURCES}\n\n"
-                            f"Also provide 2-3 recent Taiwan-related news bullets and top trend keywords.\n\n"
+                            + (f"SKIP these already-known URLs (do not suggest them again): {', '.join(sorted(self.known_urls.keys())[:30])}\n\n" if self.known_urls else "")
+                            + f"Also provide 2-3 recent Taiwan-related news bullets and top trend keywords.\n\n"
                             f"Respond ONLY as valid JSON matching this schema:\n{SOURCE_SCHEMA}"
                         ),
                     },
@@ -254,9 +261,73 @@ def _get_supabase():
     return create_client(url, key)
 
 
-def run_all_agents(client: OpenAI) -> list[CategoryResult]:
+def _get_known_urls(sb) -> dict[str, str]:
+    """Fetch all known URLs and their statuses from research_sources table."""
+    try:
+        rows = sb.table("research_sources").select("url,status").execute()
+        return {r["url"]: r["status"] for r in (rows.data or [])}
+    except Exception as exc:
+        logger.warning("Could not fetch known URLs: %s", exc)
+        return {}
+
+
+def _upsert_sources(sb, sources: list[dict], known_urls: dict[str, str]) -> tuple[int, int]:
+    """Upsert verified sources to research_sources. Returns (new_count, skipped_count)."""
+    CANDIDATES_DIR.mkdir(parents=True, exist_ok=True)
+    new_count = 0
+    skipped_count = 0
+    now = datetime.now(timezone.utc).isoformat()
+
+    for src in sources:
+        if not src.get("url_verified"):
+            continue
+        url = src.get("url", "")
+        existing_status = known_urls.get(url)
+
+        if existing_status and existing_status not in ("candidate",):
+            # Higher-status rows (researched, recommended, implemented, not-viable)
+            # — only bump last_seen_at, never downgrade status
+            try:
+                sb.table("research_sources").update({"last_seen_at": now}).eq("url", url).execute()
+            except Exception:
+                pass
+            skipped_count += 1
+            continue
+
+        row = {
+            "name": src.get("name", ""),
+            "url": url,
+            "agent_category": src.get("agent_category", ""),
+            "category": src.get("category", ""),
+            "status": "candidate",
+            "scraping_feasibility": src.get("scraping_feasibility", ""),
+            "event_types": src.get("event_types", ""),
+            "frequency": src.get("frequency", ""),
+            "reason": src.get("reason", ""),
+            "url_verified": True,
+            "last_seen_at": now,
+        }
+        if not existing_status:
+            row["first_seen_at"] = now
+
+        try:
+            sb.table("research_sources").upsert(row, on_conflict="url").execute()
+        except Exception as exc:
+            logger.warning("Could not upsert source %s: %s", url, exc)
+            continue
+
+        # Write candidate JSON for @Researcher agent
+        slug = re.sub(r"[^a-z0-9]+", "-", src.get("name", "unknown").lower()).strip("-")
+        candidate_path = CANDIDATES_DIR / f"{slug}.json"
+        candidate_path.write_text(json.dumps(src, ensure_ascii=False, indent=2))
+        new_count += 1
+
+    return new_count, skipped_count
+
+
+def run_all_agents(client: OpenAI, known_urls: dict[str, str] | None = None) -> list[CategoryResult]:
     """Run all 5 CategoryAgents in parallel."""
-    agents = [CategoryAgent(cat, client) for cat in SEARCH_CATEGORIES]
+    agents = [CategoryAgent(cat, client, known_urls or {}) for cat in SEARCH_CATEGORIES]
     results: list[CategoryResult] = []
     with ThreadPoolExecutor(max_workers=5) as pool:
         futures = {pool.submit(agent.run): agent for agent in agents}
@@ -357,9 +428,15 @@ def run_research(dry_run: bool = False) -> None:
     ai = _get_openai()
     sb = None if dry_run else _get_supabase()
 
+    # Fetch known URLs to skip (only when writing to DB)
+    known_urls: dict[str, str] = {}
+    if sb:
+        known_urls = _get_known_urls(sb)
+        logger.info("Known URLs to skip: %d", len(known_urls))
+
     # Run 5 parallel agents
     logger.info("Launching %d CategoryAgents in parallel...", len(SEARCH_CATEGORIES))
-    results = run_all_agents(ai)
+    results = run_all_agents(ai, known_urls)
     report = merge_results(results)
 
     verified = sum(1 for s in report["top_sources"] if s.get("url_verified"))
@@ -373,9 +450,24 @@ def run_research(dry_run: bool = False) -> None:
     cost = (total_in * 30 + total_out * 60) / 1_000_000
 
     if dry_run:
-        logger.info("Dry run — skipping DB write and LINE notification")
+        verified_sources = [s for s in report["top_sources"] if s.get("url_verified")]
+        logger.info(
+            "Dry run — would upsert %d new sources, skip %d known",
+            len(verified_sources), len(known_urls)
+        )
         logger.info("Report preview: %s", json.dumps(report, ensure_ascii=False, indent=2)[:500])
         return
+
+    # Upsert verified sources to research_sources + write candidate files
+    try:
+        new_count, skipped_count = _upsert_sources(
+            sb,
+            report["top_sources"],
+            known_urls,
+        )
+        logger.info("research_sources: %d new candidates, %d skipped (already known)", new_count, skipped_count)
+    except Exception as exc:
+        logger.warning("Could not upsert research_sources: %s", exc)
 
     # Save to DB
     try:
