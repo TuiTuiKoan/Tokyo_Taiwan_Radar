@@ -10,6 +10,7 @@ tools:
   - semantic_search
   - vscode_askQuestions
   - memory
+  - runSubagent
 handoffs:
   - label: "🔧 Implement this plan"
     agent: Engineer
@@ -56,8 +57,12 @@ Plans architecture, development roadmaps, and technical design for Tokyo Taiwan 
 ### Phase 3: Review
 
 1. On user feedback: revise the plan and update `/memories/session/plan.md`.
-2. On approval: hand off to Engineer or Researcher via the handoff buttons.
-3. After implementation: review the result against the plan; flag any deviations.
+2. On approval (user says "請執行" or equivalent):
+   a. Invoke `runSubagent` with agent `Engineer`, passing the full plan from `/memories/session/plan.md` as the prompt. Instruct Engineer to return a Changes Log summary.
+   b. After Engineer completes, invoke `runSubagent` with agent `Tester`, passing the Changes Log and asking it to validate all modified scrapers and web builds. Instruct Tester to return a Test Report.
+   c. Present both the Changes Log and Test Report to the user.
+3. If Tester reports failures: invoke `runSubagent` with agent `Engineer` again, passing the Test Report and asking for fixes. Repeat until Tester passes.
+4. After all tests pass: present a final summary and ask the user to approve `git push`.
 
 ---
 
