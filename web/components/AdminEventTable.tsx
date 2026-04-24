@@ -32,9 +32,14 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterQ, setFilterQ] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterPaid, setFilterPaid] = useState("");
-  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
+  const [filterIsActive, setFilterIsActive] = useState<"all" | "active" | "inactive">("all");
+  const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
 
   function getFiltered(list: Event[]) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     return list.filter((e) => {
       if (filterQ) {
         const q = filterQ.toLowerCase();
@@ -45,12 +50,28 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       if (filterCategory && !(e.category || []).includes(filterCategory)) return false;
       if (filterPaid === "free" && e.is_paid !== false) return false;
       if (filterPaid === "paid" && e.is_paid !== true) return false;
-      if (filterActive === "active") {
-        if (!e.is_active) return false;
-        // Also hide events whose end_date has already passed
-        if (e.end_date && new Date(e.end_date) < new Date()) return false;
+      if (filterIsActive === "active" && !e.is_active) return false;
+      if (filterIsActive === "inactive" && e.is_active) return false;
+      if (filterTimeMode === "active") {
+        // Show ongoing: end_date >= today OR end_date is null
+        if (e.end_date && new Date(e.end_date) < today) return false;
+      } else if (filterTimeMode === "past") {
+        // Show historical: end_date < today (or no end_date but start_date < today)
+        const isPast = e.end_date
+          ? new Date(e.end_date) < today
+          : e.start_date
+          ? new Date(e.start_date) < today
+          : false;
+        if (!isPast) return false;
+        if (filterDateFrom) {
+          const d = e.start_date ? new Date(e.start_date) : null;
+          if (!d || d < new Date(filterDateFrom)) return false;
+        }
+        if (filterDateTo) {
+          const d = e.start_date ? new Date(e.start_date) : null;
+          if (!d || d > new Date(filterDateTo + "T23:59:59")) return false;
+        }
       }
-      if (filterActive === "inactive" && e.is_active) return false;
       return true;
     });
   }
@@ -307,8 +328,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-medium">{t("isActive")}</label>
           <select
-            value={filterActive}
-            onChange={(e) => setFilterActive(e.target.value as any)}
+            value={filterIsActive}
+            onChange={(e) => setFilterIsActive(e.target.value as any)}
             className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
             <option value="all">{t("filterAll")}</option>
@@ -316,9 +337,50 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             <option value="inactive">{t("filterInactive")}</option>
           </select>
         </div>
-        {(filterQ || filterCategory || filterPaid || filterActive !== "all") && (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium">時間範圍</label>
+          <select
+            value={filterTimeMode}
+            onChange={(e) => {
+              const mode = e.target.value as "active" | "all" | "past";
+              setFilterTimeMode(mode);
+              if (mode !== "past") {
+                setFilterDateFrom("");
+                setFilterDateTo("");
+              }
+            }}
+            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+          >
+            <option value="active">目前進行中</option>
+            <option value="all">全部</option>
+            <option value="past">歷史</option>
+          </select>
+        </div>
+        {filterTimeMode === "past" && (
+          <>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">開始日期（從）</label>
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+                className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">開始日期（至）</label>
+              <input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+                className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+            </div>
+          </>
+        )}
+        {(filterQ || filterCategory || filterPaid || filterIsActive !== "all" || filterTimeMode !== "active" || filterDateFrom || filterDateTo) && (
           <button
-            onClick={() => { setFilterQ(""); setFilterCategory(""); setFilterPaid(""); setFilterActive("all"); }}
+            onClick={() => { setFilterQ(""); setFilterCategory(""); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom(""); setFilterDateTo(""); }}
             className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
           >
             清除篩選
