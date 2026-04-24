@@ -134,6 +134,7 @@
     "researchFrequency": "Publish Frequency",
     "researchReason": "Recommendation Reason",
     "researchMarkReviewed": "Mark as Reviewed",
+    "researchCreateIssue": "Create Scraper Issue",
     "researchStatusPending": "Pending",
     "researchStatusReviewed": "Reviewed",
     "researchStatusImplemented": "Implemented",

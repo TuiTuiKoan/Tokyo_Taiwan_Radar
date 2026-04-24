@@ -134,6 +134,7 @@
     "researchFrequency": "投稿頻度",
     "researchReason": "推薦理由",
     "researchMarkReviewed": "確認済みにする",
+    "researchCreateIssue": "スクレイパー Issue を作成",
     "researchStatusPending": "未確認",
     "researchStatusReviewed": "確認済み",
     "researchStatusImplemented": "実装済み",

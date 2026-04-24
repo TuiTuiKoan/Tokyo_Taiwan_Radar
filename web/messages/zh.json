@@ -134,6 +134,7 @@
     "researchFrequency": "發佈頻率",
     "researchReason": "推薦理由",
     "researchMarkReviewed": "標記為已審閱",
+    "researchCreateIssue": "建立爬蟲 Issue",
     "researchStatusPending": "待審閱",
     "researchStatusReviewed": "已審閱",
     "researchStatusImplemented": "已實作",

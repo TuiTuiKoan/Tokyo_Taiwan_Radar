@@ -13,10 +13,13 @@ export interface ResearchReport {
       name: string;
       url: string;
       category: string;
+      agent_category?: string;
       event_types: string;
       frequency: string;
       scraping_feasibility: string;
       reason: string;
+      url_verified?: boolean;
+      url_status?: number;
     }[];
     news_summary?: string[];
     trend_keywords?: string[];
@@ -43,6 +46,28 @@ const FEASIBILITY: Record<string, string> = {
   medium: "⭐⭐",
   hard: "⭐",
 };
+
+const GITHUB_REPO = "TuiTuiKoan/Tokyo_Taiwan_Radar";
+
+function buildIssueUrl(src: ResearchReport["content"]["top_sources"][0]) {
+  const title = encodeURIComponent(`feat(scraper): add ${src.name} source`);
+  const body = encodeURIComponent(
+    `## 來源資訊\n` +
+    `- **名稱**: ${src.name}\n` +
+    `- **URL**: ${src.url}\n` +
+    `- **活動類型**: ${src.event_types}\n` +
+    `- **發佈頻率**: ${src.frequency}\n` +
+    `- **爬蟲可行性**: ${src.scraping_feasibility}\n` +
+    `- **推薦理由**: ${src.reason}\n\n` +
+    `## 實作步驟\n` +
+    `1. @Scraper Expert 分析頁面結構\n` +
+    `2. 建立 \`scraper/sources/<name>.py\`\n` +
+    `3. 加入 \`scraper/main.py\` SCRAPERS 清單\n` +
+    `4. \`python main.py --dry-run --source <name>\`\n`
+  );
+  const labels = encodeURIComponent("scraper,enhancement");
+  return `https://github.com/${GITHUB_REPO}/issues/new?title=${title}&body=${body}&labels=${labels}`;
+}
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleString("zh-TW", {
@@ -133,40 +158,74 @@ export default function AdminResearchTable({ reports, locale }: Props) {
                       📌 {t("researchSources")}
                     </h4>
                     <div className="space-y-2">
-                      {content.top_sources.map((src, i) => (
-                        <div
-                          key={i}
-                          className="bg-gray-50 rounded-lg p-3 text-sm"
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span>{ICONS[src.category] ?? "📎"}</span>
-                            <span className="font-medium">{src.name}</span>
-                            <span className="text-gray-400 text-xs">
-                              {FEASIBILITY[src.scraping_feasibility] ?? "?"}
-                            </span>
-                          </div>
-                          <a
-                            href={src.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline break-all"
+                      {content.top_sources.map((src, i) => {
+                        const verified = src.url_verified;
+                        const catKey = src.agent_category || src.category;
+                        return (
+                          <div
+                            key={i}
+                            className={`rounded-lg p-3 text-sm border ${
+                              verified
+                                ? "bg-green-50 border-green-100"
+                                : "bg-gray-50 border-gray-100 opacity-60"
+                            }`}
                           >
-                            {src.url}
-                          </a>
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
-                            <div>
-                              {t("researchFrequency")}: {src.frequency}
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span>{ICONS[catKey] ?? "📎"}</span>
+                              <span className="font-medium">{src.name}</span>
+                              <span className="text-gray-400 text-xs">
+                                {FEASIBILITY[src.scraping_feasibility] ?? "?"}
+                              </span>
+                              {verified !== undefined && (
+                                <span
+                                  className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                                    verified
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-red-100 text-red-600"
+                                  }`}
+                                >
+                                  {verified ? "✅ URL 有效" : "❌ URL 無效"}
+                                </span>
+                              )}
                             </div>
-                            <div>
-                              {t("researchFeasibility")}:{" "}
-                              {src.scraping_feasibility}
+                            <a
+                              href={src.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline break-all"
+                            >
+                              {src.url}
+                            </a>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
+                              <div>{t("researchFrequency")}: {src.frequency}</div>
+                              <div>{t("researchFeasibility")}: {src.scraping_feasibility}</div>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {t("researchReason")}: {src.reason}
+                            </p>
+                            {/* Create scraper GitHub Issue button */}
+                            <div className="mt-2">
+                              {verified ? (
+                                <a
+                                  href={buildIssueUrl(src)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                                >
+                                  📋 {t("researchCreateIssue")}
+                                </a>
+                              ) : (
+                                <span
+                                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-200 text-gray-400 rounded-lg cursor-not-allowed"
+                                  title="URL 尚未驗證，無法建立 Issue"
+                                >
+                                  📋 {t("researchCreateIssue")}
+                                </span>
+                              )}
                             </div>
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {t("researchReason")}: {src.reason}
-                          </p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
