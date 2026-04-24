@@ -419,6 +419,7 @@ class TaiwanCulturalCenterScraper(BaseScraper):
         # --- Location ---
         # Site does not expose a dedicated location field; default to the center
         location_name = "台北駐日経済文化代表処 台湾文化センター"
+        location_address = "東京都港区虎ノ門1-1-12"
 
         # --- Price ---
         # Extract from description text if available
@@ -445,6 +446,7 @@ class TaiwanCulturalCenterScraper(BaseScraper):
             start_date=start_date,
             end_date=end_date,
             location_name=location_name,
+            location_address=location_address,
             is_paid=is_paid,
             price_info=price_text,
             category=categories,

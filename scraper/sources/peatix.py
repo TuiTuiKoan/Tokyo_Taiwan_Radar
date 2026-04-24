@@ -62,9 +62,6 @@ TAIWAN_KEYWORDS = [
     "台湾夜市",
 ]
 
-# Location filter — Tokyo metropolitan area
-LOCATION_FILTER = "JP-13"  # Tokyo prefecture code in Peatix
-
 # Only keep events whose start_date is within this window from today
 DATE_LOOKBACK_DAYS = 90
 
@@ -237,7 +234,7 @@ class PeatixScraper(BaseScraper):
         search_page = 1
 
         while search_page <= 20:  # Limit to 20 search result pages per keyword
-            url = f"{SEARCH_URL}?q={keyword}&l={LOCATION_FILTER}&page={search_page}"
+            url = f"{SEARCH_URL}?q={keyword}&page={search_page}"
             logger.info("Peatix search: %s (page %d)", keyword, search_page)
             try:
                 page.goto(url, wait_until="networkidle", timeout=30_000)

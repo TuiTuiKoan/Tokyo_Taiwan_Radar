@@ -261,11 +261,7 @@ class TaiwanKyokaiScraper(BaseScraper):
                     continue
 
                 # ── Venue filter: must be Tokyo area ────────────────────────
-                if not _is_tokyo_venue(body_text):
-                    logger.info(
-                        "[%s] Non-Tokyo venue on %s — skipping", SOURCE_NAME, slug
-                    )
-                    continue
+                # (filter removed — now accepts all Japan venues)
 
                 # ── Build raw_description ────────────────────────────────────
                 date_prefix = (

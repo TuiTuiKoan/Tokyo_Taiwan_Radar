@@ -119,6 +119,14 @@ def _is_tokyo_venue(body_text: str) -> bool:
     return any(marker in venue_text for marker in _TOKYO_MARKERS)
 
 
+def _extract_location_address(body_text: str) -> Optional[str]:
+    """Extract address/location details from 所在地 or 住所 section."""
+    m = re.search(r'(?:所在地|住所|住　所)\s*\n?\s*(.{5,100})', body_text)
+    if m:
+        return m.group(1).strip().split('\n')[0].strip()[:100]
+    return None
+
+
 def _extract_venue(body_text: str) -> Optional[str]:
     """Extract venue name from 会場 section."""
     m = re.search(r'会\s*場\s*\n?\s*(.{5,120})', body_text)
@@ -186,12 +194,6 @@ class KoryuScraper(BaseScraper):
 
         items = []
         for li in main.query_selector_all("li"):
-            # Check for Tokyo tag
-            tag_spans = li.query_selector_all(".newsCategory span")
-            tags = [s.inner_text().strip() for s in tag_spans]
-            if "東京" not in tags:
-                continue
-
             # Get link and title
             a = li.query_selector(".newsTitle a")
             if not a:
@@ -216,7 +218,6 @@ class KoryuScraper(BaseScraper):
                 "href": full_url,
                 "title": title,
                 "pub_date_str": pub_date_str,
-                "tags": tags,
             })
 
         return items
@@ -236,11 +237,6 @@ class KoryuScraper(BaseScraper):
 
         body_text = main.inner_text()
 
-        # Filter: must be Tokyo venue
-        if not _is_tokyo_venue(body_text):
-            logger.info("Skipping non-Tokyo venue: %s", item["title"][:60])
-            return None
-
         # Extract event date from body (日時 section)
         start_date, end_date = _extract_event_date(body_text)
 
@@ -252,7 +248,8 @@ class KoryuScraper(BaseScraper):
                 logger.warning("No date found for %s, skipping", url)
                 return None
 
-        venue = _extract_venue(body_text) or "東京"
+        venue = _extract_venue(body_text) or ""
+        location_address = _extract_location_address(body_text)
 
         title = item["title"]
         source_id = f"koryu_{item['item_id']}"
@@ -284,6 +281,7 @@ class KoryuScraper(BaseScraper):
             start_date=start_date,
             end_date=end_date,
             location_name=venue,
+            location_address=location_address,
             is_paid=is_paid,
             category=["lecture"],
         )

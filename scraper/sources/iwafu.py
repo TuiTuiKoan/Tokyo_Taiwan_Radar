@@ -27,7 +27,6 @@ BASE_URL = "https://www.iwafu.com"
 SEARCH_URL = f"{BASE_URL}/jp/events"
 # URL-encoded 台湾
 SEARCH_KEYWORD = "%E5%8F%B0%E6%B9%BE"
-TARGET_PREFECTURE = "東京"
 MAX_PAGES = 10
 
 # Known prefecture names used on iwafu cards
@@ -150,13 +149,12 @@ class IwafuScraper(BaseScraper):
             all_cards = self._collect_cards(page)
             logger.info("Total event cards found: %d", len(all_cards))
 
-            # Phase 2: filter to Tokyo events only
-            tokyo_cards = [c for c in all_cards if c["prefecture"] == TARGET_PREFECTURE]
-            logger.info("Tokyo Taiwan events: %d", len(tokyo_cards))
+            cards = all_cards
+            logger.info("Taiwan events: %d", len(cards))
 
             # Phase 3: visit detail pages for full descriptions
             seen_ids: set[str] = set()
-            for card in tokyo_cards:
+            for card in cards:
                 event_id = card["id"]
                 if event_id in seen_ids:
                     continue
@@ -335,7 +333,8 @@ class IwafuScraper(BaseScraper):
             end_date = start_date
 
         # --- Location ---
-        location_name = card.get("location_hint") or TARGET_PREFECTURE
+        location_name = card.get("location_hint") or card.get("prefecture") or ""
+        location_address = card.get("prefecture") or None
 
         # --- Is paid? ---
         combined = f"{title} {description}"
@@ -365,6 +364,7 @@ class IwafuScraper(BaseScraper):
             start_date=start_date,
             end_date=end_date,
             location_name=location_name,
+            location_address=location_address,
             is_paid=is_paid,
             category=[],
         )

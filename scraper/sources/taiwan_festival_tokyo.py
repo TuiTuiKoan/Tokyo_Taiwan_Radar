@@ -180,6 +180,7 @@ class TaiwanFestivalTokyoScraper(BaseScraper):
             start_date=start_date,
             end_date=end_date,
             location_name=venue,
+            location_address="東京都台東区上野公園",
             is_paid=is_paid,
             price_info=price_info,
             category=["lifestyle_food", "performing_arts"],

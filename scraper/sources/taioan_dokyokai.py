@@ -91,7 +91,10 @@ _LOCATION_LABEL = re.compile(
     r"[■●▶◆◇・]?\s*(?:場所|会場|開催場所)\s*[：:]\s*(.{3,80})",
     re.MULTILINE,
 )
-
+_ADDRESS_LABEL = re.compile(
+    r"[\u25a0●▶◆◇・]?\s*住所\s*[：:]\s*(.{5,80})",
+    re.MULTILINE,
+)
 
 def _safe_text(page: Page, selector: str) -> Optional[str]:
     try:
@@ -105,6 +108,15 @@ def _extract_location(text: Optional[str]) -> Optional[str]:
     if not text:
         return None
     m = _LOCATION_LABEL.search(text)
+    if not m:
+        return None
+    return m.group(1).strip().splitlines()[0].strip()
+
+
+def _extract_address(text: Optional[str]) -> Optional[str]:
+    if not text:
+        return None
+    m = _ADDRESS_LABEL.search(text)
     if not m:
         return None
     return m.group(1).strip().splitlines()[0].strip()
@@ -288,6 +300,7 @@ class TaioanDokyokaiScraper(BaseScraper):
 
         # --- Location ---
         location_name = _extract_location(description_ja)
+        location_address = _extract_address(description_ja)
 
         # --- Stable source_id ---
         source_id = hashlib.md5(url.encode()).hexdigest()[:16]
@@ -313,6 +326,7 @@ class TaioanDokyokaiScraper(BaseScraper):
             start_date=start_date,
             end_date=end_date,
             location_name=location_name,
+            location_address=location_address,
             is_paid=None,
             category=list(hint_category),
         )
