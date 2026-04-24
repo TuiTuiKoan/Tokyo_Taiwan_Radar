@@ -137,19 +137,45 @@ def upsert_events(events: list[Event]) -> None:
     """
     Insert or update events in the database.
     Uses (source_name, source_id) as the unique conflict key.
+
+    Admin-deactivated events (is_active = false) are never overwritten by the
+    scraper — once an admin disables an event it stays disabled across runs.
     """
     if not events:
         return
 
     client = _get_client()
-    rows = [_event_to_row(e) for e in events]
+
+    # Fetch all (source_name, source_id) pairs that have been admin-deactivated
+    # so we don't accidentally re-activate them on the next scraper run.
+    blocked_keys: set[tuple[str, str]] = set()
+    source_names = list({e.source_name for e in events})
+    try:
+        for sn in source_names:
+            resp = (
+                client.table("events")
+                .select("source_name,source_id")
+                .eq("source_name", sn)
+                .eq("is_active", False)
+                .execute()
+            )
+            for row in (resp.data or []):
+                blocked_keys.add((row["source_name"], row["source_id"]))
+    except Exception as exc:
+        logger.warning("Could not fetch deactivated events (skipping filter): %s", exc)
+
+    rows = [_event_to_row(e) for e in events
+            if (e.source_name, e.source_id) not in blocked_keys]
+
+    skipped = len(events) - len(rows)
+    if skipped:
+        logger.info("Skipped %d admin-deactivated event(s) — will not re-activate.", skipped)
+
+    if not rows:
+        return
 
     try:
-        response = (
-            client.table("events")
-            .upsert(rows, on_conflict="source_name,source_id")
-            .execute()
-        )
+        client.table("events").upsert(rows, on_conflict="source_name,source_id").execute()
         logger.info("Upserted %d events to Supabase.", len(rows))
     except Exception as exc:
         logger.error("Failed to upsert events: %s", exc)
