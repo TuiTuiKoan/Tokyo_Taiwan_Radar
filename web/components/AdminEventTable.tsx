@@ -134,7 +134,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
   async function handleDelete(id: string) {
     if (!window.confirm(t("confirmDelete"))) return;
-    await supabase.from("events").delete().eq("id", id);
+    // Soft-delete: set is_active = false instead of removing the row.
+    // This permanently blocks the scraper from re-inserting the event.
+    await supabase.from("events").update({ is_active: false }).eq("id", id);
     setEvents((prev) => prev.filter((e) => e.id !== id));
     setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
   }
@@ -145,7 +147,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     if (!window.confirm(msg)) return;
     setBulkDeleting(true);
     const ids = Array.from(selected);
-    await supabase.from("events").delete().in("id", ids);
+    // Soft-delete: set is_active = false instead of removing rows.
+    // This permanently blocks the scraper from re-inserting these events.
+    await supabase.from("events").update({ is_active: false }).in("id", ids);
     setEvents((prev) => prev.filter((e) => !selected.has(e.id)));
     setSelected(new Set());
     setBulkDeleting(false);
