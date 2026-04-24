@@ -34,7 +34,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterPaid, setFilterPaid] = useState("");
   const [filterIsActive, setFilterIsActive] = useState<"all" | "active" | "inactive">("all");
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
-  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
 
   function getFiltered(list: Event[]) {
@@ -345,8 +345,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               const mode = e.target.value as "active" | "all" | "past";
               setFilterTimeMode(mode);
               if (mode !== "past") {
-                setFilterDateFrom("");
+                setFilterDateFrom("2024-01-01");
                 setFilterDateTo("");
+              } else {
+                setFilterDateFrom((prev) => prev || "2024-01-01");
               }
             }}
             className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
@@ -380,7 +382,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         )}
         {(filterQ || filterCategory || filterPaid || filterIsActive !== "all" || filterTimeMode !== "active" || filterDateFrom || filterDateTo) && (
           <button
-            onClick={() => { setFilterQ(""); setFilterCategory(""); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom(""); setFilterDateTo(""); }}
+            onClick={() => { setFilterQ(""); setFilterCategory(""); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); }}
             className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
           >
             清除篩選
