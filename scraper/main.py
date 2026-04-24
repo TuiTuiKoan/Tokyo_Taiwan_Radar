@@ -39,6 +39,7 @@ if _SENTRY_DSN:
 from sources.taiwan_cultural_center import TaiwanCulturalCenterScraper
 from sources.peatix import PeatixScraper
 from sources.taioan_dokyokai import TaioanDokyokaiScraper
+from sources.iwafu import IwafuScraper
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
 
@@ -59,6 +60,7 @@ SCRAPERS = [
     TaiwanCulturalCenterScraper(),
     PeatixScraper(),
     TaioanDokyokaiScraper(),
+    IwafuScraper(),
 ]
 
 
