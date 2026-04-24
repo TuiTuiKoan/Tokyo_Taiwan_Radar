@@ -45,7 +45,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       if (filterCategory && !(e.category || []).includes(filterCategory)) return false;
       if (filterPaid === "free" && e.is_paid !== false) return false;
       if (filterPaid === "paid" && e.is_paid !== true) return false;
-      if (filterActive === "active" && !e.is_active) return false;
+      if (filterActive === "active") {
+        if (!e.is_active) return false;
+        // Also hide events whose end_date has already passed
+        if (e.end_date && new Date(e.end_date) < new Date()) return false;
+      }
       if (filterActive === "inactive" && e.is_active) return false;
       return true;
     });
