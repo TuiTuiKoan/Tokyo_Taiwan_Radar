@@ -2,10 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale } from "@/lib/types";
-import AdminResearchTable, {
-  type ResearchReport,
-} from "@/components/AdminResearchTable";
-import { type ResearchSource } from "@/components/AdminSourcesTable";
+import AdminSourcesTable, {
+  type ResearchSource,
+} from "@/components/AdminSourcesTable";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +13,7 @@ interface PageProps {
   params: Promise<{ locale: Locale }>;
 }
 
-export default async function AdminResearchPage({ params }: PageProps) {
+export default async function AdminSourcesPage({ params }: PageProps) {
   const { locale } = await params;
   const t = await getTranslations("admin");
 
@@ -36,12 +35,6 @@ export default async function AdminResearchPage({ params }: PageProps) {
   if (!roleRow || roleRow.role !== "admin") {
     redirect(`/${locale}`);
   }
-
-  const { data: reports } = await supabase
-    .from("research_reports")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(50);
 
   const { data: sources } = await supabase
     .from("research_sources")
@@ -73,23 +66,19 @@ export default async function AdminResearchPage({ params }: PageProps) {
         >
           {t("statsTab")}
         </Link>
-        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">
-          {t("researchTab")}
-        </span>
         <Link
-          href={`/${locale}/admin/sources`}
+          href={`/${locale}/admin/research`}
           className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
         >
-          {t("sourcesTab")}
+          {t("researchTab")}
         </Link>
+        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">
+          {t("sourcesTab")}
+        </span>
       </div>
 
-      {/* Daily reports section */}
-      <h2 className="text-lg font-semibold mb-3">{t("researchTitle")}</h2>
-
-      <AdminResearchTable
-        reports={(reports ?? []) as ResearchReport[]}
-        locale={locale}
+      <h2 className="text-lg font-semibold mb-3">{t("sourcesTitle")}</h2>
+      <AdminSourcesTable
         sources={(sources ?? []) as ResearchSource[]}
       />
     </div>

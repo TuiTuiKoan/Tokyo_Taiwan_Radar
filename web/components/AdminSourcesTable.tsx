@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 export interface ResearchSource {
@@ -96,14 +97,52 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function AdminSourcesTable({ sources }: Props) {
   const t = useTranslations("admin");
+  const [filter, setFilter] = useState<string>("all");
+
+  const STATUS_FILTERS = [
+    { key: "all",          label: "全部" },
+    { key: "implemented",  label: "✅ 已實作" },
+    { key: "not-viable",   label: "🚫 已排除" },
+    { key: "researched",   label: "🔍 已研究" },
+    { key: "recommended",  label: "⭐ 推薦" },
+    { key: "candidate",    label: "🔄 候選" },
+  ];
+
+  const filtered = filter === "all" ? sources : sources.filter((s) => s.status === filter);
 
   if (sources.length === 0) {
     return <p className="text-sm text-gray-400">{t("sourcesNone")}</p>;
   }
 
   return (
-    <div className="space-y-2">
-      {sources.map((src) => {
+    <div>
+      {/* Status filter bar */}
+      <div className="flex gap-2 flex-wrap mb-4">
+        {STATUS_FILTERS.map(({ key, label }) => {
+          const count = key === "all" ? sources.length : sources.filter((s) => s.status === key).length;
+          if (key !== "all" && count === 0) return null;
+          return (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={`text-xs px-3 py-1.5 rounded-full font-medium border transition ${
+                filter === key
+                  ? "bg-green-600 text-white border-green-600"
+                  : "bg-white text-gray-600 border-gray-200 hover:border-green-400"
+              }`}
+            >
+              {label} <span className="opacity-60">({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="text-sm text-gray-400">{t("sourcesNone")}</p>
+      )}
+
+      <div className="space-y-2">
+        {filtered.map((src) => {
         const catKey = src.agent_category ?? src.category ?? "";
         const isResearched = src.status === "researched";
         const isRecommendedOrDone =
@@ -189,6 +228,7 @@ export default function AdminSourcesTable({ sources }: Props) {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
