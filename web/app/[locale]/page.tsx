@@ -50,9 +50,17 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     );
   }
 
-  // Category filter
-  if (sp.category && CATEGORIES.includes(sp.category as any)) {
-    query = query.contains("category", [sp.category]);
+  // Category filter — supports comma-separated multi-select, e.g. "movie,art"
+  if (sp.category) {
+    const cats = sp.category
+      .split(",")
+      .map((c) => c.trim())
+      .filter((c) => CATEGORIES.includes(c as any));
+    if (cats.length === 1) {
+      query = query.contains("category", cats);
+    } else if (cats.length > 1) {
+      query = query.overlaps("category", cats);
+    }
   }
 
   // Time mode filter

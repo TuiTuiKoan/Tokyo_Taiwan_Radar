@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CATEGORY_GROUPS, type Locale, type Category } from "@/lib/types";
+import { CATEGORY_GROUPS, type Locale } from "@/lib/types";
 import { useState, useCallback } from "react";
 
 interface Props {
@@ -18,19 +18,15 @@ interface Props {
   };
 }
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-export default function FilterBar({ locale, currentFilters }: Props) {
+export default function FilterBar({ locale: _locale, currentFilters }: Props) {
   const t = useTranslations("filters");
   const tCat = useTranslations("categories");
   const router = useRouter();
   const pathname = usePathname();
 
-  // Local state — only push to URL when "Apply" is clicked
   const [draft, setDraft] = useState({
     q: currentFilters.q ?? "",
+    // category is comma-separated, e.g. "movie,art"
     category: currentFilters.category ?? "",
     from: currentFilters.from ?? "",
     to: currentFilters.to ?? "",
@@ -39,38 +35,53 @@ export default function FilterBar({ locale, currentFilters }: Props) {
     location: currentFilters.location ?? "",
   });
 
-  // Mobile: collapsed by default, expanded if there are active filters
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const set = (key: string, value: string) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
 
-  // Immediately push URL on select change (category / paid / location / timeMode)
-  const applyWith = useCallback((key: string, value: string) => {
-    setDraft((prev) => {
-      const next = { ...prev, [key]: value };
-      const params = new URLSearchParams();
-      Object.entries(next).forEach(([k, v]) => {
-        if (v) params.set(k, v);
-      });
-      router.push(`${pathname}?${params.toString()}`);
-      return next;
-    });
-  }, [pathname, router]);
-
-  const applyFilters = useCallback(() => {
+  /** Push URL immediately with an updated state snapshot. */
+  const pushWith = useCallback((next: typeof draft) => {
     const params = new URLSearchParams();
-    Object.entries(draft).forEach(([k, v]) => {
+    Object.entries(next).forEach(([k, v]) => {
       if (v) params.set(k, v);
     });
     router.push(`${pathname}?${params.toString()}`);
-  }, [draft, pathname, router]);
+  }, [pathname, router]);
+
+  /** Immediately push URL when a select changes. */
+  const applyWith = useCallback((key: string, value: string) => {
+    setDraft((prev) => {
+      const next = { ...prev, [key]: value };
+      pushWith(next);
+      return next;
+    });
+  }, [pushWith]);
+
+  /** Toggle a category pill — updates URL immediately. */
+  const toggleCategory = useCallback((cat: string) => {
+    setDraft((prev) => {
+      const current = prev.category ? prev.category.split(",") : [];
+      const next = current.includes(cat)
+        ? current.filter((c) => c !== cat)
+        : [...current, cat];
+      const nextDraft = { ...prev, category: next.join(",") };
+      pushWith(nextDraft);
+      return nextDraft;
+    });
+  }, [pushWith]);
+
+  const applyFilters = useCallback(() => {
+    pushWith(draft);
+  }, [draft, pushWith]);
 
   const clearAll = useCallback(() => {
     const reset = { q: "", category: "", from: "", to: "", paid: "", timeMode: "active", location: "" };
     setDraft(reset);
     router.push(pathname);
   }, [pathname, router]);
+
+  const selectedCats = draft.category ? draft.category.split(",") : [];
 
   const hasFilters = Object.entries(draft).some(([k, v]) => {
     if (k === "timeMode") return v !== "active";
@@ -91,7 +102,6 @@ export default function FilterBar({ locale, currentFilters }: Props) {
               : "border-gray-300 text-gray-500 bg-white hover:bg-gray-50"
           }`}
         >
-          {/* Search magnifier SVG */}
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -113,7 +123,9 @@ export default function FilterBar({ locale, currentFilters }: Props) {
       </div>
 
       {/* Filter panel — always visible on md+, toggled on mobile */}
-      <div className={`bg-gray-50 rounded-xl p-4 ${mobileOpen ? "block" : "hidden"} md:block`}>
+      <div className={`bg-gray-50 rounded-xl p-4 space-y-3 ${mobileOpen ? "block" : "hidden"} md:block`}>
+
+        {/* Row 1: keyword, paid, location, timeMode, apply, reset */}
         <div className="flex flex-wrap gap-3 items-end">
           {/* Keyword search */}
           <div className="flex flex-col gap-1">
@@ -122,31 +134,10 @@ export default function FilterBar({ locale, currentFilters }: Props) {
               type="search"
               value={draft.q}
               placeholder={t("searchPlaceholder")}
-              className="h-12 border border-gray-300 rounded-lg px-3 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-10 border border-gray-300 rounded-lg px-3 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-green-400"
               onChange={(e) => set("q", e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") applyFilters(); }}
             />
-          </div>
-
-          {/* Category */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
-            <select
-              value={draft.category}
-              onChange={(e) => applyWith("category", e.target.value)}
-              className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{t("allCategories")}</option>
-              {CATEGORY_GROUPS.map((group) => (
-                <optgroup key={group.labelKey} label={tCat(group.labelKey as any)}>
-                  {group.categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {tCat(cat as any)}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
           </div>
 
           {/* Paid filter */}
@@ -155,7 +146,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
             <select
               value={draft.paid}
               onChange={(e) => applyWith("paid", e.target.value)}
-              className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-10 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("allPaid")}</option>
               <option value="free">{t("freeOnly")}</option>
@@ -169,7 +160,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
             <select
               value={draft.location}
               onChange={(e) => applyWith("location", e.target.value)}
-              className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-10 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("allLocations")}</option>
               <option value="tokyo">{t("locationTokyo")}</option>
@@ -187,16 +178,14 @@ export default function FilterBar({ locale, currentFilters }: Props) {
                 if (e.target.value === "active") {
                   setDraft((prev) => {
                     const next = { ...prev, timeMode: "active", from: "", to: "" };
-                    const params = new URLSearchParams();
-                    Object.entries(next).forEach(([k, v]) => { if (v) params.set(k, v); });
-                    router.push(`${pathname}?${params.toString()}`);
+                    pushWith(next);
                     return next;
                   });
                 } else {
                   applyWith("timeMode", e.target.value);
                 }
               }}
-              className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-10 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="active">{t("timeModeActive")}</option>
               <option value="past">{t("timeModePast")}</option>
@@ -212,7 +201,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
                   type="date"
                   value={draft.from}
                   onChange={(e) => set("from", e.target.value)}
-                  className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-10 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -221,31 +210,72 @@ export default function FilterBar({ locale, currentFilters }: Props) {
                   type="date"
                   value={draft.to}
                   onChange={(e) => set("to", e.target.value)}
-                  className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-10 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
             </>
           )}
 
-          {/* Apply button */}
+          {/* Apply button (keyword / date) */}
           <button
             onClick={() => { applyFilters(); setMobileOpen(false); }}
-            className="h-12 px-5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition self-end"
+            className="h-10 px-5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition self-end"
           >
             {t("apply")}
           </button>
 
-          {/* Clear button */}
+          {/* Clear all */}
           {hasFilters && (
             <button
               onClick={clearAll}
-              className="text-sm text-red-500 hover:text-red-700 underline self-end pb-2"
+              className="text-sm text-red-500 hover:text-red-700 underline self-end pb-1"
             >
               {t("reset")}
             </button>
           )}
         </div>
+
+        {/* Row 2: Category multi-select pills */}
+        <div className="border-t border-gray-200 pt-3">
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className="text-xs text-gray-500 font-medium">{t("category")}</span>
+            {selectedCats.length > 0 && (
+              <button
+                onClick={() => applyWith("category", "")}
+                className="text-xs text-gray-400 hover:text-red-500 underline"
+              >
+                {t("allCategories")}
+              </button>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            {CATEGORY_GROUPS.map((group) => (
+              <div key={group.labelKey} className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-xs text-gray-400 w-16 shrink-0">{tCat(group.labelKey as any)}</span>
+                {group.categories.map((cat) => {
+                  const active = selectedCats.includes(cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => toggleCategory(cat)}
+                      className={`px-2.5 py-0.5 rounded-full text-xs border transition ${
+                        active
+                          ? "bg-green-600 text-white border-green-600"
+                          : "border-gray-300 text-gray-600 hover:border-green-400"
+                      }`}
+                    >
+                      {tCat(cat as any)}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );
 }
+

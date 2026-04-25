@@ -81,6 +81,7 @@ export type Category =
   | "business"
   | "academic"
   | "competition"
+  | "indigenous"
   | "report";
 
 export const CATEGORIES: Category[] = [
@@ -101,6 +102,7 @@ export const CATEGORIES: Category[] = [
   "business",
   "academic",
   "competition",
+  "indigenous",
   "report",
 ];
 
@@ -112,7 +114,7 @@ export interface CategoryGroup {
 export const CATEGORY_GROUPS: CategoryGroup[] = [
   {
     labelKey: "group_arts",
-    categories: ["movie", "performing_arts", "art", "books_media", "senses"],
+    categories: ["movie", "performing_arts", "art", "books_media", "senses", "indigenous"],
   },
   {
     labelKey: "group_lifestyle",

@@ -4,7 +4,7 @@ Keyword-based semantic categoriser for Taiwan events.
 Each event can receive multiple category tags. Categories match the
 frontend CATEGORIES type in web/lib/types.ts:
   movie | performing_arts | senses | retail | nature | tech | tourism | lifestyle_food | books_media | gender | geopolitics
-  | taiwan_japan | business | academic | competition | art | lecture | report
+  | taiwan_japan | business | academic | competition | indigenous | art | lecture | report
 """
 
 from typing import Optional
@@ -98,6 +98,10 @@ _RULES: list[tuple[str, list[str]]] = [
         "シンポジウム", "symposium", "学会", "conference",
         "大学", "university", "研究所", "institute", "PhD",
         "研究発表",
+    ]),
+    ("indigenous", [
+        "原住民", "indigenous", "先住民", "アミ族", "パイワン族", "タイヤル族",
+        "台湾原住民", "台灣原住民", "原住民族", "部落",
     ]),
 ]
 
