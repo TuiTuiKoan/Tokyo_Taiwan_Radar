@@ -441,8 +441,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="active">{tFilters("timeModeActive")}</option>
-              <option value="all">{t("filterAll")}</option>
-              <option value="past">{t("filterPast")}</option>
+              <option value="all">{tFilters("timeModeAll")}</option>
+              <option value="past">{tFilters("timeModePast")}</option>
             </select>
           </div>
           {filterTimeMode === "past" && (

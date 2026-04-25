@@ -16,6 +16,7 @@
     "paidOnly": "有料のみ",
     "timeMode": "期間",
     "timeModeActive": "開催中",
+    "timeModeAll": "すべて",
     "timeModePast": "過去のイベントを検索",
     "dateFrom": "開始日",
     "dateTo": "終了日",
