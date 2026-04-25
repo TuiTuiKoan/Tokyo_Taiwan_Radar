@@ -294,9 +294,11 @@ export default async function EventDetailPage({ params }: PageProps) {
           rawDescription={event.raw_description}
           selectionReason={event.selection_reason}
           locale={locale}
-          reportSection={<ReportSection eventId={event.id} locale={locale} />}
         />
       )}
+
+      {/* ===== Report Error (always visible) ===== */}
+      <ReportSection eventId={event.id} locale={locale} />
     </article>
   );
 }
