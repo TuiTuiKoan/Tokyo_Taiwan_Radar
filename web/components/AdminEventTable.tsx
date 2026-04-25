@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { type Event, type Locale, getEventName, CATEGORIES } from "@/lib/types";
+import { type Event, type Locale, getEventName, CATEGORY_GROUPS } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 
@@ -32,7 +32,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
   // Inline filters
   const [filterQ, setFilterQ] = useState("");
-  const [filterCategory, setFilterCategory] = useState("");
+  const [filterCategories, setFilterCategories] = useState<string[]>([]);
   const [filterPaid, setFilterPaid] = useState("");
   const [filterIsActive, setFilterIsActive] = useState<"all" | "active" | "inactive">("all");
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
@@ -58,7 +58,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         const raw = (e.raw_title || "").toLowerCase();
         if (!name.includes(q) && !raw.includes(q)) return false;
       }
-      if (filterCategory && !(e.category || []).includes(filterCategory)) return false;
+      if (filterCategories.length > 0 && !filterCategories.some((c) => (e.category || []).includes(c))) return false;
       if (filterPaid === "free" && e.is_paid !== false) return false;
       if (filterPaid === "paid" && e.is_paid !== true) return false;
       if (filterIsActive === "active" && !e.is_active) return false;
@@ -337,17 +337,38 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="">{t("filterAll")}</option>
-            {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>{tCat(cat as any)}</option>
+          <div className="flex items-baseline gap-2">
+            <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
+            {filterCategories.length > 0 && (
+              <button onClick={() => setFilterCategories([])} className="text-xs text-gray-400 hover:text-red-500 underline">{t("filterAll")}</button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+            {CATEGORY_GROUPS.map((group) => (
+              <div key={group.labelKey} className="flex flex-wrap gap-1.5 items-start">
+                <span className="text-xs text-gray-400 w-16 shrink-0">{tCat(group.labelKey as any)}</span>
+                {group.categories.map((cat) => {
+                  const active = filterCategories.includes(cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setFilterCategories((prev) =>
+                        prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+                      )}
+                      className={`px-2.5 py-0.5 rounded-full text-xs border transition ${
+                        active
+                          ? "bg-green-600 text-white border-green-600"
+                          : "border-gray-300 text-gray-600 hover:border-green-400"
+                      }`}
+                    >
+                      {tCat(cat as any)}
+                    </button>
+                  );
+                })}
+              </div>
             ))}
-          </select>
+          </div>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-medium">{t("isPaid")}</label>
@@ -442,9 +463,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </div>
           </>
         )}
-        {(filterQ || filterCategory || filterPaid || filterIsActive !== "all" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation) && (
+        {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "all" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation) && (
           <button
-            onClick={() => { setFilterQ(""); setFilterCategory(""); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); }}
+            onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); }}
             className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
           >
             {tFilters("reset")}
