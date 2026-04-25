@@ -53,6 +53,8 @@ from sources.eplus import EplusScraper
 from sources.tokyonow import TokyoNowScraper
 from sources.tokyocity_i import TokyoCityIScraper
 from sources.ifi import IfiScraper
+from sources.tuat_global import TuatGlobalScraper
+from sources.jinf import JinfScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -88,6 +90,8 @@ SCRAPERS = [
     TokyoNowScraper(),
     TokyoCityIScraper(),
     IfiScraper(),
+    TuatGlobalScraper(),
+    JinfScraper(),
 ]
 
 
