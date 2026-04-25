@@ -569,6 +569,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("filterAll")}</option>
+              <option value="pending">{t("pending")}</option>
               <option value="annotated">{t("annotated")}</option>
               <option value="reviewed">{t("reviewed")}</option>
               <option value="error">{t("error")}</option>
