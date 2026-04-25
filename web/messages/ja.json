@@ -220,6 +220,12 @@
     "fieldNotEditable": "このフィールドはシステムが再生成します",
     "bulkDelete": "選択を削除",
     "confirmBulkDelete": "{count}件のイベントを削除しますか？この操作は元に戻せません。",
+    "bulkHide": "非公開",
+    "bulkShow": "公開",
+    "bulkForceRescrape": "再取得予約",
+    "forceRescrapeQueued": "再取得予約中",
+    "forceRescrapeOn": "再取得予約に追加",
+    "forceRescrapeOff": "再取得予約を解除",
     "selectedCount": "{count}件選択中"
   },
   "report": {

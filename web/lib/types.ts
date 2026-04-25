@@ -40,6 +40,7 @@ export interface Event {
   selection_reason: string | null;
   annotation_status: string;
   annotated_at: string | null;
+  force_rescrape?: boolean;
   created_at: string;
   updated_at: string;
 }

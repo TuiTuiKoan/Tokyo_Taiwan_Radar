@@ -29,6 +29,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkToggling, setBulkToggling] = useState(false);
+  const [bulkForceRescrapings, setBulkForceRescrapings] = useState(false);
 
   // Inline filters
   const [filterQ, setFilterQ] = useState("");
@@ -295,6 +296,29 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, annotation_status: "pending" } : e))
     );
+  }
+
+  async function handleBulkForceRescrape() {
+    if (selected.size === 0) return;
+    setBulkForceRescrapings(true);
+    const ids = Array.from(selected);
+    const { error } = await supabase.from("events").update({ force_rescrape: true }).in("id", ids);
+    if (error) {
+      alert(`操作失敗：${error.message}`);
+      setBulkForceRescrapings(false);
+      return;
+    }
+    setEvents((prev) => prev.map((e) => selected.has(e.id) ? { ...e, force_rescrape: true } : e));
+    setSelected(new Set());
+    setBulkForceRescrapings(false);
+  }
+
+  async function handleToggleForceRescrape(id: string) {
+    const ev = events.find((e) => e.id === id);
+    if (!ev) return;
+    const newValue = !ev.force_rescrape;
+    await supabase.from("events").update({ force_rescrape: newValue }).eq("id", id);
+    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, force_rescrape: newValue } : e));
   }
 
   async function handleToggleActive(id: string, newValue: boolean) {
@@ -578,6 +602,14 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             {bulkToggling ? "..." : t("bulkShow")}
           </button>
           <button
+            onClick={handleBulkForceRescrape}
+            disabled={bulkForceRescrapings}
+            className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-50 transition"
+            title={t("bulkForceRescrape")}
+          >
+            {bulkForceRescrapings ? "..." : `🔁 ${t("bulkForceRescrape")}`}
+          </button>
+          <button
             onClick={() => setSelected(new Set())}
             className="text-gray-500 hover:text-gray-700 text-xs transition"
           >
@@ -654,6 +686,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     >
                       {getEventName(event, locale)}
                     </a>
+                    {event.force_rescrape && (
+                      <span className="inline-block mt-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
+                        🔁 {t("forceRescrapeQueued")}
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 pr-4">
                     <div className="flex flex-wrap gap-1">
@@ -736,6 +773,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       <button onClick={() => handleReannotate(event.id)} className="text-purple-600 hover:underline text-xs">
                         {t("reannotate")}
                       </button>
+                      <button
+                        onClick={() => handleToggleForceRescrape(event.id)}
+                        title={event.force_rescrape ? t("forceRescrapeOff") : t("forceRescrapeOn")}
+                        className={`text-xs hover:underline ${event.force_rescrape ? "text-orange-600 font-medium" : "text-gray-400 hover:text-orange-500"}`}
+                      >
+                        🔁
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -759,6 +803,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     >
                       {event.raw_title || getEventName(event, locale)}
                     </a>
+                    {event.force_rescrape && (
+                      <span className="inline-block mt-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
+                        🔁 {t("forceRescrapeQueued")}
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 pr-4 text-gray-500 text-xs">
                     {event.source_name}
@@ -785,6 +834,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       </button>
                       <button onClick={() => handleReannotate(event.id)} className="text-purple-600 hover:underline text-xs">
                         {t("reannotate")}
+                      </button>
+                      <button
+                        onClick={() => handleToggleForceRescrape(event.id)}
+                        title={event.force_rescrape ? t("forceRescrapeOff") : t("forceRescrapeOn")}
+                        className={`text-xs hover:underline ${event.force_rescrape ? "text-orange-600 font-medium" : "text-gray-400 hover:text-orange-500"}`}
+                      >
+                        🔁
                       </button>
                     </div>
                   </td>

@@ -217,6 +217,12 @@
     "fieldNotEditable": "此欄由系統重新標注",
     "bulkDelete": "刪除所選",
     "confirmBulkDelete": "確認刪除 {count} 個活動？此操作無法復原。",
+    "bulkHide": "隱藏",
+    "bulkShow": "顯示",
+    "bulkForceRescrape": "排程重爬",
+    "forceRescrapeQueued": "排程重爬中",
+    "forceRescrapeOn": "加入重爬排程",
+    "forceRescrapeOff": "取消重爬排程",
     "selectedCount": "已選 {count} 個"
   },
   "report": {
