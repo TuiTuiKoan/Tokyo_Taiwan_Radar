@@ -3,6 +3,17 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-26 — ifi: URL injected into location_address from venue map link
+
+**Error:** `location_address` contained `https://www.u-tokyo.ac.jp/campusmap/...` appended after the venue name.
+
+**Root cause:** IFI appends a campus map URL on the line immediately after the venue name in `inner_text`. `_extract_info()` captured it as part of the venue value.
+
+**Fix:** Filter venue lines with `not ln.strip().startswith("http")` before building `location_name`/`location_address`.
+
+**Lesson:** Academic sites frequently append map/registration URLs directly below venue names without a visual separator. Always filter HTTP lines from venue extraction.
+
+---
 ## 2026-04-26 — tokyonow: API keyword search returns 0 for Japanese terms
 
 **Error:** `GET /wp-json/tribe/events/v1/events?search=台湾` returns 0 results even when Taiwan events exist on the site.

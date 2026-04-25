@@ -119,6 +119,13 @@ applyTo: scraper/sources/<source_name>.py
 - **DOW-qualified date extraction**: Dates like `5月16日（土）` (with day-of-week) are actual event dates. Extract these BEFORE the generic fallback, then infer the year from the nearest `20XX年` in the text.
 - Priority order for date extraction: `日時：` field → `時間：` field (with date) → DOW-qualified `月\d+日（曜日）` → generic `YYYY年MM月DD日` fallback.
 
+## ifi-specific
+- **Low yield**: IFI has ~1–2 Taiwan events per year. 0 results on dry-run is expected.
+- **Upcoming events only**: Scrape `/event/` (upcoming) only — do NOT paginate `/old-event/`. Past events are not re-ingested.
+- **URL in venue**: `会場：` value often has a map URL on the next line. Always filter out lines starting with `http` before setting `location_name`/`location_address`.
+- **Single-day events**: Always set `end_date = start_date`.
+- **Title selector**: `h1.module_title-01` is the event title. `<h1>` at page top always reads `"イベント"` — do NOT use it.
+
 ## tokyocity_i-specific
 - **Fixed venue**: All events are held at KITTE 地下1階, 東京都千代田区丸の内2-7-2. Hardcode `location_address = "東京都千代田区丸の内2-7-2 KITTE地下1階"` regardless of what `場所` row contains.
 - **h1 is useless**: The `<h1>` always reads `"イベント"`. Use `h2.cap-lv1` for the actual event title.
