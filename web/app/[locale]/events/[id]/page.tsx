@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { type Locale, type Event, getEventName, getEventDescription } from "@/lib/types";
+import { type Locale, type Event, getEventName, getEventDescription, getEventLocationName, getEventLocationAddress, getEventBusinessHours } from "@/lib/types";
 import SaveButton from "@/components/SaveButton";
 import RawDataSection from "@/components/RawDataSection";
 import ReportSection from "@/components/ReportSection";
@@ -65,6 +65,9 @@ export default async function EventDetailPage({ params }: PageProps) {
 
   const name = getEventName(event as Event, locale);
   const description = getEventDescription(event as Event, locale);
+  const locationName = getEventLocationName(event as Event, locale);
+  const locationAddress = getEventLocationAddress(event as Event, locale);
+  const businessHours = getEventBusinessHours(event as Event, locale);
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
 
@@ -137,17 +140,28 @@ export default async function EventDetailPage({ params }: PageProps) {
             {/* Location */}
             <tr>
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("location")}</td>
-              <td className="px-4 py-3">{event.location_name || "—"}</td>
+              <td className="px-4 py-3">{locationName || "—"}</td>
             </tr>
             {/* Address */}
             <tr>
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("address")}</td>
-              <td className="px-4 py-3">{event.location_address || "—"}</td>
+              <td className="px-4 py-3">
+                {event.location_address ? (
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location_address)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    {locationAddress} ↗
+                  </a>
+                ) : "—"}
+              </td>
             </tr>
             {/* Business hours */}
             <tr>
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("hours")}</td>
-              <td className="px-4 py-3">{event.business_hours || "—"}</td>
+              <td className="px-4 py-3">{businessHours || "—"}</td>
             </tr>
             {/* Price */}
             <tr>

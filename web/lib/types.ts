@@ -22,8 +22,14 @@ export interface Event {
   start_date: string | null;
   end_date: string | null;
   location_name: string | null;
+  location_name_zh: string | null;
+  location_name_en: string | null;
   location_address: string | null;
+  location_address_zh: string | null;
+  location_address_en: string | null;
   business_hours: string | null;
+  business_hours_zh: string | null;
+  business_hours_en: string | null;
   is_paid: boolean | null;
   price_info: string | null;
   is_active: boolean;
@@ -121,4 +127,25 @@ export function getEventDescription(
     event.description_en ||
     null
   );
+}
+
+/** Return the localized venue name (falls back to Japanese original). */
+export function getEventLocationName(event: Event, locale: Locale): string | null {
+  if (locale === "zh") return event.location_name_zh || event.location_name;
+  if (locale === "en") return event.location_name_en || event.location_name;
+  return event.location_name;
+}
+
+/** Return the localized address (falls back to Japanese original). */
+export function getEventLocationAddress(event: Event, locale: Locale): string | null {
+  if (locale === "zh") return event.location_address_zh || event.location_address;
+  if (locale === "en") return event.location_address_en || event.location_address;
+  return event.location_address;
+}
+
+/** Return the localized business hours (falls back to Japanese original). */
+export function getEventBusinessHours(event: Event, locale: Locale): string | null {
+  if (locale === "zh") return event.business_hours_zh || event.business_hours;
+  if (locale === "en") return event.business_hours_en || event.business_hours;
+  return event.business_hours;
 }

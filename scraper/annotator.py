@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 VALID_CATEGORIES = [
     "movie", "performing_arts", "senses", "retail", "nature",
     "tech", "tourism", "lifestyle_food", "books_media", "gender", "geopolitics",
-    "art", "lecture", "report",
+    "art", "lecture", "taiwan_japan", "business", "academic", "report",
 ]
 
 # ---------------------------------------------------------------------------
@@ -61,7 +61,10 @@ CRITICAL DATE EXTRACTION RULES:
 
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
-2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, report
+2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, taiwan_japan, business, academic, report
+   - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
+   - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
+   - "academic" = academic research, seminars, symposiums, papers, university events, scholarly conferences
    - "movie" = film screenings, movie events, documentary showings, film festivals. IMPORTANT: any event with 上映, 映画, film, screening, cinema in its title or description MUST include "movie" as a category, even if it also involves talks or other elements.
    - "performing_arts" = music, concerts, live performances, dance, theater, stage shows, opera (but NOT film screenings)
    - "senses" = art, exhibitions, photography, design, workshops, creative experiences (but NOT film screenings or book events)
@@ -85,9 +88,15 @@ Respond with valid JSON matching this schema:
   "category": ["senses"],
   "start_date": "2026-01-15T00:00:00" or null,
   "end_date": "2026-01-15T00:00:00" or null,
-  "location_name": "venue name" or null,
-  "location_address": "full address" or null,
-  "business_hours": "opening hours" or null,
+  "location_name": "venue name in Japanese (original)" or null,
+  "location_name_zh": "venue name in Traditional Chinese" or null,
+  "location_name_en": "venue name in English" or null,
+  "location_address": "full address (original Japanese format)" or null,
+  "location_address_zh": "address in Chinese-friendly format (transliterate city/area names; keep street number as-is)" or null,
+  "location_address_en": "address in English (romanized city/area names; keep street number as-is)" or null,
+  "business_hours": "opening hours in Japanese (original)" or null,
+  "business_hours_zh": "opening hours in Traditional Chinese" or null,
+  "business_hours_en": "opening hours in English" or null,
   "is_paid": false or true or null,
   "price_info": "price details" or null,
   "selection_reason": {
@@ -235,22 +244,41 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
             categories = _validate_categories(annotation.get("category", []))
             categories = _inject_keyword_categories(categories, raw_title + " " + raw_desc)
 
+            # Helper: convert empty-string GPT outputs to None so that
+            # the web fallback chain (ja→zh→en) works correctly.
+            def _str(val: Any) -> str | None:
+                return val if isinstance(val, str) and val.strip() else None
+
+            # Helper: clean location strings — GPT sometimes includes the label
+            # separator (e.g. "会場：" → "：台北…"). Strip any leading ：；:; chars.
+            def _loc(val: Any) -> str | None:
+                s = _str(val)
+                if s:
+                    s = s.lstrip("：；:; \u3000")
+                return s or None
+
             update_data: dict[str, Any] = {
-                "name_ja": annotation.get("name_ja") or raw_title,
-                "name_zh": annotation.get("name_zh"),
-                "name_en": annotation.get("name_en"),
-                "description_ja": annotation.get("description_ja"),
-                "description_zh": annotation.get("description_zh"),
-                "description_en": annotation.get("description_en"),
+                "name_ja": _str(annotation.get("name_ja")) or raw_title,
+                "name_zh": _str(annotation.get("name_zh")),
+                "name_en": _str(annotation.get("name_en")),
+                "description_ja": _str(annotation.get("description_ja")),
+                "description_zh": _str(annotation.get("description_zh")),
+                "description_en": _str(annotation.get("description_en")),
                 "category": categories,
                 # Preserve scraper-set dates when GPT returns null — GPT may fail to
                 # extract dates from long descriptions, but the scraper already found
                 # and prepended them in 開催日時: format.
                 "start_date": annotation.get("start_date") or event.get("start_date"),
                 "end_date": annotation.get("end_date") or event.get("end_date"),
-                "location_name": annotation.get("location_name") or event.get("location_name"),
-                "location_address": annotation.get("location_address") or event.get("location_address"),
+                "location_name": _loc(annotation.get("location_name")) or _loc(event.get("location_name")),
+                "location_name_zh": _loc(annotation.get("location_name_zh")),
+                "location_name_en": _loc(annotation.get("location_name_en")),
+                "location_address": _loc(annotation.get("location_address")) or _loc(event.get("location_address")),
+                "location_address_zh": _loc(annotation.get("location_address_zh")),
+                "location_address_en": _loc(annotation.get("location_address_en")),
                 "business_hours": annotation.get("business_hours") or event.get("business_hours"),
+                "business_hours_zh": _str(annotation.get("business_hours_zh")),
+                "business_hours_en": _str(annotation.get("business_hours_en")),
                 "is_paid": annotation.get("is_paid") if annotation.get("is_paid") is not None else event.get("is_paid"),
                 "price_info": annotation.get("price_info") or event.get("price_info"),
                 "annotation_status": "annotated",
@@ -296,8 +324,14 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
                     "start_date": sub_start,
                     "end_date": sub_end,
                     "location_name": sub.get("location_name") or update_data["location_name"],
+                    "location_name_zh": _loc(sub.get("location_name_zh")) or update_data.get("location_name_zh"),
+                    "location_name_en": _loc(sub.get("location_name_en")) or update_data.get("location_name_en"),
                     "location_address": sub.get("location_address") or update_data["location_address"],
+                    "location_address_zh": _loc(sub.get("location_address_zh")) or update_data.get("location_address_zh"),
+                    "location_address_en": _loc(sub.get("location_address_en")) or update_data.get("location_address_en"),
                     "business_hours": sub.get("business_hours") or update_data["business_hours"],
+                    "business_hours_zh": _str(sub.get("business_hours_zh")) or update_data.get("business_hours_zh"),
+                    "business_hours_en": _str(sub.get("business_hours_en")) or update_data.get("business_hours_en"),
                     "is_paid": sub.get("is_paid") if sub.get("is_paid") is not None else update_data["is_paid"],
                     "price_info": sub.get("price_info") or update_data["price_info"],
                     "is_active": True,
