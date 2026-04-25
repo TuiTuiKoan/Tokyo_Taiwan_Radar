@@ -704,7 +704,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   </td>
                   <td className="py-2 pr-4 text-xs max-w-[130px]">
                     {(() => {
-                      const addr = event.location_address;
+                      const addr = event.location_address || event.location_address_zh || event.location_name;
                       if (!addr) return <span className="text-gray-300">—</span>;
                       const isOnline = /オンライン|online|線上/i.test(addr);
                       if (isOnline) return <span className="text-blue-500">線上</span>;
