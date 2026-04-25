@@ -37,6 +37,13 @@ Read this at the start of every session before writing any scraper.
 - **DOW-qualified date extraction**: Dates like `5月16日（土）` (with day-of-week) are actual event dates. Extract these BEFORE the generic fallback, then infer the year from the nearest `20XX年` in the text.
 - Priority order for date extraction: `日時：` field → `時間：` field (with date) → DOW-qualified `月\d+日（曜日）` → generic `YYYY年MM月DD日` fallback.
 
+## tokyonow-specific
+- **API keyword search broken**: `search=台湾` on the Tribe Events v1 API returns 0 — it does not index Japanese. Always use full-page scan + local `_TAIWAN_KEYWORDS` filter.
+- **0 results = correct**: Tokyo Now typically has 0 Taiwan events at any given time. A dry-run returning 0 is expected behaviour, not a scraper error.
+- **source_id stability**: Use `ev["id"]` (numeric WordPress post ID from the API response), NOT anything derived from the URL slug or title. The slug can change; the numeric ID is permanent.
+- **Date format**: API returns `"YYYY-MM-DD HH:MM:SS"` without timezone. Parse with `datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=JST)`. Do NOT use `fromisoformat()`.
+- **台東 false positive**: `台東区` is a Tokyo ward. Do NOT add `台東` or `台東区` to `_TAIWAN_KEYWORDS`.
+
 ## DeepL Tracking
 - Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
 - Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
