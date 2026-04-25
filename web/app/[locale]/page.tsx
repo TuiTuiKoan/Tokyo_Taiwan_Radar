@@ -15,7 +15,7 @@ interface PageProps {
     to?: string;
     paid?: string;
     timeMode?: string; // "active" | "past"
-    location?: string; // "tokyo" | "other_japan" | "taiwan"
+    location?: string; // "tokyo" | "other_japan" | "taiwan" | "online"
   }>;
 }
 
@@ -101,11 +101,14 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     const conds = TAIWAN_MARKERS.map((m) => `location_address.ilike.%${m}%`).join(",");
     query = query.or(conds);
   } else if (sp.location === "other_japan") {
-    // Must have a non-empty address that is neither Tokyo nor Taiwan
+    // Must have a non-empty address that is neither Tokyo nor Taiwan nor Online
     query = query.not("location_address", "is", null).neq("location_address", "");
     for (const m of [...TOKYO_MARKERS, ...TAIWAN_MARKERS]) {
       query = query.not("location_address", "ilike", `%${m}%`);
     }
+    query = query.not("location_address", "ilike", "%オンライン%");
+  } else if (sp.location === "online") {
+    query = query.ilike("location_address", "%オンライン%");
   }
 
   const { data: events, error } = await query;

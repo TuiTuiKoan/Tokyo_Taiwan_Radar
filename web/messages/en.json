@@ -27,7 +27,8 @@
     "allLocations": "All Locations",
     "locationTokyo": "Tokyo, Japan",
     "locationOtherJapan": "Other Japan cities",
-    "locationTaiwan": "Taiwan"
+    "locationTaiwan": "Taiwan",
+    "locationOnline": "Online"
   },
   "categories": {
     "group_arts": "Senses",
@@ -189,16 +190,6 @@
     "statsRunAt": "Time",
     "statsSource": "Source",
     "statsNoRuns": "No runs yet (run annotator first)",
-    "dbHealthTitle": "Database Health",
-    "dbActiveEvents": "Active Events",
-    "dbPendingAnnotation": "Pending Annotation",
-    "dbNewThisWeek": "New This Week",
-    "dbNewThisMonth": "New This Month",
-    "sourceStatusTitle": "Scraper Source Status",
-    "sourceStatusHeader": "Source / Last Run / Events / Cost / Status",
-    "costSummaryTitle": "30-Day Cost Summary",
-    "costLast30d": "Last 30 Days",
-    "costAvgMonthly": "Monthly Avg",
     "statusPending": "Pending",
     "statusConfirmed": "Confirmed",
     "statusDismissed": "Dismissed",

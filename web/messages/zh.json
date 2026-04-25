@@ -27,7 +27,8 @@
     "allLocations": "全部地點",
     "locationTokyo": "日本東京",
     "locationOtherJapan": "日本其他城市",
-    "locationTaiwan": "台灣"
+    "locationTaiwan": "台灣",
+    "locationOnline": "線上"
   },
   "categories": {
     "group_arts": "五感",
@@ -189,16 +190,6 @@
     "statsRunAt": "執行時間",
     "statsSource": "來源",
     "statsNoRuns": "尚無執行紀錄（需先執行 annotator）",
-    "dbHealthTitle": "資料庫健康狀態",
-    "dbActiveEvents": "活躍事件",
-    "dbPendingAnnotation": "待標注",
-    "dbNewThisWeek": "本週新增",
-    "dbNewThisMonth": "本月新增",
-    "sourceStatusTitle": "各爬蟲來源最後狀態",
-    "sourceStatusHeader": "來源 / 最後執行 / 事件數 / 費用 / 狀態",
-    "costSummaryTitle": "30 天費用摘要",
-    "costLast30d": "過去 30 天",
-    "costAvgMonthly": "月均費用",
     "statusPending": "待審核",
     "statusConfirmed": "已確認",
     "statusDismissed": "已忽略",
