@@ -271,19 +271,26 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
                 "start_date": annotation.get("start_date") or event.get("start_date"),
                 "end_date": annotation.get("end_date") or event.get("end_date"),
                 "location_name": _loc(annotation.get("location_name")) or _loc(event.get("location_name")),
-                "location_name_zh": _loc(annotation.get("location_name_zh")),
-                "location_name_en": _loc(annotation.get("location_name_en")),
                 "location_address": _loc(annotation.get("location_address")) or _loc(event.get("location_address")),
-                "location_address_zh": _loc(annotation.get("location_address_zh")),
-                "location_address_en": _loc(annotation.get("location_address_en")),
                 "business_hours": annotation.get("business_hours") or event.get("business_hours"),
-                "business_hours_zh": _str(annotation.get("business_hours_zh")),
-                "business_hours_en": _str(annotation.get("business_hours_en")),
                 "is_paid": annotation.get("is_paid") if annotation.get("is_paid") is not None else event.get("is_paid"),
                 "price_info": annotation.get("price_info") or event.get("price_info"),
                 "annotation_status": "annotated",
                 "annotated_at": datetime.utcnow().isoformat(),
             }
+
+            # Localized location/hours fields added in migration 010.
+            # Kept separate so the primary update above never fails on old DB schemas.
+            localized_location_data: dict[str, Any] = {
+                "location_name_zh": _loc(annotation.get("location_name_zh")),
+                "location_name_en": _loc(annotation.get("location_name_en")),
+                "location_address_zh": _loc(annotation.get("location_address_zh")),
+                "location_address_en": _loc(annotation.get("location_address_en")),
+                "business_hours_zh": _str(annotation.get("business_hours_zh")),
+                "business_hours_en": _str(annotation.get("business_hours_en")),
+            }
+            # Only send non-null values
+            localized_location_data = {k: v for k, v in localized_location_data.items() if v is not None}
 
             # Ensure end_date is not null when start_date exists
             if update_data["start_date"] and not update_data["end_date"]:
@@ -300,6 +307,14 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
             sb.table("events").update(update_data).eq("id", eid).execute()
             events_ok += 1
             logger.info("  ✓ annotated (categories: %s)", categories)
+
+            # Apply localized location/hours fields separately — columns were added
+            # in migration 010 and may not exist on older DB schemas.
+            if localized_location_data:
+                try:
+                    sb.table("events").update(localized_location_data).eq("id", eid).execute()
+                except Exception as loc_err:
+                    logger.warning("  ⚠ localized location update skipped (run migration 010): %s", loc_err)
 
             # Handle sub-events
             sub_events = annotation.get("sub_events", [])
@@ -324,14 +339,8 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
                     "start_date": sub_start,
                     "end_date": sub_end,
                     "location_name": sub.get("location_name") or update_data["location_name"],
-                    "location_name_zh": _loc(sub.get("location_name_zh")) or update_data.get("location_name_zh"),
-                    "location_name_en": _loc(sub.get("location_name_en")) or update_data.get("location_name_en"),
                     "location_address": sub.get("location_address") or update_data["location_address"],
-                    "location_address_zh": _loc(sub.get("location_address_zh")) or update_data.get("location_address_zh"),
-                    "location_address_en": _loc(sub.get("location_address_en")) or update_data.get("location_address_en"),
                     "business_hours": sub.get("business_hours") or update_data["business_hours"],
-                    "business_hours_zh": _str(sub.get("business_hours_zh")) or update_data.get("business_hours_zh"),
-                    "business_hours_en": _str(sub.get("business_hours_en")) or update_data.get("business_hours_en"),
                     "is_paid": sub.get("is_paid") if sub.get("is_paid") is not None else update_data["is_paid"],
                     "price_info": sub.get("price_info") or update_data["price_info"],
                     "is_active": True,
@@ -345,6 +354,25 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
                 sb.table("events").upsert(
                     sub_row, on_conflict="source_name,source_id"
                 ).execute()
+
+                # Also try localized location fields for sub-events (migration 010)
+                sub_loc = {k: v for k, v in {
+                    "location_name_zh": _loc(sub.get("location_name_zh")) or localized_location_data.get("location_name_zh"),
+                    "location_name_en": _loc(sub.get("location_name_en")) or localized_location_data.get("location_name_en"),
+                    "location_address_zh": _loc(sub.get("location_address_zh")) or localized_location_data.get("location_address_zh"),
+                    "location_address_en": _loc(sub.get("location_address_en")) or localized_location_data.get("location_address_en"),
+                    "business_hours_zh": _str(sub.get("business_hours_zh")) or localized_location_data.get("business_hours_zh"),
+                    "business_hours_en": _str(sub.get("business_hours_en")) or localized_location_data.get("business_hours_en"),
+                }.items() if v is not None}
+                if sub_loc:
+                    try:
+                        # Get the upserted sub-event id
+                        sub_result = sb.table("events").select("id").eq("source_name", event["source_name"]).eq("source_id", f"{event['source_id']}_sub{j+1}").single().execute()
+                        if sub_result.data:
+                            sb.table("events").update(sub_loc).eq("id", sub_result.data["id"]).execute()
+                    except Exception:
+                        pass  # migration 010 not applied yet, skip silently
+
                 logger.info("  + sub-event %d: %s", j + 1, sub.get("name_ja", "")[:50])
 
         except Exception as exc:
