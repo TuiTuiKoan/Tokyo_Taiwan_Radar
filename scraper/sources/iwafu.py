@@ -37,6 +37,15 @@ _PREFECTURES = {
     "滋賀", "岡山", "熊本", "鹿児島", "沖縄",
 }
 
+# UI section markers that appear after the event description on iwafu detail pages.
+# Ordered by typical appearance order on page — first match wins.
+_NOISE_MARKERS = (
+    "Q&A イベントについて",  # Q&A section (earliest noise marker)
+    "近くの看板",             # PR / nearby-signs section
+    "近くのイベント",          # nearby events section
+    "地図検索に切り替えて",   # map search section
+)
+
 
 # ---------------------------------------------------------------------------
 # Date helpers
@@ -312,6 +321,9 @@ class IwafuScraper(BaseScraper):
         if not description:
             description = card.get("description_snippet", "")
 
+        # Strip iwafu page UI noise (Q&A, PR ads, nearby events, map, tags)
+        description = _strip_iwafu_noise(description)
+
         # --- Dates: from card (YYYY.MM.DD format is reliable) ---
         start_date, end_date = _parse_date_range(card.get("date_range_str"))
 
@@ -373,6 +385,17 @@ class IwafuScraper(BaseScraper):
 # ---------------------------------------------------------------------------
 # Utility
 # ---------------------------------------------------------------------------
+
+def _strip_iwafu_noise(text: str) -> str:
+    """Truncate text at the first iwafu UI section marker (Q&A, nearby signs, etc.)."""
+    if not text:
+        return text
+    for marker in _NOISE_MARKERS:
+        idx = text.find(marker)
+        if idx != -1:
+            text = text[:idx]
+    return text.strip()
+
 
 def _detect_paid(text: Optional[str]) -> Optional[bool]:
     if not text:
