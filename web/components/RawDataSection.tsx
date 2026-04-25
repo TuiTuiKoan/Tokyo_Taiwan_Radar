@@ -5,6 +5,7 @@ interface Props {
   rawDescription: string | null;
   selectionReason: string | null;
   locale: string;
+  reportSection?: React.ReactNode;
 }
 
 function parseSelectionReason(raw: string | null, locale: string): string | null {
@@ -21,22 +22,23 @@ function parseSelectionReason(raw: string | null, locale: string): string | null
   return raw;
 }
 
-export default function RawDataSection({ rawTitle, rawDescription, selectionReason, locale }: Props) {
+export default function RawDataSection({ rawTitle, rawDescription, selectionReason, locale, reportSection }: Props) {
   const t = useTranslations("event");
 
-  if (!rawTitle && !rawDescription && !selectionReason) return null;
+  if (!rawTitle && !rawDescription && !selectionReason && !reportSection) return null;
 
   const displayedReason = parseSelectionReason(selectionReason, locale);
 
   return (
     <div className="mb-8">
-      {/* Selection Reason */}
-      {displayedReason && (
-        <div className="mb-4 border border-amber-200 bg-amber-50 rounded-xl p-4">
-          <h2 className="text-sm font-medium text-amber-700 mb-1">{t("selectionReason")}</h2>
-          <p className="text-sm text-amber-900">{displayedReason}</p>
-        </div>
-      )}
+      {/* Selection Reason + Report button (always together) */}
+      <div className="mb-4 border border-amber-200 bg-amber-50 rounded-xl p-4">
+        <h2 className="text-sm font-medium text-amber-700 mb-1">{t("selectionReason")}</h2>
+        {displayedReason && (
+          <p className="text-sm text-amber-900 mb-3">{displayedReason}</p>
+        )}
+        {reportSection}
+      </div>
 
       {/* Raw Data */}
       <div className="border border-gray-200 rounded-xl overflow-hidden">

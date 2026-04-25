@@ -287,18 +287,14 @@ export default async function EventDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* ===== Raw Data (Layer 1) ===== */}
-      {(event.raw_title || event.raw_description || event.selection_reason) && (
-        <RawDataSection
-          rawTitle={event.raw_title}
-          rawDescription={event.raw_description}
-          selectionReason={event.selection_reason}
-          locale={locale}
-        />
-      )}
-
-      {/* ===== Report Error (always visible) ===== */}
-      <ReportSection eventId={event.id} locale={locale} />
+      {/* ===== Raw Data + Selection Reason + Report (Layer 1) ===== */}
+      <RawDataSection
+        rawTitle={event.raw_title}
+        rawDescription={event.raw_description}
+        selectionReason={event.selection_reason}
+        locale={locale}
+        reportSection={<ReportSection eventId={event.id} locale={locale} />}
+      />
     </article>
   );
 }
