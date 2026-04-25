@@ -115,7 +115,7 @@ export interface CategoryGroup {
 export const CATEGORY_GROUPS: CategoryGroup[] = [
   {
     labelKey: "group_arts",
-    categories: ["movie", "performing_arts", "art", "books_media", "senses", "indigenous"],
+    categories: ["movie", "performing_arts", "art", "senses", "indigenous", "nature"],
   },
   {
     labelKey: "group_lifestyle",
@@ -123,11 +123,11 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
   },
   {
     labelKey: "group_knowledge",
-    categories: ["business", "academic", "lecture", "competition", "taiwan_japan"],
+    categories: ["business", "academic", "lecture", "competition", "taiwan_japan", "books_media"],
   },
   {
     labelKey: "group_society",
-    categories: ["nature", "tech", "gender", "geopolitics"],
+    categories: ["tech", "gender", "geopolitics"],
   },
   {
     labelKey: "group_archive",
