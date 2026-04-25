@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { CATEGORY_GROUPS, type Category } from "@/lib/types";
@@ -46,6 +46,18 @@ export default function ReportSection({ eventId, locale }: Props) {
   const [selected, setSelected] = useState<Set<ReportType>>(new Set());
   const [wrongFields, setWrongFields] = useState<Set<WrongDetailField>>(new Set());
   const [suggestedCategories, setSuggestedCategories] = useState<Set<Category>>(new Set());
+  const [catDropdownOpen, setCatDropdownOpen] = useState(false);
+  const catDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (catDropdownRef.current && !catDropdownRef.current.contains(e.target as Node)) {
+        setCatDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   function toggle(type: ReportType) {
@@ -166,38 +178,59 @@ export default function ReportSection({ eventId, locale }: Props) {
 
               {/* Suggested category selector for wrongCategory */}
               {type === "wrongCategory" && selected.has("wrongCategory") && (
-                <div className="ml-5 mt-1">
+                <div className="ml-5 mt-1" ref={catDropdownRef}>
                   <p className="text-xs text-amber-600 mb-1.5">{t("suggestCategoryHint")}</p>
-                  <div className="grid grid-cols-1 min-[480px]:grid-cols-2 gap-x-3 gap-y-1">
-                    {CATEGORY_GROUPS.map((group) => (
-                      <div key={group.labelKey} className="flex flex-wrap gap-1.5 items-start">
-                        <span className="text-xs text-amber-400 w-12 shrink-0">{tCat(group.labelKey as any)}</span>
-                        {group.categories.map((cat) => {
-                          const isSelected = suggestedCategories.has(cat);
-                          return (
+                  <div className="relative inline-block">
+                    <button
+                      type="button"
+                      onClick={() => setCatDropdownOpen((o) => !o)}
+                      className="flex items-center justify-between gap-2 border border-amber-300 rounded-lg px-3 py-1 text-xs bg-white hover:border-amber-500 focus:outline-none"
+                    >
+                      <span className={suggestedCategories.size > 0 ? "text-amber-700 font-medium" : "text-amber-400"}>
+                        {suggestedCategories.size > 0 ? `${t("suggestCategoryHint").slice(0, 4)} (${suggestedCategories.size})` : t("suggestCategoryHint")}
+                      </span>
+                      <span className="text-amber-400 text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
+                    </button>
+
+                    {catDropdownOpen && (
+                      <div className="absolute z-50 top-8 left-0 w-64 bg-white border border-amber-200 rounded-xl shadow-lg py-2 max-h-72 overflow-y-auto">
+                        {suggestedCategories.size > 0 && (
+                          <div className="px-3 pb-1.5 border-b border-amber-100 mb-1">
                             <button
-                              key={cat}
                               type="button"
-                              onClick={() => {
-                                setSuggestedCategories((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(cat)) next.delete(cat);
-                                  else next.add(cat);
-                                  return next;
-                                });
-                              }}
-                              className={`text-xs px-2 py-0.5 rounded-full border transition ${
-                                isSelected
-                                  ? "bg-amber-500 text-white border-amber-500"
-                                  : "border-amber-300 text-amber-700 hover:border-amber-500"
-                              }`}
+                              onClick={() => setSuggestedCategories(new Set())}
+                              className="text-xs text-red-400 hover:text-red-600 underline"
                             >
-                              {tCat(cat as any)}
+                              {t("suggestCategoryHint").slice(0, 2)}全清除
                             </button>
-                          );
-                        })}
+                          </div>
+                        )}
+                        {CATEGORY_GROUPS.map((group) => (
+                          <div key={group.labelKey} className="px-3 py-1">
+                            <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
+                            {group.categories.map((cat) => {
+                              const isChecked = suggestedCategories.has(cat);
+                              return (
+                                <label key={cat} className="flex items-center gap-2 py-0.5 cursor-pointer hover:text-amber-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => setSuggestedCategories((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(cat)) next.delete(cat);
+                                      else next.add(cat);
+                                      return next;
+                                    })}
+                                    className="accent-amber-500 w-3.5 h-3.5"
+                                  />
+                                  <span className="text-xs text-gray-700">{tCat(cat as any)}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               )}
