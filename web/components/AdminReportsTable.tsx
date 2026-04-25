@@ -281,13 +281,13 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                         ))}
                       </div>
                     )}
-                    <div className="space-y-1.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
                       {CATEGORY_GROUPS.map((group) => {
                         const defaultCats = correctCategory[row.id] !== undefined
                           ? correctCategory[row.id]
                           : (row.events?.category ?? []);
                         return (
-                          <div key={group.labelKey} className="flex flex-wrap gap-1.5 items-center">
+                          <div key={group.labelKey} className="flex flex-wrap gap-1.5 items-start">
                             <span className="text-xs text-gray-400 w-16 shrink-0">{tCat(group.labelKey as any)}</span>
                             {group.categories.map((cat) => {
                               const selected = defaultCats.includes(cat);
