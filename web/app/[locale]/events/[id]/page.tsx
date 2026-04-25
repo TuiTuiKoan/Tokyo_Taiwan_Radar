@@ -5,6 +5,7 @@ import { type Locale, type Event, getEventName, getEventDescription, getEventLoc
 import SaveButton from "@/components/SaveButton";
 import RawDataSection from "@/components/RawDataSection";
 import ReportSection from "@/components/ReportSection";
+import ViewTracker from "@/components/ViewTracker";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -78,6 +79,7 @@ export default async function EventDetailPage({ params }: PageProps) {
 
   return (
     <article className="max-w-3xl mx-auto">
+      <ViewTracker eventId={id} locale={locale} />
       {/* Back to parent event */}
       {parentEvent && (
         <Link

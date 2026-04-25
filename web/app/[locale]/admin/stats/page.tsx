@@ -125,7 +125,76 @@ export default async function AdminStatsPage({ params }: PageProps) {
     }, {} as Record<string, ScraperRun>)
   ).sort((a, b) => a.source.localeCompare(b.source));
 
-  return (
+  // ── Analytics: top viewed events (last 30 days) ──────────────────────────
+  const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: topViewsRaw } = await supabase
+    .from("event_views")
+    .select("event_id")
+    .gte("viewed_at", thirtyDaysAgoIso);
+
+  // Aggregate client-side (avoids needing a custom RPC for MVP)
+  const viewCountMap: Record<string, number> = {};
+  for (const row of topViewsRaw ?? []) {
+    viewCountMap[row.event_id] = (viewCountMap[row.event_id] ?? 0) + 1;
+  }
+  const topEventIds = Object.entries(viewCountMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([id]) => id);
+
+  let topEvents: Array<{ id: string; name_ja: string | null; name_zh: string | null; name_en: string | null; viewCount: number }> = [];
+  if (topEventIds.length > 0) {
+    const { data: evNames } = await supabase
+      .from("events")
+      .select("id, name_ja, name_zh, name_en")
+      .in("id", topEventIds);
+    topEvents = (evNames ?? []).map((e) => ({
+      ...e,
+      viewCount: viewCountMap[e.id] ?? 0,
+    })).sort((a, b) => b.viewCount - a.viewCount);
+  }
+  const maxViews = topEvents[0]?.viewCount ?? 1;
+
+  // ── Analytics: category distribution ─────────────────────────────────────
+  const { data: allActiveEvents } = await supabase
+    .from("events")
+    .select("category")
+    .eq("is_active", true)
+    .not("category", "is", null);
+
+  const catMap: Record<string, number> = {};
+  for (const ev of allActiveEvents ?? []) {
+    for (const cat of (ev.category as string[]) ?? []) {
+      catMap[cat] = (catMap[cat] ?? 0) + 1;
+    }
+  }
+  const totalCatTags = Object.values(catMap).reduce((a, b) => a + b, 0) || 1;
+  const catEntries = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
+
+  // ── Analytics: events per month (last 12 months) ─────────────────────────
+  const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1).toISOString();
+  const { data: monthlyRaw } = await supabase
+    .from("events")
+    .select("start_date")
+    .eq("is_active", true)
+    .gte("start_date", twelveMonthsAgo)
+    .not("start_date", "is", null);
+
+  const monthlyMap: Record<string, number> = {};
+  // Pre-fill all 12 months with 0
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    monthlyMap[key] = 0;
+  }
+  for (const ev of monthlyRaw ?? []) {
+    if (!ev.start_date) continue;
+    const d = new Date(ev.start_date);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (key in monthlyMap) monthlyMap[key]++;
+  }
+  const monthlyEntries = Object.entries(monthlyMap).sort((a, b) => a[0].localeCompare(b[0]));
+  const maxMonthly = Math.max(...monthlyEntries.map(([, n]) => n), 1);
     <div>
       <h1 className="text-2xl font-bold mb-4">{t("title")}</h1>
 
@@ -309,6 +378,107 @@ export default async function AdminStatsPage({ params }: PageProps) {
           )}
         </>
       )}
+
+      {/* ── Analytics section ─────────────────────────────────────────────── */}
+      <h2 className="text-lg font-semibold mt-10 mb-4">{t("analyticsTitle")}</h2>
+
+      {/* Block A: Top 10 most-viewed events (last 30 days) */}
+      <div className="mb-8 rounded-xl border border-gray-200 bg-white px-5 py-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t("analyticsTopEventsTitle")}</h3>
+        {topEvents.length === 0 ? (
+          <p className="text-sm text-gray-400">{t("analyticsTopEventsEmpty")}</p>
+        ) : (
+          <ol className="space-y-2">
+            {topEvents.map((ev, idx) => {
+              const label = ev.name_zh ?? ev.name_ja ?? ev.name_en ?? ev.id;
+              const pct = Math.round((ev.viewCount / maxViews) * 100);
+              return (
+                <li key={ev.id} className="flex items-center gap-3 text-sm">
+                  <span className="w-5 text-right text-xs text-gray-400 shrink-0">{idx + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="truncate text-gray-700 text-xs">{label}</span>
+                      <span className="ml-2 shrink-0 text-xs font-medium text-gray-500">
+                        {t("analyticsTopEventsViews", { count: ev.viewCount })}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-gray-100">
+                      <div
+                        className="h-1.5 rounded-full bg-green-500"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </div>
+
+      {/* Block B: Category distribution */}
+      <div className="mb-8 rounded-xl border border-gray-200 bg-white px-5 py-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t("analyticsCategoryTitle")}</h3>
+        {catEntries.length === 0 ? (
+          <p className="text-sm text-gray-400">{t("analyticsMonthlyEmpty")}</p>
+        ) : (
+          <ul className="space-y-2">
+            {catEntries.map(([cat, n]) => {
+              const pct = Math.round((n / totalCatTags) * 100);
+              return (
+                <li key={cat} className="flex items-center gap-3 text-sm">
+                  <span className="w-32 shrink-0 truncate text-xs text-gray-500 font-mono">{cat}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 rounded-full bg-gray-100">
+                        <div
+                          className="h-2 rounded-full bg-blue-400"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="w-10 text-right text-xs text-gray-500 shrink-0">{pct}%</span>
+                      <span className="w-8 text-right text-xs text-gray-400 shrink-0">{n}</span>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Block C: Monthly event count (last 12 months) */}
+      <div className="mb-8 rounded-xl border border-gray-200 bg-white px-5 py-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t("analyticsMonthlyTitle")}</h3>
+        {monthlyEntries.length === 0 ? (
+          <p className="text-sm text-gray-400">{t("analyticsMonthlyEmpty")}</p>
+        ) : (
+          <ul className="space-y-2">
+            {monthlyEntries.map(([month, n]) => {
+              const pct = Math.round((n / maxMonthly) * 100);
+              return (
+                <li key={month} className="flex items-center gap-3 text-sm">
+                  <span className="w-16 shrink-0 text-xs text-gray-500">{month}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 rounded-full bg-gray-100">
+                        <div
+                          className="h-2 rounded-full bg-amber-400"
+                          style={{ width: n === 0 ? "1px" : `${pct}%` }}
+                        />
+                      </div>
+                      <span className="w-16 text-right text-xs text-gray-500 shrink-0">
+                        {n} {t("analyticsEventsUnit")}
+                      </span>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
     </div>
   );
 }
