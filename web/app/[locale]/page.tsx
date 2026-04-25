@@ -113,9 +113,8 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     for (const m of [...TOKYO_MARKERS, ...TAIWAN_MARKERS]) {
       query = query.not("location_address", "ilike", `%${m}%`);
     }
-    // Exclude online events — canonical form sets both location_name and location_address to 'オンライン'
+    // Exclude online events — canonical marker is on location_name
     query = query.not("location_name", "ilike", "%オンライン%");
-    query = query.not("location_address", "ilike", "%オンライン%");
   } else if (sp.location === "online") {
     // Online events: location_name = 'オンライン', location_address = 'オンライン'
     query = query.ilike("location_name", "%オンライン%");

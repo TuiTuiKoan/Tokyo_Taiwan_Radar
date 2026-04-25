@@ -283,6 +283,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               )}
             </div>
           </div>
+          <button
             onClick={() => { applyFilters(); setMobileOpen(false); }}
             className="h-10 px-5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition self-end"
           >
