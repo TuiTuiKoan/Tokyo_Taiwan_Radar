@@ -339,170 +339,172 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       )}
 
       {/* Inline filter bar */}
-      <div className="bg-gray-50 rounded-xl px-4 py-3 mb-3 flex flex-wrap gap-3 items-end">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("name")}</label>
-          <input
-            type="search"
-            value={filterQ}
-            onChange={(e) => setFilterQ(e.target.value)}
-            placeholder={tFilters("searchPlaceholder")}
-            className="h-9 border border-gray-300 rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
-        </div>
-        <div className="flex flex-col gap-1" ref={catDropdownRef}>
-          <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setCatDropdownOpen((o) => !o)}
-              className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-white hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <span className={filterCategories.length > 0 ? "text-green-700 font-medium" : "text-gray-500"}>
-                {filterCategories.length > 0 ? `${t("category")} (${filterCategories.length})` : t("filterAll")}
-              </span>
-              <span className="text-gray-400 text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
-            </button>
-
-            {catDropdownOpen && (
-              <div className="absolute z-50 top-10 left-0 w-72 bg-white border border-gray-200 rounded-xl shadow-lg py-2 max-h-80 overflow-y-auto">
-                {filterCategories.length > 0 && (
-                  <div className="px-3 pb-1.5 border-b border-gray-100 mb-1">
-                    <button
-                      type="button"
-                      onClick={() => setFilterCategories([])}
-                      className="text-xs text-red-500 hover:text-red-700 underline"
-                    >
-                      {t("filterAll")}
-                    </button>
-                  </div>
-                )}
-                {CATEGORY_GROUPS.map((group) => (
-                  <div key={group.labelKey} className="px-3 py-1">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
-                    {group.categories.map((cat) => {
-                      const checked = filterCategories.includes(cat);
-                      return (
-                        <label key={cat} className="flex items-center gap-2 py-0.5 cursor-pointer hover:text-green-700">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => setFilterCategories((prev) =>
-                              prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-                            )}
-                            className="accent-green-600 w-3.5 h-3.5"
-                          />
-                          <span className="text-sm text-gray-700">{tCat(cat as any)}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            )}
+      <div className="bg-gray-50 rounded-xl px-4 py-3 mb-3 space-y-2">
+        {/* Row 1: 搜尋、類型、地點、票價、時間、日期 */}
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("name")}</label>
+            <input
+              type="search"
+              value={filterQ}
+              onChange={(e) => setFilterQ(e.target.value)}
+              placeholder={tFilters("searchPlaceholder")}
+              className="h-9 border border-gray-300 rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
           </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("isPaid")}</label>
-          <select
-            value={filterPaid}
-            onChange={(e) => setFilterPaid(e.target.value)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="">{t("filterAll")}</option>
-            <option value="free">{tEvent("free")}</option>
-            <option value="paid">{tEvent("paid")}</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("isActive")}</label>
-          <select
-            value={filterIsActive}
-            onChange={(e) => setFilterIsActive(e.target.value as any)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="all">{t("filterAll")}</option>
-            <option value="active">{t("filterActive")}</option>
-            <option value="inactive">{t("filterInactive")}</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{tFilters("timeMode")}</label>
-          <select
-            value={filterTimeMode}
-            onChange={(e) => {
-              const mode = e.target.value as "active" | "all" | "past";
-              setFilterTimeMode(mode);
-              if (mode !== "past") {
-                setFilterDateFrom("2024-01-01");
-                setFilterDateTo("");
-              } else {
-                setFilterDateFrom((prev) => prev || "2024-01-01");
-              }
-            }}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="active">{tFilters("timeModeActive")}</option>
-            <option value="all">{t("filterAll")}</option>
-            <option value="past">{t("filterPast")}</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{tFilters("location")}</label>
-          <select
-            value={filterLocation}
-            onChange={(e) => setFilterLocation(e.target.value as any)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="">{tFilters("allLocations")}</option>
-            <option value="tokyo">{tFilters("locationTokyo")}</option>
-            <option value="other_japan">{tFilters("locationOtherJapan")}</option>
-            <option value="online">{tFilters("locationOnline")}</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("filterAnnotationStatus")}</label>
-          <select
-            value={filterAnnotation}
-            onChange={(e) => setFilterAnnotation(e.target.value as any)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="">{t("filterAll")}</option>
-            <option value="annotated">{t("annotated")}</option>
-            <option value="pending">{t("filterPendingReannotation")}</option>
-            <option value="error">{t("error")}</option>
-          </select>
-        </div>
-        {filterTimeMode === "past" && (
-          <>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 font-medium">{tFilters("dateFrom")}</label>
-              <input
-                type="date"
-                value={filterDateFrom}
-                onChange={(e) => setFilterDateFrom(e.target.value)}
-                className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
+          <div className="flex flex-col gap-1" ref={catDropdownRef}>
+            <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setCatDropdownOpen((o) => !o)}
+                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-white hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+              >
+                <span className={filterCategories.length > 0 ? "text-green-700 font-medium" : "text-gray-500"}>
+                  {filterCategories.length > 0 ? `${t("category")} (${filterCategories.length})` : t("filterAll")}
+                </span>
+                <span className="text-gray-400 text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
+              </button>
+              {catDropdownOpen && (
+                <div className="absolute z-50 top-10 left-0 w-72 bg-white border border-gray-200 rounded-xl shadow-lg py-2 max-h-80 overflow-y-auto">
+                  {filterCategories.length > 0 && (
+                    <div className="px-3 pb-1.5 border-b border-gray-100 mb-1">
+                      <button type="button" onClick={() => setFilterCategories([])} className="text-xs text-red-500 hover:text-red-700 underline">
+                        {t("filterAll")}
+                      </button>
+                    </div>
+                  )}
+                  {CATEGORY_GROUPS.map((group) => (
+                    <div key={group.labelKey} className="px-3 py-1">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
+                      {group.categories.map((cat) => {
+                        const checked = filterCategories.includes(cat);
+                        return (
+                          <label key={cat} className="flex items-center gap-2 py-0.5 cursor-pointer hover:text-green-700">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => setFilterCategories((prev) =>
+                                prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+                              )}
+                              className="accent-green-600 w-3.5 h-3.5"
+                            />
+                            <span className="text-sm text-gray-700">{tCat(cat as any)}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 font-medium">{tFilters("dateTo")}</label>
-              <input
-                type="date"
-                value={filterDateTo}
-                onChange={(e) => setFilterDateTo(e.target.value)}
-                className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
-            </div>
-          </>
-        )}
-        {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "all" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation) && (
-          <button
-            onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); }}
-            className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
-          >
-            {tFilters("reset")}
-          </button>
-        )}
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{tFilters("location")}</label>
+            <select
+              value={filterLocation}
+              onChange={(e) => setFilterLocation(e.target.value as any)}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{tFilters("allLocations")}</option>
+              <option value="tokyo">{tFilters("locationTokyo")}</option>
+              <option value="other_japan">{tFilters("locationOtherJapan")}</option>
+              <option value="online">{tFilters("locationOnline")}</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("isPaid")}</label>
+            <select
+              value={filterPaid}
+              onChange={(e) => setFilterPaid(e.target.value)}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{t("filterAll")}</option>
+              <option value="free">{tEvent("free")}</option>
+              <option value="paid">{tEvent("paid")}</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{tFilters("timeMode")}</label>
+            <select
+              value={filterTimeMode}
+              onChange={(e) => {
+                const mode = e.target.value as "active" | "all" | "past";
+                setFilterTimeMode(mode);
+                if (mode !== "past") {
+                  setFilterDateFrom("2024-01-01");
+                  setFilterDateTo("");
+                } else {
+                  setFilterDateFrom((prev) => prev || "2024-01-01");
+                }
+              }}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="active">{tFilters("timeModeActive")}</option>
+              <option value="all">{t("filterAll")}</option>
+              <option value="past">{t("filterPast")}</option>
+            </select>
+          </div>
+          {filterTimeMode === "past" && (
+            <>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500 font-medium">{tFilters("dateFrom")}</label>
+                <input
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={(e) => setFilterDateFrom(e.target.value)}
+                  className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500 font-medium">{tFilters("dateTo")}</label>
+                <input
+                  type="date"
+                  value={filterDateTo}
+                  onChange={(e) => setFilterDateTo(e.target.value)}
+                  className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Row 2: 開放檢視、標註狀態、清除 */}
+        <div className="flex flex-wrap gap-3 items-end border-t border-gray-200 pt-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("isActive")}</label>
+            <select
+              value={filterIsActive}
+              onChange={(e) => setFilterIsActive(e.target.value as any)}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="all">{t("filterAll")}</option>
+              <option value="active">{t("filterActive")}</option>
+              <option value="inactive">{t("filterInactive")}</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("filterAnnotationStatus")}</label>
+            <select
+              value={filterAnnotation}
+              onChange={(e) => setFilterAnnotation(e.target.value as any)}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{t("filterAll")}</option>
+              <option value="annotated">{t("annotated")}</option>
+              <option value="pending">{t("filterPendingReannotation")}</option>
+              <option value="error">{t("error")}</option>
+            </select>
+          </div>
+          {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "all" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation) && (
+            <button
+              onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); }}
+              className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
+            >
+              {tFilters("reset")}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Bulk action bar */}
