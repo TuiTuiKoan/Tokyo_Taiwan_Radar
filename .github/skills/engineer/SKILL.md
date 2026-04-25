@@ -1,3 +1,9 @@
+---
+name: engineer
+description: Implementation rules for database migrations, Python scrapers, and Next.js web for the Engineer agent
+applyTo: .github/agents/engineer.agent.md
+---
+
 # Engineer Skills
 
 Read this at the start of every session before touching any code.

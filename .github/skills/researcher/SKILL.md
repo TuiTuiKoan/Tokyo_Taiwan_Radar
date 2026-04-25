@@ -1,3 +1,9 @@
+---
+name: researcher
+description: Source evaluation rules and discovery criteria for the Researcher agent
+applyTo: .github/agents/researcher.agent.md
+---
+
 # Researcher Skills
 
 Read this at the start of every session before evaluating any source.

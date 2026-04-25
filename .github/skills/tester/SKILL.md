@@ -1,3 +1,9 @@
+---
+name: tester
+description: Scraper test execution rules, output validation criteria, and report format for the Tester agent
+applyTo: .github/agents/tester.agent.md
+---
+
 # Tester Skills
 
 Read this at the start of every session before running any test.

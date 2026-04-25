@@ -1,3 +1,9 @@
+---
+name: scraper-expert
+description: BaseScraper contract, field rules, and Peatix-specific conventions for the Scraper Expert agent
+applyTo: .github/agents/scraper-expert.agent.md
+---
+
 # Scraper Expert Skills
 
 Read this at the start of every session before writing any scraper.

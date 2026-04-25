@@ -1,3 +1,9 @@
+---
+name: architect
+description: Planning principles, model selection, and scope rules for the Architect agent
+applyTo: .github/agents/architect.agent.md
+---
+
 # Architect Skills
 
 Read this at the start of every session before producing any plan.
