@@ -203,7 +203,8 @@ export default async function AdminStatsPage({ params }: PageProps) {
                 </thead>
                 <tbody>
                   {latestBySource.map((r) => {
-                    const icon = r.success === false ? "❌" : r.events_processed === 0 ? "⚠" : "✅";
+                    const failed = r.success === false;
+                    const icon = failed ? "❌" : "✅";
                     return (
                       <tr key={r.source} className="border-b border-gray-50 hover:bg-gray-50">
                         <td className="py-2 pr-4">
@@ -212,7 +213,11 @@ export default async function AdminStatsPage({ params }: PageProps) {
                           </span>
                         </td>
                         <td className="py-2 pr-4 text-gray-500 whitespace-nowrap">{fmtDate(r.ran_at)}</td>
-                        <td className="py-2 pr-4 text-right">{r.events_processed}</td>
+                        <td className="py-2 pr-4 text-right">
+                          {r.events_processed === 0 ? (
+                            <span className="text-gray-400">0</span>
+                          ) : r.events_processed}
+                        </td>
                         <td className="py-2 pr-4 text-right font-mono text-xs">
                           {r.cost_usd > 0 ? fmtUsd(r.cost_usd) : "—"}
                         </td>
