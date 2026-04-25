@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { type Event, type Locale, getEventName, CATEGORIES } from "@/lib/types";
+import { type Event, type Locale, getEventName, CATEGORY_GROUPS } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 
@@ -15,6 +15,8 @@ interface Props {
 export default function AdminEventTable({ events: initialEvents, locale }: Props) {
   const t = useTranslations("admin");
   const tCat = useTranslations("categories");
+  const tFilters = useTranslations("filters");
+  const tEvent = useTranslations("event");
   const router = useRouter();
   const supabase = createClient();
 
@@ -26,19 +28,30 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkToggling, setBulkToggling] = useState(false);
 
   // Inline filters
   const [filterQ, setFilterQ] = useState("");
-  const [filterCategory, setFilterCategory] = useState("");
+  const [filterCategories, setFilterCategories] = useState<string[]>([]);
+  const [catDropdownOpen, setCatDropdownOpen] = useState(false);
+  const catDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (catDropdownRef.current && !catDropdownRef.current.contains(e.target as Node)) {
+        setCatDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   const [filterPaid, setFilterPaid] = useState("");
-  const [filterIsActive, setFilterIsActive] = useState<"all" | "active" | "inactive">("all");
+  const [filterIsActive, setFilterIsActive] = useState<"all" | "active" | "inactive">("active");
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
-  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "other_japan" | "taiwan">("")
-  const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "error">("");;
-
+  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "other_japan" | "taiwan" | "online">("")
+  const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "error">("");;  const [filterSource, setFilterSource] = useState("");
   const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
   const TAIWAN_MARKERS_ADMIN = ["台北", "台中", "台南", "高雄", "台湾", "台灣"];
   function isTokyoAddr(addr: string | null | undefined): boolean {
@@ -56,7 +69,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         const raw = (e.raw_title || "").toLowerCase();
         if (!name.includes(q) && !raw.includes(q)) return false;
       }
-      if (filterCategory && !(e.category || []).includes(filterCategory)) return false;
+      if (filterCategories.length > 0 && !filterCategories.some((c) => (e.category || []).includes(c))) return false;
       if (filterPaid === "free" && e.is_paid !== false) return false;
       if (filterPaid === "paid" && e.is_paid !== true) return false;
       if (filterIsActive === "active" && !e.is_active) return false;
@@ -89,13 +102,59 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       } else if (filterLocation === "other_japan") {
         const addr = e.location_address || "";
         if (!addr.trim()) return false;
+        if (addr.includes("オンライン")) return false;
         if (isTokyoAddr(addr)) return false;
         if (TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false;
+      } else if (filterLocation === "online") {
+        if (!(e.location_name || "").includes("オンライン")) return false;
       }
-      if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
+  if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
+      if (filterSource && (e as any).source_name !== filterSource) return false;
       return true;
     });
   }
+
+  /** Counts per source_name, applying all filters EXCEPT filterSource */
+  const sourceCountMap = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const base = events.filter((e) => {
+      if (filterQ) {
+        const q = filterQ.toLowerCase();
+        const name = getEventName(e, locale).toLowerCase();
+        const raw = (e.raw_title || "").toLowerCase();
+        if (!name.includes(q) && !raw.includes(q)) return false;
+      }
+      if (filterCategories.length > 0 && !filterCategories.some((c) => (e.category || []).includes(c))) return false;
+      if (filterPaid === "free" && e.is_paid !== false) return false;
+      if (filterPaid === "paid" && e.is_paid !== true) return false;
+      if (filterIsActive === "active" && !e.is_active) return false;
+      if (filterIsActive === "inactive" && e.is_active) return false;
+      if (filterTimeMode === "active") {
+        if (e.end_date && new Date(e.end_date) < today) return false;
+      } else if (filterTimeMode === "past") {
+        const isPast = e.end_date
+          ? new Date(e.end_date) < today
+          : e.start_date ? new Date(e.start_date) < today : false;
+        if (!isPast) return false;
+        if (filterDateFrom) { const d = e.start_date ? new Date(e.start_date) : null; if (!d || d < new Date(filterDateFrom)) return false; }
+        if (filterDateTo) { const d = e.start_date ? new Date(e.start_date) : null; if (!d || d > new Date(filterDateTo + "T23:59:59")) return false; }
+      }
+      if (filterLocation === "tokyo") { if (!isTokyoAddr(e.location_address)) return false; }
+      else if (filterLocation === "taiwan") { const addr = e.location_address || ""; if (!TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false; }
+      else if (filterLocation === "other_japan") { const addr = e.location_address || ""; if (!addr.trim() || addr.includes("オンライン") || isTokyoAddr(addr) || TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false; }
+      else if (filterLocation === "online") { if (!(e.location_name || "").includes("オンライン")) return false; }
+      if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
+      return true;
+    });
+    const map: Record<string, number> = {};
+    for (const e of base) {
+      const s = (e as any).source_name as string;
+      map[s] = (map[s] ?? 0) + 1;
+    }
+    return map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, filterQ, filterCategories, filterPaid, filterIsActive, filterTimeMode, filterDateFrom, filterDateTo, filterLocation, filterAnnotation, locale]);
 
   function toggleSort(key: string) {
     if (sortKey === key) {
@@ -190,27 +249,19 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     setShowNew(false);
   }
 
-  async function handleDelete(id: string) {
-    if (!window.confirm(t("confirmDelete"))) return;
-    // Soft-delete: set is_active = false instead of removing the row.
-    // This permanently blocks the scraper from re-inserting the event.
-    await supabase.from("events").update({ is_active: false }).eq("id", id);
-    setEvents((prev) => prev.filter((e) => e.id !== id));
-    setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
-  }
-
-  async function handleBulkDelete() {
+  async function handleBulkToggleActive(targetActive: boolean) {
     if (selected.size === 0) return;
-    const msg = t("confirmBulkDelete", { count: selected.size });
-    if (!window.confirm(msg)) return;
-    setBulkDeleting(true);
+    setBulkToggling(true);
     const ids = Array.from(selected);
-    // Soft-delete: set is_active = false instead of removing rows.
-    // This permanently blocks the scraper from re-inserting these events.
-    await supabase.from("events").update({ is_active: false }).in("id", ids);
-    setEvents((prev) => prev.filter((e) => !selected.has(e.id)));
+    const { error } = await supabase.from("events").update({ is_active: targetActive }).in("id", ids);
+    if (error) {
+      alert(`操作失敗：${error.message}`);
+      setBulkToggling(false);
+      return;
+    }
+    setEvents((prev) => prev.map((e) => selected.has(e.id) ? { ...e, is_active: targetActive } : e));
     setSelected(new Set());
-    setBulkDeleting(false);
+    setBulkToggling(false);
   }
 
   function toggleSelect(id: string) {
@@ -322,143 +373,209 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       )}
 
       {/* Inline filter bar */}
-      <div className="bg-gray-50 rounded-xl px-4 py-3 mb-3 flex flex-wrap gap-3 items-end">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("name")}</label>
-          <input
-            type="search"
-            value={filterQ}
-            onChange={(e) => setFilterQ(e.target.value)}
-            placeholder="搜尋活動..."
-            className="h-9 border border-gray-300 rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="">{t("filterAll")}</option>
-            {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>{tCat(cat as any)}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("isPaid")}</label>
-          <select
-            value={filterPaid}
-            onChange={(e) => setFilterPaid(e.target.value)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="">{t("filterAll")}</option>
-            <option value="free">免費</option>
-            <option value="paid">收費</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("isActive")}</label>
-          <select
-            value={filterIsActive}
-            onChange={(e) => setFilterIsActive(e.target.value as any)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="all">{t("filterAll")}</option>
-            <option value="active">{t("filterActive")}</option>
-            <option value="inactive">{t("filterInactive")}</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">時間範圍</label>
-          <select
-            value={filterTimeMode}
-            onChange={(e) => {
-              const mode = e.target.value as "active" | "all" | "past";
-              setFilterTimeMode(mode);
-              if (mode !== "past") {
-                setFilterDateFrom("2024-01-01");
-                setFilterDateTo("");
-              } else {
-                setFilterDateFrom((prev) => prev || "2024-01-01");
-              }
-            }}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="active">目前進行中</option>
-            <option value="all">全部</option>
-            <option value="past">歷史</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">地點</label>
-          <select
-            value={filterLocation}
-            onChange={(e) => setFilterLocation(e.target.value as any)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="">全部地點</option>
-            <option value="tokyo">東京</option>
-            <option value="other_japan">日本其他城市</option>
-            <option value="taiwan">台灣</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">標注狀態</label>
-          <select
-            value={filterAnnotation}
-            onChange={(e) => setFilterAnnotation(e.target.value as any)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="">全部</option>
-            <option value="annotated">已標注</option>
-            <option value="pending">待重新標注</option>
-            <option value="error">標注失敗</option>
-          </select>
-        </div>
-        {filterTimeMode === "past" && (
-          <>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 font-medium">開始日期（從）</label>
-              <input
-                type="date"
-                value={filterDateFrom}
-                onChange={(e) => setFilterDateFrom(e.target.value)}
-                className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
+      <div className="bg-gray-50 rounded-xl px-4 py-3 mb-3 space-y-2">
+        {/* Row 1: 搜尋、類型、地點、票價、時間、日期 */}
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{tFilters("search")}</label>
+            <input
+              type="search"
+              value={filterQ}
+              onChange={(e) => setFilterQ(e.target.value)}
+              placeholder={tFilters("searchPlaceholder")}
+              className="h-9 border border-gray-300 rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+          </div>
+          <div className="flex flex-col gap-1" ref={catDropdownRef}>
+            <label className="text-xs text-gray-500 font-medium">{tFilters("category")}</label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setCatDropdownOpen((o) => !o)}
+                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-gray-50 hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+              >
+                <span className={filterCategories.length > 0 ? "text-green-700 font-medium" : "text-gray-500"}>
+                  {filterCategories.length > 0 ? `${t("category")} (${filterCategories.length})` : t("filterAll")}
+                </span>
+                <span className="text-gray-400 text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
+              </button>
+              {catDropdownOpen && (
+                <div className="absolute z-50 top-10 left-0 w-72 bg-white border border-gray-200 rounded-xl shadow-lg py-2 max-h-80 overflow-y-auto">
+                  {filterCategories.length > 0 && (
+                    <div className="px-3 pb-1.5 border-b border-gray-100 mb-1">
+                      <button type="button" onClick={() => setFilterCategories([])} className="text-xs text-red-500 hover:text-red-700 underline">
+                        {t("filterAll")}
+                      </button>
+                    </div>
+                  )}
+                  {CATEGORY_GROUPS.map((group) => (
+                    <div key={group.labelKey} className="px-3 py-1">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
+                      {group.categories.map((cat) => {
+                        const checked = filterCategories.includes(cat);
+                        return (
+                          <label key={cat} className="flex items-center gap-2 py-0.5 cursor-pointer hover:text-green-700">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => setFilterCategories((prev) =>
+                                prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+                              )}
+                              className="accent-green-600 w-3.5 h-3.5"
+                            />
+                            <span className="text-sm text-gray-700">{tCat(cat as any)}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 font-medium">開始日期（至）</label>
-              <input
-                type="date"
-                value={filterDateTo}
-                onChange={(e) => setFilterDateTo(e.target.value)}
-                className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
-            </div>
-          </>
-        )}
-        {(filterQ || filterCategory || filterPaid || filterIsActive !== "all" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation) && (
-          <button
-            onClick={() => { setFilterQ(""); setFilterCategory(""); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); }}
-            className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
-          >
-            清除篩選
-          </button>
-        )}
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{tFilters("location")}</label>
+            <select
+              value={filterLocation}
+              onChange={(e) => setFilterLocation(e.target.value as any)}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{tFilters("allLocations")}</option>
+              <option value="tokyo">{tFilters("locationTokyo")}</option>
+              <option value="other_japan">{tFilters("locationOtherJapan")}</option>
+              <option value="online">{tFilters("locationOnline")}</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("isPaid")}</label>
+            <select
+              value={filterPaid}
+              onChange={(e) => setFilterPaid(e.target.value)}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{t("filterAll")}</option>
+              <option value="free">{tEvent("free")}</option>
+              <option value="paid">{tEvent("paid")}</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{tFilters("timeMode")}</label>
+            <select
+              value={filterTimeMode}
+              onChange={(e) => {
+                const mode = e.target.value as "active" | "all" | "past";
+                setFilterTimeMode(mode);
+                if (mode !== "past") {
+                  setFilterDateFrom("2024-01-01");
+                  setFilterDateTo("");
+                } else {
+                  setFilterDateFrom((prev) => prev || "2024-01-01");
+                }
+              }}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="active">{tFilters("timeModeActive")}</option>
+              <option value="all">{t("filterAll")}</option>
+              <option value="past">{t("filterPast")}</option>
+            </select>
+          </div>
+          {filterTimeMode === "past" && (
+            <>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500 font-medium">{tFilters("dateFrom")}</label>
+                <input
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={(e) => setFilterDateFrom(e.target.value)}
+                  className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500 font-medium">{tFilters("dateTo")}</label>
+                <input
+                  type="date"
+                  value={filterDateTo}
+                  onChange={(e) => setFilterDateTo(e.target.value)}
+                  className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Row 2: 來源名稱、開放檢視、標註狀態、清除 */}
+        <div className="flex flex-wrap gap-3 items-end border-t border-gray-200 pt-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("sourceName")}</label>
+            <select
+              value={filterSource}
+              onChange={(e) => setFilterSource(e.target.value)}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{t("filterAll")}</option>
+              {[
+                "arukikata", "connpass", "doorkeeper", "eplus", "ide_jetro",
+                "iwafu", "koryu", "peatix", "taioan_dokyokai",
+                "taiwan_cultural_center", "taiwan_festival_tokyo",
+                "taiwan_kyokai", "taiwan_matsuri", "tokyocity_i", "tokyonow",
+              ].map((s) => (
+                <option key={s} value={s}>{s}{sourceCountMap[s] !== undefined ? ` (${sourceCountMap[s]})` : " (0)"}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("isActive")}</label>
+            <select
+              value={filterIsActive}
+              onChange={(e) => setFilterIsActive(e.target.value as any)}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="all">{t("filterAll")}</option>
+              <option value="active">{t("filterActive")}</option>
+              <option value="inactive">{t("filterInactive")}</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("filterAnnotationStatus")}</label>
+            <select
+              value={filterAnnotation}
+              onChange={(e) => setFilterAnnotation(e.target.value as any)}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{t("filterAll")}</option>
+              <option value="annotated">{t("annotated")}</option>
+              <option value="pending">{t("filterPendingReannotation")}</option>
+              <option value="error">{t("error")}</option>
+            </select>
+          </div>
+          {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "active" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation || filterSource) && (
+            <button
+              onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("active"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); setFilterSource(""); }}
+              className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
+            >
+              {tFilters("reset")}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm">
-          <span className="text-red-700 font-medium">{t("selectedCount", { count: selected.size })}</span>
+        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+          <span className="text-blue-700 font-medium">{t("selectedCount", { count: selected.size })}</span>
           <button
-            onClick={handleBulkDelete}
-            disabled={bulkDeleting}
-            className="ml-auto bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition"
+            onClick={() => handleBulkToggleActive(false)}
+            disabled={bulkToggling}
+            className="ml-auto bg-gray-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50 transition"
           >
-            {bulkDeleting ? "..." : t("bulkDelete")}
+            {bulkToggling ? "..." : t("bulkHide")}
+          </button>
+          <button
+            onClick={() => handleBulkToggleActive(true)}
+            disabled={bulkToggling}
+            className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 transition"
+          >
+            {bulkToggling ? "..." : t("bulkShow")}
           </button>
           <button
             onClick={() => setSelected(new Set())}
@@ -481,12 +598,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     checked={getSorted(getFiltered(events)).length > 0 && getSorted(getFiltered(events)).every((e) => selected.has(e.id))}
                     onChange={toggleSelectAll}
                     className="rounded cursor-pointer"
-                    title="全選"
+                    title={t("selectAll")}
                   />
                 </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("name")}>{t("name")}{sortArrow("name")}</th>
                 <th className="py-2 pr-4 font-medium">{t("category")}</th>
-                <th className="py-2 pr-4 font-medium">{t("location")}</th>
+                <th className="py-2 pr-4 font-medium">{t("address")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
@@ -504,7 +621,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     checked={getSorted(getFiltered(events)).length > 0 && getSorted(getFiltered(events)).every((e) => selected.has(e.id))}
                     onChange={toggleSelectAll}
                     className="rounded cursor-pointer"
-                    title="全選"
+                    title={t("selectAll")}
                   />
                 </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("raw_title")}>{t("name")}{sortArrow("raw_title")}</th>
@@ -528,18 +645,15 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     />
                   </td>
                   <td className="py-2 pr-4 max-w-xs">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="truncate">{getEventName(event, locale)}</span>
-                      <a
-                        href={`/${locale}/events/${event.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0 text-gray-500 hover:text-green-700 text-xs"
-                        title={t("viewFrontend")}
-                      >
-                        ↗
-                      </a>
-                    </div>
+                    <a
+                      href={`/${locale}/events/${event.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="truncate block hover:underline hover:text-green-700 transition"
+                      title={t("viewFrontend")}
+                    >
+                      {getEventName(event, locale)}
+                    </a>
                   </td>
                   <td className="py-2 pr-4">
                     <div className="flex flex-wrap gap-1">
@@ -591,9 +705,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   </td>
                   <td className="py-2 pr-4">
                     {event.is_paid === false ? (
-                      <span className="text-blue-600 text-xs">免費</span>
+                      <span className="text-blue-600 text-xs">{tEvent("free")}</span>
                     ) : event.is_paid === true ? (
-                      <span className="text-amber-600 text-xs">收費</span>
+                      <span className="text-amber-600 text-xs">{tEvent("paid")}</span>
                     ) : (
                       <span className="text-gray-400 text-xs">—</span>
                     )}
@@ -622,9 +736,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       <button onClick={() => handleReannotate(event.id)} className="text-purple-600 hover:underline text-xs">
                         {t("reannotate")}
                       </button>
-                      <button onClick={() => handleDelete(event.id)} className="text-red-500 hover:underline text-xs">
-                        {t("delete")}
-                      </button>
                     </div>
                   </td>
                 </tr>
@@ -639,18 +750,15 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     />
                   </td>
                   <td className="py-2 pr-4 max-w-sm">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <p className="text-xs text-gray-800 line-clamp-2 min-w-0">{event.raw_title || getEventName(event, locale)}</p>
-                      <a
-                        href={`/${locale}/events/${event.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0 text-gray-500 hover:text-green-700 text-xs"
-                        title={t("viewFrontend")}
-                      >
-                        ↗
-                      </a>
-                    </div>
+                    <a
+                      href={`/${locale}/events/${event.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-gray-800 line-clamp-2 block hover:underline hover:text-green-700 transition"
+                      title={t("viewFrontend")}
+                    >
+                      {event.raw_title || getEventName(event, locale)}
+                    </a>
                   </td>
                   <td className="py-2 pr-4 text-gray-500 text-xs">
                     {event.source_name}
@@ -677,9 +785,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       </button>
                       <button onClick={() => handleReannotate(event.id)} className="text-purple-600 hover:underline text-xs">
                         {t("reannotate")}
-                      </button>
-                      <button onClick={() => handleDelete(event.id)} className="text-red-500 hover:underline text-xs">
-                        {t("delete")}
                       </button>
                     </div>
                   </td>
