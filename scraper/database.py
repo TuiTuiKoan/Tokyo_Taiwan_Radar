@@ -211,3 +211,60 @@ def upsert_events(events: list[Event]) -> None:
     except Exception as exc:
         logger.error("Failed to upsert events: %s", exc)
         raise
+
+
+def archive_ended_events(dry_run: bool = False) -> int:
+    """
+    Auto-archive events whose end_date has passed.
+
+    Sets is_active=False for events where:
+      - is_active = True
+      - end_date is NOT NULL
+      - end_date < yesterday 00:00 UTC  (1-day grace period)
+
+    Events with end_date IS NULL are never archived automatically.
+    Returns the count of archived events.
+    """
+    from datetime import timezone, timedelta
+
+    client = _get_client()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT00:00:00+00:00")
+
+    try:
+        result = (
+            client.table("events")
+            .select("id, name_ja, end_date, source_name")
+            .eq("is_active", True)
+            .not_.is_("end_date", "null")
+            .lt("end_date", cutoff)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error("[archive] Failed to query ended events: %s", exc)
+        return 0
+
+    ended = result.data or []
+    if not ended:
+        logger.info("[archive] No ended events to archive.")
+        return 0
+
+    if dry_run:
+        logger.info("[archive] DRY RUN: would archive %d ended event(s).", len(ended))
+        for ev in ended[:10]:
+            logger.info(
+                "  - [%s] %s (end: %s)",
+                ev.get("source_name", "?"),
+                (ev.get("name_ja") or ev["id"])[:60],
+                ev.get("end_date", "?"),
+            )
+        return len(ended)
+
+    ids = [ev["id"] for ev in ended]
+    try:
+        client.table("events").update({"is_active": False}).in_("id", ids).execute()
+        logger.info("[archive] Archived %d ended event(s).", len(ended))
+    except Exception as exc:
+        logger.error("[archive] Failed to archive events: %s", exc)
+        return 0
+
+    return len(ended)

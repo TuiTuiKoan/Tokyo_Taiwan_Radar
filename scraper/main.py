@@ -51,7 +51,7 @@ from sources.ide_jetro import IdeJetroScraper
 from sources.taiwan_matsuri import TaiwanMatsuriScraper
 from sources.eplus import EplusScraper
 from sources.base import dedup_events
-from database import upsert_events, _get_client
+from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
 from merger import run_merger
 
@@ -172,6 +172,10 @@ def run(dry_run: bool = False, source: str | None = None) -> None:
     # Run AI annotator on pending events
     logger.info("Running AI annotator on pending events...")
     annotate_pending_events()
+
+    # Auto-archive events whose end_date has passed
+    logger.info("Archiving ended events...")
+    archive_ended_events()
 
     logger.info("Done!")
 
