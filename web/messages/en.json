@@ -77,6 +77,8 @@
     "category": "Category",
     "editEvent": "Edit this event"
   },
+  "auth": {
+    "loginTitle": "Login",
     "loginDesc": "Login to save events",
     "loginGoogle": "Continue with Google",
     "loginEmail": "Continue with Email",

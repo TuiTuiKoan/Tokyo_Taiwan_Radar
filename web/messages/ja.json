@@ -77,6 +77,8 @@
     "category": "カテゴリ",
     "editEvent": "このイベントを編集"
   },
+  "auth": {
+    "loginTitle": "ログイン",
     "loginDesc": "ログインしてイベントを保存しましょう",
     "loginGoogle": "Googleでログイン",
     "loginEmail": "Emailでログイン",
