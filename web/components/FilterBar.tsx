@@ -70,14 +70,11 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
     });
   }, [pushWith]);
 
-  /** Toggle a category pill — updates URL immediately. */
+  /** Select a category — single-select, replaces current selection. */
   const toggleCategory = useCallback((cat: string) => {
     setDraft((prev) => {
-      const current = prev.category ? prev.category.split(",") : [];
-      const next = current.includes(cat)
-        ? current.filter((c) => c !== cat)
-        : [...current, cat];
-      const nextDraft = { ...prev, category: next.join(",") };
+      const next = prev.category === cat ? "" : cat;
+      const nextDraft = { ...prev, category: next };
       pushWith(nextDraft);
       return nextDraft;
     });
@@ -237,36 +234,26 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                 onClick={() => setCatDropdownOpen((o) => !o)}
                 className="h-10 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-white hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
               >
-                <span className={selectedCats.length > 0 ? "text-green-700 font-medium" : "text-gray-500"}>
-                  {selectedCats.length > 0 ? `${t("category")} (${selectedCats.length})` : t("allCategories")}
+                <span className={draft.category ? "text-green-700 font-medium" : "text-gray-500"}>
+                  {draft.category ? tCat(draft.category as any) : t("allCategories")}
                 </span>
                 <span className="text-gray-400 text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
               </button>
 
               {catDropdownOpen && (
                 <div className="absolute z-50 top-11 left-0 w-72 bg-white border border-gray-200 rounded-xl shadow-lg py-2 max-h-80 overflow-y-auto">
-                  {selectedCats.length > 0 && (
-                    <div className="px-3 pb-1.5 border-b border-gray-100 mb-1">
-                      <button
-                        type="button"
-                        onClick={() => { applyWith("category", ""); setCatDropdownOpen(false); }}
-                        className="text-xs text-red-500 hover:text-red-700 underline"
-                      >
-                        {t("allCategories")}
-                      </button>
-                    </div>
-                  )}
                   {CATEGORY_GROUPS.map((group) => (
                     <div key={group.labelKey} className="px-3 py-1">
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
                       {group.categories.map((cat) => {
-                        const checked = selectedCats.includes(cat);
+                        const checked = draft.category === cat;
                         return (
                           <label key={cat} className="flex items-center gap-2 py-0.5 cursor-pointer hover:text-green-700">
                             <input
-                              type="checkbox"
+                              type="radio"
+                              name="category"
                               checked={checked}
-                              onChange={() => toggleCategory(cat)}
+                              onChange={() => { toggleCategory(cat); setCatDropdownOpen(false); }}
                               className="accent-green-600 w-3.5 h-3.5"
                             />
                             <span className="text-sm text-gray-700">{tCat(cat as any)}</span>
