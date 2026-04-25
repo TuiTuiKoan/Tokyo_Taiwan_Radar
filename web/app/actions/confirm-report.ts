@@ -13,6 +13,16 @@ const SOURCE_SKILL_PATHS: Record<string, string> = {
   doorkeeper: ".github/skills/community-platforms/SKILL.md",
 };
 
+// Fields that the annotator can re-fill — null these out so re-annotation fixes them
+const ANNOTATOR_FIELDS: Record<string, string[]> = {
+  name: ["name_zh", "name_en"],
+  description: ["description_zh", "description_en"],
+  price: ["is_paid", "price_info"],
+};
+
+// Scraper-only fields — annotator cannot fix, needs scraper rule update
+const SCRAPER_FIELDS = ["start_date", "end_date", "location"];
+
 interface ConfirmReportInput {
   reportId: string;
   eventId: string;
@@ -52,6 +62,13 @@ export async function confirmReport(
 
   const now = new Date().toISOString();
 
+  // Parse field:xxx entries from report_types
+  const wrongFields = input.reportTypes
+    .filter((t) => t.startsWith("field:"))
+    .map((t) => t.replace("field:", ""));
+  const hasAnnotatorFixableFields = wrongFields.some((f) => f in ANNOTATOR_FIELDS);
+  const hasScraperOnlyFields = wrongFields.some((f) => SCRAPER_FIELDS.includes(f));
+
   // 1. Update event_reports
   const { error: reportError } = await supabase
     .from("event_reports")
@@ -66,10 +83,34 @@ export async function confirmReport(
     return { ok: false, githubUpdated: false, error: reportError.message };
   }
 
-  // 2. Deactivate event + reset annotation_status
+  // 2. Update the event based on what was reported wrong
+  const eventUpdate: Record<string, unknown> = {
+    annotation_status: "pending",
+    is_active: false, // will be re-enabled by annotator after successful re-annotation
+  };
+
+  if (input.reportTypes.includes("wrongDetails") && wrongFields.length > 0) {
+    // Null out annotator-fixable fields so re-annotation fills them fresh
+    for (const field of wrongFields) {
+      const dbCols = ANNOTATOR_FIELDS[field];
+      if (dbCols) {
+        for (const col of dbCols) {
+          eventUpdate[col] = null;
+        }
+      }
+    }
+    // For category wrongness combined with wrongDetails
+    if (wrongFields.includes("category") || input.reportTypes.includes("wrongCategory")) {
+      eventUpdate["category"] = [];
+    }
+  } else {
+    // wrongCategory or irrelevant — deactivate
+    eventUpdate["is_active"] = false;
+  }
+
   const { error: eventError } = await supabase
     .from("events")
-    .update({ is_active: false, annotation_status: "pending" })
+    .update(eventUpdate)
     .eq("id", input.eventId);
 
   if (eventError) {
@@ -82,7 +123,6 @@ export async function confirmReport(
     input.correctCategory &&
     input.correctCategory.length > 0
   ) {
-    // Fetch raw_title + raw_description for the correction record
     const { data: eventData } = await supabase
       .from("events")
       .select("raw_title, raw_description")
@@ -103,17 +143,22 @@ export async function confirmReport(
   }
 
   // 4. Append entry to scraper-expert history.md via GitHub API
-  const githubUpdated = await appendToHistoryFile(input);
-  // 4. Append "Pending Rule" to per-source SKILL.md if one exists
+  const githubUpdated = await appendToHistoryFile(input, wrongFields, hasScraperOnlyFields);
+
+  // 5. Append "Pending Rule" to per-source SKILL.md if one exists
   const skillPath = input.sourceName ? SOURCE_SKILL_PATHS[input.sourceName] : undefined;
   if (skillPath) {
-    await appendPendingRuleToSkill(skillPath, input);
+    await appendPendingRuleToSkill(skillPath, input, wrongFields);
   }
+
   return { ok: true, githubUpdated };
 }
 
+
 async function appendToHistoryFile(
-  input: ConfirmReportInput
+  input: ConfirmReportInput,
+  wrongFields: string[],
+  hasScraperOnlyFields: boolean
 ): Promise<boolean> {
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
@@ -141,19 +186,31 @@ async function appendToHistoryFile(
 
     // Build new entry
     const date = new Date().toISOString().slice(0, 10);
-    const types = input.reportTypes.join(", ");
+    const baseTypes = input.reportTypes.filter((t) => !t.startsWith("field:"));
+    const types = baseTypes.join(", ");
     const notes = input.adminNotes?.trim() || "—";
     const source = input.sourceName ?? "unknown";
+    const fieldsLine = wrongFields.length > 0
+      ? `**Wrong fields:** ${wrongFields.join(", ")}\n`
+      : "";
+    const scraperNote = hasScraperOnlyFields
+      ? `**⚠ Scraper fix needed:** Fields [${wrongFields.filter(f => SCRAPER_FIELDS.includes(f)).join(", ")}] can only be fixed in the scraper source, not by re-annotation.\n`
+      : "";
+    const actionLine = wrongFields.some(f => f in ANNOTATOR_FIELDS)
+      ? "Event deactivated; annotatable fields nulled out; re-annotation triggered (annotation_status=pending). Will auto-reactivate after annotator runs."
+      : "Event deactivated (is_active=false), re-annotation triggered (annotation_status=pending).";
     const newEntry = [
       `## ${date} — ${input.eventName} [${source}] — user report confirmed`,
       "",
       `**Report types:** ${types}`,
+      fieldsLine.trimEnd(),
+      scraperNote.trimEnd(),
       `**Admin notes:** ${notes}`,
-      `**Action:** Event deactivated (is_active=false), re-annotation triggered (annotation_status=pending).`,
+      `**Action:** ${actionLine}`,
       "",
       "---",
       "",
-    ].join("\n");
+    ].filter(line => line !== "").join("\n") + "\n\n---\n\n";
 
     // Prepend after the file header comment (after the first blank line following <!-- ... -->)
     const insertMarker = "<!-- Append new entries at the top -->";
@@ -195,7 +252,8 @@ async function appendToHistoryFile(
 
 async function appendPendingRuleToSkill(
   skillPath: string,
-  input: ConfirmReportInput
+  input: ConfirmReportInput,
+  wrongFields: string[]
 ): Promise<void> {
   const token = process.env.GITHUB_TOKEN;
   if (!token) return;
@@ -215,15 +273,25 @@ async function appendPendingRuleToSkill(
     const sha: string = fileData.sha;
 
     const date = new Date().toISOString().slice(0, 10);
-    const types = input.reportTypes.join(", ");
+    const baseTypes = input.reportTypes.filter((t) => !t.startsWith("field:"));
+    const types = baseTypes.join(", ");
     const notes = input.adminNotes?.trim() || "—";
+    const fieldsLine = wrongFields.length > 0
+      ? `- **Wrong fields:** ${wrongFields.join(", ")}\n`
+      : "";
+    const scraperFields = wrongFields.filter(f => SCRAPER_FIELDS.includes(f));
+    const scraperNote = scraperFields.length > 0
+      ? `- **⚠ Scraper fix needed for:** ${scraperFields.join(", ")} — investigate selector/parsing logic.\n`
+      : "";
     const newEntry = [
       `### ${date} — ${input.eventName}`,
       `- **Report type:** ${types}`,
+      fieldsLine.trimEnd(),
+      scraperNote.trimEnd(),
       `- **Admin notes:** ${notes}`,
-      `- **Action needed:** Investigate and add scraper filter, field correction, or category rule.`,
+      `- **Action needed:** ${scraperFields.length > 0 ? "Fix scraper field extraction; add test case." : "Re-annotation triggered automatically."}`,
       "",
-    ].join("\n");
+    ].filter(line => line !== "").join("\n") + "\n";
 
     const SECTION_HEADER = "## Pending Rules\n\n<!-- Added automatically by confirm-report -->";
     let updatedContent: string;

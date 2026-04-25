@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import type { Locale } from "@/lib/types";
+import { type Category, CATEGORIES, type Locale } from "@/lib/types";
 import Link from "next/link";
 import { confirmReport } from "@/app/actions/confirm-report";
 
@@ -22,6 +22,7 @@ export interface ReportRow {
     name_en: string | null;
     source_url: string | null;
     source_name: string | null;
+    category: string[] | null;
   } | null;
 }
 
@@ -46,6 +47,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [confirmFeedback, setConfirmFeedback] = useState<Record<string, { githubUpdated: boolean }>>({});
+  const [correctCategory, setCorrectCategory] = useState<Record<string, string[]>>({});
 
   function getEventName(row: ReportRow): string {
     const ev = row.events;
@@ -56,14 +58,18 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   }
 
   function formatTypes(types: string[]): string {
-    return types
-      .map((type) => {
-        if (type === "irrelevant") return tReport("irrelevant");
-        if (type === "wrongDetails") return tReport("wrongDetails");
-        if (type === "wrongCategory") return tReport("wrongCategory");
-        return type;
-      })
-      .join("、");
+    const baseTypes = types.filter((t) => !t.startsWith("field:"));
+    const fields = types.filter((t) => t.startsWith("field:")).map((t) => t.replace("field:", ""));
+    const labels = baseTypes.map((type) => {
+      if (type === "irrelevant") return tReport("irrelevant");
+      if (type === "wrongDetails") return tReport("wrongDetails");
+      if (type === "wrongCategory") return tReport("wrongCategory");
+      return type;
+    });
+    if (fields.length > 0) {
+      labels.push(`[${fields.join(", ")}]`);
+    }
+    return labels.join("、");
   }
 
   async function handleConfirm(row: ReportRow) {
@@ -75,6 +81,8 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       reportTypes: row.report_types,
       eventName: getEventName(row),
       sourceName: row.events?.source_name ?? null,
+      currentCategory: row.events?.category ?? [],
+      correctCategory: correctCategory[row.id] ?? null,
     });
     if (result.ok) {
       const updatedRow: ReportRow = {
@@ -171,6 +179,36 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                     placeholder={t("adminNotesPlaceholder")}
                   />
                 </div>
+                {row.report_types.includes("wrongCategory") && (
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">{t("correctCategoryLabel")}</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {CATEGORIES.map((cat) => {
+                        const selected = (correctCategory[row.id] ?? row.events?.category ?? []).includes(cat);
+                        return (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => {
+                              const current = correctCategory[row.id] ?? [...(row.events?.category ?? [])];
+                              const next = selected
+                                ? current.filter((c) => c !== cat)
+                                : [...current, cat];
+                              setCorrectCategory((p) => ({ ...p, [row.id]: next }));
+                            }}
+                            className={`text-xs px-2 py-0.5 rounded-full border transition ${
+                              selected
+                                ? "bg-green-600 text-white border-green-600"
+                                : "border-gray-300 text-gray-500 hover:border-green-400"
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleConfirm(row)}
