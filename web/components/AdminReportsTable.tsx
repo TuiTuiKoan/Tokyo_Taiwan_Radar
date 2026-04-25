@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { type Category, CATEGORIES, type Locale } from "@/lib/types";
+import { type Category, CATEGORY_GROUPS, type Locale } from "@/lib/types";
 import Link from "next/link";
 import { confirmReport } from "@/app/actions/confirm-report";
 
@@ -278,38 +278,40 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                         ))}
                       </div>
                     )}
-                    <div className="flex flex-wrap gap-1.5">
-                      {CATEGORIES.map((cat) => {
-                        // Admin selection > user suggestion > current category
+                    <div className="space-y-1.5">
+                      {CATEGORY_GROUPS.map((group) => {
                         const defaultCats = correctCategory[row.id] !== undefined
                           ? correctCategory[row.id]
-                          : (row.suggested_category && row.suggested_category.length > 0)
-                            ? row.suggested_category
-                            : (row.events?.category ?? []);
-                        const selected = defaultCats.includes(cat);
+                          : (row.events?.category ?? []);
                         return (
-                          <button
-                            key={cat}
-                            type="button"
-                            onClick={() => {
-                              const base = correctCategory[row.id] !== undefined
-                                ? correctCategory[row.id]
-                                : (row.suggested_category && row.suggested_category.length > 0)
-                                  ? [...row.suggested_category]
-                                  : [...(row.events?.category ?? [])];
-                              const next = selected
-                                ? base.filter((c) => c !== cat)
-                                : [...base, cat];
-                              setCorrectCategory((p) => ({ ...p, [row.id]: next }));
-                            }}
-                            className={`text-xs px-2 py-0.5 rounded-full border transition ${
-                              selected
-                                ? "bg-green-600 text-white border-green-600"
-                                : "border-gray-300 text-gray-500 hover:border-green-400"
-                            }`}
-                          >
-                          {tCat(cat as any)}
-                          </button>
+                          <div key={group.labelKey} className="flex flex-wrap gap-1.5 items-center">
+                            <span className="text-xs text-gray-400 w-16 shrink-0">{tCat(group.labelKey as any)}</span>
+                            {group.categories.map((cat) => {
+                              const selected = defaultCats.includes(cat);
+                              return (
+                                <button
+                                  key={cat}
+                                  type="button"
+                                  onClick={() => {
+                                    const base = correctCategory[row.id] !== undefined
+                                      ? correctCategory[row.id]
+                                      : [...(row.events?.category ?? [])];
+                                    const next = selected
+                                      ? base.filter((c) => c !== cat)
+                                      : [...base, cat];
+                                    setCorrectCategory((p) => ({ ...p, [row.id]: next }));
+                                  }}
+                                  className={`text-xs px-2 py-0.5 rounded-full border transition ${
+                                    selected
+                                      ? "bg-green-600 text-white border-green-600"
+                                      : "border-gray-300 text-gray-500 hover:border-green-400"
+                                  }`}
+                                >
+                                  {tCat(cat as any)}
+                                </button>
+                              );
+                            })}
+                          </div>
                         );
                       })}
                     </div>

@@ -104,6 +104,34 @@ export const CATEGORIES: Category[] = [
   "report",
 ];
 
+export interface CategoryGroup {
+  labelKey: string;
+  categories: Category[];
+}
+
+export const CATEGORY_GROUPS: CategoryGroup[] = [
+  {
+    labelKey: "group_arts",
+    categories: ["movie", "performing_arts", "art", "books_media", "senses"],
+  },
+  {
+    labelKey: "group_lifestyle",
+    categories: ["lifestyle_food", "retail", "tourism"],
+  },
+  {
+    labelKey: "group_knowledge",
+    categories: ["business", "academic", "lecture", "competition", "taiwan_japan"],
+  },
+  {
+    labelKey: "group_society",
+    categories: ["nature", "tech", "gender", "geopolitics"],
+  },
+  {
+    labelKey: "group_archive",
+    categories: ["report"],
+  },
+];
+
 export const LOCALES: Locale[] = ["zh", "en", "ja"];
 
 /** Return the best available name for an event given the current locale. */

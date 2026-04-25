@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CATEGORIES, type Locale, type Category } from "@/lib/types";
+import { CATEGORY_GROUPS, type Locale, type Category } from "@/lib/types";
 import { useState, useCallback } from "react";
 
 interface Props {
@@ -44,6 +44,19 @@ export default function FilterBar({ locale, currentFilters }: Props) {
 
   const set = (key: string, value: string) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
+
+  // Immediately push URL on select change (category / paid / location / timeMode)
+  const applyWith = useCallback((key: string, value: string) => {
+    setDraft((prev) => {
+      const next = { ...prev, [key]: value };
+      const params = new URLSearchParams();
+      Object.entries(next).forEach(([k, v]) => {
+        if (v) params.set(k, v);
+      });
+      router.push(`${pathname}?${params.toString()}`);
+      return next;
+    });
+  }, [pathname, router]);
 
   const applyFilters = useCallback(() => {
     const params = new URLSearchParams();
@@ -120,14 +133,18 @@ export default function FilterBar({ locale, currentFilters }: Props) {
             <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
             <select
               value={draft.category}
-              onChange={(e) => set("category", e.target.value)}
+              onChange={(e) => applyWith("category", e.target.value)}
               className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("allCategories")}</option>
-              {CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {tCat(cat)}
-                </option>
+              {CATEGORY_GROUPS.map((group) => (
+                <optgroup key={group.labelKey} label={tCat(group.labelKey as any)}>
+                  {group.categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {tCat(cat as any)}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
@@ -137,7 +154,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
             <label className="text-xs text-gray-500 font-medium">{t("paid")}</label>
             <select
               value={draft.paid}
-              onChange={(e) => set("paid", e.target.value)}
+              onChange={(e) => applyWith("paid", e.target.value)}
               className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("allPaid")}</option>
@@ -151,7 +168,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
             <label className="text-xs text-gray-500 font-medium">{t("location")}</label>
             <select
               value={draft.location}
-              onChange={(e) => set("location", e.target.value)}
+              onChange={(e) => applyWith("location", e.target.value)}
               className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("allLocations")}</option>
@@ -167,9 +184,16 @@ export default function FilterBar({ locale, currentFilters }: Props) {
             <select
               value={draft.timeMode}
               onChange={(e) => {
-                set("timeMode", e.target.value);
                 if (e.target.value === "active") {
-                  setDraft((prev) => ({ ...prev, timeMode: "active", from: "", to: "" }));
+                  setDraft((prev) => {
+                    const next = { ...prev, timeMode: "active", from: "", to: "" };
+                    const params = new URLSearchParams();
+                    Object.entries(next).forEach(([k, v]) => { if (v) params.set(k, v); });
+                    router.push(`${pathname}?${params.toString()}`);
+                    return next;
+                  });
+                } else {
+                  applyWith("timeMode", e.target.value);
                 }
               }}
               className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"

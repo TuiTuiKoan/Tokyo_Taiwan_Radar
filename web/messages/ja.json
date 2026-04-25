@@ -30,6 +30,11 @@
     "locationTaiwan": "他の都市（台湾）"
   },
   "categories": {
+    "group_arts": "文化・芸術",
+    "group_lifestyle": "ライフスタイル",
+    "group_knowledge": "知識・交流",
+    "group_society": "社会",
+    "group_archive": "アーカイブ",
     "movie": "映画",
     "performing_arts": "パフォーミングアーツ",
     "senses": "台湾の感性",

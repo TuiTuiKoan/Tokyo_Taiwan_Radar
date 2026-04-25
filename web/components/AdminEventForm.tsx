@@ -1,6 +1,6 @@
 "use client";
 
-import { type Event, type Locale, CATEGORIES, getEventName } from "@/lib/types";
+import { type Event, type Locale, CATEGORY_GROUPS, getEventName } from "@/lib/types";
 
 export const EMPTY_FORM = {
   name_ja: "",
@@ -165,20 +165,25 @@ export default function AdminEventForm({
       {/* Categories */}
       <div className="md:col-span-2">
         <label className="block text-xs text-gray-500 mb-2">{t("category")}</label>
-        <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => toggleCategory(cat)}
-              className={`px-3 py-1 rounded-full text-xs border transition ${
-                form.category.includes(cat)
-                  ? "bg-green-600 text-white border-green-600"
-                  : "border-gray-300 hover:border-green-400"
-              }`}
-            >
-              {tCat(cat)}
-            </button>
+        <div className="space-y-2">
+          {CATEGORY_GROUPS.map((group) => (
+            <div key={group.labelKey} className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs text-gray-400 w-16 shrink-0">{tCat(group.labelKey as any)}</span>
+              {group.categories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => toggleCategory(cat)}
+                  className={`px-3 py-1 rounded-full text-xs border transition ${
+                    form.category.includes(cat)
+                      ? "bg-green-600 text-white border-green-600"
+                      : "border-gray-300 hover:border-green-400"
+                  }`}
+                >
+                  {tCat(cat as any)}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       </div>

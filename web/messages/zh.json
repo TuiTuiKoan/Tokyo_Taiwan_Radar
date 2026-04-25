@@ -30,6 +30,11 @@
     "locationTaiwan": "台灣"
   },
   "categories": {
+    "group_arts": "文化·藝術",
+    "group_lifestyle": "生活風格",
+    "group_knowledge": "知識·交流",
+    "group_society": "社會",
+    "group_archive": "紀錄",
     "movie": "電影",
     "performing_arts": "音樂・表演藝術",
     "senses": "台灣五感",

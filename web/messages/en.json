@@ -30,6 +30,11 @@
     "locationTaiwan": "Taiwan"
   },
   "categories": {
+    "group_arts": "Arts & Culture",
+    "group_lifestyle": "Lifestyle",
+    "group_knowledge": "Knowledge & Exchange",
+    "group_society": "Society",
+    "group_archive": "Archive",
     "movie": "Film",
     "performing_arts": "Performing Arts",
     "senses": "Taiwan Senses",
