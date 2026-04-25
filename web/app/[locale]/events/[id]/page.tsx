@@ -39,14 +39,14 @@ export default async function EventDetailPage({ params }: PageProps) {
 
   // Check if the current user has saved this event
   let isSaved = false;
+  let isAdmin = false;
   if (user) {
-    const { data: saved } = await supabase
-      .from("saved_events")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("event_id", id)
-      .single();
-    isSaved = !!saved;
+    const [savedResult, roleResult] = await Promise.all([
+      supabase.from("saved_events").select("id").eq("user_id", user.id).eq("event_id", id).single(),
+      supabase.from("user_roles").select("role").eq("user_id", user.id).single(),
+    ]);
+    isSaved = !!savedResult.data;
+    isAdmin = roleResult.data?.role === "admin";
   }
 
   // Fetch sub-events (children of this event)
@@ -270,6 +270,18 @@ export default async function EventDetailPage({ params }: PageProps) {
           locale={locale}
           reportSection={<ReportSection eventId={event.id} locale={locale} />}
         />
+      )}
+
+      {/* ===== Admin quick-edit button (admin only) ===== */}
+      {isAdmin && (
+        <div className="mt-6 pt-4 border-t border-dashed border-gray-200">
+          <Link
+            href={`/${locale}/admin/${event.id}`}
+            className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-green-700 hover:border-green-400 border border-gray-200 rounded-lg px-3 py-1.5 transition"
+          >
+            ✎ {t("editEvent")}
+          </Link>
+        </div>
       )}
     </article>
   );

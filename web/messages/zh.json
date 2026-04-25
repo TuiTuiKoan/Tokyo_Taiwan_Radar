@@ -73,7 +73,8 @@
     "statusPending": "待處理",
     "statusAnnotated": "已整理",
     "statusError": "處理失敗",
-    "category": "活動類別"
+    "category": "活動類別",
+    "editEvent": "編輯此活動"
   },
   "auth": {
     "loginTitle": "登入",
@@ -123,6 +124,16 @@
     "annotationStatus": "處理狀態",
     "pending": "待處理",
     "annotated": "已整理",
+    "error": "處理失敗",
+    "pendingCountActiveOnly": "開放中待標注 {count}",
+    "pendingCountDetail": "開放中 {active} / 全部 {total}",
+    "pendingSummaryTitle": "標注運行摘要",
+    "pendingSummaryLead": "目前有 {count} 筆開放中活動處於待標注。主因不是分類消失，而是 migration 010 新增的多語地點欄位尚未補齊。",
+    "pendingSummaryHealthy": "目前沒有待標注積壓，標注佇列正常。",
+    "pendingSummaryInactive": "另有 {count} 筆已關閉活動仍在待標注",
+    "pendingReasonLocalizedLocationName": "地點名稱 zh/en 未補齊 {count} 筆",
+    "pendingReasonLocalizedLocationAddress": "地址 zh/en 未補齊 {count} 筆",
+    "pendingReasonLocalizedBusinessHours": "營業時間 zh/en 未補齊 {count} 筆",
     "sourceLink": "來源連結",
     "back": "返回列表",
     "eventsTab": "活動列表",
