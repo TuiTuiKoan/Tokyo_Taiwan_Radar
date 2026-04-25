@@ -228,7 +228,17 @@
     "statsActiveCount": "開放中 {count}",
     "statsPendingLabel": "待標注",
     "statsUsersLabel": "註冊用戶",
-    "statsUsersDesc": "擁有角色的用戶",
+    "statsUsersDesc": "所有已註冊帳號",
+    "usersTab": "用戶",
+    "usersPageTitle": "用戶清單",
+    "usersEmail": "Email",
+    "usersRole": "角色",
+    "usersCreatedAt": "註冊時間",
+    "usersLastSignIn": "最後登入",
+    "usersRoleAdmin": "管理員",
+    "usersRoleUser": "一般用戶",
+    "usersRoleNone": "未指派",
+    "usersNeverSignedIn": "從未登入",
     "statsReportsLabel": "待審問題回報",
     "statsReportsDesc": "待審中",
     "filterPast": "歷史",
@@ -263,6 +273,9 @@
   "general": {
     "loading": "載入中...",
     "noResults": "目前沒有符合條件的活動",
-    "error": "發生錯誤，請稍後再試"
+    "error": "發生錯誤，請稍後再試",
+    "footerCredit": "營運維護：對對觀 2026",
+    "statsTableMissing": "⚠ scraper_runs 表尚未建立",
+    "statsTableMissingHint": "請在 Supabase Dashboard → SQL Editor 執行："
   }
 }

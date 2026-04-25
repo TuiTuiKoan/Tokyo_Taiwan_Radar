@@ -75,7 +75,7 @@ export default async function AdminPage({ params }: PageProps) {
   const pendingIssues = pendingIssuesRaw.filter((issue) => issue.count > 0);
 
   const { count: userCount } = await supabase
-    .from("user_roles")
+    .from("admin_users_view")
     .select("*", { count: "exact", head: true });
 
   const { count: reportCount } = await supabase
@@ -177,6 +177,12 @@ export default async function AdminPage({ params }: PageProps) {
           className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
         >
           {t("sourcesTab")}
+        </Link>
+        <Link
+          href={`/${locale}/admin/users`}
+          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
+        >
+          {t("usersTab")}
         </Link>
       </div>
 

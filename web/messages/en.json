@@ -228,7 +228,17 @@
     "statsActiveCount": "Active: {count}",
     "statsPendingLabel": "Pending annotation",
     "statsUsersLabel": "Registered users",
-    "statsUsersDesc": "Users with roles",
+    "statsUsersDesc": "All registered accounts",
+    "usersTab": "Users",
+    "usersPageTitle": "User list",
+    "usersEmail": "Email",
+    "usersRole": "Role",
+    "usersCreatedAt": "Registered",
+    "usersLastSignIn": "Last sign in",
+    "usersRoleAdmin": "Admin",
+    "usersRoleUser": "User",
+    "usersRoleNone": "No role",
+    "usersNeverSignedIn": "Never signed in",
     "statsReportsLabel": "Pending reports",
     "statsReportsDesc": "Status: pending",
     "filterPast": "Past",
@@ -263,6 +273,9 @@
   "general": {
     "loading": "Loading...",
     "noResults": "No events match your filters",
-    "error": "Something went wrong. Please try again."
+    "error": "Something went wrong. Please try again.",
+    "footerCredit": "Operated by 對對觀 2026",
+    "statsTableMissing": "⚠ scraper_runs table not yet created",
+    "statsTableMissingHint": "Run the following in Supabase Dashboard → SQL Editor:"
   }
 }
