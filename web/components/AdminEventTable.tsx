@@ -561,6 +561,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("name")}>{t("name")}{sortArrow("name")}</th>
                 <th className="py-2 pr-4 font-medium">{t("category")}</th>
+                <th className="py-2 pr-4 font-medium">{t("location")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
@@ -620,6 +621,15 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                         </span>
                       ))}
                     </div>
+                  </td>
+                  <td className="py-2 pr-4 text-xs text-gray-500 max-w-[120px]">
+                    {(() => {
+                      const loc = event.location_name || event.location_address;
+                      if (!loc) return <span className="text-gray-300">—</span>;
+                      const isOnline = /オンライン|online|線上/i.test(loc);
+                      if (isOnline) return <span className="text-blue-500">線上</span>;
+                      return <span className="truncate block" title={loc}>{loc}</span>;
+                    })()}
                   </td>
                   <td className="py-2 pr-4 text-gray-500 text-xs whitespace-nowrap">
                     {event.start_date
