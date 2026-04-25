@@ -76,7 +76,8 @@ OTHER RULES:
 3. Translate the event name and a concise summary description into all three languages (ja, zh, en).
 4. The description should be a clean, concise summary (2-4 sentences), NOT a copy of the raw text.
 5. Extract location, address, business hours, and pricing from the text if available.
-6. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
+6. LOCATION ADDRESS RULE: If the raw location_address looks like a venue/shop name (no street number, 丁目, 番地, or postal code 〒), use your knowledge to provide the real Japanese address (都道府県＋区＋丁目番地). Example: "青山・月見ル君想フ" → "東京都港区南青山3-10-33". If you genuinely don't know the address, keep it as-is. NEVER fabricate an address — only fill in if you are confident.
+7. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
 
 Respond with valid JSON matching this schema:
 {
