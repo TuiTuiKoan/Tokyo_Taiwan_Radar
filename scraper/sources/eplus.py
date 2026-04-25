@@ -30,6 +30,10 @@ SEARCH_URL = f"{BASE_URL}/sf/search/?keyword=%E5%8F%B0%E6%B9%BE"  # 台湾
 # How long to wait for JS after clicking load-more
 _LOAD_MORE_WAIT_MS = 3000
 
+# Title patterns that should always be rejected regardless of description content.
+# 神韻 (Shen Yun) is a US-based Falun Gong performing arts group — not Taiwan-themed.
+_BLOCKED_TITLE_RE = re.compile(r"神韻")
+
 # Regex patterns
 _DATE_RE = re.compile(r"(\d{4})/(\d{1,2})/(\d{1,2})")
 _TIME_RE = re.compile(r"開演[：:]\s*(\d{1,2}):(\d{2})")
@@ -139,6 +143,11 @@ class EplusScraper(BaseScraper):
                 if code in seen_codes:
                     continue
                 seen_codes.add(code)
+
+                title = data["title"]
+                if _BLOCKED_TITLE_RE.search(title):
+                    logger.debug("eplus: blocked title %r", title)
+                    continue
 
                 start_dt: datetime = data["start_dt"]
                 date_prefix = f"開催日時: {start_dt.strftime('%Y年%m月%d日')}\n\n"

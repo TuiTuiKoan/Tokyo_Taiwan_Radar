@@ -68,7 +68,8 @@ _BLOCKED_TITLE_PATTERNS = re.compile(
 # Add the series name when all events from an IP are confirmed non-Taiwan-themed.
 # These are checked against both the card title AND the h1 title on the detail page.
 _BLOCKED_SERIES = re.compile(
-    r"名探偵コナン",  # All Conan events — confirmed global-tour non-Taiwan-themed
+    r"名探偵コナン"  # All Conan events — confirmed global-tour non-Taiwan-themed
+    r"|神韻",       # Shen Yun — US-based Falun Gong troupe, not Taiwan-themed
 )
 
 

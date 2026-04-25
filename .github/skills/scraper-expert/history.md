@@ -3,6 +3,22 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-26 — eplus/iwafu: 神韻 (Shen Yun) appeared as Taiwan events
+
+**Error:** 13 events titled "神韻2026日本公演" were scraped by eplus (12 sessions) and iwafu (1), and annotated as Taiwan-related. 神韻 is a US-based Falun Gong performing arts group; it mentions 台湾 only because Japan tour venues include Taipei. It has **no connection to Taiwanese culture**.
+
+**Fix:**
+1. `eplus.py`: Added `_BLOCKED_TITLE_RE = re.compile(r"神韻")` — checked on card title before Event is appended.
+2. `iwafu.py`: Added `神韻` to `_BLOCKED_SERIES` — checked on both card title (pre-load) and h1 title (post-load).
+3. Hard deleted all 13 existing records from DB.
+
+**Lesson:**
+- Shen Yun (神韻) is a well-known false positive. It tours Japan extensively, searches for 台湾 return its events, but it is NOT a Taiwan-cultural event.
+- eplus has no detail-page load. All filtering must happen at card-parse time via `_BLOCKED_TITLE_RE`.
+- When a non-Taiwan series appears in multiple sources, block it in ALL affected scrapers simultaneously.
+→ Added `eplus-specific` section and updated `iwafu-specific` in SKILL.md.
+
+---
 ## 2026-04-26 — waseda_taiwan: DOW removal collapses date-time separator
 
 **Error:** `YYYY/M/DD（土）HH:MM` after `re.sub(..., "", raw)` produced `YYYY/M/DDHH:MM` — date parse failed with "Invalid date".

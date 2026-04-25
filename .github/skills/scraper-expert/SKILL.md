@@ -21,7 +21,7 @@ Read this at the start of every session before writing any scraper.
 ## iwafu-specific
 - **Global-tour false positive**: If description contains `台湾など世界各地` / `全国各地.*台湾` etc., the event is a nationwide/global tour where Taiwan is just one stop. Reject it — it is NOT a Taiwan-themed event. The `_GLOBAL_TOUR_PATTERNS` regex in `iwafu.py` implements this guard.
 - **Title-level block**: Known IP series (e.g. `リアル脱出ゲーム×名探偵コナン`) must be blocked by `_BLOCKED_TITLE_PATTERNS` in `_scrape_detail` **before** the page load — this catches all tour stops as new source_ids appear. Add new entries here when a series is confirmed non-Taiwan-themed.
-- **Permanent IP series block**: For series where ALL events are non-Taiwan-themed (e.g. `名探偵コナン`), add the IP name to `_BLOCKED_SERIES`. Checked on BOTH card title (pre-load, fast-reject) AND h1 title (post-load). Card titles from search results can be truncated, so the pre-load check alone is not sufficient.
+- **Permanent IP series block**: For series where ALL events are non-Taiwan-themed (e.g. `名探偵コナン`, `神韻`), add the IP name to `_BLOCKED_SERIES`. Checked on BOTH card title (pre-load, fast-reject) AND h1 title (post-load). Card titles from search results can be truncated, so the pre-load check alone is not sufficient.
 - Taiwan relevance criterion: Taiwan must be the **theme or primary focus**, not just one venue on a multi-city tour.
 - **After adding a scraper filter, always audit the DB**: run `ilike("raw_title", "%keyword%")` to find existing records that should also be deactivated. The filter only prevents future inserts.
 - **Hard delete vs deactivation**: If an IP series is confirmed permanently non-Taiwan-themed, hard delete (`table.delete().eq("id", eid)`) rather than just deactivating. Deactivated events remain accessible via direct URL unless the event page also checks `is_active`.
@@ -63,6 +63,11 @@ Read this at the start of every session before writing any scraper.
 - Event detail page (`/events/[id]/page.tsx`) uses these helpers instead of raw field access.
 - **Rule**: Any field that a non-Japanese visitor reads on the event page must have locale variants OR use a helper with Japanese fallback. Check the event detail page for raw `event.field` access when adding new DB columns.
 
+
+## eplus-specific
+- **`_BLOCKED_TITLE_RE`**: Title patterns that cause immediate rejection before the event is appended. Add known non-Taiwan series here.
+- **神韻 (Shen Yun) is permanently blocked**: It is a US-based Falun Gong performing arts group. It mentions 台湾 in search results but has **no connection to Taiwan culture**. Blocked in both `eplus.py` (`_BLOCKED_TITLE_RE`) and `iwafu.py` (`_BLOCKED_SERIES`).
+- **No detail-page load in eplus**: Unlike iwafu, eplus does not visit individual event pages. All filtering must happen at card-parse time using `_BLOCKED_TITLE_RE`.
 
 ## jinf-specific
 - **Correct page is `/meeting`**: `/event`, `/lecture` return 404. The upcoming events list is at `https://jinf.jp/meeting`.
