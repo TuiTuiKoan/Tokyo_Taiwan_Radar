@@ -120,7 +120,7 @@ def _json_default(obj):
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 
-def run(dry_run: bool = False, source: str | None = None) -> None:
+def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str] | None = None) -> None:
     active_scrapers = SCRAPERS
 
     if source:
@@ -131,6 +131,24 @@ def run(dry_run: bool = False, source: str | None = None) -> None:
             sys.exit(1)
 
     all_events = []
+    rescrape_force_keys: set[tuple[str, str]] = set()
+    if rescrape_ids:
+        # Build (source_name, source_id) tuples from CLI-supplied source_ids.
+        # Each ID is the full source_id value (e.g. "peatix_8134728").
+        # We resolve source_name by querying the DB for each given source_id.
+        if not dry_run:
+            try:
+                client = _get_client()
+                resp = client.table("events").select("source_name,source_id").in_("source_id", rescrape_ids).execute()
+                for row in (resp.data or []):
+                    rescrape_force_keys.add((row["source_name"], row["source_id"]))
+                if rescrape_force_keys:
+                    logger.info("CLI --rescrape-ids: forcing re-scrape for %d event(s): %s",
+                                len(rescrape_force_keys), rescrape_ids)
+                else:
+                    logger.warning("CLI --rescrape-ids: none of %s found in DB.", rescrape_ids)
+            except Exception as exc:
+                logger.warning("Could not pre-resolve --rescrape-ids: %s", exc)
 
     for scraper in active_scrapers:
         source_label = type(scraper).__name__
@@ -144,7 +162,7 @@ def run(dry_run: bool = False, source: str | None = None) -> None:
             all_events.extend(events)
 
             if not dry_run:
-                upsert_events(events)
+                upsert_events(events, force_keys=rescrape_force_keys)
                 try:
                     _get_client().table("scraper_runs").insert({
                         "source": source_key,
@@ -210,5 +228,15 @@ if __name__ == "__main__":
         metavar="NAME",
         help="Only run the named scraper (e.g. peatix, taiwan_cultural_center)",
     )
+    parser.add_argument(
+        "--rescrape-ids",
+        metavar="SOURCE_ID",
+        nargs="+",
+        help=(
+            "Force re-scrape for one or more specific events by source_id "
+            "(e.g. peatix_8134728). The event will be fully overwritten and "
+            "annotation_status reset to pending."
+        ),
+    )
     args = parser.parse_args()
-    run(dry_run=args.dry_run, source=args.source)
+    run(dry_run=args.dry_run, source=args.source, rescrape_ids=args.rescrape_ids)

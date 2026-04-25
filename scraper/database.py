@@ -133,125 +133,120 @@ def find_parent_event_id(name_ja: str | None, source_name: str) -> str | None:
     return None
 
 
-def upsert_events(events: list[Event]) -> None:
+def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None = None) -> None:
     """
     Insert or update events in the database.
     Uses (source_name, source_id) as the unique conflict key.
 
-    Admin-deactivated events (is_active = false) are never overwritten by the
-    scraper — once an admin disables an event it stays disabled across runs.
+    Behaviour per event:
+      1. Admin-deactivated (is_active=false) → always skip; never re-activate.
+      2. Already in DB + force_rescrape=true in DB (or key in force_keys arg) →
+         full overwrite of all fields; annotation_status reset to 'pending';
+         force_rescrape reset to false.
+      3. Already in DB, not forced → skip entirely (idempotent scraper).
+      4. New event (not yet in DB) → insert normally.
 
-    Already-annotated events (annotation_status = 'annotated') have their
-    human-correctable fields protected: name_ja, location_name,
-    location_address, and business_hours are NOT overwritten on subsequent
-    scraper runs. Only raw_title, raw_description, start_date, end_date,
-    source_url, is_paid, and price_info are updated.
+    force_keys: optional set of (source_name, source_id) tuples that the caller
+                (e.g. --rescrape-ids CLI flag) wants to force-overwrite this run,
+                in addition to events with force_rescrape=true in the DB.
     """
     if not events:
         return
 
     client = _get_client()
+    force_keys = force_keys or set()
 
-    # Fetch all (source_name, source_id) pairs that have been admin-deactivated
-    # so we don't accidentally re-activate them on the next scraper run.
-    blocked_keys: set[tuple[str, str]] = set()
-    # Also track which keys are already annotated so we can protect their fields.
-    annotated_keys: set[tuple[str, str]] = set()
+    # One query per source_name: fetch is_active, annotation_status, force_rescrape
+    blocked_keys: set[tuple[str, str]] = set()    # admin-deactivated
+    existing_keys: set[tuple[str, str]] = set()   # any row that already exists in DB
+    db_force_keys: set[tuple[str, str]] = set()   # rows with force_rescrape=true in DB
+
     source_names = list({e.source_name for e in events})
     try:
         for sn in source_names:
             resp = (
                 client.table("events")
-                .select("source_name,source_id,is_active,annotation_status")
+                .select("source_name,source_id,is_active,annotation_status,force_rescrape")
                 .eq("source_name", sn)
                 .execute()
             )
             for row in (resp.data or []):
                 key = (row["source_name"], row["source_id"])
+                existing_keys.add(key)
                 if not row.get("is_active"):
                     blocked_keys.add(key)
-                if row.get("annotation_status") == "annotated":
-                    annotated_keys.add(key)
+                if row.get("force_rescrape"):
+                    db_force_keys.add(key)
     except Exception as exc:
-        logger.warning("Could not fetch deactivated/annotated events (skipping filter): %s", exc)
+        logger.warning("Could not fetch existing events (skipping filter): %s", exc)
 
-    rows = [_event_to_row(e) for e in events
-            if (e.source_name, e.source_id) not in blocked_keys]
+    all_force_keys = db_force_keys | force_keys
 
-    skipped = len(events) - len(rows)
-    if skipped:
-        logger.info("Skipped %d admin-deactivated event(s) — will not re-activate.", skipped)
+    # Classify incoming events
+    new_rows: list[dict] = []       # brand-new events → insert
+    force_rows: list[dict] = []     # forced re-scrape → full overwrite
 
-    if not rows:
-        return
+    for e in events:
+        key = (e.source_name, e.source_id)
+        if key in blocked_keys:
+            continue  # never re-activate admin-deactivated events
+        row = _event_to_row(e)
+        if key in existing_keys:
+            if key in all_force_keys:
+                force_rows.append(row)
+            # else: already in DB, not forced → skip (idempotent)
+        else:
+            new_rows.append(row)
 
-    # For already-annotated events, strip out the human-correctable fields so
-    # the scraper doesn't overwrite manual corrections on every run.
-    # Fields protected: name_ja, location_name, location_address, business_hours,
-    #                   category (human corrections in category_corrections table).
-    # Fields still updated: raw_title, raw_description, start_date, end_date,
-    #                       source_url, is_paid, price_info.
-    _PROTECTED_FIELDS = {"name_ja", "location_name", "location_address", "business_hours", "category"}
-    protected_count = 0
-    for r in rows:
-        key = (r["source_name"], r["source_id"])
-        if key in annotated_keys:
-            for field in _PROTECTED_FIELDS:
-                r.pop(field, None)
-            protected_count += 1
-    if protected_count:
+    skipped_deactivated = sum(
+        1 for e in events if (e.source_name, e.source_id) in blocked_keys
+    )
+    skipped_existing = sum(
+        1 for e in events
+        if (e.source_name, e.source_id) in existing_keys
+        and (e.source_name, e.source_id) not in blocked_keys
+        and (e.source_name, e.source_id) not in all_force_keys
+    )
+
+    if skipped_deactivated:
+        logger.info("Skipped %d admin-deactivated event(s) — will not re-activate.", skipped_deactivated)
+    if skipped_existing:
         logger.info(
-            "Protected human-correctable fields for %d annotated event(s).",
-            protected_count,
+            "Skipped %d already-scraped event(s) — use force_rescrape=true to overwrite.",
+            skipped_existing,
         )
+    if force_rows:
+        logger.info("Force-re-scraping %d event(s) (force_rescrape=true).", len(force_rows))
+    if new_rows:
+        logger.info("Inserting %d new event(s).", len(new_rows))
 
-    rows = [_event_to_row(e) for e in events
-            if (e.source_name, e.source_id) not in blocked_keys]
-
-    skipped = len(events) - len(rows)
-    if skipped:
-        logger.info("Skipped %d admin-deactivated event(s) — will not re-activate.", skipped)
-
-    if not rows:
+    all_rows = new_rows + force_rows
+    if not all_rows:
         return
-
-    # Preserve existing categories: if the incoming row has an empty category list
-    # but the DB already has a non-empty category, keep the DB value.
-    empty_cat_rows = [r for r in rows if not r.get("category")]
-    if empty_cat_rows:
-        try:
-            existing_map: dict[tuple[str, str], list] = {}
-            for sn in {r["source_name"] for r in empty_cat_rows}:
-                resp = (
-                    client.table("events")
-                    .select("source_name,source_id,category")
-                    .eq("source_name", sn)
-                    .execute()
-                )
-                for row in (resp.data or []):
-                    if row.get("category"):
-                        existing_map[(row["source_name"], row["source_id"])] = row["category"]
-            preserved = 0
-            for r in rows:
-                if not r.get("category"):
-                    key = (r["source_name"], r["source_id"])
-                    if key in existing_map:
-                        r["category"] = existing_map[key]
-                        preserved += 1
-            if preserved:
-                logger.info(
-                    "Preserved existing category for %d event(s) (scraper returned empty list).",
-                    preserved,
-                )
-        except Exception as exc:
-            logger.warning("Could not preserve existing categories: %s", exc)
 
     try:
-        client.table("events").upsert(rows, on_conflict="source_name,source_id").execute()
-        logger.info("Upserted %d events to Supabase.", len(rows))
+        client.table("events").upsert(all_rows, on_conflict="source_name,source_id").execute()
+        logger.info("Upserted %d events to Supabase.", len(all_rows))
     except Exception as exc:
         logger.error("Failed to upsert events: %s", exc)
         raise
+
+    # After upserting forced events: reset force_rescrape=false, annotation_status='pending'
+    if force_rows:
+        force_source_ids = [r["source_id"] for r in force_rows]
+        try:
+            (
+                client.table("events")
+                .update({"force_rescrape": False, "annotation_status": "pending"})
+                .in_("source_id", force_source_ids)
+                .execute()
+            )
+            logger.info(
+                "Reset force_rescrape and annotation_status for %d event(s).",
+                len(force_rows),
+            )
+        except Exception as exc:
+            logger.warning("Could not reset force_rescrape flag: %s", exc)
 
 
 def archive_ended_events(dry_run: bool = False) -> int:
