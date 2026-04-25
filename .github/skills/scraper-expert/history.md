@@ -2,8 +2,37 @@
 
 <!-- Append new entries at the top -->
 
----
-## 2026-04-26 — DB 「回到過去」：爬蟲 upsert 覆寫手動修正的欄位
+---## 2026-04-26 — category not protected: human corrections overwritten by scraper
+
+**問題:** `category` 欄位不在 `_PROTECTED_FIELDS`，因此每次爬蟲執行都會以 AI 預測值覆寫人工修正的分類。分析 65 筆 `category_corrections` 紀錄後發現明顯的 AI 系統性偏差。
+
+**修正:**
+1. `database.py`: 將 `category` 加入 `_PROTECTED_FIELDS` — 已標記事件的分類永久保留，不被爬蟲覆寫。
+2. `SKILL.md`: 新增 `AI category classification — known biases` 區段，記錄從 65 筆 corrections 分析出的系統性偏差。
+
+**65 筆 corrections 的模式分析:**
+
+AI 最常漏掉 (under-predict):
+- `lecture` (+27) — 幾乎所有有 talk/panel 的活動都需要
+- `geopolitics` (+16) — 台灣政治、歷史、移民政策議題
+- `history` (+14) — 歷史人物（李登輝等）、殖民時代、戰後台灣
+- `books_media` (+12) — 書名在 『』 中的活動
+- `senses` (+9) — 藝術展覽
+- `lifestyle_food` (+7) — 台灣茶會、料理活動
+- `movie` (+6) — 上映会常被遺漏（只標了 `lecture`）
+- `workshop` (+6) — 體驗型/手作活動
+
+AI 最常過度預測 (over-predict):
+- `taiwan_japan` (-18) — 被誤用為「這是台灣相關活動」，應限於日台雙邊交流主題
+- `academic` (-4) — 不是所有講座都是學術研究
+- `performing_arts` (-4) — 只限現場表演；亞洲巡演不算
+
+**教訓:**
+- `category` 必須是 `_PROTECTED_FIELDS` 的一部分。
+- few-shot examples (category_corrections) 是改善 AI 分類的主要機制，但在標記完成後保護才是根本。
+- `taiwan_japan` 是最常見的誤用分類，需在 annotator prompt 明確定義。
+
+---## 2026-04-26 — DB 「回到過去」：爬蟲 upsert 覆寫手動修正的欄位
 
 **現象:** 全部爬蟲執行後，手動修正的 `location_name`、`location_address`、`name_ja` 等欄位被被覆寫為爬蟲新抜取的原始值。用戶需要重新對這些活動執行標註程序。
 

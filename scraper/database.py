@@ -187,10 +187,11 @@ def upsert_events(events: list[Event]) -> None:
 
     # For already-annotated events, strip out the human-correctable fields so
     # the scraper doesn't overwrite manual corrections on every run.
-    # Fields protected: name_ja, location_name, location_address, business_hours.
+    # Fields protected: name_ja, location_name, location_address, business_hours,
+    #                   category (human corrections in category_corrections table).
     # Fields still updated: raw_title, raw_description, start_date, end_date,
     #                       source_url, is_paid, price_info.
-    _PROTECTED_FIELDS = {"name_ja", "location_name", "location_address", "business_hours"}
+    _PROTECTED_FIELDS = {"name_ja", "location_name", "location_address", "business_hours", "category"}
     protected_count = 0
     for r in rows:
         key = (r["source_name"], r["source_id"])

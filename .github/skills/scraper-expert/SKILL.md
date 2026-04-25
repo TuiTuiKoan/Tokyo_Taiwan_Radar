@@ -63,15 +63,45 @@ The `upsert_events()` call in `database.py` uses `on_conflict="source_name,sourc
 2. `annotation_status=annotated` events → **human-correctable fields are stripped** from the upsert payload before writing
 
 **Fields protected for annotated events** (safe to manually patch — will survive future runs):
-`name_ja`, `location_name`, `location_address`, `business_hours`
+`name_ja`, `location_name`, `location_address`, `business_hours`, `category`
 
 **Fields still updated even for annotated events** (raw data that legitimately changes):
-`raw_title`, `raw_description`, `start_date`, `end_date`, `source_url`, `is_paid`, `price_info`, `category` (partially via preserve logic)
+`raw_title`, `raw_description`, `start_date`, `end_date`, `source_url`, `is_paid`, `price_info`
 
 **Always safe fields** (never in `_event_to_row()` payload):
 `annotation_status`, `name_zh`, `name_en`, `description_ja`, `description_zh`, `description_en`, `location_name_zh/en`, `location_address_zh/en`, `business_hours_zh/en`, `selection_reason`, `annotated_at`
 
-**Rule**: For permanent fixes to `name_ja`/`location_name`/`location_address` on annotated events, a direct DB patch will survive future scraper runs. For new (pending) events, fix the extraction logic in the scraper to ensure correct values from the start.
+**Rule**: `category` is in `_PROTECTED_FIELDS`. Once an admin corrects the category for an annotated event, the correction survives all future scraper runs. The `category_corrections` table provides few-shot examples to the annotator GPT to improve future predictions.
+
+## AI category classification — known biases (from 65 admin corrections)
+
+Analysis of all corrections in `category_corrections` table reveals systematic patterns:
+
+### Categories AI consistently UNDER-predicts (add these when signals are present):
+| Category | Missed count | When to apply |
+|----------|-------------|---------------|
+| `lecture` | 27 | Any event with トークイベント, 講座, セミナー, シンポジウム, 講演, 勉強会, ゼミ |
+| `geopolitics` | 16 | Taiwan history, independence, democracy, cross-strait relations, migration policy |
+| `history` | 14 | Historical figures (e.g. 李登輝), pre-war/war era Taiwan, 歴史 in title/description |
+| `books_media` | 12 | Book titles in 『』, 出版, 刊行, 著作, 読書会, ブックサロン |
+| `senses` | 9 | Visual art, photography, exhibitions; also applied to book cover/aesthetics events |
+| `lifestyle_food` | 7 | Food/cooking events, tea ceremonies (台湾茶会), restaurant events |
+| `movie` | 6 | 上映会, 映画 in title — AI often only returns `lecture` without `movie` |
+| `workshop` | 6 | 料理教室, ワークショップ, 体験 — hands-on participation events |
+
+### Categories AI consistently OVER-predicts (remove when not warranted):
+| Category | Over-count | Common false positive |
+|----------|-----------|----------------------|
+| `taiwan_japan` | 18 | Do NOT auto-add just because the event is about Taiwan. Reserve for exchange/diplomacy/bilateral themes |
+| `academic` | 4 | Research paper presentations only; NOT all lectures or study events |
+| `performing_arts` | 4 | Live theatrical performance only; NOT screenings, tours, or Asia-wide concert tours |
+
+### Key rules for the annotator prompt:
+- **`lecture` is almost always missing**: Any event with a talk, panel, Q&A, or presentation component should include `lecture`.
+- **`taiwan_japan` ≠ "event is about Taiwan"**: It means the event focuses on bilateral Japan-Taiwan relations, exchange, or diplomacy. NOT appropriate for a Taiwan film screening or food event.
+- **`books_media` requires a book/publication**: Title in 『』 brackets with author name → always add `books_media` + `lecture`.
+- **`movie` + `lecture` co-occur**: 上映会＋トークイベント should always get BOTH categories.
+- **Historical content needs `history`**: Any event mentioning Taiwan's political history, colonial era, post-war era should add `history`.
 
 ## Event detail page (web) — inactive events
 - `web/app/[locale]/events/[id]/page.tsx` must include `if (!event.is_active) notFound()` immediately after fetching the event. Without this, deactivated events remain accessible by direct URL.
