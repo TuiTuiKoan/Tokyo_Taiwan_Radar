@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
-import { getMessages } from "next-intl/server";
+import { getMessages, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { LOCALES, type Locale } from "@/lib/types";
 import "../globals.css";
@@ -31,6 +31,7 @@ export default async function LocaleLayout({
   }
 
   const messages = await getMessages();
+  const tGeneral = await getTranslations("general");
 
   // Check admin role server-side (for Navbar display only — access control is in middleware + page)
   let isAdmin = false;
@@ -50,7 +51,7 @@ export default async function LocaleLayout({
       <Navbar locale={locale as Locale} isAdmin={isAdmin} />
       <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
       <footer className="border-t border-gray-100 mt-12 py-4 text-center text-xs text-gray-400">
-        營運維護：對對觀 2026
+        {tGeneral("footerCredit")}
       </footer>
       <Analytics />
     </NextIntlClientProvider>

@@ -42,6 +42,7 @@ function fmtDate(iso: string) {
 export default async function AdminStatsPage({ params }: PageProps) {
   const { locale } = await params;
   const t = await getTranslations("admin");
+  const tGeneral = await getTranslations("general");
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -163,8 +164,8 @@ export default async function AdminStatsPage({ params }: PageProps) {
 
       {!tableExists ? (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-sm text-amber-800">
-          <strong>⚠ scraper_runs 表尚未建立</strong><br />
-          請在 Supabase Dashboard → SQL Editor 執行{" "}
+          <strong>{tGeneral("statsTableMissing")}</strong><br />
+          {tGeneral("statsTableMissingHint")}{" "}
           <code className="font-mono">supabase/migrations/007_scraper_runs.sql</code>
         </div>
       ) : (

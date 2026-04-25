@@ -3,6 +3,21 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-25 — Repeated hardcoded CJK strings across admin components (multi-session)
+**Error:** Over three sessions, 30+ hardcoded Traditional Chinese strings were found across 6 admin TSX files and 2 page files. Problems accumulated because each new feature/admin component was written with hardcoded zh strings instead of `t()` calls, and the audit/test step was skipped. The issues were only discovered when users switched to English or Japanese mode and saw Chinese labels:
+- Stats cards: `活動總數`, `待標注`, `註冊用戶`, `擁有角色的用戶`, `待審問題回報`, `status = pending`
+- AdminEventTable filter bar: 時間範圍, 地點, 標注狀態 labels + all options (22 strings)
+- AdminReportsTable: `有料`/`無料` in a module-level const (couldn't use hooks; required passing `tEvent` as param)
+- AdminResearchTable: status labels, URL valid/invalid badges, tooltip
+- AdminSourcesTable: STATUS_FILTERS filter button labels
+- Footer: `營運維護：對對觀 2026`
+- Stats error banner: `scraper_runs 表尚未建立`
+
+**Fix:** Replaced all hardcoded zh strings with `t()` / `tFilters()` / `tEvent()` calls. Added new i18n keys to all three `messages/*.json` files simultaneously. Fixed module-scope const limitation in AdminReportsTable by passing `tEvent` as a function parameter.
+
+**Lesson:** After writing ANY TSX file with visible text, run the CJK audit script before committing. Module-level consts that contain UI strings cannot use `useTranslations()` — either move them inside the component function, or pass the translation function as a parameter. → Added i18n rules to web.instructions.md and SKILL.md.
+
+---
 ## 2026-04-25 — classifier keyword "博士" caused false `academic` tag on nature event
 **Error:** Added `"博士"` to the `academic` keyword list in `classifier.py` as part of the new-category rollout. A nature/flower-walk event at 高知県立牧野植物園 was tagged `['academic']` instead of `['nature', 'tech', 'tourism']` because its description contained「牧野博士ゆかりの桜」— a proper noun (person's name), not an academic context.
 **Fix:** Removed `"博士"` from the `academic` rule. Re-classified the event and confirmed no other active events were affected.

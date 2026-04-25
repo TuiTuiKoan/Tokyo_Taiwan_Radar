@@ -78,3 +78,16 @@ These map 1-to-1 with `Category` type in `lib/types.ts`. Do not add new values.
 
 Tailwind 4 uses a CSS-first config — there is no `tailwind.config.js`. Use `@theme` blocks in
 `globals.css` for customizations. Standard utility classes work as expected.
+
+## i18n — Hardcoded string rules
+
+> **CRITICAL: Never hardcode CJK (Chinese/Japanese/Korean) text or any user-visible string in TSX/TS files.**
+
+- All UI strings MUST go through `t()`, `tFilters()`, `tCat()`, `tEvent()`, or equivalent `useTranslations()` / `getTranslations()` calls.
+- **Module-level consts** that contain UI text cannot use `useTranslations()` (React hook rules). Either:
+  - Move the const inside the component function body, OR
+  - Pass the translation function as a typed parameter (e.g., `type TFn = (key: string) => string`).
+- **Footer and layout**: `app/[locale]/layout.tsx` footer text must use `getTranslations("general")`, not hardcoded strings.
+- **Admin error banners**: Any hardcoded Chinese/Japanese error text in admin pages must use `getTranslations("admin")` or `getTranslations("general")`.
+- After writing any TSX with visible text, verify with: `grep -rn '[\u4e00-\u9fff]' web --include='*.tsx' | grep -v 't(' | grep -v 'MARKERS' | grep -v '//'`
+- Every new message key must be added to **all three** `messages/zh.json`, `messages/en.json`, and `messages/ja.json` simultaneously.
