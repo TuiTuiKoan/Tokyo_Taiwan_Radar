@@ -213,9 +213,10 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
         logger.info("Loaded %d category corrections as few-shot examples", len(corrections))
 
     # Fetch events to annotate
-    query = sb.table("events").select("*")
+    # Always filter is_active=True so soft-deleted events are never re-processed.
+    query = sb.table("events").select("*").eq("is_active", True)
     if re_annotate_all:
-        query = query.eq("is_active", True)
+        pass  # annotate all active events regardless of status
     else:
         query = query.eq("annotation_status", "pending")
 
