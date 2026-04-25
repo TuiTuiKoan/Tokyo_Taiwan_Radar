@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { type Locale, type Event, CATEGORIES } from "@/lib/types";
+import { type Locale, type Event } from "@/lib/types";
 import AdminEventTable from "@/components/AdminEventTable";
 import Link from "next/link";
 
@@ -9,9 +9,17 @@ interface PageProps {
   params: Promise<{ locale: Locale }>;
 }
 
+export const dynamic = "force-dynamic";
+
+type PendingIssueKey =
+  | "pendingReasonLocalizedLocationAddress"
+  | "pendingReasonLocalizedLocationName"
+  | "pendingReasonLocalizedBusinessHours";
+
 export default async function AdminPage({ params }: PageProps) {
   const { locale } = await params;
   const t = await getTranslations("admin");
+  const hasText = (value: string | null | undefined) => Boolean(value && value.trim());
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -40,7 +48,31 @@ export default async function AdminPage({ params }: PageProps) {
   // Stats
   const totalEvents = events?.length ?? 0;
   const activeEvents = events?.filter((e) => e.is_active).length ?? 0;
-  const pendingEvents = events?.filter((e) => e.annotation_status === "pending").length ?? 0;
+  const activePendingEvents = events?.filter((e) => e.is_active && e.annotation_status === "pending") ?? [];
+  const pendingEvents = activePendingEvents.length;
+  const totalPendingEvents = events?.filter((e) => e.annotation_status === "pending").length ?? 0;
+  const inactivePendingEvents = totalPendingEvents - pendingEvents;
+  const pendingIssuesRaw: Array<{ key: PendingIssueKey; count: number }> = [
+    {
+      key: "pendingReasonLocalizedLocationAddress",
+      count: activePendingEvents.filter(
+        (e) => hasText(e.location_address) && (!hasText(e.location_address_zh) || !hasText(e.location_address_en))
+      ).length,
+    },
+    {
+      key: "pendingReasonLocalizedLocationName",
+      count: activePendingEvents.filter(
+        (e) => hasText(e.location_name) && (!hasText(e.location_name_zh) || !hasText(e.location_name_en))
+      ).length,
+    },
+    {
+      key: "pendingReasonLocalizedBusinessHours",
+      count: activePendingEvents.filter(
+        (e) => hasText(e.business_hours) && (!hasText(e.business_hours_zh) || !hasText(e.business_hours_en))
+      ).length,
+    },
+  ];
+  const pendingIssues = pendingIssuesRaw.filter((issue) => issue.count > 0);
 
   const { count: userCount } = await supabase
     .from("user_roles")
@@ -65,7 +97,11 @@ export default async function AdminPage({ params }: PageProps) {
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
           <p className="text-xs text-gray-400 mb-1">待標注</p>
           <p className={`text-2xl font-bold ${pendingEvents > 0 ? "text-amber-500" : "text-gray-800"}`}>{pendingEvents}</p>
-          <p className="text-xs text-gray-400 mt-0.5">annotation_status = pending</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {inactivePendingEvents > 0
+              ? t("pendingCountDetail", { active: pendingEvents, total: totalPendingEvents })
+              : t("pendingCountActiveOnly", { count: pendingEvents })}
+          </p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
           <p className="text-xs text-gray-400 mb-1">註冊用戶</p>
@@ -77,6 +113,40 @@ export default async function AdminPage({ params }: PageProps) {
           <p className={`text-2xl font-bold ${(reportCount ?? 0) > 0 ? "text-red-500" : "text-gray-800"}`}>{reportCount ?? 0}</p>
           <p className="text-xs text-gray-400 mt-0.5">status = pending</p>
         </div>
+      </div>
+
+      <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
+        <p className="text-sm font-semibold text-amber-900">{t("pendingSummaryTitle")}</p>
+        {pendingEvents > 0 ? (
+          <>
+            <p className="mt-1 text-sm text-amber-800">
+              {t("pendingSummaryLead", { count: pendingEvents })}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {pendingIssues.map((issue) => (
+                <span
+                  key={issue.key}
+                  className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs text-amber-900"
+                >
+                  {issue.key === "pendingReasonLocalizedLocationAddress"
+                    ? t("pendingReasonLocalizedLocationAddress", { count: issue.count })
+                    : issue.key === "pendingReasonLocalizedLocationName"
+                      ? t("pendingReasonLocalizedLocationName", { count: issue.count })
+                      : t("pendingReasonLocalizedBusinessHours", { count: issue.count })}
+                </span>
+              ))}
+              {inactivePendingEvents > 0 && (
+                <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600">
+                  {t("pendingSummaryInactive", { count: inactivePendingEvents })}
+                </span>
+              )}
+            </div>
+          </>
+        ) : inactivePendingEvents > 0 ? (
+          <p className="mt-1 text-sm text-gray-700">{t("pendingSummaryInactiveOnly", { count: inactivePendingEvents })}</p>
+        ) : (
+          <p className="mt-1 text-sm text-green-700">{t("pendingSummaryHealthy")}</p>
+        )}
       </div>
 
       {/* Tab nav */}

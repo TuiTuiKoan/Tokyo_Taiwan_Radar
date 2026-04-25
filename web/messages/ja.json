@@ -140,6 +140,7 @@
     "pendingSummaryLead": "現在、公開中イベント {count} 件が未処理です。主因はカテゴリ消失ではなく、migration 010 で追加した会場多言語欄が未充足なことです。",
     "pendingSummaryHealthy": "未処理の滞留はなく、アノテーションキューは正常です。",
     "pendingSummaryInactive": "このほか非公開イベント {count} 件も未処理です",
+    "pendingSummaryInactiveOnly": "現在、公開中イベントで未処理のものはありませんが、非公開イベント {count} 件がまだ未処理ステータスにあります。非公開イベントはフロントエンドの表示に影響しないため、必要に応じて手動でクリーンアップできます。",
     "pendingReasonLocalizedLocationName": "会場名 zh/en 未補完 {count} 件",
     "pendingReasonLocalizedLocationAddress": "住所 zh/en 未補完 {count} 件",
     "pendingReasonLocalizedBusinessHours": "営業時間 zh/en 未補完 {count} 件",

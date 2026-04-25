@@ -140,6 +140,7 @@
     "pendingSummaryLead": "There are currently {count} active events pending annotation. The main issue is not lost categories, but missing localized venue fields added in migration 010.",
     "pendingSummaryHealthy": "No annotation backlog at the moment.",
     "pendingSummaryInactive": "Plus {count} inactive events still pending annotation",
+    "pendingSummaryInactiveOnly": "No active events pending annotation, but {count} inactive event(s) remain in pending status. Inactive events do not affect frontend display and can be manually cleaned up as needed.",
     "pendingReasonLocalizedLocationName": "Venue name zh/en missing on {count}",
     "pendingReasonLocalizedLocationAddress": "Address zh/en missing on {count}",
     "pendingReasonLocalizedBusinessHours": "Business hours zh/en missing on {count}",
