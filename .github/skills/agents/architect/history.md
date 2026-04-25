@@ -3,6 +3,21 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2025-05-04 — Session 61b5118d 效率復盤：三個高工具數反模式
+**觀察：** session `61b5118d` 共 54 回合、945 次工具呼叫，平均 17.5 次/回合（正常 < 12）。
+分析出三個反模式：
+1. **URL + 隱含大範圍**：貼 URL + 「請檢查類似狀況」→ 全域掃描（T04 61 tools, T12 68 tools）
+2. **「請繼續做 XXX」連發**：同類爬蟲拆成 7 輪分別要求，每輪重新載入 context（T08–T14）
+3. **問題 + 修正 + 規則更新三合一**：每個 bug 立即觸發 fix + history + skill 三連寫（T21→T22 71 tools）
+
+**改善規則（已寫入 `session-analytics/SKILL.md`）：**
+1. 指定明確範圍：「僅修這個 event，規則稍後批次更新」
+2. 一次列出全部任務：「建 A、B、C 三個爬蟲，按順序，每完成告訴我」
+3. 累積再批次：「先修 bug，我說『批次更新 skill』時再一次整理」
+
+**Lesson：** 提示模式本身就是可優化的成本來源。每月 `--days 30` 確認效率趨勢，高峰 session 用 `--verbose` 定位回合後，對照三個反模式判斷原因。
+
+---
 ## 2026-04-26 — AdminEventTable filter label/style regressions repeated across multiple commits
 **Error:** Three UI fixes (`tFilters("search")` search label, `tFilters("category")` category label, `bg-gray-50` category button) were re-introduced and re-regressed multiple times because later commits modifying the same file for unrelated reasons (bulk-toggle refactor, reannotate label rename) overwrote the corrected lines with default values.
 **Fix:** Re-applied the three fixes; added protected-invariants rule to `engineer/SKILL.md`; added regression entry to `engineer/history.md`.
