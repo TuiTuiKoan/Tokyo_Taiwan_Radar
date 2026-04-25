@@ -38,7 +38,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
-  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "other_japan" | "taiwan">("")
+  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "other_japan" | "taiwan" | "online">("")
   const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "error">("");;
 
   const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
@@ -94,7 +94,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         if (addr.includes("オンライン")) return false;
         if (isTokyoAddr(addr)) return false;
         if (TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false;
-      }
+      } else if (filterLocation === "online") {
+        if (!(e.location_name || "").includes("オンライン")) return false;
       if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
       return true;
     });
@@ -425,7 +426,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             <option value="">{tFilters("allLocations")}</option>
             <option value="tokyo">{tFilters("locationTokyo")}</option>
             <option value="other_japan">{tFilters("locationOtherJapan")}</option>
-            <option value="taiwan">{tFilters("locationTaiwan")}</option>
+            <option value="online">{tFilters("locationOnline")}</option>
           </select>
         </div>
         <div className="flex flex-col gap-1">
