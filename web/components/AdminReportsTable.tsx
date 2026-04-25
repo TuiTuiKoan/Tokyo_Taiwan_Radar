@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { type Category, CATEGORY_GROUPS, type Locale } from "@/lib/types";
+import { type Category, CATEGORIES, type Locale } from "@/lib/types";
 import Link from "next/link";
 import { confirmReport } from "@/app/actions/confirm-report";
 
@@ -47,16 +47,14 @@ const STATUS_CLASSES: Record<string, string> = {
 };
 
 // Maps each report field to the event column used for preview
-type TEvent = (key: string) => string;
-
-const FIELD_PREVIEW_COL: Record<string, (ev: NonNullable<ReportRow["events"]>, tEvent?: TEvent) => string> = {
+const FIELD_PREVIEW_COL: Record<string, (ev: NonNullable<ReportRow["events"]>) => string> = {
   name: (ev) => ev.name_ja ?? "—",
   start_date: (ev) => ev.start_date ? new Date(ev.start_date).toLocaleDateString("ja-JP") : "—",
   end_date: (ev) => ev.end_date ? new Date(ev.end_date).toLocaleDateString("ja-JP") : "—",
   venue: (ev) => ev.location_name ?? "—",
   address: (ev) => ev.location_address ?? "—",
   business_hours: (ev) => ev.business_hours ?? "—",
-  price: (ev, tEvent) => ev.is_paid === null ? "—" : `${ev.is_paid ? (tEvent ? tEvent("paid") : "Paid") : (tEvent ? tEvent("free") : "Free")}${ev.price_info ? ` / ${ev.price_info}` : ""}`,
+  price: (ev) => ev.is_paid === null ? "—" : `${ev.is_paid ? "有料" : "無料"}${ev.price_info ? ` / ${ev.price_info}` : ""}`,
   description: (ev) => ev.description_ja ? ev.description_ja.slice(0, 120) + (ev.description_ja.length > 120 ? "…" : "") : "—",
 };
 
@@ -78,7 +76,6 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const t = useTranslations("admin");
   const tReport = useTranslations("report");
   const tCat = useTranslations("categories");
-  const tEvent = useTranslations("event");
   const supabase = createClient();
 
   const [reports, setReports] = useState<ReportRow[]>(initialReports);
@@ -123,6 +120,8 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       sourceName: row.events?.source_name ?? null,
       currentCategory: row.events?.category ?? [],
       correctCategory: correctCategory[row.id] ?? null,
+      suggestedCategory: row.suggested_category ?? null,
+      fieldCorrections: fieldEdits[row.id] ?? {},
     });
     if (result.ok) {
       const updatedRow: ReportRow = {
@@ -220,7 +219,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                       <p className="text-xs font-medium text-gray-600 mb-2">{t("fieldPreview")}</p>
                       <div className="space-y-2 bg-white border border-gray-200 rounded-lg p-3">
                         {wrongFields.map((field) => {
-                          const currentVal = FIELD_PREVIEW_COL[field]?.(row.events!, tEvent) ?? "—";
+                          const currentVal = FIELD_PREVIEW_COL[field]?.(row.events!) ?? "—";
                           const isEditable = EDITABLE_FIELDS.has(field);
                           const inputType = FIELD_INPUT_TYPE[field] ?? "text";
                           const editVal = fieldEdits[row.id]?.[field] ?? "";
@@ -281,42 +280,38 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                         ))}
                       </div>
                     )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-                      {CATEGORY_GROUPS.map((group) => {
+                    <div className="flex flex-wrap gap-1.5">
+                      {CATEGORIES.map((cat) => {
+                        // Admin selection > user suggestion > current category
                         const defaultCats = correctCategory[row.id] !== undefined
                           ? correctCategory[row.id]
-                          : (row.events?.category ?? []);
+                          : (row.suggested_category && row.suggested_category.length > 0)
+                            ? row.suggested_category
+                            : (row.events?.category ?? []);
+                        const selected = defaultCats.includes(cat);
                         return (
-                          <div key={group.labelKey} className="grid grid-cols-[4rem_1fr] gap-x-2 items-start">
-                            <span className="text-xs text-gray-400 pt-0.5 leading-tight">{tCat(group.labelKey as any)}</span>
-                            <div className="flex flex-wrap gap-1.5">
-                            {group.categories.map((cat) => {
-                              const selected = defaultCats.includes(cat);
-                              return (
-                                <button
-                                  key={cat}
-                                  type="button"
-                                  onClick={() => {
-                                    const base = correctCategory[row.id] !== undefined
-                                      ? correctCategory[row.id]
-                                      : [...(row.events?.category ?? [])];
-                                    const next = selected
-                                      ? base.filter((c) => c !== cat)
-                                      : [...base, cat];
-                                    setCorrectCategory((p) => ({ ...p, [row.id]: next }));
-                                  }}
-                                  className={`text-xs px-2 py-0.5 rounded-full border transition ${
-                                    selected
-                                      ? "bg-green-600 text-white border-green-600"
-                                      : "border-gray-300 text-gray-500 hover:border-green-400"
-                                  }`}
-                                >
-                                  {tCat(cat as any)}
-                                </button>
-                              );
-                            })}
-                            </div>
-                          </div>
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => {
+                              const base = correctCategory[row.id] !== undefined
+                                ? correctCategory[row.id]
+                                : (row.suggested_category && row.suggested_category.length > 0)
+                                  ? [...row.suggested_category]
+                                  : [...(row.events?.category ?? [])];
+                              const next = selected
+                                ? base.filter((c) => c !== cat)
+                                : [...base, cat];
+                              setCorrectCategory((p) => ({ ...p, [row.id]: next }));
+                            }}
+                            className={`text-xs px-2 py-0.5 rounded-full border transition ${
+                              selected
+                                ? "bg-green-600 text-white border-green-600"
+                                : "border-gray-300 text-gray-500 hover:border-green-400"
+                            }`}
+                          >
+                          {tCat(cat as any)}
+                          </button>
                         );
                       })}
                     </div>
