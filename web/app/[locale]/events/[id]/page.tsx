@@ -90,7 +90,18 @@ export default async function EventDetailPage({ params }: PageProps) {
 
       {/* Save button */}
       <div className="flex items-start justify-between gap-4 mb-4">
-        <h1 className="text-2xl font-bold text-gray-900 leading-snug">{name}</h1>
+        <div className="flex items-center gap-2 min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 leading-snug">{name}</h1>
+          {isAdmin && (
+            <Link
+              href={`/${locale}/admin/${event.id}`}
+              className="shrink-0 text-xs text-gray-400 hover:text-green-700 border border-gray-200 hover:border-green-400 rounded px-1.5 py-0.5 transition"
+              title={t("editEvent")}
+            >
+              ✎
+            </Link>
+          )}
+        </div>
         {user && (
           <SaveButton
             eventId={event.id}
@@ -270,18 +281,6 @@ export default async function EventDetailPage({ params }: PageProps) {
           locale={locale}
           reportSection={<ReportSection eventId={event.id} locale={locale} />}
         />
-      )}
-
-      {/* ===== Admin quick-edit button (admin only) ===== */}
-      {isAdmin && (
-        <div className="mt-6 pt-4 border-t border-dashed border-gray-200">
-          <Link
-            href={`/${locale}/admin/${event.id}`}
-            className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-green-700 hover:border-green-400 border border-gray-200 rounded-lg px-3 py-1.5 transition"
-          >
-            ✎ {t("editEvent")}
-          </Link>
-        </div>
       )}
     </article>
   );
