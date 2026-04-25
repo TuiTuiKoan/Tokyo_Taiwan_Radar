@@ -21,7 +21,7 @@ const ANNOTATOR_FIELDS: Record<string, string[]> = {
 };
 
 // Scraper-only fields — annotator cannot fix, needs scraper rule update
-const SCRAPER_FIELDS = ["start_date", "end_date", "location"];
+const SCRAPER_FIELDS = ["start_date", "end_date", "venue", "address", "business_hours"];
 
 interface ConfirmReportInput {
   reportId: string;

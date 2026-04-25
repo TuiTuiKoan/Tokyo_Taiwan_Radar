@@ -15,23 +15,27 @@ type ReportType = (typeof REPORT_TYPES)[number];
 // Fields that can be reported as wrong under "wrongDetails"
 // Key = field identifier stored in report_types as "field:<key>"
 const WRONG_DETAIL_FIELDS = [
+  "name",
   "start_date",
   "end_date",
-  "location",
-  "name",
-  "description",
+  "venue",
+  "address",
+  "business_hours",
   "price",
+  "description",
 ] as const;
 type WrongDetailField = (typeof WRONG_DETAIL_FIELDS)[number];
 
 // Map field key → i18n key in "report" namespace
 const FIELD_I18N: Record<WrongDetailField, string> = {
+  name: "fieldName",
   start_date: "fieldStartDate",
   end_date: "fieldEndDate",
-  location: "fieldLocation",
-  name: "fieldName",
-  description: "fieldDescription",
+  venue: "fieldVenue",
+  address: "fieldAddress",
+  business_hours: "fieldBusinessHours",
   price: "fieldPrice",
+  description: "fieldDescription",
 };
 
 export default function ReportSection({ eventId, locale }: Props) {
