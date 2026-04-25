@@ -3,6 +3,12 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-26 — Admin table address cell lacked locale fallback
+**Error:** `AdminEventTable.tsx` address column only read `location_address` (Japanese/default). Events with addresses stored only in `location_address_zh` (zh-first scrapers like `koryu`) or with address embedded in `location_name` showed blank in admin. The front-end detail page was correct because it used `getEventLocationAddress()` with a fallback chain.
+**Fix:** Updated the `<td>` to `addr = location_address || location_address_zh || location_name` (commit `f45d5d5`).
+**Lesson:** Architect plans must note: admin table display logic for any locale-aware field must match the helper function fallback in `lib/types.ts`. When designing a new table column, always reference the corresponding `getEvent*()` helper and replicate its fallback chain.
+
+---
 ## 2026-04-26 — AdminEventTable orphaned `<td>` after `<th>` removal
 **Error:** The `isPaid` `<th>` was deleted from the annotated-view header, but its paired `<td>` in the row renderer was not deleted in the same change. The misalignment was invisible to TypeScript and only caught visually by the user.
 **Fix:** Removed the orphaned `<td>` (commit `5597150`). Added column-pairing rule to `engineer/SKILL.md`.
