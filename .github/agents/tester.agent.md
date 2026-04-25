@@ -7,6 +7,7 @@ tools:
   - list_dir
   - file_search
   - grep_search
+  - get_errors
   - run_in_terminal
   - fetch_webpage
   - vscode_askQuestions
@@ -52,7 +53,7 @@ For each event in the dry-run JSON output, check:
 - `start_date` is not `null`
 - `start_date` does NOT match the `updated_at` / publish date pattern (for TCC: `日付：` at page bottom)
 - `raw_title` and `raw_description` are both populated
-- `category` contains only values from: `movie`, `performing_arts`, `senses`, `retail`, `nature`, `tech`, `tourism`, `lifestyle_food`, `books_media`, `gender`, `geopolitics`, `art`, `lecture`, `report`
+- `category` contains only values from: `movie`, `performing_arts`, `senses`, `retail`, `nature`, `tech`, `tourism`, `lifestyle_food`, `books_media`, `gender`, `geopolitics`, `art`, `lecture`, `taiwan_japan`, `business`, `academic`, `report`
 - Events with `レポート` / `レポ` / `報告` / `記録` in `raw_title` have `"report"` in `category`
 
 ### Step 3: Report Failures
