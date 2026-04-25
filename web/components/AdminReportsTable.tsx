@@ -40,6 +40,7 @@ const STATUS_CLASSES: Record<string, string> = {
 export default function AdminReportsTable({ reports: initialReports, locale }: Props) {
   const t = useTranslations("admin");
   const tReport = useTranslations("report");
+  const tCat = useTranslations("categories");
   const supabase = createClient();
 
   const [reports, setReports] = useState<ReportRow[]>(initialReports);
@@ -202,7 +203,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                                 : "border-gray-300 text-gray-500 hover:border-green-400"
                             }`}
                           >
-                            {cat}
+                          {tCat(cat as any)}
                           </button>
                         );
                       })}
