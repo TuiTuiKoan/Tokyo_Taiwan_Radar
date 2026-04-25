@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { CATEGORIES, type Category } from "@/lib/types";
+import { CATEGORY_GROUPS, type Category } from "@/lib/types";
 
 interface Props {
   eventId: string;
@@ -168,31 +168,36 @@ export default function ReportSection({ eventId, locale }: Props) {
               {type === "wrongCategory" && selected.has("wrongCategory") && (
                 <div className="ml-5 mt-1">
                   <p className="text-xs text-amber-600 mb-1.5">{t("suggestCategoryHint")}</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {CATEGORIES.map((cat) => {
-                      const isSelected = suggestedCategories.has(cat);
-                      return (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => {
-                            setSuggestedCategories((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(cat)) next.delete(cat);
-                              else next.add(cat);
-                              return next;
-                            });
-                          }}
-                          className={`text-xs px-2 py-0.5 rounded-full border transition ${
-                            isSelected
-                              ? "bg-amber-500 text-white border-amber-500"
-                              : "border-amber-300 text-amber-700 hover:border-amber-500"
-                          }`}
-                        >
-                          {tCat(cat as any)}
-                        </button>
-                      );
-                    })}
+                  <div className="space-y-1">
+                    {CATEGORY_GROUPS.map((group) => (
+                      <div key={group.labelKey} className="flex flex-wrap gap-1.5 items-center">
+                        <span className="text-xs text-amber-400 w-12 shrink-0">{tCat(group.labelKey as any)}</span>
+                        {group.categories.map((cat) => {
+                          const isSelected = suggestedCategories.has(cat);
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => {
+                                setSuggestedCategories((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(cat)) next.delete(cat);
+                                  else next.add(cat);
+                                  return next;
+                                });
+                              }}
+                              className={`text-xs px-2 py-0.5 rounded-full border transition ${
+                                isSelected
+                                  ? "bg-amber-500 text-white border-amber-500"
+                                  : "border-amber-300 text-amber-700 hover:border-amber-500"
+                              }`}
+                            >
+                              {tCat(cat as any)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
