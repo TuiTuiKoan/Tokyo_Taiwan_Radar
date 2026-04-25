@@ -281,14 +281,15 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                         ))}
                       </div>
                     )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                       {CATEGORY_GROUPS.map((group) => {
                         const defaultCats = correctCategory[row.id] !== undefined
                           ? correctCategory[row.id]
                           : (row.events?.category ?? []);
                         return (
-                          <div key={group.labelKey} className="flex flex-wrap gap-1.5 items-start">
-                            <span className="text-xs text-gray-400 w-16 shrink-0">{tCat(group.labelKey as any)}</span>
+                          <div key={group.labelKey} className="grid grid-cols-[4rem_1fr] gap-x-2 items-start">
+                            <span className="text-xs text-gray-400 pt-0.5 leading-tight">{tCat(group.labelKey as any)}</span>
+                            <div className="flex flex-wrap gap-1.5">
                             {group.categories.map((cat) => {
                               const selected = defaultCats.includes(cat);
                               return (
@@ -314,6 +315,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                                 </button>
                               );
                             })}
+                            </div>
                           </div>
                         );
                       })}
