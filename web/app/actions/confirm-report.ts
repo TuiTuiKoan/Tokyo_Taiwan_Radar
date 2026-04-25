@@ -23,6 +23,17 @@ const ANNOTATOR_FIELDS: Record<string, string[]> = {
 // Scraper-only fields — annotator cannot fix, needs scraper rule update
 const SCRAPER_FIELDS = ["start_date", "end_date", "venue", "address", "business_hours"];
 
+// Direct DB column to write when admin provides a correction for a field
+const FIELD_CORRECTION_COL: Record<string, string> = {
+  start_date: "start_date",
+  end_date: "end_date",
+  venue: "location_name",
+  address: "location_address",
+  business_hours: "business_hours",
+  price: "price_info",
+  name: "name_ja",
+};
+
 interface ConfirmReportInput {
   reportId: string;
   eventId: string;
@@ -33,6 +44,7 @@ interface ConfirmReportInput {
   currentCategory?: string[] | null;
   correctCategory?: string[] | null;   // admin-selected (overrides suggestedCategory)
   suggestedCategory?: string[] | null; // user-submitted suggestion
+  fieldCorrections?: Record<string, string>; // field → corrected value (empty string = skip)
 }
 
 interface ConfirmReportResult {
@@ -89,6 +101,7 @@ export async function confirmReport(
   const isWrongCategory = input.reportTypes.includes("wrongCategory");
   const isWrongDetails = input.reportTypes.includes("wrongDetails") && wrongFields.length > 0;
   const isIrrelevant = input.reportTypes.includes("irrelevant");
+  const corrections = input.fieldCorrections ?? {};
 
   if (isWrongCategory) {
     // Determine the category to apply: admin > user suggestion > keep empty for re-annotation
@@ -112,18 +125,54 @@ export async function confirmReport(
   }
 
   if (isWrongDetails) {
-    // Null out annotator-fixable fields so re-annotation fills them fresh
+    // Track which fields still need re-annotation after direct corrections
+    const needsReannotation: string[] = [];
+
     for (const field of wrongFields) {
-      const dbCols = ANNOTATOR_FIELDS[field];
-      if (dbCols) {
-        for (const col of dbCols) {
-          eventUpdate[col] = null;
+      const correctedValue = corrections[field]?.trim();
+
+      if (correctedValue && FIELD_CORRECTION_COL[field]) {
+        // Admin provided a direct correction — apply it immediately
+        eventUpdate[FIELD_CORRECTION_COL[field]] = correctedValue;
+
+        // Special case: if name is corrected, clear the translated variants so annotator re-fills them
+        if (field === "name") {
+          eventUpdate["name_zh"] = null;
+          eventUpdate["name_en"] = null;
+          needsReannotation.push(field);
         }
+      } else {
+        // No correction provided — fall back to existing logic
+        const dbCols = ANNOTATOR_FIELDS[field];
+        if (dbCols) {
+          for (const col of dbCols) {
+            eventUpdate[col] = null;
+          }
+          needsReannotation.push(field);
+        }
+        // SCRAPER_FIELDS without correction: just log in history (no null-out needed)
       }
     }
-    // Always re-annotate when details are wrong
-    eventUpdate["is_active"] = false;
-    eventUpdate["annotation_status"] = "pending";
+
+    // Determine is_active: can go live if all fields were directly corrected
+    // (and none require re-annotation, except name which always needs translation)
+    const directlyFixableFields = wrongFields.filter(
+      (f) => f !== "description" && FIELD_CORRECTION_COL[f]
+    );
+    const allDirectlyFixed =
+      directlyFixableFields.length === wrongFields.length &&
+      directlyFixableFields.every((f) => corrections[f]?.trim());
+    const nameNeedsReannotation = wrongFields.includes("name") && corrections["name"]?.trim();
+
+    if (allDirectlyFixed && !nameNeedsReannotation && !wrongFields.includes("description")) {
+      // All factual fields corrected by admin — re-activate immediately
+      eventUpdate["is_active"] = true;
+      eventUpdate["annotation_status"] = "annotated";
+    } else {
+      // Some fields still need annotator or have translation requirements
+      eventUpdate["is_active"] = false;
+      eventUpdate["annotation_status"] = "pending";
+    }
   }
 
   if (isIrrelevant && !isWrongCategory && !isWrongDetails) {

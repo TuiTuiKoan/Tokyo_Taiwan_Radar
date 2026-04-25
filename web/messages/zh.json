@@ -188,6 +188,10 @@
     "historySkipped": "⚠ GITHUB_TOKEN 未設定，請手動更新 history.md。",
     "noReports": "目前沒有提報",
     "viewEvent": "查看活動",
+    "fieldPreview": "原始資料預覽",
+    "directCorrect": "直接修正（留空則重新標注）",
+    "applyCorrections": "套用修正並確認",
+    "fieldNotEditable": "此欄由系統重新標注",
     "bulkDelete": "刪除所選",
     "confirmBulkDelete": "確認刪除 {count} 個活動？此操作無法復原。",
     "selectedCount": "已選 {count} 個"

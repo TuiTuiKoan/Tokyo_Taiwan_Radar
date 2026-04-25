@@ -191,6 +191,10 @@
     "historySkipped": "⚠ GITHUB_TOKEN が未設定です。手動で history.md を更新してください。",
     "noReports": "報告はまだありません",
     "viewEvent": "イベントを見る",
+    "fieldPreview": "原文プレビュー",
+    "directCorrect": "直接修正（空白の場合は再アノテーション）",
+    "applyCorrections": "修正を適用して確認",
+    "fieldNotEditable": "このフィールドはシステムが再生成します",
     "bulkDelete": "選択を削除",
     "confirmBulkDelete": "{count}件のイベントを削除しますか？この操作は元に戻せません。",
     "selectedCount": "{count}件選択中"

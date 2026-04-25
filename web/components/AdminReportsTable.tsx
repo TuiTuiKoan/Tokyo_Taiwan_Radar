@@ -24,6 +24,14 @@ export interface ReportRow {
     source_url: string | null;
     source_name: string | null;
     category: string[] | null;
+    start_date: string | null;
+    end_date: string | null;
+    location_name: string | null;
+    location_address: string | null;
+    business_hours: string | null;
+    is_paid: boolean | null;
+    price_info: string | null;
+    description_ja: string | null;
   } | null;
 }
 
@@ -38,6 +46,32 @@ const STATUS_CLASSES: Record<string, string> = {
   dismissed: "bg-gray-100 text-gray-500",
 };
 
+// Maps each report field to the event column used for preview
+const FIELD_PREVIEW_COL: Record<string, (ev: NonNullable<ReportRow["events"]>) => string> = {
+  name: (ev) => ev.name_ja ?? "—",
+  start_date: (ev) => ev.start_date ? new Date(ev.start_date).toLocaleDateString("ja-JP") : "—",
+  end_date: (ev) => ev.end_date ? new Date(ev.end_date).toLocaleDateString("ja-JP") : "—",
+  venue: (ev) => ev.location_name ?? "—",
+  address: (ev) => ev.location_address ?? "—",
+  business_hours: (ev) => ev.business_hours ?? "—",
+  price: (ev) => ev.is_paid === null ? "—" : `${ev.is_paid ? "有料" : "無料"}${ev.price_info ? ` / ${ev.price_info}` : ""}`,
+  description: (ev) => ev.description_ja ? ev.description_ja.slice(0, 120) + (ev.description_ja.length > 120 ? "…" : "") : "—",
+};
+
+// Which fields support direct admin correction (description excluded — too complex)
+const EDITABLE_FIELDS = new Set(["name", "start_date", "end_date", "venue", "address", "business_hours", "price"]);
+
+// Input type for each editable field
+const FIELD_INPUT_TYPE: Record<string, string> = {
+  start_date: "date",
+  end_date: "date",
+  name: "text",
+  venue: "text",
+  address: "text",
+  business_hours: "text",
+  price: "text",
+};
+
 export default function AdminReportsTable({ reports: initialReports, locale }: Props) {
   const t = useTranslations("admin");
   const tReport = useTranslations("report");
@@ -50,6 +84,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [saving, setSaving] = useState<string | null>(null);
   const [confirmFeedback, setConfirmFeedback] = useState<Record<string, { githubUpdated: boolean }>>({});
   const [correctCategory, setCorrectCategory] = useState<Record<string, string[]>>({});
+  const [fieldEdits, setFieldEdits] = useState<Record<string, Record<string, string>>>({});
 
   function getEventName(row: ReportRow): string {
     const ev = row.events;
@@ -86,6 +121,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       currentCategory: row.events?.category ?? [],
       correctCategory: correctCategory[row.id] ?? null,
       suggestedCategory: row.suggested_category ?? null,
+      fieldCorrections: fieldEdits[row.id] ?? {},
     });
     if (result.ok) {
       const updatedRow: ReportRow = {
@@ -172,6 +208,54 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
 
             {row.status === "pending" && (
               <>
+                {/* Field preview + direct correction (only for wrongDetails) */}
+                {row.report_types.includes("wrongDetails") && row.events && (() => {
+                  const wrongFields = row.report_types
+                    .filter((t) => t.startsWith("field:"))
+                    .map((t) => t.replace("field:", ""));
+                  if (wrongFields.length === 0) return null;
+                  return (
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 mb-2">{t("fieldPreview")}</p>
+                      <div className="space-y-2 bg-white border border-gray-200 rounded-lg p-3">
+                        {wrongFields.map((field) => {
+                          const currentVal = FIELD_PREVIEW_COL[field]?.(row.events!) ?? "—";
+                          const isEditable = EDITABLE_FIELDS.has(field);
+                          const inputType = FIELD_INPUT_TYPE[field] ?? "text";
+                          const editVal = fieldEdits[row.id]?.[field] ?? "";
+                          return (
+                            <div key={field} className="grid grid-cols-[120px_1fr] gap-2 items-start">
+                              <span className="text-xs text-gray-500 font-medium pt-1.5">
+                                {tReport(`field${field.charAt(0).toUpperCase() + field.slice(1).replace(/_([a-z])/g, (_, c) => c.toUpperCase())}` as any)}
+                              </span>
+                              <div className="space-y-1">
+                                <div className="text-xs bg-gray-50 border border-gray-100 rounded px-2 py-1 text-gray-600 break-words">
+                                  {currentVal}
+                                </div>
+                                {isEditable ? (
+                                  <input
+                                    type={inputType}
+                                    value={editVal}
+                                    onChange={(e) =>
+                                      setFieldEdits((p) => ({
+                                        ...p,
+                                        [row.id]: { ...(p[row.id] ?? {}), [field]: e.target.value },
+                                      }))
+                                    }
+                                    placeholder={t("directCorrect")}
+                                    className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-gray-300"
+                                  />
+                                ) : (
+                                  <p className="text-xs text-gray-400 italic">{t("fieldNotEditable")}</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div>
                   <label className="text-xs text-gray-500 block mb-1">{t("adminNotes")}</label>
                   <textarea
@@ -245,6 +329,10 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                         const cats = correctCategory[row.id] ?? row.suggested_category ?? [];
                         return cats.length > 0 ? t("actionApplyCategory") : t("actionReannotate");
                       }
+                      // wrongDetails: check if admin filled any corrections
+                      const edits = fieldEdits[row.id] ?? {};
+                      const hasCorrections = Object.values(edits).some((v) => v.trim() !== "");
+                      if (hasCorrections) return t("applyCorrections");
                       return t("actionReannotate");
                     })()}
                   </button>
