@@ -33,7 +33,7 @@ _RULES: list[tuple[str, list[str]]] = [
         "写真", "photo", "gallery", "ギャラリー", "デザイン", "design",
         "漫画", "manga", "イラスト", "illustration",
         "文化体験", "workshop", "ワークショップ",
-        "展覽",
+        "展覧", "トレンド", "trend",
     ]),
     ("lifestyle_food", [
         "グルメ", "gourmet", "食", "food", "料理", "cuisine", "レストラン",
@@ -65,6 +65,7 @@ _RULES: list[tuple[str, list[str]]] = [
     ("tourism", [
         "旅行", "travel", "tourism", "観光", "trip", "旅遊",
         "ビザ", "visa", "留学", "study abroad",
+        "ガイドブック", "guidebook", "guide book",
     ]),
     ("gender", [
         "lgbtq", "LGBT", "ジェンダー", "gender", "女性", "women",
