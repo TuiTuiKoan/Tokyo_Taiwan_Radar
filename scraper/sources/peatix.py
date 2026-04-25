@@ -407,6 +407,11 @@ class PeatixScraper(BaseScraper):
                 location_name = 'オンライン'
                 location_address = None
 
+        # Canonicalize: any online marker → standardize to 'オンライン', address = None
+        if location_name and _ONLINE_MARKERS.search(location_name):
+            location_name = 'オンライン'
+            location_address = None
+
         # --- Price ---
         # Peatix shows "無料" or ticket prices
         price_text = _safe_text(page, ".ticket-price") or _safe_text(page, "[class*='price']")

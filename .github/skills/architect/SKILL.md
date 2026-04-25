@@ -31,6 +31,14 @@ Read this at the start of every session before producing any plan.
 - Verify model capabilities before designing features requiring real-time data (web search, live prices, current events). `gpt-4o-mini` and `gpt-4o` have no web browsing. Use `gpt-4o-search-preview` or a real search API for current data.
 - "Plausible-looking output" ≠ "real data access." A model without search access will hallucinate convincing-looking URLs.
 
+## Online Location Standard
+- **Canonical online event representation**: `location_name = 'オンライン'`, `location_address = None`. No exceptions.
+- All scrapers must normalize online markers **before** building the `Event` object. Use `_ONLINE_RE` pattern: `r'(?:online|オンライン|ライブ配信|配信のみ|[Zz][Oo][Oo][Mm])'`.
+- The web `location=online` filter must query `location_name`, not `location_address`.
+- The `location=other_japan` filter must exclude online events via `location_name NOT ILIKE '%オンライン%'`.
+- Do NOT store 'オンライン' in `location_address` — this will break the `other_japan` filter logic which already gates on `location_address IS NOT NULL`.
+- Variants like `'オンライン（Zoom）'` must be canonicalized to `'オンライン'`.
+
 ## Online Events (Peatix)
 - Peatix renders online-only events as `LOCATION\n\nOnline event` (single line, no address group). The two-part regex `LOCATION\n\n(.+)\n\n(.+)` will NOT match — always add a separate `loc_online_m` check BEFORE the two-part regex.
 - Set an `is_confirmed_online` flag immediately on match and **skip all CSS and regex address fallbacks** — description body text often mentions a venue as a conditional/secondary option and must never be used as `location_address`.

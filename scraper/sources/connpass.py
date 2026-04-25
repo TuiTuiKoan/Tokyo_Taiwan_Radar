@@ -57,6 +57,25 @@ def _strip_html(html: Optional[str]) -> str:
     return re.sub(r"<[^>]+>", "", html).strip()
 
 
+_ONLINE_RE = re.compile(
+    r'(?:online|オンライン|ライブ配信|配信のみ|[Zz][Oo][Oo][Mm])',
+)
+
+
+def _normalize_location_name(place: Optional[str]) -> Optional[str]:
+    """Return 'オンライン' if place contains an online marker; else the raw value."""
+    if place and _ONLINE_RE.search(place):
+        return 'オンライン'
+    return place or None
+
+
+def _normalize_location_address(place: Optional[str], address: Optional[str]) -> Optional[str]:
+    """Return None for online events; else the raw address."""
+    if place and _ONLINE_RE.search(place):
+        return None
+    return address or None
+
+
 class ConnpassScraper(BaseScraper):
     """Scrapes Taiwan-related Tokyo events from Connpass via API v2.
 
@@ -155,8 +174,10 @@ class ConnpassScraper(BaseScraper):
                             raw_description=raw_description,
                             start_date=start_dt,
                             end_date=end_dt,
-                            location_name=e.get("place") or None,
-                            location_address=e.get("address") or None,
+                            location_name=_normalize_location_name(e.get("place")),
+                            location_address=_normalize_location_address(
+                                e.get("place"), e.get("address")
+                            ),
                         )
                     )
 

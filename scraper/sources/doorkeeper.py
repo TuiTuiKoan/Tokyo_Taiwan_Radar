@@ -50,6 +50,25 @@ def _strip_html(html: Optional[str]) -> str:
     return re.sub(r"<[^>]+>", "", html).strip()
 
 
+_ONLINE_RE = re.compile(
+    r'(?:online|オンライン|ライブ配信|配信のみ|[Zz][Oo][Oo][Mm])',
+)
+
+
+def _normalize_location_name(venue: Optional[str]) -> Optional[str]:
+    """Return 'オンライン' if venue contains an online marker; else the raw value."""
+    if venue and _ONLINE_RE.search(venue):
+        return 'オンライン'
+    return venue or None
+
+
+def _normalize_location_address(venue: Optional[str], address: Optional[str]) -> Optional[str]:
+    """Return None for online events; else the raw address."""
+    if venue and _ONLINE_RE.search(venue):
+        return None
+    return address or None
+
+
 class DoorkeeperScraper(BaseScraper):
     """Scrapes Taiwan-related Tokyo events from Doorkeeper via public API."""
 
@@ -142,8 +161,8 @@ class DoorkeeperScraper(BaseScraper):
                     raw_description=raw_description,
                     start_date=start,
                     end_date=end,
-                    location_name=venue or None,
-                    location_address=address or None,
+                    location_name=_normalize_location_name(venue),
+                    location_address=_normalize_location_address(venue, address),
                 )
             )
 
