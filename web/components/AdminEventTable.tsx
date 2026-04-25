@@ -133,6 +133,18 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       ? <span className="ml-0.5 text-gray-800">{sortDir === "asc" ? "▲" : "▼"}</span>
       : <span className="ml-0.5 text-gray-300">▲</span>;
 
+  function getAnnotationBadgeClass(status: string) {
+    if (status === "annotated") return "bg-green-50 text-green-700";
+    if (status === "error") return "bg-red-50 text-red-600";
+    return "bg-yellow-50 text-yellow-700";
+  }
+
+  function getAnnotationLabel(status: string) {
+    if (status === "annotated") return t("annotated");
+    if (status === "error") return t("error");
+    return t("pending");
+  }
+
   function startNew() {
     setShowNew(true);
     setForm({ ...EMPTY_FORM });
@@ -478,6 +490,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
                 <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatus")}{sortArrow("annotation_status")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_paid")}>{t("isPaid")}{sortArrow("is_paid")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_active")}>{t("isActive")}{sortArrow("is_active")}</th>
                 <th className="py-2" />
@@ -513,8 +526,16 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       className="rounded cursor-pointer"
                     />
                   </td>
-                  <td className="py-2 pr-4 max-w-xs truncate">
-                    {getEventName(event, locale)}
+                  <td className="py-2 pr-4 max-w-xs">
+                    <a
+                      href={`/${locale}/events/${event.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="truncate block hover:underline hover:text-green-700 transition"
+                      title={t("viewFrontend")}
+                    >
+                      {getEventName(event, locale)}
+                    </a>
                   </td>
                   <td className="py-2 pr-4">
                     <div className="flex flex-wrap gap-1">
@@ -551,6 +572,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     )}
                   </td>
                   <td className="py-2 pr-4">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${getAnnotationBadgeClass(event.annotation_status)}`}>
+                      {getAnnotationLabel(event.annotation_status)}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-4">
                     {event.is_paid === false ? (
                       <span className="text-blue-600 text-xs">免費</span>
                     ) : event.is_paid === true ? (
@@ -574,20 +600,14 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   </td>
                   <td className="py-2">
                     <div className="flex gap-2">
-                      <a
-                        href={`/${locale}/events/${event.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-500 hover:text-green-700 text-xs"
-                        title={t("viewFrontend")}
-                      >
-                        ↗
-                      </a>
                       <button
                         onClick={() => router.push(`/${locale}/admin/${event.id}`)}
                         className="text-blue-600 hover:underline text-xs"
                       >
                         {t("edit")}
+                      </button>
+                      <button onClick={() => handleReannotate(event.id)} className="text-purple-600 hover:underline text-xs">
+                        {t("reannotate")}
                       </button>
                       <button onClick={() => handleDelete(event.id)} className="text-red-500 hover:underline text-xs">
                         {t("delete")}
@@ -606,7 +626,15 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     />
                   </td>
                   <td className="py-2 pr-4 max-w-sm">
-                    <p className="text-xs text-gray-800 line-clamp-2">{event.raw_title || getEventName(event, locale)}</p>
+                    <a
+                      href={`/${locale}/events/${event.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-gray-800 line-clamp-2 block hover:underline hover:text-green-700 transition"
+                      title={t("viewFrontend")}
+                    >
+                      {event.raw_title || getEventName(event, locale)}
+                    </a>
                   </td>
                   <td className="py-2 pr-4 text-gray-500 text-xs">
                     {event.source_name}
@@ -619,27 +647,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     )}
                   </td>
                   <td className="py-2 pr-4">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      event.annotation_status === "annotated"
-                        ? "bg-green-50 text-green-700"
-                        : event.annotation_status === "error"
-                        ? "bg-red-50 text-red-600"
-                        : "bg-yellow-50 text-yellow-700"
-                    }`}>
-                      {t(event.annotation_status === "annotated" ? "annotated" : "pending")}
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${getAnnotationBadgeClass(event.annotation_status)}`}>
+                      {getAnnotationLabel(event.annotation_status)}
                     </span>
                   </td>
                   <td className="py-2">
                     <div className="flex gap-2">
-                      <a
-                        href={`/${locale}/events/${event.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-500 hover:text-green-700 text-xs"
-                        title={t("viewFrontend")}
-                      >
-                        ↗
-                      </a>
                       <button
                         onClick={() => router.push(`/${locale}/admin/${event.id}`)}
                         className="text-blue-600 hover:underline text-xs"
