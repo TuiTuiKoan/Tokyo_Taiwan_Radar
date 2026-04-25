@@ -504,7 +504,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     checked={getSorted(getFiltered(events)).length > 0 && getSorted(getFiltered(events)).every((e) => selected.has(e.id))}
                     onChange={toggleSelectAll}
                     className="rounded cursor-pointer"
-                    title={t("selectAll")}>
+                    title={t("selectAll")}
                   />
                 </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("raw_title")}>{t("name")}{sortArrow("raw_title")}</th>

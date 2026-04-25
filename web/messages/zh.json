@@ -93,7 +93,10 @@
     "loginEmail": "使用 Email 登入",
     "email": "Email",
     "magicLinkSent": "我們已寄送登入連結到你的 Email，請查收！",
-    "logout": "登出"
+    "logout": "登出",
+    "inAppBrowserWarning": "偵測到你正在使用應用程式內建瀏覽器（如 LINE、Instagram）。Google 登入需要在 Safari 或 Chrome 等外部瀏覽器中開啟。",
+    "openInBrowser": "複製連結，在瀏覽器開啟",
+    "linkCopied": "已複製！請貼上到 Safari 或 Chrome"
   },
   "admin": {
     "title": "管理後台",

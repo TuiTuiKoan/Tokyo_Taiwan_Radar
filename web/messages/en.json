@@ -93,7 +93,10 @@
     "loginEmail": "Continue with Email",
     "email": "Email",
     "magicLinkSent": "Check your email — we sent you a login link!",
-    "logout": "Logout"
+    "logout": "Logout",
+    "inAppBrowserWarning": "You appear to be using an in-app browser (e.g. LINE, Instagram). Google Sign-In requires an external browser like Safari or Chrome.",
+    "openInBrowser": "Copy link to open in browser",
+    "linkCopied": "Copied! Paste it into Safari or Chrome"
   },
   "admin": {
     "title": "Admin",

@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 
 interface Props {
   locale: string;
+}
+
+function isInAppBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /Line\/|FBAN|FBAV|Instagram|MicroMessenger|Twitter|Snapchat|TikTok|Pinterest|LinkedIn/.test(
+    ua
+  );
 }
 
 export default function LoginPage({ params }: { params: Promise<Props> }) {
@@ -15,6 +23,23 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inAppBrowser, setInAppBrowser] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  useEffect(() => {
+    setInAppBrowser(isInAppBrowser());
+  }, []);
+
+  async function handleCopyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 3000);
+    } catch {
+      // Fallback: prompt the user to copy manually
+      window.prompt("Copy this URL and open it in Safari or Chrome:", window.location.href);
+    }
+  }
 
   const supabase = createClient();
 
@@ -61,12 +86,25 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
 
   return (
     <div className="max-w-sm mx-auto mt-24">
+      {inAppBrowser && (
+        <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="mb-3">{t("inAppBrowserWarning")}</p>
+          <button
+            onClick={handleCopyLink}
+            className="w-full rounded-lg bg-amber-500 px-4 py-2 font-medium text-white hover:bg-amber-600 transition"
+          >
+            {linkCopied ? t("linkCopied") : t("openInBrowser")}
+          </button>
+        </div>
+      )}
+
       <h1 className="text-2xl font-bold mb-2">{t("loginTitle")}</h1>
       <p className="text-gray-500 mb-8">{t("loginDesc")}</p>
 
       <button
-        onClick={handleGoogleLogin}
-        className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg px-4 py-3 hover:bg-gray-50 transition mb-4 font-medium"
+        onClick={inAppBrowser ? undefined : handleGoogleLogin}
+        disabled={inAppBrowser}
+        className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg px-4 py-3 hover:bg-gray-50 transition mb-4 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true">
           <path

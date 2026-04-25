@@ -93,7 +93,10 @@
     "loginEmail": "Emailでログイン",
     "email": "メールアドレス",
     "magicLinkSent": "ログインリンクをメールで送信しました。ご確認ください。",
-    "logout": "ログアウト"
+    "logout": "ログアウト",
+    "inAppBrowserWarning": "アプリ内ブラウザ（LINE・Instagramなど）を使用中のようです。Googleログインには Safari または Chrome などの外部ブラウザが必要です。",
+    "openInBrowser": "リンクをコピーしてブラウザで開く",
+    "linkCopied": "コピーしました！Safari または Chrome に貼り付けてください"
   },
   "admin": {
     "title": "管理画面",
