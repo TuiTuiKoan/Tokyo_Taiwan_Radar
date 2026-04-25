@@ -154,6 +154,13 @@ applyTo: scraper/sources/<source_name>.py
 - **`source_id` = form ID**: Use the numeric ID from `/meeting/form?id=NNNN` as the stable dedup key. Do NOT hash the title.
 - **Filter on full box text**: Taiwan may appear only in speaker affiliations (`台湾元行政院副院長`), not in the title. Filter on full `box_text`, not just the title element.
 
+## taiwanshi-specific
+- **Atom feed, no Playwright**: `https://taiwanshi.exblog.jp/atom.xml` is accessible via plain `requests`. The site redirects `fetch_webpage` through DoubleClick, but the Atom feed bypasses that completely.
+- **Date label variations**: `日時` can be followed by `：`(full-width), `:`(half-width), or `　`(full-width space, no colon at all). Use `[：:\s\u3000]*` as the separator pattern, and `\s*` between digit groups and kanji (`年`, `月`, `日`) to handle spacing artifacts.
+- **Venue label variations**: Regular meetings use `会場：`; co-organized/guest lectures use `場所：`. Always check both labels: `(?:会場|場所)[\uff1a:\u3000 \t]+`.
+- **Online suffix uses both `および` and `及び`**: Same meaning, different rendering. Include both in the venue split pattern.
+- **Meetings are nationwide, not Tokyo-only**: Physical venues are across Japan (Osaka, Nagoya, Kobe, etc.). All have online participation. Include all meetings regardless of physical location.
+
 ## DeepL Tracking
 - Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
 - Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
@@ -256,6 +263,7 @@ python scraper/backfill_locations.py
 | `arukikata.py` | `.github/skills/sources/arukikata/SKILL.md` |
 | `tuat_global.py` | `.github/skills/sources/tuat_global/SKILL.md` |
 | `jinf.py` | `.github/skills/sources/jinf/SKILL.md` |
+| `taiwanshi.py` | `.github/skills/sources/taiwanshi/SKILL.md` |
 
 ### 4. dry-run validation — always run before finishing
 ```bash
