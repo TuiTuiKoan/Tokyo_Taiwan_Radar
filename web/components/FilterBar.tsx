@@ -137,7 +137,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
       {/* Filter panel — always visible on md+, toggled on mobile */}
       <div className={`bg-gray-50 rounded-xl p-4 space-y-3 ${mobileOpen ? "block" : "hidden"} md:block`}>
 
-        {/* Row 1: keyword, paid, location, timeMode, apply, reset */}
+        {/* Row 1: keyword, category, location, paid, timeMode, apply, reset */}
         <div className="flex flex-wrap gap-3 items-end">
           {/* Keyword search */}
           <div className="flex flex-col gap-1">
@@ -152,18 +152,56 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
             />
           </div>
 
-          {/* Paid filter */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("paid")}</label>
-            <select
-              value={draft.paid}
-              onChange={(e) => applyWith("paid", e.target.value)}
-              className="h-10 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{t("allPaid")}</option>
-              <option value="free">{t("freeOnly")}</option>
-              <option value="paid">{t("paidOnly")}</option>
-            </select>
+          {/* Category dropdown */}
+          <div className="flex flex-col gap-1" ref={catDropdownRef}>
+            <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setCatDropdownOpen((o) => !o)}
+                className="h-10 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-gray-50 hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+              >
+                <span className={selectedCats.length > 0 ? "text-green-700 font-medium" : "text-gray-500"}>
+                  {selectedCats.length > 0 ? `${t("category")} (${selectedCats.length})` : t("allCategories")}
+                </span>
+                <span className="text-gray-400 text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
+              </button>
+
+              {catDropdownOpen && (
+                <div className="absolute z-50 top-11 left-0 w-72 bg-white border border-gray-200 rounded-xl shadow-lg py-2 max-h-80 overflow-y-auto">
+                  {selectedCats.length > 0 && (
+                    <div className="px-3 pb-1.5 border-b border-gray-100 mb-1">
+                      <button
+                        type="button"
+                        onClick={() => { applyWith("category", ""); setCatDropdownOpen(false); }}
+                        className="text-xs text-red-500 hover:text-red-700 underline"
+                      >
+                        {t("allCategories")}
+                      </button>
+                    </div>
+                  )}
+                  {CATEGORY_GROUPS.map((group) => (
+                    <div key={group.labelKey} className="px-3 py-1">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
+                      {group.categories.map((cat) => {
+                        const checked = selectedCats.includes(cat);
+                        return (
+                          <label key={cat} className="flex items-center gap-2 py-0.5 cursor-pointer hover:text-green-700">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleCategory(cat)}
+                              className="accent-green-600 w-3.5 h-3.5"
+                            />
+                            <span className="text-sm text-gray-700">{tCat(cat as any)}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Location filter */}
@@ -178,6 +216,20 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               <option value="tokyo">{t("locationTokyo")}</option>
               <option value="other_japan">{t("locationOtherJapan")}</option>
               <option value="online">{t("locationOnline")}</option>
+            </select>
+          </div>
+
+          {/* Paid filter */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("paid")}</label>
+            <select
+              value={draft.paid}
+              onChange={(e) => applyWith("paid", e.target.value)}
+              className="h-10 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{t("allPaid")}</option>
+              <option value="free">{t("freeOnly")}</option>
+              <option value="paid">{t("paidOnly")}</option>
             </select>
           </div>
 
@@ -233,57 +285,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
             </>
           )}
 
-          {/* Category dropdown */}
-          <div className="flex flex-col gap-1" ref={catDropdownRef}>
-            <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setCatDropdownOpen((o) => !o)}
-                className="h-10 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-white hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
-              >
-                <span className={selectedCats.length > 0 ? "text-green-700 font-medium" : "text-gray-500"}>
-                  {selectedCats.length > 0 ? `${t("category")} (${selectedCats.length})` : t("allCategories")}
-                </span>
-                <span className="text-gray-400 text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
-              </button>
-
-              {catDropdownOpen && (
-                <div className="absolute z-50 top-11 left-0 w-72 bg-white border border-gray-200 rounded-xl shadow-lg py-2 max-h-80 overflow-y-auto">
-                  {selectedCats.length > 0 && (
-                    <div className="px-3 pb-1.5 border-b border-gray-100 mb-1">
-                      <button
-                        type="button"
-                        onClick={() => { applyWith("category", ""); setCatDropdownOpen(false); }}
-                        className="text-xs text-red-500 hover:text-red-700 underline"
-                      >
-                        {t("allCategories")}
-                      </button>
-                    </div>
-                  )}
-                  {CATEGORY_GROUPS.map((group) => (
-                    <div key={group.labelKey} className="px-3 py-1">
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
-                      {group.categories.map((cat) => {
-                        const checked = selectedCats.includes(cat);
-                        return (
-                          <label key={cat} className="flex items-center gap-2 py-0.5 cursor-pointer hover:text-green-700">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleCategory(cat)}
-                              className="accent-green-600 w-3.5 h-3.5"
-                            />
-                            <span className="text-sm text-gray-700">{tCat(cat as any)}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          {/* Apply button */}
           <button
             onClick={() => { applyFilters(); setMobileOpen(false); }}
             className="h-10 px-5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition self-end"

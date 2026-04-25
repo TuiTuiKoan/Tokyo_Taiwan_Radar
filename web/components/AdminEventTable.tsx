@@ -358,7 +358,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <button
                 type="button"
                 onClick={() => setCatDropdownOpen((o) => !o)}
-                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-white hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-gray-50 hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
               >
                 <span className={filterCategories.length > 0 ? "text-green-700 font-medium" : "text-gray-500"}>
                   {filterCategories.length > 0 ? `${t("category")} (${filterCategories.length})` : t("filterAll")}
@@ -419,9 +419,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               onChange={(e) => setFilterPaid(e.target.value)}
               className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
-              <option value="">{t("filterAll")}</option>
-              <option value="free">{tEvent("free")}</option>
-              <option value="paid">{tEvent("paid")}</option>
+              <option value="">{tFilters("allPaid")}</option>
+              <option value="free">{tFilters("freeOnly")}</option>
+              <option value="paid">{tFilters("paidOnly")}</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
