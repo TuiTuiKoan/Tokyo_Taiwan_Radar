@@ -174,6 +174,37 @@ def upsert_events(events: list[Event]) -> None:
     if not rows:
         return
 
+    # Preserve existing categories: if the incoming row has an empty category list
+    # but the DB already has a non-empty category, keep the DB value.
+    empty_cat_rows = [r for r in rows if not r.get("category")]
+    if empty_cat_rows:
+        try:
+            existing_map: dict[tuple[str, str], list] = {}
+            for sn in {r["source_name"] for r in empty_cat_rows}:
+                resp = (
+                    client.table("events")
+                    .select("source_name,source_id,category")
+                    .eq("source_name", sn)
+                    .execute()
+                )
+                for row in (resp.data or []):
+                    if row.get("category"):
+                        existing_map[(row["source_name"], row["source_id"])] = row["category"]
+            preserved = 0
+            for r in rows:
+                if not r.get("category"):
+                    key = (r["source_name"], r["source_id"])
+                    if key in existing_map:
+                        r["category"] = existing_map[key]
+                        preserved += 1
+            if preserved:
+                logger.info(
+                    "Preserved existing category for %d event(s) (scraper returned empty list).",
+                    preserved,
+                )
+        except Exception as exc:
+            logger.warning("Could not preserve existing categories: %s", exc)
+
     try:
         client.table("events").upsert(rows, on_conflict="source_name,source_id").execute()
         logger.info("Upserted %d events to Supabase.", len(rows))
