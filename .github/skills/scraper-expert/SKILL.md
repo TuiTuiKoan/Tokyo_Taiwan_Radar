@@ -1,12 +1,94 @@
 ---
 name: scraper-expert
-description: BaseScraper contract, field rules, and Peatix-specific conventions for the Scraper Expert agent
+description: BaseScraper contract, field rules, documentation protocol, and per-source conventions for the Scraper Expert agent
 applyTo: .github/agents/scraper-expert.agent.md
 ---
 
 # Scraper Expert Skills
 
 Read this at the start of every session before writing any scraper.
+
+## Documentation Protocol (Phase 4 — mandatory)
+
+After every new source or bug fix, create/update these files **before committing**:
+
+### New source checklist
+
+| File | Action |
+|------|--------|
+| `.github/skills/<source_name>/SKILL.md` | **Create** — platform profile, field mappings, Taiwan filter, date extraction, troubleshooting |
+| `.github/skills/<source_name>/history.md` | **Create** — initial implementation decisions |
+| `.github/skills/scraper-expert/SKILL.md` | **Update** — add `## <source_name>-specific` section (3–5 key rules) |
+| Supabase `research_sources` | **Update** status → `implemented` |
+
+### Bug fix checklist
+
+| File | Action |
+|------|--------|
+| `.github/skills/scraper-expert/history.md` | **Prepend** new entry (date, error, fix, lesson) |
+| `.github/skills/<source_name>/history.md` | **Prepend** new entry |
+| `scraper-expert/SKILL.md` | **Add/update** rule if lesson is universal |
+| Per-source `SKILL.md` | **Add/update** rule if lesson is source-specific |
+
+### Per-source SKILL.md template
+
+```markdown
+---
+name: <source_name>
+description: Platform rules, <key_feature>, and troubleshooting for the <source_name> scraper
+applyTo: scraper/sources/<source_name>.py
+---
+
+# <Source Display Name> Scraper — Platform Reference
+
+## Platform Profile
+
+| Field | Value |
+|-------|-------|
+| Site URL | ... |
+| API/Rendering | ... |
+| Auth required | No |
+| Rate limit | ... |
+| Source name | `<source_name>` |
+| Source ID format | `<source_name>_{stable_id}` |
+
+## Field Mappings
+
+| Event Field | Source |
+|-------------|--------|
+| `source_id` | ... |
+| `start_date` | ... |
+| `location_name` | ... |
+| `raw_description` | `"開催日時: YYYY年MM月DD日\n\n" + ...` |
+
+## Taiwan Relevance Filter
+
+...
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---------|--------------|-----|
+| ... | ... | ... |
+
+## Pending Rules
+
+<!-- Added automatically by confirm-report -->
+```
+
+### history.md entry format
+
+```markdown
+## YYYY-MM-DD — <source>: <short description>
+
+**Error:** What went wrong.
+
+**Root cause:** Why it happened.
+
+**Fix:** What was changed.
+
+**Lesson:** What to remember.
+```
 
 ## BaseScraper Contract
 - Every scraper must extend `BaseScraper` and implement `scrape() → list[Event]`.
