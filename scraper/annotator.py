@@ -204,6 +204,7 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
     """Fetch pending events from DB, annotate with AI, and update."""
     sb = _get_supabase()
     ai = _get_openai()
+    annotation_start = time.time()
 
     # Load category feedback from admin corrections
     corrections = load_corrections(sb)
@@ -401,6 +402,7 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
             "openai_tokens_in": total_tokens_in,
             "openai_tokens_out": total_tokens_out,
             "cost_usd": round(cost, 6),
+            "duration_seconds": int(time.time() - annotation_start),
             "notes": f"re_annotate_all={re_annotate_all}, total={len(events)}",
         }).execute()
         logger.info(

@@ -149,8 +149,6 @@ def _extract_event_fields(text: str) -> dict:
     if date_m:
         raw_date = date_m.group(1)
         result["start_date"] = _parse_date(raw_date)
-        # End date from range like '～午後２時30分' — date is same as start
-        # (same-day events; we keep only start_date for now)
 
     # Also try standalone 時間: line
     if not result["start_date"]:
@@ -158,7 +156,32 @@ def _extract_event_fields(text: str) -> dict:
         if time_m:
             result["start_date"] = _parse_date(time_m.group(1))
 
-    # Fallback: find any clear date in body (YYYY年MM月DD日) near venue field
+    # Priority 2: Event dates with day-of-week markers, e.g. "5月16日（土）".
+    # These almost always denote actual event dates, not page publish dates.
+    # Prefer them over the generic YYYY年MM月DD日 fallback, which may pick up
+    # the page's publish date that appears at the top of the body text.
+    if not result["start_date"]:
+        dow_m = re.search(
+            r'(\d{1,2})月(\d{1,2})日（[月火水木金土日][曜]?[日]?）',
+            text,
+        )
+        if dow_m:
+            # Infer year from nearest 20XX年 in text before this position,
+            # or from anywhere in text as fallback.
+            year_m = re.search(r'(20\d{2})年', text[: dow_m.start()])
+            if not year_m:
+                year_m = re.search(r'(20\d{2})年', text)
+            if year_m:
+                try:
+                    result["start_date"] = datetime(
+                        int(year_m.group(1)),
+                        int(dow_m.group(1)),
+                        int(dow_m.group(2)),
+                    )
+                except ValueError:
+                    pass
+
+    # Fallback: find any clear date in body (YYYY年MM月DD日)
     if not result["start_date"]:
         m = re.search(r'((?:20\d{2}|令和\d+[（(]\d{4}[）)])年\d{1,2}月\d{1,2}日)', text)
         if m:
@@ -180,6 +203,12 @@ def _extract_event_fields(text: str) -> dict:
         fee_text = fee_m.group(1).strip()
         result["price_info"] = fee_text
         result["is_paid"] = "無料" not in fee_text
+
+    # Single-day rule: end_date must equal start_date when only start is found.
+    # taiwan_kyokai events are single-day ceremonies/lectures with a time range
+    # (e.g. "正午～午後２時30分") — there is never a multi-day range.
+    if result["start_date"] and not result["end_date"]:
+        result["end_date"] = result["start_date"]
 
     return result
 
@@ -242,6 +271,20 @@ class TaiwanKyokaiScraper(BaseScraper):
                         ):
                             raw_title = line
                             break
+
+                # If raw_title is just a generic heading like「講演会のご案内」,
+                # look for a more specific 講演内容: / タイトル: line in the body.
+                _GENERIC_HEADINGS = frozenset([
+                    "【講演会のご案内】", "講演会のご案内", "講演会のお知らせ",
+                    "イベントのご案内", "セミナーのご案内",
+                ])
+                if raw_title in _GENERIC_HEADINGS or raw_title.strip("【】") in _GENERIC_HEADINGS:
+                    lecture_m = re.search(
+                        r'(?:講演(?:内容|テーマ)|タイトル)\s*[：:「]\s*「?([^」\n]{5,60})」?',
+                        body_text,
+                    )
+                    if lecture_m:
+                        raw_title = lecture_m.group(1).strip()
 
                 # ── Check this page is an event (has 日時 / 日　時 field, or date+venue) ──
                 has_date_field = bool(re.search(r'(?:日\s*時|時間)\s*[：:]', body_text))

@@ -18,6 +18,7 @@ interface ScraperRun {
   deepl_chars: number;
   cost_usd: number;
   notes: string | null;
+  success?: boolean;
 }
 
 function fmtUsd(n: number) {
@@ -67,6 +68,25 @@ export default async function AdminStatsPage({ params }: PageProps) {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
+  // Week start (Monday)
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+  weekStart.setHours(0, 0, 0, 0);
+
+  // DB health queries
+  const [activeEventsRes, pendingRes, weekNewRes, monthNewRes] = await Promise.all([
+    supabase.from("events").select("id", { count: "exact", head: true }).eq("is_active", true),
+    supabase.from("events").select("id", { count: "exact", head: true }).eq("is_active", true).eq("annotation_status", "pending"),
+    supabase.from("events").select("id", { count: "exact", head: true }).eq("is_active", true).gte("created_at", weekStart.toISOString()),
+    supabase.from("events").select("id", { count: "exact", head: true }).eq("is_active", true).gte("created_at", startOfMonth),
+  ]);
+  const dbHealth = {
+    activeEvents: activeEventsRes.count ?? 0,
+    pendingAnnotation: pendingRes.count ?? 0,
+    newThisWeek: weekNewRes.count ?? 0,
+    newThisMonth: monthNewRes.count ?? 0,
+  };
+
   const monthRows = rows.filter((r) => r.ran_at >= startOfMonth);
 
   function sum(arr: ScraperRun[], key: keyof ScraperRun) {
@@ -87,6 +107,22 @@ export default async function AdminStatsPage({ params }: PageProps) {
     tokensOut: sum(monthRows, "openai_tokens_out"),
     cost: sum(monthRows, "cost_usd"),
   };
+
+  // 30-day cost summary
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const last30Rows = rows.filter((r) => r.ran_at >= thirtyDaysAgo);
+  const last30Cost = sum(last30Rows, "cost_usd");
+  const firstRun = rows.length > 0 ? new Date(rows[rows.length - 1].ran_at) : now;
+  const monthsElapsed = Math.max(1, (now.getTime() - firstRun.getTime()) / (1000 * 60 * 60 * 24 * 30));
+  const avgMonthly = allTime.cost / monthsElapsed;
+
+  // Latest run per source
+  const latestBySource = Object.values(
+    rows.reduce((acc, r) => {
+      if (!acc[r.source] || r.ran_at > acc[r.source].ran_at) acc[r.source] = r;
+      return acc;
+    }, {} as Record<string, ScraperRun>)
+  ).sort((a, b) => a.source.localeCompare(b.source));
 
   return (
     <div>
@@ -133,6 +169,77 @@ export default async function AdminStatsPage({ params }: PageProps) {
         </div>
       ) : (
         <>
+          {/* Block 1: DB Health Cards */}
+          <h2 className="text-base font-semibold text-gray-700 mb-3">{t("dbHealthTitle")}</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+            {[
+              { label: t("dbActiveEvents"), value: dbHealth.activeEvents },
+              { label: t("dbPendingAnnotation"), value: dbHealth.pendingAnnotation },
+              { label: t("dbNewThisWeek"), value: dbHealth.newThisWeek },
+              { label: t("dbNewThisMonth"), value: dbHealth.newThisMonth },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+                <p className="text-xs text-gray-400 mb-1">{label}</p>
+                <p className="text-2xl font-bold text-gray-800">{fmtNum(value)}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Block 2: Latest run per source */}
+          <h2 className="text-base font-semibold text-gray-700 mb-3">{t("sourceStatusTitle")}</h2>
+          {latestBySource.length === 0 ? (
+            <p className="text-sm text-gray-400 mb-8">{t("statsNoRuns")}</p>
+          ) : (
+            <div className="overflow-x-auto mb-8">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="text-xs text-gray-400 border-b border-gray-100">
+                    <th className="text-left py-2 pr-4 font-medium">{t("statsSource")}</th>
+                    <th className="text-left py-2 pr-4 font-medium">{t("statsRunAt")}</th>
+                    <th className="text-right py-2 pr-4 font-medium">{t("statsEventsProcessed")}</th>
+                    <th className="text-right py-2 pr-4 font-medium">{t("statsCostUsd")}</th>
+                    <th className="text-right py-2 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {latestBySource.map((r) => {
+                    const icon = r.success === false ? "❌" : r.events_processed === 0 ? "⚠" : "✅";
+                    return (
+                      <tr key={r.source} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-2 pr-4">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 font-mono">
+                            {r.source}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-4 text-gray-500 whitespace-nowrap">{fmtDate(r.ran_at)}</td>
+                        <td className="py-2 pr-4 text-right">{r.events_processed}</td>
+                        <td className="py-2 pr-4 text-right font-mono text-xs">
+                          {r.cost_usd > 0 ? fmtUsd(r.cost_usd) : "—"}
+                        </td>
+                        <td className="py-2 text-right">{icon}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Block 3: 30-day cost summary */}
+          <h2 className="text-base font-semibold text-gray-700 mb-3">{t("costSummaryTitle")}</h2>
+          <div className="grid grid-cols-3 gap-3 mb-8">
+            {[
+              { label: t("costLast30d"), value: fmtUsd(last30Cost) },
+              { label: t("costAvgMonthly"), value: fmtUsd(avgMonthly) },
+              { label: t("statsTotal"), value: fmtUsd(allTime.cost) },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+                <p className="text-xs text-gray-400 mb-1">{label}</p>
+                <p className="text-xl font-bold text-gray-800 font-mono">{value}</p>
+              </div>
+            ))}
+          </div>
+
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
             {[

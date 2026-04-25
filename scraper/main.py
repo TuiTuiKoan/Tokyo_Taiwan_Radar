@@ -23,6 +23,7 @@ import logging
 import os
 import re
 import sys
+import time
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -48,6 +49,7 @@ from sources.connpass import ConnpassScraper
 from sources.arukikata import ArukikataScraper
 from sources.ide_jetro import IdeJetroScraper
 from sources.taiwan_matsuri import TaiwanMatsuriScraper
+from sources.eplus import EplusScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -79,6 +81,7 @@ SCRAPERS = [
     ArukikataScraper(),
     IdeJetroScraper(),
     TaiwanMatsuriScraper(),
+    EplusScraper(),
 ]
 
 
@@ -116,6 +119,7 @@ def run(dry_run: bool = False, source: str | None = None) -> None:
         source_key = _scraper_key(scraper)
         logger.info("=== Starting scraper: %s ===", source_label)
         try:
+            scraper_start = time.time()
             events = scraper.scrape()
             events = dedup_events(events)
             logger.info("%s: scraped %d events", source_label, len(events))
@@ -128,12 +132,25 @@ def run(dry_run: bool = False, source: str | None = None) -> None:
                         "source": source_key,
                         "events_processed": len(events),
                         "deepl_chars": getattr(scraper, "_deepl_chars_used", 0),
+                        "success": True,
+                        "duration_seconds": int(time.time() - scraper_start),
                     }).execute()
                     logger.info("%s: logged %d events to scraper_runs", source_label, len(events))
                 except Exception as log_exc:
                     logger.warning("%s: could not write scraper_runs: %s", source_label, log_exc)
         except Exception as exc:
             logger.error("%s: scraper failed: %s", source_label, exc)
+            if not dry_run:
+                try:
+                    _get_client().table("scraper_runs").insert({
+                        "source": source_key,
+                        "events_processed": 0,
+                        "deepl_chars": 0,
+                        "success": False,
+                        "duration_seconds": 0,
+                    }).execute()
+                except Exception:
+                    pass
 
     logger.info("Total events scraped: %d", len(all_events))
 

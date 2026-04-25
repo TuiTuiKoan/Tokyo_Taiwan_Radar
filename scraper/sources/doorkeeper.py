@@ -8,7 +8,7 @@ Strategy:
   1. Call GET https://api.doorkeeper.jp/events?q={keyword}&locale=ja for each keyword
   2. Paginate until empty page (max MAX_PAGES per keyword)
   3. Deduplicate by event ID across all keyword queries
-  4. Filter to Tokyo area by address / venue_name
+  4. Accept all Japan locations (no geographic filter)
   5. source_id = "doorkeeper_{id}" (stable — uses platform's numeric event ID)
 """
 
@@ -30,23 +30,6 @@ SEARCH_QUERIES = ["台湾", "Taiwan", "台灣"]
 
 PER_PAGE = 100   # Doorkeeper's max per_page
 MAX_PAGES = 5
-
-# Tokyo markers — only use strings that uniquely identify Tokyo to avoid false
-# positives from same-name wards in other prefectures (e.g. 神戸市中央区).
-_TOKYO_MARKERS = {
-    "東京都",
-    "東京",          # catches "東京都", "東京23区", "東京都新宿区" etc.
-    "新宿区", "千代田区", "港区", "渋谷区", "豊島区", "台東区",
-    "品川区", "目黒区", "世田谷区", "中野区", "杉並区", "練馬区",
-    "板橋区", "北区", "荒川区", "足立区", "葛飾区", "江戸川区",
-    "江東区", "墨田区", "文京区", "大田区",
-}
-
-
-def _is_tokyo(address: Optional[str], venue: Optional[str] = None) -> bool:
-    """Return True if address or venue contains a known Tokyo marker."""
-    combined = (address or "") + " " + (venue or "")
-    return any(m in combined for m in _TOKYO_MARKERS)
 
 
 def _parse_dt(iso: Optional[str]) -> Optional[datetime]:
@@ -130,9 +113,6 @@ class DoorkeeperScraper(BaseScraper):
             address = e.get("address") or ""
             venue = e.get("venue_name") or ""
 
-            if not _is_tokyo(address, venue):
-                continue
-
             start = _parse_dt(e.get("starts_at"))
             end = _parse_dt(e.get("ends_at"))
 
@@ -168,6 +148,6 @@ class DoorkeeperScraper(BaseScraper):
             )
 
         logger.info(
-            "Doorkeeper: %d Tokyo Taiwan events after location filter", len(events)
+            "Doorkeeper: %d Taiwan events (Japan-wide)", len(events)
         )
         return events

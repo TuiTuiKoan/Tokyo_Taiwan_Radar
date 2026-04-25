@@ -5,3 +5,4 @@ deepl==1.21.0
 openai>=1.30.0
 sentry-sdk>=2.0.0
 requests>=2.31.0
+beautifulsoup4>=4.12.0
