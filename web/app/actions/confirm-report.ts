@@ -11,6 +11,13 @@ const SOURCE_SKILL_PATHS: Record<string, string> = {
   taiwan_cultural_center: ".github/skills/taiwan_cultural_center/SKILL.md",
   connpass: ".github/skills/community-platforms/SKILL.md",
   doorkeeper: ".github/skills/community-platforms/SKILL.md",
+  iwafu: ".github/skills/iwafu/SKILL.md",
+  koryu: ".github/skills/koryu/SKILL.md",
+  taioan_dokyokai: ".github/skills/taioan_dokyokai/SKILL.md",
+  taiwan_kyokai: ".github/skills/taiwan_kyokai/SKILL.md",
+  ide_jetro: ".github/skills/ide_jetro/SKILL.md",
+  taiwan_festival_tokyo: ".github/skills/taiwan_festival_tokyo/SKILL.md",
+  arukikata: ".github/skills/arukikata/SKILL.md",
 };
 
 interface ConfirmReportInput {

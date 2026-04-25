@@ -47,6 +47,19 @@ Read this at the start of every session before writing any scraper.
 - Location fields must be stripped of leading label separators — use `_loc()` helper that calls `.lstrip("：；:; \u3000")`. GPT often includes the `会場：` or `場所：` separator as the first character of `location_name`.
 - Apply `_loc()` to both `location_name` and `location_address`.
 - Events with existing `""` in name/description fields need manual DB reset (`null` + `annotation_status = 'pending'`) then re-run `annotator.py`. The `_str()` helper only prevents future empty strings.
+- **Online event location**: When the annotator returns a location that is a URL, or contains `オンライン` / `online` / `zoom` / `teams` / `meet.google`, normalize all 6 location fields manually:
+  ```python
+  patch = {
+      'location_name':       'オンライン',
+      'location_name_zh':    '線上',
+      'location_name_en':    'Online',
+      'location_address':    None,   # never store a URL or meeting link as address
+      'location_address_zh': None,
+      'location_address_en': None,
+  }
+  sb.table('events').update(patch).eq('id', ev_id).execute()
+  ```
+  `location_address = None` for all online events — a meeting URL stored as address breaks map display and the address fallback chain.
 
 ## Admin form (web) — nullable fields
 - `AdminEditClient.tsx` initializes form fields with `event.field ?? ""`, converting `null` → `""`. On save, this writes `""` to the DB — which silences the locale fallback chain in `getEventName`/`getEventDescription`.
@@ -117,7 +130,13 @@ python scraper/backfill_locations.py
 | `peatix.py` | `.github/skills/peatix/SKILL.md` |
 | `taiwan_cultural_center.py` | `.github/skills/taiwan_cultural_center/SKILL.md` |
 | `connpass.py` or `doorkeeper.py` | `.github/skills/community-platforms/SKILL.md` |
-| Other sources | No dedicated SKILL yet — add rule here instead |
+| `iwafu.py` | `.github/skills/iwafu/SKILL.md` |
+| `koryu.py` | `.github/skills/koryu/SKILL.md` |
+| `taioan_dokyokai.py` | `.github/skills/taioan_dokyokai/SKILL.md` |
+| `taiwan_kyokai.py` | `.github/skills/taiwan_kyokai/SKILL.md` |
+| `ide_jetro.py` | `.github/skills/ide_jetro/SKILL.md` |
+| `taiwan_festival_tokyo.py` | `.github/skills/taiwan_festival_tokyo/SKILL.md` |
+| `arukikata.py` | `.github/skills/arukikata/SKILL.md` |
 
 ### 4. dry-run validation — always run before finishing
 ```bash
