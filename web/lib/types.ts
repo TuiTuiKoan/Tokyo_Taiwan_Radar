@@ -83,6 +83,7 @@ export type Category =
   | "academic"
   | "competition"
   | "indigenous"
+  | "history"
   | "report";
 
 export const CATEGORIES: Category[] = [
@@ -104,6 +105,7 @@ export const CATEGORIES: Category[] = [
   "academic",
   "competition",
   "indigenous",
+  "history",
   "report",
 ];
 
@@ -127,7 +129,7 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
   },
   {
     labelKey: "group_society",
-    categories: ["tech", "gender", "geopolitics"],
+    categories: ["tech", "gender", "geopolitics", "history"],
   },
   {
     labelKey: "group_archive",

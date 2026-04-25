@@ -39,7 +39,7 @@ VALID_CATEGORIES = [
     "movie", "performing_arts", "senses", "retail", "nature",
     "tech", "tourism", "lifestyle_food", "books_media", "gender", "geopolitics",
     "art", "lecture", "taiwan_japan", "business", "academic", "competition",
-    "indigenous", "report",
+    "indigenous", "history", "report",
 ]
 
 # ---------------------------------------------------------------------------
@@ -62,12 +62,13 @@ CRITICAL DATE EXTRACTION RULES:
 
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
-2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, taiwan_japan, business, academic, competition, indigenous, report
+2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, taiwan_japan, business, academic, competition, indigenous, history, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
    - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
    - "competition" = contests, competitions, awards, championships, public calls for entries (コンテスト, 大会, 選手権, 公募, コンクール)
    - "academic" = academic research, seminars, symposiums, papers, university events, scholarly conferences
    - "indigenous" = events related to Taiwan's indigenous peoples (原住民族), tribal culture, indigenous arts or languages (アミ族, パイワン族, タイヤル族, etc.)
+   - "history" = historical events, exhibitions on history, cultural heritage, archives, museums, war memory, historical figures
    - "movie" = film screenings, movie events, documentary showings, film festivals. IMPORTANT: any event with 上映, 映画, film, screening, cinema in its title or description MUST include "movie" as a category, even if it also involves talks or other elements.
    - "performing_arts" = music, concerts, live performances, dance, theater, stage shows, opera (but NOT film screenings)
    - "senses" = art, exhibitions, photography, design, workshops, creative experiences (but NOT film screenings or book events)
