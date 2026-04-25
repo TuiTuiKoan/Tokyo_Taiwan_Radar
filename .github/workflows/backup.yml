@@ -1,0 +1,45 @@
+name: Daily Backup Snapshot
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Build backup snapshot
+        id: snapshot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          SNAPSHOT_DIR="${RUNNER_TEMP}/tt_backup_snapshot_${GITHUB_RUN_ID}"
+          echo "snapshot_dir=${SNAPSHOT_DIR}" >> "$GITHUB_OUTPUT"
+          python scraper/backup_snapshot.py --output-dir "${SNAPSHOT_DIR}"
+
+      - name: Run restore smoke-check
+        run: python scraper/restore_smoke_check.py --input "${{ steps.snapshot.outputs.snapshot_dir }}"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-snapshot-${{ github.run_id }}
+          path: ${{ steps.snapshot.outputs.snapshot_dir }}
+          if-no-files-found: error
+          retention-days: 30
