@@ -71,6 +71,9 @@ export type Category =
   | "geopolitics"
   | "art"
   | "lecture"
+  | "taiwan_japan"
+  | "business"
+  | "academic"
   | "report";
 
 export const CATEGORIES: Category[] = [
@@ -87,6 +90,9 @@ export const CATEGORIES: Category[] = [
   "geopolitics",
   "art",
   "lecture",
+  "taiwan_japan",
+  "business",
+  "academic",
   "report",
 ];
 
@@ -95,10 +101,10 @@ export const LOCALES: Locale[] = ["zh", "en", "ja"];
 /** Return the best available name for an event given the current locale. */
 export function getEventName(event: Event, locale: Locale): string {
   return (
-    event[`name_${locale}`] ??
-    event.name_ja ??
-    event.name_zh ??
-    event.name_en ??
+    event[`name_${locale}`] ||
+    event.name_ja ||
+    event.name_zh ||
+    event.name_en ||
     "（未命名）"
   );
 }
@@ -109,10 +115,10 @@ export function getEventDescription(
   locale: Locale
 ): string | null {
   return (
-    event[`description_${locale}`] ??
-    event.description_ja ??
-    event.description_zh ??
-    event.description_en ??
+    event[`description_${locale}`] ||
+    event.description_ja ||
+    event.description_zh ||
+    event.description_en ||
     null
   );
 }

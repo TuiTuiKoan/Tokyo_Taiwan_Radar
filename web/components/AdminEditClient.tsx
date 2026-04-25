@@ -57,8 +57,18 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
 
   async function handleSave() {
     setSaving(true);
+    // Convert empty strings to null for nullable fields so that
+    // getEventName / getEventDescription can fall back correctly via ||.
+    // Without this, "" gets written to the DB and blocks the fallback chain.
+    const nullify = (v: string) => v.trim() || null;
     const payload = {
       ...form,
+      name_ja: form.name_ja.trim() || event.raw_title || null,
+      name_zh: nullify(form.name_zh),
+      name_en: nullify(form.name_en),
+      description_ja: nullify(form.description_ja),
+      description_zh: nullify(form.description_zh),
+      description_en: nullify(form.description_en),
       start_date: form.start_date || null,
       end_date: form.end_date || null,
       parent_event_id: form.parent_event_id || null,
