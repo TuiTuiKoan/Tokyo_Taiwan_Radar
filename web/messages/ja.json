@@ -153,6 +153,7 @@
     "filterAnnotatedShort": "AI",
     "filterReviewedShort": "人工",
     "filterErrorShort": "失敗",
+    "filterPendingShort": "待機中",
     "selectAll": "全選択",
     "bulkHide": "非公開",
     "bulkShow": "公開",

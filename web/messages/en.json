@@ -153,6 +153,7 @@
     "filterAnnotatedShort": "AI",
     "filterReviewedShort": "Manual",
     "filterErrorShort": "Failed",
+    "filterPendingShort": "Pending",
     "selectAll": "Select all",
     "bulkHide": "Hide",
     "bulkShow": "Show",
