@@ -36,7 +36,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
-  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "other_japan" | "taiwan">("");
+  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "other_japan" | "taiwan">("")
+  const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "error">("");;
 
   const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
   const TAIWAN_MARKERS_ADMIN = ["台北", "台中", "台南", "高雄", "台湾", "台灣"];
@@ -91,6 +92,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         if (isTokyoAddr(addr)) return false;
         if (TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false;
       }
+      if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
       return true;
     });
   }
@@ -390,6 +392,19 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             <option value="taiwan">台灣</option>
           </select>
         </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium">標注狀態</label>
+          <select
+            value={filterAnnotation}
+            onChange={(e) => setFilterAnnotation(e.target.value as any)}
+            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+          >
+            <option value="">全部</option>
+            <option value="annotated">已標注</option>
+            <option value="pending">待重新標注</option>
+            <option value="error">標注失敗</option>
+          </select>
+        </div>
         {filterTimeMode === "past" && (
           <>
             <div className="flex flex-col gap-1">
@@ -412,9 +427,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </div>
           </>
         )}
-        {(filterQ || filterCategory || filterPaid || filterIsActive !== "all" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation) && (
+        {(filterQ || filterCategory || filterPaid || filterIsActive !== "all" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation) && (
           <button
-            onClick={() => { setFilterQ(""); setFilterCategory(""); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); }}
+            onClick={() => { setFilterQ(""); setFilterCategory(""); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); }}
             className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
           >
             清除篩選

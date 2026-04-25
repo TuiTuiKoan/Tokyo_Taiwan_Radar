@@ -5,6 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 const GITHUB_REPO = "TuiTuiKoan/Tokyo_Taiwan_Radar";
 const HISTORY_PATH = ".github/skills/scraper-expert/history.md";
 
+// Maps source_name to the per-source SKILL.md path (if one exists)
+const SOURCE_SKILL_PATHS: Record<string, string> = {
+  peatix: ".github/skills/peatix/SKILL.md",
+  taiwan_cultural_center: ".github/skills/taiwan_cultural_center/SKILL.md",
+  connpass: ".github/skills/community-platforms/SKILL.md",
+  doorkeeper: ".github/skills/community-platforms/SKILL.md",
+};
+
 interface ConfirmReportInput {
   reportId: string;
   eventId: string;
@@ -12,6 +20,8 @@ interface ConfirmReportInput {
   reportTypes: string[];
   eventName: string;
   sourceName: string | null;
+  currentCategory?: string[] | null;
+  correctCategory?: string[] | null;
 }
 
 interface ConfirmReportResult {
@@ -66,9 +76,39 @@ export async function confirmReport(
     return { ok: false, githubUpdated: false, error: eventError.message };
   }
 
-  // 3. Append entry to scraper-expert history.md via GitHub API
-  const githubUpdated = await appendToHistoryFile(input);
+  // 3. If wrongCategory report and admin provided correct categories, save to category_corrections
+  if (
+    input.reportTypes.includes("wrongCategory") &&
+    input.correctCategory &&
+    input.correctCategory.length > 0
+  ) {
+    // Fetch raw_title + raw_description for the correction record
+    const { data: eventData } = await supabase
+      .from("events")
+      .select("raw_title, raw_description")
+      .eq("id", input.eventId)
+      .single();
 
+    await supabase.from("category_corrections").upsert(
+      {
+        event_id: input.eventId,
+        raw_title: eventData?.raw_title ?? null,
+        raw_description: eventData?.raw_description ?? null,
+        ai_category: input.currentCategory ?? [],
+        corrected_category: input.correctCategory,
+        corrected_by: user.id,
+      },
+      { onConflict: "event_id" }
+    );
+  }
+
+  // 4. Append entry to scraper-expert history.md via GitHub API
+  const githubUpdated = await appendToHistoryFile(input);
+  // 4. Append "Pending Rule" to per-source SKILL.md if one exists
+  const skillPath = input.sourceName ? SOURCE_SKILL_PATHS[input.sourceName] : undefined;
+  if (skillPath) {
+    await appendPendingRuleToSkill(skillPath, input);
+  }
   return { ok: true, githubUpdated };
 }
 
@@ -150,5 +190,65 @@ async function appendToHistoryFile(
   } catch (err) {
     console.error("[confirm-report] GitHub API error:", err);
     return false;
+  }
+}
+
+async function appendPendingRuleToSkill(
+  skillPath: string,
+  input: ConfirmReportInput
+): Promise<void> {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return;
+
+  const apiBase = `https://api.github.com/repos/${GITHUB_REPO}/contents/${skillPath}`;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+
+  try {
+    const getRes = await fetch(apiBase, { headers });
+    if (!getRes.ok) return;
+    const fileData = await getRes.json();
+    const currentContent = Buffer.from(fileData.content, "base64").toString("utf-8");
+    const sha: string = fileData.sha;
+
+    const date = new Date().toISOString().slice(0, 10);
+    const types = input.reportTypes.join(", ");
+    const notes = input.adminNotes?.trim() || "—";
+    const newEntry = [
+      `### ${date} — ${input.eventName}`,
+      `- **Report type:** ${types}`,
+      `- **Admin notes:** ${notes}`,
+      `- **Action needed:** Investigate and add scraper filter, field correction, or category rule.`,
+      "",
+    ].join("\n");
+
+    const SECTION_HEADER = "## Pending Rules\n\n<!-- Added automatically by confirm-report -->";
+    let updatedContent: string;
+
+    if (currentContent.includes("## Pending Rules")) {
+      // Insert after the section header
+      updatedContent = currentContent.replace(
+        /## Pending Rules\n+<!-- Added automatically by confirm-report -->\n+/,
+        `## Pending Rules\n\n<!-- Added automatically by confirm-report -->\n\n${newEntry}`
+      );
+    } else {
+      // Append new section at the end
+      updatedContent = currentContent.trimEnd() + "\n\n" + SECTION_HEADER + "\n\n" + newEntry;
+    }
+
+    await fetch(apiBase, {
+      method: "PUT",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: `docs(skills): add pending rule — ${input.eventName}`,
+        content: Buffer.from(updatedContent, "utf-8").toString("base64"),
+        sha,
+      }),
+    });
+  } catch (err) {
+    console.error("[confirm-report] per-source SKILL.md update error:", err);
   }
 }
