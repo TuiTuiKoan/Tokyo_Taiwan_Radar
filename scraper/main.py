@@ -58,6 +58,7 @@ from sources.jinf import JinfScraper
 from sources.jats import JatsScraper
 from sources.waseda_taiwan import WasedaTaiwanScraper
 from sources.taiwanshi import TaiwanshiScraper
+from sources.tobunken import TobunkenScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -98,6 +99,7 @@ SCRAPERS = [
     JatsScraper(),
     WasedaTaiwanScraper(),
     TaiwanshiScraper(),
+    TobunkenScraper(),
 ]
 
 

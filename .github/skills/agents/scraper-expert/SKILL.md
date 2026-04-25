@@ -161,6 +161,13 @@ applyTo: scraper/sources/<source_name>.py
 - **Online suffix uses both `および` and `及び`**: Same meaning, different rendering. Include both in the venue split pattern.
 - **Meetings are nationwide, not Tokyo-only**: Physical venues are across Japan (Osaka, Nagoya, Kobe, etc.). All have online participation. Include all meetings regardless of physical location.
 
+## tobunken-specific
+- **No pagination — single page with 1500+ entries**: The listing page loads all entries at once. Do NOT attempt pagination or RSS; just filter in-memory after one `requests.get`.
+- **href has trailing `\n`**: BeautifulSoup returns href values with trailing newline on this site. Always `.strip()` href before use.
+- **LOOKBACK_DAYS = 365 is intentional**: Taiwan/maritime-themed seminars occur ~3–5 per year. 180 days would miss most of them.
+- **Broad keyword filter (user intent)**: Include 海洋史, 交流史, 物質史, 海域, 東南アジア, 琉球 even without explicit Taiwan mention. This is intentional — user requested maritime/exchange history coverage.
+- **Primary date from `当日期間：YYYYMMDD`**: Footer metadata line is the most reliable date source. Fallback to `日時：` label. Never use `掲載期間：` (display period).
+
 ## DeepL Tracking
 - Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
 - Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
@@ -264,6 +271,7 @@ python scraper/backfill_locations.py
 | `tuat_global.py` | `.github/skills/sources/tuat_global/SKILL.md` |
 | `jinf.py` | `.github/skills/sources/jinf/SKILL.md` |
 | `taiwanshi.py` | `.github/skills/sources/taiwanshi/SKILL.md` |
+| `tobunken.py` | `.github/skills/sources/tobunken/SKILL.md` |
 
 ### 4. dry-run validation — always run before finishing
 ```bash
