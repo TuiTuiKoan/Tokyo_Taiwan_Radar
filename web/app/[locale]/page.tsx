@@ -15,6 +15,7 @@ interface PageProps {
     to?: string;
     paid?: string;
     timeMode?: string; // "active" | "past"
+    location?: string; // "tokyo" | "other_japan" | "taiwan"
   }>;
 }
 
@@ -74,6 +75,29 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     query = query.eq("is_paid", false);
   } else if (sp.paid === "paid") {
     query = query.eq("is_paid", true);
+  }
+
+  // Location filter
+  // Tokyo markers used for classification
+  const TOKYO_MARKERS = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
+  const TAIWAN_MARKERS = ["台北", "台中", "台南", "高雄", "台湾", "台灣"];
+  if (sp.location === "tokyo") {
+    // NULL/empty OR contains a Tokyo marker
+    const conds = [
+      "location_address.is.null",
+      "location_address.eq.",
+      ...TOKYO_MARKERS.map((m) => `location_address.ilike.%${m}%`),
+    ].join(",");
+    query = query.or(conds);
+  } else if (sp.location === "taiwan") {
+    const conds = TAIWAN_MARKERS.map((m) => `location_address.ilike.%${m}%`).join(",");
+    query = query.or(conds);
+  } else if (sp.location === "other_japan") {
+    // Must have a non-empty address that is neither Tokyo nor Taiwan
+    query = query.not("location_address", "is", null).neq("location_address", "");
+    for (const m of [...TOKYO_MARKERS, ...TAIWAN_MARKERS]) {
+      query = query.not("location_address", "ilike", `%${m}%`);
+    }
   }
 
   const { data: events, error } = await query;

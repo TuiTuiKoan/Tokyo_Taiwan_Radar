@@ -36,6 +36,14 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "other_japan" | "taiwan">("");
+
+  const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
+  const TAIWAN_MARKERS_ADMIN = ["台北", "台中", "台南", "高雄", "台湾", "台灣"];
+  function isTokyoAddr(addr: string | null | undefined): boolean {
+    if (!addr || addr.trim() === "") return true;
+    return TOKYO_MARKERS_ADMIN.some((m) => addr.includes(m));
+  }
 
   function getFiltered(list: Event[]) {
     const today = new Date();
@@ -71,6 +79,17 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           const d = e.start_date ? new Date(e.start_date) : null;
           if (!d || d > new Date(filterDateTo + "T23:59:59")) return false;
         }
+      }
+      if (filterLocation === "tokyo") {
+        if (!isTokyoAddr(e.location_address)) return false;
+      } else if (filterLocation === "taiwan") {
+        const addr = e.location_address || "";
+        if (!TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false;
+      } else if (filterLocation === "other_japan") {
+        const addr = e.location_address || "";
+        if (!addr.trim()) return false;
+        if (isTokyoAddr(addr)) return false;
+        if (TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false;
       }
       return true;
     });
@@ -358,6 +377,19 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             <option value="past">歷史</option>
           </select>
         </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium">地點</label>
+          <select
+            value={filterLocation}
+            onChange={(e) => setFilterLocation(e.target.value as any)}
+            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+          >
+            <option value="">全部地點</option>
+            <option value="tokyo">東京</option>
+            <option value="other_japan">日本其他城市</option>
+            <option value="taiwan">台灣</option>
+          </select>
+        </div>
         {filterTimeMode === "past" && (
           <>
             <div className="flex flex-col gap-1">
@@ -380,9 +412,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </div>
           </>
         )}
-        {(filterQ || filterCategory || filterPaid || filterIsActive !== "all" || filterTimeMode !== "active" || filterDateFrom || filterDateTo) && (
+        {(filterQ || filterCategory || filterPaid || filterIsActive !== "all" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation) && (
           <button
-            onClick={() => { setFilterQ(""); setFilterCategory(""); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); }}
+            onClick={() => { setFilterQ(""); setFilterCategory(""); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); }}
             className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
           >
             清除篩選

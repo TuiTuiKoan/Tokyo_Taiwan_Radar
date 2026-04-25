@@ -22,7 +22,12 @@
     "search": "Search",
     "searchPlaceholder": "Search events...",
     "reset": "Clear filters",
-    "apply": "Apply filters"
+    "apply": "Apply filters",
+    "location": "Location",
+    "allLocations": "All Locations",
+    "locationTokyo": "Tokyo",
+    "locationOtherJapan": "Other Japan cities",
+    "locationTaiwan": "Taiwan"
   },
   "categories": {
     "movie": "Film",
@@ -38,6 +43,9 @@
     "geopolitics": "International Relations",
     "art": "Art",
     "lecture": "Lecture",
+    "taiwan_japan": "Taiwan–Japan Relations",
+    "business": "Business",
+    "academic": "Academic",
     "report": "Report"
   },
   "event": {

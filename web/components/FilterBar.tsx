@@ -14,6 +14,7 @@ interface Props {
     to?: string;
     paid?: string;
     timeMode?: string;
+    location?: string;
   };
 }
 
@@ -35,6 +36,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
     to: currentFilters.to ?? "",
     paid: currentFilters.paid ?? "",
     timeMode: currentFilters.timeMode ?? "active",
+    location: currentFilters.location ?? "",
   });
 
   // Mobile: collapsed by default, expanded if there are active filters
@@ -52,7 +54,7 @@ export default function FilterBar({ locale, currentFilters }: Props) {
   }, [draft, pathname, router]);
 
   const clearAll = useCallback(() => {
-    const reset = { q: "", category: "", from: "", to: "", paid: "", timeMode: "active" };
+    const reset = { q: "", category: "", from: "", to: "", paid: "", timeMode: "active", location: "" };
     setDraft(reset);
     router.push(pathname);
   }, [pathname, router]);
@@ -141,6 +143,21 @@ export default function FilterBar({ locale, currentFilters }: Props) {
               <option value="">{t("allPaid")}</option>
               <option value="free">{t("freeOnly")}</option>
               <option value="paid">{t("paidOnly")}</option>
+            </select>
+          </div>
+
+          {/* Location filter */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("location")}</label>
+            <select
+              value={draft.location}
+              onChange={(e) => set("location", e.target.value)}
+              className="h-12 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{t("allLocations")}</option>
+              <option value="tokyo">{t("locationTokyo")}</option>
+              <option value="other_japan">{t("locationOtherJapan")}</option>
+              <option value="taiwan">{t("locationTaiwan")}</option>
             </select>
           </div>
 

@@ -22,7 +22,12 @@
     "search": "搜尋關鍵字",
     "searchPlaceholder": "搜尋活動名稱或說明...",
     "reset": "清除篩選",
-    "apply": "套用篩選"
+    "apply": "套用篩選",
+    "location": "地點",
+    "allLocations": "全部地點",
+    "locationTokyo": "東京",
+    "locationOtherJapan": "日本其他城市",
+    "locationTaiwan": "台灣"
   },
   "categories": {
     "movie": "電影",
@@ -38,6 +43,9 @@
     "geopolitics": "社會・政治・國際關係",
     "art": "藝術",
     "lecture": "講座",
+    "taiwan_japan": "台日交流",
+    "business": "商務",
+    "academic": "學術",
     "report": "活動紀錄"
   },
   "event": {
