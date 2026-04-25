@@ -562,16 +562,16 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("annotationStatusLabel")}</label>
+            <label className="text-xs text-gray-500 font-medium">{t("annotationLabel")}</label>
             <select
               value={filterAnnotation}
               onChange={(e) => setFilterAnnotation(e.target.value as any)}
               className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("filterAll")}</option>
-              <option value="annotated">{t("annotated")}</option>
-              <option value="reviewed">{t("reviewed")}</option>
-              <option value="error">{t("error")}</option>
+              <option value="annotated">{t("filterAnnotatedShort")}</option>
+              <option value="reviewed">{t("filterReviewedShort")}</option>
+              <option value="error">{t("filterErrorShort")}</option>
             </select>
           </div>
           {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "active" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation || filterSource) && (
@@ -641,9 +641,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
-                <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_paid")}>{t("isPaid")}{sortArrow("is_paid")}</th>
+                <th className="py-2 pr-4 font-medium">{t("source")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationLabel")}{sortArrow("annotation_status")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_active")}>{t("isActive")}{sortArrow("is_active")}</th>
                 <th className="py-2" />
               </tr>
@@ -660,8 +659,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("raw_title")}>{t("name")}{sortArrow("raw_title")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
-                <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
+                <th className="py-2 pr-4 font-medium">{t("source")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationLabel")}{sortArrow("annotation_status")}</th>
                 <th className="py-2" />
               </tr>
             )}
@@ -741,15 +740,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     <span className={`text-xs px-2 py-0.5 rounded-full ${getAnnotationBadgeClass(event.annotation_status)}`}>
                       {getAnnotationLabel(event.annotation_status)}
                     </span>
-                  </td>
-                  <td className="py-2 pr-4">
-                    {event.is_paid === false ? (
-                      <span className="text-blue-600 text-xs">{tEvent("free")}</span>
-                    ) : event.is_paid === true ? (
-                      <span className="text-amber-600 text-xs">{tEvent("paid")}</span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">—</span>
-                    )}
                   </td>
                   <td className="py-2 pr-4">
                     <button
