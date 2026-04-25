@@ -217,19 +217,48 @@ async function appendToHistoryFile(
     const types = baseTypes.join(", ");
     const notes = input.adminNotes?.trim() || "—";
     const source = input.sourceName ?? "unknown";
+
+    // Before / After diff for category changes
+    const isWrongCat = input.reportTypes.includes("wrongCategory");
+    const finalCat = (input.correctCategory && input.correctCategory.length > 0)
+      ? input.correctCategory
+      : (input.suggestedCategory && input.suggestedCategory.length > 0)
+        ? input.suggestedCategory
+        : null;
+    const beforeLine = isWrongCat && (input.currentCategory && input.currentCategory.length > 0)
+      ? `**Before (AI category):** ${input.currentCategory.join(", ")}\n`
+      : "";
+    const afterLine = isWrongCat
+      ? `**After (corrected):** ${finalCat ? finalCat.join(", ") : "cleared — re-annotation triggered"}\n`
+      : "";
+
     const fieldsLine = wrongFields.length > 0
       ? `**Wrong fields:** ${wrongFields.join(", ")}\n`
       : "";
     const scraperNote = hasScraperOnlyFields
       ? `**⚠ Scraper fix needed:** Fields [${wrongFields.filter(f => SCRAPER_FIELDS.includes(f)).join(", ")}] can only be fixed in the scraper source, not by re-annotation.\n`
       : "";
-    const actionLine = wrongFields.some(f => f in ANNOTATOR_FIELDS)
-      ? "Event deactivated; annotatable fields nulled out; re-annotation triggered (annotation_status=pending). Will auto-reactivate after annotator runs."
-      : "Event deactivated (is_active=false), re-annotation triggered (annotation_status=pending).";
+
+    // Action description
+    let actionLine: string;
+    if (input.reportTypes.includes("irrelevant")) {
+      actionLine = "Event hidden (is_active=false). Irrelevant content.";
+    } else if (isWrongCat && finalCat) {
+      actionLine = "Category corrected inline — event remains active (is_active=true, annotation_status=annotated).";
+    } else if (isWrongCat && !finalCat) {
+      actionLine = "Category cleared — re-annotation triggered (annotation_status=pending).";
+    } else if (wrongFields.some(f => f in ANNOTATOR_FIELDS)) {
+      actionLine = "Annotatable fields nulled out — re-annotation triggered. Will auto-reactivate after annotator runs.";
+    } else {
+      actionLine = "Event deactivated — re-annotation triggered (annotation_status=pending).";
+    }
+
     const newEntry = [
       `## ${date} — ${input.eventName} [${source}] — user report confirmed`,
       "",
       `**Report types:** ${types}`,
+      beforeLine.trimEnd(),
+      afterLine.trimEnd(),
       fieldsLine.trimEnd(),
       scraperNote.trimEnd(),
       `**Admin notes:** ${notes}`,
@@ -310,13 +339,25 @@ async function appendPendingRuleToSkill(
     const scraperNote = scraperFields.length > 0
       ? `- **⚠ Scraper fix needed for:** ${scraperFields.join(", ")} — investigate selector/parsing logic.\n`
       : "";
+
+    // Classifier hint: only when wrongCategory + correction provided + admin left notes
+    const finalCat = (input.correctCategory && input.correctCategory.length > 0)
+      ? input.correctCategory
+      : (input.suggestedCategory && input.suggestedCategory.length > 0)
+        ? input.suggestedCategory
+        : null;
+    const classifierHint = input.reportTypes.includes("wrongCategory") && finalCat
+      ? `- **Classifier hint:** AI labelled as [${(input.currentCategory ?? []).join(", ") || "unknown"}] → should be [${finalCat.join(", ")}]. Admin notes: "${notes}". Update annotator prompt or category_corrections if this pattern recurs.\n`
+      : "";
+
     const newEntry = [
       `### ${date} — ${input.eventName}`,
       `- **Report type:** ${types}`,
       fieldsLine.trimEnd(),
       scraperNote.trimEnd(),
+      classifierHint.trimEnd(),
       `- **Admin notes:** ${notes}`,
-      `- **Action needed:** ${scraperFields.length > 0 ? "Fix scraper field extraction; add test case." : "Re-annotation triggered automatically."}`,
+      `- **Action needed:** ${scraperFields.length > 0 ? "Fix scraper field extraction; add test case." : finalCat ? "Category corrected — monitor if same event type keeps misfiring; add to annotator prompt if pattern." : "Re-annotation triggered automatically."}`,
       "",
     ].filter(line => line !== "").join("\n") + "\n";
 

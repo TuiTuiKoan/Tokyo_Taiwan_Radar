@@ -239,7 +239,14 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                     disabled={saving === row.id}
                     className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 disabled:opacity-40 transition"
                   >
-                    {saving === row.id ? "…" : t("confirmReport")}
+                    {saving === row.id ? "…" : (() => {
+                      if (row.report_types.includes("irrelevant")) return t("actionHide");
+                      if (row.report_types.includes("wrongCategory")) {
+                        const cats = correctCategory[row.id] ?? row.suggested_category ?? [];
+                        return cats.length > 0 ? t("actionApplyCategory") : t("actionReannotate");
+                      }
+                      return t("actionReannotate");
+                    })()}
                   </button>
                   <button
                     onClick={() => handleDismiss(row.id)}
