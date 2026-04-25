@@ -33,6 +33,23 @@ SOURCE_NAME = "koryu"
 _TOKYO_MARKERS = ["東京", "港区", "千代田区", "新宿区", "渋谷区", "中央区", "台東区",
                   "文京区", "豊島区", "品川区", "目黒区", "江東区", "墨田区"]
 
+# Taiwan office tags from koryu.or.jp DNN CMS breadcrumb
+# The breadcrumb reads 'お知らせ > イベント・セミナー情報 > [OFFICE_TAG]'
+# Events tagged with these are organised by Taiwan offices, not Japan offices.
+_TAIWAN_OFFICE_TAGS = {"台北", "台中", "高雄", "台南", "桃園", "新竹", "基隆", "嘉義"}
+
+
+def _extract_office_tag(body_text: str) -> Optional[str]:
+    """Extract the DNN CMS office location tag from the breadcrumb.
+
+    Koryu's DNN CMS navigation renders as plain text like:
+        'お知らせイベント・セミナー情報台北'
+    where '台北' is the office/category tag.
+    Returns the tag string (e.g. '台北', '東京') or None.
+    """
+    m = re.search(r'イベント・セミナー情報\s*([\u4e00-\u9fa5]{1,6})', body_text)
+    return m.group(1).strip() if m else None
+
 # Date formats used on the site
 _DATE_PATTERNS = [
     (re.compile(r'(\d{4})年(\d{1,2})月(\d{1,2})日'), '%Y年%m月%d日'),
@@ -251,6 +268,13 @@ class KoryuScraper(BaseScraper):
         venue = _extract_venue(body_text) or ""
         # Fallback: use venue name as address when no dedicated 所在地/住所 section
         location_address = _extract_location_address(body_text) or (venue if venue else None)
+
+        # Skip events organised by Taiwan offices (not held in Japan)
+        # The DNN CMS breadcrumb exposes the office tag: 'イベント・セミナー情報台北'
+        office_tag = _extract_office_tag(body_text)
+        if office_tag in _TAIWAN_OFFICE_TAGS:
+            logger.debug("Skipping Taiwan-office event (tag=%r): %s", office_tag, url)
+            return None
 
         title = item["title"]
         source_id = f"koryu_{item['item_id']}"

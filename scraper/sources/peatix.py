@@ -346,24 +346,46 @@ class PeatixScraper(BaseScraper):
             date_block = f"DATE AND TIME: {dt_match.group(1).strip()}\n\n"
 
         # --- Location ---
-        location_name = (
-            _safe_text(page, ".venue-name")
-            or _safe_text(page, ".location")
-            or _safe_text(page, "[class*='venue']")
-        )
-        location_address = (
-            _safe_text(page, ".venue-address")
-            or _safe_text(page, "[class*='address']")
-        )
-        # Regex fallback: extract from full page_text when CSS selectors miss
+        # Primary: LOCATION block from page text.
+        # Peatix renders: "LOCATION\n\n<venue>\n\n<address>\n\nJapan"
+        # The double blank line is critical — a single-newline regex will capture empty string.
+        location_name = None
+        location_address = None
+        loc_block_m = re.search(r'LOCATION\n\n(.{3,100})\n\n([^\n]{3,200})', page_text)
+        if loc_block_m:
+            location_name = loc_block_m.group(1).strip()
+            addr_candidate = loc_block_m.group(2).strip()
+            # Skip generic country labels
+            if addr_candidate.lower() not in ('japan', 'online', 'オンライン'):
+                location_address = addr_candidate
+
+        # CSS fallbacks when LOCATION block is absent
         if not location_name:
-            loc_m = re.search(r'LOCATION\s*\n(.{3,100})', page_text)
-            if loc_m:
-                location_name = loc_m.group(1).strip()
+            location_name = (
+                _safe_text(page, ".venue-name")
+                or _safe_text(page, "[class*='venue']")
+            )
+            if location_name:
+                location_name = location_name.lstrip("：；:; \u3000会場所").strip() or None
+        if not location_address:
+            location_address = (
+                _safe_text(page, ".venue-address")
+                or _safe_text(page, "[class*='address']")
+            )
+
+        # Regex fallback for address (postal code or Tokyo address)
         if not location_address:
             addr_m = re.search(r'(?:〒\d{3}-\d{4}[^\n]*|東京都[^\s,，\n]{3,60})', page_text)
             if addr_m:
                 location_address = addr_m.group(0).strip()
+
+        # Final fallback: derive location_name from location_address, or detect online events
+        if not location_name:
+            if location_address:
+                location_name = location_address
+            elif re.search(r'(?:オンライン|Online|ONLINE|online|ライブ配信|配信のみ)', page_text):
+                location_name = 'オンライン'
+                location_address = 'オンライン'
 
         # --- Price ---
         # Peatix shows "無料" or ticket prices

@@ -68,35 +68,46 @@ When Peatix changes its page structure and selectors break:
 
 ## Location Extraction
 
-### CSS selectors (primary)
+### Primary: LOCATION block regex
+Peatix renders venues in a fixed 3-line block: `LOCATION\n\n<venue>\n\n<address>`.
+The **double blank line** is structural — a single-newline regex captures empty string.
+
 ```python
-location_name = (
-    _safe_text(page, ".venue-name")
-    or _safe_text(page, ".location")
-    or _safe_text(page, "[class*='venue']")
-)
-location_address = (
-    _safe_text(page, ".venue-address")
-    or _safe_text(page, "[class*='address']")
-)
+loc_block_m = re.search(r'LOCATION\n\n(.{3,100})\n\n([^\n]{3,200})', page_text)
+if loc_block_m:
+    location_name = loc_block_m.group(1).strip()
+    addr_candidate = loc_block_m.group(2).strip()
+    if addr_candidate.lower() not in ('japan', 'online', 'オンライン'):
+        location_address = addr_candidate
 ```
 
-### Regex fallback (when CSS selectors miss)
-After the CSS block, apply these fallbacks against `page_text` (full `body` inner_text):
+### CSS fallbacks (when LOCATION block absent)
 ```python
 if not location_name:
-    loc_m = re.search(r'LOCATION\s*\n(.{3,100})', page_text)
-    if loc_m:
-        location_name = loc_m.group(1).strip()
+    location_name = (
+        _safe_text(page, ".venue-name")
+        or _safe_text(page, "[class*='venue']")
+    )
+    # Do NOT use ".location" — it matches unrelated elements on the page
+if not location_address:
+    location_address = (
+        _safe_text(page, ".venue-address")
+        or _safe_text(page, "[class*='address']")
+    )
+```
+
+### Address regex fallback
+```python
 if not location_address:
     addr_m = re.search(r'(?:〒\d{3}-\d{4}[^\n]*|東京都[^\s,，\n]{3,60})', page_text)
     if addr_m:
         location_address = addr_m.group(0).strip()
 ```
-The `LOCATION` heading (all-caps English) is Peatix's standard section label for venue name. The address regex matches either a postal code line (`〒NNN-NNNN…`) or a partial Tokyo address (`東京都…`) up to the first space/comma.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
+| `location_name` set to wrong venue (e.g. 赤坂) | `.location` CSS selector matching unrelated element | Remove `.location` selector; rely on LOCATION block regex |
+| `location_name`/`location_address` = `台南`/`台北` etc. | LOCATION regex failed (single-newline bug), address fell through to annotation | Use `LOCATION\n\n` double-newline regex |
 | All events missing `start_date` | Peatix changed date element markup | Use Chrome MCP to find new selector; update `_extract_peatix_dates()` |
 | Events from outside Tokyo | `l=JP-13` ignored or URL changed | Verify search URL still includes `l=JP-13` |
 | Duplicate events | `seen_urls` not shared across keyword loops | Ensure `seen_urls` is initialized once in `scrape()`, not per-keyword |
