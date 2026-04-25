@@ -1,14 +1,16 @@
 """
 Daily automated research: discovers new Taiwan-related event sources in Japan.
 
-Uses gpt-4o-search-preview (real web search) with 5 parallel CategoryAgents,
-one per domain. Each agent searches independently, then results are merged,
-Playwright-verified, and reported via LINE.
+Uses gpt-4o-search-preview (real web search) with 7 CategoryAgents that rotate
+Mon–Sun (one per day). Each run searches one category, Playwright-verifies
+results, upserts to research_sources, and reports via LINE.
 
 Usage:
-    python researcher.py                  # full research run
-    python researcher.py --dry-run        # run without saving to DB or LINE
-    python researcher.py --test-line      # test LINE notification only
+    python researcher.py                           # today's scheduled category
+    python researcher.py --category university     # override to specific category
+    python researcher.py --dry-run                 # run without saving to DB or LINE
+    python researcher.py --dry-run --category social
+    python researcher.py --test-line               # test LINE notification only
 """
 
 import json
@@ -100,7 +102,61 @@ SEARCH_CATEGORIES = [
             "Check platforms like Connpass, Doorkeeper, or dedicated community sites."
         ),
     },
+    {
+        "id": "performing_arts_search",
+        "label": "🎭 表演・映画",
+        "query_ja": "台湾 コンサート 公演 映画 上映 東京 2026 チケット eplus pia",
+        "query_en": "Taiwan concert performing arts film screening Japan 2026 ticket",
+        "system_prompt": (
+            "You are a research analyst specializing in Taiwan performing arts and cinema events in Japan. "
+            "Search the web for websites, ticketing platforms, or event listing pages that regularly "
+            "feature Taiwan-related concerts, theater or dance performances, or film screenings in Japan. "
+            "Check major ticketing platforms (eplus.jp, pia.jp, ticket.rakuten.co.jp, l-tike.com), "
+            "cinema listing sites (cinematoday.jp, filmarks.com), and venue websites. "
+            "Also look for Taiwan artist agency pages, Taiwan film distributor sites operating in Japan, "
+            "or film festival pages (台湾映画祭, etc.). "
+            "Prioritize pages with a structured and regularly updated event listing."
+        ),
+    },
+    {
+        "id": "senses_research",
+        "label": "🧬 五感研究",
+        "query_ja": "台湾 五感 体験 研究 論文 食文化 香り 感覚 アート 2025 2026 jstage OR cinii",
+        "query_en": "Taiwan five senses sensory experience research paper academic publication 2025 2026",
+        "system_prompt": (
+            "You are a research analyst specializing in academic publications on Taiwan sensory culture. "
+            "Search academic databases (J-STAGE at jstage.jst.go.jp, CiNii at ci.nii.ac.jp, "
+            "Google Scholar, ResearchGate, and Taiwan scholarly databases) for recent journal articles, "
+            "conference papers, or research reports related to Taiwan sensory experiences (五感体験), "
+            "including food culture, scent or aroma events, tactile art, sound art, or multisensory "
+            "cultural programming originating from or about Taiwan. "
+            "Also search for new publications from Taiwan academic groups or universities on "
+            "sensory culture or cross-cultural sensory studies. "
+            "Return pages with a publication list or index, not individual article pages."
+        ),
+    },
 ]
+
+# Maps Python weekday (Monday=0 … Sunday=6) to a SEARCH_CATEGORIES entry id.
+# 7 categories × 7 days — each category is searched exactly once per week.
+WEEKDAY_SCHEDULE: dict[int, str] = {
+    0: "university",              # Monday
+    1: "media",                   # Tuesday
+    2: "government",              # Wednesday
+    3: "thinktank",               # Thursday
+    4: "social",                  # Friday
+    5: "performing_arts_search",  # Saturday
+    6: "senses_research",         # Sunday
+}
+
+WEEKDAY_NAMES = ["一", "二", "三", "四", "五", "六", "日"]
+
+
+def _schedule_summary() -> str:
+    """One-line weekly schedule overview, e.g. '一🏫  二📰 …'"""
+    cat_label = {cat["id"]: cat["label"].split()[0] for cat in SEARCH_CATEGORIES}
+    return "  ".join(f"{WEEKDAY_NAMES[wd]}{cat_label[WEEKDAY_SCHEDULE[wd]]}" for wd in range(7))
+
 
 SOURCE_SCHEMA = """{
   "sources": [
@@ -368,7 +424,7 @@ def merge_results(results: list[CategoryResult]) -> dict:
     }
 
 
-def _format_line_message(report: dict, results: list[CategoryResult]) -> str:
+def _format_line_message(report: dict, results: list[CategoryResult], category: dict) -> str:
     today = datetime.now(JST).strftime("%Y-%m-%d")
     total_in = sum(r.tokens_in for r in results)
     total_out = sum(r.tokens_out for r in results)
@@ -379,8 +435,8 @@ def _format_line_message(report: dict, results: list[CategoryResult]) -> str:
 
     lines = [
         "📡 Tokyo Taiwan Radar — 每日研究報告",
-        f"日期：{today}",
-        f"模型：gpt-4o-search-preview × {report.get('agents_run', 5)} agents",
+        f"日期：{today}  |  今日類別：{category['label']}",
+        f"模型：gpt-4o-search-preview × 1 agent",
         f"費用：${cost:.4f} USD",
         "",
         "━━━━━━━━━━━━━━━━━━━━",
@@ -388,7 +444,15 @@ def _format_line_message(report: dict, results: list[CategoryResult]) -> str:
         "━━━━━━━━━━━━━━━━━━━━",
     ]
 
-    icons = {"university": "🏫", "media": "📰", "government": "🏛️", "thinktank": "🔬", "social": "💬"}
+    icons = {
+        "university": "🏫",
+        "media": "📰",
+        "government": "🏛️",
+        "thinktank": "🔬",
+        "social": "💬",
+        "performing_arts_search": "🎭",
+        "senses_research": "🧬",
+    }
     feasibility_stars = {"easy": "⭐⭐⭐", "medium": "⭐⭐", "hard": "⭐"}
 
     for i, src in enumerate(verified_sources[:5], 1):
@@ -418,13 +482,32 @@ def _format_line_message(report: dict, results: list[CategoryResult]) -> str:
     if report.get("agents_failed"):
         lines.extend(["", f"⚠️ {report['agents_failed']} 個 agent 執行失敗"])
 
-    lines.extend(["", "━━━━━━━━━━━━━━━━━━━━",
-                  "在 /admin/research 查看完整報告 + 建立爬蟲 Issue"])
+    lines.extend([
+        "",
+        "📅 本週排程：" + _schedule_summary(),
+        "",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "在 /admin/research 查看完整報告 + 建立爬蟲 Issue",
+    ])
     return "\n".join(lines)
 
 
-def run_research(dry_run: bool = False) -> None:
-    logger.info("Starting daily research (dry_run=%s)...", dry_run)
+def run_research(dry_run: bool = False, category_id: str | None = None) -> None:
+    # Resolve which category to run today
+    today_wd = datetime.now(JST).weekday()
+    resolved_id = category_id or WEEKDAY_SCHEDULE.get(today_wd, "university")
+    category_map = {cat["id"]: cat for cat in SEARCH_CATEGORIES}
+    category = category_map.get(resolved_id)
+    if not category:
+        logger.error(
+            "Unknown category_id '%s'. Valid: %s", resolved_id, list(category_map)
+        )
+        return
+
+    logger.info(
+        "Starting research: category=%s (%s), weekday=%d, dry_run=%s",
+        resolved_id, category["label"], today_wd, dry_run,
+    )
     ai = _get_openai()
     sb = None if dry_run else _get_supabase()
 
@@ -434,19 +517,20 @@ def run_research(dry_run: bool = False) -> None:
         known_urls = _get_known_urls(sb)
         logger.info("Known URLs to skip: %d", len(known_urls))
 
-    # Run 5 parallel agents
-    logger.info("Launching %d CategoryAgents in parallel...", len(SEARCH_CATEGORIES))
-    results = run_all_agents(ai, known_urls)
+    # Run single agent for today's scheduled category
+    agent = CategoryAgent(category, ai, known_urls)
+    result = agent.run()
+    results = [result]
     report = merge_results(results)
 
     verified = sum(1 for s in report["top_sources"] if s.get("url_verified"))
     logger.info(
-        "Research complete: %d total sources, %d verified, %d agents failed",
-        len(report["top_sources"]), verified, report["agents_failed"],
+        "Research complete: %d sources, %d verified, error=%s",
+        len(report["top_sources"]), verified, result.error,
     )
 
-    total_in = sum(r.tokens_in for r in results)
-    total_out = sum(r.tokens_out for r in results)
+    total_in = result.tokens_in
+    total_out = result.tokens_out
     cost = (total_in * 30 + total_out * 60) / 1_000_000
 
     if dry_run:
@@ -482,18 +566,18 @@ def run_research(dry_run: bool = False) -> None:
     # Log cost to scraper_runs
     try:
         sb.table("scraper_runs").insert({
-            "source": "researcher",
+            "source": f"researcher/{resolved_id}",
             "events_processed": len(report["top_sources"]),
             "openai_tokens_in": total_in,
             "openai_tokens_out": total_out,
             "cost_usd": round(cost, 6),
-            "notes": f"gpt-4o-search-preview × {len(SEARCH_CATEGORIES)} agents, {verified} verified",
+            "notes": f"gpt-4o-search-preview × 1 agent ({category['label']}), {verified} verified",
         }).execute()
     except Exception:
         pass
 
     # Send LINE
-    msg = _format_line_message(report, results)
+    msg = _format_line_message(report, results, category)
     send_line_message(msg)
     logger.info("Daily research complete.")
 
@@ -505,12 +589,21 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-    if "--test-line" in sys.argv:
+    # Parse --category NAME or --category=NAME
+    _argv = sys.argv[1:]
+    _category_arg: str | None = None
+    for _i, _arg in enumerate(_argv):
+        if _arg == "--category" and _i + 1 < len(_argv):
+            _category_arg = _argv[_i + 1]
+        elif _arg.startswith("--category="):
+            _category_arg = _arg.split("=", 1)[1]
+
+    if "--test-line" in _argv:
         send_line_message("✅ Tokyo Taiwan Radar LINE 通知測試成功！")
         print("Test message sent.")
-    elif "--dry-run" in sys.argv:
-        run_research(dry_run=True)
+    elif "--dry-run" in _argv:
+        run_research(dry_run=True, category_id=_category_arg)
     else:
-        run_research()
+        run_research(category_id=_category_arg)
 
 
