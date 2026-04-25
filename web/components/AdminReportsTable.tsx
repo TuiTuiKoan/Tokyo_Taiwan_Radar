@@ -16,6 +16,7 @@ export interface ReportRow {
   admin_notes: string | null;
   confirmed_at: string | null;
   created_at: string;
+  suggested_category: string[] | null;
   events: {
     name_ja: string | null;
     name_zh: string | null;
@@ -84,6 +85,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       sourceName: row.events?.source_name ?? null,
       currentCategory: row.events?.category ?? [],
       correctCategory: correctCategory[row.id] ?? null,
+      suggestedCategory: row.suggested_category ?? null,
     });
     if (result.ok) {
       const updatedRow: ReportRow = {
@@ -183,18 +185,39 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                 {row.report_types.includes("wrongCategory") && (
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">{t("correctCategoryLabel")}</label>
+                    {/* Show user's suggested categories as a hint */}
+                    {row.suggested_category && row.suggested_category.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        <span className="text-xs text-gray-400 mr-1">{t("userSuggested")}:</span>
+                        {row.suggested_category.map((cat) => (
+                          <span key={cat} className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                            {tCat(cat as any)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-1.5">
                       {CATEGORIES.map((cat) => {
-                        const selected = (correctCategory[row.id] ?? row.events?.category ?? []).includes(cat);
+                        // Admin selection > user suggestion > current category
+                        const defaultCats = correctCategory[row.id] !== undefined
+                          ? correctCategory[row.id]
+                          : (row.suggested_category && row.suggested_category.length > 0)
+                            ? row.suggested_category
+                            : (row.events?.category ?? []);
+                        const selected = defaultCats.includes(cat);
                         return (
                           <button
                             key={cat}
                             type="button"
                             onClick={() => {
-                              const current = correctCategory[row.id] ?? [...(row.events?.category ?? [])];
+                              const base = correctCategory[row.id] !== undefined
+                                ? correctCategory[row.id]
+                                : (row.suggested_category && row.suggested_category.length > 0)
+                                  ? [...row.suggested_category]
+                                  : [...(row.events?.category ?? [])];
                               const next = selected
-                                ? current.filter((c) => c !== cat)
-                                : [...current, cat];
+                                ? base.filter((c) => c !== cat)
+                                : [...base, cat];
                               setCorrectCategory((p) => ({ ...p, [row.id]: next }));
                             }}
                             className={`text-xs px-2 py-0.5 rounded-full border transition ${

@@ -31,7 +31,8 @@ interface ConfirmReportInput {
   eventName: string;
   sourceName: string | null;
   currentCategory?: string[] | null;
-  correctCategory?: string[] | null;
+  correctCategory?: string[] | null;   // admin-selected (overrides suggestedCategory)
+  suggestedCategory?: string[] | null; // user-submitted suggestion
 }
 
 interface ConfirmReportResult {
@@ -84,12 +85,33 @@ export async function confirmReport(
   }
 
   // 2. Update the event based on what was reported wrong
-  const eventUpdate: Record<string, unknown> = {
-    annotation_status: "pending",
-    is_active: false, // will be re-enabled by annotator after successful re-annotation
-  };
+  const eventUpdate: Record<string, unknown> = {};
+  const isWrongCategory = input.reportTypes.includes("wrongCategory");
+  const isWrongDetails = input.reportTypes.includes("wrongDetails") && wrongFields.length > 0;
+  const isIrrelevant = input.reportTypes.includes("irrelevant");
 
-  if (input.reportTypes.includes("wrongDetails") && wrongFields.length > 0) {
+  if (isWrongCategory) {
+    // Determine the category to apply: admin > user suggestion > keep empty for re-annotation
+    const resolvedCategory = (input.correctCategory && input.correctCategory.length > 0)
+      ? input.correctCategory
+      : (input.suggestedCategory && input.suggestedCategory.length > 0)
+        ? input.suggestedCategory
+        : null;
+
+    if (resolvedCategory) {
+      // Apply category immediately — no need for full re-annotation
+      eventUpdate["category"] = resolvedCategory;
+      eventUpdate["is_active"] = true;
+      eventUpdate["annotation_status"] = "annotated";
+    } else {
+      // No category provided — clear and re-annotate
+      eventUpdate["category"] = [];
+      eventUpdate["is_active"] = false;
+      eventUpdate["annotation_status"] = "pending";
+    }
+  }
+
+  if (isWrongDetails) {
     // Null out annotator-fixable fields so re-annotation fills them fresh
     for (const field of wrongFields) {
       const dbCols = ANNOTATOR_FIELDS[field];
@@ -99,30 +121,35 @@ export async function confirmReport(
         }
       }
     }
-    // For category wrongness combined with wrongDetails
-    if (wrongFields.includes("category") || input.reportTypes.includes("wrongCategory")) {
-      eventUpdate["category"] = [];
-    }
-  } else {
-    // wrongCategory or irrelevant — deactivate
+    // Always re-annotate when details are wrong
     eventUpdate["is_active"] = false;
+    eventUpdate["annotation_status"] = "pending";
   }
 
-  const { error: eventError } = await supabase
-    .from("events")
-    .update(eventUpdate)
-    .eq("id", input.eventId);
-
-  if (eventError) {
-    return { ok: false, githubUpdated: false, error: eventError.message };
+  if (isIrrelevant && !isWrongCategory && !isWrongDetails) {
+    eventUpdate["is_active"] = false;
+    eventUpdate["annotation_status"] = "pending";
   }
 
-  // 3. If wrongCategory report and admin provided correct categories, save to category_corrections
-  if (
-    input.reportTypes.includes("wrongCategory") &&
-    input.correctCategory &&
-    input.correctCategory.length > 0
-  ) {
+  if (Object.keys(eventUpdate).length > 0) {
+    const { error: eventError } = await supabase
+      .from("events")
+      .update(eventUpdate)
+      .eq("id", input.eventId);
+
+    if (eventError) {
+      return { ok: false, githubUpdated: false, error: eventError.message };
+    }
+  }
+
+  // 3. If wrongCategory report: save correction record (admin selection > user suggestion)
+  const finalCategory = (input.correctCategory && input.correctCategory.length > 0)
+    ? input.correctCategory
+    : (input.suggestedCategory && input.suggestedCategory.length > 0)
+      ? input.suggestedCategory
+      : null;
+
+  if (input.reportTypes.includes("wrongCategory") && finalCategory) {
     const { data: eventData } = await supabase
       .from("events")
       .select("raw_title, raw_description")
@@ -135,7 +162,7 @@ export async function confirmReport(
         raw_title: eventData?.raw_title ?? null,
         raw_description: eventData?.raw_description ?? null,
         ai_category: input.currentCategory ?? [],
-        corrected_category: input.correctCategory,
+        corrected_category: finalCategory,
         corrected_by: user.id,
       },
       { onConflict: "event_id" }

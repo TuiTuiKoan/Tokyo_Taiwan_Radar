@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
+import { CATEGORIES, type Category } from "@/lib/types";
 
 interface Props {
   eventId: string;
@@ -40,9 +41,11 @@ const FIELD_I18N: Record<WrongDetailField, string> = {
 
 export default function ReportSection({ eventId, locale }: Props) {
   const t = useTranslations("report");
+  const tCat = useTranslations("categories");
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<ReportType>>(new Set());
   const [wrongFields, setWrongFields] = useState<Set<WrongDetailField>>(new Set());
+  const [suggestedCategories, setSuggestedCategories] = useState<Set<Category>>(new Set());
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   function toggle(type: ReportType) {
@@ -52,6 +55,8 @@ export default function ReportSection({ eventId, locale }: Props) {
         next.delete(type);
         // Clear sub-fields if wrongDetails is deselected
         if (type === "wrongDetails") setWrongFields(new Set());
+        // Clear suggested categories if wrongCategory is deselected
+        if (type === "wrongCategory") setSuggestedCategories(new Set());
       } else {
         next.add(type);
       }
@@ -87,6 +92,9 @@ export default function ReportSection({ eventId, locale }: Props) {
       event_id: eventId,
       report_types: reportTypes,
       locale,
+      suggested_category: selected.has("wrongCategory") && suggestedCategories.size > 0
+        ? Array.from(suggestedCategories)
+        : null,
     });
     if (error) {
       setStatus("error");
@@ -95,6 +103,7 @@ export default function ReportSection({ eventId, locale }: Props) {
       setOpen(false);
       setSelected(new Set());
       setWrongFields(new Set());
+      setSuggestedCategories(new Set());
     }
   }
 
@@ -154,6 +163,39 @@ export default function ReportSection({ eventId, locale }: Props) {
                   ))}
                 </div>
               )}
+
+              {/* Suggested category selector for wrongCategory */}
+              {type === "wrongCategory" && selected.has("wrongCategory") && (
+                <div className="ml-5 mt-1">
+                  <p className="text-xs text-amber-600 mb-1.5">{t("suggestCategoryHint")}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CATEGORIES.map((cat) => {
+                      const isSelected = suggestedCategories.has(cat);
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setSuggestedCategories((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(cat)) next.delete(cat);
+                              else next.add(cat);
+                              return next;
+                            });
+                          }}
+                          className={`text-xs px-2 py-0.5 rounded-full border transition ${
+                            isSelected
+                              ? "bg-amber-500 text-white border-amber-500"
+                              : "border-amber-300 text-amber-700 hover:border-amber-500"
+                          }`}
+                        >
+                          {tCat(cat as any)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
           <div className="flex gap-2 mt-2">
@@ -169,6 +211,7 @@ export default function ReportSection({ eventId, locale }: Props) {
                 setOpen(false);
                 setSelected(new Set());
                 setWrongFields(new Set());
+                setSuggestedCategories(new Set());
               }}
               className="text-xs text-amber-600 px-2 py-1 hover:text-amber-800 transition"
             >
