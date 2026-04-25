@@ -194,7 +194,11 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                     return next;
                   });
                 } else {
-                  applyWith("timeMode", e.target.value);
+                  setDraft((prev) => {
+                    const next = { ...prev, timeMode: e.target.value, from: prev.from || "2024-01-01" };
+                    pushWith(next);
+                    return next;
+                  });
                 }
               }}
               className="h-10 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
