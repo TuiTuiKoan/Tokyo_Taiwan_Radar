@@ -3,6 +3,23 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-26 — DB 「回到過去」：爬蟲 upsert 覆寫手動修正的欄位
+
+**現象:** 全部爬蟲執行後，手動修正的 `location_name`、`location_address`、`name_ja` 等欄位被被覆寫為爬蟲新抜取的原始值。用戶需要重新對這些活動執行標註程序。
+
+**根本原因:** `database.py` 的 `_event_to_row()` 包含 `location_name`、`location_address`、`name_ja`、`raw_description` 等欄位。`upsert_events()` 對所有 `is_active=True` 的事件執行 `ON CONFLICT DO UPDATE`，完全覆寫這些欄位，不論 `annotation_status` 是否為 `annotated`。
+
+**被覆寫的欄位:** `name_ja`, `raw_title`, `raw_description`, `location_name`, `location_address`, `category` (部分保護), `start_date`, `end_date`, `is_paid`, `source_url`
+
+**安全手動修正的欄位（爬蟲不會覆寫）:** `annotation_status`, `name_zh/en`, `description_ja/zh/en`, `location_name_zh/en`, `location_address_zh/en`, `selection_reason`
+
+**教訓:**
+- 手動修正 `location_name`、`location_address`、`name_ja` 等欄位，下次爬蟲執行後就會被覆寫。**永久修正請更改爬蟲抽取邏輯，而不是直接修改 DB。**
+- 第一次遇到這種情況時，先將 DB patch 當临時應急措施，並同步更改爬蟲將未來茇取的資料就是正確的。
+- `is_active=False` 的事件有保護（upsert 完全跳過），但 `is_active=True` 沒有任何保護。
+→ 新增 `database.py upsert — which fields get overwritten` 區段到 SKILL.md。
+
+---
 ## 2026-04-26 — peatix: 桃園区民活動センター triggered 桃園 keyword match
 
 **Error:** 2 peatix events ("スピーチ勉強会" speech practice sessions) were scraped because their venue was 桃園区民活動センター (Nakano, Tokyo). `桃園` is in `TAIWAN_KEYWORDS` as Taoyuan (Taiwan city), but here it refers to a Tokyo neighborhood. The events have zero Taiwan content — the annotator GPT hallucinated a Taiwan-Japan exchange justification in `selection_reason`.
