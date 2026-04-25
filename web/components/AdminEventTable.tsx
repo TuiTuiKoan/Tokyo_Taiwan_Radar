@@ -28,7 +28,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkToggling, setBulkToggling] = useState(false);
 
   // Inline filters
   const [filterQ, setFilterQ] = useState("");
@@ -207,36 +207,19 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     setShowNew(false);
   }
 
-  async function handleDelete(id: string) {
-    if (!window.confirm(t("confirmDelete"))) return;
-    // Soft-delete: set is_active = false instead of removing the row.
-    // This permanently blocks the scraper from re-inserting the event.
-    const { error } = await supabase.from("events").update({ is_active: false }).eq("id", id);
-    if (error) {
-      alert(`刪除失敗：${error.message}`);
-      return;
-    }
-    setEvents((prev) => prev.filter((e) => e.id !== id));
-    setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
-  }
-
-  async function handleBulkDelete() {
+  async function handleBulkToggleActive(targetActive: boolean) {
     if (selected.size === 0) return;
-    const msg = t("confirmBulkDelete", { count: selected.size });
-    if (!window.confirm(msg)) return;
-    setBulkDeleting(true);
+    setBulkToggling(true);
     const ids = Array.from(selected);
-    // Soft-delete: set is_active = false instead of removing rows.
-    // This permanently blocks the scraper from re-inserting these events.
-    const { error } = await supabase.from("events").update({ is_active: false }).in("id", ids);
+    const { error } = await supabase.from("events").update({ is_active: targetActive }).in("id", ids);
     if (error) {
-      alert(`批次刪除失敗：${error.message}`);
-      setBulkDeleting(false);
+      alert(`操作失敗：${error.message}`);
+      setBulkToggling(false);
       return;
     }
-    setEvents((prev) => prev.filter((e) => !selected.has(e.id)));
+    setEvents((prev) => prev.map((e) => selected.has(e.id) ? { ...e, is_active: targetActive } : e));
     setSelected(new Set());
-    setBulkDeleting(false);
+    setBulkToggling(false);
   }
 
   function toggleSelect(id: string) {
@@ -518,14 +501,21 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm">
-          <span className="text-red-700 font-medium">{t("selectedCount", { count: selected.size })}</span>
+        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+          <span className="text-blue-700 font-medium">{t("selectedCount", { count: selected.size })}</span>
           <button
-            onClick={handleBulkDelete}
-            disabled={bulkDeleting}
-            className="ml-auto bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition"
+            onClick={() => handleBulkToggleActive(false)}
+            disabled={bulkToggling}
+            className="ml-auto bg-gray-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50 transition"
           >
-            {bulkDeleting ? "..." : t("bulkDelete")}
+            {bulkToggling ? "..." : t("bulkHide")}
+          </button>
+          <button
+            onClick={() => handleBulkToggleActive(true)}
+            disabled={bulkToggling}
+            className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 transition"
+          >
+            {bulkToggling ? "..." : t("bulkShow")}
           </button>
           <button
             onClick={() => setSelected(new Set())}
@@ -676,9 +666,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       <button onClick={() => handleReannotate(event.id)} className="text-purple-600 hover:underline text-xs">
                         {t("reannotate")}
                       </button>
-                      <button onClick={() => handleDelete(event.id)} className="text-red-500 hover:underline text-xs">
-                        {t("delete")}
-                      </button>
                     </div>
                   </td>
                 </tr>
@@ -728,9 +715,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       </button>
                       <button onClick={() => handleReannotate(event.id)} className="text-purple-600 hover:underline text-xs">
                         {t("reannotate")}
-                      </button>
-                      <button onClick={() => handleDelete(event.id)} className="text-red-500 hover:underline text-xs">
-                        {t("delete")}
                       </button>
                     </div>
                   </td>
