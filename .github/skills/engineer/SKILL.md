@@ -29,6 +29,14 @@ Read this at the start of every session before touching any code.
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 
+## AdminEventTable.tsx — Protected Invariants
+Whenever this file is modified for **any reason**, verify these 3 lines are intact before committing:
+1. **Search filter label**: `{tFilters("search")}` — do NOT revert to `{t("name")}`
+2. **Category filter label** (in filter bar, not table column header): `{tFilters("category")}` — do NOT revert to `{t("category")}`
+3. **Category dropdown button**: `bg-gray-50` — do NOT revert to `bg-white`
+
+These were regressed at least twice (commits `9c4010d`, `01b73a4`) when unrelated changes overwrote them.
+
 ## Scraper Implementation
 
 - Every new scraper source must extend `BaseScraper` (`scraper/sources/base.py`) and implement `scrape() → list[Event]`.

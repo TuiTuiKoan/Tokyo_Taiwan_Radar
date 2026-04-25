@@ -335,7 +335,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         {/* Row 1: 搜尋、類型、地點、票價、時間、日期 */}
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("name")}</label>
+            <label className="text-xs text-gray-500 font-medium">{tFilters("search")}</label>
             <input
               type="search"
               value={filterQ}
@@ -345,12 +345,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             />
           </div>
           <div className="flex flex-col gap-1" ref={catDropdownRef}>
-            <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
+            <label className="text-xs text-gray-500 font-medium">{tFilters("category")}</label>
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setCatDropdownOpen((o) => !o)}
-                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-white hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-gray-50 hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
               >
                 <span className={filterCategories.length > 0 ? "text-green-700 font-medium" : "text-gray-500"}>
                   {filterCategories.length > 0 ? `${t("category")} (${filterCategories.length})` : t("filterAll")}

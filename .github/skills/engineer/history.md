@@ -3,6 +3,15 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-26 - AdminEventTable filter label/style regressions after later commits
+**Error:** Three UI fixes made in commits `dfe6e24` and `3aef2c0` (search label → `tFilters("search")`, category label → `tFilters("category")`, category button `bg-white` → `bg-gray-50`) were silently overwritten when a later commit (`9c4010d`) modified the same file for an unrelated change (reannotate label rename). The regression was only noticed by the user.
+**Fix:** Re-applied all three changes in [fix(web): re-apply admin filter label/style fixes lost in regression].
+**Lesson:** When modifying `AdminEventTable.tsx` for any reason, **always verify** these three invariants before committing:
+1. Search filter label: `tFilters("search")` — NOT `t("name")`
+2. Category filter label: `tFilters("category")` — NOT `t("category")`
+3. Category button: `bg-gray-50` — NOT `bg-white`
+
+---
 ## 2026-04-25 - GitHub Actions env context warning for artifact path
 **Error:** In `.github/workflows/backup.yml`, `upload-artifact` used `${{ env.SNAPSHOT_DIR }}` where `SNAPSHOT_DIR` was set via `$GITHUB_ENV` in a prior step. Static validation reported `Context access might be invalid: SNAPSHOT_DIR`.
 **Fix:** Added `id: snapshot` to the backup step, wrote `snapshot_dir` to `$GITHUB_OUTPUT`, and switched later steps to `${{ steps.snapshot.outputs.snapshot_dir }}`.
