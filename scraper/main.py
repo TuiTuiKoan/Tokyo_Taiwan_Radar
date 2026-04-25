@@ -51,6 +51,7 @@ from sources.ide_jetro import IdeJetroScraper
 from sources.taiwan_matsuri import TaiwanMatsuriScraper
 from sources.eplus import EplusScraper
 from sources.tokyonow import TokyoNowScraper
+from sources.tokyocity_i import TokyoCityIScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -84,6 +85,7 @@ SCRAPERS = [
     TaiwanMatsuriScraper(),
     EplusScraper(),
     TokyoNowScraper(),
+    TokyoCityIScraper(),
 ]
 
 
@@ -149,7 +151,7 @@ def run(dry_run: bool = False, source: str | None = None) -> None:
                         "events_processed": 0,
                         "deepl_chars": 0,
                         "success": False,
-                        "duration_seconds": 0,
+                        "duration_seconds": int(time.time() - scraper_start),
                     }).execute()
                 except Exception:
                     pass
