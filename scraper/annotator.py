@@ -71,10 +71,14 @@ OTHER RULES:
    - "history" = historical events, exhibitions on history, cultural heritage, archives, museums, war memory, historical figures
    - "workshop" = hands-on workshops, experience classes, craft workshops, cooking classes, pottery, weaving, tea ceremony, atelier sessions (体験, ワークショップ, 手作り, クラフト)
    - "movie" = film screenings, movie events, documentary showings, film festivals. IMPORTANT: any event with 上映, 映画, film, screening, cinema in its title or description MUST include "movie" as a category, even if it also involves talks or other elements.
-   - "performing_arts" = music, concerts, live performances, dance, theater, stage shows, opera (but NOT film screenings)
-   - "senses" = art, exhibitions, photography, design, workshops, creative experiences (but NOT film screenings or book events)
-   - "lifestyle_food" = food, cooking, tea, restaurants, cafes, lifestyle events, daily life culture
-   - "books_media" = books, literature, publishing, authors, readings, book launch events, media, journalism
+   - "performing_arts" = LIVE stage performances ONLY: concerts, theater, dance, opera. NOT for film screenings. For Asia/Japan tour events (アジアツアー, 日本ツアー), only use if the Tokyo show is confirmed a live performance.
+   - "senses" = art exhibitions, photography, design shows, creative/visual experiences. NOT for film screenings or book-only events.
+   - "lifestyle_food" = food, cooking, tea ceremony, restaurants, cafes, lifestyle events. Do NOT add taiwan_japan just because the food is Taiwanese — use taiwan_japan only when the event emphasizes bilateral exchange.
+   - "books_media" = books, literature, publishing, authors, readings, book launch events, media, journalism. FORMULA: when title contains 著者名+『書名』 (author + book in 『』) OR ブックサロン/刊行記念/出版記念 → ALWAYS add books_media + lecture + academic. Then add geopolitics if political/policy content, history if historical content, taiwan_japan ONLY if explicitly about Japan-Taiwan bilateral topic.
+   - "lecture" = talks, presentations, lectures, panels, Q&A sessions. MANDATORY when title/description contains any of: トークイベント, トークショー, 講演会, 講演, 講座, シンポジウム, 勉強会, 例会, 基調講演, 映後座談, セッション, 研究会. Also ALWAYS add lecture when movie + トーク/座談 co-occur.
+   - "geopolitics" = Taiwan political history, cross-strait relations, Taiwan identity/sovereignty, Taiwan Strait crisis, Japan-Taiwan national security strategy, government/public policy (移民政策, 給食政策, デジタル政府). Add alongside history or academic for relevant films, books, talks. Trigger keywords: 危機, 海峡, 独立, 民主化, 移民政策, インド太平洋, 日台関係 (security/policy sense), 主権, 国際フォーラム.
+   - "history" = historical events, Taiwan colonial era, war memory. MANDATORY for: films/docs about colonial-era or war-era Taiwan (日本統治, 戦没者, 同化, 傷痕); historical figures (李登輝, 蒋介石); photo exhibitions of historical Taiwan. Keywords: 戦没, 植民地, 統治, 秘録, 同化, 傷痕, 歴史.
+   - "taiwan_japan" = Taiwan-Japan BILATERAL relations ONLY. Use for: formal diplomatic/exchange events; Taiwanese diaspora in Japan (台湾系移住民); Taiwan veteran memorials (台湾出身戦没者); academic research on bilateral topics. DO NOT USE for: Taiwan food events, Taiwan concerts/tours, Taiwan children's books, Taiwan tourism promotion seminars, general Taiwan cultural events without explicit bilateral focus.
    - "report" = event reports/recaps (only if the text IS a report about a past event, not an upcoming event)
    - An event can have multiple categories
 3. Translate the event name and a concise summary description into all three languages (ja, zh, en).
@@ -191,14 +195,53 @@ def _validate_categories(cats: list) -> list[str]:
     return [c for c in cats if isinstance(c, str) and c in VALID_CATEGORIES] or ["senses"]
 
 
-_LECTURE_KEYWORDS = frozenset(["座談", "講座", "座談会", "座談會"])
+_LECTURE_KEYWORDS = frozenset([
+    # Japanese
+    "座談", "講座", "座談会", "座談會",
+    "トークイベント", "トークショー", "講演会", "講演",
+    "シンポジウム", "勉強会", "例会", "基調講演",
+    "映後座談", "セッション", "研究会", "フォーラム",
+    # Combined patterns handled in injection below
+])
+
+_GEOPOLITICS_KEYWORDS = frozenset([
+    "危機", "海峡", "独立", "民主化", "移民政策",
+    "インド太平洋", "日台関係", "主権", "国際フォーラム",
+    "給食政策", "デジタル政府", "行政×AI", "公共政策",
+    "安全保障", "防衛",
+])
+
+_HISTORY_KEYWORDS = frozenset([
+    "戦没", "植民地", "統治", "秘録", "同化", "傷痕",
+    "アーカイブ", "慰霊", "戦争", "戦前", "戦後",
+    "日本統治", "総督府", "霧のごとく", "大濛",
+])
 
 
 def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
-    """Add 'lecture' tag if the text contains lecture-related keywords."""
-    if "lecture" not in categories and any(kw in text for kw in _LECTURE_KEYWORDS):
-        return categories + ["lecture"]
-    return categories
+    """Inject missing categories based on keyword signals in the event text.
+
+    Rules derived from analysis of 69 admin corrections in category_corrections:
+    - lecture: almost always missing when talk/panel keywords appear (+29 corrections)
+    - geopolitics: missing for Taiwan political/policy topics (+18 corrections)
+    - history: missing for colonial/war-era Taiwan events (+16 corrections)
+    """
+    cats = list(categories)
+    # lecture: any talk/panel/seminar keyword triggers this
+    if "lecture" not in cats and any(kw in text for kw in _LECTURE_KEYWORDS):
+        cats.append("lecture")
+    # lecture: also inject when movie + talk co-occur (上映会＋トーク pattern)
+    if "lecture" not in cats and ("movie" in cats or "上映" in text) and (
+        "トーク" in text or "座談" in text or "講演" in text
+    ):
+        cats.append("lecture")
+    # geopolitics: Taiwan political/policy topics
+    if "geopolitics" not in cats and any(kw in text for kw in _GEOPOLITICS_KEYWORDS):
+        cats.append("geopolitics")
+    # history: colonial/war-era Taiwan
+    if "history" not in cats and any(kw in text for kw in _HISTORY_KEYWORDS):
+        cats.append("history")
+    return cats
 
 
 def annotate_pending_events(re_annotate_all: bool = False) -> None:

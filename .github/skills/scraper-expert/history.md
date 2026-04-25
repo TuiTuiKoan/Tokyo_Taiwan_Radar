@@ -3,6 +3,47 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-26 — category quality analysis: 69 corrections → annotator rules updated
+
+**目的:** 分析所有 `category_corrections` 記錄，將人工修正的模式轉化為 annotator 的自動規則。
+
+**統計 (69 筆修正):**
+- `lecture` 被漏標 29 次（最嚴重）
+- `geopolitics` 漏 18 次、`history` 漏 16 次、`books_media` 漏 12 次
+- `taiwan_japan` 被錯加 21 次（最嚴重的過度預測）
+
+**關鍵模式:**
+
+1. **`lecture` 缺席問題** — 幾乎所有有講座/演講/座談的活動都缺 `lecture`
+   - 根本原因: `_LECTURE_KEYWORDS` 只有 4 個詞（座談/講座/座談会/座談會）
+   - 修正: 擴充為 13 個詞 + 加入 `movie + トーク` 共現規則
+
+2. **`geopolitics` / `history` 完全缺席** — AI 對台灣政治/歷史主題完全沒有觸發規則
+   - 修正: 新增 `_GEOPOLITICS_KEYWORDS`（危機, 海峡, 移民政策, 安全保障...）
+   - 修正: 新增 `_HISTORY_KEYWORDS`（戦没, 植民地, 統治, 慰霊, 同化...）
+
+3. **`books_media` 公式** — 標題含 `著者名 + 『書名』` 時 AI 通常只標 `academic`
+   - 修正: annotator prompt 明確規定此格式 → 必加 `books_media + lecture + academic`
+
+4. **`taiwan_japan` 邊界** — 21 次移除 vs. 5 次新增，AI 嚴重誤用
+   - 正確用法: 日台雙邊關係、在日台灣人、台灣出身戦没者、台日企業交流
+   - 錯誤用法: 台灣食物活動、台灣演唱會、台灣書展、台灣旅遊研討會
+   - 修正: annotator prompt 明確列出 USE / DO NOT USE 兩欄
+
+5. **`movie + lecture` 共現** — 上映+座談 100% 應雙標，AI 常漏 `lecture`
+   - 修正: `_inject_keyword_categories` 加入 `movie + トーク/座談/講演` 組合規則
+
+**實作的修改:**
+- `annotator.py`: `_LECTURE_KEYWORDS` 擴充（4→13詞）+ 新增 `_GEOPOLITICS_KEYWORDS` / `_HISTORY_KEYWORDS` + `_inject_keyword_categories` 改寫
+- `annotator.py` SYSTEM_PROMPT: 每個分類的觸發規則和禁用情境重新寫明
+- `SKILL.md`: `AI category classification` 章節更新，包含完整統計表、分類公式、taiwan_japan 邊界規則
+
+**教訓:**
+- `_inject_keyword_categories` 是一個重要的後備保障機制，應定期根據 corrections 資料更新
+- `taiwan_japan` 需要正反兩欄規則（什麼時候用 / 什麼時候不用）才能抑制過度預測
+- `books_media` 有清晰的文字格式信號（`著者名 + 『書名』`），完全可以規則化
+
+---
 ## 2026-04-26 — confirm-report.ts stranded events + irrelevant false positives documented
 
 **問題 1: 87 個事件被卡死 (stranded)**

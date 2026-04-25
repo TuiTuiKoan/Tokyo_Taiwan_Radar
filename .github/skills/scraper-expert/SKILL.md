@@ -73,35 +73,96 @@ The `upsert_events()` call in `database.py` uses `on_conflict="source_name,sourc
 
 **Rule**: `category` is in `_PROTECTED_FIELDS`. Once an admin corrects the category for an annotated event, the correction survives all future scraper runs. The `category_corrections` table provides few-shot examples to the annotator GPT to improve future predictions.
 
-## AI category classification — known biases (from 65 admin corrections)
+## AI category classification — rules from 69 admin corrections
 
-Analysis of all corrections in `category_corrections` table reveals systematic patterns:
+Analysis of all corrections in `category_corrections` table (updated 2026-04-26).
 
-### Categories AI consistently UNDER-predicts (add these when signals are present):
-| Category | Missed count | When to apply |
-|----------|-------------|---------------|
-| `lecture` | 27 | Any event with トークイベント, 講座, セミナー, シンポジウム, 講演, 勉強会, ゼミ |
-| `geopolitics` | 16 | Taiwan history, independence, democracy, cross-strait relations, migration policy |
-| `history` | 14 | Historical figures (e.g. 李登輝), pre-war/war era Taiwan, 歴史 in title/description |
-| `books_media` | 12 | Book titles in 『』, 出版, 刊行, 著作, 読書会, ブックサロン |
-| `senses` | 9 | Visual art, photography, exhibitions; also applied to book cover/aesthetics events |
-| `lifestyle_food` | 7 | Food/cooking events, tea ceremonies (台湾茶会), restaurant events |
-| `movie` | 6 | 上映会, 映画 in title — AI often only returns `lecture` without `movie` |
-| `workshop` | 6 | 料理教室, ワークショップ, 体験 — hands-on participation events |
+### Category statistics (69 corrections)
 
-### Categories AI consistently OVER-predicts (remove when not warranted):
-| Category | Over-count | Common false positive |
-|----------|-----------|----------------------|
-| `taiwan_japan` | 18 | Do NOT auto-add just because the event is about Taiwan. Reserve for exchange/diplomacy/bilateral themes |
-| `academic` | 4 | Research paper presentations only; NOT all lectures or study events |
-| `performing_arts` | 4 | Live theatrical performance only; NOT screenings, tours, or Asia-wide concert tours |
+| Category | AI missed (+) | AI over-predicted (−) | Net bias |
+|----------|--------------|-----------------------|----------|
+| `lecture` | +29 | −2 | **severely under-predicted** |
+| `geopolitics` | +18 | 0 | **severely under-predicted** |
+| `history` | +16 | 0 | **severely under-predicted** |
+| `books_media` | +12 | 0 | **severely under-predicted** |
+| `taiwan_japan` | +5 | −21 | **severely over-predicted** |
+| `senses` | +9 | −1 | under-predicted |
+| `lifestyle_food` | +7 | −2 | under-predicted |
+| `movie` | +6 | 0 | under-predicted |
+| `workshop` | +6 | 0 | under-predicted |
+| `academic` | +2 | −5 | slightly over-predicted |
+| `performing_arts` | +2 | −4 | slightly over-predicted |
 
-### Key rules for the annotator prompt:
-- **`lecture` is almost always missing**: Any event with a talk, panel, Q&A, or presentation component should include `lecture`.
-- **`taiwan_japan` ≠ "event is about Taiwan"**: It means the event focuses on bilateral Japan-Taiwan relations, exchange, or diplomacy. NOT appropriate for a Taiwan film screening or food event.
-- **`books_media` requires a book/publication**: Title in 『』 brackets with author name → always add `books_media` + `lecture`.
-- **`movie` + `lecture` co-occur**: 上映会＋トークイベント should always get BOTH categories.
-- **Historical content needs `history`**: Any event mentioning Taiwan's political history, colonial era, post-war era should add `history`.
+### Mandatory keyword triggers (implemented in `_inject_keyword_categories`)
+
+**`lecture`** — inject when ANY of these appear in text:
+`トークイベント`, `トークショー`, `講演会`, `講演`, `シンポジウム`, `勉強会`, `例会`, `基調講演`, `映後座談`, `セッション`, `研究会`, `フォーラム`, `講座`
+Also inject `lecture` when `movie` + any of `トーク`/`座談`/`講演` co-occur.
+
+**`geopolitics`** — inject when ANY of these appear:
+`危機`, `海峡`, `独立`, `民主化`, `移民政策`, `インド太平洋`, `日台関係`, `主権`, `国際フォーラム`, `給食政策`, `行政×AI`, `安全保障`, `防衛`
+
+**`history`** — inject when ANY of these appear:
+`戦没`, `植民地`, `統治`, `秘録`, `同化`, `傷痕`, `慰霊`, `戦前`, `戦後`, `日本統治`, `総督府`, `大濛`
+
+### books_media formula (derived from 12 corrections)
+
+Pattern: title contains `著者名 + 『書名』` OR contains `ブックサロン`/`刊行記念`/`出版記念`
+
+**Always add**: `books_media` + `lecture` + `academic`
+**Then add based on content**:
+- Political/policy Taiwan → + `geopolitics`
+- Historical figures or era → + `history`
+- Explicitly about Japan-Taiwan bilateral topic → + `taiwan_japan`
+- Book is about aesthetics/art/anthropology → + `senses`
+
+Examples confirmed by corrections:
+- `『李登輝秘録』` → academic + books_media + lecture + geopolitics + history
+- `『日本と台湾の移民政策』` → academic + books_media + lecture + geopolitics + taiwan_japan
+- `台湾研究ブックサロン` → academic + books_media + lecture (NO taiwan_japan unless explicitly bilateral)
+- `『白球は海を渡る』刊行記念` → books_media + history + lecture + senses + taiwan_japan
+
+### taiwan_japan — precise boundary (21 removals vs 5 additions)
+
+**USE** `taiwan_japan` for:
+- Formal Japan-Taiwan diplomatic/exchange events
+- Taiwanese diaspora in Japan (`台湾系移住民`, `在日台湾人`)
+- Taiwan veteran memorials (`台湾出身戦没者`)
+- Academic research explicitly on Japan-Taiwan bilateral topics
+- Medical/tech business matching between Japan and Taiwan companies (`台日医療`, `日台企業交流`)
+- Government policy cooperation topics (`日暮 トモ子『日本と台湾の移民政策』`)
+
+**DO NOT USE** `taiwan_japan` for:
+- Taiwan food/tea events → `lifestyle_food` only
+- Taiwan concert tours (拍謝少年, VOOID) → `performing_arts` only
+- Taiwan tourism seminars by travel companies → `lecture` + `tourism`
+- Taiwan children's book events → `books_media` + `lecture` + `senses`
+- Taiwan film screenings (unless film is specifically about Japan-Taiwan history)
+- General Taiwan cultural events without explicit bilateral focus
+- Tech/AI conferences that mention Taiwan → `tech` + `academic` + `lecture`
+
+### performing_arts — live-only rule (4 over-predictions)
+
+`performing_arts` = **LIVE stage performances only**: concerts, theater, dance, opera.
+
+**Never use for**:
+- Film screenings (use `movie`)
+- Asia/Japan tour announcements without confirmed Tokyo live show
+
+### movie + lecture co-occurrence rule (100% co-occurrence in corrections)
+
+All 11 `上映` events in corrections have both `movie` AND `lecture`. If `上映` + any talk/Q&A/座談 → always both.
+
+Additionally, all sub-event screening sessions (上映回 1–6) of 大濛 got `history` added → screening of historical/political film always needs `history`.
+
+### culture handling
+
+`culture` is NOT a standard valid category but appears in some DB records. Humans always KEPT it and added more specific categories on top. Never use `culture` alone — always add the specific content category:
+- `culture` + performance → add `performing_arts`
+- `culture` + film → add `movie` + `lecture`
+- `culture` + food/cooking → add `lifestyle_food` + `workshop`
+- `culture` + political topic → add `geopolitics` + `lecture`
+- `culture` + indigenous → add `academic` + `geopolitics` + `history` + `indigenous` + `lecture`
 
 ## Irrelevant event patterns — confirmed false positives (from admin review)
 
