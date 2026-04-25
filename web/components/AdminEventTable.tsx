@@ -742,15 +742,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     </span>
                   </td>
                   <td className="py-2 pr-4">
-                    {event.is_paid === false ? (
-                      <span className="text-blue-600 text-xs">{tEvent("free")}</span>
-                    ) : event.is_paid === true ? (
-                      <span className="text-amber-600 text-xs">{tEvent("paid")}</span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-4">
                     <button
                       onClick={() => handleToggleActive(event.id, !event.is_active)}
                       title={event.is_active ? t("filterActive") : t("filterInactive")}
