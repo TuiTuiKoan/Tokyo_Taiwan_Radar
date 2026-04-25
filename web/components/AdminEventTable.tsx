@@ -562,7 +562,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("filterAnnotationStatus")}</label>
+            <label className="text-xs text-gray-500 font-medium">{t("annotationStatusLabel")}</label>
             <select
               value={filterAnnotation}
               onChange={(e) => setFilterAnnotation(e.target.value as any)}
@@ -571,7 +571,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="">{t("filterAll")}</option>
               <option value="annotated">{t("annotated")}</option>
               <option value="reviewed">{t("reviewed")}</option>
-              <option value="pending">{t("filterPendingReannotation")}</option>
               <option value="error">{t("error")}</option>
             </select>
           </div>
@@ -643,8 +642,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
                 <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatus")}{sortArrow("annotation_status")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_paid")}>{t("isPaid")}{sortArrow("is_paid")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_paid")}>{t("isPaid")}}{sortArrow("is_paid")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_active")}>{t("isActive")}{sortArrow("is_active")}</th>
                 <th className="py-2" />
               </tr>
@@ -662,7 +661,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("raw_title")}>{t("name")}{sortArrow("raw_title")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
                 <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatus")}{sortArrow("annotation_status")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
                 <th className="py-2" />
               </tr>
             )}
@@ -773,9 +772,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       >
                         {t("edit")}
                       </button>
-                      <button onClick={() => handleReannotate(event.id)} className="text-purple-600 hover:underline text-xs">
-                        {t("reannotate")}
-                      </button>
                       <button
                         onClick={() => handleToggleForceRescrape(event.id)}
                         title={event.force_rescrape ? t("forceRescrapeOff") : t("forceRescrapeOn")}
@@ -834,9 +830,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                         className="text-blue-600 hover:underline text-xs"
                       >
                         {t("edit")}
-                      </button>
-                      <button onClick={() => handleReannotate(event.id)} className="text-purple-600 hover:underline text-xs">
-                        {t("reannotate")}
                       </button>
                       <button
                         onClick={() => handleToggleForceRescrape(event.id)}
