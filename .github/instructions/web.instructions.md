@@ -52,6 +52,15 @@ web/
 - Use `getEventName(event, locale)` and `getEventDescription(event, locale)` from `web/lib/types.ts`
 - Add new UI strings to **all three** `messages/*.json` files at the same time
 - The `[locale]` segment is required in every page path — never create pages outside it
+- **Translation hook namespaces** — before adding a `tXxx("key")` call, verify the namespace exists in `messages/zh.json`. Wrong namespace silently returns the raw key string with no build error.
+
+  | Hook call | Namespace in messages/*.json | Used for |
+  |-----------|------------------------------|----------|
+  | `useTranslations()` | top-level keys | General UI (name, category, filterAll, …) |
+  | `useTranslations("event")` | `event.*` | Event-specific strings (free, paid, online, categories) |
+  | `useTranslations("admin")` | `admin.*` | Admin-only strings (edit, delete, approve, …) |
+
+  There is no `tFilters` namespace — use the top-level `t()` for filter labels.
 
 ## Type conventions
 
