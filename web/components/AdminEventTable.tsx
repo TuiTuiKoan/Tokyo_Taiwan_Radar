@@ -343,7 +343,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         {/* Row 1: 搜尋、類型、地點、票價、時間、日期 */}
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("name")}</label>
+            <label className="text-xs text-gray-500 font-medium">{tFilters("search")}</label>
             <input
               type="search"
               value={filterQ}
