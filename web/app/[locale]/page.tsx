@@ -65,9 +65,11 @@ export default async function HomePage({ params, searchParams }: PageProps) {
 
   // Time mode filter
   if (timeMode === "active") {
-    // Show only ongoing events: end_date >= today or end_date is null
+    // Show only ongoing/upcoming events:
+    // - end_date >= today (still running), OR
+    // - end_date IS NULL AND start_date >= today (single-day / open-ended, not yet passed)
     const today = todayStr();
-    query = query.or(`end_date.gte.${today},end_date.is.null`);
+    query = query.or(`end_date.gte.${today},and(end_date.is.null,start_date.gte.${today})`);
   } else if (timeMode === "past") {
     // Search past period with optional date range
     if (sp.from) {
