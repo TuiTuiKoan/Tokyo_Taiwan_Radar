@@ -87,8 +87,11 @@ export default async function HomePage({ params, searchParams }: PageProps) {
 
   // Location filter
   // Tokyo markers used for classification
-  const TOKYO_MARKERS = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
+  // Note: 台北駐日 = Taipei Representative Office in Japan → physically in Tokyo
+  const TOKYO_MARKERS = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区", "台北駐日"];
   const TAIWAN_MARKERS = ["台北", "台中", "台南", "高雄", "台湾", "台灣"];
+  // Venues that contain Taiwan keywords but are physically in Japan (exclude from Taiwan filter)
+  const JAPAN_DESPITE_TAIWAN_NAME = ["台北駐日", "台湾文化センター", "台北経済文化"];
   if (sp.location === "tokyo") {
     // NULL/empty OR contains a Tokyo marker
     const conds = [
@@ -100,6 +103,10 @@ export default async function HomePage({ params, searchParams }: PageProps) {
   } else if (sp.location === "taiwan") {
     const conds = TAIWAN_MARKERS.map((m) => `location_address.ilike.%${m}%`).join(",");
     query = query.or(conds);
+    // Exclude known Tokyo venues whose names contain Taiwan keywords
+    for (const ex of JAPAN_DESPITE_TAIWAN_NAME) {
+      query = query.not("location_address", "ilike", `%${ex}%`);
+    }
   } else if (sp.location === "other_japan") {
     // Must have a non-empty address that is neither Tokyo nor Taiwan nor Online
     query = query.not("location_address", "is", null).neq("location_address", "");
