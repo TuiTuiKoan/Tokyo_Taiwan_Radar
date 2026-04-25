@@ -9,7 +9,7 @@ model: claude-sonnet-4-5
 
 Specialist subagent for `scraper/sources/peatix.py`.
 
-**Read `.github/skills/peatix/SKILL.md` before starting any work.** It contains the authoritative platform rules: URL structure, date extraction, dedup, Taiwan relevance gate, Chrome MCP guidance, and troubleshooting table.
+**Read `.github/skills/sources/peatix/SKILL.md` before starting any work.** It contains the authoritative platform rules: URL structure, date extraction, dedup, Taiwan relevance gate, Chrome MCP guidance, and troubleshooting table.
 
 ## Required Steps
 

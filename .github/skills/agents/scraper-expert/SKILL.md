@@ -18,14 +18,14 @@ After every new source or bug fix, create/update these files **before committing
 |------|--------|
 | `.github/skills/<source_name>/SKILL.md` | **Create** — platform profile, field mappings, Taiwan filter, date extraction, troubleshooting |
 | `.github/skills/<source_name>/history.md` | **Create** — initial implementation decisions |
-| `.github/skills/scraper-expert/SKILL.md` | **Update** — add `## <source_name>-specific` section (3–5 key rules) |
+| `.github/skills/agents/scraper-expert/SKILL.md` | **Update** — add `## <source_name>-specific` section (3–5 key rules) |
 | Supabase `research_sources` | **Update** status → `implemented` |
 
 ### Bug fix checklist
 
 | File | Action |
 |------|--------|
-| `.github/skills/scraper-expert/history.md` | **Prepend** new entry (date, error, fix, lesson) |
+| `.github/skills/agents/scraper-expert/history.md` | **Prepend** new entry (date, error, fix, lesson) |
 | `.github/skills/<source_name>/history.md` | **Prepend** new entry |
 | `scraper-expert/SKILL.md` | **Add/update** rule if lesson is universal |
 | Per-source `SKILL.md` | **Add/update** rule if lesson is source-specific |
@@ -209,7 +209,7 @@ python scraper/backfill_locations.py
 **Every time a scraper is modified or a new scraper is added, you MUST complete ALL of the following before returning. No exceptions.**
 
 ### 1. history.md — always update on bug fix or unexpected behaviour
-- File: `.github/skills/scraper-expert/history.md`
+- File: `.github/skills/agents/scraper-expert/history.md`
 - Append at the TOP (newest first):
   ```
   ---
@@ -222,7 +222,7 @@ python scraper/backfill_locations.py
 - Skip only if the change is purely additive with zero unexpected behaviour (e.g. adding a new source that worked perfectly on first try with no surprises).
 
 ### 2. SKILL.md — update if a new rule is discovered
-- File: `.github/skills/scraper-expert/SKILL.md` (this file)
+- File: `.github/skills/agents/scraper-expert/SKILL.md` (this file)
 - If the lesson is source-specific: add a `## <source>-specific` subsection or extend the existing one.
 - If the lesson is universal (applies to all scrapers): add it under `## BaseScraper Contract` or `## Registration`.
 - Never duplicate a rule that already exists.

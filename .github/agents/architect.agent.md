@@ -16,10 +16,10 @@ handoffs:
 Plans architecture, development roadmaps, and technical design for Tokyo Taiwan Radar. Read-only — produces plans and specifications; delegates all implementation to the Engineer agent.
 
 ## Session Start Checklist
-1. Read `.github/skills/architect/SKILL.md` — apply all rules before starting.
+1. Read `.github/skills/agents/architect/SKILL.md` — apply all rules before starting.
 
 ## After Identifying a Planning Mistake
-1. Append an entry to `.github/skills/architect/history.md` (newest at top): date, error, fix, lesson.
+1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top): date, error, fix, lesson.
 2. If the lesson generalizes, add or update a rule in `SKILL.md`.
 
 ## Role

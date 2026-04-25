@@ -9,7 +9,7 @@ model: claude-sonnet-4-5
 
 Specialist subagent for `scraper/sources/taiwan_cultural_center.py`.
 
-**Read `.github/skills/taiwan_cultural_center/SKILL.md` before starting any work.** It contains the authoritative platform rules: 4-tier date extraction cascade, report detection, dedup, Chrome MCP guidance, and troubleshooting table.
+**Read `.github/skills/sources/taiwan_cultural_center/SKILL.md` before starting any work.** It contains the authoritative platform rules: 4-tier date extraction cascade, report detection, dedup, Chrome MCP guidance, and troubleshooting table.
 
 ## Required Steps
 

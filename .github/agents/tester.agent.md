@@ -23,10 +23,10 @@ handoffs:
 Runs the scraper pipeline, validates event output, and reports failures. Does NOT write code — hands issues back to Engineer or Scraper Expert.
 
 ## Session Start Checklist
-1. Read `.github/skills/tester/SKILL.md` — apply all rules before starting.
+1. Read `.github/skills/agents/tester/SKILL.md` — apply all rules before starting.
 
 ## After a Test Failure Pattern
-1. Append an entry to `.github/skills/tester/history.md` (newest at top): date, error, fix, lesson.
+1. Append an entry to `.github/skills/agents/tester/history.md` (newest at top): date, error, fix, lesson.
 2. If the lesson generalizes, add or update a rule in `SKILL.md`.
 
 ## Role
