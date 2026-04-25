@@ -39,7 +39,7 @@ VALID_CATEGORIES = [
     "movie", "performing_arts", "senses", "retail", "nature",
     "tech", "tourism", "lifestyle_food", "books_media", "gender", "geopolitics",
     "art", "lecture", "taiwan_japan", "business", "academic", "competition",
-    "indigenous", "history", "report",
+    "indigenous", "history", "urban", "report",
 ]
 
 # ---------------------------------------------------------------------------
@@ -62,7 +62,7 @@ CRITICAL DATE EXTRACTION RULES:
 
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
-2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, taiwan_japan, business, academic, competition, indigenous, history, report
+2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, taiwan_japan, business, academic, competition, indigenous, history, urban, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
    - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
    - "competition" = contests, competitions, awards, championships, public calls for entries (コンテスト, 大会, 選手権, 公募, コンクール)
