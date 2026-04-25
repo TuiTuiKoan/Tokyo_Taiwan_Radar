@@ -66,7 +66,34 @@ When Peatix changes its page structure and selectors break:
 4. Update `_extract_peatix_dates()` and `_safe_text()` selectors in `peatix.py`.
 5. **Never use Chrome MCP in CI** — production scraping always uses Playwright.
 
-## Troubleshooting
+## Location Extraction
+
+### CSS selectors (primary)
+```python
+location_name = (
+    _safe_text(page, ".venue-name")
+    or _safe_text(page, ".location")
+    or _safe_text(page, "[class*='venue']")
+)
+location_address = (
+    _safe_text(page, ".venue-address")
+    or _safe_text(page, "[class*='address']")
+)
+```
+
+### Regex fallback (when CSS selectors miss)
+After the CSS block, apply these fallbacks against `page_text` (full `body` inner_text):
+```python
+if not location_name:
+    loc_m = re.search(r'LOCATION\s*\n(.{3,100})', page_text)
+    if loc_m:
+        location_name = loc_m.group(1).strip()
+if not location_address:
+    addr_m = re.search(r'(?:〒\d{3}-\d{4}[^\n]*|東京都[^\s,，\n]{3,60})', page_text)
+    if addr_m:
+        location_address = addr_m.group(0).strip()
+```
+The `LOCATION` heading (all-caps English) is Peatix's standard section label for venue name. The address regex matches either a postal code line (`〒NNN-NNNN…`) or a partial Tokyo address (`東京都…`) up to the first space/comma.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|

@@ -249,7 +249,8 @@ class KoryuScraper(BaseScraper):
                 return None
 
         venue = _extract_venue(body_text) or ""
-        location_address = _extract_location_address(body_text)
+        # Fallback: use venue name as address when no dedicated 所在地/住所 section
+        location_address = _extract_location_address(body_text) or (venue if venue else None)
 
         title = item["title"]
         source_id = f"koryu_{item['item_id']}"

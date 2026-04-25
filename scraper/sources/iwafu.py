@@ -46,6 +46,23 @@ _NOISE_MARKERS = (
     "地図検索に切り替えて",   # map search section
 )
 
+# Patterns that indicate a global/nationwide tour event that merely INCLUDES Taiwan
+# as one stop — these are NOT Taiwan-themed cultural events.
+# A hit on any of these patterns causes the event to be rejected.
+_GLOBAL_TOUR_PATTERNS = re.compile(
+    r"台湾など世界各地|台湾など.*各地|全国各地.*台湾|世界各地.*台湾|台湾.*世界各地"
+    r"|全国[0-9０-９]+[都道府県施設箇所].*台湾|台湾.*全国[0-9０-９]",
+    re.DOTALL,
+)
+
+# Title fragments whose presence in the event TITLE means the event should always
+# be rejected, regardless of description content.
+# Use this for known entertainment IP series that run global/nationwide tours
+# and coincidentally mention Taiwan as one venue.
+_BLOCKED_TITLE_PATTERNS = re.compile(
+    r"リアル脱出ゲーム.*名探偵コナン|名探偵コナン.*リアル脱出ゲーム",
+)
+
 
 # ---------------------------------------------------------------------------
 # Date helpers
@@ -279,6 +296,14 @@ class IwafuScraper(BaseScraper):
         url = card["url"]
         event_id = card["id"]
 
+        # Fast-reject: title-based block (check before expensive page load)
+        card_title = card.get("title", "")
+        if _BLOCKED_TITLE_PATTERNS.search(card_title):
+            logger.info(
+                "Skipping blocked-title event: %s — %s", event_id, card_title[:60]
+            )
+            return None
+
         try:
             page.goto(url, wait_until="networkidle", timeout=30_000)
         except PWTimeout:
@@ -324,6 +349,16 @@ class IwafuScraper(BaseScraper):
         # Strip iwafu page UI noise (Q&A, PR ads, nearby events, map, tags)
         description = _strip_iwafu_noise(description)
 
+        # Reject global/nationwide tour events that merely include Taiwan as one of
+        # many stops — they are NOT Taiwan-themed (e.g. "全国各地をはじめ台湾など世界各地で開催")
+        combined_text = f"{title}\n{description}"
+        if _GLOBAL_TOUR_PATTERNS.search(combined_text):
+            logger.info(
+                "Skipping global-tour event (Taiwan is just one stop): %s — %s",
+                event_id, title[:60],
+            )
+            return None
+
         # --- Dates: from card (YYYY.MM.DD format is reliable) ---
         start_date, end_date = _parse_date_range(card.get("date_range_str"))
 
@@ -345,8 +380,17 @@ class IwafuScraper(BaseScraper):
             end_date = start_date
 
         # --- Location ---
-        location_name = card.get("location_hint") or card.get("prefecture") or ""
-        location_address = card.get("prefecture") or None
+        # Primary: extract 場所：<venue> from detail page text (e.g. "場所：中野区役所…")
+        place_m = re.search(
+            r'場所[：:]\s*(.+?)(?:\n|交通手段|Q&A|https?://|$)', main_text, re.DOTALL
+        )
+        if place_m:
+            place_val = place_m.group(1).strip()
+            location_name = place_val
+            location_address = place_val
+        else:
+            location_name = card.get("location_hint") or card.get("prefecture") or ""
+            location_address = card.get("prefecture") or None
 
         # --- Is paid? ---
         combined = f"{title} {description}"

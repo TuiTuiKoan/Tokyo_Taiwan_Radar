@@ -355,6 +355,15 @@ class PeatixScraper(BaseScraper):
             _safe_text(page, ".venue-address")
             or _safe_text(page, "[class*='address']")
         )
+        # Regex fallback: extract from full page_text when CSS selectors miss
+        if not location_name:
+            loc_m = re.search(r'LOCATION\s*\n(.{3,100})', page_text)
+            if loc_m:
+                location_name = loc_m.group(1).strip()
+        if not location_address:
+            addr_m = re.search(r'(?:〒\d{3}-\d{4}[^\n]*|東京都[^\s,，\n]{3,60})', page_text)
+            if addr_m:
+                location_address = addr_m.group(0).strip()
 
         # --- Price ---
         # Peatix shows "無料" or ticket prices
