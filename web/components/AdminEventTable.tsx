@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { type Event, type Locale, getEventName, CATEGORY_GROUPS } from "@/lib/types";
@@ -33,6 +33,18 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   // Inline filters
   const [filterQ, setFilterQ] = useState("");
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
+  const [catDropdownOpen, setCatDropdownOpen] = useState(false);
+  const catDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (catDropdownRef.current && !catDropdownRef.current.contains(e.target as Node)) {
+        setCatDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   const [filterPaid, setFilterPaid] = useState("");
   const [filterIsActive, setFilterIsActive] = useState<"all" | "active" | "inactive">("all");
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
@@ -338,38 +350,56 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             className="h-9 border border-gray-300 rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <div className="flex items-baseline gap-2">
-            <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
-            {filterCategories.length > 0 && (
-              <button onClick={() => setFilterCategories([])} className="text-xs text-gray-400 hover:text-red-500 underline">{t("filterAll")}</button>
-            )}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
-            {CATEGORY_GROUPS.map((group) => (
-              <div key={group.labelKey} className="flex flex-wrap gap-1.5 items-start">
-                <span className="text-xs text-gray-400 w-16 shrink-0">{tCat(group.labelKey as any)}</span>
-                {group.categories.map((cat) => {
-                  const active = filterCategories.includes(cat);
-                  return (
+        <div className="flex flex-col gap-1" ref={catDropdownRef}>
+          <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setCatDropdownOpen((o) => !o)}
+              className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-white hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <span className={filterCategories.length > 0 ? "text-green-700 font-medium" : "text-gray-500"}>
+                {filterCategories.length > 0 ? `${t("category")} (${filterCategories.length})` : t("filterAll")}
+              </span>
+              <span className="text-gray-400 text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
+            </button>
+
+            {catDropdownOpen && (
+              <div className="absolute z-50 top-10 left-0 w-72 bg-white border border-gray-200 rounded-xl shadow-lg py-2 max-h-80 overflow-y-auto">
+                {filterCategories.length > 0 && (
+                  <div className="px-3 pb-1.5 border-b border-gray-100 mb-1">
                     <button
-                      key={cat}
                       type="button"
-                      onClick={() => setFilterCategories((prev) =>
-                        prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-                      )}
-                      className={`px-2.5 py-0.5 rounded-full text-xs border transition ${
-                        active
-                          ? "bg-green-600 text-white border-green-600"
-                          : "border-gray-300 text-gray-600 hover:border-green-400"
-                      }`}
+                      onClick={() => setFilterCategories([])}
+                      className="text-xs text-red-500 hover:text-red-700 underline"
                     >
-                      {tCat(cat as any)}
+                      {t("filterAll")}
                     </button>
-                  );
-                })}
+                  </div>
+                )}
+                {CATEGORY_GROUPS.map((group) => (
+                  <div key={group.labelKey} className="px-3 py-1">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
+                    {group.categories.map((cat) => {
+                      const checked = filterCategories.includes(cat);
+                      return (
+                        <label key={cat} className="flex items-center gap-2 py-0.5 cursor-pointer hover:text-green-700">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setFilterCategories((prev) =>
+                              prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+                            )}
+                            className="accent-green-600 w-3.5 h-3.5"
+                          />
+                          <span className="text-sm text-gray-700">{tCat(cat as any)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         </div>
         <div className="flex flex-col gap-1">
