@@ -3,6 +3,24 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-25 — iwafu: Conan events re-appeared (direct URL accessible + card title bypass)
+
+**Error (1 — direct URL accessible):** Deactivated events (`is_active=False`) were still accessible via direct URL. The event detail page had no `is_active` check — it fetched by ID regardless of status.
+
+**Error (2 — card title truncation bypass):** `_BLOCKED_TITLE_PATTERNS` only checked `card_title` from search-result card text. If the card title was truncated and didn't contain both "リアル脱出ゲーム" AND "名探偵コナン", the filter would pass. No second check was done on the actual h1 title after loading the detail page.
+
+**Fix:**
+1. Hard deleted all 7 Conan events from DB (iwafu_1133807, 1133810, 1134057–1134061).
+2. `web/app/[locale]/events/[id]/page.tsx`: Added `if (!event.is_active) notFound()` — inactive events now return HTTP 404.
+3. `scraper/sources/iwafu.py`: Added `_BLOCKED_SERIES = re.compile(r"名探偵コナン")` checked on both card title (pre-load) and h1 title (post-load). Extended `_BLOCKED_TITLE_PATTERNS`.
+
+**Lesson:**
+- Inactive events remain accessible by direct URL unless detail page returns `notFound()` for `!is_active`. Always add this guard.
+- Title blocks must check BOTH card title (pre-load) AND h1 title (post-load). Card titles can be truncated.
+- For permanently blocked IP series, use `_BLOCKED_SERIES` with just the IP name. Simpler and catches all title variants.
+- When an IP series is confirmed non-Taiwan-themed, prefer hard delete over deactivation to prevent URL resurrection.
+
+---
 ## 2026-04-25 — iwafu/koryu/peatix: location_address stored as generic prefecture name ("東京") instead of real venue
 
 **Error:** Three scrapers were writing useless generic values to `location_address`:

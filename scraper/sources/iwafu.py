@@ -60,7 +60,15 @@ _GLOBAL_TOUR_PATTERNS = re.compile(
 # Use this for known entertainment IP series that run global/nationwide tours
 # and coincidentally mention Taiwan as one venue.
 _BLOCKED_TITLE_PATTERNS = re.compile(
-    r"リアル脱出ゲーム.*名探偵コナン|名探偵コナン.*リアル脱出ゲーム",
+    r"リアル脱出ゲーム.*名探偵コナン|名探偵コナン.*リアル脱出ゲーム"
+    r"|名探偵コナン.*脱出|脱出.*名探偵コナン",  # catch title variants even without リアル
+)
+
+# Entire IP series that are permanently blocked regardless of title wording.
+# Add the series name when all events from an IP are confirmed non-Taiwan-themed.
+# These are checked against both the card title AND the h1 title on the detail page.
+_BLOCKED_SERIES = re.compile(
+    r"名探偵コナン",  # All Conan events — confirmed global-tour non-Taiwan-themed
 )
 
 
@@ -298,7 +306,7 @@ class IwafuScraper(BaseScraper):
 
         # Fast-reject: title-based block (check before expensive page load)
         card_title = card.get("title", "")
-        if _BLOCKED_TITLE_PATTERNS.search(card_title):
+        if _BLOCKED_TITLE_PATTERNS.search(card_title) or _BLOCKED_SERIES.search(card_title):
             logger.info(
                 "Skipping blocked-title event: %s — %s", event_id, card_title[:60]
             )
@@ -328,6 +336,13 @@ class IwafuScraper(BaseScraper):
 
         if not title:
             logger.warning("No title found at %s, skipping.", url)
+            return None
+
+        # Second-pass title block on the actual h1 (card title may be truncated)
+        if _BLOCKED_TITLE_PATTERNS.search(title) or _BLOCKED_SERIES.search(title):
+            logger.info(
+                "Skipping blocked-title event (h1 check): %s — %s", event_id, title[:60]
+            )
             return None
 
         # --- Description: everything after the title in main_lines ---

@@ -30,6 +30,11 @@ export default async function EventDetailPage({ params }: PageProps) {
     notFound();
   }
 
+  // Inactive events should not be accessible — return 404 like they don't exist
+  if (!event.is_active) {
+    notFound();
+  }
+
   const { data: { user } } = await supabase.auth.getUser();
 
   // Check if the current user has saved this event
