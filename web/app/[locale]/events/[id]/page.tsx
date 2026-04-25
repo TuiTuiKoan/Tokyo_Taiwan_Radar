@@ -146,14 +146,14 @@ export default async function EventDetailPage({ params }: PageProps) {
             <tr>
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("address")}</td>
               <td className="px-4 py-3">
-                {event.location_address ? (
+                {(locationAddress || locationName) ? (
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location_address)}`}
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationAddress || locationName || "")}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline"
                   >
-                    {locationAddress} ↗
+                    {locationAddress || locationName} ↗
                   </a>
                 ) : "—"}
               </td>
