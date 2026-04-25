@@ -64,6 +64,24 @@ Read this at the start of every session before writing any scraper.
 - **Rule**: Any field that a non-Japanese visitor reads on the event page must have locale variants OR use a helper with Japanese fallback. Check the event detail page for raw `event.field` access when adding new DB columns.
 
 
+## Location Backfill
+
+When the DB contains events whose `location_address` is a bare prefecture name (`"東京"`, `"東京都"`, `"東　京"`, `"Tokyo"` etc.) rather than a real venue, use the backfill script to repair them:
+
+```bash
+# Preview — no DB writes
+python scraper/backfill_locations.py --dry-run
+
+# Apply
+python scraper/backfill_locations.py
+```
+
+**Rules:**
+- The script only updates `location_name` and `location_address` — it never touches `name_*`, `description_*`, translations, or any other field.
+- After running, re-run `annotator.py` so the localized `location_name_zh/en` and `location_address_zh/en` variants are filled.
+- If you add a new source that may store generic addresses, add its `SOURCE_NAME` to the `_SOURCES` list in `backfill_locations.py`.
+- Generic address sentinel values are defined in `_GENERIC_ADDRESSES` — add new ones when discovered (e.g. `"大阪"` for future Osaka sources).
+
 ## Registration
 - After creating a new scraper file, always add it to `SCRAPERS = [...]` in `scraper/main.py`.
 - Test with `python main.py --dry-run --source <source_name>` before any other step.

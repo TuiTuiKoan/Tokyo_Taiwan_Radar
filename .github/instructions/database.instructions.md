@@ -8,7 +8,8 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `005_category_corrections.sql`
+- Number migrations sequentially: `001`, `002`, … Latest is `014_scraper_runs_v2.sql`
+- If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 
 ## Schema overview
 
