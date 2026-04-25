@@ -16,7 +16,9 @@ Read this at the start of every session before writing any scraper.
 
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
-- 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
+- **台東区 false positive**: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard: skip if `台東区` in page text and no other Taiwan keywords match.
+- **桃園区 false positive**: `桃園` in `TAIWAN_KEYWORDS` matches the Tokyo neighborhood 桃園区 (e.g. 桃園区民活動センター in Nakano ward), not Taoyuan Taiwan. Use `_TAIWAN_KW_NO_TAOYUAN` guard: skip if `桃園区` in page text and no other Taiwan keywords match.
+- **General rule**: Any Taiwan place name that also exists as a Tokyo ward/neighborhood name needs a `_TAIWAN_KW_NO_<X>` guard. Pattern: `[kw for kw in TAIWAN_KEYWORDS if kw != "<keyword>"]` + check both the ambiguous keyword's presence and whether it appears only as part of the Tokyo place name.
 
 ## iwafu-specific
 - **Global-tour false positive**: If description contains `台湾など世界各地` / `全国各地.*台湾` etc., the event is a nationwide/global tour where Taiwan is just one stop. Reject it — it is NOT a Taiwan-themed event. The `_GLOBAL_TOUR_PATTERNS` regex in `iwafu.py` implements this guard.

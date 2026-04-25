@@ -287,6 +287,17 @@ class PeatixScraper(BaseScraper):
             logger.info("Peatix: only '\u53f0東区' (Tokyo ward) found, skipping: %s", url)
             return None
 
+        # False-positive guard: 桃園区 is a Tokyo neighborhood (e.g. 桃園区民活動センター
+        # in Nakano ward), not Taoyuan Taiwan.
+        # Skip if 桃園 appears solely as part of 桃園区 with no other Taiwan signals.
+        _TAIWAN_KW_NO_TAOYUAN = [kw for kw in TAIWAN_KEYWORDS if kw != "桃園"]
+        if (
+            "桃園区" in page_text
+            and not any(kw in page_text for kw in _TAIWAN_KW_NO_TAOYUAN)
+        ):
+            logger.info("Peatix: only '桃園区' (Tokyo neighborhood) found, skipping: %s", url)
+            return None
+
         # --- Title ---
         name_ja = (
             _safe_text(page, "h1.event-title")

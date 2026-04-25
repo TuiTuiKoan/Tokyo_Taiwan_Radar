@@ -3,6 +3,21 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-26 — peatix: 桃園区民活動センター triggered 桃園 keyword match
+
+**Error:** 2 peatix events ("スピーチ勉強会" speech practice sessions) were scraped because their venue was 桃園区民活動センター (Nakano, Tokyo). `桃園` is in `TAIWAN_KEYWORDS` as Taoyuan (Taiwan city), but here it refers to a Tokyo neighborhood. The events have zero Taiwan content — the annotator GPT hallucinated a Taiwan-Japan exchange justification in `selection_reason`.
+
+**Fix:**
+1. `peatix.py`: Added `_TAIWAN_KW_NO_TAOYUAN` guard (same pattern as `台東区` guard): skip if `桃園区` in page text and no other Taiwan keyword matches.
+2. Hard deleted 2 existing DB records (source_ids: `427efc7af975bcb8`, `90ef94417ec7daa7`).
+
+**Lesson:**
+- Any Taiwan city/region name that shares characters with a Tokyo ward/neighborhood requires a guard. Same mechanism as `台東区`.
+- The annotator GPT will hallucinate Taiwan relevance even when none exists — the scraper keyword filter is the last line of defense before DB insertion.
+- When adding a new Taiwan place name to `TAIWAN_KEYWORDS`, check if the same string appears as a Tokyo neighborhood or ward name.
+→ Added `桃園区 false positive` and `General rule` to SKILL.md (`Peatix-specific`).
+
+---
 ## 2026-04-26 — eplus/iwafu: 神韻 (Shen Yun) appeared as Taiwan events
 
 **Error:** 13 events titled "神韻2026日本公演" were scraped by eplus (12 sessions) and iwafu (1), and annotated as Taiwan-related. 神韻 is a US-based Falun Gong performing arts group; it mentions 台湾 only because Japan tour venues include Taipei. It has **no connection to Taiwanese culture**.
