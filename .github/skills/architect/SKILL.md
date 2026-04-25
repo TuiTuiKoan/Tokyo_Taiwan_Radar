@@ -31,6 +31,16 @@ Read this at the start of every session before producing any plan.
 - Verify model capabilities before designing features requiring real-time data (web search, live prices, current events). `gpt-4o-mini` and `gpt-4o` have no web browsing. Use `gpt-4o-search-preview` or a real search API for current data.
 - "Plausible-looking output" ≠ "real data access." A model without search access will hallucinate convincing-looking URLs.
 
+## Address Verification
+- **Never change a hardcoded address based on a DB value alone.** The DB may contain AI-hallucinated addresses from `backfill_locations.py` or the annotator. Always verify against the official source website first.
+- Every hardcoded `location_address` in a scraper must include a comment citing the verification URL and date, e.g.:
+  ```python
+  # Verified: https://jp.taiwan.culture.tw/cp.aspx?n=362 (2026-04-26)
+  location_address = "東京都港区虎ノ門1-1-12 虎ノ門ビル2階"
+  ```
+- When a user questions a displayed address, use `fetch_webpage` on the official source URL before drawing any conclusion.
+- If `backfill_locations.py` has run on a source with a known fixed address, audit those DB records — AI-generated translations may contain hallucinated street numbers.
+
 ## i18n Completeness
 - After writing or reviewing any TSX file with visible UI text, run the CJK audit before approving: `python3 -c "import os, re; [print(f+':'+str(i)+':'+l.strip()) for root,_,files in os.walk('web') for f in files if f.endswith('.tsx') for i,l in enumerate(open(os.path.join(root,f)).readlines(),1) if re.search(r'[\u4e00-\u9fff\u3040-\u30ff]',l) and not any(p in l for p in ['t(','tFilters(','tCat(','tEvent(','getEvent','MARKERS','//',"'//"])]" 2>/dev/null`
 - Module-level consts that include translated strings CANNOT use `useTranslations()` (React hook rules). Either move the const inside the component function, or pass the translation function as a parameter.
