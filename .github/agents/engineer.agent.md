@@ -42,6 +42,7 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 2. Make changes using `replace_string_in_file` or `multi_replace_string_in_file` (prefer multi for independent edits).
 3. For new files, use `create_file` — never create files unless strictly necessary.
 4. Do NOT add comments, docstrings, or extra error handling beyond what was asked.
+5. **Filter-option sync:** When adding a value to a TypeScript union, DB enum, or i18n file that is also used in a `<select>` dropdown, always add the matching `<option>` element in the same commit. Check every `<select>` whose value type includes the new key.
 
 ### Step 3: Verify
 

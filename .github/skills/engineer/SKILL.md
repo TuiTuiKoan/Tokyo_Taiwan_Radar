@@ -41,6 +41,8 @@ These were regressed at least twice (commits `9c4010d`, `01b73a4`) when unrelate
 
 **Address cell fallback rule:** The address `<td>` must use `event.location_address || event.location_address_zh || event.location_name`. Never read a single field. Any locale-aware field displayed in admin must apply the same fallback chain as the corresponding helper in `lib/types.ts`.
 
+**Filter-option sync rule:** Any `<select>` filter whose options come from a canonical set (e.g. `annotation_status`, `category`, `source_name`) must list **every** value in that set as an `<option>`. When a new value is added to a TypeScript union, DB enum, or i18n file, the corresponding `<option>` element must be added in the same commit. TypeScript does not detect missing dropdown options.
+
 ## Scraper Implementation
 
 - Every new scraper source must extend `BaseScraper` (`scraper/sources/base.py`) and implement `scrape() → list[Event]`.
