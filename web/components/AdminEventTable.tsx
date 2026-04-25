@@ -52,7 +52,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "other_japan" | "taiwan" | "online">("")
-  const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "error">("");;  const [filterSource, setFilterSource] = useState("");
+  const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "reviewed" | "error">("");;  const [filterSource, setFilterSource] = useState("");
   const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
   const TAIWAN_MARKERS_ADMIN = ["台北", "台中", "台南", "高雄", "台湾", "台灣"];
   function isTokyoAddr(addr: string | null | undefined): boolean {
@@ -195,12 +195,14 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
   function getAnnotationBadgeClass(status: string) {
     if (status === "annotated") return "bg-green-50 text-green-700";
+    if (status === "reviewed") return "bg-blue-50 text-blue-700";
     if (status === "error") return "bg-red-50 text-red-600";
     return "bg-yellow-50 text-yellow-700";
   }
 
   function getAnnotationLabel(status: string) {
     if (status === "annotated") return t("annotated");
+    if (status === "reviewed") return t("reviewed");
     if (status === "error") return t("error");
     return t("pending");
   }
@@ -568,6 +570,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             >
               <option value="">{t("filterAll")}</option>
               <option value="annotated">{t("annotated")}</option>
+              <option value="reviewed">{t("reviewed")}</option>
               <option value="pending">{t("filterPendingReannotation")}</option>
               <option value="error">{t("error")}</option>
             </select>

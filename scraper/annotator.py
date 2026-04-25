@@ -270,9 +270,11 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
 
     # Fetch events to annotate
     # Always filter is_active=True so soft-deleted events are never re-processed.
-    query = sb.table("events").select("*").eq("is_active", True)
+    # Always exclude 'reviewed' events — they are human-confirmed and must not be
+    # overwritten by AI even when --all is used.
+    query = sb.table("events").select("*").eq("is_active", True).neq("annotation_status", "reviewed")
     if re_annotate_all:
-        pass  # annotate all active events regardless of status
+        pass  # annotate all active non-reviewed events regardless of status
     else:
         query = query.eq("annotation_status", "pending")
 

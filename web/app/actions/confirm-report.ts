@@ -112,10 +112,10 @@ export async function confirmReport(
         : null;
 
     if (resolvedCategory) {
-      // Apply category immediately — no need for full re-annotation
+      // Apply category immediately — mark as reviewed so AI/scraper won't overwrite
       eventUpdate["category"] = resolvedCategory;
       eventUpdate["is_active"] = true;
-      eventUpdate["annotation_status"] = "annotated";
+      eventUpdate["annotation_status"] = "reviewed";
     } else {
       // No category provided — queue for re-annotation.
       // IMPORTANT: do NOT set is_active=false here. The annotator queries
@@ -168,9 +168,9 @@ export async function confirmReport(
     const nameNeedsReannotation = wrongFields.includes("name") && corrections["name"]?.trim();
 
     if (allDirectlyFixed && !nameNeedsReannotation && !wrongFields.includes("description")) {
-      // All factual fields corrected by admin — re-activate immediately
+      // All factual fields corrected by admin — mark as reviewed so AI/scraper won't overwrite
       eventUpdate["is_active"] = true;
-      eventUpdate["annotation_status"] = "annotated";
+      eventUpdate["annotation_status"] = "reviewed";
     } else {
       // Some fields still need annotator or have translation requirements.
       // IMPORTANT: do NOT set is_active=false here. The annotator queries
@@ -300,7 +300,7 @@ async function appendToHistoryFile(
     if (input.reportTypes.includes("irrelevant")) {
       actionLine = "Event hidden (is_active=false). Irrelevant content.";
     } else if (isWrongCat && finalCat) {
-      actionLine = "Category corrected inline — event remains active (is_active=true, annotation_status=annotated).";
+      actionLine = "Category corrected inline — event remains active (is_active=true, annotation_status=reviewed).";
     } else if (isWrongCat && !finalCat) {
       actionLine = "Category cleared — re-annotation triggered (annotation_status=pending).";
     } else if (wrongFields.some(f => f in ANNOTATOR_FIELDS)) {

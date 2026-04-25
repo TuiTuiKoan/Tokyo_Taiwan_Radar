@@ -135,6 +135,7 @@
     "annotationStatus": "Status",
     "pending": "Pending",
     "annotated": "Processed",
+    "reviewed": "Reviewed",
     "error": "Failed",
     "pendingCountActiveOnly": "Active pending: {count}",
     "pendingCountDetail": "Active {active} / total {total}",

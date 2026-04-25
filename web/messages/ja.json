@@ -135,6 +135,7 @@
     "annotationStatus": "処理状況",
     "pending": "処理待ち",
     "annotated": "処理済み",
+    "reviewed": "審査済み",
     "error": "処理失敗",
     "pendingCountActiveOnly": "公開中で未処理 {count} 件",
     "pendingCountDetail": "公開中 {active} / 全体 {total}",

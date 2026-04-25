@@ -135,6 +135,7 @@
     "annotationStatus": "處理狀態",
     "pending": "待處理",
     "annotated": "已整理",
+    "reviewed": "已審核",
     "error": "處理失敗",
     "pendingCountActiveOnly": "開放中待標注 {count}",
     "pendingCountDetail": "開放中 {active} / 全部 {total}",

@@ -157,7 +157,8 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
     force_keys = force_keys or set()
 
     # One query per source_name: fetch is_active, annotation_status, force_rescrape
-    blocked_keys: set[tuple[str, str]] = set()    # admin-deactivated
+    blocked_keys: set[tuple[str, str]] = set()    # admin-deactivated (is_active=false)
+    reviewed_keys: set[tuple[str, str]] = set()   # human-reviewed — fully protected
     existing_keys: set[tuple[str, str]] = set()   # any row that already exists in DB
     db_force_keys: set[tuple[str, str]] = set()   # rows with force_rescrape=true in DB
 
@@ -175,6 +176,8 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
                 existing_keys.add(key)
                 if not row.get("is_active"):
                     blocked_keys.add(key)
+                if row.get("annotation_status") == "reviewed":
+                    reviewed_keys.add(key)
                 if row.get("force_rescrape"):
                     db_force_keys.add(key)
     except Exception as exc:
@@ -190,6 +193,8 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
         key = (e.source_name, e.source_id)
         if key in blocked_keys:
             continue  # never re-activate admin-deactivated events
+        if key in reviewed_keys:
+            continue  # human-reviewed events are fully protected — skip even if force_rescrape=true
         row = _event_to_row(e)
         if key in existing_keys:
             if key in all_force_keys:
@@ -201,15 +206,21 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
     skipped_deactivated = sum(
         1 for e in events if (e.source_name, e.source_id) in blocked_keys
     )
+    skipped_reviewed = sum(
+        1 for e in events if (e.source_name, e.source_id) in reviewed_keys
+    )
     skipped_existing = sum(
         1 for e in events
         if (e.source_name, e.source_id) in existing_keys
         and (e.source_name, e.source_id) not in blocked_keys
+        and (e.source_name, e.source_id) not in reviewed_keys
         and (e.source_name, e.source_id) not in all_force_keys
     )
 
     if skipped_deactivated:
         logger.info("Skipped %d admin-deactivated event(s) — will not re-activate.", skipped_deactivated)
+    if skipped_reviewed:
+        logger.info("Skipped %d human-reviewed event(s) — fully protected from overwrite.", skipped_reviewed)
     if skipped_existing:
         logger.info(
             "Skipped %d already-scraped event(s) — use force_rescrape=true to overwrite.",
