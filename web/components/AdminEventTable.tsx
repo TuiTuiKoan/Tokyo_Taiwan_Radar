@@ -211,7 +211,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     if (!window.confirm(t("confirmDelete"))) return;
     // Soft-delete: set is_active = false instead of removing the row.
     // This permanently blocks the scraper from re-inserting the event.
-    await supabase.from("events").update({ is_active: false }).eq("id", id);
+    const { error } = await supabase.from("events").update({ is_active: false }).eq("id", id);
+    if (error) {
+      alert(`刪除失敗：${error.message}`);
+      return;
+    }
     setEvents((prev) => prev.filter((e) => e.id !== id));
     setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
   }
@@ -224,7 +228,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     const ids = Array.from(selected);
     // Soft-delete: set is_active = false instead of removing rows.
     // This permanently blocks the scraper from re-inserting these events.
-    await supabase.from("events").update({ is_active: false }).in("id", ids);
+    const { error } = await supabase.from("events").update({ is_active: false }).in("id", ids);
+    if (error) {
+      alert(`批次刪除失敗：${error.message}`);
+      setBulkDeleting(false);
+      return;
+    }
     setEvents((prev) => prev.filter((e) => !selected.has(e.id)));
     setSelected(new Set());
     setBulkDeleting(false);
