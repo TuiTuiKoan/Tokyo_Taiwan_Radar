@@ -16,6 +16,7 @@
     "paidOnly": "有料のみ",
     "timeMode": "期間",
     "timeModeActive": "開催中",
+    "timeModeAll": "すべて",
     "timeModePast": "過去のイベントを検索",
     "dateFrom": "開始日",
     "dateTo": "終了日",
@@ -27,6 +28,7 @@
     "allLocations": "すべて",
     "locationTokyo": "東京（日本）",
     "locationOtherJapan": "他の都市（日本）",
+    "locationOnline": "オンライン",
     "locationTaiwan": "他の都市（台湾）"
   },
   "categories": {

@@ -242,9 +242,9 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
             <select
               value={draft.timeMode}
               onChange={(e) => {
-                if (e.target.value === "active") {
+                if (e.target.value === "active" || e.target.value === "all") {
                   setDraft((prev) => {
-                    const next = { ...prev, timeMode: "active", from: "", to: "" };
+                    const next = { ...prev, timeMode: e.target.value, from: "", to: "" };
                     pushWith(next);
                     return next;
                   });
@@ -255,6 +255,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="active">{t("timeModeActive")}</option>
+              <option value="all">{t("timeModeAll")}</option>
               <option value="past">{t("timeModePast")}</option>
             </select>
           </div>
