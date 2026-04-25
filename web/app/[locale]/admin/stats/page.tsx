@@ -195,6 +195,8 @@ export default async function AdminStatsPage({ params }: PageProps) {
   }
   const monthlyEntries = Object.entries(monthlyMap).sort((a, b) => a[0].localeCompare(b[0]));
   const maxMonthly = Math.max(...monthlyEntries.map(([, n]) => n), 1);
+
+  return (
     <div>
       <h1 className="text-2xl font-bold mb-4">{t("title")}</h1>
 

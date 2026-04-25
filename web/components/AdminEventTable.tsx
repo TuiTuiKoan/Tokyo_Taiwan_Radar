@@ -96,6 +96,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         if (TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false;
       } else if (filterLocation === "online") {
         if (!(e.location_name || "").includes("オンライン")) return false;
+      }
       if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
       return true;
     });
