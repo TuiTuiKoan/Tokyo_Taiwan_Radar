@@ -343,7 +343,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         {/* Row 1: 搜尋、類型、地點、票價、時間、日期 */}
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{tFilters("search")}</label>
+            <label className="text-xs text-gray-500 font-medium">{t("name")}</label>
             <input
               type="search"
               value={filterQ}
@@ -353,12 +353,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             />
           </div>
           <div className="flex flex-col gap-1" ref={catDropdownRef}>
-            <label className="text-xs text-gray-500 font-medium">{tFilters("category")}</label>
+            <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setCatDropdownOpen((o) => !o)}
-                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-gray-50 hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-white hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
               >
                 <span className={filterCategories.length > 0 ? "text-green-700 font-medium" : "text-gray-500"}>
                   {filterCategories.length > 0 ? `${t("category")} (${filterCategories.length})` : t("filterAll")}
@@ -419,9 +419,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               onChange={(e) => setFilterPaid(e.target.value)}
               className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
-              <option value="">{tFilters("allPaid")}</option>
-              <option value="free">{tFilters("freeOnly")}</option>
-              <option value="paid">{tFilters("paidOnly")}</option>
+              <option value="">{t("filterAll")}</option>
+              <option value="free">{tEvent("free")}</option>
+              <option value="paid">{tEvent("paid")}</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
@@ -441,8 +441,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="active">{tFilters("timeModeActive")}</option>
-              <option value="all">{tFilters("timeModeAll")}</option>
-              <option value="past">{tFilters("timeModePast")}</option>
+              <option value="all">{t("filterAll")}</option>
+              <option value="past">{t("filterPast")}</option>
             </select>
           </div>
           {filterTimeMode === "past" && (
