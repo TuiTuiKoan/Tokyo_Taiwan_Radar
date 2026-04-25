@@ -207,11 +207,23 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
     ai = _get_openai()
     annotation_start = time.time()
 
-    # Load category feedback from admin corrections
+    # Load category feedback from admin corrections (for few-shot examples in AI prompt)
     corrections = load_corrections(sb)
     feedback_prompt = build_feedback_prompt(corrections)
     if corrections:
         logger.info("Loaded %d category corrections as few-shot examples", len(corrections))
+
+    # Load full event_id → corrected_category map so the annotator can
+    # apply human corrections directly and skip AI category prediction.
+    # This ensures re-annotation never overwrites manually corrected categories.
+    all_corrections_res = sb.table("category_corrections").select("event_id,corrected_category").execute()
+    human_category_map: dict[str, list[str]] = {
+        r["event_id"]: r["corrected_category"]
+        for r in (all_corrections_res.data or [])
+        if r.get("corrected_category")
+    }
+    if human_category_map:
+        logger.info("Loaded %d human-corrected category overrides", len(human_category_map))
 
     # Fetch events to annotate
     # Always filter is_active=True so soft-deleted events are never re-processed.
@@ -251,6 +263,15 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
             # Validate and sanitize
             categories = _validate_categories(annotation.get("category", []))
             categories = _inject_keyword_categories(categories, raw_title + " " + raw_desc)
+
+            # Override with human-corrected category if one exists — this takes
+            # priority over AI prediction and keyword injection.
+            if eid in human_category_map:
+                human_cats = human_category_map[eid]
+                if human_cats != categories:
+                    logger.info("  → Applying human-corrected category: %s (AI predicted: %s)",
+                                human_cats, categories)
+                categories = human_cats
 
             # Helper: convert empty-string GPT outputs to None so that
             # the web fallback chain (ja→zh→en) works correctly.

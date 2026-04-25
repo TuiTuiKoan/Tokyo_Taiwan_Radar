@@ -180,8 +180,11 @@ export async function confirmReport(
   }
 
   if (isIrrelevant && !isWrongCategory && !isWrongDetails) {
+    // Hide the event and mark it fully processed — do NOT set pending here.
+    // Setting pending + is_active=false strands the event because the annotator
+    // only processes is_active=True events.
     eventUpdate["is_active"] = false;
-    eventUpdate["annotation_status"] = "pending";
+    eventUpdate["annotation_status"] = "annotated";
   }
 
   if (Object.keys(eventUpdate).length > 0) {

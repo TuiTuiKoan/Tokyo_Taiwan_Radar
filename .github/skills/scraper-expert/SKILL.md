@@ -103,6 +103,63 @@ Analysis of all corrections in `category_corrections` table reveals systematic p
 - **`movie` + `lecture` co-occur**: 上映会＋トークイベント should always get BOTH categories.
 - **Historical content needs `history`**: Any event mentioning Taiwan's political history, colonial era, post-war era should add `history`.
 
+## Irrelevant event patterns — confirmed false positives (from admin review)
+
+Based on 36 confirmed irrelevant reports. These event types are **NOT Taiwan-themed** even when they pass keyword filters:
+
+### Peatix false positive patterns
+| Pattern | Example | Root cause |
+|---------|---------|------------|
+| Typography/design series | `SDA60周年記念リレーセミナー`, `Day1 【図形】`, `Day2 【書体】` | Keyword hit on Chinese characters in design terminology, not Taiwan |
+| Finnish-Japanese radio/podcast | `和フィン折衷対話ラジオ` | `和` + foreign word matches loosely |
+| Life planning seminars | `人生100年計画セミナー`, `マンダラ人生計画セミナー` | `台湾` mentioned tangentially as comparison example |
+| Japanese film/pop culture discussion | `月刊丸屋町山`, `どうなるハリウッド?!` | `taiwan_japan` over-prediction |
+| Marketing/tech seminars | `ゲーム専門マーケティング×Steam`, `エラマ哲学バー` | Weak keyword match |
+| Self-help / health lectures | `傷を抱えたままでも幸せになっていい` (畠山織恵) | Author has Taiwan connection but event not Taiwan-themed |
+| Japanese recipe/food content | `オレンジページのオンライン点心動画`, `山脇りこ×大木淳夫` | 点心 / Kyoto content, not Taiwan food |
+| Dance/performance workshops | `舞踏ワークショップ東京`, `メディアアートも楽笑よ` | Japanese artists with no Taiwan connection |
+| Classical guitar recitals | `福田進一リサイタル——フランスのギター音楽` | No Taiwan connection |
+| Philosophy bars | `エラマ哲学バー` | No Taiwan connection |
+| Doorkeeper generic seminars | `人生100年計画`, `マンダラ人生計画` | Life planning with token Taiwan reference |
+
+### eplus false positive patterns
+| Pattern | Example | Root cause |
+|---------|---------|------------|
+| Japanese rock/J-pop bands | `KNOCK OUT MONKEY`, `三浦透子×近藤康平` | No Taiwan connection; keyword match on other content |
+| Japanese music festivals | `CIRCLE '26` | General Japan music event |
+
+### iwafu false positive patterns
+| Pattern | Example | Root cause |
+|---------|---------|------------|
+| Japanese local/ceramic festivals | `上野焼 春の陶器まつり` | Regional Japanese craft, no Taiwan |
+| Japanese nature festivals | `花の山寺 春の花まつり` | Local shrine/temple event |
+| Japanese domestic airline | `スプリング・ジャパン客室乗務員訓練体験` | Spring Japan (日本の航空会社) — not related to Taiwan despite flights |
+| Japanese photographer retrospectives | `あかがねミュージアム 木村伊兵衛 写真展` | Japanese Showa-era photographer |
+| 8mm film exhibitions | `生活工房アレコレ2026 8ミリフィルム常設上映` | Japanese community art space |
+| Healing/wellness workshops | `癒しのくう ワークショップ` | Japanese wellness, no Taiwan |
+| World food festivals | `リトルワールド 世界の肉祭り` | International theme park event |
+
+### Rules derived from false positives
+- **Spring Japan (スプリング・ジャパン)** = Japanese domestic airline, NOT Taiwan-related. Block title pattern `スプリング・ジャパン` in iwafu.
+- **台湾 as a comparison/reference** ≠ Taiwan-themed event. The event must have Taiwan as subject, not just mention it in passing.
+- **Organizer has Taiwan connection ≠ event is Taiwan-themed**: Check the event title and description, not just organizer background.
+- **Life planning / self-help seminars** with `台湾` in bio or slide content are consistently not Taiwan-themed events.
+- **Japanese musicians/artists at non-Taiwan venues** with `台湾` somewhere in their profile are NOT Taiwan events.
+
+## confirm-report.ts — annotation_status rules
+
+**IMPORTANT**: Bugs in the `annotation_status` transition cause events to be permanently stranded.
+
+| Action | Correct transition | Wrong (causes stranding) |
+|--------|-------------------|--------------------------|
+| wrongCategory + category provided | `is_active=true, status=annotated` | — |
+| wrongCategory + no category | `status=pending` (keep is_active unchanged) | `is_active=false, status=pending` ← strands forever |
+| wrongDetails + directly corrected | `is_active=true, status=annotated` | — |
+| wrongDetails + needs re-annotation | `status=pending` (keep is_active unchanged) | `is_active=false, status=pending` ← strands forever |
+| irrelevant | `is_active=false, status=annotated` | `is_active=false, status=pending` ← strands forever |
+
+**Rule**: The annotator queries `is_active=True AND annotation_status=pending` only. Any path that sets `is_active=false` must NOT also set `annotation_status=pending`, as the event will never be processed and never be re-activated.
+
 ## Event detail page (web) — inactive events
 - `web/app/[locale]/events/[id]/page.tsx` must include `if (!event.is_active) notFound()` immediately after fetching the event. Without this, deactivated events remain accessible by direct URL.
 - Deactivating an event in the DB is NOT sufficient to hide it from public access — the detail page must also guard against it.

@@ -2,7 +2,42 @@
 
 <!-- Append new entries at the top -->
 
----## 2026-04-26 — category not protected: human corrections overwritten by scraper
+---
+## 2026-04-26 — confirm-report.ts stranded events + irrelevant false positives documented
+
+**問題 1: 87 個事件被卡死 (stranded)**
+`confirm-report.ts` 在三種確認路徑中誤設 `is_active=false + annotation_status=pending`：
+- wrongCategory（無提供正確分類時）
+- wrongDetails（需重新標記時）
+- irrelevant（標記不相關時）
+
+由於 annotator 查詢條件是 `is_active=True AND pending`，這些事件永遠不會被處理。
+
+**修正:**
+1. `confirm-report.ts` wrongCategory/wrongDetails 路徑: 移除 `is_active=false`，只設 `annotation_status=pending`
+2. `confirm-report.ts` irrelevant 路徑: 改設 `annotation_status=annotated`（不是 pending）
+3. 立即補救: 重新啟用 87 個卡死事件（57 個套用人工修正分類並設 annotated；29 個不相關重新關閉）
+
+**問題 2: 57 個有人工修正的事件分類會被 annotator 覆寫**
+`annotator.py` 直接以 AI 預測的分類覆寫 `category` 欄位，不看 `category_corrections` 表的人工修正。
+`_PROTECTED_FIELDS` 只保護 scraper upsert，不保護 annotator 重新標記。
+
+**修正:**
+1. `annotator.py`: 在 AI 預測分類後，立即用 `human_category_map` 覆蓋（從 `category_corrections` 表全量讀取）
+2. 立即補救: 直接把 57 個有修正紀錄的 pending 事件套用正確分類並設為 `annotated`
+
+**問題 3: 36 個 irrelevant 報告模式整理（詳見 SKILL.md `Irrelevant event patterns` 章節）**
+- Peatix: 活字設計系列、和芬折衷對話、人生計劃研討會、日本廚師食譜影片、自助講座
+- eplus: KNOCK OUT MONKEY 等日本樂團、日本音樂節
+- iwafu: 日本傳統工藝祭、日本神社花祭、スプリング・ジャパン（日本航空公司）
+
+**教訓:**
+- `is_active=false` 與 `annotation_status=pending` 絕對不能同時設定
+- 正確規則: `is_active=false → status=annotated`；`status=pending → is_active=true`
+- annotator 必須在 AI 預測後套用 `category_corrections` 人工修正，不可覆寫
+
+---
+## 2026-04-26 — category not protected: human corrections overwritten by scraper
 
 **問題:** `category` 欄位不在 `_PROTECTED_FIELDS`，因此每次爬蟲執行都會以 AI 預測值覆寫人工修正的分類。分析 65 筆 `category_corrections` 紀錄後發現明顯的 AI 系統性偏差。
 
