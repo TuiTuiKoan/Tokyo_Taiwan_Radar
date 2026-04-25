@@ -19,12 +19,12 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 
 ## Session Start Checklist
 1. Read `.github/skills/agents/scraper-expert/SKILL.md` — apply all rules before starting.
-2. If a per-source skill exists (`.github/skills/<source_name>/SKILL.md`), read it too.
+2. If a per-source skill exists (`.github/skills/sources/<source_name>/SKILL.md`), read it too.
 
 ## After Fixing a Scraper Bug
 1. Append an entry to `.github/skills/agents/scraper-expert/history.md` (newest at top): date, error, fix, lesson.
 2. If the lesson generalizes, add or update a rule in `SKILL.md`.
-3. Append an entry to `.github/skills/<source_name>/history.md` with the same format.
+3. Append an entry to `.github/skills/sources/<source_name>/history.md` with the same format.
 4. If the lesson is source-specific, add or update a rule in the per-source `SKILL.md`.
 
 ## Role
@@ -68,7 +68,7 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 
 #### New source
 
-1. Create `.github/skills/<source_name>/SKILL.md` with:
+1. Create `.github/skills/sources/<source_name>/SKILL.md` with:
    - YAML frontmatter: `name`, `description`, `applyTo: scraper/sources/<source_name>.py`
    - Platform profile table (Site URL, API/Rendering, Auth, Rate limit, Source name, Source ID format)
    - Field mappings table
@@ -76,13 +76,13 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
    - Date extraction notes
    - Troubleshooting table
    - `## Pending Rules` footer
-2. Create `.github/skills/<source_name>/history.md` with a `## YYYY-MM-DD` entry describing any non-obvious decisions made during initial implementation.
+2. Create `.github/skills/sources/<source_name>/history.md` with a `## YYYY-MM-DD` entry describing any non-obvious decisions made during initial implementation.
 3. Add a `## <source_name>-specific` section to `.github/skills/agents/scraper-expert/SKILL.md` with the top 3–5 rules that a future agent must know.
 4. Update `research_sources` status to `implemented` in Supabase if this source was tracked there.
 
 #### Bug fix
 
 1. Append entry to `.github/skills/agents/scraper-expert/history.md` (newest at top).
-2. Append entry to `.github/skills/<source_name>/history.md`.
+2. Append entry to `.github/skills/sources/<source_name>/history.md`.
 3. If the lesson generalizes: add/update rule in `scraper-expert/SKILL.md`.
 4. If the lesson is source-specific: add/update rule in the per-source `SKILL.md`.

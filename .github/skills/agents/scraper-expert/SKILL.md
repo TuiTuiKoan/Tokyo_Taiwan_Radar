@@ -140,6 +140,20 @@ applyTo: scraper/sources/<source_name>.py
 - **Date format**: API returns `"YYYY-MM-DD HH:MM:SS"` without timezone. Parse with `datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=JST)`. Do NOT use `fromisoformat()`.
 - **台東 false positive**: `台東区` is a Tokyo ward. Do NOT add `台東` or `台東区` to `_TAIWAN_KEYWORDS`.
 
+## tuat_global-specific
+- **Filter on title only**: Taiwan appears as `（台湾）` in the researcher's affiliation within the title (e.g. `/ 国立陽明交通大学（台湾）`). Filter `_TAIWAN_KEYWORDS` on title only.
+- **All info on listing page**: Each event's `<table>` already contains title, date, and venue — no need to fetch detail pages.
+- **Date format uses full-width colon**: `"2026.4.15（14：00～15：30）"` — match `HH：MM` with `[：:]` to handle both full-width and ASCII colon.
+- **LOOKBACK_DAYS = 60**: Events older than 60 days are skipped. Low yield (~1–3 Taiwan events/year) is normal.
+- **Venue may have Zoom line**: Take first line of venue cell as `location_name`; join all non-http lines as `location_address`.
+
+## jinf-specific
+- **Correct page is `/meeting`**: `/event`, `/lecture` return 404. The upcoming events list is at `https://jinf.jp/meeting`.
+- **`meetingbox` div not `<li>` or `<article>`**: Upcoming events are `<div class="meetingbox">` elements. Do NOT query for list items.
+- **`【場　所】` has full-width space**: The label uses U+3000 between 場 and 所. Use both `場　所` and `場所` in fallback extraction.
+- **`source_id` = form ID**: Use the numeric ID from `/meeting/form?id=NNNN` as the stable dedup key. Do NOT hash the title.
+- **Filter on full box text**: Taiwan may appear only in speaker affiliations (`台湾元行政院副院長`), not in the title. Filter on full `box_text`, not just the title element.
+
 ## DeepL Tracking
 - Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
 - Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
@@ -230,16 +244,18 @@ python scraper/backfill_locations.py
 ### 3. Per-source SKILL.md — update if a platform rule changed
 | Modified source | Platform SKILL to update |
 |-----------------|--------------------------|
-| `peatix.py` | `.github/skills/peatix/SKILL.md` |
-| `taiwan_cultural_center.py` | `.github/skills/taiwan_cultural_center/SKILL.md` |
-| `connpass.py` or `doorkeeper.py` | `.github/skills/community-platforms/SKILL.md` |
-| `iwafu.py` | `.github/skills/iwafu/SKILL.md` |
-| `koryu.py` | `.github/skills/koryu/SKILL.md` |
-| `taioan_dokyokai.py` | `.github/skills/taioan_dokyokai/SKILL.md` |
-| `taiwan_kyokai.py` | `.github/skills/taiwan_kyokai/SKILL.md` |
-| `ide_jetro.py` | `.github/skills/ide_jetro/SKILL.md` |
-| `taiwan_festival_tokyo.py` | `.github/skills/taiwan_festival_tokyo/SKILL.md` |
-| `arukikata.py` | `.github/skills/arukikata/SKILL.md` |
+| `peatix.py` | `.github/skills/sources/peatix/SKILL.md` |
+| `taiwan_cultural_center.py` | `.github/skills/sources/taiwan_cultural_center/SKILL.md` |
+| `connpass.py` or `doorkeeper.py` | `.github/skills/sources/community-platforms/SKILL.md` |
+| `iwafu.py` | `.github/skills/sources/iwafu/SKILL.md` |
+| `koryu.py` | `.github/skills/sources/koryu/SKILL.md` |
+| `taioan_dokyokai.py` | `.github/skills/sources/taioan_dokyokai/SKILL.md` |
+| `taiwan_kyokai.py` | `.github/skills/sources/taiwan_kyokai/SKILL.md` |
+| `ide_jetro.py` | `.github/skills/sources/ide_jetro/SKILL.md` |
+| `taiwan_festival_tokyo.py` | `.github/skills/sources/taiwan_festival_tokyo/SKILL.md` |
+| `arukikata.py` | `.github/skills/sources/arukikata/SKILL.md` |
+| `tuat_global.py` | `.github/skills/sources/tuat_global/SKILL.md` |
+| `jinf.py` | `.github/skills/sources/jinf/SKILL.md` |
 
 ### 4. dry-run validation — always run before finishing
 ```bash
