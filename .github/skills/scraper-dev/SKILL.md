@@ -1,6 +1,7 @@
 ---
 name: scraper-dev
 description: "Step-by-step workflow for creating a new scraper source for Tokyo Taiwan Radar"
+applyTo: scraper/sources/**
 ---
 
 # Scraper Dev
@@ -55,6 +56,18 @@ cd scraper && python main.py --dry-run --source <source_name>
    - `start_date` populated (not null, not the publish date)
    - `raw_title` and `raw_description` non-empty
    - `source_id` stable across runs (re-run twice and confirm same IDs)
+
+5. **Document** — before committing, create these files:
+
+   | File | Content |
+   |------|---------|
+   | `.github/skills/sources/<source_name>/SKILL.md` | Platform profile, field mappings, Taiwan filter, date extraction, troubleshooting |
+   | `.github/skills/sources/<source_name>/history.md` | Initial implementation decisions and any first-run surprises |
+
+   Then update `.github/skills/agents/scraper-expert/SKILL.md` — add a `## <source_name>-specific` section with 3–5 key rules.
+   Also update `research_sources` in Supabase: set `status → implemented`.
+
+   > See `.github/skills/agents/scraper-expert/SKILL.md` → "Documentation Protocol" for full template.
 
 ## Parameters Reference
 
