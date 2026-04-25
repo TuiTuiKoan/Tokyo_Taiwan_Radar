@@ -32,18 +32,18 @@ Read this at the start of every session before producing any plan.
 - "Plausible-looking output" ≠ "real data access." A model without search access will hallucinate convincing-looking URLs.
 
 ## Online Location Standard
-- **Canonical online event representation**: `location_name = 'オンライン'`, `location_address = None`. No exceptions.
+- **Canonical online event representation**: `location_name = 'オンライン'`, `location_address = 'オンライン'`. **Both columns must be set; neither should be NULL.** DB also requires `location_address_zh = '線上'`, `location_address_en = 'Online'`.
 - All scrapers must normalize online markers **before** building the `Event` object. Use `_ONLINE_RE` pattern: `r'(?:online|オンライン|ライブ配信|配信のみ|[Zz][Oo][Oo][Mm])'`.
-- The web `location=online` filter must query `location_name`, not `location_address`.
-- The `location=other_japan` filter must exclude online events via `location_name NOT ILIKE '%オンライン%'`.
-- Do NOT store 'オンライン' in `location_address` — this will break the `other_japan` filter logic which already gates on `location_address IS NOT NULL`.
+- The web `location=online` filter queries `location_name ILIKE '%オンライン%'` (location_address is redundant for filtering but must still be set).
+- The `location=other_japan` filter must exclude online events via BOTH `location_name NOT ILIKE '%オンライン%'` AND `location_address NOT ILIKE '%オンライン%'`.
+- `AdminEventTable.tsx` `other_japan` filter must also check `!addr.includes('オンライン')` before accepting the event.
 - Variants like `'オンライン（Zoom）'` must be canonicalized to `'オンライン'`.
 
 ## Online Events (Peatix)
 - Peatix renders online-only events as `LOCATION\n\nOnline event` (single line, no address group). The two-part regex `LOCATION\n\n(.+)\n\n(.+)` will NOT match — always add a separate `loc_online_m` check BEFORE the two-part regex.
 - Set an `is_confirmed_online` flag immediately on match and **skip all CSS and regex address fallbacks** — description body text often mentions a venue as a conditional/secondary option and must never be used as `location_address`.
-- For confirmed online events: `location_name = 'オンライン'`, `location_address = None`.
-- The final body-text online fallback must also set `location_address = None`, not `'オンライン'`.
+- For confirmed online events: `location_name = 'オンライン'`, `location_address = 'オンライン'`.
+- The final body-text online fallback must also set `location_address = 'オンライン'`, NOT `None`.
 
 ## Address Verification
 - **Never change a hardcoded address based on a DB value alone.** The DB may contain AI-hallucinated addresses from `backfill_locations.py` or the annotator. Always verify against the official source website first.

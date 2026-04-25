@@ -63,9 +63,9 @@ def _normalize_location_name(venue: Optional[str]) -> Optional[str]:
 
 
 def _normalize_location_address(venue: Optional[str], address: Optional[str]) -> Optional[str]:
-    """Return None for online events; else the raw address."""
+    """Return 'オンライン' for online events; else the raw address."""
     if venue and _ONLINE_RE.search(venue):
-        return None
+        return 'オンライン'
     return address or None
 
 

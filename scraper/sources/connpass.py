@@ -70,9 +70,9 @@ def _normalize_location_name(place: Optional[str]) -> Optional[str]:
 
 
 def _normalize_location_address(place: Optional[str], address: Optional[str]) -> Optional[str]:
-    """Return None for online events; else the raw address."""
+    """Return 'オンライン' for online events; else the raw address."""
     if place and _ONLINE_RE.search(place):
-        return None
+        return 'オンライン'
     return address or None
 
 

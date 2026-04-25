@@ -366,7 +366,7 @@ class PeatixScraper(BaseScraper):
         if loc_online_m:
             is_confirmed_online = True
             location_name = 'オンライン'
-            location_address = None
+            location_address = 'オンライン'
 
         if not is_confirmed_online:
             # Step 2: two-part physical-venue pattern
@@ -403,14 +403,14 @@ class PeatixScraper(BaseScraper):
             if location_address:
                 location_name = location_address
             elif _ONLINE_MARKERS.search(page_text):
-                # Confirmed online via body text — do NOT set location_address
+                # Confirmed online via body text
                 location_name = 'オンライン'
-                location_address = None
+                location_address = 'オンライン'
 
-        # Canonicalize: any online marker → standardize to 'オンライン', address = None
+        # Canonicalize: any online marker → standardize to 'オンライン', address = 'オンライン'
         if location_name and _ONLINE_MARKERS.search(location_name):
             location_name = 'オンライン'
-            location_address = None
+            location_address = 'オンライン'
 
         # --- Price ---
         # Peatix shows "無料" or ticket prices

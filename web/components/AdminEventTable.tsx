@@ -91,6 +91,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       } else if (filterLocation === "other_japan") {
         const addr = e.location_address || "";
         if (!addr.trim()) return false;
+        if (addr.includes("オンライン")) return false;
         if (isTokyoAddr(addr)) return false;
         if (TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false;
       }

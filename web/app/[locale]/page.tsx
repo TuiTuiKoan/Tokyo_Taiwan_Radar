@@ -116,7 +116,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     // Exclude online events — canonical marker is on location_name
     query = query.not("location_name", "ilike", "%オンライン%");
   } else if (sp.location === "online") {
-    // Online events: location_name = 'オンライン', location_address = null
+    // Online events: location_name = 'オンライン', location_address = 'オンライン'
     query = query.ilike("location_name", "%オンライン%");
   }
 
