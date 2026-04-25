@@ -135,7 +135,7 @@
     "noParent": "（なし — 独立イベント）",
     "viewRaw": "元データ",
     "viewAnnotated": "整理済み",
-    "reannotate": "再分析",
+    "reannotate": "スケジュールリセット",
     "annotationStatus": "処理状況",
     "pending": "処理待ち",
     "annotated": "処理済み",

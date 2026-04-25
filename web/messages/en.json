@@ -135,7 +135,7 @@
     "noParent": "(None — standalone event)",
     "viewRaw": "Raw Data",
     "viewAnnotated": "Annotated",
-    "reannotate": "Re-analyze",
+    "reannotate": "Reset Schedule",
     "annotationStatus": "Status",
     "pending": "Pending",
     "annotated": "Processed",

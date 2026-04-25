@@ -135,7 +135,7 @@
     "noParent": "（無，此為獨立活動）",
     "viewRaw": "原始資料",
     "viewAnnotated": "已整理",
-    "reannotate": "重新分析",
+    "reannotate": "排程重置",
     "annotationStatus": "處理狀態",
     "pending": "待處理",
     "annotated": "已整理",
