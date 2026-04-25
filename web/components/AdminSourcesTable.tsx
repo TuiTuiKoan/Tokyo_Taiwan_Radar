@@ -100,12 +100,12 @@ export default function AdminSourcesTable({ sources }: Props) {
   const [filter, setFilter] = useState<string>("all");
 
   const STATUS_FILTERS = [
-    { key: "all",          label: "全部" },
-    { key: "implemented",  label: "✅ 已實作" },
-    { key: "not-viable",   label: "🚫 已排除" },
-    { key: "researched",   label: "🔍 已研究" },
-    { key: "recommended",  label: "⭐ 推薦" },
-    { key: "candidate",    label: "🔄 候選" },
+    { key: "all",          label: t("filterAll") },
+    { key: "implemented",  label: `✅ ${t("sourceStatusImplemented")}` },
+    { key: "not-viable",   label: `🚫 ${t("sourceStatusNotViable")}` },
+    { key: "researched",   label: `🔍 ${t("sourceStatusResearched")}` },
+    { key: "recommended",  label: `⭐ ${t("sourceStatusRecommended")}` },
+    { key: "candidate",    label: `🔄 ${t("sourceStatusCandidate")}` },
   ];
 
   const filtered = filter === "all" ? sources : sources.filter((s) => s.status === filter);

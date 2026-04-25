@@ -15,6 +15,7 @@ interface Props {
 export default function AdminEventTable({ events: initialEvents, locale }: Props) {
   const t = useTranslations("admin");
   const tCat = useTranslations("categories");
+  const tFilters = useTranslations("filters");
   const router = useRouter();
   const supabase = createClient();
 
@@ -329,7 +330,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             type="search"
             value={filterQ}
             onChange={(e) => setFilterQ(e.target.value)}
-            placeholder="搜尋活動..."
+            placeholder={tFilters("searchPlaceholder")}
             className="h-9 border border-gray-300 rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </div>
@@ -503,7 +504,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     checked={getSorted(getFiltered(events)).length > 0 && getSorted(getFiltered(events)).every((e) => selected.has(e.id))}
                     onChange={toggleSelectAll}
                     className="rounded cursor-pointer"
-                    title="全選"
+                    title={t("selectAll")}>
                   />
                 </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("raw_title")}>{t("name")}{sortArrow("raw_title")}</th>

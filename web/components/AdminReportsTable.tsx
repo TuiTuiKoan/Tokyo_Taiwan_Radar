@@ -47,14 +47,16 @@ const STATUS_CLASSES: Record<string, string> = {
 };
 
 // Maps each report field to the event column used for preview
-const FIELD_PREVIEW_COL: Record<string, (ev: NonNullable<ReportRow["events"]>) => string> = {
+type TEvent = (key: string) => string;
+
+const FIELD_PREVIEW_COL: Record<string, (ev: NonNullable<ReportRow["events"]>, tEvent?: TEvent) => string> = {
   name: (ev) => ev.name_ja ?? "—",
   start_date: (ev) => ev.start_date ? new Date(ev.start_date).toLocaleDateString("ja-JP") : "—",
   end_date: (ev) => ev.end_date ? new Date(ev.end_date).toLocaleDateString("ja-JP") : "—",
   venue: (ev) => ev.location_name ?? "—",
   address: (ev) => ev.location_address ?? "—",
   business_hours: (ev) => ev.business_hours ?? "—",
-  price: (ev) => ev.is_paid === null ? "—" : `${ev.is_paid ? "有料" : "無料"}${ev.price_info ? ` / ${ev.price_info}` : ""}`,
+  price: (ev, tEvent) => ev.is_paid === null ? "—" : `${ev.is_paid ? (tEvent ? tEvent("paid") : "Paid") : (tEvent ? tEvent("free") : "Free")}${ev.price_info ? ` / ${ev.price_info}` : ""}`,
   description: (ev) => ev.description_ja ? ev.description_ja.slice(0, 120) + (ev.description_ja.length > 120 ? "…" : "") : "—",
 };
 
@@ -76,6 +78,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const t = useTranslations("admin");
   const tReport = useTranslations("report");
   const tCat = useTranslations("categories");
+  const tEvent = useTranslations("event");
   const supabase = createClient();
 
   const [reports, setReports] = useState<ReportRow[]>(initialReports);
@@ -217,7 +220,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                       <p className="text-xs font-medium text-gray-600 mb-2">{t("fieldPreview")}</p>
                       <div className="space-y-2 bg-white border border-gray-200 rounded-lg p-3">
                         {wrongFields.map((field) => {
-                          const currentVal = FIELD_PREVIEW_COL[field]?.(row.events!) ?? "—";
+                          const currentVal = FIELD_PREVIEW_COL[field]?.(row.events!, tEvent) ?? "—";
                           const isEditable = EDITABLE_FIELDS.has(field);
                           const inputType = FIELD_INPUT_TYPE[field] ?? "text";
                           const editVal = fieldEdits[row.id]?.[field] ?? "";

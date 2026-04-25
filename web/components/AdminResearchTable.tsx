@@ -210,11 +210,11 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
                           candidate: "bg-amber-100 text-amber-700",
                         };
                         const statusLabel: Record<string, string> = {
-                          implemented: "✅ 已實作",
-                          "not-viable": "🚫 已排除",
-                          researched: "🔍 已研究",
-                          recommended: "⭐ 推薦",
-                          candidate: "🔄 候選",
+                          implemented: `✅ ${t("sourceStatusImplemented")}`,
+                          "not-viable": `🚫 ${t("sourceStatusNotViable")}`,
+                          researched: `🔍 ${t("sourceStatusResearched")}`,
+                          recommended: `⭐ ${t("sourceStatusRecommended")}`,
+                          candidate: `🔄 ${t("sourceStatusCandidate")}`,
                         };
 
                         return (
@@ -249,7 +249,7 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
                                       : "bg-red-100 text-red-600"
                                   }`}
                                 >
-                                  {verified ? "✅ URL 有效" : "❌ URL 無效"}
+                                  {verified ? t("urlValid") : t("urlInvalid")}
                                 </span>
                               )}
                             </div>
@@ -285,7 +285,7 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
                                     ) : (
                                       <span
                                         className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-200 text-gray-400 rounded-lg cursor-not-allowed"
-                                        title="URL 尚未驗證，無法建立 Issue"
+                                        title={t("urlNotVerifiedHint")}
                                       >
                                         📋 {t("researchCreateIssue")}
                                       </span>
