@@ -38,6 +38,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [catDropdownOpen, setCatDropdownOpen] = useState(false);
   const catDropdownRef = useRef<HTMLDivElement>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -82,10 +83,6 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
       return nextDraft;
     });
   }, [pushWith]);
-
-  const applyFilters = useCallback(() => {
-    pushWith(draft);
-  }, [draft, pushWith]);
 
   const clearAll = useCallback(() => {
     const reset = { q: "", category: "", from: "", to: "", paid: "", timeMode: "active", location: "" };
@@ -137,9 +134,9 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
       {/* Filter panel — always visible on md+, toggled on mobile */}
       <div className={`bg-gray-50 rounded-xl px-4 py-3 ${mobileOpen ? "block" : "hidden"} md:block`}>
 
-        {/* Row 1: keyword, category, location, paid, timeMode, date, apply, reset */}
+        {/* Row 1: keyword, category, location, paid, timeMode, date range, reset */}
         <div className="flex flex-wrap gap-3 items-end">
-          {/* Keyword search */}
+          {/* Keyword search — debounced immediate */}
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-500 font-medium">{t("search")}</label>
             <input
@@ -147,86 +144,16 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               value={draft.q}
               placeholder={t("searchPlaceholder")}
               className="h-9 border border-gray-300 rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
-              onChange={(e) => set("q", e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") applyFilters(); }}
+              onChange={(e) => {
+                const v = e.target.value;
+                setDraft((prev) => ({ ...prev, q: v }));
+                if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+                searchTimerRef.current = setTimeout(() => {
+                  setDraft((prev) => { pushWith(prev); return prev; });
+                }, 400);
+              }}
             />
           </div>
-
-          {/* Paid filter */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("paid")}</label>
-            <select
-              value={draft.paid}
-              onChange={(e) => applyWith("paid", e.target.value)}
-              className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{t("allPaid")}</option>
-              <option value="free">{t("freeOnly")}</option>
-              <option value="paid">{t("paidOnly")}</option>
-            </select>
-          </div>
-
-          {/* Location filter */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("location")}</label>
-            <select
-              value={draft.location}
-              onChange={(e) => applyWith("location", e.target.value)}
-              className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{t("allLocations")}</option>
-              <option value="tokyo">{t("locationTokyo")}</option>
-              <option value="other_japan">{t("locationOtherJapan")}</option>
-              <option value="online">{t("locationOnline")}</option>
-            </select>
-          </div>
-
-          {/* Time mode */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("timeMode")}</label>
-            <select
-              value={draft.timeMode}
-              onChange={(e) => {
-                if (e.target.value === "active") {
-                  setDraft((prev) => {
-                    const next = { ...prev, timeMode: "active", from: "", to: "" };
-                    pushWith(next);
-                    return next;
-                  });
-                } else {
-                  applyWith("timeMode", e.target.value);
-                }
-              }}
-              className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="active">{t("timeModeActive")}</option>
-              <option value="past">{t("timeModePast")}</option>
-            </select>
-          </div>
-
-          {/* Date range (only when searching past) */}
-          {draft.timeMode === "past" && (
-            <>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 font-medium">{t("dateFrom")}</label>
-                <input
-                  type="date"
-                  value={draft.from}
-                  onChange={(e) => set("from", e.target.value)}
-                  className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 font-medium">{t("dateTo")}</label>
-                <input
-                  type="date"
-                  value={draft.to}
-                  onChange={(e) => set("to", e.target.value)}
-                  className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
-              </div>
-            </>
-          )}
 
           {/* Category dropdown */}
           <div className="flex flex-col gap-1" ref={catDropdownRef}>
@@ -280,13 +207,81 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
             </div>
           </div>
 
-          {/* Apply button (keyword / date) */}
-          <button
-            onClick={() => { applyFilters(); setMobileOpen(false); }}
-            className="h-9 px-5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition self-end"
-          >
-            {t("apply")}
-          </button>
+          {/* Location filter */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("location")}</label>
+            <select
+              value={draft.location}
+              onChange={(e) => applyWith("location", e.target.value)}
+              className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{t("allLocations")}</option>
+              <option value="tokyo">{t("locationTokyo")}</option>
+              <option value="other_japan">{t("locationOtherJapan")}</option>
+              <option value="online">{t("locationOnline")}</option>
+            </select>
+          </div>
+
+          {/* Paid filter */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("paid")}</label>
+            <select
+              value={draft.paid}
+              onChange={(e) => applyWith("paid", e.target.value)}
+              className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{t("allPaid")}</option>
+              <option value="free">{t("freeOnly")}</option>
+              <option value="paid">{t("paidOnly")}</option>
+            </select>
+          </div>
+
+          {/* Time mode */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("timeMode")}</label>
+            <select
+              value={draft.timeMode}
+              onChange={(e) => {
+                if (e.target.value === "active") {
+                  setDraft((prev) => {
+                    const next = { ...prev, timeMode: "active", from: "", to: "" };
+                    pushWith(next);
+                    return next;
+                  });
+                } else {
+                  applyWith("timeMode", e.target.value);
+                }
+              }}
+              className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="active">{t("timeModeActive")}</option>
+              <option value="past">{t("timeModePast")}</option>
+            </select>
+          </div>
+
+          {/* Date range (only when searching past) */}
+          {draft.timeMode === "past" && (
+            <>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500 font-medium">{t("dateFrom")}</label>
+                <input
+                  type="date"
+                  value={draft.from}
+                  onChange={(e) => applyWith("from", e.target.value)}
+                  className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500 font-medium">{t("dateTo")}</label>
+                <input
+                  type="date"
+                  value={draft.to}
+                  onChange={(e) => applyWith("to", e.target.value)}
+                  className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                />
+              </div>
+            </>
+          )}
 
           {/* Clear all */}
           {hasFilters && (
