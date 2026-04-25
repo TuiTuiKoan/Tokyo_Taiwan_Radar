@@ -66,6 +66,7 @@
     "save": "保存",
     "unsave": "保存解除",
     "viewOriginal": "元のページを見る",
+    "viewAltSource": "別の情報源を見る {n}",
     "ended": "終了",
     "subEvents": "関連イベント",
     "parentEvent": "メインイベント",

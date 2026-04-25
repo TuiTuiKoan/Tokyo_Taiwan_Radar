@@ -51,6 +51,7 @@ from sources.taiwan_matsuri import TaiwanMatsuriScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
+from merger import run_merger
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -147,6 +148,10 @@ def run(dry_run: bool = False, source: str | None = None) -> None:
         return
 
     # Upsert is done per-source in the loop above.
+    # Run cross-source duplicate merger first, then AI annotator.
+    logger.info("Running cross-source duplicate merger...")
+    run_merger()
+
     # Run AI annotator on pending events
     logger.info("Running AI annotator on pending events...")
     annotate_pending_events()

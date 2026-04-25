@@ -66,6 +66,7 @@
     "save": "Save",
     "unsave": "Unsave",
     "viewOriginal": "View original",
+    "viewAltSource": "View alternative source {n}",
     "ended": "Ended",
     "subEvents": "Related Events",
     "parentEvent": "Main Event",

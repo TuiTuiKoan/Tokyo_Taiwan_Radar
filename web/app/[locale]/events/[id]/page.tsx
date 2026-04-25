@@ -197,20 +197,33 @@ export default async function EventDetailPage({ params }: PageProps) {
             </tr>
             {/* Source link */}
             <tr>
-              <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("source")}</td>
+              <td className="px-4 py-3 text-gray-400 w-28 align-top whitespace-nowrap">{t("source")}</td>
               <td className="px-4 py-3">
-                {event.source_url ? (
-                  <a
-                    href={event.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {t("viewOriginal")} ↗
-                  </a>
-                ) : (
-                  "—"
-                )}
+                <div className="flex flex-col gap-1">
+                  {event.source_url ? (
+                    <a
+                      href={event.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {t("viewOriginal")} ↗
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                  {(event as Event).secondary_source_urls?.map((url: string, idx: number) => (
+                    <a
+                      key={idx}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 hover:underline text-xs"
+                    >
+                      {t("viewAltSource", { n: idx + 1 })} ↗
+                    </a>
+                  ))}
+                </div>
               </td>
             </tr>
           </tbody>

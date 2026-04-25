@@ -36,6 +36,7 @@ export interface Event {
   parent_event_id: string | null;
   raw_title: string | null;
   raw_description: string | null;
+  secondary_source_urls: string[] | null;
   selection_reason: string | null;
   annotation_status: string;
   annotated_at: string | null;
