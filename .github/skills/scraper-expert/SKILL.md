@@ -56,25 +56,22 @@ Read this at the start of every session before writing any scraper.
 
 ## database.py upsert — which fields get overwritten on every scraper run
 
-The `upsert_events()` call in `database.py` uses `on_conflict="source_name,source_id"` and includes the following fields in every upsert payload (via `_event_to_row()`):
+The `upsert_events()` call in `database.py` uses `on_conflict="source_name,source_id"` and includes the following fields in every upsert payload (via `_event_to_row()`).
 
-**Overwritten fields** (reset to freshly-scraped values on every run):
-`name_ja`, `raw_title`, `raw_description`, `location_name`, `location_address`, `business_hours`, `category` (partially), `is_paid`, `price_info`, `start_date`, `end_date`, `is_active`, `source_url`
+**Protection tiers:**
+1. `is_active=False` events → **skipped entirely** (no update at all)
+2. `annotation_status=annotated` events → **human-correctable fields are stripped** from the upsert payload before writing
 
-**Preserved fields** (NOT in upsert payload — safe to manual-patch):
+**Fields protected for annotated events** (safe to manually patch — will survive future runs):
+`name_ja`, `location_name`, `location_address`, `business_hours`
+
+**Fields still updated even for annotated events** (raw data that legitimately changes):
+`raw_title`, `raw_description`, `start_date`, `end_date`, `source_url`, `is_paid`, `price_info`, `category` (partially via preserve logic)
+
+**Always safe fields** (never in `_event_to_row()` payload):
 `annotation_status`, `name_zh`, `name_en`, `description_ja`, `description_zh`, `description_en`, `location_name_zh/en`, `location_address_zh/en`, `business_hours_zh/en`, `selection_reason`, `annotated_at`
 
-**Consequences**:
-- Manually patching `location_name` or `location_address` in the DB will be **reset on the next scraper run**.
-- Manually patching `name_ja` in the DB will be **reset on the next scraper run**.
-- Only patch fields that are NOT in `_event_to_row()` if you want the change to survive.
-- For permanent fixes to scraped fields, **fix the extraction logic in the scraper** instead of patching the DB directly.
-- Exception: `is_active=False` rows are protected — the upsert skips them entirely via the `blocked_keys` filter.
-
-**Safe manual-patch workflow** (for location/name corrections):
-1. Fix the scraper extraction logic so future runs produce the correct value.
-2. Apply the DB patch for immediate effect.
-3. Accept that the patch will be overwritten until the next deploy of the scraper fix.
+**Rule**: For permanent fixes to `name_ja`/`location_name`/`location_address` on annotated events, a direct DB patch will survive future scraper runs. For new (pending) events, fix the extraction logic in the scraper to ensure correct values from the start.
 
 ## Event detail page (web) — inactive events
 - `web/app/[locale]/events/[id]/page.tsx` must include `if (!event.is_active) notFound()` immediately after fetching the event. Without this, deactivated events remain accessible by direct URL.

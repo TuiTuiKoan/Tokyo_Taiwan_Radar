@@ -140,6 +140,12 @@ def upsert_events(events: list[Event]) -> None:
 
     Admin-deactivated events (is_active = false) are never overwritten by the
     scraper — once an admin disables an event it stays disabled across runs.
+
+    Already-annotated events (annotation_status = 'annotated') have their
+    human-correctable fields protected: name_ja, location_name,
+    location_address, and business_hours are NOT overwritten on subsequent
+    scraper runs. Only raw_title, raw_description, start_date, end_date,
+    source_url, is_paid, and price_info are updated.
     """
     if not events:
         return
@@ -149,20 +155,54 @@ def upsert_events(events: list[Event]) -> None:
     # Fetch all (source_name, source_id) pairs that have been admin-deactivated
     # so we don't accidentally re-activate them on the next scraper run.
     blocked_keys: set[tuple[str, str]] = set()
+    # Also track which keys are already annotated so we can protect their fields.
+    annotated_keys: set[tuple[str, str]] = set()
     source_names = list({e.source_name for e in events})
     try:
         for sn in source_names:
             resp = (
                 client.table("events")
-                .select("source_name,source_id")
+                .select("source_name,source_id,is_active,annotation_status")
                 .eq("source_name", sn)
-                .eq("is_active", False)
                 .execute()
             )
             for row in (resp.data or []):
-                blocked_keys.add((row["source_name"], row["source_id"]))
+                key = (row["source_name"], row["source_id"])
+                if not row.get("is_active"):
+                    blocked_keys.add(key)
+                if row.get("annotation_status") == "annotated":
+                    annotated_keys.add(key)
     except Exception as exc:
-        logger.warning("Could not fetch deactivated events (skipping filter): %s", exc)
+        logger.warning("Could not fetch deactivated/annotated events (skipping filter): %s", exc)
+
+    rows = [_event_to_row(e) for e in events
+            if (e.source_name, e.source_id) not in blocked_keys]
+
+    skipped = len(events) - len(rows)
+    if skipped:
+        logger.info("Skipped %d admin-deactivated event(s) — will not re-activate.", skipped)
+
+    if not rows:
+        return
+
+    # For already-annotated events, strip out the human-correctable fields so
+    # the scraper doesn't overwrite manual corrections on every run.
+    # Fields protected: name_ja, location_name, location_address, business_hours.
+    # Fields still updated: raw_title, raw_description, start_date, end_date,
+    #                       source_url, is_paid, price_info.
+    _PROTECTED_FIELDS = {"name_ja", "location_name", "location_address", "business_hours"}
+    protected_count = 0
+    for r in rows:
+        key = (r["source_name"], r["source_id"])
+        if key in annotated_keys:
+            for field in _PROTECTED_FIELDS:
+                r.pop(field, None)
+            protected_count += 1
+    if protected_count:
+        logger.info(
+            "Protected human-correctable fields for %d annotated event(s).",
+            protected_count,
+        )
 
     rows = [_event_to_row(e) for e in events
             if (e.source_name, e.source_id) not in blocked_keys]
