@@ -51,8 +51,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "other_japan" | "taiwan" | "online">("")
-  const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "error">("");;
-
+  const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "error">("");;  const [filterSource, setFilterSource] = useState("");
   const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
   const TAIWAN_MARKERS_ADMIN = ["台北", "台中", "台南", "高雄", "台湾", "台灣"];
   function isTokyoAddr(addr: string | null | undefined): boolean {
@@ -110,6 +109,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         if (!(e.location_name || "").includes("オンライン")) return false;
       }
       if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
+      if (filterSource && (e as any).source_name !== filterSource) return false;
       return true;
     });
   }
@@ -461,8 +461,26 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           )}
         </div>
 
-        {/* Row 2: 開放檢視、標註狀態、清除 */}
+        {/* Row 2: 來源名稱、開放檢視、標註狀態、清除 */}
         <div className="flex flex-wrap gap-3 items-end border-t border-gray-200 pt-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{t("sourceName")}</label>
+            <select
+              value={filterSource}
+              onChange={(e) => setFilterSource(e.target.value)}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{t("filterAll")}</option>
+              {[
+                "arukikata", "connpass", "doorkeeper", "eplus", "ide_jetro",
+                "iwafu", "koryu", "peatix", "taioan_dokyokai",
+                "taiwan_cultural_center", "taiwan_festival_tokyo",
+                "taiwan_kyokai", "taiwan_matsuri", "tokyocity_i", "tokyonow",
+              ].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-500 font-medium">{t("isActive")}</label>
             <select
@@ -488,9 +506,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="error">{t("error")}</option>
             </select>
           </div>
-          {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "active" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation) && (
+          {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "active" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation || filterSource) && (
             <button
-              onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("active"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); }}
+              onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("active"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); setFilterSource(""); }}
               className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
             >
               {tFilters("reset")}
