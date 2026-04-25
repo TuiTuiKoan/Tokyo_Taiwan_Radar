@@ -4,7 +4,7 @@ Keyword-based semantic categoriser for Taiwan events.
 Each event can receive multiple category tags. Categories match the
 frontend CATEGORIES type in web/lib/types.ts:
   movie | performing_arts | senses | retail | nature | tech | tourism | lifestyle_food | books_media | gender | geopolitics
-  | taiwan_japan | business | academic | competition | indigenous | art | lecture | urban | report
+  | taiwan_japan | business | academic | competition | indigenous | art | lecture | urban | workshop | report
 """
 
 from typing import Optional
@@ -32,7 +32,7 @@ _RULES: list[tuple[str, list[str]]] = [
         "展覧", "exhibition", "展示", "アート", "art", "絵", "painting",
         "写真", "photo", "gallery", "ギャラリー", "デザイン", "design",
         "漫画", "manga", "イラスト", "illustration",
-        "文化体験", "workshop", "ワークショップ",
+        "文化体験",
         "展覧", "トレンド", "trend",
     ]),
     ("lifestyle_food", [
@@ -118,6 +118,13 @@ _RULES: list[tuple[str, list[str]]] = [
         "建築", "architecture", "都市", "urban", "城市", "まちづくり",
         "街づくり", "街並み", "タウン", "town", "city design", "都市計画",
         "ランドスケープ", "landscape", "不動産", "空間デザイン",
+    ]),
+    ("workshop", [
+        "workshop", "ワークショップ", "体験", "体験イベント",
+        "料理教室", "cooking class", "手作り", "craft", "クラフト",
+        "纖物", "weaving", "陽厄", "陪物", "陶芸", "pottery", "ceramics",
+        "切り紙", "origami", "貢茶道", "tea ceremony", "体験クラス",
+        "工作坊", "hands-on", "atelier", "アトリエ",
     ]),
 ]
 

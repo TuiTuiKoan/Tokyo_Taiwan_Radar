@@ -85,6 +85,7 @@ export type Category =
   | "indigenous"
   | "history"
   | "urban"
+  | "workshop"
   | "report";
 
 export const CATEGORIES: Category[] = [
@@ -108,6 +109,7 @@ export const CATEGORIES: Category[] = [
   "indigenous",
   "history",
   "urban",
+  "workshop",
   "report",
 ];
 
@@ -127,7 +129,7 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
   },
   {
     labelKey: "group_knowledge",
-    categories: ["business", "academic", "lecture", "competition", "taiwan_japan", "books_media"],
+    categories: ["business", "academic", "lecture", "competition", "taiwan_japan", "books_media", "workshop"],
   },
   {
     labelKey: "group_society",
