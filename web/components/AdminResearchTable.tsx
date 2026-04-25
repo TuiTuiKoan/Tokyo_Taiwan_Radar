@@ -87,6 +87,7 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
   const t = useTranslations("admin");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [rows, setRows] = useState(reports);
+  const [reviewingId, setReviewingId] = useState<number | null>(null);
 
   // Build a lookup: normalised URL → current status from research_sources
   const sourceStatusMap = new Map<string, string>();
@@ -100,11 +101,18 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
   }
 
   async function markReviewed(id: number) {
+    setReviewingId(id);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("research_reports")
       .update({ status: "reviewed" })
       .eq("id", id);
+    setReviewingId(null);
+    if (error) {
+      console.error("markReviewed error:", error);
+      alert(`更新失敗：${error.message}`);
+      return;
+    }
     setRows((prev) =>
       prev.map((r) => (r.id === id ? { ...r, status: "reviewed" } : r))
     );
@@ -347,9 +355,10 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
                   <button
                     type="button"
                     onClick={() => markReviewed(report.id)}
-                    className="mt-2 px-4 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                    disabled={reviewingId === report.id}
+                    className="mt-2 px-4 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
-                    ✓ {t("researchMarkReviewed")}
+                    {reviewingId === report.id ? "..." : `✓ ${t("researchMarkReviewed")}`}
                   </button>
                 )}
               </div>
