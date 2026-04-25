@@ -50,12 +50,21 @@ def _send_line(message: str) -> None:
 
 def generate_report(sb, since: datetime) -> dict:
     # scraper_runs for the past 7 days
-    runs_res = (
-        sb.table("scraper_runs")
-        .select("source, events_processed, cost_usd, success, ran_at")
-        .gte("ran_at", since.isoformat())
-        .execute()
-    )
+    # Try with `success` column (Migration 013); fall back if column doesn't exist yet.
+    try:
+        runs_res = (
+            sb.table("scraper_runs")
+            .select("source, events_processed, cost_usd, success, ran_at")
+            .gte("ran_at", since.isoformat())
+            .execute()
+        )
+    except Exception:
+        runs_res = (
+            sb.table("scraper_runs")
+            .select("source, events_processed, cost_usd, ran_at")
+            .gte("ran_at", since.isoformat())
+            .execute()
+        )
     runs = runs_res.data or []
 
     # Group by source
