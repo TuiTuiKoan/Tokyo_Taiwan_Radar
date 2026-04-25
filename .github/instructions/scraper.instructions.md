@@ -39,7 +39,7 @@ When `raw_title` contains `レポート|レポ|報告|記録|アーカイブ|rec
 
 `movie` · `performing_arts` · `senses` · `retail` · `nature` · `tech`
 · `tourism` · `lifestyle_food` · `books_media` · `gender` · `geopolitics`
-· `art` · `lecture` · `report`
+· `art` · `lecture` · `taiwan_japan` · `business` · `academic` · `competition` · `report`
 
 Do **not** invent new category strings. All values must exist in this list.
 

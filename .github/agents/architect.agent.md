@@ -5,8 +5,10 @@ model: claude-sonnet-4-5
 handoffs:
   - label: "🔧 Implement this plan"
     agent: Engineer
+    prompt: "請根據 /memories/session/plan.md 中的計畫執行實作，並回傳 Changes Log。"
   - label: "🔍 Research new sources"
     agent: Researcher
+    prompt: "請研究並評估可新增的台灣相關活動來源。"
 ---
 
 # Architect

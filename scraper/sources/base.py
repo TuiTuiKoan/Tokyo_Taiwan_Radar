@@ -22,7 +22,8 @@ class Event:
     description_en: Optional[str] = None
 
     # Values from canonical list: movie, performing_arts, senses, retail, nature,
-    # tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, report
+    # tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture,
+    # taiwan_japan, business, academic, competition, report
     category: list[str] = field(default_factory=list)
 
     start_date: Optional[datetime] = None

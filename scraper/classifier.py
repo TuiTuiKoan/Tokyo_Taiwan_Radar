@@ -4,6 +4,7 @@ Keyword-based semantic categoriser for Taiwan events.
 Each event can receive multiple category tags. Categories match the
 frontend CATEGORIES type in web/lib/types.ts:
   movie | performing_arts | senses | retail | nature | tech | tourism | lifestyle_food | books_media | gender | geopolitics
+  | taiwan_japan | business | academic | competition | art | lecture | report
 """
 
 from typing import Optional
@@ -71,10 +72,32 @@ _RULES: list[tuple[str, list[str]]] = [
         "性別", "rainbow", "レインボー", "pride",
     ]),
     ("geopolitics", [
-        "台日", "日台", "外交", "diplomacy", "政治", "politics",
+        "外交", "diplomacy", "政治", "politics",
         "国際", "international", "両岸", "cross-strait", "台海",
         "安全保障", "security", "民主", "democracy", "人権", "human rights",
         "選挙", "election", "独立", "independence",
+    ]),
+    ("taiwan_japan", [
+        "台日", "日台", "台日関係", "日台関係", "台日交流", "日台交流",
+        "台湾人会", "台湾祭", "台湾フェス", "台湾まつり",
+    ]),
+    ("business", [
+        "ビジネス", "business", "投資", "investment", "貿易", "trade",
+        "企業", "company", "スタートアップ", "startup", "起業", "創業",
+        "経営", "management", "商務", "商業", "商談", "展示会",
+    ]),
+    ("competition", [
+        "コンテスト", "contest", "コンペティション", "competition",
+        "大会", "選手権", "championship", "コンクール", "concours",
+        "公募", "応募", "賞", "award", "prize", "入賞",
+        "ハッカソン", "hackathon", "ピッチコンテスト", "pitch",
+        "競技", "競技会", "大賞",
+    ]),
+    ("academic", [
+        "学術", "academic", "研究", "research", "論文", "paper", "thesis",
+        "シンポジウム", "symposium", "学会", "conference",
+        "大学", "university", "研究所", "institute", "PhD",
+        "研究発表",
     ]),
 ]
 

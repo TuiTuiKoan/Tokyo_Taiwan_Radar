@@ -80,6 +80,7 @@ export type Category =
   | "taiwan_japan"
   | "business"
   | "academic"
+  | "competition"
   | "report";
 
 export const CATEGORIES: Category[] = [
@@ -99,6 +100,7 @@ export const CATEGORIES: Category[] = [
   "taiwan_japan",
   "business",
   "academic",
+  "competition",
   "report",
 ];
 

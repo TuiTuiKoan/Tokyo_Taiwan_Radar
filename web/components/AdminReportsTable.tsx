@@ -120,8 +120,6 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       sourceName: row.events?.source_name ?? null,
       currentCategory: row.events?.category ?? [],
       correctCategory: correctCategory[row.id] ?? null,
-      suggestedCategory: row.suggested_category ?? null,
-      fieldCorrections: fieldEdits[row.id] ?? {},
     });
     if (result.ok) {
       const updatedRow: ReportRow = {

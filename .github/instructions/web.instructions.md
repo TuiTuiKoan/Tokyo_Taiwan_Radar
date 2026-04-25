@@ -70,7 +70,7 @@ web/
 
 `movie` · `performing_arts` · `senses` · `retail` · `nature` · `tech`
 · `tourism` · `lifestyle_food` · `books_media` · `gender` · `geopolitics`
-· `art` · `lecture` · `report`
+· `art` · `lecture` · `taiwan_japan` · `business` · `academic` · `competition` · `report`
 
 These map 1-to-1 with `Category` type in `lib/types.ts`. Do not add new values.
 

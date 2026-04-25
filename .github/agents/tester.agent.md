@@ -53,7 +53,7 @@ For each event in the dry-run JSON output, check:
 - `start_date` is not `null`
 - `start_date` does NOT match the `updated_at` / publish date pattern (for TCC: `日付：` at page bottom)
 - `raw_title` and `raw_description` are both populated
-- `category` contains only values from: `movie`, `performing_arts`, `senses`, `retail`, `nature`, `tech`, `tourism`, `lifestyle_food`, `books_media`, `gender`, `geopolitics`, `art`, `lecture`, `taiwan_japan`, `business`, `academic`, `report`
+- `category` contains only values from: `movie`, `performing_arts`, `senses`, `retail`, `nature`, `tech`, `tourism`, `lifestyle_food`, `books_media`, `gender`, `geopolitics`, `art`, `lecture`, `taiwan_japan`, `business`, `academic`, `competition`, `report`
 - Events with `レポート` / `レポ` / `報告` / `記録` in `raw_title` have `"report"` in `category`
 
 ### Step 3: Report Failures

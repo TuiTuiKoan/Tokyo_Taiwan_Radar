@@ -1,5 +1,10 @@
 # Tokyo Taiwan Radar — Copilot Instructions
 
+## Communication Language
+
+Unless the user explicitly requests otherwise, **always respond in Traditional Chinese (繁體中文)**.
+This applies to all agents (Researcher, Architect, Engineer, Scraper Expert, Tester, etc.).
+
 ## Project overview
 
 Tokyo Taiwan Radar aggregates Taiwan-related cultural events in Tokyo,
@@ -55,7 +60,7 @@ Canonical list defined in `web/lib/types.ts` as `Category` type and `CATEGORIES`
 
 `movie` · `performing_arts` · `senses` · `retail` · `nature` · `tech`
 · `tourism` · `lifestyle_food` · `books_media` · `gender` · `geopolitics`
-· `art` · `lecture` · `report`
+· `art` · `lecture` · `taiwan_japan` · `business` · `academic` · `competition` · `report`
 
 ## Scraper conventions
 
