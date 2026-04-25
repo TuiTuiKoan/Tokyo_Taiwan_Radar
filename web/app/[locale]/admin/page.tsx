@@ -90,12 +90,12 @@ export default async function AdminPage({ params }: PageProps) {
       {/* Stats cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-400 mb-1">活動總數</p>
+          <p className="text-xs text-gray-400 mb-1">{t("statsTotalEventsLabel")}</p>
           <p className="text-2xl font-bold text-gray-800">{totalEvents}</p>
-          <p className="text-xs text-gray-400 mt-0.5">開放中 {activeEvents}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{t("statsActiveCount", { count: activeEvents })}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-400 mb-1">待標注</p>
+          <p className="text-xs text-gray-400 mb-1">{t("statsPendingLabel")}</p>
           <p className={`text-2xl font-bold ${pendingEvents > 0 ? "text-amber-500" : "text-gray-800"}`}>{pendingEvents}</p>
           <p className="text-xs text-gray-400 mt-0.5">
             {inactivePendingEvents > 0
@@ -104,14 +104,14 @@ export default async function AdminPage({ params }: PageProps) {
           </p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-400 mb-1">註冊用戶</p>
+          <p className="text-xs text-gray-400 mb-1">{t("statsUsersLabel")}</p>
           <p className="text-2xl font-bold text-gray-800">{userCount ?? 0}</p>
-          <p className="text-xs text-gray-400 mt-0.5">擁有角色的用戶</p>
+          <p className="text-xs text-gray-400 mt-0.5">{t("statsUsersDesc")}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-400 mb-1">待審問題回報</p>
+          <p className="text-xs text-gray-400 mb-1">{t("statsReportsLabel")}</p>
           <p className={`text-2xl font-bold ${(reportCount ?? 0) > 0 ? "text-red-500" : "text-gray-800"}`}>{reportCount ?? 0}</p>
-          <p className="text-xs text-gray-400 mt-0.5">status = pending</p>
+          <p className="text-xs text-gray-400 mt-0.5">{t("statsReportsDesc")}</p>
         </div>
       </div>
 

@@ -16,6 +16,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const t = useTranslations("admin");
   const tCat = useTranslations("categories");
   const tFilters = useTranslations("filters");
+  const tEvent = useTranslations("event");
   const router = useRouter();
   const supabase = createClient();
 
@@ -355,8 +356,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
             <option value="">{t("filterAll")}</option>
-            <option value="free">免費</option>
-            <option value="paid">收費</option>
+            <option value="free">{tEvent("free")}</option>
+            <option value="paid">{tEvent("paid")}</option>
           </select>
         </div>
         <div className="flex flex-col gap-1">
@@ -372,7 +373,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">時間範圍</label>
+          <label className="text-xs text-gray-500 font-medium">{tFilters("timeMode")}</label>
           <select
             value={filterTimeMode}
             onChange={(e) => {
@@ -387,41 +388,41 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             }}
             className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
-            <option value="active">目前進行中</option>
-            <option value="all">全部</option>
-            <option value="past">歷史</option>
+            <option value="active">{tFilters("timeModeActive")}</option>
+            <option value="all">{t("filterAll")}</option>
+            <option value="past">{t("filterPast")}</option>
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">地點</label>
+          <label className="text-xs text-gray-500 font-medium">{tFilters("location")}</label>
           <select
             value={filterLocation}
             onChange={(e) => setFilterLocation(e.target.value as any)}
             className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
-            <option value="">全部地點</option>
-            <option value="tokyo">東京</option>
-            <option value="other_japan">日本其他城市</option>
-            <option value="taiwan">台灣</option>
+            <option value="">{tFilters("allLocations")}</option>
+            <option value="tokyo">{tFilters("locationTokyo")}</option>
+            <option value="other_japan">{tFilters("locationOtherJapan")}</option>
+            <option value="taiwan">{tFilters("locationTaiwan")}</option>
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">標注狀態</label>
+          <label className="text-xs text-gray-500 font-medium">{t("filterAnnotationStatus")}</label>
           <select
             value={filterAnnotation}
             onChange={(e) => setFilterAnnotation(e.target.value as any)}
             className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
-            <option value="">全部</option>
-            <option value="annotated">已標注</option>
-            <option value="pending">待重新標注</option>
-            <option value="error">標注失敗</option>
+            <option value="">{t("filterAll")}</option>
+            <option value="annotated">{t("annotated")}</option>
+            <option value="pending">{t("filterPendingReannotation")}</option>
+            <option value="error">{t("error")}</option>
           </select>
         </div>
         {filterTimeMode === "past" && (
           <>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 font-medium">開始日期（從）</label>
+              <label className="text-xs text-gray-500 font-medium">{tFilters("dateFrom")}</label>
               <input
                 type="date"
                 value={filterDateFrom}
@@ -430,7 +431,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 font-medium">開始日期（至）</label>
+              <label className="text-xs text-gray-500 font-medium">{tFilters("dateTo")}</label>
               <input
                 type="date"
                 value={filterDateTo}
@@ -445,7 +446,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             onClick={() => { setFilterQ(""); setFilterCategory(""); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); }}
             className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
           >
-            清除篩選
+            {tFilters("reset")}
           </button>
         )}
       </div>
@@ -482,7 +483,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     checked={getSorted(getFiltered(events)).length > 0 && getSorted(getFiltered(events)).every((e) => selected.has(e.id))}
                     onChange={toggleSelectAll}
                     className="rounded cursor-pointer"
-                    title="全選"
+                    title={t("selectAll")}
                   />
                 </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("name")}>{t("name")}{sortArrow("name")}</th>
@@ -579,9 +580,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   </td>
                   <td className="py-2 pr-4">
                     {event.is_paid === false ? (
-                      <span className="text-blue-600 text-xs">免費</span>
+                      <span className="text-blue-600 text-xs">{tEvent("free")}</span>
                     ) : event.is_paid === true ? (
-                      <span className="text-amber-600 text-xs">收費</span>
+                      <span className="text-amber-600 text-xs">{tEvent("paid")}</span>
                     ) : (
                       <span className="text-gray-400 text-xs">—</span>
                     )}

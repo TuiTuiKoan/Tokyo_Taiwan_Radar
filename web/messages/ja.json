@@ -226,7 +226,17 @@
     "fieldNotEditable": "このフィールドはシステムが再生成します",
     "bulkDelete": "選択を削除",
     "confirmBulkDelete": "{count}件のイベントを削除しますか？この操作は元に戻せません。",
-    "selectedCount": "{count}件選択中"
+    "selectedCount": "{count} 件選択中",
+    "statsTotalEventsLabel": "イベント総数",
+    "statsActiveCount": "公開中 {count}",
+    "statsPendingLabel": "処理待ち",
+    "statsUsersLabel": "登録ユーザー",
+    "statsUsersDesc": "ロールを持つユーザー",
+    "statsReportsLabel": "未対応の報告",
+    "statsReportsDesc": "ステータス: 保留中",
+    "filterPast": "過去",
+    "filterAnnotationStatus": "処理状態",
+    "filterPendingReannotation": "再処理待ち"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",

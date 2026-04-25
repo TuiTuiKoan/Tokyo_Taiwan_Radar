@@ -223,7 +223,17 @@
     "fieldNotEditable": "此欄由系統重新標注",
     "bulkDelete": "刪除所選",
     "confirmBulkDelete": "確認刪除 {count} 個活動？此操作無法復原。",
-    "selectedCount": "已選 {count} 個"
+    "selectedCount": "已選 {count} 個",
+    "statsTotalEventsLabel": "活動總數",
+    "statsActiveCount": "開放中 {count}",
+    "statsPendingLabel": "待標注",
+    "statsUsersLabel": "註冊用戶",
+    "statsUsersDesc": "擁有角色的用戶",
+    "statsReportsLabel": "待審問題回報",
+    "statsReportsDesc": "待審中",
+    "filterPast": "歷史",
+    "filterAnnotationStatus": "標注狀態",
+    "filterPendingReannotation": "待重新標注"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",
