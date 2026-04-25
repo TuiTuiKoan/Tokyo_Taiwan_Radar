@@ -2,6 +2,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -40,6 +43,38 @@ class Event:
     # Raw layer — original scraped text before AI annotation
     raw_title: Optional[str] = None
     raw_description: Optional[str] = None
+
+
+def dedup_events(events: list[Event]) -> list[Event]:
+    """Remove duplicate events from a single scraper's output.
+
+    Dedup key: (normalized name_ja, start_date.date()).
+    Keeps the first occurrence (earliest in the list).
+    Annotator-generated sub-events (source_id contains '_sub') are excluded
+    from dedup — they are handled separately by the annotator pipeline.
+    """
+    seen: set[tuple] = set()
+    result: list[Event] = []
+    for event in events:
+        # Sub-events created by annotator are not present at scrape time,
+        # but guard against any scraper that generates _sub IDs directly.
+        if "_sub" in event.source_id:
+            result.append(event)
+            continue
+        name = (event.name_ja or "").strip().lower()
+        date = event.start_date.date() if event.start_date else None
+        key = (name, date)
+        if name and key in seen:
+            logger.warning(
+                "Dropping in-source duplicate: %s (%s) — keeping first occurrence",
+                event.name_ja,
+                event.source_id,
+            )
+            continue
+        if name:
+            seen.add(key)
+        result.append(event)
+    return result
 
 
 class BaseScraper(ABC):
