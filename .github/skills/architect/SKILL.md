@@ -31,6 +31,12 @@ Read this at the start of every session before producing any plan.
 - Verify model capabilities before designing features requiring real-time data (web search, live prices, current events). `gpt-4o-mini` and `gpt-4o` have no web browsing. Use `gpt-4o-search-preview` or a real search API for current data.
 - "Plausible-looking output" ≠ "real data access." A model without search access will hallucinate convincing-looking URLs.
 
+## Online Events (Peatix)
+- Peatix renders online-only events as `LOCATION\n\nOnline event` (single line, no address group). The two-part regex `LOCATION\n\n(.+)\n\n(.+)` will NOT match — always add a separate `loc_online_m` check BEFORE the two-part regex.
+- Set an `is_confirmed_online` flag immediately on match and **skip all CSS and regex address fallbacks** — description body text often mentions a venue as a conditional/secondary option and must never be used as `location_address`.
+- For confirmed online events: `location_name = 'オンライン'`, `location_address = None`.
+- The final body-text online fallback must also set `location_address = None`, not `'オンライン'`.
+
 ## Address Verification
 - **Never change a hardcoded address based on a DB value alone.** The DB may contain AI-hallucinated addresses from `backfill_locations.py` or the annotator. Always verify against the official source website first.
 - Every hardcoded `location_address` in a scraper must include a comment citing the verification URL and date, e.g.:

@@ -347,45 +347,65 @@ class PeatixScraper(BaseScraper):
 
         # --- Location ---
         # Primary: LOCATION block from page text.
-        # Peatix renders: "LOCATION\n\n<venue>\n\n<address>\n\nJapan"
-        # The double blank line is critical — a single-newline regex will capture empty string.
+        # Peatix renders one of two formats:
+        #   Online:  "LOCATION\n\nOnline event\n\n..."  (first group is an online marker)
+        #   Physical: "LOCATION\n\n<venue>\n\n<address>\n\nJapan"
+        # IMPORTANT: detect online FIRST and set is_confirmed_online=True so that no
+        # address fallback (CSS, regex, description text) can overwrite it with a
+        # physical address that may appear in the event description body.
+        _ONLINE_MARKERS = re.compile(
+            r'Online\s+event|オンライン|ONLINE|online event|ライブ配信|配信のみ',
+            re.IGNORECASE,
+        )
         location_name = None
         location_address = None
-        loc_block_m = re.search(r'LOCATION\n\n(.{3,100})\n\n([^\n]{3,200})', page_text)
-        if loc_block_m:
-            location_name = loc_block_m.group(1).strip()
-            addr_candidate = loc_block_m.group(2).strip()
-            # Skip generic country labels
-            if addr_candidate.lower() not in ('japan', 'online', 'オンライン'):
-                location_address = addr_candidate
+        is_confirmed_online = False
 
-        # CSS fallbacks when LOCATION block is absent
-        if not location_name:
+        # Step 1: check whether LOCATION block explicitly says "Online event"
+        loc_online_m = re.search(r'LOCATION\n\n(Online\s+event|オンライン|ライブ配信)', page_text, re.IGNORECASE)
+        if loc_online_m:
+            is_confirmed_online = True
+            location_name = 'オンライン'
+            location_address = None
+
+        if not is_confirmed_online:
+            # Step 2: two-part physical-venue pattern
+            loc_block_m = re.search(r'LOCATION\n\n(.{3,100})\n\n([^\n]{3,200})', page_text)
+            if loc_block_m:
+                location_name = loc_block_m.group(1).strip()
+                addr_candidate = loc_block_m.group(2).strip()
+                # Skip generic country labels and accidental online markers
+                if addr_candidate.lower() not in ('japan', 'online', 'オンライン'):
+                    location_address = addr_candidate
+
+        # CSS fallbacks — only for non-online events
+        if not is_confirmed_online and not location_name:
             location_name = (
                 _safe_text(page, ".venue-name")
                 or _safe_text(page, "[class*='venue']")
             )
             if location_name:
                 location_name = location_name.lstrip("：；:; \u3000会場所").strip() or None
-        if not location_address:
+        if not is_confirmed_online and not location_address:
             location_address = (
                 _safe_text(page, ".venue-address")
                 or _safe_text(page, "[class*='address']")
             )
 
-        # Regex fallback for address (postal code or Tokyo address)
-        if not location_address:
+        # Regex fallback for address (postal code or Tokyo address) — skip for online events
+        if not is_confirmed_online and not location_address:
             addr_m = re.search(r'(?:〒\d{3}-\d{4}[^\n]*|東京都[^\s,，\n]{3,60})', page_text)
             if addr_m:
                 location_address = addr_m.group(0).strip()
 
-        # Final fallback: derive location_name from location_address, or detect online events
+        # Final fallback: derive location_name from address, or detect online from body text
         if not location_name:
             if location_address:
                 location_name = location_address
-            elif re.search(r'(?:オンライン|Online|ONLINE|online|ライブ配信|配信のみ)', page_text):
+            elif _ONLINE_MARKERS.search(page_text):
+                # Confirmed online via body text — do NOT set location_address
                 location_name = 'オンライン'
-                location_address = 'オンライン'
+                location_address = None
 
         # --- Price ---
         # Peatix shows "無料" or ticket prices
