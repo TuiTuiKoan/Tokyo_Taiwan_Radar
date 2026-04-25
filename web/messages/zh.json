@@ -25,7 +25,7 @@
     "apply": "套用篩選",
     "location": "地點",
     "allLocations": "全部地點",
-    "locationTokyo": "東京",
+    "locationTokyo": "日本東京",
     "locationOtherJapan": "日本其他城市",
     "locationTaiwan": "台灣"
   },
@@ -178,6 +178,9 @@
     "adminNotesPlaceholder": "記錄此問題的補充說明...",
     "copySkillNote": "複製技能備註",
     "skillNoteCopied": "已複製！",
+    "eventDeactivated": "活動已下架，待下次爬蟲重新標注。",
+    "historyWritten": "✓ history.md 已自動更新。",
+    "historySkipped": "⚠ GITHUB_TOKEN 未設定，請手動更新 history.md。",
     "noReports": "目前沒有提報",
     "viewEvent": "查看活動",
     "bulkDelete": "刪除所選",

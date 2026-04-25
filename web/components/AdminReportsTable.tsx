@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import type { Locale } from "@/lib/types";
 import Link from "next/link";
+import { confirmReport } from "@/app/actions/confirm-report";
 
 export interface ReportRow {
   id: string;
@@ -44,7 +45,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [confirmFeedback, setConfirmFeedback] = useState<Record<string, { githubUpdated: boolean }>>({});
 
   function getEventName(row: ReportRow): string {
     const ev = row.events;
@@ -65,36 +66,39 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       .join("、");
   }
 
-  async function handleAction(id: string, action: "confirmed" | "dismissed") {
-    setSaving(id);
-    const update: Record<string, unknown> = { status: action };
-    if (action === "confirmed") {
-      update.confirmed_at = new Date().toISOString();
-      update.admin_notes = notes[id] ?? null;
+  async function handleConfirm(row: ReportRow) {
+    setSaving(row.id);
+    const result = await confirmReport({
+      reportId: row.id,
+      eventId: row.event_id,
+      adminNotes: notes[row.id] ?? "",
+      reportTypes: row.report_types,
+      eventName: getEventName(row),
+      sourceName: row.events?.source_name ?? null,
+    });
+    if (result.ok) {
+      const updatedRow: ReportRow = {
+        ...row,
+        status: "confirmed",
+        confirmed_at: new Date().toISOString(),
+        admin_notes: notes[row.id] ?? null,
+      };
+      setReports((prev) => prev.map((r) => (r.id === row.id ? updatedRow : r)));
+      setConfirmFeedback((prev) => ({ ...prev, [row.id]: { githubUpdated: result.githubUpdated } }));
+      setExpandedId(row.id); // keep expanded to show feedback
     }
+    setSaving(null);
+  }
+
+  async function handleDismiss(id: string) {
+    setSaving(id);
+    const update = { status: "dismissed" };
     const { error } = await supabase.from("event_reports").update(update).eq("id", id);
     if (!error) {
       setReports((prev) => prev.map((r) => (r.id === id ? { ...r, ...update } : r)));
       setExpandedId(null);
     }
     setSaving(null);
-  }
-
-  async function copySkillNote(row: ReportRow) {
-    const name = getEventName(row);
-    const types = formatTypes(row.report_types);
-    const date = new Date(row.created_at).toLocaleDateString("ja-JP");
-    const text = [
-      `### Known Issue — ${name}`,
-      `- **Source**: ${row.events?.source_url ?? "—"}`,
-      `- **Source name**: ${row.events?.source_name ?? "—"}`,
-      `- **Report type**: ${types}`,
-      `- **Date reported**: ${date}`,
-      `- **Admin notes**: ${row.admin_notes ?? "—"}`,
-    ].join("\n");
-    await navigator.clipboard.writeText(text);
-    setCopied(row.id);
-    setTimeout(() => setCopied(null), 2000);
   }
 
   const STATUS_LABELS: Record<string, string> = {
@@ -169,14 +173,14 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleAction(row.id, "confirmed")}
+                    onClick={() => handleConfirm(row)}
                     disabled={saving === row.id}
                     className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 disabled:opacity-40 transition"
                   >
                     {saving === row.id ? "…" : t("confirmReport")}
                   </button>
                   <button
-                    onClick={() => handleAction(row.id, "dismissed")}
+                    onClick={() => handleDismiss(row.id)}
                     disabled={saving === row.id}
                     className="text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-40 transition"
                   >
@@ -194,12 +198,16 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                     {row.admin_notes}
                   </p>
                 )}
-                <button
-                  onClick={() => copySkillNote(row)}
-                  className="text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 transition"
-                >
-                  {copied === row.id ? t("skillNoteCopied") : t("copySkillNote")}
-                </button>
+                <p className="text-xs text-gray-500">
+                  {t("eventDeactivated")}
+                </p>
+                {confirmFeedback[row.id] !== undefined && (
+                  <p className={`text-xs ${confirmFeedback[row.id].githubUpdated ? "text-green-700" : "text-amber-600"}`}>
+                    {confirmFeedback[row.id].githubUpdated
+                      ? t("historyWritten")
+                      : t("historySkipped")}
+                  </p>
+                )}
               </div>
             )}
           </div>

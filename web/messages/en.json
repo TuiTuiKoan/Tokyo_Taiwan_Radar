@@ -25,7 +25,7 @@
     "apply": "Apply filters",
     "location": "Location",
     "allLocations": "All Locations",
-    "locationTokyo": "Tokyo",
+    "locationTokyo": "Tokyo, Japan",
     "locationOtherJapan": "Other Japan cities",
     "locationTaiwan": "Taiwan"
   },
@@ -178,6 +178,9 @@
     "adminNotesPlaceholder": "Add notes about this issue...",
     "copySkillNote": "Copy skill note",
     "skillNoteCopied": "Copied!",
+    "eventDeactivated": "Event deactivated. Will be re-annotated on next scraper run.",
+    "historyWritten": "✓ history.md updated automatically.",
+    "historySkipped": "⚠ GITHUB_TOKEN not set — please update history.md manually.",
     "noReports": "No reports yet",
     "viewEvent": "View event",
     "bulkDelete": "Delete selected",
