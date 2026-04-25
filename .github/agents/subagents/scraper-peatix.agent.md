@@ -7,29 +7,9 @@ model: claude-sonnet-4-5
 
 # Peatix Scraper
 
-Specialist subagent for `scraper/sources/peatix.py`. Knows the Peatix search/detail page structure, English date format, Taiwan keyword filtering, and JS rendering requirements.
+Specialist subagent for `scraper/sources/peatix.py`.
 
-## Source profile
-
-- Search URL: `https://peatix.com/search?q=<keyword>&l=JP-13`
-- Rendering: JS-heavy — requires Playwright (`sync_playwright`)
-- Date format: `Mon, May 12, 2025` (English) or `YYYY年MM月DD日` (Japanese fallback)
-- Date extraction: `_extract_peatix_dates(page_text)` — regex on full body text; CSS selectors as fallback
-- Dedup key: MD5 hash of event URL (first 16 chars)
-- Location filter: `JP-13` (Tokyo prefecture code)
-- Taiwan relevance gate: body text must contain at least one `TAIWAN_KEYWORDS` entry
-- Search limit: 20 pages per keyword; 1.5s sleep between detail page requests
-- Date cutoff: events with `start_date` older than 90 days are skipped (events with no `start_date` are kept for the annotator)
-
-## Chrome MCP exploration (local dev only)
-
-When Peatix changes its page structure and CSS selectors break, use Chrome MCP for interactive exploration **before** modifying Playwright code:
-
-1. Open Chrome and navigate to a Peatix event detail page.
-2. Use `mcp_browser_snapshot` to capture the rendered DOM — Peatix is JS-rendered so Playwright's `inner_text()` may differ from static HTML.
-3. Locate the date/time section (usually `DATE AND TIME` heading followed by the English date), price section, and venue block.
-4. Update `_extract_peatix_dates()`, `_safe_text()` selectors, and the relevance check in `peatix.py`.
-5. Never use Chrome MCP in CI — it is for local selector discovery only. Production scraping always uses Playwright.
+**Read `.github/skills/peatix/SKILL.md` before starting any work.** It contains the authoritative platform rules: URL structure, date extraction, dedup, Taiwan relevance gate, Chrome MCP guidance, and troubleshooting table.
 
 ## Required Steps
 
