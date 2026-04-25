@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { type Event, type Locale, getEventName, CATEGORY_GROUPS } from "@/lib/types";
@@ -108,11 +108,53 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       } else if (filterLocation === "online") {
         if (!(e.location_name || "").includes("オンライン")) return false;
       }
-      if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
+  if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
       if (filterSource && (e as any).source_name !== filterSource) return false;
       return true;
     });
   }
+
+  /** Counts per source_name, applying all filters EXCEPT filterSource */
+  const sourceCountMap = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const base = events.filter((e) => {
+      if (filterQ) {
+        const q = filterQ.toLowerCase();
+        const name = getEventName(e, locale).toLowerCase();
+        const raw = (e.raw_title || "").toLowerCase();
+        if (!name.includes(q) && !raw.includes(q)) return false;
+      }
+      if (filterCategories.length > 0 && !filterCategories.some((c) => (e.category || []).includes(c))) return false;
+      if (filterPaid === "free" && e.is_paid !== false) return false;
+      if (filterPaid === "paid" && e.is_paid !== true) return false;
+      if (filterIsActive === "active" && !e.is_active) return false;
+      if (filterIsActive === "inactive" && e.is_active) return false;
+      if (filterTimeMode === "active") {
+        if (e.end_date && new Date(e.end_date) < today) return false;
+      } else if (filterTimeMode === "past") {
+        const isPast = e.end_date
+          ? new Date(e.end_date) < today
+          : e.start_date ? new Date(e.start_date) < today : false;
+        if (!isPast) return false;
+        if (filterDateFrom) { const d = e.start_date ? new Date(e.start_date) : null; if (!d || d < new Date(filterDateFrom)) return false; }
+        if (filterDateTo) { const d = e.start_date ? new Date(e.start_date) : null; if (!d || d > new Date(filterDateTo + "T23:59:59")) return false; }
+      }
+      if (filterLocation === "tokyo") { if (!isTokyoAddr(e.location_address)) return false; }
+      else if (filterLocation === "taiwan") { const addr = e.location_address || ""; if (!TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false; }
+      else if (filterLocation === "other_japan") { const addr = e.location_address || ""; if (!addr.trim() || addr.includes("オンライン") || isTokyoAddr(addr) || TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false; }
+      else if (filterLocation === "online") { if (!(e.location_name || "").includes("オンライン")) return false; }
+      if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
+      return true;
+    });
+    const map: Record<string, number> = {};
+    for (const e of base) {
+      const s = (e as any).source_name as string;
+      map[s] = (map[s] ?? 0) + 1;
+    }
+    return map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, filterQ, filterCategories, filterPaid, filterIsActive, filterTimeMode, filterDateFrom, filterDateTo, filterLocation, filterAnnotation, locale]);
 
   function toggleSort(key: string) {
     if (sortKey === key) {
@@ -477,7 +519,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 "taiwan_cultural_center", "taiwan_festival_tokyo",
                 "taiwan_kyokai", "taiwan_matsuri", "tokyocity_i", "tokyonow",
               ].map((s) => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>{s}{sourceCountMap[s] !== undefined ? ` (${sourceCountMap[s]})` : " (0)"}</option>
               ))}
             </select>
           </div>
