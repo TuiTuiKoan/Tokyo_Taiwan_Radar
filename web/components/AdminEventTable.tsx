@@ -353,7 +353,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             />
           </div>
           <div className="flex flex-col gap-1" ref={catDropdownRef}>
-            <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
+            <label className="text-xs text-gray-500 font-medium">{tFilters("category")}</label>
             <div className="relative">
               <button
                 type="button"
