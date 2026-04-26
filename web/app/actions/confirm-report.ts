@@ -112,17 +112,14 @@ export async function confirmReport(
         : null;
 
     if (resolvedCategory) {
-      // Apply category immediately — mark as reviewed so AI/scraper won't overwrite
+      // Apply category immediately — no need for full re-annotation
       eventUpdate["category"] = resolvedCategory;
       eventUpdate["is_active"] = true;
-      eventUpdate["annotation_status"] = "reviewed";
+      eventUpdate["annotation_status"] = "annotated";
     } else {
-      // No category provided — queue for re-annotation.
-      // IMPORTANT: do NOT set is_active=false here. The annotator queries
-      // is_active=True, so deactivating strands the event in pending forever.
-      // Keep the event active with its current (wrong) category until the
-      // annotator re-runs and (hopefully) produces a better result via the
-      // new few-shot examples in category_corrections.
+      // No category provided — clear and re-annotate
+      eventUpdate["category"] = [];
+      eventUpdate["is_active"] = false;
       eventUpdate["annotation_status"] = "pending";
     }
   }
@@ -168,23 +165,19 @@ export async function confirmReport(
     const nameNeedsReannotation = wrongFields.includes("name") && corrections["name"]?.trim();
 
     if (allDirectlyFixed && !nameNeedsReannotation && !wrongFields.includes("description")) {
-      // All factual fields corrected by admin — mark as reviewed so AI/scraper won't overwrite
+      // All factual fields corrected by admin — re-activate immediately
       eventUpdate["is_active"] = true;
-      eventUpdate["annotation_status"] = "reviewed";
+      eventUpdate["annotation_status"] = "annotated";
     } else {
-      // Some fields still need annotator or have translation requirements.
-      // IMPORTANT: do NOT set is_active=false here. The annotator queries
-      // is_active=True only, so deactivating strands the event in pending forever.
+      // Some fields still need annotator or have translation requirements
+      eventUpdate["is_active"] = false;
       eventUpdate["annotation_status"] = "pending";
     }
   }
 
   if (isIrrelevant && !isWrongCategory && !isWrongDetails) {
-    // Hide the event and mark it fully processed — do NOT set pending here.
-    // Setting pending + is_active=false strands the event because the annotator
-    // only processes is_active=True events.
     eventUpdate["is_active"] = false;
-    eventUpdate["annotation_status"] = "annotated";
+    eventUpdate["annotation_status"] = "pending";
   }
 
   if (Object.keys(eventUpdate).length > 0) {
@@ -300,7 +293,7 @@ async function appendToHistoryFile(
     if (input.reportTypes.includes("irrelevant")) {
       actionLine = "Event hidden (is_active=false). Irrelevant content.";
     } else if (isWrongCat && finalCat) {
-      actionLine = "Category corrected inline — event remains active (is_active=true, annotation_status=reviewed).";
+      actionLine = "Category corrected inline — event remains active (is_active=true, annotation_status=annotated).";
     } else if (isWrongCat && !finalCat) {
       actionLine = "Category cleared — re-annotation triggered (annotation_status=pending).";
     } else if (wrongFields.some(f => f in ANNOTATOR_FIELDS)) {

@@ -8,6 +8,16 @@ applyTo: .github/agents/researcher.agent.md
 
 Read this at the start of every session before evaluating any source.
 
+## ⚠️ CRITICAL: Geographic Scope
+
+> **Scope is ALL OF JAPAN（全日本）** — Tokyo, Osaka, Kyoto, Fukuoka, Nagoya, Sapporo, and all other prefectures are in scope.
+
+**FORBIDDEN**: Do NOT use "開催地が東京ではない" or "東京スコープ外" as a reason to mark a source `not-viable`. This is an incorrect justification.
+
+- A source covering only one region (e.g. 福岡のみ) is still `researched`/viable if it reliably surfaces Taiwan-related events there.
+- When profiling, note which region(s) events are held in (`region: 全国 | 東京 | 大阪 | 福岡 | ...`).
+- The question is: **does the source have Taiwan events?** Not: *is the venue in Tokyo?*
+
 ## Source Evaluation
 - Check `robots.txt` and ToS before profiling a scraping target.
 - Verify whether the site uses client-side rendering — determines Playwright vs. simple HTTP fetch. Check by viewing page source vs. rendered output.
@@ -25,9 +35,10 @@ When writing a source record to the `research_sources` table, use these `status`
 
 | Status | Meaning | When to use |
 |--------|---------|-------------|
-| `not-viable` | Evaluated; will NOT be scraped | Not Taiwan-themed; annual manual entry; ToS blocks scraping |
-| `viable` | Evaluated; ready for Engineer to implement | Taiwan events confirmed; selectors verified |
-| `pending` | Evaluation in progress | Default before research is complete |
+| `not-viable` | Evaluated; will NOT be scraped | Taiwan events too rare (< 2/year); ToS blocks scraping; login required |
+| `researched` | Deep research complete; ready for scraper issue | Taiwan events confirmed; selectors verified; profile written |
+
+> **`pending` and `viable` are NOT valid statuses** — `update_source.py` only accepts `not-viable` and `researched`.
 
 **Mandatory fields for every insert:**
 ```python
@@ -35,7 +46,7 @@ When writing a source record to the `research_sources` table, use these `status`
     'name': '<source display name>',
     'url': '<canonical URL>',
     'category': '<government|ngo|community|commercial|...>',
-    'status': '<not-viable|viable|pending>',
+    'status': '<not-viable|researched>',
     'reason': '<one sentence why this status>',  # required for not-viable
     'url_verified': True,
     'first_seen_at': now_iso,
@@ -44,10 +55,14 @@ When writing a source record to the `research_sources` table, use these `status`
 ```
 
 **`not-viable` reason examples:**
-- 台湾はメインテーマではなく複数開催地の一つ（全国ツアー型）
+- 台湾イベントが年1-2件以下で密度が低すぎる
 - 年1回の大型イベントで台湾人登壇は偶発的 → 手動登録推奨
 - `robots.txt` がクローラーを明示的に禁止
+- ログイン必須でスクレイピング不可
+
+**NOT a valid `not-viable` reason:**
+- ~~「東京以外で開催」~~ ← **スコープは全日本。絶対にこれを理由にしない。**
 
 ## After a Source Evaluation Error
-1. Append an entry to `.github/skills/researcher/history.md` (newest at top).
+1. Append an entry to `.github/skills/agents/researcher/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.

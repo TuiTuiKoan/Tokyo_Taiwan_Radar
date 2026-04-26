@@ -65,12 +65,9 @@ export default async function HomePage({ params, searchParams }: PageProps) {
 
   // Time mode filter
   if (timeMode === "active") {
-    // Show events that are ongoing or upcoming:
-    // - end_date >= today  → multi-day event still running
-    // - start_date >= today → single-day or upcoming event (covers null end_date case)
-    // Avoids nested and() inside or() which is not reliably supported by Supabase JS client.
+    // Show only ongoing events: end_date >= today or end_date is null
     const today = todayStr();
-    query = query.or(`end_date.gte.${today},start_date.gte.${today}`);
+    query = query.or(`end_date.gte.${today},end_date.is.null`);
   } else if (timeMode === "past") {
     // Search past period with optional date range
     if (sp.from) {
