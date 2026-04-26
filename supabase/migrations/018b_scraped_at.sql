@@ -1,4 +1,8 @@
--- 018: Add scraped_at column to record when an event was last fetched by the scraper
+-- 018b_scraped_at.sql
+-- NOTE: renamed from 018_scraped_at.sql because 018_official_url.sql was created first.
+-- Both are 018; this file uses the 'b' suffix per the naming convention.
+--
+-- Add scraped_at column to record when an event was last fetched by the scraper
 -- distinct from updated_at (which also changes on annotator runs)
 
 alter table public.events
