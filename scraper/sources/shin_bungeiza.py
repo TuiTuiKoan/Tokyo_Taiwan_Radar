@@ -189,7 +189,18 @@ class ShinBungeizaScraper(BaseScraper):
         today: datetime,
         seen_ids: set[str],
     ) -> list[Event]:
-        """Parse Taiwan films visible only through nihon-date links in the schedule grid."""
+        """Parse Taiwan films visible only through nihon-date links in the schedule grid.
+
+        Structure in the DOM:
+          <div class="schedule-content-txt">
+            <p class="nihon-date"><a>タイトル</a><small>(2021・台/128分)…</small></p>
+            <h2><em>5/8</em>（金）</h2>   ← first h2: start date with M/D
+            <div class="schedule-program">…</div>
+            <h2><em>9</em>（土）</h2>     ← subsequent h2: day only (same month)
+            …
+            <h2><em>14</em>（木）</h2>   ← last h2: end day
+          </div>
+        """
         events: list[Event] = []
         processed_titles: set[str] = set()
 
@@ -199,7 +210,7 @@ class ShinBungeizaScraper(BaseScraper):
                 continue
             # Get movie title from link text or plain text
             a = p.find("a")
-            title = (a.get_text(strip=True) if a else p.find("span", class_="nihon") or p).strip()
+            title = (a.get_text(strip=True) if a else p.get_text(strip=True))
             if not title or title in processed_titles:
                 continue
             processed_titles.add(title)
@@ -209,12 +220,49 @@ class ShinBungeizaScraper(BaseScraper):
                 continue
             seen_ids.add(source_id)
 
-            # Find closest h2 date for start_date
-            h2 = p.find_previous("h2")
-            date_text = h2.get_text(strip=True) if h2 else ""
-            start_date, end_date = self._parse_dates(date_text, today)
-            if start_date is None:
+            # Date: h2 elements AFTER p inside the same parent container
+            parent = p.parent
+            if parent is None:
                 continue
+
+            # Collect all h2s that follow the nihon-date p in the same parent
+            h2_elements = []
+            collecting = False
+            for child in parent.children:
+                if child is p:
+                    collecting = True
+                    continue
+                if collecting and getattr(child, "name", None) == "h2":
+                    h2_elements.append(child)
+
+            if not h2_elements:
+                logger.warning("shin_bungeiza: no h2 dates found for %s", title)
+                continue
+
+            # First h2: start date — should have M/D format in <em>
+            start_h2_text = h2_elements[0].get_text(strip=True)
+            start_date, _ = self._parse_dates(start_h2_text, today)
+            if start_date is None:
+                logger.warning("shin_bungeiza: no start_date for %s (h2=%s)", title, start_h2_text)
+                continue
+
+            # Last h2: end day — may be day-only (e.g. "14（木）" same month as start)
+            end_h2_text = h2_elements[-1].get_text(strip=True)
+            end_day_m = re.match(r"(\d{1,2})[（(]", end_h2_text)
+            if end_day_m:
+                end_day = int(end_day_m.group(1))
+                try:
+                    end_date: datetime | None = datetime(start_date.year, start_date.month, end_day, tzinfo=_JST)
+                    # Handle month wrap (e.g. start 5/30, end day 6 → must be 6/6)
+                    if end_date < start_date:
+                        # Try adding a month
+                        next_month = start_date.month % 12 + 1
+                        next_year = start_date.year + (1 if start_date.month == 12 else 0)
+                        end_date = datetime(next_year, next_month, end_day, tzinfo=_JST)
+                except ValueError:
+                    end_date = start_date
+            else:
+                end_date = start_date
 
             date_prefix = f"開催日時: {start_date.year}年{start_date.month}月{start_date.day}日\n\n"
             raw_description = date_prefix + p_text

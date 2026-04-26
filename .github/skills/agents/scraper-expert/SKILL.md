@@ -317,3 +317,19 @@ Confirm: `start_date` populated, no unhandled exceptions, events count is non-ze
    git push -u origin feat/source-<source_name>
    ```
 5. Report the PR creation URL shown by git push output to the user.
+
+## morc_asagaya-specific
+
+1. **`#tp_info` must be removed before Taiwan keyword check** — Every film page contains a site-wide INFORMATION section (`section#tp_info`) with "台湾巨匠傑作選" banners. Not removing it causes all 24+ films to match as Taiwan-relevant (false positive).
+2. **Listing pages**: `/film_date/film_now/` (current) and `/film_date/film_plan/` (upcoming). Collect links matching `/film/[^/]+/$`, exclude `/film_date/` paths.
+3. **Date source**: "上映日時" label → next sibling text → regex `M/D(曜)〜M/D(曜)`. Fallback: `<h2>` containing M/D pattern.
+4. **Source ID**: slug = last path segment of film URL (e.g. `shivababy` from `/film/shivababy/`).
+5. **Taiwan detection timing**: scraper returns 0 events when no Taiwan festival is running — this is correct behaviour, not a bug.
+
+## shin_bungeiza-specific
+
+1. **Two DOM structures must be scraped**: `section.schedule-box-wrap` (featured films) and standalone `div.schedule-content-txt` with `p.nihon-date` (films only in daily grid). Taiwan films often appear only in the second structure.
+2. **Three Taiwan signals in `nihon-date`**: `・台/` in `<small>` national code (highest reliability), `href` containing `taiwanfilm.net`, and general Taiwan keywords in text.
+3. **`find_previous("h2")` is wrong** for nihon-date date extraction — `p.nihon-date` is the first child of its parent, so find_previous returns an h2 from a prior film block. Always iterate `parent.children` and collect h2s that follow the `p`.
+4. **End date is day-only**: first h2 after `p.nihon-date` has `M/D` (with month); subsequent h2 have day only (same month). Last h2 = end day. Guard against month wrap (`end_day < start_day`).
+5. **KING OF PRISM warning is expected**: this unrelated film appears in `schedule-box-wrap` with unusual date format; the warning is harmless and can be ignored.
