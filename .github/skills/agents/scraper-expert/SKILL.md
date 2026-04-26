@@ -228,6 +228,22 @@ python scraper/backfill_locations.py
 - If you add a new source that may store generic addresses, add its `SOURCE_NAME` to the `_SOURCES` list in `backfill_locations.py`.
 - Generic address sentinel values are defined in `_GENERIC_ADDRESSES` — add new ones when discovered (e.g. `"大阪"` for future Osaka sources).
 
+## cinemart_shinjuku-specific
+
+- **Asia-focused, NOT Taiwan-only**: Cinemart Shinjuku also screens Korean, Chinese, and other Asian films. Always apply Taiwan filter `["台湾", "Taiwan", "臺灣", "金馬"]`.
+- **`金馬` is a reliable Taiwan indicator**: Include it in the keyword filter — it appears in listing text for Golden Horse Award films.
+- **Two-pass filter**: Pre-filter on listing `<a>` text (no HTTP request) before visiting detail pages.
+- **Release date in first `<p>`**: Format `M月D日(曜)ロードショー`. `1日限定上映` → `end_date = start_date`. Year inferred from today.
+- **Sidebar stop words**: Stop collecting description `<p>` elements when `オープン時間` / `新宿区新宿3丁目` etc. appear — these are venue sidebar content inside `<main>`.
+
+## ks_cinema-specific
+
+- **NOT exclusively Taiwan cinema**: K's Cinema screens various independent/art films. Always apply Taiwan keyword filter `["台湾", "Taiwan", "臺灣"]` to title + full page text.
+- **Series detection**: `len(film_h3s) >= 2` (content div `<h3>` elements, excluding sidebar menu h3s). Series → parent + sub-events with `parent_event_id`.
+- **Single-pass date parsing for schedule lines**: Use a combined alternation regex (`M/D | SEP+bare_day`) in one `re.finditer` pass. Two-pass approaches cause bare days like `26` in `4/25・26` to attach to the last-seen month instead of the context month.
+- **Period table**: `soup.select("table")[-1]` — the last `<table>` on the page always contains `上映期間`.
+- **Fixed venue**: `K's cinema` / `東京都新宿区新宿3丁目35-13 3F` — never extract from page.
+
 ## Registration
 - After creating a new scraper file, always add it to `SCRAPERS = [...]` in `scraper/main.py`.
 - Test with `python main.py --dry-run --source <source_name>` before any other step.

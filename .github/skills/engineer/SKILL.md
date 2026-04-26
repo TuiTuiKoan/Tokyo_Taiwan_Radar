@@ -147,8 +147,16 @@ _LOC_ZH_SIMP_TO_TRAD = str.maketrans({
     "来": "來",
     "长": "長",
     "进": "進",
-    "实": "實",
-})
+    "实": "實",    # Added 2026-04-26 from production scan
+    "诺": "諾",  # イイノホール → 伊伊諾大廳
+    "厅": "廳",  # 大廳
+    "络": "絡",
+    "设": "設",
+    "联": "聯",
+    "馆": "館",
+    "门": "門",
+    "发": "發",
+    "会": "會",})
 ```
 
 **When to expand the map:** If a post-annotation scan finds a new Simplified character in any location field, add it to `_LOC_ZH_SIMP_TO_TRAD` and re-patch affected DB rows.
