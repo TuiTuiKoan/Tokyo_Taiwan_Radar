@@ -17,6 +17,11 @@
 
 **Lesson：** 提示模式本身就是可優化的成本來源。每月 `--days 30` 確認效率趨勢，高峰 session 用 `--verbose` 定位回合後，對照三個反模式判斷原因。
 
+## 2026-04-26 — AdminEventTable annotation status badge/filter label mismatch
+**Error:** Architect plan for AdminEventTable changes never checked whether the badge label (`getAnnotationLabel`) and the filter dropdown options used the same i18n key family. Two parallel families existed (`filterAnnotatedShort` short-form vs `annotated` long-form), causing badge text ("AI") to differ from filter text ("AI標註") for identical status values. Also: the filter dropdown had no `<option value="pending">` despite `filterAnnotation` state accepting it — an instance of the filter-option sync rule already in `engineer/SKILL.md`.
+**Fix:** Made `getAnnotationLabel()` use full-form keys matching the filter; added missing pending option.
+**Lesson:** When reviewing any component that displays a value from a canonical set AND filters by that same set, explicitly verify that (1) every member of the set has exactly one i18n key used everywhere, and (2) every member appears as a filter `<option>`. Add this as a checklist item in all `AdminEventTable.tsx` change plans.
+
 ---
 ## 2026-04-26 — AdminEventTable filter label/style regressions repeated across multiple commits
 **Error:** Three UI fixes (`tFilters("search")` search label, `tFilters("category")` category label, `bg-gray-50` category button) were re-introduced and re-regressed multiple times because later commits modifying the same file for unrelated reasons (bulk-toggle refactor, reannotate label rename) overwrote the corrected lines with default values.

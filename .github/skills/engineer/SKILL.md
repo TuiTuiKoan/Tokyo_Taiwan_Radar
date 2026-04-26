@@ -103,6 +103,8 @@ These were regressed at least twice when unrelated changes overwrote them. The `
 
 **Filter-option sync rule:** Any `<select>` filter whose options come from a canonical set (e.g. `annotation_status`, `category`, `source_name`) must list **every** value in that set as an `<option>`. When a new value is added to a TypeScript union, DB enum, or i18n file, the corresponding `<option>` element must be added in the same commit. TypeScript does not detect missing dropdown options.
 
+**Annotation status label consistency rule:** One status value = one i18n key, used consistently in **all** display surfaces: badge (`getAnnotationLabel`), filter dropdown `<option>`, any column header. Do NOT maintain parallel key families (short-form `filterAnnotatedShort` + long-form `annotated`) for the same value. Current canonical keys: `t("pending")`, `t("annotated")`, `t("reviewed")`, `t("error")`. Orphaned short-form keys should be removed when confirmed unused.
+
 ## Scraper Implementation
 
 - Every new scraper source must extend `BaseScraper` (`scraper/sources/base.py`) and implement `scrape() → list[Event]`.

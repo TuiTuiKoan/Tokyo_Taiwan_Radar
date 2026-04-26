@@ -43,6 +43,7 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 3. For new files, use `create_file` — never create files unless strictly necessary.
 4. Do NOT add comments, docstrings, or extra error handling beyond what was asked.
 5. **Filter-option sync:** When adding a value to a TypeScript union, DB enum, or i18n file that is also used in a `<select>` dropdown, always add the matching `<option>` element in the same commit. Check every `<select>` whose value type includes the new key.
+6. **Annotation status label consistency:** When displaying `annotation_status` anywhere (badge, dropdown option, column header), always use the **same** full-form i18n key: `t("pending")`, `t("annotated")`, `t("reviewed")`, `t("error")`. Never use the short-form family (`filterAnnotatedShort` etc.) — those keys are legacy orphans. If two key families exist for the same value set, the badge/display code and the filter `<option>` must both use the same one.
 
 ### Step 3: Verify
 
