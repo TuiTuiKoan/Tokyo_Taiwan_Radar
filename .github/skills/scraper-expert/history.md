@@ -1,4 +1,13 @@
 ---
+## 2026-04-26 — New scraper committed without skill/history docs
+
+**Error:** KokuchproScraper was implemented and committed (017925b) without creating `.github/skills/sources/kokuchpro/SKILL.md` or `.github/skills/sources/kokuchpro/history.md`. The omission was only caught when the user explicitly asked "有連帶一起建立 skill, history 嗎".
+
+**Fix:** Created the missing files in a separate follow-up commit (008c098).
+
+**Lesson:** Creating source SKILL.md + history.md is a **mandatory step before `git commit`** for any new scraper. They must be in the **same commit** as the scraper source file — not a follow-up. → Reinforced in SKILL.md Mandatory Post-Change Checklist Step 0.
+
+---
 ## 2026-04-26 - Annotator prompt missing "Traditional Chinese" in sub-events schema
 **Error:** `sub_events[].name_zh` and `sub_events[].description_zh` in `SYSTEM_PROMPT` JSON schema said `"sub-event name in Chinese"` / `"brief description"` without specifying "Traditional Chinese". GPT defaulted to Simplified Chinese for all sub-event zh fields.
 **Fix:** Changed to `"in Traditional Chinese (繁體中文)"`. Added top-level LANGUAGE RULE block at the start of SYSTEM_PROMPT stating ALL *_zh fields must be Traditional Chinese (繁體中文), never Simplified. Reset 29 affected events to pending and re-annotated.

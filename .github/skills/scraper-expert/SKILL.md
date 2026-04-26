@@ -112,6 +112,17 @@ python scraper/backfill_locations.py
 
 **Every time a scraper is modified or a new scraper is added, you MUST complete ALL of the following before returning. No exceptions.**
 
+### 0. NEW SCRAPERS ONLY — create source docs before `git commit`
+> **This is the most frequently skipped step. Do it BEFORE committing.**
+
+For any newly created `scraper/sources/<source_name>.py`:
+1. Create `.github/skills/sources/<source_name>/SKILL.md` (platform profile, field mappings, date/address rules, troubleshooting)
+2. Create `.github/skills/sources/<source_name>/history.md` (initial implementation decisions, any first-run surprises)
+3. Add `<source_name>` row to the per-source table in Step 3 below
+4. Include all three files in the **same `git commit`** as the scraper source file
+
+Failure to do this means future agents have no platform knowledge and must re-discover rules from scratch.
+
 ### 1. history.md — always update on bug fix or unexpected behaviour
 - File: `.github/skills/scraper-expert/history.md`
 - Append at the TOP (newest first):
@@ -144,6 +155,7 @@ python scraper/backfill_locations.py
 | `ide_jetro.py` | `.github/skills/ide_jetro/SKILL.md` |
 | `taiwan_festival_tokyo.py` | `.github/skills/taiwan_festival_tokyo/SKILL.md` |
 | `arukikata.py` | `.github/skills/arukikata/SKILL.md` |
+| `kokuchpro.py` | `.github/skills/sources/kokuchpro/SKILL.md` |
 
 ### 4. dry-run validation — always run before finishing
 ```bash
