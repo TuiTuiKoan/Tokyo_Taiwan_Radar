@@ -50,6 +50,7 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 2. For scraper changes: `cd scraper && python main.py --dry-run --source <name>`
 3. For web changes: `cd web && npx tsc --noEmit` then `npm run build` (local only, not deploy)
 4. For DB migrations: review SQL against `.github/instructions/database.instructions.md` conventions; do NOT apply without user confirmation.
+5. **After modifying `annotator.py` SYSTEM_PROMPT:** verify every `*_zh` field description says "Traditional Chinese (繁體中文)". After any batch re-annotation, scan for Simplified characters with `re.compile(r'[东来这发会说时问门关对长进现]')` across all zh fields.
 
 ### Step 4: Deploy (requires explicit user approval)
 

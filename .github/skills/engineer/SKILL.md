@@ -116,3 +116,20 @@ These were regressed at least twice (commits `9c4010d`, `01b73a4`) when unrelate
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/engineer/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
+
+## Annotator — Traditional Chinese (繁體中文) Rule
+
+**ALL `*_zh` fields produced by `annotator.py` must be Traditional Chinese (繁體中文), never Simplified Chinese (简体字).** This includes `name_zh`, `description_zh`, `location_name_zh`, `location_address_zh`, `business_hours_zh`, `selection_reason.zh`, and all sub-event zh fields.
+
+**Checklist when modifying `SYSTEM_PROMPT` in `annotator.py`:**
+1. The first few lines must contain a `LANGUAGE RULE` block explicitly stating ALL `*_zh` fields → Traditional Chinese, NEVER Simplified.
+2. Every zh-field description in the JSON schema must say `"... in Traditional Chinese (繁體中文)"`.
+3. Sub-event fields (`sub_events[].name_zh`, `sub_events[].description_zh`) must also say "Traditional Chinese (繁體中文)".
+
+**After any batch re-annotation, verify with:**
+```python
+import re
+SIMP = re.compile(r'[东来这发会说时问门关对长进现与实变内还单层达]')
+# Check name_zh, description_zh, location_name_zh, location_address_zh for all affected events
+```
+If any Simplified chars found: reset those events to `pending` and re-annotate.

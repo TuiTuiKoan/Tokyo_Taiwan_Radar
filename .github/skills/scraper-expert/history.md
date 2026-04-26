@@ -1,3 +1,10 @@
+---
+## 2026-04-26 - Annotator prompt missing "Traditional Chinese" in sub-events schema
+**Error:** `sub_events[].name_zh` and `sub_events[].description_zh` in `SYSTEM_PROMPT` JSON schema said `"sub-event name in Chinese"` / `"brief description"` without specifying "Traditional Chinese". GPT defaulted to Simplified Chinese for all sub-event zh fields.
+**Fix:** Changed to `"in Traditional Chinese (繁體中文)"`. Added top-level LANGUAGE RULE block at the start of SYSTEM_PROMPT stating ALL *_zh fields must be Traditional Chinese (繁體中文), never Simplified. Reset 29 affected events to pending and re-annotated.
+**Lesson:** Every zh-field placeholder in the annotator JSON schema must say "Traditional Chinese (繁體中文)". Apply Simplified-char scan after any bulk re-annotation to verify.
+
+
 # Scraper Expert Error History
 
 <!-- Append new entries at the top -->

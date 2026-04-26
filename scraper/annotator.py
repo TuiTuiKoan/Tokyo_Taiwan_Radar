@@ -47,6 +47,8 @@ VALID_CATEGORIES = [
 # ---------------------------------------------------------------------------
 SYSTEM_PROMPT = """You are an expert event data analyst specializing in Taiwan-related cultural events in Japan.
 
+LANGUAGE RULE — CRITICAL: ALL *_zh fields (name_zh, description_zh, location_name_zh, location_address_zh, business_hours_zh, selection_reason.zh, and sub-event zh fields) MUST be written in Traditional Chinese (繁體中文). NEVER use Simplified Chinese (简体字). This applies to every single zh field without exception.
+
 Given the raw title and description of an event (usually in Japanese), extract structured data and translate into three languages.
 
 CRITICAL DATE EXTRACTION RULES:
@@ -117,11 +119,11 @@ Respond with valid JSON matching this schema:
   "sub_events": [
     {
       "name_ja": "sub-event name in Japanese",
-      "name_zh": "sub-event name in Chinese",
+      "name_zh": "sub-event name in Traditional Chinese (繁體中文)",
       "name_en": "sub-event name in English",
-      "description_ja": "brief description",
-      "description_zh": "brief description",
-      "description_en": "brief description",
+      "description_ja": "brief description in Japanese",
+      "description_zh": "brief description in Traditional Chinese (繁體中文)",
+      "description_en": "brief description in English",
       "start_date": "2026-02-01T00:00:00",
       "end_date": "2026-02-01T00:00:00",
       "category": ["movie"],
@@ -331,6 +333,29 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
                     s = s.lstrip("：；:; \u3000")
                 return s or None
 
+            # GPT-4o-mini occasionally outputs Simplified Chinese characters in
+            # location_address_zh even when instructed to use Traditional Chinese
+            # (e.g. "东京都千代田区" instead of "東京都千代田區"). Apply a targeted
+            # character-level substitution for the most common offenders in Japanese
+            # addresses so the field is always Traditional Chinese.
+            # Characters commonly produced as Simplified by GPT-4o-mini in
+            # location name/address fields, mapped to their Traditional equivalents.
+            _LOC_ZH_SIMP_TO_TRAD = str.maketrans({
+                "东": "東",  # 東京
+                "区": "區",  # 千代田區
+                "内": "內",  # 內幸町 etc.
+                "园": "園",  # 校園、公園
+                "来": "來",
+                "长": "長",
+                "进": "進",
+                "实": "實",
+            })
+
+            def _loc_zh(val: Any) -> str | None:
+                """Clean location string and normalize Simplified→Traditional chars."""
+                s = _loc(val)
+                return s.translate(_LOC_ZH_SIMP_TO_TRAD) if s else None
+
             update_data: dict[str, Any] = {
                 "name_ja": _str(annotation.get("name_ja")) or raw_title,
                 "name_zh": _str(annotation.get("name_zh")),
@@ -356,9 +381,9 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
             # Localized location/hours fields added in migration 010.
             # Kept separate so the primary update above never fails on old DB schemas.
             localized_location_data: dict[str, Any] = {
-                "location_name_zh": _loc(annotation.get("location_name_zh")),
+                "location_name_zh": _loc_zh(annotation.get("location_name_zh")),
                 "location_name_en": _loc(annotation.get("location_name_en")),
-                "location_address_zh": _loc(annotation.get("location_address_zh")),
+                "location_address_zh": _loc_zh(annotation.get("location_address_zh")),
                 "location_address_en": _loc(annotation.get("location_address_en")),
                 "business_hours_zh": _str(annotation.get("business_hours_zh")),
                 "business_hours_en": _str(annotation.get("business_hours_en")),
@@ -431,9 +456,9 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
 
                 # Also try localized location fields for sub-events (migration 010)
                 sub_loc = {k: v for k, v in {
-                    "location_name_zh": _loc(sub.get("location_name_zh")) or localized_location_data.get("location_name_zh"),
+                    "location_name_zh": _loc_zh(sub.get("location_name_zh")) or localized_location_data.get("location_name_zh"),
                     "location_name_en": _loc(sub.get("location_name_en")) or localized_location_data.get("location_name_en"),
-                    "location_address_zh": _loc(sub.get("location_address_zh")) or localized_location_data.get("location_address_zh"),
+                    "location_address_zh": _loc_zh(sub.get("location_address_zh")) or localized_location_data.get("location_address_zh"),
                     "location_address_en": _loc(sub.get("location_address_en")) or localized_location_data.get("location_address_en"),
                     "business_hours_zh": _str(sub.get("business_hours_zh")) or localized_location_data.get("business_hours_zh"),
                     "business_hours_en": _str(sub.get("business_hours_en")) or localized_location_data.get("business_hours_en"),
