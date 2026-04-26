@@ -55,6 +55,11 @@ After writing, verify with `grep "key" web/messages/XX.json` before committing.
 
 `replace_string_in_file` is safe only for ASCII-only strings in JSON files.
 
+**Duplicate key rule:** `web/messages/ja.json` is a repeat-offender for duplicate keys (recurred 3×). After **every** edit to any message file:
+1. Run `get_errors` on the file before committing.
+2. Before inserting a new key, `grep` for it first to ensure it does not already exist.
+3. To fix duplicate keys: `python3 -c "import json,pathlib; p=pathlib.Path('web/messages/ja.json'); p.write_text(json.dumps(json.loads(p.read_text(encoding='utf-8')), ensure_ascii=False, indent=2)+'\\n', encoding='utf-8')"`
+
 ## Category Update Protocol
 
 **Canonical source of truth:** `web/lib/types.ts` → `Category` union type, `CATEGORIES` array, `CATEGORY_GROUPS` array.

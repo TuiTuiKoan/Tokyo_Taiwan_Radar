@@ -43,6 +43,7 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 3. For new files, use `create_file` — never create files unless strictly necessary.
 4. Do NOT add comments, docstrings, or extra error handling beyond what was asked.
 5. **Filter-option sync:** When adding a value to a TypeScript union, DB enum, or i18n file that is also used in a `<select>` dropdown, always add the matching `<option>` element in the same commit. Check every `<select>` whose value type includes the new key.
+6. **i18n duplicate key prevention:** Before inserting any key into `web/messages/*.json`, grep for the key first. After every edit, run `get_errors` on the file. `ja.json` has recurred 3× — never skip this check.
 6. **Annotation status label consistency:** When displaying `annotation_status` anywhere (badge, dropdown option, column header), always use the **short-form i18n keys**: `t("filterAnnotatedShort")`, `t("filterReviewedShort")`, `t("filterErrorShort")`, `t("filterPendingShort")`. The long-form family (`annotated`, `reviewed`, `error`, `pending`) has been deleted from all message files — do not recreate it.
 
 ### Step 3: Verify
