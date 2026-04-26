@@ -333,3 +333,20 @@ Confirm: `start_date` populated, no unhandled exceptions, events count is non-ze
 3. **`find_previous("h2")` is wrong** for nihon-date date extraction — `p.nihon-date` is the first child of its parent, so find_previous returns an h2 from a prior film block. Always iterate `parent.children` and collect h2s that follow the `p`.
 4. **End date is day-only**: first h2 after `p.nihon-date` has `M/D` (with month); subsequent h2 have day only (same month). Last h2 = end day. Guard against month wrap (`end_day < start_day`).
 5. **KING OF PRISM warning is expected**: this unrelated film appears in `schedule-box-wrap` with unusual date format; the warning is harmless and can be ignored.
+
+## cine_marine-specific
+
+1. **Listing page structure**: each film in `/coming-soon/` and `/movie-now/` is preceded by `<h2>` (date) + `<h3><a href>` (title+URL) inside `.entry-content`. Walk children sequentially; do NOT use CSS selectors on the whole article for film entries.
+2. **Taiwan filter on content_block only**: apply keyword filter to the `<div class="content_block">` that immediately follows the `<h3>`, not the full listing page or film detail page. The sidebar of every film detail page lists all current films → false positives if applied to full page.
+3. **Date in `<h2>` before `<h3>`**: date text like `6/27(土)～` or `4/25(土)－5/8(金)` (全角ダッシュ U+FF0D). Also handle 波ダッシュ `〜` and ASCII `~`.
+4. **Source name is `cine_marine`**: class name `CineMarineScraper` → `_scraper_key` produces `cine_marine`, not `cinemarine`.
+5. **Deduplicate across two listing pages**: both `/coming-soon/` and `/movie-now/` may return the same film; use a dict keyed by slug.
+
+## taiwan_faasai-specific
+
+1. **Single annual event**: source ID `taiwan_faasai_{year}` is stable — no duplicate risk across runs. No need to deduplicate.
+2. **TLS issue**: `requests.get(..., verify=False)` required; suppress `InsecureRequestWarning` via `warnings.catch_warnings()` + `warnings.simplefilter("ignore")`.
+3. **Date format**: `8月28日(金) ・29日(土) ・30日(日)` — extract start with `(\d{1,2})月(\d{1,2})日` and additional days with `・(\d{1,2})日`; all days assumed to be in the same month.
+4. **Year from heading**: `_YEAR_RE = r"20\d{2}"` matching `台湾發祭 Taiwan Faasai 2026`.
+5. **is_paid=False**: free entry confirmed on page; set explicitly to distinguish from unknown-payment events.
+

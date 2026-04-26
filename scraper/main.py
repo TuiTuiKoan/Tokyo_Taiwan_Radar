@@ -63,6 +63,8 @@ from sources.ks_cinema import KsCinemaScraper
 from sources.cinemart_shinjuku import CinemartShinjukuScraper
 from sources.morc_asagaya import MorcAsagayaScraper
 from sources.shin_bungeiza import ShinBungeizaScraper
+from sources.cinemarine import CineMarineScraper
+from sources.taiwan_faasai import TaiwanFaasaiScraper
 from sources.kokuchpro import KokuchproScraper
 from sources.eslite_spectrum import EsliteSpectrumScraper
 from sources.moonromantic import MoonRomanticScraper
@@ -114,6 +116,8 @@ SCRAPERS = [
     CinemartShinjukuScraper(),
     MorcAsagayaScraper(),
     ShinBungeizaScraper(),
+    CineMarineScraper(),
+    TaiwanFaasaiScraper(),
     KokuchproScraper(),
     EsliteSpectrumScraper(),
     MoonRomanticScraper(),

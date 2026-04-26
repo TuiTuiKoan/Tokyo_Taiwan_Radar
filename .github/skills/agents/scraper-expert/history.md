@@ -3,7 +3,20 @@
 <!-- Append new entries at the top -->
 
 ---
-## 2026-04-26 — morc_asagaya: site-wide banner caused false positives; shin_bungeiza: find_previous returned wrong h2
+## 2026-04-26 — cine_marine + taiwan_faasai: two new scrapers implemented
+
+**cine_marine (横浜シネマリン):**
+- Listing page structure: each film entry is `<h2>` (date) + `<h3><a>` (title+URL) + `<div class="content_block">` (details) within a single `.entry-content` article.
+- Taiwan filter applied only to `content_block` text (not full film page) to avoid false positives from sidebar that lists all current films.
+- Source name: `cine_marine` (from `CineMarineScraper` via `_scraper_key`).
+
+**taiwan_faasai (台湾發祭 Taiwan Faasai):**
+- Annual 3-day free outdoor festival in Ueno Park.
+- TLS issue: `verify=False` required, `InsecureRequestWarning` suppressed.
+- Source ID: `taiwan_faasai_{year}` — stable per year.
+
+---
+
 
 **Error (morc_asagaya):** All 24 film pages matched Taiwan filter because every page contains a site-wide `section#tp_info` with "台湾巨匠傑作選2024" promotion links. Initial implementation applied `get_text()` to the entire page including this section.
 
