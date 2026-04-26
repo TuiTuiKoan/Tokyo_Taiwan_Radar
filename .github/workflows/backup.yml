@@ -40,7 +40,7 @@ jobs:
       - name: Upload backup artifact
         uses: actions/upload-artifact@v4
         with:
-          name: backup-snapshot-${{ github.run_id }}
+          name: "backup-snapshot-${{ github.run_id }}"
           path: "${{ steps.snapshot.outputs.snapshot_dir }}"
           if-no-files-found: error
           retention-days: 30
