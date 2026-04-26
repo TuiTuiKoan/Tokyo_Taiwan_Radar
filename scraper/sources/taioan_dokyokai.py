@@ -88,13 +88,22 @@ def _extract_taioan_event_dates(
     return None, None
 
 _LOCATION_LABEL = re.compile(
+    # Pattern A: inline — e.g. "◆ 会場： 文京区民センター 3A会議室"
     r"[■●▶◆◇・]?\s*(?:場所|会場|開催場所)\s*[：:]\s*(.{3,80})",
     re.MULTILINE,
 )
+# Pattern B: label on its own line, value on next non-empty line
+# e.g. "場所：\n\n文京区民センター 3A会議室"
+_LOCATION_LABEL_NEXT_LINE = re.compile(
+    r"[■●▶◆◇・]?\s*(?:場所|会場|開催場所)\s*[：:]\s*\n(?:\s*\n)*([^\n]{3,80})",
+    re.MULTILINE,
+)
+
 _ADDRESS_LABEL = re.compile(
     r"[\u25a0●▶◆◇・]?\s*住所\s*[：:]\s*(.{5,80})",
     re.MULTILINE,
 )
+
 
 def _safe_text(page: Page, selector: str) -> Optional[str]:
     try:
@@ -107,10 +116,15 @@ def _safe_text(page: Page, selector: str) -> Optional[str]:
 def _extract_location(text: Optional[str]) -> Optional[str]:
     if not text:
         return None
+    # Try inline pattern first (more specific)
     m = _LOCATION_LABEL.search(text)
-    if not m:
-        return None
-    return m.group(1).strip().splitlines()[0].strip()
+    if m and m.group(1).strip():
+        return m.group(1).strip().splitlines()[0].strip()
+    # Fall back to next-line pattern
+    m2 = _LOCATION_LABEL_NEXT_LINE.search(text)
+    if m2 and m2.group(1).strip():
+        return m2.group(1).strip().splitlines()[0].strip()
+    return None
 
 
 def _extract_address(text: Optional[str]) -> Optional[str]:
@@ -301,6 +315,10 @@ class TaioanDokyokaiScraper(BaseScraper):
         # --- Location ---
         location_name = _extract_location(description_ja)
         location_address = _extract_address(description_ja)
+        # Fallback: if no explicit address label, use venue name as address
+        # (taioan.fc2.page rarely provides a 住所: label)
+        if location_name and not location_address:
+            location_address = location_name
 
         # --- Stable source_id ---
         source_id = hashlib.md5(url.encode()).hexdigest()[:16]
