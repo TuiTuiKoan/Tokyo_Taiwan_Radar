@@ -350,3 +350,27 @@ Confirm: `start_date` populated, no unhandled exceptions, events count is non-ze
 4. **Year from heading**: `_YEAR_RE = r"20\d{2}"` matching `台湾發祭 Taiwan Faasai 2026`.
 5. **is_paid=False**: free entry confirmed on page; set explicitly to distinguish from unknown-payment events.
 
+## eiga_com-specific
+
+1. **Search URL is inherently Taiwan-filtered**: `https://eiga.com/search/%E5%8F%B0%E6%B9%BE/movie/` returns only films with 台湾 in the title — no additional keyword filter needed. The main risk is stale old releases; solve with a date window.
+2. **Date window filter is required**: Old Taiwan films (e.g. 2013 releases) remain in the search index indefinitely. Filter: `today - 90 days ≤ pub_date ≤ today + 180 days`. Without this, obsolete films accumulate in the DB.
+3. **Synopsis from first bare `<p>` > 80 chars**: The detail page has a bare `<p>` (no class) containing the synopsis. Always skip shorter paragraphs — they are metadata lines.
+4. **source_id = `eiga_com_{movie_id}`**: numeric ID from `/movie/{id}/` path — stable across runs. No slug or title derivation.
+5. **location_name = None**: eiga.com does not specify a single Tokyo venue; the film is in general release. Do not guess a venue.
+
+## ssff-specific
+
+1. **All-program page has all Taiwan films**: `/{year}/all-program/` is a single static HTML page listing every film with country in the link text. Filter `<a>` whose text contains `台湾` — no need to visit individual pages for the Taiwan check.
+2. **Year detection is critical**: SSFF publishes each year's all-program page at `/{year}/all-program/` (not at a fixed URL). Detect by trying `/{current_year}/all-program/` — a valid page is >10KB.
+3. **Japanese title ≠ `<h1>`**: On individual film pages, `<h1>` is the English title; the Japanese title is `nav ol li[-1]` (last breadcrumb item).
+4. **dl.info extraction**: Split `get_text(separator="\n")` and iterate looking for `"国"` / `"監督"` labels followed by their values.
+5. **Screening table cells**: `[0]` = venue (link), `[1]` = date string `"2026.06.08 [Mon] 13:00-14:50"`. Use regex `r"(\d{4})\.(\d{2})\.(\d{2})"` to parse.
+
+## tokyo_filmex-specific
+
+1. **Domain is `filmex.jp`, NOT `filmex.net`**: `filmex.net` returns a 114-byte redirect stub. Always use `https://filmex.jp`.
+2. **`festival_year < today.year → return []`**: The scraper intentionally skips past festival data. This is expected behaviour — it will activate automatically when the new program is published (~October each year).
+3. **Taiwan filter on listing `<p>` (no class)**: The first bare `<p>` inside `div.textWrap.areaLink` after `p.text01` is the country/duration line. It must start with `"台湾"`.
+4. **Detail link is relative**: `ul.nav03.type04 li.next a[href]` contains `"fc2.html"` (not a full URL). Resolve with `f"{_BASE_URL}/program/{cat}/{rel_href}"`.
+5. **Venue abbreviations in body text**: `"朝日"` → 有楽町朝日ホール; `"HTC"` → ヒューマントラストシネマ有楽町. Expand via `_VENUE_MAP` dict.
+
