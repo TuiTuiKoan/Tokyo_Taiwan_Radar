@@ -20,7 +20,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 from .base import BaseScraper, Event
 
@@ -224,8 +224,11 @@ class TaiwanKyokaiScraper(BaseScraper):
             page = browser.new_page()
 
             # ── Step 1: collect news links ──────────────────────────────────
-            page.goto(NEWS_URL, timeout=20000)
-            page.wait_for_timeout(1500)
+            try:
+                page.goto(NEWS_URL, wait_until="networkidle", timeout=30000)
+            except PWTimeout:
+                page.goto(NEWS_URL, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(1000)
 
             anchors = page.query_selector_all('a[href*="news-"]')
             hrefs: list[str] = []
@@ -246,11 +249,17 @@ class TaiwanKyokaiScraper(BaseScraper):
                     continue
 
                 try:
-                    page.goto(url, timeout=20000)
-                    page.wait_for_timeout(1000)
+                    page.goto(url, wait_until="networkidle", timeout=30000)
+                except PWTimeout:
+                    try:
+                        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    except PWTimeout as exc:
+                        logger.warning("[%s] Timeout loading %s: %s", SOURCE_NAME, url, exc)
+                        continue
                 except Exception as exc:
                     logger.warning("[%s] Could not load %s: %s", SOURCE_NAME, url, exc)
                     continue
+                page.wait_for_timeout(500)
 
                 # Extract body text (strip nav / sidebar)
                 raw_text = page.inner_text("body") or ""

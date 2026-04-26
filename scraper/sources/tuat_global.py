@@ -15,7 +15,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import Page, sync_playwright, TimeoutError as PWTimeout
 
 from .base import BaseScraper, Event
 
@@ -112,7 +112,10 @@ class TuatGlobalScraper(BaseScraper):
             for page_num in range(1, MAX_PAGES + 1):
                 url = LIST_URL if page_num == 1 else f"{LIST_URL}page/{page_num}/"
                 logger.info("Fetching %s", url)
-                page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                try:
+                    page.goto(url, wait_until="networkidle", timeout=45000)
+                except PWTimeout:
+                    page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
                 tables = page.query_selector_all("table")
                 if not tables:
