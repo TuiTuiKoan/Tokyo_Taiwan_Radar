@@ -29,6 +29,38 @@ Read this at the start of every session before touching any code.
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 
+## Category Update Protocol
+
+**Canonical source of truth:** `web/lib/types.ts` → `Category` union type, `CATEGORIES` array, `CATEGORY_GROUPS` array.
+
+### When renaming a category display label (i18n only)
+Update all three message files simultaneously:
+- `web/messages/zh.json` — key under `categories.*`
+- `web/messages/en.json` — same key
+- `web/messages/ja.json` — same key
+
+For group labels: keys are `group_arts`, `group_lifestyle`, `group_knowledge`, `group_society`, `group_archive`.
+
+### When adding or removing a category value
+Update **all 6 locations** in a single commit — do NOT split across commits:
+1. `web/lib/types.ts` — `Category` union type
+2. `web/lib/types.ts` — `CATEGORIES` flat array
+3. `web/lib/types.ts` — `CATEGORY_GROUPS` (place in the correct group)
+4. `web/messages/zh.json` — label under `categories.*`
+5. `web/messages/en.json` — same key
+6. `web/messages/ja.json` — same key
+
+### 5 UI surfaces that consume categories (all derive from types.ts — no component code changes needed for label renames)
+| Surface | File | Source |
+|---------|------|--------|
+| 前台篩選器 | `web/components/FilterBar.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` |
+| 後台篩選器 | `web/components/AdminEventTable.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` |
+| AI 報錯選單 | `web/components/ReportSection.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` |
+| 活動編輯頁 | `web/components/AdminEventForm.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` |
+| 後台問題回報審核 | `web/components/AdminReportsTable.tsx` | `CATEGORIES` (flat) + `messages/categories.*` |
+
+> **Note:** `AdminReportsTable.tsx` uses the flat `CATEGORIES` array, not `CATEGORY_GROUPS`. When adding a category, verify it appears in `CATEGORIES` so the admin review picker shows it.
+
 ## AdminEventTable.tsx — Protected Invariants
 Whenever this file is modified for **any reason**, verify these 3 lines are intact before committing:
 1. **Search filter label**: `{tFilters("search")}` — do NOT revert to `{t("name")}`

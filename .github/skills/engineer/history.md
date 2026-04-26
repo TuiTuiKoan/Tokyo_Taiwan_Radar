@@ -3,6 +3,17 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-26 - Category label changes only updated i18n, not all 5 UI surfaces
+**Error:** When renaming category labels or group labels (e.g., `group_arts`→五感, `performing_arts`→音楽・演劇, `geopolitics` EN/JA), changes were made only to `web/messages/*.json`. The team discovered that 5 UI surfaces all consume categories from the same source and none require separate code changes for label renames — but the complete list of surfaces was not documented, risking future partial updates.
+**Fix:** Established the Category Update Protocol and documented all 5 surfaces:
+1. 前台篩選器 (`FilterBar.tsx`) — `CATEGORY_GROUPS`
+2. 後台篩選器 (`AdminEventTable.tsx`) — `CATEGORY_GROUPS`
+3. AI 報錯選單 (`ReportSection.tsx`) — `CATEGORY_GROUPS`
+4. 活動編輯頁 (`AdminEventForm.tsx`) — `CATEGORY_GROUPS`
+5. 後台問題回報審核 (`AdminReportsTable.tsx`) — `CATEGORIES` flat array
+**Lesson:** All category display labels flow through `messages/categories.*` keys. For label-only renames, update all 3 message files in one commit. For structural changes (add/remove), also update `lib/types.ts` (`Category` union, `CATEGORIES`, `CATEGORY_GROUPS`). See Category Update Protocol in SKILL.md.
+
+---
 ## 2026-04-26 - Filter dropdown missing `pending` option — filter and list options not synced
 **Error:** The annotation status filter dropdown in `AdminEventTable.tsx` had options `all / annotated / reviewed / error`, but was missing `pending`. The `filterAnnotation` state type already included `"pending"`, the filter logic already handled it generically, and the i18n key `t("pending")` already existed in `zh.json`. Only the `<option>` element was never added to the `<select>`. Result: admins could not filter by `pending` status (commit `2f19a08`).
 **Fix:** Added `<option value="pending">{t("pending")}</option>` as the first option after "全部".

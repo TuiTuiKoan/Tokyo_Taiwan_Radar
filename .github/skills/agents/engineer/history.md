@@ -3,6 +3,17 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-26 - Category label changes only updated i18n, not all 5 UI surfaces
+**Error:** When renaming category labels or group labels (e.g., `group_arts`→五感, `performing_arts`→音楽・演劇, `geopolitics` EN/JA), changes were made only to `web/messages/*.json`. The team discovered that 5 UI surfaces all consume categories from the same source and none require separate code changes for label renames — but the complete list of surfaces was not documented, risking future partial updates.
+**Fix:** Established the Category Update Protocol and documented all 5 surfaces:
+1. 前台篩選器 (`FilterBar.tsx`) — `CATEGORY_GROUPS`
+2. 後台篩選器 (`AdminEventTable.tsx`) — `CATEGORY_GROUPS`
+3. AI 報錯選單 (`ReportSection.tsx`) — `CATEGORY_GROUPS`
+4. 活動編輯頁 (`AdminEventForm.tsx`) — `CATEGORY_GROUPS`
+5. 後台問題回報審核 (`AdminReportsTable.tsx`) — `CATEGORIES` flat array
+**Lesson:** All category display labels flow through `messages/categories.*` keys. For label-only renames, update all 3 message files in one commit. For structural changes (add/remove), also update `lib/types.ts` (`Category` union, `CATEGORIES`, `CATEGORY_GROUPS`). See Category Update Protocol in SKILL.md.
+
+---
 ## 2026-04-26 - AdminEventTable filter label/style regressions after later commits
 **Error:** Three UI fixes made in commits `dfe6e24` and `3aef2c0` (search label → `tFilters("search")`, category label → `tFilters("category")`, category button `bg-white` → `bg-gray-50`) were silently overwritten when a later commit (`9c4010d`) modified the same file for an unrelated change (reannotate label rename). The regression was only noticed by the user.
 **Fix:** Re-applied all three changes in [fix(web): re-apply admin filter label/style fixes lost in regression].
