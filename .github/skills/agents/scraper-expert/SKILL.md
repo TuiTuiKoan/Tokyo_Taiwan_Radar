@@ -294,3 +294,26 @@ python scraper/backfill_locations.py
 cd scraper && python main.py --dry-run --source <source_name> 2>&1 | head -80
 ```
 Confirm: `start_date` populated, no unhandled exceptions, events count is non-zero (or zero for an expected reason).
+
+### 5. git commit & push — always push before calling task_complete
+1. Create a feature branch if not already on one:
+   ```bash
+   git checkout -b feat/source-<source_name>
+   ```
+2. Stage only scraper-related files (exclude temporary scripts like `scan_loc.py`, `fix_*.py`):
+   ```bash
+   git add scraper/sources/<source_name>.py \
+           scraper/main.py \
+           .github/skills/sources/<source_name>/ \
+           .github/skills/agents/scraper-expert/SKILL.md
+   # For a bug fix, also add the per-source SKILL.md and history.md:
+   git add .github/skills/agents/scraper-expert/history.md
+   ```
+3. Commit with a conventional commit message:
+   - New source: `feat(scraper): add <SourceName>Scraper for <display name>`
+   - Bug fix: `fix(scraper): <what was fixed> in <source_name>`
+4. Push the branch:
+   ```bash
+   git push -u origin feat/source-<source_name>
+   ```
+5. Report the PR creation URL shown by git push output to the user.

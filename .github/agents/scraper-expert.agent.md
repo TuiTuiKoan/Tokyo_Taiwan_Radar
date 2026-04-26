@@ -86,3 +86,15 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 2. Append entry to `.github/skills/sources/<source_name>/history.md`.
 3. If the lesson generalizes: add/update rule in `scraper-expert/SKILL.md`.
 4. If the lesson is source-specific: add/update rule in the per-source `SKILL.md`.
+
+### Phase 5: Commit & Push
+
+**Always run this phase after Phase 4 — never call task_complete without pushing.**
+
+1. Create a feature branch if not already on one: `git checkout -b feat/source-<source_name>`
+2. Stage only scraper-related files (exclude temp scripts like `scan_loc.py`, `fix_*.py`).
+3. Commit:
+   - New source: `feat(scraper): add <SourceName>Scraper for <display name>`
+   - Bug fix: `fix(scraper): <what was fixed> in <source_name>`
+4. `git push -u origin feat/source-<source_name>`
+5. Report the PR creation URL to the user.
