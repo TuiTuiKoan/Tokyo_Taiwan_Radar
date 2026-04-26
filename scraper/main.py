@@ -62,6 +62,9 @@ from sources.tobunken import TobunkenScraper
 from sources.ks_cinema import KsCinemaScraper
 from sources.cinemart_shinjuku import CinemartShinjukuScraper
 from sources.kokuchpro import KokuchproScraper
+from sources.eslite_spectrum import EsliteSpectrumScraper
+from sources.moonromantic import MoonRomanticScraper
+from sources.tokyoartbeat import TokyoArtBeatScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -106,6 +109,9 @@ SCRAPERS = [
     KsCinemaScraper(),
     CinemartShinjukuScraper(),
     KokuchproScraper(),
+    EsliteSpectrumScraper(),
+    MoonRomanticScraper(),
+    TokyoArtBeatScraper(),
 ]
 
 

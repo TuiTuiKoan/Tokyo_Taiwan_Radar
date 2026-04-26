@@ -2,8 +2,9 @@
 Scraper for こくちーずプロ (Kokuchpro) — Japan's largest free event/seminar platform.
 
 Strategy:
-  1. Fetch paginated search results for keyword "台湾" scoped to Tokyo area.
-     Listing URL: https://www.kokuchpro.com/s/q-台湾/area-東京都/?page=N
+  1. Fetch paginated search results for keyword "台湾" across three prefectures:
+     東京都, 京都府, 大阪府.
+     Listing URL pattern: https://www.kokuchpro.com/s/q-台湾/area-<AREA>/?page=N
   2. For each card extract: date from .value-title ISO attribute, venue from
      .event_place, title from .event_name, short desc from .event_description.
   3. Taiwan keyword check on title + short description (guard against false
@@ -33,10 +34,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 BASE_URL = "https://www.kokuchpro.com"
-SEARCH_URL = (
-    "https://www.kokuchpro.com/s/q-%E5%8F%B0%E6%B9%BE/area-%E6%9D%B1%E4%BA%AC%E9%83%BD/"
-)
-MAX_PAGES = 10          # safety ceiling — currently ~6 pages
+# Search URLs per prefecture (Taiwan keyword, area-scoped)
+SEARCH_URLS = [
+    "https://www.kokuchpro.com/s/q-%E5%8F%B0%E6%B9%BE/area-%E6%9D%B1%E4%BA%AC%E9%83%BD/",  # 東京都
+    "https://www.kokuchpro.com/s/q-%E5%8F%B0%E6%B9%BE/area-%E4%BA%AC%E9%83%BD%E5%BA%9C/",  # 京都府
+    "https://www.kokuchpro.com/s/q-%E5%8F%B0%E6%B9%BE/area-%E5%A4%A7%E9%98%AA%E5%BA%9C/",  # 大阪府
+]
+MAX_PAGES = 10          # safety ceiling per area
 REQUEST_DELAY = 0.4     # seconds between requests (polite crawl)
 DETAIL_CUTOFF_DAYS = 60  # fetch detail page only for events ≤ this many days ago
 
@@ -102,7 +106,7 @@ def _normalize_online(text: str) -> str:
 
 
 class KokuchproScraper(BaseScraper):
-    """Scrapes Taiwan-related Tokyo events from こくちーずプロ."""
+    """Scrapes Taiwan-related events from こくちーずプロ — covers 東京都, 京都府, 大阪府."""
 
     SOURCE_NAME = "kokuchpro"
 
@@ -149,34 +153,35 @@ class KokuchproScraper(BaseScraper):
         all_cards: list[dict] = []
         seen_slugs: set[str] = set()
 
-        for page in range(1, MAX_PAGES + 1):
-            url = SEARCH_URL if page == 1 else f"{SEARCH_URL}?page={page}"
-            try:
-                resp = self._session.get(url, timeout=20)
-                resp.raise_for_status()
-            except Exception as exc:
-                logger.warning("KokuchproScraper: listing page %d failed — %s", page, exc)
-                break
+        for search_url in SEARCH_URLS:
+            for page in range(1, MAX_PAGES + 1):
+                url = search_url if page == 1 else f"{search_url}?page={page}"
+                try:
+                    resp = self._session.get(url, timeout=20)
+                    resp.raise_for_status()
+                except Exception as exc:
+                    logger.warning("KokuchproScraper: listing page %d failed — %s", page, exc)
+                    break
 
-            soup = BeautifulSoup(resp.text, "html.parser")
-            items = soup.select(".event_item")
-            if not items:
-                break
+                soup = BeautifulSoup(resp.text, "html.parser")
+                items = soup.select(".event_item")
+                if not items:
+                    break
 
-            for item in items:
-                card = self._parse_card(item)
-                if card and card["slug"] not in seen_slugs:
-                    seen_slugs.add(card["slug"])
-                    all_cards.append(card)
+                for item in items:
+                    card = self._parse_card(item)
+                    if card and card["slug"] not in seen_slugs:
+                        seen_slugs.add(card["slug"])
+                        all_cards.append(card)
 
-            # Check if next page exists in pagination links
-            next_exists = bool(
-                soup.select_one(f"a[href*='?page={page + 1}']")
-            )
-            if not next_exists:
-                break
+                # Check if next page exists in pagination links
+                next_exists = bool(
+                    soup.select_one(f"a[href*='?page={page + 1}']")
+                )
+                if not next_exists:
+                    break
 
-            time.sleep(REQUEST_DELAY)
+                time.sleep(REQUEST_DELAY)
 
         logger.info("KokuchproScraper: collected %d unique cards from listing", len(all_cards))
         return all_cards
