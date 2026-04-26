@@ -29,6 +29,22 @@ Read this at the start of every session before touching any code.
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 
+## i18n JSON File Editing — Unicode Safety Rule
+
+**Never use `replace_string_in_file` to edit `web/messages/*.json`** when `oldString` contains any non-ASCII characters (Japanese/Chinese punctuation, CJK characters, fullwidth symbols like `・` U+30FB). The tool can silently fail to match without reporting an error.
+
+**Always use the Python json-module pattern for i18n edits:**
+```python
+import json, pathlib
+path = pathlib.Path('web/messages/XX.json')
+data = json.loads(path.read_text(encoding='utf-8'))
+data['section']['key'] = 'new value'
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+```
+After writing, verify with `grep "key" web/messages/XX.json` before committing.
+
+`replace_string_in_file` is safe only for ASCII-only strings in JSON files.
+
 ## Category Update Protocol
 
 **Canonical source of truth:** `web/lib/types.ts` → `Category` union type, `CATEGORIES` array, `CATEGORY_GROUPS` array.
