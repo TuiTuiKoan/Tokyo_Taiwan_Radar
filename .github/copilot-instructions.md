@@ -7,9 +7,11 @@ This applies to all agents (Researcher, Architect, Engineer, Scraper Expert, Tes
 
 ## Project overview
 
-Tokyo Taiwan Radar aggregates Taiwan-related cultural events in Tokyo,
+Tokyo Taiwan Radar aggregates Taiwan-related cultural events **anywhere in Japan（全日本）**,
 scraped from multiple sources, stored in Supabase, and displayed on a
 trilingual Next.js web app.
+
+> **Geographic Scope**: Events in Tokyo, Osaka, Kyoto, Fukuoka, Sapporo, and all other regions are in scope. Do NOT reject an event or source solely because it is outside Tokyo.
 
 - GitHub: TuiTuiKoan/Tokyo_Taiwan_Radar (main branch)
 - Supabase project: cjtndektjjpvvjofdvzr

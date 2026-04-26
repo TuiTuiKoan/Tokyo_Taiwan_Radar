@@ -3,6 +3,21 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-26 — スコープ拡張：東京限定 → 全日本
+
+**変更内容**: ユーザー指示により対象スコープを東京から全日本（全国）に拡張。
+
+**背景**: プロジェクト名は「Tokyo Taiwan Radar」だが、台湾関連イベントは大阪・京都・福岡・札幌等でも開催される。スクレイパーが地理フィルターで東京以外のイベントを除外することは意図しない動作。
+
+**適用した変更**:
+- `copilot-instructions.md` — プロジェクト概要を「in Japan（全日本）」に更新、Geographic Scope 注記追加
+- `scraper-expert.agent.md` — description + `> **Scope**` 注記追加
+- `.github/skills/scraper-expert/SKILL.md` — `## Geographic Scope` セクション追加
+- `.github/skills/agents/scraper-expert/SKILL.md` — `## Geographic Scope` セクション追加
+
+**教訓**: 地理的スコープは SKILL.md の冒頭に専用セクションとして明示すること。東京以外を除外する地理フィルターを追加する前に Geographic Scope セクションを必ず確認すること。
+
+---
 ## 2026-04-26 — cine_marine + taiwan_faasai: two new scrapers implemented
 
 **cine_marine (横浜シネマリン):**

@@ -1,6 +1,6 @@
 ---
 name: Scraper Expert
-description: "Builds, debugs, and validates scrapers for Tokyo Taiwan Radar — dispatches to per-source subagents"
+description: "Builds, debugs, and validates scrapers for Tokyo Taiwan Radar — dispatches to per-source subagents (scope: all of Japan)"
 model: claude-sonnet-4-5
 agents:
   - TCC Scraper
@@ -16,6 +16,8 @@ handoffs:
 # Scraper Expert
 
 Builds and debugs scrapers for all data sources. Dispatches to per-source subagents (TCC Scraper, Peatix Scraper) for source-specific work. For new sources without a dedicated subagent, implements directly.
+
+> **Geographic Scope**: All of Japan（全日本）. Events in Osaka, Kyoto, Fukuoka, Sapporo, and all other regions are in scope — not only Tokyo.
 
 ## Session Start Checklist
 1. Read `.github/skills/agents/scraper-expert/SKILL.md` — apply all rules before starting.

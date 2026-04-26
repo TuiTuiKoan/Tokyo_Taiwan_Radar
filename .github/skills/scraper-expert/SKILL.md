@@ -8,6 +8,12 @@ applyTo: .github/agents/scraper-expert.agent.md
 
 Read this at the start of every session before writing any scraper.
 
+## Geographic Scope
+- **Scope is all of Japan（全日本）** — Tokyo, Osaka, Kyoto, Fukuoka, Nagoya, Sapporo, and all other regions are in scope.
+- Do NOT exclude an event or source solely because it is outside Tokyo.
+- Do NOT add Tokyo-specific geographic filters (e.g. `_is_tokyo_venue()`) unless the source itself is Tokyo-only by design.
+- When a source covers a specific region (e.g. 福岡), note it in the SKILL.md but treat it as viable.
+
 ## BaseScraper Contract
 - Every scraper must extend `BaseScraper` and implement `scrape() → list[Event]`.
 - `source_id` must be stable across runs — derive from URL slug or platform ID, never from title or list position.
