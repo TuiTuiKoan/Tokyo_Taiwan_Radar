@@ -146,6 +146,7 @@
     "sourceLink": "Source Link",
     "source": "Source",
     "annotationLabel": "Annotation",
+    "scrapedAt": "Scraped",
     "filterAnnotatedShort": "AI",
     "filterReviewedShort": "Manual",
     "filterErrorShort": "Failed",

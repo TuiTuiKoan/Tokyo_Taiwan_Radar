@@ -61,6 +61,7 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         "parent_event_id": event.parent_event_id,
         "raw_title": event.raw_title,
         "raw_description": event.raw_description,
+        "scraped_at": datetime.utcnow().isoformat() + "Z",
     }
 
 

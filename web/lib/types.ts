@@ -41,6 +41,7 @@ export interface Event {
   annotation_status: string;
   annotated_at: string | null;
   force_rescrape?: boolean;
+  scraped_at: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -146,6 +146,7 @@
     "sourceLink": "來源連結",
     "source": "來源",
     "annotationLabel": "標註",
+    "scrapedAt": "爬取時間",
     "filterAnnotatedShort": "AI",
     "filterReviewedShort": "人工",
     "filterErrorShort": "失敗",

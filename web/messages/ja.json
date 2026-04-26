@@ -146,6 +146,7 @@
     "sourceLink": "ソースリンク",
     "source": "ソース",
     "annotationLabel": "標注",
+    "scrapedAt": "クロール日時",
     "filterAnnotatedShort": "AI",
     "filterReviewedShort": "人工",
     "filterErrorShort": "失敗",
