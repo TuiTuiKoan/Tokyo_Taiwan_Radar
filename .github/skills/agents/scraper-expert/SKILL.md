@@ -278,3 +278,11 @@ python scraper/backfill_locations.py
 cd scraper && python main.py --dry-run --source <source_name> 2>&1 | head -80
 ```
 Confirm: `start_date` populated, no unhandled exceptions, events count is non-zero (or zero for an expected reason).
+
+## jposa_ja-specific
+
+- **Use RSS feeds, not the listing page**: `/jposa_ja/cat/4.html` is JS-rendered; the listing skeleton returns no event links. WordPress category RSS feeds (`/jposa_ja/category/<encoded>/feed/`) are the correct data source. Paginate with `?paged=N` (10 items/page, newest-first).
+- **Most posts are diplomatic visit recaps**: ~90% of posts match patterns like `の表敬訪問を受ける` / `と面会` / `を歓迎`. Apply `_EVENT_KW` (positive) + `_SKIP_KW` (negative) title filter before fetching detail pages.
+- **content:encoded has full body**: The RSS `<content:encoded>` CDATA block contains the full post HTML. Parse it with BeautifulSoup before falling back to a detail page HTTP request.
+- **XMLParsedAsHTMLWarning must be suppressed**: `warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)` is required when using `html.parser` on the RSS XML.
+- **Low yield is normal**: 1–3 event posts per month. `LOOKBACK_DAYS = 180` is intentional — do not reduce it.
