@@ -211,10 +211,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   }
 
   function getAnnotationLabel(status: string) {
-    if (status === "annotated") return t("annotated");
-    if (status === "reviewed") return t("reviewed");
-    if (status === "error") return t("error");
-    return t("pending");
+    if (status === "annotated") return t("filterAnnotatedShort");
+    if (status === "reviewed") return t("filterReviewedShort");
+    if (status === "error") return t("filterErrorShort");
+    return t("filterPendingShort");
   }
 
   function startNew() {
@@ -620,10 +620,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("filterAll")}</option>
-              <option value="pending">{t("pending")}</option>
-              <option value="annotated">{t("annotated")}</option>
-              <option value="reviewed">{t("reviewed")}</option>
-              <option value="error">{t("error")}</option>
+              <option value="pending">{t("filterPendingShort")}</option>
+              <option value="annotated">{t("filterAnnotatedShort")}</option>
+              <option value="reviewed">{t("filterReviewedShort")}</option>
+              <option value="error">{t("filterErrorShort")}</option>
             </select>
           </div>
           {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "active" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation || filterSource) && (
