@@ -19,6 +19,15 @@ NOTE: tokyoartbeat.com requires JS (React rendering). Playwright is required.
 The search results do NOT filter by Taiwan keyword on the server side —
 all results are popular/recent events. We filter client-side by checking
 that "台湾" appears on the event detail page.
+
+⚠️  KNOWN LIMITATION (2026-04-26): The search URL ?query=台湾 is IGNORED by
+the TAB React app. The Hasura backend only returns popularity-sorted events
+regardless of the query parameter. All 43 collected URLs fail the Taiwan
+keyword check → 0 events returned. The actual event content is stored in
+Contentful CMS (not accessible without API key). This scraper needs a
+new approach (e.g. simulate user typing in search box + wait for updated
+GraphQL results). Currently produces 0 events and is NOT included in
+the main SCRAPERS list in main.py until this is fixed.
 """
 
 import logging
@@ -118,14 +127,18 @@ class TokyoArtBeatScraper(BaseScraper):
 
             logger.info("tokyoartbeat: loading search results page %d", pg)
             try:
-                page.goto(url, wait_until="networkidle", timeout=30_000)
+                page.goto(url, wait_until="load", timeout=30_000)
             except PWTimeout:
                 try:
                     page.goto(url, wait_until="domcontentloaded", timeout=30_000)
                 except Exception:
                     break
 
-            time.sleep(1.5)
+            # Wait for event links to appear
+            try:
+                page.wait_for_selector("a[href*='/events/-/']", timeout=8_000)
+            except PWTimeout:
+                pass
 
             # Collect all event anchors: href matches /events/-/.../.../YYYY-MM-DD
             anchors = page.query_selector_all("a[href*='/events/-/']")
@@ -145,21 +158,25 @@ class TokyoArtBeatScraper(BaseScraper):
                 logger.info("tokyoartbeat: no new events on page %d — stopping", pg)
                 break
 
-            time.sleep(1.0)
+            time.sleep(0.5)
 
         return urls
 
     def _scrape_event(self, page: Page, url: str) -> Optional[Event]:
         """Fetch a Tokyo Art Beat event page and return an Event if Taiwan-related."""
         try:
-            page.goto(url, wait_until="networkidle", timeout=30_000)
+            page.goto(url, wait_until="load", timeout=30_000)
         except PWTimeout:
             try:
                 page.goto(url, wait_until="domcontentloaded", timeout=30_000)
             except Exception:
                 return None
 
-        time.sleep(0.5)
+        # Wait for main content
+        try:
+            page.wait_for_selector("h1, h2, [class*='venue']", timeout=6_000)
+        except PWTimeout:
+            pass
 
         try:
             page_text = page.inner_text("body") or ""

@@ -61,6 +61,8 @@ from sources.taiwanshi import TaiwanshiScraper
 from sources.tobunken import TobunkenScraper
 from sources.ks_cinema import KsCinemaScraper
 from sources.cinemart_shinjuku import CinemartShinjukuScraper
+from sources.morc_asagaya import MorcAsagayaScraper
+from sources.shin_bungeiza import ShinBungeizaScraper
 from sources.kokuchpro import KokuchproScraper
 from sources.eslite_spectrum import EsliteSpectrumScraper
 from sources.moonromantic import MoonRomanticScraper
@@ -108,10 +110,12 @@ SCRAPERS = [
     TobunkenScraper(),
     KsCinemaScraper(),
     CinemartShinjukuScraper(),
+    MorcAsagayaScraper(),
+    ShinBungeizaScraper(),
     KokuchproScraper(),
     EsliteSpectrumScraper(),
     MoonRomanticScraper(),
-    TokyoArtBeatScraper(),
+    # TokyoArtBeatScraper(),  # DISABLED: search API ignores ?query= param → 0 events (2026-04-26)
 ]
 
 
