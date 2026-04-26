@@ -60,6 +60,7 @@ from sources.waseda_taiwan import WasedaTaiwanScraper
 from sources.taiwanshi import TaiwanshiScraper
 from sources.tobunken import TobunkenScraper
 from sources.ks_cinema import KsCinemaScraper
+from sources.cinemart_shinjuku import CinemartShinjukuScraper
 from sources.kokuchpro import KokuchproScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
@@ -103,6 +104,7 @@ SCRAPERS = [
     TaiwanshiScraper(),
     TobunkenScraper(),
     KsCinemaScraper(),
+    CinemartShinjukuScraper(),
     KokuchproScraper(),
 ]
 

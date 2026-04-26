@@ -348,8 +348,16 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
                 "来": "來",
                 "长": "長",
                 "进": "進",
-                "实": "實",
-            })
+                "实": "實",                # Additional chars found in production scan 2026-04-26
+                "诺": "諾",  # イイノホール → 伊伊諾大廳
+                "厅": "廳",  # 大廳
+                "络": "絡",
+                "设": "設",
+                "联": "聯",
+                "馆": "館",
+                "门": "門",
+                "发": "發",
+                "会": "會",            })
 
             def _loc_zh(val: Any) -> str | None:
                 """Clean location string and normalize Simplified→Traditional chars."""
