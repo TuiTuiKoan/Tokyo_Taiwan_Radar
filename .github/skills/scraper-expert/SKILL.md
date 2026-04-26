@@ -97,6 +97,13 @@ python scraper/backfill_locations.py
 - If you add a new source that may store generic addresses, add its `SOURCE_NAME` to the `_SOURCES` list in `backfill_locations.py`.
 - Generic address sentinel values are defined in `_GENERIC_ADDRESSES` — add new ones when discovered (e.g. `"大阪"` for future Osaka sources).
 
+## kokuchpro-specific
+- **Search URL scoped to 東京都** — `area-東京都` in the path reduces results from ~1100 nationwide to ~226 Tokyo-only. No additional geographic filtering needed in code.
+- **ISO date from `.value-title[title]`** — card always carries ISO 8601 datetime with `+0900` offset. Parse with `datetime.fromisoformat()` and strip timezone. Do NOT parse the Japanese text fallback unless this attribute is absent.
+- **hCard microformat** — detail page has `.fn.org` for venue name and `.adr` for full address. Use these instead of regex. If `.adr` is absent (online events), fall back to venue name.
+- **Detail fetch cutoff** — only fetch detail pages for events within `DETAIL_CUTOFF_DAYS=60` past + future. Older events use card-level short description only.
+- **`source_id` = URL slug** — either a platform-assigned MD5 hash or organizer-chosen short name. Both are stable across runs.
+
 ## Registration
 - After creating a new scraper file, always add it to `SCRAPERS = [...]` in `scraper/main.py`.
 - Test with `python main.py --dry-run --source <source_name>` before any other step.
