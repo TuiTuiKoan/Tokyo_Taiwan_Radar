@@ -29,6 +29,16 @@ Read this at the start of every session before touching any code.
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 
+## Bulk Action Pattern (AdminEventTable)
+
+When adding a new bulk operation that operates on a **derived value from selected events** (e.g. common categories, common source, common status):
+1. Compute the derived value with `useMemo([selected, events])` — never inline in render
+2. Add a loading state (`useState(false)`) guarding the async handler
+3. Use `Promise.all(selectedEvents.map(...))` for parallel DB updates — do NOT loop with `await` sequentially
+4. Apply optimistic local state update in `setEvents()` after `Promise.all` resolves
+5. Only show the derived-value UI when the derived value is non-empty (conditional render in bulk bar)
+6. Add i18n keys to all 3 message files using the Python json-module pattern
+
 ## i18n JSON File Editing — Unicode Safety Rule
 
 **Never use `replace_string_in_file` to edit `web/messages/*.json`** when `oldString` contains any non-ASCII characters (Japanese/Chinese punctuation, CJK characters, fullwidth symbols like `・` U+30FB). The tool can silently fail to match without reporting an error.
