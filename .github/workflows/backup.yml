@@ -34,7 +34,8 @@ jobs:
           python scraper/backup_snapshot.py --output-dir "${SNAPSHOT_DIR}"
 
       - name: Run restore smoke-check
-        run: python scraper/restore_smoke_check.py --input "${{ steps.snapshot.outputs.snapshot_dir }}"
+        run: |
+          python scraper/restore_smoke_check.py --input "${{ steps.snapshot.outputs.snapshot_dir }}"
 
       - name: Upload backup artifact
         uses: actions/upload-artifact@v4
