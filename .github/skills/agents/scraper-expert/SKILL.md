@@ -96,6 +96,14 @@ applyTo: scraper/sources/<source_name>.py
 - Always set `start_date` explicitly. Never fall back silently to the page's publish/update date.
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` when the event date is found in the page body.
 
+## Geographic Scope — All of Japan（全日本）
+- **NEVER add a Tokyo-only location filter** unless the source itself is physically Tokyo-only (e.g. a single venue).
+- Events in Osaka, Kyoto, Fukuoka, Sapporo, Nagoya, Sendai, Hiroshima and all other prefectures are **in scope**.
+- API scrapers that accept a `prefecture=` or region param must either omit it (nationwide) or iterate all prefectures.
+- Connpass `prefecture=tokyo` was removed 2026-04-26 — do NOT re-add it.
+- Doorkeeper has no location filter — keep it that way.
+- The Taiwan relevance gate (`_TAIWAN_KEYWORDS`) is the only required filter; location is irrelevant to inclusion.
+
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
