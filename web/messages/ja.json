@@ -239,7 +239,9 @@
     "fieldNotEditable": "このフィールドはシステムが再生成します",
     "bulkDelete": "選択を削除",
     "confirmBulkDelete": "{count}件のイベントを削除しますか？この操作は元に戻せません。",
-    "selectedCount": "{count}件選択中"
+    "selectedCount": "{count}件選択中",
+    "bulkCommonCategories": "共通カテゴリ",
+    "bulkRemoveCategoryHint": "選択中のイベントからこのカテゴリを削除"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",

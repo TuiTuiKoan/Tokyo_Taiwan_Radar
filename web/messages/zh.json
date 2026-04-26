@@ -239,7 +239,9 @@
     "fieldNotEditable": "此欄由系統重新標注",
     "bulkDelete": "刪除所選",
     "confirmBulkDelete": "確認刪除 {count} 個活動？此操作無法復原。",
-    "selectedCount": "已選 {count} 個"
+    "selectedCount": "已選 {count} 個",
+    "bulkCommonCategories": "共通分類",
+    "bulkRemoveCategoryHint": "點擊從所選活動移除此分類"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",

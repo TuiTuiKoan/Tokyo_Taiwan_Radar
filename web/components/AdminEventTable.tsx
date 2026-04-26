@@ -30,6 +30,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkToggling, setBulkToggling] = useState(false);
   const [bulkForceRescrapings, setBulkForceRescrapings] = useState(false);
+  const [bulkRemovingCategory, setBulkRemovingCategory] = useState(false);
 
   // Inline filters
   const [filterQ, setFilterQ] = useState("");
@@ -156,6 +157,15 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     return map;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events, filterQ, filterCategories, filterPaid, filterIsActive, filterTimeMode, filterDateFrom, filterDateTo, filterLocation, filterAnnotation, locale]);
+
+  // Intersection of categories across all selected events
+  const commonCategories = useMemo(() => {
+    if (selected.size === 0) return [];
+    const sel = events.filter((e) => selected.has(e.id));
+    if (sel.length === 0) return [];
+    const first = sel[0].category ?? [];
+    return first.filter((cat) => sel.every((e) => (e.category ?? []).includes(cat)));
+  }, [selected, events]);
 
   function toggleSort(key: string) {
     if (sortKey === key) {
@@ -313,6 +323,32 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     setEvents((prev) => prev.map((e) => selected.has(e.id) ? { ...e, force_rescrape: true } : e));
     setSelected(new Set());
     setBulkForceRescrapings(false);
+  }
+
+  async function handleBulkRemoveCategory(cat: string) {
+    if (selected.size === 0) return;
+    setBulkRemovingCategory(true);
+    const selectedEvents = events.filter((e) => selected.has(e.id));
+    let hasError = false;
+    await Promise.all(
+      selectedEvents.map(async (e) => {
+        const newCategory = (e.category ?? []).filter((c) => c !== cat);
+        const { error } = await supabase.from("events").update({ category: newCategory }).eq("id", e.id);
+        if (error) hasError = true;
+      })
+    );
+    if (hasError) {
+      alert("部分更新失敗，請重新整理頁面確認結果");
+    } else {
+      setEvents((prev) =>
+        prev.map((e) =>
+          selected.has(e.id)
+            ? { ...e, category: (e.category ?? []).filter((c) => c !== cat) }
+            : e
+        )
+      );
+    }
+    setBulkRemovingCategory(false);
   }
 
   async function handleToggleForceRescrape(id: string) {
@@ -588,36 +624,56 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-          <span className="text-blue-700 font-medium">{t("selectedCount", { count: selected.size })}</span>
-          <button
-            onClick={() => handleBulkToggleActive(false)}
-            disabled={bulkToggling}
-            className="ml-auto bg-gray-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50 transition"
-          >
-            {bulkToggling ? "..." : t("bulkHide")}
-          </button>
-          <button
-            onClick={() => handleBulkToggleActive(true)}
-            disabled={bulkToggling}
-            className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 transition"
-          >
-            {bulkToggling ? "..." : t("bulkShow")}
-          </button>
-          <button
-            onClick={handleBulkForceRescrape}
-            disabled={bulkForceRescrapings}
-            className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-50 transition"
-            title={t("bulkForceRescrape")}
-          >
-            {bulkForceRescrapings ? "..." : `🔁 ${t("bulkForceRescrape")}`}
-          </button>
-          <button
-            onClick={() => setSelected(new Set())}
-            className="text-gray-500 hover:text-gray-700 text-xs transition"
-          >
-            ✕
-          </button>
+        <div className="mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm space-y-2">
+          {/* Row 1: count + action buttons */}
+          <div className="flex items-center gap-3">
+            <span className="text-blue-700 font-medium">{t("selectedCount", { count: selected.size })}</span>
+            <button
+              onClick={() => handleBulkToggleActive(false)}
+              disabled={bulkToggling}
+              className="ml-auto bg-gray-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50 transition"
+            >
+              {bulkToggling ? "..." : t("bulkHide")}
+            </button>
+            <button
+              onClick={() => handleBulkToggleActive(true)}
+              disabled={bulkToggling}
+              className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 transition"
+            >
+              {bulkToggling ? "..." : t("bulkShow")}
+            </button>
+            <button
+              onClick={handleBulkForceRescrape}
+              disabled={bulkForceRescrapings}
+              className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-50 transition"
+              title={t("bulkForceRescrape")}
+            >
+              {bulkForceRescrapings ? "..." : `🔁 ${t("bulkForceRescrape")}`}
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-gray-500 hover:text-gray-700 text-xs transition"
+            >
+              ✕
+            </button>
+          </div>
+          {/* Row 2: common category removal */}
+          {commonCategories.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap border-t border-blue-200 pt-2">
+              <span className="text-xs text-blue-600 font-medium">{t("bulkCommonCategories")}：</span>
+              {commonCategories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => handleBulkRemoveCategory(cat)}
+                  disabled={bulkRemovingCategory}
+                  className="text-xs bg-white border border-blue-300 text-blue-700 px-2 py-0.5 rounded-full hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition disabled:opacity-50"
+                  title={t("bulkRemoveCategoryHint")}
+                >
+                  {tCat(cat as any)} ×
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
