@@ -336,6 +336,7 @@ class TaioanDokyokaiScraper(BaseScraper):
             source_name=self.SOURCE_NAME,
             source_id=source_id,
             source_url=url,
+            official_url=url,  # official organiser page
             original_language="ja",
             name_ja=name_ja,
             description_ja=description_ja,

@@ -44,6 +44,10 @@ class Event:
     raw_title: Optional[str] = None
     raw_description: Optional[str] = None
 
+    # Set to source_url by official-organiser scrapers; None for aggregators/ticketing.
+    # Requires migration 018_official_url.sql to be applied before it is written to DB.
+    official_url: Optional[str] = None
+
 
 def dedup_events(events: list[Event]) -> list[Event]:
     """Remove duplicate events from a single scraper's output.

@@ -298,6 +298,7 @@ class KoryuScraper(BaseScraper):
             source_name=self.SOURCE_NAME,
             source_id=source_id,
             source_url=url,
+            official_url=url,  # official organiser page
             original_language="ja",
             name_ja=title,
             description_ja=body_text.strip() or None,

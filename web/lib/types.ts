@@ -37,6 +37,7 @@ export interface Event {
   raw_title: string | null;
   raw_description: string | null;
   secondary_source_urls: string[] | null;
+  official_url?: string | null;
   selection_reason: string | null;
   annotation_status: string;
   annotated_at: string | null;

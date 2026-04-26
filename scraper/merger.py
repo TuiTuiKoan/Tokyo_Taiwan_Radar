@@ -61,6 +61,10 @@ _SIMILARITY_THRESHOLD = 0.85
 
 def _normalize(name: str) -> str:
     """Strip all whitespace and lowercase for similarity comparison."""
+    # Normalize registered trademark symbol variants (e.g. iwafu uses ®, official uses (R))
+    name = name.replace("®", "(r)").replace("Ⓡ", "(r)")
+    # Strip iwafu-style subtitle suffixes like "－台南ランタン祭－"
+    name = re.sub(r"[－—\-][^－—\-]{2,}[－—\-]\s*$", "", name)
     return re.sub(r"[\s\u3000\u00a0]+", "", name).lower()
 
 
@@ -84,7 +88,7 @@ def run_merger(dry_run: bool = False) -> int:
     res = (
         sb.table("events")
         .select(
-            "id,source_name,source_id,source_url,name_ja,start_date,"
+            "id,source_name,source_id,source_url,official_url,name_ja,start_date,"
             "raw_description,secondary_source_urls,annotation_status"
         )
         .eq("is_active", True)
@@ -165,6 +169,10 @@ def run_merger(dry_run: bool = False) -> int:
                     dict.fromkeys(existing_urls + [secondary_url])
                 )
                 primary_update: dict = {"secondary_source_urls": new_secondary_urls}
+
+                # Propagate official_url from secondary to primary if primary lacks it
+                if not primary.get("official_url") and secondary.get("official_url"):
+                    primary_update["official_url"] = secondary["official_url"]
 
                 if not already_merged:
                     # First-time merge: combine raw_descriptions and trigger

@@ -197,12 +197,22 @@ export default async function EventDetailPage({ params }: PageProps) {
                 )}
               </td>
             </tr>
-            {/* Source link */}
+            {/* Source link — official first */}
             <tr>
               <td className="px-4 py-3 text-gray-400 w-28 align-top whitespace-nowrap">{t("source")}</td>
               <td className="px-4 py-3">
                 <div className="flex flex-col gap-1">
-                  {event.source_url ? (
+                  {(event as Event).official_url ? (
+                    <a
+                      href={(event as Event).official_url!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-700 font-medium hover:underline"
+                    >
+                      {t("officialSite")} ↗
+                    </a>
+                  ) : null}
+                  {event.source_url && event.source_url !== (event as Event).official_url ? (
                     <a
                       href={event.source_url}
                       target="_blank"
@@ -211,9 +221,16 @@ export default async function EventDetailPage({ params }: PageProps) {
                     >
                       {t("viewOriginal")} ↗
                     </a>
-                  ) : (
-                    "—"
-                  )}
+                  ) : event.source_url && !(event as Event).official_url ? (
+                    <a
+                      href={event.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {t("viewOriginal")} ↗
+                    </a>
+                  ) : null}
                   {(event as Event).secondary_source_urls?.map((url: string, idx: number) => (
                     <a
                       key={idx}
@@ -225,6 +242,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                       {t("viewAltSource", { n: idx + 1 })} ↗
                     </a>
                   ))}
+                  {!(event as Event).official_url && !event.source_url && !((event as Event).secondary_source_urls?.length) && "—"}
                 </div>
               </td>
             </tr>

@@ -327,6 +327,7 @@ class TaiwanKyokaiScraper(BaseScraper):
                         source_name=SOURCE_NAME,
                         source_id=f"taiwan_kyokai_{slug}",
                         source_url=url,
+                        official_url=url,  # official organiser page
                         original_language="ja",
                         name_ja=raw_title,
                         raw_title=raw_title,

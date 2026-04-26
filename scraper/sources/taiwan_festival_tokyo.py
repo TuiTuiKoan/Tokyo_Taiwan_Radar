@@ -172,6 +172,7 @@ class TaiwanFestivalTokyoScraper(BaseScraper):
             source_name=self.SOURCE_NAME,
             source_id=source_id,
             source_url=HOMEPAGE_URL,
+            official_url=HOMEPAGE_URL,  # official organiser page
             original_language="ja",
             name_ja=title,
             description_ja=detail_text or None,
