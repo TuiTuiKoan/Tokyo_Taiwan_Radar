@@ -71,6 +71,7 @@ from sources.moonromantic import MoonRomanticScraper
 from sources.eiga_com import EigaComScraper
 from sources.ssff import SsffScraper
 from sources.tokyo_filmex import TokyoFilmexScraper
+from sources.prtimes import PrtimesScraper
 # TokyoArtBeatScraper temporarily excluded: TAB search ?query=台湾 is ignored by
 # the React client — headless Playwright returns 0 Taiwan events. Needs rework.
 # from sources.tokyoartbeat import TokyoArtBeatScraper
@@ -127,6 +128,7 @@ SCRAPERS = [
     EigaComScraper(),
     SsffScraper(),
     TokyoFilmexScraper(),
+    PrtimesScraper(),
     # TokyoArtBeatScraper(),  # DISABLED: search API ignores ?query= param → 0 events (2026-04-26)
 ]
 
