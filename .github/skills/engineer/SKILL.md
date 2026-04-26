@@ -91,11 +91,11 @@ Update **all 6 locations** in a single commit — do NOT split across commits:
 
 ## AdminEventTable.tsx — Protected Invariants
 Whenever this file is modified for **any reason**, verify these 3 lines are intact before committing:
-1. **Search filter label**: `{tFilters("search")}` — do NOT revert to `{t("name")}`
-2. **Category filter label** (in filter bar, not table column header): `{tFilters("category")}` — do NOT revert to `{t("category")}`
-3. **Category dropdown button**: `bg-gray-50` — do NOT revert to `bg-white`
+1. **Search filter label**: `{t("name")}` — `tFilters` namespace does NOT exist; using `tFilters("search")` silently renders the raw key string
+2. **Category filter label** (in filter bar, not table column header): `{t("category")}` — same reason, do NOT use `tFilters("category")`
+3. **Category dropdown button**: `bg-white` — do NOT revert to `bg-gray-50`
 
-These were regressed at least twice (commits `9c4010d`, `01b73a4`) when unrelated changes overwrote them.
+These were regressed at least twice when unrelated changes overwrote them. The `tFilters` mistake specifically recurred because old SKILL notes incorrectly listed it as the correct value.
 
 **Column pairing rule:** When adding or removing a `<th>` column, always add or remove the matching `<td>` in the same commit. TypeScript does not detect thead/tbody column count mismatches. This caused an orphaned `is_paid` `<td>` (commit `5597150`) after its `<th>` was already removed.
 
