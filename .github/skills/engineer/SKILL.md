@@ -159,7 +159,28 @@ _LOC_ZH_SIMP_TO_TRAD = str.maketrans({
     "会": "會",})
 ```
 
-**When to expand the map:** If a post-annotation scan finds a new Simplified character in any location field, add it to `_LOC_ZH_SIMP_TO_TRAD` and re-patch affected DB rows.
+**When to expand the map:** If a post-annotation scan finds a new Simplified character in any location field, add it to `_LOC_ZH_SIMP_TO_TRAD` **and** immediately DB-patch all existing rows using:
+```python
+import os, re; from dotenv import load_dotenv; from supabase import create_client
+load_dotenv('.env'); sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+MAP = str.maketrans({"诺":"諾", "厅":"廳", ...})  # full map
+res = sb.table('events').select('id,location_name_zh,location_address_zh').execute()
+for ev in res.data:
+    updates = {f: (ev[f] or '').translate(MAP) for f in ['location_name_zh','location_address_zh'] if (ev.get(f) or '') != (ev.get(f) or '').translate(MAP)}
+    if updates: sb.table('events').update(updates).eq('id', ev['id']).execute()
+```
+
+**Scan pattern** — run after every annotator change or char map expansion:
+```python
+import re, os; from dotenv import load_dotenv; from supabase import create_client
+load_dotenv('.env'); sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+SIMP = re.compile(r'[东来这发会说时问门关对长进现与实变内还单层达诺厅络设联馆园]')
+res = sb.table('events').select('id,is_active,location_name_zh,location_address_zh').execute()
+bad = [(e['id'][:8], e['is_active'], f, e[f]) for e in res.data
+       for f in ['location_name_zh','location_address_zh'] if SIMP.search(e.get(f) or '')]
+print(f'Simplified in location fields: {len(bad)}')
+[print(f'  {i} active={a} [{f}] {v!r}') for i,a,f,v in bad]
+```
 
 **Fields covered:** `location_name_zh` and `location_address_zh` (both main-event and sub-event). `_loc_zh()` is applied instead of `_loc()` for these two fields only.
 
