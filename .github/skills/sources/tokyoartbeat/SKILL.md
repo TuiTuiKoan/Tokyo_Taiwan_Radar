@@ -68,7 +68,8 @@ Server-side search for `台湾` returns broadly matching results. Apply client-s
 
 ## Known Issues / Edge Cases
 
-- **Slow**: Playwright loads 5 search result pages + N detail pages. Expect 3–8 min for dry-run.
-- **React rendering**: Wait for event cards to appear before collecting URLs.
+- **⚠️ DISABLED (2026-04-26)**: The search URL `?query=台湾` is completely ignored by the TAB React client in headless mode. Zero Taiwan events are returned. `TokyoArtBeatScraper()` is commented out in `main.py` until a new approach is found.
+- **Root cause**: TAB is a statically-exported Next.js app (`nextExport: true`). Search results are loaded via a Contentful/Hasura backend API call that never completes in headless Playwright (requires either user interaction or authenticated session).
+- **Cookie consent blocks search button**: `multipleSearch` form search button is never enabled even after accepting cookies.
 - **slug_part max length**: 120 chars to avoid DB key overflow.
 - **Exhibitions vs. events**: Tokyo Art Beat covers both single-day events and multi-day exhibitions. `end_date` should be set when the detail page shows an end date.

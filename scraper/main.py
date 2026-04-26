@@ -66,7 +66,9 @@ from sources.shin_bungeiza import ShinBungeizaScraper
 from sources.kokuchpro import KokuchproScraper
 from sources.eslite_spectrum import EsliteSpectrumScraper
 from sources.moonromantic import MoonRomanticScraper
-from sources.tokyoartbeat import TokyoArtBeatScraper
+# TokyoArtBeatScraper temporarily excluded: TAB search ?query=台湾 is ignored by
+# the React client — headless Playwright returns 0 Taiwan events. Needs rework.
+# from sources.tokyoartbeat import TokyoArtBeatScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
