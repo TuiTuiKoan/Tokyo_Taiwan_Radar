@@ -211,10 +211,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   }
 
   function getAnnotationLabel(status: string) {
-    if (status === "annotated") return t("filterAnnotatedShort");
-    if (status === "reviewed") return t("filterReviewedShort");
-    if (status === "error") return t("filterErrorShort");
-    return t("filterPendingShort");
+    if (status === "annotated") return t("annotated");
+    if (status === "reviewed") return t("reviewed");
+    if (status === "error") return t("error");
+    return t("pending");
   }
 
   function startNew() {
@@ -330,13 +330,28 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     setBulkRemovingCategory(true);
     const selectedEvents = events.filter((e) => selected.has(e.id));
     let hasError = false;
+
     await Promise.all(
       selectedEvents.map(async (e) => {
-        const newCategory = (e.category ?? []).filter((c) => c !== cat);
+        const prevCategory = e.category ?? [];
+        const newCategory = prevCategory.filter((c) => c !== cat);
+        // Update event category
         const { error } = await supabase.from("events").update({ category: newCategory }).eq("id", e.id);
-        if (error) hasError = true;
+        if (error) { hasError = true; return; }
+        // Write correction to category_corrections for AI feedback loop
+        await supabase.from("category_corrections").upsert(
+          {
+            event_id: e.id,
+            raw_title: e.raw_title ?? null,
+            raw_description: e.raw_description ? e.raw_description.slice(0, 2000) : null,
+            ai_category: prevCategory,
+            corrected_category: newCategory,
+          },
+          { onConflict: "event_id" }
+        );
       })
     );
+
     if (hasError) {
       alert("部分更新失敗，請重新整理頁面確認結果");
     } else {
@@ -605,7 +620,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("filterAll")}</option>
-              <option value="pending">{t("pending")}</option>
               <option value="annotated">{t("annotated")}</option>
               <option value="reviewed">{t("reviewed")}</option>
               <option value="error">{t("error")}</option>
@@ -657,7 +671,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               ✕
             </button>
           </div>
-          {/* Row 2: common category removal */}
+          {/* Row 2: common category removal — only shown when intersection is non-empty */}
           {commonCategories.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap border-t border-blue-200 pt-2">
               <span className="text-xs text-blue-600 font-medium">{t("bulkCommonCategories")}：</span>
@@ -698,8 +712,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
-                <th className="py-2 pr-4 font-medium">{t("source")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationLabel")}{sortArrow("annotation_status")}</th>
+                <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_paid")}>{t("isPaid")}{sortArrow("is_paid")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_active")}>{t("isActive")}{sortArrow("is_active")}</th>
                 <th className="py-2" />
               </tr>
@@ -761,7 +776,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   </td>
                   <td className="py-2 pr-4 text-xs max-w-[130px]">
                     {(() => {
-                      const addr = event.location_address || event.location_address_zh || event.location_name;
+                      const addr = event.location_address;
                       if (!addr) return <span className="text-gray-300">—</span>;
                       const isOnline = /オンライン|online|線上/i.test(addr);
                       if (isOnline) return <span className="text-blue-500">線上</span>;
@@ -797,6 +812,15 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     <span className={`text-xs px-2 py-0.5 rounded-full ${getAnnotationBadgeClass(event.annotation_status)}`}>
                       {getAnnotationLabel(event.annotation_status)}
                     </span>
+                  </td>
+                  <td className="py-2 pr-4">
+                    {event.is_paid === false ? (
+                      <span className="text-blue-600 text-xs">{tEvent("free")}</span>
+                    ) : event.is_paid === true ? (
+                      <span className="text-amber-600 text-xs">{tEvent("paid")}</span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
                   </td>
                   <td className="py-2 pr-4">
                     <button
