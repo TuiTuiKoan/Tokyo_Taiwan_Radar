@@ -50,16 +50,18 @@ Update **all 6 locations** in a single commit — do NOT split across commits:
 5. `web/messages/en.json` — same key
 6. `web/messages/ja.json` — same key
 
-### 5 UI surfaces that consume categories (all derive from types.ts — no component code changes needed for label renames)
-| Surface | File | Source |
-|---------|------|--------|
-| 前台篩選器 | `web/components/FilterBar.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` |
-| 後台篩選器 | `web/components/AdminEventTable.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` |
-| AI 報錯選單 | `web/components/ReportSection.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` |
-| 活動編輯頁 | `web/components/AdminEventForm.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` |
-| 後台問題回報審核 | `web/components/AdminReportsTable.tsx` | `CATEGORIES` (flat) + `messages/categories.*` |
+### 6 UI surfaces that consume categories (all derive from types.ts — no component code changes needed for label renames)
+| Surface | File | Source | Type |
+|---------|------|--------|------|
+| 前台篩選器 | `web/components/FilterBar.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` | 選擇器 |
+| 後台篩選器 | `web/components/AdminEventTable.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` | 選擇器 |
+| AI 報錯選單 | `web/components/ReportSection.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` | 選擇器 |
+| 活動編輯頁 | `web/components/AdminEventForm.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` | 選擇器 |
+| 後台問題回報審核 | `web/components/AdminReportsTable.tsx` | `CATEGORIES` (flat) + `messages/categories.*` | 選擇器 |
+| 首頁活動卡片標籤 | `web/components/EventCard.tsx` | `messages/categories.*` only | 展示用 |
 
 > **Note:** `AdminReportsTable.tsx` uses the flat `CATEGORIES` array, not `CATEGORY_GROUPS`. When adding a category, verify it appears in `CATEGORIES` so the admin review picker shows it.
+> **Note:** `EventCard.tsx` renders category tags on the homepage card — display-only, no picker. Label renames propagate automatically.
 
 ## AdminEventTable.tsx — Protected Invariants
 Whenever this file is modified for **any reason**, verify these 3 lines are intact before committing:
