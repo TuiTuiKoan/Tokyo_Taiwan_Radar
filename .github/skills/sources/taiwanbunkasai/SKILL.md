@@ -22,20 +22,36 @@ applyTo: scraper/sources/taiwanbunkasai.py
 
 | Event field | Source |
 |-------------|--------|
-| `name_ja` | `<title>` tag (e.g. "台湾文化祭") |
+| `name_ja` | **Constructed**: `f"台湾文化祭{year}"` (NOT raw `<title>`) — year suffix needed for merger |
+| `raw_title` | `<title>` tag (e.g. "台湾文化祭") |
 | `start_date` | Regex on `YYYY年M月D日` in page text — first occurrence in 開催日 block |
 | `end_date` | Max day number in the same date range (same month assumed) |
-| `location_name` | Text after `● 会場` label, stripped of map notes |
-| `location_address` | Same as `location_name` (site does not provide a separate address) |
+| `location_name` | Resolved from `_VENUE_MAP` keyword match |
+| `location_address` | Resolved from `_VENUE_MAP` keyword match |
+| `official_url` | `https://taiwanbunkasai.com/` |
+| `is_paid` | Hardcoded `False` (入場無料, verified 2026-04-26) |
+| `category` | `["lifestyle_food", "performing_arts", "senses"]` |
 | `raw_description` | Text block between `出店概要` and `開催実績` headings |
 
-## Single-Page Site Notes
+## Venue Map (_VENUE_MAP)
 
-- Only ONE upcoming event is shown on the homepage at any given time.
-- After an event passes, the page is updated for the next event.
-- `source_id` uses `{year}_{month:02d}` to ensure uniqueness across events:
-  - Same year but different months = different events = different source_ids
-  - Scraper will create a new DB row automatically for each new event
+| Keyword in 会場 text | location_name | location_address |
+|---------------------|---------------|------------------|
+| `中野` | 中野区役所・四季の森公園 | 東京都中野区中野4丁目8-1 |
+| `KITTE` / `kitte` / `丸の内` | KITTE 丸の内 | 東京都千代田区丸の内2-7-2 |
+
+Add new keywords when new venues appear.
+
+## Duplicate Handling (CRITICAL)
+
+**Rule**: iwafu (and arukikata) independently scrape the same event.
+
+- `name_ja` MUST be `f"台湾文化祭{start_date.year}"` — iwafu uses 年份 suffix (e.g. "台湾文化祭2026").
+  Raw `<title>` is "台湾文化祭" (no year) → similarity = 0.71 ← MERGER DOES NOT FIRE.
+  With year: similarity = 1.000 → merger auto-deactivates iwafu version. ✓
+- `merger.py` SOURCE_PRIORITY: `taiwanbunkasai=7`, `iwafu=11` → taiwanbunkasai always wins.
+- After first run: iwafu version deactivated, its URL moved to `secondary_source_urls`.
+- Subsequent iwafu scraper runs: blocked by `blocked_keys` (is_active=false). ✓
 
 ## Date Extraction
 
@@ -68,6 +84,8 @@ applyTo: scraper/sources/taiwanbunkasai.py
 | 0 events returned | Site is between events (post-event, pre-announcement) | Expected seasonal gap — not a bug |
 | Duplicate source_id | Two events in the same year-month | Extend source_id to include `_{DD}` start day |
 | Venue is truncated | `● 会場` block parsing hit map note early | Adjust `_VENUE_RE` or `re.sub` cleanup pattern |
+| Merger not firing vs iwafu | `name_ja` missing year suffix | Ensure `name_ja = f"台湾文化祭{start_date.year}"` |
+| New venue not resolving | Keyword not in `_VENUE_MAP` | Add keyword + name + address to `_VENUE_MAP` |
 
 ## Pending Rules
 

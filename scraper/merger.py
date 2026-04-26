@@ -47,12 +47,13 @@ SOURCE_PRIORITY: dict[str, int] = {
     "koryu": 4,
     "taiwan_festival_tokyo": 5,
     "taiwan_matsuri": 6,
-    "peatix": 7,
-    "connpass": 8,
-    "doorkeeper": 9,
-    "iwafu": 10,
-    "arukikata": 11,
-    "ide_jetro": 12,
+    "taiwanbunkasai": 7,  # official organiser, outranks aggregators
+    "peatix": 8,
+    "connpass": 9,
+    "doorkeeper": 10,
+    "iwafu": 11,
+    "arukikata": 12,
+    "ide_jetro": 13,
 }
 
 # Minimum name similarity to consider two events duplicates.

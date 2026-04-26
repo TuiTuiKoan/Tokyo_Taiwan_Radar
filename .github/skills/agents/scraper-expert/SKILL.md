@@ -79,6 +79,14 @@ applyTo: scraper/sources/<source_name>.py
 4. **0 events is expected when festival not running**: OAFF runs in March and Aug–Sep. Returning 0 between seasons is correct.
 5. **Venue delimiter varies**: Both `/`, `／`, and `　` (full-width space) appear as delimiters between time and venue name across editions.
 
+## taiwanbunkasai-specific
+
+1. **`name_ja` MUST include year**: Use `f"台湾文化祭{start_date.year}"` — the raw `<title>` is "台湾文化祭" (no year), giving merger similarity 0.71 vs iwafu. With year suffix = 1.000.
+2. **Single-page site returns 0 or 1 events**: The site shows only the next upcoming event. Returning `[]` between events is correct behaviour, not a bug.
+3. **`_VENUE_MAP` resolves 中野 / KITTE**: Raw venue text is not a valid address. Always match against `_VENUE_MAP` keywords to get canonical `location_name` + `location_address`.
+4. **`merger.py SOURCE_PRIORITY["taiwanbunkasai"] = 7`**: Must be lower (higher authority) than iwafu (11) so official site wins as primary when merger detects the duplicate.
+5. **`is_paid = False`**: Confirmed 入場無料 on all known editions (KITTE and 中野).
+
 ## Pending Rules
 
 <!-- Added automatically by confirm-report -->

@@ -27,8 +27,14 @@ logger = logging.getLogger(__name__)
 HOMEPAGE_URL = "https://taiwanbunkasai.com/"
 SOURCE_NAME = "taiwanbunkasai"
 
-# e.g. "2026年6月26日（金）・27日（土）・28日（日）"
-# or   "2026年9月13日（土）・14日（日）"
+# Known venue → (location_name, location_address) mapping
+# Verified: https://taiwanbunkasai.com/ (2026-04-26)
+_VENUE_MAP = [
+    ("中野",  "中野区役所・四季の森公園",     "東京都中野区中野4丁目8-1"),
+    ("KITTE", "KITTE 丸の内",               "東京都千代田区丸の内2-7-2"),
+    ("kitte", "KITTE 丸の内",               "東京都千代田区丸の内2-7-2"),
+    ("丸の内", "KITTE 丸の内",              "東京都千代田区丸の内2-7-2"),
+]
 _START_DATE_RE = re.compile(
     r"(20\d{2})年(\d{1,2})月(\d{1,2})日"
 )
@@ -131,6 +137,16 @@ class TaiwanbunkasaiScraper(BaseScraper):
         else:
             venue = None
 
+        # Resolve location_name / location_address from venue text
+        location_name: Optional[str] = venue
+        location_address: Optional[str] = None
+        if venue:
+            for keyword, lname, laddr in _VENUE_MAP:
+                if keyword in venue:
+                    location_name = lname
+                    location_address = laddr
+                    break
+
         # source_id: stable per event-year-month
         source_id = f"taiwanbunkasai_{start_date.year}_{start_date.month:02d}"
 
@@ -144,9 +160,10 @@ class TaiwanbunkasaiScraper(BaseScraper):
             date_prefix += f" 〜 {end_date.strftime('%Y年%m月%d日')}"
         raw_description = date_prefix + "\n\n" + event_block
 
-        # Page title as raw_title
+        # Page title as raw_title; name_ja includes year for merger similarity with iwafu
         title_tag = soup.find("title")
         page_title = title_tag.get_text(strip=True) if title_tag else "台湾文化祭"
+        name_ja = f"台湾文化祭{start_date.year}"
 
         logger.info(
             "TaiwanbunkasaiScraper: found event %s start=%s venue=%r",
@@ -160,13 +177,16 @@ class TaiwanbunkasaiScraper(BaseScraper):
                 source_name=self.SOURCE_NAME,
                 source_id=source_id,
                 source_url=HOMEPAGE_URL,
+                official_url=HOMEPAGE_URL,  # official organiser page
                 original_language="ja",
-                name_ja=page_title,
+                name_ja=name_ja,
                 raw_title=page_title,
                 raw_description=raw_description,
                 start_date=start_date,
                 end_date=end_date,
-                location_name=venue,
-                location_address=venue,
+                location_name=location_name,
+                location_address=location_address,
+                is_paid=False,  # 入場無料 — verified on official site
+                category=["lifestyle_food", "performing_arts", "senses"],
             )
         ]
