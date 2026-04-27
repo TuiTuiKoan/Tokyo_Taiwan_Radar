@@ -62,8 +62,11 @@ from sources.tobunken import TobunkenScraper
 from sources.ks_cinema import KsCinemaScraper
 from sources.cinemart_shinjuku import CinemartShinjukuScraper
 from sources.kokuchpro import KokuchproScraper
+from sources.taiwanbunkasai import TaiwanbunkasaiScraper
 from sources.oaff import OaffScraper
 from sources.jposa_ja import JposaJaScraper
+from sources.taipei_fukuoka import TaipeiFukuokaScraper
+from sources.yebizo import YebizoScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -110,6 +113,9 @@ SCRAPERS = [
     KokuchproScraper(),
     OaffScraper(),
     JposaJaScraper(),
+    TaiwanbunkasaiScraper(),
+    TaipeiFukuokaScraper(),
+    YebizoScraper(),
 ]
 
 

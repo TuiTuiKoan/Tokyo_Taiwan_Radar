@@ -71,14 +71,6 @@ applyTo: scraper/sources/<source_name>.py
 |---------|--------------|-----|
 | ... | ... | ... |
 
-## oaff-specific
-
-1. **WP REST API over HTML scraping**: Use `/wp-json/wp/v2/posts?categories=8&per_page=100` — returns all editions without needing to discover year-specific URLs.
-2. **Three date formats**: 2024 uses `M/D(曜) HH:MM　venue`; 2025+ uses `M月D日（曜）HH:MM／venue`. Always infer year from slug prefix via `re.search(r"(\d{4})", slug)`.
-3. **source_id = `oaff_{wp_post_id}`**: Use the WP integer post ID (not slug) for stable dedup.
-4. **0 events is expected when festival not running**: OAFF runs in March and Aug–Sep. Returning 0 between seasons is correct.
-5. **Venue delimiter varies**: Both `/`, `／`, and `　` (full-width space) appear as delimiters between time and venue name across editions.
-
 ## Pending Rules
 
 <!-- Added automatically by confirm-report -->

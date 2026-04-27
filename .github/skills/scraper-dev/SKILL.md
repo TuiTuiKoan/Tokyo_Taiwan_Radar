@@ -46,11 +46,13 @@ cd scraper && python main.py --dry-run --source <source_name>
        <ClassName>(),   # ← add here
    ]
    ```
+   > **BLOCKING:** Do NOT commit the source file without also committing the `main.py` registration in the same commit. A source file that is not in `SCRAPERS` will never run in CI.
 
 3. **Test**:
    ```bash
    cd scraper && python main.py --dry-run --source <source_name> 2>&1
    ```
+   > **BLOCKING:** Do NOT commit until dry-run exits 0 and logs at least one event. A source that has never been dry-run verified is not ready to merge.
 
 4. **Verify output** — every event must have:
    - `start_date` populated (not null, not the publish date)
@@ -82,6 +84,29 @@ cd scraper && python main.py --dry-run --source <source_name>
 | `end_date` | `datetime` | No | Same as `start_date` for single-day events |
 | `category` | `list[str]` | No | Values from canonical list only |
 | `parent_event_id` | `str` | No | Set on sub-events; leave `None` for top-level |
+
+## Technology Selection (before writing any code)
+
+Before choosing Playwright, check if the site offers a lighter alternative:
+
+| Priority | Method | How to test |
+|----------|--------|-------------|
+| 1 | **WordPress REST API** | `curl -s "https://example.com/wp-json/wp/v2/posts?per_page=1" \| python3 -m json.tool` |
+| 2 | **RSS / Atom feed** | Look for `<link rel="alternate" type="application/rss+xml">` in page `<head>` |
+| 3 | **Static HTML** (requests + BS4) | `curl -s URL \| grep -c "<script"` — if fewer than ~10 script tags, likely server-rendered |
+| 4 | **Playwright** | Only when JavaScript rendering is required and no API/feed exists |
+
+WordPress REST API and RSS have zero Playwright dependency, run faster in CI, and use far less memory. Prefer them for government/NGO/cultural-institution sites. Example: `jposa_ja` uses WP RSS; `taiwanbunkasai` uses static HTML.
+
+## Branch Strategy
+
+| When | Action |
+|------|--------|
+| Scraper is fully tested, dry-run passes, low-risk source | Commit directly to `main` |
+| Scraper needs further validation, depends on pending DB migration, or is large/experimental | Create `feat/source-<name>` branch, push PR |
+| Working across multiple sessions on the same source | Always use a branch to avoid partial commits on `main` |
+
+After merging a feature branch, set `research_sources.status → implemented` in Supabase.
 
 ## Script Reference
 

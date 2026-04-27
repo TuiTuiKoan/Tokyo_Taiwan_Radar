@@ -270,6 +270,7 @@ class TaiwanMatsuriScraper(BaseScraper):
             source_name=self.SOURCE_NAME,
             source_id=f"taiwan_matsuri_{slug}",
             source_url=url,
+            official_url=url,  # official organiser page
             original_language="ja",
             name_ja=title,
             description_ja=description or None,

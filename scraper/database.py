@@ -38,7 +38,7 @@ def _dt_iso(dt: datetime | None) -> str | None:
 
 def _event_to_row(event: Event) -> dict[str, Any]:
     """Convert an Event dataclass to a dict matching the Supabase `events` table schema."""
-    return {
+    row: dict[str, Any] = {
         "source_name": event.source_name,
         "source_id": event.source_id,
         "source_url": event.source_url,
@@ -63,6 +63,11 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         "raw_description": event.raw_description,
         "scraped_at": datetime.utcnow().isoformat() + "Z",
     }
+    # Only include official_url when set — omitting preserves the existing DB value.
+    # Requires migration 018_official_url.sql to be applied before writing.
+    if event.official_url is not None:
+        row["official_url"] = event.official_url
+    return row
 
 
 def find_parent_event_id(name_ja: str | None, source_name: str) -> str | None:
