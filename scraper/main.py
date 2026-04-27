@@ -68,6 +68,7 @@ from sources.jposa_ja import JposaJaScraper
 from sources.taipei_fukuoka import TaipeiFukuokaScraper
 from sources.yebizo import YebizoScraper
 from sources.cineswitch_ginza import CineswitchGinzaScraper
+from sources.human_trust_cinema import HumanTrustCinemaScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -118,6 +119,7 @@ SCRAPERS = [
     TaipeiFukuokaScraper(),
     YebizoScraper(),
     CineswitchGinzaScraper(),
+    HumanTrustCinemaScraper(),
 ]
 
 
