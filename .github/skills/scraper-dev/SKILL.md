@@ -46,11 +46,13 @@ cd scraper && python main.py --dry-run --source <source_name>
        <ClassName>(),   # ← add here
    ]
    ```
+   > **BLOCKING:** Do NOT commit the source file without also committing the `main.py` registration in the same commit. A source file that is not in `SCRAPERS` will never run in CI.
 
 3. **Test**:
    ```bash
    cd scraper && python main.py --dry-run --source <source_name> 2>&1
    ```
+   > **BLOCKING:** Do NOT commit until dry-run exits 0 and logs at least one event. A source that has never been dry-run verified is not ready to merge.
 
 4. **Verify output** — every event must have:
    - `start_date` populated (not null, not the publish date)
