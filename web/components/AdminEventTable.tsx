@@ -604,7 +604,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             <label className="text-xs text-gray-500 font-medium">{t("isActive")}</label>
             <select
               value={filterIsActive}
-              onChange={(e) => setFilterIsActive(e.target.value as any)}
+              onChange={(e) => {
+                const val = e.target.value as "all" | "active" | "inactive";
+                setFilterIsActive(val);
+                if (val === "inactive") setFilterTimeMode("all");
+              }}
               className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="all">{t("filterAll")}</option>
