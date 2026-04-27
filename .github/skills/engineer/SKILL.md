@@ -11,6 +11,7 @@ Read this at the start of every session before touching any code.
 ## Database
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`
 - When adding a DB column, wire up the code that populates it in the same commit. Empty columns = silent data gaps.
+- **Instructions sync rule**: Every new migration file must be accompanied by an update to `.github/instructions/database.instructions.md` in the **same commit** — update "Latest is …", "next = NNN", Known conflicts (if b-suffix used), schema table (new columns), Other tables (new tables), Query conventions (if changed). Failing to do this causes instructions drift, which misleads future planning.
 - Wrap non-critical DB inserts (logging, analytics) in `try/except`. Never let a failed log write break the main pipeline.
 - When a logging table gains new `NOT NULL` columns (e.g. `success`, `duration_seconds`), **both** the success path and the `except` block must write those columns explicitly. Pattern from `scraper_runs`:
   ```python
