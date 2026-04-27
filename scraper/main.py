@@ -71,6 +71,7 @@ from sources.cineswitch_ginza import CineswitchGinzaScraper
 from sources.human_trust_cinema import HumanTrustCinemaScraper
 from sources.faam_fukuoka import FaamFukuokaScraper
 from sources.note_creators import NoteCreatorsScraper
+from sources.zinbun_kyoto import ZinbunKyotoScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -124,6 +125,7 @@ SCRAPERS = [
     HumanTrustCinemaScraper(),
     FaamFukuokaScraper(),
     NoteCreatorsScraper(),
+    ZinbunKyotoScraper(),
 ]
 
 
