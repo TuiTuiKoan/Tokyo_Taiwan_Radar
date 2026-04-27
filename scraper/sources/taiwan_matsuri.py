@@ -2,14 +2,14 @@
 Scraper for 台湾祭（taiwan-matsuri.com）.
 
 "台湾祭" is a recurring food-and-culture festival (夜市 theme) held at major
-venues across Japan. This scraper captures Tokyo/Kanto-area events only.
+venues across Japan — Tokyo, Fukuoka, Kumamoto, Shimane, Nara, Gunma, etc.
 
 Strategy:
   1. Fetch the homepage (static HTML) and extract all event anchor links
      matching the pattern /YYYYMM-<slug>/
-  2. Filter to events held in the Tokyo/Kanto area
-  3. Fetch each qualifying detail page and extract title, dates,
+  2. Fetch each event detail page and extract title, dates,
      venue/address, and hours from the structured text block (●開催期間: etc.)
+  3. Skip links marked as 終了 (explicitly ended).
   4. source_id = "taiwan_matsuri_{slug}" — slug is stable across runs
 
 No Playwright needed — the site is server-rendered static HTML.
@@ -31,11 +31,6 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://taiwan-matsuri.com"
 HOMEPAGE_URL = f"{BASE_URL}/"
 
-# Tokyo/Kanto keywords in venue text — events outside this list are skipped.
-# Matches: 東京, スカイツリー, 東京タワー, 横浜, 幕張, 千葉, 埼玉
-_TOKYO_KANTO_KEYWORDS = re.compile(
-    r"東京|スカイツリー|横浜|幕張|千葉|埼玉|東京タワー"
-)
 
 # Markers that indicate end of the event info block (stop extracting description there)
 _NOISE_MARKERS = (
@@ -120,7 +115,7 @@ def _slug_from_url(url: str) -> Optional[str]:
 
 
 class TaiwanMatsuriScraper(BaseScraper):
-    """Scrapes Tokyo/Kanto 台湾祭 events from taiwan-matsuri.com."""
+    """Scrapes 台湾祭 events across Japan from taiwan-matsuri.com."""
 
     SOURCE_NAME = "taiwan_matsuri"
 
@@ -130,7 +125,7 @@ class TaiwanMatsuriScraper(BaseScraper):
             logger.error("Failed to fetch taiwan-matsuri.com homepage")
             return []
 
-        # Collect all event links — both current and past
+        # Collect all event links nationwide (skip those marked as 終了)
         event_links: list[str] = []
         seen: set[str] = set()
         for a in soup.find_all("a", href=re.compile(r'/2\d{5}-')):
@@ -146,26 +141,14 @@ class TaiwanMatsuriScraper(BaseScraper):
             href = href.split("?")[0].split("#")[0].rstrip("/") + "/"
             if href not in seen:
                 seen.add(href)
-                event_links.append(href)
+                link_text = a.get_text(" ", strip=True)
+                if "終了" not in link_text:  # Skip explicitly ended events
+                    event_links.append(href)
 
-        logger.info("Found %d event links on homepage", len(event_links))
-
-        # Filter to Tokyo/Kanto area by examining the link text
-        tokyo_links: list[str] = []
-        for a in soup.find_all("a", href=re.compile(r'/2\d{5}-')):
-            href = a.get("href", "")
-            if href.startswith("/"):
-                href = BASE_URL + href
-            href = href.split("?")[0].rstrip("/") + "/"
-            link_text = a.get_text(" ", strip=True)
-            if _TOKYO_KANTO_KEYWORDS.search(link_text):
-                if href not in {u for u in tokyo_links}:
-                    tokyo_links.append(href)
-
-        logger.info("Tokyo/Kanto events: %d", len(tokyo_links))
+        logger.info("Found %d nationwide event links on homepage", len(event_links))
 
         events: list[Event] = []
-        for url in tokyo_links:
+        for url in event_links:
             slug = _slug_from_url(url)
             if not slug:
                 continue

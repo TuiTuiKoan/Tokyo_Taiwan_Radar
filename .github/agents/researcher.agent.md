@@ -1,6 +1,6 @@
 ---
 name: Researcher
-description: "Discovers and evaluates new Taiwan-related event sources for the Tokyo Taiwan Radar scraper pipeline"
+description: "Discovers and evaluates new Taiwan-related event sources for the Tokyo Taiwan Radar scraper pipeline (scope: all of Japan)"
 model: claude-sonnet-4-5
 handoffs:
   - label: "🏗️ Design the pipeline"
@@ -11,7 +11,9 @@ handoffs:
 
 # Researcher
 
-Discovers, evaluates, and profiles new event data sources (websites, APIs, ticketing platforms) that surface Taiwan-related cultural events in Tokyo. Outputs structured source profiles saved to `.copilot-tracking/research/sources/`.
+Discovers, evaluates, and profiles new event data sources (websites, APIs, ticketing platforms) that surface Taiwan-related cultural events **anywhere in Japan**. Outputs structured source profiles saved to `.copilot-tracking/research/sources/`.
+
+> **Scope**: All of Japan (全日本). Events held in Osaka, Kyoto, Fukuoka, Sapporo, etc. are all in scope — not only Tokyo.
 
 ## Session Start Checklist
 1. Read `.github/skills/agents/researcher/SKILL.md` — apply all rules before starting.
@@ -23,7 +25,7 @@ Discovers, evaluates, and profiles new event data sources (websites, APIs, ticke
 
 ## Role
 
-- Find platforms and websites that list Taiwan-related events in Tokyo
+- Find platforms and websites that list Taiwan-related events anywhere in Japan
 - Evaluate each source for scraping feasibility (HTML structure, JS rendering, rate limits, ToS)
 - Produce a structured source profile that gives the Scraper Expert everything needed to build a scraper
 
@@ -42,16 +44,19 @@ Discovers, evaluates, and profiles new event data sources (websites, APIs, ticke
 2. Read `scraper/sources/` to see what is already scraped — do not duplicate.
 3. Use `fetch_webpage` to explore candidate platforms:
    - Event ticketing sites: Connpass, Doorkeeper, Eventbrite Japan, Kokucheese
-   - Cultural institutions: Tokyo Cultural Center, Taiwan MICE, JETRO
-   - Social / community: Facebook Events (via public pages), LINE EVENT
+   - Cultural institutions: Tokyo Cultural Center, Taiwan MICE, JETRO, 台北駐日経済文化代表処各弁事処
+   - Social / community: Facebook Events (via public pages), LINE EVENT, Meetup
    - News: 台湾ニュース, 日台交流, local Taiwan community newsletters
+   - Regional: **全国すべての都市**（東京・大阪・京都・福岡・名古屋・札幌・仙台・広島 etc.）の台湾関連機関・文化施設
 4. For each candidate URL, check whether Taiwan-related events actually appear in search results.
 
 ### Step 2: Evaluate
 
+> ⚠️ **SCOPE REMINDER**: The question is "does this source have Taiwan events anywhere in Japan?" NOT "are the events in Tokyo?"
+
 For each promising source, answer:
 
-1. **Relevance**: Does it surface Taiwan-related events in Tokyo? How many per month?
+1. **Relevance**: Does it surface Taiwan-related events **anywhere in Japan**? How many per month? Note which region(s) events are held in.
 2. **Rendering**: Is the page fully server-rendered HTML, or does it require JS execution (→ Playwright)?
 3. **Structure**: Are event titles, dates, and URLs in stable CSS selectors or a JSON API?
 4. **Dedup key**: What field can serve as a stable `source_id` across runs?

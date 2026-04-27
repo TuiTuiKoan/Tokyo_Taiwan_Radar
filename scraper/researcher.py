@@ -135,27 +135,76 @@ SEARCH_CATEGORIES = [
             "Return pages with a publication list or index, not individual article pages."
         ),
     },
+    {
+        "id": "fukuoka",
+        "label": "🍜 福岡・九州",
+        "query_ja": "台湾 イベント 文化交流 公演 展示 福岡 九州 2026",
+        "query_en": "Taiwan cultural event exhibition performance Fukuoka Kyushu 2026",
+        "system_prompt": (
+            "You are a research analyst specializing in Taiwan cultural events in Fukuoka and Kyushu, Japan. "
+            "Search the web for websites, organizations, or platforms that regularly list Taiwan-related "
+            "cultural events (exhibitions, concerts, film screenings, festivals, lectures) in Fukuoka or "
+            "other Kyushu prefectures. "
+            "Include the Taipei Economic and Cultural Office Fukuoka (台北駐福岡経済文化弁事処), "
+            "Fukuoka Asian Art Museum (福岡アジア美術館), local Taiwan community groups, "
+            "ticketing platforms like Peatix, Connpass, or cultural institutions in the region. "
+            "Focus on sources with a structured and regularly updated event listing."
+        ),
+    },
+    {
+        "id": "hokkaido",
+        "label": "🏔️ 北海道・東北",
+        "query_ja": "台湾 イベント 文化交流 展示 公演 北海道 札幌 東北 仙台 2026",
+        "query_en": "Taiwan cultural event exhibition performance Hokkaido Sapporo Tohoku Sendai 2026",
+        "system_prompt": (
+            "You are a research analyst specializing in Taiwan cultural events in Hokkaido and Tohoku, Japan. "
+            "Search the web for websites, organizations, or platforms that regularly list Taiwan-related "
+            "cultural events (exhibitions, concerts, film screenings, festivals, lectures) in Hokkaido "
+            "(especially Sapporo) or Tohoku prefectures (Sendai and surroundings). "
+            "Include the Sapporo International Art Festival (SIAF), local Taiwan community groups, "
+            "the Sendai Consulate area if any Taiwan-organized events exist, "
+            "and ticketing platforms like Peatix or Connpass for these regions. "
+            "Focus on sources with a structured and regularly updated event listing."
+        ),
+    },
 ]
 
 # Maps Python weekday (Monday=0 … Sunday=6) to a SEARCH_CATEGORIES entry id.
-# 7 categories × 7 days — each category is searched exactly once per week.
-WEEKDAY_SCHEDULE: dict[int, str] = {
-    0: "university",              # Monday
-    1: "media",                   # Tuesday
-    2: "government",              # Wednesday
-    3: "thinktank",               # Thursday
-    4: "social",                  # Friday
-    5: "performing_arts_search",  # Saturday
-    6: "senses_research",         # Sunday
+# When a day maps to a list, the category alternates by ISO week number (even/odd).
+# 9 categories total: 7 run weekly, 2 (fukuoka/hokkaido) alternate every other week.
+WEEKDAY_SCHEDULE: dict[int, str | list[str]] = {
+    0: ["university", "fukuoka"],  # Monday: alternates by ISO week
+    1: "media",                    # Tuesday
+    2: "government",               # Wednesday
+    3: ["thinktank", "hokkaido"],  # Thursday: alternates by ISO week
+    4: "social",                   # Friday
+    5: "performing_arts_search",   # Saturday
+    6: "senses_research",          # Sunday
 }
 
 WEEKDAY_NAMES = ["一", "二", "三", "四", "五", "六", "日"]
 
 
+def _resolve_category_id(weekday: int) -> str:
+    """Resolve today's category, alternating lists by ISO week number."""
+    entry = WEEKDAY_SCHEDULE.get(weekday, "university")
+    if isinstance(entry, list):
+        iso_week = datetime.now(JST).isocalendar()[1]
+        return entry[iso_week % len(entry)]
+    return entry
+
+
 def _schedule_summary() -> str:
     """One-line weekly schedule overview, e.g. '一🏫  二📰 …'"""
     cat_label = {cat["id"]: cat["label"].split()[0] for cat in SEARCH_CATEGORIES}
-    return "  ".join(f"{WEEKDAY_NAMES[wd]}{cat_label[WEEKDAY_SCHEDULE[wd]]}" for wd in range(7))
+    parts = []
+    for wd in range(7):
+        entry = WEEKDAY_SCHEDULE[wd]
+        if isinstance(entry, list):
+            parts.append(f"{WEEKDAY_NAMES[wd]}{'|'.join(cat_label[c] for c in entry)}")
+        else:
+            parts.append(f"{WEEKDAY_NAMES[wd]}{cat_label[entry]}")
+    return "  ".join(parts)
 
 
 SOURCE_SCHEMA = """{
@@ -495,7 +544,7 @@ def _format_line_message(report: dict, results: list[CategoryResult], category: 
 def run_research(dry_run: bool = False, category_id: str | None = None) -> None:
     # Resolve which category to run today
     today_wd = datetime.now(JST).weekday()
-    resolved_id = category_id or WEEKDAY_SCHEDULE.get(today_wd, "university")
+    resolved_id = category_id or _resolve_category_id(today_wd)
     category_map = {cat["id"]: cat for cat in SEARCH_CATEGORIES}
     category = category_map.get(resolved_id)
     if not category:

@@ -70,7 +70,7 @@ def _normalize_location_address(venue: Optional[str], address: Optional[str]) ->
 
 
 class DoorkeeperScraper(BaseScraper):
-    """Scrapes Taiwan-related Tokyo events from Doorkeeper via public API."""
+    """Scrapes Taiwan-related events anywhere in Japan from Doorkeeper via public API."""
 
     SOURCE_NAME = "doorkeeper"
 

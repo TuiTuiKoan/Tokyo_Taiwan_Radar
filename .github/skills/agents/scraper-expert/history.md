@@ -3,6 +3,18 @@
 <!-- Append new entries at the top -->
 
 ---
+
+## 2026-04-26 — scope expanded to all of Japan（全日本）
+
+**Change:** Removed `prefecture=tokyo` from Connpass API params; updated docstrings for Doorkeeper and Connpass; updated agent descriptions and community-platforms subagent.
+
+**Root cause:** Scrapers were unintentionally limited to Tokyo by an API parameter. The project scope is all of Japan — Osaka, Kyoto, Fukuoka, Sapporo, etc. are all in scope.
+
+**Fix:** `connpass.py` no longer passes `prefecture=tokyo`; `doorkeeper.py` has never had a location filter and should stay that way.
+
+**Lesson:** Never add a prefecture/region filter to API scrapers unless the *source itself* is geographically bounded. Taiwan relevance (`_TAIWAN_KEYWORDS`) is the only required filter. → Added `## Geographic Scope` to SKILL.md.
+
+---
 ## 2026-04-26 — スコープ拡張：東京限定 → 全日本
 
 **変更内容**: ユーザー指示により対象スコープを東京から全日本（全国）に拡張。

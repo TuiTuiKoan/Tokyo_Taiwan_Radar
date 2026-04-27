@@ -1,6 +1,6 @@
 ---
 name: Community Platforms Scraper
-description: "Scrapes Taiwan-related Tokyo events from Connpass (API v2) and Doorkeeper (public API) — subagent of Scraper Expert"
+description: "Scrapes Taiwan-related events anywhere in Japan from Connpass (API v2) and Doorkeeper (public API) — subagent of Scraper Expert"
 user-invocable: false
 model: claude-sonnet-4-5
 ---
@@ -16,19 +16,17 @@ Handles both API-based scrapers that target community event platforms.
 - API endpoint: `GET https://api.doorkeeper.jp/events?q={keyword}&locale=ja&per_page=100&page={n}`
 - Authentication: **None required** — fully public API
 - Keywords queried: `台湾`, `Taiwan`, `台灣`
-- Tokyo filter: applied client-side on `address` + `venue_name` fields
-  - Must contain one of: `東京都`, `東京`, or any specific 東京 ward name (e.g. `渋谷区`)
-  - ⚠️ Ward-only names like `中央区` are intentionally excluded — they appear in Osaka/Kobe too
+- **No location filter** — returns events anywhere in Japan; all are accepted
 - Response fields: `id`, `title`, `starts_at`, `ends_at`, `venue_name`, `address`, `description` (HTML), `public_url`
 - Dedup key: `doorkeeper_{id}`
 
 ### Connpass
-- API endpoint: `GET https://connpass.com/api/v2/events/?keyword={kw}&prefecture=tokyo&count=100&start={n}&order=2`
+- API endpoint: `GET https://connpass.com/api/v2/events/?keyword={kw}&count=100&start={n}&order=2`
 - Authentication: **Required** — `X-API-Key` header, value from `CONNPASS_API_KEY` env var
   - If key is absent, scraper logs a WARNING and returns `[]` — pipeline continues normally
   - Obtain key at: https://connpass.com/about/api/
 - Keywords queried: `台湾`, `Taiwan`, `台灣`
-- Prefecture pre-filtered server-side by `prefecture=tokyo`
+- **No prefecture filter** — searches nationwide (all of Japan)
 - Response fields: `id`, `title`, `catch`, `description` (HTML), `started_at`, `ended_at`, `place`, `address`, `url`
 - Dedup key: `connpass_{id}`
 
@@ -44,9 +42,7 @@ Handles both API-based scrapers that target community event platforms.
 ### Step 2: Implement / Debug
 
 **Doorkeeper issues:**
-- If 0 events and unexpected: check `_is_tokyo()` — are ward names unique to Tokyo?
-  - Never add bare `中央区`, `南区`, `北区` to `_TOKYO_MARKERS` — they exist in many cities
-  - Only add ward names that are geographically unique to Tokyo
+- If 0 events and unexpected: verify API returns events for the keyword in dry-run log
 - If HTML parsing incorrect: check `_strip_html()` — Doorkeeper descriptions can contain complex HTML
 - `starts_at` is UTC ISO 8601; convert with `datetime.fromisoformat(...replace("Z", "+00:00"))`, then strip tz
 
@@ -70,7 +66,6 @@ Handles both API-based scrapers that target community event platforms.
 
 | Pitfall | Solution |
 |---------|----------|
-| Tokyo ward names in other cities | Only add wards unique to Tokyo in `_TOKYO_MARKERS` |
 | Connpass API v1 returns 403 | Use v2 endpoint `/api/v2/events/` with `X-API-Key` header |
 | Doorkeeper HTML descriptions | Use `_strip_html()` regex — do NOT import BeautifulSoup |
 | UTC timestamps treated as JST | Strip tzinfo after fromisoformat — keep as naive UTC |

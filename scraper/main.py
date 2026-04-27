@@ -61,19 +61,9 @@ from sources.taiwanshi import TaiwanshiScraper
 from sources.tobunken import TobunkenScraper
 from sources.ks_cinema import KsCinemaScraper
 from sources.cinemart_shinjuku import CinemartShinjukuScraper
-from sources.morc_asagaya import MorcAsagayaScraper
-from sources.shin_bungeiza import ShinBungeizaScraper
-from sources.cinemarine import CineMarineScraper
-from sources.taiwan_faasai import TaiwanFaasaiScraper
 from sources.kokuchpro import KokuchproScraper
-from sources.eslite_spectrum import EsliteSpectrumScraper
-from sources.moonromantic import MoonRomanticScraper
-from sources.eiga_com import EigaComScraper
-from sources.ssff import SsffScraper
-from sources.tokyo_filmex import TokyoFilmexScraper
-# TokyoArtBeatScraper temporarily excluded: TAB search ?query=台湾 is ignored by
-# the React client — headless Playwright returns 0 Taiwan events. Needs rework.
-# from sources.tokyoartbeat import TokyoArtBeatScraper
+from sources.oaff import OaffScraper
+from sources.jposa_ja import JposaJaScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -117,17 +107,9 @@ SCRAPERS = [
     TobunkenScraper(),
     KsCinemaScraper(),
     CinemartShinjukuScraper(),
-    MorcAsagayaScraper(),
-    ShinBungeizaScraper(),
-    CineMarineScraper(),
-    TaiwanFaasaiScraper(),
     KokuchproScraper(),
-    EsliteSpectrumScraper(),
-    MoonRomanticScraper(),
-    EigaComScraper(),
-    SsffScraper(),
-    TokyoFilmexScraper(),
-    # TokyoArtBeatScraper(),  # DISABLED: search API ignores ?query= param → 0 events (2026-04-26)
+    OaffScraper(),
+    JposaJaScraper(),
 ]
 
 

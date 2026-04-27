@@ -12,7 +12,7 @@ API docs: https://connpass.com/about/api/v2/
 
 Strategy:
   1. GET https://connpass.com/api/v2/events/ for each Taiwan keyword
-     with prefecture=tokyo to pre-filter server-side
+     — no prefecture filter, covering all of Japan
   2. Paginate using start= until results are exhausted (max MAX_PAGES per keyword)
   3. Deduplicate across keyword passes by platform event ID
   4. source_id = "connpass_{id}" (stable — uses platform's numeric event ID)
@@ -111,7 +111,6 @@ class ConnpassScraper(BaseScraper):
                 start_pos = (page_num - 1) * COUNT + 1
                 params = {
                     "keyword": keyword,
-                    "prefecture": "tokyo",
                     "count": COUNT,
                     "start": start_pos,
                     "order": 2,  # 開催日時順
@@ -184,5 +183,5 @@ class ConnpassScraper(BaseScraper):
                 if data.get("results_returned", 0) < COUNT:
                     break  # Last page for this keyword
 
-        logger.info("Connpass: %d Taiwan Tokyo events found", len(events))
+        logger.info("Connpass: %d Taiwan events found (all Japan)", len(events))
         return events
