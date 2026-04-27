@@ -3,6 +3,27 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-27 — eiga_com: per-theater redesign (3 address extraction bugs)
+
+**Error 1:** `a.more-schedule a[href*='/movie-theater/']` selected the first matching link which was `/movie-theater/{id}/{pref}/{area}/{theater_id}/mail/` (the copy-to-clipboard link), not the theater detail page. `theater_id` was extracted correctly, but `_fetch_theater_address()` fetched the mail page which has no `theater-table`.
+
+**Fix 1:** Use `a.icon.arrow[href*='/movie-theater/']` to get the "all schedule" detail link specifically.
+
+**Lesson 1:** When multiple links share the same `href` pattern (copy/print/all-schedule), always target by CSS class (e.g. `a.icon.arrow`) not by href pattern alone. → Added to `eiga_com-specific` in SKILL.md.
+
+**Error 2:** Page-wide regex `r'東京都[^\s<>]{5,50}'` on the area page matched JS-embedded `東京都"};params_ga4.login_status=...` instead of the actual address.
+
+**Fix 2:** Switched to structured extraction: `table.theater-table th:contains("住所") + td` on the theater detail page.
+
+**Lesson 2:** Never use page-wide address regex on pages with embedded JS/JSON. Use structured HTML selectors (`th`/`td` pairs) for reliable address extraction. → Added to `eiga_com-specific` in SKILL.md.
+
+**Error 3:** `td.get_text()` included `<a>` link text "映画館公式ページ" appended to the address string.
+
+**Fix 3:** Call `a_tag.decompose()` on all `<a>` children inside `td` before `get_text()`.
+
+**Lesson 3:** When a `<td>` contains both text nodes and `<a>` child elements, always decompose unwanted children before `get_text()` to avoid mixing link text into field values. → Added to `eiga_com-specific` in SKILL.md.
+
+---
 ## 2026-04-27 — taipei_fukuoka / yebizo: scrapers written but not registered or dry-run verified
 
 **Error:** `taipei_fukuoka.py` and `yebizo.py` were fully written (270 and 255 lines respectively, complete `scrape()` + `Event()` return) but were left as untracked files with no entry in `scraper/main.py` → `SCRAPERS`. Running `python main.py --dry-run --source taipei_fukuoka` returned `Unknown source` — the scrapers had never been tested.

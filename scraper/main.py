@@ -63,6 +63,7 @@ from sources.ks_cinema import KsCinemaScraper
 from sources.cinemart_shinjuku import CinemartShinjukuScraper
 from sources.kokuchpro import KokuchproScraper
 from sources.taiwanbunkasai import TaiwanbunkasaiScraper
+from sources.eiga_com import EigaComScraper
 from sources.oaff import OaffScraper
 from sources.jposa_ja import JposaJaScraper
 from sources.taipei_fukuoka import TaipeiFukuokaScraper
@@ -117,6 +118,7 @@ SCRAPERS = [
     KsCinemaScraper(),
     CinemartShinjukuScraper(),
     KokuchproScraper(),
+    EigaComScraper(),
     OaffScraper(),
     JposaJaScraper(),
     TaiwanbunkasaiScraper(),
