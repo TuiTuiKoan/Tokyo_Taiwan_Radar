@@ -31,11 +31,6 @@ export default async function EventDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  // Inactive events should not be accessible — return 404 like they don't exist
-  if (!event.is_active) {
-    notFound();
-  }
-
   const { data: { user } } = await supabase.auth.getUser();
 
   // Check if the current user has saved this event
@@ -48,6 +43,11 @@ export default async function EventDetailPage({ params }: PageProps) {
     ]);
     isSaved = !!savedResult.data;
     isAdmin = roleResult.data?.role === "admin";
+  }
+
+  // Inactive events are hidden from the public — admins can still view them
+  if (!event.is_active && !isAdmin) {
+    notFound();
   }
 
   // Fetch sub-events (children of this event)
