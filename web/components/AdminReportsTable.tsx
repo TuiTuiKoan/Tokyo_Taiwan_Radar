@@ -27,11 +27,19 @@ export interface ReportRow {
     start_date: string | null;
     end_date: string | null;
     location_name: string | null;
+    location_name_zh: string | null;
+    location_name_en: string | null;
     location_address: string | null;
+    location_address_zh: string | null;
+    location_address_en: string | null;
     business_hours: string | null;
+    business_hours_zh: string | null;
+    business_hours_en: string | null;
     is_paid: boolean | null;
     price_info: string | null;
     description_ja: string | null;
+    description_zh: string | null;
+    description_en: string | null;
   } | null;
 }
 
@@ -46,17 +54,28 @@ const STATUS_CLASSES: Record<string, string> = {
   dismissed: "bg-gray-100 text-gray-500",
 };
 
-// Maps each report field to the event column used for preview
-const FIELD_PREVIEW_COL: Record<string, (ev: NonNullable<ReportRow["events"]>) => string> = {
-  name: (ev) => ev.name_ja ?? "—",
-  start_date: (ev) => ev.start_date ? new Date(ev.start_date).toLocaleDateString("ja-JP") : "—",
-  end_date: (ev) => ev.end_date ? new Date(ev.end_date).toLocaleDateString("ja-JP") : "—",
-  venue: (ev) => ev.location_name ?? "—",
-  address: (ev) => ev.location_address ?? "—",
-  business_hours: (ev) => ev.business_hours ?? "—",
-  price: (ev) => ev.is_paid === null ? "—" : `${ev.is_paid ? "有料" : "無料"}${ev.price_info ? ` / ${ev.price_info}` : ""}`,
-  description: (ev) => ev.description_ja ? ev.description_ja.slice(0, 120) + (ev.description_ja.length > 120 ? "…" : "") : "—",
-};
+type LocaleKey = "zh" | "en" | "ja";
+const LOCALE_LABELS: Record<LocaleKey, string> = { zh: "中文", en: "English", ja: "日本語" };
+const LOCALES_ORDER: LocaleKey[] = ["zh", "en", "ja"];
+// Fields whose value is not localized — show only one row
+const NON_LOCALIZED_FIELDS = new Set(["start_date", "end_date", "price"]);
+
+function getFieldLocaleValues(
+  field: string,
+  ev: NonNullable<ReportRow["events"]>
+): Record<LocaleKey, string | null> {
+  switch (field) {
+    case "name": return { zh: ev.name_zh, en: ev.name_en, ja: ev.name_ja };
+    case "venue": return { zh: ev.location_name_zh, en: ev.location_name_en, ja: ev.location_name };
+    case "address": return { zh: ev.location_address_zh, en: ev.location_address_en, ja: ev.location_address };
+    case "business_hours": return { zh: ev.business_hours_zh, en: ev.business_hours_en, ja: ev.business_hours };
+    case "description": return { zh: ev.description_zh, en: ev.description_en, ja: ev.description_ja };
+    case "start_date": { const v = ev.start_date ? new Date(ev.start_date).toLocaleDateString("ja-JP") : null; return { zh: v, en: v, ja: v }; }
+    case "end_date": { const v = ev.end_date ? new Date(ev.end_date).toLocaleDateString("ja-JP") : null; return { zh: v, en: v, ja: v }; }
+    case "price": { const v = ev.is_paid === null ? null : `${ev.is_paid ? "有料" : "無料"}${ev.price_info ? ` / ${ev.price_info}` : ""}`; return { zh: v, en: v, ja: v }; }
+    default: return { zh: null, en: null, ja: null };
+  }
+}
 
 // Which fields support direct admin correction (description excluded — too complex)
 const EDITABLE_FIELDS = new Set(["name", "start_date", "end_date", "venue", "address", "business_hours", "price"]);
@@ -214,41 +233,72 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                     .filter((t) => t.startsWith("field:"))
                     .map((t) => t.replace("field:", ""));
                   if (wrongFields.length === 0) return null;
+                  // Parse user-submitted fieldEdit:<field>:<locale>:<value> entries
+                  const parsedUserEdits: Record<string, Record<string, string>> = {};
+                  for (const entry of row.report_types) {
+                    if (!entry.startsWith("fieldEdit:")) continue;
+                    const rest = entry.slice("fieldEdit:".length);
+                    const i1 = rest.indexOf(":");
+                    const i2 = rest.indexOf(":", i1 + 1);
+                    if (i1 === -1 || i2 === -1) continue;
+                    const f = rest.slice(0, i1);
+                    const loc = rest.slice(i1 + 1, i2);
+                    const value = rest.slice(i2 + 1);
+                    if (!parsedUserEdits[f]) parsedUserEdits[f] = {};
+                    parsedUserEdits[f][loc] = value;
+                  }
                   return (
                     <div>
                       <p className="text-xs font-medium text-gray-600 mb-2">{t("fieldPreview")}</p>
-                      <div className="space-y-2 bg-white border border-gray-200 rounded-lg p-3">
+                      <div className="space-y-3 bg-white border border-gray-200 rounded-lg p-3">
                         {wrongFields.map((field) => {
-                          const currentVal = FIELD_PREVIEW_COL[field]?.(row.events!) ?? "—";
+                          const vals = getFieldLocaleValues(field, row.events!);
+                          const isNonLocalized = NON_LOCALIZED_FIELDS.has(field);
+                          const displayLocales = isNonLocalized ? (["ja"] as LocaleKey[]) : LOCALES_ORDER;
                           const isEditable = EDITABLE_FIELDS.has(field);
                           const inputType = FIELD_INPUT_TYPE[field] ?? "text";
                           const editVal = fieldEdits[row.id]?.[field] ?? "";
+                          const userEditsForField = parsedUserEdits[field] ?? {};
                           return (
-                            <div key={field} className="grid grid-cols-[120px_1fr] gap-2 items-start">
-                              <span className="text-xs text-gray-500 font-medium pt-1.5">
+                            <div key={field} className="space-y-1.5">
+                              <p className="text-xs text-gray-500 font-medium">
                                 {tReport(`field${field.charAt(0).toUpperCase() + field.slice(1).replace(/_([a-z])/g, (_, c) => c.toUpperCase())}` as any)}
-                              </span>
+                              </p>
                               <div className="space-y-1">
-                                <div className="text-xs bg-gray-50 border border-gray-100 rounded px-2 py-1 text-gray-600 break-words">
-                                  {currentVal}
-                                </div>
-                                {isEditable ? (
-                                  <input
-                                    type={inputType}
-                                    value={editVal}
-                                    onChange={(e) =>
-                                      setFieldEdits((p) => ({
-                                        ...p,
-                                        [row.id]: { ...(p[row.id] ?? {}), [field]: e.target.value },
-                                      }))
-                                    }
-                                    placeholder={t("directCorrect")}
-                                    className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-gray-300"
-                                  />
-                                ) : (
-                                  <p className="text-xs text-gray-400 italic">{t("fieldNotEditable")}</p>
-                                )}
+                                {displayLocales.map((loc) => (
+                                  <div key={loc} className="flex gap-2 items-start">
+                                    {!isNonLocalized && (
+                                      <span className="text-xs text-gray-400 text-right pt-1 shrink-0 w-12 leading-tight">{LOCALE_LABELS[loc]}</span>
+                                    )}
+                                    <div className={`space-y-0.5 ${isNonLocalized ? "flex-1" : "flex-1 min-w-0"}`}>
+                                      <div className="text-xs bg-gray-50 border border-gray-100 rounded px-2 py-1 text-gray-600 break-words">
+                                        {vals[loc] ?? "—"}
+                                      </div>
+                                      {userEditsForField[loc] && (
+                                        <div className="text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1 text-amber-800 break-words">
+                                          → {userEditsForField[loc]}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
+                              {isEditable ? (
+                                <input
+                                  type={inputType}
+                                  value={editVal}
+                                  onChange={(e) =>
+                                    setFieldEdits((p) => ({
+                                      ...p,
+                                      [row.id]: { ...(p[row.id] ?? {}), [field]: e.target.value },
+                                    }))
+                                  }
+                                  placeholder={t("directCorrect")}
+                                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-gray-300"
+                                />
+                              ) : (
+                                <p className="text-xs text-gray-400 italic">{t("fieldNotEditable")}</p>
+                              )}
                             </div>
                           );
                         })}
