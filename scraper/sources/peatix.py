@@ -84,6 +84,13 @@ BLOCKED_ORGANIZER_PATTERNS: frozenset[str] = frozenset([
     "UnderBar TOKYO",
 ])
 
+# Canonical event categories for DB-driven organizer entries
+_EVENT_CATEGORIES = frozenset([
+    "movie", "performing_arts", "senses", "retail", "nature", "tech",
+    "tourism", "lifestyle_food", "books_media", "gender", "geopolitics",
+    "art", "lecture", "taiwan_japan", "business", "academic", "competition", "report",
+])
+
 
 def _safe_text(page: Page, selector: str) -> Optional[str]:
     try:
@@ -185,6 +192,73 @@ class PeatixScraper(BaseScraper):
 
     SOURCE_NAME = "peatix"
 
+    def _load_db_organizers(self) -> list[dict]:
+        """Load known Peatix organizer groups from research_sources (status=implemented).
+
+        Returns list of dicts with keys: group_id, name, categories.
+        Returns [] silently when DB is unavailable (dry-run or missing env vars).
+        """
+        try:
+            from database import _get_client  # deferred import — DB not needed in dry-run
+            client = _get_client()
+            result = (
+                client.table("research_sources")
+                .select("id, name, url, category, source_profile")
+                .eq("status", "implemented")
+                .eq("agent_category", "peatix_organizer")
+                .execute()
+            )
+        except Exception as exc:
+            logger.debug("Skipping DB organizer load (DB unavailable): %s", exc)
+            return []
+
+        organizers: list[dict] = []
+        for row in result.data or []:
+            profile: dict = row.get("source_profile") or {}
+            group_id = profile.get("group_id") or ""
+            if not group_id:
+                # Fallback: extract from URL https://peatix.com/group/{id}
+                import re as _re
+                m = _re.search(r"/group/([A-Za-z0-9_-]+)", row.get("url") or "")
+                group_id = m.group(1) if m else ""
+            if not group_id:
+                continue
+            raw_cat = row.get("category") or ""
+            cats: list[str] = profile.get("categories") or (
+                [raw_cat] if raw_cat in _EVENT_CATEGORIES else ["taiwan_japan"]
+            )
+            organizers.append({
+                "group_id": group_id,
+                "name": row.get("name") or group_id,
+                "categories": cats,
+            })
+            logger.debug("DB Peatix organizer loaded: %s (%s)", group_id, row.get("name"))
+        return organizers
+
+    def _scrape_group_events(self, page: Page, group_id: str, cutoff: datetime) -> list[str]:
+        """Return event URLs from a Peatix group's upcoming events page."""
+        group_url = f"https://peatix.com/group/{group_id}/events"
+        logger.info("Peatix group scrape: %s", group_url)
+        try:
+            page.goto(group_url, wait_until="networkidle", timeout=30_000)
+        except PWTimeout:
+            try:
+                page.goto(group_url, wait_until="domcontentloaded", timeout=30_000)
+            except Exception as exc:
+                logger.warning("Peatix group page load failed for %s: %s", group_id, exc)
+                return []
+        anchors = page.query_selector_all("a[href*='/event/']")
+        links: list[str] = []
+        seen: set[str] = set()
+        for a in anchors:
+            href = a.get_attribute("href") or ""
+            full = href if href.startswith("http") else f"https://peatix.com{href}"
+            full = full.split("?")[0]
+            if full and full not in seen:
+                seen.add(full)
+                links.append(full)
+        return links
+
     def scrape(self) -> list[Event]:
         events: list[Event] = []
         seen_urls: set[str] = set()
@@ -222,6 +296,40 @@ class PeatixScraper(BaseScraper):
                         time.sleep(1.5)
                     except Exception as exc:
                         logger.error("Peatix: failed to scrape %s: %s", url, exc)
+
+            # --- DB-driven organizer groups (Layer 3) ---
+            # Scrape events from known Taiwan-focused Peatix organizers directly,
+            # without relying on keyword search. These are loaded from research_sources
+            # (agent_category='peatix_organizer', status='implemented').
+            organizers = self._load_db_organizers()
+            if organizers:
+                logger.info("Peatix: scraping %d DB organizer group(s)", len(organizers))
+            for org in organizers:
+                group_id = org["group_id"]
+                org_links = self._scrape_group_events(page, group_id, cutoff)
+                for url in org_links:
+                    if url in seen_urls:
+                        continue
+                    seen_urls.add(url)
+                    try:
+                        event = self._scrape_detail(page, url)
+                        if event:
+                            # Override category with organizer's known categories
+                            event.category = list(org["categories"])
+                            if event.start_date and event.start_date < cutoff:
+                                logger.debug(
+                                    "Peatix org group: skipping old event %s (%s)",
+                                    event.name_ja,
+                                    event.start_date.date(),
+                                )
+                            else:
+                                events.append(event)
+                        time.sleep(1.5)
+                    except Exception as exc:
+                        logger.error(
+                            "Peatix: failed to scrape group %s event %s: %s",
+                            group_id, url, exc,
+                        )
 
             browser.close()
 

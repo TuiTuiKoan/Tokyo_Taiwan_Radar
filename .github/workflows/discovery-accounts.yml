@@ -1,10 +1,21 @@
-name: Weekly Account Discovery
+name: Daily Account Discovery
 
 on:
   schedule:
-    # Run every Sunday at 01:00 UTC (10:00 JST)
-    - cron: "0 1 * * 0"
+    # Slot 0 — Mon 11:00 JST (02:00 UTC): note.com community/exchange events
+    - cron: "0 2 * * 1"
+    # Slot 1 — Tue 11:00 JST (02:00 UTC): note.com culture & arts
+    - cron: "0 2 * * 2"
+    # Slot 2 — Wed 11:00 JST (02:00 UTC): note.com food & lifestyle
+    - cron: "0 2 * * 3"
+    # Slot 3 — Thu 11:00 JST (02:00 UTC): Peatix organizer groups
+    - cron: "0 2 * * 4"
   workflow_dispatch:
+    inputs:
+      slot:
+        description: "Discovery slot to run (0=note community, 1=note culture, 2=note food, 3=peatix)"
+        required: false
+        default: ""
 
 jobs:
   discover:
@@ -24,7 +35,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r scraper/requirements.txt
 
-      - name: Run note.com creator discovery
+      - name: Resolve discovery slot
+        id: slot
+        run: |
+          if [ -n "${{ github.event.inputs.slot }}" ]; then
+            echo "DISCOVERY_SLOT=${{ github.event.inputs.slot }}" >> $GITHUB_ENV
+          else
+            # Derive from weekday: Mon(1)=0, Tue(2)=1, Wed(3)=2, Thu(4)=3
+            DAY=$(date -u +%u)
+            SLOT=$(( (DAY - 1) % 4 ))
+            echo "DISCOVERY_SLOT=$SLOT" >> $GITHUB_ENV
+          fi
+
+      - name: Run account discovery
         working-directory: scraper
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -32,4 +55,5 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          DISCOVERY_SLOT: ${{ env.DISCOVERY_SLOT }}
         run: python discovery_accounts.py
