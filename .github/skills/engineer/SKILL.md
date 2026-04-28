@@ -125,6 +125,18 @@ These were regressed at least twice when unrelated changes overwrote them. The `
 1. Append an entry to `.github/skills/engineer/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
 
+## Annotator — Execution Modes
+
+`annotator.py` has three modes (as of commit `d173cf5`):
+
+| Flag | Query scope | Use when |
+|------|-------------|----------|
+| _(default)_ | All `pending` events, **regardless of `is_active`** | Normal daily run; inactive events may also need annotation after raw data correction |
+| `--all` | All `active` non-`reviewed` events | Force re-annotate everything (e.g. after SYSTEM_PROMPT change) |
+| `--fix-translations` | Active events with any `null` in `name_zh`, `name_en`, `description_zh`, `description_en` | Backfill missing translations without touching already-annotated events |
+
+**Important:** The default mode does NOT filter by `is_active`. Events that are soft-deleted (`is_active=False`) will still be annotated if their `annotation_status` is `pending`. This is intentional — raw data corrections on inactive events still need annotation.
+
 ## Annotator — Traditional Chinese (繁體中文) Rule
 
 **ALL `*_zh` fields produced by `annotator.py` must be Traditional Chinese (繁體中文), never Simplified Chinese (简体字).** This includes `name_zh`, `description_zh`, `location_name_zh`, `location_address_zh`, `business_hours_zh`, `selection_reason.zh`, and all sub-event zh fields.

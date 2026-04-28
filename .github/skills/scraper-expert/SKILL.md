@@ -71,6 +71,43 @@ Read this at the start of every session before writing any scraper.
 - **Rule**: Any field that a non-Japanese visitor reads on the event page must have locale variants OR use a helper with Japanese fallback. Check the event detail page for raw `event.field` access when adding new DB columns.
 
 
+## google_news_rss-specific
+- Fetches 4 Google News RSS queries; Taiwan-filtered; `category: ["report"]` (annotator refines)
+- `start_date` extracted from description text; fallback to pubDate — DO NOT set to null
+- `source_id`: `gnews_{md5(url)[:12]}` — stable across runs; `url` is guid if real article URL, else `<link>` tag value
+- Skip entries older than 60 days (based on pubDate)
+- Google `<guid>` may contain real article URL; prefer it over `<link>` tag when it starts with `http` and does not contain `news.google.com`
+
+## nhk_rss-specific
+- Fetches NHK news category RSS feeds (cat4=international, cat7=culture/science); Taiwan-filtered; `category: ["report", "books_media"]`
+- `start_date` extracted from description text; fallback to pubDate
+- `source_id`: `nhk_{md5(url)[:12]}`
+- Skip entries older than 90 days
+- 0 events is a valid dry-run result when no Taiwan news appears in today's NHK feeds
+
+## Cinema scraper pattern
+
+Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any future single-venue cinema scraper.
+
+**Standard strategy:**
+1. Fetch listing page → parse movie cards (title, URL, optional end date from "M/D まで" or similar label)
+2. Fetch each detail page → extract **production country** (`制作国` / `国` field, or `（YEAR／COUNTRY／...）` span)
+3. Taiwan filter: `country` contains `台湾` or `Taiwan` — do not rely solely on title keywords (金馬奨 winner may be non-TW)
+4. `start_date = today` (currently showing); `end_date` from listing label when available
+5. `source_id`: URL slug or numeric post ID — never a timestamp
+
+**Country field extraction patterns by site:**
+
+| Source | Location | Selector / Pattern |
+|--------|----------|--------------------|
+| cineswitch_ginza | Detail page `.movie_detail` table | `th:contains("制作国") + td` |
+| uplink_cinema (joji) | Detail page `<span class="small">` | `（YEAR年／...／COUNTRY／...）` — split by `／` |
+| human_trust_cinema | Detail page `.movie-info` table | `th:contains("製作国") + td` |
+
+**Taiwan filter fallback:** If country extraction fails, check full `description` text for `台湾` / `台灣` / `Taiwan` as a secondary gate.
+
+**`start_date` rule for currently-showing movies:** Use `datetime.now()` (today). Do NOT use the movie's release date (`劇場公開日`) as `start_date` unless the movie is not yet showing.
+
 ## Registration
 - After creating a new scraper file, always add it to `SCRAPERS = [...]` in `scraper/main.py`.
 - Test with `python main.py --dry-run --source <source_name>` before any other step.
