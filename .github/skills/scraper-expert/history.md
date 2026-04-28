@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-28 — 看海的日子（數位修復版） [taiwan_cultural_center] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** movie
+**After (corrected):** movie, history, literature
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ---
 ## 2026-04-29 — taiwan_cultural_center: month-only date range caused publish-date fallback
 
