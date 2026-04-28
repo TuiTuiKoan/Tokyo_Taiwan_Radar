@@ -152,23 +152,9 @@ export async function confirmReport(
           }
           needsReannotation.push(field);
         }
-      } else if (field === "name") {
-        // Check if ALL locale columns were explicitly provided by admin
-        const allLocalesProvided = Object.keys(localeColMap).every(
-          (loc) => localeCorrs[loc]?.trim()
-        );
-        if (!allLocalesProvided) {
-          // Partially corrected: null out any locale column not explicitly provided
-          // so annotator re-fills missing translations
-          for (const [loc, dbCol] of Object.entries(localeColMap) as [string, string][]) {
-            if (!localeCorrs[loc]?.trim()) {
-              eventUpdate[dbCol] = null;
-            }
-          }
-          needsReannotation.push(field);
-        }
-        // else: all locales provided — no nulling, no re-annotation needed
       }
+      // If any locale was provided (even partial), apply as-is and mark reviewed.
+      // Do NOT null out unprovided locales — keep existing DB values intact.
     }
 
     if (needsReannotation.length === 0) {
