@@ -79,6 +79,7 @@ Read this at the start of every session before writing any scraper.
 - `source_id`: `gnews_{md5(url)[:12]}` — stable across runs; `url` is guid if real article URL, else `<link>` tag value
 - Skip entries older than 60 days (based on pubDate)
 - Google `<guid>` may contain real article URL; prefer it over `<link>` tag when it starts with `http` and does not contain `news.google.com`
+- **`_NEWS_SOURCES` member**: `merger.py` uses Pass 2 (date-range + location-overlap) — NOT name similarity — to merge google_news_rss events into official primaries. This is intentional: article titles don't match event names. Never add `google_news_rss` to Pass 1 name-similarity matching.
 
 ## nhk_rss-specific
 - Fetches NHK news category RSS feeds (cat4=international, cat7=culture/science); Taiwan-filtered; `category: ["report", "books_media"]`
@@ -86,6 +87,7 @@ Read this at the start of every session before writing any scraper.
 - `source_id`: `nhk_{md5(url)[:12]}`
 - Skip entries older than 90 days
 - 0 events is a valid dry-run result when no Taiwan news appears in today's NHK feeds
+- **`_NEWS_SOURCES` member**: same Pass 2 matching rules as `google_news_rss` above — NHK article titles do not match event names by similarity.
 
 ## Cinema scraper pattern
 

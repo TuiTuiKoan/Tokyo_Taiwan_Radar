@@ -1,5 +1,16 @@
 ---
-## 2026-04-28 — database.instructions.md Step 6 not followed on first use (020_creators.sql)
+## 2026-04-28 — merger.py: Pass 2 news-report matching added
+**Feature:** `google_news_rss` (and `prtimes`, `nhk_rss`) events were not being merged into their official primary events because Pass 1 requires both (a) name similarity ≥ 0.85 and (b) same `start_date`. News-article titles fail (a) and article publish dates differ from event dates, failing (b).
+**Fix:** Added `Pass 2` to `run_merger()`:
+- New `_NEWS_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss"})` constant
+- `_location_overlap()` — checks for ≥1 common token of ≥2 chars between `location_name` fields
+- `_date_in_range()` — checks `news.start_date ∈ [official.start_date, official.end_date]`
+- DB select extended to include `end_date, location_name`
+- News events are always secondary (priority 100); official events are always primary
+- Idempotent: subsequent runs skip already-merged pairs
+**Lesson:** News/article scrapers require a separate merge strategy. When adding a new scraper that publishes article-style content (RSS, press releases, news aggregation), add it to `_NEWS_SOURCES` in `merger.py` immediately — before merging. Also add `_NEWS_SOURCES` note to the source-specific SKILL.md section.
+
+---
 **Error:** Migration `020_creators.sql` was committed in `21039ad` without updating `database.instructions.md`. The Step 6 rule ("Update this file in the same commit") had been added only 2 days earlier in `a91ba57`. Result: Latest still showed `018b`, next = `019` (already skipped), and `creators`/`creator_events` tables were absent from Other tables.
 **Fix:** Manually updated `database.instructions.md` in the next session: Latest → `020_creators.sql`, next → `021`, added skipped-019 note to Known conflicts, added creators tables.
 **Lesson:** Step 6 is easily forgotten because it is not in the same file as the migration SQL. Consider adding a `-- REMINDER: update database.instructions.md` comment at the bottom of every new migration template as an in-file prompt.

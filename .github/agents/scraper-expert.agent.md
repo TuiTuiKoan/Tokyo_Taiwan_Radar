@@ -62,7 +62,8 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 1. Run `cd scraper && python main.py --dry-run --source <name> 2>&1 | head -80`.
 2. Verify: `start_date` is populated, not the publish date; `category` values are canonical; no unhandled exceptions.
 3. Run `get_errors` on changed Python files.
-4. Hand off to Tester for full pipeline validation.
+4. **Run merger dry-run**: `cd scraper && python merger.py --dry-run 2>&1` — confirm any detected cross-source duplicates are intentional. New sources that report events with article-style titles (e.g. RSS feeds, press release scrapers) may match existing official events via Pass 2 (date-range + location-overlap). If a new source should participate in Pass 2 matching, add it to `_NEWS_SOURCES` in `merger.py`.
+5. Hand off to Tester for full pipeline validation.
 
 ### Phase 4: Document
 
