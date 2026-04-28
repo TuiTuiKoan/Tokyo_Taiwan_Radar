@@ -99,6 +99,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function AdminSourcesTable({ sources }: Props) {
   const t = useTranslations("admin");
   const [filter, setFilter] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
   const [sourceList, setSourceList] = useState<ResearchSource[]>(sources);
   const [showAddForm, setShowAddForm] = useState(false);
   const [creatorSlug, setCreatorSlug] = useState("");
@@ -150,16 +151,69 @@ export default function AdminSourcesTable({ sources }: Props) {
     setShowAddForm(false);
   }
 
-  const STATUS_FILTERS = [
-    { key: "all",          label: t("filterAll") },
-    { key: "implemented",  label: `✅ ${t("sourceStatusImplemented")}` },
-    { key: "not-viable",   label: `🚫 ${t("sourceStatusNotViable")}` },
-    { key: "researched",   label: `🔍 ${t("sourceStatusResearched")}` },
-    { key: "recommended",  label: `⭐ ${t("sourceStatusRecommended")}` },
-    { key: "candidate",    label: `🔄 ${t("sourceStatusCandidate")}` },
-  ];
+  // 來源分類對照表（依 research_sources.id）
+  const SOURCE_TYPE_MAP: Record<number, string> = {
+    // 活動平台
+    14: "event_platform", 47: "event_platform", 20: "event_platform",
+    19: "event_platform", 17: "event_platform", 32: "event_platform",
+    45: "event_platform", 15: "event_platform", 77: "event_platform",
+    4:  "event_platform",  6: "event_platform", 23: "event_platform",
+    79: "event_platform", 83: "event_platform",
+    // 學術單位
+    28: "academic", 29: "academic", 24: "academic", 25: "academic",
+    10: "academic", 26: "academic", 31: "academic", 27: "academic",
+    30: "academic", 54: "academic", 55: "academic", 61: "academic",
+    62: "academic", 63: "academic", 64: "academic", 65: "academic",
+    84: "academic", 92: "academic", 93: "academic",  1: "academic",
+     2: "academic",  3: "academic", 12: "academic", 52: "academic",
+    74: "academic",
+    // 展場
+    81: "venue", 76: "venue", 48: "venue", 49: "venue", 75: "venue",
+    85: "venue", 53: "venue", 82: "venue",  5: "venue",
+    // 電影
+    35: "cinema", 56: "cinema", 38: "cinema", 41: "cinema", 33: "cinema",
+    34: "cinema", 50: "cinema", 51: "cinema", 36: "cinema", 59: "cinema",
+    58: "cinema", 86: "cinema", 70: "cinema", 67: "cinema", 37: "cinema",
+    39: "cinema", 40: "cinema",
+    // 電視
+    95: "tv", 71: "tv", 72: "tv", 73: "tv", 94: "tv",
+    // 政府機構
+     8: "government", 13: "government", 80: "government", 87: "government",
+     7: "government", 16: "government", 60: "government", 66: "government",
+    68: "government", 89: "government", 90: "government", 88: "government",
+    // 百貨
+    46: "department_store",
+    // 活動策劃組織
+    57: "organizer", 21: "organizer", 69: "organizer", 91: "organizer",
+    18: "organizer",  9: "organizer", 22: "organizer",
+    // 個人頁面
+    78: "personal",
+  };
 
-  const filtered = filter === "all" ? sourceList : sourceList.filter((s) => s.status === filter);
+  const SOURCE_TYPE_LABELS: Record<string, string> = {
+    all:              "全部分類",
+    event_platform:   "活動平台",
+    academic:         "學術單位",
+    venue:            "展場",
+    cinema:           "電影",
+    tv:               "電視",
+    government:       "政府機構",
+    department_store: "百貨",
+    organizer:        "活動策劃組織",
+    personal:         "個人頁面",
+  };
+
+  function getFilteredSources(list: ResearchSource[]) {
+    return list.filter((s) => {
+      if (filter === "implemented" && s.status !== "implemented") return false;
+      if (filter === "not-viable" && s.status !== "not-viable") return false;
+      if (filter === "has_issue" && !s.github_issue_url) return false;
+      if (filterType !== "all" && (SOURCE_TYPE_MAP[s.id] ?? "other") !== filterType) return false;
+      return true;
+    });
+  }
+
+  const filtered = getFilteredSources(sourceList);
 
   if (sourceList.length === 0) {
     return <p className="text-sm text-gray-400">{t("sourcesNone")}</p>;
@@ -248,25 +302,34 @@ export default function AdminSourcesTable({ sources }: Props) {
         )}
       </div>
 
-      {/* Status filter bar */}
-      <div className="flex gap-2 flex-wrap mb-4">
-        {STATUS_FILTERS.map(({ key, label }) => {
-          const count = key === "all" ? sources.length : sources.filter((s) => s.status === key).length;
-          if (key !== "all" && count === 0) return null;
-          return (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className={`text-xs px-3 py-1.5 rounded-full font-medium border transition ${
-                filter === key
-                  ? "bg-green-600 text-white border-green-600"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-green-400"
-              }`}
-            >
-              {label} <span className="opacity-60">({count})</span>
-            </button>
-          );
-        })}
+      {/* Filter dropdowns */}
+      <div className="flex gap-4 flex-wrap mb-4 items-end">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium">狀態</label>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+          >
+            <option value="all">全部</option>
+            <option value="implemented">已建立爬蟲</option>
+            <option value="not-viable">不適合</option>
+            <option value="has_issue">已建立 Issue</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium">來源分類</label>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+          >
+            {Object.entries(SOURCE_TYPE_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+        </div>
+        <span className="text-xs text-gray-400 self-center">{filtered.length} 筆</span>
       </div>
 
       {filtered.length === 0 && (
