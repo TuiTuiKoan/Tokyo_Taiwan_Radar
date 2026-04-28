@@ -87,6 +87,14 @@ applyTo: scraper/sources/<source_name>.py
 4. **`merger.py SOURCE_PRIORITY["taiwanbunkasai"] = 7`**: Must be lower (higher authority) than iwafu (11) so official site wins as primary when merger detects the duplicate.
 5. **`is_paid = False`**: Confirmed 入場無料 on all known editions (KITTE and 中野).
 
+## gguide_tv-specific
+
+1. **2-step HTTP session**: Always GET `/search/?q={kw}` first to set `_ggm-web_session` cookie before calling `/fetch_search_content/`.
+2. **ebisId dedup key**: Parse `a.js-logging[data-content]` JSON → `.ebisId`; use `seen_ebis_ids` set to skip across multiple keyword searches.
+3. **Year inference**: Schedule strings (`4月29日 水曜 12:00`) have no year — try current year; if result is older than `LOOKBACK_DAYS` days, try `current_year + 1` (handles Dec→Jan boundary).
+4. **テレサ・テン filter**: Only keep programs where the full string `テレサ・テン` appears in the title; blocks variety shows where テレサ is a minor guest alongside other artists.
+5. **`台湾ドラマ` is redundant**: All results from `台湾ドラマ` are already returned by the `台湾` keyword search — do not add it to `SEARCH_KEYWORDS`.
+
 ## Pending Rules
 
 <!-- Added automatically by confirm-report -->

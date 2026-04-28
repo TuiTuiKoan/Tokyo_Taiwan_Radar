@@ -79,6 +79,7 @@ from sources.tokyoartbeat import TokyoArtBeatScraper
 from sources.hankyu_umeda import HankyuUmedaScraper
 from sources.google_news_rss import GoogleNewsRssScraper
 from sources.nhk_rss import NhkRssScraper
+from sources.gguide_tv import GguideTvScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -140,6 +141,7 @@ SCRAPERS = [
     HankyuUmedaScraper(),
     GoogleNewsRssScraper(),
     NhkRssScraper(),
+    GguideTvScraper(),
 ]
 
 
