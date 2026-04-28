@@ -4,6 +4,9 @@ on:
   # Manual trigger only — run merger without a full scrape
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   merge:
     runs-on: ubuntu-latest
