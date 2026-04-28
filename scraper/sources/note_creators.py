@@ -1,9 +1,18 @@
 """
-Scraper for selected note.com creators posting Taiwan-related events in Japan.
+Scraper for note.com creators posting Taiwan-related events in Japan.
 
-Monitored creators:
+Static seed creators (always scraped):
   kuroshio2026   — 台湾・沖縄とともに〜黒潮ネット (event announcements)
   nichitaikouryu — ゆる〜くお茶べり日台交流会in東京 (weekly exchange event reports)
+
+Dynamic creators (loaded from DB at runtime):
+  Any row in `research_sources` where:
+    - url matches https://note.com/{creator} (creator root URL)
+    - status = 'implemented'
+  Metadata is read from source_profile JSONB:
+    { "location_name": "...", "location_address": "...", "categories": ["taiwan_japan"] }
+  Falls back to (name, None, ["taiwan_japan"]) when source_profile is absent.
+  DB-driven creators are skipped if DB is unavailable (dry-run / missing env).
 
 Strategy:
   1. Fetch RSS feed from https://note.com/{creator}/rss (no auth required)
@@ -33,6 +42,14 @@ logger = logging.getLogger(__name__)
 
 RSS_TEMPLATE = "https://note.com/{creator}/rss"
 
+# Canonical event categories accepted by the DB schema.
+_EVENT_CATEGORIES = frozenset([
+    "movie", "performing_arts", "senses", "retail", "nature", "tech",
+    "tourism", "lifestyle_food", "books_media", "gender", "geopolitics",
+    "art", "lecture", "taiwan_japan", "business", "academic", "competition", "report",
+])
+
+# Static seed creators: always scraped regardless of DB state.
 # creator → (location_name, location_address, default_category)
 CREATOR_META: dict[str, tuple[str, str, list[str]]] = {
     "kuroshio2026": (
@@ -74,6 +91,16 @@ def _strip_html(html: str) -> str:
 def _extract_note_id(url: str) -> Optional[str]:
     """Extract note article ID from URL, e.g. https://note.com/creator/n/n4f9a42875b82 → n4f9a42875b82"""
     m = re.search(r"/n/(n[a-z0-9]+)$", url.rstrip("/"))
+    return m.group(1) if m else None
+
+
+def _extract_creator_from_url(url: str) -> Optional[str]:
+    """Extract creator slug from a note.com creator root URL.
+
+    Matches https://note.com/{creator} or https://note.com/{creator}/
+    Does NOT match article URLs like https://note.com/creator/n/n…
+    """
+    m = re.match(r"https?://note\.com/([A-Za-z0-9_]+)/?$", url)
     return m.group(1) if m else None
 
 
@@ -237,10 +264,61 @@ class NoteCreatorsScraper(BaseScraper):
             location_address=effective_location_address,
         )
 
+    def _load_db_creators(self) -> dict[str, tuple[str, str | None, list[str]]]:
+        """Load additional note.com creators from research_sources (status=implemented).
+
+        Returns a dict of {creator_id: (location_name, location_address, categories)}.
+        Returns {} silently when DB is unavailable (dry-run or missing env vars).
+        """
+        try:
+            from database import _get_client  # deferred import — DB not needed in dry-run
+            client = _get_client()
+            result = (
+                client.table("research_sources")
+                .select("id, name, url, category, source_profile")
+                .eq("status", "implemented")
+                .execute()
+            )
+        except Exception as exc:
+            logger.debug("Skipping DB creator load (DB unavailable): %s", exc)
+            return {}
+
+        db_creators: dict[str, tuple[str, str | None, list[str]]] = {}
+        for row in result.data or []:
+            url = (row.get("url") or "").strip()
+            creator = _extract_creator_from_url(url)
+            if not creator:
+                continue  # Not a note.com creator root URL — skip
+
+            profile: dict = row.get("source_profile") or {}
+            loc_name: str = profile.get("location_name") or row.get("name") or creator
+            loc_addr: str | None = profile.get("location_address") or None
+
+            # Category: source_profile.categories > research_sources.category > default
+            cats: list[str] = profile.get("categories") or []
+            if not cats:
+                raw_cat = row.get("category") or ""
+                cats = [raw_cat] if raw_cat in _EVENT_CATEGORIES else ["taiwan_japan"]
+
+            db_creators[creator] = (loc_name, loc_addr, cats)
+            logger.debug("DB creator loaded: %s → %s", creator, loc_name)
+
+        return db_creators
+
     def scrape(self) -> list[Event]:
+        # Static seed creators always run (take precedence — have richer metadata).
+        all_creators: dict[str, tuple[str, str | None, list[str]]] = dict(CREATOR_META)
+
+        # Augment with DB-driven creators; seed entries are NOT overwritten.
+        db_creators = self._load_db_creators()
+        new_count = sum(1 for c in db_creators if c not in all_creators)
+        all_creators.update({c: m for c, m in db_creators.items() if c not in all_creators})
+        if new_count:
+            logger.info("Loaded %d additional note.com creator(s) from DB", new_count)
+
         events: list[Event] = []
 
-        for creator, (loc_name, loc_addr, cats) in CREATOR_META.items():
+        for creator, (loc_name, loc_addr, cats) in all_creators.items():
             items = self._fetch_rss(creator)
             logger.info("Creator %s: %d RSS items", creator, len(items))
 

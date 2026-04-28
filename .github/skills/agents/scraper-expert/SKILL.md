@@ -186,7 +186,17 @@ applyTo: scraper/sources/<source_name>.py
 - **`source_id` = form ID**: Use the numeric ID from `/meeting/form?id=NNNN` as the stable dedup key. Do NOT hash the title.
 - **Filter on full box text**: Taiwan may appear only in speaker affiliations (`台湾元行政院副院長`), not in the title. Filter on full `box_text`, not just the title element.
 
-## DeepL Tracking
+## note_creators-specific
+
+- **Dynamic account list (DB-driven)**: `NoteCreatorsScraper._load_db_creators()` queries `research_sources WHERE url LIKE 'note.com/%' AND status='implemented'`. To add a new note.com creator, insert a row with the creator root URL (`https://note.com/{creator_id}`) and set `status='implemented'`. No code change needed.
+- **Static seeds always run**: The 2 hardcoded entries in `CREATOR_META` (`kuroshio2026`, `nichitaikouryu`) always run and take precedence over any matching DB row. Hardcoded metadata is richer (exact address); DB entries only need `name`.
+- **`source_profile` JSONB**: Optionally store `{"location_name": "...", "location_address": "...", "categories": ["taiwan_japan"]}` in the DB row's `source_profile` column to override defaults.
+- **No Taiwan filter applied**: All posts from registered creators are assumed Taiwan-related. Do NOT add a keyword filter — it would drop legitimate event-focused posts.
+- **RSS feed URL**: `https://note.com/{creator}/rss` — no auth required. Template URL `https://note.com/{creator}/rss` (with literal `{creator}`) in the DB is ignored automatically by `_extract_creator_from_url` (curly braces rejected by the regex).
+- **DB unavailable = graceful degradation**: When env vars are missing (dry-run on CI), `_load_db_creators()` catches the exception and returns `{}` — static creators still run normally.
+- **`source_id` format**: `note_{creator}_{note_id}` where `note_id` is the article-level path segment (e.g. `n4f9a42875b82`). Stable across runs.
+
+
 - Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
 - Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
 - `main.py` reads `getattr(scraper, "_deepl_chars_used", 0)` when writing to `scraper_runs`.
