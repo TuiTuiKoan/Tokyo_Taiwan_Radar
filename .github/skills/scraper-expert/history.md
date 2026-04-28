@@ -2,6 +2,15 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-28 — 赤色的線 輪迴的秘密 [shin_bungeiza] — user report confirmed
+**Report types:** wrongSelectionReason, selectionReason:這部電影是台灣製作，反映了台灣的文化和故事。
+**Admin notes:** —
+**Action:** Event deactivated — re-annotation triggered (annotation_status=pending).
+---
+
+---
+
+
 ## 2026-04-29 — 8 Unregistered Scrapers Found in SCRAPERS List Gap [main.py]
 **Error**: CineMarineScraper, EsliteSpectrumScraper, MoonRomanticScraper, MorcAsagayaScraper, ShinBungeizaScraper, SsffScraper, TaiwanFaasaiScraper, TokyoFilmexScraper all had `.py` source files but were NOT included in the `SCRAPERS = [...]` list in `scraper/main.py`. This caused them to be skipped by the daily CI run despite being ready for production.
 
