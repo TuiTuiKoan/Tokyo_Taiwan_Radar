@@ -3,6 +3,17 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 - GitHub Actions resolver could not fetch actions/checkout@v4
+
+**Error:** `.github/workflows/secret-rotation-reminder.yml` failed at parse/resolve stage with `Unable to resolve action actions/checkout@v4, repository or version not found`.
+
+**Fix:** Downgraded action refs in the same workflow to resolver-friendly majors for older environments:
+- `actions/checkout@v4` -> `actions/checkout@v3`
+- `actions/setup-python@v5` -> `actions/setup-python@v4`
+
+**Lesson:** If a workflow must run on older GitHub Enterprise resolvers or constrained action mirrors, prefer the latest major that is known to exist in that environment, and downgrade related core actions together to keep compatibility expectations consistent.
+
+---
 ## 2026-04-28 — Multi-locale field editing: always expose all locale variants simultaneously
 
 **Context:** `ReportSection.tsx` initially showed a single textarea pre-filled with the *current locale's* value when a user flagged a wrong field. A user pointed out that the Japanese original may be correct while only the Chinese or English translation is wrong. Showing one locale obscures which specific translation is faulty.
