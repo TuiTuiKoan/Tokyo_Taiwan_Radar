@@ -6,6 +6,7 @@ import SaveButton from "@/components/SaveButton";
 import RawDataSection from "@/components/RawDataSection";
 import ReportSection from "@/components/ReportSection";
 import ViewTracker from "@/components/ViewTracker";
+import IsActiveToggle from "@/components/IsActiveToggle";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -95,13 +96,16 @@ export default async function EventDetailPage({ params }: PageProps) {
         <div className="flex items-center gap-2 min-w-0">
           <h1 className="text-2xl font-bold text-gray-900 leading-snug">{name}</h1>
           {isAdmin && (
-            <Link
-              href={`/${locale}/admin/${event.id}`}
-              className="shrink-0 text-xs text-gray-400 hover:text-green-700 border border-gray-200 hover:border-green-400 rounded px-1.5 py-0.5 transition"
-              title={t("editEvent")}
-            >
-              ✎
-            </Link>
+            <>
+              <Link
+                href={`/${locale}/admin/${event.id}`}
+                className="shrink-0 text-xs text-gray-400 hover:text-green-700 border border-gray-200 hover:border-green-400 rounded px-1.5 py-0.5 transition"
+                title={t("editEvent")}
+              >
+                ✎
+              </Link>
+              <IsActiveToggle eventId={event.id} initialIsActive={event.is_active} />
+            </>
           )}
         </div>
         {user && (
