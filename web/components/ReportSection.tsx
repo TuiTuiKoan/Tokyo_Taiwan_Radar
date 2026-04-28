@@ -9,6 +9,7 @@ interface Props {
   eventId: string;
   locale: string;
   selectionReason?: string | null;
+  eventFields?: Partial<Record<WrongDetailField, string | null>>;
 }
 
 const REPORT_TYPES = ["irrelevant", "wrongDetails", "wrongCategory", "wrongSelectionReason"] as const;
@@ -40,12 +41,13 @@ const FIELD_I18N: Record<WrongDetailField, string> = {
   description: "fieldDescription",
 };
 
-export default function ReportSection({ eventId, locale, selectionReason }: Props) {
+export default function ReportSection({ eventId, locale, selectionReason, eventFields }: Props) {
   const t = useTranslations("report");
   const tCat = useTranslations("categories");
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<ReportType>>(new Set());
   const [wrongFields, setWrongFields] = useState<Set<WrongDetailField>>(new Set());
+  const [fieldEdits, setFieldEdits] = useState<Partial<Record<WrongDetailField, string>>>({});
   const [suggestedCategories, setSuggestedCategories] = useState<Set<Category>>(new Set());
   const [selectionReasonText, setSelectionReasonText] = useState<string>("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -73,8 +75,20 @@ export default function ReportSection({ eventId, locale, selectionReason }: Prop
   function toggleField(field: WrongDetailField) {
     setWrongFields((prev) => {
       const next = new Set(prev);
-      if (next.has(field)) next.delete(field);
-      else next.add(field);
+      if (next.has(field)) {
+        next.delete(field);
+        setFieldEdits((edits) => {
+          const updated = { ...edits };
+          delete updated[field];
+          return updated;
+        });
+      } else {
+        next.add(field);
+        setFieldEdits((edits) => ({
+          ...edits,
+          [field]: eventFields?.[field] ?? "",
+        }));
+      }
       return next;
     });
   }
@@ -90,6 +104,8 @@ export default function ReportSection({ eventId, locale, selectionReason }: Prop
     if (selected.has("wrongDetails")) {
       for (const field of wrongFields) {
         reportTypes.push(`field:${field}`);
+        const edit = fieldEdits[field]?.trim();
+        if (edit) reportTypes.push(`fieldEdit:${field}:${edit.slice(0, 500)}`);
       }
     }
     if (selected.has("wrongSelectionReason") && selectionReasonText.trim()) {
@@ -112,6 +128,7 @@ export default function ReportSection({ eventId, locale, selectionReason }: Prop
       setOpen(false);
       setSelected(new Set());
       setWrongFields(new Set());
+      setFieldEdits({});
       setSuggestedCategories(new Set());
       setSelectionReasonText("");
     }
@@ -156,20 +173,32 @@ export default function ReportSection({ eventId, locale, selectionReason }: Prop
 
               {/* Sub-field checkboxes for wrongDetails */}
               {type === "wrongDetails" && selected.has("wrongDetails") && (
-                <div className="ml-5 mt-1 space-y-1">
+                <div className="ml-5 mt-1 space-y-1.5">
                   {WRONG_DETAIL_FIELDS.map((field) => (
-                    <label
-                      key={field}
-                      className="flex items-center gap-2 text-xs text-amber-700 cursor-pointer select-none"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={wrongFields.has(field)}
-                        onChange={() => toggleField(field)}
-                        className="accent-amber-500"
-                      />
-                      {t(FIELD_I18N[field] as any)}
-                    </label>
+                    <div key={field}>
+                      <label className="flex items-center gap-2 text-xs text-amber-700 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={wrongFields.has(field)}
+                          onChange={() => toggleField(field)}
+                          className="accent-amber-500"
+                        />
+                        {t(FIELD_I18N[field] as any)}
+                      </label>
+                      {wrongFields.has(field) && (
+                        <div className="mt-1 ml-4">
+                          <p className="text-xs text-amber-600 mb-1">{t("fieldEditHint")}</p>
+                          <textarea
+                            rows={3}
+                            value={fieldEdits[field] ?? ""}
+                            onChange={(e) =>
+                              setFieldEdits((prev) => ({ ...prev, [field]: e.target.value }))
+                            }
+                            className="w-full border border-amber-300 rounded-lg px-3 py-2 text-xs text-amber-900 bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-y"
+                          />
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
@@ -240,6 +269,7 @@ export default function ReportSection({ eventId, locale, selectionReason }: Prop
                 setOpen(false);
                 setSelected(new Set());
                 setWrongFields(new Set());
+                setFieldEdits({});
                 setSuggestedCategories(new Set());
                 setSelectionReasonText("");
               }}
