@@ -22,7 +22,7 @@ export const EMPTY_FORM = {
   original_language: "zh",
   is_active: true,
   parent_event_id: "" as string,
-  record_links: [] as { title: string; url: string }[],
+  record_links: [] as { title: string; url: string; recommended?: boolean }[],
 };
 
 export type FormState = typeof EMPTY_FORM;
@@ -249,6 +249,19 @@ export default function AdminEventForm({
                 }}
                 className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
               />
+              <label className="flex items-center gap-1 text-xs text-gray-500 shrink-0 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!!link.recommended}
+                  onChange={(e) => {
+                    const updated = [...form.record_links];
+                    updated[i] = { ...updated[i], recommended: e.target.checked };
+                    updateField("record_links", updated);
+                  }}
+                  className="w-3.5 h-3.5"
+                />
+                {t("recordLinksRecommended" as any)}
+              </label>
               <button
                 type="button"
                 onClick={() => updateField("record_links", form.record_links.filter((_, j) => j !== i))}
@@ -260,7 +273,7 @@ export default function AdminEventForm({
           ))}
           <button
             type="button"
-            onClick={() => updateField("record_links", [...form.record_links, { title: "", url: "" }])}
+            onClick={() => updateField("record_links", [...form.record_links, { title: "", url: "", recommended: false }])}
             className="text-xs text-green-600 hover:text-green-700 border border-green-300 rounded px-3 py-1"
           >
             + {t("recordLinksAdd" as any)}

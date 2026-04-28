@@ -299,18 +299,27 @@ export default async function EventDetailPage({ params }: PageProps) {
         <div className="mb-8">
           <h2 className="text-sm font-medium text-gray-400 mb-3">{t("recordLinksSection")}</h2>
           <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
-            {(event as Event).record_links?.map((link: { title: string; url: string }, i: number) => (
-              <a
-                key={i}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-blue-600 hover:underline gap-2"
-              >
-                <span className="flex-1">{link.title || link.url}</span>
-                <span className="text-gray-300 shrink-0">↗</span>
-              </a>
-            ))}
+            {(event as Event).record_links?.map((link: { title: string; url: string; recommended?: boolean }, i: number) => {
+              const totalLinks = ((event as Event).record_links?.length || 0) + ((event as Event).secondary_source_urls?.length || 0);
+              const showBadge = link.recommended && totalLinks > 1;
+              return (
+                <a
+                  key={i}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-blue-600 hover:underline gap-2"
+                >
+                  <span className="flex-1">{link.title || link.url}</span>
+                  {showBadge && (
+                    <span className="shrink-0 text-xs bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 font-medium">
+                      {t("recordLinksRecommended")}
+                    </span>
+                  )}
+                  <span className="text-gray-300 shrink-0">↗</span>
+                </a>
+              );
+            })}
             {(event as Event).secondary_source_urls?.map((url: string, idx: number) => (
               <a
                 key={`sec-${idx}`}

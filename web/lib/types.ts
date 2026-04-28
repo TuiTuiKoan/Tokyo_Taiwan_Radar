@@ -37,7 +37,7 @@ export interface Event {
   raw_title: string | null;
   raw_description: string | null;
   secondary_source_urls: string[] | null;
-  record_links: { title: string; url: string }[] | null;
+  record_links: { title: string; url: string; recommended?: boolean }[] | null;
   official_url?: string | null;
   selection_reason: string | null;
   annotation_status: string;

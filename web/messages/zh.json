@@ -91,7 +91,8 @@
     "recordLinksAdd": "新增連結",
     "recordLinksRemove": "移除",
     "recordLinksLinkTitle": "標題",
-    "recordLinksUrl": "連結網址"
+    "recordLinksUrl": "連結網址",
+    "recordLinksRecommended": "推薦"
   },
   "auth": {
     "loginTitle": "登入",
