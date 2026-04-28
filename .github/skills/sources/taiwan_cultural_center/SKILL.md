@@ -37,6 +37,20 @@ Apply in strict order. Fall through to the next tier only when the current tier 
 | 3 | Title slash | `M/DD(曜)` in title; year inferred from `post_date` |
 | 4 | Publish fallback | `日付：YYYY-MM-DD` at page bottom — **use ONLY when tiers 1–3 all fail** |
 
+### Month-Only Dates (Tier 1 extension)
+
+- Pattern `期間：2026年5月～10月` contains month-only dates without day numbers.
+- `_parse_date()` handles `YYYY年M月` → first day of that month (`day=1`).
+- `_extract_event_dates_from_body()` advances month-only `end_raw` to the **last day** of the end month via `calendar.monthrange(y, m)[1]`.
+- Commit reference: `039f532`
+
+### Month-Only Dates (Tier 1 extension)
+
+- Pattern `期間：2026年5月～10月` contains month-only dates without day numbers.
+- `_parse_date()` handles `YYYY年M月` → first day of that month (`day=1`).
+- `_extract_event_dates_from_body()` advances month-only `end_raw` to the **last day** of the end month via `calendar.monthrange(y, m)[1]`.
+- Commit reference: `039f532`
+
 ### Critical Parsing Rules
 
 - `_parse_date()` must strip parenthetical day-of-week markers `（月）` / `(土・祝)` before `strptime`
@@ -69,6 +83,32 @@ When selectors break or a new page structure appears:
 4. Update `taiwan_cultural_center.py` with corrected selectors.
 5. **Never use Chrome MCP in CI** — production scraping always uses Playwright.
 
+## 連続上映企画 (Series Screenings)
+
+For annual film screening series (e.g. 台湾映画上映会), the event page lists all individual screenings in a long description (10+ films, 13,000+ chars). **Do NOT rely on GPT annotation to generate sub-events** from this description — GPT-4o-mini reliably extracts only the first 2 entries even with 20,000-char input limit.
+
+**Recommended approach:**
+1. In the scraper, parse each screening entry (title, date, time, venue) from the page body.
+2. Emit each screening as a separate `Event` with `parent_event_id` pointing to the series parent.
+3. Set `source_id = f"{parent_source_id}_sub{n}"` for each screening.
+
+**2026 映画上映会 reference:**
+- 16 sub-events manually inserted 2026-04-29 (commit `603d7c4` history); see `taiwan_cultural_center/history.md`.
+- Pattern: `『{title}』\n{M月D日(曜) HH:MM開演}／{venue}`.
+
+## 連続上映企画 (Series Screenings)
+
+For annual film screening series (e.g. 台湾映画上映会), the event page lists all individual screenings in a long description (10+ films, 13,000+ chars). **Do NOT rely on GPT annotation to generate sub-events** from this description — GPT-4o-mini reliably extracts only the first 2 entries even with a 20,000-char input limit.
+
+**Recommended approach:**
+1. In the scraper, parse each screening entry (title, date, time, venue) from the page body.
+2. Emit each screening as a separate `Event` with `parent_event_id` pointing to the series parent.
+3. Set `source_id = f"{parent_source_id}_sub{n}"` for each screening.
+
+**2026 映画上映会 reference:**
+- 16 sub-events manually inserted 2026-04-29; see `taiwan_cultural_center/history.md`.
+- Screening entry pattern: `『{title}』\n{M月D日(曜) HH:MM開演}／{venue}`.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -77,3 +117,7 @@ When selectors break or a new page structure appears:
 | `start_date` off by one year | Year inference window too narrow | Verify −180 to +365 day window is applied around `post_date` |
 | `end_date` null when `〜5日` present | End date parser not injecting year + month | Patch parser to carry over year + month from `start_date` |
 | Parse error on `(土・祝)` | `strptime` receiving day-of-week suffix | Ensure `_parse_date()` strips all `（...）` / `(...)` groups first |
+| `start_date` = publish date for `期間：2026年5月～10月` | `_parse_date()` didn’t handle month-only `YYYY年M月` format | Add `YYYY年M月` → `day=1` case; advance end-date to last day via `calendar.monthrange` |
+| sub-events only 2 of 16 for film series | GPT truncates sub-event output for long descriptions | Parse screenings in scraper layer; emit each as `Event(parent_event_id=…)` |
+| `start_date` = page publish date when period is `2026年5月～10月` | `_parse_date()` didn't handle month-only format | Ensure `YYYY年M月` → `day=1` case exists in `_parse_date()`; end_date → last day of end month via `calendar.monthrange` |
+| sub-events only 2/16 for film series | GPT truncates sub-event output for long descriptions | Parse screenings in scraper layer; emit each as `Event` with `parent_event_id` |
