@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 
@@ -114,8 +114,15 @@ export default function AdminSourcesTable({ sources }: Props) {
 
   // Immediate rescrape state
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [scrapeState, setScrapeState] = useState<"idle" | "starting" | "done">("idle");
+  const [scrapeState, setScrapeState] = useState<"idle" | "starting" | "running" | "done" | "failed">("idle");
   const [scrapeError, setScrapeError] = useState<string | null>(null);
+  const [scrapeSourceCount, setScrapeSourceCount] = useState(0); // how many sources were triggered
+  const [scrapeStartedAt, setScrapeStartedAt] = useState<number>(0); // Date.now() when triggered
+  const [scrapeRunUrl, setScrapeRunUrl] = useState<string | null>(null);
+  // Estimated seconds: ~30s per source, minimum 30s, maximum 600s
+  const scrapeEstimatedMs = Math.min(600_000, Math.max(30_000, scrapeSourceCount * 30_000));
+  const elapsedRef = useRef(0);
+  const [elapsedMs, setElapsedMs] = useState(0);
 
   // Schedule edit state: srcId → { times, hours }
   const [scheduleEdits, setScheduleEdits] = useState<Record<number, { times: number; hours: number[] }>>({});
@@ -131,14 +138,62 @@ export default function AdminSourcesTable({ sources }: Props) {
     });
   }
 
+  // Polling: check GitHub Actions run status while running
+  useEffect(() => {
+    if (scrapeState !== "running") return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/admin/scrape-status");
+        if (!res.ok) return;
+        const data = await res.json();
+        // Update run URL if available
+        if (data.runUrl && !scrapeRunUrl) setScrapeRunUrl(data.runUrl);
+        if (data.status === "completed") {
+          clearInterval(interval);
+          if (data.conclusion === "failure") {
+            setScrapeState("failed");
+            setScrapeError("Workflow 執行失敗");
+            setTimeout(() => { setScrapeState("idle"); setScrapeError(null); }, 8000);
+          } else {
+            setScrapeState("done");
+            setTimeout(() => setScrapeState("idle"), 5000);
+          }
+        }
+      } catch {
+        // ignore transient fetch errors
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [scrapeState, scrapeRunUrl]);
+
+  // Elapsed timer: tick every second while starting/running
+  useEffect(() => {
+    if (scrapeState !== "starting" && scrapeState !== "running") {
+      setElapsedMs(0);
+      return;
+    }
+    const start = scrapeStartedAt || Date.now();
+    const timer = setInterval(() => {
+      const ms = Date.now() - start;
+      setElapsedMs(ms);
+      elapsedRef.current = ms;
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [scrapeState, scrapeStartedAt]);
+
   async function handleScrapeNow() {
+    const sourceList = selected.size > 0 ? [...selected] : [];
     setScrapeState("starting");
     setScrapeError(null);
+    setScrapeSourceCount(sourceList.length);
+    setScrapeStartedAt(Date.now());
+    setScrapeRunUrl(null);
+    setElapsedMs(0);
     try {
       const res = await fetch("/api/admin/scrape-now", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sources: selected.size > 0 ? [...selected] : [] }),
+        body: JSON.stringify({ sources: sourceList }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -146,8 +201,8 @@ export default function AdminSourcesTable({ sources }: Props) {
         setScrapeState("idle");
         return;
       }
-      setScrapeState("done");
-      setTimeout(() => setScrapeState("idle"), 5000);
+      // Give GitHub ~3 seconds to register the run before polling
+      setTimeout(() => setScrapeState("running"), 3000);
     } catch (err) {
       setScrapeError(err instanceof Error ? err.message : "Unknown error");
       setScrapeState("idle");
@@ -428,9 +483,12 @@ export default function AdminSourcesTable({ sources }: Props) {
           </button>
           <div className="ml-auto flex items-center gap-2">
             {scrapeState === "done" && (
-              <span className="text-xs text-green-700 font-medium">✓ 爬蟲已觸發</span>
+              <span className="text-xs text-green-700 font-medium">✓ 爬蟲已完成</span>
             )}
-            {scrapeError && (
+            {scrapeState === "failed" && (
+              <span className="text-xs text-red-600">{scrapeError}</span>
+            )}
+            {scrapeError && scrapeState === "idle" && (
               <span className="text-xs text-red-600">{t("scrapeNowError")}: {scrapeError}</span>
             )}
             <button
@@ -438,9 +496,64 @@ export default function AdminSourcesTable({ sources }: Props) {
               disabled={scrapeState !== "idle"}
               className="text-xs px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 transition font-medium"
             >
-              {scrapeState === "starting" ? "正在啟動…" : t("scrapeNowSelected", { count: selected.size })}
+              {scrapeState === "starting" || scrapeState === "running"
+                ? "爬取中…"
+                : t("scrapeNowSelected", { count: selected.size })}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Progress bar — shown while starting/running, below the filter area */}
+      {(scrapeState === "starting" || scrapeState === "running") && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="w-full bg-amber-100 rounded-full h-2 overflow-hidden mb-2">
+            <div
+              className="bg-amber-500 h-2 rounded-full transition-all duration-1000"
+              style={{
+                width: scrapeState === "starting"
+                  ? "3%"
+                  : `${Math.min(95, (elapsedMs / scrapeEstimatedMs) * 100)}%`,
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-amber-800">
+              {scrapeState === "starting"
+                ? "正在啟動 GitHub Actions 工作流程…"
+                : `爬取中 — 已執行 ${Math.floor(elapsedMs / 1000)} 秒（預估約 ${Math.round(scrapeEstimatedMs / 1000)} 秒）`}
+            </p>
+            {scrapeRunUrl && (
+              <a
+                href={scrapeRunUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-amber-700 hover:text-amber-900 underline whitespace-nowrap"
+              >
+                查看 Actions 紀錄 ↗
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+      {scrapeState === "done" && (
+        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 text-xs text-green-700 font-medium flex items-center justify-between">
+          <span>✓ 爬取完成</span>
+          {scrapeRunUrl && (
+            <a href={scrapeRunUrl} target="_blank" rel="noopener noreferrer" className="underline">
+              查看 Actions 紀錄 ↗
+            </a>
+          )}
+        </div>
+      )}
+      {scrapeState === "failed" && scrapeError && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-700">
+          ⚠ {scrapeError}
+          {scrapeRunUrl && (
+            <a href={scrapeRunUrl} target="_blank" rel="noopener noreferrer" className="ml-2 underline">
+              查看 Actions 紀錄 ↗
+            </a>
+          )}
         </div>
       )}
 
@@ -549,7 +662,31 @@ export default function AdminSourcesTable({ sources }: Props) {
                 <button
                   onClick={() => {
                     setSelected(new Set([src.scraper_source_name!]));
-                    handleScrapeNow();
+                    // Trigger immediately for single-source
+                    const sourceList = [src.scraper_source_name!];
+                    setScrapeState("starting");
+                    setScrapeError(null);
+                    setScrapeSourceCount(1);
+                    setScrapeStartedAt(Date.now());
+                    setScrapeRunUrl(null);
+                    setElapsedMs(0);
+                    fetch("/api/admin/scrape-now", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ sources: sourceList }),
+                    }).then((res) => {
+                      if (!res.ok) {
+                        res.json().catch(() => ({})).then((d) => {
+                          setScrapeError(d.error ?? `HTTP ${res.status}`);
+                          setScrapeState("idle");
+                        });
+                      } else {
+                        setTimeout(() => setScrapeState("running"), 3000);
+                      }
+                    }).catch((err) => {
+                      setScrapeError(err instanceof Error ? err.message : "Unknown error");
+                      setScrapeState("idle");
+                    });
                   }}
                   disabled={scrapeState !== "idle"}
                   className="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 disabled:opacity-40 transition"
