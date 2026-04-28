@@ -20,11 +20,22 @@ declare
   v_sub text;
   v_user_id uuid;
 begin
-  v_sub := nullif(current_setting('request.jwt.claim.sub', true), '');
-
-  -- In normal app requests, auth.uid() should be populated.
-  -- In SQL editor tests, auth.uid() is null unless claims are injected.
-  v_user_id := coalesce(auth.uid(), v_sub::uuid);
+  -- Prefer auth.uid() for real PostgREST requests.
+  -- Fallback to request.jwt.claim.sub for SQL Editor simulation.
+  v_user_id := auth.uid();
+  
+  if v_user_id is null then
+    v_sub := nullif(current_setting('request.jwt.claim.sub', true), '');
+    if v_sub is not null then
+      begin
+        v_user_id := v_sub::uuid;
+      exception
+        when invalid_text_representation then
+          raise exception 'admin privileges required'
+            using errcode = '42501';
+      end;
+    end if;
+  end if;
 
   if v_user_id is null then
     raise exception 'admin privileges required'
