@@ -13,6 +13,14 @@ both Peatix and iwafu) and merges them:
      (Only on the FIRST merge — subsequent runs skip re-annotation.)
   5. Deactivate the secondary event (is_active = False).
 
+Pass 2 — News-report matching:
+  News sources (google_news_rss, prtimes, nhk_rss) publish article-style
+  titles that cannot be matched by name similarity alone.  They are matched
+  to official events by:
+    a. news.start_date falls within [official.start_date, official.end_date]
+    b. location_name tokens overlap (≥1 common token of ≥2 chars)
+  News events are always secondary; the official event is always primary.
+
 This module is idempotent: re-running it produces the same result because
 it checks whether the secondary URL is already present in
 primary.secondary_source_urls before triggering re-annotation.
@@ -59,6 +67,11 @@ SOURCE_PRIORITY: dict[str, int] = {
 # Minimum name similarity to consider two events duplicates.
 _SIMILARITY_THRESHOLD = 0.85
 
+# Sources that publish news/article titles rather than event names.
+# They are matched via date-range + location-overlap (Pass 2), never by
+# name similarity (Pass 1).
+_NEWS_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss"})
+
 
 def _normalize(name: str) -> str:
     """Strip all whitespace and lowercase for similarity comparison."""
@@ -71,6 +84,26 @@ def _normalize(name: str) -> str:
 
 def _similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, _normalize(a), _normalize(b)).ratio()
+
+
+def _location_overlap(loc_a: str | None, loc_b: str | None) -> bool:
+    """Return True if two location strings share ≥1 token of ≥2 characters."""
+    if not loc_a or not loc_b:
+        return False
+
+    def _tokens(s: str) -> set:
+        return {t for t in re.split(r'[\s\u3000、,（()）・]', s) if len(t) >= 2}
+
+    return bool(_tokens(loc_a) & _tokens(loc_b))
+
+
+def _date_in_range(
+    date_str: str | None, start_str: str | None, end_str: str | None
+) -> bool:
+    """Return True if date_str (YYYY-MM-DD) falls within [start_str, end_str]."""
+    if not date_str or not start_str or not end_str:
+        return False
+    return start_str[:10] <= date_str[:10] <= end_str[:10]
 
 
 def run_merger(dry_run: bool = False) -> int:
@@ -89,8 +122,8 @@ def run_merger(dry_run: bool = False) -> int:
     res = (
         sb.table("events")
         .select(
-            "id,source_name,source_id,source_url,official_url,name_ja,start_date,"
-            "raw_description,secondary_source_urls,annotation_status"
+            "id,source_name,source_id,source_url,official_url,name_ja,start_date,end_date,"
+            "location_name,raw_description,secondary_source_urls,annotation_status"
         )
         .eq("is_active", True)
         .not_.is_("start_date", None)
@@ -205,7 +238,110 @@ def run_merger(dry_run: bool = False) -> int:
                         exc,
                     )
 
-    logger.info("Merger: %d cross-source duplicate pair(s) handled", merge_count)
+    logger.info("Merger: Pass 1 done (%d pairs)", merge_count)
+
+    # ------------------------------------------------------------------
+    # Pass 2: News-report matching
+    # News sources post article-style titles that don't match event names
+    # by similarity.  Match by:
+    #   (a) news.start_date ∈ [official.start_date, official.end_date]
+    #   (b) location_name token overlap (≥1 common token of ≥2 chars)
+    # News events are ALWAYS secondary; official events are ALWAYS primary.
+    # ------------------------------------------------------------------
+    news_events = [
+        ev for ev in events
+        if ev["source_name"] in _NEWS_SOURCES
+        and ev["id"] not in handled_secondary_ids
+    ]
+    official_events = [
+        ev for ev in events
+        if ev["source_name"] not in _NEWS_SOURCES
+        and ev["id"] not in handled_secondary_ids
+    ]
+
+    for news_ev in news_events:
+        best_match = None
+        best_priority = 100
+
+        for official_ev in official_events:
+            if official_ev["id"] in handled_secondary_ids:
+                continue
+
+            # (a) Date range check
+            if not _date_in_range(
+                news_ev.get("start_date"),
+                official_ev.get("start_date"),
+                official_ev.get("end_date") or official_ev.get("start_date"),
+            ):
+                continue
+
+            # (b) Location overlap check
+            if not _location_overlap(
+                news_ev.get("location_name"),
+                official_ev.get("location_name"),
+            ):
+                continue
+
+            pri = SOURCE_PRIORITY.get(official_ev["source_name"], 99)
+            if pri < best_priority:
+                best_priority = pri
+                best_match = official_ev
+
+        if not best_match:
+            continue
+
+        primary, secondary = best_match, news_ev
+        secondary_url = secondary["source_url"]
+        existing_urls = primary.get("secondary_source_urls") or []
+        already_merged = secondary_url in existing_urls
+
+        logger.info(
+            "%s  [%s] '%s'  ←  [%s] '%s'  (news-match)",
+            "EXISTS" if already_merged else "MERGE ",
+            primary["source_name"],
+            (primary["name_ja"] or "")[:40],
+            secondary["source_name"],
+            (secondary["name_ja"] or "")[:40],
+        )
+
+        if dry_run:
+            merge_count += 1
+            handled_secondary_ids.add(secondary["id"])
+            continue
+
+        new_secondary_urls = list(dict.fromkeys(existing_urls + [secondary_url]))
+        primary_update: dict = {"secondary_source_urls": new_secondary_urls}
+
+        if not primary.get("official_url") and secondary.get("official_url"):
+            primary_update["official_url"] = secondary["official_url"]
+
+        if not already_merged:
+            primary_desc = (primary.get("raw_description") or "").strip()
+            secondary_desc = (secondary.get("raw_description") or "").strip()
+
+            if secondary_desc and secondary_desc not in primary_desc:
+                combined = (
+                    primary_desc
+                    + f"\n\n---\n別来源補足 ({secondary['source_name']})\n{secondary_desc}"
+                )
+                primary_update["raw_description"] = combined
+
+            primary_update["annotation_status"] = "pending"
+
+        try:
+            sb.table("events").update(primary_update).eq("id", primary["id"]).execute()
+            sb.table("events").update({"is_active": False}).eq("id", secondary["id"]).execute()
+            merge_count += 1
+            handled_secondary_ids.add(secondary["id"])
+        except Exception as exc:
+            logger.error(
+                "Merger: failed to merge %s ← %s: %s",
+                primary["source_id"],
+                secondary["source_id"],
+                exc,
+            )
+
+    logger.info("Merger: %d cross-source duplicate pair(s) handled (Pass 1+2)", merge_count)
     return merge_count
 
 

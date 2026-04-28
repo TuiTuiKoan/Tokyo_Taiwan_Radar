@@ -116,6 +116,36 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 - **`official_url` = detail page URL**: The detail page IS the official organiser page. Set `official_url=url` (same as `source_url`).
 - **`is_paid=False`**: Confirmed on all events — admission is free.
 - **After a bug fix**: Always run a non-dry-run (`python main.py --source taiwan_matsuri`) immediately after fixing a filter bug. A dry-run-only fix leaves the data gap until the next CI cycle.
+- **Cross-source duplicates**: `taiwan_matsuri` events appear as duplicates in `iwafu`, `google_news_rss`, and other aggregators. `merger.py` handles this automatically — see `## merger.py` section below.
+
+## merger.py
+
+`scraper/merger.py` runs after every scraper cycle to deduplicate cross-source events. Two detection passes:
+
+### Pass 1 — Name similarity (same start_date group)
+- Groups all active events by `start_date` (YYYY-MM-DD).
+- Within each group, pairs events from different sources with name similarity ≥ 0.85 (`SequenceMatcher` on normalised names).
+- Lower `SOURCE_PRIORITY` number wins as primary. Current order: `taiwan_cultural_center` (1) → … → `taiwan_matsuri` (6) → … → `iwafu` (11) → `ide_jetro` (13).
+
+### Pass 2 — News-report matching (date-range + location overlap)
+- Sources in `_NEWS_SOURCES = {"google_news_rss", "prtimes", "nhk_rss"}` use article titles that cannot match event names by similarity.
+- A news event matches an official event when **both** conditions hold:
+  - `news.start_date` falls within `[official.start_date, official.end_date]`
+  - `location_name` tokens overlap (≥1 common token of ≥2 characters)
+- News events are **always secondary** (priority 100). Official events are **always primary**.
+- Pass 2 catches cases where `start_date` differs (e.g. article published mid-festival) and names are stylistically different.
+
+### Merge result
+- Primary: `secondary_source_urls` extended; `raw_description` enriched with secondary content (first merge only); `annotation_status` reset to `pending` for re-annotation.
+- Secondary: `is_active=False`.
+- Idempotent: re-running produces the same result (checks `secondary_url in existing_urls`).
+
+### When to run manually
+```bash
+cd scraper && python merger.py --dry-run   # preview
+cd scraper && python merger.py             # apply
+```
+Run after discovering a new cross-source duplicate that the merger missed. Then check `--dry-run` to confirm the pair is detected before applying.
 
 ## Registration
 - After creating a new scraper file, always add it to `SCRAPERS = [...]` in `scraper/main.py`.
