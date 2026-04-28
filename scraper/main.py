@@ -76,6 +76,7 @@ from sources.zinbun_kyoto import ZinbunKyotoScraper
 from sources.uplink_cinema import UplinkCinemaScraper
 from sources.eurospace import EurospaceScraper
 from sources.tokyoartbeat import TokyoArtBeatScraper
+from sources.hankyu_umeda import HankyuUmedaScraper
 from sources.google_news_rss import GoogleNewsRssScraper
 from sources.nhk_rss import NhkRssScraper
 from sources.base import dedup_events
@@ -136,6 +137,7 @@ SCRAPERS = [
     UplinkCinemaScraper(),
     EurospaceScraper(),
     TokyoArtBeatScraper(),
+    HankyuUmedaScraper(),
     GoogleNewsRssScraper(),
     NhkRssScraper(),
 ]
