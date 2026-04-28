@@ -77,6 +77,7 @@ from sources.uplink_cinema import UplinkCinemaScraper
 from sources.eurospace import EurospaceScraper
 from sources.tokyoartbeat import TokyoArtBeatScraper
 from sources.hankyu_umeda import HankyuUmedaScraper
+from sources.daimaru_matsuzakaya import DaimaruMatsuzakayaScraper
 from sources.google_news_rss import GoogleNewsRssScraper
 from sources.nhk_rss import NhkRssScraper
 from sources.gguide_tv import GguideTvScraper
@@ -139,6 +140,7 @@ SCRAPERS = [
     EurospaceScraper(),
     TokyoArtBeatScraper(),
     HankyuUmedaScraper(),
+    DaimaruMatsuzakayaScraper(),
     GoogleNewsRssScraper(),
     NhkRssScraper(),
     GguideTvScraper(),
