@@ -2,6 +2,15 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-28 — 日泰食堂 [cine_marine] — user report confirmed
+**Report types:** wrongSelectionReason, selectionReason:この映画は香港の食堂を舞台に、社会の変化に直面する人々の姿を描いており、台湾、香港、フランスの共同制作です。
+**Admin notes:** —
+**Action:** Event deactivated — re-annotation triggered (annotation_status=pending).
+---
+
+---
+
+
 ## 2026-04-28 — 赤色的線 輪迴的秘密 [shin_bungeiza] — user report confirmed
 **Report types:** wrongSelectionReason, selectionReason:這部電影是台灣製作，反映了台灣的文化和故事。
 **Admin notes:** —
