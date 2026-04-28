@@ -12,7 +12,8 @@ import re
 import time
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, date as _date
+import calendar as _calendar
 from typing import Optional
 
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeout
@@ -43,11 +44,20 @@ def _parse_date(raw: Optional[str]) -> Optional[datetime]:
     # Strip day-of-week / holiday markers in brackets: （月・祝） or (火) → removed
     # Only strip brackets whose content starts with a non-digit (keeps e.g. (2026))
     raw = re.sub(r'[（(][^）)\d][^）)]*[）)]', '', raw).strip()
+    # Normalise full-width digits / spaces for month-only patterns below
+    raw_norm = raw.replace('\u3000', ' ').replace('　', ' ')
     for fmt in ("%Y/%m/%d", "%Y.%m.%d", "%Y-%m-%d", "%Y年%m月%d日"):
         try:
-            return datetime.strptime(raw, fmt)
+            return datetime.strptime(raw_norm, fmt)
         except ValueError:
             continue
+    # Month-only: "2026年5月" or "2026 年5 月" → first day of that month
+    m = re.match(r'(\d{4})\s*年\s*(\d{1,2})\s*月\s*(?:\([^)]*\)\s*)?$', raw_norm)
+    if m:
+        try:
+            return datetime(int(m.group(1)), int(m.group(2)), 1)
+        except ValueError:
+            pass
     logger.warning("Could not parse date: %s", raw)
     return None
 
@@ -225,12 +235,20 @@ def _extract_event_dates_from_body(
         start = _parse_date(start_raw)
         if start and end_raw:
             # Handle abbreviated ends: "5日" → inject year+month; "3月5日" → inject year
+            # Also handle month-only end: "10月" or "10 月" → inject year from start
             if not re.match(r'\d{4}', end_raw):
-                if re.match(r'\d{1,2}月', end_raw):
+                if re.match(r'\d{1,2}\s*月\s*$', end_raw.strip()):
+                    # Month-only end (no year, no day) — inject year from start
+                    end_raw = f"{start.year}年{end_raw.strip()}"
+                elif re.match(r'\d{1,2}月', end_raw):
                     end_raw = f"{start.year}年{end_raw}"
                 elif re.match(r'\d{1,2}日', end_raw):
                     end_raw = f"{start.year}年{start.month}月{end_raw}"
             end = _parse_date(end_raw)
+            # If end_raw was month-only, advance to last day of that month
+            if end and end_raw and re.search(r'年\d{1,2}\s*月\s*$', end_raw.strip()):
+                last_day = _calendar.monthrange(end.year, end.month)[1]
+                end = datetime(end.year, end.month, last_day)
         else:
             end = None
         if start:
