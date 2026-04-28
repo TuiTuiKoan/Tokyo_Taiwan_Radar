@@ -85,3 +85,41 @@ When plans involve multiple similar tasks or iterative fixes, guide the user tow
 - **Fix + rule update coupling**: When discovering a bug, fix it first. Defer history/skill updates to a dedicated batch step. Recommend: "先修完所有 bug，稍後一次批次更新 skill 和 history。"
 
 See `.github/skills/session-analytics/SKILL.md` for the full anti-pattern catalogue and efficiency thresholds.
+
+## Agent Handoff Design
+
+When designing agent workflows that need one-click handoff buttons:
+
+### `.prompt.md` vs `.agent.md` Distinction
+- **`.prompt.md`** — One-off tasks invoked via `/` command or skill menus. No persistent role, no tool restrictions per task. Use for: "Generate test cases", "Create README", "Summarize metrics".
+- **`.agent.md`** — Persistent agent persona with role, tools, and instructions. Use for: long-running workflows, role-based tool restrictions, or handoff chains. Can be invoked via agent picker or as handoff target.
+- **Handoffs only route to `.agent.md` files** — the `agent:` field in `handoffs:` must reference an `.agent.md` file's `name`, NOT a `.prompt.md` filename.
+
+### Handoff Frontmatter Format
+```yaml
+handoffs:
+  - label: "🔧 Button text"
+    agent: AgentNameFromFile        # Must match .agent.md name exactly
+    prompt: "Chinese instruction"    # Pre-filled when user clicks
+    send: false                       # Optional, default false
+    model: "Claude Sonnet 4.5 (copilot)"  # Optional, inherits agent default if omitted
+```
+
+### Subagent Configuration for Handoff Targets
+When creating an agent **only for handoff invocation** (not for manual picker):
+```yaml
+---
+name: My Handoff Agent
+description: "Brief role description"
+user-invocable: false               # Hide from agent picker
+disable-model-invocation: false     # But allow handoff invocation
+tools: [read, search, execute, web] # Minimal necessary tools
+---
+```
+
+### Best Practices
+1. **Name consistency**: Agent `name:` in frontmatter must match the handoff `agent:` field exactly (case-sensitive).
+2. **Chinese instructions in prompt**: Always include `prompt:` field with clear Chinese task description to ensure context transfer.
+3. **Workflow grouping**: If two agents form a natural sequence (e.g., Plan → Implement → Review), add all three as handoffs in each agent to enable any→any routing.
+4. **Testing**: After adding handoffs, verify in VS Code: restart Copilot Chat, check that buttons appear, test context passing via `prompt:` field.
+

@@ -26,6 +26,13 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 1. Append an entry to `.github/skills/agents/engineer/history.md` (newest at top): date, error, fix, lesson.
 2. If the lesson generalizes, add or update a rule in `SKILL.md`.
 
+## Available Handoffs
+
+- **🏗️ Plan this first** — Before writing code, hand off to Architect to review design.
+- **🧪 Test the result** — After implementation, hand off to Tester for validation.
+- **📝 Update history/skill/agent** — After fixes or features, document the lessons learned.
+- **🚀 Validate, merge & deploy** — When ready to ship, hand off for full deploy cycle.
+
 ## Role
 
 - Read before writing — always understand existing code before modifying it

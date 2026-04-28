@@ -3,6 +3,36 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-28 — Agent handoff 功能實現：.prompt.md vs .agent.md 混淆
+**錯誤：** 設計了兩個工作流（update-history 和 validate-deploy），創建了 `.prompt.md` 文件並在 6 個 agent 的 `handoffs:` 中引用，但 handoff 按鈕在 VS Code 中沒有出現。
+
+**根本原因：** VS Code Copilot Chat 的 `handoffs:` frontmatter 中的 `agent:` 字段**必須指向 `.agent.md` 文件的 name**，不能指向 `.prompt.md` 文件。`.prompt.md` 文件是獨立的 `/` 命令任務，不是 agent。
+
+**修復方法：**
+1. 刪除 `.github/prompts/update-history-skill-agent.prompt.md` 和 `validate-merge-deploy.prompt.md`
+2. 創建 `.github/agents/update-history-agent.agent.md` 和 `.github/agents/validate-merge-deploy.agent.md`
+3. 設置 `user-invocable: false`（只通過 handoff 調用，不在 agent 選擇器中顯示）
+4. 在 6 個主要 agent 的 handoff 中添加 `prompt:` 字段（預填中文指令）
+
+**Lesson：**
+1. **Custom agents 有三種引用方式**：
+   - `.prompt.md` → 通過 `/` 命令或 `/prompts` 調用，獨立任務
+   - `.agent.md` → 通過 agent 選擇器調用或作為 handoff 目標，持久化角色
+   - Handoff 中的 `agent:` 只能指向 `.agent.md` 文件，不能指向 prompt
+
+2. **Handoff 完整格式**：
+   ```yaml
+   handoffs:
+     - label: "按鈕文字"
+       agent: AgentNameFromFile
+       prompt: "預填指令"
+       send: false  # 可選，false=用戶點擊後需手動發送
+       model: "Claude Sonnet 4.5 (copilot)"  # 可選
+   ```
+
+3. **工作流設計需考慮調用方式**：若需通過 handoff 按鈕一鍵調用，必須建立 `.agent.md`；若僅作偶發任務，`.prompt.md` 足夠。
+
+---
 ## 2026-04-28 — Reviewed 活動缺翻譯：annotator 永久跳過 reviewed 狀態導致翻譯缺漏
 **錯誤：** 11 個活動被標記為 `reviewed` 後，`name_zh` / `name_en` 仍為 NULL。後台顯示活動標題為空白，前台無法正確顯示語言版本。
 

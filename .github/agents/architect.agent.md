@@ -28,6 +28,15 @@ Plans architecture, development roadmaps, and technical design for Tokyo Taiwan 
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top): date, error, fix, lesson.
 2. If the lesson generalizes, add or update a rule in `SKILL.md`.
 
+## Handoff Workflows
+
+Two persistent workflow agents are available as handoffs:
+
+- **📝 Update history/skill/agent** — After fixing bugs or implementing features, hand off to document the lessons learned in `history.md`, update rules in `SKILL.md`, and modify agent instructions if needed.
+- **🚀 Validate, merge & deploy** — After implementation completes, hand off for full validation cycle: conflict checking → rebase → commit → push → Vercel verification.
+
+Both agents have `user-invocable: false` and are only accessible via handoff buttons. For details on handoff design patterns, see `.github/skills/agents/architect/SKILL.md` § Agent Handoff Design.
+
 ## Role
 
 - Analyse the current codebase and infrastructure before proposing changes
