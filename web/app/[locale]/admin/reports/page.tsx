@@ -36,7 +36,7 @@ export default async function AdminReportsPage({ params }: PageProps) {
 
   const { data: reports } = await supabase
     .from("event_reports")
-    .select("*, events(name_ja, name_zh, name_en, source_url, source_name, category, start_date, end_date, location_name, location_name_zh, location_name_en, location_address, location_address_zh, location_address_en, business_hours, business_hours_zh, business_hours_en, is_paid, price_info, description_ja, description_zh, description_en)")
+    .select("*, events(name_ja, name_zh, name_en, source_url, source_name, category, start_date, end_date, location_name, location_name_zh, location_name_en, location_address, location_address_zh, location_address_en, business_hours, business_hours_zh, business_hours_en, is_paid, price_info, description_ja, description_zh, description_en, selection_reason)")
     .order("created_at", { ascending: false });
 
   return (

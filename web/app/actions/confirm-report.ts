@@ -46,8 +46,7 @@ interface ConfirmReportInput {
   correctCategory?: string[] | null;   // admin-selected (overrides suggestedCategory)
   suggestedCategory?: string[] | null; // user-submitted suggestion
   fieldCorrections?: Record<string, Record<string, string>>; // field → locale → corrected value
-  correctedSelectionReason?: string; // admin-confirmed correction for wrongSelectionReason
-  reportLocale?: string; // locale the user was viewing when they filed the report
+  correctedSelectionReason?: string; // pre-built JSON string {zh,en,ja} for wrongSelectionReason
 }
 
 interface ConfirmReportResult {
@@ -177,20 +176,10 @@ export async function confirmReport(
     eventUpdate["annotation_status"] = "pending";
   }
 
-  // Handle wrongSelectionReason: update selection_reason JSON for the report locale.
+  // Handle wrongSelectionReason: correctedSelectionReason is already a merged JSON string.
   // Does NOT touch annotation_status or is_active — the event data itself is still valid.
-  if (isWrongSelectionReason && input.correctedSelectionReason && input.reportLocale) {
-    const { data: evData } = await supabase
-      .from("events")
-      .select("selection_reason")
-      .eq("id", input.eventId)
-      .single();
-    let srObj: Record<string, string> = {};
-    if (evData?.selection_reason) {
-      try { srObj = JSON.parse(evData.selection_reason); } catch { /* keep empty */ }
-    }
-    srObj[input.reportLocale] = input.correctedSelectionReason;
-    eventUpdate["selection_reason"] = JSON.stringify(srObj);
+  if (isWrongSelectionReason && input.correctedSelectionReason) {
+    eventUpdate["selection_reason"] = input.correctedSelectionReason;
   }
 
   if (Object.keys(eventUpdate).length > 0) {

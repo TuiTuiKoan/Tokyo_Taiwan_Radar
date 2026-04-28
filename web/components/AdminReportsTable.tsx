@@ -40,6 +40,7 @@ export interface ReportRow {
     description_ja: string | null;
     description_zh: string | null;
     description_en: string | null;
+    selection_reason: string | null;
   } | null;
 }
 
@@ -104,7 +105,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [confirmFeedback, setConfirmFeedback] = useState<Record<string, { githubUpdated: boolean; wasReviewed?: boolean }>>({}); 
   const [correctCategory, setCorrectCategory] = useState<Record<string, string[]>>({});
   const [fieldEdits, setFieldEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});;
-  const [selectionReasonEdits, setSelectionReasonEdits] = useState<Record<string, string>>({});
+  const [selectionReasonEdits, setSelectionReasonEdits] = useState<Record<string, Record<string, string>>>({});
 
   function getEventName(row: ReportRow): string {
     const ev = row.events;
@@ -155,10 +156,31 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       mergedCorrections[field] = { ...(mergedCorrections[field] ?? {}), ...locales };
     }
 
-    // Extract selection reason correction
+    // Extract selection reason correction — user-submitted for report locale
     const srEntry = row.report_types.find((entry) => entry.startsWith("selectionReason:"));
-    const userSelectionReason = srEntry ? srEntry.slice("selectionReason:".length) : "";
-    const correctedSelectionReason = (selectionReasonEdits[row.id] ?? userSelectionReason).trim() || undefined;
+    const userSrText = srEntry ? srEntry.slice("selectionReason:".length) : "";
+    const reportLoc = row.locale ?? "ja";
+
+    // Build per-locale map: start from existing event data, apply user suggestion for report locale, then admin overrides
+    let existingSr: Record<string, string> = {};
+    if (row.events?.selection_reason) {
+      try { existingSr = JSON.parse(row.events.selection_reason); } catch { /* ignore */ }
+    }
+    const srLocales = ["zh", "en", "ja"];
+    const mergedSrCorrections: Record<string, string> = {};
+    for (const loc of srLocales) {
+      const adminVal = selectionReasonEdits[row.id]?.[loc];
+      if (adminVal !== undefined) {
+        mergedSrCorrections[loc] = adminVal;
+      } else if (loc === reportLoc && userSrText) {
+        mergedSrCorrections[loc] = userSrText;
+      } else if (existingSr[loc]) {
+        mergedSrCorrections[loc] = existingSr[loc];
+      }
+    }
+    const correctedSelectionReason = Object.keys(mergedSrCorrections).length > 0
+      ? JSON.stringify(mergedSrCorrections)
+      : undefined;
 
     const result = await confirmReport({
       reportId: row.id,
@@ -172,7 +194,6 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       suggestedCategory: row.suggested_category ?? null,
       fieldCorrections: mergedCorrections,
       correctedSelectionReason,
-      reportLocale: row.locale ?? undefined,
     });
     if (result.ok) {
       const updatedRow: ReportRow = {
@@ -411,17 +432,43 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                   </div>
                 )}
                 {row.report_types.includes("wrongSelectionReason") && (() => {
-                  const srE = row.report_types.find((entry) => entry.startsWith("selectionReason:"));
-                  const userSr = srE ? srE.slice("selectionReason:".length) : "";
+                  const srEntry = row.report_types.find((entry) => entry.startsWith("selectionReason:"));
+                  const userSrText = srEntry ? srEntry.slice("selectionReason:".length) : "";
+                  const reportLoc = row.locale ?? "ja";
+                  let existingSr: Record<string, string> = {};
+                  if (row.events?.selection_reason) {
+                    try { existingSr = JSON.parse(row.events.selection_reason); } catch { /* ignore */ }
+                  }
                   return (
                     <div>
                       <label className="text-xs text-gray-500 block mb-1">{t("selectionReasonCorrectionLabel")}</label>
-                      <textarea
-                        value={selectionReasonEdits[row.id] ?? userSr}
-                        onChange={(e) => setSelectionReasonEdits((p) => ({ ...p, [row.id]: e.target.value }))}
-                        rows={3}
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
-                      />
+                      <div className="space-y-1.5 bg-white border border-gray-200 rounded-lg p-3">
+                        {(["zh", "en", "ja"] as const).map((loc) => {
+                          const defaultVal =
+                            selectionReasonEdits[row.id]?.[loc] ??
+                            (loc === reportLoc ? userSrText : undefined) ??
+                            existingSr[loc] ??
+                            "";
+                          return (
+                            <div key={loc} className="flex gap-2 items-start">
+                              <span className="text-xs text-gray-400 text-right pt-1 shrink-0 w-12 leading-tight">
+                                {LOCALE_LABELS[loc]}
+                              </span>
+                              <textarea
+                                rows={2}
+                                value={defaultVal}
+                                onChange={(e) =>
+                                  setSelectionReasonEdits((p) => ({
+                                    ...p,
+                                    [row.id]: { ...(p[row.id] ?? {}), [loc]: e.target.value },
+                                  }))
+                                }
+                                className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })()}
