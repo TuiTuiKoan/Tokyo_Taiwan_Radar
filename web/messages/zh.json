@@ -295,7 +295,9 @@
     "rescrapeStarting": "啟動中…",
     "rescraping": "重爬中…",
     "rescrapeComplete": "重爬完成！",
-    "rescrapeProgress": "剩餘 {count} 筆 · 預估 {seconds} 秒"
+    "rescrapeProgress": "剩餘 {count} 筆 · 預估 {seconds} 秒",
+    "rescrapeErrorPrefix": "重爬失敗",
+    "rescrapeNoPending": "目前無待標注活動"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",

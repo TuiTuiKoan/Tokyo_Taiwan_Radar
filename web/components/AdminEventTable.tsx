@@ -34,6 +34,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [rescrapeState, setRescrapeState] = useState<"idle" | "starting" | "running" | "done">("idle");
   const [rescrapeInitialPending, setRescrapeInitialPending] = useState(0);
   const [rescrapeCurrentPending, setRescrapeCurrentPending] = useState(0);
+  const [rescrapeError, setRescrapeError] = useState<string | null>(null);
 
   // Inline filters
   const [filterQ, setFilterQ] = useState("");
@@ -86,23 +87,29 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
   async function handleRescrape() {
     setRescrapeState("starting");
+    setRescrapeError(null);
     try {
       const res = await fetch("/api/admin/annotate-now", { method: "POST" });
+      const data = await res.json();
       if (!res.ok) {
         setRescrapeState("idle");
+        setRescrapeError(data.error ?? `HTTP ${res.status}`);
+        setTimeout(() => setRescrapeError(null), 8000);
         return;
       }
-      const data = await res.json();
       const pending = data.initialPending as number;
       setRescrapeInitialPending(pending);
       setRescrapeCurrentPending(pending);
       if (pending === 0) {
-        setRescrapeState("idle");
+        setRescrapeState("done");
+        setTimeout(() => setRescrapeState("idle"), 3000);
         return;
       }
       setRescrapeState("running");
-    } catch {
+    } catch (err) {
       setRescrapeState("idle");
+      setRescrapeError(err instanceof Error ? err.message : "Network error");
+      setTimeout(() => setRescrapeError(null), 8000);
     }
   }
 
@@ -498,6 +505,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       )}
       {rescrapeState === "done" && (
         <div className="mb-4 text-xs text-green-600 font-medium">{t("rescrapeComplete")}</div>
+      )}
+      {rescrapeError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
+          ⚠ {t("rescrapeErrorPrefix")}: {rescrapeError}
+        </div>
       )}
 
       {/* New event inline form */}

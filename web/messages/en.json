@@ -295,7 +295,9 @@
     "rescrapeStarting": "Starting…",
     "rescraping": "Running…",
     "rescrapeComplete": "Done!",
-    "rescrapeProgress": "{count} remaining · ~{seconds}s"
+    "rescrapeProgress": "{count} remaining · ~{seconds}s",
+    "rescrapeErrorPrefix": "Annotator failed",
+    "rescrapeNoPending": "No pending events"
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",

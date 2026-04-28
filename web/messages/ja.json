@@ -295,7 +295,9 @@
     "rescrapeStarting": "起動中…",
     "rescraping": "処理中…",
     "rescrapeComplete": "完了！",
-    "rescrapeProgress": "残り {count} 件 · 約 {seconds} 秒"
+    "rescrapeProgress": "残り {count} 件 · 約 {seconds} 秒",
+    "rescrapeErrorPrefix": "処理失敗",
+    "rescrapeNoPending": "処理待ち活動なし"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",
