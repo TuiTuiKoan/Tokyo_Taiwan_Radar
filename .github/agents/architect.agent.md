@@ -9,6 +9,10 @@ handoffs:
   - label: "🔍 Research new sources"
     agent: Researcher
     prompt: "請研究並評估可新增的台灣相關活動來源。"
+  - label: "📝 Update history/skill/agent"
+    agent: Update History, Skill, Agent
+  - label: "🚀 Validate, merge & deploy"
+    agent: Validate, Merge & Deploy
 ---
 
 # Architect

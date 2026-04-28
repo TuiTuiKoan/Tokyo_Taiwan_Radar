@@ -12,6 +12,10 @@ handoffs:
     agent: Engineer
   - label: "🕷️ Fix scraper issues"
     agent: Scraper Expert
+  - label: "📝 Update history/skill/agent"
+    agent: Update History, Skill, Agent
+  - label: "🚀 Validate, merge & deploy"
+    agent: Validate, Merge & Deploy
 ---
 
 # Tester

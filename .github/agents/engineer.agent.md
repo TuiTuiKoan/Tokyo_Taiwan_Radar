@@ -7,6 +7,10 @@ handoffs:
     agent: Architect
   - label: "🧪 Test the result"
     agent: Tester
+  - label: "📝 Update history/skill/agent"
+    agent: Update History, Skill, Agent
+  - label: "🚀 Validate, merge & deploy"
+    agent: Validate, Merge & Deploy
 ---
 
 # Engineer

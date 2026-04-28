@@ -2,6 +2,11 @@
 name: Reviewer
 description: 定期復盤 Tokyo Taiwan Radar 的爬蟲健康、Skills 更新狀態、Agent scope overlap，輸出結構化 Markdown 報告
 ms.date: 2026-04-25
+handoffs:
+  - label: "📝 Update history/skill/agent"
+    agent: Update History, Skill, Agent
+  - label: "🚀 Validate, merge & deploy"
+    agent: Validate, Merge & Deploy
 ---
 
 # Reviewer

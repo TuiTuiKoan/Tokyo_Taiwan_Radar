@@ -11,6 +11,10 @@ handoffs:
     agent: Tester
   - label: "🏗️ Review architecture"
     agent: Architect
+  - label: "📝 Update history/skill/agent"
+    agent: Update History, Skill, Agent
+  - label: "🚀 Validate, merge & deploy"
+    agent: Validate, Merge & Deploy
 ---
 
 # Scraper Expert
