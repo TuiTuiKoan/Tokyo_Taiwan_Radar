@@ -246,7 +246,7 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     return cats
 
 
-def annotate_pending_events(re_annotate_all: bool = False, fix_translations: bool = False) -> None:
+def annotate_pending_events(re_annotate_all: bool = False, fix_translations: bool = False, fix_reviewed: bool = False) -> None:
     """Fetch pending events from DB, annotate with AI, and update."""
     sb = _get_supabase()
     ai = _get_openai()
@@ -273,19 +273,30 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     # Fetch events to annotate
     # Always exclude 'reviewed' events — they are human-confirmed and must not be
     # overwritten by AI even when --all is used.
-    query = sb.table("events").select("*").neq("annotation_status", "reviewed")
-    if re_annotate_all:
-        # --all: re-annotate all active non-reviewed events regardless of status
-        query = query.eq("is_active", True)
-    elif fix_translations:
-        # --fix-translations: re-annotate active events that are missing any zh/en field
-        query = query.eq("is_active", True).or_(
-            "name_zh.is.null,name_en.is.null,description_zh.is.null,description_en.is.null"
+    # Exception: --fix-reviewed specifically targets reviewed events missing translations.
+    if fix_reviewed:
+        # --fix-reviewed: fill translation fields for reviewed events that have name_zh or name_en missing.
+        # Does NOT touch category or status — reviewed status is preserved.
+        query = (
+            sb.table("events")
+            .select("*")
+            .eq("annotation_status", "reviewed")
+            .or_("name_zh.is.null,name_en.is.null")
         )
     else:
-        # default: process all pending events regardless of is_active.
-        # Inactive events may still need annotation when their raw data is corrected.
-        query = query.eq("annotation_status", "pending")
+        query = sb.table("events").select("*").neq("annotation_status", "reviewed")
+        if re_annotate_all:
+            # --all: re-annotate all active non-reviewed events regardless of status
+            query = query.eq("is_active", True)
+        elif fix_translations:
+            # --fix-translations: re-annotate active events that are missing any zh/en field
+            query = query.eq("is_active", True).or_(
+                "name_zh.is.null,name_en.is.null,description_zh.is.null,description_en.is.null"
+            )
+        else:
+            # default: process all pending events regardless of is_active.
+            # Inactive events may still need annotation when their raw data is corrected.
+            query = query.eq("annotation_status", "pending")
 
     result = query.order("created_at", desc=True).execute()
     events = result.data
@@ -371,27 +382,42 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 s = _loc(val)
                 return s.translate(_LOC_ZH_SIMP_TO_TRAD) if s else None
 
-            update_data: dict[str, Any] = {
-                "name_ja": _str(annotation.get("name_ja")) or raw_title,
-                "name_zh": _str(annotation.get("name_zh")),
-                "name_en": _str(annotation.get("name_en")),
-                "description_ja": _str(annotation.get("description_ja")),
-                "description_zh": _str(annotation.get("description_zh")),
-                "description_en": _str(annotation.get("description_en")),
-                "category": categories,
-                # Preserve scraper-set dates when GPT returns null — GPT may fail to
-                # extract dates from long descriptions, but the scraper already found
-                # and prepended them in 開催日時: format.
-                "start_date": annotation.get("start_date") or event.get("start_date"),
-                "end_date": annotation.get("end_date") or event.get("end_date"),
-                "location_name": _loc(annotation.get("location_name")) or _loc(event.get("location_name")),
-                "location_address": _loc(annotation.get("location_address")) or _loc(event.get("location_address")),
-                "business_hours": annotation.get("business_hours") or event.get("business_hours"),
-                "is_paid": annotation.get("is_paid") if annotation.get("is_paid") is not None else event.get("is_paid"),
-                "price_info": annotation.get("price_info") or event.get("price_info"),
-                "annotation_status": "annotated",
-                "annotated_at": datetime.utcnow().isoformat(),
-            }
+            if fix_reviewed:
+                # --fix-reviewed mode: only write translation fields; preserve
+                # annotation_status='reviewed', category, dates, and all other
+                # human-confirmed fields.
+                update_data: dict[str, Any] = {
+                    "name_zh": _str(annotation.get("name_zh")),
+                    "name_en": _str(annotation.get("name_en")),
+                    "description_zh": _str(annotation.get("description_zh")),
+                    "description_en": _str(annotation.get("description_en")),
+                    "annotation_status": "reviewed",  # keep reviewed — do NOT downgrade
+                    "annotated_at": datetime.utcnow().isoformat(),
+                }
+                # Remove keys whose value is None so we don't clobber existing data
+                update_data = {k: v for k, v in update_data.items() if v is not None or k == "annotation_status"}
+            else:
+                update_data: dict[str, Any] = {
+                    "name_ja": _str(annotation.get("name_ja")) or raw_title,
+                    "name_zh": _str(annotation.get("name_zh")),
+                    "name_en": _str(annotation.get("name_en")),
+                    "description_ja": _str(annotation.get("description_ja")),
+                    "description_zh": _str(annotation.get("description_zh")),
+                    "description_en": _str(annotation.get("description_en")),
+                    "category": categories,
+                    # Preserve scraper-set dates when GPT returns null — GPT may fail to
+                    # extract dates from long descriptions, but the scraper already found
+                    # and prepended them in 開催日時: format.
+                    "start_date": annotation.get("start_date") or event.get("start_date"),
+                    "end_date": annotation.get("end_date") or event.get("end_date"),
+                    "location_name": _loc(annotation.get("location_name")) or _loc(event.get("location_name")),
+                    "location_address": _loc(annotation.get("location_address")) or _loc(event.get("location_address")),
+                    "business_hours": annotation.get("business_hours") or event.get("business_hours"),
+                    "is_paid": annotation.get("is_paid") if annotation.get("is_paid") is not None else event.get("is_paid"),
+                    "price_info": annotation.get("price_info") or event.get("price_info"),
+                    "annotation_status": "annotated",
+                    "annotated_at": datetime.utcnow().isoformat(),
+                }
 
             # Localized location/hours fields added in migration 010.
             # Kept separate so the primary update above never fails on old DB schemas.
@@ -406,8 +432,8 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             # Only send non-null values
             localized_location_data = {k: v for k, v in localized_location_data.items() if v is not None}
 
-            # Ensure end_date is not null when start_date exists
-            if update_data["start_date"] and not update_data["end_date"]:
+            # Ensure end_date is not null when start_date exists (skip in fix_reviewed mode)
+            if not fix_reviewed and update_data.get("start_date") and not update_data.get("end_date"):
                 update_data["end_date"] = update_data["start_date"]
 
             # Try to include selection_reason (column may not exist yet)
@@ -511,7 +537,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             "openai_tokens_out": total_tokens_out,
             "cost_usd": round(cost, 6),
             "duration_seconds": int(time.time() - annotation_start),
-            "notes": f"re_annotate_all={re_annotate_all}, fix_translations={fix_translations}, total={len(events)}",
+            "notes": f"re_annotate_all={re_annotate_all}, fix_translations={fix_translations}, fix_reviewed={fix_reviewed}, total={len(events)}",
         }).execute()
         logger.info(
             "scraper_runs logged: %d events, %d in / %d out tokens, $%.6f",
@@ -532,4 +558,5 @@ if __name__ == "__main__":
 
     re_all = "--all" in sys.argv
     fix_tr = "--fix-translations" in sys.argv
-    annotate_pending_events(re_annotate_all=re_all, fix_translations=fix_tr)
+    fix_rev = "--fix-reviewed" in sys.argv
+    annotate_pending_events(re_annotate_all=re_all, fix_translations=fix_tr, fix_reviewed=fix_rev)

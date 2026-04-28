@@ -65,16 +65,17 @@ Read this at the start of every session before producing any plan.
 - **Scraper / DB / Agent 等非 web commit 不得修改 `web/messages/*.json`**。如果 AI 在同一 commit 中捆綁了翻譯修改，必須 split commit 或手動 revert 翻譯部分。
 - 每次修改翻譯後，執行 key 完整性驗證：
   ```bash
-  python3 -c "
-  import json; zh=json.load(open('web/messages/zh.json')); en=json.load(open('web/messages/en.json')); ja=json.load(open('web/messages/ja.json'))
-  def flat(d,p=''): return {(p+'.'+k if p else k):v for k,v in d.items() for k,v in (flat(v,p+'.'+k) if isinstance(v,dict) else {k:v}).items()} if False else {(p+'.'+k if p else k): v for k,v in d.items() if not isinstance(v,dict)} | ({} if True else {}) | (flat(v, (p+'.'+k if p else k)) for k,v in d.items() if isinstance(v,dict))
-  # 快速比對法
-  missing=[k for k in zh if k not in en or k not in ja] ; print('Missing:', missing[:10] if missing else 'OK')
-  "
+  python3 -c "import json; a=set(json.load(open('web/messages/zh.json')).keys()); b=set(json.load(open('web/messages/en.json')).keys()); c=set(json.load(open('web/messages/ja.json')).keys()); print('zh-en diff:', a-b); print('zh-ja diff:', a-c)"`
   ```
-  或更簡單：`python3 -c "import json; a=set(json.load(open('web/messages/zh.json')).keys()); b=set(json.load(open('web/messages/en.json')).keys()); c=set(json.load(open('web/messages/ja.json')).keys()); print('zh-en diff:', a-b); print('zh-ja diff:', a-c)"`
 - 若懷疑翻譯被洗掉，立即執行：`git log --oneline --since="3 days ago" -- 'web/messages/*.json'` 逐一檢查可疑 commit 的 diff（`git show <hash> -- 'web/messages/*.json' | grep '^-'`）。
 - **根本防護**：`categories` namespace 中的 group_ 標籤（`group_arts`/`group_lifestyle`/`group_knowledge`/`group_society`/`group_archive`）和晚期新增的子分類（`competition`/`indigenous`/`history`/`urban`/`workshop`）是歷史上最常被意外洗掉的 key，每次 web 功能發布前必須確認這些 key 存在。
+
+## Reviewed Event Translation Guard (CRITICAL)
+- **`reviewed` 狀態的活動不應有 `name_zh = NULL` 或 `name_en = NULL`**。若有，後台 AdminEventTable 會顯示紅色 ⚠ 徽章提醒管理員。
+- **永遠不要在翻譯欄位未填齊的情況下將活動標記為 `reviewed`**。完整欄位清單：`name_zh`、`name_en`（必要）；`description_zh`、`description_en`（建議）。
+- `annotator.py` 的 `--fix-reviewed` 旗標可自動修復缺少翻譯的 reviewed 活動（僅補翻譯欄位，保留 category 和 `annotation_status = "reviewed"`）。
+- **daily CI 已設定每日自動執行 `python annotator.py --fix-reviewed`**，作為背景防護網。
+- 設計涉及 `annotation_status` 流程的功能時，必須考慮 reviewed 活動跳出翻譯流程的問題。
 ## Prompt Efficiency (User-Side Rules)
 
 When plans involve multiple similar tasks or iterative fixes, guide the user toward these batching patterns to avoid unnecessary tool overhead:

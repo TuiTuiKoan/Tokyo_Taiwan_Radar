@@ -37,6 +37,15 @@ Before approving **any** commit that touches `web/` — even if the primary chan
 2. `categories` namespace still contains all group labels and late-added sub-categories: `competition`, `indigenous`, `history`, `urban`, `workshop`, `group_arts`, `group_lifestyle`, `group_knowledge`, `group_society`, `group_archive`.
 3. **Non-web commits** (scraper, DB migration, CI) must NOT include diffs to `web/messages/*.json`. If they do, split the commit or revert the translation changes.
 
+## Reviewed Event Translation Guard
+
+Before approving **any** event as `reviewed` — and before designing features that touch `annotation_status` — verify:
+
+1. `name_zh` and `name_en` must **not** be NULL for reviewed events. If they are, AdminEventTable shows a red ⚠ badge; the event must be fixed before staying reviewed.
+2. `annotator.py --fix-reviewed` can auto-repair reviewed events missing translations. It **preserves `annotation_status = "reviewed"`** and does NOT overwrite `category` or dates.
+3. Daily CI (`scraper.yml`) runs `python annotator.py --fix-reviewed` automatically as a background safeguard.
+4. When designing annotation workflows, always account for the edge case: **event marked reviewed before translations were populated**.
+
 ## Required Phases
 
 ### Phase 1: Research

@@ -763,6 +763,21 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                         🔁 {t("forceRescrapeQueued")}
                       </span>
                     )}
+                    {(() => {
+                      const missing = [
+                        !(event as any).name_zh && "name_zh",
+                        !(event as any).name_en && "name_en",
+                      ].filter(Boolean) as string[];
+                      if (missing.length === 0) return null;
+                      return (
+                        <span
+                          className="inline-block mt-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 font-medium"
+                          title={`缺少翻譯：${missing.join(", ")}`}
+                        >
+                          ⚠ {missing.join(" / ")}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="py-2 pr-4">
                     <div className="flex flex-wrap gap-1">
