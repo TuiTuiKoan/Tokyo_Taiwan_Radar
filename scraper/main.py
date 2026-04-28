@@ -74,23 +74,8 @@ from sources.faam_fukuoka import FaamFukuokaScraper
 from sources.note_creators import NoteCreatorsScraper
 from sources.zinbun_kyoto import ZinbunKyotoScraper
 from sources.uplink_cinema import UplinkCinemaScraper
-from sources.eurospace import EurospaceScraper
-from sources.tokyoartbeat import TokyoArtBeatScraper
-from sources.hankyu_umeda import HankyuUmedaScraper
-from sources.daimaru_matsuzakaya import DaimaruMatsuzakayaScraper
-from sources.cinemarine import CineMarineScraper
-from sources.eslite_spectrum import EsliteSpectrumScraper
-from sources.moonromantic import MoonRomanticScraper
-from sources.morc_asagaya import MorcAsagayaScraper
-from sources.shin_bungeiza import ShinBungeizaScraper
-from sources.ssff import SsffScraper
-from sources.taiwan_faasai import TaiwanFaasaiScraper
-from sources.tokyo_filmex import TokyoFilmexScraper
-from sources.google_news_rss import GoogleNewsRssScraper
-from sources.nhk_rss import NhkRssScraper
-from sources.gguide_tv import GguideTvScraper
 from sources.base import dedup_events
-from database import upsert_events, _get_client
+from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
 from merger import run_merger
 
@@ -145,21 +130,6 @@ SCRAPERS = [
     NoteCreatorsScraper(),
     ZinbunKyotoScraper(),
     UplinkCinemaScraper(),
-    EurospaceScraper(),
-    TokyoArtBeatScraper(),
-    HankyuUmedaScraper(),
-    DaimaruMatsuzakayaScraper(),
-    CineMarineScraper(),
-    EsliteSpectrumScraper(),
-    MoonRomanticScraper(),
-    MorcAsagayaScraper(),
-    ShinBungeizaScraper(),
-    SsffScraper(),
-    TaiwanFaasaiScraper(),
-    TokyoFilmexScraper(),
-    GoogleNewsRssScraper(),
-    NhkRssScraper(),
-    GguideTvScraper(),
 ]
 
 
@@ -180,15 +150,14 @@ def _json_default(obj):
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 
-def run(dry_run: bool = False, sources: list[str] | None = None, rescrape_ids: list[str] | None = None) -> None:
+def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str] | None = None) -> None:
     active_scrapers = SCRAPERS
 
-    if sources:
-        source_set = set(sources)
-        active_scrapers = [s for s in SCRAPERS if _scraper_key(s) in source_set]
+    if source:
+        active_scrapers = [s for s in SCRAPERS if _scraper_key(s) == source]
         if not active_scrapers:
             available = ", ".join(_scraper_key(s) for s in SCRAPERS)
-            logger.error("Unknown source(s) %r. Available: %s", sources, available)
+            logger.error("Unknown source %r. Available: %s", source, available)
             sys.exit(1)
 
     all_events = []
@@ -270,6 +239,10 @@ def run(dry_run: bool = False, sources: list[str] | None = None, rescrape_ids: l
     logger.info("Running AI annotator on pending events...")
     annotate_pending_events()
 
+    # Auto-archive events whose end_date has passed
+    logger.info("Archiving ended events...")
+    archive_ended_events()
+
     logger.info("Done!")
 
 
@@ -283,9 +256,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--source",
         metavar="NAME",
-        action="append",
-        dest="sources",
-        help="Run named scraper(s); repeat to run multiple (e.g. --source peatix --source taiwan_cultural_center)",
+        help="Only run the named scraper (e.g. peatix, taiwan_cultural_center)",
     )
     parser.add_argument(
         "--rescrape-ids",
@@ -298,4 +269,4 @@ if __name__ == "__main__":
         ),
     )
     args = parser.parse_args()
-    run(dry_run=args.dry_run, sources=args.sources, rescrape_ids=args.rescrape_ids)
+    run(dry_run=args.dry_run, source=args.source, rescrape_ids=args.rescrape_ids)

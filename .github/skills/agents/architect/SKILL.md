@@ -22,6 +22,26 @@ Read this at the start of every session before producing any plan.
 1. Append an entry to `.github/skills/architect/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
 
+## SQL Privilege Syntax Guard
+- For PostgreSQL privilege statements, verify object-type syntax before finalizing migration SQL.
+- View privilege revocation should use `REVOKE ... ON TABLE <view_name> ...`, not `ON VIEW`.
+- For Supabase Security Advisor fixes, validate these statements line-by-line before execution:
+  - `GRANT ... ON ...`
+  - `REVOKE ... ON ...`
+  - `ALTER VIEW ... SET (...)`
+- If SQL Editor reports a syntax error, resolve by exact failing line first; do not change security model design until syntax is confirmed valid.
+
+## Supabase RPC Auth Context Guard
+- For `SECURITY DEFINER` RPC functions that gate admin access, do not rely only on `request.jwt.claim.sub`.
+- Use `auth.uid()` as the primary identity source for real app requests, then fallback to claim only for SQL Editor simulation: `coalesce(auth.uid(), v_sub::uuid)`.
+- Keep the function deterministic and explicit: `set search_path = pg_catalog`, schema-qualify cross-schema objects (`public.user_roles`, `auth.users`).
+- Preserve strict denial path: when no effective user id or role mismatch, raise `42501` (`admin privileges required`).
+- Before approving migration rollout, verify four cases:
+  - app admin request: PASS
+  - app non-admin request: DENY 42501
+  - SQL Editor with `request.jwt.claim.sub` set to admin uid: PASS
+  - SQL Editor without claim injection: DENY 42501
+
 ## Classifier Keywords
 - Avoid single-character or title words (博士, 先生, 教授) in category keyword lists — they appear as proper nouns (person names) and trigger false positives. Prefer compound terms: 「博士課程」「博士論文」「教授法」.
 - After adding a new category with new keywords, run a dry-run of `backfill_categories.py` and manually inspect every match before applying to DB.

@@ -25,6 +25,7 @@ tools: [read, search, execute, web]
 ### Step 3: Verify Changes
 1. 運行 `get_errors` 檢查語法錯誤（所有修改的文件）
 2. 簡要檢查提交消息格式（遵循 `.github/instructions/commit-message.instructions.md`）
+3. 若包含 Supabase migration，確認 migration 編號與 `.github/instructions/database.instructions.md` 的 latest 標記一致
 
 ### Step 4: Commit & Push
 1. 使用原子化、描述清楚的提交消息
@@ -35,6 +36,7 @@ tools: [read, search, execute, web]
 1. 確認 Vercel 部署已觸發（檢查 GitHub 動作日誌或 Vercel dashboard）
 2. 確認部署完成且無錯誤
 3. 可選：檢查 https://tokyotaiwanradar.vercel.app/ 是否顯示最新變更
+4. 若含 Supabase migration，明確回報「需在 Supabase SQL Editor 手動執行」與最小驗證清單（admin pass / non-admin deny）
 
 ## 成功指標
 - ✅ 無衝突或已解決

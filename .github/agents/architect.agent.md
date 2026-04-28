@@ -23,6 +23,8 @@ Plans architecture, development roadmaps, and technical design for Tokyo Taiwan 
 
 ## Session Start Checklist
 1. Read `.github/skills/agents/architect/SKILL.md` — apply all rules before starting.
+2. If the task includes SQL migration text, perform a quick PostgreSQL syntax sanity check on privilege statements (`GRANT`/`REVOKE`/`ALTER VIEW`) before handing off.
+3. If the task includes Supabase admin RPC auth gate logic, require auth-context sanity check (`auth.uid()` primary, claim fallback for SQL Editor) in the plan.
 
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top): date, error, fix, lesson.

@@ -104,6 +104,8 @@ These were regressed at least twice when unrelated changes overwrote them. The `
 
 **Column pairing rule:** When adding or removing a `<th>` column, always add or remove the matching `<td>` in the same commit. TypeScript does not detect thead/tbody column count mismatches. This caused an orphaned `is_paid` `<td>` (commit `5597150`) after its `<th>` was already removed.
 
+**Dual-view sync rule:** `AdminEventTable.tsx` renders two views: **annotated** and **raw**. Any column addition or removal must be applied to **all 4 locations** — annotated `<thead>`, annotated `<tbody>`, raw `<thead>`, raw `<tbody>` — in the same commit. Forgetting one view causes column count mismatches that TypeScript does not catch.
+
 **Address cell fallback rule:** The address `<td>` must use `event.location_address || event.location_address_zh || event.location_name`. Never read a single field. Any locale-aware field displayed in admin must apply the same fallback chain as the corresponding helper in `lib/types.ts`.
 
 **Filter-option sync rule — closed sets:** Any `<select>` filter whose options come from a **closed** canonical set (e.g. `annotation_status`, `category`) must list **every** value in that set as an `<option>`. When a new value is added to a TypeScript union, DB enum, or i18n file, the corresponding `<option>` element must be added in the same commit. TypeScript does not detect missing dropdown options.
@@ -115,6 +117,21 @@ Array.from(new Set(events.map(e => e.source_name))).sort()
 A hardcoded `source_name` list will silently omit new scrapers and require a code change for every new source. This was fixed in commit `fe1b39e` after 10+ scrapers were added without appearing in the filter.
 
 **Annotation status label consistency rule:** One status value = one i18n key, used consistently in **all** display surfaces: badge (`getAnnotationLabel`), filter dropdown `<option>`, any column header. Use the **short-form keys**: `t("filterAnnotatedShort")`, `t("filterReviewedShort")`, `t("filterErrorShort")`, `t("filterPendingShort")`. The long-form family (`annotated`, `reviewed`, `error`, `pending`) has been deleted — do not recreate it.
+
+## Multilingual Field UI Rule
+
+Any UI that allows editing or correcting **multilingual fields** (`selection_reason`, `name_*`, `description_*`) **must be designed as a 3-language form (zh / en / ja) from the start.** Never build a single-language version first and plan to add the others later — this guarantees a re-write.
+
+**Pattern for `selection_reason` correction UI:**
+1. Parse existing `selection_reason` JSON from the event (fallback to `{}` if null/invalid).
+2. Render 3 `<textarea>` fields — one per locale — pre-filled with existing values.
+3. If a user-submitted correction exists for a specific locale, **override that textarea's pre-fill** with the user's text.
+4. On submit, build the full 3-locale JSON object and send it as a pre-built JSON string to the server action / API route.
+5. The server action writes the JSON string directly to the DB field — do NOT reconstruct it server-side.
+
+**Applies to:** `AdminReportsTable.tsx`, any future "suggest correction" UI for name/description fields.
+
+**Supabase query sync rule:** When a new field is needed by a component, add it to the Supabase `select()` query AND the corresponding TypeScript interface in the same commit. TypeScript does not know which columns Supabase actually returns at runtime.
 
 ## React / Form Pitfalls
 

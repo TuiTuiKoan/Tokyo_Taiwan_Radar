@@ -31,6 +31,10 @@ disable-model-invocation: false
    - 如果規則影響 agent 的行為，更新相應 Agent 的 Required Steps 或前置檢查
    - 參考 `.github/agents/*.agent.md`
 
+5. **補齊驗證語境**:
+   - 若此次修復涉及 Supabase migration 或 RPC 權限，補上「app request 與 SQL Editor 模擬」兩種語境的驗證教訓
+   - 若涉及 migration 序號，確認 `.github/instructions/database.instructions.md` 的 latest 標記同步
+
 5. **列出所有變更**:
    - 明確回傳修改了哪些文件
    - 提供每個變更的摘要

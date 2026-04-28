@@ -1,4 +1,26 @@
 ---
+## 2026-04-29 — AdminEventTable 欄位異動：thead/tbody 雙 view 同步遺漏
+
+**Error:** 修改 `AdminEventTable.tsx` 欄位（新增 `scraped_at`、移除 `source_url`、移除 `is_paid`）時，如未同時處理 annotated view 和 raw view 的 `<thead>` 和 `<tbody>`，會導致欄數不匹配，或其中一個 view 顯示錯誤欄位。
+**Fix:** 逐項確認兩個 view 的 thead 與 tbody 都對應修改，`scraped_at` 欄位在兩個 view 均可排序。
+**Lesson:** `AdminEventTable.tsx` 的欄位異動必須同時更新 **annotated view 和 raw view** 的 `<thead>` 和 `<tbody>`，共 4 個位置。TypeScript 不偵測 thead/tbody 欄數不匹配。→ Updated "Column pairing rule" in engineer/SKILL.md.
+
+---
+## 2026-04-29 — reports/page.tsx query 缺少 selection_reason 欄位，TypeScript interface 未同步
+
+**Error:** `AdminReportsTable` 需要讀取 `selection_reason` 來預填三語修正 textarea，但 `reports/page.tsx` 的 Supabase query 未 select 該欄位，且 `ReportRow` TypeScript interface 亦未宣告此欄位，導致 `undefined` 靜默流入 UI。
+**Fix:** 在 `reports/page.tsx` events join query 新增 `selection_reason`，並在 `ReportRow` interface 新增 `selection_reason: string | null`。
+**Lesson:** 新增 join 欄位時，**Supabase query 與對應的 TypeScript interface 必須同一 commit 同步更新**。TypeScript 不知道 Supabase query 實際回傳哪些欄位。
+
+---
+## 2026-04-29 — 多語言修正 UI：第一版只做單語 textarea 需重寫
+
+**Error:** 設計「選取理由不準確」報告審核 UI 時，第一版實作為單一 textarea（預填 report locale 的修正文字），送出後覆蓋整個 `selection_reason` JSON，導致另外兩個 locale 的文字被空值覆蓋。
+**Root cause:** `selection_reason` 是 JSON 物件，包含 zh/en/ja 三欄。沒有同時處理三語 = 靜默資料損失。
+**Fix:** 重寫為 3 個 textarea，各自預填現有 `selection_reason` 對應 locale，用戶修正文字優先覆蓋 report locale 那欄，其餘保留現有值。`confirm-report.ts` 接收 pre-built JSON 字串直接 update。
+**Lesson:** 任何涉及多語欄位（`selection_reason`、`name_*`、`description_*`）的修正 UI 必須一次做成三語版，不能先做單語再補。→ Added "Multilingual Field UI Rule" to engineer/SKILL.md.
+
+---
 ## 2026-04-29 — scrape-status/route.ts 被遺漏在 commit 之外
 
 **Error:** commit `470404d`（admin on-demand rescrape 功能）實作了 `AdminSourcesTable.tsx` 中呼叫 `/api/admin/scrape-status` 的 polling 邏輯，但 `web/app/api/admin/scrape-status/route.ts` 是未追蹤的新目錄，`git add` 未涵蓋它，導致整個功能推送後 endpoint 不存在（runtime 404）。
