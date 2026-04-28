@@ -281,7 +281,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                                       {isEditable && (
                                         <input
                                           type={inputType}
-                                          value={fieldEdits[row.id]?.[field]?.[loc] ?? ""}
+                                          value={fieldEdits[row.id]?.[field]?.[loc] ?? userEditsForField[loc] ?? ""}
                                           onChange={(e) =>
                                             setFieldEdits((p) => ({
                                               ...p,
