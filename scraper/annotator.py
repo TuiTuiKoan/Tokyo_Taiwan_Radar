@@ -246,7 +246,7 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     return cats
 
 
-def annotate_pending_events(re_annotate_all: bool = False) -> None:
+def annotate_pending_events(re_annotate_all: bool = False, fix_translations: bool = False) -> None:
     """Fetch pending events from DB, annotate with AI, and update."""
     sb = _get_supabase()
     ai = _get_openai()
@@ -271,13 +271,20 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
         logger.info("Loaded %d human-corrected category overrides", len(human_category_map))
 
     # Fetch events to annotate
-    # Always filter is_active=True so soft-deleted events are never re-processed.
     # Always exclude 'reviewed' events — they are human-confirmed and must not be
     # overwritten by AI even when --all is used.
-    query = sb.table("events").select("*").eq("is_active", True).neq("annotation_status", "reviewed")
+    query = sb.table("events").select("*").neq("annotation_status", "reviewed")
     if re_annotate_all:
-        pass  # annotate all active non-reviewed events regardless of status
+        # --all: re-annotate all active non-reviewed events regardless of status
+        query = query.eq("is_active", True)
+    elif fix_translations:
+        # --fix-translations: re-annotate active events that are missing any zh/en field
+        query = query.eq("is_active", True).or_(
+            "name_zh.is.null,name_en.is.null,description_zh.is.null,description_en.is.null"
+        )
     else:
+        # default: process all pending events regardless of is_active.
+        # Inactive events may still need annotation when their raw data is corrected.
         query = query.eq("annotation_status", "pending")
 
     result = query.order("created_at", desc=True).execute()
@@ -504,7 +511,7 @@ def annotate_pending_events(re_annotate_all: bool = False) -> None:
             "openai_tokens_out": total_tokens_out,
             "cost_usd": round(cost, 6),
             "duration_seconds": int(time.time() - annotation_start),
-            "notes": f"re_annotate_all={re_annotate_all}, total={len(events)}",
+            "notes": f"re_annotate_all={re_annotate_all}, fix_translations={fix_translations}, total={len(events)}",
         }).execute()
         logger.info(
             "scraper_runs logged: %d events, %d in / %d out tokens, $%.6f",
@@ -524,4 +531,5 @@ if __name__ == "__main__":
     )
 
     re_all = "--all" in sys.argv
-    annotate_pending_events(re_annotate_all=re_all)
+    fix_tr = "--fix-translations" in sys.argv
+    annotate_pending_events(re_annotate_all=re_all, fix_translations=fix_tr)
