@@ -1,12 +1,12 @@
 """
 Scraper for iwafu.com — Japanese event discovery platform.
 
-Searches for Taiwan-related events in the Tokyo area.
+Searches for Taiwan-related events across all of Japan（全日本）.
 
 Strategy:
   1. Fetch paginated search results (keyword=台湾) with Playwright (JS rendering)
   2. Parse event cards: date range, title, description snippet, prefecture, location
-  3. Filter to events where prefecture == 東京
+  3. No prefecture filter — all regions (Tokyo, Osaka, Fukuoka, Sapporo, etc.) included
   4. Visit each detail page for full description
   5. source_id = "iwafu_{numeric_id}" (stable across runs)
 """
@@ -162,7 +162,7 @@ def _extract_station_hint(lines: list[str]) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 class IwafuScraper(BaseScraper):
-    """Scrapes Taiwan-related events in Tokyo from iwafu.com."""
+    """Scrapes Taiwan-related events across all of Japan from iwafu.com."""
 
     SOURCE_NAME = "iwafu"
 
