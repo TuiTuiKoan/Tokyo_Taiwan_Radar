@@ -27,7 +27,9 @@
     "allLocations": "全部地點",
     "locationTokyo": "日本東京",
     "locationOtherJapan": "日本其他城市",
-    "locationTaiwan": "台灣"
+    "locationTaiwan": "台灣",
+    "timeModeAll": "全部",
+    "locationOnline": "線上"
   },
   "categories": {
     "movie": "電影",
@@ -46,7 +48,17 @@
     "taiwan_japan": "台日交流",
     "business": "商務",
     "academic": "學術",
-    "report": "活動紀錄"
+    "report": "活動紀錄",
+    "competition": "競技・競賽",
+    "indigenous": "原住民",
+    "history": "歷史・文化遺產",
+    "urban": "建築・城市",
+    "workshop": "體驗・工作坊",
+    "group_arts": "五感",
+    "group_lifestyle": "生活風格",
+    "group_knowledge": "知識交流",
+    "group_society": "社會",
+    "group_archive": "紀錄"
   },
   "event": {
     "source": "資料來源",
@@ -244,7 +256,32 @@
     "creatorCategoryMedia": "媒體",
     "creatorNatTaiwanese": "在日台灣人",
     "creatorNatJapanese": "日本人",
-    "creatorNatOther": "其他"
+    "creatorNatOther": "其他",
+    "source": "來源",
+    "annotationLabel": "標註",
+    "annotationStatusLabel": "標註狀態",
+    "scrapedAt": "爬取時間",
+    "filterAnnotatedShort": "AI",
+    "filterReviewedShort": "人工",
+    "filterErrorShort": "失敗",
+    "filterPendingShort": "待命",
+    "selectAll": "全選",
+    "bulkHide": "隱藏",
+    "bulkShow": "開放",
+    "bulkForceRescrape": "排程重爬",
+    "forceRescrapeOn": "排程重爬",
+    "forceRescrapeOff": "取消重爬排程",
+    "forceRescrapeQueued": "已排程重爬",
+    "statsTotalEventsLabel": "活動總數",
+    "statsActiveCount": "開放中 {count} 筆",
+    "statsPendingLabel": "待標注",
+    "statsUsersLabel": "用戶數",
+    "statsUsersDesc": "已註冊用戶",
+    "statsReportsLabel": "待處理回報",
+    "statsReportsDesc": "用戶問題提報",
+    "pendingSummaryInactiveOnly": "有 {count} 筆已關閉活動仍在待標注",
+    "bulkCommonCategories": "共通分類",
+    "bulkRemoveCategoryHint": "點擊從所選活動移除此分類"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",

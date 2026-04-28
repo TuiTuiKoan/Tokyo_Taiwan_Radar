@@ -60,7 +60,21 @@ Read this at the start of every session before producing any plan.
 - Module-level consts that include translated strings CANNOT use `useTranslations()` (React hook rules). Either move the const inside the component function, or pass the translation function as a parameter.
 - Every new i18n key must be added to ALL THREE `messages/*.json` files simultaneously — never add to just zh.json.
 - When an admin page uses `getTranslations("admin")`, check if it also needs `getTranslations("general")` for shared strings (footer, error banners).
-
+## i18n Regression Prevention (CRITICAL)
+- **翻譯 JSON 只能新增、修改，絕不刪除 key**，除非確認全 codebase 所有 TSX/TS 都已移除該 key 的引用。
+- **Scraper / DB / Agent 等非 web commit 不得修改 `web/messages/*.json`**。如果 AI 在同一 commit 中捆綁了翻譯修改，必須 split commit 或手動 revert 翻譯部分。
+- 每次修改翻譯後，執行 key 完整性驗證：
+  ```bash
+  python3 -c "
+  import json; zh=json.load(open('web/messages/zh.json')); en=json.load(open('web/messages/en.json')); ja=json.load(open('web/messages/ja.json'))
+  def flat(d,p=''): return {(p+'.'+k if p else k):v for k,v in d.items() for k,v in (flat(v,p+'.'+k) if isinstance(v,dict) else {k:v}).items()} if False else {(p+'.'+k if p else k): v for k,v in d.items() if not isinstance(v,dict)} | ({} if True else {}) | (flat(v, (p+'.'+k if p else k)) for k,v in d.items() if isinstance(v,dict))
+  # 快速比對法
+  missing=[k for k in zh if k not in en or k not in ja] ; print('Missing:', missing[:10] if missing else 'OK')
+  "
+  ```
+  或更簡單：`python3 -c "import json; a=set(json.load(open('web/messages/zh.json')).keys()); b=set(json.load(open('web/messages/en.json')).keys()); c=set(json.load(open('web/messages/ja.json')).keys()); print('zh-en diff:', a-b); print('zh-ja diff:', a-c)"`
+- 若懷疑翻譯被洗掉，立即執行：`git log --oneline --since="3 days ago" -- 'web/messages/*.json'` 逐一檢查可疑 commit 的 diff（`git show <hash> -- 'web/messages/*.json' | grep '^-'`）。
+- **根本防護**：`categories` namespace 中的 group_ 標籤（`group_arts`/`group_lifestyle`/`group_knowledge`/`group_society`/`group_archive`）和晚期新增的子分類（`competition`/`indigenous`/`history`/`urban`/`workshop`）是歷史上最常被意外洗掉的 key，每次 web 功能發布前必須確認這些 key 存在。
 ## Prompt Efficiency (User-Side Rules)
 
 When plans involve multiple similar tasks or iterative fixes, guide the user toward these batching patterns to avoid unnecessary tool overhead:

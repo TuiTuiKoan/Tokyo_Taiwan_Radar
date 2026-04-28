@@ -29,6 +29,14 @@ Plans architecture, development roadmaps, and technical design for Tokyo Taiwan 
 - Write detailed, actionable plans that the Engineer can execute without ambiguity
 - Review PRs and branches at a high level; flag risks before merging
 
+## i18n Regression Guard
+
+Before approving **any** commit that touches `web/` — even if the primary change is unrelated to translations — verify:
+
+1. No `web/messages/*.json` keys were removed (run `git show <hash> -- 'web/messages/*.json' | grep '^-'` and confirm all removals are intentional).
+2. `categories` namespace still contains all group labels and late-added sub-categories: `competition`, `indigenous`, `history`, `urban`, `workshop`, `group_arts`, `group_lifestyle`, `group_knowledge`, `group_society`, `group_archive`.
+3. **Non-web commits** (scraper, DB migration, CI) must NOT include diffs to `web/messages/*.json`. If they do, split the commit or revert the translation changes.
+
 ## Required Phases
 
 ### Phase 1: Research

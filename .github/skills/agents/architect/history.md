@@ -3,6 +3,23 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-28 — 翻譯大規模回歸：scraper commit 意外洗掉 web/messages
+**錯誤：** commit `1d3cd1c`（標題：fix scraper expand taiwan_matsuri）在修改 scraper 的同時，把 `web/messages/zh/en/ja.json` 覆蓋成舊版快照，將之前四、五個翻譯 commit 的成果全部洗掉。受害清單：
+- `categories` 遺失：`competition`、`indigenous`、`history`、`urban`、`workshop`、全部 `group_*` 群組標籤（5 個）
+- `categories` 標籤值還原為舊版：`performing_arts` en/ja、`geopolitics` en/ja
+- `filters` 遺失：`timeModeAll`、`locationOnline`
+- `admin` 遺失：`source`、`annotationLabel`、`annotationStatusLabel`、`scrapedAt`、`filterAnnotatedShort/ReviewedShort/ErrorShort/PendingShort`、`selectAll`、`bulkHide/Show`、`bulkForceRescrape`、`forceRescrapeOn/Off/Queued`、`statsTotalEventsLabel`、`statsActiveCount`、`statsPendingLabel`、`statsUsersLabel/Desc`、`statsReportsLabel/Desc`、`pendingSummaryInactiveOnly`、`bulkCommonCategories/Hint`
+
+**根本原因：** AI 在大 context 中同時持有新舊版翻譯快照，將舊版本作為整份 JSON 輸出，覆蓋了所有中間的增量改動。
+
+**修復：** 以 Python 腳本從 `b5a574a` / `65b90ca` / `471b66d` commit 取回正確值，逐一 merge 回三個語言檔案，並以 assert 驗證後 push。
+
+**Lesson：**
+1. **Scraper / non-web commit 絕不應修改 `web/messages/*.json`**
+2. 翻譯 key 只增不減；刪除 key 前必須確認 codebase 無任何引用
+3. 規則已寫入 SKILL.md §i18n Regression Prevention
+
+---
 ## 2025-05-04 — Session 61b5118d 效率復盤：三個高工具數反模式
 **觀察：** session `61b5118d` 共 54 回合、945 次工具呼叫，平均 17.5 次/回合（正常 < 12）。
 分析出三個反模式：
