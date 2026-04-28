@@ -86,7 +86,12 @@
     "statusPending": "Pending",
     "statusAnnotated": "Processed",
     "statusError": "Error",
-    "category": "Category"
+    "category": "Category",
+    "recordLinksSection": "Reports & Records",
+    "recordLinksAdd": "Add Link",
+    "recordLinksRemove": "Remove",
+    "recordLinksLinkTitle": "Title",
+    "recordLinksUrl": "URL"
   },
   "auth": {
     "loginTitle": "Login",

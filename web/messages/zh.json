@@ -86,7 +86,12 @@
     "statusPending": "待處理",
     "statusAnnotated": "已整理",
     "statusError": "處理失敗",
-    "category": "活動類別"
+    "category": "活動類別",
+    "recordLinksSection": "報導・活動紀錄",
+    "recordLinksAdd": "新增連結",
+    "recordLinksRemove": "移除",
+    "recordLinksLinkTitle": "標題",
+    "recordLinksUrl": "連結網址"
   },
   "auth": {
     "loginTitle": "登入",

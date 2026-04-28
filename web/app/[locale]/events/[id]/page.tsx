@@ -231,18 +231,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                       {t("viewOriginal")} ↗
                     </a>
                   ) : null}
-                  {(event as Event).secondary_source_urls?.map((url: string, idx: number) => (
-                    <a
-                      key={idx}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-500 hover:underline text-xs"
-                    >
-                      {t("viewAltSource", { n: idx + 1 })} ↗
-                    </a>
-                  ))}
-                  {!(event as Event).official_url && !event.source_url && !((event as Event).secondary_source_urls?.length) && "—"}
+                  {!(event as Event).official_url && !event.source_url && "—"}
                 </div>
               </td>
             </tr>
@@ -301,6 +290,39 @@ export default async function EventDetailPage({ params }: PageProps) {
                 </Link>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== 報導・活動紀錄 ===== */}
+      {((event as Event).record_links?.length || 0) + ((event as Event).secondary_source_urls?.length || 0) > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-medium text-gray-400 mb-3">{t("recordLinksSection")}</h2>
+          <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+            {(event as Event).record_links?.map((link: { title: string; url: string }, i: number) => (
+              <a
+                key={i}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-blue-600 hover:underline gap-2"
+              >
+                <span className="flex-1">{link.title || link.url}</span>
+                <span className="text-gray-300 shrink-0">↗</span>
+              </a>
+            ))}
+            {(event as Event).secondary_source_urls?.map((url: string, idx: number) => (
+              <a
+                key={`sec-${idx}`}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-blue-500 hover:underline gap-2"
+              >
+                <span className="flex-1">{t("viewAltSource", { n: idx + 1 })}</span>
+                <span className="text-gray-300 shrink-0">↗</span>
+              </a>
+            ))}
           </div>
         </div>
       )}

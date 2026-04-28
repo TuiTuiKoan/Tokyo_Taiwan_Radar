@@ -86,7 +86,12 @@
     "statusPending": "処理待ち",
     "statusAnnotated": "処理済み",
     "statusError": "エラー",
-    "category": "カテゴリ"
+    "category": "カテゴリ",
+    "recordLinksSection": "報道・活動記録",
+    "recordLinksAdd": "リンクを追加",
+    "recordLinksRemove": "削除",
+    "recordLinksLinkTitle": "タイトル",
+    "recordLinksUrl": "URL"
   },
   "auth": {
     "loginTitle": "ログイン",

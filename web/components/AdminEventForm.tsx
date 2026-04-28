@@ -22,6 +22,7 @@ export const EMPTY_FORM = {
   original_language: "zh",
   is_active: true,
   parent_event_id: "" as string,
+  record_links: [] as { title: string; url: string }[],
 };
 
 export type FormState = typeof EMPTY_FORM;
@@ -219,6 +220,53 @@ export default function AdminEventForm({
           />
         </div>
       ))}
+
+      {/* Record links */}
+      <div className="md:col-span-2">
+        <label className="block text-xs text-gray-500 mb-2">{t("recordLinksSection" as any)}</label>
+        <div className="space-y-2">
+          {form.record_links.map((link, i) => (
+            <div key={i} className="flex gap-2 items-center">
+              <input
+                type="text"
+                placeholder={t("recordLinksLinkTitle" as any)}
+                value={link.title}
+                onChange={(e) => {
+                  const updated = [...form.record_links];
+                  updated[i] = { ...updated[i], title: e.target.value };
+                  updateField("record_links", updated);
+                }}
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <input
+                type="url"
+                placeholder={t("recordLinksUrl" as any)}
+                value={link.url}
+                onChange={(e) => {
+                  const updated = [...form.record_links];
+                  updated[i] = { ...updated[i], url: e.target.value };
+                  updateField("record_links", updated);
+                }}
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <button
+                type="button"
+                onClick={() => updateField("record_links", form.record_links.filter((_, j) => j !== i))}
+                className="text-xs text-red-500 hover:text-red-700 border border-red-200 rounded px-2 py-1 shrink-0"
+              >
+                {t("recordLinksRemove" as any)}
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => updateField("record_links", [...form.record_links, { title: "", url: "" }])}
+            className="text-xs text-green-600 hover:text-green-700 border border-green-300 rounded px-3 py-1"
+          >
+            + {t("recordLinksAdd" as any)}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

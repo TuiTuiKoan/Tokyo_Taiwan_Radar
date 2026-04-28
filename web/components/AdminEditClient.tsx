@@ -39,6 +39,7 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
     original_language: event.original_language,
     is_active: event.is_active,
     parent_event_id: event.parent_event_id ?? "",
+    record_links: (event.record_links as { title: string; url: string }[]) ?? [],
   });
   const [saving, setSaving] = useState(false);
 
@@ -72,6 +73,7 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
       start_date: form.start_date || null,
       end_date: form.end_date || null,
       parent_event_id: form.parent_event_id || null,
+      record_links: form.record_links.filter((l) => l.url.trim()),
     };
 
     const categoryChanged =
