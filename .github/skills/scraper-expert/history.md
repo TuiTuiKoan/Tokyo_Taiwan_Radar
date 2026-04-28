@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-28 — 身體化巴索里尼 - 吸引力法則 [ssff] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** performing_arts
+**After (corrected):** movie
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-28 — 品嚐台灣茶，享受台灣遊戲的聚會 [kokuchpro] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** lifestyle_food, taiwan_japan
