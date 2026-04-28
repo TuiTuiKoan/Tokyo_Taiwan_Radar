@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+---
+## 2026-04-29 — taiwan_cultural_center: month-only date range caused publish-date fallback
+
+**Error:** `期間：2026 年5 月～10 月(全10 回)` was matched by `_BODY_DATE_LABELS` regex, but `_parse_date("2026 年5 月")` returned `None` (no day component). `start_date` fell back to publish date `2026-04-27`, `end_date = 2026-04-27` — would have been archived that evening.
+
+**Fix:** (1) `_parse_date()`: added month-only `YYYY年M月` → day 1 of that month. (2) `_extract_event_dates_from_body()`: detect month-only `end_raw`, inject year from start, advance to last day of month via `calendar.monthrange`. (3) DB record manually corrected to `2026-05-16 / 2026-10-24`. Scraper will upsert `2026-05-01 / 2026-10-31` on next run (acceptable).
+
+**Lesson:** `_parse_date()` must handle `YYYY年M月` (no day). Multi-month series often use month-only ranges in the structured `期間：` label. Always verify end_date won't trigger same-day archival.
+
+---
+
 ## 2026-04-28 — 台灣文化祭2026春 [arukikata] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** lifestyle_food, taiwan_japan, lecture
