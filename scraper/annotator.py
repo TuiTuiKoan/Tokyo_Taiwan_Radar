@@ -158,8 +158,8 @@ def _annotate_one(client: OpenAI, raw_title: str, raw_description: str, feedback
     user_content = f"Raw Title: {raw_title or '(no title)'}\n\nRaw Description:\n{raw_description or '(no description)'}"
 
     # Truncate very long descriptions to stay within token limits
-    if len(user_content) > 12000:
-        user_content = user_content[:12000] + "\n\n[... truncated ...]"
+    if len(user_content) > 20000:
+        user_content = user_content[:20000] + "\n\n[... truncated ...]"
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
