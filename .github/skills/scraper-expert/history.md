@@ -3,7 +3,20 @@
 <!-- Append new entries at the top -->
 
 ---
-## 2026-04-28 — merger.py: google_news_rss 報導未被自動合併到 taiwan_matsuri 主條目
+## 2026-04-28 — merger.py Pass 2: pre-event press release not matched (start_date before event)
+
+**Error:** `c1ba79b6` (google_news_rss, gnews_c5e4ad11f794) pointed to a prtimes.jp press release about 台湾祭in群馬太田2026 published **2026-01-15** — two months BEFORE the event start (2026-03-14). Merger Pass 2 uses `_date_in_range(news.start_date, official.start_date, official.end_date)` which returned False (`2026-01-15 < 2026-03-14`). Event was not merged; remained is_active=False with empty secondary_source_urls and prtimes content never incorporated.
+
+**Fix:**
+1. `merger.py`: Added `_PRESS_RELEASE_LOOKBACK_DAYS = 90` constant; changed `_date_in_range` to accept `lookback_days` parameter; Pass 2 now calls `_date_in_range(..., lookback_days=_PRESS_RELEASE_LOOKBACK_DAYS)` → range becomes `[start_date - 90d, end_date]`.
+2. DB: Manually merged c1ba79b6 into primary `taiwan_matsuri_202603-gunmaota`:
+   - Added google_news URL + direct prtimes.jp URL to `secondary_source_urls`
+   - Fetched prtimes article body → appended as `別来源補足 (prtimes)` in `raw_description`
+   - Set `annotation_status = 'pending'` for re-annotation with enriched content
+
+**Lesson:** Pre-event press releases (prtimes, PR WIRE) are published weeks or months BEFORE the event start date. Merger Pass 2 must use a lookback window (currently 90 days) on `official.start_date` — NOT a strict lower bound. Also: when a google_news_rss entry links to a prtimes article, the ACTUAL rich content is at prtimes.jp — fetch that URL for the merger's raw_description supplement, not the google_news headline.
+
+---
 
 **Error:** `google_news_rss` 的「イオン太田で台湾グルメと台南ランタン祭イベント」（id: 1c766979）和 `taiwan_matsuri_202603-gunmaota` 是同一個活動，但 `merger.py` Pass 1 未偵測到，原因有二：
 1. 名稱相似度太低（新聞報導標題 vs 官方活動名稱），不達 0.85 閾值。

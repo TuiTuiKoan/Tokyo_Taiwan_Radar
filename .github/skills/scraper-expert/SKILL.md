@@ -132,10 +132,11 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 ### Pass 2 — News-report matching (date-range + location overlap)
 - Sources in `_NEWS_SOURCES = {"google_news_rss", "prtimes", "nhk_rss"}` use article titles that cannot match event names by similarity.
 - A news event matches an official event when **both** conditions hold:
-  - `news.start_date` falls within `[official.start_date, official.end_date]`
+  - `news.start_date` falls within `[official.start_date - 90 days, official.end_date]`
+    — the 90-day **lookback** (`_PRESS_RELEASE_LOOKBACK_DAYS`) covers pre-event press releases published before the event start date
   - `location_name` tokens overlap (≥1 common token of ≥2 characters)
 - News events are **always secondary** (priority 100). Official events are **always primary**.
-- Pass 2 catches cases where `start_date` differs (e.g. article published mid-festival) and names are stylistically different.
+- Pass 2 catches cases where `start_date` differs (e.g. article published mid-festival or months before) and names are stylistically different.
 
 ### Merge result
 - Primary: `secondary_source_urls` extended; `raw_description` enriched with secondary content (first merge only); `annotation_status` reset to `pending` for re-annotation.

@@ -17,7 +17,9 @@ Pass 2 — News-report matching:
   News sources (google_news_rss, prtimes, nhk_rss) publish article-style
   titles that cannot be matched by name similarity alone.  They are matched
   to official events by:
-    a. news.start_date falls within [official.start_date, official.end_date]
+    a. news.start_date falls within [official.start_date - LOOKBACK, official.end_date]
+       (LOOKBACK = 90 days to catch pre-event press releases published before
+        the event start date)
     b. location_name tokens overlap (≥1 common token of ≥2 chars)
   News events are always secondary; the official event is always primary.
 
@@ -72,6 +74,10 @@ _SIMILARITY_THRESHOLD = 0.85
 # name similarity (Pass 1).
 _NEWS_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss"})
 
+# How many days BEFORE an official event's start_date a news article may be
+# published and still be considered a match (pre-event press releases).
+_PRESS_RELEASE_LOOKBACK_DAYS = 90
+
 
 def _normalize(name: str) -> str:
     """Strip all whitespace and lowercase for similarity comparison."""
@@ -98,12 +104,20 @@ def _location_overlap(loc_a: str | None, loc_b: str | None) -> bool:
 
 
 def _date_in_range(
-    date_str: str | None, start_str: str | None, end_str: str | None
+    date_str: str | None, start_str: str | None, end_str: str | None,
+    lookback_days: int = 0,
 ) -> bool:
-    """Return True if date_str (YYYY-MM-DD) falls within [start_str, end_str]."""
+    """Return True if date_str (YYYY-MM-DD) falls within [start_str - lookback_days, end_str]."""
     if not date_str or not start_str or not end_str:
         return False
-    return start_str[:10] <= date_str[:10] <= end_str[:10]
+    from datetime import date, timedelta
+    try:
+        d = date.fromisoformat(date_str[:10])
+        s = date.fromisoformat(start_str[:10]) - timedelta(days=lookback_days)
+        e = date.fromisoformat(end_str[:10])
+        return s <= d <= e
+    except ValueError:
+        return False
 
 
 def run_merger(dry_run: bool = False) -> int:
@@ -267,11 +281,13 @@ def run_merger(dry_run: bool = False) -> int:
             if official_ev["id"] in handled_secondary_ids:
                 continue
 
-            # (a) Date range check
+            # (a) Date range check — include LOOKBACK days before event start
+            # to catch pre-event press releases
             if not _date_in_range(
                 news_ev.get("start_date"),
                 official_ev.get("start_date"),
                 official_ev.get("end_date") or official_ev.get("start_date"),
+                lookback_days=_PRESS_RELEASE_LOOKBACK_DAYS,
             ):
                 continue
 
