@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-04-29 — 台湾映画上映会2026: sub-events の name_zh 誤り・source_url 404・親日程ずれ
+
+**発見：**
+1. `source_url` を `https://www.taiwan.or.jp/ja/cinema2026/` （存在しない URL）に誤設定 → 全 16 件 404
+2. 親イベント `start_date`/`end_date` = `2026-04-27`（公開日）のまま → sub 最早/最終日に更新必要
+3. 中文タイトル 4 件が原題と不一致：
+   - sub1 `望海的日子（數位修復版）` → 正：`看海的日子（數位修復版）`（原題：看海的日子）
+   - sub12 `台北我愛你` → 正：`愛情城事`（原題：愛情城事）
+   - sub13 `雙打人生` → 正：`乒乓男孩`（原題：乒乓男孩）
+   - sub16 `金魚的記憶` → 正：`（真）新的一天`（原題：（真）新的一天）
+
+**根本原因：**
+1. `_insert_sub_events.py` で `source_url` を親の正 URL ではなく推測 URL に設定
+2. 親の `start_date`/`end_date` は scraper が設定（公開日フォールバック）。Sub-events 挿入後に親を手動更新しなかった
+3. `name_zh` は原題から手動で入力したため、4 件で転記ミス
+
+**修正：** DB 直接修正（一時スクリプト `_fix_cinema2026.py`、削除済み）:
+- 親 `start_date=2026-05-16`, `end_date=2026-10-24`
+- 全 16 件 `source_url` → `https://jp.taiwan.culture.tw/News_Content2.aspx?n=365&s=254306`
+- 4 件 `name_zh`/`name_en` 訂正
+
+**教訓：**
+- Sub-events を手動挿入するときは必ず `原題` 行を description から抽出して `name_zh` を設定すること（推測入力禁止）
+- `source_url` には親の `source_url` をコピーすること。推測 URL は使わない
+- Sub-events 挿入後は親の `start_date`/`end_date` を `MIN(sub.start_date)` / `MAX(sub.end_date)` に更新すること
+
+---
+
 ## 2026-04-29 — 台湾映画上映会2026: sub-events が 2/16 件しか生成されない
 
 **発見：** 「台湾映画上映会2026」（parent `3db5b1ec509b3342`）の sub-events が 2 件のみ。16 件（10 正片 + 6 アンコール）が期待値。

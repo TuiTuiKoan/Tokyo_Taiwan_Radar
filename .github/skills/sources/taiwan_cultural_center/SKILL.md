@@ -108,6 +108,9 @@ For annual film screening series (e.g. 台湾映画上映会), the event page li
 **2026 映画上映会 reference:**
 - 16 sub-events manually inserted 2026-04-29; see `taiwan_cultural_center/history.md`.
 - Screening entry pattern: `『{title}』\n{M月D日(曜) HH:MM開演}／{venue}`.
+- **Always extract `name_zh` from `原題：` line** in the description. Do NOT guess or translate from Japanese.
+- **`source_url` for sub-events = parent's `source_url`** — never use a guessed URL.
+- **After inserting sub-events, update parent `start_date`/`end_date`** to `MIN(sub.start_date)` / `MAX(sub.end_date)`.
 
 ## Troubleshooting
 
