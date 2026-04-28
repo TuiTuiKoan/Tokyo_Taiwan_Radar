@@ -83,16 +83,15 @@ Update **all 6 locations** in a single commit — do NOT split across commits:
 | 後台篩選器 | `web/components/AdminEventTable.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` | 選擇器 |
 | AI 報錯選單 | `web/components/ReportSection.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` | 選擇器 |
 | 活動編輯頁 | `web/components/AdminEventForm.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` | 選擇器 |
-| 後台問題回報審核 | `web/components/AdminReportsTable.tsx` | `CATEGORIES` (flat) + `messages/categories.*` | 選擇器 |
+| 後台問題回報審核 | `web/components/AdminReportsTable.tsx` | `CATEGORY_GROUPS` + `messages/categories.*` | 選擇器 |
 | 首頁活動卡片標籤 | `web/components/EventCard.tsx` | `messages/categories.*` only | 展示用 |
 
-> **Note:** `AdminReportsTable.tsx` uses the flat `CATEGORIES` array, not `CATEGORY_GROUPS`. When adding a category, verify it appears in `CATEGORIES` so the admin review picker shows it.
 > **Note:** `EventCard.tsx` renders category tags on the homepage card — display-only, no picker. Label renames propagate automatically.
 
 ### Category group picker layout — paired-file rule
-`AdminEventForm.tsx` and `ReportSection.tsx` both render the category group picker with `CATEGORY_GROUPS`. They **must use the same layout** at all times:
+`AdminEventForm.tsx`, `ReportSection.tsx`, **and `AdminReportsTable.tsx`** all render the category group picker with `CATEGORY_GROUPS`. They **must use the same layout** at all times:
 - Structure: `grid-cols-[4.5rem_1fr]` per group row — col 1 = group label (right-aligned, `shrink-0`), col 2 = `flex-wrap` tags
-- Any layout change to one file must be applied to the other **in the same commit**
+- Any layout change to **any one** of these three files must be applied to **all three** in the same commit
 - Do NOT use `flex-wrap` with a mixed label+tags row — overflows cause label misalignment when a group has many items
 
 ## AdminEventTable.tsx — Protected Invariants

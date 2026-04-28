@@ -44,7 +44,7 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 4. Do NOT add comments, docstrings, or extra error handling beyond what was asked.
 5. **Filter-option sync:** When adding a value to a TypeScript union, DB enum, or i18n file that is also used in a `<select>` dropdown, always add the matching `<option>` element in the same commit. Check every `<select>` whose value type includes the new key.
 6. **Annotation status label consistency:** When displaying `annotation_status` anywhere (badge, dropdown option, column header), always use the **short-form i18n keys**: `t("filterAnnotatedShort")`, `t("filterReviewedShort")`, `t("filterErrorShort")`, `t("filterPendingShort")`. The long-form family (`annotated`, `reviewed`, `error`, `pending`) has been deleted from all message files — do not recreate it.
-7. **Category group picker paired-file rule:** `AdminEventForm.tsx` and `ReportSection.tsx` share the same category group picker layout (`grid-cols-[4.5rem_1fr]`). Any layout change to one must be applied to the other in the same commit. Never use a mixed `flex-wrap` layout with label+tags in the same row.
+7. **Category group picker three-file rule:** `AdminEventForm.tsx`, `ReportSection.tsx`, and `AdminReportsTable.tsx` all share the same category group picker layout (`grid-cols-[4.5rem_1fr]`). Any layout change to any one of these three files must be applied to all three in the same commit. Never use a mixed `flex-wrap` layout with label+tags in the same row.
 
 ### Step 3: Verify
 
