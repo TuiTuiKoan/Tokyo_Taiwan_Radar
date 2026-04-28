@@ -10,6 +10,14 @@ interface PageProps {
 
 export const dynamic = "force-dynamic";
 
+type AdminUserRow = {
+  id: string;
+  email: string | null;
+  created_at: string | null;
+  last_sign_in_at: string | null;
+  role: string | null;
+};
+
 export default async function AdminUsersPage({ params }: PageProps) {
   const { locale } = await params;
   const t = await getTranslations("admin");
@@ -34,10 +42,10 @@ export default async function AdminUsersPage({ params }: PageProps) {
     redirect(`/${locale}`);
   }
 
-  // Fetch all users via secure admin view (returns 0 rows for non-admins)
-  const { data: users, error } = await supabase
-    .from("admin_users_view")
-    .select("id, email, created_at, last_sign_in_at, role");
+  // Fetch all users via secure admin RPC
+  const { data: usersData, error } = await supabase
+    .rpc("admin_list_users");
+  const users = (usersData ?? []) as AdminUserRow[];
 
   const formatDate = (iso: string | null) => {
     if (!iso) return null;

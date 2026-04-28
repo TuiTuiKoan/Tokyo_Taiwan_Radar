@@ -74,9 +74,9 @@ export default async function AdminPage({ params }: PageProps) {
   ];
   const pendingIssues = pendingIssuesRaw.filter((issue) => issue.count > 0);
 
-  const { count: userCount } = await supabase
-    .from("admin_users_view")
-    .select("*", { count: "exact", head: true });
+  const { data: usersForCount } = await supabase
+    .rpc("admin_list_users");
+  const userCount = usersForCount?.length ?? 0;
 
   const { count: reportCount } = await supabase
     .from("event_reports")
@@ -105,7 +105,7 @@ export default async function AdminPage({ params }: PageProps) {
         </div>
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
           <p className="text-xs text-gray-400 mb-1">{t("statsUsersLabel")}</p>
-          <p className="text-2xl font-bold text-gray-800">{userCount ?? 0}</p>
+          <p className="text-2xl font-bold text-gray-800">{userCount}</p>
           <p className="text-xs text-gray-400 mt-0.5">{t("statsUsersDesc")}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
