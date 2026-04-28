@@ -178,10 +178,10 @@ export default function ReportSection({ eventId, locale, selectionReason }: Prop
               {type === "wrongCategory" && selected.has("wrongCategory") && (
                 <div className="ml-5 mt-1">
                   <p className="text-xs text-amber-600 mb-1.5">{t("suggestCategoryHint")}</p>
-                  <div className="grid grid-cols-1 min-[480px]:grid-cols-2 gap-x-3 gap-y-2">
+                  <div className="grid grid-cols-1 gap-y-2">
                     {CATEGORY_GROUPS.map((group) => (
-                      <div key={group.labelKey} className="grid grid-cols-[3rem_1fr] gap-x-2 items-start">
-                        <span className="text-xs text-amber-400 pt-0.5 leading-tight">{tCat(group.labelKey as any)}</span>
+                      <div key={group.labelKey} className="grid grid-cols-[4.5rem_1fr] gap-x-3 items-start">
+                        <span className="text-xs text-amber-400 pt-0.5 leading-tight text-right">{tCat(group.labelKey as any)}</span>
                         <div className="flex flex-wrap gap-1.5">
                           {group.categories.map((cat) => {
                           const isSelected = suggestedCategories.has(cat);
