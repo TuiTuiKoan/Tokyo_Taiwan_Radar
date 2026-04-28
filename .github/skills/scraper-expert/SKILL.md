@@ -15,6 +15,18 @@ Read this at the start of every session before writing any scraper.
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` when the event date is found in the page body.
 - **Never restrict geographic scope**: The project covers all of Japan（全日本）. Regional keyword filters (e.g. `_TOKYO_KANTO_KEYWORDS`) must never be added to any scraper.
 - **After fixing a filter bug**: Run `python main.py --source <name>` (non-dry-run) immediately after the fix. A dry-run confirms the fix works but does NOT write to DB — the data gap remains until the next CI cycle.
+- **SCRAPERS registration is mandatory at commit time**: When creating a new scraper file, add the class to `SCRAPERS` in `main.py` in the SAME commit. DB `implemented` status, source file existence, and `SCRAPERS` registration are tracked independently and can silently diverge. Run this audit before finishing any scraper session:
+  ```bash
+  cd scraper && python3 -c "
+  import re, glob
+  registered = set(re.findall(r'(\w+Scraper)\(\)', open('main.py').read()))
+  for f in glob.glob('sources/*.py'):
+      c = open(f).read()
+      m = re.search(r'class (\w+Scraper)\b', c)
+      if m and m.group(1) not in registered and m.group(1) != 'BaseScraper':
+          print('UNREGISTERED:', m.group(1), f)
+  "
+  ```
 
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
@@ -28,6 +40,7 @@ Read this at the start of every session before writing any scraper.
 - **After adding a scraper filter, always audit the DB**: run `ilike("raw_title", "%keyword%")` to find existing records that should also be deactivated. The filter only prevents future inserts.
 - **Hard delete vs deactivation**: If an IP series is confirmed permanently non-Taiwan-themed, hard delete (`table.delete().eq("id", eid)`) rather than just deactivating. Deactivated events remain accessible via direct URL unless the event page also checks `is_active`.
 - **location_name / location_address**: Extract from `場所[：:]\s*(.+?)(?:\n|交通手段|Q&A|https?://|$)` in `main_text`. Set BOTH `location_name` and `location_address` to the captured value. Fall back to `card.prefecture` only when the `場所：` label is absent. Never store bare prefecture names (e.g. `"東京"`) as the address.
+- **No prefecture filter**: `iwafu.py` uses `cards = all_cards` — all prefectures (Tokyo, Osaka, Fukuoka, Sapporo, etc.) are included. Do NOT add a prefecture filter. iwafu EN (`/en/events/`) is the same data source and does not need a separate scraper.
 
 ## eiga_com-specific
 - **Per-theater granularity**: One event per theater per movie. `source_id = eiga_com_{movie_id}_{theater_id}`. Each daily run upserts and updates `end_date` to the last date in the current week's schedule.

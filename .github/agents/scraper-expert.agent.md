@@ -26,11 +26,11 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 > **Geographic Scope**: All of Japan（全日本）. Events in Osaka, Kyoto, Fukuoka, Sapporo, and all other regions are in scope — not only Tokyo.
 
 ## Session Start Checklist
-1. Read `.github/skills/agents/scraper-expert/SKILL.md` — apply all rules before starting.
+1. Read `.github/skills/scraper-expert/SKILL.md` — apply all rules before starting.
 2. If a per-source skill exists (`.github/skills/sources/<source_name>/SKILL.md`), read it too.
 
 ## After Fixing a Scraper Bug
-1. Append an entry to `.github/skills/agents/scraper-expert/history.md` (newest at top): date, error, fix, lesson.
+1. Append an entry to `.github/skills/scraper-expert/history.md` (newest at top): date, error, fix, lesson.
 2. If the lesson generalizes, add or update a rule in `SKILL.md`.
 3. Append an entry to `.github/skills/sources/<source_name>/history.md` with the same format.
 4. If the lesson is source-specific, add or update a rule in the per-source `SKILL.md`.
@@ -68,8 +68,20 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 1. Run `cd scraper && python main.py --dry-run --source <name> 2>&1 | head -80`.
 2. Verify: `start_date` is populated, not the publish date; `category` values are canonical; no unhandled exceptions.
 3. Run `get_errors` on changed Python files.
-4. **Run merger dry-run**: `cd scraper && python merger.py --dry-run 2>&1` — confirm any detected cross-source duplicates are intentional. New sources that report events with article-style titles (e.g. RSS feeds, press release scrapers) may match existing official events via Pass 2 (date-range + location-overlap). If a new source should participate in Pass 2 matching, add it to `_NEWS_SOURCES` in `merger.py`.
-5. Hand off to Tester for full pipeline validation.
+4. **SCRAPERS registration audit**: confirm the new scraper is in `SCRAPERS` in `main.py`:
+   ```bash
+   cd scraper && python3 -c "
+   import re, glob
+   registered = set(re.findall(r'(\w+Scraper)\(\)', open('main.py').read()))
+   for f in glob.glob('sources/*.py'):
+       c = open(f).read()
+       m = re.search(r'class (\w+Scraper)\b', c)
+       if m and m.group(1) not in registered and m.group(1) != 'BaseScraper':
+           print('UNREGISTERED:', m.group(1), f)
+   "
+   ```
+5. **Run merger dry-run**: `cd scraper && python merger.py --dry-run 2>&1` — confirm any detected cross-source duplicates are intentional. New sources that report events with article-style titles (e.g. RSS feeds, press release scrapers) may match existing official events via Pass 2 (date-range + location-overlap). If a new source should participate in Pass 2 matching, add it to `_NEWS_SOURCES` in `merger.py`.
+6. Hand off to Tester for full pipeline validation.
 
 ### Phase 4: Document
 
@@ -86,12 +98,12 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
    - Troubleshooting table
    - `## Pending Rules` footer
 2. Create `.github/skills/sources/<source_name>/history.md` with a `## YYYY-MM-DD` entry describing any non-obvious decisions made during initial implementation.
-3. Add a `## <source_name>-specific` section to `.github/skills/agents/scraper-expert/SKILL.md` with the top 3–5 rules that a future agent must know.
+3. Add a `## <source_name>-specific` section to `.github/skills/scraper-expert/SKILL.md` with the top 3–5 rules that a future agent must know.
 4. Update `research_sources` status to `implemented` in Supabase if this source was tracked there.
 
 #### Bug fix
 
-1. Append entry to `.github/skills/agents/scraper-expert/history.md` (newest at top).
+1. Append entry to `.github/skills/scraper-expert/history.md` (newest at top).
 2. Append entry to `.github/skills/sources/<source_name>/history.md`.
 3. If the lesson generalizes: add/update rule in `scraper-expert/SKILL.md`.
 4. If the lesson is source-specific: add/update rule in the per-source `SKILL.md`.
