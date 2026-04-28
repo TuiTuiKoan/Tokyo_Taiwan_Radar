@@ -1,256 +1,186 @@
 """
-Scraper for Tokyo Art Beat — events/exhibitions with Taiwan relevance.
+Tokyo Art Beat scraper — Contentful CDA API 経由で台湾関連アート展示を取得。
 
-Tokyo Art Beat (tokyoartbeat.com) is Tokyo's largest art event aggregator.
-This scraper searches for "台湾" (Taiwan) and collects exhibitions and events
-featuring Taiwanese artists or Taiwan-themed content.
+• Contentful スペース: j05yk38inose (公開 CDA トークン、ブラウザネットワークで確認済み)
+• 「台湾」「Taiwan」でフルテキスト検索し、現在〜将来のイベントのみ取得
+• 全国のギャラリー・美術館のイベントを対象（TokyoArtBeat は全国展覧会情報を掲載）
 
-Strategy:
-  1. Load search results page: /events/search?query=台湾
-  2. Collect all event detail URLs from the paginated results (up to MAX_PAGES)
-  3. For each event page, extract structured data (title, dates, venue)
-  4. Date extraction: the event URL itself contains the start date (YYYY-MM-DD)
-
-Dedup key: tokyoartbeat_{url_slug}
-  e.g. /events/-/Chen-Wei-Exhibition/ota-fine-arts-7chome/2026-04-21
-  → tokyoartbeat_Chen-Wei-Exhibition_ota-fine-arts-7chome_2026-04-21
-
-NOTE: tokyoartbeat.com requires JS (React rendering). Playwright is required.
-The search results do NOT filter by Taiwan keyword on the server side —
-all results are popular/recent events. We filter client-side by checking
-that "台湾" appears on the event detail page.
-
-⚠️  KNOWN LIMITATION (2026-04-26): The search URL ?query=台湾 is IGNORED by
-the TAB React app. The Hasura backend only returns popularity-sorted events
-regardless of the query parameter. All 43 collected URLs fail the Taiwan
-keyword check → 0 events returned. The actual event content is stored in
-Contentful CMS (not accessible without API key). This scraper needs a
-new approach (e.g. simulate user typing in search box + wait for updated
-GraphQL results). Currently produces 0 events and is NOT included in
-the main SCRAPERS list in main.py until this is fixed.
+旧実装（Playwright + JS レンダリング）は query=台湾 がサーバー側で無視されるため
+0件取得になっていた。Contentful API への直接アクセスに切り替え。
 """
 
 import logging
-import re
-import time
-from datetime import datetime
+from datetime import date, datetime, timezone
 from typing import Optional
 
-from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeout
+import requests
 
 from .base import BaseScraper, Event
 
-logger = logging.getLogger(__name__)
+CONTENTFUL_SPACE = "j05yk38inose"
+CONTENTFUL_ENV = "master"
+# 公開 Content Delivery API トークン（ブラウザネットワークリクエストから確認済み、読み取り専用）
+CONTENTFUL_TOKEN = "pX663MZtc4BJd-IFo_VZOpqYtz7K9xrSxtBe2Vg33ic"
+CONTENTFUL_BASE = (
+    f"https://cdn.contentful.com/spaces/{CONTENTFUL_SPACE}"
+    f"/environments/{CONTENTFUL_ENV}/entries"
+)
+TAB_EVENT_BASE = "https://www.tokyoartbeat.com/events/-/"
 
-BASE_URL = "https://www.tokyoartbeat.com"
-SEARCH_URL = f"{BASE_URL}/events/search?query=%E5%8F%B0%E6%B9%BE"  # 台湾
-
-MAX_PAGES = 5   # Each page shows ~30 events; 5 pages ≈ 150 events
-
-TAIWAN_KEYWORDS = [
-    "台湾", "Taiwan", "臺灣", "台灣",
-    "台北", "台中", "台南", "高雄",
-    "台日", "日台",
-]
-
-# Event URL pattern: /events/-/{slug}/{venue-slug}/{date}
-_EVENT_URL_RE = re.compile(r"/events/-/[^/?#\s]+/[^/?#\s]+/(\d{4}-\d{2}-\d{2})")
-
-
-def _parse_date_from_url(url: str) -> Optional[datetime]:
-    """Extract YYYY-MM-DD from a Tokyo Art Beat event URL."""
-    m = _EVENT_URL_RE.search(url)
-    if m:
-        try:
-            return datetime.strptime(m.group(1), "%Y-%m-%d")
-        except ValueError:
-            pass
-    return None
-
-
-def _safe_text(page: Page, selector: str, default: str = "") -> str:
-    try:
-        el = page.query_selector(selector)
-        return el.inner_text().strip() if el else default
-    except Exception:
-        return default
+TAIWAN_QUERIES = ["台湾", "Taiwan"]
 
 
 class TokyoArtBeatScraper(BaseScraper):
-    """Scrapes Taiwan-related art/exhibition events from Tokyo Art Beat."""
+    """Tokyo Art Beat の Contentful API 経由で台湾関連展示イベントを取得。"""
 
     SOURCE_NAME = "tokyoartbeat"
 
     def scrape(self) -> list[Event]:
+        today = date.today().isoformat()
+
+        # Collect unique events across both queries (dedup by sys.id)
+        seen_ids: set[str] = set()
+        raw_items: list[tuple[dict, dict]] = []  # (item, linked_entries_map)
+
+        for query in TAIWAN_QUERIES:
+            params = {
+                "content_type": "event",
+                "locale": "*",
+                "query": query,
+                "fields.scheduleEndsOn[gte]": today,
+                "limit": 200,
+                "include": 1,  # resolve venue links (depth=1)
+                "access_token": CONTENTFUL_TOKEN,
+            }
+            try:
+                r = requests.get(CONTENTFUL_BASE, params=params, timeout=20)
+                r.raise_for_status()
+                data = r.json()
+            except Exception as e:
+                self.logger.warning("Contentful query '%s' failed: %s", query, e)
+                continue
+
+            includes = data.get("includes", {})
+            linked_map: dict[str, dict] = {
+                e["sys"]["id"]: e for e in includes.get("Entry", [])
+            }
+
+            for item in data.get("items", []):
+                item_id = item["sys"]["id"]
+                if item_id not in seen_ids:
+                    seen_ids.add(item_id)
+                    raw_items.append((item, linked_map))
+
         events: list[Event] = []
+        for item, linked_map in raw_items:
+            event = self._parse_event(item, linked_map)
+            if event:
+                events.append(event)
 
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36"
-                )
-            )
-            page = context.new_page()
-
-            event_urls = self._collect_event_urls(page)
-            logger.info("tokyoartbeat: found %d candidate event URLs", len(event_urls))
-
-            for url in event_urls:
-                try:
-                    event = self._scrape_event(page, url)
-                    if event:
-                        events.append(event)
-                    time.sleep(1.2)
-                except Exception as exc:
-                    logger.error("tokyoartbeat: failed to scrape %s: %s", url, exc)
-
-            browser.close()
-
-        logger.info("tokyoartbeat: collected %d Taiwan-related events", len(events))
         return events
 
-    def _collect_event_urls(self, page: Page) -> list[str]:
-        """Load search result pages and collect event detail URLs."""
-        seen: set[str] = set()
-        urls: list[str] = []
+    # ------------------------------------------------------------------
 
-        for pg in range(1, MAX_PAGES + 1):
-            # Tokyo Art Beat paginates via ?page= or by clicking "next"
-            # The search URL itself returns page 1; subsequent pages use &page=N
-            if pg == 1:
-                url = SEARCH_URL
-            else:
-                url = f"{SEARCH_URL}&page={pg}"
-
-            logger.info("tokyoartbeat: loading search results page %d", pg)
-            try:
-                page.goto(url, wait_until="load", timeout=30_000)
-            except PWTimeout:
-                try:
-                    page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-                except Exception:
-                    break
-
-            # Wait for event links to appear
-            try:
-                page.wait_for_selector("a[href*='/events/-/']", timeout=8_000)
-            except PWTimeout:
-                pass
-
-            # Collect all event anchors: href matches /events/-/.../.../YYYY-MM-DD
-            anchors = page.query_selector_all("a[href*='/events/-/']")
-            page_count = 0
-            for a in anchors:
-                href = a.get_attribute("href") or ""
-                if not _EVENT_URL_RE.search(href):
-                    continue
-                full = href if href.startswith("http") else f"{BASE_URL}{href}"
-                full = full.split("?")[0]
-                if full not in seen:
-                    seen.add(full)
-                    urls.append(full)
-                    page_count += 1
-
-            if page_count == 0:
-                logger.info("tokyoartbeat: no new events on page %d — stopping", pg)
-                break
-
-            time.sleep(0.5)
-
-        return urls
-
-    def _scrape_event(self, page: Page, url: str) -> Optional[Event]:
-        """Fetch a Tokyo Art Beat event page and return an Event if Taiwan-related."""
+    def _parse_event(
+        self, item: dict, linked_map: dict[str, dict]
+    ) -> Optional[Event]:
         try:
-            page.goto(url, wait_until="load", timeout=30_000)
-        except PWTimeout:
-            try:
-                page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-            except Exception:
+            f = item.get("fields", {})
+            item_id = item["sys"]["id"]
+
+            # ── Title ─────────────────────────────────────────────────
+            event_name_f = f.get("eventName", {})
+            name_ja = self._loc(event_name_f, "ja-JP") or self._loc(
+                event_name_f, "en-US"
+            )
+            name_en = self._loc(event_name_f, "en-US")
+            if not name_ja:
                 return None
 
-        # Wait for main content
-        try:
-            page.wait_for_selector("h1, h2, [class*='venue']", timeout=6_000)
-        except PWTimeout:
-            pass
+            # ── Dates ─────────────────────────────────────────────────
+            start_str = self._loc(f.get("scheduleStartsOn", {}), "en-US")
+            end_str = self._loc(f.get("scheduleEndsOn", {}), "en-US")
+            start_date = self._parse_date(start_str)
+            end_date = self._parse_date(end_str)
 
-        try:
-            page_text = page.inner_text("body") or ""
-        except Exception:
-            page_text = ""
+            # ── Slug / URL ────────────────────────────────────────────
+            slug = self._loc(f.get("slug", {}), "en-US") or ""
+            source_url = TAB_EVENT_BASE + slug if slug else ""
 
-        # Taiwan relevance check: the search for 台湾 should return relevant results,
-        # but the search API can return unrelated popular events. Validate here.
-        if not any(kw in page_text for kw in TAIWAN_KEYWORDS):
-            logger.debug("tokyoartbeat: skipping non-Taiwan event %s", url)
+            # ── Official URL ──────────────────────────────────────────
+            official_url = (
+                self._loc(f.get("showsWebpage", {}), "en-US")
+                or self._loc(f.get("showsWebpage", {}), "ja-JP")
+                or source_url
+            )
+
+            # ── Description ───────────────────────────────────────────
+            desc_f = f.get("description", {})
+            desc_ja = self._loc(desc_f, "ja-JP") or self._loc(desc_f, "en-US") or ""
+            desc_en = self._loc(desc_f, "en-US") or ""
+
+            # ── Venue ─────────────────────────────────────────────────
+            venue_ref = f.get("venue", {})
+            venue_ref_val = (
+                venue_ref.get("en-US") if isinstance(venue_ref, dict) else venue_ref
+            )
+            venue_name = ""
+            venue_address = ""
+            if isinstance(venue_ref_val, dict):
+                venue_id = venue_ref_val.get("sys", {}).get("id", "")
+                linked = linked_map.get(venue_id, {})
+                lf = linked.get("fields", {})
+                venue_name = self._loc(lf.get("fullName", {}), "en-US") or ""
+                venue_address = self._loc(lf.get("address", {}), "en-US") or ""
+
+            # ── Fee ───────────────────────────────────────────────────
+            fee_f = f.get("fee", {})
+            fee_text = self._loc(fee_f, "ja-JP") or self._loc(fee_f, "en-US") or ""
+            is_paid = bool(
+                fee_text
+                and fee_text.strip()
+                and "free" not in fee_text.lower()
+                and "無料" not in fee_text
+            )
+
+            return Event(
+                source_name=self.SOURCE_NAME,
+                source_id=f"tokyoartbeat_{item_id}",
+                source_url=source_url,
+                original_language="en",
+                name_ja=name_ja,
+                raw_title=name_en or name_ja,
+                raw_description=desc_en or desc_ja,
+                start_date=start_date,
+                end_date=end_date,
+                location_name=venue_name,
+                location_address=venue_address,
+                category="art",
+                is_paid=is_paid,
+                official_url=official_url,
+            )
+        except Exception as e:
+            self.logger.warning(
+                "Failed to parse event %s: %s", item.get("sys", {}).get("id"), e
+            )
             return None
 
-        # --- Extract title ---
-        title = _safe_text(page, "h1")
-        if not title:
-            title = _safe_text(page, "h2")
-        if not title:
-            # Derive from URL slug
-            slug_part = url.rstrip("/").split("/events/-/")[-1]
-            title = slug_part.split("/")[0].replace("-", " ").title()
+    @staticmethod
+    def _loc(field: dict, locale: str) -> str:
+        """ロケールキーからフィールド値を取得する。"""
+        if not isinstance(field, dict):
+            return str(field) if field else ""
+        v = field.get(locale, "")
+        if isinstance(v, dict) or isinstance(v, list):
+            return ""
+        return str(v) if v else ""
 
-        # --- Extract dates ---
-        # Primary: parse from URL (most reliable)
-        start_date = _parse_date_from_url(url)
-
-        # Try to find end date from page text patterns like "YYYY/MM/DD-YYYY/MM/DD"
-        end_date = start_date
-        range_m = re.search(
-            r"(\d{4}[/．]\d{1,2}[/．]\d{1,2})\s*[–—〜～]\s*(\d{4}[/．]\d{1,2}[/．]\d{1,2})",
-            page_text,
-        )
-        if range_m and start_date:
-            for fmt in ("%Y/%m/%d", "%Y．%m．%d", "%Y/%m/%d", "%Y.%m.%d"):
-                try:
-                    end_date = datetime.strptime(
-                        range_m.group(2).replace("．", "/"), fmt
-                    )
-                    break
-                except ValueError:
-                    pass
-
-        # --- Extract venue / location ---
-        # TAB detail pages typically have venue info in structured elements
-        location_name = None
-        location_address = None
-        venue_el = page.query_selector("[class*='venue'], [class*='Venue'], [class*='place']")
-        if venue_el:
-            location_name = venue_el.inner_text().strip()
-
-        # --- Build description ---
-        description = page_text.strip()
-        if start_date:
-            date_prefix = f"開催日時: {start_date.strftime('%Y年%m月%d日')}"
-            if end_date and end_date != start_date:
-                date_prefix += f"〜{end_date.strftime('%Y年%m月%d日')}"
-            description = f"{date_prefix}\n\n{description}"
-
-        # --- Build source_id from URL segments ---
-        # e.g. /events/-/Chen-Wei-Exhibition/ota-fine-arts-7chome/2026-04-21
-        # → tokyoartbeat_Chen-Wei-Exhibition_ota-fine-arts-7chome_2026-04-21
-        slug_part = url.rstrip("/").split("/events/-/")[-1].replace("/", "_")
-        source_id = f"tokyoartbeat_{slug_part}"[:120]
-
-        return Event(
-            source_name=self.SOURCE_NAME,
-            source_id=source_id,
-            source_url=url,
-            original_language="ja",
-            name_ja=title,
-            raw_title=title,
-            raw_description=description,
-            start_date=start_date,
-            end_date=end_date,
-            category=["art"],
-            location_name=location_name,
-            location_address=location_address,
-        )
+    @staticmethod
+    def _parse_date(date_str: str) -> Optional[datetime]:
+        if not date_str:
+            return None
+        try:
+            d = date.fromisoformat(date_str)
+            return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
+        except ValueError:
+            return None
