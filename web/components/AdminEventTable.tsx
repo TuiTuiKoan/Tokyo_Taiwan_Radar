@@ -590,14 +590,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("filterAll")}</option>
-              {[
-                "arukikata", "connpass", "doorkeeper", "eplus", "ide_jetro",
-                "iwafu", "koryu", "peatix", "taioan_dokyokai",
-                "taiwan_cultural_center", "taiwan_festival_tokyo",
-                "taiwan_kyokai", "taiwan_matsuri", "tokyocity_i", "tokyonow",
-              ].map((s) => (
-                <option key={s} value={s}>{s}{sourceCountMap[s] !== undefined ? ` (${sourceCountMap[s]})` : " (0)"}</option>
-              ))}
+              {Array.from(new Set(events.map((e) => (e as any).source_name as string)))
+                .filter(Boolean)
+                .sort()
+                .map((s) => (
+                  <option key={s} value={s}>{s}{sourceCountMap[s] !== undefined ? ` (${sourceCountMap[s]})` : " (0)"}</option>
+                ))}
             </select>
           </div>
           <div className="flex flex-col gap-1">
