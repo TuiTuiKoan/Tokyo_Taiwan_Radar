@@ -2,9 +2,21 @@ name: Daily Research
 
 on:
   schedule:
-    # Run at 09:30 JST (00:30 UTC), 30 min after scraper
-    - cron: "30 0 * * *"
+    # Layer 1: 4 slots per day — all 9 categories complete within a day
+    # Slot 0: 06:00 JST (21:00 UTC prev day) — university, fukuoka
+    - cron: "0 21 * * *"
+    # Slot 1: 12:00 JST (03:00 UTC) — media, government
+    - cron: "0 3 * * *"
+    # Slot 2: 18:00 JST (09:00 UTC) — thinktank, hokkaido
+    - cron: "0 9 * * *"
+    # Slot 3: 24:00 JST / 00:00+1 (15:00 UTC) — social, performing_arts_search, senses_research
+    - cron: "0 15 * * *"
   workflow_dispatch:
+    inputs:
+      slot:
+        description: "Slot to run (0=06JST 1=12JST 2=18JST 3=24JST)"
+        required: false
+        default: ""
 
 jobs:
   research:
@@ -27,6 +39,23 @@ jobs:
       - name: Install Playwright browsers
         run: playwright install chromium --with-deps
 
+      - name: Determine slot from schedule
+        id: slot
+        run: |
+          # Manual dispatch with explicit slot
+          if [ -n "${{ github.event.inputs.slot }}" ]; then
+            echo "value=${{ github.event.inputs.slot }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # Derive slot from current UTC hour
+          HOUR=$(date -u +%H | sed 's/^0*//')
+          if [ -z "$HOUR" ]; then HOUR=0; fi
+          if [ "$HOUR" -eq 21 ]; then echo "value=0" >> $GITHUB_OUTPUT
+          elif [ "$HOUR" -eq 3 ]; then  echo "value=1" >> $GITHUB_OUTPUT
+          elif [ "$HOUR" -eq 9 ]; then  echo "value=2" >> $GITHUB_OUTPUT
+          else                           echo "value=3" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run daily research
         working-directory: scraper
         env:
@@ -36,4 +65,5 @@ jobs:
           LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          RESEARCH_SLOT: ${{ steps.slot.outputs.value }}
         run: python researcher.py

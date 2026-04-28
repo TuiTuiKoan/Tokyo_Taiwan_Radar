@@ -169,41 +169,53 @@ SEARCH_CATEGORIES = [
     },
 ]
 
-# Maps Python weekday (Monday=0 … Sunday=6) to a SEARCH_CATEGORIES entry id.
-# When a day maps to a list, the category alternates by ISO week number (even/odd).
-# 9 categories total: 7 run weekly, 2 (fukuoka/hokkaido) alternate every other week.
-WEEKDAY_SCHEDULE: dict[int, str | list[str]] = {
-    0: ["university", "fukuoka"],  # Monday: alternates by ISO week
-    1: "media",                    # Tuesday
-    2: "government",               # Wednesday
-    3: ["thinktank", "hokkaido"],  # Thursday: alternates by ISO week
-    4: "social",                   # Friday
-    5: "performing_arts_search",   # Saturday
-    6: "senses_research",          # Sunday
+# ---------------------------------------------------------------------------
+# 4-slot daily schedule (Layer 1 — 4 runs per day at 06/12/18/24 JST)
+# RESEARCH_SLOT env var (0–3) selects which categories to run this slot.
+# Each slot runs 2–3 categories; all 9 categories complete within a day.
+# ---------------------------------------------------------------------------
+SLOT_SCHEDULE: dict[int, list[str]] = {
+    0: ["university", "fukuoka"],                             # 06:00 JST
+    1: ["media", "government"],                              # 12:00 JST
+    2: ["thinktank", "hokkaido"],                            # 18:00 JST
+    3: ["social", "performing_arts_search", "senses_research"],  # 24:00 JST (00:00+1)
 }
 
+# Legacy weekday schedule kept for --category CLI override reference
 WEEKDAY_NAMES = ["一", "二", "三", "四", "五", "六", "日"]
 
 
-def _resolve_category_id(weekday: int) -> str:
-    """Resolve today's category, alternating lists by ISO week number."""
-    entry = WEEKDAY_SCHEDULE.get(weekday, "university")
-    if isinstance(entry, list):
-        iso_week = datetime.now(JST).isocalendar()[1]
-        return entry[iso_week % len(entry)]
-    return entry
+def _resolve_slot() -> int:
+    """Return the current slot (0–3) from RESEARCH_SLOT env var, else derive from JST hour."""
+    env_slot = os.environ.get("RESEARCH_SLOT")
+    if env_slot is not None:
+        return int(env_slot) % 4
+    # Fallback: derive slot from JST hour (00–05→3, 06–11→0, 12–17→1, 18–23→2)
+    hour = datetime.now(JST).hour
+    if hour < 6:
+        return 3
+    elif hour < 12:
+        return 0
+    elif hour < 18:
+        return 1
+    else:
+        return 2
+
+
+def _resolve_category_id(weekday: int | None = None) -> list[str]:
+    """Return list of category IDs to run for the current slot."""
+    slot = _resolve_slot()
+    return SLOT_SCHEDULE.get(slot, ["university"])
 
 
 def _schedule_summary() -> str:
-    """One-line weekly schedule overview, e.g. '一🏫  二📰 …'"""
+    """One-line slot schedule overview."""
     cat_label = {cat["id"]: cat["label"].split()[0] for cat in SEARCH_CATEGORIES}
     parts = []
-    for wd in range(7):
-        entry = WEEKDAY_SCHEDULE[wd]
-        if isinstance(entry, list):
-            parts.append(f"{WEEKDAY_NAMES[wd]}{'|'.join(cat_label[c] for c in entry)}")
-        else:
-            parts.append(f"{WEEKDAY_NAMES[wd]}{cat_label[entry]}")
+    for slot, cats in SLOT_SCHEDULE.items():
+        jst_hour = [6, 12, 18, 24][slot]
+        labels = "|".join(cat_label[c] for c in cats)
+        parts.append(f"{jst_hour:02d}時{labels}")
     return "  ".join(parts)
 
 
@@ -475,17 +487,25 @@ def merge_results(results: list[CategoryResult]) -> dict:
 
 def _format_line_message(report: dict, results: list[CategoryResult], category: dict) -> str:
     today = datetime.now(JST).strftime("%Y-%m-%d")
+    slot = _resolve_slot()
+    jst_hours = [6, 12, 18, 24]
     total_in = sum(r.tokens_in for r in results)
     total_out = sum(r.tokens_out for r in results)
-    cost = (total_in * 30 + total_out * 60) / 1_000_000  # search-preview pricing
+    cost = (total_in * 30 + total_out * 60) / 1_000_000
+
+    cat_labels = " + ".join(
+        next(c["label"] for c in SEARCH_CATEGORIES if c["id"] == r.category_id)
+        for r in results
+    )
 
     verified_sources = [s for s in report.get("top_sources", []) if s.get("url_verified")]
     unverified = [s for s in report.get("top_sources", []) if not s.get("url_verified")]
 
     lines = [
         "📡 Tokyo Taiwan Radar — 每日研究報告",
-        f"日期：{today}  |  今日類別：{category['label']}",
-        f"模型：gpt-4o-search-preview × 1 agent",
+        f"日期：{today}  |  Slot {slot} ({jst_hours[slot]:02d}:00 JST)",
+        f"類別：{cat_labels}",
+        f"模型：gpt-4o-search-preview × {len(results)} agents",
         f"費用：${cost:.4f} USD",
         "",
         "━━━━━━━━━━━━━━━━━━━━",
@@ -533,7 +553,7 @@ def _format_line_message(report: dict, results: list[CategoryResult], category: 
 
     lines.extend([
         "",
-        "📅 本週排程：" + _schedule_summary(),
+        "📅 今日排程：" + _schedule_summary(),
         "",
         "━━━━━━━━━━━━━━━━━━━━",
         "在 /admin/research 查看完整報告 + 建立爬蟲 Issue",
@@ -542,20 +562,26 @@ def _format_line_message(report: dict, results: list[CategoryResult], category: 
 
 
 def run_research(dry_run: bool = False, category_id: str | None = None) -> None:
-    # Resolve which category to run today
-    today_wd = datetime.now(JST).weekday()
-    resolved_id = category_id or _resolve_category_id(today_wd)
+    # Resolve which categories to run
+    if category_id:
+        category_ids = [category_id]
+    else:
+        category_ids = _resolve_category_id()
+
+    slot = _resolve_slot()
     category_map = {cat["id"]: cat for cat in SEARCH_CATEGORIES}
-    category = category_map.get(resolved_id)
-    if not category:
-        logger.error(
-            "Unknown category_id '%s'. Valid: %s", resolved_id, list(category_map)
-        )
-        return
+
+    # Validate
+    for cid in category_ids:
+        if cid not in category_map:
+            logger.error(
+                "Unknown category_id '%s'. Valid: %s", cid, list(category_map)
+            )
+            return
 
     logger.info(
-        "Starting research: category=%s (%s), weekday=%d, dry_run=%s",
-        resolved_id, category["label"], today_wd, dry_run,
+        "Starting research: slot=%d, categories=%s, dry_run=%s",
+        slot, category_ids, dry_run,
     )
     ai = _get_openai()
     sb = None if dry_run else _get_supabase()
@@ -566,21 +592,29 @@ def run_research(dry_run: bool = False, category_id: str | None = None) -> None:
         known_urls = _get_known_urls(sb)
         logger.info("Known URLs to skip: %d", len(known_urls))
 
-    # Run single agent for today's scheduled category
-    agent = CategoryAgent(category, ai, known_urls)
-    result = agent.run()
-    results = [result]
+    # Run one agent per category in this slot
+    results: list[CategoryResult] = []
+    for cid in category_ids:
+        category = category_map[cid]
+        logger.info("Running agent: %s (%s)", cid, category["label"])
+        agent = CategoryAgent(category, ai, known_urls)
+        result = agent.run()
+        results.append(result)
+
     report = merge_results(results)
 
     verified = sum(1 for s in report["top_sources"] if s.get("url_verified"))
     logger.info(
-        "Research complete: %d sources, %d verified, error=%s",
-        len(report["top_sources"]), verified, result.error,
+        "Research complete: slot=%d, %d categories, %d sources, %d verified",
+        slot, len(results), len(report["top_sources"]), verified,
     )
 
-    total_in = result.tokens_in
-    total_out = result.tokens_out
+    total_in = sum(r.tokens_in for r in results)
+    total_out = sum(r.tokens_out for r in results)
     cost = (total_in * 30 + total_out * 60) / 1_000_000
+
+    # Use first category's metadata for LINE label
+    primary_category = category_map[category_ids[0]]
 
     if dry_run:
         verified_sources = [s for s in report["top_sources"] if s.get("url_verified")]
@@ -613,22 +647,23 @@ def run_research(dry_run: bool = False, category_id: str | None = None) -> None:
         logger.warning("Could not save report to DB: %s", exc)
 
     # Log cost to scraper_runs
+    slot_label = "+".join(category_map[c]["label"].split()[0] for c in category_ids)
     try:
         sb.table("scraper_runs").insert({
-            "source": f"researcher/{resolved_id}",
+            "source": f"researcher/slot{slot}",
             "events_processed": len(report["top_sources"]),
             "openai_tokens_in": total_in,
             "openai_tokens_out": total_out,
             "cost_usd": round(cost, 6),
-            "notes": f"gpt-4o-search-preview × 1 agent ({category['label']}), {verified} verified",
+            "notes": f"gpt-4o-search-preview × {len(results)} agents ({slot_label}), {verified} verified",
         }).execute()
     except Exception:
         pass
 
     # Send LINE
-    msg = _format_line_message(report, results, category)
+    msg = _format_line_message(report, results, primary_category)
     send_line_message(msg)
-    logger.info("Daily research complete.")
+    logger.info("Daily research slot %d complete.", slot)
 
 
 if __name__ == "__main__":
