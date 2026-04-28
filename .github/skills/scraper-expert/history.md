@@ -2,6 +2,16 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-28 — 電影《大濛》上映 [taioan_dokyokai] — user report confirmed
+**Report types:** wrongDetails, fieldEdit:name:zh:電影《大濛》上映, fieldEdit:name:en:Screening of the Movie 'A Foggy Tale', fieldEdit:name:ja:映画『霧のごとく』上映
+**Wrong fields:** name
+**Admin notes:** —
+**Action:** Annotatable fields nulled out — re-annotation triggered. Will auto-reactivate after annotator runs.
+---
+
+---
+
+
 ## 2026-04-28 — 映画『霧のごとく（大濛）』東京貸切上映会＆トークショー [taioan_dokyokai] — user report confirmed
 **Report types:** wrongDetails, fieldEdit:name:zh:電影《大濛》東京包場 x 映後座談, fieldEdit:name:en:Private screening & talk of the film 'A Foggy Tale' in Tokyo, fieldEdit:name:ja:映画『霧のごとく（大濛）』東京貸切上映会＆トークショー
 **Wrong fields:** name
