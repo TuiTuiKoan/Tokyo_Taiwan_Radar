@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-04-28 — eiga_com: 原題から name_zh / name_en を直接抽出する
+
+**発見：** 映画.com の映画詳細ページ（例：`/movie/82162/`）の `p.data` に「原題または英題：阿嬤的夢中情人 Forever Love」という行が存在する。スクレイパーは `name_ja`（日本語配給タイトル）しか設定していなかったため、中文・英語タイトルは AI アノテーターの推測に頼っていた。
+
+**根本原因：** `_fetch_movie_detail()` は `p.data` から製作年・上映時間・国情報のみ使用し、`原題` 行を無視していた。
+
+**修正：** `_ORIG_TITLE_RE` regex と `_parse_original_title()` helper を追加。
+- 非 ASCII ブロック（CJK）→ `name_zh`、ASCII ブロック（英語）→ `name_en` に分離
+- `_fetch_movie_detail()` の返り値を `(title, pub_date, raw_description, name_zh, name_en)` に拡張
+- fallback Event と `_scrape_area_page()` の両方に `name_zh`, `name_en` を渡す
+
+**例：**
+- `原題または英題：阿嬤的夢中情人 Forever Love` → `name_zh="阿嬤的夢中情人"`, `name_en="Forever Love"`
+
+**Lesson：**
+- 映画系ソースには必ず詳細ページの「原題」「英題」「原題または英題」フィールドを確認すること。
+- 原タイトルは AI より高精度 — スクレイパーで確定できる情報は AI に任せない。
+- ルールを SKILL.md `## eiga_com-specific` に追記済み。
+
+---
+
 ## 2026-04-26 — scope expanded to all of Japan（全日本）
 
 **Change:** Removed `prefecture=tokyo` from Connpass API params; updated docstrings for Doorkeeper and Connpass; updated agent descriptions and community-platforms subagent.

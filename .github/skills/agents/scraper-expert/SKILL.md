@@ -196,6 +196,13 @@ applyTo: scraper/sources/<source_name>.py
 - **DB unavailable = graceful degradation**: When env vars are missing (dry-run on CI), `_load_db_creators()` catches the exception and returns `{}` — static creators still run normally.
 - **`source_id` format**: `note_{creator}_{note_id}` where `note_id` is the article-level path segment (e.g. `n4f9a42875b82`). Stable across runs.
 
+## eiga_com-specific
+
+- **`原題` / `原題または英題` in `p.data`**: The movie detail page often contains an original/alternate title line inside `p.data`. Parse it with `_ORIG_TITLE_RE` and `_parse_original_title()` to extract `name_zh` and `name_en` directly from the scraped HTML — before the AI annotation step.
+- **Split logic**: `原題または英題：阿嬤的夢中情人 Forever Love` → non-ASCII block = `name_zh`, ASCII block = `name_en`. Use regex `r"^([^\x00-\x7f]+)\s+([A-Za-z].+)$"` to split. If only CJK → `name_zh` only; if only Latin → `name_en` only.
+- **Never overwrite 原題 with AI**: When `name_zh` / `name_en` are pre-populated from `原題`, the annotator's GPT output is still allowed to replace them (standard flow), but the scraper-set values act as a quality baseline and reduce AI hallucination risk.
+- **name_ja = Japanese distribution title** (e.g. `台湾ハリウッド`), NOT the 原題. The 原題 is the production title (e.g. `阿嬤的夢中情人`). Both are valid but serve different display purposes.
+
 
 - Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
 - Increment `self._deepl_chars_used += len(text)` at every DeepL API call.

@@ -22,9 +22,12 @@ Listing page structure (ul.row.list-tile > li.col-s-3):
   <a href="/movie/{id}/"> — title from p.title, date from small.time
 
 Detail page structure:
-  h1.page-title      → Japanese title
+  h1.page-title      → Japanese title (name_ja)
   p.date-published   → 劇場公開日: YYYY年M月D日
-  p.data             → "YYYY年製作／Xmin／G／台湾" (country info)
+  p.data             → "YYYY年製作／Xmin／G／台湾" + optional 原題または英題 line
+                       原題または英題 is parsed into name_zh (CJK part) and name_en (ASCII part).
+                       Example: "原題または英題：阿嬤的夢中情人 Forever Love"
+                                → name_zh="阿嬤的夢中情人", name_en="Forever Love"
   p (no class, long) → synopsis
 
 Area page structure (/movie-area/{id}/{pref}/{area}/):
@@ -73,6 +76,31 @@ _DATE_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
 
 # theater_id regex from more-schedule href
 _THEATER_ID_RE = re.compile(r"/movie-theater/\d+/\d+/\d+/(\d+)/")
+
+# Original title regex — captures 原題 or 原題または英題 line from p.data
+_ORIG_TITLE_RE = re.compile(r"原題(?:または英題)?[：:]\s*([^\n]+)")
+
+
+def _parse_original_title(data_text: str) -> tuple["str | None", "str | None"]:
+    """Extract (name_zh, name_en) from p.data 原題 line.
+
+    Handles patterns:
+      '原題：阿嬤的夢中情人 Forever Love'  → ('阿嬤的夢中情人', 'Forever Love')
+      '原題または英題：Forever Love'        → (None, 'Forever Love')
+      '原題：阿嬤的夢中情人'                → ('阿嬤的夢中情人', None)
+    """
+    m = _ORIG_TITLE_RE.search(data_text)
+    if not m:
+        return None, None
+    orig = m.group(1).strip()
+    # Split on first transition: non-ASCII block (CJK/full-width) → space → ASCII
+    split_m = re.match(r"^([^\x00-\x7f]+)\s+([A-Za-z].+)$", orig)
+    if split_m:
+        return split_m.group(1).strip(), split_m.group(2).strip()
+    # Only one language
+    if re.search(r"[\u4e00-\u9fff]", orig):
+        return orig, None
+    return None, orig
 
 
 def _parse_date(text: str) -> datetime | None:
@@ -166,7 +194,7 @@ class EigaComScraper(BaseScraper):
         detail_url = f"{_BASE_URL}{path}"
 
         # --- Fetch movie detail ---
-        title, pub_date, raw_description = self._fetch_movie_detail(
+        title, pub_date, raw_description, name_zh, name_en = self._fetch_movie_detail(
             detail_url, fallback_title, fallback_date
         )
 
@@ -182,6 +210,8 @@ class EigaComScraper(BaseScraper):
                 source_url=detail_url,
                 original_language="ja",
                 name_ja=title,
+                name_zh=name_zh,
+                name_en=name_en,
                 raw_title=title,
                 raw_description=raw_description,
                 category=["movie"],
@@ -197,7 +227,7 @@ class EigaComScraper(BaseScraper):
         for area_url in area_urls:
             time.sleep(0.3)
             events = self._scrape_area_page(
-                area_url, movie_id, title, raw_description, pub_date
+                area_url, movie_id, title, raw_description, pub_date, name_zh, name_en
             )
             theater_events.extend(events)
 
@@ -205,14 +235,14 @@ class EigaComScraper(BaseScraper):
 
     def _fetch_movie_detail(
         self, url: str, fallback_title: str, fallback_date: datetime
-    ) -> tuple[str, datetime, str]:
-        """Return (title, pub_date, raw_description) from movie detail page."""
+    ) -> tuple[str, datetime, str, "str | None", "str | None"]:
+        """Return (title, pub_date, raw_description, name_zh, name_en) from movie detail page."""
         try:
             resp = self._session.get(url, timeout=15)
             resp.raise_for_status()
         except requests.RequestException as e:
             logger.debug(f"[{SOURCE_NAME}] Could not fetch {url}: {e}")
-            return fallback_title, fallback_date, ""
+            return fallback_title, fallback_date, "", None, None
 
         soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -225,6 +255,10 @@ class EigaComScraper(BaseScraper):
         data_el = soup.select_one("p.data")
         data_text = data_el.get_text(separator="\n", strip=True) if data_el else ""
 
+        # Extract 原題 / 原題または英題 — may include both zh + en titles separated by a space.
+        # Example: "原題または英題：阿嬤的夢中情人 Forever Love" → name_zh='阿嬤的夢中情人', name_en='Forever Love'
+        name_zh, name_en = _parse_original_title(data_text)
+
         synopsis = ""
         for p in soup.find_all("p"):
             if p.get("class"):
@@ -234,7 +268,7 @@ class EigaComScraper(BaseScraper):
                 synopsis = t
                 break
 
-        return title, pub_date, f"{data_text}\n\n{synopsis}".strip()
+        return title, pub_date, f"{data_text}\n\n{synopsis}".strip(), name_zh, name_en
 
     def _fetch_area_links(self, movie_id: str) -> list[str]:
         """Return all /movie-area/{id}/{pref}/{area}/ URLs for a movie."""
@@ -265,6 +299,8 @@ class EigaComScraper(BaseScraper):
         title: str,
         raw_description: str,
         pub_date: datetime,
+        name_zh: "str | None" = None,
+        name_en: "str | None" = None,
     ) -> list[Event]:
         """Return one Event per theater block on an area page."""
         try:
@@ -335,6 +371,8 @@ class EigaComScraper(BaseScraper):
                 source_url=url,
                 original_language="ja",
                 name_ja=title,
+                name_zh=name_zh,
+                name_en=name_en,
                 raw_title=title,
                 raw_description=desc_prefix + raw_description,
                 category=["movie"],
