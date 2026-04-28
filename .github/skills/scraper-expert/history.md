@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-28 — 台灣文化祭2026春 [arukikata] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** lifestyle_food, taiwan_japan, lecture
+**After (corrected):** lifestyle_food, tourism, lecture, retail
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-28 — 電影《大濛》上映 [taioan_dokyokai] — user report confirmed
 **Report types:** wrongDetails, fieldEdit:name:zh:電影《大濛》上映, fieldEdit:name:en:Screening of the Movie 'A Foggy Tale', fieldEdit:name:ja:映画『霧のごとく』上映
 **Wrong fields:** name
