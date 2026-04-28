@@ -2,6 +2,18 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-28 — 台灣電影上映會《海をみつめる日》上映暨座談會 [taiwan_cultural_center] — user report confirmed
+**Report types:** wrongDetails, wrongCategory, fieldEdit:name:zh:台灣電影放映會《看海的日子》上映暨座談會, fieldEdit:name:en:Taiwan Film Screening of 'A Flower in the Raining Night' and Talk Event, fieldEdit:name:ja:台湾映画上映会『海をみつめる日』上映＆トークイベント
+**Before (AI category):** movie, lecture
+**After (corrected):** movie, literature, history
+**Wrong fields:** name
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-28 — 阿嬤的夢中情人 [eiga_com] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** movie, lecture
