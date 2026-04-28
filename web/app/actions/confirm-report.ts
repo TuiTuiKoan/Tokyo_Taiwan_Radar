@@ -51,6 +51,7 @@ interface ConfirmReportInput {
 interface ConfirmReportResult {
   ok: boolean;
   githubUpdated: boolean;
+  wasReviewed?: boolean;
   error?: string;
 }
 
@@ -152,34 +153,31 @@ export async function confirmReport(
           needsReannotation.push(field);
         }
       } else if (field === "name") {
-        // Partially corrected: null out any locale column not explicitly provided
-        // so annotator re-fills missing translations
-        for (const [loc, dbCol] of Object.entries(localeColMap) as [string, string][]) {
-          if (!localeCorrs[loc]?.trim()) {
-            eventUpdate[dbCol] = null;
+        // Check if ALL locale columns were explicitly provided by admin
+        const allLocalesProvided = Object.keys(localeColMap).every(
+          (loc) => localeCorrs[loc]?.trim()
+        );
+        if (!allLocalesProvided) {
+          // Partially corrected: null out any locale column not explicitly provided
+          // so annotator re-fills missing translations
+          for (const [loc, dbCol] of Object.entries(localeColMap) as [string, string][]) {
+            if (!localeCorrs[loc]?.trim()) {
+              eventUpdate[dbCol] = null;
+            }
           }
+          needsReannotation.push(field);
         }
-        needsReannotation.push(field);
+        // else: all locales provided — no nulling, no re-annotation needed
       }
     }
 
-    // Determine is_active: re-activate only if all fixable fields were corrected
-    // and none require annotator re-fill (name and description always do)
-    const directlyFixableFields = wrongFields.filter(
-      (f) => f !== "description" && Object.keys(FIELD_LOCALE_COL[f] ?? {}).length > 0
-    );
-    const allDirectlyFixed =
-      directlyFixableFields.length === wrongFields.length &&
-      directlyFixableFields.every((f) => {
-        const localeCorrs = corrections[f] ?? {};
-        return Object.values(localeCorrs).some((v) => v?.trim());
-      });
-    const nameInvolved = wrongFields.includes("name");
-
-    if (allDirectlyFixed && !nameInvolved && !wrongFields.includes("description")) {
+    if (needsReannotation.length === 0) {
+      // All wrong fields fully corrected by admin — mark as reviewed (human-confirmed).
+      // Reviewed events are protected from AI re-annotation on subsequent scraper/annotator runs.
       eventUpdate["is_active"] = true;
-      eventUpdate["annotation_status"] = "annotated";
+      eventUpdate["annotation_status"] = "reviewed";
     } else {
+      // Some fields still need AI re-fill
       eventUpdate["is_active"] = false;
       eventUpdate["annotation_status"] = "pending";
     }
@@ -237,7 +235,7 @@ export async function confirmReport(
     await appendPendingRuleToSkill(skillPath, input, wrongFields);
   }
 
-  return { ok: true, githubUpdated };
+  return { ok: true, githubUpdated, wasReviewed: eventUpdate["annotation_status"] === "reviewed" };
 }
 
 

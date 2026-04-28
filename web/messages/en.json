@@ -297,7 +297,8 @@
     "rescrapeComplete": "Done!",
     "rescrapeProgress": "{count} remaining · ~{seconds}s",
     "rescrapeErrorPrefix": "Annotator failed",
-    "rescrapeNoPending": "No pending events"
+    "rescrapeNoPending": "No pending events",
+    "eventAppliedReviewed": "Corrections applied directly. Event marked as reviewed — protected from AI overwrite."
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",

@@ -297,7 +297,8 @@
     "rescrapeComplete": "完了！",
     "rescrapeProgress": "残り {count} 件 · 約 {seconds} 秒",
     "rescrapeErrorPrefix": "処理失敗",
-    "rescrapeNoPending": "処理待ち活動なし"
+    "rescrapeNoPending": "処理待ち活動なし",
+    "eventAppliedReviewed": "修正を直接適用しました。イベントをレビュー済みとしてマークしました（AI上書き不可）。"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",

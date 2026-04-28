@@ -101,7 +101,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
-  const [confirmFeedback, setConfirmFeedback] = useState<Record<string, { githubUpdated: boolean }>>({});
+  const [confirmFeedback, setConfirmFeedback] = useState<Record<string, { githubUpdated: boolean; wasReviewed?: boolean }>>({}); 
   const [correctCategory, setCorrectCategory] = useState<Record<string, string[]>>({});
   const [fieldEdits, setFieldEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});;
 
@@ -150,7 +150,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
         admin_notes: notes[row.id] ?? null,
       };
       setReports((prev) => prev.map((r) => (r.id === row.id ? updatedRow : r)));
-      setConfirmFeedback((prev) => ({ ...prev, [row.id]: { githubUpdated: result.githubUpdated } }));
+      setConfirmFeedback((prev) => ({ ...prev, [row.id]: { githubUpdated: result.githubUpdated, wasReviewed: result.wasReviewed } }));
       setExpandedId(row.id); // keep expanded to show feedback
     }
     setSaving(null);
@@ -418,7 +418,9 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                   </p>
                 )}
                 <p className="text-xs text-gray-500">
-                  {t("eventDeactivated")}
+                  {confirmFeedback[row.id]?.wasReviewed
+                    ? t("eventAppliedReviewed")
+                    : t("eventDeactivated")}
                 </p>
                 {confirmFeedback[row.id] !== undefined && (
                   <p className={`text-xs ${confirmFeedback[row.id].githubUpdated ? "text-green-700" : "text-amber-600"}`}>
