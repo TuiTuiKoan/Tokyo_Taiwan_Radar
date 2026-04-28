@@ -31,5 +31,5 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
           OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
           LINE_CHANNEL_TOKEN: "${{ secrets.LINE_CHANNEL_TOKEN }}"
-          NEXT_PUBLIC_BASE_URL: "${{ secrets.NEXT_PUBLIC_BASE_URL }}"
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
         run: python weekly_line_broadcast.py

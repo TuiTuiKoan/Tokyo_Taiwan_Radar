@@ -251,7 +251,7 @@ def run_broadcast(dry_run: bool = False) -> None:
     import time
     start = time.time()
     today = datetime.now(JST)
-    base_url = os.environ.get("NEXT_PUBLIC_BASE_URL", "https://tokyo-taiwan-radar.vercel.app")
+    base_url = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://tokyo-taiwan-radar.vercel.app")
     token = os.environ.get("LINE_CHANNEL_TOKEN", "")
 
     sb = _get_supabase()

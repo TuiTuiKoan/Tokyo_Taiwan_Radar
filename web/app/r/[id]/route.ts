@@ -5,6 +5,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? "";
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   return NextResponse.redirect(`${base}/zh/events/${id}`, { status: 301 });
 }
