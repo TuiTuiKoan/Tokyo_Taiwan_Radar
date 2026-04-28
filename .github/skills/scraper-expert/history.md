@@ -2,6 +2,15 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-28 — 日泰食堂 [cine_marine] — user report confirmed
+**Report types:** wrongSelectionReason, selectionReason:這部電影以香港的食堂為背景，描繪了面對社會變遷的人們，由台湾・香港・法國共同製作。
+**Admin notes:** —
+**Action:** Event deactivated — re-annotation triggered (annotation_status=pending).
+---
+
+---
+
+
 ## 2026-04-28 — 霧的如同 [cinemart_shinjuku] — user report confirmed
 **Report types:** wrongDetails, fieldEdit:name:zh:大濛, fieldEdit:name:en:A Foggy Tale, fieldEdit:name:ja:霧のごとく
 **Wrong fields:** name
