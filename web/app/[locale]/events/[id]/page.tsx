@@ -299,46 +299,78 @@ export default async function EventDetailPage({ params }: PageProps) {
       )}
 
       {/* ===== 報導・活動紀錄 ===== */}
-      {((event as Event).record_links?.length || 0) + ((event as Event).secondary_source_urls?.length || 0) > 0 && (
-        <div className="mb-8">
-          <h2 className="text-sm font-medium text-gray-400 mb-3">{t("recordLinksSection")}</h2>
-          <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
-            {(event as Event).record_links?.map((link: { title: string; url: string; recommended?: boolean }, i: number) => {
-              const totalLinks = ((event as Event).record_links?.length || 0) + ((event as Event).secondary_source_urls?.length || 0);
-              const showBadge = link.recommended && totalLinks > 1;
-              return (
+      {(() => {
+        const hasOfficialUrl = !!(event as Event).official_url;
+        const isMovie = event.category?.includes("movie");
+        const hasRecordLinks = ((event as Event).record_links?.length || 0) > 0;
+        const hasSecondaryUrls = ((event as Event).secondary_source_urls?.length || 0) > 0;
+        const showSection = hasOfficialUrl || hasRecordLinks || hasSecondaryUrls || isMovie;
+        if (!showSection) return null;
+        return (
+          <div className="mb-8">
+            <h2 className="text-sm font-medium text-gray-400 mb-3">{t("recordLinksSection")}</h2>
+            <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+              {/* Movie: official promotional site link */}
+              {hasOfficialUrl && isMovie && (
                 <a
-                  key={i}
-                  href={link.url}
+                  href={(event as Event).official_url!}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-blue-600 hover:underline gap-2"
+                  className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-green-700 hover:underline gap-2"
                 >
-                  <span className="flex-1">{link.title || link.url}</span>
-                  {showBadge && (
-                    <span className="shrink-0 text-xs bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 font-medium">
-                      {t("recordLinksRecommended")}
-                    </span>
-                  )}
+                  <span className="flex-1">{t("movieOfficialSite")}</span>
                   <span className="text-gray-300 shrink-0">↗</span>
                 </a>
-              );
-            })}
-            {(event as Event).secondary_source_urls?.map((url: string, idx: number) => (
-              <a
-                key={`sec-${idx}`}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-blue-500 hover:underline gap-2"
-              >
-                <span className="flex-1">{t("viewAltSource", { n: idx + 1 })}</span>
-                <span className="text-gray-300 shrink-0">↗</span>
-              </a>
-            ))}
+              )}
+              {(event as Event).record_links?.map((link: { title: string; url: string; recommended?: boolean }, i: number) => {
+                const totalLinks = ((event as Event).record_links?.length || 0) + ((event as Event).secondary_source_urls?.length || 0);
+                const showBadge = link.recommended && totalLinks > 1;
+                return (
+                  <a
+                    key={i}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-blue-600 hover:underline gap-2"
+                  >
+                    <span className="flex-1">{link.title || link.url}</span>
+                    {showBadge && (
+                      <span className="shrink-0 text-xs bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 font-medium">
+                        {t("recordLinksRecommended")}
+                      </span>
+                    )}
+                    <span className="text-gray-300 shrink-0">↗</span>
+                  </a>
+                );
+              })}
+              {(event as Event).secondary_source_urls?.map((secUrl: string, idx: number) => (
+                <a
+                  key={`sec-${idx}`}
+                  href={secUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-blue-500 hover:underline gap-2"
+                >
+                  <span className="flex-1">{t("viewAltSource", { n: idx + 1 })}</span>
+                  <span className="text-gray-300 shrink-0">↗</span>
+                </a>
+              ))}
+              {/* Movie without official_url: Google search fallback */}
+              {isMovie && !hasOfficialUrl && (
+                <a
+                  href={`https://www.google.com/search?q=${encodeURIComponent((name || event.raw_title || "") + " 公式サイト")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center px-4 py-3 hover:bg-gray-50 transition text-sm text-gray-500 hover:underline gap-2"
+                >
+                  <span className="flex-1">{t("searchOfficialSite")}</span>
+                  <span className="text-gray-300 shrink-0">↗</span>
+                </a>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ===== Raw Data + Selection Reason + Report (Layer 1) ===== */}
       <RawDataSection

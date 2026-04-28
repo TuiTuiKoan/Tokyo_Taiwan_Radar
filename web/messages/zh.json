@@ -96,7 +96,9 @@
     "recordLinksRemove": "移除",
     "recordLinksLinkTitle": "標題",
     "recordLinksUrl": "連結網址",
-    "recordLinksRecommended": "推薦"
+    "recordLinksRecommended": "推薦",
+    "movieOfficialSite": "電影官方宣傳網站",
+    "searchOfficialSite": "Google 搜尋官方宣傳網站"
   },
   "auth": {
     "loginTitle": "登入",

@@ -96,7 +96,9 @@
     "recordLinksRemove": "削除",
     "recordLinksLinkTitle": "タイトル",
     "recordLinksUrl": "URL",
-    "recordLinksRecommended": "おすすめ"
+    "recordLinksRecommended": "おすすめ",
+    "movieOfficialSite": "映画公式サイト",
+    "searchOfficialSite": "公式サイトをGoogleで検索"
   },
   "auth": {
     "loginTitle": "ログイン",

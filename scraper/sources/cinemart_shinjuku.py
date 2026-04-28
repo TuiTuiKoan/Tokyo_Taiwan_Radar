@@ -223,6 +223,19 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> Even
         date_str = start_date.strftime("%Y年%m月%d日")
         raw_desc = f"開催日時: {date_str}\n\n" + raw_desc
 
+    # --- Official URL: look for "オフィシャルサイト" or "公式サイト" external link ---
+    official_url: str | None = None
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        text = a.get_text(strip=True)
+        if not href.startswith("http"):
+            continue
+        if "cinemart.co.jp" in href:
+            continue
+        if any(kw in text for kw in ["オフィシャルサイト", "公式サイト", "official site", "Official Site"]):
+            official_url = href
+            break
+
     movie_number = _extract_movie_number(url)
 
     return Event(
@@ -238,6 +251,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> Even
         location_name=_VENUE_NAME,
         location_address=_VENUE_ADDRESS,
         is_paid=True,
+        official_url=official_url,
     )
 
 

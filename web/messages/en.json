@@ -96,7 +96,9 @@
     "recordLinksRemove": "Remove",
     "recordLinksLinkTitle": "Title",
     "recordLinksUrl": "URL",
-    "recordLinksRecommended": "Recommended"
+    "recordLinksRecommended": "Recommended",
+    "movieOfficialSite": "Official Film Website",
+    "searchOfficialSite": "Search for official film website"
   },
   "auth": {
     "loginTitle": "Login",

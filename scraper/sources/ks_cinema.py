@@ -286,6 +286,19 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
 
     url_slug = _url_to_slug(url)
 
+    # --- Official URL: look for "オフィシャルサイト" or "公式サイト" external link ---
+    official_url: str | None = None
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        text = a.get_text(strip=True)
+        if not href.startswith("http"):
+            continue
+        if "ks-cinema.com" in href:
+            continue
+        if any(kw in text for kw in ["オフィシャルサイト", "公式サイト", "official site", "Official Site"]):
+            official_url = href
+            break
+
     # --- Check for sub-films (h3 elements in content) ---
     h3_elements = content_div.select("h3") if content_div else []
     # Filter out h3 elements from the sidebar (メニュー, お問い合わせ)
@@ -333,6 +346,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
             location_address=_VENUE_ADDRESS,
             is_paid=True,
             price_info=price_info,
+            official_url=official_url,
         )
         events.append(parent_event)
 
@@ -402,6 +416,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
                 location_address=_VENUE_ADDRESS,
                 is_paid=True,
                 price_info=price_info,
+                official_url=official_url,
                 parent_event_id=f"ks_cinema_{url_slug}",
             )
             events.append(sub_event)
@@ -438,6 +453,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
             location_address=_VENUE_ADDRESS,
             is_paid=True,
             price_info=price_info,
+            official_url=official_url,
         )
         events.append(event)
 
