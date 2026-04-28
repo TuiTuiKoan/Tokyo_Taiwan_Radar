@@ -1,6 +1,19 @@
 # Cinemart Shinjuku Scraper — History
 
-## 2026-04-26
+## 2026-04-29
+
+**Added `official_url` extraction** — cinema detail pages have "オフィシャルサイトはこちら" link.
+
+### Key decisions
+
+1. **Link-text matching**: Scan all `<a href>` tags in detail page. Skip hrefs not starting with `http` and skip hrefs containing `cinemart.co.jp`. Accept link texts: `オフィシャルサイト`, `公式サイト`, `official site`, `Official Site`.
+
+2. **Confirmed working**: dry-run returned `official_url: "https://www.afoggytale.com/"` for `cinemart_shinjuku_002491` (大濛 / A Foggy Tale). Other films on the listing page also have official site links.
+
+3. **DB backfill required**: Existing active events had `official_url = null` after the code change. Manually updated via targeted Supabase UPDATE. Future runs maintain `official_url` automatically via upsert.
+
+---
+
 
 **Initial implementation** — `cinemart_shinjuku` scraper created.
 

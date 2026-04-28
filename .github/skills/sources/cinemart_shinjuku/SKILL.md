@@ -30,6 +30,7 @@ Cinemart Shinjuku (新宿文化ビル6F・7F) is an Asia-focused art cinema. It 
 | `end_date` | `None` for regular releases; `= start_date` for `1日限定上映` |
 | `location_name` | Fixed: `シネマート新宿` |
 | `location_address` | Fixed: `東京都新宿区新宿3丁目13番3号 新宿文化ビル6F・7F` |
+| `official_url` | First external `<a>` with link text matching `オフィシャルサイト` / `公式サイト` / `official site` in `<main>` |
 | `is_paid` | Always `True` |
 | `price_info` | `None` (no structured price on detail page) |
 | `category` | `["movie"]` |

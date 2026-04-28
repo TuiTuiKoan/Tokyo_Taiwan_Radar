@@ -1,6 +1,19 @@
 # K's Cinema Scraper — History
 
-## 2026-04-26
+## 2026-04-29
+
+**Added `official_url` extraction (defensive)** — same link-text pattern as `cinemart_shinjuku`.
+
+### Key decisions
+
+1. **Defensive only**: K's Cinema detail pages do not currently include a film official-site link. The extraction code is a no-op for now but future films may include one.
+
+2. **All 3 Event() calls updated**: Parent event, sub-event (series), and single-film event all receive `official_url=official_url`.
+
+3. **DB backfill not needed**: No current active events have an extractable official_url, so no manual DB update required.
+
+---
+
 
 **Initial implementation** — K's Cinema (`ks_cinema`) scraper created.
 

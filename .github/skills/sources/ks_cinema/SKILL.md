@@ -30,6 +30,7 @@ K's Cinema (新宿K'sシネマ) is an art cinema in Shinjuku that screens variou
 | `location_name` | Fixed: `K's cinema` |
 | `location_address` | Fixed: `東京都新宿区新宿3丁目35-13 3F` |
 | `is_paid` | Always `True` |
+| `official_url` | First external `<a>` with link text matching `オフィシャルサイト` / `公式サイト` / `official site` in page body (skip hrefs containing `ks-cinema.com`) |
 | `price_info` | `当日料金` row from period table |
 | `category` | `["movie"]` |
 | `source_url` | Movie detail page URL |
