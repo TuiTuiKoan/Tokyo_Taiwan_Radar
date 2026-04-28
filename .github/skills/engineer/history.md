@@ -1,32 +1,4 @@
 ---
-## 2026-04-28 — researcher.yml 缺少 playwright install，URL 驗證靜默失敗數週
-**新增/修改：**
-- GitHub Actions Workflow Rules 新增 Step parity rule
-- 多個 workflow 共用相同工具依賴時，必須同步所有 setup 步驟
-- 引用 commit `d7f4b41` 作為反例（researcher.yml 缺 playwright install → url_verified=False）
-**來源：** daily-skills-review（Step 4 建議）
-
----
-## 2026-04-28 — source filter hardcoded list omitted new scrapers
-**新增/修改：**
-- Filter-option sync rule 拆分為「closed sets（hardcode options）」vs「open-ended sets（動態衍生）」
-- 補充 `source_name` 必須用 `Array.from(new Set(...))` 動態衍生，禁止 hardcode
-- 引用 commit `fe1b39e` 作為反例說明
-**來源：** daily-skills-review（Step 4 建議）
-
----
-## 2026-04-28 — AdminReportsTable 分類選單錯亂：從 flat CATEGORIES 改為 CATEGORY_GROUPS
-**Problem:** `AdminReportsTable.tsx` 的 wrongCategory 分類選取用 `CATEGORIES.map(...)` 顯示所有分類為一整排無序標籤，而 `AdminEventForm.tsx` 和 `ReportSection.tsx` 使用 `CATEGORY_GROUPS` 群組佈局。導致 `/admin/reports` 校對 AI 報錯時分類列表錯亂，無群組標籤且順序不一致。
-**Fix:** 將 `AdminReportsTable.tsx` 的分類區塊從 `CATEGORIES.map(...)` 改為 `CATEGORY_GROUPS.map(...)` + `grid-cols-[4.5rem_1fr]` 群組佈局，與 `AdminEventForm.tsx` 完全一致。Commit `580577d`。
-**Lesson:** 三個檔案共享分類群組選擇器：`AdminEventForm.tsx`、`ReportSection.tsx`、`AdminReportsTable.tsx`。任何一個的佈局變更必須同步更新其他兩個。已將 SKILL.md paired-file rule 擴展為 **three-file rule**，並更新 UI surfaces 表格（AdminReportsTable 改為 CATEGORY_GROUPS）。
-
----
-## 2026-04-28 — Category group picker layout: AdminEventForm + ReportSection must stay in sync
-**Problem:** Adding `literature` to `group_arts` (now 8 items) caused the group label (`w-16 shrink-0`) and tags to share one `flex-wrap` row in `AdminEventForm.tsx`. When tags overflowed to a second line, they wrapped under the group label instead of staying in the tag column.
-**Fix:** Replaced `flex-wrap mixed` layout with `grid-cols-[4.5rem_1fr]` in both `AdminEventForm.tsx` and `ReportSection.tsx`: col 1 = group label (right-aligned, fixed width), col 2 = `flex-wrap` tags. `ReportSection` had an existing but narrower `3rem` column; widened to `4.5rem` for longer labels like 知識交流. Commit `31d7dd3`.
-**Lesson:** `AdminEventForm.tsx` and `ReportSection.tsx` share the exact same category group picker structure. Any layout change to one must be applied to both in the same commit. This is now a paired-file rule.
-
----
 ## 2026-04-28 — merger.py: Pass 2 news-report matching added
 **Feature:** `google_news_rss` (and `prtimes`, `nhk_rss`) events were not being merged into their official primary events because Pass 1 requires both (a) name similarity ≥ 0.85 and (b) same `start_date`. News-article titles fail (a) and article publish dates differ from event dates, failing (b).
 **Fix:** Added `Pass 2` to `run_merger()`:

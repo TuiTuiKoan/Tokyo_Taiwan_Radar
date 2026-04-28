@@ -19,6 +19,12 @@ Read this at the start of every session before running any test.
 - If > 20% of events from a source have null `start_date`, escalate to Engineer before proceeding.
 - Distinguish between logic errors (wrong field extracted) and selector errors (selector no longer matches).
 
+## Agent Tooling Baseline
+- In `.github/agents/tester.agent.md`, declare tools using aliases (`read`, `search`, `execute`, `web`) rather than raw function names.
+- Before running source tests, perform a quick terminal preflight (any no-op command) to confirm `execute` is available.
+- Keep Tester read-only; do not add `edit` unless the role is intentionally expanded.
+- Standard activation path for this repo is `source ../.venv/bin/activate`.
+
 ## After a Test Failure
-1. Append an entry to `.github/skills/tester/history.md` (newest at top).
+1. Append an entry to `.github/skills/agents/tester/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.

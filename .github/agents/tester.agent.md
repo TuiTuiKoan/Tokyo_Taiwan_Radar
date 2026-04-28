@@ -3,14 +3,10 @@ name: Tester
 description: "Runs scrapers, validates output, and detects broken selectors or logic for Tokyo Taiwan Radar"
 model: claude-sonnet-4-5
 tools:
-  - read_file
-  - list_dir
-  - file_search
-  - grep_search
-  - get_errors
-  - run_in_terminal
-  - fetch_webpage
-  - vscode_askQuestions
+  - read
+  - search
+  - execute
+  - web
 handoffs:
   - label: "🔧 Fix these issues"
     agent: Engineer
@@ -39,12 +35,14 @@ Runs the scraper pipeline, validates event output, and reports failures. Does NO
 
 ### Step 1: Run All Scrapers
 
-1. Activate the virtual environment and run full dry-run:
-   `cd scraper && source ../venv/bin/activate && python main.py --dry-run 2>&1`
-2. Run each source individually for cleaner output:
+1. Run a terminal preflight command to ensure execution tooling is available (for example: `pwd`).
+   - If terminal execution is unavailable, report a tooling/configuration failure first and stop test execution.
+2. Activate the virtual environment and run full dry-run:
+   `cd scraper && source ../.venv/bin/activate && python main.py --dry-run 2>&1`
+3. Run each source individually for cleaner output:
    - `python main.py --dry-run --source taiwan_cultural_center 2>&1`
    - `python main.py --dry-run --source peatix 2>&1`
-3. Capture the full stdout + stderr from each run.
+4. Capture the full stdout + stderr from each run.
 
 ### Step 2: Compare Output
 
