@@ -29,6 +29,52 @@ Read this at the start of every session before touching any code.
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 
+## Multi-locale Edit Pattern
+
+This codebase stores localized values in parallel columns: `name_ja`, `name_zh`, `name_en`, `description_ja`, `description_zh`, `description_en`, etc.
+
+**Rule:** Any UI component that lets a user view or correct a localized field **must expose all three locale variants simultaneously** — never only the current locale.
+
+**Why:** The Japanese original is often correct (scraped directly from source), while the AI-translated Chinese or English may be wrong. Showing only the current locale hides the other variants and makes it impossible to tell which translation is faulty.
+
+**Canonical pattern (TypeScript):**
+```ts
+type LocaleKey = "zh" | "en" | "ja";
+const LOCALES_ORDER: LocaleKey[] = ["zh", "en", "ja"];
+const LOCALE_LABELS: Record<LocaleKey, string> = { zh: "中文", en: "English", ja: "日本語" };
+
+// Prop type for a multi-locale field value
+Partial<Record<FieldKey, Partial<Record<LocaleKey, string | null>>>>
+
+// State type for edits
+Partial<Record<FieldKey, Partial<Record<LocaleKey, string>>>>
+
+// Render: 3 labeled textareas
+LOCALES_ORDER.map((loc) => (
+  <div key={loc}>
+    <p className="text-xs text-amber-400 mb-0.5">{LOCALE_LABELS[loc]}</p>
+    <textarea value={edits[field]?.[loc] ?? ""} onChange={...} rows={2} />
+  </div>
+))
+
+// Submission: only append non-empty edits
+for (const loc of LOCALES_ORDER) {
+  const edit = edits[field]?.[loc]?.trim();
+  if (edit) reportTypes.push(`fieldEdit:${field}:${loc}:${edit.slice(0, 500)}`);
+}
+```
+
+**page.tsx — pass all three locale values explicitly (do NOT use locale-aware helpers):**
+```ts
+eventFields={{
+  name: { zh: event.name_zh, en: event.name_en, ja: event.name_ja },
+  venue: { zh: event.location_name_zh, en: event.location_name_en, ja: event.location_name },
+  // ...
+}}
+```
+
+> Applies to: `ReportSection.tsx`, any future admin review/correction UI, feedback forms.
+
 ## Bulk Action Pattern (AdminEventTable)
 
 When adding a new bulk operation that operates on a **derived value from selected events** (e.g. common categories, common source, common status):

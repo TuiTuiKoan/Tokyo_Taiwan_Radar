@@ -3,6 +3,28 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-28 — Multi-locale field editing: always expose all locale variants simultaneously
+
+**Context:** `ReportSection.tsx` initially showed a single textarea pre-filled with the *current locale's* value when a user flagged a wrong field. A user pointed out that the Japanese original may be correct while only the Chinese or English translation is wrong. Showing one locale obscures which specific translation is faulty.
+
+**Upgrade:** Changed the textarea to three stacked labeled textareas (中文 / English / 日本語), each pre-filled with the field's own locale column value. Users edit only the incorrect locale(s) and leave others unchanged.
+
+**Type change:**
+```ts
+// Before
+eventFields?: Partial<Record<WrongDetailField, string | null>>;
+fieldEdits:   Partial<Record<WrongDetailField, string>>;
+
+// After
+eventFields?: Partial<Record<WrongDetailField, Partial<Record<LocaleKey, string | null>>>>;
+fieldEdits:   Partial<Record<WrongDetailField, Partial<Record<LocaleKey, string>>>>;
+```
+
+**Submission format:** `fieldEdit:<field>:<locale>:<value>` — only non-empty edits are appended to `report_types`.
+
+**Lesson:** When a UI component edits a field that maps to localized DB columns (`*_ja`, `*_zh`, `*_en`), **never show only the current locale's value**. Show all locale variants with language labels. This applies to any future correction/review UI (admin edit forms, report flows, feedback widgets). → Added to SKILL.md as **Multi-locale Edit Pattern**.
+
+---
 ## 2026-04-28 — Report section: editable textarea per wrong-detail field
 
 **Feature:** When a user checks a sub-field (name, date, venue, etc.) under "內容錯誤 / wrongDetails" in `ReportSection.tsx`, a textarea now appears pre-filled with the current localized event content. The user can edit the value before submitting; the edited text is stored as `fieldEdit:<field>:<value>` in `report_types` alongside the existing `field:<field>` entry.
