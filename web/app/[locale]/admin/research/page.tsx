@@ -88,9 +88,15 @@ export default async function AdminResearchPage({ params }: PageProps) {
         >
           {t("usersTab")}
         </Link>
+        <Link
+          href={`/${locale}/admin/creators`}
+          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
+        >
+          {t("creatorsTab")}
+        </Link>
       </div>
 
-      {/* Daily reports section */}
+      {/* Daily reports section */
       <h2 className="text-lg font-semibold mb-3">{t("researchTitle")}</h2>
 
       <AdminResearchTable
