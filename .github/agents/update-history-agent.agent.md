@@ -1,6 +1,8 @@
 ---
 name: Update History, Skill, Agent
 description: "Document recent changes, fixes, and lessons in history.md, SKILL.md, and agent files — call after fixing bugs or implementing features"
+user-invocable: false
+disable-model-invocation: false
 ---
 
 # 更新 History、Skill、Agent
@@ -34,11 +36,6 @@ description: "Document recent changes, fixes, and lessons in history.md, SKILL.m
    - 提供每個變更的摘要
    - 確認無遺漏
 
-## 範例
+## 完成後
 
-**問題**: Tester agent 工具集不相容  
-**根本原因**: `tools:` 使用函式名稱而非支援的別名  
-**修復**: 改為 `[read, search, execute, web]`  
-**教訓**: 自定義 agent 必須用 alias，不能用函式名稱  
-
-→ 更新 `history.md`、`SKILL.md`、`tester.agent.md`
+完成更新後，回傳變更摘要，供後續 commit 和部署使用。

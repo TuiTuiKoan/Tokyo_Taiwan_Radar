@@ -1,6 +1,9 @@
 ---
 name: Validate, Merge & Deploy
 description: "Full cycle: check conflicts, rebase, commit with atomic message, push to origin/main, and verify Vercel deployment — call after implementation is complete"
+user-invocable: false
+disable-model-invocation: false
+tools: [read, search, execute, web]
 ---
 
 # 檢查衝突、合併、Commit 與部署

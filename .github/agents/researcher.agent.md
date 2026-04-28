@@ -9,8 +9,10 @@ handoffs:
     agent: Scraper Expert
   - label: "📝 Update history/skill/agent"
     agent: Update History, Skill, Agent
+    prompt: "根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。"
   - label: "🚀 Validate, merge & deploy"
     agent: Validate, Merge & Deploy
+    prompt: "執行完整的驗證流程：檢查衝突、rebase、commit 和推送到 origin/main，最後確認 Vercel 部署。"
 ---
 
 # Researcher
