@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { createClient } from "@/lib/supabase/client";
 
 export interface ResearchSource {
   id: number;
@@ -98,6 +99,56 @@ function StatusBadge({ status }: { status: string }) {
 export default function AdminSourcesTable({ sources }: Props) {
   const t = useTranslations("admin");
   const [filter, setFilter] = useState<string>("all");
+  const [sourceList, setSourceList] = useState<ResearchSource[]>(sources);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [creatorSlug, setCreatorSlug] = useState("");
+  const [creatorName, setCreatorName] = useState("");
+  const [creatorLocation, setCreatorLocation] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  async function handleAddCreator(e: React.FormEvent) {
+    e.preventDefault();
+    const slug = creatorSlug.trim().replace(/^https?:\/\/note\.com\/?/, "").replace(/\/$/, "");
+    if (!slug || !creatorName.trim()) return;
+    setAdding(true);
+    setAddError(null);
+
+    const url = `https://note.com/${slug}`;
+    const sourceProfile = creatorLocation.trim()
+      ? { location_name: creatorLocation.trim(), categories: ["taiwan_japan"] }
+      : { categories: ["taiwan_japan"] };
+
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("research_sources")
+      .insert({
+        name: creatorName.trim(),
+        url,
+        status: "implemented",
+        agent_category: "social",
+        category: "taiwan_japan",
+        event_types: "台灣相關活動 (note.com RSS)",
+        source_profile: sourceProfile,
+        reason: `note.com 創作者 @${slug}，手動新增`,
+        url_verified: true,
+      })
+      .select()
+      .single();
+
+    setAdding(false);
+    if (error) {
+      setAddError(error.message);
+      return;
+    }
+    if (data) {
+      setSourceList((prev) => [data as ResearchSource, ...prev]);
+    }
+    setCreatorSlug("");
+    setCreatorName("");
+    setCreatorLocation("");
+    setShowAddForm(false);
+  }
 
   const STATUS_FILTERS = [
     { key: "all",          label: t("filterAll") },
@@ -108,14 +159,95 @@ export default function AdminSourcesTable({ sources }: Props) {
     { key: "candidate",    label: `🔄 ${t("sourceStatusCandidate")}` },
   ];
 
-  const filtered = filter === "all" ? sources : sources.filter((s) => s.status === filter);
+  const filtered = filter === "all" ? sourceList : sourceList.filter((s) => s.status === filter);
 
-  if (sources.length === 0) {
+  if (sourceList.length === 0) {
     return <p className="text-sm text-gray-400">{t("sourcesNone")}</p>;
   }
 
   return (
     <div>
+      {/* Add note.com creator form */}
+      <div className="mb-4">
+        <button
+          onClick={() => setShowAddForm((v) => !v)}
+          className="text-xs px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition font-medium"
+        >
+          {showAddForm ? "✕ " : "＋ "}{t("addNoteCreator")}
+        </button>
+
+        {showAddForm && (
+          <form
+            onSubmit={handleAddCreator}
+            className="mt-3 p-4 bg-white border border-green-200 rounded-xl space-y-3 max-w-lg"
+          >
+            <p className="text-xs text-gray-500">{t("addNoteCreatorHint")}</p>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                {t("addNoteCreatorSlug")} <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={creatorSlug}
+                onChange={(e) => setCreatorSlug(e.target.value)}
+                placeholder="kuroshio2026"
+                required
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              {creatorSlug.trim() && (
+                <p className="text-xs text-gray-400 mt-1">
+                  → https://note.com/{creatorSlug.trim().replace(/^https?:\/\/note\.com\/?/, "").replace(/\/$/, "")}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                {t("addNoteCreatorName")} <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={creatorName}
+                onChange={(e) => setCreatorName(e.target.value)}
+                placeholder="黒潮ネット"
+                required
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                {t("addNoteCreatorLocation")}
+              </label>
+              <input
+                type="text"
+                value={creatorLocation}
+                onChange={(e) => setCreatorLocation(e.target.value)}
+                placeholder="東京都文京区"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+            </div>
+            {addError && (
+              <p className="text-xs text-red-600">{addError}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={adding}
+                className="text-xs px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition"
+              >
+                {adding ? "…" : t("addNoteCreatorSubmit")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddForm(false)}
+                className="text-xs px-4 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition"
+              >
+                {t("cancel")}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
       {/* Status filter bar */}
       <div className="flex gap-2 flex-wrap mb-4">
         {STATUS_FILTERS.map(({ key, label }) => {
