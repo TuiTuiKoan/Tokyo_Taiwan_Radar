@@ -308,7 +308,8 @@
     "eventAppliedReviewed": "Corrections applied directly. Event marked as reviewed — protected from AI overwrite.",
     "scrapeNow": "Scrape Now",
     "scrapeNowSelected": "Scrape Selected ({count})",
-    "scrapeNowError": "Failed to start scrape"
+    "scrapeNowError": "Failed to start scrape",
+    "selectionReasonCorrectionLabel": "Selection reason correction"
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",

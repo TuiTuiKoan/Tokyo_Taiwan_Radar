@@ -308,7 +308,8 @@
     "eventAppliedReviewed": "修正を直接適用しました。イベントをレビュー済みとしてマークしました（AI上書き不可）。",
     "scrapeNow": "今すぐ取得",
     "scrapeNowSelected": "選択したソースを取得 ({count})",
-    "scrapeNowError": "取得の起動に失敗しました"
+    "scrapeNowError": "取得の起動に失敗しました",
+    "selectionReasonCorrectionLabel": "選定理由の修正"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",

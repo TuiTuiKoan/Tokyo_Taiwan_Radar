@@ -308,7 +308,8 @@
     "eventAppliedReviewed": "修正已直接套用，活動標記為人工審核，不會被 AI 覆蓋。",
     "scrapeNow": "立即爬取",
     "scrapeNowSelected": "立即爬取選取的來源 ({count})",
-    "scrapeNowError": "爬取啟動失敗"
+    "scrapeNowError": "爬取啟動失敗",
+    "selectionReasonCorrectionLabel": "選取理由修正"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",

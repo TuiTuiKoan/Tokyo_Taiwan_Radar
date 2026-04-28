@@ -104,6 +104,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [confirmFeedback, setConfirmFeedback] = useState<Record<string, { githubUpdated: boolean; wasReviewed?: boolean }>>({}); 
   const [correctCategory, setCorrectCategory] = useState<Record<string, string[]>>({});
   const [fieldEdits, setFieldEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});;
+  const [selectionReasonEdits, setSelectionReasonEdits] = useState<Record<string, string>>({});
 
   function getEventName(row: ReportRow): string {
     const ev = row.events;
@@ -154,6 +155,11 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       mergedCorrections[field] = { ...(mergedCorrections[field] ?? {}), ...locales };
     }
 
+    // Extract selection reason correction
+    const srEntry = row.report_types.find((entry) => entry.startsWith("selectionReason:"));
+    const userSelectionReason = srEntry ? srEntry.slice("selectionReason:".length) : "";
+    const correctedSelectionReason = (selectionReasonEdits[row.id] ?? userSelectionReason).trim() || undefined;
+
     const result = await confirmReport({
       reportId: row.id,
       eventId: row.event_id,
@@ -165,6 +171,8 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       correctCategory: correctCategory[row.id] ?? null,
       suggestedCategory: row.suggested_category ?? null,
       fieldCorrections: mergedCorrections,
+      correctedSelectionReason,
+      reportLocale: row.locale ?? undefined,
     });
     if (result.ok) {
       const updatedRow: ReportRow = {
@@ -402,6 +410,21 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                     </div>
                   </div>
                 )}
+                {row.report_types.includes("wrongSelectionReason") && (() => {
+                  const srE = row.report_types.find((entry) => entry.startsWith("selectionReason:"));
+                  const userSr = srE ? srE.slice("selectionReason:".length) : "";
+                  return (
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">{t("selectionReasonCorrectionLabel")}</label>
+                      <textarea
+                        value={selectionReasonEdits[row.id] ?? userSr}
+                        onChange={(e) => setSelectionReasonEdits((p) => ({ ...p, [row.id]: e.target.value }))}
+                        rows={3}
+                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
+                      />
+                    </div>
+                  );
+                })()}
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleConfirm(row)}
@@ -414,6 +437,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                         const cats = correctCategory[row.id] ?? row.suggested_category ?? [];
                         return cats.length > 0 ? t("actionApplyCategory") : t("actionReannotate");
                       }
+                      if (row.report_types.includes("wrongSelectionReason")) return t("applyCorrections");
                       const edits = fieldEdits[row.id] ?? {};
                       const hasAdminCorrections = Object.values(edits).some((localeMap) =>
                         Object.values(localeMap).some((v) => v?.trim())
