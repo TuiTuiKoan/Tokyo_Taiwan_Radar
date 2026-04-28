@@ -9,7 +9,7 @@ interface Props {
   eventId: string;
   locale: string;
   selectionReason?: string | null;
-  eventFields?: Partial<Record<WrongDetailField, string | null>>;
+  eventFields?: Partial<Record<WrongDetailField, Partial<Record<LocaleKey, string | null>>>>;
 }
 
 const REPORT_TYPES = ["irrelevant", "wrongDetails", "wrongCategory", "wrongSelectionReason"] as const;
@@ -29,6 +29,10 @@ const WRONG_DETAIL_FIELDS = [
 ] as const;
 type WrongDetailField = (typeof WRONG_DETAIL_FIELDS)[number];
 
+type LocaleKey = "zh" | "en" | "ja";
+const LOCALE_LABELS: Record<LocaleKey, string> = { zh: "中文", en: "English", ja: "日本語" };
+const LOCALES_ORDER: LocaleKey[] = ["zh", "en", "ja"];
+
 // Map field key → i18n key in "report" namespace
 const FIELD_I18N: Record<WrongDetailField, string> = {
   name: "fieldName",
@@ -47,7 +51,7 @@ export default function ReportSection({ eventId, locale, selectionReason, eventF
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<ReportType>>(new Set());
   const [wrongFields, setWrongFields] = useState<Set<WrongDetailField>>(new Set());
-  const [fieldEdits, setFieldEdits] = useState<Partial<Record<WrongDetailField, string>>>({});
+  const [fieldEdits, setFieldEdits] = useState<Partial<Record<WrongDetailField, Partial<Record<LocaleKey, string>>>>>({});
   const [suggestedCategories, setSuggestedCategories] = useState<Set<Category>>(new Set());
   const [selectionReasonText, setSelectionReasonText] = useState<string>("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -84,9 +88,14 @@ export default function ReportSection({ eventId, locale, selectionReason, eventF
         });
       } else {
         next.add(field);
+        const src = eventFields?.[field] ?? {};
         setFieldEdits((edits) => ({
           ...edits,
-          [field]: eventFields?.[field] ?? "",
+          [field]: {
+            zh: src.zh ?? "",
+            en: src.en ?? "",
+            ja: src.ja ?? "",
+          },
         }));
       }
       return next;
@@ -104,8 +113,11 @@ export default function ReportSection({ eventId, locale, selectionReason, eventF
     if (selected.has("wrongDetails")) {
       for (const field of wrongFields) {
         reportTypes.push(`field:${field}`);
-        const edit = fieldEdits[field]?.trim();
-        if (edit) reportTypes.push(`fieldEdit:${field}:${edit.slice(0, 500)}`);
+        const localeEdits = fieldEdits[field] ?? {};
+        for (const loc of LOCALES_ORDER) {
+          const edit = localeEdits[loc]?.trim();
+          if (edit) reportTypes.push(`fieldEdit:${field}:${loc}:${edit.slice(0, 500)}`);
+        }
       }
     }
     if (selected.has("wrongSelectionReason") && selectionReasonText.trim()) {
@@ -186,16 +198,23 @@ export default function ReportSection({ eventId, locale, selectionReason, eventF
                         {t(FIELD_I18N[field] as any)}
                       </label>
                       {wrongFields.has(field) && (
-                        <div className="mt-1 ml-4">
-                          <p className="text-xs text-amber-600 mb-1">{t("fieldEditHint")}</p>
-                          <textarea
-                            rows={3}
-                            value={fieldEdits[field] ?? ""}
-                            onChange={(e) =>
-                              setFieldEdits((prev) => ({ ...prev, [field]: e.target.value }))
-                            }
-                            className="w-full border border-amber-300 rounded-lg px-3 py-2 text-xs text-amber-900 bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-y"
-                          />
+                        <div className="mt-1.5 ml-4 space-y-2">
+                          {LOCALES_ORDER.map((loc) => (
+                            <div key={loc}>
+                              <p className="text-xs text-amber-400 mb-0.5">{LOCALE_LABELS[loc]}</p>
+                              <textarea
+                                rows={2}
+                                value={fieldEdits[field]?.[loc] ?? ""}
+                                onChange={(e) =>
+                                  setFieldEdits((prev) => ({
+                                    ...prev,
+                                    [field]: { ...(prev[field] ?? {}), [loc]: e.target.value },
+                                  }))
+                                }
+                                className="w-full border border-amber-300 rounded-lg px-3 py-2 text-xs text-amber-900 bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-y"
+                              />
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>

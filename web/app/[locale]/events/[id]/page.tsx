@@ -356,14 +356,14 @@ export default async function EventDetailPage({ params }: PageProps) {
           } catch {}
           return event.selection_reason;
         })()} eventFields={{
-          name: getEventName(event, locale),
-          start_date: event.start_date,
-          end_date: event.end_date,
-          venue: getEventLocationName(event, locale),
-          address: getEventLocationAddress(event, locale),
-          business_hours: getEventBusinessHours(event, locale),
-          price: event.price_info,
-          description: getEventDescription(event, locale),
+          name: { zh: event.name_zh, en: event.name_en, ja: event.name_ja },
+          start_date: { zh: event.start_date, en: event.start_date, ja: event.start_date },
+          end_date: { zh: event.end_date, en: event.end_date, ja: event.end_date },
+          venue: { zh: event.location_name_zh, en: event.location_name_en, ja: event.location_name },
+          address: { zh: event.location_address_zh, en: event.location_address_en, ja: event.location_address },
+          business_hours: { zh: event.business_hours_zh, en: event.business_hours_en, ja: event.business_hours },
+          price: { zh: event.price_info, en: event.price_info, ja: event.price_info },
+          description: { zh: event.description_zh, en: event.description_en, ja: event.description_ja },
         }} />}
       />
     </article>
