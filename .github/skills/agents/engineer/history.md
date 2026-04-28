@@ -3,6 +3,24 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-28 — Report section: editable textarea per wrong-detail field
+
+**Feature:** When a user checks a sub-field (name, date, venue, etc.) under "內容錯誤 / wrongDetails" in `ReportSection.tsx`, a textarea now appears pre-filled with the current localized event content. The user can edit the value before submitting; the edited text is stored as `fieldEdit:<field>:<value>` in `report_types` alongside the existing `field:<field>` entry.
+
+**Implementation:**
+- Added `eventFields?: Partial<Record<WrongDetailField, string | null>>` prop to `ReportSection`
+- Added `fieldEdits: Partial<Record<WrongDetailField, string>>` state; populated on field checkbox toggle
+- `toggleField()` now sets `fieldEdits[field] = eventFields?.[field] ?? ""` on check, and deletes the key on uncheck
+- JSX: sub-field checkboxes moved from `<label>` wrappers to `<div>` with conditional textarea below each checkbox
+- `handleSubmit` appends `fieldEdit:<field>:<value>` entries (max 500 chars each) when `edit.trim()` is non-empty
+- `page.tsx`: passes `eventFields` using the locale-aware helpers `getEventName`, `getEventLocationName`, etc. already imported
+- New i18n key `fieldEditHint` added to all three `messages/*.json` files
+
+**Pattern replicated from:** `wrongSelectionReason` textarea — same pre-fill + clear-on-uncheck pattern.
+
+**Lesson:** When reusing a textarea-on-checkbox pattern, extract the pre-fill logic into `toggle<X>()` so the JSX stays declarative. Avoid inline `onChange` that mutates state outside the toggle handler.
+
+---
 ## 2026-04-26 - Bulk remove common categories from selected events in admin
 **Feature:** Added bulk common-category removal to `AdminEventTable.tsx`. When multiple events are selected, a second row appears in the Bulk Action Bar listing category tags that are **common to all selected events** (set intersection). Clicking a tag removes it from all selected events via parallel Supabase updates.
 **Implementation:**

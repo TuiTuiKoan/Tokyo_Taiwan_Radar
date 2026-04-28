@@ -312,7 +312,8 @@
     "successMessage": "已收到提報，感謝回饋！",
     "errorMessage": "提報失敗，請稍後再試",
     "wrongSelectionReason": "選取理由不準確",
-    "selectionReasonHint": "請說明理由（可修改預設內容）"
+    "selectionReasonHint": "請說明理由（可修改預設內容）",
+    "fieldEditHint": "請補充說明（可修改預設內容）"
   },
   "saved": {
     "title": "我的收藏",

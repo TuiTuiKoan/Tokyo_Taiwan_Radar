@@ -312,7 +312,8 @@
     "successMessage": "Report received — thank you!",
     "errorMessage": "Failed to submit. Please try again.",
     "wrongSelectionReason": "Inaccurate selection reason",
-    "selectionReasonHint": "Please describe (you may edit the pre-filled text)"
+    "selectionReasonHint": "Please describe (you may edit the pre-filled text)",
+    "fieldEditHint": "Please describe the correction (you may edit the pre-filled text)"
   },
   "saved": {
     "title": "Saved Events",

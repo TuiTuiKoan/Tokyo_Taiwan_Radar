@@ -355,7 +355,16 @@ export default async function EventDetailPage({ params }: PageProps) {
             }
           } catch {}
           return event.selection_reason;
-        })()} />}
+        })()} eventFields={{
+          name: getEventName(event, locale),
+          start_date: event.start_date,
+          end_date: event.end_date,
+          venue: getEventLocationName(event, locale),
+          address: getEventLocationAddress(event, locale),
+          business_hours: getEventBusinessHours(event, locale),
+          price: event.price_info,
+          description: getEventDescription(event, locale),
+        }} />}
       />
     </article>
   );
