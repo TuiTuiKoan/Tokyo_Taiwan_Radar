@@ -5,7 +5,7 @@
 1. ✅ No claim → 42501 (已驗證 2026-04-29)
 2. ✅ Admin user → success (已驗證 2026-04-29)
 3. ✅ Non-admin user → 42501 (已驗證 2026-04-29：ERROR 42501: admin privileges required)
-4. ⏳ Return type validation (awaiting Step 5 test execution)
+4. ✅ Return type validation (已驗證 2026-04-29：所有欄位型別正確)
 
 ---
 
