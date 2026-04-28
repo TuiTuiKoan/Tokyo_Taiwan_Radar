@@ -358,7 +358,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               {/* Movie without official_url: Google search fallback */}
               {isMovie && !hasOfficialUrl && (
                 <a
-                  href={`https://www.google.com/search?q=${encodeURIComponent((name || event.raw_title || "") + " 公式サイト")}`}
+                  href={`https://www.google.com/search?q=${encodeURIComponent(((event as Event).name_ja || event.raw_title || name || "") + " 公式サイト")}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center px-4 py-3 hover:bg-gray-50 transition text-sm text-gray-500 hover:underline gap-2"
