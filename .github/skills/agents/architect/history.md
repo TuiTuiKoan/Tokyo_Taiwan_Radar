@@ -3,6 +3,61 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — Migration 027 驗證完成：5 步驗證套件建立與全綠測試
+
+**工作內容：** 修復 migration 027 中 `admin_list_users()` RPC 的假拒絕問題後，建立完整的 5 步驗證套件並全部通過。
+
+**驗證框架（4 象限 + 回傳型別）：**
+1. ✅ Function exists — `pg_proc` 查詢確認定義存在
+2. ✅ No auth context → 42501 — Empty claim 和無 auth.uid() 時正確拒絕
+3. ✅ Admin user → success — Admin 用戶取得行數並順利查詢
+4. ✅ Non-admin user → 42501 — 非 admin 用戶正確被拒
+5. ✅ Return type validation — 所有 5 欄位（id, email, created_at, last_sign_in_at, role）型別正確
+
+**驗證產物：**
+- `027_smoke_test.sql` — 可執行的 5 步 SQL 套件，包含 temp table 重用邏輯
+- `027_VALIDATION.md` — 步驟分解指引與預期結果
+- `027_VERIFICATION_REPORT.md` — Executive summary 和 deployment checklist
+
+**Lesson：** Supabase `SECURITY DEFINER` RPC 函式若涉及權限閘，驗證不能只做單點測試（app 或 SQL Editor），必須建立**四象限驗證矩陣**（app admin/non-admin, SQL Editor with claim/without claim）並配合回傳型別檢查。「all tests passed」報告應包含具體測試 ID 和通過時間戳，方便事後審計。
+
+---
+## 2026-04-29 — Cinema scrapers 官網提取：official_url selector 設計與 DB backfill 分離執行
+
+**工作內容：** CineMarti Shinjuku 和 KS Cinema 的 scraper 中添加 official_url 抽取邏輯；識別出 Google search 結果用了不同 locale 的電影名稱。
+
+**場景：** Cinema scraper 需要從官網電影詳頁面提取官方購票連結（official_url），以優先於一般 source_url 在前台顯示。
+
+**修復：**
+1. Selector pattern：`a[href*=".../ticket..."]` 或 `a[href*=".../purchase..."]` 的 link-text 和 href（驗證 URL domain 非跨域）
+2. 選擇邏輯：優先選 Japanese locale 的電影標題 `name_ja`，而非使用者 `locale` 變數
+3. DB backfill：在 scraper 新增欄位後，必須**立即執行一次手動檢查**，確認新抽取的 official_url 不是偽造 / 過期連結
+
+**Lesson：** 
+- Cinema 官網連結提取必須包含 domain whitelist（避免第三方票券販賣站）
+- Google search 結果中的電影名稱取決於 search box locale，與用戶 locale 無關；務必優先使用 `name_ja`（日本官網）而非 locale 參數
+- 新增欄位後不能依賴日後人工驗證；須立即執行 dry-run 並手檢前 5 筆
+
+---
+## 2026-04-29 — 8 個 Scraper 後補註冊：未登錄 SCRAPERS list 的源碼檔案大清查
+
+**工作內容：** 發現 CineMarineScraper、EsliteSpectrumScraper、MoonRomanticScraper、MorcAsagayaScraper、ShinBungeizaScraper、SsffScraper、TaiwanFaasaiScraper、TokyoFilmexScraper 都有 `.py` 源碼但未在 `scraper/main.py` 的 `SCRAPERS` 列表中註冊。
+
+**修復方法：** 在 `SCRAPERS = [...]` 列表中追加 8 個 scraper 類別；執行 `python main.py --dry-run` 驗證各源碼發揮應有的事件抽取數量。
+
+**驗證結果：**
+- CineMarineScraper (横浜シネマリン, id=56) — 1 件
+- EsliteSpectrumScraper (誠品生活日本橋, id=46) — 2 件
+- MoonRomanticScraper (Moon Romantic, id=48) — 1 件
+- MorcAsagayaScraper (Morc阿佐ヶ谷, id=51) — 0 件（正常，查無當日台灣電影）
+- ShinBungeizaScraper (新文芸坐, id=50) — 1 件
+- SsffScraper (SSFF, id=58) — 6 件
+- TaiwanFaasaiScraper (台湾發祭, id=57) — 1 件
+- TokyoFilmexScraper (東京フィルメックス, id=59) — 0 件（正常，十月無影展）
+
+**Lesson：** 定期檢查 `sources/` 目錄與 `SCRAPERS` list 是否同步。實施策略：每月執行 `find sources/ -name '*.py' -exec basename {} .py \;` 並與 list 對比，找出未登錄源碼。新增源碼後不應依賴 CI 自動發現；必須立刻檢查 dry-run 數量是否合理。
+
+---
 ## 2026-04-29 — Admin Users 後台誤擋：`admin_list_users()` 在 web request 出現 false-deny
 
 **錯誤：** 後台使用者頁面呼叫 RPC `admin_list_users()` 時回傳 `42501 admin privileges required`，但同一管理員帳號在 SQL Editor 測試可通過。

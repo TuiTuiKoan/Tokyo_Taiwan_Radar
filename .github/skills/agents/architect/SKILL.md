@@ -98,6 +98,39 @@ Read this at the start of every session before producing any plan.
 - 設計涉及 `annotation_status` 流程的功能時，必須考慮 reviewed 活動跳出翻譯流程的問題。
 ## Prompt Efficiency (User-Side Rules)
 
+## Migration Verification Protocol
+- For any `SECURITY DEFINER` RPC or privilege-critical migration, establish a **four-quadrant verification matrix**:
+  - App request with admin user (real auth.uid())
+  - App request with non-admin user (real auth.uid())
+  - SQL Editor with claim-injected admin uid (`request.jwt.claim.sub = '<admin_uuid>'`)
+  - SQL Editor without claim injection (no auth context)
+- Create an executable SQL smoke test suite (e.g., `027_smoke_test.sql`) with temp tables to avoid manual UUID copy-paste errors.
+- Generate a verification report (e.g., `027_VERIFICATION_REPORT.md`) documenting:
+  - Test date and status (ALL TESTS PASSED or FAILING with step number)
+  - Each test's code line reference and expected result
+  - Security architecture diagram (e.g., "Prefer auth.uid(), fallback to claim with exception handler, then role gate")
+  - Deployment readiness checklist
+- Mark migration as "PRODUCTION READY" only after all four quadrants + return type validation pass.
+
+## Scraper Source Registration Audit
+- Monthly audit: Compare `sources/` directory against `SCRAPERS` list in `scraper/main.py` to find unregistered source files.
+  - Command: `comm -23 <(find sources/ -name '*.py' | xargs -I {} basename {} .py | grep -v '^__' | sort) <(grep 'Scraper()' scraper/main.py | sed 's/.*\(.*\)Scraper().*/\1/' | sort)`
+- When a new scraper source file is created, immediately register it in `SCRAPERS` and run `python main.py --dry-run --source <name>` to verify event count is non-zero or document expected reason (offline season, no Taiwan matches, festival in October).
+- Do not rely on CI discovery or daily cron to catch missing registrations — manual registration is mandatory at commit time.
+
+## Cinema Official URL Extraction
+- Cinema scrapers must extract `official_url` from the film detail page using one of:
+  - Link with text "チケット" or "購入" (ticket/purchase keywords)
+  - Href pattern containing `/ticket/` or `/purchase/` (domain-agnostic)
+- Always verify extracted URL domain is not a third-party ticket vendor (e.g., Playplay, Peatix reseller, Rakuten Ticket) — maintain a domain whitelist of known official cinema URLs.
+- When adding `official_url` extraction to an existing scraper, immediately backfill validation:
+  1. Run scraper with `--dry-run` and manually inspect first 5 events
+  2. Confirm URLs are valid, resolve without 404, and point to official pages (not redirects to vendor)
+  3. Only then commit and push to production
+- For Google Search fallback in film title lookup: always prioritize `name_ja` (Japanese title) regardless of current request locale. Google Search ranks results by search query locale, not result locale — using a locale-specific name variable will cause wrong film matches and incorrect `official_url` extraction.
+
+## Prompt Efficiency (User-Side Rules)
+
 When plans involve multiple similar tasks or iterative fixes, guide the user toward these batching patterns to avoid unnecessary tool overhead:
 
 - **Scope creep via URL**: If a user pastes a URL and asks to "check similar cases", clarify scope first. Do NOT do a full codebase scan unless explicitly requested. Ask: "只修這個？還是要檢查所有同類？"
