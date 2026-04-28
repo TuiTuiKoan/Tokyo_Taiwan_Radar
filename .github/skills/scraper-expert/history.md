@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-28 — 台灣發祭 Taiwan Faasai 2026 [taiwan_faasai] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** lifestyle_food, taiwan_japan
+**After (corrected):** lifestyle_food
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-28 — 身體化巴索里尼 - 吸引力法則 [ssff] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** performing_arts
