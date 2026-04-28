@@ -307,7 +307,9 @@
     "submit": "Submit",
     "cancel": "Cancel",
     "successMessage": "Report received — thank you!",
-    "errorMessage": "Failed to submit. Please try again."
+    "errorMessage": "Failed to submit. Please try again.",
+    "wrongSelectionReason": "Inaccurate selection reason",
+    "selectionReasonHint": "Please describe (you may edit the pre-filled text)"
   },
   "saved": {
     "title": "Saved Events",

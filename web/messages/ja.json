@@ -307,7 +307,9 @@
     "submit": "送信",
     "cancel": "キャンセル",
     "successMessage": "ご報告ありがとうございます！",
-    "errorMessage": "送信に失敗しました。しばらくしてから再度お試しください。"
+    "errorMessage": "送信に失敗しました。しばらくしてから再度お試しください。",
+    "wrongSelectionReason": "選定理由が不正確",
+    "selectionReasonHint": "理由を記述してください（既定のテキストを編集可）"
   },
   "saved": {
     "title": "お気に入り",

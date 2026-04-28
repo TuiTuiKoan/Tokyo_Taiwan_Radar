@@ -8,9 +8,10 @@ import { CATEGORY_GROUPS, type Category } from "@/lib/types";
 interface Props {
   eventId: string;
   locale: string;
+  selectionReason?: string | null;
 }
 
-const REPORT_TYPES = ["irrelevant", "wrongDetails", "wrongCategory"] as const;
+const REPORT_TYPES = ["irrelevant", "wrongDetails", "wrongCategory", "wrongSelectionReason"] as const;
 type ReportType = (typeof REPORT_TYPES)[number];
 
 // Fields that can be reported as wrong under "wrongDetails"
@@ -39,13 +40,14 @@ const FIELD_I18N: Record<WrongDetailField, string> = {
   description: "fieldDescription",
 };
 
-export default function ReportSection({ eventId, locale }: Props) {
+export default function ReportSection({ eventId, locale, selectionReason }: Props) {
   const t = useTranslations("report");
   const tCat = useTranslations("categories");
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<ReportType>>(new Set());
   const [wrongFields, setWrongFields] = useState<Set<WrongDetailField>>(new Set());
   const [suggestedCategories, setSuggestedCategories] = useState<Set<Category>>(new Set());
+  const [selectionReasonText, setSelectionReasonText] = useState<string>("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   function toggle(type: ReportType) {
@@ -57,8 +59,12 @@ export default function ReportSection({ eventId, locale }: Props) {
         if (type === "wrongDetails") setWrongFields(new Set());
         // Clear suggested categories if wrongCategory is deselected
         if (type === "wrongCategory") setSuggestedCategories(new Set());
+        // Clear text if wrongSelectionReason is deselected
+        if (type === "wrongSelectionReason") setSelectionReasonText("");
       } else {
         next.add(type);
+        // Pre-fill textarea with current selection reason when ticking
+        if (type === "wrongSelectionReason") setSelectionReasonText(selectionReason || "");
       }
       return next;
     });
@@ -86,6 +92,9 @@ export default function ReportSection({ eventId, locale }: Props) {
         reportTypes.push(`field:${field}`);
       }
     }
+    if (selected.has("wrongSelectionReason") && selectionReasonText.trim()) {
+      reportTypes.push(`selectionReason:${selectionReasonText.trim().slice(0, 500)}`);
+    }
 
     const supabase = createClient();
     const { error } = await supabase.from("event_reports").insert({
@@ -104,6 +113,7 @@ export default function ReportSection({ eventId, locale }: Props) {
       setSelected(new Set());
       setWrongFields(new Set());
       setSuggestedCategories(new Set());
+      setSelectionReasonText("");
     }
   }
 
@@ -203,6 +213,18 @@ export default function ReportSection({ eventId, locale }: Props) {
                   </div>
                 </div>
               )}
+              {/* Textarea for wrongSelectionReason */}
+              {type === "wrongSelectionReason" && selected.has("wrongSelectionReason") && (
+                <div className="ml-5 mt-1">
+                  <p className="text-xs text-amber-600 mb-1">{t("selectionReasonHint")}</p>
+                  <textarea
+                    rows={4}
+                    value={selectionReasonText}
+                    onChange={(e) => setSelectionReasonText(e.target.value)}
+                    className="w-full border border-amber-300 rounded-lg px-3 py-2 text-xs text-amber-900 bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-y"
+                  />
+                </div>
+              )}
             </div>
           ))}
           <div className="flex gap-2 mt-2">
@@ -219,6 +241,7 @@ export default function ReportSection({ eventId, locale }: Props) {
                 setSelected(new Set());
                 setWrongFields(new Set());
                 setSuggestedCategories(new Set());
+                setSelectionReasonText("");
               }}
               className="text-xs text-amber-600 px-2 py-1 hover:text-amber-800 transition"
             >

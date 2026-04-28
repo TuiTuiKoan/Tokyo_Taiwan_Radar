@@ -342,7 +342,16 @@ export default async function EventDetailPage({ params }: PageProps) {
         rawDescription={event.raw_description}
         selectionReason={event.selection_reason}
         locale={locale}
-        reportSection={<ReportSection eventId={event.id} locale={locale} />}
+        reportSection={<ReportSection eventId={event.id} locale={locale} selectionReason={(() => {
+          if (!event.selection_reason) return null;
+          try {
+            const parsed = JSON.parse(event.selection_reason);
+            if (parsed && typeof parsed === "object") {
+              return (parsed as Record<string, string>)[locale] || (parsed as Record<string, string>)["ja"] || null;
+            }
+          } catch {}
+          return event.selection_reason;
+        })()} />}
       />
     </article>
   );
