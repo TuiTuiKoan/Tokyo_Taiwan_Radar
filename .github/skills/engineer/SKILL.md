@@ -11,7 +11,6 @@ Read this at the start of every session before touching any code.
 ## Database
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`
 - When adding a DB column, wire up the code that populates it in the same commit. Empty columns = silent data gaps.
-- **Instructions sync rule**: Every new migration file must be accompanied by an update to `.github/instructions/database.instructions.md` in the **same commit** — update "Latest is …", "next = NNN", Known conflicts (if b-suffix used), schema table (new columns), Other tables (new tables), Query conventions (if changed). Failing to do this causes instructions drift, which misleads future planning.
 - Wrap non-critical DB inserts (logging, analytics) in `try/except`. Never let a failed log write break the main pipeline.
 - When a logging table gains new `NOT NULL` columns (e.g. `success`, `duration_seconds`), **both** the success path and the `except` block must write those columns explicitly. Pattern from `scraper_runs`:
   ```python
@@ -56,11 +55,6 @@ After writing, verify with `grep "key" web/messages/XX.json` before committing.
 
 `replace_string_in_file` is safe only for ASCII-only strings in JSON files.
 
-**Duplicate key rule:** `web/messages/ja.json` is a repeat-offender for duplicate keys (recurred 3×). After **every** edit to any message file:
-1. Run `get_errors` on the file before committing.
-2. Before inserting a new key, `grep` for it first to ensure it does not already exist.
-3. To fix duplicate keys: `python3 -c "import json,pathlib; p=pathlib.Path('web/messages/ja.json'); p.write_text(json.dumps(json.loads(p.read_text(encoding='utf-8')), ensure_ascii=False, indent=2)+'\\n', encoding='utf-8')"`
-
 ## Category Update Protocol
 
 **Canonical source of truth:** `web/lib/types.ts` → `Category` union type, `CATEGORIES` array, `CATEGORY_GROUPS` array.
@@ -95,6 +89,12 @@ Update **all 6 locations** in a single commit — do NOT split across commits:
 > **Note:** `AdminReportsTable.tsx` uses the flat `CATEGORIES` array, not `CATEGORY_GROUPS`. When adding a category, verify it appears in `CATEGORIES` so the admin review picker shows it.
 > **Note:** `EventCard.tsx` renders category tags on the homepage card — display-only, no picker. Label renames propagate automatically.
 
+### Category group picker layout — paired-file rule
+`AdminEventForm.tsx` and `ReportSection.tsx` both render the category group picker with `CATEGORY_GROUPS`. They **must use the same layout** at all times:
+- Structure: `grid-cols-[4.5rem_1fr]` per group row — col 1 = group label (right-aligned, `shrink-0`), col 2 = `flex-wrap` tags
+- Any layout change to one file must be applied to the other **in the same commit**
+- Do NOT use `flex-wrap` with a mixed label+tags row — overflows cause label misalignment when a group has many items
+
 ## AdminEventTable.tsx — Protected Invariants
 Whenever this file is modified for **any reason**, verify these 3 lines are intact before committing:
 1. **Search filter label**: `{t("name")}` — `tFilters` namespace does NOT exist; using `tFilters("search")` silently renders the raw key string
@@ -124,18 +124,6 @@ These were regressed at least twice when unrelated changes overwrote them. The `
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/engineer/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
-
-## Annotator — Execution Modes
-
-`annotator.py` has three modes (as of commit `d173cf5`):
-
-| Flag | Query scope | Use when |
-|------|-------------|----------|
-| _(default)_ | All `pending` events, **regardless of `is_active`** | Normal daily run; inactive events may also need annotation after raw data correction |
-| `--all` | All `active` non-`reviewed` events | Force re-annotate everything (e.g. after SYSTEM_PROMPT change) |
-| `--fix-translations` | Active events with any `null` in `name_zh`, `name_en`, `description_zh`, `description_en` | Backfill missing translations without touching already-annotated events |
-
-**Important:** The default mode does NOT filter by `is_active`. Events that are soft-deleted (`is_active=False`) will still be annotated if their `annotation_status` is `pending`. This is intentional — raw data corrections on inactive events still need annotation.
 
 ## Annotator — Traditional Chinese (繁體中文) Rule
 
