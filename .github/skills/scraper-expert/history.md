@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-28 — 阿嬤的夢中情人 [eiga_com] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** movie, lecture
+**After (corrected):** movie, history
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-28 — 甘露水 [taiwan_cultural_center] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** movie
