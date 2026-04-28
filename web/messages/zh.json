@@ -290,7 +290,12 @@
     "statsReportsDesc": "用戶問題提報",
     "pendingSummaryInactiveOnly": "有 {count} 筆已關閉活動仍在待標注",
     "bulkCommonCategories": "共通分類",
-    "bulkRemoveCategoryHint": "點擊從所選活動移除此分類"
+    "bulkRemoveCategoryHint": "點擊從所選活動移除此分類",
+    "rescrapeNow": "立即重爬",
+    "rescrapeStarting": "啟動中…",
+    "rescraping": "重爬中…",
+    "rescrapeComplete": "重爬完成！",
+    "rescrapeProgress": "剩餘 {count} 筆 · 預估 {seconds} 秒"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",

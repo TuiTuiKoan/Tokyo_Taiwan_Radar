@@ -290,7 +290,12 @@
     "statsReportsDesc": "User-submitted reports",
     "pendingSummaryInactiveOnly": "{count} inactive events also pending annotation",
     "bulkCommonCategories": "Common categories",
-    "bulkRemoveCategoryHint": "Click to remove from all selected events"
+    "bulkRemoveCategoryHint": "Click to remove from all selected events",
+    "rescrapeNow": "Run Annotator",
+    "rescrapeStarting": "Starting…",
+    "rescraping": "Running…",
+    "rescrapeComplete": "Done!",
+    "rescrapeProgress": "{count} remaining · ~{seconds}s"
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",

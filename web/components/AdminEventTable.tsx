@@ -31,6 +31,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [bulkToggling, setBulkToggling] = useState(false);
   const [bulkForceRescrapings, setBulkForceRescrapings] = useState(false);
   const [bulkRemovingCategory, setBulkRemovingCategory] = useState(false);
+  const [rescrapeState, setRescrapeState] = useState<"idle" | "starting" | "running" | "done">("idle");
+  const [rescrapeInitialPending, setRescrapeInitialPending] = useState(0);
+  const [rescrapeCurrentPending, setRescrapeCurrentPending] = useState(0);
 
   // Inline filters
   const [filterQ, setFilterQ] = useState("");
@@ -47,7 +50,27 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-  const [filterPaid, setFilterPaid] = useState("");
+
+  useEffect(() => {
+    if (rescrapeState !== "running") return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/admin/annotate-status");
+        if (!res.ok) return;
+        const data = await res.json();
+        setRescrapeCurrentPending(data.pending);
+        if (data.pending === 0) {
+          setRescrapeState("done");
+          clearInterval(interval);
+          setTimeout(() => setRescrapeState("idle"), 3000);
+        }
+      } catch {
+        // ignore fetch errors — keep polling
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [rescrapeState]);
+
   const [filterIsActive, setFilterIsActive] = useState<"all" | "active" | "inactive">("active");
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
@@ -61,6 +84,28 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     return TOKYO_MARKERS_ADMIN.some((m) => addr.includes(m));
   }
 
+  async function handleRescrape() {
+    setRescrapeState("starting");
+    try {
+      const res = await fetch("/api/admin/annotate-now", { method: "POST" });
+      if (!res.ok) {
+        setRescrapeState("idle");
+        return;
+      }
+      const data = await res.json();
+      const pending = data.initialPending as number;
+      setRescrapeInitialPending(pending);
+      setRescrapeCurrentPending(pending);
+      if (pending === 0) {
+        setRescrapeState("idle");
+        return;
+      }
+      setRescrapeState("running");
+    } catch {
+      setRescrapeState("idle");
+    }
+  }
+
   function getFiltered(list: Event[]) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -72,8 +117,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         if (!name.includes(q) && !raw.includes(q)) return false;
       }
       if (filterCategories.length > 0 && !filterCategories.some((c) => (e.category || []).includes(c))) return false;
-      if (filterPaid === "free" && e.is_paid !== false) return false;
-      if (filterPaid === "paid" && e.is_paid !== true) return false;
       if (filterIsActive === "active" && !e.is_active) return false;
       if (filterIsActive === "inactive" && e.is_active) return false;
       if (filterTimeMode === "active") {
@@ -128,8 +171,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         if (!name.includes(q) && !raw.includes(q)) return false;
       }
       if (filterCategories.length > 0 && !filterCategories.some((c) => (e.category || []).includes(c))) return false;
-      if (filterPaid === "free" && e.is_paid !== false) return false;
-      if (filterPaid === "paid" && e.is_paid !== true) return false;
       if (filterIsActive === "active" && !e.is_active) return false;
       if (filterIsActive === "inactive" && e.is_active) return false;
       if (filterTimeMode === "active") {
@@ -156,7 +197,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     }
     return map;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events, filterQ, filterCategories, filterPaid, filterIsActive, filterTimeMode, filterDateFrom, filterDateTo, filterLocation, filterAnnotation, locale]);
+  }, [events, filterQ, filterCategories, filterIsActive, filterTimeMode, filterDateFrom, filterDateTo, filterLocation, filterAnnotation, locale]);
 
   // Intersection of categories across all selected events
   const commonCategories = useMemo(() => {
@@ -393,6 +434,21 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             + {t("newEvent")}
           </button>
         )}
+        {!showNew && (
+          <button
+            onClick={handleRescrape}
+            disabled={rescrapeState !== "idle"}
+            className="bg-amber-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {rescrapeState === "starting"
+              ? t("rescrapeStarting")
+              : rescrapeState === "running"
+                ? t("rescraping")
+                : rescrapeState === "done"
+                  ? t("rescrapeComplete")
+                  : t("rescrapeNow")}
+          </button>
+        )}
         <div className="flex rounded-lg border border-gray-300 overflow-hidden ml-auto">
           <button
             onClick={() => setViewMode("annotated")}
@@ -416,6 +472,33 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           </button>
         </div>
       </div>
+
+      {/* Rescrape progress bar */}
+      {(rescrapeState === "starting" || rescrapeState === "running") && (
+        <div className="mb-4">
+          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-amber-500 h-2 rounded-full transition-all duration-1000"
+              style={{
+                width: rescrapeState === "starting" || rescrapeInitialPending === 0
+                  ? "5%"
+                  : `${Math.max(5, ((rescrapeInitialPending - rescrapeCurrentPending) / rescrapeInitialPending) * 100)}%`,
+              }}
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            {rescrapeState === "starting"
+              ? t("rescrapeStarting")
+              : t("rescrapeProgress", {
+                  count: rescrapeCurrentPending,
+                  seconds: Math.round(rescrapeCurrentPending * 5),
+                })}
+          </p>
+        </div>
+      )}
+      {rescrapeState === "done" && (
+        <div className="mb-4 text-xs text-green-600 font-medium">{t("rescrapeComplete")}</div>
+      )}
 
       {/* New event inline form */}
       {showNew && (
@@ -523,18 +606,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="online">{tFilters("locationOnline")}</option>
             </select>
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("isPaid")}</label>
-            <select
-              value={filterPaid}
-              onChange={(e) => setFilterPaid(e.target.value)}
-              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{t("filterAll")}</option>
-              <option value="free">{tEvent("free")}</option>
-              <option value="paid">{tEvent("paid")}</option>
-            </select>
-          </div>
+
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-500 font-medium">{tFilters("timeMode")}</label>
             <select
@@ -624,9 +696,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="error">{t("filterErrorShort")}</option>
             </select>
           </div>
-          {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "active" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation || filterSource) && (
+          {(filterQ || filterCategories.length > 0 || filterIsActive !== "active" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation || filterSource) && (
             <button
-              onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("active"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); setFilterSource(""); }}
+              onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterIsActive("active"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); setFilterSource(""); }}
               className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
             >
               {tFilters("reset")}

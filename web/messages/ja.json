@@ -290,7 +290,12 @@
     "statsReportsDesc": "ユーザーからの問題報告",
     "pendingSummaryInactiveOnly": "非公開イベント {count} 件も未処理です",
     "bulkCommonCategories": "共通カテゴリ",
-    "bulkRemoveCategoryHint": "選択中のイベントからこのカテゴリを削除"
+    "bulkRemoveCategoryHint": "選択中のイベントからこのカテゴリを削除",
+    "rescrapeNow": "今すぐ注釈処理",
+    "rescrapeStarting": "起動中…",
+    "rescraping": "処理中…",
+    "rescrapeComplete": "完了！",
+    "rescrapeProgress": "残り {count} 件 · 約 {seconds} 秒"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",
