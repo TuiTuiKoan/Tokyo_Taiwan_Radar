@@ -415,10 +415,12 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                         return cats.length > 0 ? t("actionApplyCategory") : t("actionReannotate");
                       }
                       const edits = fieldEdits[row.id] ?? {};
-                      const hasCorrections = Object.values(edits).some((localeMap) =>
+                      const hasAdminCorrections = Object.values(edits).some((localeMap) =>
                         Object.values(localeMap).some((v) => v?.trim())
                       );
-                      if (hasCorrections) return t("applyCorrections");
+                      // Also check user-submitted suggestions (pre-filled values in inputs)
+                      const hasUserSuggestions = row.report_types.some((entry) => entry.startsWith("fieldEdit:"));
+                      if (hasAdminCorrections || hasUserSuggestions) return t("applyCorrections");
                       return t("actionReannotate");
                     })()}
                   </button>
