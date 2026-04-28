@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-04-29 — annotator: truncation limit 12K→20K でも GPT が sub-events を 2 件しか生成しない
+
+**発見：** 台湾文化センター「台湾映画上映会2026」（16 場上映）の sub-events が 2 件しか DB に存在しない。annotator の truncation limit を 12,000→20,000 に引き上げたが、GPT-4o-mini は依然 2 件の sub-events しか返さなかった（output: 1,191 tokens）。
+
+**根本原因：** description が 13,492 文字（旧 12,000 char truncation で切断されていた）→ truncation 修正後も GPT-4o-mini は全 16 件を抽出しなかった。入力が長く密度が高い場合、GPT が自律的に生成を打ち切る傾向がある。
+
+**修正：** 
+1. `annotator.py` truncation limit 12,000→20,000 chars（commit `ff2a2ac`）
+2. `_insert_sub_events.py` で 16 件の sub-events を手動挿入（一時スクリプト、削除済み）
+3. Sub-events：10 正片（5月〜10月）＋ 6 アンコール（6/7, 9/19, 10/4 @ ユーロライブ/シネ・ヌーヴォ）
+
+**教訓：** GPT が全 sub-events を確実に生成しない場合、scraper 層で直接 sub-events を生成するほうが信頼性が高い。連続上映シリーズ（映画祭等）は scraper で各回を `Event` として生成し `parent_event_id` を設定するべき。
+
+---
+
 ## 2026-04-28 — eiga_com: 原題から name_zh / name_en を直接抽出する
 
 **発見：** 映画.com の映画詳細ページ（例：`/movie/82162/`）の `p.data` に「原題または英題：阿嬤的夢中情人 Forever Love」という行が存在する。スクレイパーは `name_ja`（日本語配給タイトル）しか設定していなかったため、中文・英語タイトルは AI アノテーターの推測に頼っていた。
