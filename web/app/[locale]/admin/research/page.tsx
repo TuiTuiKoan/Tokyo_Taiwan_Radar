@@ -96,7 +96,7 @@ export default async function AdminResearchPage({ params }: PageProps) {
         </Link>
       </div>
 
-      {/* Daily reports section */
+      {/* Daily reports section */}
       <h2 className="text-lg font-semibold mb-3">{t("researchTitle")}</h2>
 
       <AdminResearchTable
