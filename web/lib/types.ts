@@ -93,6 +93,7 @@ export type Category =
   | "literature"
   | "tv_program"
   | "exhibition"
+  | "taiwan_mandarin"
   | "report";
 
 export const CATEGORIES: Category[] = [
@@ -120,6 +121,7 @@ export const CATEGORIES: Category[] = [
   "literature",
   "tv_program",
   "exhibition",
+  "taiwan_mandarin",
   "report",
 ];
 
@@ -143,7 +145,7 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
   },
   {
     labelKey: "group_society",
-    categories: ["tech", "gender", "geopolitics", "history"],
+    categories: ["tech", "gender", "geopolitics", "history", "taiwan_mandarin"],
   },
   {
     labelKey: "group_archive",
