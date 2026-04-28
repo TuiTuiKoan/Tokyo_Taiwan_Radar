@@ -2,6 +2,25 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-29 — 8 Unregistered Scrapers Found in SCRAPERS List Gap [main.py]
+**Error**: CineMarineScraper, EsliteSpectrumScraper, MoonRomanticScraper, MorcAsagayaScraper, ShinBungeizaScraper, SsffScraper, TaiwanFaasaiScraper, TokyoFilmexScraper all had `.py` source files but were NOT included in the `SCRAPERS = [...]` list in `scraper/main.py`. This caused them to be skipped by the daily CI run despite being ready for production.
+
+**Discovery**: Audit found via manual inspection and confirmed via `python main.py --dry-run`.
+
+**Fix**: Added all 8 to `SCRAPERS` list and validated dry-run output:
+- CineMarineScraper: 1 event (横浜シネマリン)
+- EsliteSpectrumScraper: 2 events (誠品生活日本橋)
+- MoonRomanticScraper: 1 event (Moon Romantic)
+- MorcAsagayaScraper: 0 events (正常 — no Taiwan films today)
+- ShinBungeizaScraper: 1 event (新文芸坐)
+- SsffScraper: 6 events (SSFF)
+- TaiwanFaasaiScraper: 1 event (台湾發祭)
+- TokyoFilmexScraper: 0 events (正常 — festival in October)
+
+**Lesson**: The sources directory and `SCRAPERS` list can drift silently. Implement monthly audit: `comm -23 <(find sources/ -name '*.py' ... ) <(grep 'Scraper()' main.py ...)`. After creating any new scraper file, registration in `SCRAPERS` must happen at commit time, not rely on CI discovery.
+
+---
+
 ## 2026-04-29 — Google search fallback used wrong locale title [web]
 **Error**: Detail page Google search URL used `name` (locale-specific) as query text. In `zh` locale, the query became `大濛 公式サイト` instead of `霧のごとく 公式サイト`, causing the Japanese official site to not appear in results.
 **Fix**: Changed query to prefer `event.name_ja || event.raw_title || name` so the Japanese title is always used regardless of the viewing locale.
