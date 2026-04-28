@@ -1,4 +1,12 @@
 ---
+## 2026-04-29 — eiga_com 原題修正不會追溯更新已在 DB 的事件
+
+**Error:** commit `6029933` 新增 `_parse_original_title()` 讓爬蟲從 `p.data` 解析正確的 `name_zh`/`name_en`（如「阿嬤的夢中情人 Forever Love」），但兩筆既有的 eiga_com events（`eiga_com_82162`, `eiga_com_82162_3018`）的 name_zh 仍顯示「台灣好萊塢」（AI 翻譯日文院線名稱）。
+**Root cause:** `upsert_events` behavior #3：已在 DB 的事件若無 `force_rescrape=true` 則 **完全跳過**。Code fix 對 NEW events 有效，但不會追溯修正既有資料。
+**Fix:** 直接 DB patch：`UPDATE events SET name_zh='阿嬤的夢中情人', name_en='Forever Love' WHERE source_id IN ('eiga_com_82162', 'eiga_com_82162_3018')`。`annotation_status` 保持 'annotated' — annotator 不會重新覆寫。
+**Lesson:** 任何改動 scraper 欄位解析邏輯（而非新增欄位）的 code fix 都不會自動更新已存在的 DB 記錄。需要搭配一次性 DB patch script 修正歷史資料。新增爬蟲欄位時，在同一 commit 確認「是否有既有資料需要補修」。
+
+---
 ## 2026-04-29 — migration 022 & 023 未在同一 commit 更新 database.instructions.md
 
 **Error:** `022_line_subscribers.sql` 和 `023_source_scraper_config.sql` 匹很 commit 時均未更新 `database.instructions.md`。符合 Step 6 規則的指示下一次 migration 編號殄發現指向 `022`，實際上 `022` 和 `023` 已就位。
