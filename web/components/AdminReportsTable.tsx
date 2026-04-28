@@ -103,7 +103,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [saving, setSaving] = useState<string | null>(null);
   const [confirmFeedback, setConfirmFeedback] = useState<Record<string, { githubUpdated: boolean }>>({});
   const [correctCategory, setCorrectCategory] = useState<Record<string, string[]>>({});
-  const [fieldEdits, setFieldEdits] = useState<Record<string, Record<string, string>>>({});
+  const [fieldEdits, setFieldEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});;
 
   function getEventName(row: ReportRow): string {
     const ev = row.events;
@@ -257,7 +257,6 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                           const displayLocales = isNonLocalized ? (["ja"] as LocaleKey[]) : LOCALES_ORDER;
                           const isEditable = EDITABLE_FIELDS.has(field);
                           const inputType = FIELD_INPUT_TYPE[field] ?? "text";
-                          const editVal = fieldEdits[row.id]?.[field] ?? "";
                           const userEditsForField = parsedUserEdits[field] ?? {};
                           return (
                             <div key={field} className="space-y-1.5">
@@ -279,24 +278,28 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                                           → {userEditsForField[loc]}
                                         </div>
                                       )}
+                                      {isEditable && (
+                                        <input
+                                          type={inputType}
+                                          value={fieldEdits[row.id]?.[field]?.[loc] ?? ""}
+                                          onChange={(e) =>
+                                            setFieldEdits((p) => ({
+                                              ...p,
+                                              [row.id]: {
+                                                ...(p[row.id] ?? {}),
+                                                [field]: { ...(p[row.id]?.[field] ?? {}), [loc]: e.target.value },
+                                              },
+                                            }))
+                                          }
+                                          placeholder={t("directCorrect")}
+                                          className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-gray-300"
+                                        />
+                                      )}
                                     </div>
                                   </div>
                                 ))}
                               </div>
-                              {isEditable ? (
-                                <input
-                                  type={inputType}
-                                  value={editVal}
-                                  onChange={(e) =>
-                                    setFieldEdits((p) => ({
-                                      ...p,
-                                      [row.id]: { ...(p[row.id] ?? {}), [field]: e.target.value },
-                                    }))
-                                  }
-                                  placeholder={t("directCorrect")}
-                                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-gray-300"
-                                />
-                              ) : (
+                              {!isEditable && (
                                 <p className="text-xs text-gray-400 italic">{t("fieldNotEditable")}</p>
                               )}
                             </div>
@@ -387,9 +390,10 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                         const cats = correctCategory[row.id] ?? row.suggested_category ?? [];
                         return cats.length > 0 ? t("actionApplyCategory") : t("actionReannotate");
                       }
-                      // wrongDetails: check if admin filled any corrections
                       const edits = fieldEdits[row.id] ?? {};
-                      const hasCorrections = Object.values(edits).some((v) => v.trim() !== "");
+                      const hasCorrections = Object.values(edits).some((localeMap) =>
+                        Object.values(localeMap).some((v) => v?.trim())
+                      );
                       if (hasCorrections) return t("applyCorrections");
                       return t("actionReannotate");
                     })()}
