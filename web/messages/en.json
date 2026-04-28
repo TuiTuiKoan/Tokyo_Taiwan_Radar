@@ -60,7 +60,8 @@
     "group_society": "Society",
     "group_archive": "Archive",
     "literature": "Literature",
-    "tv_program": "TV Programs"
+    "tv_program": "TV Programs",
+    "exhibition": "Exhibition"
   },
   "event": {
     "source": "Source",

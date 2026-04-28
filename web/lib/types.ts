@@ -92,6 +92,7 @@ export type Category =
   | "workshop"
   | "literature"
   | "tv_program"
+  | "exhibition"
   | "report";
 
 export const CATEGORIES: Category[] = [
@@ -118,6 +119,7 @@ export const CATEGORIES: Category[] = [
   "workshop",
   "literature",
   "tv_program",
+  "exhibition",
   "report",
 ];
 
@@ -137,7 +139,7 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
   },
   {
     labelKey: "group_knowledge",
-    categories: ["business", "academic", "lecture", "competition", "taiwan_japan", "books_media", "workshop", "tv_program"],
+    categories: ["business", "academic", "lecture", "competition", "taiwan_japan", "books_media", "workshop", "tv_program", "exhibition"],
   },
   {
     labelKey: "group_society",

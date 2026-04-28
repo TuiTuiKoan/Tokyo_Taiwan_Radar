@@ -60,7 +60,8 @@
     "group_society": "社会",
     "group_archive": "アーカイブ",
     "literature": "文学",
-    "tv_program": "テレビ番組"
+    "tv_program": "テレビ番組",
+    "exhibition": "展覧会"
   },
   "event": {
     "source": "出典",
