@@ -138,6 +138,15 @@ React controlled input 的 `value` prop 是顯示用，不等於 state。只有 
 - Register every new scraper in `scraper/main.py` → `SCRAPERS` list.
 - Validate with `python main.py --dry-run --source <name>` before committing.
 - **`scraper_source_name` sync**: After registering a new scraper, also set `scraper_source_name` on the corresponding `research_sources` row so the admin on-demand rescrape UI can target it. Pattern: `UPDATE research_sources SET scraper_source_name = '<key>' WHERE id = <id>;` — include this in the same migration SQL that creates the source row, or run it as a one-off.
+- **Retroactive DB patch rule**: When a code fix changes **how an existing field is parsed** (rather than adding a new field), the fix only applies to NEW events inserted after the fix. Existing DB records are skipped by `upsert_events` behavior #3 (idempotent skip). Always check whether a one-off DB patch is needed for existing records after fixing a field-extraction bug.
+
+## New API Route Checklist
+
+When adding a new Next.js API route under `web/app/api/`:
+
+1. The route lives in a **new directory** — `git add <file>` only stages named files. Run `git status` and confirm the new directory appears under "Changes to be committed", not "Untracked files".
+2. Run `npm run build` and verify the route appears in the output (e.g. `ƒ /api/admin/your-route`). Missing routes = the file was not staged or has a compile error.
+3. For routes that call external APIs (e.g. GitHub API), ensure the required env var (`GITHUB_TOKEN`, etc.) is set in Vercel project settings before deploying.
 
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/engineer/history.md` (newest at top).

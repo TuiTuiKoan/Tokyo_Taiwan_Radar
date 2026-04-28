@@ -1,4 +1,11 @@
 ---
+## 2026-04-29 — scrape-status/route.ts 被遺漏在 commit 之外
+
+**Error:** commit `470404d`（admin on-demand rescrape 功能）實作了 `AdminSourcesTable.tsx` 中呼叫 `/api/admin/scrape-status` 的 polling 邏輯，但 `web/app/api/admin/scrape-status/route.ts` 是未追蹤的新目錄，`git add` 未涵蓋它，導致整個功能推送後 endpoint 不存在（runtime 404）。
+**Fix:** 補充 commit `850c5f0`，單獨加入遺漏的 `route.ts`。
+**Lesson:** 新增 API route 時，其目錄是 **全新目錄**，`git add <specific-file>` 不會自動包含。在 commit 前必須執行 `git status` 確認所有新目錄都在 staged 清單中。另：新 API route 必須搭配 `npm run build` 驗證路由出現在 Next.js 輸出中，再 push。
+
+---
 ## 2026-04-29 — eiga_com 原題修正不會追溯更新已在 DB 的事件
 
 **Error:** commit `6029933` 新增 `_parse_original_title()` 讓爬蟲從 `p.data` 解析正確的 `name_zh`/`name_en`（如「阿嬤的夢中情人 Forever Love」），但兩筆既有的 eiga_com events（`eiga_com_82162`, `eiga_com_82162_3018`）的 name_zh 仍顯示「台灣好萊塢」（AI 翻譯日文院線名稱）。
