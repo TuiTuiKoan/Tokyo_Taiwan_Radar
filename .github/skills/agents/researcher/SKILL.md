@@ -97,6 +97,45 @@ Use `LOOKBACK_DAYS` to match the source's natural cadence:
 - `[2]` Asia University Asian Studies — Asia Watcher series
 - `[78]` note.com — curated creator list approach
 
+## researcher.py — Schedule Management (SLOT_SCHEDULE)
+
+`researcher.py` uses a **4-slot daily schedule** to cover all 9 research categories every day.
+
+| Slot | JST | Categories |
+|------|-----|------------|
+| 0 | 06:00 | `university`, `fukuoka` |
+| 1 | 12:00 | `media`, `government` |
+| 2 | 18:00 | `thinktank`, `hokkaido` |
+| 3 | 00:00 | `social`, `performing_arts_search`, `senses_research` |
+
+**Key implementation rules:**
+- `RESEARCH_SLOT` env var controls which slot runs. Set by GitHub Actions step before calling `python researcher.py`.
+- `_resolve_slot()`: reads `RESEARCH_SLOT` env var first; falls back to deriving from JST hour.
+- `_resolve_category_id()` returns `list[str]` — `run_research()` loops over each category in the slot.
+- GitHub Actions: 4 cron triggers (`0 21/3/9/15 * * *` UTC). A `Determine slot` step maps UTC hour → slot and writes to `$GITHUB_ENV`.
+- `github.event.schedule` returns the exact cron string (e.g. `"0 21 * * *"`) for the triggering schedule. Use shell `case` to compare it and set `RESEARCH_SLOT`.
+- `workflow_dispatch` sets `github.event.schedule` to empty string — use `inputs.slot` as fallback.
+
+**When modifying the slot-to-category mapping**, update both `SLOT_SCHEDULE` in `researcher.py` and the corresponding cron comments in `researcher.yml`.
+
+## discovery_accounts.py — Layer 2 (Weekly note.com Creator Discovery)
+
+`scraper/discovery_accounts.py` discovers new note.com creators who post Taiwan-related content.
+
+**Workflow (runs every Sunday 10:00 JST):**
+1. 3 GPT `gpt-4o-search-preview` tasks (community events / culture & arts / food & lifestyle)
+2. `_extract_creator_id()` normalises GPT output → bare slug; rejects article URLs (`/n/`) and template patterns
+3. `_verify_note_creator()` confirms existence via `https://note.com/{creator_id}/rss` (HTTP GET only — no Playwright needed)
+4. Loads existing known IDs from `research_sources` to skip re-insertion
+5. Upserts verified creators with `status='candidate'`, `source_profile={platform: 'note.com', creator_id, categories: ['taiwan_japan']}`
+6. Admin reviews at `/admin/sources` and sets `status='implemented'` to activate Layer 3 scraping
+
+**Key rules:**
+- note.com RSS: `https://note.com/{creator_id}/rss` is publicly accessible without auth.
+- GPT output often includes article URLs (`/n/` path) and template strings — always validate with `_extract_creator_id()`.
+- Use `--dry-run` for testing: runs GPT + verification but skips DB writes and LINE push.
+- The daily scraper (`note_creators.py` or similar Layer 3 script) polls only `status='implemented'` creators from `research_sources`.
+
 ## After a Source Evaluation Error
 1. Append an entry to `.github/skills/agents/researcher/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.

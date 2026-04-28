@@ -4,6 +4,51 @@
 
 ---
 
+## 2026-04-29 — Layer 2: Weekly note.com Creator Discovery (discovery_accounts.py)
+
+**変更内容**: 新規スクリプト `scraper/discovery_accounts.py` と GitHub Actions ワークフロー `.github/workflows/discovery-accounts.yml` を作成し、毎週日曜 10:00 JST に note.com クリエイターを自動発見する Layer 2 ワークフローを追加。
+
+**実装詳細**:
+- 3つの GPT search タスク（コミュニティイベント / 文化芸術 / 食・ライフスタイル）
+- `gpt-4o-search-preview` でリアルウェブ検索（researcher.py と同スタック）
+- `_verify_note_creator()`: RSS フィード確認（note.com は Playwright 不要）
+- `_extract_creator_id()`: 完全 URL または bare slug を受け付け、記事/テンプレート URL を拒否
+- 既知の note_creator ID を `research_sources` から読み込み、重複挿入を防止
+- status=`candidate` でクリエイターを upsert → Admin で confirmed → Layer 3 が自動ピックアップ
+- Dry-run 結果: 11 クリエイター発見（1+5+5）、全件 RSS 検証済み
+
+**教訓**:
+1. note.com の RSS URL は `https://note.com/{creator_id}/rss` — Playwright なしの HTTP GET で存在確認が完結する。
+2. GPT が返す URL には記事 URL（`/n/` を含む）やテンプレート URL が混入する。`_extract_creator_id()` は `/n/` パターンを拒否し、bare slug のみを抽出すること。
+3. 既知クリエイター ID は毎回 DB から読み込み、GPT が同じクリエイターを再提案しても重複 upsert しない設計が正しい。
+
+→ SKILL.md に `## discovery_accounts.py — Layer 2` セクションを追加済み。
+
+---
+
+## 2026-04-29 — Layer 1: WEEKDAY_SCHEDULE → SLOT_SCHEDULE（4 daily slots, 9 categories/day）
+
+**変更内容**: `researcher.py` の週次ローテーション（WEEKDAY_SCHEDULE: 7日で7カテゴリ）を廃止し、4スロット/日スケジュール（SLOT_SCHEDULE）に変更。1日で全9カテゴリをカバーするようになった。
+
+**旧設計**: cron 1回/日（09:30 JST）→ 曜日ごとに1カテゴリ
+
+**新設計**:
+- Slot 0 (06:00 JST): `university`, `fukuoka`
+- Slot 1 (12:00 JST): `media`, `government`
+- Slot 2 (18:00 JST): `thinktank`, `hokkaido`
+- Slot 3 (00:00 JST): `social`, `performing_arts_search`, `senses_research`
+- `RESEARCH_SLOT` env var で GitHub Actions からスロットを注入
+- researcher.yml: 4 cron（21:00/03:00/09:00/15:00 UTC = 06/12/18/24 JST）
+
+**教訓**:
+1. `github.event.schedule` は起動した cron のスケジュール文字列（例: `"0 21 * * *"`）を返す。shell の `case` 文で比較して `$GITHUB_ENV` に書き込む方式が最善。
+2. `workflow_dispatch` 時は `github.event.schedule` が空文字列になる。`inputs.slot` をフォールバックとして提供すること。
+3. `_resolve_category_id()` の戻り値を `str → list[str]` に変更したため、`run_research()` でループが必要になる。戻り値の型変更は呼び出し箇所を必ず確認すること。
+
+→ SKILL.md に `## researcher.py — Schedule Management` セクションを追加済み。
+
+---
+
 ## 2026-04-27 — Low-Signal Policy 転換：頻度低を not-viable 理由にしない
 
 **変更内容**: スクレイパーが1日1回実行になったため、「台湾イベントが年1-2件以下」は not-viable の正当な理由にならなくなった。
