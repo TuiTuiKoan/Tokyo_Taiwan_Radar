@@ -2,6 +2,16 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-28 — 電影《霧的如同（大濛）》東京包場上映會暨映後座談 [peatix] — user report confirmed
+**Report types:** wrongDetails, fieldEdit:name:zh:電影《大濛》東京包場上映會暨映後座談, fieldEdit:name:en:Private Screening & Talk of the Movie 'A Foggy Tale' in Tokyo, fieldEdit:name:ja:映画『霧のごとく』プライベート貸切上映会＆トーク
+**Wrong fields:** name
+**Admin notes:** —
+**Action:** Annotatable fields nulled out — re-annotation triggered. Will auto-reactivate after annotator runs.
+---
+
+---
+
+
 ---
 ## 2026-04-28 — merger.py Pass 2: pre-event press release not matched (start_date before event)
 
