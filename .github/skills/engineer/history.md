@@ -1,4 +1,12 @@
 ---
+## 2026-04-28 — researcher.yml 缺少 playwright install，URL 驗證靜默失敗數週
+**新增/修改：**
+- GitHub Actions Workflow Rules 新增 Step parity rule
+- 多個 workflow 共用相同工具依賴時，必須同步所有 setup 步驟
+- 引用 commit `d7f4b41` 作為反例（researcher.yml 缺 playwright install → url_verified=False）
+**來源：** daily-skills-review（Step 4 建議）
+
+---
 ## 2026-04-28 — source filter hardcoded list omitted new scrapers
 **新增/修改：**
 - Filter-option sync rule 拆分為「closed sets（hardcode options）」vs「open-ended sets（動態衍生）」
