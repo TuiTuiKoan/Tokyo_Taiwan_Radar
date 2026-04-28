@@ -8,7 +8,7 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `021_record_links.sql`
+- Number migrations sequentially: `001`, `002`, … Latest is `023_source_scraper_config.sql`
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped
 
@@ -55,12 +55,13 @@ Unique constraint: `(source_name, source_id)`
 - `event_reports` — user-submitted corrections / reports on events
 - `scraper_runs` — per-run logs (source, event counts, success, duration_seconds)
 - `research_reports` — Researcher agent output per source
-- `research_sources` — curated list of candidate sources with `status` (`pending` / `viable` / `not-viable` / `implemented`)
+- `research_sources` — curated list of candidate sources with `status` (`pending` / `viable` / `not-viable` / `implemented`); `scraper_source_name` (matches `_scraper_key()` in main.py); `scrape_times_per_day` int (1–8, default 1); `scrape_hours_jst` int[] (default `{9}`)
 - `backup_archives` — snapshot metadata
 - `event_views` — click analytics per event+locale (view: `event_view_counts`)
 - `admin_users_view` — admin-only view of `auth.users` joined with roles
 - `creators` — Taiwan creators/voices in Japan: name, platform, handle, profile_url, category, base_location, nationality, is_active, approx_followers, last_post_at, notes
 - `creator_events` — `(creator_id uuid, event_id uuid, relationship text)` links creators to events
+- `line_subscribers` — LINE OA subscribers: `line_user_id`, `status` (`active`/`blocked`), `language_preference`, `category_preferences text[]`; service-role-only RLS (migration 022)
 
 ## RLS policies
 
@@ -77,7 +78,7 @@ Unique constraint: `(source_name, source_id)`
 
 ## Migration checklist
 
-1. Number the file `NNN_descriptive_name.sql` (next = `022`)
+1. Number the file `NNN_descriptive_name.sql` (next = `024`)
 2. Use `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE … ADD COLUMN IF NOT EXISTS`
 3. Add RLS with `ALTER TABLE … ENABLE ROW LEVEL SECURITY` + policies
 4. Test in Supabase SQL Editor before committing

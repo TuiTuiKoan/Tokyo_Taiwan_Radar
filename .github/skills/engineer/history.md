@@ -1,4 +1,11 @@
 ---
+## 2026-04-29 — migration 022 & 023 未在同一 commit 更新 database.instructions.md
+
+**Error:** `022_line_subscribers.sql` 和 `023_source_scraper_config.sql` 匹很 commit 時均未更新 `database.instructions.md`。符合 Step 6 規則的指示下一次 migration 編號殄發現指向 `022`，實際上 `022` 和 `023` 已就位。
+**Fix:** 手動更新：Latest → `023_source_scraper_config.sql`，next → `024`，`research_sources` 表展示新欄位，新增 `line_subscribers` 条目。
+**Lesson:** Step 6（同一 commit 更新 database.instructions.md）投已進行多個 session 仍容易被遗忘。**建議**：在每個 migration SQL 檔末行加上 `-- REMINDER: update database.instructions.md` 註解，作為檔內提示。
+
+---
 ## 2026-04-28 — AdminReportsTable: confirm 送出空 fieldCorrections 導致重新標注
 
 **Error:** `handleConfirm` 傳給 `confirmReport` 的 `fieldCorrections: fieldEdits[row.id] ?? {}` 在管理員未手動輸入時是空物件。React 受控元件的 `value` prop 只是顯示用，`onChange` 未被觸發時 state 不更新。`confirm-report.ts` 收到空 corrections → `anyProvided = false` → 清空欄位 → `annotation_status = "pending"` → 走重新標注而非直接覆寫。

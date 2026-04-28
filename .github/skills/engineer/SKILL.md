@@ -137,6 +137,7 @@ React controlled input 的 `value` prop 是顯示用，不等於 state。只有 
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` whenever `start_date` is known.
 - Register every new scraper in `scraper/main.py` → `SCRAPERS` list.
 - Validate with `python main.py --dry-run --source <name>` before committing.
+- **`scraper_source_name` sync**: After registering a new scraper, also set `scraper_source_name` on the corresponding `research_sources` row so the admin on-demand rescrape UI can target it. Pattern: `UPDATE research_sources SET scraper_source_name = '<key>' WHERE id = <id>;` — include this in the same migration SQL that creates the source row, or run it as a one-off.
 
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/engineer/history.md` (newest at top).
