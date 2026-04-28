@@ -58,7 +58,8 @@
     "group_lifestyle": "ライフスタイル",
     "group_knowledge": "知識・交流",
     "group_society": "社会",
-    "group_archive": "アーカイブ"
+    "group_archive": "アーカイブ",
+    "literature": "文学"
   },
   "event": {
     "source": "出典",

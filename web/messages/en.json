@@ -58,7 +58,8 @@
     "group_lifestyle": "Lifestyle",
     "group_knowledge": "Knowledge & Exchange",
     "group_society": "Society",
-    "group_archive": "Archive"
+    "group_archive": "Archive",
+    "literature": "Literature"
   },
   "event": {
     "source": "Source",
