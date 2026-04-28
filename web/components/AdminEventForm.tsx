@@ -166,10 +166,11 @@ export default function AdminEventForm({
       {/* Categories */}
       <div className="md:col-span-2">
         <label className="block text-xs text-gray-500 mb-2">{t("category")}</label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
           {CATEGORY_GROUPS.map((group) => (
-            <div key={group.labelKey} className="flex flex-wrap gap-2 items-start">
-              <span className="text-xs text-gray-400 w-16 shrink-0">{tCat(group.labelKey as any)}</span>
+            <div key={group.labelKey} className="flex flex-col gap-1.5">
+              <span className="text-xs text-gray-400 font-medium">{tCat(group.labelKey as any)}</span>
+              <div className="flex flex-wrap gap-2">
               {group.categories.map((cat) => (
                 <button
                   key={cat}
@@ -184,6 +185,7 @@ export default function AdminEventForm({
                   {tCat(cat as any)}
                 </button>
               ))}
+              </div>
             </div>
           ))}
         </div>
