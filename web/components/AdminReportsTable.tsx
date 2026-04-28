@@ -130,6 +130,30 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
 
   async function handleConfirm(row: ReportRow) {
     setSaving(row.id);
+
+    // Re-parse user-submitted fieldEdit suggestions so we can use them as fallback
+    // when the admin has not explicitly overridden a value in the input box.
+    const parsedUserEdits: Record<string, Record<string, string>> = {};
+    for (const entry of row.report_types) {
+      if (!entry.startsWith("fieldEdit:")) continue;
+      const rest = entry.slice("fieldEdit:".length);
+      const i1 = rest.indexOf(":");
+      const i2 = rest.indexOf(":", i1 + 1);
+      if (i1 === -1 || i2 === -1) continue;
+      const f = rest.slice(0, i1);
+      const loc = rest.slice(i1 + 1, i2);
+      const value = rest.slice(i2 + 1);
+      if (!parsedUserEdits[f]) parsedUserEdits[f] = {};
+      parsedUserEdits[f][loc] = value;
+    }
+
+    // Merge: admin explicit edits take priority; fall back to user suggestions
+    const adminEdits = fieldEdits[row.id] ?? {};
+    const mergedCorrections: Record<string, Record<string, string>> = { ...parsedUserEdits };
+    for (const [field, locales] of Object.entries(adminEdits)) {
+      mergedCorrections[field] = { ...(mergedCorrections[field] ?? {}), ...locales };
+    }
+
     const result = await confirmReport({
       reportId: row.id,
       eventId: row.event_id,
@@ -140,7 +164,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       currentCategory: row.events?.category ?? [],
       correctCategory: correctCategory[row.id] ?? null,
       suggestedCategory: row.suggested_category ?? null,
-      fieldCorrections: fieldEdits[row.id] ?? {},
+      fieldCorrections: mergedCorrections,
     });
     if (result.ok) {
       const updatedRow: ReportRow = {
