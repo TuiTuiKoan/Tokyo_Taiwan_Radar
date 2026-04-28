@@ -78,6 +78,14 @@ from sources.eurospace import EurospaceScraper
 from sources.tokyoartbeat import TokyoArtBeatScraper
 from sources.hankyu_umeda import HankyuUmedaScraper
 from sources.daimaru_matsuzakaya import DaimaruMatsuzakayaScraper
+from sources.cinemarine import CineMarineScraper
+from sources.eslite_spectrum import EsliteSpectrumScraper
+from sources.moonromantic import MoonRomanticScraper
+from sources.morc_asagaya import MorcAsagayaScraper
+from sources.shin_bungeiza import ShinBungeizaScraper
+from sources.ssff import SsffScraper
+from sources.taiwan_faasai import TaiwanFaasaiScraper
+from sources.tokyo_filmex import TokyoFilmexScraper
 from sources.google_news_rss import GoogleNewsRssScraper
 from sources.nhk_rss import NhkRssScraper
 from sources.gguide_tv import GguideTvScraper
@@ -141,6 +149,14 @@ SCRAPERS = [
     TokyoArtBeatScraper(),
     HankyuUmedaScraper(),
     DaimaruMatsuzakayaScraper(),
+    CineMarineScraper(),
+    EsliteSpectrumScraper(),
+    MoonRomanticScraper(),
+    MorcAsagayaScraper(),
+    ShinBungeizaScraper(),
+    SsffScraper(),
+    TaiwanFaasaiScraper(),
+    TokyoFilmexScraper(),
     GoogleNewsRssScraper(),
     NhkRssScraper(),
     GguideTvScraper(),
