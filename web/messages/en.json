@@ -304,7 +304,10 @@
     "rescrapeProgress": "{count} remaining · ~{seconds}s",
     "rescrapeErrorPrefix": "Annotator failed",
     "rescrapeNoPending": "No pending events",
-    "eventAppliedReviewed": "Corrections applied directly. Event marked as reviewed — protected from AI overwrite."
+    "eventAppliedReviewed": "Corrections applied directly. Event marked as reviewed — protected from AI overwrite.",
+    "scrapeNow": "Scrape Now",
+    "scrapeNowSelected": "Scrape Selected ({count})",
+    "scrapeNowError": "Failed to start scrape"
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",

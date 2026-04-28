@@ -169,6 +169,7 @@ Run after discovering a new cross-source duplicate that the merger missed. Then 
 ## Registration
 - After creating a new scraper file, always add it to `SCRAPERS = [...]` in `scraper/main.py`.
 - Test with `python main.py --dry-run --source <source_name>` before any other step.
+- **Periodic audit**: Occasionally cross-check `ls scraper/sources/*.py` against the `SCRAPERS` list in `scraper/main.py`. Source files not in `SCRAPERS` are silently ignored by CI — they never run. In April 2026, 8 scrapers were discovered in this state (CineMarineScraper, EsliteSpectrumScraper, MoonRomanticScraper, MorcAsagayaScraper, ShinBungeizaScraper, SsffScraper, TaiwanFaasaiScraper, TokyoFilmexScraper).
 
 ## Mandatory Post-Change Checklist
 

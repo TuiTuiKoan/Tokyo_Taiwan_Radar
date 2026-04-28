@@ -304,7 +304,10 @@
     "rescrapeProgress": "残り {count} 件 · 約 {seconds} 秒",
     "rescrapeErrorPrefix": "処理失敗",
     "rescrapeNoPending": "処理待ち活動なし",
-    "eventAppliedReviewed": "修正を直接適用しました。イベントをレビュー済みとしてマークしました（AI上書き不可）。"
+    "eventAppliedReviewed": "修正を直接適用しました。イベントをレビュー済みとしてマークしました（AI上書き不可）。",
+    "scrapeNow": "今すぐ取得",
+    "scrapeNowSelected": "選択したソースを取得 ({count})",
+    "scrapeNowError": "取得の起動に失敗しました"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",

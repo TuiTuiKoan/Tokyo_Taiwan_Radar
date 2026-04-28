@@ -116,6 +116,18 @@ A hardcoded `source_name` list will silently omit new scrapers and require a cod
 
 **Annotation status label consistency rule:** One status value = one i18n key, used consistently in **all** display surfaces: badge (`getAnnotationLabel`), filter dropdown `<option>`, any column header. Use the **short-form keys**: `t("filterAnnotatedShort")`, `t("filterReviewedShort")`, `t("filterErrorShort")`, `t("filterPendingShort")`. The long-form family (`annotated`, `reviewed`, `error`, `pending`) has been deleted — do not recreate it.
 
+## React / Form Pitfalls
+
+### Controlled input `value` prop ≠ state
+
+React controlled input 的 `value` prop 是顯示用，不等於 state。只有 `onChange` 被觸發時 state 才會更新。
+
+**Rule:** 當 form 用 `value` prop 預填來自 props/data source 的值（例如用戶回報的建議修改），且管理員可能不修改直接送出時：
+- **Option A（推薦）**：submit 前從 props/data source 重新解析預填值，merge 進 state（state 明確輸入優先，data source 為 fallback）。
+- **Option B**：在 `useState(initialValue)` 初始化或 `useEffect` 中將預填值寫入 state，確保 state 從一開始就反映顯示值。
+
+**絕對不要**只依賴 `value` prop 在 submit handler 中取值——它是 display-only，submit 時不保證 state 已更新。
+
 ## Scraper Implementation
 
 - Every new scraper source must extend `BaseScraper` (`scraper/sources/base.py`) and implement `scrape() → list[Event]`.

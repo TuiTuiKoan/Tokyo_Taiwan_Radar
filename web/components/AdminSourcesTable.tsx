@@ -21,6 +21,9 @@ export interface ResearchSource {
   github_issue_url: string | null;
   first_seen_at: string;
   last_seen_at: string;
+  scraper_source_name: string | null;
+  scrape_times_per_day: number;
+  scrape_hours_jst: number[];
 }
 
 interface Props {
@@ -98,6 +101,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function AdminSourcesTable({ sources }: Props) {
   const t = useTranslations("admin");
+  const supabase = createClient();
   const [filter, setFilter] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [sourceList, setSourceList] = useState<ResearchSource[]>(sources);
@@ -107,6 +111,85 @@ export default function AdminSourcesTable({ sources }: Props) {
   const [creatorLocation, setCreatorLocation] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+
+  // Immediate rescrape state
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [scrapeState, setScrapeState] = useState<"idle" | "starting" | "done">("idle");
+  const [scrapeError, setScrapeError] = useState<string | null>(null);
+
+  // Schedule edit state: srcId → { times, hours }
+  const [scheduleEdits, setScheduleEdits] = useState<Record<number, { times: number; hours: number[] }>>({});
+  const [scheduleSaving, setScheduleSaving] = useState<number | null>(null);
+  const [scheduleSaved, setScheduleSaved] = useState<Set<number>>(new Set());
+
+  function toggleSelect(sourceKey: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(sourceKey)) next.delete(sourceKey);
+      else next.add(sourceKey);
+      return next;
+    });
+  }
+
+  async function handleScrapeNow() {
+    setScrapeState("starting");
+    setScrapeError(null);
+    try {
+      const res = await fetch("/api/admin/scrape-now", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sources: selected.size > 0 ? [...selected] : [] }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setScrapeError(data.error ?? `HTTP ${res.status}`);
+        setScrapeState("idle");
+        return;
+      }
+      setScrapeState("done");
+      setTimeout(() => setScrapeState("idle"), 5000);
+    } catch (err) {
+      setScrapeError(err instanceof Error ? err.message : "Unknown error");
+      setScrapeState("idle");
+    }
+  }
+
+  function getScheduleForSrc(src: ResearchSource) {
+    return scheduleEdits[src.id] ?? { times: src.scrape_times_per_day ?? 1, hours: src.scrape_hours_jst ?? [9] };
+  }
+
+  function setScheduleTimes(srcId: number, times: number, currentSrc: ResearchSource) {
+    const current = getScheduleForSrc(currentSrc);
+    const hours = current.hours.slice(0, times);
+    while (hours.length < times) hours.push(9);
+    setScheduleEdits((prev) => ({ ...prev, [srcId]: { times, hours } }));
+  }
+
+  function setScheduleHour(srcId: number, idx: number, hour: number, currentSrc: ResearchSource) {
+    const current = getScheduleForSrc(currentSrc);
+    const hours = [...current.hours];
+    hours[idx] = hour;
+    setScheduleEdits((prev) => ({ ...prev, [srcId]: { ...current, hours } }));
+  }
+
+  async function handleSaveSchedule(src: ResearchSource) {
+    const edit = getScheduleForSrc(src);
+    setScheduleSaving(src.id);
+    const { error } = await supabase
+      .from("research_sources")
+      .update({ scrape_times_per_day: edit.times, scrape_hours_jst: edit.hours })
+      .eq("id", src.id);
+    setScheduleSaving(null);
+    if (!error) {
+      setSourceList((prev) =>
+        prev.map((s) =>
+          s.id === src.id ? { ...s, scrape_times_per_day: edit.times, scrape_hours_jst: edit.hours } : s
+        )
+      );
+      setScheduleSaved((prev) => new Set([...prev, src.id]));
+      setTimeout(() => setScheduleSaved((prev) => { const n = new Set(prev); n.delete(src.id); return n; }), 2000);
+    }
+  }
 
   async function handleAddCreator(e: React.FormEvent) {
     e.preventDefault();
@@ -120,7 +203,6 @@ export default function AdminSourcesTable({ sources }: Props) {
       ? { location_name: creatorLocation.trim(), categories: ["taiwan_japan"] }
       : { categories: ["taiwan_japan"] };
 
-    const supabase = createClient();
     const { data, error } = await supabase
       .from("research_sources")
       .insert({
@@ -332,6 +414,36 @@ export default function AdminSourcesTable({ sources }: Props) {
         <span className="text-xs text-gray-400 self-center">{filtered.length} 筆</span>
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="sticky top-0 z-10 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mb-4">
+          <span className="text-xs font-medium text-amber-800">
+            已選取 {selected.size} 個來源
+          </span>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="text-xs text-amber-600 hover:text-amber-800 underline"
+          >
+            取消全選
+          </button>
+          <div className="ml-auto flex items-center gap-2">
+            {scrapeState === "done" && (
+              <span className="text-xs text-green-700 font-medium">✓ 爬蟲已觸發</span>
+            )}
+            {scrapeError && (
+              <span className="text-xs text-red-600">{t("scrapeNowError")}: {scrapeError}</span>
+            )}
+            <button
+              onClick={handleScrapeNow}
+              disabled={scrapeState !== "idle"}
+              className="text-xs px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 transition font-medium"
+            >
+              {scrapeState === "starting" ? "正在啟動…" : t("scrapeNowSelected", { count: selected.size })}
+            </button>
+          </div>
+        </div>
+      )}
+
       {filtered.length === 0 && (
         <p className="text-sm text-gray-400">{t("sourcesNone")}</p>
       )}
@@ -342,15 +454,27 @@ export default function AdminSourcesTable({ sources }: Props) {
         const isResearched = src.status === "researched";
         const isRecommendedOrDone =
           src.status === "recommended" || src.status === "implemented";
+        const hasScraperKey = Boolean(src.scraper_source_name);
+        const isChecked = src.scraper_source_name ? selected.has(src.scraper_source_name) : false;
+        const schedule = getScheduleForSrc(src);
 
         return (
           <div
             key={src.id}
-            className="bg-white border border-gray-200 rounded-xl p-4 text-sm"
+            className={`bg-white border rounded-xl p-4 text-sm transition ${isChecked ? "border-amber-400 ring-1 ring-amber-300" : "border-gray-200"}`}
           >
             {/* Header */}
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
+                {hasScraperKey && (
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleSelect(src.scraper_source_name!)}
+                    className="w-4 h-4 accent-amber-500 cursor-pointer"
+                    aria-label={`選取 ${src.name}`}
+                  />
+                )}
                 <span className="text-base">{ICONS[catKey] ?? "📎"}</span>
                 <span className="font-medium text-gray-800">{src.name}</span>
                 <StatusBadge status={src.status} />
@@ -419,7 +543,61 @@ export default function AdminSourcesTable({ sources }: Props) {
                   🔗 GitHub Issue
                 </a>
               )}
+
+              {/* Immediate rescrape button (single source) */}
+              {hasScraperKey && (
+                <button
+                  onClick={() => {
+                    setSelected(new Set([src.scraper_source_name!]));
+                    handleScrapeNow();
+                  }}
+                  disabled={scrapeState !== "idle"}
+                  className="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 disabled:opacity-40 transition"
+                >
+                  ↺ {t("scrapeNow")}
+                </button>
+              )}
             </div>
+
+            {/* Schedule configuration (for sources with a scraper) */}
+            {hasScraperKey && (
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-xs text-gray-500 font-medium">每天爬取</span>
+                  <select
+                    value={schedule.times}
+                    onChange={(e) => setScheduleTimes(src.id, Number(e.target.value), src)}
+                    className="h-7 border border-gray-200 rounded-md px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  >
+                    {[1, 2, 3, 4, 6, 8].map((n) => (
+                      <option key={n} value={n}>{n} 次</option>
+                    ))}
+                  </select>
+                  <span className="text-xs text-gray-500 font-medium">時間（JST）</span>
+                  <div className="flex gap-1 flex-wrap">
+                    {Array.from({ length: schedule.times }).map((_, i) => (
+                      <select
+                        key={i}
+                        value={schedule.hours[i] ?? 9}
+                        onChange={(e) => setScheduleHour(src.id, i, Number(e.target.value), src)}
+                        className="h-7 border border-gray-200 rounded-md px-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      >
+                        {Array.from({ length: 24 }, (_, h) => (
+                          <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>
+                        ))}
+                      </select>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => handleSaveSchedule(src)}
+                    disabled={scheduleSaving === src.id}
+                    className="text-xs px-2.5 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-40 transition"
+                  >
+                    {scheduleSaving === src.id ? "…" : scheduleSaved.has(src.id) ? "✓ 已儲存" : "儲存"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         );
       })}

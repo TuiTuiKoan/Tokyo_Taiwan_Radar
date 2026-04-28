@@ -1,4 +1,25 @@
 ---
+## 2026-04-28 — AdminReportsTable: confirm 送出空 fieldCorrections 導致重新標注
+
+**Error:** `handleConfirm` 傳給 `confirmReport` 的 `fieldCorrections: fieldEdits[row.id] ?? {}` 在管理員未手動輸入時是空物件。React 受控元件的 `value` prop 只是顯示用，`onChange` 未被觸發時 state 不更新。`confirm-report.ts` 收到空 corrections → `anyProvided = false` → 清空欄位 → `annotation_status = "pending"` → 走重新標注而非直接覆寫。
+**Fix:** `handleConfirm` 送出前從 `row.report_types` 重新解析 `fieldEdit:` entries 建立 `parsedUserEdits`，merge 進 `fieldCorrections`（管理員明確輸入優先，用戶建議為 fallback）。
+**Lesson:** React controlled input 的 `value` prop 是顯示用，不等於 state。Submit 前若需使用預填值，必須從 data source 重新解析，或在初始化時將預填值寫入 state。→ Added "React / Form Pitfalls" section to engineer/SKILL.md.
+
+---
+## 2026-04-28 — 8 個爬蟲 source 檔案存在但未加入 SCRAPERS 列表
+
+**Error:** CineMarineScraper、EsliteSpectrumScraper、MoonRomanticScraper、MorcAsagayaScraper、ShinBungeizaScraper、SsffScraper、TaiwanFaasaiScraper、TokyoFilmexScraper 等 8 個爬蟲已有 source 檔案但未加入 `scraper/main.py` 的 `SCRAPERS = [...]`，CI 從未執行這些爬蟲。
+**Fix:** 補充 8 個爬蟲的 import 及 SCRAPERS 列表項目，以 `--dry-run` 確認各爬蟲能執行。
+**Lesson:** 建立新爬蟲 source 檔案後必須在同一 commit 確認已加入 SCRAPERS。定期比對 `ls sources/*.py` 與 SCRAPERS 列表，source 檔案不在 SCRAPERS 中將被 CI 靜默略過。→ Updated "Registration" in scraper-expert/SKILL.md.
+
+---
+## 2026-04-28 — i18n messages JSON keys 被意外刪除後手動復原
+
+**Error:** `general.footerCredit`、`general.statsTableMissing`、`general.statsTableMissingHint` 等 keys 在某次 commit 中被意外移除，需手動 Python 腳本補回三個語言檔案。
+**Fix:** 使用 Python json-module pattern 補回缺失 keys。
+**Lesson:** i18n messages JSON 的 key 不可在非翻譯 commit 中被刪除。每次修改 `web/messages/*.json` 後執行 `get_errors` 確認無遺漏。→ Already covered by Architect i18n Regression Guard.
+
+---
 ## 2026-04-28 — merger.py: Pass 2 news-report matching added
 **Feature:** `google_news_rss` (and `prtimes`, `nhk_rss`) events were not being merged into their official primary events because Pass 1 requires both (a) name similarity ≥ 0.85 and (b) same `start_date`. News-article titles fail (a) and article publish dates differ from event dates, failing (b).
 **Fix:** Added `Pass 2` to `run_merger()`:

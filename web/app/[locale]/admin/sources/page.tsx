@@ -38,7 +38,7 @@ export default async function AdminSourcesPage({ params }: PageProps) {
 
   const { data: sources } = await supabase
     .from("research_sources")
-    .select("*")
+    .select("*, scraper_source_name, scrape_times_per_day, scrape_hours_jst")
     .order("last_seen_at", { ascending: false })
     .limit(200);
 
