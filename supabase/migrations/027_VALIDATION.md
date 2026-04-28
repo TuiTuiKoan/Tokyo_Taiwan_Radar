@@ -4,8 +4,8 @@
 驗證 `admin_list_users()` RPC 函式在四種場景下的行為：
 1. ✅ No claim → 42501 (已驗證 2026-04-29)
 2. ✅ Admin user → success (已驗證 2026-04-29)
-3. ⏳ Non-admin user → 42501 (測試指令已提供)
-4. ⏳ Return type validation (測試指令已提供)
+3. ✅ Non-admin user → 42501 (已驗證 2026-04-29：ERROR 42501: admin privileges required)
+4. ⏳ Return type validation (awaiting Step 5 test execution)
 
 ---
 
