@@ -2,6 +2,16 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-28 — 霧的如同 [cinemart_shinjuku] — user report confirmed
+**Report types:** wrongDetails, fieldEdit:name:zh:大濛, fieldEdit:name:en:A Foggy Tale, fieldEdit:name:ja:霧のごとく
+**Wrong fields:** name
+**Admin notes:** —
+**Action:** Annotatable fields nulled out — re-annotation triggered. Will auto-reactivate after annotator runs.
+---
+
+---
+
+
 ## 2026-04-28 — 台灣發祭 Taiwan Faasai 2026 [taiwan_faasai] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** lifestyle_food, taiwan_japan
