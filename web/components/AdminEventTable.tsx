@@ -604,11 +604,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             <label className="text-xs text-gray-500 font-medium">{t("isActive")}</label>
             <select
               value={filterIsActive}
-              onChange={(e) => {
-                const val = e.target.value as "all" | "active" | "inactive";
-                setFilterIsActive(val);
-                if (val === "inactive") setFilterTimeMode("all");
-              }}
+              onChange={(e) => setFilterIsActive(e.target.value as any)}
               className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="all">{t("filterAll")}</option>
@@ -617,7 +613,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("annotationLabel")}</label>
+            <label className="text-xs text-gray-500 font-medium">{t("annotationStatusLabel")}</label>
             <select
               value={filterAnnotation}
               onChange={(e) => setFilterAnnotation(e.target.value as any)}
@@ -717,9 +713,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
-                <th className="py-2 pr-4 font-medium">{t("source")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationLabel")}{sortArrow("annotation_status")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("scraped_at")}>{t("scrapedAt")}{sortArrow("scraped_at")}</th>
+                <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_paid")}>{t("isPaid")}{sortArrow("is_paid")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_active")}>{t("isActive")}{sortArrow("is_active")}</th>
                 <th className="py-2" />
               </tr>
@@ -736,9 +732,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("raw_title")}>{t("name")}{sortArrow("raw_title")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
-                <th className="py-2 pr-4 font-medium">{t("source")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationLabel")}{sortArrow("annotation_status")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("scraped_at")}>{t("scrapedAt")}{sortArrow("scraped_at")}</th>
+                <th className="py-2 pr-4 font-medium">{t("sourceLink")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
                 <th className="py-2" />
               </tr>
             )}
@@ -819,10 +814,14 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       {getAnnotationLabel(event.annotation_status)}
                     </span>
                   </td>
-                  <td className="py-2 pr-4 text-gray-400 text-xs whitespace-nowrap">
-                    {event.scraped_at
-                      ? new Date(event.scraped_at).toLocaleDateString("zh", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
-                      : <span className="text-gray-300">—</span>}
+                  <td className="py-2 pr-4">
+                    {event.is_paid === false ? (
+                      <span className="text-blue-600 text-xs">{tEvent("free")}</span>
+                    ) : event.is_paid === true ? (
+                      <span className="text-amber-600 text-xs">{tEvent("paid")}</span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
                   </td>
                   <td className="py-2 pr-4">
                     <button
@@ -895,11 +894,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     <span className={`text-xs px-2 py-0.5 rounded-full ${getAnnotationBadgeClass(event.annotation_status)}`}>
                       {getAnnotationLabel(event.annotation_status)}
                     </span>
-                  </td>
-                  <td className="py-2 pr-4 text-gray-400 text-xs whitespace-nowrap">
-                    {event.scraped_at
-                      ? new Date(event.scraped_at).toLocaleDateString("zh", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
-                      : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="py-2">
                     <div className="flex gap-2">
