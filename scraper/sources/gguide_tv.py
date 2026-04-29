@@ -126,17 +126,22 @@ def _extract_show_title(title: str) -> str:
 
 
 def _genre_to_category(genre: str) -> list[str]:
-    """Map Gガイド genre label to project canonical category list."""
+    """Map Gガイド genre label to project canonical category list.
+
+    All gguide_tv events are TV broadcasts, so "tv_program" is always included.
+    Additional categories reflect the program genre.
+    """
+    cats: list[str] = ["tv_program"]
     if "ドラマ" in genre:
-        return ["performing_arts"]
-    if "映画" in genre:
-        return ["performing_arts"]
-    if "音楽" in genre:
-        return ["performing_arts"]
-    if "ドキュメンタリー" in genre or "教養" in genre or "報道" in genre:
-        return ["report"]
-    # バラエティ, スポーツ, and unknown genres
-    return ["report"]
+        cats.append("drama")
+    elif "映画" in genre:
+        cats.append("movie")
+    elif "音楽" in genre:
+        cats.append("performing_arts")
+    elif "ドキュメンタリー" in genre or "教養" in genre or "報道" in genre:
+        cats.append("report")
+    # バラエティ, スポーツ, and unknown genres → tv_program only
+    return cats
 
 
 def _fetch_detail(session: requests.Session, ebis_id: str) -> str:
