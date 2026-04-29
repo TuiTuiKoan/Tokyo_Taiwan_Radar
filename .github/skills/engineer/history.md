@@ -1,4 +1,11 @@
 ---
+## 2026-04-29: gguide_tv 日本ローカライズ邦題 → 官方片名不符問題
+- Error: gguide_tv scraper 取到的 raw_title 是日本放送局自訂的本地化標題（如「スクリュー・ガール　一発逆転婚！！」），AI 翻譯後得到「螺絲女孩 一發逆轉婚！！」，與官方片名「螺絲小姐要出嫁 / Miss Rose」完全不同
+- Error 2: 第一次手動 patch 時未查 Wikipedia，直接翻譯日文本地化標題，仍然錯誤
+- Fix: 查 Wikipedia 確認官方片名後才 patch；在 gguide_tv.py 加入 _extract_show_title() + lookup_movie_titles() 對有 eiga.com 登錄的作品自動取得官方片名
+- Lesson: 手動 DB patch name_zh/name_en 時，必須查 Wikipedia / IMDb 等官方來源。日本放送局會使用與台灣官方片名不同的本地化邦題，絕不能直接翻譯 raw_title。
+
+---
 ## 2026-04-29: movie_title_lookup.py — eiga.com 官方片名查詢
 - Error: 8 個電影院爬蟲只存 name_ja（日文片名），name_zh/name_en 留給 GPT annotator 翻譯，導致中文名偏離官方（如「赤い糸」被翻成「赤色的線 輪迴的秘密」而非官方「月老 Till We Meet Again」）
 - Fix: 新建 movie_title_lookup.py，在 Event() 建構前查 eiga.com，取 p.data 原題または英題 行，直接填入 name_zh/name_en；annotator GPT 仍作 fallback

@@ -45,6 +45,20 @@ event = Event(
 - The module uses in-memory `_cache` — no extra latency for repeated titles in one run
 - `eiga_com.py` is exempt — it already has native 原題 parsing in `_parse_original_title()`
 
+### gguide_tv 特殊規則 — 日本放送邦題
+
+`gguide_tv` 的 raw_title 使用**日本放送局自訂的本地化邦題**，可能與台灣官方片名完全不同：
+- 日本邦題：`スクリュー・ガール　一発逆転婚！！`
+- 台灣官方：`螺絲小姐要出嫁`（英文：Miss Rose）
+
+`lookup_movie_titles()` 對此類劇名通常回傳 `(None, None)`（eiga.com 未登錄台灣電視劇）。
+GPT annotator 亦會用日文邦題翻譯，結果仍然偏離官方。
+
+**手動 DB patch 規則（gguide_tv / 台灣電視劇）：**
+1. 先查 Wikipedia（搜尋日文邦題，通常有對應條目）
+2. 或查 IMDb、MyDramaList 取得 zh/en 官方片名
+3. **絕對不能**直接翻譯日文邦題作為 name_zh/name_en
+
 ## Next.js / Sentry
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
