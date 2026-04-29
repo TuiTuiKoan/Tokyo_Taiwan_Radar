@@ -137,5 +137,5 @@ Use `LOOKBACK_DAYS` to match the source's natural cadence:
 - The daily scraper (`note_creators.py` or similar Layer 3 script) polls only `status='implemented'` creators from `research_sources`.
 
 ## After a Source Evaluation Error
-1. Append an entry to `.github/skills/agents/researcher/history.md` (newest at top).
+1. Append an entry to `.github/skills/researcher/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
