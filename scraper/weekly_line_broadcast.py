@@ -138,16 +138,39 @@ def _fetch_upcoming_events(sb) -> list[dict]:
 def _ai_select_events(client: OpenAI, events: list[dict], today: datetime) -> dict:
     """Use GPT-4o-mini to select highlight events for weekly and monthly sections."""
     week_end = today + timedelta(days=7)
+    week2_end = today + timedelta(days=14)
     month_end = today + timedelta(days=35)
+
+    # Category group definitions (mirrors web/lib/types.ts CATEGORY_GROUPS)
+    ARTS_CATS = "movie, performing_arts, art, senses, drama, indigenous, nature, urban, literature"
+    LIFESTYLE_CATS = "lifestyle_food, retail, tourism"
+    KNOWLEDGE_CATS = "business, academic, lecture, competition, taiwan_japan, books_media, workshop, tv_program, exhibition"
+    SOCIETY_CATS = "tech, gender, geopolitics, history, taiwan_mandarin"
 
     prompt = (
         f"Today is {today.strftime('%Y-%m-%d')}.\n"
-        f"Week range: {today.strftime('%m/%d')} – {week_end.strftime('%m/%d')}\n"
-        f"Month range: {today.strftime('%m/%d')} – {month_end.strftime('%m/%d')}\n\n"
-        "From the following Taiwan-related events in Japan, select:\n"
-        "- 'weekly': 5–7 highlight events starting within the next 7 days\n"
-        "- 'monthly': 2–3 major events starting in 8–35 days\n\n"
-        "Prioritize variety of categories and events with clear start dates.\n"
+        f"This week: {today.strftime('%m/%d')} – {week_end.strftime('%m/%d')}\n"
+        f"Next 14 days: {today.strftime('%m/%d')} – {week2_end.strftime('%m/%d')}\n"
+        f"Monthly preview: {week_end.strftime('%m/%d')} – {month_end.strftime('%m/%d')}\n\n"
+        "Category groups:\n"
+        f"  五感 (arts): {ARTS_CATS}\n"
+        f"  生活風格 (lifestyle): {LIFESTYLE_CATS}\n"
+        f"  知識交流 (knowledge): {KNOWLEDGE_CATS}\n"
+        f"  社會 (society): {SOCIETY_CATS}\n\n"
+        "=== WEEKLY SELECTION (5–7 events starting within next 7 days) ===\n"
+        "Follow these MANDATORY slot rules in order:\n"
+        "1. 五感: fill ≥2 slots; prefer movie/performing_arts first within the group.\n"
+        "   If NO 五感 events exist in the next 14 days, give those slots to 知識交流.\n"
+        "2. 生活風格: fill ≥1 slot.\n"
+        "   If NO 生活風格 events in next 14 days, give that slot to 知識交流.\n"
+        "3. 知識交流: fill ≥1 slot.\n"
+        "   If NO 知識交流 events in next 14 days, give that slot to 社會.\n"
+        "4. 社會: fill ≥1 slot.\n"
+        "   If NO 社會 events in next 14 days, give that slot to 五感.\n"
+        "Fill remaining slots with the best available events across any group.\n\n"
+        "=== MONTHLY SELECTION (2–3 events starting in 8–35 days) ===\n"
+        "Priority: large-venue events, live film screenings (movie), music performances (performing_arts), lectures, competitions.\n"
+        "STRICTLY EXCLUDE events with category 'taiwan_japan' or 'tv_program'.\n\n"
         "Return ONLY JSON: {\"weekly\": [\"id1\",...], \"monthly\": [\"id1\",...]}\n\n"
         "Events:\n" + json.dumps(events, ensure_ascii=False)
     )
