@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-29 — 超絕神業！魔術大戰祭 [gguide_tv] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** tv_program, performing_arts
+**After (corrected):** tv_program, performing_arts
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-29 — 偉人傳　鄧麗君30年目的歌聲〜隨時光流逝〜 [gguide_tv] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** tv_program, movie, history
