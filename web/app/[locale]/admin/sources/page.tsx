@@ -42,6 +42,20 @@ export default async function AdminSourcesPage({ params }: PageProps) {
     .order("last_seen_at", { ascending: false })
     .limit(200);
 
+  // Count active events per source_name for the filter dropdown
+  const { data: eventRows } = await supabase
+    .from("events")
+    .select("source_name")
+    .eq("is_active", true);
+
+  const eventCountBySourceName: Record<string, number> = {};
+  for (const row of eventRows ?? []) {
+    if (row.source_name) {
+      eventCountBySourceName[row.source_name] =
+        (eventCountBySourceName[row.source_name] ?? 0) + 1;
+    }
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">{t("title")}</h1>
@@ -91,6 +105,7 @@ export default async function AdminSourcesPage({ params }: PageProps) {
 
       <AdminSourcesTable
         sources={(sources ?? []) as ResearchSource[]}
+        eventCountBySourceName={eventCountBySourceName}
       />
     </div>
   );

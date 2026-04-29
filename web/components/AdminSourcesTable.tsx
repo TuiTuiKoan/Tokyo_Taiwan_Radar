@@ -28,6 +28,7 @@ export interface ResearchSource {
 
 interface Props {
   sources: ResearchSource[];
+  eventCountBySourceName?: Record<string, number>;
 }
 
 const GITHUB_REPO = "TuiTuiKoan/Tokyo_Taiwan_Radar";
@@ -99,7 +100,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export default function AdminSourcesTable({ sources }: Props) {
+export default function AdminSourcesTable({ sources, eventCountBySourceName = {} }: Props) {
   const t = useTranslations("admin");
   const supabase = createClient();
   const [filter, setFilter] = useState<string>("all");
@@ -351,6 +352,7 @@ export default function AdminSourcesTable({ sources }: Props) {
     organizer:         "活動策劃組織",
     personal:          "個人頁面",
     peatix_organizer:  "Peatix 主辦者",
+    other:             "其他",
     archived:          "📦 歸檔",
   };
 
@@ -390,6 +392,21 @@ export default function AdminSourcesTable({ sources }: Props) {
         ? "peatix_organizer"
         : (effectiveTypeMap[s.id] ?? "other");
       counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  })();
+
+  /** 各分類的活動條目數 (active events only) */
+  const eventCountByType = (() => {
+    const counts: Record<string, number> = {};
+    for (const s of sourceList) {
+      const key = s.agent_category === "peatix_organizer"
+        ? "peatix_organizer"
+        : (effectiveTypeMap[s.id] ?? "other");
+      const n = s.scraper_source_name
+        ? (eventCountBySourceName[s.scraper_source_name] ?? 0)
+        : 0;
+      counts[key] = (counts[key] ?? 0) + n;
     }
     return counts;
   })();
@@ -447,7 +464,6 @@ export default function AdminSourcesTable({ sources }: Props) {
                           .map(([key, label]) => (
                             <option key={key} value={key}>{label}</option>
                           ))}
-                        <option value="other">其他</option>
                       </select>
                       {isOverridden && (
                         <button
@@ -591,10 +607,16 @@ export default function AdminSourcesTable({ sources }: Props) {
             className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
             {Object.entries(SOURCE_TYPE_LABELS).map(([key, label]) => {
-              const count = key === "all" ? undefined : typeCountMap[key];
+              const srcCount = key === "all" ? undefined : typeCountMap[key];
+              const evtCount = key === "all" ? undefined : eventCountByType[key];
+              const suffix = evtCount != null && evtCount > 0
+                ? ` (${evtCount}件)`
+                : srcCount != null && srcCount > 0
+                  ? ` (${srcCount})`
+                  : "";
               return (
                 <option key={key} value={key}>
-                  {label}{count != null && count > 0 ? ` (${count})` : ""}
+                  {label}{suffix}
                 </option>
               );
             })}
