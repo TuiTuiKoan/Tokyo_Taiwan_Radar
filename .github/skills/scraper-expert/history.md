@@ -2,26 +2,30 @@
 
 <!-- Append new entries at the top -->
 
-## 2026-04-29 — ナギ日記 [eurospace] — user report confirmed
-**Report types:** wrongDetails, fieldEdit:description:zh:《ナギ日記》講述了在東京與台灣兩地忙碌的建築師友梨探訪在故鄉山中雕刻的寄子，透過與寄子及其家人的相遇，友梨在日常生活中發現了小小的變化。該作品已正式入選坎城國際電影節競賽單元。, fieldEdit:description:en:Nagi Diary tells the story of Yuki, an architect active in Tokyo and Taiwan, who visits Yoshiko, a sculptor working with wood from nearby mountains. Through her encounters with Yoshiko and her family, Yuki discovers small changes in her daily life. The film has been officially selected for the competition section of the Cannes Film Festival., fieldEdit:description:ja:『ナギダイアリー』は、東京と台湾で活躍する建築家の友梨が、故郷の山で彫刻を作る寄子を訪れる物語です。彼女は、寄子やその家族との出会いを通じて、日常の中に小さな変化を見出します。この作品は、カンヌ国際映画祭のコンペティション部門に正式出品されることが発表されました。
-**Wrong fields:** description
-**Admin notes:** —
-**Action:** Annotatable fields nulled out — re-annotation triggered. Will auto-reactivate after annotator runs.
 ---
 
----
+## 2026-04-29 — note_creators スクレイパー完全除外（日台交流会コミュニティイベント）
 
+**問題**: ユーザーがイベントページ `https://tokyo-taiwan-radar.vercel.app/zh/events/09f9c7b9-33cd-410d-a684-18d8a8dee43c` を見て「このソースの全部を除外してほしい」と要求。当該イベントは「🇹🇼台湾LOVE(日台交流紅葉狩り！)」— note.com の `nichitaikouryu` クリエイターが投稿する定期コミュニティ交流会（第88回など連番続行中）。プラットフォームが対象とする文化イベントではなく、低品質ノイズと判断。
 
-## 2026-04-29 — 新・世界鐵道之旅 #5 [gguide_tv] — user report confirmed
-**Report types:** wrongCategory
-**Before (AI category):** tv_program, senses, tourism
-**After (corrected):** nature, tourism, senses, tv_program
-**Admin notes:** —
-**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
----
+**ソース特定手順**:
+```python
+# イベント UUID から source_name を DB で確認
+sb.table('events').select('source_name,source_id,source_url').eq('id', '<uuid>').execute()
+# → source_name='note_creators', source_url='https://note.com/nichitaikouryu/n/...'
+```
 
----
+**修正**:
+1. `scraper/main.py` から `NoteCreatorsScraper` の import と `SCRAPERS` 登録を削除
+2. DB から `source_name='note_creators'` の全 28 件を hard delete:
+   ```python
+   sb.table('events').delete().eq('source_name', 'note_creators').execute()
+   ```
 
+**教訓**:
+- 問題イベントの `source_name` は **DB クエリで確認する**。タイトルや URL パターンから source を推測してはならない（今回は peatix/connpass ではなく note_creators が正解）。
+- スクレイパーを廃止する場合は import + SCRAPERS 登録 + DB hard delete の **3点セット**で処理する。どれか1つでも抜けると stale データが残る（import だけ削除しても DB には残る）。
+- `note_creators` スクレイパーは community exchange meetup（定例交流会）ノイズのリスクを持つ。**再導入する場合は特定クリエイターのみ許可リスト管理に変更する**こと。
 
 ---
 

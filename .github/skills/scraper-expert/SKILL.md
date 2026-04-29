@@ -28,6 +28,15 @@ Read this at the start of every session before writing any scraper.
   "
   ```
 - **Run SCRAPERS audit after ANY `main.py` change**: Not only when adding new scrapers. Any refactor or chore commit touching `main.py` risks silently dropping registrations. Run the audit and confirm "ALL CLEAR" before `git push`.
+- **Source removal procedure (3-step atomically)**: When removing a scraper entirely:
+  1. Remove `import` from `main.py`
+  2. Remove `ScrapeClass()` from `SCRAPERS` in `main.py`
+  3. Hard delete existing DB records: `sb.table('events').delete().eq('source_name', '<source_name>').execute()`
+  All 3 steps must happen in the same session. Missing step 3 leaves stale data visible in production.
+- **Identify source_name from a problem event**: Never guess from the event title — always query the DB:
+  ```python
+  sb.table('events').select('source_name,source_id,source_url').eq('id', '<uuid>').execute()
+  ```
 - **`start_date` / `end_date` must be `datetime.datetime`, NOT `datetime.date`**: `dedup_events` in `base.py` calls `.date()` on `start_date`. Passing a bare `date` object raises `AttributeError: 'datetime.date' object has no attribute 'date'`. Always use `datetime(y, m, d)` when constructing dates in scrapers.
 - **`category` must be `list[str]`, NOT a bare string**: The DB column is `text[]`. Passing `category="movie"` raises `malformed array literal` at write time. Always use `category=["movie"]`. This fails silently at compile time and only surfaces on DB upsert.
 

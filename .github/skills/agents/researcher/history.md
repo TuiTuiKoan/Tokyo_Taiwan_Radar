@@ -3,6 +3,25 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — 問題イベントのソース特定 → スクレイパー完全除外フロー
+
+**状況**: ユーザーがイベントページの URL を提示し「このソースの全部を除外してほしい」と要求。イベントは「🇹🇼台湾LOVE(日台交流紅葉狩り！)」— 定期コミュニティ交流会（88回目）。
+
+**手順**:
+1. `fetch_webpage` でイベントページを確認 → ソース原文リンクは resolve できず
+2. DB クエリで `source_name` を特定:
+   ```python
+   sb.table('events').select('source_name,source_id,source_url').eq('id', '<uuid>').execute()
+   # → source_name='note_creators'（note.com/nichitaikouryu）
+   ```
+3. スクレイパー除外: `main.py` から import + SCRAPERS 登録を削除
+4. DB hard delete: 28 件を `sb.table('events').delete().eq('source_name','note_creators').execute()` で削除
+
+**教訓**:
+- ユーザーが「このソースを除外」と言った場合、まず **DB クエリで source_name を確認**する。イベントタイトル・URL パターンから推測しない（今回: peatix/connpass ではなく note_creators が正解）。
+- スクレイパー廃止は import 削除 + SCRAPERS 削除 + DB hard delete の **3点セット**。Researcher がこのフローを担う場合は Scraper Expert に引き継ぐか、直接 `main.py` を編集する。
+
+---
 ## 2026-04-29 — Agent Skills 目錄整合：Canonical 路徑變更
 
 **問題：** Agent skill 目錄散落在 `.github/skills/` 頂層（如 `skills/researcher/`、`skills/engineer/`），與 source-specific skills（`skills/sources/<name>/`）混雜，難以辨識歸屬。
