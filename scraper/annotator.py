@@ -49,6 +49,34 @@ VALID_CATEGORIES = [
 _NEWS_MOVIE_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss"})
 _BRACKET_TITLE_RE = re.compile(r"[\u300c\u300e]([^\u300d\u300f]+)[\u300d\u300f]")
 
+# Bracket pairs used by GPT when wrapping movie titles in descriptions.
+_TITLE_BRACKETS = [
+    ("\u300a", "\u300b"),  # \u300a\u300b Chinese double angle
+    ("\u300c", "\u300d"),  # \u300c\u300d Japanese corner
+    ("\u300e", "\u300f"),  # \u300e\u300f Japanese white corner
+    ("\u2018", "\u2019"),  # \u2018\u2019 English single curly
+    ("\u201c", "\u201d"),  # \u201c\u201d English double curly
+    ("'", "'"),            # '' ASCII straight single
+    ('"', '"'),            # "" ASCII straight double
+]
+
+
+def _replace_title_in_desc(desc: str, old_titles: list[str], new_title: str) -> str:
+    """Replace bracketed old movie title references in a description.
+
+    Only replaces when the old title is wrapped in a recognized bracket pair,
+    to avoid accidental partial-word substitutions.
+    """
+    result = desc
+    for old in old_titles:
+        if not old or old == new_title:
+            continue
+        for open_b, close_b in _TITLE_BRACKETS:
+            old_bracketed = f"{open_b}{old}{close_b}"
+            if old_bracketed in result:
+                result = result.replace(old_bracketed, f"{open_b}{new_title}{close_b}")
+    return result
+
 # ---------------------------------------------------------------------------
 # GPT System Prompt
 # ---------------------------------------------------------------------------
@@ -575,7 +603,10 @@ def enrich_movie_titles() -> None:
 
     res = (
         sb.table("events")
-        .select("id,name_ja,raw_title,name_zh,name_en,annotation_status,source_name")
+        .select(
+            "id,name_ja,raw_title,name_zh,name_en,"
+            "description_zh,description_en,annotation_status,source_name"
+        )
         .contains("category", ["movie"])
         .neq("annotation_status", "reviewed")
         .neq("source_name", "eiga_com")
@@ -606,17 +637,43 @@ def enrich_movie_titles() -> None:
         if not name_zh and not name_en:
             continue
 
+        old_name_zh = event.get("name_zh") or ""
+        old_name_en = event.get("name_en") or ""
+
         update: dict[str, Any] = {}
         if name_zh:
             update["name_zh"] = name_zh
         if name_en:
             update["name_en"] = name_en
 
+        # Also fix description fields that still reference the old (wrong) title.
+        # For news sources we additionally try replacing the Japanese lookup title
+        # that appears in brackets in the description.
+        if name_zh:
+            desc_zh = event.get("description_zh") or ""
+            if desc_zh:
+                old_refs_zh = (
+                    [old_name_zh, title]
+                    if source in _NEWS_MOVIE_SOURCES
+                    else [old_name_zh]
+                )
+                new_desc_zh = _replace_title_in_desc(desc_zh, old_refs_zh, name_zh)
+                if new_desc_zh != desc_zh:
+                    update["description_zh"] = new_desc_zh
+
+        if name_en:
+            desc_en = event.get("description_en") or ""
+            if desc_en:
+                new_desc_en = _replace_title_in_desc(desc_en, [old_name_en], name_en)
+                if new_desc_en != desc_en:
+                    update["description_en"] = new_desc_en
+
         sb.table("events").update(update).eq("id", event["id"]).execute()
         patched += 1
         logger.info(
-            "  ✓ %s/%s [%s] → zh=%r en=%r",
+            "  ✓ %s/%s [%s] → zh=%r en=%r desc_zh_fixed=%s desc_en_fixed=%s",
             source, event["id"][:8], title[:40], name_zh, name_en,
+            "description_zh" in update, "description_en" in update,
         )
 
     logger.info("enrich_movie_titles: patched %d/%d events", patched, len(events))
