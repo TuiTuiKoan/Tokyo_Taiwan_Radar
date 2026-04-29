@@ -164,9 +164,15 @@ This lets users see how many items they'd get if they switched to that option.
 ```ts
 const typeCountMap = useMemo(() => {
   // Apply status filter only — do NOT apply selectedType
-  const statusFiltered = sources.filter(s =>
-    filter === "all" ? true : s.status === filter
-  )
+  const statusFiltered = sources.filter(s => {
+    if (filter === "implemented" && s.status !== "implemented") return false;
+    if (filter === "not-viable" && s.status !== "not-viable") return false;
+    if (filter === "candidate" && s.status !== "candidate") return false;
+    if (filter === "researched" && s.status !== "researched") return false;
+    if (filter === "recommended" && s.status !== "recommended") return false;
+    if (filter === "has_issue" && !s.github_issue_url) return false;
+    return true;
+  })
   const counts: Record<string, number> = {}
   statusFiltered.forEach(s => {
     const type = effectiveTypeMap[s.id] ?? s.agent_category ?? "unknown"
@@ -182,6 +188,8 @@ const typeCountMap = useMemo(() => {
 ```
 
 **Rule:** Every multi-dimensional filter should use this "exclude self, apply others" approach. Never count from the fully-filtered result — it would always show N for the active option and mislead for inactive ones.
+
+**Sibling IIFE parity rule:** `AdminSourcesTable.tsx` has two parallel count computations: `typeCountMap` (sources per type) and `eventCountByType` (active events per type). Both must apply the **identical** status-filter logic. When a new status value is added to the `<select>`, add its guard to ALL count IIFEs in the same commit. Adding to only one causes stale counts on the other.
 
 ## Scraper Implementation
 

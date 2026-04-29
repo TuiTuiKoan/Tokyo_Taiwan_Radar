@@ -3,6 +3,17 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — AdminSourcesTable: `eventCountByType` and `typeCountMap` not applying status filter [AdminSourcesTable]
+
+**Bug:** `typeCountMap` was added (commit `6b92c53`) with the status filter applied, but `eventCountByType` (a sibling IIFE computing active event counts per type) was NOT updated to apply the same filter. When users selected the `不適合` (not-viable) status, `typeCountMap` correctly showed 0 for all types, but `eventCountByType` still showed stale counts from all sources regardless of status — making the dropdown misleading.
+
+Separately, `candidate`, `researched`, and `recommended` status values were added to the status `<select>` (commit `618f93a`) but the `getFilteredSources` filter logic only handled `implemented`, `not-viable`, and `has_issue`. The new status values had no guard, so selecting them showed all sources unfiltered.
+
+**Fix (c52c737):** Extracted an identical `statusFiltered` array into `eventCountByType` (same guard logic as in `typeCountMap`). Also added explicit `candidate / researched / recommended` guards to both the `typeCountMap` status filter and the `getFilteredSources` IIFE.
+
+**Lesson:** When two parallel IIFE/`useMemo` blocks compute counts for related UI dimensions (e.g. one counts sources-per-type, another counts events-per-type), they must apply the **identical** status-filter logic. Whenever a new filter option is added to `getFilteredSources`, grep for all sibling count computations and apply the same guard. Treat status filter guards as a **closed set** — adding `candidate` to one block requires adding it to ALL blocks in the same file that filter by status.
+
+---
 ## 2026-04-29 — AdminSourcesTable 來源分類 select 顯示各分類條目數
 
 **工作內容：**

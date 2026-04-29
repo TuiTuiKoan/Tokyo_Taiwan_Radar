@@ -3,6 +3,26 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — LivePocket scraper: wrong dl selector + class name conflict [livepocket]
+
+**Error 1: dl selector class mismatch**
+Assumed `dl` class was `event-detail-info` based on the docstring in the research profile. Actual class is `event-detail-info__list`. Additionally, `dt`/`dd` pairs are wrapped in `div.event-detail-info__block` inside the `dl` — they are NOT direct children. Using `dt.find_next_sibling("dd")` returned nothing. All 14 events had `start_date = null` on first dry-run.
+
+**Fix:** Changed selector to `soup.select_one("dl.event-detail-info__list")` and rewrote `_get_dd_text()` to iterate `dl.select("div.event-detail-info__block")` → `block.select_one("dt")` / `block.select_one("dd")`.
+
+**Error 2: CamelCase class name `_scraper_key` conflict**
+Named the class `LivePocketScraper`. The `_scraper_key()` function in `main.py` splits on CamelCase boundaries, producing `live_pocket` — which does NOT match `source_name = "livepocket"`. Running `--source livepocket` reported "Unknown source".
+
+**Fix:** Renamed class to `LivepocketScraper` (lowercase `p`) → `_scraper_key = livepocket`.
+
+**Result:** 14 Taiwan events found after both fixes. `start_date` populated for all.
+
+**Lessons:**
+- Always verify `dl` class name from live HTML before writing selectors — research profiles can have stale assumptions.
+- For platform names with no natural CamelCase split (e.g. "livepocket"), always use `Livepocket` (not `LivePocket`) to ensure `_scraper_key` matches `source_name`.
+- Duplicate `dl` blocks exist (desktop + mobile) — always use `select_one()`.
+
+---
 ## 2026-04-29: Peatix organizer Layer 3 + discovery_accounts.py daily rotation
 
 **變更：**
