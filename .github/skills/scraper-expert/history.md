@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-29 — 世界中的日本外交 第5回 [gguide_tv] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** academic, geopolitics, history
+**After (corrected):** tv_program, geopolitics, academic
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-29 — 亞洲藝術漫遊 東亞：探索接近性與差異 [tokyoartbeat] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** senses
