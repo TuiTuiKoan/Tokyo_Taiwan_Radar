@@ -327,17 +327,20 @@ export default function AdminSourcesTable({ sources }: Props) {
     78: "personal",
   };
 
+  // peatix_organizer entries are identified via agent_category, not ID map
+
   const SOURCE_TYPE_LABELS: Record<string, string> = {
-    all:              "全部分類",
-    event_platform:   "活動平台",
-    academic:         "學術單位",
-    venue:            "展場",
-    cinema:           "電影",
-    tv:               "電視",
-    government:       "政府機構",
-    department_store: "百貨",
-    organizer:        "活動策劃組織",
-    personal:         "個人頁面",
+    all:               "全部分類",
+    event_platform:    "活動平台",
+    academic:          "學術單位",
+    venue:             "展場",
+    cinema:            "電影",
+    tv:                "電視",
+    government:        "政府機構",
+    department_store:  "百貨",
+    organizer:         "活動策劃組織",
+    personal:          "個人頁面",
+    peatix_organizer:  "Peatix 主辦者",
   };
 
   function getFilteredSources(list: ResearchSource[]) {
@@ -345,7 +348,14 @@ export default function AdminSourcesTable({ sources }: Props) {
       if (filter === "implemented" && s.status !== "implemented") return false;
       if (filter === "not-viable" && s.status !== "not-viable") return false;
       if (filter === "has_issue" && !s.github_issue_url) return false;
-      if (filterType !== "all" && (SOURCE_TYPE_MAP[s.id] ?? "other") !== filterType) return false;
+      if (filterType !== "all") {
+        // peatix_organizer entries use agent_category directly; others use ID map
+        const sourceType =
+          s.agent_category === "peatix_organizer"
+            ? "peatix_organizer"
+            : (SOURCE_TYPE_MAP[s.id] ?? "other");
+        if (sourceType !== filterType) return false;
+      }
       return true;
     });
   }
