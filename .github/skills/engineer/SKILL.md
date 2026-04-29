@@ -127,6 +127,15 @@ This pattern applies to any `<select>` filter whose options map 1-to-1 with a fi
 
 **Annotation status label consistency rule:** One status value = one i18n key, used consistently in **all** display surfaces: badge (`getAnnotationLabel`), filter dropdown `<option>`, any column header. Use the **short-form keys**: `t("filterAnnotatedShort")`, `t("filterReviewedShort")`, `t("filterErrorShort")`, `t("filterPendingShort")`. The long-form family (`annotated`, `reviewed`, `error`, `pending`) has been deleted — do not recreate it.
 
+## AdminSourcesTable.tsx — agent_category Sync Rule
+
+`web/components/AdminSourcesTable.tsx` maintains a `SOURCE_TYPE_LABELS` map and a `getFilteredSources` function. Both must be updated whenever a new `agent_category` value is introduced in `discovery_accounts.py`:
+
+1. **`SOURCE_TYPE_LABELS`** — add the new key: `{ ..., <new_category>: "<display label>" }`
+2. **`getFilteredSources`** — detect the new category by reading `source.agent_category` directly, NOT by hardcoded ID lists. Hardcoded ID lists silently omit newly discovered sources.
+
+This is a **paired-file rule**: `discovery_accounts.py` (defines agent_category) ↔ `AdminSourcesTable.tsx` (displays it).
+
 ## Scraper Implementation
 
 - Every new scraper source must extend `BaseScraper` (`scraper/sources/base.py`) and implement `scrape() → list[Event]`.
@@ -136,6 +145,28 @@ This pattern applies to any `<select>` filter whose options map 1-to-1 with a fi
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` whenever `start_date` is known.
 - Register every new scraper in `scraper/main.py` → `SCRAPERS` list.
 - Validate with `python main.py --dry-run --source <name>` before committing.
+
+## Discovery Accounts Pipeline (`discovery_accounts.py`)
+
+**Year must be dynamic — never hardcoded:**
+```python
+# CORRECT
+_THIS_YEAR = datetime.now(JST).year
+query = f"台湾 イベント {_THIS_YEAR}"
+
+# WRONG — requires manual update every year
+query = "台湾 イベント 2026"
+```
+Any query string that contains a year literal must use `_THIS_YEAR` or an equivalent `datetime.now(...)` derivation.
+
+**agent_category paired-file rule:** When adding a new `agent_category` value in `discovery_accounts.py`, **always** update `web/components/AdminSourcesTable.tsx` in the same commit:
+1. `SOURCE_TYPE_LABELS` — add `<new_category>: "<display label>"`
+2. `getFilteredSources` — add a branch that reads `source.agent_category` directly (do NOT use hardcoded ID lists)
+
+Current agent_category values and their labels:
+| `agent_category` | `SOURCE_TYPE_LABELS` label |
+|---|---|
+| `peatix_organizer` | `"Peatix 主辦者"` |
 
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/engineer/history.md` (newest at top).
