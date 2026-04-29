@@ -3,6 +3,18 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — Peatix Layer 3 擴充：新 agent_category 需同步 AdminSourcesTable
+
+**工作內容：**
+- `peatix.py` 加入 `_load_db_organizers()`、`_scrape_group_events()`，`scrape()` 加入 DB organizer 迴圈
+- `discovery_accounts.py` 完整重寫為 4 槽每日輪流（slot 0-2=note.com，slot 3=Peatix 主辦者）
+
+**教訓：**
+- 每次新增 `agent_category` 到 DB（如 `peatix_organizer`）時，**同一 PR 必須**更新 `AdminSourcesTable.tsx` 的 `SOURCE_TYPE_LABELS` 和 `getFilteredSources` 邏輯，否則管理界面無法篩選新類型
+- `discovery_accounts.py` 的 platform-aware upsert 依賴 `agent_category` 欄位作為路由機制：Peatix → `peatix_organizer`，note.com → `note_creator`
+- 驗證入口：`python discovery_accounts.py --dry-run --slot 3`
+
+---
 ## 2026-04-29 — AdminSourcesTable 分類對照表編輯器（localStorage 覆蓋層）
 
 **新增功能：**

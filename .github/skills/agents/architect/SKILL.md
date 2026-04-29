@@ -22,6 +22,12 @@ Read this at the start of every session before producing any plan.
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
 
+## Skills Directory Convention
+- `sources/{name}/` — per-scraper platform profile（有 `applyTo: scraper/sources/*.py`）
+- `agents/{name}/` — per-agent operational rules
+- top-level — workflow/tooling skills only（local-preview, cc-statusline, session-analytics）
+- 任何新的 per-source skill **必須** 放在 `sources/` 子目錄下，不可直接放頂層
+
 ## SQL Privilege Syntax Guard
 - For PostgreSQL privilege statements, verify object-type syntax before finalizing migration SQL.
 - View privilege revocation should use `REVOKE ... ON TABLE <view_name> ...`, not `ON VIEW`.

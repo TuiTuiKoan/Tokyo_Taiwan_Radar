@@ -3,6 +3,23 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29: Peatix organizer Layer 3 + daily discovery rotation
+
+**工作內容：**
+- peatix.py 加入 DB-driven organizer 動態載入（Layer 3 模式）
+- discovery_accounts.py 完整重寫為 4 槽每日輪流
+- discovery-accounts.yml 從每週日改為週一到週四每日執行
+
+**教訓：**
+- Layer 3 擴充到新平台（Peatix）時，需要獨立的 agent_category（`peatix_organizer`），不可與 `note_creator` 混用
+- Skills 資料夾整理：per-source skill 必須放 `sources/{name}/`，不可在頂層建立
+
+**Skills folder audit lesson：**
+- `.github/skills/` 頂層只放 workflow/tooling skills（local-preview, cc-statusline, session-analytics）
+- per-agent skills → `agents/{agent-name}/`
+- per-source skills → `sources/{source-name}/`（有 `applyTo: scraper/sources/*.py` 的都應在這裡）
+
+---
 ## 2026-04-29 — LINE webhook 0 subscribers — `LINE_CHANNEL_TOKEN` missing from Vercel
 **Error:** After users added the LINE bot as a friend, `line_subscribers` remained at 0 rows. Schema INSERT worked fine in manual test; the issue was at the webhook layer.
 **Diagnosis:** GitHub Actions secrets (`LINE_CHANNEL_TOKEN`, `LINE_CHANNEL_SECRET`) and Vercel environment variables are **completely separate systems**. The webhook runs on Vercel, not in GitHub Actions. `LINE_CHANNEL_TOKEN` was never set in Vercel → signature verification failed → HTTP 401 → follow events rejected. LINE does not retry failed webhook deliveries.
