@@ -387,6 +387,9 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     const statusFiltered = sourceList.filter((s) => {
       if (filter === "implemented" && s.status !== "implemented") return false;
       if (filter === "not-viable" && s.status !== "not-viable") return false;
+      if (filter === "candidate" && s.status !== "candidate") return false;
+      if (filter === "researched" && s.status !== "researched") return false;
+      if (filter === "recommended" && s.status !== "recommended") return false;
       if (filter === "has_issue" && !s.github_issue_url) return false;
       return true;
     });
@@ -399,10 +402,19 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     return counts;
   })();
 
-  /** 各分類的活動條目數 (active events only) */
+  /** 各分類的活動條目數 (active events only, 套用狀態篩選) */
   const eventCountByType = (() => {
     const counts: Record<string, number> = {};
-    for (const s of sourceList) {
+    const statusFiltered = sourceList.filter((s) => {
+      if (filter === "implemented" && s.status !== "implemented") return false;
+      if (filter === "not-viable" && s.status !== "not-viable") return false;
+      if (filter === "candidate" && s.status !== "candidate") return false;
+      if (filter === "researched" && s.status !== "researched") return false;
+      if (filter === "recommended" && s.status !== "recommended") return false;
+      if (filter === "has_issue" && !s.github_issue_url) return false;
+      return true;
+    });
+    for (const s of statusFiltered) {
       const key = s.agent_category === "peatix_organizer"
         ? "peatix_organizer"
         : (effectiveTypeMap[s.id] ?? "other");
