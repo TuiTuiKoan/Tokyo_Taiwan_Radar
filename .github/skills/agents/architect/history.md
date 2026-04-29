@@ -3,6 +3,20 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29: drama 新增導致 'retail' 從 Category union 遺失
+
+**錯誤：**
+`multi_replace_string_in_file` 新增 `"drama"` 到 Category union 時，意外刪除了 `"retail"`。
+TypeScript build 失敗 → Vercel 停在舊版本 → 用戶看不到 drama 分類。
+
+**修復：** `f9e6b52` — 補回 `| "retail"` 到 Category union。
+
+**教訓：**
+- Category union 新增後，必須立即執行 `npx tsc --noEmit`，確認所有既有成員仍存在
+- `multi_replace_string_in_file` 的 oldString 必須包含足夠上下文（≥3行），避免截斷鄰近 union 成員
+- Vercel build 失敗時頁面不更新但不會下線（顯示舊版），需主動檢查 TypeScript 錯誤
+
+---
 ## 2026-04-29: Peatix organizer Layer 3 + daily discovery rotation
 
 **工作內容：**
