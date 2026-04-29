@@ -146,7 +146,7 @@ class EurospaceScraper(BaseScraper):
                 end_date=None,
                 location_name="ユーロスペース",
                 location_address="東京都渋谷区円山町1-5 KINOHAUS 3F・4F",
-                category="movie",
+                category=["movie"],
                 is_paid=True,
                 official_url=official_url or url,
             )

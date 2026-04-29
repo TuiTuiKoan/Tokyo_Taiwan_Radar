@@ -155,7 +155,7 @@ class TokyoArtBeatScraper(BaseScraper):
                 end_date=end_date,
                 location_name=venue_name,
                 location_address=venue_address,
-                category="art",
+                category=["art"],
                 is_paid=is_paid,
                 official_url=official_url,
             )
