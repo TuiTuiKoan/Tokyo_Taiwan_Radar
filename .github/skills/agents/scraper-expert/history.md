@@ -3,6 +3,19 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — eurospace / tokyoartbeat: category="string" instead of category=["string"]
+
+**Error:** `malformed array literal: "movie"` (PostgreSQL code 22P02) on upsert.
+The `category` column is `text[]` in Supabase. Both `eurospace.py` and `tokyoartbeat.py`
+passed a bare string (`category="movie"`, `category="art"`), causing the DB to reject it.
+
+**Fix:** Changed to list literals: `category=["movie"]`, `category=["art"]`.
+
+**Lesson:** `Event.category` is typed `list[str]` (see `base.py` line 30). Any scraper that
+hard-codes a single category must use `["value"]` not `"value"`. Bare strings silently compile
+but fail at DB write time with a cryptic PostgreSQL array literal error.
+
+---
 ## 2026-04-29 — maruhiro: datetime.date vs datetime.datetime type error + 15 scrapers lost from SCRAPERS
 
 **Part 1 — Type error in dedup_events:**

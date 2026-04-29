@@ -29,6 +29,7 @@ Read this at the start of every session before writing any scraper.
   ```
 - **Run SCRAPERS audit after ANY `main.py` change**: Not only when adding new scrapers. Any refactor or chore commit touching `main.py` risks silently dropping registrations. Run the audit and confirm "ALL CLEAR" before `git push`.
 - **`start_date` / `end_date` must be `datetime.datetime`, NOT `datetime.date`**: `dedup_events` in `base.py` calls `.date()` on `start_date`. Passing a bare `date` object raises `AttributeError: 'datetime.date' object has no attribute 'date'`. Always use `datetime(y, m, d)` when constructing dates in scrapers.
+- **`category` must be `list[str]`, NOT a bare string**: The DB column is `text[]`. Passing `category="movie"` raises `malformed array literal` at write time. Always use `category=["movie"]`. This fails silently at compile time and only surfaces on DB upsert.
 
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
