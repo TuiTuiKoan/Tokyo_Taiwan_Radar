@@ -10,7 +10,7 @@ Read this at the start of every session before touching any code.
 
 ## ⚠️ CRITICAL: Canonical File Paths
 
-> **NEVER write to `.github/skills/engineer/`** — that path has been deleted. The canonical location is:
+> **NEVER write to `.github/skills/agents/engineer/`** — that path has been deleted. The canonical location is:
 > `.github/skills/agents/engineer/SKILL.md` and `.github/skills/agents/engineer/history.md`
 
 Same rule applies to ALL agent skills:

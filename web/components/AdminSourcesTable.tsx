@@ -129,6 +129,16 @@ export default function AdminSourcesTable({ sources }: Props) {
   const [scheduleSaving, setScheduleSaving] = useState<number | null>(null);
   const [scheduleSaved, setScheduleSaved] = useState<Set<number>>(new Set());
 
+  // Type override editor
+  const LS_KEY = "source_type_overrides";
+  const [typeOverrides, setTypeOverrides] = useState<Record<number, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(localStorage.getItem(LS_KEY) ?? "{}"); } catch { return {}; }
+  });
+  const [showTypeEditor, setShowTypeEditor] = useState(false);
+  const [draftOverrides, setDraftOverrides] = useState<Record<number, string>>({});
+  const [editorSearch, setEditorSearch] = useState("");
+
   function toggleSelect(sourceKey: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -341,7 +351,11 @@ export default function AdminSourcesTable({ sources }: Props) {
     organizer:         "活動策劃組織",
     personal:          "個人頁面",
     peatix_organizer:  "Peatix 主辦者",
+    archived:          "📦 歸檔",
   };
+
+  /** 合併硬寫預設 + 使用者覆蓋 */
+  const effectiveTypeMap: Record<number, string> = { ...SOURCE_TYPE_MAP, ...typeOverrides };
 
   function getFilteredSources(list: ResearchSource[]) {
     return list.filter((s) => {
@@ -349,11 +363,11 @@ export default function AdminSourcesTable({ sources }: Props) {
       if (filter === "not-viable" && s.status !== "not-viable") return false;
       if (filter === "has_issue" && !s.github_issue_url) return false;
       if (filterType !== "all") {
-        // peatix_organizer entries use agent_category directly; others use ID map
+        // peatix_organizer entries use agent_category directly; others use effectiveTypeMap
         const sourceType =
           s.agent_category === "peatix_organizer"
             ? "peatix_organizer"
-            : (SOURCE_TYPE_MAP[s.id] ?? "other");
+            : (effectiveTypeMap[s.id] ?? "other");
         if (sourceType !== filterType) return false;
       }
       return true;
@@ -368,6 +382,93 @@ export default function AdminSourcesTable({ sources }: Props) {
 
   return (
     <div>
+      {/* Type map editor modal */}
+      {showTypeEditor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="text-base font-semibold text-gray-800">編輯分類對照表</h2>
+              <button
+                onClick={() => setShowTypeEditor(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >✕</button>
+            </div>
+            <div className="px-5 py-3 border-b border-gray-100">
+              <input
+                type="search"
+                value={editorSearch}
+                onChange={(e) => setEditorSearch(e.target.value)}
+                placeholder="搜尋來源名稱…"
+                className="w-full h-8 border border-gray-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 py-3 space-y-1">
+              {sourceList
+                .filter((s) => !editorSearch || s.name.toLowerCase().includes(editorSearch.toLowerCase()) || String(s.id).includes(editorSearch))
+                .sort((a, b) => {
+                  const ta = draftOverrides[a.id] ?? SOURCE_TYPE_MAP[a.id] ?? "other";
+                  const tb = draftOverrides[b.id] ?? SOURCE_TYPE_MAP[b.id] ?? "other";
+                  return ta.localeCompare(tb) || a.name.localeCompare(b.name);
+                })
+                .map((src) => {
+                  const effective = draftOverrides[src.id] ?? SOURCE_TYPE_MAP[src.id] ?? "other";
+                  const isOverridden = src.id in draftOverrides;
+                  return (
+                    <div key={src.id} className="flex items-center gap-3 py-1.5 border-b border-gray-50">
+                      <span className="text-xs text-gray-400 w-6 text-right shrink-0">{src.id}</span>
+                      <span className={`text-sm flex-1 truncate ${isOverridden ? "font-medium text-green-800" : "text-gray-700"}`}>
+                        {src.name}
+                      </span>
+                      <select
+                        value={effective}
+                        onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [src.id]: e.target.value }))}
+                        className="h-7 border border-gray-200 rounded-md px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400 shrink-0"
+                      >
+                        {Object.entries(SOURCE_TYPE_LABELS)
+                          .filter(([k]) => k !== "all")
+                          .map(([key, label]) => (
+                            <option key={key} value={key}>{label}</option>
+                          ))}
+                        <option value="other">其他</option>
+                      </select>
+                      {isOverridden && (
+                        <button
+                          onClick={() => setDraftOverrides((prev) => {
+                            const next = { ...prev };
+                            delete next[src.id];
+                            return next;
+                          })}
+                          className="text-xs text-gray-400 hover:text-red-500 shrink-0"
+                          title="還原預設"
+                        >↩</button>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+            <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-gray-100">
+              <span className="text-xs text-gray-400">
+                {Object.keys(draftOverrides).length} 筆已覆蓋
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowTypeEditor(false)}
+                  className="text-xs px-4 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition"
+                >取消</button>
+                <button
+                  onClick={() => {
+                    setTypeOverrides(draftOverrides);
+                    try { localStorage.setItem(LS_KEY, JSON.stringify(draftOverrides)); } catch { /* ignore */ }
+                    setShowTypeEditor(false);
+                  }}
+                  className="text-xs px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
+                >儲存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add note.com creator form */}
       <div className="mb-4">
         <button
@@ -477,6 +578,16 @@ export default function AdminSourcesTable({ sources }: Props) {
           </select>
         </div>
         <span className="text-xs text-gray-400 self-center">{filtered.length} 筆</span>
+        <button
+          onClick={() => {
+            setDraftOverrides({ ...typeOverrides });
+            setEditorSearch("");
+            setShowTypeEditor(true);
+          }}
+          className="ml-auto text-xs px-3 py-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition"
+        >
+          ✏️ 編輯分類對照表
+        </button>
       </div>
 
       {/* Bulk action bar */}

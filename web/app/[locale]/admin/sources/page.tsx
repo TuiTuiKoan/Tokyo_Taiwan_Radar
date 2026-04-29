@@ -89,7 +89,6 @@ export default async function AdminSourcesPage({ params }: PageProps) {
         </Link>
       </div>
 
-      <h2 className="text-lg font-semibold mb-3">{t("sourcesTitle")}</h2>
       <AdminSourcesTable
         sources={(sources ?? []) as ResearchSource[]}
       />
