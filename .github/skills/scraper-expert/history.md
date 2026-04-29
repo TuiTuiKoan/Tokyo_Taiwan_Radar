@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-29 — 孤獨的美食家 大晦日特別篇〜京都・名古屋出差篇〜 [gguide_tv] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** tv_program, lifestyle_food, taiwan_japan
+**After (corrected):** lifestyle_food, tv_program
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ---
 
 ## 2026-04-29 — note_creators スクレイパー完全除外（日台交流会コミュニティイベント）
