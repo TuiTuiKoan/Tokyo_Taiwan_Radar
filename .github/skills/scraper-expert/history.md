@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-29 — 全力創新者～挑戰SDGs的Z世代～傳遞米飯的價值 [gguide_tv] — user report confirmed
+**Report types:** wrongCategory, irrelevant
+**Before (AI category):** lifestyle_food
+**After (corrected):** lifestyle_food, tv_program
+**Admin notes:** —
+**Action:** Event hidden (is_active=false). Irrelevant content.
+---
+
+---
+
+
 ## 2026-04-29 — 全力創新者〜挑戰SDGs的Z世代〜傳遞米飯的價值 [gguide_tv] — user report confirmed
 **Report types:** irrelevant
 **Admin notes:** —
