@@ -1066,7 +1066,7 @@ Their ToS also explicitly prohibits non-API scraping (Playwright/curl), so the A
 **適用した変更**:
 - `copilot-instructions.md` — プロジェクト概要を「in Japan（全日本）」に更新、Geographic Scope 注記追加
 - `scraper-expert.agent.md` — description + `> **Scope**` 注記追加
-- `.github/skills/scraper-expert/SKILL.md` — `## Geographic Scope` セクション追加
+- `.github/skills/agents/scraper-expert/SKILL.md` — `## Geographic Scope` セクション追加
 - `.github/skills/agents/scraper-expert/SKILL.md` — `## Geographic Scope` セクション追加
 
 **教訓**: 地理的スコープは SKILL.md の冒頭に専用セクションとして明示すること。東京以外を除外する地理フィルターを追加する前に Geographic Scope セクションを必ず確認すること。

@@ -19,7 +19,7 @@ Read this at the start of every session before producing any plan.
 - List every affected file path explicitly — vague descriptions ("the scraper files") are not acceptable.
 
 ## After Identifying a Planning Mistake
-1. Append an entry to `.github/skills/architect/history.md` (newest at top).
+1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
 
 ## SQL Privilege Syntax Guard

@@ -3,6 +3,22 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — Agent Skills 目錄整合：Canonical 路徑變更
+
+**問題：** Agent skill 目錄散落在 `.github/skills/` 頂層（如 `skills/researcher/`、`skills/engineer/`），與 source-specific skills（`skills/sources/<name>/`）混雜，難以辨識歸屬。
+
+**修復：** 執行 `refactor(skills): consolidate all agent skills into skills/agents/`，5 個 agent skill 目錄移入 `skills/agents/` 子目錄：
+- `skills/researcher/` → `skills/agents/researcher/`
+- `skills/engineer/` → `skills/agents/engineer/`
+- `skills/scraper-expert/` → `skills/agents/scraper-expert/`
+- `skills/scraper-dev/` → `skills/agents/scraper-dev/`
+- `skills/architect/` → `skills/agents/architect/`
+
+SKILL.md 以新版為基底，從舊版搶救獨特 H2 章節；history.md 新條目在上合併；agent 檔案路徑參照同步更新。
+
+**教訓：** Agent skill 的 Canonical 路徑為 `skills/agents/<agent-name>/`。Source-specific skills 放 `skills/sources/<source-name>/`。任何引用 `skills/<agent-name>/`（無 `agents/` 層）的路徑均為過時路徑，必須更新。
+
+---
 ## 2026-04-29 — discovery_accounts.py 搜尋 query 年份硬寫 "2026"
 
 **問題：** `discovery_accounts.py` lines 78, 93, 107, 123 的 4 個搜尋 query 字串硬寫 `"2026"`，每年需要手動更新，否則搜尋結果只含當年活動。

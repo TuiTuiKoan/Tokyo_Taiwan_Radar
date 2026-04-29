@@ -45,7 +45,7 @@ Updated architect and scraper-expert skills with lessons from migration 027 veri
    - Immediate backfill validation (first 5 manual inspections)
    - `name_ja` priority for Google Search (search locale != result locale)
 
-### 3. `.github/skills/scraper-expert/history.md`
+### 3. `.github/skills/agents/scraper-expert/history.md`
 **Added 1 new entry:**
 
 - **2026-04-29 — 8 Unregistered Scrapers Found in SCRAPERS List Gap**

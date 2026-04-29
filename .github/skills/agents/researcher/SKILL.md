@@ -135,6 +135,7 @@ Use `LOOKBACK_DAYS` to match the source's natural cadence:
 - GPT output often includes article URLs (`/n/` path) and template strings — always validate with `_extract_creator_id()`.
 - Use `--dry-run` for testing: runs GPT + verification but skips DB writes and LINE push.
 - The daily scraper (`note_creators.py` or similar Layer 3 script) polls only `status='implemented'` creators from `research_sources`.
+- **年份は `_THIS_YEAR = datetime.now(JST).year` を使う。** search query 文字列に年数を hardcode してはならない（毎年手動更新が必要になり、古い検索結果しか返らなくなる）。
 
 ## After a Source Evaluation Error
 1. Append an entry to `.github/skills/agents/researcher/history.md` (newest at top).
