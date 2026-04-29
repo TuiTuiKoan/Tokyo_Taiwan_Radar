@@ -3,6 +3,20 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — AdminSourcesTable 來源分類 select 顯示各分類條目數
+
+**工作內容：**
+- `AdminSourcesTable.tsx` 的「來源分類」select 每個 option 改為顯示 `{label} ({count})` 格式
+- 新增 `typeCountMap` IIFE：套用狀態篩選（`filter`）但**不套用**分類篩選，計算每個分類的條目數
+- `"all"` 選項不顯示數字；count 為 0 時也不顯示括號
+- 邏輯與 `getFilteredSources` 中的 `peatix_organizer` / `effectiveTypeMap` 判斷保持一致
+
+**教訓：**
+- Filter dropdown 的各選項計數，應套用**其他**篩選條件（此處是狀態），但排除**自身**篩選條件（分類），才能讓使用者看到切換後的預期數量
+- `"all"` 選項語意上是 total，不適合顯示數字（旁邊已有 `{filtered.length} 筆`）
+- count 為 0 時不顯示括號，避免 UI 噪訊
+
+---
 ## 2026-04-29 — Peatix Layer 3 擴充：新 agent_category 需同步 AdminSourcesTable
 
 **工作內容：**

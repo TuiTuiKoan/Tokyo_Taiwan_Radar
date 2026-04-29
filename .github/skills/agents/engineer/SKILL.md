@@ -153,6 +153,36 @@ This pattern applies to any `<select>` filter whose options map 1-to-1 with a fi
 
 This is a **paired-file rule**: `discovery_accounts.py` (defines agent_category) ↔ `AdminSourcesTable.tsx` (displays it).
 
+## AdminSourcesTable.tsx — Filter Dropdown Count Pattern (typeCountMap)
+
+When showing per-option counts in a filter `<select>` (e.g. "Peatix 主辦者 (5)"), the count must reflect:
+- **Apply** all other active filters (e.g. status/`filter`)
+- **Exclude** the filter's own dimension (e.g. type/`selectedType`)
+
+This lets users see how many items they'd get if they switched to that option.
+
+```ts
+const typeCountMap = useMemo(() => {
+  // Apply status filter only — do NOT apply selectedType
+  const statusFiltered = sources.filter(s =>
+    filter === "all" ? true : s.status === filter
+  )
+  const counts: Record<string, number> = {}
+  statusFiltered.forEach(s => {
+    const type = effectiveTypeMap[s.id] ?? s.agent_category ?? "unknown"
+    counts[type] = (counts[type] ?? 0) + 1
+  })
+  return counts
+}, [sources, filter, effectiveTypeMap])
+
+// Render option:
+// count > 0 → `${label} (${count})`
+// count === 0 → `${label}` (no parentheses, avoid UI noise)
+// "all" option → never show count (semantic total, `filtered.length` shown elsewhere)
+```
+
+**Rule:** Every multi-dimensional filter should use this "exclude self, apply others" approach. Never count from the fully-filtered result — it would always show N for the active option and mislead for inactive ones.
+
 ## Scraper Implementation
 
 - Every new scraper source must extend `BaseScraper` (`scraper/sources/base.py`) and implement `scrape() → list[Event]`.

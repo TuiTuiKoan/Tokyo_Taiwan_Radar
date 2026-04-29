@@ -376,6 +376,24 @@ export default function AdminSourcesTable({ sources }: Props) {
 
   const filtered = getFilteredSources(sourceList);
 
+  /** 各分類的條目數（套用狀態篩選，不套用分類篩選） */
+  const typeCountMap = (() => {
+    const counts: Record<string, number> = {};
+    const statusFiltered = sourceList.filter((s) => {
+      if (filter === "implemented" && s.status !== "implemented") return false;
+      if (filter === "not-viable" && s.status !== "not-viable") return false;
+      if (filter === "has_issue" && !s.github_issue_url) return false;
+      return true;
+    });
+    for (const s of statusFiltered) {
+      const key = s.agent_category === "peatix_organizer"
+        ? "peatix_organizer"
+        : (effectiveTypeMap[s.id] ?? "other");
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  })();
+
   if (sourceList.length === 0) {
     return <p className="text-sm text-gray-400">{t("sourcesNone")}</p>;
   }
@@ -572,9 +590,14 @@ export default function AdminSourcesTable({ sources }: Props) {
             onChange={(e) => setFilterType(e.target.value)}
             className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
-            {Object.entries(SOURCE_TYPE_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
+            {Object.entries(SOURCE_TYPE_LABELS).map(([key, label]) => {
+              const count = key === "all" ? undefined : typeCountMap[key];
+              return (
+                <option key={key} value={key}>
+                  {label}{count != null && count > 0 ? ` (${count})` : ""}
+                </option>
+              );
+            })}
           </select>
         </div>
         <span className="text-xs text-gray-400 self-center">{filtered.length} 筆</span>
