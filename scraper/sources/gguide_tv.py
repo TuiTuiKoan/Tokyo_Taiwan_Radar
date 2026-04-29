@@ -47,10 +47,22 @@ _MAX_DETAIL_LEN = 2000
 
 _TAIWAN_KEYWORDS = ["台湾", "台灣", "Taiwan", "taiwan", "テレサ・テン", "鄧麗君", "Teresa Teng"]
 
+# Patterns where "台湾" appears as a substring of an unrelated Japanese word/place name.
+# "仙台湾" = Sendai Bay (仙台 + 湾). Not Taiwan.
+_FALSE_POSITIVE_PATTERNS = re.compile(r"仙台湾")
+
 
 def _is_taiwan_title(title: str) -> bool:
-    """Return True if the title contains a Taiwan-related keyword."""
-    return any(kw in title for kw in _TAIWAN_KEYWORDS)
+    """Return True if the title contains a Taiwan-related keyword.
+
+    Guards against false positives where 台湾 appears as a substring of an
+    unrelated word (e.g. 仙台湾 = Sendai Bay).
+    """
+    if not any(kw in title for kw in _TAIWAN_KEYWORDS):
+        return False
+    # If the only 台湾 hit is inside a known false-positive pattern, reject.
+    cleaned = _FALSE_POSITIVE_PATTERNS.sub("", title)
+    return any(kw in cleaned for kw in _TAIWAN_KEYWORDS)
 
 
 def _parse_schedule(schedule_str: str, today: datetime) -> tuple[Optional[datetime], str]:

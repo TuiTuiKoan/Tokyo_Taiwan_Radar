@@ -233,6 +233,17 @@ Run after discovering a new cross-source duplicate that the merger missed. Then 
 - Test with `python main.py --dry-run --source <source_name>` before any other step.
 - **Periodic audit**: Occasionally cross-check `ls scraper/sources/*.py` against the `SCRAPERS` list in `scraper/main.py`. Source files not in `SCRAPERS` are silently ignored by CI — they never run. In April 2026, 8 scrapers were discovered in this state (CineMarineScraper, EsliteSpectrumScraper, MoonRomanticScraper, MorcAsagayaScraper, ShinBungeizaScraper, SsffScraper, TaiwanFaasaiScraper, TokyoFilmexScraper).
 
+## gguide_tv-specific
+- **Source**: 番組表Gガイド (bangumi.org) — Japanese TV program listing. Uses `"台湾"` as the search keyword to fetch candidate programs, then `_is_taiwan_title()` to re-filter.
+- **`仙台湾` false positive**: `仙台湾` = 仙台 (Sendai city) + 湾 (bay). It is a geographic bay in Miyagi Prefecture, **completely unrelated to Taiwan**. `"台湾"` appears only as a substring of `"仙台湾"`. This was scraped as Taiwan-related before the fix (2026-04-29, event id `421d763d`).
+- **`_FALSE_POSITIVE_PATTERNS` guard**: `gguide_tv.py` maintains `_FALSE_POSITIVE_PATTERNS = re.compile(r"仙台湾")`. `_is_taiwan_title()` strips all false-positive substrings from the title first; if no Taiwan keyword remains in the cleaned title, the program is rejected.
+- **Adding new false positives**: When a new false-positive pattern is found, add it to `_FALSE_POSITIVE_PATTERNS` with alternation: `re.compile(r"仙台湾|新パターン")`. Add a comment explaining what the pattern means.
+- **General rule for substring keyword filters**: Any scraper that uses `"台湾" in text` must consider that `台湾` may appear inside unrelated Japanese words. Apply the strip-and-recheck pattern:
+  ```python
+  cleaned = _FALSE_POSITIVE_PATTERNS.sub("", title)
+  return any(kw in cleaned for kw in _TAIWAN_KEYWORDS)
+  ```
+
 ## Mandatory Post-Change Checklist
 
 **Every time a scraper is modified or a new scraper is added, you MUST complete ALL of the following before returning. No exceptions.**
