@@ -78,8 +78,10 @@ function getFieldLocaleValues(
   }
 }
 
-// Which fields support direct admin correction (description excluded — too complex)
-const EDITABLE_FIELDS = new Set(["name", "start_date", "end_date", "venue", "address", "business_hours", "price"]);
+// Which fields support direct admin correction
+const EDITABLE_FIELDS = new Set(["name", "start_date", "end_date", "venue", "address", "business_hours", "price", "description"]);
+// Fields that render as textarea instead of input
+const TEXTAREA_FIELDS = new Set(["description"]);
 
 // Input type for each editable field
 const FIELD_INPUT_TYPE: Record<string, string> = {
@@ -332,21 +334,39 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                                         </div>
                                       )}
                                       {isEditable && (
-                                        <input
-                                          type={inputType}
-                                          value={fieldEdits[row.id]?.[field]?.[loc] ?? userEditsForField[loc] ?? ""}
-                                          onChange={(e) =>
-                                            setFieldEdits((p) => ({
-                                              ...p,
-                                              [row.id]: {
-                                                ...(p[row.id] ?? {}),
-                                                [field]: { ...(p[row.id]?.[field] ?? {}), [loc]: e.target.value },
-                                              },
-                                            }))
-                                          }
-                                          placeholder={t("directCorrect")}
-                                          className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-gray-300"
-                                        />
+                                        TEXTAREA_FIELDS.has(field) ? (
+                                          <textarea
+                                            rows={3}
+                                            value={fieldEdits[row.id]?.[field]?.[loc] ?? userEditsForField[loc] ?? ""}
+                                            onChange={(e) =>
+                                              setFieldEdits((p) => ({
+                                                ...p,
+                                                [row.id]: {
+                                                  ...(p[row.id] ?? {}),
+                                                  [field]: { ...(p[row.id]?.[field] ?? {}), [loc]: e.target.value },
+                                                },
+                                              }))
+                                            }
+                                            placeholder={t("directCorrect")}
+                                            className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-gray-300 resize-y"
+                                          />
+                                        ) : (
+                                          <input
+                                            type={inputType}
+                                            value={fieldEdits[row.id]?.[field]?.[loc] ?? userEditsForField[loc] ?? ""}
+                                            onChange={(e) =>
+                                              setFieldEdits((p) => ({
+                                                ...p,
+                                                [row.id]: {
+                                                  ...(p[row.id] ?? {}),
+                                                  [field]: { ...(p[row.id]?.[field] ?? {}), [loc]: e.target.value },
+                                                },
+                                              }))
+                                            }
+                                            placeholder={t("directCorrect")}
+                                            className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-gray-300"
+                                          />
+                                        )
                                       )}
                                     </div>
                                   </div>
