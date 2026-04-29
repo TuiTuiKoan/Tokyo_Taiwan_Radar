@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-29 — 偉人傳　鄧麗君30年目的歌聲〜隨時光流逝〜 [gguide_tv] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** tv_program, movie, history
+**After (corrected):** tv_program, performing_arts, history
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-29 — 鄧麗君 歌姬所愛之人 第48話「愛著歌」 [gguide_tv] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** tv_program, movie
