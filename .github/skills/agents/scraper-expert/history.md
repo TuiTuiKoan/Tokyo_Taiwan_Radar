@@ -3,6 +3,54 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — prtimes: 川越台湾フェア and all non-Tokyo events missed (3 bugs)
+
+**Trigger:** User reported https://prtimes.jp/main/html/rd/p/000000015.000127081.html (丸広百貨店川越店「台湾フェア」) not captured.
+
+**Root cause 1 — Geographic restriction in `_SEARCH_KEYWORDS`:**
+All 5 keywords contained `東京` (e.g. `"台湾 イベント 東京"`). The prtimes search API
+only returns articles matching the full keyword string, so articles from Saitama (川越),
+Osaka, Nagoya, etc. were **never returned**. Violates the project rule: "Never restrict
+geographic scope".
+Fix: Removed `東京` from all keywords → `["台湾 イベント", "台湾フェア", "台湾フェス", "台湾 開催", "台湾 夜市", "台湾 祭"]`.
+
+**Root cause 2 — `_EVENT_KW` missing `フェア`:**
+`_EVENT_KW` regex did not include `フェア`. A title like「台湾フェア」would have no
+_EVENT_KW match and be rejected. Fix: added `フェア` to `_EVENT_KW`.
+
+**Root cause 3 — `_TAIWAN_BASED_TITLE_RE` false positive:**
+Pattern `台湾.*?で` matched `台湾フェア」で` (a Japan-held Taiwan fair) as if the event
+were held IN Taiwan, causing it to be skipped. The intended purpose was to exclude
+events held inside Taiwan (not Japan). Fix: tightened the regex to require explicit
+Taiwan-location context only:
+- `台湾国内|現地|本島|の地.*?で`
+- `in 台湾 / in Taiwan`
+- `台湾出展|輸出|進出|販路|海外展示|海外販売`
+
+**Result:** dry-run: 20 → 30 events; 川越台湾フェア now first in list.
+
+**Lesson:**
+- `_SEARCH_KEYWORDS` must NEVER contain city/region names — geographic scope is all-Japan.
+- `_TAIWAN_BASED_TITLE_RE` patterns must be precise; `台湾.*?で` is too broad and matches Japan-based Taiwan fairs.
+- When a PR article is missing, check: (1) search keyword geography, (2) `_EVENT_KW`, (3) `_TAIWAN_BASED_TITLE_RE`, (4) venue filter `_TAIWAN_VENUE_RE`.
+
+---
+## 2026-04-29 — movie_title_lookup + PrtimesScraper registration + FukuokaNow scope fix [multiple]
+
+**Changes (commit 3286522):**
+
+1. **`movie_title_lookup.py`** (NEW): `lookup_movie_titles(name_ja)` → `(name_zh, name_en)` via eiga.com search. In-memory cache `_cache`; returns `(None, None)` silently on any error. Used by 8 cinema scrapers + annotator `--enrich-movie-titles` flag.
+
+2. **`prtimes.py` geographic filter removed**: `_SEARCH_KEYWORDS` previously included `東京` scope restriction. Removed — project scope is all of Japan. Added `フェア` to `_EVENT_KW`. `PrtimesScraper` was also NOT in `SCRAPERS` — now registered.
+
+3. **`fukuoka_now.py` scope**: Correct from the start — no regional filter added.
+
+**Lessons:**
+- Cinema scrapers should call `lookup_movie_titles(title)` before constructing `Event()` and pass `name_zh`/`name_en`. Annotator GPT fallback still applies if `(None, None)`.
+- PR TIMES keywords must NEVER include city names (e.g. `東京`) — project covers 全日本.
+- Every new scraper file must be added to `SCRAPERS` in the same commit. Do not defer.
+
+---
 ## 2026-04-29 — Fukuoka Now scraper implemented [fukuoka_now]
 
 **New source**: `FukuokaNowScraper` — Fukuoka's major English-language event calendar.
