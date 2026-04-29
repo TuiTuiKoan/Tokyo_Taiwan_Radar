@@ -557,77 +557,52 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
 
 
 def enrich_movie_titles() -> None:
-    """Look up official zh/en titles for movie events using eiga.com.
+    """Look up official zh/en movie titles from eiga.com and overwrite all
+    AI-translated names.
 
-    Targets events where:
-      - category contains 'movie'
-      - annotation_status IN ('pending', 'annotated')  (never touches 'reviewed')
-      - name_zh IS NULL OR name_en IS NULL
-
-    Only patches NULL fields — never overwrites existing values.
-    Does NOT change annotation_status.
+    Strategy:
+    - Query ALL movie events where annotation_status != 'reviewed'.
+      eiga_com is exempt — it already has native original-title parsing.
+    - For news-source events (google_news_rss / prtimes / nhk_rss):
+        extract the movie title from 「…」/『…』 brackets in raw_title.
+    - For all other sources: use name_ja (fallback: raw_title).
+    - If eiga.com returns an official title → overwrite name_zh AND name_en,
+      even if they already contain a GPT translation.
+    - 'reviewed' events are never touched.
+    - Does NOT change annotation_status.
     """
     sb = _get_supabase()
 
     res = (
         sb.table("events")
-        .select("id,name_ja,raw_title,name_zh,name_en,annotation_status")
+        .select("id,name_ja,raw_title,name_zh,name_en,annotation_status,source_name")
         .contains("category", ["movie"])
-        .in_("annotation_status", ["pending", "annotated"])
-        .or_("name_zh.is.null,name_en.is.null")
+        .neq("annotation_status", "reviewed")
+        .neq("source_name", "eiga_com")
         .execute()
     )
     events = res.data or []
-    logger.info("enrich_movie_titles: %d candidate events", len(events))
+    logger.info(
+        "enrich_movie_titles: %d candidate events (excluding eiga_com + reviewed)",
+        len(events),
+    )
 
     patched = 0
     for event in events:
-        title = event.get("name_ja") or event.get("raw_title") or ""
+        source = event.get("source_name", "")
+
+        # News sources: extract title from 「…」/『…』 brackets in raw_title
+        if source in _NEWS_MOVIE_SOURCES:
+            raw = event.get("raw_title") or event.get("name_ja") or ""
+            m = _BRACKET_TITLE_RE.search(raw)
+            title = m.group(1).strip() if m else ""
+        else:
+            title = event.get("name_ja") or event.get("raw_title") or ""
+
         if not title:
             continue
 
         name_zh, name_en = lookup_movie_titles(title)
-        if not name_zh and not name_en:
-            continue
-
-        # Only update fields that are currently NULL
-        update: dict[str, Any] = {}
-        if name_zh and not event.get("name_zh"):
-            update["name_zh"] = name_zh
-        if name_en and not event.get("name_en"):
-            update["name_en"] = name_en
-
-        if not update:
-            continue
-
-        sb.table("events").update(update).eq("id", event["id"]).execute()
-        patched += 1
-        logger.info(
-            "  ✓ %s [%s] → zh=%r en=%r",
-            event["id"][:8], title[:40], name_zh, name_en,
-        )
-
-    # Second pass: news-source movie events — name_zh is a translated headline,
-    # not the official title. Extract bracketed movie title and overwrite with
-    # official eiga.com titles when found.
-    res2 = (
-        sb.table("events")
-        .select("id,raw_title,name_ja,name_zh,name_en,annotation_status,source_name")
-        .contains("category", ["movie"])
-        .in_("annotation_status", ["pending", "annotated"])
-        .in_("source_name", list(_NEWS_MOVIE_SOURCES))
-        .execute()
-    )
-    news_events = res2.data or []
-    logger.info("enrich_movie_titles: %d news-source movie events for bracket lookup", len(news_events))
-
-    for event in news_events:
-        raw = event.get("raw_title") or event.get("name_ja") or ""
-        m = _BRACKET_TITLE_RE.search(raw)
-        if not m:
-            continue
-        movie_title = m.group(1).strip()
-        name_zh, name_en = lookup_movie_titles(movie_title)
         if not name_zh and not name_en:
             continue
 
@@ -640,11 +615,11 @@ def enrich_movie_titles() -> None:
         sb.table("events").update(update).eq("id", event["id"]).execute()
         patched += 1
         logger.info(
-            "  ✓ news %s [%s] → zh=%r en=%r",
-            event["id"][:8], movie_title[:40], name_zh, name_en,
+            "  ✓ %s/%s [%s] → zh=%r en=%r",
+            source, event["id"][:8], title[:40], name_zh, name_en,
         )
 
-    logger.info("enrich_movie_titles: patched %d total events", patched)
+    logger.info("enrich_movie_titles: patched %d/%d events", patched, len(events))
 
 
 if __name__ == "__main__":
