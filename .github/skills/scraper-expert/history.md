@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-29 — 新・世界鐵道之旅 #5 [gguide_tv] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** tv_program, senses, tourism
+**After (corrected):** nature, tourism, senses, tv_program
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ---
 
 ## 2026-04-29 — moonromantic 関連記事誤判 false positive（28 件誤収録）
