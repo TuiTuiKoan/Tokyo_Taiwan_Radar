@@ -26,7 +26,7 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 > **Geographic Scope**: All of Japan（全日本）. Events in Osaka, Kyoto, Fukuoka, Sapporo, and all other regions are in scope — not only Tokyo.
 
 ## Session Start Checklist
-1. Read `.github/skills/agents/scraper-expert/SKILL.md` — apply all rules before starting.
+1. Read `.github/skills/scraper-expert/SKILL.md` — apply all rules before starting.
 2. If a per-source skill exists (`.github/skills/sources/<source_name>/SKILL.md`), read it too.
 
 ## After Fixing a Scraper Bug
