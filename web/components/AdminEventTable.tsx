@@ -116,6 +116,17 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     });
   }
 
+  /** Counts per category across ALL events (unfiltered) */
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const e of events) {
+      for (const cat of e.category || []) {
+        counts[cat] = (counts[cat] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [events]);
+
   /** Counts per source_name, applying all filters EXCEPT filterSource */
   const sourceCountMap = useMemo(() => {
     const today = new Date();
@@ -500,7 +511,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                               )}
                               className="accent-green-600 w-3.5 h-3.5"
                             />
-                            <span className="text-sm text-gray-700">{tCat(cat as any)}</span>
+                            <span className="text-sm text-gray-700">{tCat(cat as any)}{(categoryCounts[cat] ?? 0) > 0 ? ` (${categoryCounts[cat]})` : ""}</span>
                           </label>
                         );
                       })}
