@@ -27,6 +27,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from .base import BaseScraper, Event, dedup_events
+from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,21 @@ def _parse_schedule(schedule_str: str, today: datetime) -> tuple[Optional[dateti
             return None, channel
 
     return candidate, channel
+
+
+_SHOW_TITLE_RE = re.compile(r"[「『]([^」』]+)[」』]")
+
+
+def _extract_show_title(title: str) -> str:
+    """Extract the show title from within 「」/『』brackets.
+
+    e.g. '台湾ドラマ「スクリュー・ガール\u3000一発逆転婚！！」\u3000EP22「狙うべきは弱点」'
+         → 'スクリュー・ガール\u3000一発逆転婚！！'
+
+    Falls back to the original title if no brackets found.
+    """
+    m = _SHOW_TITLE_RE.search(title)
+    return m.group(1).strip() if m else title
 
 
 def _genre_to_category(genre: str) -> list[str]:
@@ -253,6 +269,8 @@ class GguideTvScraper(BaseScraper):
 
                 source_url = _DETAIL_URL.format(ebis_id=ebis_id)
 
+                show_title = _extract_show_title(title_clean)
+                name_zh, name_en = lookup_movie_titles(show_title)
                 events.append(
                     Event(
                         source_name="gguide_tv",
@@ -260,6 +278,8 @@ class GguideTvScraper(BaseScraper):
                         source_url=source_url,
                         original_language="ja",
                         name_ja=title_clean,
+                        name_zh=name_zh,
+                        name_en=name_en,
                         raw_title=title_clean,
                         raw_description=raw_description,
                         start_date=start_dt,
