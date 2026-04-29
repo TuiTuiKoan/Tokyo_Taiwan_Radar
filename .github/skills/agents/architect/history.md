@@ -3,6 +3,13 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — LINE webhook 0 subscribers — `LINE_CHANNEL_TOKEN` missing from Vercel
+**Error:** After users added the LINE bot as a friend, `line_subscribers` remained at 0 rows. Schema INSERT worked fine in manual test; the issue was at the webhook layer.
+**Diagnosis:** GitHub Actions secrets (`LINE_CHANNEL_TOKEN`, `LINE_CHANNEL_SECRET`) and Vercel environment variables are **completely separate systems**. The webhook runs on Vercel, not in GitHub Actions. `LINE_CHANNEL_TOKEN` was never set in Vercel → signature verification failed → HTTP 401 → follow events rejected. LINE does not retry failed webhook deliveries.
+**Fix:** Added `LINE_CHANNEL_TOKEN` to Vercel Dashboard → Settings → Environment Variables (Production). User blocked + unblocked the bot to re-trigger the follow event → 1 row successfully inserted.
+**Lesson:** When a feature spans GitHub Actions (scraper/broadcast) **and** Vercel (webhook/API), both platforms need their own copy of shared credentials. Never assume that secrets in one CI/CD platform propagate to another. Architect plans for cross-platform features must list required env vars per platform explicitly.
+
+---
 ## 2026-04-26 — Admin table address cell lacked locale fallback
 **Error:** `AdminEventTable.tsx` address column only read `location_address` (Japanese/default). Events with addresses stored only in `location_address_zh` (zh-first scrapers like `koryu`) or with address embedded in `location_name` showed blank in admin. The front-end detail page was correct because it used `getEventLocationAddress()` with a fallback chain.
 **Fix:** Updated the `<td>` to `addr = location_address || location_address_zh || location_name` (commit `f45d5d5`).

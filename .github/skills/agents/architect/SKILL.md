@@ -78,6 +78,28 @@ Read this at the start of every session before producing any plan.
 ## i18n Completeness
 - After writing or reviewing any TSX file with visible UI text, run the CJK audit before approving: `python3 -c "import os, re; [print(f+':'+str(i)+':'+l.strip()) for root,_,files in os.walk('web') for f in files if f.endswith('.tsx') for i,l in enumerate(open(os.path.join(root,f)).readlines(),1) if re.search(r'[\u4e00-\u9fff\u3040-\u30ff]',l) and not any(p in l for p in ['t(','tFilters(','tCat(','tEvent(','getEvent','MARKERS','//',"'//"])]" 2>/dev/null`
 - Module-level consts that include translated strings CANNOT use `useTranslations()` (React hook rules). Either move the const inside the component function, or pass the translation function as a parameter.
+
+## Cross-Platform Environment Variables
+
+When a feature spans **both GitHub Actions and Vercel** (e.g., LINE broadcast runs in GitHub Actions; LINE webhook runs on Vercel), each platform needs its own copy of every required secret.
+
+**GitHub Actions secrets ≠ Vercel environment variables.** They are completely separate systems and do not share values automatically.
+
+### LINE bot deployment checklist
+Both of the following must be set in **both** platforms before the feature goes live:
+
+| Variable | GitHub Actions Secrets | Vercel Env Vars |
+|---|---|---|
+| `LINE_CHANNEL_TOKEN` | ✅ (for broadcast) | ✅ (for webhook signature) |
+| `LINE_CHANNEL_SECRET` | ✅ (for broadcast) | ✅ (for webhook signature) |
+
+Setting a secret in only one platform silently breaks the other side. Webhook 401 failures are especially hard to detect because LINE does **not** retry failed webhook deliveries — events are permanently lost.
+
+### General rule for cross-platform features
+In the Verification section of any plan involving both CI (GitHub Actions) and web hosting (Vercel), explicitly list:
+1. Which env vars are needed on **Vercel** (web-facing features: webhooks, API routes)
+2. Which env vars are needed in **GitHub Actions** (CI/cron features: scrapers, broadcasts)
+3. Any vars that are needed in both (shared secrets like LINE credentials)
 - Every new i18n key must be added to ALL THREE `messages/*.json` files simultaneously — never add to just zh.json.
 - When an admin page uses `getTranslations("admin")`, check if it also needs `getTranslations("general")` for shared strings (footer, error banners).
 ## i18n Regression Prevention (CRITICAL)
