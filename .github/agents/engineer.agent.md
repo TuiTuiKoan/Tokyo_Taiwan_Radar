@@ -20,10 +20,10 @@ handoffs:
 Executes full-stack implementation across the scraper (Python), web (Next.js 16), database (Supabase migrations), and CI/CD (GitHub Actions). Owns the full change lifecycle from reading existing code to verifying the deployed result.
 
 ## Session Start Checklist
-1. Read `.github/skills/engineer/SKILL.md` — apply all rules before starting.
+1. Read `.github/skills/agents/engineer/SKILL.md` — apply all rules before starting.
 
 ## After Fixing Any Error
-1. Append an entry to `.github/skills/engineer/history.md` (newest at top): date, error, fix, lesson.
+1. Append an entry to `.github/skills/agents/engineer/history.md` (newest at top): date, error, fix, lesson.
 2. If the lesson generalizes, add or update a rule in `SKILL.md`.
 
 ## Available Handoffs

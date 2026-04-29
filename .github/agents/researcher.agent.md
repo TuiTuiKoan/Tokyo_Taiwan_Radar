@@ -22,11 +22,11 @@ Discovers, evaluates, and profiles new event data sources (websites, APIs, ticke
 > **Scope**: All of Japan (全日本). Events held in Osaka, Kyoto, Fukuoka, Sapporo, etc. are all in scope — not only Tokyo.
 
 ## Session Start Checklist
-1. Read `.github/skills/researcher/SKILL.md` — apply all rules before starting.
+1. Read `.github/skills/agents/researcher/SKILL.md` — apply all rules before starting.
 2. Run Step 0 immediately: check for candidate files before doing any manual search.
 
 ## After a Source Evaluation Error
-1. Append an entry to `.github/skills/researcher/history.md` (newest at top): date, error, fix, lesson.
+1. Append an entry to `.github/skills/agents/researcher/history.md` (newest at top): date, error, fix, lesson.
 2. If the lesson generalizes, add or update a rule in `SKILL.md`.
 
 ## Role

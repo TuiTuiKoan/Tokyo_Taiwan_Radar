@@ -112,10 +112,10 @@ After merging a feature branch, set `research_sources.status → implemented` in
 
 ```bash
 # Test a single source (dry-run, no DB writes):
-bash .github/skills/scraper-dev/scripts/test-source.sh <source_name>
+bash .github/skills/agents/scraper-dev/scripts/test-source.sh <source_name>
 
 # Test all sources (dry-run):
-bash .github/skills/scraper-dev/scripts/test-source.sh
+bash .github/skills/agents/scraper-dev/scripts/test-source.sh
 ```
 
 ## Troubleshooting
