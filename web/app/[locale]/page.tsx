@@ -14,7 +14,7 @@ interface PageProps {
     from?: string;
     to?: string;
     paid?: string;
-    timeMode?: string; // "active" | "past"
+    timeMode?: string; // "active" | "all" | "past" (search date range)
     location?: string; // "tokyo" | "other_japan" | "taiwan" | "online"
   }>;
 }
@@ -69,7 +69,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     const today = todayStr();
     query = query.or(`end_date.gte.${today},end_date.is.null`);
   } else if (timeMode === "past") {
-    // Search past period with optional date range
+    // Search date range (no past restriction — from/to filters only)
     if (sp.from) {
       query = query.gte("start_date", sp.from);
     }

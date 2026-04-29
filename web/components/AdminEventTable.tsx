@@ -80,13 +80,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         // Show ongoing: end_date >= today OR end_date is null
         if (e.end_date && new Date(e.end_date) < today) return false;
       } else if (filterTimeMode === "past") {
-        // Show historical: end_date < today (or no end_date but start_date < today)
-        const isPast = e.end_date
-          ? new Date(e.end_date) < today
-          : e.start_date
-          ? new Date(e.start_date) < today
-          : false;
-        if (!isPast) return false;
+        // Search date range — no past restriction, just apply from/to
         if (filterDateFrom) {
           const d = e.start_date ? new Date(e.start_date) : null;
           if (!d || d < new Date(filterDateFrom)) return false;
@@ -146,10 +140,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       if (filterTimeMode === "active") {
         if (e.end_date && new Date(e.end_date) < today) return false;
       } else if (filterTimeMode === "past") {
-        const isPast = e.end_date
-          ? new Date(e.end_date) < today
-          : e.start_date ? new Date(e.start_date) < today : false;
-        if (!isPast) return false;
         if (filterDateFrom) { const d = e.start_date ? new Date(e.start_date) : null; if (!d || d < new Date(filterDateFrom)) return false; }
         if (filterDateTo) { const d = e.start_date ? new Date(e.start_date) : null; if (!d || d > new Date(filterDateTo + "T23:59:59")) return false; }
       }
