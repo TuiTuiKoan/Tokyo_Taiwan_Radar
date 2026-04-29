@@ -16,6 +16,7 @@ Usage:
 import json
 import logging
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -42,6 +43,11 @@ VALID_CATEGORIES = [
     "art", "lecture", "taiwan_japan", "business", "academic", "competition",
     "indigenous", "history", "urban", "workshop", "report",
 ]
+
+# News-source movie title enrichment helpers
+# raw_title of news articles often contains the movie title in 「」/『』brackets.
+_NEWS_MOVIE_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss"})
+_BRACKET_TITLE_RE = re.compile(r"[\u300c\u300e]([^\u300d\u300f]+)[\u300d\u300f]")
 
 # ---------------------------------------------------------------------------
 # GPT System Prompt
@@ -601,7 +607,44 @@ def enrich_movie_titles() -> None:
             event["id"][:8], title[:40], name_zh, name_en,
         )
 
-    logger.info("enrich_movie_titles: patched %d/%d events", patched, len(events))
+    # Second pass: news-source movie events — name_zh is a translated headline,
+    # not the official title. Extract bracketed movie title and overwrite with
+    # official eiga.com titles when found.
+    res2 = (
+        sb.table("events")
+        .select("id,raw_title,name_ja,name_zh,name_en,annotation_status,source_name")
+        .contains("category", ["movie"])
+        .in_("annotation_status", ["pending", "annotated"])
+        .in_("source_name", list(_NEWS_MOVIE_SOURCES))
+        .execute()
+    )
+    news_events = res2.data or []
+    logger.info("enrich_movie_titles: %d news-source movie events for bracket lookup", len(news_events))
+
+    for event in news_events:
+        raw = event.get("raw_title") or event.get("name_ja") or ""
+        m = _BRACKET_TITLE_RE.search(raw)
+        if not m:
+            continue
+        movie_title = m.group(1).strip()
+        name_zh, name_en = lookup_movie_titles(movie_title)
+        if not name_zh and not name_en:
+            continue
+
+        update: dict[str, Any] = {}
+        if name_zh:
+            update["name_zh"] = name_zh
+        if name_en:
+            update["name_en"] = name_en
+
+        sb.table("events").update(update).eq("id", event["id"]).execute()
+        patched += 1
+        logger.info(
+            "  ✓ news %s [%s] → zh=%r en=%r",
+            event["id"][:8], movie_title[:40], name_zh, name_en,
+        )
+
+    logger.info("enrich_movie_titles: patched %d total events", patched)
 
 
 if __name__ == "__main__":
