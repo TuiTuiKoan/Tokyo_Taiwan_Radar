@@ -72,7 +72,7 @@ _SIMILARITY_THRESHOLD = 0.85
 # Sources that publish news/article titles rather than event names.
 # They are matched via date-range + location-overlap (Pass 2), never by
 # name similarity (Pass 1).
-_NEWS_SOURCES = frozenset({"prtimes"})
+_NEWS_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss"})
 
 # How many days BEFORE an official event's start_date a news article may be
 # published and still be considered a match (pre-event press releases).
