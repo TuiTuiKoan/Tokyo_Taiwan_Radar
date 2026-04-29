@@ -62,13 +62,15 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 4. For bugs: run `python main.py --dry-run --source <name> 2>&1` first to reproduce the failure, then fix.
 5. Keep `raw_title` and `raw_description` unchanged — never overwrite original scraped text.
 6. Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` when the event date differs from the post date.
+7. **`start_date` / `end_date` type**: always `datetime.datetime`, never `datetime.date`. `dedup_events` calls `.date()` on the value.
+8. **When editing `main.py` for any reason**: run the SCRAPERS audit (Phase 3 step 4) immediately after — even chore/refactor commits can silently drop registrations.
 
 ### Phase 3: Validate
 
 1. Run `cd scraper && python main.py --dry-run --source <name> 2>&1 | head -80`.
 2. Verify: `start_date` is populated, not the publish date; `category` values are canonical; no unhandled exceptions.
 3. Run `get_errors` on changed Python files.
-4. **SCRAPERS registration audit**: confirm the new scraper is in `SCRAPERS` in `main.py`:
+4. **SCRAPERS registration audit**: Run after ANY change to `main.py` — not only when adding new scrapers. Chore/refactor commits that rewrite `main.py` can silently drop existing registrations (15 scrapers were lost in commit `7aecfef`):
    ```bash
    cd scraper && python3 -c "
    import re, glob
@@ -78,8 +80,10 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
        m = re.search(r'class (\w+Scraper)\b', c)
        if m and m.group(1) not in registered and m.group(1) != 'BaseScraper':
            print('UNREGISTERED:', m.group(1), f)
+   print('Registration audit complete')
    "
    ```
+   Must print `Registration audit complete` with **zero UNREGISTERED lines** before proceeding.
 5. **Run merger dry-run**: `cd scraper && python merger.py --dry-run 2>&1` — confirm any detected cross-source duplicates are intentional. New sources that report events with article-style titles (e.g. RSS feeds, press release scrapers) may match existing official events via Pass 2 (date-range + location-overlap). If a new source should participate in Pass 2 matching, add it to `_NEWS_SOURCES` in `merger.py`.
 6. Hand off to Tester for full pipeline validation.
 
