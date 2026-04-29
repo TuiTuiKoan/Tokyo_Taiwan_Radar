@@ -43,6 +43,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from sources.base import BaseScraper, Event
+from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
 
@@ -240,12 +241,15 @@ class CineMarineScraper(BaseScraper):
             date_prefix = f"開催日時: {start_date.year}年{start_date.month:02d}月{start_date.day:02d}日\n\n"
             raw_description = date_prefix + raw_description
 
+        name_zh, name_en = lookup_movie_titles(title)
         return Event(
             source_name=SOURCE_NAME,
             source_id=source_id,
             source_url=film_url,
             original_language="ja",
             name_ja=title,
+            name_zh=name_zh,
+            name_en=name_en,
             raw_title=title,
             raw_description=raw_description,
             category=["movie"],

@@ -36,6 +36,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from sources.base import BaseScraper, Event
+from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
 
@@ -332,11 +333,14 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
             date_str = overall_start.strftime("%Y年%m月%d日")
             parent_raw_desc = f"開催日時: {date_str}\n\n" + parent_raw_desc
 
+        parent_name_zh, parent_name_en = lookup_movie_titles(title)
         parent_event = Event(
             source_name=SOURCE_NAME,
             source_id=f"ks_cinema_{url_slug}",
             source_url=url,
             original_language="ja",
+            name_zh=parent_name_zh,
+            name_en=parent_name_en,
             raw_title=title,
             raw_description=parent_raw_desc or title,
             start_date=overall_start,
@@ -402,11 +406,14 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
                 date_str = film_start.strftime("%Y年%m月%d日")
                 raw_desc = f"開催日時: {date_str}\n\n" + raw_desc
 
+            sub_name_zh, sub_name_en = lookup_movie_titles(film_title)
             sub_event = Event(
                 source_name=SOURCE_NAME,
                 source_id=f"ks_cinema_{url_slug}_{idx}",
                 source_url=url,
                 original_language="ja",
+                name_zh=sub_name_zh,
+                name_en=sub_name_en,
                 raw_title=film_title,
                 raw_description=raw_desc or film_title,
                 start_date=film_start,
@@ -439,11 +446,14 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
             date_str = overall_start.strftime("%Y年%m月%d日")
             raw_desc = f"開催日時: {date_str}\n\n" + raw_desc
 
+        single_name_zh, single_name_en = lookup_movie_titles(title)
         event = Event(
             source_name=SOURCE_NAME,
             source_id=f"ks_cinema_{url_slug}",
             source_url=url,
             original_language="ja",
+            name_zh=single_name_zh,
+            name_en=single_name_en,
             raw_title=title,
             raw_description=raw_desc or title,
             start_date=overall_start,

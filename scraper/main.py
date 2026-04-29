@@ -75,6 +75,7 @@ from sources.note_creators import NoteCreatorsScraper
 from sources.zinbun_kyoto import ZinbunKyotoScraper
 from sources.uplink_cinema import UplinkCinemaScraper
 from sources.livepocket import LivepocketScraper
+from sources.prtimes import PrtimesScraper
 from sources.fukuoka_now import FukuokaNowScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
@@ -134,6 +135,7 @@ SCRAPERS = [
     UplinkCinemaScraper(),
     LivepocketScraper(),
     FukuokaNowScraper(),
+    PrtimesScraper(),
 ]
 
 

@@ -22,6 +22,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from .base import BaseScraper, Event
+from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
 
@@ -161,12 +162,15 @@ class HumanTrustCinemaScraper(BaseScraper):
                     + raw_desc
                 )
 
+            name_zh, name_en = lookup_movie_titles(title)
             event = Event(
                 source_name=self.SOURCE_NAME,
                 source_id=source_id,
                 source_url=detail_url,
                 original_language="ja",
                 name_ja=title,
+                name_zh=name_zh,
+                name_en=name_en,
                 raw_title=title,
                 raw_description=raw_desc,
                 description_ja=detail["description"] or None,

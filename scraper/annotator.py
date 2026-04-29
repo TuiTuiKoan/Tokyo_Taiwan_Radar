@@ -29,6 +29,7 @@ from openai import OpenAI
 from supabase import create_client, Client
 
 from category_feedback import load_corrections, build_feedback_prompt
+from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
 
@@ -549,6 +550,60 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     logger.info("Annotation complete.")
 
 
+def enrich_movie_titles() -> None:
+    """Look up official zh/en titles for movie events using eiga.com.
+
+    Targets events where:
+      - category contains 'movie'
+      - annotation_status IN ('pending', 'annotated')  (never touches 'reviewed')
+      - name_zh IS NULL OR name_en IS NULL
+
+    Only patches NULL fields — never overwrites existing values.
+    Does NOT change annotation_status.
+    """
+    sb = _get_supabase()
+
+    res = (
+        sb.table("events")
+        .select("id,name_ja,raw_title,name_zh,name_en,annotation_status")
+        .contains("category", ["movie"])
+        .in_("annotation_status", ["pending", "annotated"])
+        .or_("name_zh.is.null,name_en.is.null")
+        .execute()
+    )
+    events = res.data or []
+    logger.info("enrich_movie_titles: %d candidate events", len(events))
+
+    patched = 0
+    for event in events:
+        title = event.get("name_ja") or event.get("raw_title") or ""
+        if not title:
+            continue
+
+        name_zh, name_en = lookup_movie_titles(title)
+        if not name_zh and not name_en:
+            continue
+
+        # Only update fields that are currently NULL
+        update: dict[str, Any] = {}
+        if name_zh and not event.get("name_zh"):
+            update["name_zh"] = name_zh
+        if name_en and not event.get("name_en"):
+            update["name_en"] = name_en
+
+        if not update:
+            continue
+
+        sb.table("events").update(update).eq("id", event["id"]).execute()
+        patched += 1
+        logger.info(
+            "  ✓ %s [%s] → zh=%r en=%r",
+            event["id"][:8], title[:40], name_zh, name_en,
+        )
+
+    logger.info("enrich_movie_titles: patched %d/%d events", patched, len(events))
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
@@ -559,4 +614,8 @@ if __name__ == "__main__":
     re_all = "--all" in sys.argv
     fix_tr = "--fix-translations" in sys.argv
     fix_rev = "--fix-reviewed" in sys.argv
-    annotate_pending_events(re_annotate_all=re_all, fix_translations=fix_tr, fix_reviewed=fix_rev)
+    enrich_movies = "--enrich-movie-titles" in sys.argv
+    if enrich_movies:
+        enrich_movie_titles()
+    else:
+        annotate_pending_events(re_annotate_all=re_all, fix_translations=fix_tr, fix_reviewed=fix_rev)

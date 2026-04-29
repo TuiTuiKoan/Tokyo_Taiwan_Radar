@@ -64,13 +64,15 @@ LOOKBACK_DAYS = 90
 # Polite delay between requests (seconds)
 _DELAY = 0.5
 
-# Search keywords — each must contain both Taiwan + event context
+# Search keywords — broad Taiwan × event queries, NO geographic restriction
+# (project scope is all of Japan — never add city names like 東京 here)
 _SEARCH_KEYWORDS = [
-    "台湾 イベント 東京",
-    "台湾フェス 東京",
-    "台湾 開催 東京",
-    "台湾 展示会 東京",
-    "台湾 夜市 東京",
+    "台湾 イベント",
+    "台湾フェア",
+    "台湾フェス",
+    "台湾 開催",
+    "台湾 夜市",
+    "台湾 祭",
 ]
 
 # Title must contain at least one Taiwan keyword
@@ -78,7 +80,7 @@ _TAIWAN_KW = re.compile(r"台湾|Taiwan|台灣|臺灣")
 
 # Title must contain at least one event-type keyword
 _EVENT_KW = re.compile(
-    r"イベント|フェス|フェスタ|フェスティバル|開催|展示|展覧|祭|セミナー|"
+    r"イベント|フェア|フェス|フェスタ|フェスティバル|開催|展示|展覧|祭|セミナー|"
     r"講演|シンポジウム|ワークショップ|体験|交流会|コンサート|公演|"
     r"上映|夜市|マルシェ|マーケット|博覧会|発表会|説明会"
 )

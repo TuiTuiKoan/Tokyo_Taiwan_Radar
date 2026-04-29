@@ -25,6 +25,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from .base import BaseScraper, Event
+from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
 
@@ -190,12 +191,15 @@ class UplinkCinemaScraper(BaseScraper):
             desc_el = detail_soup.select_one("div.l-wysiwyg, div.wysiwyg-wrap")
             description = desc_el.get_text(separator="\n", strip=True) if desc_el else ""
 
+            name_zh, name_en = lookup_movie_titles(title)
             event = Event(
                 source_name=self.SOURCE_NAME,
                 source_id=source_id,
                 source_url=detail_url,
                 original_language="ja",
                 name_ja=title,
+                name_zh=name_zh,
+                name_en=name_en,
                 raw_title=title,
                 raw_description=f"会場: {location_name}\n{date_text}\n\n{description}",
                 description_ja=description or None,
