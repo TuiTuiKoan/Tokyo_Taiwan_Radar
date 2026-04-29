@@ -3,6 +3,26 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — AdminReportsTable: description 欄位缺少可編輯支援 [AdminReportsTable]
+
+**Bug:** `description` 欄位未加入 `EDITABLE_FIELDS`，也未宣告 `TEXTAREA_FIELDS` 集合，導致問題回報審核時無法直接修改事件描述。
+
+**Fix (4a40b9a):** 將 `description` 加入 `EDITABLE_FIELDS` Set；新增 `TEXTAREA_FIELDS` Set（含 `description`），讓 description 渲染為 `<textarea rows={3} className="resize-y ...">` 而非 `<input>`。
+
+**Lesson:** `AdminReportsTable.tsx` 有兩個控制欄位編輯行為的 Set：`EDITABLE_FIELDS`（可編輯）和 `TEXTAREA_FIELDS`（長文字，用 textarea）。新增可編輯欄位時：加入 `EDITABLE_FIELDS`；若為長文字，**同時**加入 `TEXTAREA_FIELDS`。
+
+---
+## 2026-04-29 — AdminEventTable 日期範圍篩選器無法搜索未來活動 [AdminEventTable]
+
+**Bug:** `filterTimeMode === "past"` 分支在 `getFiltered` 和 `sourceCountMap` 兩處都有 `isPast` 判斷（`end_date < today`），導致「搜尋特定期間」無法找到 end_date 在未來的活動。
+
+**根本原因：** 日期範圍篩選邏輯把「過去期間」和「任意日期範圍」混在一起；且 `getFiltered` 和 `sourceCountMap` 邏輯不同步。
+
+**Fix (7f00d4e):** 移除兩處的 `isPast` 限制，改為純粹的 from/to 日期邊界篩選；同時重命名 i18n 標籤為「搜尋特定期間」。
+
+**Lesson:** 日期範圍篩選器的 from/to 應為純粹的日期邊界，不應附加「只搜過去」的語意。修改 `AdminEventTable` 篩選邏輯時，`getFiltered` 和 `sourceCountMap` **必須同時更新**。
+
+---
 ## 2026-04-29 — AdminSourcesTable: `eventCountByType` and `typeCountMap` not applying status filter [AdminSourcesTable]
 
 **Bug:** `typeCountMap` was added (commit `6b92c53`) with the status filter applied, but `eventCountByType` (a sibling IIFE computing active event counts per type) was NOT updated to apply the same filter. When users selected the `不適合` (not-viable) status, `typeCountMap` correctly showed 0 for all types, but `eventCountByType` still showed stale counts from all sources regardless of status — making the dropdown misleading.

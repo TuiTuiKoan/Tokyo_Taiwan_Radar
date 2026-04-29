@@ -3,6 +3,20 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — AdminEventTable 日期範圍篩選器無法搜索未來活動
+
+**問題：** `filterTimeMode === "past"` 分支在 `getFiltered` 和 `sourceCountMap` 兩處都有 `isPast` 判斷（`end_date < today`），導致「搜尋特定期間」無法找到 end_date 在未來的活動。
+
+**根本原因：** 日期範圍篩選器把「過去期間」和「任意日期範圍」的語意混在一起；且 `getFiltered` 與 `sourceCountMap` 使用相同邏輯卻未同步修改。
+
+**修復（7f00d4e）：** 移除兩處的 `isPast` 限制，改為純粹 from/to 日期邊界篩選；同時重命名 i18n 標籤為「搜尋特定期間」。
+
+**教訓：**
+- 日期範圍篩選器設計原則：from/to 應為純粹的日期邊界，不應附加「只搜過去」的語意
+- 計劃中任何涉及 `AdminEventTable` 篩選邏輯的修改，都必須明確標注「`getFiltered` 和 `sourceCountMap` 兩處需同步更新」
+- 篩選器 i18n 標籤應精確描述行為（「特定期間」而非「過去期間」）
+
+---
 ## 2026-04-29: drama 新增導致 'retail' 從 Category union 遺失
 
 **錯誤：**

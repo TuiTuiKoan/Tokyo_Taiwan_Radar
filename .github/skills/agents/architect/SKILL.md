@@ -22,7 +22,15 @@ Read this at the start of every session before producing any plan.
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
 
-## Skills Directory Convention
+## Category Union Change Guard
+
+After any plan that touches `web/lib/types.ts` Category union:
+- `multi_replace_string_in_file` `oldString` for union type changes must include **≥3 lines** before and after the target member — insufficient context silently truncates adjacent union members (see: `retail` removed when `drama` added, commit `f9e6b52`)
+- Plan must include an explicit post-change verify step: `cd web && npx tsc --noEmit`, confirming **all** prior union members still compile
+- Vercel build failure from a TypeScript error does **not** take the site down — it serves the previous build silently. Regression is invisible to users until manually checked.
+- All 6 locations must be updated in the same commit (union, CATEGORIES, CATEGORY_GROUPS, zh/en/ja messages). See Engineer SKILL.md § Category Update Protocol for the full list.
+
+
 - `sources/{name}/` — per-scraper platform profile（有 `applyTo: scraper/sources/*.py`）
 - `agents/{name}/` — per-agent operational rules
 - top-level — workflow/tooling skills only（local-preview, cc-statusline, session-analytics）

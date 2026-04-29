@@ -136,6 +136,14 @@ Whenever this file is modified for **any reason**, verify these 3 lines are inta
 
 These were regressed at least twice when unrelated changes overwrote them. The `tFilters` mistake specifically recurred because old SKILL notes incorrectly listed it as the correct value.
 
+**Date range filter purity rule:** The `filterTimeMode === "past"` branch (labelled "搜尋特定期間") must implement **only** from/to date boundary checks — no `isPast` guard (`end_date < today`). Attaching a "past only" semantic to a date range picker prevents users from searching future events. This bug appeared in **both** `getFiltered` and `sourceCountMap`; whenever the date range logic changes, **both locations must be updated in the same commit**.
+
+**AdminReportsTable editable field sets:** `AdminReportsTable.tsx` controls column editability with two `Set` constants:
+- **`EDITABLE_FIELDS`** — columns that become editable (`<input>` or `<textarea>`) in edit mode
+- **`TEXTAREA_FIELDS`** — subset of `EDITABLE_FIELDS`; these render as `<textarea rows={3} className="resize-y ...">` instead of `<input>`
+
+When adding a new editable column: add to `EDITABLE_FIELDS`. If it contains long text (e.g. `description`, `selection_reason`), **also** add to `TEXTAREA_FIELDS`. Never add to `TEXTAREA_FIELDS` without also adding to `EDITABLE_FIELDS`.
+
 **Column pairing rule:** When adding or removing a `<th>` column, always add or remove the matching `<td>` in the same commit. TypeScript does not detect thead/tbody column count mismatches. This caused an orphaned `is_paid` `<td>` (commit `5597150`) after its `<th>` was already removed.
 
 **Address cell fallback rule:** The address `<td>` must use `event.location_address || event.location_address_zh || event.location_name`. Never read a single field. Any locale-aware field displayed in admin must apply the same fallback chain as the corresponding helper in `lib/types.ts`.
