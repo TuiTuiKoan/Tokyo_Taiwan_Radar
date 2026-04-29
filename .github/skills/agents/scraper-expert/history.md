@@ -3,6 +3,27 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — research_sources status not updated after scraper implementation [livepocket]
+
+**Error:** After implementing and committing `LivepocketScraper`, the `research_sources` row (id=106) was left with `status = 'researched'` instead of `implemented`. The admin Sources table showed「已深度研究」badge and a「建立爬蟲 Issue」button — implying the scraper had NOT been built.
+
+Additionally, `scraper_source_name` was left as `null`, so the "scraper_source_name → source mapping" used by `AdminSourcesTable` to link event counts to sources could not resolve the source.
+
+**Fix:** Manual DB update:
+```python
+sb.table('research_sources').update({
+    'status': 'implemented',
+    'scraper_source_name': 'livepocket'
+}).eq('id', 106).execute()
+```
+
+**Lesson:** The new source checklist must include **both** DB fields as a single atomic step:
+- `status = 'implemented'`
+- `scraper_source_name = '<source_name>'` (matches `SOURCE_NAME` constant in the scraper)
+
+Neither field alone is sufficient. Omitting `scraper_source_name` breaks event-count display in AdminSourcesTable. This step must be done in the same session as the scraper commit — not deferred.
+
+---
 ## 2026-04-29 — LivePocket scraper: wrong dl selector + class name conflict [livepocket]
 
 **Error 1: dl selector class mismatch**

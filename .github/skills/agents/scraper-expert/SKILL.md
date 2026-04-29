@@ -246,7 +246,7 @@ After every new source or bug fix, create/update these files **before committing
 | `.github/skills/<source_name>/SKILL.md` | **Create** — platform profile, field mappings, Taiwan filter, date extraction, troubleshooting |
 | `.github/skills/<source_name>/history.md` | **Create** — initial implementation decisions |
 | `.github/skills/agents/scraper-expert/SKILL.md` | **Update** — add `## <source_name>-specific` section (3–5 key rules) |
-| Supabase `research_sources` | **Update** status → `implemented` |
+| Supabase `research_sources` | **Update** `status → implemented` AND `scraper_source_name → <source_name>` (both fields, same operation) |
 
 ### Bug fix checklist
 
