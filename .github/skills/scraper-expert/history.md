@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-29 — 新・世界鐵道之旅 #5 [gguide_tv] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** senses, tourism
+**After (corrected):** tv_program, tourism, nature, senses
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ---
 
 ## 2026-04-29 — 仙台湾 false positive (gguide_tv) — 仙台灣 is Sendai Bay, not Taiwan
