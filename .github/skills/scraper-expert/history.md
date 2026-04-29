@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-29 — 偉人傳：鄧麗君30年目的歌聲～隨時光流逝而去～ [gguide_tv] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** movie, history
+**After (corrected):** tv_program, performing_arts, history
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-29 — 全力創新者～挑戰SDGs的Z世代～傳遞米飯的價值 [gguide_tv] — user report confirmed
 **Report types:** wrongCategory, irrelevant
 **Before (AI category):** lifestyle_food
