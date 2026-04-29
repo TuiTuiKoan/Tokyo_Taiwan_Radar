@@ -609,11 +609,13 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
             {Object.entries(SOURCE_TYPE_LABELS).map(([key, label]) => {
               const srcCount = key === "all" ? undefined : typeCountMap[key];
               const evtCount = key === "all" ? undefined : eventCountByType[key];
-              const suffix = evtCount != null && evtCount > 0
-                ? ` (${evtCount}件)`
-                : srcCount != null && srcCount > 0
-                  ? ` (${srcCount})`
-                  : "";
+              let suffix = "";
+              if (srcCount != null || evtCount != null) {
+                const parts = [];
+                if (srcCount != null && srcCount > 0) parts.push(`來源 ${srcCount} 站`);
+                if (evtCount != null && evtCount > 0) parts.push(`活動 ${evtCount} 件`);
+                if (parts.length > 0) suffix = ` (${parts.join(" | ")})`;
+              }
               return (
                 <option key={key} value={key}>
                   {label}{suffix}
