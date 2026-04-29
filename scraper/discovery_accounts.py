@@ -42,6 +42,9 @@ logger = logging.getLogger(__name__)
 
 JST = timezone(timedelta(hours=9))
 
+# Current year — used in search queries so they don't need manual updates
+_THIS_YEAR = datetime.now(JST).year
+
 # ---------------------------------------------------------------------------
 # Search configuration
 # ---------------------------------------------------------------------------
@@ -75,7 +78,7 @@ NOTE_SEARCH_TASKS = [
         "slot": 0,
         "label": "🗓️ 台日交流・コミュニティ活動",
         "platform": "note",
-        "query": "site:note.com 台湾 日台交流 イベント 告知 2026",
+        "query": f"site:note.com 台湾 日台交流 イベント 告知 {_THIS_YEAR}",
         "system_prompt": (
             "You are a research analyst finding note.com creators who regularly announce "
             "Taiwan-Japan community events in Japan (meetups, exchange parties, study groups). "
@@ -90,7 +93,7 @@ NOTE_SEARCH_TASKS = [
         "slot": 1,
         "label": "🎭 台湾文化・アート",
         "platform": "note",
-        "query": "site:note.com 台湾 文化 アート 展示 上映 日本 2026",
+        "query": f"site:note.com 台湾 文化 アート 展示 上映 日本 {_THIS_YEAR}",
         "system_prompt": (
             "You are a research analyst finding note.com creators who post about Taiwan cultural "
             "events in Japan — art exhibitions, film screenings, performances, cultural festivals. "
@@ -104,7 +107,7 @@ NOTE_SEARCH_TASKS = [
         "slot": 2,
         "label": "🍜 台湾グルメ・ライフスタイル",
         "platform": "note",
-        "query": "site:note.com 台湾 フェス グルメ 料理 イベント 東京 大阪 2026",
+        "query": f"site:note.com 台湾 フェス グルメ 料理 イベント 東京 大阪 {_THIS_YEAR}",
         "system_prompt": (
             "You are a research analyst finding note.com creators who announce Taiwan food festivals, "
             "gourmet events, or lifestyle events in Japan. "
@@ -120,7 +123,7 @@ PEATIX_TASK = {
     "slot": 3,
     "label": "🎫 Peatix 台湾活動主催者",
     "platform": "peatix",
-    "query": "site:peatix.com 台湾 イベント 主催 グループ 2026",
+    "query": f"site:peatix.com 台湾 イベント 主催 グループ {_THIS_YEAR}",
     "system_prompt": (
         "You are a research analyst finding Peatix organizer groups that regularly host "
         "Taiwan-related cultural events in Japan (festivals, film screenings, exchange events, "
