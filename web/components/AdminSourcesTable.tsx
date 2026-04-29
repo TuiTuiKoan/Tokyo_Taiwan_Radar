@@ -363,6 +363,9 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     return list.filter((s) => {
       if (filter === "implemented" && s.status !== "implemented") return false;
       if (filter === "not-viable" && s.status !== "not-viable") return false;
+      if (filter === "candidate" && s.status !== "candidate") return false;
+      if (filter === "researched" && s.status !== "researched") return false;
+      if (filter === "recommended" && s.status !== "recommended") return false;
       if (filter === "has_issue" && !s.github_issue_url) return false;
       if (filterType !== "all") {
         // peatix_organizer entries use agent_category directly; others use effectiveTypeMap
@@ -593,8 +596,9 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
             onChange={(e) => setFilter(e.target.value)}
             className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
-            <option value="all">全部</option>
-            <option value="implemented">已建立爬蟲</option>
+            <option value="all">全部</option>            <option value="candidate">候選中</option>
+            <option value="researched">已深度研究</option>
+            <option value="recommended">已推薦</option>            <option value="implemented">已建立爬蟲</option>
             <option value="not-viable">不適合</option>
             <option value="has_issue">已建立 Issue</option>
           </select>
