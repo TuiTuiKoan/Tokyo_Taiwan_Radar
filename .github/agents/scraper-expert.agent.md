@@ -30,8 +30,8 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 2. If a per-source skill exists (`.github/skills/sources/<source_name>/SKILL.md`), read it too.
 
 ## After Fixing a Scraper Bug
-1. Append an entry to `.github/skills/agents/scraper-expert/history.md` (newest at top): date, error, fix, lesson.
-2. If the lesson generalizes, add or update a rule in `SKILL.md`.
+1. Append an entry to `.github/skills/scraper-expert/history.md` (newest at top): date, error, fix, lesson.
+2. If the lesson generalizes, add or update a rule in `.github/skills/scraper-expert/SKILL.md`.
 3. Append an entry to `.github/skills/sources/<source_name>/history.md` with the same format.
 4. If the lesson is source-specific, add or update a rule in the per-source `SKILL.md`.
 
@@ -64,8 +64,7 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 6. Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` when the event date differs from the post date.
 7. **`start_date` / `end_date` type**: always `datetime.datetime`, never `datetime.date`. `dedup_events` calls `.date()` on the value.
 8. **When editing `main.py` for any reason**: run the SCRAPERS audit (Phase 3 step 4) immediately after — even chore/refactor commits can silently drop registrations.
-
-### Phase 3: Validate
+    9. **Substring keyword false positives**: `"台湾" in text` matches `仙台湾` (Sendai Bay). Any scraper that uses substring keyword filtering must maintain a `_FALSE_POSITIVE_PATTERNS` regex and strip those patterns before re-checking. See `## gguide_tv-specific` in SKILL.md for the implementation pattern.
 
 1. Run `cd scraper && python main.py --dry-run --source <name> 2>&1 | head -80`.
 2. Verify: `start_date` is populated, not the publish date; `category` values are canonical; no unhandled exceptions.
@@ -107,9 +106,9 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 
 #### Bug fix
 
-1. Append entry to `.github/skills/agents/scraper-expert/history.md` (newest at top).
+1. Append entry to `.github/skills/scraper-expert/history.md` (newest at top).
 2. Append entry to `.github/skills/sources/<source_name>/history.md`.
-3. If the lesson generalizes: add/update rule in `scraper-expert/SKILL.md`.
+3. If the lesson generalizes: add/update rule in `.github/skills/scraper-expert/SKILL.md`.
 4. If the lesson is source-specific: add/update rule in the per-source `SKILL.md`.
 
 ### Phase 5: Commit & Push
@@ -117,7 +116,7 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 **Always run this phase after Phase 4 — never call task_complete without pushing.**
 
 1. Stage only scraper-related files (exclude temp scripts like `scan_loc.py`, `fix_*.py`).
-   - Include: `scraper/sources/<source_name>.py`, `scraper/main.py`, `.github/skills/sources/<source_name>/`, `.github/skills/agents/scraper-expert/history.md`
+   - Include: `scraper/sources/<source_name>.py`, `scraper/main.py`, `.github/skills/sources/<source_name>/`, `.github/skills/scraper-expert/history.md`
    - Exclude: `.copilot-tracking/` (gitignored), temporary debug scripts
 2. Commit on `main` branch:
    - New source: `feat(scraper): add <SourceName>Scraper for <display name>`
