@@ -2,6 +2,25 @@
 
 <!-- Append new entries at the top -->
 
+---
+
+## 2026-04-29 — gguide_tv tv_program カテゴリ欠落（全電視番組）
+
+**Error**: `gguide_tv` スクレイパーが取得する全番組に `tv_program` カテゴリが付与されていなかった。annotator が後から付けるケースもあったが不安定。ユーザー報告で複数件の wrongCategory が判明（新・世界鐵道之旅、世界中の日本外交、偉人傳：鄧麗君 など）。
+
+**Fix**: `_genre_to_category()` を修正し `"tv_program"` を常に先頭に追加するよう変更。ジャンルごとのセカンダリカテゴリは保持:
+- `ドラマ` → `[tv_program, drama]`
+- `映画` → `[tv_program, movie]`
+- `音楽` → `[tv_program, performing_arts]`
+- `ドキュメンタリー/教養/報道` → `[tv_program, report]`
+- その他 → `[tv_program]`
+
+また既存の active イベント 7件を DB 直接 patch して `tv_program` を追加した。
+
+**Lesson**: annotator はイベントが TV 番組であることを知らないため、スクレイパー層でソース固有カテゴリ（`tv_program`）を必ず付与する設計が正しい。annotator に任せると安定しない。**ソース固有の恒常カテゴリは scraper 層で設定する。** → SKILL.md `## gguide_tv-specific` に追加済み。
+
+---
+
 ## 2026-04-29 — 超絕神業！魔術大戰祭 [gguide_tv] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** tv_program, performing_arts
@@ -33,7 +52,6 @@
 ---
 
 ---
-
 
 ## 2026-04-29 — 偉人傳：鄧麗君30年目的歌聲～隨時光流逝而去～ [gguide_tv] — user report confirmed
 **Report types:** wrongCategory

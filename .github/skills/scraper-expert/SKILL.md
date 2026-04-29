@@ -235,6 +235,13 @@ Run after discovering a new cross-source duplicate that the merger missed. Then 
 
 ## gguide_tv-specific
 - **Source**: 番組表Gガイド (bangumi.org) — Japanese TV program listing. Uses `"台湾"` as the search keyword to fetch candidate programs, then `_is_taiwan_title()` to re-filter.
+- **`tv_program` category is always first**: Every `gguide_tv` event is a TV broadcast. `_genre_to_category()` always prepends `"tv_program"` to the result. A genre-specific secondary category is appended when applicable:
+  - `ドラマ` → `[tv_program, drama]`
+  - `映画` → `[tv_program, movie]`
+  - `音楽` → `[tv_program, performing_arts]`
+  - `ドキュメンタリー` / `教養` / `報道` → `[tv_program, report]`
+  - その他 → `[tv_program]`
+- **User-report pattern for gguide_tv**: Most wrongCategory reports on gguide_tv events involve missing `tv_program`. When correcting a report, always ensure `tv_program` is included (the annotator does not know these are TV programs).
 - **`仙台湾` false positive**: `仙台湾` = 仙台 (Sendai city) + 湾 (bay). It is a geographic bay in Miyagi Prefecture, **completely unrelated to Taiwan**. `"台湾"` appears only as a substring of `"仙台湾"`. This was scraped as Taiwan-related before the fix (2026-04-29, event id `421d763d`).
 - **`_FALSE_POSITIVE_PATTERNS` guard**: `gguide_tv.py` maintains `_FALSE_POSITIVE_PATTERNS = re.compile(r"仙台湾")`. `_is_taiwan_title()` strips all false-positive substrings from the title first; if no Taiwan keyword remains in the cleaned title, the program is rejected.
 - **Adding new false positives**: When a new false-positive pattern is found, add it to `_FALSE_POSITIVE_PATTERNS` with alternation: `re.compile(r"仙台湾|新パターン")`. Add a comment explaining what the pattern means.
