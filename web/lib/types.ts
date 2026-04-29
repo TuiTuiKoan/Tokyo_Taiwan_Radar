@@ -73,6 +73,7 @@ export type Category =
   | "performing_arts"
   | "senses"
   | "drama"
+  | "retail"
   | "nature"
   | "tech"
   | "tourism"
