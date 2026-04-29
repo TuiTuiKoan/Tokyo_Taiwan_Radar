@@ -2,6 +2,16 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-29 — ナギ日記 [eurospace] — user report confirmed
+**Report types:** wrongDetails, fieldEdit:description:zh:《ナギ日記》講述了在東京與台灣兩地忙碌的建築師友梨探訪在故鄉山中雕刻的寄子，透過與寄子及其家人的相遇，友梨在日常生活中發現了小小的變化。該作品已正式入選坎城國際電影節競賽單元。, fieldEdit:description:en:Nagi Diary tells the story of Yuki, an architect active in Tokyo and Taiwan, who visits Yoshiko, a sculptor working with wood from nearby mountains. Through her encounters with Yoshiko and her family, Yuki discovers small changes in her daily life. The film has been officially selected for the competition section of the Cannes Film Festival., fieldEdit:description:ja:『ナギダイアリー』は、東京と台湾で活躍する建築家の友梨が、故郷の山で彫刻を作る寄子を訪れる物語です。彼女は、寄子やその家族との出会いを通じて、日常の中に小さな変化を見出します。この作品は、カンヌ国際映画祭のコンペティション部門に正式出品されることが発表されました。
+**Wrong fields:** description
+**Admin notes:** —
+**Action:** Annotatable fields nulled out — re-annotation triggered. Will auto-reactivate after annotator runs.
+---
+
+---
+
+
 ## 2026-04-29 — 新・世界鐵道之旅 #5 [gguide_tv] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** tv_program, senses, tourism
