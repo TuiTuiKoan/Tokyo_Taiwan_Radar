@@ -197,7 +197,13 @@ class MoonRomanticScraper(BaseScraper):
         except Exception:
             page_text = ""
 
-        if not any(kw in page_text for kw in TAIWAN_KEYWORDS):
+        # Exclude the "関連記事" (related articles) section to avoid false positives:
+        # Taiwan events listed in the sidebar/related section of a non-Taiwan post
+        # would otherwise cause that post to pass the keyword filter.
+        related_idx = page_text.find("関連記事")
+        check_text = page_text[:related_idx] if related_idx > 200 else page_text
+
+        if not any(kw in check_text for kw in TAIWAN_KEYWORDS):
             logger.debug("moonromantic: skipping non-Taiwan post %s", url)
             return None
 
