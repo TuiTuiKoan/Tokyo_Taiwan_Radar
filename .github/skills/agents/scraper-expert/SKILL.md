@@ -322,6 +322,13 @@ applyTo: scraper/sources/<source_name>.py
 4. **テレサ・テン filter**: Only keep programs where the full string `テレサ・テン` appears in the title; blocks variety shows where テレサ is a minor guest alongside other artists.
 5. **`台湾ドラマ` is redundant**: All results from `台湾ドラマ` are already returned by the `台湾` keyword search — do not add it to `SEARCH_KEYWORDS`.
 
+## livepocket-specific
+- **`dl` class is `event-detail-info__list`**, not `event-detail-info`. The `dt`/`dd` pairs are wrapped in `div.event-detail-info__block` inside the `dl`. Use `_get_dd_text(dl, label)` iterating `div.event-detail-info__block`.
+- **Class name convention**: Class `LivePocketScraper` → `_scraper_key = live_pocket` (CamelCase split), conflicting with `source_name = "livepocket"`. Always use `LivepocketScraper` (lowercase `p`) so `_scraper_key = livepocket`.
+- **Venue address is in a `<span>`** inside the `会場` `dd`, after the `(都道府県)` parenthetical. Split at the parenthetical match; strip map link boilerplate.
+- **Taiwan filter is detail-page only**: Search results match "台湾" in performer names or venue names unrelated to Taiwan events. Always apply keyword filter on full detail page text.
+- **Two duplicate `dl` blocks per page** (desktop + mobile): always use `select_one()`.
+
 ## Pending Rules
 
 <!-- Added automatically by confirm-report -->
