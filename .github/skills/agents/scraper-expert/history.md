@@ -3,6 +3,20 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — Fukuoka Now scraper implemented [fukuoka_now]
+
+**New source**: `FukuokaNowScraper` — Fukuoka's major English-language event calendar.
+
+**Key decisions:**
+- Static HTML (WordPress) — used `requests` + BeautifulSoup, no Playwright needed
+- Taiwan filter on card title + tags + short description before detail page fetch
+- `_is_taiwan()` only; no false-positive guard needed (site uses "Taiwan" in actual Taiwan events only)
+- Venue extracted via line-by-line keyword match (City Hall, Fureai, Tenjin, etc.) — no structured `場所:` label
+- 0 events in dry-run is correct: 台湾祭 in 福岡 2026 ended Feb 23; next event not yet listed
+
+**Lesson**: For seasonal event scrapers, 0 dry-run output is valid when the annual event is between seasons. Verify by unit-testing `_parse_detail()` on the archived event URL directly.
+
+---
 ## 2026-04-29 — research_sources status not updated after scraper implementation [livepocket]
 
 **Error:** After implementing and committing `LivepocketScraper`, the `research_sources` row (id=106) was left with `status = 'researched'` instead of `implemented`. The admin Sources table showed「已深度研究」badge and a「建立爬蟲 Issue」button — implying the scraper had NOT been built.
