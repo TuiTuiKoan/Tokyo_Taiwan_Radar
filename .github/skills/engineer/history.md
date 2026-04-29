@@ -1,67 +1,45 @@
 ---
-## 2026-04-29 — AdminEventTable 欄位異動：thead/tbody 雙 view 同步遺漏
-
-**Error:** 修改 `AdminEventTable.tsx` 欄位（新增 `scraped_at`、移除 `source_url`、移除 `is_paid`）時，如未同時處理 annotated view 和 raw view 的 `<thead>` 和 `<tbody>`，會導致欄數不匹配，或其中一個 view 顯示錯誤欄位。
-**Fix:** 逐項確認兩個 view 的 thead 與 tbody 都對應修改，`scraped_at` 欄位在兩個 view 均可排序。
-**Lesson:** `AdminEventTable.tsx` 的欄位異動必須同時更新 **annotated view 和 raw view** 的 `<thead>` 和 `<tbody>`，共 4 個位置。TypeScript 不偵測 thead/tbody 欄數不匹配。→ Updated "Column pairing rule" in engineer/SKILL.md.
-
----
-## 2026-04-29 — reports/page.tsx query 缺少 selection_reason 欄位，TypeScript interface 未同步
-
-**Error:** `AdminReportsTable` 需要讀取 `selection_reason` 來預填三語修正 textarea，但 `reports/page.tsx` 的 Supabase query 未 select 該欄位，且 `ReportRow` TypeScript interface 亦未宣告此欄位，導致 `undefined` 靜默流入 UI。
-**Fix:** 在 `reports/page.tsx` events join query 新增 `selection_reason`，並在 `ReportRow` interface 新增 `selection_reason: string | null`。
-**Lesson:** 新增 join 欄位時，**Supabase query 與對應的 TypeScript interface 必須同一 commit 同步更新**。TypeScript 不知道 Supabase query 實際回傳哪些欄位。
+## 2026-04-29 — AdminEventTable 分類篩選器顯示各分類事件總數
+**新增/修改：**
+- 新增 `categoryCounts` useMemo，遍歷全量 `events` 陣列計算每個 category 的數量
+- Dropdown 選項改為「電影 (12)」格式，數量為 0 時不顯示括號（`count > 0 ? ` (${count})` : ''`）
+- 教訓：Admin 側 UI 的顯示統計（如 per-category 數量）應以 `useMemo([events])` 直接從已載入的 `events` state 派生，無需額外 API 呼叫
 
 ---
-## 2026-04-29 — 多語言修正 UI：第一版只做單語 textarea 需重寫
-
-**Error:** 設計「選取理由不準確」報告審核 UI 時，第一版實作為單一 textarea（預填 report locale 的修正文字），送出後覆蓋整個 `selection_reason` JSON，導致另外兩個 locale 的文字被空值覆蓋。
-**Root cause:** `selection_reason` 是 JSON 物件，包含 zh/en/ja 三欄。沒有同時處理三語 = 靜默資料損失。
-**Fix:** 重寫為 3 個 textarea，各自預填現有 `selection_reason` 對應 locale，用戶修正文字優先覆蓋 report locale 那欄，其餘保留現有值。`confirm-report.ts` 接收 pre-built JSON 字串直接 update。
-**Lesson:** 任何涉及多語欄位（`selection_reason`、`name_*`、`description_*`）的修正 UI 必須一次做成三語版，不能先做單語再補。→ Added "Multilingual Field UI Rule" to engineer/SKILL.md.
-
----
-## 2026-04-29 — scrape-status/route.ts 被遺漏在 commit 之外
-
-**Error:** commit `470404d`（admin on-demand rescrape 功能）實作了 `AdminSourcesTable.tsx` 中呼叫 `/api/admin/scrape-status` 的 polling 邏輯，但 `web/app/api/admin/scrape-status/route.ts` 是未追蹤的新目錄，`git add` 未涵蓋它，導致整個功能推送後 endpoint 不存在（runtime 404）。
-**Fix:** 補充 commit `850c5f0`，單獨加入遺漏的 `route.ts`。
-**Lesson:** 新增 API route 時，其目錄是 **全新目錄**，`git add <specific-file>` 不會自動包含。在 commit 前必須執行 `git status` 確認所有新目錄都在 staged 清單中。另：新 API route 必須搭配 `npm run build` 驗證路由出現在 Next.js 輸出中，再 push。
+## 2026-04-29 — Discovery Pipeline 架構固化（daily review）
+**新增/修改：**
+- 新增 `## Discovery Pipeline` 段落（slot rotation 設計、Peatix 驗證模式、platform-aware upsert）
+- 記錄 `discovery_accounts.py` 與 `BaseScraper` 的分離關係
+- 記錄 `agent_category` 作為 scraper 路由機制
+**來源：** daily-skills-review（Step 4 建議）
 
 ---
-## 2026-04-29 — eiga_com 原題修正不會追溯更新已在 DB 的事件
-
-**Error:** commit `6029933` 新增 `_parse_original_title()` 讓爬蟲從 `p.data` 解析正確的 `name_zh`/`name_en`（如「阿嬤的夢中情人 Forever Love」），但兩筆既有的 eiga_com events（`eiga_com_82162`, `eiga_com_82162_3018`）的 name_zh 仍顯示「台灣好萊塢」（AI 翻譯日文院線名稱）。
-**Root cause:** `upsert_events` behavior #3：已在 DB 的事件若無 `force_rescrape=true` 則 **完全跳過**。Code fix 對 NEW events 有效，但不會追溯修正既有資料。
-**Fix:** 直接 DB patch：`UPDATE events SET name_zh='阿嬤的夢中情人', name_en='Forever Love' WHERE source_id IN ('eiga_com_82162', 'eiga_com_82162_3018')`。`annotation_status` 保持 'annotated' — annotator 不會重新覆寫。
-**Lesson:** 任何改動 scraper 欄位解析邏輯（而非新增欄位）的 code fix 都不會自動更新已存在的 DB 記錄。需要搭配一次性 DB patch script 修正歷史資料。新增爬蟲欄位時，在同一 commit 確認「是否有既有資料需要補修」。
-
----
-## 2026-04-29 — migration 022 & 023 未在同一 commit 更新 database.instructions.md
-
-**Error:** `022_line_subscribers.sql` 和 `023_source_scraper_config.sql` 匹很 commit 時均未更新 `database.instructions.md`。符合 Step 6 規則的指示下一次 migration 編號殄發現指向 `022`，實際上 `022` 和 `023` 已就位。
-**Fix:** 手動更新：Latest → `023_source_scraper_config.sql`，next → `024`，`research_sources` 表展示新欄位，新增 `line_subscribers` 条目。
-**Lesson:** Step 6（同一 commit 更新 database.instructions.md）投已進行多個 session 仍容易被遗忘。**建議**：在每個 migration SQL 檔末行加上 `-- REMINDER: update database.instructions.md` 註解，作為檔內提示。
+## 2026-04-28 — researcher.yml 缺少 playwright install，URL 驗證靜默失敗數週
+**新增/修改：**
+- GitHub Actions Workflow Rules 新增 Step parity rule
+- 多個 workflow 共用相同工具依賴時，必須同步所有 setup 步驟
+- 引用 commit `d7f4b41` 作為反例（researcher.yml 缺 playwright install → url_verified=False）
+**來源：** daily-skills-review（Step 4 建議）
 
 ---
-## 2026-04-28 — AdminReportsTable: confirm 送出空 fieldCorrections 導致重新標注
-
-**Error:** `handleConfirm` 傳給 `confirmReport` 的 `fieldCorrections: fieldEdits[row.id] ?? {}` 在管理員未手動輸入時是空物件。React 受控元件的 `value` prop 只是顯示用，`onChange` 未被觸發時 state 不更新。`confirm-report.ts` 收到空 corrections → `anyProvided = false` → 清空欄位 → `annotation_status = "pending"` → 走重新標注而非直接覆寫。
-**Fix:** `handleConfirm` 送出前從 `row.report_types` 重新解析 `fieldEdit:` entries 建立 `parsedUserEdits`，merge 進 `fieldCorrections`（管理員明確輸入優先，用戶建議為 fallback）。
-**Lesson:** React controlled input 的 `value` prop 是顯示用，不等於 state。Submit 前若需使用預填值，必須從 data source 重新解析，或在初始化時將預填值寫入 state。→ Added "React / Form Pitfalls" section to engineer/SKILL.md.
-
----
-## 2026-04-28 — 8 個爬蟲 source 檔案存在但未加入 SCRAPERS 列表
-
-**Error:** CineMarineScraper、EsliteSpectrumScraper、MoonRomanticScraper、MorcAsagayaScraper、ShinBungeizaScraper、SsffScraper、TaiwanFaasaiScraper、TokyoFilmexScraper 等 8 個爬蟲已有 source 檔案但未加入 `scraper/main.py` 的 `SCRAPERS = [...]`，CI 從未執行這些爬蟲。
-**Fix:** 補充 8 個爬蟲的 import 及 SCRAPERS 列表項目，以 `--dry-run` 確認各爬蟲能執行。
-**Lesson:** 建立新爬蟲 source 檔案後必須在同一 commit 確認已加入 SCRAPERS。定期比對 `ls sources/*.py` 與 SCRAPERS 列表，source 檔案不在 SCRAPERS 中將被 CI 靜默略過。→ Updated "Registration" in scraper-expert/SKILL.md.
+## 2026-04-28 — source filter hardcoded list omitted new scrapers
+**新增/修改：**
+- Filter-option sync rule 拆分為「closed sets（hardcode options）」vs「open-ended sets（動態衍生）」
+- 補充 `source_name` 必須用 `Array.from(new Set(...))` 動態衍生，禁止 hardcode
+- 引用 commit `fe1b39e` 作為反例說明
+**來源：** daily-skills-review（Step 4 建議）
 
 ---
-## 2026-04-28 — i18n messages JSON keys 被意外刪除後手動復原
+## 2026-04-28 — AdminReportsTable 分類選單錯亂：從 flat CATEGORIES 改為 CATEGORY_GROUPS
+**Problem:** `AdminReportsTable.tsx` 的 wrongCategory 分類選取用 `CATEGORIES.map(...)` 顯示所有分類為一整排無序標籤，而 `AdminEventForm.tsx` 和 `ReportSection.tsx` 使用 `CATEGORY_GROUPS` 群組佈局。導致 `/admin/reports` 校對 AI 報錯時分類列表錯亂，無群組標籤且順序不一致。
+**Fix:** 將 `AdminReportsTable.tsx` 的分類區塊從 `CATEGORIES.map(...)` 改為 `CATEGORY_GROUPS.map(...)` + `grid-cols-[4.5rem_1fr]` 群組佈局，與 `AdminEventForm.tsx` 完全一致。Commit `580577d`。
+**Lesson:** 三個檔案共享分類群組選擇器：`AdminEventForm.tsx`、`ReportSection.tsx`、`AdminReportsTable.tsx`。任何一個的佈局變更必須同步更新其他兩個。已將 SKILL.md paired-file rule 擴展為 **three-file rule**，並更新 UI surfaces 表格（AdminReportsTable 改為 CATEGORY_GROUPS）。
 
-**Error:** `general.footerCredit`、`general.statsTableMissing`、`general.statsTableMissingHint` 等 keys 在某次 commit 中被意外移除，需手動 Python 腳本補回三個語言檔案。
-**Fix:** 使用 Python json-module pattern 補回缺失 keys。
-**Lesson:** i18n messages JSON 的 key 不可在非翻譯 commit 中被刪除。每次修改 `web/messages/*.json` 後執行 `get_errors` 確認無遺漏。→ Already covered by Architect i18n Regression Guard.
+---
+## 2026-04-28 — Category group picker layout: AdminEventForm + ReportSection must stay in sync
+**Problem:** Adding `literature` to `group_arts` (now 8 items) caused the group label (`w-16 shrink-0`) and tags to share one `flex-wrap` row in `AdminEventForm.tsx`. When tags overflowed to a second line, they wrapped under the group label instead of staying in the tag column.
+**Fix:** Replaced `flex-wrap mixed` layout with `grid-cols-[4.5rem_1fr]` in both `AdminEventForm.tsx` and `ReportSection.tsx`: col 1 = group label (right-aligned, fixed width), col 2 = `flex-wrap` tags. `ReportSection` had an existing but narrower `3rem` column; widened to `4.5rem` for longer labels like 知識交流. Commit `31d7dd3`.
+**Lesson:** `AdminEventForm.tsx` and `ReportSection.tsx` share the exact same category group picker structure. Any layout change to one must be applied to both in the same commit. This is now a paired-file rule.
 
 ---
 ## 2026-04-28 — merger.py: Pass 2 news-report matching added

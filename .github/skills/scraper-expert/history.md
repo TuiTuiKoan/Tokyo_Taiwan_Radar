@@ -2,6 +2,14 @@
 
 <!-- Append new entries at the top -->
 
+---
+## 2026-04-29 — Peatix 三層爬取架構固化（daily review）
+**新增/修改：**
+- `## Peatix-specific` 新增 Three-layer organizer architecture 表格（Layer 1 keyword / Layer 2 hardcode / Layer 3 DB-driven）
+- 記錄 `_load_db_organizers()` 的 `agent_category='peatix_organizer'` 查詢條件
+- 記錄「Never remove Layer 2」規則（DB status 意外變更時的 backup）
+**來源：** daily-skills-review（Step 4 建議）
+
 ## 2026-04-29 — iwafu docstring 誤記（東京限定と表記されていた全国スクレイパー）[iwafu]
 **Error**: `iwafu.py` モジュール docstring に「Filter to events where prefecture == 東京」と記載されていたが、実コードは `cards = all_cards`（フィルターなし）で全国カバー済み。
 DB candidate id=97（iwafu EN `/en/events/`）も「福岡拡張が必要」と判断されていたが、JP スクレイパーで既に全国カバーされているため重複。

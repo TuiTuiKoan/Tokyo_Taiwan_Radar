@@ -104,8 +104,6 @@ These were regressed at least twice when unrelated changes overwrote them. The `
 
 **Column pairing rule:** When adding or removing a `<th>` column, always add or remove the matching `<td>` in the same commit. TypeScript does not detect thead/tbody column count mismatches. This caused an orphaned `is_paid` `<td>` (commit `5597150`) after its `<th>` was already removed.
 
-**Dual-view sync rule:** `AdminEventTable.tsx` renders two views: **annotated** and **raw**. Any column addition or removal must be applied to **all 4 locations** — annotated `<thead>`, annotated `<tbody>`, raw `<thead>`, raw `<tbody>` — in the same commit. Forgetting one view causes column count mismatches that TypeScript does not catch.
-
 **Address cell fallback rule:** The address `<td>` must use `event.location_address || event.location_address_zh || event.location_name`. Never read a single field. Any locale-aware field displayed in admin must apply the same fallback chain as the corresponding helper in `lib/types.ts`.
 
 **Filter-option sync rule — closed sets:** Any `<select>` filter whose options come from a **closed** canonical set (e.g. `annotation_status`, `category`) must list **every** value in that set as an `<option>`. When a new value is added to a TypeScript union, DB enum, or i18n file, the corresponding `<option>` element must be added in the same commit. TypeScript does not detect missing dropdown options.
@@ -116,34 +114,18 @@ Array.from(new Set(events.map(e => e.source_name))).sort()
 ```
 A hardcoded `source_name` list will silently omit new scrapers and require a code change for every new source. This was fixed in commit `fe1b39e` after 10+ scrapers were added without appearing in the filter.
 
+**Filter display counts pattern:** When a filter dropdown should show per-option counts (e.g. "電影 (12)"), derive them with `useMemo([events])` from the already-loaded `events` state — no extra API call needed:
+```ts
+const categoryCounts = useMemo(() => {
+  const counts: Record<string, number> = {}
+  events.forEach(e => { counts[e.category] = (counts[e.category] ?? 0) + 1 })
+  return counts
+}, [events])
+// Render: `${label}${count > 0 ? ` (${count})` : ''}`
+```
+This pattern applies to any `<select>` filter whose options map 1-to-1 with a field on the `events` array.
+
 **Annotation status label consistency rule:** One status value = one i18n key, used consistently in **all** display surfaces: badge (`getAnnotationLabel`), filter dropdown `<option>`, any column header. Use the **short-form keys**: `t("filterAnnotatedShort")`, `t("filterReviewedShort")`, `t("filterErrorShort")`, `t("filterPendingShort")`. The long-form family (`annotated`, `reviewed`, `error`, `pending`) has been deleted — do not recreate it.
-
-## Multilingual Field UI Rule
-
-Any UI that allows editing or correcting **multilingual fields** (`selection_reason`, `name_*`, `description_*`) **must be designed as a 3-language form (zh / en / ja) from the start.** Never build a single-language version first and plan to add the others later — this guarantees a re-write.
-
-**Pattern for `selection_reason` correction UI:**
-1. Parse existing `selection_reason` JSON from the event (fallback to `{}` if null/invalid).
-2. Render 3 `<textarea>` fields — one per locale — pre-filled with existing values.
-3. If a user-submitted correction exists for a specific locale, **override that textarea's pre-fill** with the user's text.
-4. On submit, build the full 3-locale JSON object and send it as a pre-built JSON string to the server action / API route.
-5. The server action writes the JSON string directly to the DB field — do NOT reconstruct it server-side.
-
-**Applies to:** `AdminReportsTable.tsx`, any future "suggest correction" UI for name/description fields.
-
-**Supabase query sync rule:** When a new field is needed by a component, add it to the Supabase `select()` query AND the corresponding TypeScript interface in the same commit. TypeScript does not know which columns Supabase actually returns at runtime.
-
-## React / Form Pitfalls
-
-### Controlled input `value` prop ≠ state
-
-React controlled input 的 `value` prop 是顯示用，不等於 state。只有 `onChange` 被觸發時 state 才會更新。
-
-**Rule:** 當 form 用 `value` prop 預填來自 props/data source 的值（例如用戶回報的建議修改），且管理員可能不修改直接送出時：
-- **Option A（推薦）**：submit 前從 props/data source 重新解析預填值，merge 進 state（state 明確輸入優先，data source 為 fallback）。
-- **Option B**：在 `useState(initialValue)` 初始化或 `useEffect` 中將預填值寫入 state，確保 state 從一開始就反映顯示值。
-
-**絕對不要**只依賴 `value` prop 在 submit handler 中取值——它是 display-only，submit 時不保證 state 已更新。
 
 ## Scraper Implementation
 
@@ -154,16 +136,6 @@ React controlled input 的 `value` prop 是顯示用，不等於 state。只有 
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` whenever `start_date` is known.
 - Register every new scraper in `scraper/main.py` → `SCRAPERS` list.
 - Validate with `python main.py --dry-run --source <name>` before committing.
-- **`scraper_source_name` sync**: After registering a new scraper, also set `scraper_source_name` on the corresponding `research_sources` row so the admin on-demand rescrape UI can target it. Pattern: `UPDATE research_sources SET scraper_source_name = '<key>' WHERE id = <id>;` — include this in the same migration SQL that creates the source row, or run it as a one-off.
-- **Retroactive DB patch rule**: When a code fix changes **how an existing field is parsed** (rather than adding a new field), the fix only applies to NEW events inserted after the fix. Existing DB records are skipped by `upsert_events` behavior #3 (idempotent skip). Always check whether a one-off DB patch is needed for existing records after fixing a field-extraction bug.
-
-## New API Route Checklist
-
-When adding a new Next.js API route under `web/app/api/`:
-
-1. The route lives in a **new directory** — `git add <file>` only stages named files. Run `git status` and confirm the new directory appears under "Changes to be committed", not "Untracked files".
-2. Run `npm run build` and verify the route appears in the output (e.g. `ƒ /api/admin/your-route`). Missing routes = the file was not staged or has a compile error.
-3. For routes that call external APIs (e.g. GitHub API), ensure the required env var (`GITHUB_TOKEN`, etc.) is set in Vercel project settings before deploying.
 
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/engineer/history.md` (newest at top).
@@ -242,3 +214,25 @@ print(f'Simplified in location fields: {len(bad)}')
 - Bare expressions in `path:`, `name:`, and similar scalar fields cause YAML schema validator warnings in VS Code and some CI linters.
 - Any `run:` step whose command contains **both** a `${{ }}` expression **and** shell double-quote characters (e.g. `--input "${{ steps.x.outputs.y }}"`) must use a block scalar (`|`) instead of an inline scalar. Inline scalars mixing `"` and `${{ }}` trigger VS Code YAML extension schema validation warnings. All other `run:` steps may remain inline.
 - **Step parity rule**: When multiple workflows share the same tool dependencies (e.g. Playwright, Python packages), they must have identical setup steps. When adding a new setup step to one workflow (e.g. `playwright install chromium --with-deps`), immediately check **all other workflows** for the same dependency and add the step there too. Divergence causes silent failures — missing setup steps do not error at workflow startup, only at the point of use. Example: `researcher.yml` was missing `playwright install` for weeks while `scraper.yml` had it, causing all URL verifications to return `url_verified=False` silently (fixed in commit `d7f4b41`).
+
+## Discovery Pipeline
+
+`scraper/discovery_accounts.py` is a separate pipeline from `BaseScraper`. It discovers new organizer accounts on external platforms and upserts them into `research_sources`.
+
+### Slot rotation design
+- **4 daily slots** (Mon–Thu), derived from weekday: Mon=0, Tue=1, Wed=2, Thu=3.
+- Slots 0–2 run `note.com` keyword discovery; Slot 3 runs Peatix group discovery.
+- Controlled by `DISCOVERY_SLOT` env var (set by `discovery-accounts.yml` via `$(date +%u) - 1`) or `--slot` CLI arg.
+- The `.github/workflows/discovery-accounts.yml` cron runs Mon–Thu only (not Fri–Sun).
+- **Adding a new platform**: add a new slot (increment total), add a `_run_{platform}_task()` function, update the `DISCOVERY_SLOT` derivation in the workflow.
+
+### Peatix organizer verification
+- `_verify_peatix_group(group_id)` performs an HTTP GET to `https://peatix.com/group/{group_id}` and checks for a non-404 response.
+- Verified groups are upserted to `research_sources` with `agent_category='peatix_organizer'`.
+- `peatix.py` Layer 3 reads these rows at runtime — no code change needed when a new organizer is discovered.
+
+### Platform-aware upsert
+- `agent_category` in `research_sources` determines which scraper picks up the organizer:
+  - `'peatix_organizer'` → `peatix.py` Layer 3
+  - (future) `'connpass_organizer'` → `connpass.py`
+- Always set `agent_category` when upserting a new discovered account.
