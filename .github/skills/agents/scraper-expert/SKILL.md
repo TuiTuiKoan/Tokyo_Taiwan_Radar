@@ -1,6 +1,6 @@
 ---
 name: scraper-expert
-description: BaseScraper contract, field rules, and Peatix-specific conventions for the Scraper Expert agent
+description: BaseScraper contract, field rules, and source-specific conventions (Peatix, iwafu, cinema, prtimes, fukuoka_now, etc.) for the Scraper Expert agent
 applyTo: .github/agents/scraper-expert.agent.md
 ---
 
@@ -197,6 +197,40 @@ Run after discovering a new cross-source duplicate that the merger missed. Then 
 - After creating a new scraper file, always add it to `SCRAPERS = [...]` in `scraper/main.py`.
 - Test with `python main.py --dry-run --source <source_name>` before any other step.
 - **Periodic audit**: Occasionally cross-check `ls scraper/sources/*.py` against the `SCRAPERS` list in `scraper/main.py`. Source files not in `SCRAPERS` are silently ignored by CI — they never run. In April 2026, 8 scrapers were discovered in this state (CineMarineScraper, EsliteSpectrumScraper, MoonRomanticScraper, MorcAsagayaScraper, ShinBungeizaScraper, SsffScraper, TaiwanFaasaiScraper, TokyoFilmexScraper).
+- **`_scraper_key()` naming rule**: `main.py`'s `_scraper_key()` splits class names on CamelCase boundaries (`LivePocketScraper` → `live_pocket`). The class `SOURCE_NAME` constant must match exactly. Name the class to match: `LivepocketScraper` (not `LivePocketScraper`) so `_scraper_key()` produces `livepocket`.
+
+## movie_title_lookup — multilingual cinema titles
+
+`scraper/movie_title_lookup.py` provides `lookup_movie_titles(name_ja) → (name_zh, name_en)` via eiga.com search.
+
+- **Always call before constructing `Event()`** in cinema scrapers: `name_zh, name_en = lookup_movie_titles(title)`.
+- **In-memory cache**: `_cache` deduplicates requests within a single scraper run. No DB writes.
+- **Silent failure**: returns `(None, None)` on any error — never raises, never breaks scrapers.
+- **Annotator fallback**: GPT-4o-mini still provides `name_zh`/`name_en` for events where lookup returns `(None, None)`.
+- **Annotator enrichment**: `annotator.py --enrich-movie-titles` retroactively fills NULL `name_zh`/`name_en` fields for existing `movie` events. Only patches NULL fields — never overwrites existing values. Runs after `--fix-reviewed` step in `scraper.yml`.
+- **Rate limit**: `LOOKUP_DELAY_SEC = 1.0` between requests. Do not lower.
+- **Scope**: cinema scrapers only (category contains `"movie"`). Do not use for non-film events.
+
+## prtimes-specific
+
+- **API endpoint**: `GET https://prtimes.jp/api/keyword_search.php/search?keyword=<kw>&page=<N>&limit=40` — internal Next.js API, returns JSON. No Playwright needed.
+- **No geographic restriction**: `_SEARCH_KEYWORDS` must NEVER contain city names (東京, 大阪, etc.). Project scope is all of Japan. Bad example: `"台湾 イベント 東京"`. Correct: `"台湾 イベント"`.
+- **Event keyword filter**: title must contain a Taiwan KW AND an event-type KW (`_EVENT_KW`). PR releases about business/export activities are excluded by `_TAIWAN_BASED_TITLE_RE`.
+- **Press release ≠ event**: Extract the actual event date from PR body (`開催日時:` / `日時:` labels), NOT the PR release date. Fallback to release date only if no event date found in body.
+- **LOOKBACK_DAYS = 90**: Skip PRs older than 90 days. PR TIMES has no end-of-event concept — rely on `archive_ended_events` in main pipeline.
+- **Venue extraction**: `_VENUE_LABELS` regex on body text (会場: / 開催場所: etc.). Venue often in second or third paragraph.
+- **`_NEWS_SOURCES` member**: `prtimes` participates in merger.py Pass 2 (date-range + location-overlap), NOT Pass 1 (name similarity). Article-style PR titles don't match event names by similarity.
+- **Dry-run validation**: Run `python main.py --dry-run --source prtimes 2>&1 > /tmp/prtimes_out.txt` — expect 5–30 events per run depending on Taiwan events in the last 90 days.
+
+## fukuoka_now-specific
+
+- **Static HTML, no Playwright**: WordPress site, `requests` + BeautifulSoup only.
+- **Seasonal pattern**: Only one confirmed annual Taiwan event — 台湾祭 in 福岡 (Jan/Feb). 0 dry-run events during spring–winter is **correct** — not a bug.
+- **source_id**: `fukuoka_now_{slug}` where slug = `url.rstrip('/').split('/')[-1]`.
+- **Detail page always preferred for dates**: `time[datetime]` attribute gives ISO dates. Listing page also has dates, but detail page has both start and end dates.
+- **Venue**: No structured `場所:` label. Extract via line-by-line keyword match: "City Hall", "Fureai", "Tenjin", "Canal", "ACROS", "Hakata", "博多", "天神".
+- **Pagination**: `/en/event/` (page 1), `/en/event/page/{N}/` (pages 2+). Stop on HTTP 404 or empty `li.c-page-sub__guide-item`.
+
 
 ## Mandatory Post-Change Checklist
 

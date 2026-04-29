@@ -112,10 +112,11 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 
 **Always run this phase after Phase 4 — never call task_complete without pushing.**
 
-1. Create a feature branch if not already on one: `git checkout -b feat/source-<source_name>`
-2. Stage only scraper-related files (exclude temp scripts like `scan_loc.py`, `fix_*.py`).
-3. Commit:
+1. Stage only scraper-related files (exclude temp scripts like `scan_loc.py`, `fix_*.py`).
+   - Include: `scraper/sources/<source_name>.py`, `scraper/main.py`, `.github/skills/sources/<source_name>/`, `.github/skills/agents/scraper-expert/history.md`
+   - Exclude: `.copilot-tracking/` (gitignored), temporary debug scripts
+2. Commit on `main` branch:
    - New source: `feat(scraper): add <SourceName>Scraper for <display name>`
    - Bug fix: `fix(scraper): <what was fixed> in <source_name>`
-4. `git push -u origin feat/source-<source_name>`
-5. Report the PR creation URL to the user.
+3. `git push` (already on main; no feature branch needed for scraper-only changes).
+4. Confirm push succeeded — report the commit SHA to the user.
