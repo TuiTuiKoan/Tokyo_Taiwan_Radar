@@ -8,6 +8,23 @@ applyTo: .github/agents/engineer.agent.md
 
 Read this at the start of every session before touching any code.
 
+## ⚠️ CRITICAL: Canonical File Paths
+
+> **NEVER write to `.github/skills/engineer/`** — that path has been deleted. The canonical location is:
+> `.github/skills/agents/engineer/SKILL.md` and `.github/skills/agents/engineer/history.md`
+
+Same rule applies to ALL agent skills:
+| Agent | Canonical path |
+|-------|---------------|
+| engineer | `.github/skills/agents/engineer/` |
+| researcher | `.github/skills/agents/researcher/` |
+| scraper-expert | `.github/skills/agents/scraper-expert/` |
+| scraper-dev | `.github/skills/agents/scraper-dev/` |
+| architect | `.github/skills/agents/architect/` |
+| tester | `.github/skills/agents/tester/` |
+
+Writing to a top-level `skills/<name>/` path recreates deleted directories. Always use `skills/agents/<name>/`.
+
 ## Database
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`
 - When adding a DB column, wire up the code that populates it in the same commit. Empty columns = silent data gaps.
@@ -313,3 +330,23 @@ eventFields={{
 ```
 
 > Applies to: `ReportSection.tsx`, any future admin review/correction UI, feedback forms.
+
+## Cross-Platform Environment Variables
+
+GitHub Actions secrets and Vercel environment variables are **completely separate systems**. Never assume a secret set in one platform is available in the other.
+
+**Rule:** When implementing a feature that has components in both GitHub Actions (cron/scraper) and Vercel (API route/webhook), explicitly set required credentials in both platforms.
+
+**LINE bot example — both platforms must have both variables:**
+| Variable | GitHub Actions Secrets | Vercel Env Vars |
+|---|---|---|
+| `LINE_CHANNEL_TOKEN` | ✅ broadcast | ✅ webhook |
+| `LINE_CHANNEL_SECRET` | ✅ broadcast | ✅ webhook signature |
+
+Missing a Vercel env var for a webhook causes silent HTTP 401 failures. LINE does **not** retry failed deliveries — follow events are permanently lost.
+
+**Diagnostic checklist when a webhook writes 0 rows:**
+1. Check the table directly: `SELECT count(*) FROM line_subscribers`
+2. Test INSERT with the same logic manually — confirms schema is not the problem
+3. Check the **Vercel** env var list (not just GitHub Actions secrets)
+4. If a variable is missing in Vercel, add it; then have the user block + unblock the bot to re-trigger the follow event

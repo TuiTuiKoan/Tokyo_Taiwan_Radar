@@ -8,6 +8,12 @@ applyTo: .github/agents/researcher.agent.md
 
 Read this at the start of every session before evaluating any source.
 
+## ⚠️ CRITICAL: Canonical File Path
+
+> **NEVER write to `.github/skills/researcher/`** — that path has been deleted.
+> The canonical location is `.github/skills/agents/researcher/`.
+> All agent skills live under `skills/agents/<agent-name>/`. See engineer SKILL.md for the full table.
+
 ## ⚠️ CRITICAL: Geographic Scope
 
 > **Scope is ALL OF JAPAN（全日本）** — Tokyo, Osaka, Kyoto, Fukuoka, Nagoya, Sapporo, and all other prefectures are in scope.
