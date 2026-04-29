@@ -1,4 +1,10 @@
 ---
+## 2026-04-29: movie_title_lookup.py — eiga.com 官方片名查詢
+- Error: 8 個電影院爬蟲只存 name_ja（日文片名），name_zh/name_en 留給 GPT annotator 翻譯，導致中文名偏離官方（如「赤い糸」被翻成「赤色的線 輪迴的秘密」而非官方「月老 Till We Meet Again」）
+- Fix: 新建 movie_title_lookup.py，在 Event() 建構前查 eiga.com，取 p.data 原題または英題 行，直接填入 name_zh/name_en；annotator GPT 仍作 fallback
+- Lesson: 電影類事件的 name_zh/name_en 應優先使用官方資料庫（eiga.com），而非 AI 翻譯。eiga.com 無需 API key，p.data 格式穩定。查詢結果用程序內快取避免重複請求。
+
+---
 ## 2026-04-29 — AdminSourcesTable 篩選器三個 bug（其他 / 活動數 / 狀態不同步）
 
 **問題 1：「其他」不出現在來源分類篩選器**

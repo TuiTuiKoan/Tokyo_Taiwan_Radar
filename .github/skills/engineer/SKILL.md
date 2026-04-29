@@ -25,6 +25,26 @@ Read this at the start of every session before touching any code.
 - When changing a function's return type (e.g. `dict` → `tuple`), immediately smoke-test before committing: `python -c "from module import fn; print(type(fn(...)))"`
 - Use `getattr(obj, 'attr', default)` when reading an attribute that may not exist on all subclasses.
 
+## Movie Title Lookup Pattern
+
+When a scraper targets cinema events (`category=["movie"]`), **always call `lookup_movie_titles(name_ja)`** from `scraper/movie_title_lookup.py` before constructing `Event()`:
+
+```python
+from movie_title_lookup import lookup_movie_titles
+name_zh, name_en = lookup_movie_titles(title)
+event = Event(
+    ...
+    name_zh=name_zh,
+    name_en=name_en,
+    ...
+)
+```
+
+- Returns `(None, None)` if not found — GPT annotator fills in as fallback
+- Never skip the call: AI translation diverges from official titles (e.g. AI → "赤色的線 輪迴的秘密" vs official → "月老 Till We Meet Again")
+- The module uses in-memory `_cache` — no extra latency for repeated titles in one run
+- `eiga_com.py` is exempt — it already has native 原題 parsing in `_parse_original_title()`
+
 ## Next.js / Sentry
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
