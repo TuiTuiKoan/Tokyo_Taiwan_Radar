@@ -65,6 +65,7 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 7. **`start_date` / `end_date` type**: always `datetime.datetime`, never `datetime.date`. `dedup_events` calls `.date()` on the value.
 8. **When editing `main.py` for any reason**: run the SCRAPERS audit (Phase 3 step 4) immediately after — even chore/refactor commits can silently drop registrations.
     9. **Substring keyword false positives**: `"台湾" in text` matches `仙台湾` (Sendai Bay). Any scraper that uses substring keyword filtering must maintain a `_FALSE_POSITIVE_PATTERNS` regex and strip those patterns before re-checking. See `## gguide_tv-specific` in SKILL.md for the implementation pattern.
+    10. **Keyword filter scope — exclude 関連記事 section**: For Wix/SPA scrapers that use full-page text (`page.inner_text("body")`), truncate at `"関連記事"` before the Taiwan keyword check. Scanning the full page can cause false positives when unrelated events appear in the "related articles" footer. Pattern: `check_text = page_text[:page_text.find("関連記事")]` (guard: only truncate if index > 200). See `## Keyword filter — exclude non-article sections` in SKILL.md.
 
 1. Run `cd scraper && python main.py --dry-run --source <name> 2>&1 | head -80`.
 2. Verify: `start_date` is populated, not the publish date; `category` values are canonical; no unhandled exceptions.

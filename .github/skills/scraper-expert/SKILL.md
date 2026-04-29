@@ -98,6 +98,19 @@ Read this at the start of every session before writing any scraper.
 ## cinema scrapers — official_url extraction
 - Cinema detail pages often have an "オフィシャルサイトはこちら" or "公式サイト" anchor linking to the film's external promotional site. Extract this as `official_url`.
 - Selector pattern: iterate `soup.find_all("a", href=True)`; skip hrefs that do not start with `http` and skip hrefs containing the cinema's own domain.
+
+## Keyword filter — exclude non-article sections (関連記事 etc.)
+- **Wix/SPA pages** (e.g. moonromantic) append a "関連記事" or "おすすめ" block at the bottom of every page. These sections contain links to OTHER events, including past Taiwan events.
+- **Rule**: Before checking Taiwan keywords, truncate `page_text` at the first occurrence of `"関連記事"` (and similar section headers like `"関連イベント"`, `"おすすめ"` if applicable). Only scan the event's own body text.
+- **Pattern**:
+  ```python
+  related_idx = page_text.find("関連記事")
+  check_text = page_text[:related_idx] if related_idx > 200 else page_text
+  if not any(kw in check_text for kw in TAIWAN_KEYWORDS):
+      return None
+  ```
+- **Guard `> 200`**: prevents accidental truncation if `"関連記事"` appears in the very beginning (e.g. as a page section title before the article). Adjust threshold per site if needed.
+- This pattern applies to any SPA scraper that uses `page.inner_text("body")` or full-page text extraction.
 - Accept link texts: `オフィシャルサイト`, `公式サイト`, `official site`, `Official Site` (case-insensitive variants).
 - When `official_url` is added to an existing scraper, **existing DB records are not automatically updated** — either set `force_rescrape=True` for affected events or run a targeted Supabase UPDATE. The scraper only writes `official_url` on upsert; stale rows keep `null` until they are re-upserted.
 

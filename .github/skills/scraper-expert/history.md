@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-04-29 — moonromantic 関連記事誤判 false positive（28 件誤収録）
+
+**Error**: `moonromantic` スクレイパーが台灣無関係の日本音楽ライブを 28 件収録。`_scrape_post()` が `page.inner_text("body")` で取得した全テキストに対してキーワードチェックを行っていたため、ページ下部の「関連記事」欄に台灣イベント（例: Shedding Skin 脱皮巡演）が含まれると、本文と無関係なイベントが誤通過した。
+
+**Fix**: キーワードチェック前に `page_text` を `"関連記事"` の出現位置で切断:
+```python
+related_idx = page_text.find("関連記事")
+check_text = page_text[:related_idx] if related_idx > 200 else page_text
+if not any(kw in check_text for kw in TAIWAN_KEYWORDS):
+    return None
+```
+
+**Data cleanup**: 誤収録 28 件を DB から hard delete（残 1 件 DSPS 演出のみ正規）。
+
+**Lesson**: Wix/SPA 場地ページはページ底部に「関連記事」「おすすめ」等の非本文ブロックを持つ。キーワード篩查は必ず**活動本文のみ**を対象にし、関連記事区域を先に切断すること。
+
+---
+
 ## 2026-04-29 — gguide_tv tv_program カテゴリ欠落（全電視番組）
 
 **Error**: `gguide_tv` スクレイパーが取得する全番組に `tv_program` カテゴリが付与されていなかった。annotator が後から付けるケースもあったが不安定。ユーザー報告で複数件の wrongCategory が判明（新・世界鐵道之旅、世界中の日本外交、偉人傳：鄧麗君 など）。
