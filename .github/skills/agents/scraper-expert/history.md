@@ -3,6 +3,31 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-29 — maruhiro: datetime.date vs datetime.datetime type error + 15 scrapers lost from SCRAPERS
+
+**Part 1 — Type error in dedup_events:**
+`_parse_dates` in `maruhiro.py` returned `datetime.date` objects. `dedup_events` in `base.py`
+calls `.date()` on `start_date`, expecting a `datetime.datetime`. Error:
+`AttributeError: 'datetime.date' object has no attribute 'date'`.
+Fix: changed `_parse_dates` to return `datetime.datetime(y, m, d)` instead of `date(y, m, d)`.
+
+**Lesson:** All scrapers must return `datetime.datetime` for `start_date`/`end_date`, not bare `date`.
+`dedup_events` contract requires `.date()` to be callable on the value.
+
+**Part 2 — 15 scrapers deleted from SCRAPERS by 7aecfef:**
+SCRAPERS audit (run after implementing maruhiro) revealed 15 scrapers present in `sources/` but
+absent from `SCRAPERS` in `main.py`. Root cause: commit `7aecfef` ("chore: tighten workflow guards
+and restore admin filters") rewrote `main.py` and omitted the imports and registrations for:
+EurospaceScraper, TokyoArtBeatScraper, HankyuUmedaScraper, DaimaruMatsuzakayaScraper,
+CineMarineScraper, EsliteSpectrumScraper, MoonRomanticScraper, MorcAsagayaScraper,
+ShinBungeizaScraper, SsffScraper, TaiwanFaasaiScraper, TokyoFilmexScraper,
+GoogleNewsRssScraper, NhkRssScraper, GguideTvScraper.
+All 15 were restored, total SCRAPERS count: 56.
+
+**Lesson:** SCRAPERS audit must run after ANY commit touching `main.py`, not only when
+adding new scrapers. Run `python3 -c "import re, glob; ..."` (see SKILL.md) before `git push`.
+
+---
 ## 2026-04-29 — prtimes: 川越台湾フェア and all non-Tokyo events missed (3 bugs)
 
 **Trigger:** User reported https://prtimes.jp/main/html/rd/p/000000015.000127081.html (丸広百貨店川越店「台湾フェア」) not captured.

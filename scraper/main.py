@@ -77,6 +77,22 @@ from sources.uplink_cinema import UplinkCinemaScraper
 from sources.livepocket import LivepocketScraper
 from sources.prtimes import PrtimesScraper
 from sources.fukuoka_now import FukuokaNowScraper
+from sources.maruhiro import MaruhiroScraper
+from sources.eurospace import EurospaceScraper
+from sources.tokyoartbeat import TokyoArtBeatScraper
+from sources.hankyu_umeda import HankyuUmedaScraper
+from sources.daimaru_matsuzakaya import DaimaruMatsuzakayaScraper
+from sources.cinemarine import CineMarineScraper
+from sources.eslite_spectrum import EsliteSpectrumScraper
+from sources.moonromantic import MoonRomanticScraper
+from sources.morc_asagaya import MorcAsagayaScraper
+from sources.shin_bungeiza import ShinBungeizaScraper
+from sources.ssff import SsffScraper
+from sources.taiwan_faasai import TaiwanFaasaiScraper
+from sources.tokyo_filmex import TokyoFilmexScraper
+from sources.google_news_rss import GoogleNewsRssScraper
+from sources.nhk_rss import NhkRssScraper
+from sources.gguide_tv import GguideTvScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -136,6 +152,22 @@ SCRAPERS = [
     LivepocketScraper(),
     FukuokaNowScraper(),
     PrtimesScraper(),
+    MaruhiroScraper(),
+    EurospaceScraper(),
+    TokyoArtBeatScraper(),
+    HankyuUmedaScraper(),
+    DaimaruMatsuzakayaScraper(),
+    CineMarineScraper(),
+    EsliteSpectrumScraper(),
+    MoonRomanticScraper(),
+    MorcAsagayaScraper(),
+    ShinBungeizaScraper(),
+    SsffScraper(),
+    TaiwanFaasaiScraper(),
+    TokyoFilmexScraper(),
+    GoogleNewsRssScraper(),
+    NhkRssScraper(),
+    GguideTvScraper(),
 ]
 
 

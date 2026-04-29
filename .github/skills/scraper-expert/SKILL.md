@@ -266,3 +266,10 @@ Run after discovering a new cross-source duplicate that the merger missed. Then 
 cd scraper && python main.py --dry-run --source <source_name> 2>&1 | head -80
 ```
 Confirm: `start_date` populated, no unhandled exceptions, events count is non-zero (or zero for an expected reason).
+
+## maruhiro-specific
+- **All data on list page**: Detail pages contain only a JPEG image. Never fetch detail pages — title, date, floor, and store name are all in `p.card-text` on the list page.
+- **`start_date` must be `datetime.datetime`, NOT `datetime.date`**: `dedup_events` calls `.date()` on `start_date`. Passing a bare `date` object raises `AttributeError: 'datetime.date' object has no attribute 'date'`.
+- **Taiwan events are seasonal**: Primarily Golden Week (Apr–May). 0-event dry-runs outside this period are normal.
+- **source_id**: `maruhiro_{event_id}` from `data-url="/events/view/{id}"` — integer, stable across runs.
+- **Store address**: Resolved from `開催店舗: {name}` in `p.card-text` via static `_STORE_ADDRESS` dict. All stores are in Saitama Prefecture.
