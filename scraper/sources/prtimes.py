@@ -103,11 +103,14 @@ _VENUE_LABELS = re.compile(
     re.MULTILINE,
 )
 
-# Titles that indicate the event is held IN Taiwan (not Japan) — skip these
+# Titles that indicate the event is held IN Taiwan (not Japan) — skip these.
+# NOTE: Pattern must NOT match Japan-held Taiwan fairs like「台湾フェア」で.
+# Only match when "台湾" is followed by で/にて/開催 AND preceded by place context,
+# or explicit Taiwan-city routing, or Taiwan-market keywords.
 _TAIWAN_BASED_TITLE_RE = re.compile(
-    r"台湾.*?(?:で|にて|開催)(?:$|\s|。|、|！)|"
-    r"(?:in 台湾|in Taiwan|in 台中|in 台北|in 高雄)|"
-    r"台湾(?:出展|輸出|進出|販路|海外展示|海外販売)"
+    r"(?:台湾(?:国内|現地|本島|の地).*?(?:で|にて|開催))|"  # 台湾国内で開催 (explicit context)
+    r"(?:(?:in |IN )(?:台湾|Taiwan|台中|台北|高雄))|"        # in 台湾 / in Taiwan
+    r"台湾(?:出展|輸出|進出|販路|海外展示|海外販売)"          # business/export context
 )
 
 # City/venue keywords that indicate the event is in Taiwan
