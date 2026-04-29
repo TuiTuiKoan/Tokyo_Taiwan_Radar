@@ -71,7 +71,6 @@ from sources.yebizo import YebizoScraper
 from sources.cineswitch_ginza import CineswitchGinzaScraper
 from sources.human_trust_cinema import HumanTrustCinemaScraper
 from sources.faam_fukuoka import FaamFukuokaScraper
-from sources.note_creators import NoteCreatorsScraper
 from sources.zinbun_kyoto import ZinbunKyotoScraper
 from sources.uplink_cinema import UplinkCinemaScraper
 from sources.livepocket import LivepocketScraper
@@ -90,8 +89,6 @@ from sources.shin_bungeiza import ShinBungeizaScraper
 from sources.ssff import SsffScraper
 from sources.taiwan_faasai import TaiwanFaasaiScraper
 from sources.tokyo_filmex import TokyoFilmexScraper
-from sources.google_news_rss import GoogleNewsRssScraper
-from sources.nhk_rss import NhkRssScraper
 from sources.gguide_tv import GguideTvScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
@@ -146,7 +143,6 @@ SCRAPERS = [
     CineswitchGinzaScraper(),
     HumanTrustCinemaScraper(),
     FaamFukuokaScraper(),
-    NoteCreatorsScraper(),
     ZinbunKyotoScraper(),
     UplinkCinemaScraper(),
     LivepocketScraper(),
@@ -165,8 +161,6 @@ SCRAPERS = [
     SsffScraper(),
     TaiwanFaasaiScraper(),
     TokyoFilmexScraper(),
-    GoogleNewsRssScraper(),
-    NhkRssScraper(),
     GguideTvScraper(),
 ]
 
