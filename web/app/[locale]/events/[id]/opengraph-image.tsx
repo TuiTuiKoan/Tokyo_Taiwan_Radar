@@ -16,8 +16,24 @@ const CATEGORY_EMOJI: Record<string, string> = {
   academic: "📚",
   books_media: "📖",
   taiwan_japan: "🤝",
-  music: "🎵",
   exhibition: "🖼️",
+  drama: "📺",
+  retail: "🛍️",
+  nature: "🌿",
+  tech: "💻",
+  tourism: "✈️",
+  gender: "🏳️‍🌈",
+  geopolitics: "🌏",
+  competition: "🏆",
+  workshop: "🛠️",
+  literature: "✍️",
+  indigenous: "🌺",
+  history: "🏛️",
+  urban: "🏙️",
+  business: "💼",
+  taiwan_mandarin: "🗣️",
+  tv_program: "📺",
+  report: "📰",
 };
 
 function getCategoryEmoji(categories: string[]): string {
@@ -36,26 +52,36 @@ function formatDate(dateStr: string | null, locale: string): string {
   });
 }
 
+async function loadFont(text: string, locale: string): Promise<ArrayBuffer | null> {
+  // Use Google Fonts text API to load only needed characters (bold subset)
+  const family = locale === "ja"
+    ? "Noto+Sans+JP:wght@700"
+    : "Noto+Sans+TC:wght@700";
+  const url = `https://fonts.googleapis.com/css2?family=${family}&text=${encodeURIComponent(text)}&display=swap`;
+
+  try {
+    const css = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      next: { revalidate: 86400 },
+    }).then((r) => r.text());
+
+    // Extract woff2 src URL from CSS
+    const match = css.match(/src: url\((https:\/\/fonts\.gstatic\.com[^)]+\.woff2)\)/);
+    if (!match) return null;
+
+    const fontRes = await fetch(match[1], { next: { revalidate: 86400 } });
+    return fontRes.ok ? fontRes.arrayBuffer() : null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function Image({
   params,
 }: {
   params: { locale: Locale; id: string };
 }) {
   const { locale, id } = params;
-
-  // --- Load CJK font (Noto Sans JP subset) for Chinese/Japanese rendering ---
-  // Fetch only the characters needed to avoid large payloads.
-  // Falls back gracefully if unavailable (characters may render as boxes).
-  let fontData: ArrayBuffer | null = null;
-  try {
-    const res = await fetch(
-      "https://fonts.gstatic.com/s/notosansjp/v53/-F6jfjtqLzI2JPCgQBnw7HFyzSD-AsregP8VFBEi75vY0rw-oME.woff2",
-      { next: { revalidate: 86400 } }
-    );
-    if (res.ok) fontData = await res.arrayBuffer();
-  } catch {
-    // font load failure is non-fatal
-  }
 
   // --- Fetch event data ---
   const supabase = createClient(
@@ -76,8 +102,13 @@ export default async function Image({
     ? (event?.location_name_zh ?? event?.location_name ?? "")
     : (event?.location_name ?? "");
 
-  const truncatedName = name.length > 40 ? name.slice(0, 38) + "…" : name;
-  const fontSize = name.length > 25 ? 52 : 68;
+  const truncatedName = name.length > 36 ? name.slice(0, 34) + "…" : name;
+  const fontSize = name.length > 22 ? 54 : 72;
+
+  // --- Load bold CJK font subset for the actual text ---
+  const textToLoad = truncatedName + (dateStr ?? "") + (location ?? "") + "Tokyo Taiwan Radar";
+  const fontData = await loadFont(textToLoad, locale);
+  const fontName = locale === "ja" ? "NotoSansJP" : "NotoSansTC";
 
   return new ImageResponse(
     (
@@ -90,7 +121,7 @@ export default async function Image({
           background: "linear-gradient(145deg, #f0fdf4 0%, #e8f5e9 60%, #dcfce7 100%)",
           padding: "56px 64px",
           justifyContent: "space-between",
-          fontFamily: fontData ? "NotoSansJP" : "sans-serif",
+          fontFamily: fontData ? fontName : "sans-serif",
         }}
       >
         {/* Top bar — branding */}
@@ -135,7 +166,7 @@ export default async function Image({
         >
           <div
             style={{
-              fontSize: "72px",
+              fontSize: "80px",
               lineHeight: 1,
               flexShrink: 0,
               marginTop: "4px",
@@ -203,7 +234,7 @@ export default async function Image({
     {
       ...size,
       fonts: fontData
-        ? [{ name: "NotoSansJP", data: fontData, weight: 700, style: "normal" }]
+        ? [{ name: fontName, data: fontData, weight: 700, style: "normal" }]
         : [],
     }
   );
