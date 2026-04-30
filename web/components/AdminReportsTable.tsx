@@ -108,24 +108,40 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [correctCategory, setCorrectCategory] = useState<Record<string, string[]>>({});
   const [fieldEdits, setFieldEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});;
   const [selectionReasonEdits, setSelectionReasonEdits] = useState<Record<string, Record<string, string>>>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkConfirming, setBulkConfirming] = useState(false);
 
-  // Realtime: subscribe to new event_reports inserts
+  // Realtime: subscribe to new inserts AND status updates on event_reports
+  // NOTE: Requires `ALTER PUBLICATION supabase_realtime ADD TABLE event_reports`
+  // (migration 028_realtime_event_reports.sql) to be applied first.
   useEffect(() => {
+    const SELECT_CLAUSE = "*, events(name_ja, name_zh, name_en, source_url, source_name, category, start_date, end_date, location_name, location_name_zh, location_name_en, location_address, location_address_zh, location_address_en, business_hours, business_hours_zh, business_hours_en, is_paid, price_info, description_ja, description_zh, description_en, selection_reason)";
+
+    async function fetchRow(id: string): Promise<ReportRow | null> {
+      const { data } = await supabase
+        .from("event_reports")
+        .select(SELECT_CLAUSE)
+        .eq("id", id)
+        .single();
+      return data as ReportRow | null;
+    }
+
     const channel = supabase
       .channel("admin-reports-live")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "event_reports" },
         async (payload) => {
-          // Fetch the full row including the joined events data
-          const { data } = await supabase
-            .from("event_reports")
-            .select("*, events(name_ja, name_zh, name_en, source_url, source_name, category, start_date, end_date, location_name, location_name_zh, location_name_en, location_address, location_address_zh, location_address_en, business_hours, business_hours_zh, business_hours_en, is_paid, price_info, description_ja, description_zh, description_en, selection_reason)")
-            .eq("id", payload.new.id)
-            .single();
-          if (data) {
-            setReports((prev) => [data as ReportRow, ...prev]);
-          }
+          const row = await fetchRow(payload.new.id);
+          if (row) setReports((prev) => [row, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "event_reports" },
+        async (payload) => {
+          const row = await fetchRow(payload.new.id);
+          if (row) setReports((prev) => prev.map((r) => (r.id === row.id ? row : r)));
         }
       )
       .subscribe();
@@ -246,6 +262,15 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
     setSaving(null);
   }
 
+  async function handleBulkConfirm(rows: ReportRow[]) {
+    setBulkConfirming(true);
+    for (const row of rows) {
+      await handleConfirm(row);
+    }
+    setSelectedIds(new Set());
+    setBulkConfirming(false);
+  }
+
   const STATUS_LABELS: Record<string, string> = {
     pending: t("statusPending"),
     confirmed: t("statusConfirmed"),
@@ -262,12 +287,34 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   function renderRow(row: ReportRow) {
     const isExpanded = expandedId === row.id;
     const statusClass = STATUS_CLASSES[row.status] ?? "bg-gray-100 text-gray-500";
+    const isPending = row.status === "pending";
     return (
       <div key={row.id} className="bg-white">
-        <button
-          className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition"
-          onClick={() => setExpandedId(isExpanded ? null : row.id)}
-        >
+        <div className="flex items-stretch">
+          {isPending && (
+            <label
+              className="flex items-center px-3 cursor-pointer border-r border-gray-100 shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                checked={selectedIds.has(row.id)}
+                onChange={(e) => {
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    if (e.target.checked) next.add(row.id);
+                    else next.delete(row.id);
+                    return next;
+                  });
+                }}
+                className="w-4 h-4 accent-green-600 cursor-pointer"
+              />
+            </label>
+          )}
+          <button
+            className="flex-1 text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition"
+            onClick={() => setExpandedId(isExpanded ? null : row.id)}
+          >
           <span
             className={`mt-0.5 text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusClass}`}
           >
@@ -277,10 +324,11 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
             <p className="text-sm font-medium text-gray-800 truncate">{getEventName(row)}</p>
             <p className="text-xs text-gray-500 mt-0.5">{formatTypes(row.report_types)}</p>
           </div>
-          <span className="text-xs text-gray-400 flex-shrink-0 mt-0.5">
+            <span className="text-xs text-gray-400 flex-shrink-0 mt-0.5">
             {new Date(row.created_at).toLocaleDateString("ja-JP")}
           </span>
-        </button>
+          </button>
+        </div>
 
         {isExpanded && (
           <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100 space-y-3">
@@ -582,9 +630,40 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
     <div className="space-y-6">
       {pending.length > 0 && (
         <section>
-          <h2 className="text-sm font-medium text-gray-500 mb-2">
-            {t("statusPending")} ({pending.length})
-          </h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-medium text-gray-500">
+              {t("statusPending")} ({pending.length})
+            </h2>
+            <div className="flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds(new Set())}
+                    className="text-xs text-gray-400 hover:text-gray-600 underline"
+                  >
+                    取消選取
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkConfirm(pending.filter((r) => selectedIds.has(r.id)))}
+                    disabled={bulkConfirming}
+                    className="text-xs border border-green-500 text-green-600 bg-white rounded-lg px-3 py-1.5 hover:bg-green-600 hover:text-white disabled:opacity-40 transition font-medium"
+                  >
+                    {bulkConfirming ? "…" : `通過已選取 (${selectedIds.size})`}
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => handleBulkConfirm(pending)}
+                disabled={bulkConfirming || pending.length === 0}
+                className="text-xs border border-green-500 text-green-600 bg-white rounded-lg px-3 py-1.5 hover:bg-green-600 hover:text-white disabled:opacity-40 transition font-medium"
+              >
+                {bulkConfirming ? "…" : `全部通過 (${pending.length})`}
+              </button>
+            </div>
+          </div>
           <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
             {pending.map(renderRow)}
           </div>

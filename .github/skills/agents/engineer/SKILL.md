@@ -78,7 +78,7 @@ css.match(/src: url\(https:\/\//);
 css.match(/src:\s*url\(https:\/\//);
 ```
 
-## Bulk Action Pattern (AdminEventTable)
+## Bulk Action Pattern (AdminEventTable / AdminReportsTable)
 
 When adding a new bulk operation that operates on a **derived value from selected events** (e.g. common categories, common source, common status):
 1. Compute the derived value with `useMemo([selected, events])` — never inline in render
@@ -87,6 +87,42 @@ When adding a new bulk operation that operates on a **derived value from selecte
 4. Apply optimistic local state update in `setEvents()` after `Promise.all` resolves
 5. Only show the derived-value UI when the derived value is non-empty (conditional render in bulk bar)
 6. Add i18n keys to all 3 message files using the Python json-module pattern
+
+**Exception — sequential loop required when sub-handler has internal `setState`:**
+If the bulk handler calls an existing `handleXxx` that internally calls `setSaving` (or any React state setter), use `await for` loop instead of `Promise.all`. Parallel calls will cause state races.
+
+```ts
+// ✅ sequential — safe when handleConfirm calls setSaving internally
+for (const id of selectedIds) {
+  await handleConfirm(id);
+}
+
+// ❌ parallel — causes setSaving race if handleConfirm has internal state updates
+await Promise.all([...selectedIds].map(id => handleConfirm(id)));
+```
+
+### Checkbox in list rows — wrapper element rule
+
+When a list row is currently a `<button>` and you need to add a checkbox:
+- **DO NOT** put the checkbox inside the `<button>` — violates HTML spec (interactive element inside button)
+- **Refactor wrapper**: `<button className="w-full ...">` → `<div className="flex items-stretch"> + <label> checkbox </label> + <button className="flex-1 ...">`
+- On the checkbox label, add `onClick={(e) => e.stopPropagation()}` to prevent bubble triggering row expand/collapse
+
+```tsx
+// ✅ correct structure
+<div className="flex items-stretch">
+  <label onClick={(e) => e.stopPropagation()} className="flex items-center px-2 cursor-pointer">
+    <input type="checkbox" checked={...} onChange={...} />
+  </label>
+  <button className="flex-1 text-left ..." onClick={handleExpand}>
+    {/* row content */}
+  </button>
+</div>
+```
+
+### Bulk action bar placement
+
+Place bulk action bar in the **section header** (flex justify-between), not a bottom footer bar — more intuitive for list sections with variable item counts.
 
 ## i18n JSON File Editing — Unicode Safety Rule
 

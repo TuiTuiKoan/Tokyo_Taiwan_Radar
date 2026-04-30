@@ -3,6 +3,21 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-30 — AdminReportsTable 多選批量確認功能
+
+**新功能**：待審核列表支援多選批量通過操作。`selectedIds: Set<string>` + `bulkConfirming: boolean` state；`handleBulkConfirm` 以 sequential `await for` loop 逐筆呼叫現有 `handleConfirm`，完成後清空 `selectedIds`。Section header 加 bulk action bar（flex justify-between），有勾選時顯示「通過已選取 (n)」和「取消選取」按鈕。
+
+**關鍵技術決策**：
+- `handleBulkConfirm` 用 sequential loop（不是 `Promise.all`），因為 `handleConfirm` 內部有 `setSaving` state 更新，parallel 會造成 state race。
+- checkbox label 用 `onClick={(e) => e.stopPropagation()}` 防止冒泡觸發行展開/收合。
+- 原本 `<button className="w-full ...">` 必須重構成 `<div className="flex items-stretch"> + checkbox label + <button className="flex-1 ...">`，因為 checkbox 不可作為 button 的子元素（違反 HTML 規範）。
+
+**教訓**：
+1. 在列表行加入 checkbox 時，若整行原本是 `<button>`，必須拆成外層 `<div>` + checkbox label + `<button flex-1>`；不能把 checkbox 放在 button 內。
+2. 批量操作按鈕建議放在 section header 右側（flex justify-between），比底部 footer bar 更直覺。
+3. 若 bulk handler 呼叫的子函數內部有 `setSaving` state 更新，必須用 sequential loop，不可用 `Promise.all`。
+
+---
 ## 2026-04-30 — AEO 優化（Phase A + B）：proxy.ts 靜態文件排除規則
 
 **錯誤**：新增 `web/public/llms.txt` 後，`/robots.txt`、`/sitemap.xml`、`/llms.txt` 請求被 i18n middleware 307 重導向至 `/zh/robots.txt` 等路徑，回傳 404。
