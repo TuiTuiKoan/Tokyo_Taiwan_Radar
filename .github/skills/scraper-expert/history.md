@@ -2,6 +2,15 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-30 — 私人租借 [moonromantic] — user report confirmed
+**Report types:** irrelevant
+**Admin notes:** —
+**Action:** Event hidden (is_active=false). Irrelevant content.
+---
+
+---
+
+
 ## 2026-04-30 — 橫濱市中高生管樂團電影音樂節 [prtimes] — user report confirmed
 **Report types:** irrelevant
 **Admin notes:** —
