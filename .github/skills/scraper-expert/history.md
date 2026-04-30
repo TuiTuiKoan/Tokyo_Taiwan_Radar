@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-30 — 精巡（しょうじん）料理～巡迴、調整。台灣藥膳健康講座～ [prtimes] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** lifestyle_food, taiwan_japan, lecture
+**After (corrected):** senses, lifestyle_food, lecture
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-30 — 私人租借 [moonromantic] — user report confirmed
 **Report types:** irrelevant
 **Admin notes:** —
