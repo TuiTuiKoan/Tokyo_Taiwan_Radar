@@ -139,11 +139,11 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
   },
   {
     labelKey: "group_lifestyle",
-    categories: ["lifestyle_food", "retail", "tourism"],
+    categories: ["lifestyle_food", "retail", "tourism", "competition", "workshop"],
   },
   {
     labelKey: "group_knowledge",
-    categories: ["business", "academic", "lecture", "competition", "taiwan_japan", "books_media", "workshop", "tv_program", "exhibition"],
+    categories: ["business", "academic", "lecture", "taiwan_japan", "books_media", "tv_program", "exhibition"],
   },
   {
     labelKey: "group_society",
