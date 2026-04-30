@@ -1,18 +1,24 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Tokyo Taiwan Radar",
-  description: "東京の台湾関連イベントを集めたプラットフォーム",
+  title: {
+    template: "%s | Tokyo Taiwan Radar",
+    default: "Tokyo Taiwan Radar",
+  },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const headersList = await headers();
+  const locale = headersList.get("x-locale") ?? "zh";
+
   return (
-    <html suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

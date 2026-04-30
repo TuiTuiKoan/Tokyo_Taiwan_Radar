@@ -130,8 +130,34 @@ export default async function EventDetailPage({ params }: PageProps) {
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
 
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: name ?? event.name_ja ?? undefined,
+    startDate: event.start_date ?? undefined,
+    endDate: event.end_date ?? undefined,
+    description: description ?? undefined,
+    url: `${base}/${locale}/events/${id}`,
+    ...(locationName
+      ? {
+          location: {
+            "@type": "Place",
+            name: locationName,
+            ...(locationAddress ? { address: locationAddress } : {}),
+          },
+        }
+      : {}),
+    organizer: { "@type": "Organization", name: "Tokyo Taiwan Radar" },
+    ...(event.is_paid === false ? { isAccessibleForFree: true } : {}),
+  };
+
   return (
     <article className="max-w-3xl mx-auto">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <ViewTracker eventId={id} locale={locale} />
       {/* Back to parent event */}
       {parentEvent && (
