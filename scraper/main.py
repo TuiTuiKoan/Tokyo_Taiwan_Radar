@@ -97,6 +97,7 @@ from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
 from merger import run_merger
+from indexnow import submit_urls as _indexnow_submit, event_urls as _indexnow_event_urls
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -200,6 +201,7 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
 
     all_events = []
     rescrape_force_keys: set[tuple[str, str]] = set()
+    all_new_event_ids: list[str] = []  # UUIDs of newly-inserted events (for IndexNow)
     if rescrape_ids:
         # Build (source_name, source_id) tuples from CLI-supplied source_ids.
         # Each ID is the full source_id value (e.g. "peatix_8134728").
@@ -230,7 +232,8 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
             all_events.extend(events)
 
             if not dry_run:
-                upsert_events(events, force_keys=rescrape_force_keys)
+                new_ids = upsert_events(events, force_keys=rescrape_force_keys)
+                all_new_event_ids.extend(new_ids)
                 try:
                     _get_client().table("scraper_runs").insert({
                         "source": source_key,
@@ -280,6 +283,15 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
     # Auto-archive events whose end_date has passed
     logger.info("Archiving ended events...")
     archive_ended_events()
+
+    # Submit newly-inserted event URLs to IndexNow (Bing relay → ChatGPT Search)
+    if all_new_event_ids:
+        logger.info("IndexNow: submitting %d new event URL(s)...", len(all_new_event_ids))
+        try:
+            urls = _indexnow_event_urls(all_new_event_ids)
+            _indexnow_submit(urls)
+        except Exception as exc:
+            logger.warning("IndexNow submission error (non-fatal): %s", exc)
 
     logger.info("Done!")
 

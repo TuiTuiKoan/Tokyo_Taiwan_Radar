@@ -139,7 +139,7 @@ def find_parent_event_id(name_ja: str | None, source_name: str) -> str | None:
     return None
 
 
-def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None = None) -> None:
+def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None = None) -> list[str]:
     """
     Insert or update events in the database.
     Uses (source_name, source_id) as the unique conflict key.
@@ -155,9 +155,13 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
     force_keys: optional set of (source_name, source_id) tuples that the caller
                 (e.g. --rescrape-ids CLI flag) wants to force-overwrite this run,
                 in addition to events with force_rescrape=true in the DB.
+
+    Returns:
+        List of UUIDs for newly-inserted events (not force-updates, not skipped).
+        Used by callers to submit fresh URLs to IndexNow.
     """
     if not events:
-        return
+        return []
 
     client = _get_client()
     force_keys = force_keys or set()
@@ -239,11 +243,18 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
 
     all_rows = new_rows + force_rows
     if not all_rows:
-        return
+        return []
 
+    new_event_ids: list[str] = []
     try:
-        client.table("events").upsert(all_rows, on_conflict="source_name,source_id").execute()
+        resp = client.table("events").upsert(all_rows, on_conflict="source_name,source_id").execute()
         logger.info("Upserted %d events to Supabase.", len(all_rows))
+        # Collect IDs of newly-inserted events only (not force-updates)
+        # Supabase returns the upserted rows — match source_id against new_rows
+        new_source_ids = {r["source_id"] for r in new_rows}
+        for row in (resp.data or []):
+            if row.get("source_id") in new_source_ids and row.get("id"):
+                new_event_ids.append(row["id"])
     except Exception as exc:
         logger.error("Failed to upsert events: %s", exc)
         raise
@@ -264,6 +275,8 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
             )
         except Exception as exc:
             logger.warning("Could not reset force_rescrape flag: %s", exc)
+
+    return new_event_ids
 
 
 def archive_ended_events(dry_run: bool = False) -> int:

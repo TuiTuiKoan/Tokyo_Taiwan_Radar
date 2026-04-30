@@ -42,6 +42,8 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           CONNPASS_API_KEY: ${{ secrets.CONNPASS_API_KEY }}
           DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
         run: python main.py
 
       - name: Run merger (cross-source deduplication)

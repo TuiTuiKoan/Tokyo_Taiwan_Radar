@@ -182,6 +182,6 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
 export const config = {
   matcher: [
     // Apply to all paths except /auth/*, static files, api routes, and next internals
-    "/((?!api|auth|_next/static|_next/image|favicon.ico|robots\\.txt|sitemap\\.xml|llms\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api|auth|_next/static|_next/image|favicon.ico|robots\\.txt|sitemap\\.xml|llms\\.txt|.*[0-9a-f]{32,}\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
