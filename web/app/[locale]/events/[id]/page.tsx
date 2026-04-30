@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale, type Event, getEventName, getEventDescription, getEventLocationName, getEventLocationAddress, getEventBusinessHours } from "@/lib/types";
@@ -7,10 +7,10 @@ import SaveButton from "@/components/SaveButton";
 import RawDataSection from "@/components/RawDataSection";
 import ReportSection from "@/components/ReportSection";
 import ViewTracker from "@/components/ViewTracker";
-import IsActiveToggle from "@/components/IsActiveToggle";
+import AdminEventActions from "@/components/AdminEventActions";
 import Link from "next/link";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 interface PageProps {
   params: Promise<{ locale: Locale; id: string }>;
@@ -20,7 +20,10 @@ const LOCALES = ["zh", "en", "ja"] as const;
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { locale, id } = await params;
-  const supabase = await createClient();
+  const supabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
   const { data: event } = await supabase
     .from("events")
     .select("name_ja, name_zh, name_en, description_ja, description_zh, description_en, updated_at, start_date")
@@ -72,34 +75,19 @@ export default async function EventDetailPage({ params }: PageProps) {
   const t = await getTranslations("event");
   const tCat = await getTranslations("categories");
 
-  const supabase = await createClient();
+  const supabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 
   const { data: event } = await supabase
     .from("events")
     .select("*")
     .eq("id", id)
+    .eq("is_active", true)
     .single();
 
   if (!event) {
-    notFound();
-  }
-
-  const { data: { user } } = await supabase.auth.getUser();
-
-  // Check if the current user has saved this event
-  let isSaved = false;
-  let isAdmin = false;
-  if (user) {
-    const [savedResult, roleResult] = await Promise.all([
-      supabase.from("saved_events").select("id").eq("user_id", user.id).eq("event_id", id).single(),
-      supabase.from("user_roles").select("role").eq("user_id", user.id).single(),
-    ]);
-    isSaved = !!savedResult.data;
-    isAdmin = roleResult.data?.role === "admin";
-  }
-
-  // Inactive events are hidden from the public — admins can still view them
-  if (!event.is_active && !isAdmin) {
     notFound();
   }
 
@@ -173,26 +161,13 @@ export default async function EventDetailPage({ params }: PageProps) {
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="flex items-center gap-2 min-w-0">
           <h1 className="text-2xl font-bold text-gray-900 leading-snug">{name}</h1>
-          {isAdmin && (
-            <>
-              <Link
-                href={`/${locale}/admin/${event.id}`}
-                className="shrink-0 text-xs text-gray-400 hover:text-green-700 border border-gray-200 hover:border-green-400 rounded px-1.5 py-0.5 transition"
-                title={t("editEvent")}
-              >
-                ✎
-              </Link>
-              <IsActiveToggle eventId={event.id} initialIsActive={event.is_active} />
-            </>
-          )}
+          <AdminEventActions eventId={event.id} locale={locale} initialIsActive={event.is_active} />
         </div>
-        {user && (
-          <SaveButton
-            eventId={event.id}
-            initialSaved={isSaved}
-            locale={locale}
-          />
-        )}
+        <SaveButton
+          eventId={event.id}
+          initialSaved={false}
+          locale={locale}
+        />
       </div>
 
       {/* ===== Summary Card ===== */}

@@ -1,4 +1,34 @@
 ---
+## 2026-04-30: SEO P3 — ISR（Incremental Static Regeneration）事件詳情頁
+
+### 問題背景
+事件詳情頁每次都 full-render（`force-dynamic`），無法被 CDN 快取，造成不必要的 SSR 負擔。目標：換用 ISR（`revalidate = 3600`）讓 Vercel Edge 快取靜態 HTML。
+
+### 根本原因與修復
+
+**ISR 頁面不能使用 `cookies()` 或 `createServerClient`：**
+只要呼叫 `cookies()`（即使只是判斷 admin 狀態），Next.js 就強制 dynamic，`revalidate` 完全失效。
+
+**修復：**
+1. 移除 `export const dynamic = "force-dynamic"`，改為 `export const revalidate = 3600`
+2. 換用 plain `createClient(URL, ANON_KEY)`（`@supabase/supabase-js` 直接建立），不使用 `createServerClient`
+3. 主查詢加 `.eq("is_active", true)` 取代 server-side inactive 判斷
+4. 移除所有 server-side `user`/`isSaved`/`isAdmin` 邏輯
+
+**Auth-dependent UI 移至 client components：**
+- 新增 `AdminEventActions.tsx`（`"use client"`）：mount 後查 `user_roles` 確認 admin，才渲染編輯連結 + IsActiveToggle
+- `SaveButton.tsx` 新增 `useEffect`：mount 後自行查詢收藏狀態（`initialSaved={false}` 固定傳入）
+
+**inactive 事件保護方式改變：**
+改用 `.eq("is_active", true)` 查詢取代 server-side `if (!event.is_active && !isAdmin) notFound()`。管理員查看 inactive 事件的需求需另行設計（例如 admin panel 直連 URL）。
+
+### 教訓
+- ISR 頁面的所有 Supabase 查詢（包括 `generateMetadata`）必須用 plain client — 任何 `cookies()` 呼叫都會強制 dynamic
+- Auth-dependent UI（`isAdmin`、`isSaved`、`user`）必須移至 client component 的 `useEffect`，不能在 ISR server component 裡做
+- ISR + `SaveButton`：server 傳 `initialSaved={false}` 固定值，saved 狀態在 client mount 後即時查詢
+- inactive 事件的「管理員可見」邏輯與 ISR 相衝突：ISR 用 query filter 取代 server-side guard
+
+---
 ## 2026-04-30: SEO P2 — JSON-LD schema、x-locale header、proxy.ts 衝突修復
 
 ### 問題背景

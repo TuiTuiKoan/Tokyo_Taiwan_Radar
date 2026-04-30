@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import type { Locale } from "@/lib/types";
@@ -16,6 +16,23 @@ export default function SaveButton({ eventId, initialSaved, locale }: Props) {
   const [saved, setSaved] = useState(initialSaved);
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
+
+  // Self-initialize saved state on mount (page may be served from ISR cache)
+  useEffect(() => {
+    async function loadSaved() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("saved_events")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("event_id", eventId)
+        .single();
+      setSaved(!!data);
+    }
+    loadSaved();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
 
   async function toggle() {
     setLoading(true);

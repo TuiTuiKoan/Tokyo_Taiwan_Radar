@@ -217,7 +217,53 @@ export const metadata: Metadata = {
 }
 ```
 
-## Bulk Action Pattern (AdminEventTable)
+### ISR（Incremental Static Regeneration）頁面規則
+
+事件詳情頁使用 ISR（`export const revalidate = 3600`）快取靜態 HTML。**任何破壞 ISR 的模式都會讓快取失效，退化為 full SSR。**
+
+#### ISR 頁面的 Supabase client
+
+```ts
+// CORRECT — ISR server component（包括 generateMetadata）
+import { createClient } from "@supabase/supabase-js"
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+// WRONG — 任何呼叫 cookies() 的 client 都強制 dynamic，revalidate 失效
+import { createClient } from "@/lib/supabase/server"
+```
+
+#### Auth-dependent UI 必須移至 client component
+
+ISR server component 不知道「目前使用者是誰」——所有 auth 相關判斷（`isAdmin`、`isSaved`、`user`）必須在 client component 的 `useEffect` 裡查詢：
+
+| 功能 | 舊做法（破壞 ISR） | 正確做法 |
+|------|--------------------|----------|
+| Admin 編輯按鈕 | server-side `isAdmin` | `AdminEventActions.tsx`（client）mount 後查 `user_roles` |
+| 收藏按鈕狀態 | server-side `isSaved` | `SaveButton` 傳 `initialSaved={false}`，mount 後 `useEffect` 自取 |
+
+#### inactive 事件查詢
+
+ISR 頁面改用 `.eq("is_active", true)` 查詢過濾 inactive 事件，取代 server-side `if (!event.is_active && !isAdmin) notFound()`：
+
+```ts
+// CORRECT — ISR 頁面
+const { data: event } = await supabase
+  .from("events")
+  .select("*")
+  .eq("id", id)
+  .eq("is_active", true)
+  .single()
+
+// WRONG — 需要 auth context，強制 dynamic
+if (!event.is_active && !isAdmin) notFound()
+```
+
+注意：此方案下管理員也無法透過 ISR 路由查看 inactive 事件（需另設 admin panel 專用路由）。
+
+
 
 When adding a new bulk operation that operates on a **derived value from selected events** (e.g. common categories, common source, common status):
 1. Compute the derived value with `useMemo([selected, events])` — never inline in render
