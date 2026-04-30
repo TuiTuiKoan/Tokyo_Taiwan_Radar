@@ -194,7 +194,7 @@ export default async function Image({
           <div style={{ display: "flex", alignItems: "center" }}>
             <div
               style={{
-                fontSize: "22px",
+                fontSize: "33px",
                 fontWeight: "bold",
                 letterSpacing: "0.5px",
               }}
@@ -244,7 +244,7 @@ export default async function Image({
             style={{
               display: "flex",
               alignItems: "flex-end",
-              gap: "40px",
+              gap: "80px",
               maxWidth: "700px",
               marginTop: "auto",
             }}
@@ -259,7 +259,7 @@ export default async function Image({
               >
                 <span
                   style={{
-                    fontSize: "11px",
+                    fontSize: "16.5px",
                     letterSpacing: "1.5px",
                     color: "white",
                     fontWeight: "bold",
@@ -267,7 +267,7 @@ export default async function Image({
                 >
                   DATE
                 </span>
-                <span style={{ fontSize: "21px", fontWeight: "bold", color: "white" }}>{dateStr}</span>
+                <span style={{ fontSize: "31.5px", fontWeight: "bold", color: "white" }}>{dateStr}</span>
               </div>
             )}
             {location && (
@@ -280,7 +280,7 @@ export default async function Image({
               >
                 <span
                   style={{
-                    fontSize: "11px",
+                    fontSize: "16.5px",
                     letterSpacing: "1.5px",
                     color: "white",
                     fontWeight: "bold",
@@ -288,7 +288,7 @@ export default async function Image({
                 >
                   VENUE
                 </span>
-                <span style={{ fontSize: "21px", fontWeight: "bold", color: "white" }}>{location}</span>
+                <span style={{ fontSize: "31.5px", fontWeight: "bold", color: "white" }}>{location}</span>
               </div>
             )}
           </div>
