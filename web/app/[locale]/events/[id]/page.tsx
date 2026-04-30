@@ -63,7 +63,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       modifiedTime: event.updated_at,
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title: name ?? undefined,
       description: description?.slice(0, 160) ?? undefined,
     },
@@ -132,6 +132,8 @@ export default async function EventDetailPage({ params }: PageProps) {
     endDate: event.end_date ?? undefined,
     description: description ?? undefined,
     url: `${base}/${locale}/events/${id}`,
+    image: `${base}/${locale}/events/${id}/opengraph-image`,
+    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
     ...(locationName
       ? {
           location: {

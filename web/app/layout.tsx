@@ -37,6 +37,12 @@ const websiteJsonLd = {
       "@id": `${BASE}/#organization`,
       name: "Tokyo Taiwan Radar",
       url: BASE,
+      logo: {
+        "@type": "ImageObject",
+        url: `${BASE}/favicon.ico`,
+        width: 32,
+        height: 32,
+      },
       description:
         "日本全国の台湾関連イベントを集めたプラットフォーム — Aggregating Taiwan-related cultural events across Japan",
       sameAs: ["https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar"],
