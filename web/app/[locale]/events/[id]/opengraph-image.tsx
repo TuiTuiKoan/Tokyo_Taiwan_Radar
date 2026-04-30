@@ -53,23 +53,19 @@ function formatDate(dateStr: string | null, locale: string): string {
 }
 
 async function loadFont(text: string, locale: string): Promise<ArrayBuffer | null> {
-  // Use Google Fonts text API to load only needed characters (bold subset)
-  const family = locale === "ja"
-    ? "Noto+Sans+JP:wght@700"
-    : "Noto+Sans+TC:wght@700";
+  const family = locale === "ja" ? "Noto+Sans+JP:wght@700" : "Noto+Sans+TC:wght@700";
   const url = `https://fonts.googleapis.com/css2?family=${family}&text=${encodeURIComponent(text)}&display=swap`;
 
   try {
     const css = await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0" },
-      next: { revalidate: 86400 },
     }).then((r) => r.text());
 
-    // Extract woff2 src URL from CSS
-    const match = css.match(/src: url\((https:\/\/fonts\.gstatic\.com[^)]+\.woff2)\)/);
+    // Extract first woff2 src URL from CSS
+    const match = css.match(/src:\s*url\((https:\/\/fonts\.gstatic\.com[^)]+\.woff2)\)/);
     if (!match) return null;
 
-    const fontRes = await fetch(match[1], { next: { revalidate: 86400 } });
+    const fontRes = await fetch(match[1]);
     return fontRes.ok ? fontRes.arrayBuffer() : null;
   } catch {
     return null;
