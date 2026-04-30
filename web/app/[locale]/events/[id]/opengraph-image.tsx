@@ -75,15 +75,16 @@ async function loadFont(text: string, locale: string): Promise<ArrayBuffer | nul
   }
 }
 
-// Yushan (3952 m) east-west ridge profile — extracted from real elevation data (top5_profiles.npz)
-// Mapped to 1200x630 canvas: baseline y=560, peak y≈415, x range 642-1008 (50% width of canvas)
+// Yushan (3952 m) east-west ridge — extracted from real elevation data (top5_profiles.npz)
+// Algorithm: contiguous segment above 2000m floor, gaussian smooth σ=0.6, cosine-tapered endpoints
+// Mapped to OG canvas (1200x630): baseline y=570, peak y≈424, x range 620-1010
 const YUSHAN_POINTS =
-  "642,560 652,551 661,531 670,499 679,499 688,509 697,518 706,510 " +
-  "715,503 724,476 733,480 742,480 750,495 760,498 768,486 778,465 " +
-  "786,454 796,415 804,415 814,419 822,415 832,415 840,415 850,415 " +
-  "858,424 868,459 876,480 886,461 894,465 904,457 912,416 921,415 " +
-  "930,415 939,425 948,449 957,484 966,493 975,465 984,499 993,524 " +
-  "1002,551 1007,560";
+  "620,570 629,563 638,537 647,528 656,537 665,536 674,545 683,537 " +
+  "693,533 702,512 711,516 720,514 729,527 738,528 747,539 756,509 " +
+  "765,502 774,487 783,454 792,460 801,469 810,436 820,424 829,428 " +
+  "838,450 847,465 856,491 865,514 874,510 883,498 892,506 901,499 " +
+  "910,465 919,444 928,447 937,467 947,484 956,508 965,530 974,520 " +
+  "983,510 992,533 1001,558 1010,570";
 
 export default async function Image({
   params,
