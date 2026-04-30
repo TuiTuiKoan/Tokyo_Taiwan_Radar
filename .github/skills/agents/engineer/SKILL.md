@@ -29,6 +29,7 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`
 - When adding a DB column, wire up the code that populates it in the same commit. Empty columns = silent data gaps.
 - Wrap non-critical DB inserts (logging, analytics) in `try/except`. Never let a failed log write break the main pipeline.
+- **`supabase/migrations/` must contain only `NNN_name.sql` files.** Never place `.md` files, smoke-test scripts, validation reports, or any non-migration artifacts in this directory. Supabase CLI and tooling will attempt to run every `.sql` file in this directory as a migration — a misplaced file will cause schema errors or no-op runs. If a migration agent produces a smoke-test or verification file alongside the SQL, place it anywhere outside `supabase/` (e.g. a temp directory or delete it). Example incident: `027_smoke_test.sql`, `027_VALIDATION.md`, `027_VERIFICATION_REPORT.md` were accidentally created in `migrations/` by a previous agent and had to be manually deleted (commit `chore(migrations): remove non-migration 027 artifacts`).
 - When a logging table gains new `NOT NULL` columns (e.g. `success`, `duration_seconds`), **both** the success path and the `except` block must write those columns explicitly. Pattern from `scraper_runs`:
   ```python
   # success path

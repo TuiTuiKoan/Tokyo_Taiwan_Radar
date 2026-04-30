@@ -3,6 +3,13 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — agent 將非遷移文件誤置 migrations/ 目錄（daily review）
+**新增/修改：**
+- `## Database` 段落新增 `supabase/migrations/` 只能放 `NNN_name.sql` 的明文規定
+- 記錄事故案例：`027_smoke_test.sql`、`027_VALIDATION.md`、`027_VERIFICATION_REPORT.md` 被 agent 誤建於 `migrations/`
+**來源：** daily-skills-review（Step 4 建議）
+
+---
 ## 2026-05-01 — AdminReportsTable Realtime 自動刷新修復
 
 **問題**：報錯審核頁面前端有 `supabase.channel().on("postgres_changes", ...).subscribe()` 訂閱，但 INSERT/UPDATE 事件從未觸發，頁面不會自動刷新。

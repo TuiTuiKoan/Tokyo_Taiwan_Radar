@@ -84,6 +84,12 @@ export default async function AdminReportsPage({ params }: PageProps) {
         >
           {t("creatorsTab")}
         </Link>
+        <Link
+          href={`/${locale}/admin/aeo`}
+          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
+        >
+          {t("aeoTab")}
+        </Link>
       </div>
 
       <AdminReportsTable
