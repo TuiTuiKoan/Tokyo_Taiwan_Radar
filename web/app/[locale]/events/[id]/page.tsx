@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -13,6 +14,50 @@ export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ locale: Locale; id: string }>;
+}
+
+const LOCALES = ["zh", "en", "ja"] as const;
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { locale, id } = await params;
+  const supabase = await createClient();
+  const { data: event } = await supabase
+    .from("events")
+    .select("name_ja, name_zh, name_en, description_ja, description_zh, description_en, updated_at, start_date")
+    .eq("id", id)
+    .single();
+
+  if (!event) return {};
+
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const name = getEventName(event as Event, locale);
+  const description = getEventDescription(event as Event, locale);
+
+  return {
+    title: name ? `${name} | Tokyo Taiwan Radar` : "Tokyo Taiwan Radar",
+    description: description?.slice(0, 160) ?? undefined,
+    alternates: {
+      canonical: `${base}/${locale}/events/${id}`,
+      languages: {
+        ...Object.fromEntries(LOCALES.map((l) => [l, `${base}/${l}/events/${id}`])),
+        "x-default": `${base}/zh/events/${id}`,
+      },
+    },
+    openGraph: {
+      title: name ?? undefined,
+      description: description?.slice(0, 160) ?? undefined,
+      url: `${base}/${locale}/events/${id}`,
+      siteName: "Tokyo Taiwan Radar",
+      type: "article",
+      publishedTime: event.start_date ?? undefined,
+      modifiedTime: event.updated_at,
+    },
+    twitter: {
+      card: "summary",
+      title: name ?? undefined,
+      description: description?.slice(0, 160) ?? undefined,
+    },
+  };
 }
 
 export default async function EventDetailPage({ params }: PageProps) {

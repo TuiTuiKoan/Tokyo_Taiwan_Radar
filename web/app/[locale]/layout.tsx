@@ -8,10 +8,61 @@ import Navbar from "@/components/Navbar";
 import { Analytics } from "@vercel/analytics/react";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = {
-  title: "Tokyo Taiwan Radar",
-  description: "東京の台湾関連イベントを集めたプラットフォーム",
+const SITE_TITLES: Record<string, string> = {
+  zh: "Tokyo Taiwan Radar｜日本台灣活動雷達",
+  en: "Tokyo Taiwan Radar — Taiwan Events in Japan",
+  ja: "Tokyo Taiwan Radar｜日本全国の台湾関連イベント",
 };
+
+const SITE_DESCRIPTIONS: Record<string, string> = {
+  zh: "彙整日本全國的台灣相關文化活動，電影、音樂、展覽、講座一站查詢。",
+  en: "Aggregating Taiwan-related cultural events across Japan — films, concerts, exhibitions, and more.",
+  ja: "東京・大阪・京都など日本全国の台湾関連イベントを集めたプラットフォームです。",
+};
+
+const OG_LOCALES: Record<string, string> = {
+  zh: "zh_TW",
+  en: "en_US",
+  ja: "ja_JP",
+};
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const title = SITE_TITLES[locale] ?? SITE_TITLES.zh;
+  const description = SITE_DESCRIPTIONS[locale] ?? SITE_DESCRIPTIONS.zh;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `${base}/${locale}`,
+      languages: {
+        zh: `${base}/zh`,
+        en: `${base}/en`,
+        ja: `${base}/ja`,
+        "x-default": `${base}/zh`,
+      },
+    },
+    openGraph: {
+      title,
+      description,
+      url: `${base}/${locale}`,
+      siteName: "Tokyo Taiwan Radar",
+      locale: OG_LOCALES[locale] ?? "zh_TW",
+      type: "website",
+    },
+    twitter: {
+      card: "summary",
+      title,
+      description,
+    },
+  };
+}
 
 export function generateStaticParams() {
   return LOCALES.map((locale) => ({ locale }));
