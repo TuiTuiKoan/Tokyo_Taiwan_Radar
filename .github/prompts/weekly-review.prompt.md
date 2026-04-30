@@ -9,8 +9,8 @@ agent: Architect
 
 打開以下三個儀表板，快速掃過異常訊號後再進入 Step 1：
 
-1. `/zh/admin/stats` — 看「Source Status」表中的 30 日成功率（🟢/🟡/🔴）與平均耗時，鎖定本週需要關注的來源。
-2. `/zh/admin/quality` — 4 個資料品質區塊（已審缺翻譯、已過期但仍開放、已標註但無分類、缺地址），任一計數 > 0 則納入下週優先事項。
+1. `/zh/admin/stats` — 看 Source Status 表，鎖定本週需要關注的來源。
+2. 資料品質：在 `/zh/admin` 主表使用「標註狀態 = pending」或」is_active = inactive」過濾檢查是否有累積需處理項目。
 3. 若有 LINE 週報，先看「💰 本月迄今 / OpenAI 本週 / DeepL 本週」三行，超過閾值（OpenAI > $5、DeepL > 100k 字元、月預算 > 80%）需在 Step 4 點名。
 
 ---

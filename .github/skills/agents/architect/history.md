@@ -26,7 +26,21 @@
 - Migration 號碼衝突（如兩個 029_）要在規劃期確認最新 migration 號碼，避免衝突。規劃新 migration 前必查 `ls supabase/migrations/` 確認下一個可用號碼。
 
 ---
-## 2026-05-01 — Tier 1 資源監控強化（SLA + 預算護欄 + 品質 Dashboard）
+## 2026-05-01 — Tier 1 資源監控：保留預算護欄，撤銷 SLA + 品質 Dashboard
+
+**背景：** 原本規劃三層儀表板（SLA、品質、預算），但實際上線後 `/admin/stats` 的 SLA 欄與 `/admin/quality` 全頁被使用者撤回，僅保留 `weekly_report.py` 的預算護欄。
+
+**最終結果：**
+- ✅ 保留：`weekly_report.py` 新增 `MONTHLY_BUDGET_USD = 20.0` 護欄與「本月迄今 / OpenAI 本週 / DeepL 本週」三行。
+- ❌ 撤銷：`/admin/stats` 的「30 日成功率」「平均耗時」兩欄、`/admin/quality` 整頁、相關 i18n keys（statsSlaHeader/AvgDuration/qualityTab/qualityTitle 等 10 個）。
+
+**教訓：**
+- 規劃 admin UI 時，先問清楚「這頁面真的會被點開嗎？」單純的計數 dashboard 若沒導向具體 action（一鍵修正、批次處理）容易淪為視覺裝飾。
+- 預算層信號（單一 LINE 訊息推送）成本低、留存率高；UI 層信號（需主動訪問）容易被忽略。下次規劃監控功能優先做被動推送（LINE / email / issue）而非新頁。
+- 撤銷比新增便宜：留下 plan、commit history、SKILL.md「未來如需…」備註，將來想做時隨時可以重做。
+
+---
+## 2026-05-01 — Tier 1 規劃版本（已部分撤銷，記錄保留）
 
 **背景：** 原本 `/admin/stats` 只顯示最近一次執行狀態、`weekly_report.py` 只看週費用、並無資料品質審核面。長期下來難以推斷「某個來源是偶發失敗還是長期退化」。
 

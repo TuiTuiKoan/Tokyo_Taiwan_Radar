@@ -19,7 +19,6 @@ interface ScraperRun {
   cost_usd: number;
   notes: string | null;
   success?: boolean;
-  duration_seconds?: number;
 }
 
 function fmtUsd(n: number) {
@@ -126,16 +125,6 @@ export default async function AdminStatsPage({ params }: PageProps) {
     }, {} as Record<string, ScraperRun>)
   ).sort((a, b) => a.source.localeCompare(b.source));
 
-  // 30-day SLA per source
-  const slaCutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const slaMap: Record<string, { total: number; success: number; avgSec: number }> = {};
-  for (const r of rows.filter((r) => r.ran_at >= slaCutoff)) {
-    if (!slaMap[r.source]) slaMap[r.source] = { total: 0, success: 0, avgSec: 0 };
-    slaMap[r.source].total++;
-    if (r.success !== false) slaMap[r.source].success++;
-    slaMap[r.source].avgSec += r.duration_seconds ?? 0;
-  }
-
   // ── Analytics: top viewed events (last 30 days) ──────────────────────────
   const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data: topViewsRaw } = await supabase
@@ -229,12 +218,6 @@ export default async function AdminStatsPage({ params }: PageProps) {
           {t("statsTab")}
         </span>
         <Link
-          href={`/${locale}/admin/quality`}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
-        >
-          {t("qualityTab")}
-        </Link>
-        <Link
           href={`/${locale}/admin/research`}
           className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
         >
@@ -305,8 +288,6 @@ export default async function AdminStatsPage({ params }: PageProps) {
                     <th className="text-left py-2 pr-4 font-medium">{t("statsRunAt")}</th>
                     <th className="text-right py-2 pr-4 font-medium">{t("statsEventsProcessed")}</th>
                     <th className="text-right py-2 pr-4 font-medium">{t("statsCostUsd")}</th>
-                    <th className="text-right py-2 pr-4 font-medium">{t("statsSlaHeader")}</th>
-                    <th className="text-right py-2 pr-4 font-medium">{t("statsAvgDuration")}</th>
                     <th className="text-right py-2 font-medium">Status</th>
                   </tr>
                 </thead>
@@ -314,10 +295,6 @@ export default async function AdminStatsPage({ params }: PageProps) {
                   {latestBySource.map((r) => {
                     const failed = r.success === false;
                     const icon = failed ? "❌" : "✅";
-                    const sla = slaMap[r.source];
-                    const rate = sla && sla.total > 0 ? sla.success / sla.total : 1;
-                    const health = rate >= 0.95 ? "🟢" : rate >= 0.80 ? "🟡" : "🔴";
-                    const avgSec = sla && sla.total > 0 ? Math.round(sla.avgSec / sla.total) : 0;
                     return (
                       <tr key={r.source} className="border-b border-gray-50 hover:bg-gray-50">
                         <td className="py-2 pr-4">
@@ -333,12 +310,6 @@ export default async function AdminStatsPage({ params }: PageProps) {
                         </td>
                         <td className="py-2 pr-4 text-right font-mono text-xs">
                           {r.cost_usd > 0 ? fmtUsd(r.cost_usd) : "—"}
-                        </td>
-                        <td className="py-2 pr-4 text-right whitespace-nowrap">
-                          {sla && sla.total > 0 ? `${health} ${(rate * 100).toFixed(0)}%` : "—"}
-                        </td>
-                        <td className="py-2 pr-4 text-right text-gray-500">
-                          {avgSec > 0 ? `${avgSec}s` : "—"}
                         </td>
                         <td className="py-2 text-right">{icon}</td>
                       </tr>
