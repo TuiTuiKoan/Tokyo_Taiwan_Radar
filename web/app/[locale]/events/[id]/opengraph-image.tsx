@@ -143,19 +143,24 @@ export default async function Image({
           }}
         >
           <svg width="1200" height="630" viewBox="0 0 1200 630">
-            {Array.from({ length: 100 }, (_, i) => (
-              <line
-                key={i}
-                x1="0"
-                y1={i * 630 / 99}
-                x2="1200"
-                y2={i * 630 / 99}
-                stroke="white"
-                strokeWidth="0.7"
-                strokeOpacity="0.32"
-              />
-            ))}
-            {/* Horizon line — same weight as ridge, y matches ridge baseline */}
+            {Array.from({ length: 50 }, (_, i) => {
+              const y = i * 630 / 49;
+              // Below horizon (y > 490): scan lines stop at x=680 to leave mountain area clean
+              const x2 = y > 492 ? 680 : 1200;
+              return (
+                <line
+                  key={i}
+                  x1="0"
+                  y1={y}
+                  x2={x2}
+                  y2={y}
+                  stroke="white"
+                  strokeWidth="0.7"
+                  strokeOpacity="0.32"
+                />
+              );
+            })}
+            {/* Horizon line — full width, same weight as ridge */}
             <line
               x1="0"
               y1="490"
