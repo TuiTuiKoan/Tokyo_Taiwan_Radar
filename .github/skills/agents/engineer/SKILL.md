@@ -46,6 +46,38 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 
+## OG Image（opengraph-image.tsx）— Edge Runtime 規則
+
+`app/[locale]/events/[id]/opengraph-image.tsx` 使用 `ImageResponse`（Satori 引擎），必須設定 `export const runtime = "edge"`。
+
+**Edge runtime 限制：只能用純 Web API。**
+
+| 可用 | 不可用 |
+|------|--------|
+| `fetch(url)` | `fetch(url, { next: { revalidate } })` |
+| `Response`, `Request`, `TextDecoder` | `next: { tags }`, `next: { revalidate }` |
+| `ArrayBuffer`, `Uint8Array` | Node.js `fs`, `path`, `crypto` 模組 |
+
+```ts
+// ❌ Edge runtime 拋錯
+const res = await fetch(url, { next: { revalidate: 86400 } });
+
+// ✅ 純 Web API，正確
+const res = await fetch(url);
+```
+
+**Google Fonts text API 子集化：**
+- 使用 `?text=...` 參數只取頁面用到的字元，大幅縮小 ArrayBuffer 體積。
+- CSS 中 `src:` 與 `url(` 之間可能有空白；regex 必須用 `/src:\s*url\(/`，不可寫死 `/src: url\(/`。
+
+```ts
+// ❌ 若 CSS 為 "src:  url(..." 就會 miss
+css.match(/src: url\(https:\/\//);
+
+// ✅ 容許任意空白
+css.match(/src:\s*url\(https:\/\//);
+```
+
 ## Bulk Action Pattern (AdminEventTable)
 
 When adding a new bulk operation that operates on a **derived value from selected events** (e.g. common categories, common source, common status):
