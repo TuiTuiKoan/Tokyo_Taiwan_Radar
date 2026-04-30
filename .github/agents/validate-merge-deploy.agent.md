@@ -35,7 +35,7 @@ tools: [read, search, execute, web]
 ### Step 5: Verify Deployment
 1. 確認 Vercel 部署已觸發（檢查 GitHub 動作日誌或 Vercel dashboard）
 2. 確認部署完成且無錯誤
-3. 可選：檢查 https://tokyotaiwanradar.vercel.app/ 是否顯示最新變更
+3. 可選：檢查 https://tokyo-taiwan-radar.vercel.app/ 是否顯示最新變更
 4. 若含 Supabase migration，明確回報「需在 Supabase SQL Editor 手動執行」與最小驗證清單（admin pass / non-admin deny）
 
 ## 成功指標
