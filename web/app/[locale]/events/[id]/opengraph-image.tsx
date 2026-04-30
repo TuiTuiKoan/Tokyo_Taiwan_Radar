@@ -155,6 +155,16 @@ export default async function Image({
                 strokeOpacity="0.32"
               />
             ))}
+            {/* Horizon line — same weight as ridge, y matches ridge baseline */}
+            <line
+              x1="0"
+              y1="490"
+              x2="1200"
+              y2="490"
+              stroke="white"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
             <polyline
               points={YUSHAN_POINTS}
               fill="none"
@@ -176,7 +186,7 @@ export default async function Image({
             height: "100%",
             display: "flex",
             flexDirection: "column",
-            justifyContent: "space-between",
+            justifyContent: "flex-start",
             padding: "52px 64px",
             color: "white",
             fontFamily: fontData ? fontName : "sans-serif",
@@ -202,6 +212,7 @@ export default async function Image({
               flexDirection: "column",
               gap: "18px",
               maxWidth: "860px",
+              marginTop: "48px",
             }}
           >
             <div
@@ -237,6 +248,7 @@ export default async function Image({
               alignItems: "flex-end",
               gap: "40px",
               maxWidth: "700px",
+              marginTop: "auto",
             }}
           >
             {dateStr && (
