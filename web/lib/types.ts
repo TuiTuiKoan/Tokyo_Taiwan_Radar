@@ -48,6 +48,40 @@ export interface Event {
   updated_at: string;
 }
 
+export type SocialPlatform = "instagram" | "threads" | "facebook" | "linkedin" | "line";
+
+export type SocialPublishStatus = "idle" | "publishing" | "published" | "error";
+
+export interface SocialPlatformStatus {
+  status: SocialPublishStatus;
+  published_at?: string | null;
+  post_id?: string | null;
+  locale?: string | null;
+  error?: string | null;
+}
+
+export interface Announcement {
+  id: string;
+  slug: string;
+  title_ja: string | null;
+  title_zh: string | null;
+  title_en: string | null;
+  body_ja: string | null;
+  body_zh: string | null;
+  body_en: string | null;
+  cover_image_url: string | null;
+  image_ja: string | null;
+  image_zh: string | null;
+  image_en: string | null;
+  is_featured: boolean;
+  published_at: string | null;
+  social_status: Partial<Record<SocialPlatform, SocialPlatformStatus>>;
+  author_id: string | null;
+  created_at: string;
+  updated_at: string;
+  linked_events?: string[]; // event IDs from announcement_events join
+}
+
 export interface SavedEvent {
   id: string;
   user_id: string;
