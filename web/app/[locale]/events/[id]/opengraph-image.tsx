@@ -160,11 +160,11 @@ export default async function Image({
                 />
               );
             })}
-            {/* Horizon line — full width, same weight as ridge */}
+            {/* Horizon line — left portion only (x=0→680); mountain ridge continues from (680,490) */}
             <line
               x1="0"
               y1="490"
-              x2="1200"
+              x2="680"
               y2="490"
               stroke="white"
               strokeWidth="2.5"
