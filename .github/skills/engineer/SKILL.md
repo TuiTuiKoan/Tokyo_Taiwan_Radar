@@ -144,6 +144,79 @@ alternates: {
 
 sitemap 只包含 `is_active = true` 且 `parent_event_id IS NULL` 的事件（子事件不單獨收錄）。
 
+### Next.js 16 — `proxy.ts` 唯一 middleware 入口
+
+Next.js 16 用 `proxy.ts` 完全取代傳統 `middleware.ts`。**兩者不能共存**——即使只建立空的 `middleware.ts` 也會造成 Vercel build 失敗：
+
+```
+Error: Both middleware file "./middleware.ts" and proxy file "./proxy.ts" are detected.
+Please use "./proxy.ts" only.
+```
+
+所有 middleware 邏輯（header 設定、redirect、auth guard）**必須在 `proxy.ts`** 實作，附加在現有流程後：
+
+```ts
+// proxy.ts — 在 intlMiddleware 之後附加自訂 header
+export async function proxy(request: NextRequest): Promise<NextResponse> {
+  // ... existing intlMiddleware / supabase auth / admin guard ...
+  const response = await intlMiddleware(request)
+  const locale = request.nextUrl.pathname.split('/')[1] || 'zh'
+  response.headers.set('x-locale', locale)
+  return response
+}
+```
+
+**禁止**：新建 `web/middleware.ts`，無論用途為何。
+
+### JSON-LD Event schema 注入
+
+在事件詳情頁 `app/[locale]/events/[id]/page.tsx` 的 `<article>` 最頂部注入結構化資料：
+
+```tsx
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: getEventName(event, locale),
+    startDate: event.start_date,
+    endDate: event.end_date ?? undefined,
+    description: getEventDescription(event, locale),
+    location: event.location_name_zh ? {
+      "@type": "Place",
+      name: event.location_name_zh,
+      address: event.location_address_zh ?? undefined,
+    } : undefined,
+    organizer: event.organizer ? {
+      "@type": "Organization",
+      name: event.organizer,
+    } : undefined,
+    isAccessibleForFree: event.is_free ?? undefined,
+  }) }}
+/>
+```
+
+資料來自 server component props，不需額外 DB 查詢。`null` 欄位用 `?? undefined` 轉換（JSON-LD 不應包含 `null` 值）。
+
+### root layout async + x-locale
+
+`app/layout.tsx` 改為 `async` server component，讀取 `x-locale` header 動態設定 `<html lang>`：
+
+```ts
+import { headers } from "next/headers"
+export default async function RootLayout({ children }) {
+  const locale = (await headers()).get('x-locale') ?? 'zh'
+  return <html lang={locale}>{children}</html>
+}
+```
+
+`metadata` 使用 `title.template` 格式（不使用靜態 string）：
+```ts
+export const metadata: Metadata = {
+  title: { template: '%s | Tokyo Taiwan Radar', default: 'Tokyo Taiwan Radar' },
+}
+```
+
 ## Bulk Action Pattern (AdminEventTable)
 
 When adding a new bulk operation that operates on a **derived value from selected events** (e.g. common categories, common source, common status):

@@ -1,4 +1,35 @@
 ---
+## 2026-04-30: SEO P2 — JSON-LD schema、x-locale header、proxy.ts 衝突修復
+
+### 問題背景
+SEO P2 實作：root layout 注入 `<html lang>` 動態 locale、事件詳情頁注入 JSON-LD Event schema、設定 `x-locale` response header。
+
+### 根本原因與修復
+
+**Next.js 16 不允許 `middleware.ts` 與 `proxy.ts` 共存：**
+新增 `web/middleware.ts` 後 Vercel build 立即失敗：
+```
+Error: Both middleware file "./middleware.ts" and proxy file "./proxy.ts" are detected.
+Please use "./proxy.ts" only.
+```
+Next.js 16 用 `proxy.ts` 完全取代傳統 `middleware.ts`，兩者不能並存。
+
+**修復：**
+1. 刪除 `web/middleware.ts`
+2. 將 `x-locale` header 邏輯移入 `web/proxy.ts` 的 `proxy()` 函數（在 `intlMiddleware` 呼叫後附加 response header）
+
+**root layout async + x-locale：**
+`web/app/layout.tsx` 改為 `async`，用 `headers()` 讀取 `x-locale` header，動態設定 `<html lang={locale}>`。`metadata` 改為 `title.template` 格式。
+
+**JSON-LD Event schema 注入：**
+`web/app/[locale]/events/[id]/page.tsx` 在 `<article>` 頂部注入 `<script type="application/ld+json">`，欄位涵蓋：`name`、`startDate`、`endDate`、`description`、`location`、`organizer`、`isAccessibleForFree`。
+
+### 教訓
+- **Next.js 16 專案絕對不得建立 `middleware.ts`**，所有 middleware 邏輯必須在 `proxy.ts` 實作
+- `proxy.ts` 已有 next-intl + Supabase auth + admin 保護；新邏輯附加在現有流程之後
+- JSON-LD schema 注入位置：`<article>` 最頂部，用 `<script type="application/ld+json">` 標籤，資料來自 server component props
+
+---
 ## 2026-04-30: SEO P1 — robots / sitemap / generateMetadata 實作
 
 ### 問題背景
