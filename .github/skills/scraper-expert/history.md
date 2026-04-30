@@ -2,6 +2,15 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-30 — 橫濱市中高生管樂團電影音樂節 [prtimes] — user report confirmed
+**Report types:** irrelevant
+**Admin notes:** —
+**Action:** Event hidden (is_active=false). Irrelevant content.
+---
+
+---
+
+
 ## 2026-04-30 — 造山者－世紀的賭注 [google_news_rss] — user report confirmed
 **Report types:** wrongDetails, fieldEdit:start_date:zh:2026-03-17T00:00:00+00:00, fieldEdit:start_date:en:2026-03-17T00:00:00+00:00, fieldEdit:start_date:ja:2026-03-17T00:00:00+00:00, fieldEdit:end_date:zh:2026-03-17T00:00:00+00:00, fieldEdit:end_date:en:2026-03-17T00:00:00+00:00, fieldEdit:end_date:ja:2026-03-17T00:00:00+00:00
 **Wrong fields:** start_date, end_date
