@@ -156,8 +156,32 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     .order("published_at", { ascending: false })
     .limit(3);
 
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app";
+
+  // ItemList JSON-LD — only on unfiltered active view (first 20 events)
+  const isUnfiltered = !sp.q && !sp.category && !sp.from && !sp.to && !sp.paid && !sp.location && timeMode === "active";
+  const itemListLd = isUnfiltered && events && events.length > 0
+    ? {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        url: `${base}/${locale}`,
+        itemListElement: (events as Event[]).slice(0, 20).map((e, i) => ({
+          "@type": "ListItem",
+          position: i + 1,
+          url: `${base}/${locale}/events/${e.id}`,
+          name: getEventName(e, locale) ?? e.name_ja ?? undefined,
+        })),
+      }
+    : null;
+
   return (
     <div>
+      {itemListLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
+        />
+      )}
       {/* Top tab navigation */}
       <div className="flex gap-1 border-b border-gray-200 mb-0">
         <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">
