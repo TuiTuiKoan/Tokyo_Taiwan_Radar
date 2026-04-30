@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-30 — 來自台灣的考察團參加國際研討會 [google_news_rss] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** academic, taiwan_japan, lecture
+**After (corrected):** report, taiwan_japan, healthcare
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-30 — Beginning ZERO [prtimes] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** performing_arts, lifestyle_food
