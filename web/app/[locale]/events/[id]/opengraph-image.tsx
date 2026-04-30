@@ -75,9 +75,9 @@ async function loadFont(text: string, locale: string): Promise<ArrayBuffer | nul
 export default async function Image({
   params,
 }: {
-  params: { locale: Locale; id: string };
+  params: Promise<{ locale: Locale; id: string }>;
 }) {
-  const { locale, id } = params;
+  const { locale, id } = await params;
 
   // --- Fetch event data ---
   const supabase = createClient(
