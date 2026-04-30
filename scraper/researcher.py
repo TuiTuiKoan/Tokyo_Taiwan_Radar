@@ -636,6 +636,14 @@ def run_research(dry_run: bool = False, category_id: str | None = None) -> None:
     except Exception as exc:
         logger.warning("Could not upsert research_sources: %s", exc)
 
+    # Filter duplicate sources (already in DB before this run) out of the report.
+    # known_urls was fetched before running agents, so it correctly represents
+    # the pre-run state. Duplicates are silently dropped — not sent via LINE.
+    report["top_sources"] = [
+        s for s in report["top_sources"]
+        if s.get("url") not in known_urls
+    ]
+
     # Save to DB
     try:
         sb.table("research_reports").insert({
@@ -660,9 +668,13 @@ def run_research(dry_run: bool = False, category_id: str | None = None) -> None:
     except Exception:
         pass
 
-    # Send LINE
-    msg = _format_line_message(report, results, primary_category)
-    send_line_message(msg)
+    # Send LINE — only if there are genuinely new verified sources
+    new_verified = [s for s in report["top_sources"] if s.get("url_verified")]
+    if not new_verified:
+        logger.info("No new sources found this slot — skipping LINE notification.")
+    else:
+        msg = _format_line_message(report, results, primary_category)
+        send_line_message(msg)
     logger.info("Daily research slot %d complete.", slot)
 
 
