@@ -47,6 +47,30 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Realtime: reflect event UPDATEs (e.g. from report confirmations) instantly
+  // Requires migration 029_realtime_events.sql to be applied first.
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-events-live")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "events" },
+        async (payload) => {
+          const { data } = await supabase
+            .from("events")
+            .select("*")
+            .eq("id", payload.new.id)
+            .single();
+          if (data) {
+            setEvents((prev) => prev.map((e) => (e.id === data.id ? (data as Event) : e)));
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [filterPaid, setFilterPaid] = useState("");
   const [filterIsActive, setFilterIsActive] = useState<"all" | "active" | "inactive">("active");
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
