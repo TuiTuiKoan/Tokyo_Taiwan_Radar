@@ -350,7 +350,8 @@
     "error": "Something went wrong. Please try again.",
     "footerCredit": "Operated by 對對觀 2026",
     "statsTableMissing": "⚠ scraper_runs table not yet created",
-    "statsTableMissingHint": "Run the following in Supabase Dashboard → SQL Editor:"  },
+    "statsTableMissingHint": "Run the following in Supabase Dashboard → SQL Editor:"
+  },
   "cities": {
     "noEvents": "No ongoing events at the moment.",
     "tokyo": "Tokyo",
@@ -364,7 +365,8 @@
     "kyoto_desc": "Taiwan art, film, and academic events in Kyoto. The ancient city's historic atmosphere and Taiwan's diverse creativity intersect here, attracting Taiwanese artists and scholars every year.",
     "fukuoka_desc": "Taiwan cultural events in Fukuoka. Geographically close to Taiwan, Fukuoka enjoys frequent exchange across community, business, and culture, making it one of the most active Japan-Taiwan cities.",
     "sapporo_desc": "Taiwan events in Sapporo and Hokkaido — seasonal cultural festivals, food markets, and exchange activities. Hokkaido's stunning natural landscapes attract large numbers of Taiwanese visitors and a growing events calendar.",
-    "nagoya_desc": "Taiwan cultural events in Nagoya and the Aichi region. Strategically located, Nagoya is an important base for Taiwan culture radiating into the Tokai area."
+    "nagoya_desc": "Taiwan cultural events in Nagoya and the Aichi region. Strategically located, Nagoya is an important base for Taiwan culture radiating into the Tokai area.",
+    "headingSuffix": " Taiwan Events"
   },
   "categoryDesc": {
     "noEvents": "No ongoing events at the moment.",
@@ -375,5 +377,6 @@
     "lecture": "Lectures, symposia, and knowledge events about Taiwan across Japan — history, culture, society, language, and more.",
     "taiwan_japan": "Events focused on Japan-Taiwan exchange — cultural visits, sister city events, business networking, and people-to-people friendship activities.",
     "lifestyle_food": "Events celebrating Taiwanese food culture and lifestyle — cooking classes, food markets, and lifestyle workshops.",
-    "books_media": "Events related to Taiwanese books, literature, publishing, and media — book clubs, author talks, and literary exhibitions."  }
+    "books_media": "Events related to Taiwanese books, literature, publishing, and media — book clubs, author talks, and literary exhibitions."
+  }
 }
