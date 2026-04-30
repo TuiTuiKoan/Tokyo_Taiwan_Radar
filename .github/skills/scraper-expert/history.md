@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-30 — Beginning ZERO [prtimes] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** performing_arts, lifestyle_food
+**After (corrected):** performing_arts
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-30 — 台灣博覽會 [maruhiro] — user report confirmed
 **Report types:** wrongDetails, fieldEdit:name:zh:台灣園遊會, fieldEdit:name:en:Taiwan Fair, fieldEdit:name:ja:台湾フェア
 **Wrong fields:** name
