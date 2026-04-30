@@ -2,6 +2,18 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-30 — 同步星座：藝術中的跨界視角 [tokyoartbeat] — user report confirmed
+**Report types:** wrongDetails, wrongCategory, fieldEdit:name:zh:共時星座：藝術中的跨界視角, fieldEdit:name:en:Synchronic Constellation: Cross-boundary Perspectives in Art, fieldEdit:name:ja:シンクロニック・コンステレーション：アートにおける境界を越えた視点
+**Before (AI category):** senses, art
+**After (corrected):** movie, literature, art, senses, history, taiwan_japan
+**Wrong fields:** name
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-30 — 台東祭 [prtimes] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** lifestyle_food, taiwan_japan
