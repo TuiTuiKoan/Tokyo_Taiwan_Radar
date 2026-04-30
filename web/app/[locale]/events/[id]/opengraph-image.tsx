@@ -216,14 +216,14 @@ export default async function Image({
             <div
               style={{
                 display: "flex",
-                border: "1.5px solid rgba(255,255,255,0.5)",
+                border: "1.5px solid white",
                 borderRadius: "6px",
                 padding: "5px 14px",
                 alignSelf: "flex-start",
                 fontSize: "17px",
                 fontWeight: "bold",
                 letterSpacing: "1.5px",
-                color: "rgba(255,255,255,0.85)",
+                color: "white",
               }}
             >
               {categoryLabel}
@@ -261,13 +261,13 @@ export default async function Image({
                   style={{
                     fontSize: "11px",
                     letterSpacing: "1.5px",
-                    color: "rgba(255,255,255,0.5)",
+                    color: "white",
                     fontWeight: "bold",
                   }}
                 >
                   DATE
                 </span>
-                <span style={{ fontSize: "21px" }}>{dateStr}</span>
+                <span style={{ fontSize: "21px", fontWeight: "bold", color: "white" }}>{dateStr}</span>
               </div>
             )}
             {location && (
@@ -282,13 +282,13 @@ export default async function Image({
                   style={{
                     fontSize: "11px",
                     letterSpacing: "1.5px",
-                    color: "rgba(255,255,255,0.5)",
+                    color: "white",
                     fontWeight: "bold",
                   }}
                 >
                   VENUE
                 </span>
-                <span style={{ fontSize: "21px" }}>{location}</span>
+                <span style={{ fontSize: "21px", fontWeight: "bold", color: "white" }}>{location}</span>
               </div>
             )}
           </div>
