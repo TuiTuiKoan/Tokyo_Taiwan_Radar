@@ -171,19 +171,6 @@ export default async function Image({
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            {/* Radar signal at Yushan summit (910, 344) — dot + 3 concentric arcs upward */}
-            <circle cx="910" cy="344" r="4" fill="white" />
-            {([15, 27, 41] as const).map((r, i) => (
-              <path
-                key={`radar-${i}`}
-                d={`M ${910 - r},344 A ${r},${r} 0 0,0 ${910 + r},344`}
-                fill="none"
-                stroke="white"
-                strokeWidth="2"
-                strokeOpacity={[0.9, 0.6, 0.35][i]}
-                strokeLinecap="round"
-              />
-            ))}
           </svg>
         </div>
 
