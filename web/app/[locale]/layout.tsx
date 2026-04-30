@@ -9,9 +9,9 @@ import { Analytics } from "@vercel/analytics/react";
 import { createClient } from "@/lib/supabase/server";
 
 const SITE_TITLES: Record<string, string> = {
-  zh: "Tokyo Taiwan Radar｜日本台灣活動雷達",
+  zh: "Tokyo Taiwan Radar 東京台灣雷達｜日本台灣活動雷達",
   en: "Tokyo Taiwan Radar — Taiwan Events in Japan",
-  ja: "Tokyo Taiwan Radar｜日本全国の台湾関連イベント",
+  ja: "Tokyo Taiwan Radar 東京台湾レーダー｜日本全国の台湾関連イベント",
 };
 
 const SITE_DESCRIPTIONS: Record<string, string> = {

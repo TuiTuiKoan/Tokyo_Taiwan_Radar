@@ -81,6 +81,69 @@ GPT annotator 亦會用日文邦題翻譯，結果仍然偏離官方。
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 
+## SEO / Metadata (Next.js)
+
+### robots.ts + sitemap.ts — plain Supabase client only
+
+`app/robots.ts` 和 `app/sitemap.ts` 是靜態 route handler，在 build/ISR 期間執行，**沒有 request context**。  
+`cookies()` 在此情境下拋出錯誤——必須用 plain client，完全繞過 SSR wrapper：
+
+```ts
+// CORRECT — static route handler
+import { createClient } from "@supabase/supabase-js"
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+// WRONG — causes runtime error in sitemap/robots
+import { createClient } from "@/lib/supabase/server"  // uses cookies()
+```
+
+### NEXT_PUBLIC_SITE_URL fallback 必填
+
+`robots.ts` / `sitemap.ts` 的 base URL 必須有 fallback：
+
+```ts
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app"
+```
+
+Vercel 未設此變數時會產生 `undefined/sitemap.xml` 破損 URL，且 build 不會報錯。
+
+### generateMetadata 與靜態 metadata 不能共存
+
+當把 `export const metadata` 改成 `export async function generateMetadata` 時，**必須完全刪除舊的 `export const metadata`**。Next.js 16 中靜態版本優先，動態版本被忽略，且沒有任何警告或錯誤。
+
+### locale-aware 站名（三語系）
+
+| locale | 站名 |
+|--------|------|
+| `zh`   | 東京台灣雷達 |
+| `ja`   | 東京台湾レーダー |
+| `en`   | Tokyo Taiwan Radar |
+
+OG `siteName`、`<title>` suffix、Twitter card `site` 都需要用此映射，不可硬寫單一語言。
+
+### x-default hreflang 必填
+
+多語系網站的 `alternates.languages` 必須包含 `"x-default"` 指向預設語系（`zh`），否則 Google Search Console 報警告：
+
+```ts
+alternates: {
+  canonical: `${SITE_URL}/zh/events/${id}`,
+  languages: {
+    "zh": `${SITE_URL}/zh/events/${id}`,
+    "en": `${SITE_URL}/en/events/${id}`,
+    "ja": `${SITE_URL}/ja/events/${id}`,
+    "x-default": `${SITE_URL}/zh/events/${id}`,
+  },
+}
+```
+
+### sitemap 查詢條件
+
+sitemap 只包含 `is_active = true` 且 `parent_event_id IS NULL` 的事件（子事件不單獨收錄）。
+
 ## Bulk Action Pattern (AdminEventTable)
 
 When adding a new bulk operation that operates on a **derived value from selected events** (e.g. common categories, common source, common status):

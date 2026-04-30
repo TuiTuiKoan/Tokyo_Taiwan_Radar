@@ -63,6 +63,7 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 9. **Cinema scrapers — Movie Title Lookup:** When implementing or updating a cinema scraper (`category=["movie"]`), always call `lookup_movie_titles(name_ja)` from `scraper/movie_title_lookup.py` before constructing `Event()`. See `SKILL.md § Movie Title Lookup Pattern` for the canonical pattern and exemptions.
 10. **gguide_tv name_zh/name_en manual patch rule:** When patching name_zh or name_en for events from `gguide_tv` source, ALWAYS verify against Wikipedia or IMDb first — Japanese broadcasters use localized titles that differ from official Taiwanese titles. Never translate raw_title directly. See `SKILL.md § gguide_tv 特殊規則`.
 11. **enrich_movie_titles() description sync rule:** When `enrich_movie_titles()` updates `name_zh` or `name_en`, also patch `description_zh` and `description_en` to replace the old title inside bracket pairs. Use bracket-aware replacement only (never bare string replace). See `SKILL.md § enrich_movie_titles() 連動 description 規則`.
+12. **SEO metadata rules:** When modifying `app/robots.ts`, `app/sitemap.ts`, or any `generateMetadata` function: (a) use plain `createClient(URL, ANON_KEY)` in static route handlers — never SSR cookie client; (b) delete any `export const metadata` when converting to `generateMetadata`; (c) use locale-aware site names (zh/ja/en); (d) include `x-default` in `alternates.languages`; (e) always add `NEXT_PUBLIC_SITE_URL` fallback. See `SKILL.md § SEO / Metadata`.
 
 ### Step 3: Verify
 

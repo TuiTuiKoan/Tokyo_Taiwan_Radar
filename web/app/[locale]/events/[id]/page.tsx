@@ -33,8 +33,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const name = getEventName(event as Event, locale);
   const description = getEventDescription(event as Event, locale);
 
+  const SITE_NAMES: Record<string, string> = {
+    zh: "Tokyo Taiwan Radar 東京台灣雷達",
+    en: "Tokyo Taiwan Radar",
+    ja: "Tokyo Taiwan Radar 東京台湾レーダー",
+  };
+  const siteName = SITE_NAMES[locale] ?? "Tokyo Taiwan Radar";
+
   return {
-    title: name ? `${name} | Tokyo Taiwan Radar` : "Tokyo Taiwan Radar",
+    title: name ? `${name} | ${siteName}` : siteName,
     description: description?.slice(0, 160) ?? undefined,
     alternates: {
       canonical: `${base}/${locale}/events/${id}`,
@@ -47,7 +54,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title: name ?? undefined,
       description: description?.slice(0, 160) ?? undefined,
       url: `${base}/${locale}/events/${id}`,
-      siteName: "Tokyo Taiwan Radar",
+      siteName,
       type: "article",
       publishedTime: event.start_date ?? undefined,
       modifiedTime: event.updated_at,

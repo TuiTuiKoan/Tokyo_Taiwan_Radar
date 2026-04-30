@@ -88,6 +88,35 @@ These map 1-to-1 with `Category` type in `lib/types.ts`. Do not add new values.
 Tailwind 4 uses a CSS-first config — there is no `tailwind.config.js`. Use `@theme` blocks in
 `globals.css` for customizations. Standard utility classes work as expected.
 
+## SEO — robots / sitemap / generateMetadata
+
+### Static route handlers (robots.ts, sitemap.ts) — plain Supabase client
+`app/robots.ts` and `app/sitemap.ts` are static route handlers with no request context.
+**Never use `createClient` from `@/lib/supabase/server`** (which calls `cookies()`) — it throws at runtime.
+Use `createClient(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY)` directly.
+
+### generateMetadata vs static metadata
+`export const metadata` and `export async function generateMetadata` **cannot coexist** in the same file.
+When converting to `generateMetadata`, delete the old static `export const metadata` — Next.js 16 silently prefers the static version with no warning.
+
+### Locale-aware site name
+| locale | value |
+|--------|-------|
+| `zh` | 東京台灣雷達 |
+| `ja` | 東京台湾レーダー |
+| `en` | Tokyo Taiwan Radar |
+
+Use this mapping in `title.template`, OG `siteName`, and Twitter card — never hardcode a single language.
+
+### x-default hreflang
+Always include `"x-default": /zh/...` in `alternates.languages` pointing to the default locale.
+
+### NEXT_PUBLIC_SITE_URL fallback
+All metadata files that construct absolute URLs must use:
+```ts
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app"
+```
+
 ## i18n — Hardcoded string rules
 
 > **CRITICAL: Never hardcode CJK (Chinese/Japanese/Korean) text or any user-visible string in TSX/TS files.**

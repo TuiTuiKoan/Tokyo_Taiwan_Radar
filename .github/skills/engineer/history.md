@@ -1,4 +1,35 @@
 ---
+## 2026-04-30: SEO P1 — robots / sitemap / generateMetadata 實作
+
+### 問題背景
+首頁缺少 OG tags、sitemap 和 robots.txt，事件詳情頁無動態 title/hreflang。
+
+### 根本原因與修復
+
+**sitemap.ts 必須用 plain Supabase client（不用 cookies()）：**
+sitemap 是靜態 route handler，Next.js 在 build/ISR 期間呼叫，沒有 request context，`cookies()` 在此情境下拋出錯誤。正確做法：`createClient(SUPABASE_URL, ANON_KEY)` 直接建立 client，完全繞過 SSR wrapper。
+
+**`export const metadata` 與 `export async function generateMetadata` 不能共存：**
+`[locale]/layout.tsx` 原有靜態 `export const metadata`；改成 `generateMetadata` 後必須完全刪除舊的 `metadata` export，否則 Next.js 16 靜態 metadata 優先，動態版本被忽略。
+
+**NEXT_PUBLIC_SITE_URL fallback 必填：**
+`robots.ts` 和 `sitemap.ts` 都需要 `process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app"` fallback。Vercel 未設環境變數時會產生 `undefined/sitemap.xml` 這種破損 URL。
+
+**locale-aware 站名（三語系 siteName / title suffix）：**
+- zh → `東京台灣雷達`
+- ja → `東京台湾レーダー`
+- en → `Tokyo Taiwan Radar`
+OG `siteName`、`<title>` suffix、Twitter card 都需要同步。
+
+**`x-default` hreflang 不可省略：**
+多語系網站必須在 `alternates.languages` 加入 `"x-default": /zh/...`（指向預設語系），否則 Google Search Console 會報缺少 x-default 警告。
+
+### 教訓
+- sitemap / robots 是靜態 route → 只能用 plain client，永遠不用 SSR cookie client
+- 移除靜態 metadata export 是 generateMetadata 切換的必要前置步驟，不是可選的
+- 部署前確認 NEXT_PUBLIC_SITE_URL 已設置於 Vercel 環境變數；robots/sitemap 無法用 build 錯誤提早發現此問題
+
+---
 ## 2026-04-30: description 欄位片名引用未連動修正
 - Error: `enrich_movie_titles()` 只覆寫 `name_zh`/`name_en`，但 `description_zh`/`description_en` 內文仍引用舊片名（例如「《赤色的線 輪迴的秘密》」）。標題改了、內文沒改。
 - Fix: 新增 `_TITLE_BRACKETS`（7 種括號：《》「」『』'' "" ' " "）與 `_replace_title_in_desc()` 輔助函式，對 description_zh/description_en 做括號比對替換；每事件記錄 `desc_zh_fixed`/`desc_en_fixed` 旗標
