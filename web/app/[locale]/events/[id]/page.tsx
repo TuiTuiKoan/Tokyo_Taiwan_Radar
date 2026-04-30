@@ -444,14 +444,14 @@ export default async function EventDetailPage({ params }: PageProps) {
                 >
                   <div className="w-12 text-center flex-shrink-0">
                     {sub.start_date ? (
-                      <>
+                      <time dateTime={sub.start_date}>
                         <div className="text-[10px] text-gray-400">
                           {new Date(sub.start_date).toLocaleDateString(locale, { month: "short" })}
                         </div>
                         <div className="text-lg font-bold text-gray-600 leading-none">
                           {new Date(sub.start_date).getDate()}
                         </div>
-                      </>
+                      </time>
                     ) : (
                       <span className="text-gray-300">—</span>
                     )}

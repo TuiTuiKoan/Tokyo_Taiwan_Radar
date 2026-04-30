@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { type Locale } from "@/lib/types";
 import Link from "next/link";
+import GscSection from "@/components/GscSection";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
@@ -151,6 +152,9 @@ export default async function AdminAeoPage({ params }: PageProps) {
           <code>029_aeo_visits.sql</code>。
         </div>
       )}
+
+      {/* Google Search Console */}
+      <GscSection />
 
       {/* Summary cards */}
       <section className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
