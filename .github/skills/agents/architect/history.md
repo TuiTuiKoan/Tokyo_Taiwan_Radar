@@ -8,7 +8,7 @@
 **背景：** 原本 `/admin/stats` 只顯示最近一次執行狀態、`weekly_report.py` 只看週費用、並無資料品質審核面。長期下來難以推斷「某個來源是偶發失敗還是長期退化」。
 
 **變更：**
-- `/admin/stats` Source Status 表加入「30 日成功率（🟢/🟡/🔴）」與「平均耗時」兩欄，來源為 `scraper_runs.duration_seconds`（migration 013）。
+- `/admin/stats` Source Status 表加入「30 日成功率（🟢/🟡/🔴）」與「平均耗時」兩欄，來源為 `scraper_runs.duration_seconds`（migration 014）。
 - `weekly_report.py` 新增 `MONTHLY_BUDGET_USD = 20.0` 護欄，並推送「本月迄今 / OpenAI 本週 / DeepL 本週」三行，超過閾值走 ⚠ / 🚨。
 - 新建 `/admin/quality` 頁，並行查 4 個品質信號（已審缺翻譯 / 過期仍開放 / 已標註無分類 / 卸地址），每類列出前 50 筆詳情。
 

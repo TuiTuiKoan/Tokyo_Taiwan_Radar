@@ -54,7 +54,7 @@ def _send_line(message: str) -> None:
 
 def generate_report(sb, since: datetime) -> dict:
     # scraper_runs for the past 7 days
-    # Try with `success` column (Migration 013); fall back if column doesn't exist yet.
+    # Try with `success` column (Migration 014); fall back if column doesn't exist yet.
     try:
         runs_res = (
             sb.table("scraper_runs")
