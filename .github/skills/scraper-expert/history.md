@@ -2,6 +2,15 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-30 — 《晴天時空豆撒20周年紀念》三浦透子×近藤康平 [eplus] — user report confirmed
+**Report types:** irrelevant
+**Admin notes:** —
+**Action:** Event hidden (is_active=false). Irrelevant content.
+---
+
+---
+
+
 ---
 ## 2026-04-29 — Peatix 三層爬取架構固化（daily review）
 **新增/修改：**
