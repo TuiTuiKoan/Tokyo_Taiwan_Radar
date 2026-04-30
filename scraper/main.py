@@ -92,6 +92,7 @@ from sources.tokyo_filmex import TokyoFilmexScraper
 from sources.google_news_rss import GoogleNewsRssScraper
 from sources.nhk_rss import NhkRssScraper
 from sources.gguide_tv import GguideTvScraper
+from sources.mot import MotScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -166,6 +167,7 @@ SCRAPERS = [
     GoogleNewsRssScraper(),
     NhkRssScraper(),
     GguideTvScraper(),
+    MotScraper(),
 ]
 
 
