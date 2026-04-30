@@ -3,24 +3,6 @@
 <!-- Append new entries at the top -->
 
 ---
-## 2026-04-30 — opengraph-image.tsx：Edge runtime 不支援 `next: { revalidate }` + Google Fonts regex 未容許空白
-
-**Bug 1：** `fetch(url, { next: { revalidate: 86400 } })` 在 Edge runtime 拋錯，導致整個 `/events/[id]/opengraph-image` route 無法回傳圖片。
-
-**根本原因 1：** `opengraph-image.tsx` 設定 `export const runtime = "edge"`，Edge runtime 只支援標準 Web API。`next: { revalidate }` 和 `next: { tags }` 是 Node.js runtime 才有的 Next.js fetch 擴充，Edge 上完全不支援。
-
-**修復 1：** 移除 `{ next: { revalidate: 86400 } }` 選項，改為純 `fetch(url)`。
-
-**Bug 2：** Google Fonts text API 返回的 CSS `src:` 和 `url(` 之間有空白，regex `/src: url\(/` 無法匹配，字型 ArrayBuffer 取不到，導致 Satori 字型載入失敗。
-
-**修復 2：** 將 regex 改為 `/src:\s*url\(/`，容許零或多個空白。
-
-**Lesson:**
-1. **Edge runtime 只能用純 Web API**：`fetch()`、`Response`、`Request`、`TextDecoder`。`next: { revalidate }`、`next: { tags }` 等 Next.js fetch 擴充**不支援**，加了會讓整個 route 拋錯。
-2. **`opengraph-image.tsx` 務必搭配 Edge runtime**：`ImageResponse`（Satori）在 Edge 上效能最好，但任何 Node.js 限定 API 都不可用。
-3. **Google Fonts CSS regex 加 `\s*`**：CSS 規範允許 `src:` 後有空白，regex 必須用 `/src:\s*url\(/`。
-
----
 ## 2026-04-29 — AdminReportsTable: description 欄位缺少可編輯支援 [AdminReportsTable]
 
 **Bug:** `description` 欄位未加入 `EDITABLE_FIELDS`，也未宣告 `TEXTAREA_FIELDS` 集合，導致問題回報審核時無法直接修改事件描述。

@@ -45,24 +45,6 @@ event = Event(
 - The module uses in-memory `_cache` — no extra latency for repeated titles in one run
 - `eiga_com.py` is exempt — it already has native 原題 parsing in `_parse_original_title()`
 
-### enrich_movie_titles() 覆寫規則
-
-**找到官方片名就覆寫，不論 name_zh/name_en 是否為 NULL**（`annotation_status = 'reviewed'` 的事件除外）。
-
-錯誤模式（只 patch NULL）在「先 scrape → GPT annotator 填入翻譯 → enrich 補齊」流程下永遠失效：
-- GPT 翻譯後 `name_zh IS NOT NULL`，Pass 1 的 `IS NULL` 條件跳過該事件
-- Pass 2 只處理 news sources，cinema scraper 產生的事件永遠不被修正
-
-正確設計：單一 pass，查詢所有 movie 事件（排除 `eiga_com` + `reviewed`），找到就覆寫。
-
-### enrich_movie_titles() 連動 description 規則
-
-修正 `name_zh`/`name_en` 時，**必須同步修正 `description_zh`/`description_en` 中的括號片名引用**：
-
-- 只替換括號包裹的舊片名（`_TITLE_BRACKETS`：`《》「」『』'' "" ' " "`）——避免裸替換誤擊內文中非片名的相同字串
-- `name_zh` 修正 ≠ 問題解決；description 內文也是使用者可見的欄位
-- 每個事件記錄 `desc_zh_fixed`/`desc_en_fixed` 旗標以利 diff 確認
-
 ### gguide_tv 特殊規則 — 日本放送邦題
 
 `gguide_tv` 的 raw_title 使用**日本放送局自訂的本地化邦題**，可能與台灣官方片名完全不同：
@@ -81,189 +63,7 @@ GPT annotator 亦會用日文邦題翻譯，結果仍然偏離官方。
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 
-## SEO / Metadata (Next.js)
-
-### robots.ts + sitemap.ts — plain Supabase client only
-
-`app/robots.ts` 和 `app/sitemap.ts` 是靜態 route handler，在 build/ISR 期間執行，**沒有 request context**。  
-`cookies()` 在此情境下拋出錯誤——必須用 plain client，完全繞過 SSR wrapper：
-
-```ts
-// CORRECT — static route handler
-import { createClient } from "@supabase/supabase-js"
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
-// WRONG — causes runtime error in sitemap/robots
-import { createClient } from "@/lib/supabase/server"  // uses cookies()
-```
-
-### NEXT_PUBLIC_SITE_URL fallback 必填
-
-`robots.ts` / `sitemap.ts` 的 base URL 必須有 fallback：
-
-```ts
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app"
-```
-
-Vercel 未設此變數時會產生 `undefined/sitemap.xml` 破損 URL，且 build 不會報錯。
-
-### generateMetadata 與靜態 metadata 不能共存
-
-當把 `export const metadata` 改成 `export async function generateMetadata` 時，**必須完全刪除舊的 `export const metadata`**。Next.js 16 中靜態版本優先，動態版本被忽略，且沒有任何警告或錯誤。
-
-### locale-aware 站名（三語系）
-
-| locale | 站名 |
-|--------|------|
-| `zh`   | 東京台灣雷達 |
-| `ja`   | 東京台湾レーダー |
-| `en`   | Tokyo Taiwan Radar |
-
-OG `siteName`、`<title>` suffix、Twitter card `site` 都需要用此映射，不可硬寫單一語言。
-
-### x-default hreflang 必填
-
-多語系網站的 `alternates.languages` 必須包含 `"x-default"` 指向預設語系（`zh`），否則 Google Search Console 報警告：
-
-```ts
-alternates: {
-  canonical: `${SITE_URL}/zh/events/${id}`,
-  languages: {
-    "zh": `${SITE_URL}/zh/events/${id}`,
-    "en": `${SITE_URL}/en/events/${id}`,
-    "ja": `${SITE_URL}/ja/events/${id}`,
-    "x-default": `${SITE_URL}/zh/events/${id}`,
-  },
-}
-```
-
-### sitemap 查詢條件
-
-sitemap 只包含 `is_active = true` 且 `parent_event_id IS NULL` 的事件（子事件不單獨收錄）。
-
-### Next.js 16 — `proxy.ts` 唯一 middleware 入口
-
-Next.js 16 用 `proxy.ts` 完全取代傳統 `middleware.ts`。**兩者不能共存**——即使只建立空的 `middleware.ts` 也會造成 Vercel build 失敗：
-
-```
-Error: Both middleware file "./middleware.ts" and proxy file "./proxy.ts" are detected.
-Please use "./proxy.ts" only.
-```
-
-所有 middleware 邏輯（header 設定、redirect、auth guard）**必須在 `proxy.ts`** 實作，附加在現有流程後：
-
-```ts
-// proxy.ts — 在 intlMiddleware 之後附加自訂 header
-export async function proxy(request: NextRequest): Promise<NextResponse> {
-  // ... existing intlMiddleware / supabase auth / admin guard ...
-  const response = await intlMiddleware(request)
-  const locale = request.nextUrl.pathname.split('/')[1] || 'zh'
-  response.headers.set('x-locale', locale)
-  return response
-}
-```
-
-**禁止**：新建 `web/middleware.ts`，無論用途為何。
-
-### JSON-LD Event schema 注入
-
-在事件詳情頁 `app/[locale]/events/[id]/page.tsx` 的 `<article>` 最頂部注入結構化資料：
-
-```tsx
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{ __html: JSON.stringify({
-    "@context": "https://schema.org",
-    "@type": "Event",
-    name: getEventName(event, locale),
-    startDate: event.start_date,
-    endDate: event.end_date ?? undefined,
-    description: getEventDescription(event, locale),
-    location: event.location_name_zh ? {
-      "@type": "Place",
-      name: event.location_name_zh,
-      address: event.location_address_zh ?? undefined,
-    } : undefined,
-    organizer: event.organizer ? {
-      "@type": "Organization",
-      name: event.organizer,
-    } : undefined,
-    isAccessibleForFree: event.is_free ?? undefined,
-  }) }}
-/>
-```
-
-資料來自 server component props，不需額外 DB 查詢。`null` 欄位用 `?? undefined` 轉換（JSON-LD 不應包含 `null` 值）。
-
-### root layout async + x-locale
-
-`app/layout.tsx` 改為 `async` server component，讀取 `x-locale` header 動態設定 `<html lang>`：
-
-```ts
-import { headers } from "next/headers"
-export default async function RootLayout({ children }) {
-  const locale = (await headers()).get('x-locale') ?? 'zh'
-  return <html lang={locale}>{children}</html>
-}
-```
-
-`metadata` 使用 `title.template` 格式（不使用靜態 string）：
-```ts
-export const metadata: Metadata = {
-  title: { template: '%s | Tokyo Taiwan Radar', default: 'Tokyo Taiwan Radar' },
-}
-```
-
-### ISR（Incremental Static Regeneration）頁面規則
-
-事件詳情頁使用 ISR（`export const revalidate = 3600`）快取靜態 HTML。**任何破壞 ISR 的模式都會讓快取失效，退化為 full SSR。**
-
-#### ISR 頁面的 Supabase client
-
-```ts
-// CORRECT — ISR server component（包括 generateMetadata）
-import { createClient } from "@supabase/supabase-js"
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
-// WRONG — 任何呼叫 cookies() 的 client 都強制 dynamic，revalidate 失效
-import { createClient } from "@/lib/supabase/server"
-```
-
-#### Auth-dependent UI 必須移至 client component
-
-ISR server component 不知道「目前使用者是誰」——所有 auth 相關判斷（`isAdmin`、`isSaved`、`user`）必須在 client component 的 `useEffect` 裡查詢：
-
-| 功能 | 舊做法（破壞 ISR） | 正確做法 |
-|------|--------------------|----------|
-| Admin 編輯按鈕 | server-side `isAdmin` | `AdminEventActions.tsx`（client）mount 後查 `user_roles` |
-| 收藏按鈕狀態 | server-side `isSaved` | `SaveButton` 傳 `initialSaved={false}`，mount 後 `useEffect` 自取 |
-
-#### inactive 事件查詢
-
-ISR 頁面改用 `.eq("is_active", true)` 查詢過濾 inactive 事件，取代 server-side `if (!event.is_active && !isAdmin) notFound()`：
-
-```ts
-// CORRECT — ISR 頁面
-const { data: event } = await supabase
-  .from("events")
-  .select("*")
-  .eq("id", id)
-  .eq("is_active", true)
-  .single()
-
-// WRONG — 需要 auth context，強制 dynamic
-if (!event.is_active && !isAdmin) notFound()
-```
-
-注意：此方案下管理員也無法透過 ISR 路由查看 inactive 事件（需另設 admin panel 專用路由）。
-
-
+## Bulk Action Pattern (AdminEventTable)
 
 When adding a new bulk operation that operates on a **derived value from selected events** (e.g. common categories, common source, common status):
 1. Compute the derived value with `useMemo([selected, events])` — never inline in render
@@ -548,6 +348,46 @@ Log broadcast runs to `scraper_runs` with `source='weekly_broadcast'`. Use the `
 f"weekly={len(weekly_events)}, monthly={len(monthly_events)}, sent_to={sent_total} subscribers (zh=..., en=..., ja=...)"
 ```
 Wrap in `try/except` — a failed log write must never abort the broadcast.
+
+## AEO（AI Engine Optimization）
+
+AEO 讓 Perplexity、ChatGPT Search、Claude 等 AI 引擎正確理解並引用網站內容。
+
+### 完整實作清單（每次新網站或重大 SEO 工作時對照）
+
+| 項目 | 文件 | 說明 |
+|------|------|------|
+| `llms.txt` | `web/public/llms.txt` | AI 引擎索引文件；概述網站結構與主要 URL |
+| AI 爬蟲許可 | `web/app/robots.ts` | 明確 `Allow` GPTBot / OAI-SearchBot / Anthropic-ai / Claude-Web / PerplexityBot / Google-Extended / cohere-ai / Meta-ExternalAgent / YouBot |
+| WebSite + SearchAction + Organization | root `web/app/layout.tsx` | 用 `@graph` 陣列注入；`potentialAction.target` 使用 `EntryPoint` 物件格式 |
+| BreadcrumbList | `web/app/[locale]/events/[id]/page.tsx` | `Tokyo Taiwan Radar → 活動列表 → {事件名稱}`；多語言標籤 |
+| `<time dateTime>` | 事件詳情頁日期欄位 | 包裹所有日期文字，提供機器可讀格式 |
+| `x-default` | `web/app/sitemap.ts` | 靜態頁與事件詳情頁的 `alternates.languages` 加上 `"x-default": .../zh/...` |
+
+### proxy.ts 靜態文件排除規則
+
+**任何新增到 `web/public/` 的靜態文件，必須同步在 `proxy.ts` matcher 中加入排除規則。**
+
+原因：Next.js i18n middleware（`proxy.ts`）的 matcher 排除清單不自動包含 `public/` 下的文件。未排除的路徑會被 307 重導向至 locale 前綴路徑（如 `/zh/llms.txt`），導致 404。
+
+```ts
+// proxy.ts matcher 範例 — 排除所有靜態文件和 API
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|robots\\.txt|sitemap\\.xml|llms\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)).*)',
+  ],
+}
+```
+
+**新增 `public/` 文件後的必做清單：**
+1. 在 `proxy.ts` matcher 排除正規表示式中加入新文件名稱
+2. 驗證：`curl -I https://<domain>/<filename>` 回傳 200，而非 307
+
+### JSON-LD 注入模式
+
+- root `layout.tsx`：`WebSite + SearchAction + Organization`（`@graph` 陣列）
+- 事件詳情 `page.tsx`：`BreadcrumbList`（置於 `<article>` 頂端）
+- 使用 `<script type="application/ld+json">` 注入；`JSON.stringify` 前將 `null` 轉 `undefined`
 
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/engineer/history.md` (newest at top).

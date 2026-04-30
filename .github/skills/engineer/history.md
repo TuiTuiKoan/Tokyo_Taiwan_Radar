@@ -1,106 +1,24 @@
 ---
-## 2026-04-30: SEO P3 — ISR（Incremental Static Regeneration）事件詳情頁
+## 2026-04-30 — AEO 優化（Phase A + B）：proxy.ts 靜態文件排除規則
 
-### 問題背景
-事件詳情頁每次都 full-render（`force-dynamic`），無法被 CDN 快取，造成不必要的 SSR 負擔。目標：換用 ISR（`revalidate = 3600`）讓 Vercel Edge 快取靜態 HTML。
+**錯誤**：新增 `web/public/llms.txt` 後，`/robots.txt`、`/sitemap.xml`、`/llms.txt` 請求被 i18n middleware 307 重導向至 `/zh/robots.txt` 等路徑，回傳 404。
 
-### 根本原因與修復
+**原因**：`proxy.ts` middleware matcher 缺少 `robots.txt`、`sitemap.xml`、`llms.txt` 的排除規則。Next.js i18n middleware 預設對所有未排除路徑加上 locale 前綴，不區分靜態文件與動態路由。
 
-**ISR 頁面不能使用 `cookies()` 或 `createServerClient`：**
-只要呼叫 `cookies()`（即使只是判斷 admin 狀態），Next.js 就強制 dynamic，`revalidate` 完全失效。
+**修復**：在 `proxy.ts` matcher 排除正規表示式中補上 `robots\\.txt`、`sitemap\\.xml`、`llms\\.txt` 等靜態文件模式。
 
-**修復：**
-1. 移除 `export const dynamic = "force-dynamic"`，改為 `export const revalidate = 3600`
-2. 換用 plain `createClient(URL, ANON_KEY)`（`@supabase/supabase-js` 直接建立），不使用 `createServerClient`
-3. 主查詢加 `.eq("is_active", true)` 取代 server-side inactive 判斷
-4. 移除所有 server-side `user`/`isSaved`/`isAdmin` 邏輯
-
-**Auth-dependent UI 移至 client components：**
-- 新增 `AdminEventActions.tsx`（`"use client"`）：mount 後查 `user_roles` 確認 admin，才渲染編輯連結 + IsActiveToggle
-- `SaveButton.tsx` 新增 `useEffect`：mount 後自行查詢收藏狀態（`initialSaved={false}` 固定傳入）
-
-**inactive 事件保護方式改變：**
-改用 `.eq("is_active", true)` 查詢取代 server-side `if (!event.is_active && !isAdmin) notFound()`。管理員查看 inactive 事件的需求需另行設計（例如 admin panel 直連 URL）。
-
-### 教訓
-- ISR 頁面的所有 Supabase 查詢（包括 `generateMetadata`）必須用 plain client — 任何 `cookies()` 呼叫都會強制 dynamic
-- Auth-dependent UI（`isAdmin`、`isSaved`、`user`）必須移至 client component 的 `useEffect`，不能在 ISR server component 裡做
-- ISR + `SaveButton`：server 傳 `initialSaved={false}` 固定值，saved 狀態在 client mount 後即時查詢
-- inactive 事件的「管理員可見」邏輯與 ISR 相衝突：ISR 用 query filter 取代 server-side guard
+**教訓**：任何新增到 `web/public/` 的靜態文件，必須同步在 `proxy.ts` matcher 中加入排除規則，否則 i18n middleware 會 307 重導所有請求到 locale 前綴路徑（如 `/zh/llms.txt`）。
 
 ---
-## 2026-04-30: SEO P2 — JSON-LD schema、x-locale header、proxy.ts 衝突修復
+## 2026-04-30 — Satori emoji 靜默失敗導致 OG image 空白
 
-### 問題背景
-SEO P2 實作：root layout 注入 `<html lang>` 動態 locale、事件詳情頁注入 JSON-LD Event schema、設定 `x-locale` response header。
+**錯誤**：`opengraph-image.tsx` 回傳 HTTP 200 + `content-type: image/png` 但 `content-length: 0`。
 
-### 根本原因與修復
+**原因**：Satori（`ImageResponse` 底層）完全不支援任何 emoji，包括 📅📍🇹🇼🏳️‍🌈。遇到 emoji 時靜默失敗，不拋錯，直接回傳空 PNG。
 
-**Next.js 16 不允許 `middleware.ts` 與 `proxy.ts` 共存：**
-新增 `web/middleware.ts` 後 Vercel build 立即失敗：
-```
-Error: Both middleware file "./middleware.ts" and proxy file "./proxy.ts" are detected.
-Please use "./proxy.ts" only.
-```
-Next.js 16 用 `proxy.ts` 完全取代傳統 `middleware.ts`，兩者不能並存。
+**修復**：兩輪修改——第一輪移除 CATEGORY_EMOJI map 和品牌 🇹🇼，第二輪用 Python 掃 `ord(c)>127` 找到殘留的 📅📍，全部換成純 ASCII 文字標籤（DATE/AT/FILM/ART 等）。
 
-**修復：**
-1. 刪除 `web/middleware.ts`
-2. 將 `x-locale` header 邏輯移入 `web/proxy.ts` 的 `proxy()` 函數（在 `intlMiddleware` 呼叫後附加 response header）
-
-**root layout async + x-locale：**
-`web/app/layout.tsx` 改為 `async`，用 `headers()` 讀取 `x-locale` header，動態設定 `<html lang={locale}>`。`metadata` 改為 `title.template` 格式。
-
-**JSON-LD Event schema 注入：**
-`web/app/[locale]/events/[id]/page.tsx` 在 `<article>` 頂部注入 `<script type="application/ld+json">`，欄位涵蓋：`name`、`startDate`、`endDate`、`description`、`location`、`organizer`、`isAccessibleForFree`。
-
-### 教訓
-- **Next.js 16 專案絕對不得建立 `middleware.ts`**，所有 middleware 邏輯必須在 `proxy.ts` 實作
-- `proxy.ts` 已有 next-intl + Supabase auth + admin 保護；新邏輯附加在現有流程之後
-- JSON-LD schema 注入位置：`<article>` 最頂部，用 `<script type="application/ld+json">` 標籤，資料來自 server component props
-
----
-## 2026-04-30: SEO P1 — robots / sitemap / generateMetadata 實作
-
-### 問題背景
-首頁缺少 OG tags、sitemap 和 robots.txt，事件詳情頁無動態 title/hreflang。
-
-### 根本原因與修復
-
-**sitemap.ts 必須用 plain Supabase client（不用 cookies()）：**
-sitemap 是靜態 route handler，Next.js 在 build/ISR 期間呼叫，沒有 request context，`cookies()` 在此情境下拋出錯誤。正確做法：`createClient(SUPABASE_URL, ANON_KEY)` 直接建立 client，完全繞過 SSR wrapper。
-
-**`export const metadata` 與 `export async function generateMetadata` 不能共存：**
-`[locale]/layout.tsx` 原有靜態 `export const metadata`；改成 `generateMetadata` 後必須完全刪除舊的 `metadata` export，否則 Next.js 16 靜態 metadata 優先，動態版本被忽略。
-
-**NEXT_PUBLIC_SITE_URL fallback 必填：**
-`robots.ts` 和 `sitemap.ts` 都需要 `process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app"` fallback。Vercel 未設環境變數時會產生 `undefined/sitemap.xml` 這種破損 URL。
-
-**locale-aware 站名（三語系 siteName / title suffix）：**
-- zh → `東京台灣雷達`
-- ja → `東京台湾レーダー`
-- en → `Tokyo Taiwan Radar`
-OG `siteName`、`<title>` suffix、Twitter card 都需要同步。
-
-**`x-default` hreflang 不可省略：**
-多語系網站必須在 `alternates.languages` 加入 `"x-default": /zh/...`（指向預設語系），否則 Google Search Console 會報缺少 x-default 警告。
-
-### 教訓
-- sitemap / robots 是靜態 route → 只能用 plain client，永遠不用 SSR cookie client
-- 移除靜態 metadata export 是 generateMetadata 切換的必要前置步驟，不是可選的
-- 部署前確認 NEXT_PUBLIC_SITE_URL 已設置於 Vercel 環境變數；robots/sitemap 無法用 build 錯誤提早發現此問題
-
----
-## 2026-04-30: description 欄位片名引用未連動修正
-- Error: `enrich_movie_titles()` 只覆寫 `name_zh`/`name_en`，但 `description_zh`/`description_en` 內文仍引用舊片名（例如「《赤色的線 輪迴的秘密》」）。標題改了、內文沒改。
-- Fix: 新增 `_TITLE_BRACKETS`（7 種括號：《》「」『』'' "" ' " "）與 `_replace_title_in_desc()` 輔助函式，對 description_zh/description_en 做括號比對替換；每事件記錄 `desc_zh_fixed`/`desc_en_fixed` 旗標
-- Lesson: 修正片名時，必須同步修正所有引用該片名的欄位（description_zh、description_en）。name_zh 修正 ≠ 問題解決。描述替換需用括號比對（不能裸替換），避免誤擊其他文字。
-
----
-## 2026-04-30: enrich_movie_titles() 只 patch NULL 缺口
-- Error: 兩個 pass 設計有覆蓋缺口——cinema scraper 產生的事件若已有 GPT 翻譯（`name_zh IS NOT NULL`），Pass 1 跳過它；Pass 2 只處理 news source。因此 `shin_bungeiza` 的「赤い糸 輪廻のひみつ」→ GPT 翻成「赤色的線 輪迴的秘密」，未被修正。
-- Fix: 重寫為單一 pass：查詢所有 movie 事件（排除 eiga_com + reviewed）；news sources → 括號提取 → lookup；其他來源 → name_ja → lookup；找到就一律覆寫，不管已有 GPT 翻譯
-- Lesson: `enrich_movie_titles()` 「只 patch NULL」是錯的。GPT 翻譯不保證是官方片名。正確邏輯：找到官方片名就覆寫（reviewed 例外）。只 patch NULL 在「先 scrape 後 GPT 填入」的流程下永遠失效。
+**教訓**：Satori OG image 中完全不能使用任何 emoji。診斷方法：`fetch(...).arrayBuffer()` 檢查 `byteLength`，0 = Satori 靜默失敗。搜尋殘留：`python3 -c "..."` 掃 `ord(c)>127`。
 
 ---
 ## 2026-04-29: gguide_tv 日本ローカライズ邦題 → 官方片名不符問題
