@@ -45,6 +45,24 @@ event = Event(
 - The module uses in-memory `_cache` — no extra latency for repeated titles in one run
 - `eiga_com.py` is exempt — it already has native 原題 parsing in `_parse_original_title()`
 
+### enrich_movie_titles() 覆寫規則
+
+**找到官方片名就覆寫，不論 name_zh/name_en 是否為 NULL**（`annotation_status = 'reviewed'` 的事件除外）。
+
+錯誤模式（只 patch NULL）在「先 scrape → GPT annotator 填入翻譯 → enrich 補齊」流程下永遠失效：
+- GPT 翻譯後 `name_zh IS NOT NULL`，Pass 1 的 `IS NULL` 條件跳過該事件
+- Pass 2 只處理 news sources，cinema scraper 產生的事件永遠不被修正
+
+正確設計：單一 pass，查詢所有 movie 事件（排除 `eiga_com` + `reviewed`），找到就覆寫。
+
+### enrich_movie_titles() 連動 description 規則
+
+修正 `name_zh`/`name_en` 時，**必須同步修正 `description_zh`/`description_en` 中的括號片名引用**：
+
+- 只替換括號包裹的舊片名（`_TITLE_BRACKETS`：`《》「」『』'' "" ' " "`）——避免裸替換誤擊內文中非片名的相同字串
+- `name_zh` 修正 ≠ 問題解決；description 內文也是使用者可見的欄位
+- 每個事件記錄 `desc_zh_fixed`/`desc_en_fixed` 旗標以利 diff 確認
+
 ### gguide_tv 特殊規則 — 日本放送邦題
 
 `gguide_tv` 的 raw_title 使用**日本放送局自訂的本地化邦題**，可能與台灣官方片名完全不同：
@@ -309,6 +327,45 @@ Missing a Vercel env var for a webhook causes silent HTTP 401 failures. LINE doe
 2. Test INSERT with the same logic manually — confirms schema is not the problem
 3. Check the **Vercel** env var list (not just GitHub Actions secrets)
 4. If a variable is missing in Vercel, add it; then have the user block + unblock the bot to re-trigger the follow event
+
+## LINE Broadcast Pipeline
+
+`scraper/weekly_line_broadcast.py` sends AI-curated event recommendations to all active LINE subscribers.
+
+### LINE multicast constraints
+- **500-user batch limit**: `LINE_MULTICAST_URL` (`/v2/bot/message/multicast`) accepts at most 500 `to` IDs per request. Always loop in batches of 500. Exceeding this returns HTTP 400.
+- **No retry on failure**: LINE does NOT retry failed deliveries. If a multicast call fails, that batch is permanently lost — log failures clearly.
+
+### Trilingual dispatch pattern
+```python
+by_lang: dict[str, list[str]] = {"zh": [], "en": [], "ja": []}
+for s in subs:
+    lang = s.get("language_preference", "zh")
+    if lang in by_lang:
+        by_lang[lang].append(s["line_user_id"])
+```
+Default language is `"zh"` for subscribers without a recorded preference.
+
+### GPT event selection — category slot rules
+`_ai_select_events()` enforces mandatory diversity slots in the prompt:
+- 五感（arts）: ≥2 slots; prefer `movie`/`performing_arts` first
+- 生活風格（lifestyle）: ≥1 slot
+- 知識交流（knowledge）: ≥1 slot
+- 社會（society）: ≥1 slot
+- Fallback: if a group has no events in the next 14 days, redistribute its slots to the next priority group
+- **Exclude `taiwan_japan` and `tv_program`** from monthly preview
+
+These slot rules must be included in the GPT prompt as MANDATORY constraints — soft wording like "prefer" causes GPT to ignore them.
+
+### Redirect URL pattern
+Broadcast messages use `/r/{event_id}` short URLs (`base_url + "/r/" + id`), not the full `/[locale]/events/[id]` path. This allows click tracking without hardcoding locale.
+
+### `scraper_runs` logging for non-scraper pipelines
+Log broadcast runs to `scraper_runs` with `source='weekly_broadcast'`. Use the `notes` field for per-language subscriber counts:
+```python
+f"weekly={len(weekly_events)}, monthly={len(monthly_events)}, sent_to={sent_total} subscribers (zh=..., en=..., ja=...)"
+```
+Wrap in `try/except` — a failed log write must never abort the broadcast.
 
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/engineer/history.md` (newest at top).

@@ -1,4 +1,16 @@
 ---
+## 2026-04-30: description 欄位片名引用未連動修正
+- Error: `enrich_movie_titles()` 只覆寫 `name_zh`/`name_en`，但 `description_zh`/`description_en` 內文仍引用舊片名（例如「《赤色的線 輪迴的秘密》」）。標題改了、內文沒改。
+- Fix: 新增 `_TITLE_BRACKETS`（7 種括號：《》「」『』'' "" ' " "）與 `_replace_title_in_desc()` 輔助函式，對 description_zh/description_en 做括號比對替換；每事件記錄 `desc_zh_fixed`/`desc_en_fixed` 旗標
+- Lesson: 修正片名時，必須同步修正所有引用該片名的欄位（description_zh、description_en）。name_zh 修正 ≠ 問題解決。描述替換需用括號比對（不能裸替換），避免誤擊其他文字。
+
+---
+## 2026-04-30: enrich_movie_titles() 只 patch NULL 缺口
+- Error: 兩個 pass 設計有覆蓋缺口——cinema scraper 產生的事件若已有 GPT 翻譯（`name_zh IS NOT NULL`），Pass 1 跳過它；Pass 2 只處理 news source。因此 `shin_bungeiza` 的「赤い糸 輪廻のひみつ」→ GPT 翻成「赤色的線 輪迴的秘密」，未被修正。
+- Fix: 重寫為單一 pass：查詢所有 movie 事件（排除 eiga_com + reviewed）；news sources → 括號提取 → lookup；其他來源 → name_ja → lookup；找到就一律覆寫，不管已有 GPT 翻譯
+- Lesson: `enrich_movie_titles()` 「只 patch NULL」是錯的。GPT 翻譯不保證是官方片名。正確邏輯：找到官方片名就覆寫（reviewed 例外）。只 patch NULL 在「先 scrape 後 GPT 填入」的流程下永遠失效。
+
+---
 ## 2026-04-29: gguide_tv 日本ローカライズ邦題 → 官方片名不符問題
 - Error: gguide_tv scraper 取到的 raw_title 是日本放送局自訂的本地化標題（如「スクリュー・ガール　一発逆転婚！！」），AI 翻譯後得到「螺絲女孩 一發逆轉婚！！」，與官方片名「螺絲小姐要出嫁 / Miss Rose」完全不同
 - Error 2: 第一次手動 patch 時未查 Wikipedia，直接翻譯日文本地化標題，仍然錯誤
@@ -69,6 +81,13 @@ Fix：兩處 `statusFiltered` 計算必須完全同步。
 - 新增 `categoryCounts` useMemo，遍歷全量 `events` 陣列計算每個 category 的數量
 - Dropdown 選項改為「電影 (12)」格式，數量為 0 時不顯示括號（`count > 0 ? ` (${count})` : ''`）
 - 教訓：Admin 側 UI 的顯示統計（如 per-category 數量）應以 `useMemo([events])` 直接從已載入的 `events` state 派生，無需額外 API 呼叫
+
+---
+## 2026-04-29 — LINE Broadcast Pipeline 設計固化（daily review）
+**新增/修改：**
+- 新增 `## LINE Broadcast Pipeline` 段落（500-user batch limit、trilingual dispatch、GPT slot rules、/r/ redirect URL、scraper_runs logging）
+- 記錄 GPT slot rules 必須用 MANDATORY 語氣，soft wording 會被忽略
+**來源：** daily-skills-review（Step 4 建議）
 
 ---
 ## 2026-04-29 — Discovery Pipeline 架構固化（daily review）
