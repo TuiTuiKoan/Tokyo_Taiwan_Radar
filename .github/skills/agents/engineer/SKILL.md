@@ -432,6 +432,59 @@ export const config = {
 ```
 Current exclusions: `llms.txt` (via `txt` extension), standard static assets. When adding a new `public/` file with an unusual extension, verify the matcher covers it.
 
+## AEO — JSON-LD Rules
+
+### FAQPage visibility requirement
+Google requires FAQ content to be **visually present on the page**, not only in JSON-LD. Always add a visible `<dl>` section that mirrors the FAQPage schema content. Omitting the visible section causes Google to reject the rich result.
+
+```tsx
+{/* JSON-LD */}
+<script type="application/ld+json">{JSON.stringify(faqSchema)}</script>
+
+{/* Visible FAQ — REQUIRED alongside JSON-LD */}
+<dl>
+  <dt>What is this?</dt>
+  <dd>Answer...</dd>
+</dl>
+```
+
+### JSON-LD layering
+- **Global (layout.tsx):** `WebSite` + `SearchAction` + `Organization` via `@graph`
+- **Page-level (page.tsx):** `BreadcrumbList`, `CollectionPage`, `ItemList`, `FAQPage`
+- Never duplicate WebSite/Organization schemas in page-level files — they are already in layout.
+
+### sitemap.ts — x-default alternates
+When adding `alternates.languages` to sitemap entries, always include `x-default` pointing to the canonical locale (zh):
+```ts
+languages: { "x-default": zhUrl, zh: zhUrl, en: enUrl, ja: jaUrl }
+```
+Without `x-default`, search engines cannot determine the primary language version.
+
+## AEO — IndexNow Integration
+
+`scraper/indexnow.py` provides `submit_urls(urls)` and `event_urls(uuids)`.
+
+### database.py return type contract
+`upsert_events()` returns `list[str]` — the UUIDs of **newly inserted** events (not updates). Callers that only needed the side-effect can safely ignore the return value. Callers that need to act on new events (e.g. IndexNow) should capture and process it.
+
+### scraper.yml env vars required
+Both `INDEXNOW_KEY` and `NEXT_PUBLIC_SITE_URL` must be set in the workflow `env:` block. `NEXT_PUBLIC_SITE_URL` is used by `indexnow.py` to construct canonical event URLs.
+
+### Key verification file
+The IndexNow key verification file (`web/public/<key>.txt`) must be excluded from the proxy.ts matcher. The current `.txt` wildcard already covers it, but verify if you use a non-standard extension.
+
+## AEO — Topic Aggregation Pages
+
+`web/app/[locale]/cities/[city]/page.tsx` and `web/app/[locale]/categories/[category]/page.tsx` are static aggregation pages (generateStaticParams).
+
+### i18n namespace rules
+- City descriptions → `cities.*` namespace in `messages/*.json`
+- Category descriptions → `categoryDesc.*` namespace in `messages/*.json`
+- Both namespaces must exist in **all three** message files before the page is built; missing namespace causes `t("key")` to return raw key string silently.
+
+### sitemap inclusion
+Add city and category pages to `sitemap.ts` with `priority: 0.7` and `changeFrequency: "daily"`. Add them in the **same commit** as the page files — sitemap-only or page-only commits leave dangling entries.
+
 ## GitHub Actions Workflow Rules
 
 - Any `with:` field in an action step whose value is a **pure `${{ expression }}`** (no surrounding text) must be quoted: `path: "${{ steps.x.outputs.y }}"`.

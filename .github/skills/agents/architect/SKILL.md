@@ -22,6 +22,16 @@ Read this at the start of every session before producing any plan.
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
 
+## AEO Feature Planning Rules
+
+When planning any AEO (AI Engine Optimization) or SEO feature:
+
+- **Static file checklist**: Any `web/public/` file added (e.g. `llms.txt`, IndexNow key `.txt`) must have a corresponding proxy.ts matcher exclusion step in the plan. Without it, i18n middleware 307-redirects the file to a locale path.
+- **FAQPage plan must include visible `<dl>`**: Never plan "add FAQPage JSON-LD" without also planning "add matching visible `<dl>` section on the page". Google requires FAQ content to be visually present.
+- **Migration number pre-check**: Before assigning a migration number, confirm the next available number with `ls supabase/migrations/ | sort | tail -5`. Two migrations with the same number must use `NNN` and `NNNb_` suffix.
+- **i18n namespaces upfront**: When planning new page types (city pages, category pages), explicitly list all new i18n namespace keys needed in all three messages files as a plan step. Silent namespace miss = raw key on page.
+- **IndexNow env vars**: Plans that add IndexNow submission must explicitly list `INDEXNOW_KEY` and `NEXT_PUBLIC_SITE_URL` as required env vars in both GitHub Actions secrets and (if needed) Vercel.
+
 ## Category Union Change Guard
 
 After any plan that touches `web/lib/types.ts` Category union:

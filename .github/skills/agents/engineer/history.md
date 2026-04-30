@@ -3,6 +3,44 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — AEO 實作（Phase A/B/C partial）：llms.txt、IndexNow、Aggregation Pages、監控 Dashboard
+
+**背景：** 為提升 AI 搜尋引擎可見度（Perplexity、ChatGPT Search、Claude），實作 AEO（AI Engine Optimization）三階段：
+- Phase A：AI crawler 開放、`llms.txt`、全域 JSON-LD
+- Phase B：活動詳情頁 BreadcrumbList + FAQPage、sitemap x-default
+- Phase C（partial）：AEO 監控（`aeo_visits` 表 + proxy.ts 偵測 + Admin Dashboard）+ IndexNow 提交 + 主題聚合頁（城市 × 6 + 分類 × 所有）
+
+**關鍵教訓：**
+
+1. **proxy.ts 靜態文件 307 問題**：任何新增到 `web/public/` 的靜態文件（如 `llms.txt`、`93bf67...txt`），必須同步更新 `proxy.ts` matcher 排除 regex，否則 i18n middleware 307 重導至 `/zh/<filename>`。
+
+2. **FAQPage 必須有可見內容**：Google 要求 FAQPage 內容必須在頁面上可見，JSON-LD 本身不夠。必須同時添加 `<dl>` visible section 與 JSON-LD，缺一不可。
+
+3. **Migration 號碼衝突處理**：若兩個 migration 分配到相同號碼，採用 `b` 後綴（如 `029b_realtime_events.sql`），並在 SQL 檔案頂部加 comment 說明衝突原因。
+
+4. **TSX 禁止 CJK 硬編碼**：城市描述、分類描述等所有中文/日文文字必須走 `t()` hook 從 `messages/*.json` 讀取，絕不硬編碼在 `.tsx`。靜態分析不會報錯，但翻譯缺失時頁面會顯示 raw key。
+
+5. **getTranslations namespace 靜默失敗**：使用 `tXxx("key")` 前必須確認 `messages/zh.json` 中對應 namespace 存在。Namespace 不存在時 `t()` 靜默返回 raw key string，不拋錯，難以發現。
+
+6. **IndexNow 需兩個環境變數**：`INDEXNOW_KEY`（API key）和 `NEXT_PUBLIC_SITE_URL`（用於建構 event URL）。兩者都需加入 `.github/workflows/scraper.yml` 的 env 區塊。`upsert_events()` 改為返回 `list[str]`（新活動 UUID 列表）供 IndexNow 使用，原有呼叫方只需更新 unpack。
+
+7. **Aggregation page i18n 命名**：城市頁用 `cities.*` namespace，分類頁用 `categoryDesc.*` namespace。必須同時更新三個 messages 文件，否則非 zh locale 的頁面顯示 raw key。
+
+**新增文件：**
+- `web/public/llms.txt` — AI engine index
+- `web/app/robots.ts` — 9 個 AI crawler 規則（GPTBot, OAI-SearchBot, Anthropic-ai, Claude-Web, PerplexityBot, Google-Extended, cohere-ai, Meta-ExternalAgent, YouBot）
+- `web/app/layout.tsx` — 全域 JSON-LD @graph (WebSite + SearchAction + Organization)
+- `web/app/[locale]/events/[id]/page.tsx` — BreadcrumbList + FAQPage JSON-LD + 可見 `<dl>` FAQ section
+- `web/app/sitemap.ts` — x-default alternates + 城市/分類頁（priority 0.7, daily）
+- `supabase/migrations/029_aeo_visits.sql` — bot/ai_referral 追蹤表
+- `web/proxy.ts` — BOT_PATTERNS（17）+ AI_REFERER_HOSTS（10）+ fire-and-forget logAeoVisit()
+- `web/app/[locale]/admin/aeo/page.tsx` — Admin AEO Dashboard（6 summary cards + bot/AI referral tables）
+- `web/public/93bf676318c36c2420ea9af290aa15a65efab2134bee2caf6f29037b06b4d9b9.txt` — IndexNow key 驗證文件
+- `scraper/indexnow.py` — submit_urls(), event_urls()
+- `web/app/[locale]/cities/[city]/page.tsx` — 6 城市 × 3 locales，CollectionPage + ItemList JSON-LD
+- `web/app/[locale]/categories/[category]/page.tsx` — 所有分類 × 3 locales，CollectionPage + ItemList JSON-LD
+
+---
 ## 2026-05-01 — AEO proxy.ts Edge Middleware 規則固化（daily review）
 **新增/修改：**
 - 新增 `## AEO Monitoring — proxy.ts Edge Middleware Rules` 段落

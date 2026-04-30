@@ -3,6 +3,29 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — AEO 架構設計（Phase A/B/C）：AI Engine Optimization 全域規劃
+
+**工作內容：**  
+設計並規劃 AEO 三階段實作，涵蓋 AI 搜尋引擎可見度提升、IndexNow 即時提交、監控追蹤。
+
+**架構決策：**
+
+1. **JSON-LD 分層策略**：全域 JSON-LD（WebSite + Organization）放 `layout.tsx`；頁面級 JSON-LD（BreadcrumbList、CollectionPage、FAQPage）放各自的 `page.tsx`。避免全域與頁面級 schema 衝突。
+
+2. **AEO 監控不依賴伺服器組件**：monitoring 放在 Edge middleware（`proxy.ts`），而非 Server Component 或 API route，因為 proxy 是所有請求的必經路徑，能攔截 bot UA 和 AI referrer 而不影響正常渲染。
+
+3. **IndexNow 整合點**：在 `upsert_events()` 返回新 UUID 列表（非修改現有函式簽名的破壞性變更，而是擴展返回型別），使 `main.py` 的 orchestrator 能在每次 scraper run 後立即提交新活動 URL，延遲最短。
+
+4. **聚合頁 URL 設計**：`/[locale]/cities/[city]` 和 `/[locale]/categories/[category]` 靜態路由（generateStaticParams），可被搜尋引擎快取，也適合 CollectionPage + ItemList JSON-LD schema。
+
+5. **FAQPage 設計規則**：FAQ 問答設計為 2-4 個問題，涵蓋「什麼是台灣文化活動」「如何找到最新活動」等常見 AI 查詢。**關鍵：** JSON-LD 必須搭配頁面上可見的 `<dl>` 元素，Google 不接受僅 JSON-LD 而無可見內容的 FAQPage。
+
+**教訓：**
+- AEO 計劃必須明確標注「static file → proxy.ts matcher 同步」的步驟，這是最容易被遺漏的實作細節。
+- FAQPage JSON-LD 必須在計劃中同時要求可見 `<dl>` section，否則 Engineer 只會做 JSON-LD 而跳過可見部分。
+- Migration 號碼衝突（如兩個 029_）要在規劃期確認最新 migration 號碼，避免衝突。規劃新 migration 前必查 `ls supabase/migrations/` 確認下一個可用號碼。
+
+---
 ## 2026-05-01 — Tier 1 資源監控強化（SLA + 預算護欄 + 品質 Dashboard）
 
 **背景：** 原本 `/admin/stats` 只顯示最近一次執行狀態、`weekly_report.py` 只看週費用、並無資料品質審核面。長期下來難以推斷「某個來源是偶發失敗還是長期退化」。
