@@ -75,13 +75,15 @@ async function loadFont(text: string, locale: string): Promise<ArrayBuffer | nul
   }
 }
 
-// Yushan (3952 m) east-west ridge profile, above 2000 m floor
-// Mapped to 1200x630 canvas — baseline y=555, peak y=455, x range 540-1190
+// Yushan (3952 m) east-west ridge profile — extracted from real elevation data (top5_profiles.npz)
+// Mapped to 1200x630 canvas: baseline y=560, peak y≈415, x range 460-1190
 const YUSHAN_POINTS =
-  "540,555 572,551 605,545 637,537 670,527 702,515 735,503 767,490 " +
-  "800,478 826,468 845,461 865,455 884,458 897,464 910,461 930,468 " +
-  "949,479 975,493 1001,508 1027,522 1053,535 1079,544 1105,550 " +
-  "1131,553 1151,555 1190,555";
+  "460,560 480,551 498,531 516,499 534,499 552,509 570,518 588,510 " +
+  "606,503 624,476 642,480 659,480 677,495 695,498 713,486 731,465 " +
+  "749,454 767,415 785,415 803,419 821,415 839,415 857,415 875,415 " +
+  "893,424 911,459 929,480 947,461 965,465 983,457 1001,416 1018,415 " +
+  "1036,415 1054,425 1072,449 1090,484 1108,493 1126,465 1144,499 " +
+  "1162,524 1180,551 1190,560";
 
 export default async function Image({
   params,
