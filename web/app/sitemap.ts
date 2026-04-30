@@ -5,6 +5,12 @@ const LOCALES = ["zh", "en", "ja"] as const;
 const BASE =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app";
 
+const CITY_SLUGS = ["tokyo", "osaka", "kyoto", "fukuoka", "sapporo", "nagoya"] as const;
+const FEATURED_CATEGORIES = [
+  "movie", "performing_arts", "senses", "art", "lecture",
+  "taiwan_japan", "lifestyle_food", "books_media",
+] as const;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Use a plain Supabase client (no cookies) — sitemap reads only public data.
   const supabase = createClient(
@@ -49,5 +55,35 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }))
   );
 
-  return [...staticPages, ...eventPages];
+  // ── City aggregation pages ───────────────────────────────────────────────
+  const cityPages: MetadataRoute.Sitemap = CITY_SLUGS.flatMap((city) =>
+    LOCALES.map((locale) => ({
+      url: `${BASE}/${locale}/cities/${city}`,
+      changeFrequency: "daily" as const,
+      priority: 0.7,
+      alternates: {
+        languages: {
+          ...Object.fromEntries(LOCALES.map((l) => [l, `${BASE}/${l}/cities/${city}`])),
+          "x-default": `${BASE}/zh/cities/${city}`,
+        },
+      },
+    }))
+  );
+
+  // ── Category aggregation pages ───────────────────────────────────────────
+  const categoryPages: MetadataRoute.Sitemap = FEATURED_CATEGORIES.flatMap((cat) =>
+    LOCALES.map((locale) => ({
+      url: `${BASE}/${locale}/categories/${cat}`,
+      changeFrequency: "daily" as const,
+      priority: 0.7,
+      alternates: {
+        languages: {
+          ...Object.fromEntries(LOCALES.map((l) => [l, `${BASE}/${l}/categories/${cat}`])),
+          "x-default": `${BASE}/zh/categories/${cat}`,
+        },
+      },
+    }))
+  );
+
+  return [...staticPages, ...eventPages, ...cityPages, ...categoryPages];
 }
