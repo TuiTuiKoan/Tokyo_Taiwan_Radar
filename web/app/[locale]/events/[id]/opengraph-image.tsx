@@ -6,41 +6,41 @@ export const runtime = "edge";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  movie: "🎬",
-  performing_arts: "🎭",
-  art: "🎨",
-  senses: "🍜",
-  lifestyle_food: "🍜",
-  lecture: "🎤",
-  academic: "📚",
-  books_media: "📖",
-  taiwan_japan: "🤝",
-  exhibition: "🖼️",
-  drama: "📺",
-  retail: "🛍️",
-  nature: "🌿",
-  tech: "💻",
-  tourism: "✈️",
-  gender: "🏳️‍🌈",
-  geopolitics: "🌏",
-  competition: "🏆",
-  workshop: "🛠️",
-  literature: "✍️",
-  indigenous: "🌺",
-  history: "🏛️",
-  urban: "🏙️",
-  business: "💼",
-  taiwan_mandarin: "🗣️",
-  tv_program: "📺",
-  report: "📰",
+const CATEGORY_LABEL: Record<string, string> = {
+  movie: "FILM",
+  performing_arts: "LIVE",
+  art: "ART",
+  senses: "FOOD",
+  lifestyle_food: "FOOD",
+  lecture: "TALK",
+  academic: "ACAD",
+  books_media: "BOOK",
+  taiwan_japan: "TWNJ",
+  exhibition: "EXPO",
+  drama: "DRAM",
+  retail: "SHOP",
+  nature: "ECO",
+  tech: "TECH",
+  tourism: "TOUR",
+  gender: "GNDR",
+  geopolitics: "INTL",
+  competition: "COMP",
+  workshop: "WKSP",
+  literature: "LIT",
+  indigenous: "INDIG",
+  history: "HIST",
+  urban: "ARCH",
+  business: "BIZ",
+  taiwan_mandarin: "LANG",
+  tv_program: "TV",
+  report: "NEWS",
 };
 
-function getCategoryEmoji(categories: string[]): string {
+function getCategoryLabel(categories: string[]): string {
   for (const cat of categories) {
-    if (CATEGORY_EMOJI[cat]) return CATEGORY_EMOJI[cat];
+    if (CATEGORY_LABEL[cat]) return CATEGORY_LABEL[cat];
   }
-  return "📌";
+  return "EVENT";
 }
 
 function formatDate(dateStr: string | null, locale: string): string {
@@ -92,7 +92,7 @@ export default async function Image({
     .single();
 
   const name = event ? getEventName(event as Event, locale) ?? event.name_ja ?? "Event" : "Event";
-  const emoji = event?.category ? getCategoryEmoji(event.category) : "📌";
+  const categoryLabel = event?.category ? getCategoryLabel(event.category) : "EVENT";
   const dateStr = event ? formatDate(event.start_date, locale) : "";
   const location = locale === "zh"
     ? (event?.location_name_zh ?? event?.location_name ?? "")
@@ -130,10 +130,9 @@ export default async function Image({
               color: "white",
               fontSize: "20px",
               fontWeight: "bold",
-              letterSpacing: "-0.3px",
             }}
           >
-            🇹🇼 Tokyo Taiwan Radar
+            TW Tokyo Taiwan Radar
           </div>
           {event?.is_paid === false && (
             <div
@@ -162,13 +161,17 @@ export default async function Image({
         >
           <div
             style={{
-              fontSize: "80px",
-              lineHeight: 1,
+              background: "#16a34a",
+              color: "white",
+              fontSize: "18px",
+              fontWeight: "bold",
+              padding: "6px 12px",
+              borderRadius: "8px",
               flexShrink: 0,
-              marginTop: "4px",
+              marginTop: "8px",
             }}
           >
-            {emoji}
+            {categoryLabel}
           </div>
           <div
             style={{
