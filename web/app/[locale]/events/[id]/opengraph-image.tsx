@@ -53,7 +53,7 @@ function formatDate(dateStr: string | null, locale: string): string {
 }
 
 async function loadFont(text: string, locale: string): Promise<ArrayBuffer | null> {
-  const family = locale === "zh" ? "Zen+Kaku+Gothic+New:wght@700" : "Shippori+Mincho:wght@700";
+  const family = "DotGothic16:wght@400";
   const url = `https://fonts.googleapis.com/css2?family=${family}&text=${encodeURIComponent(text)}&display=swap`;
 
   try {
@@ -118,7 +118,7 @@ export default async function Image({
   // --- Load bold CJK font subset for the actual text ---
   const textToLoad = truncatedName + (dateStr ?? "") + (location ?? "") + "Tokyo Taiwan Radar";
   const fontData = await loadFont(textToLoad, locale);
-  const fontName = locale === "zh" ? "ZenKakuGothicNew" : "ShipporiMincho";
+  const fontName = "DotGothic16";
 
   return new ImageResponse(
     (
@@ -298,7 +298,7 @@ export default async function Image({
     {
       ...size,
       fonts: fontData
-        ? [{ name: fontName, data: fontData, weight: 700, style: "normal" }]
+        ? [{ name: fontName, data: fontData, weight: 400, style: "normal" }]
         : [],
     }
   );
