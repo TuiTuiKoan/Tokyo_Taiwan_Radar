@@ -127,15 +127,47 @@ export default async function Image({
         <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
           <div
             style={{
-              background: "#16a34a",
-              borderRadius: "10px",
-              padding: "8px 20px",
-              color: "white",
-              fontSize: "20px",
-              fontWeight: "bold",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              background: "#0d2b18",
+              borderRadius: "12px",
+              padding: "6px 20px 6px 6px",
             }}
           >
-            TW Tokyo Taiwan Radar
+            {/* Logo mark: 100 scan lines + 玉山 waveform */}
+            <svg width="52" height="52" viewBox="0 0 120 120">
+              <rect width="120" height="120" fill="#0d2b18" />
+              {Array.from({ length: 100 }, (_, i) => (
+                <line
+                  key={i}
+                  x1="0"
+                  y1={i * 1.2}
+                  x2="120"
+                  y2={i * 1.2}
+                  stroke="white"
+                  strokeWidth="0.45"
+                  strokeOpacity="0.38"
+                />
+              ))}
+              <polyline
+                points="0,96 8,92 16,87 22,81 26,74 30,66 33,57 36,47 39,38 41,30 43,22 45,18 47,22 49,28 52,36 55,44 59,52 63,58 67,64 71,70 76,75 82,80 90,85 100,89 112,92 120,94"
+                fill="none"
+                stroke="white"
+                strokeWidth="2.4"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            </svg>
+            <div
+              style={{
+                color: "white",
+                fontSize: "22px",
+                fontWeight: "bold",
+              }}
+            >
+              Tokyo Taiwan Radar
+            </div>
           </div>
           {event?.is_paid === false && (
             <div
