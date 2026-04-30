@@ -14,6 +14,13 @@ export async function proxy(request: NextRequest) {
   const intlResponse = intlMiddleware(request);
   const response = intlResponse ?? NextResponse.next();
 
+  // 1a. Set x-locale header so root layout can apply <html lang>
+  const localeSegment = request.nextUrl.pathname.split("/")[1] ?? "";
+  const detectedLocale = (LOCALES as readonly string[]).includes(localeSegment)
+    ? localeSegment
+    : "zh";
+  response.headers.set("x-locale", detectedLocale);
+
   // 2. Refresh Supabase auth session
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
