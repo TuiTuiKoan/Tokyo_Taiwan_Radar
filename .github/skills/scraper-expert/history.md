@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-30 — 造山者－世紀的賭注 [google_news_rss] — user report confirmed
+**Report types:** wrongDetails, fieldEdit:start_date:zh:2026-03-17T00:00:00+00:00, fieldEdit:start_date:en:2026-03-17T00:00:00+00:00, fieldEdit:start_date:ja:2026-03-17T00:00:00+00:00, fieldEdit:end_date:zh:2026-03-17T00:00:00+00:00, fieldEdit:end_date:en:2026-03-17T00:00:00+00:00, fieldEdit:end_date:ja:2026-03-17T00:00:00+00:00
+**Wrong fields:** start_date, end_date
+**⚠ Scraper fix needed:** Fields [start_date, end_date] can only be fixed in the scraper source, not by re-annotation.
+**Admin notes:** —
+**Action:** Event deactivated — re-annotation triggered (annotation_status=pending).
+---
+
+---
+
+
 ## 2026-04-30 — 《晴天時空豆撒20周年紀念》三浦透子×近藤康平 [eplus] — user report confirmed
 **Report types:** irrelevant
 **Admin notes:** —
