@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { type Locale, type Event, CATEGORIES, getEventName } from "@/lib/types";
 import FilterBar from "@/components/FilterBar";
 import Link from "next/link";
+import AnnouncementCard from "@/components/AnnouncementCard";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
   const tGeneral = await getTranslations("general");
   const tEvent = await getTranslations("event");
   const tCat = await getTranslations("categories");
+  const tAnn = await getTranslations("announcements");
 
   const supabase = await createClient();
 
@@ -143,8 +145,49 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     }
   }
 
+  // Fetch latest 3 featured/published announcements for homepage preview
+  const now = new Date().toISOString();
+  const { data: featuredAnnouncements } = await supabase
+    .from("announcements")
+    .select("*")
+    .eq("is_featured", true)
+    .not("published_at", "is", null)
+    .lte("published_at", now)
+    .order("published_at", { ascending: false })
+    .limit(3);
+
   return (
     <div>
+      {/* Top tab navigation */}
+      <div className="flex gap-1 border-b border-gray-200 mb-0">
+        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">
+          {tAnn("tabEvents")}
+        </span>
+        <Link
+          href={`/${locale}/announcements`}
+          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
+        >
+          {tAnn("tabNews")}
+        </Link>
+      </div>
+
+      {/* Featured announcements strip */}
+      {featuredAnnouncements && featuredAnnouncements.length > 0 && (
+        <div className="mt-4 mb-2">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-amber-700">{tAnn("featuredStrip")}</p>
+            <Link href={`/${locale}/announcements`} className="text-xs text-gray-400 hover:text-green-700">
+              {tAnn("viewAll")} →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {featuredAnnouncements.map((ann) => (
+              <AnnouncementCard key={ann.id} announcement={ann} locale={locale} />
+            ))}
+          </div>
+        </div>
+      )}
+
       <FilterBar locale={locale} currentFilters={sp} />
 
       {!events || events.length === 0 ? (

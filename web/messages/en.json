@@ -1,6 +1,7 @@
 {
   "nav": {
     "home": "Events",
+    "news": "News",
     "saved": "Saved",
     "admin": "Admin",
     "login": "Login",
@@ -314,7 +315,8 @@
     "scrapeNow": "Scrape Now",
     "scrapeNowSelected": "Scrape Selected ({count})",
     "scrapeNowError": "Failed to start scrape",
-    "selectionReasonCorrectionLabel": "Selection reason correction"
+    "selectionReasonCorrectionLabel": "Selection reason correction",
+    "announcementsTab": "Posts"
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",
@@ -367,6 +369,42 @@
     "sapporo_desc": "Taiwan events in Sapporo and Hokkaido — seasonal cultural festivals, food markets, and exchange activities. Hokkaido's stunning natural landscapes attract large numbers of Taiwanese visitors and a growing events calendar.",
     "nagoya_desc": "Taiwan cultural events in Nagoya and the Aichi region. Strategically located, Nagoya is an important base for Taiwan culture radiating into the Tokai area.",
     "headingSuffix": " Taiwan Events"
+  },
+  "announcements": {
+    "pageTitle": "Latest News",
+    "pageDesc": "Announcements, featured events, and special highlights from Tokyo Taiwan Radar.",
+    "adminTitle": "Post Management",
+    "announcementsTab": "Posts",
+    "newAnnouncement": "New Post",
+    "noAnnouncements": "No posts yet",
+    "noPublished": "No published announcements yet",
+    "draft": "Draft",
+    "scheduled": "Scheduled",
+    "published": "Published",
+    "featured": "Featured",
+    "slug": "URL slug",
+    "slugHint": "Lowercase letters, numbers and hyphens only. E.g. 2026-05-taiwan-film-pick",
+    "slugRequired": "Please enter a URL slug",
+    "titles": "Titles (all locales)",
+    "bodies": "Body text (all locales)",
+    "images": "Image URLs",
+    "coverImage": "Cover image",
+    "isFeatured": "Mark as featured (shown on homepage)",
+    "publishedAt": "Publish date/time",
+    "publishedAtHint": "Leave blank for draft",
+    "linkedEvents": "Linked events",
+    "linkedEventsCount": "{n} events selected",
+    "socialPublish": "Publish to social media",
+    "publishNow": "Publish now",
+    "publishing": "Publishing...",
+    "publishError": "Publish failed",
+    "tabEvents": "Events",
+    "tabNews": "Latest News",
+    "featuredStrip": "Featured Announcements",
+    "viewAll": "View all",
+    "relatedEvents": "Related events",
+    "backToList": "Back to Latest News",
+    "viewPublic": "View public page"
   },
   "categoryDesc": {
     "noEvents": "No ongoing events at the moment.",

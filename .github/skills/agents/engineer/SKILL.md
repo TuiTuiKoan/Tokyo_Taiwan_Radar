@@ -393,6 +393,45 @@ print(f'Simplified in location fields: {len(bad)}')
 
 **Fields covered:** `location_name_zh` and `location_address_zh` (both main-event and sub-event). `_loc_zh()` is applied instead of `_loc()` for these two fields only.
 
+## AEO Monitoring — proxy.ts Edge Middleware Rules
+
+`web/proxy.ts` is Next.js Edge middleware (not a server component or API route). All logging inside it must follow Edge Runtime constraints.
+
+### Fire-and-forget logging rule
+**Never `await` a Supabase insert inside `proxy`** — this blocks every single request until the DB call completes. Never `throw` either — an uncaught error crashes the middleware and returns 500 for all routes.
+
+Correct pattern:
+```ts
+// Fire-and-forget: no await, no throw
+void fetch(supabaseUrl + "/rest/v1/aeo_visits", {
+  method: "POST",
+  headers: { "apikey": anonKey, "Content-Type": "application/json" },
+  body: JSON.stringify({ ... }),
+});
+// Continue immediately
+return intlMiddleware(request);
+```
+
+Use the native `fetch` Web API directly — do NOT use `createClient` from `@supabase/ssr` in `proxy.ts`. The SSR client calls `cookies()` which forces dynamic rendering context and is incompatible with fire-and-forget.
+
+### Bot / AI referral detection pattern
+Two independent detection layers (mutually exclusive — UA check takes priority):
+1. `BOT_PATTERNS: Array<[RegExp, string]>` — User-Agent regex → bot name label (`GPTBot`, `ClaudeBot`, `PerplexityBot`, etc.)
+2. `AI_REFERER_HOSTS: Record<string, string>` — referer hostname → AI source label (`perplexity.ai` → `Perplexity`, `chatgpt.com` → `ChatGPT`, etc.)
+
+If a request matches a bot UA, log as `visit_type='bot'` with `bot_name`. If it has an AI referer but no bot UA, log as `visit_type='ai_referral'` with `ai_source`. Ordinary requests: skip logging entirely.
+
+### Static file exclusion rule
+Any file added to `web/public/` (e.g. `llms.txt`, custom JSON) **must also be excluded in the `proxy.ts` matcher regex**. Without exclusion, the intl middleware 307-redirects all requests to `/zh/<filename>`, returning 404.
+
+Matcher pattern (append new static file extensions/names here):
+```ts
+export const config = {
+  matcher: ["/((?!_next|api|.*\\.(?:ico|png|jpg|svg|webp|txt|xml|json)).*)"],
+};
+```
+Current exclusions: `llms.txt` (via `txt` extension), standard static assets. When adding a new `public/` file with an unusual extension, verify the matcher covers it.
+
 ## GitHub Actions Workflow Rules
 
 - Any `with:` field in an action step whose value is a **pure `${{ expression }}`** (no surrounding text) must be quoted: `path: "${{ steps.x.outputs.y }}"`.

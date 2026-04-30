@@ -81,6 +81,9 @@ export default function Navbar({ locale, isAdmin }: Props) {
             <Link href={`/${locale}`} className="hover:text-green-700 transition">
               {t("home")}
             </Link>
+            <Link href={`/${locale}/announcements`} className="hover:text-green-700 transition">
+              {t("news")}
+            </Link>
             {user && (
               <Link
                 href={`/${locale}/saved`}

@@ -155,6 +155,12 @@ export default async function AdminPage({ params }: PageProps) {
           {t("eventsTab")}
         </span>
         <Link
+          href={`/${locale}/admin/announcements`}
+          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
+        >
+          {t("announcementsTab")}
+        </Link>
+        <Link
           href={`/${locale}/admin/reports`}
           className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
         >

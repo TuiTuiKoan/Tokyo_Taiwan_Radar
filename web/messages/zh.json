@@ -1,6 +1,7 @@
 {
   "nav": {
     "home": "活動列表",
+    "news": "最新消息",
     "saved": "我的收藏",
     "admin": "管理後台",
     "login": "登入",
@@ -314,7 +315,8 @@
     "scrapeNow": "立即爬取",
     "scrapeNowSelected": "立即爬取選取的來源 ({count})",
     "scrapeNowError": "爬取啟動失敗",
-    "selectionReasonCorrectionLabel": "選取理由修正"
+    "selectionReasonCorrectionLabel": "選取理由修正",
+    "announcementsTab": "發文管理"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",
@@ -367,6 +369,42 @@
     "sapporo_desc": "彙整札幌及北海道的台灣相關活動，包含季節性文化節慶、飲食市集與交流活動。北海道的豐富自然景觀每年吸引大批台灣旅客，文化活動也日趨豐富。",
     "nagoya_desc": "收錄名古屋及愛知地區的台灣文化活動。名古屋憑藉便利的交通位置，成為台灣文化向東海地區輻射的重要據點。",
     "headingSuffix": " 台灣活動"
+  },
+  "announcements": {
+    "pageTitle": "最新消息",
+    "pageDesc": "東京台灣雷達的最新公告、活動精選與特別推送。",
+    "adminTitle": "發文管理",
+    "announcementsTab": "發文管理",
+    "newAnnouncement": "新增發文",
+    "noAnnouncements": "尚無發文記錄",
+    "noPublished": "目前沒有已發布的消息",
+    "draft": "草稿",
+    "scheduled": "排程中",
+    "published": "已發布",
+    "featured": "精選",
+    "slug": "網址代號（slug）",
+    "slugHint": "只能使用英文小寫、數字與連字號，例如：2026-05-taiwan-film-pick",
+    "slugRequired": "請填寫網址代號",
+    "titles": "標題（三語）",
+    "bodies": "內文（三語）",
+    "images": "圖片網址",
+    "coverImage": "封面圖片",
+    "isFeatured": "標記為精選（首頁顯示）",
+    "publishedAt": "發布時間",
+    "publishedAtHint": "留空則為草稿",
+    "linkedEvents": "關聯活動",
+    "linkedEventsCount": "已選 {n} 個活動",
+    "socialPublish": "社群媒體發布",
+    "publishNow": "立即發布",
+    "publishing": "發布中…",
+    "publishError": "發布失敗",
+    "tabEvents": "活動列表",
+    "tabNews": "最新消息",
+    "featuredStrip": "精選公告",
+    "viewAll": "查看全部",
+    "relatedEvents": "相關活動",
+    "backToList": "返回最新消息",
+    "viewPublic": "前台頁面"
   },
   "categoryDesc": {
     "noEvents": "目前沒有進行中的活動。",

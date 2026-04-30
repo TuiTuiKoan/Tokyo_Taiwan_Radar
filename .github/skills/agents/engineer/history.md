@@ -3,6 +3,15 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — AEO proxy.ts Edge Middleware 規則固化（daily review）
+**新增/修改：**
+- 新增 `## AEO Monitoring — proxy.ts Edge Middleware Rules` 段落
+- Fire-and-forget logging rule：不能 `await`/`throw`，用 `void fetch()` + 原生 Web API
+- Bot / AI referral 雙層偵測模式（BOT_PATTERNS + AI_REFERER_HOSTS，UA 優先）
+- 靜態文件排除規則：`public/` 新文件必須同步加入 matcher regex
+**來源：** daily-skills-review（Step 4 建議）
+
+---
 ## 2026-05-01 — agent 將非遷移文件誤置 migrations/ 目錄（daily review）
 **新增/修改：**
 - `## Database` 段落新增 `supabase/migrations/` 只能放 `NNN_name.sql` 的明文規定

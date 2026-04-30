@@ -1,7 +1,6 @@
 {
   "nav": {
-    "home": "イベント",
-    "saved": "お気に入り",
+    "home": "イベント",    "news": "お知らせ",    "saved": "お気に入り",
     "admin": "管理",
     "login": "ログイン",
     "logout": "ログアウト"
@@ -314,7 +313,8 @@
     "scrapeNow": "今すぐ取得",
     "scrapeNowSelected": "選択したソースを取得 ({count})",
     "scrapeNowError": "取得の起動に失敗しました",
-    "selectionReasonCorrectionLabel": "選定理由の修正"
+    "selectionReasonCorrectionLabel": "選定理由の修正",
+    "announcementsTab": "投稿"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",
@@ -367,6 +367,42 @@
     "sapporo_desc": "札幌・北海道の台湾文化イベントをまとめています。季節ごとの文化祭、グルメマーケット、交流イベントなどを掲載。北海道の大自然に惹かれて多くの台湾人観光客が訪れ、イベントも充実しています。",
     "nagoya_desc": "名古屋・愛知地区の台湾文化イベントを収録。交通の便を活かして、台湾文化を東海地方全体に発信する重要な拠点となっています。",
     "headingSuffix": "の台湾イベント"
+  },
+  "announcements": {
+    "pageTitle": "お知らせ",
+    "pageDesc": "東京台湾レーダーの最新公告、注目イベント、特別お知らせ。",
+    "adminTitle": "投稿管理",
+    "announcementsTab": "投稿",
+    "newAnnouncement": "新規投稿",
+    "noAnnouncements": "投稿はまだありません",
+    "noPublished": "公開済みのお知らせはありません",
+    "draft": "下書き",
+    "scheduled": "公開予定",
+    "published": "公開済み",
+    "featured": "注目",
+    "slug": "URLスラッグ",
+    "slugHint": "半角英小文字・数字・ハイフンのみ。例: 2026-05-taiwan-film-pick",
+    "slugRequired": "URLスラッグを入力してください",
+    "titles": "タイトル（3言語）",
+    "bodies": "本文（3言語）",
+    "images": "画像 URL",
+    "coverImage": "カバー画像",
+    "isFeatured": "注目マーク（ホームに表示）",
+    "publishedAt": "公開日時",
+    "publishedAtHint": "空白の場合は下書き",
+    "linkedEvents": "関連イベント",
+    "linkedEventsCount": "{n}件選択中",
+    "socialPublish": "SNS投稿",
+    "publishNow": "今すぐ投稿",
+    "publishing": "投稿中…",
+    "publishError": "投稿失敗",
+    "tabEvents": "イベント一覧",
+    "tabNews": "お知らせ",
+    "featuredStrip": "注目公告",
+    "viewAll": "すべて見る",
+    "relatedEvents": "関連イベント",
+    "backToList": "お知らせ一覧へ戻る",
+    "viewPublic": "公開ページを見る"
   },
   "categoryDesc": {
     "noEvents": "現在開催中のイベントはありません。",
