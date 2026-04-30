@@ -3,6 +3,25 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — AdminReportsTable Realtime 自動刷新修復
+
+**問題**：報錯審核頁面前端有 `supabase.channel().on("postgres_changes", ...).subscribe()` 訂閱，但 INSERT/UPDATE 事件從未觸發，頁面不會自動刷新。
+
+**根本原因**：`event_reports` 資料表從未加入 `supabase_realtime` publication。Supabase Realtime 需在資料庫層先執行 `ALTER PUBLICATION supabase_realtime ADD TABLE <table_name>` 才會廣播變更；前端訂閱程式碼本身不夠。
+
+**修復**：
+1. 新建 `028_realtime_event_reports.sql`：`ALTER PUBLICATION supabase_realtime ADD TABLE event_reports;`
+2. 前端訂閱改為同時處理 INSERT（新報錯）和 UPDATE（確認/忽略），跨標籤頁即時同步。
+3. 抽取 `fetchRow()` helper 避免 SELECT 子句重複。
+
+**教訓**：
+- Supabase Realtime 不是「開箱即用」：前端 `.on("postgres_changes", ...)` 不夠，資料庫層必須先 `ALTER PUBLICATION supabase_realtime ADD TABLE <table>` 才有效。
+- 管理頁面須同時訂閱 INSERT + UPDATE，才能跨標籤頁同步確認/忽略狀態。
+- 診斷方式：Supabase Dashboard → Database → Replication，確認目標表出現在 `supabase_realtime` publication 清單中。
+
+*(補充：2026-04-30 的「AdminReportsTable Realtime subscription」條目教訓不完整，缺少「必須先 ALTER PUBLICATION」這個關鍵步驟。)*
+
+---
 ## 2026-04-30 — AdminReportsTable 多選批量確認功能
 
 **新功能**：待審核列表支援多選批量通過操作。`selectedIds: Set<string>` + `bulkConfirming: boolean` state；`handleBulkConfirm` 以 sequential `await for` loop 逐筆呼叫現有 `handleConfirm`，完成後清空 `selectedIds`。Section header 加 bulk action bar（flex justify-between），有勾選時顯示「通過已選取 (n)」和「取消選取」按鈕。

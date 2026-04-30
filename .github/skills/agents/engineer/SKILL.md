@@ -38,6 +38,36 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
   ```
   If only the success path is updated, failure rows leave the column NULL and break `NOT NULL` constraints (or silently insert the default, hiding failures).
 
+## Supabase Realtime
+
+Supabase Realtime is **NOT enabled by default** for tables. Frontend `.on("postgres_changes", ...)` subscriptions will silently never fire unless the table has been added to the publication first.
+
+**Required database step before any Realtime feature can work:**
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE <table_name>;
+```
+
+**Required migration pattern:**
+1. Create a new migration SQL file: `ALTER PUBLICATION supabase_realtime ADD TABLE <table>;`
+2. Apply via Supabase Dashboard SQL editor (or CLI)
+3. Only then will the frontend subscription receive events
+
+**Diagnosis:** Supabase Dashboard → Database → Replication — confirm the target table appears in the `supabase_realtime` publication list.
+
+**Frontend subscription rules:**
+- Admin pages must subscribe to **both INSERT and UPDATE** — INSERT picks up new rows; UPDATE syncs status changes (confirm/dismiss) across open tabs.
+- Always clean up in `useEffect` return: `supabase.removeChannel(channel)`.
+- Extract a `fetchRow(id)` helper when both INSERT and UPDATE handlers need to re-fetch the full row (avoids duplicating the SELECT clause).
+
+```ts
+// ✅ Subscribe to both INSERT and UPDATE for admin pages
+supabase
+  .channel("event_reports_changes")
+  .on("postgres_changes", { event: "INSERT", schema: "public", table: "event_reports" }, handleInsert)
+  .on("postgres_changes", { event: "UPDATE", schema: "public", table: "event_reports" }, handleUpdate)
+  .subscribe();
+```
+
 ## Python
 - When changing a function's return type (e.g. `dict` → `tuple`), immediately smoke-test before committing: `python -c "from module import fn; print(type(fn(...)))"`
 - Use `getattr(obj, 'attr', default)` when reading an attribute that may not exist on all subclasses.
