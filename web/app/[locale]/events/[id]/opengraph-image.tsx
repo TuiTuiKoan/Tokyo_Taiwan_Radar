@@ -75,6 +75,14 @@ async function loadFont(text: string, locale: string): Promise<ArrayBuffer | nul
   }
 }
 
+// Yushan (3952 m) east-west ridge profile, above 2000 m floor
+// Mapped to 1200x630 canvas — baseline y=555, peak y=455, x range 540-1190
+const YUSHAN_POINTS =
+  "540,555 572,551 605,545 637,537 670,527 702,515 735,503 767,490 " +
+  "800,478 826,468 845,461 865,455 884,458 897,464 910,461 930,468 " +
+  "949,479 975,493 1001,508 1027,522 1053,535 1079,544 1105,550 " +
+  "1131,553 1151,555 1190,555";
+
 export default async function Image({
   params,
 }: {
@@ -113,154 +121,163 @@ export default async function Image({
     (
       <div
         style={{
+          position: "relative",
           width: "100%",
           height: "100%",
+          background: "#0E3B23",
           display: "flex",
-          flexDirection: "column",
-          background: "linear-gradient(145deg, #f0fdf4 0%, #e8f5e9 60%, #dcfce7 100%)",
-          padding: "56px 64px",
-          justifyContent: "space-between",
-          fontFamily: fontData ? fontName : "sans-serif",
         }}
       >
-        {/* Top bar — branding */}
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-              background: "#0d2b18",
-              borderRadius: "12px",
-              padding: "6px 20px 6px 6px",
-            }}
-          >
-            {/* Logo mark: 100 scan lines + 玉山 waveform */}
-            <svg width="52" height="52" viewBox="0 0 120 120">
-              <rect width="120" height="120" fill="#0d2b18" />
-              {Array.from({ length: 100 }, (_, i) => (
-                <line
-                  key={i}
-                  x1="0"
-                  y1={i * 1.2}
-                  x2="120"
-                  y2={i * 1.2}
-                  stroke="white"
-                  strokeWidth="0.45"
-                  strokeOpacity="0.38"
-                />
-              ))}
-              <polyline
-                points="0,96 8,92 16,87 22,81 26,74 30,66 33,57 36,47 39,38 41,30 43,22 45,18 47,22 49,28 52,36 55,44 59,52 63,58 67,64 71,70 76,75 82,80 90,85 100,89 112,92 120,94"
-                fill="none"
+        {/* Scan lines + Yushan waveform layer — behind content */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "1200px",
+            height: "630px",
+            display: "flex",
+          }}
+        >
+          <svg width="1200" height="630" viewBox="0 0 1200 630">
+            {Array.from({ length: 100 }, (_, i) => (
+              <line
+                key={i}
+                x1="0"
+                y1={i * 630 / 99}
+                x2="1200"
+                y2={i * 630 / 99}
                 stroke="white"
-                strokeWidth="2.4"
-                strokeLinejoin="round"
-                strokeLinecap="round"
+                strokeWidth="0.7"
+                strokeOpacity="0.32"
               />
-            </svg>
+            ))}
+            <polyline
+              points={YUSHAN_POINTS}
+              fill="none"
+              stroke="white"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+
+        {/* Content layer */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            padding: "52px 64px",
+            color: "white",
+            fontFamily: fontData ? fontName : "sans-serif",
+          }}
+        >
+          {/* Brand */}
+          <div style={{ display: "flex", alignItems: "center" }}>
             <div
               style={{
-                color: "white",
                 fontSize: "22px",
                 fontWeight: "bold",
+                letterSpacing: "0.5px",
               }}
             >
               Tokyo Taiwan Radar
             </div>
           </div>
-          {event?.is_paid === false && (
+
+          {/* Category + Title */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "18px",
+              maxWidth: "860px",
+            }}
+          >
             <div
               style={{
-                background: "#dbeafe",
-                borderRadius: "8px",
-                padding: "6px 14px",
-                color: "#1d4ed8",
-                fontSize: "16px",
+                display: "flex",
+                border: "1.5px solid rgba(255,255,255,0.5)",
+                borderRadius: "6px",
+                padding: "5px 14px",
+                alignSelf: "flex-start",
+                fontSize: "17px",
                 fontWeight: "bold",
+                letterSpacing: "1.5px",
+                color: "rgba(255,255,255,0.85)",
               }}
             >
-              FREE
+              {categoryLabel}
             </div>
-          )}
-        </div>
-
-        {/* Event name — main content */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: "20px",
-            maxWidth: "1060px",
-          }}
-        >
-          <div
-            style={{
-              background: "#16a34a",
-              color: "white",
-              fontSize: "18px",
-              fontWeight: "bold",
-              padding: "6px 12px",
-              borderRadius: "8px",
-              flexShrink: 0,
-              marginTop: "8px",
-            }}
-          >
-            {categoryLabel}
-          </div>
-          <div
-            style={{
-              fontSize: `${fontSize}px`,
-              fontWeight: "bold",
-              color: "#111827",
-              lineHeight: 1.25,
-            }}
-          >
-            {truncatedName}
-          </div>
-        </div>
-
-        {/* Bottom bar — date + location */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "32px",
-            borderTop: "2px solid #bbf7d0",
-            paddingTop: "20px",
-          }}
-        >
-          {dateStr && (
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                color: "#374151",
-                fontSize: "22px",
+                fontSize: `${fontSize}px`,
+                fontWeight: "bold",
+                lineHeight: 1.2,
               }}
             >
-              <span style={{ color: "#16a34a", fontWeight: "bold" }}>DATE</span>
-              <span>{dateStr}</span>
+              {truncatedName}
             </div>
-          )}
-          {location && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                color: "#374151",
-                fontSize: "22px",
-              }}
-            >
-              <span style={{ color: "#16a34a", fontWeight: "bold" }}>AT</span>
-              <span>{location}</span>
-            </div>
-          )}
-          <div style={{ flex: 1 }} />
-          <div style={{ color: "#9ca3af", fontSize: "18px" }}>
-            tokyo-taiwan-radar.vercel.app
+          </div>
+
+          {/* Date + Location */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              gap: "40px",
+              maxWidth: "700px",
+            }}
+          >
+            {dateStr && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "11px",
+                    letterSpacing: "1.5px",
+                    color: "rgba(255,255,255,0.5)",
+                    fontWeight: "bold",
+                  }}
+                >
+                  DATE
+                </span>
+                <span style={{ fontSize: "21px" }}>{dateStr}</span>
+              </div>
+            )}
+            {location && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "11px",
+                    letterSpacing: "1.5px",
+                    color: "rgba(255,255,255,0.5)",
+                    fontWeight: "bold",
+                  }}
+                >
+                  VENUE
+                </span>
+                <span style={{ fontSize: "21px" }}>{location}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
