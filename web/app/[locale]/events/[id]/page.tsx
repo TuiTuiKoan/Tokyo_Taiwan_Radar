@@ -119,6 +119,11 @@ export default async function EventDetailPage({ params }: PageProps) {
   const ended = event.end_date && new Date(event.end_date) < now;
 
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const BREADCRUMB_LABELS: Record<string, string> = {
+    zh: "活動列表",
+    ja: "イベント一覧",
+    en: "Event List",
+  };
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Event",
@@ -139,12 +144,39 @@ export default async function EventDetailPage({ params }: PageProps) {
     organizer: { "@type": "Organization", name: "Tokyo Taiwan Radar" },
     ...(event.is_paid === false ? { isAccessibleForFree: true } : {}),
   };
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Tokyo Taiwan Radar",
+        item: `${base}/${locale}`,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: BREADCRUMB_LABELS[locale] ?? BREADCRUMB_LABELS.zh,
+        item: `${base}/${locale}`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: name ?? event.name_ja ?? id,
+      },
+    ],
+  };
 
   return (
     <article className="max-w-3xl mx-auto">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
       <ViewTracker eventId={id} locale={locale} />
       {/* Back to parent event */}
@@ -194,7 +226,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("startDate")}</td>
               <td className="px-4 py-3">
                 {event.start_date
-                  ? new Date(event.start_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })
+                  ? <time dateTime={event.start_date}>{new Date(event.start_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}</time>
                   : "—"}
               </td>
             </tr>
@@ -203,7 +235,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("endDate")}</td>
               <td className="px-4 py-3">
                 {event.end_date
-                  ? new Date(event.end_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })
+                  ? <time dateTime={event.end_date}>{new Date(event.end_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}</time>
                   : "—"}
                 {ended && (
                   <span className="ml-2 text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">

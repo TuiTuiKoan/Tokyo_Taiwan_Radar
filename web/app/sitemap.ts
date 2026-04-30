@@ -18,7 +18,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "daily",
     priority: 1.0,
     alternates: {
-      languages: Object.fromEntries(LOCALES.map((l) => [l, `${BASE}/${l}`])),
+      languages: {
+        ...Object.fromEntries(LOCALES.map((l) => [l, `${BASE}/${l}`])),
+        "x-default": `${BASE}/zh`,
+      },
     },
   }));
 
@@ -36,9 +39,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly" as const,
       priority: 0.8,
       alternates: {
-        languages: Object.fromEntries(
-          LOCALES.map((l) => [l, `${BASE}/${l}/events/${e.id}`])
-        ),
+        languages: {
+          ...Object.fromEntries(
+            LOCALES.map((l) => [l, `${BASE}/${l}/events/${e.id}`])
+          ),
+          "x-default": `${BASE}/zh/events/${e.id}`,
+        },
       },
     }))
   );
