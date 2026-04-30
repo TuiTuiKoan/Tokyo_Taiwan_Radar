@@ -145,8 +145,9 @@ export default async function Image({
           <svg width="1200" height="630" viewBox="0 0 1200 630">
             {Array.from({ length: 50 }, (_, i) => {
               const y = i * 630 / 49;
-              // Below horizon (y > 490): scan lines stop at x=680 to leave mountain area clean
-              const x2 = y > 492 ? 680 : 1200;
+              // Above horizon (y < 490): stop at x=680 — keep mountain area clean
+              // Below horizon (y >= 490): full width — date/venue zone gets full scan lines
+              const x2 = y < 490 ? 680 : 1200;
               return (
                 <line
                   key={i}
@@ -160,16 +161,9 @@ export default async function Image({
                 />
               );
             })}
-            {/* Horizon line — left portion only (x=0→680); mountain ridge continues from (680,490) */}
-            <line
-              x1="0"
-              y1="490"
-              x2="680"
-              y2="490"
-              stroke="white"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
+            {/* Horizon line — left portion (x=0→680); mountain ridge is the middle; right cap (x=1130→1200) */}
+            <line x1="0" y1="490" x2="680" y2="490" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+            <line x1="1130" y1="490" x2="1200" y2="490" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
             <polyline
               points={YUSHAN_POINTS}
               fill="none"
