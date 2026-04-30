@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-30 — 天燈體驗 [prtimes] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** lifestyle_food
+**After (corrected):** workshop
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-30 — 海濱派對 [prtimes] — user report confirmed
 **Report types:** irrelevant
 **Admin notes:** —
