@@ -159,7 +159,7 @@ def _ai_select_events(client: OpenAI, events: list[dict], today: datetime) -> di
         f"  社會 (society): {SOCIETY_CATS}\n\n"
         "=== WEEKLY SELECTION (5–7 events starting within next 7 days) ===\n"
         "Follow these MANDATORY slot rules in order:\n"
-        "1. 五感: fill ≥2 slots; prefer movie/performing_arts first within the group.\n"
+        "1. 五感: fill ≥2 slots; prefer movie/performing_arts/art first within the group.\n"
         "   If NO 五感 events exist in the next 14 days, give those slots to 知識交流.\n"
         "2. 生活風格: fill ≥1 slot.\n"
         "   If NO 生活風格 events in next 14 days, give that slot to 知識交流.\n"
