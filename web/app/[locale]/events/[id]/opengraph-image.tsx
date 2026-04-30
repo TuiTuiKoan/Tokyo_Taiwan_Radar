@@ -58,11 +58,14 @@ async function loadFont(text: string, locale: string): Promise<ArrayBuffer | nul
 
   try {
     const css = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
     }).then((r) => r.text());
 
-    // Extract first woff2 src URL from CSS
-    const match = css.match(/src:\s*url\((https:\/\/fonts\.gstatic\.com[^)]+\.woff2)\)/);
+    // Extract first src URL from Google Fonts CSS (dynamic URLs don't end in .woff2)
+    const match = css.match(/src:\s*url\((https:\/\/fonts\.gstatic\.com[^)]+)\)/);
     if (!match) return null;
 
     const fontRes = await fetch(match[1]);
