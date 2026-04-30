@@ -78,3 +78,27 @@ Most events at this venue are Japanese indie — Taiwan filter is critical.
 - **Wix lazy-loading**: Schedule pages may need `page.wait_for_selector("a[href*='/post/']")`.
 - **Post URL skips**: `/post/announcement` and `/post/_system` are filtered out.
 - **Slug max length**: 80 chars (truncated if longer) to avoid DB key overflow.
+## Blocked Post Patterns (Non-Event Reject List)
+
+The following title patterns indicate **venue-management / admin posts** — they are **never** Taiwan-related events. Any post whose title matches must be rejected before the Taiwan keyword check:
+
+| Pattern | Reason |
+|---------|--------|
+| `RENTAL` / `PRIVATE RENTAL` | Venue hire announcement — no cultural content |
+| `RENT` (word boundary) | Variant spelling |
+| `場所貸し` / `会場貸し` | Japanese venue rental terms |
+
+```python
+_BLOCKED_POST_PATTERNS = re.compile(
+    r"\bRENTAL\b|PRIVATE\s+RENTAL|\bRENT\b|場所貸し|会場貸し",
+    re.IGNORECASE,
+)
+```
+
+This block is applied **twice**:
+1. Against `first_line` of `page_text` (fast-reject before Taiwan keyword check).
+2. Against the confirmed `title` after extraction (catches nav-renders-first edge cases).
+
+## Taiwan Filter — False Positive Warning
+
+The `関連記事` (related articles) sidebar on each post lists other venue events, some of which may be Taiwan-related. **Always truncate `page_text` at `関連記事` before keyword matching.** Do NOT use the old `> 200` threshold — it was incorrect and caused RENTAL posts to pass when the related section appeared early in the text.

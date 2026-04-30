@@ -60,6 +60,25 @@ Read this at the start of every session before writing any scraper.
 - **Hard delete vs deactivation**: If an IP series is confirmed permanently non-Taiwan-themed, hard delete (`table.delete().eq("id", eid)`) rather than just deactivating. Deactivated events remain accessible via direct URL unless the event page also checks `is_active`.
 - **location_name / location_address**: Extract from `場所[：:]\s*(.+?)(?:\n|交通手段|Q&A|https?://|$)` in `main_text`. Set BOTH `location_name` and `location_address` to the captured value. Fall back to `card.prefecture` only when the `場所：` label is absent. Never store bare prefecture names (e.g. `"東京"`) as the address.
 
+## Venue / live house scrapers — management post blocklist
+
+For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publishes both public event listings and **internal venue-management posts** (rental announcements, wedding inquiries, system maintenance). These are NEVER Taiwan-related.
+
+- **Always add `_BLOCKED_POST_PATTERNS`** at the module level for known management post types.
+- Apply the block **BEFORE** the Taiwan keyword check — it avoids loading the detail page unnecessarily.
+- Apply **twice**: once on `page_text` first-line (fast-reject) and once on the confirmed `title` (second-pass, catches nav-renders-first edge cases).
+- Known patterns to always block for live venue sites:
+  - `RENTAL` / `PRIVATE RENTAL` / `RENT` (venue hire)
+  - `場所貸し` / `会場貸し` (Japanese venue rental)
+  - `WEDDING` (if venue offers wedding venue hire)
+- Example:
+  ```python
+  _BLOCKED_POST_PATTERNS = re.compile(
+      r"\bRENTAL\b|PRIVATE\s+RENTAL|\bRENT\b|場所貸し|会場貸し",
+      re.IGNORECASE,
+  )
+  ```
+
 ## eiga_com-specific
 - **Per-theater granularity**: One event per theater per movie. `source_id = eiga_com_{movie_id}_{theater_id}`. Each daily run upserts and updates `end_date` to the last date in the current week's schedule.
 - **URL flow**: `/movie/{id}/theater/` → area links `/movie-area/{id}/{pref}/{area}/` → `div.movie-schedule[data-theater]` + `.more-schedule a.icon.arrow` → `/movie-theater/{id}/{pref}/{area}/{theater_id}/` (address).
@@ -114,11 +133,11 @@ Read this at the start of every session before writing any scraper.
 - **Pattern**:
   ```python
   related_idx = page_text.find("関連記事")
-  check_text = page_text[:related_idx] if related_idx > 200 else page_text
+  check_text = page_text[:related_idx] if related_idx != -1 else page_text
   if not any(kw in check_text for kw in TAIWAN_KEYWORDS):
       return None
   ```
-- **Guard `> 200`**: prevents accidental truncation if `"関連記事"` appears in the very beginning (e.g. as a page section title before the article). Adjust threshold per site if needed.
+- **⚠ DO NOT use `> 200` threshold**: The old pattern `if related_idx > 200` was incorrect — when `"関連記事"` appears before position 200 (e.g., after a short site nav), the condition falls through to `check_text = page_text` (full text), causing Taiwan keywords in the related sidebar to produce false positives. Always truncate on the marker itself using `!= -1`.
 - This pattern applies to any SPA scraper that uses `page.inner_text("body")` or full-page text extraction.
 - Accept link texts: `オフィシャルサイト`, `公式サイト`, `official site`, `Official Site` (case-insensitive variants).
 - When `official_url` is added to an existing scraper, **existing DB records are not automatically updated** — either set `force_rescrape=True` for affected events or run a targeted Supabase UPDATE. The scraper only writes `official_url` on upsert; stale rows keep `null` until they are re-upserted.

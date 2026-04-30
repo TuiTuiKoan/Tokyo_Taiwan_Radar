@@ -58,6 +58,13 @@ _DOW_RE = re.compile(r"\((?:月|火|水|木|金|土|日)[・祝]?\)")
 
 _POST_LINK_RE = re.compile(r"/post/[^/?#\s]+")
 
+# Post title patterns that indicate venue-management / admin posts.
+# These are NOT cultural events and must be rejected regardless of body content.
+_BLOCKED_POST_PATTERNS = re.compile(
+    r"\bRENTAL\b|PRIVATE\s+RENTAL|\bRENT\b|場所貸し|会場貸し",
+    re.IGNORECASE,
+)
+
 
 def _parse_title_date(title: str) -> Optional[datetime]:
     """Parse 'YYYY.MM.DD | Event Title' → datetime."""
@@ -197,11 +204,22 @@ class MoonRomanticScraper(BaseScraper):
         except Exception:
             page_text = ""
 
+        # --- Reject venue-management posts by title before keyword check ---
+        # "RENTAL" posts are venue hire announcements — never Taiwan-related.
+        # Check page_text title line (first non-empty line) as well as any title
+        # extracted later, but page_text is available here for an early exit.
+        first_line = next((l.strip() for l in page_text.splitlines() if l.strip()), "")
+        if _BLOCKED_POST_PATTERNS.search(first_line):
+            logger.info("moonromantic: skipping blocked post (rental/admin): %s", url)
+            return None
+
         # Exclude the "関連記事" (related articles) section to avoid false positives:
         # Taiwan events listed in the sidebar/related section of a non-Taiwan post
         # would otherwise cause that post to pass the keyword filter.
+        # Always truncate at 関連記事 when found — the old > 200 threshold was
+        # incorrect and caused false positives when the section appeared early.
         related_idx = page_text.find("関連記事")
-        check_text = page_text[:related_idx] if related_idx > 200 else page_text
+        check_text = page_text[:related_idx] if related_idx != -1 else page_text
 
         if not any(kw in check_text for kw in TAIWAN_KEYWORDS):
             logger.debug("moonromantic: skipping non-Taiwan post %s", url)
@@ -223,6 +241,12 @@ class MoonRomanticScraper(BaseScraper):
             # Last resort: derive from URL slug
             slug = url.rstrip("/").split("/post/")[-1]
             title = slug
+
+        # --- Second-pass block: reject by confirmed title ---
+        # Catches cases where first_line was nav text, not the post title.
+        if _BLOCKED_POST_PATTERNS.search(title):
+            logger.info("moonromantic: skipping blocked post (rental/admin) by title: %s", url)
+            return None
 
         # --- Extract date from title "YYYY.MM.DD | ..." ---
         start_date = _parse_title_date(title)
