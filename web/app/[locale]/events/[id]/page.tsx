@@ -168,6 +168,87 @@ export default async function EventDetailPage({ params }: PageProps) {
     ],
   };
 
+  // ===== FAQ JSON-LD — only include questions whose answer is available =====
+  const FAQ_LABELS: Record<string, {
+    when: string; whenA: (s: string, e: string | null) => string;
+    where: string; whereA: (loc: string, addr: string | null) => string;
+    price: string; priceFree: string; pricePaid: (info: string | null) => string;
+    source: string; sourceA: (host: string) => string;
+  }> = {
+    zh: {
+      when: "活動何時舉辦？",
+      whenA: (s, e) => e && e !== s ? `活動於 ${s} 至 ${e} 舉辦。` : `活動於 ${s} 舉辦。`,
+      where: "活動地點在哪裡？",
+      whereA: (loc, addr) => addr ? `活動於${loc}舉辦，地址：${addr}。` : `活動於${loc}舉辦。`,
+      price: "活動費用是多少？",
+      priceFree: "本活動為免費入場。",
+      pricePaid: (info) => info ? `本活動為付費活動。${info}` : "本活動為付費活動，詳細費用請見官方網站。",
+      source: "活動資訊來源是什麼？",
+      sourceA: (host) => `活動資訊來自 ${host}。`,
+    },
+    ja: {
+      when: "イベントはいつ開催されますか？",
+      whenA: (s, e) => e && e !== s ? `${s} から ${e} まで開催されます。` : `${s} に開催されます。`,
+      where: "開催場所はどこですか？",
+      whereA: (loc, addr) => addr ? `${loc}で開催されます。住所：${addr}` : `${loc}で開催されます。`,
+      price: "参加費はいくらですか？",
+      priceFree: "本イベントは入場無料です。",
+      pricePaid: (info) => info ? `有料イベントです。${info}` : "有料イベントです。詳細は公式サイトをご確認ください。",
+      source: "情報の出典は？",
+      sourceA: (host) => `情報は ${host} から取得しています。`,
+    },
+    en: {
+      when: "When is this event held?",
+      whenA: (s, e) => e && e !== s ? `The event runs from ${s} to ${e}.` : `The event takes place on ${s}.`,
+      where: "Where is the event held?",
+      whereA: (loc, addr) => addr ? `The event is held at ${loc} (${addr}).` : `The event is held at ${loc}.`,
+      price: "How much does it cost?",
+      priceFree: "This event is free to attend.",
+      pricePaid: (info) => info ? `This is a paid event. ${info}` : "This is a paid event. Please check the official website for details.",
+      source: "What is the source of this information?",
+      sourceA: (host) => `Event information sourced from ${host}.`,
+    },
+  };
+  const faqL = FAQ_LABELS[locale] ?? FAQ_LABELS.zh;
+  const faqQuestions: Array<{ q: string; a: string }> = [];
+  if (event.start_date) {
+    faqQuestions.push({
+      q: faqL.when,
+      a: faqL.whenA(event.start_date, event.end_date ?? null),
+    });
+  }
+  if (locationName) {
+    faqQuestions.push({
+      q: faqL.where,
+      a: faqL.whereA(locationName, locationAddress ?? null),
+    });
+  }
+  if (event.is_paid === false) {
+    faqQuestions.push({ q: faqL.price, a: faqL.priceFree });
+  } else if (event.is_paid === true) {
+    faqQuestions.push({ q: faqL.price, a: faqL.pricePaid(event.price_info ?? null) });
+  }
+  const sourceUrl = (event as Event).official_url ?? event.source_url;
+  if (sourceUrl) {
+    try {
+      const host = new URL(sourceUrl).hostname.replace(/^www\./, "");
+      faqQuestions.push({ q: faqL.source, a: faqL.sourceA(host) });
+    } catch {
+      // ignore malformed URLs
+    }
+  }
+  const faqLd = faqQuestions.length >= 2
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: faqQuestions.map((f) => ({
+          "@type": "Question",
+          name: f.q,
+          acceptedAnswer: { "@type": "Answer", text: f.a },
+        })),
+      }
+    : null;
+
   return (
     <article className="max-w-3xl mx-auto">
       <script
@@ -178,6 +259,12 @@ export default async function EventDetailPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
+      {faqLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }}
+        />
+      )}
       <ViewTracker eventId={id} locale={locale} />
       {/* Back to parent event */}
       {parentEvent && (
@@ -456,6 +543,23 @@ export default async function EventDetailPage({ params }: PageProps) {
           </div>
         );
       })()}
+
+      {/* ===== FAQ section (visible counterpart to FAQPage JSON-LD) ===== */}
+      {faqLd && (
+        <section className="mb-8" aria-labelledby="faq-heading">
+          <h2 id="faq-heading" className="text-sm font-medium text-gray-400 mb-3">
+            {locale === "ja" ? "よくある質問" : locale === "en" ? "FAQ" : "常見問題"}
+          </h2>
+          <dl className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+            {faqQuestions.map((f, i) => (
+              <div key={i} className="px-4 py-3">
+                <dt className="font-medium text-gray-900 text-sm mb-1">{f.q}</dt>
+                <dd className="text-sm text-gray-700">{f.a}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
 
       {/* ===== Raw Data + Selection Reason + Report (Layer 1) ===== */}
       <RawDataSection
