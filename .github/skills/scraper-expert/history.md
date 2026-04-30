@@ -2,6 +2,15 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-30 — 海濱派對 [prtimes] — user report confirmed
+**Report types:** irrelevant
+**Admin notes:** —
+**Action:** Event hidden (is_active=false). Irrelevant content.
+---
+
+---
+
+
 ## 2026-04-30 — 橫濱國際電影節 特拉維斯·佩恩舞蹈比賽 [prtimes] — user report confirmed
 **Report types:** irrelevant
 **Admin notes:** —
