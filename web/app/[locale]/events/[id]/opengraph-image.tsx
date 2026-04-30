@@ -205,7 +205,7 @@ export default async function Image({
                 fontSize: "22px",
               }}
             >
-              <span style={{ fontSize: "24px" }}>📅</span>
+              <span style={{ color: "#16a34a", fontWeight: "bold" }}>DATE</span>
               <span>{dateStr}</span>
             </div>
           )}
@@ -219,7 +219,7 @@ export default async function Image({
                 fontSize: "22px",
               }}
             >
-              <span style={{ fontSize: "24px" }}>📍</span>
+              <span style={{ color: "#16a34a", fontWeight: "bold" }}>AT</span>
               <span>{location}</span>
             </div>
           )}
