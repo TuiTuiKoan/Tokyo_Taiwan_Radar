@@ -145,6 +145,8 @@ export default async function Image({
           <svg width="1200" height="630" viewBox="0 0 1200 630">
             {Array.from({ length: 50 }, (_, i) => {
               const y = i * 630 / 49;
+              // Skip scan lines near the horizon (y=490) so the thick white line stands alone
+              if (Math.abs(y - 490) <= 8) return null;
               return (
                 <line
                   key={i}
