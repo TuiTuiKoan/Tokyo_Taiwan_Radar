@@ -2,6 +2,16 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-30 — 台灣博覽會 [maruhiro] — user report confirmed
+**Report types:** wrongDetails, fieldEdit:name:zh:台灣園遊會, fieldEdit:name:en:Taiwan Fair, fieldEdit:name:ja:台湾フェア
+**Wrong fields:** name
+**Admin notes:** —
+**Action:** Annotatable fields nulled out — re-annotation triggered. Will auto-reactivate after annotator runs.
+---
+
+---
+
+
 ## 2026-04-30 — 同步星座：藝術中的跨界視角 [tokyoartbeat] — user report confirmed
 **Report types:** wrongDetails, wrongCategory, fieldEdit:name:zh:共時星座：藝術中的跨界視角, fieldEdit:name:en:Synchronic Constellation: Cross-boundary Perspectives in Art, fieldEdit:name:ja:シンクロニック・コンステレーション：アートにおける境界を越えた視点
 **Before (AI category):** senses, art
