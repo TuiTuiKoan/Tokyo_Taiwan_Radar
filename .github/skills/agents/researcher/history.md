@@ -3,6 +3,25 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-30 — 定期研究の LINE 通知に既知ソースが重複掲載される問題
+
+**問題：** `researcher.py` の LINE 通知メッセージに、DB に既存のソース（`research_sources` に登録済み URL）が毎回報告されていた。`_upsert_sources()` 内では `known_urls` によるスキップ処理があるが、`_format_line_message()` は `report["top_sources"]` をそのまま使うため、GPT が返した既知 URL もレポートに混入していた。
+
+**修復：** `_upsert_sources()` の直後に既知 URL を除外するフィルターを追加：
+```python
+report["top_sources"] = [
+    s for s in report["top_sources"]
+    if s.get("url") not in known_urls
+]
+```
+さらに、フィルター後に新規 verified ソースがゼロの場合は LINE 送信をスキップしてログのみ記録。`scraper_runs` への費用記録と `research_reports` DB 保存は影響なし。Commit `06f044c`。
+
+**教訓：**
+- `known_urls` スナップショットは実行開始前に取得するため、実行前に存在していた URL を正確に除外できる。
+- 重複チェックは「DB への書き込み抑制」と「LINE への報告抑制」の **2 層** が必要。`_upsert_sources()` で書き込みを抑制しても、レポートに含めるかどうかは別問題。
+- 新規ソースゼロの場合に LINE を完全スキップすることで通知疲労を防ぐ。
+
+---
 ## 2026-04-29 — 問題イベントのソース特定 → スクレイパー完全除外フロー
 
 **状況**: ユーザーがイベントページの URL を提示し「このソースの全部を除外してほしい」と要求。イベントは「🇹🇼台湾LOVE(日台交流紅葉狩り！)」— 定期コミュニティ交流会（88回目）。

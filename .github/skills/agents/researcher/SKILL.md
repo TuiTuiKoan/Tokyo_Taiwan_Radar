@@ -122,6 +122,14 @@ Use `LOOKBACK_DAYS` to match the source's natural cadence:
 - `github.event.schedule` returns the exact cron string (e.g. `"0 21 * * *"`) for the triggering schedule. Use shell `case` to compare it and set `RESEARCH_SLOT`.
 - `workflow_dispatch` sets `github.event.schedule` to empty string — use `inputs.slot` as fallback.
 
+**Duplicate suppression in LINE reports:**
+- `known_urls` is fetched before agents run (pre-run snapshot). After `_upsert_sources()` completes, filter `report["top_sources"]` to remove any URL already in `known_urls`:
+  ```python
+  report["top_sources"] = [s for s in report["top_sources"] if s.get("url") not in known_urls]
+  ```
+- If no new verified sources remain after filtering, **skip LINE notification entirely** (log only). This prevents notification fatigue on days when GPT returns only already-known sources.
+- `scraper_runs` cost logging and `research_reports` DB save are unaffected by this filter.
+
 **When modifying the slot-to-category mapping**, update both `SLOT_SCHEDULE` in `researcher.py` and the corresponding cron comments in `researcher.yml`.
 
 ## discovery_accounts.py — Layer 2 (Weekly note.com Creator Discovery)
