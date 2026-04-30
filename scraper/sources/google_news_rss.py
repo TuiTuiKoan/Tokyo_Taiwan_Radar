@@ -4,9 +4,19 @@ Scraper for Taiwan-related events in Japan via Google News RSS feeds.
 Strategy:
   1. Fetch 4 Google News RSS queries covering Taiwan events/festivals/films/lectures
   2. Filter by Taiwan keywords (title + description)
-  3. Extract start_date from description text (Japanese/slash date patterns)
-  4. Skip items older than 60 days (based on pubDate)
-  5. source_id: gnews_{md5(url)[:12]}
+  3. Skip Yahoo!ニュース aggregations (title ends with "- Yahoo!ニュース") —
+     these are always duplicates of original-source articles, and their
+     Google News redirect URLs expire faster.
+  4. Extract start_date from description text (Japanese/slash date patterns)
+  5. Skip items older than 21 days (Google News redirect URLs typically expire
+     within 2–3 weeks; keeping them longer shows broken links to users)
+  6. source_id: gnews_{md5(link)[:12]}
+
+Note on source_url: Google News RSS <link> values are always
+news.google.com/rss/articles/... redirect URLs.  These work in a real
+browser (Google redirects to the original article) but cannot be resolved
+server-side.  The 21-day TTL ensures stale events are pruned before the
+redirect expires.
 """
 
 import hashlib
@@ -36,7 +46,8 @@ BASE_RSS = "https://news.google.com/rss/search?q={q}&hl=ja&gl=JP&ceid=JP:ja"
 
 TAIWAN_KEYWORDS = ["台湾", "台灣", "Taiwan", "taiwan"]
 
-_STALE_DAYS = 60
+# Google News redirect URLs typically expire within 2–3 weeks
+_STALE_DAYS = 21
 
 
 class _HTMLStripper(HTMLParser):
@@ -59,6 +70,16 @@ def _strip_html(html: str) -> str:
 
 def _is_taiwan(text: str) -> bool:
     return any(kw in text for kw in TAIWAN_KEYWORDS)
+
+
+def _is_yahoo_aggregation(title: str) -> bool:
+    """Return True for Yahoo!ニュース aggregation titles.
+
+    These titles follow the pattern "元の記事タイトル (元ソース名) - Yahoo!ニュース"
+    or "元の記事タイトル - Yahoo!ニュース".  They are always duplicates of the
+    original-source article, so we skip them to avoid redundancy.
+    """
+    return title.rstrip().endswith("- Yahoo!ニュース")
 
 
 def _extract_start_date(description_plain: str, pub_date: datetime) -> datetime:
@@ -84,7 +105,6 @@ def _extract_start_date(description_plain: str, pub_date: datetime) -> datetime:
     if m:
         month, day = int(m.group(1)), int(m.group(2))
         year = pub_date.year
-        # If event month is much earlier than pubDate month, it's likely next year
         if month < pub_date.month - 6:
             year = pub_date.year + 1
         elif month > pub_date.month + 6:
@@ -142,27 +162,25 @@ class GoogleNewsRssScraper(BaseScraper):
                     if not _is_taiwan(item_title + " " + description_plain):
                         continue
 
+                    # Skip Yahoo!ニュース aggregations — always duplicates,
+                    # and their Google News redirect URLs expire faster
+                    if _is_yahoo_aggregation(item_title):
+                        logger.debug("google_news_rss: skipping Yahoo aggregation: %s", item_title)
+                        continue
+
                     # pubDate
                     pubdate_el = item.find("pubDate")
                     pub_date = _parse_pub_date(pubdate_el.text) if pubdate_el is not None and pubdate_el.text else now
                     if pub_date is None:
                         pub_date = now
 
-                    # Skip stale items
+                    # Skip stale items (redirect URLs likely expired)
                     if pub_date < cutoff:
                         continue
 
-                    # Article URL: prefer guid if it's a real non-Google URL
-                    guid_el = item.find("guid")
+                    # Article URL (Google News redirect — works in real browsers)
                     link_el = item.find("link")
-                    link_text = link_el.text.strip() if link_el is not None and link_el.text else ""
-                    guid_text = guid_el.text.strip() if guid_el is not None and guid_el.text else ""
-
-                    article_url = (
-                        guid_text
-                        if (guid_text.startswith("http") and "news.google.com" not in guid_text)
-                        else link_text
-                    )
+                    article_url = link_el.text.strip() if link_el is not None and link_el.text else ""
                     if not article_url:
                         continue
 
