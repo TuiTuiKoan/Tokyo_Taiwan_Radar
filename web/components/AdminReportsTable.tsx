@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { type Category, CATEGORIES, CATEGORY_GROUPS, type Locale } from "@/lib/types";
@@ -108,6 +108,30 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [correctCategory, setCorrectCategory] = useState<Record<string, string[]>>({});
   const [fieldEdits, setFieldEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});;
   const [selectionReasonEdits, setSelectionReasonEdits] = useState<Record<string, Record<string, string>>>({});
+
+  // Realtime: subscribe to new event_reports inserts
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-reports-live")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "event_reports" },
+        async (payload) => {
+          // Fetch the full row including the joined events data
+          const { data } = await supabase
+            .from("event_reports")
+            .select("*, events(name_ja, name_zh, name_en, source_url, source_name, category, start_date, end_date, location_name, location_name_zh, location_name_en, location_address, location_address_zh, location_address_en, business_hours, business_hours_zh, business_hours_en, is_paid, price_info, description_ja, description_zh, description_en, selection_reason)")
+            .eq("id", payload.new.id)
+            .single();
+          if (data) {
+            setReports((prev) => [data as ReportRow, ...prev]);
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function getEventName(row: ReportRow): string {
     const ev = row.events;

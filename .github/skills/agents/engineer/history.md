@@ -3,6 +3,35 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-04-30 — AEO 優化（Phase A + B）：proxy.ts 靜態文件排除規則
+
+**錯誤**：新增 `web/public/llms.txt` 後，`/robots.txt`、`/sitemap.xml`、`/llms.txt` 請求被 i18n middleware 307 重導向至 `/zh/robots.txt` 等路徑，回傳 404。
+
+**原因**：`proxy.ts` middleware matcher 缺少 `robots.txt`、`sitemap.xml`、`llms.txt` 的排除規則。Next.js i18n middleware 預設對所有未排除路徑加上 locale 前綴，不區分靜態文件與動態路由。
+
+**修復**：在 `proxy.ts` matcher 排除正規表示式中補上 `robots\\.txt`、`sitemap\\.xml`、`llms\\.txt` 等靜態文件模式。
+
+**教訓**：任何新增到 `web/public/` 的靜態文件，必須同步在 `proxy.ts` matcher 中加入排除規則，否則 i18n middleware 會 307 重導所有請求到 locale 前綴路徑（如 `/zh/llms.txt`）。
+
+---
+## 2026-04-30 — Satori emoji 靜默失敗導致 OG image 空白
+
+**錯誤**：`opengraph-image.tsx` 回傳 HTTP 200 + `content-type: image/png` 但 `content-length: 0`。
+
+**原因**：Satori（`ImageResponse` 底層）完全不支援任何 emoji，包括 📅📍🇹🇼🏳️‍🌈。遇到 emoji 時靜默失敗，不拋錯，直接回傳空 PNG。
+
+**修復**：兩輪修改——第一輪移除 CATEGORY_EMOJI map 和品牌 🇹🇼，第二輪用 Python 掃 `ord(c)>127` 找到殘留的 📅📍，全部換成純 ASCII 文字標籤（DATE/AT/FILM/ART 等）。
+
+**教訓**：Satori OG image 中完全不能使用任何 emoji。診斷方法：`fetch(...).arrayBuffer()` 檢查 `byteLength`，0 = Satori 靜默失敗。搜尋殘留：`python3 -c "..."` 掃 `ord(c)>127`。
+
+---
+## 2026-04-30 — AdminReportsTable Realtime subscription
+
+**新功能**：報錯審核頁面新增 Supabase Realtime subscription，訂閱 `event_reports` INSERT 事件。有新報錯時自動 fetch 完整資料（含 events join）並插入列表頂部，無需手動刷新。
+
+**教訓**：Supabase Realtime 在 `"use client"` 元件中使用 `supabase.channel(...).on("postgres_changes", ...)` 即可，記得 `useEffect` cleanup 時呼叫 `supabase.removeChannel(channel)`。
+
+---
 ## 2026-04-29 — AdminReportsTable: description 欄位缺少可編輯支援 [AdminReportsTable]
 
 **Bug:** `description` 欄位未加入 `EDITABLE_FIELDS`，也未宣告 `TEXTAREA_FIELDS` 集合，導致問題回報審核時無法直接修改事件描述。

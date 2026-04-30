@@ -60,11 +60,11 @@ async function loadFont(text: string, locale: string): Promise<ArrayBuffer | nul
     const css = await fetch(url, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.52 Safari/537.17",
       },
     }).then((r) => r.text());
 
-    // Extract first src URL from Google Fonts CSS (dynamic URLs don't end in .woff2)
+    // Extract src URL — Chrome 24 UA forces Google Fonts to return woff1 (supported by Satori) instead of woff2
     const match = css.match(/src:\s*url\((https:\/\/fonts\.gstatic\.com[^)]+)\)/);
     if (!match) return null;
 
