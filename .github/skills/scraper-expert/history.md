@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-04-30 — 圍棋焦點 女子世界第一是？世界圍棋女子最強戰2026 [gguide_tv] — user report confirmed
+**Report types:** wrongCategory
+**Before (AI category):** competition
+**After (corrected):** tv_program, competition
+**Admin notes:** —
+**Action:** Category corrected inline — event remains active (is_active=true, annotation_status=annotated).
+---
+
+---
+
+
 ## 2026-04-30 — 來自台灣的考察團參加國際研討會 [google_news_rss] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** academic, taiwan_japan, lecture
