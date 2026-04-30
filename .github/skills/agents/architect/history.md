@@ -3,6 +3,21 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — Tier 1 資源監控強化（SLA + 預算護欄 + 品質 Dashboard）
+
+**背景：** 原本 `/admin/stats` 只顯示最近一次執行狀態、`weekly_report.py` 只看週費用、並無資料品質審核面。長期下來難以推斷「某個來源是偶發失敗還是長期退化」。
+
+**變更：**
+- `/admin/stats` Source Status 表加入「30 日成功率（🟢/🟡/🔴）」與「平均耗時」兩欄，來源為 `scraper_runs.duration_seconds`（migration 013）。
+- `weekly_report.py` 新增 `MONTHLY_BUDGET_USD = 20.0` 護欄，並推送「本月迄今 / OpenAI 本週 / DeepL 本週」三行，超過閾值走 ⚠ / 🚨。
+- 新建 `/admin/quality` 頁，並行查 4 個品質信號（已審缺翻譯 / 過期仍開放 / 已標註無分類 / 卸地址），每類列出前 50 筆詳情。
+
+**教訓：**
+- 「崩湬 / 安全」與「品質 / 退化」是兩個身分，儀表板也要分開；SLA 看來源健康、quality 看資料完整、budget 看費用。
+- TypeScript 的 `latestBySource.r.duration_seconds` 在不同 migration 狀態下可能為 `undefined`，需以 `?? 0` 傅底，不能讓 SLA 表崩。
+- LINE 週報 `format_line_message()` 报告變豊富時，請主動加一行空行，避免 「📊 周報」 與 「💰 本月迄今」 默一起。
+
+---
 ## 2026-04-29 — AdminEventTable 日期範圍篩選器無法搜索未來活動
 
 **問題：** `filterTimeMode === "past"` 分支在 `getFiltered` 和 `sourceCountMap` 兩處都有 `isPast` 判斷（`end_date < today`），導致「搜尋特定期間」無法找到 end_date 在未來的活動。

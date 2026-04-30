@@ -5,6 +5,16 @@ agent: Architect
 
 # Weekly Review
 
+## Step 0：先看儀表板（快速概覽）
+
+打開以下三個儀表板，快速掃過異常訊號後再進入 Step 1：
+
+1. `/zh/admin/stats` — 看「Source Status」表中的 30 日成功率（🟢/🟡/🔴）與平均耗時，鎖定本週需要關注的來源。
+2. `/zh/admin/quality` — 4 個資料品質區塊（已審缺翻譯、已過期但仍開放、已標註但無分類、缺地址），任一計數 > 0 則納入下週優先事項。
+3. 若有 LINE 週報，先看「💰 本月迄今 / OpenAI 本週 / DeepL 本週」三行，超過閾值（OpenAI > $5、DeepL > 100k 字元、月預算 > 80%）需在 Step 4 點名。
+
+---
+
 ## Step 1：查詢上週爬蟲執行資料
 
 執行 terminal 指令，查詢過去 7 天的 `scraper_runs` 資料：

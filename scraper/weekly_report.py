@@ -21,6 +21,10 @@ logger = logging.getLogger(__name__)
 
 JST = timezone(timedelta(hours=9))
 
+WEEKLY_OPENAI_USD_WARN = 5.0
+WEEKLY_DEEPL_CHARS_WARN = 100_000
+MONTHLY_BUDGET_USD = 20.0
+
 
 def _supabase_client():
     url = os.environ.get("SUPABASE_URL")
@@ -54,14 +58,14 @@ def generate_report(sb, since: datetime) -> dict:
     try:
         runs_res = (
             sb.table("scraper_runs")
-            .select("source, events_processed, cost_usd, success, ran_at")
+            .select("source, events_processed, cost_usd, success, ran_at, openai_tokens_in, openai_tokens_out, deepl_chars")
             .gte("ran_at", since.isoformat())
             .execute()
         )
     except Exception:
         runs_res = (
             sb.table("scraper_runs")
-            .select("source, events_processed, cost_usd, ran_at")
+            .select("source, events_processed, cost_usd, ran_at, openai_tokens_in, openai_tokens_out, deepl_chars")
             .gte("ran_at", since.isoformat())
             .execute()
         )
@@ -103,12 +107,37 @@ def generate_report(sb, since: datetime) -> dict:
     total_cost = sum(v["cost"] for v in by_source.values())
     total_events = sum(v["events"] for v in by_source.values())
 
+    # Budget guardrails: weekly OpenAI/DeepL totals + month-to-date cost
+    weekly_openai_cost = round(sum(float(r.get("cost_usd", 0) or 0) for r in runs), 6)
+    deepl_chars = sum(int(r.get("deepl_chars", 0) or 0) for r in runs)
+
+    month_start = datetime.now(JST).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    try:
+        month_runs_res = (
+            sb.table("scraper_runs")
+            .select("cost_usd")
+            .gte("ran_at", month_start.isoformat())
+            .execute()
+        )
+        month_cost = round(
+            sum(float(r.get("cost_usd", 0) or 0) for r in (month_runs_res.data or [])), 6
+        )
+    except Exception:
+        month_cost = 0.0
+    ratio = month_cost / MONTHLY_BUDGET_USD if MONTHLY_BUDGET_USD > 0 else 0
+    budget_status = "alert" if ratio > 1.0 else ("warn" if ratio > 0.8 else "ok")
+
     return {
         "period_start": since.astimezone(JST).strftime("%Y-%m-%d"),
         "new_events": new_events,
         "pending_annotation": pending,
         "total_cost_usd": round(total_cost, 6),
         "total_runs": len(runs),
+        "weekly_openai_cost_usd": weekly_openai_cost,
+        "weekly_deepl_chars": deepl_chars,
+        "month_to_date_cost_usd": month_cost,
+        "monthly_budget_usd": MONTHLY_BUDGET_USD,
+        "budget_status": budget_status,
         "by_source": {
             src: {
                 "runs": d["count"],
@@ -141,6 +170,20 @@ def format_line_message(report: dict) -> str:
             f"  {icon} {src}: {d['total_events']} 件 "
             f"({d['runs']} 次, 成功率 {int(rate*100)}%)"
         )
+    budget_emoji = {"alert": " 🚨", "warn": " ⚠", "ok": ""}[report["budget_status"]]
+    pct = (
+        int(report["month_to_date_cost_usd"] / report["monthly_budget_usd"] * 100)
+        if report["monthly_budget_usd"]
+        else 0
+    )
+    lines.append("")
+    lines.append(
+        f"💰 本月迄今: ${report['month_to_date_cost_usd']:.2f} / "
+        f"${report['monthly_budget_usd']:.2f} ({pct}%){budget_emoji}"
+    )
+    lines.append(f"📈 OpenAI 本週: ${report['weekly_openai_cost_usd']:.4f}")
+    deepl_warn = " ⚠" if report["weekly_deepl_chars"] > WEEKLY_DEEPL_CHARS_WARN else ""
+    lines.append(f"🌐 DeepL 本週: {report['weekly_deepl_chars']:,} 字元{deepl_warn}")
     return "\n".join(lines)
 
 

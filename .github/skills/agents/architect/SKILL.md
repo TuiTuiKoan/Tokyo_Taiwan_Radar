@@ -212,3 +212,29 @@ tools: [read, search, execute, web] # Minimal necessary tools
 3. **Workflow grouping**: If two agents form a natural sequence (e.g., Plan → Implement → Review), add all three as handoffs in each agent to enable any→any routing.
 4. **Testing**: After adding handoffs, verify in VS Code: restart Copilot Chat, check that buttons appear, test context passing via `prompt:` field.
 
+## Resource Monitoring
+
+三層資源監控儀表板同時運作，設計時請尊重職責邊界，不要讓某一層取代另兩層：
+
+### 即時層——`/zh/admin/stats`（per-source SLA）
+- 來源：`web/app/[locale]/admin/stats/page.tsx`，讀 `scraper_runs` table。
+- 閾值：30 日成功率 ≥ 0.95 🟢；≥ 0.80 🟡；< 0.80 🔴。
+- 也顯示平均耗時（`duration_seconds` avg）。
+- 適用時機：隨時 spot check、代理人接任時快速看全貌。
+
+### 週期層——`/zh/admin/quality`（資料品質）
+- 來源：`web/app/[locale]/admin/quality/page.tsx`，讀 `events` table。
+- 4 個区塊：`reviewed missing translations`、`expired but active`、`annotated without category`、`active without address`。
+- 任一計數 > 0 即該處理；週報中需點名。
+- 適用時機：weekly review Step 0、重大 schema、annotator、source 變動後。
+
+### 預算層——`scraper/weekly_report.py`（LINE 週報）
+- 三個門檻常數：`WEEKLY_OPENAI_USD_WARN = 5.0`、`WEEKLY_DEEPL_CHARS_WARN = 100_000`、`MONTHLY_BUDGET_USD = 20.0`。
+- LINE 訊息包含：本月迄今 / OpenAI 本週 / DeepL 本週，超過閾值顯示 ⚠ 或 🚨。
+- 適用時機：每週一 09:00 JST（GitHub Actions cron）。
+
+### 設計原則
+- 新對重點：先問「這個信號抹上哪一層？」，避免在 stats 頁加 quality 逻輯，反之亦然。
+- 閾值調整請同步更新這份文件與 `weekly_report.py` 常數。
+- 未來如需「一鍵修正」按鈕或 issue 自動化，屬 Tier 2/3，需另外規劃。
+
