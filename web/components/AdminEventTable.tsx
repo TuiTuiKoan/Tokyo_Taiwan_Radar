@@ -451,7 +451,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       )}
 
       {/* Inline filter bar */}
-      <div className="bg-gray-50 rounded-xl px-4 py-3 mb-3 space-y-2">
+      <div className="sticky top-14 z-20 bg-gray-50 rounded-xl px-4 py-3 mb-3 space-y-2">
         {/* Row 1: 搜尋、類型、地點、票價、時間、日期 */}
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
