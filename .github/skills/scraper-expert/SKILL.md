@@ -201,9 +201,9 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
 
 For any scraper that hardcodes a fallback `location_address` to a single HQ / 駐日機構 (e.g. `taiwan_cultural_center`, `koryu`, future 駐日辦事處 sources):
 
-- **Detect multi-city descriptions before falling back to HQ.** If the article description mentions ≥ 2 regional keywords from `北海道|大阪|京都|神奈川|福岡|名古屋|仙台|札幌|広島|沖縄`, the event is a tour, not an HQ event.
+- **Detect multi-city descriptions before falling back to HQ.** If the article description mentions ≥ 2 regional keywords from `東京|北海道|大阪|京都|神奈川|福岡|名古屋|愛知|仙台|札幌|広島|沖縄`, the event is a tour, not an HQ event. **`東京` must be in the list** — it appears in most multi-city tours.
 - **De-anchor pattern when multi-city detected:**
-  - `location_name = '<機構名>（全國巡迴）'`
+  - `location_name = '・'.join(found_regions)` — list the detected cities directly (e.g. `北海道・東京・神奈川・京都・大阪`). **Never use a generic label like `全国巡回`** — it is meaningless to users.
   - `location_address = None`（清空 HQ 地址，避免錯誤錨定）
 - **Downstream takes over:** Annotator splits the event into per-city sub-events, then auto-aggregates `location_prefectures` on the parent (see section above).
 - **Without this de-anchor:** All tour stops display as HQ-city events, regional filters break, multi-city UI never triggers. Reference incident: 台湾映画上映会2026 (5-city tour) — fixed in commit `a2d6eea` (2026-05-01).
@@ -368,7 +368,7 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 - **Date extraction tiers**: Tier 1 (`_BODY_DATE_LABELS`) → Tier 1b (dot-day) → Tier 1.3 (unlabeled range) → Tier 1.5 (prose DOW) → Tier 2 (title slash) → Tier 3 (publish date fallback). Always add new date patterns at the correct tier before the publish-date fallback.
 - **Month-only date ranges**: `期間：2026年5月～10月` is a valid date range for multi-month series. `_parse_date()` handles `YYYY年M月` (no day) → first day of month. End date is adjusted to last day of month via `calendar.monthrange`.
 - **`publish date ≠ event date`**: The `.list-text.detail` field contains `日付：YYYY-MM-DD` which is the **publish date**, not the event date. It is used as Tier-3 fallback only. Always verify that `start_date` in dry-run output is NOT the publish date.
-- **Location defaults to TCC, but de-anchor for multi-city tours**: Default is `台北駐日経済文化代表処 台湾文化センター / 東京都港区虎ノ門1-1-12 虎ノ門ビル2階`. **When `description` mentions ≥ 2 regional keywords (`北海道|大阪|京都|神奈川|福岡|名古屋|仙台`), set `location_name = '台湾文化センター（全國巡迴）'` and `location_address = None`** — annotator will then split into per-city sub-events and aggregate `location_prefectures` (commit `a2d6eea`, 2026-05-01).
+- **Location defaults to TCC, but de-anchor for multi-city tours**: Default is `台北駐日経済文化代表処 台湾文化センター / 東京都港区虎ノ門1-1-12 虎ノ門ビル2階`. **When `description` mentions ≥ 2 regional keywords (`東京|北海道|大阪|京都|神奈川|福岡|名古屋|愛知|仙台`), set `location_name = '・'.join(found_regions)` (e.g. `北海道・東京・神奈川・京都・大阪`) and `location_address = None`** — never use a generic label like `全国巡回`. `東京` must be in the detection list. Annotator will then split into per-city sub-events and aggregate `location_prefectures` (commit `a2d6eea` + `0d900b5`, 2026-05-01).
 - **`News_Content2.aspx`**: These pages use the same Playwright-rendered structure as `News_Content.aspx`. The scraper's link collector targets `a[href*='News_Content']` which matches both.
 - **連続上映企画 (film series) sub-events**: GPT-4o-mini only produces ≤2 sub-events from descriptions with 13,000+ chars, even with 20,000-char truncation limit. **Generate each screening as a separate `Event(parent_event_id=…)` in the scraper layer.** Do NOT rely on annotator sub-event extraction for series with 6+ entries. Pattern: `source_id = f"{parent_source_id}_sub{n}"`. (2026-04-29 実績: 台湾映画上映会2026 16件手動挿入)
 
