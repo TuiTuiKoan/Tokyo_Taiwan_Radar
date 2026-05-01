@@ -108,6 +108,8 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [correctCategory, setCorrectCategory] = useState<Record<string, string[]>>({});
   const [fieldEdits, setFieldEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});;
   const [selectionReasonEdits, setSelectionReasonEdits] = useState<Record<string, Record<string, string>>>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkConfirming, setBulkConfirming] = useState(false);
 
   function getEventName(row: ReportRow): string {
     const ev = row.events;
@@ -222,6 +224,15 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
     setSaving(null);
   }
 
+  async function handleBulkConfirm(rows: ReportRow[]) {
+    setBulkConfirming(true);
+    for (const row of rows) {
+      await handleConfirm(row);
+    }
+    setSelectedIds(new Set());
+    setBulkConfirming(false);
+  }
+
   const STATUS_LABELS: Record<string, string> = {
     pending: t("statusPending"),
     confirmed: t("statusConfirmed"),
@@ -238,12 +249,34 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   function renderRow(row: ReportRow) {
     const isExpanded = expandedId === row.id;
     const statusClass = STATUS_CLASSES[row.status] ?? "bg-gray-100 text-gray-500";
+    const isPending = row.status === "pending";
     return (
       <div key={row.id} className="bg-white">
-        <button
-          className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition"
-          onClick={() => setExpandedId(isExpanded ? null : row.id)}
-        >
+        <div className="flex items-stretch">
+          {isPending && (
+            <label
+              className="flex items-center px-3 cursor-pointer border-r border-gray-100 shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                checked={selectedIds.has(row.id)}
+                onChange={(e) => {
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    if (e.target.checked) next.add(row.id);
+                    else next.delete(row.id);
+                    return next;
+                  });
+                }}
+                className="w-4 h-4 accent-green-600 cursor-pointer"
+              />
+            </label>
+          )}
+          <button
+            className="flex-1 text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition"
+            onClick={() => setExpandedId(isExpanded ? null : row.id)}
+          >
           <span
             className={`mt-0.5 text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusClass}`}
           >
@@ -256,7 +289,8 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
           <span className="text-xs text-gray-400 flex-shrink-0 mt-0.5">
             {new Date(row.created_at).toLocaleDateString("ja-JP")}
           </span>
-        </button>
+          </button>
+        </div>
 
         {isExpanded && (
           <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100 space-y-3">
@@ -558,9 +592,40 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
     <div className="space-y-6">
       {pending.length > 0 && (
         <section>
-          <h2 className="text-sm font-medium text-gray-500 mb-2">
-            {t("statusPending")} ({pending.length})
-          </h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-medium text-gray-500">
+              {t("statusPending")} ({pending.length})
+            </h2>
+            <div className="flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds(new Set())}
+                    className="text-xs text-gray-400 hover:text-gray-600 underline"
+                  >
+                    {t("bulkCancelSelect")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkConfirm(pending.filter((r) => selectedIds.has(r.id)))}
+                    disabled={bulkConfirming}
+                    className="text-xs border border-green-500 text-green-600 bg-white rounded-lg px-3 py-1.5 hover:bg-green-600 hover:text-white disabled:opacity-40 transition font-medium"
+                  >
+                    {bulkConfirming ? "…" : t("bulkConfirmSelected", { count: selectedIds.size })}
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => handleBulkConfirm(pending)}
+                disabled={bulkConfirming || pending.length === 0}
+                className="text-xs border border-green-500 text-green-600 bg-white rounded-lg px-3 py-1.5 hover:bg-green-600 hover:text-white disabled:opacity-40 transition font-medium"
+              >
+                {bulkConfirming ? "…" : t("bulkConfirmAll", { count: pending.length })}
+              </button>
+            </div>
+          </div>
           <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
             {pending.map(renderRow)}
           </div>

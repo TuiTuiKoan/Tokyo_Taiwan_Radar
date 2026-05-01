@@ -437,7 +437,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 className="text-base font-semibold text-gray-800">編輯分類對照表</h2>
+              <h2 className="text-base font-semibold text-gray-800">{t("sourcesEditTypeMapTitle")}</h2>
               <button
                 onClick={() => setShowTypeEditor(false)}
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none"
@@ -602,13 +602,13 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
       {/* Filter dropdowns */}
       <div className="flex gap-4 flex-wrap mb-4 items-end">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">狀態</label>
+          <label className="text-xs text-gray-500 font-medium">{t("sourcesFilterStatus")}</label>
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
-            <option value="all">全部</option>            <option value="candidate">候選中</option>
+            <option value="all">{t("sourcesFilterAll")}</option>            <option value="candidate">候選中</option>
             <option value="researched">已深度研究</option>
             <option value="recommended">已推薦</option>            <option value="implemented">已建立爬蟲</option>
             <option value="not-viable">不適合</option>
@@ -616,7 +616,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">來源分類</label>
+          <label className="text-xs text-gray-500 font-medium">{t("sourcesFilterType")}</label>
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
@@ -649,7 +649,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
           }}
           className="ml-auto text-xs px-3 py-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition"
         >
-          ✏️ 編輯分類對照表
+          ✏️ {t("sourcesEditTypeMap")}
         </button>
       </div>
 
