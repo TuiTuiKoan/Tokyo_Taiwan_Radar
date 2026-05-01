@@ -3,6 +3,31 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — Admin Tab Nav 10 頁不一致（commit `1f37bb4`）
+
+**問題：** 10 個 admin 頁面的 tab nav 內容互不一致。有些頁面有 quality tab，有些沒有；有些有 announcements tab，有些沒有。最嚴重的是 announcements/page.tsx 只有 5 個 tab，而 admin 主頁有 10 個。
+
+**根本原因：** 每次新增 admin 子頁面（quality、announcements 等），只在部分現有頁面加入新 tab link，沒有統一更新全部頁面。Tab nav 是手動在每個頁面各寫一份，沒有共用元件。
+
+**修復：** 統一全部 10 頁的 tab nav 為相同順序：Events → Announcements → Reports → Stats → Quality → Research → Sources → Users → Creators → SEO-AEO。加上 `flex-wrap` 防止行溢出。
+
+**教訓：**
+- 新增 admin 子頁面時，**必須同時更新全部現有 admin 頁面的 tab nav**。
+- 驗證指令：`grep -o 'admin/[a-z]*' web/app/\[locale\]/admin/*/page.tsx | sort | uniq -c` 確認每個 route 出現次數一致。
+- 未來可考慮抽出 `AdminTabNav` 共用元件（每頁的 active tab 用 span vs Link 區分，需 prop 傳入 current page）。
+
+→ 已更新 `SKILL.md` § Admin Tab Nav Sync Rule
+
+---
+## 2026-05-01 — OG Image 英文標題截斷過短（commit `47ac1ee`）
+
+**問題：** OpenGraph 圖片中英文標題被截斷過短，只顯示部分文字。
+
+**修復：** 增加截斷字數上限（36 → 55），並為長英文標題新增 40px 字體大小層級（原本只有 72px / 54px 兩級）。
+
+**教訓：** OG image 截斷閾值以英文為基準（字元窄、數量多），搭配字體縮小梯級，避免硬截斷。詳見 Architect history 同日條目。
+
+---
 ## 2026-05-01 — 地址補齊功能 + Quality page 缺地址誤報修正（commit `590a80a`）
 
 **問題：** Quality page「缺地址（非線上活動）」顯示 29 筆，但其中 18 筆是 gguide_tv 電視頻道事件（NHK、BS朝日等），這些沒有實體地址，屬於誤報。

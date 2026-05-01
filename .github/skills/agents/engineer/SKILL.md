@@ -372,6 +372,30 @@ const typeCountMap = useMemo(() => {
 
 **Sibling IIFE parity rule:** `AdminSourcesTable.tsx` has two parallel count computations: `typeCountMap` (sources per type) and `eventCountByType` (active events per type). Both must apply the **identical** status-filter logic. When a new status value is added to the `<select>`, add its guard to ALL count IIFEs in the same commit. Adding to only one causes stale counts on the other.
 
+## Admin Tab Nav Sync Rule
+
+All admin pages (`web/app/[locale]/admin/*/page.tsx`) share a **manually duplicated** tab nav bar. Every page must list the **exact same tabs in the exact same order**:
+
+```
+Events → Announcements → Reports → Stats → Quality → Research → Sources → Users → Creators → SEO-AEO
+```
+
+**Current page** renders as `<span>` (no link, visually distinct); all others render as `<Link>`.
+
+### When adding a new admin sub-page
+1. Add the tab link to **all 10 existing admin pages** in the same commit.
+2. Add the new page's own tab nav with the full set of tabs.
+3. Add `flex-wrap` to the tab container if not already present.
+4. Add i18n key for the new tab label to all three `messages/*.json`.
+
+### Verification command
+```bash
+grep -roh 'admin/[a-z_-]*' web/app/\[locale\]/admin/*/page.tsx | sort | uniq -c | sort -rn
+```
+Every route slug must appear the **same number of times** (= total number of admin pages). If any count differs, a page is missing that tab.
+
+**Incident:** 2026-05-01 — announcements/page.tsx had only 5 tabs while admin main page had 10. Fixed in commit `1f37bb4`.
+
 ## Scraper Implementation
 
 - Every new scraper source must extend `BaseScraper` (`scraper/sources/base.py`) and implement `scrape() → list[Event]`.

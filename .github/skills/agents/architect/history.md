@@ -3,6 +3,20 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — Phase 1+3 SLA + Quality Dashboard 成功重建（commit bd818cf）
+
+**背景：** Phase 1（SLA 欄位）和 Phase 3（Quality Dashboard）在首次實作（commit 644a0ad）後因 `react-hooks/static-components` lint error 和用戶決定 revert（commit cf1e0a9）。本次成功重建。
+
+**本次做對的：**
+1. `quality/page.tsx` 的 `renderDetailTable` 函式宣告在 module 頂層（`export default` 之前），避免 PascalCase-in-render lint error。
+2. 使用 camelCase IIFE `{(() => {...})()}` 做 inline 計算，不觸發 react-hooks/static-components。
+3. i18n 9 keys 與所有 caller 在同一 commit 新增，無遺漏。
+
+**教訓：**
+- 被 revert 的功能重建時，先回顧 revert 原因（lint error），確認 SKILL.md 已有對應規則（TSX Component vs Helper），再按規則重寫。
+- Engineer SKILL 的 `react-hooks/static-components` 規則在此次發揮作用：首次失敗是因為規則尚未建立；第二次成功是因為規則已存在且被遵守。
+
+---
 ## 2026-05-01 — OG image 英文標題截斷過早（字元密度差異）
 
 **工作內容（commit 47ac1ee）：**
