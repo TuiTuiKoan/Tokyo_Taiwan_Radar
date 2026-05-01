@@ -26,8 +26,20 @@ tools: [read, search, execute, web]
 
 ### Step 3: Verify Changes
 1. 運行 `get_errors` 檢查語法錯誤（所有修改的文件）
-2. 簡要檢查提交消息格式（遵循 `.github/instructions/commit-message.instructions.md`）
-3. 若包含 Supabase migration，確認 migration 編號與 `.github/instructions/database.instructions.md` 的 latest 標記一致
+2. 執行 token wording gate（deploy 前必過）：
+   - 固定執行：`python3 scripts/check_token_permission_consistency.py`
+   - 判斷本次 diff 是否包含 token 高風險檔案（使用 `git diff --name-only origin/main...HEAD`）：
+     - `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md`
+     - `.github/instructions/token-rotation.instructions.md`
+     - `.github/agents/researcher.agent.md`
+     - `scraper/update_source.py`
+     - `.github/SECRETS_LIFECYCLE.md`
+   - 若包含任一高風險檔案，再加跑：`python3 scripts/check_token_permission_consistency.py --strict`
+   - Gate 規則：
+     - Exit code = 0：繼續 Step 4
+     - Exit code ≠ 0：立即中止流程，回報 checker 輸出的違規 file:line，要求先修正後再重跑 V-M-D
+3. 簡要檢查提交消息格式（遵循 `.github/instructions/commit-message.instructions.md`）
+4. 若包含 Supabase migration，確認 migration 編號與 `.github/instructions/database.instructions.md` 的 latest 標記一致
 
 ### Step 4: Commit & Push
 1. 使用原子化、描述清楚的提交消息
@@ -59,5 +71,6 @@ tools: [read, search, execute, web]
 如果遇到以下情況，停止並報告：
 - ❌ Rebase 失敗且無法自動解決
 - ❌ 語法檢查失敗
+- ❌ token wording gate（default 或 strict）失敗
 - ❌ Vercel 部署失敗（查看部署日誌）
 - ❌ 推送被拒絕（遠端有新提交）

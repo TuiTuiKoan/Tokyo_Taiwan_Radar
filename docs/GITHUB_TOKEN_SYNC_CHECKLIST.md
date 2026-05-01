@@ -49,7 +49,7 @@ grep "^GITHUB_TOKEN=" scraper/.env
 
 重點需求:
 
-* fine-grained PAT 需具備 Issues: write 權限
+* fine-grained PAT 需具備 Issues: write + Metadata: read 權限
 * classic token 需具備 repo scope
 
 ### 3. Agent 操作文件
@@ -80,6 +80,50 @@ source venv/bin/activate
 python update_source.py --url "https://example.com" --status researched --create-issue
 ```
 
+## 權限檢查速查
+
+最小建議權限:
+
+* Fine-grained PAT: Issues: write + Metadata: read
+* Classic token: repo scope
+
+## 快速一致性檢查
+
+可在 repo 根目錄直接執行:
+
+```bash
+python3 scripts/check_token_permission_consistency.py
+```
+
+結果判讀:
+
+* Exit code 0: 口徑一致，未發現違規
+* Exit code 1: 發現違規，輸出會列出 file:line 與摘要
+
+GitHub 頁面快速核對:
+
+1. GitHub Settings
+2. Developer settings
+3. Personal access tokens
+4. Fine-grained tokens
+5. 點開目前使用中的 token，確認 Repository permissions 內有:
+  * Issues: Write
+  * Metadata: Read
+
+本機快速驗證:
+
+```bash
+cd scraper
+source venv/bin/activate
+python update_source.py --url "https://example.com" --status researched --create-issue
+```
+
+判讀結果:
+
+* 成功建立 Issue: 權限足夠
+* 403 Resource not accessible: 權限不足（優先檢查 Issues 或 Metadata）
+* 401 Bad credentials: token 過期或 token 值錯誤
+
 ## 驗收標準
 
 * grep 可讀到新的 GITHUB_TOKEN 值
@@ -92,7 +136,7 @@ python update_source.py --url "https://example.com" --status researched --create
 | 症狀 | 可能原因 | 處理方式 |
 |---|---|---|
 | 401 Bad credentials | Token 過期或錯誤 | 立即重新產生 PAT 並更新 .env |
-| 403 Resource not accessible | 權限不足 | 重建 fine-grained PAT 並加入 Issues: write |
+| 403 Resource not accessible | 權限不足 | 重建 fine-grained PAT 並加入 Issues: write + Metadata: read |
 | GITHUB_TOKEN env var required | .env 缺值或未載入 | 檢查 .env 是否存在且鍵值正確 |
 
 ## 依賴關係補充

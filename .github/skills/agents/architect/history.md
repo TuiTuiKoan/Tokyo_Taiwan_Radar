@@ -3,6 +3,54 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — 新增 `location_url` 欄位（會場超連結）
+
+**工作內容（commit 235b5ea）：**
+- Migration `031_location_url.sql`：`ALTER TABLE events ADD COLUMN IF NOT EXISTS location_url text`
+- `scraper/sources/base.py`：`Event` dataclass 新增 `location_url: Optional[str] = None`
+- `web/lib/types.ts`：`Event` 介面新增 `location_url: string | null`
+- Event detail page：`location_url` 存在時將 location_name 包在 `<a target="_blank" rel="noopener noreferrer">` 內
+- Admin UI：`AdminEventForm.tsx`（EMPTY_FORM + input）+ `AdminEditClient.tsx`（form init）三處同步
+- i18n：三語 `locationUrl` 鍵（zh: 會場官網、en: Venue website、ja: 会場公式サイト）
+
+**教訓 A（DB migration 順序）：**
+- Migration 必須先在 Supabase Dashboard SQL Editor 執行後，才能用 Python client seed 含新欄位的資料
+- 未執行 migration 直接 seed → `PGRST204: Could not find the 'location_url' column`
+- 正確順序：建立 migration 檔 → git push → Supabase Dashboard 執行 → Python seed
+
+**教訓 B（Admin form 三處同步）：**
+- 新增欄位須同時更新：① `EMPTY_FORM` 初始值 ② UI `<input>` 元素 ③ `AdminEditClient.tsx` form 初始化
+- 漏任一處導致欄位顯示空白或無法儲存（靜默失敗，難以偵測）
+
+**教訓 C（`location_url` 安全屬性）：**
+- `<a href={event.location_url}>` 必須搭配 `target="_blank" rel="noopener noreferrer"`（OWASP reverse tabnabbing 防護）
+
+---
+## 2026-05-01 — GITHUB_TOKEN 權限口徑分裂 + 清單多點維護造成漂移
+
+**問題背景：** 最近一輪 token 整理前，repo 內同一件事出現多種寫法：
+- `Issues: read & write`
+- `Issues: write`
+- 是否需要 `Metadata: read` 未一致
+
+同時清單內容分散於多處，容易出現「A 檔更新了、B 檔沒更新」的文件漂移。
+
+**根本原因：**
+1. 缺少「權限口徑唯一版本」規範，導致 code/doc/agent 各自演化。
+2. 缺少「單一維護來源」規範，造成重複文件長期分岔。
+
+**修復方法：**
+1. 權限口徑統一為：fine-grained `Issues: write + Metadata: read`；classic `repo` scope。
+2. `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` 定義為唯一維護來源，`.github/TOKEN_SYNC_CHECKLIST.md` 改為導引頁。
+3. 同步更新 `scraper/update_source.py`、`token-rotation.instructions.md`、`researcher.agent.md`、`SECRETS_LIFECYCLE.md`。
+4. 在 `README.md` 與 `docs/ARCHITECTURE.md` 新增入口，降低搜尋成本。
+
+**教訓：**
+1. 牽涉權限或安全敘述的變更，必須採用「code + docs + agent 同步改」的原子更新。
+2. 對外流程文件要有單一真實來源（single source of truth），其他位置只放導引。
+3. public repo 專案要把「描述一致性」視為安全議題的一部分，避免誤導配置造成權限過寬或過窄。
+
+---
 ## 2026-05-01 — MoN Takanawa 錯誤地址（DB 直接修正，無 commit）
 
 **問題背景：** `enrich_addresses.py` 使用 GPT-4o-mini 為「有場館名但無地址」的 SSFF 活動補全地址，對「MoN Takanawa: The Museum of Narratives」補出錯誤地址 `東京都港区高輪4-10-30`；正確地址為 `東京都港区高輪2-21-2`（來源：SSFF 2026 官方 Schedule & Access 頁面）。受影響活動 2 件（「力×変位」、「忘れ鶏」），已直接用 Supabase SDK UPDATE 修正，無 scraper code 變更。

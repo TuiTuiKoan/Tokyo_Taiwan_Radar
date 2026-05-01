@@ -14,7 +14,7 @@ description: "Complete secrets lifecycle management for Tokyo Taiwan Radar"
 | **Purpose** | Create GitHub Issues from Researcher agent (`--create-issue` flag) |
 | **Type** | Fine-grained Personal Access Token (recommended) or Classic token |
 | **Scope** | Repository: `TuiTuiKoan/Tokyo_Taiwan_Radar` |
-| **Permissions** | Issues: write (fine-grained) or repo (classic) |
+| **Permissions** | Issues: write + Metadata: read (fine-grained) or repo (classic) |
 | **Rotation cycle** | Every 90 days |
 | **Storage** | `scraper/.env` line 11 |
 | **Readers** | `scraper/update_source.py::create_github_issue()` |

@@ -98,6 +98,25 @@ When planning or reviewing changes to `web/app/[locale]/events/[id]/opengraph-im
 After any plan that touches `web/lib/types.ts` Category union:
 - `multi_replace_string_in_file` `oldString` for union type changes must include **≥3 lines** before and after the target member — insufficient context silently truncates adjacent union members (see: `retail` removed when `drama` added, commit `f9e6b52`)
 - Plan must include an explicit post-change verify step: `cd web && npx tsc --noEmit`, confirming **all** prior union members still compile
+
+## Admin Form New Field Checklist
+
+When adding a new optional field to the `events` table that also appears in the Admin UI, all 7 points must be in the same plan:
+
+1. **Migration** (manual step): `ALTER TABLE events ADD COLUMN IF NOT EXISTS <field> <type>;` — must be executed in Supabase Dashboard SQL Editor **before** any Python client seed or upsert referencing the new field. (Error if skipped: `PGRST204: Could not find the '<field>' column`)
+2. **`scraper/sources/base.py`**: Add to `Event` dataclass as `Optional[str] = None`.
+3. **`web/lib/types.ts`**: Add to `Event` interface as `field: type | null`.
+4. **`AdminEventForm.tsx`** — two sub-steps:
+   - `EMPTY_FORM`: add `field: ""`
+   - UI: add corresponding `<input>` or `<textarea>` element
+5. **`AdminEditClient.tsx`**: add `field: event.field ?? ""` to form initialization.
+6. **`web/messages/*.json`**: add i18n key to all three files (`zh`, `en`, `ja`) simultaneously.
+7. **Event detail page** (`web/app/[locale]/events/[id]/page.tsx`): if the field is user-visible, add locale-aware rendering (e.g. conditional `<a>` for URL fields).
+
+Missing any point causes silent failures. Particularly:
+- Missing point 1 → `PGRST204` at runtime, not at compile time.
+- Missing EMPTY_FORM or form init → field appears blank in admin even when DB has a value.
+- Missing i18n key → raw key string rendered in UI.
 - Vercel build failure from a TypeScript error does **not** take the site down — it serves the previous build silently. Regression is invisible to users until manually checked.
 - All 6 locations must be updated in the same commit (union, CATEGORIES, CATEGORY_GROUPS, zh/en/ja messages). See Engineer SKILL.md § Category Update Protocol for the full list.
 
@@ -206,6 +225,33 @@ In the Verification section of any plan involving both CI (GitHub Actions) and w
 1. Which env vars are needed on **Vercel** (web-facing features: webhooks, API routes)
 2. Which env vars are needed in **GitHub Actions** (CI/cron features: scrapers, broadcasts)
 3. Any vars that are needed in both (shared secrets like LINE credentials)
+
+## GITHUB_TOKEN Permission Consistency Guard
+
+- Canonical wording for this repo:
+  - Fine-grained PAT: `Issues: write + Metadata: read`
+  - Classic token: `repo` scope
+- Any change that touches token requirements must update all relevant layers in one batch:
+  1. Runtime/error message (`scraper/update_source.py`)
+  2. Operational docs (`docs/GITHUB_TOKEN_SYNC_CHECKLIST.md`, `.github/instructions/token-rotation.instructions.md`)
+  3. Agent workflow docs (`.github/agents/researcher.agent.md`)
+  4. Lifecycle summary (`.github/SECRETS_LIFECYCLE.md`)
+- Do not allow mixed wording like `Issues: read & write` and `Issues: write` to coexist.
+
+## Secrets Documentation Single Source Rule
+
+- `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` is the single source of truth for the GITHUB_TOKEN sync checklist.
+- Other files may reference it, but must not maintain an independent duplicated checklist body.
+- If a legacy path must remain for compatibility (for example, `.github/TOKEN_SYNC_CHECKLIST.md`), convert it to a redirect-style stub that points to the docs source.
+
+## Public Repo Secret Hygiene Check
+
+- For public repositories, treat secret-documentation changes as security-sensitive changes.
+- Before closing a token-related task, verify:
+  1. `scraper/.env` is ignored by git (`git check-ignore -v scraper/.env`)
+  2. No real token examples are committed in docs (use placeholders like `github_pat_xxx`)
+  3. Secret references in tracked files are descriptive only, never literal credentials
+- If a real credential is found in tracked files: rotate immediately, purge history if needed, then update docs with placeholders.
 - Every new i18n key must be added to ALL THREE `messages/*.json` files simultaneously — never add to just zh.json.
 - When an admin page uses `getTranslations("admin")`, check if it also needs `getTranslations("general")` for shared strings (footer, error banners).
 ## i18n Regression Prevention (CRITICAL)

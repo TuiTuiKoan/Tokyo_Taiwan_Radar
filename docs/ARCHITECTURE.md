@@ -48,6 +48,37 @@ ms.date: 2026-05-01
 * [GITHUB_TOKEN 完整輪替指南](../.github/instructions/token-rotation.instructions.md)
 * [Secrets 生命週期與審計路線圖](../.github/SECRETS_LIFECYCLE.md)
 
+### 權限檢查速查
+
+最小建議權限:
+
+* Fine-grained PAT: Issues: write + Metadata: read
+* Classic token: repo scope
+
+GitHub 後台核對路徑:
+
+1. GitHub Settings
+2. Developer settings
+3. Personal access tokens
+4. Fine-grained tokens
+5. 開啟目前使用中的 token，確認 Repository permissions 包含:
+  * Issues: Write
+  * Metadata: Read
+
+本機快速驗證:
+
+```bash
+cd scraper
+source venv/bin/activate
+python update_source.py --url "https://example.com" --status researched --create-issue
+```
+
+判讀結果:
+
+* 成功建立 Issue: 權限足夠
+* 403 Resource not accessible: 權限不足（優先檢查 Issues 或 Metadata）
+* 401 Bad credentials: token 過期或 token 值錯誤
+
 ---
 
 ## 爬蟲層（`scraper/`）

@@ -12,7 +12,7 @@ description: "GITHUB_TOKEN lifecycle management — PAT rotation, expiry monitor
 ### Location 1: Runtime Token Value
 - **File**: `scraper/.env`
 - **Line**: 11
-- **Format**: `GITHUB_TOKEN=github_pat_11BT2DTZY...`
+- **Format**: `GITHUB_TOKEN=github_pat_xxx`
 - **Purpose**: Loaded by Python scrapers at runtime via `python-dotenv`
 - **Who reads it**: `scraper/update_source.py` (when `--create-issue` flag used)
 - **When updated**: During PAT rotation or expiry
@@ -34,7 +34,7 @@ description: "GITHUB_TOKEN lifecycle management — PAT rotation, expiry monitor
   if not token:
       raise RuntimeError(
           "GITHUB_TOKEN env var required for --create-issue. "
-          "Set a classic token with 'repo' scope or a fine-grained token with Issues: write."
+          "Set a classic token with 'repo' scope or a fine-grained token with Issues: write and Metadata: read."
       )
   headers = {
       "Authorization": f"Bearer {token}",
@@ -51,7 +51,7 @@ description: "GITHUB_TOKEN lifecycle management — PAT rotation, expiry monitor
 - **Content to verify**:
   ```markdown
   `--create-issue` requires `GITHUB_TOKEN` in `scraper/.env` 
-  (classic token with `repo` scope or fine-grained with Issues: write).
+  (classic token with `repo` scope or fine-grained with Issues: write + Metadata: read).
   ```
 
 ### Location 4: Secret Monitoring (Passive)
@@ -66,7 +66,7 @@ description: "GITHUB_TOKEN lifecycle management — PAT rotation, expiry monitor
 ## 🔄 Token Rotation Workflow
 
 ### Prerequisites
-- [ ] Fine-grained PAT with **Issues: write** permission (for `--create-issue` flag)
+- [ ] Fine-grained PAT with **Issues: write + Metadata: read** permissions (for `--create-issue` flag)
   - Alternative: Classic token with **repo** scope (broader, not recommended for new tokens)
 - [ ] Token expiry date: **1 year recommended** (GitHub max: 1 year)
 - [ ] Rotation frequency: **Every 90 days** (enforced by `secret_reminder.py` cron)
@@ -101,7 +101,7 @@ GITHUB_TOKEN=github_pat_<NEW_TOKEN_VALUE>
 - Open `.github/agents/researcher.agent.md`
 - Verify line 99 still says:
   ```
-  `--create-issue` requires `GITHUB_TOKEN` in `scraper/.env` (classic token with `repo` scope or fine-grained with Issues: write).
+  `--create-issue` requires `GITHUB_TOKEN` in `scraper/.env` (classic token with `repo` scope or fine-grained with Issues: write + Metadata: read).
   ```
 - If changed: Update to match current token type and permissions
 - **No commit needed** for documentation (it's already in version control)
@@ -157,7 +157,7 @@ python update_source.py --url "https://example.com" --status researched --create
 
 ```mermaid
 graph TD
-    A["GitHub Fine-grained PAT (Issues: write)"] -->|1. Copy token| B["scraper/.env"]
+    A["GitHub Fine-grained PAT (Issues: write + Metadata: read)"] -->|1. Copy token| B["scraper/.env"]
     B -->|2. Read at runtime| C["scraper/update_source.py"]
     C -->|3. POST to GitHub API| D["GitHub Issues API"]
     D -->|4. Create Issue| E["Tokyo Taiwan Radar Repo"]
@@ -190,7 +190,7 @@ graph TD
 - **Fix**: Follow token rotation steps (Step 1–5 above)
 
 ### Error: `GitHub API error 403: Resource not accessible by integration`
-- **Cause**: Token missing **Issues: write** permission
+- **Cause**: Token missing **Issues: write** or **Metadata: read** permission
 - **Fix**: Generate new fine-grained token with correct permissions (Step 1 above)
 
 ### Question: Can I use the same PAT for both local development and CI/CD?
@@ -219,7 +219,7 @@ graph TD
 
 ## ✅ Checklist for Token Rotation
 
-- [ ] Step 1: Generate new fine-grained PAT on GitHub (Issues: write, 90-day expiry)
+- [ ] Step 1: Generate new fine-grained PAT on GitHub (Issues: write + Metadata: read, 90-day expiry)
 - [ ] Step 2: Update `scraper/.env` with new token value
 - [ ] Step 3: Verify `.github/agents/researcher.agent.md` line 99 is current
 - [ ] Step 4: Test locally: `python scraper/update_source.py --url ... --status researched --create-issue`

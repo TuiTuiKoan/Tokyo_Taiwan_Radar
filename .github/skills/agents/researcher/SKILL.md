@@ -154,3 +154,20 @@ Use `LOOKBACK_DAYS` to match the source's natural cadence:
 ## After a Source Evaluation Error
 1. Append an entry to `.github/skills/agents/researcher/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
+
+## `--create-issue` Permission Consistency
+
+When documenting or running source status updates with `python scraper/update_source.py --create-issue`, use one canonical permission wording:
+
+* Fine-grained PAT: `Issues: write + Metadata: read`
+* Classic token: `repo` scope
+
+Do not use mixed expressions like `Issues: read & write` in profiles, summaries, or agent guidance.
+
+## Token Checklist Source of Truth
+
+For token sync and rotation references, always point to:
+
+* `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` (canonical checklist)
+
+`/.github/TOKEN_SYNC_CHECKLIST.md` is redirect-only and should not be used as an editable checklist body.

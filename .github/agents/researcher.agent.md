@@ -35,6 +35,15 @@ Discovers, evaluates, and profiles new event data sources (websites, APIs, ticke
 - Evaluate each source for scraping feasibility (HTML structure, JS rendering, rate limits, ToS)
 - Produce a structured source profile that gives the Scraper Expert everything needed to build a scraper
 
+## Token Permission Consistency
+
+For any guidance related to `--create-issue`, enforce this wording:
+
+1. Fine-grained PAT: `Issues: write + Metadata: read`
+2. Classic token: `repo` scope
+
+If permission wording is changed in one place, update all related docs and runtime messages in the same batch.
+
 ## Required Steps
 
 ### Step 0: Load Candidates (ALWAYS run first)
@@ -96,7 +105,7 @@ For each promising source, answer:
      ```bash
      source venv/bin/activate && python scraper/update_source.py --url <exact-url> --status not-viable
      ```
-   `--create-issue` requires `GITHUB_TOKEN` in `scraper/.env` (classic token with `repo` scope or fine-grained with Issues: write). It automatically advances the status to `recommended` and saves the Issue URL to the DB.
+  `--create-issue` requires `GITHUB_TOKEN` in `scraper/.env` (classic token with `repo` scope or fine-grained with Issues: write + Metadata: read). It automatically advances the status to `recommended` and saves the Issue URL to the DB.
 4. Hand off recommended sources to Architect for pipeline design.
 
 ---

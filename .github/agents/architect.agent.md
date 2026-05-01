@@ -63,6 +63,17 @@ Before approving **any** event as `reviewed` — and before designing features t
 3. Daily CI (`scraper.yml`) runs `python annotator.py --fix-reviewed` automatically as a background safeguard.
 4. When designing annotation workflows, always account for the edge case: **event marked reviewed before translations were populated**.
 
+## Secret Permission Consistency Guard
+
+Before approving any change related to `GITHUB_TOKEN` requirements, verify:
+
+1. Permission wording is consistent across code and docs:
+  - Fine-grained PAT: `Issues: write + Metadata: read`
+  - Classic token: `repo` scope
+2. `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` remains the single checklist source.
+3. Legacy checklist paths are redirect-only stubs, not duplicated content.
+4. No real token values appear in tracked files; examples must use placeholders.
+
 ## Required Phases
 
 ### Phase 1: Research

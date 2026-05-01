@@ -15,7 +15,7 @@ With --create-issue:
     creates a GitHub Issue via the GitHub REST API, saves the issue URL to DB,
     and automatically advances status to 'recommended'.
     Requires GITHUB_TOKEN env var (classic token with repo scope, or fine-grained
-    with Issues: read & write permission on the target repo).
+    with Issues: write and Metadata: read permissions on the target repo).
 """
 
 import argparse
@@ -107,7 +107,7 @@ def create_github_issue(name: str, url: str, profile_path: Path | None) -> str:
     if not token:
         raise RuntimeError(
             "GITHUB_TOKEN env var required for --create-issue. "
-            "Set a classic token with 'repo' scope or a fine-grained token with Issues: write."
+            "Set a classic token with 'repo' scope or a fine-grained token with Issues: write and Metadata: read."
         )
 
     title = f"feat(scraper): add {name} source"

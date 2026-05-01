@@ -3,6 +3,21 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — `--create-issue` 權限文字口徑不一致
+
+**問題：** Researcher 流程文件與其他檔案對 fine-grained PAT 權限敘述一度不一致，造成設定與排錯時容易誤判。
+
+**修復：** 統一為以下口徑：
+* Fine-grained PAT: `Issues: write + Metadata: read`
+* Classic token: `repo` scope
+
+並同步更新 `researcher.agent.md`、token rotation 指南與主清單文件，避免研究流程與實作說明脫鉤。
+
+**教訓：**
+1. Researcher 的「DB status update」命令區塊是高頻複製來源，權限敘述必須與 runtime error message 同步。
+2. 權限敘述不一致會直接提高 401/403 排錯成本，應視為流程品質問題而非文案問題。
+
+---
 ## 2026-04-30 — 定期研究の LINE 通知に既知ソースが重複掲載される問題
 
 **問題：** `researcher.py` の LINE 通知メッセージに、DB に既存のソース（`research_sources` に登録済み URL）が毎回報告されていた。`_upsert_sources()` 内では `known_urls` によるスキップ処理があるが、`_format_line_message()` は `report["top_sources"]` をそのまま使うため、GPT が返した既知 URL もレポートに混入していた。
