@@ -2,6 +2,57 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-01 | merger.yml 加排程 3× daily + annotator 步驟
+
+**修改：** `.github/workflows/merger.yml` 新增 3 個 cron（`01:00 / 09:00 / 16:00 UTC`，對應 JST 10:00 / 18:00 / 01:00），每次 merger 跑完後接著執行 `python annotator.py` 和 `python annotator.py --fix-reviewed`。
+
+**原因：** 原本 merger 只能手動觸發，合併後的事件要等到隔天 CI 才會被重新標註。
+
+**教訓：** merger 結束後必須立刻重新標註，避免合併事件以 `pending` 狀態長時間滯留。一天三次 merger 確保跨來源重複在數小時內被處理。
+
+---
+
+## 2026-05-01 | merger.py Pass 3 — 孤兒 sub-event 清理
+
+**修改：** `merger.py` 新增 Pass 3：掃描所有 `is_active=True` 但 `parent is_active=False` 的 sub-events（孤兒）。
+邏輯：
+1. 找出孤兒 sub（parent 已被 deactivate）
+2. 查找 primary parent（via `secondary_source_urls` contains 查詢）
+3. 若 primary parent 下有 name_ja 相似度 ≥85% + 相同 start_date 的 sub → 合併（按 SOURCE_PRIORITY）
+4. 若找不到對應 sub → 直接 deactivate 孤兒
+
+**原因：** Pass 1/2 合併後，舊 parent 被 deactivate，但其 sub-events 仍為 active，成為孤兒顯示在前台。
+
+**教訓：** Pass 3 必須在 Pass 1/2 之後執行（確保 parent 合併結果已就緒）。Print 訊息格式：`Done: N pair(s)/orphan(s) merged (Pass 1+2+3).`
+
+→ 已更新 `SKILL.md` § merger.py — Pass 3
+
+---
+
+## 2026-05-01 | Node.js 24 opt-in（scraper.yml + merger.yml）
+
+**修改：** `scraper.yml` 和 `merger.yml` top-level 加入 `env: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true`。
+
+**原因：** `actions/checkout@v4`、`actions/setup-python@v5` 在 Node.js 20 下出現 deprecation warning；GitHub 將於 2025-06-02 強制遷移。
+
+**教訓：** 任何使用 `actions/checkout@v4` 或 `actions/setup-python@v5` 的 workflow 都需在 top-level `env:` 加入此 opt-in 環境變數，提前消除 warning。
+
+→ 已更新 engineer SKILL.md § GitHub Actions Workflow Rules
+
+---
+
+## 2026-05-01 | merger.yml 新建 + scraper.yml 插入 merger 步驟
+
+**修改：**
+- 新建 `.github/workflows/merger.yml`：支援 `workflow_dispatch` 手動觸發，只跑 `python merger.py`
+- `scraper.yml`：在 `main.py` 後、`annotator.py --fix-reviewed` 前插入 "Run merger" 步驟
+
+**原因：** 每日 CI 跑完爬蟲後缺少自動去重步驟，跨來源重複事件要等手動執行或下次 CI 才被清理。
+
+**教訓：** 每日爬蟲管道的步驟順序應為：`main.py` → `merger.py` → `annotator.py` → `annotator.py --fix-reviewed`。
+
+---
+
 ## 2026-05-01 — annotator NAME WRITING RULES 新增
 
 **Error:** Annotator produced self-referential titles like「東京オフ会」and「神戸オフ会」— users could not understand what the events were without reading the description.

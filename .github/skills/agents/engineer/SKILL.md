@@ -525,6 +525,24 @@ Add city and category pages to `sitemap.ts` with `priority: 0.7` and `changeFreq
 - Bare expressions in `path:`, `name:`, and similar scalar fields cause YAML schema validator warnings in VS Code and some CI linters.
 - Any `run:` step whose command contains **both** a `${{ }}` expression **and** shell double-quote characters (e.g. `--input "${{ steps.x.outputs.y }}"`) must use a block scalar (`|`) instead of an inline scalar. Inline scalars mixing `"` and `${{ }}` trigger VS Code YAML extension schema validation warnings. All other `run:` steps may remain inline.
 - **Step parity rule**: When multiple workflows share the same tool dependencies (e.g. Playwright, Python packages), they must have identical setup steps. When adding a new setup step to one workflow (e.g. `playwright install chromium --with-deps`), immediately check **all other workflows** for the same dependency and add the step there too. Divergence causes silent failures — missing setup steps do not error at workflow startup, only at the point of use. Example: `researcher.yml` was missing `playwright install` for weeks while `scraper.yml` had it, causing all URL verifications to return `url_verified=False` silently (fixed in commit `d7f4b41`).
+- **Node.js 24 opt-in**: Any workflow using `actions/checkout@v4` or `actions/setup-python@v5` must include `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` at the **top-level `env:`** block. GitHub mandates Node.js 24 for Actions starting 2025-06-02; without this opt-in, the workflow emits Node.js 20 deprecation warnings. Template:
+  ```yaml
+  env:
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  ```
+  This is a top-level `env:` key (parallel to `jobs:`), NOT a step-level `env:`.
+
+### Scraper/Merger pipeline step order
+
+The daily CI pipeline **must** run steps in this order:
+
+```
+main.py → merger.py → annotator.py → annotator.py --fix-reviewed
+```
+
+- `merger.py` must come **after** `main.py` so new scraped events are present for deduplication.
+- `annotator.py` must come **after** `merger.py` so merged events are re-annotated immediately (not left `pending` until the next cycle).
+- `merger.yml` runs separately (3× daily cron: 01:00 / 09:00 / 16:00 UTC) with the same annotator follow-up steps, ensuring cross-source duplicates are cleaned between full scraper runs.
 
 ## Discovery Pipeline
 

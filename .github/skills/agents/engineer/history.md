@@ -3,6 +3,21 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — CI workflow 改善：merger.yml 排程 + Node.js 24 opt-in
+
+**修改：**
+1. **merger.yml 新建（commit 85049b1）**：`workflow_dispatch` 手動觸發，只跑 `python merger.py`。`scraper.yml` 同時插入 "Run merger" 步驟（位於 `main.py` 後、`annotator.py --fix-reviewed` 前）。每日 CI 管道順序確立為 `main.py → merger.py → annotator.py → annotator.py --fix-reviewed`。
+2. **Node.js 24 opt-in（commit 3cd06a9）**：`scraper.yml` 和 `merger.yml` top-level 加入 `env: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true`，消除 `actions/checkout@v4`、`actions/setup-python@v5` 的 Node.js 20 deprecation warning（GitHub 強制遷移日：2025-06-02）。
+3. **merger.yml 加排程（commit 4c999cb）**：3 個 cron `01:00 / 09:00 / 16:00 UTC`（JST 10:00 / 18:00 / 01:00），每次跑完 merger 後接著跑 `annotator.py` + `annotator.py --fix-reviewed`。
+
+**教訓：**
+- 任何使用 `actions/checkout@v4` 或 `actions/setup-python@v5` 的 workflow **都需要** top-level `env: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true`。
+- merger 跑完後必須立刻跑 annotator，否則合併事件以 `pending` 狀態滯留。
+- 新建共用依賴的 workflow（如 merger.yml）時，必須同步檢查 scraper.yml 的所有步驟是否也需要加入（step parity rule）。
+
+→ 已更新 `SKILL.md` § GitHub Actions Workflow Rules
+
+---
 ## 2026-05-01 — `/admin/quality` Tester 首輪 FAIL：react-hooks/static-components
 
 **問題：** `web/app/[locale]/admin/quality/page.tsx` 在 `QualityPage` render body 內宣告 `SectionHeader` 元件與 `eventLink` JSX helper，被 ESLint `react-hooks/static-components` 規則擋下，Vercel build 失敗。

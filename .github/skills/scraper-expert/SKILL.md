@@ -278,6 +278,15 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 - News events are **always secondary** (priority 100). Official events are **always primary**.
 - Pass 2 catches cases where `start_date` differs (e.g. article published mid-festival or months before) and names are stylistically different.
 
+### Pass 3 — Orphaned sub-event cleanup
+After Pass 1/2, some sub-events are left active while their parent has been deactivated (orphaned). Pass 3 cleans these up:
+1. Find all `is_active=True` sub-events whose `parent_event_id` points to an `is_active=False` parent (orphans).
+2. For each orphan, find the primary parent via `secondary_source_urls contains orphan.source_url` query.
+3. If the primary parent has a sub-event with `name_ja` similarity ≥ 0.85 **and** matching `start_date` → merge (deactivate orphan, keep winner per `SOURCE_PRIORITY`).
+4. If no matching sub found under the primary parent → deactivate the orphan directly.
+
+**Pass 3 must run after Pass 1+2** (so parent merge results are already settled). Print output format: `Done: N pair(s)/orphan(s) merged (Pass 1+2+3).`
+
 ### Merge result
 - Primary: `secondary_source_urls` extended; `raw_description` enriched with secondary content (first merge only); `annotation_status` reset to `pending` for re-annotation.
 - Secondary: `is_active=False`.
