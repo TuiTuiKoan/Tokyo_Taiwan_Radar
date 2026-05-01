@@ -25,6 +25,14 @@ WEEKLY_OPENAI_USD_WARN = 5.0
 WEEKLY_DEEPL_CHARS_WARN = 100_000
 MONTHLY_BUDGET_USD = 20.0
 
+AUTO_QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_untranslated")
+AUTO_QA_LABELS = {
+    "auto_qa_simplified_zh": "簡繁混雜",
+    "auto_qa_missing_address": "地址缺失",
+    "auto_qa_untranslated": "翻譯缺失",
+}
+DEFAULT_SITE_URL = "https://tokyo-taiwan-radar.vercel.app"
+
 
 def _supabase_client():
     url = os.environ.get("SUPABASE_URL")
@@ -127,6 +135,29 @@ def generate_report(sb, since: datetime) -> dict:
     ratio = month_cost / MONTHLY_BUDGET_USD if MONTHLY_BUDGET_USD > 0 else 0
     budget_status = "alert" if ratio > 1.0 else ("warn" if ratio > 0.8 else "ok")
 
+    # Auto-QA anomalies opened in the past 7 days (still pending)
+    auto_qa_counts: dict[str, int] = {t: 0 for t in AUTO_QA_TYPES}
+    auto_qa_total = 0
+    auto_qa_pending_total = 0
+    try:
+        qa_res = (
+            sb.table("event_reports")
+            .select("report_types, status, created_at")
+            .gte("created_at", since.isoformat())
+            .execute()
+        )
+        for row in qa_res.data or []:
+            types = row.get("report_types") or []
+            for t in types:
+                if t in AUTO_QA_TYPES:
+                    auto_qa_counts[t] = auto_qa_counts.get(t, 0) + 1
+                    auto_qa_total += 1
+                    if row.get("status") == "pending":
+                        auto_qa_pending_total += 1
+                    break  # only count each row once
+    except Exception as exc:
+        logger.warning("auto_qa report query failed: %s", exc)
+
     return {
         "period_start": since.astimezone(JST).strftime("%Y-%m-%d"),
         "new_events": new_events,
@@ -147,6 +178,11 @@ def generate_report(sb, since: datetime) -> dict:
                 "total_cost_usd": round(d["cost"], 6),
             }
             for src, d in sorted(by_source.items())
+        },
+        "auto_qa": {
+            "total": auto_qa_total,
+            "pending": auto_qa_pending_total,
+            "by_type": auto_qa_counts,
         },
     }
 
@@ -184,6 +220,18 @@ def format_line_message(report: dict) -> str:
     lines.append(f"📈 OpenAI 本週: ${report['weekly_openai_cost_usd']:.4f}")
     deepl_warn = " ⚠" if report["weekly_deepl_chars"] > WEEKLY_DEEPL_CHARS_WARN else ""
     lines.append(f"🌐 DeepL 本週: {report['weekly_deepl_chars']:,} 字元{deepl_warn}")
+
+    # Auto-QA anomalies — show only when there are findings
+    qa = report.get("auto_qa") or {}
+    if qa.get("total", 0) > 0:
+        site_url = os.environ.get("NEXT_PUBLIC_SITE_URL") or DEFAULT_SITE_URL
+        lines.append("")
+        lines.append(f"🔍 自動 QA 偵測（本週 {qa['total']} 件，待處理 {qa.get('pending', 0)}）:")
+        for t, n in (qa.get("by_type") or {}).items():
+            if n > 0:
+                label = AUTO_QA_LABELS.get(t, t)
+                lines.append(f"  ⚠ {label}: {n} 件")
+        lines.append(f"  → {site_url}/zh/admin/reports")
     return "\n".join(lines)
 
 
