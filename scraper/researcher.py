@@ -109,19 +109,36 @@ SEARCH_CATEGORIES = [
     },
     {
         "id": "books_media",
-        "label": "📚 書籍・出版・メディア",
+        "label": "📚 書籍・出版・新聞・メディア",
         "site_categories": ["books_media", "literature", "tv_program"],
-        "query_ja": "台湾 書籍 出版 文学 翻訳 読書会 トークイベント 日本 2026",
-        "query_en": "Taiwan books publishing literature translated fiction reading event Japan 2026",
+        "query_ja": "台湾 書籍 出版 文学 翻訳 読書会 トークイベント 新聞 共催 展覧会 日本 2026",
+        "query_en": "Taiwan books publishing literature author talk newspaper co-sponsored event Japan 2026",
         "system_prompt": (
             "You are a research analyst specializing in Taiwan literature, publishing, and media events in Japan. "
-            "Search the web for Japanese publishers, bookstores, libraries, or literary organizations "
-            "that regularly host Taiwan-related author talks, book launches, reading clubs, "
-            "translation workshops, or media screenings in Japan. "
-            "Check major bookstores (Kinokuniya, tsutaya, eslite), literary festivals, "
-            "and Taiwanese author tour pages. "
-            "Also look for NHK or other broadcaster programs featuring Taiwan content. "
-            "Prioritize sources with a public, regularly updated event schedule."
+            "Search the web for TWO types of sources — both must have a structured, regularly updated event listing page:\n"
+            "\n"
+            "Type 1 — Publishers, bookstores, and literary organizations:\n"
+            "Japanese publishers, bookstores, or libraries that regularly host Taiwan-related author talks, "
+            "book launches, translation workshops, or reading clubs. "
+            "Check: major bookstores (Kinokuniya, Tsutaya, eslite), literary festival sites, "
+            "publishers specializing in Taiwan literature translations "
+            "(e.g. 白水社, 河出書房新社, 岩波書店, 春秋社), "
+            "and Taiwanese author Japan tour organizer pages.\n"
+            "\n"
+            "Type 2 — Newspaper and broadcaster event listing pages (NOT individual news articles):\n"
+            "Major Japanese newspapers and broadcasters maintain dedicated event calendar pages where they "
+            "list exhibitions, concerts, and cultural programs they co-sponsor or endorse. "
+            "These pages list real ticketed events, not news articles. Target:\n"
+            "  - 朝日新聞 event page (asahi.com/event/)\n"
+            "  - 読売新聞 event page (event.yomiuri.co.jp)\n"
+            "  - 毎日新聞 event page (event.mainichi.co.jp)\n"
+            "  - 日本経済新聞 event page (nikkei.com/event/)\n"
+            "  - 産経新聞 event / culture page\n"
+            "  - Regional newspapers: 北海道新聞, 中日新聞, 西日本新聞, 河北新報, etc.\n"
+            "  - NHK culture programs featuring Taiwan content\n"
+            "Search specifically for Taiwan-themed exhibitions or cultural events co-sponsored by these papers. "
+            "DO NOT return individual news article URLs — only event listing index pages. "
+            "Prioritize sources where Taiwan-related events appear at least 2–3 times per year."
         ),
     },
     {
