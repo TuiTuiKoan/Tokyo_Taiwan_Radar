@@ -3,6 +3,28 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — 地址補齊功能 + Quality page 缺地址誤報修正（commit `590a80a`）
+
+**問題：** Quality page「缺地址（非線上活動）」顯示 29 筆，但其中 18 筆是 gguide_tv 電視頻道事件（NHK、BS朝日等），這些沒有實體地址，屬於誤報。
+
+**根本原因：**
+- gguide_tv 事件的 `location_name` 存的是頻道名稱（如 "NHK総合1・東京"），未統一為「電視頻道」，導致 filter 無法排除。
+- Quality check 最初未考慮「無地址是合理的」情境（TV 頻道、線上活動）。
+- 剩下真正缺地址的事件（如 ssff 展映）有場館名但 scraper 沒抓地址欄位。
+
+**修復：**
+1. `quality/page.tsx`：`missingAddr` filter 排除 `source_name === "gguide_tv"` 和 `location_name.includes("電視頻道")`。
+2. DB 補丁：21 筆 gguide_tv 事件統一 `location_name = '電視頻道'`。
+3. 新工具 `scraper/enrich_addresses.py`：用 OpenAI gpt-4o-mini 查場館地址，`confidence=high` 才寫入，支援 `--dry-run` / `--source`；執行結果：8 筆成功（ssff ×6、google_news_rss ×2）。
+
+**教訓：**
+- **Quality check 必須考慮「無地址是合理的」情境**：新增缺欄位 check 時，先列出受影響 source_name 分組統計，確認哪些來源天然就沒有該欄位。
+- 診斷缺地址問題：先用 `GROUP BY source_name` 找主因，避免一律標示為「待修」。
+- `enrich_addresses.py` 模式可複用：任何有 venue name 無地址的來源都適用，`confidence` 欄位防止 LLM 亂猜地址。
+
+→ 已更新 `SKILL.md` § enrich_addresses.py — 地址補齊工具 及 § Quality Page — 缺欄位誤報排除模式
+
+---
 ## 2026-05-01 — AdminReportsTable bulk confirm 被另一個 agent 意外刪除並恢復
 
 **問題：** commit `3d45de6`（「refactor(web): remove realtime subscription and bulk confirm from AdminReportsTable」）由非 Engineer agent 執行，在移除 Realtime subscription 的同時，一併刪除了先前實作的多選批量確認功能（`selectedIds`、`bulkConfirming`、`handleBulkConfirm`、勾選框、bulk action bar）。

@@ -679,3 +679,90 @@ Missing a Vercel env var for a webhook causes silent HTTP 401 failures. LINE doe
 2. Test INSERT with the same logic manually — confirms schema is not the problem
 3. Check the **Vercel** env var list (not just GitHub Actions secrets)
 4. If a variable is missing in Vercel, add it; then have the user block + unblock the bot to re-trigger the follow event
+
+## enrich_addresses.py — 地址補齊工具
+
+`scraper/enrich_addresses.py` 使用 OpenAI gpt-4o-mini 查詢有場館名但缺地址的活動，並寫回 DB。
+
+### 使用方式
+```bash
+# dry-run（只預覽，不寫入 DB）
+python enrich_addresses.py --dry-run
+
+# 只處理特定 source
+python enrich_addresses.py --source ssff --dry-run
+python enrich_addresses.py --source ssff
+
+# 處理所有符合條件的事件
+python enrich_addresses.py
+```
+
+### 跳過邏輯（以下情況不查詢）
+- `source_name = 'gguide_tv'`（TV 頻道，無實體地址）
+- `location_name` 包含 `オンライン` 或 `電視頻道`（線上活動）
+- `location_address` 已有值（不覆蓋）
+
+### 寫入欄位
+| 欄位 | 說明 |
+|------|------|
+| `location_address` | 日文地址（主欄位） |
+| `location_address_zh` | 中文地址 |
+| `location_address_en` | 英文地址 |
+
+**信心度過濾：** LLM 回傳 `confidence` 欄位；只有 `confidence=high` 才寫入，`low`/`medium` 直接跳過。避免寫入 LLM 猜測的錯誤地址。
+
+### 可複用模式
+任何「有 venue name 但缺地址」的來源都適用。執行前先用以下 SQL 確認目標範圍：
+```sql
+SELECT source_name, COUNT(*) AS cnt
+FROM events
+WHERE location_name IS NOT NULL
+  AND location_address IS NULL
+  AND source_name NOT IN ('gguide_tv')
+  AND location_name NOT LIKE '%オンライン%'
+  AND location_name != '電視頻道'
+GROUP BY source_name
+ORDER BY cnt DESC;
+```
+
+## Quality Page — 缺欄位誤報排除模式
+
+當 Quality page 顯示「缺 X 欄位」的筆數異常高時，**先分組統計，再決定 filter 邏輯**。
+
+### 診斷步驟
+```sql
+-- 確認哪些 source 貢獻了「缺地址」的事件
+SELECT source_name, COUNT(*) AS cnt
+FROM events
+WHERE location_name IS NOT NULL
+  AND location_address IS NULL
+  AND is_online IS NOT TRUE
+GROUP BY source_name
+ORDER BY cnt DESC;
+```
+
+若某個 source（如 `gguide_tv`）的事件天然沒有實體地址，應在 **前端 filter 排除**，而不是標記為「待修」。
+
+### Quality page filter 排除模式（TypeScript）
+```ts
+// ❌ 錯誤：把 TV 頻道事件也算進缺地址
+const missingAddr = events.filter(e =>
+  e.location_name && !e.location_address && !e.is_online
+);
+
+// ✅ 正確：排除天然無實體地址的來源
+const missingAddr = events.filter(e =>
+  e.location_name &&
+  !e.location_address &&
+  !e.is_online &&
+  e.source_name !== "gguide_tv" &&
+  !e.location_name.includes("電視頻道")
+);
+```
+
+### 原則
+- **TV 頻道 / 廣播節目**：`source_name = 'gguide_tv'`，`location_name` 存頻道名稱 → 統一為 `'電視頻道'`，前端排除。
+- **線上活動**：`is_online = true` 或 `location_name` 含 `オンライン` → 前端排除。
+- 新增 quality check 時，先確認「哪些情況下欄位為空是合理的」，再寫 filter。
+
+**Incident:** 2026-05-01 — `missingAddr` 顯示 29 筆，實際 18 筆是 gguide_tv 誤報。修復後降至 11 筆，其中 8 筆透過 `enrich_addresses.py` 補齊（commit `590a80a`）。

@@ -3,6 +3,31 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — 電視頻道地點類型 + 品質檢查白名單 + AdminEventTable 雙重篩選同步
+
+**工作內容（commits 5851e46 + enrich_addresses commit）：**
+1. `scraper/sources/gguide_tv.py`：`location_name` 統一改為 `"電視頻道"`，取代各頻道名稱（tvk1, BS朝日1 等）
+2. `web/app/[locale]/page.tsx`：新增 `tv` 地點篩選分支（`ilike '%電視頻道%'`）；`other_japan` 排除電視節目
+3. `web/components/AdminEventTable.tsx`：`filterLocation` 型別加 `"tv"`；`getFiltered` 和 `sourceCountMap` 兩處同步更新；select 新增 TV 選項
+4. `web/components/FilterBar.tsx`：location select 新增 `tv` 選項
+5. `web/messages/{zh,en,ja}.json`：新增 `locationTv` i18n key（三個檔案同時）
+6. `scraper/enrich_addresses.py`（新建）：GPT-4o-mini 為「有場館名但無地址」的活動補 ja/zh/en 地址；跳過 gguide_tv 和線上活動
+7. `web/app/[locale]/admin/quality/page.tsx`：「缺地址」品質檢查排除 `source_name = 'gguide_tv'` 和 `location_name = '電視頻道'`
+
+**根因（gguide_tv 混入地區篩選）：**
+`gguide_tv` 爬取的是 TV 番組，無實體地點，但 `location_name` 原先儲存各頻道名稱（tvk1、BS朝日1 等），被 `other_japan` 篩選邏輯誤匹配，品質檢查也誤報「缺地址」。
+
+**根因（AdminEventTable 計數與列表不一致）：**
+`AdminEventTable.tsx` 內有兩套平行的篩選邏輯：`getFiltered`（控制列表顯示）和 `sourceCountMap`（控制各 source 計數）。只更新 `getFiltered` 而遺漏 `sourceCountMap` 會造成計數與列表對不上。
+
+**教訓：**
+1. **無實體地點的來源必須設 canonical location_name**：電視、廣播、串流等無地點活動應設固定 canonical 值（如 `電視頻道`），避免被地址篩選誤匹配、品質檢查誤報。
+2. **`other_japan` 篩選必須明確排除所有特殊類型**：目前需排除 online（`オンライン`）和 TV（`電視頻道`）兩種。每新增一種無地點類型，`other_japan` 篩選邏輯都需更新。
+3. **新增地點類型需同步更新 6 個地方**（見 SKILL.md 新增的「新增地點類型 Checklist」）。
+4. **品質檢查「缺地址」規則需白名單機制**：天生無地址的來源（gguide_tv、online 等）必須在 quality page 明確排除，否則製造噪音。
+5. **AdminEventTable 雙重篩選同步**：`getFiltered` 和 `sourceCountMap` 使用相同邏輯，任何篩選修改必須同步兩處，否則計數和列表對不上。
+
+---
 ## 2026-05-01 — SEO/AEO 強化 + GSC OAuth2 + proxy.ts 排除規則 + Admin tab 一致性
 
 **工作內容（commits a9ef1d1 → d2fddcd）：**

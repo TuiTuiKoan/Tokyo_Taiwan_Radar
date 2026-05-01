@@ -231,6 +231,12 @@ Run after discovering a new cross-source duplicate that the merger missed. Then 
 - **Venue**: No structured `場所:` label. Extract via line-by-line keyword match: "City Hall", "Fureai", "Tenjin", "Canal", "ACROS", "Hakata", "博多", "天神".
 - **Pagination**: `/en/event/` (page 1), `/en/event/page/{N}/` (pages 2+). Stop on HTTP 404 or empty `li.c-page-sub__guide-item`.
 
+## gguide_tv-specific
+- **`location_name` must always be `'電視頻道'`**: Set this fixed canonical value regardless of the actual broadcast channel (tvk1, BS朝日1, etc.). Raw channel names stored as `location_name` cause false positives in the `other_japan` geographic filter and the quality page address check.
+- **`location_address` must be `None`**: TV programmes have no physical address. Never attempt to fill `location_address`.
+- **No address enrichment**: `enrich_addresses.py` must skip gguide_tv events. The `--skip-source gguide_tv` flag (or equivalent guard in the script) should prevent GPT from generating hallucinated addresses for broadcast channels.
+- **DB normalization**: If older records contain raw channel names as `location_name`, run a targeted UPDATE: `UPDATE events SET location_name = '電視頻道' WHERE source_name = 'gguide_tv'` to normalize them before the filter exclusion takes effect.
+
 
 ## Mandatory Post-Change Checklist
 

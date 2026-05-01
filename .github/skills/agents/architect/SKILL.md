@@ -131,6 +131,26 @@ After any plan that touches `web/lib/types.ts` Category union:
 - `AdminEventTable.tsx` `other_japan` filter must also check `!addr.includes('オンライン')` before accepting the event.
 - Variants like `'オンライン（Zoom）'` must be canonicalized to `'オンライン'`.
 
+## TV / Non-Physical Location Standard
+- **Canonical TV/broadcast event representation**: `location_name = '電視頻道'`, `location_address = null`. TV programmes have no physical address — do not attempt to fill `location_address`.
+- `gguide_tv` scraper must always set `location_name = '電視頻道'` regardless of the actual channel name (tvk1, BS朝日1, etc.). Storing raw channel names causes them to be treated as venue names and creates false positives in `other_japan` filtering and the quality page address check.
+- The `location=other_japan` filter must exclude TV events via `location_name NOT ILIKE '%電視頻道%'`. Add this alongside the existing `オンライン` exclusion.
+- **Quality page address check whitelist**: The「缺地址」(missing address) quality check must skip sources/venues that are inherently address-free. Current whitelist: `source_name = 'gguide_tv'` and `location_name ILIKE '%電視頻道%'`.
+- When adding a new no-physical-address source in the future, update BOTH the `other_japan` filter exclusion AND the quality page whitelist.
+
+## New Location Type Checklist
+
+When adding a new `location` filter type (e.g., a new region or a new special category like `tv`), update ALL 6 of the following in the same commit:
+
+1. **Scraper** — Set a canonical `location_name` value in the relevant scraper(s)
+2. **`web/app/[locale]/page.tsx`** — Add the new filter branch with the correct Supabase query; update `other_japan` to exclude the new type if applicable
+3. **`web/messages/{zh,en,ja}.json`** — Add the new i18n key to ALL THREE files simultaneously
+4. **`web/components/FilterBar.tsx`** — Add the new `<option>` to the location select
+5. **`web/components/AdminEventTable.tsx`** — Update BOTH `getFiltered` AND `sourceCountMap` with the new filter logic; add the `<option>` to the admin select; update `other_japan` exclusion
+6. **Quality page** (`web/app/[locale]/admin/quality/page.tsx`) — If the new type has no physical address, add it to the「缺地址」whitelist
+
+Missing any one of these causes: filter mismatch (items appear in wrong section), missing translation (raw key shown), or quality false positives.
+
 ## Online Events (Peatix)
 - Peatix renders online-only events as `LOCATION\n\nOnline event` (single line, no address group). The two-part regex `LOCATION\n\n(.+)\n\n(.+)` will NOT match — always add a separate `loc_online_m` check BEFORE the two-part regex.
 - Set an `is_confirmed_online` flag immediately on match and **skip all CSS and regex address fallbacks** — description body text often mentions a venue as a conditional/secondary option and must never be used as `location_address`.
