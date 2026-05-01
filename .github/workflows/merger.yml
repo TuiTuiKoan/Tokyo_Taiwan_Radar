@@ -1,8 +1,16 @@
 name: Run Merger
 
 on:
-  # Manual trigger only — run merger without a full scrape
+  # Manual trigger
   workflow_dispatch:
+  # Scheduled: 3× daily (UTC) — staggered after the 00:00 UTC daily scrape
+  #   01:00 UTC = 10:00 JST  (1 h after scrape completes)
+  #   09:00 UTC = 18:00 JST
+  #   16:00 UTC = 01:00 JST next day
+  schedule:
+    - cron: "0 1 * * *"
+    - cron: "0 9 * * *"
+    - cron: "0 16 * * *"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -31,3 +39,19 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python merger.py
+
+      - name: Re-annotate pending events
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python annotator.py
+
+      - name: Fix reviewed events missing translations
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python annotator.py --fix-reviewed
