@@ -250,7 +250,7 @@ class GguideTvScraper(BaseScraper):
                 ps = item.select(".box-2 p")
                 genre = ps[0].get_text(strip=True) if ps else ""
                 raw_title = ps[1].get_text(strip=True) if len(ps) > 1 else ""
-                schedule_raw = ps[2].get_text(strip=True) if len(ps) > 2 else ""
+                schedule_raw = ps[2].get_text(separator="\n", strip=True) if len(ps) > 2 else ""
 
                 # Remove broadcast accessibility emoji marks (🈑 = repeat, 🈞 = multi-language)
                 title_clean = re.sub(r"[\U0001F200-\U0001F2FF🈑🈞🈓]", "", raw_title).strip()
