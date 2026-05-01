@@ -99,13 +99,27 @@ For each promising source, answer:
 3. **Update the DB status** by running in terminal from the repo root:
    - For **recommended** sources (creates GitHub Issue automatically):
      ```bash
-     source venv/bin/activate && python scraper/update_source.py --url <exact-url> --status researched --create-issue
+     source venv/bin/activate && python scraper/update_source.py \
+       --url <exact-url> \
+       --status researched \
+       --feasibility {easy|medium|hard} \
+       --pagination-hint "<e.g. ?page=N up to 10>" \
+       --card-selector-hint "<e.g. .event-card>" \
+       --date-format-hint "<e.g. YYYY/MM/DD>" \
+       --notes "<edge cases, ToS, rate limits>" \
+       --create-issue
      ```
+     Only `--feasibility` is required; the four `--*-hint` and `--notes` flags are optional but **strongly recommended** because Phase 2 auto-codegen reads them from `source_profile` to seed the LLM prompt.
    - For sources that are not viable:
      ```bash
      source venv/bin/activate && python scraper/update_source.py --url <exact-url> --status not-viable
      ```
   `--create-issue` requires `GITHUB_TOKEN` in `scraper/.env` (classic token with `repo` scope or fine-grained with Issues: write + Metadata: read). It automatically advances the status to `recommended` and saves the Issue URL to the DB.
+
+  **Feasibility judgement** (Researcher agent's responsibility):
+  - `easy`: static HTML, predictable pagination, public listing, no login, ToS allows scraping
+  - `medium`: needs Playwright JS rendering OR irregular pagination OR small login wall
+  - `hard`: requires authentication, has anti-bot, dynamic infinite scroll without indexable API, or unclear ToS — these go to `not-viable` instead unless there's a strong reason
 4. Hand off recommended sources to Architect for pipeline design.
 
 ---

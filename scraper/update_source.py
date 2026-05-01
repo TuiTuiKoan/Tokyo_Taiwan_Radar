@@ -133,18 +133,76 @@ def create_github_issue(name: str, url: str, profile_path: Path | None) -> str:
         )
 
 
-def update_source(url: str, status: str, create_issue: bool = False) -> None:
+VALID_FEASIBILITY = ("easy", "medium", "hard")
+
+
+def _build_profile_update(
+    *,
+    status: str,
+    feasibility: str | None,
+    pagination_hint: str | None,
+    card_selector_hint: str | None,
+    date_format_hint: str | None,
+    notes: str | None,
+    now_iso: str,
+) -> dict:
+    """Build the source_profile patch dict from CLI flags.
+
+    Drops keys whose value is None. When status='researched', always sets
+    `researched_at` and `feasibility`. When status='not-viable', only `notes`
+    is honored (other hint fields are ignored even if provided).
+    """
+    if status == "researched":
+        candidate = {
+            "feasibility": feasibility,
+            "pagination_hint": pagination_hint,
+            "card_selector_hint": card_selector_hint,
+            "date_format_hint": date_format_hint,
+            "notes": notes,
+            "researched_at": now_iso,
+        }
+    else:
+        # not-viable: ignore feasibility + selector/pagination/date hints
+        candidate = {"notes": notes}
+    return {k: v for k, v in candidate.items() if v is not None}
+
+
+def update_source(
+    url: str,
+    status: str,
+    create_issue: bool = False,
+    feasibility: str | None = None,
+    pagination_hint: str | None = None,
+    card_selector_hint: str | None = None,
+    date_format_hint: str | None = None,
+    notes: str | None = None,
+    sb=None,
+) -> None:
     if status not in VALID_STATUSES:
         raise ValueError(f"status must be one of {VALID_STATUSES}, got: {status!r}")
 
     if create_issue and status != "researched":
         raise ValueError("--create-issue can only be used with --status researched")
 
-    sb = _get_supabase()
+    # Soft-validate feasibility usage at the function boundary too (CLI also
+    # validates via argparse). Ignored value triggers a warning but no error.
+    if status == "not-viable" and feasibility is not None:
+        logger.warning(
+            "--feasibility=%r ignored because --status=not-viable", feasibility
+        )
+        feasibility = None
+
+    if sb is None:
+        sb = _get_supabase()
     now = datetime.now(timezone.utc).isoformat()
 
-    # Check the row exists
-    existing = sb.table("research_sources").select("id,status,name").eq("url", url).execute()
+    # Check the row exists; also fetch existing source_profile so we can merge.
+    existing = (
+        sb.table("research_sources")
+        .select("id,status,name,source_profile")
+        .eq("url", url)
+        .execute()
+    )
     if not existing.data:
         logger.error("No row found in research_sources for URL: %s", url)
         sys.exit(1)
@@ -161,6 +219,22 @@ def update_source(url: str, status: str, create_issue: bool = False) -> None:
         sys.exit(0)
 
     update_fields: dict = {"status": status, "last_seen_at": now}
+
+    # Build source_profile patch and merge with existing data (if any).
+    profile_update = _build_profile_update(
+        status=status,
+        feasibility=feasibility,
+        pagination_hint=pagination_hint,
+        card_selector_hint=card_selector_hint,
+        date_format_hint=date_format_hint,
+        notes=notes,
+        now_iso=now,
+    )
+    if profile_update:
+        existing_profile = row.get("source_profile") or {}
+        if not isinstance(existing_profile, dict):
+            existing_profile = {}
+        update_fields["source_profile"] = {**existing_profile, **profile_update}
 
     # Optionally create a GitHub Issue and advance to 'recommended'
     if create_issue:
@@ -194,13 +268,7 @@ def update_source(url: str, status: str, create_issue: bool = False) -> None:
             logger.info("Deleted candidate file: %s", slug_path.name)
 
 
-if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
-    )
-
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Update research_sources status after deep research")
     parser.add_argument("--url", required=True, help="Exact URL of the source to update")
     parser.add_argument(
@@ -218,6 +286,63 @@ if __name__ == "__main__":
             "Only valid with --status researched. Advances status to 'recommended'."
         ),
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--feasibility",
+        choices=list(VALID_FEASIBILITY),
+        default=None,
+        help=(
+            "Researcher's implementation difficulty judgement. "
+            "Required when --status=researched. Choices: easy, medium, hard."
+        ),
+    )
+    parser.add_argument(
+        "--pagination-hint",
+        default=None,
+        help='e.g. "?page=N up to 10" or "infinite scroll, JS rendered"',
+    )
+    parser.add_argument(
+        "--card-selector-hint",
+        default=None,
+        help="CSS selector hint for event cards, e.g. .event-card",
+    )
+    parser.add_argument(
+        "--date-format-hint",
+        default=None,
+        help='e.g. "YYYY/MM/DD" or "和暦 令和N年"',
+    )
+    parser.add_argument(
+        "--notes",
+        default=None,
+        help="Free-form notes (edge cases, ToS, rate limits, etc.)",
+    )
+    return parser
 
-    update_source(args.url, args.status, create_issue=args.create_issue)
+
+def _validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    if args.status == "researched" and not args.feasibility:
+        parser.error(
+            "--feasibility is required when --status=researched (choices: easy, medium, hard)"
+        )
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+
+    parser = _build_parser()
+    args = parser.parse_args()
+    _validate_args(parser, args)
+
+    update_source(
+        args.url,
+        args.status,
+        create_issue=args.create_issue,
+        feasibility=args.feasibility,
+        pagination_hint=args.pagination_hint,
+        card_selector_hint=args.card_selector_hint,
+        date_format_hint=args.date_format_hint,
+        notes=args.notes,
+    )
