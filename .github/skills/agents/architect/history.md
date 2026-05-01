@@ -3,6 +3,51 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — TV番組地址欄顯示規則（`location_name === "電視頻道"`）
+
+**問題：** `web/app/[locale]/events/[id]/page.tsx` 的地址欄對 TV番組顯示 Google Maps 超連結（用 `location_name` = `"電視頻道"` 搜尋），不合語意。
+
+**修正：**
+- address 渲染邏輯加入特判：`event.location_name === "電視頻道"` 時顯示「電視頻道」純文字，不加超連結
+- 優先順序：`電視頻道` 純文字 → Google Maps `<a>` → 無
+
+**教訓：**
+- `location_name` 的語意值（如 `"電視頻道"`）需在 UI 層做特判，否則搜尋連結產生無效地圖搜尋
+- 類似特例：`オンライン`、`Zoom` 等非實體地點，未來如需地址欄渲染亦應在此加特判
+
+---
+## 2026-05-01 — 事件品質手動修正（prtimes 台灣地址漏網 + google_news_rss 純新聞）
+
+**問題 A（prtimes）：** `4cd75c4c`（「城市失物招領所」）：`location_name` 為「台北市中正區」，屬台灣地址。`_TAIWAN_VENUE_RE` 已有台灣城市過濾，但未捕到「台北市中正區」這種 `市區` 格式。已手動 `is_active=False` 非表示化；scraper 本身**尚未**修正。
+
+**問題 B（google_news_rss）：** `71f575a4`（「ナルワンアワー」）：純新聞記事，無場地、無 `start_date`。已手動 `is_active=False`；scraper 應在產出前驗證 `start_date` 是否存在。
+
+**教訓：**
+- prtimes `_TAIWAN_VENUE_RE` 需涵蓋 `台北市.*區`、`台中市.*區` 等縣市區格式（TODO）
+- google_news_rss 事件若無 `start_date` 或 `location_name`，不應寫入 DB（TODO：在 `scrape()` 或 `database.py` 加守門）
+
+---
+## 2026-05-01 — prtimes 多城市活動漏建子活動修正（偵測式延長 raw_description）
+
+**問題背景：** `_fetch_detail()` 將 raw_description 固定截斷為 `text[:3000]`。當 PR 文章前半是商品介紹（如 S.C Lab 8 款商品說明），活動行程（東京/大阪日程）落在後半時，Annotator 沒有收到完整行程資訊，無法生成 sub_events。結果：1 篇 PR 有東京（5/2）+ 大阪（5/9）兩場，卻只建了 1 個 Event。
+
+**修正方式（commit `ecd2bb8`）：**
+- 新增 `_MULTI_CITY_SECTION_RE` 正則，偵測「東京｜日期」、「大阪｜日期」等多城市模式
+- 偵測到多城市：`text[:2000]` + `---[イベント開催情報]---` 分隔標記 + 行程區塊 4,000 字（合計上限 8,000 字）
+- 無多城市：維持原本 `text[:3000]`（不影響現有行為）
+
+**多城市子活動補建標準流程：**
+1. 手動建子活動確認資料正確
+2. 刪除手動建的子活動（不可保留）
+3. 修正 scraper raw_description 邏輯
+4. 重新抓取 + 更新 DB + 重置 `annotation_status = pending`
+5. 執行 `annotator.py` → 自動生成正確 sub_events
+
+**教訓：**
+- 固定截斷長度對「商品介紹在前、活動行程在後」的文章無效；偵測式延長比直接增大全域截斷上限更精準，不影響其他 PR 的處理效能。
+- 多城市活動修正必須走完整流程（步驟 1–5），不可直接保留手動建的子活動當作最終結果。
+
+---
 ## 2026-05-01 — 新增 `location_url` 欄位（會場超連結）
 
 **工作內容（commit 235b5ea）：**

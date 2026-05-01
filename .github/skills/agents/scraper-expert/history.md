@@ -3,6 +3,60 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — gguide_tv: `_parse_schedule` 多行格式解析錯誤（business_hours 空白）
+
+**問題：** bangumi.org 的 schedule_str 有兩種格式：
+- 單行：`"12:00 テレ東"`
+- 多行：`"23:45\n-\n0:00 歌謡ポップス"`
+
+原本 regex 為單行設計，遇到多行格式時把 `-` 誤抓為 channel 名，且無法提取 end_time，導致 `business_hours` 欄位空白，詳細頁面無放送時間。
+
+**修正（`scraper/sources/gguide_tv.py`）：**
+- `_parse_schedule()` 回傳值從 `(datetime, channel)` 改為 `(datetime, channel, end_time_str)`
+- 多行格式：開始時間從第一行 `HH:MM` 提取；結束時間與 channel 從第三行 `H:MM <channel>` 提取
+- `Event()` 加入 `business_hours=business_hours`（格式：`"23:45〜0:00"`）
+- DB backfill：15 個無 business_hours 的 gguide_tv 事件全數補齊
+
+**測試結果：**
+```
+Test 1 (multi-line): 23:45 歌謡ポップス 0:00  ✅
+Test 2 (single-line): 12:00 テレ東 None       ✅
+Test 3 (midnight): 00:00 NHK-BS 0:55          ✅
+```
+
+**教訓：**
+- bangumi.org schedule 格式必須區分單行（`HH:MM channel`）與多行（`HH:MM\n-\nH:MM channel`）；單行 regex 在多行格式下把 `-` 行誤判為 channel，且漏取 end_time
+- 修完後立即執行 `python main.py --source gguide_tv`（非 dry-run）寫入 DB；再對舊資料做 backfill UPDATE
+
+---
+## 2026-05-01 — prtimes: 多城市活動漏建子活動（raw_description 固定截斷過早）
+
+**問題：** `_fetch_detail()` 固定截斷 `text[:3000]`。PR 文章前半是商品介紹時，東京/大阪行程被截掉，Annotator 無法生成 sub_events。1 篇含東京（5/2）+ 大阪（5/9）兩場的 PR，只建出 1 個 Event。
+
+**根本原因：** 固定長度截斷對「商品介紹先於活動行程」的 PR 文章失效。
+
+**修正（commit `ecd2bb8`）：**
+- 新增 `_MULTI_CITY_SECTION_RE`：偵測 `(東京|大阪|京都|...|日期)` 多城市行程模式
+- 無多城市：`text[:3000]`（不變）
+- 偵測到多城市：`text[:2000]` + `---[イベント開催情報]---` 分隔符 + 行程區塊 4,000 字（合計上限 8,000 字）
+
+**驗證結果：**
+- `_MULTI_CITY_SECTION_RE.search(body_text)` 成功偵測「東京｜2026年5月2日」
+- raw_desc 4,312 字（vs 原本 3,000）
+- Annotator 自動生成 2 個 sub_events：東京 5/2（TOKYO FAMILY RESTAURANT）、大阪 5/9（TOBI SHOP / KITTE 大阪）
+
+**多城市子活動補建標準流程：**
+1. 手動建子活動確認資料正確
+2. 刪除手動建的子活動（不可保留）
+3. 修正 scraper raw_description 邏輯
+4. 重新抓取 + 更新 DB + 重置 `annotation_status = pending`
+5. 執行 `annotator.py` → 自動生成正確 sub_events
+
+**教訓：**
+- 偵測式延長（用正則選擇性延長）比單純增大全域截斷上限更精準，不影響其他 PR 效能。
+- 多城市活動的正確修正流程必須走完整五步驟；跳過「刪除手動建的子活動」會導致重複資料。
+
+---
 ## 2026-05-01 — auto_qa anomaly detection writes into event_reports queue (commit `2ae731b`)
 
 **Feature:** `scraper/auto_qa.py` scans `is_active` events from the past 14 days and inserts pending rows into `event_reports` for two anomaly types: `auto_qa_simplified_zh` (simplified chars in any `*_zh` field) and `auto_qa_missing_address` (has `location_name` but empty `location_address`; skips online/TV/zoom/youtube + `gguide_tv` source). Dedups against existing pending `auto_qa_*` rows per `event_id`. Inserts in chunks of 100. Runs 3×/day in `merger.yml` after `--fix-reviewed`. Production dry-run found 2 real findings (永旺夢乐城太田 simplified `乐`; 一石三鳥グループ missing address).

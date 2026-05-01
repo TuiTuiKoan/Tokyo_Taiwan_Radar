@@ -65,27 +65,39 @@ def _is_taiwan_title(title: str) -> bool:
     return any(kw in cleaned for kw in _TAIWAN_KEYWORDS)
 
 
-def _parse_schedule(schedule_str: str, today: datetime) -> tuple[Optional[datetime], str]:
+def _parse_schedule(schedule_str: str, today: datetime) -> tuple[Optional[datetime], str, Optional[str]]:
     """
-    Parse schedule strings like '4月29日 水曜 12:00　テレ東' into (datetime, channel).
+    Parse schedule strings like '4月29日 水曜 12:00　テレ東' into (datetime, channel, end_time_str).
 
     Year is inferred: if the resulting date is more than LOOKBACK_DAYS in the past,
     try next year (handles Dec→Jan boundary when upcoming Jan broadcasts appear in Dec).
-    Returns (None, channel) when the date cannot be parsed.
+    Returns (None, channel, None) when the date cannot be parsed.
+    end_time_str is "HH:MM" extracted from "-\nHH:MM" pattern when available.
     """
-    # Match: M月D日 <DOW> HH:MM <channel>
+    # Match: M月D日 <DOW> HH:MM  [optional: rest on same line is channel]
     m = re.search(
-        r"(\d{1,2})月(\d{1,2})日\s+\S+?\s+(\d{1,2}):(\d{2})\s*(.+)",
+        r"(\d{1,2})月(\d{1,2})日\s+\S+?\s+(\d{1,2}):(\d{2})(.*)",
         schedule_str.strip(),
     )
     if not m:
-        return None, schedule_str.strip()
+        return None, schedule_str.strip(), None
 
     month = int(m.group(1))
     day = int(m.group(2))
     hour = int(m.group(3))
     minute = int(m.group(4))
-    channel = m.group(5).strip()
+    remainder = m.group(5).strip()
+
+    # The schedule format from bangumi.org is:
+    #   "M月D日 DOW HH:MM\n-\nH:MM CHANNEL"
+    # In this case remainder is empty (end of first line).
+    # Try to extract channel from the 3rd line: "H:MM CHANNEL"
+    channel = remainder
+    channel_m = re.search(r"^\d{1,2}:\d{2}\s+(.+)", schedule_str, re.MULTILINE)
+    if channel_m:
+        channel = channel_m.group(1).strip()
+    if not channel or channel == "-":
+        channel = schedule_str.strip().split()[-1]  # last token as fallback
 
     # Handle hour ≥ 24 (late-night Japanese broadcast convention: 25:00 = 01:00 next day)
     day_offset = 0
@@ -97,7 +109,7 @@ def _parse_schedule(schedule_str: str, today: datetime) -> tuple[Optional[dateti
     try:
         candidate = datetime(year, month, day, hour, minute) + timedelta(days=day_offset)
     except ValueError:
-        return None, channel
+        return None, channel, None
 
     # If candidate is stale by more than LOOKBACK_DAYS, try next year
     cutoff = today - timedelta(days=LOOKBACK_DAYS)
@@ -105,9 +117,15 @@ def _parse_schedule(schedule_str: str, today: datetime) -> tuple[Optional[dateti
         try:
             candidate = datetime(year + 1, month, day, hour, minute) + timedelta(days=day_offset)
         except ValueError:
-            return None, channel
+            return None, channel, None
 
-    return candidate, channel
+    # Extract end time from the schedule string: "HH:MM\n-\nHH:MM" pattern
+    end_time_str: Optional[str] = None
+    end_m = re.search(r"(\d{1,2}:\d{2})\s*\n[-−]\s*\n(\d{1,2}:\d{2})", schedule_str)
+    if end_m:
+        end_time_str = end_m.group(2)
+
+    return candidate, channel, end_time_str
 
 
 _SHOW_TITLE_RE = re.compile(r"[「『]([^」』]+)[」』]")
@@ -249,7 +267,7 @@ class GguideTvScraper(BaseScraper):
                     continue
 
                 # Parse broadcast date/time
-                start_dt, channel = _parse_schedule(schedule_raw, today)
+                start_dt, channel, end_time_str = _parse_schedule(schedule_raw, today)
                 if start_dt is None:
                     logger.debug(
                         "gguide_tv: could not parse schedule '%s' for '%s'",
@@ -275,6 +293,10 @@ class GguideTvScraper(BaseScraper):
                 broadcast_date_str = (
                     f"{start_dt.year}年{start_dt.month}月{start_dt.day}日"
                 )
+                start_time_str = f"{start_dt.hour:02d}:{start_dt.minute:02d}"
+                business_hours: Optional[str] = None
+                if end_time_str:
+                    business_hours = f"{start_time_str}〜{end_time_str}"
                 desc_parts = [
                     f"開催日時: {broadcast_date_str}\n",
                     f"放送: {channel}",
@@ -302,6 +324,7 @@ class GguideTvScraper(BaseScraper):
                         start_date=start_dt,
                         category=_genre_to_category(genre),
                         location_name="電視頻道",
+                        business_hours=business_hours,
                     )
                 )
 

@@ -35,3 +35,6 @@ supabase/.temp/
 
 # Agent scratch space (local only, not committed)
 .copilot-tracking/
+
+# Layer B auto-scraper run artifacts (large HTML samples / per-source meta)
+scraper/auto_scraper/runs/*/

@@ -133,6 +133,25 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
 - Date extraction: `日程[：:][^\d]*(\d{4})年(\d{1,2})月(\d{1,2})日` regex on `body_html`.
 - `source_id`: `transit_store_{product.handle}` — handle is stable across runs.
 
+## gguide_tv-specific
+- **schedule_str has two formats** — must handle both:
+  - 單行：`"12:00 テレ東"` → 正規表達式可直接抓 `HH:MM <channel>`
+  - 多行：`"23:45\n-\n0:00 歌謡ポップス"` → 第一行是開始時間，第二行固定是 `-`，第三行是 `H:MM <channel>`
+- **`_parse_schedule()` 回傳值**：`(datetime, channel, end_time_str | None)`，三元組。單行格式 `end_time_str=None`。
+- **多行格式解析規則**：
+  ```python
+  lines = schedule_str.strip().splitlines()
+  if len(lines) >= 3 and lines[1].strip() == "-":
+      start_hhmm = lines[0].strip()   # e.g. "23:45"
+      end_channel = lines[2].strip()  # e.g. "0:00 歌謡ポップス"
+      m = re.match(r"(\d{1,2}:\d{2})\s+(.*)", end_channel)
+      end_time_str = m.group(1) if m else None
+      channel = m.group(2) if m else end_channel
+  ```
+- **`business_hours` 格式**：`f"{start_hhmm}〜{end_time_str}"` 當 `end_time_str` 存在；否則僅 `start_hhmm`。
+- **`location_name` 固定為 `"電視頻道"`**：gguide_tv 事件絕對沒有實體地址，`enrich_addresses.py` 預設 skip 此 source。
+- **UI 規則**：event detail page 的地址欄偵測到 `location_name === "電視頻道"` 時，顯示「電視頻道」純文字，不加 Google Maps 超連結。
+
 ## DeepL Tracking
 - Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
 - Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
@@ -243,6 +262,8 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
   4. `_TAIWAN_VENUE_RE` — is the venue filter incorrectly excluding it?
 - **Referer header required**: `requests.get(url, headers={"Referer": page_url})` — without Referer some stores return 403.
 - **Taiwan events are rare and unpredictable** (food fairs, not seasonal). 0-event dry-runs are expected.
+- **多城市活動偵測（`_MULTI_CITY_SECTION_RE`）**: 當 PR 文章前半為商品介紹、活動行程落在後半時，固定截斷（`text[:3000]`）會漏掉多城市日程。解法：在 `_fetch_detail()` 用正則偵測「東京｜日期」/「大阪｜日期」等多城市模式，偵測到時選擇性延長（前段 2,000 字 + `---[イベント開催情報]---` 分隔標記 + 行程區塊 4,000 字），未偵測到則維持原 3,000 字上限。
+- **多城市子活動補建標準流程**（偵測到漏建時）：① 手動建子活動確認資料正確 → ② 刪除手動建的子活動 → ③ 修正 scraper raw_description 邏輯 → ④ 重新抓取 + 更新 DB + 重置 `annotation_status = pending` → ⑤ 執行 `annotator.py` 自動生成正確 sub_events。不可跳過步驟 ②（保留手動建的子活動會導致重複）。
 
 ## hankyu_umeda-specific
 - **Static HTML, no Playwright**: requests + BeautifulSoup only. Page at `https://www.hankyu-dept.co.jp/honten/event/` returns full HTML.

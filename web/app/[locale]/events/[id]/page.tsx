@@ -382,7 +382,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                 {subEventPrefectures.length > 1
                   ? subEventPrefectures.join("・")
                   : event.location_name === "電視頻道"
-                  ? "—"
+                  ? "電視頻道"
                   : (locationAddress || locationName) ? (
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationAddress || locationName || "")}`}
