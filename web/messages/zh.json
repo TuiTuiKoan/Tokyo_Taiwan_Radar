@@ -71,7 +71,7 @@
   },
   "event": {
     "source": "資料來源",
-    "location": "場地・節目",
+    "location": "場地・頻道",
     "hours": "營業時間",
     "startDate": "開始日期",
     "endDate": "結束日期",

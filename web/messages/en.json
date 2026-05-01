@@ -71,7 +71,7 @@
   },
   "event": {
     "source": "Source",
-    "location": "Venue / Program",
+    "location": "Venue / Channel",
     "hours": "Hours",
     "startDate": "Start",
     "endDate": "End",

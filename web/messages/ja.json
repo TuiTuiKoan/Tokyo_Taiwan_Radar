@@ -71,7 +71,7 @@
   },
   "event": {
     "source": "出典",
-    "location": "会場・番組",
+    "location": "会場・チャンネル",
     "hours": "営業時間",
     "startDate": "開始",
     "endDate": "終了",
