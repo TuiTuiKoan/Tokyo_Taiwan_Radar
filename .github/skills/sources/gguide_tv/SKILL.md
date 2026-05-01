@@ -39,8 +39,10 @@ Step 3 (per item): GET https://bangumi.org/tv_events/{ebisId}
 | Program list | `ul.list-style-1 li.block` | Skip `li.ads` |
 | Genre | `.box-2 p` [0] | e.g. `バラエティ`, `ドキュメンタリー／教養` |
 | Title | `.box-2 p` [1] | May contain accessibility emoji (🈑🈞🈓) |
-| Schedule | `.box-2 p` [2] | `"4月29日 水曜 12:00　テレ東"` |
+| Schedule | `.box-2 p` [2] | `"4月29日 水曜 12:00　テレ東"` — use `get_text(separator="\n", strip=True)` to preserve multi-line structure |
 | ebisId | `a.js-logging[data-content]` → JSON → `.ebisId` | Stable across runs |
+
+> **`get_text(separator="\n")` required**: Without `separator`, HTML child elements are concatenated directly (e.g. `"23:450:00 歌謡ポップス"`), breaking multi-line schedule parsing. Always use `ps[2].get_text(separator="\n", strip=True)`.
 
 ## Field Mappings
 
@@ -70,6 +72,12 @@ Regex: `(\d{1,2})月(\d{1,2})日\s+\S+?\s+(\d{1,2}):(\d{2})\s*(.+)`
 **Late-night convention** (`25:00` style): `hour >= 24` → subtract 24 hours and add 1 day.
 
 Always prepend `開催日時: YYYY年MM月DD日\n` to `raw_description`.
+
+**Multi-line schedule with end time** (`"23:45\n-\n0:00 歌謡ポップス"` format):
+- `_parse_schedule()` returns `(datetime, channel, end_time_str)` — `end_time_str` is `"HH:MM"` or `None`.
+- When `end_time_str` is not `None`: `business_hours = f"{start_hhmm}〜{end_time_str}"`.
+- When `end_time_str = None` (single-line list page): fallback to detail page text using `r"(\d{1,2}:\d{2})\s*\n[-−]\s*\n(\d{1,2}:\d{2})"`. If match found, same format applies.
+- If both fail: `business_hours = None`.
 
 ## Taiwan Relevance Filter
 

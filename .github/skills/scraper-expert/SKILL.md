@@ -163,11 +163,15 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
       end_time_str = m.group(1) if m else None
       channel = m.group(2) if m else end_channel
   ```
-- **`business_hours` 格式**：`f"{start_hhmm}〜{end_time_str}"` 當 `end_time_str` 存在；否則僅 `start_hhmm`。
+- **`business_hours` 格式**（三步 fallback）：
+  1. list page `end_time_str` 存在 → `f"{start_hhmm}〜{end_time_str}"`
+  2. `end_time_str = None` 但 `detail_text` 存在 → 用 `r"(\d{1,2}:\d{2})\s*\n[-−]\s*\n(\d{1,2}:\d{2})"` 從 detail page 提取，成功時同上格式
+  3. 兩者皆無 → `business_hours = None`（不填單純開始時間）
+- **`ps[2].get_text()` 必須加 `separator="\n"`**：`schedule_raw = ps[2].get_text(separator="\n", strip=True)`。不加 separator 時，HTML 子節點直接串接，多行分支永遠不觸發（commit `a895e07`）。
 - **`location_name` = 實際頻道名稱**：如「歌謡ポップス」。gguide_tv 事件絕對沒有實體地址，`enrich_addresses.py` 預設 skip 此 source（依 `source_name` 判斷）。
 - **UI 規則**：event detail page 的地址欄用 `event.source_name === "gguide_tv"` 偵測 TV 事件，顯示 `location_name`（頻道名）純文字，不加 Google Maps 超連結。⚠ 不要用 `location_name === "電視頻道"` 判斷——`location_name` 是可變內容欄位，已改為實際頻道名稱。
-- **`end_time` fallback from detail page**：list 頁的 `ps[2].get_text(strip=True)` 會把 `<br>` 換行壓扁，造成 `\n-\n` regex 失效、`end_time_str=None`。當 `end_time_str=None` 時，fallback 邏輯從 `detail_text` 用 `r"(\d{1,2}:\d{2})\n-\n(\d{1,2}:\d{2})"` 補抓。
-- **BeautifulSoup `get_text` 注意事項**：`get_text(strip=True)` 會吃掉 `<br>` 結構。有跨行結構的欄位（如時間範圍），改用 `get_text(separator="\n")` 保留換行符。
+- **`end_time` fallback from detail page**：list page 格式為單行（只有開始時間）時，`end_time_str = None`。fallback 邏輯從 `detail_text` 用 `r"(\d{1,2}:\d{2})\s*\n[-−]\s*\n(\d{1,2}:\d{2})"` 補抓結束時間。
+- **BeautifulSoup `get_text` 注意事項**：`get_text(strip=True)` 會直接串接子元素。有跨行結構的欄位（如時間範圍），必須用 `get_text(separator="\n")` 保留換行符。
 
 ## DeepL Tracking
 - Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
@@ -357,6 +361,8 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 **Taiwan filter fallback:** If country extraction fails, check full `description` text for `台湾` / `台灣` / `Taiwan` as a secondary gate.
 
 **`start_date` rule for currently-showing movies:** Use `datetime.now()` (today). Do NOT use the movie's release date (`劇場公開日`) as `start_date` unless the movie is not yet showing.
+
+**`start_date` rule for upcoming / COMING SOON movies:** When the movie page shows "COMING SOON" or a pre-announcement article without a confirmed release date, set `start_date = null` rather than using any date on the page. Pages scraped before the official release announcement may contain only an article publication date or a vague season label — using such a date produces a wrong `start_date` that persists until the next scrape (e.g. ナギ日記: scraper set `2026-05-01`, actual release `2026-09-25`). Priority order for extracting a movie release date: `「○月○日（曜日）公開」` pattern in body → `「公開日：YYYY年MM月DD日」` labeled field → null.
 
 ## taiwan_matsuri-specific
 - **Geographic scope**: taiwan-matsuri.com hosts events all over Japan (Gunma, Kumamoto, Fukuoka, Nara, Shimane, etc.). Never add a regional keyword filter — the project covers 全日本.

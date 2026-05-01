@@ -2,6 +2,38 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-01 — 映画 COMING SOON 期間的 start_date 錯誤（ナギ日記）
+
+**問題：** 映画《ナギ日記》在 starsands.com 尚未公布正式上映日時，爬蟲在 4 月初抓到 `start_date = 2026-05-01`（應為 `2026-09-25`）。
+
+**根本原因：** 電影類活動在正式公布上映日期前，官網可能只有「COMING SOON」或新聞稿，此時頁面上的任何日期都可能是「製作公告日」而非「上映日」。
+
+**修正：** 直接 DB patch — `start_date → 2026-09-25`，`end_date = null`。
+
+**教訓：** 電影類活動應優先從 `raw_description` 中查找「○月○日（曜日）公開」等明確上映格式；若找不到，設 `start_date = null` 而非使用頁面上模糊的日期。
+
+---
+
+## 2026-05-01 — gguide_tv business_hours fallback 到 detail page
+
+**問題：** list page `schedule_raw` 為單行格式（只有開始時間，無結束時間），`end_time_str = None`，即使 detail page 已有完整播出時段，`business_hours` 仍為 `None`。
+
+**修正：** 當 `end_time_str = None` 時，fallback 到 detail page 文字，用 `r"(\d{1,2}:\d{2})\s*\n[-−]\s*\n(\d{1,2}:\d{2})"` 提取結束時間。
+
+**教訓：** list page 欄位不完整時，優先 fallback 到 detail page，而非直接設 `None`。此 pattern 適用於任何「list page 資訊精簡、detail page 資訊完整」的爬蟲。
+
+---
+
+## 2026-05-01 — gguide_tv schedule 文字提取須加 separator="\n"（commit `a895e07`）
+
+**問題：** `ps[2].get_text(strip=True)` 把多行 HTML 子節點合併成 `"23:450:00 歌謡ポップス"`（無換行），導致 `_parse_schedule()` 無法識別多行格式，`business_hours = None`。
+
+**修正：** 改為 `ps[2].get_text(separator="\n", strip=True)` — 加入 `separator` 後產生 `"23:45\n-\n0:00 歌謡ポップス"` 格式，多行解析正確。
+
+**教訓：** BeautifulSoup `get_text()` 預設無 separator，多個子元素會直接串接。**當 HTML 結構中各欄位分別位於不同子元素時，必須加 `separator="\n"` 才能保留欄位邊界。**
+
+---
+
 ## 2026-05-01 | gguide_tv channel name 改版（location_name 改為實際頻道名稱）
 
 **問題：** `location_name="電視頻道"` 是虛設標籤，缺乏資訊量；23 件事件無法顯示正確頻道名稱。web 地址欄以 `event.location_name === "電視頻道"` 作判斷，`location_name` 語意一旦改變邏輯就失效。
