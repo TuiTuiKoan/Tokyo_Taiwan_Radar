@@ -2,6 +2,38 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-01 | gguide_tv channel name 改版（location_name 改為實際頻道名稱）
+
+**問題：** `location_name="電視頻道"` 是虛設標籤，缺乏資訊量；23 件事件無法顯示正確頻道名稱。web 地址欄以 `event.location_name === "電視頻道"` 作判斷，`location_name` 語意一旦改變邏輯就失效。
+
+**修正：** `gguide_tv.py` 改為 `location_name=channel`（如「歌謡ポップス」）。`web/app/[locale]/events/[id]/page.tsx` 地址欄判斷由 `event.location_name === "電視頻道"` 改為 `event.source_name === "gguide_tv"`。DB backfill 23 件事件。
+
+**教訓：** UI 渲染的條件判斷應依賴 `source_name`（結構性欄位、永遠不變），而非 `location_name`（可變內容欄位）。依賴內容欄位做邏輯判斷，欄位修正後必須同步更新 UI 邏輯，容易出現 sync 問題。
+
+---
+
+## 2026-05-01 | i18n 標籤統一（event vs admin namespace 必須同步修改）
+
+**問題：** `event.location`（場地・頻道）和 `event.address`（地點）標籤在前台詳情頁（`event` namespace）與後台管理頁（`admin` namespace）使用不同 JSON key，修改其中一個不會自動同步到另一個。
+
+**修正：**
+- `event.location`：zh「場地・頻道」/ en「Venue / Channel」/ ja「会場・チャンネル」
+- `event.address` + `admin.address`：zh「地點」/ en「Location」/ ja「場所」
+
+**教訓：** `event` namespace（前台）與 `admin` namespace（後台）是獨立的 JSON 命名空間。任何 UI 標籤修改必須同時更新三個 `messages/*.json` 的**兩個** namespace。
+
+---
+
+## 2026-05-01 | gguide_tv business_hours 修復（end_time fallback from detail page）
+
+**根本原因：** list 頁的 `ps[2].get_text(strip=True)` 把 `<br>` 換行壓扁，多行格式 `23:45\n-\n0:00` 變成 `23:45-0:00`，導致 `\n-\n` regex 無法匹配，`end_time_str=None`，`business_hours` 無法計算。
+
+**修復：** 當 `end_time_str=None` 時，fallback 從 `detail_text` 用 `r"(\d{1,2}:\d{2})\n-\n(\d{1,2}:\d{2})"` 補抓 end_time。DB backfill 從 `start_date`/`end_date` 反推 `business_hours`（格式 `21:00〜22:00`）。
+
+**教訓：** BeautifulSoup `get_text(strip=True)` 會吃掉 `<br>` 結構，有跨行結構的欄位應改用 `get_text(separator="\n")` 保留換行。gguide_tv 的 `end_time` 在 detail 頁，不在 list 頁的 `schedule_raw`。
+
+---
+
 ## 2026-05-01 | go_taiwan + transit_store スクレイパー実装
 
 **go_taiwan (`scraper/sources/go_taiwan.py`):**

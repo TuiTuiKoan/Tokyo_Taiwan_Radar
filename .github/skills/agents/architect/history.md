@@ -3,6 +3,18 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — gguide_tv channel name 改版：UI 判斷應依賴 `source_name` 而非 `location_name`（commits `19427e3`、`c017462`）
+
+**背景：** 原 TV番組地址欄特判以 `event.location_name === "電視頻道"` 作條件。後來 `location_name` 改為存放實際頻道名稱（如「歌謡ポップス」），UI 邏輯因依賴可變內容欄位而失效，需同步修正。
+
+**修正：** 地址欄判斷改為 `event.source_name === "gguide_tv"`（結構性欄位，永遠不變）。同批修正 i18n 標籤：`event.location` zh「場地・頻道」、`event.address` + `admin.address` zh「地點」，`event` namespace 與 `admin` namespace 必須同步。
+
+**教訓：**
+- **UI 條件判斷：source_name 優先於 location_name**。`source_name` 是結構性識別欄位，`location_name` 是可顯示的內容欄位；以 `location_name` 做邏輯分支，資料修正後 UI 會靜默失效。
+- **i18n namespace 隔離**：`event`（前台）與 `admin`（後台）是獨立 JSON namespace，標籤修改必須同時更新兩處（×3 語言 = 6 個 key）。
+- 此條目**取代**先前的「TV番組地址欄顯示規則（`location_name === "電視頻道"`）」教訓——新正確做法是 `source_name` 判斷。
+
+---
 ## 2026-05-01 — auto-scraper Phase 2 sandbox：env scrubbing 必須用 allowlist（commit `a0606fe`）
 
 **背景：** Phase 2 LLM-codegen 後在 subprocess 跑生成的 scraper 做 dry-run 驗證。env 必須阻止 LLM 生成的程式存取 `SUPABASE_*` / `OPENAI_API_KEY` / `GITHUB_TOKEN` / `LINE_*`。

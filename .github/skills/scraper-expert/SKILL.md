@@ -164,8 +164,10 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
       channel = m.group(2) if m else end_channel
   ```
 - **`business_hours` 格式**：`f"{start_hhmm}〜{end_time_str}"` 當 `end_time_str` 存在；否則僅 `start_hhmm`。
-- **`location_name` 固定為 `"電視頻道"`**：gguide_tv 事件絕對沒有實體地址，`enrich_addresses.py` 預設 skip 此 source。
-- **UI 規則**：event detail page 的地址欄偵測到 `location_name === "電視頻道"` 時，顯示「電視頻道」純文字，不加 Google Maps 超連結。
+- **`location_name` = 實際頻道名稱**：如「歌謡ポップス」。gguide_tv 事件絕對沒有實體地址，`enrich_addresses.py` 預設 skip 此 source（依 `source_name` 判斷）。
+- **UI 規則**：event detail page 的地址欄用 `event.source_name === "gguide_tv"` 偵測 TV 事件，顯示 `location_name`（頻道名）純文字，不加 Google Maps 超連結。⚠ 不要用 `location_name === "電視頻道"` 判斷——`location_name` 是可變內容欄位，已改為實際頻道名稱。
+- **`end_time` fallback from detail page**：list 頁的 `ps[2].get_text(strip=True)` 會把 `<br>` 換行壓扁，造成 `\n-\n` regex 失效、`end_time_str=None`。當 `end_time_str=None` 時，fallback 邏輯從 `detail_text` 用 `r"(\d{1,2}:\d{2})\n-\n(\d{1,2}:\d{2})"` 補抓。
+- **BeautifulSoup `get_text` 注意事項**：`get_text(strip=True)` 會吃掉 `<br>` 結構。有跨行結構的欄位（如時間範圍），改用 `get_text(separator="\n")` 保留換行符。
 
 ## DeepL Tracking
 - Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
