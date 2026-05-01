@@ -3,6 +3,40 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — taiwan_cultural_center 多城市巡迴偵測修正（commit `a2d6eea`）
+
+**問題：** `台湾映画上映会2026` 是跨北海道・東京・神奈川・京都・大阪 5 城市的巡迴活動，但 scraper 將 `location_address` hardcode 為東京（台湾文化センター）地址，admin 後台「住所」欄顯示東京地址，造成誤導。
+
+**根本原因：** `taiwan_cultural_center.py` 的 location block 完全 hardcode，沒有任何多城市偵測邏輯。
+
+**修復：**
+1. **DB 補丁**：直接 patch event `51f7cd44`（台湾映画上映会2026）—— `location_name` → `台湾文化センター（全国5都市）`，`location_address` → `None`。
+2. **Scraper 修正**：加入 `_MULTI_CITY_REGIONS` 偵測，description+name 中出現 ≥2 個地區 keyword 時，改用 `台湾文化センター（全国巡回）`，並清空 `location_address`：
+   ```python
+   _MULTI_CITY_REGIONS = ["北海道", "大阪", "京都", "神奈川", "福岡", "名古屋", "仙台"]
+   if sum(1 for r in _MULTI_CITY_REGIONS if r in _desc_check) >= 2:
+       location_name = "台湾文化センター（全国巡回）"
+       location_address = None
+   ```
+
+**教訓：**
+- 實體地址不應 hardcode 在 scraper 中；多城市活動需偵測。
+- 門檻 ≥2（不用 1），避免「在東京舉辦但描述提到大阪食文化」的 false positive。
+- 偵測 keyword list 應涵蓋台灣文化中心有據點的城市：北海道/大阪/京都/神奈川/福岡/名古屋/仙台。
+- 多城市偵測模式可推廣至其他有固定地址 hardcode 的 scrapers。
+
+---
+## 2026-05-01 — auto_scraper Phase 2 codegen + sandbox（commit `a0606fe`）
+**新增：** `## Auto-Scraper Layer B — generate.py` 段落至 engineer/SKILL.md
+**內容：**
+- Sandbox env allowlist（`SUPABASE_*`、`OPENAI_API_KEY` 等 secrets 絕對不傳）
+- Phase 2 scope boundaries（不開 PR、不注入 SCRAPERS、不寫 events DB）
+- Cleanup defence-in-depth（`try/finally` + `atexit.register` 雙重保障）
+- Budget guard 常數（需定期驗證 OpenAI 定價）
+- 7-day retry cooldown 機制
+**來源：** daily-skills-review（Step 4 建議）
+
+---
 ## 2026-05-01 — auto_qa anomaly detection + weekly report links (commit `2ae731b`)
 
 **Feature:** New `scraper/auto_qa.py` scans `is_active` events from past 14 days for two anomaly types — `auto_qa_simplified_zh` (simplified Chinese chars in any `*_zh` field) and `auto_qa_missing_address` (has `location_name` but empty `location_address`, with online/TV/`gguide_tv` skipped). Findings are inserted into `event_reports` as pending rows so admins review them at `/admin/reports` (same UI as user-submitted reports). `merger.yml` runs auto_qa 3×/day after `--fix-reviewed`. `weekly_report.py` queries `event_reports` for past 7 days of `auto_qa_*` rows and appends a 🔍 自動 QA 偵測 section to the LINE message with a clickable admin link, only when total > 0. `weekly-report.yml` gained `NEXT_PUBLIC_SITE_URL` env.

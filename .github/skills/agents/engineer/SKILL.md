@@ -446,6 +446,69 @@ Every route slug must appear the **same number of times** (= total number of adm
 - **`SIMP_RE` / `annotator._LOC_ZH_SIMP_TO_TRAD` char addition rule (2026-05-01):** Only add a char when its Traditional Chinese / Japanese form is **a different glyph**. Verify each candidate via CC-CEDICT or kanji.jitenon.jp **before** adding. Counter-example: `亮` is identical in Trad/Simp (`照亮` is valid Trad) and triggered a false positive in production. See scraper-expert `history.md` 2026-05-01.
 - **Cron-driven slot rotation modulo wrap (2026-05-01):** When N weekdays drive a `(DAY-1) % M` slot selector with `M < N`, days M+1..N silently re-run slots 0..(N-M-1). Acceptable when slots are idempotent (search + `skip_hint` dedup); NOT acceptable for slots requiring fixed cadence (e.g. Peatix slot 3 only on Thursdays). Override via `DISCOVERY_SLOT` env on extra cron entries, or raise `SLOT_COUNT`. See `discovery-accounts.yml` and engineer `history.md` 2026-05-01.
 
+## Auto-Scraper Layer B — `generate.py`
+
+`scraper/auto_scraper/generate.py` is the Phase 2 codegen + sandbox validation pipeline. It reads a `research_sources` row, fetches sample HTML via Playwright, calls GPT-4o for a `spec.json`, validates via `spec_to_code.render()`, then dry-runs the generated scraper in a subprocess.
+
+### Scope boundaries (intentional non-scope)
+Phase 2 does NOT:
+- Open PRs or push branches
+- Register the generated scraper into `main.py`'s `SCRAPERS` list
+- Write to `events` or `scraper_runs` tables
+Generated code lives in `scraper/auto_scraper/runs/<source_id>/` and is **excluded from git** (`.gitignore`).
+
+### Sandbox security — env allowlist
+The validation subprocess receives **only** these env vars:
+```
+PATH, HOME, PYTHONUNBUFFERED, PLAYWRIGHT_BROWSERS_PATH, TMPDIR, LANG, LC_ALL
+```
+`SUPABASE_*`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, `LINE_*` are **never** passed to the sandbox. Passing secrets to a subprocess running untrusted LLM-generated code is a critical security violation.
+
+```python
+sandbox_env = {k: os.environ[k] for k in (
+    "PATH", "HOME", "PYTHONUNBUFFERED", "PLAYWRIGHT_BROWSERS_PATH",
+    "TMPDIR", "LANG", "LC_ALL",
+) if k in os.environ}
+```
+
+### Cleanup — defense in depth
+The temporary `sources/_auto_<name>.py` file must be deleted via **both**:
+1. `try/finally` block (runs on normal exit and exceptions)
+2. `atexit.register(cleanup_fn)` (runs if process is killed mid-flight)
+
+Using only one is insufficient. Missing the `atexit` means a SIGTERM leaves the temp file in `sources/`.
+
+### Budget guard
+`generate.py` estimates token cost **before** committing the LLM call. If estimated cost exceeds `DEFAULT_BUDGET_USD` ($1.50), raise `GenerateError("budget-exceeded", ...)` and abort.
+
+```python
+GPT4O_INPUT_COST_PER_1M = 2.50   # verify against current OpenAI pricing
+GPT4O_OUTPUT_COST_PER_1M = 10.00
+```
+These constants must be reviewed whenever OpenAI changes pricing. Last verified: 2026-05.
+
+### 7-day retry cooldown
+Each `research_sources` row may only be retried once every 7 days (checked via `auto_scraper_attempted_at`). A `GenerateError` updates `auto_scraper_status` and `auto_scraper_failed_reason` but does NOT reset the cooldown — the next attempt must wait the full 7 days from the failed attempt.
+
+### CLI flags
+```bash
+python -m auto_scraper.generate --source-id <int>
+  [--mock-llm spec.json]   # offline testing: read spec from file
+  [--skip-sandbox]         # skip subprocess dry-run (unit tests)
+  [--dry-run]              # no DB writes
+  [--output-dir PATH]      # override runs/<source_id>/
+  [--budget-usd FLOAT]     # override DEFAULT_BUDGET_USD
+```
+
+### Required DB migration (migration 032)
+```sql
+ALTER TABLE research_sources
+  ADD COLUMN IF NOT EXISTS auto_scraper_status TEXT,
+  ADD COLUMN IF NOT EXISTS auto_scraper_pr_url TEXT,
+  ADD COLUMN IF NOT EXISTS auto_scraper_failed_reason TEXT,
+  ADD COLUMN IF NOT EXISTS auto_scraper_attempted_at TIMESTAMPTZ;
+```
+
 ## Discovery Accounts Pipeline (`discovery_accounts.py`)
 
 **Year must be dynamic — never hardcoded:**
