@@ -3,6 +3,21 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — MoN Takanawa 錯誤地址（DB 直接修正，無 commit）
+
+**問題背景：** `enrich_addresses.py` 使用 GPT-4o-mini 為「有場館名但無地址」的 SSFF 活動補全地址，對「MoN Takanawa: The Museum of Narratives」補出錯誤地址 `東京都港区高輪4-10-30`；正確地址為 `東京都港区高輪2-21-2`（來源：SSFF 2026 官方 Schedule & Access 頁面）。受影響活動 2 件（「力×変位」、「忘れ鶏」），已直接用 Supabase SDK UPDATE 修正，無 scraper code 變更。
+
+**根本原因：** GPT-4o-mini 對新場館（MoN Takanawa 2024 年開幕）地址記憶不準確，hallucinate 了高輪4丁目的地址。
+
+**修復方法：** 查閱 SSFF 2026 官網 `shortshorts.org/2026/ja/schedule/` Venue access 章節，確認正確地址後直接 Supabase SDK UPDATE，無 code 變更。
+
+**教訓：**
+1. GPT-4o-mini 批次補填的地址**不應視為已驗證**——新場館或改建後場館尤其容易出錯。
+2. 批次補填後，應針對重點合作場館（SSFF、TAICCA 合作場地等）做人工抽查。
+3. 最可靠的地址驗證方法：到活動主辦方官網「会場・アクセス」頁面交叉比對。
+4. 未來可考慮在 DB 加 `address_verified` 欄位或在管理頁標記 AI 補填地址狀態。
+
+---
 ## 2026-05-01 — Phase 1+3 SLA + Quality Dashboard 成功重建（commit bd818cf）
 
 **背景：** Phase 1（SLA 欄位）和 Phase 3（Quality Dashboard）在首次實作（commit 644a0ad）後因 `react-hooks/static-components` lint error 和用戶決定 revert（commit cf1e0a9）。本次成功重建。

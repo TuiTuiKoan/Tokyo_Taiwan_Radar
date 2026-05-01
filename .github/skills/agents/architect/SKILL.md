@@ -179,6 +179,7 @@ Missing any one of these causes: filter mismatch (items appear in wrong section)
   ```
 - When a user questions a displayed address, use `fetch_webpage` on the official source URL before drawing any conclusion.
 - If `backfill_locations.py` has run on a source with a known fixed address, audit those DB records — AI-generated translations may contain hallucinated street numbers.
+- **`enrich_addresses.py` batch fills are AI-generated and NOT verified**: GPT-4o-mini fills `location_address` / `_zh` / `_en` for events with a venue name but no address. These must be treated as unverified estimates. Known failure: MoN Takanawa (新場館) was filled with `東京都港区高輪4-10-30` (incorrect) instead of `東京都港区高輪2-21-2` (2026-05-01). After any batch fill run, manually spot-check records from high-profile partner venues (SSFF, TAICCA co-hosted venues, etc.) against their official access pages (`会場・アクセス` section).
 
 ## i18n Completeness
 - After writing or reviewing any TSX file with visible UI text, run the CJK audit before approving: `python3 -c "import os, re; [print(f+':'+str(i)+':'+l.strip()) for root,_,files in os.walk('web') for f in files if f.endswith('.tsx') for i,l in enumerate(open(os.path.join(root,f)).readlines(),1) if re.search(r'[\u4e00-\u9fff\u3040-\u30ff]',l) and not any(p in l for p in ['t(','tFilters(','tCat(','tEvent(','getEvent','MARKERS','//',"'//"])]" 2>/dev/null`

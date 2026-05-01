@@ -99,6 +99,14 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 - Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
 - `main.py` reads `getattr(scraper, "_deepl_chars_used", 0)` when writing to `scraper_runs`.
 
+## enrich_addresses.py
+- **Purpose**: GPT-4o-mini batch-fills `location_address` / `location_address_zh` / `location_address_en` for events that have `location_name` set but `location_address = NULL`.
+- **Skipped sources**: `gguide_tv` (TV broadcast, no physical address) and events with `location_name ILIKE '%オンライン%'` are excluded by default.
+- **Output is AI-generated, NOT verified**: GPT-4o-mini can hallucinate street numbers for new or renamed venues. Known failure: MoN Takanawa filled with `東京都港区高輪4-10-30` instead of correct `東京都港区高輪2-21-2` (2026-05-01).
+- **Post-run audit**: After running `enrich_addresses.py`, manually spot-check records from high-profile partner venues (SSFF, TAICCA, TCC) against the organizer's official access page (`会場・アクセス` section).
+- **Verification source**: For SSFF, use `shortshorts.org/2026/ja/schedule/` Venue access section. For other venues, search the organizer's official site for the address.
+- **Direct DB fix**: When a wrong address is found, correct it directly via Supabase SDK UPDATE — no code change or commit needed (data-only correction).
+
 ## Annotator NAME WRITING RULES
 
 `annotator.py` system prompt requires the following rules for the `name_ja` / `name_zh` / `name_en` fields:
