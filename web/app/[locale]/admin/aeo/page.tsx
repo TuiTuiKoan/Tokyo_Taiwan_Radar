@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { type Locale } from "@/lib/types";
 import Link from "next/link";
 import GscSection from "@/components/GscSection";
+import { getTranslations } from "next-intl/server";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
@@ -49,6 +50,7 @@ function timeAgo(iso: string): string {
 
 export default async function AdminAeoPage({ params }: PageProps) {
   const { locale } = await params;
+  const t = await getTranslations("admin");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect(`/${locale}/auth/login`);
@@ -139,11 +141,19 @@ export default async function AdminAeoPage({ params }: PageProps) {
 
   return (
     <main className="max-w-6xl mx-auto p-4 md:p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">SEO-AEO 監控</h1>
-        <Link href={`/${locale}/admin`} className="text-sm text-blue-600 hover:underline">
-          ← 返回管理後台
-        </Link>
+      <h1 className="text-2xl font-bold mb-4">{t("title")}</h1>
+
+      {/* Tab nav */}
+      <div className="flex gap-1 border-b border-gray-200 mb-6">
+        <Link href={`/${locale}/admin`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("eventsTab")}</Link>
+        <Link href={`/${locale}/admin/reports`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("reports")}</Link>
+        <Link href={`/${locale}/admin/stats`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("statsTab")}</Link>
+        <Link href={`/${locale}/admin/quality`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("qualityTab")}</Link>
+        <Link href={`/${locale}/admin/research`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("researchTab")}</Link>
+        <Link href={`/${locale}/admin/sources`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("sourcesTab")}</Link>
+        <Link href={`/${locale}/admin/users`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("usersTab")}</Link>
+        <Link href={`/${locale}/admin/creators`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("creatorsTab")}</Link>
+        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">{t("aeoTab")}</span>
       </div>
 
       {!tableExists && (
