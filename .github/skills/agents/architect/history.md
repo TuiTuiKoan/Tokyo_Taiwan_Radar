@@ -3,6 +3,59 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — auto-scraper Phase 2 sandbox：env scrubbing 必須用 allowlist（commit `a0606fe`）
+
+**背景：** Phase 2 LLM-codegen 後在 subprocess 跑生成的 scraper 做 dry-run 驗證。env 必須阻止 LLM 生成的程式存取 `SUPABASE_*` / `OPENAI_API_KEY` / `GITHUB_TOKEN` / `LINE_*`。
+
+**選擇：**
+- ❌ Blacklist（pop 已知 secret keys）：未來新加 `.env` 變數一律遺漏，一個漏掉 = 洩漏。
+- ✅ Allowlist：只放行 `PATH` / `HOME` / `PYTHONUNBUFFERED` / `PLAYWRIGHT_BROWSERS_PATH` / `TMPDIR` / `LANG` / `LC_ALL`，其他全部不傳。新加 `.env` 變數自動被排除。
+
+**教訓：跑「不可信／自動生成」程式時，env 隔離一律 allowlist。** Blacklist 需要持續維護，allowlist 是 fail-closed 預設。
+
+---
+## 2026-05-01 — temp file 清理：try/finally + atexit 雙保險（commit `a0606fe`）
+
+**背景：** Phase 2 sandbox 把 LLM 生成的 scraper 複製成 `_auto_<name>.py` 讓 subprocess `import`，跑完要刪。
+
+**單一機制不足：**
+- 只用 `try/finally`：subprocess 被 SIGKILL 或 unhandled exit 時不執行。
+- 只用 `atexit.register`：normal flow 期間異常分支不一定觸發。
+
+**修正：兩者並用。** `try/finally` 處理正常與例外路徑，`atexit.register(cleanup)` 是進程死亡時的最後防線（defense in depth）。任何 codegen / fetch-render / 暫存檔流程都應遵循同樣 pattern。
+
+---
+## 2026-05-01 — LLM 定價常數需季度性重新驗證（commit `a0606fe`）
+
+**背景：** `scraper/auto_scraper/generate.py` 寫死 GPT-4o 定價：`INPUT $2.50/1M`、`OUTPUT $10.00/1M`，預算 `$1.50/source`，作為 sandbox abort 守門。
+
+**風險：** OpenAI 定價會調整；常數寫死且無自動驗證，過時後預算守門失準。
+
+**對策：**
+- 程式內以註解標注「verify against current OpenAI pricing」。
+- Architect session checklist 新增：審 LLM-cost 程式時，比對當前 OpenAI 公開定價頁。
+- 任何新加的「LLM 計費 + 預算守門」功能，定價常數必須集中在單一檔案，避免散落各處。
+
+---
+## 2026-05-01 — auto-scraper 各 Phase 必須嚴格分離 mutation surface（commit `a0606fe`）
+
+**設計原則：** Phase 2 codegen + sandbox 故意 **不** 做以下事：
+- 不 register 進 `SCRAPERS`
+- 不 open PR
+- 不寫入 `events` DB
+
+只 update `research_sources` 的 status 欄。這個邊界是讓 Phase 3（會 open PR）能被安全 review 的前提——Phase 3 之前所有產出都是檔案級 artifacts，沒有 production 影響。
+
+**通則：** 設計後續 auto-* 功能（auto-merge / auto-deploy / auto-fix）時，**每個 phase 的 mutation surface 必須在 plan 階段明確列出並上鎖**。把「unsafe codegen」與「safe activation」放在不同 commit / 不同 phase / 不同 reviewer，是讓 LLM 自動化能在 production 安全運行的核心紀律。
+
+---
+## 2026-05-01 — Researcher Phase 1.3 source_profile hints 是 Phase 2 啟動條件（commit `7d62b52`）
+
+**背景：** Phase 2 auto-codegen 只處理 `feasibility='easy'` AND `url_verified=true` AND `status='researched'` 的 row。`update_source.py` 新增 `--feasibility {easy|medium|hard}`（status=researched 時必填）+ `--pagination-hint` / `--card-selector-hint` / `--date-format-hint` / `--notes` 旗標，寫入 `source_profile` JSONB。
+
+**教訓：** Researcher agent **必須**填齊 feasibility hint，否則 Phase 2 完全跳過該 source。Researcher agent doc 應明示這是 hard requirement，不是 optional metadata。
+
+---
 ## 2026-05-01 — 多城市地點顯示與篩選支援（location_prefectures + extractPrefecture）
 
 **問題 A（篩選 false positive）：** `"京都"` 是 `"東京都"` 的子字串（東**京都**），導致所有 `東京都...` 地址都命中 `CHUBU_KINKI_MARKERS` 中的 `"京都"` marker，58 個東京活動誤出現在「中部・近畿・關西」篩選。

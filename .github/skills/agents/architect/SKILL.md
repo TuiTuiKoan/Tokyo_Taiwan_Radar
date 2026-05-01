@@ -370,3 +370,23 @@ tools: [read, search, execute, web] # Minimal necessary tools
 
 反例：2026-05-01 aeo 頁面原本只有「← 返回管理後台」連結，後來在 commit 5cae991 才補齊完整 tab nav。計劃階段就應強制要求。
 
+## Untrusted-Code Sandbox Rules (auto-scraper Phase 2+)
+
+When designing any feature that runs LLM-generated or otherwise untrusted Python in a subprocess (auto-scraper codegen, plugin execution, etc.):
+
+- **env scrubbing must be allowlist, not blacklist.** Pass only `PATH` / `HOME` / `PYTHONUNBUFFERED` / `PLAYWRIGHT_BROWSERS_PATH` / `TMPDIR` / `LANG` / `LC_ALL`. Never pop known secret keys (`SUPABASE_*`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, `LINE_*`) from a copied env — any future `.env` addition will silently leak. Allowlist is fail-closed; blacklist requires constant maintenance.
+- **Temp file cleanup needs both `try/finally` AND `atexit.register(cleanup)`.** `try/finally` covers normal + exception paths; `atexit` covers SIGKILL / unhandled exit. One alone is insufficient for codegen artifacts (e.g. `_auto_<name>.py` shimmed for subprocess import).
+- **Mutation surface must be locked per phase.** Codegen / unsafe-validation phases must NOT register into production lookup tables (e.g. `SCRAPERS`), open PRs, or write to user-facing DB tables (`events`). Only the source's own status row may be updated. Activation must live in a separate phase / commit / reviewer to keep the unsafe→safe boundary auditable.
+- **AST safety check + sandbox dry-run is the minimum bar** before promoting any auto-generated code to "ready for review". Both gates fail-closed.
+
+Reference incident: 2026-05-01 commit `a0606fe` (auto-scraper Phase 2). Pre-implementation review chose allowlist after enumerating future `.env` additions.
+
+## LLM Pricing Constants Re-verification
+
+Any code path that gates on LLM cost (per-call budget, daily ceiling, abort-on-overspend) hardcodes pricing constants that drift over time. Architect session checklist when reviewing such code:
+
+- **Verify pricing constants vs current OpenAI / Anthropic public pricing page** at every quarterly review or whenever the model upgrades (e.g. `gpt-4o` → `gpt-4.1`).
+- **Centralize constants in one file.** Do not duplicate `INPUT_USD_PER_1M` / `OUTPUT_USD_PER_1M` across scrapers. Current home: `scraper/auto_scraper/generate.py` (`$2.50/1M input`, `$10.00/1M output`, default budget `$1.50/source`).
+- **Pair every pricing constant with a comment citing the verification source URL and date.**
+- **Treat budget guards as security-critical.** A stale pricing constant means the abort threshold is wrong — either runaway costs or premature abort. Add to release-readiness checklist: "Pricing constants checked? Y/N".
+

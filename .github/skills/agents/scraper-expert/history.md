@@ -3,6 +3,18 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — taiwan_cultural_center: 多城市巡迴活動誤錨定東京 HQ 地址（commit `a2d6eea`）
+
+**問題：** 台湾文化センター發佈的部分活動會跨多個日本城市巡迴（如「台湾映画上映会2026」走 5 個城市）。scraper 對此 source 寫死 HQ 地址（東京港區），導致多城市巡迴活動全被打成「東京」，前台地區篩選 / 多城市顯示完全錯誤。
+
+**修正（`scraper/sources/taiwan_cultural_center.py`）：**
+- 新增 regional keyword 偵測：description 含 ≥ 2 個 `北海道|大阪|京都|神奈川|福岡|名古屋|仙台` 等地名 → 判定為多城市巡迴。
+- 多城市時：`location_name = '台湾文化センター（全國巡迴）'`、`location_address = None`（清掉 HQ 地址，由 annotator/`location_prefectures` 流程聚合）。
+- 單一地點時維持原本 HQ 預設行為。
+
+**教訓：** Scraper 對單一機構錨定固定地址時（HQ pattern），必須加「多城市描述去錨定」守門。可推廣的 rule：任何 hardcoded address scraper（taiwan_cultural_center / koryu / 其他駐日機構）→ description 偵測 ≥ 2 個地區關鍵字時，清空 `location_address`、改寫 `location_name` 為「<機構>（全國巡迴）」，讓下游 annotator 透過子活動聚合 `location_prefectures`。
+
+---
 ## 2026-05-01 — annotator: 多地點子活動規則 + `--id` CLI + `location_prefectures` 自動聚合
 
 **背景：** 台東祭有東京/京都/大阪三城市各自地址，但 annotator prompt 無「多地點建子活動」規則，且無法對單一 event 強制重新標注。

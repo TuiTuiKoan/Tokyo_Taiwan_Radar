@@ -39,6 +39,21 @@ Read this at the start of every session before writing any scraper.
   ```
 - **`start_date` / `end_date` must be `datetime.datetime`, NOT `datetime.date`**: `dedup_events` in `base.py` calls `.date()` on `start_date`. Passing a bare `date` object raises `AttributeError: 'datetime.date' object has no attribute 'date'`. Always use `datetime(y, m, d)` when constructing dates in scrapers.
 - **`category` must be `list[str]`, NOT a bare string**: The DB column is `text[]`. Passing `category="movie"` raises `malformed array literal` at write time. Always use `category=["movie"]`. This fails silently at compile time and only surfaces on DB upsert.
+- **`requests.Session()` must always mount HTTPAdapter with Retry**: Any scraper that creates a `requests.Session()` must attach a retry adapter in `__init__`. Without it, a single transient network blip from GitHub Actions runners raises `Max retries exceeded` and triggers Sentry — even when the target site is healthy. Required pattern:
+  ```python
+  from requests.adapters import HTTPAdapter
+  from urllib3.util.retry import Retry
+
+  _retry = Retry(
+      total=3,
+      backoff_factor=2,
+      status_forcelist=[429, 500, 502, 503, 504],
+      raise_on_status=False,
+  )
+  self._session.mount("https://", HTTPAdapter(max_retries=_retry))
+  self._session.mount("http://", HTTPAdapter(max_retries=_retry))
+  ```
+  Backoff: 2s → 4s → 8s. Mount both `https://` and `http://`.
 
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
@@ -181,6 +196,17 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
   - 市開頭格式：`大阪市`、`京都市`（省略「府」的地址，如「大阪市中央区...」）
 - **Backfill**：現有多城市母活動可用 `scraper/backfill_location_prefectures.py` 補填。
 - **篩選整合**：前台（`web/app/[locale]/page.tsx`）和後台（`web/components/AdminEventTable.tsx`）各地區篩選需加入 `location_prefectures.cs.{"X"}` OR 條件，否則多城市母活動無法命中地區篩選。
+
+## Multi-City Tour De-anchoring (HQ-anchored scrapers)
+
+For any scraper that hardcodes a fallback `location_address` to a single HQ / 駐日機構 (e.g. `taiwan_cultural_center`, `koryu`, future 駐日辦事處 sources):
+
+- **Detect multi-city descriptions before falling back to HQ.** If the article description mentions ≥ 2 regional keywords from `北海道|大阪|京都|神奈川|福岡|名古屋|仙台|札幌|広島|沖縄`, the event is a tour, not an HQ event.
+- **De-anchor pattern when multi-city detected:**
+  - `location_name = '<機構名>（全國巡迴）'`
+  - `location_address = None`（清空 HQ 地址，避免錯誤錨定）
+- **Downstream takes over:** Annotator splits the event into per-city sub-events, then auto-aggregates `location_prefectures` on the parent (see section above).
+- **Without this de-anchor:** All tour stops display as HQ-city events, regional filters break, multi-city UI never triggers. Reference incident: 台湾映画上映会2026 (5-city tour) — fixed in commit `a2d6eea` (2026-05-01).
 
 ## Annotator NAME WRITING RULES
 
@@ -342,7 +368,7 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 - **Date extraction tiers**: Tier 1 (`_BODY_DATE_LABELS`) → Tier 1b (dot-day) → Tier 1.3 (unlabeled range) → Tier 1.5 (prose DOW) → Tier 2 (title slash) → Tier 3 (publish date fallback). Always add new date patterns at the correct tier before the publish-date fallback.
 - **Month-only date ranges**: `期間：2026年5月～10月` is a valid date range for multi-month series. `_parse_date()` handles `YYYY年M月` (no day) → first day of month. End date is adjusted to last day of month via `calendar.monthrange`.
 - **`publish date ≠ event date`**: The `.list-text.detail` field contains `日付：YYYY-MM-DD` which is the **publish date**, not the event date. It is used as Tier-3 fallback only. Always verify that `start_date` in dry-run output is NOT the publish date.
-- **Location defaults to TCC**: The site rarely provides a venue field. Default is `台北駐日経済文化代表処 台湾文化センター / 東京都港区虎ノ門1-1-12 虎ノ門ビル2階`. For events held at other venues (universities, cinemas), the address appears in the body text but is not extracted — acceptable.
+- **Location defaults to TCC, but de-anchor for multi-city tours**: Default is `台北駐日経済文化代表処 台湾文化センター / 東京都港区虎ノ門1-1-12 虎ノ門ビル2階`. **When `description` mentions ≥ 2 regional keywords (`北海道|大阪|京都|神奈川|福岡|名古屋|仙台`), set `location_name = '台湾文化センター（全國巡迴）'` and `location_address = None`** — annotator will then split into per-city sub-events and aggregate `location_prefectures` (commit `a2d6eea`, 2026-05-01).
 - **`News_Content2.aspx`**: These pages use the same Playwright-rendered structure as `News_Content.aspx`. The scraper's link collector targets `a[href*='News_Content']` which matches both.
 - **連続上映企画 (film series) sub-events**: GPT-4o-mini only produces ≤2 sub-events from descriptions with 13,000+ chars, even with 20,000-char truncation limit. **Generate each screening as a separate `Event(parent_event_id=…)` in the scraper layer.** Do NOT rely on annotator sub-event extraction for series with 6+ entries. Pattern: `source_id = f"{parent_source_id}_sub{n}"`. (2026-04-29 実績: 台湾映画上映会2026 16件手動挿入)
 

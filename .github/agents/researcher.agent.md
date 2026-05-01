@@ -44,6 +44,16 @@ For any guidance related to `--create-issue`, enforce this wording:
 
 If permission wording is changed in one place, update all related docs and runtime messages in the same batch.
 
+## Phase 2 Auto-Codegen Eligibility (HARD requirement)
+
+Researcher output gates the auto-scraper Phase 2 pipeline. A `research_sources` row is eligible for auto-codegen ONLY when **all three** are true:
+
+1. `status = 'researched'`
+2. `feasibility = 'easy'` (set via `--feasibility easy` on `update_source.py`)
+3. `url_verified = true`
+
+**`--feasibility` is REQUIRED** when running `update_source.py --status researched`. The four optional `--*-hint` flags (`--pagination-hint`, `--card-selector-hint`, `--date-format-hint`, `--notes`) are also strongly recommended — they are written to `source_profile` JSONB and seed the LLM prompt in Phase 2. Skipping them produces a worse-quality auto-generated scraper or a Phase 2 abort. Treat hint-filling as part of the Researcher's deliverable, not optional metadata.
+
 ## Required Steps
 
 ### Step 0: Load Candidates (ALWAYS run first)
