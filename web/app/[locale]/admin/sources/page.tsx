@@ -5,6 +5,7 @@ import { type Locale } from "@/lib/types";
 import AdminSourcesTable, {
   type ResearchSource,
 } from "@/components/AdminSourcesTable";
+import AdminTabNav from "@/components/AdminTabNav";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -61,20 +62,9 @@ export default async function AdminSourcesPage({ params }: PageProps) {
       <h1 className="text-2xl font-bold mb-4">{t("title")}</h1>
 
       {/* Tab nav */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6 flex-wrap">
-        <Link href={`/${locale}/admin`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("eventsTab")}</Link>
-        <Link href={`/${locale}/admin/announcements`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("announcementsTab")}</Link>
-        <Link href={`/${locale}/admin/reports`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("reports")}</Link>
-        <Link href={`/${locale}/admin/quality`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("qualityTab")}</Link>
-        <span className="mx-1 border-l border-green-600 h-6 self-center" />
-        <Link href={`/${locale}/admin/research`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("researchTab")}</Link>
-        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">{t("sourcesTab")}</span>
-        <Link href={`/${locale}/admin/creators`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("creatorsTab")}</Link>
-        <span className="mx-1 border-l border-green-600 h-6 self-center" />
-        <Link href={`/${locale}/admin/users`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("usersTab")}</Link>
-        <Link href={`/${locale}/admin/stats`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("statsTab")}</Link>
-        <Link href={`/${locale}/admin/aeo`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("aeoTab")}</Link>
-      </div>
+
+
+      <AdminTabNav locale={locale} activeTab="sources" />
 
       <AdminSourcesTable
         sources={(sources ?? []) as ResearchSource[]}

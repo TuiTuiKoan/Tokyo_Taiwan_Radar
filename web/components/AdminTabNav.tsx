@@ -1,0 +1,77 @@
+import { createClient } from "@/lib/supabase/server";
+import { getTranslations } from "next-intl/server";
+import { type Locale } from "@/lib/types";
+import Link from "next/link";
+
+type AdminTab =
+  | "events"
+  | "announcements"
+  | "reports"
+  | "quality"
+  | "research"
+  | "sources"
+  | "creators"
+  | "users"
+  | "stats"
+  | "aeo";
+
+interface Props {
+  locale: Locale;
+  activeTab: AdminTab;
+}
+
+export default async function AdminTabNav({ locale, activeTab }: Props) {
+  const t = await getTranslations("admin");
+
+  const supabase = await createClient();
+  const { count: pendingCount } = await supabase
+    .from("event_reports")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "pending");
+  const pending = pendingCount ?? 0;
+
+  function tab(key: AdminTab, label: string, href: string) {
+    const isActive = activeTab === key;
+    const isReports = key === "reports";
+    const className = isActive
+      ? "px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600 flex items-center gap-1"
+      : "px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition flex items-center gap-1";
+    const badge =
+      isReports && pending > 0 ? (
+        <span className="inline-flex items-center justify-center min-w-[1.1rem] h-4 px-1 text-[10px] font-bold rounded-full bg-red-500 text-white leading-none">
+          {pending}
+        </span>
+      ) : null;
+    if (isActive) {
+      return (
+        <span key={key} className={className}>
+          {label}
+          {badge}
+        </span>
+      );
+    }
+    return (
+      <Link key={key} href={href} className={className}>
+        {label}
+        {badge}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="flex gap-1 border-b border-gray-200 mb-6 flex-wrap">
+      {tab("events",        t("eventsTab"),        `/${locale}/admin`)}
+      {tab("announcements", t("announcementsTab"),  `/${locale}/admin/announcements`)}
+      {tab("reports",       t("reports"),           `/${locale}/admin/reports`)}
+      {tab("quality",       t("qualityTab"),        `/${locale}/admin/quality`)}
+      <span className="mx-1 border-l border-green-600 h-6 self-center" />
+      {tab("research",      t("researchTab"),       `/${locale}/admin/research`)}
+      {tab("sources",       t("sourcesTab"),        `/${locale}/admin/sources`)}
+      {tab("creators",      t("creatorsTab"),       `/${locale}/admin/creators`)}
+      <span className="mx-1 border-l border-green-600 h-6 self-center" />
+      {tab("users",         t("usersTab"),          `/${locale}/admin/users`)}
+      {tab("stats",         t("statsTab"),          `/${locale}/admin/stats`)}
+      {tab("aeo",           t("aeoTab"),            `/${locale}/admin/aeo`)}
+    </div>
+  );
+}

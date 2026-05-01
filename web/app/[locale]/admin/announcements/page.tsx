@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale, type Announcement } from "@/lib/types";
+import AdminTabNav from "@/components/AdminTabNav";
 import Link from "next/link";
 
 interface PageProps {
@@ -40,20 +41,9 @@ export default async function AdminAnnouncementsPage({ params }: PageProps) {
       </div>
 
       {/* Tab nav */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6 flex-wrap">
-        <Link href={`/${locale}/admin`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("eventsTab")}</Link>
-        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">{tAnn("announcementsTab")}</span>
-        <Link href={`/${locale}/admin/reports`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("reports")}</Link>
-        <Link href={`/${locale}/admin/quality`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("qualityTab")}</Link>
-        <span className="mx-1 border-l border-green-600 h-6 self-center" />
-        <Link href={`/${locale}/admin/research`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("researchTab")}</Link>
-        <Link href={`/${locale}/admin/sources`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("sourcesTab")}</Link>
-        <Link href={`/${locale}/admin/creators`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("creatorsTab")}</Link>
-        <span className="mx-1 border-l border-green-600 h-6 self-center" />
-        <Link href={`/${locale}/admin/users`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("usersTab")}</Link>
-        <Link href={`/${locale}/admin/stats`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("statsTab")}</Link>
-        <Link href={`/${locale}/admin/aeo`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("aeoTab")}</Link>
-      </div>
+
+
+      <AdminTabNav locale={locale} activeTab="announcements" />
 
       {!announcements || announcements.length === 0 ? (
         <p className="text-gray-400 text-sm">{tAnn("noAnnouncements")}</p>
