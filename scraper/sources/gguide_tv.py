@@ -297,6 +297,15 @@ class GguideTvScraper(BaseScraper):
                 business_hours: Optional[str] = None
                 if end_time_str:
                     business_hours = f"{start_time_str}〜{end_time_str}"
+                elif detail_text:
+                    # Fallback: extract end time from detail page text
+                    # Format in detail: "HH:MM\n-\nHH:MM CHANNEL"
+                    detail_end_m = re.search(
+                        r"(\d{1,2}:\d{2})\s*\n[-−]\s*\n(\d{1,2}:\d{2})",
+                        detail_text,
+                    )
+                    if detail_end_m:
+                        business_hours = f"{start_time_str}〜{detail_end_m.group(2)}"
                 desc_parts = [
                     f"開催日時: {broadcast_date_str}\n",
                     f"放送: {channel}",
