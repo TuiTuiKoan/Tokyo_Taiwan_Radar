@@ -800,11 +800,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       </span>
                     )}
                     <a
-                      href={`/${locale}/events/${event.id}`}
+                      href={event.is_active ? `/${locale}/events/${event.id}` : `/${locale}/admin/${event.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="truncate block hover:underline hover:text-green-700 transition"
-                      title={t("viewFrontend")}
+                      title={event.is_active ? t("viewFrontend") : t("edit")}
                     >
                       {getEventName(event, locale)}
                     </a>
@@ -913,11 +913,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   </td>
                   <td className="py-2 pr-4 max-w-sm">
                     <a
-                      href={`/${locale}/events/${event.id}`}
+                      href={event.is_active ? `/${locale}/events/${event.id}` : `/${locale}/admin/${event.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-gray-800 line-clamp-2 block hover:underline hover:text-green-700 transition"
-                      title={t("viewFrontend")}
+                      title={event.is_active ? t("viewFrontend") : t("edit")}
                     >
                       {event.raw_title || getEventName(event, locale)}
                     </a>
