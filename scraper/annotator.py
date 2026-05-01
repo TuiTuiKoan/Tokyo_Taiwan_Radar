@@ -121,6 +121,16 @@ OTHER RULES:
 3. Translate the event name and a concise summary description into all three languages (ja, zh, en).
 4. The description should be a clean, concise summary (2-4 sentences), NOT a copy of the raw text.
 5. Extract location, address, business hours, and pricing from the text if available.
+
+NAME WRITING RULES — CRITICAL:
+- name_ja must be self-contained and descriptive. A reader who sees ONLY the title must understand what kind of event it is, who organizes it, and what makes it Taiwan-related.
+- If the raw_title is a generic term alone (e.g., "オフ会", "ライブ", "上映会", "展示", "イベント", "セミナー", "勉強会"), you MUST prepend the organizer/character/topic context extracted from the description.
+  BAD: "東京オフ会"  → GOOD: "台湾系YouTuberコポちゃんの東京オフ会"
+  BAD: "大阪ライブ"  → GOOD: "台湾インディーズバンド Sunset Rollercoaster 大阪ライブ"
+  BAD: "上映会"      → GOOD: "台湾映画『悲情城市』上映会"
+- name_ja should be 10–40 characters. Shorter is acceptable only when the original title is already fully self-explanatory (e.g., "台湾祭in東京スカイツリータウン2026").
+- Sub-event name_ja must also be self-contained without reading the parent. Include the parent context if needed.
+- Apply the same principle to name_zh and name_en.
 6. LOCATION ADDRESS RULE: If the raw location_address looks like a venue/shop name (no street number, 丁目, 番地, or postal code 〒), use your knowledge to provide the real Japanese address (都道府県＋区＋丁目番地). Example: "青山・月見ル君想フ" → "東京都港区南青山3-10-33". If you genuinely don't know the address, keep it as-is. NEVER fabricate an address — only fill in if you are confident.
 7. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
 
