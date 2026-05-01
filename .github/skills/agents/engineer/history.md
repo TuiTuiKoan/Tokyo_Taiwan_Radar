@@ -3,6 +3,39 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — quality page is_active=false 事件導致 404（commit `dd76445`）
+
+**問題：** `reviewedMissing` 和 `annotatedNoCat` query 沒有 `.eq("is_active", true)`，已下架事件出現在清單，點選後 404（詳情頁只顯示 is_active 事件）。
+
+**根本原因：** 新增 query 時只套用了主要 query 的 is_active filter，沒有同步套用到所有 section query。
+
+**修復：** 兩個 query 都加上 `.eq("is_active", true)`。
+
+**教訓：** Quality page 的所有 Supabase query 都必須加 `.eq("is_active", true)`，否則下架事件會出現在清單，點選後 404。
+
+---
+## 2026-05-01 — quality page 缺地址誤報：多城市 ・ filter（commit `a2fd6d6`）
+
+**問題：** `location_name` 含 `・`（多城市格式，例如「北海道・東京・神奈川・京都・大阪」）的活動出現在缺地址清單，造成誤報。
+
+**根本原因：** `missingAddr` filter 沒有排除多城市活動格式。多城市活動慣例是 `location_name` 用 `・` 連結城市，本身沒有單一地址。
+
+**修復：** `missingAddr` filter 新增排除含 `・` 的 `location_name`；DB patch `一石三鳥グループ` 父活動（`466497e5`）`location_name` → `東京・京都・大阪`。
+
+**教訓：** Quality page `missingAddr` filter 必須同時排除：「オンライン」、「電視頻道」、`gguide_tv` source、以及含 `・` 的 `location_name`（多城市活動）。
+
+---
+## 2026-05-01 — quality page 事件連結改為詳情頁（commit `9dd50f3`）
+
+**問題：** `renderDetailTable` 中的 href 指向 `/{locale}/admin/{id}`（編輯頁），應改為 `/{locale}/events/{id}`（詳情頁）。
+
+**根本原因：** 複製 admin 頁面連結時直接用了編輯路由，沒有考慮 quality page 是查看用途。
+
+**修復：** 改 href 為 `/{locale}/events/{id}`，並加 `target="_blank"` 新分頁開啟。
+
+**教訓：** Admin 後台列表頁面（quality、reports 等）的事件超連結一律指向 `/{locale}/events/{id}`（詳情頁），而非 `/{locale}/admin/{id}`（編輯頁）。
+
+---
 ## 2026-05-01 — taiwan_cultural_center 多城市地點名稱改進（commit `0d900b5`）
 
 **問題：** `location_name` 顯示模糊的「台湾文化センター（全国巡回）」，用戶期望看到具體城市列表（如「北海道・東京・神奈川・京都・大阪」）。

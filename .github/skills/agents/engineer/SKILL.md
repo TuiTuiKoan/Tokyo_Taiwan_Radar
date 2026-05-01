@@ -235,6 +235,18 @@ Place bulk action bar in the **section header** (flex justify-between), not a bo
 
 **Incident:** commit `3d45de6` removed bulk confirm alongside Realtime subscription removal. Restored in `4c30ab3`. Do NOT repeat.
 
+## Admin Quality Page — Supabase Query Rules
+
+**Quality page `is_active` filter rule:** Every Supabase query on the quality page (`/admin/quality`) must include `.eq("is_active", true)`. Without it, deactivated events appear in the list; clicking them returns 404 because the detail page only renders active events. Apply to **all** section queries — `missingAddr`, `missingCat`, `reviewedMissing`, `annotatedNoCat`, and any future additions.
+
+**`missingAddr` filter exclusion list:** The "缺地址" section must exclude all of the following:
+- `location_name` containing `「オンライン」` (online events)
+- `location_name` containing `「電視頻道」` (TV channel events)
+- events with `source_name = 'gguide_tv'` (TV guide source)
+- `location_name` containing `・` (multi-city events — `location_name` uses `・`-joined city names by convention; no single address exists)
+
+**Admin list page link rule:** Event hyperlinks in admin list pages (quality, reports, etc.) must point to `/{locale}/events/{id}` (detail page, `target="_blank"`), **not** `/{locale}/admin/{id}` (edit page). Quality pages are for review, not editing.
+
 ## i18n JSON File Editing — Unicode Safety Rule
 
 **Never use `replace_string_in_file` to edit `web/messages/*.json`** when `oldString` contains any non-ASCII characters (Japanese/Chinese punctuation, CJK characters, fullwidth symbols like `・` U+30FB). The tool can silently fail to match without reporting an error.
