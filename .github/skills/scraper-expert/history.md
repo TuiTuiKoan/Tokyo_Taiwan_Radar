@@ -2,6 +2,36 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-01 — annotator NAME WRITING RULES 新增
+
+**Error:** Annotator produced self-referential titles like「東京オフ会」and「神戸オフ会」— users could not understand what the events were without reading the description.
+
+**Fix:** Added NAME WRITING RULES to the `annotator.py` system prompt. Generic terms (`オフ会`, `ライブ`, `上映会`, `展示`, `イベント`, `セミナー`, `勉強会`) must not appear alone in a title; they must be prefixed with the organiser, topic, or series context. Two events were re-annotated: 「東京オフ会」→「台湾系YouTuber copochanの東京オフ会」and「神戸オフ会」→「台湾系YouTuber copochanの神戸オフ会」.
+
+**Lesson:** Titles must be self-contained. A reader who sees only the title must understand the event without reading the description. → Added to `SKILL.md` § Annotator NAME WRITING RULES
+
+---
+
+## 2026-05-01 — google_news_rss Yahoo 集約過濾 & _STALE_DAYS 短縮
+
+**Error:** (1) Yahoo!ニュース aggregation articles were included — they are duplicates of the source article and their redirect URLs expire faster. (2) `_STALE_DAYS = 60` was too long; Google News redirect URLs expire in ~2–3 weeks, so 60-day-old entries were always dead links. (3) Query `"台湾映画 上映"` returned pure news articles about release dates that are not event listings.
+
+**Fix:** Added `_is_yahoo_aggregation()` to skip titles ending with `「- Yahoo!ニュース」`. Changed `_STALE_DAYS` from 60 → 21. Changed query from `"台湾映画 上映"` → `"台湾映画 上映会"` to target event listings specifically.
+
+**Lesson:** Google News redirect URLs (`news.google.com/rss/articles/...`) CANNOT be resolved server-side — `requests` returns HTTP 400 and Playwright is blocked by bot detection. They work correctly in real browsers. Do not attempt server-side redirect resolution; do not exclude the entire scraper. Use `_STALE_DAYS = 21` for Google News RSS. → Added to `SKILL.md` § google_news_rss-specific
+
+---
+
+## 2026-05-01 — migrations/ 資料夾污染 (非 migration 檔案混入)
+
+**Error:** A previous agent placed test/documentation files (`027_smoke_test.sql`, `027_VALIDATION.md`, `027_VERIFICATION_REPORT.md`) inside `supabase/migrations/` with sequence-number prefixes, polluting the migration history.
+
+**Fix:** Deleted all three non-migration files from `supabase/migrations/`.
+
+**Lesson:** `supabase/migrations/` must contain ONLY real SQL migration files (`.sql` format, sequential numbered). Test scripts, validation reports, and documentation files must NEVER be placed in this directory. → No SKILL.md update needed (see `database.instructions.md`).
+
+---
+
 ## 2026-05-01 — sub-events missing scraped_at (クロール日時 = —)
 
 **Error:** `annotator.py` builds `sub_row` without a `scraped_at` field. All 128 existing sub-events had `scraped_at = NULL`, causing the admin table `クロール日時` column to display `—` for every sub-event.

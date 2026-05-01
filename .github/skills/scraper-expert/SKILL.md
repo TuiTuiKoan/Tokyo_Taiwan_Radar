@@ -99,6 +99,19 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 - Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
 - `main.py` reads `getattr(scraper, "_deepl_chars_used", 0)` when writing to `scraper_runs`.
 
+## Annotator NAME WRITING RULES
+
+`annotator.py` system prompt requires the following rules for the `name_ja` / `name_zh` / `name_en` fields:
+
+- **Titles must be self-contained**: A reader who sees only the title (without the description) must understand what the event is.
+- **Generic terms must not appear alone**: When the title consists only of a generic word, it MUST be prefixed with the organiser, topic, or series context.
+  - Generic words: `オフ会`, `ライブ`, `上映会`, `展示`, `イベント`, `セミナー`, `勉強会`
+  - Bad: `東京オフ会` → no one knows whose fan meetup this is
+  - Good: `台湾系YouTuber copochanの東京オフ会`
+- **Target length**: 10–40 characters (Japanese). Avoid unnecessary padding.
+- **Sub-events must also be self-contained**: A sub-event title like `CSRデー` with no parent context is rejected. Include the series or organiser name.
+- **When to re-annotate**: If the DB has an existing generic title (e.g. `東京オフ会`), set `annotation_status = 'pending'` and re-run `annotator.py`.
+
 ## Annotator output cleaning
 - Empty strings from GPT (`""`) must be treated as `None` — use `_str()` helper that returns `None` for falsy/blank strings. Prevents empty `name_zh`/`name_en` from blocking the `||` fallback chain in `getEventName`.
 - Location fields must be stripped of leading label separators — use `_loc()` helper that calls `.lstrip("：；:; \u3000")`. GPT often includes the `会場：` or `場所：` separator as the first character of `location_name`.
@@ -185,8 +198,11 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 - Fetches 4 Google News RSS queries; Taiwan-filtered; `category: ["report"]` (annotator refines)
 - `start_date` extracted from description text; fallback to pubDate — DO NOT set to null
 - `source_id`: `gnews_{md5(url)[:12]}` — stable across runs; `url` is guid if real article URL, else `<link>` tag value
-- Skip entries older than 60 days (based on pubDate)
+- **`_STALE_DAYS = 21`**: Skip entries older than 21 days (based on pubDate). Google News redirect URLs (`news.google.com/rss/articles/...`) expire within ~2–3 weeks — any link older than 21 days is likely dead. The previous value of 60 was too long.
 - Google `<guid>` may contain real article URL; prefer it over `<link>` tag when it starts with `http` and does not contain `news.google.com`
+- **Google News redirect URLs work in real browsers only**: `requests.get()` on a `news.google.com/rss/articles/...` URL returns HTTP 400. Playwright also gets blocked by bot detection. Do NOT attempt server-side redirect resolution — leave the redirect URL as `source_url`. The URL works fine when the user clicks it in a real browser.
+- **`_is_yahoo_aggregation()` filter**: Skip articles whose title ends with `「- Yahoo!ニュース」`. Yahoo news aggregation pages are duplicates of the source article AND their redirect URLs expire faster. Check: `title.endswith("- Yahoo!ニュース")` or equivalent strip+suffix check.
+- **Query precision**: Use `"台湾映画 上映会"` (not `"台湾映画 上映"`) to filter out pure news articles that report on upcoming release dates without being event listings.
 - **`_NEWS_SOURCES` member**: `merger.py` uses Pass 2 (date-range + location-overlap) — NOT name similarity — to merge google_news_rss events into official primaries. This is intentional: article titles don't match event names. Never add `google_news_rss` to Pass 1 name-similarity matching.
 
 ## nhk_rss-specific
