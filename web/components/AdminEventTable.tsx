@@ -22,6 +22,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [showNew, setShowNew] = useState(false);
+
+  // Build id→event map for parent event name lookup on sub-event rows
+  const eventMap = useMemo<Record<string, Event>>(() => {
+    const m: Record<string, Event> = {};
+    for (const e of events) m[e.id] = e;
+    return m;
+  }, [events]);
   const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"annotated" | "raw">("annotated");
@@ -787,6 +794,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     />
                   </td>
                   <td className="py-2 pr-4 max-w-xs">
+                    {event.parent_event_id && eventMap[event.parent_event_id] && (
+                      <span className="block text-xs text-green-600 font-normal mb-0.5 truncate">
+                        ↳ {getEventName(eventMap[event.parent_event_id], locale)}
+                      </span>
+                    )}
                     <a
                       href={`/${locale}/events/${event.id}`}
                       target="_blank"
