@@ -3,6 +3,21 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — `/admin/quality` Tester 首輪 FAIL：react-hooks/static-components
+
+**問題：** `web/app/[locale]/admin/quality/page.tsx` 在 `QualityPage` render body 內宣告 `SectionHeader` 元件與 `eventLink` JSX helper，被 ESLint `react-hooks/static-components` 規則擋下，Vercel build 失敗。
+
+**根本原因：** Next.js 15+ / React 19 把任何 PascalCase + 回傳 JSX 的函式視為 component；component 必須在模組頂層宣告，不能寫在另一個 component 的 render 內。`eventLink` 雖為 camelCase，但被當 `<EventLink />` tag 使用時也會被誤判。
+
+**修復：**
+1. `SectionHeader` 提升至模組頂層，需要的值改透過 props 傳入。
+2. `eventLink` 重新命名為 `renderEventLink`，並改以函式呼叫 `{renderEventLink(e)}` 使用，不再寫成 JSX tag。
+
+**教訓：** 詳細規則已寫入 `.github/skills/agents/engineer/SKILL.md` § TSX Component vs Helper。實作 admin / 後台多區塊頁面時，先把可重複使用的小區塊（header、link、badge）提到模組頂層，避免後續因 lint 補修。
+
+> 註：本次事件最終隨 Tier 1 monitoring 撤銷一同 revert（commit `cf1e0a9`），但 lint 規則本身仍適用。
+
+---
 ## 2026-05-01 — AEO 實作（Phase A/B/C partial）：llms.txt、IndexNow、Aggregation Pages、監控 Dashboard
 
 **背景：** 為提升 AI 搜尋引擎可見度（Perplexity、ChatGPT Search、Claude），實作 AEO（AI Engine Optimization）三階段：

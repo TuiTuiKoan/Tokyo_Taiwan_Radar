@@ -18,9 +18,55 @@ Read this at the start of every session before producing any plan.
 - State explicitly what is NOT in scope. Ambiguous scope = scope creep = breaking changes.
 - List every affected file path explicitly — vague descriptions ("the scraper files") are not acceptable.
 
+## Admin UI Dashboard Necessity Check
+
+Before planning any new admin page or dashboard column whose primary output is a count / status / health number, ask:
+
+1. **「這頁面真的會被點開嗎？」** — Admin UI requires manual navigation. If the signal isn't urgent enough to justify proactively visiting `/admin/...`, it will be ignored.
+2. **「沒有 action 按鈕的純計數值得做嗎？」** — A dashboard column without a one-click fix / batch action / drill-down is visual decoration. If the user will read it and do nothing, the value is near zero.
+3. **Is a passive push channel cheaper?** — LINE message, weekly email, or auto-filed GitHub issue cost less than a new page and have higher retention (signal arrives without being requested).
+
+**Default preference order for monitoring features:**
+1. Passive push (LINE / email / issue) → preferred for periodic health, budget, quality summaries.
+2. Existing page extension with **actionable** column (e.g. add a row to AdminEventTable that has a fix button) → acceptable when tightly coupled to existing workflow.
+3. New `/admin/<topic>` page → only when the user explicitly asks for an interactive审查 surface (multi-row triage, manual selection, bulk action).
+
+If a plan introduces a new admin page or count column with no associated action, document the rationale explicitly in the plan; otherwise propose the passive push variant first.
+
+Reference incident: 2026-05-01 Tier 1 monitoring — `/admin/quality` page and `/admin/stats` SLA columns were planned, implemented, then撤銷 same week; only the LINE budget push (`weekly_report.py`) survived.
+
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
+
+## Stop-Point Contract (Architect 直接編輯時)
+
+Architect 預設為 read-only（規劃 + 報告）。但在以下情況會直接編輯檔案：revert 操作、緊急修正、小幅文檔更新。**直接編輯後必須走完以下其一**，禁止留半成品：
+
+1. **完整鏈路**：編輯 → 自呼叫 V-M-D（commit + push + Vercel 驗證）→ 報告結果。
+2. **明示交還**：編輯 → 在最終回應**第一行**標注「⚠️ 工作樹有未提交修改，需手動處理」並列出檔案，**禁止只報「已完成」**。
+
+絕不允許：編輯完直接呈現 commit hash 或「完成」字樣而沒明確指出 push 狀態。
+
+## Status Reporting Vocabulary
+
+呈現 git 狀態時，**必須**用以下三種標籤之一，禁止只給 hash：
+
+- ✅ **已推送**：`<hash> → origin/main`（已驗證 Vercel 部署或 push 成功 exit code 0）
+- ⏳ **本地 only**：`<hash> (local, not pushed)`
+- 📝 **未 commit**：`N files modified (working tree)` 並列檔名
+
+裸 hash（如「commit cf1e0a9」）會讓用戶誤以為已推送，這是 anti-pattern。
+
+## Atomic Revert Rule
+
+刪除 i18n key、type union member、或任何被多處引用的 symbol 時，**同一 commit 必須同時刪所有 caller**：
+
+1. 編輯前先 `grep_search` 找出所有引用點。
+2. 改動順序：先刪 caller，再刪 definition（反之會留下編譯壞掉的中間狀態）。
+3. 完成後跑 `cd web && npx tsc --noEmit` 確認 0 error 才 commit。
+
+反例：2026-05-01 撤銷 Tier 1 時刪掉 `statsSlaHeader` 等 i18n keys，但 stats/page.tsx 仍呼叫 `t("statsSlaHeader")`，導致工作樹半成品狀態（用戶察覺後手動修復）。
 
 ## AEO Feature Planning Rules
 

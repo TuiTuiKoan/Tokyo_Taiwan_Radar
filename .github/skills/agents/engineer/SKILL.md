@@ -77,6 +77,40 @@ supabase
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 
+## TSX Component vs Helper — react-hooks/static-components Rule
+
+Next.js 15+ / React 19 lints any `PascalCase` function that returns JSX as a React component. Components declared **inside another component's render body** trigger `react-hooks/static-components` and fail Vercel build.
+
+**Rules:**
+- A function returning JSX with `PascalCase` name is treated as a component → must live at module top level (or be `export`ed). Never declare it inside another component body.
+- A render-only helper used inline (not as `<Tag />`) must use `camelCase` and be invoked as a plain function call: `{eventLink(event)}`, not `<EventLink event={event} />`.
+- If you need closure over parent state, either:
+  1. Lift the helper to module scope and pass needed values as props/args, or
+  2. Use `useMemo` / `useCallback` to derive the JSX, then render `{memoizedNode}` directly.
+
+```tsx
+// ❌ Fails react-hooks/static-components
+export default function Page() {
+  function SectionHeader({ title }) { return <h2>{title}</h2>; }
+  function eventLink(e) { return <a href={...}>{e.name}</a>; } // PascalCase trap if renamed
+  return <SectionHeader title="..." />;
+}
+
+// ✅ Component at module top level
+function SectionHeader({ title }: { title: string }) { return <h2>{title}</h2>; }
+export default function Page() {
+  return <SectionHeader title="..." />;
+}
+
+// ✅ camelCase helper invoked as function call
+function renderEventLink(e: Event) { return <a href={...}>{e.name}</a>; }
+export default function Page() {
+  return <ul>{events.map(e => <li key={e.id}>{renderEventLink(e)}</li>)}</ul>;
+}
+```
+
+Reference incident: 2026-05-01 `/admin/quality` page first Tester FAIL — `SectionHeader` and `eventLink` declared inside `QualityPage` render body. Fix: hoisted `SectionHeader` to module scope; renamed `eventLink` to `renderEventLink` and called as function.
+
 ## OG Image（opengraph-image.tsx）— Edge Runtime 規則
 
 `app/[locale]/events/[id]/opengraph-image.tsx` 使用 `ImageResponse`（Satori 引擎），必須設定 `export const runtime = "edge"`。

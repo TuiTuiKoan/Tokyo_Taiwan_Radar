@@ -3,6 +3,28 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — Architect 直接編輯後留半成品：停止點契約缺失
+
+**情境：**
+撤銷 Tier 1 監控（Phase 1+3）時，Architect 親自刪除 `web/messages/{zh,en,ja}.json` 中 10 個 i18n keys 與 `stats/page.tsx` 的 SLA 欄位、整個 `quality/page.tsx`。但**沒同步刪 stats/page.tsx 中的 `t("statsSlaHeader")`、`t("statsAvgDuration")` 呼叫**，工作樹留下會編譯失敗的半成品。用戶察覺後質疑「agent 開發完最後一步究竟停在哪裡？」
+
+**根因：**
+1. Architect 預設 read-only，沒有「直接編輯後須收尾」的停止點契約。
+2. 報告中常用裸 commit hash（如「commit cf1e0a9」），用戶誤以為已推送，但實際只是 local commit 或甚至 working tree。
+3. 刪 i18n key 沒先 `grep_search` 找 caller，違反 atomic revert 原則。
+
+**修正：**
+SKILL.md 新增三節 —
+- **Stop-Point Contract**：直接編輯後必須走完 V-M-D 鏈路或明示「⚠️ 未提交」。
+- **Status Reporting Vocabulary**：強制使用 ✅已推送 / ⏳本地only / 📝未commit 三種標籤。
+- **Atomic Revert Rule**：刪 symbol 前必 grep caller，先刪 caller 再刪 definition，commit 前 `tsc --noEmit`。
+
+**教訓：**
+- 「Architect 不寫 code」是預設值不是絕對值；一旦破例就必須明示交接狀態。
+- commit hash 出現 ≠ 已推送。報告必須區分三種狀態。
+- 不是 git 分支策略問題（main 全程同步），是 agent 工作流程契約缺失。
+
+---
 ## 2026-05-01 — AEO 架構設計（Phase A/B/C）：AI Engine Optimization 全域規劃
 
 **工作內容：**  
