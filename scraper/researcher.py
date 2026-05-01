@@ -40,105 +40,196 @@ GITHUB_REPO = "TuiTuiKoan/Tokyo_Taiwan_Radar"
 
 # ---------------------------------------------------------------------------
 # Search categories — one agent per category
+# 12 categories mapped to the site's 28 Category types (web/lib/types.ts)
 # ---------------------------------------------------------------------------
 SEARCH_CATEGORIES = [
+    # ── Slot 0 (06:00 JST) ──────────────────────────────────────────────────
     {
-        "id": "university",
-        "label": "🏫 大學",
-        "query_ja": "台湾 イベント セミナー 大学 東京 2026",
-        "query_en": "Taiwan event seminar university Tokyo 2026",
+        "id": "cinema_screening",
+        "label": "🎬 映画・上映",
+        "site_categories": ["movie", "drama"],
+        "query_ja": "台湾映画 上映 映画祭 シネマ 日本 2026",
+        "query_en": "Taiwan film screening cinema festival Japan 2026",
         "system_prompt": (
-            "You are a research analyst specializing in Taiwan-Japan academic exchange. "
-            "Search the web for Japanese university departments, research centers, or student groups "
-            "that regularly organize Taiwan-related lectures, seminars, or cultural events in Tokyo. "
-            "Focus on finding pages that have a regularly updated public event listing — not just a single article."
+            "You are a research analyst specializing in Taiwan cinema and film distribution in Japan. "
+            "Search the web for cinemas, film festivals, streaming platforms, or distribution companies "
+            "that regularly screen or distribute Taiwan films in Japan. "
+            "Look for dedicated Taiwan film pages, annual festival event listings "
+            "(e.g. 台湾映画祭, OAFF, 東京フィルメックス), or cinema venue event calendars. "
+            "Prioritize sources with a structured and regularly updated screening schedule."
         ),
     },
     {
-        "id": "media",
-        "label": "📰 媒體",
-        "query_ja": "台湾 文化 イベント メディア ウェブマガジン 東京 2026",
-        "query_en": "Taiwan cultural event media web magazine Tokyo 2026",
+        "id": "art_exhibition",
+        "label": "🎨 美術・展示",
+        "site_categories": ["art", "exhibition", "senses", "indigenous"],
+        "query_ja": "台湾 アート 展覧会 展示 ギャラリー 美術館 日本 2026",
+        "query_en": "Taiwan art exhibition gallery museum Japan 2026",
         "system_prompt": (
-            "You are a research analyst specializing in Japanese media covering Taiwan. "
-            "Search the web for Japanese online media, magazines, or platforms that regularly "
-            "feature or list Taiwan-related cultural events in Japan. "
-            "Prioritize sources with scrapable event listing pages."
+            "You are a research analyst specializing in Taiwan contemporary art and exhibitions in Japan. "
+            "Search the web for museums, galleries, art centers, or cultural spaces that regularly host "
+            "Taiwan-related art exhibitions, installations, or craft shows in Japan. "
+            "Include public art museums (e.g. MOT, Fukuoka Asian Art Museum), "
+            "Taiwan artist residency programs, and independent gallery spaces. "
+            "Prioritize venues with a public event or exhibition calendar updated regularly."
         ),
     },
     {
-        "id": "government",
-        "label": "🏛️ 政府機關",
-        "query_ja": "台湾 交流 イベント 公的機関 財団法人 東京 2026",
-        "query_en": "Taiwan exchange event government foundation Tokyo 2026",
+        "id": "music_live",
+        "label": "🎵 音楽・ライブ",
+        "site_categories": ["performing_arts"],
+        "query_ja": "台湾 アーティスト ライブ コンサート 公演 来日 日本 2026",
+        "query_en": "Taiwan artist live concert performance Japan tour 2026",
         "system_prompt": (
-            "You are a research analyst specializing in Japan-Taiwan governmental and public exchange. "
-            "Search the web for Japanese government agencies, public foundations, or official bodies "
-            "that organize Taiwan-related events or cultural exchange programs. "
-            "Look for pages with a structured events calendar or listing."
+            "You are a research analyst specializing in Taiwan music and live performance in Japan. "
+            "Search the web for live venues, concert promoters, ticketing platforms, or fan community sites "
+            "that regularly list Taiwan indie or pop artist tour dates in Japan. "
+            "Check venue sites (Zepp, shibuya eggman, etc.), "
+            "promoter sites (BIG ROMANTIC ENTERTAINMENT, HOLIDAY! RECORDS, etc.), "
+            "and Taiwan artist agency pages. "
+            "Prioritize sources with a regularly updated upcoming shows list."
+        ),
+    },
+    # ── Slot 1 (12:00 JST) ──────────────────────────────────────────────────
+    {
+        "id": "food_retail",
+        "label": "🍜 食・物産・ショップ",
+        "site_categories": ["lifestyle_food", "retail", "nature", "tourism"],
+        "query_ja": "台湾 グルメ フード イベント 物産展 フェア ショップ 日本 2026",
+        "query_en": "Taiwan food gourmet fair market shop retail event Japan 2026",
+        "system_prompt": (
+            "You are a research analyst specializing in Taiwan food culture and retail events in Japan. "
+            "Search the web for websites, organizers, or platforms that regularly list Taiwan-related "
+            "food festivals, night market events, tea ceremonies, restaurant promotions, "
+            "department store Taiwan fairs (台湾フェア, 物産展), or Taiwan specialty shops in Japan. "
+            "Also look for Taiwan agriculture or nature product events, "
+            "and travel or tourism events introducing Taiwan destinations. "
+            "Prioritize sources with a scheduled and regularly updated event listing."
         ),
     },
     {
-        "id": "thinktank",
-        "label": "🔬 智庫・研究機構",
-        "query_ja": "台湾 研究 シンポジウム シンクタンク 講演会 東京 2026",
-        "query_en": "Taiwan research symposium think tank lecture Tokyo 2026",
+        "id": "books_media",
+        "label": "📚 書籍・出版・メディア",
+        "site_categories": ["books_media", "literature", "tv_program"],
+        "query_ja": "台湾 書籍 出版 文学 翻訳 読書会 トークイベント 日本 2026",
+        "query_en": "Taiwan books publishing literature translated fiction reading event Japan 2026",
         "system_prompt": (
-            "You are a research analyst specializing in Taiwan-focused policy and academic institutions. "
-            "Search the web for Japanese think tanks, research institutes, or NPOs that regularly hold "
-            "Taiwan-related symposia, lectures, or study meetings. "
-            "Prioritize organizations with public event calendars."
+            "You are a research analyst specializing in Taiwan literature, publishing, and media events in Japan. "
+            "Search the web for Japanese publishers, bookstores, libraries, or literary organizations "
+            "that regularly host Taiwan-related author talks, book launches, reading clubs, "
+            "translation workshops, or media screenings in Japan. "
+            "Check major bookstores (Kinokuniya, tsutaya, eslite), literary festivals, "
+            "and Taiwanese author tour pages. "
+            "Also look for NHK or other broadcaster programs featuring Taiwan content. "
+            "Prioritize sources with a public, regularly updated event schedule."
         ),
     },
     {
-        "id": "social",
-        "label": "💬 社群",
-        "query_ja": "台湾 コミュニティ 交流会 東京 2026 connpass doorkeeper",
-        "query_en": "Taiwan community meetup Tokyo 2026 connpass doorkeeper",
+        "id": "tech_business",
+        "label": "💻 テック・ビジネス",
+        "site_categories": ["tech", "business"],
+        "query_ja": "台湾 IT スタートアップ テック ビジネス 交流 セミナー 日本 2026",
+        "query_en": "Taiwan IT startup tech business networking seminar Japan 2026",
+        "system_prompt": (
+            "You are a research analyst specializing in Taiwan-Japan technology and business exchange. "
+            "Search the web for organizations, platforms, or event series that regularly list "
+            "Taiwan-related tech, startup, or business events in Japan. "
+            "Check JETRO events, TAITRA (台湾貿易センター) Japan offices, "
+            "Taiwan startup accelerators with Japan presence, "
+            "IT industry associations, and tech meetup communities (Connpass, Doorkeeper). "
+            "Prioritize sources with a public and regularly updated event calendar."
+        ),
+    },
+    # ── Slot 2 (18:00 JST) ──────────────────────────────────────────────────
+    {
+        "id": "academic_lecture",
+        "label": "🏫 学術・講演・歴史",
+        "site_categories": ["academic", "lecture", "history", "taiwan_mandarin"],
+        "query_ja": "台湾 大学 シンポジウム 講演会 研究 中国語 歴史 文化 日本 2026",
+        "query_en": "Taiwan university symposium lecture research history language Japan 2026",
+        "system_prompt": (
+            "You are a research analyst specializing in Taiwan-Japan academic and cultural exchange. "
+            "Search the web for Japanese universities, research institutes, think tanks, NPOs, or "
+            "language schools that regularly host Taiwan-related lectures, symposia, seminars, "
+            "or language/cultural programs in Japan. "
+            "Include Mandarin Chinese language programs tied to Taiwan culture, "
+            "Taiwan studies departments, and Japan-Taiwan academic exchange organizations. "
+            "Prioritize sources with a public event calendar updated regularly."
+        ),
+    },
+    {
+        "id": "geopolitics_policy",
+        "label": "🏛️ 地政・政策・交流",
+        "site_categories": ["geopolitics", "taiwan_japan"],
+        "query_ja": "台湾 外交 政策 交流 財団法人 公的機関 シンクタンク 講演 日本 2026",
+        "query_en": "Taiwan diplomacy policy exchange government foundation think tank Japan 2026",
+        "system_prompt": (
+            "You are a research analyst specializing in Japan-Taiwan geopolitical and policy exchange. "
+            "Search the web for Japanese government agencies, public foundations, official bodies, "
+            "think tanks, or research institutes that regularly organize Taiwan-related policy events, "
+            "diplomatic exchange programs, or public lectures on Taiwan-Japan relations. "
+            "Include organizations like 日本台湾交流協会, 台湾協会, NPOs specializing in cross-strait affairs, "
+            "and security/foreign policy think tanks. "
+            "Look for pages with a structured events calendar or lecture listing."
+        ),
+    },
+    {
+        "id": "gender_society",
+        "label": "🏳️‍🌈 ジェンダー・社会・健康",
+        "site_categories": ["gender", "urban", "healthcare"],
+        "query_ja": "台湾 LGBTQ ジェンダー 多様性 社会 健康 医療 福祉 イベント 日本 2026",
+        "query_en": "Taiwan LGBTQ gender diversity social health welfare event Japan 2026",
+        "system_prompt": (
+            "You are a research analyst specializing in Taiwan-related gender, social, and health events in Japan. "
+            "Search the web for organizations, community groups, NPOs, or platforms that regularly "
+            "list Taiwan-related LGBTQ+ events, gender equality seminars, Pride-related programs, "
+            "social welfare exchanges, or health and medical exchange programs between Japan and Taiwan. "
+            "Taiwan is a leader in Asia for LGBTQ+ rights — look for cross-border advocacy events, "
+            "queer film screenings, Taiwan Pride outreach programs, and health policy exchanges. "
+            "Prioritize sources with a public event listing updated at least monthly."
+        ),
+    },
+    # ── Slot 3 (00:00 JST) ──────────────────────────────────────────────────
+    {
+        "id": "community_social",
+        "label": "💬 コミュニティ・交流",
+        "site_categories": ["taiwan_japan", "competition", "workshop"],
+        "query_ja": "台湾 コミュニティ 交流会 ワークショップ 体験 在日台湾人 日本 2026 connpass doorkeeper peatix",
+        "query_en": "Taiwan community meetup workshop experience Japan 2026 connpass doorkeeper",
         "system_prompt": (
             "You are a research analyst specializing in grassroots Taiwan communities in Japan. "
-            "Search the web for community groups, meetup organizers, or event series that regularly "
-            "hold Taiwan-related social events or exchange meetups in Tokyo. "
-            "Check platforms like Connpass, Doorkeeper, or dedicated community sites."
+            "Search the web for community groups, meetup organizers, event series, or platforms "
+            "that regularly hold Taiwan-related social events, exchange meetups, language exchanges, "
+            "cooking workshops, or cultural experience events in Japan. "
+            "Check Connpass, Doorkeeper, Peatix, and dedicated community sites "
+            "for active organizers with a history of Taiwan-related events. "
+            "Also look for Taiwan alumni associations, regional friendship groups, "
+            "and Taiwan cultural workshop programs. "
+            "Prioritize active organizers with events in the past 3 months."
         ),
     },
     {
-        "id": "performing_arts_search",
-        "label": "🎭 表演・映画",
-        "query_ja": "台湾 コンサート 公演 映画 上映 東京 2026 チケット eplus pia",
-        "query_en": "Taiwan concert performing arts film screening Japan 2026 ticket",
+        "id": "kansai",
+        "label": "🏯 関西（大阪・京都・神戸）",
+        "site_categories": [],
+        "query_ja": "台湾 イベント 文化交流 公演 展示 大阪 京都 神戸 兵庫 関西 2026",
+        "query_en": "Taiwan cultural event exhibition performance Osaka Kyoto Kobe Kansai 2026",
         "system_prompt": (
-            "You are a research analyst specializing in Taiwan performing arts and cinema events in Japan. "
-            "Search the web for websites, ticketing platforms, or event listing pages that regularly "
-            "feature Taiwan-related concerts, theater or dance performances, or film screenings in Japan. "
-            "Check major ticketing platforms (eplus.jp, pia.jp, ticket.rakuten.co.jp, l-tike.com), "
-            "cinema listing sites (cinematoday.jp, filmarks.com), and venue websites. "
-            "Also look for Taiwan artist agency pages, Taiwan film distributor sites operating in Japan, "
-            "or film festival pages (台湾映画祭, etc.). "
-            "Prioritize pages with a structured and regularly updated event listing."
-        ),
-    },
-    {
-        "id": "senses_research",
-        "label": "🧬 五感研究",
-        "query_ja": "台湾 五感 体験 研究 論文 食文化 香り 感覚 アート 2025 2026 jstage OR cinii",
-        "query_en": "Taiwan five senses sensory experience research paper academic publication 2025 2026",
-        "system_prompt": (
-            "You are a research analyst specializing in academic publications on Taiwan sensory culture. "
-            "Search academic databases (J-STAGE at jstage.jst.go.jp, CiNii at ci.nii.ac.jp, "
-            "Google Scholar, ResearchGate, and Taiwan scholarly databases) for recent journal articles, "
-            "conference papers, or research reports related to Taiwan sensory experiences (五感体験), "
-            "including food culture, scent or aroma events, tactile art, sound art, or multisensory "
-            "cultural programming originating from or about Taiwan. "
-            "Also search for new publications from Taiwan academic groups or universities on "
-            "sensory culture or cross-cultural sensory studies. "
-            "Return pages with a publication list or index, not individual article pages."
+            "You are a research analyst specializing in Taiwan cultural events in the Kansai region of Japan. "
+            "Search the web for websites, organizations, or platforms that regularly list Taiwan-related "
+            "cultural events (exhibitions, concerts, film screenings, festivals, lectures) in Osaka, "
+            "Kyoto, Kobe, or other Kansai prefectures (Nara, Shiga, Wakayama, Mie). "
+            "Include the Osaka Asian Film Festival (OAFF), Taiwan office in Osaka "
+            "(台北駐大阪経済文化弁事処), Kansai Taiwan community groups, "
+            "and ticketing platforms like Peatix or Connpass for this region. "
+            "Focus on sources with a structured and regularly updated event listing."
         ),
     },
     {
         "id": "fukuoka",
         "label": "🍜 福岡・九州",
-        "query_ja": "台湾 イベント 文化交流 公演 展示 福岡 九州 2026",
+        "site_categories": [],
+        "query_ja": "台湾 イベント 文化交流 公演 展示 福岡 九州 熊本 鹿児島 2026",
         "query_en": "Taiwan cultural event exhibition performance Fukuoka Kyushu 2026",
         "system_prompt": (
             "You are a research analyst specializing in Taiwan cultural events in Fukuoka and Kyushu, Japan. "
@@ -151,34 +242,23 @@ SEARCH_CATEGORIES = [
             "Focus on sources with a structured and regularly updated event listing."
         ),
     },
-    {
-        "id": "hokkaido",
-        "label": "🏔️ 北海道・東北",
-        "query_ja": "台湾 イベント 文化交流 展示 公演 北海道 札幌 東北 仙台 2026",
-        "query_en": "Taiwan cultural event exhibition performance Hokkaido Sapporo Tohoku Sendai 2026",
-        "system_prompt": (
-            "You are a research analyst specializing in Taiwan cultural events in Hokkaido and Tohoku, Japan. "
-            "Search the web for websites, organizations, or platforms that regularly list Taiwan-related "
-            "cultural events (exhibitions, concerts, film screenings, festivals, lectures) in Hokkaido "
-            "(especially Sapporo) or Tohoku prefectures (Sendai and surroundings). "
-            "Include the Sapporo International Art Festival (SIAF), local Taiwan community groups, "
-            "the Sendai Consulate area if any Taiwan-organized events exist, "
-            "and ticketing platforms like Peatix or Connpass for these regions. "
-            "Focus on sources with a structured and regularly updated event listing."
-        ),
-    },
 ]
 
 # ---------------------------------------------------------------------------
-# 4-slot daily schedule (Layer 1 — 4 runs per day at 06/12/18/24 JST)
+# 4-slot daily schedule (12 categories × 4 slots, 3 per slot)
 # RESEARCH_SLOT env var (0–3) selects which categories to run this slot.
-# Each slot runs 2–3 categories; all 9 categories complete within a day.
+# All 12 categories complete within one 24-hour cycle.
+#
+# Slot 0 (06:00 JST) — 映像・アート
+# Slot 1 (12:00 JST) — 食・書籍・テック
+# Slot 2 (18:00 JST) — 学術・地政・社会
+# Slot 3 (00:00 JST) — コミュニティ・地域
 # ---------------------------------------------------------------------------
 SLOT_SCHEDULE: dict[int, list[str]] = {
-    0: ["university", "fukuoka"],                             # 06:00 JST
-    1: ["media", "government"],                              # 12:00 JST
-    2: ["thinktank", "hokkaido"],                            # 18:00 JST
-    3: ["social", "performing_arts_search", "senses_research"],  # 24:00 JST (00:00+1)
+    0: ["cinema_screening", "art_exhibition", "music_live"],         # 06:00 JST
+    1: ["food_retail", "books_media", "tech_business"],              # 12:00 JST
+    2: ["academic_lecture", "geopolitics_policy", "gender_society"], # 18:00 JST
+    3: ["community_social", "kansai", "fukuoka"],                    # 00:00 JST (00:00+1)
 }
 
 # Legacy weekday schedule kept for --category CLI override reference
@@ -224,7 +304,7 @@ SOURCE_SCHEMA = """{
     {
       "name": "Website/organization name",
       "url": "Direct URL to their events listing page",
-      "category": "university|media|government|thinktank|social",
+      "category": "cinema_screening|art_exhibition|music_live|food_retail|books_media|tech_business|academic_lecture|geopolitics_policy|gender_society|community_social|kansai|fukuoka",
       "event_types": "What kind of events they post",
       "frequency": "daily|weekly|monthly",
       "scraping_feasibility": "easy|medium|hard",
