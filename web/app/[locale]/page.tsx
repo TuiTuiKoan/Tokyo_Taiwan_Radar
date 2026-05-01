@@ -117,9 +117,14 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     }
     // Exclude online events — canonical marker is on location_name
     query = query.not("location_name", "ilike", "%オンライン%");
+    // Exclude TV broadcasts — canonical marker is on location_name
+    query = query.not("location_name", "ilike", "%電視頻道%");
   } else if (sp.location === "online") {
     // Online events: location_name = 'オンライン', location_address = null
     query = query.ilike("location_name", "%オンライン%");
+  } else if (sp.location === "tv") {
+    // TV broadcast events: location_name = '電視頻道'
+    query = query.ilike("location_name", "%電視頻道%");
   }
 
   const { data: events, error } = await query;

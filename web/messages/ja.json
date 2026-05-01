@@ -30,7 +30,8 @@
     "locationOtherJapan": "他の都市（日本）",
     "locationTaiwan": "他の都市（台湾）",
     "timeModeAll": "すべて",
-    "locationOnline": "オンライン"
+    "locationOnline": "オンライン",
+    "locationTv": "テレビ放送"
   },
   "categories": {
     "movie": "映画",
