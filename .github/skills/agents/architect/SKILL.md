@@ -80,6 +80,19 @@ When planning any AEO (AI Engine Optimization) or SEO feature:
 - **GSC integration must use OAuth2 refresh token**: Google Search Console UI **only accepts regular Google accounts** as users — service account emails return "找不到電子郵件" and cannot be added. Always design GSC API integration with OAuth2 refresh token (`GSC_CLIENT_ID` + `GSC_CLIENT_SECRET` + `GSC_REFRESH_TOKEN`), never service account JWT.
 - **OAuth Playground requires test user setup**: When the OAuth consent screen is in "Testing" mode, the authorizing account must be added as a test user first, otherwise the flow returns 403 `access_denied`. Plans that include OAuth token generation steps must note this prerequisite.
 
+## OG Image Multi-Language Truncation Rules
+
+When planning or reviewing changes to `web/app/[locale]/events/[id]/opengraph-image.tsx`:
+
+- **截斷閾值必須以英文長度為基準**：日/中文每字元視覺寬，36 字足以填滿標題區域；英文每字元視覺窄，需 50+ 字元才填滿同等空間。截斷 `N` 值應設 ≥ 55（英文基準），而非 36（日文基準）。
+- **優先增加字體縮小級別，而非降低截斷閾值**：新增中間字體層（如 40px）讓長英文標題縮小後多行顯示，保留完整語意；只有視覺上確實溢出時才截斷。
+- **目前三級字體設計**（截至 2026-05-01）：
+  - ≤ 22 字 → 72px
+  - 23–36 字 → 54px
+  - 37–55 字 → 40px
+  - > 55 字 → 40px + 截斷至 53 字
+- 任何修改此邏輯的 plan 必須包含「用英文長標題（如 40+ 字母）和日文短標題（≤ 10 字）各一組」的視覺驗收步驟。
+
 ## Category Union Change Guard
 
 After any plan that touches `web/lib/types.ts` Category union:
