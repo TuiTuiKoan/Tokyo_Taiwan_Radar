@@ -524,6 +524,9 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "raw_description": sub.get("description_ja"),
                     "annotation_status": "annotated",
                     "annotated_at": datetime.utcnow().isoformat(),
+                    # Inherit parent's scraped_at so the admin クロール日時 column
+                    # shows a meaningful value instead of NULL for sub-events.
+                    "scraped_at": event.get("scraped_at"),
                 }
 
                 sb.table("events").upsert(

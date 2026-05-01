@@ -2,6 +2,20 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-01 — sub-events missing scraped_at (クロール日時 = —)
+
+**Error:** `annotator.py` builds `sub_row` without a `scraped_at` field. All 128 existing sub-events had `scraped_at = NULL`, causing the admin table `クロール日時` column to display `—` for every sub-event.
+
+**Fix:**
+1. Added `"scraped_at": event.get("scraped_at")` to `sub_row` in `annotator.py` — sub-events now inherit the parent's scrape timestamp at creation time.
+2. Backfilled all 128 existing sub-events: 34 inherited parent's `scraped_at`; 94 used parent's `created_at` as fallback (parent also predated migration 018b).
+
+**Lesson:** When `annotator.py` builds a sub-event row, it must explicitly carry over any field from the parent that is meaningful for operations/admin — `scraped_at` is a key example. Fields omitted from `sub_row` default to `NULL` and are not inherited automatically.
+
+→ Added to `SKILL.md` § Annotator sub-event row fields
+
+---
+
 ## 2026-04-30 — 天燈體驗 [prtimes] — user report confirmed
 **Report types:** wrongCategory
 **Before (AI category):** lifestyle_food

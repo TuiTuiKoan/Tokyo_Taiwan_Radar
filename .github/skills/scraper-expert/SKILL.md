@@ -105,6 +105,11 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 - Apply `_loc()` to both `location_name` and `location_address`.
 - Events with existing `""` in name/description fields need manual DB reset (`null` + `annotation_status = 'pending'`) then re-run `annotator.py`. The `_str()` helper only prevents future empty strings.
 
+## Annotator sub-event row fields
+- `sub_row` in `annotator.py` must **explicitly include `scraped_at`** inherited from the parent event: `"scraped_at": event.get("scraped_at")`. Fields omitted from `sub_row` default to `NULL` — they are not inherited automatically.
+- Rule of thumb: any field that is meaningful for admin operations (e.g. `scraped_at` / クロール日時) must be carried over from parent to sub-event explicitly.
+- When adding a new column to the `events` table, check whether `sub_row` in `annotator.py` also needs updating.
+
 ## Admin form (web) — nullable fields
 - `AdminEditClient.tsx` initializes form fields with `event.field ?? ""`, converting `null` → `""`. On save, this writes `""` to the DB — which silences the locale fallback chain in `getEventName`/`getEventDescription`.
 - The `handleSave` payload uses a `nullify` helper: `const nullify = (v: string) => v.trim() || null`. All name/description fields must pass through `nullify` before the Supabase PATCH.
