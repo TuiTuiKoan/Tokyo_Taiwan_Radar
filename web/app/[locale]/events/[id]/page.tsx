@@ -380,6 +380,8 @@ export default async function EventDetailPage({ params }: PageProps) {
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("address")}</td>
               <td className="px-4 py-3">
                 {subEventPrefectures.length > 1
+                  ? subEventPrefectures.join("・")
+                  : event.location_name === "電視頻道"
                   ? "—"
                   : (locationAddress || locationName) ? (
                     <a
