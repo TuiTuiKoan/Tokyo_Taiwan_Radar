@@ -1,6 +1,8 @@
 {
   "nav": {
-    "home": "イベント",    "news": "お知らせ",    "saved": "お気に入り",
+    "home": "イベント",
+    "news": "お知らせ",
+    "saved": "お気に入り",
     "admin": "管理",
     "login": "ログイン",
     "logout": "ログアウト"
@@ -50,7 +52,7 @@
     "report": "レポート",
     "competition": "コンテスト・大会",
     "indigenous": "先住民文化",
-    "history": "歴史・文化遺産",
+    "history": "歴史・文化遺産・ルーツ",
     "urban": "建築・都市",
     "workshop": "体験・ワークショップ",
     "group_arts": "五感",
@@ -314,7 +316,16 @@
     "scrapeNowSelected": "選択したソースを取得 ({count})",
     "scrapeNowError": "取得の起動に失敗しました",
     "selectionReasonCorrectionLabel": "選定理由の修正",
-    "announcementsTab": "投稿"
+    "announcementsTab": "投稿",
+    "statsSlaHeader": "30日成功率",
+    "statsAvgDuration": "平均所要時間",
+    "qualityTab": "品質",
+    "qualityTitle": "データ品質チェック",
+    "qualityReviewedMissing": "レビュー済み翻訳なし",
+    "qualityExpiredActive": "期限切れだがアクティブ",
+    "qualityAnnotatedNoCat": "アノテーション済みカテゴリなし",
+    "qualityMissingAddr": "住所なし（非オンライン）",
+    "qualityAllClear": "すべて正常 ✅"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",
