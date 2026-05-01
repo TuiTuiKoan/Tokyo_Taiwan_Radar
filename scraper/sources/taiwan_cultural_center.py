@@ -441,11 +441,12 @@ class TaiwanCulturalCenterScraper(BaseScraper):
         location_address: str | None = "東京都港区虎ノ門1-1-12 虎ノ門ビル2階"
 
         # If the description mentions multiple cities, this is a multi-city tour —
-        # clear the single Tokyo address and flag as national tour.
-        _MULTI_CITY_REGIONS = ["北海道", "大阪", "京都", "神奈川", "福岡", "名古屋", "仙台"]
+        # clear the single Tokyo address and list the detected prefectures.
+        _MULTI_CITY_REGIONS = ["北海道", "東京", "大阪", "京都", "神奈川", "福岡", "名古屋", "仙台", "愛知"]
         _desc_check = (description_ja or "") + (name_ja or "")
-        if sum(1 for r in _MULTI_CITY_REGIONS if r in _desc_check) >= 2:
-            location_name = "台湾文化センター（全国巡回）"
+        _found_regions = [r for r in _MULTI_CITY_REGIONS if r in _desc_check]
+        if len(_found_regions) >= 2:
+            location_name = "・".join(_found_regions)
             location_address = None
 
         # --- Price ---
