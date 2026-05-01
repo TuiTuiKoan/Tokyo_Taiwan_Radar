@@ -358,7 +358,159 @@ def run_merger(dry_run: bool = False) -> int:
             )
 
     logger.info("Merger: %d cross-source duplicate pair(s) handled (Pass 1+2)", merge_count)
-    return merge_count
+
+    # ------------------------------------------------------------------
+    # Pass 3 — Orphaned sub-event cleanup
+    # After Pass 1/2 deactivate parent events, their sub-events become
+    # "orphaned" (is_active=True but parent is_active=False).
+    # For each orphan, find the matching sub under the surviving primary
+    # parent and merge them.  If no match exists, deactivate the orphan.
+    # ------------------------------------------------------------------
+    sub_res = (
+        sb.table("events")
+        .select(
+            "id,source_name,source_id,source_url,official_url,name_ja,"
+            "start_date,end_date,location_name,raw_description,"
+            "secondary_source_urls,annotation_status,parent_event_id"
+        )
+        .eq("is_active", True)
+        .not_.is_("parent_event_id", None)
+        .execute()
+    )
+    all_subs = sub_res.data or []
+
+    # Build parent info map
+    parent_ids = list({s["parent_event_id"] for s in all_subs})
+    parent_map: dict = {}
+    for i in range(0, len(parent_ids), 100):
+        batch = parent_ids[i:i + 100]
+        pres = (
+            sb.table("events")
+            .select("id,is_active,source_url,secondary_source_urls")
+            .in_("id", batch)
+            .execute()
+        )
+        for p in pres.data or []:
+            parent_map[p["id"]] = p
+
+    orphaned: list[tuple] = []
+    for sub in all_subs:
+        if sub["id"] in handled_secondary_ids:
+            continue
+        parent = parent_map.get(sub["parent_event_id"])
+        if parent and not parent["is_active"]:
+            orphaned.append((sub, parent))
+
+    logger.info("Merger: %d orphaned sub-event(s) found (Pass 3)", len(orphaned))
+    pass3_count = 0
+
+    for orphaned_sub, inactive_parent in orphaned:
+        if orphaned_sub["id"] in handled_secondary_ids:
+            continue
+
+        inactive_url = inactive_parent.get("source_url") or ""
+
+        # Find the primary parent: the active event that absorbed inactive_parent
+        primary_parent_res = (
+            sb.table("events")
+            .select("id")
+            .contains("secondary_source_urls", [inactive_url])
+            .execute()
+        ) if inactive_url else type("R", (), {"data": []})()
+
+        primary_parent_id = (
+            primary_parent_res.data[0]["id"] if primary_parent_res.data else None
+        )
+
+        if primary_parent_id:
+            subs_under_primary = [
+                s for s in all_subs
+                if s["parent_event_id"] == primary_parent_id
+                and s["id"] != orphaned_sub["id"]
+                and s["id"] not in handled_secondary_ids
+            ]
+            matching_sub = next(
+                (
+                    c for c in subs_under_primary
+                    if _similarity(orphaned_sub["name_ja"], c["name_ja"]) >= _SIMILARITY_THRESHOLD
+                    and (orphaned_sub["start_date"] or "")[:10] == (c["start_date"] or "")[:10]
+                ),
+                None,
+            )
+        else:
+            matching_sub = None
+
+        if matching_sub:
+            # Determine primary / secondary by source priority
+            pri_o = SOURCE_PRIORITY.get(orphaned_sub["source_name"], 99)
+            pri_m = SOURCE_PRIORITY.get(matching_sub["source_name"], 99)
+            if pri_o < pri_m:
+                primary_sub, secondary_sub = orphaned_sub, matching_sub
+            else:
+                primary_sub, secondary_sub = matching_sub, orphaned_sub
+
+            secondary_url = secondary_sub["source_url"]
+            existing_urls = primary_sub.get("secondary_source_urls") or []
+            already_merged = secondary_url in existing_urls
+
+            logger.info(
+                "%s  [%s] '%s'  ←  [%s] '%s'  (orphan-sub)",
+                "EXISTS" if already_merged else "MERGE ",
+                primary_sub["source_name"],
+                (primary_sub["name_ja"] or "")[:40],
+                secondary_sub["source_name"],
+                (secondary_sub["name_ja"] or "")[:40],
+            )
+
+            if dry_run:
+                pass3_count += 1
+                handled_secondary_ids.add(secondary_sub["id"])
+                continue
+
+            new_urls = list(dict.fromkeys(existing_urls + [secondary_url]))
+            sub_update: dict = {"secondary_source_urls": new_urls}
+            if not already_merged:
+                sub_update["annotation_status"] = "pending"
+
+            try:
+                sb.table("events").update(sub_update).eq("id", primary_sub["id"]).execute()
+                sb.table("events").update({"is_active": False}).eq("id", secondary_sub["id"]).execute()
+                pass3_count += 1
+                handled_secondary_ids.add(secondary_sub["id"])
+            except Exception as exc:
+                logger.error(
+                    "Merger Pass 3: failed to merge %s ← %s: %s",
+                    primary_sub["source_id"],
+                    secondary_sub["source_id"],
+                    exc,
+                )
+        else:
+            # No matching sub under primary parent — deactivate the orphan
+            logger.info(
+                "ORPHAN  [%s] '%s' — no match, deactivating",
+                orphaned_sub["source_name"],
+                (orphaned_sub["name_ja"] or "")[:40],
+            )
+            if not dry_run:
+                try:
+                    sb.table("events").update({"is_active": False}).eq(
+                        "id", orphaned_sub["id"]
+                    ).execute()
+                    pass3_count += 1
+                    handled_secondary_ids.add(orphaned_sub["id"])
+                except Exception as exc:
+                    logger.error(
+                        "Merger Pass 3: failed to deactivate orphan %s: %s",
+                        orphaned_sub["source_id"],
+                        exc,
+                    )
+            else:
+                pass3_count += 1
+                handled_secondary_ids.add(orphaned_sub["id"])
+
+    logger.info("Merger: %d orphaned sub-event(s) handled (Pass 3)", pass3_count)
+    total = merge_count + pass3_count
+    return total
 
 
 if __name__ == "__main__":
@@ -383,4 +535,4 @@ if __name__ == "__main__":
 
     count = run_merger(dry_run=args.dry_run)
     action = "would be merged" if args.dry_run else "merged"
-    print(f"Done: {count} cross-source pair(s) {action}.")
+    print(f"Done: {count} pair(s)/orphan(s) {action} (Pass 1+2+3).")
