@@ -62,7 +62,6 @@ Unique constraint: `(source_name, source_id)`
 - `creators` — Taiwan creators/voices in Japan: name, platform, handle, profile_url, category, base_location, nationality, is_active, approx_followers, last_post_at, notes
 - `creator_events` — `(creator_id uuid, event_id uuid, relationship text)` links creators to events
 - `line_subscribers` — LINE OA subscribers: `line_user_id`, `status` (`active`/`blocked`), `language_preference`, `category_preferences text[]`; service-role-only RLS (migration 022)
-- `aeo_visits` — AEO monitoring: AI bot crawl visits + AI engine referrals; `visit_type` (`bot`/`ai_referral`), `bot_name`, `ai_source`, `user_agent`, `path`, `referer`, `country`; anonymous INSERT (middleware), admin-only SELECT (migration 029)
 
 ## RLS policies
 

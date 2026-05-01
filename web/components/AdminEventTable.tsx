@@ -76,7 +76,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
-  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "other_japan" | "taiwan" | "online" | "tv">("");
+  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "other_japan" | "taiwan" | "online">("")
   const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "reviewed" | "error">("");;  const [filterSource, setFilterSource] = useState("");
   const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
   const TAIWAN_MARKERS_ADMIN = ["台北", "台中", "台南", "高雄", "台湾", "台灣"];
@@ -123,14 +123,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         const addr = e.location_address || "";
         if (!addr.trim()) return false;
         if (addr.includes("オンライン")) return false;
-        if ((e.location_name || "").includes("電視頻道")) return false;
         if (isTokyoAddr(addr)) return false;
         if (TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false;
       } else if (filterLocation === "online") {
         if (!(e.location_name || "").includes("オンライン")) return false;
-      } else if (filterLocation === "tv") {
-        if (!(e.location_name || "").includes("電視頻道")) return false;
       }
+  if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
       if (filterSource && (e as any).source_name !== filterSource) return false;
       return true;
     });
@@ -171,9 +169,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       }
       if (filterLocation === "tokyo") { if (!isTokyoAddr(e.location_address)) return false; }
       else if (filterLocation === "taiwan") { const addr = e.location_address || ""; if (!TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false; }
-      else if (filterLocation === "other_japan") { const addr = e.location_address || ""; if (!addr.trim() || addr.includes("オンライン") || (e.location_name || "").includes("電視頻道") || isTokyoAddr(addr) || TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false; }
+      else if (filterLocation === "other_japan") { const addr = e.location_address || ""; if (!addr.trim() || addr.includes("オンライン") || isTokyoAddr(addr) || TAIWAN_MARKERS_ADMIN.some((m) => addr.includes(m))) return false; }
       else if (filterLocation === "online") { if (!(e.location_name || "").includes("オンライン")) return false; }
-      else if (filterLocation === "tv") { if (!(e.location_name || "").includes("電視頻道")) return false; }
       if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
       return true;
     });
@@ -549,7 +546,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="tokyo">{tFilters("locationTokyo")}</option>
               <option value="other_japan">{tFilters("locationOtherJapan")}</option>
               <option value="online">{tFilters("locationOnline")}</option>
-              <option value="tv">{tFilters("locationTv")}</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
