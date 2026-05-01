@@ -79,6 +79,7 @@ export default async function AdminQualityPage({ params }: PageProps) {
       .from("events")
       .select("id, raw_title, source_name")
       .eq("annotation_status", "reviewed")
+      .eq("is_active", true)
       .or("name_zh.is.null,name_en.is.null")
       .limit(50),
     supabase
@@ -91,6 +92,7 @@ export default async function AdminQualityPage({ params }: PageProps) {
       .from("events")
       .select("id, raw_title, source_name")
       .eq("annotation_status", "annotated")
+      .eq("is_active", true)
       .or("category.is.null,category.eq.{}")
       .limit(50),
     supabase
