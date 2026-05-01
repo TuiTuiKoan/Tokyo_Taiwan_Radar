@@ -92,25 +92,38 @@ export default async function HomePage({ params, searchParams }: PageProps) {
   // Note: 台北駐日 = Taipei Representative Office in Japan → physically in Tokyo
   const TOKYO_MARKERS = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区", "台北駐日"];
   const KANTO_MARKERS = ["神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬", "山梨", "青森", "岩手", "宮城", "秋田", "山形", "福島", "北海道"];
-  const CHUBU_KINKI_MARKERS = ["愛知", "静岡", "岐阜", "長野", "新潟", "富山", "石川", "福井", "大阪", "京都", "兵庫", "奈良", "滋賀", "和歌山", "三重"];
+  // NOTE: "京都" is a substring of "東京都" — always use "京都府"/"京都市" to avoid false positives
+  const CHUBU_KINKI_MARKERS = ["愛知", "静岡", "岐阜", "長野", "新潟", "富山", "石川", "福井", "大阪", "京都府", "京都市", "兵庫", "奈良", "滋賀", "和歌山", "三重"];
   const CHUGOKU_KYUSHU_MARKERS = ["広島", "岡山", "鳥取", "島根", "山口", "福岡", "佐賀", "長崎", "熊本", "大分", "宮崎", "鹿児島", "沖縄", "高知", "愛媛", "徳島", "香川"];
   if (sp.location === "tokyo") {
-    // NULL/empty OR contains a Tokyo marker
+    // NULL/empty OR contains a Tokyo marker OR location_prefectures includes '東京'
     const conds = [
       "location_address.is.null",
       "location_address.eq.",
       ...TOKYO_MARKERS.map((m) => `location_address.ilike.%${m}%`),
+      'location_prefectures.cs.{"東京"}',
     ].join(",");
     query = query.or(conds);
   } else if (sp.location === "kanto") {
-    const conds = KANTO_MARKERS.map((m) => `location_address.ilike.%${m}%`).join(",");
-    query = query.or(conds);
+    const addrConds = KANTO_MARKERS.map((m) => `location_address.ilike.%${m}%`);
+    // Include multi-city parents whose sub-events span Kanto prefectures
+    const kantoPrefectures = ["神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬", "山梨",
+                              "青森", "岩手", "宮城", "秋田", "山形", "福島", "北海道"];
+    const lpConds = kantoPrefectures.map((p) => `location_prefectures.cs.{"${p}"}`);
+    query = query.or([...addrConds, ...lpConds].join(","));
   } else if (sp.location === "chubu") {
-    const conds = CHUBU_KINKI_MARKERS.map((m) => `location_address.ilike.%${m}%`).join(",");
-    query = query.or(conds);
+    const addrConds = CHUBU_KINKI_MARKERS.map((m) => `location_address.ilike.%${m}%`);
+    const chubuPrefectures = ["愛知", "静岡", "岐阜", "長野", "新潟", "富山", "石川", "福井",
+                              "大阪", "京都", "兵庫", "奈良", "滋賀", "和歌山", "三重"];
+    const lpConds = chubuPrefectures.map((p) => `location_prefectures.cs.{"${p}"}`);
+    query = query.or([...addrConds, ...lpConds].join(","));
   } else if (sp.location === "chugoku") {
-    const conds = CHUGOKU_KYUSHU_MARKERS.map((m) => `location_address.ilike.%${m}%`).join(",");
-    query = query.or(conds);
+    const addrConds = CHUGOKU_KYUSHU_MARKERS.map((m) => `location_address.ilike.%${m}%`);
+    const chugokuPrefectures = ["広島", "岡山", "鳥取", "島根", "山口",
+                                "福岡", "佐賀", "長崎", "熊本", "大分", "宮崎", "鹿児島", "沖縄",
+                                "高知", "愛媛", "徳島", "香川"];
+    const lpConds = chugokuPrefectures.map((p) => `location_prefectures.cs.{"${p}"}`);
+    query = query.or([...addrConds, ...lpConds].join(","));
   } else if (sp.location === "online") {
     // Online events: location_name = 'オンライン', location_address = null
     query = query.ilike("location_name", "%オンライン%");

@@ -80,11 +80,19 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "reviewed" | "error">("");;  const [filterSource, setFilterSource] = useState("");
   const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
   const KANTO_MARKERS_ADMIN = ["神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬", "山梨", "青森", "岩手", "宮城", "秋田", "山形", "福島", "北海道"];
-  const CHUBU_KINKI_MARKERS_ADMIN = ["愛知", "静岡", "岐阜", "長野", "新潟", "富山", "石川", "福井", "大阪", "京都", "兵庫", "奈良", "滋賀", "和歌山", "三重"];
+  // NOTE: "京都" is a substring of "東京都" — always use "京都府"/"京都市" to avoid false positives
+  const CHUBU_KINKI_MARKERS_ADMIN = ["愛知", "静岡", "岐阜", "長野", "新潟", "富山", "石川", "福井", "大阪", "京都府", "京都市", "兵庫", "奈良", "滋賀", "和歌山", "三重"];
   const CHUGOKU_KYUSHU_MARKERS_ADMIN = ["広島", "岡山", "鳥取", "島根", "山口", "福岡", "佐賀", "長崎", "熊本", "大分", "宮崎", "鹿児島", "沖縄", "高知", "愛媛", "徳島", "香川"];
-  function isTokyoAddr(addr: string | null | undefined): boolean {
+  function isTokyoAddr(addr: string | null | undefined, prefectures?: string[] | null): boolean {
+    if (prefectures && prefectures.includes("東京")) return true;
     if (!addr || addr.trim() === "") return true;
     return TOKYO_MARKERS_ADMIN.some((m) => addr.includes(m));
+  }
+
+  function hasPrefecture(markers: string[], addr: string | null | undefined, prefectures?: string[] | null): boolean {
+    if (prefectures && markers.some((m) => prefectures.includes(m))) return true;
+    const a = addr || "";
+    return markers.some((m) => a.includes(m));
   }
 
   function getFiltered(list: Event[]) {
@@ -117,16 +125,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         }
       }
       if (filterLocation === "tokyo") {
-        if (!isTokyoAddr(e.location_address)) return false;
+        if (!isTokyoAddr(e.location_address, (e as any).location_prefectures)) return false;
       } else if (filterLocation === "kanto") {
-        const addr = e.location_address || "";
-        if (!KANTO_MARKERS_ADMIN.some((m) => addr.includes(m))) return false;
+        if (!hasPrefecture(KANTO_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false;
       } else if (filterLocation === "chubu") {
-        const addr = e.location_address || "";
-        if (!CHUBU_KINKI_MARKERS_ADMIN.some((m) => addr.includes(m))) return false;
+        if (!hasPrefecture(CHUBU_KINKI_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false;
       } else if (filterLocation === "chugoku") {
-        const addr = e.location_address || "";
-        if (!CHUGOKU_KYUSHU_MARKERS_ADMIN.some((m) => addr.includes(m))) return false;
+        if (!hasPrefecture(CHUGOKU_KYUSHU_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false;
       } else if (filterLocation === "online") {
         if (!(e.location_name || "").includes("オンライン")) return false;
       } else if (filterLocation === "tv") {
@@ -171,10 +176,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         if (filterDateFrom) { const d = e.start_date ? new Date(e.start_date) : null; if (!d || d < new Date(filterDateFrom)) return false; }
         if (filterDateTo) { const d = e.start_date ? new Date(e.start_date) : null; if (!d || d > new Date(filterDateTo + "T23:59:59")) return false; }
       }
-      if (filterLocation === "tokyo") { if (!isTokyoAddr(e.location_address)) return false; }
-      else if (filterLocation === "kanto") { const addr = e.location_address || ""; if (!KANTO_MARKERS_ADMIN.some((m) => addr.includes(m))) return false; }
-      else if (filterLocation === "chubu") { const addr = e.location_address || ""; if (!CHUBU_KINKI_MARKERS_ADMIN.some((m) => addr.includes(m))) return false; }
-      else if (filterLocation === "chugoku") { const addr = e.location_address || ""; if (!CHUGOKU_KYUSHU_MARKERS_ADMIN.some((m) => addr.includes(m))) return false; }
+      if (filterLocation === "tokyo") { if (!isTokyoAddr(e.location_address, (e as any).location_prefectures)) return false; }
+      else if (filterLocation === "kanto") { if (!hasPrefecture(KANTO_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false; }
+      else if (filterLocation === "chubu") { if (!hasPrefecture(CHUBU_KINKI_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false; }
+      else if (filterLocation === "chugoku") { if (!hasPrefecture(CHUGOKU_KYUSHU_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false; }
       else if (filterLocation === "online") { if (!(e.location_name || "").includes("オンライン")) return false; }
       else if (filterLocation === "tv") { if (!(e.location_name || "").includes("電視頻道")) return false; }
       if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;

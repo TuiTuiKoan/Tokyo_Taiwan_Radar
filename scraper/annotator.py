@@ -49,6 +49,27 @@ VALID_CATEGORIES = [
 _NEWS_MOVIE_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss"})
 _BRACKET_TITLE_RE = re.compile(r"[\u300c\u300e]([^\u300d\u300f]+)[\u300d\u300f]")
 
+# Prefecture extraction — mirrors web/app/[locale]/events/[id]/page.tsx extractPrefecture()
+_PREFECTURE_RE = re.compile(
+    r"^(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県]{2,4}[都道府県])"
+)
+
+def _extract_prefecture(address: str | None) -> str | None:
+    """Return prefecture name (e.g. '東京', '大阪') from a Japanese address, or None."""
+    if not address:
+        return None
+    m = _PREFECTURE_RE.match(address)
+    if not m:
+        return None
+    full = m.group(1)
+    if full == "北海道":
+        return "北海道"
+    if full in ("大阪市", "大阪府"):
+        return "大阪"
+    if full in ("京都市", "京都府"):
+        return "京都"
+    return full.rstrip("都道府県")
+
 # Bracket pairs used by GPT when wrapping movie titles in descriptions.
 _TITLE_BRACKETS = [
     ("\u300a", "\u300b"),  # \u300a\u300b Chinese double angle
@@ -572,6 +593,25 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                         pass  # migration 010 not applied yet, skip silently
 
                 logger.info("  + sub-event %d: %s", j + 1, sub.get("name_ja", "")[:50])
+
+            # After all sub-events are created, aggregate prefecture names and
+            # update parent event's location_prefectures (migration 012).
+            # Only write when 2+ distinct prefectures are found.
+            if sub_events and not fix_reviewed:
+                prefectures = sorted({
+                    p for sub in sub_events
+                    if (p := _extract_prefecture(sub.get("location_address")))
+                })
+                if len(prefectures) >= 2:
+                    try:
+                        sb.table("events").update(
+                            {"location_prefectures": prefectures}
+                        ).eq("id", eid).execute()
+                        logger.info("  → location_prefectures: %s", prefectures)
+                    except Exception as lp_err:
+                        logger.warning(
+                            "  ⚠ location_prefectures update skipped (run migration 012): %s", lp_err
+                        )
 
         except Exception as exc:
             logger.error("  ✗ annotation failed: %s", exc)
