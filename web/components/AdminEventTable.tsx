@@ -841,10 +841,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   <td className="py-2 pr-4 text-xs max-w-[130px]">
                     {(() => {
                       const addr = event.location_address;
-                      if (!addr) return <span className="text-gray-300">—</span>;
-                      const isOnline = /オンライン|online|線上/i.test(addr);
+                      const name = (event as any).location_name as string | null;
+                      if (event.source_name === "gguide_tv") return <span className="text-purple-500">電視頻道</span>;
+                      if (!addr && !name) return <span className="text-gray-300">—</span>;
+                      const display = addr || name || "";
+                      const isOnline = /オンライン|online|線上/i.test(display);
                       if (isOnline) return <span className="text-blue-500">線上</span>;
-                      return <span className="text-gray-500 truncate block" title={addr}>{addr}</span>;
+                      return <span className="text-gray-500 truncate block" title={display}>{display}</span>;
                     })()}
                   </td>
                   <td className="py-2 pr-4 text-gray-500 text-xs whitespace-nowrap">
