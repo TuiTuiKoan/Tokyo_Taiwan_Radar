@@ -245,6 +245,8 @@ Place bulk action bar in the **section header** (flex justify-between), not a bo
 - events with `source_name = 'gguide_tv'` (TV guide source)
 - `location_name` containing `・` (multi-city events — `location_name` uses `・`-joined city names by convention; no single address exists)
 
+**Archive cutoff 一致性規則：** `database.py` 的 `archive_ended_events()` cutoff 必須與 quality page 的 `today` 截止一致（目前為 `datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00+00:00")`，無寬限）。若修改任一端的截止邏輯，另一端必須同步。兩端不一致會產生「quality page 顯示已過期，但 archive 函數尚未下架」的空窗期。
+
 **Admin list page link rule:** Event hyperlinks in admin list pages (quality, reports, etc.) must point to `/{locale}/events/{id}` (detail page, `target="_blank"`), **not** `/{locale}/admin/{id}` (edit page). Quality pages are for review, not editing.
 
 ## i18n JSON File Editing — Unicode Safety Rule

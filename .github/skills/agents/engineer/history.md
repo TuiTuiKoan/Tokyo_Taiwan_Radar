@@ -3,6 +3,28 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — archive cutoff 與 quality page 截止日不一致（1e6cd24）
+
+**問題：** `archive_ended_events()` cutoff = `yesterday 00:00 UTC`（1 天寬限），quality page cutoff = `today`，造成當天到期事件出現在 quality 清單但不會被自動下架，需等兩天才消失。
+
+**根本原因：** `database.py` 的 `archive_ended_events()` 使用 `timedelta(days=1)` 寬限期，而 quality page 直接用 `today` 當截止，兩端定義不一致。
+
+**修復：** `database.py` 移除 `timedelta(days=1)`，改為 `today 00:00 UTC`；DB 手動下架 4 筆到期事件（`b2589d75`、`78570c96`、`8c08c681`、`dec284a5`）。
+
+**教訓：** scraper `archive_ended_events()` 的 cutoff 必須與 admin quality page 的 `today` 截止一致，否則會有「過期但不下架」的空窗期。如需寬限期，兩端必須使用相同天數。
+
+---
+## 2026-05-01 — 品質頁面誤判多城市活動為「地址缺失」
+
+**問題：** `web/app/[locale]/admin/quality/page.tsx` 的「地址缺失」品質檢查把 `location_name` 含「・」（如「東京・京都・大阪」）的多城市活動標記為異常，造成誤報。
+
+**根本原因：** 多城市活動格式慣例為 `城市A・城市B・城市C`，這類活動的 `location_address` 刻意設為 `null`（避免錯誤錨定到單一城市）。品質檢查邏輯沒有識別此格式，誤判為資料缺失。
+
+**修正：** 在 missing-address 過濾器中排除 `location_name.includes('・')` 的活動。
+
+**教訓：** 多城市活動 `location_address = null` 是正確狀態，不是錯誤。任何「地址缺失」品質檢查都必須先排除 `location_name.includes('・')` 的多城市活動。
+
+---
 ## 2026-05-01 — quality page is_active=false 事件導致 404（commit `dd76445`）
 
 **問題：** `reviewedMissing` 和 `annotatedNoCat` query 沒有 `.eq("is_active", true)`，已下架事件出現在清單，點選後 404（詳情頁只顯示 is_active 事件）。
