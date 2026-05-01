@@ -140,7 +140,7 @@ export default async function AdminAeoPage({ params }: PageProps) {
   return (
     <main className="max-w-6xl mx-auto p-4 md:p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">AEO 監控</h1>
+        <h1 className="text-2xl font-bold">SEO-AEO 監控</h1>
         <Link href={`/${locale}/admin`} className="text-sm text-blue-600 hover:underline">
           ← 返回管理後台
         </Link>
