@@ -236,6 +236,31 @@ After writing, verify with `grep "key" web/messages/XX.json` before committing.
 
 `replace_string_in_file` is safe only for ASCII-only strings in JSON files.
 
+## GITHUB_TOKEN Permission Wording Sync
+
+When touching any implementation or docs related to `--create-issue` and `GITHUB_TOKEN`, enforce one canonical wording only:
+
+* Fine-grained PAT: `Issues: write + Metadata: read`
+* Classic token: `repo` scope
+
+In the same change set, sync all related layers:
+
+1. Runtime/error text in `scraper/update_source.py`
+2. Operational docs in `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md`
+3. Rotation instruction in `.github/instructions/token-rotation.instructions.md`
+4. Agent usage docs in `.github/agents/researcher.agent.md`
+5. Lifecycle summary in `.github/SECRETS_LIFECYCLE.md`
+
+Never leave mixed wording like `Issues: read & write` in any tracked file.
+
+## Secrets Checklist Ownership
+
+`docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` is the single source of truth for the token sync checklist.
+
+* `.github/TOKEN_SYNC_CHECKLIST.md` must remain a redirect stub only.
+* Do not maintain duplicate checklist content in multiple files.
+* For public repo safety, examples must use placeholders (`github_pat_xxx`), never real values.
+
 ## Category Update Protocol
 
 **Canonical source of truth:** `web/lib/types.ts` → `Category` union type, `CATEGORIES` array, `CATEGORY_GROUPS` array.
@@ -256,6 +281,14 @@ Update **all 6 locations** in a single commit — do NOT split across commits:
 4. `web/messages/zh.json` — label under `categories.*`
 5. `web/messages/en.json` — same key
 6. `web/messages/ja.json` — same key
+
+### When reorganizing category groups (moving categories between groups)
+- Modify **only** `CATEGORY_GROUPS` in `web/lib/types.ts` — no component code changes needed.
+- `AdminEventForm.tsx`, `ReportSection.tsx`, and `AdminReportsTable.tsx` all read `CATEGORY_GROUPS` at runtime; they auto-reflect any reorganization.
+- `group_knowledge` canonical members: `business`, `academic`, `lecture`, `taiwan_japan`.
+- `group_lifestyle` includes: `competition`, `workshop`, `exhibition`, `books_media`, `tv_program`, `healthcare`.
+
+**Incident:** 2026-05-01 — `competition`, `workshop`, `exhibition`, `books_media`, `tv_program` moved from `group_knowledge` → `group_lifestyle` (commits `a07b792`, `5b66c33`). Only `CATEGORY_GROUPS` in `types.ts` required changing.
 
 ### 6 UI surfaces that consume categories (all derive from types.ts — no component code changes needed for label renames)
 | Surface | File | Source | Type |
@@ -790,3 +823,31 @@ const missingAddr = events.filter(e =>
 - 新增 quality check 時，先確認「哪些情況下欄位為空是合理的」，再寫 filter。
 
 **Incident:** 2026-05-01 — `missingAddr` 顯示 29 筆，實際 18 筆是 gguide_tv 誤報。修復後降至 11 筆，其中 8 筆透過 `enrich_addresses.py` 補齊（commit `590a80a`）。
+
+## Location Filter Three-File Sync Rule
+
+The location filter is implemented in **three separate files** that must always stay in sync:
+
+| File | What to update |
+|------|---------------|
+| `web/components/FilterBar.tsx` | `options` array (labels + values) + i18n keys |
+| `web/app/[locale]/page.tsx` | Server-side OR query (`location_address ilike` per region marker) |
+| `web/components/AdminEventTable.tsx` | `filterLocation` state type (union literal) + marker arrays + `getFiltered` predicate + `sourceCountMap` |
+
+**Region marker logic (current 6-option layout):**
+
+| Value | Detection |
+|-------|-----------|
+| `"tokyo"` | `location_address` contains Tokyo ward/city markers, or is null (default) |
+| `"kanto"` | ilike markers: 神奈川, 埼玉, 千葉, 茨城, 栃木, 群馬, 山梨, 東北各縣, 北海道 |
+| `"chubu"` | ilike markers: 愛知, 静岡, 岐阜, 長野, 新潟, 富山, 石川, 福井, 大阪, 京都, 兵庫, 奈良, 滋賀, 和歌山, 三重 |
+| `"chugoku"` | ilike markers: 広島, 岡山, 鳥取, 島根, 山口, 九州各縣, 四國各縣, 沖縄 |
+| `"online"` | `location_name` contains `オンライン` |
+| `"tv"` | `location_name` contains `電視頻道` |
+
+**Rules:**
+1. **State type must match options exactly.** The `filterLocation` state is a TypeScript string literal union. If a new option value is added but the union type is not updated, TypeScript will NOT report an error — instead, the unknown value silently falls through all predicates and shows zero results.
+2. **Use `ilike` marker lists, not NOT logic.** Defining regions by exclusion (e.g. "not Tokyo, not online") misses events with null addresses or partial matches. Always use explicit positive marker lists per region.
+3. **All three files in one commit.** Partial sync (e.g. only updating FilterBar) causes the server query to return wrong data or the admin filter to show stale counts.
+
+**Incident:** 2026-05-01 — rewrote from `tokyo / other_japan / taiwan / online / tv` to `tokyo / kanto / chubu / chugoku / online / tv`. All three files updated in commit `b8dfe2b`.

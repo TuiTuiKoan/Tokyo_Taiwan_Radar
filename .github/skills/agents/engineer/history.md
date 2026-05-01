@@ -3,6 +3,82 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — healthcare 新分類加入 group_lifestyle（commit `bd89c57`）
+
+**變更：** 新增 `healthcare`（健康・醫療 / Health & Wellness / ヘルスケア）分類至 `group_lifestyle`。
+
+**教訓：** Category Update Protocol 6 步驟全部完成（union + CATEGORIES + CATEGORY_GROUPS + zh/en/ja）。group_lifestyle 是此類分類的正確歸屬。
+
+---
+## 2026-05-01 — 分類標籤重命名：nature、history
+
+**變更：**
+- `nature` → 風土・水果・環境永續 / Nature, Produce & Sustainability / 風土・果物・SDG
+- `history` → 歷史・文化遺產・根源 / History, Heritage & Roots / 歴史・文化遺産・ルーツ
+
+**教訓：** i18n 標籤改名只需更新三個 `web/messages/*.json`，category key 不變，DB 資料不需異動。group labels 亦同（`group_arts`、`group_lifestyle`、`group_knowledge` 等鍵值不變，只改顯示文字）。
+
+---
+## 2026-05-01 — 分類群組大調整（commits `a07b792`, `5b66c33`）
+
+**變更：**
+- `competition`（競技・競賽）、`workshop`（體驗・工作坊）從 `group_knowledge` 移至 `group_lifestyle`
+- `exhibition`（展覽）、`books_media`（書・媒體）、`tv_program`（電視節目）從 `group_knowledge` 移至 `group_lifestyle`
+- `group_knowledge` 調整後只剩：`business`、`academic`、`lecture`、`taiwan_japan`
+
+**根本原因：** 分類設計初期 `group_knowledge` 定義不夠嚴格，把生活風格類別錯誤納入。
+
+**修復：** 僅修改 `web/lib/types.ts` 的 `CATEGORY_GROUPS` 陣列，不需動元件代碼。
+
+**教訓：** Category 群組重組只需改 `types.ts` 的 `CATEGORY_GROUPS`，因為 `AdminEventForm.tsx`、`ReportSection.tsx`、`AdminReportsTable.tsx` 都從 `CATEGORY_GROUPS` 讀取（三檔共用 source，不需個別修改元件代碼）。
+
+→ 已更新 `SKILL.md § Category Update Protocol — 群組重組`
+
+---
+## 2026-05-01 — Location filter 6-region 完全重寫（commit `b8dfe2b`）
+
+**變更：** 地點篩選器從 `tokyo / other_japan / taiwan / online / tv` 改為 `tokyo / kanto / chubu / chugoku / online / tv`，地區判斷改用 address `ilike` marker 清單：
+
+| 選項 | marker 清單 |
+|------|------------|
+| tokyo | 東京各區標記，或 address 為 null（預設東京）|
+| kanto | 神奈川/埼玉/千葉/茨城/栃木/群馬/山梨/東北各縣/北海道 |
+| chubu | 愛知/静岡/岐阜/長野/新潟/富山/石川/福井/大阪/京都/兵庫/奈良/滋賀/和歌山/三重 |
+| chugoku | 広島/岡山/鳥取/島根/山口/九州各縣/四國各縣/沖縄 |
+| online | location_name 含 オンライン |
+| tv | location_name 含 電視頻道 |
+
+**根本原因：** 原 `other_japan` 選項過粗，無法區分關東、中部、中国・九州。
+
+**修復：** 三處同步更新：
+1. `FilterBar.tsx` — 選項 options + i18n keys
+2. `web/app/[locale]/page.tsx` — server-side OR query（`location_address ilike`）
+3. `AdminEventTable.tsx` — state 型別 union literal + marker arrays + `getFiltered` + `sourceCountMap`
+
+**教訓：**
+- Location filter 有三處必須同步：FilterBar 選項、page.tsx server query、AdminEventTable state 型別。
+- `filterLocation` state 型別（union string literal）必須跟 options 精確一致，TypeScript 不報錯但未知值會導致所有事件被過濾。
+- 地區判斷改用 address `ilike` marker 清單，避免 NOT 邏輯漏網。
+
+→ 已更新 `SKILL.md § Location Filter Three-File Sync Rule`
+
+---
+## 2026-05-01 — GITHUB_TOKEN 權限描述不一致（Issues 權限口徑分裂）
+
+**問題：** 同一 repo 內對 fine-grained PAT 權限出現多種寫法（`Issues: read & write`、`Issues: write`），且部分文件未明確寫出 `Metadata: read`，導致配置判讀混亂。
+
+**修復：** 將 code + docs + agent 口徑統一為：
+- Fine-grained PAT：`Issues: write + Metadata: read`
+- Classic token：`repo` scope
+
+同步更新檔案：`scraper/update_source.py`、`docs/GITHUB_TOKEN_SYNC_CHECKLIST.md`、`.github/instructions/token-rotation.instructions.md`、`.github/agents/researcher.agent.md`、`.github/SECRETS_LIFECYCLE.md`。
+
+**教訓：**
+1. 安全/權限敘述變更必須「跨層原子更新」（runtime error message + docs + agent 說明）。
+2. 不可讓 `Issues: read & write` 與 `Issues: write + Metadata: read` 長期並存。
+3. public repo 文件中的權限例子必須可直接採用最小權限原則，避免誤導開過寬權限。
+
+---
 ## 2026-05-01 — Admin Tab Nav 10 頁不一致（commit `1f37bb4`）
 
 **問題：** 10 個 admin 頁面的 tab nav 內容互不一致。有些頁面有 quality tab，有些沒有；有些有 announcements tab，有些沒有。最嚴重的是 announcements/page.tsx 只有 5 個 tab，而 admin 主頁有 10 個。

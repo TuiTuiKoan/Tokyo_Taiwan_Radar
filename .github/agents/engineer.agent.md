@@ -40,6 +40,16 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 - Run tests and check for errors after every significant change
 - Notify the user before: `git push`, DB migrations, secret changes, or Vercel deployments
 
+## Token Permission Consistency
+
+When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
+
+1. Keep permission wording consistent everywhere:
+  - Fine-grained PAT: `Issues: write + Metadata: read`
+  - Classic token: `repo` scope
+2. Update code + docs + agent references in one batch (no partial wording updates).
+3. Treat `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` as the canonical checklist source.
+
 ## Required Steps
 
 ### Step 1: Understand
@@ -68,6 +78,7 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 14. **JSON-LD Event schema:** When adding structured data to event detail pages, inject `<script type="application/ld+json">` at the top of `<article>`. Use server component props directly — no extra DB query. Convert `null` fields to `undefined` before serializing. See `SKILL.md § JSON-LD Event schema 注入`.
 15. **ISR page rules:** When adding `export const revalidate` to a page (e.g., event detail): (a) use plain `createClient(URL, ANON_KEY)` for ALL Supabase queries — any `cookies()` call forces dynamic and kills ISR; (b) move all auth-dependent UI (`isAdmin`, `isSaved`, `user`) to client components with `useEffect`; (c) pass `initialSaved={false}` to `SaveButton` and let it self-fetch on mount; (d) use `.eq("is_active", true)` query filter instead of server-side `if (!is_active && !isAdmin) notFound()`. See `SKILL.md § ISR（Incremental Static Regeneration）頁面規則`.
 16. **OG Image Edge runtime rules:** `opengraph-image.tsx` uses `export const runtime = "edge"`. Never use `fetch(url, { next: { revalidate } })` or any `next: {}` fetch extension — Edge runtime only supports plain Web APIs. Always use bare `fetch(url)`. For Google Fonts CSS parsing, use `/src:\s*url\(/` (with `\s*`) — the CSS spec allows whitespace after the colon. See `SKILL.md § OG Image（opengraph-image.tsx）— Edge Runtime 規則`.
+17. **Location filter three-file sync rule:** When changing the location filter options (values, labels, or detection logic), **always update all three files in the same commit**: `FilterBar.tsx` (options + i18n keys), `web/app/[locale]/page.tsx` (server-side OR query), `AdminEventTable.tsx` (state union type + marker arrays + `getFiltered` + `sourceCountMap`). The `filterLocation` state type must exactly match the option values — TypeScript will not catch unknown values, they silently return zero results. Use `ilike` marker lists per region; avoid NOT logic. See `SKILL.md § Location Filter Three-File Sync Rule`.
 17. **Next.js 16 `params` must be awaited:** When creating or editing ANY file-based route (`page.tsx`, `layout.tsx`, `route.ts`, `opengraph-image.tsx`, `generateMetadata`, `generateStaticParams`), always type `params` as `Promise<{...}>` and `await params`. TypeScript does NOT report a type error if `await` is omitted — `Promise<T>` destructures silently and returns `undefined` at runtime, causing DB query failures or route 500s. See `SKILL.md § Next.js 16 — params 必須 await`.
 18. **Satori emoji 禁用規則**：`opengraph-image.tsx` 及所有使用 `ImageResponse`/Satori 的路由，**嚴禁使用任何 emoji**（包含看起來普通的 📅📍，以及 ZWJ 序列 🏳️‍🌈、regional indicator 🇹🇼）。Satori 遇到不支援 emoji 時靜默失敗：HTTP 200 + `content-length: 0`，不拋任何錯誤。一律改用 ASCII 文字標籤（`DATE`、`AT`、`FILM`、`ART` 等）。See `SKILL.md § OG Image（opengraph-image.tsx）— Edge Runtime 規則`。
 19. **AEO（AI Engine Optimization）完整實作規則：** 新建網站或執行重大 SEO 工作時，必須實作完整 AEO 清單：(a) `web/public/llms.txt`（AI 引擎索引文件）；(b) `robots.ts` 明確許可 GPTBot、PerplexityBot 等主流 AI 爬蟲；(c) root `layout.tsx` 注入 `WebSite + SearchAction + Organization` JSON-LD（`@graph` 格式）；(d) 事件詳情頁注入 `BreadcrumbList` JSON-LD；(e) 日期欄位用 `<time dateTime>` 包裹；(f) `sitemap.ts` 各頁 `alternates.languages` 補上 `x-default`。新增任何 `public/` 靜態文件後必須同步更新 `proxy.ts` matcher 排除規則。See `SKILL.md § AEO（AI Engine Optimization）`。
