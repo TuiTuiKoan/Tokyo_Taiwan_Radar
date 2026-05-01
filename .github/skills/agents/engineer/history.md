@@ -3,6 +3,40 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — AdminReportsTable bulk confirm 被另一個 agent 意外刪除並恢復
+
+**問題：** commit `3d45de6`（「refactor(web): remove realtime subscription and bulk confirm from AdminReportsTable」）由非 Engineer agent 執行，在移除 Realtime subscription 的同時，一併刪除了先前實作的多選批量確認功能（`selectedIds`、`bulkConfirming`、`handleBulkConfirm`、勾選框、bulk action bar）。
+
+**根本原因：** Agent 把 bulk confirm 視為「與 Realtime 捆綁的功能」一起移除，而非獨立功能。Realtime subscription 可以拆除，但 bulk confirm 是獨立 UX 功能，不應隨之消失。
+
+**修復（commit `4c30ab3`）：**
+- 恢復 `selectedIds: Set<string>` 和 `bulkConfirming: boolean` state
+- 恢復 `handleBulkConfirm(rows: ReportRow[])` sequential loop（不用 `Promise.all`，因 `handleConfirm` 內有 `setSaving`）
+- 恢復每筆 pending 行的勾選框：`<div className="flex items-stretch">` 包住 checkbox label + button
+- 恢復 section header 右側 bulk action bar（`bulkCancelSelect`、`bulkConfirmSelected { count }`、`bulkConfirmAll { count }`）
+- 批量按鈕文字改用 i18n keys，三個 messages 檔同步新增
+
+**教訓：**
+- **AdminReportsTable bulk confirm 是受保護功能**：`selectedIds`、`bulkConfirming`、`handleBulkConfirm` 不得被任何 agent 移除，除非 PRD 明確指示。
+- 移除某功能（如 Realtime）時，必須逐項確認 diff 不包含無關功能的刪除。
+- 診斷方式：`git log --oneline --all | head -15` 找到刪除 commit → `git show <hash> --stat` 確認刪除內容 → 從 SKILL.md 規格重建實作。
+
+→ 已更新 `SKILL.md` § AdminReportsTable — Protected Feature: Bulk Confirm
+
+---
+## 2026-05-01 — AdminSourcesTable i18n 修復：Filter Labels 硬編碼中文
+
+**問題：** `AdminSourcesTable.tsx` 的「狀態」、「全部」、「來源分類」、「編輯分類對照表」都是 hardcoded 中文，未走 `t()` hook。
+
+**根本原因：** 初次實作時只顧功能，未套 i18n，後來也沒有 lint 規則報錯，因此一直沒被發現。
+
+**修復：** 改為 `t("sourcesFilterStatus")`、`t("sourcesFilterAll")`、`t("sourcesFilterType")`、`t("sourcesEditTypeMap")`，三個 i18n 檔（zh/en/ja）同步新增對應翻譯。
+
+**教訓：** TSX 中任何可見文字（filter label、button、placeholder、section header）都必須走 `t()`，禁止硬編碼中文/日文。新增 admin 元件時，應在實作完功能後立即對照 TSX 全文搜尋裸字串，統一轉換。
+
+→ 已更新 `SKILL.md` § AdminSourcesTable — i18n 規則
+
+---
 ## 2026-05-01 — CI workflow 改善：merger.yml 排程 + Node.js 24 opt-in
 
 **修改：**

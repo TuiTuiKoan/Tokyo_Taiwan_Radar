@@ -189,6 +189,37 @@ When a list row is currently a `<button>` and you need to add a checkbox:
 
 Place bulk action bar in the **section header** (flex justify-between), not a bottom footer bar — more intuitive for list sections with variable item counts.
 
+## AdminReportsTable — Protected Feature: Bulk Confirm
+
+⚠️ **This feature MUST NOT be removed** unless a PRD explicitly requests it. Any refactor touching `AdminReportsTable.tsx` must verify all of the following remain intact:
+
+| State / function | Purpose |
+|---|---|
+| `selectedIds: Set<string>` | Tracks which pending rows are checked |
+| `bulkConfirming: boolean` | Loading guard during bulk operation |
+| `handleBulkConfirm(rows: ReportRow[])` | Sequential loop calling `handleConfirm` per id, then clears `selectedIds` |
+
+**Row structure** (each pending row):
+```tsx
+<div className="flex items-stretch">
+  <label onClick={(e) => e.stopPropagation()} className="flex items-center px-2 cursor-pointer">
+    <input type="checkbox" checked={selectedIds.has(row.id)} onChange={...} />
+  </label>
+  <button className="flex-1 text-left ..." onClick={handleExpand}>
+    {/* row content */}
+  </button>
+</div>
+```
+
+**Bulk action bar** (section header, flex justify-between):
+- 「取消選取」→ `t("bulkCancelSelect")`
+- 「通過已選取 (n)」→ `t("bulkConfirmSelected", { count })`
+- 「全部通過 (n)」→ `t("bulkConfirmAll", { count })`
+
+**Why sequential loop (not `Promise.all`):** `handleConfirm` internally calls `setSaving` (React state setter). Parallel calls cause state races. Always use `for...of` with `await`.
+
+**Incident:** commit `3d45de6` removed bulk confirm alongside Realtime subscription removal. Restored in `4c30ab3`. Do NOT repeat.
+
 ## i18n JSON File Editing — Unicode Safety Rule
 
 **Never use `replace_string_in_file` to edit `web/messages/*.json`** when `oldString` contains any non-ASCII characters (Japanese/Chinese punctuation, CJK characters, fullwidth symbols like `・` U+30FB). The tool can silently fail to match without reporting an error.
@@ -285,6 +316,23 @@ This pattern applies to any `<select>` filter whose options map 1-to-1 with a fi
 2. **`getFilteredSources`** — detect the new category by reading `source.agent_category` directly, NOT by hardcoded ID lists. Hardcoded ID lists silently omit newly discovered sources.
 
 This is a **paired-file rule**: `discovery_accounts.py` (defines agent_category) ↔ `AdminSourcesTable.tsx` (displays it).
+
+## AdminSourcesTable.tsx — i18n Rule: No Hardcoded Labels
+
+**All visible text in `AdminSourcesTable.tsx` must use `t()`.** Never hardcode Chinese/Japanese strings.
+
+Required i18n keys (must exist in all three `messages/*.json`):
+| Key | zh | en | ja |
+|---|---|---|---|
+| `sourcesFilterStatus` | 狀態 | Status | ステータス |
+| `sourcesFilterAll` | 全部 | All | すべて |
+| `sourcesFilterType` | 來源分類 | Type | 分類 |
+| `sourcesEditTypeMap` | 編輯分類對照表 | Edit Type Map | 分類マップを編集 |
+| `sourcesEditTypeMapTitle` | 編輯分類對照表 | Edit Source Type Map | 分類マップを編集 |
+
+**Incident:** 2026-05-01 — filter labels `狀態`、`全部`、`來源分類`、`編輯分類對照表` were hardcoded. Fixed in commit `4c30ab3`.
+
+**Rule:** Any new label added to `AdminSourcesTable.tsx` must immediately get a key in all three `messages/` files. Use the Python json-module pattern for edits.
 
 ## AdminSourcesTable.tsx — Filter Dropdown Count Pattern (typeCountMap)
 
