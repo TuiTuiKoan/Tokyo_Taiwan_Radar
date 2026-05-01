@@ -141,8 +141,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         if (!hasPrefecture(CHUGOKU_KYUSHU_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false;
       } else if (filterLocation === "online") {
         if (!(e.location_name || "").includes("オンライン")) return false;
-      } else if (filterLocation === "tv") {
-        if (!(e.location_name || "").includes("電視頻道")) return false;
       }
   if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
       if (filterSource && (e as any).source_name !== filterSource) return false;
@@ -188,7 +186,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       else if (filterLocation === "chubu") { if (!hasPrefecture(CHUBU_KINKI_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false; }
       else if (filterLocation === "chugoku") { if (!hasPrefecture(CHUGOKU_KYUSHU_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false; }
       else if (filterLocation === "online") { if (!(e.location_name || "").includes("オンライン")) return false; }
-      else if (filterLocation === "tv") { if (!(e.location_name || "").includes("電視頻道")) return false; }
       if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
       return true;
     });
@@ -566,7 +563,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="chubu">{tFilters("locationChubu")}</option>
               <option value="chugoku">{tFilters("locationChugoku")}</option>
               <option value="online">{tFilters("locationOnline")}</option>
-              <option value="tv">{tFilters("locationTv")}</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">

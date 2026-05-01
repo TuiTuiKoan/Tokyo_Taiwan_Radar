@@ -221,7 +221,6 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               <option value="chubu">{t("locationChubu")}</option>
               <option value="chugoku">{t("locationChugoku")}</option>
               <option value="online">{t("locationOnline")}</option>
-              <option value="tv">{t("locationTv")}</option>
             </select>
           </div>
 

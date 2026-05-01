@@ -127,9 +127,6 @@ export default async function HomePage({ params, searchParams }: PageProps) {
   } else if (sp.location === "online") {
     // Online events: location_name = 'オンライン', location_address = null
     query = query.ilike("location_name", "%オンライン%");
-  } else if (sp.location === "tv") {
-    // TV broadcast events: location_name = '電視頻道'
-    query = query.ilike("location_name", "%電視頻道%");
   }
 
   const { data: events, error } = await query;
