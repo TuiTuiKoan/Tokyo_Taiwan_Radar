@@ -381,7 +381,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               <td className="px-4 py-3">
                 {subEventPrefectures.length > 1
                   ? subEventPrefectures.join("・")
-                  : event.location_name === "電視頻道"
+                  : event.source_name === "gguide_tv"
                   ? "電視頻道"
                   : (locationAddress || locationName) ? (
                     <a

@@ -323,7 +323,7 @@ class GguideTvScraper(BaseScraper):
                         raw_description=raw_description,
                         start_date=start_dt,
                         category=_genre_to_category(genre),
-                        location_name="電視頻道",
+                        location_name=channel,
                         business_hours=business_hours,
                     )
                 )
