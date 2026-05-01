@@ -26,12 +26,13 @@
     "apply": "絞り込む",
     "location": "場所",
     "allLocations": "すべて",
-    "locationTokyo": "東京（日本）",
-    "locationOtherJapan": "他の都市（日本）",
-    "locationTaiwan": "他の都市（台湾）",
+    "locationTokyo": "東京",
     "timeModeAll": "すべて",
     "locationOnline": "オンライン",
-    "locationTv": "テレビ放送"
+    "locationTv": "テレビ番組",
+    "locationKanto": "関東（東京除く）・東北・北海道",
+    "locationChubu": "中部・近畿・関西",
+    "locationChugoku": "中国・九州・四国"
   },
   "categories": {
     "movie": "映画",

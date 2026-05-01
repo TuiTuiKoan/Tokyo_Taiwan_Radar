@@ -91,9 +91,9 @@ export default async function HomePage({ params, searchParams }: PageProps) {
   // Tokyo markers used for classification
   // Note: 台北駐日 = Taipei Representative Office in Japan → physically in Tokyo
   const TOKYO_MARKERS = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区", "台北駐日"];
-  const TAIWAN_MARKERS = ["台北", "台中", "台南", "高雄", "台湾", "台灣"];
-  // Venues that contain Taiwan keywords but are physically in Japan (exclude from Taiwan filter)
-  const JAPAN_DESPITE_TAIWAN_NAME = ["台北駐日", "台湾文化センター", "台北経済文化"];
+  const KANTO_MARKERS = ["神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬", "山梨", "青森", "岩手", "宮城", "秋田", "山形", "福島", "北海道"];
+  const CHUBU_KINKI_MARKERS = ["愛知", "静岡", "岐阜", "長野", "新潟", "富山", "石川", "福井", "大阪", "京都", "兵庫", "奈良", "滋賀", "和歌山", "三重"];
+  const CHUGOKU_KYUSHU_MARKERS = ["広島", "岡山", "鳥取", "島根", "山口", "福岡", "佐賀", "長崎", "熊本", "大分", "宮崎", "鹿児島", "沖縄", "高知", "愛媛", "徳島", "香川"];
   if (sp.location === "tokyo") {
     // NULL/empty OR contains a Tokyo marker
     const conds = [
@@ -102,23 +102,15 @@ export default async function HomePage({ params, searchParams }: PageProps) {
       ...TOKYO_MARKERS.map((m) => `location_address.ilike.%${m}%`),
     ].join(",");
     query = query.or(conds);
-  } else if (sp.location === "taiwan") {
-    const conds = TAIWAN_MARKERS.map((m) => `location_address.ilike.%${m}%`).join(",");
+  } else if (sp.location === "kanto") {
+    const conds = KANTO_MARKERS.map((m) => `location_address.ilike.%${m}%`).join(",");
     query = query.or(conds);
-    // Exclude known Tokyo venues whose names contain Taiwan keywords
-    for (const ex of JAPAN_DESPITE_TAIWAN_NAME) {
-      query = query.not("location_address", "ilike", `%${ex}%`);
-    }
-  } else if (sp.location === "other_japan") {
-    // Must have a non-empty address that is neither Tokyo nor Taiwan nor Online
-    query = query.not("location_address", "is", null).neq("location_address", "");
-    for (const m of [...TOKYO_MARKERS, ...TAIWAN_MARKERS]) {
-      query = query.not("location_address", "ilike", `%${m}%`);
-    }
-    // Exclude online events — canonical marker is on location_name
-    query = query.not("location_name", "ilike", "%オンライン%");
-    // Exclude TV broadcasts — canonical marker is on location_name
-    query = query.not("location_name", "ilike", "%電視頻道%");
+  } else if (sp.location === "chubu") {
+    const conds = CHUBU_KINKI_MARKERS.map((m) => `location_address.ilike.%${m}%`).join(",");
+    query = query.or(conds);
+  } else if (sp.location === "chugoku") {
+    const conds = CHUGOKU_KYUSHU_MARKERS.map((m) => `location_address.ilike.%${m}%`).join(",");
+    query = query.or(conds);
   } else if (sp.location === "online") {
     // Online events: location_name = 'オンライン', location_address = null
     query = query.ilike("location_name", "%オンライン%");
