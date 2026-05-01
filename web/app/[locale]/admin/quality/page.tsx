@@ -103,7 +103,11 @@ export default async function AdminQualityPage({ params }: PageProps) {
   const annotatedNoCat = (annotatedNoCatRes.data ?? []) as QualityRow[];
   const missingAddrAll = (missingAddrRes.data ?? []) as Array<QualityRow & { location_name: string | null }>;
   const missingAddr = missingAddrAll.filter(
-    (e) => !e.location_name || !e.location_name.includes("\u30AA\u30F3\u30E9\u30A4\u30F3")
+    (e) =>
+      !e.location_name ||
+      (!e.location_name.includes("\u30AA\u30F3\u30E9\u30A4\u30F3") &&
+       !e.location_name.includes("\u96fb\u8996\u983b\u9053") &&
+       (e as any).source_name !== "gguide_tv")
   );
 
   const sections = [
@@ -118,58 +122,17 @@ export default async function AdminQualityPage({ params }: PageProps) {
       <h1 className="text-2xl font-bold mb-4">{t("title")}</h1>
 
       {/* Tab nav */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6">
-        <Link
-          href={`/${locale}/admin`}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
-        >
-          {t("eventsTab")}
-        </Link>
-        <Link
-          href={`/${locale}/admin/reports`}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
-        >
-          {t("reports")}
-        </Link>
-        <Link
-          href={`/${locale}/admin/stats`}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
-        >
-          {t("statsTab")}
-        </Link>
-        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">
-          {t("qualityTab")}
-        </span>
-        <Link
-          href={`/${locale}/admin/research`}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
-        >
-          {t("researchTab")}
-        </Link>
-        <Link
-          href={`/${locale}/admin/sources`}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
-        >
-          {t("sourcesTab")}
-        </Link>
-        <Link
-          href={`/${locale}/admin/users`}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
-        >
-          {t("usersTab")}
-        </Link>
-        <Link
-          href={`/${locale}/admin/creators`}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
-        >
-          {t("creatorsTab")}
-        </Link>
-        <Link
-          href={`/${locale}/admin/aeo`}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
-        >
-          {t("aeoTab")}
-        </Link>
+      <div className="flex gap-1 border-b border-gray-200 mb-6 flex-wrap">
+        <Link href={`/${locale}/admin`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("eventsTab")}</Link>
+        <Link href={`/${locale}/admin/announcements`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("announcementsTab")}</Link>
+        <Link href={`/${locale}/admin/reports`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("reports")}</Link>
+        <Link href={`/${locale}/admin/stats`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("statsTab")}</Link>
+        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">{t("qualityTab")}</span>
+        <Link href={`/${locale}/admin/research`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("researchTab")}</Link>
+        <Link href={`/${locale}/admin/sources`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("sourcesTab")}</Link>
+        <Link href={`/${locale}/admin/users`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("usersTab")}</Link>
+        <Link href={`/${locale}/admin/creators`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("creatorsTab")}</Link>
+        <Link href={`/${locale}/admin/aeo`} className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition">{t("aeoTab")}</Link>
       </div>
 
       <h2 className="text-lg font-semibold mb-4">{t("qualityTitle")}</h2>
