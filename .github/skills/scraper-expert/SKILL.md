@@ -148,6 +148,15 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 - Event detail page (`/events/[id]/page.tsx`) uses these helpers instead of raw field access.
 - **Rule**: Any field that a non-Japanese visitor reads on the event page must have locale variants OR use a helper with Japanese fallback. Check the event detail page for raw `event.field` access when adding new DB columns.
 
+## `location_url` — 官方會場網站 URL（migration 031）
+
+- `location_url: Optional[str] = None` in `Event` dataclass（`scraper/sources/base.py`）— 填入官方場館/會場的完整 URL（非活動頁面 URL）。
+- **填寫來源**：scraper 從場館官網連結萃取，或管理員在 Admin UI 手動輸入。
+- **Annotator 不填寫**：GPT 容易 hallucinate URL，`annotator.py` 的 schema 不包含 `location_url`。
+- **Web 渲染**：Event detail page 以條件渲染實作——`location_url` 存在時將 `location_name` 包在 `<a href={location_url} target="_blank" rel="noopener noreferrer">` 內，並顯示 ↗ 指示符。
+- **`sub_row` 繼承規則**：`annotator.py` 的 `sub_row` 不自動繼承父事件欄位。新增 `location_url` 後，若父事件有 venue URL，`sub_row` 需明確設定 `"location_url": event.get("location_url")`。
+- **Seed 順序**：含 `location_url` 的 Python client seed 必須在 Supabase Dashboard 執行 migration `031` 後才能執行；否則報 `PGRST204`。
+
 
 ## cinema scrapers — official_url extraction
 - Cinema detail pages often have an "オフィシャルサイトはこちら" or "公式サイト" anchor linking to the film's external promotional site. Extract this as `official_url`.
