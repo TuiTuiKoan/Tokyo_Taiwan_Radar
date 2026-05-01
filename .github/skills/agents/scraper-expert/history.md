@@ -3,6 +3,15 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — auto_qa anomaly detection writes into event_reports queue (commit `2ae731b`)
+
+**Feature:** `scraper/auto_qa.py` scans `is_active` events from the past 14 days and inserts pending rows into `event_reports` for two anomaly types: `auto_qa_simplified_zh` (simplified chars in any `*_zh` field) and `auto_qa_missing_address` (has `location_name` but empty `location_address`; skips online/TV/zoom/youtube + `gguide_tv` source). Dedups against existing pending `auto_qa_*` rows per `event_id`. Inserts in chunks of 100. Runs 3×/day in `merger.yml` after `--fix-reviewed`. Production dry-run found 2 real findings (永旺夢乐城太田 simplified `乐`; 一石三鳥グループ missing address).
+
+**Lesson 1 — `SIMP_RE` / `_LOC_ZH_SIMP_TO_TRAD` char addition rule:** Only add a char when its Trad/JP form is **a different glyph**. Counter-example: `亮` is identical in Trad and Simp (`照亮` is valid Traditional) — including it produced a false positive in production dry-run. Verify each candidate via CC-CEDICT or kanji.jitenon.jp before adding.
+
+**Lesson 2 — auto-QA via shared `event_reports` queue:** New automated content-quality checks should write findings into `event_reports` with an `auto_*` prefix in `report_types[]` rather than building a separate admin queue. Admin checks one URL; the existing confirm/dismiss flow handles auto-detected and user-submitted findings the same way; `report_types text[]` supports multiple anomaly types per row.
+
+---
 ## 2026-05-01 — 8 scrapers not registered in research_sources (silent CI gap)
 
 **Error:** Architect review discovered 8 active scrapers were present in `main.py SCRAPERS` but had no corresponding row in `research_sources`. The gap was silent — no warning, no CI failure — so it accumulated undetected.

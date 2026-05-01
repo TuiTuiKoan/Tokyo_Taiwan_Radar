@@ -3,6 +3,22 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — auto_qa anomaly detection + weekly report links (commit `2ae731b`)
+
+**Feature:** New `scraper/auto_qa.py` scans `is_active` events from past 14 days for two anomaly types — `auto_qa_simplified_zh` (simplified Chinese chars in any `*_zh` field) and `auto_qa_missing_address` (has `location_name` but empty `location_address`, with online/TV/`gguide_tv` skipped). Findings are inserted into `event_reports` as pending rows so admins review them at `/admin/reports` (same UI as user-submitted reports). `merger.yml` runs auto_qa 3×/day after `--fix-reviewed`. `weekly_report.py` queries `event_reports` for past 7 days of `auto_qa_*` rows and appends a 🔍 自動 QA 偵測 section to the LINE message with a clickable admin link, only when total > 0. `weekly-report.yml` gained `NEXT_PUBLIC_SITE_URL` env.
+
+**Lesson 1 — `亮` false positive:** Initial `SIMP_RE` draft included `亮`, but `亮` is identical in Traditional Chinese and Japanese (`照亮` is valid Trad). Production dry-run flagged a real Trad description. **Rule:** Only add a char to `SIMP_RE` (or `annotator._LOC_ZH_SIMP_TO_TRAD`) when the corresponding Trad/JP form is a **different glyph**. Verify via CC-CEDICT or kanji.jitenon.jp before adding.
+
+**Lesson 2 — share the user-report queue:** Auto-detected anomalies and user-submitted reports both flow through `event_reports`. Benefits: (a) admin checks one URL; (b) `report_types text[]` allows multiple anomaly types per row; (c) existing confirm/dismiss flow handles auto-QA unchanged. Reusable pattern: future automated checks (dead links, date sanity) should also write to `event_reports` with their own `auto_*` prefix in `report_types`. Dedup against existing pending rows of the same `auto_*` type per `event_id`.
+
+---
+## 2026-05-01 — discovery-accounts cron expanded Mon-Thu → Mon-Sun (commit `c936920`)
+
+**Change:** `.github/workflows/discovery-accounts.yml` cron schedule expanded from 4 entries (Mon-Thu) to 7 entries (Mon-Sun) at 02:00 UTC / 11:00 JST. Existing `(DAY-1) % 4` modulo logic in shell already handled all 7 days — no Python change. Slot mapping: Mon→0 / Tue→1 / Wed→2 / Thu→3 / Fri→0 / Sat→1 / Sun→2.
+
+**Lesson — modulo wrap on cron-driven slots:** When N weekdays meet M<N slots via `(DAY-1) % M`, days M+1..N silently re-run slots 0..(N-M-1). Acceptable when those slots are idempotent (search + `skip_hint` dedup yields diminishing returns). NOT acceptable for slots that must run on a fixed cadence (e.g. Peatix slot 3 still only fires Thursdays). To break the wrap: (a) override via `DISCOVERY_SLOT` env on extra cron entries, or (b) raise `SLOT_COUNT`.
+
+---
 ## 2026-05-01 — 8 scrapers missing from research_sources (no auto-registration mechanism)
 
 **Error:** Architect audit discovered 8 scrapers in `main.py SCRAPERS` had no corresponding `research_sources` row: `prtimes`, `maruhiro`, `hankyu_umeda`, `daimaru_matsuzakaya`, `google_news_rss`, `nhk_rss`, `mot`, `transit_store`.
@@ -79,7 +95,7 @@
 ---
 ## 2026-05-01 — GITHUB_TOKEN 權限描述不一致（Issues 權限口徑分裂）
 
-**問題：** 同一 repo 內對 fine-grained PAT 權限出現多種寫法（`Issues: read & write`、`Issues: write`），且部分文件未明確寫出 `Metadata: read`，導致配置判讀混亂。
+**問題：** 同一 repo 內對 fine-grained PAT 權限出現多種寫法（非標準 `&` 合併寫法、`Issues: write` 兩種混用），且部分文件未明確寫出 `Metadata: read`，導致配置判讀混亂。
 
 **修復：** 將 code + docs + agent 口徑統一為：
 - Fine-grained PAT：`Issues: write + Metadata: read`
@@ -89,7 +105,7 @@
 
 **教訓：**
 1. 安全/權限敘述變更必須「跨層原子更新」（runtime error message + docs + agent 說明）。
-2. 不可讓 `Issues: read & write` 與 `Issues: write + Metadata: read` 長期並存。
+2. 不可讓非標準的 `&` 分隔權限寫法與 `Issues: write + Metadata: read` 長期並存。
 3. public repo 文件中的權限例子必須可直接採用最小權限原則，避免誤導開過寬權限。
 
 ---

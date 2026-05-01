@@ -58,6 +58,12 @@ Read this at the start of every session before writing any scraper.
 - Empty strings from GPT (`""`) must be treated as `None` — use `_str()` helper that returns `None` for falsy/blank strings. Prevents empty `name_zh`/`name_en` from blocking the `||` fallback chain in `getEventName`.
 - Location fields must be stripped of leading label separators — use `_loc()` helper that calls `.lstrip("：；:; \u3000")`. GPT often includes the `会場：` or `場所：` separator as the first character of `location_name`.
 - Apply `_loc()` to both `location_name` and `location_address`.
+- **`SIMP_RE` / `_LOC_ZH_SIMP_TO_TRAD` char addition rule (2026-05-01):** Only add a char when its Traditional Chinese / Japanese form is a **different glyph**. Verify each candidate via CC-CEDICT or kanji.jitenon.jp before adding. Counter-example: `亮` is identical in Trad/Simp (`照亮` is valid Traditional) — produced a false positive in `auto_qa.py` dry-run. See `history.md` 2026-05-01.
+
+## Auto-QA findings → `event_reports` queue
+- New automated content-quality checks (e.g. `scraper/auto_qa.py`) must write findings into `event_reports` with an `auto_*` prefix in `report_types[]` rather than building a separate admin queue. Both auto-detected and user-submitted reports flow through `/admin/reports` unchanged.
+- Dedup against existing pending rows of the same `auto_*` type per `event_id` before insert; also dedup within a single run.
+- Current types: `auto_qa_simplified_zh`, `auto_qa_missing_address`. Future automated checks (dead links, date sanity) should follow the same `auto_*` prefix convention. See `history.md` 2026-05-01.
 - Events with existing `""` in name/description fields need manual DB reset (`null` + `annotation_status = 'pending'`) then re-run `annotator.py`. The `_str()` helper only prevents future empty strings.
 
 ## Admin form (web) — nullable fields

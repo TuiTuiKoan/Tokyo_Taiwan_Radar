@@ -162,7 +162,7 @@ When documenting or running source status updates with `python scraper/update_so
 * Fine-grained PAT: `Issues: write + Metadata: read`
 * Classic token: `repo` scope
 
-Do not use mixed expressions like `Issues: read & write` in profiles, summaries, or agent guidance.
+Do not use non-standard expressions (such as `&`-separated permissions) in profiles, summaries, or agent guidance.
 
 ## Token Checklist Source of Truth
 

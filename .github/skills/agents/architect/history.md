@@ -29,7 +29,7 @@
 ## 2026-05-01 — GITHUB_TOKEN 權限口徑分裂 + 清單多點維護造成漂移
 
 **問題背景：** 最近一輪 token 整理前，repo 內同一件事出現多種寫法：
-- `Issues: read & write`
+- 非標準的 `&` 分隔權限寫法（已廢止）
 - `Issues: write`
 - 是否需要 `Metadata: read` 未一致
 

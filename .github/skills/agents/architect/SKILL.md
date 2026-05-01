@@ -236,7 +236,7 @@ In the Verification section of any plan involving both CI (GitHub Actions) and w
   2. Operational docs (`docs/GITHUB_TOKEN_SYNC_CHECKLIST.md`, `.github/instructions/token-rotation.instructions.md`)
   3. Agent workflow docs (`.github/agents/researcher.agent.md`)
   4. Lifecycle summary (`.github/SECRETS_LIFECYCLE.md`)
-- Do not allow mixed wording like `Issues: read & write` and `Issues: write` to coexist.
+- Do not allow non-standard permission wording (e.g. combining read+write with an `&`) to coexist with the canonical `Issues: write + Metadata: read`.
 
 ## Secrets Documentation Single Source Rule
 

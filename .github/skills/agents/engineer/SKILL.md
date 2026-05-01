@@ -251,7 +251,7 @@ In the same change set, sync all related layers:
 4. Agent usage docs in `.github/agents/researcher.agent.md`
 5. Lifecycle summary in `.github/SECRETS_LIFECYCLE.md`
 
-Never leave mixed wording like `Issues: read & write` in any tracked file.
+Never leave non-standard Issues permission wording (e.g. the `&`-separated form) in any tracked file.
 
 ## Secrets Checklist Ownership
 
@@ -442,6 +442,9 @@ Every route slug must appear the **same number of times** (= total number of adm
   3. **Insert a row in `research_sources`** with `status='implemented'`, `scraper_source_name=<key>`, and a valid `url`. Skipping this causes `researcher.py` to re-report the source as a new candidate and triggers a `⚠️ WARNING` in CI logs every day.
   4. Validate: `python main.py --dry-run --source <key>` returns events cleanly
 - `_warn_unregistered_scrapers()` in `main.py` runs on every non-dry-run and emits a WARNING for any scraper key missing from `research_sources`. Check CI logs if you see `⚠️ scraper(s) NOT registered`.
+- **Auto-QA via `event_reports` queue (2026-05-01):** New automated content-quality checks must write findings into `event_reports` with an `auto_*` prefix in `report_types[]` (e.g. `auto_qa_simplified_zh`, `auto_qa_missing_address`). Do NOT build a separate admin queue — the existing `/admin/reports` confirm/dismiss flow handles auto-findings unchanged. Always dedup against existing pending rows of the same `auto_*` type per `event_id` before insert; also dedup within a single run via in-memory set. See `scraper/auto_qa.py` and engineer `history.md` 2026-05-01.
+- **`SIMP_RE` / `annotator._LOC_ZH_SIMP_TO_TRAD` char addition rule (2026-05-01):** Only add a char when its Traditional Chinese / Japanese form is **a different glyph**. Verify each candidate via CC-CEDICT or kanji.jitenon.jp **before** adding. Counter-example: `亮` is identical in Trad/Simp (`照亮` is valid Trad) and triggered a false positive in production. See scraper-expert `history.md` 2026-05-01.
+- **Cron-driven slot rotation modulo wrap (2026-05-01):** When N weekdays drive a `(DAY-1) % M` slot selector with `M < N`, days M+1..N silently re-run slots 0..(N-M-1). Acceptable when slots are idempotent (search + `skip_hint` dedup); NOT acceptable for slots requiring fixed cadence (e.g. Peatix slot 3 only on Thursdays). Override via `DISCOVERY_SLOT` env on extra cron entries, or raise `SLOT_COUNT`. See `discovery-accounts.yml` and engineer `history.md` 2026-05-01.
 
 ## Discovery Accounts Pipeline (`discovery_accounts.py`)
 
