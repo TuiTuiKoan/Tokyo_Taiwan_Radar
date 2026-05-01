@@ -2,14 +2,21 @@ name: Daily Account Discovery
 
 on:
   schedule:
-    # Slot 0 — Mon 11:00 JST (02:00 UTC): note.com community/exchange events
+    # Mon-Sun 11:00 JST (02:00 UTC) — slot derived from (weekday-1) % 4
+    # Mon → slot 0 (note.com community/exchange events)
     - cron: "0 2 * * 1"
-    # Slot 1 — Tue 11:00 JST (02:00 UTC): note.com culture & arts
+    # Tue → slot 1 (note.com culture & arts)
     - cron: "0 2 * * 2"
-    # Slot 2 — Wed 11:00 JST (02:00 UTC): note.com food & lifestyle
+    # Wed → slot 2 (note.com food & lifestyle)
     - cron: "0 2 * * 3"
-    # Slot 3 — Thu 11:00 JST (02:00 UTC): Peatix organizer groups
+    # Thu → slot 3 (Peatix organizer groups)
     - cron: "0 2 * * 4"
+    # Fri → slot 0 (note.com community, repeat — skip_hint dedups known accounts)
+    - cron: "0 2 * * 5"
+    # Sat → slot 1 (note.com culture, repeat)
+    - cron: "0 2 * * 6"
+    # Sun → slot 2 (note.com food, repeat)
+    - cron: "0 2 * * 0"
   workflow_dispatch:
     inputs:
       slot:
@@ -41,7 +48,8 @@ jobs:
           if [ -n "${{ github.event.inputs.slot }}" ]; then
             echo "DISCOVERY_SLOT=${{ github.event.inputs.slot }}" >> $GITHUB_ENV
           else
-            # Derive from weekday: Mon(1)=0, Tue(2)=1, Wed(3)=2, Thu(4)=3
+            # Derive from weekday (Mon=1..Sun=7): (DAY-1) % 4
+            # Mon→0, Tue→1, Wed→2, Thu→3, Fri→0, Sat→1, Sun→2
             DAY=$(date -u +%u)
             SLOT=$(( (DAY - 1) % 4 ))
             echo "DISCOVERY_SLOT=$SLOT" >> $GITHUB_ENV
