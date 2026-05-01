@@ -42,6 +42,14 @@ ms.date: 2026-05-01
 
 ---
 
+## Secrets 文件入口
+
+* [GITHUB_TOKEN 快速參考清單](GITHUB_TOKEN_SYNC_CHECKLIST.md)
+* [GITHUB_TOKEN 完整輪替指南](../.github/instructions/token-rotation.instructions.md)
+* [Secrets 生命週期與審計路線圖](../.github/SECRETS_LIFECYCLE.md)
+
+---
+
 ## 爬蟲層（`scraper/`）
 
 ### 核心檔案
