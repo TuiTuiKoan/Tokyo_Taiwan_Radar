@@ -436,8 +436,12 @@ Every route slug must appear the **same number of times** (= total number of adm
 - `raw_title` and `raw_description` store original scraped text. **Never overwrite** them with translated or processed content.
 - Date rules: follow the 4-tier cascade in `.github/skills/date-extraction/SKILL.md`. Tier 4 (publish date fallback) fires only when tiers 1–3 all fail.
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` whenever `start_date` is known.
-- Register every new scraper in `scraper/main.py` → `SCRAPERS` list.
-- Validate with `python main.py --dry-run --source <name>` before committing.
+- **New scraper checklist — all 4 steps required:**
+  1. Create `scraper/sources/<name>.py` extending `BaseScraper`
+  2. Register in `scraper/main.py` → `SCRAPERS` (import + add instance)
+  3. **Insert a row in `research_sources`** with `status='implemented'`, `scraper_source_name=<key>`, and a valid `url`. Skipping this causes `researcher.py` to re-report the source as a new candidate and triggers a `⚠️ WARNING` in CI logs every day.
+  4. Validate: `python main.py --dry-run --source <key>` returns events cleanly
+- `_warn_unregistered_scrapers()` in `main.py` runs on every non-dry-run and emits a WARNING for any scraper key missing from `research_sources`. Check CI logs if you see `⚠️ scraper(s) NOT registered`.
 
 ## Discovery Accounts Pipeline (`discovery_accounts.py`)
 

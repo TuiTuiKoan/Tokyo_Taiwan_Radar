@@ -93,6 +93,7 @@ from sources.google_news_rss import GoogleNewsRssScraper
 from sources.nhk_rss import NhkRssScraper
 from sources.gguide_tv import GguideTvScraper
 from sources.mot import MotScraper
+from sources.transit_store import TransitStoreScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -169,6 +170,7 @@ SCRAPERS = [
     NhkRssScraper(),
     GguideTvScraper(),
     MotScraper(),
+    TransitStoreScraper(),
 ]
 
 
@@ -189,6 +191,36 @@ def _json_default(obj):
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 
+def _warn_unregistered_scrapers() -> None:
+    """Log a WARNING for every scraper in SCRAPERS that is not registered in research_sources.
+
+    This guard runs on every non-dry-run execution so CI logs immediately expose any new scraper
+    that was added to SCRAPERS without a matching research_sources row.
+
+    Rule: whenever a scraper is added to SCRAPERS, add a corresponding row to research_sources
+    with status='implemented' and scraper_source_name=<key>. See scraper-expert SKILL.md.
+    """
+    scraper_keys = {_scraper_key(s) for s in SCRAPERS}
+    try:
+        client = _get_client()
+        resp = client.table("research_sources").select("scraper_source_name").not_.is_(
+            "scraper_source_name", "null"
+        ).execute()
+        registered = {row["scraper_source_name"] for row in (resp.data or [])}
+        missing = scraper_keys - registered
+        if missing:
+            logger.warning(
+                "⚠️  %d scraper(s) in SCRAPERS are NOT registered in research_sources "
+                "(add rows with status='implemented' and scraper_source_name): %s",
+                len(missing),
+                sorted(missing),
+            )
+        else:
+            logger.debug("research_sources sync OK — all %d scrapers registered", len(scraper_keys))
+    except Exception as exc:
+        logger.debug("research_sources sync check skipped: %s", exc)
+
+
 def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str] | None = None) -> None:
     active_scrapers = SCRAPERS
 
@@ -202,6 +234,12 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
     all_events = []
     rescrape_force_keys: set[tuple[str, str]] = set()
     all_new_event_ids: list[str] = []  # UUIDs of newly-inserted events (for IndexNow)
+
+    # Check that all active scrapers are registered in research_sources.
+    # Runs on every non-dry-run so CI logs expose gaps immediately.
+    if not dry_run:
+        _warn_unregistered_scrapers()
+
     if rescrape_ids:
         # Build (source_name, source_id) tuples from CLI-supplied source_ids.
         # Each ID is the full source_id value (e.g. "peatix_8134728").

@@ -3,6 +3,20 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — 8 scrapers missing from research_sources (no auto-registration mechanism)
+
+**Error:** Architect audit discovered 8 scrapers in `main.py SCRAPERS` had no corresponding `research_sources` row: `prtimes`, `maruhiro`, `hankyu_umeda`, `daimaru_matsuzakaya`, `google_news_rss`, `nhk_rss`, `mot`, `transit_store`.
+
+**Root cause:** The "new scraper checklist" listed only 3 steps (create → SCRAPERS → dry-run). Registering in `research_sources` was never documented. The `researcher.py` `known_urls` filter depends on this table to avoid re-surfacing already-implemented sources.
+
+**Fix:**
+- Manually inserted all 8 missing rows into `research_sources`.
+- Added `_warn_unregistered_scrapers()` to `main.py` (non-dry-run guard): compares SCRAPERS keys against `research_sources.scraper_source_name`, emits `⚠️ WARNING` for any gap. Runs every CI cycle.
+- Updated `Scraper Implementation` section in `SKILL.md` to make step 3 ("register in research_sources") explicit.
+
+**Lesson:** "Register in research_sources" is step 3 of the new scraper checklist — as mandatory as registering in SCRAPERS. Any omission now produces a visible CI WARNING within 24 hours.
+
+---
 ## 2026-05-01 — healthcare 新分類加入 group_lifestyle（commit `bd89c57`）
 
 **變更：** 新增 `healthcare`（健康・醫療 / Health & Wellness / ヘルスケア）分類至 `group_lifestyle`。

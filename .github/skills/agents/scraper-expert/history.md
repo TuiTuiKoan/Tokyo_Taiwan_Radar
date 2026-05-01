@@ -3,6 +3,22 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — 8 scrapers not registered in research_sources (silent CI gap)
+
+**Error:** Architect review discovered 8 active scrapers were present in `main.py SCRAPERS` but had no corresponding row in `research_sources`. The gap was silent — no warning, no CI failure — so it accumulated undetected.
+
+**Affected scrapers:** `prtimes`, `maruhiro`, `hankyu_umeda`, `daimaru_matsuzakaya`, `google_news_rss`, `nhk_rss`, `mot`, `transit_store`
+
+**Root cause:** The "add new scraper" workflow had only 3 steps (create file → register in SCRAPERS → dry-run). Step 4 ("register in research_sources") did not exist in any checklist. The `research_sources` table is used by `researcher.py` to skip already-known sources, so unregistered scrapers caused the researcher to re-report them as new candidates.
+
+**Fix:**
+- Manually inserted all 8 missing rows into `research_sources` with `status='implemented'` and `scraper_source_name` set.
+- Added `_warn_unregistered_scrapers()` to `main.py`: on every non-dry-run, it compares `SCRAPERS` keys against `research_sources.scraper_source_name`. Any gap emits a `⚠️ WARNING` in CI logs — immediately visible on next daily run.
+- Added step 3 ("Register in research_sources") to the **New scraper checklist** in this SKILL.md.
+
+**Lesson:** Whenever you add a scraper to `SCRAPERS`, you MUST also insert a row in `research_sources` with `status='implemented'` and `scraper_source_name=<key>`. Without this, `researcher.py` will keep re-discovering and re-reporting the same source. The CI warning added to `main.py` makes any future omission visible within 24 hours.
+
+---
 ## 2026-04-29 — eurospace / tokyoartbeat: category="string" instead of category=["string"]
 
 **Error:** `malformed array literal: "movie"` (PostgreSQL code 22P02) on upsert.

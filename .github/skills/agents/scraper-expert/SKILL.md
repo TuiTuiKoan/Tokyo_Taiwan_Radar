@@ -15,6 +15,11 @@ Read this at the start of every session before writing any scraper.
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` when the event date is found in the page body.
 - **Never restrict geographic scope**: The project covers all of Japan（全日本）. Regional keyword filters (e.g. `_TOKYO_KANTO_KEYWORDS`) must never be added to any scraper.
 - **After fixing a filter bug**: Run `python main.py --source <name>` (non-dry-run) immediately after the fix. A dry-run confirms the fix works but does NOT write to DB — the data gap remains until the next CI cycle.
+- **New scraper checklist** — every new scraper MUST complete all 4 steps, in order:
+  1. Create `scraper/sources/<name>.py` extending `BaseScraper`
+  2. Register in `scraper/main.py` → `SCRAPERS` list (import + add instance)
+  3. **Register in `research_sources`** — insert a row with `status='implemented'`, `scraper_source_name=<key>`, and a valid `url`. Omitting this causes CI to emit `⚠️ scraper(s) NOT registered` warnings every day until fixed.
+  4. Verify: `python main.py --dry-run --source <key>` returns events cleanly
 
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
