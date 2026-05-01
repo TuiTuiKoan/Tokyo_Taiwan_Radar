@@ -2,6 +2,18 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-01 — 批次依 end_date 誤關 342 筆事件（is_active 語意誤用）
+
+**問題：** 在 terminal 執行臨時批次腳本，將所有 `end_date < today AND is_active = True` 的事件設為 `is_active = False`。首頁大量歷史事件瞬間消失，用戶立即察覺，需緊急復原。
+
+**根本原因：** `is_active` 表示「管理員是否主動隱藏」，與活動是否過期無關。過期事件應保持 `is_active = True`，由前端 `FilterBar` 的「顯示已結束活動」選項控制能見度。
+
+**修正：** 反向 patch — 將所有 `end_date < today AND is_active = False` 的事件復原為 `is_active = True`，共復原 342 筆。
+
+**教訓：** `is_active` 的合法寫入來源只有兩個：① 管理員在 admin 頁面手動關閉；② `merger.py` 合併重複事件。任何其他批次 UPDATE 都是錯誤。→ [Added to SKILL.md: DB Operations Safety Rules]
+
+---
+
 ## 2026-05-01 — 映画 COMING SOON 期間的 start_date 錯誤（ナギ日記）
 
 **問題：** 映画《ナギ日記》在 starsands.com 尚未公布正式上映日時，爬蟲在 4 月初抓到 `start_date = 2026-05-01`（應為 `2026-09-25`）。

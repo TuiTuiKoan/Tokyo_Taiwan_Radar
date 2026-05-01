@@ -3,6 +3,19 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — 批次 `is_active = False`（依 end_date）誤關 342 筆事件
+
+**背景：** 在 terminal 執行臨時批次腳本，將所有 `end_date < today AND is_active = True` 的事件全部設為 `is_active = False`。首頁大量事件消失，用戶立即察覺。緊急補救：執行反向 patch，將所有 `end_date < today AND is_active = False` 的事件復原為 `is_active = True`，共影響 342 筆。
+
+**根本原因：** 對 `is_active` 欄位語意理解錯誤。`is_active` 代表「管理員是否主動隱藏」，**不代表「活動是否已過期」**。過期事件（`end_date < today`）依然需要保留在網站上供使用者查閱；前端 `FilterBar` 的「顯示已結束活動」選項負責控制能見度。
+
+**修正：** 執行 DB patch 復原所有被誤關的事件。`is_active` 只有兩個合法寫入來源：
+1. 管理員在 admin 頁面手動關閉特定事件
+2. `merger.py` 合併重複事件時停用次要事件
+
+**教訓：** 永遠不可依 `end_date < today` 批次設定 `is_active = False`。任何涉及 `is_active` 的批次 UPDATE，必須先確認符合上述兩個合法來源之一。
+
+---
 ## 2026-05-01 — gguide_tv channel name 改版：UI 判斷應依賴 `source_name` 而非 `location_name`（commits `19427e3`、`c017462`）
 
 **背景：** 原 TV番組地址欄特判以 `event.location_name === "電視頻道"` 作條件。後來 `location_name` 改為存放實際頻道名稱（如「歌謡ポップス」），UI 邏輯因依賴可變內容欄位而失效，需同步修正。

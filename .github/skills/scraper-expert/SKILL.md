@@ -450,6 +450,17 @@ Run after discovering a new cross-source duplicate that the merger missed. Then 
   return any(kw in cleaned for kw in _TAIWAN_KEYWORDS)
   ```
 
+## DB Operations Safety Rules
+
+These rules apply to any manual or scripted DB operation. Violating them has caused production incidents.
+
+- **NEVER batch-set `is_active = False` based on `end_date < today`**. Ended events must remain `is_active = True` — users browse event history, and the frontend `FilterBar` ("顯示已結束活動" toggle) controls their visibility. `is_active` reflects **admin intent to hide**, NOT event expiry status.
+- **`is_active` has exactly two legitimate write sources**:
+  1. Admin manually disables a specific event via the admin page.
+  2. `merger.py` deactivates a duplicate secondary event.
+  Any other bulk UPDATE setting `is_active = False` is an error. Verify against these two sources before executing.
+- **Reference incident**: 2026-05-01 — batch script set `end_date < today AND is_active = True → is_active = False`, deactivating 342 events. Immediate emergency revert required.
+
 ## Mandatory Post-Change Checklist
 
 **Every time a scraper is modified or a new scraper is added, you MUST complete ALL of the following before returning. No exceptions.**

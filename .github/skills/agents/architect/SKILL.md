@@ -14,7 +14,16 @@ Read this at the start of every session before producing any plan.
 - Never ship a plan with an untested API or signature change. Include an explicit smoke-test step.
 - Confirm that all pending migrations are applied before designing features that build on them.
 
+## Database Safety Rules
+
+- **NEVER batch-set `is_active = False` based on `end_date < today`**. Past events must remain `is_active = True` so users can view event history. Visibility for ended events is controlled by the frontend `FilterBar` ("顯示已結束活動" toggle), not by `is_active`.
+- **`is_active` has exactly two legitimate write sources**:
+  1. Admin manually disables a specific event via the admin page.
+  2. `merger.py` deactivates a duplicate secondary event during merge.
+- Any bulk UPDATE touching `is_active` must be verified against these two sources before execution. If it does not match either, abort.
+
 ## Scope
+
 - State explicitly what is NOT in scope. Ambiguous scope = scope creep = breaking changes.
 - List every affected file path explicitly — vague descriptions ("the scraper files") are not acceptable.
 
