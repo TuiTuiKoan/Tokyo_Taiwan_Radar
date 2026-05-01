@@ -112,8 +112,8 @@ export default async function Image({
     ? (event?.location_name_zh ?? event?.location_name ?? "")
     : (event?.location_name ?? "");
 
-  const truncatedName = name.length > 36 ? name.slice(0, 34) + "…" : name;
-  const fontSize = name.length > 22 ? 54 : 72;
+  const truncatedName = name.length > 55 ? name.slice(0, 53) + "…" : name;
+  const fontSize = name.length > 36 ? 40 : name.length > 22 ? 54 : 72;
 
   // --- Load bold CJK font subset for the actual text ---
   const textToLoad = truncatedName + (dateStr ?? "") + (location ?? "") + "Tokyo Taiwan Radar";
