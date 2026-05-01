@@ -438,7 +438,15 @@ class TaiwanCulturalCenterScraper(BaseScraper):
         # Site does not expose a dedicated location field; default to the center.
         # Verified address: jp.taiwan.culture.tw/cp.aspx?n=362 (2026-04-26)
         location_name = "台北駐日経済文化代表処 台湾文化センター"
-        location_address = "東京都港区虎ノ門1-1-12 虎ノ門ビル2階"
+        location_address: str | None = "東京都港区虎ノ門1-1-12 虎ノ門ビル2階"
+
+        # If the description mentions multiple cities, this is a multi-city tour —
+        # clear the single Tokyo address and flag as national tour.
+        _MULTI_CITY_REGIONS = ["北海道", "大阪", "京都", "神奈川", "福岡", "名古屋", "仙台"]
+        _desc_check = (description_ja or "") + (name_ja or "")
+        if sum(1 for r in _MULTI_CITY_REGIONS if r in _desc_check) >= 2:
+            location_name = "台湾文化センター（全国巡回）"
+            location_address = None
 
         # --- Price ---
         # Extract from description text if available
