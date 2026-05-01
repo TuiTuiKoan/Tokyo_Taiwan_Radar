@@ -99,6 +99,7 @@ CRITICAL DATE EXTRACTION RULES:
 
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
+   ALSO: if the description lists 3+ distinct venue locations in **different cities/prefectures** each with a specific address (e.g., a food fair with restaurants across Tokyo, Kyoto, and Osaka), list each venue as a sub-event with its own location_name, location_address, and business_hours; use the same start_date/end_date as the parent.
 2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, taiwan_japan, business, academic, competition, indigenous, history, urban, workshop, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
    - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
@@ -291,7 +292,7 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     return cats
 
 
-def annotate_pending_events(re_annotate_all: bool = False, fix_translations: bool = False, fix_reviewed: bool = False) -> None:
+def annotate_pending_events(re_annotate_all: bool = False, fix_translations: bool = False, fix_reviewed: bool = False, event_id: str | None = None) -> None:
     """Fetch pending events from DB, annotate with AI, and update."""
     sb = _get_supabase()
     ai = _get_openai()
@@ -319,7 +320,16 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     # Always exclude 'reviewed' events — they are human-confirmed and must not be
     # overwritten by AI even when --all is used.
     # Exception: --fix-reviewed specifically targets reviewed events missing translations.
-    if fix_reviewed:
+    if event_id:
+        # --id: process a single specific event regardless of its annotation_status.
+        # Never process reviewed events — they are human-confirmed.
+        query = (
+            sb.table("events")
+            .select("*")
+            .eq("id", event_id)
+            .neq("annotation_status", "reviewed")
+        )
+    elif fix_reviewed:
         # --fix-reviewed: fill translation fields for reviewed events that have name_zh or name_en missing.
         # Does NOT touch category or status — reviewed status is preserved.
         query = (
@@ -703,7 +713,8 @@ if __name__ == "__main__":
     fix_tr = "--fix-translations" in sys.argv
     fix_rev = "--fix-reviewed" in sys.argv
     enrich_movies = "--enrich-movie-titles" in sys.argv
+    event_id_arg = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--id"), None)
     if enrich_movies:
         enrich_movie_titles()
     else:
-        annotate_pending_events(re_annotate_all=re_all, fix_translations=fix_tr, fix_reviewed=fix_rev)
+        annotate_pending_events(re_annotate_all=re_all, fix_translations=fix_tr, fix_reviewed=fix_rev, event_id=event_id_arg)

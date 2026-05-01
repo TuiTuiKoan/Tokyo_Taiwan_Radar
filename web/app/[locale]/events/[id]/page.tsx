@@ -18,6 +18,18 @@ interface PageProps {
 
 const LOCALES = ["zh", "en", "ja"] as const;
 
+/** Extract prefecture name (都道府県) from a Japanese address string. */
+function extractPrefecture(address: string | null): string | null {
+  if (!address) return null;
+  const m = address.match(/^(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県]{2,4}[都道府県])/);
+  if (!m) return null;
+  const full = m[1];
+  if (full === "北海道") return "北海道";
+  if (full === "大阪市" || full === "大阪府") return "大阪";
+  if (full === "京都市" || full === "京都府") return "京都";
+  return full.replace(/[都道府県]$/, "");
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { locale, id } = await params;
   const supabase = createSupabaseClient(
@@ -94,7 +106,7 @@ export default async function EventDetailPage({ params }: PageProps) {
   // Fetch sub-events (children of this event)
   const { data: subEvents } = await supabase
     .from("events")
-    .select("id, name_ja, name_zh, name_en, start_date, end_date, category")
+    .select("id, name_ja, name_zh, name_en, start_date, end_date, category, location_address")
     .eq("parent_event_id", id)
     .eq("is_active", true)
     .order("start_date", { ascending: true });
@@ -117,6 +129,18 @@ export default async function EventDetailPage({ params }: PageProps) {
   const businessHours = getEventBusinessHours(event as Event, locale);
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
+
+  // Aggregate unique prefecture names from sub-events (only for parent events with 2+ prefectures)
+  const subEventPrefectures: string[] =
+    !event.parent_event_id && subEvents && subEvents.length > 0
+      ? [
+          ...new Set(
+            subEvents
+              .map((s: { location_address: string | null }) => extractPrefecture(s.location_address))
+              .filter((p): p is string => p !== null)
+          ),
+        ]
+      : [];
 
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const BREADCRUMB_LABELS: Record<string, string> = {
@@ -219,7 +243,12 @@ export default async function EventDetailPage({ params }: PageProps) {
       a: faqL.whenA(event.start_date, event.end_date ?? null),
     });
   }
-  if (locationName) {
+  if (subEventPrefectures.length > 1) {
+    faqQuestions.push({
+      q: faqL.where,
+      a: faqL.whereA(subEventPrefectures.join("・"), null),
+    });
+  } else if (locationName) {
     faqQuestions.push({
       q: faqL.where,
       a: faqL.whereA(locationName, locationAddress ?? null),
@@ -337,27 +366,31 @@ export default async function EventDetailPage({ params }: PageProps) {
             <tr>
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("location")}</td>
               <td className="px-4 py-3">
-                {locationName
-                  ? event.location_url
-                    ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{locationName} ↗</a>
-                    : locationName
-                  : "—"}
+                {subEventPrefectures.length > 1
+                  ? subEventPrefectures.join("・")
+                  : locationName
+                    ? event.location_url
+                      ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{locationName} ↗</a>
+                      : locationName
+                    : "—"}
               </td>
             </tr>
             {/* Address */}
             <tr>
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("address")}</td>
               <td className="px-4 py-3">
-                {(locationAddress || locationName) ? (
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationAddress || locationName || "")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {locationAddress || locationName} ↗
-                  </a>
-                ) : "—"}
+                {subEventPrefectures.length > 1
+                  ? "—"
+                  : (locationAddress || locationName) ? (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationAddress || locationName || "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {locationAddress || locationName} ↗
+                    </a>
+                  ) : "—"}
               </td>
             </tr>
             {/* Business hours */}
