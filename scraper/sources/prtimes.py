@@ -113,6 +113,14 @@ _TAIWAN_BASED_TITLE_RE = re.compile(
     r"台湾(?:出展|輸出|進出|販路|海外展示|海外販売)"          # business/export context
 )
 
+# Multi-city event section pattern — e.g. "東京｜2026年5月2日" / "大阪｜5月9日"
+# When detected, raw_description is extended to include the event schedule section
+# so the Annotator can generate sub_events for each city.
+_MULTI_CITY_SECTION_RE = re.compile(
+    r"(?:東京|大阪|京都|名古屋|福岡|札幌|仙台|横浜|神戸|広島)[｜|].*?\d{1,2}月\d{1,2}日",
+    re.MULTILINE,
+)
+
 # City/venue keywords that indicate the event is in Taiwan
 _TAIWAN_VENUE_RE = re.compile(
     r"台北|台中|高雄|新竹|花蓮|嘉義|台南|桃園|基隆|宜蘭|屏東|"
@@ -228,7 +236,20 @@ def _fetch_detail(url: str, session: requests.Session) -> tuple[str, str]:
             return "", ""
 
         text = body_el.get_text(separator="\n", strip=True)
-        return text, text[:3000]
+
+        # If multiple city event sections detected (e.g. "東京｜5/2" + "大阪｜5/9"),
+        # extend raw_description to include the event schedule block so the
+        # Annotator can generate sub_events for each city.
+        mc = _MULTI_CITY_SECTION_RE.search(text)
+        if mc:
+            # Include up to 300 chars before the first city marker (section header)
+            section_start = max(0, mc.start() - 300)
+            event_block = text[section_start:section_start + 4000]
+            raw_desc = text[:2000] + "\n\n---[イベント開催情報]---\n" + event_block
+        else:
+            raw_desc = text[:3000]
+
+        return text, raw_desc[:8000]
     except Exception as exc:
         logger.debug("Detail fetch error for %s: %s", url, exc)
         return "", ""
