@@ -108,8 +108,9 @@ export default async function AdminQualityPage({ params }: PageProps) {
   const missingAddr = missingAddrAll.filter(
     (e) =>
       !e.location_name ||
-      (!e.location_name.includes("\u30AA\u30F3\u30E9\u30A4\u30F3") &&
-       !e.location_name.includes("\u96fb\u8996\u983b\u9053") &&
+      (!e.location_name.includes("\u30AA\u30F3\u30E9\u30A4\u30F3") &&  // オンライン
+       !e.location_name.includes("\u96fb\u8996\u983b\u9053") &&          // 電視頻道
+       !e.location_name.includes("\u30FB") &&                            // ・ (multi-city)
        (e as any).source_name !== "gguide_tv")
   );
 
