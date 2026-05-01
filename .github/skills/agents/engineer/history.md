@@ -3,6 +3,25 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — taiwan_cultural_center 多城市地點名稱改進（commit `0d900b5`）
+
+**問題：** `location_name` 顯示模糊的「台湾文化センター（全国巡回）」，用戶期望看到具體城市列表（如「北海道・東京・神奈川・京都・大阪」）。
+
+**根本原因：** `_MULTI_CITY_REGIONS` 偵測到多城市後，只設置通用「全国巡回」字串，沒有把偵測到的城市名列入 `location_name`。
+
+**修復：**
+1. 改為 `_found_regions = [r for r in _MULTI_CITY_REGIONS if r in _desc_check]`，然後 `"・".join(_found_regions)` 作為 `location_name`。
+2. 新增 `東京` 和 `愛知` 到偵測清單（原本漏掉「東京」導致東京+大阪等場合無法觸發）。
+3. DB 直接 patch event `51f7cd44` → `location_name = '北海道・東京・神奈川・京都・大阪'`。
+
+**教訓：** 多城市偵測邏輯應直接輸出偵測到的城市列表，而非通用字串；`東京` 必須加入偵測清單（因為它出現在大多數多城市活動中）。
+
+---
+**Error**: TaiwanbunkasaiScraper fetch failed — HTTPSConnectionPool Max retries exceeded
+**Fix**: Added HTTPAdapter with Retry(total=3, backoff_factor=2) to requests.Session in taiwanbunkasai.py
+**Lesson**: All scrapers using requests.Session must mount HTTPAdapter with Retry at __init__ to handle transient network failures from GitHub Actions runners.
+
+---
 ## 2026-05-01 — taiwan_cultural_center 多城市巡迴偵測修正（commit `a2d6eea`）
 
 **問題：** `台湾映画上映会2026` 是跨北海道・東京・神奈川・京都・大阪 5 城市的巡迴活動，但 scraper 將 `location_address` hardcode 為東京（台湾文化センター）地址，admin 後台「住所」欄顯示東京地址，造成誤導。

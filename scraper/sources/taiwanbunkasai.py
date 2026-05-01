@@ -19,6 +19,8 @@ from typing import Optional
 
 import requests
 from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .base import BaseScraper, Event
 
@@ -96,6 +98,14 @@ class TaiwanbunkasaiScraper(BaseScraper):
 
     def __init__(self) -> None:
         self._session = requests.Session()
+        _retry = Retry(
+            total=3,
+            backoff_factor=2,
+            status_forcelist=[429, 500, 502, 503, 504],
+            raise_on_status=False,
+        )
+        self._session.mount("https://", HTTPAdapter(max_retries=_retry))
+        self._session.mount("http://", HTTPAdapter(max_retries=_retry))
         self._session.headers.update(
             {
                 "User-Agent": (

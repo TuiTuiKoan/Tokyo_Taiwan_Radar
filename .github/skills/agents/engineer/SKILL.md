@@ -72,6 +72,21 @@ supabase
 ## Python
 - When changing a function's return type (e.g. `dict` → `tuple`), immediately smoke-test before committing: `python -c "from module import fn; print(type(fn(...)))"`
 - Use `getattr(obj, 'attr', default)` when reading an attribute that may not exist on all subclasses.
+- **`requests.Session()` must always mount HTTPAdapter with Retry**: Any scraper using `requests.Session()` must mount a retry adapter in `__init__`. Without it, a single transient network blip from GitHub Actions runners raises `Max retries exceeded` and triggers Sentry. Required pattern:
+  ```python
+  from requests.adapters import HTTPAdapter
+  from urllib3.util.retry import Retry
+
+  _retry = Retry(
+      total=3,
+      backoff_factor=2,
+      status_forcelist=[429, 500, 502, 503, 504],
+      raise_on_status=False,
+  )
+  self._session.mount("https://", HTTPAdapter(max_retries=_retry))
+  self._session.mount("http://", HTTPAdapter(max_retries=_retry))
+  ```
+  Backoff: 2s → 4s → 8s. Apply to both `https://` and `http://` mounts.
 
 ## Next.js / Sentry
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
