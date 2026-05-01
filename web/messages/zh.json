@@ -316,7 +316,16 @@
     "scrapeNowSelected": "立即爬取選取的來源 ({count})",
     "scrapeNowError": "爬取啟動失敗",
     "selectionReasonCorrectionLabel": "選取理由修正",
-    "announcementsTab": "發文管理"
+    "announcementsTab": "發文管理",
+    "statsSlaHeader": "30日成功率",
+    "statsAvgDuration": "平均耗時",
+    "qualityTab": "品質",
+    "qualityTitle": "資料品質檢查",
+    "qualityReviewedMissing": "已審核但缺翻譯",
+    "qualityExpiredActive": "過期但仍為有效",
+    "qualityAnnotatedNoCat": "已標注但無分類",
+    "qualityMissingAddr": "缺地址（非線上活動）",
+    "qualityAllClear": "全部正常 ✅"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",

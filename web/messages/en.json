@@ -316,7 +316,16 @@
     "scrapeNowSelected": "Scrape Selected ({count})",
     "scrapeNowError": "Failed to start scrape",
     "selectionReasonCorrectionLabel": "Selection reason correction",
-    "announcementsTab": "Posts"
+    "announcementsTab": "Posts",
+    "statsSlaHeader": "30d Success",
+    "statsAvgDuration": "Avg Duration",
+    "qualityTab": "Quality",
+    "qualityTitle": "Data Quality Check",
+    "qualityReviewedMissing": "Reviewed but missing translations",
+    "qualityExpiredActive": "Expired but still active",
+    "qualityAnnotatedNoCat": "Annotated but no category",
+    "qualityMissingAddr": "Missing address (non-online)",
+    "qualityAllClear": "All clear ✅"
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",
