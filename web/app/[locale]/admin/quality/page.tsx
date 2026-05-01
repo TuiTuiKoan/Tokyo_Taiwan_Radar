@@ -137,7 +137,7 @@ export default async function AdminQualityPage({ params }: PageProps) {
       <div className="space-y-8">
         {sections.map(({ key, items }) => (
           <div key={key} className="rounded-xl border border-gray-200 bg-white px-5 py-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 mb-3">
               <h3 className="text-sm font-semibold text-gray-700">
                 {t(key)}
               </h3>

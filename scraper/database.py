@@ -291,10 +291,12 @@ def archive_ended_events(dry_run: bool = False) -> int:
     Events with end_date IS NULL are never archived automatically.
     Returns the count of archived events.
     """
-    from datetime import timezone, timedelta
+    from datetime import timezone
 
     client = _get_client()
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT00:00:00+00:00")
+    # Archive events whose end_date is before today 00:00 UTC (no grace period).
+    # Quality page uses the same cutoff (today), so the two stay in sync.
+    cutoff = datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00+00:00")
 
     try:
         result = (
