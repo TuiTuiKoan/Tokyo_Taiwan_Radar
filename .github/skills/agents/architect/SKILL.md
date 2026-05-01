@@ -72,11 +72,13 @@ Architect 預設為 read-only（規劃 + 報告）。但在以下情況會直接
 
 When planning any AEO (AI Engine Optimization) or SEO feature:
 
-- **Static file checklist**: Any `web/public/` file added (e.g. `llms.txt`, IndexNow key `.txt`) must have a corresponding proxy.ts matcher exclusion step in the plan. Without it, i18n middleware 307-redirects the file to a locale path.
+- **Static file checklist**: Any `web/public/` file added (e.g. `llms.txt`, IndexNow key `.txt`, Google verification `.html`) must have a corresponding `proxy.ts` matcher exclusion step in the plan. Without it, next-intl i18n middleware 307-redirects the file to a locale path (e.g. `/zh/google...html`), making it unreachable by external services. Use `google[0-9a-f]+\.html` to cover all Google verification file formats.
 - **FAQPage plan must include visible `<dl>`**: Never plan "add FAQPage JSON-LD" without also planning "add matching visible `<dl>` section on the page". Google requires FAQ content to be visually present.
 - **Migration number pre-check**: Before assigning a migration number, confirm the next available number with `ls supabase/migrations/ | sort | tail -5`. Two migrations with the same number must use `NNN` and `NNNb_` suffix.
 - **i18n namespaces upfront**: When planning new page types (city pages, category pages), explicitly list all new i18n namespace keys needed in all three messages files as a plan step. Silent namespace miss = raw key on page.
 - **IndexNow env vars**: Plans that add IndexNow submission must explicitly list `INDEXNOW_KEY` and `NEXT_PUBLIC_SITE_URL` as required env vars in both GitHub Actions secrets and (if needed) Vercel.
+- **GSC integration must use OAuth2 refresh token**: Google Search Console UI **only accepts regular Google accounts** as users — service account emails return "找不到電子郵件" and cannot be added. Always design GSC API integration with OAuth2 refresh token (`GSC_CLIENT_ID` + `GSC_CLIENT_SECRET` + `GSC_REFRESH_TOKEN`), never service account JWT.
+- **OAuth Playground requires test user setup**: When the OAuth consent screen is in "Testing" mode, the authorizing account must be added as a test user first, otherwise the flow returns 403 `access_denied`. Plans that include OAuth token generation steps must note this prerequisite.
 
 ## Category Union Change Guard
 
@@ -277,4 +279,14 @@ tools: [read, search, execute, web] # Minimal necessary tools
 - 適用時機：每週一 09:00 JST（GitHub Actions cron）。
 - 閾值調整請同步更新這份文件與 `weekly_report.py` 常數。
 
+## Admin Page Consistency
+
+新增任何 `/admin/` 子頁面時，**header 必須使用完整 tab nav** 而非「← 返回管理後台」連結：
+
+1. 從 `getTranslations("admin")` 取得所有 tab 標籤的 i18n 翻譯。
+2. 使用與其他 admin 頁面一致的 Link 列表結構（參考 `web/app/[locale]/admin/aeo/page.tsx` 或 `events/page.tsx`）。
+3. 把新 tab 的 key 同步加入三個 `messages/*.json` 中的 `admin` namespace。
+4. 不可只放「← 返回」連結——這會破壞 admin 導航一致性。
+
+反例：2026-05-01 aeo 頁面原本只有「← 返回管理後台」連結，後來在 commit 5cae991 才補齊完整 tab nav。計劃階段就應強制要求。
 

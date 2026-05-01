@@ -3,6 +3,29 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — SEO/AEO 強化 + GSC OAuth2 + proxy.ts 排除規則 + Admin tab 一致性
+
+**工作內容（commits a9ef1d1 → d2fddcd）：**
+1. sub-events 日期補 `<time dateTime>` 語意標籤（a9ef1d1）
+2. 新增 `web/app/api/admin/gsc/route.ts` + `web/components/GscSection.tsx`（GSC 監控卡片）
+3. GSC API 從 service account JWT 改為 OAuth2 refresh token（c6f8075）
+4. HTML 驗證檔 `web/public/google12eeb8b1a7239866.html` + `proxy.ts` 排除（e698874）
+5. aeo 頁面 header 改為完整 tab nav（5cae991）
+6. `aeoTab` i18n key 改名「SEO-AEO 監控」（d2fddcd）
+
+**根因（GSC service account 問題）：**
+Google Search Console UI **只允許一般 Google 帳號**作為使用者；service account email 提交時報「找不到電子郵件」。原本設計用 service account JWT 的方案無法走通，必須改用 OAuth2 refresh token（`GSC_CLIENT_ID` + `GSC_CLIENT_SECRET` + `GSC_REFRESH_TOKEN`）。
+
+**根因（HTML 驗證檔被 i18n 攔截）：**
+`web/public/` 下的靜態檔案若不在 `proxy.ts` matcher 的排除規則內，會被 next-intl middleware 307 重導向至語言路徑（`/zh/google...html`），導致 Google 無法讀到驗證檔。排除規則 `google[0-9a-f]+\.html` 可涵蓋所有 Google 驗證檔格式。
+
+**教訓：**
+1. **Google Service Account 無法加入 Search Console**：設計 GSC 整合時，預設方案必須是 OAuth2 refresh token，而非 service account。
+2. **OAuth Playground 需先設定測試使用者**：App 處於「測試」模式時，需在 OAuth consent screen 把自己的帳號加入「測試使用者」，否則授權流程 403 `access_denied`。
+3. **所有 `web/public/` 靜態檔案都需要同步更新 `proxy.ts` 排除規則**：這是 AEO Feature Planning Rules 中「Static file checklist」的延伸，必須把它列為每次新增靜態資源的預設檢查步驟。
+4. **Admin 子頁面 header 必須使用完整 tab nav**：不可只放「← 返回」連結；必須使用 `getTranslations("admin")` + Link 列表，與其他 admin 頁面保持一致。
+
+---
 ## 2026-05-01 — Architect 直接編輯後留半成品：停止點契約缺失
 
 **情境：**
