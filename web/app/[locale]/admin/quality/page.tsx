@@ -34,8 +34,10 @@ function renderDetailTable(
             <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
               <td className="py-2 pr-4 max-w-xs truncate">
                 <Link
-                  href={`/${locale}/admin/${item.id}`}
+                  href={`/${locale}/events/${item.id}`}
                   className="text-green-700 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
                   {item.raw_title ?? item.id}
                 </Link>
