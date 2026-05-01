@@ -3,6 +3,27 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — annotator: 多地點子活動規則 + `--id` CLI + `location_prefectures` 自動聚合
+
+**背景：** 台東祭有東京/京都/大阪三城市各自地址，但 annotator prompt 無「多地點建子活動」規則，且無法對單一 event 強制重新標注。
+
+**修正（`scraper/annotator.py`）：**
+- Prompt rule 1 擴充：新增「3+ 個不同城市各自有地址的多地點活動，每個地點建立一個子活動」規則
+- 新增 `--id <uuid>` CLI 選項：可對單一 event 強制重新標注（不限 `annotation_status`，但 `reviewed` 除外）
+- 新增 `_extract_prefecture()` helper：從 `location_address` 提取都道府縣名，regex 涵蓋 北海道/東京都/大阪府・市/京都府・市/其他縣
+- 子活動 loop 結束後自動計算 `location_prefectures`：≥ 2 個不同都道府縣時寫入父事件；單城市不寫入
+
+**`location_prefectures` 欄位（Migration 012）：**
+- DB 欄位：`location_prefectures text[]`（nullable）
+- 由 `annotator.py` 在子活動建立後自動聚合並更新父事件
+- backfill script（`scraper/backfill_location_prefectures.py`）可補填現有多城市母活動
+- 前台/後台篩選加入 `location_prefectures.cs.{"X"}` OR 條件，讓多城市母活動也命中地區篩選
+
+**教訓：**
+- `_extract_prefecture()` regex 需同時覆蓋「府」省略格式：`大阪府`/`大阪市` 和 `京都府`/`京都市` 都必須納入，否則「大阪市中央区...」地址無法提取都道府縣
+- `--id` 選項必須略過 `annotation_status` 檢查（除 reviewed 外），以支援重新標注已 annotated 的事件
+
+---
 ## 2026-05-01 — gguide_tv: `_parse_schedule` 多行格式解析錯誤（business_hours 空白）
 
 **問題：** bangumi.org 的 schedule_str 有兩種格式：

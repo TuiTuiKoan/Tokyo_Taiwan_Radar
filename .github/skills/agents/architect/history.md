@@ -3,6 +3,23 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — 多城市地點顯示與篩選支援（location_prefectures + extractPrefecture）
+
+**問題 A（篩選 false positive）：** `"京都"` 是 `"東京都"` 的子字串（東**京都**），導致所有 `東京都...` 地址都命中 `CHUBU_KINKI_MARKERS` 中的 `"京都"` marker，58 個東京活動誤出現在「中部・近畿・關西」篩選。
+
+**問題 B（多城市顯示）：** 台東祭等多城市母活動無法在事件詳情頁顯示跨都道府縣資訊，地址欄顯示 `—`。
+
+**修正：**
+- `CHUBU_KINKI_MARKERS` 中 `"京都"` → `"京都府"`, `"京都市"`（前後台一致）
+- `web/app/[locale]/events/[id]/page.tsx` 新增 `extractPrefecture()` + `subEventPrefectures` 聚合，多城市時 Location/Address 欄顯示「東京・京都・大阪」
+- Migration 012：新增 `location_prefectures text[]` 欄位；backfill script 補齊 3 個多城市母活動
+- 前台/後台篩選加入 `location_prefectures.cs.{"X"}` OR 條件；annotator 子活動 loop 結束後自動計算並寫入
+
+**教訓：**
+- **城市 marker 必須使用完整前綴**：`"京都"` 是 `"東京都"` 的子字串；任何新 marker 都需驗證是否為其他都道府縣的子字串，使用 `"京都府"`/`"京都市"` 替代 `"京都"`。
+- `extractPrefecture()` regex 初版只處理 `大阪府`/`京都府`，漏掉 `大阪市`/`京都市` 開頭的地址格式；日文地址有省略「府」的情況，regex 需同時覆蓋兩種 pattern。
+
+---
 ## 2026-05-01 — TV番組地址欄顯示規則（`location_name === "電視頻道"`）
 
 **問題：** `web/app/[locale]/events/[id]/page.tsx` 的地址欄對 TV番組顯示 Google Maps 超連結（用 `location_name` = `"電視頻道"` 搜尋），不合語意。

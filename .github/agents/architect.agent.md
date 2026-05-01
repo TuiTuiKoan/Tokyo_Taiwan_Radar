@@ -74,6 +74,26 @@ Before approving any change related to `GITHUB_TOKEN` requirements, verify:
 3. Legacy checklist paths are redirect-only stubs, not duplicated content.
 4. No real token values appear in tracked files; examples must use placeholders.
 
+## Secret Permission Consistency Guard
+
+Before approving any change related to `GITHUB_TOKEN` requirements, verify:
+
+1. Permission wording is consistent across code and docs:
+  - Fine-grained PAT: `Issues: write + Metadata: read`
+  - Classic token: `repo` scope
+2. `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` remains the single checklist source.
+3. Legacy checklist paths are redirect-only stubs, not duplicated content.
+4. No real token values appear in tracked files; examples must use placeholders.
+
+## Location Filter Marker Guard
+
+Before approving any change that adds or modifies region filter markers in `web/app/[locale]/page.tsx` or `web/components/AdminEventTable.tsx`, verify:
+
+1. **No short markers that are substrings of other prefectures**: `"京都"` is a substring of `"東京都"` — all Tokyo addresses (`東京都...`) would falsely match the Kyoto marker. Always use the full prefix: `"京都府"` or `"京都市"` instead of `"京都"`.
+2. **Front-end and admin must be in sync**: `CHUBU_KINKI_MARKERS` (page.tsx) and `CHUBU_KINKI_MARKERS_ADMIN` (AdminEventTable.tsx) must contain identical marker sets.
+3. **Multi-city parent events**: After adding a new region filter, confirm that multi-city parent events with `location_prefectures` array are also covered by adding `location_prefectures.cs.{"<pref>"}` OR conditions alongside the address marker checks.
+4. **Test with Tokyo addresses**: After any marker change, run a quick sanity check — confirm that `東京都新宿区` does NOT match Kyoto/Kansai markers.
+
 ## Required Phases
 
 ### Phase 1: Research

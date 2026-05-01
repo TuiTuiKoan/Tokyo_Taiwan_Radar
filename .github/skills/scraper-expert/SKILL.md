@@ -165,6 +165,23 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
 - **Verification source**: For SSFF, use `shortshorts.org/2026/ja/schedule/` Venue access section. For other venues, search the organizer's official site for the address.
 - **Direct DB fix**: When a wrong address is found, correct it directly via Supabase SDK UPDATE — no code change or commit needed (data-only correction).
 
+## Annotator CLI — `--id` 強制重新標注
+
+- `python annotator.py --id <uuid>`：對單一 event 強制重新標注，**不限** `annotation_status`（但 `reviewed` 事件除外）。
+- 使用場景：台東祭等多城市活動在首次 annotate 時規則不足，需在修正 prompt 後重新執行。
+- 若不加 `--id`，annotator 只處理 `annotation_status = 'pending'` 的事件。
+
+## `location_prefectures` — 多城市母活動都道府縣陣列
+
+- DB 欄位：`location_prefectures text[]`（nullable，migration 012）
+- **何時寫入**：annotator 子活動 loop 結束後，若聚合出 ≥ 2 個不同都道府縣，自動 UPDATE 父事件的 `location_prefectures`；單城市不寫入（維持 null）。
+- **計算方式**：`_extract_prefecture(location_address)` 從每個子活動的 `location_address` 提取都道府縣名，去重後排序。
+- **`_extract_prefecture()` regex 必須覆蓋兩種格式**：
+  - 標準格式：`東京都`、`大阪府`、`京都府`、`北海道`
+  - 市開頭格式：`大阪市`、`京都市`（省略「府」的地址，如「大阪市中央区...」）
+- **Backfill**：現有多城市母活動可用 `scraper/backfill_location_prefectures.py` 補填。
+- **篩選整合**：前台（`web/app/[locale]/page.tsx`）和後台（`web/components/AdminEventTable.tsx`）各地區篩選需加入 `location_prefectures.cs.{"X"}` OR 條件，否則多城市母活動無法命中地區篩選。
+
 ## Annotator NAME WRITING RULES
 
 `annotator.py` system prompt requires the following rules for the `name_ja` / `name_zh` / `name_en` fields:
