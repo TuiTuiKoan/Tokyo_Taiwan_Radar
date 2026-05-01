@@ -127,6 +127,7 @@
     "endDate": "End date",
     "location": "Location",
     "address": "Address",
+    "locationUrl": "Venue website",
     "hours": "Business hours",
     "isPaid": "Is paid",
     "priceInfo": "Price details",

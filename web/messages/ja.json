@@ -127,6 +127,7 @@
     "endDate": "終了日",
     "location": "会場",
     "address": "住所",
+    "locationUrl": "会場公式サイト",
     "hours": "営業時間",
     "isPaid": "有料",
     "priceInfo": "料金詳細",

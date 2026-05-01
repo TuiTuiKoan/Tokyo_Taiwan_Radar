@@ -27,6 +27,7 @@ export interface Event {
   location_address: string | null;
   location_address_zh: string | null;
   location_address_en: string | null;
+  location_url: string | null;
   business_hours: string | null;
   business_hours_zh: string | null;
   business_hours_en: string | null;

@@ -14,6 +14,7 @@ export const EMPTY_FORM = {
   end_date: "",
   location_name: "",
   location_address: "",
+  location_url: "",
   business_hours: "",
   is_paid: false,
   price_info: "",
@@ -102,6 +103,17 @@ export default function AdminEventForm({
           type="text"
           value={form.location_address}
           onChange={(e) => updateField("location_address", e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        />
+      </div>
+
+      {/* Venue website URL */}
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">{t("locationUrl")}</label>
+        <input
+          type="url"
+          value={(form as any).location_url ?? ""}
+          onChange={(e) => updateField("location_url", e.target.value)}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
         />
       </div>

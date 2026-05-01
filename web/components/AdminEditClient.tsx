@@ -31,6 +31,7 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
     end_date: event.end_date?.slice(0, 10) ?? "",
     location_name: event.location_name ?? "",
     location_address: event.location_address ?? "",
+    location_url: event.location_url ?? "",
     business_hours: event.business_hours ?? "",
     is_paid: event.is_paid ?? false,
     price_info: event.price_info ?? "",

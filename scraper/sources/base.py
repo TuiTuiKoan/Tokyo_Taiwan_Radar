@@ -33,6 +33,7 @@ class Event:
     end_date: Optional[datetime] = None
     location_name: Optional[str] = None
     location_address: Optional[str] = None
+    location_url: Optional[str] = None   # official website of the venue
     business_hours: Optional[str] = None
 
     is_paid: Optional[bool] = None

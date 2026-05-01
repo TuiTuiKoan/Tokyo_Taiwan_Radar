@@ -336,7 +336,13 @@ export default async function EventDetailPage({ params }: PageProps) {
             {/* Location */}
             <tr>
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("location")}</td>
-              <td className="px-4 py-3">{locationName || "—"}</td>
+              <td className="px-4 py-3">
+                {locationName
+                  ? event.location_url
+                    ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{locationName} ↗</a>
+                    : locationName
+                  : "—"}
+              </td>
             </tr>
             {/* Address */}
             <tr>
