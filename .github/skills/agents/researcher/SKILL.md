@@ -151,6 +151,55 @@ Use `LOOKBACK_DAYS` to match the source's natural cadence:
 - The daily scraper (`note_creators.py` or similar Layer 3 script) polls only `status='implemented'` creators from `research_sources`.
 - **年份は `_THIS_YEAR = datetime.now(JST).year` を使う。** search query 文字列に年数を hardcode してはならない（毎年手動更新が必要になり、古い検索結果しか返らなくなる）。
 
+## WordPress Mixed-Content Sites（日本／台湾イベント混在サイト）
+
+For WordPress sites that publish both Japan-hosted and Taiwan-hosted events:
+
+**1. Listing-page date pre-filter (90-day window)**
+Before fetching any article, parse `<time datetime="...">` on the listing page to get the post publish date.
+Skip articles older than 90 days and stop paginating when an entire page is older than 90 days.
+This can reduce HTTP requests by 30–40× (e.g. 220 → 6 fetches).
+
+**2. Three-pass Japan-event filter (`_is_japan_event()`)**
+Apply in this exact order — **Stage 2 must come before Stage 3**:
+- Stage 1 (title): `TAIWAN_ONLY_PATTERNS` — exclude events clearly held in Taiwan (e.g. 台湾ランタン, 澎湖花火)
+- Stage 2 (body): `TAIWAN_VENUE_KW` — exclude if venue is explicitly in Taiwan (`（台湾・`, `（台湾）`, etc.)
+- Stage 3 (body): `JAPAN_LOCATION_KW` — include only if a Japan city/region name is present
+
+Reversing Stage 2 and Stage 3 causes false positives: a Taiwan-held event can mention Japanese travel companies (e.g. 近畿日本ツーリスト), which triggers Stage 3 before Stage 2 can reject it.
+
+**3. Date extraction priority ladder for Japanese WordPress**
+Never rely on the first date in the body — it is almost always the post publish date. Use this priority:
+1. `日時：` labeled date range
+2. Weekday-annotated range (e.g. `YYYY年M月D日（土）〜D日（日）`)
+3. Labeled single date
+4. Weekday-annotated single date
+5. Plain date range
+6. Last resort: first plain date in body (high risk of picking up the publish date)
+
+**4. WordPress REST API check first**
+Always try `/wp-json/wp/v2/posts` first. If 401, fall back to HTML scraping.
+
+## Manual Source DB Insert Workflow
+
+`update_source.py --create-issue` performs an **UPDATE only** — it requires the row to already exist in `research_sources`. When a source is discovered manually (not via `researcher.py`), insert the row first:
+
+```python
+sb.table("research_sources").insert({
+    "name": "<display name>",
+    "url": "<canonical URL>",
+    "category": "<government|ngo|community|commercial|...>",
+    "status": "candidate",
+    "reason": "<one sentence>",
+    "url_verified": True,
+    "first_seen_at": now_iso,
+    "last_seen_at": now_iso,
+}).execute()
+```
+
+Note: the column is `reason`, **not** `notes` (that column does not exist).
+After INSERT, run: `python scraper/update_source.py --url <url> --status researched --create-issue`
+
 ## After a Source Evaluation Error
 1. Append an entry to `.github/skills/agents/researcher/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.

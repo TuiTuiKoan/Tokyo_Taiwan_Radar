@@ -2,6 +2,25 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-01 | go_taiwan + transit_store スクレイパー実装
+
+**go_taiwan (`scraper/sources/go_taiwan.py`):**
+- サイト: 台湾観光庁 Japan 公式 (go-taiwan.net/ikutabi) — WordPress 静的 HTML、REST API 401 blocked
+- **90-day pre-filter**: `<time datetime>` をリストページで先読みし 90 日超の記事をスキップ。フェッチ数 220 → 6
+- **三段階フィルター**: Stage 2（`TAIWAN_VENUE_KW`）を Stage 3（`JAPAN_LOCATION_KW`）より**必ず先に**適用。逆順にすると台湾開催イベントが日本企業名テキストで誤通過する（野柳石光事例）
+- **日付抽出優先順位**: `日時：` ラベル → 曜日注釈付き範囲 → ラベル付き単日 → 曜日注釈付き単日 → 平文範囲 → 本文最初の平文日付（公開日を拾うリスク大 — 最終手段）
+- Issue #35 作成、DB status → recommended
+
+**transit_store (`scraper/sources/transit_store.py`):**
+- Shopify JSON API: `/collections/event/products.json?limit=20&page={n}`
+- 台湾キーワードを `title` + `body_html` の両方でフィルタリング
+- 日付: `body_html` 内の `日程[：:][^\d]*(\d{4})年(\d{1,2})月(\d{1,2})日` 正規表現
+- Issue #34 作成、DB status → recommended
+
+**DB 手動挿入ワークフロー:** `update_source.py --create-issue` は UPDATE 専用（INSERT しない）。`researcher.py` 経由でない手動発見ソースは先に `research_sources` に INSERT してから実行すること。`notes` カラムは存在せず、`reason` に記載する。
+
+---
+
 ## 2026-05-01 | merger.yml 加排程 3× daily + annotator 步驟
 
 **修改：** `.github/workflows/merger.yml` 新增 3 個 cron（`01:00 / 09:00 / 16:00 UTC`，對應 JST 10:00 / 18:00 / 01:00），每次 merger 跑完後接著執行 `python annotator.py` 和 `python annotator.py --fix-reviewed`。

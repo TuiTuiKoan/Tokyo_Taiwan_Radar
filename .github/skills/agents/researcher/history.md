@@ -3,6 +3,57 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — go_taiwan + transit_store スクレイパー実装：5 つの教訓
+
+**実装：** 2 つの新スクレイパーを追加した。
+
+**① TRANSIT STORE (`scraper/sources/transit_store.py`)**
+- Shopify JSON API: `/collections/event/products.json?limit=20&page={n}`
+- `body_html` から日程を正規表現で抽出: `日程[：:][^\d]*(\d{4})年(\d{1,2})月(\d{1,2})日`
+- dedup key: `transit_store_{product.handle}`
+- Dry-run 後 production 実行 → Issue #34 → DB status `recommended`
+
+**② go_taiwan (`scraper/sources/go_taiwan.py`)**
+- サイト: 台湾観光庁 Japan 公式 (go-taiwan.net/ikutabi)
+- WordPress 静的 HTML。REST API は 401 で blocked → HTML スクレイピングにフォールバック
+- Issue #35, DB id=135 → DB status `recommended`
+
+**教訓 1 — WordPress リストページでの 90 日スライディングウィンドウ最適化：**
+リストページの `<time datetime="...">` で記事の公開日を先読みし、90 日以上前の記事はスキップする。
+フェッチ数が 220 → 6 に削減（7 秒 vs 潜在 3 分以上）。1 ページ全記事が古ければページネーション停止。
+
+**教訓 2 — 混在コンテンツ（日本／台湾）の三段階フィルター：**
+`_is_japan_event()` は Stage 1 → 2 → 3 の順に適用する。**Stage 2（台湾会場除外）を Stage 3（日本キーワード）より必ず先に置く**こと。
+- Stage 1: タイトルに `TAIWAN_ONLY_PATTERNS`（台湾ランタン、澎湖花火など台湾開催パターンを除外）
+- Stage 2: 本文に `TAIWAN_VENUE_KW`（`（台湾・`、`（台湾）` など会場が台湾であることを除外）
+- Stage 3: 本文に `JAPAN_LOCATION_KW` の存在確認（日本の都市・地域名が含まれる場合のみ通過）
+野柳石光（台湾開催）が「近畿日本ツーリスト」テキストで Stage 3 を通過した false positive がこの順序逆転で発生した。
+
+**教訓 3 — 日本語 WordPress サイトの日付抽出優先順位：**
+ナイーブな「本文最初の日付」は記事公開日を拾う。以下の優先順を厳守すること:
+1. `日時：` ラベル付き日付範囲
+2. 曜日注釈付き範囲（例: `YYYY年M月D日（土）〜D日（日）`）
+3. ラベル付き単日
+4. 曜日注釈付き単日
+5. 平文日付範囲
+6. 最終手段：本文最初の平文日付（公開日を拾うリスク大）
+
+**教訓 4 — リストページでの事前フィルタリング：**
+詳細フェッチの前にリストページのタイトルに `TAIWAN_ONLY_PATTERNS` を適用し、明らかに無関係な記事のリクエストを節約する。
+
+**教訓 5 — `update_source.py` は UPDATE 専用（INSERT 不可）：**
+`update_source.py --create-issue` は `research_sources` 行が**既存であること**を前提とする。
+手動発見ソース（`researcher.py` 経由でない）は先に INSERT が必要:
+```python
+sb.table("research_sources").insert({
+    "name": "...", "url": "...", "category": "...",
+    "status": "candidate", "reason": "...",
+    "url_verified": True, "first_seen_at": now_iso, "last_seen_at": now_iso,
+}).execute()
+```
+`notes` カラムは存在しない — `reason` カラムにメモを記載。INSERT 後に `update_source.py --url ... --status researched --create-issue` を実行。
+
+---
 ## 2026-05-01 — `--create-issue` 權限文字口徑不一致
 
 **問題：** Researcher 流程文件與其他檔案對 fine-grained PAT 權限敘述一度不一致，造成設定與排錯時容易誤判。

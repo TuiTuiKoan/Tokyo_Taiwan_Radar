@@ -94,6 +94,45 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 - **DOW-qualified date extraction**: Dates like `5月16日（土）` (with day-of-week) are actual event dates. Extract these BEFORE the generic fallback, then infer the year from the nearest `20XX年` in the text.
 - Priority order for date extraction: `日時：` field → `時間：` field (with date) → DOW-qualified `月\d+日（曜日）` → generic `YYYY年MM月DD日` fallback.
 
+## WordPress mixed-content sites (e.g. go_taiwan)
+
+For WordPress sites that mix Japan-hosted and Taiwan-hosted events, apply all three patterns:
+
+**1. Listing-page 90-day pre-filter**
+Before fetching any article detail, parse `<time datetime="...">` on the listing page.
+Skip articles older than 90 days; stop paginating when an entire page is older than 90 days.
+This reduces HTTP requests 30–40× (e.g. 220 → 6 fetches on go-taiwan.net).
+
+**2. Three-pass Japan-event filter — apply in this order**
+```python
+def _is_japan_event(title: str, body: str) -> bool:
+    if TAIWAN_ONLY_PATTERNS.search(title):   # Stage 1: title clearly Taiwan-only
+        return False
+    if TAIWAN_VENUE_KW.search(body):         # Stage 2: venue explicitly in Taiwan
+        return False
+    return bool(JAPAN_LOCATION_KW.search(body))  # Stage 3: Japan city present
+```
+**Critical**: Stage 2 (Taiwan-venue exclusion) MUST come before Stage 3 (Japan-keyword check).
+Reversing the order causes false positives: a Taiwan-held event mentioning Japanese travel companies
+(e.g. 近畿日本ツーリスト → triggers 近畿 keyword) passes Stage 3 before Stage 2 can reject it.
+
+**3. Date extraction priority ladder for Japanese WordPress**
+Post body typically starts with the article publish date — never take the first date naively:
+1. `日時：` labeled date range
+2. Weekday-annotated range (`YYYY年M月D日（曜日）〜D日（曜日）`)
+3. Any labeled single date
+4. Weekday-annotated single date
+5. Plain date range
+6. Last resort: first plain date in body (high risk of matching the publish date)
+
+Use this ladder when the source is a Japanese WordPress blog/CMS.
+
+## transit_store-specific
+- **Shopify JSON API**: `/collections/event/products.json?limit=20&page={n}` — paginate until empty page.
+- Taiwan filter: check `title` and `body_html` against Taiwan keywords.
+- Date extraction: `日程[：:][^\d]*(\d{4})年(\d{1,2})月(\d{1,2})日` regex on `body_html`.
+- `source_id`: `transit_store_{product.handle}` — handle is stable across runs.
+
 ## DeepL Tracking
 - Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
 - Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
