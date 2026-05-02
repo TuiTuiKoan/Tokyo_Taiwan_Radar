@@ -19,6 +19,8 @@ import logging
 from datetime import datetime
 from typing import Optional
 
+import requests
+from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeout
 
 from .base import BaseScraper, Event
@@ -28,6 +30,36 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://www.koryu.or.jp"
 LIST_URL = f"{BASE_URL}/news/event/"
 SOURCE_NAME = "koryu"
+
+# Thin/pointer article detection — 後援公告 articles often have only a short
+# paragraph + external URL with no event date or venue of their own.
+_EXT_URL_RE = re.compile(r'https?://(?!(?:www\.)?koryu\.or\.jp)[^\s）\)。、]+')
+_THIN_BODY_CHARS = 600   # chars; normal articles are 1000+
+_REF_MAX_CHARS = 3000    # truncate fetched reference page to this length
+_REF_HEADERS = {"User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)"}
+
+
+def _fetch_ref_text(ref_url: str) -> Optional[str]:
+    """Fetch an external reference page and return its body text.
+
+    Used to enrich thin 後援 articles that only point to an external event
+    page. Returns None on failure or if content is too short.
+    """
+    try:
+        resp = requests.get(ref_url, headers=_REF_HEADERS, timeout=15)
+        resp.raise_for_status()
+    except Exception as exc:
+        logger.debug("koryu ref-url fetch failed %s: %s", ref_url[:80], exc)
+        return None
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    for sel in ["main", "article", "body"]:
+        el = soup.select_one(sel)
+        if el:
+            text = el.get_text(" ", strip=True)
+            if len(text) > 200:
+                return text[:_REF_MAX_CHARS]
+    return None
 
 # Tokyo identifiers for venue filtering
 _TOKYO_MARKERS = ["東京", "港区", "千代田区", "新宿区", "渋谷区", "中央区", "台東区",
@@ -254,6 +286,26 @@ class KoryuScraper(BaseScraper):
 
         body_text = main.inner_text()
 
+        # Detect thin pointer articles (後援 etc.) that only summarise and
+        # provide an external URL.  Fetch the reference page to supplement
+        # raw_description so the annotator's GPT has enough context for dates,
+        # categories, and descriptions.
+        ref_supplement = ""
+        _is_pointer = False
+        if len(body_text) < _THIN_BODY_CHARS:
+            ext_m = _EXT_URL_RE.search(body_text)
+            if ext_m:
+                ref_url = ext_m.group(0).rstrip("。、）)")
+                logger.debug("koryu thin article: fetching ref %s", ref_url[:80])
+                ref_text = _fetch_ref_text(ref_url)
+                if ref_text:
+                    _is_pointer = True
+                    ref_supplement = f"\n\n[参照ページ ({ref_url})]:\n{ref_text}"
+                    logger.info(
+                        "koryu ref page appended: %d chars from %s",
+                        len(ref_text), ref_url[:60],
+                    )
+
         # Extract event date from body (日時 section)
         start_date, end_date = _extract_event_date(body_text)
 
@@ -309,13 +361,20 @@ class KoryuScraper(BaseScraper):
         title = item["title"]
         source_id = f"koryu_{item['item_id']}"
 
-        # Build raw_description
-        date_prefix = f"開催日時: {start_date.strftime('%Y年%m月%d日')}"
-        if end_date and end_date != start_date:
-            date_prefix += f" ～ {end_date.strftime('%Y年%m月%d日')}"
-        date_prefix += "\n\n"
+        # Build raw_description.
+        # For pointer articles the start_date comes from the DNN CMS article
+        # header, not from an event 日時 label.  Label it as 記事投稿日 so GPT
+        # knows it is the article publication date and looks for the actual
+        # event dates in the appended reference page content instead.
+        if _is_pointer:
+            date_prefix = f"記事投稿日: {item['pub_date_str']}\n\n"
+        else:
+            date_prefix = f"開催日時: {start_date.strftime('%Y年%m月%d日')}"
+            if end_date and end_date != start_date:
+                date_prefix += f" ～ {end_date.strftime('%Y年%m月%d日')}"
+            date_prefix += "\n\n"
 
-        raw_description = date_prefix + body_text.strip()
+        raw_description = date_prefix + body_text.strip() + ref_supplement
 
         # Detect paid/free
         is_paid: Optional[bool] = None
