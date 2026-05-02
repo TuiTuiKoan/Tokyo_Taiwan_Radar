@@ -8,6 +8,12 @@ Checks performed:
   1. Sources that failed (success=False) in the last 24 h
   2. Sources that ran 0 events (possible selector break or empty response)
   3. Active sources not present in scraper_runs at all (silent failure)
+  4. google_news_rss active events with start_date but no article fetch
+     (raw_description contains '（Google News）' — indicates pub_date residue
+     or upstream date error that survived the 9510a05 cleanup)
+  5. tokyoartbeat active events where start_date differs from the date
+     embedded in source_url (upstream Contentful data was corrected after
+     scrape but upsert skipped the event as already-existing)
 
 The list of expected sources is derived from scraper_runs history (sources
 seen in the past 7 days) to avoid hardcoding the SCRAPERS list here.
@@ -21,6 +27,7 @@ Usage:
 import argparse
 import logging
 import os
+import re
 from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
@@ -86,7 +93,52 @@ def run_check(dry_run: bool = False, always_notify: bool = False) -> None:
     # Sources expected to run but absent from today's runs
     missing: list[str] = sorted(expected_sources - ran_today)
 
-    # ── 4. Build report ───────────────────────────────────────────────────
+    # ── 4. gnews: active events with start_date but article fetch failed ──
+    # Symptom: raw_description prefix is '開催情報（Google News）:' (no real
+    # domain) yet start_date is NOT NULL — the date likely came from a
+    # pub_date fallback or upstream error and was never corrected.
+    gnews_suspect: list[dict] = []
+    try:
+        gnews_rows = (
+            sb.table("events")
+            .select("id,name_ja,start_date,source_url")
+            .eq("source_name", "google_news_rss")
+            .eq("is_active", True)
+            .not_.is_("start_date", None)
+            .like("raw_description", "開催情報（Google News）:%")
+            .execute()
+        ).data or []
+        gnews_suspect = gnews_rows
+    except Exception as exc:
+        logger.warning("Check 4 (gnews date audit) failed: %s", exc)
+
+    # ── 5. tokyoartbeat: start_date differs from date in source_url ───────
+    # source_url format: .../YYYY-MM-DD  (the last path segment is the date)
+    # Upstream Contentful data can be corrected after scrape; upsert skips
+    # already-existing events so the stale date stays in DB.
+    tab_mismatch: list[dict] = []
+    try:
+        tab_rows = (
+            sb.table("events")
+            .select("id,name_ja,start_date,source_url")
+            .eq("source_name", "tokyoartbeat")
+            .eq("is_active", True)
+            .not_.is_("start_date", None)
+            .execute()
+        ).data or []
+        _date_in_url = re.compile(r"/(\d{4}-\d{2}-\d{2})$")
+        for row in tab_rows:
+            url_m = _date_in_url.search(row.get("source_url") or "")
+            if not url_m:
+                continue
+            url_date = url_m.group(1)
+            db_date = (row.get("start_date") or "")[:10]
+            if db_date and db_date != url_date:
+                tab_mismatch.append(row)
+    except Exception as exc:
+        logger.warning("Check 5 (tokyoartbeat date audit) failed: %s", exc)
+
+    # ── 6. Build report ───────────────────────────────────────────────────
     issues: list[str] = []
 
     if failed:
@@ -103,6 +155,28 @@ def run_check(dry_run: bool = False, always_notify: bool = False) -> None:
         issues.append("⚠️ 預期執行但今日未出現於 scraper_runs：")
         for src in missing:
             issues.append(f"  • {src}")
+
+    if gnews_suspect:
+        issues.append("🟠 gnews 活動有 start_date 但未抓到文章（可能是 pub_date 殘留）：")
+        for row in gnews_suspect[:5]:  # cap to avoid message overflow
+            issues.append(
+                f"  • {row['id']} {(row.get('start_date') or '')[:10]}"
+                f" {(row.get('name_ja') or '')[:30]}"
+            )
+        if len(gnews_suspect) > 5:
+            issues.append(f"  …（共 {len(gnews_suspect)} 筆）")
+
+    if tab_mismatch:
+        issues.append("🟠 tokyoartbeat start_date 與 source_url 日期不符（Contentful 已更正但 DB 未同步）：")
+        for row in tab_mismatch[:5]:
+            url_date = re.search(r"/(\d{4}-\d{2}-\d{2})$", row.get("source_url") or "")
+            issues.append(
+                f"  • {row['id']} DB={( row.get('start_date') or '')[:10]}"
+                f" URL={url_date.group(1) if url_date else '?'}"
+                f" {(row.get('name_ja') or '')[:25]}"
+            )
+        if len(tab_mismatch) > 5:
+            issues.append(f"  …（共 {len(tab_mismatch)} 筆）")
 
     has_issues = bool(issues)
     ran_count = len(ran_today)
