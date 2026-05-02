@@ -345,5 +345,38 @@ class IgnoreCooldownTests(unittest.TestCase):
             self.assertEqual(holder.update_payload["auto_scraper_status"], "success")
 
 
+class SandboxFailureArtifactTests(unittest.TestCase):
+    def test_sandbox_failure_persists_full_artifacts(self):
+        """Sandbox-failed path persists spec.json, generated.py, dry_run.txt
+        in addition to prompt/sample/meta \u2014 the full debug bundle."""
+        row = _make_row()
+        sb, holder = _make_sb(row)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            spec_file = tmp_path / "spec.json"
+            spec_file.write_text(json.dumps(VALID_SPEC), encoding="utf-8")
+            out_dir = tmp_path / "out"
+
+            with patch.object(generate, "_fetch_sample_html", return_value="<html>sample</html>"), \
+                 patch.object(generate, "_run_sandbox", return_value=(False, "fake stderr output", [])):
+                opts = generate.GenerateOptions(
+                    source_id=42,
+                    mock_llm=spec_file,
+                    output_dir=out_dir,
+                )
+                rc = generate.run(opts, sb=sb)
+
+            self.assertEqual(rc, 1)
+            self.assertEqual(holder.update_payload["auto_scraper_status"], "sandbox-failed")
+            for fn in ("prompt.txt", "sample.html", "spec.json", "generated.py", "dry_run.txt", "meta.json"):
+                self.assertTrue((out_dir / fn).exists(), f"missing failure artifact: {fn}")
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["status"], "sandbox-failed")
+            self.assertEqual((out_dir / "dry_run.txt").read_text(encoding="utf-8"), "fake stderr output")
+            persisted_spec = json.loads((out_dir / "spec.json").read_text(encoding="utf-8"))
+            self.assertEqual(persisted_spec["source_name"], "example_test")
+
+
 if __name__ == "__main__":
     unittest.main()

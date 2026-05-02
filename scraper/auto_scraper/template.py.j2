@@ -145,8 +145,12 @@ class {{ class_name }}Scraper(BaseScraper):
                 detail_url = None
                 if DETAIL_LINK_SELECTOR:
                     detail_url = _safe_attr(card, DETAIL_LINK_SELECTOR, "href")
-                    if detail_url and detail_url.startswith("/"):
-                        detail_url = f"{BASE_URL}{detail_url}"
+                # Fallback: when detail_link_selector is empty, grab the first <a href>
+                # inside the card. Most listing cards wrap the event in a single anchor.
+                if not detail_url:
+                    detail_url = _safe_attr(card, "a", "href")
+                if detail_url and detail_url.startswith("/"):
+                    detail_url = f"{BASE_URL}{detail_url}"
 
                 source_url = detail_url or page.url
                 source_id = _extract_source_id(source_url)

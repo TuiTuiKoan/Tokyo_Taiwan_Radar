@@ -66,6 +66,7 @@ Constraints:
 - date_regex must extract a date from the text matched by field_selectors.date. Common patterns: r"(\\d{4})[/-](\\d{1,2})[/-](\\d{1,2})" or r"(\\d{4})年(\\d{1,2})月(\\d{1,2})日".
 - source_id_url_pattern must extract a numeric or alphanumeric ID from event detail URLs.
 - max_pages: pick conservatively (3-5 for unknown sites).
+- detail_link_selector: CSS selector for the per-card anchor that links to the event detail page (e.g. "a.title", "a[href*='/event/']"). Set this whenever cards link to detail pages — leave empty ONLY if the listing has no detail links at all. If you leave it empty, the generated scraper will fall back to the first <a href> inside each card, which works for most cases but is less precise.
 """
 
 logger = logging.getLogger(__name__)
@@ -450,6 +451,9 @@ def _persist_failure_artifacts(
     status: str,
     retries: int,
     cost_usd: float,
+    spec: dict | None = None,
+    generated_code: str | None = None,
+    dry_run_text: str | None = None,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "prompt.txt").write_text(prompt_text, encoding="utf-8")
@@ -462,6 +466,14 @@ def _persist_failure_artifacts(
         )
     elif last_raw is not None:
         (out_dir / "last_attempt_raw.txt").write_text(last_raw, encoding="utf-8")
+    if spec is not None:
+        (out_dir / "spec.json").write_text(
+            json.dumps(spec, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    if generated_code is not None:
+        (out_dir / "generated.py").write_text(generated_code, encoding="utf-8")
+    if dry_run_text is not None:
+        (out_dir / "dry_run.txt").write_text(dry_run_text, encoding="utf-8")
     (out_dir / "meta.json").write_text(
         json.dumps(
             {
@@ -631,6 +643,9 @@ def run(opts: GenerateOptions, *, sb: Any | None = None) -> int:
                     status=exc.status,
                     retries=getattr(_llm_obj, "retries", 0),
                     cost_usd=getattr(_llm_obj, "cost_usd", 0.0),
+                    spec=getattr(_llm_obj, "spec", None),
+                    generated_code=_local.get("generated_code"),
+                    dry_run_text=_local.get("sandbox_output"),
                 )
             except Exception as art_exc:
                 logger.warning("failed to persist failure artifacts: %s", art_exc)

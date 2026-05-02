@@ -62,6 +62,13 @@ class TestSpecToCode(unittest.TestCase):
             f"expected subprocess violation, got: {violations}",
         )
 
+    def test_template_falls_back_to_first_anchor_when_detail_link_selector_empty(self) -> None:
+        """When detail_link_selector is empty, generated code uses the first <a href> in the card."""
+        spec = _minimal_spec(detail_link_selector="")
+        code = render(spec)
+        self.assertIn('_safe_attr(card, "a", "href")', code)
+        self.assertIn("if DETAIL_LINK_SELECTOR:", code)
+
 
 if __name__ == "__main__":
     unittest.main()
