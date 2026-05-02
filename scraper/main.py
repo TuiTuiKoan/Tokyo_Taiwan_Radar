@@ -97,8 +97,9 @@ from sources.transit_store import TransitStoreScraper
 from sources.go_taiwan import GoTaiwanScraper
 from sources.taiwan_festa import TaiwanFestaScraper
 from sources.tiff import TiffJpScraper
+from sources.note_creators import NoteCreatorsScraper
 from sources.base import dedup_events
-from database import upsert_events, archive_ended_events, _get_client
+from database import upsert_events, _get_client
 from annotator import annotate_pending_events
 from merger import run_merger
 from indexnow import submit_urls as _indexnow_submit, event_urls as _indexnow_event_urls
@@ -177,6 +178,7 @@ SCRAPERS = [
     GoTaiwanScraper(),
     TaiwanFestaScraper(),
     TiffJpScraper(),
+    NoteCreatorsScraper(),
 ]
 
 
@@ -336,9 +338,8 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
     logger.info("Running AI annotator on pending events...")
     annotate_pending_events()
 
-    # Auto-archive events whose end_date has passed
-    logger.info("Archiving ended events...")
-    archive_ended_events()
+    # Ended events are no longer auto-archived here.
+    # Public visibility is controlled by frontend time filters (timeMode/end_date).
 
     # Submit newly-inserted event URLs to IndexNow (Bing relay → ChatGPT Search)
     if all_new_event_ids:
