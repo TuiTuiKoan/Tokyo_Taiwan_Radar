@@ -238,15 +238,16 @@ response = client.chat.completions.create(
 
 ### 簡繁轉換安全網
 
-GPT 偶爾在 `location_*_zh` 中輸出简体字。`_loc_zh()` 函式自動轉換：
+GPT 偶爾在 `*_zh` 欄位中輸出简体字。`_to_trad()` 函式自動轉換所有 `*_zh` 欄位（`name_zh`、`description_zh`、`business_hours_zh`、`location_name_zh`、`location_address_zh`），包含 ~110 個簡→繁字元映射。`_loc_zh()` 內部呼叫 `_to_trad()`。
 
 ```python
-_LOC_ZH_SIMP_TO_TRAD = str.maketrans({
+# 字元表範例（完整表在 annotator.py 中）
+_SIMP_TO_TRAD = str.maketrans({
     "东": "東", "区": "區", "内": "內", "园": "園",
     "来": "來", "长": "長", "进": "進", "实": "實",
-    "诺": "諾", "厅": "廳", "络": "絡", "设": "設",
-    "联": "聯", "馆": "館", "门": "門", "发": "發",
-    "会": "會",
+    "个": "個", "记": "記", "构": "構", "传": "傳",
+    "统": "統", "学": "學", "网": "網",
+    # ... ~100 more entries
 })
 ```
 

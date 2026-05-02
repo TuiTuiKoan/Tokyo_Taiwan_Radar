@@ -85,12 +85,14 @@ When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
 18. **Satori emoji 禁用規則**：`opengraph-image.tsx` 及所有使用 `ImageResponse`/Satori 的路由，**嚴禁使用任何 emoji**（包含看起來普通的 📅📍，以及 ZWJ 序列 🏳️‍🌈、regional indicator 🇹🇼）。Satori 遇到不支援 emoji 時靜默失敗：HTTP 200 + `content-length: 0`，不拋任何錯誤。一律改用 ASCII 文字標籤（`DATE`、`AT`、`FILM`、`ART` 等）。See `SKILL.md § OG Image（opengraph-image.tsx）— Edge Runtime 規則`。
 19. **AEO（AI Engine Optimization）完整實作規則：** 新建網站或執行重大 SEO 工作時，必須實作完整 AEO 清單：(a) `web/public/llms.txt`（AI 引擎索引文件）；(b) `robots.ts` 明確許可 GPTBot、PerplexityBot 等主流 AI 爬蟲；(c) root `layout.tsx` 注入 `WebSite + SearchAction + Organization` JSON-LD（`@graph` 格式）；(d) 事件詳情頁注入 `BreadcrumbList` JSON-LD；(e) 日期欄位用 `<time dateTime>` 包裹；(f) `sitemap.ts` 各頁 `alternates.languages` 補上 `x-default`。新增任何 `public/` 靜態文件後必須同步更新 `proxy.ts` matcher 排除規則。See `SKILL.md § AEO（AI Engine Optimization）`。
 20. **Auto-QA 寫入 `event_reports` 共用佇列規則：** 新增任何自動化內容品質檢查時，findings 必須寫入 `event_reports`，於 `report_types[]` 使用 `auto_*` 前綴（例：`auto_qa_simplified_zh`、`auto_qa_missing_address`）。**禁止**為自動檢查另建 admin 佇列——重用 `/admin/reports` 的 confirm/dismiss UI。Insert 前必須對「同 event_id + 同 `auto_*` 類型」的既有 pending row 去重，並於單次執行中以 in-memory set 再去重一次。See `SKILL.md § Scraper Implementation` and engineer `history.md` 2026-05-01.
-21. **`SIMP_RE` / `_LOC_ZH_SIMP_TO_TRAD` 字元新增規則：** 加字前必須先確認該字的繁體中文／日文對應**是不同字形**。透過 CC-CEDICT 或 kanji.jitenon.jp 查證後才能加入。反例：`亮` 在繁簡日完全相同（`照亮` 為合法繁體），加入後會在 `auto_qa.py` 與 annotator 兩處產生 false positive。See `SKILL.md § Scraper Implementation` and scraper-expert `history.md` 2026-05-01.
+21. **`SIMP_RE` / `_SIMP_TO_TRAD` 字元新增規則：** 加字前必須先確認該字的繁體中文／日文對應**是不同字形**。透過 CC-CEDICT 或 kanji.jitenon.jp 查證後才能加入。反例：`亮` 在繁簡日完全相同（`照亮` 為合法繁體），加入後會在 `auto_qa.py` 與 annotator 兩處產生 false positive。新增字元時必須同步更新 `annotator.py._SIMP_TO_TRAD` 和 `auto_qa.py.SIMP_RE`。See `SKILL.md § Scraper Implementation` and scraper-expert `history.md` 2026-05-01.
 22. **Cron slot rotation modulo wrap 規則：** 當 N 個 weekday 驅動 `(DAY-1) % M` slot 選擇器且 `M < N` 時，第 M+1..N 天會 silently 重跑 slot 0..(N-M-1)。slot 為 idempotent（search + `skip_hint` dedup）時可接受；slot 需要固定 cadence（例：Peatix slot 3 僅週四）時不可接受——必須以 `DISCOVERY_SLOT` env override 額外 cron entry，或提高 `SLOT_COUNT`。See `SKILL.md § Scraper Implementation` and engineer `history.md` 2026-05-01.
 23. **Category label-only rename rule:** When renaming a category's display label (zh/en/ja text) without changing the `Category` union value, **only update the three `messages/*.json` files** — do NOT touch `types.ts`, `CATEGORIES`, or `CATEGORY_GROUPS`. Running `cd web && npx tsc --noEmit` is optional (no type change), but still recommended as a sanity check. i18n JSON files containing CJK characters must be edited with a Python `json` module script, not `replace_string_in_file`.
 24. **Person name enrichment (all events):** `python annotator.py --enrich-person-names` fixes wrong phonetic name translations for ALL events, not just movies. Movie events use eiga.com structured cast/crew lookup (`strict=False`); non-movie events use katakana regex extraction + Wikipedia (`strict=True` to prevent false positives). See `SKILL.md § Person Name Lookup Pattern`.
 25. **`name_ja` preservation rule:** The annotator NEVER overwrites `name_ja` with GPT output. `update_data["name_ja"]` always uses `event.get("name_ja") or raw_title`. GPT's `name_ja` is only consumed for sub-events (which have no scraper-provided title). Sub-event `name_ja`/`description_ja` must use original Japanese text from the source — movie titles as Japanese release names, person names in original katakana/kanji. Translation corrections only apply to `*_zh`/`*_en` fields. See `SKILL.md § Annotator — name_ja Preservation & Sub-event Original Naming`.
 26. **i18n namespace placement rule:** When adding a key to `web/messages/*.json`, always place it under the correct namespace: `data["<namespace>"]["key"] = value`. Never use `data["key"] = value` (top-level). next-intl `t("key")` only searches under the namespace declared in `useTranslations("<namespace>")` — missing keys silently render as the key name string (no error). Confirm namespace from the component's `useTranslations()` call: FilterBar options → `filters`; category labels → `categories`. After adding, verify with `grep -n "key" web/messages/zh.json` that the line number is in the expected block. See `SKILL.md § i18n JSON File Editing`.
+27. **Admin quality check exclusion rule:** When adding a quality check query to `/admin/quality`, always exclude event formats that inherently don't match the check criteria — at DB query level (`.not()`), not in client-side JS. Examples: `competition`/`scholarship` → no physical venue (exclude from missing-location check); `gguide_tv` → no location (exclude from missing-location). The check's comparison field must match the field the detail page renders (e.g., `location_name IS NULL`, not `location_address IS NULL`).
+28. **Simplified→Traditional conversion covers ALL `*_zh` fields:** `_to_trad()` is applied to `name_zh`, `description_zh`, `business_hours_zh` directly, and to `location_name_zh`/`location_address_zh` via `_loc_zh()`. When adding a new `*_zh` field to the annotator, always wrap it with `_to_trad()`. New simplified chars discovered in production → update both `annotator.py._SIMP_TO_TRAD` and `auto_qa.py.SIMP_RE`.
 
 ### Step 3: Verify
 
@@ -98,16 +100,17 @@ When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
 2. For scraper changes: `cd scraper && python main.py --dry-run --source <name>`
 3. For web changes: `cd web && npx tsc --noEmit` then `npm run build` (local only, not deploy)
 4. For DB migrations: review SQL against `.github/instructions/database.instructions.md` conventions; do NOT apply without user confirmation.
-5. **After modifying `annotator.py` SYSTEM_PROMPT or `_loc_zh()` char map:** verify every `*_zh` field description says "Traditional Chinese (繁體中文)". After any batch re-annotation **or** char map change, run a full-DB scan on location fields:
+5. **After modifying `annotator.py` SYSTEM_PROMPT or `_SIMP_TO_TRAD` char map:** verify every `*_zh` field description says "Traditional Chinese (繁體中文)". After any batch re-annotation **or** char map change, run a full-DB scan on ALL `*_zh` fields:
    ```python
    import re, os; from dotenv import load_dotenv; from supabase import create_client
    load_dotenv('.env'); sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
-   SIMP = re.compile(r'[东来这发会说时问门关对长进现与实变内还单层达诺厅络设联馆园]')
-   res = sb.table('events').select('id,is_active,location_name_zh,location_address_zh').execute()
-   bad = [(e['id'][:8], e['is_active'], f, e[f]) for e in res.data for f in ['location_name_zh','location_address_zh'] if SIMP.search(e.get(f) or '')]
+   SIMP = re.compile(r'[东来这发会说时问门关对长进现与实变内还单层达诺厅络设联馆园个记构传经验弥统种学数编价乡网]')
+   ZH = ['name_zh','description_zh','location_name_zh','location_address_zh','business_hours_zh']
+   res = sb.table('events').select('id,is_active,' + ','.join(ZH)).execute()
+   bad = [(e['id'][:8], e['is_active'], f, e[f]) for e in res.data for f in ZH if SIMP.search(e.get(f) or '')]
    print(f'Bad: {len(bad)}'); [print(f'  {i} active={a} [{f}] {v!r}') for i,a,f,v in bad]
    ```
-   Any new char found → add to `_LOC_ZH_SIMP_TO_TRAD` AND DB-patch all affected rows.
+   Any new char found → add to `_SIMP_TO_TRAD` AND `auto_qa.py.SIMP_RE` AND DB-patch all affected rows.
 6. **GitHub Actions workflows:** Any `with:` field whose value is a pure `${{ expression }}` must be quoted (`path: "${{ ... }}"`). Bare expressions cause YAML schema validator warnings.
 
 ### Step 4: Deploy (requires explicit user approval)
