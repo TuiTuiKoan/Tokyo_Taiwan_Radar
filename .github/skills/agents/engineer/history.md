@@ -3,6 +3,15 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — annotator google_news_rss Playwright 文章補抓
+**新增：** `## Annotator — google_news_rss 文章補抓` 段落至 engineer/SKILL.md
+**內容：**
+- Playwright follow-redirect 架構（單一 Browser 實例跳過每次啟動費用）
+- raw_description 不寫回 DB 規則（文章文字僅用於此次 GPT 呼叫）
+- silent fail on timeout/paywall/bad redirect
+**來源：** daily-skills-review（Step 4 建議）
+
+---
 ## 2026-05-01 — 移除無效地點篩選選項「電視節目 (tv)」（commit `2989940`）
 
 **問題：** FilterBar 與 AdminEventTable 的 `<option value="tv">` 地點篩選選取後結果永遠為零，是無效選項。`gguide_tv` 事件 `location_name` 已改存頻道名稱，不再是「電視頻道」，與 tv 篩選邏輯不匹配。

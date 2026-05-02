@@ -3,6 +3,15 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — google_news_rss: 修正 start_date fallback to pubDate 規則（commit `9510a05`）
+**修改：** scraper-expert/SKILL.md `## google_news_rss-specific` 第 2 條
+**內容：**
+- 舊規則「 fallback to pubDate 」已賢正為「絕對不可 fallback pubDate，返回 None」
+- RSS description 總是文章摘要（不含活動日期）；pubDate = 文章發布日，跟活動日期無關
+- 40 筆日期錯誤事件已下架
+**來源：** daily-skills-review（Step 4 建議）
+
+---
 ## 2026-05-01 — taiwan_cultural_center: 多城市巡迴活動誤錨定東京 HQ 地址（commit `a2d6eea`）
 
 **問題：** 台湾文化センター發佈的部分活動會跨多個日本城市巡迴（如「台湾映画上映会2026」走 5 個城市）。scraper 對此 source 寫死 HQ 地址（東京港區），導致多城市巡迴活動全被打成「東京」，前台地區篩選 / 多城市顯示完全錯誤。

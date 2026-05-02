@@ -322,7 +322,7 @@ For any scraper that hardcodes a fallback `location_address` to a single HQ / �
 
 ## google_news_rss-specific
 - Fetches 4 Google News RSS queries; Taiwan-filtered; `category: ["report"]` (annotator refines)
-- `start_date` extracted from description text; fallback to pubDate — DO NOT set to null
+- **`start_date` must NOT fall back to pubDate**: RSS `<description>` is a short snippet (often just the article title) — it never contains event dates. `pubDate` is the article publish date, completely unrelated to when the event takes place. If no date pattern is found in the description, return `None`. (Fixed in commit `9510a05`; 40 events with wrong pub_date fallback were deactivated.) The annotator handles date extraction by fetching the full article body via Playwright — see engineer `SKILL.md § Annotator — google_news_rss 文章補抓`.
 - `source_id`: `gnews_{md5(url)[:12]}` — stable across runs; `url` is guid if real article URL, else `<link>` tag value
 - **`_STALE_DAYS = 21`**: Skip entries older than 21 days (based on pubDate). Google News redirect URLs (`news.google.com/rss/articles/...`) expire within ~2–3 weeks — any link older than 21 days is likely dead. The previous value of 60 was too long.
 - Google `<guid>` may contain real article URL; prefer it over `<link>` tag when it starts with `http` and does not contain `news.google.com`

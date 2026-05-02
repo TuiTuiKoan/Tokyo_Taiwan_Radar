@@ -569,6 +569,25 @@ Current agent_category values and their labels:
 1. Append an entry to `.github/skills/agents/engineer/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
 
+## Annotator — google_news_rss 文章補抓
+
+`annotator.py` has special handling for `google_news_rss` events whose `start_date = NULL`:
+
+1. **Playwright follow-redirect**: For each such event, `_fetch_gnews_article_text(url, browser)` navigates the Google News redirect URL and waits 3 s for the JS redirect to resolve. If the final URL is still on `google.com`, the redirect failed — return `None`.
+2. **Article body extraction**: Tries selectors in order: `article`, `main`, `.article-body`, `.entry-content`, `.post-content`, `body`. Takes the first that returns >200 chars. Truncated to `_GNEWS_ARTICLE_MAX_CHARS = 4000` chars.
+3. **Passed to GPT as `raw_desc`**: The fetched text replaces `raw_description` in the annotation call only — it is **NOT written back to the DB**. `raw_description` stays unchanged.
+4. **Shared browser instance**: A single `Browser` is launched before the annotation loop and closed in `finally`. Never launch per-event — startup cost is too high.
+5. **Silent fail on errors**: Timeout, paywall, bad redirect → return `None`, log `DEBUG`, continue annotation with the original (short) `raw_desc`.
+
+```python
+# Key invariant: raw_description in DB is never overwritten
+if article_text:
+    raw_desc = article_text   # only for this GPT call
+# DB upsert uses the original raw_description unchanged
+```
+
+**When modifying this pattern:** If you remove the Playwright fetch, `google_news_rss` events will have `start_date = NULL` permanently (the scraper intentionally omits pubDate fallback). Confirm that removing it is intentional before proceeding.
+
 ## Annotator — Traditional Chinese (繁體中文) Rule
 
 **ALL `*_zh` fields produced by `annotator.py` must be Traditional Chinese (繁體中文), never Simplified Chinese (简体字).** This includes `name_zh`, `description_zh`, `location_name_zh`, `location_address_zh`, `business_hours_zh`, `selection_reason.zh`, and all sub-event zh fields.
