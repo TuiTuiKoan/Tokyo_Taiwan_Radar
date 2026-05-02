@@ -336,7 +336,6 @@
     "qualityTab": "Quality",
     "qualityTitle": "Data Quality Check",
     "qualityReviewedMissing": "Reviewed but missing translations",
-    "qualityExpiredActive": "Expired but still active",
     "qualityAnnotatedNoCat": "Annotated but no category",
     "qualityMissingAddr": "Missing address (non-online)",
     "qualityAllClear": "All clear ✅"

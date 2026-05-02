@@ -72,21 +72,13 @@ export default async function AdminQualityPage({ params }: PageProps) {
     .single();
   if (!roleRow || roleRow.role !== "admin") redirect(`/${locale}`);
 
-  const today = new Date().toISOString().slice(0, 10);
-
-  const [reviewedMissingRes, expiredActiveRes, annotatedNoCatRes, missingAddrRes] = await Promise.all([
+  const [reviewedMissingRes, annotatedNoCatRes, missingAddrRes] = await Promise.all([
     supabase
       .from("events")
       .select("id, raw_title, source_name")
       .eq("annotation_status", "reviewed")
       .eq("is_active", true)
       .or("name_zh.is.null,name_en.is.null")
-      .limit(50),
-    supabase
-      .from("events")
-      .select("id, raw_title, source_name")
-      .eq("is_active", true)
-      .lt("end_date", today)
       .limit(50),
     supabase
       .from("events")
@@ -104,7 +96,6 @@ export default async function AdminQualityPage({ params }: PageProps) {
   ]);
 
   const reviewedMissing = (reviewedMissingRes.data ?? []) as QualityRow[];
-  const expiredActive = (expiredActiveRes.data ?? []) as QualityRow[];
   const annotatedNoCat = (annotatedNoCatRes.data ?? []) as QualityRow[];
   const missingAddrAll = (missingAddrRes.data ?? []) as Array<QualityRow & { location_name: string | null }>;
   const missingAddr = missingAddrAll.filter(
@@ -118,7 +109,6 @@ export default async function AdminQualityPage({ params }: PageProps) {
 
   const sections = [
     { key: "qualityReviewedMissing", items: reviewedMissing },
-    { key: "qualityExpiredActive", items: expiredActive },
     { key: "qualityAnnotatedNoCat", items: annotatedNoCat },
     { key: "qualityMissingAddr", items: missingAddr },
   ] as const;

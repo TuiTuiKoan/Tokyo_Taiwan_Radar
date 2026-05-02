@@ -336,7 +336,6 @@
     "qualityTab": "品質",
     "qualityTitle": "データ品質チェック",
     "qualityReviewedMissing": "レビュー済み翻訳なし",
-    "qualityExpiredActive": "期限切れだがアクティブ",
     "qualityAnnotatedNoCat": "アノテーション済みカテゴリなし",
     "qualityMissingAddr": "住所なし（非オンライン）",
     "qualityAllClear": "すべて正常 ✅"

@@ -336,7 +336,6 @@
     "qualityTab": "品質",
     "qualityTitle": "資料品質檢查",
     "qualityReviewedMissing": "已審核但缺翻譯",
-    "qualityExpiredActive": "過期但仍為有效",
     "qualityAnnotatedNoCat": "已標注但無分類",
     "qualityMissingAddr": "缺地址（非線上活動）",
     "qualityAllClear": "全部正常 ✅"
