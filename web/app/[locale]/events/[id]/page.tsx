@@ -356,9 +356,25 @@ export default async function EventDetailPage({ params }: PageProps) {
                   ? <time dateTime={event.end_date}>{new Date(event.end_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}</time>
                   : "—"}
                 {ended && (
-                  <span className="ml-2 text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
-                    {t("ended")}
-                  </span>
+                  <>
+                    <span className="ml-2 text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
+                      {t("ended")}
+                    </span>
+                    {(() => {
+                      const recordLinks = (event as Event).record_links ?? [];
+                      const featured = recordLinks.find((l) => l.recommended) ?? recordLinks[0];
+                      return featured ? (
+                        <a
+                          href={featured.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-2 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full hover:underline"
+                        >
+                          {t("recordLinksBadge")} ↗
+                        </a>
+                      ) : null;
+                    })()}
+                  </>
                 )}
               </td>
             </tr>
