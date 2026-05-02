@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-05-02 — merger Pass 1/3 相同 SOURCE_PRIORITY 時遍歷順序決定 primary（資料空洞）
+
+**問題：** 兩個相同 `SOURCE_PRIORITY` 的來源配對時，merger 用「先遇到的」當 primary，可能選到 `start_date`、`location_address` 等欄位皆為 NULL 的事件。
+
+**根本原因：** Pass 1 的 priority 比較使用 `<=`（而非嚴格 `<`），導致 priority 相同時無差別選第一個；沒有豐富度評估機制。
+
+**修復：** 新增 `_richness_score()` helper（0–10 分）：`official_url`(+1) + `start_date`(+1) + `end_date`(+1) + `location_address`(+1) + `location_name`(+1) + `raw_description` 每 200 字 +1（上限 5）。Pass 1/3 的 priority 比較改為嚴格 `<` / `>`；priority 相同時比 richness score，高分者為 primary。`location_address` 同步加入 SELECT 查詢欄位。
+
+**同步新建：** `docs/MERGER_WORKFLOW.md`——完整記錄四個 Pass 規則、SOURCE_PRIORITY 表、`_richness_score` 評分、Primary 選擇決策流程、幂等性保證、手動指令、CI 排程、FAQ。
+
+**教訓：** SOURCE_PRIORITY 相同的兩個來源配對時，**一定要用豐富度判斷 primary**，不能依賴遍歷順序。新增來源若屬官方主辦方，應加入 SOURCE_PRIORITY 並設定低數值（高優先）。
+
+---
+
 ## 2026-05-02 — google_news_rss 同活動多文章造成重複，merger Pass 1 跳過同來源
 
 **問題：** DB 中出現多筆完全相同的 `google_news_rss` 活動（如「台湾屋台祭in海老名2026」3筆重複）。

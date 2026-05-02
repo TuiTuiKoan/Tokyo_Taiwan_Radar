@@ -443,7 +443,9 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 ### Pass 1 — Name similarity (same start_date group)
 - Groups all active events by `start_date` (YYYY-MM-DD).
 - Within each group, pairs events from different sources with name similarity ≥ 0.85 (`SequenceMatcher` on normalised names).
-- Lower `SOURCE_PRIORITY` number wins as primary. Current order: `taiwan_cultural_center` (1) → … → `taiwan_matsuri` (6) → … → `iwafu` (11) → `ide_jetro` (13).
+- Lower `SOURCE_PRIORITY` number wins as primary (strict `<`). Current order: `taiwan_cultural_center` (1) → … → `taiwan_matsuri` (6) → … → `iwafu` (11) → `ide_jetro` (13).
+- **`_richness_score()` tiebreaker**: when two events have the **same** `SOURCE_PRIORITY`, the one with the higher richness score is chosen as primary. Scoring (0–10): `official_url` (+1), `start_date` (+1), `end_date` (+1), `location_address` (+1), `location_name` (+1), `raw_description` +1 per 200 chars (capped at 5). Never rely on iteration order to decide primary — always use richness when priorities are equal.
+- **annotator pubDate trap**: annotator may fill `start_date` from the article publish date (`pubDate`) rather than the actual event date. If after merging the primary's `start_date` looks like a recent news publish date (not an event date), reset `start_date = NULL` and re-run annotator.
 
 ### Pass 2 — News-report matching (date-range + location overlap)
 - Sources in `_NEWS_SOURCES = {"google_news_rss", "prtimes", "nhk_rss"}` use article titles that cannot match event names by similarity.

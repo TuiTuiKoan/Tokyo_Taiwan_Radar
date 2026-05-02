@@ -3,6 +3,41 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — merger richness tiebreaker + MERGER_WORKFLOW.md（commits `19a2067`、`d4e9227`）
+
+**問題：** `merger.py` Pass 1/3 在兩個來源 `SOURCE_PRIORITY` 相同時，以遍歷順序決定 primary，可能選到欄位空洞的事件。
+
+**修復：**
+- 新增 `_richness_score()`（0–10 分）：`official_url`/`start_date`/`end_date`/`location_address`/`location_name` 各 +1；`raw_description` 每 200 字 +1（上限 5）。
+- Pass 1/3 priority 比較改為嚴格 `<`/`>`；相同 priority 時比 richness score。
+- `location_address` 補入 SELECT 查詢欄位。
+- 新建 `docs/MERGER_WORKFLOW.md`：四個 Pass 規則、SOURCE_PRIORITY 表、決策流程、幂等性保證、FAQ。
+
+**教訓：** SOURCE_PRIORITY 相同的來源配對，一定要 richness tiebreaker，不能依賴遍歷順序。新建官方來源時同步設定 SOURCE_PRIORITY。
+
+---
+## 2026-05-02 — Person Name Lookup 系統（movie 事件人名修正）
+
+**建構內容：**
+- 新增 `scraper/person_name_lookup.py`：查詢電影演員/導演的正式中英文姓名
+- 策略：eiga.com 電影頁 → 取得演員列表（角色、片假名、person URL）→ eiga.com 人物頁（英文名＋出身國）→ zh.wikipedia 搜尋（中文名）
+- 新增 `annotator.py` 的 `enrich_person_names()` + CLI flag `--enrich-person-names`
+- 使用 GPT-4o-mini 修正 desc_zh 中的錯誤音譯人名（`_fix_person_names_gpt()`）
+
+**DB 修正：**
+- Event `4a8772ec`（cinemart_shinjuku, 赤い糸 輪廻のひみつ）：「紀德恩」→「九把刀」
+- Event `f970e4e3`（shin_bungeiza, 赤い糸 輪廻のひみつ）：desc_zh 修正為正確人名（九把刀、柯震東、宋芸樺、王淨）
+
+**教訓：**
+1. GPT 音譯人名不可靠：片假名→中文會產生錯誤音譯（ギデンズ・コー →「紀德恩」而非「九把刀」），藝名/筆名尤其嚴重
+2. eiga.com 人物頁有英文名但無中文名，需 Wikipedia 補查
+3. Wikipedia 搜尋需加出身國消歧義（「Wang Ching」→ 加「台灣」才能找到「王淨」）
+4. ja.wikipedia 條目標題對中國/台灣人常直接用 CJK（搜「クー・チェンドン」→ 條目「柯震東」），可作 fallback
+5. eiga.com 演員名含角色名前綴（「孝綸（シャオルン）クー・チェンドン」），需 regex 剝離
+6. desc_zh 的錯誤人名是 GPT 音譯產物，無法用簡單字串替換修正，必須用 GPT 辨識並替換
+7. Wikipedia 人物關鍵字過濾（演員/導演/出生）防止假陽性，優先選短標題（2-4 字）
+
+---
 ## 2026-05-02 — competition 標籤更名（commit f3cae57）
 
 - zh: `競技・競賽` → `競賽・運動`；en: `Competition & Contest` → `Sports & Competition`；ja: `コンテスト・大会` → `スポーツ・競技大会`

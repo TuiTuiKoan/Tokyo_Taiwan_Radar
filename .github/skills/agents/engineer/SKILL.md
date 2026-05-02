@@ -496,6 +496,27 @@ Every route slug must appear the **same number of times** (= total number of adm
   - When triggered: set `location_name` to a generic tour label (e.g. `台湾文化センター（全国巡回）`) and set `location_address = None`
   - For DB-patching already-scraped tours: update `location_name`, clear `location_address` directly in Supabase
 
+## Person Name Lookup Pattern
+
+When movie events have GPT-generated descriptions, person names (cast & crew) are often wrong — GPT translates katakana phonetically instead of using the official Chinese/English name (e.g. ギデンズ・コー → 「紀德恩」instead of 「九把刀」). Use `scraper/person_name_lookup.py` to look up correct names.
+
+**Lookup chain (3 tiers):**
+1. **eiga.com movie page** → extract cast/crew list (role, katakana name, person URL)
+2. **eiga.com person page** → extract English name (`英語表記`) and origin country (`出身`). No Chinese name field exists on eiga.com.
+3. **zh.wikipedia search** → search English name + origin country (e.g. `"Wang Ching 台灣"`) for Chinese name. Fallback: **ja.wikipedia** — search katakana name; if article title is pure CJK (e.g. 「柯震東」 for 「クー・チェンドン」), use it as the Chinese name; also check zh interlanguage links.
+
+**Critical rules:**
+- **Character name prefix stripping:** eiga.com cast names include character names (e.g. 「孝綸（シャオルン）クー・チェンドン」). Must use `_CHAR_NAME_PREFIX_RE` regex to strip the character name prefix before lookup.
+- **Wikipedia disambiguation requires origin country:** Bare English names return unrelated results (botanists, places). Always append the origin country to the search query.
+- **Wikipedia person-keyword filtering:** Prefer results whose snippet contains 演員/導演/歌手/出生. Prefer short titles (2-4 chars) for Chinese names.
+- **desc_zh fix requires GPT:** Wrong names in desc_zh are GPT-generated phonetic translations that don't match any known string. Must use GPT-4o-mini (`_fix_person_names_gpt()`) to identify and replace them. Plain string replacement does not work.
+- **desc_en fix uses direct replacement:** English names from eiga.com can be string-replaced directly in desc_en (katakana → English name).
+
+**Annotator integration:**
+- `enrich_person_names()` in `annotator.py` — queries movie events (excl. `eiga_com` source + already reviewed), looks up cast/crew, fixes desc_zh via GPT and desc_en via direct replacement.
+- CLI: `python annotator.py --enrich-person-names`
+- Caching: in-memory per movie and per person URL within a single run.
+
 ## Auto-Scraper Layer B — `generate.py`
 
 `scraper/auto_scraper/generate.py` is the Phase 2 codegen + sandbox validation pipeline. It reads a `research_sources` row, fetches sample HTML via Playwright, calls GPT-4o for a `spec.json`, validates via `spec_to_code.render()`, then dry-runs the generated scraper in a subprocess.
