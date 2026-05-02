@@ -735,7 +735,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm space-y-2">
+        <div className="sticky top-0 z-20 mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm space-y-2 shadow-md">
           {/* Row 1: count + action buttons */}
           <div className="flex items-center gap-3">
             <span className="text-blue-700 font-medium">{t("selectedCount", { count: selected.size })}</span>
