@@ -113,33 +113,52 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkConfirming, setBulkConfirming] = useState(false);
 
-  // Realtime: push newly-created reports (e.g. from AI pipeline) to the top of the list
-  // without requiring a manual page refresh.
+  // Realtime: push newly-created reports to the top of the list, and keep
+  // existing rows in sync when another admin confirms / dismisses a report.
   useEffect(() => {
-    const channel = supabase
+    // Create the client inside the effect so the subscription always uses a
+    // fresh, stable instance regardless of parent re-renders.
+    const rt = createClient();
+    const REPORT_SELECT = "*, events(name_ja, name_zh, name_en, source_url, source_name, category, start_date, end_date, location_name, location_name_zh, location_name_en, location_address, location_address_zh, location_address_en, business_hours, business_hours_zh, business_hours_en, is_paid, price_info, description_ja, description_zh, description_en, selection_reason)";
+
+    const channel = rt
       .channel("admin-reports-live")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "event_reports" },
         async (payload) => {
-          // Fetch the full row with joined event data
-          const { data } = await supabase
+          const { data } = await rt
             .from("event_reports")
-            .select("*, events(name_ja, name_zh, name_en, source_url, source_name, category, start_date, end_date, location_name, location_name_zh, location_name_en, location_address, location_address_zh, location_address_en, business_hours, business_hours_zh, business_hours_en, is_paid, price_info, description_ja, description_zh, description_en, selection_reason)")
+            .select(REPORT_SELECT)
             .eq("id", payload.new.id)
             .single();
           if (data) {
             setReports((prev) => {
-              // Avoid duplicates if the row was already added by another trigger
               if (prev.some((r) => r.id === data.id)) return prev;
               return [data as ReportRow, ...prev];
             });
           }
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "event_reports" },
+        async (payload) => {
+          // Another admin session confirmed / dismissed a report — update in-place
+          const { data } = await rt
+            .from("event_reports")
+            .select(REPORT_SELECT)
+            .eq("id", payload.new.id)
+            .single();
+          if (data) {
+            setReports((prev) =>
+              prev.map((r) => (r.id === data.id ? (data as ReportRow) : r))
+            );
+          }
+        }
+      )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { rt.removeChannel(channel); };
   }, []);
 
   function getEventName(row: ReportRow): string {
