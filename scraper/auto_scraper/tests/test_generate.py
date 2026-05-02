@@ -378,5 +378,114 @@ class SandboxFailureArtifactTests(unittest.TestCase):
             self.assertEqual(persisted_spec["source_name"], "example_test")
 
 
+class SelectorValidationTests(unittest.TestCase):
+    def test_validate_selectors_card_match(self):
+        """card_selector that matches → 0 violations."""
+        from auto_scraper.generate import _validate_selectors_against_html
+        html = '<html><body><li class="article-list"><h2 class="t">A</h2><p class="d">2026.05.05</p></li></body></html>'
+        spec = {
+            "card_selector": "li.article-list",
+            "field_selectors": {"title": "h2.t", "date": "p.d"},
+        }
+        self.assertEqual(_validate_selectors_against_html(spec, html), [])
+
+    def test_validate_selectors_card_misses(self):
+        """card_selector hallucinated → violation flagged."""
+        from auto_scraper.generate import _validate_selectors_against_html
+        html = '<html><body><li class="article-list">A</li></body></html>'
+        spec = {
+            "card_selector": ".event-card",
+            "field_selectors": {"title": "h2", "date": ".date"},
+        }
+        violations = _validate_selectors_against_html(spec, html)
+        self.assertTrue(any(".event-card" in v for v in violations))
+
+    def test_validate_selectors_field_misses(self):
+        """card matches but field selector doesn't."""
+        from auto_scraper.generate import _validate_selectors_against_html
+        html = '<html><body><li class="card"><h2>title</h2></li></body></html>'
+        spec = {
+            "card_selector": "li.card",
+            "field_selectors": {"title": "h2", "date": ".date-not-here"},
+        }
+        violations = _validate_selectors_against_html(spec, html)
+        self.assertTrue(any("date" in v for v in violations))
+
+
+class SelectorValidationRetryTests(unittest.TestCase):
+    def test_selector_validation_triggers_retry(self):
+        """LLM returns bad selector first, good selector second → retries=1, success."""
+        row = _make_row()
+        sb, holder = _make_sb(row)
+
+        sample_html = (
+            '<html><body>'
+            '<li class="article-list"><h2 class="t">A</h2><p class="d">2026-05-05</p>'
+            '<a href="/event/1">x</a></li>'
+            '<li class="article-list"><h2 class="t">B</h2><p class="d">2026-05-06</p>'
+            '<a href="/event/2">x</a></li>'
+            '</body></html>'
+        )
+
+        bad_spec = dict(VALID_SPEC)
+        bad_spec["card_selector"] = ".event-card"  # hallucinated, not in HTML
+
+        good_spec = dict(VALID_SPEC)
+        good_spec["card_selector"] = "li.article-list"
+        good_spec["field_selectors"] = {"title": "h2.t", "date": "p.d"}
+
+        class FakeUsage:
+            prompt_tokens = 100
+            completion_tokens = 50
+
+        def _make_resp(spec_payload):
+            class FakeChoice:
+                message = MagicMock(content=json.dumps(spec_payload))
+
+            class FakeResp:
+                usage = FakeUsage()
+                choices = [FakeChoice()]
+
+            return FakeResp()
+
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.side_effect = [
+            _make_resp(bad_spec),
+            _make_resp(good_spec),
+        ]
+        fake_openai = MagicMock()
+        fake_openai.OpenAI.return_value = fake_client
+
+        sample_events = [
+            {
+                "name_ja": "Event 1",
+                "name_zh": None,
+                "name_en": None,
+                "source_url": "https://example.com/event/1",
+                "source_id": "example_1",
+                "start_date": "2026-06-01T00:00:00",
+            }
+        ]
+        fake_stdout = "len=1\nSAMPLE_EVENTS=" + json.dumps(sample_events) + "\n"
+        fake_subproc = MagicMock(returncode=0, stdout=fake_stdout, stderr="")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "out"
+            opts = generate.GenerateOptions(
+                source_id=42,
+                output_dir=out_dir,
+            )
+            with patch.object(generate, "_fetch_sample_html", return_value=sample_html), \
+                 patch.object(generate.subprocess, "run", return_value=fake_subproc), \
+                 patch.dict(sys.modules, {"openai": fake_openai}):
+                rc = generate.run(opts, sb=sb)
+
+            self.assertEqual(rc, 0)
+            self.assertEqual(holder.update_payload["auto_scraper_status"], "success")
+            self.assertEqual(fake_client.chat.completions.create.call_count, 2)
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["retries"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

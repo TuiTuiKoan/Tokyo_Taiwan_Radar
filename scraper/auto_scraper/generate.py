@@ -67,6 +67,13 @@ Constraints:
 - source_id_url_pattern must extract a numeric or alphanumeric ID from event detail URLs.
 - max_pages: pick conservatively (3-5 for unknown sites).
 - detail_link_selector: CSS selector for the per-card anchor that links to the event detail page (e.g. "a.title", "a[href*='/event/']"). Set this whenever cards link to detail pages — leave empty ONLY if the listing has no detail links at all. If you leave it empty, the generated scraper will fall back to the first <a href> inside each card, which works for most cases but is less precise.
+
+CRITICAL — Selector grounding rule:
+- ONLY use CSS classes, IDs, or attributes that appear VERBATIM in the sample HTML provided below.
+- DO NOT invent class names that look reasonable but are not actually in the HTML (e.g. ".event-card", ".c-event-list__item" are common LLM fabrications).
+- Before outputting each selector, scan the sample HTML and confirm the class/id/tag is present.
+- If you cannot find any clear class to anchor on, prefer tag selectors (e.g. "article", "li.article-list", "div.post") over making up class names.
+- Empty card_selector or selectors that match nothing will cause sandbox failure and waste an expensive retry.
 """
 
 logger = logging.getLogger(__name__)
@@ -163,6 +170,60 @@ def _check_eligibility(row: dict) -> None:
             "spec-invalid",
             f"feasibility={profile.get('feasibility')!r} (need 'easy')",
         )
+
+
+def _validate_selectors_against_html(spec: dict, html: str) -> list[str]:
+    """Lightweight pre-sandbox check: confirm LLM-generated CSS selectors match
+    real elements in the sample HTML. Catches hallucinated class names without
+    spending 30s in Playwright. Returns list of human-readable violations."""
+    from bs4 import BeautifulSoup
+
+    violations: list[str] = []
+    if not html:
+        return ["sample HTML is empty — cannot validate selectors"]
+    soup = BeautifulSoup(html, "html.parser")
+
+    card_sel = spec.get("card_selector", "")
+    if not card_sel:
+        return ["card_selector is empty"]
+    try:
+        cards = soup.select(card_sel)
+    except Exception as exc:
+        return [f"card_selector {card_sel!r} is not a valid CSS selector: {exc}"]
+    if not cards:
+        return [f"card_selector {card_sel!r} matches 0 elements in sample HTML"]
+
+    first_card = cards[0]
+    field_sels = spec.get("field_selectors", {}) or {}
+    for field, sel in field_sels.items():
+        if not sel:
+            continue
+        try:
+            matched = first_card.select(sel)
+        except Exception as exc:
+            violations.append(
+                f"field_selectors.{field}={sel!r} is not a valid CSS selector: {exc}"
+            )
+            continue
+        if not matched:
+            violations.append(
+                f"field_selectors.{field}={sel!r} matches 0 elements within first card"
+            )
+
+    detail_sel = spec.get("detail_link_selector", "")
+    if detail_sel:
+        try:
+            matched = first_card.select(detail_sel)
+        except Exception as exc:
+            violations.append(
+                f"detail_link_selector={detail_sel!r} is not a valid CSS selector: {exc}"
+            )
+        else:
+            if not matched:
+                violations.append(
+                    f"detail_link_selector={detail_sel!r} matches 0 elements within first card"
+                )
+    return violations
 
 
 def _within_cooldown(row: dict, now: datetime | None = None) -> bool:
@@ -288,6 +349,13 @@ def _call_llm_with_retries(
             spec_to_code.render(spec)
         except ValueError as exc:
             last_error = str(exc)
+            continue
+
+        # Selector grounding check — fast-fail on hallucinated CSS classes
+        # before spending 30s+ in Playwright sandbox. Skipped for --mock-llm.
+        selector_violations = _validate_selectors_against_html(spec, sample_html)
+        if selector_violations:
+            last_error = "selector grounding failed: " + "; ".join(selector_violations)
             continue
 
         return LLMResult(
