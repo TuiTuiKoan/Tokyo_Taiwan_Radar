@@ -239,6 +239,7 @@ Respond with valid JSON matching this schema:
   "business_hours_en": "opening hours in English" or null,
   "is_paid": false or true or null,
   "price_info": "price details" or null,
+  "location_url": "official website URL of the venue, extracted from the text only — NEVER infer or hallucinate; set null if not explicitly stated" or null,
   "selection_reason": {
     "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
@@ -620,6 +621,13 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             # Ensure end_date is not null when start_date exists (skip in fix_reviewed mode)
             if not fix_reviewed and update_data.get("start_date") and not update_data.get("end_date"):
                 update_data["end_date"] = update_data["start_date"]
+
+            # location_url: scraper value first, then GPT-extracted from text.
+            # Added conditionally so null never overwrites an admin-entered value.
+            if not fix_reviewed:
+                _loc_url = event.get("location_url") or _str(annotation.get("location_url"))
+                if _loc_url:
+                    update_data["location_url"] = _loc_url
 
             # Try to include selection_reason (column may not exist yet)
             selection_reason = annotation.get("selection_reason")
