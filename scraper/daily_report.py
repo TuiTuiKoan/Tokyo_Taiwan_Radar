@@ -13,6 +13,7 @@ Local test:
 """
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -27,6 +28,49 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 JST = timezone(timedelta(hours=9))
 SITE_URL = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://tokyo-taiwan-radar.vercel.app")
 ACTIONS_URL = "https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/actions"
+RUNS_DIR = Path(__file__).parent / "auto_scraper" / "runs"
+
+_TAIWAN_KW = [
+    "台灣", "台湾", "Taiwan", "臺灣",
+    "台北", "台中", "台南", "高雄", "花蓮",
+]
+
+
+def _load_run_artifacts(source_id: int) -> dict:
+    """Load meta.json, spec.json, and sample events from dry_run.txt for a given source_id.
+    Returns a dict with keys: meta, spec, sample_titles. Empty dict on any error.
+    """
+    run_dir = RUNS_DIR / str(source_id)
+    if not run_dir.is_dir():
+        return {}
+    try:
+        meta = json.loads((run_dir / "meta.json").read_text(encoding="utf-8"))
+    except Exception:
+        meta = {}
+    try:
+        spec = json.loads((run_dir / "spec.json").read_text(encoding="utf-8"))
+    except Exception:
+        spec = {}
+    # Extract first 3 event titles from SAMPLE_EVENTS in dry_run.txt
+    sample_titles: list[str] = []
+    try:
+        dry = (run_dir / "dry_run.txt").read_text(encoding="utf-8")
+        m = re.search(r"^SAMPLE_EVENTS=(.+)$", dry, re.MULTILINE)
+        if m:
+            events = json.loads(m.group(1))
+            for ev in events[:3]:
+                title = (
+                    ev.get("name_ja")
+                    or ev.get("name_zh")
+                    or ev.get("name_en")
+                    or ev.get("raw_title")
+                    or ""
+                )
+                if title:
+                    sample_titles.append(title)
+    except Exception:
+        pass
+    return {"meta": meta, "spec": spec, "sample_titles": sample_titles}
 
 
 _WIP_DATE_RE = re.compile(r"最後更新[:：]\s*(\d{4}-\d{2}-\d{2})")
@@ -180,6 +224,18 @@ def generate_report() -> str:
         or []
     )
 
+    # ── auto-generate success but no PR yet (needs human review) ────────────────
+    review_queue = (
+        sb.table("research_sources")
+        .select("id,name,scraping_feasibility")
+        .eq("auto_scraper_status", "success")
+        .is_("auto_scraper_pr_url", "null")
+        .order("id")
+        .execute()
+        .data
+        or []
+    )
+
     # ── build report text ─────────────────────────────────────────────────────
     sep = "─" * 44
     lines: list[str] = []
@@ -233,8 +289,49 @@ def generate_report() -> str:
         lines.append("  ✓ 無待處理事項")
     lines.append("")
 
-    # Section 2: PR review (always shown, even if empty)
-    lines.append(f"── 待審核 PR (auto-generated scrapers) {sep[:10]}")
+    # Section 2: auto-generate 完成待人工建立 PR
+    lines.append(f"── 🔎 待人工建立 PR（auto-generate 成功）{sep[:8]}")
+    if review_queue:
+        for item in review_queue:
+            src_id = item["id"]
+            name = item.get("name", "?")
+            feas = item.get("scraping_feasibility") or "?"
+            arts = _load_run_artifacts(src_id)
+            meta = arts.get("meta", {})
+            spec = arts.get("spec", {})
+            titles = arts.get("sample_titles", [])
+
+            events_found = meta.get("events_found", "?")
+            cost = meta.get("cost_usd", 0.0)
+
+            # source_id stability: pattern contains \d+ or [a-z0-9]+ → stable
+            id_pattern = spec.get("source_id_url_pattern", "")
+            id_stable = "✓" if re.search(r"\\d\+|[a-z]\+", id_pattern) else "⚠"
+
+            # Taiwan keyword check on sample titles
+            tw_hits = sum(1 for t in titles if any(kw in t for kw in _TAIWAN_KW))
+            tw_flag = "✓" if tw_hits > 0 else f"⚠ 0/{len(titles)} 筆含台灣關鍵字"
+
+            lines.append(f"  [{name}] (id={src_id}, {feas})")
+            lines.append(f"    events_found  : {events_found}   cost: ${cost:.3f}")
+            lines.append(f"    source_id 穩定: {id_stable}  ({id_pattern})")
+            lines.append(f"    台灣關聯       : {tw_flag}")
+            if titles:
+                lines.append("    sample events :")
+                for t in titles:
+                    tw_mark = "+" if any(kw in t for kw in _TAIWAN_KW) else " "
+                    lines.append(f"      [{tw_mark}] {t[:60]}")
+            lines.append(f"    → runs/{src_id}/generated.py  確認後手動建立 PR")
+            lines.append("")
+        lines.append("  手動建立 PR:")
+        lines.append("    cp scraper/auto_scraper/runs/<id>/generated.py scraper/sources/<name>.py")
+        lines.append("    # 加入 main.py SCRAPERS → git commit → gh pr create")
+    else:
+        lines.append("  （無待建立項目）")
+    lines.append("")
+
+    # Section 3: PR review（已有 PR URL，等待 merge）
+    lines.append(f"── 待 merge PR（auto-generated scrapers）{sep[:9]}")
     if pending_prs:
         for i, pr in enumerate(pending_prs, 1):
             feas = pr.get("scraping_feasibility") or "?"
@@ -243,9 +340,9 @@ def generate_report() -> str:
             lines.append(f"  {i}. [{pr.get('name', '?')}] ({feas}) → PR #{pr_num}")
             lines.append(f"     {pr_url}")
         lines.append("  → https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/pulls")
-        lines.append("  ※ approve → merge で次回 cron から本番稼働")
+        lines.append("  ※ approve → merge 後次回 cron 自動上線")
     else:
-        lines.append("  （待審核 PR なし）")
+        lines.append("  （無待 merge PR）")
     lines.append("")
 
     # Section 3: git commits
