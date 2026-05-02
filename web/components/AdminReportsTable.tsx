@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { type Category, CATEGORIES, CATEGORY_GROUPS, type Locale } from "@/lib/types";
 import Link from "next/link";
@@ -99,6 +100,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const tReport = useTranslations("report");
   const tCat = useTranslations("categories");
   const supabase = createClient();
+  const router = useRouter();
 
   const [reports, setReports] = useState<ReportRow[]>(initialReports);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -209,6 +211,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       setReports((prev) => prev.map((r) => (r.id === row.id ? updatedRow : r)));
       setConfirmFeedback((prev) => ({ ...prev, [row.id]: { githubUpdated: result.githubUpdated, wasReviewed: result.wasReviewed } }));
       setExpandedId(row.id); // keep expanded to show feedback
+      router.refresh(); // invalidate SSR cache so /admin list reflects updated event fields
     }
     setSaving(null);
   }
@@ -220,6 +223,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
     if (!error) {
       setReports((prev) => prev.map((r) => (r.id === id ? { ...r, ...update } : r)));
       setExpandedId(null);
+      router.refresh(); // invalidate SSR cache
     }
     setSaving(null);
   }
