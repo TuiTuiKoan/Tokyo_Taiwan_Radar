@@ -15,6 +15,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from .base import BaseScraper, Event
+from movie_title_lookup import lookup_movie_titles
 
 BASE_URL = "http://www.eurospace.co.jp"
 
@@ -134,12 +135,16 @@ class EurospaceScraper(BaseScraper):
                 if len(parts) >= 2:
                     country = parts[1]
 
+            name_zh, name_en = lookup_movie_titles(title)
+
             return Event(
                 source_name=self.SOURCE_NAME,
                 source_id=f"eurospace_{w_id}",
                 source_url=url,
                 original_language="ja",
                 name_ja=title,
+                name_zh=name_zh,
+                name_en=name_en,
                 raw_title=title,
                 raw_description=description,
                 start_date=start_date,

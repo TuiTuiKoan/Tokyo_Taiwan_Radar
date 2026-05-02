@@ -54,6 +54,39 @@ Read this at the start of every session before writing any scraper.
 - Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
 - `main.py` reads `getattr(scraper, "_deepl_chars_used", 0)` when writing to `scraper_runs`.
 
+## `name_ja_locked` — protect structured titles from annotator overwrite
+
+**Problem**: Annotator GPT always rewrites `name_ja`, even when the scraper already populated it from a precise structured source field (e.g. academic paper `題目:`, official film programme titles). GPT tends to truncate the subtitle or append generic suffixes like「に関する講演会」.
+
+**Solution**: Set `name_ja_locked=True` on the `Event` when `name_ja` is extracted from a definitive structured field. The annotator will preserve the existing `name_ja` unchanged, while still generating `name_zh`, `name_en`, `description_*`, and `category` normally.
+
+**When to use**:
+- Academic sub-events where `name_ja` = structured `題目:` / paper title with full subtitle (e.g. `taiwanshi` scraper)
+- Film sub-events from official programme PDFs with definitive Japanese titles
+- Any event where the raw source provides the official Japanese title as a discrete field — not inferred from free-text description
+
+**When NOT to use**:
+- Events where the source only provides a vague or generic title and annotator enrichment is desirable
+- Parent events (usually fine to let annotator improve the title)
+
+**Implementation**:
+```python
+Event(
+    name_ja=r["title"],      # from 題目: field — precise and definitive
+    raw_title=r["title"],
+    name_ja_locked=True,     # protect from annotator overwrite
+    ...
+)
+```
+Requires `supabase/migrations/034_name_ja_locked.sql` to be applied (adds `name_ja_locked boolean default false`).
+
+**DB fix for already-misannotated events** (if annotator has already run):
+```python
+events = sb.table('events').select('id,name_ja,raw_title').like('source_id','<source>_%_sub%').eq('is_active', True).execute().data
+for e in [x for x in events if x['name_ja'] != x['raw_title']]:
+    sb.table('events').update({'name_ja': e['raw_title']}).eq('id', e['id']).execute()
+```
+
 ## Annotator output cleaning
 - Empty strings from GPT (`""`) must be treated as `None` — use `_str()` helper that returns `None` for falsy/blank strings. Prevents empty `name_zh`/`name_en` from blocking the `||` fallback chain in `getEventName`.
 - Location fields must be stripped of leading label separators — use `_loc()` helper that calls `.lstrip("：；:; \u3000")`. GPT often includes the `会場：` or `場所：` separator as the first character of `location_name`.
@@ -221,6 +254,25 @@ Run after discovering a new cross-source duplicate that the merger missed. Then 
 - **Annotator enrichment**: `annotator.py --enrich-movie-titles` retroactively fills NULL `name_zh`/`name_en` fields for existing `movie` events. Only patches NULL fields — never overwrites existing values. Runs after `--fix-reviewed` step in `scraper.yml`.
 - **Rate limit**: `LOOKUP_DELAY_SEC = 1.0` between requests. Do not lower.
 - **Scope**: cinema scrapers only (category contains `"movie"`). Do not use for non-film events.
+
+### Adoption status (as of 2026-05-02)
+
+| Scraper | `lookup_movie_titles` | Weekly schedule (`business_hours`) |
+|---|---|---|
+| `cinemart_shinjuku` | ✅ | ✅ (`_parse_schedule_page` via cineticket.jp) |
+| `ks_cinema` | ✅ | ✅ (`_parse_schedule_first_last`) |
+| `cinemarine` | ✅ | ❌ (no public schedule URL found) |
+| `cineswitch_ginza` | ✅ | ❌ |
+| `morc_asagaya` | ✅ | ❌ |
+| `shin_bungeiza` | ✅ | ❌ |
+| `uplink_cinema` | ✅ | ❌ |
+| `human_trust_cinema` | ✅ | ❌ |
+| `eurospace` | ✅ (added 2026-05-02) | ❌ |
+| `tokyo_filmex` | ❌ (festival; title in multiple languages already) | ❌ (annual) |
+| `ssff` | ❌ (English titles primary) | ❌ (festival) |
+| `oaff` | ❌ (festival) | ❌ (annual) |
+
+**When adding a new cinema scraper**: always add `from movie_title_lookup import lookup_movie_titles` and call `lookup_movie_titles(title)` before `Event()`. Update this table.
 
 ## prtimes-specific
 

@@ -106,6 +106,36 @@ Extract the 6-digit number from the URL:
 | `start_date` is `None` | First `<p>` format changed | Check first `<p>` text on detail page; update regex in `_parse_release_date` |
 | Listing returns 0 links | URL changed or `^\d{6}\.html$` pattern wrong | Check actual `<a href>` values on listing page |
 
+## Phase 2 — Weekly Schedule Enrichment (added 2026-05-02)
+
+After Phase 1 collects events via the listing/detail pages, Phase 2 enriches `start_date`, `end_date`, and `business_hours` from the online ticket schedule.
+
+| Field | Value |
+|---|---|
+| Schedule URL | `https://cinemart.cineticket.jp/theater/shinjuku/schedule` |
+| Function | `_parse_schedule_page(session)` → `dict[normalized_title, ScheduleEntry]` |
+| Fuzzy match | `_normalize_title(title)` strips `【4K上映】`, `〈特別版〉` etc. before matching |
+| `business_hours` format | `"5/1（金）14:00・18:30\n5/2（土）10:30\n..."` (one line per day) |
+| Failure safe | `try/except` wraps Phase 2 entirely — Phase 1 results unaffected if schedule fails |
+
+### `_normalize_title` rules
+- Remove `【...】` and `〈...〉` bracketed modifiers (e.g. `【4K上映】`, `〈特別版〉`)
+- Remove trailing whitespace
+- Comparison is case-sensitive (Japanese titles don't have case variation)
+
+### Phase 2 matching algorithm
+1. Build a `dict[normalized_title, ScheduleEntry]` from the schedule page
+2. For each Phase 1 event, normalize `raw_title` and look up in the dict
+3. If found: overwrite `start_date`, `end_date`, `business_hours`
+4. If not found: keep Phase 1 values (some films may not appear in online ticketing)
+
+## `lookup_movie_titles` Integration
+
+- Import: `from movie_title_lookup import lookup_movie_titles` (not relative)
+- Call after title is confirmed: `name_zh, name_en = lookup_movie_titles(title)`
+- Pass values to Event: `name_zh=name_zh, name_en=name_en`
+- Silent failure — returns `(None, None)` if eiga.com lookup fails
+
 ## Pending Rules
 
 _Add new lessons here after debugging sessions._

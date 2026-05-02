@@ -4,6 +4,39 @@
 
 ---
 
+## 2026-05-02 — eurospace.py に `lookup_movie_titles` を追加、SKILL.md 更新
+
+- **変更内容**：`eurospace.py` に `from movie_title_lookup import lookup_movie_titles` を追加し、`_scrape_detail()` 内で `name_zh, name_en = lookup_movie_titles(title)` を呼び出し `Event()` に渡すよう修正。
+- **背景**：`lookup_movie_titles` は eiga.com 経由で日本語映画タイトルの中/英訳を取得するモジュール。eurospace は唯一の未適用スクレイパーだった。
+- **SKILL.md 更新（2点）**：
+  1. `scraper-expert/SKILL.md`（canonical: `.github/skills/agents/scraper-expert/SKILL.md`）: `movie_title_lookup` セクションに導入状況テーブルを追加、`name_ja_locked` セクションを old path から canonical に移植。
+  2. `sources/cinemart_shinjuku/SKILL.md`：Phase 2 週次スケジュール（`_parse_schedule_page`、`_normalize_title`）と `lookup_movie_titles` 統合説明を追加。
+- **教訓**：cinema scraper 追加時は **必ず `lookup_movie_titles` を追加**。採用状況テーブルをメンテナンスする（`## movie_title_lookup` セクション）。
+
+---
+
+## 2026-05-02 — record_links JSONB bug（`json.dumps()` 雙重編碼）、name_ja_locked 機制設計
+
+### record_links JSONB bug
+- **問題**：`database.py` `_event_to_row()` 對 `record_links` 欄位呼叫 `json.dumps()`，Supabase JSONB 欄位收到字串而非陣列；前端 `.map()` crash → HTTP 500。
+- **修復**：移除 `json.dumps()`，直接傳 Python `list`。
+- **教訓**：Supabase Python SDK 的 JSONB 欄位（`jsonb`、`jsonb[]`）**必須傳 Python `list`/`dict`，不可用 `json.dumps()` 先序列化**。SDK 自動序列化 native types；手動序列化造成雙重編碼。
+
+### name_ja_locked 機制設計
+- **問題**：annotator GPT 覆寫了 `taiwanshi.py` 從 `題目:` 欄位精準抓取的學術論文標題，截斷副標題並加「に関する講演会」後綴。
+- **修復**：設計並實作 `name_ja_locked` boolean flag（migration 034 / Event dataclass / database.py / annotator.py）。
+- **`annotator.py` 行為**：`name_ja_locked=True` 時直接使用 DB 現有 `name_ja`（`name_ja = event.get("name_ja")`），翻譯/分類/其他欄位照常生成。
+- **適用場景**：`题目:` 欄位、官方片名 PDF、其他精確結構化來源 → `name_ja_locked=True`。
+- **禁用場景**：標題只有通用詞（如「イベント」）、或是自由文字推斷的場景 → 讓 annotator 改善。
+- **DB fix 指令**（已誤標注時）：
+  ```python
+  events = sb.table('events').select('id,name_ja,raw_title').like('source_id','<source>_%_sub%').eq('is_active', True).execute().data
+  for e in [x for x in events if x['name_ja'] != x['raw_title']]:
+      sb.table('events').update({'name_ja': e['raw_title']}).eq('id', e['id']).execute()
+  ```
+
+---
+
 ## 2026-05-02 — google_news_rss: `_extract_original_url()` 全回 None，因 RSS description href 也是 Google News URL
 
 **問題：** `_extract_original_url(description_html)` 對所有事件返回 `None`，導致 `source_url` 停留在 Google News URL、`raw_description` 無法取得原始文章內容。
