@@ -3,6 +3,31 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — Admin 頁面 SSR 快取無效化 + Realtime 自動重新整理（commits `cad13a2`、`046d8cd`、`08b4912`）
+
+### 問題一：`router.push()` 後顯示舊快取
+`AdminEditClient.handleSave()` 儲存後呼叫 `router.push('/admin')`。admin 列表頁是 SSR，導航回去時 Next.js router cache 尚未失效，`is_active` 等欄位顯示舊值，即使 DB 已更新。
+
+### 問題二：confirm/dismiss 後同樣顯示舊快取
+`AdminReportsTable.handleConfirm()` / `handleDismiss()` success 路徑導航回 `/admin`，同樣遇到 SSR 快取問題。
+
+### 問題三：AI 建立報告後頁面不自動更新
+`/admin/reports` 頁面不會自動顯示新報告，需手動重新整理。
+
+### 修復
+1. `AdminEditClient.handleSave()`：在 `router.push()` **前**加 `router.refresh()`。
+2. `AdminReportsTable.handleConfirm()` / `handleDismiss()`：success 路徑各加 `router.refresh()`。
+3. `AdminReportsTable`：新增 Supabase Realtime 訂閱 `{ event: "INSERT", table: "event_reports" }`，INSERT 後重新 fetch 完整 row（含 joined event），去重後插入列表頂端；unmount 時 `removeChannel()` 清理。
+
+### 教訓
+- **SSR 快取無效化**：Client Component 執行 mutation 後導航回 SSR 頁面，**必須**在 `router.push()` 前加 `router.refresh()`，否則頁面顯示舊快取。這是 Next.js App Router 的必要模式，不是 optional。
+- **兩種即時更新模式應同時使用**：
+  - **Realtime 訂閱** → 同一 tab 的即時更新（新 row 出現、狀態變更同步）
+  - **`router.refresh()`** → 跨頁面導航（從編輯頁 / 審查頁回到列表頁）
+  兩者覆蓋不同場景，缺一不可。
+- Admin 列表元件的 `useEffect` 應同時訂閱 `INSERT` 和 `UPDATE`，fetch 完整 row（含 join）再更新 state。
+
+---
 ## 2026-05-02 — GPT 副標題截斷修復（annotator.py SUBTITLE RULE + 批次 DB 修正）
 
 ### 問題

@@ -69,6 +69,32 @@ supabase
   .subscribe();
 ```
 
+## Next.js SSR 快取無效化（`router.refresh()`）
+
+**Admin Client Component 執行 mutation 後導航回 SSR 頁面，必須先呼叫 `router.refresh()`。**
+
+Next.js App Router 的 router cache 不會因為 `router.push()` 自動失效；若省略 `router.refresh()`，SSR 頁面將繼續顯示 mutation 前的快取資料（如舊的 `is_active`、`annotation_status`）。
+
+```ts
+// ❌ mutation 後只 push — 頁面仍顯示舊資料
+await saveToDb(data);
+router.push('/admin');
+
+// ✅ 先 refresh 再 push — 強制 SSR 頁面重新執行 Server Component
+await saveToDb(data);
+router.refresh();
+router.push('/admin');
+```
+
+**適用場景（兩種更新模式，應同時部署）：**
+
+| 場景 | 解法 |
+|------|------|
+| 同一 tab 內的即時 row 更新（新報告、狀態變更） | Supabase Realtime 訂閱（`INSERT` + `UPDATE`）|
+| 跨頁面導航後列表顯示最新資料 | `router.refresh()` before `router.push()` |
+
+**規則：** 任何 Admin 頁面的 save / confirm / dismiss handler，只要後面接 `router.push()`，一律在其前加 `router.refresh()`。這是 Next.js App Router 的必要模式，不是 optional 優化。
+
 ## Python
 - When changing a function's return type (e.g. `dict` → `tuple`), immediately smoke-test before committing: `python -c "from module import fn; print(type(fn(...)))"`
 - Use `getattr(obj, 'attr', default)` when reading an attribute that may not exist on all subclasses.
