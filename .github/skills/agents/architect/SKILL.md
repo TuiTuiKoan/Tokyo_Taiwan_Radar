@@ -78,6 +78,40 @@ Quality check section 如果沒有對應的可執行 action（fix button / batch
 
 Reference incident: `AdminTabNav` badge（2026-05-02）—（commit `4a71258`）; expired-but-active section（commit `cd4cc29`）.
 
+## Quality Check Design Rules
+
+在任何包含「新增或修改 `/admin/quality` check 條件」的 feature plan 中，**必須**確認以下三點：
+
+### 規則一：判斷欄位 = 詳情頁顯示欄位
+
+> Quality check 用哪個欄位 IS NULL 做判斷，該欄位必須是詳情頁實際 render 的欄位。
+
+- 設計 check 前先查前端程式碼（`app/[locale]/events/[id]/page.tsx`），確認「哪個欄位 null 才真正影響使用者體驗」。
+- 錯誤範例：用 `location_address IS NULL` 做缺地點 check，但詳情頁顯示 `location_name`（commit `b82849d` → `80920ce`）。
+
+### 規則二：排除「天生無法填寫」的事件類型
+
+設計每個 quality check 時，同步列出「哪些事件類型天生不需要此欄位」，並在 DB query 層排除：
+
+| Check 類型 | 已知排除 | 排除原因 |
+|-----------|---------|---------|
+| 缺地點（`location_name IS NULL`）| `source_name = 'gguide_tv'` | 電視節目 |
+| 缺地點（`location_name IS NULL`）| `category` 含 `competition` | 競賽/補助，全國性活動 |
+
+若未排除 → flag 永遠無法清零 → 無意義的噪音。
+
+**排除語法（Supabase RPC）：**
+```ts
+.not('source_name', 'eq', 'gguide_tv')
+.not('category', 'cs', '{"competition"}')
+```
+
+### 規則三：DB 層過濾優先於 client-side 過濾
+
+所有 quality check 的排除條件**必須**推到 DB query（`.not()`），禁止在 JS 側 `.filter()` 排除。原因：DB 層過濾減少傳輸量，且排除邏輯集中在 query 中易於審查與維護。
+
+Reference incident: 2026-05-02 quality page — `gguide_tv` 排除原為 JS client-side filter，後移至 DB query（commit `80920ce`）；`competition` 排除直接寫在 DB query（commit `4ca383a`）.
+
 ## Admin UI Dashboard Necessity Check
 
 Before planning any new admin page or dashboard column whose primary output is a count / status / health number, ask:
@@ -107,7 +141,7 @@ Before approving any change to `annotator.py` annotation field priority, verify:
 2. **GPT only fills in** when the scraper left the field empty (`None`/`null`).
 3. **Translation fields are always GPT-generated** — `name_zh`, `name_en`, `description_*`, `location_name_zh/en`, `business_hours_zh/en`.
 4. **`name_ja` special case**: when `name_ja_locked=true`, the scraper's value is preserved verbatim. The source title may be in Japanese, Chinese, or English — `name_ja` is a field identifier, not a language constraint.
-5. **`location_url`** is admin-entered only — never write `null` from annotator (omit from `update_data` entirely to avoid clobbering manually set values).
+5. **`location_url`** — conditional write: GPT may extract it from `raw_description` text (schema prompt must say "extract from text only, no hallucination"). Write only when non-null (`_loc_url = event.get("location_url") or _str(annotation.get("location_url"))`); never write `null` back to DB — `null` would overwrite admin-entered values. This is a field shared between scraper/GPT extraction and admin manual entry. (commit `fb568c4`, 2026-05-02)
 6. The safe way to fix a GPT-overwritten date: prepend `開催日時: YYYY年MM月DD日` header to `raw_description`, then set `annotation_status='pending'` to trigger re-annotation.
 
 ## After Identifying a Planning Mistake

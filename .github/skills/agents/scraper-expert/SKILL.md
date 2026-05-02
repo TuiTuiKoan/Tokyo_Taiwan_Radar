@@ -355,10 +355,21 @@ Run after discovering a new cross-source duplicate that the merger missed. Then 
 - **No geographic restriction**: `_SEARCH_KEYWORDS` must NEVER contain city names (東京, 大阪, etc.). Project scope is all of Japan. Bad example: `"台湾 イベント 東京"`. Correct: `"台湾 イベント"`.
 - **Event keyword filter**: title must contain a Taiwan KW AND an event-type KW (`_EVENT_KW`). PR releases about business/export activities are excluded by `_TAIWAN_BASED_TITLE_RE`.
 - **Press release ≠ event**: Extract the actual event date from PR body (`開催日時:` / `日時:` labels), NOT the PR release date. Fallback to release date only if no event date found in body.
+- **⚠️ Fallback date risks hallucination**: If start_date falls back to the PR release date AND raw_description lacks a `開催日時:` header, the annotator will also fail to extract the real event date — GPT cannot distinguish PR release date from event date in unstructured body text. Always add a `プレスリリース発信日: YYYY年MM月DD日\n開催日時: (要本文確認)\n\n` note when extracting event dates from PR body. Incident: `e45d4022`（台湾＆沖縄フードイベント, 2026-05-02）— `start_date=2026-02-25`（release date）instead of `2026-03-11`（actual event）.
 - **LOOKBACK_DAYS = 90**: Skip PRs older than 90 days. PR TIMES has no end-of-event concept — rely on `archive_ended_events` in main pipeline.
 - **Venue extraction**: `_VENUE_LABELS` regex on body text (会場: / 開催場所: etc.). Venue often in second or third paragraph.
 - **`_NEWS_SOURCES` member**: `prtimes` participates in merger.py Pass 2 (date-range + location-overlap), NOT Pass 1 (name similarity). Article-style PR titles don't match event names by similarity.
 - **Dry-run validation**: Run `python main.py --dry-run --source prtimes 2>&1 > /tmp/prtimes_out.txt` — expect 5–30 events per run depending on Taiwan events in the last 90 days.
+
+## Online events — location_name must be set by scraper
+
+- **Do NOT leave `location_name=None` for online events**: Annotator GPT does not reliably identify online events and set `location_name='オンライン'` — it depends on clear textual cues in `raw_description`. If the scraper can determine the event is online (keywords: `オンライン`、`オンデマンド`、`ウェビナー`、`ライブ配信`、`Zoom`、`YouTube`、`配信`), the scraper must set `location_name` directly.
+- **Online event type vocabulary**:
+  - `オンライン（ライブ配信）` — live stream (同期)
+  - `オンライン（オンデマンド）` — on-demand replay (非同期)
+  - `オンライン（ウェビナー）` — webinar platform (Zoom / Teams)
+  - `オンライン` — generic fallback when type is unclear
+- **Sources with frequent online events**: `ide_jetro` (on-demand courses), `connpass`, `doorkeeper`, `jposa_ja`. Incidents: `86efda2a`（オンデマンド講座, ide_jetro, 2026-05-02）— `location_name=null` needed manual DB fix.
 
 ## fukuoka_now-specific
 

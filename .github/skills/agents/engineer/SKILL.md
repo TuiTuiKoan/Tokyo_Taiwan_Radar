@@ -337,6 +337,18 @@ After writing, verify with `grep "key" web/messages/XX.json` before committing.
 
 `replace_string_in_file` is safe only for ASCII-only strings in JSON files.
 
+**Namespace placement rule:** Always use `data["<namespace>"]["key"] = value`, never `data["key"] = value` (top-level). next-intl `t("key")` only searches within the namespace declared in `useTranslations("<namespace>")` — missing keys silently render as the key name string (no error thrown). Confirm the target namespace from the component's `useTranslations()` call:
+
+| Component / Usage | Namespace |
+|---|---|
+| FilterBar location/time options | `filters` |
+| Category labels, group names | `categories` |
+| Other keys | Check `useTranslations("X")` at the call site |
+
+After adding a key, verify placement with `grep -n "newKey" web/messages/zh.json` — line number should be within the expected block, not at the bottom of the file (top-level).
+
+Reference incident: `locationOverseas` written to top-level (L400+) instead of `filters.{}` (L10–L40) — production FilterBar rendered key name string, timeMode default disappeared (commit `049edd8`).  
+
 ## Shell / Terminal Safety
 
 **zsh `git add` with glob bracket paths:**
@@ -721,11 +733,21 @@ if article_text:
 
 **When modifying this pattern:** If you remove the Playwright fetch, `google_news_rss` events will have `start_date = NULL` permanently (the scraper intentionally omits pubDate fallback). Confirm that removing it is intentional before proceeding.
 
+## Annotator — name_ja Preservation & Sub-event Original Naming
+
+**`name_ja` is NEVER overwritten by GPT (2026-05-02 policy change).** The annotator always preserves the scraper's original `name_ja` (= `raw_title`). GPT's `name_ja` output is only used for sub-events (which have no scraper-provided title). The `name_ja_locked` flag is now redundant for the annotator but remains in the DB/scraper for backward compatibility.
+
+**Sub-event `name_ja` / `description_ja` must use original Japanese text:**
+- Movie titles → use the Japanese release title exactly as in the source (e.g. `赤い糸 輪廻のひみつ`)
+- Person names → use the original Japanese notation (katakana/kanji as in source, e.g. `ギデンズ・コー`, `クー・チェンドン`)
+- NEVER translate Chinese/Taiwanese person names into Japanese or invent katakana readings
+- This is enforced by the `SUB-EVENT name_ja / description_ja` rule in `SYSTEM_PROMPT`
+
+**General principle:** All `*_ja` fields are source-of-truth original text. Translation corrections (movie titles, person names) only apply to `*_zh` and `*_en` fields.
+
 ## Annotator — Subtitle Completeness Rule
 
 **GPT-4o-mini habitually truncates academic subtitles.** When a `name_ja` contains a subtitle separator (`――`, `──`, `―`, `—`), GPT translates only the main title and silently drops the subtitle in `name_zh` and `name_en`.
-
-**`name_ja_locked` does NOT protect `name_zh`/`name_en`** — it only prevents `name_ja` from being overwritten.
 
 **SYSTEM_PROMPT rule** (already added 2026-05-02): The SUBTITLE RULE section instructs GPT to always carry the complete subtitle into `name_zh` and `name_en`. Do NOT remove or weaken this rule.
 

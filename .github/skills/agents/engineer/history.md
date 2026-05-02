@@ -3,6 +3,84 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02（深夜 3）— Quality check 判斷欄位錯誤、competition 排除（commits `b82849d`→`80920ce`、`4ca383a`）
+
+**問題一（commits `b82849d`→`80920ce`）：** `/admin/quality` 缺地點 check 查詢 `location_address IS NULL`，但詳情頁 render 的是 `location_name`。兩個欄位不同，check 結果與頁面顯示矛盾。
+
+**修復：** DB query 改為 `.is('location_name', null)`；同時把 `gguide_tv` 排除從 JS filter 移到 DB 層：`.not('source_name', 'eq', 'gguide_tv')`。
+
+**問題二（commit `4ca383a`）：** 競賽/補助類活動天生無實體地點，但被 quality check flag 為缺地點，無法清零。
+
+**修復：** 加 `.not('category','cs','{"competition"}')` 於 DB query 排除 `competition` category 事件。
+
+**教訓：**
+1. Quality check 的判斷欄位必須與詳情頁顯示欄位一致——先查「前端 render 哪個欄位」再設計 check
+2. 某些事件格式（競賽、補助、電視節目、線上直播）天生不符某些 check 條件，排除條件應在 DB query 層處理，不在 JS 層
+3. 排除條件用 `.not('column','operator','value')` Supabase RPC 語法，不在 client 側 `.filter()`
+
+---
+## 2026-05-02（下午）— locationOverseas i18n namespace 錯誤、分類標籤更新、新增分類（commits `049edd8`、`a4a6f75`、`7567ef0`、`8aee4de`、`1870c8a`、`24fcb3c`、`b62b385`、`dfc5aaf`）
+
+**問題：** 新增 `locationOverseas` filter 時，修改腳本使用 `data["locationOverseas"] = label`，將 key 寫到 JSON 頂層，而非 `data["filters"]["locationOverseas"]`。`FilterBar` 使用 `const t = useTranslations("filters")` 呼叫 `t("locationOverseas")`，next-intl production 找不到 key，靜默回傳 key 名稱字串，導致 FilterBar 渲染異常、預設「進行中」timeMode 消失。
+
+**修復（commit `049edd8`）：** 三語言 JSON 全部把 `locationOverseas` 從頂層移入 `filters.{}` 內。
+
+**教訓：**
+- `t("key")` 只查找 `useTranslations("<namespace>")` 指定的 namespace 下的 key
+- 修改 `messages/*.json` 的腳本新增 key 時，必須確認目標 namespace：`data["filters"]["key"]` 而非 `data["key"]`
+- next-intl missing key 靜默失敗（production 回傳 key name 字串，不拋錯）——需靠 `grep -n "key" messages/zh.json` 確認行號在正確 block（filters block 約 L10–L40，頂層約 L400+）
+
+### 同日其他變更（分類標籤 + 新增分類）
+
+- `senses` zh：台灣感性 → 台灣感性・認同（commit `a4a6f75`）
+- `senses` en：Taiwan Senses → Taiwanese Identity & Sensibility（commit `7567ef0`）
+- `senses` ja：台湾の感性 → 台湾の感性・アイデンティティ（commit `7567ef0`）
+- `competition` ja：スポーツ・競技大会 → スポーツ・コンテスト（commit `8aee4de`）
+- 新增 `folklore`（民俗・歲時）→ group_arts（commits `24fcb3c`、`b62b385`）
+- 新增 `scholarship`（補助・獎學金）→ group_knowledge（commit `dfc5aaf`）
+
+---
+## 2026-05-02 — 全 *_zh 欄位簡繁轉換防護
+
+**問題：** GPT-4o-mini 偶爾在 `description_zh` 輸出簡體中文（例：`1e375d6c` tokyoartbeat 事件整段簡體）。既有的 `_loc_zh()` 只保護 location 欄位，`name_zh`/`description_zh`/`business_hours_zh` 完全無防護。
+
+**修復：**
+1. 將 `_LOC_ZH_SIMP_TO_TRAD` 擴展為通用 `_SIMP_TO_TRAD`（~100 字元），覆蓋 location + description + name 常見簡體字
+2. 新增 `_to_trad(val)` 函式，套用到所有 GPT 輸出的 `*_zh` 欄位（`name_zh`、`description_zh`、`business_hours_zh`），含 fix_reviewed 與 sub-event 路徑
+3. `_loc_zh()` 改為內部呼叫 `_to_trad()`，不再維護獨立字表
+4. 全 DB 掃描並修復 7 筆事件（3 筆 active）的簡體殘留
+5. `auto_qa.py` 的 `SIMP_RE` 同步擴展，`ZH_FIELDS` 加入 `business_hours_zh`
+
+**教訓：** SYSTEM_PROMPT 的繁體指令不足以 100% 防止 GPT 輸出簡體。必須在寫入 DB 前對所有 `*_zh` 欄位做 character-level 轉換。新發現的簡體字應同步更新 `annotator.py._SIMP_TO_TRAD` 和 `auto_qa.py.SIMP_RE`。
+
+---
+## 2026-05-02 — name_ja 不再由 GPT 覆寫（保留原始標題）+ 子事件原始日文名規則
+
+**問題：** `annotate_pending_events()` 中 `update_data["name_ja"]` 使用 GPT 回傳的 `annotation.get("name_ja")`，覆寫了爬蟲抓取的原始標題。GPT 經常改寫日文標題（加上 context、截斷副標、替換用語），導致 `name_ja` 偏離原始資料。
+
+**修復：**
+1. `update_data["name_ja"]` 改為 `event.get("name_ja") or raw_title`——永遠保留原始標題
+2. SYSTEM_PROMPT `NAME WRITING RULES` 改為告知 GPT「name_ja 直接複製 raw_title，不要改寫」
+3. GPT 仍然生成 `name_ja`（JSON schema 不變），但此值只用於 sub-events（sub-events 無 raw_title）
+4. SYSTEM_PROMPT 新增子事件規則：sub-event `name_ja`/`description_ja` 必須使用原始日文文本中的寫法。電影片名用日本上映名，人名用原始片假名/漢字記載。禁止翻譯中文/台灣人名成日文或自創片假名讀音
+
+**連帶影響：**
+- `name_ja_locked` 機制不再需要用於 annotator（flag 仍存在於 DB + scraper dataclass，向後相容）
+- 原本的 SYSTEM_PROMPT 中關於「name_ja 必須 self-contained」的規則已移除
+
+**教訓：**
+- 日文原始標題是 source of truth，不應由 AI 重新詮釋
+- 翻譯校正（片名、人名）只應套用在翻譯欄位（`*_zh`、`*_en`），不碰原文欄位（`*_ja`）
+- 子事件日文名也適用同一原則：使用原始文本中的日文寫法，不發明新的寫法
+
+### 同日其他 annotator 改善（commits `eaab464`、`fb568c4`、`28c1b41`、`6604f44`）
+
+- **日期優先級翻轉**（`eaab464`）：`start_date`/`end_date` 改為 scraper-first（`event.get("start_date") or annotation.get("start_date")`）。之前 GPT 推斷的日期會覆蓋爬蟲精確提取的日期。
+- **location_url GPT 提取**（`fb568c4`）：SYSTEM_PROMPT JSON schema 新增 `location_url`，讓 GPT 從 raw_description 中提取場地官網 URL。規則：只提取明確出現的 URL，不推斷；scraper 值優先；null 不覆蓋已有值。
+- **google_news_rss 薄描述觸發文章抓取**（`28c1b41`）：當 `raw_description` < 400 字且 `source_name == 'google_news_rss'` 時，自動用 `fetch_ref_text()` 抓取原文補充。
+- **nhk_rss 薄描述補齊 + pubDate 錨定**（`6604f44`）：NHK RSS snippet 通常 50-200 字，新增 `_NHK_THIN_BODY_CHARS=400` 閾值 + `fetch_ref_text()` 補充。`pubDate` 作為 `start_date` fallback anchor。
+
+---
 ## 2026-05-02 — 人名校正擴展至所有事件（非僅電影）
 
 **變更：**

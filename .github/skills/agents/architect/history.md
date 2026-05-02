@@ -3,6 +3,82 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02（深夜 3）— Quality Check 判斷基準錯誤、competition 類排除（commits `b82849d`→`80920ce`、`4ca383a`）
+
+### 架構規則：Quality check 的判斷欄位必須與詳情頁顯示邏輯一致
+
+- **問題一（commit `b82849d`→`80920ce`）**：`/admin/quality` 的缺地點 check 用 `location_address IS NULL`，但事件詳情頁顯示的是 `location_name`。191 筆事件有 `location_address` 但無 `location_name`；反之亦有只填 `location_name` 的事件。兩欄位不同，造成 quality check 結果與詳情頁顯示矛盾。
+- **根本原因**：設計 quality check 時未先確認詳情頁實際 render 哪個欄位。`location_name` 是主要地點欄位（詳情頁 render 它），`location_address` 是次要欄位（輔助顯示用）。
+- **修復**：查詢條件改為 `location_name IS NULL`；同時把 `gguide_tv` 的排除從 client-side filter 移到 DB query（`.not('source_name','eq','gguide_tv')`）。
+- **架構規則**：
+  > **Quality check 的判斷欄位 = 詳情頁顯示的欄位。** 設計 check 前先確認「前端哪個欄位 IS NULL 才真正影響使用者」，不可用非顯示欄位代替。
+
+### 架構規則：Quality check 需排除「天生無法填寫」的事件類型
+
+- **問題二（commit `4ca383a`）**：競賽/補助類活動（如「第22回日台文化交流青少年スカラシップ」）本質上是全國性活動，無實體地點，但被 quality check flag 為「缺地點」，無法操作消除。
+- **根本原因**：quality check 設計時未考慮某些 category 的活動天生不符合該 check 條件（競賽、補助、線上直播等）。
+- **修復**：加 `.not('category','cs','{"competition"}')` 排除含 `competition` category 的事件。
+- **架構規則**：
+  > **設計 quality check 時，同步確認「哪些事件類型天生不需要此欄位」並明確排除。** 無法消除的 flag = 無意義的噪音，應在 DB query 層過濾。
+
+### 缺地點排除清單（`qualityMissingAddr` query 截至 2026-05-02）
+| 排除條件 | 原因 |
+|---------|------|
+| `source_name = 'gguide_tv'` | 電視節目，無實體場地 |
+| `category` 含 `competition` | 競賽/補助，全國性活動 |
+
+---
+## 2026-05-02（晚，二）— locationOverseas namespace bug、分類標籤調整、新增分類（commits `049edd8`、`a4a6f75`、`7567ef0`、`8aee4de`、`24fcb3c`、`b62b385`、`dfc5aaf`）
+
+### 架構規則：next-intl i18n key 必須放在正確 namespace
+- **問題**：用 `/tmp/*.py` 腳本新增 `locationOverseas` 時，腳本寫 `data["locationOverseas"] = label`，結果 key 放到 JSON 頂層，而不是 `filters` namespace。FilterBar 用 `useTranslations("filters")` 呼叫 `t("locationOverseas")` 時找不到 key，next-intl production build 回傳 key 名稱字串，導致 FilterBar 渲染異常，預設「進行中」timeMode 消失。
+- **根本原因**：`/tmp/*.py` 修改腳本不了解 i18n namespace 結構，直接操作頂層 `data["key"]` 而非 `data["filters"]["key"]`。
+- **修復**（commit `049edd8`）：三語言 JSON 全部把 `locationOverseas` 從頂層移入 `filters.{}` 內。
+- **架構規則**：
+  1. 任何修改 `web/messages/*.json` 的腳本，新增 filters namespace 的 key 必須用 `data["filters"]["key"] = value`，絕不能用 `data["key"] = value`。
+  2. 新增 i18n key 後，立即用 grep 確認 key 出現在正確 block（行號約 10–40）而非頂層（行號 400+）：`grep -n "newKey" web/messages/zh.json`
+  3. Next.js production build 對 missing key 回傳 key name 字串（不拋錯），這是 next-intl 的靜默失敗模式，需靠 grep 或 UI 目視確認。
+
+### 分類標籤調整（label-only rename）
+- `senses` zh：台灣感性 → 台灣感性・認同（commit `a4a6f75`）
+- `senses` en：Taiwan Senses → Taiwanese Identity & Sensibility（commit `7567ef0`）
+- `senses` ja：台湾の感性 → 台湾の感性・アイデンティティ（commit `7567ef0`）
+- `competition` ja：スポーツ・競技大会 → スポーツ・コンテスト（commit `8aee4de`）
+- **操作規則**：label-only rename 只動三個 `messages/*.json`，不動 `types.ts`（Category union、CATEGORIES、CATEGORY_GROUPS 不變）。
+
+### 新增分類（6 location 同步更新）
+- `folklore`（民俗・歲時 / Folklore & Seasonal Customs / 民俗・年中行事）→ group_arts（commits `24fcb3c`、`b62b385`）
+- `scholarship`（補助・獎學金 / Grants & Scholarships / 助成・奨学金）→ group_knowledge（commit `dfc5aaf`）
+- **操作規則**：新增 Category 值必須 6 location 同步（`types.ts` × 3 位置 + 三語言 `messages/*.json` × 3），在單一 commit 完成，不拆分。
+
+---
+## 2026-05-02（深夜 2）— Annotator scraper 優先序統一、location_url 條件寫入、PR Times 日期幻覺、IDE JETRO 線上活動（commits `c747484`、`eaab464`、`fb568c4`）
+
+### 架構規則：annotator 欄位優先序統一（scraper 優先）
+- **問題**：`annotator.py` 對 `location_name/address`、`business_hours`、`is_paid`、`start_date`/`end_date` 都是「GPT 優先，DB 次之」——只要 GPT 有推斷值，就會蓋掉 scraper 取得的正確資料。
+- **根本原因**：annotator 設計時未區分「GPT 可信度高於 scraper」與「scraper 可信度高於 GPT」的欄位。
+- **修復**（commits `c747484` + `eaab464`）：翻轉以下欄位為 scraper 優先、GPT 只補空值：`location_name`、`location_address`、`business_hours`、`is_paid`、`start_date`、`end_date`。
+- **架構規則**：已更新 Annotator Scraper-Priority Guard（SKILL.md）。翻譯欄位（name_zh/en、description_*）仍由 GPT 生成，這是正確分工。
+
+### 架構規則：annotator location_url 條件式寫入（commit `fb568c4`）
+- **問題**：`location_url` 不在 annotator `update_data` 內 → 每次 annotation 都不寫入，即使 GPT 從文字提取了場地官網也丟失；但若直接加入且不加 null guard，GPT 的 null 輸出會蓋掉 Admin 手填值。
+- **根本原因**：`location_url` 兼具兩種寫入來源（GPT 從文字提取 + Admin 手填），設計上衝突。
+- **修復**：GPT prompt schema 新增 `location_url`，指示「僅從文字提取，禁止推測」；`update_data` 條件式寫入（`_loc_url = event.get("location_url") or _str(annotation.get("location_url"))`），僅在有值時寫入，null 不回寫 DB。
+- **架構規則**：已更新 SKILL.md point 5（location_url 改為條件寫入，而非完全排除）。
+
+### 資料修復教訓：PR Times 發布日 ≠ 活動日期
+- **問題**：event `e45d4022`（台湾＆沖縄フードイベント）`start_date=2026-02-25`，為 PR Times 發布日；實際活動日期 `3月11日〜16日` 在 raw_description 正文中。
+- **根本原因**：`prtimes.py` scraper 使用文章發布日作為 `start_date`；annotator 無法從沒有 `開催日時:` header 的 raw_description 正確推斷活動日期。
+- **修復**：直接 DB update（`start_date=2026-03-11`、`end_date=2026-03-16`），補充 raw_description header，設 `annotation_status='reviewed'`。
+- **防範**：prtimes scraper 應嘗試從正文 regex 提取活動日期，並在 raw_description 標記「プレスリリース発信日:」以讓 GPT 區分發布日與活動日。
+
+### 資料修復教訓：線上活動 location_name=null
+- **問題**：event `86efda2a`（オンデマンド講座, source=`ide_jetro`）`location_name=null`，前端無場地顯示。GPT annotation 未識別為線上活動。
+- **根本原因**：`annotation_status='annotated'` 的 GPT 在 location 欄位為空時，不會主動補「オンライン」——需要 raw_description 中有明確文字提示。
+- **修復**：直接設 `location_name='オンライン（オンデマンド）'`（含 zh/en 翻譯），設 `reviewed`。
+- **架構規則**：線上活動 scraper（特別是 `ide_jetro`、`connpass`、`doorkeeper`）應主動判斷活動形式並設 `location_name='オンライン'`。Annotator SYSTEM_PROMPT 應加入規則：若活動明確為線上，`location_name` 應設「オンライン」或相應詞彙（オンデマンド / ライブ配信 / ウェビナー）。
+
+---
 ## 2026-05-02（深夜）— UI 預填、Realtime badge、Quality page 清理（commits `c3fe0bc`、`4a71258`、`cd4cc29`）
 
 ### 架構規則一：Server Component + Realtime 分離模式（commit `4a71258`）

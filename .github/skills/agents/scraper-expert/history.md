@@ -3,6 +3,42 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02（深夜 2）— tokyoartbeat venue 資料擴充、annotator scraper 優先序統一、location_url、PR Times 日期幻覺、IDE JETRO 線上活動（commits `c747484`、`eaab464`、`fb568c4`）
+
+### tokyoartbeat venue 資料擴充（commit `c747484`）
+- **問題**：`raw_description` 沒有場地資訊 → GPT 從訓練資料猜知名場館（東京都現代美術館等）→ 幻覺。
+- **修復**：`_parse_event()` 從 Contentful venue linked entry 新增讀取 `openingHoursOpens`、`openingHoursCloses`、`closedDays`、`admissionFee`；組合成 `biz_hours`；`raw_description` 前綴加入結構化 header（`開催日時:`、`会場:`、`住所:`、`開場時間:`、`入場料:`）；`is_paid` 改由 `admissionFee` 數值推斷（`"0"` → False；非零數字 → True；非數字 → None）。
+- **教訓**：GPT 場地幻覺的根本原因是 raw_description 沒有場地資訊。預防方法：在 raw_description prepend structured header，讓 GPT 有明確文字可抽取，而非依賴訓練資料。
+
+### annotator scraper 優先序統一（commits `c747484` + `eaab464`）
+- **問題**：annotator 對 `location_name/address`、`business_hours`、`is_paid`、`start_date`/`end_date` 都是 GPT 優先，會蓋掉 scraper 取得的正確資料。
+- **修復**：翻轉上述欄位為 scraper 值優先，GPT 只補空值。翻譯欄位（name_zh/en、description_*）仍由 GPT 生成。
+- **教訓**：scraper 提供的結構化資料比 GPT 從自由文字推斷的更可靠。統一原則：factual fields → scraper 優先；translation fields → GPT 生成。
+
+### annotator location_url 條件式寫入（commit `fb568c4`）
+- **問題**：`location_url` 不在 annotator `update_data` 內 → GPT 提取結果永遠丟失；若直接加入且不 null guard → 蓋掉 Admin 手填值。
+- **修復**：GPT prompt schema 新增 `location_url` 欄位（指示「僅從文字提取，禁止推測」）；`update_data` 條件式寫入，僅在非 null 時才寫入。
+- **教訓**：兼具 GPT 提取 + Admin 手填的欄位，寫入時**必須**加 null guard（僅在有值時寫入），否則 GPT null 輸出會蓋掉人工設定值。`location_url` 是場地官方網站，不是 Google Maps；scraper 通常無此欄位。
+
+### name_ja_locked language note（commit `eaab464`）
+- **問題**：有人以為 `name_ja_locked` 標題必須是日文（field name 含「ja」）。
+- **修復**：SKILL.md 加入 Language note。
+- **教訓**：`name_ja` 是欄位識別符，不是語言限制。`name_ja_locked=True` 的標題可能是中文（`台灣...`）或英文（`Taiwan...`），來源語言由活動頁面決定。不應因 field name 含「ja」就強制改為日文。
+
+### PR Times 日期幻覺（DB fix，無 commit）
+- **活動**：`e45d4022`（台湾＆沖縄フードイベント）
+- **問題**：`start_date=2026-02-25`（PR Times 發布日），實際活動 `3月11日→16日` 在 raw_description 正文中。
+- **根本原因**：`prtimes.py` 用文章發布日作為 `start_date`；raw_description 無 `開催日時:` header，GPT 無法從散落的日期字串正確推斷。
+- **修復**：直接 DB update（`start_date=2026-03-11`、`end_date=2026-03-16`），補充 raw_description header，設 `annotation_status='reviewed'`。
+- **教訓**：PR Times scraper 應嘗試從正文 regex 提取活動日期（`\d月\d+日` pattern）而非使用發布日；或在 raw_description 標記「プレスリリース発信日: YYYY年MM月DD日」以讓 GPT 區分。高風險 source：`prtimes`、`google_news_rss`、`nhk_rss`。
+
+### IDE JETRO 線上活動 location_name=null（DB fix，無 commit）
+- **活動**：`86efda2a`（オンデマンド講座）
+- **問題**：`location_name=null`；GPT annotation 未識別為線上活動，前端無場地顯示。
+- **修復**：直接設 `location_name='オンライン（オンデマンド）'`（含 zh/en），設 `reviewed`。
+- **教訓**：線上活動 scraper 應主動判斷活動形式並設 `location_name='オンライン'`（細分：オンデマンド / ライブ配信 / ウェビナー）。Annotator SYSTEM_PROMPT 需補規則：活動明確為線上時，`location_name` 應設相應詞彙，不應留 null。
+
+---
 ## 2026-05-02（下午）— デニス・リン展 場地幻覺：tokyoartbeat raw_description 缺少場地資訊
 
 - **活動**：`1e375d6c`（デニス・リン展, source=`tokyoartbeat`）
