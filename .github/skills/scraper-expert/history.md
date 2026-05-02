@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-05-02 — fetch_ref_text() 提升至 BaseScraper 通用工具函數
+- **背景**：koryu 後援指引文修正（32d66fc7）使用了 `_fetch_ref_text()`，但該函數只存在 koryu.py 中
+- **重構**：將 `fetch_ref_text(ref_url, max_chars=3000)` 移至 `base.py`；koryu.py 改從 base import（移除 `requests`、`BeautifulSoup` import 及 `_REF_MAX_CHARS`、`_REF_HEADERS` 常數）
+- **意義**：任何 scraper 遇到薄內容指引文時可直接呼叫，不需複製貼上實作
+- **教訓**：通用爬蟲工具函數應放在 base.py，不應在各 scraper 中重複
+
+---
+
 ## 2026-05-02 — koryu 後援指引文缺乏 ref URL 抓取（事件 32d66fc7）
 - **錯誤**：後援公告「指引文」只有短短幾行 + 外部 URL。start_date=2025-12-15（文章刊登日），category 缺少 competition，location_name 誤填後援機構名
 - **根本原因**：`_extract_event_date()` fallback 匹配到 DNN CMS 在 body 頂部渲染的文章發布日；scraper 未跟進外部 URL 抓取實際活動資訊；`開催日時:` 標籤誤導 GPT

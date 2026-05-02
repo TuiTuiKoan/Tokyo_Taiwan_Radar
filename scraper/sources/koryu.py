@@ -19,11 +19,9 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-import requests
-from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeout
 
-from .base import BaseScraper, Event
+from .base import BaseScraper, Event, fetch_ref_text
 
 logger = logging.getLogger(__name__)
 
@@ -35,31 +33,6 @@ SOURCE_NAME = "koryu"
 # paragraph + external URL with no event date or venue of their own.
 _EXT_URL_RE = re.compile(r'https?://(?!(?:www\.)?koryu\.or\.jp)[^\s）\)。、]+')
 _THIN_BODY_CHARS = 600   # chars; normal articles are 1000+
-_REF_MAX_CHARS = 3000    # truncate fetched reference page to this length
-_REF_HEADERS = {"User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)"}
-
-
-def _fetch_ref_text(ref_url: str) -> Optional[str]:
-    """Fetch an external reference page and return its body text.
-
-    Used to enrich thin 後援 articles that only point to an external event
-    page. Returns None on failure or if content is too short.
-    """
-    try:
-        resp = requests.get(ref_url, headers=_REF_HEADERS, timeout=15)
-        resp.raise_for_status()
-    except Exception as exc:
-        logger.debug("koryu ref-url fetch failed %s: %s", ref_url[:80], exc)
-        return None
-
-    soup = BeautifulSoup(resp.text, "html.parser")
-    for sel in ["main", "article", "body"]:
-        el = soup.select_one(sel)
-        if el:
-            text = el.get_text(" ", strip=True)
-            if len(text) > 200:
-                return text[:_REF_MAX_CHARS]
-    return None
 
 # Tokyo identifiers for venue filtering
 _TOKYO_MARKERS = ["東京", "港区", "千代田区", "新宿区", "渋谷区", "中央区", "台東区",
@@ -297,7 +270,7 @@ class KoryuScraper(BaseScraper):
             if ext_m:
                 ref_url = ext_m.group(0).rstrip("。、）)")
                 logger.debug("koryu thin article: fetching ref %s", ref_url[:80])
-                ref_text = _fetch_ref_text(ref_url)
+                ref_text = fetch_ref_text(ref_url)
                 if ref_text:
                     _is_pointer = True
                     ref_supplement = f"\n\n[参照ページ ({ref_url})]:\n{ref_text}"

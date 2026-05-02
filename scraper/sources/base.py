@@ -4,7 +4,47 @@ from datetime import datetime
 from typing import Optional
 import logging
 
+import requests
+from bs4 import BeautifulSoup
+
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Shared scraper utilities
+# ---------------------------------------------------------------------------
+
+_REF_FETCH_HEADERS = {"User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)"}
+
+
+def fetch_ref_text(ref_url: str, max_chars: int = 3000) -> Optional[str]:
+    """Fetch an external reference page and return its plain-text body.
+
+    Use this when a scraper encounters a **thin pointer article** — a page
+    that provides only a short summary + an external URL, with no usable
+    event date, venue, or description of its own.  Appending the fetched
+    text to raw_description gives the annotator's GPT enough context to
+    extract correct dates, categories, and descriptions.
+
+    Returns None on any network error or if the fetched content is too
+    short (< 200 chars) to be useful.
+
+    Selector priority: main > article > body (returns first with ≥200 chars).
+    """
+    try:
+        resp = requests.get(ref_url, headers=_REF_FETCH_HEADERS, timeout=15)
+        resp.raise_for_status()
+    except Exception as exc:
+        logger.debug("fetch_ref_text: failed %s: %s", ref_url[:80], exc)
+        return None
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    for selector in ["main", "article", "body"]:
+        el = soup.select_one(selector)
+        if el:
+            text = el.get_text(" ", strip=True)
+            if len(text) > 200:
+                return text[:max_chars]
+    return None
 
 
 @dataclass

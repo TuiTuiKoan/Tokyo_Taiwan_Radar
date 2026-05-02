@@ -151,6 +151,31 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 - **Address extraction**: Use `table.theater-table th:contains("住所") + td` on the theater page. Call `a_tag.decompose()` on all `<a>` children before `get_text()` to strip "映画館公式ページ". Never use page-wide address regex — JS code can contain `東京都` fragments.
 - **Fallback event**: If no area links found, emit one movie-level event with `source_id = eiga_com_{movie_id}` and `location_name=None`.
 
+## Thin Pointer Article Detection — General Rule (all scrapers)
+
+任何 scraper 遇到「薄內容指引文」時，應主動抓取外部 ref URL 補充 `raw_description`。
+
+**偵測條件**（兩者同時成立）：
+1. `len(body_text) < N`（各 scraper 自行設定閾值，koryu 使用 600 chars）
+2. body_text 包含**非本站**的外部 HTTP URL
+
+**處理流程**：
+1. 提取外部 URL（正則排除本站 domain）
+2. 呼叫 `fetch_ref_text(ref_url)` — 已在 `base.py` 實作，直接 import 使用
+3. 追加到 raw_description：`[参照ページ ({ref_url})]:\n{ref_text}`
+4. `date_prefix` 改用 `記事投稿日:` 而非 `開催日時:` — 避免 GPT 把文章發布日當活動日
+
+**薄內容指引文的典型特徵**：
+- 組織公告：「弊社は XX イベントを後援します。詳細は URL をご確認ください。」
+- 新聞式 RSS 摘要：只有標題＋一句描述＋原文連結
+- 公募通知：只說明有公募，所有細節在外部網站
+
+**通用函數**：`from .base import fetch_ref_text`
+- `fetch_ref_text(url, max_chars=3000)` — requests + BeautifulSoup，selector 優先序：`main` > `article` > `body`
+- 回傳 `None` 表示失敗或內容 < 200 chars
+
+---
+
 ## koryu-specific
 - **location_address fallback**: `_extract_location_address()` searches for `所在地/住所` sections. When absent (common for 後援-type posts), fall back to the venue name from `_extract_venue()`: `location_address = _extract_location_address(body_text) or (venue if venue else None)`.
 - **404 on old koryu URLs**: When a koryu event page returns 404, `main_text` will be a redirect message with no venue section. `_extract_venue` returns `None`, so `location_address` is also `None`. This is acceptable — the event is stale.
@@ -173,17 +198,11 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
   ```
 - **`開催日時:` 前置語の正確性**：Scraper が `raw_description` の先頭に `開催日時: YYYY年MM月DD日` を前置する場合、その日付は **必ず正しい活動日** を使うこと。この前置語は GPT annotator への強烈なシグナルであり、誤った日付を前置すると GPT は body 中の正確な日付を無視し、誤日付が DB に書き込まれる。
 - **Priority order for date extraction**: `日時：` field → `時間：` field (with date) → DOW-qualified `月\d+日（曜日）` → `に開催` prose pattern → generic `YYYY年MM月DD日` fallback (last resort, high risk of matching publish date).
-- **指引文（pointer article）偵測と ref URL 抓取**：body_text が短く（< 600 文字）かつ koryu.or.jp 外部の URL を含む場合、そのページは「後援公告（指引文）」である。このパターンに一致する場合：
-  1. 外部 URL（`_EXT_URL_RE` でマッチ）のページを requests+BeautifulSoup で取得し、先頭 3000 文字を `ref_supplement` とする
-  2. `raw_description = 記事投稿日: {pub_date_str}\n\n{body_text}\n\n[参照ページ ({ref_url})]:\n{ref_text}` の形式にする
-  3. `date_prefix` を `記事投稿日: {pub_date_str}` とし、**`開催日時:` は使わない** — GPT が文章発布日を活動日と誤認するのを防ぐため
-  - 判定条件の実装例：
-    ```python
-    _THIN_BODY_CHARS = 600
-    _REF_MAX_CHARS = 3000
-    _EXT_URL_RE = re.compile(r'https?://(?!(?:www\.)?koryu\.or\.jp)[^\s）)]+')
-    _is_pointer = len(body_text) < _THIN_BODY_CHARS and bool(_EXT_URL_RE.search(body_text))
-    ```
+- **指引文（pointer article）偵測と ref URL 抓取**：koryu.py は「薄內容指引文偵測」パターンの**最初の実装例**。汎用 `fetch_ref_text()` は `base.py` に昇格済み（→ 上記 § *Thin Pointer Article Detection — General Rule* 参照）。koryu 固有の実装詳細：
+  - 閾値：`_THIN_BODY_CHARS = 600`
+  - 外部 URL 判定：`_EXT_URL_RE = re.compile(r'https?://(?!(?:www\.)?koryu\.or\.jp)[^\s）)]+')`
+  - import：`from .base import BaseScraper, Event, fetch_ref_text`（`requests`・`BeautifulSoup` は koryu.py 内で直接 import 不要）
+  - `date_prefix` = `記事投稿日: {pub_date_str}`（`開催日時:` は使わない）
   - 適用場景：公募公告（コンテスト）、後援公告、簡短通知類記事。これらの category/venue/date はすべて ref URL 側にある。
 
 ## WordPress mixed-content sites (e.g. go_taiwan)
