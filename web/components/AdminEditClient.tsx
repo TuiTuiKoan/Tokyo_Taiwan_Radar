@@ -111,6 +111,7 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
         });
     }
 
+    router.refresh();
     router.push(`/${locale}/admin`);
   }
 
