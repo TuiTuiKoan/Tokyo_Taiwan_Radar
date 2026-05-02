@@ -33,6 +33,7 @@ from supabase import create_client, Client
 from category_feedback import load_corrections, build_feedback_prompt
 from movie_title_lookup import lookup_movie_titles
 from person_name_lookup import (
+    PersonInfo,
     extract_katakana_names,
     lookup_person_names,
     lookup_single_person,
@@ -448,11 +449,21 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     total_tokens_out = 0
     events_ok = 0
 
-    # Count how many google_news_rss events need article fetch
-    gnews_needs_fetch = sum(
-        1 for e in events
-        if e.get("source_name") == "google_news_rss" and not e.get("start_date")
-    )
+    # Count how many google_news_rss events need article fetch.
+    # Fetch when start_date is missing (original case) OR raw_description is
+    # thin (< _GNEWS_THIN_DESC_CHARS) — thin means the scraper only captured
+    # a headline with no article body, leaving GPT without enough context for
+    # dates, location, and categories.
+    _GNEWS_THIN_DESC_CHARS = 400
+
+    def _gnews_needs_article_fetch(e: dict) -> bool:
+        if e.get("source_name") != "google_news_rss":
+            return False
+        if not e.get("start_date"):
+            return True
+        return len(e.get("raw_description") or "") < _GNEWS_THIN_DESC_CHARS
+
+    gnews_needs_fetch = sum(1 for e in events if _gnews_needs_article_fetch(e))
     # Launch a single Playwright browser for all google_news_rss article fetches
     # to avoid per-event browser startup overhead.
     _pw_context = None
@@ -470,16 +481,14 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
         raw_title = event.get("raw_title") or event.get("name_ja") or ""
         raw_desc = event.get("raw_description") or event.get("description_ja") or ""
 
-        # For google_news_rss events without a start_date, follow the Google News
-        # redirect and fetch the article body so GPT can extract the event date,
-        # location, and description from the full article text.
+        # For google_news_rss events, fetch the full article body when:
+        #   (a) start_date is missing — GPT needs article text to find dates
+        #   (b) raw_description is thin (< _GNEWS_THIN_DESC_CHARS) — the scraper
+        #       only captured a headline; GPT can't extract dates/location/category
+        #       from a single line even if start_date was set (possibly wrong).
         # raw_description in DB is intentionally NOT updated — the fetched text
         # is only used for this annotation pass.
-        if (
-            event.get("source_name") == "google_news_rss"
-            and not event.get("start_date")
-            and _pw_browser is not None
-        ):
+        if _gnews_needs_article_fetch(event) and _pw_browser is not None:
             source_url = event.get("source_url", "")
             logger.info("  → Fetching article body from %s", source_url[:80])
             article_text = _fetch_gnews_article_text(source_url, _pw_browser)

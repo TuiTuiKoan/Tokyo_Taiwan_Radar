@@ -174,6 +174,14 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 - `fetch_ref_text(url, max_chars=3000)` — requests + BeautifulSoup，selector 優先序：`main` > `article` > `body`
 - 回傳 `None` 表示失敗或內容 < 200 chars
 
+**Annotator-side thin content detection（`annotator.py`）**：
+- Playwright 文章 fetch 觸發條件：`not start_date` **OR** `len(raw_description) < 400 chars`
+- 常數：`_GNEWS_THIN_DESC_CHARS = 400`
+- 實作：inner 函數 `_gnews_needs_article_fetch(e)` — `gnews_needs_fetch` 計數與 per-event trigger 統一使用此函數
+- 適用來源：目前僅 `google_news_rss`（使用 Playwright 跟進 Google News redirect）
+- **注意**：手動修正 start_date 後重新 annotate 時，若 raw_desc 仍短，fetch 仍會觸發 → 確保 GPT 看到完整文章
+- **原則**：「start_date 有值」不代表「描述足夠豐富」，薄內容偵測邏輯應在 scraper 和 annotator 兩層都套用
+
 ---
 
 ## koryu-specific

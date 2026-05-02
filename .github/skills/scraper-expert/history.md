@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-05-02 — annotator.py 擴展 google_news_rss 薄內容 fetch 觸發（事件 2d77c2c4）
+- **錯誤**：2d77c2c4（チップ・オデッセイ 熊本上映）raw_description 只有 80 chars 標題，但 start_date 非 null，Playwright fetch 被跳過，GPT 無法取得正確日期與地點
+- **根本原因**：fetch 觸發條件只看 `not start_date`，不考慮 raw_description 是否足夠長
+- **修正**：新增 `_gnews_needs_article_fetch()` helper — `not start_date` OR `len(raw_desc) < 400 chars`；`gnews_needs_fetch` 計數與 per-event trigger 都改用此函數
+- **教訓**：薄內容偵測（koryu 模式）應同時套用到 annotator 的 fetch trigger — 「start_date 有值」不代表「描述足夠豐富」
+
+---
+
 ## 2026-05-02 — fetch_ref_text() 提升至 BaseScraper 通用工具函數
 - **背景**：koryu 後援指引文修正（32d66fc7）使用了 `_fetch_ref_text()`，但該函數只存在 koryu.py 中
 - **重構**：將 `fetch_ref_text(ref_url, max_chars=3000)` 移至 `base.py`；koryu.py 改從 base import（移除 `requests`、`BeautifulSoup` import 及 `_REF_MAX_CHARS`、`_REF_HEADERS` 常數）
