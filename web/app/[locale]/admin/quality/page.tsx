@@ -93,6 +93,7 @@ export default async function AdminQualityPage({ params }: PageProps) {
       .eq("is_active", true)
       .is("location_name", null)
       .neq("source_name", "gguide_tv")
+      .not("category", "cs", '{"competition"}')
       .limit(50),
   ]);
 
