@@ -112,6 +112,32 @@ Reference incident: `AdminTabNav` badge（2026-05-02）—（commit `4a71258`）
 
 Reference incident: 2026-05-02 quality page — `gguide_tv` 排除原為 JS client-side filter，後移至 DB query（commit `80920ce`）；`competition` 排除直接寫在 DB query（commit `4ca383a`）.
 
+### 規則四：Client-Side Filter Prerequisites
+
+撰寫任何依賴 DB 欄位的 client-side filter 前，必須確認以下三步驟：
+
+1. **欄位出現在 `.select("...")` 字串中**：否則欄位值為 `undefined`，filter 條件永遠不成立，靜默通過所有資料（不報錯）。
+2. **TypeScript interface 包含該欄位及正確型別**（如 `location_prefectures?: string[] | null`）。
+3. 確認以上兩點後才撰寫 filter 邏輯。
+
+**反例**（commit `bf22756` 之前）：
+```ts
+// ❌ location_prefectures 不在 select 字串 → 欄位 = undefined → 過濾靜默無效
+if ((e.location_prefectures?.length ?? 0) > 1) return false;
+```
+
+**正確做法**：
+```ts
+// Step 1: 確認 select 含欄位
+.select("id, location_name, location_prefectures, ...")
+// Step 2: interface 宣告型別
+interface QualityRow { location_prefectures?: string[] | null; ... }
+// Step 3: 才寫 filter 邏輯
+if ((e.location_prefectures?.length ?? 0) > 1) return false;
+```
+
+Reference incident: 2026-05-02 — `location_prefectures` 未加入 select，多城市活動過濾靜默失效。
+
 ## RLS Cross-Status Query Guard
 
 在任何涉及「SSR 頁面查詢關聯資料（父事件、鏈結實體）」的 feature plan 中，**必須**確認以下三點：

@@ -3,6 +3,26 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — Quality 頁 location_prefectures 過濾靜默失效
+
+### Quality Check 假陽性：client-side filter 依賴的欄位未包含在 select 中
+
+- **錯誤**: 多城市活動仍出現在缺地址清單，client-side 的 `location_prefectures.length > 1` 過濾無效
+- **根因**: `location_prefectures` 未加入 `.select()` 字串，欄位值為 `undefined`，`length > 1` 永遠不成立，過濾靜默通過所有資料
+- **修正**: `QualityRow` interface 新增 `location_prefectures?: string[] | null`；DB `.select()` 加入 `location_prefectures`；同時補充 `.not("location_name", "ilike", "%youtube%")` 等線上活動排除條件
+- **教訓**: client-side filter 依賴的欄位**必須先出現在 select 字串中**，否則欄位是 undefined，過濾條件靜默無效且不報任何錯誤
+
+---
+## 2026-05-02 — 相鄰 sticky 元素獨立定位導致捲動錯位（commit `bf22756`）
+
+### Admin UI：多個 sticky 元素各自定位造成重疊
+
+- **錯誤**: `AdminEventTable.tsx` 的篩選器（`sticky top-14`）和藍色批次操作列（`sticky top-0`）捲動後重疊錯位
+- **根因**: 兩個相鄰 sticky 元素各自有不同 `top` 值，瀏覽器分別計算定位，導致捲動後互相覆蓋
+- **修正**: 用共用 `sticky top-14 z-20 space-y-2 mb-3` wrapper 包住兩個區塊，讓它們作為一個整體固定在頂部
+- **教訓**: 視覺上屬於同一群組的 sticky 元素應包在同一個 sticky wrapper 裡；各自不同 top 值的相鄰 sticky 元素是錯位的常見根因
+
+---
 ## 2026-05-02 — RLS 阻擋父子事件跨 active 狀態連結（commit `f5931e0`）
 
 ### RLS 阻擋父子事件跨 active 狀態連結

@@ -117,6 +117,18 @@ Before approving **any** SSR page that queries related records (parent events, l
 
 Reference incident: 2026-05-02 — 父事件（台東祭）`is_active = false` 導致子事件詳情頁父事件連結消失（commit `f5931e0`）。
 
+## Client-Side Filter Prerequisites Guard
+
+在審核**任何**對 Supabase query 結果套用 client-side filter 的程式碼或計畫前，**必須**確認：
+
+1. filter 條件用到的每個欄位都**出現在 Supabase `.select()` 字串中**。
+2. TypeScript interface 包含該欄位及正確型別（例如 `location_prefectures?: string[] | null`）。
+3. 若欄位缺少 select，filter 條件會對所有資料列靜默通過（值為 `undefined`）——**不拋錯誤、不發警告**，極難偵測。
+
+**快速審查**：比對 filter 使用的所有欄位名稱與 `.select("...")` 字串，逐一核對。
+
+Reference incident: 2026-05-02 — `location_prefectures` 未加入 select，多城市活動過濾靜默失效，假陽性持續出現於 quality 頁缺地址清單。
+
 ## Required Phases
 
 ### Phase 1: Research
