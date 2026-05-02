@@ -16,6 +16,7 @@ import argparse
 import os
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from dotenv import load_dotenv
 from supabase import create_client
@@ -25,6 +26,35 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 JST = timezone(timedelta(hours=9))
 SITE_URL = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://tokyo-taiwan-radar.vercel.app")
 ACTIONS_URL = "https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/actions"
+
+
+def _read_wip_items() -> list[tuple[str, list[str]]]:
+    """Read .github/wip.md; return list of (title, detail_lines) for active (non-✅) items."""
+    wip_path = Path(__file__).parent.parent / ".github" / "wip.md"
+    if not wip_path.exists():
+        return []
+
+    items: list[tuple[str, list[str]]] = []
+    current_title: str | None = None
+    current_lines: list[str] = []
+
+    for raw in wip_path.read_text(encoding="utf-8").splitlines():
+        if raw.startswith("## "):
+            if current_title is not None:
+                items.append((current_title, current_lines))
+            title = raw[3:].strip()
+            # Skip completed items marked with ✅
+            current_title = None if title.startswith("✅") else title
+            current_lines = []
+        elif current_title and raw.strip() and not raw.startswith("#"):
+            # Skip horizontal rules
+            if raw.strip() != "---":
+                current_lines.append(raw.strip())
+
+    if current_title is not None:
+        items.append((current_title, current_lines))
+
+    return items
 
 
 def _supabase_client():
@@ -157,6 +187,16 @@ def generate_report() -> str:
         has_pending = True
         lines.append(f"  ⚠ auto_scraper 失敗來源：{auto_failed_count} 件")
         lines.append(f"    → {SITE_URL}/zh/admin/research")
+
+    # WIP: in-progress development items
+    wip_items = _read_wip_items()
+    if wip_items:
+        has_pending = True
+        lines.append(f"  🚧 開發中項目：{len(wip_items)} 件")
+        for title, details in wip_items:
+            lines.append(f"    [{title}]")
+            for d in details[:3]:  # max 3 detail lines per item
+                lines.append(f"      {d}")
 
     if not has_pending:
         lines.append("  ✓ 無待處理事項")
