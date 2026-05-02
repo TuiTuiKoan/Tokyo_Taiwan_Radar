@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "taiwan_relevance_score",
+    "feasibility",
+    "card_selector_hint",
+    "title_selector_hint",
+    "date_selector_hint",
+    "notes",
+    "update_frequency"
+  ],
+  "properties": {
+    "taiwan_relevance_score": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "How likely this source regularly has Taiwan-related events (0=none, 1=always Taiwan)"
+    },
+    "feasibility": {
+      "type": "string",
+      "enum": ["easy", "medium", "hard"],
+      "description": "Scraping difficulty: easy=static HTML, medium=JS-rendered or complex pagination, hard=login/API-only"
+    },
+    "card_selector_hint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "CSS selector that matches event card/list-item elements"
+    },
+    "title_selector_hint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "CSS selector for event title within a card"
+    },
+    "date_selector_hint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "CSS selector for event date within a card"
+    },
+    "pagination_hint": {
+      "type": "string",
+      "default": "",
+      "description": "URL template for pagination, e.g. /events/page/{N}/"
+    },
+    "date_format_hint": {
+      "type": "string",
+      "default": "",
+      "description": "Date format string, e.g. YYYY年MM月DD日 or YYYY/MM/DD"
+    },
+    "detail_link_selector_hint": {
+      "type": "string",
+      "default": "",
+      "description": "CSS selector for per-card anchor to event detail page"
+    },
+    "notes": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Key observations for scraper author: unusual patterns, JS requirements, etc."
+    },
+    "update_frequency": {
+      "type": "string",
+      "enum": ["daily", "weekly", "monthly", "annual", "unknown"]
+    },
+    "taiwan_evidence": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": [],
+      "description": "Taiwan-related text strings found on the page (justifies the score)"
+    }
+  },
+  "additionalProperties": false
+}

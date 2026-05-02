@@ -1,0 +1,58 @@
+name: Auto Generate
+
+on:
+  schedule:
+    - cron: "0 16 * * *"    # 01:00 JST (UTC+9: 16:00 UTC = 01:00+1 JST next day)
+  workflow_dispatch:
+    inputs:
+      source_id:
+        description: "Single source_id to generate (leave blank for --batch)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run"
+        type: boolean
+        default: false
+      max_sources:
+        description: "Max sources per batch run"
+        required: false
+        default: "3"
+
+jobs:
+  auto-generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      - name: Run auto generate
+        working-directory: scraper
+        env:
+          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+        run: |
+          if [ -n "${{ github.event.inputs.source_id }}" ]; then
+            FLAGS="--source-id ${{ github.event.inputs.source_id }}"
+          else
+            MAX="${{ github.event.inputs.max_sources }}"
+            MAX="${MAX:-3}"
+            FLAGS="--batch --max-sources $MAX"
+          fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            FLAGS="$FLAGS --dry-run"
+          fi
+          python -m auto_scraper.generate $FLAGS

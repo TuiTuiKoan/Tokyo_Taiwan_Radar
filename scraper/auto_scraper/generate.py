@@ -165,10 +165,10 @@ def _check_eligibility(row: dict) -> None:
     profile = row.get("source_profile")
     if not isinstance(profile, dict):
         raise GenerateError("spec-invalid", "source_profile is missing")
-    if profile.get("feasibility") != "easy":
+    if profile.get("feasibility") not in ("easy", "medium"):
         raise GenerateError(
             "spec-invalid",
-            f"feasibility={profile.get('feasibility')!r} (need 'easy')",
+            f"feasibility={profile.get('feasibility')!r} (need 'easy' or 'medium')",
         )
 
 
@@ -727,6 +727,74 @@ def run(opts: GenerateOptions, *, sb: Any | None = None) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Batch
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class BatchOptions:
+    max_sources: int = 3
+    mock_llm: Path | None = None
+    skip_sandbox: bool = False
+    dry_run: bool = False
+    output_dir: Path | None = None
+    budget_usd: float = DEFAULT_BUDGET_USD
+    ignore_cooldown: bool = False
+
+
+def run_batch(opts: BatchOptions, *, sb: Any | None = None) -> tuple[int, int]:
+    """Process up to opts.max_sources researched sources. Returns (success_count, failed_count)."""
+    sb = sb or _get_supabase()
+
+    # Query: researched + easy/medium + not yet attempted (or sandbox-failed)
+    rows = (
+        sb.table("research_sources")
+        .select("*")
+        .eq("status", "researched")
+        .eq("url_verified", True)
+        .in_("scraping_feasibility", ["easy", "medium"])
+        .or_("auto_scraper_status.is.null,auto_scraper_status.eq.sandbox-failed")
+        .order("id")
+        .limit(opts.max_sources)
+        .execute()
+        .data or []
+    )
+    # Filter out cooldown
+    now = datetime.now(timezone.utc)
+    eligible = [r for r in rows if not _within_cooldown(r, now) or opts.ignore_cooldown]
+
+    logger.info(
+        "run_batch: %d/%d rows eligible (after cooldown filter)",
+        len(eligible),
+        len(rows),
+    )
+
+    success = 0
+    failed = 0
+    for row in eligible:
+        source_opts = GenerateOptions(
+            source_id=row["id"],
+            mock_llm=opts.mock_llm,
+            skip_sandbox=opts.skip_sandbox,
+            dry_run=opts.dry_run,
+            output_dir=opts.output_dir,
+            budget_usd=opts.budget_usd,
+            ignore_cooldown=True,  # already filtered above
+        )
+        result = run(source_opts, sb=sb)
+        if result == 0:
+            success += 1
+        else:
+            failed += 1
+
+    print(
+        f"run_batch complete: {success} success, {failed} failed, "
+        f"{len(rows) - len(eligible)} skipped (cooldown)"
+    )
+    return success, failed
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -740,7 +808,18 @@ def _build_parser() -> argparse.ArgumentParser:
             "or register the scraper into main.py."
         ),
     )
-    p.add_argument("--source-id", type=int, required=True, help="research_sources.id")
+    p.add_argument("--source-id", type=int, default=None, help="research_sources.id")
+    p.add_argument(
+        "--batch",
+        action="store_true",
+        help="Process up to --max-sources researched sources.",
+    )
+    p.add_argument(
+        "--max-sources",
+        type=int,
+        default=3,
+        help="Max sources per batch run (default: 3).",
+    )
     p.add_argument(
         "--mock-llm",
         type=Path,
@@ -781,6 +860,24 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    if args.batch:
+        batch_opts = BatchOptions(
+            max_sources=args.max_sources,
+            mock_llm=args.mock_llm,
+            skip_sandbox=args.skip_sandbox,
+            dry_run=args.dry_run,
+            output_dir=args.output_dir,
+            budget_usd=args.budget_usd,
+            ignore_cooldown=args.ignore_cooldown,
+        )
+        success, failed = run_batch(batch_opts)
+        sys.exit(0 if failed == 0 else 1)
+
+    if args.source_id is None:
+        parser.print_help()
+        sys.exit(1)
+
     opts = GenerateOptions(
         source_id=args.source_id,
         mock_llm=args.mock_llm,

@@ -168,7 +168,19 @@ def generate_report() -> str:
     )
     auto_failed_count = auto_failed_res.count or 0
 
-    # ── build report text ────────────────────────────────────────────────────
+    # ── pending auto-generated PRs ──────────────────────────────────────────────
+    pending_prs = (
+        sb.table("research_sources")
+        .select("id,name,scraping_feasibility,auto_scraper_pr_url")
+        .not_.is_("auto_scraper_pr_url", "null")
+        .neq("status", "implemented")
+        .order("id")
+        .execute()
+        .data
+        or []
+    )
+
+    # ── build report text ─────────────────────────────────────────────────────
     sep = "─" * 44
     lines: list[str] = []
 
@@ -242,6 +254,21 @@ def generate_report() -> str:
             lines.append(f"    [{title}]")
             for d in details[:2]:
                 lines.append(f"      {d}")
+
+    # PR review section (always shown, even if empty)
+    lines.append("")
+    lines.append(f"── 待審核 PR (auto-generated scrapers) {sep[:10]}")
+    if pending_prs:
+        for i, pr in enumerate(pending_prs, 1):
+            feas = pr.get("scraping_feasibility") or "?"
+            pr_url = pr.get("auto_scraper_pr_url", "")
+            pr_num = pr_url.split("/")[-1] if pr_url else "?"
+            lines.append(f"  {i}. [{pr.get('name', '?')}] ({feas}) → PR #{pr_num}")
+            lines.append(f"     {pr_url}")
+        lines.append("  → https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/pulls")
+        lines.append("  ※ approve → merge で次回 cron から本番稼働")
+    else:
+        lines.append("  （待審核 PR なし）")
 
     if not has_pending:
         lines.append("  ✓ 無待處理事項")
