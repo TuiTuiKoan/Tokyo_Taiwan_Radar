@@ -7,16 +7,18 @@ Strategy:
   3. Skip Yahoo!ニュース aggregations (title ends with "- Yahoo!ニュース") —
      these are always duplicates of original-source articles, and their
      Google News redirect URLs expire faster.
-  4. Extract start_date from description text (Japanese/slash date patterns)
-  5. Skip items older than 21 days (Google News redirect URLs typically expire
-     within 2–3 weeks; keeping them longer shows broken links to users)
-  6. source_id: gnews_{md5(link)[:12]}
+  4. Decode the Google News redirect URL to the original article URL using
+     googlenewsdecoder (lightweight HTTP call to Google News API), then fetch
+     the full article body for richer annotation (location, dates, etc.).
+     Falls back to RSS snippet if decode or fetch fails.
+  5. Extract start_date from article text (or RSS snippet as fallback)
+  6. Skip items older than 21 days
+  7. source_id: gnews_{md5(gnews_link)[:12]} — kept stable (gnews URL, not
+     real article URL) so existing DB events are updated rather than duplicated
 
-Note on source_url: Google News RSS <link> values are always
-news.google.com/rss/articles/... redirect URLs.  These work in a real
-browser (Google redirects to the original article) but cannot be resolved
-server-side.  The 21-day TTL ensures stale events are pruned before the
-redirect expires.
+Note on source_url: set to the real article URL (e.g. prtimes.jp/...) when
+resolvable.  Falls back to the Google News redirect URL on failure.
+Admin events list now shows the actual publisher domain in the source link.
 """
 
 import hashlib
@@ -31,8 +33,25 @@ from html.parser import HTMLParser
 from typing import Optional
 
 import requests
+from bs4 import BeautifulSoup
+from googlenewsdecoder import new_decoderv1
 
 from .base import BaseScraper, Event, dedup_events
+
+_DECODE_SLEEP = 1.0          # polite delay between Google News decode calls
+_ARTICLE_FETCH_TIMEOUT = 10
+_ARTICLE_FETCH_SLEEP = 0.5   # polite delay between article fetches
+_ARTICLE_MAX_CHARS = 4000
+
+_ARTICLE_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+_ARTICLE_HEADERS = {
+    "User-Agent": _ARTICLE_UA,
+    "Accept": "text/html,application/xhtml+xml",
+    "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +85,66 @@ def _strip_html(html: str) -> str:
     stripper = _HTMLStripper()
     stripper.feed(html)
     return stripper.get_text()
+
+
+def _decode_gnews_url(gnews_url: str) -> Optional[str]:
+    """Resolve a Google News redirect URL to the original article URL.
+
+    Uses googlenewsdecoder which makes a lightweight call to the Google News
+    API to retrieve the canonical article URL.  The RSS <description> hrefs
+    are also Google News URLs, so we decode from the <link> element URL.
+    Returns None if decoding fails (network error, unsupported format, etc.).
+    """
+    try:
+        result = new_decoderv1(gnews_url, interval=0)
+        if result and result.get("status") and result.get("decoded_url"):
+            decoded = result["decoded_url"]
+            if decoded and "google.com" not in decoded:
+                return decoded
+    except Exception as exc:
+        logger.debug("google_news_rss: URL decode failed %s: %s", gnews_url[:60], exc)
+    return None
+
+
+def _fetch_article_text(url: str) -> Optional[str]:
+    """Fetch plain text from original article URL.
+
+    Tries several CSS selectors to isolate the article body.
+    Returns up to _ARTICLE_MAX_CHARS of plain text, or None on any failure.
+    Anti-bot 403/429 responses are silently ignored (fallback to RSS snippet).
+    """
+    try:
+        resp = requests.get(
+            url,
+            headers=_ARTICLE_HEADERS,
+            timeout=_ARTICLE_FETCH_TIMEOUT,
+            allow_redirects=True,
+        )
+        if resp.status_code != 200:
+            logger.debug("google_news_rss: article fetch %s → %d", url, resp.status_code)
+            return None
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for sel in [
+            "article",
+            "main",
+            '[role="main"]',
+            ".article-body",
+            ".post-content",
+            ".entry-content",
+            ".news-article",
+            ".article__body",
+            "#article",
+            "#content",
+        ]:
+            el = soup.select_one(sel)
+            if el and len(el.get_text(strip=True)) > 80:
+                return el.get_text(" ", strip=True)[:_ARTICLE_MAX_CHARS]
+        body = soup.find("body")
+        if body:
+            return body.get_text(" ", strip=True)[:_ARTICLE_MAX_CHARS]
+    except Exception as exc:
+        logger.debug("google_news_rss: article fetch failed %s: %s", url, exc)
+    return None
 
 
 def _is_taiwan(text: str) -> bool:
@@ -205,17 +284,49 @@ class GoogleNewsRssScraper(BaseScraper):
                     if not article_url:
                         continue
 
+                    # source_id: keep stable gnews-URL-based hash so existing
+                    # DB events are updated (not duplicated) on next upsert
                     source_id = f"gnews_{hashlib.md5(article_url.encode()).hexdigest()[:12]}"
-                    start_date = _extract_start_date(description_plain, pub_date)
+
+                    # Resolve original article URL via googlenewsdecoder
+                    original_url = _decode_gnews_url(article_url)
+                    time.sleep(_DECODE_SLEEP)
+                    article_text: Optional[str] = None
+                    if original_url:
+                        article_text = _fetch_article_text(original_url)
+                        time.sleep(_ARTICLE_FETCH_SLEEP)
+
+                    # source_url: real article URL when available; falls back to
+                    # Google News redirect (works in browsers, expires in ~21 days)
+                    final_source_url = original_url if original_url else article_url
+
+                    # start_date: prefer article body (richer text) over RSS snippet
+                    start_date = _extract_start_date(
+                        article_text or description_plain, pub_date
+                    )
+
+                    # raw_description: article body text with publisher domain label
+                    if article_text and original_url:
+                        domain = urllib.parse.urlparse(original_url).netloc
+                        raw_desc = f"開催情報（{domain}）:\n\n{article_text}"
+                    else:
+                        raw_desc = f"開催情報（Google News）:\n\n{description_plain}"
+
+                    logger.debug(
+                        "google_news_rss: %s → real_url=%s article_text=%d chars",
+                        item_title[:40],
+                        original_url or "(none)",
+                        len(article_text) if article_text else 0,
+                    )
 
                     events.append(Event(
                         source_name="google_news_rss",
                         source_id=source_id,
-                        source_url=article_url,
+                        source_url=final_source_url,
                         original_language="ja",
                         name_ja=_clean_title_for_dedup(item_title),
                         raw_title=item_title,
-                        raw_description=f"開催情報（Google News）:\n\n{description_plain}",
+                        raw_description=raw_desc,
                         start_date=start_date,
                         category=["report"],
                     ))
