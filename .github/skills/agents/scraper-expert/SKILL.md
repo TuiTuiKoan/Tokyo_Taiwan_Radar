@@ -120,6 +120,20 @@ Option B — Skip re-annotation (simplest):
 
 **Incident**: デニス・リン展 (id: `1e375d6c`, 2026-05-02) — GPT output `2026-01-15` overwrote corrected `2026-04-10` because `raw_description` lacked the header. See `history.md` 2026-05-02.
 
+## Annotator location protection — manual address correction rule
+
+**Manual address correction rule**: Before overriding a GPT-generated `location_address`, verify with Google Maps. Venue names containing place names (e.g. `MoN Takanawa`, `WITH HARAJUKU HALL`) do NOT guarantee the postal address matches that place name.
+
+**Why this matters**: GPT correctly recalls well-known venue addresses from training data. An address absent from `raw_description` does NOT mean GPT hallucinated — it may have recalled the correct postal address from knowledge.
+
+**Protocol**:
+1. Search the venue name on Google Maps (30 seconds).
+2. Confirm the postal address matches what GPT generated.
+3. Only override if Google Maps shows a different address.
+4. After correcting, set `annotation_status='reviewed'` to lock the event.
+
+**Incident**: MoN Takanawa (ssff events, 2026-05-02) — architect inferred address as `港区高輪4-10-30` from venue name "Takanawa". Correct address is `港区三田3-16-1` (confirmed via Google Maps). GPT's original annotation was correct. See `architect/history.md` 2026-05-02（深夜 4）.
+
 ## tokyoartbeat — raw_description must include venue header (Contentful)
 
 **Rule**: When tokyoartbeat scraper is re-enabled, `raw_description` **must** prepend a structured venue header using data from the Contentful API. Without it, annotator GPT will hallucinate well-known venues (e.g. 東京都現代美術館, 森美術館) from training knowledge.
