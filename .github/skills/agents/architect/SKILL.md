@@ -194,6 +194,12 @@ When adding a new `location` filter type (e.g., a new region or a new special ca
 
 Missing any one of these causes: filter mismatch (items appear in wrong section), missing translation (raw key shown), or quality false positives.
 
+### Overseas (Taiwan Cities) Filter Special Notes
+- **Address format differs from Japan**: Taiwan city addresses are stored directly in the `address` column (e.g. `台北市…`). No prefix guard or `.startswith()` check is needed — Taiwan city names are not substrings of Japanese place names.
+- **Use `ilike '%城市名%'`** for matching; do NOT use `location_name` equality — Taiwan events use the raw address column.
+- **`OVERSEAS_MARKERS` must stay in sync** between `page.tsx` and `AdminEventTable.tsx`. The canonical 16-city list: 台北、台中、高雄、台南、新竹、嘉義、花蓮、台東、基隆、宜蘭、桃園、屏東、南投、彰化、雲林、澎湖.
+- Overseas filter does **not** require exclusion from `other_japan` — these are physically separate geographic categories.
+
 ## Online Events (Peatix)
 - Peatix renders online-only events as `LOCATION\n\nOnline event` (single line, no address group). The two-part regex `LOCATION\n\n(.+)\n\n(.+)` will NOT match — always add a separate `loc_online_m` check BEFORE the two-part regex.
 - Set an `is_confirmed_online` flag immediately on match and **skip all CSS and regex address fallbacks** — description body text often mentions a venue as a conditional/secondary option and must never be used as `location_address`.

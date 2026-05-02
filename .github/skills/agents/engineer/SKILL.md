@@ -72,6 +72,7 @@ supabase
 ## Python
 - When changing a function's return type (e.g. `dict` → `tuple`), immediately smoke-test before committing: `python -c "from module import fn; print(type(fn(...)))"`
 - Use `getattr(obj, 'attr', default)` when reading an attribute that may not exist on all subclasses.
+- **Inline Python safety rule:** Never use `python3 -c "..."` or heredoc `python3 << 'PY' ... PY` for scripts that contain f-strings with `{` / `}`. Shell history pollution can inject malicious fragments into f-string braces, causing SyntaxError or silent code execution. **Rule:** If inline Python fails with SyntaxError pointing at a brace `{`, immediately switch to `create_file /tmp/<name>.py` + `python3 /tmp/<name>.py`. File-based execution is fully isolated from the shell.
 - **`requests.Session()` must always mount HTTPAdapter with Retry**: Any scraper using `requests.Session()` must mount a retry adapter in `__init__`. Without it, a single transient network blip from GitHub Actions runners raises `Max retries exceeded` and triggers Sentry. Required pattern:
   ```python
   from requests.adapters import HTTPAdapter
@@ -264,6 +265,21 @@ path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding=
 After writing, verify with `grep "key" web/messages/XX.json` before committing.
 
 `replace_string_in_file` is safe only for ASCII-only strings in JSON files.
+
+## Shell / Terminal Safety
+
+**zsh `git add` with glob bracket paths:**
+Any path containing `[...]` (e.g. `web/app/[locale]/page.tsx`) will fail in zsh with `no matches found` because zsh expands brackets as glob patterns.
+
+**Rule:** Always wrap such paths in single quotes:
+```bash
+# ❌ fails in zsh
+git add web/app/[locale]/page.tsx
+
+# ✅ correct
+git add 'web/app/[locale]/page.tsx'
+```
+Applies to all shell operations: `git add`, `cp`, `mv`, `cat`, etc.
 
 ## GITHUB_TOKEN Permission Wording Sync
 

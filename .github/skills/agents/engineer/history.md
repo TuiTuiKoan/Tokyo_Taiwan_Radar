@@ -3,6 +3,48 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — inline Python shell injection 汙染；zsh git add glob 括號失敗；分類新增 6 處協議
+
+**問題 A：inline Python shell injection**
+在終端執行 `python3 << 'PY' ... PY` 或 `python3 -c "..."` 時，shell history 汙染導致惡意片段（如 `rm -f ...`）插入 f-string，造成 SyntaxError 或非預期執行。
+- **修正：** 改用 `create_file` 建立 `/tmp/<name>.py` 腳本，再執行 `python3 /tmp/<name>.py`。
+- **教訓：** 一旦出現 SyntaxError 且指向 f-string 大括號，立即放棄 inline 模式，改用 `/tmp/*.py` 腳本。
+
+**問題 B：zsh `git add` 含 `[...]` 路徑**
+`git add web/app/[locale]/page.tsx` 在 zsh 中因 glob 展開失敗：`zsh: no matches found`。
+- **修正：** `git add 'web/app/[locale]/page.tsx'`（單引號）
+- **教訓：** 含方括號的路徑在 zsh 必須用單引號包覆，適用所有 `git add`、`cp`、`mv` 操作。
+
+**問題 C：分類新增（`documentary`、`parenting`）6 處同步協議**
+- 每次分類新增必須在**同一個 commit** 更新 6 處（Category union、CATEGORIES、CATEGORY_GROUPS、zh/en/ja.json）。
+- 完成後執行 `cd web && npx tsc --noEmit`，無錯誤才能 commit。
+- i18n JSON 含 CJK 字元時必須用 Python json-module 腳本編輯（不可用 `replace_string_in_file`）。
+
+---
+## 2026-05-02 — Daily Dev Report、WIP tracking、Overseas filter 實作（commits `0ee713d`、`f56c4e0`、`96834f8`、最新 commit）
+
+**Daily Dev Report（`0ee713d`）：**
+- 新增 `scraper/daily_report.py`：查詢 Supabase（`scraper_runs`、`events`、`event_reports`、`research_sources`）＋ `GIT_COMMITS` env var，輸出四個 section：昨日提交、爬蟲結果、待處理事項、安全日誌。
+- 新增 `.github/workflows/daily-dev-report.yml`：每日 02:00 JST cron，`dawidd6/action-send-mail@v3` 透過 Gmail SMTP 寄送報告。
+- **CI secrets 需求**：`GMAIL_USER`、`GMAIL_APP_PASSWORD`（App Password，非一般 Gmail 密碼）、`DEV_REPORT_EMAIL`。
+
+**WIP tracking（`f56c4e0`）：**
+- 新增 `.github/wip.md`：存放進行中開發項目，`## 功能名稱` = active，`## ✅ 功能名稱` = completed。
+- `daily_report.py` 加入 `_read_wip_items()`：以 `Path(__file__).parent.parent / ".github" / "wip.md"` 跨目錄讀取；在「待處理事項」section 顯示「🚧 開發中項目」。
+
+**Recently-completed WIP items（`96834f8`）：**
+- `_read_wip_items()` 改回傳 `(active, recently_completed)` tuple。
+- `## ✅` 項目需有 `最後更新: YYYY-MM-DD` 且落在過去 26 小時內，才顯示為「✅ 昨日完成」；超過 26 小時靜默略過。
+- regex：`_WIP_DATE_RE = re.compile(r"最後更新[:\uff1a]\s*(\d{4}-\d{2}-\d{2})")` — 同時支援中文冒號（`：`）和英文冒號（`:`）。
+
+**Overseas (Taiwan cities) filter（最新 commit）：**
+- `FilterBar.tsx`：新增 `<option value="overseas">`。
+- `AdminEventTable.tsx`：`filterLocation` union 加 `'overseas'`；filter 邏輯使用 16 個台灣城市 markers 做 `includes()` 比對。
+- `web/app/[locale]/page.tsx`：overseas branch 用 `ilike '%城市名%'` 對 `address` 欄位比對；16 個城市依序 OR 組合。
+- i18n 三語同步：`海外（台灣各城市）` / `Overseas (Taiwan Cities)` / `海外（台湾各都市）`。
+- **教訓**：台灣城市名稱直接存在 `address` 欄位，不需前綴守衛；`OVERSEAS_MARKERS` 陣列在 `page.tsx` 和 `AdminEventTable.tsx` 兩處必須完全同步。
+
+---
 ## 2026-05-02 — annotator google_news_rss Playwright 文章補抓（commit `9a0414a`）
 - **問題**：google_news_rss 的 `raw_description` 只有 RSS snippet（通常只有標題），GPT 無法從中提取活動日期，`start_date` 永遠為 NULL。
 - **修正**：在 `annotator.py` 新增 `_fetch_gnews_article_text()`，使用 Playwright 追蹤 Google News 重導向 URL 取得原始文章本文（最多 4000 字），替換 `raw_desc` 傳給 GPT。整個 run 共用一個 Playwright browser 實例；`raw_description` 欄位不寫回 DB（in-memory only）。失敗時（timeout / paywall / DNS）gracefully fallback 到原始 snippet。

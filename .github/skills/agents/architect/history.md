@@ -3,6 +3,61 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — 分類系統新增 `documentary`、`parenting`；`gender` 標籤調整（commits `6c53347`、`7c157a6`、`db7e1d7`）
+
+**變更摘要：**
+- `documentary`（紀錄片）加入 `group_arts`（commit `6c53347`）
+- `parenting`（親子）加入 `group_society`（commit `7c157a6`）；同批將 `gender` zh 標籤由「性別議題」改為「性別」
+- `gender` en 標籤：`Gender Issues` → `Gender`（commit `db7e1d7`）
+
+**每次分類更新必須同步的 6 處（原子性）：**
+1. `web/lib/types.ts` — `Category` union 型別
+2. `web/lib/types.ts` — `CATEGORIES` flat array
+3. `web/lib/types.ts` — `CATEGORY_GROUPS`（放入正確 group）
+4. `web/messages/zh.json`
+5. `web/messages/en.json`
+6. `web/messages/ja.json`
+
+完成後必須執行 `cd web && npx tsc --noEmit`，確認 0 error 才能 commit。
+
+**教訓：**
+- `multi_replace_string_in_file` 的 `oldString` 改 union type 時必須含 ≥3 行前後文，否則可能截掉相鄰成員（參見 Architect SKILL.md § Category Union Change Guard）。
+- i18n JSON 含非 ASCII 字元時，必須用 Python json-module 腳本編輯，不可用 `replace_string_in_file`（參見 Engineer SKILL.md § i18n JSON File Editing — Unicode Safety Rule）。
+
+---
+## 2026-05-02 — Overseas (Taiwan cities) location filter 設計決策（commit 最新）
+
+**背景：** 新增「海外（台灣各城市）」地點篩選選項，讓用戶可篩選在台灣各城市舉辦的活動。
+
+**架構決策 A（Taiwan city markers 不需前綴守衛）：**
+台灣城市名稱（台北、台中、高雄…）直接存放在 `address` 欄位，與日本地點格式完全不同來源。不需要 `.startswith()` 或前綴守衛——台灣城市名不會是日本地名前綴。改用 `ilike '%城市名%'` 直接比對即可。
+
+**架構決策 B（`OVERSEAS_MARKERS` 必須同步維護）：**
+16 個台灣城市 markers（台北/台中/高雄/台南/新竹/嘉義/花蓮/台東/基隆/宜蘭/桃園/屏東/南投/彰化/雲林/澎湖）需在 `page.tsx` 與 `AdminEventTable.tsx` 兩處保持完全同步；兩處邏輯一旦分叉，過濾結果就會不一致。
+
+**教訓：**
+- 海外 filter 是「地理範圍擴充」，不是「特殊類型」——不需要 `other_japan` exclusion；直接用城市 markers 比對即可。
+- 新增地點篩選前，永遠要確認 DB 中確實有足夠數量的匹配事件。
+
+---
+## 2026-05-02 — Daily Dev Report + WIP tracking 架構決策（commits `0ee713d`、`f56c4e0`、`96834f8`）
+
+**背景：** 設計每日 02:00 JST 自動寄送開發摘要報告的 CI 流程，並整合 WIP 追蹤功能。
+
+**架構決策 A（wip.md 放在 `.github/` 而非 `scraper/`）：**
+`wip.md` 屬於開發狀態文件，非 scraper 業務邏輯。存放在 `.github/wip.md`，`daily_report.py` 用 `Path(__file__).parent.parent / ".github" / "wip.md"` 跨目錄讀取——清楚表達「這是 repo 層的文件，不是 scraper 層的」。
+
+**架構決策 B（completed item 靜默略過，超過 26 小時不顯示）：**
+WIP 已完成項目只在完成後 26 小時內顯示為「昨日完成」，超過則靜默略過。避免報告被過時的 completed 項目佔滿。
+
+**架構決策 C（Passive push 優先於 Admin UI）：**
+每日 dev report 採 GitHub Actions + Gmail SMTP（被動推送），符合 Admin UI Necessity Check 的「passive push 優先」原則。報告涵蓋昨日提交、爬蟲結果、待處理事項、安全日誌四個 section。
+
+**教訓：**
+- WIP 日期格式規則必須精確：`最後更新: YYYY-MM-DD`，且需同時支援中文冒號（：）和英文冒號（:）。regex `r"最後更新[:\uff1a]\s*(\d{4}-\d{2}-\d{2})"` 可涵蓋兩種格式。
+- GitHub Actions Gmail SMTP 需要 `GMAIL_USER`、`GMAIL_APP_PASSWORD`（App Password，非一般密碼）、`DEV_REPORT_EMAIL` 三個 secrets。
+
+---
 ## 2026-05-02 — annotator 架構決策：google_news_rss Playwright 文章補抓（commits `9510a05`、`9a0414a`）
 
 **背景：** google_news_rss scraper 的 `_extract_start_date()` 原先在找不到日期時 fallback 到 `pub_date`（文章發布日）。因 RSS `<description>` 永遠只有標題短文，幾乎每筆都觸發 fallback，造成 40 筆 `start_date=pub_date` 的錯誤資料。修正方向：scraper 端改回傳 `None`，由 annotator 取得正確日期。
