@@ -95,24 +95,20 @@ If a plan introduces a new admin page or count column with no associated action,
 
 Reference incident: 2026-05-01 Tier 1 monitoring — `/admin/quality` page and `/admin/stats` SLA columns were planned, implemented, then撤銷 same week; only the LINE budget push (`weekly_report.py`) survived.
 
-## Annotator Date-Safety Guard
+## Annotator Scraper-Priority Guard
 
-When a plan includes **manual date correction** followed by annotator re-run (`annotation_status='pending'`), the plan **must** include one of the following guards:
+Before approving any change to `annotator.py` annotation field priority, verify:
 
-**Option A — Re-annotate (safe)**:
-1. Update `start_date`/`end_date`.
-2. Prepend `開催日時: YYYY年MM月DD日 〜 YYYY年MM月DD日\n\n` to `raw_description`.
-3. Set `annotation_status='pending'`.
-
-**Option B — Skip re-annotation (simplest)**:
-1. Update `start_date`/`end_date`.
-2. Set `annotation_status='annotated'`. Annotator will not overwrite.
-
-**Forbidden pattern**: Update dates → set `annotation_status='pending'` without touching `raw_description`. The annotator's date merge strategy is `GPT output OR DB value` — GPT always runs first and overwrites the manual fix.
-
-**High-risk sources**: `tokyoartbeat`, `google_news_rss`, `nhk_rss`, `note_creators` — these sources' `raw_description` commonly lacks a structured `開催日時:` header.
-
-Reference incident: デニス・リン展 (2026-05-02, `history.md`).
+1. **Scraper values always take precedence** over GPT inference for factual fields:
+   - `start_date` / `end_date`
+   - `location_name` / `location_address`
+   - `business_hours`
+   - `is_paid`
+2. **GPT only fills in** when the scraper left the field empty (`None`/`null`).
+3. **Translation fields are always GPT-generated** — `name_zh`, `name_en`, `description_*`, `location_name_zh/en`, `business_hours_zh/en`.
+4. **`name_ja` special case**: when `name_ja_locked=true`, the scraper's value is preserved verbatim. The source title may be in Japanese, Chinese, or English — `name_ja` is a field identifier, not a language constraint.
+5. **`location_url`** is admin-entered only — never write `null` from annotator (omit from `update_data` entirely to avoid clobbering manually set values).
+6. The safe way to fix a GPT-overwritten date: prepend `開催日時: YYYY年MM月DD日` header to `raw_description`, then set `annotation_status='pending'` to trigger re-annotation.
 
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).

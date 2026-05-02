@@ -32,7 +32,11 @@ from supabase import create_client, Client
 
 from category_feedback import load_corrections, build_feedback_prompt
 from movie_title_lookup import lookup_movie_titles
-from person_name_lookup import lookup_person_names
+from person_name_lookup import (
+    extract_katakana_names,
+    lookup_person_names,
+    lookup_single_person,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -576,11 +580,10 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "description_zh": _str(annotation.get("description_zh")),
                     "description_en": _str(annotation.get("description_en")),
                     "category": categories,
-                    # Preserve scraper-set dates when GPT returns null — GPT may fail to
-                    # extract dates from long descriptions, but the scraper already found
-                    # and prepended them in 開催日時: format.
-                    "start_date": annotation.get("start_date") or event.get("start_date"),
-                    "end_date": annotation.get("end_date") or event.get("end_date"),
+                    # Scraper-set dates take precedence over GPT inference.
+                    # GPT fills in only when the scraper found no date at all.
+                    "start_date": event.get("start_date") or annotation.get("start_date"),
+                    "end_date": event.get("end_date") or annotation.get("end_date"),
                     # Scraper-set location/hours/paid take precedence over GPT inference.
                     # GPT only fills in when the scraper left the field empty.
                     "location_name": _loc(event.get("location_name")) or _loc(annotation.get("location_name")),
@@ -896,16 +899,17 @@ def _fix_person_names_gpt(
 
 
 def enrich_person_names() -> None:
-    """Look up official Chinese/English names for cast & crew in movie events
+    """Look up official Chinese/English names for people in ALL events
     and fix wrong phonetic translations in descriptions.
 
     Strategy:
-    - Query ALL movie events where annotation_status != 'reviewed'.
-      eiga_com is exempt.
-    - For each movie, look up cast/crew via eiga.com + zh.wikipedia.
+    - Movie events (excl. eiga_com): use eiga.com movie page to get
+      structured cast/crew list, then look up each via Wikipedia.
+    - Non-movie events: extract katakana foreign names (with ・) from
+      raw_description, look up each via eiga.com person search + Wikipedia.
     - In description_zh: use GPT-4o-mini to replace wrong phonetic
       translations with correct Chinese names.
-    - In description_en: direct-replace wrong English names.
+    - In description_en: direct-replace katakana names with English names.
     - 'reviewed' events are never touched.
     - Does NOT change annotation_status.
     """
@@ -915,10 +919,9 @@ def enrich_person_names() -> None:
     res = (
         sb.table("events")
         .select(
-            "id,name_ja,raw_title,name_zh,name_en,"
-            "description_zh,description_en,annotation_status,source_name"
+            "id,name_ja,raw_title,raw_description,name_zh,name_en,"
+            "description_zh,description_en,annotation_status,source_name,category"
         )
-        .contains("category", ["movie"])
         .neq("annotation_status", "reviewed")
         .neq("source_name", "eiga_com")
         .execute()
@@ -932,19 +935,33 @@ def enrich_person_names() -> None:
     patched = 0
     for event in events:
         source = event.get("source_name", "")
+        categories = event.get("category") or []
+        is_movie = "movie" in categories
 
-        # Same title extraction logic as enrich_movie_titles
-        if source in _NEWS_MOVIE_SOURCES:
-            raw = event.get("raw_title") or event.get("name_ja") or ""
-            m = _BRACKET_TITLE_RE.search(raw)
-            title = m.group(1).strip() if m else ""
+        # --- Resolve person names based on event type ---
+        people: dict[str, "PersonInfo"] = {}
+
+        if is_movie:
+            # Movie events: structured lookup via eiga.com movie page
+            if source in _NEWS_MOVIE_SOURCES:
+                raw = event.get("raw_title") or event.get("name_ja") or ""
+                m = _BRACKET_TITLE_RE.search(raw)
+                title = m.group(1).strip() if m else ""
+            else:
+                title = event.get("name_ja") or event.get("raw_title") or ""
+            if title:
+                people = lookup_person_names(title)
         else:
-            title = event.get("name_ja") or event.get("raw_title") or ""
+            # Non-movie events: extract katakana names from text
+            raw_desc = event.get("raw_description") or ""
+            raw_title = event.get("raw_title") or event.get("name_ja") or ""
+            text = f"{raw_title}\n{raw_desc}"
+            katakana_names = extract_katakana_names(text)
+            for name in katakana_names:
+                info = lookup_single_person(name)
+                if info:
+                    people[name] = info
 
-        if not title:
-            continue
-
-        people = lookup_person_names(title)
         if not people:
             continue
 
@@ -954,7 +971,7 @@ def enrich_person_names() -> None:
         desc_zh = event.get("description_zh") or ""
         if desc_zh:
             zh_mappings = [
-                (info.role, ja_name, info.name_zh)
+                (info.role or "人物", ja_name, info.name_zh)
                 for ja_name, info in people.items()
                 if info.name_zh
             ]
@@ -963,17 +980,10 @@ def enrich_person_names() -> None:
                 if fixed_zh:
                     update["description_zh"] = fixed_zh
 
-        # Fix desc_en with direct replacement (English names are predictable)
+        # Fix desc_en with direct replacement
         desc_en = event.get("description_en") or ""
         if desc_en:
             new_desc_en = desc_en
-            for ja_name, info in people.items():
-                if info.name_en and info.name_en in new_desc_en:
-                    # English names from eiga.com are usually correct;
-                    # no replacement needed if they already match.
-                    pass
-            # For desc_en, the names are typically already correct.
-            # Only fix if we detect katakana names leaked into English text.
             for ja_name, info in people.items():
                 if ja_name in new_desc_en and info.name_en:
                     new_desc_en = new_desc_en.replace(ja_name, info.name_en)
@@ -984,9 +994,10 @@ def enrich_person_names() -> None:
             sb.table("events").update(update).eq("id", event["id"]).execute()
             patched += 1
             logger.info(
-                "  ✓ person names fixed: %s/%s [%s] desc_zh=%s desc_en=%s",
-                source, event["id"][:8], title[:40],
+                "  ✓ person names fixed: %s/%s [cat=%s] desc_zh=%s desc_en=%s persons=%s",
+                source, event["id"][:8], ",".join(categories),
                 "description_zh" in update, "description_en" in update,
+                list(people.keys()),
             )
 
     logger.info("enrich_person_names: patched %d/%d events", patched, len(events))

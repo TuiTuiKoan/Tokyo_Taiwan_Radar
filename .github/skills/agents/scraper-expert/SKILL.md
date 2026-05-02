@@ -60,6 +60,8 @@ Read this at the start of every session before writing any scraper.
 
 **Solution**: Set `name_ja_locked=True` on the `Event` when `name_ja` is extracted from a definitive structured field. The annotator will preserve the existing `name_ja` unchanged, while still generating `name_zh`, `name_en`, `description_*`, and `category` normally.
 
+**Language note**: `name_ja` is a field identifier, not a language constraint. A `name_ja_locked` title may legitimately be Chinese (`name_ja="台灣..."`) or English (`name_ja="Taiwan..."`) when the authoritative source uses that language. Do not correct the language.
+
 **When to use**:
 - Academic sub-events where `name_ja` = structured `題目:` / paper title with full subtitle (e.g. `taiwanshi` scraper)
 - Film sub-events from official programme PDFs with definitive Japanese titles
