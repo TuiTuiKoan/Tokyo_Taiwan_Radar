@@ -54,6 +54,30 @@ Missing step 3 has no compile-time or runtime error — it silently appears as a
 
 `/docs` 記錄的是「系統怎麼運作」，不是「系統現在的狀態」。不要在文件中寫入會每天變動的數字（scraper 數量、事件總數、migration 編號）。
 
+## Server Component + Realtime 分離模式 Guard
+
+在任何包含「Server Component 中有 badge 或動態計數器」的 feature plan 中，**必須**明確標示：
+
+> **⚠️ 此 badge / 計數器需要即時性嗎？若是，plan 必須包含「拆出 Client Component + Supabase Realtime 訂閱」步驟。**
+
+**分離模式：**
+```
+ParentComponent (Server Component)
+  └─ 查詢初始 count（SSR，一次性）
+  └─ <DynamicBadge initialCount={n} />（Client Component）
+       └─ Supabase Realtime 訂閱 INSERT + UPDATE 保持即時更新
+```
+
+**強制規則：**
+- Server Component 的資料在 SSR 時固定，頁面渲染後不再更新。任何需要即時性的計數器 / badge，**不得**留在 Server Component 中。
+- Client Component 接收 `initialCount` prop 作為 SSR 初始值，啟動後改由 Realtime 維護。
+- 計畫中必須明確列出：哪個元件需要拆分、Realtime 訂閱哪個 table 的哪些事件（INSERT / UPDATE）。
+
+**無操作 Quality Section 應直接移除：**
+Quality check section 如果沒有對應的可執行 action（fix button / batch action），且數值永遠不清空（例如 archive cron 一天只跑一次的 expired-but-active），**計畫不應包含此 section**，已存在的應移除。只有數值能被操作清零的 check section 才值得顯示。
+
+Reference incident: `AdminTabNav` badge（2026-05-02）—（commit `4a71258`）; expired-but-active section（commit `cd4cc29`）.
+
 ## Admin UI Dashboard Necessity Check
 
 Before planning any new admin page or dashboard column whose primary output is a count / status / health number, ask:

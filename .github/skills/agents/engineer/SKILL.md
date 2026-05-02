@@ -56,9 +56,52 @@ ALTER PUBLICATION supabase_realtime ADD TABLE <table_name>;
 **Diagnosis:** Supabase Dashboard → Database → Replication — confirm the target table appears in the `supabase_realtime` publication list.
 
 **Frontend subscription rules:**
+- **Create the Supabase client INSIDE `useEffect`** — never at component top level. Top-level creation creates a stale closure risk: the `useEffect` captures the initial instance and may reference a stale/invalidated client after re-renders.
 - Admin pages must subscribe to **both INSERT and UPDATE** — INSERT picks up new rows; UPDATE syncs status changes (confirm/dismiss) across open tabs.
 - Always clean up in `useEffect` return: `supabase.removeChannel(channel)`.
 - Extract a `fetchRow(id)` helper when both INSERT and UPDATE handlers need to re-fetch the full row (avoids duplicating the SELECT clause).
+
+```tsx
+// ✅ 正確：在 useEffect 內部建立 client，避免 stale closure
+useEffect(() => {
+  const rt = createClient();
+  const channel = rt
+    .channel("table_changes")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "t" }, handleInsert)
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "t" }, handleUpdate)
+    .subscribe();
+  return () => { rt.removeChannel(channel); };
+}, []);
+
+// ❌ 錯誤：在頂層建立 client 再傳入 effect（stale closure 風險）
+const supabase = createClient();
+useEffect(() => {
+  const channel = supabase.channel(...); // 可能捕捉到舊實例
+}, []);
+```
+
+**Server Component + Realtime 分離模式:**
+
+Server Component 中的動態 UI（badge、計數器）如果需要即時性，**必須**拆出為 Client Component：
+
+```tsx
+// AdminTabNav.tsx（Server Component）
+const pending = await getPendingCount();
+return <AdminReportsBadge initialCount={pending} />; // Client Component
+
+// AdminReportsBadge.tsx（Client Component）
+const [count, setCount] = useState(initialCount);
+useEffect(() => {
+  const rt = createClient();
+  const ch = rt.channel("badge")
+    .on("postgres_changes", { event: "INSERT", ... }, () => setCount(c => c + 1))
+    .on("postgres_changes", { event: "UPDATE", ... }, async () => setCount(await fetchCount()))
+    .subscribe();
+  return () => { rt.removeChannel(ch); };
+}, []);
+```
+
+Reference incident: `AdminTabNav` badge（2026-05-02）— SSR-only badge 在報告提交後數字不更新，直到建立 `AdminReportsBadge` client component 才修復（commit `4a71258`）.
 
 ```ts
 // ✅ Subscribe to both INSERT and UPDATE for admin pages
@@ -265,6 +308,8 @@ Place bulk action bar in the **section header** (flex justify-between), not a bo
 ## Admin Quality Page — Supabase Query Rules
 
 **Quality page `is_active` filter rule:** Every Supabase query on the quality page (`/admin/quality`) must include `.eq("is_active", true)`. Without it, deactivated events appear in the list; clicking them returns 404 because the detail page only renders active events. Apply to **all** section queries — `missingAddr`, `missingCat`, `reviewedMissing`, `annotatedNoCat`, and any future additions.
+
+**Quality section actionability rule:** Only include a Quality section if its value can be cleared to zero by user action (fix button / batch action) or by an automated process running within a reasonable interval. If a section's value persists indefinitely due to scheduling (e.g. archive cron runs once daily, so daytime-expired events always appear) **and** no actionable button exists, remove the section entirely. Display of permanently non-zero unactionable data erodes trust in the quality page. Reference incident: expired-but-active section removed in commit `cd4cc29`.
 
 **`missingAddr` filter exclusion list:** The "缺地址" section must exclude all of the following:
 - `location_name` containing `「オンライン」` (online events)

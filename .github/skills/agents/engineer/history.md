@@ -3,6 +3,45 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02（深夜）— Realtime stale closure 修復、badge client component、Quality page 清理（commits `c3fe0bc`、`4a71258`、`cd4cc29`）
+
+### 問題一：AdminReportsTable Realtime stale closure（commit `4a71258`）
+`AdminReportsTable` 在 component 頂層建立 `supabase` client，再於 `useEffect` 中捕捉 → 可能捕捉到舊實例（stale closure）。同時只訂閱 INSERT，UPDATE 事件（confirm/dismiss）不觸發列表更新。
+
+### 修復
+1. `supabase` client 改在 `useEffect` **內部**建立，每次 effect 執行都取得新實例，徹底消除 stale closure。
+2. 補上 `UPDATE` handler，讓另一個 admin session confirm/dismiss 後目前列表即時反映。
+
+### 問題二：AdminTabNav badge SSR 靜止不動（commit `4a71258`）
+`AdminTabNav` 是 Server Component，pending count 在頁面 SSR 時固定，新報告提交後 badge 數字不更新。
+
+### 修復
+建立 `AdminReportsBadge` client component：接收 `initialCount` 做 SSR 初始值，訂閱 Realtime INSERT（count+1）和 UPDATE（重新 fetch count），badge 即時更新。
+
+### 教訓
+- **Supabase client 必須在 `useEffect` 內部建立**：在頂層建立再傳入 effect 會形成 stale closure，可能捕捉到已失效的舊 client 實例。（已新增至 SKILL.md Supabase Realtime 章節）
+- **Server Component 中的動態 UI 必須抽出為 Client Component + Realtime**：SSR 抓取的靜態值永遠不會更新，任何需要即時性的計數器都必須走 Client Component + Realtime 分離模式。
+- Admin pages 訂閱應同時包含 `INSERT` 和 `UPDATE`：兩個 admin session 同時開啟時，UPDATE 才能讓另一端的操作同步顯示。
+
+### 問題三：Quality page expired-but-active 欄位無法操作（commit `cd4cc29`）
+Archive cron 一天只跑一次，白天過期的事件留在「expired-but-active」欄位，但點擊後無任何可執行操作。
+
+### 修復
+移除整個「expired-but-active」section，避免顯示永遠有值但無法操作的清單。
+
+### 教訓
+無操作 Quality check section（無 fix button / batch action，且數值永不清空）應直接移除。（已新增至 SKILL.md Admin Quality Page 章節）
+
+### 問題四：ReportSection wrongCategory 無預填（commit `c3fe0bc`）
+使用者勾選「wrongCategory」時，`suggestedCategories` 為空，需手動重新選取目前分類，操作負擔高。
+
+### 修復
+`ReportSection.tsx` 新增 `currentCategories?: Category[]` prop；勾選 wrongCategory 時自動預填事件目前分類。
+
+### 教訓
+所有「修正建議」欄位應以目前值為預設。
+
+---
 ## 2026-05-02 — Admin 頁面 SSR 快取無效化 + Realtime 自動重新整理（commits `cad13a2`、`046d8cd`、`08b4912`）
 
 ### 問題一：`router.push()` 後顯示舊快取

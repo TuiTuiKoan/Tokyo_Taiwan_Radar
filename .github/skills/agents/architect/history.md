@@ -3,6 +3,24 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02（深夜）— UI 預填、Realtime badge、Quality page 清理（commits `c3fe0bc`、`4a71258`、`cd4cc29`）
+
+### 架構規則一：Server Component + Realtime 分離模式（commit `4a71258`）
+- **問題**：`AdminTabNav` 是 Server Component，pending reports badge 在 SSR 時抓取一次後靜止不動，報告提交後 badge 數字不更新。
+- **根本原因**：Server Component 的資料在 SSR 時固定，無法在客戶端保持即時 state。
+- **架構規則**（新增至 SKILL.md）：Server Component 中任何「動態計數器 / badge / 狀態指示」如果需要即時性，**必須**拆出為獨立 Client Component，接收 `initialCount` 做 SSR 初始值，再由 Supabase Realtime 訂閱維護更新。
+- **拆分模式**：`AdminTabNav`（Server Component）→ 查詢初始 `pendingCount`（SSR）→ `<AdminReportsBadge initialCount={n} />`（Client Component）→ 訂閱 Realtime。
+
+### 架構規則二：無操作 Quality section 應直接移除（commit `cd4cc29`）
+- **問題**：Quality page「expired-but-active」欄位白天時段永遠有值（archive cron 一天只跑一次），點擊後無任何操作可執行。
+- **根本原因**：archive cron 一天僅執行一次，白天過期的事件必然殘留在此清單。
+- **架構規則**：Quality check section 如果沒有對應的可操作 action（fix button / batch action），且數值會永遠有值而非暫時性，**應直接移除**，不應保留純資訊性的永遠有值清單。
+
+### UI 教訓：修正建議欄位應預填目前值（commit `c3fe0bc`）
+- `ReportSection.tsx` 新增 `currentCategories` prop，使用者勾選「wrongCategory」時 `suggestedCategories` 自動預填事件目前分類。
+- **UX 規則**：所有「修正建議」類欄位都應以目前值為預設，降低使用者操作負擔。
+
+---
 ## 2026-05-02（晚）— 5 件修復：scraper retry、子活動欄位、health_check、annotator 日期覆蓋
 
 ### 摘要
