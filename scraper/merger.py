@@ -130,6 +130,101 @@ def run_merger(dry_run: bool = False) -> int:
 
     sb = _get_client()
 
+    # ------------------------------------------------------------------
+    # Pass 0 — Within-source Google News RSS dedup
+    # Google News RSS returns multiple articles about the same event across
+    # different queries or different days.  Each article gets a unique
+    # source_id (URL hash), so the in-scraper dedup (by raw title) misses
+    # them.  After annotation, name_ja is normalised — we can deduplicate
+    # by name_ja similarity ≥ _SIMILARITY_THRESHOLD across all active
+    # google_news_rss events (including start_date=NULL).
+    # Primary: prefer non-NULL start_date, then longer raw_description.
+    # ------------------------------------------------------------------
+    gnews_res = (
+        sb.table("events")
+        .select(
+            "id,source_name,source_id,source_url,name_ja,start_date,"
+            "raw_description,secondary_source_urls,annotation_status"
+        )
+        .eq("is_active", True)
+        .eq("source_name", "google_news_rss")
+        .not_.is_("name_ja", None)
+        .execute()
+    )
+    gnews_events = [
+        ev for ev in (gnews_res.data or [])
+        if "_sub" not in (ev.get("source_id") or "")
+    ]
+    logger.info("Merger Pass 0: %d active google_news_rss events", len(gnews_events))
+
+    pass0_handled: set[str] = set()
+    pass0_count = 0
+
+    for i in range(len(gnews_events)):
+        ev_a = gnews_events[i]
+        if ev_a["id"] in pass0_handled:
+            continue
+        for j in range(i + 1, len(gnews_events)):
+            ev_b = gnews_events[j]
+            if ev_b["id"] in pass0_handled:
+                continue
+            if _similarity(ev_a["name_ja"], ev_b["name_ja"]) < _SIMILARITY_THRESHOLD:
+                continue
+
+            # Determine primary: prefer non-null start_date, then longer raw_description
+            def _gnews_score(ev: dict) -> tuple:
+                has_date = 0 if ev.get("start_date") else 1  # 0 = better
+                desc_len = -(len(ev.get("raw_description") or ""))  # negative = longer is better
+                return (has_date, desc_len)
+
+            if _gnews_score(ev_a) <= _gnews_score(ev_b):
+                primary, secondary = ev_a, ev_b
+            else:
+                primary, secondary = ev_b, ev_a
+
+            secondary_url = secondary["source_url"]
+            existing_urls = primary.get("secondary_source_urls") or []
+            already_merged = secondary_url in existing_urls
+
+            logger.info(
+                "%s  [gnews] '%s'  ←  [gnews] '%s'  (within-source sim=%.2f)",
+                "EXISTS" if already_merged else "MERGE ",
+                (primary["name_ja"] or "")[:40],
+                (secondary["name_ja"] or "")[:40],
+                _similarity(ev_a["name_ja"], ev_b["name_ja"]),
+            )
+
+            if dry_run:
+                pass0_count += 1
+                pass0_handled.add(secondary["id"])
+                continue
+
+            new_urls = list(dict.fromkeys(existing_urls + [secondary_url]))
+            upd: dict = {"secondary_source_urls": new_urls}
+            if not already_merged:
+                primary_desc = (primary.get("raw_description") or "").strip()
+                secondary_desc = (secondary.get("raw_description") or "").strip()
+                if secondary_desc and secondary_desc not in primary_desc:
+                    upd["raw_description"] = (
+                        primary_desc + f"\n\n---\n別来源補足 (gnews)\n{secondary_desc}"
+                    )
+                upd["annotation_status"] = "pending"
+
+            try:
+                sb.table("events").update(upd).eq("id", primary["id"]).execute()
+                sb.table("events").update({"is_active": False}).eq("id", secondary["id"]).execute()
+                pass0_count += 1
+                pass0_handled.add(secondary["id"])
+            except Exception as exc:
+                logger.error(
+                    "Merger Pass 0: failed to merge %s ← %s: %s",
+                    primary["source_id"],
+                    secondary["source_id"],
+                    exc,
+                )
+
+    logger.info("Merger Pass 0: %d google_news_rss within-source pair(s) handled", pass0_count)
+
     # Fetch all active, non-sub events that have a start_date and name_ja.
     # Sub-events (source_id contains '_sub') are excluded — they are child
     # events created by the annotator and should not be merged independently.
@@ -509,7 +604,7 @@ def run_merger(dry_run: bool = False) -> int:
                 handled_secondary_ids.add(orphaned_sub["id"])
 
     logger.info("Merger: %d orphaned sub-event(s) handled (Pass 3)", pass3_count)
-    total = merge_count + pass3_count
+    total = pass0_count + merge_count + pass3_count
     return total
 
 
@@ -535,4 +630,4 @@ if __name__ == "__main__":
 
     count = run_merger(dry_run=args.dry_run)
     action = "would be merged" if args.dry_run else "merged"
-    print(f"Done: {count} pair(s)/orphan(s) {action} (Pass 1+2+3).")
+    print(f"Done: {count} pair(s)/orphan(s) {action} (Pass 0+1+2+3).")

@@ -82,6 +82,22 @@ def _is_yahoo_aggregation(title: str) -> bool:
     return title.rstrip().endswith("- Yahoo!ニュース")
 
 
+def _clean_title_for_dedup(title: str) -> str:
+    """Strip trailing '- Source Name' / '｜Source Name' suffix from RSS titles.
+
+    Google News RSS titles look like:
+      "台湾屋台祭in海老名2026｜レッツエンジョイ東京 - レッツエンジョイ東京"
+      "海老名に台湾がやってくる『台湾屋台祭in海老名2026』を開催！ - newscast.jp"
+
+    Stripping the suffix gives a shorter string for fuzzy dedup.  The
+    annotator normalises name_ja further; this only improves in-scraper
+    dedup before the event reaches the DB.
+    """
+    # Strip " - Source" or "｜Source" at the end
+    cleaned = re.sub(r'\s*[-|｜]\s*\S[^\n]*$', '', title).strip()
+    return cleaned or title
+
+
 def _extract_start_date(description_plain: str, pub_date: datetime) -> Optional[datetime]:
     """Extract start_date from description text.
 
@@ -197,7 +213,7 @@ class GoogleNewsRssScraper(BaseScraper):
                         source_id=source_id,
                         source_url=article_url,
                         original_language="ja",
-                        name_ja=item_title,
+                        name_ja=_clean_title_for_dedup(item_title),
                         raw_title=item_title,
                         raw_description=f"開催情報（Google News）:\n\n{description_plain}",
                         start_date=start_date,
