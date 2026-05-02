@@ -67,16 +67,18 @@ Before approving **any** event as `reviewed` — and before designing features t
 3. Daily CI (`scraper.yml`) runs `python annotator.py --fix-reviewed` automatically as a background safeguard.
 4. When designing annotation workflows, always account for the edge case: **event marked reviewed before translations were populated**.
 
-## Secret Permission Consistency Guard
+## Subtitle Translation Guard
 
-Before approving any change related to `GITHUB_TOKEN` requirements, verify:
+Before approving any batch re-annotation of `name_ja_locked` events, verify:
 
-1. Permission wording is consistent across code and docs:
-  - Fine-grained PAT: `Issues: write + Metadata: read`
-  - Classic token: `repo` scope
-2. `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` remains the single checklist source.
-3. Legacy checklist paths are redirect-only stubs, not duplicated content.
-4. No real token values appear in tracked files; examples must use placeholders.
+1. **Subtitle completeness**: After annotator runs, scan events whose `name_ja` contains `――`/`──`/`―`/`—` and confirm the full subtitle appears in `name_zh` and `name_en`. GPT-4o-mini habitually truncates academic subtitles.
+2. **`name_ja_locked` does NOT protect translations**: It only protects `name_ja`. The `name_zh`/`name_en` are still GPT-generated and subject to subtitle truncation.
+3. **QA command** (run after any batch annotation of locked events):
+   ```python
+   import re; SEP = re.compile(r'――|──|―|—')
+   # Check: for each locked event with SEP in name_ja, confirm subtitle appears in name_zh/name_en
+   ```
+4. If truncation found: correct manually via direct DB update — re-running annotator produces the same error.
 
 ## Secret Permission Consistency Guard
 

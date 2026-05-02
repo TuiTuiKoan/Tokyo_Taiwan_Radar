@@ -3,6 +3,33 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — GPT 副標題截斷修復（annotator.py SUBTITLE RULE + 批次 DB 修正）
+
+### 問題
+`annotator.py` GPT-4o-mini 遇到學術論文格式標題（`主標――副標`）時，習慣性省略副標，只翻譯主標。`name_ja_locked` 保護 `name_ja` 不被覆寫，但 `name_zh`/`name_en` 仍由 GPT 生成，仍會截斷。
+
+### 修復
+1. **SYSTEM_PROMPT 新增 SUBTITLE RULE**（`annotator.py`）：
+   > 當 name_ja 含 `――`/`──`/`―`/`—` 副標題分隔符時，name_zh 和 name_en 必須包含完整副標題，不得截斷。
+2. **批次 DB 修正**：掃描 15 筆 `name_ja_locked=True` 事件，找出 4 筆副標被截斷：
+   - `116cadee`（台灣地方選舉 + 桃園觀音新屋）
+   - `3dbfecbb`（釋迦出口 + 政治經濟學）
+   - `8339ed6f`（朱西寧 + 美援體制關係）
+   - `47db1bb2`（1937 女性教育 + 機構列表）
+
+### 教訓
+- **`name_ja_locked` 只保護 `name_ja`，不保護 `name_zh`/`name_en`**。結構化來源的副標題翻譯仍需靠 SYSTEM_PROMPT 規則，或手動修正。
+- GPT 翻譯學術副標題的準確性必須在部署後抽查，不能只依賴自動 annotate。
+- 新增含副標題的學術論文事件後，建議執行：`SELECT id, name_ja, name_zh, name_en FROM events WHERE name_ja_locked AND name_ja LIKE '%――%';` 確認翻譯完整。
+
+---
+## 2026-05-02 — 新增 `docs/TRANSLATION_PIPELINE.md` 翻譯管線文件
+
+- **內容**：完整記錄 6 層翻譯管線（爬蟲層 → DeepL 回退 → GPT-4o-mini 標注 → 官方片名補全 → 人名修正 → 前端 Fallback Chain），含 CI 執行順序、CLI 參數、sub-event 翻譯、admin feedback loop、欄位清單。
+- **同步**：`docs/ARCHITECTURE.md` 已新增交叉連結。
+- **無新 coding rule**：此為純文件化工作，未發現新的 coding 教訓。
+
+---
 ## 2026-05-02（下午）— generate.py load_dotenv、not-viable 來源、Admin 篩選預設值、eurospace lookup_movie_titles（commits `d94fc80`、`29046ad`、`f905ee2`）
 
 ### auto_scraper/generate.py load_dotenv 修復（commit `d94fc80`）

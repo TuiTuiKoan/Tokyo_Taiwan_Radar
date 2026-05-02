@@ -45,6 +45,7 @@ ms.date: 2026-05-01
 ## 相關文件
 
 * [爬蟲來源研究到上線完整工作流](SCRAPER_PIPELINE.md)
+* [翻譯與標注完整流程](TRANSLATION_PIPELINE.md)
 * [GITHUB_TOKEN 快速參考清單](GITHUB_TOKEN_SYNC_CHECKLIST.md)
 * [GITHUB_TOKEN 完整輪替指南](../.github/instructions/token-rotation.instructions.md)
 * [Secrets 生命週期與審計路線圖](../.github/SECRETS_LIFECYCLE.md)

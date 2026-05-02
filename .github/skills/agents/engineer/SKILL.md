@@ -619,6 +619,8 @@ Current agent_category values and their labels:
 
 ## Annotator — google_news_rss 文章補抓
 
+> **Full translation pipeline documentation:** See `docs/TRANSLATION_PIPELINE.md` for the complete 6-layer pipeline (scraper → DeepL → GPT-4o-mini → movie title lookup → person name fix → frontend fallback chain), CI execution order, and field inventory.
+
 `annotator.py` has special handling for `google_news_rss` events whose `start_date = NULL`:
 
 1. **Playwright follow-redirect**: For each such event, `_fetch_gnews_article_text(url, browser)` navigates the Google News redirect URL and waits 3 s for the JS redirect to resolve. If the final URL is still on `google.com`, the redirect failed — return `None`.
@@ -635,6 +637,30 @@ if article_text:
 ```
 
 **When modifying this pattern:** If you remove the Playwright fetch, `google_news_rss` events will have `start_date = NULL` permanently (the scraper intentionally omits pubDate fallback). Confirm that removing it is intentional before proceeding.
+
+## Annotator — Subtitle Completeness Rule
+
+**GPT-4o-mini habitually truncates academic subtitles.** When a `name_ja` contains a subtitle separator (`――`, `──`, `―`, `—`), GPT translates only the main title and silently drops the subtitle in `name_zh` and `name_en`.
+
+**`name_ja_locked` does NOT protect `name_zh`/`name_en`** — it only prevents `name_ja` from being overwritten.
+
+**SYSTEM_PROMPT rule** (already added 2026-05-02): The SUBTITLE RULE section instructs GPT to always carry the complete subtitle into `name_zh` and `name_en`. Do NOT remove or weaken this rule.
+
+**Post-annotation QA — scan for truncated subtitles after any batch re-annotation of locked events:**
+```python
+import re, os; from dotenv import load_dotenv; from supabase import create_client
+load_dotenv('.env'); sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+SEP = re.compile(r'――|──|―|—')
+r = sb.table('events').select('id,name_ja,name_zh,name_en').eq('name_ja_locked', True).eq('is_active', True).execute()
+for e in r.data:
+    nj = e.get('name_ja') or ''
+    if SEP.search(nj):
+        subtitle = SEP.split(nj, 1)[1].strip()
+        print(f"CHECK {e['id'][:8]} | {nj}\n  zh: {e.get('name_zh')}\n  en: {e.get('name_en')}\n")
+```
+After finding truncated translations, correct them manually — re-running annotator will produce the same error unless you verify GPT respected the SUBTITLE RULE.
+
+**Incident (2026-05-02):** 4 of 15 locked events had subtitle-truncated `name_zh`/`name_en` after initial annotation. Identified by manual scan + URL inspection. Corrected via direct DB update.
 
 ## Annotator — Traditional Chinese (繁體中文) Rule
 
