@@ -3,6 +3,40 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — 父事件 RLS 隱藏 + Quality page 缺地址誤報 + Admin UI 改善
+
+### 父事件 RLS cross-status 問題（commit `f5931e0`）
+
+**問題：** 子事件詳情頁「返回主事件」連結查詢父事件時，若父事件 `is_active = false`（已下架），anon-key client 因 RLS `Public read events` policy 靜默返回 null——不報錯、不 throw，連結直接消失。
+
+**修復：** 父事件 lookup 改用 service role key（`SUPABASE_SERVICE_ROLE_KEY`），只 select `id, name_ja, name_zh, name_en`，不暴露其他欄位。
+
+**教訓：**
+1. Supabase anon-key + RLS 查詢關聯記錄（parent, linked entity）時，若目標記錄可能 `is_active = false`，必須用 service role key
+2. Service role key 只用於 Server Component / route handler，**永不傳入 Client Component**
+3. 只 select 必要欄位——不使用 `select("*")`
+
+### Quality page 缺地址誤報排除（commits `229810f`、`f5931e0`）
+
+**問題：** 缺地址 check 重新定義為「有場地名但無地址」（`location_name IS NOT NULL AND location_address IS NULL`），但仍有大量非 actionable 項目：
+- `location_name` 含 `〒`（地址已嵌入名稱中）
+- `location_name` 含 `オンライン`（線上活動，無實體場地）
+- 短地名 ≤6 字元且無空格（如「東京」「香港」「岡山」，無更精確地址可填）
+
+**修復：** DB 層加 `.not("location_name", "like", "%〒%")` 和 `.not("location_name", "ilike", "%オンライン%")`；client 層過濾短地名。
+
+### Admin UI 改善（commits `1f48807`、`15d6ab3`→`bf22756`、`bc6d1e7`、`636a52f`）
+
+- **批次新增分類**（`1f48807`）：AdminEventTable 新增 bulk add category 列——multi-select category picker → "Apply to N events" → 寫入 `category_corrections` + 選取自動重設
+- **Sticky 合併容器**（`15d6ab3`→`bf22756`）：filter bar 和 bulk action bar 包在同一個 `sticky top-14 z-20` wrapper，避免兩列分別固定導致跳動
+- **來源搜尋框**（`bc6d1e7`）：AdminSourcesTable 新增 keyword 搜尋，搜尋 name / URL / scraper_source_name（case-insensitive）
+- **tea_alcohol 分類**（`636a52f`）：新增 `tea_alcohol` 到 `Category` union + `CATEGORY_GROUPS` group_arts（五感）
+
+**教訓：**
+1. Bulk action bar 和 filter bar 必須在同一個 sticky container——分開固定會導致 scroll 時跳動
+2. Bulk add category 使用 `Set` merge（`new Set([...prev, ...catsToAdd])`）避免重複，並寫入 `category_corrections` 讓 AI 學習
+
+---
 ## 2026-05-02 — 子事件 name_ja 片假名被 GPT 覆寫為漢字
 
 **問題：** TIFF 子事件 re-annotation 時，GPT 把 `チャン・ツィイー` → `章子怡`、`ジャ・ジャンクー` → `賈樟柯`，破壞日文模式的片假名人名顯示。原因：子事件 upsert 直接取 `sub.get("name_ja")`，無任何保留機制。

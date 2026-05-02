@@ -274,6 +274,18 @@ When a list row is currently a `<button>` and you need to add a checkbox:
 
 Place bulk action bar in the **section header** (flex justify-between), not a bottom footer bar — more intuitive for list sections with variable item counts.
 
+### Sticky filter + bulk action container
+
+Filter bar and bulk action bar **must be wrapped in a single sticky container** (`sticky top-14 z-20`). Separate sticky elements for each bar cause jittering on scroll. Incident: commits `15d6ab3`→`bf22756`.
+
+### Bulk add category (AdminEventTable)
+
+The bulk action bar includes a "新增分類" row with a multi-select category picker (same `CATEGORY_GROUPS` layout as inline editor). Implementation:
+1. State: `bulkAddCatPending: Set<string>` tracks pending selections, `bulkAddCatOpen: boolean` toggles dropdown
+2. Merge: `new Set([...prevCategory, ...catsToAdd])` — never duplicates
+3. Writes `category_corrections` for AI feedback loop (same as single-event category edit)
+4. Auto-resets `selected` Set on success (same as bulk remove)
+
 ## AdminReportsTable — Protected Feature: Bulk Confirm
 
 ⚠️ **This feature MUST NOT be removed** unless a PRD explicitly requests it. Any refactor touching `AdminReportsTable.tsx` must verify all of the following remain intact:
@@ -312,10 +324,12 @@ Place bulk action bar in the **section header** (flex justify-between), not a bo
 **Quality section actionability rule:** Only include a Quality section if its value can be cleared to zero by user action (fix button / batch action) or by an automated process running within a reasonable interval. If a section's value persists indefinitely due to scheduling (e.g. archive cron runs once daily, so daytime-expired events always appear) **and** no actionable button exists, remove the section entirely. Display of permanently non-zero unactionable data erodes trust in the quality page. Reference incident: expired-but-active section removed in commit `cd4cc29`.
 
 **`missingAddr` filter exclusion list:** The "缺地址" section must exclude all of the following:
-- `location_name` containing `「オンライン」` (online events)
-- `location_name` containing `「電視頻道」` (TV channel events)
-- events with `source_name = 'gguide_tv'` (TV guide source)
-- `location_name` containing `・` (multi-city events — `location_name` uses `・`-joined city names by convention; no single address exists)
+- DB: `location_name` containing `「オンライン」` (online events) — `.not("location_name", "ilike", "%オンライン%")`
+- DB: `location_name` containing `「電視頻道」` (TV channel events)
+- DB: events with `source_name = 'gguide_tv'` (TV guide source)
+- DB: `location_name` containing `〒` (address already embedded in name) — `.not("location_name", "like", "%〒%")`
+- DB: `location_name` containing `・` (multi-city events — `location_name` uses `・`-joined city names by convention; no single address exists)
+- Client: short geographic name ≤6 chars with no spaces (e.g. `東京`, `香港`, `岡山`, `文京区` — no actionable address)
 
 **Archive cutoff 一致性規則：** `database.py` 的 `archive_ended_events()` cutoff 必須與 quality page 的 `today` 截止一致（目前為 `datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00+00:00")`，無寬限）。若修改任一端的截止邏輯，另一端必須同步。兩端不一致會產生「quality page 顯示已過期，但 archive 函數尚未下架」的空窗期。
 
@@ -1107,22 +1121,29 @@ const missingAddr = events.filter(e =>
   e.location_name && !e.location_address && !e.is_online
 );
 
-// ✅ 正確：排除天然無實體地址的來源
-const missingAddr = events.filter(e =>
-  e.location_name &&
-  !e.location_address &&
-  !e.is_online &&
-  e.source_name !== "gguide_tv" &&
-  !e.location_name.includes("電視頻道")
-);
+// ✅ 正確：DB 層排除天然無實體地址的來源 + client 層排除短地名
+// DB query:
+//   .not("location_name", "is", null)
+//   .is("location_address", null)
+//   .neq("source_name", "gguide_tv")
+//   .not("location_name", "like", "%〒%")
+//   .not("location_name", "ilike", "%オンライン%")
+// Client filter:
+const missingAddr = (dbResults).filter(e => {
+  const loc = e.location_name ?? "";
+  if (loc.length <= 6 && !loc.includes(" ") && !loc.includes("　")) return false;
+  return true;
+});
 ```
 
 ### 原則
-- **TV 頻道 / 廣播節目**：`source_name = 'gguide_tv'`，`location_name` 存頻道名稱 → 統一為 `'電視頻道'`，前端排除。
-- **線上活動**：`is_online = true` 或 `location_name` 含 `オンライン` → 前端排除。
+- **TV 頻道 / 廣播節目**：`source_name = 'gguide_tv'`，`location_name` 存頻道名稱 → DB `.neq()` 排除。
+- **線上活動**：`location_name` 含 `オンライン` → DB `.not()` 排除。
+- **地址嵌入名稱**：`location_name` 含 `〒`（郵便番号）→ DB `.not()` 排除。
+- **短地名（≤6 字元）**：如「東京」「香港」「文京区」→ client filter 排除（無更精確地址可填）。
 - 新增 quality check 時，先確認「哪些情況下欄位為空是合理的」，再寫 filter。
 
-**Incident:** 2026-05-01 — `missingAddr` 顯示 29 筆，實際 18 筆是 gguide_tv 誤報。修復後降至 11 筆，其中 8 筆透過 `enrich_addresses.py` 補齊（commit `590a80a`）。
+**Incident:** 2026-05-01 — `missingAddr` 顯示 29 筆，實際 18 筆是 gguide_tv 誤報。2026-05-02 — 加入 〒/オンライン/短地名排除後進一步降低（commits `229810f`、`f5931e0`）。
 
 ## Location Filter Three-File Sync Rule
 
