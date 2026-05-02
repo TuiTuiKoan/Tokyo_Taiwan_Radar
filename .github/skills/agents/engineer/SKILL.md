@@ -559,6 +559,17 @@ ALTER TABLE research_sources
   ADD COLUMN IF NOT EXISTS auto_scraper_attempted_at TIMESTAMPTZ;
 ```
 
+### OpenAI Org-Level Quota Monitoring (separate concern from per-call budget)
+
+`--budget-usd` (default $1.50/source) is a **per-run** safeguard. It does NOT protect against **org-level monthly quota** exhaustion.
+
+- Once OpenAI org quota is hit, **all** calls return 429 `insufficient_quota` — not just auto-scraper, but also `annotator.py`, `researcher.py`, `enrich_addresses.py`, etc. The entire pipeline halts silently if this happens during a cron window.
+- Per-call budget guards are **necessary but not sufficient**. Mitigation layers, in priority order:
+  1. **Daily dev report** (`daily-dev-report.yml`, 02:00 JST) should surface the OpenAI billing dashboard URL so the on-call dev can spot-check usage.
+  2. **Future**: poll `/v1/usage` endpoint and post a LINE alert when org-level usage > 80% of monthly cap. Treat as Tier-1 ops alert.
+  3. **Manual**: at start of any large batch run (e.g. auto-scraper batch e2e), check the OpenAI usage page first.
+- Reference incident: 2026-05-02 — mid-batch e2e exhausted monthly quota. All subsequent calls 429'd, batch silently aborted.
+
 ## Discovery Accounts Pipeline (`discovery_accounts.py`)
 
 **Year must be dynamic — never hardcoded:**

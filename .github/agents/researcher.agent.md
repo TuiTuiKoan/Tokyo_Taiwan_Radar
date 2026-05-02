@@ -52,7 +52,17 @@ Researcher output gates the auto-scraper Phase 2 pipeline. A `research_sources` 
 2. `feasibility = 'easy'` (set via `--feasibility easy` on `update_source.py`)
 3. `url_verified = true`
 
-**`--feasibility` is REQUIRED** when running `update_source.py --status researched`. The four optional `--*-hint` flags (`--pagination-hint`, `--card-selector-hint`, `--date-format-hint`, `--notes`) are also strongly recommended — they are written to `source_profile` JSONB and seed the LLM prompt in Phase 2. Skipping them produces a worse-quality auto-generated scraper or a Phase 2 abort. Treat hint-filling as part of the Researcher's deliverable, not optional metadata.
+**`--feasibility` is REQUIRED** when running `update_source.py --status researched`.
+
+### `--card-selector-hint` is REQUIRED in practice when `feasibility=easy`
+
+Production data (2026-05-02 batch e2e, 6 candidates) shows Phase 2 success rate **without** a selector hint is **17% (1/6)**. The remaining 5/6 failed because GPT-4o fabricates plausible-but-nonexistent CSS classes (`.event-card`, `.event-list-item`, `.c-event-list__item-title`). One concrete selector hint observed verbatim from the listing HTML (e.g. `li.article-list`) provides the LLM grounding needed to escape that failure mode.
+
+- **Researcher MUST supply `--card-selector-hint` whenever `--feasibility easy`.** Inspect the listing page's DOM, identify the repeating card element, and pass its selector verbatim. Do not paraphrase or guess.
+- The CLI flag in `scraper/update_source.py` remains **optional** for backwards compatibility with non-Phase-2 sources — do NOT change the CLI to enforce it. Enforcement is at the agent level (this doc), not the code level.
+- The other three hint flags (`--pagination-hint`, `--date-format-hint`, `--notes`) are still recommended but not as critical.
+
+All hint flags are written to `source_profile` JSONB and seed the LLM prompt in Phase 2. Treat hint-filling as part of the Researcher's deliverable, not optional metadata.
 
 ## Required Steps
 

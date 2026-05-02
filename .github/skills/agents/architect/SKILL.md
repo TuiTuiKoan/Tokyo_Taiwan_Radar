@@ -407,3 +407,41 @@ Any code path that gates on LLM cost (per-call budget, daily ceiling, abort-on-o
 - **Pair every pricing constant with a comment citing the verification source URL and date.**
 - **Treat budget guards as security-critical.** A stale pricing constant means the abort threshold is wrong — either runaway costs or premature abort. Add to release-readiness checklist: "Pricing constants checked? Y/N".
 
+## Prompt-Referenced Artifact Verification
+
+When reviewing any plan whose prompt copy says things like "matching the schema (provided)", "following the spec attached", "as listed below", verify the referenced artifact is **actually injected** into the LLM `messages` array — not merely cited by name.
+
+- `grep` the prompt text for the file/schema name, then trace every reference to confirm: (a) the file is read at runtime, (b) its contents are concatenated into a `system` or `user` message, (c) the injection point sits BEFORE any place where the LLM is asked to use it.
+- A prompt that references X without injecting X is functionally equivalent to omitting X entirely. The LLM will hallucinate a plausible-looking version of X.
+- For required-field checklists in `spec.json`-style outputs, also enumerate critical fields explicitly in the prompt body (belt + braces). Schema injection alone is not enough — the LLM ignores schema details when verbose.
+- Reference incident: 2026-05-02 Phase 2 — SYSTEM_PROMPT cited `spec_schema.json` but the schema was never loaded. Three retries omitted `base_url`. Fix in `b6e1768`.
+
+**Plan-review checklist line**: "Every prompt-referenced artifact (schema, sample, examples) is verified to actually appear in the messages array."
+
+## LLM-Generated Artifact Validation Pattern
+
+For any LLM-generated artifact that references real-world identifiers (CSS selectors, file paths, function names, API endpoints, package names, environment variables), add a **fast pre-validation step** that confirms the reference exists before downstream consumption.
+
+- **Grounding > trust.** LLMs hallucinate plausible-looking identifiers (`.event-card`, `.user-list-item`, `getUserById`) at high rates, especially when the reference base is large or the LLM is verbose.
+- **Pre-validation should fail-fast and feed back into the retry loop.** Failure messages must be specific ("selector `.event-card` matches 0 elements in sample HTML; available repeating elements: `li.article-list` (12), `article.post` (4)") so the next LLM call can correct itself.
+- **Cost asymmetry justifies the validation step.** A 50ms BeautifulSoup check vs a 30s Playwright sandbox + $0.04 LLM round-trip is 600× / $0.04 cheaper per failed validation.
+- Reference incident: 2026-05-02 Phase 2.3 — `_validate_selectors_against_html()` added before sandbox spawn. Zepp Tokyo / Fukuoka Now batch1 wasted $0.04 each on sandbox-failed; batch2 fast-failed in <100ms with no Playwright spawn.
+
+**Pattern catalogue** for future LLM-generated artifacts:
+
+| Artifact | Validation step | Tool |
+|----------|----------------|------|
+| CSS selectors | `BeautifulSoup.select()` count ≥ 1 against sample HTML | bs4 |
+| File paths in repo | `Path(...).exists()` | pathlib |
+| Python function/class names | `ast.parse` + symbol walk | ast |
+| URLs | HEAD request, expect 2xx/3xx | requests |
+| Env var references | `os.environ.get(...) is not None` | os |
+
+## Failure-Path Instrumentation
+
+When a function returns different shapes for success/failure paths, instrumentation (cost, retry count, elapsed time, token usage) must be in a `finally` block or shared mutable accumulator — not after the success-only return.
+
+- Symptom: meta files show `cost_usd=0.0` and `retries=0` on failed runs even though logs prove multiple LLM calls happened.
+- Fix pattern: maintain `accumulator = {"cost": 0.0, "retries": 0}` at function scope; mutate in every retry branch; persist in `finally` regardless of exit path.
+- Reference incident: 2026-05-02 Phase 2.3 spec-invalid path — 3 retries shown in logs, 0 cost in meta. Phase 2.4 TODO.
+

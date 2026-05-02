@@ -3,6 +3,26 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — Auto-scraper Phase 2.1/2.2/2.3 實作（commits `b6e1768`、`f9eff43`、`d23be68`）
+
+**Phase 2.1（`b6e1768`）— Schema injection + failure artifacts：**
+- `generate.py` 模組初始化讀取 `auto_scraper/spec_schema.json` 至 `SPEC_SCHEMA_TEXT`；user message 開頭 prepend schema + 必填欄位 checklist。
+- spec-invalid 路徑新增 prompt.txt / sample.html / meta.json 持久化。
+- **症狀**：修前 GPT-4o 三次重試都漏 `base_url`；修後 schema 變成 grounding 上下文。
+
+**Phase 2.2（`f9eff43`）— detail_url fallback + 完整 sandbox-failed artifacts：**
+- `template.py.j2` 在 `DETAIL_LINK_SELECTOR == ""` 時，從 card 內抓第一個 `<a href>`，避免 `source_url = page.url`（listing URL）導致全 card 因 `source_id_url_pattern` 不符而被 skip。
+- sandbox-failed 路徑補寫 spec.json / generated.py / dry_run.txt。
+- **驗證**：Artist Cafe Fukuoka 0 → 12 events。
+
+**Phase 2.3（`d23be68`）— Pre-sandbox selector validation + LLM grounding：**
+- SYSTEM_PROMPT 加硬規則：只准用 sample HTML 中 verbatim 出現的 class/ID；明文列出常見幻覺（`.event-card` / `.event-list-item` / `.c-event-list__item-title`）；建議優先使用 tag selector（`article`、`li`）。
+- 新增 `_validate_selectors_against_html()`（BeautifulSoup，~50ms）：確認 `card_selector` ≥ 1 個元素 + `field_selectors.title/date` 在第一張 card 內可命中。違規回灌 LLM retry 訊息。
+- **效益**：fast-fail 改成 spec-invalid（無 Playwright spawn），單次失敗從 ~30s + $0.04 降至 ~50ms + 0 美金。
+
+**運維事故：** batch e2e 中段觸發 OpenAI 月度額度耗盡（429 `insufficient_quota`），全 org 呼叫直接停擺。`--budget-usd` per-call guard 不保護 org-level 月配額——需另外監控（見 Engineer SKILL § OpenAI Org-Level Quota Monitoring）。
+
+---
 ## 2026-05-02 — inline Python shell injection 汙染；zsh git add glob 括號失敗；分類新增 6 處協議
 
 **問題 A：inline Python shell injection**
