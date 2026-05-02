@@ -3,6 +3,50 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — Auto-Research Pipeline 設計、語言規則修正、Heartbeat 暫緩
+
+### 變更摘要
+
+**auto_research.py 實作（新增）**
+- `scraper/auto_scraper/auto_research.py`（380 行）：自動評估 candidate 來源，score ≥ 0.70 → researched，score < 0.30 → not-viable，中間值維持 candidate。
+- feasibility = "medium" + --create-issue → 自動建立 GitHub Issue 並升為 recommended。
+- 架構完全照 `generate.py` pattern（AssessError / dataclasses / cooldown / mock-llm）。
+
+**DB Migration 033_auto_research.sql**
+- 新增 3 欄位：`auto_research_status` / `auto_research_attempted_at` / `auto_research_score`。
+- 已在 Supabase Dashboard 執行完畢。
+
+**CI Workflow 設計（分離原則）**
+- `auto-research.yml`（00:30 JST）→ `auto-generate.yml`（01:00 JST），獨立於 `scraper.yml`。
+- 決策：新 pipeline 失敗不得影響主爬蟲排程，因此絕不加入 `scraper.yml`。
+
+**generate.py 兩處修改**
+- eligibility：`"easy"` only → `"easy" OR "medium"`
+- 新增 `BatchOptions` + `run_batch()` + `--batch` / `--max-sources` CLI flags
+
+**daily_report.py：新增「待審核 PR」段落**
+- 查詢 `auto_scraper_pr_url IS NOT NULL AND status != 'implemented'`
+- 每天 02:00 JST 的 email 顯示待 merge 的 auto-generated PR 清單
+
+**architect.agent.md 語言規則修正**
+- 問題：Architect 模式預設用日文回覆，忽略 `copilot-instructions.md` 的繁體中文規定。
+- 修正：在 `architect.agent.md` 最上方加入「## 語言規則：所有回覆必須使用繁體中文」。
+
+### Heartbeat Pipeline（auto PR 建立）暫緩原因
+
+識別出以下風險尚未解決：
+
+1. **Prompt Injection 風險**：`generate.py` 把 sample HTML 直接送入 LLM prompt，HTML 中的 `<!-- SYSTEM: ignore... -->` 可能操控 LLM 輸出，導致惡意程式碼自動 commit 進 repo。
+2. **sandbox 驗證不足**：只檢查 `events_found >= 1`，未驗證 `source_id` 穩定性與 `start_date` 正確性。
+3. **main.py 衝突**：多個 auto-generated PR 同時存在會造成 `SCRAPERS` 列表 merge conflict。
+
+### 教訓
+
+- 分離 CI workflow 的判斷依據：只要新 pipeline 的失敗模式與主爬蟲無關，就應使用獨立 workflow file。
+- LLM 處理外部 HTML 前必須先 sanitize（移除 `<script>`、HTML comment、`<meta>` 等標籤），這是 auto-PR pipeline 的先決條件。
+- Agent 的語言設定必須在 agent 檔案本身明示，不能依賴 `copilot-instructions.md` 的全域規則——Architect 模式有自己的 system prompt context，會覆蓋全域設定。
+
+---
 ## 2026-05-02 — 允許台灣舉辦但針對日本訪客的活動進入系統（commit `012ec72`）
 
 **背景：** 地點過濾邏輯把所有台灣地點活動無條件排除，導致日台交流旅遊活動（訪台ファムトリップ、日台交流ツアー）全部漏掉。

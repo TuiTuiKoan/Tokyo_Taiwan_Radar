@@ -303,6 +303,50 @@ In the Verification section of any plan involving both CI (GitHub Actions) and w
   - Deployment readiness checklist
 - Mark migration as "PRODUCTION READY" only after all four quadrants + return type validation pass.
 
+## Separate Workflow Decision（新 Pipeline 的 CI 設計原則）
+
+當設計新的自動化 pipeline（auto-research、auto-generate、heartbeat PR 等）時：
+
+- **禁止將新 pipeline 加入 `scraper.yml`**。`scraper.yml` 是事件抓取主流程，任何非必要的步驟失敗都不應中斷每日爬蟲排程。
+- **每個獨立 pipeline 必須有自己的 workflow file**（例如 `auto-research.yml`、`auto-generate.yml`）。
+- **排程時間設計**：新 pipeline 應在主爬蟲完成後排程。參考時間線（JST）：
+  - 00:00 — researcher Slot 3（現有）
+  - 00:30 — auto-research（30 分鐘緩衝後）
+  - 01:00 — auto-generate（再 30 分鐘後）
+  - 02:00 — daily report（彙總上述結果）
+- 每個新 workflow 都應有 `workflow_dispatch` 以便手動觸發，並支援 `dry_run` input。
+
+## Heartbeat Pipeline Guard（auto PR 建立的前提條件）
+
+在設計或重啟「heartbeat PR 自動建立（auto-generated scraper PR）」pipeline 之前，以下三個先決條件必須全部滿足：
+
+### 1. Prompt Injection 防護（必要）
+`generate.py` 在 spec 生成時把 sample HTML 直接送入 LLM prompt。外部網站的 HTML 可能包含惡意 comment（如 `<!-- SYSTEM: ignore previous instructions -->`），操控 LLM 輸出惡意程式碼，再自動 commit 進 repo。
+
+**解法（必須先實作）**：在 HTML 進入 LLM 前先 sanitize：
+```python
+from bs4 import BeautifulSoup, Comment
+
+def sanitize_html(raw: str) -> str:
+    soup = BeautifulSoup(raw, "html.parser")
+    for tag in soup(["script", "style", "meta", "link", "noscript", "iframe"]):
+        tag.decompose()
+    for comment in soup.find_all(string=lambda t: isinstance(t, Comment)):
+        comment.extract()
+    return str(soup)
+```
+此 sanitize 步驟必須在 `_fetch_sample_html()` 回傳前執行，不能只在 spec 生成時執行。
+
+### 2. sandbox 驗證強化（必要）
+目前 sandbox 只檢查 `events_found >= 1`，不足以確認品質。heartbeat pipeline 啟用前須加入：
+- `source_id` 穩定性：連續兩次執行 `source_id` 值不變
+- `start_date` 非空且非 fallback 至今日（排除以發布日代替活動日的情形）
+
+### 3. main.py 衝突避免（必要）
+多個 auto-generated PR 同時修改 `scraper/main.py` 的 `SCRAPERS` 列表，merge 時必定衝突。解法之一：每個 PR 僅新增一行，並在 PR description 中標示唯一的插入位置（如「在 peatix.py 之後」）。
+
+**此規則的後果**：在三個條件都滿足之前，`auto-generate.yml` 不應啟用 `--create-pr` 或 heartbeat 模式，只允許 dry-run + sandbox 驗證。
+
 ## Scraper Source Registration Audit
 - Monthly audit: Compare `sources/` directory against `SCRAPERS` list in `scraper/main.py` to find unregistered source files.
   - Command: `comm -23 <(find sources/ -name '*.py' | xargs -I {} basename {} .py | grep -v '^__' | sort) <(grep 'Scraper()' scraper/main.py | sed 's/.*\(.*\)Scraper().*/\1/' | sort)`
