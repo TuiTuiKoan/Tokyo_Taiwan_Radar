@@ -64,6 +64,9 @@ _VENUE_STOP_WORDS = [
     "新宿区新宿3丁目", "東京メトロ", "詳しくはこちら",
 ]
 
+_SCHEDULE_URL = "https://cinemart.cineticket.jp/theater/shinjuku/schedule"
+_TITLE_BRACKET_RE = re.compile(r"[【〈（(〔][^】〉）)〕]*[】〉）)〕]")
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -111,6 +114,92 @@ def _parse_release_date(date_str: str, today: datetime) -> tuple[datetime | None
         return start, start
 
     return start, None
+
+
+# ---------------------------------------------------------------------------
+# Schedule helpers
+# ---------------------------------------------------------------------------
+
+def _normalize_title(title: str) -> str:
+    """Remove bracket modifiers (【4K上映】, 〈特別版〉, etc.) for fuzzy title matching."""
+    return _TITLE_BRACKET_RE.sub("", title).strip()
+
+
+def _parse_schedule_page(session: requests.Session) -> dict[str, dict]:
+    """Scrape the weekly schedule page and return {normalized_title: {start_date, end_date, business_hours}}."""
+    soup = _fetch(_SCHEDULE_URL, session)
+    if not soup:
+        return {}
+
+    _WEEKDAY_JA = {0: "月", 1: "火", 2: "水", 3: "木", 4: "金", 5: "土", 6: "日"}
+    result: dict[str, dict] = {}
+
+    for panel in soup.select(".movie-panel"):
+        try:
+            title_el = panel.select_one(".title-jp")
+            if not title_el:
+                continue
+            norm = _normalize_title(title_el.get_text(strip=True))
+            if not norm:
+                continue
+
+            dates_map: dict[str, list[str]] = {}
+            for sched in panel.select('[class*="movie-schedule"][data-date]'):
+                try:
+                    date_str = sched["data-date"]  # e.g. "20260501"
+                    text = sched.get_text(separator="|", strip=True)
+                    times = re.findall(r'\d{1,2}:\d{2}', text)
+                    first_time = times[0] if times else None
+                    if first_time is not None:
+                        dates_map.setdefault(date_str, []).append(first_time)
+                except Exception:
+                    continue
+
+            if not dates_map:
+                continue
+
+            # Merge into existing entry if this movie already seen (different hall/version)
+            if norm in result:
+                existing_map = result[norm]["_dates_map"]
+                for ds, tlist in dates_map.items():
+                    existing_map.setdefault(ds, []).extend(tlist)
+                    existing_map[ds] = sorted(set(existing_map[ds]))
+                dates_map = existing_map
+            else:
+                # De-dup times per day
+                for ds in dates_map:
+                    dates_map[ds] = sorted(set(dates_map[ds]))
+
+            date_objs = [
+                datetime(int(d[:4]), int(d[4:6]), int(d[6:]), tzinfo=_JST)
+                for d in sorted(dates_map)
+            ]
+            start_date = min(date_objs)
+            end_date = max(date_objs)
+
+            lines: list[str] = []
+            for ds in sorted(dates_map):
+                dt = datetime(int(ds[:4]), int(ds[4:6]), int(ds[6:]), tzinfo=_JST)
+                dow = _WEEKDAY_JA[dt.weekday()]
+                month_day = f"{dt.month}/{dt.day}"
+                times_str = "・".join(dates_map[ds])
+                lines.append(f"{month_day}（{dow}）{times_str}")
+            business_hours = "\n".join(lines)
+
+            result[norm] = {
+                "start_date": start_date,
+                "end_date": end_date,
+                "business_hours": business_hours,
+                "_dates_map": dates_map,
+            }
+        except Exception:
+            continue
+
+    # Strip internal _dates_map key before returning
+    for v in result.values():
+        v.pop("_dates_map", None)
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -295,4 +384,28 @@ class CinemartShinjukuScraper(BaseScraper):
                 events.append(event)
 
         logger.info("Cinemart Shinjuku: total events=%d", len(events))
+
+        # Phase 2: enrich events with weekly schedule data
+        try:
+            time.sleep(0.5)
+            schedule_data = _parse_schedule_page(session)
+            logger.info("Cinemart schedule: %d titles found", len(schedule_data))
+            for event in events:
+                norm = _normalize_title(event.raw_title)
+                if norm in schedule_data:
+                    sd = schedule_data[norm]
+                    event.start_date = sd["start_date"]
+                    event.end_date = sd["end_date"]
+                    event.business_hours = sd["business_hours"]
+                    logger.info("  schedule enriched: %s → %s~%s bh=%s",
+                                norm,
+                                sd["start_date"].strftime("%m/%d") if sd["start_date"] else None,
+                                sd["end_date"].strftime("%m/%d") if sd["end_date"] else None,
+                                bool(sd["business_hours"]))
+                else:
+                    # Not yet showing / not on schedule — clear end_date so frontend shows "—"
+                    event.end_date = None
+        except Exception as exc:
+            logger.warning("Cinemart schedule enrichment failed: %s", exc)
+
         return events
