@@ -197,14 +197,16 @@ def _json_default(obj):
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 
-def _warn_unregistered_scrapers() -> None:
-    """Log a WARNING for every scraper in SCRAPERS that is not registered in research_sources.
+def _ensure_scrapers_registered() -> None:
+    """Auto-insert a minimal research_sources row for every scraper in SCRAPERS that is not
+    yet registered (i.e. no row with matching scraper_source_name exists).
 
-    This guard runs on every non-dry-run execution so CI logs immediately expose any new scraper
-    that was added to SCRAPERS without a matching research_sources row.
+    This runs on every non-dry-run execution so the admin /sources page stays in sync
+    automatically — no manual DB step required when a new scraper is added to SCRAPERS.
 
-    Rule: whenever a scraper is added to SCRAPERS, add a corresponding row to research_sources
-    with status='implemented' and scraper_source_name=<key>. See scraper-expert SKILL.md.
+    Inserted rows use:
+      status='implemented', url='', url_verified=False
+    The name defaults to the snake_case source key; edit in admin UI afterwards if needed.
     """
     scraper_keys = {_scraper_key(s) for s in SCRAPERS}
     try:
@@ -214,17 +216,27 @@ def _warn_unregistered_scrapers() -> None:
         ).execute()
         registered = {row["scraper_source_name"] for row in (resp.data or [])}
         missing = scraper_keys - registered
-        if missing:
-            logger.warning(
-                "⚠️  %d scraper(s) in SCRAPERS are NOT registered in research_sources "
-                "(add rows with status='implemented' and scraper_source_name): %s",
-                len(missing),
-                sorted(missing),
-            )
-        else:
+        if not missing:
             logger.debug("research_sources sync OK — all %d scrapers registered", len(scraper_keys))
+            return
+        rows = [
+            {
+                "name": key,
+                "url": "",
+                "status": "implemented",
+                "scraper_source_name": key,
+                "url_verified": False,
+            }
+            for key in sorted(missing)
+        ]
+        client.table("research_sources").insert(rows).execute()
+        logger.info(
+            "✅ Auto-registered %d new scraper(s) in research_sources: %s",
+            len(rows),
+            [r["scraper_source_name"] for r in rows],
+        )
     except Exception as exc:
-        logger.debug("research_sources sync check skipped: %s", exc)
+        logger.warning("research_sources auto-register skipped: %s", exc)
 
 
 def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str] | None = None) -> None:
@@ -241,10 +253,10 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
     rescrape_force_keys: set[tuple[str, str]] = set()
     all_new_event_ids: list[str] = []  # UUIDs of newly-inserted events (for IndexNow)
 
-    # Check that all active scrapers are registered in research_sources.
-    # Runs on every non-dry-run so CI logs expose gaps immediately.
+    # Auto-register any scrapers in SCRAPERS that are missing from research_sources.
+    # Runs on every non-dry-run so the admin /sources page stays in sync automatically.
     if not dry_run:
-        _warn_unregistered_scrapers()
+        _ensure_scrapers_registered()
 
     if rescrape_ids:
         # Build (source_name, source_id) tuples from CLI-supplied source_ids.
