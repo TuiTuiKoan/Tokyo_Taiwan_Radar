@@ -3,6 +3,13 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — competition 標籤更名（commit f3cae57）
+
+- zh: `競技・競賽` → `競賽・運動`；en: `Competition & Contest` → `Sports & Competition`；ja: `コンテスト・大会` → `スポーツ・競技大会`
+- 只更新 `web/messages/zh.json`、`en.json`、`ja.json`；不需動 `types.ts`（`Category` union value 未改）
+- 教訓：若只改分類標籤的**顯示文字**而非 value，無需執行 `tsc --noEmit`，但養成習慣可執行確認
+
+---
 ## 2026-05-02 — Auto-scraper Phase 2.1/2.2/2.3 實作（commits `b6e1768`、`f9eff43`、`d23be68`）
 
 **Phase 2.1（`b6e1768`）— Schema injection + failure artifacts：**

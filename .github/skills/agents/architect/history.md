@@ -3,6 +3,20 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — competition 標籤更名 + overseas 篩選器新增（下午）
+
+### competition 標籤更名（commit f3cae57）
+- zh: `競技・競賽` → `競賽・運動`；en: `Competition & Contest` → `Sports & Competition`；ja: `コンテスト・大会` → `スポーツ・競技大会`
+- 只修改 zh/en/ja.json，**不需動 `types.ts`**（`Category` union value `competition` 未改）
+- 教訓：分類標籤改名（非新增/刪除）= i18n-only 工作，無需 TypeScript 驗證
+
+### overseas 篩選器新增（commit 8055f85）
+- **三個檔案必須同時更新**：`FilterBar.tsx`（option）、`AdminEventTable.tsx`（型別聯集 + filter 邏輯 + option）、`web/app/[locale]/page.tsx`（server-side 查詢分支）
+- page.tsx overseas 分支使用 `ilike '%城市名%'` 對 `address` 比對；台灣不是日本都道府縣，**不使用 `location_prefectures`**
+- `OVERSEAS_MARKERS` 陣列（16 個台灣城市）在 `page.tsx` 與 `AdminEventTable.tsx` 兩處必須完全一致
+- 教訓：AdminEventTable.tsx 有三個位置需改動（型別聯集、filter 邏輯、`<select option>`），只改其一會有 TypeScript 可過但邏輯錯誤的靜默 bug
+
+---
 ## 2026-05-02 — Promotion 後 `scraper_source_name` 缺失，後台來源關聯斷裂
 
 **問題：** auto_generate 完成、PR merge 後手動 promote 兩個來源（id=150 TIFF、id=151 台湾フェスタ），`/admin/sources` 後台顯示 0 筆活動、無法觸發 Run Scraper。
