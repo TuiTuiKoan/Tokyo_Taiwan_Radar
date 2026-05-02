@@ -27,12 +27,64 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from openai import OpenAI
+from playwright.sync_api import sync_playwright, Browser, TimeoutError as PWTimeout
 from supabase import create_client, Client
 
 from category_feedback import load_corrections, build_feedback_prompt
 from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Google News article fetcher
+# ---------------------------------------------------------------------------
+_GNEWS_ARTICLE_MAX_CHARS = 4000
+_GNEWS_FETCH_TIMEOUT_MS = 20_000
+
+
+def _fetch_gnews_article_text(gnews_url: str, browser: "Browser") -> str | None:
+    """Follow a Google News redirect URL and return the article body text.
+
+    Returns None on any error (timeout, paywall, bad redirect, etc.).
+    The returned text is truncated to _GNEWS_ARTICLE_MAX_CHARS to stay within
+    GPT token limits.
+    """
+    page = None
+    try:
+        page = browser.new_page()
+        page.set_extra_http_headers({"Accept-Language": "ja,en;q=0.9"})
+        page.goto(gnews_url, timeout=_GNEWS_FETCH_TIMEOUT_MS, wait_until="domcontentloaded")
+        # Wait briefly for JS redirect to resolve
+        page.wait_for_timeout(3000)
+        final_url = page.url
+        # If we're still on google.com, the redirect didn't resolve
+        if "google.com" in final_url:
+            logger.debug("gnews fetch: redirect did not resolve for %s", gnews_url[:80])
+            return None
+        # Try common article body selectors in priority order
+        for selector in ["article", "main", ".article-body", ".entry-content", ".post-content", "body"]:
+            try:
+                el = page.query_selector(selector)
+                if el:
+                    text = el.inner_text().strip()
+                    if len(text) > 200:  # meaningful content threshold
+                        return text[:_GNEWS_ARTICLE_MAX_CHARS]
+            except Exception:
+                continue
+        return None
+    except PWTimeout:
+        logger.debug("gnews fetch: timeout for %s", gnews_url[:80])
+        return None
+    except Exception as e:
+        logger.debug("gnews fetch: error for %s: %s", gnews_url[:80], e)
+        return None
+    finally:
+        if page:
+            try:
+                page.close()
+            except Exception:
+                pass
+
 
 # ---------------------------------------------------------------------------
 # Valid categories (must match web/lib/types.ts)
@@ -388,10 +440,46 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     total_tokens_out = 0
     events_ok = 0
 
+    # Count how many google_news_rss events need article fetch
+    gnews_needs_fetch = sum(
+        1 for e in events
+        if e.get("source_name") == "google_news_rss" and not e.get("start_date")
+    )
+    # Launch a single Playwright browser for all google_news_rss article fetches
+    # to avoid per-event browser startup overhead.
+    _pw_context = None
+    _pw_browser: "Browser | None" = None
+    if gnews_needs_fetch > 0:
+        logger.info(
+            "Launching Playwright browser for %d google_news_rss article fetch(es)",
+            gnews_needs_fetch,
+        )
+        _pw_context = sync_playwright().start()
+        _pw_browser = _pw_context.chromium.launch()
+
     for i, event in enumerate(events, 1):
         eid = event["id"]
         raw_title = event.get("raw_title") or event.get("name_ja") or ""
         raw_desc = event.get("raw_description") or event.get("description_ja") or ""
+
+        # For google_news_rss events without a start_date, follow the Google News
+        # redirect and fetch the article body so GPT can extract the event date,
+        # location, and description from the full article text.
+        # raw_description in DB is intentionally NOT updated — the fetched text
+        # is only used for this annotation pass.
+        if (
+            event.get("source_name") == "google_news_rss"
+            and not event.get("start_date")
+            and _pw_browser is not None
+        ):
+            source_url = event.get("source_url", "")
+            logger.info("  → Fetching article body from %s", source_url[:80])
+            article_text = _fetch_gnews_article_text(source_url, _pw_browser)
+            if article_text:
+                logger.info("  → Article fetched (%d chars), replacing raw_desc for GPT", len(article_text))
+                raw_desc = article_text
+            else:
+                logger.info("  → Article fetch failed, proceeding with original raw_desc")
 
         logger.info("[%d/%d] Annotating: %s", i, len(events), raw_title[:60])
 
@@ -621,6 +709,18 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
 
         # Rate limiting — avoid hitting OpenAI too fast
         time.sleep(0.5)
+
+    # Close Playwright browser if it was opened for google_news_rss fetches
+    if _pw_browser is not None:
+        try:
+            _pw_browser.close()
+        except Exception:
+            pass
+    if _pw_context is not None:
+        try:
+            _pw_context.stop()
+        except Exception:
+            pass
 
     # -------------------------------------------------------------------
     # Write scraper_runs record
