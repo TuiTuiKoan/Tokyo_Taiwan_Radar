@@ -14,6 +14,7 @@ interface QualityRow {
   raw_title: string | null;
   source_name: string | null;
   location_name?: string | null;
+  location_prefectures?: string[] | null;
 }
 
 function renderDetailTable(
@@ -97,18 +98,22 @@ export default async function AdminQualityPage({ params }: PageProps) {
     // Flag events that HAVE a venue name but are missing a physical address.
     // Events with no location_name at all (e.g. online, competition/scholarship)
     // are intentionally excluded — they have no fixed venue to geocode.
-    // Also exclude:
-    //  - location_name containing 〒 (address already embedded in the name)
-    //  - location_name containing オンライン (online events without a venue)
+    // DB exclusions:
+    //  - 〒 embedded: address already present in the name
+    //  - online terms: オンライン, YouTube, Zoom, ウェビナー, webinar
     supabase
       .from("events")
-      .select("id, raw_title, source_name, location_name")
+      .select("id, raw_title, source_name, location_name, location_prefectures")
       .eq("is_active", true)
       .not("location_name", "is", null)
       .is("location_address", null)
       .neq("source_name", "gguide_tv")
       .not("location_name", "like", "%〒%")
       .not("location_name", "ilike", "%オンライン%")
+      .not("location_name", "ilike", "%youtube%")
+      .not("location_name", "ilike", "%zoom%")
+      .not("location_name", "ilike", "%ウェビナー%")
+      .not("location_name", "ilike", "%webinar%")
       .limit(100),
   ]);
 
@@ -121,6 +126,8 @@ export default async function AdminQualityPage({ params }: PageProps) {
     const loc = e.location_name ?? "";
     // Short geographic name only (e.g. 東京, 香港, 岡山, 文京区) — no actionable address exists
     if (loc.length <= 6 && !loc.includes(" ") && !loc.includes("　")) return false;
+    // Multi-prefecture events (e.g. 東京・京都・大阪) — location_prefectures covers them already
+    if ((e.location_prefectures?.length ?? 0) > 1) return false;
     return true;
   });
 
