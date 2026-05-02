@@ -265,6 +265,41 @@ For any scraper that hardcodes a fallback `location_address` to a single HQ / �
 - **Sub-events must also be self-contained**: A sub-event title like `CSRデー` with no parent context is rejected. Include the series or organiser name.
 - **When to re-annotate**: If the DB has an existing generic title (e.g. `東京オフ会`), set `annotation_status = 'pending'` and re-run `annotator.py`.
 
+## `name_ja_locked` — protect structured titles from annotator overwrite
+
+**Problem**: Annotator GPT always rewrites `name_ja`, even when the scraper already populated it from a precise structured source field (e.g. academic paper `題目:`, official film programme titles). GPT tends to truncate the subtitle or append generic suffixes like「に関する講演会」.
+
+**Solution**: Set `name_ja_locked=True` on the `Event` when `name_ja` is extracted from a definitive structured field. The annotator will preserve the existing `name_ja` unchanged, while still generating `name_zh`, `name_en`, `description_*`, and `category` normally.
+
+**When to use**:
+- Academic sub-events where `name_ja` = structured `題目:` / paper title with full subtitle (e.g. `taiwanshi` scraper)
+- Film sub-events from official programme PDFs with definitive Japanese titles
+- Any event where the raw source provides the official Japanese title as a discrete field — not inferred from free-text description
+
+**When NOT to use**:
+- Events where the source only provides a vague or generic title and annotator enrichment is desirable
+- Parent events (usually fine to let annotator improve the title)
+
+**Implementation**:
+```python
+# In the scraper, set name_ja_locked=True when name_ja comes from a structured field:
+Event(
+    name_ja=r["title"],          # from 題目: field — precise and definitive
+    raw_title=r["title"],
+    name_ja_locked=True,         # protect from annotator overwrite
+    ...
+)
+```
+Requires `supabase/migrations/034_name_ja_locked.sql` to be applied.
+
+**DB fix for already-misannotated events** (if annotator has already run):
+```python
+# Restore raw_title → name_ja for all affected sub-events
+events = sb.table('events').select('id,name_ja,raw_title').like('source_id','<source>_%_sub%').eq('is_active', True).execute().data
+for e in [x for x in events if x['name_ja'] != x['raw_title']]:
+    sb.table('events').update({'name_ja': e['raw_title']}).eq('id', e['id']).execute()
+```
+
 ## Annotator output cleaning
 - Empty strings from GPT (`""`) must be treated as `None` — use `_str()` helper that returns `None` for falsy/blank strings. Prevents empty `name_zh`/`name_en` from blocking the `||` fallback chain in `getEventName`.
 - Location fields must be stripped of leading label separators — use `_loc()` helper that calls `.lstrip("：；:; \u3000")`. GPT often includes the `会場：` or `場所：` separator as the first character of `location_name`.

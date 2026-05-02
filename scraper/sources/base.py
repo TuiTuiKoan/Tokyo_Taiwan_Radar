@@ -49,6 +49,14 @@ class Event:
     # Requires migration 018_official_url.sql to be applied before it is written to DB.
     official_url: Optional[str] = None
 
+    # When True, the annotator preserves name_ja exactly as set by the scraper and
+    # does NOT overwrite it with a GPT-generated title. Use for events where name_ja
+    # is extracted from a definitive structured source field (e.g. academic 題目:,
+    # paper titles, film titles from official programmes). Translations (name_zh,
+    # name_en, description_*, category) are still generated normally.
+    # Requires migration 034_name_ja_locked.sql.
+    name_ja_locked: bool = False
+
 
 def dedup_events(events: list[Event]) -> list[Event]:
     """Remove duplicate events from a single scraper's output.

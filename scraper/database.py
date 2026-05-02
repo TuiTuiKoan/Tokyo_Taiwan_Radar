@@ -67,6 +67,10 @@ def _event_to_row(event: Event) -> dict[str, Any]:
     # Requires migration 018_official_url.sql to be applied before writing.
     if event.official_url is not None:
         row["official_url"] = event.official_url
+    # Only include name_ja_locked when True — omitting preserves the default (false).
+    # Requires migration 034_name_ja_locked.sql to be applied before writing.
+    if event.name_ja_locked:
+        row["name_ja_locked"] = True
     return row
 
 

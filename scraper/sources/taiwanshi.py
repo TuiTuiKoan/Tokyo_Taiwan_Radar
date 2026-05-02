@@ -270,6 +270,10 @@ class TaiwanshiScraper(BaseScraper):
                             location_address=location_address,
                             is_paid=False,
                             parent_event_id=parent_uuid,
+                            # name_ja comes from the structured 題目: field — it is the
+                            # definitive academic paper title including full subtitle.
+                            # Lock it so the annotator does not paraphrase it.
+                            name_ja_locked=True,
                         )
                     )
                 logger.info(

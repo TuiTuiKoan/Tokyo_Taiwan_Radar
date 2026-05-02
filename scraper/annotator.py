@@ -564,7 +564,10 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 update_data = {k: v for k, v in update_data.items() if v is not None or k == "annotation_status"}
             else:
                 update_data: dict[str, Any] = {
-                    "name_ja": _str(annotation.get("name_ja")) or raw_title,
+                    # When name_ja_locked=true the scraper has already set a definitive
+                    # structured title (e.g. academic paper 題目:). Preserve it verbatim;
+                    # only fall back to raw_title if the existing DB value is empty.
+                    "name_ja": (event.get("name_ja") or raw_title) if event.get("name_ja_locked") else (_str(annotation.get("name_ja")) or raw_title),
                     "name_zh": _str(annotation.get("name_zh")),
                     "name_en": _str(annotation.get("name_en")),
                     "description_ja": _str(annotation.get("description_ja")),
