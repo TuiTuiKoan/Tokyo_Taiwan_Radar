@@ -19,6 +19,8 @@ export default function robots(): MetadataRoute.Robots {
       { userAgent: "Google-Extended",   allow: "/" },
       { userAgent: "cohere-ai",         allow: "/" },
       { userAgent: "Meta-ExternalAgent", allow: "/" },
+      { userAgent: "facebookexternalhit", allow: "/" },
+      { userAgent: "Twitterbot",        allow: "/" },
       { userAgent: "YouBot",            allow: "/" },
     ],
     sitemap: `${base}/sitemap.xml`,
