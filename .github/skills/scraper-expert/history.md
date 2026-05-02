@@ -4,15 +4,6 @@
 
 ---
 
-## 2026-05-02 — 薄內容偵測模式系統性套用：nhk_rss scraper + annotator fallback
-- **分析**：對所有 13 支爬蟲逐一評估「薄內容偵測」適用性 — 只有 nhk_rss 需要，其餘都已訪問 detail page 或使用 API 取得完整資料
-- **nhk_rss.py**：RSS snippet 永遠 < 200 chars → 加 pub_date 年份錨 + `fetch_ref_text(article_url)` 補充完整內容
-- **annotator.py**：加 nhk_rss 薄內容 fallback（`fetch_ref_text`，requests-based，不需 Playwright）；確保 scraper fetch 失敗時 annotate 仍能補救
-- **架構原則**：(1) scraper 層優先補充（減少 annotator 負擔）；(2) annotator 層作 fallback（scraper 失敗時補救）；(3) NHK 不需 Playwright（NHK 靜態 HTML 可用 requests+BS4）
-- **教訓**：API-based 爬蟲（doorkeeper/connpass）和已訪問 detail page 的爬蟲不需此模式；只有 RSS/新聞型爬蟲（nhk_rss/google_news_rss）需要
-
----
-
 ## 2026-05-02 — annotator.py 擴展 google_news_rss 薄內容 fetch 觸發（事件 2d77c2c4）
 - **錯誤**：2d77c2c4（チップ・オデッセイ 熊本上映）raw_description 只有 80 chars 標題，但 start_date 非 null，Playwright fetch 被跳過，GPT 無法取得正確日期與地點
 - **根本原因**：fetch 觸發條件只看 `not start_date`，不考慮 raw_description 是否足夠長
