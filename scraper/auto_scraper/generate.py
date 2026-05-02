@@ -39,6 +39,14 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
+# Load .env from the scraper/ directory so SUPABASE_* and OPENAI_* vars are
+# available when running locally (python -m auto_scraper.generate ...).
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _load_dotenv(Path(__file__).parent.parent / ".env")
+except ImportError:
+    pass  # python-dotenv not installed — rely on shell env (CI already has vars set)
+
 # GPT-4o pricing as of 2026-05 (verify against current OpenAI pricing).
 GPT4O_INPUT_COST_PER_1M = 2.50
 GPT4O_OUTPUT_COST_PER_1M = 10.00
