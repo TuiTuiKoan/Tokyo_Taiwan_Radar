@@ -111,10 +111,16 @@ export default async function EventDetailPage({ params }: PageProps) {
     .eq("is_active", true)
     .order("start_date", { ascending: true });
 
-  // Fetch parent event if this is a sub-event
+  // Fetch parent event if this is a sub-event.
+  // Use service role to bypass RLS so inactive parent events still show
+  // (a parent may be archived/de-listed while its sub-events remain active).
   let parentEvent: { id: string; name_ja: string | null; name_zh: string | null; name_en: string | null } | null = null;
   if (event.parent_event_id) {
-    const { data: parent } = await supabase
+    const supabaseAdmin = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    const { data: parent } = await supabaseAdmin
       .from("events")
       .select("id, name_ja, name_zh, name_en")
       .eq("id", event.parent_event_id)

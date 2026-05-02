@@ -97,6 +97,9 @@ export default async function AdminQualityPage({ params }: PageProps) {
     // Flag events that HAVE a venue name but are missing a physical address.
     // Events with no location_name at all (e.g. online, competition/scholarship)
     // are intentionally excluded — they have no fixed venue to geocode.
+    // Also exclude:
+    //  - location_name containing 〒 (address already embedded in the name)
+    //  - location_name containing オンライン (online events without a venue)
     supabase
       .from("events")
       .select("id, raw_title, source_name, location_name")
@@ -104,13 +107,22 @@ export default async function AdminQualityPage({ params }: PageProps) {
       .not("location_name", "is", null)
       .is("location_address", null)
       .neq("source_name", "gguide_tv")
-      .limit(50),
+      .not("location_name", "like", "%〒%")
+      .not("location_name", "ilike", "%オンライン%")
+      .limit(100),
   ]);
 
   const reviewedMissing = (reviewedMissingRes.data ?? []) as QualityRow[];
   const annotatedNoCat = (annotatedNoCatRes.data ?? []) as QualityRow[];
   // DB filters: location_name IS NOT NULL (has venue) AND location_address IS NULL (missing address)
-  const missingAddr = (missingAddrRes.data ?? []) as QualityRow[];
+  // Additional client-side filter: exclude short city/area names (≤6 chars, no spaces) and
+  // multi-city venue names (contains ・ with location_prefectures implying multiple cities).
+  const missingAddr = ((missingAddrRes.data ?? []) as QualityRow[]).filter((e) => {
+    const loc = e.location_name ?? "";
+    // Short geographic name only (e.g. 東京, 香港, 岡山, 文京区) — no actionable address exists
+    if (loc.length <= 6 && !loc.includes(" ") && !loc.includes("　")) return false;
+    return true;
+  });
 
   const sections = [
     { key: "qualityReviewedMissing", items: reviewedMissing },
