@@ -126,22 +126,54 @@ class TokyoArtBeatScraper(BaseScraper):
             )
             venue_name = ""
             venue_address = ""
+            biz_hours = ""
+            is_paid_val: bool | None = None
+            admission_raw = ""
             if isinstance(venue_ref_val, dict):
                 venue_id = venue_ref_val.get("sys", {}).get("id", "")
                 linked = linked_map.get(venue_id, {})
                 lf = linked.get("fields", {})
                 venue_name = self._loc(lf.get("fullName", {}), "en-US") or ""
                 venue_address = self._loc(lf.get("address", {}), "en-US") or ""
+                # Opening hours and closed days from venue entry
+                opens = self._loc(lf.get("openingHoursOpens", {}), "en-US") or ""
+                closes = self._loc(lf.get("openingHoursCloses", {}), "en-US") or ""
+                closed_days_val = lf.get("closedDays", {})
+                closed = closed_days_val.get("en-US") if isinstance(closed_days_val, dict) else []
+                if not isinstance(closed, list):
+                    closed = []
+                if opens and closes:
+                    biz_hours = f"{opens}〜{closes}"
+                    if closed:
+                        biz_hours += "（" + "・".join(closed) + " 休廊）"
+                # Admission fee from venue entry
+                admission_raw = self._loc(lf.get("admissionFee", {}), "en-US") or ""
+                try:
+                    is_paid_val = int(admission_raw) > 0 if admission_raw.isdigit() else None
+                except (ValueError, AttributeError):
+                    is_paid_val = None
 
-            # ── Fee ───────────────────────────────────────────────────
-            fee_f = f.get("fee", {})
-            fee_text = self._loc(fee_f, "ja-JP") or self._loc(fee_f, "en-US") or ""
-            is_paid = bool(
-                fee_text
-                and fee_text.strip()
-                and "free" not in fee_text.lower()
-                and "無料" not in fee_text
-            )
+            # ── Raw description with structured venue header ───────────
+            header_parts = []
+            if start_str:
+                date_range = (
+                    f"{start_str} 〜 {end_str}"
+                    if end_str and end_str != start_str
+                    else start_str
+                )
+                header_parts.append(f"開催日時: {date_range}")
+            if venue_name:
+                header_parts.append(f"会場: {venue_name}")
+            if venue_address:
+                header_parts.append(f"住所: {venue_address}")
+            if biz_hours:
+                header_parts.append(f"開場時間: {biz_hours}")
+            if admission_raw:
+                fee_label = "無料" if admission_raw == "0" else f"{admission_raw}円"
+                header_parts.append(f"入場料: {fee_label}")
+            header = "\n".join(header_parts)
+            body = desc_en or desc_ja
+            raw_desc = f"{header}\n\n{body}" if header else body
 
             return Event(
                 source_name=self.SOURCE_NAME,
@@ -150,13 +182,14 @@ class TokyoArtBeatScraper(BaseScraper):
                 original_language="en",
                 name_ja=name_ja,
                 raw_title=name_en or name_ja,
-                raw_description=desc_en or desc_ja,
+                raw_description=raw_desc,
                 start_date=start_date,
                 end_date=end_date,
                 location_name=venue_name,
                 location_address=venue_address,
+                business_hours=biz_hours or None,
                 category=["art"],
-                is_paid=is_paid,
+                is_paid=is_paid_val,
                 official_url=official_url,
             )
         except Exception as e:

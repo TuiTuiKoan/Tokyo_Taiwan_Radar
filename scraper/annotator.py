@@ -581,10 +581,12 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     # and prepended them in 開催日時: format.
                     "start_date": annotation.get("start_date") or event.get("start_date"),
                     "end_date": annotation.get("end_date") or event.get("end_date"),
-                    "location_name": _loc(annotation.get("location_name")) or _loc(event.get("location_name")),
-                    "location_address": _loc(annotation.get("location_address")) or _loc(event.get("location_address")),
-                    "business_hours": annotation.get("business_hours") or event.get("business_hours"),
-                    "is_paid": annotation.get("is_paid") if annotation.get("is_paid") is not None else event.get("is_paid"),
+                    # Scraper-set location/hours/paid take precedence over GPT inference.
+                    # GPT only fills in when the scraper left the field empty.
+                    "location_name": _loc(event.get("location_name")) or _loc(annotation.get("location_name")),
+                    "location_address": _loc(event.get("location_address")) or _loc(annotation.get("location_address")),
+                    "business_hours": event.get("business_hours") or annotation.get("business_hours"),
+                    "is_paid": event.get("is_paid") if event.get("is_paid") is not None else annotation.get("is_paid"),
                     "price_info": annotation.get("price_info") or event.get("price_info"),
                     "annotation_status": "annotated",
                     "annotated_at": datetime.utcnow().isoformat(),
