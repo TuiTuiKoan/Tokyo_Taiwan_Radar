@@ -38,6 +38,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [bulkToggling, setBulkToggling] = useState(false);
   const [bulkForceRescrapings, setBulkForceRescrapings] = useState(false);
   const [bulkRemovingCategory, setBulkRemovingCategory] = useState(false);
+  const [bulkAddingCategory, setBulkAddingCategory] = useState(false);
+  const [bulkAddCatPending, setBulkAddCatPending] = useState<Set<string>>(new Set());
+  const [bulkAddCatOpen, setBulkAddCatOpen] = useState(false);
+  const bulkAddCatRef = useRef<HTMLDivElement>(null);
 
   // Inline filters
   const [filterQ, setFilterQ] = useState("");
@@ -49,6 +53,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     function handleClickOutside(e: MouseEvent) {
       if (catDropdownRef.current && !catDropdownRef.current.contains(e.target as Node)) {
         setCatDropdownOpen(false);
+      }
+      if (bulkAddCatRef.current && !bulkAddCatRef.current.contains(e.target as Node)) {
+        setBulkAddCatOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -405,8 +412,53 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             : e
         )
       );
+      setSelected(new Set());
     }
     setBulkRemovingCategory(false);
+  }
+
+  async function handleBulkAddCategory() {
+    if (selected.size === 0 || bulkAddCatPending.size === 0) return;
+    setBulkAddingCategory(true);
+    const selectedEvents = events.filter((e) => selected.has(e.id));
+    const catsToAdd = Array.from(bulkAddCatPending);
+    let hasError = false;
+
+    await Promise.all(
+      selectedEvents.map(async (e) => {
+        const prevCategory = e.category ?? [];
+        const newCategory = Array.from(new Set([...prevCategory, ...catsToAdd]));
+        if (newCategory.length === prevCategory.length && catsToAdd.every((c) => prevCategory.includes(c))) return;
+        const { error } = await supabase.from("events").update({ category: newCategory }).eq("id", e.id);
+        if (error) { hasError = true; return; }
+        await supabase.from("category_corrections").upsert(
+          {
+            event_id: e.id,
+            raw_title: e.raw_title ?? null,
+            raw_description: e.raw_description ? e.raw_description.slice(0, 2000) : null,
+            ai_category: prevCategory,
+            corrected_category: newCategory,
+          },
+          { onConflict: "event_id" }
+        );
+      })
+    );
+
+    if (hasError) {
+      alert("部分更新失敗，請重新整理頁面確認結果");
+    } else {
+      setEvents((prev) =>
+        prev.map((e) =>
+          selected.has(e.id)
+            ? { ...e, category: Array.from(new Set([...(e.category ?? []), ...catsToAdd])) }
+            : e
+        )
+      );
+      setSelected(new Set());
+      setBulkAddCatPending(new Set());
+      setBulkAddCatOpen(false);
+    }
+    setBulkAddingCategory(false);
   }
 
   async function handleToggleForceRescrape(id: string) {
@@ -716,7 +768,62 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               ✕
             </button>
           </div>
-          {/* Row 2: common category removal — only shown when intersection is non-empty */}
+          {/* Row 2: bulk add category */}
+          <div className="flex items-center gap-2 flex-wrap border-t border-blue-200 pt-2" ref={bulkAddCatRef}>
+            <span className="text-xs text-blue-600 font-medium">新增分類：</span>
+            <div className="relative">
+              <button
+                onClick={() => setBulkAddCatOpen((v) => !v)}
+                className="text-xs h-7 px-2.5 border border-blue-300 rounded-full bg-white text-blue-700 hover:bg-blue-50 transition flex items-center gap-1"
+              >
+                {bulkAddCatPending.size === 0 ? "選擇…" : `已選 ${bulkAddCatPending.size} 個`}
+                <span className="text-blue-400">▾</span>
+              </button>
+              {bulkAddCatOpen && (
+                <div className="absolute left-0 top-8 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-64 max-h-72 overflow-y-auto space-y-2">
+                  {CATEGORY_GROUPS.map((group) => (
+                    <div key={group.labelKey}>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {group.categories.map((cat) => {
+                          const checked = bulkAddCatPending.has(cat);
+                          return (
+                            <label key={cat} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border cursor-pointer select-none transition ${
+                              checked ? "bg-blue-500 text-white border-blue-500" : "border-gray-200 text-gray-700 hover:border-blue-400"
+                            }`}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setBulkAddCatPending((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(cat)) next.delete(cat); else next.add(cat);
+                                    return next;
+                                  });
+                                }}
+                                className="sr-only"
+                              />
+                              {tCat(cat as any)}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {bulkAddCatPending.size > 0 && (
+              <button
+                onClick={handleBulkAddCategory}
+                disabled={bulkAddingCategory}
+                className="text-xs h-7 px-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 transition font-medium"
+              >
+                {bulkAddingCategory ? "…" : `套用到 ${selected.size} 筆`}
+              </button>
+            )}
+          </div>
+          {/* Row 3: common category removal — only shown when intersection is non-empty */}
           {commonCategories.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap border-t border-blue-200 pt-2">
               <span className="text-xs text-blue-600 font-medium">{t("bulkCommonCategories")}：</span>
