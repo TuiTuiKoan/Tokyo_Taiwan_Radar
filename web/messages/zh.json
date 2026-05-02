@@ -43,7 +43,7 @@
     "tourism": "旅遊",
     "lifestyle_food": "生活風格・飲食",
     "books_media": "書・媒體",
-    "gender": "性別議題",
+    "gender": "性別",
     "geopolitics": "社會・政治・國際關係",
     "art": "藝術",
     "lecture": "講座",
@@ -67,7 +67,8 @@
     "taiwan_mandarin": "台灣華語",
     "drama": "連續劇",
     "healthcare": "醫療・照護",
-    "documentary": "紀錄片"
+    "documentary": "紀錄片",
+    "parenting": "親子"
   },
   "event": {
     "source": "資料來源",

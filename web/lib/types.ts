@@ -116,6 +116,7 @@ export type Category =
   | "lifestyle_food"
   | "books_media"
   | "gender"
+  | "parenting"
   | "geopolitics"
   | "art"
   | "lecture"
@@ -147,6 +148,7 @@ export const CATEGORIES: Category[] = [
   "lifestyle_food",
   "books_media",
   "gender",
+  "parenting",
   "geopolitics",
   "art",
   "lecture",
@@ -186,7 +188,7 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
   },
   {
     labelKey: "group_society",
-    categories: ["tech", "gender", "geopolitics", "history", "taiwan_mandarin", "urban", "healthcare"],
+    categories: ["tech", "gender", "parenting", "geopolitics", "history", "taiwan_mandarin", "urban", "healthcare"],
   },
   {
     labelKey: "group_archive",
