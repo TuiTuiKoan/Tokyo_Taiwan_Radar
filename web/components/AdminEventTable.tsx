@@ -544,8 +544,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         </div>
       )}
 
+      {/* Sticky wrapper: filter bar + bulk action bar scroll together */}
+      <div className="sticky top-14 z-20 space-y-2 mb-3">
       {/* Inline filter bar */}
-      <div className="sticky top-14 z-20 bg-gray-50 rounded-xl px-4 py-3 mb-3 space-y-2">
+      <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
         {/* Row 1: 搜尋、類型、地點、票價、時間、日期 */}
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
@@ -735,7 +737,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="sticky top-0 z-20 mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm space-y-2 shadow-md">
+        <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm space-y-2 shadow-md">
           {/* Row 1: count + action buttons */}
           <div className="flex items-center gap-3">
             <span className="text-blue-700 font-medium">{t("selectedCount", { count: selected.size })}</span>
@@ -842,6 +844,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           )}
         </div>
       )}
+      </div>{/* /sticky wrapper */}
 
       {/* Events table */}
       <div className="overflow-x-auto">
