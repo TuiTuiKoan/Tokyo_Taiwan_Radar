@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-05-02 — koryu 後援指引文缺乏 ref URL 抓取（事件 32d66fc7）
+- **錯誤**：後援公告「指引文」只有短短幾行 + 外部 URL。start_date=2025-12-15（文章刊登日），category 缺少 competition，location_name 誤填後援機構名
+- **根本原因**：`_extract_event_date()` fallback 匹配到 DNN CMS 在 body 頂部渲染的文章發布日；scraper 未跟進外部 URL 抓取實際活動資訊；`開催日時:` 標籤誤導 GPT
+- **修正**：koryu.py 新增薄內容偵測（< 600 chars + 外部 URL）→ 自動抓取 ref URL → 追加到 raw_description；pointer 文章改用 `記事投稿日:` 標籤
+- **教訓**：若 body_text 薄且含外部 URL，scraper 必須主動抓取；`開催日時:` 標籤應只在確認為活動日期時使用
+
+---
+
 ## 2026-05-02 — google_news_rss 年份推斷錯誤（事件 2d77c2c4）
 - **錯誤**：標題「4月に熊本で上映」，GPT 推斷年份 2024，正確應為 2026
 - **根本原因**：`raw_desc` 中無任何年份錨點；`_extract_start_date` 無法提取日期（只有「4月」無日期），GPT 無上下文依據

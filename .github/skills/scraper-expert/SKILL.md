@@ -173,6 +173,18 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
   ```
 - **`開催日時:` 前置語の正確性**：Scraper が `raw_description` の先頭に `開催日時: YYYY年MM月DD日` を前置する場合、その日付は **必ず正しい活動日** を使うこと。この前置語は GPT annotator への強烈なシグナルであり、誤った日付を前置すると GPT は body 中の正確な日付を無視し、誤日付が DB に書き込まれる。
 - **Priority order for date extraction**: `日時：` field → `時間：` field (with date) → DOW-qualified `月\d+日（曜日）` → `に開催` prose pattern → generic `YYYY年MM月DD日` fallback (last resort, high risk of matching publish date).
+- **指引文（pointer article）偵測と ref URL 抓取**：body_text が短く（< 600 文字）かつ koryu.or.jp 外部の URL を含む場合、そのページは「後援公告（指引文）」である。このパターンに一致する場合：
+  1. 外部 URL（`_EXT_URL_RE` でマッチ）のページを requests+BeautifulSoup で取得し、先頭 3000 文字を `ref_supplement` とする
+  2. `raw_description = 記事投稿日: {pub_date_str}\n\n{body_text}\n\n[参照ページ ({ref_url})]:\n{ref_text}` の形式にする
+  3. `date_prefix` を `記事投稿日: {pub_date_str}` とし、**`開催日時:` は使わない** — GPT が文章発布日を活動日と誤認するのを防ぐため
+  - 判定条件の実装例：
+    ```python
+    _THIN_BODY_CHARS = 600
+    _REF_MAX_CHARS = 3000
+    _EXT_URL_RE = re.compile(r'https?://(?!(?:www\.)?koryu\.or\.jp)[^\s）)]+')
+    _is_pointer = len(body_text) < _THIN_BODY_CHARS and bool(_EXT_URL_RE.search(body_text))
+    ```
+  - 適用場景：公募公告（コンテスト）、後援公告、簡短通知類記事。これらの category/venue/date はすべて ref URL 側にある。
 
 ## WordPress mixed-content sites (e.g. go_taiwan)
 
