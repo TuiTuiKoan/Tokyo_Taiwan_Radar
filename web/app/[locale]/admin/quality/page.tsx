@@ -13,6 +13,7 @@ interface QualityRow {
   id: string;
   raw_title: string | null;
   source_name: string | null;
+  location_name?: string | null;
 }
 
 function renderDetailTable(
@@ -26,6 +27,9 @@ function renderDetailTable(
         <thead>
           <tr className="text-xs text-gray-400 border-b border-gray-100">
             <th className="text-left py-2 pr-4 font-medium">Title</th>
+            {items.some((i) => i.location_name !== undefined) && (
+              <th className="text-left py-2 pr-4 font-medium">Venue</th>
+            )}
             <th className="text-left py-2 pr-4 font-medium">Source</th>
             <th className="text-left py-2 font-medium">ID</th>
           </tr>
@@ -43,6 +47,9 @@ function renderDetailTable(
                   {item.raw_title ?? item.id}
                 </Link>
               </td>
+              {item.location_name !== undefined && (
+                <td className="py-2 pr-4 text-xs text-gray-500 max-w-[12rem] truncate">{item.location_name ?? "—"}</td>
+              )}
               <td className="py-2 pr-4">
                 <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 font-mono">
                   {item.source_name ?? "—"}
@@ -87,19 +94,22 @@ export default async function AdminQualityPage({ params }: PageProps) {
       .eq("is_active", true)
       .or("category.is.null,category.eq.{}")
       .limit(50),
+    // Flag events that HAVE a venue name but are missing a physical address.
+    // Events with no location_name at all (e.g. online, competition/scholarship)
+    // are intentionally excluded — they have no fixed venue to geocode.
     supabase
       .from("events")
-      .select("id, raw_title, source_name")
+      .select("id, raw_title, source_name, location_name")
       .eq("is_active", true)
-      .is("location_name", null)
+      .not("location_name", "is", null)
+      .is("location_address", null)
       .neq("source_name", "gguide_tv")
-      .not("category", "cs", '{"competition"}')
       .limit(50),
   ]);
 
   const reviewedMissing = (reviewedMissingRes.data ?? []) as QualityRow[];
   const annotatedNoCat = (annotatedNoCatRes.data ?? []) as QualityRow[];
-  // DB already filters: location_address IS NULL AND location_name IS NULL AND source_name != 'gguide_tv'
+  // DB filters: location_name IS NOT NULL (has venue) AND location_address IS NULL (missing address)
   const missingAddr = (missingAddrRes.data ?? []) as QualityRow[];
 
   const sections = [
