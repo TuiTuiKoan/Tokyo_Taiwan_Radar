@@ -79,8 +79,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [filterPaid, setFilterPaid] = useState("");
-  const [filterIsActive, setFilterIsActive] = useState<"all" | "active" | "inactive">("active");
-  const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
+  const [filterIsActive, setFilterIsActive] = useState<"all" | "active" | "inactive">("all");
+  const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("all");
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "kanto" | "chubu" | "chugoku" | "online" | "tv" | "overseas">("")
@@ -670,9 +670,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="error">{t("filterErrorShort")}</option>
             </select>
           </div>
-          {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "active" || filterTimeMode !== "active" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation || filterSource) && (
+          {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "all" || filterTimeMode !== "all" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation || filterSource) && (
             <button
-              onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("active"); setFilterTimeMode("active"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); setFilterSource(""); }}
+              onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("all"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); setFilterSource(""); }}
               className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
             >
               {tFilters("reset")}
