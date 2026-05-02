@@ -53,7 +53,12 @@ TAIWAN_ONLY_PATTERNS = re.compile(
     r"桃園空港|台北.*空港|ガイドブック.*台湾|台湾観光ツインイヤー|"
     r"台湾まるごとガイド|台湾基本情報"
 )
-
+# Keywords that indicate a Taiwan-held event is specifically targeting Japanese visitors
+# e.g. "日本人向け" "日本語対応" "日本から参加" "日本発ツアー"
+TAIWAN_FOR_JAPANESE_KW = [
+    "日本人向け", "日本語対応", "日本から参加", "日本から",
+    "日本発", "ファムトリップ", "日台交流ツアー",
+]
 # Venue-in-Taiwan signals: if present in article body, venue is Taiwan → exclude
 TAIWAN_VENUE_KW = ["（台湾・", "（台湾）", "在台湾", "台湾開催", "台湾現地"]
 
@@ -94,13 +99,17 @@ def _post_id(url: str) -> Optional[str]:
 
 
 def _is_japan_event(title: str, body_text: str) -> bool:
-    """Return True if the event appears to be held in Japan."""
-    # Quick title pre-filter: if clearly Taiwan-only, skip
+    """Return True if the event is relevant (held in Japan OR targets Japanese visitors in Taiwan)."""
+    # Quick title pre-filter: if clearly Taiwan-only infrastructure/guide content, skip
     if TAIWAN_ONLY_PATTERNS.search(title):
         return False
     text = title + body_text
-    # Explicit Taiwan-venue indicators: event is held in Taiwan, not Japan
+    # Explicit Taiwan-venue indicators: event is held in Taiwan
     if any(kw in text for kw in TAIWAN_VENUE_KW):
+        # Exception: event in Taiwan but specifically targeting Japanese visitors
+        # e.g. 日台交流ツアー, 日本人向けイベント
+        if any(kw in text for kw in TAIWAN_FOR_JAPANESE_KW):
+            return True
         return False
     return any(kw in text for kw in JAPAN_LOCATION_KW)
 

@@ -206,6 +206,7 @@ NAME WRITING RULES — CRITICAL:
 - Sub-event name_ja must also be self-contained without reading the parent. Include the parent context if needed.
 - Apply the same principle to name_zh and name_en.
 6. LOCATION ADDRESS RULE: If the raw location_address looks like a venue/shop name (no street number, 丁目, 番地, or postal code 〒), use your knowledge to provide the real Japanese address (都道府県＋区＋丁目番地). Example: "青山・月見ル君想フ" → "東京都港区南青山3-10-33". If you genuinely don't know the address, keep it as-is. NEVER fabricate an address — only fill in if you are confident.
+   NOTE: Events held IN Taiwan are allowed and welcome. Do NOT force-convert Taiwan addresses to Japanese format. For Taiwan venues, fill location_address with the real Taiwanese address (e.g. "台北市中山區小民生東路3段1號") and set location_name accordingly. The tourism category applies when the event is designed to attract Japanese visitors to Taiwan.
 7. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
 
 Respond with valid JSON matching this schema:
