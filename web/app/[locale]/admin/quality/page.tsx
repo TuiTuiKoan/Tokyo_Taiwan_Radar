@@ -89,23 +89,18 @@ export default async function AdminQualityPage({ params }: PageProps) {
       .limit(50),
     supabase
       .from("events")
-      .select("id, raw_title, source_name, location_name")
+      .select("id, raw_title, source_name")
       .eq("is_active", true)
       .is("location_address", null)
+      .is("location_name", null)
+      .neq("source_name", "gguide_tv")
       .limit(50),
   ]);
 
   const reviewedMissing = (reviewedMissingRes.data ?? []) as QualityRow[];
   const annotatedNoCat = (annotatedNoCatRes.data ?? []) as QualityRow[];
-  const missingAddrAll = (missingAddrRes.data ?? []) as Array<QualityRow & { location_name: string | null }>;
-  const missingAddr = missingAddrAll.filter(
-    (e) =>
-      !e.location_name ||
-      (!e.location_name.includes("\u30AA\u30F3\u30E9\u30A4\u30F3") &&  // オンライン
-       !e.location_name.includes("\u96fb\u8996\u983b\u9053") &&          // 電視頻道
-       !e.location_name.includes("\u30FB") &&                            // ・ (multi-city)
-       (e as any).source_name !== "gguide_tv")
-  );
+  // DB already filters: location_address IS NULL AND location_name IS NULL AND source_name != 'gguide_tv'
+  const missingAddr = (missingAddrRes.data ?? []) as QualityRow[];
 
   const sections = [
     { key: "qualityReviewedMissing", items: reviewedMissing },
