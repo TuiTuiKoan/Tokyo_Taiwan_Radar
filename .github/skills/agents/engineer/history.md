@@ -19,6 +19,24 @@
 3. 排除條件用 `.not('column','operator','value')` Supabase RPC 語法，不在 client 側 `.filter()`
 
 ---
+## 2026-05-02（深夜 3）— robots.txt allowlist social bots、scholarship 標籤更新（commits `d9765bb`、`60cc2f1`）
+
+**robots.txt（commit `d9765bb`）：** `facebookexternalhit` 和 `Twitterbot` 未在 `robots.ts` 明確許可，依賴預設 allow 行為。為確保 OG 預覽正確抓取，加入明確 `Allow: /` 規則。
+
+**scholarship 標籤更新（commit `60cc2f1`）：**
+- zh: 補助・獎學金 → 徵件・補助・獎學金
+- en: Grants & Scholarships → Open Calls, Grants & Scholarships
+- ja: 助成・奨学金 → 公募・助成・奨学金
+- Label-only rename：只動三個 `messages/*.json`，不動 `types.ts`。
+
+---
+## 2026-05-02（深夜 2）— NHK annotator fallback 移除（nhk_rss 薄描述由 scraper 處理）
+
+**變更：** 移除 `annotator.py` 中 `nhk_rss` 專用的薄描述 fallback 區塊（在 annotator 中用 `fetch_ref_text()` 補抓文章全文）。此功能已由 `nhk_rss.py` scraper 端在 `scrape()` 中直接處理（commit `6604f44`），annotator 端重複執行已無意義。同步移除 `from sources.base import fetch_ref_text` import。
+
+**教訓：** 內容補齊（article enrichment）應在 scraper 端處理，不在 annotator 端。annotator 收到的 `raw_description` 應已包含所有必要內容。annotator fallback 造成重複 HTTP 請求且難以測試。
+
+---
 ## 2026-05-02（下午）— locationOverseas i18n namespace 錯誤、分類標籤更新、新增分類（commits `049edd8`、`a4a6f75`、`7567ef0`、`8aee4de`、`1870c8a`、`24fcb3c`、`b62b385`、`dfc5aaf`）
 
 **問題：** 新增 `locationOverseas` filter 時，修改腳本使用 `data["locationOverseas"] = label`，將 key 寫到 JSON 頂層，而非 `data["filters"]["locationOverseas"]`。`FilterBar` 使用 `const t = useTranslations("filters")` 呼叫 `t("locationOverseas")`，next-intl production 找不到 key，靜默回傳 key 名稱字串，導致 FilterBar 渲染異常、預設「進行中」timeMode 消失。
@@ -79,6 +97,7 @@
 - **location_url GPT 提取**（`fb568c4`）：SYSTEM_PROMPT JSON schema 新增 `location_url`，讓 GPT 從 raw_description 中提取場地官網 URL。規則：只提取明確出現的 URL，不推斷；scraper 值優先；null 不覆蓋已有值。
 - **google_news_rss 薄描述觸發文章抓取**（`28c1b41`）：當 `raw_description` < 400 字且 `source_name == 'google_news_rss'` 時，自動用 `fetch_ref_text()` 抓取原文補充。
 - **nhk_rss 薄描述補齊 + pubDate 錨定**（`6604f44`）：NHK RSS snippet 通常 50-200 字，新增 `_NHK_THIN_BODY_CHARS=400` 閾值 + `fetch_ref_text()` 補充。`pubDate` 作為 `start_date` fallback anchor。
+- **news movie title bracket fallback**：`enrich_movie_titles()` 和 `enrich_person_names()` 中，news source（`prtimes` 等）的 `_BRACKET_TITLE_RE` 搜尋改為先查 `raw_title`，找不到括號時再查 `name_ja`（因 annotator 可能在 name_ja 中加了括號標題）。
 
 ---
 ## 2026-05-02 — 人名校正擴展至所有事件（非僅電影）

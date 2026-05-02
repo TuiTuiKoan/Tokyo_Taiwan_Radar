@@ -571,7 +571,7 @@ Every route slug must appear the **same number of times** (= total number of adm
   4. Validate: `python main.py --dry-run --source <key>` returns events cleanly
 - `_warn_unregistered_scrapers()` in `main.py` runs on every non-dry-run and emits a WARNING for any scraper key missing from `research_sources`. Check CI logs if you see `⚠️ scraper(s) NOT registered`.
 - **Auto-QA via `event_reports` queue (2026-05-01):** New automated content-quality checks must write findings into `event_reports` with an `auto_*` prefix in `report_types[]` (e.g. `auto_qa_simplified_zh`, `auto_qa_missing_address`). Do NOT build a separate admin queue — the existing `/admin/reports` confirm/dismiss flow handles auto-findings unchanged. Always dedup against existing pending rows of the same `auto_*` type per `event_id` before insert; also dedup within a single run via in-memory set. See `scraper/auto_qa.py` and engineer `history.md` 2026-05-01.
-- **`SIMP_RE` / `annotator._LOC_ZH_SIMP_TO_TRAD` char addition rule (2026-05-01):** Only add a char when its Traditional Chinese / Japanese form is **a different glyph**. Verify each candidate via CC-CEDICT or kanji.jitenon.jp **before** adding. Counter-example: `亮` is identical in Trad/Simp (`照亮` is valid Trad) and triggered a false positive in production. See scraper-expert `history.md` 2026-05-01.
+- **`SIMP_RE` / `annotator._SIMP_TO_TRAD` char addition rule (2026-05-01):** Only add a char when its Traditional Chinese / Japanese form is **a different glyph**. Verify each candidate via CC-CEDICT or kanji.jitenon.jp **before** adding. Counter-example: `亮` is identical in Trad/Simp (`照亮` is valid Trad) and triggered a false positive in production. When adding a new char, update **both** `annotator.py._SIMP_TO_TRAD` and `auto_qa.py.SIMP_RE` simultaneously. See scraper-expert `history.md` 2026-05-01.
 - **Cron-driven slot rotation modulo wrap (2026-05-01):** When N weekdays drive a `(DAY-1) % M` slot selector with `M < N`, days M+1..N silently re-run slots 0..(N-M-1). Acceptable when slots are idempotent (search + `skip_hint` dedup); NOT acceptable for slots requiring fixed cadence (e.g. Peatix slot 3 only on Thursdays). Override via `DISCOVERY_SLOT` env on extra cron entries, or raise `SLOT_COUNT`. See `discovery-accounts.yml` and engineer `history.md` 2026-05-01.
 - **Multi-city tour detection — never hardcode venue address (2026-05-01):** Any scraper with a hardcoded `location_address` must add multi-city detection logic. Pattern for `taiwan_cultural_center.py`:
   - Check `description + name` for ≥2 regional keywords (`_MULTI_CITY_REGIONS = ["北海道", "大阪", "京都", "神奈川", "福岡", "名古屋", "仙台"]`)
@@ -784,39 +784,25 @@ SIMP = re.compile(r'[东来这发会说时问门关对长进现与实变内还�
 ```
 If any Simplified chars found: reset those events to `pending` and re-annotate.
 
-### `_loc_zh()` — Deterministic post-processing safety net
+### `_to_trad()` — Deterministic post-processing safety net (全 `*_zh` 欄位)
 
-Prompt-only fixes are insufficient for location fields: GPT-4o-mini ignores language rules on short transliteration tasks. The `_loc_zh()` helper inside `annotate_event()` applies a `str.maketrans` char map as a deterministic safety net **after** GPT returns:
+Prompt-only fixes are insufficient: GPT-4o-mini ignores language rules intermittently. The `_to_trad()` helper inside `annotate_event()` applies a `str.maketrans` char map as a deterministic safety net **after** GPT returns, covering **ALL** `*_zh` fields:
 
-```python
-_LOC_ZH_SIMP_TO_TRAD = str.maketrans({
-    "东": "東",  # 東京
-    "区": "區",  # 千代田區
-    "内": "內",  # 內幸町
-    "园": "園",  # 校園、公園
-    "来": "來",
-    "长": "長",
-    "进": "進",
-    "实": "實",    # Added 2026-04-26 from production scan
-    "诺": "諾",  # イイノホール → 伊伊諾大廳
-    "厅": "廳",  # 大廳
-    "络": "絡",
-    "设": "設",
-    "联": "聯",
-    "馆": "館",
-    "门": "門",
-    "发": "發",
-    "会": "會",})
-```
+- `name_zh`, `description_zh`, `business_hours_zh` — via `_to_trad(_str(annotation.get(...)))`
+- `location_name_zh`, `location_address_zh` — via `_loc_zh()` which calls `_to_trad()` internally
+- Sub-event `name_zh`, `description_zh` — via `_to_trad(sub.get(...))`
 
-**When to expand the map:** If a post-annotation scan finds a new Simplified character in any location field, add it to `_LOC_ZH_SIMP_TO_TRAD` **and** immediately DB-patch all existing rows using:
+The char map `_SIMP_TO_TRAD` contains ~110 Simplified→Traditional character mappings, with identity mappings automatically removed. See `annotator.py` for the full table.
+
+**When to expand the map:** If a post-annotation scan finds a new Simplified character in any `*_zh` field, add it to `_SIMP_TO_TRAD` in `annotator.py` **and** `SIMP_RE` in `auto_qa.py` simultaneously, then DB-patch all existing rows:
 ```python
 import os, re; from dotenv import load_dotenv; from supabase import create_client
 load_dotenv('.env'); sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
-MAP = str.maketrans({"诺":"諾", "厅":"廳", ...})  # full map
-res = sb.table('events').select('id,location_name_zh,location_address_zh').execute()
+MAP = str.maketrans({"新字":"舊字", ...})  # add new chars to full map
+ZH_FIELDS = ['name_zh','description_zh','location_name_zh','location_address_zh','business_hours_zh']
+res = sb.table('events').select('id,' + ','.join(ZH_FIELDS)).execute()
 for ev in res.data:
-    updates = {f: (ev[f] or '').translate(MAP) for f in ['location_name_zh','location_address_zh'] if (ev.get(f) or '') != (ev.get(f) or '').translate(MAP)}
+    updates = {f: (ev[f] or '').translate(MAP) for f in ZH_FIELDS if (ev.get(f) or '') != (ev.get(f) or '').translate(MAP)}
     if updates: sb.table('events').update(updates).eq('id', ev['id']).execute()
 ```
 
@@ -824,15 +810,21 @@ for ev in res.data:
 ```python
 import re, os; from dotenv import load_dotenv; from supabase import create_client
 load_dotenv('.env'); sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
-SIMP = re.compile(r'[东来这发会说时问门关对长进现与实变内还单层达诺厅络设联馆园]')
-res = sb.table('events').select('id,is_active,location_name_zh,location_address_zh').execute()
+SIMP = re.compile(r'[东来这发会说时问门关对长进现与实变内还单层达诺厅络设联馆园'
+                   r'个记构传经验弥与对让认为总视历强调节约运动办报导环义务战组织'
+                   r'国际临产业属创据体点击继续阅读开艺术观众场举声画获奖选赛参团电'
+                   r'热爱岛独虑忆仅尝试谈请龙丰华灵纪录极标准规细带广庆响惊显难类'
+                   r'宝贵丽尽挡将断湾览间气坛静满简洁优连释迹态仪壮汇灯蕴韵须恳'
+                   r'统种学数编价乡网绍预称评议论结处应欢]')
+ZH = ['name_zh','description_zh','location_name_zh','location_address_zh','business_hours_zh']
+res = sb.table('events').select('id,is_active,' + ','.join(ZH)).execute()
 bad = [(e['id'][:8], e['is_active'], f, e[f]) for e in res.data
-       for f in ['location_name_zh','location_address_zh'] if SIMP.search(e.get(f) or '')]
-print(f'Simplified in location fields: {len(bad)}')
+       for f in ZH if SIMP.search(e.get(f) or '')]
+print(f'Simplified in *_zh fields: {len(bad)}')
 [print(f'  {i} active={a} [{f}] {v!r}') for i,a,f,v in bad]
 ```
 
-**Fields covered:** `location_name_zh` and `location_address_zh` (both main-event and sub-event). `_loc_zh()` is applied instead of `_loc()` for these two fields only.
+**Fields covered:** ALL `*_zh` fields — main-event and sub-event. `_to_trad()` is applied to `name_zh`, `description_zh`, `business_hours_zh` directly; `_loc_zh()` (which calls `_to_trad()`) is applied to `location_name_zh` and `location_address_zh`.
 
 ## AEO Monitoring — proxy.ts Edge Middleware Rules
 
