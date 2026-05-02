@@ -181,6 +181,8 @@ Missing any point causes silent failures. Particularly:
 
 ## New Location Type Checklist
 
+> **Pre-flight check**: Before adding a new location filter option, run `SELECT count(*) FROM events WHERE location_name = '<value>' AND is_active = true` to confirm there are enough matching events. A location option with zero or near-zero results is an invalid option and should not be added (or must be removed). The `tv` filter was added and later removed because `location_name` no longer matched — always verify DB data format against the actual scraper output first.
+
 When adding a new `location` filter type (e.g., a new region or a new special category like `tv`), update ALL 6 of the following in the same commit:
 
 1. **Scraper** — Set a canonical `location_name` value in the relevant scraper(s)

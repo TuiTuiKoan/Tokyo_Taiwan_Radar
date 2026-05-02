@@ -3,6 +3,19 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — 移除無效地點篩選選項「電視節目 (tv)」（commit `2989940`）
+
+**問題：** FilterBar 與 AdminEventTable 的 `<option value="tv">` 地點篩選選取後結果永遠為零，是無效選項。`gguide_tv` 事件 `location_name` 已改存頻道名稱，不再是「電視頻道」，與 tv 篩選邏輯不匹配。
+
+**修正檔案（共 6 處）：**
+- `web/components/FilterBar.tsx` — 移除 `<option value="tv">`
+- `web/app/[locale]/page.tsx` — 移除 `sp.location === "tv"` 查詢分支
+- `web/components/AdminEventTable.tsx` — 移除 tv option 及兩處 `filterLocation === "tv"` 判斷
+- `web/messages/zh.json`、`en.json`、`ja.json` — 移除 `locationTv` i18n key（共 3 檔）
+
+**教訓：** 地點篩選選項值必須對應 DB 實際存在的 `location_name`。移除某個 location option 時，需同時清理：FilterBar `<option>`、`page.tsx` 查詢分支、AdminEventTable option 與 filter 邏輯、三個 i18n 檔案的 key。
+
+---
 ## 2026-05-01 — archive cutoff 與 quality page 截止日不一致（1e6cd24）
 
 **問題：** `archive_ended_events()` cutoff = `yesterday 00:00 UTC`（1 天寬限），quality page cutoff = `today`，造成當天到期事件出現在 quality 清單但不會被自動下架，需等兩天才消失。

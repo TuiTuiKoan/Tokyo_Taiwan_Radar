@@ -3,6 +3,20 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-01 — 「電視節目 (tv)」地點篩選選項移除（commit `2989940`）
+
+**背景：** FilterBar 與 AdminEventTable 都有 `<option value="tv">` 地點篩選選項，但選取後結果永遠為零。原因是 `gguide_tv` 事件的 `location_name` 已改為存放實際頻道名稱，而非「電視頻道」字串，與篩選邏輯完全不匹配。
+
+**修正：** 移除 `FilterBar.tsx`、`AdminEventTable.tsx` 的 tv `<option>`；移除 `page.tsx` 中 `location === "tv"` 的 Supabase 查詢分支；移除三個 i18n 檔案中的 `locationTv` key。
+
+**根本原因：** 地點篩選選項的值（如 `"tv"`）未能對應實際存在於 DB 的 `location_name` 格式，成為無效選項。電視/媒體內容應透過「分類」篩選（`category = report` 或 `report`）而非地點篩選。
+
+**教訓：**
+- 新增地點篩選選項前，必須先 DB 查詢確認有足夠數量的匹配事件（`SELECT count(*) WHERE location_name = 'xxx'`）。
+- 地點篩選選項的值必須對應 scraper 實際寫入 DB 的 `location_name` 格式，不可假設。
+- 電視/媒體節目應透過分類篩選，而非地點篩選。
+
+---
 ## 2026-05-01 — 批次 `is_active = False`（依 end_date）誤關 342 筆事件
 
 **背景：** 在 terminal 執行臨時批次腳本，將所有 `end_date < today AND is_active = True` 的事件全部設為 `is_active = False`。首頁大量事件消失，用戶立即察覺。緊急補救：執行反向 patch，將所有 `end_date < today AND is_active = False` 的事件復原為 `is_active = True`，共影響 342 筆。
