@@ -53,6 +53,9 @@ _HERE = Path(__file__).parent
 _SCRAPER_DIR = _HERE.parent
 _DEFAULT_RUNS_DIR = _HERE / "runs"
 
+_SCHEMA_PATH = _HERE / "spec_schema.json"
+SPEC_SCHEMA_TEXT = _SCHEMA_PATH.read_text(encoding="utf-8")
+
 SYSTEM_PROMPT = """You are a web scraper spec generator. Given a sample HTML page from an event listing site, output ONLY a JSON object matching the spec_schema.json (provided). Do NOT write Python code. Do NOT include markdown fences. Output JSON only.
 
 Constraints:
@@ -76,10 +79,18 @@ logger = logging.getLogger(__name__)
 class GenerateError(Exception):
     """Pipeline failure carrying the status code to persist."""
 
-    def __init__(self, status: str, message: str):
+    def __init__(
+        self,
+        status: str,
+        message: str,
+        payload: dict | None = None,
+        raw: str | None = None,
+    ):
         super().__init__(message)
         self.status = status
         self.message = message
+        self.payload = payload
+        self.raw = raw
 
 
 @dataclass
@@ -179,13 +190,24 @@ def _build_user_message(row: dict, sample_html: str, retry_error: str | None = N
         f"Source URL: {row.get('url', '')}",
         f"Hints from researcher: {json.dumps(profile, ensure_ascii=False)}",
         "",
-        f"Sample HTML (first {SAMPLE_HTML_TRUNCATE} chars):",
+        "## Required JSON schema (your output MUST validate against this)",
+        SPEC_SCHEMA_TEXT,
+        "",
+        "## Critical required fields \u2014 do NOT omit ANY of these",
+        "source_name, class_name, base_url, search_url, card_selector,",
+        "field_selectors (must include title and date), date_regex,",
+        "source_id_prefix, source_id_url_pattern",
+        "",
+        f"## Sample HTML (first {SAMPLE_HTML_TRUNCATE} chars)",
         "",
         sample_html[:SAMPLE_HTML_TRUNCATE],
     ]
     if retry_error:
         parts.append("")
-        parts.append(f"Previous attempt failed: {retry_error}. Try again.")
+        parts.append(
+            f"Previous attempt failed validation: {retry_error}. "
+            "Fix and retry \u2014 preserve ALL required fields."
+        )
     return "\n".join(parts)
 
 
@@ -221,6 +243,8 @@ def _call_llm_with_retries(
     cumulative_in = 0
     cumulative_out = 0
     last_error: str | None = None
+    last_parsed: dict | None = None
+    last_raw: str | None = None
 
     for attempt in range(1, MAX_LLM_ATTEMPTS + 1):
         user_msg = _build_user_message(row, sample_html, retry_error=last_error)
@@ -250,12 +274,15 @@ def _call_llm_with_retries(
             )
 
         content = resp.choices[0].message.content if resp.choices else ""
+        last_raw = content
         try:
             spec = json.loads(content)
         except json.JSONDecodeError as exc:
             last_error = f"response was not valid JSON: {exc}"
+            last_parsed = None
             continue
 
+        last_parsed = spec
         try:
             spec_to_code.render(spec)
         except ValueError as exc:
@@ -273,6 +300,8 @@ def _call_llm_with_retries(
     raise GenerateError(
         "spec-invalid",
         f"spec validation failed after {MAX_LLM_ATTEMPTS} attempts: {last_error}",
+        payload=last_parsed,
+        raw=last_raw,
     )
 
 
@@ -410,6 +439,45 @@ def _persist_artifacts(
     )
 
 
+def _persist_failure_artifacts(
+    out_dir: Path,
+    *,
+    prompt_text: str,
+    sample_html: str | None,
+    last_spec_attempt: dict | None,
+    last_raw: str | None,
+    error_message: str,
+    status: str,
+    retries: int,
+    cost_usd: float,
+) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "prompt.txt").write_text(prompt_text, encoding="utf-8")
+    if sample_html is not None:
+        (out_dir / "sample.html").write_text(sample_html, encoding="utf-8")
+    if last_spec_attempt is not None:
+        (out_dir / "last_attempt_spec.json").write_text(
+            json.dumps(last_spec_attempt, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    elif last_raw is not None:
+        (out_dir / "last_attempt_raw.txt").write_text(last_raw, encoding="utf-8")
+    (out_dir / "meta.json").write_text(
+        json.dumps(
+            {
+                "status": status,
+                "error": error_message,
+                "retries": retries,
+                "cost_usd": round(cost_usd, 6),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
 def _update_db_status(
     sb: Any,
     source_id: int,
@@ -440,6 +508,7 @@ class GenerateOptions:
     dry_run: bool = False
     output_dir: Path | None = None
     budget_usd: float = DEFAULT_BUDGET_USD
+    ignore_cooldown: bool = False
 
 
 def run(opts: GenerateOptions, *, sb: Any | None = None) -> int:
@@ -459,8 +528,8 @@ def run(opts: GenerateOptions, *, sb: Any | None = None) -> int:
         return 1
 
     # Cooldown check (no DB write, exit 0)
-    if _within_cooldown(row):
-        logger.info("source_id=%s within cooldown — skipping (no DB write)", opts.source_id)
+    if not opts.ignore_cooldown and _within_cooldown(row):
+        logger.info("source_id=%s within cooldown \u2014 skipping (no DB write)", opts.source_id)
         print(f"skipping source_id={opts.source_id}: retry cooldown active (<7d)")
         return 0
 
@@ -547,6 +616,24 @@ def run(opts: GenerateOptions, *, sb: Any | None = None) -> int:
     except GenerateError as exc:
         logger.error("[%s] %s", exc.status, exc.message)
         if not opts.dry_run:
+            try:
+                _local = locals()
+                _sample = _local.get("sample_html")
+                _prompt_text = _build_user_message(row, _sample or "")
+                _llm_obj = _local.get("llm")
+                _persist_failure_artifacts(
+                    out_dir,
+                    prompt_text=_prompt_text,
+                    sample_html=_sample,
+                    last_spec_attempt=getattr(exc, "payload", None),
+                    last_raw=getattr(exc, "raw", None),
+                    error_message=exc.message,
+                    status=exc.status,
+                    retries=getattr(_llm_obj, "retries", 0),
+                    cost_usd=getattr(_llm_obj, "cost_usd", 0.0),
+                )
+            except Exception as art_exc:
+                logger.warning("failed to persist failure artifacts: %s", art_exc)
             _update_db_status(
                 sb,
                 opts.source_id,
@@ -599,6 +686,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_BUDGET_USD,
         help=f"LLM cost ceiling in USD (default {DEFAULT_BUDGET_USD}).",
     )
+    p.add_argument(
+        "--ignore-cooldown",
+        action="store_true",
+        help="Skip the 7-day retry cooldown check (for e2e re-runs).",
+    )
     return p
 
 
@@ -613,6 +705,7 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=args.dry_run,
         output_dir=args.output_dir,
         budget_usd=args.budget_usd,
+        ignore_cooldown=args.ignore_cooldown,
     )
     return run(opts)
 

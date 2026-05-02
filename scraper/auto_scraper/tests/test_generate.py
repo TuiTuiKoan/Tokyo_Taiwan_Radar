@@ -258,5 +258,92 @@ class SandboxTests(unittest.TestCase):
             self.assertFalse(tmp_scraper.exists(), "sandbox temp file leaked")
 
 
+class SchemaInjectionTests(unittest.TestCase):
+    def test_schema_text_loaded(self):
+        from auto_scraper.generate import SPEC_SCHEMA_TEXT
+        self.assertIn("base_url", SPEC_SCHEMA_TEXT)
+        self.assertIn("source_id_prefix", SPEC_SCHEMA_TEXT)
+
+
+class FailureArtifactTests(unittest.TestCase):
+    def test_failure_persists_artifacts(self):
+        """LLM returns spec missing base_url for all 3 attempts -> failure artifacts written."""
+        row = _make_row()
+        sb, holder = _make_sb(row)
+
+        bad_spec = {k: v for k, v in VALID_SPEC.items() if k != "base_url"}
+
+        class FakeUsage:
+            prompt_tokens = 100
+            completion_tokens = 50
+
+        class FakeChoice:
+            message = MagicMock(content=json.dumps(bad_spec))
+
+        class FakeResp:
+            usage = FakeUsage()
+            choices = [FakeChoice()]
+
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.return_value = FakeResp()
+        fake_openai = MagicMock()
+        fake_openai.OpenAI.return_value = fake_client
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "out"
+            opts = generate.GenerateOptions(
+                source_id=42,
+                output_dir=out_dir,
+                skip_sandbox=True,
+            )
+            with patch.object(generate, "_fetch_sample_html", return_value="<html>sample</html>"), \
+                 patch.dict(sys.modules, {"openai": fake_openai}):
+                rc = generate.run(opts, sb=sb)
+
+            self.assertEqual(rc, 1)
+            self.assertEqual(holder.update_payload["auto_scraper_status"], "spec-invalid")
+            # 3 attempts attempted
+            self.assertEqual(fake_client.chat.completions.create.call_count, 3)
+            # Failure artifacts present
+            for fn in ("prompt.txt", "sample.html", "last_attempt_spec.json", "meta.json"):
+                self.assertTrue((out_dir / fn).exists(), f"missing failure artifact: {fn}")
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["status"], "spec-invalid")
+            self.assertIn("error", meta)
+            # last_attempt_spec.json must contain the bad spec (missing base_url)
+            last_attempt = json.loads((out_dir / "last_attempt_spec.json").read_text(encoding="utf-8"))
+            self.assertNotIn("base_url", last_attempt)
+            self.assertEqual(last_attempt["source_name"], "example_test")
+
+
+class IgnoreCooldownTests(unittest.TestCase):
+    def test_ignore_cooldown_flag(self):
+        """Row in cooldown + ignore_cooldown=True -> pipeline proceeds to success."""
+        from datetime import datetime, timezone, timedelta
+
+        recent = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+        row = _make_row(auto_scraper_attempted_at=recent)
+        sb, holder = _make_sb(row)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            spec_file = tmp_path / "spec.json"
+            spec_file.write_text(json.dumps(VALID_SPEC), encoding="utf-8")
+            out_dir = tmp_path / "out"
+
+            opts = generate.GenerateOptions(
+                source_id=42,
+                mock_llm=spec_file,
+                skip_sandbox=True,
+                output_dir=out_dir,
+                ignore_cooldown=True,
+            )
+            with patch.object(generate, "_fetch_sample_html", return_value="<html></html>"):
+                rc = generate.run(opts, sb=sb)
+
+            self.assertEqual(rc, 0)
+            self.assertEqual(holder.update_payload["auto_scraper_status"], "success")
+
+
 if __name__ == "__main__":
     unittest.main()
