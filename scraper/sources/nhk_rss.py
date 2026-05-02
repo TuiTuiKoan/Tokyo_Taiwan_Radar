@@ -21,7 +21,7 @@ from typing import Optional
 
 import requests
 
-from .base import BaseScraper, Event, dedup_events
+from .base import BaseScraper, Event, dedup_events, fetch_ref_text
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,10 @@ NHK_FEEDS = [
     "https://www3.nhk.or.jp/rss/news/cat4.xml",  # international
     "https://www3.nhk.or.jp/rss/news/cat7.xml",  # culture/science
 ]
+
+# NHK RSS descriptions are always short snippets (50-200 chars).
+# Enrich with the full article body when below this threshold.
+_NHK_THIN_BODY_CHARS = 400
 
 TAIWAN_KEYWORDS = ["台湾", "台灣", "Taiwan", "taiwan"]
 
@@ -158,6 +162,24 @@ class NhkRssScraper(BaseScraper):
                     source_id = f"nhk_{hashlib.md5(item_link.encode()).hexdigest()[:12]}"
                     start_date = _extract_start_date(description_plain, pub_date)
 
+                    # Pub-date year anchor — prevents GPT from inferring wrong year
+                    # when description only contains "MM月DD日" without a year.
+                    pub_year_hint = (
+                        f"（記事配信日: {pub_date.year}年{pub_date.month}月{pub_date.day}日）"
+                    )
+                    raw_desc = f"NHKニュース:\n\n{pub_year_hint}\n\n{description_plain}"
+
+                    # Thin-body enrichment: NHK RSS snippets are always short —
+                    # try to fetch the full article body for richer GPT context.
+                    if len(description_plain) < _NHK_THIN_BODY_CHARS:
+                        article_text = fetch_ref_text(item_link)
+                        if article_text:
+                            logger.debug(
+                                "nhk_rss: enriched %s (%d chars)",
+                                item_link[:60], len(article_text),
+                            )
+                            raw_desc += f"\n\n[参照記事 ({item_link})]:\n{article_text}"
+
                     events.append(Event(
                         source_name="nhk_rss",
                         source_id=source_id,
@@ -165,7 +187,7 @@ class NhkRssScraper(BaseScraper):
                         original_language="ja",
                         name_ja=item_title,
                         raw_title=item_title,
-                        raw_description=f"NHKニュース:\n\n{description_plain}",
+                        raw_description=raw_desc,
                         start_date=start_date,
                         category=["report", "books_media"],
                     ))

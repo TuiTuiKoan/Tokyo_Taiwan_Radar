@@ -182,6 +182,26 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 - **注意**：手動修正 start_date 後重新 annotate 時，若 raw_desc 仍短，fetch 仍會觸發 → 確保 GPT 看到完整文章
 - **原則**：「start_date 有值」不代表「描述足夠豐富」，薄內容偵測邏輯應在 scraper 和 annotator 兩層都套用
 
+### Thin Content Detection — Applicability Matrix
+
+| Source | Scraper-side fix | Annotator-side fallback | Reason |
+|--------|-----------------|------------------------|--------|
+| google_news_rss | pub_date anchor + Playwright (in annotator) | ✅ `_GNEWS_THIN_DESC_CHARS=400`, Playwright | RSS snippet only; Google redirect URL |
+| koryu | `fetch_ref_text()` for pointer articles | — (scraper handles) | Pointer articles < 600 chars + external URL |
+| nhk_rss | pub_date anchor + `fetch_ref_text(article_url)` | ✅ `_NHK_THIN_CHARS=400`, requests-based | RSS snippet always < 200 chars |
+| doorkeeper | N/A | N/A | API returns full description |
+| connpass | N/A | N/A | API returns full description |
+| iwafu | N/A | N/A | Visits detail page |
+| arukikata | N/A | N/A | Fetches full article (BS4) |
+| peatix | N/A | N/A | Visits detail page (Playwright) |
+| taiwan_cultural_center | N/A | N/A | Visits detail page (Playwright) |
+| taioan_dokyokai | N/A | N/A | Visits detail page (Playwright) |
+| taiwan_kyokai | N/A | N/A | Visits detail page (Playwright) |
+| taiwan_festival_tokyo | N/A | N/A | Structured widget, not article-based |
+| ide_jetro | N/A | N/A | date_prefix fix sufficient |
+
+**Rule**: Only apply thin-content detection when the scraper stores a snippet (RSS/headline) and the full content lives at a separate URL. API-based and detail-page-visiting scrapers are inherently complete.
+
 ---
 
 ## koryu-specific

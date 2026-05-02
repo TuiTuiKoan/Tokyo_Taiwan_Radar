@@ -38,6 +38,7 @@ from person_name_lookup import (
     lookup_person_names,
     lookup_single_person,
 )
+from sources.base import fetch_ref_text
 
 logger = logging.getLogger(__name__)
 
@@ -498,6 +499,25 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 raw_desc = article_text
             else:
                 logger.info("  → Article fetch failed, proceeding with original raw_desc")
+
+        # For nhk_rss events with thin raw_description (RSS snippet only),
+        # try to fetch the full article body via requests+BS4 (no Playwright needed).
+        # This is a fallback in case the scraper's fetch_ref_text() failed at
+        # scrape time (e.g., NHK changed their HTML structure) or the event was
+        # scraped before thin-content enrichment was added.
+        _NHK_THIN_CHARS = 400
+        if (
+            event.get("source_name") == "nhk_rss"
+            and len(raw_desc) < _NHK_THIN_CHARS
+        ):
+            source_url = event.get("source_url", "")
+            logger.info("  → nhk_rss thin desc (%d chars), fetching: %s", len(raw_desc), source_url[:80])
+            nhk_text = fetch_ref_text(source_url)
+            if nhk_text:
+                logger.info("  → NHK article fetched (%d chars), appending for GPT", len(nhk_text))
+                raw_desc = raw_desc + f"\n\n[参照記事 ({source_url})]:\n{nhk_text}"
+            else:
+                logger.info("  → NHK article fetch failed, proceeding with original raw_desc")
 
         logger.info("[%d/%d] Annotating: %s", i, len(events), raw_title[:60])
 
