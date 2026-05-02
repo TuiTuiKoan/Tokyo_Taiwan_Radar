@@ -32,6 +32,7 @@ from supabase import create_client, Client
 
 from category_feedback import load_corrections, build_feedback_prompt
 from movie_title_lookup import lookup_movie_titles
+from person_name_lookup import lookup_person_names
 
 logger = logging.getLogger(__name__)
 
@@ -843,6 +844,109 @@ def enrich_movie_titles() -> None:
     logger.info("enrich_movie_titles: patched %d/%d events", patched, len(events))
 
 
+def _replace_person_name_in_desc(
+    desc: str, old_name: str, new_name: str
+) -> str:
+    """Replace a person name in description text.
+
+    Unlike movie title replacement, person names are NOT typically bracketed,
+    so we do a plain string replace. To avoid partial matches, we only replace
+    when the old name appears as a standalone word (bounded by non-CJK chars
+    or start/end of string for CJK names, or word boundaries for ASCII names).
+    """
+    if not old_name or not new_name or old_name == new_name:
+        return desc
+    if old_name not in desc:
+        return desc
+    return desc.replace(old_name, new_name)
+
+
+def enrich_person_names() -> None:
+    """Look up official Chinese/English names for cast & crew in movie events
+    and fix wrong phonetic translations in descriptions.
+
+    Strategy:
+    - Query ALL movie events where annotation_status != 'reviewed'.
+      eiga_com is exempt.
+    - For each movie, look up cast/crew via eiga.com + zh.wikipedia.
+    - In description_zh: replace GPT phonetic translations with official
+      Chinese names (e.g. "紀德恩" → "九把刀").
+    - In description_en: replace wrong transliterations with official
+      English names (e.g. "Gidenzu Koh" → "Giddens Ko").
+    - 'reviewed' events are never touched.
+    - Does NOT change annotation_status.
+    """
+    sb = _get_supabase()
+
+    res = (
+        sb.table("events")
+        .select(
+            "id,name_ja,raw_title,name_zh,name_en,"
+            "description_zh,description_en,annotation_status,source_name"
+        )
+        .contains("category", ["movie"])
+        .neq("annotation_status", "reviewed")
+        .neq("source_name", "eiga_com")
+        .execute()
+    )
+    events = res.data or []
+    logger.info(
+        "enrich_person_names: %d candidate events (excluding eiga_com + reviewed)",
+        len(events),
+    )
+
+    patched = 0
+    for event in events:
+        source = event.get("source_name", "")
+
+        # Same title extraction logic as enrich_movie_titles
+        if source in _NEWS_MOVIE_SOURCES:
+            raw = event.get("raw_title") or event.get("name_ja") or ""
+            m = _BRACKET_TITLE_RE.search(raw)
+            title = m.group(1).strip() if m else ""
+        else:
+            title = event.get("name_ja") or event.get("raw_title") or ""
+
+        if not title:
+            continue
+
+        people = lookup_person_names(title)
+        if not people:
+            continue
+
+        desc_zh = event.get("description_zh") or ""
+        desc_en = event.get("description_en") or ""
+        new_desc_zh = desc_zh
+        new_desc_en = desc_en
+
+        for ja_name, info in people.items():
+            if info.name_zh and desc_zh:
+                new_desc_zh = _replace_person_name_in_desc(
+                    new_desc_zh, ja_name, info.name_zh
+                )
+            if info.name_en and desc_en:
+                new_desc_en = _replace_person_name_in_desc(
+                    new_desc_en, ja_name, info.name_en
+                )
+
+        update: dict[str, Any] = {}
+        if new_desc_zh != desc_zh:
+            update["description_zh"] = new_desc_zh
+        if new_desc_en != desc_en:
+            update["description_en"] = new_desc_en
+
+        if update:
+            sb.table("events").update(update).eq("id", event["id"]).execute()
+            patched += 1
+            logger.info(
+                "  ✓ person names fixed: %s/%s [%s] desc_zh=%s desc_en=%s",
+                source, event["id"][:8], title[:40],
+                "description_zh" in update, "description_en" in update,
+            )
+
+    logger.info("enrich_person_names: patched %d/%d events", patched, len(events))
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
@@ -854,8 +958,11 @@ if __name__ == "__main__":
     fix_tr = "--fix-translations" in sys.argv
     fix_rev = "--fix-reviewed" in sys.argv
     enrich_movies = "--enrich-movie-titles" in sys.argv
+    enrich_people = "--enrich-person-names" in sys.argv
     event_id_arg = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--id"), None)
     if enrich_movies:
         enrich_movie_titles()
+    elif enrich_people:
+        enrich_person_names()
     else:
         annotate_pending_events(re_annotate_all=re_all, fix_translations=fix_tr, fix_reviewed=fix_rev, event_id=event_id_arg)
