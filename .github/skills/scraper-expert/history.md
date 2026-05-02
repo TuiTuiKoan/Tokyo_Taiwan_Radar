@@ -2,6 +2,56 @@
 
 <!-- Append new entries at the top -->
 
+---
+
+## 2026-05-02 — Promotion 後 `scraper_source_name` 缺失，後台來源關聯斷裂
+
+**問題：** auto_generate 完成、PR merge 後，`/admin/sources` 顯示 0 筆活動且無法觸發 Run Scraper。
+
+**根本原因：** `research_sources.scraper_source_name` 為 NULL。後台 API 靠此欄位 JOIN `scraper_runs`；auto_generate pipeline 只產生 scraper 檔案，不自動填此欄位。
+
+**修復：** Supabase UPDATE — id=151 → `taiwan_festa`、id=150 → `tiff_jp`。
+
+**教訓：** Promotion 最後一步必須手動填寫 `scraper_source_name`。已加入 SKILL.md § BaseScraper Contract 的 Promotion checklist。
+
+---
+
+## 2026-05-02 — taiwan_festa: auto_generate 失敗（Playwright 403），改用 requests + BeautifulSoup
+
+**問題：** auto_generate 對 `taiwanfesta.com`（WordPress/UIkit 主題）失敗——Playwright headless 返回 403，`card_selector .uk-card-default` 在渲染後 DOM 中找不到。
+
+**根本原因：** 部分 WordPress/UIkit 網站對 headless browser 返回 403；靜態 HTML 可直接取得，不需要 JS 渲染。
+
+**修復：** 改用 `requests + BeautifulSoup` 手動撰寫 scraper（`scraper/sources/taiwan_festa.py`）。
+
+**教訓：** auto_generate sandbox 顯示 0 events 時，立即嘗試 `requests.get()` 靜態抓取驗證。若靜態 HTML 完整，直接手寫 scraper，不必等 Playwright 重試。此類網站 `requests.Session` 須掛載 Retry adapter（參見 SKILL.md §requests.Session retry）。
+
+---
+
+## 2026-05-02 — TIFF: auto_generate 成功，promotion 後需修正年度 URL 與 Taiwan 過濾
+
+**問題 1（年度 URL）：** auto_generate 產生 `BASE_URL = "https://2026.tiff-jp.net"`，每年需手動更新。
+
+**修復 1：** 加入動態年份解析——follow `www.tiff-jp.net` redirect 取得 Location header，提取年份；fallback `datetime.now().year`。
+
+**問題 2（Taiwan 過濾缺失）：** keyword 搜尋結果可能混入非台灣電影。
+
+**修復 2：** 加入 `_TAIWAN_KW` client-side regex 過濾。
+
+**教訓：** 對「每年換子網域」型網站（如 `YYYY.tiff-jp.net`），promotion 時必須將寫死年份改為動態解析。Architect/Scraper Expert 在 planning 時應標記此型 URL 為「需年度更新 review」。
+
+---
+
+## 2026-05-02 — auto_generate eligibility check 未接受 `recommended` 狀態
+
+**問題：** `generate.py` 的 `_check_eligibility()` 只接受 `status == 'researched'`，但 recommended 來源為 `status = 'recommended'`，執行 `--source-id` 時直接 abort。
+
+**修復：** `scraper/auto_scraper/generate.py` 改為接受 `('researched', 'recommended')` 兩種狀態。
+
+**教訓：** `recommended` 是可信度最高的狀態，本應是 auto_generate 的優先對象。eligibility check 從設計時就應涵蓋此狀態。
+
+---
+
 ## 2026-05-01 — 批次依 end_date 誤關 342 筆事件（is_active 語意誤用）
 
 **問題：** 在 terminal 執行臨時批次腳本，將所有 `end_date < today AND is_active = True` 的事件設為 `is_active = False`。首頁大量歷史事件瞬間消失，用戶立即察覺，需緊急復原。

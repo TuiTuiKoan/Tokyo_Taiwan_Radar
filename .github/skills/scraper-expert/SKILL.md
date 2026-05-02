@@ -33,6 +33,12 @@ Read this at the start of every session before writing any scraper.
   2. Remove `ScrapeClass()` from `SCRAPERS` in `main.py`
   3. Hard delete existing DB records: `sb.table('events').delete().eq('source_name', '<source_name>').execute()`
   All 3 steps must happen in the same session. Missing step 3 leaves stale data visible in production.
+- **Promotion checklist (auto_generate → implemented)**: When promoting an auto-generated scraper, these 5 steps must ALL be completed:
+  1. PR merged — `scraper/sources/<name>.py` exists in repo.
+  2. `scraper/main.py` — import + `SCRAPERS` registration confirmed.
+  3. `research_sources` row — `status = 'implemented'`.
+  4. **`research_sources.scraper_source_name = '<scraper key>'`** — MUST be filled manually; `auto_generate` does NOT write this. Omitting it causes `/admin/sources` to show 0 events and disables Run Scraper (backend JOINs `scraper_runs` by this key).
+  5. Smoke-test: `python main.py --dry-run --source <key>` returns events.
 - **Identify source_name from a problem event**: Never guess from the event title — always query the DB:
   ```python
   sb.table('events').select('source_name,source_id,source_url').eq('id', '<uuid>').execute()
@@ -191,6 +197,32 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
 - **Post-run audit**: After running `enrich_addresses.py`, manually spot-check records from high-profile partner venues (SSFF, TAICCA, TCC) against the organizer's official access page (`会場・アクセス` section).
 - **Verification source**: For SSFF, use `shortshorts.org/2026/ja/schedule/` Venue access section. For other venues, search the organizer's official site for the address.
 - **Direct DB fix**: When a wrong address is found, correct it directly via Supabase SDK UPDATE — no code change or commit needed (data-only correction).
+
+## auto_generate Pipeline
+
+### Eligibility Check
+- `generate.py` `_check_eligibility()` accepts **both `'researched'` and `'recommended'` statuses**. `recommended` sources (highest confidence, GitHub Issue created) are valid targets.
+- If a source returns "not eligible" unexpectedly, check `research_sources.status` first — it may be `'recommended'` if the researcher used `--create-issue`.
+
+### 403 / Headless Fallback
+- Some WordPress/UIkit sites return **403 to headless Playwright** but serve full static HTML to `requests`. Signs: sandbox shows 0 events, `card_selector` not found in rendered DOM.
+- When `auto_generate` fails with 0 events, immediately test `requests.get(url)` manually before retrying with Playwright.
+- If static HTML is complete → write the scraper manually with `requests + BeautifulSoup`. Attach a `Retry` adapter to `requests.Session` (see § BaseScraper Contract).
+
+### Annual-Subdomain URLs (e.g. TIFF)
+- Sites like TIFF use `YYYY.tiff-jp.net` — hardcoded year must be replaced with dynamic resolution before promotion:
+  ```python
+  def _resolve_base_url() -> str:
+      r = requests.head("https://www.tiff-jp.net", allow_redirects=True, timeout=10)
+      m = re.search(r"(https://\d{4}\.tiff-jp\.net)", r.url)
+      if m:
+          return m.group(1)
+      return f"https://{datetime.now().year}.tiff-jp.net"
+  ```
+- Mark any URL containing a 4-digit year as "needs annual review" in the spec.
+
+### Taiwan Keyword Filter
+- auto_generate specs for keyword-search sources (e.g. TIFF `?s=台湾`) may return non-Taiwan results. Always add a `_TAIWAN_KW` client-side filter in the generated scraper during promotion review.
 
 ## Annotator CLI — `--id` 強制重新標注
 

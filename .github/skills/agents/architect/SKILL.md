@@ -14,6 +14,18 @@ Read this at the start of every session before producing any plan.
 - Never ship a plan with an untested API or signature change. Include an explicit smoke-test step.
 - Confirm that all pending migrations are applied before designing features that build on them.
 
+## Auto-Generate Promotion Checklist
+
+When a plan includes promoting an auto-generated scraper (`auto_scraper_status=success`) to `status=implemented`, the plan must explicitly include **all 5 steps**:
+
+1. PR merged — `scraper/sources/<name>.py` exists and is registered in `scraper/main.py`.
+2. `research_sources` row: `status = 'implemented'`.
+3. **`scraper_source_name = '<scraper key>'`** — MUST be filled or `/admin/sources` shows 0 events and cannot trigger Run Scraper (backend JOINs `scraper_runs` by this key). **auto_generate does NOT fill this automatically.**
+4. Smoke-test: `python main.py --dry-run --source <key>` confirms events are found.
+5. For annual-subdomain sites (e.g. `YYYY.tiff-jp.net`): replace hardcoded year with dynamic year resolution (follow redirect from root domain → fallback `datetime.now().year`).
+
+Missing step 3 has no compile-time or runtime error — it silently appears as a 0-count row in the admin UI.
+
 ## Database Safety Rules
 
 - **NEVER batch-set `is_active = False` based on `end_date < today`**. Past events must remain `is_active = True` so users can view event history. Visibility for ended events is controlled by the frontend `FilterBar` ("顯示已結束活動" toggle), not by `is_active`.

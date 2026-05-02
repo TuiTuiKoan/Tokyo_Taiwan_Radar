@@ -3,6 +3,46 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — Promotion 後 `scraper_source_name` 缺失，後台來源關聯斷裂
+
+**問題：** auto_generate 完成、PR merge 後手動 promote 兩個來源（id=150 TIFF、id=151 台湾フェスタ），`/admin/sources` 後台顯示 0 筆活動、無法觸發 Run Scraper。
+
+**根本原因：** promotion 流程（`status → implemented`）沒有填寫 `research_sources.scraper_source_name`。後台 API 靠此欄位 JOIN `scraper_runs` 顯示統計；auto_generate pipeline 只建立 scraper 檔案，不自動填此欄位。
+
+**修復：** Supabase UPDATE — id=151 → `taiwan_festa`、id=150 → `tiff_jp`。
+
+**教訓：** Promotion 最後一步必須填寫 `scraper_source_name`。已加入 SKILL.md § New Scraper Checklist (step 3)。
+
+---
+## 2026-05-02 — taiwan_festa: auto_generate 失敗（Playwright 403），改用 requests + BeautifulSoup
+
+**問題：** auto_generate 對 `taiwanfesta.com`（WordPress/UIkit 主題）失敗——Playwright headless 返回 403，`card_selector .uk-card-default` 在渲染後 DOM 中找不到。
+
+**根本原因：** 部分 WordPress/UIkit 網站對 headless browser 返回 403；靜態 HTML 可直接取得。
+
+**修復：** 改用 `requests + BeautifulSoup` 手動撰寫 `scraper/sources/taiwan_festa.py`。
+
+**教訓：** auto_generate sandbox 0 events → 立即嘗試 `requests.get()` 靜態抓取驗證。若靜態 HTML 完整，直接手寫 scraper。
+
+---
+## 2026-05-02 — TIFF: auto_generate 成功，promotion 後需修正年度 URL 與 Taiwan 過濾
+
+**問題 1（年度 URL）：** auto_generate 產生 `BASE_URL = "https://2026.tiff-jp.net"`，每年需手動更新。**問題 2（Taiwan 過濾缺失）：** keyword 搜尋結果可能混入非台灣電影。
+
+**修復：** 加入 `_resolve_base_url()`（follow redirect from `www.tiff-jp.net`，fallback `datetime.now().year`）+ `_TAIWAN_KW` regex 過濾器。
+
+**教訓：** URL 含 4 位數年份的來源，promotion 時必須改為動態解析。spec 應標記「needs annual review」。
+
+---
+## 2026-05-02 — auto_generate eligibility check 未接受 `recommended` 狀態
+
+**問題：** `generate.py` `_check_eligibility()` 只接受 `status == 'researched'`，`recommended` 來源執行 `--source-id` 時直接 abort。
+
+**修復：** 改為接受 `('researched', 'recommended')` 兩種狀態。
+
+**教訓：** `recommended`（GitHub Issue 已建立）是可信度最高的狀態，eligibility check 從設計時就應涵蓋。
+
+---
 ## 2026-05-02 — go_taiwan.py / prtimes.py：台灣地點活動日本訪客例外（commit `012ec72`）
 
 **問題：** `go_taiwan.py` 的 `_is_japan_event()` 和 `prtimes.py` 的台灣地點過濾把所有地點在台灣的活動都排除，導致日台交流旅遊活動（ファムトリップ、日台交流ツアー）漏掉。

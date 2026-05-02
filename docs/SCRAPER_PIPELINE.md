@@ -341,7 +341,7 @@ python main.py --dry-run --source <name>
 | Workflow | 時間（JST）| 用途 |
 |----------|-----------|------|
 | `researcher.yml` | 06:00 / 12:00 / 18:00 / 00:00 | Layer A 批次探索（4 slots）|
-| `discovery-accounts.yml` | 每日（Mon–Thu）| note.com + Peatix 帳號探索 |
+| `discovery-accounts.yml` | 每日（Mon–Sun）| note.com + Peatix 帳號探索 |
 | `auto-research.yml` | 00:30 | Layer B Phase 1 自動評估 |
 | `auto-generate.yml` | 01:00 | Layer B Phase 2 自動代碼生成 |
 | `scraper.yml` | 09:00 | Layer D 每日爬取（整合後的爬蟲生效）|

@@ -3,6 +3,17 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — Promotion 後 `scraper_source_name` 缺失，後台來源關聯斷裂
+
+**問題：** auto_generate 完成、PR merge 後手動 promote 兩個來源（id=150 TIFF、id=151 台湾フェスタ），`/admin/sources` 後台顯示 0 筆活動、無法觸發 Run Scraper。
+
+**根本原因：** promotion 流程（`status → implemented`）沒有填寫 `research_sources.scraper_source_name`。後台 API 靠此欄位 JOIN `scraper_runs` 顯示統計；auto_generate pipeline 只建立 scraper 檔案，不自動填此欄位。
+
+**修復：** 手動 Supabase UPDATE — id=151 → `scraper_source_name='taiwan_festa'`、id=150 → `scraper_source_name='tiff_jp'`。
+
+**教訓：** Promotion checklist 必須包含：填寫 `research_sources.scraper_source_name = <scraper key>`。已加入 SKILL.md § Auto-Generate Promotion Checklist。
+
+---
 ## 2026-05-02 — Auto-Research Pipeline 設計、語言規則修正、Heartbeat 暫緩
 
 ### 變更摘要
