@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-05-02 — google_news_rss: `_extract_original_url()` 全回 None，因 RSS description href 也是 Google News URL
+
+**問題：** `_extract_original_url(description_html)` 對所有事件返回 `None`，導致 `source_url` 停留在 Google News URL、`raw_description` 無法取得原始文章內容。
+
+**根本原因：** 假設 RSS `<description>` 的 `<a href>` 指向真實文章 URL；實際上該 href 也是 `news.google.com/rss/articles/CBMi...?oc=5` 格式（另一層 Google News URL），無法用「非 google.com」過濾找到原始文章。base64 解碼 path 也不可行（是加密 protobuf，非單純 base64）；requests 直接 GET 亦無效（JavaScript redirect，requests 停在 400）。
+
+**修復：** 移除 `_extract_original_url()`，改用 `googlenewsdecoder` PyPI 套件（`new_decoderv1`）對 RSS `<link>` URL 直接解碼。新增 `_decode_gnews_url(gnews_url)` 函數（帶 `interval=0`，自行控制 `_DECODE_SLEEP = 1.0` 間隔）。`requirements.txt` 新增 `googlenewsdecoder>=0.1.6`。
+
+**教訓：** Google News RSS URL 唯一可靠解碼方案是 `googlenewsdecoder.new_decoderv1`。base64 解碼與 requests 繞過均無效。`raw_description` 應包含 500–4000 字元原始文章內容，供 annotator 標注 location/date。
+
+---
+
+## 2026-05-02 — taiwanshi: 「第N報告」子活動未解析；database.py 缺 `get_event_id_by_source` helper
+
+**問題：** taiwanshi 台湾史研究会定例研究会的「第N報告」（sub-events）未存入 DB；設定 `parent_event_id` 時缺少按 `source_name + source_id` 查詢父事件 UUID 的方法。
+
+**根本原因：** 原 scraper 只抓頂層活動，未解析 sub-events 結構（時間、題目、報告者、評論者）；`database.py` 無對應的 UUID lookup helper。
+
+**修復：** `sources/taiwanshi.py` 新增 `_parse_reports()` 函數解析「第N報告」結構；`database.py` 新增 `get_event_id_by_source(source_name, source_id) -> str | None` helper，供 scraper 查詢父事件 UUID 後再設定 `parent_event_id`。
+
+**教訓：** 建立 sub-events 時，必須透過 `get_event_id_by_source(source_name, source_id)` 查詢父事件 UUID 再設定 `parent_event_id`，不可在 scraper 內假設 UUID 或依賴執行順序。
+
+---
+
 ## 2026-05-02 — merger Pass 1/3 相同 SOURCE_PRIORITY 時遍歷順序決定 primary（資料空洞）
 
 **問題：** 兩個相同 `SOURCE_PRIORITY` 的來源配對時，merger 用「先遇到的」當 primary，可能選到 `start_date`、`location_address` 等欄位皆為 NULL 的事件。

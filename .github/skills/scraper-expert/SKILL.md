@@ -45,6 +45,12 @@ Read this at the start of every session before writing any scraper.
   ```
 - **`start_date` / `end_date` must be `datetime.datetime`, NOT `datetime.date`**: `dedup_events` in `base.py` calls `.date()` on `start_date`. Passing a bare `date` object raises `AttributeError: 'datetime.date' object has no attribute 'date'`. Always use `datetime(y, m, d)` when constructing dates in scrapers.
 - **`category` must be `list[str]`, NOT a bare string**: The DB column is `text[]`. Passing `category="movie"` raises `malformed array literal` at write time. Always use `category=["movie"]`. This fails silently at compile time and only surfaces on DB upsert.
+- **Sub-events — always look up parent UUID via `get_event_id_by_source()`**: When setting `parent_event_id` on a sub-event, call `database.get_event_id_by_source(source_name, source_id) -> str | None` to retrieve the parent's UUID. Never assume the UUID in the scraper or depend on insertion order. Example:
+  ```python
+  from scraper.database import get_event_id_by_source
+  parent_uuid = get_event_id_by_source("taiwanshi", parent_source_id)
+  Event(..., parent_event_id=parent_uuid)
+  ```
 - **`requests.Session()` must always mount HTTPAdapter with Retry**: Any scraper that creates a `requests.Session()` must attach a retry adapter in `__init__`. Without it, a single transient network blip from GitHub Actions runners raises `Max retries exceeded` and triggers Sentry — even when the target site is healthy. Required pattern:
   ```python
   from requests.adapters import HTTPAdapter
@@ -398,7 +404,8 @@ for e in [x for x in events if x['name_ja'] != x['raw_title']]:
 - `source_id`: `gnews_{md5(url)[:12]}` — stable across runs; `url` is guid if real article URL, else `<link>` tag value
 - **`_STALE_DAYS = 21`**: Skip entries older than 21 days (based on pubDate). Google News redirect URLs (`news.google.com/rss/articles/...`) expire within ~2–3 weeks — any link older than 21 days is likely dead. The previous value of 60 was too long.
 - Google `<guid>` may contain real article URL; prefer it over `<link>` tag when it starts with `http` and does not contain `news.google.com`
-- **Google News redirect URLs work in real browsers only**: `requests.get()` on a `news.google.com/rss/articles/...` URL returns HTTP 400. Playwright also gets blocked by bot detection. Do NOT attempt server-side redirect resolution — leave the redirect URL as `source_url`. The URL works fine when the user clicks it in a real browser.
+- **Google News redirect URL decoding**: Use `googlenewsdecoder.new_decoderv1(url, interval=0)` to decode `news.google.com/rss/articles/...` URLs server-side. Add `time.sleep(_DECODE_SLEEP)` (1.0 s) after each call. Add `googlenewsdecoder>=0.1.6` to `requirements.txt`. Do NOT attempt base64 decoding of the URL path (it is encrypted protobuf, not base64) and do NOT use `requests.get()` directly (returns HTTP 400 with JavaScript redirect).
+- **RSS description href is also a Google News URL**: The `<a href>` inside `<description>` HTML points to `news.google.com/rss/articles/...` — NOT the original article. A "non-google.com" filter on this href yields zero results. Always decode the RSS `<link>` URL with `googlenewsdecoder`, not the description href.
 - **`_is_yahoo_aggregation()` filter**: Skip articles whose title ends with `「- Yahoo!ニュース」`. Yahoo news aggregation pages are duplicates of the source article AND their redirect URLs expire faster. Check: `title.endswith("- Yahoo!ニュース")` or equivalent strip+suffix check.
 - **Query precision**: Use `"台湾映画 上映会"` (not `"台湾映画 上映"`) to filter out pure news articles that report on upcoming release dates without being event listings.
 - **`_clean_title_for_dedup()`**: strips the `- Source Name` or `｜Source Name` suffix that Google News appends to RSS article titles. `Event.name_ja` is set to the cleaned title (improves in-scraper `dedup_events` key matching). `raw_title` always retains the original full title including the suffix. Apply cleaning before constructing the `Event` object.
