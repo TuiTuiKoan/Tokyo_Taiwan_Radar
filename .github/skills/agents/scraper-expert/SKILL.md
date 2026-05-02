@@ -331,17 +331,21 @@ Run after discovering a new cross-source duplicate that the merger missed. Then 
 
 **When adding a new cinema scraper**: always add `from movie_title_lookup import lookup_movie_titles` and call `lookup_movie_titles(title)` before `Event()`. Update this table.
 
-## person_name_lookup — cast/crew multilingual names
+## person_name_lookup — multilingual person names
 
-`scraper/person_name_lookup.py` provides cast/crew name lookup via eiga.com + zh.wikipedia.
+`scraper/person_name_lookup.py` provides person name lookup via eiga.com + zh/ja.wikipedia for **all events** (not just movies).
 
 - **Triggered by**: `python annotator.py --enrich-person-names` (runs in CI after `--enrich-movie-titles`)
-- **Target scope**: all `category=movie` events where `annotation_status != 'reviewed'` and `source_name != 'eiga_com'`
-- **Sources**: eiga.com cast/crew pages (primary) → zh.wikipedia (fallback for Chinese names)
+- **Target scope**: ALL events where `annotation_status != 'reviewed'` and `source_name != 'eiga_com'`
+- **Two pipelines**:
+  - **Movie events**: `lookup_person_names(title)` → eiga.com movie page → structured cast/crew list → Wikipedia (`strict=False`)
+  - **Non-movie events**: `extract_katakana_names(text)` → regex extracts ・-separated katakana names → `lookup_single_person(name)` → eiga.com person search + Wikipedia (`strict=True`)
+- **strict mode**: Non-movie lookups require zh interlanguage link (ja.wikipedia) or person-keyword match (zh.wikipedia) to prevent false positives (e.g. `リン・インジュ` → `安永亜季` was a false positive without strict mode)
+- **Noise filtering**: max 3 ・-parts, max 7 chars/part, noise suffix exclusion (ホテル, センター, etc.)
 - **Output fields**:
-  - `description_zh`: GPT-corrected Chinese transliteration of cast/crew names (replaces katakana with proper 中文 names)
-  - `description_en`: direct katakana → Latin replacement using the lookup table
-- **Silent failure**: returns empty dict on any error — never raises, never breaks the pipeline
+  - `description_zh`: GPT-corrected phonetic person names (replaces katakana-derived wrong translations with correct 中文 names)
+  - `description_en`: direct katakana → English replacement
+- **Silent failure**: returns empty dict / None on any error — never raises, never breaks the pipeline
 - **In CI**: Step order is `--fix-reviewed` → `--enrich-movie-titles` → `--enrich-person-names` → `summarize_run.py`
 - **Rule**: If you implement a new enrichment function in `annotator.py`, always add the corresponding CI step to `.github/workflows/scraper.yml` — implementation without CI registration means it never runs in production.
 

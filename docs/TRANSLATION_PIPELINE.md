@@ -335,8 +335,10 @@ _TITLE_BRACKETS = [
 
 | 檔案 | 函式 | 用途 |
 |------|------|------|
-| `person_name_lookup.py` | `lookup_person_names(name_ja)` | eiga.com + Wikipedia 查人名 |
-| `annotator.py` | `enrich_person_names()` | 批量修正 desc_zh / desc_en |
+| `person_name_lookup.py` | `lookup_person_names(name_ja)` | 電影：eiga.com movie page + Wikipedia |
+| `person_name_lookup.py` | `extract_katakana_names(text)` | 非電影：regex 提取帶 ・ 片假名人名 |
+| `person_name_lookup.py` | `lookup_single_person(ja_name)` | 非電影：eiga.com person search + Wikipedia（strict） |
+| `annotator.py` | `enrich_person_names()` | 批量修正 desc_zh / desc_en（全事件） |
 | `annotator.py` | `_fix_person_names_gpt()` | GPT-4o-mini 修正音譯人名 |
 
 ### 問題背景
@@ -348,8 +350,9 @@ GPT 將日文片假名人名音譯為中文時經常出錯（特別是筆名/藝
 | ギデンズ・コー | 紀德恩 | 九把刀 |
 | クー・チェンドン | 柯震東 | 柯震東 |
 
-### 三層查詢鏈
+### 查詢策略（兩條管線）
 
+**電影事件**（`lookup_person_names()`，`strict=False`）：
 ```text
 1. eiga.com 電影頁 → 提取 cast/crew 清單
    - 角色名前綴去除：「孝綸（シャオルン）クー・チェンドン」→「クー・チェンドン」
@@ -362,6 +365,20 @@ GPT 將日文片假名人名音譯為中文時經常出錯（特別是筆名/藝
    - 搜尋「{英文名} {出身國}」（消歧義）
    - 優先：snippet 含人物關鍵字（演員/導演/歌手/出生）且標題 2-4 字
    - 回退：ja.wikipedia 搜假名 → 若文章標題為純 CJK → 使用或取 zh interlanguage link
+```
+
+**非電影事件**（`extract_katakana_names()` + `lookup_single_person()`，`strict=True`）：
+```text
+1. regex 提取帶 ・ 片假名人名（噪音過濾：≤3 段、≤7 字/段、排除噪音後綴）
+   - 例：「リン・チーリン」「ツァイ・インウェン」✓
+   - 排除：「マリオット・ホテル」「スマートフォン・タブレット」✗
+
+2. eiga.com 人物搜尋（/search/{name}/person/）→ 英文名 + 出身國 → zh.wikipedia
+   - strict=True：不接受無人物關鍵字的 CJK 結果
+
+3. 回退：ja.wikipedia 搜片假名
+   - strict=True：必須有 zh interlanguage link，不接受純 CJK 標題回退
+   - 防止假陽性：「リン・インジュ」→「安永亜季」在 strict 模式下被正確拒絕
 ```
 
 ### desc_zh 修正（GPT 驅動）
