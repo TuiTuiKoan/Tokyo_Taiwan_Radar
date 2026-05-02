@@ -168,8 +168,15 @@ class IdeJetroScraper(BaseScraper):
 
             name_ja = detail.get("title") or title_text
 
-            # Build raw_description with date prepend per scraper convention
-            if start_date:
+            # Build raw_description with date prepend per scraper convention.
+            # Include end_date in the prefix when it differs from start_date so that
+            # GPT always sees the full range and does not apply the SINGLE-DAY RULE.
+            if start_date and end_date and end_date != start_date:
+                date_prefix = (
+                    f"開催日時: {start_date.year}年{start_date.month}月{start_date.day}日"
+                    f"〜{end_date.year}年{end_date.month}月{end_date.day}日\n\n"
+                )
+            elif start_date:
                 date_prefix = (
                     f"開催日時: {start_date.year}年{start_date.month}月{start_date.day}日\n\n"
                 )

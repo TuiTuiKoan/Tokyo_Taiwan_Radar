@@ -305,12 +305,17 @@ class GoogleNewsRssScraper(BaseScraper):
                         article_text or description_plain, pub_date
                     )
 
-                    # raw_description: article body text with publisher domain label
+                    # raw_description: article body text with publisher domain label.
+                    # Always prepend the RSS publish date so GPT has a year anchor
+                    # when the event text only mentions a month/day (e.g. "4月に熊本で上映").
+                    pub_year_hint = (
+                        f"（記事配信日: {pub_date.year}年{pub_date.month}月{pub_date.day}日）\n\n"
+                    )
                     if article_text and original_url:
                         domain = urllib.parse.urlparse(original_url).netloc
-                        raw_desc = f"開催情報（{domain}）:\n\n{article_text}"
+                        raw_desc = f"開催情報（{domain}）:\n\n{pub_year_hint}{article_text}"
                     else:
-                        raw_desc = f"開催情報（Google News）:\n\n{description_plain}"
+                        raw_desc = f"開催情報（Google News）:\n\n{pub_year_hint}{description_plain}"
 
                     logger.debug(
                         "google_news_rss: %s → real_url=%s article_text=%d chars",

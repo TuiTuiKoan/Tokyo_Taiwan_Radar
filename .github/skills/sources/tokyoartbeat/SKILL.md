@@ -42,6 +42,8 @@ Class: `TokyoArtBeatScraper` → key auto-derived as `tokyo_art_beat` (NOT `toky
 | `location_address` | Venue address from detail page (if available) |
 | `raw_description` | `"開催日時: YYYY年MM月DD日\n\n" + body_text` |
 
+> **⚠️ Venue header required**: `raw_description` must be prefixed with a structured venue block fetched from Contentful API (see "Venue Data" section below). Without it, annotator GPT will hallucinate well-known venues from training knowledge.
+
 ## Date Extraction
 
 Event URLs contain the start date:
@@ -73,3 +75,37 @@ Server-side search for `台湾` returns broadly matching results. Apply client-s
 - **Cookie consent blocks search button**: `multipleSearch` form search button is never enabled even after accepting cookies.
 - **slug_part max length**: 120 chars to avoid DB key overflow.
 - **Exhibitions vs. events**: Tokyo Art Beat covers both single-day events and multi-day exhibitions. `end_date` should be set when the detail page shows an end date.
+
+## Venue Data — Must Use Contentful API
+
+**Rule**: Venue name, address, opening hours, and admission fee **must** be fetched from Contentful API and prepended as a structured header in `raw_description`. Do NOT rely on annotator GPT to infer venue information.
+
+**Why**: GPT will hallucinate well-known Tokyo venues (e.g. 東京都現代美術館) for any exhibition whose `raw_description` lacks explicit location data. Incident: デニス・リン展 (id: `1e375d6c`, 2026-05-02).
+
+**Contentful API flow**:
+```python
+# Step 1: Get event entry to find venue link id
+GET /spaces/{space_id}/entries/{event_entry_id}
+# → fields.venue.sys.id  (e.g. "88E9E737")
+# → fields.openingHours  (fallback if venue has no hours)
+
+# Step 2: Get venue entry
+GET /spaces/{space_id}/entries/{venue_id}
+# → fields.fullName      (e.g. "Yukikomizutani")
+# → fields.address       (e.g. "東京都品川区東品川1-32-8 TERRADA ART COMPLEX II 1F")
+# → fields.closedDays    (e.g. "月・日・祝")
+# → fields.openingHours  (e.g. {"opens": "12:00", "closes": "18:00"})
+# → fields.admissionFee  (integer, 0 = free)
+```
+
+**Required raw_description header**:
+```
+開催日時: YYYY年MM月DD日 〜 YYYY年MM月DD日
+会場: {fullName}
+住所: {address}
+開場時間: {openingHoursOpens}〜{openingHoursCloses}
+休廊日: {closedDays}
+入場料: {admissionFee}円（0 = 無料）
+
+{original body_text}
+```

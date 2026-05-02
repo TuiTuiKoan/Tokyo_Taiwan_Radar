@@ -24,6 +24,17 @@
 - health_check.py：Check 4（gnews fallback date）+ Check 5（tokyoartbeat URL-date mismatch）
 
 ---
+## 2026-05-02（下午）— デニス・リン展 場地幻覺：annotator 不應對已知場館做 fallback 推測
+
+### 架構層教訓：annotator 不應對場地資訊做 fallback 推測
+- **問題**：活動 `1e375d6c`（デニス・リン展, source=`tokyoartbeat`）場地顯示為「東京都現代美術館」（錯誤），正確為「Yukikomizutani, TERRADA ART COMPLEX II 1F, 品川区東品川」。
+- **根本原因**：`raw_description` 僅含英文藝術家簡介，無任何場地資訊。Annotator GPT prompt 中有 LOCATION ADDRESS RULE（「如果你知道就填」），GPT 對高知名度場館（東京都現代美術館、森美術館）過度自信地從訓練知識猜測，完全跳過「資訊不足」的保守路徑。
+- **架構規則**（新增）：
+  1. **Scraper 層責任**：凡有結構化 API 可取得場地資訊的 source（如 tokyoartbeat Contentful API），scraper **必須**在 `raw_description` 開頭附加場地 header（会場・住所・開放時間・入場料），否則 annotator 必然推測失敗。
+  2. **Annotator prompt 原則**：LOCATION ADDRESS RULE 的「如果你知道就填」只應適用於已在 `raw_description` 中出現的明確資訊，而非訓練知識推斷。高知名度場館是最大的 hallucination 風險來源。
+  3. **資料修復路徑**：場地錯誤需從原始 API（Contentful / official site）取得資料並手動 DB update，再補充 `raw_description` header 防止下次重覆錯誤。
+
+---
 ## 2026-05-02（下午）— generate.py load_dotenv、not-viable 來源判定、Admin 篩選預設值、eurospace lookup_movie_titles（commits `d94fc80`、`29046ad`、`f905ee2`）
 
 ### auto_scraper/generate.py load_dotenv 修復（commit `d94fc80`）

@@ -257,7 +257,37 @@ class KoryuScraper(BaseScraper):
         # Extract event date from body (日時 section)
         start_date, end_date = _extract_event_date(body_text)
 
-        # Fallback to publication date if no event date found
+        # Intermediate fallback: look for "MM月DD日（曜）に開催" prose pattern.
+        # 後援 (sponsorship/endorsement) announcements don't have a 日時: label;
+        # the body text instead says e.g. "11月6日（木）に開催される".
+        # We must NOT fall straight through to pub_date because the DNN CMS renders
+        # the article listing date at the very top of body_text — that date would be
+        # picked up by _extract_event_date's full-date fallback, yielding the wrong
+        # (article publication) date rather than the actual event date.
+        if start_date is None:
+            m = re.search(
+                r'(\d{1,2})月(\d{1,2})日[（(][月火水木金土日祝][）)]\s*に開催',
+                body_text,
+            )
+            if m:
+                month, day = int(m.group(1)), int(m.group(2))
+                pub_dt = _parse_date(item["pub_date_str"])
+                year = pub_dt.year if pub_dt else datetime.now().year
+                # Advance to next year if the event month is before pub month
+                # (e.g. article published in October, event in January)
+                if pub_dt and month < pub_dt.month - 1:
+                    year += 1
+                try:
+                    start_date = datetime(year, month, day)
+                    end_date = start_date
+                    logger.debug(
+                        "koryu 後援 date inferred: %s--%02d-%02d from body prose",
+                        year, month, day,
+                    )
+                except ValueError:
+                    pass
+
+        # Final fallback to publication date if no event date found at all
         if start_date is None:
             start_date = _parse_date(item["pub_date_str"])
             end_date = start_date

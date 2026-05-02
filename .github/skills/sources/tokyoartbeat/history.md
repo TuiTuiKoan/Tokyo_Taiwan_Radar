@@ -4,6 +4,32 @@ Newest at top.
 
 ---
 
+## 2026-05-02 — デニス・リン展 場地幻覺：raw_description 無場地資訊導致 GPT 猜錯場館
+
+**Error**: 活動 `1e375d6c`（デニス・リン展）的場地顯示為「東京都現代美術館」（錯誤），正確為「Yukikomizutani，TERRADA ART COMPLEX II 1F，品川区東品川」。
+
+**Root cause**: `raw_description` 只有英文藝術家簡介，沒有任何 venue、address、hours 資訊。Annotator GPT 從訓練知識推斷場地，對高知名度美術館（東京都現代美術館、森美術館等）過度自信，直接猜錯。
+
+**Fix**: 手動呼叫 Contentful API 取得正確場地資料並執行 DB update 覆蓋：
+1. `GET /entries/{event_id}` → 取得 `venue` link id（`contentType: location`）和 `openingHours`
+2. `GET /entries/{venue_id}` → 取得 `fullName`、`address`、`closedDays`、`openingHours`
+
+**Lesson**: tokyoartbeat scraper **必須**在 `raw_description` 開頭附加結構化場地 header（会場・住所・開場時間・休廊日・入場料）。Contentful API 已有完整欄位，不應仰賴 GPT 推測。
+
+**Required raw_description header format**:
+```
+開催日時: YYYY年MM月DD日 〜 YYYY年MM月DD日
+会場: {fullName}
+住所: {address}
+開場時間: {openingHoursOpens}〜{openingHoursCloses}
+休廊日: {closedDays}
+入場料: {admissionFee}円（0 = 無料）
+```
+
+**Status**: Scraper still DISABLED (see 2026-04-26). This field mapping must be implemented when the scraper is re-enabled.
+
+---
+
 ## 2026-04-26 — Search API does not filter by keyword in headless Playwright
 
 **Error**: Dry-run collected 42 candidate event URLs from `?query=台湾` but returned 0 Taiwan-related events.

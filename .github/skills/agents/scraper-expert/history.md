@@ -3,6 +3,23 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02（下午）— デニス・リン展 場地幻覺：tokyoartbeat raw_description 缺少場地資訊
+
+- **活動**：`1e375d6c`（デニス・リン展, source=`tokyoartbeat`）
+- **問題**：網站顯示場地名稱、地址、開放時間全部錯誤。GPT 猜測場地為「東京都現代美術館，東京都江東区冬木7-2-1，10:00〜18:00」；正確為「Yukikomizutani，東京都品川区東品川1-32-8 TERRADA ART COMPLEX II 1F，12:00〜18:00（月・日・祝 休廊）」。
+- **根本原因**：`raw_description` 只含英文藝術家簡介，完全沒有場地資訊（venue name、address、hours）。GPT 從訓練知識猜測知名大型美術館，對高知名度場館（東京都現代美術館、森美術館）特別容易過度自信。
+- **修復**：直接呼叫 Contentful API 取得正確場地資料（`GET /entries/{event_id}` → 取得 venue link id → `GET /entries/{venue_id}`），執行 DB update 覆蓋。
+- **教訓**：tokyoartbeat scraper 的 `raw_description` **必須**在開頭附加結構化場地資訊 header，否則 annotator GPT 會用訓練知識猜測並產生錯誤場地。Contentful API 提供完整欄位：`fullName`、`address`、`openingHoursOpens/Closes`、`closedDays`、`admissionFee`。格式範例：
+  ```
+  開催日時: YYYY年MM月DD日 〜 YYYY年MM月DD日
+  会場: {fullName}
+  住所: {address}
+  開場時間: {openingHoursOpens}〜{openingHoursCloses}
+  休廊日: {closedDays}
+  入場料: {admissionFee}円（0 = 無料）
+  ```
+
+---
 ## 2026-05-02 — 5 件修復：HTTPAdapter retry、子活動欄位、get_event_id_by_source、health_check Check 4/5、annotator 日期覆蓋
 
 ### 修復 1：taiwanbunkasai — HTTPAdapter retry 補強

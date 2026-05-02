@@ -358,33 +358,6 @@ python main.py --dry-run --source <name>
 
 ---
 
-## 管線現況（自動更新）
-
-<!-- AUTO-UPDATE:START -->
-_最後更新：2026-05-02 18:07 JST_
-
-### research_sources 管線統計
-
-| status | 數量 |
-|--------|------|
-| `candidate` | 35 |
-| `researched` | 4 |
-| `recommended` | 2 |
-| `not-viable` | 50 |
-| `implemented` | 70 |
-
-### auto_scraper 代碼生成統計（已嘗試的來源）
-
-| auto_scraper_status | 數量 |
-|--------------------|------|
-| `success` | 2 |
-| `llm-error` | 1 |
-| `spec-invalid` | 1 |
-| `deployed-manually` | 1 |
-<!-- AUTO-UPDATE:END -->
-
----
-
 ## 相關文件
 
 - 全站架構：[ARCHITECTURE.md](ARCHITECTURE.md)

@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-05-02 — google_news_rss 年份推斷錯誤（事件 2d77c2c4）
+- **錯誤**：標題「4月に熊本で上映」，GPT 推斷年份 2024，正確應為 2026
+- **根本原因**：`raw_desc` 中無任何年份錨點；`_extract_start_date` 無法提取日期（只有「4月」無日期），GPT 無上下文依據
+- **修正**：`google_news_rss.py` → `raw_desc` 嵌入 `（記事配信日: YYYY年MM月DD日）`
+- **教訓**：任何無法從文章提取完整日期的 google_news_rss 事件都必須在 raw_desc 中包含 pub_date 作為年份錨點
+
+## 2026-05-02 — ide_jetro date_prefix 省略 end_date → SINGLE-DAY RULE 誤觸（事件 86efda2a）
+- **錯誤**：配信期間 2025-11-25〜2026-03-13，end_date 被設為 2025-11-25（等同 start_date）
+- **根本原因**：`date_prefix` 只寫入 start_date；GPT 只看到一個日期 → 套用 SINGLE-DAY RULE；annotator fallback `or event.get("end_date")` 對**非 null 的錯誤值**無效
+- **修正**：`ide_jetro.py` → 當 end_date ≠ start_date 時，date_prefix 改為 `開催日時: A日〜B日`
+- **教訓**：date_prefix convention 必須包含 end_date。任何 scraper 知道 end_date 時，raw_description 的 `開催日時:` 行必須同時寫出 `開催日時: A日〜B日`
+
+## 2026-05-02 — prtimes「6日間」duration 被 GPT SINGLE-DAY RULE 忽略（事件 e45d4022）
+- **錯誤**：「盛りだくさんの6日間」活動 start_date=2026-02-25，end_date 應為 2026-03-02，但被設為 2026-02-25
+- **根本原因**：prtimes.py 硬寫 `end_date=start_date`；SYSTEM_PROMPT 無「N日間」duration 規則，GPT 套用 SINGLE-DAY RULE
+- **修正**：`annotator.py` SYSTEM_PROMPT 新增 Rule 10：「N日間」→ end_date = start_date + (N-1)天
+- **教訓**：GPT 需要明確的 duration keyword 規則；scraper 本身應嘗試解析 end_date 而不是硬寫等於 start_date
+
+---
+
+## 2026-05-02 — koryu: 後援公告の `start_date` が文章刊登日に誤設定（Event `5104a6fe`）
+
+- **問題**：Event `5104a6fe-ab70-4ec6-bf58-87232fb252a7`（source: `koryu`）の `start_date` が `2025-10-14`（文章刊登日）になっており、正しくは `2025-11-06` であるべき。
+- **根本原因**：`koryu.or.jp` の「後援（こうえん）」公告ページには `日時:` ラベルがない。`_extract_event_date()` の Level 1 が失敗し、Level 2 fallback `re.search(r'(20\d{2}年\d{1,2}月\d{1,2}日)', body_text)` が DNN CMS のページ先頭に描画された**文章刊登日**（`2025年10月14日`）にマッチした。真の活動日 `11月6日（木）` は年号なし (`MM月DD日（曜日）`) で書かれていたため `\d{4}年...` の正規表現に引っかからなかった。さらにこの誤った日付が `開催日時: 2025年10月14日` として `raw_description` の先頭に前置され、GPT がその日付を優先してしまった。
+- **修正**：`_scrape_detail()` の Level 1 失敗後・pub_date fallback 前に中間層を追加。`r'(\d{1,2})月(\d{1,2})日[（(][月火水木金土日祝][）)]\s*に開催'` で prose パターンを検索し、年号は pub_date から推定。
+- **教訓①**：後援公告（title が `（後援）` 始まり）には `日時:` ラベルがない。正しい日付は body 内の `MM月DD日（曜日）に開催` prose パターンにある。
+- **教訓②**：`開催日時:` を `raw_description` の先頭に前置するのは annotator への強烈なシグナル。Scraper が誤日付を前置すると GPT は body 中の正確な日付を無視する。
+- **教訓③**：日付 fallback 優先順序：`日時：` ラベル → `時間：` ラベル → DOW-qualified `MM月DD日（曜日）` → **`に開催` prose** → generic `YYYY年MM月DD日`（最後手段）。
+
+---
+
 ## 2026-05-02 — CI に `--enrich-person-names` ステップを追加（commit `85fd475`）
 
 - **変更内容**：`.github/workflows/scraper.yml` に `python annotator.py --enrich-person-names` ステップを追加（`--enrich-movie-titles` の直後）。

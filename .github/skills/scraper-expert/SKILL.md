@@ -67,6 +67,44 @@ Read this at the start of every session before writing any scraper.
   ```
   Backoff: 2s → 4s → 8s. Mount both `https://` and `http://`.
 
+## Date Extraction — General Rules
+
+Rules that apply to ALL scrapers when constructing `raw_description` and `start_date`/`end_date`.
+
+### `開催日時:` prefix — complete format when end_date is known
+When a scraper already knows `end_date` AND `end_date ≠ start_date`, the `開催日時:` prefix in `raw_description` **must** include the full date range:
+```
+開催日時: YYYY年MM月DD日〜YYYY年MM月DD日
+```
+Writing only the start date (`開催日時: YYYY年MM月DD日`) tells GPT there is a single day → SINGLE-DAY RULE fires → `end_date` is set to `start_date`, discarding the correct value already held by the scraper.
+
+Note: `annotator.py`'s `annotation.get("end_date") or event.get("end_date")` fallback is **blind to non-null wrong values** — it only activates when GPT returns `null`. If GPT returns a non-null but incorrect `end_date` (e.g. same as `start_date` via SINGLE-DAY RULE), the scraper's correct value is silently discarded.
+
+### Year anchor for date-less news scrapers
+When a news-type scraper (`google_news_rss`, `prtimes`, `nhk_rss`, etc.) cannot extract a complete date from the article (i.e. the article only mentions a month/day or no date at all), embed the RSS `pub_date` as a year anchor in `raw_description`:
+```
+（記事配信日: YYYY年MM月DD日）
+```
+Insert this before the article body text. Without a year anchor, GPT may infer the wrong year (e.g. guessing 2024 when the correct year is 2026).
+
+### N日間 duration keywords
+`annotator.py` SYSTEM_PROMPT Rule 10 covers `N日間` → `end_date = start_date + (N-1)` days, but scrapers should also attempt self-resolution rather than defaulting to `end_date = start_date`:
+```python
+import re
+from datetime import timedelta
+
+m = re.search(r'(\d+)日間', raw_description)
+if m:
+    n = int(m.group(1))
+    end_date = start_date + timedelta(days=n - 1)
+```
+Similarly, `N週間` → `N × 7` days. Apply BEFORE falling back to `end_date = start_date`.
+
+### annotator `or event.get("end_date")` fallback — blind spot
+The pattern `annotation.get("end_date") or event.get("end_date")` only rescues the scraper's value when GPT returns `null`. When GPT returns a **non-null wrong value** (most commonly SINGLE-DAY RULE: `end_date = start_date`), the `or` branch is never reached — the wrong value is written to DB. Fix: always embed the correct date range in `raw_description` (see § `開催日時:` prefix above) so GPT never needs to fall back to SINGLE-DAY RULE in the first place.
+
+---
+
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
@@ -119,7 +157,22 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 - **Single-day end_date**: Always set `end_date = start_date` at the end of `_extract_event_fields`. Taiwan Kyokai events are single-day ceremonies/lectures.
 - **Publish-date false positive**: The page body starts with the article publish date (`2026年4月20日`) before the actual event content. Do NOT rely solely on the generic `YYYY年MM月DD日` fallback — it will pick up the publish date if no structured `日時：` field exists.
 - **DOW-qualified date extraction**: Dates like `5月16日（土）` (with day-of-week) are actual event dates. Extract these BEFORE the generic fallback, then infer the year from the nearest `20XX年` in the text.
-- Priority order for date extraction: `日時：` field → `時間：` field (with date) → DOW-qualified `月\d+日（曜日）` → generic `YYYY年MM月DD日` fallback.
+- **後援公告の prose 日付 (`（後援）` 始まりの title)**：後援公告ページには `日時:` ラベルがない。正しい活動日は body text 中の `MM月DD日（曜日）に開催` という prose パターンに年号なしで出現する。`日時：` / `時間：` / DOW-qualified 全て失敗したら、`r'(\d{1,2})月(\d{1,2})日[（(][月火水木金土日祝][）)]\s*に開催'` を検索し、年号は pub_date から推定する（月が pub_date より大幅に前なら翌年）。この prose 検索は generic `YYYY年MM月DD日` fallback より **前に** 実施すること。
+  ```python
+  m = re.search(
+      r'(\d{1,2})月(\d{1,2})日[（(][月火水木金土日祝][）)]\s*に開催',
+      body_text,
+  )
+  if m:
+      month, day = int(m.group(1)), int(m.group(2))
+      pub_dt = _parse_date(item["pub_date_str"])
+      year = pub_dt.year if pub_dt else datetime.now().year
+      if pub_dt and month < pub_dt.month - 1:
+          year += 1
+      start_date = datetime(year, month, day)
+  ```
+- **`開催日時:` 前置語の正確性**：Scraper が `raw_description` の先頭に `開催日時: YYYY年MM月DD日` を前置する場合、その日付は **必ず正しい活動日** を使うこと。この前置語は GPT annotator への強烈なシグナルであり、誤った日付を前置すると GPT は body 中の正確な日付を無視し、誤日付が DB に書き込まれる。
+- **Priority order for date extraction**: `日時：` field → `時間：` field (with date) → DOW-qualified `月\d+日（曜日）` → `に開催` prose pattern → generic `YYYY年MM月DD日` fallback (last resort, high risk of matching publish date).
 
 ## WordPress mixed-content sites (e.g. go_taiwan)
 

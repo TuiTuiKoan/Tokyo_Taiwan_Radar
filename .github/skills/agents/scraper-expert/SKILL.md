@@ -118,7 +118,31 @@ Option B — Skip re-annotation (simplest):
 
 **Incident**: デニス・リン展 (id: `1e375d6c`, 2026-05-02) — GPT output `2026-01-15` overwrote corrected `2026-04-10` because `raw_description` lacked the header. See `history.md` 2026-05-02.
 
-## Annotator output cleaning
+## tokyoartbeat — raw_description must include venue header (Contentful)
+
+**Rule**: When tokyoartbeat scraper is re-enabled, `raw_description` **must** prepend a structured venue header using data from the Contentful API. Without it, annotator GPT will hallucinate well-known venues (e.g. 東京都現代美術館, 森美術館) from training knowledge.
+
+**Incident**: デニス・リン展 (id: `1e375d6c`, 2026-05-02) — GPT annotated venue as 東京都現代美術館 (incorrect); correct venue was Yukikomizutani, TERRADA ART COMPLEX II 1F, 品川区. `raw_description` had only an English artist bio with no location data.
+
+**Contentful API flow**:
+```
+GET /entries/{event_id}  → fields.venue.sys.id (e.g. "88E9E737") + fields.openingHours
+GET /entries/{venue_id}  → fields.fullName, fields.address, fields.closedDays, fields.openingHours
+```
+
+**Required header format** (prepend before body text):
+```
+開催日時: YYYY年MM月DD日 〜 YYYY年MM月DD日
+会場: {fullName}
+住所: {address}
+開場時間: {openingHoursOpens}〜{openingHoursCloses}
+休廊日: {closedDays}
+入場料: {admissionFee}円（0 = 無料）
+```
+
+**Why GPT hallucinates**: The annotator prompt contains a LOCATION ADDRESS RULE that says "fill in if you know it". GPT over-confidently applies training knowledge to high-profile venues, even when nothing in `raw_description` confirms the location. The structured header is the only reliable ground truth.
+
+
 - Empty strings from GPT (`""`) must be treated as `None` — use `_str()` helper that returns `None` for falsy/blank strings. Prevents empty `name_zh`/`name_en` from blocking the `||` fallback chain in `getEventName`.
 - Location fields must be stripped of leading label separators — use `_loc()` helper that calls `.lstrip("：；:; \u3000")`. GPT often includes the `会場：` or `場所：` separator as the first character of `location_name`.
 - Apply `_loc()` to both `location_name` and `location_address`.

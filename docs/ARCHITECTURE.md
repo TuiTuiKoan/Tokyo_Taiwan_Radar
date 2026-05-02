@@ -376,24 +376,3 @@ Job 3: notify（depends: scrape + validate, always runs）
 | `web/proxy.ts` | i18n middleware + 靜態文件排除 |
 | `scraper/indexnow.py` | 新事件 URL 提交至 IndexNow |
 
----
-
-## 系統現況（自動更新）
-
-<!-- AUTO-UPDATE:START -->
-_最後更新：2026-05-02 18:07 JST_
-
-### 爬蟲
-登記中爬蟲：**61 個**（`scraper/main.py` SCRAPERS 清單）
-
-### 今日摘要
-
-| 指標 | 數值 |
-|------|------|
-| 今日新增事件 | 66 |
-| 活躍事件總計 | 215 |
-| 最後爬取 | 2026-05-02 18:00 JST (annotator) |
-
-### 資料庫 Migrations
-最新：`034_name_ja_locked.sql`（共 38 個）
-<!-- AUTO-UPDATE:END -->

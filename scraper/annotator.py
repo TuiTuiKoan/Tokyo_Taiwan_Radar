@@ -170,6 +170,7 @@ CRITICAL DATE EXTRACTION RULES:
 7. When the year is not explicitly stated, infer it from context. If unclear, assume the nearest future occurrence.
 8. For ongoing exhibitions/screenings with a date range (e.g., "4月5日〜6月30日"), use the full range.
 9. JUDGMENT: Use your reasoning to decide if an event is single-day vs multi-day. A concert, one-time screening, or one-time talk = single day (end_date = start_date). An exhibition, festival, or course = may span many days.
+10. DURATION KEYWORDS: When the description explicitly states a duration like "N日間" (e.g., "6日間", "3日間"), compute end_date = start_date + (N-1) days. "1日間" = single day. "N週間" = N×7 days. This OVERRIDES the single-day default. Example: start_date=2026-02-25, "6日間" → end_date=2026-03-02.
 
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
