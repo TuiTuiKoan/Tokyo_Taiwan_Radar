@@ -105,6 +105,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
   const supabase = createClient();
   const [filter, setFilter] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
+  const [keyword, setKeyword] = useState<string>("");
   const [sourceList, setSourceList] = useState<ResearchSource[]>(sources);
   const [showAddForm, setShowAddForm] = useState(false);
   const [creatorSlug, setCreatorSlug] = useState("");
@@ -360,6 +361,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
   const effectiveTypeMap: Record<number, string> = { ...SOURCE_TYPE_MAP, ...typeOverrides };
 
   function getFilteredSources(list: ResearchSource[]) {
+    const kw = keyword.trim().toLowerCase();
     return list.filter((s) => {
       if (filter === "implemented" && s.status !== "implemented") return false;
       if (filter === "not-viable" && s.status !== "not-viable") return false;
@@ -368,12 +370,15 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
       if (filter === "recommended" && s.status !== "recommended") return false;
       if (filter === "has_issue" && !s.github_issue_url) return false;
       if (filterType !== "all") {
-        // peatix_organizer entries use agent_category directly; others use effectiveTypeMap
         const sourceType =
           s.agent_category === "peatix_organizer"
             ? "peatix_organizer"
             : (effectiveTypeMap[s.id] ?? "other");
         if (sourceType !== filterType) return false;
+      }
+      if (kw) {
+        const haystack = [s.name, s.url, s.scraper_source_name ?? ""].join(" ").toLowerCase();
+        if (!haystack.includes(kw)) return false;
       }
       return true;
     });
@@ -639,6 +644,16 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
               );
             })}
           </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium">關鍵字搜尋</label>
+          <input
+            type="search"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="名稱 / URL / 爬蟲 ID…"
+            className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 w-52"
+          />
         </div>
         <span className="text-xs text-gray-400 self-center">{filtered.length} 筆</span>
         <button
