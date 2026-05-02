@@ -737,6 +737,12 @@ if article_text:
 
 **`name_ja` is NEVER overwritten by GPT (2026-05-02 policy change).** The annotator always preserves the scraper's original `name_ja` (= `raw_title`). GPT's `name_ja` output is only used for sub-events (which have no scraper-provided title). The `name_ja_locked` flag is now redundant for the annotator but remains in the DB/scraper for backward compatibility.
 
+**Sub-event `name_ja` / `raw_title` preservation (2026-05-02):**
+- On re-annotation, the annotator pre-fetches existing sub-events by `parent_event_id` and preserves their `name_ja` and `raw_title` if already set.
+- Logic: `sub_name_ja = existing["name_ja"] or gpt_name_ja` — identical to parent preservation (`event.get("name_ja") or raw_title`).
+- This prevents GPT from rewriting katakana person names to kanji on re-annotation (e.g. `チャン・ツィイー` → `章子怡`).
+- First annotation's GPT output is kept as source of truth; subsequent re-annotations cannot overwrite `name_ja`.
+
 **Sub-event `name_ja` / `description_ja` must use original Japanese text:**
 - Movie titles → use the Japanese release title exactly as in the source (e.g. `赤い糸 輪廻のひみつ`)
 - Person names → use the original Japanese notation (katakana/kanji as in source, e.g. `ギデンズ・コー`, `クー・チェンドン`)

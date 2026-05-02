@@ -3,6 +3,20 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — 子事件 name_ja 片假名被 GPT 覆寫為漢字
+
+**問題：** TIFF 子事件 re-annotation 時，GPT 把 `チャン・ツィイー` → `章子怡`、`ジャ・ジャンクー` → `賈樟柯`，破壞日文模式的片假名人名顯示。原因：子事件 upsert 直接取 `sub.get("name_ja")`，無任何保留機制。
+
+**修復：**
+1. DB patch：3 個 TIFF 子事件 `name_ja` 還原為 `raw_title`（片假名版本）
+2. annotator.py：子事件 upsert 前查詢既有 sub-events，若 `name_ja`/`raw_title` 已存在則保留（跟父事件同樣的 preservation policy）
+
+**教訓：**
+1. 子事件的 `name_ja` / `raw_title` 也必須有 preservation 機制——GPT 不可靠地保留片假名
+2. 首次 annotation 的 GPT output 通常較好（遵守 SYSTEM_PROMPT）；re-annotation 容易偏離
+3. 保留邏輯：`existing_name_ja or gpt_name_ja`，與父事件的 `event.get("name_ja") or raw_title` 一致
+
+---
 ## 2026-05-02（深夜 3）— Quality check 判斷欄位錯誤、competition 排除（commits `b82849d`→`80920ce`、`4ca383a`）
 
 **問題一（commits `b82849d`→`80920ce`）：** `/admin/quality` 缺地點 check 查詢 `location_address IS NULL`，但詳情頁 render 的是 `location_name`。兩個欄位不同，check 結果與頁面顯示矛盾。

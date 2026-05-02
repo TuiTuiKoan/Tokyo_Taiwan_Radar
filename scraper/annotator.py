@@ -701,18 +701,31 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
 
             # Handle sub-events
             sub_events = annotation.get("sub_events", [])
+            # Pre-fetch existing sub-events to preserve name_ja on re-annotation
+            # (same preservation policy as parent events — GPT may rewrite katakana to kanji).
+            existing_subs_res = sb.table("events").select(
+                "source_id,name_ja,raw_title"
+            ).eq("parent_event_id", eid).execute()
+            _existing_subs = {e["source_id"]: e for e in (existing_subs_res.data or [])}
+
             for j, sub in enumerate(sub_events):
                 sub_cats = _validate_categories(sub.get("category", categories))
                 sub_cats = _inject_keyword_categories(sub_cats, sub.get("name_ja", "") + " " + (sub.get("description_ja") or ""))
                 sub_start = sub.get("start_date")
                 sub_end = sub.get("end_date") or sub_start
 
+                sub_source_id = f"{event['source_id']}_sub{j+1}"
+                _prev = _existing_subs.get(sub_source_id)
+                # Preserve existing name_ja/raw_title on re-annotation
+                sub_name_ja = (_prev["name_ja"] if _prev else None) or sub.get("name_ja", "")
+                sub_raw_title = (_prev["raw_title"] if _prev else None) or sub.get("name_ja", "")
+
                 sub_row = {
                     "source_name": event["source_name"],
-                    "source_id": f"{event['source_id']}_sub{j+1}",
+                    "source_id": sub_source_id,
                     "source_url": event["source_url"],
                     "original_language": event.get("original_language", "ja"),
-                    "name_ja": sub.get("name_ja", ""),
+                    "name_ja": sub_name_ja,
                     "name_zh": _to_trad(sub.get("name_zh")),
                     "name_en": sub.get("name_en"),
                     "description_ja": sub.get("description_ja"),
@@ -728,7 +741,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "price_info": sub.get("price_info") or update_data["price_info"],
                     "is_active": True,
                     "parent_event_id": eid,
-                    "raw_title": sub.get("name_ja", ""),
+                    "raw_title": sub_raw_title,
                     "raw_description": sub.get("description_ja"),
                     "annotation_status": "annotated",
                     "annotated_at": datetime.utcnow().isoformat(),
