@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 
 const BASE =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app";
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
 
 export const metadata: Metadata = {
   title: {

@@ -31,7 +31,7 @@ AUTO_QA_LABELS = {
     "auto_qa_missing_address": "地址缺失",
     "auto_qa_untranslated": "翻譯缺失",
 }
-DEFAULT_SITE_URL = "https://tokyo-taiwan-radar.vercel.app"
+DEFAULT_SITE_URL = "https://tokyotaiwanradar.com"
 
 
 def _supabase_client():

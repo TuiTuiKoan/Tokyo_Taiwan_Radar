@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const LOCALES = ["zh", "en", "ja"] as const;
 const BASE =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app";
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
 
 const CITY_SLUGS = ["tokyo", "osaka", "kyoto", "fukuoka", "sapporo", "nagoya"] as const;
 const FEATURED_CATEGORIES = [

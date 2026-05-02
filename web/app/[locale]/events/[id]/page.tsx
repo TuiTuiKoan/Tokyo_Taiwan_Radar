@@ -44,7 +44,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   if (!event) return {};
 
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
   const name = getEventName(event as Event, locale);
   const description = getEventDescription(event as Event, locale);
 
@@ -142,7 +142,7 @@ export default async function EventDetailPage({ params }: PageProps) {
         ]
       : [];
 
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
   const BREADCRUMB_LABELS: Record<string, string> = {
     zh: "活動列表",
     ja: "イベント一覧",

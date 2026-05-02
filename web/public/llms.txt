@@ -13,10 +13,10 @@ Tokyo Taiwan Radar automatically aggregates and curates Taiwan-related cultural 
 
 ## Main Pages
 
-- 活動列表（繁體中文）: https://tokyo-taiwan-radar.vercel.app/zh
-- イベント一覧（日本語）: https://tokyo-taiwan-radar.vercel.app/ja
-- Event List (English): https://tokyo-taiwan-radar.vercel.app/en
-- Sitemap: https://tokyo-taiwan-radar.vercel.app/sitemap.xml
+- 活動列表（繁體中文）: https://tokyotaiwanradar.com/zh
+- イベント一覧（日本語）: https://tokyotaiwanradar.com/ja
+- Event List (English): https://tokyotaiwanradar.com/en
+- Sitemap: https://tokyotaiwanradar.com/sitemap.xml
 
 ## Event Categories
 

@@ -6,10 +6,10 @@ import { NextResponse } from "next/server";
 //   GSC_CLIENT_ID      — OAuth2 client ID
 //   GSC_CLIENT_SECRET  — OAuth2 client secret
 //   GSC_REFRESH_TOKEN  — refresh token from OAuth Playground
-//   GSC_SITE_URL       — e.g. https://tokyo-taiwan-radar.vercel.app/
+//   GSC_SITE_URL       — e.g. https://tokyotaiwanradar.com/
 
 const GSC_SITE_URL =
-  process.env.GSC_SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app/";
+  process.env.GSC_SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com/";
 
 async function getAccessToken(): Promise<string> {
   const clientId = process.env.GSC_CLIENT_ID;

@@ -342,7 +342,7 @@ export async function POST(
 
   if (fetchErr || !announcement) return NextResponse.json({ error: "Announcement not found" }, { status: 404 });
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
 
   // Mark as "publishing"
   const currentSocialStatus = announcement.social_status ?? {};

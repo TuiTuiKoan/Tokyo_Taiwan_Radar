@@ -111,7 +111,7 @@ class TokyoNowScraper(BaseScraper):
                 API_URL,
                 params={"per_page": 50, "start_date": start_date, "page": page},
                 timeout=20,
-                headers={"User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyo-taiwan-radar.vercel.app)"},
+                headers={"User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)"},
             )
             resp.raise_for_status()
             return resp.json()

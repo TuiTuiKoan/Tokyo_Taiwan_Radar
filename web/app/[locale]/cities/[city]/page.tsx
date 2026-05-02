@@ -46,7 +46,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { locale, city } = await params;
   if (!CITY_META[city as CitySlug]) return {};
   const tCities = await getTranslations("cities");
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
   const label = tCities(city as any);
   const desc = tCities(`${city}_desc` as any);
   const headingSuffix = tCities("headingSuffix");
@@ -115,7 +115,7 @@ export default async function CityPage({ params }: PageProps) {
   const label = tCities(city as any);
   const description = tCities(`${city}_desc` as any);
   const headingSuffix = tCities("headingSuffix");
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
 
   const collectionLd = {
     "@context": "https://schema.org",

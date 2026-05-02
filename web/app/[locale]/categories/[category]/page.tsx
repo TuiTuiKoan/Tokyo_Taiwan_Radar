@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!CATEGORIES.includes(category as Category)) return {};
   const tCatDesc = await getTranslations("categoryDesc");
   const tCat = await getTranslations("categories");
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
   const LOCALES: Locale[] = ["zh", "en", "ja"];
   const desc = tCatDesc(category as any) as string;
   const label = tCat(category as any) as string;
@@ -81,7 +81,7 @@ export default async function CategoryPage({ params }: PageProps) {
 
   const categoryLabel = t(category as any) as string;
   const description = tCatDesc(category as any) as string;
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
 
   const collectionLd = {
     "@context": "https://schema.org",

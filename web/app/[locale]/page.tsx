@@ -168,7 +168,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     .order("published_at", { ascending: false })
     .limit(3);
 
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app";
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
 
   // ItemList JSON-LD — only on unfiltered active view (first 20 events)
   const isUnfiltered = !sp.q && !sp.category && !sp.from && !sp.to && !sp.paid && !sp.location && timeMode === "active";

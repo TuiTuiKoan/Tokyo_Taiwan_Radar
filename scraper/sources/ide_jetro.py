@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 SOURCE_NAME = "ide_jetro"
 BASE_URL = "https://www.ide.go.jp"
 LISTING_URL = f"{BASE_URL}/Japanese/Event/Seminar.html"
-HEADERS = {"User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyo-taiwan-radar.vercel.app)"}
+HEADERS = {"User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)"}
 LOOKBACK_DAYS = 180
 REQUEST_DELAY = 1.0  # seconds between detail-page fetches
 

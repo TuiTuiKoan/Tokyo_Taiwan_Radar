@@ -49,7 +49,7 @@ export default function GscSection() {
           <ul className="list-disc ml-5 space-y-1 font-mono text-xs">
             <li>GSC_SERVICE_ACCOUNT_EMAIL</li>
             <li>GSC_SERVICE_ACCOUNT_KEY（PEM，換行符號用 \n）</li>
-            <li>GSC_SITE_URL（e.g. https://tokyo-taiwan-radar.vercel.app/）</li>
+            <li>GSC_SITE_URL（e.g. https://tokyotaiwanradar.com/）</li>
           </ul>
           <p className="text-xs text-gray-400">
             步驟：Google Cloud Console → 建立服務帳號 → 下載 JSON Key →

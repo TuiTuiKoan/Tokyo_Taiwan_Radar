@@ -26,7 +26,7 @@ from supabase import create_client
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
 JST = timezone(timedelta(hours=9))
-SITE_URL = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://tokyo-taiwan-radar.vercel.app")
+SITE_URL = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://tokyotaiwanradar.com")
 ACTIONS_URL = "https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/actions"
 RUNS_DIR = Path(__file__).parent / "auto_scraper" / "runs"
 

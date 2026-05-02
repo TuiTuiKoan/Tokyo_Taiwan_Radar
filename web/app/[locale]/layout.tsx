@@ -32,7 +32,7 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
   const title = SITE_TITLES[locale] ?? SITE_TITLES.zh;
   const description = SITE_DESCRIPTIONS[locale] ?? SITE_DESCRIPTIONS.zh;
 
