@@ -91,7 +91,6 @@ export default async function AdminQualityPage({ params }: PageProps) {
       .from("events")
       .select("id, raw_title, source_name")
       .eq("is_active", true)
-      .is("location_address", null)
       .is("location_name", null)
       .neq("source_name", "gguide_tv")
       .limit(50),
