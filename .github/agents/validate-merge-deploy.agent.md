@@ -40,6 +40,13 @@ tools: [read, search, execute, web]
      - Exit code ≠ 0：立即中止流程，回報 checker 輸出的違規 file:line，要求先修正後再重跑 V-M-D
 3. 簡要檢查提交消息格式（遵循 `.github/instructions/commit-message.instructions.md`）
 4. 若包含 Supabase migration，確認 migration 編號與 `.github/instructions/database.instructions.md` 的 latest 標記一致
+5. **Docs staleness check**：使用 `git diff --name-only origin/main...HEAD` 確認本次 diff 是否為架構性改動。若符合以下任一條件，且 `docs/ARCHITECTURE.md` 或 `docs/SCRAPER_PIPELINE.md` 未在 diff 中，必須警告並要求補更新後才繼續 push：
+   - 新增或移除整個 CI workflow（`.github/workflows/*.yml`）
+   - 新增或移除 pipeline layer（新的 `auto_scraper/`、`researcher.py` 等主模組）
+   - 新增或移除 Supabase 整合點（LINE bot、新 API route）
+   - 變更 `scraper/main.py` 的 SCRAPERS 清單超過 3 個來源（批量上線屬架構里程碑）
+   - 新增 `web/app/api/` 下的 API endpoint
+   不屬於架構性改動（不需要更新 docs）：bug fix、單一 scraper 新增、i18n 修改、CSS 調整。
 
 ### Step 4: Commit & Push
 1. 使用原子化、描述清楚的提交消息

@@ -39,6 +39,21 @@ Missing step 3 has no compile-time or runtime error — it silently appears as a
 - State explicitly what is NOT in scope. Ambiguous scope = scope creep = breaking changes.
 - List every affected file path explicitly — vague descriptions ("the scraper files") are not acceptable.
 
+## Docs Update Rule
+
+`/docs` 是**結構性文件**，只在架構改動時需要更新。以下情況屬於架構性改動，計畫中必須明確包含「更新 docs/ARCHITECTURE.md 或 docs/SCRAPER_PIPELINE.md」步驟：
+
+| 改動類型 | 需更新 |
+|---------|-------|
+| 新增或移除整個 CI workflow | ARCHITECTURE.md |
+| 新增或移除 pipeline layer（auto_scraper、researcher 等） | SCRAPER_PIPELINE.md |
+| 新增或移除 Supabase 整合點（LINE bot、新 webhook） | ARCHITECTURE.md |
+| 新增 `web/app/api/` 下的 API endpoint | ARCHITECTURE.md |
+
+**不**屬於架構性改動（無需更新 docs）：bug fix、單一 scraper 新增、i18n 修改、CSS 調整、新增個別 Supabase migration。
+
+`/docs` 記錄的是「系統怎麼運作」，不是「系統現在的狀態」。不要在文件中寫入會每天變動的數字（scraper 數量、事件總數、migration 編號）。
+
 ## Admin UI Dashboard Necessity Check
 
 Before planning any new admin page or dashboard column whose primary output is a count / status / health number, ask:
