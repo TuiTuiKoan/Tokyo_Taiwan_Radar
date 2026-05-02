@@ -3,6 +3,27 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — annotator 架構決策：google_news_rss Playwright 文章補抓（commits `9510a05`、`9a0414a`）
+
+**背景：** google_news_rss scraper 的 `_extract_start_date()` 原先在找不到日期時 fallback 到 `pub_date`（文章發布日）。因 RSS `<description>` 永遠只有標題短文，幾乎每筆都觸發 fallback，造成 40 筆 `start_date=pub_date` 的錯誤資料。修正方向：scraper 端改回傳 `None`，由 annotator 取得正確日期。
+
+**架構決策 A（scraper 端：None 優先 fallback）：**
+聚合新聞來源（Google News RSS、NHK RSS）的 pub_date ≠ 活動日期，scraper 不可作為 start_date fallback。正確作法：找不到日期回傳 `None`，讓 annotator pipeline 處理。
+
+**架構決策 B（annotator 端：共用 Playwright browser 實例）：**
+- 只在 `source_name == "google_news_rss"` 且 `start_date IS NULL` 時觸發 Playwright fetch。
+- 整個 annotator run 共用一個 `Browser` 實例（loop 前啟動、`finally` 關閉），避免每筆重啟的高延遲。
+- `raw_description` 欄位**不更新**（in-memory only），保留原始 RSS 文字的不可變性。
+- 失敗時（timeout / paywall / DNS）gracefully fallback 到原始 snippet，不中斷 pipeline。
+
+**架構決策 C（連結失效事件：直接 is_active=False）：**
+`source_url` 已失效（DNS failure / 404 / domain expired）的事件直接設 `is_active=False`，不嘗試保留或修補。
+
+**教訓：**
+- 「資料品質修正」與「日期補抓」應分層處理：scraper 只負責「有就填、沒有就 None」；annotator 負責增補語意資訊（包含透過 Playwright 補抓原文）。兩層職責混淆（scraper 自行 fallback 到語意無關欄位）是本次問題的根本原因。
+- 共用 Playwright 實例 pattern 可在 annotator 中複用於其他需要「補抓外部頁面」的場景。
+
+---
 ## 2026-05-01 — 「電視節目 (tv)」地點篩選選項移除（commit `2989940`）
 
 **背景：** FilterBar 與 AdminEventTable 都有 `<option value="tv">` 地點篩選選項，但選取後結果永遠為零。原因是 `gguide_tv` 事件的 `location_name` 已改為存放實際頻道名稱，而非「電視頻道」字串，與篩選邏輯完全不匹配。

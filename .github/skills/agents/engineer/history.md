@@ -3,13 +3,16 @@
 <!-- Append new entries at the top -->
 
 ---
-## 2026-05-02 — annotator google_news_rss Playwright 文章補抓
-**新增：** `## Annotator — google_news_rss 文章補抓` 段落至 engineer/SKILL.md
-**內容：**
-- Playwright follow-redirect 架構（單一 Browser 實例跳過每次啟動費用）
-- raw_description 不寫回 DB 規則（文章文字僅用於此次 GPT 呼叫）
-- silent fail on timeout/paywall/bad redirect
-**來源：** daily-skills-review（Step 4 建議）
+## 2026-05-02 — annotator google_news_rss Playwright 文章補抓（commit `9a0414a`）
+- **問題**：google_news_rss 的 `raw_description` 只有 RSS snippet（通常只有標題），GPT 無法從中提取活動日期，`start_date` 永遠為 NULL。
+- **修正**：在 `annotator.py` 新增 `_fetch_gnews_article_text()`，使用 Playwright 追蹤 Google News 重導向 URL 取得原始文章本文（最多 4000 字），替換 `raw_desc` 傳給 GPT。整個 run 共用一個 Playwright browser 實例；`raw_description` 欄位不寫回 DB（in-memory only）。失敗時（timeout / paywall / DNS）gracefully fallback 到原始 snippet。
+- **教訓**：Playwright browser 實例應在 annotation loop 前啟動、`finally` 中關閉，不可逐事件重啟。文章文字是 annotation 輸入的暫存資料，絕不寫回 DB 原始欄位。
+
+---
+## 2026-05-02 — google_news_rss scraper start_date fallback 修正（commit `9510a05`）
+- **問題**：`_extract_start_date()` 找不到日期時 fallback 使用 `pub_date`（文章發布日），與活動日期無關。Google News RSS `<description>` 永遠只有標題短文，不含活動日期，幾乎每筆都觸發 fallback。
+- **修正**：`_extract_start_date()` 回傳型別改為 `Optional[datetime]`；找不到日期改回傳 `None`，不再 fallback 到 pub_date。批次效果：40 筆 start_date=pub_date 的錯誤資料被下架；1 筆原始連結失效的事件（c2c80efd）直接設為 `is_active=False`。
+- **教訓**：聚合新聞來源（Google News RSS）的 pub_date ≠ 活動日期，不可作為 start_date fallback。找不到日期必須回傳 `None`；annotator 會透過 Playwright 文章補抓取得正確日期。原始連結已失效的事件直接設 `is_active=False`，不嘗試保留。
 
 ---
 ## 2026-05-01 — 移除無效地點篩選選項「電視節目 (tv)」（commit `2989940`）
