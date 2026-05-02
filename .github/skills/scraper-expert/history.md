@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-02 — google_news_rss 同活動多文章造成重複，merger Pass 1 跳過同來源
+
+**問題：** DB 中出現多筆完全相同的 `google_news_rss` 活動（如「台湾屋台祭in海老名2026」3筆重複）。
+
+**根本原因：** Google News RSS 對同一活動可能透過不同 query 或不同天產生多篇文章。每篇文章的 `source_id` 是 URL 的 MD5 hash，互不相同，in-scraper `dedup_events` 用 `raw_title`（帶 `- Source Name` 後綴）比對也無法命中。`merger.py` Pass 1 明確跳過同 `source_name` 的配對，故重複全部入庫。
+
+**修復：**
+1. `merger.py` — 新增 Pass 0（在 Pass 1 之前執行）：查詢所有 active `google_news_rss` 事件（含 `start_date=NULL`），對 `name_ja` 做相似度比對（≥ 0.85），超過門檻則合併；Primary 選擇規則：non-null `start_date` 優先，相同則選 `raw_description` 較長者；print 改為 `Pass 0+1+2+3`。
+2. `sources/google_news_rss.py` — 新增 `_clean_title_for_dedup()`：strip RSS 標題後綴 `- Source Name` / `｜Source Name`；`Event.name_ja` 改用清洗後標題，`raw_title` 保留原始完整標題。
+3. 手動合併 3 筆「台湾屋台祭in海老名2026」重複（Primary: f9709bb1，Secondary: e823ac41, ff4d9b6d deactivated；Primary `start_date` reset to NULL 等待 annotator 重新標注）。
+
+**教訓：** debug `google_news_rss` 重複事件時，**先確認 merger.py Pass 0 log** 是否偵測到同名事件。annotator 可能用文章發布日（pubDate）填入 `start_date`——合併後若 `start_date` 疑似是文章發布日，應 reset to NULL 並重跑 annotator。
+
+---
+
 ## 2026-05-02 — Promotion 後 `scraper_source_name` 缺失，後台來源關聯斷裂
 
 **問題：** auto_generate 完成、PR merge 後，`/admin/sources` 顯示 0 筆活動且無法觸發 Run Scraper。

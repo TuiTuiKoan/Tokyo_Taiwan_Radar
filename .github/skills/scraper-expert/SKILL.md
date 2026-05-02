@@ -366,7 +366,9 @@ For any scraper that hardcodes a fallback `location_address` to a single HQ / �
 - **Google News redirect URLs work in real browsers only**: `requests.get()` on a `news.google.com/rss/articles/...` URL returns HTTP 400. Playwright also gets blocked by bot detection. Do NOT attempt server-side redirect resolution — leave the redirect URL as `source_url`. The URL works fine when the user clicks it in a real browser.
 - **`_is_yahoo_aggregation()` filter**: Skip articles whose title ends with `「- Yahoo!ニュース」`. Yahoo news aggregation pages are duplicates of the source article AND their redirect URLs expire faster. Check: `title.endswith("- Yahoo!ニュース")` or equivalent strip+suffix check.
 - **Query precision**: Use `"台湾映画 上映会"` (not `"台湾映画 上映"`) to filter out pure news articles that report on upcoming release dates without being event listings.
+- **`_clean_title_for_dedup()`**: strips the `- Source Name` or `｜Source Name` suffix that Google News appends to RSS article titles. `Event.name_ja` is set to the cleaned title (improves in-scraper `dedup_events` key matching). `raw_title` always retains the original full title including the suffix. Apply cleaning before constructing the `Event` object.
 - **`_NEWS_SOURCES` member**: `merger.py` uses Pass 2 (date-range + location-overlap) — NOT name similarity — to merge google_news_rss events into official primaries. This is intentional: article titles don't match event names. Never add `google_news_rss` to Pass 1 name-similarity matching.
+- **Within-source dedup**: handled by `merger.py` Pass 0 (name_ja similarity ≥ 0.85), which explicitly includes `start_date=NULL` events. Pass 1 skips same-source pairs, so Pass 0 is the only dedup layer for gnews-vs-gnews.
 
 ## nhk_rss-specific
 - Fetches NHK news category RSS feeds (cat4=international, cat7=culture/science); Taiwan-filtered; `category: ["report", "books_media"]`
@@ -427,7 +429,16 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 
 ## merger.py
 
-`scraper/merger.py` runs after every scraper cycle to deduplicate cross-source events. Two detection passes:
+`scraper/merger.py` runs after every scraper cycle to deduplicate cross-source events. Four detection passes:
+
+### Pass 0 — Within-source google_news_rss dedup
+- Runs **before** Pass 1. Fetches all active `google_news_rss` events, **including those with `start_date=NULL`**.
+- Pairs events with `name_ja` similarity ≥ 0.85 (`SequenceMatcher` on normalised names).
+- Primary selection rules (in order): (1) non-null `start_date` preferred over null; (2) tie → longer `raw_description` wins.
+- Secondary: `is_active=False`; `source_url` appended to primary's `secondary_source_urls`.
+- **Why needed**: `source_id` for gnews is `gnews_{md5(url)[:12]}` — different articles about the same event have different IDs, so in-scraper dedup misses them. Pass 1 explicitly skips same-source pairs, so Pass 0 must handle this case first.
+- **Debug tip**: when investigating gnews duplicates, check Pass 0 log first to confirm whether the pair was detected.
+- Print output format: `Done: N pair(s)/orphan(s) merged (Pass 0+1+2+3).`
 
 ### Pass 1 — Name similarity (same start_date group)
 - Groups all active events by `start_date` (YYYY-MM-DD).
@@ -450,7 +461,7 @@ After Pass 1/2, some sub-events are left active while their parent has been deac
 3. If the primary parent has a sub-event with `name_ja` similarity ≥ 0.85 **and** matching `start_date` → merge (deactivate orphan, keep winner per `SOURCE_PRIORITY`).
 4. If no matching sub found under the primary parent → deactivate the orphan directly.
 
-**Pass 3 must run after Pass 1+2** (so parent merge results are already settled). Print output format: `Done: N pair(s)/orphan(s) merged (Pass 1+2+3).`
+**Pass 3 must run after Pass 0+1+2** (so parent merge results are already settled). Print output format: `Done: N pair(s)/orphan(s) merged (Pass 0+1+2+3).`
 
 ### Merge result
 - Primary: `secondary_source_urls` extended; `raw_description` enriched with secondary content (first merge only); `annotation_status` reset to `pending` for re-annotation.
