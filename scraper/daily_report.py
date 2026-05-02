@@ -188,16 +188,7 @@ def generate_report() -> str:
     lines.append("=" * 48)
     lines.append("")
 
-    # Section 1: git commits
-    lines.append(f"── 昨日提交 {sep[:32]}")
-    if git_commits:
-        for line in git_commits.splitlines()[:20]:
-            lines.append(f"  {line}")
-    else:
-        lines.append("  （無提交）")
-    lines.append("")
-
-    # Section 2: scraper runs
+    # Section 1: scraper runs
     lines.append(f"── 爬蟲結果（過去 25 小時）{sep[:22]}")
     if runs:
         lines.append(f"  新增/更新事件  ：{total_events} 件")
@@ -214,7 +205,7 @@ def generate_report() -> str:
         lines.append("  （無爬蟲記錄 — 可能今日未執行）")
     lines.append("")
 
-    # Section 3: pending items
+    # Section 2: pending items
     lines.append(f"── 待處理事項 {sep[:31]}")
     has_pending = False
 
@@ -272,6 +263,15 @@ def generate_report() -> str:
 
     if not has_pending:
         lines.append("  ✓ 無待處理事項")
+    lines.append("")
+
+    # Section 3: git commits
+    lines.append(f"── 昨日提交 {sep[:32]}")
+    if git_commits:
+        for line in git_commits.splitlines()[:20]:
+            lines.append(f"  {line}")
+    else:
+        lines.append("  （無提交）")
     lines.append("")
 
     # Section 4: security note
