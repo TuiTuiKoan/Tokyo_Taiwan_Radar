@@ -196,6 +196,27 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
 - Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
 - `main.py` reads `getattr(scraper, "_deepl_chars_used", 0)` when writing to `scraper_runs`.
 
+## CLI Module 入口 — `load_dotenv()` 必要性
+- **任何有獨立 CLI 入口（`-m module` / `if __name__ == '__main__'`）的 Python module 必須在頂部加 `load_dotenv()`**。
+- `main.py` 已有 `load_dotenv`，但子 module（如 `auto_scraper/generate.py`）以 `python -m auto_scraper.generate` 直接執行時，不會繼承 `main.py` 的 `load_dotenv` 呼叫。
+- CI 用 GitHub Actions secret 注入 env var，load_dotenv 為 no-op，不受影響。
+- **Pattern**：
+  ```python
+  try:
+      from dotenv import load_dotenv
+      load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # scraper/.env
+  except ImportError:
+      pass
+  ```
+- **根因**：`python -m auto_scraper.generate --source-id <id>` 本機崩潰 `KeyError: SUPABASE_URL`（commit `d94fc80` 修復）。
+
+## Supabase SDK — JSONB Field Rules
+- **JSONB 欄位（`jsonb`、`jsonb[]`）必須傳 Python `list`/`dict`**，不可用 `json.dumps()` 先序列化。Supabase Python SDK 自動序列化 native types；手動 `json.dumps()` 造成雙重編碼，欄位存入 `"[{...}]"` 字串而非 JSONB 陣列。前端 `.map()` 等 Array 操作會因此 crash。
+- **受影響欄位（目前）**：`record_links`（`jsonb[]`）、`secondary_source_urls`（`text[]`，同規則）。新增 JSONB 欄位時務必確認傳入型別。
+- **診斷**：若前端出現 `.map is not a function` 或 `.filter is not a function`，優先確認 DB 欄位中儲存的是字串還是陣列（在 Supabase Dashboard 直接 SELECT 該欄位）。
+- **反例（bug pattern）**：`_event_to_row()` 中 `"record_links": json.dumps(links)` → 存入 `"[{...}]"` 字串。
+- **正例（correct pattern）**：`"record_links": links` （直接傳 Python list）。
+
 ## enrich_addresses.py
 - **Purpose**: GPT-4o-mini batch-fills `location_address` / `location_address_zh` / `location_address_en` for events that have `location_name` set but `location_address = NULL`.
 - **Skipped sources**: `gguide_tv` (TV broadcast, no physical address) and events with `location_name ILIKE '%オンライン%'` are excluded by default.

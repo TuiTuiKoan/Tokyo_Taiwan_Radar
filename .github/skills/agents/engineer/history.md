@@ -3,6 +3,53 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02（下午）— generate.py load_dotenv、not-viable 來源、Admin 篩選預設值、eurospace lookup_movie_titles（commits `d94fc80`、`29046ad`、`f905ee2`）
+
+### auto_scraper/generate.py load_dotenv 修復（commit `d94fc80`）
+- **問題**：本機 `python -m auto_scraper.generate --source-id <id>` 執行崩潰：`KeyError: SUPABASE_URL`。
+- **根本原因**：`generate.py` 無 `load_dotenv()` 呼叫；`main.py` 和 `annotator.py` 因為有 `load_dotenv` 所以正常，但 generate 是獨立入口。
+- **修復**：在 `generate.py` import 區塊後加 best-effort `load_dotenv()`（`try/except ImportError` 包圍）。CI 用 secret，load_dotenv 為 no-op，不受影響。
+- **教訓**：**任何有 `-m module` 獨立 CLI 入口的 Python module 都需要 `load_dotenv()`**。不能依賴父 module（main.py）已先執行 load_dotenv。→ 已加入 scraper-expert/SKILL.md § auto_generate Pipeline。
+
+### source 126/148 標記 not-viable（純 DB 操作）
+- source 126（TAP）：FullCalendar SPA，React 動態渲染，DOM 無事件元素 → not-viable。
+- source 148（Zepp Tokyo）：Cloudflare JS challenge 攔截 Playwright；無標準 URL pattern → not-viable。
+- **操作方式**：直接 `UPDATE research_sources SET auto_scraper_status='not-viable', auto_scraper_failed_reason='...'`，不需走 auto_generate。
+- **新增 not-viable 判定準則**：
+  - Cloudflare JS challenge → not-viable（Playwright stealth 無法可靠繞過）
+  - SPA 動態行事曆（FullCalendar / React）→ not-viable（事件不在初始 HTML DOM 中）
+
+### Admin 篩選預設值修復（commit `29046ad`）
+- **問題**：AdminEventTable 預設 filter `active` 讓管理員只看到 active 事件，遺漏 pending / archived。
+- **修復**：預設改為 `all`。
+- **教訓**：後台管理頁預設應 `all`，前台頁預設應 `active`。
+
+### eurospace.py 加入 lookup_movie_titles（commit `f905ee2`）
+- eurospace 為最後一個未整合 `lookup_movie_titles` 的 cinema scraper。
+- import 後在 `Event()` 建構前呼叫，silent failure（lookup 失敗時回傳 None，不中斷 scrape）。
+- 詳細記錄在 scraper-expert/history.md 2026-05-02 頂部條目。
+
+---
+## 2026-05-02 — record_links JSONB bug、name_ja_locked 機制、Pass 3 孤兒誤殺 WARNING（commits `0cdad90`、`180c495`）
+
+### record_links JSONB bug 修復
+- **問題**：`database.py` 的 `_event_to_row()` 用 `json.dumps(links)` 傳給 Supabase SDK，JSONB 欄位存入字串而非陣列；前端 `.map()` 在字串上呼叫 → TypeError → HTTP 500。
+- **修復**：直接傳 Python `list` 物件，移除 `json.dumps()`。Supabase Python SDK 自動序列化 Python native types。
+- **教訓**：Supabase SDK JSONB 欄位（`jsonb`、`jsonb[]`）**必須傳 Python `list`/`dict`，絕對不能用 `json.dumps()` 先序列化**。`json.dumps()` 會造成雙重編碼，最終存入 `"[{...}]"` 字串而非 JSONB 陣列。→ 已加入 scraper-expert SKILL.md § Supabase SDK — JSONB Field Rules。
+
+### name_ja_locked 機制（commits `0cdad90`、`180c495`）
+- **設計**：`name_ja_locked: bool = False` 加入 `Event` dataclass；`database.py` `_event_to_row()` 在 True 時寫入 DB；`annotator.py` 在 True 時跳過 `name_ja` 覆寫（其他欄位照常生成）。
+- **DB**：`supabase/migrations/034_name_ja_locked.sql`（`DEFAULT false`，不需 backfill）。
+- **首次適用**：`taiwanshi.py` 的學術論文子活動（`題目:` 欄位抓取的精確標題）。
+- **教訓**：「scraper 已有精確答案，annotator 不應覆寫」的場景，應用 `locked` flag 而非事後 DB patch。鎖定條件：標題來源是結構化定義欄位（`題目:` / 官方片名），而非自由文字推斷。
+
+### ⚠️ Pass 3 孤兒誤殺 — 程式碼尚未修復
+- **問題**：`merger.py` Pass 3 誤 deactivate 了有效父事件（`00ae1ea8`、`dfb490c8`）的所有子活動（共 12 筆）。
+- **已做**：手動 DB hotfix 還原（`UPDATE is_active=True WHERE parent_event_id IN ('00ae1ea8...', 'dfb490c8...')`）。
+- **尚未修復**：`merger.py` 程式碼未改動，下次執行仍可能再次誤殺。
+- **需要的修復**：Pass 3 在清除孤兒前，加保護條件——只有當父事件的 `secondary_source_urls` 非空（即真正被 Pass 1/2 合併為 secondary）時，才允許清除其孤兒子活動。若父事件本身只是被「錯誤合併」成 secondary，此保護可防止連帶誤殺。
+
+---
 ## 2026-05-02 — merger richness tiebreaker + MERGER_WORKFLOW.md（commits `19a2067`、`d4e9227`）
 
 **問題：** `merger.py` Pass 1/3 在兩個來源 `SOURCE_PRIORITY` 相同時，以遍歷順序決定 primary，可能選到欄位空洞的事件。

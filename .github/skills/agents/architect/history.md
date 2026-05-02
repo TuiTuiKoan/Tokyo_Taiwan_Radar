@@ -3,6 +3,58 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02（下午）— generate.py load_dotenv、not-viable 來源判定、Admin 篩選預設值、eurospace lookup_movie_titles（commits `d94fc80`、`29046ad`、`f905ee2`）
+
+### auto_scraper/generate.py load_dotenv 修復（commit `d94fc80`）
+- **問題**：`python -m auto_scraper.generate` 本機執行崩潰：`SUPABASE_URL required`。
+- **根本原因**：`generate.py` 沒有 `load_dotenv()` 呼叫；CI 用 GitHub Actions secret 所以不受影響。
+- **修復**：在 import 區塊後加入 best-effort `load_dotenv(Path(__file__).parent.parent / ".env")`，使 `try/except ImportError` 包圍以防非 dotenv 環境。
+- **教訓**：任何有獨立 CLI 入口（`-m module` / `__main__`）的 Python module，必須在頂部加 `load_dotenv()`。CI 有 env var 時 load_dotenv 為 no-op，不影響 CI。
+
+### source 126/148 標記 not-viable（純 DB 操作）
+- source 126（TAP）：React FullCalendar SPA，事件 DOM 動態渲染，Playwright 選不到日期欄位 → `not-viable`。
+- source 148（Zepp Tokyo）：Cloudflare JS challenge，Playwright 被攔截；頁面無標準活動 URL pattern，無法解析 source_id → `not-viable`。
+- **操作**：直接 `UPDATE auto_scraper_status='not-viable', auto_scraper_failed_reason='...'`，不需 auto_generate pipeline。
+- **新增判定規則**：
+  - Cloudflare bot protection → not-viable（JS challenge 無法繞過）
+  - SPA 動態行事曆（React/FullCalendar）→ not-viable（初始 HTML 無事件 DOM）
+
+### Admin 篩選預設值修復（commit `29046ad`）
+- **問題**：AdminEventTable 預設 filter 為 `active`，管理員進頁面看不到 pending / inactive 資料。
+- **修復**：預設改為 `all`。
+- **教訓**：Admin 管理介面預設應設 `all`；`active` 適合面向使用者的頁面，不適合後台管理。
+
+### eurospace.py 加入 lookup_movie_titles（commit `f905ee2`）
+- import `lookup_movie_titles`，在 `Event` 建構前呼叫，填入 `name_zh` / `name_en`。
+- 同時更新 `.github/skills/agents/scraper-expert/SKILL.md`（cinema scraper 採用狀況表）及 `scraper-expert/history.md`。
+- 本次 commit 為本地未推送狀態（main 分支 local commit）。
+
+---
+## 2026-05-02 — record_links JSONB bug、Pass 3 孤兒誤殺、name_ja_locked 設計、活動紀錄 UI（commits `0cdad90`、`180c495`）
+
+### record_links JSONB bug（緊急修復）
+- **問題**：`database.py` 用 `json.dumps(links)` 把 Python list 序列化後傳給 Supabase，JSONB 欄位存入字串而非陣列，前端 `.map()` crash → HTTP 500。
+- **修復**：直接傳 Python `list` 物件，移除 `json.dumps()`。
+- **教訓**：Supabase Python SDK 對 JSONB 欄位自動序列化 Python `list`/`dict`，**絕對不能先用 `json.dumps()` 序列化**，否則存入字串而非 JSONB（雙重編碼）。
+
+### merger.py Pass 3 孤兒誤殺（緊急 hotfix，程式碼尚未修復）
+- **問題**：Pass 3 孤兒清除邏輯誤殺了有效父事件（`00ae1ea8`、`dfb490c8`）的全部子活動（共 12 筆）。
+- **緊急修復**：手動 `UPDATE is_active = True` 還原 12 筆子活動。
+- **根本原因**：Pass 3 只看「sub 的 parent 是否 inactive」，未確認父事件的 inactive 是否由正確的合併造成（可能是誤合併）。
+- **⚠️ 程式碼尚未修復**：下次 Pass 3 執行仍可能再次誤殺。需加保護：只有父事件在 `secondary_source_urls` 非空（真正被 Pass 1/2 合併）時，才允許清除孤兒子活動。
+- **暫行方案**：若再次發生，立即執行 `UPDATE is_active=True WHERE parent_event_id = '<uuid>'`。
+
+### name_ja_locked 機制設計（commits `0cdad90`、`180c495`）
+- **問題**：annotator GPT 覆寫 scraper 從 `題目:` 欄位精準抓取的學術論文標題，截斷副標題並加通俗後綴「に関する講演会」。
+- **設計決策**：新增 `name_ja_locked` boolean（migration 034 / Event dataclass / database.py / annotator.py）。`True` 時 annotator 保留現有 `name_ja`，翻譯/分類仍正常生成。
+- **教訓**：判斷依據為「標題來源是定義式欄位（has-an-exact-value）vs 自由文字推斷（described-in-text）」；前者應 lock，後者讓 annotator 改善。
+
+### 活動紀錄 UI feature（commit `0cdad90`）
+- 事件詳情頁「結束日期」欄位：事件已結束且 `record_links` 非空時，顯示藍色「活動紀錄 ↗」連結。
+- 三語 i18n 同步：`recordLinksBadge` key 加入 zh/en/ja.json。
+- 同時手動合併兩筆重複事件（815dd841 ← e4a0edcc），活動レポート URL 存入 `record_links[{recommended: true}]`。
+
+---
 ## 2026-05-02 — competition 標籤更名 + overseas 篩選器新增（下午）
 
 ### competition 標籤更名（commit f3cae57）

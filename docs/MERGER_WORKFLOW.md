@@ -100,6 +100,14 @@ Done: N pair(s)/orphan(s) merged (Pass 0+1+2+3).
 3. 若 primary parent 下有相似 sub（`name_ja` ≥0.85 + 相同 `start_date`）→ 合併
 4. 找不到對應 sub → 直接 deactivate 孤兒
 
+> ⚠️ **已知 Bug（2026-05-02，程式碼尚未修復）**：Pass 3 可能誤 deactivate 有效父事件（非由 Pass 1/2 合併造成的 inactive parent）的所有子活動。
+> 已知受害父事件：`00ae1ea8`、`dfb490c8`（各有 sub-events 被誤殺，已手動還原）。
+> **暫行緊急修復**：若發現子活動莫名消失，立即執行：
+> ```sql
+> UPDATE events SET is_active = true WHERE parent_event_id = '<parent_uuid>' AND is_active = false;
+> ```
+> **待修方向**：Pass 3 在步驟 4 執行前，應確認父事件的 `secondary_source_urls` 非空（即真正被 Pass 1/2 合併），才允許清除孤兒子活動。
+
 **Primary 選擇**（和 Pass 1 相同）：
 
 1. `SOURCE_PRIORITY` 數值較小
