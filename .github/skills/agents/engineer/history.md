@@ -3,6 +3,30 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — 人名校正擴展至所有事件（非僅電影）
+
+**變更：**
+- `person_name_lookup.py`：新增 `extract_katakana_names()`（regex 提取帶 ・ 的片假名人名）、`_search_person_eiga()`（eiga.com 人物搜尋）、`lookup_single_person()`（通用人名查詢）
+- `_lookup_zh_via_wikipedia()` + `_lookup_zh_via_ja_wikipedia()`：新增 `strict` 參數——`strict=True` 時要求人物關鍵字匹配（zh.wikipedia）或 zh 跨語言連結（ja.wikipedia），阻止假陽性
+- `annotator.py` `enrich_person_names()`：移除 `.contains("category", ["movie"])` 過濾，改為全事件掃描。電影事件走 eiga.com 電影頁結構化查詢（`strict=False`），非電影事件走片假名提取 + Wikipedia（`strict=True`）
+- CI workflow step 名稱更新為「Enrich person names via eiga.com + Wikipedia (all events)」
+
+**假陽性防範：**
+- 問題：非電影事件中 `リン・インジュ` → `安永亜季`（日本人名，非目標）；`ホアン・ヤーリー` → `脊蛇屬`（蛇屬名）
+- 解決：`strict=True` 模式要求 zh interlanguage link 或 snippet 含人物關鍵字，消除 CJK fallback 的假陽性
+- 噪音過濾：最多 3 ・ 分段、每段 ≤7 字、噪音後綴排除（ホテル、センター 等）
+
+**測試結果：**
+- 林志玲、周杰倫、蔡英文、鄧麗君：全部正確 ✓
+- ジョン・スミス（非華人）：正確 SKIP ✓
+- 電影管線（赤い糸 輪廻のひみつ, 5 人）：未受影響 ✓
+
+**教訓：**
+1. Wikipedia 自由文字搜尋的 CJK fallback（`2 ≤ len(title) ≤ 4`）在非策展輸入下會大量假陽性——通用管線必須用 `strict=True`
+2. eiga.com 不只有電影搜尋，也有 `/search/{name}/person/` 人物搜尋——適用於所有事件中的演員/導演
+3. 噪音控制靠「regex 過濾 + Wikipedia 自過濾」雙層即可，不需要 GPT 前置提取
+
+---
 ## 2026-05-02（深夜）— Realtime stale closure 修復、badge client component、Quality page 清理（commits `c3fe0bc`、`4a71258`、`cd4cc29`）
 
 ### 問題一：AdminReportsTable Realtime stale closure（commit `4a71258`）

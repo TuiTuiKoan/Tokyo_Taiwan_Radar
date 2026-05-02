@@ -31,11 +31,25 @@ LOOKUP_DELAY_SEC = 1.0
 
 _BASE_URL = "https://eiga.com"
 _SEARCH_URL_TMPL = "https://eiga.com/search/{}/movie/"
+_PERSON_SEARCH_URL_TMPL = "https://eiga.com/search/{}/person/"
 _WIKI_ZH_API = "https://zh.wikipedia.org/w/api.php"
 _WIKI_JA_API = "https://ja.wikipedia.org/w/api.php"
 
 # Pattern: "孝綸（シャオルン）クー・チェンドン" → actor name is after the closing paren
 _CHAR_NAME_PREFIX_RE = re.compile(r"^[^）)]+[）)]\s*")
+
+# Katakana foreign name with ・ separator: ギデンズ・コー, リン・チーリン
+_KATAKANA_NAME_RE = re.compile(r"[ァ-ヶー]{2,}(?:・[ァ-ヶー]{2,})+")
+
+# Suffixes that indicate compound nouns rather than person names
+_NOISE_SUFFIXES = (
+    "ホテル", "センター", "サービス", "プログラム", "セミナー",
+    "アクセス", "フード", "ブランド", "ファン", "レター",
+    "タブレット", "イヤホン", "フィギュア",
+)
+
+# Max ・-separated parts for a person name (Chinese/Taiwanese names: 2–3 parts)
+_MAX_NAME_PARTS = 3
 
 _USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -153,11 +167,16 @@ def _lookup_person_en_and_origin(person_url: str) -> tuple[str | None, str | Non
     return name_en, origin
 
 
-def _lookup_zh_via_wikipedia(en_name: str, origin: str | None = None) -> str | None:
+def _lookup_zh_via_wikipedia(
+    en_name: str, origin: str | None = None, *, strict: bool = False,
+) -> str | None:
     """Search zh.wikipedia with an English name and return the first result title.
 
     If origin contains '台湾' or '中国', appends it to the search query
     for disambiguation (e.g. "Wang Ching 台灣" → "王淨" instead of "梁宏正").
+
+    strict=True: only return results whose snippet contains person keywords.
+    strict=False (default): also fallback to any short CJK title (movie pipeline).
     """
     if not en_name:
         return None
@@ -204,19 +223,27 @@ def _lookup_zh_via_wikipedia(en_name: str, origin: str | None = None) -> str | N
             return title
 
     # Fallback: first result with CJK chars and reasonable length (2-4 chars)
-    for r in results:
-        title = r["title"]
-        if re.search(r"[\u4e00-\u9fff]", title) and 2 <= len(title) <= 4:
-            return title
+    # Skip in strict mode — too many false positives without keyword validation
+    if not strict:
+        for r in results:
+            title = r["title"]
+            if re.search(r"[\u4e00-\u9fff]", title) and 2 <= len(title) <= 4:
+                return title
 
     return None
 
 
-def _lookup_zh_via_ja_wikipedia(ja_name: str) -> str | None:
+def _lookup_zh_via_ja_wikipedia(
+    ja_name: str, *, strict: bool = False,
+) -> str | None:
     """Fallback: search ja.wikipedia for a katakana name.
 
     If the article title is in CJK characters (e.g. "柯震東" for "クー・チェンドン"),
     that IS the Chinese name. Then also try the zh interlanguage link.
+
+    strict=True: only return if a zh interlanguage link exists (avoids
+    returning unrelated Japanese CJK titles for non-movie lookups).
+    strict=False (default): fallback to ja article CJK title (movie pipeline).
     """
     if not ja_name:
         return None
@@ -263,7 +290,8 @@ def _lookup_zh_via_ja_wikipedia(ja_name: str) -> str | None:
         for page in pages.values():
             for ll in page.get("langlinks", []):
                 return ll["*"]  # zh interlanguage title is most canonical
-        return title  # Fall back to the ja article title (CJK)
+        if not strict:
+            return title  # Fall back to the ja article title (CJK)
 
     return None
 
@@ -341,3 +369,94 @@ def lookup_person_names(name_ja: str) -> dict[str, PersonInfo]:
         logger.debug("lookup_person_names: error for %r: %s", key, exc)
         _movie_cache[key] = {}
         return {}
+
+
+# ---------------------------------------------------------------------------
+# General (non-movie) person name lookup
+# ---------------------------------------------------------------------------
+
+def extract_katakana_names(text: str) -> list[str]:
+    """Extract katakana foreign name patterns (with ・) from text.
+
+    Filters out compound nouns by checking part count, length, and
+    known noise suffixes. Returns deduplicated list.
+    """
+    raw = set(_KATAKANA_NAME_RE.findall(text))
+    result = []
+    for n in raw:
+        parts = n.split("・")
+        if len(parts) > _MAX_NAME_PARTS:
+            continue
+        # Any part ending with a noise suffix → compound noun, not a name
+        if any(p.endswith(suf) for p in parts for suf in _NOISE_SUFFIXES):
+            continue
+        # Person name parts are typically short (≤7 katakana chars)
+        if any(len(p) > 7 for p in parts):
+            continue
+        result.append(n)
+    return result
+
+
+def _search_person_eiga(ja_name: str) -> str | None:
+    """Search eiga.com person directory for a katakana name."""
+    encoded = quote(ja_name.strip())
+    search_url = _PERSON_SEARCH_URL_TMPL.format(encoded)
+    time.sleep(LOOKUP_DELAY_SEC)
+    try:
+        resp = _session.get(search_url, timeout=15)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for a in soup.select("a[href^='/person/']"):
+            href = a.get("href", "")
+            if re.match(r"^/person/\d+/$", href):
+                return _BASE_URL + href
+    except Exception as exc:
+        logger.debug("_search_person_eiga error for %s: %s", ja_name, exc)
+    return None
+
+
+def lookup_single_person(ja_name: str) -> PersonInfo | None:
+    """Look up a single person by Japanese (katakana) name.
+
+    Strategy:
+      1. Search eiga.com person directory → if found, get English name + origin
+         → zh.wikipedia (disambiguated by origin country).
+      2. Fallback: ja.wikipedia direct search → CJK title or zh interlanguage link.
+
+    Works for any person (actors, directors, politicians, academics, etc.).
+    Returns None if not found or not resolvable to a Chinese name.
+    """
+    cache_key = f"single:{ja_name}"
+    if cache_key in _person_cache:
+        en, zh = _person_cache[cache_key]
+        return PersonInfo(name_zh=zh, name_en=en, role="") if (zh or en) else None
+
+    name_en: str | None = None
+    name_zh: str | None = None
+
+    try:
+        # Tier 1: eiga.com person search → English name + origin → zh.wikipedia
+        person_url = _search_person_eiga(ja_name)
+        if person_url:
+            en, origin = _lookup_person_en_and_origin(person_url)
+            if en:
+                name_en = en
+                name_zh = _lookup_zh_via_wikipedia(en, origin, strict=True)
+
+        # Tier 2: ja.wikipedia direct search (strict: require zh interlanguage link)
+        if not name_zh:
+            name_zh = _lookup_zh_via_ja_wikipedia(ja_name, strict=True)
+
+        _person_cache[cache_key] = (name_en, name_zh)
+        if name_zh:
+            logger.info(
+                "lookup_single_person: %s → zh=%r en=%r",
+                ja_name, name_zh, name_en,
+            )
+            return PersonInfo(name_zh=name_zh, name_en=name_en, role="")
+        return None
+
+    except Exception as exc:
+        logger.debug("lookup_single_person error for %s: %s", ja_name, exc)
+        _person_cache[cache_key] = (None, None)
+        return None

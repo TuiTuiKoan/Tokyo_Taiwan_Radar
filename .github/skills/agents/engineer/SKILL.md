@@ -569,22 +569,34 @@ Every route slug must appear the **same number of times** (= total number of adm
 
 ## Person Name Lookup Pattern
 
-When movie events have GPT-generated descriptions, person names (cast & crew) are often wrong — GPT translates katakana phonetically instead of using the official Chinese/English name (e.g. ギデンズ・コー → 「紀德恩」instead of 「九把刀」). Use `scraper/person_name_lookup.py` to look up correct names.
+GPT-4o-mini translates katakana person names phonetically, producing wrong Chinese names (e.g. ギデンズ・コー → 「紀德恩」instead of 「九把刀」). `scraper/person_name_lookup.py` corrects this for **all events**, not just movies.
 
-**Lookup chain (3 tiers):**
+**Two pipelines:**
+
+### Movie events (structured lookup via eiga.com)
 1. **eiga.com movie page** → extract cast/crew list (role, katakana name, person URL)
-2. **eiga.com person page** → extract English name (`英語表記`) and origin country (`出身`). No Chinese name field exists on eiga.com.
-3. **zh.wikipedia search** → search English name + origin country (e.g. `"Wang Ching 台灣"`) for Chinese name. Fallback: **ja.wikipedia** — search katakana name; if article title is pure CJK (e.g. 「柯震東」 for 「クー・チェンドン」), use it as the Chinese name; also check zh interlanguage links.
+2. **eiga.com person page** → extract English name (`英語表記`) and origin country (`出身`)
+3. **zh.wikipedia** → search English name + origin country for Chinese name. Fallback: **ja.wikipedia** CJK title or zh interlanguage link.
+- Uses `lookup_person_names(name_ja)` → returns all cast/crew.
+- Wikipedia uses `strict=False` (default) — allows CJK title fallback because input is known to be a person.
+
+### Non-movie events (general katakana extraction)
+1. **Regex extraction**: `extract_katakana_names(text)` extracts katakana patterns with ・ separator (e.g. `リン・チーリン`, `ツァイ・インウェン`).
+2. **eiga.com person search** → if found, get English name + origin.
+3. **Wikipedia lookup** with `strict=True` — **requires** person-keyword match (zh.wikipedia) or zh interlanguage link (ja.wikipedia). No CJK title fallback.
+- Uses `lookup_single_person(ja_name)` → returns single PersonInfo or None.
+- Noise filtering: max 3 ・-parts, max 7 chars/part, noise suffix exclusion.
+- Self-filtering: non-person terms (place names, brands) naturally return None from Wikipedia.
 
 **Critical rules:**
-- **Character name prefix stripping:** eiga.com cast names include character names (e.g. 「孝綸（シャオルン）クー・チェンドン」). Must use `_CHAR_NAME_PREFIX_RE` regex to strip the character name prefix before lookup.
-- **Wikipedia disambiguation requires origin country:** Bare English names return unrelated results (botanists, places). Always append the origin country to the search query.
-- **Wikipedia person-keyword filtering:** Prefer results whose snippet contains 演員/導演/歌手/出生. Prefer short titles (2-4 chars) for Chinese names.
-- **desc_zh fix requires GPT:** Wrong names in desc_zh are GPT-generated phonetic translations that don't match any known string. Must use GPT-4o-mini (`_fix_person_names_gpt()`) to identify and replace them. Plain string replacement does not work.
-- **desc_en fix uses direct replacement:** English names from eiga.com can be string-replaced directly in desc_en (katakana → English name).
+- **strict mode prevents false positives:** Without strict mode, ja.wikipedia returns unrelated CJK titles (e.g. `リン・インジュ` → `安永亜季`). Always use `strict=True` for general (non-movie) lookups.
+- **Character name prefix stripping:** eiga.com cast names include character names (e.g. 「孝綸（シャオルン）クー・チェンドン」). Must use `_CHAR_NAME_PREFIX_RE` regex to strip.
+- **Wikipedia disambiguation requires origin country:** Bare English names return unrelated results. Always append the origin country to the search query.
+- **desc_zh fix requires GPT:** Wrong names in desc_zh are GPT-generated phonetic translations. Must use GPT-4o-mini (`_fix_person_names_gpt()`) to identify and replace them.
+- **desc_en fix uses direct replacement:** Katakana names leaked into English text → replace with English name.
 
 **Annotator integration:**
-- `enrich_person_names()` in `annotator.py` — queries movie events (excl. `eiga_com` source + already reviewed), looks up cast/crew, fixes desc_zh via GPT and desc_en via direct replacement.
+- `enrich_person_names()` in `annotator.py` — queries ALL events (excl. `eiga_com` + already reviewed), routes movie vs non-movie, fixes desc_zh via GPT and desc_en via direct replacement.
 - CLI: `python annotator.py --enrich-person-names`
 - Caching: in-memory per movie and per person URL within a single run.
 
