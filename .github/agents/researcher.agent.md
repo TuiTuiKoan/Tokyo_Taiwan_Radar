@@ -64,6 +64,23 @@ Production data (2026-05-02 batch e2e, 6 candidates) shows Phase 2 success rate 
 
 All hint flags are written to `source_profile` JSONB and seed the LLM prompt in Phase 2. Treat hint-filling as part of the Researcher's deliverable, not optional metadata.
 
+### ENFORCE: Pre-handoff Selector Hint Check
+
+Before running `update_source.py --status researched --feasibility easy`, the Researcher MUST self-verify:
+
+| Check | Required |
+|-------|----------|
+| Fetched the listing page HTML (via fetch_webpage or curl)? | ✅ |
+| Identified the repeating card element by inspecting DOM? | ✅ |
+| Selector is **verbatim** from the HTML (no paraphrase, no guess)? | ✅ |
+| Selector matches ≥1 element in the sample HTML? | ✅ |
+
+**Failure modes**:
+- If you cannot find a stable repeating selector → **downgrade to `--feasibility medium`** and record the reason in `--notes`. Do NOT pass a fabricated selector.
+- If the listing requires JS rendering and you only have static HTML → downgrade to `medium` (Phase 2 can still attempt with Playwright but accept that easy-tier success rate drops).
+
+**Why this matters**: 2026-05-02 batch e2e showed Phase 2 success rate is **17% (1/6)** when no verbatim selector hint is supplied; GPT-4o fabricates plausible CSS classes that don't exist in the real DOM.
+
 ## Required Steps
 
 ### Step 0: Load Candidates (ALWAYS run first)
@@ -124,7 +141,7 @@ For each promising source, answer:
        --status researched \
        --feasibility {easy|medium|hard} \
        --pagination-hint "<e.g. ?page=N up to 10>" \
-       --card-selector-hint "<e.g. .event-card>" \
+       --card-selector-hint "<verbatim selector from listing DOM — REQUIRED when feasibility=easy>" \
        --date-format-hint "<e.g. YYYY/MM/DD>" \
        --notes "<edge cases, ToS, rate limits>" \
        --create-issue

@@ -24,6 +24,23 @@ Read this at the start of every session before evaluating any source.
 - When profiling, note which region(s) events are held in (`region: 全国 | 東京 | 大阪 | 福岡 | ...`).
 - The question is: **does the source have Taiwan events?** Not: *is the venue in Tokyo?*
 
+## ENFORCE: card_selector_hint required when feasibility=easy
+
+Before `update_source.py --status researched --feasibility easy`, self-verify:
+
+| Check | Required |
+|-------|----------|
+| Fetched listing page HTML (fetch_webpage / curl)? | ✅ |
+| Identified the repeating card element from DOM? | ✅ |
+| Selector is **verbatim** from HTML (no guess)? | ✅ |
+| Selector matches ≥1 element in sample HTML? | ✅ |
+
+Failure modes:
+- No stable repeating selector → **downgrade to `--feasibility medium`** + record reason in `--notes`. Never pass a fabricated selector.
+- Listing requires JS rendering and only static HTML available → downgrade to `medium`.
+
+Data point (2026-05-02 batch e2e): Phase 2 success rate is **17% (1/6)** without a verbatim selector hint — GPT-4o fabricates plausible-looking CSS classes that don't exist in the real DOM.
+
 ## Source Evaluation
 - Check `robots.txt` and ToS before profiling a scraping target.
 - Verify whether the site uses client-side rendering — determines Playwright vs. simple HTTP fetch. Check by viewing page source vs. rendered output.
