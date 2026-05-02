@@ -31,7 +31,8 @@
     "locationOnline": "線上",
     "locationKanto": "關東（不含東京）・東北・北海道",
     "locationChubu": "中部・近畿・關西",
-    "locationChugoku": "中國・九州・四國"
+    "locationChugoku": "中國・九州・四國",
+    "locationOverseas": "海外（台灣各城市）"
   },
   "categories": {
     "movie": "電影",
@@ -439,6 +440,5 @@
     "taiwan_japan": "專注台日交流的活動，包含文化互訪、姐妹城市活動、台日商務交流及民間友好活動。",
     "lifestyle_food": "以台灣飲食文化與生活風格為主題的活動，包含台灣料理教室、食材市集、生活風格工作坊。",
     "books_media": "台灣書籍、文學、出版、媒體相關的活動，包含讀書會、作者講座、台灣文學展覽。"
-  },
-  "locationOverseas": "海外（台灣各城市）"
+  }
 }

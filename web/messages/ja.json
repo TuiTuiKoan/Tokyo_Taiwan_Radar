@@ -31,7 +31,8 @@
     "locationOnline": "オンライン",
     "locationKanto": "関東（東京除く）・東北・北海道",
     "locationChubu": "中部・近畿・関西",
-    "locationChugoku": "中国・九州・四国"
+    "locationChugoku": "中国・九州・四国",
+    "locationOverseas": "海外（台湾各都市）"
   },
   "categories": {
     "movie": "映画",
@@ -439,6 +440,5 @@
     "taiwan_japan": "台日交流に特化したイベント。文化交流、姉妹都市イベント、台日ビジネス交流、民間友好活動などを掲載しています。",
     "lifestyle_food": "台湾の食文化・ライフスタイルをテーマにしたイベント。台湾料理教室、食材マーケット、ライフスタイルワークショップなどを掲載。",
     "books_media": "台湾の書籍・文学・出版・メディア関連イベント。読書会、著者講演、台湾文学展示などを掲載しています。"
-  },
-  "locationOverseas": "海外（台湾各都市）"
+  }
 }
