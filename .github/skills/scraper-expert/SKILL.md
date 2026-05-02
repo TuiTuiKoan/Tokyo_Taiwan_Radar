@@ -124,12 +124,18 @@ def _is_japan_event(title: str, body: str) -> bool:
     if TAIWAN_ONLY_PATTERNS.search(title):   # Stage 1: title clearly Taiwan-only
         return False
     if TAIWAN_VENUE_KW.search(body):         # Stage 2: venue explicitly in Taiwan
+        # Exception: Taiwan-venue events targeting Japanese visitors are in scope
+        if TAIWAN_FOR_JAPANESE_KW.search(body):
+            return True
         return False
     return bool(JAPAN_LOCATION_KW.search(body))  # Stage 3: Japan city present
 ```
 **Critical**: Stage 2 (Taiwan-venue exclusion) MUST come before Stage 3 (Japan-keyword check).
 Reversing the order causes false positives: a Taiwan-held event mentioning Japanese travel companies
 (e.g. 近畿日本ツーリスト → triggers 近畿 keyword) passes Stage 3 before Stage 2 can reject it.
+
+**`TAIWAN_FOR_JAPANESE_KW` exception list** (current): `日本人向け`, `日本語対応`, `日本から参加`, `日本から`, `日本発`, `ファムトリップ`, `日台交流ツアー`.
+Events matching this exception should be categorized as `tourism` and/or `taiwan_japan`. Their `location_address` must use the real Taiwan address — do NOT convert to Japanese format. Future additions: `台湾ツアー`, `訪台`, `台湾研修`, `台湾旅行`.
 
 **3. Date extraction priority ladder for Japanese WordPress**
 Post body typically starts with the article publish date — never take the first date naively:
@@ -303,8 +309,7 @@ For any scraper that hardcodes a fallback `location_address` to a single HQ / �
 - **`_TAIWAN_BASED_TITLE_RE` must be precise**: Overly broad patterns like `台湾.*?で` match Japan-held Taiwan fairs (e.g. `台湾フェア」で`). Only match explicit Taiwan-location context:
   - `台湾国内|現地|本島|の地.*?で`
   - `in 台湾` / `in Taiwan`
-  - `台湾出展|輸出|進出|販路|海外展示|海外販売`
-- **When a PR TIMES article is missing, check in order**:
+  - `台湾出展|輸出|進出|販路|海外展示|海外販売`- **Taiwan venue exception (`_JAPAN_VISITOR_KW`)**: If `_TAIWAN_VENUE_RE` matches but `body_text` or `title` contains a Japanese-visitor keyword (`日本人向け`, `ファムトリップ`, `日台交流ツアー`, `日本発`, `日本から` etc.), do NOT skip — the event targets Japanese visitors and is in scope. Categorize as `tourism` and/or `taiwan_japan`. Use the real Taiwan address as `location_address`.- **When a PR TIMES article is missing, check in order**:
   1. `_SEARCH_KEYWORDS` — does any keyword contain a city/region name?
   2. `_EVENT_KW` — does the event-type word (e.g. `フェア`) appear in the list?
   3. `_TAIWAN_BASED_TITLE_RE` — is the pattern falsely matching a Japan-based Taiwan event?
@@ -505,3 +510,22 @@ Confirm: `start_date` populated, no unhandled exceptions, events count is non-ze
 - **Taiwan events are seasonal**: Primarily Golden Week (Apr–May). 0-event dry-runs outside this period are normal.
 - **source_id**: `maruhiro_{event_id}` from `data-url="/events/view/{id}"` — integer, stable across runs.
 - **Store address**: Resolved from `開催店舗: {name}` in `p.card-text` via static `_STORE_ADDRESS` dict. All stores are in Saitama Prefecture.
+
+## auto-scraper Phase 2 — LLM CSS selector hallucination
+
+GPT-4o invents plausible-looking CSS classes that look reasonable but are NOT in the sample HTML. The most common fabrications: `.event-card`, `.event-list-item`, `.c-event-list__item-title`, `.post-list-item`. Each hallucination wastes ~30s Playwright sandbox + ~$0.04 LLM cost.
+
+**Defenses (in `scraper/auto_scraper/generate.py`)**:
+1. SYSTEM_PROMPT hard rule: "ONLY use CSS classes/IDs that appear VERBATIM in the sample HTML." List common LLM fabrications explicitly. Prefer tag selectors (`article`, `li`) over inventing classes.
+2. Pre-sandbox `_validate_selectors_against_html()` using BeautifulSoup (~50ms): confirm `card_selector` matches ≥ 1 element AND `field_selectors.title` / `field_selectors.date` resolve within the first card. Validation failures feed back into the LLM retry loop with explicit error.
+3. Researcher's `--card-selector-hint` is the most effective defense — batch e2e on 2026-05-02 showed Phase 2 success rate **17% without hint vs success with hint**. `researcher.agent.md` enforces hint-filling for `feasibility=easy`.
+
+**Generalisable rule**: For any LLM-generated artifact that references real-world data (CSS selectors, file paths, function names, URLs, env var names), add a fast pre-validation step that confirms the reference exists. LLM grounding > LLM trust.
+
+## auto-scraper Phase 2 — Optional-but-critical spec field fallbacks
+
+`spec_schema.json` declares `detail_link_selector` with default `""`. The LLM frequently leaves it empty even though the field is critical: an empty value makes the generated scraper set `source_url = page.url` (the listing URL), which never matches `source_id_url_pattern`, causing every card to be skipped → 0 events.
+
+**Fix (in `scraper/auto_scraper/template.py.j2`)**: When `DETAIL_LINK_SELECTOR == ""`, grab the first `<a href>` inside the card element. Verified: Artist Cafe Fukuoka 0 → 12 events.
+
+**Generalisable rule**: For any optional spec field whose absence breaks the scraper, the **template** (not the LLM) must implement a sensible fallback. Do not expect the LLM to read between the lines of the schema. When adding new optional fields to `spec_schema.json`, ask: "What does the template do when the LLM leaves this empty?" If the answer is "crash" or "skip everything", write a fallback in the template before merging the schema change.

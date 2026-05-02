@@ -24,6 +24,8 @@ handoffs:
 Builds and debugs scrapers for all data sources. Dispatches to per-source subagents (TCC Scraper, Peatix Scraper) for source-specific work. For new sources without a dedicated subagent, implements directly.
 
 > **Geographic Scope**: All of Japan（全日本）. Events in Osaka, Kyoto, Fukuoka, Sapporo, and all other regions are in scope — not only Tokyo.
+>
+> **Taiwan-venue exception**: Events held **in Taiwan** but explicitly targeting Japanese visitors (e.g. ファムトリップ, 日台交流ツアー, 日本人向け, 日本発) are **in scope**. Categorize as `tourism` and/or `taiwan_japan`. Use the real Taiwan address as `location_address` — do not convert to Japanese format.
 
 ## Session Start Checklist
 1. Read `.github/skills/scraper-expert/SKILL.md` — apply all rules before starting.

@@ -3,6 +3,40 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — 允許台灣舉辦但針對日本訪客的活動進入系統（commit `012ec72`）
+
+**背景：** 地點過濾邏輯把所有台灣地點活動無條件排除，導致日台交流旅遊活動（訪台ファムトリップ、日台交流ツアー）全部漏掉。
+
+**修改：**
+- `go_taiwan.py`：`_is_japan_event()` 加入例外——活動在台灣但含 `TAIWAN_FOR_JAPANESE_KW`（`ファムトリップ`、`日本人向け`、`日台交流ツアー` 等）則保留（return True）。
+- `prtimes.py`：台灣地點過濾區塊加入同樣例外，`body_text` 或 `title` 含 `_JAPAN_VISITOR_KW` 則不 skip。
+- `annotator.py`：Location Address Rule 第 6 條補充：台灣地點保留真實台灣地址（不轉換格式），適用 `tourism` category。
+
+**架構決策：** 地點過濾的設計原則是「收與日本受眾相關的活動」，而非「物理上在日本的活動」。台灣在地舉辦但專為日本人設計的活動（訪台旅遊、日台交流ツアー）是 Radar 的核心價值之一。
+
+**教訓：** 關鍵字清單 `TAIWAN_FOR_JAPANESE_KW` 目前較短，未來可擴充：`台湾ツアー`、`訪台`、`台湾研修`、`台湾旅行` 等。每次新增 source 時若有台灣地點過濾，應審視是否需要此例外。
+
+---
+## 2026-05-02 — Auto-scraper Phase 2.1/2.2/2.3 教訓彙整（commits `b6e1768`、`f9eff43`、`d23be68`）
+
+**Lesson 1（Phase 2.1 — `b6e1768`）：SYSTEM_PROMPT 必須真的把 `spec_schema.json` 注入訊息**
+- Bug：prompt 寫「matching the spec_schema.json (provided)」，但 schema 從未被讀檔或加進 messages。GPT-4o 三次重試都漏 `base_url`。
+- 修：模組初始化載入 `SPEC_SCHEMA_TEXT`，user message 開頭注入 schema，並列出必填欄位 checklist。
+- **可推廣規則**：plan-review 時，凡 prompt 文案出現「matching X provided」必須 grep 確認 X 真的在 messages 陣列裡，不是只「被引用」。
+
+**Lesson 3（Phase 2.1/2.2）：失敗路徑必須持久化 forensic artifacts**
+- Bug：success path 寫六種檔（spec/generated/prompt/dry_run/sample/meta），失敗路徑什麼都不寫。Phase 2.1 補 prompt+sample+meta，Phase 2.2 補 spec+generated+dry_run（sandbox-failed）。
+- **可推廣規則**：任何多失敗模式 pipeline（spec-invalid、sandbox-failed、llm-error、budget-exceeded）每條失敗路徑都必須寫足夠 artifacts 供離線除錯。最便宜做法：無條件寫 artifacts，僅 DB status 區分成敗。
+
+**Lesson 5：Researcher hints 在 Phase 2 是「實質必要」而非 optional**
+- 證據：今日 batch e2e 6 個候選——只有 Artist Cafe Fukuoka（有 `li.article-list` hint）成功，其餘 5 個（Zepp/SSFF/Fukuoka Now/Blue+/TAP-NY，無 selector hint）4 LLM 幻覺 + 1 站點 timeout。Phase 2 success rate **17%（1/6）**。
+- **規則更新**：`researcher.agent.md` 已將 `--card-selector-hint` 標記為「feasibility=easy 時實質必要」。CLI（`update_source.py`）保留 optional 不破壞既有腳本，但 agent doc 強制要求。
+
+**Lesson 7：失敗路徑的 cost/retry 累計儀表壞掉（Phase 2.4 TODO）**
+- Bug：Phase 2.3 spec-invalid 經過 3 次重試後，`meta.cost_usd = 0.0`、`meta.retries = 0`，但 log 證實 3 次 OpenAI 呼叫已發生。retry loop 累計欄位只在 success return 之前更新。
+- **可推廣規則**：當 function 對 success/failure 回傳不同 shape，instrumentation（cost/time/count）必須放 `finally` 或共用累加器，而非僅在 success-only return 之前更新。
+
+---
 ## 2026-05-02 — 分類系統新增 `documentary`、`parenting`；`gender` 標籤調整（commits `6c53347`、`7c157a6`、`db7e1d7`）
 
 **變更摘要：**

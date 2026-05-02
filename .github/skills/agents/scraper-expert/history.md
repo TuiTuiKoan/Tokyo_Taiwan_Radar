@@ -3,6 +3,43 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — go_taiwan.py / prtimes.py：台灣地點活動日本訪客例外（commit `012ec72`）
+
+**問題：** `go_taiwan.py` 的 `_is_japan_event()` 和 `prtimes.py` 的台灣地點過濾把所有地點在台灣的活動都排除，導致日台交流旅遊活動（ファムトリップ、日台交流ツアー）漏掉。
+
+**根本原因：** 過濾邏輯的目標是「只收日本活動」，但正確目標應是「收與日本受眾相關的活動」——地點在台灣但以日本訪客為目標的活動兩者判斷不同。
+
+**修復：**
+- `go_taiwan.py`：新增 `TAIWAN_FOR_JAPANESE_KW` 清單（`日本人向け`、`日本語対応`、`日本から参加`、`日本から`、`日本発`、`ファムトリップ`、`日台交流ツアー`）；`_is_japan_event()` 在 Stage 2 台灣地點判斷後加例外：含上述關鍵字則 return True。
+- `prtimes.py`：`_TAIWAN_VENUE_RE.search(venue)` 過濾區塊加入同樣例外，`body_text` 或 `title` 含 `_JAPAN_VISITOR_KW` 則不 skip。
+- `annotator.py`：Location Address Rule 第 6 條補充：台灣地點不強制轉換格式，保留原始台灣地址，適用 `tourism` category。
+
+**教訓：** 台灣在地舉辦但以日本人為目標的活動（訪台旅遊、日台交流）是 Radar 核心價值之一。任何 source 若有台灣地點過濾，都應審視是否需要加日本訪客例外。
+
+---
+## 2026-05-02 — Auto-scraper Phase 2 batch e2e：6 候選 1 成功（17%）
+
+**結果分布：**
+- ✅ Artist Cafe Fukuoka（id 提供 `li.article-list` hint） → success（detail_url fallback 修復後 0→12 events）
+- ❌ Zepp Tokyo（id=148）→ batch1 sandbox-failed、batch2 spec-invalid（fast-fail，selector validation 擋下）
+- ❌ Fukuoka Now（id=140）→ 同上
+- ❌ SSFF / Blue+ / TAP-NY → LLM 幻覺 selector + 1 站點 timeout
+
+**根本原因：**
+1. **LLM CSS selector 幻覺**（最大宗）：GPT-4o 編造看似合理但不存在的 class，如 `.event-card`、`.event-list-item`、`.c-event-list__item-title`。每次 30s Playwright + ~$0.04 浪費。
+2. **Researcher 沒填 `--card-selector-hint`**：6 個只有 1 個有 hint。其餘等於把 LLM 丟進無 grounding 的猜謎題。
+3. **OpenAI 月度額度耗盡**：batch 中段觸發 429 `insufficient_quota`，後續所有呼叫直接 0 美金 abort。
+
+**修復鏈（Phase 2.1/2.2/2.3，commits `b6e1768`/`f9eff43`/`d23be68`）：**
+- Phase 2.1：注入 `spec_schema.json` 進 SYSTEM_PROMPT；失敗路徑補 forensic artifacts（prompt/sample/meta）
+- Phase 2.2：detail_url fallback（template 端遇到 `DETAIL_LINK_SELECTOR == ""` 抓 card 內首個 `<a href>`）；sandbox-failed 補 spec+generated+dry_run
+- Phase 2.3：SYSTEM_PROMPT 加 grounding 硬規則（只准用 sample HTML 中 verbatim 出現的 class/ID，列出常見幻覺）；BeautifulSoup pre-sandbox `_validate_selectors_against_html()`（~50ms 快速失敗，省下 30s Playwright）；違規結果回灌 LLM retry 訊息
+
+**Phase 2.4 TODO（Tester 發現）：** 失敗路徑 `meta.cost_usd` 與 `meta.retries` 都被低估為 0，需把 cost 累計移到 `finally` 區塊。
+
+**教訓：** Researcher 的 `--card-selector-hint` 在 production 是「實質必要」而非 optional——已寫入 `researcher.agent.md`。
+
+---
 ## 2026-05-02 — google_news_rss: 修正 start_date fallback to pubDate 規則（commit `9510a05`）
 **修改：** scraper-expert/SKILL.md `## google_news_rss-specific` 第 2 條
 **內容：**
