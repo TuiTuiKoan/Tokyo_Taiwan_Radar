@@ -844,21 +844,48 @@ def enrich_movie_titles() -> None:
     logger.info("enrich_movie_titles: patched %d/%d events", patched, len(events))
 
 
-def _replace_person_name_in_desc(
-    desc: str, old_name: str, new_name: str
-) -> str:
-    """Replace a person name in description text.
+_PERSON_FIX_PROMPT = """你是翻譯校對專家。以下中文描述中的人名可能是從日文片假名音譯而來的錯誤翻譯。
+請根據正確名單，將描述中的錯誤音譯人名替換為正確的中文名。
 
-    Unlike movie title replacement, person names are NOT typically bracketed,
-    so we do a plain string replace. To avoid partial matches, we only replace
-    when the old name appears as a standalone word (bounded by non-CJK chars
-    or start/end of string for CJK names, or word boundaries for ASCII names).
+規則：
+- 只修改人名，不要改動其他任何內容（包括標點、格式、用詞）
+- 如果描述中已經使用了正確的中文名，不要改動
+- 如果找不到需要修改的人名，原樣返回描述
+- 只輸出修正後的描述，不要加任何說明
+
+正確名單：
+{mapping}
+
+描述：
+{desc}"""
+
+
+def _fix_person_names_gpt(
+    client: OpenAI, desc: str, name_mappings: list[tuple[str, str, str]]
+) -> str | None:
+    """Use GPT-4o-mini to replace wrong phonetic person names in desc_zh.
+
+    name_mappings: list of (role, ja_name, correct_zh_name) tuples.
+    Returns the fixed description, or None if no change.
     """
-    if not old_name or not new_name or old_name == new_name:
-        return desc
-    if old_name not in desc:
-        return desc
-    return desc.replace(old_name, new_name)
+    mapping_lines = "\n".join(
+        f"- {role}：{zh_name}（日文：{ja_name}）"
+        for role, ja_name, zh_name in name_mappings
+    )
+    prompt = _PERSON_FIX_PROMPT.format(mapping=mapping_lines, desc=desc)
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=len(desc) + 200,
+        )
+        fixed = response.choices[0].message.content.strip()
+        return fixed if fixed != desc else None
+    except Exception as exc:
+        logger.warning("_fix_person_names_gpt error: %s", exc)
+        return None
 
 
 def enrich_person_names() -> None:
@@ -869,14 +896,14 @@ def enrich_person_names() -> None:
     - Query ALL movie events where annotation_status != 'reviewed'.
       eiga_com is exempt.
     - For each movie, look up cast/crew via eiga.com + zh.wikipedia.
-    - In description_zh: replace GPT phonetic translations with official
-      Chinese names (e.g. "紀德恩" → "九把刀").
-    - In description_en: replace wrong transliterations with official
-      English names (e.g. "Gidenzu Koh" → "Giddens Ko").
+    - In description_zh: use GPT-4o-mini to replace wrong phonetic
+      translations with correct Chinese names.
+    - In description_en: direct-replace wrong English names.
     - 'reviewed' events are never touched.
     - Does NOT change annotation_status.
     """
     sb = _get_supabase()
+    client = _get_openai()
 
     res = (
         sb.table("events")
@@ -914,26 +941,37 @@ def enrich_person_names() -> None:
         if not people:
             continue
 
-        desc_zh = event.get("description_zh") or ""
-        desc_en = event.get("description_en") or ""
-        new_desc_zh = desc_zh
-        new_desc_en = desc_en
-
-        for ja_name, info in people.items():
-            if info.name_zh and desc_zh:
-                new_desc_zh = _replace_person_name_in_desc(
-                    new_desc_zh, ja_name, info.name_zh
-                )
-            if info.name_en and desc_en:
-                new_desc_en = _replace_person_name_in_desc(
-                    new_desc_en, ja_name, info.name_en
-                )
-
         update: dict[str, Any] = {}
-        if new_desc_zh != desc_zh:
-            update["description_zh"] = new_desc_zh
-        if new_desc_en != desc_en:
-            update["description_en"] = new_desc_en
+
+        # Fix desc_zh using GPT (phonetic translations can't be string-matched)
+        desc_zh = event.get("description_zh") or ""
+        if desc_zh:
+            zh_mappings = [
+                (info.role, ja_name, info.name_zh)
+                for ja_name, info in people.items()
+                if info.name_zh
+            ]
+            if zh_mappings:
+                fixed_zh = _fix_person_names_gpt(client, desc_zh, zh_mappings)
+                if fixed_zh:
+                    update["description_zh"] = fixed_zh
+
+        # Fix desc_en with direct replacement (English names are predictable)
+        desc_en = event.get("description_en") or ""
+        if desc_en:
+            new_desc_en = desc_en
+            for ja_name, info in people.items():
+                if info.name_en and info.name_en in new_desc_en:
+                    # English names from eiga.com are usually correct;
+                    # no replacement needed if they already match.
+                    pass
+            # For desc_en, the names are typically already correct.
+            # Only fix if we detect katakana names leaked into English text.
+            for ja_name, info in people.items():
+                if ja_name in new_desc_en and info.name_en:
+                    new_desc_en = new_desc_en.replace(ja_name, info.name_en)
+            if new_desc_en != desc_en:
+                update["description_en"] = new_desc_en
 
         if update:
             sb.table("events").update(update).eq("id", event["id"]).execute()
