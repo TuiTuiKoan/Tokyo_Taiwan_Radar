@@ -103,6 +103,34 @@ def _location_overlap(loc_a: str | None, loc_b: str | None) -> bool:
     return bool(_tokens(loc_a) & _tokens(loc_b))
 
 
+def _richness_score(ev: dict) -> int:
+    """Return a data-richness score (higher = richer).
+
+    Used as a tiebreaker when two events have equal SOURCE_PRIORITY.
+    Fields checked (1 point each unless noted):
+      official_url     — direct event page link
+      start_date       — has a date (not NULL)
+      end_date         — multi-day event info
+      location_address — street-level address (vs just city name)
+      location_name    — venue name
+      raw_description  — each 200 chars = 1 point (up to 5)
+    """
+    score = 0
+    if ev.get("official_url"):
+        score += 1
+    if ev.get("start_date"):
+        score += 1
+    if ev.get("end_date"):
+        score += 1
+    if ev.get("location_address"):
+        score += 1
+    if ev.get("location_name"):
+        score += 1
+    desc_len = len(ev.get("raw_description") or "")
+    score += min(desc_len // 200, 5)
+    return score
+
+
 def _date_in_range(
     date_str: str | None, start_str: str | None, end_str: str | None,
     lookback_days: int = 0,
@@ -232,7 +260,7 @@ def run_merger(dry_run: bool = False) -> int:
         sb.table("events")
         .select(
             "id,source_name,source_id,source_url,official_url,name_ja,start_date,end_date,"
-            "location_name,raw_description,secondary_source_urls,annotation_status"
+            "location_name,location_address,raw_description,secondary_source_urls,annotation_status"
         )
         .eq("is_active", True)
         .not_.is_("start_date", None)
@@ -280,13 +308,20 @@ def run_merger(dry_run: bool = False) -> int:
                     continue
 
                 # Determine primary / secondary by source priority.
-                # Lower number = higher authority.
+                # Lower number = higher authority.  Equal priority →
+                # use data-richness score as tiebreaker.
                 pri_a = SOURCE_PRIORITY.get(ev_a["source_name"], 99)
                 pri_b = SOURCE_PRIORITY.get(ev_b["source_name"], 99)
-                if pri_a <= pri_b:
+                if pri_a < pri_b:
                     primary, secondary = ev_a, ev_b
-                else:
+                elif pri_b < pri_a:
                     primary, secondary = ev_b, ev_a
+                else:
+                    # Equal priority — richer data wins
+                    if _richness_score(ev_a) >= _richness_score(ev_b):
+                        primary, secondary = ev_a, ev_b
+                    else:
+                        primary, secondary = ev_b, ev_a
 
                 secondary_url = secondary["source_url"]
                 existing_urls = primary.get("secondary_source_urls") or []
@@ -465,7 +500,7 @@ def run_merger(dry_run: bool = False) -> int:
         sb.table("events")
         .select(
             "id,source_name,source_id,source_url,official_url,name_ja,"
-            "start_date,end_date,location_name,raw_description,"
+            "start_date,end_date,location_name,location_address,raw_description,"
             "secondary_source_urls,annotation_status,parent_event_id"
         )
         .eq("is_active", True)
@@ -536,13 +571,19 @@ def run_merger(dry_run: bool = False) -> int:
             matching_sub = None
 
         if matching_sub:
-            # Determine primary / secondary by source priority
+            # Determine primary / secondary by source priority; richness tiebreaker
             pri_o = SOURCE_PRIORITY.get(orphaned_sub["source_name"], 99)
             pri_m = SOURCE_PRIORITY.get(matching_sub["source_name"], 99)
             if pri_o < pri_m:
                 primary_sub, secondary_sub = orphaned_sub, matching_sub
-            else:
+            elif pri_m < pri_o:
                 primary_sub, secondary_sub = matching_sub, orphaned_sub
+            else:
+                # Equal priority — richer data wins
+                if _richness_score(orphaned_sub) >= _richness_score(matching_sub):
+                    primary_sub, secondary_sub = orphaned_sub, matching_sub
+                else:
+                    primary_sub, secondary_sub = matching_sub, orphaned_sub
 
             secondary_url = secondary_sub["source_url"]
             existing_urls = primary_sub.get("secondary_source_urls") or []
