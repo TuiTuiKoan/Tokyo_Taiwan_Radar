@@ -14,6 +14,7 @@ Local test:
 
 import argparse
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -28,33 +29,69 @@ SITE_URL = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://tokyo-taiwan-radar.ve
 ACTIONS_URL = "https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/actions"
 
 
-def _read_wip_items() -> list[tuple[str, list[str]]]:
-    """Read .github/wip.md; return list of (title, detail_lines) for active (non-✅) items."""
+_WIP_DATE_RE = re.compile(r"最後更新[:：]\s*(\d{4}-\d{2}-\d{2})")
+
+
+def _read_wip_items(
+    cutoff_date: "datetime | None" = None,
+) -> tuple[list[tuple[str, list[str]]], list[tuple[str, list[str]]]]:
+    """Read .github/wip.md.
+
+    Returns (active_items, recently_completed_items).
+    Each item is (title, detail_lines).
+    recently_completed = ✅ items whose 最後更新 date >= cutoff_date (default: yesterday JST).
+    """
     wip_path = Path(__file__).parent.parent / ".github" / "wip.md"
     if not wip_path.exists():
-        return []
+        return [], []
 
-    items: list[tuple[str, list[str]]] = []
+    if cutoff_date is None:
+        cutoff_date = datetime.now(JST) - timedelta(hours=26)
+
+    active: list[tuple[str, list[str]]] = []
+    completed: list[tuple[str, list[str]]] = []
+
     current_title: str | None = None
+    current_completed: bool = False
     current_lines: list[str] = []
+
+    def _flush() -> None:
+        if current_title is None:
+            return
+        if current_completed:
+            # Include only if updated within the reporting window
+            for line in current_lines:
+                m = _WIP_DATE_RE.search(line)
+                if m:
+                    try:
+                        item_date = datetime.strptime(m.group(1), "%Y-%m-%d").replace(
+                            tzinfo=JST
+                        )
+                        if item_date >= cutoff_date:
+                            completed.append((current_title, current_lines))
+                    except ValueError:
+                        pass
+                    break
+        else:
+            active.append((current_title, current_lines))
 
     for raw in wip_path.read_text(encoding="utf-8").splitlines():
         if raw.startswith("## "):
-            if current_title is not None:
-                items.append((current_title, current_lines))
+            _flush()
             title = raw[3:].strip()
-            # Skip completed items marked with ✅
-            current_title = None if title.startswith("✅") else title
+            if title.startswith("✅"):
+                current_title = title[1:].strip()  # strip ✅ prefix for display
+                current_completed = True
+            else:
+                current_title = title
+                current_completed = False
             current_lines = []
         elif current_title and raw.strip() and not raw.startswith("#"):
-            # Skip horizontal rules
             if raw.strip() != "---":
                 current_lines.append(raw.strip())
 
-    if current_title is not None:
-        items.append((current_title, current_lines))
-
-    return items
+    _flush()
+    return active, completed
 
 
 def _supabase_client():
@@ -188,14 +225,22 @@ def generate_report() -> str:
         lines.append(f"  ⚠ auto_scraper 失敗來源：{auto_failed_count} 件")
         lines.append(f"    → {SITE_URL}/zh/admin/research")
 
-    # WIP: in-progress development items
-    wip_items = _read_wip_items()
-    if wip_items:
+    # WIP: in-progress and recently completed items
+    wip_active, wip_done = _read_wip_items()
+    if wip_active:
         has_pending = True
-        lines.append(f"  🚧 開發中項目：{len(wip_items)} 件")
-        for title, details in wip_items:
+        lines.append(f"  🚧 開發中項目：{len(wip_active)} 件")
+        for title, details in wip_active:
             lines.append(f"    [{title}]")
             for d in details[:3]:  # max 3 detail lines per item
+                lines.append(f"      {d}")
+
+    if wip_done:
+        has_pending = True
+        lines.append(f"  ✅ 昨日完成：{len(wip_done)} 件")
+        for title, details in wip_done:
+            lines.append(f"    [{title}]")
+            for d in details[:2]:
                 lines.append(f"      {d}")
 
     if not has_pending:
