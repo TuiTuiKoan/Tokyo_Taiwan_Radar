@@ -45,10 +45,13 @@ QA_WINDOW_DAYS = 14
 SIMP_RE = re.compile(
     r"[东来这发会说时问门关对长进现与实变内还单层达诺厅络设联馆园乐欢艺师"
     r"丰个为产业亲见开闭难纪员体让历观书写报场属层听处声证识请赞动务区团圆"
-    r"岛带帮当录张归态总职护扩续齐奖]"
+    r"岛带帮当录张归态总职护扩续齐奖将断湾览间气坛静满简洁优连释迹仪壮汇灯"
+    r"蕴韵须恳构传经验弥记调节约运办导环义战组织国际临创据点击继阅读"
+    r"画获选赛参电热爱独虑忆仅尝试谈龙华灵极标准规细广庆响惊显类宝贵丽尽挡"
+    r"统种学数编价乡网绍预称评议论结应]"
 )
 
-ZH_FIELDS = ("name_zh", "description_zh", "location_name_zh", "location_address_zh")
+ZH_FIELDS = ("name_zh", "description_zh", "location_name_zh", "location_address_zh", "business_hours_zh")
 
 ADDRESS_SKIP_KEYWORDS = (
     "オンライン", "online", "Online",

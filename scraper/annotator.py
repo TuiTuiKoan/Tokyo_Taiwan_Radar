@@ -38,7 +38,6 @@ from person_name_lookup import (
     lookup_person_names,
     lookup_single_person,
 )
-from sources.base import fetch_ref_text
 
 logger = logging.getLogger(__name__)
 
@@ -205,14 +204,10 @@ OTHER RULES:
 5. Extract location, address, business hours, and pricing from the text if available.
 
 NAME WRITING RULES — CRITICAL:
-- name_ja must be self-contained and descriptive. A reader who sees ONLY the title must understand what kind of event it is, who organizes it, and what makes it Taiwan-related.
-- If the raw_title is a generic term alone (e.g., "オフ会", "ライブ", "上映会", "展示", "イベント", "セミナー", "勉強会"), you MUST prepend the organizer/character/topic context extracted from the description.
-  BAD: "東京オフ会"  → GOOD: "台湾系YouTuberコポちゃんの東京オフ会"
-  BAD: "大阪ライブ"  → GOOD: "台湾インディーズバンド Sunset Rollercoaster 大阪ライブ"
-  BAD: "上映会"      → GOOD: "台湾映画『悲情城市』上映会"
-- name_ja should be 10–40 characters. Shorter is acceptable only when the original title is already fully self-explanatory (e.g., "台湾祭in東京スカイツリータウン2026").
-- Sub-event name_ja must also be self-contained without reading the parent. Include the parent context if needed.
-- Apply the same principle to name_zh and name_en.
+- name_ja: copy the raw_title as-is. Do NOT rewrite, shorten, or "improve" it. The scraper's original title is the source of truth. Your name_ja output is only used for sub-events (the parent's name_ja is always preserved from the scraper).
+- name_zh and name_en: translate name_ja faithfully. A reader who sees ONLY the title must understand what kind of event it is.
+- If the raw_title is a generic term alone (e.g., "オフ会", "ライブ", "上映会"), prepend context in name_zh/name_en to make them self-explanatory.
+- SUB-EVENT name_ja / description_ja: use the ORIGINAL Japanese text from the raw description. Movie titles must use the Japanese release title exactly as written. Person names must use the original Japanese notation (katakana/kanji). NEVER translate Chinese/Taiwanese person names into Japanese or invent katakana readings.
 - SUBTITLE RULE — CRITICAL: When the raw_title or name_ja contains a subtitle separator (――, ──, ―, —, ：, : used as structural separator), the FULL title including the complete subtitle MUST appear in name_zh and name_en. NEVER truncate the subtitle. Example: "台湾の地方選挙と基層社会――80年代以降の桃園県観音･新屋地区を例として" → name_zh must include "以80年代以降的桃園縣觀音・新屋地區為例", name_en must include "A Case Study of Guanyin and Xinwu Districts, Taoyuan, since the 1980s".
 6. LOCATION ADDRESS RULE: If the raw location_address looks like a venue/shop name (no street number, 丁目, 番地, or postal code 〒), use your knowledge to provide the real Japanese address (都道府県＋区＋丁目番地). Example: "青山・月見ル君想フ" → "東京都港区南青山3-10-33". If you genuinely don't know the address, keep it as-is. NEVER fabricate an address — only fill in if you are confident.
    NOTE: Events held IN Taiwan are allowed and welcome. Do NOT force-convert Taiwan addresses to Japanese format. For Taiwan venues, fill location_address with the real Taiwanese address (e.g. "台北市中山區小民生東路3段1號") and set location_name accordingly. The tourism category applies when the event is designed to attract Japanese visitors to Taiwan.
@@ -500,25 +495,6 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             else:
                 logger.info("  → Article fetch failed, proceeding with original raw_desc")
 
-        # For nhk_rss events with thin raw_description (RSS snippet only),
-        # try to fetch the full article body via requests+BS4 (no Playwright needed).
-        # This is a fallback in case the scraper's fetch_ref_text() failed at
-        # scrape time (e.g., NHK changed their HTML structure) or the event was
-        # scraped before thin-content enrichment was added.
-        _NHK_THIN_CHARS = 400
-        if (
-            event.get("source_name") == "nhk_rss"
-            and len(raw_desc) < _NHK_THIN_CHARS
-        ):
-            source_url = event.get("source_url", "")
-            logger.info("  → nhk_rss thin desc (%d chars), fetching: %s", len(raw_desc), source_url[:80])
-            nhk_text = fetch_ref_text(source_url)
-            if nhk_text:
-                logger.info("  → NHK article fetched (%d chars), appending for GPT", len(nhk_text))
-                raw_desc = raw_desc + f"\n\n[参照記事 ({source_url})]:\n{nhk_text}"
-            else:
-                logger.info("  → NHK article fetch failed, proceeding with original raw_desc")
-
         logger.info("[%d/%d] Annotating: %s", i, len(events), raw_title[:60])
 
         try:
@@ -557,41 +533,95 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             # location_address_zh even when instructed to use Traditional Chinese
             # (e.g. "东京都千代田区" instead of "東京都千代田區"). Apply a targeted
             # character-level substitution for the most common offenders in Japanese
-            # addresses so the field is always Traditional Chinese.
-            # Characters commonly produced as Simplified by GPT-4o-mini in
-            # location name/address fields, mapped to their Traditional equivalents.
-            _LOC_ZH_SIMP_TO_TRAD = str.maketrans({
-                "东": "東",  # 東京
-                "区": "區",  # 千代田區
-                "内": "內",  # 內幸町 etc.
-                "园": "園",  # 校園、公園
-                "来": "來",
-                "长": "長",
-                "进": "進",
-                "实": "實",                # Additional chars found in production scan 2026-04-26
-                "诺": "諾",  # イイノホール → 伊伊諾大廳
-                "厅": "廳",  # 大廳
-                "络": "絡",
-                "设": "設",
-                "联": "聯",
-                "馆": "館",
-                "门": "門",
-                "发": "發",
-                "会": "會",            })
+            # GPT-4o-mini occasionally outputs Simplified Chinese characters
+            # even when instructed to use Traditional Chinese. Apply a targeted
+            # character-level substitution for the most common offenders so ALL
+            # *_zh fields are always Traditional Chinese.
+            _SIMP_TO_TRAD = str.maketrans({
+                # Location-related (from production scan 2026-04-26)
+                "东": "東", "区": "區", "内": "內", "园": "園",
+                "来": "來", "长": "長", "进": "進", "实": "實",
+                "诺": "諾", "厅": "廳", "络": "絡", "设": "設",
+                "联": "聯", "馆": "館", "门": "門", "发": "發",
+                "会": "會",
+                # Description-related (from production scan 2026-05-02)
+                "个": "個", "记": "記", "构": "構", "传": "傳",
+                "经": "經", "验": "驗", "弥": "彌", "脆": "脆",
+                "与": "與", "对": "對",
+                # Additional common GPT simplified outputs
+                "这": "這", "说": "說", "时": "時", "问": "問",
+                "关": "關", "现": "現", "变": "變", "还": "還",
+                "单": "單", "层": "層", "达": "達",
+                "让": "讓", "认": "認", "为": "為", "总": "總",
+                "辑": "輯", "视": "視", "历": "歷", "强": "強",
+                "调": "調", "节": "節", "约": "約", "运": "運",
+                "动": "動", "办": "辦", "报": "報", "导": "導",
+                "环": "環", "义": "義", "务": "務", "战": "戰",
+                "组": "組", "织": "織", "国": "國", "际": "際",
+                "临": "臨", "产": "產", "业": "業", "属": "屬",
+                "创": "創", "据": "據", "体": "體", "点": "點",
+                "击": "擊", "继": "繼", "续": "續", "阅": "閱",
+                "读": "讀", "开": "開", "艺": "藝", "术": "術",
+                "观": "觀", "众": "眾", "场": "場", "举": "舉",
+                "行": "行",  # 行 is same in both — skip
+                "声": "聲", "乐": "樂", "画": "畫", "获": "獲",
+                "奖": "獎", "选": "選", "赛": "賽", "参": "參",
+                "团": "團", "电": "電", "影": "影",  # 影 same — skip
+                "热": "熱", "爱": "愛", "岛": "島",
+                "独": "獨", "虑": "慮", "忆": "憶", "仅": "僅",
+                "尝": "嘗", "试": "試", "谈": "談", "请": "請",
+                "龙": "龍", "丰": "豐", "华": "華", "灵": "靈",
+                "纪": "紀", "录": "錄", "极": "極", "标": "標",
+                "准": "準", "规": "規", "模": "模",  # 模 same — skip
+                "细": "細", "带": "帶", "广": "廣", "庆": "慶",
+                "响": "響", "惊": "驚", "显": "顯", "难": "難",
+                "类": "類", "宝": "寶", "贵": "貴", "丽": "麗",
+                "尽": "盡", "挡": "擋",
+                # Additional chars found in 1e375d6c full-simplified event (2026-05-02)
+                "将": "將", "断": "斷", "湾": "灣", "览": "覽",
+                "间": "間", "气": "氣", "坛": "壇", "静": "靜",
+                "满": "滿", "简": "簡", "洁": "潔", "优": "優",
+                "连": "連",  # 系: skip — valid trad in 系統/系列
+                "志": "志",  # same — skip
+                "份": "份",  # same — skip
+                "沉": "沉",  # same — skip
+                "品": "品",  # same — skip
+                "释": "釋", "迹": "跡", "坛": "壇", "态": "態",
+                "仪": "儀", "宫": "宮", "奇": "奇",  # same — skip
+                "壮": "壯", "汇": "匯", "灯": "燈", "蕴": "蘊",
+                "韵": "韻", "须": "須", "恳": "懇",
+                # Common GPT outputs: general vocabulary
+                "统": "統", "种": "種", "学": "學", "数": "數",
+                "编": "編", "价": "價", "乡": "鄉", "网": "網",
+                "绍": "紹", "预": "預", "称": "稱", "评": "評",
+                "议": "議", "论": "論", "结": "結", "处": "處",
+                "应": "應", "集": "集",  # 集 same — skip
+                # 着: skip — valid trad as particle (保持着)
+                "乐": "樂", "欢": "歡",
+            })
+            # Remove identity mappings (same char in both)
+            _SIMP_TO_TRAD = {k: v for k, v in _SIMP_TO_TRAD.items() if k != v}
+            _SIMP_TO_TRAD = str.maketrans(_SIMP_TO_TRAD)
+
+            def _to_trad(val: str | None) -> str | None:
+                """Normalize any Simplified Chinese chars to Traditional."""
+                if not val:
+                    return val
+                return val.translate(_SIMP_TO_TRAD)
 
             def _loc_zh(val: Any) -> str | None:
                 """Clean location string and normalize Simplified→Traditional chars."""
                 s = _loc(val)
-                return s.translate(_LOC_ZH_SIMP_TO_TRAD) if s else None
+                return _to_trad(s)
 
             if fix_reviewed:
                 # --fix-reviewed mode: only write translation fields; preserve
                 # annotation_status='reviewed', category, dates, and all other
                 # human-confirmed fields.
                 update_data: dict[str, Any] = {
-                    "name_zh": _str(annotation.get("name_zh")),
+                    "name_zh": _to_trad(_str(annotation.get("name_zh"))),
                     "name_en": _str(annotation.get("name_en")),
-                    "description_zh": _str(annotation.get("description_zh")),
+                    "description_zh": _to_trad(_str(annotation.get("description_zh"))),
                     "description_en": _str(annotation.get("description_en")),
                     "annotation_status": "reviewed",  # keep reviewed — do NOT downgrade
                     "annotated_at": datetime.utcnow().isoformat(),
@@ -600,14 +630,14 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 update_data = {k: v for k, v in update_data.items() if v is not None or k == "annotation_status"}
             else:
                 update_data: dict[str, Any] = {
-                    # When name_ja_locked=true the scraper has already set a definitive
-                    # structured title (e.g. academic paper 題目:). Preserve it verbatim;
-                    # only fall back to raw_title if the existing DB value is empty.
-                    "name_ja": (event.get("name_ja") or raw_title) if event.get("name_ja_locked") else (_str(annotation.get("name_ja")) or raw_title),
-                    "name_zh": _str(annotation.get("name_zh")),
+                    # name_ja is NEVER overwritten by GPT (2026-05-02 policy).
+                    # Always preserve the scraper's original title.
+                    # GPT's name_ja is only consumed for sub-events.
+                    "name_ja": event.get("name_ja") or raw_title,
+                    "name_zh": _to_trad(_str(annotation.get("name_zh"))),
                     "name_en": _str(annotation.get("name_en")),
                     "description_ja": _str(annotation.get("description_ja")),
-                    "description_zh": _str(annotation.get("description_zh")),
+                    "description_zh": _to_trad(_str(annotation.get("description_zh"))),
                     "description_en": _str(annotation.get("description_en")),
                     "category": categories,
                     # Scraper-set dates take precedence over GPT inference.
@@ -632,7 +662,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 "location_name_en": _loc(annotation.get("location_name_en")),
                 "location_address_zh": _loc_zh(annotation.get("location_address_zh")),
                 "location_address_en": _loc(annotation.get("location_address_en")),
-                "business_hours_zh": _str(annotation.get("business_hours_zh")),
+                "business_hours_zh": _to_trad(_str(annotation.get("business_hours_zh"))),
                 "business_hours_en": _str(annotation.get("business_hours_en")),
             }
             # Only send non-null values
@@ -683,10 +713,10 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "source_url": event["source_url"],
                     "original_language": event.get("original_language", "ja"),
                     "name_ja": sub.get("name_ja", ""),
-                    "name_zh": sub.get("name_zh"),
+                    "name_zh": _to_trad(sub.get("name_zh")),
                     "name_en": sub.get("name_en"),
                     "description_ja": sub.get("description_ja"),
-                    "description_zh": sub.get("description_zh"),
+                    "description_zh": _to_trad(sub.get("description_zh")),
                     "description_en": sub.get("description_en"),
                     "category": sub_cats,
                     "start_date": sub_start,
@@ -834,10 +864,14 @@ def enrich_movie_titles() -> None:
     for event in events:
         source = event.get("source_name", "")
 
-        # News sources: extract title from 「…」/『…』 brackets in raw_title
+        # News sources: extract title from 「…」/『…』 brackets in raw_title.
+        # raw_title is often a plain news headline (no brackets), so fall back
+        # to name_ja before giving up.
         if source in _NEWS_MOVIE_SOURCES:
-            raw = event.get("raw_title") or event.get("name_ja") or ""
+            raw = event.get("raw_title") or ""
             m = _BRACKET_TITLE_RE.search(raw)
+            if not m:
+                m = _BRACKET_TITLE_RE.search(event.get("name_ja") or "")
             title = m.group(1).strip() if m else ""
         else:
             title = event.get("name_ja") or event.get("raw_title") or ""
@@ -981,8 +1015,10 @@ def enrich_person_names() -> None:
         if is_movie:
             # Movie events: structured lookup via eiga.com movie page
             if source in _NEWS_MOVIE_SOURCES:
-                raw = event.get("raw_title") or event.get("name_ja") or ""
+                raw = event.get("raw_title") or ""
                 m = _BRACKET_TITLE_RE.search(raw)
+                if not m:
+                    m = _BRACKET_TITLE_RE.search(event.get("name_ja") or "")
                 title = m.group(1).strip() if m else ""
             else:
                 title = event.get("name_ja") or event.get("raw_title") or ""
