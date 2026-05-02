@@ -487,5 +487,86 @@ class SelectorValidationRetryTests(unittest.TestCase):
             self.assertEqual(meta["retries"], 1)
 
 
+class FailureMetaForensicsTests(unittest.TestCase):
+    """Phase 2.4 — failure-path meta.json must record cumulative cost/retries."""
+
+    def test_budget_exceeded_meta_records_cost_and_retries(self):
+        row = _make_row()
+        sb, holder = _make_sb(row)
+
+        class FakeUsage:
+            prompt_tokens = 1_000_000
+            completion_tokens = 0
+
+        class FakeChoice:
+            message = MagicMock(content=json.dumps(VALID_SPEC))
+
+        class FakeResp:
+            usage = FakeUsage()
+            choices = [FakeChoice()]
+
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.return_value = FakeResp()
+        fake_openai = MagicMock()
+        fake_openai.OpenAI.return_value = fake_client
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "out"
+            opts = generate.GenerateOptions(
+                source_id=42,
+                budget_usd=0.0001,
+                output_dir=out_dir,
+                skip_sandbox=True,
+            )
+            with patch.object(generate, "_fetch_sample_html", return_value="<html></html>"), \
+                 patch.dict(sys.modules, {"openai": fake_openai}):
+                rc = generate.run(opts, sb=sb)
+
+            self.assertEqual(rc, 1)
+            self.assertEqual(holder.update_payload["auto_scraper_status"], "budget-exceeded")
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            self.assertGreater(meta["cost_usd"], 0)
+            self.assertGreaterEqual(meta["retries"], 0)
+
+    def test_spec_invalid_meta_records_retries(self):
+        row = _make_row()
+        sb, holder = _make_sb(row)
+
+        bad_spec = {k: v for k, v in VALID_SPEC.items() if k != "base_url"}
+
+        class FakeUsage:
+            prompt_tokens = 100
+            completion_tokens = 50
+
+        class FakeChoice:
+            message = MagicMock(content=json.dumps(bad_spec))
+
+        class FakeResp:
+            usage = FakeUsage()
+            choices = [FakeChoice()]
+
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.return_value = FakeResp()
+        fake_openai = MagicMock()
+        fake_openai.OpenAI.return_value = fake_client
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "out"
+            opts = generate.GenerateOptions(
+                source_id=42,
+                output_dir=out_dir,
+                skip_sandbox=True,
+            )
+            with patch.object(generate, "_fetch_sample_html", return_value="<html>sample</html>"), \
+                 patch.dict(sys.modules, {"openai": fake_openai}):
+                rc = generate.run(opts, sb=sb)
+
+            self.assertEqual(rc, 1)
+            self.assertEqual(holder.update_payload["auto_scraper_status"], "spec-invalid")
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["retries"], generate.MAX_LLM_ATTEMPTS)
+            self.assertGreater(meta["cost_usd"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

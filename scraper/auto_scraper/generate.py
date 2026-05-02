@@ -93,12 +93,16 @@ class GenerateError(Exception):
         message: str,
         payload: dict | None = None,
         raw: str | None = None,
+        cost_usd: float = 0.0,
+        retries: int = 0,
     ):
         super().__init__(message)
         self.status = status
         self.message = message
         self.payload = payload
         self.raw = raw
+        self.cost_usd = cost_usd
+        self.retries = retries
 
 
 @dataclass
@@ -155,10 +159,10 @@ def _fetch_sample_html(url: str) -> str:
 
 
 def _check_eligibility(row: dict) -> None:
-    if (row.get("status") or "") != "researched":
+    if (row.get("status") or "") not in ("researched", "recommended"):
         raise GenerateError(
             "spec-invalid",
-            f"row.status={row.get('status')!r} (need 'researched')",
+            f"row.status={row.get('status')!r} (need 'researched' or 'recommended')",
         )
     if row.get("url_verified") is not True:
         raise GenerateError("spec-invalid", "url_verified is not True")
@@ -321,7 +325,12 @@ def _call_llm_with_retries(
                 ],
             )
         except Exception as exc:
-            raise GenerateError("llm-error", f"OpenAI call failed: {exc}") from exc
+            raise GenerateError(
+                "llm-error",
+                f"OpenAI call failed: {exc}",
+                cost_usd=cumulative_cost,
+                retries=attempt - 1,
+            ) from exc
 
         usage = getattr(resp, "usage", None)
         prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
@@ -333,6 +342,8 @@ def _call_llm_with_retries(
             raise GenerateError(
                 "budget-exceeded",
                 f"cost ${cumulative_cost:.4f} > budget ${budget_usd:.2f}",
+                cost_usd=cumulative_cost,
+                retries=attempt - 1,
             )
 
         content = resp.choices[0].message.content if resp.choices else ""
@@ -371,6 +382,8 @@ def _call_llm_with_retries(
         f"spec validation failed after {MAX_LLM_ATTEMPTS} attempts: {last_error}",
         payload=last_parsed,
         raw=last_raw,
+        cost_usd=cumulative_cost,
+        retries=MAX_LLM_ATTEMPTS,
     )
 
 
@@ -701,6 +714,8 @@ def run(opts: GenerateOptions, *, sb: Any | None = None) -> int:
                 _sample = _local.get("sample_html")
                 _prompt_text = _build_user_message(row, _sample or "")
                 _llm_obj = _local.get("llm")
+                _cost = getattr(exc, "cost_usd", 0.0) or getattr(_llm_obj, "cost_usd", 0.0)
+                _retries = getattr(exc, "retries", 0) or getattr(_llm_obj, "retries", 0)
                 _persist_failure_artifacts(
                     out_dir,
                     prompt_text=_prompt_text,
@@ -709,8 +724,8 @@ def run(opts: GenerateOptions, *, sb: Any | None = None) -> int:
                     last_raw=getattr(exc, "raw", None),
                     error_message=exc.message,
                     status=exc.status,
-                    retries=getattr(_llm_obj, "retries", 0),
-                    cost_usd=getattr(_llm_obj, "cost_usd", 0.0),
+                    retries=_retries,
+                    cost_usd=_cost,
                     spec=getattr(_llm_obj, "spec", None),
                     generated_code=_local.get("generated_code"),
                     dry_run_text=_local.get("sandbox_output"),
