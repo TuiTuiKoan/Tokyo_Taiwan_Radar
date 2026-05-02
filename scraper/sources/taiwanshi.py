@@ -68,6 +68,15 @@ def _extract_start_date(text: str) -> datetime | None:
     return datetime(year, month, day, hour, minute, tzinfo=_JST)
 
 
+# Sub-event (報告) parsing patterns
+_REPORT_HEADER_RE = re.compile(
+    r"第(\d+)報告[\u3000\t ]*(\d+)時(\d+)分[～〜](\d+)時(\d+)分"
+)
+_REPORT_TITLE_RE = re.compile(r"^題目[：:；;](.+)$")
+_REPORT_REPORTER_RE = re.compile(r"^報告者[：:；;](.+)$")
+_REPORT_COMMENT_RE = re.compile(r"^評論者?[：:；;](.+)$")
+
+
 def _extract_venue(text: str) -> tuple[str | None, str | None]:
     """Return (location_name, location_address) from 会場：block."""
     m = re.search(r"(?:会場|場所)[\uff1a:\u3000 \t]+(.+)", text)
@@ -91,6 +100,55 @@ def _extract_venue(text: str) -> tuple[str | None, str | None]:
     location_address = addr_m.group(1).strip() if addr_m else None
 
     return venue_name, location_address
+
+
+def _parse_reports(text: str, event_date: datetime) -> list[dict]:
+    """
+    Parse structured 第N報告 sections from page text.
+
+    Returns list of dicts with keys:
+      num, start_datetime, end_datetime, business_hours, title, reporter, comment
+    """
+    lines = text.splitlines()
+    reports = []
+    i = 0
+    while i < len(lines):
+        m = _REPORT_HEADER_RE.search(lines[i])
+        if m:
+            num = int(m.group(1))
+            sh, sm = int(m.group(2)), int(m.group(3))
+            eh, em = int(m.group(4)), int(m.group(5))
+            start_dt = event_date.replace(hour=sh, minute=sm, second=0, microsecond=0)
+            end_dt = event_date.replace(hour=eh, minute=em, second=0, microsecond=0)
+            bh = f"{sh}時{sm:02d}分～{eh}時{em:02d}分"
+
+            title = reporter = comment = None
+            j = i + 1
+            while j < min(i + 9, len(lines)):
+                line = lines[j].strip()
+                tm = _REPORT_TITLE_RE.match(line)
+                rm = _REPORT_REPORTER_RE.match(line)
+                cm = _REPORT_COMMENT_RE.match(line)
+                if tm and title is None:
+                    title = tm.group(1).strip()
+                elif rm and reporter is None:
+                    reporter = rm.group(1).strip()
+                elif cm and comment is None:
+                    comment = cm.group(1).strip()
+                j += 1
+
+            if title:
+                reports.append({
+                    "num": num,
+                    "start_datetime": start_dt,
+                    "end_datetime": end_dt,
+                    "business_hours": bh,
+                    "title": title,
+                    "reporter": reporter,
+                    "comment": comment,
+                })
+        i += 1
+    return reports
 
 
 class TaiwanshiScraper(BaseScraper):
@@ -173,6 +231,53 @@ class TaiwanshiScraper(BaseScraper):
                     is_paid=False,
                 )
             )
+
+            # --- Sub-events: parse 第N報告 sections ---
+            reports = _parse_reports(text, start_date)
+            if reports:
+                # Look up parent UUID from DB (may be None on first run)
+                try:
+                    from database import get_event_id_by_source as _get_parent_uuid
+                    parent_uuid = _get_parent_uuid(SOURCE_NAME, f"taiwanshi_{post_id}")
+                except (ImportError, Exception):
+                    parent_uuid = None
+
+                for r in reports:
+                    parts = [f"題目：{r['title']}"]
+                    if r["reporter"]:
+                        parts.append(f"報告者：{r['reporter']}")
+                    if r["comment"]:
+                        parts.append(f"評論：{r['comment']}")
+                    sub_raw_desc = (
+                        f"開催日時: {r['start_datetime'].strftime('%Y年%m月%d日')} "
+                        f"{r['business_hours']}\n\n"
+                        + "\n".join(parts)
+                    )
+                    events.append(
+                        Event(
+                            source_name=SOURCE_NAME,
+                            source_id=f"taiwanshi_{post_id}_sub{r['num']}",
+                            source_url=url,
+                            original_language="ja",
+                            name_ja=r["title"],
+                            raw_title=r["title"],
+                            raw_description=sub_raw_desc,
+                            category=["academic", "taiwan_japan"],
+                            start_date=r["start_datetime"],
+                            end_date=r["end_datetime"],
+                            business_hours=r["business_hours"],
+                            location_name=location_name,
+                            location_address=location_address,
+                            is_paid=False,
+                            parent_event_id=parent_uuid,
+                        )
+                    )
+                logger.info(
+                    "taiwanshi: post %s → %d sub-events (parent_uuid=%s)",
+                    post_id,
+                    len(reports),
+                    parent_uuid,
+                )
 
         logger.info("taiwanshi: scraped %d events", len(events))
         return events

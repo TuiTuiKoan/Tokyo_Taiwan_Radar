@@ -139,6 +139,24 @@ def find_parent_event_id(name_ja: str | None, source_name: str) -> str | None:
     return None
 
 
+def get_event_id_by_source(source_name: str, source_id: str) -> str | None:
+    """Look up event UUID by (source_name, source_id). Returns None if not found."""
+    try:
+        res = (
+            _get_client()
+            .table("events")
+            .select("id")
+            .eq("source_name", source_name)
+            .eq("source_id", source_id)
+            .limit(1)
+            .execute()
+        )
+        return res.data[0]["id"] if res.data else None
+    except Exception as exc:
+        logger.warning("get_event_id_by_source(%s, %s) failed: %s", source_name, source_id, exc)
+        return None
+
+
 def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None = None) -> list[str]:
     """
     Insert or update events in the database.
