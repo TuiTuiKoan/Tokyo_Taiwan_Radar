@@ -82,8 +82,12 @@ def _is_yahoo_aggregation(title: str) -> bool:
     return title.rstrip().endswith("- Yahoo!ニュース")
 
 
-def _extract_start_date(description_plain: str, pub_date: datetime) -> datetime:
-    """Extract start_date from description text. Fallback to pub_date."""
+def _extract_start_date(description_plain: str, pub_date: datetime) -> Optional[datetime]:
+    """Extract start_date from description text.
+
+    Returns None when no date pattern is found — callers must not fall back to
+    pub_date, because that is the article *publish* date, not the event date.
+    """
     # Pattern 1: YYYY年MM月DD日
     m = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", description_plain)
     if m:
@@ -114,8 +118,9 @@ def _extract_start_date(description_plain: str, pub_date: datetime) -> datetime:
         except ValueError:
             pass
 
-    # Fallback: use pubDate itself
-    return pub_date
+    # No date found — return None rather than the article publish date.
+    # pub_date is the date the news article was written, not when the event occurs.
+    return None
 
 
 def _parse_pub_date(pubdate_str: str) -> Optional[datetime]:
