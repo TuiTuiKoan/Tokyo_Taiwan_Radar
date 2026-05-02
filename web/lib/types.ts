@@ -125,6 +125,7 @@ export type Category =
   | "academic"
   | "competition"
   | "indigenous"
+  | "folklore"
   | "history"
   | "urban"
   | "workshop"
@@ -157,6 +158,7 @@ export const CATEGORIES: Category[] = [
   "academic",
   "competition",
   "indigenous",
+  "folklore",
   "history",
   "urban",
   "workshop",
@@ -176,7 +178,7 @@ export interface CategoryGroup {
 export const CATEGORY_GROUPS: CategoryGroup[] = [
   {
     labelKey: "group_arts",
-    categories: ["movie", "performing_arts", "art", "senses", "drama", "documentary", "indigenous", "nature", "literature"],
+    categories: ["movie", "performing_arts", "art", "senses", "drama", "documentary", "indigenous", "folklore", "nature", "literature"],
   },
   {
     labelKey: "group_lifestyle",
