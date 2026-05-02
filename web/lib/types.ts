@@ -121,6 +121,7 @@ export type Category =
   | "art"
   | "lecture"
   | "taiwan_japan"
+  | "scholarship"
   | "business"
   | "academic"
   | "competition"
@@ -154,6 +155,7 @@ export const CATEGORIES: Category[] = [
   "art",
   "lecture",
   "taiwan_japan",
+  "scholarship",
   "business",
   "academic",
   "competition",
@@ -186,7 +188,7 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
   },
   {
     labelKey: "group_knowledge",
-    categories: ["business", "academic", "lecture", "taiwan_japan"],
+    categories: ["business", "academic", "lecture", "taiwan_japan", "scholarship"],
   },
   {
     labelKey: "group_society",
