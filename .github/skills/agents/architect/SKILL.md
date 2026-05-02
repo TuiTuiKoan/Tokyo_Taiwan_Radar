@@ -144,6 +144,15 @@ Before approving any change to `annotator.py` annotation field priority, verify:
 5. **`location_url`** — conditional write: GPT may extract it from `raw_description` text (schema prompt must say "extract from text only, no hallucination"). Write only when non-null (`_loc_url = event.get("location_url") or _str(annotation.get("location_url"))`); never write `null` back to DB — `null` would overwrite admin-entered values. This is a field shared between scraper/GPT extraction and admin manual entry. (commit `fb568c4`, 2026-05-02)
 6. The safe way to fix a GPT-overwritten date: prepend `開催日時: YYYY年MM月DD日` header to `raw_description`, then set `annotation_status='pending'` to trigger re-annotation.
 
+## Hallucination Scan Safety Guard
+
+Before acting on any hallucination scan result (address/location not found in raw_description), verify:
+
+1. **Scan result = suspicion only**: An address absent from raw_description does NOT confirm hallucination. GPT correctly recalls well-known venues from training data.
+2. **Always verify with Google Maps before editing**: Search the venue name directly — takes 30 seconds. Do NOT infer address from venue name, neighborhood, or landmark associations.
+3. **Venue name ≠ postal address**: `MoN Takanawa` (inside Takanawa Gateway City) has postal address 港区三田 — not 高輪. Station names, building brands, and postal addresses can differ.
+4. **Incident**: 2026-05-02 — architect changed correct GPT address `港区三田3-16-1` to wrong `港区高輪4-10-30` based on venue name reasoning. Reverted after user confirmation.
+
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.

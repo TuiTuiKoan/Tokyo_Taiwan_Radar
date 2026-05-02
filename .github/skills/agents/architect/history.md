@@ -3,6 +3,15 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02（深夜 4）— MoN Takanawa 住所誤修正（幻覺スキャン false positive）
+
+### MoN Takanawa 住所誤修正（幻覚スキャン false positive）
+- **Error**: 幻覚スキャンで「住所が raw_description にない」→ 幻覚と誤判定。GPT 正解（三田3-16-1）を「高輪4-10-30」に誤って上書き。
+- **Root cause**: 施設名「Takanawa」から住所を推論（施設名≠郵便住所地名）。公式サイトが JS レンダリングで住所非公開のため Web スクレイピングで確認できず。
+- **Fix**: Google Maps 検索で正しい住所（港区三田3-16-1）を確認 → 即座に還元・reviewed ロック。
+- **Lesson**: 幻覚スキャン結果は「嫌疑」のみ。修正前に必ず Google Maps で 30 秒確認。施設名と郵便住所は一致しないことがある（高輪ゲートウェイシティ内の MoN Takanawa の住所は「三田」）。
+
+---
 ## 2026-05-02（深夜 3）— Quality Check 判斷基準錯誤、competition 類排除（commits `b82849d`→`80920ce`、`4ca383a`）
 
 ### 架構規則：Quality check 的判斷欄位必須與詳情頁顯示邏輯一致
