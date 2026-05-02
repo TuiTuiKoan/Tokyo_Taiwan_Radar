@@ -83,7 +83,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("active");
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
-  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "kanto" | "chubu" | "chugoku" | "online" | "tv">("")
+  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "kanto" | "chubu" | "chugoku" | "online" | "tv" | "overseas">("")
   const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "reviewed" | "error">("");;  const [filterSource, setFilterSource] = useState("");
   const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
   const KANTO_MARKERS_ADMIN = ["神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬", "山梨", "青森", "岩手", "宮城", "秋田", "山形", "福島", "北海道"];
@@ -141,6 +141,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         if (!hasPrefecture(CHUGOKU_KYUSHU_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false;
       } else if (filterLocation === "online") {
         if (!(e.location_name || "").includes("オンライン")) return false;
+      } else if (filterLocation === "overseas") {
+        const TAIWAN_MARKERS_ADMIN = ["台北", "台中", "高雄", "台南", "新竹", "嘉義", "花蓮", "台東", "基隆", "宜蘭", "桃園", "屏東", "南投", "彰化", "雲林", "澎湖"];
+        if (!TAIWAN_MARKERS_ADMIN.some((m) => (e.location_address || "").includes(m))) return false;
       }
   if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
       if (filterSource && (e as any).source_name !== filterSource) return false;
@@ -563,6 +566,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="chubu">{tFilters("locationChubu")}</option>
               <option value="chugoku">{tFilters("locationChugoku")}</option>
               <option value="online">{tFilters("locationOnline")}</option>
+              <option value="overseas">{tFilters("locationOverseas")}</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">

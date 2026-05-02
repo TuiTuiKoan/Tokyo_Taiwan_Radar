@@ -127,6 +127,11 @@ export default async function HomePage({ params, searchParams }: PageProps) {
   } else if (sp.location === "online") {
     // Online events: location_name = 'オンライン', location_address = null
     query = query.ilike("location_name", "%オンライン%");
+  } else if (sp.location === "overseas") {
+    // Overseas (Taiwan cities): location_address contains Taiwan city names
+    const TAIWAN_MARKERS = ["台北", "台中", "高雄", "台南", "新竹", "嘉義", "花蓮", "台東", "基隆", "宜蘭", "桃園", "屏東", "南投", "彰化", "雲林", "澎湖"];
+    const conds = TAIWAN_MARKERS.map((m) => `location_address.ilike.%${m}%`).join(",");
+    query = query.or(conds);
   }
 
   const { data: events, error } = await query;
