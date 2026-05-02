@@ -188,24 +188,7 @@ def generate_report() -> str:
     lines.append("=" * 48)
     lines.append("")
 
-    # Section 1: scraper runs
-    lines.append(f"── 爬蟲結果（過去 25 小時）{sep[:22]}")
-    if runs:
-        lines.append(f"  新增/更新事件  ：{total_events} 件")
-        lines.append(f"  標注完成       ：{annotated_count} 件")
-        lines.append(f"  OpenAI 費用    ：${total_cost:.4f}")
-        if scraper_sources:
-            lines.append("  來源明細：")
-            for src, n in sorted(scraper_sources.items()):
-                flag = " ⚠" if n == 0 else ""
-                lines.append(f"    {src}: {n} 件{flag}")
-        if zero_sources:
-            lines.append(f"  ⚠ 以下來源 0 件（請確認）：{', '.join(zero_sources)}")
-    else:
-        lines.append("  （無爬蟲記錄 — 可能今日未執行）")
-    lines.append("")
-
-    # Section 2: pending items
+    # Section 1: pending items
     lines.append(f"── 待處理事項 {sep[:31]}")
     has_pending = False
 
@@ -246,8 +229,11 @@ def generate_report() -> str:
             for d in details[:2]:
                 lines.append(f"      {d}")
 
-    # PR review section (always shown, even if empty)
+    if not has_pending:
+        lines.append("  ✓ 無待處理事項")
     lines.append("")
+
+    # Section 2: PR review (always shown, even if empty)
     lines.append(f"── 待審核 PR (auto-generated scrapers) {sep[:10]}")
     if pending_prs:
         for i, pr in enumerate(pending_prs, 1):
@@ -260,9 +246,6 @@ def generate_report() -> str:
         lines.append("  ※ approve → merge で次回 cron から本番稼働")
     else:
         lines.append("  （待審核 PR なし）")
-
-    if not has_pending:
-        lines.append("  ✓ 無待處理事項")
     lines.append("")
 
     # Section 3: git commits
@@ -279,6 +262,23 @@ def generate_report() -> str:
     lines.append("  請至 GitHub Actions 確認昨日爬蟲 log：")
     lines.append(f"  {ACTIONS_URL}")
     lines.append("  可疑 pattern：rm | curl | wget | eval | exec | __import__")
+    lines.append("")
+
+    # Section 5: scraper runs
+    lines.append(f"── 爬蟲結果（過去 25 小時）{sep[:22]}")
+    if runs:
+        lines.append(f"  新增/更新事件  ：{total_events} 件")
+        lines.append(f"  標注完成       ：{annotated_count} 件")
+        lines.append(f"  OpenAI 費用    ：${total_cost:.4f}")
+        if scraper_sources:
+            lines.append("  來源明細：")
+            for src, n in sorted(scraper_sources.items()):
+                flag = " ⚠" if n == 0 else ""
+                lines.append(f"    {src}: {n} 件{flag}")
+        if zero_sources:
+            lines.append(f"  ⚠ 以下來源 0 件（請確認）：{', '.join(zero_sources)}")
+    else:
+        lines.append("  （無爬蟲記錄 — 可能今日未執行）")
     lines.append("")
 
     lines.append("=" * 48)
