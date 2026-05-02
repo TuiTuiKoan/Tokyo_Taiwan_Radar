@@ -274,6 +274,20 @@ Run after discovering a new cross-source duplicate that the merger missed. Then 
 
 **When adding a new cinema scraper**: always add `from movie_title_lookup import lookup_movie_titles` and call `lookup_movie_titles(title)` before `Event()`. Update this table.
 
+## person_name_lookup — cast/crew multilingual names
+
+`scraper/person_name_lookup.py` provides cast/crew name lookup via eiga.com + zh.wikipedia.
+
+- **Triggered by**: `python annotator.py --enrich-person-names` (runs in CI after `--enrich-movie-titles`)
+- **Target scope**: all `category=movie` events where `annotation_status != 'reviewed'` and `source_name != 'eiga_com'`
+- **Sources**: eiga.com cast/crew pages (primary) → zh.wikipedia (fallback for Chinese names)
+- **Output fields**:
+  - `description_zh`: GPT-corrected Chinese transliteration of cast/crew names (replaces katakana with proper 中文 names)
+  - `description_en`: direct katakana → Latin replacement using the lookup table
+- **Silent failure**: returns empty dict on any error — never raises, never breaks the pipeline
+- **In CI**: Step order is `--fix-reviewed` → `--enrich-movie-titles` → `--enrich-person-names` → `summarize_run.py`
+- **Rule**: If you implement a new enrichment function in `annotator.py`, always add the corresponding CI step to `.github/workflows/scraper.yml` — implementation without CI registration means it never runs in production.
+
 ## prtimes-specific
 
 - **API endpoint**: `GET https://prtimes.jp/api/keyword_search.php/search?keyword=<kw>&page=<N>&limit=40` — internal Next.js API, returns JSON. No Playwright needed.

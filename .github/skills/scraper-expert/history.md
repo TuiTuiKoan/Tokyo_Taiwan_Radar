@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-05-02 — CI に `--enrich-person-names` ステップを追加（commit `85fd475`）
+
+- **変更内容**：`.github/workflows/scraper.yml` に `python annotator.py --enrich-person-names` ステップを追加（`--enrich-movie-titles` の直後）。
+- **背景**：`person_name_lookup.py`（eiga.com + zh.wikipedia）と `annotator.py` の `enrich_person_names()` は実装済みだったが、CI から呼ばれていなかった。全 `category=movie` イベントの出演者・スタッフ名中英訳が毎日 CI で自動補完されるようになった。
+- **CI フロー（更新後）**：`--fix-reviewed` → `--enrich-movie-titles` → `--enrich-person-names` → `summarize_run.py`
+- **教訓**：新しい enrichment 関数を実装したら、CI（`scraper.yml`）への追加を忘れずに確認する。実装済みでも CI に追加しなければ本番で動かない。
+
+---
+
 ## 2026-05-02 — eurospace.py に `lookup_movie_titles` を追加、SKILL.md 更新
 
 - **変更内容**：`eurospace.py` に `from movie_title_lookup import lookup_movie_titles` を追加し、`_scrape_detail()` 内で `name_zh, name_en = lookup_movie_titles(title)` を呼び出し `Event()` に渡すよう修正。

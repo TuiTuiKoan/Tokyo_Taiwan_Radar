@@ -3,6 +3,21 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — CI 加入 `--enrich-person-names` 步驟（commit `85fd475`）
+
+**問題：** `person_name_lookup.py`（eiga.com + zh.wikipedia）與 `annotator.py` 的 `enrich_person_names()` 已實作，但 CI 從未呼叫它，全 `category=movie` 活動的演職員姓名中英文補完功能形同虛設。
+
+**修復：** `.github/workflows/scraper.yml` 在 `--enrich-movie-titles` 之後加入新步驟：
+```yaml
+- name: Enrich cast/crew names from eiga.com + Wikipedia
+  run: python annotator.py --enrich-person-names
+```
+
+**CI 流程（更新後）：** `--fix-reviewed` → `--enrich-movie-titles` → `--enrich-person-names` → `summarize_run.py`
+
+**教訓：** 新的 enrichment 函式實作完後，必須同步確認已加入 `scraper.yml`。已在 `scraper-expert/SKILL.md` 的 `## person_name_lookup` 區段記錄此規則。
+
+---
 ## 2026-05-02 — Promotion 後 `scraper_source_name` 缺失，後台來源關聯斷裂
 
 **問題：** auto_generate 完成、PR merge 後手動 promote 兩個來源（id=150 TIFF、id=151 台湾フェスタ），`/admin/sources` 後台顯示 0 筆活動、無法觸發 Run Scraper。
