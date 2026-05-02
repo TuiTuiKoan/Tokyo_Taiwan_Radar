@@ -236,6 +236,20 @@ def generate_report() -> str:
         or []
     )
 
+    # ── auto-registered stub rows (name == scraper_source_name, need proper name/url) ──
+    stub_rows = (
+        sb.table("research_sources")
+        .select("id,name,scraper_source_name,url")
+        .eq("status", "implemented")
+        .execute()
+        .data
+        or []
+    )
+    stub_rows = [
+        r for r in stub_rows
+        if r.get("scraper_source_name") and r.get("name") == r.get("scraper_source_name")
+    ]
+
     # ── build report text ─────────────────────────────────────────────────────
     sep = "─" * 44
     lines: list[str] = []
@@ -284,6 +298,19 @@ def generate_report() -> str:
             lines.append(f"    [{title}]")
             for d in details[:2]:
                 lines.append(f"      {d}")
+
+    if stub_rows:
+        has_pending = True
+        lines.append(f"  📝 自動補建的來源待補充 name/url：{len(stub_rows)} 件")
+        for r in stub_rows:
+            lines.append(f"    - id={r['id']}  scraper_source_name={r['scraper_source_name']}  url={r.get('url') or '（空）'}")
+        lines.append("    → 在 scraper/ 目錄執行：python update_source.py --id <id> --name '來源名稱' --url 'https://...'")
+        lines.append("      或：python - <<'PY'")
+        lines.append("      # 範例：填入 id=XX 的 name 和 url")
+        lines.append("      import os; from dotenv import load_dotenv; from supabase import create_client")
+        lines.append("      load_dotenv('.env'); sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])")
+        lines.append("      sb.table('research_sources').update({'name': '正式名稱', 'url': 'https://...'}).eq('id', XX).execute()")
+        lines.append("      PY")
 
     if not has_pending:
         lines.append("  ✓ 無待處理事項")
