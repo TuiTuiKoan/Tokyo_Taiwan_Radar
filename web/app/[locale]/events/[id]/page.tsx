@@ -326,6 +326,19 @@ export default async function EventDetailPage({ params }: PageProps) {
         />
       </div>
 
+      {/* ===== Primary CTA ===== */}
+      {((event as Event).official_url || event.source_url) && (
+        <a
+          href={((event as Event).official_url ?? event.source_url)!}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-medium py-3 px-4 rounded-xl mb-6 transition"
+        >
+          {(event as Event).official_url ? t("officialSite") : t("viewOriginal")}
+          <span aria-hidden="true">↗</span>
+        </a>
+      )}
+
       {/* ===== Summary Card ===== */}
       <div className="border border-gray-200 rounded-xl overflow-hidden mb-6">
         <table className="w-full text-sm">
