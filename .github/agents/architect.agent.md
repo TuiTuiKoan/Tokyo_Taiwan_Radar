@@ -100,6 +100,23 @@ Before approving any change that adds or modifies region filter markers in `web/
 3. **Multi-city parent events**: After adding a new region filter, confirm that multi-city parent events with `location_prefectures` array are also covered by adding `location_prefectures.cs.{"<pref>"}` OR conditions alongside the address marker checks.
 4. **Test with Tokyo addresses**: After any marker change, run a quick sanity check — confirm that `東京都新宿区` does NOT match Kyoto/Kansai markers.
 
+## RLS Cross-Status Query Guard
+
+Before approving **any** SSR page that queries related records (parent events, linked entities), verify:
+
+1. If the queried record could have `is_active = false` (e.g. a parent event archived while its children remain active), the anon-key client will **silently return null** — no error, no warning. This causes links and metadata to disappear without explanation.
+2. For server-side name/metadata lookups on related records, use service role key. Only `select` the minimum required fields (`id`, `name_ja`, `name_zh`, `name_en`); **do NOT** expose sensitive columns or use `select("*")`.
+3. Pattern — Server Component / route handler only:
+   ```ts
+   const adminClient = createClient(
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.SUPABASE_SERVICE_ROLE_KEY!
+   )
+   ```
+4. `SUPABASE_SERVICE_ROLE_KEY` must **never** be passed to a Client Component or exposed in browser-accessible code.
+
+Reference incident: 2026-05-02 — 父事件（台東祭）`is_active = false` 導致子事件詳情頁父事件連結消失（commit `f5931e0`）。
+
 ## Required Phases
 
 ### Phase 1: Research

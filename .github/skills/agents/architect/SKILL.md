@@ -112,6 +112,39 @@ Reference incident: `AdminTabNav` badge（2026-05-02）—（commit `4a71258`）
 
 Reference incident: 2026-05-02 quality page — `gguide_tv` 排除原為 JS client-side filter，後移至 DB query（commit `80920ce`）；`competition` 排除直接寫在 DB query（commit `4ca383a`）.
 
+## RLS Cross-Status Query Guard
+
+在任何涉及「SSR 頁面查詢關聯資料（父事件、鏈結實體）」的 feature plan 中，**必須**確認以下三點：
+
+### 規則一：anon key 不讀非 active 資料
+
+RLS `"Public read events"` policy 限制 anon key 只讀 `is_active = true` 的事件。若查詢目標（如父事件）被下架（`is_active = false`），anon key 查詢**靜默回傳 null**，不拋 error，難以察覺。
+
+### 規則二：跨 active 狀態查詢必須用 service role key
+
+若查詢的關聯資料可能處於 `is_active = false` 狀態（例如：父事件下架、存檔紀錄），**必須在 Server Component / route handler 中用 service role key**：
+
+```ts
+// Server Component only — 不可傳到 client-side
+const adminClient = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+const { data } = await adminClient
+  .from("events")
+  .select("id, name_ja, name_zh, name_en")  // 只查需要的欄位
+  .eq("id", parentId)
+  .single()
+```
+
+**強制限制**：service role key **絕對不得**暴露到 client-side。只在 Server Components 或 API route handlers 使用。
+
+### 規則三：最小欄位原則
+
+用 service role key 查詢關聯資料時，**只 select 當前頁面真正需要的欄位**（如 `id, name_ja, name_zh, name_en`），不得用 `select("*")` 避免洩漏敏感欄位。
+
+Reference incident: 2026-05-02 — 父事件（台東祭）被設為 `is_active = false` 後，子事件詳情頁父事件連結消失；改用 service role key 後恢復（commit `f5931e0`）。
+
 ## Admin UI Dashboard Necessity Check
 
 Before planning any new admin page or dashboard column whose primary output is a count / status / health number, ask:

@@ -3,6 +3,26 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — RLS 阻擋父子事件跨 active 狀態連結（commit `f5931e0`）
+
+### RLS 阻擋父子事件跨 active 狀態連結
+
+- **錯誤**: 子事件詳情頁的父事件連結消失
+- **根因**: RLS `"Public read events"` policy 限制 anon key 只讀 `is_active = true`；父事件下架後，SSR 用 anon key 查父事件名稱回傳 null
+- **修正**: 父事件名稱查詢改用 service role key（server-side only，只查 `id, name_ja, name_zh, name_en` 欄位）
+- **教訓**: SSR 頁面查詢「父子關聯」「存檔紀錄」等跨 active 狀態的資料時，必須用 service role key 繞過 RLS；anon key 查詢非 active 資料會靜默回傳 null，沒有任何 error。
+
+---
+## 2026-05-02 — 品質頁缺地址清單出現不可操作項目（commit `f5931e0`）
+
+### Quality Check 假陽性：嵌入地址的 location_name 和短地名
+
+- **錯誤**: `/admin/quality` 缺地址清單中出現無法補填的項目（如 `南山大学 Q棟103 (〒466-8673...)` 和 `東京`、`香港` 等短地名）
+- **根因**: `location_name IS NOT NULL AND location_address IS NULL` 查詢未排除：(1) `location_name` 含 `〒`（地址已嵌入名稱）、(2) `location_name` 含 `オンライン`（線上活動）、(3) 短地名 ≤6 字無空格（只是城市/行政區，無具體地址可填）
+- **修正**: DB 層加 `.not("location_name", "like", "%〒%")` 和 `.not("location_name", "ilike", "%オンライン%")`；client 層過濾 `loc.length <= 6 && !loc.includes(" ")`
+- **教訓**: Quality check 設計必須同時考慮「有值但值的內容表示不需填」的假陽性情境。嵌入郵遞區號的欄位和短地名都是假陽性，應在 DB query 層排除。
+
+---
 ## 2026-05-02（深夜 4）— MoN Takanawa 住所誤修正（幻覺スキャン false positive）
 
 ### MoN Takanawa 住所誤修正（幻覚スキャン false positive）
