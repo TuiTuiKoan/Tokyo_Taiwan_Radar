@@ -9,6 +9,7 @@ interface Props {
   eventId: string;
   locale: string;
   selectionReason?: string | null;
+  currentCategories?: Category[];
   eventFields?: Partial<Record<WrongDetailField, Partial<Record<LocaleKey, string | null>>>>;
 }
 
@@ -45,7 +46,7 @@ const FIELD_I18N: Record<WrongDetailField, string> = {
   description: "fieldDescription",
 };
 
-export default function ReportSection({ eventId, locale, selectionReason, eventFields }: Props) {
+export default function ReportSection({ eventId, locale, selectionReason, currentCategories, eventFields }: Props) {
   const t = useTranslations("report");
   const tCat = useTranslations("categories");
   const [open, setOpen] = useState(false);
@@ -69,8 +70,9 @@ export default function ReportSection({ eventId, locale, selectionReason, eventF
         if (type === "wrongSelectionReason") setSelectionReasonText("");
       } else {
         next.add(type);
-        // Pre-fill textarea with current selection reason when ticking
+        // Pre-fill with current values when ticking
         if (type === "wrongSelectionReason") setSelectionReasonText(selectionReason || "");
+        if (type === "wrongCategory") setSuggestedCategories(new Set(currentCategories ?? []));
       }
       return next;
     });

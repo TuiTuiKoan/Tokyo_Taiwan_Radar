@@ -626,7 +626,7 @@ export default async function EventDetailPage({ params }: PageProps) {
         rawDescription={event.raw_description}
         selectionReason={event.selection_reason}
         locale={locale}
-        reportSection={<ReportSection eventId={event.id} locale={locale} selectionReason={(() => {
+        reportSection={<ReportSection eventId={event.id} locale={locale} currentCategories={(event.category ?? []) as import("@/lib/types").Category[]} selectionReason={(() => {
           if (!event.selection_reason) return null;
           try {
             const parsed = JSON.parse(event.selection_reason);
