@@ -42,8 +42,9 @@ ms.date: 2026-05-01
 
 ---
 
-## Secrets 文件入口
+## 相關文件
 
+* [爬蟲來源研究到上線完整工作流](SCRAPER_PIPELINE.md)
 * [GITHUB_TOKEN 快速參考清單](GITHUB_TOKEN_SYNC_CHECKLIST.md)
 * [GITHUB_TOKEN 完整輪替指南](../.github/instructions/token-rotation.instructions.md)
 * [Secrets 生命週期與審計路線圖](../.github/SECRETS_LIFECYCLE.md)
@@ -308,10 +309,13 @@ Admin 撰寫發文（三語 title + body + images）
 | `merger.yml` | — | 手動觸發跨來源合併 |
 | `annotate-now.yml` | — | 手動觸發重新標注 |
 | `scrape-now.yml` | — | 手動觸發爬取 |
-| `researcher.yml` | — | 研究新來源 |
-| `discovery-accounts.yml` | — | 社群帳號探索 |
-| `weekly-broadcast.yml` | 每週 | LINE 週報推播 |
+| `researcher.yml` | 每日 4 slots JST | 來源批次探索（Layer A）|
+| `discovery-accounts.yml` | 每日 Mon–Thu | note.com + Peatix 帳號探索 |
+| `auto-research.yml` | 每日 00:30 JST | 自動評估 candidate 來源（Layer B1）|
+| `auto-generate.yml` | 每日 01:00 JST | 自動代碼生成 + sandbox（Layer B2）|
+| `weekly-broadcast.yml` | 每週一 10:30 JST | LINE 週報推播 |
 | `weekly-report.yml` | 每週 | 營運週報產生 |
+| `daily-dev-report.yml` | 每日 | 開發日報 |
 | `backup.yml` | — | DB 備份 |
 | `daily-health-check.yml` | 每日 | 健康監控 |
 | `secret-rotation-reminder.yml` | — | 密鑰輪替提醒 |
@@ -351,7 +355,7 @@ Job 3: notify（depends: scrape + validate, always runs）
 | `OPENAI_API_KEY` | ✓ | — | GPT 標注 |
 | `DEEPL_API_KEY` | ✓ | — | DeepL 翻譯 |
 | `LINE_CHANNEL_SECRET` | — | ✓ | Webhook 驗簽 |
-| `LINE_CHANNEL_TOKEN` | ✓ | ✓ | LINE 推播 |
+| `LINE_CHANNEL_TOKEN` | ✓ | ✓ | LINE 推播（GHA=broadcast, Vercel=reply）|
 | `LINE_USER_ID` | ✓ | — | 管理員推播 |
 | `INDEXNOW_KEY` | ✓ | — | IndexNow 索引 |
 | `SENTRY_DSN` | ✓ | ✓ | 錯誤追蹤 |
