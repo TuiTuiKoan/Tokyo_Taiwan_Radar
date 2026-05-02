@@ -56,6 +56,25 @@ If a plan introduces a new admin page or count column with no associated action,
 
 Reference incident: 2026-05-01 Tier 1 monitoring — `/admin/quality` page and `/admin/stats` SLA columns were planned, implemented, then撤銷 same week; only the LINE budget push (`weekly_report.py`) survived.
 
+## Annotator Date-Safety Guard
+
+When a plan includes **manual date correction** followed by annotator re-run (`annotation_status='pending'`), the plan **must** include one of the following guards:
+
+**Option A — Re-annotate (safe)**:
+1. Update `start_date`/`end_date`.
+2. Prepend `開催日時: YYYY年MM月DD日 〜 YYYY年MM月DD日\n\n` to `raw_description`.
+3. Set `annotation_status='pending'`.
+
+**Option B — Skip re-annotation (simplest)**:
+1. Update `start_date`/`end_date`.
+2. Set `annotation_status='annotated'`. Annotator will not overwrite.
+
+**Forbidden pattern**: Update dates → set `annotation_status='pending'` without touching `raw_description`. The annotator's date merge strategy is `GPT output OR DB value` — GPT always runs first and overwrites the manual fix.
+
+**High-risk sources**: `tokyoartbeat`, `google_news_rss`, `nhk_rss`, `note_creators` — these sources' `raw_description` commonly lacks a structured `開催日時:` header.
+
+Reference incident: デニス・リン展 (2026-05-02, `history.md`).
+
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.

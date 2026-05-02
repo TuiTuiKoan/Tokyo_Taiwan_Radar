@@ -3,6 +3,27 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02（晚）— 5 件修復：scraper retry、子活動欄位、health_check、annotator 日期覆蓋
+
+### 摘要
+本次 session 共 5 個跨層修復，最重要的教訓是 **annotator 日期覆蓋問題**。
+
+### 架構層教訓：annotator 日期覆蓋（重要 guard）
+- **問題**：`annotator.py` 對 `start_date`/`end_date` 的合併策略是「GPT 優先，DB 次之」（`annotation.get("start_date") or event.get("start_date")`）。手動修正日期後若把 `annotation_status` 設為 `'pending'`，annotator 重跑時 GPT 會從 `raw_description` 自由文字猜日期並覆蓋修正值。
+- **根本原因**：`raw_description` 缺少結構化 `開催日時:` header 時，GPT 依賴散落在文章中的任意日期字串（包含錯誤的舊日期）。
+- **架構規則**（新增至 SKILL.md）：
+  - 手動修正日期後，**必須選擇以下其一**：
+    - Option A：同步在 `raw_description` 前面加入 `開催日時:` header → 再設 `annotation_status='pending'`
+    - Option B：直接設 `annotation_status='annotated'`（跳過 re-annotation）
+  - 任何需要「手動修正 + 自動重跑」的資料修復流程，設計時必須確保 annotator 有明確的結構化欄位可依賴，不能只靠自由文字推斷。
+
+### 其他修復（無新架構規則，歸 Scraper Expert 管轄）
+- taiwanbunkasai：HTTP retry（HTTPAdapter + Retry）
+- taiwanshi：子活動解析邏輯（`_parse_reports()` + `parent_event_id`）
+- database.py：新增 `get_event_id_by_source()` helper
+- health_check.py：Check 4（gnews fallback date）+ Check 5（tokyoartbeat URL-date mismatch）
+
+---
 ## 2026-05-02（下午）— generate.py load_dotenv、not-viable 來源判定、Admin 篩選預設值、eurospace lookup_movie_titles（commits `d94fc80`、`29046ad`、`f905ee2`）
 
 ### auto_scraper/generate.py load_dotenv 修復（commit `d94fc80`）

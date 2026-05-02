@@ -87,6 +87,37 @@ for e in [x for x in events if x['name_ja'] != x['raw_title']]:
     sb.table('events').update({'name_ja': e['raw_title']}).eq('id', e['id']).execute()
 ```
 
+## Annotator date protection — manual date fix protocol
+
+**Problem**: `annotator.py` lines 581-582 always prefer GPT output over DB values for dates:
+```python
+"start_date": annotation.get("start_date") or event.get("start_date"),
+"end_date": annotation.get("end_date") or event.get("end_date"),
+```
+If `annotation_status` is reset to `'pending'` after a manual date fix, the next annotator run will overwrite the corrected dates with whatever GPT extracts from `raw_description`.
+
+**Root cause**: GPT extracts dates from `raw_description` free-text. Sources like `tokyoartbeat`, `gnews`, `note_creators` often lack a structured `開催日時:` header — GPT will guess from stray date mentions.
+
+**Safe protocol for manual date correction**:
+
+Option A — Re-annotate (safe):
+1. Update `start_date`/`end_date` in DB.
+2. Prepend `開催日時: YYYY年MM月DD日 〜 YYYY年MM月DD日\n\n` to `raw_description`.
+3. Set `annotation_status='pending'` — annotator re-runs with the header as ground truth.
+
+Option B — Skip re-annotation (simplest):
+1. Update `start_date`/`end_date` in DB.
+2. Set `annotation_status='annotated'` (NOT `'pending'`) — annotator will not touch this event again.
+
+**Never do**: Update `start_date`/`end_date` then set `annotation_status='pending'` WITHOUT updating `raw_description`. The next annotator run will overwrite your fix.
+
+**High-risk sources** (frequently missing `開催日時:` header in `raw_description`):
+- `tokyoartbeat` — dates embedded in URL, not description
+- `google_news_rss` / `nhk_rss` — article publication date ≠ event date
+- `note_creators` — free-prose blog posts
+
+**Incident**: デニス・リン展 (id: `1e375d6c`, 2026-05-02) — GPT output `2026-01-15` overwrote corrected `2026-04-10` because `raw_description` lacked the header. See `history.md` 2026-05-02.
+
 ## Annotator output cleaning
 - Empty strings from GPT (`""`) must be treated as `None` — use `_str()` helper that returns `None` for falsy/blank strings. Prevents empty `name_zh`/`name_en` from blocking the `||` fallback chain in `getEventName`.
 - Location fields must be stripped of leading label separators — use `_loc()` helper that calls `.lstrip("：；:; \u3000")`. GPT often includes the `会場：` or `場所：` separator as the first character of `location_name`.

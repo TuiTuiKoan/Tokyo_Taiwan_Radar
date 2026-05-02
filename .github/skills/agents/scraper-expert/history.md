@@ -3,6 +3,44 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-02 — 5 件修復：HTTPAdapter retry、子活動欄位、get_event_id_by_source、health_check Check 4/5、annotator 日期覆蓋
+
+### 修復 1：taiwanbunkasai — HTTPAdapter retry 補強
+- **問題**：網路暫時性失敗（transient errors）無法重試，造成 Sentry 報警。
+- **修復**：加入 `HTTPAdapter(max_retries=Retry(total=3, backoff_factor=2, status_forcelist=[429,500,502,503,504]))`。
+- **教訓**：所有 scraper 對外 HTTP 呼叫都應加 retry，尤其目標站台有限流（rate limit）的情況。
+
+### 修復 2：taiwanshi — 子活動欄位錯誤
+- **問題**：爬蟲沒有子活動解析邏輯，子活動資料被錯誤放在父活動欄位。
+- **修復**：新增 `_parse_reports()` 函數與 4 個 regex；`scrape()` 建立父活動後查 UUID 再建子活動。
+- **教訓**：當一個 source 頁面包含多個獨立 programme items，需在爬蟲層建立子活動（`parent_event_id`），不能全塞在父活動。
+
+### 修復 3：database.py — 新增 `get_event_id_by_source()`
+- **問題**：子活動需要查詢父活動的 UUID，但原本沒有 helper 函式。
+- **修復**：新增 `get_event_id_by_source(source_name, source_id) -> str | None`。
+- **教訓**：跨事件 UUID 查詢是子活動建立的必要基礎建設，應在開始撰寫含子活動邏輯的 scraper 前確認此 helper 存在。
+
+### 修復 4：health_check.py — 新增 Check 4 & Check 5
+- **Check 4**：偵測 gnews 活動有 `start_date` 但原始 description 未實際抓取文章（只有 fallback pub_date）。
+- **Check 5**：偵測 tokyoartbeat 活動 DB 日期與 `source_url` 中的日期不符。
+- **教訓**：日期異常很難用肉眼發現，需要系統性健康檢查（health_check.py）定期偵測。
+
+### 修復 5：annotator 日期覆蓋問題（重要）
+- **問題根因**：annotator 第 581-582 行：
+  ```python
+  "start_date": annotation.get("start_date") or event.get("start_date"),
+  "end_date": annotation.get("end_date") or event.get("end_date"),
+  ```
+  手動修正 `start_date` 後，若同時把 `annotation_status` 設為 `'pending'`，annotator 重跑時 GPT 若能從 `raw_description` 找到任何日期字串（甚至是錯誤的），就會覆蓋掉手動修正的值。
+- **案例**：デニス・リン展（id: `1e375d6c`）的 `raw_description` 沒有 `開催日時:` header，GPT 輸出了 `2026-01-15`（舊錯誤值），覆蓋掉了修正後的 `2026-04-10`。
+- **正確修法（已驗證）**：
+  1. 直接更新 `start_date`/`end_date`
+  2. 同時在 `raw_description` 前面加入 `開催日時: YYYY年MM月DD日 〜 YYYY年MM月DD日\n\n` header
+  3. 才能安全地設 `annotation_status='pending'` 讓 annotator 重跑
+  - **或者（更安全）**：手動修正後，設 `annotation_status='annotated'`（不設 `'pending'`），讓 annotator 不再重跑。
+- **教訓**：手動修正日期時，**絕對不要**單獨設 `annotation_status='pending'` 而不更新 `raw_description`。`raw_description` 的 `開催日時:` header 是防止 GPT 猜錯日期的關鍵保護機制。
+
+---
 ## 2026-05-02 — CI 加入 `--enrich-person-names` 步驟（commit `85fd475`）
 
 **問題：** `person_name_lookup.py`（eiga.com + zh.wikipedia）與 `annotator.py` 的 `enrich_person_names()` 已實作，但 CI 從未呼叫它，全 `category=movie` 活動的演職員姓名中英文補完功能形同虛設。
