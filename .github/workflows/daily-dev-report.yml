@@ -1,0 +1,70 @@
+name: Daily Dev Report
+
+on:
+  schedule:
+    - cron: "0 17 * * *"   # 02:00 JST (UTC+9 → UTC-9h = 17:00 UTC)
+  workflow_dispatch:        # allow manual trigger for testing
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history needed for git log
+
+      - name: Get yesterday's commits (JST window, last 26h buffer)
+        id: commits
+        run: |
+          COMMITS=$(git log --oneline --since="26 hours ago" --format="%h %s" 2>/dev/null | head -20)
+          if [ -z "$COMMITS" ]; then
+            COMMITS="（昨日は提交なし）"
+          fi
+          echo "data<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Set report date (JST)
+        run: echo "REPORT_DATE=$(TZ=Asia/Tokyo date '+%Y-%m-%d')" >> $GITHUB_ENV
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Generate report
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          GIT_COMMITS: ${{ steps.commits.outputs.data }}
+        run: python daily_report.py
+
+      - name: Read report body
+        id: body
+        run: |
+          BODY=$(cat /tmp/report_body.txt)
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Send email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "📅 Tokyo Taiwan Radar 開發日報 ${{ env.REPORT_DATE }}"
+          to: ${{ secrets.DEV_REPORT_EMAIL }}
+          from: "Tokyo Taiwan Radar <${{ secrets.GMAIL_USER }}>"
+          body: ${{ steps.body.outputs.content }}
