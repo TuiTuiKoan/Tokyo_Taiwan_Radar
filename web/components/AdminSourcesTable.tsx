@@ -345,13 +345,15 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     95: "tv", 71: "tv", 72: "tv", 73: "tv", 94: "tv",
     // 政府機構
      8: "government", 13: "government", 80: "government", 87: "government",
-     7: "government", 16: "government", 60: "government", 66: "government",
+    16: "government", 60: "government", 66: "government",
     68: "government", 89: "government", 90: "government", 88: "government",
     // 百貨
     46: "department_store", 129: "department_store", 130: "department_store", 131: "department_store",
     // 活動策劃組織
     57: "organizer", 21: "organizer", 69: "organizer", 91: "organizer",
-    18: "organizer",  9: "organizer", 22: "organizer",
+     9: "organizer", 22: "organizer",
+    // 民間團體
+     7: "ngo", 18: "ngo", 101: "ngo", 155: "ngo", 194: "ngo",
     // 個人頁面
     78: "personal",
     // 台灣商家
@@ -370,6 +372,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     government:        "政府機構",
     department_store:  "百貨",
     organizer:         "活動策劃組織",
+    ngo:               "民間團體",
     personal:          "個人頁面",
     taiwan_shop:       "台灣商家",
     peatix_organizer:  "Peatix 主辦者",
