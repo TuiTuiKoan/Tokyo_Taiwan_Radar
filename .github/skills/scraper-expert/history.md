@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-04 — main.py pipeline 補齊 enrich 步驟 + ks_cinema DB 修正
+
+### main.py 新增 enrich_movie_titles / enrich_person_names 呼叫
+- **問題**：手動 `python main.py --source ks_cinema` 執行後，電影片名得到直譯（`循環的面影`）而非官方片名（`車頂上的玄天上帝`）。`enrich_movie_titles()` / `enrich_person_names()` 只在 CI 以獨立步驟執行，`main.py` 未呼叫。
+- **修正**：`main.py` 新增 `from annotator import enrich_movie_titles, enrich_person_names`，在 `annotate_pending_events()` 之後呼叫。enrich 為 idempotent，CI 二次執行無影響。
+- **教訓**：新增 enrichment 函數時，必須同時加到 `main.py`（手動）和 `scraper.yml`（CI）。Pipeline 完整順序：scrape → merger → annotate → enrich_movie_titles → enrich_person_names → IndexNow。
+
+### ks_cinema 電影片名 DB 手動修正
+- 6 筆事件 `name_zh` / `name_en` 直譯修正為官方片名（`車頂上的玄天上帝`、`阿嬤的夢中情人`、`導演你有病`）
+
+### ks_cinema sub-event hierarchy 修正
+- 3 筆 sub-event 設正確 `parent_event_id`；2 筆舊版 `_sub1` 記錄 deactivate
+
+---
+
 ## 2026-05-03 — ks_cinema sub-event parent_event_id UUID 型別錯誤（commit `263e333`）
 - **問題**：`ks_cinema.py` sub-event 中，`parent_event_id` 被設為 source_id 字串（`"ks_cinema_taiwan-filmake"`）而非 UUID，每次 upsert 出現 `invalid input syntax for type uuid` 錯誤，CI 連續 5 天失敗（`scraper_runs.success = false`）
 - **根本原因**：直接將 source_id 字串賦值給 `parent_event_id` 欄位，未透過 `get_event_id_by_source()` 查詢 DB UUID
