@@ -94,8 +94,7 @@ export default async function AdminPage({ params }: PageProps) {
       .select("*", { count: "exact", head: true }),
     supabase
       .from("creators")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true),
+      .select("*", { count: "exact", head: true }),
   ]);
 
   return (

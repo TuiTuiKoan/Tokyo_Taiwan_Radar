@@ -493,8 +493,18 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                   return (
                     <div key={src.id} className="flex items-center gap-3 py-1.5 border-b border-gray-50">
                       <span className="text-xs text-gray-400 w-6 text-right shrink-0">{src.id}</span>
-                      <span className={`text-sm flex-1 truncate ${isOverridden ? "font-medium text-green-800" : "text-gray-700"}`}>
-                        {src.name}
+                      <span className={`text-sm flex-1 truncate min-w-0 ${isOverridden ? "font-medium text-green-800" : "text-gray-700"}`}>
+                        {src.url ? (
+                          <a
+                            href={src.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                            title={src.url}
+                          >
+                            {src.name}
+                          </a>
+                        ) : src.name}
                       </span>
                       <select
                         value={effective}
