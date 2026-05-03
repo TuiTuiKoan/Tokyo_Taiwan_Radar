@@ -204,6 +204,25 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 
 ---
 
+## 学術場地括弧地址模式
+
+日本學術研討會的 `location_name` 有時包含完整郵遞區號地址於括號中：
+```
+南山大学 Q棟103教室 (〒466-8673 名古屋市昭和区山里町18)
+```
+scraper 的 `_extract_venue()` 應優先識別 `[（(](〒\d{3}-\d{4}...)` 模式，提取為 `location_address` 並從 `location_name` 中去除括號部分。
+已實作：`scraper/sources/taiwanshi.py` 作為參考實作。
+
+## note.com RSS 截斷處理
+
+note.com RSS `<description>` 約在 140 字截斷，可能只有「続きをみる」。
+當 `plain_desc == ""` 時，`_parse_item()` 應 fallback 至 HTTP GET 文章頁，
+解析 `<script type="application/ld+json">` 的 `description` 欄位（~280 字）。
+已實作：`scraper/sources/note_creators.py` → `_fetch_json_ld_description()` helper。
+無需 Playwright，標準 `requests.get()` 即可。
+
+---
+
 ## koryu-specific
 - **location_address fallback**: `_extract_location_address()` searches for `所在地/住所` sections. When absent (common for 後援-type posts), fall back to the venue name from `_extract_venue()`: `location_address = _extract_location_address(body_text) or (venue if venue else None)`.
 - **404 on old koryu URLs**: When a koryu event page returns 404, `main_text` will be a redirect message with no venue section. `_extract_venue` returns `None`, so `location_address` is also `None`. This is acceptable — the event is stale.

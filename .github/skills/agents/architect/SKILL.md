@@ -138,6 +138,17 @@ if ((e.location_prefectures?.length ?? 0) > 1) return false;
 
 Reference incident: 2026-05-02 — `location_prefectures` 未加入 select，多城市活動過濾靜默失效。
 
+## auto_qa False Positive Guard
+
+在審核任何 auto_qa 偵測器的改動或新增 `auto_qa_*` 類型前，**必須**確認：
+
+1. **城市名誤報**：`location_name` 為純城市名（東京、大阪、岡山 等）時，新聞彙整類 source（`google_news_rss`、`koryu` 等）本就無法提供具體場地。`auto_qa_missing_address` 不應 flag 此類事件。維護 `VAGUE_CITY_NAMES` frozenset。
+2. **海外場地誤報**：非日本場地（スイス、フランス 等）不在日本地址查核範圍內。維護 `OVERSEAS_KEYWORDS` tuple。
+3. **正常 flag 保留**：有具體場地名（大學、美術館、○○ホール 等）但 `location_address = NULL` 的事件，仍應 flag。
+4. **偵測精準度原則**：寧可少報，不可誤報——誤報會使管理員對回報系統失去信任。
+
+Reference incident: 2026-05-04 — 13 筆 auto_qa_missing_address pending，其中 5 筆為城市名/海外場地誤報（commit `15c5b4b`）。
+
 ## RLS Cross-Status Query Guard
 
 在任何涉及「SSR 頁面查詢關聯資料（父事件、鏈結實體）」的 feature plan 中，**必須**確認以下三點：

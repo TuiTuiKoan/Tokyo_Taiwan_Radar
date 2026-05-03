@@ -3,6 +3,23 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04 — auto_qa_missing_address 四類根本原因修正
+
+### 問題
+管理後台積壓 13 筆 auto_qa_missing_address pending，分 4 類根本原因。
+
+### 修正
+- P1（DB）：8 筆事件直接 fix，5 筆 dismiss；pending 歸零
+- P2（taiwanshi）：_extract_venue() 新增 〒postal 括弧解析
+- P3（auto_qa）：新增城市名/海外場地排除常數
+- P4（note_creators）：JSON-LD fallback 解決 RSS 截斷
+
+### 教訓
+1. auto_qa 偵測器要分辨「無法提供地址」（新聞/城市名）vs「地址缺失」（有場地名但漏填）
+2. note.com RSS 截斷是結構性問題，應在 scraper 層補 HTTP fallback，而非只靠 GPT
+3. 學術場地常在 location_name 括號中嵌入完整地址 — scraper 要識別此模式
+
+---
 ## 2026-05-02 — Quality 頁 location_prefectures 過濾靜默失效
 
 ### Quality Check 假陽性：client-side filter 依賴的欄位未包含在 select 中
