@@ -84,26 +84,49 @@ def _is_online_or_tv(name: str | None) -> bool:
     return any(kw in name for kw in ADDRESS_SKIP_KEYWORDS)
 
 
-def _existing_pending_types(sb, event_ids: list[str]) -> dict[str, set[str]]:
-    """Map event_id → set of auto_qa report_types that already have a pending row."""
+def _parse_ts(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _latest_auto_qa_reports(sb, event_ids: list[str]) -> dict[str, dict[str, dict[str, str | None]]]:
+    """Map event_id/report_type to the latest auto_qa event_report row."""
     if not event_ids:
         return {}
-    out: dict[str, set[str]] = {}
+    out: dict[str, dict[str, dict[str, str | None]]] = {}
     # Supabase JS-py: chunk to avoid 1000-row in() limit
     for i in range(0, len(event_ids), 200):
         chunk = event_ids[i : i + 200]
         res = (
             sb.table("event_reports")
-            .select("event_id, report_types, status")
+            .select("event_id, report_types, status, created_at, confirmed_at")
             .in_("event_id", chunk)
-            .eq("status", "pending")
+            .in_("status", ["pending", "confirmed", "dismissed"])
             .execute()
         )
         for row in res.data or []:
-            existing = out.setdefault(row["event_id"], set())
+            event_map = out.setdefault(row["event_id"], {})
+            created_at = row.get("created_at")
+            created_dt = _parse_ts(created_at)
             for t in row.get("report_types") or []:
-                if t in QA_TYPES:
-                    existing.add(t)
+                if t not in QA_TYPES:
+                    continue
+                prev = event_map.get(t)
+                prev_created = _parse_ts(prev.get("created_at") if prev else None)
+                if prev is None or (created_dt and prev_created and created_dt > prev_created) or (
+                    prev is not None and prev_created is None and created_dt is not None
+                ):
+                    event_map[t] = {
+                        "status": row.get("status"),
+                        "created_at": created_at,
+                        "confirmed_at": row.get("confirmed_at"),
+                    }
     return out
 
 
@@ -144,7 +167,7 @@ def run(dry_run: bool = False) -> dict:
     res = (
         sb.table("events")
         .select(
-            "id, source_name, name_zh, description_zh, "
+            "id, updated_at, source_name, name_zh, description_zh, "
             "location_name, location_name_zh, location_address, location_address_zh"
         )
         .eq("is_active", True)
@@ -160,22 +183,38 @@ def run(dry_run: bool = False) -> dict:
         for t, note in detect(ev):
             candidates.append((ev["id"], t, note))
 
-    # Dedup against existing pending auto_qa reports
-    existing = _existing_pending_types(sb, list({c[0] for c in candidates}))
+    # Dedup against latest auto_qa reports for each event/type
+    latest_reports = _latest_auto_qa_reports(sb, list({c[0] for c in candidates}))
+    event_updated_at = {ev["id"]: _parse_ts(ev.get("updated_at")) for ev in events}
+    in_run_seen: dict[str, set[str]] = {}
+
     new_rows: list[dict] = []
-    skipped = 0
+    skipped_pending = 0
+    skipped_resolved_unchanged = 0
     for event_id, t, note in candidates:
-        if t in existing.get(event_id, set()):
-            skipped += 1
+        if t in in_run_seen.get(event_id, set()):
             continue
+
+        last = latest_reports.get(event_id, {}).get(t)
+        if last:
+            if last.get("status") == "pending":
+                skipped_pending += 1
+                continue
+
+            handled_at = _parse_ts(last.get("confirmed_at") or last.get("created_at"))
+            updated_at = event_updated_at.get(event_id)
+            if handled_at and updated_at and updated_at <= handled_at:
+                skipped_resolved_unchanged += 1
+                continue
+
         new_rows.append({
             "event_id": event_id,
             "report_types": [t],
             "status": "pending",
             "admin_notes": note,
         })
-        # Track in-memory so a second finding of same type/event in this run is also skipped
-        existing.setdefault(event_id, set()).add(t)
+        # Track in-memory so a second finding of same type/event in this run is skipped
+        in_run_seen.setdefault(event_id, set()).add(t)
 
     counts: dict[str, int] = {t: 0 for t in QA_TYPES}
     for r in new_rows:
@@ -184,7 +223,8 @@ def run(dry_run: bool = False) -> dict:
     summary = {
         "scanned": len(events),
         "candidates": len(candidates),
-        "skipped_existing": skipped,
+        "skipped_existing": skipped_pending,
+        "skipped_resolved_unchanged": skipped_resolved_unchanged,
         "inserted": len(new_rows),
         "by_type": counts,
     }
