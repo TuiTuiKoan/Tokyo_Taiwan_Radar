@@ -94,6 +94,16 @@ def _extract_venue(text: str) -> tuple[str | None, str | None]:
     venue_name = re.sub(r"[\u3000\s]+（[^）]{1,20}）$", "", venue_name).strip()
     venue_name = venue_name or None
 
+    # New: extract 〒postal address embedded in venue_name parentheses
+    # e.g. "南山大学 Q棟103教室 (〒466-8673 名古屋市昭和区山里町18)" →
+    #   venue_name = "南山大学 Q棟103教室", location_address = "〒466-8673 名古屋市昭和区山里町18"
+    if venue_name:
+        postal_embedded_m = re.search(r'[（(](〒\d{3}-\d{4}\s*[^）)]+)[）)]', venue_name)
+        if postal_embedded_m:
+            location_address = postal_embedded_m.group(1).strip()
+            venue_name = re.sub(r'\s*[（(]〒[^）)]*[）)]', '', venue_name).strip() or None
+            return venue_name, location_address
+
     # Look for prefecture-prefixed address in the ~3 lines after 会場：
     rest = text[m.end() :]
     addr_m = re.search(rf"({_PREF_PATT}[^\n]{{5,80}})", rest[:400])

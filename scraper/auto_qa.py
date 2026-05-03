@@ -60,6 +60,18 @@ ADDRESS_SKIP_KEYWORDS = (
     "配信", "ライブ配信",
 )
 
+# Vague city names that provide no useful address information — skip missing_address check.
+VAGUE_CITY_NAMES = frozenset([
+    '東京', '大阪', '京都', '名古屋', '福岡', '札幌', '仙台',
+    '横浜', '神戸', '広島', '岡山', '北海道', '沖縄', '埼玉', '千葉', '神奈川',
+])
+
+# Keywords indicating an overseas (non-Japan) venue — skip missing_address check.
+OVERSEAS_KEYWORDS = (
+    'スイス', 'フランス', 'アメリカ', 'ドイツ', 'イギリス',
+    'ニューヨーク', 'パリ', 'ロンドン', 'ベルリン', '台湾', '香港',
+)
+
 QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address")
 
 
@@ -151,6 +163,8 @@ def detect(event: dict) -> list[tuple[str, str]]:
         and not loc_addr.strip()
         and not _is_online_or_tv(loc_name)
         and event.get("source_name") != "gguide_tv"
+        and loc_name.strip() not in VAGUE_CITY_NAMES
+        and not any(kw in loc_name for kw in OVERSEAS_KEYWORDS)
     ):
         findings.append((
             "auto_qa_missing_address",

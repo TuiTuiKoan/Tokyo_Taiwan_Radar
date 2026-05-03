@@ -40,6 +40,32 @@ from .base import BaseScraper, Event
 
 logger = logging.getLogger(__name__)
 
+
+def _fetch_json_ld_description(url: str, session: "requests.Session") -> str:
+    """Fetch note.com article page and extract description from JSON-LD.
+
+    Falls back to empty string on any error. Used when RSS description is
+    truncated (contains only '続きをみる' or is empty).
+    """
+    import html as html_lib
+    import json as json_lib
+    try:
+        resp = session.get(url, timeout=15)
+        resp.raise_for_status()
+        # JSON-LD description field (up to ~280 chars from note.com)
+        m = re.search(r'"description"\s*:\s*"([^"]{50,})"', resp.text)
+        if m:
+            # Use json.loads to properly handle both \uXXXX escapes and raw Unicode.
+            try:
+                desc = json_lib.loads('"' + m.group(1) + '"')
+            except Exception:
+                desc = m.group(1)
+            desc = html_lib.unescape(desc)
+            return desc.strip()
+    except Exception as exc:
+        logger.debug("JSON-LD fetch failed for %s: %s", url, exc)
+    return ""
+
 RSS_TEMPLATE = "https://note.com/{creator}/rss"
 
 # Canonical event categories accepted by the DB schema.
@@ -268,6 +294,10 @@ class NoteCreatorsScraper(BaseScraper):
         # note.com RSS descriptions often end with just "続きをみる" (read more)
         if plain_desc.strip() in ("続きをみる", ""):
             plain_desc = ""
+        # RSS description is truncated — try fetching the full article's JSON-LD summary.
+        # This adds one HTTP request per truncated article but captures venue/date info.
+        if not plain_desc and link:
+            plain_desc = _fetch_json_ld_description(link, self._session)
 
         return Event(
             source_name=self.SOURCE_NAME,
