@@ -297,6 +297,27 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
 - Date extraction: `日程[：:][^\d]*(\d{4})年(\d{1,2})月(\d{1,2})日` regex on `body_html`.
 - `source_id`: `transit_store_{product.handle}` — handle is stable across runs.
 
+## annotator.py ↔ types.ts 同步守則（Three-Location Sync Rule）
+
+每次在 `web/lib/types.ts` 新增 `Category` 型別時，**必須同時更新三個地方**：
+
+1. `scraper/annotator.py` → `VALID_CATEGORIES` 列表
+2. `scraper/annotator.py` → SYSTEM_PROMPT 第 2 條 categories 列表（單行逗號分隔）
+3. `scraper/annotator.py` → SYSTEM_PROMPT 分類定義清單（每個新分類需加定義行）
+
+**違反後果**：GPT 無法選用新分類，被迫選最近似的舊分類（例如 `tv_program` 不存在時選 `movie`）。
+
+**驗證命令**：
+```python
+# 確認 VALID_CATEGORIES 與 types.ts 一致
+# types.ts CATEGORIES array vs annotator.py VALID_CATEGORIES
+# 所有出現在 types.ts 中的值都必須出現在 VALID_CATEGORIES
+```
+
+**已知遺漏（2026-05-04 修正）**：tv_program, drama, documentary, tea_alcohol, exhibition, folklore, literature, parenting, scholarship, taiwan_mandarin, healthcare — 這 10 個分類在 types.ts 存在多月但 annotator.py 未同步，導致 gguide_tv 電視節目被標為 movie。
+
+---
+
 ## gguide_tv-specific
 - **schedule_str has two formats** — must handle both:
   - 單行：`"12:00 テレ東"` → 正規表達式可直接抓 `HH:MM <channel>`
@@ -321,6 +342,11 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
 - **UI 規則**：event detail page 的地址欄用 `event.source_name === "gguide_tv"` 偵測 TV 事件，顯示 `location_name`（頻道名）純文字，不加 Google Maps 超連結。⚠ 不要用 `location_name === "電視頻道"` 判斷——`location_name` 是可變內容欄位，已改為實際頻道名稱。
 - **`end_time` fallback from detail page**：list page 格式為單行（只有開始時間）時，`end_time_str = None`。fallback 邏輯從 `detail_text` 用 `r"(\d{1,2}:\d{2})\s*\n[-−]\s*\n(\d{1,2}:\d{2})"` 補抓結束時間。
 - **BeautifulSoup `get_text` 注意事項**：`get_text(strip=True)` 會直接串接子元素。有跨行結構的欄位（如時間範圍），必須用 `get_text(separator="\n")` 保留換行符。
+- **gguide_tv ↔ Annotator 分類注意事項**：
+  - `_genre_to_category()` 已正確產生 `["tv_program"]` 初始分類；annotator 透過 `_inject_keyword_categories` 的 `_TV_PROGRAM_KEYWORDS` 確保 tv_program 注入
+  - `放送: [channel]` + `ジャンル: [genre]` 是 gguide_tv 的固定 raw_description 格式標記（`_TV_PROGRAM_KEYWORDS = frozenset(["放送:", "放送：", "ジャンル:", "ジャンル："])`）
+  - 映画 genre（`ジャンル: 映画`）的 TV 廣播 → 保留 `movie` + 加 `tv_program`；其他 genre（バラエティ/ドラマ/ドキュメンタリー 等）→ 只有 `tv_program`，絕不單獨用 `movie`
+  - `_inject_keyword_categories` 邏輯：含 TV markers → 加 `tv_program`；同時若有 `movie` 且非「ジャンル: 映画」→ 移除錯誤的 `movie`
 
 ## DeepL Tracking
 - Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.

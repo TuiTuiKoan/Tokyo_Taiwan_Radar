@@ -95,11 +95,14 @@ def _fetch_gnews_article_text(gnews_url: str, browser: "Browser") -> str | None:
 # ---------------------------------------------------------------------------
 # Valid categories (must match web/lib/types.ts)
 # ---------------------------------------------------------------------------
+# Must stay in sync with web/lib/types.ts Category type.
 VALID_CATEGORIES = [
-    "movie", "performing_arts", "senses", "retail", "nature",
-    "tech", "tourism", "lifestyle_food", "books_media", "gender", "geopolitics",
-    "art", "lecture", "taiwan_japan", "business", "academic", "competition",
-    "indigenous", "history", "urban", "workshop", "report",
+    "movie", "performing_arts", "senses", "tea_alcohol", "drama", "documentary",
+    "retail", "nature", "tech", "tourism", "lifestyle_food", "books_media",
+    "gender", "parenting", "geopolitics", "art", "lecture", "taiwan_japan",
+    "scholarship", "business", "academic", "competition", "indigenous", "folklore",
+    "history", "urban", "workshop", "literature", "tv_program", "exhibition",
+    "taiwan_mandarin", "healthcare", "report",
 ]
 
 # News-source movie title enrichment helpers
@@ -180,7 +183,7 @@ CRITICAL DATE EXTRACTION RULES:
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
    ALSO: if the description lists 3+ distinct venue locations in **different cities/prefectures** each with a specific address (e.g., a food fair with restaurants across Tokyo, Kyoto, and Osaka), list each venue as a sub-event with its own location_name, location_address, and business_hours; use the same start_date/end_date as the parent.
-2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, taiwan_japan, business, academic, competition, indigenous, history, urban, workshop, report
+2. Categories must be from this list: movie, performing_arts, senses, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, art, lecture, taiwan_japan, scholarship, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, exhibition, taiwan_mandarin, healthcare, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
    - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
    - "competition" = contests, competitions, awards, championships, public calls for entries (コンテスト, 大会, 選手権, 公募, コンクール)
@@ -188,7 +191,10 @@ OTHER RULES:
    - "indigenous" = events related to Taiwan's indigenous peoples (原住民族), tribal culture, indigenous arts or languages (アミ族, パイワン族, タイヤル族, etc.)
    - "history" = historical events, exhibitions on history, cultural heritage, archives, museums, war memory, historical figures
    - "workshop" = hands-on workshops, experience classes, craft workshops, cooking classes, pottery, weaving, tea ceremony, atelier sessions (体験, ワークショップ, 手作り, クラフト)
-   - "movie" = film screenings, movie events, documentary showings, film festivals. IMPORTANT: any event with 上映, 映画, film, screening, cinema in its title or description MUST include "movie" as a category, even if it also involves talks or other elements.
+   - "movie" = theatrical film screenings, cinema events, film festivals. IMPORTANT: any event with 上映, 映画, film, screening, cinema in its title or description MUST include "movie" as a category, even if it also involves talks or other elements. TV BROADCAST EXCEPTION: a film broadcast on TV (indicated by 放送: [channel] in raw_description) uses BOTH "tv_program" AND "movie". Non-film TV programs (バラエティ, ドラマ, ドキュメンタリー) must NOT use "movie".
+   - "tv_program" = Taiwan-related TV programs broadcast on a television channel. MANDATORY when raw_description contains "放送:" or "放送：" followed by a channel name (e.g. チャンネル銀河, テレ東, BS11). Use BOTH "tv_program" AND "movie" for 映画-genre broadcasts; use ONLY "tv_program" for variety/drama/documentary genre. NEVER use "movie" alone for a TV broadcast event.
+   - "drama" = TV drama series, stage plays. Use for ドラマ-genre TV programs.
+   - "documentary" = documentary films or programs (ドキュメンタリー genre).
    - "performing_arts" = LIVE stage performances ONLY: concerts, theater, dance, opera. NOT for film screenings. For Asia/Japan tour events (アジアツアー, 日本ツアー), only use if the Tokyo show is confirmed a live performance.
    - "senses" = art exhibitions, photography, design shows, creative/visual experiences. NOT for film screenings or book-only events.
    - "lifestyle_food" = food, cooking, tea ceremony, restaurants, cafes, lifestyle events. Do NOT add taiwan_japan just because the food is Taiwanese — use taiwan_japan only when the event emphasizes bilateral exchange.
@@ -452,6 +458,13 @@ _HISTORY_KEYWORDS = frozenset([
     "日本統治", "総督府", "霧のごとく", "大濛",
 ])
 
+# TV program broadcast markers — generated by gguide_tv.py raw_description format.
+# "放送:" / "放送：" + channel name is the most reliable signal.
+_TV_PROGRAM_KEYWORDS = frozenset([
+    "放送:", "放送：",          # gguide_tv broadcast line
+    "ジャンル:", "ジャンル：", # gguide_tv genre line
+])
+
 
 def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     """Inject missing categories based on keyword signals in the event text.
@@ -460,6 +473,8 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     - lecture: almost always missing when talk/panel keywords appear (+29 corrections)
     - geopolitics: missing for Taiwan political/policy topics (+18 corrections)
     - history: missing for colonial/war-era Taiwan events (+16 corrections)
+    - tv_program: gguide_tv broadcasts misclassified as movie when VALID_CATEGORIES
+      didn't include tv_program (fixed 2026-05-04)
     """
     cats = list(categories)
     # lecture: any talk/panel/seminar keyword triggers this
@@ -476,6 +491,16 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     # history: colonial/war-era Taiwan
     if "history" not in cats and any(kw in text for kw in _HISTORY_KEYWORDS):
         cats.append("history")
+    # tv_program: gguide_tv broadcast events — raw_description always contains
+    # "放送: [channel]" and "ジャンル: [genre]" lines.
+    # Also removes wrongly-added "movie" for non-film TV programs.
+    if any(kw in text for kw in _TV_PROGRAM_KEYWORDS):
+        if "tv_program" not in cats:
+            cats.append("tv_program")
+        # Remove "movie" if it's a non-film TV program.
+        # Film-genre broadcasts (ジャンル: 映画) legitimately keep "movie".
+        if "movie" in cats and "ジャンル: 映画" not in text and "ジャンル：映画" not in text:
+            cats.remove("movie")
     return cats
 
 

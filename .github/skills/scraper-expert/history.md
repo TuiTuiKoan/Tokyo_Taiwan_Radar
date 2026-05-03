@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-05-04 — gguide_tv 電視節目被錯標為 movie（annotator.py VALID_CATEGORIES 未同步 types.ts）
+- **問題**：事件 3d835d19（ジーンちゃん 台湾・台北 食旅 TV 節目）被標為 movie 而非 tv_program
+- **根本原因**：types.ts 已新增 10 個分類（tv_program 等），但 annotator.py VALID_CATEGORIES 和 SYSTEM_PROMPT 從未同步；GPT 無法選用 tv_program，被迫改選 movie
+- **修正**：VALID_CATEGORIES 同步 types.ts；SYSTEM_PROMPT 加 tv_program/drama/documentary 定義；_inject_keyword_categories 加 TV 廣播標記注入（放送:/ジャンル: → tv_program）；DB 直接修正 7 筆 gguide_tv 事件
+- **教訓**：每次 types.ts 新增 Category → 必須同步更新 annotator.py VALID_CATEGORIES + SYSTEM_PROMPT 分類列表 + 分類定義（三處同步）
+
+---
+
 ## 2026-05-04 — main.py pipeline 補齊 enrich 步驟 + ks_cinema DB 修正
 
 ### main.py 新增 enrich_movie_titles / enrich_person_names 呼叫
