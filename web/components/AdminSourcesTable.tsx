@@ -323,7 +323,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     19: "event_platform", 17: "event_platform", 32: "event_platform",
     45: "event_platform", 15: "event_platform", 77: "event_platform",
     4:  "event_platform",  6: "event_platform", 23: "event_platform",
-    79: "event_platform", 83: "event_platform",
+    79: "event_platform", 83: "event_platform", 106: "event_platform",
     // 學術單位
     28: "academic", 29: "academic", 24: "academic", 25: "academic",
     10: "academic", 26: "academic", 31: "academic", 27: "academic",
@@ -347,12 +347,14 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
      7: "government", 16: "government", 60: "government", 66: "government",
     68: "government", 89: "government", 90: "government", 88: "government",
     // 百貨
-    46: "department_store",
+    46: "department_store", 129: "department_store", 130: "department_store", 131: "department_store",
     // 活動策劃組織
     57: "organizer", 21: "organizer", 69: "organizer", 91: "organizer",
     18: "organizer",  9: "organizer", 22: "organizer",
     // 個人頁面
     78: "personal",
+    // 台灣商家
+    127: "taiwan_shop", 141: "taiwan_shop", 164: "taiwan_shop",
   };
 
   // peatix_organizer entries are identified via agent_category, not ID map
@@ -368,6 +370,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     department_store:  "百貨",
     organizer:         "活動策劃組織",
     personal:          "個人頁面",
+    taiwan_shop:       "台灣商家",
     peatix_organizer:  "Peatix 主辦者",
     other:             "其他",
     archived:          "📦 歸檔",
