@@ -257,7 +257,8 @@ LANGUAGE RULES:
    - "mixed" — bilingual or trilingual format explicitly advertised (e.g. 日中通訳付き shown as a featured format, not a side support)
 2. has_japanese_support: true ONLY when the source text explicitly advertises Japanese assistance for a non-Japanese event (字幕, 同時通訳, 逐次通訳, 日本語配布資料, etc.). false ONLY when the source text explicitly says no Japanese support is provided (e.g. "中国語のみ", "日本語通訳なし"). Otherwise null. Special case: when primary_language="ja" and the question is moot, set null (NOT false).
 3. has_english_support: same logic for English. true only when explicitly advertised (英語字幕, English interpretation, bilingual). false only when explicitly stated as not provided. Otherwise null. Default to null for Japan-domestic events that do not mention English at all.
-4. NEVER guess. If the source text gives no language signal at all, set primary_language=null and both support flags=null.
+3a. has_chinese_support: same logic for Chinese / Mandarin / Taiwanese. true only when the source text explicitly advertises Chinese assistance (中文字幕, 中国語通訳, 中文配布資料, etc.). false only when explicitly stated as not provided. Otherwise null. Special case: when primary_language="zh" and the question is moot, set null (NOT false).
+4. NEVER guess. If the source text gives no language signal at all, set primary_language=null and all support flags=null.
 5. NEVER infer support flags from the absence of mention. Absence = null, NOT false.
 
 Respond with valid JSON matching this schema:
@@ -291,6 +292,7 @@ Respond with valid JSON matching this schema:
   "primary_language": "ja" or "zh" or "en" or "mixed" or null,
   "has_japanese_support": false or true or null,
   "has_english_support": false or true or null,
+  "has_chinese_support": false or true or null,
   "selection_reason": {
     "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
@@ -319,7 +321,8 @@ Respond with valid JSON matching this schema:
       "event_form": ["other"],
       "primary_language": "ja" or "zh" or "en" or "mixed" or null,
       "has_japanese_support": false or true or null,
-      "has_english_support": false or true or null
+      "has_english_support": false or true or null,
+      "has_chinese_support": false or true or null
     }
   ]
 }"""
@@ -752,6 +755,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "primary_language": _validate_primary_language(annotation.get("primary_language")),
                     "has_japanese_support": _validate_bool_or_none(annotation.get("has_japanese_support")),
                     "has_english_support": _validate_bool_or_none(annotation.get("has_english_support")),
+                    "has_chinese_support": _validate_bool_or_none(annotation.get("has_chinese_support")),
                     "annotation_status": "annotated",
                     "annotated_at": datetime.utcnow().isoformat(),
                 }
@@ -848,6 +852,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "primary_language": _validate_primary_language(sub.get("primary_language")) or update_data.get("primary_language"),
                     "has_japanese_support": _validate_bool_or_none(sub.get("has_japanese_support")),
                     "has_english_support": _validate_bool_or_none(sub.get("has_english_support")),
+                    "has_chinese_support": _validate_bool_or_none(sub.get("has_chinese_support")),
                     "is_active": True,
                     "parent_event_id": eid,
                     "raw_title": sub_raw_title,

@@ -109,6 +109,7 @@ class Event:
     primary_language: Optional[str] = None
     has_japanese_support: Optional[bool] = None
     has_english_support: Optional[bool] = None
+    has_chinese_support: Optional[bool] = None
 
 
 def dedup_events(events: list[Event]) -> list[Event]:
