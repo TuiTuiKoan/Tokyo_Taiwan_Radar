@@ -213,6 +213,51 @@ NAME WRITING RULES — CRITICAL:
    NOTE: Events held IN Taiwan are allowed and welcome. Do NOT force-convert Taiwan addresses to Japanese format. For Taiwan venues, fill location_address with the real Taiwanese address (e.g. "台北市中山區小民生東路3段1號") and set location_name accordingly. The tourism category applies when the event is designed to attract Japanese visitors to Taiwan.
 7. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
 
+ORGANIZER EXTRACTION RULES:
+1. organizer: the primary entity hosting the event. Look for fields like 主催, 主辦, presented by, 主催者. Single string, original-language official name (e.g. "台北駐日経済文化代表処 台湾文化センター"). Do NOT include role labels like "主催:" in the value.
+2. co_organizers: array of 共催 / 協力 / 後援 entities. Each entry is the original-language name. Empty array if none mentioned.
+3. sponsors: array of 協賛 / 贊助 / sponsor entities. Empty array if none mentioned.
+4. NEVER fabricate organizer names. If 主催 is not explicitly stated and cannot be safely inferred from the venue's official role (e.g. an exhibition at a museum is hosted by that museum), set organizer = null.
+5. organizer_type: classify the primary organizer into one or more of:
+   - "government" — central/local government bodies (外交部, 文化部, 都道府県, 市役所)
+   - "semi_official" — TECRO offices, Taiwan Cultural Center, JICA-style 外郭団体
+   - "cultural_institution" — museums, galleries, foundations, public theaters
+   - "academic" — universities, research institutes, scholarly societies
+   - "commercial_brand" — for-profit companies running brand events
+   - "independent_venue" — independent cinemas, bookstores, live houses, cafés
+   - "civic_group" — NPOs, alumni/diaspora associations, student clubs
+   - "media" — publishers, newspapers, broadcasters
+   - "unknown" — when organizer cannot be classified with confidence
+   Multiple types are allowed (e.g. a university press conference = ["academic","media"]). When organizer is null, set organizer_type = ["unknown"].
+
+EVENT FORM RULES:
+event_form is the structural shape of the event, distinct from category (which is the topic).
+Pick one or more from:
+  exhibition, screening, lecture, performance, market, workshop,
+  conference, networking, screening_with_talk, tour, competition, other
+Decision guides:
+- A film screening followed by a talk = ["screening_with_talk"] (NOT screening + lecture).
+- Pure exhibition = ["exhibition"]; exhibition with opening lecture = ["exhibition","lecture"].
+- 食フェス / 物産展 / 美食祭 / マルシェ = ["market"].
+- 学会大会 with multiple paper sessions = ["conference"]; single 講演会 = ["lecture"].
+- 体験講座 / ワークショップ / 手作り教室 / クラフト = ["workshop"].
+- Trade show / business summit = ["conference"].
+- LIVE concert, theater, dance = ["performance"].
+- 交流会 / オフ会 / 懇親会 = ["networking"].
+- ツアー / 巡迴 / 街歩き = ["tour"].
+- コンテスト / コンクール / 公募 = ["competition"].
+- If genuinely none apply = ["other"]. NEVER leave event_form empty.
+
+LANGUAGE RULES:
+1. primary_language: the language the event will primarily be conducted in.
+   - "ja" — primarily Japanese (default for events in Japan unless stated otherwise)
+   - "zh" — primarily Chinese / Mandarin / Taiwanese
+   - "en" — primarily English
+   - "mixed" — bilingual or trilingual format explicitly advertised (e.g. 日中通訳付き shown as a featured format, not a side support)
+2. has_japanese_support: true if the event provides Japanese assistance (subtitle 字幕, simultaneous interpretation 同時通訳, consecutive interpretation 逐次通訳, bilingual handout 配布資料) when primary_language != "ja". Set false if primary_language="ja". Set null if unclear.
+3. has_english_support: same logic for English. Most Japan-domestic events default to false. Only set true when explicitly advertised.
+4. NEVER guess. If the source text gives no language signal at all, set primary_language=null and both support flags=null.
+
 Respond with valid JSON matching this schema:
 {
   "name_ja": "Japanese event name",
@@ -236,6 +281,14 @@ Respond with valid JSON matching this schema:
   "is_paid": false or true or null,
   "price_info": "price details" or null,
   "location_url": "official website URL of the venue, extracted from the text only — NEVER infer or hallucinate; set null if not explicitly stated" or null,
+  "organizer": "primary host name in original language" or null,
+  "co_organizers": ["co-host name", "..."],
+  "sponsors": ["sponsor name", "..."],
+  "organizer_type": ["semi_official"],
+  "event_form": ["screening_with_talk"],
+  "primary_language": "ja" or "zh" or "en" or "mixed" or null,
+  "has_japanese_support": false or true or null,
+  "has_english_support": false or true or null,
   "selection_reason": {
     "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
@@ -256,7 +309,15 @@ Respond with valid JSON matching this schema:
       "location_address": "address" or null,
       "business_hours": "hours" or null,
       "is_paid": false or true or null,
-      "price_info": "price" or null
+      "price_info": "price" or null,
+      "organizer": "host name" or null,
+      "co_organizers": [],
+      "sponsors": [],
+      "organizer_type": ["unknown"],
+      "event_form": ["other"],
+      "primary_language": "ja" or "zh" or "en" or "mixed" or null,
+      "has_japanese_support": false or true or null,
+      "has_english_support": false or true or null
     }
   ]
 }"""
@@ -322,6 +383,34 @@ def _validate_categories(cats: list) -> list[str]:
     return [c for c in cats if isinstance(c, str) and c in VALID_CATEGORIES] or ["senses"]
 
 
+VALID_ORGANIZER_TYPES = frozenset([
+    "government", "semi_official", "cultural_institution", "academic",
+    "commercial_brand", "independent_venue", "civic_group", "media", "unknown",
+])
+VALID_EVENT_FORMS = frozenset([
+    "exhibition", "screening", "lecture", "performance", "market", "workshop",
+    "conference", "networking", "screening_with_talk", "tour", "competition", "other",
+])
+VALID_PRIMARY_LANGUAGES = frozenset(["ja", "zh", "en", "mixed"])
+
+
+def _validate_organizer_types(vals) -> list[str]:
+    return [v for v in (vals or []) if isinstance(v, str) and v in VALID_ORGANIZER_TYPES]
+
+
+def _validate_event_forms(vals) -> list[str]:
+    out = [v for v in (vals or []) if isinstance(v, str) and v in VALID_EVENT_FORMS]
+    return out or ["other"]
+
+
+def _validate_primary_language(val) -> str | None:
+    return val if isinstance(val, str) and val in VALID_PRIMARY_LANGUAGES else None
+
+
+def _validate_bool_or_none(val):
+    return val if isinstance(val, bool) else None
+
+
 _LECTURE_KEYWORDS = frozenset([
     # Japanese
     "座談", "講座", "座談会", "座談會",
@@ -371,7 +460,7 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     return cats
 
 
-def annotate_pending_events(re_annotate_all: bool = False, fix_translations: bool = False, fix_reviewed: bool = False, event_id: str | None = None) -> None:
+def annotate_pending_events(re_annotate_all: bool = False, fix_translations: bool = False, fix_reviewed: bool = False, event_id: str | None = None, limit: int | None = None) -> None:
     """Fetch pending events from DB, annotate with AI, and update."""
     sb = _get_supabase()
     ai = _get_openai()
@@ -434,6 +523,8 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
 
     result = query.order("created_at", desc=True).execute()
     events = result.data
+    if events and limit is not None:
+        events = events[:limit]
 
     if not events:
         logger.info("No pending events to annotate.")
@@ -651,6 +742,14 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "business_hours": event.get("business_hours") or annotation.get("business_hours"),
                     "is_paid": event.get("is_paid") if event.get("is_paid") is not None else annotation.get("is_paid"),
                     "price_info": annotation.get("price_info") or event.get("price_info"),
+                    "organizer": _str(annotation.get("organizer")) or event.get("organizer"),
+                    "co_organizers": [s for s in (annotation.get("co_organizers") or []) if isinstance(s, str)],
+                    "sponsors": [s for s in (annotation.get("sponsors") or []) if isinstance(s, str)],
+                    "organizer_type": _validate_organizer_types(annotation.get("organizer_type", [])),
+                    "event_form": _validate_event_forms(annotation.get("event_form", [])),
+                    "primary_language": _validate_primary_language(annotation.get("primary_language")),
+                    "has_japanese_support": _validate_bool_or_none(annotation.get("has_japanese_support")),
+                    "has_english_support": _validate_bool_or_none(annotation.get("has_english_support")),
                     "annotation_status": "annotated",
                     "annotated_at": datetime.utcnow().isoformat(),
                 }
@@ -739,6 +838,14 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "business_hours": sub.get("business_hours") or update_data["business_hours"],
                     "is_paid": sub.get("is_paid") if sub.get("is_paid") is not None else update_data["is_paid"],
                     "price_info": sub.get("price_info") or update_data["price_info"],
+                    "organizer": _str(sub.get("organizer")) or update_data.get("organizer"),
+                    "co_organizers": [s for s in (sub.get("co_organizers") or []) if isinstance(s, str)],
+                    "sponsors": [s for s in (sub.get("sponsors") or []) if isinstance(s, str)],
+                    "organizer_type": _validate_organizer_types(sub.get("organizer_type", [])) or update_data.get("organizer_type", []),
+                    "event_form": _validate_event_forms(sub.get("event_form", [])),
+                    "primary_language": _validate_primary_language(sub.get("primary_language")) or update_data.get("primary_language"),
+                    "has_japanese_support": _validate_bool_or_none(sub.get("has_japanese_support")),
+                    "has_english_support": _validate_bool_or_none(sub.get("has_english_support")),
                     "is_active": True,
                     "parent_event_id": eid,
                     "raw_title": sub_raw_title,
@@ -1089,6 +1196,43 @@ def enrich_person_names() -> None:
     logger.info("enrich_person_names: patched %d/%d events", patched, len(events))
 
 
+def backfill_tier1_events(limit: int = 50, dry_run: bool = False) -> None:
+    """Reset already-annotated events that lack Tier 1 fields back to 'pending'
+    so the next annotate pass fills organizer/event_form/language columns.
+
+    Selection: annotation_status='annotated' AND (organizer IS NULL OR organizer_type
+    is empty/null). Filtering done in Python to avoid Postgres array null semantics.
+    """
+    sb = _get_supabase()
+    res = (
+        sb.table("events")
+        .select("id,organizer,organizer_type")
+        .eq("annotation_status", "annotated")
+        .limit(5000)
+        .execute()
+    )
+    rows = res.data or []
+    candidates = [
+        r for r in rows
+        if not r.get("organizer") or not (r.get("organizer_type") or [])
+    ]
+    target = candidates[:limit]
+    logger.info(
+        "backfill_tier1: %d annotated events scanned, %d missing Tier 1, %d targeted (dry_run=%s)",
+        len(rows), len(candidates), len(target), dry_run,
+    )
+    if dry_run:
+        for r in target:
+            logger.info("  would reset id=%s", r["id"])
+        return
+
+    for r in target:
+        sb.table("events").update({"annotation_status": "pending"}).eq("id", r["id"]).execute()
+
+    if target:
+        annotate_pending_events(limit=limit)
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
@@ -1096,15 +1240,38 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(
+            "Usage: python annotator.py [options]\n\n"
+            "Options:\n"
+            "  --all                   Re-annotate all events (not just pending)\n"
+            "  --fix-translations      Fix only zh/en translation fields\n"
+            "  --fix-reviewed          Re-translate reviewed events without resetting status\n"
+            "  --enrich-movie-titles   Look up movie titles via eiga.com\n"
+            "  --enrich-person-names   Look up person names for all events\n"
+            "  --backfill-tier1        Reset annotated events lacking Tier 1 fields back to pending and re-annotate\n"
+            "  --id <uuid>             Operate on a single event by id\n"
+            "  --limit <N>             Limit number of events processed (default 50 for backfill-tier1)\n"
+            "  --dry-run               Print actions without writing to DB\n"
+        )
+        sys.exit(0)
+
     re_all = "--all" in sys.argv
     fix_tr = "--fix-translations" in sys.argv
     fix_rev = "--fix-reviewed" in sys.argv
     enrich_movies = "--enrich-movie-titles" in sys.argv
     enrich_people = "--enrich-person-names" in sys.argv
+    backfill_tier1 = "--backfill-tier1" in sys.argv
+    dry_run_flag = "--dry-run" in sys.argv
     event_id_arg = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--id"), None)
-    if enrich_movies:
+    limit_arg_str = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--limit"), None)
+    limit_arg = int(limit_arg_str) if limit_arg_str else 50
+    if backfill_tier1:
+        backfill_tier1_events(limit=limit_arg, dry_run=dry_run_flag)
+    elif enrich_movies:
         enrich_movie_titles()
     elif enrich_people:
         enrich_person_names()
     else:
         annotate_pending_events(re_annotate_all=re_all, fix_translations=fix_tr, fix_reviewed=fix_rev, event_id=event_id_arg)
+

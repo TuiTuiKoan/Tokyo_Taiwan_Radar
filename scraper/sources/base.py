@@ -97,6 +97,19 @@ class Event:
     # Requires migration 034_name_ja_locked.sql.
     name_ja_locked: bool = False
 
+    # Tier 1 consulting-grade fields (migration 035).
+    # Scrapers may set these directly when the source provides authoritative values
+    # (e.g. taiwan_cultural_center.py knows organizer = "台湾文化センター").
+    # Otherwise leave as defaults; the annotator will fill them via GPT extraction.
+    organizer: Optional[str] = None
+    co_organizers: list[str] = field(default_factory=list)
+    sponsors: list[str] = field(default_factory=list)
+    organizer_type: list[str] = field(default_factory=list)
+    event_form: list[str] = field(default_factory=list)
+    primary_language: Optional[str] = None
+    has_japanese_support: Optional[bool] = None
+    has_english_support: Optional[bool] = None
+
 
 def dedup_events(events: list[Event]) -> list[Event]:
     """Remove duplicate events from a single scraper's output.

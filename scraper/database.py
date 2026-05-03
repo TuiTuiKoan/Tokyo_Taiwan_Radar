@@ -18,6 +18,18 @@ logger = logging.getLogger(__name__)
 _client: Client | None = None
 
 
+# Tier 1 controlled vocabularies (mirror annotator.py — keep in sync).
+_VALID_ORGANIZER_TYPES = frozenset([
+    "government", "semi_official", "cultural_institution", "academic",
+    "commercial_brand", "independent_venue", "civic_group", "media", "unknown",
+])
+_VALID_EVENT_FORMS = frozenset([
+    "exhibition", "screening", "lecture", "performance", "market", "workshop",
+    "conference", "networking", "screening_with_talk", "tour", "competition", "other",
+])
+_VALID_PRIMARY_LANGUAGES = frozenset(["ja", "zh", "en", "mixed"])
+
+
 def _get_client() -> Client:
     global _client
     if _client is None:
@@ -71,6 +83,30 @@ def _event_to_row(event: Event) -> dict[str, Any]:
     # Requires migration 034_name_ja_locked.sql to be applied before writing.
     if event.name_ja_locked:
         row["name_ja_locked"] = True
+
+    # Tier 1 fields (migration 035). Only write keys the scraper explicitly set,
+    # so omitted fields don't clobber annotator-filled values on re-upsert.
+    if event.organizer is not None:
+        row["organizer"] = event.organizer
+    if event.co_organizers:
+        row["co_organizers"] = [s for s in event.co_organizers if isinstance(s, str)]
+    if event.sponsors:
+        row["sponsors"] = [s for s in event.sponsors if isinstance(s, str)]
+    if event.organizer_type:
+        filtered = [v for v in event.organizer_type if v in _VALID_ORGANIZER_TYPES]
+        if filtered:
+            row["organizer_type"] = filtered
+    if event.event_form:
+        filtered = [v for v in event.event_form if v in _VALID_EVENT_FORMS]
+        if filtered:
+            row["event_form"] = filtered
+    if event.primary_language is not None and event.primary_language in _VALID_PRIMARY_LANGUAGES:
+        row["primary_language"] = event.primary_language
+    if isinstance(event.has_japanese_support, bool):
+        row["has_japanese_support"] = event.has_japanese_support
+    if isinstance(event.has_english_support, bool):
+        row["has_english_support"] = event.has_english_support
+
     return row
 
 
