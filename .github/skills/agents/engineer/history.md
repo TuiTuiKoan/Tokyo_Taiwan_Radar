@@ -3,6 +3,39 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04 — main.py pipeline 補齊 enrich 步驟 + ks_cinema DB 修正 + 035 migration
+
+### main.py pipeline enhancement — enrich steps 補齊
+
+**問題：** 手動執行 `python main.py --source ks_cinema` 時，事件被 scrape + annotate 但 **未** enrich——電影片名得到直譯（`めぐる面影、今、祖父に会う` → `循環的面影`）而非官方片名（`車頂上的玄天上帝`）。`enrich_movie_titles()` 和 `enrich_person_names()` 只在 CI workflow 中以獨立 `annotator.py --enrich-movie-titles` / `--enrich-person-names` 指令執行，`main.py` 完全沒呼叫。
+
+**修復：** `main.py` 新增 `from annotator import enrich_movie_titles, enrich_person_names`，在 `annotate_pending_events()` 之後、IndexNow 提交之前呼叫兩者。enrich 函數為 idempotent，CI 的獨立 enrich 步驟變成 no-op 二次 pass，不影響 CI。
+
+**教訓：**
+1. **Pipeline parity rule**：任何新增到 CI workflow（`scraper.yml`）的 post-processing 步驟，必須同步加入 `main.py` 的正常（非 dry-run）流程。否則手動 scraper 執行會產生品質不完整的結果。
+2. 目前 `main.py` 完整 pipeline 順序：scrape → merger → annotate → enrich_movie_titles → enrich_person_names → IndexNow。
+3. Idempotent enrichment 在 main.py 和 CI 雙重執行是安全的——只多幾個 DB query，不會產生重複寫入。
+
+### ks_cinema 電影片名 DB 手動修正
+
+**問題：** 6 筆 ks_cinema 事件的 `name_zh` / `name_en` 是直譯（GPT 音譯）而非官方片名。原因：事件在 `main.py` 補齊 enrich 步驟之前被手動 scrape。
+
+**修正的事件：**
+- `めぐる面影、今、祖父に会う` → 車頂上的玄天上帝 / Be with Me
+- `台湾ハリウッド` → 阿嬤的夢中情人 / Forever Love
+- `超低予算ムービー大作戦` → 導演你有病 / Out of Nowhere
+
+**教訓：** 補齊 pipeline 後，對之前手動 scrape 的事件需一次性 DB patch。可用 `enrich_movie_titles()` 自動修正，或手動 UPDATE。
+
+### ks_cinema sub-event hierarchy 修正
+
+**操作：** 手動 DB 修正——3 筆 sub-event 設正確 `parent_event_id`；2 筆舊版 scraper 產生的 `_sub1` 記錄 deactivate（`is_active=False`）。
+
+### 035_organizer_form_language.sql migration（Tier 1）
+
+**狀態：** 已 apply 到 production DB，migration SQL 已 commit。新增欄位：`organizer`、`co_organizers`、`sponsors`、`organizer_type`、`event_form`、`primary_language`、`has_japanese_support`、`has_english_support`。含 CHECK constraints 和 GIN indexes。
+
+---
 ## 2026-05-02 — 父事件 RLS 隱藏 + Quality page 缺地址誤報 + Admin UI 改善
 
 ### 父事件 RLS cross-status 問題（commit `f5931e0`）

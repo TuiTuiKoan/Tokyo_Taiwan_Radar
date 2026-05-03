@@ -102,6 +102,7 @@ from sources.artistcafe import ArtistcafeScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
+from annotator import enrich_movie_titles, enrich_person_names
 from merger import run_merger
 from indexnow import submit_urls as _indexnow_submit, event_urls as _indexnow_event_urls
 
@@ -339,6 +340,12 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
     # Run AI annotator on pending events
     logger.info("Running AI annotator on pending events...")
     annotate_pending_events()
+
+    # Enrich movie titles and person names (same as CI pipeline steps)
+    logger.info("Enriching movie titles from eiga.com...")
+    enrich_movie_titles()
+    logger.info("Enriching person names via eiga.com + Wikipedia...")
+    enrich_person_names()
 
     # Ended events are no longer auto-archived here.
     # Public visibility is controlled by frontend time filters (timeMode/end_date).
