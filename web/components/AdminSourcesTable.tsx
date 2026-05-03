@@ -370,7 +370,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     cinema:            "電影",
     tv:                "電視",
     government:        "政府機構",
-    department_store:  "百貨",
+    department_store:  "百貨・商圈",
     organizer:         "活動策劃組織",
     ngo:               "民間團體",
     media_publisher:   "媒體・出版",
