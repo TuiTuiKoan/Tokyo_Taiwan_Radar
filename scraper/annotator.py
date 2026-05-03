@@ -218,6 +218,7 @@ ORGANIZER EXTRACTION RULES:
 2. co_organizers: array of 共催 / 協力 / 後援 entities. Each entry is the original-language name. Empty array if none mentioned.
 3. sponsors: array of 協賛 / 贊助 / sponsor entities. Empty array if none mentioned.
 4. NEVER fabricate organizer names. If 主催 is not explicitly stated and cannot be safely inferred from the venue's official role (e.g. an exhibition at a museum is hosted by that museum), set organizer = null.
+4a. organizer MUST be a concrete proper-noun entity (官方名稱、機構名、品牌名、店名、人名). DO NOT use generic descriptors or category words such as "語学スクール", "主催者", "運営事務局", "実行委員会" (alone), "出版社", "映画館", "カフェ", "団体". If only a generic descriptor is available, set organizer = null and organizer_type = ["unknown"].
 5. organizer_type: classify the primary organizer into one or more of:
    - "government" — central/local government bodies (外交部, 文化部, 都道府県, 市役所)
    - "semi_official" — TECRO offices, Taiwan Cultural Center, JICA-style 外郭団体
@@ -254,9 +255,10 @@ LANGUAGE RULES:
    - "zh" — primarily Chinese / Mandarin / Taiwanese
    - "en" — primarily English
    - "mixed" — bilingual or trilingual format explicitly advertised (e.g. 日中通訳付き shown as a featured format, not a side support)
-2. has_japanese_support: true if the event provides Japanese assistance (subtitle 字幕, simultaneous interpretation 同時通訳, consecutive interpretation 逐次通訳, bilingual handout 配布資料) when primary_language != "ja". Set false if primary_language="ja". Set null if unclear.
-3. has_english_support: same logic for English. Most Japan-domestic events default to false. Only set true when explicitly advertised.
+2. has_japanese_support: true ONLY when the source text explicitly advertises Japanese assistance for a non-Japanese event (字幕, 同時通訳, 逐次通訳, 日本語配布資料, etc.). false ONLY when the source text explicitly says no Japanese support is provided (e.g. "中国語のみ", "日本語通訳なし"). Otherwise null. Special case: when primary_language="ja" and the question is moot, set null (NOT false).
+3. has_english_support: same logic for English. true only when explicitly advertised (英語字幕, English interpretation, bilingual). false only when explicitly stated as not provided. Otherwise null. Default to null for Japan-domestic events that do not mention English at all.
 4. NEVER guess. If the source text gives no language signal at all, set primary_language=null and both support flags=null.
+5. NEVER infer support flags from the absence of mention. Absence = null, NOT false.
 
 Respond with valid JSON matching this schema:
 {
