@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-05-03 — ks_cinema sub-event parent_event_id UUID 型別錯誤（commit `263e333`）
+- **問題**：`ks_cinema.py` sub-event 中，`parent_event_id` 被設為 source_id 字串（`"ks_cinema_taiwan-filmake"`）而非 UUID，每次 upsert 出現 `invalid input syntax for type uuid` 錯誤，CI 連續 5 天失敗（`scraper_runs.success = false`）
+- **根本原因**：直接將 source_id 字串賦值給 `parent_event_id` 欄位，未透過 `get_event_id_by_source()` 查詢 DB UUID
+- **修正**：改用 `get_event_id_by_source(SOURCE_NAME, f"ks_cinema_{url_slug}")` 查詢 parent UUID，與 `taiwanshi.py` 模式相同；初次執行（parent 尚未寫入 DB）回傳 `None`
+- **教訓**：`parent_event_id` 是 UUID 欄位，**絕不可**直接放 source_id 字串；必須透過 `get_event_id_by_source()` 查詢，回傳 `None` 時 sub-event 不設 parent
+
+---
+
 ## 2026-05-02 — annotator.py 擴展 google_news_rss 薄內容 fetch 觸發（事件 2d77c2c4）
 - **錯誤**：2d77c2c4（チップ・オデッセイ 熊本上映）raw_description 只有 80 chars 標題，但 start_date 非 null，Playwright fetch 被跳過，GPT 無法取得正確日期與地點
 - **根本原因**：fetch 觸發條件只看 `not start_date`，不考慮 raw_description 是否足夠長

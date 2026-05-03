@@ -20,6 +20,15 @@ Read this at the start of every session before writing any scraper.
   2. Register in `scraper/main.py` → `SCRAPERS` list (import + add instance)
   3. **Register in `research_sources`** — insert a row with `status='implemented'`, `scraper_source_name=<key>`, and a valid `url`. Omitting this causes CI to emit `⚠️ scraper(s) NOT registered` warnings every day until fixed.
   4. Verify: `python main.py --dry-run --source <key>` returns events cleanly
+- **Sub-events — always look up parent UUID via `get_event_id_by_source()`**: When setting `parent_event_id` on a sub-event, call `database.get_event_id_by_source(source_name, source_id) -> str | None` to retrieve the parent's UUID. **Never assign a source_id string directly** — the column type is UUID and it will cause `invalid input syntax for type uuid` on upsert. Returns `None` on first run (parent not yet in DB); subsequent runs get the correct UUID. Pattern used in `taiwanshi.py` and `ks_cinema.py`. Example:
+  ```python
+  try:
+      from database import get_event_id_by_source as _get_parent_uuid
+      parent_uuid = _get_parent_uuid(SOURCE_NAME, parent_source_id)
+  except (ImportError, Exception):
+      parent_uuid = None
+  sub_event = Event(..., parent_event_id=parent_uuid)
+  ```
 
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
