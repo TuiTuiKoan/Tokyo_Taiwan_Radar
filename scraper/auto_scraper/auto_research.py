@@ -286,6 +286,13 @@ def _call_llm_assessment(
 
         score = float(data["taiwan_relevance_score"])
         patch = _extract_profile_patch(data)
+
+        # Selector grounding check — skip for mock path (already returned above)
+        hint_violations = _validate_hints_against_html(patch, sample_html)
+        if hint_violations:
+            last_error = "selector grounding failed: " + "; ".join(hint_violations)
+            continue
+
         return AssessmentResult(
             assessment=data,
             taiwan_relevance_score=score,
@@ -299,6 +306,52 @@ def _call_llm_assessment(
         "llm-error",
         f"assessment validation failed after {MAX_LLM_ATTEMPTS} attempts: {last_error}",
     )
+
+
+def _validate_hints_against_html(patch: dict, html: str) -> list[str]:
+    """Lightweight check: non-empty *_selector_hint values must match ≥1 element
+    in sample HTML. Empty hints are valid (LLM chose not to guess). Returns list
+    of human-readable violations."""
+    from bs4 import BeautifulSoup
+
+    violations: list[str] = []
+    if not html:
+        return []  # cannot validate without HTML — let it pass
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return []  # parser error — skip validation
+
+    card_hint = patch.get("card_selector_hint", "")
+    if not card_hint:
+        # No card hint — nothing else to validate (child hints meaningless without parent)
+        return []
+
+    # Validate card selector
+    try:
+        cards = soup.select(card_hint)
+    except Exception as exc:
+        return [f"card_selector_hint {card_hint!r} is not valid CSS: {exc}"]
+    if not cards:
+        violations.append(f"card_selector_hint {card_hint!r} matches 0 elements in sample HTML")
+        return violations  # child checks meaningless if card fails
+
+    first_card = cards[0]
+
+    # Validate child selectors within first card
+    for field in ("title_selector_hint", "date_selector_hint", "detail_link_selector_hint"):
+        sel = patch.get(field, "")
+        if not sel:
+            continue  # empty is valid
+        try:
+            matched = first_card.select(sel)
+        except Exception as exc:
+            violations.append(f"{field}={sel!r} is not valid CSS: {exc}")
+            continue
+        if not matched:
+            violations.append(f"{field}={sel!r} matches 0 elements within first card")
+
+    return violations
 
 
 def _extract_profile_patch(data: dict) -> dict:
