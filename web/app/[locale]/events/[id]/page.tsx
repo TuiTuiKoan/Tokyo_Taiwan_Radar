@@ -86,6 +86,8 @@ export default async function EventDetailPage({ params }: PageProps) {
   const { locale, id } = await params;
   const t = await getTranslations("event");
   const tCat = await getTranslations("categories");
+  const tOrgType = await getTranslations("organizerType");
+  const tEventForm = await getTranslations("eventForm");
 
   const supabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -538,6 +540,88 @@ export default async function EventDetailPage({ params }: PageProps) {
           </tbody>
         </table>
       </div>
+
+      {/* ===== Organizer / Event Form / Language Support ===== */}
+      {((event as Event).organizer ||
+        ((event as Event).co_organizers ?? []).length > 0 ||
+        ((event as Event).sponsors ?? []).length > 0 ||
+        ((event as Event).event_form ?? []).length > 0 ||
+        (event as Event).has_japanese_support ||
+        (event as Event).has_english_support ||
+        (event as Event).has_chinese_support) && (
+        <section className="mb-8 border border-gray-200 rounded-xl p-4 bg-gray-50/50">
+          <h2 className="text-sm font-medium text-gray-400 mb-3">{t("organizerSection")}</h2>
+          <dl className="space-y-2 text-sm">
+            {(event as Event).organizer && (
+              <div className="flex gap-2">
+                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("organizer")}：</dt>
+                <dd className="text-gray-900">
+                  {(event as Event).organizer_url ? (
+                    <a
+                      href={(event as Event).organizer_url!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-700 hover:underline"
+                    >
+                      {(event as Event).organizer} ↗
+                    </a>
+                  ) : (
+                    (event as Event).organizer
+                  )}
+                  {((event as Event).organizer_type ?? [])[0] &&
+                    ((event as Event).organizer_type ?? [])[0] !== "unknown" && (
+                      <span className="ml-2 text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+                        {tOrgType(((event as Event).organizer_type ?? [])[0] as any)}
+                      </span>
+                  )}
+                </dd>
+              </div>
+            )}
+            {((event as Event).co_organizers ?? []).length > 0 && (
+              <div className="flex gap-2">
+                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("coOrganizers")}：</dt>
+                <dd className="text-gray-900">{((event as Event).co_organizers ?? []).join("、")}</dd>
+              </div>
+            )}
+            {((event as Event).sponsors ?? []).length > 0 && (
+              <div className="flex gap-2">
+                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("sponsors")}：</dt>
+                <dd className="text-gray-900">{((event as Event).sponsors ?? []).join("、")}</dd>
+              </div>
+            )}
+            {((event as Event).event_form ?? []).length > 0 && (
+              <div className="flex gap-2">
+                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("eventForm")}：</dt>
+                <dd className="flex flex-wrap gap-1">
+                  {((event as Event).event_form ?? []).map((f) => (
+                    <span key={f} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                      {tEventForm(f as any)}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            )}
+            {((event as Event).has_japanese_support ||
+              (event as Event).has_english_support ||
+              (event as Event).has_chinese_support) && (
+              <div className="flex gap-2 pt-1">
+                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("languageSupport")}：</dt>
+                <dd className="flex flex-wrap gap-1">
+                  {(event as Event).has_japanese_support && (
+                    <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">🇯🇵 日本語</span>
+                  )}
+                  {(event as Event).has_english_support && (
+                    <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">🇬🇧 English</span>
+                  )}
+                  {(event as Event).has_chinese_support && (
+                    <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">🇹🇼 中文</span>
+                  )}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </section>
+      )}
 
       {/* ===== Description ===== */}
       {description && (

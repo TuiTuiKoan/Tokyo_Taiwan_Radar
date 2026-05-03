@@ -49,6 +49,14 @@ export interface Event {
   updated_at: string;
   organizer?: string | null;
   organizer_url?: string | null;
+  organizer_type?: string[] | null;
+  co_organizers?: string[] | null;
+  sponsors?: string[] | null;
+  event_form?: string[] | null;
+  primary_language?: string | null;
+  has_japanese_support?: boolean | null;
+  has_english_support?: boolean | null;
+  has_chinese_support?: boolean | null;
   price_amount?: number | null;
   price_currency?: string | null;
   event_status?: "scheduled" | "cancelled" | "postponed" | "rescheduled" | null;

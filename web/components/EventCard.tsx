@@ -10,6 +10,7 @@ interface Props {
 export default async function EventCard({ event, locale }: Props) {
   const t = await getTranslations("event");
   const tCat = await getTranslations("categories");
+  const tOrgType = await getTranslations("organizerType");
 
   const name = getEventName(event, locale);
   const now = new Date();
@@ -39,6 +40,11 @@ export default async function EventCard({ event, locale }: Props) {
         {event.is_paid === true && (
           <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
             {t("paid")}
+          </span>
+        )}
+        {event.organizer_type?.[0] && event.organizer_type[0] !== "unknown" && (
+          <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+            {tOrgType(event.organizer_type[0] as any)}
           </span>
         )}
       </div>

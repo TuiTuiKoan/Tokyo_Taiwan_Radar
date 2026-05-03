@@ -109,7 +109,13 @@
     "recordLinksUrl": "URL",
     "recordLinksRecommended": "おすすめ",
     "movieOfficialSite": "映画公式サイト",
-    "searchOfficialSite": "公式サイトをGoogleで検索"
+    "searchOfficialSite": "公式サイトをGoogleで検索",
+    "organizerSection": "主催者情報",
+    "organizer": "主催",
+    "coOrganizers": "共催",
+    "sponsors": "協賛",
+    "eventForm": "イベント形式",
+    "languageSupport": "言語サポート"
   },
   "auth": {
     "loginTitle": "ログイン",
@@ -445,5 +451,30 @@
     "taiwan_japan": "台日交流に特化したイベント。文化交流、姉妹都市イベント、台日ビジネス交流、民間友好活動などを掲載しています。",
     "lifestyle_food": "台湾の食文化・ライフスタイルをテーマにしたイベント。台湾料理教室、食材マーケット、ライフスタイルワークショップなどを掲載。",
     "books_media": "台湾の書籍・文学・出版・メディア関連イベント。読書会、著者講演、台湾文学展示などを掲載しています。"
+  },
+  "organizerType": {
+    "government": "行政機関",
+    "semi_official": "準公的機関",
+    "cultural_institution": "文化施設",
+    "academic": "学術機関",
+    "commercial_brand": "商業ブランド",
+    "independent_venue": "独立会場",
+    "civic_group": "市民団体",
+    "media": "メディア",
+    "unknown": "その他"
+  },
+  "eventForm": {
+    "exhibition": "展覧会",
+    "screening": "上映",
+    "lecture": "講座",
+    "performance": "パフォーマンス",
+    "market": "マーケット",
+    "workshop": "ワークショップ",
+    "conference": "カンファレンス",
+    "networking": "交流会",
+    "screening_with_talk": "上映＋トーク",
+    "tour": "ツアー",
+    "competition": "コンクール",
+    "other": "その他"
   }
 }
