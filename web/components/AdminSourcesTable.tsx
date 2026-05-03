@@ -24,6 +24,7 @@ export interface ResearchSource {
   scraper_source_name: string | null;
   scrape_times_per_day: number;
   scrape_hours_jst: number[];
+  auto_research_status?: string | null;
 }
 
 interface Props {
@@ -113,6 +114,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
   const [creatorLocation, setCreatorLocation] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [promotingId, setPromotingId] = useState<number | null>(null);
 
   // Immediate rescrape state
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -258,6 +260,20 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     }
   }
 
+  async function handlePromote(srcId: number) {
+    setPromotingId(srcId);
+    const { error } = await supabase
+      .from("research_sources")
+      .update({ status: "researched" })
+      .eq("id", srcId);
+    setPromotingId(null);
+    if (!error) {
+      setSourceList((prev) =>
+        prev.map((s) => s.id === srcId ? { ...s, status: "researched" } : s)
+      );
+    }
+  }
+
   async function handleAddCreator(e: React.FormEvent) {
     e.preventDefault();
     const slug = creatorSlug.trim().replace(/^https?:\/\/note\.com\/?/, "").replace(/\/$/, "");
@@ -369,6 +385,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
       if (filter === "researched" && s.status !== "researched") return false;
       if (filter === "recommended" && s.status !== "recommended") return false;
       if (filter === "has_issue" && !s.github_issue_url) return false;
+      if (filter === "pending_review" && !(s.status === "candidate" && s.auto_research_status === "assessed")) return false;
       if (filterType !== "all") {
         const sourceType =
           s.agent_category === "peatix_organizer"
@@ -396,6 +413,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
       if (filter === "researched" && s.status !== "researched") return false;
       if (filter === "recommended" && s.status !== "recommended") return false;
       if (filter === "has_issue" && !s.github_issue_url) return false;
+      if (filter === "pending_review" && !(s.status === "candidate" && s.auto_research_status === "assessed")) return false;
       return true;
     });
     for (const s of statusFiltered) {
@@ -417,6 +435,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
       if (filter === "researched" && s.status !== "researched") return false;
       if (filter === "recommended" && s.status !== "recommended") return false;
       if (filter === "has_issue" && !s.github_issue_url) return false;
+      if (filter === "pending_review" && !(s.status === "candidate" && s.auto_research_status === "assessed")) return false;
       return true;
     });
     for (const s of statusFiltered) {
@@ -614,6 +633,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
             className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
             <option value="all">{t("sourcesFilterAll")}</option>            <option value="candidate">候選中</option>
+            <option value="pending_review">⏳ 待人工審核</option>
             <option value="researched">已深度研究</option>
             <option value="recommended">已推薦</option>            <option value="implemented">已建立爬蟲</option>
             <option value="not-viable">不適合</option>
@@ -823,6 +843,29 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
               <p className="text-xs text-gray-500 mt-1">{src.reason}</p>
             )}
 
+            {/* LLM auto-research assessment (待人工審核 mode) */}
+            {src.auto_research_status === "assessed" && src.source_profile && (() => {
+              const sp = src.source_profile as Record<string, unknown>;
+              const notes = sp.notes != null ? String(sp.notes) : null;
+              const evidence = Array.isArray(sp.taiwan_evidence) ? (sp.taiwan_evidence as string[]) : [];
+              const feasibility = sp.feasibility != null ? String(sp.feasibility) : null;
+              const cardHint = sp.card_selector_hint != null ? String(sp.card_selector_hint) : null;
+              return (
+                <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-1">
+                  {notes && <p className="text-amber-800">{notes}</p>}
+                  {evidence.length > 0 && (
+                    <p className="text-amber-600">🔍 {evidence.join(" · ")}</p>
+                  )}
+                  <div className="flex gap-3 text-amber-700">
+                    {feasibility && <span>可行性: {feasibility}</span>}
+                    {cardHint && (
+                      <span>card: <code className="bg-amber-100 px-1 rounded">{cardHint}</code></span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Action buttons */}
             <div className="mt-3 flex gap-2 flex-wrap">
               {isResearched && (
@@ -836,7 +879,17 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                 </a>
               )}
 
-              {src.status === "candidate" && (
+              {src.status === "candidate" && src.auto_research_status === "assessed" && (
+                <button
+                  onClick={() => handlePromote(src.id)}
+                  disabled={promotingId === src.id}
+                  className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                >
+                  {promotingId === src.id ? "升級中…" : "✅ 升級為 researched"}
+                </button>
+              )}
+
+              {src.status === "candidate" && src.auto_research_status !== "assessed" && (
                 <span
                   className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-gray-100 text-gray-400 rounded-lg cursor-not-allowed"
                   title={t("sourcesResearchWith")}
