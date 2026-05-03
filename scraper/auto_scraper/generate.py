@@ -895,7 +895,9 @@ def main(argv: list[str] | None = None) -> int:
             ignore_cooldown=args.ignore_cooldown,
         )
         success, failed = run_batch(batch_opts)
-        sys.exit(0 if failed == 0 else 1)
+        # Exit 1 only when every eligible source failed (all-fail = likely systemic issue).
+        # Partial failures (some success) exit 0 — normal when some sources have known-bad URLs.
+        sys.exit(1 if failed > 0 and success == 0 else 0)
 
     if args.source_id is None:
         parser.print_help()
