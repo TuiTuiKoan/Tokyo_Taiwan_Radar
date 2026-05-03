@@ -248,5 +248,51 @@ class AssessmentTests(unittest.TestCase):
         self.assertIsNone(holder.update_payload)
 
 
+# ---------------------------------------------------------------------------
+# source_profile feasibility regression tests
+# ---------------------------------------------------------------------------
+
+
+class FeasibilityPatchTests(unittest.TestCase):
+    def test_extract_profile_patch_includes_feasibility(self):
+        """_extract_profile_patch must include 'feasibility' so generate.py's filter sees it."""
+        patch = auto_research._extract_profile_patch(
+            {**VALID_ASSESSMENT, "feasibility": "easy"}
+        )
+        self.assertIn("feasibility", patch)
+        self.assertEqual(patch["feasibility"], "easy")
+
+    def test_promote_writes_feasibility_to_source_profile(self):
+        """End-to-end: a promoted source's source_profile must carry feasibility='easy'."""
+        row = _make_row()
+        sb, holder = _make_sb(row)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            assessment_file = _write_assessment(
+                Path(tmp),
+                {
+                    **VALID_ASSESSMENT,
+                    "taiwan_relevance_score": 0.85,
+                    "feasibility": "easy",
+                },
+            )
+            opts = auto_research.ResearchOptions(
+                source_id=99,
+                mock_llm=assessment_file,
+                dry_run=False,
+                create_issue=False,
+            )
+            with patch.object(auto_research, "_fetch_sample_html", return_value="<html></html>"):
+                rc = auto_research.run(opts, sb=sb)
+
+        self.assertEqual(rc, 0)
+        self.assertIsNotNone(holder.update_payload)
+        self.assertEqual(holder.update_payload["status"], "researched")
+        self.assertIn("source_profile", holder.update_payload)
+        self.assertEqual(
+            holder.update_payload["source_profile"].get("feasibility"), "easy"
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

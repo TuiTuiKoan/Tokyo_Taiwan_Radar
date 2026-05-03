@@ -69,8 +69,9 @@ taiwan_evidence: List actual text strings you found on the page that justify you
 
 CRITICAL for CSS selectors — ONLY use classes/IDs/attributes that appear VERBATIM in the sample HTML:
 - Do NOT invent selectors like .event-card, .event-list-item, .c-event__title
-- Use tag+class combinations you can see in the HTML
-- Prefer tag selectors (article, li, div[class*="event"]) when class names are unclear
+- Use tag+class combinations exactly as they appear (e.g. li.article-list, article.entry-card)
+- If you cannot find a stable repeating class/id verbatim in the HTML, leave the corresponding *_selector_hint as an empty string ""
+- Do NOT substitute generic tag selectors (article, li, div[class*="..."]) when class names are unclear — an empty hint is better than a hallucinated one. The next pipeline stage can fall back gracefully on empty hints but cannot recover from wrong ones.
 """
 
 logger = logging.getLogger(__name__)
@@ -302,6 +303,7 @@ def _call_llm_assessment(
 
 def _extract_profile_patch(data: dict) -> dict:
     return {
+        "feasibility": data.get("feasibility"),
         "card_selector_hint": data.get("card_selector_hint", ""),
         "title_selector_hint": data.get("title_selector_hint", ""),
         "date_selector_hint": data.get("date_selector_hint", ""),
