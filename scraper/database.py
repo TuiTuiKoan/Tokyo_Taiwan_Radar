@@ -29,6 +29,11 @@ _VALID_EVENT_FORMS = frozenset([
 ])
 _VALID_PRIMARY_LANGUAGES = frozenset(["ja", "zh", "en", "mixed"])
 
+# Tier 2 schema.org Event JSON-LD whitelists (migration 037).
+_VALID_EVENT_STATUSES = frozenset({"scheduled", "cancelled", "postponed", "rescheduled"})
+import re as _re_mod_db
+_CURRENCY_RE_DB = _re_mod_db.compile(r'^[A-Z]{3}$')
+
 
 def _get_client() -> Client:
     global _client
@@ -106,6 +111,17 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         row["has_japanese_support"] = event.has_japanese_support
     if isinstance(event.has_english_support, bool):
         row["has_english_support"] = event.has_english_support
+
+    # Tier 2 fields (migration 037). Whitelist event_status / price_currency;
+    # organizer_url and price_amount pass through (annotator already filtered).
+    if event.organizer_url is not None:
+        row["organizer_url"] = event.organizer_url
+    if event.price_amount is not None:
+        row["price_amount"] = event.price_amount
+    if isinstance(event.price_currency, str) and _CURRENCY_RE_DB.match(event.price_currency):
+        row["price_currency"] = event.price_currency
+    if isinstance(event.event_status, str) and event.event_status in _VALID_EVENT_STATUSES:
+        row["event_status"] = event.event_status
 
     return row
 

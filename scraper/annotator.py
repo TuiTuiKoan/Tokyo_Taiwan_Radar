@@ -267,6 +267,25 @@ LANGUAGE RULES:
 4. NEVER guess. If the source text gives no language signal at all, set primary_language=null and all support flags=null.
 5. NEVER infer support flags from the absence of mention. Absence = null, NOT false.
 
+ORGANIZER URL RULES:
+1. organizer_url: the official URL of the organizer (NOT the event page URL, NOT this aggregator site). Look for 主催 entity's homepage link in the source HTML. If only the event listing URL is available, set null.
+2. NEVER fabricate. NEVER use the source page URL itself. NEVER use generic platform URLs (peatix.com root, etc.). Set null when uncertain.
+
+PRICE PARSING RULES:
+1. price_amount: numeric value in JPY when explicitly stated. Examples: "¥1,500" → 1500, "1500円" → 1500, "無料" → 0, "free" → 0. Decimals allowed for completeness but rare. If price varies by ticket type, pick the lowest non-zero adult price. If the source only says "有料" without a number, set null.
+2. price_currency: always "JPY" for events in Japan unless source explicitly prices in another currency (rare; e.g. an online event priced in USD). 3-letter ISO 4217 code.
+3. When is_paid=false → price_amount=0, price_currency="JPY".
+4. When is_paid=true and number found → price_amount=that number, price_currency="JPY".
+5. When is_paid=true and no number → price_amount=null, price_currency="JPY".
+6. NEVER guess prices. Better null than wrong.
+
+EVENT STATUS RULES:
+1. event_status: defaults to "scheduled". Only change when source text explicitly states:
+   - "cancelled" — 中止 / キャンセル / 取消 / cancelled
+   - "postponed" — 延期 / postponed (without new date)
+   - "rescheduled" — 再延期 / 日程変更 / rescheduled (with new date)
+2. Default to "scheduled" for all normal listings. NEVER infer from absence of date.
+
 TAIWAN-VENUE EVENTS — SPECIAL RULES:
 When an event is held IN TAIWAN (location in Taipei, Taichung, Kaohsiung, etc.):
   INCLUDE if:
@@ -313,6 +332,10 @@ Respond with valid JSON matching this schema:
   "has_japanese_support": false or true or null,
   "has_english_support": false or true or null,
   "has_chinese_support": false or true or null,
+  "organizer_url": "official URL of organizer" or null,
+  "price_amount": number or null,
+  "price_currency": "JPY",
+  "event_status": "scheduled",
   "selection_reason": {
     "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
@@ -342,7 +365,11 @@ Respond with valid JSON matching this schema:
       "primary_language": "ja" or "zh" or "en" or "mixed" or null,
       "has_japanese_support": false or true or null,
       "has_english_support": false or true or null,
-      "has_chinese_support": false or true or null
+      "has_chinese_support": false or true or null,
+      "organizer_url": "official URL of organizer" or null,
+      "price_amount": number or null,
+      "price_currency": "JPY",
+      "event_status": "scheduled"
     }
   ]
 }"""
@@ -434,6 +461,45 @@ def _validate_primary_language(val) -> str | None:
 
 def _validate_bool_or_none(val):
     return val if isinstance(val, bool) else None
+
+
+# Tier 2 validators (migration 037).
+def _validate_organizer_url(value):
+    if not isinstance(value, str):
+        return None
+    v = value.strip()
+    if v.startswith("http://") or v.startswith("https://"):
+        return v
+    return None
+
+
+def _validate_price_amount(value):
+    if value is None:
+        return None
+    try:
+        f = float(value)
+        return f if f >= 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+_CURRENCY_RE = re.compile(r'^[A-Z]{3}$')
+
+
+def _validate_price_currency(value):
+    if not isinstance(value, str):
+        return "JPY"
+    v = value.strip().upper()
+    return v if _CURRENCY_RE.match(v) else "JPY"
+
+
+VALID_EVENT_STATUSES = frozenset({"scheduled", "cancelled", "postponed", "rescheduled"})
+
+
+def _validate_event_status(value):
+    if isinstance(value, str) and value in VALID_EVENT_STATUSES:
+        return value
+    return "scheduled"
 
 
 _LECTURE_KEYWORDS = frozenset([
@@ -795,6 +861,10 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "has_japanese_support": _validate_bool_or_none(annotation.get("has_japanese_support")),
                     "has_english_support": _validate_bool_or_none(annotation.get("has_english_support")),
                     "has_chinese_support": _validate_bool_or_none(annotation.get("has_chinese_support")),
+                    "organizer_url": _validate_organizer_url(annotation.get("organizer_url")),
+                    "price_amount": _validate_price_amount(annotation.get("price_amount")),
+                    "price_currency": _validate_price_currency(annotation.get("price_currency")),
+                    "event_status": _validate_event_status(annotation.get("event_status")),
                     "annotation_status": "annotated",
                     "annotated_at": datetime.utcnow().isoformat(),
                 }
@@ -892,6 +962,10 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "has_japanese_support": _validate_bool_or_none(sub.get("has_japanese_support")),
                     "has_english_support": _validate_bool_or_none(sub.get("has_english_support")),
                     "has_chinese_support": _validate_bool_or_none(sub.get("has_chinese_support")),
+                    "organizer_url": _validate_organizer_url(sub.get("organizer_url")),
+                    "price_amount": _validate_price_amount(sub.get("price_amount")),
+                    "price_currency": _validate_price_currency(sub.get("price_currency")),
+                    "event_status": _validate_event_status(sub.get("event_status")),
                     "is_active": True,
                     "parent_event_id": eid,
                     "raw_title": sub_raw_title,

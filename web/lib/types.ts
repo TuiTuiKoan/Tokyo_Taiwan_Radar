@@ -47,6 +47,11 @@ export interface Event {
   scraped_at: string | null;
   created_at: string;
   updated_at: string;
+  organizer?: string | null;
+  organizer_url?: string | null;
+  price_amount?: number | null;
+  price_currency?: string | null;
+  event_status?: "scheduled" | "cancelled" | "postponed" | "rescheduled" | null;
 }
 
 export type SocialPlatform = "instagram" | "threads" | "facebook" | "linkedin" | "line";

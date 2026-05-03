@@ -111,6 +111,12 @@ class Event:
     has_english_support: Optional[bool] = None
     has_chinese_support: Optional[bool] = None
 
+    # Tier 2 schema.org Event JSON-LD fields (migration 037).
+    organizer_url: Optional[str] = None
+    price_amount: Optional[float] = None
+    price_currency: Optional[str] = "JPY"
+    event_status: Optional[str] = "scheduled"
+
 
 def dedup_events(events: list[Event]) -> list[Event]:
     """Remove duplicate events from a single scraper's output.

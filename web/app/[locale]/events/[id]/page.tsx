@@ -154,28 +154,87 @@ export default async function EventDetailPage({ params }: PageProps) {
     ja: "イベント一覧",
     en: "Event List",
   };
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Event",
-    name: name ?? event.name_ja ?? undefined,
-    startDate: event.start_date ?? undefined,
-    endDate: event.end_date ?? undefined,
-    description: description ?? undefined,
-    url: `${base}/${locale}/events/${id}`,
-    image: `${base}/${locale}/events/${id}/opengraph-image`,
-    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
-    ...(locationName
+  const jsonLd = (() => {
+    const EVENT_STATUS_MAP: Record<string, string> = {
+      scheduled: "https://schema.org/EventScheduled",
+      cancelled: "https://schema.org/EventCancelled",
+      postponed: "https://schema.org/EventPostponed",
+      rescheduled: "https://schema.org/EventRescheduled",
+    };
+
+    const ev = event as Event;
+
+    // organizer：有資料用真實主辦方，無資料 fallback 本站
+    const organizerLd = ev.organizer
       ? {
-          location: {
-            "@type": "Place",
-            name: locationName,
-            ...(locationAddress ? { address: locationAddress } : {}),
-          },
+          "@type": "Organization",
+          name: ev.organizer,
+          ...(ev.organizer_url ? { url: ev.organizer_url } : {}),
         }
-      : {}),
-    organizer: { "@type": "Organization", name: "Tokyo Taiwan Radar" },
-    ...(event.is_paid === false ? { isAccessibleForFree: true } : {}),
-  };
+      : { "@type": "Organization", name: "Tokyo Taiwan Radar", url: base };
+
+    // performer fallback (b)：有 organizer 才輸出，無則不輸出 performer key
+    const performerLd = ev.organizer
+      ? { "@type": "Organization", name: ev.organizer }
+      : null;
+
+    // location → PostalAddress
+    const placeLd = locationName
+      ? {
+          "@type": "Place",
+          name: locationName,
+          ...(locationAddress
+            ? {
+                address: {
+                  "@type": "PostalAddress",
+                  streetAddress: locationAddress,
+                  addressCountry: "JP",
+                },
+              }
+            : {}),
+        }
+      : null;
+
+    // offers
+    const offerUrl = ev.official_url ?? ev.source_url;
+    const priceCurrency = ev.price_currency ?? "JPY";
+    let offersLd: Record<string, unknown> | null = null;
+    if (ev.is_paid === false) {
+      offersLd = {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency,
+        availability: "https://schema.org/InStock",
+        ...(offerUrl ? { url: offerUrl } : {}),
+      };
+    } else if (ev.is_paid === true) {
+      offersLd = {
+        "@type": "Offer",
+        priceCurrency,
+        ...(ev.price_amount != null ? { price: String(ev.price_amount) } : {}),
+        availability: "https://schema.org/InStock",
+        ...(offerUrl ? { url: offerUrl } : {}),
+      };
+    }
+
+    return {
+      "@context": "https://schema.org",
+      "@type": "Event",
+      name: name ?? ev.name_ja ?? undefined,
+      startDate: ev.start_date ?? undefined,
+      endDate: ev.end_date ?? undefined,
+      description: description ?? undefined,
+      url: `${base}/${locale}/events/${id}`,
+      image: `${base}/${locale}/events/${id}/opengraph-image`,
+      eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+      eventStatus: EVENT_STATUS_MAP[ev.event_status ?? "scheduled"],
+      ...(placeLd ? { location: placeLd } : {}),
+      organizer: organizerLd,
+      ...(performerLd ? { performer: performerLd } : {}),
+      ...(offersLd ? { offers: offersLd } : {}),
+      ...(ev.is_paid === false ? { isAccessibleForFree: true } : {}),
+    };
+  })();
   const breadcrumbLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
