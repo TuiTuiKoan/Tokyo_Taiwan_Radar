@@ -407,6 +407,11 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
                 raw_desc = f"開催日時: {date_str}\n\n" + raw_desc
 
             sub_name_zh, sub_name_en = lookup_movie_titles(film_title)
+            try:
+                from database import get_event_id_by_source as _get_parent_uuid
+                parent_uuid = _get_parent_uuid(SOURCE_NAME, f"ks_cinema_{url_slug}")
+            except (ImportError, Exception):
+                parent_uuid = None
             sub_event = Event(
                 source_name=SOURCE_NAME,
                 source_id=f"ks_cinema_{url_slug}_{idx}",
@@ -424,7 +429,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
                 is_paid=True,
                 price_info=price_info,
                 official_url=official_url,
-                parent_event_id=f"ks_cinema_{url_slug}",
+                parent_event_id=parent_uuid,
             )
             events.append(sub_event)
 
