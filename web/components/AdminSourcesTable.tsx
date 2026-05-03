@@ -364,15 +364,17 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
 
   const SOURCE_TYPE_LABELS: Record<string, string> = {
     all:               "全部分類",
-    event_platform:    "活動平台",
+    event_platform:    "活動・票務平台",
     academic:          "學術單位",
-    venue:             "展場",
+    venue:             "展演空間",
     cinema:            "電影",
     tv:                "電視",
     government:        "政府機構",
     department_store:  "百貨",
     organizer:         "活動策劃組織",
     ngo:               "民間團體",
+    media_publisher:   "媒體・出版",
+    news_aggregator:   "新聞聚合平台",
     personal:          "個人頁面",
     taiwan_shop:       "台灣商家",
     peatix_organizer:  "Peatix 主辦者",
@@ -852,6 +854,8 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
         const hasScraperKey = Boolean(src.scraper_source_name);
         const isChecked = src.scraper_source_name ? selected.has(src.scraper_source_name) : false;
         const schedule = getScheduleForSrc(src);
+        const sourceTypeKey = effectiveTypeMap[src.id] ?? (src.agent_category === "peatix_organizer" ? "peatix_organizer" : null);
+        const sourceTypeLabel = sourceTypeKey ? (SOURCE_TYPE_LABELS[sourceTypeKey] ?? null) : null;
 
         return (
           <div
@@ -871,6 +875,11 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                   />
                 )}
                 <span className="text-base">{ICONS[catKey] ?? "📎"}</span>
+                {sourceTypeLabel && (
+                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium shrink-0">
+                    {sourceTypeLabel}
+                  </span>
+                )}
                 <span className="font-medium text-gray-800">{src.name}</span>
                 <StatusBadge status={src.status} />
                 {src.scraping_feasibility && (
