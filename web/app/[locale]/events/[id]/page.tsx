@@ -480,6 +480,18 @@ export default async function EventDetailPage({ params }: PageProps) {
         </table>
       </div>
 
+      {/* ===== Description ===== */}
+      {description && (
+        <div className="mb-8">
+          <h2 className="text-sm font-medium text-gray-400 mb-2">{t("description")}</h2>
+          <div className="prose prose-gray max-w-none">
+            <p className="whitespace-pre-wrap text-gray-700 leading-relaxed text-sm">
+              {description}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ===== Primary CTA ===== */}
       {((event as Event).official_url || event.source_url) && (
         <a
@@ -519,18 +531,6 @@ export default async function EventDetailPage({ params }: PageProps) {
           description: { zh: event.description_zh, en: event.description_en, ja: event.description_ja },
         }} />}
       />
-
-      {/* ===== Description ===== */}
-      {description && (
-        <div className="mb-8">
-          <h2 className="text-sm font-medium text-gray-400 mb-2">{t("description")}</h2>
-          <div className="prose prose-gray max-w-none">
-            <p className="whitespace-pre-wrap text-gray-700 leading-relaxed text-sm">
-              {description}
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* ===== Sub-events ===== */}
       {subEvents && subEvents.length > 0 && (
