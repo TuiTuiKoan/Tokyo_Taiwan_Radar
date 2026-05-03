@@ -62,6 +62,26 @@ CREATOR_META: dict[str, tuple[str, str, list[str]]] = {
         "東京都新宿区大久保1-5-13 2階 CAFE ECLA",
         ["taiwan_japan"],
     ),
+    "nittaisinzen": (
+        "NPO法人埼玉県日台親善協会",
+        "埼玉県",
+        ["taiwan_japan"],
+    ),
+    "vectortw": (
+        "ベクトル台湾",
+        None,
+        ["taiwan_japan"],
+    ),
+    "taiwanryugaku": (
+        "台湾留学サポートセンター",
+        None,
+        ["taiwan_japan", "lecture"],
+    ),
+    "tcml_osaka": (
+        "台湾華語文学習センター（大阪弁天町）",
+        "大阪府大阪市西区",
+        ["taiwan_japan", "lecture"],
+    ),
 }
 
 # Months for cross-year inference window
