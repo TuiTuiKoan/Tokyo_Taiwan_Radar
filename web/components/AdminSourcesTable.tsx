@@ -142,6 +142,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
   const [showTypeEditor, setShowTypeEditor] = useState(false);
   const [draftOverrides, setDraftOverrides] = useState<Record<number, string>>({});
   const [editorSearch, setEditorSearch] = useState("");
+  const [editorCatFilter, setEditorCatFilter] = useState<Set<string> | null>(null); // null = 全選
 
   function toggleSelect(sourceKey: string) {
     setSelected((prev) => {
@@ -479,9 +480,54 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                 className="w-full h-8 border border-gray-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
               />
             </div>
+            {/* Category filter checkboxes */}
+            <div className="px-5 py-2 border-b border-gray-100 flex flex-wrap gap-x-3 gap-y-1 items-center">
+              <button
+                onClick={() => setEditorCatFilter(null)}
+                className={`text-xs px-2 py-0.5 rounded-full border transition ${editorCatFilter === null ? "bg-green-600 text-white border-green-600" : "border-gray-200 text-gray-500 hover:border-green-400"}`}
+              >全選</button>
+              {Object.entries(SOURCE_TYPE_LABELS)
+                .filter(([k]) => k !== "all")
+                .map(([key, label]) => {
+                  const checked = editorCatFilter === null || editorCatFilter.has(key);
+                  return (
+                    <label key={key} className="flex items-center gap-1 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setEditorCatFilter((prev) => {
+                            // 從全選狀態開始：展開為全集再移除這個
+                            const base = prev === null
+                              ? new Set(Object.keys(SOURCE_TYPE_LABELS).filter((k) => k !== "all"))
+                              : new Set(prev);
+                            if (base.has(key)) {
+                              base.delete(key);
+                            } else {
+                              base.add(key);
+                            }
+                            // 若全部都勾了，回到 null（全選）
+                            const allCats = Object.keys(SOURCE_TYPE_LABELS).filter((k) => k !== "all");
+                            return base.size === allCats.length ? null : base;
+                          });
+                        }}
+                        className="rounded"
+                      />
+                      <span className={`text-xs ${checked ? "text-gray-700" : "text-gray-300"}`}>{label}</span>
+                    </label>
+                  );
+                })}
+            </div>
             <div className="overflow-y-auto flex-1 px-5 py-3 space-y-1">
               {sourceList
-                .filter((s) => !editorSearch || s.name.toLowerCase().includes(editorSearch.toLowerCase()) || String(s.id).includes(editorSearch))
+                .filter((s) => {
+                  if (editorSearch && !s.name.toLowerCase().includes(editorSearch.toLowerCase()) && !String(s.id).includes(editorSearch)) return false;
+                  if (editorCatFilter !== null) {
+                    const effective = draftOverrides[s.id] ?? SOURCE_TYPE_MAP[s.id] ?? "other";
+                    if (!editorCatFilter.has(effective)) return false;
+                  }
+                  return true;
+                })
                 .sort((a, b) => {
                   const ta = draftOverrides[a.id] ?? SOURCE_TYPE_MAP[a.id] ?? "other";
                   const tb = draftOverrides[b.id] ?? SOURCE_TYPE_MAP[b.id] ?? "other";
@@ -693,6 +739,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
           onClick={() => {
             setDraftOverrides({ ...typeOverrides });
             setEditorSearch("");
+            setEditorCatFilter(null);
             setShowTypeEditor(true);
           }}
           className="ml-auto text-xs px-3 py-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition"
