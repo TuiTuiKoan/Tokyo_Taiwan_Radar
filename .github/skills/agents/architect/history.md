@@ -3,6 +3,23 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04 — 兩次誤判 Engineer 越權 git push（其實是使用者並行 terminal 操作）
+
+### 問題
+連續兩次（commit `b2f046a` 035 / `0d4a0de` 037）看到 main 出現未經 Architect 授權的 commit，第一反應推論「Engineer subagent 違反禁止 git 操作的指令」，準備加規則禁止 Engineer 寫 git。實際追時序後兩次都是使用者在另一 terminal 並行手動 commit + push。
+
+### 根因
+Architect 在驗證階段沒先做時序交叉比對，看到陌生 commit + Engineer 剛 dispatch 過 → 直接推論為 Engineer 行為。Engineer 的 Changes Log 都只列檔案變更、沒宣稱做 git，但 Architect 沒把「報告未提 = 沒做」當證據。
+
+### 教訓 / 規則
+**陌生 commit 出現時，必跑「時序三步驟」再下結論：**
+1. `git log --since=... --format='%cI %h %s'` 拉前後 30 分鐘 commit 列表
+2. 找出夾住該 commit 的相鄰 commit，問使用者「這兩筆是你做的嗎？」
+3. 只有當該 commit 在時序上孤立、且 Engineer dispatch 視窗完全涵蓋它時，才推論 Engineer
+
+對應防呆：Engineer dispatch prompt 仍寫「禁止 git 操作」是合理 belt-and-suspenders，但**不要**因此跳結論說 Engineer 違規。working tree 乾淨可能是使用者剛 commit、不是 Engineer 沒做事。
+
+---
 ## 2026-05-04 — auto_qa_missing_address 四類根本原因修正
 
 ### 問題
