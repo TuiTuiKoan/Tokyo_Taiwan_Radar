@@ -129,6 +129,30 @@ Reference incident: 2026-05-02 — 父事件（台東祭）`is_active = false` �
 
 Reference incident: 2026-05-02 — `location_prefectures` 未加入 select，多城市活動過濾靜默失效，假陽性持續出現於 quality 頁缺地址清單。
 
+## Category Sync Guard（annotator.py ↔ types.ts）
+
+在審核**任何**新增 `Category` 至 `web/lib/types.ts` 的 PR，或審核任何涉及 `annotator.py` 的 PR 前，**必須**確認以下三處同步：
+
+1. `scraper/annotator.py` → `VALID_CATEGORIES` 列表包含新分類。
+2. `scraper/annotator.py` → SYSTEM_PROMPT 第 2 條 categories 逗號分隔列表包含新分類。
+3. `scraper/annotator.py` → SYSTEM_PROMPT 分類定義清單有新分類的定義行。
+
+**違反後果**：GPT 無法選用新分類，被迫選最近似的舊分類（靜默失敗，不報錯）。
+
+**驗證命令**（在 scraper/ 目錄執行）：
+```bash
+python3 -c "
+from annotator import VALID_CATEGORIES
+import re
+ts = open('../web/lib/types.ts').read()
+ts_cats = re.findall(r'^\s*\| \"(\w+)\"', ts, re.MULTILINE)
+missing = [c for c in ts_cats if c not in VALID_CATEGORIES]
+print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
+"
+```
+
+Reference incident: 2026-05-04 — `types.ts` 新增 10 個分類（`tv_program` 等）後 annotator 未同步，導致所有 `gguide_tv` 電視節目被標為 `movie`（commit `0047c31`）。
+
 ## Required Phases
 
 ### Phase 1: Research

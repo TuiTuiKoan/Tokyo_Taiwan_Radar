@@ -8,7 +8,28 @@
 - **問題**：事件 3d835d19（ジーンちゃん 台湾・台北 食旅 TV 節目）被標為 movie 而非 tv_program
 - **根本原因**：types.ts 已新增 10 個分類（tv_program 等），但 annotator.py VALID_CATEGORIES 和 SYSTEM_PROMPT 從未同步；GPT 無法選用 tv_program，被迫改選 movie
 - **修正**：VALID_CATEGORIES 同步 types.ts；SYSTEM_PROMPT 加 tv_program/drama/documentary 定義；_inject_keyword_categories 加 TV 廣播標記注入（放送:/ジャンル: → tv_program）；DB 直接修正 7 筆 gguide_tv 事件
-- **教訓**：每次 types.ts 新增 Category → 必須同步更新 annotator.py VALID_CATEGORIES + SYSTEM_PROMPT 分類列表 + 分類定義（三處同步）
+- **教訓**：每次 types.ts 新增 Category → 必須同步更新 annotator.py VALID_CATEGORIES + SYSTEM_PROMPT 分類列表 + 分類定義（三處同步）。驗證命令見 SKILL.md § Three-Location Sync Rule。
+
+---
+
+## 2026-05-04 — annotator.py SYSTEM_PROMPT 新增「日本→台灣單向事件排除規則」
+- **背景**：3 筆事件（IMAGINE JAPAN in 台湾 f40980a8、Perxona AI 73981453、CLIP STUDIO PAINT 928aa003）被收錄，但其性質是「日本產品/企業進入台灣市場」，與台日文化交流無關
+- **修正**：
+  - DB 直接 deactivate 3 筆事件（`is_active = false`）
+  - annotator SYSTEM_PROMPT 新增 TAIWAN-VENUE EVENTS 區塊：明確 INCLUDE（共同組織/演出/交流/學習）vs EXCLUDE（日本向台灣銷售/贊助/產品發表）
+  - auto_qa 新增 `auto_qa_taiwan_venue` 偵測器：flags 台灣地址事件供人工審核
+- **教訓**：「Taiwan 在 location_address」不等同「Taiwan-relevant」。日本企業在台灣市場的商業行為不是台日文化活動，需 SYSTEM_PROMPT 明確區分。
+
+---
+
+## 2026-05-04 — rightscube.co.jp 新增爬蟲（台灣電影戲院放映）
+- **設計決策**：
+  - parent event = 全國上映概覽（source_id: `rightscube_{slug}`）
+  - child events = 各戲院放映（source_id: `rightscube_{slug}_{venue_key}`），venue_key 從戲院 URL 推導（deterministic、穩定）
+  - venue_key 規則：SNS（x.com/twitter/instagram）→ URL path component；CDN host（jimdofree/thebase）→ subdomain；一般網域 → domain minus TLD，lowercased，非英數字替換為 `-`
+  - 靜態 HTML，不需 Playwright；`movie_title_lookup` 自動補充官方中英文片名
+- **首次執行 DB 修復**：手動修正 source_id（`taiwan-filmake_jack-betty` → `jackandbetty`），建立 parent UUID，更新 4 筆 child 的 parent_event_id
+- **教訓**：首次加入新爬蟲時，若已有存量 DB 資料（格式錯誤），必須執行一次性修正 script 補齊 parent_event_id；rightscube venue_key 推導規則是 production contract，勿修改
 
 ---
 
