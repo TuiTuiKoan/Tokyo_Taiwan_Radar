@@ -99,6 +99,7 @@ from sources.taiwan_festa import TaiwanFestaScraper
 from sources.tiff import TiffJpScraper
 from sources.note_creators import NoteCreatorsScraper
 from sources.artistcafe import ArtistcafeScraper
+from sources.rightscube import RightscubeScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -182,6 +183,7 @@ SCRAPERS = [
     TiffJpScraper(),
     NoteCreatorsScraper(),
     ArtistcafeScraper(),
+    RightscubeScraper(),
 ]
 
 
