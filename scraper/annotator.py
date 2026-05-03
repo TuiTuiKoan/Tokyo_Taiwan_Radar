@@ -261,6 +261,20 @@ LANGUAGE RULES:
 4. NEVER guess. If the source text gives no language signal at all, set primary_language=null and all support flags=null.
 5. NEVER infer support flags from the absence of mention. Absence = null, NOT false.
 
+TAIWAN-VENUE EVENTS — SPECIAL RULES:
+When an event is held IN TAIWAN (location in Taipei, Taichung, Kaohsiung, etc.):
+  INCLUDE if:
+    - Both Taiwanese AND Japanese organizations/creators are co-organizers or co-performers
+    - Japanese individuals are being sent to Taiwan for cultural learning/exchange programs
+    - The event celebrates or introduces Taiwanese culture (even if organized by a Japanese party)
+    - Taiwan and Japan co-produce or jointly present the work
+
+  EXCLUDE if:
+    - Japanese creators/products are simply selling or exhibiting in Taiwan (Taiwan = market only)
+    - A Japanese company is merely sponsoring a Taiwanese event (sponsor ≠ participant)
+    - The event promotes Japanese products entering the Taiwanese market with no Taiwanese co-creation
+    - Taiwan is purely the venue/destination with no active Taiwanese cultural participation
+
 Respond with valid JSON matching this schema:
 {
   "name_ja": "Japanese event name",

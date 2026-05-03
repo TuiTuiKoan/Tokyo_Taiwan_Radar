@@ -72,7 +72,16 @@ OVERSEAS_KEYWORDS = (
     'ニューヨーク', 'パリ', 'ロンドン', 'ベルリン', '台湾', '香港',
 )
 
-QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address")
+# Keywords indicating the event is held IN TAIWAN.
+# These events require human review to confirm Taiwan–Japan mutual participation.
+TAIWAN_VENUE_KEYWORDS = (
+    '台北市', '台中市', '台南市', '高雄市', '新北市', '桃園市',
+    '基隆市', '新竹市', '嘉義市', '花蓮市', '台東市',
+    '台北', '台中', '台南', '高雄', '新北', '桃園',
+    '臺北', '臺中', '臺南', '臺灣',
+)
+
+QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_taiwan_venue")
 
 
 def _supabase_client():
@@ -169,6 +178,13 @@ def detect(event: dict) -> list[tuple[str, str]]:
         findings.append((
             "auto_qa_missing_address",
             f"地址缺失 venue={loc_name[:80]}",
+        ))
+
+    # 3. Event held in Taiwan — flag for human review of Japan–Taiwan mutuality
+    if any(kw in loc_addr or kw in loc_name for kw in TAIWAN_VENUE_KEYWORDS):
+        findings.append((
+            "auto_qa_taiwan_venue",
+            f"台灣場地：需人工確認台日共同性 venue={loc_name[:60]} addr={loc_addr[:60]}",
         ))
 
     return findings
