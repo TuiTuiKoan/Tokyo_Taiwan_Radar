@@ -84,6 +84,20 @@ export default async function AdminPage({ params }: PageProps) {
     .select("*", { count: "exact", head: true })
     .eq("status", "pending");
 
+  const [{ count: implementedSourceCount }, { count: totalSourceCount }, { count: creatorCount }] = await Promise.all([
+    supabase
+      .from("research_sources")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "implemented"),
+    supabase
+      .from("research_sources")
+      .select("*", { count: "exact", head: true }),
+    supabase
+      .from("creators")
+      .select("*", { count: "exact", head: true })
+      .eq("is_active", true),
+  ]);
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">{t("title")}</h1>
@@ -113,6 +127,16 @@ export default async function AdminPage({ params }: PageProps) {
           <p className="text-xs text-gray-400 mb-1">{t("statsReportsLabel")}</p>
           <p className={`text-2xl font-bold ${(reportCount ?? 0) > 0 ? "text-red-500" : "text-gray-800"}`}>{reportCount ?? 0}</p>
           <p className="text-xs text-gray-400 mt-0.5">{t("statsReportsDesc")}</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+          <p className="text-xs text-gray-400 mb-1">{t("statsSourcesLabel")}</p>
+          <p className="text-2xl font-bold text-gray-800">{implementedSourceCount ?? 0}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{t("statsSourcesDesc", { total: totalSourceCount ?? 0 })}</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+          <p className="text-xs text-gray-400 mb-1">{t("statsCreatorsLabel")}</p>
+          <p className="text-2xl font-bold text-gray-800">{creatorCount ?? 0}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{t("statsCreatorsDesc")}</p>
         </div>
       </div>
 
