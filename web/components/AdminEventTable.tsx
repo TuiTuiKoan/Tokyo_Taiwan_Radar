@@ -17,6 +17,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const tCat = useTranslations("categories");
   const tFilters = useTranslations("filters");
   const tEvent = useTranslations("event");
+  const tOrgType = useTranslations("organizerType");
+  const tEventForm = useTranslations("eventForm");
   const router = useRouter();
   const supabase = createClient();
 
@@ -92,6 +94,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "kanto" | "chubu" | "chugoku" | "online" | "tv" | "overseas">("")
   const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "reviewed" | "error">("");;  const [filterSource, setFilterSource] = useState("");
+  const [filterOrgType, setFilterOrgType] = useState("");
+  const [filterEventForm, setFilterEventForm] = useState("");
   const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
   const KANTO_MARKERS_ADMIN = ["神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬", "山梨", "青森", "岩手", "宮城", "秋田", "山形", "福島", "北海道"];
   // NOTE: "京都" is a substring of "東京都" — always use "京都府"/"京都市" to avoid false positives
@@ -153,6 +157,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         if (!TAIWAN_MARKERS_ADMIN.some((m) => (e.location_address || "").includes(m))) return false;
       }
   if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
+      if (filterOrgType && !((e as any).organizer_type ?? []).includes(filterOrgType)) return false;
+      if (filterEventForm && !((e as any).event_form ?? []).includes(filterEventForm)) return false;
       if (filterSource && (e as any).source_name !== filterSource) return false;
       return true;
     });
@@ -197,6 +203,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       else if (filterLocation === "chugoku") { if (!hasPrefecture(CHUGOKU_KYUSHU_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false; }
       else if (filterLocation === "online") { if (!(e.location_name || "").includes("オンライン")) return false; }
       if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
+      if (filterOrgType && !((e as any).organizer_type ?? []).includes(filterOrgType)) return false;
+      if (filterEventForm && !((e as any).event_form ?? []).includes(filterEventForm)) return false;
       return true;
     });
     const map: Record<string, number> = {};
@@ -206,7 +214,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     }
     return map;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events, filterQ, filterCategories, filterPaid, filterIsActive, filterTimeMode, filterDateFrom, filterDateTo, filterLocation, filterAnnotation, locale]);
+  }, [events, filterQ, filterCategories, filterPaid, filterIsActive, filterTimeMode, filterDateFrom, filterDateTo, filterLocation, filterAnnotation, filterOrgType, filterEventForm, locale]);
 
   // Intersection of categories across all selected events
   const commonCategories = useMemo(() => {
@@ -724,9 +732,50 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="error">{t("filterErrorShort")}</option>
             </select>
           </div>
-          {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "all" || filterTimeMode !== "all" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation || filterSource) && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{tEvent("organizer")}</label>
+            <select
+              value={filterOrgType}
+              onChange={(e) => setFilterOrgType(e.target.value)}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{t("filterAll")}</option>
+              <option value="government">{tOrgType("government")}</option>
+              <option value="semi_official">{tOrgType("semi_official")}</option>
+              <option value="cultural_institution">{tOrgType("cultural_institution")}</option>
+              <option value="academic">{tOrgType("academic")}</option>
+              <option value="commercial_brand">{tOrgType("commercial_brand")}</option>
+              <option value="independent_venue">{tOrgType("independent_venue")}</option>
+              <option value="civic_group">{tOrgType("civic_group")}</option>
+              <option value="media">{tOrgType("media")}</option>
+              <option value="unknown">{tOrgType("unknown")}</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">{tEvent("eventForm")}</label>
+            <select
+              value={filterEventForm}
+              onChange={(e) => setFilterEventForm(e.target.value)}
+              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              <option value="">{t("filterAll")}</option>
+              <option value="exhibition">{tEventForm("exhibition")}</option>
+              <option value="screening">{tEventForm("screening")}</option>
+              <option value="lecture">{tEventForm("lecture")}</option>
+              <option value="performance">{tEventForm("performance")}</option>
+              <option value="market">{tEventForm("market")}</option>
+              <option value="workshop">{tEventForm("workshop")}</option>
+              <option value="conference">{tEventForm("conference")}</option>
+              <option value="networking">{tEventForm("networking")}</option>
+              <option value="screening_with_talk">{tEventForm("screening_with_talk")}</option>
+              <option value="tour">{tEventForm("tour")}</option>
+              <option value="competition">{tEventForm("competition")}</option>
+              <option value="other">{tEventForm("other")}</option>
+            </select>
+          </div>
+          {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "all" || filterTimeMode !== "all" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation || filterSource || filterOrgType || filterEventForm) && (
             <button
-              onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("all"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); setFilterSource(""); }}
+              onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("all"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); setFilterSource(""); setFilterOrgType(""); setFilterEventForm(""); }}
               className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
             >
               {tFilters("reset")}
