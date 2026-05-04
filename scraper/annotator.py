@@ -815,6 +815,22 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 s = _loc(val)
                 return _to_trad(s)
 
+            # P0 field-protection: in normal re-annotation mode (not --all / --id),
+            # preserve non-null DB values that were already set — either by a scraper
+            # or by admin via confirm-report partial field correction.
+            # Rationale: when admin corrects field A but leaves field B for re-annotation,
+            # annotation_status becomes 'pending'. Annotator re-runs and overwrites A
+            # (admin correction lost) unless we check for existing non-null values first.
+            _protect = not re_annotate_all and event_id is None
+
+            def _ai_or_existing(fname: str, ai_val: Any) -> Any:
+                """Use AI value for null DB fields; keep DB value when protect mode active."""
+                if _protect:
+                    existing = event.get(fname)
+                    if existing is not None:
+                        return existing
+                return ai_val
+
             if fix_reviewed:
                 # --fix-reviewed mode: only write translation fields; preserve
                 # annotation_status='reviewed', category, dates, and all other
@@ -835,11 +851,11 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     # Always preserve the scraper's original title.
                     # GPT's name_ja is only consumed for sub-events.
                     "name_ja": event.get("name_ja") or raw_title,
-                    "name_zh": _to_trad(_str(annotation.get("name_zh"))),
-                    "name_en": _str(annotation.get("name_en")),
-                    "description_ja": _str(annotation.get("description_ja")),
-                    "description_zh": _to_trad(_str(annotation.get("description_zh"))),
-                    "description_en": _str(annotation.get("description_en")),
+                    "name_zh": _ai_or_existing("name_zh", _to_trad(_str(annotation.get("name_zh")))),
+                    "name_en": _ai_or_existing("name_en", _str(annotation.get("name_en"))),
+                    "description_ja": _ai_or_existing("description_ja", _str(annotation.get("description_ja"))),
+                    "description_zh": _ai_or_existing("description_zh", _to_trad(_str(annotation.get("description_zh")))),
+                    "description_en": _ai_or_existing("description_en", _str(annotation.get("description_en"))),
                     "category": categories,
                     # Scraper-set dates take precedence over GPT inference.
                     # GPT fills in only when the scraper found no date at all.
@@ -858,13 +874,13 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "organizer_type": _validate_organizer_types(annotation.get("organizer_type", [])),
                     "event_form": _validate_event_forms(annotation.get("event_form", [])),
                     "primary_language": _validate_primary_language(annotation.get("primary_language")),
-                    "has_japanese_support": _validate_bool_or_none(annotation.get("has_japanese_support")),
-                    "has_english_support": _validate_bool_or_none(annotation.get("has_english_support")),
-                    "has_chinese_support": _validate_bool_or_none(annotation.get("has_chinese_support")),
-                    "organizer_url": _validate_organizer_url(annotation.get("organizer_url")),
-                    "price_amount": _validate_price_amount(annotation.get("price_amount")),
-                    "price_currency": _validate_price_currency(annotation.get("price_currency")),
-                    "event_status": _validate_event_status(annotation.get("event_status")),
+                    "has_japanese_support": _ai_or_existing("has_japanese_support", _validate_bool_or_none(annotation.get("has_japanese_support"))),
+                    "has_english_support": _ai_or_existing("has_english_support", _validate_bool_or_none(annotation.get("has_english_support"))),
+                    "has_chinese_support": _ai_or_existing("has_chinese_support", _validate_bool_or_none(annotation.get("has_chinese_support"))),
+                    "organizer_url": _ai_or_existing("organizer_url", _validate_organizer_url(annotation.get("organizer_url"))),
+                    "price_amount": _ai_or_existing("price_amount", _validate_price_amount(annotation.get("price_amount"))),
+                    "price_currency": _ai_or_existing("price_currency", _validate_price_currency(annotation.get("price_currency"))),
+                    "event_status": _ai_or_existing("event_status", _validate_event_status(annotation.get("event_status"))),
                     "annotation_status": "annotated",
                     "annotated_at": datetime.utcnow().isoformat(),
                 }
@@ -879,8 +895,12 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 "business_hours_zh": _to_trad(_str(annotation.get("business_hours_zh"))),
                 "business_hours_en": _str(annotation.get("business_hours_en")),
             }
-            # Only send non-null values
-            localized_location_data = {k: v for k, v in localized_location_data.items() if v is not None}
+            # Only send non-null values; in protect mode also skip fields where DB
+            # already has a non-null value (admin-corrected localized location fields).
+            localized_location_data = {
+                k: v for k, v in localized_location_data.items()
+                if v is not None and not (_protect and event.get(k) is not None)
+            }
 
             # Ensure end_date is not null when start_date exists (skip in fix_reviewed mode)
             if not fix_reviewed and update_data.get("start_date") and not update_data.get("end_date"):

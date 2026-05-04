@@ -173,7 +173,10 @@ export async function confirmReport(
 
   if (isIrrelevant && !isWrongCategory && !isWrongDetails) {
     eventUpdate["is_active"] = false;
-    eventUpdate["annotation_status"] = "pending";
+    // annotation_status intentionally NOT set to 'pending' — keeps current value
+    // ('annotated' or 'reviewed') so the annotator never re-processes an event
+    // that an admin has confirmed as irrelevant. Setting to 'pending' would cause
+    // the annotator to re-activate the event on the next daily run.
   }
 
   // Handle wrongSelectionReason: correctedSelectionReason is already a merged JSON string.
