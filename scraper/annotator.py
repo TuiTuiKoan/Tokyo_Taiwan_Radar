@@ -216,14 +216,16 @@ _PERFORMER_INTRO_RE = re.compile(
     r'|講師|スピーカー|ゲスト|ゲスト講師|ゲストスピーカー'
     r')'
     r'[・：:\s]+'
-    r'([^\s・：:,、。（）「」【】\u3000]{2,10}?)'
+    r'([\u4e00-\u9fff]{2,6}?)'
     r'(?=氏|さん|先生|による|を迎え|が登壇|がトーク|にご登場)',
     re.UNICODE,
 )
 # Match 「〜氏を迎え」, 「〜さんを迎え」 — name before honorific+action
+# Restrict to pure kanji ([\u4e00-\u9fff]{2,6}) to avoid capturing
+# context phrases like 「交流のあった萩原健太」 or 「評論家の龍應台」.
 _MUKAE_RE = re.compile(
-    r'([\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]{2,10})'
-    r'(?:氏|さん|先生)(?:を迎え|による|が登壇|がトーク|にご登場)',
+    r'([\u4e00-\u9fff]{2,6})'
+    r'(?:氏|さん|先生)(?:をお?迎え|による|が登壇|がトーク|にご登場)',
     re.UNICODE,
 )
 
