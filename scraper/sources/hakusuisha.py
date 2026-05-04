@@ -99,17 +99,26 @@ def _fetch_detail_text_fallback(url: str) -> str | None:
         resp.encoding = resp.apparent_encoding or "utf-8"
         from html.parser import HTMLParser as _HTMLParser
         class _T(_HTMLParser):
+            _SKIP = frozenset({"script", "style", "nav", "header", "footer"})
             def __init__(self) -> None:
                 super().__init__()
                 self._chunks: list[str] = []
+                self._skip: int = 0
+            def handle_starttag(self, tag: str, attrs: list) -> None:
+                if tag in self._SKIP:
+                    self._skip += 1
+            def handle_endtag(self, tag: str) -> None:
+                if tag in self._SKIP and self._skip > 0:
+                    self._skip -= 1
             def handle_data(self, d: str) -> None:
-                d = d.strip()
-                if d:
-                    self._chunks.append(d)
+                if self._skip == 0:
+                    d = d.strip()
+                    if d:
+                        self._chunks.append(d)
         p = _T()
         p.feed(resp.text)
         text = "\n".join(p._chunks)
-        return text[:2000] if text else None
+        return text[:4000] if text else None
     except Exception as exc:
         logger.debug("HTTP fallback failed for %s: %s", url, exc)
         return None
@@ -211,7 +220,7 @@ class HakusuishaScraper(BaseScraper):
                         detail_page.wait_for_load_state("networkidle", timeout=15000)
                         body_text = detail_page.locator("body").inner_text(timeout=5000)
                         if body_text:
-                            full_description = body_text.strip()[:2000]
+                            full_description = body_text.strip()[:4000]
                             _pw_success = True
                         detail_page.close()
                     except PWTimeout:
