@@ -240,22 +240,24 @@ _PREF_LABEL: dict[str, dict[str, str]] = {
 }
 
 _TOKYO_PREFIXES = ("東京都", "東京")
+_TOKYO_LABEL: dict[str, str] = {"zh": "東京", "ja": "東京", "en": "Tokyo"}
 
 
 def _city_label(event: dict, lang: str) -> str:
-    """Return a bracketed city label (e.g. '[大阪]') if the event is not in Tokyo.
+    """Return a bracketed city label for every event with a known location_address.
 
     Detection order:
-    1. location_address starts with '東京都' → Tokyo, no label
+    1. location_address starts with '東京都'/'東京' → '[東京]'
     2. location_address starts with a known non-Tokyo prefix → use _PREF_LABEL
     3. location_address is absent → no label (avoid false positives)
     """
     addr = (event.get("location_address") or "").strip()
     if not addr:
         return ""
-    # Tokyo: no label
+    # Tokyo
     if addr.startswith(_TOKYO_PREFIXES):
-        return ""
+        label = _TOKYO_LABEL.get(lang) or _TOKYO_LABEL["ja"]
+        return f"[{label}]"
     # Check known non-Tokyo prefectures
     for pref, labels in _PREF_LABEL.items():
         if addr.startswith(pref):
