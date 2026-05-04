@@ -81,7 +81,7 @@ TAIWAN_VENUE_KEYWORDS = (
     '臺北', '臺中', '臺南', '臺灣',
 )
 
-QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_taiwan_venue", "auto_qa_missing_hours", "auto_qa_address_is_venue_name")
+QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_taiwan_venue", "auto_qa_missing_hours")
 
 
 def _supabase_client():
@@ -181,39 +181,6 @@ def _detect_missing_hours(sb) -> list[dict]:
     return reports
 
 
-def _detect_address_is_venue_name(sb) -> list[dict]:
-    """Flag active events where location_address is identical to location_name.
-
-    This anti-pattern indicates address extraction failed and the venue name
-    was echoed as the address. These events need human review to find the
-    correct street address.
-    """
-    rows = (
-        sb.table("events")
-        .select("id,source_name,location_name,location_address")
-        .eq("is_active", True)
-        .not_.is_("location_name", "null")
-        .not_.is_("location_address", "null")
-        .execute()
-        .data
-    )
-    reports = []
-    for row in rows:
-        if row.get("location_name") == row.get("location_address"):
-            reports.append(
-                {
-                    "event_id": row["id"],
-                    "report_type": "auto_qa_address_is_venue_name",
-                    "details": (
-                        f"location_address equals location_name "
-                        f"({row['location_name']!r}); "
-                        f"address extraction failed; source={row['source_name']}"
-                    ),
-                }
-            )
-    return reports
-
-
 def detect(event: dict) -> list[tuple[str, str]]:
     """Return list of (report_type, admin_note) detected for one event."""
     findings: list[tuple[str, str]] = []
@@ -277,11 +244,10 @@ def run(dry_run: bool = False) -> dict:
             candidates.append((ev["id"], t, note))
     for item in _detect_missing_hours(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
-    for item in _detect_address_is_venue_name(sb):
-        candidates.append((item["event_id"], item["report_type"], item["details"]))
 
     # Dedup against latest auto_qa reports for each event/type
     latest_reports = _latest_auto_qa_reports(sb, list({c[0] for c in candidates}))
+    event_updated_at = {ev["id"]: _parse_ts(ev.get("updated_at")) for ev in events}
     in_run_seen: dict[str, set[str]] = {}
 
     new_rows: list[dict] = []
@@ -297,15 +263,11 @@ def run(dry_run: bool = False) -> dict:
                 skipped_pending += 1
                 continue
 
-            # confirmed/dismissed → skip unconditionally.
-            # Rationale: if the issue was truly fixed, the event would not
-            # appear as a candidate at all (the detect query only finds events
-            # that currently have the problem). Therefore there is no need to
-            # compare updated_at — any update (e.g. backfill touching an
-            # unrelated field) would have bumped updated_at and triggered a
-            # false re-report under the old updated_at > confirmed_at check.
-            skipped_resolved_unchanged += 1
-            continue
+            handled_at = _parse_ts(last.get("confirmed_at") or last.get("created_at"))
+            updated_at = event_updated_at.get(event_id)
+            if handled_at and updated_at and updated_at <= handled_at:
+                skipped_resolved_unchanged += 1
+                continue
 
         new_rows.append({
             "event_id": event_id,
