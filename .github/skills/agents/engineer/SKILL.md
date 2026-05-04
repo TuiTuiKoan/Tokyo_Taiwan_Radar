@@ -727,6 +727,40 @@ Current agent_category values and their labels:
 1. Append an entry to `.github/skills/agents/engineer/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
 
+## Admin Correction Protection — Two-Tier Pattern
+
+When building a UI that allows admins to correct AI-generated field values and triggers re-annotation (e.g. resetting `annotation_status` to `pending`), implement **both** tiers:
+
+### Tier P0 — Implicit preservation (`_ai_or_existing()`)
+In normal re-annotation mode (not `--all`/`--id`), existing non-null DB values are preserved. AI output only fills null fields.
+```python
+def _ai_or_existing(ai_val, existing_val, *, human_protected: bool = False):
+    if human_protected:
+        return existing_val        # Tier P1: NEVER overwrite
+    if existing_val is not None:
+        return existing_val        # Tier P0: keep non-null
+    return ai_val                  # fill null with AI
+```
+
+### Tier P1 — Explicit persistence (`field_corrections` table)
+Admin corrections are recorded in `field_corrections(event_id, field_name, original_value, corrected_value)`. The annotator loads a `human_field_map` at startup (event_id → set of protected column names). Fields in this set are NEVER overwritten by AI, even in `--all` mode.
+
+**Schema:** `field_corrections(id, event_id, field_name, original_value, corrected_value, corrected_by, created_at)` with UNIQUE on `(event_id, field_name)`.
+
+**Write path:** `confirm-report.ts` writes corrections to BOTH the `events` table AND `field_corrections` table in the same request.
+
+**Few-shot context:** The annotator injects past corrections as few-shot examples into the SYSTEM_PROMPT, so GPT learns from admin feedback over time.
+
+**Why both tiers are needed:**
+- P0 alone: `--all` mode or admin overriding a non-null AI value with a different value → correction lost on next re-annotation.
+- P1 alone: excessive DB reads for every field; P0 handles the common case (null-fill) cheaply.
+
+### Price Regex Pattern for Japanese Yen
+When parsing price fields, handle both `1500円` and `¥1,500` formats:
+```python
+PRICE_RE = re.compile(r'[¥￥]?\s*([\d,]+)\s*円?')
+```
+
 ## Annotator — google_news_rss 文章補抓
 
 > **Full translation pipeline documentation:** See `docs/TRANSLATION_PIPELINE.md` for the complete 6-layer pipeline (scraper → DeepL → GPT-4o-mini → movie title lookup → person name fix → frontend fallback chain), CI execution order, and field inventory.

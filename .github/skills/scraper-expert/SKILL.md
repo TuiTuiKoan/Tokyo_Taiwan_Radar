@@ -199,7 +199,6 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 | taiwan_kyokai | N/A | N/A | Visits detail page (Playwright) |
 | taiwan_festival_tokyo | N/A | N/A | Structured widget, not article-based |
 | ide_jetro | N/A | N/A | date_prefix fix sufficient |
-| rightscube | N/A | N/A | Requests + BS4 visits each movie detail page; full text always available |
 
 **Rule**: Only apply thin-content detection when the scraper stores a snippet (RSS/headline) and the full content lives at a separate URL. API-based and detail-page-visiting scrapers are inherently complete.
 
@@ -795,26 +794,3 @@ GPT-4o invents plausible-looking CSS classes that look reasonable but are NOT in
 **Fix (in `scraper/auto_scraper/template.py.j2`)**: When `DETAIL_LINK_SELECTOR == ""`, grab the first `<a href>` inside the card element. Verified: Artist Cafe Fukuoka 0 → 12 events.
 
 **Generalisable rule**: For any optional spec field whose absence breaks the scraper, the **template** (not the LLM) must implement a sensible fallback. Do not expect the LLM to read between the lines of the schema. When adding new optional fields to `spec_schema.json`, ask: "What does the template do when the LLM leaves this empty?" If the answer is "crash" or "skip everything", write a fallback in the template before merging the schema change.
-
-## rightscube-specific
-
-- **Static HTML, no Playwright**: `requests + BeautifulSoup`. `rightscube.co.jp/movies/` returns full listing HTML.
-- **Taiwan filter**: title + full page text must contain `台湾` / `Taiwan` / `臺灣`.
-- **event structure**: one parent event (national release overview) + N child events (per-venue theatrical runs).
-  - Parent `source_id`: `rightscube_{slug}` (URL slug of the movie detail page)
-  - Child `source_id`: `rightscube_{slug}_{venue_key}`
-- **venue_key derivation (production contract — DO NOT change)**:
-  - SNS hosts (`x.com`, `twitter.com`, `instagram.com`, `facebook.com`, `lin.ee`): use last URL path component
-  - CDN platform hosts (`.jimdofree.com`, `.jimdosite.com`, `.thebase.in`, `.stores.jp`): use subdomain
-  - Standard domains: domain name minus TLD (strip leading `www.`), lowercased, non-alphanumeric → `-`
-  - Examples: `x.com/theater_talpa` → `theater-talpa`; `www.ks-cinema.com` → `ks-cinema`; `cinemakobe.jimdofree.com` → `cinemakobe`
-- **First-run DB fix pattern**: If the scraper was already run with incorrect source_ids (before venue_key rules were finalized), manually rename source_ids in DB, set parent UUIDs, and update `parent_event_id` for all child rows. This is a one-time migration — do not automate it into the scraper.
-- **`movie_title_lookup` integration**: The scraper calls `lookup_movie_titles(raw_title)` to enrich `name_zh` and `name_en` with official localized titles. Requires `movie_title_lookup.py` in the scraper directory.
-
-## `has_chinese_support` flag
-
-- **DB field**: `has_chinese_support boolean` (nullable). `True` = event explicitly provides Chinese-language support (Chinese signage, guide, materials, staff). Null = unknown.
-- **Set in scraper layer**: Only set when source explicitly mentions Chinese support (e.g. `中文OK`, `中国語対応`, `中文導覧`). Do NOT infer or GPT-generate this field.
-- **Annotator does NOT write this field**: GPT-4o-mini schema does not include `has_chinese_support`. All writes come from the scraper's `_extract_chinese_support()` (or equivalent) method.
-- **UI usage**: `FilterBar` shows a "中文服務" filter option. Events with `has_chinese_support = True` are highlighted in EventCard.
-- **NULL handling**: `has_chinese_support IS NULL` events are not shown in the Chinese-support filter results (filter uses `eq('has_chinese_support', True)`).

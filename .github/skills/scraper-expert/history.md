@@ -4,6 +4,39 @@
 
 ---
 
+## 2026-05-04 — performer 欄位 + Tier 1.5 annotator SYSTEM_PROMPT 擴展
+
+### performer 欄位新增（commit `edd101e`）
+- **Migration 038：** `events` 新增 `performer text` 欄位
+- **base.py：** Event dataclass 新增 `performer: str | None = None`
+- **Annotator SYSTEM_PROMPT：** 新增 PERFORMER EXTRACTION RULES——bare personal name，去除敬稱（氏、先生、さん 等），非人物事件回傳 null
+- **Detail page：** Rich Results JSON-LD 注入 `performer` property，修復 4 個 Google Rich Results warnings
+
+### Tier 1.5 annotator 新增 price / organizer_url / event_status 規則（commit `0d4a0de`）
+- **SYSTEM_PROMPT 新增區塊：** PRICE PARSING RULES、ORGANIZER URL RULES、EVENT STATUS RULES
+- **新增 validators：** `_validate_organizer_url`、`_validate_price_amount`、`_validate_price_currency`、`_validate_event_status`
+- **Price parsing：** 支援 `1500円`、`¥1,500`、`無料`、`free` 等格式
+- **教訓：** 新增 annotator schema 欄位時，必須同步加 SYSTEM_PROMPT 規則 + validator 函數 + migration
+
+### hakusuisha 相對 URL 修正（commit `1b344f7`）
+- **問題：** hakusuisha.py 的新聞連結使用相對路徑 `../news/xxx`，未正確解析為完整 URL
+- **修正：** 改用 `urljoin(base_url, relative_path)` 解析相對 URL
+- **教訓：** 所有 scraper 解析 `<a href>` 時，一律使用 `urljoin()` 處理，不假設 URL 為絕對路徑
+
+### bookandbeer + hakusuisha auto-generated scrapers 上線（commit `db48ad3`）
+- 兩個新 scraper 透過 auto_generate pipeline（Phase 2）產生並 promote
+- bookandbeer：書店＋啤酒吧活動平台
+- hakusuisha：白水社出版社新聞（需上述 urljoin 修正）
+
+### P0/P1 admin correction protection 與 annotator 整合（commits `9eab3aa`、`c393e93`）
+- **`_ai_or_existing()` 函數：** 在 re-annotation 中保護既有非 null 值（P0）和 `field_corrections` 表中的明確修正（P1）
+- **`human_field_map` 載入：** annotator 啟動時查詢 `field_corrections` 表，建立 event_id → protected columns set
+- **Few-shot context：** 過去修正紀錄注入 SYSTEM_PROMPT，讓 GPT 學習
+- **irrelevant status bug fix：** `--fix-reviewed` 不再誤處理 `irrelevant` 事件
+- **教訓：** annotator 的欄位保護必須有兩層——隱性（保留非 null）+ 明確（field_corrections 永久保護）
+
+---
+
 ## 2026-05-04 — gguide_tv 電視節目被錯標為 movie（annotator.py VALID_CATEGORIES 未同步 types.ts）
 - **問題**：事件 3d835d19（ジーンちゃん 台湾・台北 食旅 TV 節目）被標為 movie 而非 tv_program
 - **根本原因**：types.ts 已新增 10 個分類（tv_program 等），但 annotator.py VALID_CATEGORIES 和 SYSTEM_PROMPT 從未同步；GPT 無法選用 tv_program，被迫改選 movie

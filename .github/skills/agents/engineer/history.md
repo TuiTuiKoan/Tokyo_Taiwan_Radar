@@ -35,6 +35,75 @@
 
 **狀態：** 已 apply 到 production DB，migration SQL 已 commit。新增欄位：`organizer`、`co_organizers`、`sponsors`、`organizer_type`、`event_form`、`primary_language`、`has_japanese_support`、`has_english_support`。含 CHECK constraints 和 GIN indexes。
 
+### P0: Admin 修正保護 — re-annotation 時保留既有非 null 值（commit `9eab3aa`）
+
+**問題：** Admin 透過 confirm-report 修正欄位（例：修正 name_zh）時，`annotation_status` 重設為 `pending`。下次 annotator 執行時，GPT 重新產生所有欄位，覆寫 admin 的修正值。
+
+**修復：** `annotator.py` 新增 `_ai_or_existing()` 函數——在一般 re-annotation 模式（非 `--all`/`--id`）中，既有非 null DB 值優先保留，GPT 輸出只填補 null 欄位。同步修復 `irrelevant` status bug（`--fix-reviewed` 誤處理 irrelevant 事件）。
+
+**教訓：** 當 admin correction UI 會重設 `annotation_status` 觸發重新處理時，必須保護已修正欄位不被 AI 覆寫。
+
+### P1: field_corrections 明確持久化 — admin 修正永不被 AI 覆寫（commit `c393e93`）
+
+**問題：** P0 的隱性保護（保留非 null 值）不足——有時 admin 需要覆蓋一個已有 AI 值的欄位，且該覆寫必須在無限次 re-annotation 中持久。
+
+**修復：**
+- 新建 `field_corrections` 表（migration 038b）：記錄每次 admin 修正 `(event_id, field_name, original_value, corrected_value, corrected_by)`
+- Annotator 啟動時載入 `human_field_map`：event_id → 受保護欄位 set
+- `_ai_or_existing()` 優先檢查 `_human_protected`——此 set 中的欄位 AI **永不覆寫**，即使 `--all` 模式
+- `confirm-report.ts` 同步寫入 events 表和 field_corrections 表
+- Annotator SYSTEM_PROMPT 新增 few-shot context：將過去修正紀錄注入 prompt，讓 GPT 學習正確模式
+
+**Schema：** `field_corrections(id, event_id, field_name, original_value, corrected_value, corrected_by, created_at)`，`(event_id, field_name)` UNIQUE
+
+**教訓：** Admin correction 保護需兩層：P0（隱性：保留非 null）+ P1（明確：field_corrections 表永久保護）。只有 P0 時，`--all` 模式或 null→非 null→不同值 的修正會遺失。
+
+### Tier 1.5 Schema: organizer_url, price, event_status（commit `0d4a0de`）
+
+**Migration 037：** 新增 `organizer_url text`、`price_amount numeric`、`price_currency text DEFAULT 'JPY'`、`event_status text DEFAULT 'scheduled'`，含 CHECK constraints。
+
+**Annotator：** SYSTEM_PROMPT 新增 price parsing、organizer URL、event status 規則。新增 validators：`_validate_organizer_url`、`_validate_price_amount`、`_validate_price_currency`、`_validate_event_status`。
+
+### Performer 欄位（commit `edd101e`）
+
+**Migration 038：** `events` 新增 `performer text` 欄位。`base.py` + `types.ts` 同步新增 `performer`。
+
+**Annotator SYSTEM_PROMPT：** 新增 PERFORMER EXTRACTION RULES——bare personal name，去除敬稱，非人物事件回傳 null。
+
+**Detail page：** Rich Results JSON-LD 注入 `performer` property（Schema.org Event compliance），修復 4 個 Rich Results warnings。
+
+### next-intl organizerType + eventForm namespace 缺失（commit `e6461c7` context）
+
+**問題：** Detail page 使用 `getTranslations("organizerType")` 和 `getTranslations("eventForm")`，但三語言 JSON 中無對應 namespace/keys。next-intl 靜默渲染 raw key string（例：`organizerType.commercial_brand`），無任何錯誤。
+
+**修復：** 在三語言 JSON 中新增 `organizerType`（9 keys）和 `eventForm`（12 keys）namespace，以及 6 個 event namespace keys。
+
+**教訓：** next-intl missing keys 靜默失敗。新增 `getTranslations()` namespace 時，必須確認 ALL 3 message files 有對應 entries。驗證：`grep -n "key" web/messages/zh.json`。
+
+### Admin Dashboard 增強（commits `6f97d82`→`eec0d90`）
+
+- 新增 sources 和 creators stat cards（commit `6f97d82`）
+- Source type map modal 新增 category filter checkboxes（commit `ec1ce39`）
+- NGO category + 5 筆 source reclassification（commit `7373fd3`）
+- Category pills on source list（commit `eec0d90`）
+- Source type label refinements：百貨・商圈、台灣商家（commits `c3774a3`、`0d4a0de`）
+- organizer_type / event_form filters（AdminEventTable，commit `ee1831b`）
+- Tier 1 欄位視覺化：organizer, event_form, language support（commit `1fdb332`）
+
+### wrongSelectionReason 3-locale textareas + NextIntlClientProvider locale fix（commit `dedfa81`）
+
+**問題：** `NextIntlClientProvider` 使用錯誤的 locale prop；wrongSelectionReason report 只有單一 textarea。
+
+**修復：** 修正 locale prop；wrongSelectionReason 擴展為 zh/en/ja 三個 textareas，讓 admin 分別修正各語言的 selection_reason。
+
+### brokenLink report type（commit `0abd8db`）
+
+新增 `brokenLink` 到 event report section，使用者可回報壞掉的 source/official links。
+
+### Price regex 擴展（commit `e6461c7`）
+
+`backfill_price_from_price_info()` regex 擴展以匹配 `¥1,500` 格式（原本只匹配 `1500円`）。Pattern：`r'[¥￥]?\s*([\d,]+)\s*円?'`。
+
 ---
 ## 2026-05-02 — 父事件 RLS 隱藏 + Quality page 缺地址誤報 + Admin UI 改善
 
