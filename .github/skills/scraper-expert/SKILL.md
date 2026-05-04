@@ -233,6 +233,32 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 
 **Rule**: Only apply thin-content detection when the scraper stores a snippet (RSS/headline) and the full content lives at a separate URL. API-based and detail-page-visiting scrapers are inherently complete.
 
+## Auto-generated Scraper Date Accuracy
+
+auto_generate が生成した `FIELD_SELECTORS["date"]` が指すセレクタは、**記事公開日（publication date）** を指している場合がある。プロモーション審査時に必ず確認すること。
+
+### 確認ステップ
+1. listing page の HTML を実際に開き、`FIELD_SELECTORS["date"]` のセレクタが何を取得するか確認する（`span.note`、`.date`、`time[datetime]` 等）。
+2. 取得した値が「記事公開日」か「活動日」かを目視確認（`YYYY.MM.DD` 形式は公開日の可能性が高い）。
+3. 活動日が detail page の `日時：` / `開催日時：` ラベルに存在する場合は、listing page の selector を使わずに detail page から抽出すること。
+
+### 活動日が detail page にある場合の実装パターン
+```python
+# _extract_event_dates(detail_text, card_year) パターン（hakusuisha.py を参照）
+# 対応パターン1: 2026年3月20日・21日（同月 ・ 複数日）
+# 対応パターン2: 2025年11月23日...／24日（同月 ／ 複数日）
+# 対応パターン3: 2026年1月10日 / 2026年1月11日（完全日付2つ）
+```
+
+### `raw_description` プレフィックスルール
+- `日時` ラベルあり → `開催日時: YYYY年MM月DD日` プレフィックス（GPT annotator への明確なシグナル）
+- `日時` ラベルなし（公告・お知らせ文）→ `（記事投稿日: YYYY年MM月DD日）` 年号アンカー
+
+### 対象
+`auto_generate` で生成されたすべての scraper のプロモーション前に `FIELD_SELECTORS["date"]` を人工審査すること。Playwright ベースのスクレーパー（detail page を訪問する）でも、listing page の date selector が残っている場合は要確認。
+
+Reference incident: 2026-05-04 hakusuisha `FIELD_SELECTORS["date"] = "span.note"` → 記事公開日を取得（活動日ではない）（commit `b3708e1`）。
+
 ---
 
 ## 学術場地括弧地址模式

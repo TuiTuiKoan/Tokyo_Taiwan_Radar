@@ -360,6 +360,59 @@ Missing any point causes silent failures. Particularly:
 - Verify model capabilities before designing features requiring real-time data (web search, live prices, current events). `gpt-4o-mini` and `gpt-4o` have no web browsing. Use `gpt-4o-search-preview` or a real search API for current data.
 - "Plausible-looking output" ≠ "real data access." A model without search access will hallucinate convincing-looking URLs.
 
+## HTMLParser Thin Content Guard
+
+在審核任何使用 `html.parser.HTMLParser` 的 scraper PR 前，**必須**確認以下三點：
+
+1. **噪音標籤已被過濾**：`<script>`、`<style>`、`<nav>`、`<header>`、`<footer>` 等噪音標籤必須在 `handle_starttag`/`handle_endtag` 中跳過。
+   - 標準 pattern：`_SKIP = frozenset({"script","style","nav","header","footer"})` + `_skip` 計數器
+   ```python
+   def handle_starttag(self, tag, attrs):
+       if tag in _SKIP:
+           self._skip += 1
+   def handle_endtag(self, tag):
+       if tag in _SKIP and self._skip > 0:
+           self._skip -= 1
+   def handle_data(self, data):
+       if self._skip == 0:
+           self._buf.append(data)
+   ```
+2. **有效內容不僅是 `len(text) > 0`**：JS/CSS 代碼也是非空文字，但對業務邏輯無用。需確認業務關鍵字（如 `日時`、`場所`）是否存在於提取文字中。
+3. **字元限制是否足夠**：對含大量 JS 的頁面，2000 字元常常不夠（JS 代碼先消費完預算，業務內容在限制之後）。建議至少 4000 字元。
+
+Reference incident: 2026-05-04 hakusuisha `_T` HTMLParser 未過濾 script/nav，`■日時：` 出現在 2000 字元之後 → `raw_description` 無效（commit `4784266`）。
+
+## Listing Page Date vs Event Date Guard
+
+在審核任何 auto-generated 或人工撰寫的 scraper，其 `FIELD_SELECTORS["date"]` 或 listing page 日期提取邏輯時，**必須**確認以下兩點：
+
+1. **listing page 日期欄位語意需驗證**：`span.note`、`time.published`、`.date` 等 selector 抓到的可能是**記事公開日**（YYYY.MM.DD），而非**活動日**。需實際檢視 listing page HTML 確認語意。
+2. **活動日應從 detail 頁 `日時：` 標籤提取**：若 listing page 日期語意不可靠，必須從 detail 頁的 `日時：`、`開催日時：`、`■日時：` 等結構化標籤提取。
+   - 有 `日時`：prepend `開催日時: YYYY年MM月DD日` 到 `raw_description`
+   - 無 `日時`（公告/新聞文）：prepend `（記事投稿日: YYYY年MM月DD日）` 年份錨點
+   - 參考實作：`scraper/sources/hakusuisha.py` → `_extract_event_dates(detail_text, card_year)`
+
+Reference incident: 2026-05-04 hakusuisha `FIELD_SELECTORS["date"] = "span.note"` 抓取記事公開日而非活動日（commit `b3708e1`）。
+
+## reviewed 保護邊界 Guard
+
+在審核任何觸及 `annotation_status = 'reviewed'` 保護邏輯的計畫或 PR 前，**必須**明確區分以下兩種情境：
+
+### 保護有值欄位（不允許覆蓋）
+- 已有值的 `category`、`start_date`、`end_date`、`name_ja`（若 `name_ja_locked`）等欄位，`reviewed` 狀態**應阻止** GPT 重新覆蓋。
+- 違反此規則 = 人工確認的資料被機器覆蓋 = data quality regression。
+
+### 允許補填空欄位（不應被阻止）
+- 值為 `NULL` 的 `business_hours`、`location_name`（若原本就空）等欄位，`reviewed` 狀態**不應阻止**確定性（非 GPT）邏輯補填。
+- 空值補填是「填入缺失資料」，不是「覆蓋已確認資料」。
+
+**設計準則**：
+1. `--fix-reviewed` 模式應支援「空值補填」——只有當欄位目前為 `null`/空 時才寫入，有值則跳過。
+2. 確定性提取（regex pattern）比 GPT 更適合用於 `reviewed` 事件的補填，因為不會產生幻覺。
+3. 計畫中若包含「修復 reviewed 事件缺失欄位」，需明確說明是「補填空值」而非「重新標注」。
+
+Reference incident: 2026-05-04 `business_hours=NULL` 因 `reviewed` 狀態保護永遠不修復（commit `54a20d7`）。
+
 ## Online Location Standard
 - **Canonical online event representation**: `location_name = 'オンライン'`, `location_address = 'オンライン'`. **Both columns must be set; neither should be NULL.** DB also requires `location_address_zh = '線上'`, `location_address_en = 'Online'`.
 - All scrapers must normalize online markers **before** building the `Event` object. Use `_ONLINE_RE` pattern: `r'(?:online|オンライン|ライブ配信|配信のみ|[Zz][Oo][Oo][Mm])'`.

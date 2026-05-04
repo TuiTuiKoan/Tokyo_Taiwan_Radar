@@ -129,6 +129,16 @@ Reference incident: 2026-05-02 — 父事件（台東祭）`is_active = false` �
 
 Reference incident: 2026-05-02 — `location_prefectures` 未加入 select，多城市活動過濾靜默失效，假陽性持續出現於 quality 頁缺地址清單。
 
+## HTMLParser Thin Content Guard
+
+在審核任何使用 `html.parser.HTMLParser` 的 scraper PR 前，**必須**確認：
+
+1. **噪音標籤已過濾**：`<script>`/`<style>`/`<nav>`/`<header>`/`<footer>` 在 `handle_starttag`/`handle_endtag` 中被跳過（`_SKIP frozenset + _skip counter` 模式）。
+2. **有效內容判斷不只看長度**：`len(text) > 0` 不等於內容有用——JS/CSS 代碼也是非空文字。需確認業務關鍵字（如 `日時`、`場所`）存在於提取結果中。
+3. **字元限制是否足夠**：對含大量 JS 的頁面，2000 字元常不夠（JS 先消費完預算）。建議最低 4000 字元。
+
+Reference incident: 2026-05-04 hakusuisha `_T` parser 未過濾 script/nav，`■日時：` 出現在 2000 字元之後（commit `4784266`）。
+
 ## Category Sync Guard（annotator.py ↔ types.ts）
 
 在審核**任何**新增 `Category` 至 `web/lib/types.ts` 的 PR，或審核任何涉及 `annotator.py` 的 PR 前，**必須**確認以下三處同步：

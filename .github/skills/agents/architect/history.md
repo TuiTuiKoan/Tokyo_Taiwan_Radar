@@ -3,6 +3,36 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04（Session 3）— hakusuisha 三項修正：business_hours 防線、thin-content rescue、start_date 誤植
+
+### business_hours 三層防線（commit `54a20d7`）
+- **問題**：Playwright timeout → `raw_description=None` → GPT 無法提取 → `business_hours=NULL` → 事件標為 `reviewed` 後永遠不修復
+- **根因**：`reviewed` 狀態保護整個事件不被覆蓋，但 `business_hours=NULL` 是「空欄位補填」，不是「有值欄位被覆蓋」，防線粒度過粗
+- **修正**：
+  - Layer A：`_extract_hours_from_raw(text)` 確定性提取三種 pattern（`HH:MM〜HH:MM`、`H〜H時`、`日時後的單一 HH:MM`）；加入 annotator `update_data` merge chain
+  - Layer B：`--fix-reviewed` 模式擴展為也補填 `business_hours` 空值（確定性提取，非 GPT）
+  - Layer C：`auto_qa_missing_hours` 偵測器（reviewed + null hours + HH:MM in raw_desc → event_report）
+- **教訓**：`reviewed` 保護的語意應是「保護有值欄位不被覆蓋」，而非「完全凍結」。對「空欄位補填」應被允許，透過確定性（非 GPT）邏輯實現。防線設計需區分「保護有值欄位」vs「允許補填空欄位」。
+
+### hakusuisha thin-content rescue（commit `4784266`）
+- **問題**：`_fetch_detail_text_fallback()` 的 `_T` HTMLParser 未過濾 `<script>`/`<style>`/`<nav>`，JS 代碼消費了 2000 字元預算，`■日時：` 在 2000 字元之後 → `raw_description` 無效
+- **根因**：`len(raw_description) > 0` 不等於「有效內容」—— JS 代碼也是非空文字。字元限制 2000 對含大量 JS 的頁面不夠
+- **修正**：
+  - `_T` parser 加 `_SKIP = frozenset({"script","style","nav","header","footer"})` + `_skip` 計數器
+  - 字元限制 2000 → 4000（`_fetch_detail_text_fallback` + `_extract_cards` 兩處）
+  - annotator 加 hakusuisha thin-content rescue：`source_name=="hakusuisha"` 且 `日時` absent 且 pre-extraction 都是 None → HTTP fallback 再取一次
+- **教訓**：HTMLParser 不過濾 script/style 是靜默的效率殺手。Thin content detection 不能只看長度，需確認業務關鍵字（如 `日時`）是否存在。
+
+### hakusuisha start_date 誤植修正（commit `b3708e1`）
+- **問題**：`FIELD_SELECTORS["date"] = "span.note"` 抓取的是**記事公開日**（`YYYY.MM.DD` 格式），不是活動日。活動日在 detail 頁的 `■日時：YYYY年M月D日` 標籤中
+- **根因**：auto-generated scraper 的 `FIELD_SELECTORS` 精度未在人工審查時確認；listing page 的日期欄位語意未驗證
+- **修正**：
+  - 新增 `_extract_event_dates(detail_text, card_year)` 函數，處理三種 pattern（同月 ・ 多日、同月 ／ 多日、兩個完整日期）
+  - `_extract_cards()` 使用 `actual_start`/`actual_end` 取代公開日
+  - 有 `日時`：prepend `開催日時:` 前綴；無 `日時`（公告文）：prepend `（記事投稿日: YYYY年...）` 年份錨點
+- **教訓**：auto-generated scraper 的 `FIELD_SELECTORS["date"]` 可能是記事公開日而非活動日。listing page 日期欄位語意必須人工確認；活動日應從 detail 頁 `日時：` 標籤提取。
+
+---
 ## 2026-05-04（Session 2）— selection_reason["ja"] 語言污染 + is_active 批次誤設再現
 
 ### selection_reason["ja"] annotator 語言品質控制（DB patch，無 commit）
