@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-04 — taiwan-filmake 全國上映子活動手動插入 + シアターセブン 上映資料更新
+
+### taiwan-filmake 全國上映館子活動手動插入（source_name=rightscube）
+- **內容**：以 `source_name="rightscube"` 手動插入 4 館子活動（札幌・神奈川・神戸・大阪），全部設 `parent_event_id = 995801cc`（K's cinema 系列父事件）
+- **annotator**：執行完成，全部 `annotation_status = 'annotated'`
+- **source_id 命名不一致問題**：手動插入前發現存量 DB 資料的 source_id 格式有誤（`taiwan-filmake_jack-betty` 而非 `taiwan-filmake_jackandbetty`），需先修正再插入，否則 scraper 後續 upsert 無法對應到正確記錄
+- **教訓**：手動插入 DB 記錄前，必須先用 `--dry-run` 確認 scraper 實際會產生的 source_id 格式，格式須完全一致；`parent_event_id` 必須使用 UUID，不可使用 source_id 字串
+
+### シアターセブン 上映資料更新
+- **來源**：`https://www.theater-seven.com/mv/mv_s1030.html`（戲院詳細時刻表頁）
+- **更新欄位**：`end_date = 2026-05-15`（之前為 NULL）；`business_hours` 補入每日詳細上映時間
+- **教訓**：`end_date = NULL` 的戲院放映事件，通常在戲院個別詳情頁有完整場次期間，值得直接查詢並手動修正
+
+---
+
 ## 2026-05-04 — performer 欄位 + Tier 1.5 annotator SYSTEM_PROMPT 擴展
 
 ### performer 欄位新增（commit `edd101e`）
@@ -62,6 +77,9 @@
   - venue_key 規則：SNS（x.com/twitter/instagram）→ URL path component；CDN host（jimdofree/thebase）→ subdomain；一般網域 → domain minus TLD，lowercased，非英數字替換為 `-`
   - 靜態 HTML，不需 Playwright；`movie_title_lookup` 自動補充官方中英文片名
 - **首次執行 DB 修復**：手動修正 source_id（`taiwan-filmake_jack-betty` → `jackandbetty`），建立 parent UUID，更新 4 筆 child 的 parent_event_id
+- **HTML 結構 — Unicode Bold Math section 標題**：section 標題（如 `𝗧𝗛𝗘𝗔𝗧𝗘𝗥`）使用 Unicode Mathematical Bold Sans-Serif 字元（U+1D5D4+），無法直接與 ASCII 字串比對，必須以 `_normalize_bold_math()` 轉換後再做 section 識別
+- **HTML 結構 — `<span><a>` 包裝下的 sibling 日期**：劇場連結結構為 `<span><a href="...">劇場名</a></span>｜5/17(日)・5/24(日)`，日期文字是 `a.parent.next_sibling`（`<span>` 的兄弟節點），而非 `a.next_sibling`（= None）
+- **Homepage 必要性**：`/movies/` 目錄頁只列常規放映作品；特集上映系列（如 taiwan-filmake）只出現在 homepage → 爬蟲必須同時爬 homepage + /movies/ 目錄
 - **教訓**：首次加入新爬蟲時，若已有存量 DB 資料（格式錯誤），必須執行一次性修正 script 補齊 parent_event_id；rightscube venue_key 推導規則是 production contract，勿修改
 
 ---

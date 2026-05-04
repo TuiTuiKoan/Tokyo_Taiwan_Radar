@@ -111,6 +111,7 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 2. Create `.github/skills/sources/<source_name>/history.md` with a `## YYYY-MM-DD` entry describing any non-obvious decisions made during initial implementation.
 3. Add a `## <source_name>-specific` section to `.github/skills/agents/scraper-expert/SKILL.md` with the top 3–5 rules that a future agent must know.
 4. Update `research_sources` status to `implemented` in Supabase if this source was tracked there.
+5. **手動 DB 記錄的 source_id 命名一致性**：若需要手動插入 DB 記錄（補齊存量資料、測試子活動），先執行 `python main.py --dry-run --source <name>` 取得 scraper 實際產生的 source_id 格式，再與手動插入的 source_id 對比，確保完全一致。格式不符會導致後續 upsert 建立重複記錄而非更新現有記錄。
 
 #### Bug fix
 

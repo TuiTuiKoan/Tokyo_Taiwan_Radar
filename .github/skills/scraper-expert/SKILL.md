@@ -370,6 +370,31 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
 - Date extraction: `日程[：:][^\d]*(\d{4})年(\d{1,2})月(\d{1,2})日` regex on `body_html`.
 - `source_id`: `transit_store_{product.handle}` — handle is stable across runs.
 
+## rightscube-specific
+- **Homepage + /movies/ 雙頁爬取**：`/movies/` 目錄頁只列出常規放映作品；特集上映系列（如 taiwan-filmake）只出現在 homepage。爬蟲必須同時抓 homepage + /movies/ 目錄，再對 slug 去重。
+- **Unicode Bold Math section 標題**：section 標題（如 `𝗧𝗛𝗘𝗔𝗧𝗘𝗥`）使用 Unicode Mathematical Bold Sans-Serif 字元（U+1D5D4+）。字串比對前必須用 `_normalize_bold_math()` 轉換成 ASCII；不轉換則 `== "THEATER"` 永遠為 False。
+  ```python
+  _BOLD_MATH_RANGES = [
+      (0x1D400, 0x1D419, ord('A')),  # bold uppercase
+      (0x1D41A, 0x1D433, ord('a')),  # bold lowercase
+      (0x1D5D4, 0x1D5ED, ord('A')),  # bold sans uppercase
+      (0x1D5EE, 0x1D607, ord('a')),  # bold sans lowercase
+  ]
+  def _normalize_bold_math(text: str) -> str:
+      result = []
+      for ch in text:
+          cp = ord(ch)
+          for start, end, base in _BOLD_MATH_RANGES:
+              if start <= cp <= end:
+                  ch = chr(base + (cp - start))
+                  break
+          result.append(ch)
+      return "".join(result)
+  ```
+- **`<span><a>` 包裝下的 sibling 日期文字**：劇場連結結構為 `<span><a href="...">劇場名</a></span>｜5/17(日)・5/24(日)`。日期文字是 `a.parent.next_sibling`（即 `<span>` 的下一個兄弟文字節點），**不是** `a.next_sibling`（= None，因為 `<a>` 在 `<span>` 內部）。
+- **沒有 THEATER section 的電影應跳過**：DVD 專售或非戲院作品不含 THEATER section → 先確認 section 存在再產生 child events；若 section 缺失則只產生 parent event。
+- **venue_key 派生規則（production contract，勿修改）**：SNS domain（x.com / twitter.com / instagram.com）→ URL path 第一段；CDN 平台 host（jimdofree.com / thebase.in 等）→ subdomain；一般域名 → 去掉 TLD 的 domain，lowercase，非英數字換為 `-`。此規則決定 `source_id` 後綴，變更會造成 duplicate 插入而非更新現有記錄。
+
 ## annotator.py ↔ types.ts 同步守則（Three-Location Sync Rule）
 
 每次在 `web/lib/types.ts` 新增 `Category` 型別時，**必須同時更新三個地方**：
