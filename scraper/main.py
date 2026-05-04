@@ -322,6 +322,7 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
                         "deepl_chars": 0,
                         "success": False,
                         "duration_seconds": int(time.time() - scraper_start),
+                        "notes": f"{type(exc).__name__}: {exc}"[:500],
                     }).execute()
                 except Exception:
                     pass
