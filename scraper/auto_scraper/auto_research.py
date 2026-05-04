@@ -634,7 +634,7 @@ def run_batch(opts: BatchOptions, *, sb: Any | None = None) -> tuple[int, int, i
         .select("*")
         .eq("status", "candidate")
         .eq("url_verified", True)
-        .or_("auto_research_status.is.null,auto_research_status.eq.error")
+        .or_("auto_research_status.is.null,auto_research_status.eq.pending,auto_research_status.eq.error")
         .order("id")
         .limit(opts.max_sources)
         .execute()
