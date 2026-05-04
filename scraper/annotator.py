@@ -172,6 +172,31 @@ def _extract_venue_from_raw(text: str) -> dict:
     return result
 
 
+def _extract_hours_from_raw(text: str) -> str | None:
+    """Deterministically extract business hours from raw_description.
+
+    Looks for time patterns near a 日時 label. Only extracts when confidence
+    is high (HH:MM or H〜H時 patterns). Returns None rather than guessing
+    ambiguous patterns like '午後２時'.
+    """
+    if not text:
+        return None
+    _TIME = r'\d{1,2}:\d{2}'
+    # Range: 10:00〜16:00 or 10:00-16:00 or 10:00～16:00
+    m = re.search(rf'({_TIME})\s*[〜~～\-]\s*({_TIME})', text)
+    if m:
+        return f"{m.group(1)}〜{m.group(2)}"
+    # Hour-only range: 11〜17時 or 11～17時
+    m2 = re.search(r'(\d{1,2})\s*[〜~～]\s*(\d{1,2})時', text)
+    if m2:
+        return f"{m2.group(1)}:00〜{m2.group(2)}:00"
+    # Single time right after 日時 label (e.g. 日時：2026年4月25日（土）22:00)
+    m3 = re.search(r'日時[：:][^\n]{0,80}?(\d{1,2}:\d{2})', text)
+    if m3:
+        return m3.group(1)
+    return None
+
+
 # Bracket pairs used by GPT when wrapping movie titles in descriptions.
 _TITLE_BRACKETS = [
     ("\u300a", "\u300b"),  # \u300a\u300b Chinese double angle
@@ -620,6 +645,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
         _venue_pre = _extract_venue_from_raw(raw_desc)
         _pre_location_name: str | None = event.get("location_name") or _venue_pre.get("location_name")
         _pre_location_address: str | None = event.get("location_address") or _venue_pre.get("location_address")
+        _pre_hours: str | None = _extract_hours_from_raw(raw_desc)
         # ───────────────────────────────────────────────────────────────────
 
         # For google_news_rss events, fetch the full article body when:
@@ -772,6 +798,12 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 }
                 # Remove keys whose value is None so we don't clobber existing data
                 update_data = {k: v for k, v in update_data.items() if v is not None or k == "annotation_status"}
+                # Fill business_hours from raw_description if currently null.
+                # Deterministic extraction only — safe to apply to reviewed events.
+                if not event.get("business_hours"):
+                    _rh = _extract_hours_from_raw(event.get("raw_description") or "")
+                    if _rh:
+                        update_data["business_hours"] = _rh
             else:
                 update_data: dict[str, Any] = {
                     # name_ja is NEVER overwritten by GPT (2026-05-02 policy).
@@ -792,7 +824,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     # GPT only fills in when the scraper left the field empty.
                     "location_name": _loc(event.get("location_name")) or _loc(_pre_location_name) or _loc(annotation.get("location_name")),
                     "location_address": _loc(event.get("location_address")) or _loc(_pre_location_address) or _loc(annotation.get("location_address")),
-                    "business_hours": event.get("business_hours") or annotation.get("business_hours"),
+                    "business_hours": event.get("business_hours") or _pre_hours or annotation.get("business_hours"),
                     "is_paid": event.get("is_paid") if event.get("is_paid") is not None else annotation.get("is_paid"),
                     "price_info": annotation.get("price_info") or event.get("price_info"),
                     "organizer": _str(annotation.get("organizer")) or event.get("organizer"),

@@ -81,7 +81,7 @@ TAIWAN_VENUE_KEYWORDS = (
     '臺北', '臺中', '臺南', '臺灣',
 )
 
-QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_taiwan_venue")
+QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_taiwan_venue", "auto_qa_missing_hours")
 
 
 def _supabase_client():
@@ -151,6 +151,36 @@ def _latest_auto_qa_reports(sb, event_ids: list[str]) -> dict[str, dict[str, dic
     return out
 
 
+def _detect_missing_hours(sb) -> list[dict]:
+    """Flag reviewed events with null business_hours but extractable time
+    info in raw_description. Human-review only — no auto-fix."""
+    import re as _re
+    _TIME_RE = _re.compile(r'\d{1,2}:\d{2}')
+    rows = (
+        sb.table("events")
+        .select("id,source_name,raw_description")
+        .eq("is_active", True)
+        .eq("annotation_status", "reviewed")
+        .is_("business_hours", "null")
+        .not_.is_("raw_description", "null")
+        .execute()
+        .data
+    )
+    reports = []
+    for row in rows:
+        raw = row.get("raw_description") or ""
+        if _TIME_RE.search(raw):
+            reports.append({
+                "event_id": row["id"],
+                "report_type": "auto_qa_missing_hours",
+                "details": (
+                    f"business_hours is null but raw_description contains time pattern; "
+                    f"source={row['source_name']}"
+                ),
+            })
+    return reports
+
+
 def detect(event: dict) -> list[tuple[str, str]]:
     """Return list of (report_type, admin_note) detected for one event."""
     findings: list[tuple[str, str]] = []
@@ -212,6 +242,8 @@ def run(dry_run: bool = False) -> dict:
     for ev in events:
         for t, note in detect(ev):
             candidates.append((ev["id"], t, note))
+    for item in _detect_missing_hours(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
 
     # Dedup against latest auto_qa reports for each event/type
     latest_reports = _latest_auto_qa_reports(sb, list({c[0] for c in candidates}))
