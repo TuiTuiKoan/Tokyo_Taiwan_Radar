@@ -71,43 +71,15 @@ from sources.yebizo import YebizoScraper
 from sources.cineswitch_ginza import CineswitchGinzaScraper
 from sources.human_trust_cinema import HumanTrustCinemaScraper
 from sources.faam_fukuoka import FaamFukuokaScraper
+from sources.note_creators import NoteCreatorsScraper
 from sources.zinbun_kyoto import ZinbunKyotoScraper
 from sources.uplink_cinema import UplinkCinemaScraper
-from sources.livepocket import LivepocketScraper
-from sources.prtimes import PrtimesScraper
-from sources.fukuoka_now import FukuokaNowScraper
-from sources.maruhiro import MaruhiroScraper
-from sources.eurospace import EurospaceScraper
-from sources.tokyoartbeat import TokyoArtBeatScraper
-from sources.hankyu_umeda import HankyuUmedaScraper
-from sources.daimaru_matsuzakaya import DaimaruMatsuzakayaScraper
-from sources.cinemarine import CineMarineScraper
-from sources.eslite_spectrum import EsliteSpectrumScraper
-from sources.moonromantic import MoonRomanticScraper
-from sources.morc_asagaya import MorcAsagayaScraper
-from sources.shin_bungeiza import ShinBungeizaScraper
-from sources.ssff import SsffScraper
-from sources.taiwan_faasai import TaiwanFaasaiScraper
-from sources.tokyo_filmex import TokyoFilmexScraper
-from sources.google_news_rss import GoogleNewsRssScraper
-from sources.nhk_rss import NhkRssScraper
-from sources.gguide_tv import GguideTvScraper
-from sources.mot import MotScraper
-from sources.transit_store import TransitStoreScraper
-from sources.go_taiwan import GoTaiwanScraper
-from sources.taiwan_festa import TaiwanFestaScraper
-from sources.tiff import TiffJpScraper
-from sources.note_creators import NoteCreatorsScraper
-from sources.artistcafe import ArtistcafeScraper
-from sources.rightscube import RightscubeScraper
 from sources.bookandbeer import BookandbeerScraper
 from sources.hakusuisha import HakusuishaScraper
 from sources.base import dedup_events
-from database import upsert_events, _get_client
+from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
-from annotator import enrich_movie_titles, enrich_person_names
 from merger import run_merger
-from indexnow import submit_urls as _indexnow_submit, event_urls as _indexnow_event_urls
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -157,35 +129,9 @@ SCRAPERS = [
     CineswitchGinzaScraper(),
     HumanTrustCinemaScraper(),
     FaamFukuokaScraper(),
+    NoteCreatorsScraper(),
     ZinbunKyotoScraper(),
     UplinkCinemaScraper(),
-    LivepocketScraper(),
-    FukuokaNowScraper(),
-    PrtimesScraper(),
-    MaruhiroScraper(),
-    EurospaceScraper(),
-    TokyoArtBeatScraper(),
-    HankyuUmedaScraper(),
-    DaimaruMatsuzakayaScraper(),
-    CineMarineScraper(),
-    EsliteSpectrumScraper(),
-    MoonRomanticScraper(),
-    MorcAsagayaScraper(),
-    ShinBungeizaScraper(),
-    SsffScraper(),
-    TaiwanFaasaiScraper(),
-    TokyoFilmexScraper(),
-    GoogleNewsRssScraper(),
-    NhkRssScraper(),
-    GguideTvScraper(),
-    MotScraper(),
-    TransitStoreScraper(),
-    GoTaiwanScraper(),
-    TaiwanFestaScraper(),
-    TiffJpScraper(),
-    NoteCreatorsScraper(),
-    ArtistcafeScraper(),
-    RightscubeScraper(),
     BookandbeerScraper(),
     HakusuishaScraper(),
 ]
@@ -208,48 +154,6 @@ def _json_default(obj):
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 
-def _ensure_scrapers_registered() -> None:
-    """Auto-insert a minimal research_sources row for every scraper in SCRAPERS that is not
-    yet registered (i.e. no row with matching scraper_source_name exists).
-
-    This runs on every non-dry-run execution so the admin /sources page stays in sync
-    automatically — no manual DB step required when a new scraper is added to SCRAPERS.
-
-    Inserted rows use:
-      status='implemented', url='', url_verified=False
-    The name defaults to the snake_case source key; edit in admin UI afterwards if needed.
-    """
-    scraper_keys = {_scraper_key(s) for s in SCRAPERS}
-    try:
-        client = _get_client()
-        resp = client.table("research_sources").select("scraper_source_name").not_.is_(
-            "scraper_source_name", "null"
-        ).execute()
-        registered = {row["scraper_source_name"] for row in (resp.data or [])}
-        missing = scraper_keys - registered
-        if not missing:
-            logger.debug("research_sources sync OK — all %d scrapers registered", len(scraper_keys))
-            return
-        rows = [
-            {
-                "name": key,
-                "url": "",
-                "status": "implemented",
-                "scraper_source_name": key,
-                "url_verified": False,
-            }
-            for key in sorted(missing)
-        ]
-        client.table("research_sources").insert(rows).execute()
-        logger.info(
-            "✅ Auto-registered %d new scraper(s) in research_sources: %s",
-            len(rows),
-            [r["scraper_source_name"] for r in rows],
-        )
-    except Exception as exc:
-        logger.warning("research_sources auto-register skipped: %s", exc)
-
-
 def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str] | None = None) -> None:
     active_scrapers = SCRAPERS
 
@@ -262,13 +166,6 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
 
     all_events = []
     rescrape_force_keys: set[tuple[str, str]] = set()
-    all_new_event_ids: list[str] = []  # UUIDs of newly-inserted events (for IndexNow)
-
-    # Auto-register any scrapers in SCRAPERS that are missing from research_sources.
-    # Runs on every non-dry-run so the admin /sources page stays in sync automatically.
-    if not dry_run:
-        _ensure_scrapers_registered()
-
     if rescrape_ids:
         # Build (source_name, source_id) tuples from CLI-supplied source_ids.
         # Each ID is the full source_id value (e.g. "peatix_8134728").
@@ -299,8 +196,7 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
             all_events.extend(events)
 
             if not dry_run:
-                new_ids = upsert_events(events, force_keys=rescrape_force_keys)
-                all_new_event_ids.extend(new_ids)
+                upsert_events(events, force_keys=rescrape_force_keys)
                 try:
                     _get_client().table("scraper_runs").insert({
                         "source": source_key,
@@ -322,7 +218,6 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
                         "deepl_chars": 0,
                         "success": False,
                         "duration_seconds": int(time.time() - scraper_start),
-                        "notes": f"{type(exc).__name__}: {exc}"[:500],
                     }).execute()
                 except Exception:
                     pass
@@ -344,27 +239,13 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
     logger.info("Running cross-source duplicate merger...")
     run_merger()
 
-    # Annotation moved to a dedicated CI step (.github/workflows/scraper.yml)
-    # for fault isolation and independent observability.
-    # For local end-to-end testing: python main.py && python annotator.py
+    # Run AI annotator on pending events
+    logger.info("Running AI annotator on pending events...")
+    annotate_pending_events()
 
-    # Enrich movie titles and person names (same as CI pipeline steps)
-    logger.info("Enriching movie titles from eiga.com...")
-    enrich_movie_titles()
-    logger.info("Enriching person names via eiga.com + Wikipedia...")
-    enrich_person_names()
-
-    # Ended events are no longer auto-archived here.
-    # Public visibility is controlled by frontend time filters (timeMode/end_date).
-
-    # Submit newly-inserted event URLs to IndexNow (Bing relay → ChatGPT Search)
-    if all_new_event_ids:
-        logger.info("IndexNow: submitting %d new event URL(s)...", len(all_new_event_ids))
-        try:
-            urls = _indexnow_event_urls(all_new_event_ids)
-            _indexnow_submit(urls)
-        except Exception as exc:
-            logger.warning("IndexNow submission error (non-fatal): %s", exc)
+    # Auto-archive events whose end_date has passed
+    logger.info("Archiving ended events...")
+    archive_ended_events()
 
     logger.info("Done!")
 
