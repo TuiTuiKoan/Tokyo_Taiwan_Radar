@@ -27,6 +27,11 @@ DATE_REGEX = re.compile("(\\d{4})\\.(\\d{2})\\.(\\d{2})")
 SOURCE_ID_PREFIX = "hakusuisha_"
 SOURCE_ID_URL_PATTERN = re.compile("/news/n(\\d+).html")
 
+# Event date extraction from 日時: label in detail page
+_JITSU_RE = re.compile(r"[■◆●▼]?\s*日時[：:]\s*(.{5,150})", re.MULTILINE)
+_FULL_YMD_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
+_END_DAY_RE = re.compile(r"[・/／]\s*(\d{1,2})日")
+
 MAX_EVENTS = 200
 
 
@@ -78,6 +83,71 @@ def _safe_attr(card, selector, attr):
     except Exception as exc:
         logger.debug("attr %s on %s failed: %s", attr, selector, exc)
         return None
+
+
+def _extract_event_dates(
+    detail_text: str, card_year: int | None = None
+) -> tuple["datetime | None", "datetime | None"]:
+    """Extract (start_date, end_date) from 日時: label in detail page body.
+
+    Returns (None, None) if no 日時 label is found — caller falls back to
+    the card's publication date.
+
+    Handles patterns seen on hakusuisha.co.jp:
+      - 2026年3月20日（金・祝）・21日（土）         → start=03-20, end=03-21
+      - 2025年11月23日（日）10:00／24日（月・祝）    → start=11-23, end=11-24
+      - 2026年1月10日（土）... / 2026年1月11日（日） → start=01-10, end=01-11
+    """
+    if not detail_text:
+        return None, None
+    m = _JITSU_RE.search(detail_text)
+    if not m:
+        return None, None
+    jitsu = m.group(1)
+
+    full_dates = _FULL_YMD_RE.findall(jitsu)
+    if full_dates:
+        try:
+            start = datetime(
+                int(full_dates[0][0]), int(full_dates[0][1]), int(full_dates[0][2])
+            )
+        except ValueError:
+            return None, None
+
+        end: "datetime | None" = None
+        if len(full_dates) >= 2:
+            try:
+                candidate = datetime(
+                    int(full_dates[1][0]),
+                    int(full_dates[1][1]),
+                    int(full_dates[1][2]),
+                )
+                end = candidate if candidate != start else None
+            except ValueError:
+                pass
+        else:
+            # Look for ・DD日 or ／DD日 after first date marker
+            first_pat = f"{int(full_dates[0][1])}月{int(full_dates[0][2])}日"
+            after = jitsu[jitsu.find(first_pat) + len(first_pat):]
+            day_m = _END_DAY_RE.search(after)
+            if day_m:
+                try:
+                    candidate = datetime(start.year, start.month, int(day_m.group(1)))
+                    end = candidate if candidate != start else None
+                except ValueError:
+                    pass
+        return start, end
+
+    # Fallback: M月D日 only (no year) — anchor with card publication year
+    if card_year:
+        md = re.search(r"(\d{1,2})月(\d{1,2})日", jitsu)
+        if md:
+            try:
+                return datetime(card_year, int(md.group(1)), int(md.group(2))), None
+            except ValueError:
+                pass
+
+    return None, None
 
 
 def _fetch_detail_text_fallback(url: str) -> str | None:
@@ -241,6 +311,42 @@ class HakusuishaScraper(BaseScraper):
                             full_description = fallback_text
                             logger.debug("HTTP fallback succeeded for %s (%d chars)", detail_url, len(fallback_text))
 
+                # --- Extract actual event date from 日時: label ---
+                # Card date (date_text / start_date) is the article publication date,
+                # not the event date. Prefer 日時: label from the detail body.
+                actual_start = start_date
+                actual_end: "datetime | None" = None
+                card_year = start_date.year if start_date else None
+
+                if full_description:
+                    ev_start, ev_end = _extract_event_dates(full_description, card_year)
+                    if ev_start:
+                        actual_start = ev_start
+                        actual_end = ev_end
+                        # Prepend 開催日時 range prefix per SKILL.md convention
+                        if ev_end and ev_end != ev_start:
+                            _date_prefix = (
+                                f"開催日時: {ev_start.year}年{ev_start.month}月"
+                                f"{ev_start.day}日〜{ev_end.year}年{ev_end.month}月"
+                                f"{ev_end.day}日\n\n"
+                            )
+                        else:
+                            _date_prefix = (
+                                f"開催日時: {ev_start.year}年{ev_start.month}月"
+                                f"{ev_start.day}日\n\n"
+                            )
+                        if not full_description.startswith("開催日時"):
+                            full_description = _date_prefix + full_description
+                    else:
+                        # No 日時 label → announcement article.
+                        # Embed publication date as year anchor per SKILL.md convention.
+                        if start_date and not full_description.startswith("（記事投稿日"):
+                            full_description = (
+                                f"（記事投稿日: {start_date.year}年"
+                                f"{start_date.month:02d}月{start_date.day:02d}日）\n\n"
+                                + full_description
+                            )
+
                 seen_ids.add(source_id)
                 out.append(Event(
                     source_name=self.source_name,
@@ -249,7 +355,8 @@ class HakusuishaScraper(BaseScraper):
                     original_language="ja",
                     name_ja=title,
                     description_ja=full_description,
-                    start_date=start_date,
+                    start_date=actual_start,
+                    end_date=actual_end,
                     location_name=location,
                     raw_title=title,
                     raw_description=full_description,
