@@ -45,6 +45,12 @@ Rules:
 3. If the event is clearly online/virtual (オンライン, Zoom, etc.), return "オンライン".
 4. If no location information can be found, return null.
 5. DO NOT invent, guess, or hallucinate addresses. When in doubt, return null.
+6. LOCATION ADDRESS RULE — IDENTICAL CHECK: If the address you would return is the same
+   text as the venue name (e.g., venue=「仙六屋カフェ」and address=「仙六屋カフェ」), return null.
+   An address must be a geographic identifier (street, district, city) — not a venue name.
+7. SUB-VENUE PARENT ADDRESS RULE: For sub-venues inside a larger facility
+   (e.g., 「○○ビル2階 大会議室」「○○S.C. 広場」), return the address of the parent
+   building/facility, not the sub-space name.
 
 Respond with valid JSON only:
 {"location_address": "..." or null}"""
@@ -79,7 +85,7 @@ def main() -> None:
     # Fetch all active events with NULL or empty location_address
     res = (
         sb.table("events")
-        .select("id, source_name, name_ja, location_address, raw_description")
+        .select("id, source_name, name_ja, location_name, location_address, raw_description")
         .eq("is_active", True)
         .execute()
     )
@@ -128,8 +134,13 @@ def main() -> None:
             logger.info("  → %s", addr)
 
         if addr and not args.dry_run:
-            sb.table("events").update({"location_address": addr}).eq("id", event["id"]).execute()
-            updated += 1
+            # Guard: skip if extracted address is identical to venue name
+            venue = (event.get("location_name") or "").strip()
+            if venue and addr.strip() == venue:
+                logger.warning("  SKIP identical (address == venue name): %s", addr)
+            else:
+                sb.table("events").update({"location_address": addr}).eq("id", event["id"]).execute()
+                updated += 1
 
         time.sleep(0.5)
 
