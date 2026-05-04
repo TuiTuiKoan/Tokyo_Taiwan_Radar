@@ -126,6 +126,7 @@ def _fetch_upcoming_events(sb) -> list[dict]:
         )
         .eq("is_active", True)
         .is_("parent_event_id", "null")
+        .neq("source_name", "gguide_tv")
         .gte("start_date", start_from)
         .lte("start_date", start_to)
         .order("start_date")
@@ -157,6 +158,13 @@ def _ai_select_events(client: OpenAI, events: list[dict], today: datetime) -> di
         f"  生活風格 (lifestyle): {LIFESTYLE_CATS}\n"
         f"  知識交流 (knowledge): {KNOWLEDGE_CATS}\n"
         f"  社會 (society): {SOCIETY_CATS}\n\n"
+        "TAIWAN RELEVANCE RULE — CRITICAL: Only select events with a DIRECT, EXPLICIT connection to Taiwan.\n"
+        "  ACCEPT: Taiwanese artists/performers/directors, events set in Taiwan, Taiwan cultural festivals, \n"
+        "          Taiwan food/products, Taiwan-Japan bilateral exchange, events explicitly promoting Taiwan.\n"
+        "  REJECT: Events that only vaguely relate to Asia, events where Taiwan is mentioned as one stop\n"
+        "          in a multi-country Asia tour (e.g. 'Asia tour including Taiwan'), Japanese events with\n"
+        "          no Taiwanese participant, book launches about non-Taiwan topics.\n\n"
+        "DEDUPLICATION RULE: Each event id MUST appear at most once across weekly + monthly combined.\n\n"
         "=== WEEKLY SELECTION (5–7 events starting within next 7 days) ===\n"
         "Follow these MANDATORY slot rules in order:\n"
         "1. 五感: fill ≥2 slots; prefer movie/performing_arts/art first within the group.\n"
@@ -274,7 +282,7 @@ def run_broadcast(dry_run: bool = False) -> None:
     import time
     start = time.time()
     today = datetime.now(JST)
-    base_url = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://tokyotaiwanradar.com")
+    base_url = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://tokyo-taiwan-radar.vercel.app")
     token = os.environ.get("LINE_CHANNEL_TOKEN", "")
 
     sb = _get_supabase()

@@ -287,6 +287,15 @@ def _replace_title_in_desc(desc: str, old_titles: list[str], new_title: str) -> 
 # ---------------------------------------------------------------------------
 SYSTEM_PROMPT = """You are an expert event data analyst specializing in Taiwan-related cultural events in Japan.
 
+TAIWAN RELEVANCE GATE — CRITICAL:
+Before extracting any data, judge whether this event has a DIRECT, EXPLICIT Taiwan connection.
+A direct connection means: Taiwanese artist/author/performer/director is the primary subject OR the event explicitly features Taiwan culture/products/identity as its main theme.
+REJECT (set is_active=false in your mind; write selection_reason explaining why it is marginal) if:
+  - The Taiwan link is only "this tour includes Taiwan" or "the author was inspired by Asia"
+  - The event is a book launch where Taiwan appears only as a passing reference in the description
+  - The event is a Japanese TV programme that once covered Taiwan
+  - SOURCE=bookandbeer: apply STRICT standard. The event MUST feature a Taiwanese author, a book about Taiwan/Taiwan-Japan relations, or an explicit Taiwan cultural theme. A book merely mentioning Taiwan incidentally does NOT qualify.
+
 LANGUAGE RULE — CRITICAL: ALL *_zh fields (name_zh, description_zh, location_name_zh, location_address_zh, business_hours_zh, selection_reason.zh, and sub-event zh fields) MUST be written in Traditional Chinese (繁體中文). NEVER use Simplified Chinese (简体字). This applies to every single zh field without exception.
 
 Given the raw title and description of an event (usually in Japanese), extract structured data and translate into three languages.
