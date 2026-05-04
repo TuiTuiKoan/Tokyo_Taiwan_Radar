@@ -27,10 +27,13 @@ DATE_REGEX = re.compile("(\\d{4})\\.(\\d{2})\\.(\\d{2})")
 SOURCE_ID_PREFIX = "hakusuisha_"
 SOURCE_ID_URL_PATTERN = re.compile("/news/n(\\d+).html")
 
-# Event date extraction from 日時: label in detail page
+# Event detail extraction from detail page body
 _JITSU_RE = re.compile(r"[■◆●▼]?\s*日時[：:]\s*(.{5,150})", re.MULTILINE)
 _FULL_YMD_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
 _END_DAY_RE = re.compile(r"[・/／]\s*(\d{1,2})日")
+_TIME_RE = re.compile(r"(\d{1,2}:\d{2})(?:～|〜|-|‐)(\d{1,2}:\d{2})")
+_KAIJO_RE = re.compile(r"[■◆●▼]?\s*会場[：:]\s*([^\n]{2,60})", re.MULTILINE)
+_SHUKAI_RE = re.compile(r"[■◆●▼]?\s*主催[：:]\s*([^\n]{2,60})", re.MULTILINE)
 
 MAX_EVENTS = 200
 
@@ -188,7 +191,7 @@ def _fetch_detail_text_fallback(url: str) -> str | None:
         p = _T()
         p.feed(resp.text)
         text = "\n".join(p._chunks)
-        return text[:4000] if text else None
+        return text[:8000] if text else None
     except Exception as exc:
         logger.debug("HTTP fallback failed for %s: %s", url, exc)
         return None
@@ -290,7 +293,7 @@ class HakusuishaScraper(BaseScraper):
                         detail_page.wait_for_load_state("networkidle", timeout=15000)
                         body_text = detail_page.locator("body").inner_text(timeout=5000)
                         if body_text:
-                            full_description = body_text.strip()[:4000]
+                            full_description = body_text.strip()[:8000]
                             _pw_success = True
                         detail_page.close()
                     except PWTimeout:
@@ -347,6 +350,28 @@ class HakusuishaScraper(BaseScraper):
                                 + full_description
                             )
 
+                # --- Extract venue, hours, organizer from detail body ---
+                detail_location = location  # FIELD_SELECTORS['location'] (always None)
+                business_hours_val = None
+                organizer_val = None
+                if full_description:
+                    kaijo_m = _KAIJO_RE.search(full_description)
+                    if kaijo_m:
+                        detail_location = kaijo_m.group(1).strip()
+                    shukai_m = _SHUKAI_RE.search(full_description)
+                    if shukai_m:
+                        organizer_val = shukai_m.group(1).strip()
+                    # Extract time range — search full description directly
+                    # (avoids false match on the "開催日時: YYYY年MM月DD日" prefix
+                    # that the scraper prepends, which lacks a time component)
+                    time_m = _TIME_RE.search(full_description)
+                    if time_m:
+                        business_hours_val = f"{time_m.group(1)}〜{time_m.group(2)}"
+                        # Append open time if present e.g. （12:30開場）
+                        open_m = re.search(r"（(\d{1,2}:\d{2})開場）", full_description)
+                        if open_m:
+                            business_hours_val += f"（{open_m.group(1)}開場）"
+
                 seen_ids.add(source_id)
                 out.append(Event(
                     source_name=self.source_name,
@@ -357,7 +382,9 @@ class HakusuishaScraper(BaseScraper):
                     description_ja=full_description,
                     start_date=actual_start,
                     end_date=actual_end,
-                    location_name=location,
+                    location_name=detail_location,
+                    business_hours=business_hours_val,
+                    organizer=organizer_val,
                     raw_title=title,
                     raw_description=full_description,
                 ))
