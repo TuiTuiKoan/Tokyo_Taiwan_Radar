@@ -108,7 +108,21 @@ def main() -> None:
             for src, n in Counter(r["source_name"] for r in rows).most_common(5)
         ]
 
-        # 5. Derive health status
+        # 5. Exclusion hits in last 24 hours (graceful: table may not exist yet)
+        exclusion_hits_today: int = 0
+        try:
+            cutoff_1d = (datetime.now(tz=UTC) - timedelta(hours=24)).isoformat()
+            exclusion_hits_today = (
+                sb.table("source_exclusion_hits")
+                .select("id", count="exact")
+                .gte("matched_at", cutoff_1d)
+                .execute()
+                .count
+            ) or 0
+        except Exception as exc:
+            logger.debug("source_exclusion_hits query skipped (table may not exist): %s", exc)
+
+        # 6. Derive health status
         if active_pending > CRITICAL_ACTIVE or old_pending > CRITICAL_OLD:
             status = "critical"
         elif active_pending > WARN_ACTIVE or old_pending > WARN_OLD:
@@ -122,7 +136,16 @@ def main() -> None:
             "old_pending_over_7d": old_pending,
             "subevent_pending": subevent_pending,
             "top_sources": top_sources,
+            "exclusion_hits_today": exclusion_hits_today,
         }
+
+        # Cleanup: remove hits older than 30 days
+        try:
+            cutoff_30d = (datetime.now(tz=UTC) - timedelta(days=30)).isoformat()
+            sb.table("source_exclusion_hits").delete().lt("matched_at", cutoff_30d).execute()
+        except Exception as exc:
+            logger.debug("source_exclusion_hits cleanup failed: %s", exc)
+
         print(json.dumps(result, ensure_ascii=False))
 
     except Exception as exc:

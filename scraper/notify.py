@@ -78,6 +78,8 @@ def build_message(summary: dict, validate: dict, annotate_outcome: str = "", bac
             lines.append("  Top sources:")
             for t in top:
                 lines.append(f"    • {t['source']}: {t['count']}")
+        if backlog.get("exclusion_hits_today", 0) > 0:
+            lines.append(f"  🚫 今日封鎖：{backlog['exclusion_hits_today']} 件")
 
     return "\n".join(lines)
 

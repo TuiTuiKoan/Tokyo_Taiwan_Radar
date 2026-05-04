@@ -12,6 +12,7 @@ from typing import Any
 from supabase import create_client, Client
 
 from sources.base import Event
+from source_exclusions import load_exclusions, event_matches_exclusion, record_hits
 
 logger = logging.getLogger(__name__)
 
@@ -239,6 +240,36 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
 
     client = _get_client()
     force_keys = force_keys or set()
+
+    # ── Pre-filter: source_exclusions pattern match ───────────────────────
+    try:
+        _source_names_for_excl = list({e.source_name for e in events})
+        rules_by_source = load_exclusions(client, _source_names_for_excl)
+        if rules_by_source:
+            kept: list = []
+            hit_records: list[dict] = []
+            for e in events:
+                rules = rules_by_source.get(e.source_name) or []
+                matched = event_matches_exclusion(e, rules) if rules else None
+                if matched:
+                    hit_records.append({
+                        "rule_id": matched["id"],
+                        "raw_title": getattr(e, "raw_title", None),
+                        "source_name": e.source_name,
+                    })
+                else:
+                    kept.append(e)
+            if hit_records:
+                logger.info(
+                    "source_exclusions filtered %d event(s) across %d rule(s)",
+                    len(hit_records),
+                    len({h["rule_id"] for h in hit_records}),
+                )
+                record_hits(client, hit_records)
+                events = kept
+    except Exception as exc:
+        logger.warning("source_exclusions pre-filter failed (skipping): %s", exc)
+    # ── End pre-filter ────────────────────────────────────────────────────
 
     # One query per source_name: fetch is_active, annotation_status, force_rescrape
     blocked_keys: set[tuple[str, str]] = set()    # admin-deactivated (is_active=false)
