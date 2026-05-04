@@ -76,6 +76,7 @@ from sources.zinbun_kyoto import ZinbunKyotoScraper
 from sources.uplink_cinema import UplinkCinemaScraper
 from sources.bookandbeer import BookandbeerScraper
 from sources.hakusuisha import HakusuishaScraper
+from sources.waseda_icl import WasedaIclScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -134,6 +135,7 @@ SCRAPERS = [
     UplinkCinemaScraper(),
     BookandbeerScraper(),
     HakusuishaScraper(),
+    WasedaIclScraper(),
 ]
 
 
