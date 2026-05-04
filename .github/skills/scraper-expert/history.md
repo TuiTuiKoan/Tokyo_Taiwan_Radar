@@ -4,6 +4,44 @@
 
 ---
 
+## 2026-05-05 — location_address = location_name 跨 9 scraper 大範圍擴散
+
+### 問題
+修復 iwafu.py 後，對全體 scraper 執行 grep 掃描，發現以下 8 個 scraper 有相同模式：
+- `kokuchpro`：初始值 `location_address = card["venue_card"]`；detail page 無 address 時 `elif venue: address = venue`
+- `taiwan_matsuri`：`elif location_name: location_address = location_name`
+- `taioan_dokyokai`：`if location_name and not location_address: location_address = location_name`
+- `koryu`：`_extract_location_address(body_text) or (venue if venue else None)`
+- `taiwan_festa`、`prtimes`、`jposa_ja`：直接 `location_address=venue`
+- `peatix`：fallback chain 末端無 guard，某些情況下 address 等於 name
+- `waseda_taiwan`：`elif venue: location_address = venue`
+
+DB 受影響：65 件 `location_address = location_name`（kokuchpro 43、peatix 13、google_news_rss 3、koryu 3 等）
+
+### 根因
+annotator `_ai_or_existing()` 保護：非 null 的 `location_address` 不被覆蓋。Scraper 寫入錯誤值後永久鎖定，auto_qa 持續報告 `auto_qa_address_is_venue_name` 但無法自動修復。
+
+### 修復（commit `9d6e0fc`）
+- 9 scraper：移除所有 venue-as-address fallback；找不到真實地址 → `None`
+- peatix：Canonicalize 前加 guard
+- DB：65 件 bulk-update
+
+### 教訓
+1. **每次修 location 相關 bug 後，必須 grep 全體 scraper**：`grep -rn 'location_address.*=.*venue\|location_address.*location_name' scraper/sources/`
+2. **通用 guard 模式**（peatix 已採用，其他 scraper 可選）：
+   ```python
+   if location_address and location_address == location_name:
+       location_address = None
+   ```
+3. **DB 掃描命令**（每次懷疑有 address=venue 問題時執行）：
+   ```python
+   r = sb.table('events').select('id,source_name,location_name,location_address').execute()
+   same = [e for e in r.data if e['location_address'] and e['location_address'] == e['location_name']]
+   from collections import Counter; print(Counter(e['source_name'] for e in same))
+   ```
+
+---
+
 ## 2026-05-04 — taiwan-filmake 全國上映子活動手動插入 + シアターセブン 上映資料更新
 
 ### taiwan-filmake 全國上映館子活動手動插入（source_name=rightscube）

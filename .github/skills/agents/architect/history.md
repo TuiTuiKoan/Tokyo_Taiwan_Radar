@@ -3,6 +3,32 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — location_address = location_name 在 9 個 scraper 中大範圍擴散（65 件受影響）
+
+### 問題
+修復 iwafu.py 之後，發現相同模式（直接複製 venue name 作為 location_address）存在於另外 8 個 scraper：kokuchpro、taiwan_matsuri、taioan_dokyokai、koryu、taiwan_festa、prtimes、jposa_ja、peatix、waseda_taiwan。DB 中共 65 件受影響事件。
+
+### 根因
+1. **annotator `_ai_or_existing()` 保護邏輯不區分「真實地址」和「venue 複製」**：只要 `location_address` 非 null，annotator 就保留現有值，不覆蓋。Scraper 寫入的錯誤值因此永久鎖定。
+2. **沒有全局守則防止 scraper 複製**：修 iwafu 時才發現其他 scraper 有相同模式，事先沒有掃描所有 scraper。
+
+### 修復（commit `9d6e0fc`）
+- 9 個 scraper：移除所有 `location_address = venue/location_name` 的 fallback；若找不到真實地址則設 `None`
+- peatix：在 Canonicalize 前加 guard `if location_address == location_name: location_address = None`
+- DB：65 件 `location_address → null`，`annotation_status → pending`，等待 annotator 重新填充
+
+### 教訓
+1. **修完一個 scraper 後必須掃描所有 scraper**：grep `location_address.*=.*venue\|location_name` 找類似模式，而不是只修觸發案例。
+2. **annotator `_ai_or_existing()` 是雙刃劍**：保護人工修正的同時也保護了 scraper 的錯誤。任何 scraper 寫入 `location_address` 都必須確保是真實地址，不能用 venue 做 fallback。
+3. **Batch DB 修正命令**（掃描 + 修正）：
+   ```python
+   r = sb.table('events').select('id,location_name,location_address').execute()
+   same = [e for e in r.data if e['location_address'] and e['location_address'] == e['location_name']]
+   for e in same:
+       sb.table('events').update({'location_address': None, 'annotation_status': 'pending'}).eq('id', e['id']).execute()
+   ```
+
+---
 ## 2026-05-05 — LINE 週報顯示日文標題 fallback（annotation_status 過濾缺失）
 
 ### 問題

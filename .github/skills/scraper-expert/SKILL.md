@@ -333,7 +333,7 @@ note.com RSS `<description>` 約在 140 字截斷，可能只有「続きをみ�
 ---
 
 ## koryu-specific
-- **location_address fallback**: `_extract_location_address()` searches for `所在地/住所` sections. When absent (common for 後援-type posts), fall back to the venue name from `_extract_venue()`: `location_address = _extract_location_address(body_text) or (venue if venue else None)`.
+- **location_address fallback**: `_extract_location_address()` searches for `所在地/住所` sections. When absent (common for 後援-type posts), set `location_address = None` — **do NOT fall back to the venue name**. The annotator will fill the address via PARENT VENUE ADDRESS RULE. Old pattern `or (venue if venue else None)` was removed (commit `9d6e0fc`) because it echoed venue name as address, blocking annotator correction.
 - **404 on old koryu URLs**: When a koryu event page returns 404, `main_text` will be a redirect message with no venue section. `_extract_venue` returns `None`, so `location_address` is also `None`. This is acceptable — the event is stale.
 - **Single-day end_date**: Always set `end_date = start_date` at the end of `_extract_event_fields`. Taiwan Kyokai events are single-day ceremonies/lectures.
 - **Publish-date false positive**: The page body starts with the article publish date (`2026年4月20日`) before the actual event content. Do NOT rely solely on the generic `YYYY年MM月DD日` fallback — it will pick up the publish date if no structured `日時：` field exists.
