@@ -529,6 +529,32 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     return cats
 
 
+def _load_default_organizer_map(sb: "Client") -> dict[str, dict[str, str]]:
+    """Load per-source fallback organizer from research_sources (migration 039).
+
+    Returns {scraper_source_name: {"organizer": ..., "organizer_type": ...}}.
+    Returns an empty dict on any error (e.g. migration not yet applied).
+    """
+    try:
+        res = (
+            sb.table("research_sources")
+            .select("scraper_source_name,default_organizer,default_organizer_type")
+            .execute()
+        )
+        result: dict[str, dict[str, str]] = {}
+        for row in res.data or []:
+            key = row.get("scraper_source_name")
+            org = row.get("default_organizer")
+            if key and org:
+                result[key] = {
+                    "organizer": org,
+                    "organizer_type": row.get("default_organizer_type") or "",
+                }
+        return result
+    except Exception:
+        return {}
+
+
 def annotate_pending_events(re_annotate_all: bool = False, fix_translations: bool = False, fix_reviewed: bool = False, event_id: str | None = None, limit: int | None = None) -> None:
     """Fetch pending events from DB, annotate with AI, and update."""
     sb = _get_supabase()
@@ -598,17 +624,22 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     else:
         query = sb.table("events").select("*").neq("annotation_status", "reviewed")
         if re_annotate_all:
-            # --all: re-annotate all active non-reviewed events regardless of status
-            query = query.eq("is_active", True)
+            # --all: re-annotate all active non-reviewed events regardless of status.
+            # Exclude sub-events (parent_event_id IS NOT NULL) — they are created by the
+            # annotator itself and must not be re-processed as root events (would produce
+            # grandchild events with source_id like gnews_xxx_sub1_sub1).
+            query = query.eq("is_active", True).is_("parent_event_id", "null")
         elif fix_translations:
-            # --fix-translations: re-annotate active events that are missing any zh/en field
-            query = query.eq("is_active", True).or_(
+            # --fix-translations: re-annotate active events missing zh/en fields.
+            # Exclude sub-events for the same reason as --all.
+            query = query.eq("is_active", True).is_("parent_event_id", "null").or_(
                 "name_zh.is.null,name_en.is.null,description_zh.is.null,description_en.is.null"
             )
         else:
             # default: process all pending events regardless of is_active.
-            # Inactive events may still need annotation when their raw data is corrected.
-            query = query.eq("annotation_status", "pending")
+            # Sub-events are always upserted as 'annotated' by the annotator, so
+            # pending sub-events should not exist in practice. The filter is a safety net.
+            query = query.eq("annotation_status", "pending").is_("parent_event_id", "null")
 
     result = query.order("created_at", desc=True).execute()
     events = result.data
@@ -666,6 +697,44 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
         _pre_location_name: str | None = event.get("location_name") or _venue_pre.get("location_name")
         _pre_location_address: str | None = event.get("location_address") or _venue_pre.get("location_address")
         _pre_hours: str | None = _extract_hours_from_raw(raw_desc)
+        # hakusuisha thin-content rescue: if raw_description contains no
+        # 日時 keyword and pre-extraction found nothing, re-fetch via HTTP
+        # fallback with improved skip-tags parser (4000 char budget).
+        if (
+            event.get("source_name") == "hakusuisha"
+            and not _pre_location_name
+            and not _pre_hours
+            and "日時" not in (raw_desc or "")
+        ):
+            _fallback_url = event.get("source_url") or ""
+            if _fallback_url:
+                try:
+                    from sources.hakusuisha import (
+                        _fetch_detail_text_fallback as _haku_fb,
+                    )
+                    _rescued = _haku_fb(_fallback_url)
+                    if _rescued and len(_rescued) > 200:
+                        raw_desc = _rescued
+                        _venue_pre = _extract_venue_from_raw(raw_desc)
+                        _pre_location_name = (
+                            event.get("location_name")
+                            or _venue_pre.get("location_name")
+                        )
+                        _pre_location_address = (
+                            event.get("location_address")
+                            or _venue_pre.get("location_address")
+                        )
+                        _pre_hours = _extract_hours_from_raw(raw_desc)
+                        logger.info(
+                            "hakusuisha thin-content rescue applied for %s",
+                            event["id"][:8],
+                        )
+                except Exception as _haku_exc:
+                    logger.debug(
+                        "hakusuisha thin-content rescue failed for %s: %s",
+                        event.get("id", "")[:8],
+                        _haku_exc,
+                    )
         # ───────────────────────────────────────────────────────────────────
 
         # For google_news_rss events, fetch the full article body when:

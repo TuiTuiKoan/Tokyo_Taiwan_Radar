@@ -42,6 +42,7 @@ import os
 import re
 from collections import defaultdict
 from difflib import SequenceMatcher
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -645,8 +646,120 @@ def run_merger(dry_run: bool = False) -> int:
                 handled_secondary_ids.add(orphaned_sub["id"])
 
     logger.info("Merger: %d orphaned sub-event(s) handled (Pass 3)", pass3_count)
-    total = pass0_count + merge_count + pass3_count
+
+    # ------------------------------------------------------------------
+    # Pass 4 — Grandchild event flattening
+    # ------------------------------------------------------------------
+    pass4_count = _flatten_grandchild_events(sb, dry_run=dry_run)
+
+    total = pass0_count + merge_count + pass3_count + pass4_count
     return total
+
+
+def _flatten_grandchild_events(sb: Any, dry_run: bool = False) -> int:
+    """
+    Pass 4: Detect and fix grandchild events (events whose parent is itself a sub-event).
+
+    For each grandchild:
+    - If a sibling with the same location_name + start_date[:10] exists under the root
+      → deactivate the grandchild (it's a duplicate).
+    - Otherwise → re-parent the grandchild directly under the root event.
+
+    Returns the number of grandchild events processed.
+    """
+    # Fetch all active sub-events
+    all_subs_res = (
+        sb.table("events")
+        .select("id,source_id,source_name,parent_event_id,name_ja,start_date,location_name")
+        .not_.is_("parent_event_id", "null")
+        .eq("is_active", True)
+        .execute()
+    )
+    all_subs = all_subs_res.data or []
+
+    if not all_subs:
+        return 0
+
+    # Batch-fetch all parent events to check their own parent_event_id
+    parent_ids = list({s["parent_event_id"] for s in all_subs})
+    if not parent_ids:
+        return 0
+
+    parents_res = (
+        sb.table("events")
+        .select("id,parent_event_id")
+        .in_("id", parent_ids)
+        .execute()
+    )
+    parent_map = {p["id"]: p for p in (parents_res.data or [])}
+
+    # Grandchildren = sub-events whose parent is also a sub-event
+    grandchildren = [
+        s for s in all_subs
+        if (parent_map.get(s["parent_event_id"]) or {}).get("parent_event_id") is not None
+    ]
+
+    if not grandchildren:
+        logger.info("Merger Pass 4: no grandchild events found")
+        return 0
+
+    logger.info("Merger Pass 4: found %d grandchild event(s)", len(grandchildren))
+
+    count = 0
+    for gc in grandchildren:
+        parent = parent_map[gc["parent_event_id"]]
+        root_id = parent["parent_event_id"]
+
+        # Fetch root's direct children to check for duplicates
+        siblings_res = (
+            sb.table("events")
+            .select("id,location_name,start_date")
+            .eq("parent_event_id", root_id)
+            .execute()
+        )
+        siblings = siblings_res.data or []
+
+        gc_loc = (gc.get("location_name") or "").strip()
+        gc_date = (gc.get("start_date") or "")[:10]
+
+        is_duplicate = any(
+            s["id"] != gc["id"]
+            and (s.get("location_name") or "").strip() == gc_loc
+            and (s.get("start_date") or "")[:10] == gc_date
+            for s in siblings
+        )
+
+        if dry_run:
+            action = "would deactivate (dup)" if is_duplicate else "would re-parent to root"
+            logger.info(
+                "Pass 4 [dry-run]: %s grandchild %s (%s) → root %s",
+                action,
+                gc["id"][:8],
+                (gc.get("name_ja") or "")[:40],
+                root_id[:8],
+            )
+        else:
+            try:
+                if is_duplicate:
+                    sb.table("events").update({"is_active": False}).eq("id", gc["id"]).execute()
+                    logger.info(
+                        "Pass 4: deactivated duplicate grandchild %s (%s)",
+                        gc["id"][:8],
+                        (gc.get("name_ja") or "")[:40],
+                    )
+                else:
+                    sb.table("events").update({"parent_event_id": root_id}).eq("id", gc["id"]).execute()
+                    logger.info(
+                        "Pass 4: re-parented grandchild %s to root %s",
+                        gc["id"][:8],
+                        root_id[:8],
+                    )
+            except Exception as exc:
+                logger.error("Pass 4: failed to process grandchild %s: %s", gc["id"][:8], exc)
+        count += 1
+
+    logger.info("Merger Pass 4: %d grandchild event(s) processed", count)
+    return count
 
 
 if __name__ == "__main__":
