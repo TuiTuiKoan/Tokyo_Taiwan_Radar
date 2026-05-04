@@ -153,7 +153,10 @@ text = element.get_text(strip=True)
 - Taiwan relevance criterion: Taiwan must be the **theme or primary focus**, not just one venue on a multi-city tour.
 - **After adding a scraper filter, always audit the DB**: run `ilike("raw_title", "%keyword%")` to find existing records that should also be deactivated. The filter only prevents future inserts.
 - **Hard delete vs deactivation**: If an IP series is confirmed permanently non-Taiwan-themed, hard delete (`table.delete().eq("id", eid)`) rather than just deactivating. Deactivated events remain accessible via direct URL unless the event page also checks `is_active`.
-- **location_name / location_address**: Extract from `場所[：:]\s*(.+?)(?:\n|交通手段|Q&A|https?://|$)` in `main_text`. Set BOTH `location_name` and `location_address` to the captured value. Fall back to `card.prefecture` only when the `場所：` label is absent. Never store bare prefecture names (e.g. `"東京"`) as the address.
+- **location_name / location_address**: Extract from `場所[：:]\s*(.+?)(?:\n|交通手段|Q&A|https?://|$)` in `main_text`.
+  - `location_name` = the venue name captured from `場所：`.
+  - `location_address` = search the surrounding text with `_ADDR_RE` (matches `〒` or prefecture+city+street pattern). If a real address is found AND it differs from the venue name, use it; otherwise set `None`. **NEVER set `location_address = location_name`** — identical values are flagged by `auto_qa_address_is_venue_name` and violate the Sub-Venue Parent Address Rule (sub-spaces like `SC 広場` need the parent building's address, not the sub-space name).
+  - Fall back to `card.prefecture` for `location_address` only when the `場所：` label is absent. Never store bare prefecture names (e.g. `"東京"`) as the address.
 
 ## Venue / live house scrapers — management post blocklist
 

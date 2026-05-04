@@ -397,13 +397,29 @@ class IwafuScraper(BaseScraper):
 
         # --- Location ---
         # Primary: extract 場所：<venue> from detail page text (e.g. "場所：中野区役所…")
+        # location_name  = venue name (e.g. "流山おおたかの森S.C. 森のまち広場")
+        # location_address = real street address — MUST NOT be identical to venue name.
+        #   1. Prefer an explicit postal address found in the text (〒 or prefecture+city+street).
+        #   2. Fall back to None so the annotator / address-enrichment pipeline can fill it.
+        #   Never echo the venue name as the address (violates Sub-Venue Parent Address Rule).
+        _ADDR_RE = re.compile(
+            r'(?:〒\d{3}-\d{4}\s*\n?\s*)?'
+            r'(?:東京都|北海道|(?:大阪|京都)府|.{2,5}県)'
+            r'.{1,30}?[0-9０-９]+(?:[-ー―][0-9０-９]+)+'
+        )
         place_m = re.search(
             r'場所[：:]\s*(.+?)(?:\n|交通手段|Q&A|https?://|$)', main_text, re.DOTALL
         )
         if place_m:
             place_val = place_m.group(1).strip()
             location_name = place_val
-            location_address = place_val
+            # Try to find a real address in surrounding text (not the venue name itself)
+            addr_m = _ADDR_RE.search(main_text)
+            if addr_m:
+                candidate = addr_m.group(0).strip()
+                location_address = candidate if candidate != place_val else None
+            else:
+                location_address = None
         else:
             location_name = card.get("location_hint") or card.get("prefecture") or ""
             location_address = card.get("prefecture") or None
