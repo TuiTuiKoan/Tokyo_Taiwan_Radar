@@ -34,6 +34,23 @@ Missing step 3 has no compile-time or runtime error — it silently appears as a
   2. `merger.py` deactivates a duplicate secondary event during merge.
 - Any bulk UPDATE touching `is_active` must be verified against these two sources before execution. If it does not match either, abort.
 
+## Annotator Backfill QA Rule
+
+任何計畫包含 `annotator.py --backfill-*` 步驟時，**必須**在步驟清單中明確列出「backfill 後多語言欄位 QA 驗證」子步驟：
+
+- `selection_reason["ja"]`：必須含假名（平假名或片假名）；無假名表示語言污染
+- 驗證 SQL：
+  ```sql
+  SELECT id, source_name, (selection_reason->>'ja') as ja_text
+  FROM events
+  WHERE selection_reason->>'ja' IS NOT NULL
+    AND selection_reason->>'ja' !~ '[ぁ-んァ-ン]'
+  LIMIT 20;
+  ```
+- 發現污染 → 執行翻譯修正腳本（從 zh 欄 GPT 翻譯覆寫）
+
+**Incident**: 2026-05-04 `--backfill-tier1` 導致 49 筆 `selection_reason["ja"]` 為中文，需人工腳本修正。
+
 ## Scope
 
 - State explicitly what is NOT in scope. Ambiguous scope = scope creep = breaking changes.

@@ -3,6 +3,56 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04（Session 2）— Web UI 多項修復 + selection_reason["ja"] 品質 + is_active 誤設還原（commits `a895e07`、`1b344f7`、`2989940`、`d9ff85f`、`d7ab41a`、`7a81969`、`0abd8db`、`dedfa81`、`b559520`）
+
+### NextIntlClientProvider 缺少 `locale` prop（commit `dedfa81`）
+- **問題**：`layout.tsx` 的 `<NextIntlClientProvider>` 未傳入 `locale` prop，日語（`/ja/`）與英語（`/en/`）頁面的所有 Client Component UI 文字顯示中文（預設 locale）
+- **根本原因**：`locale` 是 `NextIntlClientProvider` 的必要 prop，缺少時 next-intl 靜默回退到預設語言，無任何 console error
+- **修復**：加入 `locale={locale}` prop（`locale` 從 `params` 解構）
+- **教訓**：`NextIntlClientProvider` 的 `locale` prop 是必填的——缺少時錯誤靜默，多語言 UI 全部顯示預設語言，極難追蹤
+
+### FilterBar「電視頻道」選項永遠顯示 0 筆（commit `2989940`）
+- **問題**：FilterBar 的「電視頻道」location type 選項永遠顯示 0 筆事件，從未有任何事件被過濾到
+- **根本原因**：`location_name` 欄位從未包含「電視頻道」字串；此 filter 邏輯存在但資料模型不支援
+- **修復**：完全移除該 filter 選項（`FilterBar.tsx` + `page.tsx`）
+- **教訓**：Filter 選項必須有對應的資料模型支撐；無效 filter 選項比沒有 filter 更差（給使用者錯誤的期待）
+
+### 事件詳情頁 section 順序重排（commits `d9ff85f`、`d7ab41a`、`7a81969`）
+- **調整**：重排為 title+save → summary table → description → CTA（購票/外部連結）→ AI selection reason → sub-events → record links → FAQ
+- **問題**：CTA 按鈕之前被放在 summary table 之前，description 之後才是 AI reason，順序不符合使用者閱讀流程
+- **教訓**：事件詳情頁的 UX 順序：重要資訊（摘要表）→ 正文（description）→ 行動（CTA）→ 輔助資訊（AI 原因）→ 相關項目
+
+### ReportSection 新增 `brokenLink` 回報類型（commit `0abd8db`）
+- **修復**：`ReportSection.tsx` 新增 `brokenLink` 作為第三個回報類型，讓使用者可回報失效連結
+
+### wrongSelectionReason 三語言 textarea（commit `dedfa81`）
+- **問題**：`ReportSection.tsx` 只有單一 textarea，無法指定要修正哪個語言的 selection reason
+- **修復**：拆成三個 textarea（中文 / English / 日本語）；新增 `selectionReasonAll` prop；submit 格式 `selectionReason:zh:text`（含語言前綴）
+- **教訓**：多語言欄位的回報 UI 需要對應的語言選擇機制，單一 textarea 會造成語言混淆
+
+### AdminReportsTable 解析格式改 `indexOf`（commit `b559520`）
+- **問題**：用正則 `/^(zh|en|ja):([\s\S]*)$/` 解析 `selectionReason:zh:text` 格式（含 `selectionReason:` 前綴），regex 無法匹配正確捕捉
+- **修復**：改用 `indexOf(":")` 多次切割：先找 `selectionReason:` 前綴，再切語言碼，再取文字
+- **教訓**：解析多層冒號分隔格式，`indexOf` + `slice` 比 regex 更穩定可靠；regex `^` 錨點在含多層前綴時容易失敗
+
+### confirm-report.ts TS2352 型別轉換（commit `b559520`）
+- **問題**：`origRow as Record<string, unknown>` 直接型別斷言失敗，TypeScript 2352 error
+- **修復**：改為 `origRow as unknown as Record<string, unknown>`；`filter(Boolean)` 加型別謂詞 `(x): x is string => Boolean(x)`
+
+### selection_reason["ja"] 中文污染（49 筆，DB patch）
+- **問題**：`annotator.py --backfill-tier1` 對 49 筆事件的 `selection_reason["ja"]` 欄位產生中文內容（而非日文），事件詳情頁日語 textarea 預填中文
+- **根本原因**：GPT prompt 語言控制不夠嚴格，中文意外生成到 ja 欄位（可能 GPT 混淆輸出語言）
+- **修復**：Python 腳本用假名正則偵測（無假名字元 → 疑似非日文），逐一呼叫 GPT-4o-mini 從 zh 欄翻譯成日文，覆寫 `selection_reason["ja"]`
+- **教訓**：
+  1. backfill 完成後**必須立即執行品質抽查**：`selection_reason["ja"]` 必須包含假名；無假名表示語言污染
+  2. annotator backfill 完成後需執行 QA script 驗證多語言欄位
+
+### is_active 批次誤設（342 筆還原）
+- **問題**：一次性腳本意外將所有 `end_date < today` 的事件設為 `is_active=False`，342 筆受影響；已結束事件不可見
+- **修復**：全部還原為 `is_active=True`
+- **教訓**：`is_active=False` 只能由：(1) Admin 手動停用特定事件，(2) `merger.py` 去重時停用次要事件；**任何批次 UPDATE `is_active` 前必須確認符合這兩個來源之一**
+
+---
 ## 2026-05-04 — main.py pipeline 補齊 enrich 步驟 + ks_cinema DB 修正 + 035 migration
 
 ### main.py pipeline enhancement — enrich steps 補齊

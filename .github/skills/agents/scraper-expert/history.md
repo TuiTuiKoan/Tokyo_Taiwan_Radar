@@ -3,6 +3,21 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04 — gguide_tv schedule 解析缺 separator、hakusuisha 相對路徑 URL（commits `a895e07`、`1b344f7`）
+
+### gguide_tv schedule 文字解析缺 `separator="\n"`（commit `a895e07`）
+- **問題**：`gguide_tv.py` 用 `.get_text(strip=True)` 提取排程文字，各節點文字直接拼接無分隔，時間資訊擠在一起（例：`09:00映画『…』台湾10:00映画『…』`）
+- **根本原因**：BeautifulSoup `get_text()` 預設無分隔符；多行資訊應用 `separator="\n"` 換行分隔
+- **修復**：改為 `get_text(separator="\n", strip=True)`
+- **教訓**：任何需要保留行結構的 BeautifulSoup 文字提取，**必須**使用 `separator="\n"`；預設行為會讓連續 inline 元素的文字擠在一起，造成下游解析失敗
+
+### hakusuisha 相對路徑 URL 未轉換為絕對路徑（commit `1b344f7`）
+- **問題**：`hakusuisha.py` 詳情連結 `href="../news/n*.html"` 直接存入 `source_url`；DB 中 10 筆事件的 `source_url` 為相對路徑，點擊連結 404
+- **根本原因**：`a["href"]` 對相對路徑 href 直接賦值，未處理相對 URL 轉換
+- **修復**：改用 `from urllib.parse import urljoin`；`source_url = urljoin(page.url, detail_url)`；DB 中 10 筆事件直接 patch
+- **教訓**：**所有 `a["href"]` 值在存入 `source_url` 前必須通過 `urljoin(base_url, href)` 轉換**，不論 href 看起來是否已是絕對路徑
+
+---
 ## 2026-05-03 — ks_cinema sub-event parent_event_id UUID 型別錯誤（commit `263e333`）
 - **問題**：`ks_cinema.py` sub-event 中，`parent_event_id` 被設為 source_id 字串（`"ks_cinema_taiwan-filmake"`）而非 UUID，每次 upsert 出現 `invalid input syntax for type uuid` 錯誤，CI 連續 5 天失敗（`scraper_runs.success = false`）
 - **根本原因**：直接將 source_id 字串賦值給 `parent_event_id` 欄位，未透過 `get_event_id_by_source()` 查詢 DB UUID

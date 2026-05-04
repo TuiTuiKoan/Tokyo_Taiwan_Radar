@@ -3,6 +3,24 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04（Session 2）— selection_reason["ja"] 語言污染 + is_active 批次誤設再現
+
+### selection_reason["ja"] annotator 語言品質控制（DB patch，無 commit）
+- **問題**：`annotator.py --backfill-tier1` 對 49 筆事件產生 `selection_reason["ja"]` 為中文（而非日文），事件詳情頁日語 textarea 預填中文
+- **根本原因**：GPT backfill prompt 語言控制不夠嚴格；backfill 後未執行品質驗證
+- **修復**：Python 腳本用假名正則偵測（無假名字元 → 語言污染），逐一 GPT 翻譯修正
+- **教訓**：
+  1. **backfill 後必須執行多語言欄位 QA**：`selection_reason["ja"]` 必須含假名；缺假名即為污染
+  2. Annotator plan 中若包含 backfill 步驟，必須明確列出「backfill QA 驗證」子步驟
+  3. 防止方案：annotator 寫入 `selection_reason["ja"]` 前，加假名正則驗證（含假名才寫入，否則 fallback 到 zh 翻譯）
+
+### is_active 批次誤設（342 筆）— 規則再度觸發
+- **問題**：一次性腳本意外將所有 `end_date < today` 的事件設為 `is_active=False`，342 筆受影響
+- **修復**：全部還原 `is_active=True`
+- **備注**：此規則已在 SKILL.md 中記錄（Database Safety Rules § NEVER batch-set `is_active = False`），但仍再次發生
+- **強化**：任何涉及批次 UPDATE `is_active` 的計畫必須先問「符合哪個合法來源？」；若無法對應兩個合法來源之一，拒絕執行
+
+---
 ## 2026-05-04 — 兩次誤判 Engineer 越權 git push（其實是使用者並行 terminal 操作）
 
 ### 問題

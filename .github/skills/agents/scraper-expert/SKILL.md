@@ -78,6 +78,36 @@ Read this at the start of every session before writing any scraper.
 
 **When NOT to use**:
 - Events where the source only provides a vague or generic title and annotator enrichment is desirable
+
+## URL Handling — Relative Path Guard
+
+**Rule**: Every `a["href"]` value that may be a relative path **must** be converted via `urljoin` before storing in `source_url` or `detail_url`.
+
+```python
+from urllib.parse import urljoin
+
+# ✅ 正確：無論 href 是相對或絕對路徑，都透過 urljoin 轉換
+source_url = urljoin(page.url, a["href"])
+
+# ❌ 錯誤：直接存相對路徑，會產生 ../news/n*.html 等無效 URL
+source_url = a["href"]
+```
+
+**Incident**: `hakusuisha.py` 的 `../news/n*.html` 直接存入 DB（commit `1b344f7`），導致 10 筆事件 source_url 404。
+
+## BeautifulSoup 多行文字提取 — `separator="\n"`
+
+**Rule**: 任何需要保留行結構的文字提取（排程、場次、地址、時間表等），必須使用 `separator="\n"`。
+
+```python
+# ✅ 正確：保留行結構
+text = element.get_text(separator="\n", strip=True)
+
+# ❌ 錯誤：連續 inline 元素的文字直接拼接，時間/場次資訊擠在一起
+text = element.get_text(strip=True)
+```
+
+**Incident**: `gguide_tv.py` 排程文字缺 `separator="\n"`，時間資訊擠在一起（commit `a895e07`）。
 - Parent events (usually fine to let annotator improve the title)
 
 **Implementation**:
