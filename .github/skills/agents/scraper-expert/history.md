@@ -3,6 +3,40 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04 — `scraper_runs` source 名查詢陷阱：`_scraper_key()` 轉換規則
+
+**Error:** 調查「未執行的 6 個爬蟲」時，用 `cinemarine`、`moonromantic`、`tiff`、`tokyoartbeat` 等 class 前綴查詢 `scraper_runs.source`，全部回傳 NO RUNS FOUND，誤判為未執行。
+
+**Root cause:** `scraper_runs.source` 儲存的是 `_scraper_key()` 的輸出，規則是把 class name 的 CamelCase 邊界加底線並轉小寫：`CineMarineScraper → cine_marine`、`MoonRomanticScraper → moon_romantic`、`TiffJpScraper → tiff_jp`、`TokyoArtBeatScraper → tokyo_art_beat`。手動輸入時省略底線或 suffix 就會對不到任何記錄。
+
+**Fix:** 查詢前執行：
+```bash
+cd scraper && python3 -c "
+import sys; sys.path.insert(0, '.')
+from main import SCRAPERS, _scraper_key
+for s in SCRAPERS:
+    print(_scraper_key(s))
+" | sort
+```
+找到精確 key 名後再查 DB。
+
+**Lesson:** 永遠不要從記憶中猜測 `scraper_runs.source` 的 key — 必須從 `_scraper_key(scraper)` 輸出取得正確名稱。常見陷阱：含縮寫（`Jp`→`_jp`）、多字複合（`ArtBeat`→`art_beat`）、連寫縮寫（`Ssff`→`ssff`，但 `TaipeiTCC`→`taipei_t_c_c`）。
+
+---
+## 2026-05-04 — `scraper_runs.notes` 現在記錄例外類型與訊息（commit `7e9f617`）
+
+**Change:** `main.py` 的 scraper 失敗處理改為：`"notes": f"{type(exc).__name__}: {exc}"[:500]`
+
+**Before:** `scraper_runs.notes` 在失敗時為 `None` 或空字串，無法從 DB 判斷失敗原因。
+
+**After:** `notes` 欄位現在包含例如 `"PlaywrightTimeoutError: Timeout 30000ms exceeded."` 或 `"AttributeError: 'NoneType' object has no attribute 'get_text'"`，直接從 DB 就能診斷，不需再翻 CI log。
+
+**Lesson:** 調查失敗 scraper 時，先查 `scraper_runs.notes`：
+```python
+sb.table('scraper_runs').select('ran_at,notes').eq('source','<key>').eq('success', False).order('ran_at',desc=True).limit(5).execute()
+```
+
+---
 ## 2026-05-04 — gguide_tv schedule 解析缺 separator、hakusuisha 相對路徑 URL（commits `a895e07`、`1b344f7`）
 
 ### gguide_tv schedule 文字解析缺 `separator="\n"`（commit `a895e07`）

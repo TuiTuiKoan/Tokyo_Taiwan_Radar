@@ -353,7 +353,36 @@ Run after discovering a new cross-source duplicate that the merger missed. Then 
 - **Periodic audit**: Occasionally cross-check `ls scraper/sources/*.py` against the `SCRAPERS` list in `scraper/main.py`. Source files not in `SCRAPERS` are silently ignored by CI — they never run. In April 2026, 8 scrapers were discovered in this state (CineMarineScraper, EsliteSpectrumScraper, MoonRomanticScraper, MorcAsagayaScraper, ShinBungeizaScraper, SsffScraper, TaiwanFaasaiScraper, TokyoFilmexScraper).
 - **`_scraper_key()` naming rule**: `main.py`'s `_scraper_key()` splits class names on CamelCase boundaries (`LivePocketScraper` → `live_pocket`). The class `SOURCE_NAME` constant must match exactly. Name the class to match: `LivepocketScraper` (not `LivePocketScraper`) so `_scraper_key()` produces `livepocket`.
 
-## movie_title_lookup — multilingual cinema titles
+## Debugging — scraper_runs diagnostics
+
+**When checking if a scraper is running, always derive the exact `scraper_runs.source` key from `_scraper_key()` — never guess from memory.**
+
+```bash
+cd scraper && python3 -c "
+import sys; sys.path.insert(0, '.')
+from main import SCRAPERS, _scraper_key
+for s in SCRAPERS: print(_scraper_key(s))
+" | grep <partial>
+```
+
+Common traps where intuition fails:
+| Class name | Actual key |
+|---|---|
+| `CineMarineScraper` | `cine_marine` (NOT `cinemarine`) |
+| `MoonRomanticScraper` | `moon_romantic` (NOT `moonromantic`) |
+| `TiffJpScraper` | `tiff_jp` (NOT `tiff`) |
+| `TokyoArtBeatScraper` | `tokyo_art_beat` (NOT `tokyoartbeat`) |
+
+**Check failure reason from DB** (commit `7e9f617`: `notes` now contains `"ExceptionType: message"`):
+```python
+sb.table('scraper_runs').select('ran_at,notes') \
+  .eq('source', '<key>').eq('success', False) \
+  .order('ran_at', desc=True).limit(5).execute()
+```
+
+**0 events ≠ not running**: `events_processed=0` with `success=True` means the scraper ran but found no Taiwan events (normal for `tokyo_city_i`, `tokyo_now` outside event season). Only `success=False` indicates a failure.
+
+
 
 `scraper/movie_title_lookup.py` provides `lookup_movie_titles(name_ja) → (name_zh, name_en)` via eiga.com search.
 
