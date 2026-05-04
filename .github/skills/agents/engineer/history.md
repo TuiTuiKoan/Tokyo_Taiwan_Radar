@@ -3,6 +3,27 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — auto_research batch query 遺漏 `pending` 狀態，候選來源永遠跳過（commit `5d2585d`）
+
+### 問題
+Migration 033 將 `research_sources.auto_research_status` 的 DEFAULT 設為 `'pending'`（而非 NULL）。但 `auto_research.py` 的 batch query 只過濾 `NULL` 或 `'error'`，導致所有新候選來源在 migration 033 之後永遠被 batch 跳過（靜默失效，無錯誤訊息）。
+
+```python
+# 舊（有 bug）
+.or_("auto_research_status.is.null,auto_research_status.eq.error")
+
+# 修復後
+.or_("auto_research_status.is.null,auto_research_status.eq.pending,auto_research_status.eq.error")
+```
+
+手動重置 14 筆既有 `pending` 候選為 NULL，讓當晚 cron 立即處理。
+
+### 教訓
+- **新增 DB 欄位時，若設定 DEFAULT 值，必須同時更新所有 batch query 的過濾條件**。DEFAULT `'pending'` 與 DEFAULT `NULL` 對 query 的影響截然不同。
+- 靜默跳過的 bug（候選出現在 DB 但永遠不被處理）沒有 ERROR log，只能從處理計數為 0 的 CI 輸出發現。
+- 每次新 migration 加了 DEFAULT 值的欄位，應立即搜尋所有 `.or_("... .is.null ...")` 的 query，確認是否需要加新 DEFAULT 值的條件。
+
+---
 ## 2026-05-05 — merger.py 年份後綴造成年度例行活動無法自動合併
 
 ### 問題

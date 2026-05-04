@@ -731,6 +731,28 @@ Current agent_category values and their labels:
 |---|---|
 | `peatix_organizer` | `"Peatix 主辦者"` |
 
+## Auto Research Pipeline (`auto_research.py`)
+
+`scraper/auto_scraper/auto_research.py` is the Phase 1.5 AI research pipeline. It reads `research_sources` rows with `status='candidate'`, queries GPT/web search to assess viability, and writes back `auto_research_status`.
+
+### Batch query — `auto_research_status` filter rule
+
+**The batch query MUST include ALL "not yet processed" status values**, not just `NULL`:
+
+```python
+# CORRECT — includes both null and pending
+.or_("auto_research_status.is.null,auto_research_status.eq.pending,auto_research_status.eq.error")
+
+# WRONG — misses rows where DEFAULT 'pending' was inserted by migration
+.or_("auto_research_status.is.null,auto_research_status.eq.error")
+```
+
+**Why this matters:** Migration 033 set `auto_research_status DEFAULT 'pending'`. Any new `candidate` row inserted after migration 033 gets `'pending'`, not NULL. A query that only filters NULL silently skips all of them forever — no error log, just 0 rows processed.
+
+**Rule:** When a DB column has a non-NULL DEFAULT value, always verify that all batch queries filtering for "not yet processed" include that DEFAULT value as one of the OR conditions.
+
+**Incident (2026-05-05):** 14 candidates silently skipped for days. Detected by noticing cron ran with 0 processed rows. Fixed in commit `5d2585d`; 14 existing rows manually reset to NULL.
+
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/agents/engineer/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.

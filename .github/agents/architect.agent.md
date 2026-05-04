@@ -231,6 +231,22 @@ Reference incident: 2026-05-04 — event `e72b2c15` performer=null（缺 fallbac
 
 Reference incident: 2026-05-05 — `赤い糸 輪廻のひみつ` 以日文出現在 ZH 週報，root cause `_fetch_upcoming_events` 缺 `annotation_status` 過濾（fix commit 後 pool 76→74）。
 
+## DB Migration DEFAULT Value — Batch Query Guard
+
+在審核任何**新增 DB 欄位並設定非 NULL DEFAULT 值**的 migration，或審核任何讀取該欄位做 batch 過濾的 query 前，**必須**確認：
+
+1. **Batch query 的 `.or_()` 條件包含所有「未處理」狀態**：新欄位 DEFAULT `'pending'` 與 DEFAULT `NULL` 截然不同。若 query 只過濾 `.is.null`，所有 migration 後插入的新資料列（值為 `'pending'`）會被永遠靜默跳過。
+2. **Pattern**：每次新增帶 DEFAULT 值的欄位後，立即搜尋所有 `.or_("... .is.null ...")` 的 query，確認是否需要加新 DEFAULT 值的條件：
+   ```python
+   # CORRECT
+   .or_("auto_research_status.is.null,auto_research_status.eq.pending,auto_research_status.eq.error")
+   # WRONG — misses DEFAULT 'pending' rows
+   .or_("auto_research_status.is.null,auto_research_status.eq.error")
+   ```
+3. **靜默失效特性**：此類 bug 沒有 ERROR log——只能從 cron 處理計數持續為 0 的 CI 輸出發現。
+
+Reference incident: 2026-05-05 — migration 033 設定 `auto_research_status DEFAULT 'pending'`，但 batch query 只過濾 NULL，導致 14 筆候選來源靜默跳過數日（commit `5d2585d`）。
+
 ## Required Phases
 
 ### Phase 1: Research
