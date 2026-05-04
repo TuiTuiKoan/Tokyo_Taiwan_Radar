@@ -80,6 +80,29 @@ Before approving any batch re-annotation of `name_ja_locked` events, verify:
    ```
 4. If truncation found: correct manually via direct DB update — re-running annotator produces the same error.
 
+## Merger _normalize() Guard
+
+Before approving **any** change to `merger.py`'s `_normalize()` function or `_SIMILARITY_THRESHOLD`, verify:
+
+1. **Year-suffix stripping is present**: `re.sub(r"20\d{2}[春夏秋冬]?\s*$", "", name)` must remain in `_normalize()`. Without it, recurring annual events (`台湾文化祭2026` vs `台湾文化祭`) score below threshold and require manual merging every year.
+2. **Spot-check non-duplicate pairs**: After any normalization change, confirm that visually similar but distinct events still score below 0.85. Key pair: `"台湾フェスティバル™TOKYO"` vs `"台湾文化祭"` must stay < 0.85.
+3. **Test command** (run in `scraper/`):
+   ```python
+   from difflib import SequenceMatcher; import re
+   def n(s):
+       s = s.replace('®','(r)').replace('™','')
+       s = re.sub(r'20\d{2}[春夏秋冬]?\s*$','',s)
+       return re.sub(r'\s+','',s).lower()
+   def sim(a,b): return SequenceMatcher(None,n(a),n(b)).ratio()
+   # Must be ≥ 0.85: same annual event different years
+   assert sim('台湾文化祭2026','台湾文化祭') >= 0.85
+   # Must be < 0.85: different events
+   assert sim('台湾フェスティバル™TOKYO2026','台湾文化祭') < 0.85
+   print('OK')
+   ```
+
+Reference incident: 2026-05-05 — `台湾文化祭2026` (iwafu) vs `台湾文化祭` (taiwanbunkasai) scored 0.714 before fix; required manual merge.
+
 ## Secret Permission Consistency Guard
 
 Before approving any change related to `GITHUB_TOKEN` requirements, verify:

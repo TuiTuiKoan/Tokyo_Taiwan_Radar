@@ -86,6 +86,9 @@ def _normalize(name: str) -> str:
     name = name.replace("®", "(r)").replace("Ⓡ", "(r)")
     # Strip iwafu-style subtitle suffixes like "－台南ランタン祭－"
     name = re.sub(r"[－—\-][^－—\-]{2,}[－—\-]\s*$", "", name)
+    # Strip year suffix (e.g. "台湾祭2026", "台湾文化祭2025春", "台灣節™東京2026")
+    # so that recurring annual events with different year suffixes still match.
+    name = re.sub(r"20\d{2}[春夏秋冬]?\s*$", "", name)
     return re.sub(r"[\s\u3000\u00a0]+", "", name).lower()
 
 

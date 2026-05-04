@@ -1009,6 +1009,21 @@ main.py → merger.py → annotator.py → annotator.py --fix-reviewed
 - `annotator.py` must come **after** `merger.py` so merged events are re-annotated immediately (not left `pending` until the next cycle).
 - `merger.yml` runs separately (3× daily cron: 01:00 / 09:00 / 16:00 UTC) with the same annotator follow-up steps, ensuring cross-source duplicates are cleaned between full scraper runs.
 
+### merger.py `_normalize()` — Rules for safe similarity matching
+
+`_normalize()` preprocesses both names before `SequenceMatcher`. Current transformations (order matters):
+
+1. **Trademark normalization**: `®`/`Ⓡ` → `(r)`, `™` stays lowercased
+2. **iwafu subtitle stripping**: `[－—\-]…[－—\-]` at end of string removed
+3. **Year suffix stripping**: `re.sub(r"20\d{2}[春夏秋冬]?\s*$", "", name)` — strips year-only and year+season suffixes so recurring annual events match across years
+4. **Whitespace collapse**: all Unicode whitespace removed, lowercase
+
+**When adding a new normalization rule:**
+- Run similarity spot-checks for: (a) intended matches (must hit ≥ 0.85), (b) known non-duplicates (must stay < 0.85)
+- Classic pitfall: two different annual events with similar short names. Example: `"台湾フェスティバル™TOKYO"` vs `"台湾文化祭"` → 0.200 after year strip (safe). Confirm before committing.
+
+**Incident (2026-05-05):** `台湾文化祭2026` (iwafu) vs `台湾文化祭` (taiwanbunkasai) scored 0.714 before year-strip fix, causing manual merge to be required every year.
+
 ## Discovery Pipeline
 
 `scraper/discovery_accounts.py` is a separate pipeline from `BaseScraper`. It discovers new organizer accounts on external platforms and upserts them into `research_sources`.
