@@ -151,6 +151,10 @@ class HakusuishaScraper(BaseScraper):
                     detail_url = _safe_attr(card, "a", "href")
                 if detail_url and detail_url.startswith("/"):
                     detail_url = f"{BASE_URL}{detail_url}"
+                elif detail_url and not detail_url.startswith("http"):
+                    # Resolve relative paths (e.g. "../news/n123.html") against the listing page URL
+                    from urllib.parse import urljoin
+                    detail_url = urljoin(page.url, detail_url)
 
                 source_url = detail_url or page.url
                 source_id = _extract_source_id(source_url)
