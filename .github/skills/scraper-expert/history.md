@@ -3,6 +3,51 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — location_address = location_name 全 scraper 稽核修正（commits `9d6e0fc`、`f7a8a71`）
+
+### 問題
+多個 scrapers 將 `location_address` 設為與 `location_name` 相同的值。受影響 scrapers：iwafu、jposa_ja、kokuchpro、koryu、prtimes、taioan_dokyokai、taiwan_festa、waseda_taiwan。
+
+### 根因
+Scrapers 取得 combined "location" 欄位時，直接複製到兩個欄位。iwafu 的 `場所：` 文字同時包含場地名稱和地址，但未分開解析。
+
+### 修復
+- **iwafu（commit `f7a8a71`）**：從 `場所：` 後方文字中用 `_ADDR_RE` 提取真實地址，venue name 和 address 分開設值
+- **其他 7 個 scraper（commit `9d6e0fc`）**：逐一稽核，有地址可解析時拆分；無實際地址時 `location_address = None`
+
+### 教訓
+- **`location_address ≠ location_name` 是全 scraper 通用規則**——不只是 iwafu 特定
+- Combined location 欄位必須解析：venue name → `location_name`，street address → `location_address`
+- `_ai_or_existing()` 對非 null DB 值不覆寫，所以 scraper 端寫入錯誤值後 annotator 無法修正
+- `auto_qa_address_is_venue_name` 偵測器會持續監控此 anti-pattern
+
+---
+## 2026-05-05 — enrich_location GPT 回傳 venue name 作為 address + sub-venue 規則（commit `628e3e7`）
+
+### 問題
+`enrich_location.py` 的 GPT 回傳有時將 venue name 當成 address（如 `ユーロスペース`），造成 `location_address == location_name`。
+
+### 修復
+新增 identical address/venue guard：GPT 回傳 address == venue_name 時 skip。新增 sub-venue 規則處理。
+
+### 教訓
+- location 相關 GPT enrichment 必須有 `address ≠ venue_name` 後置 guard
+- 雙層防護：scraper 端（不設錯誤值）+ enrichment 端（不接受錯誤值）
+
+---
+## 2026-05-05 — Sub-event annotation with parent inheritance（commit `38f4f3a`）
+
+### 問題
+Scraper 直接建立的 sub-events（如 rightscube 各戲院子活動）有 `annotation_status='pending'`，但 annotator 只處理 GPT-generated sub-events。Scraper-created sub-events 缺少 category、description 等欄位。
+
+### 修復
+`annotator.py` 修改為也 pick up scraper-created sub-events（有 `parent_event_id` 且 `annotation_status='pending'`），從 parent event 繼承 category 和 context。
+
+### 教訓
+- Annotator 必須處理 **所有** pending sub-events，不只 GPT 產生的
+- Sub-event annotation 從 parent 繼承 category 是合理預設——子活動通常與 parent 同分類
+
+---
 
 ## 2026-05-05 — location_address = location_name 跨 9 scraper 大範圍擴散
 

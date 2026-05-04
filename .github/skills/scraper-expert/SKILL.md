@@ -13,6 +13,7 @@ Read this at the start of every session before writing any scraper.
 - `source_id` must be stable across runs — derive from URL slug or platform ID, never from title or list position.
 - Always set `start_date` explicitly. Never fall back silently to the page's publish/update date.
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` when the event date is found in the page body.
+- **`location_address ≠ location_name` rule (ALL scrapers):** `location_address` must NEVER equal `location_name`. When a scraper has a single combined "location" field, parse it: venue name → `location_name`, street address (using `_ADDR_RE`: `〒` or prefecture+city+street pattern) → `location_address`. If no real street address can be extracted, set `location_address = None`. This is enforced by `auto_qa_address_is_venue_name` detector. Also note: `_ai_or_existing()` in annotator preserves non-null DB values, so a scraper writing the wrong value cannot be corrected by the annotator.
 - **Never restrict geographic scope**: The project covers all of Japan（全日本）. Regional keyword filters (e.g. `_TOKYO_KANTO_KEYWORDS`) must never be added to any scraper.
 - **After fixing a filter bug**: Run `python main.py --source <name>` (non-dry-run) immediately after the fix. A dry-run confirms the fix works but does NOT write to DB — the data gap remains until the next CI cycle.
 - **SCRAPERS registration**: Every new scraper class must be registered in `SCRAPERS` in `main.py` in the **same commit** it is created. Audit command:

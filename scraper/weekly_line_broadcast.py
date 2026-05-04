@@ -114,8 +114,28 @@ def _get_openai():
     return OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 
+def _month_end_of(year: int, month: int) -> datetime:
+    """Return the last moment of the given calendar month (JST)."""
+    import calendar
+    last_day = calendar.monthrange(year, month)[1]
+    return datetime(year, month, last_day, 23, 59, 59, tzinfo=JST)
+
+
+def _next_two_months_end(ref: datetime) -> datetime:
+    """Return the last moment of the calendar month after next (rel. to ref)."""
+    # month+2, wrapping year
+    m = ref.month + 2
+    y = ref.year + (m - 1) // 12
+    m = (m - 1) % 12 + 1
+    return _month_end_of(y, m)
+
+
 def _fetch_upcoming_events(sb) -> list[dict]:
-    """Fetch active, annotated events starting within the next 60 days.
+    """Fetch active, annotated events starting from now through end of month-after-next.
+
+    Pool covers:
+    - Weekly section: today → today+21 days
+    - Monthly section: 1st of next month → last day of month-after-next
 
     Only `annotated` and `reviewed` events are included — `pending` events
     may have NULL name_zh/name_en (annotator not yet run) and would cause
@@ -123,7 +143,7 @@ def _fetch_upcoming_events(sb) -> list[dict]:
     """
     now = datetime.now(JST)
     start_from = now.isoformat()
-    start_to = (now + timedelta(days=60)).isoformat()
+    start_to = _next_two_months_end(now).isoformat()
     res = (
         sb.table("events")
         .select(
@@ -146,7 +166,12 @@ def _ai_select_events(client: OpenAI, events: list[dict], today: datetime) -> di
     """Use GPT-4o-mini to select highlight events for weekly and monthly sections."""
     week_end = today + timedelta(days=21)
     week2_end = today + timedelta(days=28)
-    month_end = today + timedelta(days=60)
+
+    # Monthly window: 1st of next month → last day of month-after-next
+    next_month_num = today.month % 12 + 1
+    next_month_year = today.year + (today.month // 12)
+    month_start = datetime(next_month_year, next_month_num, 1, tzinfo=JST)
+    month_end = _next_two_months_end(today)
 
     # Category group definitions (mirrors web/lib/types.ts CATEGORY_GROUPS)
     ARTS_CATS = "movie, performing_arts, art, senses, drama, indigenous, nature, urban, literature"
@@ -158,7 +183,7 @@ def _ai_select_events(client: OpenAI, events: list[dict], today: datetime) -> di
         f"Today is {today.strftime('%Y-%m-%d')}.\n"
         f"Weekly range: {today.strftime('%m/%d')} – {week_end.strftime('%m/%d')}\n"
         f"Next 28 days: {today.strftime('%m/%d')} – {week2_end.strftime('%m/%d')}\n"
-        f"Monthly preview: {week_end.strftime('%m/%d')} – {month_end.strftime('%m/%d')}\n\n"
+        f"Monthly preview: {month_start.strftime('%m/%d')} – {month_end.strftime('%m/%d')}\n\n"
         "Category groups:\n"
         f"  五感 (arts): {ARTS_CATS}\n"
         f"  生活風格 (lifestyle): {LIFESTYLE_CATS}\n"
@@ -182,7 +207,7 @@ def _ai_select_events(client: OpenAI, events: list[dict], today: datetime) -> di
         "4. 社會: fill ≥1 slot.\n"
         "   If NO 社會 events in next 28 days, give that slot to 五感.\n"
         "Fill remaining slots with the best available events across any group.\n\n"
-        "=== MONTHLY SELECTION (2–3 events starting in 22–60 days) ===\n"
+        f"=== MONTHLY SELECTION (2–3 events starting {month_start.strftime('%m/%d')} – {month_end.strftime('%m/%d')}) ===\n"
         "Priority: large-venue events, live film screenings (movie), music performances (performing_arts), lectures, competitions.\n"
         "STRICTLY EXCLUDE events with category 'taiwan_japan' or 'tv_program'.\n\n"
         "Return ONLY JSON: {\"weekly\": [\"id1\",...], \"monthly\": [\"id1\",...]}\n\n"

@@ -585,7 +585,7 @@ Every route slug must appear the **same number of times** (= total number of adm
   3. **Insert a row in `research_sources`** with `status='implemented'`, `scraper_source_name=<key>`, and a valid `url`. Skipping this causes `researcher.py` to re-report the source as a new candidate and triggers a `⚠️ WARNING` in CI logs every day.
   4. Validate: `python main.py --dry-run --source <key>` returns events cleanly
 - `_warn_unregistered_scrapers()` in `main.py` runs on every non-dry-run and emits a WARNING for any scraper key missing from `research_sources`. Check CI logs if you see `⚠️ scraper(s) NOT registered`.
-- **Auto-QA via `event_reports` queue (2026-05-01):** New automated content-quality checks must write findings into `event_reports` with an `auto_*` prefix in `report_types[]` (e.g. `auto_qa_simplified_zh`, `auto_qa_missing_address`). Do NOT build a separate admin queue — the existing `/admin/reports` confirm/dismiss flow handles auto-findings unchanged. Always dedup against existing pending rows of the same `auto_*` type per `event_id` before insert; also dedup within a single run via in-memory set. See `scraper/auto_qa.py` and engineer `history.md` 2026-05-01.
+- **Auto-QA via `event_reports` queue (2026-05-01):** New automated content-quality checks must write findings into `event_reports` with an `auto_*` prefix in `report_types[]` (e.g. `auto_qa_simplified_zh`, `auto_qa_missing_address`). Do NOT build a separate admin queue — the existing `/admin/reports` confirm/dismiss flow handles auto-findings unchanged. Always dedup against existing rows of the same `auto_*` type per `event_id` — check **ALL statuses** (`pending`, `confirmed`, `dismissed`), not just `pending`. A confirmed/dismissed report means the admin has already reviewed it; re-creating it undoes admin work. Also dedup within a single run via in-memory set. See `scraper/auto_qa.py` and engineer `history.md` 2026-05-01 / 2026-05-05.
 - **`SIMP_RE` / `annotator._SIMP_TO_TRAD` char addition rule (2026-05-01):** Only add a char when its Traditional Chinese / Japanese form is **a different glyph**. Verify each candidate via CC-CEDICT or kanji.jitenon.jp **before** adding. Counter-example: `亮` is identical in Trad/Simp (`照亮` is valid Trad) and triggered a false positive in production. When adding a new char, update **both** `annotator.py._SIMP_TO_TRAD` and `auto_qa.py.SIMP_RE` simultaneously. See scraper-expert `history.md` 2026-05-01.
 - **Cron-driven slot rotation modulo wrap (2026-05-01):** When N weekdays drive a `(DAY-1) % M` slot selector with `M < N`, days M+1..N silently re-run slots 0..(N-M-1). Acceptable when slots are idempotent (search + `skip_hint` dedup); NOT acceptable for slots requiring fixed cadence (e.g. Peatix slot 3 only on Thursdays). Override via `DISCOVERY_SLOT` env on extra cron entries, or raise `SLOT_COUNT`. See `discovery-accounts.yml` and engineer `history.md` 2026-05-01.
 - **Multi-city tour detection — never hardcode venue address (2026-05-01):** Any scraper with a hardcoded `location_address` must add multi-city detection logic. Pattern for `taiwan_cultural_center.py`:
@@ -593,6 +593,14 @@ Every route slug must appear the **same number of times** (= total number of adm
   - Threshold = **2** (not 1) to avoid false positives where a Tokyo event's description merely mentions another city
   - When triggered: set `location_name` to a generic tour label (e.g. `台湾文化センター（全国巡回）`) and set `location_address = None`
   - For DB-patching already-scraped tours: update `location_name`, clear `location_address` directly in Supabase
+
+## Broadcast / Public Output Quality Gate
+
+**Any public-facing output** (LINE weekly broadcast, RSS feeds, API responses, etc.) must exclude `annotation_status='pending'` events. Pending events have incomplete data (null `name_zh`/`name_en`, missing category, etc.) and will surface as Japanese-only or broken entries to end users.
+
+**Rule:** All broadcast/feed queries must include `.in_("annotation_status", ["annotated", "reviewed"])` — do NOT assume all `is_active` events are fully annotated.
+
+**Reference:** `weekly_line_broadcast.py` `_fetch_upcoming_events()` — pool filter added in commit `b2864ea` after pending events appeared with Japanese-only titles in the LINE weekly broadcast.
 
 ## Person Name Lookup Pattern
 
@@ -909,13 +917,16 @@ Two independent detection layers (mutually exclusive — UA check takes priority
 
 If a request matches a bot UA, log as `visit_type='bot'` with `bot_name`. If it has an AI referer but no bot UA, log as `visit_type='ai_referral'` with `ai_source`. Ordinary requests: skip logging entirely.
 
-### Static file exclusion rule
-Any file added to `web/public/` (e.g. `llms.txt`, custom JSON) **must also be excluded in the `proxy.ts` matcher regex**. Without exclusion, the intl middleware 307-redirects all requests to `/zh/<filename>`, returning 404.
+### Non-locale route exclusion rule
+Any route that should NOT be locale-prefixed **must be excluded in the `proxy.ts` matcher regex**. Without exclusion, the intl middleware 307-redirects all requests to `/zh/<path>`, returning 404. This applies to:
+- **Static files** in `web/public/` (e.g. `llms.txt`, custom JSON)
+- **Non-locale routes** such as short redirect routes (`/r/*`), API routes, webhook endpoints
+- Any new route pattern not under `/{locale}/`
 
-Matcher pattern (append new static file extensions/names here):
+Matcher pattern (append new exclusions here):
 ```ts
 export const config = {
-  matcher: ["/((?!_next|api|.*\\.(?:ico|png|jpg|svg|webp|txt|xml|json)).*)"],
+  matcher: ["/((?!_next|api|r/|.*\\.(?:ico|png|jpg|svg|webp|txt|xml|json)).*)"],
 };
 ```
 Current exclusions: `llms.txt` (via `txt` extension), standard static assets. When adding a new `public/` file with an unusual extension, verify the matcher covers it.
