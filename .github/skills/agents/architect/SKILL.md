@@ -240,6 +240,43 @@ Before acting on any hallucination scan result (address/location not found in ra
 3. **Venue name ≠ postal address**: `MoN Takanawa` (inside Takanawa Gateway City) has postal address 港区三田 — not 高輪. Station names, building brands, and postal addresses can differ.
 4. **Incident**: 2026-05-02 — architect changed correct GPT address `港区三田3-16-1` to wrong `港区高輪4-10-30` based on venue name reasoning. Reverted after user confirmation.
 
+## Performer Null Guard（annotator.py 三層 fallback 守則）
+
+在審核任何涉及 `performer` 欄位的計畫，或分析 `performer = NULL` 案例時，**必須**確認 annotator.py 是否正確執行三層 fallback：
+
+### 三層優先順序
+1. **DB 既有值**（`event.get("performer")`）— 已有值時不覆蓋（含 `field_corrections` 保護）
+2. **GPT 提取**（`annotation.get("performer")`）— SYSTEM_PROMPT 有 PERFORMER EXTRACTION RULES
+3. **Regex 確定性提取**（`_extract_performer_from_raw(raw_title, raw_description)`）— GPT 失敗時的最後防線
+
+### 確定性提取覆蓋的關鍵 pattern
+| Pattern | 範例 |
+|---------|------|
+| `<role>・<name>氏を迎え` | `料理研究家・宮武衣充氏を迎え` |
+| `<name>氏を迎え` | `田中花子氏を迎え` |
+| `<name>さんを迎え` | `田中花子さんを迎え` |
+| `<role>: <name>` | `講師：田中花子` / `ゲスト：田中花子` |
+| `<name>による` | `田中花子による` |
+
+### 防範靜默 null 的 QA 規則
+- **Backfill 後執行 null 掃描**：任何 `--backfill-performer` 後，執行：
+  ```sql
+  SELECT id, raw_title, performer FROM events
+  WHERE annotation_status='annotated'
+    AND performer IS NULL
+    AND (raw_title ILIKE '%氏を迎え%' OR raw_title ILIKE '%さんを迎え%'
+         OR raw_title ILIKE '%(講師|ゲスト|スピーカー)%');
+  LIMIT 20;
+  ```
+- **結果非空 → 直接 DB 修正 + `field_corrections` 保護**（正確方式；`--id` 重標注費時且 GPT 可能再次失敗）。
+- **SYSTEM_PROMPT performer 規則**：JSON schema 必須含 `"performer"` 欄位；PERFORMER EXTRACTION RULES 段落必須在 ORGANIZER 段落**前面**。
+
+### 已知 GPT 容易漏抓的模式
+- **複合職稱 + 氏**：`料理研究家・宮武衣充氏` — GPT 容易把整個字串當職稱描述，忘記提取人名
+- **標題中的氏を迎え**：GPT 通常從 description 找 performer，不從 raw_title 找
+
+Reference incident: 2026-05-04 — event `e72b2c15`，raw_title 明確含 `料理研究家・宮武衣充氏を迎え`，performer 仍為 null。根因：annotator `update_data` 完全沒有 performer 欄位（`--backfill-performer` 是獨立 flag，非常規 annotation 流程的一部分）。Fix：直接 DB update + field_corrections，並修正 annotator 加入三層 fallback。
+
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.

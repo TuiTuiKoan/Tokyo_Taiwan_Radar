@@ -3,6 +3,29 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04 — performer=null 儘管 raw_title 含 `氏を迎え`（event e72b2c15）
+
+### 問題
+`--backfill-performer`（200 件）執行完成後，event `e72b2c15`（精巡料理）的 performer 仍為 null。raw_title 明確含「料理研究家・宮武衣充氏を迎え」。
+
+### 根因（雙層失敗）
+1. **常規 annotation 流程從未寫入 performer**：`annotator.py` 的 `update_data` dict 根本沒有 `performer` key。`--backfill-performer` 是獨立 flag，不是每次標注的必要步驟。新標注的事件若未特別跑 backfill，performer 永遠 null。
+2. **GPT 複合職稱漏抓**：`料理研究家・宮武衣充氏` 整體看起來像一個職稱片語，GPT 傾向忽略後面的人名部分，未提取 performer。SYSTEM_PROMPT 缺乏 `氏を迎え` 作為 performer 正向訊號的明示規則。
+
+### 修復
+- **即時**：直接 DB update `performer='宮武衣充'` + `field_corrections` 保護，防止再次被覆蓋。
+- **系統性（本 session）**：
+  1. `update_data` 加入 performer 三層 fallback：DB 既有值 → GPT (`annotation.get("performer")`) → regex (`_extract_performer_from_raw`)
+  2. 加入 `_extract_performer_from_raw(raw_title, raw_description)` 確定性函數，覆蓋 `<role>・<name>氏`, `<name>氏を迎え`, `<name>さんを迎え`, `講師：<name>` 等 pattern
+  3. SYSTEM_PROMPT 加 PERFORMER EXTRACTION RULES 段落（含 JSON schema 的 `performer` 欄位）
+  4. SKILL.md 加 Performer Null Guard 章節
+
+### 教訓
+1. 新增任何欄位的標注後，必須確認 `update_data` **包含**該欄位——否則整個標注流程都無法填入。
+2. 單靠 GPT 提取 performer 不可靠；`氏を迎え` / `役職・NAME氏` 等模式可用 regex 確定性提取，應作為 fallback。
+3. `--backfill-performer` 僅補舊資料，不是 performer 欄位的設計保障——設計必須在主流程（`update_data`）中確保。
+
+---
 ## 2026-05-04 — 「持續 0 件來源」診斷方法論 + 30 天監控閾值
 
 ### 問題

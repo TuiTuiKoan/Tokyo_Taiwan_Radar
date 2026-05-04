@@ -198,6 +198,57 @@ def _extract_hours_from_raw(text: str) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Deterministic performer extraction from raw_title / raw_description
+# ---------------------------------------------------------------------------
+# Strip common Japanese honorifics / role labels appended to person names.
+_HONORIFIC_RE = re.compile(
+    r'[\s\u3000]*'
+    r'(?:氏|さん|先生|博士|教授|監督|氏を迎え|さんを迎え|を迎えて?|による|講師|ゲスト|スピーカー|アーティスト)'
+    r'[^\S\n]*$'
+)
+# Match patterns like: 「料理研究家・田中花子氏を迎え」
+_PERFORMER_INTRO_RE = re.compile(
+    r'(?:'
+    r'料理研究家|シェフ|作家|著者|詩人|写真家|映画監督|演出家|振付家|音楽家|ミュージシャン'
+    r'|アーティスト|研究者|学者|評論家|キュレーター|デザイナー|歌手|俳優|女優'
+    r'|講師|スピーカー|ゲスト|ゲスト講師|ゲストスピーカー'
+    r')'
+    r'[・\s・]*'
+    r'([\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]{2,10}(?:[\s　][\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]{1,5})?)'
+    r'(?:氏|さん|先生)?'
+)
+# Match 「〜氏を迎え」, 「〜さんを迎え」 pattern — person name immediately before 氏/さん
+_MUKAE_RE = re.compile(
+    r'([\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]{2,10}(?:[\s　][\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]{1,5})?)'
+    r'(?:氏|さん|先生)を迎え'
+)
+
+
+def _extract_performer_from_raw(raw_title: str, raw_description: str) -> str | None:
+    """Deterministically extract a single personal performer name from raw text.
+
+    Tries:
+    1. 「<role>・<name>氏」 pattern in title (most reliable).
+    2. 「<name>氏を迎え」 pattern in title.
+    3. Same patterns in first 500 chars of description.
+
+    Returns bare name without honorifics, or None.
+    Deliberately conservative: only returns when high-confidence.
+    Not called for events where performer was already set by the scraper or GPT.
+    """
+    for text in (raw_title or "", (raw_description or "")[:500]):
+        if not text:
+            continue
+        m = _PERFORMER_INTRO_RE.search(text)
+        if m:
+            return _HONORIFIC_RE.sub("", m.group(1)).strip()
+        m2 = _MUKAE_RE.search(text)
+        if m2:
+            return _HONORIFIC_RE.sub("", m2.group(1)).strip()
+    return None
+
+
 # Bracket pairs used by GPT when wrapping movie titles in descriptions.
 _TITLE_BRACKETS = [
     ("\u300a", "\u300b"),  # \u300a\u300b Chinese double angle
@@ -297,6 +348,15 @@ NAME WRITING RULES — CRITICAL:
    NOTE: Events held IN Taiwan are allowed and welcome. Do NOT force-convert Taiwan addresses to Japanese format. For Taiwan venues, fill location_address with the real Taiwanese address (e.g. "台北市中山區小民生東路3段1號") and set location_name accordingly. The tourism category applies when the event is designed to attract Japanese visitors to Taiwan.
 7. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
 
+PERFORMER EXTRACTION RULES:
+1. performer: a SINGLE real personal name (person, not organization) who is the primary guest performer, speaker, lecturer, or artist of the event.
+   - Extract from patterns like: 「料理研究家・田中花子氏を迎え」, 「ゲスト：田中花子」, 「田中花子さんによる」, 「講師：田中花子」.
+   - Return the bare name only — NO honorifics (氏, さん, 先生, 教授, 監督, アーティスト, etc.).
+   - If the event has multiple performers (e.g., a festival with 10 artists) or the performer is an organization, return null.
+   - Return null for exhibitions, food markets, and large festivals where no single person is prominently featured.
+   - Return null when the named person IS the organizer (not a guest).
+2. performer must be a person name ≥2 characters. Never return a place name, brand, or phrase.
+
 ORGANIZER EXTRACTION RULES:
 1. organizer: the primary entity hosting the event. Look for fields like 主催, 主辦, presented by, 主催者. Single string, original-language official name (e.g. "台北駐日経済文化代表処 台湾文化センター"). Do NOT include role labels like "主催:" in the value.
 2. co_organizers: array of 共催 / 協力 / 後援 entities. Each entry is the original-language name. Empty array if none mentioned.
@@ -373,6 +433,7 @@ Respond with valid JSON matching this schema:
   "primary_language": "ja" or "zh" or "en" or "mixed" or null,
   "has_japanese_support": false or true or null,
   "has_english_support": false or true or null,
+  "performer": "bare personal name (no honorifics) of the single primary guest/speaker/artist" or null,
   "selection_reason": {
     "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
@@ -993,6 +1054,20 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "annotation_status": "annotated",
                     "annotated_at": datetime.utcnow().isoformat(),
                 }
+                # Performer: DB existing value (if protected) → deterministic regex → GPT.
+                # Never overwrite a field_corrections-protected value.
+                if "performer" not in _human_protected:
+                    _gpt_performer = _str(annotation.get("performer"))
+                    _regex_performer = _extract_performer_from_raw(
+                        raw_title or "", event.get("raw_description") or ""
+                    )
+                    _final_performer = (
+                        event.get("performer")  # scraper-set or previously annotated
+                        or _gpt_performer       # GPT extracted
+                        or _regex_performer     # deterministic fallback
+                    )
+                    if _final_performer:
+                        update_data["performer"] = _final_performer
 
             # Localized location/hours fields added in migration 010.
             # Kept separate so the primary update above never fails on old DB schemas.
