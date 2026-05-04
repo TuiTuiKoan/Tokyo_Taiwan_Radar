@@ -770,6 +770,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="screening_with_talk">{tEventForm("screening_with_talk")}</option>
               <option value="tour">{tEventForm("tour")}</option>
               <option value="competition">{tEventForm("competition")}</option>
+              <option value="tasting">{tEventForm("tasting")}</option>
               <option value="other">{tEventForm("other")}</option>
             </select>
           </div>

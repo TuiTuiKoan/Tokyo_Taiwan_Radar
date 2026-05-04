@@ -383,16 +383,19 @@ EVENT FORM RULES:
 event_form is the structural shape of the event, distinct from category (which is the topic).
 Pick one or more from:
   exhibition, screening, lecture, performance, market, workshop,
-  conference, networking, screening_with_talk, tour, competition, other
+  conference, networking, screening_with_talk, tour, competition, tasting, other
 Decision guides:
-- A film screening followed by a talk = ["screening_with_talk"] (NOT screening + lecture).
+- SCREENING RESTRICTION: "screening" and "screening_with_talk" are ONLY for events where a film, documentary, anime, or video work is actually projected/screened. DO NOT use them for lectures, tastings, launch parties, or other events even if they discuss media.
+- A film/documentary/anime screening followed by a Q&A or talk = ["screening_with_talk"] (NOT screening + lecture).
+- Pure film screening with no talk = ["screening"].
 - Pure exhibition = ["exhibition"]; exhibition with opening lecture = ["exhibition","lecture"].
 - 食フェス / 物産展 / 美食祭 / マルシェ = ["market"].
-- 学会大会 with multiple paper sessions = ["conference"]; single 講演会 = ["lecture"].
-- 体験講座 / ワークショップ / 手作り教室 / クラフト = ["workshop"].
+- 試飲会 / 品嚐会 / テイスティング / 試食会 / 飲み比べ (tasting as the main activity) = ["tasting"].
+- 学会大会 with multiple paper sessions = ["conference"]; single 講演会 / 講座 / セミナー = ["lecture"].
+- 体験講座 / ワークショップ / 手作り教室 / クラフト / ハンズオン = ["workshop"].
 - Trade show / business summit = ["conference"].
 - LIVE concert, theater, dance = ["performance"].
-- 交流会 / オフ会 / 懇親会 = ["networking"].
+- 交流会 / オフ会 / 懇親会 / launch party / ローンチイベント = ["networking"].
 - ツアー / 巡迴 / 街歩き = ["tour"].
 - コンテスト / コンクール / 公募 = ["competition"].
 - If genuinely none apply = ["other"]. NEVER leave event_form empty.
@@ -539,7 +542,8 @@ VALID_ORGANIZER_TYPES = frozenset([
 ])
 VALID_EVENT_FORMS = frozenset([
     "exhibition", "screening", "lecture", "performance", "market", "workshop",
-    "conference", "networking", "screening_with_talk", "tour", "competition", "other",
+    "conference", "networking", "screening_with_talk", "tour", "competition",
+    "tasting", "other",
 ])
 VALID_PRIMARY_LANGUAGES = frozenset(["ja", "zh", "en", "mixed"])
 
