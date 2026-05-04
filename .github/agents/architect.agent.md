@@ -139,6 +139,16 @@ Reference incident: 2026-05-02 — `location_prefectures` 未加入 select，多
 
 Reference incident: 2026-05-04 hakusuisha `_T` parser 未過濾 script/nav，`■日時：` 出現在 2000 字元之後（commit `4784266`）。
 
+## Scraper Self-Prefix Pollution Guard
+
+在審核任何 scraper 先 prepend 前綴到 `raw_description` 再做 regex 搜索的邏輯前，**必須**確認：
+
+1. **Scraper 注入的前綴不干擾後續 regex**：若 scraper prepend `開催日時: YYYY年MM月DD日`，而後又用匹配 `開催日時` 的 regex 搜索整份文字，命中的是**自己注入的前綴**而非頁面原文的 `■日時：`。
+2. **推薦解法**：使用不同 pattern 區分格式（`_TIME_RE` 只匹配 `HH:MM〜HH:MM`，不匹配日期格式），或在 prepend 之前先完成所有 regex 搜索。
+3. **字元預算下限 8000 字元**：detail-page 抓取後確認業務關鍵標籤（`■日時：`/`会場：`/`主催：`）在預算內。
+
+Reference incident: 2026-05-04 hakusuisha — `_JITSU_RE` 命中 scraper 自注入的 `開催日時:` 前綴，`business_hours` 永遠 null（commit `a0292a2`）。
+
 ## Sub-Venue Parent Address Guard
 
 在審核任何包含 `location_name` 或 `location_address` 的 annotator 修改、或任何新 scraper 的 location 欄位邏輯前，**必須**確認：
@@ -172,6 +182,18 @@ print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
 ```
 
 Reference incident: 2026-05-04 — `types.ts` 新增 10 個分類（`tv_program` 等）後 annotator 未同步，導致所有 `gguide_tv` 電視節目被標為 `movie`（commit `0047c31`）。
+
+## Performer Null Guard（三層 fallback + regex 設計規則）
+
+在審核任何涉及 `performer` 欄位的計畫，或分析 `performer = NULL` 案例時，**必須**確認：
+
+1. **`update_data` 包含 `performer` 欄位**：常規 annotation 流程必須在 `update_data` dict 中寫入 performer，不可依賴 `--backfill-performer` 補救。
+2. **三層 fallback 順序**：DB 既有值 → GPT (`annotation.get("performer")`) → regex (`_extract_performer_from_raw`) 。`field_corrections` 保護的值不覆蓋。
+3. **Regex 名字字元類必須保守**：用 `[\u4e00-\u9fff]{2,6}` 純漢字，而非排除清單 `[^\s...]`——排除清單允許平假名 `の` 進入名字（`評論家の龍應台`），產生假陽性。
+4. **敬語形式需完整覆蓋**：`をお迎え` 與 `を迎え` 是不同 pattern。
+5. **每次 regex 修改後掃描 DB**：對所有 performer=null 事件跑 `_extract_performer_from_raw`，人工確認全部命中均為真陽性。
+
+Reference incident: 2026-05-04 — event `e72b2c15` performer=null（缺 fallback）；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
 
 ## Required Phases
 

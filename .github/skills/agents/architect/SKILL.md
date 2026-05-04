@@ -275,7 +275,14 @@ Before acting on any hallucination scan result (address/location not found in ra
 - **複合職稱 + 氏**：`料理研究家・宮武衣充氏` — GPT 容易把整個字串當職稱描述，忘記提取人名
 - **標題中的氏を迎え**：GPT 通常從 description 找 performer，不從 raw_title 找
 
-Reference incident: 2026-05-04 — event `e72b2c15`，raw_title 明確含 `料理研究家・宮武衣充氏を迎え`，performer 仍為 null。根因：annotator `update_data` 完全沒有 performer 欄位（`--backfill-performer` 是獨立 flag，非常規 annotation 流程的一部分）。Fix：直接 DB update + field_corrections，並修正 annotator 加入三層 fallback。
+### Regex 設計原則（防假陽性）
+- **名字字元類必須保守**：用 `[\u4e00-\u9fff]{2,6}` 純漢字，而非排除清單 `[^\u3000\u30fb...]`
+  - 錯誤：`[^\s・：:]{2,10}` → 捕獲 `評論家の龍應台`、`交流のあった萩原健太`
+  - 正確：`[\u4e00-\u9fff]{2,6}` → 只允許 2-6 個 CJK 字元
+- **每次修改後掃描 DB**：對全部 performer=null 事件跑 `_extract_performer_from_raw`，人工確認所有命中
+- **敬語形式需覆蓋**：`をお迎え`（帶 `お`）與 `を迎え` 是不同 pattern，需同時收錄
+
+Reference incident: 2026-05-04 — event `e72b2c15` performer 三層 fallback 缺失；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
 
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).
@@ -463,6 +470,19 @@ Reference incident: 2026-05-04 — 13 個 0 件來源全部屬於正常狀態，
 3. **字元限制是否足夠**：對含大量 JS 的頁面，2000 字元常常不夠（JS 代碼先消費完預算，業務內容在限制之後）。建議至少 4000 字元。
 
 Reference incident: 2026-05-04 hakusuisha `_T` HTMLParser 未過濾 script/nav，`■日時：` 出現在 2000 字元之後 → `raw_description` 無效（commit `4784266`）。
+
+## Scraper Self-Prefix Pollution Guard
+
+在審核任何 scraper 先 prepend 前綴到 `raw_description` 再對整份文字做 regex 搜索的邏輯前，**必須**確認：
+
+1. **Scraper 注入的前綴不干擾後續 regex**：若 scraper prepend `開催日時: YYYY年MM月DD日`，而後又用匹配 `開催日時` 的 regex 搜索整份文字，命中的是**自己注入的前綴**而非頁面原文的 `■日時：HH:MM〜HH:MM`。
+2. **解法選擇（三選一）**：
+   a. 用不同 pattern 區分「前綴格式」vs「頁面原文格式」（推薦：`_TIME_RE` 只匹配 `HH:MM〜HH:MM`，不匹配 `開催日時: YYYY年MM月DD日`）
+   b. 限定搜索範圍到前綴之後（`text[len(prefix):]`）
+   c. 在 prepend 之前先完成所有 regex 搜索，保存結果，再 prepend
+3. **字元預算驗證**：detail-page 抓取加完 skip-tags 後，確認業務關鍵標籤（`■日時：`/`会場：`/`主催：`）在字元預算內。建議下限 8000 字元。
+
+Reference incident: 2026-05-04 hakusuisha — `_JITSU_RE` 命中 scraper 自注入的 `開催日時:` 前綴，`business_hours` 永遠 null（commit `a0292a2`）。
 
 ## Listing Page Date vs Event Date Guard
 

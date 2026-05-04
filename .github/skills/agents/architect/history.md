@@ -3,6 +3,48 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04 — hakusuisha 詳情頁抓取截斷 + _JITSU_RE 偽匹配（venue/hours 第二輪）
+
+### 問題
+hakusuisha 三連修正後（commit `54a20d7`），`location_name`、`business_hours`、`organizer` 在下一次 scrape 仍全為 null。
+
+### 根因（兩層）
+1. **8000 字元截斷**：detail 頁原始抓取上限為 4000 字元，nav/menu 噪音消費了大部分預算，`■日時：`、`会場：`、`主催：` 等標籤出現在截斷點之後。雖然 `_T` HTMLParser 已過濾 script/nav，但頁面仍有大量其他噪音（導覽、廣告連結）佔用字元。
+   → Fix：將上限從 4000 → 8000 字元。
+2. **`_JITSU_RE` 偽匹配**：`_JITSU_RE.search()` 用來提取日時，但 scraper 自身在拼接 `raw_description` 時會先 prepend `開催日時: YYYY年MM月DD日` 前綴，`_JITSU_RE`（設計為匹配 `開催日時`）反而命中了自己加的前綴，而不是頁面原文的 `■日時：HH:MM〜HH:MM`，導致 `business_hours` 永遠為 null。
+   → Fix：改用 `_TIME_RE`（專門匹配 `HH:MM〜HH:MM` 格式）直接搜索 `full_description`，繞過前綴干擾。
+
+### 修復（commit `a0292a2`）
+- `scraper/sources/hakusuisha.py`：字元上限 4000 → 8000；`_extract_cards()` 加 `_KAIJO_RE`、`_SHUKAI_RE`、`_TIME_RE` 三個 regex；用 `_TIME_RE` 替代 `_JITSU_RE` 搜索 `full_description`
+
+### 教訓
+1. **Self-prepend 污染**：scraper 自己加的前綴（`開催日時: ...`）會干擾後續 regex，若用同一個 pattern 搜索整個 `raw_description`，應改用「不匹配前綴格式」的 pattern 或限定搜索範圍。
+2. **字元預算驗證**：任何 detail-page scraper 加完 HTMLParser skip-tags 後，應實際列印截取後的文字長度與關鍵標籤位置，確認業務內容在預算內。
+3. **Regex 偵測器作用域**：提取同一份文字的多個 regex（date vs hours）應明確區分作用域，避免同 pattern 匹配到 scraper 注入的中繼資料。
+
+---
+## 2026-05-04 — performer regex 假陽性掃描（純漢字限制）
+
+### 問題
+`_extract_performer_from_raw` 初版（commit `562a620`）對 295 件 performer=null 事件掃描時命中 3 件，人工複查發現全為假陽性：
+- `評論家の龍應台` — 平假名 `の` 被納入名字字串
+- `交流のあった萩原健太` — 上下文詞彙被納入名字字串
+- `裕美` — 缺姓（`平野 裕美`），名字抓取不完整
+
+### 根因
+`_PERFORMER_INTRO_RE` 的 name 字元類過寬（排除清單 `[^\s・：:,、...]`），允許平假名（`の`、`あった`）被捕獲進名字組。`_MUKAE_RE` 的 `を迎え` 未覆蓋帶 `お` 的敬語形式（`をお迎え`）。
+
+### 修復（commit `b2a8806`）
+- 兩個 regex 的 name 字元類改為純漢字 `[\u4e00-\u9fff]{2,6}`：確保只抓 2-6 個漢字，平假名前綴 (`評論家の`) 無法進入
+- `_MUKAE_RE` action 新增 `をお迎え`：覆蓋 `龍應台さんをお迎えし` 的敬語格式
+- 人工確認：龍應台（`d3938822`）和 平野裕美（`719aac3d`）直接 DB 更新 + `field_corrections` 保護；`afb5f87e`（雙人活動）保持 null
+
+### 教訓
+1. **名字字元類應設計為最保守**：「排除壞字元」不如「只允許好字元」——`[\u4e00-\u9fff]` 明確比 `[^\s...]` 可靠
+2. **每次 regex 修改後必須掃描現有資料驗證**：unit test 只測期望 case，掃描 DB 才能發現真實假陽性
+3. **雙語名字需特別注意**：漢語人名（龍應台）常附帶職稱前綴（評論家の），regex 必須正確定位 separator
+
+---
 ## 2026-05-04 — performer=null 儘管 raw_title 含 `氏を迎え`（event e72b2c15）
 
 ### 問題
