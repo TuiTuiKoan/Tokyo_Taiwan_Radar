@@ -74,9 +74,11 @@ from sources.faam_fukuoka import FaamFukuokaScraper
 from sources.note_creators import NoteCreatorsScraper
 from sources.zinbun_kyoto import ZinbunKyotoScraper
 from sources.uplink_cinema import UplinkCinemaScraper
+from sources.artistcafe import ArtistcafeScraper
 from sources.bookandbeer import BookandbeerScraper
 from sources.hakusuisha import HakusuishaScraper
 from sources.waseda_icl import WasedaIclScraper
+from sources.shin_bungeiza import ShinBungeizaScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -133,9 +135,11 @@ SCRAPERS = [
     NoteCreatorsScraper(),
     ZinbunKyotoScraper(),
     UplinkCinemaScraper(),
+    ArtistcafeScraper(),
     BookandbeerScraper(),
     HakusuishaScraper(),
     WasedaIclScraper(),
+    ShinBungeizaScraper(),
 ]
 
 
