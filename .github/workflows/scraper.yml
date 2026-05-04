@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       summary: ${{ steps.summarize.outputs.summary }}
+      annotate_outcome: ${{ steps.annotate_pending.outcome }}
+      backlog_health: ${{ steps.backlog.outputs.json }}
 
     steps:
       - name: Checkout repository
@@ -53,6 +55,24 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python merger.py
 
+      - name: Annotate pending events
+        id: annotate_pending
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python annotator.py --limit 500
+        continue-on-error: true
+
+      - name: Flag annotate failure
+        if: steps.annotate_pending.outcome != 'success'
+        run: |
+          echo "::warning::Annotate step failed (outcome=${{ steps.annotate_pending.outcome }}). Pending backlog may not have been drained."
+          echo "## \u26a0\ufe0f Annotate Failed" >> $GITHUB_STEP_SUMMARY
+          echo "Outcome: \`${{ steps.annotate_pending.outcome }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Pending backlog \u6d88\u5316\u672a\u57f7\u884c\uff0c\u8acb\u53c3\u8003\u4e0b\u65b9 Backlog Health \u5340\u584a\u3002" >> $GITHUB_STEP_SUMMARY
+
       - name: Fix reviewed events missing translations
         working-directory: scraper
         env:
@@ -75,6 +95,33 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python annotator.py --enrich-person-names
+
+      - name: Auto-QA scan (writes event_reports)
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python auto_qa.py
+        continue-on-error: true
+
+      - name: Backlog health snapshot
+        id: backlog
+        if: always()
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          HEALTH=$(python backlog_health.py)
+          echo "json=$HEALTH" >> $GITHUB_OUTPUT
+          echo "## \ud83d\udcca Backlog Health" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo "$HEALTH" | python -m json.tool >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          STATUS=$(echo "$HEALTH" | python -c "import sys,json;print(json.load(sys.stdin).get('status','unknown'))")
+          if [ "$STATUS" != "ok" ]; then
+            echo "::warning::Backlog status=$STATUS"
+          fi
 
       - name: Summarize run
         id: summarize
@@ -144,4 +191,6 @@ jobs:
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
           SCRAPE_SUMMARY: ${{ needs.scrape.outputs.summary }}
           VALIDATE_WARNINGS: ${{ needs.validate.outputs.warnings }}
+          ANNOTATE_OUTCOME: ${{ needs.scrape.outputs.annotate_outcome }}
+          BACKLOG_HEALTH: ${{ needs.scrape.outputs.backlog_health }}
         run: python notify.py

@@ -33,7 +33,7 @@ def _parse_env_json(var: str) -> dict:
         return {}
 
 
-def build_message(summary: dict, validate: dict) -> str:
+def build_message(summary: dict, validate: dict, annotate_outcome: str = "", backlog: dict | None = None) -> str:
     today = datetime.now(tz=JST).strftime("%Y-%m-%d")
     lines: list[str] = []
 
@@ -57,14 +57,37 @@ def build_message(summary: dict, validate: dict) -> str:
         for w in warnings:
             lines.append(f"  • {w}")
 
+    # Annotate failure alert (highest priority — shown even if backlog looks ok)
+    if annotate_outcome and annotate_outcome != "success":
+        lines.append("")
+        lines.append(f"🚨 Annotate 失敗（outcome={annotate_outcome}）")
+        lines.append("  今日 pending backlog 未消化，請查 GitHub Actions log")
+
+    # Backlog health alert
+    if backlog and backlog.get("status") and backlog["status"] != "ok":
+        icon = "🔴" if backlog["status"] == "critical" else "🟡"
+        lines.append("")
+        lines.append(f"{icon} Backlog Health：{backlog['status'].upper()}")
+        lines.append(f"  active pending: {backlog.get('active_pending', '?')}")
+        lines.append(f"  >7 天 pending: {backlog.get('old_pending_over_7d', '?')}")
+        if backlog.get("subevent_pending", 0) > 0:
+            lines.append(f"  ⚠️ sub-event pending: {backlog['subevent_pending']}")
+        top = backlog.get("top_sources", [])[:3]
+        if top:
+            lines.append("  Top sources:")
+            for t in top:
+                lines.append(f"    • {t['source']}: {t['count']}")
+
     return "\n".join(lines)
 
 
 def main() -> None:
     summary = _parse_env_json("SCRAPE_SUMMARY")
     validate = _parse_env_json("VALIDATE_WARNINGS")
+    annotate_outcome = os.environ.get("ANNOTATE_OUTCOME", "").strip()
+    backlog = _parse_env_json("BACKLOG_HEALTH") or None
 
-    msg = build_message(summary, validate)
+    msg = build_message(summary, validate, annotate_outcome, backlog)
     logger.info("Sending LINE notification (%d chars)", len(msg))
 
     success = send_line_message(msg)
