@@ -529,6 +529,31 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     return cats
 
 
+def _load_default_organizer_map(sb) -> dict[str, dict]:
+    """Load per-source default organizer from research_sources.
+    Returns {scraper_source_name: {"organizer": ..., "organizer_type": ...}}.
+    Only includes rows where default_organizer IS NOT NULL.
+    """
+    try:
+        res = (
+            sb.table("research_sources")
+            .select("scraper_source_name,default_organizer,default_organizer_type")
+            .not_.is_("default_organizer", "null")
+            .execute()
+        )
+        return {
+            r["scraper_source_name"]: {
+                "organizer": r["default_organizer"],
+                "organizer_type": r.get("default_organizer_type"),
+            }
+            for r in (res.data or [])
+            if r.get("scraper_source_name")
+        }
+    except Exception:
+        # research_sources may not have this column on older DB; degrade gracefully
+        return {}
+
+
 def annotate_pending_events(re_annotate_all: bool = False, fix_translations: bool = False, fix_reviewed: bool = False, event_id: str | None = None, limit: int | None = None) -> None:
     """Fetch pending events from DB, annotate with AI, and update."""
     sb = _get_supabase()
@@ -552,6 +577,12 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     }
     if human_category_map:
         logger.info("Loaded %d human-corrected category overrides", len(human_category_map))
+
+    # Load per-source default organizer from research_sources.
+    # Used as fallback when GPT returns organizer=null.
+    _default_org_map = _load_default_organizer_map(sb)
+    if _default_org_map:
+        logger.info("Loaded %d source default organizers", len(_default_org_map))
 
     # Fetch events to annotate
     # Always exclude 'reviewed' events — they are human-confirmed and must not be
@@ -827,10 +858,27 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "business_hours": event.get("business_hours") or _pre_hours or annotation.get("business_hours"),
                     "is_paid": event.get("is_paid") if event.get("is_paid") is not None else annotation.get("is_paid"),
                     "price_info": annotation.get("price_info") or event.get("price_info"),
-                    "organizer": _str(annotation.get("organizer")) or event.get("organizer"),
+                    "organizer": (
+                        _str(annotation.get("organizer"))
+                        or event.get("organizer")
+                        or (_default_org_map.get(event.get("source_name") or "", {}).get("organizer"))
+                    ),
                     "co_organizers": [s for s in (annotation.get("co_organizers") or []) if isinstance(s, str)],
                     "sponsors": [s for s in (annotation.get("sponsors") or []) if isinstance(s, str)],
-                    "organizer_type": _validate_organizer_types(annotation.get("organizer_type", [])),
+                    "organizer_type": (
+                        _validate_organizer_types(annotation.get("organizer_type", []))
+                        if (annotation.get("organizer_type") or ["unknown"]) != ["unknown"]
+                        else (
+                            [_default_org_map[event.get("source_name") or ""]["organizer_type"]]
+                            if (
+                                event.get("source_name") in _default_org_map
+                                and _default_org_map[event.get("source_name") or ""].get("organizer_type")
+                                and not _str(annotation.get("organizer"))
+                                and not event.get("organizer")
+                            )
+                            else _validate_organizer_types(annotation.get("organizer_type", []))
+                        )
+                    ),
                     "event_form": _validate_event_forms(annotation.get("event_form", [])),
                     "primary_language": _validate_primary_language(annotation.get("primary_language")),
                     "has_japanese_support": _validate_bool_or_none(annotation.get("has_japanese_support")),
@@ -1281,12 +1329,80 @@ def enrich_person_names() -> None:
     logger.info("enrich_person_names: patched %d/%d events", patched, len(events))
 
 
+def propagate_source_organizer(dry_run: bool = False) -> None:
+    """Propagate organizer from the plurality non-null value per source_name.
+
+    For each source_name that has at least one event with organizer set:
+      1. Count non-null organizer values across all events of that source.
+      2. Use the most common value (plurality).
+      3. Update all events with same source_name AND organizer IS NULL.
+         Includes reviewed events — organizer is a factual field; no annotation_status reset.
+
+    This is idempotent. Run after scraping new sources or when quality
+    checks reveal organizer gaps.
+    """
+    sb = _get_supabase()
+
+    # Fetch all events with source_name + organizer (any status, active or not)
+    res = (
+        sb.table("events")
+        .select("id,source_name,organizer,annotation_status")
+        .limit(10000)
+        .execute()
+    )
+    rows = res.data or []
+
+    # Build plurality organizer per source_name
+    from collections import Counter
+    source_org_counter: dict[str, Counter] = {}
+    for r in rows:
+        src = r.get("source_name")
+        org = r.get("organizer")
+        if src and org:
+            source_org_counter.setdefault(src, Counter())[org] += 1
+
+    plurality: dict[str, str] = {
+        src: counter.most_common(1)[0][0]
+        for src, counter in source_org_counter.items()
+    }
+
+    # Find events missing organizer
+    targets = [
+        r for r in rows
+        if r.get("source_name") in plurality and not r.get("organizer")
+    ]
+
+    logger.info(
+        "propagate_source_organizer: %d sources with organizer data, %d events to update (dry_run=%s)",
+        len(plurality), len(targets), dry_run,
+    )
+
+    if dry_run:
+        for r in targets[:20]:
+            logger.info(
+                "  would set id=%s source=%s organizer=%s",
+                r["id"], r.get("source_name"), plurality[r["source_name"]],
+            )
+        if len(targets) > 20:
+            logger.info("  ... and %d more", len(targets) - 20)
+        return
+
+    updated = 0
+    for r in targets:
+        src = r["source_name"]
+        org = plurality[src]
+        sb.table("events").update({"organizer": org}).eq("id", r["id"]).execute()
+        updated += 1
+
+    logger.info("propagate_source_organizer: updated %d events", updated)
+
+
 def backfill_tier1_events(limit: int = 50, dry_run: bool = False) -> None:
     """Reset already-annotated events that lack Tier 1 fields back to 'pending'
     so the next annotate pass fills organizer/event_form/language columns.
 
-    Selection: annotation_status='annotated' AND (organizer IS NULL OR organizer_type
-    is empty/null). Filtering done in Python to avoid Postgres array null semantics.
+    Selection: annotation_status='annotated' AND organizer IS NULL.
+    Filtering done in Python to avoid Postgres array null semantics.
     """
     sb = _get_supabase()
     res = (
@@ -1299,7 +1415,7 @@ def backfill_tier1_events(limit: int = 50, dry_run: bool = False) -> None:
     rows = res.data or []
     candidates = [
         r for r in rows
-        if not r.get("organizer") or not (r.get("organizer_type") or [])
+        if not r.get("organizer")
     ]
     target = candidates[:limit]
     logger.info(
@@ -1335,6 +1451,7 @@ if __name__ == "__main__":
             "  --enrich-movie-titles   Look up movie titles via eiga.com\n"
             "  --enrich-person-names   Look up person names for all events\n"
             "  --backfill-tier1        Reset annotated events lacking Tier 1 fields back to pending and re-annotate\n"
+            "  --propagate-source-organizer  Propagate organizer from plurality value per source_name to events with organizer=null (safe for reviewed events)\n"
             "  --id <uuid>             Operate on a single event by id\n"
             "  --limit <N>             Limit number of events processed (default 50 for backfill-tier1)\n"
             "  --dry-run               Print actions without writing to DB\n"
@@ -1347,12 +1464,15 @@ if __name__ == "__main__":
     enrich_movies = "--enrich-movie-titles" in sys.argv
     enrich_people = "--enrich-person-names" in sys.argv
     backfill_tier1 = "--backfill-tier1" in sys.argv
+    propagate_org = "--propagate-source-organizer" in sys.argv
     dry_run_flag = "--dry-run" in sys.argv
     event_id_arg = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--id"), None)
     limit_arg_str = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--limit"), None)
     limit_arg = int(limit_arg_str) if limit_arg_str else 50
     if backfill_tier1:
         backfill_tier1_events(limit=limit_arg, dry_run=dry_run_flag)
+    elif propagate_org:
+        propagate_source_organizer(dry_run=dry_run_flag)
     elif enrich_movies:
         enrich_movie_titles()
     elif enrich_people:
