@@ -223,7 +223,62 @@ export async function confirmReport(
     );
   }
 
-  // 4. Append entry to scraper-expert history.md via GitHub API
+  // 3b. Persist field-level corrections to field_corrections table (P1).
+  //     One row per (event_id, field_name). Upserts overwrite on repeat corrections.
+  //     The annotator reads this table at startup and skips AI output for any
+  //     (event_id, field_name) pair already corrected by a human.
+  if (isWrongDetails) {
+    // Fetch original values from DB for the diff record
+    const colsToFetch = wrongFields
+      .flatMap((f) => Object.values(FIELD_LOCALE_COL[f] ?? {}))
+      .filter(Boolean);
+
+    const originalValues: Record<string, string | null> = {};
+    if (colsToFetch.length > 0) {
+      const { data: origRow } = await supabase
+        .from("events")
+        .select(colsToFetch.join(","))
+        .eq("id", input.eventId)
+        .single();
+      if (origRow) {
+        for (const col of colsToFetch) {
+          originalValues[col] = (origRow as Record<string, unknown>)[col] as string | null ?? null;
+        }
+      }
+    }
+
+    const fcRows: {
+      event_id: string;
+      field_name: string;
+      original_value: string | null;
+      corrected_value: string;
+      corrected_by: string;
+    }[] = [];
+
+    for (const field of wrongFields) {
+      const localeColMap = FIELD_LOCALE_COL[field] ?? {};
+      for (const [, dbCol] of Object.entries(localeColMap) as [string, string][]) {
+        const corrected = (corrections[field]?.[
+          Object.entries(localeColMap).find(([, c]) => c === dbCol)?.[0] ?? ""
+        ] ?? "").trim();
+        if (corrected) {
+          fcRows.push({
+            event_id: input.eventId,
+            field_name: dbCol,
+            original_value: originalValues[dbCol] ?? null,
+            corrected_value: corrected,
+            corrected_by: user.id,
+          });
+        }
+      }
+    }
+
+    if (fcRows.length > 0) {
+      await supabase
+        .from("field_corrections")
+        .upsert(fcRows, { onConflict: "event_id,field_name" });
+    }
+  }
   const githubUpdated = await appendToHistoryFile(input, wrongFields, hasScraperOnlyFields);
 
   // 5. Append "Pending Rule" to per-source SKILL.md if one exists

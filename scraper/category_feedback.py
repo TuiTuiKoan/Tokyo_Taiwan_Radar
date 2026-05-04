@@ -27,7 +27,7 @@ def load_corrections(sb: Client) -> list[dict]:
     try:
         result = (
             sb.table("category_corrections")
-            .select("raw_title, ai_category, corrected_category")
+            .select("raw_title, raw_description, ai_category, corrected_category")
             .order("created_at", desc=True)
             .limit(MAX_EXAMPLES)
             .execute()
@@ -57,8 +57,11 @@ def build_feedback_prompt(corrections: list[dict]) -> str:
         title = (c.get("raw_title") or "").strip()[:100]
         ai_cats = c.get("ai_category", [])
         correct_cats = c.get("corrected_category", [])
+        desc_snippet = (c.get("raw_description") or "").strip()[:150]
+        context_line = f'     Context: "{desc_snippet}..."\n' if desc_snippet else ""
         lines.append(
-            f"  {i}. \"{title}\"\n"
+            f'  {i}. "{title}"\n'
+            f"{context_line}"
             f"     AI predicted: {json.dumps(ai_cats)}\n"
             f"     Correct answer: {json.dumps(correct_cats)}"
         )

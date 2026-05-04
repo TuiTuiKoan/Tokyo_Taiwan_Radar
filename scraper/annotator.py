@@ -286,6 +286,14 @@ EVENT STATUS RULES:
    - "rescheduled" — 再延期 / 日程変更 / rescheduled (with new date)
 2. Default to "scheduled" for all normal listings. NEVER infer from absence of date.
 
+PERFORMER EXTRACTION RULES:
+1. performer: The single primary person (not organization) who performs, presents, or demonstrates at the event in a featured role.
+   Examples: "料理研究家・宮武衣充氏を迎え" → "宮武衣充", "映画監督 ジャ・ジャンクー登壇" → "ジャ・ジャンクー", "講師：王美蘭氏" → "王美蘭".
+2. Output bare personal name only — strip honorifics/titles (氏/さん/先生/先生/監督/研究家/教授 etc.) from the output.
+3. Set null for: exhibitions, markets, general screenings without Q&A, conferences with no single featured speaker, events where only organization names appear.
+4. When multiple performers mentioned: output only the most prominently featured person.
+5. NEVER set performer to an organization name — organization names belong in organizer.
+
 TAIWAN-VENUE EVENTS — SPECIAL RULES:
 When an event is held IN TAIWAN (location in Taipei, Taichung, Kaohsiung, etc.):
   INCLUDE if:
@@ -336,6 +344,7 @@ Respond with valid JSON matching this schema:
   "price_amount": number or null,
   "price_currency": "JPY",
   "event_status": "scheduled",
+  "performer": "bare personal name or null",
   "selection_reason": {
     "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
@@ -369,7 +378,8 @@ Respond with valid JSON matching this schema:
       "organizer_url": "official URL of organizer" or null,
       "price_amount": number or null,
       "price_currency": "JPY",
-      "event_status": "scheduled"
+      "event_status": "scheduled",
+      "performer": "bare personal name or null"
     }
   ]
 }"""
@@ -593,6 +603,22 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     }
     if human_category_map:
         logger.info("Loaded %d human-corrected category overrides", len(human_category_map))
+
+    # Load field-level corrections (migration 038 — P1).
+    # Builds: event_id → set of DB column names that must NOT be overwritten by AI.
+    # Falls back to empty dict when the table doesn't exist yet (pre-migration).
+    human_field_map: dict[str, set[str]] = {}
+    try:
+        fc_res = sb.table("field_corrections").select("event_id,field_name").execute()
+        for r in (fc_res.data or []):
+            eid_fc = r.get("event_id")
+            fname = r.get("field_name")
+            if eid_fc and fname:
+                human_field_map.setdefault(eid_fc, set()).add(fname)
+        if human_field_map:
+            logger.info("Loaded field corrections for %d events", len(human_field_map))
+    except Exception as fc_err:
+        logger.debug("field_corrections table not available (run migration 038): %s", fc_err)
 
     # Fetch events to annotate
     # Always exclude 'reviewed' events — they are human-confirmed and must not be
@@ -823,8 +849,17 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             # (admin correction lost) unless we check for existing non-null values first.
             _protect = not re_annotate_all and event_id is None
 
+            # P1 field-protection: honour field_corrections table (migration 038).
+            # Any (event_id, field_name) pair in human_field_map was explicitly corrected
+            # by an admin and must NEVER be overwritten by AI output.
+            _human_protected: set[str] = human_field_map.get(eid, set())
+
             def _ai_or_existing(fname: str, ai_val: Any) -> Any:
-                """Use AI value for null DB fields; keep DB value when protect mode active."""
+                """Use AI value for null DB fields; keep DB value when protect mode active.
+                Always defer to human_field_map entries regardless of protect mode."""
+                if fname in _human_protected:
+                    # Human explicitly corrected this field — never overwrite
+                    return event.get(fname)
                 if _protect:
                     existing = event.get(fname)
                     if existing is not None:
@@ -881,6 +916,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "price_amount": _ai_or_existing("price_amount", _validate_price_amount(annotation.get("price_amount"))),
                     "price_currency": _ai_or_existing("price_currency", _validate_price_currency(annotation.get("price_currency"))),
                     "event_status": _ai_or_existing("event_status", _validate_event_status(annotation.get("event_status"))),
+                    "performer": _ai_or_existing("performer", _str(annotation.get("performer"))),
                     "annotation_status": "annotated",
                     "annotated_at": datetime.utcnow().isoformat(),
                 }
@@ -897,9 +933,12 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             }
             # Only send non-null values; in protect mode also skip fields where DB
             # already has a non-null value (admin-corrected localized location fields).
+            # Also skip any field in _human_protected (explicitly corrected by admin).
             localized_location_data = {
                 k: v for k, v in localized_location_data.items()
-                if v is not None and not (_protect and event.get(k) is not None)
+                if v is not None
+                and k not in _human_protected
+                and not (_protect and event.get(k) is not None)
             }
 
             # Ensure end_date is not null when start_date exists (skip in fix_reviewed mode)
@@ -986,6 +1025,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "price_amount": _validate_price_amount(sub.get("price_amount")),
                     "price_currency": _validate_price_currency(sub.get("price_currency")),
                     "event_status": _validate_event_status(sub.get("event_status")),
+                    "performer": _str(sub.get("performer")),
                     "is_active": True,
                     "parent_event_id": eid,
                     "raw_title": sub_raw_title,
@@ -1336,6 +1376,75 @@ def enrich_person_names() -> None:
     logger.info("enrich_person_names: patched %d/%d events", patched, len(events))
 
 
+def backfill_price_from_price_info() -> None:
+    """Regex-based price_amount extraction from existing price_info.
+    Targets: is_paid=True AND price_amount IS NULL AND price_info IS NOT NULL.
+    No GPT calls — runs instantly and at no cost.
+    """
+    import re as _re
+    sb = _get_supabase()
+    res = (
+        sb.table("events")
+        .select("id,price_info")
+        .eq("is_paid", True)
+        .is_("price_amount", "null")
+        .not_.is_("price_info", "null")
+        .execute()
+    )
+    rows = res.data or []
+    updated = 0
+    skipped = 0
+    for e in rows:
+        pi = (e.get("price_info") or "").replace("，", ",").replace("\u3000", " ")
+        m = _re.search(r"([\d,]+)\s*円", pi)
+        if m:
+            price = float(m.group(1).replace(",", ""))
+            if price > 0:
+                sb.table("events").update({"price_amount": price}).eq("id", e["id"]).execute()
+                updated += 1
+            else:
+                skipped += 1
+        else:
+            skipped += 1
+    logger.info(
+        "backfill_price: updated=%d skipped=%d total=%d",
+        updated, skipped, len(rows),
+    )
+
+
+def backfill_performer_events(limit: int = 50, dry_run: bool = False) -> None:
+    """Reset annotated events that have organizer but no performer back to pending
+    so the annotator fills the performer field via GPT extraction.
+
+    Selection: annotation_status='annotated' AND performer IS NULL AND organizer IS NOT NULL.
+    """
+    sb = _get_supabase()
+    res = (
+        sb.table("events")
+        .select("id,performer,organizer")
+        .eq("annotation_status", "annotated")
+        .not_.is_("organizer", "null")
+        .is_("performer", "null")
+        .limit(limit)
+        .execute()
+    )
+    target = res.data or []
+    logger.info(
+        "backfill_performer: %d targeted (dry_run=%s)",
+        len(target), dry_run,
+    )
+    if dry_run:
+        for r in target:
+            logger.info("  would reset id=%s organizer=%s", r["id"], r.get("organizer"))
+        return
+
+    for r in target:
+        sb.table("events").update({"annotation_status": "pending"}).eq("id", r["id"]).execute()
+
+    if target:
+        annotate_pending_events(limit=limit)
+
+
 def backfill_tier1_events(limit: int = 50, dry_run: bool = False) -> None:
     """Reset already-annotated events that lack Tier 1 fields back to 'pending'
     so the next annotate pass fills organizer/event_form/language columns.
@@ -1390,6 +1499,8 @@ if __name__ == "__main__":
             "  --enrich-movie-titles   Look up movie titles via eiga.com\n"
             "  --enrich-person-names   Look up person names for all events\n"
             "  --backfill-tier1        Reset annotated events lacking Tier 1 fields back to pending and re-annotate\n"
+            "  --backfill-price        Regex-extract price_amount from existing price_info (no GPT)\n"
+            "  --backfill-performer    Reset events with organizer but no performer; re-annotate to fill performer\n"
             "  --id <uuid>             Operate on a single event by id\n"
             "  --limit <N>             Limit number of events processed (default 50 for backfill-tier1)\n"
             "  --dry-run               Print actions without writing to DB\n"
@@ -1402,12 +1513,18 @@ if __name__ == "__main__":
     enrich_movies = "--enrich-movie-titles" in sys.argv
     enrich_people = "--enrich-person-names" in sys.argv
     backfill_tier1 = "--backfill-tier1" in sys.argv
+    backfill_price = "--backfill-price" in sys.argv
+    backfill_performer = "--backfill-performer" in sys.argv
     dry_run_flag = "--dry-run" in sys.argv
     event_id_arg = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--id"), None)
     limit_arg_str = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--limit"), None)
     limit_arg = int(limit_arg_str) if limit_arg_str else 50
     if backfill_tier1:
         backfill_tier1_events(limit=limit_arg, dry_run=dry_run_flag)
+    elif backfill_price:
+        backfill_price_from_price_info()
+    elif backfill_performer:
+        backfill_performer_events(limit=limit_arg, dry_run=dry_run_flag)
     elif enrich_movies:
         enrich_movie_titles()
     elif enrich_people:
