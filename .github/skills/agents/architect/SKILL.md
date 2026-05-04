@@ -356,6 +356,27 @@ Missing any point causes silent failures. Particularly:
 - After adding a new category with new keywords, run a dry-run of `backfill_categories.py` and manually inspect every match before applying to DB.
 - When a backfill produces a suspicious tag (e.g., a plant-walk event tagged `academic`), trace which keyword triggered it and tighten the rule immediately.
 
+## GitHub Actions Cron Dispatch Guard
+
+在設計任何使用 `schedule:` cron 觸發並需要根據「是哪個 cron 觸發的」來 dispatch 不同行為的 workflow 前，**必須**確認：
+
+1. **不要用精確小時 `-eq` 判斷**：GitHub Actions cron 啟動有 1–2 小時（甚至更長）的延遲。`if [ "$HOUR" -eq 21 ]` 在實際執行時幾乎永遠不會匹配。
+2. **改用 6 小時視窗 `-ge`/`-lt`**：每個 cron slot 之間間隔 6 小時，用視窗範圍覆蓋延遲。
+3. **`else` fallthrough 必須是安全行為**：若用 `else` 作 fallthrough，部署後要驗證每個分支是否都有被正確觸發，不能假設 `else` 只有在「預期外情況」才觸發。
+4. **費用驗證**：multi-slot researcher 的費用應該均勻分布在各 slot；若某一 slot 費用異常高（如 $2.62 vs 其他 $0），應立即檢查 dispatch 邏輯。
+
+Reference incident: 2026-05-04 — `researcher.yml` 所有 4 個 cron 全部 fallthrough 到 `else → slot3`，slot3 費用 $2.62/週（正常應為 $0.67），slot0/1/2 幾乎未執行。修復：改用 6 小時視窗。
+
+## Scraper Failure Notes Guard
+
+在設計或審核任何 `scraper_runs` 寫入邏輯前，**必須**確認：
+
+1. **`success=False` 必須搭配 `notes`**：只寫 `success=False` 等於告訴你「失敗了，但不知道為什麼」。`notes` 欄位必須包含 `f"{type(exc).__name__}: {exc}"[:500]`。
+2. **事後診斷需要 notes**：無 notes 的失敗記錄在週報中只能顯示「❌×N」，無法判斷是網路問題、selector 失效還是程式 bug。
+3. **failure 寫入自身不應 raise**：failure logging 的 `except Exception: pass` 是正確的，避免 logging 失敗掩蓋原始錯誤。
+
+Reference incident: 2026-05-04 — eurospace 3 次失敗（4/28–4/29）notes 全為 NULL，無法從 DB 追溯原因。修復：`main.py` except 區塊新增 `"notes"` 欄位。
+
 ## AI Model Selection
 - Verify model capabilities before designing features requiring real-time data (web search, live prices, current events). `gpt-4o-mini` and `gpt-4o` have no web browsing. Use `gpt-4o-search-preview` or a real search API for current data.
 - "Plausible-looking output" ≠ "real data access." A model without search access will hallucinate convincing-looking URLs.

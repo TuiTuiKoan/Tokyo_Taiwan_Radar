@@ -3,6 +3,24 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04 — GitHub Actions Cron Slot 精確匹配 Fallthrough + Scraper Notes 空白
+
+### 問題 1：researcher/slot3 每週費用 $2.62（應為 $0.67）
+`researcher.yml` 以 `-eq 21/3/9` 精確匹配 UTC 小時，但 GitHub Actions 有 1–2 小時延遲，導致所有 4 次 cron 全部 fallthrough 到 `else → slot3`。slot3 每天被研究 4 次，slot0/1/2 的 9 個 categories 完全未執行。本週僅 researcher/slot3 記錄 18 次執行、$2.62；slot0 只有 4 次（手動觸發）、slot1/slot2 無記錄。
+
+### 問題 2：Scraper 失敗 notes 為空
+`main.py` 的 except 區塊只寫 `success=False`，沒有帶入錯誤訊息到 `notes`。eurospace 3 次失敗（4/28–4/29）事後無法從 DB 知道失敗原因。
+
+### 修復
+1. `researcher.yml`：改用 6 小時視窗判斷（`-ge 18/12/6`）
+2. `main.py`：except 區塊新增 `"notes": f"{type(exc).__name__}: {exc}"[:500]`
+
+### 教訓
+1. GitHub Actions cron 有 1–2 小時延遲；bash 中絕不用 `-eq` 精確匹配小時，改用 6 小時視窗
+2. `else` 預設分支若覆蓋「所有其他情況」，部署後必須驗證每個 cron 槽位都觸發到正確分支
+3. DB failure record 沒有 notes = 診斷盲點；`success=False` 必須搭配 `notes = ExceptionType: message`
+
+---
 ## 2026-05-04 — Sub-Venue Parent Address Guard
 
 ### 問題
