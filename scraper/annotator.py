@@ -31,6 +31,7 @@ from playwright.sync_api import sync_playwright, Browser, TimeoutError as PWTime
 from supabase import create_client, Client
 
 from category_feedback import load_corrections, build_feedback_prompt
+from selection_reason_feedback import load_sr_corrections, build_sr_feedback_prompt
 from movie_title_lookup import lookup_movie_titles
 from person_name_lookup import (
     PersonInfo,
@@ -407,9 +408,9 @@ def _get_openai() -> OpenAI:
     return OpenAI(api_key=api_key)
 
 
-def _annotate_one(client: OpenAI, raw_title: str, raw_description: str, feedback_prompt: str = "") -> dict:
+def _annotate_one(client: OpenAI, raw_title: str, raw_description: str, feedback_prompt: str = "", sr_feedback_prompt: str = "") -> dict:
     """Send raw event data to GPT-4o-mini and return structured annotation."""
-    system_content = SYSTEM_PROMPT + feedback_prompt
+    system_content = SYSTEM_PROMPT + feedback_prompt + sr_feedback_prompt
     user_content = f"Raw Title: {raw_title or '(no title)'}\n\nRaw Description:\n{raw_description or '(no description)'}"
 
     # Truncate very long descriptions to stay within token limits
@@ -567,6 +568,12 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     if corrections:
         logger.info("Loaded %d category corrections as few-shot examples", len(corrections))
 
+    # Load selection_reason corrections for few-shot guidance (P3.3 — migration 040).
+    sr_corrections = load_sr_corrections(sb)
+    sr_feedback_prompt = build_sr_feedback_prompt(sr_corrections)
+    if sr_corrections:
+        logger.info("Loaded %d selection_reason correction examples", len(sr_corrections))
+
     # Load full event_id → corrected_category map so the annotator can
     # apply human corrections directly and skip AI category prediction.
     # This ensures re-annotation never overwrites manually corrected categories.
@@ -656,6 +663,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     total_tokens_in = 0
     total_tokens_out = 0
     events_ok = 0
+    field_protect_hits: int = 0  # P4 #5: count of fields protected by field_corrections table
 
     # Count how many google_news_rss events need article fetch.
     # Fetch when start_date is missing (original case) OR raw_description is
@@ -757,7 +765,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
         logger.info("[%d/%d] Annotating: %s", i, len(events), raw_title[:60])
 
         try:
-            annotation, usage = _annotate_one(ai, raw_title, raw_desc, feedback_prompt)
+            annotation, usage = _annotate_one(ai, raw_title, raw_desc, feedback_prompt, sr_feedback_prompt)
             if usage:
                 total_tokens_in += usage.prompt_tokens or 0
                 total_tokens_out += usage.completion_tokens or 0
@@ -791,8 +799,10 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             def _ai_or_existing(fname: str, ai_val: Any) -> Any:
                 """Use AI value for null DB fields; keep DB value when protect mode active.
                 Always defer to human_field_map entries regardless of protect mode."""
+                nonlocal field_protect_hits
                 if fname in _human_protected:
                     # Human explicitly corrected this field — never overwrite
+                    field_protect_hits += 1
                     return event.get(fname)
                 if _protect:
                     existing = event.get(fname)
@@ -1157,7 +1167,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             "openai_tokens_out": total_tokens_out,
             "cost_usd": round(cost, 6),
             "duration_seconds": int(time.time() - annotation_start),
-            "notes": f"re_annotate_all={re_annotate_all}, fix_translations={fix_translations}, fix_reviewed={fix_reviewed}, total={len(events)}",
+            "notes": f"re_annotate_all={re_annotate_all}, fix_translations={fix_translations}, fix_reviewed={fix_reviewed}, total={len(events)}, field_protect_hits={field_protect_hits}",
         }).execute()
         logger.info(
             "scraper_runs logged: %d events, %d in / %d out tokens, $%.6f",

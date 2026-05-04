@@ -8,7 +8,7 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `038b_field_corrections.sql`
+- Number migrations sequentially: `001`, `002`, … Latest is `040_selection_reason_corrections.sql`
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped; `029_aeo_visits.sql` + `029b_realtime_events.sql`; `038_performer.sql` + `038b_field_corrections.sql`
 
@@ -75,7 +75,8 @@ Unique constraint: `(source_name, source_id)`
 - `creators` — Taiwan creators/voices in Japan: name, platform, handle, profile_url, category, base_location, nationality, is_active, approx_followers, last_post_at, notes
 - `creator_events` — `(creator_id uuid, event_id uuid, relationship text)` links creators to events
 - `line_subscribers` — LINE OA subscribers: `line_user_id`, `status` (`active`/`blocked`), `language_preference`, `category_preferences text[]`; service-role-only RLS (migration 022)
-- `field_corrections` — admin-corrected field values: `(event_id, field_name)` unique; `original_value`, `corrected_value`, `corrected_by`; annotator reads at startup and never overwrites protected fields
+- `field_corrections` — admin-corrected field values: `(event_id, field_name)` unique; `original_value`, `corrected_value`, `corrected_by`, `report_id` (FK→event_reports, nullable); annotator reads at startup and never overwrites protected fields
+- `selection_reason_corrections` — admin-corrected `selection_reason` records: `event_id` unique; `raw_title`, `raw_description` (for few-shot context); `ai_sr` jsonb, `corrected_sr` jsonb; annotator reads at startup via `selection_reason_feedback.py` for few-shot injection
 
 ## RLS policies
 
@@ -92,7 +93,7 @@ Unique constraint: `(source_name, source_id)`
 
 ## Migration checklist
 
-1. Number the file `NNN_descriptive_name.sql` (next = `039`)
+1. Number the file `NNN_descriptive_name.sql` (next = `041`)
 2. Use `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE … ADD COLUMN IF NOT EXISTS`
 3. Add RLS with `ALTER TABLE … ENABLE ROW LEVEL SECURITY` + policies
 4. Test in Supabase SQL Editor before committing

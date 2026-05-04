@@ -253,6 +253,7 @@ export async function confirmReport(
       original_value: string | null;
       corrected_value: string;
       corrected_by: string;
+      report_id: string | null;
     }[] = [];
 
     for (const field of wrongFields) {
@@ -268,6 +269,7 @@ export async function confirmReport(
             original_value: originalValues[dbCol] ?? null,
             corrected_value: corrected,
             corrected_by: user.id,
+            report_id: input.reportId ?? null,
           });
         }
       }
@@ -277,6 +279,38 @@ export async function confirmReport(
       await supabase
         .from("field_corrections")
         .upsert(fcRows, { onConflict: "event_id,field_name" });
+    }
+  }
+
+  // 3c. Persist selection_reason correction to selection_reason_corrections (P3.3 — migration 040).
+  //     Records the original AI output vs admin correction as a few-shot training example.
+  //     annotator.py reads this table at startup via selection_reason_feedback.py.
+  if (isWrongSelectionReason && input.correctedSelectionReason) {
+    const { data: srOrigRow } = await supabase
+      .from("events")
+      .select("selection_reason,raw_title,raw_description")
+      .eq("id", input.eventId)
+      .single();
+
+    const aiSr: unknown = srOrigRow?.selection_reason
+      ? (() => { try { return JSON.parse(srOrigRow.selection_reason as string); } catch { return null; } })()
+      : null;
+    const correctedSrParsed: unknown = (() => {
+      try { return JSON.parse(input.correctedSelectionReason); } catch { return null; }
+    })();
+
+    if (correctedSrParsed) {
+      await supabase.from("selection_reason_corrections").upsert(
+        {
+          event_id: input.eventId,
+          raw_title: (srOrigRow?.raw_title as string | null) ?? null,
+          raw_description: (srOrigRow?.raw_description as string | null) ?? null,
+          ai_sr: aiSr ?? null,
+          corrected_sr: correctedSrParsed,
+          corrected_by: user.id,
+        },
+        { onConflict: "event_id" }
+      );
     }
   }
   const githubUpdated = await appendToHistoryFile(input, wrongFields, hasScraperOnlyFields);
