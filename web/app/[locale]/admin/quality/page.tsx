@@ -3,70 +3,18 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale } from "@/lib/types";
 import AdminTabNav from "@/components/AdminTabNav";
-import Link from "next/link";
+import QualitySection, { type QualityRow } from "@/components/QualitySection";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
+  searchParams: Promise<{ source?: string }>;
 }
 
-interface QualityRow {
-  id: string;
-  raw_title: string | null;
-  source_name: string | null;
-  location_name?: string | null;
-  location_prefectures?: string[] | null;
-}
-
-function renderDetailTable(
-  items: QualityRow[],
-  locale: Locale,
-) {
-  if (items.length === 0) return null;
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="text-xs text-gray-400 border-b border-gray-100">
-            <th className="text-left py-2 pr-4 font-medium">Title</th>
-            {items.some((i) => i.location_name !== undefined) && (
-              <th className="text-left py-2 pr-4 font-medium">Venue</th>
-            )}
-            <th className="text-left py-2 pr-4 font-medium">Source</th>
-            <th className="text-left py-2 font-medium">ID</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
-              <td className="py-2 pr-4 max-w-xs truncate">
-                <Link
-                  href={`/${locale}/events/${item.id}`}
-                  className="text-green-700 hover:underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {item.raw_title ?? item.id}
-                </Link>
-              </td>
-              {item.location_name !== undefined && (
-                <td className="py-2 pr-4 text-xs text-gray-500 max-w-[12rem] truncate">{item.location_name ?? "—"}</td>
-              )}
-              <td className="py-2 pr-4">
-                <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 font-mono">
-                  {item.source_name ?? "—"}
-                </span>
-              </td>
-              <td className="py-2 text-xs text-gray-400 font-mono">{item.id.slice(0, 8)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-export default async function AdminQualityPage({ params }: PageProps) {
+export default async function AdminQualityPage({ params, searchParams }: PageProps) {
   const { locale } = await params;
+  const { source: rawSource } = await searchParams;
+  const source = rawSource?.trim() || undefined;
+
   const t = await getTranslations("admin");
 
   const supabase = await createClient();
@@ -80,41 +28,47 @@ export default async function AdminQualityPage({ params }: PageProps) {
     .single();
   if (!roleRow || roleRow.role !== "admin") redirect(`/${locale}`);
 
+  let reviewedMissingQuery = supabase
+    .from("events")
+    .select("id, raw_title, source_name")
+    .eq("annotation_status", "reviewed")
+    .eq("is_active", true)
+    .or("name_zh.is.null,name_en.is.null")
+    .limit(50);
+
+  let annotatedNoCatQuery = supabase
+    .from("events")
+    .select("id, raw_title, source_name")
+    .eq("annotation_status", "annotated")
+    .eq("is_active", true)
+    .or("category.is.null,category.eq.{}")
+    .limit(50);
+
+  let missingAddrQuery = supabase
+    .from("events")
+    .select("id, raw_title, source_name, location_name, location_prefectures")
+    .eq("is_active", true)
+    .not("location_name", "is", null)
+    .is("location_address", null)
+    .neq("source_name", "gguide_tv")
+    .not("location_name", "like", "%〒%")
+    .not("location_name", "ilike", "%オンライン%")
+    .not("location_name", "ilike", "%youtube%")
+    .not("location_name", "ilike", "%zoom%")
+    .not("location_name", "ilike", "%ウェビナー%")
+    .not("location_name", "ilike", "%webinar%")
+    .limit(100);
+
+  if (source) {
+    reviewedMissingQuery = reviewedMissingQuery.eq("source_name", source) as typeof reviewedMissingQuery;
+    annotatedNoCatQuery = annotatedNoCatQuery.eq("source_name", source) as typeof annotatedNoCatQuery;
+    missingAddrQuery = missingAddrQuery.eq("source_name", source) as typeof missingAddrQuery;
+  }
+
   const [reviewedMissingRes, annotatedNoCatRes, missingAddrRes] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id, raw_title, source_name")
-      .eq("annotation_status", "reviewed")
-      .eq("is_active", true)
-      .or("name_zh.is.null,name_en.is.null")
-      .limit(50),
-    supabase
-      .from("events")
-      .select("id, raw_title, source_name")
-      .eq("annotation_status", "annotated")
-      .eq("is_active", true)
-      .or("category.is.null,category.eq.{}")
-      .limit(50),
-    // Flag events that HAVE a venue name but are missing a physical address.
-    // Events with no location_name at all (e.g. online, competition/scholarship)
-    // are intentionally excluded — they have no fixed venue to geocode.
-    // DB exclusions:
-    //  - 〒 embedded: address already present in the name
-    //  - online terms: オンライン, YouTube, Zoom, ウェビナー, webinar
-    supabase
-      .from("events")
-      .select("id, raw_title, source_name, location_name, location_prefectures")
-      .eq("is_active", true)
-      .not("location_name", "is", null)
-      .is("location_address", null)
-      .neq("source_name", "gguide_tv")
-      .not("location_name", "like", "%〒%")
-      .not("location_name", "ilike", "%オンライン%")
-      .not("location_name", "ilike", "%youtube%")
-      .not("location_name", "ilike", "%zoom%")
-      .not("location_name", "ilike", "%ウェビナー%")
-      .not("location_name", "ilike", "%webinar%")
-      .limit(100),
+    reviewedMissingQuery,
+    annotatedNoCatQuery,
+    missingAddrQuery,
   ]);
 
   const reviewedMissing = (reviewedMissingRes.data ?? []) as QualityRow[];
@@ -132,10 +86,10 @@ export default async function AdminQualityPage({ params }: PageProps) {
   });
 
   const sections = [
-    { key: "qualityReviewedMissing", items: reviewedMissing },
-    { key: "qualityAnnotatedNoCat", items: annotatedNoCat },
-    { key: "qualityMissingAddr", items: missingAddr },
-  ] as const;
+    { key: "qualityReviewedMissing" as const, items: reviewedMissing },
+    { key: "qualityAnnotatedNoCat" as const, items: annotatedNoCat },
+    { key: "qualityMissingAddr" as const, items: missingAddr },
+  ];
 
   return (
     <div>
@@ -143,28 +97,53 @@ export default async function AdminQualityPage({ params }: PageProps) {
 
       {/* Tab nav */}
 
-
       <AdminTabNav locale={locale} activeTab="quality" />
 
       <h2 className="text-lg font-semibold mb-4">{t("qualityTitle")}</h2>
 
-      <div className="space-y-8">
+      {/* Source filter bar */}
+      <form method="GET" className="flex items-center gap-2 mb-6">
+        <label className="text-sm text-gray-600 shrink-0">
+          {t("qualityFilterLabel")}
+        </label>
+        <input
+          type="text"
+          name="source"
+          defaultValue={source ?? ""}
+          placeholder={t("qualityFilterPlaceholder")}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono w-56 focus:outline-none focus:ring-1 focus:ring-green-400"
+        />
+        <button
+          type="submit"
+          className="px-3 py-1.5 text-sm bg-green-700 text-white rounded-lg hover:bg-green-800"
+        >
+          &#x1F50E;
+        </button>
+        {source && (
+          <a
+            href="?"
+            className="text-sm text-gray-500 hover:underline"
+          >
+            {t("qualityFilterClear")}
+          </a>
+        )}
+        {source && (
+          <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-mono">
+            {t("qualityFilterActive", { source })}
+          </span>
+        )}
+      </form>
+
+      <div className="space-y-4">
         {sections.map(({ key, items }) => (
-          <div key={key} className="rounded-xl border border-gray-200 bg-white px-5 py-4">
-            <div className="flex items-center gap-2 mb-3">
-              <h3 className="text-sm font-semibold text-gray-700">
-                {t(key)}
-              </h3>
-              <span className={`text-sm font-medium ${items.length === 0 ? "text-green-600" : "text-amber-600"}`}>
-                {items.length}
-              </span>
-            </div>
-            {items.length === 0 ? (
-              <p className="text-sm text-green-600">{t("qualityAllClear")}</p>
-            ) : (
-              renderDetailTable(items, locale)
-            )}
-          </div>
+          <QualitySection
+            key={key}
+            title={t(key)}
+            count={items.length}
+            locale={locale}
+            items={items}
+            allClearLabel={t("qualityAllClear")}
+          />
         ))}
       </div>
     </div>
