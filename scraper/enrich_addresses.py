@@ -1,6 +1,6 @@
 """
 enrich_addresses.py — Look up physical addresses for events with a venue name
-but no location_address, using OpenAI gpt-4o-mini.
+but no location_address, using OpenAI gpt-4o-search-preview (real web search).
 
 Usage:
     python enrich_addresses.py [--dry-run] [--source SOURCE_NAME]
@@ -26,16 +26,19 @@ SKIP_VENUE_KEYWORDS = ["オンライン", "電視頻道", "online", "Online"]
 
 SYSTEM_PROMPT = """\
 You are a venue address lookup assistant.
-Given a Japanese venue name, return the physical address in JSON.
+Given a Japanese venue name, search the web and return the verified physical address in JSON.
 
 Rules:
-- If you are confident about the address, return it.
+- Search the web for the venue's official address. Only use the result if it matches an
+  authoritative source (official website, Google Maps, Tabelog, etc.).
 - Address format: Japanese postal format (e.g., 東京都渋谷区神宮前1-14-30).
-- Also provide an English translation of the address.
-- If you cannot confidently determine the address, return null for all fields.
-- DO NOT fabricate addresses. Only return addresses you are certain about.
+  For sub-venues (e.g. "○○S.C. 森のまち広場"), return the parent facility's address.
+- Also provide Traditional Chinese and English translations of the address.
+- If the venue is online-only, a TV channel, or you cannot find a reliable address,
+  return null for all fields.
+- DO NOT fabricate or guess addresses. Only return what you found via web search.
 
-Return JSON only, no markdown:
+Return JSON only (no markdown code fences):
 {
   "location_address": "<日本語住所 or null>",
   "location_address_zh": "<繁體中文住所 or null>",
@@ -48,16 +51,27 @@ Return JSON only, no markdown:
 def lookup_address(client: OpenAI, venue_name: str) -> dict | None:
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o-search-preview",
+            web_search_options={"search_context_size": "low"},
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": f"Venue: {venue_name}"},
             ],
-            temperature=0,
-            max_tokens=300,
+            # gpt-4o-search-preview does not support temperature or response_format
+            max_tokens=400,
         )
         raw = response.choices[0].message.content or ""
+        # Strip markdown code fences if present (search-preview may add them)
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
         return json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"  [JSON parse error] {e} | raw={raw!r}", file=sys.stderr)
+        return None
     except Exception as e:
         print(f"  [OpenAI error] {e}", file=sys.stderr)
         return None

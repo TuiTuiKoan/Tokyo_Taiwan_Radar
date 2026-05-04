@@ -279,7 +279,11 @@ NAME WRITING RULES — CRITICAL:
 - If the raw_title is a generic term alone (e.g., "オフ会", "ライブ", "上映会"), prepend context in name_zh/name_en to make them self-explanatory.
 - SUB-EVENT name_ja / description_ja: use the ORIGINAL Japanese text from the raw description. Movie titles must use the Japanese release title exactly as written. Person names must use the original Japanese notation (katakana/kanji). NEVER translate Chinese/Taiwanese person names into Japanese or invent katakana readings.
 - SUBTITLE RULE — CRITICAL: When the raw_title or name_ja contains a subtitle separator (――, ──, ―, —, ：, : used as structural separator), the FULL title including the complete subtitle MUST appear in name_zh and name_en. NEVER truncate the subtitle. Example: "台湾の地方選挙と基層社会――80年代以降の桃園県観音･新屋地区を例として" → name_zh must include "以80年代以降的桃園縣觀音・新屋地區為例", name_en must include "A Case Study of Guanyin and Xinwu Districts, Taoyuan, since the 1980s".
-6. LOCATION ADDRESS RULE: If the raw location_address looks like a venue/shop name (no street number, 丁目, 番地, or postal code 〒), use your knowledge to provide the real Japanese address (都道府県＋区＋丁目番地). Example: "青山・月見ル君想フ" → "東京都港区南青山3-10-33". If you genuinely don't know the address, keep it as-is. NEVER fabricate an address — only fill in if you are confident.
+6. LOCATION ADDRESS RULE:
+   - COPY-FIRST: If raw_description contains an explicit address line (〒, 丁目, 番地, or a full prefecture+city+street string), copy it verbatim.
+   - DEFAULT-NULL: If no explicit address appears in the raw text, set location_address = null. Do NOT use your training knowledge to infer or guess a venue's street address — LLM address knowledge is unreliable and produces plausible-looking but incorrect street numbers.
+   - ALLOWED EXCEPTION: Only fill from knowledge for these globally famous fixed-address landmarks with well-known addresses: 国立新美術館, 東京都美術館, 国立国会図書館, 台湾文化センター（台北駐日経済文化代表処）, 東京国際フォーラム, 東京都写真美術館. For all other venues, leave null and let the downstream address enrichment pipeline fill it.
+   - NEVER echo the venue name as the address. If you cannot find a real street address, return null.
    PARENT VENUE ADDRESS RULE: When location_name contains a sub-space appended after a parent facility
    (e.g. "○○S.C. 森のまち広場", "○○ビル2階 大会議室", "○○ホール内 スタジオA"),
    the correct location_address is the PARENT FACILITY's address, not the sub-space itself.
