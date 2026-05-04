@@ -529,31 +529,6 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     return cats
 
 
-def _load_default_organizer_map(sb) -> dict[str, dict]:
-    """Load per-source default organizer from research_sources.
-    Returns {scraper_source_name: {"organizer": ..., "organizer_type": ...}}.
-    Only includes rows where default_organizer IS NOT NULL.
-    """
-    try:
-        res = (
-            sb.table("research_sources")
-            .select("scraper_source_name,default_organizer,default_organizer_type")
-            .not_.is_("default_organizer", "null")
-            .execute()
-        )
-        return {
-            r["scraper_source_name"]: {
-                "organizer": r["default_organizer"],
-                "organizer_type": r.get("default_organizer_type"),
-            }
-            for r in (res.data or [])
-            if r.get("scraper_source_name")
-        }
-    except Exception:
-        # research_sources may not have this column on older DB; degrade gracefully
-        return {}
-
-
 def annotate_pending_events(re_annotate_all: bool = False, fix_translations: bool = False, fix_reviewed: bool = False, event_id: str | None = None, limit: int | None = None) -> None:
     """Fetch pending events from DB, annotate with AI, and update."""
     sb = _get_supabase()
@@ -578,7 +553,21 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     if human_category_map:
         logger.info("Loaded %d human-corrected category overrides", len(human_category_map))
 
-    # Load per-source default organizer from research_sources.
+    # Load field-level corrections (migration 038b — P1).
+    # Builds: event_id → set of DB column names that must NOT be overwritten by AI.
+    # Falls back to empty dict when the table doesn't exist yet (pre-migration).
+    human_field_map: dict[str, set[str]] = {}
+    try:
+        fc_res = sb.table("field_corrections").select("event_id,field_name").execute()
+        for r in (fc_res.data or []):
+            eid_fc = r.get("event_id")
+            fname = r.get("field_name")
+            if eid_fc and fname:
+                human_field_map.setdefault(eid_fc, set()).add(fname)
+        if human_field_map:
+            logger.info("Loaded field corrections for %d events", len(human_field_map))
+    except Exception as fc_err:
+        logger.debug("field_corrections table not available (run migration 038b): %s", fc_err)
     # Used as fallback when GPT returns organizer=null.
     _default_org_map = _load_default_organizer_map(sb)
     if _default_org_map:
@@ -716,6 +705,31 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     logger.info("  → Applying human-corrected category: %s (AI predicted: %s)",
                                 human_cats, categories)
                 categories = human_cats
+
+            # P0 field-protection: in normal re-annotation mode (not --all / --id),
+            # preserve non-null DB values that were already set — either by a scraper
+            # or by admin via confirm-report partial field correction.
+            # Rationale: when admin corrects field A but leaves field B for re-annotation,
+            # annotation_status becomes 'pending'. Annotator re-runs and overwrites A
+            # (admin correction lost) unless we check for existing non-null values first.
+            _protect = not re_annotate_all and event_id is None
+
+            # P1 field-protection: honour field_corrections table (migration 038b).
+            # Any (event_id, field_name) pair in human_field_map was explicitly corrected
+            # by an admin and must NEVER be overwritten by AI output.
+            _human_protected: set[str] = human_field_map.get(eid, set())
+
+            def _ai_or_existing(fname: str, ai_val: Any) -> Any:
+                """Use AI value for null DB fields; keep DB value when protect mode active.
+                Always defer to human_field_map entries regardless of protect mode."""
+                if fname in _human_protected:
+                    # Human explicitly corrected this field — never overwrite
+                    return event.get(fname)
+                if _protect:
+                    existing = event.get(fname)
+                    if existing is not None:
+                        return existing
+                return ai_val
 
             # Helper: convert empty-string GPT outputs to None so that
             # the web fallback chain (ja→zh→en) works correctly.
@@ -897,8 +911,15 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 "business_hours_zh": _to_trad(_str(annotation.get("business_hours_zh"))),
                 "business_hours_en": _str(annotation.get("business_hours_en")),
             }
-            # Only send non-null values
-            localized_location_data = {k: v for k, v in localized_location_data.items() if v is not None}
+            # Only send non-null values; in protect mode also skip fields where DB
+            # already has a non-null value (admin-corrected localized location fields).
+            # Also skip any field in _human_protected (explicitly corrected by admin).
+            localized_location_data = {
+                k: v for k, v in localized_location_data.items()
+                if v is not None
+                and k not in _human_protected
+                and not (_protect and event.get(k) is not None)
+            }
 
             # Ensure end_date is not null when start_date exists (skip in fix_reviewed mode)
             if not fix_reviewed and update_data.get("start_date") and not update_data.get("end_date"):
