@@ -35,6 +35,8 @@ COST_DAILY_ALERT = 1.00   # 🔴 also send LINE push
 COST_MONTH_ALERT = 15.00  # 🔴 also send LINE push
 COST_SOURCE_SPIKE = 1.50  # 🚨 any single source today
 
+PERSISTENT_ZERO_DAYS = 30  # 連續 N 天 0 件 → 在 report 中標記需調查
+
 _TAIWAN_KW = [
     "台灣", "台湾", "Taiwan", "臺灣",
     "台北", "台中", "台南", "高雄", "花蓮",
@@ -210,6 +212,46 @@ def check_cost_anomalies(sb, today_runs: list, window_start_30d: str) -> dict:
     }
 
 
+def check_persistent_zero_sources(sb, window_start_30d: str) -> list[tuple[str, int, str]]:
+    """
+    Find scraper sources that have been running for PERSISTENT_ZERO_DAYS+ days
+    without ever producing a single event.
+
+    Returns list of (source_name, run_count, first_run_date) sorted by first_run.
+    Excludes researcher/* and meta-sources.
+    """
+    META_PREFIXES = ("researcher/", "annotator", "merger", "backfill", "enrich")
+    try:
+        rows = (
+            sb.table("scraper_runs")
+            .select("source,events_processed,ran_at")
+            .gte("ran_at", window_start_30d)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return []
+
+    by_source: dict[str, dict] = {}
+    for r in rows:
+        src = r.get("source") or "unknown"
+        if any(src.startswith(p) for p in META_PREFIXES):
+            continue
+        if src not in by_source:
+            by_source[src] = {"count": 0, "events": 0, "first": r["ran_at"][:10]}
+        by_source[src]["count"] += 1
+        by_source[src]["events"] += r.get("events_processed") or 0
+        if r["ran_at"][:10] < by_source[src]["first"]:
+            by_source[src]["first"] = r["ran_at"][:10]
+
+    result = []
+    for src, d in by_source.items():
+        if d["events"] == 0 and d["count"] >= PERSISTENT_ZERO_DAYS:
+            result.append((src, d["count"], d["first"]))
+    return sorted(result, key=lambda x: x[2])
+
+
 def generate_report() -> tuple[str, dict]:
     now_jst = datetime.now(JST)
     report_date = now_jst.strftime("%Y-%m-%d")
@@ -235,6 +277,7 @@ def generate_report() -> tuple[str, dict]:
     total_events = sum(r.get("events_processed") or 0 for r in runs)
     total_cost = sum(r.get("cost_usd") or 0.0 for r in runs)
     cost_check = check_cost_anomalies(sb, runs, window_start_30d)
+    persistent_zeros = check_persistent_zero_sources(sb, window_start_30d)
 
     # Per-source summary (exclude meta-sources)
     META_SOURCES = {"annotator", "merger", "backfill", "enrich"}
@@ -479,6 +522,11 @@ def generate_report() -> tuple[str, dict]:
                 lines.append(f"    {src}: {n} 件{flag}")
         if zero_sources:
             lines.append(f"  ⚠ 以下來源 0 件（請確認）：{', '.join(zero_sources)}")
+        if persistent_zeros:
+            lines.append("")
+            lines.append(f"  🔴 持續 {PERSISTENT_ZERO_DAYS} 天無事件（需調查）：")
+            for src, cnt, first in persistent_zeros:
+                lines.append(f"    {src}: {cnt} 次執行, 首次 {first}, 迄今 0 件")
     else:
         lines.append("  （無爬蟲記錄 — 可能今日未執行）")
     lines.append("")
