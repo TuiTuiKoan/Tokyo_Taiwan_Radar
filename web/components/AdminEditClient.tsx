@@ -81,9 +81,49 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
       JSON.stringify([...(event.category || [])].sort()) !==
       JSON.stringify([...(form.category || [])].sort());
 
+    // Scalar fields that the annotator may overwrite — track changes for field_corrections.
+    const TRACKED_FIELDS = [
+      "name_ja", "name_zh", "name_en",
+      "description_ja", "description_zh", "description_en",
+      "location_name", "location_address",
+      "business_hours", "price_info",
+    ] as const;
+
+    type TrackedField = typeof TRACKED_FIELDS[number];
+
+    // Resolve payload value for a tracked field (same nullify logic as above)
+    const resolvedPayload: Record<TrackedField, string | null> = {
+      name_ja: payload.name_ja as string | null,
+      name_zh: payload.name_zh as string | null,
+      name_en: payload.name_en as string | null,
+      description_ja: payload.description_ja as string | null,
+      description_zh: payload.description_zh as string | null,
+      description_en: payload.description_en as string | null,
+      location_name: nullify(form.location_name),
+      location_address: nullify(form.location_address),
+      business_hours: nullify(form.business_hours),
+      price_info: nullify(form.price_info),
+    };
+
+    const changedFields = TRACKED_FIELDS.filter((f) => {
+      const original = ((event as unknown as Record<string, unknown>)[f] ?? null) as string | null;
+      const updated = resolvedPayload[f];
+      return original !== updated;
+    });
+
+    // If any tracked field changed, auto-upgrade annotation_status to 'reviewed'
+    // so the annotator never overwrites admin edits on subsequent runs.
+    const needsReviewed = changedFields.length > 0 || categoryChanged;
+    const updatePayload: Record<string, unknown> = { ...payload };
+    if (needsReviewed) {
+      updatePayload["annotation_status"] = "reviewed";
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+
     const { error } = await supabase
       .from("events")
-      .update(payload)
+      .update(updatePayload)
       .eq("id", event.id);
 
     if (error) {
@@ -91,6 +131,22 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
       alert(`Save failed: ${error.message}`);
       setSaving(false);
       return;
+    }
+
+    // Persist field-level corrections to field_corrections table (P3.1).
+    // This ensures the annotator's human_field_map protects these values on re-annotation.
+    if (changedFields.length > 0 && user) {
+      const fcRows = changedFields.map((f) => ({
+        event_id: event.id,
+        field_name: f,
+        original_value: (((event as unknown as Record<string, unknown>)[f] ?? null) as string | null),
+        corrected_value: resolvedPayload[f] ?? "",
+        corrected_by: user.id,
+      }));
+      const { error: fcErr } = await supabase
+        .from("field_corrections")
+        .upsert(fcRows, { onConflict: "event_id,field_name" });
+      if (fcErr) console.warn("field_corrections save failed:", fcErr.message);
     }
 
     if (categoryChanged) {

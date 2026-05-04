@@ -319,6 +319,58 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
     if not all_rows:
         return []
 
+    # P3.2: For force_rows, strip any fields that have a human correction in field_corrections.
+    # reviewed events are already skipped above; this protects annotated events that have
+    # had partial admin corrections from being overwritten on force-rescrape.
+    if force_rows:
+        try:
+            # One batch query: get (source_id → event_id) for all force rows.
+            force_source_ids_list = [r["source_id"] for r in force_rows]
+            id_map_res = (
+                client.table("events")
+                .select("id,source_id")
+                .in_("source_id", force_source_ids_list)
+                .execute()
+            )
+            src_to_eid: dict[str, str] = {
+                row["source_id"]: row["id"] for row in (id_map_res.data or [])
+            }
+            event_uuids = list(src_to_eid.values())
+
+            if event_uuids:
+                fc_res = (
+                    client.table("field_corrections")
+                    .select("event_id,field_name")
+                    .in_("event_id", event_uuids)
+                    .execute()
+                )
+                # Build: event_id → set of protected column names
+                eid_protected: dict[str, set[str]] = {}
+                for fc in (fc_res.data or []):
+                    eid_protected.setdefault(fc["event_id"], set()).add(fc["field_name"])
+
+                if eid_protected:
+                    # Invert to source_id → set of protected columns
+                    eid_to_src = {v: k for k, v in src_to_eid.items()}
+                    src_protected: dict[str, set[str]] = {
+                        eid_to_src[eid]: cols
+                        for eid, cols in eid_protected.items()
+                        if eid in eid_to_src
+                    }
+                    scrubbed = 0
+                    for row in force_rows:
+                        for col in src_protected.get(row["source_id"], set()):
+                            if col in row:
+                                del row[col]
+                                scrubbed += 1
+                    if scrubbed:
+                        logger.info(
+                            "Stripped %d field_corrections-protected column(s) from %d force row(s).",
+                            scrubbed, len(force_rows),
+                        )
+        except Exception as fc_exc:
+            logger.debug("field_corrections check for force_rows skipped: %s", fc_exc)
+
     new_event_ids: list[str] = []
     try:
         resp = client.table("events").upsert(all_rows, on_conflict="source_name,source_id").execute()
