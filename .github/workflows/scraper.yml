@@ -68,10 +68,10 @@ jobs:
       - name: Flag annotate failure
         if: steps.annotate_pending.outcome != 'success'
         run: |
-          echo "::warning::Annotate step failed (outcome=${{ steps.annotate_pending.outcome }}). Pending backlog may not have been drained."
+          echo "::warning::Annotate step failed (outcome=${{ steps.annotate_pending.outcome }}). Backlog may not have been drained."
           echo "## \u26a0\ufe0f Annotate Failed" >> $GITHUB_STEP_SUMMARY
           echo "Outcome: \`${{ steps.annotate_pending.outcome }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "Pending backlog \u6d88\u5316\u672a\u57f7\u884c\uff0c\u8acb\u53c3\u8003\u4e0b\u65b9 Backlog Health \u5340\u584a\u3002" >> $GITHUB_STEP_SUMMARY
+          echo "Pending backlog\u6d88\u5316\u672a\u57f7\u884c\uff0c\u8acb\u53c3\u8003\u4e0b\u65b9 Backlog Health \u5340\u584a\u3002" >> $GITHUB_STEP_SUMMARY
 
       - name: Fix reviewed events missing translations
         working-directory: scraper
@@ -118,9 +118,9 @@ jobs:
           echo '```json' >> $GITHUB_STEP_SUMMARY
           echo "$HEALTH" | python -m json.tool >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          STATUS=$(echo "$HEALTH" | python -c "import sys,json;print(json.load(sys.stdin).get('status','unknown'))")
+          STATUS=$(echo "$HEALTH" | python -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','unknown'))")
           if [ "$STATUS" != "ok" ]; then
-            echo "::warning::Backlog status=$STATUS"
+            echo "::warning::Backlog status=$STATUS — check LINE notification for details"
           fi
 
       - name: Summarize run

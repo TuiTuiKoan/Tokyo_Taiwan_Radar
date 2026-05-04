@@ -345,7 +345,7 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
 
     # Annotation moved to a dedicated CI step (.github/workflows/scraper.yml)
     # for fault isolation and independent observability.
-    # For local end-to-end testing: `python main.py && python annotator.py`
+    # For local end-to-end testing: python main.py && python annotator.py
 
     # Enrich movie titles and person names (same as CI pipeline steps)
     logger.info("Enriching movie titles from eiga.com...")

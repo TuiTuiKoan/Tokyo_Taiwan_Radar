@@ -1,22 +1,26 @@
 """
-backlog_health.py — CI backlog health snapshot.
+backlog_health.py — CI backlog health snapshot
 
-Outputs a single-line JSON to stdout (same pattern as summarize_run.py).
-Used by scraper.yml "Backlog health snapshot" step to:
-  - write $GITHUB_OUTPUT json=<payload>
-  - write $GITHUB_STEP_SUMMARY with a human-readable table
-  - emit ::warning:: when status != ok
+Outputs a single-line JSON to stdout summarising the current annotation
+backlog.  Designed to be called from scraper.yml as a dedicated step so
+the result can be forwarded to notify.py for LINE alerting.
 
-Status thresholds (based on current baseline, 2026-05-04):
-  ok       : active_pending <= 150  AND  old_pending_over_7d <= 30
-  warn     : active_pending 151–250 OR   old_pending_over_7d 31–80
-  critical : active_pending > 250   OR   old_pending_over_7d > 80
+Output JSON fields:
+  status            "ok" | "warn" | "critical"
+  active_pending    int — is_active=True, annotation_status='pending'
+  old_pending_over_7d  int — active pending created > 7 days ago
+  subevent_pending  int — pending with parent_event_id IS NOT NULL (should be 0)
+  top_sources       list[{source, count}] — top-5 active-pending sources
 
-Exit code:
-  0 always — the step must not fail on its own; caller decides action.
+Thresholds:
+  warn     : active_pending > 150  OR  old_pending_over_7d > 30
+  critical : active_pending > 250  OR  old_pending_over_7d > 80
+  ok       : neither
 
 Usage:
     python backlog_health.py
+    HEALTH=$(python backlog_health.py)
+    echo "json=$HEALTH" >> $GITHUB_OUTPUT
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
@@ -38,10 +43,10 @@ logger = logging.getLogger(__name__)
 UTC = timezone.utc
 
 # ── Thresholds ────────────────────────────────────────────────────────────────
-WARN_ACTIVE     = 150   # active pending count
-CRITICAL_ACTIVE = 250
-WARN_OLD        = 30    # pending events older than 7 days
-CRITICAL_OLD    = 80
+WARN_ACTIVE     = 150   # active pending > this → warn
+WARN_OLD        = 30    # >7d pending    > this → warn
+CRITICAL_ACTIVE = 250   # active pending > this → critical
+CRITICAL_OLD    = 80    # >7d pending    > this → critical
 
 
 def _supabase_client():
@@ -52,70 +57,64 @@ def _supabase_client():
     return create_client(url, key)
 
 
-def _determine_status(active_pending: int, old_pending: int) -> str:
-    if active_pending > CRITICAL_ACTIVE or old_pending > CRITICAL_OLD:
-        return "critical"
-    if active_pending > WARN_ACTIVE or old_pending > WARN_OLD:
-        return "warn"
-    return "ok"
-
-
 def main() -> None:
     try:
         sb = _supabase_client()
 
-        # 1. Total active pending (non-sub-events)
-        active_res = (
+        # 1. Active pending total
+        active_pending: int = (
             sb.table("events")
             .select("id", count="exact")
             .eq("annotation_status", "pending")
             .eq("is_active", True)
-            .is_("parent_event_id", "null")
             .execute()
-        )
-        active_pending: int = active_res.count or 0
+            .count
+        ) or 0
 
-        # 2. Pending events older than 7 days (likely stuck)
+        # 2. Old active pending (>7 days)
         cutoff = (datetime.now(tz=UTC) - timedelta(days=7)).isoformat()
-        old_res = (
+        old_pending: int = (
             sb.table("events")
             .select("id", count="exact")
             .eq("annotation_status", "pending")
             .eq("is_active", True)
-            .is_("parent_event_id", "null")
             .lt("created_at", cutoff)
             .execute()
-        )
-        old_pending: int = old_res.count or 0
+            .count
+        ) or 0
 
-        # 3. Sub-event pending (should be near-zero; flags annotator bugs)
-        # Use .filter("parent_event_id", "not.is", "null") — not_() has quirks in this SDK version
-        sub_rows = (
+        # 3. Sub-event pending (should always be 0 — flags a root-cause bug)
+        subevent_pending: int = (
             sb.table("events")
-            .select("id")
+            .select("id", count="exact")
             .eq("annotation_status", "pending")
-            .filter("parent_event_id", "not.is", "null")
-            .limit(500)
+            .not_.is_("parent_event_id", "null")
             .execute()
-        )
-        subevent_pending: int = len(sub_rows.data or [])
+            .count
+        ) or 0
 
-        # 4. Top 5 sources contributing to active pending (for triage)
+        # 4. Top-5 sources contributing to active pending
         rows = (
             sb.table("events")
             .select("source_name")
             .eq("annotation_status", "pending")
             .eq("is_active", True)
-            .is_("parent_event_id", "null")
             .limit(2000)
             .execute()
-        )
+            .data
+        ) or []
         top_sources = [
             {"source": src, "count": n}
-            for src, n in Counter(r["source_name"] for r in (rows.data or [])).most_common(5)
+            for src, n in Counter(r["source_name"] for r in rows).most_common(5)
         ]
 
-        status = _determine_status(active_pending, old_pending)
+        # 5. Derive health status
+        if active_pending > CRITICAL_ACTIVE or old_pending > CRITICAL_OLD:
+            status = "critical"
+        elif active_pending > WARN_ACTIVE or old_pending > WARN_OLD:
+            status = "warn"
+        else:
+            status = "ok"
 
         result = {
             "status": status,
@@ -124,13 +123,13 @@ def main() -> None:
             "subevent_pending": subevent_pending,
             "top_sources": top_sources,
         }
-
         print(json.dumps(result, ensure_ascii=False))
 
     except Exception as exc:
         logger.error("backlog_health failed: %s", exc)
-        # Graceful degradation — emit unknown status so notify doesn't crash
+        # Fail-safe: output unknown status so notify.py can still handle it
         print(json.dumps({"status": "unknown", "error": str(exc)}))
+        sys.exit(1)
 
 
 if __name__ == "__main__":
