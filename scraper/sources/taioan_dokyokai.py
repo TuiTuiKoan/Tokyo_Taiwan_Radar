@@ -315,10 +315,6 @@ class TaioanDokyokaiScraper(BaseScraper):
         # --- Location ---
         location_name = _extract_location(description_ja)
         location_address = _extract_address(description_ja)
-        # Fallback: if no explicit address label, use venue name as address
-        # (taioan.fc2.page rarely provides a 住所: label)
-        if location_name and not location_address:
-            location_address = location_name
 
         # --- Stable source_id ---
         source_id = hashlib.md5(url.encode()).hexdigest()[:16]

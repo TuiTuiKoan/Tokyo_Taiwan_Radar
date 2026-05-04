@@ -383,7 +383,7 @@ class PrtimesScraper(BaseScraper):
                             start_date=start_date,
                             end_date=start_date,
                             location_name=venue,
-                            location_address=venue,
+                            location_address=None,
                             is_active=True,
                         )
                     )

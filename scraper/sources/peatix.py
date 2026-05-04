@@ -526,6 +526,10 @@ class PeatixScraper(BaseScraper):
                 location_name = 'オンライン'
                 location_address = 'オンライン'
 
+        # Guard: location_address must never equal location_name (Sub-Venue Parent Address Rule)
+        if location_address and location_address == location_name:
+            location_address = None
+
         # Canonicalize: any online marker → standardize to 'オンライン', address = 'オンライン'
         if location_name and _ONLINE_MARKERS.search(location_name):
             location_name = 'オンライン'

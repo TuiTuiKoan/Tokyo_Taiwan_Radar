@@ -180,5 +180,5 @@ class TaiwanFestaScraper(BaseScraper):
             start_date=start_date,
             end_date=end_date,
             location_name=location,
-            location_address=location,
+            location_address=None,
         )

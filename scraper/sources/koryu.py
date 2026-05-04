@@ -322,7 +322,7 @@ class KoryuScraper(BaseScraper):
 
         venue = _extract_venue(body_text) or ""
         # Fallback: use venue name as address when no dedicated 所在地/住所 section
-        location_address = _extract_location_address(body_text) or (venue if venue else None)
+        location_address = _extract_location_address(body_text) or None
 
         # Skip events organised by Taiwan offices (not held in Japan)
         # The DNN CMS breadcrumb exposes the office tag: 'イベント・セミナー情報台北'

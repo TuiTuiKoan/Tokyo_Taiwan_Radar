@@ -219,8 +219,6 @@ class TaiwanMatsuriScraper(BaseScraper):
         addr_m = re.search(r'[（(]([^）)]{1,60}(?:都|道|府|県)[^）)]{3,60})[）)]', full_text)
         if addr_m:
             location_address = addr_m.group(1).strip()
-        elif location_name:
-            location_address = location_name
 
         # Hours: ●営業時間：【平日】11:00〜21:00\n【土日祝】10:30〜21:30
         # Capture 【...】 blocks across multiple lines

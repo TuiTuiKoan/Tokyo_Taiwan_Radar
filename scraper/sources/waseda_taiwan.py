@@ -199,8 +199,8 @@ class WasedaTaiwanScraper(BaseScraper):
                 addr_m = re.search(r"(東京都[^\s]{5,60})", venue_raw)
                 if addr_m:
                     location_address = addr_m.group(1).rstrip("）)）")
-                elif venue:
-                    location_address = venue
+                # no real address found — let annotator fill it
+                # (NEVER echo venue name as address)
 
                 raw_desc_parts = []
                 if date_raw:

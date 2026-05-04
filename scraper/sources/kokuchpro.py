@@ -251,7 +251,7 @@ class KokuchproScraper(BaseScraper):
         fetch_detail = start_date >= cutoff
         full_desc: str = card["short_desc"]
         location_name: Optional[str] = card["venue_card"]
-        location_address: Optional[str] = card["venue_card"]
+        location_address: Optional[str] = None
 
         if fetch_detail:
             time.sleep(REQUEST_DELAY)
@@ -263,8 +263,6 @@ class KokuchproScraper(BaseScraper):
                     location_name = detail_data["venue"]
                 if detail_data["address"]:
                     location_address = detail_data["address"]
-                elif detail_data["venue"]:
-                    location_address = detail_data["venue"]
 
         # Normalize online events
         if location_name:
