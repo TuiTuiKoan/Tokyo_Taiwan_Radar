@@ -26,6 +26,19 @@ When a plan includes promoting an auto-generated scraper (`auto_scraper_status=s
 
 Missing step 3 has no compile-time or runtime error — it silently appears as a 0-count row in the admin UI.
 
+## LINE Broadcast Query Guard
+
+在審核任何涉及 `weekly_line_broadcast.py`（或未來任何 LINE push 腳本）的計畫前，**必須**確認：
+
+1. **`_fetch_upcoming_events` 必須過濾 `annotation_status`**：只允許 `annotated` 或 `reviewed` 的事件進入廣播 pool。
+   ```python
+   .in_("annotation_status", ["annotated", "reviewed"])
+   ```
+2. **不得假設 `is_active=True` 等於翻譯完整**：新刮取的事件在 annotator 執行前 `name_zh`/`name_en` 為 NULL，`annotation_status='pending'`。若廣播在每日 pipeline 之前手動觸發，pending 事件會進入 pool，ZH/EN 訂閱者收到日文 fallback。
+3. **廣播 dry-run 後驗證 pool**：確認 `Fetched N upcoming events` 中無 pending 事件（`annotation_status` 過濾後應比無過濾少幾筆）。
+
+Reference incident: 2026-05-05 — `赤い糸 輪廻のひみつ` 以日文出現在 ZH 週報，缺 `annotation_status` 過濾（commit `9b33ad3` 後修正）。
+
 ## Database Safety Rules
 
 - **NEVER batch-set `is_active = False` based on `end_date < today`**. Past events must remain `is_active = True` so users can view event history. Visibility for ended events is controlled by the frontend `FilterBar` ("顯示已結束活動" toggle), not by `is_active`.

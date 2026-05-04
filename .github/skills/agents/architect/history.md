@@ -3,6 +3,25 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — LINE 週報顯示日文標題 fallback（annotation_status 過濾缺失）
+
+### 問題
+LINE 週報中出現「赤い糸 輪廻のひみつ」（日文）而非「紅線 輪迴的秘密」（中文）。
+ZH 訂閱者收到 `name_zh = NULL` 的事件，觸發 `name_ja` fallback。
+
+### 根因
+`weekly_line_broadcast.py` 的 `_fetch_upcoming_events` 未過濾 `annotation_status='pending'`。
+新刮取的事件在 annotator 執行前 `name_zh`/`name_en` 為 NULL。
+若廣播在每日 09:00 scraper+annotator pipeline **之前**手動觸發，pending 事件會進入 pool。
+
+### 修復（scraper/weekly_line_broadcast.py）
+在 `_fetch_upcoming_events` 加入 `.in_("annotation_status", ["annotated", "reviewed"])` 過濾，確保只有翻譯完整的事件進入廣播 pool。
+
+### 教訓
+- 廣播 query 必須加 `annotation_status` 過濾，不能假設所有 is_active 事件都已標注
+- 規則已寫入 SKILL.md「LINE Broadcast Query Guard」
+
+---
 ## 2026-05-04 — hakusuisha 詳情頁抓取截斷 + _JITSU_RE 偽匹配（venue/hours 第二輪）
 
 ### 問題

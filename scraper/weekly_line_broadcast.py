@@ -115,7 +115,12 @@ def _get_openai():
 
 
 def _fetch_upcoming_events(sb) -> list[dict]:
-    """Fetch active events starting within the next 60 days."""
+    """Fetch active, annotated events starting within the next 60 days.
+
+    Only `annotated` and `reviewed` events are included — `pending` events
+    may have NULL name_zh/name_en (annotator not yet run) and would cause
+    ZH/EN subscribers to receive the Japanese fallback title.
+    """
     now = datetime.now(JST)
     start_from = now.isoformat()
     start_to = (now + timedelta(days=60)).isoformat()
@@ -127,6 +132,7 @@ def _fetch_upcoming_events(sb) -> list[dict]:
         .eq("is_active", True)
         .is_("parent_event_id", "null")
         .neq("source_name", "gguide_tv")
+        .in_("annotation_status", ["annotated", "reviewed"])
         .gte("start_date", start_from)
         .lte("start_date", start_to)
         .order("start_date")

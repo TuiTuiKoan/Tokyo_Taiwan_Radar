@@ -195,6 +195,19 @@ Reference incident: 2026-05-04 — `types.ts` 新增 10 個分類（`tv_program`
 
 Reference incident: 2026-05-04 — event `e72b2c15` performer=null（缺 fallback）；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
 
+## LINE Broadcast Query Guard（annotation_status 過濾）
+
+在審核任何涉及 `weekly_line_broadcast.py`（或未來 LINE push 腳本）的計畫前，**必須**確認：
+
+1. **`_fetch_upcoming_events` 必須包含 `annotation_status` 過濾**：只允許 `annotated` / `reviewed` 事件進入廣播 pool。
+   ```python
+   .in_("annotation_status", ["annotated", "reviewed"])
+   ```
+2. **不得假設 `is_active=True` 等於翻譯完整**：新刮取的事件在 annotator 執行前 `name_zh`/`name_en` 為 NULL（`annotation_status='pending'`）。若廣播在每日 scraper+annotator pipeline 之前觸發，ZH/EN 訂閱者會收到日文 fallback。
+3. **Dry-run 後確認 pool 筆數**：有過濾比無過濾少幾筆（pending 事件被正確排除）。
+
+Reference incident: 2026-05-05 — `赤い糸 輪廻のひみつ` 以日文出現在 ZH 週報，root cause `_fetch_upcoming_events` 缺 `annotation_status` 過濾（fix commit 後 pool 76→74）。
+
 ## Required Phases
 
 ### Phase 1: Research
