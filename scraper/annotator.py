@@ -208,20 +208,23 @@ _HONORIFIC_RE = re.compile(
     r'[^\S\n]*$'
 )
 # Match patterns like: 「料理研究家・田中花子氏を迎え」
+# Match 「<role>・<name>氏を迎え」 — lookahead stops name before honorific.
 _PERFORMER_INTRO_RE = re.compile(
     r'(?:'
     r'料理研究家|シェフ|作家|著者|詩人|写真家|映画監督|演出家|振付家|音楽家|ミュージシャン'
     r'|アーティスト|研究者|学者|評論家|キュレーター|デザイナー|歌手|俳優|女優'
     r'|講師|スピーカー|ゲスト|ゲスト講師|ゲストスピーカー'
     r')'
-    r'[・\s・]*'
-    r'([\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]{2,10}(?:[\s　][\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]{1,5})?)'
-    r'(?:氏|さん|先生)?'
+    r'[・：:\s]+'
+    r'([^\s・：:,、。（）「」【】\u3000]{2,10}?)'
+    r'(?=氏|さん|先生|による|を迎え|が登壇|がトーク|にご登場)',
+    re.UNICODE,
 )
-# Match 「〜氏を迎え」, 「〜さんを迎え」 pattern — person name immediately before 氏/さん
+# Match 「〜氏を迎え」, 「〜さんを迎え」 — name before honorific+action
 _MUKAE_RE = re.compile(
-    r'([\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]{2,10}(?:[\s　][\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]{1,5})?)'
-    r'(?:氏|さん|先生)を迎え'
+    r'([\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]{2,10})'
+    r'(?:氏|さん|先生)(?:を迎え|による|が登壇|がトーク|にご登場)',
+    re.UNICODE,
 )
 
 
