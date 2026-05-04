@@ -115,10 +115,10 @@ def _get_openai():
 
 
 def _fetch_upcoming_events(sb) -> list[dict]:
-    """Fetch active events starting within the next 35 days."""
+    """Fetch active events starting within the next 60 days."""
     now = datetime.now(JST)
     start_from = now.isoformat()
-    start_to = (now + timedelta(days=35)).isoformat()
+    start_to = (now + timedelta(days=60)).isoformat()
     res = (
         sb.table("events")
         .select(
@@ -138,9 +138,9 @@ def _fetch_upcoming_events(sb) -> list[dict]:
 
 def _ai_select_events(client: OpenAI, events: list[dict], today: datetime) -> dict:
     """Use GPT-4o-mini to select highlight events for weekly and monthly sections."""
-    week_end = today + timedelta(days=7)
-    week2_end = today + timedelta(days=14)
-    month_end = today + timedelta(days=35)
+    week_end = today + timedelta(days=21)
+    week2_end = today + timedelta(days=28)
+    month_end = today + timedelta(days=60)
 
     # Category group definitions (mirrors web/lib/types.ts CATEGORY_GROUPS)
     ARTS_CATS = "movie, performing_arts, art, senses, drama, indigenous, nature, urban, literature"
@@ -150,8 +150,8 @@ def _ai_select_events(client: OpenAI, events: list[dict], today: datetime) -> di
 
     prompt = (
         f"Today is {today.strftime('%Y-%m-%d')}.\n"
-        f"This week: {today.strftime('%m/%d')} – {week_end.strftime('%m/%d')}\n"
-        f"Next 14 days: {today.strftime('%m/%d')} – {week2_end.strftime('%m/%d')}\n"
+        f"Weekly range: {today.strftime('%m/%d')} – {week_end.strftime('%m/%d')}\n"
+        f"Next 28 days: {today.strftime('%m/%d')} – {week2_end.strftime('%m/%d')}\n"
         f"Monthly preview: {week_end.strftime('%m/%d')} – {month_end.strftime('%m/%d')}\n\n"
         "Category groups:\n"
         f"  五感 (arts): {ARTS_CATS}\n"
@@ -165,18 +165,18 @@ def _ai_select_events(client: OpenAI, events: list[dict], today: datetime) -> di
         "          in a multi-country Asia tour (e.g. 'Asia tour including Taiwan'), Japanese events with\n"
         "          no Taiwanese participant, book launches about non-Taiwan topics.\n\n"
         "DEDUPLICATION RULE: Each event id MUST appear at most once across weekly + monthly combined.\n\n"
-        "=== WEEKLY SELECTION (5–7 events starting within next 7 days) ===\n"
+        "=== WEEKLY SELECTION (5–7 events starting within next 21 days) ===\n"
         "Follow these MANDATORY slot rules in order:\n"
         "1. 五感: fill ≥2 slots; prefer movie/performing_arts/art first within the group.\n"
-        "   If NO 五感 events exist in the next 14 days, give those slots to 知識交流.\n"
+        "   If NO 五感 events exist in the next 28 days, give those slots to 知識交流.\n"
         "2. 生活風格: fill ≥1 slot.\n"
-        "   If NO 生活風格 events in next 14 days, give that slot to 知識交流.\n"
+        "   If NO 生活風格 events in next 28 days, give that slot to 知識交流.\n"
         "3. 知識交流: fill ≥1 slot.\n"
-        "   If NO 知識交流 events in next 14 days, give that slot to 社會.\n"
+        "   If NO 知識交流 events in next 28 days, give that slot to 社會.\n"
         "4. 社會: fill ≥1 slot.\n"
-        "   If NO 社會 events in next 14 days, give that slot to 五感.\n"
+        "   If NO 社會 events in next 28 days, give that slot to 五感.\n"
         "Fill remaining slots with the best available events across any group.\n\n"
-        "=== MONTHLY SELECTION (2–3 events starting in 8–35 days) ===\n"
+        "=== MONTHLY SELECTION (2–3 events starting in 22–60 days) ===\n"
         "Priority: large-venue events, live film screenings (movie), music performances (performing_arts), lectures, competitions.\n"
         "STRICTLY EXCLUDE events with category 'taiwan_japan' or 'tv_program'.\n\n"
         "Return ONLY JSON: {\"weekly\": [\"id1\",...], \"monthly\": [\"id1\",...]}\n\n"
