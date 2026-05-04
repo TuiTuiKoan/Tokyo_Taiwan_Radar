@@ -1174,6 +1174,23 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     selection_reason = json.dumps(selection_reason, ensure_ascii=False)
                 update_data["selection_reason"] = selection_reason
 
+            # P1 field-protection: restore DB values for any field in field_corrections.
+            # _ai_or_existing() was defined but never wired into update_data construction.
+            # This post-processing step closes the gap: after GPT fills update_data,
+            # we overwrite protected fields with the known-correct DB value so that
+            # human corrections (name_zh, name_en, description_zh, description_en, etc.)
+            # are never silently replaced by AI output.
+            _NEVER_PROTECT = {"annotation_status", "annotated_at"}
+            for _pf in _human_protected:
+                if _pf in update_data and _pf not in _NEVER_PROTECT:
+                    _db_val = event.get(_pf)
+                    if _db_val is not None:
+                        update_data[_pf] = _db_val
+                        field_protect_hits += 1
+                    else:
+                        del update_data[_pf]
+                        field_protect_hits += 1
+
             sb.table("events").update(update_data).eq("id", eid).execute()
             events_ok += 1
             logger.info("  ✓ annotated (categories: %s)", categories)
