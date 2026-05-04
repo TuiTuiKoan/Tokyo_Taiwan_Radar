@@ -3,6 +3,141 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — 霧のごとく（大濛）電影片名 description 未同步（DB patch）
+
+### 問題
+7 筆事件的 `description_zh` / `description_en` 中出現錯誤電影片名翻譯：「霧的如同」「霧的如夢」「霧的故事」（zh）、"Like Mist"（en），正確為「大濛」/ "A Foggy Tale"。涉及 cinemart_shinjuku、peatix、taioan_dokyokai、uplink_cinema、google_news_rss 五個來源。
+
+### 根因
+`enrich_movie_titles()` 只修正 `name_zh` / `name_en`，不修正 `description_zh` / `description_en`。GPT 翻譯 description 時用了直譯片名，與 name 欄位不一致。
+
+### 修復
+DB patch script 對 7 筆事件逐一替換 description 中的錯誤片名變體，並修正替換後產生的「大濛（大濛）」重複括號。
+
+### 教訓
+- `enrich_movie_titles()` 只修正 name 欄位，description 中的片名需另外 patch——已記錄為 engineer.agent.md Rule 11（`enrich_movie_titles() description sync rule`）
+- 直譯變體可能有多種形式（`霧的如同`、`霧的如夢`、`霧的故事`），patch 時需全部列舉
+
+---
+## 2026-05-05 — LINE 週報都市前綴 + Python-level 去重（commits `5acb6a1`、`4a6fd5a`）
+
+### 問題
+LINE 週報只顯示活動名，讀者無法一眼判斷是東京還是關西活動。此外同一活動若有多個來源（如 peatix + connpass），會重複出現在推送中。
+
+### 修復（`scraper/weekly_line_broadcast.py`）
+- **都市前綴**：所有事件加 `[都市名]` prefix（如 `[大阪]`、`[京都]`）。初版排除東京（因為大部分事件在東京），但 commit `5acb6a1` 改為也顯示 `[東京]`，保持一致性。
+- **Python-level 去重**：以 `name_ja` 為 key，同名活動只保留一筆。
+
+### 教訓
+- 都市前綴可做可不做的「差異」反而使讀者更困惑（「沒標籤=東京」不直觀），不如全部統一加上
+- GPT 選出的活動可能跨多個 source_name，Python-level 去重比在 SQL 做更容易控制
+
+---
+## 2026-05-05 — auto_qa 重複建立 confirmed/dismissed 報告（commit `75d3c1e`）
+
+### 問題
+`auto_qa.py` 每次執行都重新產生 `auto_*` 類型報告，即使 admin 已確認（confirmed）或駁回（dismissed）同一筆報告。Admin 的處理工作被 auto_qa 覆蓋。
+
+### 根因
+Insert 前的去重查詢只檢查 `status='pending'`，未排除 `confirmed` 和 `dismissed` 狀態。
+
+### 修復
+去重查詢改為：同 `event_id` + 同 `auto_*` report type 且 status 為 `pending` / `confirmed` / `dismissed` 任一者皆 skip。
+
+### 教訓
+- **auto_qa 去重必須檢查 ALL statuses**（pending + confirmed + dismissed），不只 pending
+- Admin 的 confirm/dismiss 是最終決定，自動化不得覆蓋
+
+---
+## 2026-05-05 — Sub-event annotation 缺失（commit `38f4f3a`）
+
+### 問題
+Scraper 直接產生的 sub-events（非 GPT 產生）有 `annotation_status='pending'`，但 annotator 只處理 parent event 的 GPT-generated sub-events。導致 scraper-created sub-events 缺少 category、description 等欄位。
+
+### 修復
+`annotator.py` 修改為也 pick up scraper-created sub-events（有 `parent_event_id` 且 `annotation_status='pending'`），從 parent event 繼承 category 和 context。
+
+### 教訓
+- Annotator 必須處理所有 pending 事件，不只 parent events 的 sub-events
+- Sub-event annotation 應從 parent 繼承 category 和其他 context fields
+
+---
+## 2026-05-05 — enrich_location GPT 回傳 venue name 作為 address（commit `628e3e7`）
+
+### 問題
+`enrich_location.py` 呼叫 GPT 填補 `location_address` 時，GPT 有時回傳 venue name（如 `ユーロスペース`）而非街道地址，造成 `location_address == location_name`。
+
+### 修復
+新增 guard：如果 GPT 回傳的 address 等於 `location_name`，skip 更新。同時新增 sub-venue 規則處理。
+
+### 教訓
+- GPT 回傳的 location 資料需驗證 `address ≠ venue_name`，不能盲目寫入
+- 此 guard 應同時存在於 scraper 端和 enrichment 端——雙層防護
+
+---
+## 2026-05-05 — location_address = location_name 全 scraper 稽核（commit `9d6e0fc`）
+
+### 問題
+多個 scrapers（iwafu、jposa_ja、kokuchpro、koryu、prtimes、taioan_dokyokai、taiwan_festa、waseda_taiwan）將 `location_address` 設為與 `location_name` 相同的值。`location_address` 應該是街道地址，不是場地名稱。
+
+### 修復
+稽核所有 scraper，逐一修正：有實際地址可解析時分開設值；無實際地址時設 `location_address = None`。
+
+### 教訓
+- **`location_address` 必須永遠不等於 `location_name`**——這是全 scraper 通用規則
+- 當 scraper 只有一個 combined "location" 欄位時，正確做法：venue name → `location_name`，street address → `location_address`；找不到 street address 則設 `None`
+- `_ai_or_existing()` 保護邏輯在 DB 欄位非 null 時保留既有值，所以 scraper 端寫入錯誤值後 annotator 也無法修正
+
+---
+## 2026-05-05 — proxy.ts /r/* 短網址被 i18n middleware 攔截（commit `3cfe438`）
+
+### 問題
+短重導路由 `/r/*` 被 i18n middleware 攔截並 307-redirect 到 `/zh/r/*`，造成 404。
+
+### 修復
+在 `proxy.ts` matcher 排除 regex 中新增 `/r/` 路徑。
+
+### 教訓
+- proxy.ts matcher 排除不只適用於 `public/` 靜態文件——任何**非 locale 路由**（API routes、短網址、redirect routes）都必須排除
+- 新增 rule 的適用範圍從「static file exclusion」擴展為「non-locale route exclusion」
+
+---
+## 2026-05-05 — LINE 週報時間窗口擴大（commit `9b33ad3`）
+
+### 問題
+LINE 週報每週只推「未來 7 天」活動，月刊最遠僅到 35 天，讀者回饋活動太少、錯過較遠期熱門活動。
+
+### 修復（`scraper/weekly_line_broadcast.py`）
+| 參數 | 修改前 | 修改後 |
+|------|--------|--------|
+| `_fetch_upcoming_events` pool 範圍 | 35 天 | 60 天 |
+| `_ai_select_events` week_end | 7 天 | 21 天 |
+| `_ai_select_events` week2_end | 14 天 | 28 天 |
+| `_ai_select_events` month_end | 35 天 | 60 天 |
+| WEEKLY SELECTION 標籤 | next 7 days | next 21 days |
+| MONTHLY SELECTION 標籤 | 8–35 days | 22–60 days |
+| 備援觸發條件 | 14 天 | 28 天 |
+
+### 教訓
+- 廣播時間窗口直接影響 GPT 的分類邏輯（week/month 分界），修改時需同步調整 AI prompt 內的窗口標籤與數字，否則 prompt 與程式邏輯不一致
+
+---
+## 2026-05-05 — LINE 週報顯示日文 fallback（annotation_status 過濾缺失，commit `b2864ea`）
+
+### 問題
+LINE 週報中出現日文標題（如「赤い糸 輪廻のひみつ」）而非中文，ZH 訂閱者收到 `name_zh = NULL` 的事件。
+
+### 根因
+`_fetch_upcoming_events` 未過濾 `annotation_status='pending'`。新爬取事件在 annotator 執行前 `name_zh`/`name_en` 為 NULL，若廣播在 09:00 pipeline **之前**手動觸發，pending 事件會進入 pool。
+
+### 修復
+在 `_fetch_upcoming_events` 加入 `.in_("annotation_status", ["annotated", "reviewed"])` 過濾。效果：pool 76 → 74（2 筆 pending 正確排除）。
+
+### 教訓
+- **任何廣播 query 必須加 `annotation_status` 過濾**，不能假設所有 `is_active` 事件都已標注
+- 手動觸發廣播時，應先確認 pool 筆數是否比無過濾少（少 = 過濾正常運作）
+
+---
 ## 2026-05-04（Session 2）— Web UI 多項修復 + selection_reason["ja"] 品質 + is_active 誤設還原（commits `a895e07`、`1b344f7`、`2989940`、`d9ff85f`、`d7ab41a`、`7a81969`、`0abd8db`、`dedfa81`、`b559520`）
 
 ### NextIntlClientProvider 缺少 `locale` prop（commit `dedfa81`）
