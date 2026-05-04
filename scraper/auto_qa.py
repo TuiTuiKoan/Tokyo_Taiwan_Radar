@@ -81,7 +81,7 @@ TAIWAN_VENUE_KEYWORDS = (
     '臺北', '臺中', '臺南', '臺灣',
 )
 
-QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_taiwan_venue", "auto_qa_missing_hours")
+QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_taiwan_venue", "auto_qa_missing_hours", "auto_qa_address_is_venue_name")
 
 
 def _supabase_client():
@@ -181,6 +181,39 @@ def _detect_missing_hours(sb) -> list[dict]:
     return reports
 
 
+def _detect_address_is_venue_name(sb) -> list[dict]:
+    """Flag active events where location_address is identical to location_name.
+
+    This anti-pattern indicates address extraction failed and the venue name
+    was echoed as the address. These events need human review to find the
+    correct street address.
+    """
+    rows = (
+        sb.table("events")
+        .select("id,source_name,location_name,location_address")
+        .eq("is_active", True)
+        .not_.is_("location_name", "null")
+        .not_.is_("location_address", "null")
+        .execute()
+        .data
+    )
+    reports = []
+    for row in rows:
+        if row.get("location_name") == row.get("location_address"):
+            reports.append(
+                {
+                    "event_id": row["id"],
+                    "report_type": "auto_qa_address_is_venue_name",
+                    "details": (
+                        f"location_address equals location_name "
+                        f"({row['location_name']!r}); "
+                        f"address extraction failed; source={row['source_name']}"
+                    ),
+                }
+            )
+    return reports
+
+
 def detect(event: dict) -> list[tuple[str, str]]:
     """Return list of (report_type, admin_note) detected for one event."""
     findings: list[tuple[str, str]] = []
@@ -243,6 +276,8 @@ def run(dry_run: bool = False) -> dict:
         for t, note in detect(ev):
             candidates.append((ev["id"], t, note))
     for item in _detect_missing_hours(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
+    for item in _detect_address_is_venue_name(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
 
     # Dedup against latest auto_qa reports for each event/type

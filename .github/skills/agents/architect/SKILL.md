@@ -746,3 +746,13 @@ When a function returns different shapes for success/failure paths, instrumentat
 - Fix pattern: maintain `accumulator = {"cost": 0.0, "retries": 0}` at function scope; mutate in every retry branch; persist in `finally` regardless of exit path.
 - Reference incident: 2026-05-02 Phase 2.3 spec-invalid path — 3 retries shown in logs, 0 cost in meta. Phase 2.4 TODO.
 
+## Sub-Venue Parent Address Guard
+
+在審核任何包含 `location_name` 或 `location_address` 的 annotator 修改、或任何新 scraper 的 location 欄位邏輯前，**必須**確認以下三點：
+
+1. **`location_address ≠ location_name`**：兩者相同是地址抽取失敗的標誌。SYSTEM_PROMPT 必須明示「identical 時保持 null」。`auto_qa_address_is_venue_name` 偵測器會持續監控此情況。
+2. **子場地 → 親設施地址**：`○○S.C. 森のまち広場`、`○○ビル2階 大会議室`、`○○ホール内 スタジオA` 等複合場地名，地址 geocode 對象是**親設施**，不是子空間。annotator SYSTEM_PROMPT 的 LOCATION ADDRESS RULE 需要有 PARENT VENUE ADDRESS RULE 段落。
+3. **auto_qa 偵測器**：`auto_qa_address_is_venue_name`（`location_address == location_name`）必須存在於 `auto_qa.py` 的 `QA_TYPES` 中，且由 `run()` 呼叫。
+
+Reference incident: 2026-05-04 — `878660a0 iwafu` `流山おおたかの森S.C. 森のまち広場` — `location_address = location_name`（address extraction failed）; `3cbe5682 iwafu` sub-venue `森のまち広場` needs parent SC address. Fixes: PARENT VENUE ADDRESS RULE added to SYSTEM_PROMPT + `auto_qa_address_is_venue_name` detector added.
+

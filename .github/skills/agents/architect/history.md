@@ -3,6 +3,27 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04 — Sub-Venue Parent Address Guard
+
+### 問題
+`iwafu` source の `878660a0` イベントで `location_address = location_name = "流山おおたかの森S.C. 森のまち広場"` が発生。
+また `3cbe5682` では `森のまち広場`（S.C. 附属公共空間）が geocode 対象として使われ、親設施 `流山おおたかの森S.C.` の住所が得られなかった。
+
+### 根本原因
+SYSTEM_PROMPT の LOCATION ADDRESS RULE に以下 2 点が欠如していた：
+1. 「子会場の location_address は親設施の住所を使え」という明示規則
+2. 「location_address = location_name を禁止、失敗なら null を保て」という明示規則
+
+### 修正
+- `scraper/annotator.py`：LOCATION ADDRESS RULE 末尾に PARENT VENUE ADDRESS RULE 段落を追記
+- `scraper/auto_qa.py`：`auto_qa_address_is_venue_name` 偵測器を追加（location_address == location_name を flag）
+
+### 教訓
+1. `location_address = location_name` は silent failure のシグナル。auto_qa で常時監視が必要
+2. `○○施設内 ○○スペース` 形式の location_name は、子空間単体では geocode 不能。親設施を geocode 対象にすること
+3. SYSTEM_PROMPT にルールがなければ GPT は既存動作を踏襲する（ベニュー名をそのまま address に echo する）
+
+---
 ## 2026-05-04 — hakusuisha 三連修正：thin-content / start_date / business_hours
 
 ### 問題

@@ -139,6 +139,16 @@ Reference incident: 2026-05-02 — `location_prefectures` 未加入 select，多
 
 Reference incident: 2026-05-04 hakusuisha `_T` parser 未過濾 script/nav，`■日時：` 出現在 2000 字元之後（commit `4784266`）。
 
+## Sub-Venue Parent Address Guard
+
+在審核任何包含 `location_name` 或 `location_address` 的 annotator 修改、或任何新 scraper 的 location 欄位邏輯前，**必須**確認：
+
+1. **`location_address ≠ location_name`**：兩者相同是地址抽取失敗的標誌。SYSTEM_PROMPT 必須明示「identical 時保持 null」。`auto_qa_address_is_venue_name` 偵測器持續監控此情況。
+2. **子場地 → 親設施地址**：`○○S.C. 森のまち広場`、`○○ビル2階 大会議室` 等複合場地名，geocode 對象是**親設施**，不是子空間。annotator SYSTEM_PROMPT 的 LOCATION ADDRESS RULE 需有 PARENT VENUE ADDRESS RULE 段落。
+3. **auto_qa 偵測器**：`auto_qa_address_is_venue_name` 必須在 `QA_TYPES` 中且由 `run()` 呼叫。
+
+Reference incident: 2026-05-04 — `878660a0 iwafu` `流山おおたかの森S.C. 森のまち広場` address = name（失敗）；`3cbe5682` sub-venue 需用親 SC 地址（commit `b95e...`）。
+
 ## Category Sync Guard（annotator.py ↔ types.ts）
 
 在審核**任何**新增 `Category` 至 `web/lib/types.ts` 的 PR，或審核任何涉及 `annotator.py` 的 PR 前，**必須**確認以下三處同步：

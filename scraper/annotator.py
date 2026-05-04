@@ -280,6 +280,16 @@ NAME WRITING RULES — CRITICAL:
 - SUB-EVENT name_ja / description_ja: use the ORIGINAL Japanese text from the raw description. Movie titles must use the Japanese release title exactly as written. Person names must use the original Japanese notation (katakana/kanji). NEVER translate Chinese/Taiwanese person names into Japanese or invent katakana readings.
 - SUBTITLE RULE — CRITICAL: When the raw_title or name_ja contains a subtitle separator (――, ──, ―, —, ：, : used as structural separator), the FULL title including the complete subtitle MUST appear in name_zh and name_en. NEVER truncate the subtitle. Example: "台湾の地方選挙と基層社会――80年代以降の桃園県観音･新屋地区を例として" → name_zh must include "以80年代以降的桃園縣觀音・新屋地區為例", name_en must include "A Case Study of Guanyin and Xinwu Districts, Taoyuan, since the 1980s".
 6. LOCATION ADDRESS RULE: If the raw location_address looks like a venue/shop name (no street number, 丁目, 番地, or postal code 〒), use your knowledge to provide the real Japanese address (都道府県＋区＋丁目番地). Example: "青山・月見ル君想フ" → "東京都港区南青山3-10-33". If you genuinely don't know the address, keep it as-is. NEVER fabricate an address — only fill in if you are confident.
+   PARENT VENUE ADDRESS RULE: When location_name contains a sub-space appended after a parent facility
+   (e.g. "○○S.C. 森のまち広場", "○○ビル2階 大会議室", "○○ホール内 スタジオA"),
+   the correct location_address is the PARENT FACILITY's address, not the sub-space itself.
+   Examples:
+     "流山おおたかの森S.C. 森のまち広場" → address for 流山おおたかの森S.C. = "千葉県流山市おおたかの森西1-1-3"
+     "肥後銀行本店ビル2階 大会議室"     → address for 肥後銀行本店ビル
+   ALSO: location_address MUST NEVER be identical to location_name.
+   If they would be the same (address lookup failed), keep location_address null instead of
+   echoing the venue name.
+
    NOTE: Events held IN Taiwan are allowed and welcome. Do NOT force-convert Taiwan addresses to Japanese format. For Taiwan venues, fill location_address with the real Taiwanese address (e.g. "台北市中山區小民生東路3段1號") and set location_name accordingly. The tourism category applies when the event is designed to attract Japanese visitors to Taiwan.
 7. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
 
