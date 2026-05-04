@@ -3,6 +3,26 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04 — 「持續 0 件來源」診斷方法論 + 30 天監控閾值
+
+### 問題
+週報出現 13 個持續 0 件來源，需判斷是邏輯失效還是正常狀態。錯誤做法是立即 dry-run 或修改 scraper。
+
+### 正確診斷步驟
+1. 查歷史最高事件數（`last_nonzero = never` 不代表失效）
+2. 分類：季節性 / 低頻設計 / 時機問題 / API key 缺失
+3. 查 doc string 的預期產量（「1-2件/年」→ 0 件是常態）
+4. 設定監控閾值，不要首週就干預
+
+### 修復
+`daily_report.py` 新增 `check_persistent_zero_sources(sb, window_start_30d)` —— 30 天內執行 30+ 次且從未產生事件的來源，在每日報告顯示 🔴 警告。
+
+### 教訓
+1. 新 scraper 首週 0 件：先查 doc string 預期產量，再決定是否需要調查
+2. 季節性來源需在 doc string 標注活躍期（`# Active: Oct–Nov`）
+3. 監控閾值優先於人工週報審查
+
+---
 ## 2026-05-04 — GitHub Actions Cron Slot 精確匹配 Fallthrough + Scraper Notes 空白
 
 ### 問題 1：researcher/slot3 每週費用 $2.62（應為 $0.67）

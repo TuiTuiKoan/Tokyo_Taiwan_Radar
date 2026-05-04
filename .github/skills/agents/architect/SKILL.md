@@ -377,6 +377,30 @@ Reference incident: 2026-05-04 — `researcher.yml` 所有 4 個 cron 全部 fal
 
 Reference incident: 2026-05-04 — eurospace 3 次失敗（4/28–4/29）notes 全為 NULL，無法從 DB 追溯原因。修復：`main.py` except 區塊新增 `"notes"` 欄位。
 
+## Persistent Zero Sources Diagnostic Guard
+
+在週報或每日報告出現「持續 0 件」來源時，**不要立即 dry-run 或修改 scraper**，先依以下順序診斷：
+
+1. **查歷史最高事件數**（`last_nonzero = never` ≠ 邏輯失效）：
+   ```python
+   sb.table('scraper_runs').select('events_processed,ran_at')
+     .eq('source', src).order('ran_at').execute()
+   # 計算 max_events 和 last_nonzero_date
+   ```
+2. **四種分類判斷**：
+   - **季節性**：doc string 有年度節期（oaff → 3月、tokyo_filmex → 11月）→ 期間外 0 件是設計行為
+   - **低頻設計**：doc string 說「1-2件/年」「2-5件/年」→ 前半年 0 件是常態
+   - **時機問題**：場地排片無台灣內容 → 等新排片
+   - **API key 缺失**：本地 `.env` 無 key → CI 可能正常，確認 Actions secret
+3. **設定監控閾值**（不要人工週報審查）：`PERSISTENT_ZERO_DAYS=30` 觸發自動警告。
+
+**給 doc string 加上活躍期標注**（防止未來誤報）：
+```python
+# Active period: Oct–Nov (festival announcement); returns [] outside festival year
+```
+
+Reference incident: 2026-05-04 — 13 個 0 件來源全部屬於正常狀態，透過查歷史+分類診斷在 30 分鐘內確認無需修改任何 scraper。修復：`daily_report.py` 加入 30 天自動監控。
+
 ## AI Model Selection
 - Verify model capabilities before designing features requiring real-time data (web search, live prices, current events). `gpt-4o-mini` and `gpt-4o` have no web browsing. Use `gpt-4o-search-preview` or a real search API for current data.
 - "Plausible-looking output" ≠ "real data access." A model without search access will hallucinate convincing-looking URLs.
