@@ -728,9 +728,11 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             )
         else:
             # default: process all pending events regardless of is_active.
-            # Sub-events are always upserted as 'annotated' by the annotator, so
-            # pending sub-events should not exist in practice. The filter is a safety net.
-            query = query.eq("annotation_status", "pending").is_("parent_event_id", "null")
+            # Sub-events with annotation_status='pending' are created by scrapers
+            # that set parent_event_id ahead of time. Include them so they get
+            # annotated. Annotator-created sub-events are already 'annotated' and
+            # are safe from re-processing (they won't match this pending filter).
+            query = query.eq("annotation_status", "pending")
 
     result = query.order("created_at", desc=True).execute()
     events = result.data
@@ -778,6 +780,17 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
 
     for i, event in enumerate(events, 1):
         eid = event["id"]
+        # If this is a sub-event, fetch parent for field inheritance.
+        _parent_event: dict | None = None
+        if event.get("parent_event_id"):
+            _pr = sb.table("events").select(
+                "id,name_ja,name_zh,name_en,"
+                "location_name,location_address,location_name_zh,location_name_en,"
+                "location_address_zh,location_address_en,"
+                "business_hours,business_hours_zh,business_hours_en,"
+                "organizer,organizer_type,co_organizers,sponsors,performer"
+            ).eq("id", event["parent_event_id"]).execute()
+            _parent_event = _pr.data[0] if _pr.data else None
         raw_title = event.get("raw_title") or event.get("name_ja") or ""
         raw_desc = event.get("raw_description") or event.get("description_ja") or ""
 
@@ -845,6 +858,17 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 raw_desc = article_text
             else:
                 logger.info("  → Article fetch failed, proceeding with original raw_desc")
+
+        # For sub-events: add parent event name as translation reference context.
+        if _parent_event:
+            _parent_ctx = (
+                "\n\n[Parent event context — use for name translation reference only]\n"
+                f"Parent name (JA): {_parent_event.get('name_ja') or ''}\n"
+                f"Parent name (ZH): {_parent_event.get('name_zh') or ''}\n"
+                f"Parent name (EN): {_parent_event.get('name_en') or ''}\n"
+                f"Parent location: {_parent_event.get('location_name') or ''}\n"
+            )
+            raw_desc = (raw_desc or "") + _parent_ctx
 
         logger.info("[%d/%d] Annotating: %s", i, len(events), raw_title[:60])
 
@@ -1078,6 +1102,30 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     if _final_performer:
                         update_data["performer"] = _final_performer
 
+                # Sub-event parent inheritance:
+                # - If sub-event has no location, or same location as parent → inherit all location fields
+                # - Regardless of location → inherit organizer/performer if not set
+                if _parent_event:
+                    _sub_has_own_loc = bool(update_data.get("location_name"))
+                    _parent_loc_name = _parent_event.get("location_name")
+                    _same_loc = (
+                        _sub_has_own_loc
+                        and _parent_loc_name
+                        and update_data["location_name"] == _parent_loc_name
+                    )
+                    if not _sub_has_own_loc or _same_loc:
+                        for _lf in (
+                            "location_name", "location_address",
+                            "location_name_zh", "location_name_en",
+                            "location_address_zh", "location_address_en",
+                            "business_hours", "business_hours_zh", "business_hours_en",
+                        ):
+                            if not update_data.get(_lf):
+                                update_data[_lf] = _parent_event.get(_lf)
+                    for _pf in ("organizer", "organizer_type", "co_organizers", "sponsors", "performer"):
+                        if not update_data.get(_pf):
+                            update_data[_pf] = _parent_event.get(_pf)
+
             # Localized location/hours fields added in migration 010.
             # Kept separate so the primary update above never fails on old DB schemas.
             localized_location_data: dict[str, Any] = {
@@ -1131,6 +1179,10 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
 
             # Handle sub-events
             sub_events = annotation.get("sub_events", [])
+            # Never create grandchild events: if this event is itself a sub-event
+            # (has parent_event_id), skip sub-event creation entirely.
+            if event.get("parent_event_id"):
+                sub_events = []
             # Pre-fetch existing sub-events to preserve name_ja on re-annotation
             # (same preservation policy as parent events — GPT may rewrite katakana to kanji).
             existing_subs_res = sb.table("events").select(
