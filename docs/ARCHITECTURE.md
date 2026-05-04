@@ -172,6 +172,7 @@ scraper.scrape()
 | `aeo_visits` | 029 | AI 引擎造訪紀錄 |
 | `announcements` | 030 | 發文管理（三語 + 社群發布狀態）|
 | `announcement_events` | 030 | 發文 ↔ 事件關聯（junction table）|
+| `quota_snapshots` | 042 | 每日配額快照（Supabase DB size / GH Actions minutes）|
 
 ### 重要 migration 演進
 
