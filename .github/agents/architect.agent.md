@@ -231,6 +231,16 @@ Reference incident: 2026-05-04 — event `e72b2c15` performer=null（缺 fallbac
 
 Reference incident: 2026-05-05 — `赤い糸 輪廻のひみつ` 以日文出現在 ZH 週報，root cause `_fetch_upcoming_events` 缺 `annotation_status` 過濾（fix commit 後 pool 76→74）。
 
+## Person Name Enrich English Guard（description_en 必須走 GPT 修正路徑）
+
+在審核任何涉及 `enrich_person_names()` 或人名翻譯邏輯的計畫前，**必須**確認：
+
+1. **description_en 中的人名是英文音譯，不是片假名**：GPT 在最初翻譯 `description_en` 時已將片假名 → 英文音譯（如 `クー・チェンドン` → `Koo Kuan-Dong`）。`description_en` 內**不會**包含片假名字串。
+2. **直接字串替換對 description_en 永遠失效**：`if ja_name in desc_en: desc_en.replace(ja_name, info.name_en)` 因為 `desc_en` 沒有片假名，永遠不會命中。需改走 GPT 修正路徑（同 description_zh）。
+3. **目前 `annotator.py` 的 `enrich_person_names` 在 description_en 處理上有 bug**：手動修正單筆事件時需直接 SQL UPDATE，未來改寫應加 `_fix_person_names_gpt_en()` 函式，傳遞 `(role, ja_name, info.name_en)` 給 GPT 重寫 desc_en。
+
+Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan-Dong` 從 5/4 daily CI 後一直未修正，需手動 SQL UPDATE 為 `Ko Chen-tung`。
+
 ## DB Migration DEFAULT Value — Batch Query Guard
 
 在審核任何**新增 DB 欄位並設定非 NULL DEFAULT 值**的 migration，或審核任何讀取該欄位做 batch 過濾的 query 前，**必須**確認：

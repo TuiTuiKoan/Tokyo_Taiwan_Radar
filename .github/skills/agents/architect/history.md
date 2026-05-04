@@ -3,6 +3,27 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — `enrich_person_names` 對 description_en 修不到（音譯英文 vs 片假名）
+
+### 問題
+事件 `f970e4e3`（赤い糸 輪廻のひみつ / 月老）在 5/4 daily CI 跑過後，`description_zh`/`description_en` 仍含片假名/英文音譯人名（`ギデンズ・コー`、`Koo Kuan-Dong` 等），而非中文 `九把刀` `柯震東` 或正確英文 `Ko Chen-tung`。
+
+### 根因（兩層）
+1. **`enrich_movie_titles` 5/4 第一次 CI 失敗或時序問題**：標題仍是 GPT 直譯 `紅線 輪迴的秘密` / `The Red Thread`，未替換為 `月老` / `Till We Meet Again`。第二次手動執行立即修正，原因可能是 5/4 lookup 當下網路或 eiga.com 暫時失敗。
+2. **`enrich_person_names` 對 description_en 邏輯有缺陷**：`description_en` 由 GPT 翻譯時已將片假名 → 英文音譯（如 `クー・チェンドン` → `Koo Kuan-Dong`），但 `enrich_person_names` 對 desc_en 採**直接字串替換片假名**（`if ja_name in new_desc_en`），片假名根本不在 desc_en 中，所以永遠無法修正。
+   - desc_zh 用 GPT prompt 替換可成功（GPT 看得懂上下文），但 desc_en 沒有對等的 GPT 修正路徑。
+
+### 修復
+1. 立即執行 `python annotator.py --enrich-movie-titles`：標題修正為 月老 / Till We Meet Again。
+2. 針對單筆事件呼叫 `lookup_person_names` + `_fix_person_names_gpt`：description_zh 修正人名為中文。
+3. 手動 UPDATE description_en：`Koo Kuan-Dong` → `Ko Chen-tung`、`Wang Jing` → `Wang Ching`、補 `performer = '九把刀, 柯震東, 宋芸樺, 王淨'`。
+
+### 教訓
+- `enrich_movie_titles` 是 daily CI 每天跑的安全網，但仍會因臨時失敗漏修。設計時應加入「重試 / 留下失敗紀錄」機制，避免錯誤翻譯持續上線。
+- **`enrich_person_names` 對 description_en 應改用 GPT 修正路徑**（同 description_zh），不能只靠 katakana direct-replace。這是既有 bug，已記入 SKILL.md「Person Name Enrich English Guard」。
+- 手動修正後，可考慮把該事件 `annotation_status` 升為 `reviewed` 防止下次 CI 覆寫（本次未做，待觀察）。
+
+---
 ## 2026-05-05 — location_address = location_name 在 9 個 scraper 中大範圍擴散（65 件受影響）
 
 ### 問題
