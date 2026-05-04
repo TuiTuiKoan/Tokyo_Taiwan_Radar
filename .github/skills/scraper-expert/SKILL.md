@@ -29,6 +29,7 @@ Read this at the start of every session before writing any scraper.
   "
   ```
 - **Run SCRAPERS audit after ANY `main.py` change**: Not only when adding new scrapers. Any refactor or chore commit touching `main.py` risks silently dropping registrations. Run the audit and confirm "ALL CLEAR" before `git push`.
+- **⚠ Rewriting main.py drops all registrations**: When adding a new scraper, NEVER regenerate the full imports+SCRAPERS block from scratch — always append to the existing list. In commit `045d1fa`, adding WasedaICL by rewriting main.py silently dropped 24 scrapers that ran without error for weeks (`6a83c64` restored them). SCRAPERS count before any commit: `python3 -c "import re; print(len(re.findall(r'\\w+Scraper\\(\\)', open('scraper/main.py').read())))"` — if count drops vs prior commit, something was lost.
 - **Source removal procedure (3-step atomically)**: When removing a scraper entirely:
   1. Remove `import` from `main.py`
   2. Remove `ScrapeClass()` from `SCRAPERS` in `main.py`
@@ -929,3 +930,11 @@ GPT-4o invents plausible-looking CSS classes that look reasonable but are NOT in
 **Fix (in `scraper/auto_scraper/template.py.j2`)**: When `DETAIL_LINK_SELECTOR == ""`, grab the first `<a href>` inside the card element. Verified: Artist Cafe Fukuoka 0 → 12 events.
 
 **Generalisable rule**: For any optional spec field whose absence breaks the scraper, the **template** (not the LLM) must implement a sensible fallback. Do not expect the LLM to read between the lines of the schema. When adding new optional fields to `spec_schema.json`, ask: "What does the template do when the LLM leaves this empty?" If the answer is "crash" or "skip everything", write a fallback in the template before merging the schema change.
+
+## waseda_icl-specific
+
+1. **WP REST API, NOT Cloudflare-blocked**: `waseda.jp/folaw/icl/` allows `/wp-json/wp/v2/posts?search=台湾`. Main `waseda.jp` domain is blocked — do not confuse them.
+2. **Skip `_REPORT_RE` posts**: Posts containing `【開催報告】` or `が開催されました` are event summaries published AFTER the event — skip them or you get stale past-event dates.
+3. **Two-stage filter is mandatory**: API `search=` has broad recall; `_TAIWAN_TITLE_RE` on title is the precision gate. Body-only Taiwan mentions (bibliography, references) must not pass.
+4. **0 events is almost always correct**: ~1–2 genuine Taiwan events per year. Never inflate keywords to increase counts.
+5. **No overlap with `waseda_taiwan`**: Different institutions, different WP sites, different post IDs. Merger will not deduplicate them.
