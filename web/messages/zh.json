@@ -109,13 +109,7 @@
     "recordLinksUrl": "連結網址",
     "recordLinksRecommended": "推薦",
     "movieOfficialSite": "電影官方宣傳網站",
-    "searchOfficialSite": "Google 搜尋官方宣傳網站",
-    "organizerSection": "主辦單位資訊",
-    "organizer": "主辦",
-    "coOrganizers": "共同主辦",
-    "sponsors": "贊助",
-    "eventForm": "活動形式",
-    "languageSupport": "語言支援"
+    "searchOfficialSite": "Google 搜尋官方宣傳網站"
   },
   "auth": {
     "loginTitle": "登入",
@@ -373,6 +367,7 @@
     "successMessage": "已收到提報，感謝回饋！",
     "errorMessage": "提報失敗，請稍後再試",
     "wrongSelectionReason": "選取理由不準確",
+    "brokenLink": "原始連結失效",
     "selectionReasonHint": "請說明理由（可修改預設內容）",
     "fieldEditHint": "請補充說明（可修改預設內容）"
   },
@@ -451,30 +446,5 @@
     "taiwan_japan": "專注台日交流的活動，包含文化互訪、姐妹城市活動、台日商務交流及民間友好活動。",
     "lifestyle_food": "以台灣飲食文化與生活風格為主題的活動，包含台灣料理教室、食材市集、生活風格工作坊。",
     "books_media": "台灣書籍、文學、出版、媒體相關的活動，包含讀書會、作者講座、台灣文學展覽。"
-  },
-  "organizerType": {
-    "government": "政府機關",
-    "semi_official": "官方關係單位",
-    "cultural_institution": "文化機構",
-    "academic": "學術單位",
-    "commercial_brand": "商業品牌",
-    "independent_venue": "獨立場所",
-    "civic_group": "民間組織",
-    "media": "媒體",
-    "unknown": "其他"
-  },
-  "eventForm": {
-    "exhibition": "展覽",
-    "screening": "放映",
-    "lecture": "講座",
-    "performance": "表演",
-    "market": "市集",
-    "workshop": "工作坊",
-    "conference": "研討會",
-    "networking": "交流會",
-    "screening_with_talk": "映後座談",
-    "tour": "走讀",
-    "competition": "競賽",
-    "other": "其他"
   }
 }

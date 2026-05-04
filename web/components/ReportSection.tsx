@@ -13,7 +13,7 @@ interface Props {
   eventFields?: Partial<Record<WrongDetailField, Partial<Record<LocaleKey, string | null>>>>;
 }
 
-const REPORT_TYPES = ["irrelevant", "wrongDetails", "wrongCategory", "wrongSelectionReason"] as const;
+const REPORT_TYPES = ["irrelevant", "wrongDetails", "wrongCategory", "wrongSelectionReason", "brokenLink"] as const;
 type ReportType = (typeof REPORT_TYPES)[number];
 
 // Fields that can be reported as wrong under "wrongDetails"
