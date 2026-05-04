@@ -3,6 +3,19 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — 24 scrapers lost in SCRAPERS when 045d1fa rewrote main.py [multiple]
+
+**Error:** Commit `045d1fa`（add WasedaIclScraper）で `main.py` が書き直され、既存の 24 個の scraper が import と SCRAPERS から消えた。同日に `8a9dcd7` で ArtistcafeScraper を追加したが audit を実行せず、24 個の欠落は発見されなかった。
+
+**Affected scrapers (24):** LivepocketScraper, FukuokaNowScraper, PrtimesScraper, MaruhiroScraper, EurospaceScraper, TokyoArtBeatScraper, HankyuUmedaScraper, DaimaruMatsuzakayaScraper, CineMarineScraper, EsliteSpectrumScraper, MoonRomanticScraper, MorcAsagayaScraper, SsffScraper, TaiwanFaasaiScraper, TokyoFilmexScraper, GoogleNewsRssScraper, NhkRssScraper, GguideTvScraper, MotScraper, TransitStoreScraper, GoTaiwanScraper, TaiwanFestaScraper, TiffJpScraper, RightscubeScraper
+
+**Fix:** 24 個の import + SCRAPERS エントリを復元（commit `6a83c64`）。audit で 66 scrapers 確認。
+
+**Detection:** `grep -i "shin_bungeiza" scraper/main.py` が exit 1 → 手動調査 → audit で 24 個の UNREGISTERED 判明。
+
+**Lesson:** `main.py` を ANY 理由で編集した後は、必ず SCRAPERS audit を実行。特に「新しい scraper を 1 個追加」する際に既存のリストを書き直すと、既存のすべての登録が消えるリスクがある。
+
+---
 ## 2026-05-05 — ArtistcafeScraper: ファイル存在・POC完了・commit済みなのに SCRAPERS 未登録で 3 日間無視された
 
 **Error:** `scraper/sources/artistcafe.py` はファイルとして存在し、feature branch にも commit されていたが、`main.py` への `import` と `SCRAPERS` 登録が一度も実施されなかった。CI は 3 日以上この scraper を完全に無視した。
