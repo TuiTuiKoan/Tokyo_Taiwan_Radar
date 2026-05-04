@@ -127,7 +127,7 @@ def _fetch_upcoming_events(sb) -> list[dict]:
     res = (
         sb.table("events")
         .select(
-            "id,name_zh,name_ja,name_en,start_date,end_date,category,location_name"
+            "id,name_zh,name_ja,name_en,start_date,end_date,category,location_name,location_address"
         )
         .eq("is_active", True)
         .is_("parent_event_id", "null")
@@ -209,6 +209,61 @@ def _format_date(iso: str | None) -> str:
         return iso[:10]
 
 
+# Prefecture → display city label (non-Tokyo only)
+# Used to prefix event titles when the event is outside Tokyo.
+_PREF_LABEL: dict[str, dict[str, str]] = {
+    "大阪": {"zh": "大阪", "ja": "大阪", "en": "Osaka"},
+    "大阪府": {"zh": "大阪", "ja": "大阪", "en": "Osaka"},
+    "北海道": {"zh": "札幌", "ja": "札幌", "en": "Sapporo"},
+    "京都": {"zh": "京都", "ja": "京都", "en": "Kyoto"},
+    "京都府": {"zh": "京都", "ja": "京都", "en": "Kyoto"},
+    "愛知": {"zh": "名古屋", "ja": "名古屋", "en": "Nagoya"},
+    "愛知県": {"zh": "名古屋", "ja": "名古屋", "en": "Nagoya"},
+    "兵庫": {"zh": "神戶", "ja": "神戸", "en": "Kobe"},
+    "兵庫県": {"zh": "神戶", "ja": "神戸", "en": "Kobe"},
+    "福岡": {"zh": "福岡", "ja": "福岡", "en": "Fukuoka"},
+    "福岡県": {"zh": "福岡", "ja": "福岡", "en": "Fukuoka"},
+    "神奈川": {"zh": "橫濱", "ja": "横浜", "en": "Yokohama"},
+    "神奈川県": {"zh": "橫濱", "ja": "横浜", "en": "Yokohama"},
+    "埼玉": {"zh": "埼玉", "ja": "埼玉", "en": "Saitama"},
+    "埼玉県": {"zh": "埼玉", "ja": "埼玉", "en": "Saitama"},
+    "千葉": {"zh": "千葉", "ja": "千葉", "en": "Chiba"},
+    "千葉県": {"zh": "千葉", "ja": "千葉", "en": "Chiba"},
+    "宮城": {"zh": "仙台", "ja": "仙台", "en": "Sendai"},
+    "宮城県": {"zh": "仙台", "ja": "仙台", "en": "Sendai"},
+    "沖縄": {"zh": "沖繩", "ja": "沖縄", "en": "Okinawa"},
+    "沖縄県": {"zh": "沖繩", "ja": "沖縄", "en": "Okinawa"},
+    "広島": {"zh": "廣島", "ja": "広島", "en": "Hiroshima"},
+    "広島県": {"zh": "廣島", "ja": "広島", "en": "Hiroshima"},
+    "静岡": {"zh": "靜岡", "ja": "静岡", "en": "Shizuoka"},
+    "静岡県": {"zh": "靜岡", "ja": "静岡", "en": "Shizuoka"},
+}
+
+_TOKYO_PREFIXES = ("東京都", "東京")
+
+
+def _city_label(event: dict, lang: str) -> str:
+    """Return a bracketed city label (e.g. '[大阪]') if the event is not in Tokyo.
+
+    Detection order:
+    1. location_address starts with '東京都' → Tokyo, no label
+    2. location_address starts with a known non-Tokyo prefix → use _PREF_LABEL
+    3. location_address is absent → no label (avoid false positives)
+    """
+    addr = (event.get("location_address") or "").strip()
+    if not addr:
+        return ""
+    # Tokyo: no label
+    if addr.startswith(_TOKYO_PREFIXES):
+        return ""
+    # Check known non-Tokyo prefectures
+    for pref, labels in _PREF_LABEL.items():
+        if addr.startswith(pref):
+            label = labels.get(lang) or labels["ja"]
+            return f"[{label}]"
+    return ""
+
+
 def _build_message(
     weekly_events: list[dict],
     monthly_events: list[dict],
@@ -241,7 +296,9 @@ def _build_message(
         title = e.get(name_col) or e.get("name_zh") or e.get("name_ja") or e.get("name_en") or "?"
         date_str = _format_date(e.get("start_date"))
         url = f"{base_url}/r/{e['id']}"
-        lines.append(f"• {title}　{date_str}")
+        city = _city_label(e, lang)
+        prefix = f"{city}" if city else ""
+        lines.append(f"• {prefix}{title}　{date_str}")
         lines.append(f"  {url}")
 
     if monthly_events:
@@ -252,7 +309,9 @@ def _build_message(
             end = _format_date(e.get("end_date"))
             date_str = f"{start}–{end}" if end and end != start else start
             url = f"{base_url}/r/{e['id']}"
-            lines.append(f"• {title}（{date_str}）")
+            city = _city_label(e, lang)
+            prefix = f"{city}" if city else ""
+            lines.append(f"• {prefix}{title}（{date_str}）")
             lines.append(f"  {url}")
 
     lines.append("")
@@ -307,7 +366,9 @@ def run_broadcast(dry_run: bool = False) -> None:
     weekly_ids: list[str] = selected.get("weekly", [])
     monthly_ids: list[str] = selected.get("monthly", [])
     weekly_events = [event_map[i] for i in weekly_ids if i in event_map]
-    monthly_events = [event_map[i] for i in monthly_ids if i in event_map]
+    # Python-level deduplication: monthly must not repeat any id already in weekly
+    weekly_id_set = {e["id"] for e in weekly_events}
+    monthly_events = [event_map[i] for i in monthly_ids if i in event_map and i not in weekly_id_set]
     logger.info("AI selected: %d weekly, %d monthly", len(weekly_events), len(monthly_events))
 
     # 3. Fetch subscribers grouped by language
