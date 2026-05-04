@@ -1396,9 +1396,12 @@ def backfill_price_from_price_info() -> None:
     skipped = 0
     for e in rows:
         pi = (e.get("price_info") or "").replace("，", ",").replace("\u3000", " ")
-        m = _re.search(r"([\d,]+)\s*円", pi)
+        # Match both "¥2,750" / "¥ 2750" and "2,750円" / "14000円" formats.
+        # Pattern: optional ¥/￥ prefix OR digits-only followed by optional 円.
+        m = _re.search(r"[¥￥]\s*([\d,]+)|([1-9][\d,]*)\s*円", pi)
         if m:
-            price = float(m.group(1).replace(",", ""))
+            raw_num = (m.group(1) or m.group(2)).replace(",", "")
+            price = float(raw_num)
             if price > 0:
                 sb.table("events").update({"price_amount": price}).eq("id", e["id"]).execute()
                 updated += 1

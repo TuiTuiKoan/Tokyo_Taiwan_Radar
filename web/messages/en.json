@@ -109,7 +109,13 @@
     "recordLinksUrl": "URL",
     "recordLinksRecommended": "Recommended",
     "movieOfficialSite": "Official Film Website",
-    "searchOfficialSite": "Search for official film website"
+    "searchOfficialSite": "Search for official film website",
+    "organizerSection": "Organizer Info",
+    "organizer": "Organizer",
+    "coOrganizers": "Co-organizers",
+    "sponsors": "Sponsors",
+    "eventForm": "Event Format",
+    "languageSupport": "Language Support"
   },
   "auth": {
     "loginTitle": "Login",
@@ -446,5 +452,30 @@
     "taiwan_japan": "Events focused on Japan-Taiwan exchange — cultural visits, sister city events, business networking, and people-to-people friendship activities.",
     "lifestyle_food": "Events celebrating Taiwanese food culture and lifestyle — cooking classes, food markets, and lifestyle workshops.",
     "books_media": "Events related to Taiwanese books, literature, publishing, and media — book clubs, author talks, and literary exhibitions."
+  },
+  "organizerType": {
+    "government": "Government",
+    "semi_official": "Semi-official",
+    "cultural_institution": "Cultural Institution",
+    "academic": "Academic",
+    "commercial_brand": "Commercial Brand",
+    "independent_venue": "Independent Venue",
+    "civic_group": "Civic Group",
+    "media": "Media",
+    "unknown": "Unknown"
+  },
+  "eventForm": {
+    "exhibition": "Exhibition",
+    "screening": "Screening",
+    "lecture": "Lecture",
+    "performance": "Performance",
+    "market": "Market",
+    "workshop": "Workshop",
+    "conference": "Conference",
+    "networking": "Networking",
+    "screening_with_talk": "Screening & Talk",
+    "tour": "Tour",
+    "competition": "Competition",
+    "other": "Other"
   }
 }
