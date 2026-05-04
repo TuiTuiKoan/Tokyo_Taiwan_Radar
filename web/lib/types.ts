@@ -263,3 +263,16 @@ export function getEventBusinessHours(event: Event, locale: Locale): string | nu
   if (locale === "en") return event.business_hours_en || event.business_hours;
   return event.business_hours;
 }
+
+export interface SourceExclusion {
+  id: string;
+  source_name: string;
+  pattern: string;
+  pattern_type: "substring" | "regex";
+  match_field: "raw_title" | "raw_description" | "raw_title_or_description";
+  reason: string | null;
+  is_active: boolean;
+  created_at: string;
+  last_matched_at: string | null;
+  match_count: number;
+}

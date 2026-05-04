@@ -30,6 +30,11 @@ SITE_URL = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://tokyotaiwanradar.com"
 ACTIONS_URL = "https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/actions"
 RUNS_DIR = Path(__file__).parent / "auto_scraper" / "runs"
 
+COST_DAILY_WARN  = 0.50   # ⚠ show in report section
+COST_DAILY_ALERT = 1.00   # 🔴 also send LINE push
+COST_MONTH_ALERT = 15.00  # 🔴 also send LINE push
+COST_SOURCE_SPIKE = 1.50  # 🚨 any single source today
+
 _TAIWAN_KW = [
     "台灣", "台湾", "Taiwan", "臺灣",
     "台北", "台中", "台南", "高雄", "花蓮",
@@ -146,10 +151,70 @@ def _supabase_client():
     return create_client(url, key)
 
 
-def generate_report() -> str:
+def check_cost_anomalies(sb, today_runs: list, window_start_30d: str) -> dict:
+    """
+    Analyse cost anomalies from today's scraper_runs rows and the past 30 days.
+
+    Args:
+        sb: Supabase client
+        today_runs: rows from scraper_runs for the past 25h (already fetched)
+        window_start_30d: ISO timestamp for 30 days ago
+
+    Returns dict with:
+        today_cost       float
+        month_cost       float
+        today_warn       bool  (> COST_DAILY_WARN)
+        today_alert      bool  (> COST_DAILY_ALERT)
+        month_alert      bool  (> COST_MONTH_ALERT)
+        spike_sources    list[tuple[str, float]]  sources exceeding COST_SOURCE_SPIKE
+        top3_today       list[tuple[str, float]]
+        any_alert        bool  (today_alert or month_alert or spike_sources)
+    """
+    today_cost = sum(r.get("cost_usd") or 0.0 for r in today_runs)
+
+    try:
+        month_rows = (
+            sb.table("scraper_runs")
+            .select("cost_usd")
+            .gte("ran_at", window_start_30d)
+            .execute()
+            .data
+            or []
+        )
+        month_cost = sum(r.get("cost_usd") or 0.0 for r in month_rows)
+    except Exception:
+        month_cost = 0.0
+
+    by_source: dict[str, float] = {}
+    for r in today_runs:
+        src = r.get("source") or "unknown"
+        by_source[src] = by_source.get(src, 0.0) + (r.get("cost_usd") or 0.0)
+
+    spike_sources = [(s, c) for s, c in by_source.items() if c > COST_SOURCE_SPIKE]
+    top3 = sorted(by_source.items(), key=lambda x: -x[1])[:3]
+
+    today_warn  = today_cost > COST_DAILY_WARN
+    today_alert = today_cost > COST_DAILY_ALERT
+    month_alert = month_cost > COST_MONTH_ALERT
+    any_alert   = today_alert or month_alert or bool(spike_sources)
+
+    return {
+        "today_cost":    today_cost,
+        "month_cost":    month_cost,
+        "today_warn":    today_warn,
+        "today_alert":   today_alert,
+        "month_alert":   month_alert,
+        "spike_sources": spike_sources,
+        "top3_today":    top3,
+        "any_alert":     any_alert,
+    }
+
+
+def generate_report() -> tuple[str, dict]:
     now_jst = datetime.now(JST)
     report_date = now_jst.strftime("%Y-%m-%d")
     window_start = (now_jst - timedelta(hours=25)).isoformat()
+    window_start_30d = (now_jst - timedelta(days=30)).isoformat()
 
     sb = _supabase_client()
 
@@ -169,6 +234,7 @@ def generate_report() -> str:
 
     total_events = sum(r.get("events_processed") or 0 for r in runs)
     total_cost = sum(r.get("cost_usd") or 0.0 for r in runs)
+    cost_check = check_cost_anomalies(sb, runs, window_start_30d)
 
     # Per-source summary (exclude meta-sources)
     META_SOURCES = {"annotator", "merger", "backfill", "enrich"}
@@ -393,7 +459,19 @@ def generate_report() -> str:
     if runs:
         lines.append(f"  新增/更新事件  ：{total_events} 件")
         lines.append(f"  標注完成       ：{annotated_count} 件")
-        lines.append(f"  OpenAI 費用    ：${total_cost:.4f}")
+        _cost_flag = ""
+        if cost_check["today_alert"]:
+            _cost_flag = f"  ← 🔴 ALERT（>{COST_DAILY_ALERT}）"
+        elif cost_check["today_warn"]:
+            _cost_flag = f"  ← ⚠ warn（>{COST_DAILY_WARN}）"
+        lines.append(f"  OpenAI 費用    ：${total_cost:.4f}{_cost_flag}")
+        _month_flag = ""
+        if cost_check["month_alert"]:
+            _month_flag = f"  ← 🔴 ALERT（>{COST_MONTH_ALERT}）"
+        lines.append(f"  30 天累計費用  ：${cost_check['month_cost']:.2f}{_month_flag}")
+        if cost_check["spike_sources"]:
+            for src, c in cost_check["spike_sources"]:
+                lines.append(f"  🚨 單一來源 spike：{src}  ${c:.4f}（>{COST_SOURCE_SPIKE}）")
         if scraper_sources:
             lines.append("  來源明細：")
             for src, n in sorted(scraper_sources.items()):
@@ -408,7 +486,47 @@ def generate_report() -> str:
     lines.append("=" * 48)
     lines.append(f"  生成時間：{now_jst.strftime('%Y-%m-%d %H:%M')} JST")
 
-    return "\n".join(lines)
+    return "\n".join(lines), cost_check
+
+
+def send_cost_alert_if_needed(cost_check: dict, report_date: str) -> None:
+    """Send a LINE push if any cost threshold is exceeded. No-op if LINE creds not set."""
+    if not cost_check.get("any_alert"):
+        return
+
+    try:
+        from line_notify import send_line_message
+    except ImportError:
+        return
+
+    lines = [f"💰 OpenAI 成本告警（{report_date}）", ""]
+
+    today_icon = "🔴" if cost_check["today_alert"] else "⚠️"
+    lines.append(
+        f"{today_icon} 今日：${cost_check['today_cost']:.4f}"
+        f"  (warn=${COST_DAILY_WARN}, alert=${COST_DAILY_ALERT})"
+    )
+
+    month_icon = "🔴" if cost_check["month_alert"] else "✅"
+    lines.append(
+        f"{month_icon} 30 天：${cost_check['month_cost']:.2f}"
+        f"  (alert=${COST_MONTH_ALERT})"
+    )
+
+    if cost_check["spike_sources"]:
+        lines.append("")
+        lines.append(f"🚨 Source spike（單源 >${COST_SOURCE_SPIKE}）：")
+        for src, c in cost_check["spike_sources"]:
+            lines.append(f"  {src}: ${c:.4f}")
+
+    if cost_check["top3_today"]:
+        lines.append("")
+        lines.append("Top 3 sources today:")
+        for src, c in cost_check["top3_today"]:
+            if c > 0:
+                lines.append(f"  {src}: ${c:.4f}")
+
+    send_line_message("\n".join(lines))
 
 
 def main() -> None:
@@ -416,7 +534,7 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Print report to stdout only")
     args = parser.parse_args()
 
-    report = generate_report()
+    report, cost_check = generate_report()
     print(report)
 
     if not args.dry_run:
@@ -424,6 +542,9 @@ def main() -> None:
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(report)
         print(f"\n✓ Report written to {out_path}", file=sys.stderr)
+        # Send LINE cost alert if any threshold exceeded
+        now_jst = datetime.now(JST)
+        send_cost_alert_if_needed(cost_check, now_jst.strftime("%Y-%m-%d"))
 
 
 if __name__ == "__main__":

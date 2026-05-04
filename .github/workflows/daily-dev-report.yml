@@ -46,6 +46,8 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
           GIT_COMMITS: ${{ steps.commits.outputs.data }}
+          LINE_CHANNEL_TOKEN: "${{ secrets.LINE_CHANNEL_TOKEN }}"
+          LINE_USER_ID: "${{ secrets.LINE_USER_ID }}"
         run: python daily_report.py
 
       - name: Read report body
