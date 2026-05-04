@@ -47,13 +47,19 @@ jobs:
             echo "value=${{ github.event.inputs.slot }}" >> $GITHUB_OUTPUT
             exit 0
           fi
-          # Derive slot from current UTC hour
+          # Derive slot from current UTC hour using 6-hour windows
+          # (tolerates GitHub Actions queue delays of up to 3 hours)
+          #
+          # UTC 18–23 → slot 0 (cron 21:00 UTC = 06:00 JST) — cinema / art / music
+          # UTC 00–05 → slot 1 (cron 03:00 UTC = 12:00 JST) — food / books / tech
+          # UTC 06–11 → slot 2 (cron 09:00 UTC = 18:00 JST) — academic / geopolitics / gender
+          # UTC 12–17 → slot 3 (cron 15:00 UTC = 00:00 JST) — community / kansai / fukuoka
           HOUR=$(date -u +%H | sed 's/^0*//')
           if [ -z "$HOUR" ]; then HOUR=0; fi
-          if [ "$HOUR" -eq 21 ]; then echo "value=0" >> $GITHUB_OUTPUT
-          elif [ "$HOUR" -eq 3 ]; then  echo "value=1" >> $GITHUB_OUTPUT
-          elif [ "$HOUR" -eq 9 ]; then  echo "value=2" >> $GITHUB_OUTPUT
-          else                           echo "value=3" >> $GITHUB_OUTPUT
+          if   [ "$HOUR" -ge 18 ]; then echo "value=0" >> $GITHUB_OUTPUT
+          elif [ "$HOUR" -ge 12 ]; then echo "value=3" >> $GITHUB_OUTPUT
+          elif [ "$HOUR" -ge 6 ];  then echo "value=2" >> $GITHUB_OUTPUT
+          else                          echo "value=1" >> $GITHUB_OUTPUT
           fi
 
       - name: Run daily research
