@@ -171,13 +171,15 @@ export default async function EventDetailPage({ params }: PageProps) {
       ? {
           "@type": "Organization",
           name: ev.organizer,
-          ...(ev.organizer_url ? { url: ev.organizer_url } : {}),
+          ...(ev.organizer_url ?? ev.official_url
+            ? { url: ev.organizer_url ?? ev.official_url }
+            : {}),
         }
       : { "@type": "Organization", name: "Tokyo Taiwan Radar", url: base };
 
-    // performer fallback (b)：有 organizer 才輸出，無則不輸出 performer key
-    const performerLd = ev.organizer
-      ? { "@type": "Organization", name: ev.organizer }
+    // performer: output only when DB has a real person name
+    const performerLd = ev.performer
+      ? { "@type": "Person", name: ev.performer }
       : null;
 
     // location → PostalAddress
@@ -207,6 +209,7 @@ export default async function EventDetailPage({ params }: PageProps) {
         price: "0",
         priceCurrency,
         availability: "https://schema.org/InStock",
+        ...(ev.scraped_at ? { validFrom: ev.scraped_at } : {}),
         ...(offerUrl ? { url: offerUrl } : {}),
       };
     } else if (ev.is_paid === true) {
@@ -215,6 +218,7 @@ export default async function EventDetailPage({ params }: PageProps) {
         priceCurrency,
         ...(ev.price_amount != null ? { price: String(ev.price_amount) } : {}),
         availability: "https://schema.org/InStock",
+        ...(ev.scraped_at ? { validFrom: ev.scraped_at } : {}),
         ...(offerUrl ? { url: offerUrl } : {}),
       };
     }

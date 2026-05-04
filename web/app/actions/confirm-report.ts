@@ -231,7 +231,7 @@ export async function confirmReport(
     // Fetch original values from DB for the diff record
     const colsToFetch = wrongFields
       .flatMap((f) => Object.values(FIELD_LOCALE_COL[f] ?? {}))
-      .filter(Boolean);
+      .filter((v): v is string => Boolean(v));
 
     const originalValues: Record<string, string | null> = {};
     if (colsToFetch.length > 0) {
@@ -242,7 +242,7 @@ export async function confirmReport(
         .single();
       if (origRow) {
         for (const col of colsToFetch) {
-          originalValues[col] = (origRow as Record<string, unknown>)[col] as string | null ?? null;
+          originalValues[col] = (origRow as unknown as Record<string, unknown>)[col] as string | null ?? null;
         }
       }
     }

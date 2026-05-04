@@ -60,6 +60,7 @@ export interface Event {
   price_amount?: number | null;
   price_currency?: string | null;
   event_status?: "scheduled" | "cancelled" | "postponed" | "rescheduled" | null;
+  performer?: string | null;
 }
 
 export type SocialPlatform = "instagram" | "threads" | "facebook" | "linkedin" | "line";

@@ -217,9 +217,11 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
     for (const entry of row.report_types) {
       if (!entry.startsWith("selectionReason:")) continue;
       const rest = entry.slice("selectionReason:".length);
-      const locMatch = rest.match(/^(zh|en|ja):([\s\S]*)$/);
-      if (locMatch) {
-        userSrMap[locMatch[1]] = locMatch[2]; // new format
+      const colonPos = rest.indexOf(":");
+      const possibleLoc = colonPos > 0 ? rest.slice(0, colonPos) : "";
+      const restText = colonPos > 0 ? rest.slice(colonPos + 1) : rest;
+      if (possibleLoc === "zh" || possibleLoc === "en" || possibleLoc === "ja") {
+        userSrMap[possibleLoc] = restText; // new format
       } else {
         userSrMap[reportLoc] = rest; // old format: assign to report locale
       }
@@ -553,8 +555,10 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                   for (const entry of row.report_types) {
                     if (!entry.startsWith("selectionReason:")) continue;
                     const rest = entry.slice("selectionReason:".length);
-                    const lm = rest.match(/^(zh|en|ja):([\s\S]*)$/);
-                    if (lm) { userSrMap[lm[1]] = lm[2]; }
+                    const cp = rest.indexOf(":");
+                    const pl = cp > 0 ? rest.slice(0, cp) : "";
+                    const rt = cp > 0 ? rest.slice(cp + 1) : rest;
+                    if (pl === "zh" || pl === "en" || pl === "ja") { userSrMap[pl] = rt; }
                     else { userSrMap[repLoc] = rest; }
                   }
                   let existingSr: Record<string, string> = {};

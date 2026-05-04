@@ -116,6 +116,7 @@ class Event:
     price_amount: Optional[float] = None
     price_currency: Optional[str] = "JPY"
     event_status: Optional[str] = "scheduled"
+    performer: Optional[str] = None
 
 
 def dedup_events(events: list[Event]) -> list[Event]:
