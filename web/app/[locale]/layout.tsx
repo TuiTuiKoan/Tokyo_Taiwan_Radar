@@ -98,7 +98,7 @@ export default async function LocaleLayout({
   }
 
   return (
-    <NextIntlClientProvider messages={messages}>
+    <NextIntlClientProvider locale={locale} messages={messages}>
       <Navbar locale={locale as Locale} isAdmin={isAdmin} />
       <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
       <footer className="border-t border-gray-100 mt-12 py-4 text-center text-xs text-gray-400">

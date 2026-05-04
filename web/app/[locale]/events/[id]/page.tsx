@@ -654,15 +654,15 @@ export default async function EventDetailPage({ params }: PageProps) {
         rawDescription={event.raw_description}
         selectionReason={event.selection_reason}
         locale={locale}
-        reportSection={<ReportSection eventId={event.id} locale={locale} currentCategories={(event.category ?? []) as import("@/lib/types").Category[]} selectionReason={(() => {
+        reportSection={<ReportSection eventId={event.id} locale={locale} currentCategories={(event.category ?? []) as import("@/lib/types").Category[]} selectionReasonAll={(() => {
           if (!event.selection_reason) return null;
           try {
             const parsed = JSON.parse(event.selection_reason);
             if (parsed && typeof parsed === "object") {
-              return (parsed as Record<string, string>)[locale] || (parsed as Record<string, string>)["ja"] || null;
+              return parsed as Record<string, string | null>;
             }
           } catch {}
-          return event.selection_reason;
+          return null;
         })()} eventFields={{
           name: { zh: event.name_zh, en: event.name_en, ja: event.name_ja },
           start_date: { zh: event.start_date, en: event.start_date, ja: event.start_date },

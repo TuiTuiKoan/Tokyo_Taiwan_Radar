@@ -210,10 +210,20 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       mergedCorrections[field] = { ...(mergedCorrections[field] ?? {}), ...locales };
     }
 
-    // Extract selection reason correction — user-submitted for report locale
-    const srEntry = row.report_types.find((entry) => entry.startsWith("selectionReason:"));
-    const userSrText = srEntry ? srEntry.slice("selectionReason:".length) : "";
+    // Extract selection reason corrections — support new per-locale format (selectionReason:zh:text)
+    // and backward-compat old format (selectionReason:text → goes to reportLoc)
     const reportLoc = row.locale ?? "ja";
+    const userSrMap: Record<string, string> = {};
+    for (const entry of row.report_types) {
+      if (!entry.startsWith("selectionReason:")) continue;
+      const rest = entry.slice("selectionReason:".length);
+      const locMatch = rest.match(/^(zh|en|ja):([\s\S]*)$/);
+      if (locMatch) {
+        userSrMap[locMatch[1]] = locMatch[2]; // new format
+      } else {
+        userSrMap[reportLoc] = rest; // old format: assign to report locale
+      }
+    }
 
     // Build per-locale map: start from existing event data, apply user suggestion for report locale, then admin overrides
     let existingSr: Record<string, string> = {};
@@ -226,8 +236,8 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       const adminVal = selectionReasonEdits[row.id]?.[loc];
       if (adminVal !== undefined) {
         mergedSrCorrections[loc] = adminVal;
-      } else if (loc === reportLoc && userSrText) {
-        mergedSrCorrections[loc] = userSrText;
+      } else if (userSrMap[loc]) {
+        mergedSrCorrections[loc] = userSrMap[loc];
       } else if (existingSr[loc]) {
         mergedSrCorrections[loc] = existingSr[loc];
       }
@@ -538,9 +548,15 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                   </div>
                 )}
                 {row.report_types.includes("wrongSelectionReason") && (() => {
-                  const srEntry = row.report_types.find((entry) => entry.startsWith("selectionReason:"));
-                  const userSrText = srEntry ? srEntry.slice("selectionReason:".length) : "";
-                  const reportLoc = row.locale ?? "ja";
+                  const userSrMap: Record<string, string> = {};
+                  const repLoc = row.locale ?? "ja";
+                  for (const entry of row.report_types) {
+                    if (!entry.startsWith("selectionReason:")) continue;
+                    const rest = entry.slice("selectionReason:".length);
+                    const lm = rest.match(/^(zh|en|ja):([\s\S]*)$/);
+                    if (lm) { userSrMap[lm[1]] = lm[2]; }
+                    else { userSrMap[repLoc] = rest; }
+                  }
                   let existingSr: Record<string, string> = {};
                   if (row.events?.selection_reason) {
                     try { existingSr = JSON.parse(row.events.selection_reason); } catch { /* ignore */ }
@@ -552,7 +568,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                         {(["zh", "en", "ja"] as const).map((loc) => {
                           const defaultVal =
                             selectionReasonEdits[row.id]?.[loc] ??
-                            (loc === reportLoc ? userSrText : undefined) ??
+                            userSrMap[loc] ??
                             existingSr[loc] ??
                             "";
                           return (

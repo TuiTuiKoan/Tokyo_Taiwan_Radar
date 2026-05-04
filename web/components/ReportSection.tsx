@@ -8,7 +8,7 @@ import { CATEGORY_GROUPS, type Category } from "@/lib/types";
 interface Props {
   eventId: string;
   locale: string;
-  selectionReason?: string | null;
+  selectionReasonAll?: Partial<Record<LocaleKey, string | null>> | null;
   currentCategories?: Category[];
   eventFields?: Partial<Record<WrongDetailField, Partial<Record<LocaleKey, string | null>>>>;
 }
@@ -46,7 +46,7 @@ const FIELD_I18N: Record<WrongDetailField, string> = {
   description: "fieldDescription",
 };
 
-export default function ReportSection({ eventId, locale, selectionReason, currentCategories, eventFields }: Props) {
+export default function ReportSection({ eventId, locale, selectionReasonAll, currentCategories, eventFields }: Props) {
   const t = useTranslations("report");
   const tCat = useTranslations("categories");
   const [open, setOpen] = useState(false);
@@ -54,7 +54,7 @@ export default function ReportSection({ eventId, locale, selectionReason, curren
   const [wrongFields, setWrongFields] = useState<Set<WrongDetailField>>(new Set());
   const [fieldEdits, setFieldEdits] = useState<Partial<Record<WrongDetailField, Partial<Record<LocaleKey, string>>>>>({});
   const [suggestedCategories, setSuggestedCategories] = useState<Set<Category>>(new Set());
-  const [selectionReasonText, setSelectionReasonText] = useState<string>("");
+  const [selectionReasonTexts, setSelectionReasonTexts] = useState<Record<LocaleKey, string>>({ zh: "", en: "", ja: "" });
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   function toggle(type: ReportType) {
@@ -67,11 +67,15 @@ export default function ReportSection({ eventId, locale, selectionReason, curren
         // Clear suggested categories if wrongCategory is deselected
         if (type === "wrongCategory") setSuggestedCategories(new Set());
         // Clear text if wrongSelectionReason is deselected
-        if (type === "wrongSelectionReason") setSelectionReasonText("");
+        if (type === "wrongSelectionReason") setSelectionReasonTexts({ zh: "", en: "", ja: "" });
       } else {
         next.add(type);
         // Pre-fill with current values when ticking
-        if (type === "wrongSelectionReason") setSelectionReasonText(selectionReason || "");
+        if (type === "wrongSelectionReason") setSelectionReasonTexts({
+          zh: selectionReasonAll?.zh ?? "",
+          en: selectionReasonAll?.en ?? "",
+          ja: selectionReasonAll?.ja ?? "",
+        });
         if (type === "wrongCategory") setSuggestedCategories(new Set(currentCategories ?? []));
       }
       return next;
@@ -122,8 +126,11 @@ export default function ReportSection({ eventId, locale, selectionReason, curren
         }
       }
     }
-    if (selected.has("wrongSelectionReason") && selectionReasonText.trim()) {
-      reportTypes.push(`selectionReason:${selectionReasonText.trim().slice(0, 500)}`);
+    if (selected.has("wrongSelectionReason")) {
+      for (const loc of LOCALES_ORDER) {
+        const txt = selectionReasonTexts[loc].trim();
+        if (txt) reportTypes.push(`selectionReason:${loc}:${txt.slice(0, 500)}`);
+      }
     }
 
     const supabase = createClient();
@@ -144,7 +151,7 @@ export default function ReportSection({ eventId, locale, selectionReason, curren
       setWrongFields(new Set());
       setFieldEdits({});
       setSuggestedCategories(new Set());
-      setSelectionReasonText("");
+      setSelectionReasonTexts({ zh: "", en: "", ja: "" });
     }
   }
 
@@ -263,16 +270,25 @@ export default function ReportSection({ eventId, locale, selectionReason, curren
                   </div>
                 </div>
               )}
-              {/* Textarea for wrongSelectionReason */}
+              {/* 3-locale textareas for wrongSelectionReason */}
               {type === "wrongSelectionReason" && selected.has("wrongSelectionReason") && (
                 <div className="ml-5 mt-1">
                   <p className="text-xs text-amber-600 mb-1">{t("selectionReasonHint")}</p>
-                  <textarea
-                    rows={4}
-                    value={selectionReasonText}
-                    onChange={(e) => setSelectionReasonText(e.target.value)}
-                    className="w-full border border-amber-300 rounded-lg px-3 py-2 text-xs text-amber-900 bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-y"
-                  />
+                  <div className="space-y-2">
+                    {LOCALES_ORDER.map((loc) => (
+                      <div key={loc}>
+                        <p className="text-xs text-amber-400 mb-0.5">{LOCALE_LABELS[loc]}</p>
+                        <textarea
+                          rows={2}
+                          value={selectionReasonTexts[loc]}
+                          onChange={(e) =>
+                            setSelectionReasonTexts((prev) => ({ ...prev, [loc]: e.target.value }))
+                          }
+                          className="w-full border border-amber-300 rounded-lg px-3 py-2 text-xs text-amber-900 bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-y"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -292,7 +308,7 @@ export default function ReportSection({ eventId, locale, selectionReason, curren
                 setWrongFields(new Set());
                 setFieldEdits({});
                 setSuggestedCategories(new Set());
-                setSelectionReasonText("");
+                setSelectionReasonTexts({ zh: "", en: "", ja: "" });
               }}
               className="text-xs text-amber-600 px-2 py-1 hover:text-amber-800 transition"
             >
