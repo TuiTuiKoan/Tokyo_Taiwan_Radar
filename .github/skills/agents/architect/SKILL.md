@@ -394,6 +394,14 @@ Reference incident: 2026-05-04 hakusuisha `_T` HTMLParser 未過濾 script/nav�
 
 Reference incident: 2026-05-04 hakusuisha `FIELD_SELECTORS["date"] = "span.note"` 抓取記事公開日而非活動日（commit `b3708e1`）。
 
+## Auto-Generate Scraper Date Field Guard
+
+auto_generate で生成された Layer B scraper の `FIELD_SELECTORS["date"]` をレビューする際は：
+
+1. **date キーが公開日か開催日かを確認する**。出版社・組織のお知らせサイトでは「記事公開日 ≠ イベント日」が普通。カードの日付テキストが `span.note` 等の「投稿日」要素を指している場合は、detail ページの `日時：` ラベルから抽出するロジックを追加すること。
+2. **`start_date` 誤植は annotator では修正できない**。scraper が非 null の誤値をセットすると、annotator の `event.get("start_date") or GPT` チェーンは GPT 値を無視する（`or` は falsy 値のみ置換）。根本修正は scraper 側のみ。
+3. **hakusuisha 参照実装**：`_extract_event_dates(detail_text, card_year)` — `日時：` ラベルから start/end を抽出する 3 パターン対応関数。同様の問題を持つサイトには同パターンを適用すること。
+
 ## reviewed 保護邊界 Guard
 
 在審核任何觸及 `annotation_status = 'reviewed'` 保護邏輯的計畫或 PR 前，**必須**明確區分以下兩種情境：

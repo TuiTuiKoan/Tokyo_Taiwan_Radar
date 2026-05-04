@@ -261,6 +261,22 @@ Reference incident: 2026-05-04 hakusuisha `FIELD_SELECTORS["date"] = "span.note"
 
 ---
 
+## Auto-Generate Scraper — Date Field Accuracy Check
+
+`FIELD_SELECTORS["date"]` が正確なイベント開催日を返すか検証する手順：
+
+1. ブラウザで listing ページを開き、カード上の日付テキスト要素を inspect
+2. その日付が「記事投稿日」「更新日」「公開日」のラベルに付いていれば ⚠️ 要注意
+3. detail ページの本文に `日時：` / `開催日：` / `期間：` ラベルがあればそちらを使う
+4. 修正パターン：
+   - `_JITSU_RE = re.compile(r"[■◆●▼]?\s*日時[：:]\s*(.{5,150})", re.MULTILINE)`
+   - `_FULL_YMD_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")`
+   - `_END_DAY_RE = re.compile(r"[・/／]\s*(\d{1,2})日")`
+   - 参照実装：`scraper/sources/hakusuisha.py` の `_extract_event_dates()`
+5. `end_date` も同時に設定すること（「・DD日」パターンで終了日が取れる場合が多い）
+
+---
+
 ## 学術場地括弧地址模式
 
 日本學術研討會的 `location_name` 有時包含完整郵遞區號地址於括號中：

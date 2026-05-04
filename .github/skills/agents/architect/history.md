@@ -3,6 +3,28 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04 — hakusuisha 三連修正：thin-content / start_date / business_hours
+
+### 問題
+hakusuisha scraper の 3 つの連鎖バグ：
+1. HTMLParser が script/nav コンテンツをフィルタせず 2000 文字予算を無駄消費 → raw_description に日時情報が入らない
+2. FIELD_SELECTORS["date"] が記事公開日を返す → start_date が全て誤植
+3. business_hours が NULL → reviewed 保護で annotator も修正不能
+
+### 根本原因
+auto_generate Layer B scraper は「カード上の最近傍テキスト」を date キーに割り当てるが、それが公開日である場合に start_date が全て誤植になる。thin content 問題は HTMLParser の skip_tags 未実装が原因。
+
+### 修正（3 commit）
+- `4784266`: _T parser に skip_tags + 4000 char limit + annotator thin-content rescue
+- `b3708e1`: _extract_event_dates() で ■日時 ラベルから実際の開催日を抽出
+- `54a20d7`: _extract_hours_from_raw() + --fix-reviewed 拡張 + auto_qa_missing_hours
+
+### 教訓
+1. auto_generate scraper レビュー時は「date キーが公開日か開催日か」を必ず確認
+2. HTMLParser thin content の判定は長さだけでなく「業務キーワード（日時/会場）の有無」で行う
+3. reviewed 保護は「AI 上書き」を防ぐためのもの。確定性 regex 補填は safe — fix_reviewed モードで適用可能
+
+---
 ## 2026-05-04（Session 3）— hakusuisha 三項修正：business_hours 防線、thin-content rescue、start_date 誤植
 
 ### business_hours 三層防線（commit `54a20d7`）
