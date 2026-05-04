@@ -208,6 +208,70 @@ export default async function AdminStatsPage({ params }: PageProps) {
   const monthlyEntries = Object.entries(monthlyMap).sort((a, b) => a[0].localeCompare(b[0]));
   const maxMonthly = Math.max(...monthlyEntries.map(([, n]) => n), 1);
 
+  // ── Feedback: reports by source_name ──────────────────────────────────────
+  const { data: reportsRaw } = await supabase
+    .from("event_reports")
+    .select("status, events!inner(source_name)");
+
+  const reportsBySrc: Record<string, { total: number; confirmed: number; pending: number }> = {};
+  for (const r of (reportsRaw ?? []) as Array<{
+    status: string;
+    events: { source_name: string }[] | null;
+  }>) {
+    // events is returned as an array (even though it's a FK — Supabase returns [] when null)
+    const src = (r.events as { source_name: string }[] | null)?.[0]?.source_name ?? "(unknown)";
+    if (!reportsBySrc[src]) reportsBySrc[src] = { total: 0, confirmed: 0, pending: 0 };
+    reportsBySrc[src].total++;
+    if (r.status === "confirmed") reportsBySrc[src].confirmed++;
+    if (r.status === "pending")   reportsBySrc[src].pending++;
+  }
+  const reportsBySrcEntries = Object.entries(reportsBySrc)
+    .sort((a, b) => b[1].total - a[1].total);
+
+  // ── Feedback: field corrections frequency ────────────────────────────────
+  const { data: fcRaw } = await supabase
+    .from("field_corrections")
+    .select("field_name");
+
+  const fieldFreqMap: Record<string, number> = {};
+  for (const r of (fcRaw ?? []) as Array<{ field_name: string }>) {
+    const fn = r.field_name ?? "(unknown)";
+    fieldFreqMap[fn] = (fieldFreqMap[fn] ?? 0) + 1;
+  }
+  const fieldFreqEntries = Object.entries(fieldFreqMap).sort((a, b) => b[1] - a[1]);
+  const maxFieldFreq = fieldFreqEntries[0]?.[1] ?? 1;
+
+  // ── Feedback: category migration matrix (AI → correct) ───────────────────
+  const { data: catCorrsRaw } = await supabase
+    .from("category_corrections")
+    .select("ai_category, corrected_category");
+
+  interface CatMigration { from: string; to: string; count: number }
+  const matrixMap: Record<string, Record<string, number>> = {};
+  for (const r of (catCorrsRaw ?? []) as Array<{
+    ai_category: string[];
+    corrected_category: string[];
+  }>) {
+    const froms = r.ai_category ?? [];
+    const tos = r.corrected_category ?? [];
+    for (const from of froms) {
+      for (const to of tos) {
+        if (from !== to) {
+          if (!matrixMap[from]) matrixMap[from] = {};
+          matrixMap[from][to] = (matrixMap[from][to] ?? 0) + 1;
+        }
+      }
+    }
+  }
+  const matrixEntries: CatMigration[] = [];
+  for (const [from, toMap] of Object.entries(matrixMap)) {
+    for (const [to, count] of Object.entries(toMap)) {
+      matrixEntries.push({ from, to, count });
+    }
+  }
+  matrixEntries.sort((a, b) => b.count - a.count);
+  const topMatrix = matrixEntries.slice(0, 20);
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">{t("title")}</h1>
@@ -480,6 +544,113 @@ export default async function AdminStatsPage({ params }: PageProps) {
               );
             })}
           </ul>
+        )}
+      </div>
+
+      {/* ── Feedback loop stats ───────────────────────────────────────────── */}
+      <h2 className="text-lg font-semibold mt-10 mb-4">{t("feedbackTitle")}</h2>
+
+      {/* Block D: Reports by source_name */}
+      <div className="mb-8 rounded-xl border border-gray-200 bg-white px-5 py-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t("reportsBySourceTitle")}</h3>
+        {reportsBySrcEntries.length === 0 ? (
+          <p className="text-sm text-gray-400">{t("reportsBySourceEmpty")}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="text-xs text-gray-400 border-b border-gray-100">
+                  <th className="text-left py-2 pr-4 font-medium">{t("reportsBySourceHeaderSource")}</th>
+                  <th className="text-right py-2 pr-4 font-medium">{t("reportsBySourceHeaderTotal")}</th>
+                  <th className="text-right py-2 pr-4 font-medium">{t("reportsBySourceHeaderConfirmed")}</th>
+                  <th className="text-right py-2 font-medium">{t("reportsBySourceHeaderRate")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reportsBySrcEntries.map(([src, s]) => {
+                  const rate = s.total > 0 ? Math.round((s.confirmed / s.total) * 100) : 0;
+                  const rateColor =
+                    rate >= 80 ? "text-green-600" : rate >= 50 ? "text-amber-600" : "text-gray-400";
+                  return (
+                    <tr key={src} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-2 pr-4">
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 font-mono">
+                          {src}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 text-right">{s.total}</td>
+                      <td className="py-2 pr-4 text-right">{s.confirmed}</td>
+                      <td className={`py-2 text-right font-medium text-sm ${rateColor}`}>{rate}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Block E: Field corrections frequency */}
+      <div className="mb-8 rounded-xl border border-gray-200 bg-white px-5 py-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t("fieldCorrFreqTitle")}</h3>
+        {fieldFreqEntries.length === 0 ? (
+          <p className="text-sm text-gray-400">{t("fieldCorrFreqEmpty")}</p>
+        ) : (
+          <ul className="space-y-2">
+            {fieldFreqEntries.map(([field, n]) => {
+              const pct = Math.round((n / maxFieldFreq) * 100);
+              return (
+                <li key={field} className="flex items-center gap-3 text-sm">
+                  <span className="w-48 shrink-0 truncate text-xs text-gray-500 font-mono">{field}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 rounded-full bg-gray-100">
+                        <div className="h-2 rounded-full bg-violet-400" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="w-8 text-right text-xs font-medium text-gray-600 shrink-0">{n}</span>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Block F: Category migration matrix (AI → correct) */}
+      <div className="mb-8 rounded-xl border border-gray-200 bg-white px-5 py-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t("catMigrationTitle")}</h3>
+        {topMatrix.length === 0 ? (
+          <p className="text-sm text-gray-400">{t("catMigrationEmpty")}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="text-xs text-gray-400 border-b border-gray-100">
+                  <th className="text-left py-2 pr-4 font-medium">{t("catMigrationHeaderFrom")}</th>
+                  <th className="text-left py-2 pr-4 font-medium">{t("catMigrationHeaderTo")}</th>
+                  <th className="text-right py-2 font-medium">{t("catMigrationHeaderCount")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topMatrix.map(({ from, to, count }, idx) => (
+                  <tr key={`${from}-${to}-${idx}`} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="py-2 pr-4">
+                      <span className="px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700 font-mono">
+                        {from}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4">
+                      <span className="px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 font-mono">
+                        {to}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right text-xs font-medium text-gray-600">{count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
