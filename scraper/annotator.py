@@ -95,14 +95,11 @@ def _fetch_gnews_article_text(gnews_url: str, browser: "Browser") -> str | None:
 # ---------------------------------------------------------------------------
 # Valid categories (must match web/lib/types.ts)
 # ---------------------------------------------------------------------------
-# Must stay in sync with web/lib/types.ts Category type.
 VALID_CATEGORIES = [
-    "movie", "performing_arts", "senses", "tea_alcohol", "drama", "documentary",
-    "retail", "nature", "tech", "tourism", "lifestyle_food", "books_media",
-    "gender", "parenting", "geopolitics", "art", "lecture", "taiwan_japan",
-    "scholarship", "business", "academic", "competition", "indigenous", "folklore",
-    "history", "urban", "workshop", "literature", "tv_program", "exhibition",
-    "taiwan_mandarin", "healthcare", "report",
+    "movie", "performing_arts", "senses", "retail", "nature",
+    "tech", "tourism", "lifestyle_food", "books_media", "gender", "geopolitics",
+    "art", "lecture", "taiwan_japan", "business", "academic", "competition",
+    "indigenous", "history", "urban", "workshop", "report",
 ]
 
 # News-source movie title enrichment helpers
@@ -130,6 +127,50 @@ def _extract_prefecture(address: str | None) -> str | None:
     if full in ("京都市", "京都府"):
         return "京都"
     return full.rstrip("都道府県")
+
+# Regex for deterministic venue extraction from raw_description
+# before GPT annotation — matches 会場：/場所：label lines.
+_VENUE_LABEL_RE = re.compile(r'(?:会場|場所)[：:]\s*(.+)')
+_PREF_ADDR_INLINE_RE = re.compile(
+    r'((?:東京都|大阪府|京都府|神奈川県|愛知県|福岡県|兵庫県|埼玉県|千葉県|'
+    r'北海道|宮城県|広島県|静岡県|茨城県|岡山県|新潟県|長野県|栃木県|'
+    r'群馬県|滋賀県|岐阜県|奈良県|熊本県|石川県)[^\n]{5,80})'
+)
+
+
+def _extract_venue_from_raw(text: str) -> dict:
+    """Extract location_name and location_address from raw_description text.
+
+    Handles the common pattern in Japanese event pages:
+        会場：白水出版センター
+        東京都豊島区高田1-10-10
+
+    Returns a dict with zero, one, or both of:
+        {"location_name": "...", "location_address": "..."}
+    """
+    if not text:
+        return {}
+    result: dict = {}
+    m = _VENUE_LABEL_RE.search(text)
+    if not m:
+        return {}
+    venue_line = m.group(1).strip()
+    # Strip inline hybrid/online suffix
+    venue_name = re.split(
+        r'[、,]?\s*(?:および|及び|Google Meet|またはGoogle|Zoom|オンライン)',
+        venue_line,
+    )[0].strip()
+    # Remove trailing note in brackets e.g. "（教室は未定）"
+    venue_name = re.sub(r'\s*[（(][^）)]{1,30}[）)]$', '', venue_name).strip()
+    if venue_name:
+        result["location_name"] = venue_name
+    # Look for prefecture-prefixed address in the ~300 chars after 会場 line
+    rest = text[m.end():]
+    addr_m = _PREF_ADDR_INLINE_RE.search(rest[:300])
+    if addr_m:
+        result["location_address"] = addr_m.group(1).strip()
+    return result
+
 
 # Bracket pairs used by GPT when wrapping movie titles in descriptions.
 _TITLE_BRACKETS = [
@@ -183,7 +224,7 @@ CRITICAL DATE EXTRACTION RULES:
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
    ALSO: if the description lists 3+ distinct venue locations in **different cities/prefectures** each with a specific address (e.g., a food fair with restaurants across Tokyo, Kyoto, and Osaka), list each venue as a sub-event with its own location_name, location_address, and business_hours; use the same start_date/end_date as the parent.
-2. Categories must be from this list: movie, performing_arts, senses, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, art, lecture, taiwan_japan, scholarship, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, exhibition, taiwan_mandarin, healthcare, report
+2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, taiwan_japan, business, academic, competition, indigenous, history, urban, workshop, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
    - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
    - "competition" = contests, competitions, awards, championships, public calls for entries (コンテスト, 大会, 選手権, 公募, コンクール)
@@ -191,10 +232,7 @@ OTHER RULES:
    - "indigenous" = events related to Taiwan's indigenous peoples (原住民族), tribal culture, indigenous arts or languages (アミ族, パイワン族, タイヤル族, etc.)
    - "history" = historical events, exhibitions on history, cultural heritage, archives, museums, war memory, historical figures
    - "workshop" = hands-on workshops, experience classes, craft workshops, cooking classes, pottery, weaving, tea ceremony, atelier sessions (体験, ワークショップ, 手作り, クラフト)
-   - "movie" = theatrical film screenings, cinema events, film festivals. IMPORTANT: any event with 上映, 映画, film, screening, cinema in its title or description MUST include "movie" as a category, even if it also involves talks or other elements. TV BROADCAST EXCEPTION: a film broadcast on TV (indicated by 放送: [channel] in raw_description) uses BOTH "tv_program" AND "movie". Non-film TV programs (バラエティ, ドラマ, ドキュメンタリー) must NOT use "movie".
-   - "tv_program" = Taiwan-related TV programs broadcast on a television channel. MANDATORY when raw_description contains "放送:" or "放送：" followed by a channel name (e.g. チャンネル銀河, テレ東, BS11). Use BOTH "tv_program" AND "movie" for 映画-genre broadcasts; use ONLY "tv_program" for variety/drama/documentary genre. NEVER use "movie" alone for a TV broadcast event.
-   - "drama" = TV drama series, stage plays. Use for ドラマ-genre TV programs.
-   - "documentary" = documentary films or programs (ドキュメンタリー genre).
+   - "movie" = film screenings, movie events, documentary showings, film festivals. IMPORTANT: any event with 上映, 映画, film, screening, cinema in its title or description MUST include "movie" as a category, even if it also involves talks or other elements.
    - "performing_arts" = LIVE stage performances ONLY: concerts, theater, dance, opera. NOT for film screenings. For Asia/Japan tour events (アジアツアー, 日本ツアー), only use if the Tokyo show is confirmed a live performance.
    - "senses" = art exhibitions, photography, design shows, creative/visual experiences. NOT for film screenings or book-only events.
    - "lifestyle_food" = food, cooking, tea ceremony, restaurants, cafes, lifestyle events. Do NOT add taiwan_japan just because the food is Taiwanese — use taiwan_japan only when the event emphasizes bilateral exchange.
@@ -224,7 +262,6 @@ ORGANIZER EXTRACTION RULES:
 2. co_organizers: array of 共催 / 協力 / 後援 entities. Each entry is the original-language name. Empty array if none mentioned.
 3. sponsors: array of 協賛 / 贊助 / sponsor entities. Empty array if none mentioned.
 4. NEVER fabricate organizer names. If 主催 is not explicitly stated and cannot be safely inferred from the venue's official role (e.g. an exhibition at a museum is hosted by that museum), set organizer = null.
-4a. organizer MUST be a concrete proper-noun entity (官方名稱、機構名、品牌名、店名、人名). DO NOT use generic descriptors or category words such as "語学スクール", "主催者", "運営事務局", "実行委員会" (alone), "出版社", "映画館", "カフェ", "団体". If only a generic descriptor is available, set organizer = null and organizer_type = ["unknown"].
 5. organizer_type: classify the primary organizer into one or more of:
    - "government" — central/local government bodies (外交部, 文化部, 都道府県, 市役所)
    - "semi_official" — TECRO offices, Taiwan Cultural Center, JICA-style 外郭団体
@@ -261,52 +298,9 @@ LANGUAGE RULES:
    - "zh" — primarily Chinese / Mandarin / Taiwanese
    - "en" — primarily English
    - "mixed" — bilingual or trilingual format explicitly advertised (e.g. 日中通訳付き shown as a featured format, not a side support)
-2. has_japanese_support: true ONLY when the source text explicitly advertises Japanese assistance for a non-Japanese event (字幕, 同時通訳, 逐次通訳, 日本語配布資料, etc.). false ONLY when the source text explicitly says no Japanese support is provided (e.g. "中国語のみ", "日本語通訳なし"). Otherwise null. Special case: when primary_language="ja" and the question is moot, set null (NOT false).
-3. has_english_support: same logic for English. true only when explicitly advertised (英語字幕, English interpretation, bilingual). false only when explicitly stated as not provided. Otherwise null. Default to null for Japan-domestic events that do not mention English at all.
-3a. has_chinese_support: same logic for Chinese / Mandarin / Taiwanese. true only when the source text explicitly advertises Chinese assistance (中文字幕, 中国語通訳, 中文配布資料, etc.). false only when explicitly stated as not provided. Otherwise null. Special case: when primary_language="zh" and the question is moot, set null (NOT false).
-4. NEVER guess. If the source text gives no language signal at all, set primary_language=null and all support flags=null.
-5. NEVER infer support flags from the absence of mention. Absence = null, NOT false.
-
-ORGANIZER URL RULES:
-1. organizer_url: the official URL of the organizer (NOT the event page URL, NOT this aggregator site). Look for 主催 entity's homepage link in the source HTML. If only the event listing URL is available, set null.
-2. NEVER fabricate. NEVER use the source page URL itself. NEVER use generic platform URLs (peatix.com root, etc.). Set null when uncertain.
-
-PRICE PARSING RULES:
-1. price_amount: numeric value in JPY when explicitly stated. Examples: "¥1,500" → 1500, "1500円" → 1500, "無料" → 0, "free" → 0. Decimals allowed for completeness but rare. If price varies by ticket type, pick the lowest non-zero adult price. If the source only says "有料" without a number, set null.
-2. price_currency: always "JPY" for events in Japan unless source explicitly prices in another currency (rare; e.g. an online event priced in USD). 3-letter ISO 4217 code.
-3. When is_paid=false → price_amount=0, price_currency="JPY".
-4. When is_paid=true and number found → price_amount=that number, price_currency="JPY".
-5. When is_paid=true and no number → price_amount=null, price_currency="JPY".
-6. NEVER guess prices. Better null than wrong.
-
-EVENT STATUS RULES:
-1. event_status: defaults to "scheduled". Only change when source text explicitly states:
-   - "cancelled" — 中止 / キャンセル / 取消 / cancelled
-   - "postponed" — 延期 / postponed (without new date)
-   - "rescheduled" — 再延期 / 日程変更 / rescheduled (with new date)
-2. Default to "scheduled" for all normal listings. NEVER infer from absence of date.
-
-PERFORMER EXTRACTION RULES:
-1. performer: The single primary person (not organization) who performs, presents, or demonstrates at the event in a featured role.
-   Examples: "料理研究家・宮武衣充氏を迎え" → "宮武衣充", "映画監督 ジャ・ジャンクー登壇" → "ジャ・ジャンクー", "講師：王美蘭氏" → "王美蘭".
-2. Output bare personal name only — strip honorifics/titles (氏/さん/先生/先生/監督/研究家/教授 etc.) from the output.
-3. Set null for: exhibitions, markets, general screenings without Q&A, conferences with no single featured speaker, events where only organization names appear.
-4. When multiple performers mentioned: output only the most prominently featured person.
-5. NEVER set performer to an organization name — organization names belong in organizer.
-
-TAIWAN-VENUE EVENTS — SPECIAL RULES:
-When an event is held IN TAIWAN (location in Taipei, Taichung, Kaohsiung, etc.):
-  INCLUDE if:
-    - Both Taiwanese AND Japanese organizations/creators are co-organizers or co-performers
-    - Japanese individuals are being sent to Taiwan for cultural learning/exchange programs
-    - The event celebrates or introduces Taiwanese culture (even if organized by a Japanese party)
-    - Taiwan and Japan co-produce or jointly present the work
-
-  EXCLUDE if:
-    - Japanese creators/products are simply selling or exhibiting in Taiwan (Taiwan = market only)
-    - A Japanese company is merely sponsoring a Taiwanese event (sponsor ≠ participant)
-    - The event promotes Japanese products entering the Taiwanese market with no Taiwanese co-creation
-    - Taiwan is purely the venue/destination with no active Taiwanese cultural participation
+2. has_japanese_support: true if the event provides Japanese assistance (subtitle 字幕, simultaneous interpretation 同時通訳, consecutive interpretation 逐次通訳, bilingual handout 配布資料) when primary_language != "ja". Set false if primary_language="ja". Set null if unclear.
+3. has_english_support: same logic for English. Most Japan-domestic events default to false. Only set true when explicitly advertised.
+4. NEVER guess. If the source text gives no language signal at all, set primary_language=null and both support flags=null.
 
 Respond with valid JSON matching this schema:
 {
@@ -339,12 +333,6 @@ Respond with valid JSON matching this schema:
   "primary_language": "ja" or "zh" or "en" or "mixed" or null,
   "has_japanese_support": false or true or null,
   "has_english_support": false or true or null,
-  "has_chinese_support": false or true or null,
-  "organizer_url": "official URL of organizer" or null,
-  "price_amount": number or null,
-  "price_currency": "JPY",
-  "event_status": "scheduled",
-  "performer": "bare personal name or null",
   "selection_reason": {
     "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
@@ -373,13 +361,7 @@ Respond with valid JSON matching this schema:
       "event_form": ["other"],
       "primary_language": "ja" or "zh" or "en" or "mixed" or null,
       "has_japanese_support": false or true or null,
-      "has_english_support": false or true or null,
-      "has_chinese_support": false or true or null,
-      "organizer_url": "official URL of organizer" or null,
-      "price_amount": number or null,
-      "price_currency": "JPY",
-      "event_status": "scheduled",
-      "performer": "bare personal name or null"
+      "has_english_support": false or true or null
     }
   ]
 }"""
@@ -473,45 +455,6 @@ def _validate_bool_or_none(val):
     return val if isinstance(val, bool) else None
 
 
-# Tier 2 validators (migration 037).
-def _validate_organizer_url(value):
-    if not isinstance(value, str):
-        return None
-    v = value.strip()
-    if v.startswith("http://") or v.startswith("https://"):
-        return v
-    return None
-
-
-def _validate_price_amount(value):
-    if value is None:
-        return None
-    try:
-        f = float(value)
-        return f if f >= 0 else None
-    except (TypeError, ValueError):
-        return None
-
-
-_CURRENCY_RE = re.compile(r'^[A-Z]{3}$')
-
-
-def _validate_price_currency(value):
-    if not isinstance(value, str):
-        return "JPY"
-    v = value.strip().upper()
-    return v if _CURRENCY_RE.match(v) else "JPY"
-
-
-VALID_EVENT_STATUSES = frozenset({"scheduled", "cancelled", "postponed", "rescheduled"})
-
-
-def _validate_event_status(value):
-    if isinstance(value, str) and value in VALID_EVENT_STATUSES:
-        return value
-    return "scheduled"
-
-
 _LECTURE_KEYWORDS = frozenset([
     # Japanese
     "座談", "講座", "座談会", "座談會",
@@ -534,13 +477,6 @@ _HISTORY_KEYWORDS = frozenset([
     "日本統治", "総督府", "霧のごとく", "大濛",
 ])
 
-# TV program broadcast markers — generated by gguide_tv.py raw_description format.
-# "放送:" / "放送：" + channel name is the most reliable signal.
-_TV_PROGRAM_KEYWORDS = frozenset([
-    "放送:", "放送：",          # gguide_tv broadcast line
-    "ジャンル:", "ジャンル：", # gguide_tv genre line
-])
-
 
 def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     """Inject missing categories based on keyword signals in the event text.
@@ -549,8 +485,6 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     - lecture: almost always missing when talk/panel keywords appear (+29 corrections)
     - geopolitics: missing for Taiwan political/policy topics (+18 corrections)
     - history: missing for colonial/war-era Taiwan events (+16 corrections)
-    - tv_program: gguide_tv broadcasts misclassified as movie when VALID_CATEGORIES
-      didn't include tv_program (fixed 2026-05-04)
     """
     cats = list(categories)
     # lecture: any talk/panel/seminar keyword triggers this
@@ -567,16 +501,6 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     # history: colonial/war-era Taiwan
     if "history" not in cats and any(kw in text for kw in _HISTORY_KEYWORDS):
         cats.append("history")
-    # tv_program: gguide_tv broadcast events — raw_description always contains
-    # "放送: [channel]" and "ジャンル: [genre]" lines.
-    # Also removes wrongly-added "movie" for non-film TV programs.
-    if any(kw in text for kw in _TV_PROGRAM_KEYWORDS):
-        if "tv_program" not in cats:
-            cats.append("tv_program")
-        # Remove "movie" if it's a non-film TV program.
-        # Film-genre broadcasts (ジャンル: 映画) legitimately keep "movie".
-        if "movie" in cats and "ジャンル: 映画" not in text and "ジャンル：映画" not in text:
-            cats.remove("movie")
     return cats
 
 
@@ -603,22 +527,6 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     }
     if human_category_map:
         logger.info("Loaded %d human-corrected category overrides", len(human_category_map))
-
-    # Load field-level corrections (migration 038 — P1).
-    # Builds: event_id → set of DB column names that must NOT be overwritten by AI.
-    # Falls back to empty dict when the table doesn't exist yet (pre-migration).
-    human_field_map: dict[str, set[str]] = {}
-    try:
-        fc_res = sb.table("field_corrections").select("event_id,field_name").execute()
-        for r in (fc_res.data or []):
-            eid_fc = r.get("event_id")
-            fname = r.get("field_name")
-            if eid_fc and fname:
-                human_field_map.setdefault(eid_fc, set()).add(fname)
-        if human_field_map:
-            logger.info("Loaded field corrections for %d events", len(human_field_map))
-    except Exception as fc_err:
-        logger.debug("field_corrections table not available (run migration 038): %s", fc_err)
 
     # Fetch events to annotate
     # Always exclude 'reviewed' events — they are human-confirmed and must not be
@@ -704,6 +612,15 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
         eid = event["id"]
         raw_title = event.get("raw_title") or event.get("name_ja") or ""
         raw_desc = event.get("raw_description") or event.get("description_ja") or ""
+
+        # ── Deterministic venue pre-extraction ─────────────────────────────
+        # Extract 会場：/場所：lines from raw_description before GPT runs.
+        # Fills the gap when scrapers leave location_name = None but embed
+        # venue info in the body text (e.g. hakusuisha, some koryu events).
+        _venue_pre = _extract_venue_from_raw(raw_desc)
+        _pre_location_name: str | None = event.get("location_name") or _venue_pre.get("location_name")
+        _pre_location_address: str | None = event.get("location_address") or _venue_pre.get("location_address")
+        # ───────────────────────────────────────────────────────────────────
 
         # For google_news_rss events, fetch the full article body when:
         #   (a) start_date is missing — GPT needs article text to find dates
@@ -841,31 +758,6 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 s = _loc(val)
                 return _to_trad(s)
 
-            # P0 field-protection: in normal re-annotation mode (not --all / --id),
-            # preserve non-null DB values that were already set — either by a scraper
-            # or by admin via confirm-report partial field correction.
-            # Rationale: when admin corrects field A but leaves field B for re-annotation,
-            # annotation_status becomes 'pending'. Annotator re-runs and overwrites A
-            # (admin correction lost) unless we check for existing non-null values first.
-            _protect = not re_annotate_all and event_id is None
-
-            # P1 field-protection: honour field_corrections table (migration 038).
-            # Any (event_id, field_name) pair in human_field_map was explicitly corrected
-            # by an admin and must NEVER be overwritten by AI output.
-            _human_protected: set[str] = human_field_map.get(eid, set())
-
-            def _ai_or_existing(fname: str, ai_val: Any) -> Any:
-                """Use AI value for null DB fields; keep DB value when protect mode active.
-                Always defer to human_field_map entries regardless of protect mode."""
-                if fname in _human_protected:
-                    # Human explicitly corrected this field — never overwrite
-                    return event.get(fname)
-                if _protect:
-                    existing = event.get(fname)
-                    if existing is not None:
-                        return existing
-                return ai_val
-
             if fix_reviewed:
                 # --fix-reviewed mode: only write translation fields; preserve
                 # annotation_status='reviewed', category, dates, and all other
@@ -886,11 +778,11 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     # Always preserve the scraper's original title.
                     # GPT's name_ja is only consumed for sub-events.
                     "name_ja": event.get("name_ja") or raw_title,
-                    "name_zh": _ai_or_existing("name_zh", _to_trad(_str(annotation.get("name_zh")))),
-                    "name_en": _ai_or_existing("name_en", _str(annotation.get("name_en"))),
-                    "description_ja": _ai_or_existing("description_ja", _str(annotation.get("description_ja"))),
-                    "description_zh": _ai_or_existing("description_zh", _to_trad(_str(annotation.get("description_zh")))),
-                    "description_en": _ai_or_existing("description_en", _str(annotation.get("description_en"))),
+                    "name_zh": _to_trad(_str(annotation.get("name_zh"))),
+                    "name_en": _str(annotation.get("name_en")),
+                    "description_ja": _str(annotation.get("description_ja")),
+                    "description_zh": _to_trad(_str(annotation.get("description_zh"))),
+                    "description_en": _str(annotation.get("description_en")),
                     "category": categories,
                     # Scraper-set dates take precedence over GPT inference.
                     # GPT fills in only when the scraper found no date at all.
@@ -898,8 +790,8 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "end_date": event.get("end_date") or annotation.get("end_date"),
                     # Scraper-set location/hours/paid take precedence over GPT inference.
                     # GPT only fills in when the scraper left the field empty.
-                    "location_name": _loc(event.get("location_name")) or _loc(annotation.get("location_name")),
-                    "location_address": _loc(event.get("location_address")) or _loc(annotation.get("location_address")),
+                    "location_name": _loc(event.get("location_name")) or _loc(_pre_location_name) or _loc(annotation.get("location_name")),
+                    "location_address": _loc(event.get("location_address")) or _loc(_pre_location_address) or _loc(annotation.get("location_address")),
                     "business_hours": event.get("business_hours") or annotation.get("business_hours"),
                     "is_paid": event.get("is_paid") if event.get("is_paid") is not None else annotation.get("is_paid"),
                     "price_info": annotation.get("price_info") or event.get("price_info"),
@@ -909,14 +801,8 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "organizer_type": _validate_organizer_types(annotation.get("organizer_type", [])),
                     "event_form": _validate_event_forms(annotation.get("event_form", [])),
                     "primary_language": _validate_primary_language(annotation.get("primary_language")),
-                    "has_japanese_support": _ai_or_existing("has_japanese_support", _validate_bool_or_none(annotation.get("has_japanese_support"))),
-                    "has_english_support": _ai_or_existing("has_english_support", _validate_bool_or_none(annotation.get("has_english_support"))),
-                    "has_chinese_support": _ai_or_existing("has_chinese_support", _validate_bool_or_none(annotation.get("has_chinese_support"))),
-                    "organizer_url": _ai_or_existing("organizer_url", _validate_organizer_url(annotation.get("organizer_url"))),
-                    "price_amount": _ai_or_existing("price_amount", _validate_price_amount(annotation.get("price_amount"))),
-                    "price_currency": _ai_or_existing("price_currency", _validate_price_currency(annotation.get("price_currency"))),
-                    "event_status": _ai_or_existing("event_status", _validate_event_status(annotation.get("event_status"))),
-                    "performer": _ai_or_existing("performer", _str(annotation.get("performer"))),
+                    "has_japanese_support": _validate_bool_or_none(annotation.get("has_japanese_support")),
+                    "has_english_support": _validate_bool_or_none(annotation.get("has_english_support")),
                     "annotation_status": "annotated",
                     "annotated_at": datetime.utcnow().isoformat(),
                 }
@@ -931,15 +817,8 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 "business_hours_zh": _to_trad(_str(annotation.get("business_hours_zh"))),
                 "business_hours_en": _str(annotation.get("business_hours_en")),
             }
-            # Only send non-null values; in protect mode also skip fields where DB
-            # already has a non-null value (admin-corrected localized location fields).
-            # Also skip any field in _human_protected (explicitly corrected by admin).
-            localized_location_data = {
-                k: v for k, v in localized_location_data.items()
-                if v is not None
-                and k not in _human_protected
-                and not (_protect and event.get(k) is not None)
-            }
+            # Only send non-null values
+            localized_location_data = {k: v for k, v in localized_location_data.items() if v is not None}
 
             # Ensure end_date is not null when start_date exists (skip in fix_reviewed mode)
             if not fix_reviewed and update_data.get("start_date") and not update_data.get("end_date"):
@@ -1020,12 +899,6 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "primary_language": _validate_primary_language(sub.get("primary_language")) or update_data.get("primary_language"),
                     "has_japanese_support": _validate_bool_or_none(sub.get("has_japanese_support")),
                     "has_english_support": _validate_bool_or_none(sub.get("has_english_support")),
-                    "has_chinese_support": _validate_bool_or_none(sub.get("has_chinese_support")),
-                    "organizer_url": _validate_organizer_url(sub.get("organizer_url")),
-                    "price_amount": _validate_price_amount(sub.get("price_amount")),
-                    "price_currency": _validate_price_currency(sub.get("price_currency")),
-                    "event_status": _validate_event_status(sub.get("event_status")),
-                    "performer": _str(sub.get("performer")),
                     "is_active": True,
                     "parent_event_id": eid,
                     "raw_title": sub_raw_title,
@@ -1376,78 +1249,6 @@ def enrich_person_names() -> None:
     logger.info("enrich_person_names: patched %d/%d events", patched, len(events))
 
 
-def backfill_price_from_price_info() -> None:
-    """Regex-based price_amount extraction from existing price_info.
-    Targets: is_paid=True AND price_amount IS NULL AND price_info IS NOT NULL.
-    No GPT calls — runs instantly and at no cost.
-    """
-    import re as _re
-    sb = _get_supabase()
-    res = (
-        sb.table("events")
-        .select("id,price_info")
-        .eq("is_paid", True)
-        .is_("price_amount", "null")
-        .not_.is_("price_info", "null")
-        .execute()
-    )
-    rows = res.data or []
-    updated = 0
-    skipped = 0
-    for e in rows:
-        pi = (e.get("price_info") or "").replace("，", ",").replace("\u3000", " ")
-        # Match both "¥2,750" / "¥ 2750" and "2,750円" / "14000円" formats.
-        # Pattern: optional ¥/￥ prefix OR digits-only followed by optional 円.
-        m = _re.search(r"[¥￥]\s*([\d,]+)|([1-9][\d,]*)\s*円", pi)
-        if m:
-            raw_num = (m.group(1) or m.group(2)).replace(",", "")
-            price = float(raw_num)
-            if price > 0:
-                sb.table("events").update({"price_amount": price}).eq("id", e["id"]).execute()
-                updated += 1
-            else:
-                skipped += 1
-        else:
-            skipped += 1
-    logger.info(
-        "backfill_price: updated=%d skipped=%d total=%d",
-        updated, skipped, len(rows),
-    )
-
-
-def backfill_performer_events(limit: int = 50, dry_run: bool = False) -> None:
-    """Reset annotated events that have organizer but no performer back to pending
-    so the annotator fills the performer field via GPT extraction.
-
-    Selection: annotation_status='annotated' AND performer IS NULL AND organizer IS NOT NULL.
-    """
-    sb = _get_supabase()
-    res = (
-        sb.table("events")
-        .select("id,performer,organizer")
-        .eq("annotation_status", "annotated")
-        .not_.is_("organizer", "null")
-        .is_("performer", "null")
-        .limit(limit)
-        .execute()
-    )
-    target = res.data or []
-    logger.info(
-        "backfill_performer: %d targeted (dry_run=%s)",
-        len(target), dry_run,
-    )
-    if dry_run:
-        for r in target:
-            logger.info("  would reset id=%s organizer=%s", r["id"], r.get("organizer"))
-        return
-
-    for r in target:
-        sb.table("events").update({"annotation_status": "pending"}).eq("id", r["id"]).execute()
-
-    if target:
-        annotate_pending_events(limit=limit)
-
-
 def backfill_tier1_events(limit: int = 50, dry_run: bool = False) -> None:
     """Reset already-annotated events that lack Tier 1 fields back to 'pending'
     so the next annotate pass fills organizer/event_form/language columns.
@@ -1502,8 +1303,6 @@ if __name__ == "__main__":
             "  --enrich-movie-titles   Look up movie titles via eiga.com\n"
             "  --enrich-person-names   Look up person names for all events\n"
             "  --backfill-tier1        Reset annotated events lacking Tier 1 fields back to pending and re-annotate\n"
-            "  --backfill-price        Regex-extract price_amount from existing price_info (no GPT)\n"
-            "  --backfill-performer    Reset events with organizer but no performer; re-annotate to fill performer\n"
             "  --id <uuid>             Operate on a single event by id\n"
             "  --limit <N>             Limit number of events processed (default 50 for backfill-tier1)\n"
             "  --dry-run               Print actions without writing to DB\n"
@@ -1516,18 +1315,12 @@ if __name__ == "__main__":
     enrich_movies = "--enrich-movie-titles" in sys.argv
     enrich_people = "--enrich-person-names" in sys.argv
     backfill_tier1 = "--backfill-tier1" in sys.argv
-    backfill_price = "--backfill-price" in sys.argv
-    backfill_performer = "--backfill-performer" in sys.argv
     dry_run_flag = "--dry-run" in sys.argv
     event_id_arg = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--id"), None)
     limit_arg_str = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--limit"), None)
     limit_arg = int(limit_arg_str) if limit_arg_str else 50
     if backfill_tier1:
         backfill_tier1_events(limit=limit_arg, dry_run=dry_run_flag)
-    elif backfill_price:
-        backfill_price_from_price_info()
-    elif backfill_performer:
-        backfill_performer_events(limit=limit_arg, dry_run=dry_run_flag)
     elif enrich_movies:
         enrich_movie_titles()
     elif enrich_people:

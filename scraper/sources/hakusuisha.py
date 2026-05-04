@@ -8,6 +8,7 @@ import time
 import logging
 from datetime import datetime
 from typing import Optional
+import requests as _requests
 
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeout
 
@@ -78,6 +79,40 @@ def _safe_attr(card, selector, attr):
         logger.debug("attr %s on %s failed: %s", attr, selector, exc)
         return None
 
+
+def _fetch_detail_text_fallback(url: str) -> str | None:
+    """HTTP fallback for detail page body text when Playwright times out.
+
+    Uses standard requests.get() which is sufficient for hakusuisha's
+    static HTML pages. Returns up to 2000 chars of plain text.
+    """
+    try:
+        resp = _requests.get(url, timeout=15, headers={
+            "User-Agent": (
+                "Mozilla/5.0 (compatible; TokyoTaiwanRadar/1.0; "
+                "+https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar)"
+            )
+        })
+        resp.raise_for_status()
+        # Force apparent encoding detection — hakusuisha serves UTF-8 but
+        # requests defaults to ISO-8859-1 when no charset header is present.
+        resp.encoding = resp.apparent_encoding or "utf-8"
+        from html.parser import HTMLParser as _HTMLParser
+        class _T(_HTMLParser):
+            def __init__(self) -> None:
+                super().__init__()
+                self._chunks: list[str] = []
+            def handle_data(self, d: str) -> None:
+                d = d.strip()
+                if d:
+                    self._chunks.append(d)
+        p = _T()
+        p.feed(resp.text)
+        text = "\n".join(p._chunks)
+        return text[:2000] if text else None
+    except Exception as exc:
+        logger.debug("HTTP fallback failed for %s: %s", url, exc)
+        return None
 
 
 class HakusuishaScraper(BaseScraper):
@@ -169,6 +204,7 @@ class HakusuishaScraper(BaseScraper):
 
                 full_description = description
                 if detail_url:
+                    _pw_success = False
                     try:
                         detail_page = context.new_page()
                         detail_page.goto(detail_url, timeout=30000)
@@ -176,11 +212,25 @@ class HakusuishaScraper(BaseScraper):
                         body_text = detail_page.locator("body").inner_text(timeout=5000)
                         if body_text:
                             full_description = body_text.strip()[:2000]
+                            _pw_success = True
                         detail_page.close()
                     except PWTimeout:
-                        logger.warning("Detail page timeout: %s", detail_url)
+                        logger.warning("Detail page timeout: %s — trying HTTP fallback", detail_url)
+                        try:
+                            detail_page.close()
+                        except Exception:
+                            pass
                     except Exception as exc:
                         logger.debug("Detail page failed %s: %s", detail_url, exc)
+                        try:
+                            detail_page.close()
+                        except Exception:
+                            pass
+                    if not _pw_success and detail_url:
+                        fallback_text = _fetch_detail_text_fallback(detail_url)
+                        if fallback_text:
+                            full_description = fallback_text
+                            logger.debug("HTTP fallback succeeded for %s (%d chars)", detail_url, len(fallback_text))
 
                 seen_ids.add(source_id)
                 out.append(Event(
