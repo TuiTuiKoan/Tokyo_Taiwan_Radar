@@ -181,7 +181,8 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
 
 export const config = {
   matcher: [
-    // Apply to all paths except /auth/*, static files, api routes, and next internals
-    "/((?!api|auth|_next/static|_next/image|favicon.ico|robots\\.txt|sitemap\\.xml|llms\\.txt|.*[0-9a-f]{32,}\\.txt|google[0-9a-f]+\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // Apply to all paths except /auth/*, static files, api routes, next internals,
+    // and /r/* (short redirect handler — must bypass i18n locale-prefix redirect)
+    "/((?!api|auth|r/|_next/static|_next/image|favicon.ico|robots\\.txt|sitemap\\.xml|llms\\.txt|.*[0-9a-f]{32,}\\.txt|google[0-9a-f]+\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
