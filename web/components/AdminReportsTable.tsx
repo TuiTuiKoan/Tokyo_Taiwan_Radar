@@ -7,6 +7,91 @@ import { createClient } from "@/lib/supabase/client";
 import { type Category, CATEGORIES, CATEGORY_GROUPS, type Locale } from "@/lib/types";
 import Link from "next/link";
 import { confirmReport } from "@/app/actions/confirm-report";
+import { createExclusion } from "@/app/actions/source-exclusions";
+
+// Extract up to 3 candidate patterns (katakana ≥4 chars or kanji ≥3 chars) from a title.
+// Used by ExclusionSuggest to offer one-click block-rule chips after an
+// "irrelevant" report is confirmed.
+function extractCandidatePatterns(title: string | null | undefined): string[] {
+  if (!title) return [];
+  const out = new Set<string>();
+  const kataRe = /[\u30A0-\u30FF\u31F0-\u31FF]{4,}/g;
+  const kanjiRe = /[\u4E00-\u9FFF]{3,}/g;
+  for (const m of title.matchAll(kataRe)) out.add(m[0]);
+  for (const m of title.matchAll(kanjiRe)) out.add(m[0]);
+  return Array.from(out).sort((a, b) => b.length - a.length).slice(0, 3);
+}
+
+interface ExclusionSuggestProps {
+  reportId: string;
+  sourceName: string;
+  title: string | null;
+  locale: Locale;
+}
+
+function ExclusionSuggest({ reportId, sourceName, title, locale }: ExclusionSuggestProps) {
+  const t = useTranslations("admin");
+  const [applied, setApplied] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const candidates = extractCandidatePatterns(title);
+  if (candidates.length === 0) return null;
+
+  async function applyPattern(pattern: string) {
+    setBusy(pattern);
+    setError(null);
+    const result = await createExclusion({
+      source_name: sourceName,
+      pattern,
+      pattern_type: "substring",
+      match_field: "raw_title",
+      reason: `自動建議 from report ${reportId}`,
+    });
+    setBusy(null);
+    if (!result.ok) {
+      setError(result.error ?? "failed");
+      return;
+    }
+    setApplied((s) => new Set([...s, pattern]));
+  }
+
+  const formHref = `/${locale}/admin/exclusions?prefill_source=${encodeURIComponent(sourceName)}${title ? `&prefill_pattern=${encodeURIComponent(candidates[0])}` : ""}`;
+
+  return (
+    <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 space-y-1.5">
+      <p className="text-xs font-medium text-blue-900">{t("exclusionsSuggestTitle")}</p>
+      <p className="text-xs text-blue-700">{t("exclusionsSuggestBody")}</p>
+      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+        {candidates.map((p) => {
+          const isApplied = applied.has(p);
+          return (
+            <button
+              key={p}
+              type="button"
+              disabled={busy !== null || isApplied}
+              onClick={() => applyPattern(p)}
+              className={`text-xs px-2 py-0.5 rounded font-mono border transition ${
+                isApplied
+                  ? "bg-green-100 text-green-700 border-green-300 cursor-default"
+                  : "bg-white text-blue-700 border-blue-300 hover:bg-blue-100 disabled:opacity-50"
+              }`}
+              title={isApplied ? t("exclusionsSuggestApplied") : t("exclusionsSuggestApply")}
+            >
+              {isApplied ? `✓ ${p}` : p}
+            </button>
+          );
+        })}
+        <Link
+          href={formHref}
+          className="text-xs text-blue-600 hover:text-blue-800 hover:underline ml-1"
+        >
+          {t("exclusionsSuggestOpenForm")} →
+        </Link>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
 
 export interface ReportRow {
   id: string;
@@ -651,6 +736,14 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                       ? t("historyWritten")
                       : t("historySkipped")}
                   </p>
+                )}
+                {row.report_types.includes("irrelevant") && row.events?.source_name && (
+                  <ExclusionSuggest
+                    reportId={row.id}
+                    sourceName={row.events.source_name}
+                    title={row.events.name_ja ?? row.events.name_zh ?? row.events.name_en}
+                    locale={locale}
+                  />
                 )}
               </div>
             )}

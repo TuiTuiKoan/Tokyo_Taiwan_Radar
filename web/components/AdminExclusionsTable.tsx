@@ -1,0 +1,289 @@
+"use client";
+
+import { useState, useSyncExternalStore, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
+import {
+  createExclusion,
+  toggleExclusion,
+  deleteExclusion,
+  type SourceExclusionRow,
+} from "@/app/actions/source-exclusions";
+import { type Locale } from "@/lib/types";
+
+interface Props {
+  rows: SourceExclusionRow[];
+  knownSources: string[];
+  locale: Locale;
+}
+
+type MatchField = "raw_title" | "raw_description" | "raw_title_or_description";
+
+// Subscribe to a 60s tick so relative-time labels stay roughly fresh.
+// useSyncExternalStore is React's canonical pattern for client-only values
+// (avoids hydration mismatch and the set-state-in-effect lint rule).
+function subscribeToMinute(cb: () => void) {
+  const id = setInterval(cb, 60_000);
+  return () => clearInterval(id);
+}
+function getNowMs() {
+  return Date.now();
+}
+function getServerNowMs() {
+  return 0;
+}
+
+export default function AdminExclusionsTable({ rows, knownSources }: Props) {
+  const t = useTranslations("admin");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [pending, startTransition] = useTransition();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [form, setForm] = useState(() => ({
+    source_name: searchParams.get("prefill_source") ?? "",
+    pattern: searchParams.get("prefill_pattern") ?? "",
+    pattern_type: "substring" as "substring" | "regex",
+    match_field: "raw_title" as MatchField,
+    reason: "",
+  }));
+
+  // Now timestamp captured client-side; 0 on server (avoids hydration mismatch).
+  const nowMs = useSyncExternalStore(subscribeToMinute, getNowMs, getServerNowMs);
+
+  const hasOverbroad = rows.some(
+    (r) => r.is_active && r.sample_title && /台|湾|タイワン|台灣/.test(r.sample_title)
+  );
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const result = await createExclusion(form);
+    if (!result.ok) {
+      setError(result.error ?? "failed");
+      return;
+    }
+    setForm({
+      source_name: "",
+      pattern: "",
+      pattern_type: "substring",
+      match_field: "raw_title",
+      reason: "",
+    });
+    startTransition(() => router.refresh());
+  }
+
+  async function onToggle(row: SourceExclusionRow) {
+    setBusyId(row.id);
+    await toggleExclusion({ id: row.id, is_active: !row.is_active });
+    setBusyId(null);
+    startTransition(() => router.refresh());
+  }
+
+  async function onDelete(row: SourceExclusionRow) {
+    if (!confirm(t("exclusionsConfirmDelete"))) return;
+    setBusyId(row.id);
+    await deleteExclusion({ id: row.id });
+    setBusyId(null);
+    startTransition(() => router.refresh());
+  }
+
+  function fmtRel(iso: string | null): string {
+    if (!iso || nowMs === 0) return "—";
+    const ms = nowMs - new Date(iso).getTime();
+    const d = Math.floor(ms / 86400_000);
+    if (d <= 0) return "<1d";
+    if (d < 30) return `${d}d`;
+    return `${Math.floor(d / 30)}mo`;
+  }
+
+  function hitsClass(n: number): string {
+    if (n === 0) return "text-gray-400";
+    if (n <= 5) return "text-green-600";
+    if (n <= 20) return "text-amber-600";
+    return "text-red-600 font-semibold";
+  }
+
+  return (
+    <div className="space-y-6">
+      {hasOverbroad && (
+        <div className="rounded border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          {t("exclusionsOverbroadWarn")}
+        </div>
+      )}
+
+      <form
+        onSubmit={onSubmit}
+        className="rounded border border-gray-200 bg-white p-4 space-y-3"
+      >
+        <h2 className="text-base font-semibold">{t("exclusionsAddTitle")}</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">
+              {t("exclusionsSourceLabel")}
+            </label>
+            <input
+              list="known-sources"
+              required
+              className="w-full border rounded px-2 py-1 text-sm"
+              value={form.source_name}
+              onChange={(e) => setForm({ ...form, source_name: e.target.value })}
+            />
+            <datalist id="known-sources">
+              {knownSources.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">
+              {t("exclusionsPatternLabel")}
+            </label>
+            <input
+              required
+              minLength={3}
+              className="w-full border rounded px-2 py-1 text-sm font-mono"
+              value={form.pattern}
+              onChange={(e) => setForm({ ...form, pattern: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">
+              {t("exclusionsTypeLabel")}
+            </label>
+            <select
+              className="w-full border rounded px-2 py-1 text-sm"
+              value={form.pattern_type}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  pattern_type: e.target.value as "substring" | "regex",
+                })
+              }
+            >
+              <option value="substring">{t("exclusionsTypeSubstring")}</option>
+              <option value="regex">{t("exclusionsTypeRegex")}</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">
+              {t("exclusionsFieldLabel")}
+            </label>
+            <select
+              className="w-full border rounded px-2 py-1 text-sm"
+              value={form.match_field}
+              onChange={(e) =>
+                setForm({ ...form, match_field: e.target.value as MatchField })
+              }
+            >
+              <option value="raw_title">raw_title</option>
+              <option value="raw_description">raw_description</option>
+              <option value="raw_title_or_description">raw_title_or_description</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-600 mb-1">
+            {t("exclusionsReasonLabel")}
+          </label>
+          <textarea
+            rows={2}
+            className="w-full border rounded px-2 py-1 text-sm"
+            value={form.reason}
+            onChange={(e) => setForm({ ...form, reason: e.target.value })}
+          />
+        </div>
+        {error && <div className="text-sm text-red-600">{error}</div>}
+        <button
+          type="submit"
+          disabled={pending}
+          className="px-4 py-1.5 rounded bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-50"
+        >
+          {t("exclusionsSubmit")}
+        </button>
+      </form>
+
+      {rows.length === 0 ? (
+        <div className="text-sm text-gray-500 py-8 text-center">
+          {t("exclusionsEmpty")}
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded border border-gray-200 bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-xs text-gray-600">
+              <tr>
+                <th className="px-3 py-2 text-left">source</th>
+                <th className="px-3 py-2 text-left">pattern</th>
+                <th className="px-3 py-2 text-center">type</th>
+                <th className="px-3 py-2 text-center">field</th>
+                <th className="px-3 py-2 text-right">{t("exclusionsHits30d")}</th>
+                <th className="px-3 py-2 text-left">{t("exclusionsSampleTitle")}</th>
+                <th className="px-3 py-2 text-right">{t("exclusionsLifetimeHits")}</th>
+                <th className="px-3 py-2 text-center">{t("exclusionsLastMatched")}</th>
+                <th className="px-3 py-2 text-center">{t("exclusionsActiveToggle")}</th>
+                <th className="px-3 py-2 text-center">—</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr
+                  key={r.id}
+                  className={`border-t ${!r.is_active ? "opacity-50" : ""}`}
+                >
+                  <td className="px-3 py-2">{r.source_name}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{r.pattern}</td>
+                  <td className="px-3 py-2 text-center text-xs">{r.pattern_type}</td>
+                  <td className="px-3 py-2 text-center text-xs">
+                    {r.match_field === "raw_title"
+                      ? "T"
+                      : r.match_field === "raw_description"
+                      ? "D"
+                      : "T+D"}
+                  </td>
+                  <td className={`px-3 py-2 text-right ${hitsClass(r.hits_30d)}`}>
+                    {r.hits_30d}
+                  </td>
+                  <td
+                    className="px-3 py-2 text-xs text-gray-600 max-w-xs truncate"
+                    title={r.sample_title ?? ""}
+                  >
+                    {r.sample_title ?? "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right text-xs text-gray-500">
+                    {r.match_count}
+                  </td>
+                  <td className="px-3 py-2 text-center text-xs text-gray-500">
+                    {fmtRel(r.last_matched_at)}
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <button
+                      disabled={busyId === r.id}
+                      onClick={() => onToggle(r)}
+                      className={`text-xs px-2 py-0.5 rounded ${
+                        r.is_active
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-500"
+                      }`}
+                    >
+                      {r.is_active ? "ON" : "OFF"}
+                    </button>
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <button
+                      disabled={busyId === r.id}
+                      onClick={() => onDelete(r)}
+                      className="text-xs text-red-600 hover:underline"
+                    >
+                      {t("exclusionsDelete")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
