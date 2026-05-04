@@ -3,6 +3,28 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-04 — hakusuisha body text 截斷 + `開催日時:` 前綴誤匹配（commit `a0292a2`）
+
+**問題**：`scraper/sources/hakusuisha.py` 詳情頁的 `location_name`、`business_hours`、`organizer` 全部為 `null`。
+
+**根本原因（兩個 bug）**：
+
+**Bug 1 — body text 截斷**：Playwright `body.inner_text()[:4000]` 與 HTTP fallback `[:4000]` 截斷，導航列（nav menu）佔去大量字元，把 `■日時：` 推到截斷點之後，導致日時/会場/主催 label 全部被截掉。
+
+**Bug 2a — 缺少 会場:/主催: 提取邏輯**：auto-generated scraper 只有日期提取，沒有 `会場:`/`主催:` regex，`_KAIJO_RE`、`_SHUKAI_RE`、`_TIME_RE` 都不存在。
+
+**Bug 2b — `開催日時:` 前綴誤匹配（最重要）**：scraper 自身在 `raw_description` 開頭加了 `開催日時: 2026年4月26日\n\n` 前綴。之後用 `_JITSU_RE.search(full_description)` 找 `日時:` 時，**先匹配到此前綴**（`開催日時:` 包含 `日時:`），group(1) = `2026年4月26日`（無時間），`_TIME_RE` 永遠找不到時間。
+
+**修正**：
+- Bug 1：截斷上限提高至 8000 字元
+- Bug 2a：新增 `_KAIJO_RE`、`_SHUKAI_RE`、`_TIME_RE`，在 `_extract_cards()` 末段提取 location / hours / organizer
+- Bug 2b：改為直接 `_TIME_RE.search(full_description)` 繞過前綴問題
+
+**教訓**：
+- auto-generated scraper body text 上限 4000 不夠，nav/header 噪音吃掉預算；**最低建議 8000 字元**
+- **Self-injected Prefix Interference**：scraper 自加的前綴（如 `開催日時:`）若包含 field label 關鍵字，後續 regex 的 `re.search()` 會先匹配前綴而非正文；解法是在加前綴前完成提取，或用更具體的 pattern（如 `_TIME_RE`）直接搜索全文
+
+---
 ## 2026-05-04 — `scraper_runs` source 名查詢陷阱：`_scraper_key()` 轉換規則
 
 **Error:** 調查「未執行的 6 個爬蟲」時，用 `cinemarine`、`moonromantic`、`tiff`、`tokyoartbeat` 等 class 前綴查詢 `scraper_runs.source`，全部回傳 NO RUNS FOUND，誤判為未執行。

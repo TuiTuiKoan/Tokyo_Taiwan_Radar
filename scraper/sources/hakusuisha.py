@@ -361,16 +361,16 @@ class HakusuishaScraper(BaseScraper):
                     shukai_m = _SHUKAI_RE.search(full_description)
                     if shukai_m:
                         organizer_val = shukai_m.group(1).strip()
-                    # Extract time range — search full description directly
-                    # (avoids false match on the "開催日時: YYYY年MM月DD日" prefix
-                    # that the scraper prepends, which lacks a time component)
-                    time_m = _TIME_RE.search(full_description)
-                    if time_m:
-                        business_hours_val = f"{time_m.group(1)}〜{time_m.group(2)}"
-                        # Append open time if present e.g. （12:30開場）
-                        open_m = re.search(r"（(\d{1,2}:\d{2})開場）", full_description)
-                        if open_m:
-                            business_hours_val += f"（{open_m.group(1)}開場）"
+                    # Extract time range from the same 日時: line
+                    jitsu_m = _JITSU_RE.search(full_description)
+                    if jitsu_m:
+                        time_m = _TIME_RE.search(jitsu_m.group(1))
+                        if time_m:
+                            business_hours_val = f"{time_m.group(1)}〜{time_m.group(2)}"
+                            # Append open time if present e.g. （12:30開場）
+                            open_m = re.search(r"（(\d{1,2}:\d{2})開場）", jitsu_m.group(1))
+                            if open_m:
+                                business_hours_val += f"（{open_m.group(1)}開場）"
 
                 seen_ids.add(source_id)
                 out.append(Event(

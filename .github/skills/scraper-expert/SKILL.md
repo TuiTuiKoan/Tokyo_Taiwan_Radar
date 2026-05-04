@@ -225,7 +225,7 @@ For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publ
 | arukikata | N/A | N/A | Fetches full article (BS4) |
 | peatix | N/A | N/A | Visits detail page (Playwright) |
 | taiwan_cultural_center | N/A | N/A | Visits detail page (Playwright) |
-| hakusuisha | `skip_tags` HTMLParser + 4000 char limit in `_fetch_detail_text_fallback()` | ✅ thin-content rescue when `source_name == "hakusuisha"` and `日時` absent in `raw_description` | JS/nav content consuming 2000-char budget; `■日時:` typically appears after char 2000 |
+| hakusuisha | `skip_tags` HTMLParser + **8000 char limit** in `_fetch_detail_text_fallback()` | ✅ thin-content rescue when `source_name == "hakusuisha"` and `日時` absent in `raw_description` | JS/nav content consuming 2000-char budget; `■日時:` typically appears after char 2000; raised from 4000→8000 (commit `a0292a2`) |
 | taioan_dokyokai | N/A | N/A | Visits detail page (Playwright) |
 | taiwan_kyokai | N/A | N/A | Visits detail page (Playwright) |
 | taiwan_festival_tokyo | N/A | N/A | Structured widget, not article-based |
@@ -258,7 +258,40 @@ auto_generate が生成した `FIELD_SELECTORS["date"]` が指すセレクタは
 `auto_generate` で生成されたすべての scraper のプロモーション前に `FIELD_SELECTORS["date"]` を人工審査すること。Playwright ベースのスクレーパー（detail page を訪問する）でも、listing page の date selector が残っている場合は要確認。
 
 Reference incident: 2026-05-04 hakusuisha `FIELD_SELECTORS["date"] = "span.note"` → 記事公開日を取得（活動日ではない）（commit `b3708e1`）。
+### Auto-generated Scraper — Body Text Limit
 
+**Rule**: auto-generated scraper の `body.inner_text()` および HTTP fallback のスライス上限は **最低 8000 字元** を使うこと。4000 字元では nav / header ノイズに予算を消費され、イベント本文の `■日時:` / `会場:` / `主催:` が切り捨てられる。
+
+```python
+# ❌ 4000 は nav のある site では不足
+full_description = body.inner_text()[:4000]
+
+# ✅ 8000 以上を推奨
+full_description = body.inner_text()[:8000]
+```
+
+Incident: `hakusuisha.py` — nav menu が 2000+ 字消費し、`■日時：` を截斷点の外に押し出した（commit `a0292a2`）。
+
+### Self-injected Prefix Interference
+
+**Rule**: scraper が `raw_description` 先頭に `開催日時: YYYY年MM月DD日` 等のプレフィックスを追加する**前に**、日時/会場/主催の regex 抽出を完了させること。
+
+**問題**：`_JITSU_RE = re.compile(r"日時[:：]")` は `開催日時:` にもマッチする。scraper が自己注入したプレフィックスを先に検索すると、group(1) がプレフィックスの日付テキスト（時間なし）になり、後続の `_TIME_RE` が正文の時間 (`HH:MM〜HH:MM`) を永遠に見つけられなくなる。
+
+```python
+# ❌ Bad: プレフィックスを先に加えてから検索
+raw_description = f"開催日時: {date_str}\n\n{full_description}"
+m = _JITSU_RE.search(raw_description)  # → マッチするのはプレフィックスの "開催日時:"
+
+# ✅ Good: 検索を先に行い、プレフィックスは最後に加える
+m = _JITSU_RE.search(full_description)  # または _TIME_RE で直接時間を検索
+# ... 抽出完了後 ...
+raw_description = f"開催日時: {date_str}\n\n{full_description}"
+```
+
+代替解法：`日時[：:]` の代わりに `[■◆●▼]\s*日時[：:]` で検索（行頭の記号を要求）するか、`_TIME_RE`（`\d{1,2}:\d{2}` を含む時刻パターン）で full_description を直接検索して前綴を回避する。
+
+Incident: `hakusuisha.py` — `_JITSU_RE.search()` が `開催日時: 2026年4月26日` プレフィックスにマッチし、`_TIME_RE` が正文の `14:00〜16:00` を見つけられなかった（commit `a0292a2`）。
 ---
 
 ## Auto-Generate Scraper — Date Field Accuracy Check
