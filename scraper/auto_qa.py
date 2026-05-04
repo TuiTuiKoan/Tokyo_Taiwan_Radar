@@ -282,7 +282,6 @@ def run(dry_run: bool = False) -> dict:
 
     # Dedup against latest auto_qa reports for each event/type
     latest_reports = _latest_auto_qa_reports(sb, list({c[0] for c in candidates}))
-    event_updated_at = {ev["id"]: _parse_ts(ev.get("updated_at")) for ev in events}
     in_run_seen: dict[str, set[str]] = {}
 
     new_rows: list[dict] = []
@@ -298,11 +297,15 @@ def run(dry_run: bool = False) -> dict:
                 skipped_pending += 1
                 continue
 
-            handled_at = _parse_ts(last.get("confirmed_at") or last.get("created_at"))
-            updated_at = event_updated_at.get(event_id)
-            if handled_at and updated_at and updated_at <= handled_at:
-                skipped_resolved_unchanged += 1
-                continue
+            # confirmed/dismissed → skip unconditionally.
+            # Rationale: if the issue was truly fixed, the event would not
+            # appear as a candidate at all (the detect query only finds events
+            # that currently have the problem). Therefore there is no need to
+            # compare updated_at — any update (e.g. backfill touching an
+            # unrelated field) would have bumped updated_at and triggered a
+            # false re-report under the old updated_at > confirmed_at check.
+            skipped_resolved_unchanged += 1
+            continue
 
         new_rows.append({
             "event_id": event_id,
