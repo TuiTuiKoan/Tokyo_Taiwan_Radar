@@ -508,25 +508,31 @@ Confirm: `start_date` populated, no unhandled exceptions, events count is non-ze
 
 ## Documentation Protocol (Phase 4 — mandatory)
 
-After every new source or bug fix, create/update these files **before committing**:
+After every new source or bug fix, complete **all** items below **before `git add`**. Skipping any item is a protocol violation.
 
-### New source checklist
+### New source — mandatory checklist
 
-| File | Action |
-|------|--------|
-| `.github/skills/<source_name>/SKILL.md` | **Create** — platform profile, field mappings, Taiwan filter, date extraction, troubleshooting |
-| `.github/skills/<source_name>/history.md` | **Create** — initial implementation decisions |
-| `.github/skills/agents/scraper-expert/SKILL.md` | **Update** — add `## <source_name>-specific` section (3–5 key rules) |
-| Supabase `research_sources` | **Update** `status → implemented` AND `scraper_source_name → <source_name>` (both fields, same operation) |
+| # | Item | File / Location |
+|---|------|-----------------|
+| 1 | `import` added | `scraper/main.py` |
+| 2 | `SCRAPERS` entry added | `scraper/main.py` |
+| 3 | SCRAPERS audit passes (zero UNREGISTERED) | run audit command |
+| 4 | Per-source `SKILL.md` created | `.github/skills/sources/<source_name>/SKILL.md` |
+| 5 | Per-source `history.md` created | `.github/skills/sources/<source_name>/history.md` |
+| 6 | `## <source_name>-specific` section added | `.github/skills/agents/scraper-expert/SKILL.md` |
+| 7 | `research_sources.status = 'implemented'` | Supabase DB |
+| 8 | `research_sources.scraper_source_name = '<key>'` | Supabase DB |
 
-### Bug fix checklist
+> **Root cause of the ArtistcafeScraper incident (2026-05-05)**: The scraper file was created, committed, and even archived as "POC complete", but items 1–2 (import + SCRAPERS) were never done in the same session. Result: CI silently ignored the scraper for 3+ days. **Items 1–2 must be done atomically with the source file in the same commit.**
 
-| File | Action |
-|------|--------|
-| `.github/skills/agents/scraper-expert/history.md` | **Prepend** new entry (date, error, fix, lesson) |
-| `.github/skills/<source_name>/history.md` | **Prepend** new entry |
-| `scraper-expert/SKILL.md` | **Add/update** rule if lesson is universal |
-| Per-source `SKILL.md` | **Add/update** rule if lesson is source-specific |
+### Bug fix — mandatory checklist
+
+| # | Item | File / Location |
+|---|------|-----------------|
+| 1 | History entry prepended | `.github/skills/agents/scraper-expert/history.md` |
+| 2 | History entry prepended (source-specific) | `.github/skills/sources/<source_name>/history.md` |
+| 3 | Universal rule added/updated | `scraper-expert/SKILL.md` (if lesson generalizes) |
+| 4 | Source-specific rule added/updated | per-source `SKILL.md` (if lesson is specific) |
 
 ### Per-source SKILL.md template
 

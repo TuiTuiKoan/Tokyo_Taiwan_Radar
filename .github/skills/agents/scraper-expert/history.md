@@ -3,6 +3,19 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — ArtistcafeScraper: ファイル存在・POC完了・commit済みなのに SCRAPERS 未登録で 3 日間無視された
+
+**Error:** `scraper/sources/artistcafe.py` はファイルとして存在し、feature branch にも commit されていたが、`main.py` への `import` と `SCRAPERS` 登録が一度も実施されなかった。CI は 3 日以上この scraper を完全に無視した。
+
+**Root cause:** 「POC 完成 → spec を parked → feature branch に commit」という flow で、「import + SCRAPERS 登録」ステップが別タスクに先送りされ、そのまま見落とされた。spec に「Phase 1: import + SCRAPERS 追加」と書いてあったが、実行されなかった。
+
+**Fix:** `from sources.artistcafe import ArtistcafeScraper` と `ArtistcafeScraper()` を同一コミット（`8a9dcd7`）で追加。dry-run で 12 events 確認。
+
+**Lesson:** scraper ファイルと `main.py` への登録は **atomic** でなければならない。spec の「次のステップ」として書いた時点で、すでに登録漏れのリスクがある。POC → spec parked → 後で登録、というパターンは禁止。
+
+**Protocol fix:** agent.md Phase 5 と SKILL.md Documentation Protocol の両方に、コミット前に確認すべき numbered checklist（import・SCRAPERS・per-source SKILL・history・DB）を追加。ファイルの存在だけでなく、登録の完了を明示的に確認するまで commit しない。
+
+---
 ## 2026-05-04 — hakusuisha body text 截斷 + `開催日時:` 前綴誤匹配（commit `a0292a2`）
 
 **問題**：`scraper/sources/hakusuisha.py` 詳情頁的 `location_name`、`business_hours`、`organizer` 全部為 `null`。

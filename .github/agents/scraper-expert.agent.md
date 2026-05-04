@@ -125,9 +125,38 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 
 **Always run this phase after Phase 4 — never call task_complete without pushing.**
 
-1. Stage only scraper-related files (exclude temp scripts like `scan_loc.py`, `fix_*.py`).
-   - Include: `scraper/sources/<source_name>.py`, `scraper/main.py`, `.github/skills/sources/<source_name>/`, `.github/skills/scraper-expert/history.md`
-   - Exclude: `.copilot-tracking/` (gitignored), temporary debug scripts
+#### Pre-commit gate (run before `git add`)
+
+For **new sources**, verify ALL items are done:
+- [ ] `scraper/sources/<source_name>.py` exists
+- [ ] `scraper/main.py` has `import` AND `SCRAPERS` entry (run audit below)
+- [ ] `.github/skills/sources/<source_name>/SKILL.md` created
+- [ ] `.github/skills/sources/<source_name>/history.md` created
+- [ ] `.github/skills/agents/scraper-expert/SKILL.md` has `## <source_name>-specific` section
+- [ ] Supabase `research_sources`: `status=implemented`, `scraper_source_name=<key>`
+
+For **bug fixes**, verify:
+- [ ] `.github/skills/agents/scraper-expert/history.md` prepended
+- [ ] `.github/skills/sources/<source_name>/history.md` prepended (if source-specific)
+- [ ] `scraper-expert/SKILL.md` updated if lesson is universal
+
+Run SCRAPERS audit (zero UNREGISTERED lines required):
+```bash
+cd scraper && python3 -c "
+import re, glob
+registered = set(re.findall(r'(\w+Scraper)\(\)', open('main.py').read()))
+for f in glob.glob('sources/*.py'):
+    c = open(f).read()
+    m = re.search(r'class (\w+Scraper)\b', c)
+    if m and m.group(1) not in registered and m.group(1) != 'BaseScraper':
+        print('UNREGISTERED:', m.group(1), f)
+print('Audit OK')
+"
+```
+
+1. Stage files (exclude temp scripts like `scan_loc.py`, `fix_*.py`, `.copilot-tracking/`).
+   - New source: `scraper/sources/<source_name>.py`, `scraper/main.py`, `.github/skills/sources/<source_name>/`, `.github/skills/agents/scraper-expert/history.md`, `.github/skills/agents/scraper-expert/SKILL.md`
+   - Bug fix: `scraper/sources/<source_name>.py`, `.github/skills/agents/scraper-expert/history.md`, `.github/skills/agents/scraper-expert/SKILL.md` (+ per-source skill if updated)
 2. Commit on `main` branch:
    - New source: `feat(scraper): add <SourceName>Scraper for <display name>`
    - Bug fix: `fix(scraper): <what was fixed> in <source_name>`
