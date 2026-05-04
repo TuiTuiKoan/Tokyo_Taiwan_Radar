@@ -39,6 +39,33 @@ Missing step 3 has no compile-time or runtime error — it silently appears as a
 
 Reference incident: 2026-05-05 — `赤い糸 輪廻のひみつ` 以日文出現在 ZH 週報，缺 `annotation_status` 過濾（commit `9b33ad3` 後修正）。
 
+## Person Name Enrich English Guard
+
+在審核任何涉及 `enrich_person_names()` 或人名翻譯邏輯的計畫前，**必須**確認：
+
+1. **description_en 中的人名是英文音譯，不是片假名**：GPT 翻譯時已將片假名 → 英文音譯（如 `クー・チェンドン` → `Koo Kuan-Dong`），片假名字串**不在** desc_en 中，`if ja_name in desc_en` 永不命中。
+2. **`description_en` 必須走 `_fix_person_names_gpt_en()` GPT 路徑**（鏡像 desc_zh 的 `_fix_person_names_gpt`）。已於 2026-05-05 修復；任何回退到 katakana direct-replace 的 PR 必須拒絕。
+3. **`enrich_movie_titles` / `enrich_person_names` 成功後必須自動鎖**：透過 `_lock_fields_via_corrections()` upsert 進 `field_corrections` 表，避免下次 re-annotation 覆寫。
+
+Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan-Dong` 從 5/4 daily CI 後持續未修正；同事件多次手修又被 AI 覆寫，根因為缺 lock。
+
+## Manual Translation Fix Persistence Guard
+
+在審核**任何**直接 SQL UPDATE 翻譯欄位（`name_zh` / `name_en` / `description_zh` / `description_en` / `performer`）的計畫前，**必須**確認：
+
+1. **手動修正必同時鎖入 `field_corrections`**：否則下次 `annotation_status` 翻回 `pending` 時，annotator 主迴圈用 GPT 重寫，所有人工修正瞬間蒸發。這是「修了又錯、錯了又修」迴歸鏈的根因。
+2. **正確 pattern**：
+   ```python
+   from annotator import _get_supabase, _lock_fields_via_corrections
+   sb = _get_supabase()
+   sb.table("events").update({"name_zh": "月老"}).eq("id", eid).execute()
+   _lock_fields_via_corrections(sb, eid, {"name_zh": "月老"})
+   ```
+3. **enrich_* 函式自動鎖**：`enrich_movie_titles` 與 `enrich_person_names` 成功 patch 後**已自動 upsert** `field_corrections`（2026-05-05 起）。手動修正不可漏這一步。
+4. **靜默 `continue` 是反 pattern**：lookup 失敗必須 `logger.warning`，否則 CI log 看不到，錯誤翻譯靜默上線數日。
+
+Reference incident: 2026-05-05 — event `f970e4e3`（月老）多次被修又被 AI 覆寫；今日同步補入 `field_corrections` 鎖定四個翻譯欄位後免疫。
+
 ## Database Safety Rules
 
 - **NEVER batch-set `is_active = False` based on `end_date < today`**. Past events must remain `is_active = True` so users can view event history. Visibility for ended events is controlled by the frontend `FilterBar` ("顯示已結束活動" toggle), not by `is_active`.

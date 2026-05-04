@@ -3,6 +3,29 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — 翻譯修正反覆失效：缺持久化鎖 + `enrich_person_names` desc_en 既有 bug 共同造成
+
+### 問題
+事件 `f970e4e3`（月老）使用者反映「先前花費非常多時間修理過，結果這條目怎麼又恢復沒有修改狀態了」。根本疑問：**為何修正過的事件會多次重複發生這種錯誤？**
+
+### 根因分析（迴歸鏈）
+1. **手動修正不寫 `field_corrections`**：使用者透過 SQL UPDATE 直接修翻譯欄位，但未同時插入 `field_corrections` row。沒有鎖定，下一次 `annotation_status` 被某種途徑（scraper diff / `--all` / `--fix-translations`）翻回 `pending` 時，`annotate_pending_events()` 用 GPT 重寫 `name_zh`/`name_en`/`description_*`，**所有人工修正瞬間蒸發**。
+2. **`enrich_movie_titles` 失敗無 retry、無 WARN**：5/4 daily CI 當下 eiga.com lookup 失敗（網路或站點瞬斷），function 靜默 `continue`，沒有任何 log 提示「這個 movie 事件 lookup 失敗」。錯誤翻譯就此停留至下次成功運氣。
+3. **`enrich_person_names` 對 `description_en` 永遠無法修正**：`description_en` 是 GPT 翻譯後的英文音譯（如 `Koo Kuan-Dong`），片假名字串根本不在 desc_en 中，`if ja_name in new_desc_en` 條件**結構性永不命中**，無論跑幾次 CI，desc_en 都不會被修正為 `Ko Chen-tung`。
+
+### 修復（多層防線）
+1. **`_fix_person_names_gpt_en()`**（annotator.py）：新增 GPT-based 修正路徑，鏡像 `_fix_person_names_gpt`，針對 desc_en 處理英文音譯 → 正確英文名。`enrich_person_names` 改用此函式。
+2. **`_lock_fields_via_corrections()`** helper：在 `enrich_movie_titles` 與 `enrich_person_names` 成功 patch 後，自動 upsert `field_corrections` row，鎖定欄位。後續 annotator 主迴圈的 P1 保護（line 911 `_human_protected`）會跳過這些欄位。
+3. **WARN 日誌**：`enrich_movie_titles` lookup 失敗時 logger.warning，CI log 中可見；`enrich_person_names` 找到人但未 patch 時也 WARN，避免靜默失效。
+4. **既有 `f970e4e3` 修正手動寫入 `field_corrections`**：`name_zh`/`name_en`/`description_zh`/`description_en` 四欄已 lock，從此免疫於 AI 覆寫。
+
+### 教訓
+- **「靜默 continue」是反 pattern**：lookup/network 失敗必須 WARN，否則錯誤資料會持續上線數日無人察覺。
+- **「直接字串替換」要驗證 source 與 target encoding**：原始片假名與已翻譯英文音譯不是同一字串，str.replace 永不命中。應走 GPT 語義修正路徑。
+- **手動修正必須持久化**：任何透過 SQL UPDATE 修翻譯的操作，**必須同時** upsert `field_corrections`，否則下次 re-annotation 會清掉。已加入 architect Guard（`Manual Translation Fix Persistence Guard`）。
+- **enrich 函式自動 lock**：成功 patch 等於官方權威值（eiga.com / Wikipedia），自動鎖定不會傷害正確性，反而防止 transient 失敗造成的迴歸。
+
+---
 ## 2026-05-05 — `enrich_person_names` 對 description_en 修不到（音譯英文 vs 片假名）
 
 ### 問題

@@ -1393,6 +1393,12 @@ def enrich_movie_titles() -> None:
 
         name_zh, name_en = lookup_movie_titles(title)
         if not name_zh and not name_en:
+            # Surface the lookup failure — without this WARN, transient
+            # eiga.com hiccups silently leave wrong GPT translations in DB.
+            logger.warning(
+                "  ⚠ eiga.com lookup returned no titles for movie event %s/%s [%s]",
+                source, event["id"][:8], title[:60],
+            )
             continue
 
         old_name_zh = event.get("name_zh") or ""
@@ -1427,6 +1433,11 @@ def enrich_movie_titles() -> None:
                     update["description_en"] = new_desc_en
 
         sb.table("events").update(update).eq("id", event["id"]).execute()
+        # Lock the eiga.com canonical titles via field_corrections so a
+        # future re-annotation pass (status flipped back to 'pending' by a
+        # scraper update, or --all/--fix-translations) cannot overwrite
+        # them with a fresh GPT phonetic translation.
+        _lock_fields_via_corrections(sb, event["id"], update)
         patched += 1
         logger.info(
             "  ✓ %s/%s [%s] → zh=%r en=%r desc_zh_fixed=%s desc_en_fixed=%s",
@@ -1450,6 +1461,25 @@ _PERSON_FIX_PROMPT = """你是翻譯校對專家。以下中文描述中的人�
 {mapping}
 
 描述：
+{desc}"""
+
+
+_PERSON_FIX_PROMPT_EN = """You are a translation proofreader. The English description below may contain
+incorrect English transliterations of person names that were derived from
+Japanese katakana (e.g. "Koo Kuan-Dong" should be "Ko Chen-tung").
+
+Replace any wrong transliterations with the canonical English name listed below.
+
+Rules:
+- Only modify person names. Do NOT change anything else (punctuation, wording, formatting).
+- If the description already uses the correct English name, do not change anything.
+- If no incorrect name is found, return the description unchanged.
+- Output only the corrected description, with no explanation or preamble.
+
+Canonical names:
+{mapping}
+
+Description:
 {desc}"""
 
 
@@ -1479,6 +1509,75 @@ def _fix_person_names_gpt(
     except Exception as exc:
         logger.warning("_fix_person_names_gpt error: %s", exc)
         return None
+
+
+def _fix_person_names_gpt_en(
+    client: OpenAI, desc: str, name_mappings: list[tuple[str, str, str]]
+) -> str | None:
+    """Use GPT-4o-mini to replace wrong English transliterations in desc_en.
+
+    Direct katakana string replacement does NOT work for description_en,
+    because GPT translation already converted katakana to English
+    transliterations (e.g. クー・チェンドン → "Koo Kuan-Dong"). The katakana
+    string is no longer present in desc_en, so str.replace silently fails.
+    Use GPT to find and correct wrong English transliterations instead.
+
+    name_mappings: list of (role, ja_name, correct_en_name) tuples.
+    Returns the fixed description, or None if no change.
+    """
+    mapping_lines = "\n".join(
+        f"- {role}: {en_name} (Japanese: {ja_name})"
+        for role, ja_name, en_name in name_mappings
+    )
+    prompt = _PERSON_FIX_PROMPT_EN.format(mapping=mapping_lines, desc=desc)
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=len(desc) + 200,
+        )
+        fixed = response.choices[0].message.content.strip()
+        return fixed if fixed != desc else None
+    except Exception as exc:
+        logger.warning("_fix_person_names_gpt_en error: %s", exc)
+        return None
+
+
+def _lock_fields_via_corrections(
+    sb: "Client", event_id: str, fields: dict[str, Any]
+) -> None:
+    """Persist auto-enrich corrections to field_corrections so future
+    re-annotation passes will skip these fields (annotator P1 protection).
+
+    Without this lock, transient lookup failures during a future CI run
+    could let GPT output overwrite a known-correct value (e.g. eiga.com
+    official Chinese title) with a phonetic GPT direct-translation.
+
+    Idempotent — uses upsert on the (event_id, field_name) unique key.
+    Safe no-op if the field_corrections table doesn't exist (pre-038b).
+    """
+    if not fields:
+        return
+    rows = [
+        {
+            "event_id": event_id,
+            "field_name": fname,
+            "corrected_value": str(fvalue) if fvalue is not None else "",
+            "corrected_by": None,
+        }
+        for fname, fvalue in fields.items()
+    ]
+    try:
+        sb.table("field_corrections").upsert(
+            rows, on_conflict="event_id,field_name"
+        ).execute()
+    except Exception as exc:
+        logger.debug(
+            "field_corrections lock skipped for %s (table missing or error): %s",
+            event_id[:8], exc,
+        )
 
 
 def enrich_person_names() -> None:
@@ -1565,24 +1664,42 @@ def enrich_person_names() -> None:
                 if fixed_zh:
                     update["description_zh"] = fixed_zh
 
-        # Fix desc_en with direct replacement
+        # Fix desc_en using GPT — direct katakana replacement is futile
+        # because GPT already transliterated names to English in desc_en
+        # (e.g. クー・チェンドン → "Koo Kuan-Dong"). See _fix_person_names_gpt_en.
         desc_en = event.get("description_en") or ""
         if desc_en:
-            new_desc_en = desc_en
-            for ja_name, info in people.items():
-                if ja_name in new_desc_en and info.name_en:
-                    new_desc_en = new_desc_en.replace(ja_name, info.name_en)
-            if new_desc_en != desc_en:
-                update["description_en"] = new_desc_en
+            en_mappings = [
+                (info.role or "person", ja_name, info.name_en)
+                for ja_name, info in people.items()
+                if info.name_en
+            ]
+            if en_mappings:
+                fixed_en = _fix_person_names_gpt_en(client, desc_en, en_mappings)
+                if fixed_en:
+                    update["description_en"] = fixed_en
 
         if update:
             sb.table("events").update(update).eq("id", event["id"]).execute()
+            # Lock the corrected fields via field_corrections so future
+            # re-annotation passes won't clobber them with fresh GPT output
+            # (which would re-introduce phonetic katakana transliterations).
+            _lock_fields_via_corrections(sb, event["id"], update)
             patched += 1
             logger.info(
                 "  ✓ person names fixed: %s/%s [cat=%s] desc_zh=%s desc_en=%s persons=%s",
                 source, event["id"][:8], ",".join(categories),
                 "description_zh" in update, "description_en" in update,
                 list(people.keys()),
+            )
+        elif people:
+            # People found but no fix applied. desc_en may still contain
+            # wrong transliterations that GPT considered already-correct,
+            # OR there was a transient OpenAI failure. Surface this for
+            # the auto-QA dashboard.
+            logger.warning(
+                "  ⚠ person names found but no description fix applied: %s/%s persons=%s",
+                source, event["id"][:8], list(people.keys()),
             )
 
     logger.info("enrich_person_names: patched %d/%d events", patched, len(events))

@@ -235,11 +235,28 @@ Reference incident: 2026-05-05 — `赤い糸 輪廻のひみつ` 以日文出�
 
 在審核任何涉及 `enrich_person_names()` 或人名翻譯邏輯的計畫前，**必須**確認：
 
-1. **description_en 中的人名是英文音譯，不是片假名**：GPT 在最初翻譯 `description_en` 時已將片假名 → 英文音譯（如 `クー・チェンドン` → `Koo Kuan-Dong`）。`description_en` 內**不會**包含片假名字串。
-2. **直接字串替換對 description_en 永遠失效**：`if ja_name in desc_en: desc_en.replace(ja_name, info.name_en)` 因為 `desc_en` 沒有片假名，永遠不會命中。需改走 GPT 修正路徑（同 description_zh）。
-3. **目前 `annotator.py` 的 `enrich_person_names` 在 description_en 處理上有 bug**：手動修正單筆事件時需直接 SQL UPDATE，未來改寫應加 `_fix_person_names_gpt_en()` 函式，傳遞 `(role, ja_name, info.name_en)` 給 GPT 重寫 desc_en。
+1. **description_en 中的人名是英文音譯，不是片假名**：GPT 在最初翻譯 `description_en` 時已將片假名 → 英文音譯（如 `クー・チェンドン` → `Koo Kuan-Dong`）。`description_en` 內**不會**包含片假名字串，`if ja_name in desc_en` 永遠不會命中。
+2. **`description_en` 必須走 `_fix_person_names_gpt_en()` GPT 路徑**（鏡像 desc_zh 的 `_fix_person_names_gpt`），不能用片假名 direct-replace。已於 2026-05-05 修復。
+3. **`enrich_movie_titles` / `enrich_person_names` 成功後必須自動鎖**：透過 `_lock_fields_via_corrections()` upsert 進 `field_corrections` 表，避免下次 re-annotation 覆寫。
 
-Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan-Dong` 從 5/4 daily CI 後一直未修正，需手動 SQL UPDATE 為 `Ko Chen-tung`。
+Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan-Dong` 從 5/4 daily CI 後一直未修正；同事件已多次手修又被 AI 覆寫，根因是缺 field_corrections lock。
+
+## Manual Translation Fix Persistence Guard（手動修翻譯必須鎖 field_corrections）
+
+在審核**任何**直接 SQL UPDATE 翻譯欄位（`name_zh` / `name_en` / `description_zh` / `description_en` / `performer`）的計畫前，**必須**確認：
+
+1. **手動修正必同時鎖入 `field_corrections`**：否則下一次事件 `annotation_status` 翻回 `pending`（scraper diff / `--all` / `--fix-translations`）時，annotator 主迴圈用 GPT 重寫，所有人工修正瞬間蒸發。這是「修了又錯、錯了又修」迴歸鏈的根因。
+2. **正確操作 pattern**：
+   ```python
+   from annotator import _get_supabase, _lock_fields_via_corrections
+   sb = _get_supabase()
+   sb.table("events").update({"name_zh": "月老", ...}).eq("id", eid).execute()
+   _lock_fields_via_corrections(sb, eid, {"name_zh": "月老", ...})
+   ```
+3. **enrich_* 函式自動鎖**：`enrich_movie_titles` 與 `enrich_person_names` 成功 patch 後**已自動 upsert** `field_corrections`（2026-05-05 起）。手動修正不可漏掉這一步。
+4. **靜默 `continue` 是反 pattern**：lookup 失敗必須 `logger.warning`，否則 CI log 看不到，錯誤翻譯靜默上線數日。
+
+Reference incident: 2026-05-05 — event `f970e4e3`（月老）多次被修又被 AI 覆寫，根因為手動修正未寫 `field_corrections`，且 `enrich_movie_titles` lookup 失敗無 WARN。
 
 ## DB Migration DEFAULT Value — Batch Query Guard
 
