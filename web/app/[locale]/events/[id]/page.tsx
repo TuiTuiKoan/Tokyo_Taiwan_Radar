@@ -88,6 +88,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function EventDetailPage({ params }: PageProps) {
   const { locale, id } = await params;
   const t = await getTranslations("event");
+  const tAdmin = await getTranslations("admin");
   const tCat = await getTranslations("categories");
   const tOrgType = await getTranslations("organizerType");
   const tEventForm = await getTranslations("eventForm");
@@ -131,6 +132,22 @@ export default async function EventDetailPage({ params }: PageProps) {
       .eq("id", event.parent_event_id)
       .single();
     parentEvent = parent;
+  }
+
+  // Fetch primary (merged-into) event if this event was merged into another.
+  // Service role so inactive primaries still resolve.
+  let primaryEvent: { id: string } | null = null;
+  if (event.merged_into_event_id) {
+    const supabaseAdmin = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    const { data: primary } = await supabaseAdmin
+      .from("events")
+      .select("id")
+      .eq("id", event.merged_into_event_id)
+      .single();
+    primaryEvent = primary;
   }
 
   // Fetch related screenings: other active events sharing the same work_id.
@@ -422,6 +439,22 @@ export default async function EventDetailPage({ params }: PageProps) {
       {/* Save button */}
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="flex items-center gap-2 min-w-0">
+          {/* Merged-into badge: orange label + green arrow + clickable "1" linking to primary */}
+          {event.merged_into_event_id && primaryEvent && (
+            <div className="flex items-center gap-1 mb-1 self-end pb-0.5">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium border border-amber-300 whitespace-nowrap">
+                {tAdmin("mergedIntoBadge")}
+              </span>
+              <span className="text-green-600 font-bold text-sm">→</span>
+              <Link
+                href={`/${locale}/events/${primaryEvent.id}`}
+                className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200 whitespace-nowrap"
+                title={tAdmin("mergedIntoBadgeTitle")}
+              >
+                1
+              </Link>
+            </div>
+          )}
           <h1 className="text-2xl font-bold text-gray-900 leading-snug">{name}</h1>
           <AdminEventActions eventId={event.id} locale={locale} initialIsActive={event.is_active} />
         </div>

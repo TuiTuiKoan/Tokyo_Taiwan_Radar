@@ -52,6 +52,17 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     for (const e of events) m[e.id] = e;
     return m;
   }, [events]);
+
+  // Count how many events (across ALL loaded events) are merged into each primary event
+  const mergeCountMap = useMemo<Record<string, number>>(() => {
+    const m: Record<string, number> = {};
+    for (const e of events) {
+      if (e.merged_into_event_id) {
+        m[e.merged_into_event_id] = (m[e.merged_into_event_id] ?? 0) + 1;
+      }
+    }
+    return m;
+  }, [events]);
   const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"annotated" | "raw">("annotated");
@@ -1058,10 +1069,16 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             )}
           </thead>
           <tbody>
-            {getSorted(getFiltered(events)).map((event) => (
+            {(() => {
+              const displayEvents = getSorted(getFiltered(events));
+              // Map each event id → 1-based row number in current filtered+sorted list
+              const rowIndexMap: Record<string, number> = {};
+              displayEvents.forEach((e, idx) => { rowIndexMap[e.id] = idx + 1; });
+              return displayEvents.map((event) => (
               viewMode === "annotated" ? (
                 <tr
                   key={event.id}
+                  id={`row-${event.id}`}
                   className={`border-b transition ${
                     !event.work_id &&
                     (event.category || []).some((c) => c === "movie" || c === "performing_arts")
@@ -1134,16 +1151,34 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                         ↳ {getEventName(eventMap[event.parent_event_id], locale)}
                       </span>
                     )}
+                    {/* Primary event: show row number + merge count */}
+                    {mergeCountMap[event.id] > 0 && (
+                      <span className="inline-flex items-center gap-0.5 mb-0.5">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300">
+                          {rowIndexMap[event.id]}
+                        </span>
+                        <span className="text-[10px] text-green-600 font-medium">
+                          {t("mergedPrimaryCount", { count: mergeCountMap[event.id] })}
+                        </span>
+                      </span>
+                    )}
+                    {/* Secondary (merged) event: show orange badge + arrow + primary row number */}
                     {event.merged_into_event_id && (
-                      <a
-                        href={`/${locale}/admin/${event.merged_into_event_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block text-[10px] text-amber-600 font-medium mb-0.5 truncate hover:underline"
-                        title={t("mergedIntoBadgeTitle")}
-                      >
-                        🔀 {t("mergedIntoBadge")}
-                      </a>
+                      <span className="inline-flex items-center gap-0.5 mb-0.5">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium border border-amber-300">
+                          {t("mergedIntoBadge")}
+                        </span>
+                        <span className="text-green-600 text-[10px] font-bold">→</span>
+                        <a
+                          href={rowIndexMap[event.merged_into_event_id]
+                            ? `#row-${event.merged_into_event_id}`
+                            : `/${locale}/admin/${event.merged_into_event_id}`}
+                          className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200"
+                          title={t("mergedIntoBadgeTitle")}
+                        >
+                          {rowIndexMap[event.merged_into_event_id] ?? "→"}
+                        </a>
+                      </span>
                     )}
                     <a
                       href={event.is_active ? `/${locale}/events/${event.id}` : `/${locale}/admin/${event.id}`}
@@ -1383,7 +1418,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   </td>
                 </tr>
               )
-            ))}
+            ));
+          })()}
           </tbody>
         </table>
       </div>
