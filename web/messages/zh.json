@@ -116,7 +116,8 @@
     "sponsors": "贊助單位",
     "eventForm": "活動形式",
     "languageSupport": "語言支援",
-    "tvChannel": "電視頻道"
+    "tvChannel": "電視頻道",
+    "relatedScreeningsTitle": "同作品其他場次"
   },
   "auth": {
     "loginTitle": "登入",
@@ -485,6 +486,49 @@
         "dataFlow": "資料流",
         "viewArchitecture": "查看架構地圖",
         "diagramFallback": "（圖表載入中或不可用，下方為 JSON 結構）"
+      }
+    },
+    "worksTab": "作品",
+    "worksTitle": "作品管理",
+    "worksNew": "新增作品",
+    "worksEdit": "編輯作品",
+    "worksWorkType": "類型",
+    "worksOriginalTitle": "原文標題",
+    "worksTitleJa": "日文標題",
+    "worksTitleZh": "中文標題",
+    "worksTitleEn": "英文標題",
+    "worksDirector": "導演／主創",
+    "worksCastSummary": "主演摘要",
+    "worksReleaseYear": "發表年份",
+    "worksCountry": "國家",
+    "worksDescription": "作品簡介",
+    "worksPosterUrl": "海報網址",
+    "worksExternalLinks": "外部連結（JSON）",
+    "worksLinkedEvents": "關聯活動",
+    "worksAssign": "指派作品",
+    "worksAssignSelect": "選擇作品",
+    "worksAssignClear": "取消指派",
+    "worksAssignNew": "+ 新增作品",
+    "worksColumn": "作品",
+    "worksMissing": "缺作品指派",
+    "worksSearchPlaceholder": "搜尋原文標題、日文／中文／英文標題…",
+    "worksTypeFilm": "電影",
+    "worksTypeStage": "舞台劇",
+    "worksTypeExhibition": "展覽",
+    "worksTypeConcertTour": "巡演",
+    "worksTypeOther": "其他",
+    "worksConfirmDelete": "確認刪除此作品？關聯活動的 work_id 會被清空。",
+    "events": {
+      "columns": {
+        "work": "作品"
+      },
+      "assignWork": {
+        "placeholder": "指派 work",
+        "unassigned": "(未指定)",
+        "createNew": "+ 新增 work"
+      },
+      "warnings": {
+        "missingWorkForFilm": "電影／表演藝術尚未指派作品（work）"
       }
     }
   },

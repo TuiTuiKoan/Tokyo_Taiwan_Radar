@@ -65,6 +65,21 @@ Done: N pair(s)/orphan(s) merged (Pass 0+1+2+3).
 2. 相同 priority → `_richness_score()` 較高者為 primary
 3. 完全相同 → ev_a 優先（查詢順序）
 
+#### Pass 1 — Works entity 跳過條件（migration 048+）
+
+進入合併前，新增兩個 skip 條件，避免「同名但實為不同作品」或「同作品的不同戲院場次」被誤合併：
+
+1. **不同 `work_id`**：若 ev_a 與 ev_b 的 `work_id` 都非空且互異 → skip，輸出
+   `[Pass 1 SKIP] different work_id: <id_a> ↔ <id_b>`。
+   此情境發生於兩筆 events 已被 admin 明確指派為不同作品（例：同名但不同年份的電影）。
+2. **電影／表演藝術跨 venue**：若任一方 `category` 含 `movie` 或 `performing_arts`，
+   且 `_location_overlap(location_name_a, location_name_b) = False` → skip，輸出
+   `[Pass 1 SKIP] same-name movie/performing_arts at different venues — likely same work, different screening`。
+   此情境發生於月老在新文芸坐 ↔ シネマート新宿 等跨戲院場次：兩筆都是真實 events，
+   不應合併；正確的串接層是 `work_id`，由 admin 在 `/admin/works` 指派同一 Work。
+
+兩種 skip 都僅輸出 log，不寫任何 candidates table（Phase E spec 範圍）。
+
 ---
 
 ### Pass 2 — 新聞稿 / 報導配對

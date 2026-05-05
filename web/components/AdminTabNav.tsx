@@ -13,6 +13,7 @@ type AdminTab =
   | "research"
   | "sources"
   | "creators"
+  | "works"
   | "users"
   | "stats"
   | "aeo"
@@ -70,7 +71,8 @@ export default async function AdminTabNav({ locale, activeTab }: Props) {
       <span className="mx-1 border-l border-green-600 h-6 self-center" />
       {tab("research",      t("researchTab"),       `/${locale}/admin/research`)}
       {tab("sources",       t("sourcesTab"),        `/${locale}/admin/sources`)}
-      {tab("creators",      t("creatorsTab"),       `/${locale}/admin/creators`)}
+      {tab("creators",       t("creatorsTab"),        `/${locale}/admin/creators`)}
+      {tab("works",         t("worksTab"),          `/${locale}/admin/works`)}
       <span className="mx-1 border-l border-green-600 h-6 self-center" />
       {tab("users",         t("usersTab"),          `/${locale}/admin/users`)}
       {tab("stats",         t("statsTab"),          `/${locale}/admin/stats`)}

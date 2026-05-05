@@ -135,6 +135,18 @@ Before approving any change to `merger.py`'s `_location_overlap()`:
 
 Reference incident: 2026-05-05 — gnews `c1ba79b6` 因 `_location_overlap("群馬県太田市", "イオンモール太田") = False` 無法走 Pass 2 自動合併。Phase A 修復 prefix/suffix-extension 案例，但中間插入仍需 Phase E。
 
+## Works Entity vs `parent_event_id` Guard
+
+在審核任何涉及 `works.work_id` 或 `events.parent_event_id` 的計畫前，必須確認兩者職責不混淆：
+
+1. **`work_id`（作品層級）**：同一部電影／舞台劇／巡演在不同場館或不同檔期，分屬獨立的 events 但共享同一 work。例：月老在新文芸坐 5/8~14 與シネマート新宿 5/28 是兩筆 events，同一 `work_id`。
+2. **`parent_event_id`（活動層級）**：單一活動下的 master ↔ sub-event 拆分。例：影展中的單場放映、多日活動的單日 sub-event。
+3. **可同時存在**：影展中的某場放映可同時有 `work_id`（指向被放映的電影）與 `parent_event_id`（指向影展整體）。
+4. **merger 不可用 work_id 取代 parent_event_id 邏輯**，反之亦然。Pass 1 對「同 work_id 不同 venue」的電影類事件改為跳過合併（已實作於 048+ Phase 7）。
+5. **詳情頁顯示**：`work_id` 同作品 → 「同作品其他場次」區塊；`parent_event_id` → 「主活動」連結。
+
+Reference: 2026-05-05 月老 (f970e4e3 / 4a8772ec) 與 大濛 (dec5031b / d201c261) 跨電影院場次處理。
+
 ## Merger `_NEWS_SOURCES` Membership Rule Guard
 
 Before approving any addition to `_NEWS_SOURCES` in `merger.py`:

@@ -116,7 +116,8 @@
     "sponsors": "Sponsors",
     "eventForm": "Event Format",
     "languageSupport": "Language Support",
-    "tvChannel": "TV Channel"
+    "tvChannel": "TV Channel",
+    "relatedScreeningsTitle": "Other screenings of this work"
   },
   "auth": {
     "loginTitle": "Login",
@@ -485,6 +486,49 @@
         "dataFlow": "Data flow",
         "viewArchitecture": "View architecture map",
         "diagramFallback": "(Diagram loading or unavailable; JSON structure below)"
+      }
+    },
+    "worksTab": "Works",
+    "worksTitle": "Works",
+    "worksNew": "New work",
+    "worksEdit": "Edit work",
+    "worksWorkType": "Type",
+    "worksOriginalTitle": "Original title",
+    "worksTitleJa": "Japanese title",
+    "worksTitleZh": "Chinese title",
+    "worksTitleEn": "English title",
+    "worksDirector": "Director / creator",
+    "worksCastSummary": "Cast summary",
+    "worksReleaseYear": "Release year",
+    "worksCountry": "Country",
+    "worksDescription": "Description",
+    "worksPosterUrl": "Poster URL",
+    "worksExternalLinks": "External links (JSON)",
+    "worksLinkedEvents": "Linked events",
+    "worksAssign": "Assign work",
+    "worksAssignSelect": "Select work",
+    "worksAssignClear": "Clear",
+    "worksAssignNew": "+ New work",
+    "worksColumn": "Work",
+    "worksMissing": "Missing work",
+    "worksSearchPlaceholder": "Search original / ja / zh / en title...",
+    "worksTypeFilm": "Film",
+    "worksTypeStage": "Stage",
+    "worksTypeExhibition": "Exhibition",
+    "worksTypeConcertTour": "Concert tour",
+    "worksTypeOther": "Other",
+    "worksConfirmDelete": "Delete this work? Linked events will have their work_id cleared.",
+    "events": {
+      "columns": {
+        "work": "Work"
+      },
+      "assignWork": {
+        "placeholder": "Assign work",
+        "unassigned": "(unassigned)",
+        "createNew": "+ New work"
+      },
+      "warnings": {
+        "missingWorkForFilm": "Film / performing-arts event has no work assigned"
       }
     }
   },

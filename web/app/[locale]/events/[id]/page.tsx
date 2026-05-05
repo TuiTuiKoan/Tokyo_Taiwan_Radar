@@ -131,6 +131,24 @@ export default async function EventDetailPage({ params }: PageProps) {
     parentEvent = parent;
   }
 
+  // Fetch related screenings: other active events sharing the same work_id.
+  // Service role used so query bypasses RLS — only minimum fields selected.
+  let relatedScreenings: Event[] = [];
+  if (event.work_id) {
+    const supabaseAdmin = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    const { data: related } = await supabaseAdmin
+      .from("events")
+      .select("id, name_ja, name_zh, name_en, start_date, end_date, location_name, location_name_zh, location_name_en, location_address, source_name, category, is_paid, is_active")
+      .eq("work_id", event.work_id)
+      .eq("is_active", true)
+      .neq("id", id)
+      .order("start_date", { ascending: true });
+    relatedScreenings = (related ?? []) as Event[];
+  }
+
   const name = getEventName(event as Event, locale);
   const description = getEventDescription(event as Event, locale);
   const locationName = getEventLocationName(event as Event, locale);
@@ -796,6 +814,20 @@ export default async function EventDetailPage({ params }: PageProps) {
           </div>
         );
       })()}
+
+      {/* ===== Related screenings (same work, other venues/dates) ===== */}
+      {relatedScreenings.length > 0 && (
+        <section className="mb-8" aria-labelledby="related-screenings-heading">
+          <h2 id="related-screenings-heading" className="text-sm font-medium text-gray-400 mb-3">
+            {t("relatedScreeningsTitle")}
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {relatedScreenings.map((rel) => (
+              <EventCard key={rel.id} event={rel} locale={locale} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ===== FAQ section (visible counterpart to FAQPage JSON-LD) ===== */}
       {faqLd && (

@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS works (
   updated_at      TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_works_original_title ON works(original_title);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_works_original_title_unique
+  ON works(original_title);
 CREATE INDEX IF NOT EXISTS idx_works_work_type      ON works(work_type);
 
 ALTER TABLE events

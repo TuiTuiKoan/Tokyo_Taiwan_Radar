@@ -301,7 +301,8 @@ def run_merger(dry_run: bool = False) -> int:
         sb.table("events")
         .select(
             "id,source_name,source_id,source_url,official_url,name_ja,start_date,end_date,"
-            "location_name,location_address,raw_description,secondary_source_urls,annotation_status"
+            "location_name,location_address,raw_description,secondary_source_urls,"
+            "annotation_status,work_id,category"
         )
         .eq("is_active", True)
         .not_.is_("start_date", None)
@@ -347,6 +348,40 @@ def run_merger(dry_run: bool = False) -> int:
                 sim = _similarity(ev_a["name_ja"], ev_b["name_ja"])
                 if sim < _SIMILARITY_THRESHOLD:
                     continue
+
+                # ----- Works-entity skip conditions (added with migration 048) -----
+                # 1. Both events have non-null work_id and they differ → different
+                #    creative works that happen to share a similar title; never merge.
+                wa = ev_a.get("work_id")
+                wb = ev_b.get("work_id")
+                if wa and wb and wa != wb:
+                    logger.info(
+                        "[Pass 1 SKIP] different work_id: %s ↔ %s",
+                        ev_a["id"],
+                        ev_b["id"],
+                    )
+                    continue
+
+                # 2. Same-name movie/performing_arts at different venues → likely the
+                #    same work shown at multiple cinemas/theaters. Skip merge; the
+                #    Works entity (work_id) is the correct linkage layer instead.
+                cats_a = set(ev_a.get("category") or [])
+                cats_b = set(ev_b.get("category") or [])
+                _WORK_CATS = {"movie", "performing_arts"}
+                if (cats_a & _WORK_CATS or cats_b & _WORK_CATS) and not _location_overlap(
+                    ev_a.get("location_name"), ev_b.get("location_name")
+                ):
+                    logger.info(
+                        "[Pass 1 SKIP] same-name movie/performing_arts at different "
+                        "venues — likely same work, different screening: "
+                        "[%s @ %s] ↔ [%s @ %s]",
+                        (ev_a.get("name_ja") or "")[:40],
+                        (ev_a.get("location_name") or "?")[:30],
+                        (ev_b.get("name_ja") or "")[:40],
+                        (ev_b.get("location_name") or "?")[:30],
+                    )
+                    continue
+                # -------------------------------------------------------------------
 
                 # Determine primary / secondary by source priority.
                 # Lower number = higher authority.  Equal priority →

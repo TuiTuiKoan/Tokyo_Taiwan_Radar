@@ -1287,3 +1287,21 @@ The location filter is implemented in **three separate files** that must always 
 3. **All three files in one commit.** Partial sync (e.g. only updating FilterBar) causes the server query to return wrong data or the admin filter to show stale counts.
 
 **Incident:** 2026-05-01 — rewrote from `tokyo / other_japan / taiwan / online / tv` to `tokyo / kanto / chubu / chugoku / online / tv`. All three files updated in commit `b8dfe2b`.
+
+## Works Entity Conventions
+
+(Migration `048_works_entity.sql` — 2026-05-05)
+
+`works` 是電影／舞台劇／巡演的「作品層級」上層實體；`events.work_id` 為 nullable FK 指向 `works.id`，`ON DELETE SET NULL`。
+
+**規則：**
+
+1. **僅 admin 維護**：`works` 表不由 annotator 寫入；只有 `web/app/actions/works.ts` 的 admin server actions 可建立／更新／刪除。RLS：anon SELECT，admin ALL via `user_roles`。
+2. **與 `parent_event_id` 並存**：兩者職責正交。`work_id` 跨 events 串作品；`parent_event_id` 在單一活動內串 master/sub-event。同一筆 event 可同時設定兩者（影展中的某場放映 → `work_id` 指向被放映的電影、`parent_event_id` 指向影展整體）。
+3. **詳情頁 cross-link 必須用 service role**：anon-key client 對 `is_active=false` 的 sibling event 會 silently 過濾為 null（RLS 規則）。查同 `work_id` 的其他場次必須用 `SUPABASE_SERVICE_ROLE_KEY` 建立 client，且 `select` 限定最少欄位（`id,name_*,start_date,location_name,...`），絕不 `select("*")`。
+4. **`work_id` 變更不更新 `events.updated_at`**：assign/unassign 只是 metadata link，不應觸發任何 ISR revalidate 或 re-annotation。`assignWorkToEvent` action 直接 `update({work_id: ...})`，不附帶其他欄位。
+5. **Migration 應用後**：跑一次 `scraper/_oneoff_backfill_works.py` 補上既有觸發 case（月老、大濛），再刪除腳本。
+6. **`original_title` UNIQUE**：migration 048 在 `original_title` 上建立 unique index，backfill 才能用 `on_conflict='original_title'` 或「先 select 再 update」。新增腳本若需 idempotent upsert，先用 `.eq('original_title', ...).limit(1)` 檢查，避免依賴 PostgREST `on_conflict` 對複合條件的 brittle 行為。
+7. **merger Pass 1 整合**：同 `work_id` 跨 venue 的 movie/performing_arts pair 不再合併（會破壞「同作品多場次」呈現）。`merger.py` 已在 Pass 1 加入兩個跳過條件：(a) 雙方 `work_id` 非空且不同 → skip；(b) category 含 movie/performing_arts 且 `_location_overlap()=False` → skip。輸出 `[Pass 1 SKIP]` log。
+
+**Reference**: 月老 (`f970e4e3` shin_bungeiza ↔ `4a8772ec` cinemart_shinjuku) 與 大濛 (`dec5031b` cinemart_shinjuku ↔ `d201c261` taioan_dokyokai) — migration 048 + Phase 7 cohort.

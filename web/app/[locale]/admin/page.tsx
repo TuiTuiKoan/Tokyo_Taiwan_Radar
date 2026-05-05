@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { type Locale, type Event } from "@/lib/types";
+import { type Locale, type Event, type Work } from "@/lib/types";
 import AdminEventTable from "@/components/AdminEventTable";
 import AdminTabNav from "@/components/AdminTabNav";
 import Link from "next/link";
@@ -45,6 +45,13 @@ export default async function AdminPage({ params }: PageProps) {
     .from("events")
     .select("*")
     .order("created_at", { ascending: false });
+
+  // Fetch all works for the assign-work dropdown
+  const { data: worksData } = await supabase
+    .from("works")
+    .select("id, work_type, original_title, title_ja, title_zh, title_en")
+    .order("original_title", { ascending: true });
+  const worksList = (worksData ?? []) as Pick<Work, "id" | "work_type" | "original_title" | "title_ja" | "title_zh" | "title_en">[];
 
   // Stats
   const totalEvents = events?.length ?? 0;

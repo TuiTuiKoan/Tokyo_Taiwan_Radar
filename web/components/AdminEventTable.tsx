@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { type Event, type Locale, getEventName, CATEGORY_GROUPS } from "@/lib/types";
+import { type Event, type Locale, getEventName, CATEGORY_GROUPS, type Work, getWorkTitle } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
+import { assignWorkToEvent } from "@/app/actions/works";
 
 interface Props {
   events: Event[];
@@ -24,6 +25,25 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [showNew, setShowNew] = useState(false);
+
+  // Works list (loaded once) for inline assign-work column
+  const [works, setWorks] = useState<Work[]>([]);
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("works")
+        .select("id,work_type,original_title,title_ja,title_zh,title_en")
+        .order("original_title", { ascending: true });
+      if (data) setWorks(data as Work[]);
+    })();
+  }, [supabase]);
+  const workMap = useMemo<Record<string, Work>>(() => {
+    const m: Record<string, Work> = {};
+    for (const w of works) m[w.id] = w;
+    return m;
+  }, [works]);
+  const [editingWorkFor, setEditingWorkFor] = useState<string | null>(null);
+  const [workQuery, setWorkQuery] = useState("");
 
   // Build id→event map for parent event name lookup on sub-event rows
   const eventMap = useMemo<Record<string, Event>>(() => {
@@ -934,6 +954,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("name")}>{t("name")}{sortArrow("name")}</th>
                 <th className="py-2 pr-4 font-medium">{t("category")}</th>
+                <th className="py-2 pr-4 font-medium">{t("events.columns.work")}</th>
                 <th className="py-2 pr-4 font-medium">{t("address")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
@@ -965,7 +986,21 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           <tbody>
             {getSorted(getFiltered(events)).map((event) => (
               viewMode === "annotated" ? (
-                <tr key={event.id} className="border-b hover:bg-gray-50 transition">
+                <tr
+                  key={event.id}
+                  className={`border-b transition ${
+                    !event.work_id &&
+                    (event.category || []).some((c) => c === "movie" || c === "performing_arts")
+                      ? "bg-red-50 hover:bg-red-100"
+                      : "hover:bg-gray-50"
+                  }`}
+                  title={
+                    !event.work_id &&
+                    (event.category || []).some((c) => c === "movie" || c === "performing_arts")
+                      ? t("events.warnings.missingWorkForFilm")
+                      : undefined
+                  }
+                >
                   <td className="py-2 pr-2">
                     <input
                       type="checkbox"
@@ -1035,6 +1070,104 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                         </span>
                       ))}
                     </div>
+                  </td>
+                  <td className="py-2 pr-4 text-xs max-w-[160px]">
+                    {(() => {
+                      const cur = event.work_id ? workMap[event.work_id] : null;
+                      const isEditing = editingWorkFor === event.id;
+                      if (isEditing) {
+                        const q = workQuery.trim().toLowerCase();
+                        const list = q
+                          ? works.filter((w) =>
+                              [w.original_title, w.title_ja, w.title_zh, w.title_en]
+                                .filter(Boolean)
+                                .some((s) => (s as string).toLowerCase().includes(q))
+                            )
+                          : works;
+                        return (
+                          <div className="relative">
+                            <input
+                              autoFocus
+                              type="text"
+                              value={workQuery}
+                              onChange={(e) => setWorkQuery(e.target.value)}
+                              placeholder={t("events.assignWork.placeholder")}
+                              onBlur={() => setTimeout(() => setEditingWorkFor(null), 150)}
+                              className="w-full text-xs border rounded px-1.5 py-0.5"
+                            />
+                            <div className="absolute z-30 mt-0.5 left-0 right-0 bg-white border rounded shadow max-h-48 overflow-y-auto">
+                              {cur && (
+                                <button
+                                  onClick={async () => {
+                                    const r = await assignWorkToEvent(event.id, null);
+                                    if (r.ok) {
+                                      setEvents((prev) =>
+                                        prev.map((p) =>
+                                          p.id === event.id ? { ...p, work_id: null } : p
+                                        )
+                                      );
+                                    }
+                                    setEditingWorkFor(null);
+                                    setWorkQuery("");
+                                  }}
+                                  className="w-full text-left px-2 py-1 text-xs text-red-600 hover:bg-red-50 border-b"
+                                >
+                                  ✕ {t("events.assignWork.unassigned")}
+                                </button>
+                              )}
+                              {list.slice(0, 30).map((w) => (
+                                <button
+                                  key={w.id}
+                                  onClick={async () => {
+                                    const r = await assignWorkToEvent(event.id, w.id);
+                                    if (r.ok) {
+                                      setEvents((prev) =>
+                                        prev.map((p) =>
+                                          p.id === event.id ? { ...p, work_id: w.id } : p
+                                        )
+                                      );
+                                    }
+                                    setEditingWorkFor(null);
+                                    setWorkQuery("");
+                                  }}
+                                  className="w-full text-left px-2 py-1 text-xs hover:bg-green-50"
+                                >
+                                  {getWorkTitle(w, locale)}
+                                </button>
+                              ))}
+                              <a
+                                href={`/${locale}/admin/works/new`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 border-t"
+                              >
+                                {t("events.assignWork.createNew")}
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <button
+                          onClick={() => {
+                            setEditingWorkFor(event.id);
+                            setWorkQuery("");
+                          }}
+                          className="text-left w-full hover:underline"
+                          title={t("events.assignWork.placeholder")}
+                        >
+                          {cur ? (
+                            <span className="text-gray-700 truncate block">
+                              {getWorkTitle(cur, locale)}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">
+                              {t("events.assignWork.unassigned")}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })()}
                   </td>
                   <td className="py-2 pr-4 text-xs max-w-[130px]">
                     {(() => {

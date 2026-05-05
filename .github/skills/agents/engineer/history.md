@@ -3,6 +3,47 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — Works entity ship (migration 048)
+
+### 問題
+同一部台灣電影（月老、大濛）在多家戲院各自發行 events，使用者看不出是同一作品；merger Pass 1 名稱相似度 ≥ 0.85 又會錯誤合併不同戲院的場次（會丟失另一場資訊）。同類問題會擴散到舞台劇、巡演、特展等「跨場次同一作品」型內容。
+
+### 根因（5 個）
+1. **缺少作品層級實體**：events 是「單一場次」的呈現，但「作品」是更穩定的事物 — 沒有獨立 entity 就無法做 cross-screening 連結。
+2. **merger Pass 1 對電影同名跨 venue 過度合併**：之前 `_location_overlap()` 有 prefix/suffix-extension 容忍度，月老 (新文芸坐 ↔ シネマート新宿) 仍可能撞上 sim=1.0 觸發誤合併。
+3. **`parent_event_id` 被誤用為作品連結**：sub-event 結構是「同一活動拆 schedule」，把跨戲院場次塞進 parent/sub 會破壞 sub-event 過濾與展示邏輯。
+4. **詳情頁 anon-key RLS 副作用**：cross-link sibling 查詢若用 anon client，會 silently 漏掉 `is_active=false` 的 sibling，admin 看不到完整列表。
+5. **AdminEventTable 缺乏 work 缺漏訊號**：電影類 event 沒指派 `work_id` 不會被任何檢查工具標出，導致缺漏永遠累積。
+
+### 修復
+- **migration `048_works_entity.sql`**：新增 `works` 表（work_type CHECK、original_title UNIQUE、title_ja/zh/en、director、cast_summary、release_year、country、description、poster_url、external_links）+ `events.work_id` FK + RLS + updated_at trigger。
+- **types.ts**：新增 `Work` interface、`WorkType` union、`getWorkTitle()` helper、`Event.work_id` 欄位。
+- **詳情頁** `web/app/[locale]/events/[id]/page.tsx`：以 service role client 查同 `work_id` 其他 active events，渲染「同作品其他場次」block；i18n key `event.relatedScreenings.title` 三語齊備。
+- **admin works CRUD** `web/app/[locale]/admin/works/{page,[id]/page,new/page}.tsx` + `web/app/actions/works.ts`：list / new / edit + `assignWorkToEvent` server action。AdminTabNav 新增 Works tab。
+- **AdminEventTable Phase 5**：新增 `work` 欄、inline assign-work dropdown（搜尋 + 連到 `/admin/works/new`）、movie/performing_arts 缺 `work_id` 整列 `bg-red-50` 警示 + tooltip。
+- **i18n** 三語：`admin.events.columns.work`、`admin.events.assignWork.{placeholder,unassigned,createNew}`、`admin.events.warnings.missingWorkForFilm`。
+- **merger.py Pass 1 skip**：(a) 雙方 `work_id` 非空且不同 → skip；(b) movie/performing_arts + `_location_overlap()=False` → skip。輸出 `[Pass 1 SKIP]` log。
+- **backfill** `scraper/_oneoff_backfill_works.py`：upsert 月老／大濛 + assign 4 events。支援 `--dry-run`。
+- **docs**：architect 加 `Works Entity vs parent_event_id Guard`；engineer SKILL 加 `Works Entity Conventions`；MERGER_WORKFLOW 加 Pass 1 work_id skip 段落。
+
+### 教訓
+- **作品（Work）≠ 場次（Event）**：跨場次穩定實體必須單獨建表，不能塞進 `parent_event_id`。兩者並存且職責正交。
+- **`on_conflict` 依賴需 UNIQUE constraint**：PostgREST 的 `upsert(on_conflict='...')` 只在該欄位有 unique index 時可靠運作。Backfill 改用先 SELECT 再決定 INSERT/UPDATE 的模式，更明確且不依賴 PostgREST 邊角行為。
+- **service role 是 admin cross-link 的必要條件**：任何展示 `is_active=false` 的 sibling 場次都必須繞過 RLS。
+- **i18n 巢狀 namespace 要透過 `useTranslations("admin")` + `t("events.columns.work")` 路徑訪問**；不要拆成多個 hook，效能與一致性都差。
+- **merger 加 skip 比加 candidates table 便宜**：Phase E 還沒到位前，先 log skip 已能解 80% 即時痛點。
+
+### 影響檔案（本回合）
+- `supabase/migrations/048_works_entity.sql`（新增 unique index 補丁）
+- `web/components/AdminEventTable.tsx`（Phase 5：work 欄、assign UI、紅列警示）
+- `web/messages/{zh,en,ja}.json`（admin.events 巢狀 namespace）
+- `scraper/merger.py`（Pass 1 work_id + venue skip）
+- `scraper/_oneoff_backfill_works.py`（新建）
+- `.github/agents/architect.agent.md`（Works Entity Guard）
+- `.github/skills/agents/engineer/SKILL.md`（Works Entity Conventions）
+- `docs/MERGER_WORKFLOW.md`（Pass 1 work_id skip 段落）
+
+---
 ## 2026-05-05 — Merger 合併失效根因 + Pass 2 location 過嚴 + 缺停用稽核
 
 ### 問題

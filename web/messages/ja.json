@@ -116,7 +116,8 @@
     "sponsors": "協賛",
     "eventForm": "開催形式",
     "languageSupport": "対応言語",
-    "tvChannel": "テレビチャンネル"
+    "tvChannel": "テレビチャンネル",
+    "relatedScreeningsTitle": "同作品の他の上映・公演"
   },
   "auth": {
     "loginTitle": "ログイン",
@@ -485,6 +486,49 @@
         "dataFlow": "データフロー",
         "viewArchitecture": "アーキテクチャ図を見る",
         "diagramFallback": "（図表は読み込み中または利用不可、以下は JSON 構造）"
+      }
+    },
+    "worksTab": "作品",
+    "worksTitle": "作品管理",
+    "worksNew": "新規作品",
+    "worksEdit": "作品を編集",
+    "worksWorkType": "種別",
+    "worksOriginalTitle": "原題",
+    "worksTitleJa": "日本語タイトル",
+    "worksTitleZh": "中国語タイトル",
+    "worksTitleEn": "英語タイトル",
+    "worksDirector": "監督・主要制作者",
+    "worksCastSummary": "出演概要",
+    "worksReleaseYear": "公開年",
+    "worksCountry": "国",
+    "worksDescription": "作品概要",
+    "worksPosterUrl": "ポスターURL",
+    "worksExternalLinks": "外部リンク（JSON）",
+    "worksLinkedEvents": "紐付くイベント",
+    "worksAssign": "作品を割り当てる",
+    "worksAssignSelect": "作品を選択",
+    "worksAssignClear": "解除",
+    "worksAssignNew": "+ 新規作品",
+    "worksColumn": "作品",
+    "worksMissing": "作品未割当",
+    "worksSearchPlaceholder": "原題・日本語・中国語・英語タイトルで検索…",
+    "worksTypeFilm": "映画",
+    "worksTypeStage": "舞台",
+    "worksTypeExhibition": "展覧会",
+    "worksTypeConcertTour": "ツアー",
+    "worksTypeOther": "その他",
+    "worksConfirmDelete": "この作品を削除しますか？紐付くイベントの work_id はクリアされます。",
+    "events": {
+      "columns": {
+        "work": "Work"
+      },
+      "assignWork": {
+        "placeholder": "Work を指定",
+        "unassigned": "(未指定)",
+        "createNew": "+ 新規 work 作成"
+      },
+      "warnings": {
+        "missingWorkForFilm": "映画・舞台芸術イベントに work が未指定"
       }
     }
   },
