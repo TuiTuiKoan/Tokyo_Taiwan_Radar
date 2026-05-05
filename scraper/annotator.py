@@ -391,6 +391,7 @@ NAME WRITING RULES — CRITICAL:
 - name_zh and name_en: translate name_ja faithfully. A reader who sees ONLY the title must understand what kind of event it is.
 - If the raw_title is a generic term alone (e.g., "オフ会", "ライブ", "上映会"), prepend context in name_zh/name_en to make them self-explanatory.
 - SUB-EVENT name_ja / description_ja: use the ORIGINAL Japanese text from the raw description. Movie titles must use the Japanese release title exactly as written. Person names must use the original Japanese notation (katakana/kanji). NEVER translate Chinese/Taiwanese person names into Japanese or invent katakana readings.
+  CRITICAL — DO NOT INFER MOVIE TITLES: If a sub-event's title is a descriptive location/action phrase (e.g., "早稲田大学での上映会", "○○会館上映会", "熊本市での上映イベント") and the specific film title does NOT appear directly adjacent to that sub-event's mention in the raw text, use the descriptive phrase as name_ja. Do NOT replace it with a film title inferred from another part of the article. Only use a film title as name_ja when that exact title is explicitly written next to THIS sub-event's description.
 - SUBTITLE RULE — CRITICAL: When the raw_title or name_ja contains a subtitle separator (――, ──, ―, —, ：, : used as structural separator), the FULL title including the complete subtitle MUST appear in name_zh and name_en. NEVER truncate the subtitle. Example: "台湾の地方選挙と基層社会――80年代以降の桃園県観音･新屋地区を例として" → name_zh must include "以80年代以降的桃園縣觀音・新屋地區為例", name_en must include "A Case Study of Guanyin and Xinwu Districts, Taoyuan, since the 1980s".
 6. LOCATION ADDRESS RULE:
    - COPY-FIRST: If raw_description contains an explicit address line (〒, 丁目, 番地, or a full prefecture+city+street string), copy it verbatim.
@@ -1486,7 +1487,7 @@ def enrich_movie_titles() -> None:
         sb.table("events")
         .select(
             "id,name_ja,raw_title,name_zh,name_en,"
-            "description_zh,description_en,annotation_status,source_name"
+            "description_zh,description_en,annotation_status,source_name,parent_event_id"
         )
         .contains("category", ["movie"])
         .neq("annotation_status", "reviewed")
@@ -1509,8 +1510,24 @@ def enrich_movie_titles() -> None:
         if source in _NEWS_MOVIE_SOURCES:
             raw = event.get("raw_title") or ""
             m = _BRACKET_TITLE_RE.search(raw)
+            _title_from_raw = bool(m)
             if not m:
                 m = _BRACKET_TITLE_RE.search(event.get("name_ja") or "")
+            # Guard: for sub-events of news articles, reject bracket titles
+            # derived from GPT-generated name_ja — they may be hallucinated.
+            # Sub-event name_ja is produced from thin context (a single
+            # descriptive sentence); GPT may infer a plausible-sounding
+            # film title from an unrelated part of the article.
+            # Only trust brackets found in raw_title (scraper-captured text).
+            # Reference incident: 2026-05-05 d18339d5 gnews_sub3 → 月老 hallucination.
+            if m and not _title_from_raw and event.get("parent_event_id"):
+                logger.warning(
+                    "  ⚠ skipping enrich for news sub-event %s — bracket title "
+                    "derived from GPT name_ja (unreliable); raw_title has no brackets "
+                    "[name_ja=%r]",
+                    event["id"][:8], (event.get("name_ja") or "")[:60],
+                )
+                continue
             title = m.group(1).strip() if m else ""
         else:
             title = event.get("name_ja") or event.get("raw_title") or ""
