@@ -10,6 +10,7 @@ Tokyo Art Beat scraper — Contentful CDA API 経由で台湾関連アート展�
 """
 
 import logging
+import re
 from datetime import date, datetime, timezone
 from typing import Optional
 
@@ -107,6 +108,13 @@ class TokyoArtBeatScraper(BaseScraper):
             slug = self._loc(f.get("slug", {}), "en-US") or ""
             source_url = TAB_EVENT_BASE + slug if slug else ""
 
+            # ── Slug date fallback ────────────────────────────────────
+            # Contentful series events use YYYY-01-01 as placeholder start.
+            # Extract the real chapter start date from the URL slug.
+            slug_m = re.search(r"/(\d{4}-\d{2}-\d{2})$", slug)
+            if slug_m and start_date and start_date.month == 1 and start_date.day == 1:
+                start_date = self._parse_date(slug_m.group(1))
+
             # ── Official URL ──────────────────────────────────────────
             official_url = (
                 self._loc(f.get("showsWebpage", {}), "en-US")
@@ -164,6 +172,7 @@ class TokyoArtBeatScraper(BaseScraper):
                 header_parts.append(f"開催日時: {date_range}")
             if venue_name:
                 header_parts.append(f"会場: {venue_name}")
+                header_parts.append(f"主催: {venue_name}")
             if venue_address:
                 header_parts.append(f"住所: {venue_address}")
             if biz_hours:
@@ -188,7 +197,9 @@ class TokyoArtBeatScraper(BaseScraper):
                 location_name=venue_name,
                 location_address=venue_address,
                 business_hours=biz_hours or None,
-                category=["art"],
+                category=["art", "exhibition"],
+                event_form=["exhibition"],
+                organizer=venue_name or None,
                 is_paid=is_paid_val,
                 official_url=official_url,
             )
