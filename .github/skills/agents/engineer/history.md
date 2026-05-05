@@ -3,6 +3,41 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — annotator `_ai_or_existing()` 定義卻從未呼叫，P1 翻譯欄位被 GPT 重寫（commit `cf2d3f6`）
+
+### 問題
+`annotator.py` 主迴圈構造 `update_data` 時，對 `name_zh` / `name_en` / `description_zh` / `description_en` 四個翻譯欄位**直接寫入 GPT 輸出**，未經過 `_human_protected` 過濾。helper `_ai_or_existing()` 雖已定義但無任何 call site。`performer` 與 `localized_location_data` 有獨立保護路徑因此倖免。
+
+### 觸發情境
+event `f970e4e3`（月老）：source 頁面 5/8→5/9–5/13 日期變動 → `force_rescrape=true` 重新刮取 → annotator 重跑 → `name_zh='月老'`（field_corrections 已鎖）被 GPT 改回 `紅線 輪迴的秘密`。手動修了又被 AI 覆寫，迴歸鏈持續 1 週以上。
+
+### 修法
+在 `update_data` 構造完成後、送 Supabase PATCH 之前，新增 post-processing：對 `_human_protected` 中所有欄位以 DB 既有值（`event.get(fname)`）覆蓋 GPT 輸出。語意等同 `_ai_or_existing()`，但**無條件**且套用全部欄位。同時遞增 `field_protect_hits` counter，CI log 可觀察單次 run 的保護命中數。
+
+### 教訓
+- **「定義了的 helper 不等於被呼叫」**：refactor 時新增 helper 必 grep 確認所有應用位點都已切換；無 call site 的保護等於 0 保護。
+- **保護機制必須是「default deny」**：`update_data[fname] = gpt_output` 是 default allow（除非顯式排除），改成 post-processing 強制覆蓋是 default deny（除非欄位不在 protected set）。
+- **field_corrections 是最後一道防線**：人工鎖了欄位，annotator 也必須真的尊重——否則 architect 的 Manual Translation Fix Persistence Guard 形同虛設。
+- **驗證 pattern**：任何修改 `update_data` 構造邏輯的 PR，必須驗證 `_human_protected` 中欄位在 PATCH payload 中等於 DB 既有值。
+
+---
+## 2026-05-05 — admin UI 修改分類未同步 `field_corrections`，下次 annotator 重跑覆寫（commit `1abbe38`）
+
+### 問題
+後台三條人工修正路徑（`AdminEventTable` inline + bulk、`AdminEditClient` edit form、`confirm-report` 報告確認）修改 `events.category` 時，只 UPDATE `events` 表，未 upsert `field_corrections`。下次 `annotation_status='pending'` 時，annotator 用 GPT 重新分類覆寫人工值，與翻譯欄位的「修了又錯」迴歸鏈同因。
+
+### 修法
+三條路徑統一補上 `field_corrections` upsert（`onConflict: event_id,field_name`）。
+- `AdminEventTable.tsx`：inline 與 bulk 兩個 call-site
+- `AdminEditClient.tsx`：edit form save 時若 category 變動
+- `web/app/actions/confirm-report.ts`：confirm 時 category 修正
+
+### 教訓
+- **`field_corrections` 不只翻譯欄位**：`category` / `event_form` 等結構欄位也走 annotator GPT 路徑，凡是「人工修了 + annotator 會再覆寫」的欄位都必須鎖。
+- **新增 admin mutation 路徑必查清單**：任何寫入 `events` 表的 server action / client mutation，自查欄位是否屬於 `_human_protected`；若是，必須同 transaction upsert `field_corrections`。
+- 已對應 architect 的 Manual Translation Fix Persistence Guard 擴張範圍至非翻譯欄位。
+
+---
 ## 2026-05-05 — Partial-payload upsert violates NOT NULL constraints
 
 ### 問題

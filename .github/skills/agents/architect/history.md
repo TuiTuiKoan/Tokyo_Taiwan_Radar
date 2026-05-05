@@ -3,6 +3,46 @@
 <!-- Append new entries at the top -->
 
 ---
+### 2026-05-05 — Movie-extend：source 頁面更新場次的設計取捨（commit `8572104`）
+
+**設計問題**：電影類事件（`'movie' ∈ category`）有獨特生命週期——同一部電影在同一戲院連續上映數週，source 頁面**每週更新**檔期。預設 `upsert_events()` 對既存 `(source_name, source_id)` 完全跳過（idempotent），導致 DB 留住第一週舊日期；`force_rescrape=true` 又會**完全覆寫**包含 `start_date`，把首映日（最早觀測）擦掉。
+
+**設計決定（三類分支）**：
+1. **電影**：自動 movie-extend → `start_date = MIN(existing, scraped)`、`end_date = MAX(existing, scraped)`，只更新 `raw_description` / `business_hours` / `scraped_at` / 日期。`raw_description` 變動時 flip `annotation_status → pending` 觸發重翻。
+2. **其他類型（concert / exhibition / lecture …）**：保留現有 skip 語意；如需更新場次必須**主動** `force_rescrape=true`（全覆寫 + reset annotation_status）。
+3. **手動修正**：直接 SQL UPDATE 必須**同時** upsert `field_corrections`，否則 annotator 重翻時被 GPT 蓋掉（已由 Manual Translation Fix Persistence Guard 涵蓋）。
+
+**不變式（必守）**：
+- movie-extend 構造的 row **零接觸 P3.2 受保護欄位**（`name_*` / `description_*` / `category` / `location_*` / `performer` / `organizer*` / `is_paid` / `price_*` / `event_*`）——靠「只列允許欄位」的白名單實作，而非黑名單排除。
+- 觸發條件三重 AND：`'movie' ∈ category` + 既存於 DB + 不在 `blocked` / `reviewed` / `force_keys`。
+- 既存 row 確認存在後，partial 寫入用 `.update().eq().eq()` 而非 `upsert(..., on_conflict=...)`（後者會 INSERT fallback 撞 NOT NULL，詳見 engineer history `2026-05-05`）。
+
+**教訓**：
+- **生命週期分類驅動 upsert 策略**：每個 source 類型有不同的「重複出現」語意——電影是場次延伸、新聞是新事件、講座是固定日期；upsert 邏輯不能一刀切 skip-or-overwrite，需按 `category` 分支。
+- **idempotent 不等於正確**：純跳過保留舊資料，「跳過 + 部分更新」才符合電影語意。設計新分支時，先列出「哪些欄位允許動、哪些絕對不能動」，再實作。
+- **白名單欄位優於黑名單欄位**：列出允許更新的欄位（`raw_description`、`business_hours`、`start_date`、`end_date`、`scraped_at`）並 freeze；新增 P3.2 欄位時自動安全。
+- **跨分支處方對照**：未來新增「source 頁面更新場次」需求時，先比對是否屬於電影語意；若否，必須選擇 `force_rescrape` 或 manual SQL + `field_corrections` 兩條路徑之一，不可在 movie-extend 加 if-else 擴張。
+
+---
+### 2026-05-05 — Source 頁面內容更新時的三條對處流程
+
+**背景**：scraper 對既存 `(source_name, source_id)` 的預設行為是「完全跳過」（idempotent），但 source 頁面的內容會隨時間變動——日期延長、地址修正、票價更新、描述補充。需要明確的對處流程，否則 DB 永遠停留在首次刮取狀態。
+
+**三類處方**：
+
+| 變動類型 | 對處 | 工具 |
+|---------|------|------|
+| 電影檔期延伸 | 自動 | movie-extend（`database.py` `_build_movie_extend_row()`） |
+| 其他結構性更新（地址改正、票價變動、整段描述重寫） | 半自動 | `force_rescrape=true` UPDATE 觸發全覆寫 + `annotation_status='pending'` |
+| 人工精修（翻譯、分類、事件型態） | 手動 | 直接 SQL UPDATE + 同 transaction upsert `field_corrections` |
+
+**設計教訓**：
+- **預設 skip 保護資料完整**：避免每日 CI 把人工修正洗掉，但代價是 source 頁面更新需要主動觸發。
+- **三條路徑互斥但需共存**：electron 不能同時觸發 movie-extend 與 force_rescrape；admin UI 應區分「重新刮取」按鈕（force_rescrape）與「鎖定欄位」操作（field_corrections）。
+- **architecture 約束**：任何新功能若涉及「修改既存 events row」，計畫必須明示走哪一條；不可發明第四條路徑（會破壞 P3.2 不變式 + Manual Translation Fix Persistence Guard）。
+- 對應現有守則：Manual Translation Fix Persistence Guard 已涵蓋第三條（手動）；本條補充第一、二條的決策邊界。
+
+---
 ### 2026-05-05 — auto_qa 地名關鍵字子字串污染診斷（commit 6b7174a）
 - `'新北'`（新北市縮寫）⊂ `'新北島'`（大阪市住之江区地名）→ `auto_qa_taiwan_venue` 對 event `371cf624` 連續假陽性
 - dedup 邏輯在 `updated_at > confirmed_at` 時重新觸發；dismiss 無效，根治需修正關鍵字本身

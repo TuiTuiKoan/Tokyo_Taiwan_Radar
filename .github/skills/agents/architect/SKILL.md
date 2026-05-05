@@ -85,6 +85,18 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）多次被修又�
 
 Reference incident: 2026-05-05 — `AdminEventForm` 新增 `tEventForm` prop 後，`AdminEventTable` 呼叫時忘記傳入，TypeScript 無錯誤（commit `30999ea` 補齊）；同次 commit 補齊 organizer、event_form 等 8 個後台隱藏欄位。
 
+## Movie-Extend Invariant Guard
+
+在審核任何修改 `database.py` `_build_movie_extend_row()`、新增 movie-extend 觸發分支、或擴張「對既存 row 部分更新」邏輯的計畫前，**必須**確認：
+
+1. **白名單欄位不可擴張至 P3.2 受保護欄位**：`_build_movie_extend_row()` 允許更新的欄位限定為 `raw_description`、`business_hours`、`start_date`、`end_date`、`scraped_at`、`annotation_status`（僅在 `raw_description` 變動時 flip 為 `pending`）。**禁止**新增 `name_*` / `description_*` / `category` / `location_*` / `performer` / `organizer*` / `is_paid` / `price_*` / `event_*` 任何欄位。新增白名單欄位的 PR 必須拒絕。
+2. **觸發條件必須三重 AND**：`'movie' ∈ category` + 既存於 DB（`existing_keys`）+ 不在 `blocked` / `reviewed` / `force_keys`。任何單一條件放寬會破壞「reviewed 事件不被自動更新」的保證。
+3. **Partial 寫入必須用 `.update().eq().eq()` 而非 upsert**：既存 row 確認存在後不可用 `client.table("events").upsert(rows, on_conflict=...)` ——supabase-py 會嘗試 INSERT fallback，撞 NOT NULL 約束（如 `source_url`）。詳見 engineer history `2026-05-05 — Partial-payload upsert violates NOT NULL constraints`。
+4. **對處流程互斥檢查**：計畫不可同時觸發 movie-extend 與 `force_rescrape=true`（後者全覆寫會吃掉 movie-extend 的 MIN(start_date) 保留語意）。如需 reviewed 電影更新場次，走 manual SQL + `field_corrections` 路徑，不可改 movie-extend 條件。
+5. **新類型擴張需獨立分支**：演唱會巡演、巡迴展等「同 source_id 多檔期」需求，不可在 `_build_movie_extend_row()` 加 if-else，必須獨立 helper 並重新評估白名單欄位。
+
+Reference incident: 2026-05-05 — commit `8572104` 引入 movie-extend；同 commit message 明示「by construction, extend rows touch zero P3.2-protected columns」與 `.update()` not upsert 的設計理由。
+
 ## Database Safety Rules
 
 - **NEVER batch-set `is_active = False` based on `end_date < today`**. Past events must remain `is_active = True` so users can view event history. Visibility for ended events is controlled by the frontend `FilterBar` ("顯示已結束活動" toggle), not by `is_active`.
