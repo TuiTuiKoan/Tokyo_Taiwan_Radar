@@ -118,6 +118,16 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "reviewed" | "error">("");;  const [filterSource, setFilterSource] = useState("");
   const [filterOrgType, setFilterOrgType] = useState("");
   const [filterEventForm, setFilterEventForm] = useState("");
+  const filterBarRef = useRef<HTMLDivElement>(null);
+  const [filterBarHeight, setFilterBarHeight] = useState(0);
+  useEffect(() => {
+    const el = filterBarRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setFilterBarHeight(el.offsetHeight));
+    ro.observe(el);
+    setFilterBarHeight(el.offsetHeight);
+    return () => ro.disconnect();
+  }, []);
   const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
   const KANTO_MARKERS_ADMIN = ["神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬", "山梨", "青森", "岩手", "宮城", "秋田", "山形", "福島", "北海道"];
   // NOTE: "京都" is a substring of "東京都" — always use "京都府"/"京都市" to avoid false positives
@@ -611,8 +621,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       )}
 
       {/* Sticky wrapper: filter bar + bulk action bar scroll together */}
-      <div className="sticky top-14 z-20 space-y-2 mb-3">
-      {/* Inline filter bar */}
+      <div ref={filterBarRef} className="sticky top-14 z-20 space-y-2 mb-3">
+      {/* Inline filter bar */
       <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
         {/* Row 1: 搜尋、類型、地點、票價、時間、日期 */}
         <div className="flex flex-wrap gap-3 items-end">
@@ -979,11 +989,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       </div>{/* /sticky wrapper */}
 
       {/* Events table */}
-      <div className="overflow-x-auto relative">
+      <div className="[overflow-x:clip]">
         <table className="w-full text-sm border-collapse">
-          <thead>
+          <thead className="sticky z-10 bg-white" style={{ top: 56 + filterBarHeight }}>
             {viewMode === "annotated" ? (
-              <tr className="sticky top-0 z-10 bg-white border-b text-left text-gray-500">
+              <tr className="border-b text-left text-gray-500">
                 <th className="py-2 pr-2 w-8">
                   <input
                     type="checkbox"
@@ -996,17 +1006,17 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("scraped_at")}>{t("scrapedAt")}{sortArrow("scraped_at")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_active")}>{t("isActive")}{sortArrow("is_active")}</th>
+                <th className="py-2" />
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("name")}>{t("name")}{sortArrow("name")}</th>
-                <th className="py-2 pr-4 font-medium">{t("category")}</th>
+                <th className="py-2 pr-4 w-32 font-medium">{t("category")}</th>
                 <th className="py-2 pr-4 font-medium">{t("events.columns.work")}</th>
                 <th className="py-2 pr-4 font-medium">{t("address")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
-                <th className="py-2" />
               </tr>
             ) : (
-              <tr className="sticky top-0 z-10 bg-white border-b text-left text-gray-500">
+              <tr className="border-b text-left text-gray-500">
                 <th className="py-2 pr-2 w-8">
                   <input
                     type="checkbox"
@@ -1018,9 +1028,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("scraped_at")}>{t("scrapedAt")}{sortArrow("scraped_at")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
+                <th className="py-2" />
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("raw_title")}>{t("name")}{sortArrow("raw_title")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
-                <th className="py-2" />
               </tr>
             )}
           </thead>
@@ -1072,6 +1082,23 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                         event.is_active ? "translate-x-4" : "translate-x-0.5"
                       }`} />
                     </button>
+                  </td>
+                  <td className="py-2 whitespace-nowrap">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => router.push(`/${locale}/admin/${event.id}`)}
+                        className="text-blue-600 hover:underline text-xs"
+                      >
+                        {t("edit")}
+                      </button>
+                      <button
+                        onClick={() => handleToggleForceRescrape(event.id)}
+                        title={event.force_rescrape ? t("forceRescrapeOff") : t("forceRescrapeOn")}
+                        className={`text-xs hover:underline ${event.force_rescrape ? "text-orange-600 font-medium" : "text-gray-400 hover:text-orange-500"}`}
+                      >
+                        🔁
+                      </button>
+                    </div>
                   </td>
                   <td className="py-2 pr-4 max-w-xs">
                     {event.parent_event_id && eventMap[event.parent_event_id] && (
@@ -1126,7 +1153,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       </span>
                     )}
                   </td>
-                  <td className="py-2 pr-4">
+                  <td className="py-2 pr-4 w-32">
                     <div className="flex flex-wrap gap-1">
                       {event.category?.slice(0, 3).map((cat) => (
                         <span key={cat} className="bg-green-50 text-green-700 text-[10px] px-1.5 py-0.5 rounded-full">
@@ -1258,23 +1285,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   <td className="py-2 pr-4 text-gray-500 text-xs">
                     {event.source_name}
                   </td>
-                  <td className="py-2">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => router.push(`/${locale}/admin/${event.id}`)}
-                        className="text-blue-600 hover:underline text-xs"
-                      >
-                        {t("edit")}
-                      </button>
-                      <button
-                        onClick={() => handleToggleForceRescrape(event.id)}
-                        title={event.force_rescrape ? t("forceRescrapeOff") : t("forceRescrapeOn")}
-                        className={`text-xs hover:underline ${event.force_rescrape ? "text-orange-600 font-medium" : "text-gray-400 hover:text-orange-500"}`}
-                      >
-                        🔁
-                      </button>
-                    </div>
-                  </td>
                 </tr>
               ) : (
                 <tr key={event.id} className="border-b hover:bg-gray-50 transition">
@@ -1296,6 +1306,23 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       {getAnnotationLabel(event.annotation_status)}
                     </span>
                   </td>
+                  <td className="py-2 whitespace-nowrap">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => router.push(`/${locale}/admin/${event.id}`)}
+                        className="text-blue-600 hover:underline text-xs"
+                      >
+                        {t("edit")}
+                      </button>
+                      <button
+                        onClick={() => handleToggleForceRescrape(event.id)}
+                        title={event.force_rescrape ? t("forceRescrapeOff") : t("forceRescrapeOn")}
+                        className={`text-xs hover:underline ${event.force_rescrape ? "text-orange-600 font-medium" : "text-gray-400 hover:text-orange-500"}`}
+                      >
+                        🔁
+                      </button>
+                    </div>
+                  </td>
                   <td className="py-2 pr-4 max-w-sm">
                     <a
                       href={event.is_active ? `/${locale}/events/${event.id}` : `/${locale}/admin/${event.id}`}
@@ -1314,23 +1341,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   </td>
                   <td className="py-2 pr-4 text-gray-500 text-xs">
                     {event.source_name}
-                  </td>
-                  <td className="py-2">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => router.push(`/${locale}/admin/${event.id}`)}
-                        className="text-blue-600 hover:underline text-xs"
-                      >
-                        {t("edit")}
-                      </button>
-                      <button
-                        onClick={() => handleToggleForceRescrape(event.id)}
-                        title={event.force_rescrape ? t("forceRescrapeOff") : t("forceRescrapeOn")}
-                        className={`text-xs hover:underline ${event.force_rescrape ? "text-orange-600 font-medium" : "text-gray-400 hover:text-orange-500"}`}
-                      >
-                        🔁
-                      </button>
-                    </div>
                   </td>
                 </tr>
               )
