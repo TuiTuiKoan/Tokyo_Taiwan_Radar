@@ -1,10 +1,23 @@
 import Link from "next/link";
-import { type Event, type Locale, getEventName } from "@/lib/types";
+import { type Event, type Locale, getEventName, getEventLocationName } from "@/lib/types";
 import { getTranslations } from "next-intl/server";
 
 interface Props {
   event: Event;
   locale: Locale;
+}
+
+/** Extract short city/prefecture name from a Japanese address string. */
+function extractCity(address: string | null): string | null {
+  if (!address) return null;
+  const m = address.match(/^(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県]{2,4}[都道府県])/);
+  if (!m) return null;
+  const full = m[1];
+  if (full === "北海道") return "北海道";
+  if (full === "大阪市" || full === "大阪府") return "大阪";
+  if (full === "京都市" || full === "京都府") return "京都";
+  if (full === "東京都") return "東京";
+  return full.replace(/[都道府県]$/, "");
 }
 
 export default async function EventCard({ event, locale }: Props) {
@@ -13,8 +26,16 @@ export default async function EventCard({ event, locale }: Props) {
   const tOrgType = await getTranslations("organizerType");
 
   const name = getEventName(event, locale);
+  const locationName = getEventLocationName(event, locale);
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
+
+  // Derive city label: multi-city uses location_prefectures, single uses address extraction
+  const prefectures = (event as any).location_prefectures as string[] | null | undefined;
+  const cityLabel: string | null = (() => {
+    if (prefectures && prefectures.length >= 2) return prefectures.join("・");
+    return extractCity((event as any).location_address as string | null);
+  })();
 
   return (
     <Link
@@ -90,7 +111,17 @@ export default async function EventCard({ event, locale }: Props) {
             )}
           </p>
         )}
-        {event.location_name && <p>📍 {event.location_name}</p>}
+        {event.location_name && (
+          <p>
+            📍{" "}
+            {cityLabel && (
+              <span className="inline-block bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded mr-1 font-medium">
+                {cityLabel}
+              </span>
+            )}
+            {locationName}
+          </p>
+        )}
       </div>
     </Link>
   );
