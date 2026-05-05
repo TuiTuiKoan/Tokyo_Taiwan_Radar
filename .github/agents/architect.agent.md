@@ -113,6 +113,49 @@ When approving plans that involve news/press sources:
 1. Acknowledge that name-only matching will miss these. They will require either manual merge OR a future Pass 4 using **multi-signal fusion**: same date range (±7 days) AND same venue prefecture AND same organizer substring AND keyword overlap in `raw_description`.
 2. Do **not** lower `_SIMILARITY_THRESHOLD` below 0.85 to chase these cases — false-positive risk explodes.
 
+## Merger `_location_overlap()` Substring Rule Guard
+
+Before approving any change to `merger.py`'s `_location_overlap()`:
+
+1. **Substring containment is present** for strings ≥ 4 chars: enables matching prefix/suffix-extended venue names like `渋谷ヒカリエ ⊂ 渋谷ヒカリエホール` or `東京都新宿区 ⊂ 東京都新宿区西新宿`.
+2. **Min-length 4 enforced** — short strings still use token overlap only. Without this, `東京 ⊂ 東京都` would create false matches.
+3. **Substring branch does NOT handle middle-insertion** — `イオン太田` is NOT contained in `イオンモール太田` (`モール` is inserted between `イオン` and `太田`). Such cases require Phase E (multi-signal Pass 4) and remain unsolved by this Guard.
+4. **Sanity test (run in `scraper/`)**:
+   ```python
+   from merger import _location_overlap
+   # Must True
+   assert _location_overlap("東京都新宿区","東京都新宿区西新宿")  # prefix-extension
+   assert _location_overlap("渋谷ヒカリエ","渋谷ヒカリエホール")  # suffix-extension
+   # Must False (no false positives)
+   assert not _location_overlap("東京","京都")               # short-string FP
+   assert not _location_overlap("大阪府","東京都")           # distinct prefectures
+   # Known unsolved (Phase E territory)
+   assert not _location_overlap("イオン太田","イオンモール太田")  # middle insertion
+   ```
+
+Reference incident: 2026-05-05 — gnews `c1ba79b6` 因 `_location_overlap("群馬県太田市", "イオンモール太田") = False` 無法走 Pass 2 自動合併。Phase A 修復 prefix/suffix-extension 案例，但中間插入仍需 Phase E。
+
+## Merger `_NEWS_SOURCES` Membership Rule Guard
+
+Before approving any addition to `_NEWS_SOURCES` in `merger.py`:
+
+1. **Lower priority required**: New source's `SOURCE_PRIORITY` value must be **higher number** (lower priority) than all official organizer sources. Verify:
+   ```python
+   from merger import SOURCE_PRIORITY, _NEWS_SOURCES
+   assert SOURCE_PRIORITY[new_source] >= max(
+       SOURCE_PRIORITY[s] for s in SOURCE_PRIORITY if s not in _NEWS_SOURCES
+   )
+   ```
+2. **Pass 2 secondary only**: New source's events will become Pass 2 secondary candidates — never primary in cross-source matching. Confirm this is the desired behavior before merging.
+3. **Eligibility criteria** (any one is sufficient):
+   - Titles do NOT match official event names verbatim (news rewrites, RSS summaries)
+   - `start_date` may be article-publish date instead of event date
+   - Location may be city-only instead of venue-level
+
+Current members (as of 2026-05-05): `google_news_rss`, `prtimes`, `nhk_rss`, `walkerplus`.
+
+Reference incident: 2026-05-05 — `walkerplus` 加入 `_NEWS_SOURCES` 因其資料品質低於官方主辦方來源（日期常為文章發布日、地址只到 prefecture）。從此 walkerplus 永不作為主事件，由 iwafu / taiwan_matsuri 等官方來源吸收為 secondary URL。
+
 ## Secret Permission Consistency Guard
 
 Before approving any change related to `GITHUB_TOKEN` requirements, verify:

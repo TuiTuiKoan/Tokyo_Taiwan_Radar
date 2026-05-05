@@ -3,6 +3,30 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — Merger 合併失效根因 + Pass 2 location 過嚴 + 缺停用稽核
+
+### 問題
+「台湾祭in群馬太田2026」事件在四個來源（taiwan_matsuri / iwafu / prtimes / walkerplus / gnews）持續以多筆獨立事件存在，merger 無法自動合併。手動合併後一週內又出現新重複。
+
+### 根因（多個）
+1. **dash 字元差異**：iwafu 用 `－`（U+FF0D），walkerplus 用 `ー`（U+30FC）。`_normalize()` regex 不包含 `ー`，sim 0.581 < 0.85。已於 commit `2d9685e` 修復。
+2. **Wrapping quote**：prtimes 用 `「…」` 包住標題，sim 0.545。同 commit 修復。
+3. **`_location_overlap` 過嚴**：gnews `群馬県太田市` 與 iwafu `イオンモール太田` token 集無交集（`{群馬県,太田市}` ∩ `{イオンモール,太田}` = ∅），Pass 2 不啟動。
+4. **walkerplus 不算 news**：merger Pass 2 只處理 `_NEWS_SOURCES`，walkerplus 不在其中，但其資訊密度低於官方主辦方。
+5. **缺停用稽核**：events 表沒有 `deactivated_at`/`deactivated_reason` 欄位，無法事後分析「為何此活動被合併」。
+
+### 修復
+- Phase A：`_location_overlap` 加入 ≥4 字子字串包含判定
+- Phase B：`walkerplus` 加入 `_NEWS_SOURCES`（並補入 `SOURCE_PRIORITY` 為 14）
+- Phase C：migration 044 新增三個稽核欄位（`deactivated_at`/`deactivated_reason`/`deactivated_by_pass`）+ merger 各 Pass 同步寫入 + 所有 admin manual deactivate 入口（`IsActiveToggle`、`AdminEventTable` bulk/single、`confirm-report.ts` 三條 is_active=false 分支）
+
+### 教訓
+- Location 字串多樣性遠超 token-based overlap 能處理。範例：`イオン太田` / `イオンモール太田` / `群馬県太田市` 是同一地點不同表達。
+- 聚合站（walkerplus / arukikata 等）資料品質參差，應視為 news 而非 official。
+- 沒有稽核欄位的「合併失敗」極難 debug — 必須事後從 git log 還原。
+- Admin manual deactivate 有多個入口（toggle、bulk、confirm-report 三條 is_active=false 分支），新增稽核欄位時必須掃過所有 setter。
+
+---
 ## 2026-05-05 — auto_research batch query 遺漏 `pending` 狀態，候選來源永遠跳過（commit `5d2585d`）
 
 ### 問題

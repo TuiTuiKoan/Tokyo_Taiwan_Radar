@@ -321,6 +321,7 @@ Admin 撰寫發文（三語 title + body + images）
 | `backup.yml` | — | DB 備份 |
 | `daily-health-check.yml` | 每日 | 健康監控 |
 | `secret-rotation-reminder.yml` | — | 密鑰輪替提醒 |
+| `monthly_health_check.yml` | 每月 1 日 09:00 JST | 月度 feedback-loop 健康檢查 |
 
 ### 每日 Pipeline（scraper.yml）
 

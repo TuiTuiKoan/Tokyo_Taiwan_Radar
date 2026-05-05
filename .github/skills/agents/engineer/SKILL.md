@@ -1046,6 +1046,38 @@ main.py → merger.py → annotator.py → annotator.py --fix-reviewed
 
 **Incident (2026-05-05):** `台湾文化祭2026` (iwafu) vs `台湾文化祭` (taiwanbunkasai) scored 0.714 before year-strip fix, causing manual merge to be required every year.
 
+### merger.py Pass 2 location matching rules
+
+- `_location_overlap()` accepts: (a) **substring containment** for strings ≥ 4 chars, OR (b) **shared token ≥ 2 chars** after split on `[\s\u3000、,（()）・]`.
+- Both branches needed because location strings vary widely:
+  - `イオン太田` ⊂ `イオンモール太田` — substring branch
+  - `東京都新宿区` shares `新宿区` token with `新宿K's cinema 新宿区` — token branch
+- DO NOT lower min-length below 4 — `東京` ⊂ `東京都` would create false matches.
+
+### `_NEWS_SOURCES` membership criteria
+
+A source belongs to `_NEWS_SOURCES` if **any** of:
+- titles do NOT match the official event name verbatim (news rewrites, RSS summaries)
+- `start_date` may be article-publish date instead of event date
+- location may be city-only / prefecture-only instead of venue
+
+These will always be Pass 2 secondaries (never primary). Current members: `google_news_rss`, `prtimes`, `nhk_rss`, `walkerplus`. When adding a new member, also confirm its `SOURCE_PRIORITY` value is higher (lower priority) than every official organizer source.
+
+### Event deactivation audit fields (migration 044)
+
+Every code path that sets `events.is_active = false` MUST also write three audit columns:
+- `deactivated_at` — ISO timestamp (`new Date().toISOString()` or Python `datetime.now(timezone.utc).isoformat()`)
+- `deactivated_reason` — short human-readable string
+- `deactivated_by_pass` — one of: `merger_pass_0` (gnews dedup), `merger_pass_1` (name similarity), `merger_pass_2` (news date+location), `merger_pass_3` (orphan reattach / grandchild flatten), `orphan_cleanup` (orphan with no parent), `admin_manual` (UI deactivate)
+
+When **re-activating** (setting `is_active = true`), null out all three fields so stale audit data does not persist.
+
+Inventory of setters that must comply (audit when modifying any of them):
+- `scraper/merger.py` — use the `_deactivate_payload(reason, pass_id)` helper
+- `web/components/IsActiveToggle.tsx`
+- `web/components/AdminEventTable.tsx` (`handleToggleActive` + `handleBulkToggleActive`)
+- `web/app/actions/confirm-report.ts` (three branches: wrongCategory unresolved, wrongDetails needsReannotation, isIrrelevant)
+
 ## Discovery Pipeline
 
 `scraper/discovery_accounts.py` is a separate pipeline from `BaseScraper`. It discovers new organizer accounts on external platforms and upserts them into `research_sources`.
