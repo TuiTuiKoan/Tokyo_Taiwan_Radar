@@ -339,6 +339,34 @@ Before acting on any hallucination scan result (address/location not found in ra
 3. **Venue name ≠ postal address**: `MoN Takanawa` (inside Takanawa Gateway City) has postal address 港区三田 — not 高輪. Station names, building brands, and postal addresses can differ.
 4. **Incident**: 2026-05-02 — architect changed correct GPT address `港区三田3-16-1` to wrong `港区高輪4-10-30` based on venue name reasoning. Reverted after user confirmation.
 
+## gnews / News Source Year-Anchor Guard
+
+在審核任何涉及 `google_news_rss`、`nhk_rss`、`prtimes`、`walkerplus` 的 annotator 修改，或分析新聞類事件日期年份錯誤時，**必須**確認：
+
+1. **annotator 的年份錨點注入機制存在且在 gnews article fetch 之後執行**：
+   - 程式碼位置：gnews article fetch block 結束後、`_parent_event` context block 之前
+   - 觸發條件：`source_name in _gnews_sources_needing_year AND scraped_at AND "記事配信日:" not in raw_desc`
+   - 注入格式：`（記事配信日: YYYY-MM-DD）\n\n` 前綴
+   - **必須在 article fetch 之後注入**：article fetch 會以 `raw_desc = article_text` 完全替換，丟失 scraper 已預置的 pub_year_hint
+
+2. **SYSTEM_PROMPT DATE Rule 7 必須引用 記事配信日**：
+   - 規則文字含 `（記事配信日: YYYY-MM-DD）` → `use that year as the reference year`
+   - 若規則文字已回退為 "If unclear, assume nearest future occurrence"，表示規則被覆寫
+
+3. **scraper 與 annotator 的雙重防護**：
+   - scraper（google_news_rss.py）：新爬事件的 raw_description 已預置 `pub_year_hint`（2026-05-02 起）
+   - annotator：補救舊事件或 article fetch 後丟失年份的情況
+   - 兩者用同一 marker `記事配信日:`，annotator 注入前檢查是否已存在（避免重複）
+
+4. **失效症狀**：事件 start_date 年份比 scraped_at 早超過 1 年。例：scraped_at=2026-04-28 但 start_date=2024-04-01
+
+**驗證命令**：
+```bash
+grep -n "記事配信日\|_gnews_sources_needing_year\|scraped_at year anchor" scraper/annotator.py | head -10
+```
+
+Reference incident: 2026-05-06 — `0d33b617` (gnews 熊本チップ・オデッセイ上映) 爬取於 pub_year_hint 加入前（2026-04-28），annotator article fetch 丟失年份錨點，GPT 幻覺 start_date=2024-04-01（應為 2026-04-12）。
+
 ## enrich_movie_titles Sub-Event Hallucination Guard
 
 在審核任何涉及 `enrich_movie_titles()` 修改、或分析 gnews sub-event 電影標題錯誤的計畫前，**必須**確認：

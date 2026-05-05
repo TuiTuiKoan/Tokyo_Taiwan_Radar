@@ -344,7 +344,7 @@ CRITICAL DATE EXTRACTION RULES:
 4. SINGLE-DAY RULE: If only one date is mentioned — or if you judge the event to be a single-day occurrence — set end_date = start_date exactly. NEVER leave end_date null when start_date is known.
 5. end_date MUST NOT be null if any date can be found anywhere in the text. Try harder to find dates.
 6. If the title contains a date like "（10/8・10/10）", extract those dates even if the body is vague.
-7. When the year is not explicitly stated, infer it from context. If unclear, assume the nearest future occurrence.
+7. When the year is not explicitly stated, infer it from context. If the raw description begins with （記事配信日: YYYY-MM-DD）, use that year as the reference year for all year-ambiguous dates (e.g. "4月12日" → YYYY-04-12). If no year anchor is present, assume the nearest future occurrence relative to the current year.
 8. For ongoing exhibitions/screenings with a date range (e.g., "4月5日〜6月30日"), use the full range.
 9. JUDGMENT: Use your reasoning to decide if an event is single-day vs multi-day. A concert, one-time screening, or one-time talk = single day (end_date = start_date). An exhibition, festival, or course = may span many days.
 10. DURATION KEYWORDS: When the description explicitly states a duration like "N日間" (e.g., "6日間", "3日間"), compute end_date = start_date + (N-1) days. "1日間" = single day. "N週間" = N×7 days. This OVERRIDES the single-day default. Example: start_date=2026-02-25, "6日間" → end_date=2026-03-02.
@@ -939,6 +939,29 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 raw_desc = article_text
             else:
                 logger.info("  → Article fetch failed, proceeding with original raw_desc")
+
+        # Year-anchor injection for google_news_rss:
+        # The scraper's pub_year_hint prepends （記事配信日: YYYY年…） to raw_description
+        # since 2026-05-02. But two situations still leave GPT without a year anchor:
+        #   (a) Events scraped before pub_year_hint was added (e.g. scraped 2026-04-28)
+        #       → raw_description in DB lacks the year hint
+        #   (b) Article fetch (above) replaces raw_desc with article body text, which
+        #       loses the pub_year_hint that was prepended in raw_description
+        # Without a year anchor, GPT guesses the year from its training data and
+        # can produce dates like 2024-04-01 for an April 2026 event.
+        # Fix: if scraped_at is available and no year anchor already in raw_desc,
+        # prepend it now (after article fetch, before GPT call).
+        # Reference incident: 2026-05-06 — 0d33b617 (gnews 熊本チップ・オデッセイ)
+        # scraped 2026-04-28 → annotated 2026-05-04 → start_date hallucinated 2024-04-01.
+        _gnews_sources_needing_year = frozenset({"google_news_rss", "nhk_rss", "prtimes", "walkerplus"})
+        if (
+            event.get("source_name") in _gnews_sources_needing_year
+            and event.get("scraped_at")
+            and "記事配信日:" not in (raw_desc or "")
+        ):
+            _scraped_dt = str(event["scraped_at"])[:10]  # e.g. "2026-04-28"
+            raw_desc = f"（記事配信日: {_scraped_dt}）\n\n" + (raw_desc or "")
+            logger.debug("  → Injected scraped_at year anchor: %s", _scraped_dt)
 
         # For sub-events: add parent event name as translation reference context.
         if _parent_event:

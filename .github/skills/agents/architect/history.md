@@ -3,6 +3,27 @@
 <!-- Append new entries at the top -->
 
 ---
+### 2026-05-06 — gnews 舊事件年份幻覺（0d33b617：start_date 2024-04-01 → 2026-04-12）
+
+**問題**：事件 `0d33b617`（gnews 熊本 KAB 台灣半導體上映文章）的 start_date 顯示為 2024-04-01（2 年前），實際上映日期為 2026-04-12。
+
+**根因**（三層）：
+1. **scraped before pub_year_hint**：事件爬取於 2026-04-28，`pub_year_hint` 機制（記事配信日前綴）在 google_news_rss.py 中至 2026-05-02 才加入（commit `613a76e`）→ DB raw_description 無年份錨點
+2. **article fetch 丟失年份**：annotator gnews article fetch 以 `raw_desc = article_text` 完全替換 raw_desc → 即使 raw_description 含年份，article text 也沒有。Article body（kab.co.jp）只寫 "4月12日"，無年份
+3. **SYSTEM_PROMPT 規則不足**：Rule 7 只說 "If unclear, assume nearest future occurrence"，但 GPT 無法知道「現在」是哪一年，導致從 training data 中聯想到 2024（該電影台灣首映年）
+
+**修法（2026-05-06）**：
+- DB 直接修正 `0d33b617`：start_date → 2026-04-12，end_date → 2026-04-12，locked in `field_corrections`
+- `annotator.py` 新增 year-anchor injection block（gnews article fetch 之後）：當 `source_name in _gnews_sources_needing_year AND scraped_at AND "記事配信日:" not in raw_desc`，前綴注入 `（記事配信日: YYYY-MM-DD）`
+- SYSTEM_PROMPT DATE Rule 7 更新：明確說明 `（記事配信日: YYYY-MM-DD）` 為年份參照依據
+- 新增 SKILL.md "gnews / News Source Year-Anchor Guard" 段落
+
+**教訓**：
+- **scraper 的 pub_year_hint 不夠**：annotator article fetch 覆蓋 raw_desc，丟失年份；需在 annotator 層也做年份注入
+- **GPT 的 "nearest future" 依賴 training data**：該電影 2024 在台灣首映，GPT 推斷 2024 上映。必須用 scraped_at 提供明確年份錨點
+- **新功能上線前的舊資料缺保護**：feature 在 2026-05-02 加入，但 2026-04-28 爬取的事件已無法獲益，annotator 需要雙重防護
+
+---
 ### 2026-05-05 — Batch Script Post-Enrichment Guard（程式碼層防護）
 
 **設計問題**：每次寫 `_oneoff_*.py` 批次修復腳本，都從零用 urllib 直接打 REST API，完全繞過 annotator.py 已有的 enrichment pipeline。導致同類錯誤反覆出現：片名 GPT 直譯幻覺（超低預算 2026-05-05）、翻譯被 AI 覆寫（月老 2026-05-04）、人名音譯未修（desc_en 2026-05-05）。
