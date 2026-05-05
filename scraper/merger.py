@@ -587,7 +587,7 @@ def run_merger(dry_run: bool = False) -> int:
         .select(
             "id,source_name,source_id,source_url,official_url,name_ja,"
             "start_date,end_date,location_name,location_address,raw_description,"
-            "secondary_source_urls,annotation_status,parent_event_id"
+            "secondary_source_urls,annotation_status,parent_event_id,work_id"
         )
         .eq("is_active", True)
         .not_.is_("parent_event_id", None)
@@ -612,6 +612,10 @@ def run_merger(dry_run: bool = False) -> int:
     orphaned: list[tuple] = []
     for sub in all_subs:
         if sub["id"] in handled_secondary_ids:
+            continue
+        # Skip events linked to a work entity — they are preserved as historical
+        # records regardless of parent status (Archive Work-Link Bypass Guard)
+        if sub.get("work_id"):
             continue
         parent = parent_map.get(sub["parent_event_id"])
         if parent and not parent["is_active"]:
