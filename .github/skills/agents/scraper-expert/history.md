@@ -3,6 +3,24 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — artistcafe: auto-generated scraper had no Taiwan filter + wrong description selector
+
+**Error:** `artistcafe.py` は `?keyword=台湾` URL パラメータを使っていたが、artistcafe.jp はこのパラメータを無視しサイト全体のイベントを返す。結果として 12 件中 8 件（後に 14/17 件と判明）が台湾無関係のイベントとして DB に登録された。また `raw_description` に `body.inner_text()` を使っていたため、ナビゲーションヘッダー（`OPEN 11:00 - 19:00 アクセス …`）が格納されていた。
+
+**Root cause:** auto-generated scraper はサイトが keyword 検索をサポートすると仮定したが、実際には client-side でもなく完全に無視されていた。詳細ページ取得に `article` セレクターではなく `body` を使っていたため、コンテンツが汚染された。
+
+**Fix:**
+1. `SEARCH_KEYWORD` と `?keyword=` URL パラメータを削除
+2. `_TAIWAN_KEYWORDS` + `_is_taiwan()` 関数を追加
+3. 詳細ページ取得で `article` セレクター優先、fallback `body`
+4. `_is_taiwan()` チェックをイベント作成前に追加（非台湾はスキップ）
+5. DB の非台湾イベント 14 件を `is_active=false` に更新
+
+**Result:** dry-run で 12 件→4 件（台湾関連のみ）に正常フィルタリング。
+
+**Lesson:** auto-generated scraper の `?keyword=` フィルターは必ずローカルで検証すること。「keyword あり」と「keyword なし」の URL を両方試して返件数が同じなら、サイトがパラメータを無視している。その場合は `_is_taiwan()` をスクレイパー内に実装する。
+
+---
 ## 2026-05-05 — 24 scrapers lost in SCRAPERS when 045d1fa rewrote main.py [multiple]
 
 **Error:** Commit `045d1fa`（add WasedaIclScraper）で `main.py` が書き直され、既存の 24 個の scraper が import と SCRAPERS から消えた。同日に `8a9dcd7` で ArtistcafeScraper を追加したが audit を実行せず、24 個の欠落は発見されなかった。

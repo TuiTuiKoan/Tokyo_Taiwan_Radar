@@ -17,16 +17,27 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://artistcafe.jp"
 SEARCH_URL = "https://artistcafe.jp/event/"
-SEARCH_KEYWORD = "%E5%8F%B0%E6%B9%BE"
+# NOTE: artistcafe.jp ignores ?keyword= query params — the site returns all events
+# regardless of the keyword.  Taiwan relevance is therefore enforced in-scraper
+# by _is_taiwan() after visiting each detail page.
 MAX_PAGES = 5
+
+_TAIWAN_KEYWORDS = ["台湾", "Taiwan", "台灣", "臺灣"]
 CARD_SELECTOR = "li.article-list"
 DETAIL_LINK_SELECTOR = "a.text-article-list-title"
 FIELD_SELECTORS = {"title": "a.text-article-list-title", "date": "p.text-article-list-date"}
+# Detail page content selector — <article> excludes header/nav; fall back to body
+DETAIL_CONTENT_SELECTOR = "article"
 DATE_REGEX = re.compile("(\\d{4})\\.(\\d{1,2})\\.(\\d{1,2})")
 SOURCE_ID_PREFIX = "artistcafe_"
 SOURCE_ID_URL_PATTERN = re.compile("/event/(\\d+)")
 
 MAX_EVENTS = 200
+
+
+def _is_taiwan(text: str) -> bool:
+    """Return True if text contains at least one Taiwan keyword."""
+    return any(kw in text for kw in _TAIWAN_KEYWORDS)
 
 
 def _parse_date(text):
@@ -98,7 +109,7 @@ class ArtistcafeScraper(BaseScraper):
                     if len(events) >= MAX_EVENTS:
                         logger.info("Hit MAX_EVENTS cap (%d); stopping.", MAX_EVENTS)
                         break
-                    url = f"{SEARCH_URL}?keyword={SEARCH_KEYWORD}&page={page_num}"
+                    url = f"{SEARCH_URL}?page={page_num}"
                     logger.info("Fetching listing page %d: %s", page_num, url)
                     try:
                         page.goto(url, timeout=30000)
@@ -169,7 +180,11 @@ class ArtistcafeScraper(BaseScraper):
                         detail_page = context.new_page()
                         detail_page.goto(detail_url, timeout=30000)
                         detail_page.wait_for_load_state("networkidle", timeout=15000)
-                        body_text = detail_page.locator("body").inner_text(timeout=5000)
+                        # Prefer <article> to exclude nav/header; fall back to body
+                        if detail_page.locator(DETAIL_CONTENT_SELECTOR).count() > 0:
+                            body_text = detail_page.locator(DETAIL_CONTENT_SELECTOR).first.inner_text(timeout=5000)
+                        else:
+                            body_text = detail_page.locator("body").inner_text(timeout=5000)
                         if body_text:
                             full_description = body_text.strip()[:2000]
                         detail_page.close()
@@ -177,6 +192,12 @@ class ArtistcafeScraper(BaseScraper):
                         logger.warning("Detail page timeout: %s", detail_url)
                     except Exception as exc:
                         logger.debug("Detail page failed %s: %s", detail_url, exc)
+
+                # Taiwan relevance gate — skip events with no Taiwan keywords
+                check_text = (title or "") + " " + (full_description or "")
+                if not _is_taiwan(check_text):
+                    logger.debug("Skipping non-Taiwan event: %s", (title or "")[:60])
+                    continue
 
                 seen_ids.add(source_id)
                 out.append(Event(

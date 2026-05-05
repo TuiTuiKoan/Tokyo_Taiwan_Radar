@@ -606,6 +606,13 @@ applyTo: scraper/sources/<source_name>.py
 - **Taiwan filter is detail-page only**: Search results match "台湾" in performer names or venue names unrelated to Taiwan events. Always apply keyword filter on full detail page text.
 - **Two duplicate `dl` blocks per page** (desktop + mobile): always use `select_one()`.
 
+## artistcafe-specific
+
+- **`?keyword=` ignored**: artistcafe.jp ignores `?keyword=台湾` entirely — returns all events regardless. Verified 2026-05-05 by comparing results with/without param (same 12 cards).
+- **Taiwan filter is in-scraper**: `_is_taiwan(title + article_text)` must be checked after visiting each detail page. Without this, 8-14/12-17 non-Taiwan events are collected.
+- **Use `article` selector for description**: `body.inner_text()` captures navigation headers. `DETAIL_CONTENT_SELECTOR = "article"` excludes nav/header.
+- **Verify `?keyword=` on any new site**: Before deploying an auto-generated scraper that relies on URL keyword filtering, compare `?keyword=...` vs no-keyword response. If card counts are equal, the param is ignored.
+
 ## Pending Rules
 
 <!-- Added automatically by confirm-report -->
