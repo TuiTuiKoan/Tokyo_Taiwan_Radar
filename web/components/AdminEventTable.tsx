@@ -1040,7 +1040,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     {(() => {
                       const addr = event.location_address;
                       const name = (event as any).location_name as string | null;
-                      if (event.source_name === "gguide_tv") return <span className="text-green-600">電視頻道</span>;
+                      if (event.source_name === "gguide_tv") return <span className="text-green-600">{tEvent("tvChannel")}</span>;
                       if (!addr && !name) return <span className="text-gray-300">—</span>;
                       const display = addr || name || "";
                       const isOnline = /オンライン|online|線上/i.test(display);

@@ -115,7 +115,8 @@
     "coOrganizers": "Co-organizers",
     "sponsors": "Sponsors",
     "eventForm": "Event Format",
-    "languageSupport": "Language Support"
+    "languageSupport": "Language Support",
+    "tvChannel": "TV Channel"
   },
   "auth": {
     "loginTitle": "Login",
@@ -612,6 +613,7 @@
     "tour": "Tour",
     "competition": "Competition",
     "tasting": "Tasting",
-    "other": "Other"
+    "other": "Other",
+    "broadcast": "Broadcast"
   }
 }

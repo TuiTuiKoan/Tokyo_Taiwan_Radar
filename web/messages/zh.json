@@ -115,7 +115,8 @@
     "coOrganizers": "協辦單位",
     "sponsors": "贊助單位",
     "eventForm": "活動形式",
-    "languageSupport": "語言支援"
+    "languageSupport": "語言支援",
+    "tvChannel": "電視頻道"
   },
   "auth": {
     "loginTitle": "登入",
@@ -612,6 +613,7 @@
     "tour": "導覽",
     "competition": "比賽",
     "tasting": "品嚐會",
-    "other": "其他"
+    "other": "其他",
+    "broadcast": "電視播出"
   }
 }
