@@ -3,6 +3,17 @@
 <!-- Append new entries at the top -->
 
 ---
+### 2026-05-05 — Batch Script Post-Enrichment Guard（程式碼層防護）
+
+**設計問題**：每次寫 `_oneoff_*.py` 批次修復腳本，都從零用 urllib 直接打 REST API，完全繞過 annotator.py 已有的 enrichment pipeline。導致同類錯誤反覆出現：片名 GPT 直譯幻覺（超低預算 2026-05-05）、翻譯被 AI 覆寫（月老 2026-05-04）、人名音譯未修（desc_en 2026-05-05）。
+
+**解法**：在 `annotator.py` 新增 `post_batch_enrich(event_ids)` 共用函式。所有 batch 腳本寫入 DB 後呼叫此函式，自動執行：(1) eiga.com 電影片名 lookup + field_corrections 鎖定；(2) 日後可擴充 person name enrichment。
+
+**教訓**：
+- **Guard 文件不夠，需要程式碼層強制**：同一類錯誤（繞過 enrichment pipeline）在 5 天內出現 3+ 次，每次都加 Guard 文件但下次仍被繞過。唯一有效防護是提供共用函式讓 batch 腳本一行呼叫。
+- **「提供方便的正確路徑」優於「禁止錯誤路徑」**：與其禁止用 urllib 直接打 API（不可能），不如讓正確做法比錯誤做法更簡單（一行 import + 呼叫 vs 手動實作 enrichment）。
+
+---
 ## 2026-05-05 — 首頁城市徽章修了兩輪才生效：EventCard.tsx 不是首頁使用的元件（commit `9f4b468`）
 
 ### 問題

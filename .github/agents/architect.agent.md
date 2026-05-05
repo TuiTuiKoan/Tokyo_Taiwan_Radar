@@ -374,12 +374,25 @@ Reference incident: 2026-05-05 — チップ・オデッセイ（造山者）過
 
 在審核任何涉及**建立 works 記錄**或**批次映射電影中文片名**的計畫前，**必須**確認：
 
-1. **日→中電影片名禁止直譯**：日文片名是日本發行商的行銷創作，逐字翻譯回中文必然產生虛構片名。
-2. **每部電影的 `original_title` 必須用外部來源交叉驗證**（維基百科中文版、台灣電影網、IMDb），不可信賴 GPT 回憶或直譯。
-3. **GPT 幻覺特徵**：直譯出的片名「看起來完全合理」——這正是幻覺的危險所在。
-4. **batch 腳本中 works 的 `original_title` 必須先提交人工審核**：呈現映射表給用戶確認，不可在同一步驟中建立 works + 連結 events。
+1. **必須先呼叫 `lookup_movie_titles(name_ja)`**：`scraper/movie_title_lookup.py` 已有 eiga.com 查詢 pipeline，能取得正確中文／英文片名。批次腳本必須先用此函式，僅對回傳 `(None, None)` 的才需人工查證。
+2. **日→中電影片名禁止 GPT 直譯**：日文片名是日本發行商的行銷創作，GPT 直譯必然產生看似合理的虛構片名。
+3. **`field_corrections` 鎖定前必須確認值正確**：一旦鎖錯，`enrich_movie_titles()` 的自動修正 pipeline 永遠無法覆蓋。
+4. **batch 腳本標準流程**：先 `lookup_movie_titles()` → 有結果則使用 → 無結果標記「待人工確認」→ 人工確認後才鎖 `field_corrections`。
 
-Reference incident: 2026-05-05 — `超低予算ムービー大作戦` 被 GPT 直譯為 `超低預算電影大作戰`，真正的中文片名是 `導演你有病`（Out of Nowhere）。
+Reference incident: 2026-05-05 — `超低予算ムービー大作戦` 被 GPT 直譯為 `超低預算電影大作戰`。eiga.com 有正確答案 `導演你有病 Out of Nowhere`，但批次腳本跳過了 `lookup_movie_titles()` pipeline。
+
+## Batch Script Post-Enrichment Guard
+
+在審核任何 `_oneoff_*.py` 或 batch 修復腳本的計畫前，**必須**確認：
+
+1. **腳本結尾必須呼叫 `post_batch_enrich(event_ids)`**：此函式自動執行電影片名 eiga.com lookup，避免 GPT 直譯幻覺。
+2. **禁止在 batch 腳本中用 GPT 生成 `name_zh`/`name_en`**：改用 `lookup_movie_titles(name_ja)` 取得正確片名。
+3. **`field_corrections` 只能鎖定經驗證的值**：未經 eiga.com 或人工確認的值，不可 upsert 進 `field_corrections`。
+4. **人名修正需額外步驟**：`post_batch_enrich` 後執行 `python annotator.py --enrich-person-names`。
+
+Reference incidents:
+- 2026-05-05 — `_oneoff_fix_movies.py` 跳過 `lookup_movie_titles()`，導致 `超低予算ムービー大作戦` 被 GPT 直譯為虛構片名。
+- 2026-05-05 — 月老翻譯反覆被 AI 覆寫，根因為手動修正未鎖 `field_corrections`。
 
 ## Required Phases
 

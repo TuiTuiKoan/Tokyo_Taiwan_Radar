@@ -3,6 +3,15 @@
 <!-- Append new entries at the top -->
 
 ---
+### 2026-05-05 — Batch Script Post-Enrichment Guard（程式碼層防護）
+
+**設計問題**：每次寫 `_oneoff_*.py` 批次修復腳本，都從零用 urllib 直接打 REST API，完全繞過 annotator.py 已有的 enrichment pipeline。導致同類錯誤反覆出現：片名 GPT 直譯幻覺（超低預算 2026-05-05）、翻譯被 AI 覆寫（月老 2026-05-04）、人名音譯未修（desc_en 2026-05-05）。
+
+**解法**：在 `annotator.py` 新增 `post_batch_enrich(event_ids)` 共用函式。所有 batch 腳本寫入 DB 後呼叫此函式，自動執行：(1) eiga.com 電影片名 lookup + field_corrections 鎖定；(2) 日後可擴充 person name enrichment。
+
+**教訓**：Guard 文件不夠，需要程式碼層強制——提供方便的正確路徑（一行 import + 呼叫）比禁止錯誤路徑更有效。
+
+---
 ### 2026-05-05 — gnews sub-event 電影標題幻覺（d18339d5：月老 → 造山者/チップ・オデッセイ）
 
 **問題**：gnews 父事件 `c14dc455`（NNA 文章：台灣半導體記錄片チップ・オデッセイ赴日上映）在 GPT 標注時產出多個 sub-events。其中 sub3 `d18339d5`（"早稲田大学での上映会"）被 GPT 幻覺標注為 `name_ja = "赤い糸 輪廻のひみつ"`（月老），`name_zh = "月老"`，應為造山者（チップ・オデッセイ）的早稻田場次。
@@ -29,18 +38,19 @@
 **設計問題**：批次修復 157 筆電影事件時，Architect 建立 works 映射表由 GPT 生成中文片名。`超低予算ムービー大作戦` 被逐字直譯為 `超低預算電影大作戰`——看起來合理但完全錯誤。真正的中文片名是 `導演你有病`（Out of Nowhere），與日文片名毫無語義關聯。
 
 **根因**：
-1. **亞洲電影的跨語言片名常不對譯**：台灣電影在日本上映時，日文片名經常由日本發行商重新命名（如 `月老` → `赤い糸 輪廻のひみつ`），日→中回譯必然產生幻覺。
+1. **已有驗證 pipeline 被完全跳過**：`movie_title_lookup.py` 的 `lookup_movie_titles('超低予算ムービー大作戦')` 能從 eiga.com 正確查到 `原題：導演你有病 Out of Nowhere`，但批次腳本未呼叫此函式，直接用 GPT 直譯結果寫入 DB。
 2. **GPT 的預設行為是直譯**：遇到不認識的片名時，GPT 傾向用語義翻譯而非回答「我不確定」，產出看似合理的虛構片名。
-3. **缺乏外部驗證步驟**：映射表建立後直接交給 Engineer 執行，未要求逐筆用維基百科、IMDb 或台灣電影資料庫交叉驗證。
+3. **field_corrections 鎖定了錯誤值**：批次腳本寫入錯誤片名後立即 upsert `field_corrections`，使得即使日後 `enrich_movie_titles()` 正常執行，也因為 `_human_protected` 邏輯而無法覆蓋修正。
 
 **修法**：
 - 手動 DB 修正：work `original_title` 改為 `導演你有病`，3 筆 events 的 `name_zh`/`name_en` 更新並鎖入 `field_corrections`。
 - 新增 **Film Title Cross-Language Verification Guard** 至 SKILL.md 和 architect.agent.md。
 
 **教訓**：
-- **日→中電影片名永遠不可直譯**：日文片名是日本發行商的行銷創作，與原始中文片名的關係從完全一致（`余燼`→`余燼`）到完全無關（`超低予算ムービー大作戦`→`導演你有病`），無法預測。
-- **批次建立 works 時必須逐筆驗證**：每部電影的 `original_title`（中文片名）必須用外部來源交叉確認（維基百科 `zh.wikipedia.org`、台灣電影網 `taiwancinema.bamid.gov.tw`、IMDb），不可信賴 GPT 回憶或直譯。
-- **「看起來合理」是幻覺的特徵，不是正確性的保證**：`超低預算電影大作戰` 作為中文片名完全合理——但它不存在。幻覺的危險性正在於此。
+- **已有 pipeline 必須優先使用**：`lookup_movie_titles(name_ja)` 已經能從 eiga.com 查到正確片名，批次腳本/計畫設計時必須先呼叫此函式取得 `(name_zh, name_en)`，僅對 lookup 回傳 `(None, None)` 的片名才需人工查證。
+- **禁止用 GPT 直譯生成 `original_title`**：日文片名與台灣原始片名的關係不可預測（`余燼`→`余燼` vs `超低予算ムービー大作戦`→`導演你有病`），GPT 直譯必然產生幻覺。
+- **`field_corrections` 鎖定前必須確認值的正確性**：一旦鎖定錯誤值，自動修正 pipeline 永遠無法覆蓋，錯誤會持續到人工發現為止。
+- **「看起來合理」是幻覺的特徵，不是正確性的保證**：`超低預算電影大作戰` 作為中文片名完全合理——但它不存在。
 
 ---
 ### 2026-05-05 — 首頁 inline 渲染與 `EventCard` 分歧（commit `5a29c13` → `9f4b468`）
