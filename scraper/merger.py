@@ -84,8 +84,16 @@ def _normalize(name: str) -> str:
     """Strip all whitespace and lowercase for similarity comparison."""
     # Normalize registered trademark symbol variants (e.g. iwafu uses ®, official uses (R))
     name = name.replace("®", "(r)").replace("Ⓡ", "(r)")
-    # Strip iwafu-style subtitle suffixes like "－台南ランタン祭－"
-    name = re.sub(r"[－—\-][^－—\-]{2,}[－—\-]\s*$", "", name)
+    # Unify dash variants so katakana prolonged sound mark (ー), full-width hyphen (－),
+    # em dash (—), horizontal bar (―) and ASCII hyphen-minus all compare as equal.
+    # Without this, "台南ランタン祭ー" (walkerplus, ー) ≠ "台南ランタン祭－" (prtimes, －).
+    name = re.sub(r"[ー－—―]", "-", name)
+    # Strip wrapping quotes/brackets at the very ends so "「台湾祭…－」" ≡ "台湾祭…－".
+    name = re.sub(r"^[「『《\"'(（\[【]+", "", name)
+    name = re.sub(r"[」』》\"')）\]】]+$", "", name)
+    # Strip iwafu-style subtitle suffixes like "-台南ランタン祭-"
+    # (after dash unification, all variants collapse to the ASCII hyphen-minus class).
+    name = re.sub(r"-[^-]{2,}-\s*$", "", name)
     # Strip year suffix (e.g. "台湾祭2026", "台湾文化祭2025春", "台灣節™東京2026")
     # so that recurring annual events with different year suffixes still match.
     name = re.sub(r"20\d{2}[春夏秋冬]?\s*$", "", name)
