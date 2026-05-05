@@ -206,15 +206,6 @@
     "exclusionsSuggestApply": "點擊以新增規則",
     "exclusionsSuggestApplied": "已封鎖",
     "exclusionsSuggestOpenForm": "完整設定",
-    "exclusionsTtlLabel": "有效期",
-    "exclusionsTtlPermanent": "永久",
-    "exclusionsTtlDays": "{days} 天",
-    "exclusionsStatusCol": "狀態",
-    "exclusionsStatusActive": "啟用中",
-    "exclusionsStatusExpiring": "即將過期",
-    "exclusionsStatusExpired": "已過期",
-    "exclusionsStatusStale": "90天無命中",
-    "exclusionsReEnable": "重新啟用",
     "researchTab": "每日研究",
     "researchTitle": "每日研究報告",
     "researchNoReports": "尚無研究報告",
@@ -377,7 +368,7 @@
     "scrapeNowSelected": "立即爬取選取的來源 ({count})",
     "scrapeNowError": "爬取啟動失敗",
     "selectionReasonCorrectionLabel": "選取理由修正",
-    "announcementsTab": "發文管理",
+    "announcementsTab": "週報・公告管理",
     "statsSlaHeader": "30日成功率",
     "statsAvgDuration": "平均耗時",
     "qualityTab": "品質",
@@ -461,15 +452,7 @@
         "viewArchitecture": "查看架構地圖",
         "diagramFallback": "（圖表載入中或不可用，下方為 JSON 結構）"
       }
-    },
-    "qualityKpiTitle": "精準度趨勢（近 14 天）",
-    "qualityKpi7dAvg": "近 7 日平均",
-    "qualityKpiDate": "日期",
-    "qualityKpiEvents": "事件數",
-    "qualityKpiExclHits": "預過濾命中",
-    "qualityKpiIrrelevant": "irrelevant 回報",
-    "qualityKpiPrecision": "精準度",
-    "qualityKpiEmpty": "尚無資料，待每日 CI 累積"
+    }
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",
@@ -558,16 +541,7 @@
     "viewAll": "查看全部",
     "relatedEvents": "相關活動",
     "backToList": "返回最新消息",
-    "viewPublic": "前台頁面",
-    "weeklyBroadcast": "週報設定",
-    "weeklyBroadcastNoDraft": "尚無本週草稿（週四 CI 自動生成）",
-    "weeklyBroadcastDraft": "本週草稿",
-    "weeklyBroadcastAutoPublish": "週五中午 JST 自動發送",
-    "weeklyBroadcastSendNow": "立即發送",
-    "weeklyBroadcastSending": "發送中…",
-    "weeklyBroadcastSent": "已發送給 {n} 位訂閱者",
-    "weeklyBroadcastEdit": "編輯草稿",
-    "weeklyBroadcastCreatedAt": "草稿建立"
+    "viewPublic": "前台頁面"
   },
   "categoryDesc": {
     "noEvents": "目前沒有進行中的活動。",

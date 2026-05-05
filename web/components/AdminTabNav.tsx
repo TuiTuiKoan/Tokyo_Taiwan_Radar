@@ -61,10 +61,11 @@ export default async function AdminTabNav({ locale, activeTab }: Props) {
   return (
     <div className="flex gap-1 border-b border-gray-200 mb-6 flex-wrap">
       {tab("events",        t("eventsTab"),        `/${locale}/admin`)}
-      {tab("announcements", t("announcementsTab"),  `/${locale}/admin/announcements`)}
       {tab("reports",       t("reports"),           `/${locale}/admin/reports`)}
       {tab("exclusions",    t("exclusionsTab"),     `/${locale}/admin/exclusions`)}
       {tab("quality",       t("qualityTab"),        `/${locale}/admin/quality`)}
+      <span className="mx-1 border-l border-green-600 h-6 self-center" />
+      {tab("announcements", t("announcementsTab"),  `/${locale}/admin/announcements`)}
       <span className="mx-1 border-l border-green-600 h-6 self-center" />
       {tab("research",      t("researchTab"),       `/${locale}/admin/research`)}
       {tab("sources",       t("sourcesTab"),        `/${locale}/admin/sources`)}

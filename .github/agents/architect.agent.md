@@ -84,24 +84,34 @@ Before approving any batch re-annotation of `name_ja_locked` events, verify:
 
 Before approving **any** change to `merger.py`'s `_normalize()` function or `_SIMILARITY_THRESHOLD`, verify:
 
-1. **Year-suffix stripping is present**: `re.sub(r"20\d{2}[春夏秋冬]?\s*$", "", name)` must remain in `_normalize()`. Without it, recurring annual events (`台湾文化祭2026` vs `台湾文化祭`) score below threshold and require manual merging every year.
-2. **Spot-check non-duplicate pairs**: After any normalization change, confirm that visually similar but distinct events still score below 0.85. Key pair: `"台湾フェスティバル™TOKYO"` vs `"台湾文化祭"` must stay < 0.85.
-3. **Test command** (run in `scraper/`):
+1. **Year-suffix stripping is present**: `re.sub(r"20\d{2}[春夏秋冬]?\s*$", "", name)` must remain in `_normalize()`.
+2. **Dash unification is present**: `re.sub(r"[ー－—―]", "-", name)` must remain. Katakana prolonged sound mark (`ー`, U+30FC, used by walkerplus etc.) and full-width hyphen (`－`, U+FF0D, used by prtimes etc.) must collapse to ASCII `-`. Without this, identical titles using different dash glyphs score 0.85–0.87 instead of 1.000.
+3. **Wrapping quote stripping is present**: `re.sub(r"^[「『《\"'(（\[【]+", "", name)` and the closing variant. Without this, `「台湾祭…」` (prtimes habit) never matches `台湾祭…` (iwafu).
+4. **Spot-check non-duplicate pairs**: After any normalization change, confirm that visually similar but distinct events still score below 0.85. Key pair: `"台湾フェスティバル™TOKYO"` vs `"台湾文化祭"` must stay < 0.85.
+5. **Test command** (run in `scraper/`):
    ```python
-   from difflib import SequenceMatcher; import re
-   def n(s):
-       s = s.replace('®','(r)').replace('™','')
-       s = re.sub(r'20\d{2}[春夏秋冬]?\s*$','',s)
-       return re.sub(r'\s+','',s).lower()
-   def sim(a,b): return SequenceMatcher(None,n(a),n(b)).ratio()
-   # Must be ≥ 0.85: same annual event different years
-   assert sim('台湾文化祭2026','台湾文化祭') >= 0.85
-   # Must be < 0.85: different events
-   assert sim('台湾フェスティバル™TOKYO2026','台湾文化祭') < 0.85
+   from merger import _normalize
+   from difflib import SequenceMatcher
+   def s(a,b): return SequenceMatcher(None,_normalize(a),_normalize(b)).ratio()
+   # Must be ≥ 0.85
+   assert s('台湾文化祭2026','台湾文化祭') >= 0.85          # year suffix
+   assert s('「台湾祭in群馬太田2026－台南ランタン祭－」','台湾祭in群馬太田2026ー台南ランタン祭ー') >= 0.85  # dash + quote
+   # Must be < 0.85
+   assert s('台湾フェスティバル™TOKYO2026','台湾文化祭') < 0.85
    print('OK')
    ```
 
-Reference incident: 2026-05-05 — `台湾文化祭2026` (iwafu) vs `台湾文化祭` (taiwanbunkasai) scored 0.714 before fix; required manual merge.
+Reference incidents:
+- 2026-05-05 (early) — `台湾文化祭2026` (iwafu) vs `台湾文化祭` (taiwanbunkasai) scored 0.714 before year-suffix fix.
+- 2026-05-05 (later) — `台湾祭in群馬太田2026` across iwafu/prtimes/walkerplus scored 0.545–0.870 due to dash glyph and quote-wrapping differences (commit `2d9685e`).
+
+## News Article Title Mismatch — Manual Merge Reminder
+
+`merger.py` Pass 1 cannot merge news articles (e.g. `google_news_rss`, RSS-derived sources) whose titles are **rewritten by the news outlet** and do not literally contain the original event name. Example: `イオン太田で台湾グルメと「台南ランタン祭」を楽しむイベント` (gnews summary) vs `台湾祭in群馬太田2026－台南ランタン祭－` (official) score < 0.20 even after normalization.
+
+When approving plans that involve news/press sources:
+1. Acknowledge that name-only matching will miss these. They will require either manual merge OR a future Pass 4 using **multi-signal fusion**: same date range (±7 days) AND same venue prefecture AND same organizer substring AND keyword overlap in `raw_description`.
+2. Do **not** lower `_SIMILARITY_THRESHOLD` below 0.85 to chase these cases — false-positive risk explodes.
 
 ## Secret Permission Consistency Guard
 

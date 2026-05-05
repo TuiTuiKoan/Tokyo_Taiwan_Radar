@@ -206,15 +206,6 @@
     "exclusionsSuggestApply": "Click to add rule",
     "exclusionsSuggestApplied": "Blocked",
     "exclusionsSuggestOpenForm": "Full settings",
-    "exclusionsTtlLabel": "Expires",
-    "exclusionsTtlPermanent": "Never",
-    "exclusionsTtlDays": "{days} days",
-    "exclusionsStatusCol": "Status",
-    "exclusionsStatusActive": "Active",
-    "exclusionsStatusExpiring": "Expiring",
-    "exclusionsStatusExpired": "Expired",
-    "exclusionsStatusStale": "90d no hits",
-    "exclusionsReEnable": "Re-enable",
     "researchTab": "Research",
     "researchTitle": "Daily Research Reports",
     "researchNoReports": "No research reports yet",
@@ -377,7 +368,7 @@
     "scrapeNowSelected": "Scrape Selected ({count})",
     "scrapeNowError": "Failed to start scrape",
     "selectionReasonCorrectionLabel": "Selection reason correction",
-    "announcementsTab": "Posts",
+    "announcementsTab": "Weekly・Announcements",
     "statsSlaHeader": "30d Success",
     "statsAvgDuration": "Avg Duration",
     "qualityTab": "Quality",
@@ -461,15 +452,7 @@
         "viewArchitecture": "View architecture map",
         "diagramFallback": "(Diagram loading or unavailable; JSON structure below)"
       }
-    },
-    "qualityKpiTitle": "Precision Trend (last 14 days)",
-    "qualityKpi7dAvg": "7-day average",
-    "qualityKpiDate": "Date",
-    "qualityKpiEvents": "Events",
-    "qualityKpiExclHits": "Exclusion hits",
-    "qualityKpiIrrelevant": "Irrelevant reports",
-    "qualityKpiPrecision": "Precision",
-    "qualityKpiEmpty": "No data yet — daily CI will populate"
+    }
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",
@@ -558,16 +541,7 @@
     "viewAll": "View all",
     "relatedEvents": "Related events",
     "backToList": "Back to Latest News",
-    "viewPublic": "View public page",
-    "weeklyBroadcast": "Weekly Broadcast",
-    "weeklyBroadcastNoDraft": "No draft this week (auto-generated on Thursday)",
-    "weeklyBroadcastDraft": "This Week's Draft",
-    "weeklyBroadcastAutoPublish": "Auto-send every Friday noon JST",
-    "weeklyBroadcastSendNow": "Send Now",
-    "weeklyBroadcastSending": "Sending…",
-    "weeklyBroadcastSent": "Sent to {n} subscribers",
-    "weeklyBroadcastEdit": "Edit Draft",
-    "weeklyBroadcastCreatedAt": "Draft created"
+    "viewPublic": "View public page"
   },
   "categoryDesc": {
     "noEvents": "No ongoing events at the moment.",

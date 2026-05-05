@@ -206,15 +206,6 @@
     "exclusionsSuggestApply": "クリックしてルール追加",
     "exclusionsSuggestApplied": "ブロック済み",
     "exclusionsSuggestOpenForm": "詳細設定",
-    "exclusionsTtlLabel": "有効期限",
-    "exclusionsTtlPermanent": "無期限",
-    "exclusionsTtlDays": "{days} 日",
-    "exclusionsStatusCol": "状態",
-    "exclusionsStatusActive": "有効",
-    "exclusionsStatusExpiring": "まもなく期限切れ",
-    "exclusionsStatusExpired": "期限切れ",
-    "exclusionsStatusStale": "90日ヒットなし",
-    "exclusionsReEnable": "再有効化",
     "researchTab": "デイリーリサーチ",
     "researchTitle": "デイリーリサーチレポート",
     "researchNoReports": "リサーチレポートはまだありません",
@@ -377,7 +368,7 @@
     "scrapeNowSelected": "選択したソースを取得 ({count})",
     "scrapeNowError": "取得の起動に失敗しました",
     "selectionReasonCorrectionLabel": "選定理由の修正",
-    "announcementsTab": "投稿",
+    "announcementsTab": "週報・お知らせ管理",
     "statsSlaHeader": "30日成功率",
     "statsAvgDuration": "平均所要時間",
     "qualityTab": "品質",
@@ -461,15 +452,7 @@
         "viewArchitecture": "アーキテクチャ図を見る",
         "diagramFallback": "（図表は読み込み中または利用不可、以下は JSON 構造）"
       }
-    },
-    "qualityKpiTitle": "精度トレンド（過去14日）",
-    "qualityKpi7dAvg": "7日平均",
-    "qualityKpiDate": "日付",
-    "qualityKpiEvents": "イベント数",
-    "qualityKpiExclHits": "事前ブロック",
-    "qualityKpiIrrelevant": "irrelevant報告",
-    "qualityKpiPrecision": "精度",
-    "qualityKpiEmpty": "データなし — 日次CIが蓄積します"
+    }
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",
@@ -558,16 +541,7 @@
     "viewAll": "すべて見る",
     "relatedEvents": "関連イベント",
     "backToList": "お知らせ一覧へ戻る",
-    "viewPublic": "公開ページを見る",
-    "weeklyBroadcast": "週報設定",
-    "weeklyBroadcastNoDraft": "今週のドラフトはありません（木曜日 CI 自動生成）",
-    "weeklyBroadcastDraft": "今週のドラフト",
-    "weeklyBroadcastAutoPublish": "毎週金曜日 JST 正午に自動配信",
-    "weeklyBroadcastSendNow": "今すぐ送信",
-    "weeklyBroadcastSending": "送信中…",
-    "weeklyBroadcastSent": "{n} 人の購読者に送信済み",
-    "weeklyBroadcastEdit": "ドラフトを編集",
-    "weeklyBroadcastCreatedAt": "ドラフト作成日"
+    "viewPublic": "公開ページを見る"
   },
   "categoryDesc": {
     "noEvents": "現在開催中のイベントはありません。",
