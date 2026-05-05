@@ -3,6 +3,13 @@
 <!-- Append new entries at the top -->
 
 ---
+### 2026-05-05 — auto_qa TAIWAN_VENUE_KEYWORDS 子字串假陽性：新北 ⊂ 新北島（commit 6b7174a）
+- `'新北'` 是 `'新北島'`（大阪市住之江区）的子字串，`auto_qa_taiwan_venue` 對 event `371cf624`（GRAFFYHALL venue）反覆誤觸
+- 每次 scraper upsert 更新 `updated_at` → dedup 重新觸發 → 即使 dismissed 仍再建立新報告
+- 修復：移除裸字串 `'新北'`，保留更精確的 `'新北市'`；dismiss 當時 pending 的假陽性報告
+- 教訓：台灣地名關鍵字需完整行政單位名稱（市/縣），禁用縮寫裸字串；新增前需 grep 日本地名清單
+
+---
 ### 2026-05-05 — tokyoartbeat 三連 bug：slug 日期佔位符 / GPT organizer 幻覺 / event_form 缺失（commit a1e58a9）
 - scheduleStartsOn=YYYY-01-01 是 Contentful 年度系列展佔位符，需從 slug 末尾提取實際日期
 - scraper 未設 organizer → GPT 從 "works from our collection" 幻想出橫浜美術館

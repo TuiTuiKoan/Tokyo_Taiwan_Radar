@@ -3,6 +3,12 @@
 <!-- Append new entries at the top -->
 
 ---
+### 2026-05-05 — auto_qa 地名關鍵字子字串污染診斷（commit 6b7174a）
+- `'新北'`（新北市縮寫）⊂ `'新北島'`（大阪市住之江区地名）→ `auto_qa_taiwan_venue` 對 event `371cf624` 連續假陽性
+- dedup 邏輯在 `updated_at > confirmed_at` 時重新觸發；dismiss 無效，根治需修正關鍵字本身
+- 已加入 QA Keyword Precision Guard（台灣地名關鍵字必須使用完整行政單位名稱）
+
+---
 ### 2026-05-05 — Ghost category prevention：annotator VALID_CATEGORIES desync + category_corrections bypass
 
 **問題**：`annotator.py` 的 `VALID_CATEGORIES` 只有 22 條目，但 `web/lib/types.ts` 有 33 個 `Category`。re-annotation 時 `_validate_categories()` 靜默剝離不在 `VALID_CATEGORIES` 中的分類，預設回退為 `["senses"]`。`category_corrections` 表中 10 筆記錄含無效分類 `culture`，也未經驗證直接套用。36 筆事件面臨分類靜默遺失風險。

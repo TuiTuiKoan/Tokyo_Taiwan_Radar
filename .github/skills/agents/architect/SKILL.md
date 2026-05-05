@@ -214,6 +214,16 @@ if ((e.location_prefectures?.length ?? 0) > 1) return false;
 
 Reference incident: 2026-05-02 — `location_prefectures` 未加入 select，多城市活動過濾靜默失效。
 
+## QA Keyword Precision Guard（地名關鍵字子字串污染）
+
+在審核任何修改 `TAIWAN_VENUE_KEYWORDS`（或類似地名比對清單）的 PR 前，**必須**確認：
+
+1. **禁用縮寫裸字串**：`'新北'` ⊂ `'新北島'`（大阪市住之江区）；`'台中'` 可能出現在日本地名中。必須使用完整行政單位名：`'新北市'`、`'台中市'` 等。
+2. **新增前 grep 日本地名**：對新關鍵字執行 `grep -r "<keyword>" scraper/` 確認無日本地名誤觸。
+3. **Dedup 失效機制**：auto_qa dedup 僅在「事件 `updated_at` ≤ report `confirmed_at`」時跳過。每次 scraper upsert 更新 `updated_at`，即使 dismissed，下次 run 仍重新觸發——**假陽性關鍵字無法靠 dismiss 解決，必須修正關鍵字本身**。
+
+Reference incident: 2026-05-05 — `'新北'` 匹配大阪市 `新北島`，event 371cf624 (GRAFFYHALL) 連續三次 auto_qa_taiwan_venue (commit 6b7174a)。
+
 ## auto_qa False Positive Guard
 
 在審核任何 auto_qa 偵測器的改動或新增 `auto_qa_*` 類型前，**必須**確認：

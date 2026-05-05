@@ -3,6 +3,18 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — Partial-payload upsert violates NOT NULL constraints
+
+### 問題
+實作 movie-extend 第二輪 update 用 `client.table("events").upsert(extend_rows, on_conflict="source_name,source_id")`，PostgREST 報 `null value in column "source_url" of relation "events" violates not-null constraint`。錯誤行 ID 是新生成的 UUID（不是現存 row 的 ID），代表 supabase-py 先嘗試 INSERT 才 fall back 到 UPDATE，但 NOT NULL 驗證在 row construction 階段就跳出。
+
+### 修法
+對保證已存在的 row 做 partial 寫入，改用 `.update(row).eq("source_name", sn).eq("source_id", sid)`，把 conflict key 從 payload pop 出來。
+
+### 教訓
+`on_conflict` upsert 是給「完整 row」的 partial 寫入會打到 NOT NULL（無 default 的欄位如 `source_url`）。只要 row 已透過 `existing_keys` 確認存在，一律改用純 `.update().eq()`，永遠不要用 partial upsert。
+
+---
 ## 2026-05-05 — Works entity ship (migration 048)
 
 ### 問題

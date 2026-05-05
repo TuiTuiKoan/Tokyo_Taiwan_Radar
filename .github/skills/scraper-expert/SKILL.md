@@ -220,6 +220,14 @@ text = element.get_text(strip=True)
 
 ---
 
+## auto_qa 地名關鍵字設計規則
+
+- `TAIWAN_VENUE_KEYWORDS` 必須使用完整行政單位名（`台北市`、`新北市`），禁用裸縮寫（`台北`、`新北`）以避免日本地名假陽性
+- 新增關鍵字前：`grep -rn "<keyword>" scraper/sources/` 確認不在任何已知日本地名中
+- 假陽性無法靠 dismiss 解決：dedup 邏輯在 `updated_at > confirmed_at` 時重新觸發；根治需修正關鍵字
+
+Reference incident: 2026-05-05 — `'新北'` 匹配大阪市 `新北島`，event 371cf624 (GRAFFYHALL) 連續三次 auto_qa_taiwan_venue (commit 6b7174a)。
+
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
