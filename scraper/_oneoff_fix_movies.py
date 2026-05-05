@@ -365,6 +365,25 @@ def main():
         print("  Errors:                  0")
     print("=" * 50)
 
+    # --- Post-write enrichment reminder ---
+    # This script uses urllib (no pip packages), but post_batch_enrich
+    # requires supabase SDK. Try importing; if venv is active it works.
+    try:
+        from annotator import post_batch_enrich
+        all_event_ids = [ev["id"] for ev in all_events]
+        summary = post_batch_enrich(all_event_ids)
+        print(f"\nPost-enrichment: {summary}")
+    except ImportError:
+        print("\n⚠ Remember to run enrichment after this script:")
+        print("  cd scraper && source venv/bin/activate")
+        print("  python annotator.py --enrich-movie-titles")
+        print("  python annotator.py --enrich-person-names")
+    except Exception as e:
+        print(f"\n⚠ post_batch_enrich failed: {e}")
+        print("  Run manually:")
+        print("  python annotator.py --enrich-movie-titles")
+        print("  python annotator.py --enrich-person-names")
+
 
 if __name__ == "__main__":
     main()

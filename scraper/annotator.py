@@ -1917,6 +1917,139 @@ def propagate_source_organizer(dry_run: bool = False) -> None:
     logger.info("propagate_source_organizer: updated %d events", updated)
 
 
+def post_batch_enrich(event_ids: list[str], *, dry_run: bool = False) -> dict:
+    """Run enrichment pipelines on specific events after a batch write.
+
+    Must be called by all _oneoff_*.py / batch fix scripts after writing to DB.
+
+    Covers:
+      1. Movie title lookup via eiga.com — overwrites GPT translations with
+         official Chinese/English titles. Only for movie-category events.
+
+    For person name enrichment, run separately after this function:
+        python annotator.py --enrich-person-names
+
+    Respects field_corrections — will NOT overwrite locked values.
+    Idempotent — safe to call multiple times.
+
+    Args:
+        event_ids: List of event UUIDs to enrich.
+        dry_run: If True, log actions without writing to DB.
+
+    Returns:
+        {"movie_patched": int, "skipped_protected": int}
+    """
+    if not event_ids:
+        return {"movie_patched": 0, "skipped_protected": 0}
+
+    sb = _get_supabase()
+
+    # --- Movie title enrichment ---
+    movie_patched = 0
+    skipped_protected = 0
+
+    res = (
+        sb.table("events")
+        .select(
+            "id,name_ja,raw_title,name_zh,name_en,"
+            "description_zh,description_en,annotation_status,source_name,parent_event_id,category"
+        )
+        .in_("id", event_ids)
+        .contains("category", ["movie"])
+        .neq("annotation_status", "reviewed")
+        .neq("source_name", "eiga_com")
+        .execute()
+    )
+    movie_events = res.data or []
+    logger.info("post_batch_enrich: %d movie events to check", len(movie_events))
+
+    for event in movie_events:
+        source = event.get("source_name", "")
+
+        # Extract title (same logic as enrich_movie_titles)
+        if source in _NEWS_MOVIE_SOURCES:
+            raw = event.get("raw_title") or ""
+            m = _BRACKET_TITLE_RE.search(raw)
+            _title_from_raw = bool(m)
+            if not m:
+                m = _BRACKET_TITLE_RE.search(event.get("name_ja") or "")
+            if m and not _title_from_raw and event.get("parent_event_id"):
+                logger.info("  skip news sub-event %s (bracket from name_ja)", event["id"][:8])
+                continue
+            title = m.group(1).strip() if m else ""
+        else:
+            title = event.get("name_ja") or event.get("raw_title") or ""
+
+        if not title:
+            continue
+
+        name_zh, name_en = lookup_movie_titles(title)
+        if not name_zh and not name_en:
+            logger.warning("  ⚠ eiga.com lookup returned nothing for %s [%s]", event["id"][:8], title[:40])
+            continue
+
+        # Check field_corrections — don't overwrite locked values
+        fc_res = (
+            sb.table("field_corrections")
+            .select("field_name")
+            .eq("event_id", event["id"])
+            .in_("field_name", ["name_zh", "name_en"])
+            .execute()
+        )
+        locked_fields = {r["field_name"] for r in (fc_res.data or [])}
+
+        old_name_zh = event.get("name_zh") or ""
+        old_name_en = event.get("name_en") or ""
+
+        update: dict[str, Any] = {}
+        if name_zh and "name_zh" not in locked_fields:
+            update["name_zh"] = name_zh
+        if name_en and "name_en" not in locked_fields:
+            update["name_en"] = name_en
+
+        if not update:
+            skipped_protected += 1
+            logger.info("  skip %s (fields already locked)", event["id"][:8])
+            continue
+
+        # Also fix description fields that reference old (wrong) titles
+        if name_zh and "name_zh" in update:
+            desc_zh = event.get("description_zh") or ""
+            if desc_zh:
+                old_refs_zh = (
+                    [old_name_zh, title]
+                    if source in _NEWS_MOVIE_SOURCES
+                    else [old_name_zh]
+                )
+                new_desc_zh = _replace_title_in_desc(desc_zh, old_refs_zh, name_zh)
+                if new_desc_zh != desc_zh:
+                    update["description_zh"] = new_desc_zh
+
+        if name_en and "name_en" in update:
+            desc_en = event.get("description_en") or ""
+            if desc_en:
+                new_desc_en = _replace_title_in_desc(desc_en, [old_name_en], name_en)
+                if new_desc_en != desc_en:
+                    update["description_en"] = new_desc_en
+
+        if dry_run:
+            logger.info("  [DRY RUN] would patch %s: %s", event["id"][:8], update)
+        else:
+            sb.table("events").update(update).eq("id", event["id"]).execute()
+            _lock_fields_via_corrections(sb, event["id"], update)
+            movie_patched += 1
+            logger.info(
+                "  ✓ movie enrich %s → zh=%r en=%r",
+                event["id"][:8], update.get("name_zh"), update.get("name_en"),
+            )
+
+    logger.info(
+        "post_batch_enrich: done. movie_patched=%d skipped_protected=%d",
+        movie_patched, skipped_protected,
+    )
+    return {"movie_patched": movie_patched, "skipped_protected": skipped_protected}
+
+
 def backfill_tier1_events(limit: int = 50, dry_run: bool = False) -> None:
     """Reset already-annotated events that lack Tier 1 fields back to 'pending'
     so the next annotate pass fills organizer/event_form/language columns.
