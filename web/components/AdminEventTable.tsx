@@ -889,12 +889,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       {selected.size > 0 && (
         <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm space-y-2 shadow-md">
           {/* Row 1: count + action buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className="text-blue-700 font-medium">{t("selectedCount", { count: selected.size })}</span>
             <button
               onClick={() => handleBulkToggleActive(false)}
               disabled={bulkToggling}
-              className="ml-auto bg-gray-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50 transition"
+              className="bg-gray-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50 transition"
             >
               {bulkToggling ? "..." : t("bulkHide")}
             </button>
@@ -915,12 +915,19 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </button>
             <button
               onClick={() => setSelected(new Set())}
-              className="text-gray-500 hover:text-gray-700 text-xs transition"
+              className="ml-auto text-xs text-gray-500 hover:text-gray-800 underline transition"
+            >
+              {t("bulkDeselectAll")}
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-gray-400 hover:text-gray-600 text-sm leading-none transition"
+              aria-label="close"
             >
               ✕
             </button>
           </div>
-          {/* Row 2: bulk add category */}
+          {/* Row 2: bulk add category + create work */}
           <div className="flex items-center gap-2 flex-wrap border-t border-blue-200 pt-2" ref={bulkAddCatRef}>
             <span className="text-xs text-blue-600 font-medium">新增分類：</span>
             <div className="relative">
@@ -974,6 +981,14 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 {bulkAddingCategory ? "…" : `套用到 ${selected.size} 筆`}
               </button>
             )}
+            <a
+              href={`/${locale}/admin/works/new`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto text-xs h-7 px-3 bg-white border border-blue-300 text-blue-700 rounded-full hover:bg-blue-50 transition font-medium flex items-center"
+            >
+              ＋ 新增作品
+            </a>
           </div>
           {/* Row 3: common category removal — only shown when intersection is non-empty */}
           {commonCategories.length > 0 && (

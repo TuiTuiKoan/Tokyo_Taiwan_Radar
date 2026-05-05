@@ -169,7 +169,7 @@
     "filterInactive": "已關閉",
     "filterMerged": "已合併",
     "mergedIntoBadge": "🔀 已合併",
-    "mergedIntoBadgeTitle": "此事件已被合併，點擊查看主事件"
+    "mergedIntoBadgeTitle": "此事件已被合併，點擊查看主事件",
     "language": "原始語言",
     "descJa": "說明（日文）",
     "descZh": "說明（中文）",
@@ -358,6 +358,7 @@
     "bulkHide": "隱藏",
     "bulkShow": "開放",
     "bulkForceRescrape": "排程重爬",
+    "bulkDeselectAll": "取消全部選取",
     "forceRescrapeOn": "排程重爬",
     "forceRescrapeOff": "取消重爬排程",
     "forceRescrapeQueued": "已排程重爬",

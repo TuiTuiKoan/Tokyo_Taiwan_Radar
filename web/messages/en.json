@@ -357,6 +357,7 @@
     "selectAll": "Select all",
     "bulkHide": "Hide",
     "bulkShow": "Show",
+    "bulkDeselectAll": "Deselect all",
     "bulkForceRescrape": "Schedule rescrape",
     "forceRescrapeOn": "Schedule rescrape",
     "forceRescrapeOff": "Cancel rescrape",

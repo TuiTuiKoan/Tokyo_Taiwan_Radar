@@ -170,9 +170,6 @@
     "filterMerged": "統合済み",
     "mergedIntoBadge": "🔀 統合済み",
     "mergedIntoBadgeTitle": "このイベントは統合されました。クリックして主イベントを表示。",
-    "filterMerged": "統合済み",
-    "mergedIntoBadge": "🔀 統合済み",
-    "mergedIntoBadgeTitle": "このイベントは統合されました。クリックして主イベントを表示。"
     "language": "元の言語",
     "descJa": "説明（日本語）",
     "descZh": "説明（中国語）",
@@ -360,6 +357,7 @@
     "selectAll": "全選択",
     "bulkHide": "非公開",
     "bulkShow": "公開",
+    "bulkDeselectAll": "全選解除",
     "bulkForceRescrape": "再クロール予約",
     "forceRescrapeOn": "再クロール予約",
     "forceRescrapeOff": "予約キャンセル",
