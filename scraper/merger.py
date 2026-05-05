@@ -167,6 +167,15 @@ def _deactivate_payload(reason: str, pass_id: str) -> dict:
     }
 
 
+def _deactivate_as_merged(primary_id: str, reason: str, pass_id: str) -> dict:
+    """Build the update payload for a secondary event being merged into primary_id.
+    Extends _deactivate_payload with merged_into_event_id for admin UI badge tracking.
+    """
+    payload = _deactivate_payload(reason, pass_id)
+    payload["merged_into_event_id"] = primary_id
+    return payload
+
+
 def _date_in_range(
     date_str: str | None, start_str: str | None, end_str: str | None,
     lookback_days: int = 0,
@@ -277,7 +286,8 @@ def run_merger(dry_run: bool = False) -> int:
             try:
                 sb.table("events").update(upd).eq("id", primary["id"]).execute()
                 sb.table("events").update(
-                    _deactivate_payload(
+                    _deactivate_as_merged(
+                        primary["id"],
                         f"merged into {primary['id']} (gnews within-source dedup)",
                         "merger_pass_0",
                     )
@@ -448,7 +458,8 @@ def run_merger(dry_run: bool = False) -> int:
                 try:
                     sb.table("events").update(primary_update).eq("id", primary["id"]).execute()
                     sb.table("events").update(
-                        _deactivate_payload(
+                        _deactivate_as_merged(
+                            primary["id"],
                             f"merged into {primary['id']} via Pass 1 name similarity {sim:.3f}",
                             "merger_pass_1",
                         )
@@ -558,7 +569,8 @@ def run_merger(dry_run: bool = False) -> int:
         try:
             sb.table("events").update(primary_update).eq("id", primary["id"]).execute()
             sb.table("events").update(
-                _deactivate_payload(
+                _deactivate_as_merged(
+                    primary["id"],
                     f"news article merged into {primary['id']} via Pass 2 date+location",
                     "merger_pass_2",
                 )
@@ -701,7 +713,8 @@ def run_merger(dry_run: bool = False) -> int:
             try:
                 sb.table("events").update(sub_update).eq("id", primary_sub["id"]).execute()
                 sb.table("events").update(
-                    _deactivate_payload(
+                    _deactivate_as_merged(
+                        primary_sub["id"],
                         f"sub-event merged into {primary_sub['id']} via Pass 3 (orphan reattach)",
                         "merger_pass_3",
                     )

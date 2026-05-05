@@ -231,6 +231,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       if (filterPaid === "paid" && e.is_paid !== true) return false;
       if (filterIsActive === "active" && !e.is_active) return false;
       if (filterIsActive === "inactive" && e.is_active) return false;
+      if (filterIsActive === "merged" && !e.merged_into_event_id) return false;
       if (filterTimeMode === "active") {
         if (e.end_date && new Date(e.end_date) < today) return false;
       } else if (filterTimeMode === "past") {
@@ -814,6 +815,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="all">{t("filterAll")}</option>
               <option value="active">{t("filterActive")}</option>
               <option value="inactive">{t("filterInactive")}</option>
+              <option value="merged">{t("filterMerged")}</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
