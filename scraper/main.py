@@ -103,6 +103,7 @@ from sources.go_taiwan import GoTaiwanScraper
 from sources.taiwan_festa import TaiwanFestaScraper
 from sources.tiff import TiffJpScraper
 from sources.rightscube import RightscubeScraper
+from sources.walkerplus import WalkerplusScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -188,6 +189,7 @@ SCRAPERS = [
     TaiwanFestaScraper(),
     TiffJpScraper(),
     RightscubeScraper(),
+    WalkerplusScraper(),
 ]
 
 
