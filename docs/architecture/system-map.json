@@ -1,0 +1,90 @@
+{
+  "$schema": "./system-map.schema.json",
+  "version": "1.0.0",
+  "updated": "2026-05-05",
+  "agents": [
+    { "id": "architect", "label": "Architect", "owns": ["docs/specs/**", "docs/ARCHITECTURE.md"], "description": "規劃、拆解 spec、寫 plan" },
+    { "id": "engineer", "label": "Engineer", "owns": ["scraper/**", "web/**", "supabase/**"], "description": "全棧實作（scraper / web / DB / CI）" },
+    { "id": "scraper-expert", "label": "Scraper Expert", "owns": ["scraper/sources/**"], "description": "BaseScraper 慣例、Peatix 模式" },
+    { "id": "researcher", "label": "Researcher", "owns": ["scraper/sources/_profiles/**"], "description": "新來源研究 + GitHub Issue" },
+    { "id": "tester", "label": "Tester", "owns": [], "description": "驗證 build / lint / dry-run" },
+    { "id": "reviewer", "label": "Reviewer", "owns": [], "description": "Code review" },
+    { "id": "validate-merge-deploy", "label": "Validate, Merge & Deploy", "owns": [".github/workflows/**"], "description": "合併與部署" },
+    { "id": "update-history-agent", "label": "Update History Agent", "owns": ["**/history.md"], "description": "更新 lessons learned" }
+  ],
+  "skills": [
+    { "id": "agent-customization", "label": "Agent Customization", "appliesTo": ["architect", "engineer"] },
+    { "id": "scraper-expert", "label": "Scraper Expert Skill", "appliesTo": ["scraper-expert", "engineer"] },
+    { "id": "local-preview", "label": "Local Preview", "appliesTo": ["engineer", "tester"] },
+    { "id": "session-analytics", "label": "Session Analytics", "appliesTo": ["architect"] },
+    { "id": "cc-statusline", "label": "CC Statusline", "appliesTo": ["engineer"] }
+  ],
+  "scraperGroups": [
+    {
+      "id": "cinema",
+      "label": "電影院・影展",
+      "members": [
+        "cinemarine", "cinemart_shinjuku", "cineswitch_ginza", "eiga_com",
+        "eurospace", "human_trust_cinema", "ks_cinema", "shin_bungeiza",
+        "ssff", "tiff", "tokyo_filmex", "uplink_cinema", "oaff",
+        "taiwan_faasai", "yebizo"
+      ]
+    },
+    {
+      "id": "cultural",
+      "label": "文化機構・學術",
+      "members": [
+        "taiwan_cultural_center", "ifi", "koryu", "taiwan_kyokai",
+        "taioan_dokyokai", "waseda_taiwan", "waseda_icl", "ide_jetro",
+        "jats", "jinf", "mot", "tobunken", "zinbun_kyoto",
+        "eslite_spectrum", "hakusuisha", "faam_fukuoka", "tuat_global"
+      ]
+    },
+    {
+      "id": "platform",
+      "label": "活動平台",
+      "members": [
+        "peatix", "eplus", "kokuchpro", "connpass", "doorkeeper",
+        "livepocket", "prtimes", "note_creators", "tokyoartbeat", "arukikata"
+      ]
+    },
+    {
+      "id": "venue",
+      "label": "店家・會場",
+      "members": [
+        "artistcafe", "bookandbeer", "daimaru_matsuzakaya", "hankyu_umeda",
+        "iwafu", "maruhiro", "moonromantic", "morc_asagaya",
+        "rightscube", "transit_store"
+      ]
+    },
+    {
+      "id": "festival",
+      "label": "節慶・地方資訊",
+      "members": [
+        "taiwan_festa", "taiwan_festival_tokyo", "taiwan_matsuri",
+        "taiwanbunkasai", "taipei_fukuoka", "fukuoka_now",
+        "tokyocity_i", "tokyonow", "taiwanshi"
+      ]
+    },
+    {
+      "id": "news",
+      "label": "新聞・RSS",
+      "members": ["google_news_rss", "nhk_rss", "gguide_tv"]
+    },
+    {
+      "id": "tourism",
+      "label": "觀光・政府",
+      "members": ["go_taiwan", "jposa_ja"]
+    }
+  ],
+  "dataFlow": [
+    { "from": "scrapers", "to": "merger", "label": "raw events" },
+    { "from": "merger", "to": "annotator", "label": "deduped events" },
+    { "from": "annotator", "to": "movie_title_lookup", "label": "movie events" },
+    { "from": "annotator", "to": "person_name_lookup", "label": "person names" },
+    { "from": "annotator", "to": "supabase", "label": "annotated events" },
+    { "from": "supabase", "to": "web", "label": "trilingual UI" },
+    { "from": "auto_qa", "to": "event_reports", "label": "auto findings" },
+    { "from": "event_reports", "to": "admin_reports", "label": "admin review" }
+  ]
+}

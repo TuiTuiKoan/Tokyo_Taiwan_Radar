@@ -406,7 +406,53 @@
     "catMigrationHeaderFrom": "AI Predicted",
     "catMigrationHeaderTo": "Correct Answer",
     "catMigrationHeaderCount": "Count",
-    "catMigrationEmpty": "No category corrections yet"
+    "catMigrationEmpty": "No category corrections yet",
+    "tabs": {
+      "specs": "Specs"
+    },
+    "specs": {
+      "title": "Specs",
+      "subtitle": "Spec-driven workflow: one spec per feat branch",
+      "kanban": {
+        "parked": "Parked",
+        "todo": "Todo",
+        "doing": "Doing",
+        "done": "Done",
+        "empty": "(none)"
+      },
+      "card": {
+        "noBranch": "(no branch)",
+        "tasksProgress": "{done}/{total}",
+        "updatedAt": "Updated {date}"
+      },
+      "detail": {
+        "back": "← Back to board",
+        "branch": "Branch",
+        "created": "Created",
+        "updated": "Updated",
+        "tasksProgress": "Progress {done}/{total}",
+        "copyPrompt": "📋 Copy Copilot prompt",
+        "copied": "Copied!",
+        "tabProposal": "Proposal",
+        "tabTasks": "Tasks",
+        "tabNotes": "Notes",
+        "noNotes": "(no notes.md)",
+        "noTasks": "(no tasks.md)",
+        "notFound": "Spec not found"
+      },
+      "architecture": {
+        "title": "Architecture Map",
+        "subtitle": "Relationships between agents / skills / scrapers",
+        "back": "← Back to board",
+        "scrapers": "Scrapers",
+        "agents": "Agents",
+        "skills": "Skills",
+        "scraperGroups": "Scraper groups",
+        "dataFlow": "Data flow",
+        "viewArchitecture": "View architecture map",
+        "diagramFallback": "(Diagram loading or unavailable; JSON structure below)"
+      }
+    }
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",

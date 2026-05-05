@@ -15,7 +15,8 @@ type AdminTab =
   | "creators"
   | "users"
   | "stats"
-  | "aeo";
+  | "aeo"
+  | "specs";
 
 interface Props {
   locale: Locale;
@@ -72,6 +73,8 @@ export default async function AdminTabNav({ locale, activeTab }: Props) {
       {tab("users",         t("usersTab"),          `/${locale}/admin/users`)}
       {tab("stats",         t("statsTab"),          `/${locale}/admin/stats`)}
       {tab("aeo",           t("aeoTab"),            `/${locale}/admin/aeo`)}
+      <span className="mx-1 border-l border-green-600 h-6 self-center" />
+      {tab("specs",         t("tabs.specs"),        `/${locale}/admin/specs`)}
     </div>
   );
 }

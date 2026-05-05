@@ -4,6 +4,14 @@ to all active LINE subscribers, grouped by language preference.
 
 Usage:
     python weekly_line_broadcast.py [--dry-run]
+    python weekly_line_broadcast.py [--admin-only]
+
+Flags:
+    --dry-run      Print messages to stdout, do NOT send anything.
+    --admin-only   Send ONLY to admin user(s) defined in ADMIN_LINE_USER_IDS
+                   (comma-separated LINE user IDs in scraper/.env). Useful
+                   for testing the real send pipeline without spamming
+                   subscribers. Sends ZH version only; token still required.
 """
 
 import json
@@ -370,7 +378,7 @@ def _multicast(user_ids: list[str], message: str, token: str) -> bool:
     return True
 
 
-def run_broadcast(dry_run: bool = False) -> None:
+def run_broadcast(dry_run: bool = False, admin_only: bool = False) -> None:
     import time
     start = time.time()
     today = datetime.now(JST)
@@ -425,6 +433,24 @@ def run_broadcast(dry_run: bool = False) -> None:
         logger.info("Dry run complete — no messages sent")
         return
 
+    if admin_only:
+        # Send only to admins defined in ADMIN_LINE_USER_IDS (comma-separated).
+        # ZH message is used regardless of the admin's actual language preference.
+        raw_ids = os.environ.get("ADMIN_LINE_USER_IDS", "").strip()
+        admin_ids = [uid.strip() for uid in raw_ids.split(",") if uid.strip()]
+        if not admin_ids:
+            logger.error(
+                "--admin-only: ADMIN_LINE_USER_IDS not set in .env — nothing sent. "
+                "Add: ADMIN_LINE_USER_IDS=Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            )
+            return
+        msg = _build_message(weekly_events, monthly_events, "zh", base_url, today)
+        logger.info("=== ADMIN-ONLY: sending ZH message to %d admin(s) ===\n%s", len(admin_ids), msg[:500])
+        success = _multicast(admin_ids, msg, token)
+        if success:
+            logger.info("Admin-only broadcast sent to: %s", admin_ids)
+        return
+
     # 4. Send per language
     sent_total = 0
     for lang in ["zh", "en", "ja"]:
@@ -458,4 +484,7 @@ def run_broadcast(dry_run: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    run_broadcast(dry_run="--dry-run" in sys.argv)
+    run_broadcast(
+        dry_run="--dry-run" in sys.argv,
+        admin_only="--admin-only" in sys.argv,
+    )

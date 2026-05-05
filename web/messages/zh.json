@@ -406,7 +406,53 @@
     "catMigrationHeaderFrom": "AI 預測",
     "catMigrationHeaderTo": "正確答案",
     "catMigrationHeaderCount": "次數",
-    "catMigrationEmpty": "尚無分類修正記錄"
+    "catMigrationEmpty": "尚無分類修正記錄",
+    "tabs": {
+      "specs": "規格看板"
+    },
+    "specs": {
+      "title": "規格看板",
+      "subtitle": "spec-driven workflow：每個 feat branch 一份 spec，避免上下文洗版",
+      "kanban": {
+        "parked": "Parked（暫存點子）",
+        "todo": "Todo（待開工）",
+        "doing": "Doing（進行中）",
+        "done": "Done（已完成）",
+        "empty": "（無）"
+      },
+      "card": {
+        "noBranch": "（無 branch）",
+        "tasksProgress": "{done}/{total}",
+        "updatedAt": "更新於 {date}"
+      },
+      "detail": {
+        "back": "← 回看板",
+        "branch": "Branch",
+        "created": "建立於",
+        "updated": "更新於",
+        "tasksProgress": "進度 {done}/{total}",
+        "copyPrompt": "📋 複製 Copilot prompt",
+        "copied": "已複製！",
+        "tabProposal": "Proposal",
+        "tabTasks": "Tasks",
+        "tabNotes": "Notes",
+        "noNotes": "（沒有 notes.md）",
+        "noTasks": "（沒有 tasks.md）",
+        "notFound": "找不到此 spec"
+      },
+      "architecture": {
+        "title": "架構地圖",
+        "subtitle": "agent / skill / scraper 之間的關係",
+        "back": "← 回看板",
+        "scrapers": "Scrapers",
+        "agents": "Agents",
+        "skills": "Skills",
+        "scraperGroups": "Scraper 分組",
+        "dataFlow": "資料流",
+        "viewArchitecture": "查看架構地圖",
+        "diagramFallback": "（圖表載入中或不可用，下方為 JSON 結構）"
+      }
+    }
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",

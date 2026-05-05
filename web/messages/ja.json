@@ -406,7 +406,53 @@
     "catMigrationHeaderFrom": "AI予測",
     "catMigrationHeaderTo": "正解",
     "catMigrationHeaderCount": "回数",
-    "catMigrationEmpty": "カテゴリ修正なし"
+    "catMigrationEmpty": "カテゴリ修正なし",
+    "tabs": {
+      "specs": "仕様ボード"
+    },
+    "specs": {
+      "title": "仕様ボード",
+      "subtitle": "spec-driven workflow：feat branch ごとに spec を 1 件",
+      "kanban": {
+        "parked": "Parked（保留）",
+        "todo": "Todo（未着手）",
+        "doing": "Doing（進行中）",
+        "done": "Done（完了）",
+        "empty": "（なし）"
+      },
+      "card": {
+        "noBranch": "（branch なし）",
+        "tasksProgress": "{done}/{total}",
+        "updatedAt": "更新 {date}"
+      },
+      "detail": {
+        "back": "← ボードへ戻る",
+        "branch": "Branch",
+        "created": "作成日",
+        "updated": "更新日",
+        "tasksProgress": "進捗 {done}/{total}",
+        "copyPrompt": "📋 Copilot プロンプトをコピー",
+        "copied": "コピーしました！",
+        "tabProposal": "Proposal",
+        "tabTasks": "Tasks",
+        "tabNotes": "Notes",
+        "noNotes": "（notes.md なし）",
+        "noTasks": "（tasks.md なし）",
+        "notFound": "spec が見つかりません"
+      },
+      "architecture": {
+        "title": "アーキテクチャ図",
+        "subtitle": "agent / skill / scraper の関係",
+        "back": "← ボードへ戻る",
+        "scrapers": "Scrapers",
+        "agents": "Agents",
+        "skills": "Skills",
+        "scraperGroups": "Scraper グループ",
+        "dataFlow": "データフロー",
+        "viewArchitecture": "アーキテクチャ図を見る",
+        "diagramFallback": "（図表は読み込み中または利用不可、以下は JSON 構造）"
+      }
+    }
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",
