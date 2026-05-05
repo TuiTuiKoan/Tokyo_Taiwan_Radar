@@ -97,10 +97,12 @@ def _fetch_gnews_article_text(gnews_url: str, browser: "Browser") -> str | None:
 # Valid categories (must match web/lib/types.ts)
 # ---------------------------------------------------------------------------
 VALID_CATEGORIES = [
-    "movie", "performing_arts", "senses", "retail", "nature",
-    "tech", "tourism", "lifestyle_food", "books_media", "gender", "geopolitics",
-    "art", "lecture", "taiwan_japan", "business", "academic", "competition",
-    "indigenous", "history", "urban", "workshop", "report",
+    "movie", "performing_arts", "senses", "tea_alcohol", "drama", "documentary",
+    "retail", "nature", "tech", "tourism", "lifestyle_food", "books_media",
+    "gender", "parenting", "geopolitics", "art", "lecture", "taiwan_japan",
+    "scholarship", "business", "academic", "competition", "indigenous", "folklore",
+    "history", "urban", "workshop", "literature", "tv_program", "exhibition",
+    "taiwan_mandarin", "healthcare", "report",
 ]
 
 # News-source movie title enrichment helpers
@@ -315,7 +317,7 @@ CRITICAL DATE EXTRACTION RULES:
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
    ALSO: if the description lists 3+ distinct venue locations in **different cities/prefectures** each with a specific address (e.g., a food fair with restaurants across Tokyo, Kyoto, and Osaka), list each venue as a sub-event with its own location_name, location_address, and business_hours; use the same start_date/end_date as the parent.
-2. Categories must be from this list: movie, performing_arts, senses, retail, nature, tech, tourism, lifestyle_food, books_media, gender, geopolitics, art, lecture, taiwan_japan, business, academic, competition, indigenous, history, urban, workshop, report
+2. Categories must be from this list: movie, performing_arts, senses, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, art, lecture, taiwan_japan, scholarship, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, exhibition, taiwan_mandarin, healthcare, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
    - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
    - "competition" = contests, competitions, awards, championships, public calls for entries (コンテスト, 大会, 選手権, 公募, コンクール)
@@ -333,6 +335,17 @@ OTHER RULES:
    - "history" = historical events, Taiwan colonial era, war memory. MANDATORY for: films/docs about colonial-era or war-era Taiwan (日本統治, 戦没者, 同化, 傷痕); historical figures (李登輝, 蒋介石); photo exhibitions of historical Taiwan. Keywords: 戦没, 植民地, 統治, 秘録, 同化, 傷痕, 歴史.
    - "taiwan_japan" = Taiwan-Japan BILATERAL relations ONLY. Use for: formal diplomatic/exchange events; Taiwanese diaspora in Japan (台湾系移住民); Taiwan veteran memorials (台湾出身戦没者); academic research on bilateral topics. DO NOT USE for: Taiwan food events, Taiwan concerts/tours, Taiwan children's books, Taiwan tourism promotion seminars, general Taiwan cultural events without explicit bilateral focus.
    - "report" = event reports/recaps (only if the text IS a report about a past event, not an upcoming event)
+   - "tv_program" = TV broadcasts, television programs. MANDATORY for any event from a TV broadcast source (look for 放送: / ジャンル: markers in raw_description). A TV drama should have BOTH tv_program AND drama. A TV movie broadcast should have BOTH tv_program AND movie.
+   - "drama" = serialized dramatic works: TV dramas, stage drama series, web dramas. For TV drama broadcasts, always pair with tv_program.
+   - "documentary" = documentary films or TV documentary programs. For TV documentaries, pair with tv_program.
+   - "tea_alcohol" = tea culture, wine, sake, cocktail events, tasting events, tea ceremony workshops, bar/pub events featuring Taiwanese beverages
+   - "exhibition" = museum exhibitions, gallery shows, permanent/special exhibitions at a specific venue with defined dates. Distinct from "art" (which covers visual art broadly) and "senses" (creative experiences)
+   - "folklore" = folk customs, festivals, folk religion, temple events, traditional crafts rooted in folk traditions
+   - "literature" = literary events: poetry readings, literary salons, writer residencies, literary translation. Distinct from "books_media" (publishing/media industry)
+   - "parenting" = parenting, childcare, family-oriented events, children's education, parent-child workshops
+   - "scholarship" = scholarships, grants, funding opportunities, study-abroad programs
+   - "taiwan_mandarin" = Mandarin/Taiwanese language learning events, Chinese language classes, language exchange
+   - "healthcare" = health, medical, public health, wellness events
    - An event can have multiple categories
 3. Translate the event name and a concise summary description into all three languages (ja, zh, en).
 4. The description should be a clean, concise summary (2-4 sentences), NOT a copy of the raw text.
@@ -392,9 +405,10 @@ EVENT FORM RULES:
 event_form is the structural shape of the event, distinct from category (which is the topic).
 Pick one or more from:
   exhibition, screening, lecture, performance, market, workshop,
-  conference, networking, screening_with_talk, tour, competition, tasting, other
+  conference, networking, screening_with_talk, tour, competition, tasting, broadcast, other
 Decision guides:
 - SCREENING RESTRICTION: "screening" and "screening_with_talk" are ONLY for events where a film, documentary, anime, or video work is actually projected/screened. DO NOT use them for lectures, tastings, launch parties, or other events even if they discuss media.
+- TV broadcast (テレビ放送, 放映, 番組) = ["broadcast"]. NEVER use "screening" for TV programs — screening is for cinema/theater projection only.
 - A film/documentary/anime screening followed by a Q&A or talk = ["screening_with_talk"] (NOT screening + lecture).
 - Pure film screening with no talk = ["screening"].
 - Pure exhibition = ["exhibition"]; exhibition with opening lecture = ["exhibition","lecture"].
@@ -552,7 +566,7 @@ VALID_ORGANIZER_TYPES = frozenset([
 VALID_EVENT_FORMS = frozenset([
     "exhibition", "screening", "lecture", "performance", "market", "workshop",
     "conference", "networking", "screening_with_talk", "tour", "competition",
-    "tasting", "other",
+    "tasting", "broadcast", "other",
 ])
 VALID_PRIMARY_LANGUAGES = frozenset(["ja", "zh", "en", "mixed"])
 
@@ -596,6 +610,8 @@ _HISTORY_KEYWORDS = frozenset([
     "日本統治", "総督府", "霧のごとく", "大濛",
 ])
 
+_TV_PROGRAM_KEYWORDS = frozenset(["放送:", "放送：", "ジャンル:", "ジャンル："])
+
 
 def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     """Inject missing categories based on keyword signals in the event text.
@@ -620,6 +636,9 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     # history: colonial/war-era Taiwan
     if "history" not in cats and any(kw in text for kw in _HISTORY_KEYWORDS):
         cats.append("history")
+    # tv_program: TV broadcast markers (gguide_tv raw_description pattern)
+    if "tv_program" not in cats and any(kw in text for kw in _TV_PROGRAM_KEYWORDS):
+        cats.append("tv_program")
     return cats
 
 
