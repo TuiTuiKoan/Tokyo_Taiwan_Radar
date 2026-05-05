@@ -109,7 +109,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [filterPaid, setFilterPaid] = useState("");
-  const [filterIsActive, setFilterIsActive] = useState<"all" | "active" | "inactive">("all");
+  const [filterIsActive, setFilterIsActive] = useState<"all" | "active" | "inactive" | "merged">("all");
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("all");
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
@@ -161,6 +161,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       if (filterPaid === "paid" && e.is_paid !== true) return false;
       if (filterIsActive === "active" && !e.is_active) return false;
       if (filterIsActive === "inactive" && e.is_active) return false;
+      if (filterIsActive === "merged" && !e.merged_into_event_id) return false;
       if (filterTimeMode === "active") {
         // Show ongoing: end_date >= today OR end_date is null
         if (e.end_date && new Date(e.end_date) < today) return false;
@@ -711,7 +712,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             const prefs = REGION_PREFECTURES[region];
             return (
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 font-medium">{tFilters("cityLabel")}</label>
+                <label className="text-xs text-gray-500 font-medium">{tFilters("location")}</label>
                 <select
                   value={filterCity}
                   onChange={(e) => setFilterCity(e.target.value)}
@@ -723,6 +724,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       {locale === "en" ? (PREFECTURE_LABELS_EN[p] ?? p) : p}
                     </option>
                   ))}
+                  <option value={CITY_OTHER}>{tFilters("cityOther")}</option>
                 </select>
               </div>
             );
@@ -1114,6 +1116,17 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       <span className="block text-xs text-green-600 font-normal mb-0.5 truncate">
                         ↳ {getEventName(eventMap[event.parent_event_id], locale)}
                       </span>
+                    )}
+                    {event.merged_into_event_id && (
+                      <a
+                        href={`/${locale}/admin/${event.merged_into_event_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-[10px] text-amber-600 font-medium mb-0.5 truncate hover:underline"
+                        title={t("mergedIntoBadgeTitle")}
+                      >
+                        🔀 {t("mergedIntoBadge")}
+                      </a>
                     )}
                     <a
                       href={event.is_active ? `/${locale}/events/${event.id}` : `/${locale}/admin/${event.id}`}

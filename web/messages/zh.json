@@ -35,8 +35,7 @@
     "locationChugoku": "中國・九州・四國",
     "locationOverseas": "海外（台灣各城市）",
     "cityAll": "全部都道府縣",
-    "cityOther": "其他",
-    "cityLabel": "道府縣"
+    "cityOther": "其他"
   },
   "categories": {
     "movie": "電影",
