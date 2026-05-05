@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSsrClient } from "@/lib/supabase/server";
+import { unstable_noStore } from "next/cache";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale, type Event, getEventName, getEventDescription, getEventLocationName, getEventLocationAddress, getEventBusinessHours } from "@/lib/types";
@@ -147,6 +149,27 @@ export default async function EventDetailPage({ params }: PageProps) {
       .order("start_date", { ascending: true });
     relatedScreenings = (related ?? []) as Event[];
   }
+
+  // Admin detection — opt-out of ISR cache for this check only
+  unstable_noStore();
+  let isAdmin = false;
+  try {
+    const ssrClient = await createSsrClient();
+    const { data: { user } } = await ssrClient.auth.getUser();
+    if (user) {
+      const { data: roleRow } = await ssrClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+      isAdmin = roleRow?.role === "admin";
+    }
+  } catch {
+    // non-admin / unauthenticated — fall through
+  }
+
+  const upcomingScreenings = relatedScreenings.filter((r) => r.is_active);
+  const pastScreenings = relatedScreenings.filter((r) => !r.is_active);
 
   const name = getEventName(event as Event, locale);
   const description = getEventDescription(event as Event, locale);
@@ -815,16 +838,28 @@ export default async function EventDetailPage({ params }: PageProps) {
       })()}
 
       {/* ===== Related screenings (same work, other venues/dates) ===== */}
-      {relatedScreenings.length > 0 && (
+      {(upcomingScreenings.length > 0 || (isAdmin && pastScreenings.length > 0)) && (
         <section className="mb-8" aria-labelledby="related-screenings-heading">
           <h2 id="related-screenings-heading" className="text-sm font-medium text-gray-400 mb-3">
             {t("relatedScreeningsTitle")}
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {relatedScreenings.map((rel) => (
-              <EventCard key={rel.id} event={rel} locale={locale} />
-            ))}
-          </div>
+          {upcomingScreenings.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {upcomingScreenings.map((rel) => (
+                <EventCard key={rel.id} event={rel} locale={locale} />
+              ))}
+            </div>
+          )}
+          {isAdmin && pastScreenings.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs text-gray-400 mb-2">{t("pastScreeningsLabel")}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 opacity-50">
+                {pastScreenings.map((rel) => (
+                  <EventCard key={rel.id} event={rel} locale={locale} />
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
