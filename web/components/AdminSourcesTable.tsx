@@ -324,6 +324,8 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     45: "event_platform", 15: "event_platform", 77: "event_platform",
     4:  "event_platform",  6: "event_platform", 23: "event_platform",
     79: "event_platform", 83: "event_platform", 106: "event_platform",
+    96: "event_platform", 128: "event_platform", 132: "event_platform",
+   166: "event_platform", 168: "event_platform",
     // 學術單位
     28: "academic", 29: "academic", 24: "academic", 25: "academic",
     10: "academic", 26: "academic", 31: "academic", 27: "academic",
@@ -331,26 +333,32 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     62: "academic", 63: "academic", 64: "academic", 65: "academic",
     84: "academic", 92: "academic", 93: "academic",  1: "academic",
      2: "academic",  3: "academic", 12: "academic", 52: "academic",
-    74: "academic",
+    74: "academic", 218: "academic",
     // 展場
     81: "venue", 76: "venue", 48: "venue", 49: "venue", 75: "venue",
     85: "venue", 53: "venue", 82: "venue",  5: "venue",
+   118: "venue", 167: "venue", 169: "venue", 170: "venue", 213: "venue",
     // 電影
     35: "cinema", 56: "cinema", 38: "cinema", 41: "cinema", 33: "cinema",
     34: "cinema", 50: "cinema", 51: "cinema", 36: "cinema", 59: "cinema",
     58: "cinema", 86: "cinema", 70: "cinema", 67: "cinema", 37: "cinema",
     39: "cinema", 40: "cinema", 207: "cinema",
+   150: "cinema", 163: "cinema", 165: "cinema",
     // 電視
     95: "tv", 71: "tv", 72: "tv", 73: "tv", 94: "tv",
+   133: "tv",
     // 政府機構
      8: "government", 13: "government", 80: "government", 87: "government",
      7: "government", 16: "government", 60: "government", 66: "government",
     68: "government", 89: "government", 90: "government", 88: "government",
+   135: "government",
     // 百貨
     46: "department_store", 129: "department_store", 130: "department_store", 131: "department_store",
     // 活動策劃組織
     57: "organizer", 21: "organizer", 69: "organizer", 91: "organizer",
     18: "organizer",  9: "organizer", 22: "organizer",
+   101: "organizer", 151: "organizer", 155: "organizer",
+   156: "organizer", 194: "organizer",
     // 個人頁面
     78: "personal",
     // 台灣商家

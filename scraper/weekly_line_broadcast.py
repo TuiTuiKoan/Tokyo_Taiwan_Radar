@@ -5,13 +5,21 @@ to all active LINE subscribers, grouped by language preference.
 Usage:
     python weekly_line_broadcast.py [--dry-run]
     python weekly_line_broadcast.py [--admin-only]
+    python weekly_line_broadcast.py [--generate-draft]
+    python weekly_line_broadcast.py [--auto-send]
 
 Flags:
-    --dry-run      Print messages to stdout, do NOT send anything.
-    --admin-only   Send ONLY to admin user(s) defined in ADMIN_LINE_USER_IDS
-                   (comma-separated LINE user IDs in scraper/.env). Useful
-                   for testing the real send pipeline without spamming
-                   subscribers. Sends ZH version only; token still required.
+    --dry-run         Print messages to stdout, do NOT send anything.
+    --admin-only      Send ONLY to admin user(s) defined in ADMIN_LINE_USER_IDS
+                      (comma-separated LINE user IDs in scraper/.env). Useful
+                      for testing the real send pipeline without spamming
+                      subscribers. Sends ZH version only; token still required.
+    --generate-draft  Generate this week's broadcast content and save it as a
+                      draft announcement in the DB (announcements.type='weekly_broadcast').
+                      Does NOT send anything. Run on Thursday in CI.
+    --auto-send       Check app_settings.weekly_broadcast.auto_publish. If true,
+                      find the latest pending weekly_broadcast draft and send it.
+                      Run on Friday noon JST in CI.
 """
 
 import json
@@ -378,6 +386,164 @@ def _multicast(user_ids: list[str], message: str, token: str) -> bool:
     return True
 
 
+def _generate_weekly_content(sb, ai, today: datetime) -> tuple[list[dict], list[dict]]:
+    """Fetch events and run AI selection. Returns (weekly_events, monthly_events)."""
+    events = _fetch_upcoming_events(sb)
+    logger.info("Fetched %d upcoming events", len(events))
+    if not events:
+        return [], []
+    selected = _ai_select_events(ai, events, today)
+    event_map = {e["id"]: e for e in events}
+    weekly_ids: list[str] = selected.get("weekly", [])
+    monthly_ids: list[str] = selected.get("monthly", [])
+    weekly_events = [event_map[i] for i in weekly_ids if i in event_map]
+    weekly_id_set = {e["id"] for e in weekly_events}
+    monthly_events = [event_map[i] for i in monthly_ids if i in event_map and i not in weekly_id_set]
+    logger.info("AI selected: %d weekly, %d monthly", len(weekly_events), len(monthly_events))
+    return weekly_events, monthly_events
+
+
+def run_generate_draft() -> None:
+    """Generate this week's broadcast content and save as a draft announcement.
+
+    Runs on Thursday 09:00 JST in CI. Does NOT send anything.
+    The draft can be edited in the admin UI before sending.
+    """
+    today = datetime.now(JST)
+    base_url = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://tokyotaiwanradar.com")
+    sb = _get_supabase()
+    ai = _get_openai()
+
+    weekly_events, monthly_events = _generate_weekly_content(sb, ai, today)
+    if not weekly_events and not monthly_events:
+        logger.warning("No events found — draft not created")
+        return
+
+    slug = f"weekly-{today.strftime('%Y-%m-%d')}"
+    title_zh = f"🗓 東京台灣雷達週報 {today.strftime('%Y/%m/%d')}"
+    body_zh = _build_message(weekly_events, monthly_events, "zh", base_url, today)
+    body_ja = _build_message(weekly_events, monthly_events, "ja", base_url, today)
+    body_en = _build_message(weekly_events, monthly_events, "en", base_url, today)
+    all_event_ids = [e["id"] for e in weekly_events + monthly_events]
+
+    # Upsert the announcement (slug is UNIQUE — safe to re-run)
+    sb.table("announcements").upsert(
+        {
+            "slug": slug,
+            "type": "weekly_broadcast",
+            "title_zh": title_zh,
+            "body_zh": body_zh,
+            "body_ja": body_ja,
+            "body_en": body_en,
+            "published_at": None,
+            "is_featured": False,
+            "social_status": {},
+        },
+        on_conflict="slug",
+    ).execute()
+
+    # Resolve the announcement's UUID
+    res = sb.table("announcements").select("id").eq("slug", slug).single().execute()
+    ann_id = res.data["id"]
+
+    # Replace linked events
+    sb.table("announcement_events").delete().eq("announcement_id", ann_id).execute()
+    if all_event_ids:
+        sb.table("announcement_events").insert(
+            [{"announcement_id": ann_id, "event_id": eid} for eid in all_event_ids]
+        ).execute()
+
+    logger.info(
+        "Draft saved: slug=%s, weekly=%d, monthly=%d, linked_events=%d",
+        slug, len(weekly_events), len(monthly_events), len(all_event_ids),
+    )
+
+
+def run_send_draft(draft_slug: str | None = None) -> None:
+    """Find the latest pending weekly_broadcast draft and send it to all subscribers.
+
+    If draft_slug is given, send that specific draft; otherwise pick the newest pending one.
+    Marks the announcement as published after sending.
+    """
+    sb = _get_supabase()
+    today = datetime.now(JST)
+    token = os.environ.get("LINE_CHANNEL_TOKEN", "")
+
+    # Find draft
+    q = (
+        sb.table("announcements")
+        .select("id, slug, title_zh, body_zh, body_ja, body_en")
+        .eq("type", "weekly_broadcast")
+        .is_("published_at", "null")
+    )
+    if draft_slug:
+        q = q.eq("slug", draft_slug)
+    else:
+        q = q.order("created_at", ascending=False).limit(1)
+    res = q.execute()
+
+    if not res.data:
+        logger.warning("No pending weekly_broadcast draft found — send skipped")
+        return
+    draft = res.data[0]
+
+    # Fetch subscribers grouped by language
+    subs_res = (
+        sb.table("line_subscribers")
+        .select("line_user_id, language_preference")
+        .eq("status", "active")
+        .execute()
+    )
+    subs = subs_res.data or []
+    by_lang: dict[str, list[str]] = {"zh": [], "en": [], "ja": []}
+    for s in subs:
+        lang = s.get("language_preference", "zh")
+        if lang in by_lang:
+            by_lang[lang].append(s["line_user_id"])
+
+    sent_total = 0
+    for lang in ["zh", "ja", "en"]:
+        user_ids = by_lang[lang]
+        if not user_ids:
+            continue
+        msg = draft.get(f"body_{lang}") or draft.get("body_zh") or ""
+        if not msg:
+            continue
+        success = _multicast(user_ids, msg, token)
+        if success:
+            sent_total += len(user_ids)
+            logger.info("Sent %s broadcast to %d subscribers", lang.upper(), len(user_ids))
+
+    # Mark as published
+    sb.table("announcements").update({
+        "published_at": today.isoformat(),
+        "social_status": {"line": {"status": "published", "published_at": today.isoformat()}},
+    }).eq("id", draft["id"]).execute()
+
+    logger.info("Draft %s sent to %d subscribers total", draft["slug"], sent_total)
+
+
+def run_auto_send() -> None:
+    """Check app_settings.weekly_broadcast.auto_publish and send if enabled.
+
+    Runs on Friday noon JST in CI.
+    """
+    sb = _get_supabase()
+    res = (
+        sb.table("app_settings")
+        .select("value")
+        .eq("key", "weekly_broadcast")
+        .maybe_single()
+        .execute()
+    )
+    setting = res.data.get("value", {}) if res.data else {}
+    if not setting.get("auto_publish", False):
+        logger.info("auto_publish=false — skipping auto-send")
+        return
+    logger.info("auto_publish=true — running send_draft")
+    run_send_draft()
+
+
 def run_broadcast(dry_run: bool = False, admin_only: bool = False) -> None:
     import time
     start = time.time()
@@ -388,25 +554,13 @@ def run_broadcast(dry_run: bool = False, admin_only: bool = False) -> None:
     sb = _get_supabase()
     ai = _get_openai()
 
-    # 1. Fetch upcoming events
-    events = _fetch_upcoming_events(sb)
-    logger.info("Fetched %d upcoming events", len(events))
-    if not events:
+    # 1. Fetch + AI-select events
+    weekly_events, monthly_events = _generate_weekly_content(sb, ai, today)
+    if not weekly_events and not monthly_events:
         logger.warning("No upcoming events found — broadcast skipped")
         return
 
-    # 2. AI selection
-    selected = _ai_select_events(ai, events, today)
-    event_map = {e["id"]: e for e in events}
-    weekly_ids: list[str] = selected.get("weekly", [])
-    monthly_ids: list[str] = selected.get("monthly", [])
-    weekly_events = [event_map[i] for i in weekly_ids if i in event_map]
-    # Python-level deduplication: monthly must not repeat any id already in weekly
-    weekly_id_set = {e["id"] for e in weekly_events}
-    monthly_events = [event_map[i] for i in monthly_ids if i in event_map and i not in weekly_id_set]
-    logger.info("AI selected: %d weekly, %d monthly", len(weekly_events), len(monthly_events))
-
-    # 3. Fetch subscribers grouped by language
+    # 2. Fetch subscribers grouped by language
     subs_res = (
         sb.table("line_subscribers")
         .select("line_user_id, language_preference")
@@ -484,7 +638,12 @@ def run_broadcast(dry_run: bool = False, admin_only: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    run_broadcast(
-        dry_run="--dry-run" in sys.argv,
-        admin_only="--admin-only" in sys.argv,
-    )
+    if "--generate-draft" in sys.argv:
+        run_generate_draft()
+    elif "--auto-send" in sys.argv:
+        run_auto_send()
+    else:
+        run_broadcast(
+            dry_run="--dry-run" in sys.argv,
+            admin_only="--admin-only" in sys.argv,
+        )

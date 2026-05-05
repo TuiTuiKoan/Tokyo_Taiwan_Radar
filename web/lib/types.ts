@@ -78,6 +78,7 @@ export interface SocialPlatformStatus {
 export interface Announcement {
   id: string;
   slug: string;
+  type: "manual" | "weekly_broadcast";
   title_ja: string | null;
   title_zh: string | null;
   title_en: string | null;

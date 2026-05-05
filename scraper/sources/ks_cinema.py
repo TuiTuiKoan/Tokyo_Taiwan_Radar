@@ -105,7 +105,7 @@ def _parse_period(period_str: str, today: datetime) -> tuple[datetime | None, da
     start_month, start_day = int(m.group(1)), int(m.group(2))
     start_year = _infer_year(start_month, today)
     try:
-        start = datetime(start_year, start_month, start_day, tzinfo=_JST)
+        start = datetime(start_year, start_month, start_day, tzinfo=timezone.utc)
     except ValueError:
         return None, None
 
@@ -113,7 +113,7 @@ def _parse_period(period_str: str, today: datetime) -> tuple[datetime | None, da
         end_month, end_day = int(m.group(3)), int(m.group(4))
         end_year = start_year if end_month >= start_month else start_year + 1
         try:
-            end = datetime(end_year, end_month, end_day, tzinfo=_JST)
+            end = datetime(end_year, end_month, end_day, tzinfo=timezone.utc)
         except ValueError:
             end = start
     else:
@@ -161,7 +161,7 @@ def _parse_schedule_first_last(schedule_str: str, today: datetime) -> tuple[date
             continue
         year = _infer_year(current_month, today)
         try:
-            dates.append(datetime(year, current_month, day, tzinfo=_JST))
+            dates.append(datetime(year, current_month, day, tzinfo=timezone.utc))
         except ValueError:
             pass
 

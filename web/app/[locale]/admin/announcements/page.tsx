@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { type Locale, type Announcement } from "@/lib/types";
 import AdminTabNav from "@/components/AdminTabNav";
 import Link from "next/link";
+import WeeklyBroadcastPanel from "@/components/WeeklyBroadcastPanel";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
@@ -44,6 +45,9 @@ export default async function AdminAnnouncementsPage({ params }: PageProps) {
 
 
       <AdminTabNav locale={locale} activeTab="announcements" />
+
+      {/* Weekly broadcast panel */}
+      <WeeklyBroadcastPanel locale={locale} />
 
       {!announcements || announcements.length === 0 ? (
         <p className="text-gray-400 text-sm">{tAnn("noAnnouncements")}</p>

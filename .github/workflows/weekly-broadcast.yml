@@ -2,9 +2,23 @@ name: Weekly LINE Broadcast
 
 on:
   schedule:
-    # Every Monday at 01:30 UTC (10:30 JST), 30 min after weekly-report
-    - cron: "30 1 * * 1"
+    # Thursday 09:00 JST (Thu 00:00 UTC) — generate weekly draft announcement
+    - cron: "0 0 * * 4"
+    # Friday 12:00 JST (Fri 03:00 UTC) — auto-send if toggle is enabled
+    - cron: "0 3 * * 5"
   workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to run"
+        required: true
+        type: choice
+        options:
+          - generate-draft
+          - auto-send
+          - dry-run
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   broadcast:
@@ -24,12 +38,40 @@ jobs:
       - name: Install dependencies
         run: pip install -r scraper/requirements.txt
 
-      - name: Run weekly broadcast
+      # Thursday: generate a draft announcement (does NOT send)
+      - name: Generate draft (Thursday 09:00 JST)
+        if: >-
+          (github.event_name == 'schedule' && github.event.schedule == '0 0 * * 4') ||
+          github.event.inputs.action == 'generate-draft'
         working-directory: scraper
         env:
-          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
-          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
-          OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
-          LINE_CHANNEL_TOKEN: "${{ secrets.LINE_CHANNEL_TOKEN }}"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
-        run: python weekly_line_broadcast.py
+        run: python weekly_line_broadcast.py --generate-draft
+
+      # Friday: send the draft if auto_publish=true in app_settings
+      - name: Auto-send if enabled (Friday 12:00 JST)
+        if: >-
+          (github.event_name == 'schedule' && github.event.schedule == '0 3 * * 5') ||
+          github.event.inputs.action == 'auto-send'
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+        run: python weekly_line_broadcast.py --auto-send
+
+      # Manual dry-run: preview content without sending
+      - name: Dry run (manual trigger)
+        if: github.event.inputs.action == 'dry-run'
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+        run: python weekly_line_broadcast.py --dry-run
+
