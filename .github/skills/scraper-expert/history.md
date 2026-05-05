@@ -3,6 +3,30 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — tsutaya_portal.py 建立 + scraper_source_name 再度漏填（第 3 件）
+
+### 問題
+`tsutaya_portal.py` 新增、`main.py` 登錄、dry-run 確認後に task_complete を呼んだが、`research_sources.scraper_source_name` が NULL のまま残った。ユーザーが管理後台を確認して発見し、手動で補完。
+
+### 根因
+同じ問題が walkerplus（2026-05-05）でも発生済みにもかかわらず、Combined Post-Build Audit が存在しなかったため（SCRAPERS 専用 audit しかなかった）、`scraper_source_name` は肉眼チェックに依存していた。
+
+### 修復
+```python
+sb.table('research_sources').update({
+    'scraper_source_name': 'tsutaya_portal',
+    'scraping_feasibility': 'easy',
+    'status': 'implemented',
+}).eq('id', 229).execute()
+```
+
+### 教訓 / 対策
+1. **Combined Post-Build Audit を新設**（SKILL.md `## ⚡ Combined Post-Build Audit`）：main.py SCRAPERS + `research_sources.scraper_source_name` を同時検査するワンコマンド。
+2. **agent.md Phase 3 Step 4 を差し替え**：SCRAPERS-only audit → Combined audit に更新。「🎉 ALL CLEAR が出るまで Phase 4 に進むな」と明記。
+3. **agent.md Phase 5 pre-commit gate 更新**：新規ソース・バグ修正とも Combined audit を必須チェックボックスに追加。
+4. **SKILL.md Promotion checklist 更新**：「auto_generate 限定」の表記を削除、すべての新規 scraper に適用と明記し、ステップ 5 を「Combined audit で ALL CLEAR 確認」に変更。
+
+---
 ## 2026-05-05 — walkerplus.py 建立 + Promotion checklist 遺漏 research_sources 登錄
 
 ### 問題

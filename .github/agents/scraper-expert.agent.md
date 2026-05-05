@@ -79,20 +79,13 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 2. Verify: `start_date` is populated, not the publish date; `category` values are canonical; no unhandled exceptions.
 3. **For `gguide_tv` events specifically**: confirm `tv_program` appears in `category`. If `movie` appears alone (without `tv_program`), the annotator's `_inject_keyword_categories` was bypassed — check that `raw_description` contains `放送:` / `ジャンル:` markers.
 4. Run `get_errors` on changed Python files.
-4. **SCRAPERS registration audit**: Run after ANY change to `main.py` — not only when adding new scrapers. Chore/refactor commits that rewrite `main.py` can silently drop existing registrations (15 scrapers were lost in commit `7aecfef`):
-   ```bash
-   cd scraper && python3 -c "
-   import re, glob
-   registered = set(re.findall(r'(\w+Scraper)\(\)', open('main.py').read()))
-   for f in glob.glob('sources/*.py'):
-       c = open(f).read()
-       m = re.search(r'class (\w+Scraper)\b', c)
-       if m and m.group(1) not in registered and m.group(1) != 'BaseScraper':
-           print('UNREGISTERED:', m.group(1), f)
-   print('Registration audit complete')
-   "
-   ```
-   Must print `Registration audit complete` with **zero UNREGISTERED lines** before proceeding.
+4. **⚡ Combined Post-Build Audit — 必須（スキップ禁止）**: Run the audit from SKILL.md `## ⚡ Combined Post-Build Audit` section. It checks BOTH:
+   - SCRAPERS registration in `main.py`
+   - `research_sources.scraper_source_name` is non-null for all `implemented` rows
+
+   **Must print `🎉 ALL CLEAR` before proceeding to Phase 4.** If any `❌` line appears, fix it immediately — do not defer to later. This audit has caught the same omission 3+ times (walkerplus, tsutaya_portal, …); it is not optional.
+
+   The audit also replaces the standalone SCRAPERS-only audit — run the combined version every time `main.py` is touched.
 5. **Run merger dry-run**: `cd scraper && python merger.py --dry-run 2>&1` — confirm any detected cross-source duplicates are intentional. New sources that report events with article-style titles (e.g. RSS feeds, press release scrapers) may match existing official events via Pass 2 (date-range + location-overlap). If a new source should participate in Pass 2 matching, add it to `_NEWS_SOURCES` in `merger.py`.
 6. Hand off to Tester for full pipeline validation.
 
@@ -130,30 +123,18 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 
 For **new sources**, verify ALL items are done:
 - [ ] `scraper/sources/<source_name>.py` exists
-- [ ] `scraper/main.py` has `import` AND `SCRAPERS` entry (run audit below)
+- [ ] `scraper/main.py` has `import` AND `SCRAPERS` entry
 - [ ] `.github/skills/sources/<source_name>/SKILL.md` created
 - [ ] `.github/skills/sources/<source_name>/history.md` created
 - [ ] `.github/skills/agents/scraper-expert/SKILL.md` has `## <source_name>-specific` section
-- [ ] Supabase `research_sources`: `status=implemented`, `scraper_source_name=<key>`
+- [ ] Supabase `research_sources`: `status=implemented`, **`scraper_source_name=<key>` (non-null)**
+- [ ] ⚡ **Combined Post-Build Audit printed `🎉 ALL CLEAR`** — this is the single gate that verifies both `main.py` registration and `scraper_source_name` simultaneously. NEVER skip.
 
 For **bug fixes**, verify:
 - [ ] `.github/skills/agents/scraper-expert/history.md` prepended
 - [ ] `.github/skills/sources/<source_name>/history.md` prepended (if source-specific)
 - [ ] `scraper-expert/SKILL.md` updated if lesson is universal
-
-Run SCRAPERS audit (zero UNREGISTERED lines required):
-```bash
-cd scraper && python3 -c "
-import re, glob
-registered = set(re.findall(r'(\w+Scraper)\(\)', open('main.py').read()))
-for f in glob.glob('sources/*.py'):
-    c = open(f).read()
-    m = re.search(r'class (\w+Scraper)\b', c)
-    if m and m.group(1) not in registered and m.group(1) != 'BaseScraper':
-        print('UNREGISTERED:', m.group(1), f)
-print('Audit OK')
-"
-```
+- [ ] ⚡ **Combined Post-Build Audit printed `🎉 ALL CLEAR`** (even bug fixes can accidentally unregister scrapers)
 
 1. Stage files (exclude temp scripts like `scan_loc.py`, `fix_*.py`, `.copilot-tracking/`).
    - New source: `scraper/sources/<source_name>.py`, `scraper/main.py`, `.github/skills/sources/<source_name>/`, `.github/skills/agents/scraper-expert/history.md`, `.github/skills/agents/scraper-expert/SKILL.md`

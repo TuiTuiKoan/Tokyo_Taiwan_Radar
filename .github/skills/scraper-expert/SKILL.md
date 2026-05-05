@@ -35,12 +35,12 @@ Read this at the start of every session before writing any scraper.
   2. Remove `ScrapeClass()` from `SCRAPERS` in `main.py`
   3. Hard delete existing DB records: `sb.table('events').delete().eq('source_name', '<source_name>').execute()`
   All 3 steps must happen in the same session. Missing step 3 leaves stale data visible in production.
-- **Promotion checklist (auto_generate → implemented)**: When promoting an auto-generated scraper, these 5 steps must ALL be completed:
-  1. PR merged — `scraper/sources/<name>.py` exists in repo.
-  2. `scraper/main.py` — import + `SCRAPERS` registration confirmed.
-  3. `research_sources` row — `status = 'implemented'`.
-  4. **`research_sources.scraper_source_name = '<scraper key>'`** — MUST be filled manually; `auto_generate` does NOT write this. Omitting it causes `/admin/sources` to show 0 events and disables Run Scraper (backend JOINs `scraper_runs` by this key).
-  5. Smoke-test: `python main.py --dry-run --source <key>` returns events.
+- **Promotion checklist (新規スクレイパー完成時 — auto_generate 問わず全件適用)**: 新しい scraper ファイルを作成した時点で、以下 5 ステップを **同一 session** で完了すること。ファイル作成 ≠ 完成。
+  1. `scraper/sources/<name>.py` 作成・dry-run 確認済み。
+  2. `scraper/main.py` — import + `SCRAPERS` 登録済み（下記 SCRAPERS audit で確認）。
+  3. `research_sources` row — `status = 'implemented'`。
+  4. **`research_sources.scraper_source_name = '<scraper key>'`** — 手動で必ず入力。`auto_generate` も Researcher も書かない。省略すると `/admin/sources` のイベント数が 0 になり、「今すぐ実行」ボタンも非表示になる（backend が `scraper_runs` を source_name で JOIN するため）。
+  5. 下記 **Combined Post-Build Audit** を実行し ALL CLEAR を確認。
   - **⚠ 必須在同一個 session で全 5 ステップを完了すること。** 途中で session を切ると研究状態が中断し、`research_sources` 未登録のまま scraper が CI に入る。
   - **`update_source.py` は `researched`/`not-viable` のみ対応。** `implemented` ステータスは `update_source.py` で設定できない — Supabase SDK で直接 upsert する必要がある:
     ```python
@@ -53,6 +53,61 @@ Read this at the start of every session before writing any scraper.
         "agent_category": "event_listing",
     }, on_conflict="url").execute()
     ```
+
+## ⚡ Combined Post-Build Audit — 新規 scraper 完成後に必ず実行
+
+**新しい scraper ファイルを作成・編集するたびに、task_complete 前に必ずこのコマンドを実行し、両方 ALL CLEAR を確認すること。**
+
+```bash
+cd scraper && python3 -W ignore - << 'AUDIT'
+import re, glob, os, sys
+from dotenv import load_dotenv; load_dotenv('.env')
+from supabase import create_client
+
+errors = []
+
+# ── 1. SCRAPERS registration audit ──────────────────────────────────────────
+registered = set(re.findall(r'(\w+Scraper)\(\)', open('main.py').read()))
+for f in glob.glob('sources/*.py'):
+    c = open(f).read()
+    m = re.search(r'class (\w+Scraper)\b', c)
+    if m and m.group(1) not in registered and m.group(1) != 'BaseScraper':
+        errors.append(f'❌ UNREGISTERED in main.py: {m.group(1)} ({f})')
+if not any('UNREGISTERED' in e for e in errors):
+    print('✅ SCRAPERS: all registered')
+
+# ── 2. research_sources.scraper_source_name audit ───────────────────────────
+sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+rows = sb.table('research_sources').select('name,scraper_source_name,status').eq('status','implemented').execute().data
+missing = [r for r in rows if not r['scraper_source_name']]
+if missing:
+    for r in missing:
+        errors.append(f'❌ scraper_source_name NULL: "{r["name"]}" (status=implemented)')
+else:
+    print('✅ research_sources: all implemented rows have scraper_source_name')
+
+# ── Result ───────────────────────────────────────────────────────────────────
+if errors:
+    for e in errors:
+        print(e)
+    sys.exit(1)
+else:
+    print('🎉 ALL CLEAR — safe to commit')
+AUDIT
+```
+
+**出力例（正常）:**
+```
+✅ SCRAPERS: all registered
+✅ research_sources: all implemented rows have scraper_source_name
+🎉 ALL CLEAR — safe to commit
+```
+
+**エラー例（未対応時）:**
+```
+❌ UNREGISTERED in main.py: TsutayaPortalScraper (sources/tsutaya_portal.py)
+❌ scraper_source_name NULL: "蔦屋書店ポータル（台湾キーワード横断検索）" (status=implemented)
+```
 - **`meta.json` に `source_name` / `class_name` がない場合は `generated.py` 先頭を直接確認する**: `auto_scraper/runs/{id}/meta.json` に `source_name` が含まれていない場合がある。その場合は `auto_scraper/runs/{id}/generated.py` の先頭数行を読んで `class XxxScraper(BaseScraper):` を探す。クラス名から `source_name` は snake_case 変換で導ける（`BookAndBeerScraper` → `bookandbeer`）。
 - **auto-scraper feature branch は生成後 24 時間以内にマージする**: `SCRAPERS` リストは全員が同じ行/ブロックを編集するため、放置するほど conflict が深刻化。長期放置 → 複数の scraper 追加コミットが main に積まれ → マージ時に手動解決が必要になる（commit `7cedc68` の Artist Cafe 衝突事例）。
 - **Identify source_name from a problem event**: Never guess from the event title — always query the DB:
