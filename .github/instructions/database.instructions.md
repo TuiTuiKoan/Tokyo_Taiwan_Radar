@@ -8,7 +8,7 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `042_quota_snapshots.sql`
+- Number migrations sequentially: `001`, `002`, … Latest is `043_weekly_broadcast.sql`
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped; `029_aeo_visits.sql` + `029b_realtime_events.sql`; `038_performer.sql` + `038b_field_corrections.sql`
 
@@ -79,6 +79,9 @@ Unique constraint: `(source_name, source_id)`
 - `selection_reason_corrections` — admin-corrected `selection_reason` records: `event_id` unique; `raw_title`, `raw_description` (for few-shot context); `ai_sr` jsonb, `corrected_sr` jsonb; annotator reads at startup via `selection_reason_feedback.py` for few-shot injection
 - `source_exclusions` — admin-defined pattern rules for blocking irrelevant events before upsert: `source_name`, `pattern`, `pattern_type` (substring/regex), `match_field`, `is_active`; admin-only RLS
 - `source_exclusion_hits` — per-event hit log for exclusion rule matches: `rule_id` FK→source_exclusions, `raw_title`, `source_name`, `matched_at`; 30-day rolling window; service role INSERT (no RLS policy needed); admin-only SELECT
+- `announcements` — social/LINE post drafts: `slug` (UNIQUE), `type` (`'manual'` | `'weekly_broadcast'`), `title_*/body_*/image_*` (trilingual), `published_at` (null=draft, future=scheduled, past=published), `social_status` jsonb, `is_featured`; admin-only write RLS
+- `announcement_events` — `(announcement_id, event_id)` junction linking announcements to events
+- `app_settings` — global key-value config: `key` text PK, `value` jsonb; admin-only RLS; seeded with `weekly_broadcast: {auto_publish: false}`
 
 ## RLS policies
 
