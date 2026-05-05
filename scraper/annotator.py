@@ -352,6 +352,7 @@ CRITICAL DATE EXTRACTION RULES:
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
    ALSO: if the description lists 3+ distinct venue locations in **different cities/prefectures** each with a specific address (e.g., a food fair with restaurants across Tokyo, Kyoto, and Osaka), list each venue as a sub-event with its own location_name, location_address, and business_hours; use the same start_date/end_date as the parent.
+   EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
 2. Categories must be from this list: movie, performing_arts, senses, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, art, lecture, taiwan_japan, scholarship, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, exhibition, taiwan_mandarin, healthcare, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
    - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
@@ -1342,6 +1343,25 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             # Never create grandchild events: if this event is itself a sub-event
             # (has parent_event_id), skip sub-event creation entirely.
             if event.get("parent_event_id"):
+                sub_events = []
+            # Defense-in-depth guard for the first-run race condition:
+            # When a cinema series page is scraped for the first time, the parent
+            # event isn't in DB yet, so _get_parent_uuid returns None and film-index
+            # sub-events (e.g. ks_cinema_slug_2) get parent_event_id=None.
+            # Without this guard the annotator would create _sub1 for each show-time
+            # period in the schedule.  We detect this by checking if source_id ends
+            # in _{digit} with a cinema-source prefix — those are always series sub-films,
+            # not top-level events that legitimately spawn sub-events.
+            import re as _re
+            _cinema_sources = {"ks_cinema"}
+            if (event.get("source_name") in _cinema_sources
+                    and _re.search(r"_\d+$", event.get("source_id", ""))
+                    and not event.get("parent_event_id")):
+                logger.debug(
+                    "  ⚑ Skipping sub_events for cinema series film sub-event %s "
+                    "(parent_event_id not yet set — first-run race condition)",
+                    event.get("source_id"),
+                )
                 sub_events = []
             # Pre-fetch existing sub-events to preserve name_ja on re-annotation
             # (same preservation policy as parent events — GPT may rewrite katakana to kanji).

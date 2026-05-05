@@ -395,6 +395,25 @@ grep -n "_title_from_raw\|skipping enrich for news sub-event" scraper/annotator.
 
 Reference incident: 2026-05-05 — `d18339d5` (`gnews_f9a2e51bc89a_sub3`) raw_desc 只有 1 句話，GPT 幻覺 `name_ja = "赤い糸 輪廻のひみつ"`（月老），應為チップ・オデッセイ（造山者）場次。無 bracket → `enrich_movie_titles` 未鎖定，但 GPT 直接寫入 DB（annotation_status=annotated）且人工修正前無法自動偵測。
 
+## Cinema Series Sub-Event Sub_Events Guard
+
+在審核任何涉及 ks_cinema（或其他系列頁電影場館來源）的 annotator 計畫，或分析同一電影出現多筆事件的問題前，**必須**確認：
+
+1. **Annotator sub_events 規則有電影時段豁免**：SYSTEM_PROMPT Rule 1 必須有明確 EXCEPTION 說明「電影類別的單一放映若只有多個時段（如 `4/25～5/1 10:00、5/2～8 14:40`），不建立 sub_events；改用 start_date=首日、end_date=尾日，時段細節放 business_hours」。
+2. **程式碼守衛存在**：annotator.py 中 `_cinema_sources = {"ks_cinema"}`，若 `source_name in _cinema_sources AND source_id ends in _{digit} AND parent_event_id=None` → `sub_events = []`（防止首次 race condition）。
+3. **Race condition 已知**：ks_cinema 系列頁 sub-events（`_0`, `_1`, `_2`）在 scraper 首次執行時 `_get_parent_uuid` 查不到 parent（尚未 commit）→ `parent_event_id=None`。這是已知的架構限制；現有守衛已防止 annotator 誤生成 `_sub1`。
+4. **`_sub1` 不會被 merger 消除**：同 source 的事件（ks_cinema → ks_cinema）被 Pass 1 `source_name == source_name` 跳過。若 DB 已有殘留 `_sub1`，需人工 `deactivated_by_pass=admin_manual`。
+
+**Quick Check（出現重複電影事件時）**：
+```python
+# Check if _sub1 events exist for the film
+r = sb.table("events").select("id,source_id,is_active,parent_event_id").ilike("source_id", "%_sub1%").eq("source_name","ks_cinema").execute()
+# Deactivate if found
+sb.table("events").update({"is_active": False, "deactivated_by_pass": "admin_manual"}).in_("source_id", [e["source_id"] for e in r.data if e["is_active"]]).execute()
+```
+
+Reference incident: 2026-05-06 — `車頂上的玄天上帝`（ks_cinema `taiwan-filmake_2_sub1`）因 SYSTEM_PROMPT 多時段規則 + race condition 生成 `_sub1`，出現 4 筆重複（其中 2 筆已被 merger 停用）。修復：停用 `_sub1`、SYSTEM_PROMPT 加豁免規則、annotator.py 加程式碼守衛。
+
 ## Performer Null Guard（annotator.py 三層 fallback 守則）
 
 在審核任何涉及 `performer` 欄位的計畫，或分析 `performer = NULL` 案例時，**必須**確認 annotator.py 是否正確執行三層 fallback：

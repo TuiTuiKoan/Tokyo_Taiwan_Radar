@@ -3,6 +3,25 @@
 <!-- Append new entries at the top -->
 
 ---
+### 2026-05-06 — Annotator 誤生成 cinema 時段 sub_events（_sub1 重複事件）
+
+**問題**：ks_cinema 的 `taiwan-filmake` 系列頁面出現 4 筆相同電影（車頂上的玄天上帝）事件，其中 2 筆是 annotator 誤生成的時段 sub_events（`_2_sub1`, `_0_sub1`）。
+
+**根因（兩層）**：
+1. **scraper 首次執行 race condition**：ks_cinema 建立系列 sub-events（`_0`, `_1`, `_2`）時，`_get_parent_uuid` 查 DB 找不到 parent（同一批 upsert 尚未 commit），parent_event_id = None。
+2. **annotator sub_events 規則過寬**：annotator SYSTEM_PROMPT 規則「multiple dates → sub_events」觸發：`parent_event_id = None` → 守衛不阻擋 → GPT 看到排片有兩個時間段（`4/25～5/1 10:00、5/2～8 14:40`）→ 生成 `_sub1`（start=5/2）作為獨立事件。
+
+**修法（2026-05-06）**：
+1. DB：停用 `ks_cinema_taiwan-filmake_2_sub1` 和 `_0_sub1`（deactivated_by_pass=admin_manual）
+2. `annotator.py` SYSTEM_PROMPT：Rule 1 加 EXCEPTION — 電影類別的單一放映時段不建立 sub_events，改用 start_date=首日、end_date=尾日、多時段細節放 business_hours
+3. `annotator.py` 程式碼守衛：`source_name in _cinema_sources AND source_id ends in _{digit} AND parent_event_id=None` → `sub_events = []`（防止首次 race condition 下的誤生成）
+
+**教訓**：
+- **cinema series sub-events 的 parent_event_id 首次執行時一定是 None**：因為 parent 在同一批 upsert，scraper 階段查不到。必須在 annotator 層做防護。
+- **電影放映時段 ≠ sub_events**：`4/25 10:00, 5/2 14:40` 是同一部片的不同場次，不是兩個獨立活動。SYSTEM_PROMPT 的 "multiple dates" 規則需明確豁免。
+- **`_sub1` 不會被 merger 消除**：同 source（ks_cinema），merger Pass 1 跳過。必須靠 annotator 層守衛或人工停用。
+
+---
 ### 2026-05-06 — gnews 舊事件年份幻覺（0d33b617：start_date 2024-04-01 → 2026-04-12）
 
 **問題**：事件 `0d33b617`（gnews 熊本 KAB 台灣半導體上映文章）的 start_date 顯示為 2024-04-01（2 年前），實際上映日期為 2026-04-12。
