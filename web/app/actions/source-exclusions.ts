@@ -16,6 +16,9 @@ export interface SourceExclusionRow {
   match_count: number;
   hits_30d: number;
   sample_title: string | null;
+  expires_at: string | null;
+  auto_disabled_at: string | null;
+  auto_disabled_reason: string | null;
 }
 
 type AdminAuth =
@@ -88,6 +91,7 @@ export async function createExclusion(input: {
   pattern_type?: "substring" | "regex";
   match_field?: "raw_title" | "raw_description" | "raw_title_or_description";
   reason?: string;
+  expires_at?: string | null;
 }): Promise<{ ok: boolean; id?: string; error?: string }> {
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
@@ -109,16 +113,19 @@ export async function createExclusion(input: {
     }
   }
 
+  const insertRow: Record<string, unknown> = {
+    source_name: sourceName,
+    pattern,
+    pattern_type: patternType,
+    match_field: matchField,
+    reason: input.reason?.trim() || null,
+    created_by: auth.userId,
+  };
+  if (input.expires_at) insertRow.expires_at = input.expires_at;
+
   const { data, error } = await auth.supabase
     .from("source_exclusions")
-    .insert({
-      source_name: sourceName,
-      pattern,
-      pattern_type: patternType,
-      match_field: matchField,
-      reason: input.reason?.trim() || null,
-      created_by: auth.userId,
-    })
+    .insert(insertRow)
     .select("id")
     .single();
 
@@ -150,6 +157,20 @@ export async function deleteExclusion(input: {
   const { error } = await auth.supabase
     .from("source_exclusions")
     .delete()
+    .eq("id", input.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/[locale]/admin/exclusions", "page");
+  return { ok: true };
+}
+
+export async function reEnableExclusion(input: {
+  id: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { error } = await auth.supabase
+    .from("source_exclusions")
+    .update({ auto_disabled_at: null, auto_disabled_reason: null, is_active: true })
     .eq("id", input.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/[locale]/admin/exclusions", "page");

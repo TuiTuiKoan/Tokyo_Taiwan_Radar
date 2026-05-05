@@ -8,7 +8,7 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `043_weekly_broadcast.sql`
+- Number migrations sequentially: `001`, `002`, … Latest is `045_source_exclusions_ttl.sql` (number `044` is reserved for future corrections work — skip to `046` for the next new migration)
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped; `029_aeo_visits.sql` + `029b_realtime_events.sql`; `038_performer.sql` + `038b_field_corrections.sql`
 
@@ -77,7 +77,7 @@ Unique constraint: `(source_name, source_id)`
 - `line_subscribers` — LINE OA subscribers: `line_user_id`, `status` (`active`/`blocked`), `language_preference`, `category_preferences text[]`; service-role-only RLS (migration 022)
 - `field_corrections` — admin-corrected field values: `(event_id, field_name)` unique; `original_value`, `corrected_value`, `corrected_by`, `report_id` (FK→event_reports, nullable); annotator reads at startup and never overwrites protected fields
 - `selection_reason_corrections` — admin-corrected `selection_reason` records: `event_id` unique; `raw_title`, `raw_description` (for few-shot context); `ai_sr` jsonb, `corrected_sr` jsonb; annotator reads at startup via `selection_reason_feedback.py` for few-shot injection
-- `source_exclusions` — admin-defined pattern rules for blocking irrelevant events before upsert: `source_name`, `pattern`, `pattern_type` (substring/regex), `match_field`, `is_active`; admin-only RLS
+- `source_exclusions` — admin-defined pattern rules for blocking irrelevant events before upsert: `source_name`, `pattern`, `pattern_type` (substring/regex), `match_field`, `is_active`, `expires_at` (NULL = permanent), `auto_disabled_at`, `auto_disabled_reason` (`expired` | `stale_no_hits`); admin-only RLS. View `source_exclusions_effective` exposes only currently-in-force rules (active, not auto-disabled, not expired); daily CI job `exclusions_maintenance.py` flips `auto_disabled_at` for expired or 90-day-stale rules.
 - `source_exclusion_hits` — per-event hit log for exclusion rule matches: `rule_id` FK→source_exclusions, `raw_title`, `source_name`, `matched_at`; 30-day rolling window; service role INSERT (no RLS policy needed); admin-only SELECT
 - `announcements` — social/LINE post drafts: `slug` (UNIQUE), `type` (`'manual'` | `'weekly_broadcast'`), `title_*/body_*/image_*` (trilingual), `published_at` (null=draft, future=scheduled, past=published), `social_status` jsonb, `is_featured`; admin-only write RLS
 - `announcement_events` — `(announcement_id, event_id)` junction linking announcements to events
@@ -98,7 +98,7 @@ Unique constraint: `(source_name, source_id)`
 
 ## Migration checklist
 
-1. Number the file `NNN_descriptive_name.sql` (next = `042`)
+1. Number the file `NNN_descriptive_name.sql` (next = `046`)
 2. Use `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE … ADD COLUMN IF NOT EXISTS`
 3. Add RLS with `ALTER TABLE … ENABLE ROW LEVEL SECURITY` + policies
 4. Test in Supabase SQL Editor before committing

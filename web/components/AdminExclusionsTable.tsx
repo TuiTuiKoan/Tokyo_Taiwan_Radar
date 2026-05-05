@@ -7,6 +7,7 @@ import {
   createExclusion,
   toggleExclusion,
   deleteExclusion,
+  reEnableExclusion,
   type SourceExclusionRow,
 } from "@/app/actions/source-exclusions";
 import { type Locale } from "@/lib/types";
@@ -18,6 +19,7 @@ interface Props {
 }
 
 type MatchField = "raw_title" | "raw_description" | "raw_title_or_description";
+type Ttl = "permanent" | "30" | "90" | "365";
 
 // Subscribe to a 60s tick so relative-time labels stay roughly fresh.
 // useSyncExternalStore is React's canonical pattern for client-only values
@@ -47,6 +49,7 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
     pattern_type: "substring" as "substring" | "regex",
     match_field: "raw_title" as MatchField,
     reason: "",
+    ttl: "permanent" as Ttl,
   }));
 
   // Now timestamp captured client-side; 0 on server (avoids hydration mismatch).
@@ -59,7 +62,19 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const result = await createExclusion(form);
+    let expires_at: string | null = null;
+    if (form.ttl !== "permanent") {
+      const days = parseInt(form.ttl, 10);
+      expires_at = new Date(Date.now() + days * 86400_000).toISOString();
+    }
+    const result = await createExclusion({
+      source_name: form.source_name,
+      pattern: form.pattern,
+      pattern_type: form.pattern_type,
+      match_field: form.match_field,
+      reason: form.reason,
+      expires_at,
+    });
     if (!result.ok) {
       setError(result.error ?? "failed");
       return;
@@ -70,6 +85,7 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
       pattern_type: "substring",
       match_field: "raw_title",
       reason: "",
+      ttl: "permanent",
     });
     startTransition(() => router.refresh());
   }
@@ -77,6 +93,13 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
   async function onToggle(row: SourceExclusionRow) {
     setBusyId(row.id);
     await toggleExclusion({ id: row.id, is_active: !row.is_active });
+    setBusyId(null);
+    startTransition(() => router.refresh());
+  }
+
+  async function onReEnable(row: SourceExclusionRow) {
+    setBusyId(row.id);
+    await reEnableExclusion({ id: row.id });
     setBusyId(null);
     startTransition(() => router.refresh());
   }
@@ -182,6 +205,21 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
               <option value="raw_title_or_description">raw_title_or_description</option>
             </select>
           </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">
+              {t("exclusionsTtlLabel")}
+            </label>
+            <select
+              className="w-full border rounded px-2 py-1 text-sm"
+              value={form.ttl}
+              onChange={(e) => setForm({ ...form, ttl: e.target.value as Ttl })}
+            >
+              <option value="permanent">{t("exclusionsTtlPermanent")}</option>
+              <option value="30">{t("exclusionsTtlDays", { days: 30 })}</option>
+              <option value="90">{t("exclusionsTtlDays", { days: 90 })}</option>
+              <option value="365">{t("exclusionsTtlDays", { days: 365 })}</option>
+            </select>
+          </div>
         </div>
         <div>
           <label className="block text-xs text-gray-600 mb-1">
@@ -221,15 +259,44 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
                 <th className="px-3 py-2 text-left">{t("exclusionsSampleTitle")}</th>
                 <th className="px-3 py-2 text-right">{t("exclusionsLifetimeHits")}</th>
                 <th className="px-3 py-2 text-center">{t("exclusionsLastMatched")}</th>
+                <th className="px-3 py-2 text-center">{t("exclusionsStatusCol")}</th>
                 <th className="px-3 py-2 text-center">{t("exclusionsActiveToggle")}</th>
                 <th className="px-3 py-2 text-center">—</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.map((r) => {
+                const autoDisabled = r.auto_disabled_at !== null;
+                let statusBadge: React.ReactNode;
+                if (autoDisabled) {
+                  const reasonKey =
+                    r.auto_disabled_reason === "expired"
+                      ? "exclusionsStatusExpired"
+                      : "exclusionsStatusStale";
+                  statusBadge = (
+                    <span className="text-xs text-red-600">🔴 {t(reasonKey)}</span>
+                  );
+                } else if (
+                  r.expires_at &&
+                  nowMs > 0 &&
+                  new Date(r.expires_at).getTime() - nowMs <= 7 * 86400_000
+                ) {
+                  statusBadge = (
+                    <span className="text-xs text-amber-600">
+                      🟡 {t("exclusionsStatusExpiring")}
+                    </span>
+                  );
+                } else {
+                  statusBadge = (
+                    <span className="text-xs text-green-600">
+                      🟢 {t("exclusionsStatusActive")}
+                    </span>
+                  );
+                }
+                return (
                 <tr
                   key={r.id}
-                  className={`border-t ${!r.is_active ? "opacity-50" : ""}`}
+                  className={`border-t ${!r.is_active || autoDisabled ? "opacity-50" : ""}`}
                 >
                   <td className="px-3 py-2">{r.source_name}</td>
                   <td className="px-3 py-2 font-mono text-xs">{r.pattern}</td>
@@ -256,18 +323,29 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
                   <td className="px-3 py-2 text-center text-xs text-gray-500">
                     {fmtRel(r.last_matched_at)}
                   </td>
+                  <td className="px-3 py-2 text-center">{statusBadge}</td>
                   <td className="px-3 py-2 text-center">
-                    <button
-                      disabled={busyId === r.id}
-                      onClick={() => onToggle(r)}
-                      className={`text-xs px-2 py-0.5 rounded ${
-                        r.is_active
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-500"
-                      }`}
-                    >
-                      {r.is_active ? "ON" : "OFF"}
-                    </button>
+                    {autoDisabled ? (
+                      <button
+                        disabled={busyId === r.id}
+                        onClick={() => onReEnable(r)}
+                        className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                      >
+                        {t("exclusionsReEnable")}
+                      </button>
+                    ) : (
+                      <button
+                        disabled={busyId === r.id}
+                        onClick={() => onToggle(r)}
+                        className={`text-xs px-2 py-0.5 rounded ${
+                          r.is_active
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {r.is_active ? "ON" : "OFF"}
+                      </button>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-center">
                     <button
@@ -279,7 +357,8 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

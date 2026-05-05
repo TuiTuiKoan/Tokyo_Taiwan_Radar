@@ -276,4 +276,7 @@ export interface SourceExclusion {
   created_at: string;
   last_matched_at: string | null;
   match_count: number;
+  expires_at: string | null;
+  auto_disabled_at: string | null;
+  auto_disabled_reason: string | null;
 }

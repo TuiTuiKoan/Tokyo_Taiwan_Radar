@@ -32,13 +32,23 @@ def load_exclusions(sb, source_names: list[str]) -> dict[str, list[dict]]:
     try:
         resp = (
             sb.table("source_exclusions")
-            .select("id,source_name,pattern,pattern_type,match_field")
+            .select("id,source_name,pattern,pattern_type,match_field,expires_at,auto_disabled_at")
             .in_("source_name", source_names)
             .eq("is_active", True)
+            .is_("auto_disabled_at", "null")
             .execute()
         )
+        now_dt = datetime.now(tz=UTC)
         rules: dict[str, list[dict]] = {}
         for row in resp.data or []:
+            expires_at = row.get("expires_at")
+            if expires_at:
+                try:
+                    exp_dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                    if exp_dt <= now_dt:
+                        continue
+                except ValueError:
+                    pass
             rules.setdefault(row["source_name"], []).append(row)
         return rules
     except Exception as exc:
