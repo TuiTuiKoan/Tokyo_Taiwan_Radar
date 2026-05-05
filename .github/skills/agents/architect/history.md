@@ -3,6 +3,44 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — Admin UI 後台隱藏欄位未暴露 + Component prop 缺漏（tEventForm）
+
+### 問題
+後台編輯表單完全沒有顯示 `organizer`、`organizer_url`、`event_form`、`co_organizers`、`sponsors`、`primary_language`、`has_*_support` 等欄位，雖然 DB 有值、annotator 會寫，但管理員無從修正。
+另外，`AdminEventTable` 已有 `tEventForm = useTranslations("eventForm")`，但呼叫 `AdminEventForm` 時忘記傳入 `tEventForm` prop，TypeScript 未報錯（prop 有 fallback 導致靜默失敗）。
+
+### 根因
+1. **「新增 DB 欄位 ≠ 後台同步暴露」沒有系統性守則**：欄位增刪流程只關注 DB migration + annotator，後台 form 的對齊沒有寫進 checklist。
+2. **Prop 新增後未掃描所有 usage site**：新增 `tEventForm` prop 到 `AdminEventForm` 時，沒有 grep 所有使用該 component 的地方確認是否都已傳入。
+
+### 修復（commit `30999ea`）
+- `AdminEventForm.tsx`：新增所有隱藏欄位（performer 改三語 i18n、organizer、organizer_url、event_form 多選、co_organizers、sponsors、primary_language、has_*_support）
+- `AdminEditClient.tsx`：TRACKED_FIELDS 加入 organizer / organizer_url；陣列/布林欄位變更也觸發 `annotation_status → reviewed`
+- `AdminEventTable.tsx`：annotated 清單視圖新增 🏢 organizer 與 event_form 標籤行
+- `web/messages/{ja,zh,en}.json`：新增 admin namespace 的 10 個 keys
+
+### 教訓
+1. **後台暴露守則**：新增 DB 欄位後，必須同時確認後台 form 是否已暴露。否則管理員無法修正 AI 填錯的值。
+2. **Prop completeness 守則**：新增 shared form component 的 prop 時，必須 grep 所有 usage site（`grep AdminEventForm`），確認每處都已傳入。TypeScript 若 prop 有 fallback 不會報錯，靜默失敗難以發現。
+3. **陣列欄位 form pattern**：`co_organizers`/`sponsors` 等 DB `string[]` 欄位，在 form 用 comma-separated string 雙向轉換：save 時 `split(',').map(s=>s.trim()).filter(Boolean)` → 回寫陣列。適合少量陣列欄位。
+
+---
+## 2026-05-05 — DB 修正事件 4427f965（organizer 錯值 + 缺鎖）
+
+### 問題
+event `4427f965` 的 organizer 被 annotator 填入錯誤值 `セシリアママ`（場地名而非主辦方），應為 `里山文庫`。
+
+### 根因
+annotator 從 raw_description 的場地上下文誤判 organizer，且 `_lock_fields_via_corrections` 未對 organizer 欄位鎖定，導致下次 re-annotation 會再次覆寫。
+
+### 修復
+直接 DB UPDATE `organizer='里山文庫'` 並呼叫 `_lock_fields_via_corrections(sb, eid, {"organizer": "里山文庫"})` 鎖定。
+
+### 教訓
+- 手動修正 organizer/venue 等結構欄位，同樣需要 `_lock_fields_via_corrections` 保護（不只翻譯欄位）。
+- 任何透過 admin UI 修正的欄位，應在 `AdminEditClient.tsx` 的 TRACKED_FIELDS 中列入，觸發 `annotation_status → reviewed` 作為保護信號。
+
+---
 ## 2026-05-05 — Promotion checklist 遺漏：新規 scraper の `research_sources` 登錄が抜けた
 
 ### 問題

@@ -66,6 +66,25 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan
 
 Reference incident: 2026-05-05 — event `f970e4e3`（月老）多次被修又被 AI 覆寫；今日同步補入 `field_corrections` 鎖定四個翻譯欄位後免疫。
 
+## Admin Form Component Prop Completeness Guard
+
+在任何包含「新增 prop 到 shared form component」或「後台新增欄位」的計畫前，**必須**確認：
+
+1. **Grep 所有 usage site**：新增 prop 後執行 `grep -r "AdminEventForm\|<ComponentName" web/components/ web/app/` 找出所有呼叫點，逐一確認新 prop 是否已傳入。TypeScript 若 prop 有 fallback default 不會報錯，**靜默失敗**難以發現。
+2. **後台 form 必須暴露 DB 所有可人工修正的欄位**：新增 DB column 後，同步在 `AdminEventForm.tsx` 增加對應 input，否則管理員無法覆寫 AI 填錯的值。清單：
+   - 翻譯欄位：`name_*`、`description_*`、`selection_reason`
+   - 結構欄位：`organizer`、`organizer_url`、`event_form`、`co_organizers`、`sponsors`
+   - 語言支援：`primary_language`、`has_japanese_support`、`has_english_support`、`has_chinese_support`
+   - performer（三語 i18n）
+3. **TRACKED_FIELDS 必須包含新欄位**：若欄位需觸發 `annotation_status → reviewed`，`AdminEditClient.tsx` 的 `TRACKED_FIELDS` 必須加入。陣列（`string[]`）與布林值欄位需特別確認比對邏輯（不能用 `===`，需深比對）。
+4. **陣列欄位雙向轉換 pattern**：DB `string[]` 欄位在 form 用 comma-separated string 表示；save 時轉換：
+   ```ts
+   value.split(',').map(s => s.trim()).filter(Boolean)
+   ```
+   讀取時轉換：`(arr ?? []).join(', ')`
+
+Reference incident: 2026-05-05 — `AdminEventForm` 新增 `tEventForm` prop 後，`AdminEventTable` 呼叫時忘記傳入，TypeScript 無錯誤（commit `30999ea` 補齊）；同次 commit 補齊 organizer、event_form 等 8 個後台隱藏欄位。
+
 ## Database Safety Rules
 
 - **NEVER batch-set `is_active = False` based on `end_date < today`**. Past events must remain `is_active = True` so users can view event history. Visibility for ended events is controlled by the frontend `FilterBar` ("顯示已結束活動" toggle), not by `is_active`.
