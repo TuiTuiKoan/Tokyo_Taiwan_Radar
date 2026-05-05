@@ -1537,9 +1537,17 @@ def enrich_movie_titles() -> None:
             continue
 
         name_zh, name_en = lookup_movie_titles(title)
+
+        # Fallback: check works table for canonical titles
         if not name_zh and not name_en:
-            # Surface the lookup failure — without this WARN, transient
-            # eiga.com hiccups silently leave wrong GPT translations in DB.
+            w_res = sb.table("works").select("title_zh,title_en").eq("title_ja", title).limit(1).execute()
+            if w_res.data:
+                name_zh = name_zh or w_res.data[0].get("title_zh")
+                name_en = name_en or w_res.data[0].get("title_en")
+                if name_zh or name_en:
+                    logger.info("  works fallback for %r → zh=%r en=%r", title, name_zh, name_en)
+
+        if not name_zh and not name_en:
             logger.warning(
                 "  ⚠ eiga.com lookup returned no titles for movie event %s/%s [%s]",
                 source, event["id"][:8], title[:60],
@@ -2008,6 +2016,16 @@ def post_batch_enrich(event_ids: list[str], *, dry_run: bool = False) -> dict:
             continue
 
         name_zh, name_en = lookup_movie_titles(title)
+
+        # Fallback: check works table for canonical titles
+        if not name_zh and not name_en:
+            w_res = sb.table("works").select("title_zh,title_en").eq("title_ja", title).limit(1).execute()
+            if w_res.data:
+                name_zh = name_zh or w_res.data[0].get("title_zh")
+                name_en = name_en or w_res.data[0].get("title_en")
+                if name_zh or name_en:
+                    logger.info("  works fallback for %r → zh=%r en=%r", title, name_zh, name_en)
+
         if not name_zh and not name_en:
             logger.warning("  ⚠ eiga.com lookup returned nothing for %s [%s]", event["id"][:8], title[:40])
             continue
