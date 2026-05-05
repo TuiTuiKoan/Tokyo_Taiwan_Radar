@@ -254,7 +254,6 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                       {_locale === "en" ? (PREFECTURE_LABELS_EN[p] ?? p) : p}
                     </option>
                   ))}
-                  <option value={CITY_OTHER}>{t("cityOther")}</option>
                 </select>
               </div>
             );

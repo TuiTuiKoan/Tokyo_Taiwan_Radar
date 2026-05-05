@@ -723,7 +723,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       {locale === "en" ? (PREFECTURE_LABELS_EN[p] ?? p) : p}
                     </option>
                   ))}
-                  <option value={CITY_OTHER}>{tFilters("cityOther")}</option>
                 </select>
               </div>
             );
