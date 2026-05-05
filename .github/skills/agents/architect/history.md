@@ -3,6 +3,65 @@
 <!-- Append new entries at the top -->
 
 ---
+### 2026-05-05 — Ghost category prevention：annotator VALID_CATEGORIES desync + category_corrections bypass
+
+**問題**：`annotator.py` 的 `VALID_CATEGORIES` 只有 22 條目，但 `web/lib/types.ts` 有 33 個 `Category`。re-annotation 時 `_validate_categories()` 靜默剝離不在 `VALID_CATEGORIES` 中的分類，預設回退為 `["senses"]`。`category_corrections` 表中 10 筆記錄含無效分類 `culture`，也未經驗證直接套用。36 筆事件面臨分類靜默遺失風險。
+
+**三層漏洞**：
+1. VALID_CATEGORIES 靜態 desync — 無機制偵測 annotator.py 與 types.ts 的漂移
+2. category_corrections bypass — 人工校正載入後未驗證是否屬於 VALID_CATEGORIES
+3. `_protect` flag 盲區 — P0 欄位保護標記不涵蓋 `category`（走 `_validate_categories()` 獨立路徑）
+
+**修復**：
+1. `_check_category_sync()` 啟動守衛：annotator.py 啟動時讀取 types.ts 比對，不一致時 `SystemExit(1)`
+2. `human_category_map` 驗證：載入 category_corrections 後逐筆驗證，無效分類剝離 + `logger.warning`
+3. DB 清理：移除 7 筆事件和 10 筆 category_corrections 中的 `culture`
+
+**教訓**：在 types.ts 新增 Category 而不同步 annotator.py 會造成靜默資料遺失。`category_corrections` 是第二條資料路徑，同樣需要 VALID_CATEGORIES 驗證。啟動時同步檢查是 fail-fast 機制。
+
+---
+### 2026-05-05 — tokyoartbeat API 佔位符日期 + GPT organizer 幻覺診斷（commit a1e58a9）
+- Contentful 年度系列展 scheduleStartsOn=YYYY-01-01 ≠ 實際開始日；需 slug fallback
+- scraper 未設 organizer 欄位 → GPT 推斷失敗（幻覺）→ 已加入 Venue=Organizer Default Guard
+
+---
+## 2026-05-05 — event 82a106db 手動修正：organizer/location 欄位對調（note_creators）
+
+### 問題
+`note_creators` source 事件 `82a106db`：`location_name` 欄位被誤填為 organizer 名稱（`NPO法人埼玉県日台親善協会`），`organizer` = null，`location_address` 只有「埼玉県」。
+
+### 修復
+直接 DB UPDATE 三欄位 + 查詢四萬部寺官網獲得精確地址（`埼玉県秩父市栃谷418`）：
+- `organizer` = `NPO法人埼玉県日台親善協会`
+- `location_name` = `台湾カフェ「茶と菓」（四萬部寺内）`
+- `location_address` = `埼玉県秩父市栃谷418`
+
+### 教訓
+- 子場地（`台湾カフェ「茶と菓」（四萬部寺内）`）的地址應使用親設施地址 → **Sub-Venue Parent Address Guard** 在 enrichment pipeline 與手動修正時均需套用。
+- `note_creators` 不走 annotator 主流程，此修正未寫入 `field_corrections`（Manual Translation Fix Persistence Guard 的例外情境，影響有限）。
+- 辨別 `organizer` 與 `location_name` 互調的線索：法人後綴（協会・団体・財団）→ organizer；設施詞（カフェ・ホール・スペース）→ location_name。
+
+---
+## 2026-05-05 — enrich_location.py GPT identical address guard（commit `628e3e7`）
+
+### 問題
+`enrich_location.py` GPT 從 `会場：仙六屋カフェ` 直接提取 `仙六屋カフェ` 作為 `location_address`，導致 address == venue name。
+
+### 根因
+SYSTEM_PROMPT 未明示「address == venue_name 時返回 null」；程式碼層無後置 guard；SELECT query 未取 `location_name` 無法做比對。
+
+### 修復（commit `628e3e7`）
+1. SYSTEM_PROMPT Rule 6：address == venue_name → return null
+2. SYSTEM_PROMPT Rule 7：子場地需用親設施地址（如 `○○ビル2階` → 棟建物地址）
+3. 程式碼 guard：寫入前 `if addr.strip() == venue: skip + log warning`
+4. SELECT 加入 `location_name` 供 guard 使用
+
+### 教訓
+- `address == venue_name` 是 GPT 提取失敗的確定標誌，不得寫入 DB。
+- **雙層防護**：SYSTEM_PROMPT 規則（GPT 層）+ 程式碼 guard（程式碼層）——不能只靠 GPT 自律。
+- **Sub-Venue Parent Address Guard** 不只適用於 scraper 端，enrichment pipeline 同樣需要套用（已有 SKILL.md 守則；此次為同守則在新模組的落實）。
+
+---
 ## 2026-05-05 — Admin UI 後台隱藏欄位未暴露 + Component prop 缺漏（tEventForm）
 
 ### 問題

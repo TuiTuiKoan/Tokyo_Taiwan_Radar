@@ -3,6 +3,51 @@
 <!-- Append new entries at the top -->
 
 ---
+### 2026-05-05 — tokyoartbeat 三連 bug：slug 日期佔位符 / GPT organizer 幻覺 / event_form 缺失（commit a1e58a9）
+- scheduleStartsOn=YYYY-01-01 是 Contentful 年度系列展佔位符，需從 slug 末尾提取實際日期
+- scraper 未設 organizer → GPT 從 "works from our collection" 幻想出橫浜美術館
+- 設 organizer=venue_name；raw_description 加 主催: 行作為 GPT 明確信號
+- reviewed 事件的 event_form 永遠不被 annotator 修補，需 scraper 層設定
+
+---
+## 2026-05-05 — event 82a106db 手動修正：location_name 誤填 organizer + 子場地地址（note_creators）
+
+### 問題
+`note_creators` source 事件 `82a106db`：`location_name` 欄位被誤填為 organizer 名稱（`NPO法人埼玉県日台親善協会`），`organizer` = null，`location_address` 只有「埼玉県」（過度省略）。
+
+### 修復
+直接 DB 更新三欄位：
+- `organizer` = `NPO法人埼玉県日台親善協会`
+- `location_name` = `台湾カフェ「茶と菓」（四萬部寺内）`（子場地 + 親設施標記）
+- `location_address` = `埼玉県秩父市栃谷418`（四萬部寺官網查得）
+
+### 教訓
+1. 子場地（寺内カフェ）的地址應使用**親設施地址**，`location_name` 格式建議 `「子場地」（親設施内）`。
+2. `note_creators` 不走 annotator 主流程，此修正未寫入 `field_corrections`（影響有限）。
+3. `organizer` 與 `location_name` 若值互調，辨別線索：法人後綴（協会・団体・財団）→ organizer；設施詞（カフェ・ホール・スペース）→ location_name。
+
+---
+## 2026-05-04 — hakusuisha 三連 bug：char limit / regex 欠缺 / self-prefix 干擾（commit `a0292a2`）
+
+### 問題
+hakusuisha.py 修正後もなお `location_name`、`business_hours`、`organizer` が null。三つの連鎖バグ。
+
+### 根因
+A. **char limit 4000**：nav/menu ノイズが予算を消費し、`■日時：`・`会場：`・`主催：` が切断点の外にある。
+B. **`_KAIJO_RE`・`_SHUKAI_RE`・`_TIME_RE` 未定義**：会場・主催・時間の regex が存在しなかった。
+C. **Self-prefix interference**：`raw_description` 先頭に `開催日時: YYYY年MM月DD日\n\n` を prepend した後で `_JITSU_RE.search(raw_description)` を実行すると、自己注入したプレフィックスの `開催日時:` にマッチし、`_TIME_RE` が本文の `HH:MM〜HH:MM` を永遠に見つけられなくなる。
+
+### 修復（commit `a0292a2`）
+- char limit 4000 → 8000（nav ノイズ消費分を確保）
+- `_KAIJO_RE`、`_SHUKAI_RE`、`_TIME_RE` を追加
+- `business_hours` 抽出：`_JITSU_RE.search(raw_description)` → `_TIME_RE.search(full_description)` に変更（プレフィックス回避）
+
+### 教訓
+1. **Self-prefix interference**：`raw_description` に prefix を prepend する **前に** すべての regex 抽出を完了させること。または prefix にマッチしない専用 pattern を使用。
+2. **char 予算検証**：detail-page scraper は HTMLParser 適用後の実際のテキスト長とキーワード位置を確認してから上限を設定すること。
+3. **SKILL.md 参照**：「Self-injected Prefix Interference」セクションを参照。
+
+---
 ## 2026-05-05 — tsutaya_portal.py 建立 + scraper_source_name 再度漏填（第 3 件）
 
 ### 問題
@@ -156,14 +201,18 @@ Scrapers 取得 combined "location" 欄位時，直接複製到兩個欄位。iw
 ## 2026-05-05 — enrich_location GPT 回傳 venue name 作為 address + sub-venue 規則（commit `628e3e7`）
 
 ### 問題
-`enrich_location.py` 的 GPT 回傳有時將 venue name 當成 address（如 `ユーロスペース`），造成 `location_address == location_name`。
+`enrich_location.py` GPT 從 `会場：仙六屋カフェ` 直接提取 `仙六屋カフェ` 作為 `location_address`，造成 `location_address == location_name`（失敗標誌）。
 
 ### 修復
-新增 identical address/venue guard：GPT 回傳 address == venue_name 時 skip。新增 sub-venue 規則處理。
+1. SYSTEM_PROMPT Rule 6（identical → return null）：address == venue_name 時回傳 null。
+2. SYSTEM_PROMPT Rule 7（子場地親設施地址）：子場地（如 `○○ビル2階`）需用親設施地址，不得用子場地名。
+3. 程式碼 guard：寫入前 `if addr.strip() == venue: skip + log warning`（雙重保護）。
+4. SELECT 加入 `location_name` 供 guard 使用。
 
 ### 教訓
-- location 相關 GPT enrichment 必須有 `address ≠ venue_name` 後置 guard
-- 雙層防護：scraper 端（不設錯誤值）+ enrichment 端（不接受錯誤值）
+- `address == venue_name` 是地址抽取失敗的確定標誌，不得寫入 DB。
+- **雙層防護**：SYSTEM_PROMPT 規則（GPT 層）+ 程式碼 guard（程式碼層）——不能只靠 GPT 自律。
+- Sub-Venue Parent Address Rule 需同步套用至 enrichment pipeline，不只 scraper 端。
 
 ---
 ## 2026-05-05 — Sub-event annotation with parent inheritance（commit `38f4f3a`）

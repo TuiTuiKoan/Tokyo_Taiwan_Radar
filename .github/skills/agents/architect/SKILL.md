@@ -920,3 +920,25 @@ Reference incidents:
 - 2026-05-04 `878660a0 iwafu` — `流山おおたかの森S.C. 森のまち広場` scraper 直接設 `location_address = place_val`（venue name），導致 annotator 的 PARENT VENUE ADDRESS RULE 完全無效。修復：`iwafu.py` 改為 `_ADDR_RE` 抽取真實地址，找不到設 `None`。
 - 2026-05-04 hakusuisha — annotator SYSTEM_PROMPT 加入 PARENT VENUE ADDRESS RULE，`auto_qa_address_is_venue_name` 偵測器加入 auto_qa.py。
 
+## Contentful Placeholder Date Guard
+
+在審核任何使用 Contentful CDA API 的 scraper 前，**必須**確認：
+
+1. **年度系列展的 `scheduleStartsOn` 可能為 `YYYY-01-01`（財年佔位符）**，不代表實際開展日期。
+2. **Slug fallback 必須存在**：若 `start_date` 的月份 = 1 且日 = 1，從 URL slug 末尾 `/YYYY-MM-DD` 提取真實日期。
+3. **測試模式**：對抓到的所有事件印出 `name, start_date, slug`，確認無 Jan 1 佔位符。
+
+Reference incident: 2026-05-05 — event 6a91a4ce (アジア美術の歩き方 東アジア編) start_date=2026-01-01，真實日期 2026-04-18 在 slug (commit a1e58a9)。
+
+## Venue = Organizer Default Guard
+
+在審核任何美術館/博物館類 scraper 的 PR 前，**必須**確認：
+
+1. **`organizer` 欄位已設定**：若 scraper 只有 venue 資訊，應設 `organizer = venue_name`。  
+   美術館/博物館展示中，venue 通常即主辦方。
+2. **`raw_description` header 包含 `主催:` 行**：確保 GPT annotator 有明確主辦信號，不靠推斷。
+3. **`event_form` 已設定**：展覽類 scraper 應 hardcode `event_form = ["exhibition"]`；  
+   reviewed 事件的 event_form 被 annotator 跳過，scraper 層是唯一機會。
+
+Reference incident: 2026-05-05 — tokyoartbeat organizer 未設 → GPT 幻想 横浜美術館；event_form 未設且已 reviewed → 永遠空 (commit a1e58a9)。
+

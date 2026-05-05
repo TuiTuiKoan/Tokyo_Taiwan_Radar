@@ -20,6 +20,7 @@ import re
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
@@ -104,6 +105,40 @@ VALID_CATEGORIES = [
     "history", "urban", "workshop", "literature", "tv_program", "exhibition",
     "taiwan_mandarin", "healthcare", "report",
 ]
+
+
+def _check_category_sync() -> None:
+    """Verify VALID_CATEGORIES matches web/lib/types.ts at startup.
+
+    Raises SystemExit(1) if types.ts exists and has categories not in
+    VALID_CATEGORIES — prevents silent category stripping during annotation.
+    Skipped silently when types.ts is not found (CI / standalone execution).
+    """
+    ts_path = Path(__file__).resolve().parent.parent / "web" / "lib" / "types.ts"
+    if not ts_path.exists():
+        return  # CI or standalone — skip
+    ts_text = ts_path.read_text(encoding="utf-8")
+    m = re.search(r'export type Category\s*=\s*([\s\S]*?);', ts_text)
+    if not m:
+        logger.warning("_check_category_sync: could not parse Category type from types.ts")
+        return
+    ts_cats = set(re.findall(r'"(\w+)"', m.group(1)))
+    valid = set(VALID_CATEGORIES)
+    missing = ts_cats - valid
+    extra = valid - ts_cats
+    if missing:
+        logger.error(
+            "VALID_CATEGORIES out of sync with types.ts! "
+            "Missing from annotator: %s  — add them to VALID_CATEGORIES and SYSTEM_PROMPT.",
+            sorted(missing),
+        )
+        raise SystemExit(1)
+    if extra:
+        logger.warning(
+            "VALID_CATEGORIES has entries not in types.ts (may be intentional): %s",
+            sorted(extra),
+        )
+
 
 # News-source movie title enrichment helpers
 # raw_title of news articles often contains the movie title in 「」/『』brackets.
@@ -670,6 +705,7 @@ def _load_default_organizer_map(sb: "Client") -> dict[str, dict[str, str]]:
 
 def annotate_pending_events(re_annotate_all: bool = False, fix_translations: bool = False, fix_reviewed: bool = False, event_id: str | None = None, limit: int | None = None) -> None:
     """Fetch pending events from DB, annotate with AI, and update."""
+    _check_category_sync()
     sb = _get_supabase()
     ai = _get_openai()
     annotation_start = time.time()
@@ -697,6 +733,22 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     }
     if human_category_map:
         logger.info("Loaded %d human-corrected category overrides", len(human_category_map))
+
+    # Validate human_category_map: strip categories not in VALID_CATEGORIES
+    _valid_set = set(VALID_CATEGORIES)
+    _cc_cleaned = 0
+    for _cc_eid, _cc_cats in list(human_category_map.items()):
+        _invalid = [c for c in _cc_cats if c not in _valid_set]
+        if _invalid:
+            cleaned = [c for c in _cc_cats if c in _valid_set]
+            logger.warning(
+                "category_corrections %s has invalid categories %s — stripping (kept: %s)",
+                _cc_eid[:8], _invalid, cleaned or ["senses"],
+            )
+            human_category_map[_cc_eid] = cleaned or ["senses"]
+            _cc_cleaned += 1
+    if _cc_cleaned:
+        logger.warning("Cleaned %d category_corrections entries with invalid categories", _cc_cleaned)
 
     # Load field-level corrections (migration 038b — P1).
     # Builds: event_id → set of DB column names that must NOT be overwritten by AI.

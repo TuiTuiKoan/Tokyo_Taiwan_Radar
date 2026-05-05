@@ -174,6 +174,20 @@ Similarly, `N週間` → `N × 7` days. Apply BEFORE falling back to `end_date =
 ### annotator `or event.get("end_date")` fallback — blind spot
 The pattern `annotation.get("end_date") or event.get("end_date")` only rescues the scraper's value when GPT returns `null`. When GPT returns a **non-null wrong value** (most commonly SINGLE-DAY RULE: `end_date = start_date`), the `or` branch is never reached — the wrong value is written to DB. Fix: always embed the correct date range in `raw_description` (see § `開催日時:` prefix above) so GPT never needs to fall back to SINGLE-DAY RULE in the first place.
 
+## Contentful CDA — 年度系列展日期 slug Fallback
+
+**問題**：Contentful 年度系列展使用 `scheduleStartsOn=YYYY-01-01` 作為財年佔位符。  
+**偵測**：`start_date.month == 1 and start_date.day == 1`  
+**修復**：從 URL slug 末尾提取真實日期：
+```python
+slug_m = re.search(r"/(\d{4}-\d{2}-\d{2})$", slug)
+if slug_m and start_date and start_date.month == 1 and start_date.day == 1:
+    start_date = self._parse_date(slug_m.group(1))
+```
+**驗證**：乾跑後確認無事件 start_date 為 Jan 1。
+
+Reference incident: 2026-05-05 — event 6a91a4ce (アジア美術の歩き方 東アジア編) scheduleStartsOn=2026-01-01 為佔位符，真實日期 2026-04-18 在 slug 末尾 (commit a1e58a9)。
+
 ## URL Handling — Relative Path Guard
 
 **Rule**: Every `a["href"]` value that may be a relative path **must** be converted via `urljoin` before storing in `source_url` or `detail_url`.
@@ -408,6 +422,26 @@ note.com RSS `<description>` 約在 140 字截斷，可能只有「続きをみ�
 
 ---
 
+## enrich_location.py — GPT Output Guard
+
+`enrich_location.py` 使用 GPT 補充缺少的地址。接收 GPT 回傳後，寫入 DB **前**必須套用以下 guard：
+
+1. **Identical address guard（Rule 6）**：`if addr.strip() == venue_name.strip(): skip + log warning`。`address == venue_name` 是提取失敗的確定標誌（GPT 只是複製了場地名）。
+2. **Sub-venue address rule（Rule 7）**：子場地（如 `○○ビル2階`、`○○カフェ（寺内）`）需用**親設施的地址**，不得用子場地名作為 address。
+3. **SELECT `location_name`**：query 必須 SELECT `location_name`，才能執行 identical address guard。
+4. **雙重防護原則**：SYSTEM_PROMPT 規則（讓 GPT 返回 null）+ 程式碼 guard（兜底攔截）都必須存在；不能只靠 GPT 自律。
+
+```python
+# enrich_location.py — 寫入前 guard 範例
+if location_address and location_address.strip() == (location_name or "").strip():
+    logger.warning("SKIP: address == venue_name for event %s (%s)", eid, location_address)
+    continue
+```
+
+Reference incident: 2026-05-05 — GPT extracted `仙六屋カフェ` from `会場：仙六屋カフェ` as address → identical guard added (commit `628e3e7`).
+
+---
+
 ## koryu-specific
 - **location_address fallback**: `_extract_location_address()` searches for `所在地/住所` sections. When absent (common for 後援-type posts), set `location_address = None` — **do NOT fall back to the venue name**. The annotator will fill the address via PARENT VENUE ADDRESS RULE. Old pattern `or (venue if venue else None)` was removed (commit `9d6e0fc`) because it echoed venue name as address, blocking annotator correction.
 - **404 on old koryu URLs**: When a koryu event page returns 404, `main_text` will be a redirect message with no venue section. `_extract_venue` returns `None`, so `location_address` is also `None`. This is acceptable — the event is stale.
@@ -507,7 +541,7 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
 - **沒有 THEATER section 的電影應跳過**：DVD 專售或非戲院作品不含 THEATER section → 先確認 section 存在再產生 child events；若 section 缺失則只產生 parent event。
 - **venue_key 派生規則（production contract，勿修改）**：SNS domain（x.com / twitter.com / instagram.com）→ URL path 第一段；CDN 平台 host（jimdofree.com / thebase.in 等）→ subdomain；一般域名 → 去掉 TLD 的 domain，lowercase，非英數字換為 `-`。此規則決定 `source_id` 後綴，變更會造成 duplicate 插入而非更新現有記錄。
 
-## annotator.py ↔ types.ts 同步守則（Three-Location Sync Rule）
+## annotator.py ↔ types.ts 同步守則（Three-Location Sync Rule + Startup Guard）
 
 每次在 `web/lib/types.ts` 新增 `Category` 型別時，**必須同時更新三個地方**：
 
@@ -515,16 +549,31 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
 2. `scraper/annotator.py` → SYSTEM_PROMPT 第 2 條 categories 列表（單行逗號分隔）
 3. `scraper/annotator.py` → SYSTEM_PROMPT 分類定義清單（每個新分類需加定義行）
 
-**違反後果**：GPT 無法選用新分類，被迫選最近似的舊分類（例如 `tv_program` 不存在時選 `movie`）。
+**違反後果**：GPT 無法選用新分類，被迫選最近似的舊分類（例如 `tv_program` 不存在時選 `movie`）。更嚴重的是，re-annotation 時 `_validate_categories()` 會靜默剝離不在 `VALID_CATEGORIES` 中的分類，默認回退為 `["senses"]`——造成**靜默資料遺失**。
+
+### 自動防護機制（2026-05-05 新增）
+
+1. **`_check_category_sync()` 啟動守衛**：annotator.py 啟動時自動讀取 `web/lib/types.ts`，比對 VALID_CATEGORIES。若有遺漏，`SystemExit(1)` 終止執行。CI/standalone 環境（types.ts 不存在）靜默跳過。
+2. **`human_category_map` 驗證**：載入 `category_corrections` 表後，每筆記錄的分類都會對 VALID_CATEGORIES 驗證。無效分類被剝離並記錄 `logger.warning`。全部無效時回退為 `["senses"]`。
+
+### 第二資料路徑警告
+`category_corrections` 是 annotator 之外的第二條分類資料路徑。此表由 Admin UI 手動修正寫入，**不經過 VALID_CATEGORIES 驗證**（已在程式碼層修復）。新增分類時除了同步上述三處，也須確認既有 `category_corrections` 記錄不含已廢棄的分類值。
 
 **驗證命令**：
-```python
-# 確認 VALID_CATEGORIES 與 types.ts 一致
-# types.ts CATEGORIES array vs annotator.py VALID_CATEGORIES
-# 所有出現在 types.ts 中的值都必須出現在 VALID_CATEGORIES
+```bash
+cd scraper && python3 -c "
+from annotator import VALID_CATEGORIES
+import re
+ts = open('../web/lib/types.ts').read()
+ts_cats = re.findall(r'^\s*\| \"(\w+)\"', ts, re.MULTILINE)
+missing = [c for c in ts_cats if c not in VALID_CATEGORIES]
+print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
+"
 ```
 
 **已知遺漏（2026-05-04 修正）**：tv_program, drama, documentary, tea_alcohol, exhibition, folklore, literature, parenting, scholarship, taiwan_mandarin, healthcare — 這 10 個分類在 types.ts 存在多月但 annotator.py 未同步，導致 gguide_tv 電視節目被標為 movie。
+
+**Ghost category 事件（2026-05-05 修正）**：`category_corrections` 表中 10 筆記錄含無效分類 `culture`，36 筆事件面臨 re-annotation 時分類被靜默剝離的風險。修復後新增啟動守衛與 category_corrections 驗證。
 
 ---
 

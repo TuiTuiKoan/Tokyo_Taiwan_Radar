@@ -61,6 +61,34 @@ export interface Event {
   price_currency?: string | null;
   event_status?: "scheduled" | "cancelled" | "postponed" | "rescheduled" | null;
   performer?: string | null;
+  work_id?: string | null;
+}
+
+export type WorkType = "film" | "stage" | "exhibition" | "concert_tour" | "other";
+
+export interface Work {
+  id: string;
+  work_type: WorkType;
+  original_title: string;
+  title_ja: string | null;
+  title_zh: string | null;
+  title_en: string | null;
+  director: string | null;
+  cast_summary: string | null;
+  release_year: number | null;
+  country: string | null;
+  description: string | null;
+  poster_url: string | null;
+  external_links: Record<string, string> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Locale-aware display title for a Work; falls back to original_title. */
+export function getWorkTitle(work: Pick<Work, "original_title" | "title_ja" | "title_zh" | "title_en">, locale: Locale): string {
+  if (locale === "ja") return work.title_ja || work.original_title;
+  if (locale === "en") return work.title_en || work.title_ja || work.original_title;
+  return work.title_zh || work.original_title;
 }
 
 export type SocialPlatform = "instagram" | "threads" | "facebook" | "linkedin" | "line";

@@ -243,7 +243,14 @@ Reference incident: 2026-05-04 — `878660a0 iwafu` `流山おおたかの森S.C
 2. `scraper/annotator.py` → SYSTEM_PROMPT 第 2 條 categories 逗號分隔列表包含新分類。
 3. `scraper/annotator.py` → SYSTEM_PROMPT 分類定義清單有新分類的定義行。
 
-**違反後果**：GPT 無法選用新分類，被迫選最近似的舊分類（靜默失敗，不報錯）。
+**違反後果**：
+- GPT 無法選用新分類，被迫選最近似的舊分類（靜默失敗，不報錯）。
+- Re-annotation 時 `_validate_categories()` 靜默剝離不在 `VALID_CATEGORIES` 中的分類，默認回退 `["senses"]`——**靜默資料遺失**。
+- `category_corrections` 表的人工校正也會被靜默剝離（第二資料路徑）。
+
+**自動防護**（2026-05-05 新增）：
+- `_check_category_sync()`：annotator.py 啟動時讀取 types.ts 並比對。不一致時 `SystemExit(1)` 終止，CI 不會處理任何事件。
+- `human_category_map` 驗證：載入 category_corrections 後逐筆驗證，無效分類被剝離並記錄 warning。
 
 **驗證命令**（在 scraper/ 目錄執行）：
 ```bash
@@ -257,7 +264,9 @@ print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
 "
 ```
 
-Reference incident: 2026-05-04 — `types.ts` 新增 10 個分類（`tv_program` 等）後 annotator 未同步，導致所有 `gguide_tv` 電視節目被標為 `movie`（commit `0047c31`）。
+Reference incidents:
+- 2026-05-04 — `types.ts` 新增 10 個分類（`tv_program` 等）後 annotator 未同步，導致所有 `gguide_tv` 電視節目被標為 `movie`（commit `0047c31`）。
+- 2026-05-05 — Ghost category：`category_corrections` 含無效分類 `culture`，36 筆事件面臨 re-annotation 時分類被靜默剝離。修復：新增啟動守衛 + category_corrections 驗證 + DB 清理。
 
 ## Performer Null Guard（三層 fallback + regex 設計規則）
 

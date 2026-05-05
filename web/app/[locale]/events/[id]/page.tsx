@@ -8,6 +8,7 @@ import RawDataSection from "@/components/RawDataSection";
 import ReportSection from "@/components/ReportSection";
 import ViewTracker from "@/components/ViewTracker";
 import AdminEventActions from "@/components/AdminEventActions";
+import EventCard from "@/components/EventCard";
 import Link from "next/link";
 
 export const revalidate = 3600;
