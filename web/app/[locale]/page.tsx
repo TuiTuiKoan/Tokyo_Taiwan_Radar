@@ -4,6 +4,7 @@ import { type Locale, type Event, CATEGORIES, getEventName } from "@/lib/types";
 import FilterBar from "@/components/FilterBar";
 import Link from "next/link";
 import AnnouncementCard from "@/components/AnnouncementCard";
+import { getCityLabel } from "@/lib/cityLabel";
 
 export const dynamic = "force-dynamic";
 
@@ -291,9 +292,23 @@ export default async function HomePage({ params, searchParams }: PageProps) {
                     )}
                     {name}
                   </p>
-                  {event.location_name && (
-                    <p className="text-xs text-gray-400 mt-0.5">📍 {event.location_name}</p>
-                  )}
+                  {event.location_name && (() => {
+                    const cityLabel = getCityLabel(
+                      (event as any).location_prefectures as string[] | null | undefined,
+                      (event as any).location_address as string | null,
+                    );
+                    return (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        📍{" "}
+                        {cityLabel && (
+                          <span className="inline-block bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded mr-1 font-medium">
+                            {cityLabel}
+                          </span>
+                        )}
+                        {event.location_name}
+                      </p>
+                    );
+                  })()}
                 </div>
               </Link>
             );
