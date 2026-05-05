@@ -408,7 +408,30 @@
     "catMigrationHeaderCount": "Count",
     "catMigrationEmpty": "No category corrections yet",
     "tabs": {
-      "specs": "Specs"
+      "specs": "Specs",
+      "roadmap": "Business Roadmap"
+    },
+    "roadmap": {
+      "subtitle": "Commercialization progress overview",
+      "strategyTitle": "Three-Layer Rocket Strategy",
+      "layerSurface": "Surface (B2C)",
+      "layerSurfaceDesc": "Public event aggregation, live",
+      "layerMiddle": "Middle (B2G/B2B)",
+      "layerMiddleDesc": "Data reports, brand analytics, data build-up in progress",
+      "layerDeep": "Deep (B2B Matchmaking)",
+      "layerDeepDesc": "Producer × Venue × Talent matching, not started",
+      "fillRateTitle": "Tier 1+1.5 Field Fill Rate Snapshot",
+      "activeEvents": "active events",
+      "fieldCol": "Field",
+      "fillPctCol": "Fill %",
+      "targetCol": "Target",
+      "noteCol": "Note",
+      "fillRateNote": "Fill rates are static snapshots, updated after each manual query.",
+      "migrationsTitle": "Schema Tier 1+1.5 Migration Status",
+      "productsTitle": "Three Product Lines",
+      "pSeriesTitle": "Feedback Loop P-Series Progress",
+      "updatedNote": "For detailed specs, see",
+      "specsLink": "Specs Board →"
     },
     "specs": {
       "title": "Specs",

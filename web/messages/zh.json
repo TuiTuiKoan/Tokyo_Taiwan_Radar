@@ -408,7 +408,30 @@
     "catMigrationHeaderCount": "次數",
     "catMigrationEmpty": "尚無分類修正記錄",
     "tabs": {
-      "specs": "規格看板"
+      "specs": "規格看板",
+      "roadmap": "商業路線圖"
+    },
+    "roadmap": {
+      "subtitle": "商業化計畫進度總覽",
+      "strategyTitle": "三層火箭策略",
+      "layerSurface": "表層（B2C）",
+      "layerSurfaceDesc": "活動聚合公開展示，運營中",
+      "layerMiddle": "中層（B2G/B2B）",
+      "layerMiddleDesc": "資料報告、品牌分析，資料就位中",
+      "layerDeep": "深層（B2B媒合）",
+      "layerDeepDesc": "活動製作人 × 場地 × 藝人媒合，尚未啟動",
+      "fillRateTitle": "Tier 1+1.5 資料填充率快照",
+      "activeEvents": "件有效活動",
+      "fieldCol": "欄位",
+      "fillPctCol": "填充率",
+      "targetCol": "目標",
+      "noteCol": "備注",
+      "fillRateNote": "填充率為靜態快照，以最後一次手動查詢為準（每次 CI 後更新）。",
+      "migrationsTitle": "Schema Tier 1+1.5 Migration 狀態",
+      "productsTitle": "三條商業產品線",
+      "pSeriesTitle": "回饋迴路 P 系列進度",
+      "updatedNote": "詳細規格請見",
+      "specsLink": "規格看板 →"
     },
     "specs": {
       "title": "規格看板",

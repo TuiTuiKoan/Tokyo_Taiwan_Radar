@@ -408,7 +408,30 @@
     "catMigrationHeaderCount": "回数",
     "catMigrationEmpty": "カテゴリ修正なし",
     "tabs": {
-      "specs": "仕様ボード"
+      "specs": "仕様ボード",
+      "roadmap": "ビジネスロードマップ"
+    },
+    "roadmap": {
+      "subtitle": "事業化計画の進捗概要",
+      "strategyTitle": "三層ロケット戦略",
+      "layerSurface": "表層（B2C）",
+      "layerSurfaceDesc": "イベント集約・公開展示、運営中",
+      "layerMiddle": "中層（B2G/B2B）",
+      "layerMiddleDesc": "データレポート・ブランド分析、データ整備中",
+      "layerDeep": "深層（B2Bマッチング）",
+      "layerDeepDesc": "プロデューサー × 会場 × アーティスト連携、未着手",
+      "fillRateTitle": "Tier 1+1.5 フィールド充足率スナップショット",
+      "activeEvents": "件の有効イベント",
+      "fieldCol": "フィールド",
+      "fillPctCol": "充足率",
+      "targetCol": "目標",
+      "noteCol": "備考",
+      "fillRateNote": "充足率は静的スナップショット。毎回の手動クエリ後に更新。",
+      "migrationsTitle": "Schema Tier 1+1.5 マイグレーション状況",
+      "productsTitle": "3つの事業ライン",
+      "pSeriesTitle": "フィードバックループ P シリーズ進捗",
+      "updatedNote": "詳細仕様は",
+      "specsLink": "仕様ボード →"
     },
     "specs": {
       "title": "仕様ボード",
