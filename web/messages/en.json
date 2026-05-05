@@ -461,7 +461,15 @@
         "viewArchitecture": "View architecture map",
         "diagramFallback": "(Diagram loading or unavailable; JSON structure below)"
       }
-    }
+    },
+    "qualityKpiTitle": "Precision Trend (last 14 days)",
+    "qualityKpi7dAvg": "7-day average",
+    "qualityKpiDate": "Date",
+    "qualityKpiEvents": "Events",
+    "qualityKpiExclHits": "Exclusion hits",
+    "qualityKpiIrrelevant": "Irrelevant reports",
+    "qualityKpiPrecision": "Precision",
+    "qualityKpiEmpty": "No data yet — daily CI will populate"
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",

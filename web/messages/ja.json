@@ -461,7 +461,15 @@
         "viewArchitecture": "アーキテクチャ図を見る",
         "diagramFallback": "（図表は読み込み中または利用不可、以下は JSON 構造）"
       }
-    }
+    },
+    "qualityKpiTitle": "精度トレンド（過去14日）",
+    "qualityKpi7dAvg": "7日平均",
+    "qualityKpiDate": "日付",
+    "qualityKpiEvents": "イベント数",
+    "qualityKpiExclHits": "事前ブロック",
+    "qualityKpiIrrelevant": "irrelevant報告",
+    "qualityKpiPrecision": "精度",
+    "qualityKpiEmpty": "データなし — 日次CIが蓄積します"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",

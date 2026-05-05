@@ -461,7 +461,15 @@
         "viewArchitecture": "查看架構地圖",
         "diagramFallback": "（圖表載入中或不可用，下方為 JSON 結構）"
       }
-    }
+    },
+    "qualityKpiTitle": "精準度趨勢（近 14 天）",
+    "qualityKpi7dAvg": "近 7 日平均",
+    "qualityKpiDate": "日期",
+    "qualityKpiEvents": "事件數",
+    "qualityKpiExclHits": "預過濾命中",
+    "qualityKpiIrrelevant": "irrelevant 回報",
+    "qualityKpiPrecision": "精準度",
+    "qualityKpiEmpty": "尚無資料，待每日 CI 累積"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",

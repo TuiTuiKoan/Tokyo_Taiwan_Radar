@@ -90,6 +90,29 @@ export default async function AdminStatsPage({ params }: PageProps) {
     newThisMonth: monthNewRes.count ?? 0,
   };
 
+  // Daily quality metrics (last 14 days)
+  const { data: qualityRowsRaw } = await supabase
+    .from("daily_quality_metrics")
+    .select("metric_date, events_upserted, events_active, exclusion_hits, irrelevant_reports, precision_rate")
+    .order("metric_date", { ascending: false })
+    .limit(14);
+
+  interface QualityRow {
+    metric_date: string;
+    events_upserted: number;
+    events_active: number;
+    exclusion_hits: number;
+    irrelevant_reports: number;
+    precision_rate: number | null;
+  }
+  const qualityRows: QualityRow[] = (qualityRowsRaw ?? []) as QualityRow[];
+  const last7 = qualityRows.slice(0, 7);
+  const avg7 = (() => {
+    const valid = last7.filter((r) => r.precision_rate !== null) as Array<QualityRow & { precision_rate: number }>;
+    if (!valid.length) return null;
+    return valid.reduce((s, r) => s + r.precision_rate, 0) / valid.length;
+  })();
+
   const monthRows = rows.filter((r) => r.ran_at >= startOfMonth);
 
   function sum(arr: ScraperRun[], key: keyof ScraperRun) {
@@ -306,6 +329,59 @@ export default async function AdminStatsPage({ params }: PageProps) {
               </div>
             ))}
           </div>
+
+          {/* Block 1b: Daily quality metrics (precision_rate trend) */}
+          <section className="space-y-3 mb-8">
+            <h2 className="text-base font-semibold text-gray-700">{t("qualityKpiTitle")}</h2>
+            {qualityRows.length === 0 ? (
+              <p className="text-sm text-gray-500">{t("qualityKpiEmpty")}</p>
+            ) : (
+              <>
+                {avg7 !== null && (
+                  <p className="text-sm text-gray-700">
+                    {t("qualityKpi7dAvg")}:{" "}
+                    <span className={`font-semibold ${avg7 < 0.85 ? "text-red-600" : "text-green-700"}`}>
+                      {(avg7 * 100).toFixed(1)}%
+                    </span>
+                  </p>
+                )}
+                <div className="overflow-x-auto rounded border border-gray-200 bg-white">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-xs text-gray-600">
+                      <tr>
+                        <th className="px-3 py-2 text-left">{t("qualityKpiDate")}</th>
+                        <th className="px-3 py-2 text-right">{t("qualityKpiEvents")}</th>
+                        <th className="px-3 py-2 text-right">{t("qualityKpiExclHits")}</th>
+                        <th className="px-3 py-2 text-right">{t("qualityKpiIrrelevant")}</th>
+                        <th className="px-3 py-2 text-right">{t("qualityKpiPrecision")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {qualityRows.map((r) => {
+                        const pct = r.precision_rate === null ? null : r.precision_rate * 100;
+                        const cls =
+                          pct === null ? "text-gray-400" :
+                          pct < 85 ? "text-red-600 font-semibold" :
+                          pct < 95 ? "text-amber-600" :
+                          "text-green-700";
+                        return (
+                          <tr key={r.metric_date} className="border-t">
+                            <td className="px-3 py-2">{r.metric_date}</td>
+                            <td className="px-3 py-2 text-right">{r.events_upserted}</td>
+                            <td className="px-3 py-2 text-right">{r.exclusion_hits}</td>
+                            <td className="px-3 py-2 text-right">{r.irrelevant_reports}</td>
+                            <td className={`px-3 py-2 text-right ${cls}`}>
+                              {pct === null ? "—" : `${pct.toFixed(1)}%`}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </section>
 
           {/* Block 2: Latest run per source */}
           <h2 className="text-base font-semibold text-gray-700 mb-3">{t("sourceStatusTitle")}</h2>

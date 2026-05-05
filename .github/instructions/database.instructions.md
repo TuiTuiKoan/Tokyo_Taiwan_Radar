@@ -8,7 +8,7 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `045_source_exclusions_ttl.sql` (number `044` is reserved for future corrections work — skip to `046` for the next new migration)
+- Number migrations sequentially: `001`, `002`, … Latest is `046_daily_quality_metrics.sql` (number `044` is reserved for future corrections work — skip to `047` for the next new migration)
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped; `029_aeo_visits.sql` + `029b_realtime_events.sql`; `038_performer.sql` + `038b_field_corrections.sql`
 
@@ -82,6 +82,7 @@ Unique constraint: `(source_name, source_id)`
 - `announcements` — social/LINE post drafts: `slug` (UNIQUE), `type` (`'manual'` | `'weekly_broadcast'`), `title_*/body_*/image_*` (trilingual), `published_at` (null=draft, future=scheduled, past=published), `social_status` jsonb, `is_featured`; admin-only write RLS
 - `announcement_events` — `(announcement_id, event_id)` junction linking announcements to events
 - `app_settings` — global key-value config: `key` text PK, `value` jsonb; admin-only RLS; seeded with `weekly_broadcast: {auto_publish: false}`
+- `daily_quality_metrics` — daily aggregated KPI: `events_upserted`, `events_active`, `exclusion_hits`, `irrelevant_reports`, `precision_rate`; computed by `scraper/daily_quality.py` (recomputes last 14 days each run to absorb late reports); admin-only RLS
 
 ## RLS policies
 
@@ -97,7 +98,7 @@ Unique constraint: `(source_name, source_id)`
 - Upsert uses `on_conflict="source_name,source_id"` with `ignoreDuplicates=False`
 
 ## Migration checklist
-
+7
 1. Number the file `NNN_descriptive_name.sql` (next = `046`)
 2. Use `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE … ADD COLUMN IF NOT EXISTS`
 3. Add RLS with `ALTER TABLE … ENABLE ROW LEVEL SECURITY` + policies

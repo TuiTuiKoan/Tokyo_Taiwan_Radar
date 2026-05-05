@@ -137,6 +137,24 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
         continue-on-error: true
 
+      - name: Daily quality metrics
+        if: always()
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          OUT=$(python daily_quality.py)
+          echo "## 📈 Daily Quality Metrics" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo "$OUT" | python -m json.tool >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ALERT=$(echo "$OUT" | python -c "import sys,json; d=json.load(sys.stdin); print(d.get('alert') or '')")
+          if [ -n "$ALERT" ]; then
+            echo "::warning::$ALERT"
+          fi
+        continue-on-error: true
+
       - name: Summarize run
         id: summarize
         working-directory: scraper
