@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-Backfill location_prefectures for multi-city parent events.
+Backfill location_prefectures for parent events.
 
-Reads sub-events' location_address, extracts prefecture names, and updates
-the parent event's location_prefectures column.
+Two modes:
+  - default: aggregate sub-event addresses; write array only when ≥2 prefectures.
+  - --include-single: also write 1-element arrays for parent events whose own
+    location_address yields a prefecture (and location_prefectures IS NULL).
 
 Run AFTER migration 012 has been applied in Supabase Dashboard:
-    cd scraper && source ../.venv/bin/activate && python backfill_location_prefectures.py
+    cd scraper && source ../.venv/bin/activate && python backfill_location_prefectures.py [--include-single] [--dry-run]
 """
+import argparse
 import os
 import re
-import sys
 import logging
 from collections import defaultdict
 
@@ -24,24 +26,71 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 logger = logging.getLogger(__name__)
 
 
+# 政令指定都市 / major cities → prefecture (used when address omits 都道府県 prefix).
+# Taiwan-style city names (台北市, 桃園市, etc.) are deliberately absent so they
+# never match here; the 都道府県 regex above also rejects them, returning None.
+_CITY_TO_PREF: dict[str, str] = {
+    # 政令指定都市
+    "横浜市": "神奈川",
+    "川崎市": "神奈川",
+    "相模原市": "神奈川",
+    "名古屋市": "愛知",
+    "福岡市": "福岡",
+    "北九州市": "福岡",
+    "札幌市": "北海道",
+    "仙台市": "宮城",
+    "神戸市": "兵庫",
+    "さいたま市": "埼玉",
+    "千葉市": "千葉",
+    "広島市": "広島",
+    "新潟市": "新潟",
+    "静岡市": "静岡",
+    "浜松市": "静岡",
+    "堺市": "大阪",
+    "岡山市": "岡山",
+    "熊本市": "熊本",
+    # Tokyo 23 special wards (a 23-ward address with no 都 prefix is unambiguously Tokyo).
+    **{w: "東京" for w in [
+        "千代田区", "中央区", "港区", "新宿区", "文京区", "台東区", "墨田区",
+        "江東区", "品川区", "目黒区", "大田区", "世田谷区", "渋谷区", "中野区",
+        "杉並区", "豊島区", "北区", "荒川区", "板橋区", "練馬区", "足立区",
+        "葛飾区", "江戸川区",
+    ]},
+}
+
+# Strip leading noise such as `日本、` and postal code `〒xxx-xxxx ` before matching.
+_PREFIX_RE = re.compile(r"^(?:日本[、,]?\s*)?(?:〒\s*\d{3}-?\d{4}[\s　]*)?")
+
+
 def extract_prefecture(address: str | None) -> str | None:
     """Extract prefecture name from a Japanese address string."""
     if not address:
         return None
+    address = _PREFIX_RE.sub("", address).lstrip()
     m = re.match(r"^(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県]{2,4}[都道府県])", address)
-    if not m:
-        return None
-    full = m.group(1)
-    if full == "北海道":
-        return "北海道"
-    if full in ("大阪市", "大阪府"):
-        return "大阪"
-    if full in ("京都市", "京都府"):
-        return "京都"
-    return full.rstrip("都道府県")
+    if m:
+        full = m.group(1)
+        if full == "北海道":
+            return "北海道"
+        if full in ("大阪市", "大阪府"):
+            return "大阪"
+        if full in ("京都市", "京都府"):
+            return "京都"
+        return full.rstrip("都道府県")
+    # Fallback: bare 政令市 name without 都道府県 prefix.
+    for city, pref in _CITY_TO_PREF.items():
+        if address.startswith(city):
+            return pref
+    return None
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--include-single", action="store_true",
+                        help="Also backfill parent events using their own location_address (1-element array).")
+    parser.add_argument("--dry-run", action="store_true", help="Print would-update counts only; no DB writes.")
+    args = parser.parse_args()
+
     sb = create_client(
         os.environ["SUPABASE_URL"],
         os.environ["SUPABASE_SERVICE_ROLE_KEY"],
@@ -65,24 +114,84 @@ def main() -> None:
         if pref:
             parent_prefectures[pid].add(pref)
 
-    # Only update parents with 2+ prefectures
-    multi_city = {pid: sorted(prefs) for pid, prefs in parent_prefectures.items() if len(prefs) >= 2}
-    logger.info("Found %d multi-city parent events", len(multi_city))
+    # Fetch parent events: active, parent_event_id IS NULL.
+    logger.info("Fetching active parent events...")
+    parents = (
+        sb.table("events")
+        .select("id,name_ja,location_address,location_prefectures")
+        .eq("is_active", True)
+        .is_("parent_event_id", "null")
+        .execute()
+    ).data
 
-    updated = 0
-    for pid, prefs in multi_city.items():
-        try:
-            sb.table("events").update({"location_prefectures": prefs}).eq("id", pid).execute()
-            # Log the event name
-            name_res = sb.table("events").select("name_ja").eq("id", pid).single().execute()
-            name = name_res.data.get("name_ja", pid)[:50] if name_res.data else pid
-            logger.info("  ✓ %s → %s", name, prefs)
-            updated += 1
-        except Exception as e:
-            logger.error("  ✗ %s: %s", pid, e)
+    scanned = len(parents)
+    multi_updated = 0
+    single_updated = 0
+    skipped_existing = 0
+    skipped_no_pref = 0
 
-    logger.info("Backfill complete: %d/%d events updated", updated, len(multi_city))
+    for p in parents:
+        pid = p["id"]
+        name = (p.get("name_ja") or pid)[:50]
+        if p.get("location_prefectures"):
+            skipped_existing += 1
+            continue
+
+        agg = parent_prefectures.get(pid, set())
+        new_value: list[str] | None = None
+        kind = ""
+        if len(agg) >= 2:
+            new_value = sorted(agg)
+            kind = "multi"
+        elif args.include_single:
+            own_pref = extract_prefecture(p.get("location_address"))
+            if own_pref:
+                new_value = [own_pref]
+                kind = "single"
+
+        if not new_value:
+            skipped_no_pref += 1
+            continue
+
+        if args.dry_run:
+            logger.info("  [dry-run %s] %s → %s", kind, name, new_value)
+        else:
+            try:
+                sb.table("events").update({"location_prefectures": new_value}).eq("id", pid).execute()
+                logger.info("  ✓ [%s] %s → %s", kind, name, new_value)
+            except Exception as e:
+                logger.error("  ✗ %s: %s", pid, e)
+                continue
+
+        if kind == "multi":
+            multi_updated += 1
+        else:
+            single_updated += 1
+
+    logger.info("=" * 60)
+    logger.info("Scanned active parents:   %d", scanned)
+    logger.info("Multi-city updated:       %d", multi_updated)
+    logger.info("Single-city updated:      %d", single_updated)
+    logger.info("Skipped (already set):    %d", skipped_existing)
+    logger.info("Skipped (no prefecture):  %d", skipped_no_pref)
+    if args.dry_run:
+        logger.info("(dry-run — no DB writes)")
 
 
 if __name__ == "__main__":
+    # Smoke-test the extractor: Taiwan addresses must NOT match.
+    assert extract_prefecture("桃園市中壢區") is None
+    assert extract_prefecture("台北市信義區") is None
+    assert extract_prefecture("新北市板橋區") is None
+    assert extract_prefecture("福岡市博多区博多駅前1-1-1") == "福岡"
+    assert extract_prefecture("横浜市西区") == "神奈川"
+    assert extract_prefecture("東京都渋谷区") == "東京"
+    assert extract_prefecture("北海道札幌市中央区") == "北海道"
+    assert extract_prefecture("大阪府大阪市北区") == "大阪"
+    assert extract_prefecture("〒310-0015　茨城県水戸市宮町1丁目7") == "茨城"
+    assert extract_prefecture("日本、〒106-0045 東京都港区麻布十番") == "東京"
+    assert extract_prefecture("港区麻布十番２丁目") == "東京"
+    assert extract_prefecture("渋谷区猿楽町17-10") == "東京"
+    assert extract_prefecture("〒338-8506 さいたま市中央区上峰3-15-1") == "埼玉"
+    assert extract_prefecture("オンライン") is None
     main()
