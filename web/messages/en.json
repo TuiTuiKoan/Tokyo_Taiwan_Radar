@@ -29,7 +29,8 @@
     "locationTokyo": "Tokyo",
     "timeModeAll": "All",
     "locationOnline": "Online",
-    "locationKanto": "Kanto (excl. Tokyo) / Tohoku / Hokkaido",
+    "locationKanto": "Kanto (excl. Tokyo)",
+    "locationTohoku": "Tohoku / Hokkaido",
     "locationChubu": "Chubu / Kinki",
     "locationChugoku": "Chugoku / Kyushu / Shikoku",
     "cityAll": "All prefectures",
@@ -120,7 +121,7 @@
     "languageSupport": "Language Support",
     "tvChannel": "TV Channel",
     "relatedScreeningsTitle": "Other screenings of this work",
-    "pastScreeningsLabel": "Past Screenings"
+    "pastScreeningsLabel": "Hidden Merged Entries"
   },
   "auth": {
     "loginTitle": "Login",

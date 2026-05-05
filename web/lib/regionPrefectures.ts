@@ -11,12 +11,14 @@
 export const CITY_OTHER = "_other" as const;
 
 /** Regions that expose a prefecture sub-select. */
-export const REGIONS_WITH_CITY = ["kanto", "chubu", "chugoku"] as const;
+export const REGIONS_WITH_CITY = ["kanto", "tohoku", "chubu", "chugoku"] as const;
 export type RegionWithCity = (typeof REGIONS_WITH_CITY)[number];
 
 export const REGION_PREFECTURES: Record<RegionWithCity, string[]> = {
   kanto: [
     "神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬", "山梨",
+  ],
+  tohoku: [
     "北海道",
     "青森", "岩手", "宮城", "秋田", "山形", "福島",
   ],

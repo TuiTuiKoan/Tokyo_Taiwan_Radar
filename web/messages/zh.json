@@ -29,7 +29,8 @@
     "locationTokyo": "東京",
     "timeModeAll": "全部",
     "locationOnline": "線上",
-    "locationKanto": "關東（不含東京）・東北・北海道",
+    "locationKanto": "關東（不含東京）",
+    "locationTohoku": "東北・北海道",
     "locationChubu": "中部・近畿",
     "locationChugoku": "中國・九州・四國",
     "locationOverseas": "海外（台灣各城市）",
@@ -120,7 +121,7 @@
     "languageSupport": "語言支援",
     "tvChannel": "電視頻道",
     "relatedScreeningsTitle": "同作品其他場次",
-    "pastScreeningsLabel": "過去場次"
+    "pastScreeningsLabel": "隱藏合併條目"
   },
   "auth": {
     "loginTitle": "登入",

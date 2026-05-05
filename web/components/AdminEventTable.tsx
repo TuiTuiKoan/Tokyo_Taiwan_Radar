@@ -113,7 +113,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("all");
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
-  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "kanto" | "chubu" | "chugoku" | "online" | "tv" | "overseas">("")
+  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "kanto" | "tohoku" | "chubu" | "chugoku" | "online" | "tv" | "overseas">("")
   const [filterCity, setFilterCity] = useState("");
   const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "reviewed" | "error">("");;  const [filterSource, setFilterSource] = useState("");
   const [filterOrgType, setFilterOrgType] = useState("");
@@ -129,7 +129,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     return () => ro.disconnect();
   }, []);
   const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
-  const KANTO_MARKERS_ADMIN = ["神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬", "山梨", "青森", "岩手", "宮城", "秋田", "山形", "福島", "北海道"];
+  const KANTO_MARKERS_ADMIN = ["神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬", "山梨"];
+  const TOHOKU_MARKERS_ADMIN = ["北海道", "青森", "岩手", "宮城", "秋田", "山形", "福島"];
   // NOTE: "京都" is a substring of "東京都" — always use "京都府"/"京都市" to avoid false positives
   const CHUBU_KINKI_MARKERS_ADMIN = ["愛知", "静岡", "岐阜", "長野", "新潟", "富山", "石川", "福井", "大阪", "京都府", "京都市", "兵庫", "奈良", "滋賀", "和歌山", "三重"];
   const CHUGOKU_KYUSHU_MARKERS_ADMIN = ["広島", "岡山", "鳥取", "島根", "山口", "福岡", "佐賀", "長崎", "熊本", "大分", "宮崎", "鹿児島", "沖縄", "高知", "愛媛", "徳島", "香川"];
@@ -178,6 +179,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         if (!isTokyoAddr(e.location_address, (e as any).location_prefectures)) return false;
       } else if (filterLocation === "kanto") {
         if (!hasPrefecture(KANTO_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false;
+      } else if (filterLocation === "tohoku") {
+        if (!hasPrefecture(TOHOKU_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false;
       } else if (filterLocation === "chubu") {
         if (!hasPrefecture(CHUBU_KINKI_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false;
       } else if (filterLocation === "chugoku") {
@@ -235,6 +238,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       }
       if (filterLocation === "tokyo") { if (!isTokyoAddr(e.location_address, (e as any).location_prefectures)) return false; }
       else if (filterLocation === "kanto") { if (!hasPrefecture(KANTO_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false; }
+      else if (filterLocation === "tohoku") { if (!hasPrefecture(TOHOKU_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false; }
       else if (filterLocation === "chubu") { if (!hasPrefecture(CHUBU_KINKI_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false; }
       else if (filterLocation === "chugoku") { if (!hasPrefecture(CHUGOKU_KYUSHU_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false; }
       else if (filterLocation === "online") { if (!(e.location_name || "").includes("オンライン")) return false; }
@@ -622,7 +626,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
       {/* Sticky wrapper: filter bar + bulk action bar scroll together */}
       <div ref={filterBarRef} className="sticky top-14 z-20 space-y-2 mb-3">
-      {/* Inline filter bar */
+      {/* Inline filter bar */}
       <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
         {/* Row 1: 搜尋、類型、地點、票價、時間、日期 */}
         <div className="flex flex-wrap gap-3 items-end">
@@ -693,6 +697,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="">{tFilters("allLocations")}</option>
               <option value="tokyo">{tFilters("locationTokyo")}</option>
               <option value="kanto">{tFilters("locationKanto")}</option>
+              <option value="tohoku">{tFilters("locationTohoku")}</option>
               <option value="chubu">{tFilters("locationChubu")}</option>
               <option value="chugoku">{tFilters("locationChugoku")}</option>
               <option value="online">{tFilters("locationOnline")}</option>
@@ -988,10 +993,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       )}
       </div>{/* /sticky wrapper */}
 
-      {/* Events table */}
-      <div className="[overflow-x:clip]">
+      {/* Events table — scroll container so thead sticky top-0 is always reliable */}
+      <div className="overflow-auto" style={{ height: `calc(100vh - ${56 + filterBarHeight}px)` }}>
         <table className="w-full text-sm border-collapse">
-          <thead className="sticky z-10 bg-white" style={{ top: 56 + filterBarHeight }}>
+          <thead className="sticky top-0 z-10 bg-white">
             {viewMode === "annotated" ? (
               <tr className="border-b text-left text-gray-500">
                 <th className="py-2 pr-2 w-8">
@@ -1101,6 +1106,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     </div>
                   </td>
                   <td className="py-2 pr-4 max-w-xs">
+                    {event.work_id && workMap[event.work_id] && (
+                      <span className="block text-[10px] text-indigo-600 font-normal mb-0.5 truncate" title={`Work: ${workMap[event.work_id].original_title}`}>
+                        🎬 {getWorkTitle(workMap[event.work_id], locale)}
+                      </span>
+                    )}
                     {event.parent_event_id && eventMap[event.parent_event_id] && (
                       <span className="block text-xs text-green-600 font-normal mb-0.5 truncate">
                         ↳ {getEventName(eventMap[event.parent_event_id], locale)}
