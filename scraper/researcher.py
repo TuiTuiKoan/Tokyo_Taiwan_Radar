@@ -405,7 +405,7 @@ class CategoryAgent:
                             f"Search for: {cat['query_ja']}\n"
                             f"Also search: {cat['query_en']}\n\n"
                             f"Find up to 3 event source websites NOT already in: {EXISTING_SOURCES}\n\n"
-                            + (f"SKIP these already-known URLs (do not suggest them again): {', '.join(sorted(self.known_urls.keys())[:30])}\n\n" if self.known_urls else "")
+                            + (f"SKIP these already-known URLs (do not suggest them again): {', '.join(sorted(self.known_urls.keys()))}\n\n" if self.known_urls else "")
                             + f"Also provide 2-3 recent Taiwan-related news bullets and top trend keywords.\n\n"
                             f"Respond ONLY as valid JSON matching this schema:\n{SOURCE_SCHEMA}"
                         ),
@@ -493,10 +493,30 @@ def _upsert_sources(sb, sources: list[dict], known_urls: dict[str, str]) -> tupl
     now = datetime.now(timezone.utc).isoformat()
 
     for src in sources:
-        if not src.get("url_verified"):
-            continue
         url = src.get("url", "")
+        if not url:
+            continue
+
         existing_status = known_urls.get(url)
+
+        # url_verified=False: save as not-viable so GPT won't suggest it again tomorrow.
+        # Only insert if not already in DB (never overwrite a higher-status row).
+        if not src.get("url_verified"):
+            if not existing_status:
+                try:
+                    sb.table("research_sources").upsert({
+                        "name": src.get("name", ""),
+                        "url": url,
+                        "agent_category": src.get("agent_category", ""),
+                        "status": "not-viable",
+                        "reason": "URL verification failed (Playwright could not load page)",
+                        "url_verified": False,
+                        "first_seen_at": now,
+                        "last_seen_at": now,
+                    }, on_conflict="url").execute()
+                except Exception:
+                    pass
+            continue
 
         if existing_status and existing_status not in ("candidate",):
             # Higher-status rows (researched, recommended, implemented, not-viable)
