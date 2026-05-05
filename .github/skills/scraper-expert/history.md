@@ -3,6 +3,24 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — walkerplus.py 建立 + Promotion checklist 遺漏 research_sources 登錄
+
+### 問題
+walkerplus.py 新增後，Promotion checklist 的步驟 3/4（`research_sources` 登錄 + `scraper_source_name` 填寫）被遺漏。使用者提醒後才補做。
+另外，`update_source.py` 不支援 `implemented` 狀態，需直接寫 DB。
+
+### 根因
+Promotion checklist（5 步驟）在 scraper 建立時沒有完整執行，只做了 main.py 登錄就結束了 session。
+
+### 修復
+直接 upsert `research_sources` 表：`status='implemented'`、`scraper_source_name='walkerplus'`、`scraping_feasibility='medium'`、`agent_category='event_listing'`。
+
+### 教訓
+1. **Promotion checklist 5 步驟必須在同一個 session/commit 全部完成**，不能分段做。
+2. **`update_source.py` 只支援 `researched`/`not-viable`**；`implemented` 狀態需直接寫 DB（Supabase SDK upsert）。
+3. walkerplus HTML 解析注意事項：`m-articleset--3` 有 3 個實例，必須用 `.m-detail__contents` 限定範圍取說明文；場地 link 順序是 [地域, 都道府縣, 市区町村, 施設名]，最後一個 link = `location_name`，中間 links 組合 = `location_address`；無關鍵字搜尋 API，只能用分類頁 + title 過濾。
+
+---
 ## 2026-05-05 — note.com creator 追加 4 件（commit `d7da54a`）
 
 ### 問題

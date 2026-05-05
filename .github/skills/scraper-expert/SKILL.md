@@ -41,6 +41,18 @@ Read this at the start of every session before writing any scraper.
   3. `research_sources` row — `status = 'implemented'`.
   4. **`research_sources.scraper_source_name = '<scraper key>'`** — MUST be filled manually; `auto_generate` does NOT write this. Omitting it causes `/admin/sources` to show 0 events and disables Run Scraper (backend JOINs `scraper_runs` by this key).
   5. Smoke-test: `python main.py --dry-run --source <key>` returns events.
+  - **⚠ 必須在同一個 session で全 5 ステップを完了すること。** 途中で session を切ると研究状態が中断し、`research_sources` 未登録のまま scraper が CI に入る。
+  - **`update_source.py` は `researched`/`not-viable` のみ対応。** `implemented` ステータスは `update_source.py` で設定できない — Supabase SDK で直接 upsert する必要がある:
+    ```python
+    sb.table("research_sources").upsert({
+        "url": "<listing_url>",
+        "name": "<display name>",
+        "status": "implemented",
+        "scraper_source_name": "<source_key>",
+        "scraping_feasibility": "medium",  # or easy/hard
+        "agent_category": "event_listing",
+    }, on_conflict="url").execute()
+    ```
 - **`meta.json` に `source_name` / `class_name` がない場合は `generated.py` 先頭を直接確認する**: `auto_scraper/runs/{id}/meta.json` に `source_name` が含まれていない場合がある。その場合は `auto_scraper/runs/{id}/generated.py` の先頭数行を読んで `class XxxScraper(BaseScraper):` を探す。クラス名から `source_name` は snake_case 変換で導ける（`BookAndBeerScraper` → `bookandbeer`）。
 - **auto-scraper feature branch は生成後 24 時間以内にマージする**: `SCRAPERS` リストは全員が同じ行/ブロックを編集するため、放置するほど conflict が深刻化。長期放置 → 複数の scraper 追加コミットが main に積まれ → マージ時に手動解決が必要になる（commit `7cedc68` の Artist Cafe 衝突事例）。
 - **Identify source_name from a problem event**: Never guess from the event title — always query the DB:
@@ -945,3 +957,34 @@ GPT-4o invents plausible-looking CSS classes that look reasonable but are NOT in
 3. **Two-stage filter is mandatory**: API `search=` has broad recall; `_TAIWAN_TITLE_RE` on title is the precision gate. Body-only Taiwan mentions (bibliography, references) must not pass.
 4. **0 events is almost always correct**: ~1–2 genuine Taiwan events per year. Never inflate keywords to increase counts.
 5. **No overlap with `waseda_taiwan`**: Different institutions, different WP sites, different post IDs. Merger will not deduplicate them.
+
+## walkerplus-specific
+
+Walker+ (walkerplus.com) — KADOKAWA 運営の全国イベントリストサイト。
+
+- **対象カテゴリ**: `eg0117`（グルメ・フードフェス）、`eg0118`（物産展・観光フェア）、`eg0107`（美術展・博物展）。台湾関係イベントが多いのは `eg0117`/`eg0118`。
+- **台湾キーワードフィルタはカード title のみ**: Walker+ には台湾キーワードで絞り込む検索 API が存在しない。分類ページ（`/event_list/{category}/{page}.html`）を全ページ取得し、カード title で台湾キーワードを照合する（URL クエリパラメータでの絞り込み不可）。
+- **分页 URL パターン**: 第1ページは `/event_list/{category}/`（`.html` 不要）、第2ページ以降は `/event_list/{category}/{page}.html`。
+- **`source_id`**: `walkerplus_{area+event_code}`（例: `walkerplus_ar0313e462812`）— URL path の area+event code 部分。stable across runs。
+- **`m-articleset--3` は 3 インスタンスある**: `#0` と `#1` は `.m-detail__contents` 内（本文）。`#2` は `.l-main` 直下（「関連イベント」ウィジェット）。`raw_description` の `p` タグ抽出は必ず `.m-detail__contents` スコープに限定すること。スコープを外すと関連イベントウィジェットの説明文が混入する。
+  ```python
+  # ✅ 正しい
+  content = soup.select_one(".m-detail__contents")
+  paras = content.select("p") if content else []
+
+  # ❌ NG — #2 インスタンスまで抜けてしまう
+  paras = soup.select(".m-articleset--3 p")
+  ```
+- **場地リンクの順序**: `.m-detailheader__period[場所]` セクションのリンクは `[地域, 都道府県, 市区町村, 施設名]` の順序。**最後のリンク = `location_name`（施設名）、中間リンクを結合 = `location_address`**。`location_name` を `location_address` にコピーしてはいけない。
+  ```python
+  links = venue_section.select("a")
+  if links:
+      location_name = links[-1].get_text(strip=True)
+      location_address = "".join(a.get_text(strip=True) for a in links[1:-1]) or None
+  ```
+- **Detail page selectors**:
+  - タイトル: `h1.m-detailheader-heading__ttl`
+  - 開催日: `p.m-detailheader__text`（日付範囲テキスト、`〜` 区切り）
+  - 場所/時間: `.m-detailheader__period` 区画、`.m-detailheader__icon` のラベルテキスト（「場所」「開催時間」）で判別
+- **Crawl-delay**: 1 秒（`time.sleep(1)`）。KADOKAWA 系サイトはレート制限が厳しい。
+- **`scraper_source_name = 'walkerplus'`**: `research_sources` 行をこのキーで登録しないと `/admin/sources` で 0 件表示になる。

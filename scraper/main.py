@@ -90,6 +90,7 @@ from sources.daimaru_matsuzakaya import DaimaruMatsuzakayaScraper
 from sources.cinemarine import CineMarineScraper
 from sources.eslite_spectrum import EsliteSpectrumScraper
 from sources.moonromantic import MoonRomanticScraper
+from sources.bigromanticrecords import BigRomanticRecordsScraper
 from sources.morc_asagaya import MorcAsagayaScraper
 from sources.ssff import SsffScraper
 from sources.taiwan_faasai import TaiwanFaasaiScraper
@@ -104,6 +105,7 @@ from sources.taiwan_festa import TaiwanFestaScraper
 from sources.tiff import TiffJpScraper
 from sources.rightscube import RightscubeScraper
 from sources.walkerplus import WalkerplusScraper
+from sources.tsutaya_portal import TsutayaPortalScraper
 from sources.base import dedup_events
 from database import upsert_events, archive_ended_events, _get_client
 from annotator import annotate_pending_events
@@ -176,6 +178,7 @@ SCRAPERS = [
     CineMarineScraper(),
     EsliteSpectrumScraper(),
     MoonRomanticScraper(),
+    BigRomanticRecordsScraper(),
     MorcAsagayaScraper(),
     SsffScraper(),
     TaiwanFaasaiScraper(),
@@ -190,6 +193,7 @@ SCRAPERS = [
     TiffJpScraper(),
     RightscubeScraper(),
     WalkerplusScraper(),
+    TsutayaPortalScraper(),
 ]
 
 
