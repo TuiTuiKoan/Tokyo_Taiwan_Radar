@@ -1045,7 +1045,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 "险": "險", "雾": "霧",
                 "驾": "駕", "骗": "騙", "骤": "驟",
                 "鱼": "魚", "鲜": "鮮", "鸟": "鳥", "鸡": "雞", "鸣": "鳴",
-                "踪": "蹤",
+                "踪": "蹤", "买": "買",
             })
             # Remove identity mappings (same char in both)
             _SIMP_TO_TRAD = {k: v for k, v in _SIMP_TO_TRAD.items() if k != v}
