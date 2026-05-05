@@ -56,7 +56,19 @@ _CITY_TO_PREF: dict[str, str] = {
         "杉並区", "豊島区", "北区", "荒川区", "板橋区", "練馬区", "足立区",
         "葛飾区", "江戸川区",
     ]},
+    # 県庁所在地 (non-seirei) — capital cities of remaining prefectures.
+    "青森市": "青森", "盛岡市": "岩手", "秋田市": "秋田", "山形市": "山形",
+    "福島市": "福島", "水戸市": "茨城", "宇都宮市": "栃木", "前橋市": "群馬",
+    "富山市": "富山", "金沢市": "石川", "福井市": "福井", "甲府市": "山梨",
+    "長野市": "長野", "岐阜市": "岐阜", "津市": "三重", "大津市": "滋賀",
+    "奈良市": "奈良", "和歌山市": "和歌山", "鳥取市": "鳥取", "松江市": "島根",
+    "山口市": "山口", "徳島市": "徳島", "高松市": "香川", "松山市": "愛媛",
+    "高知市": "高知", "佐賀市": "佐賀", "長崎市": "長崎", "大分市": "大分",
+    "宮崎市": "宮崎", "鹿児島市": "鹿児島", "那覇市": "沖縄",
 }
+
+# English address fallback (e.g. "4-1-1 Miyoshi, Koto-ku, Tokyo").
+_EN_TO_PREF: dict[str, str] = {"tokyo": "東京", "osaka": "大阪", "kyoto": "京都"}
 
 # Strip leading noise such as `日本、` and postal code `〒xxx-xxxx ` before matching.
 _PREFIX_RE = re.compile(r"^(?:日本[、,]?\s*)?(?:〒\s*\d{3}-?\d{4}[\s　]*)?")
@@ -81,6 +93,11 @@ def extract_prefecture(address: str | None) -> str | None:
     for city, pref in _CITY_TO_PREF.items():
         if address.startswith(city):
             return pref
+    # English address fallback.
+    low = address.lower()
+    for k, v in _EN_TO_PREF.items():
+        if k in low:
+            return v
     return None
 
 
@@ -193,5 +210,9 @@ if __name__ == "__main__":
     assert extract_prefecture("港区麻布十番２丁目") == "東京"
     assert extract_prefecture("渋谷区猿楽町17-10") == "東京"
     assert extract_prefecture("〒338-8506 さいたま市中央区上峰3-15-1") == "埼玉"
+    assert extract_prefecture("高知市五台山4200-6") == "高知"
+    assert extract_prefecture("4-1-1 Miyoshi, Koto-ku, Tokyo 135-0022") == "東京"
+    assert extract_prefecture("津市本町1-1") == "三重"
+    assert extract_prefecture("那覇市首里") == "沖縄"
     assert extract_prefecture("オンライン") is None
     main()
