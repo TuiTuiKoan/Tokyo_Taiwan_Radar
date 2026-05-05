@@ -22,8 +22,7 @@
 ## 月度健檢
 
 - [x] `docs/MONTHLY_FEEDBACK_LOOP_HEALTH_CHECK.md`（3 組 SQL 查詢 + 判讀指引）
-- [ ] 健檢結果自動化：把 3 組查詢加入 `weekly_report.py` 或月度 CI job
-  （目前：完全手動，每月 1 號 Supabase Dashboard SQL Editor）
+- [x] 健檢結果自動化：`scraper/monthly_health_check.py` + `.github/workflows/monthly_health_check.yml`（每月 1 日 09:00 JST，commit `759f537`，2026-05-05）
 
 ## 閉環品質改善
 
@@ -33,7 +32,7 @@
 - [x] `daily_quality_metrics` 表 + `precision_rate` 14 天趨勢（migration 046 + `daily_quality.py` + `/admin/stats` 區塊，commit `46210d9`，2026-05-05）
 - [ ] `field_protect_hits` 指標追蹤（確認 corrections 保護機制有被使用 → P1 corrections.applied_at 計畫，目前延後）
 - [ ] 同類報錯月度重複率追蹤（確認 AI 有在學習）
-- [ ] precision_rate < 0.85 時自動發 LINE alert（目前只寫 GH Actions `::warning::`，未送 LINE）
+- [x] precision_rate < 0.85 時自動發 LINE alert（`notify.py` `quality_alert` 參數 + CI 串接，commit `ebdaa5b`，2026-05-05）
 
 ## Verification（月度）
 
