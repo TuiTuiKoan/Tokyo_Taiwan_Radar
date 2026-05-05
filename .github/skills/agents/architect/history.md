@@ -3,6 +3,46 @@
 <!-- Append new entries at the top -->
 
 ---
+### 2026-05-05 — gnews sub-event 電影標題幻覺（d18339d5：月老 → 造山者/チップ・オデッセイ）
+
+**問題**：gnews 父事件 `c14dc455`（NNA 文章：台灣半導體記錄片チップ・オデッセイ赴日上映）在 GPT 標注時產出多個 sub-events。其中 sub3 `d18339d5`（"早稲田大学での上映会"）被 GPT 幻覺標注為 `name_ja = "赤い糸 輪廻のひみつ"`（月老），`name_zh = "月老"`，應為造山者（チップ・オデッセイ）的早稻田場次。
+
+**根因**：
+1. **Sub-event 描述極薄**：`raw_description` 只有 1 句話（37 字），完全沒有電影名稱
+2. **GPT 從文章其他段落推斷**：NNA 文章可能提及多部台灣電影（含月老），GPT 將月老的早稻田場次與造山者的場次混淆，把月老的電影名稱配對到這個 sub-event
+3. **SYSTEM_PROMPT 規則不足**：原規則只說 "Movie titles must use the Japanese release title exactly as written"，未禁止從文章其他段落推斷標題
+4. **無機械性防護**：`enrich_movie_titles` 對無 bracket 的 sub-event 雖然正確跳過，但 GPT 直接寫入的幻覺標題無法被自動偵測
+
+**修法（2026-05-05）**：
+- DB 直接修正 `d18339d5`：`work_id → 29f38b66`（造山者），`name_ja/zh/en` 更正，`annotation_status → pending`，`field_corrections` 保護
+- `annotator.py` SYSTEM_PROMPT 新增 `CRITICAL — DO NOT INFER MOVIE TITLES` 子規則：描述性位置短語（如 "早稲田大学での上映会"）若旁邊無明確電影名稱，禁止從文章其他段落推斷
+- `enrich_movie_titles()` 新增 sub-event bracket guard：news source sub-event 的 bracket 命中若來自 `name_ja`（非 `raw_title`）→ skip + warning；`select` 查詢加入 `parent_event_id`
+
+**教訓**：
+- **Sub-event name_ja 是 GPT 的高風險輸出**：父事件一次性產出多個 sub-events，各 sub-event 的語境極薄，GPT 容易從文章其他段落借用資訊，特別是電影名稱
+- **場館描述性標題不等於電影名稱**："早稲田大学での上映会" 這類標題是地點+動作，不是電影名，GPT 不應替換成推斷的電影名
+- **`annotation_status = "annotated"` 繞過後續驗證**：sub-events 直接以 annotated 狀態建立，不再走 pending → annotated 流程，幻覺無法被 re-annotation 發現
+
+---
+### 2026-05-05 — Works 批次建立時日文片名直譯幻覺（超低予算ムービー大作戦 → 導演你有病）
+
+**設計問題**：批次修復 157 筆電影事件時，Architect 建立 works 映射表由 GPT 生成中文片名。`超低予算ムービー大作戦` 被逐字直譯為 `超低預算電影大作戰`——看起來合理但完全錯誤。真正的中文片名是 `導演你有病`（Out of Nowhere），與日文片名毫無語義關聯。
+
+**根因**：
+1. **亞洲電影的跨語言片名常不對譯**：台灣電影在日本上映時，日文片名經常由日本發行商重新命名（如 `月老` → `赤い糸 輪廻のひみつ`），日→中回譯必然產生幻覺。
+2. **GPT 的預設行為是直譯**：遇到不認識的片名時，GPT 傾向用語義翻譯而非回答「我不確定」，產出看似合理的虛構片名。
+3. **缺乏外部驗證步驟**：映射表建立後直接交給 Engineer 執行，未要求逐筆用維基百科、IMDb 或台灣電影資料庫交叉驗證。
+
+**修法**：
+- 手動 DB 修正：work `original_title` 改為 `導演你有病`，3 筆 events 的 `name_zh`/`name_en` 更新並鎖入 `field_corrections`。
+- 新增 **Film Title Cross-Language Verification Guard** 至 SKILL.md 和 architect.agent.md。
+
+**教訓**：
+- **日→中電影片名永遠不可直譯**：日文片名是日本發行商的行銷創作，與原始中文片名的關係從完全一致（`余燼`→`余燼`）到完全無關（`超低予算ムービー大作戦`→`導演你有病`），無法預測。
+- **批次建立 works 時必須逐筆驗證**：每部電影的 `original_title`（中文片名）必須用外部來源交叉確認（維基百科 `zh.wikipedia.org`、台灣電影網 `taiwancinema.bamid.gov.tw`、IMDb），不可信賴 GPT 回憶或直譯。
+- **「看起來合理」是幻覺的特徵，不是正確性的保證**：`超低預算電影大作戰` 作為中文片名完全合理——但它不存在。幻覺的危險性正在於此。
+
+---
 ### 2026-05-05 — 首頁 inline 渲染與 `EventCard` 分歧（commit `5a29c13` → `9f4b468`）
 
 **設計問題**：以為全島所有事件卡片都走 `web/components/EventCard.tsx`，實際上首頁 [`web/app/[locale]/page.tsx`](web/app/[locale]/page.tsx) 是窄版面 list-style 設計，完全 inline 渲染不用 `EventCard`。第一輪修正只改 `EventCard.tsx`，首頁完全未受影響，用戶回報「還是沒看到徽章」。

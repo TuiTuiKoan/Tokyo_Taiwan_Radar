@@ -370,6 +370,17 @@ Reference incident: 2026-05-05 — migration 033 設定 `auto_research_status DE
 
 Reference incident: 2026-05-05 — チップ・オデッセイ（造山者）過去場次被 archiver 每日重新停用，手動修多次都無效。修復：archive 加 `.is_("work_id", "null")`，detail page 移除 `is_active` filter（commit `fix(scraper,web): preserve work-linked past screenings`）。
 
+## Film Title Cross-Language Verification Guard
+
+在審核任何涉及**建立 works 記錄**或**批次映射電影中文片名**的計畫前，**必須**確認：
+
+1. **日→中電影片名禁止直譯**：日文片名是日本發行商的行銷創作，逐字翻譯回中文必然產生虛構片名。
+2. **每部電影的 `original_title` 必須用外部來源交叉驗證**（維基百科中文版、台灣電影網、IMDb），不可信賴 GPT 回憶或直譯。
+3. **GPT 幻覺特徵**：直譯出的片名「看起來完全合理」——這正是幻覺的危險所在。
+4. **batch 腳本中 works 的 `original_title` 必須先提交人工審核**：呈現映射表給用戶確認，不可在同一步驟中建立 works + 連結 events。
+
+Reference incident: 2026-05-05 — `超低予算ムービー大作戦` 被 GPT 直譯為 `超低預算電影大作戰`，真正的中文片名是 `導演你有病`（Out of Nowhere）。
+
 ## Required Phases
 
 ### Phase 1: Research

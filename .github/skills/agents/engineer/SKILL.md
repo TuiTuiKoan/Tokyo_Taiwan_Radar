@@ -1320,5 +1320,6 @@ The location filter is implemented in **three separate files** that must always 
 5. **Migration 應用後**：跑一次 `scraper/_oneoff_backfill_works.py` 補上既有觸發 case（月老、大濛），再刪除腳本。
 6. **`original_title` UNIQUE**：migration 048 在 `original_title` 上建立 unique index，backfill 才能用 `on_conflict='original_title'` 或「先 select 再 update」。新增腳本若需 idempotent upsert，先用 `.eq('original_title', ...).limit(1)` 檢查，避免依賴 PostgREST `on_conflict` 對複合條件的 brittle 行為。
 7. **merger Pass 1 整合**：同 `work_id` 跨 venue 的 movie/performing_arts pair 不再合併（會破壞「同作品多場次」呈現）。`merger.py` 已在 Pass 1 加入兩個跳過條件：(a) 雙方 `work_id` 非空且不同 → skip；(b) category 含 movie/performing_arts 且 `_location_overlap()=False` → skip。輸出 `[Pass 1 SKIP]` log。
+8. **`original_title`（中文片名）禁止直譯**：日文片名是日本發行商的行銷創作，與台灣原始片名經常完全不同（如 `超低予算ムービー大作戦` ≠ `超低預算電影大作戰`，正確答案是 `導演你有病`）。建立 works 記錄時，`original_title` 必須用維基百科、台灣電影網或 IMDb 交叉驗證，不可信賴 GPT 直譯或回憶。
 
 **Reference**: 月老 (`f970e4e3` shin_bungeiza ↔ `4a8772ec` cinemart_shinjuku) 與 大濛 (`dec5031b` cinemart_shinjuku ↔ `d201c261` taioan_dokyokai) — migration 048 + Phase 7 cohort.

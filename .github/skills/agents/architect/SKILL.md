@@ -339,6 +339,34 @@ Before acting on any hallucination scan result (address/location not found in ra
 3. **Venue name ≠ postal address**: `MoN Takanawa` (inside Takanawa Gateway City) has postal address 港区三田 — not 高輪. Station names, building brands, and postal addresses can differ.
 4. **Incident**: 2026-05-02 — architect changed correct GPT address `港区三田3-16-1` to wrong `港区高輪4-10-30` based on venue name reasoning. Reverted after user confirmation.
 
+## enrich_movie_titles Sub-Event Hallucination Guard
+
+在審核任何涉及 `enrich_movie_titles()` 修改、或分析 gnews sub-event 電影標題錯誤的計畫前，**必須**確認：
+
+1. **gnews sub-event 的 `name_ja` 不可作為 eiga.com lookup 的標題來源**：
+   - 若 `source` 在 `_NEWS_MOVIE_SOURCES` 且 bracket 命中來自 `name_ja`（非 `raw_title`），且事件有 `parent_event_id` → 必須 `continue`（跳過）並記錄 `logger.warning`。
+   - Sub-event 的 `name_ja` 是 GPT 從極薄語境（單句描述 + 文章全文）生成，極易幻覺電影名稱。
+   - 只信任 `raw_title`（scraper 直接捕獲）中的括號標題。
+
+2. **`enrich_movie_titles` select 查詢必須含 `parent_event_id`**：
+   - Guard 邏輯需要讀取 `parent_event_id`，若 select 字串缺少此欄位，`event.get("parent_event_id")` 永遠 `None`，guard 靜默失效。
+
+3. **SYSTEM_PROMPT `SUB-EVENT name_ja` 規則的 CRITICAL 補丁**：
+   - 規則已加入：若 sub-event 標題是描述性位置短語（e.g., "早稲田大学での上映会"）且電影名稱未直接出現在該 sub-event 描述旁，禁止從文章其他段落推斷電影名稱。
+   - 核查點：SYSTEM_PROMPT 中的 `SUB-EVENT name_ja` 段落須包含 `CRITICAL — DO NOT INFER MOVIE TITLES` 文字。
+
+4. **根因機制（供調試參考）**：
+   - GPT 標注父事件時，同時識別多個 sub-events
+   - 含多部電影的文章中，GPT 可能把 A 電影的場館名稱配對到 B 電影的放映日期
+   - 場館描述性 sub-event（如 "早稲田大学での上映会"）因無明確電影名稱，GPT 從文章語境推斷並幻覺
+
+**驗證命令**（執行後確認 `_title_from_raw` 旗標存在）：
+```bash
+grep -n "_title_from_raw\|skipping enrich for news sub-event" scraper/annotator.py
+```
+
+Reference incident: 2026-05-05 — `d18339d5` (`gnews_f9a2e51bc89a_sub3`) raw_desc 只有 1 句話，GPT 幻覺 `name_ja = "赤い糸 輪廻のひみつ"`（月老），應為チップ・オデッセイ（造山者）場次。無 bracket → `enrich_movie_titles` 未鎖定，但 GPT 直接寫入 DB（annotation_status=annotated）且人工修正前無法自動偵測。
+
 ## Performer Null Guard（annotator.py 三層 fallback 守則）
 
 在審核任何涉及 `performer` 欄位的計畫，或分析 `performer = NULL` 案例時，**必須**確認 annotator.py 是否正確執行三層 fallback：
@@ -981,4 +1009,22 @@ Reference incident: 2026-05-05 — event 6a91a4ce (アジア美術の歩き方 �
    reviewed 事件的 event_form 被 annotator 跳過，scraper 層是唯一機會。
 
 Reference incident: 2026-05-05 — tokyoartbeat organizer 未設 → GPT 幻想 横浜美術館；event_form 未設且已 reviewed → 永遠空 (commit a1e58a9)。
+
+## Film Title Cross-Language Verification Guard
+
+在審核任何涉及**建立 works 記錄**或**批次映射電影中文片名**的計畫前，**必須**確認：
+
+1. **日→中電影片名禁止直譯**：亞洲電影的跨語言片名經常完全不對譯。日文片名是日本發行商的行銷創作（如 `月老` → `赤い糸 輪廻のひみつ`、`導演你有病` → `超低予算ムービー大作戦`），逐字翻譯回中文必然產生虛構片名。
+2. **每部電影的 `original_title`（中文原始片名）必須用外部來源交叉驗證**，不可信賴 GPT 回憶或直譯。驗證來源優先順序：
+   - 維基百科中文版（`zh.wikipedia.org/wiki/<片名>`）
+   - 台灣電影網（`taiwancinema.bamid.gov.tw`）
+   - IMDb（`imdb.com/title/<id>`）
+   - 開眼電影網（`atmovies.com.tw`）
+3. **驗證流程**：對映射表中每一筆 work，用 `title_ja`（日文片名）搜尋維基百科日文版或 Google `"<title_ja>" 台湾映画`，找到條目後核對中文片名。若找不到條目，標記為「待人工確認」而非猜測。
+4. **GPT 幻覺特徵**：直譯出的片名「看起來完全合理」——這正是幻覺的危險所在。`超低預算電影大作戰` 作為中文片名毫無語法問題，但該片名不存在。
+5. **batch 腳本中 works 的 `original_title` 必須先提交人工審核**：將映射表呈現給用戶，明確標示「以下片名需確認」。不可在同一步驟中建立 works + 連結 events。
+
+**自動防護建議**（未來）：`enrich_movie_titles()` 已有 Wikipedia + Google 查詢邏輯，可考慮在批次建立 works 前呼叫 `_lookup_movie_title(name_ja)` 做預驗證。
+
+Reference incident: 2026-05-05 — `超低予算ムービー大作戦` 被 GPT 直譯為 `超低預算電影大作戰`，真正的中文片名是 `導演你有病`（Out of Nowhere）。用戶發現後手動修正。
 
