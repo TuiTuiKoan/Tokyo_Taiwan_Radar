@@ -213,8 +213,6 @@ export default async function AdminRoadmapPage({ params }: PageProps) {
               className={`rounded-lg border p-4 ${
                 p.status === "in-progress"
                   ? "border-amber-300 bg-amber-50"
-                  : p.status === "done"
-                  ? "border-green-300 bg-green-50"
                   : "border-gray-200 bg-gray-50"
               }`}
             >
