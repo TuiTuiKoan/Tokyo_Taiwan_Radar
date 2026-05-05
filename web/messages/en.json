@@ -35,6 +35,7 @@
     "locationChugoku": "Chugoku / Kyushu / Shikoku",
     "cityAll": "All prefectures",
     "cityOther": "Other",
+    "cityLabel": "Prefecture"
     "locationOverseas": "Overseas (Taiwan Cities)"
   },
   "categories": {

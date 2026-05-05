@@ -711,7 +711,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             const prefs = REGION_PREFECTURES[region];
             return (
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 font-medium">{tFilters("location")}</label>
+                <label className="text-xs text-gray-500 font-medium">{tFilters("cityLabel")}</label>
                 <select
                   value={filterCity}
                   onChange={(e) => setFilterCity(e.target.value)}

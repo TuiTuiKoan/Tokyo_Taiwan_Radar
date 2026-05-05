@@ -242,7 +242,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
             const prefs = REGION_PREFECTURES[region];
             return (
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 font-medium">{t("location")}</label>
+                <label className="text-xs text-gray-500 font-medium">{t("cityLabel")}</label>
                 <select
                   value={draft.city}
                   onChange={(e) => applyWith("city", e.target.value)}
