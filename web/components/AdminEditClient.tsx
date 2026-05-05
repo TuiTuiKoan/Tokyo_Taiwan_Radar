@@ -16,6 +16,7 @@ interface Props {
 export default function AdminEditClient({ event, allEvents, locale }: Props) {
   const t = useTranslations("admin");
   const tCat = useTranslations("categories");
+  const tEventForm = useTranslations("eventForm");
   const router = useRouter();
   const supabase = createClient();
 
@@ -33,6 +34,16 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
     location_address: event.location_address ?? "",
     location_url: event.location_url ?? "",
     business_hours: event.business_hours ?? "",
+    performer: (event as any).performer ?? "",
+    organizer: (event as any).organizer ?? "",
+    organizer_url: (event as any).organizer_url ?? "",
+    event_form: (event as any).event_form ?? [],
+    co_organizers: ((event as any).co_organizers ?? []).join(", "),
+    sponsors: ((event as any).sponsors ?? []).join(", "),
+    primary_language: (event as any).primary_language ?? "",
+    has_japanese_support: (event as any).has_japanese_support ?? false,
+    has_english_support: (event as any).has_english_support ?? false,
+    has_chinese_support: (event as any).has_chinese_support ?? false,
     is_paid: event.is_paid ?? false,
     price_info: event.price_info ?? "",
     source_url: event.source_url,
@@ -75,6 +86,16 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
       end_date: form.end_date || null,
       parent_event_id: form.parent_event_id || null,
       record_links: form.record_links.filter((l) => l.url.trim()),
+      // Organizer / event-form fields
+      organizer: nullify((form as any).organizer ?? ""),
+      organizer_url: nullify((form as any).organizer_url ?? ""),
+      event_form: (form as any).event_form ?? [],
+      co_organizers: ((form as any).co_organizers as string ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
+      sponsors: ((form as any).sponsors as string ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
+      primary_language: (form as any).primary_language || null,
+      has_japanese_support: (form as any).has_japanese_support || null,
+      has_english_support: (form as any).has_english_support || null,
+      has_chinese_support: (form as any).has_chinese_support || null,
     };
 
     const categoryChanged =
@@ -86,7 +107,8 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
       "name_ja", "name_zh", "name_en",
       "description_ja", "description_zh", "description_en",
       "location_name", "location_address",
-      "business_hours", "price_info",
+      "business_hours", "price_info", "performer",
+      "organizer", "organizer_url",
     ] as const;
 
     type TrackedField = typeof TRACKED_FIELDS[number];
@@ -103,6 +125,9 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
       location_address: nullify(form.location_address),
       business_hours: nullify(form.business_hours),
       price_info: nullify(form.price_info),
+      performer: nullify((form as any).performer ?? ""),
+      organizer: nullify((form as any).organizer ?? ""),
+      organizer_url: nullify((form as any).organizer_url ?? ""),
     };
 
     const changedFields = TRACKED_FIELDS.filter((f) => {
@@ -111,9 +136,19 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
       return original !== updated;
     });
 
+    // Detect changes in array / boolean fields (not tracked in field_corrections but trigger reviewed)
+    const arrBoolChanged =
+      JSON.stringify((form as any).event_form ?? []) !== JSON.stringify((event as any).event_form ?? []) ||
+      ((form as any).co_organizers ?? "") !== ((event as any).co_organizers ?? []).join(", ") ||
+      ((form as any).sponsors ?? "") !== ((event as any).sponsors ?? []).join(", ") ||
+      ((form as any).primary_language ?? "") !== ((event as any).primary_language ?? "") ||
+      !!(form as any).has_japanese_support !== !!(event as any).has_japanese_support ||
+      !!(form as any).has_english_support !== !!(event as any).has_english_support ||
+      !!(form as any).has_chinese_support !== !!(event as any).has_chinese_support;
+
     // If any tracked field changed, auto-upgrade annotation_status to 'reviewed'
     // so the annotator never overwrites admin edits on subsequent runs.
-    const needsReviewed = changedFields.length > 0 || categoryChanged;
+    const needsReviewed = changedFields.length > 0 || categoryChanged || arrBoolChanged;
     const updatePayload: Record<string, unknown> = { ...payload };
     if (needsReviewed) {
       updatePayload["annotation_status"] = "reviewed";
@@ -191,6 +226,7 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
           form={form}
           t={t}
           tCat={tCat}
+          tEventForm={tEventForm}
           updateField={updateField}
           toggleCategory={toggleCategory}
           events={allEvents}

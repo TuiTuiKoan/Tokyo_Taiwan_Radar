@@ -548,6 +548,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             form={form}
             t={t}
             tCat={tCat}
+            tEventForm={tEventForm}
             updateField={updateField}
             toggleCategory={toggleCategory}
             events={events}
@@ -1008,6 +1009,23 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                         </span>
                       );
                     })()}
+                    {(event as any).performer && (
+                      <span className="block mt-0.5 text-[10px] text-purple-600 truncate" title={`出演者: ${(event as any).performer}`}>
+                        🎭 {(event as any).performer}
+                      </span>
+                    )}
+                    {(event as any).organizer && (
+                      <span className="block mt-0.5 text-[10px] text-gray-500 truncate" title={`主催: ${(event as any).organizer}`}>
+                        🏢 {(event as any).organizer}
+                      </span>
+                    )}
+                    {((event as any).event_form ?? []).length > 0 && (
+                      <span className="block mt-0.5 text-[10px] text-blue-500">
+                        {((event as any).event_form as string[]).map((ef) => {
+                          try { return tEventForm(ef as any); } catch { return ef; }
+                        }).join("・")}
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 pr-4">
                     <div className="flex flex-wrap gap-1">

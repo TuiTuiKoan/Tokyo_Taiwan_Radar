@@ -2,6 +2,12 @@
 
 import { type Event, type Locale, CATEGORY_GROUPS, getEventName } from "@/lib/types";
 
+const VALID_EVENT_FORMS = [
+  "exhibition", "screening", "lecture", "performance", "market",
+  "workshop", "conference", "networking", "screening_with_talk",
+  "tour", "competition", "tasting", "other",
+] as const;
+
 export const EMPTY_FORM = {
   name_ja: "",
   name_zh: "",
@@ -16,6 +22,16 @@ export const EMPTY_FORM = {
   location_address: "",
   location_url: "",
   business_hours: "",
+  performer: "",
+  organizer: "",
+  organizer_url: "",
+  event_form: [] as string[],
+  co_organizers: "",
+  sponsors: "",
+  primary_language: "",
+  has_japanese_support: false,
+  has_english_support: false,
+  has_chinese_support: false,
   is_paid: false,
   price_info: "",
   source_url: "",
@@ -32,6 +48,7 @@ interface Props {
   form: FormState;
   t: any;
   tCat: any;
+  tEventForm: any;
   updateField: (k: string, v: any) => void;
   toggleCategory: (cat: string) => void;
   events: Event[];
@@ -43,6 +60,7 @@ export default function AdminEventForm({
   form,
   t,
   tCat,
+  tEventForm,
   updateField,
   toggleCategory,
   events,
@@ -127,6 +145,122 @@ export default function AdminEventForm({
           onChange={(e) => updateField("business_hours", e.target.value)}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
         />
+      </div>
+
+      {/* Performer */}
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">{t("performer")}</label>
+        <input
+          type="text"
+          value={(form as any).performer ?? ""}
+          onChange={(e) => updateField("performer", e.target.value)}
+          placeholder="例: 李映萱、唐 顥芸"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        />
+      </div>
+
+      {/* Organizer + Organizer URL */}
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">{t("organizer")}</label>
+        <input
+          type="text"
+          value={(form as any).organizer ?? ""}
+          onChange={(e) => updateField("organizer", e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        />
+      </div>
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">{t("organizerUrl")}</label>
+        <input
+          type="url"
+          value={(form as any).organizer_url ?? ""}
+          onChange={(e) => updateField("organizer_url", e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        />
+      </div>
+
+      {/* Event Form (multi-checkbox) */}
+      <div className="md:col-span-2">
+        <label className="block text-xs text-gray-500 mb-2">{t("eventForm")}</label>
+        <div className="flex flex-wrap gap-2">
+          {VALID_EVENT_FORMS.map((ef) => (
+            <button
+              key={ef}
+              type="button"
+              onClick={() => {
+                const cur: string[] = (form as any).event_form ?? [];
+                updateField(
+                  "event_form",
+                  cur.includes(ef) ? cur.filter((x) => x !== ef) : [...cur, ef]
+                );
+              }}
+              className={`px-3 py-1 rounded-full text-xs border transition ${
+                ((form as any).event_form ?? []).includes(ef)
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "border-gray-300 hover:border-blue-400"
+              }`}
+            >
+              {tEventForm(ef as any)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Co-organizers + Sponsors */}
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">{t("coOrganizers")}</label>
+        <input
+          type="text"
+          value={(form as any).co_organizers ?? ""}
+          onChange={(e) => updateField("co_organizers", e.target.value)}
+          placeholder="例: A機構, B機構"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        />
+      </div>
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">{t("sponsors")}</label>
+        <input
+          type="text"
+          value={(form as any).sponsors ?? ""}
+          onChange={(e) => updateField("sponsors", e.target.value)}
+          placeholder="例: C企業, D企業"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        />
+      </div>
+
+      {/* Primary language */}
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">{t("primaryLanguage")}</label>
+        <select
+          value={(form as any).primary_language ?? ""}
+          onChange={(e) => updateField("primary_language", e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        >
+          <option value="">—</option>
+          <option value="ja">日本語</option>
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+          <option value="mixed">Mixed</option>
+        </select>
+      </div>
+
+      {/* Language support checkboxes */}
+      <div className="flex items-center gap-4">
+        {([
+          ["has_japanese_support", t("hasJapaneseSupport")],
+          ["has_english_support", t("hasEnglishSupport")],
+          ["has_chinese_support", t("hasChineseSupport")],
+        ] as [string, string][]).map(([key, label]) => (
+          <label key={key} className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!(form as any)[key]}
+              onChange={(e) => updateField(key, e.target.checked)}
+              className="w-3.5 h-3.5"
+            />
+            {label}
+          </label>
+        ))}
       </div>
 
       {/* Source URL */}
