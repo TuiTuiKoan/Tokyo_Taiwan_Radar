@@ -7,10 +7,12 @@ interface Props {
   locale: Locale;
 }
 
-/** Extract short city/prefecture name from a Japanese address string. */
+/** Extract short city/prefecture name from a Japanese address string.
+ *  Searches anywhere in the string (not just at start) to tolerate
+ *  〒xxx-xxxx postal-code prefixes and leading whitespace. */
 function extractCity(address: string | null): string | null {
   if (!address) return null;
-  const m = address.match(/^(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県]{2,4}[都道府県])/);
+  const m = address.match(/(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県\d〒-]{2,4}[都道府県])/);
   if (!m) return null;
   const full = m[1];
   if (full === "北海道") return "北海道";
@@ -18,6 +20,12 @@ function extractCity(address: string | null): string | null {
   if (full === "京都市" || full === "京都府") return "京都";
   if (full === "東京都") return "東京";
   return full.replace(/[都道府県]$/, "");
+}
+
+/** Normalize a location_prefectures entry (e.g. "東京都" → "東京"). */
+function shortPrefecture(p: string): string {
+  if (p === "北海道") return "北海道";
+  return p.replace(/[都道府県]$/, "");
 }
 
 export default async function EventCard({ event, locale }: Props) {
@@ -30,10 +38,14 @@ export default async function EventCard({ event, locale }: Props) {
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
 
-  // Derive city label: multi-city uses location_prefectures, single uses address extraction
+  // Derive city label.
+  // Priority: location_prefectures (authoritative, set by annotator) → address regex fallback.
+  // Single prefecture → show short form (e.g. "東京"); multiple → join with "・".
   const prefectures = (event as any).location_prefectures as string[] | null | undefined;
   const cityLabel: string | null = (() => {
-    if (prefectures && prefectures.length >= 2) return prefectures.join("・");
+    if (prefectures && prefectures.length >= 1) {
+      return prefectures.map(shortPrefecture).join("・");
+    }
     return extractCity((event as any).location_address as string | null);
   })();
 
