@@ -1487,7 +1487,8 @@ def enrich_movie_titles() -> None:
         sb.table("events")
         .select(
             "id,name_ja,raw_title,name_zh,name_en,"
-            "description_zh,description_en,annotation_status,source_name,parent_event_id"
+            "description_zh,description_en,selection_reason,"
+            "annotation_status,source_name,parent_event_id"
         )
         .contains("category", ["movie"])
         .neq("annotation_status", "reviewed")
@@ -1576,17 +1577,39 @@ def enrich_movie_titles() -> None:
                 if new_desc_en != desc_en:
                     update["description_en"] = new_desc_en
 
+        # Fix selection_reason — replace old titles in all three languages
+        sr_raw = event.get("selection_reason") or ""
+        if sr_raw and (name_zh or name_en):
+            try:
+                sr = json.loads(sr_raw) if isinstance(sr_raw, str) else sr_raw
+                if isinstance(sr, dict):
+                    sr_changed = False
+                    if name_zh and sr.get("zh"):
+                        for old_ref in ([old_name_zh, title] if source in _NEWS_MOVIE_SOURCES else [old_name_zh]):
+                            if old_ref and old_ref != name_zh and old_ref in sr["zh"]:
+                                sr["zh"] = sr["zh"].replace(old_ref, name_zh)
+                                sr_changed = True
+                    if name_en and sr.get("en"):
+                        if old_name_en and old_name_en != name_en and old_name_en in sr["en"]:
+                            sr["en"] = sr["en"].replace(old_name_en, name_en)
+                            sr_changed = True
+                    if name_zh and sr.get("ja"):
+                        if old_name_zh and old_name_zh != name_zh and old_name_zh in sr["ja"]:
+                            sr["ja"] = sr["ja"].replace(old_name_zh, name_zh)
+                            sr_changed = True
+                    if sr_changed:
+                        update["selection_reason"] = json.dumps(sr, ensure_ascii=False)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         sb.table("events").update(update).eq("id", event["id"]).execute()
-        # Lock the eiga.com canonical titles via field_corrections so a
-        # future re-annotation pass (status flipped back to 'pending' by a
-        # scraper update, or --all/--fix-translations) cannot overwrite
-        # them with a fresh GPT phonetic translation.
         _lock_fields_via_corrections(sb, event["id"], update)
         patched += 1
         logger.info(
-            "  ✓ %s/%s [%s] → zh=%r en=%r desc_zh_fixed=%s desc_en_fixed=%s",
+            "  ✓ %s/%s [%s] → zh=%r en=%r desc_zh=%s desc_en=%s sr=%s",
             source, event["id"][:8], title[:40], name_zh, name_en,
             "description_zh" in update, "description_en" in update,
+            "selection_reason" in update,
         )
 
     logger.info("enrich_movie_titles: patched %d/%d events", patched, len(events))
@@ -1952,7 +1975,8 @@ def post_batch_enrich(event_ids: list[str], *, dry_run: bool = False) -> dict:
         sb.table("events")
         .select(
             "id,name_ja,raw_title,name_zh,name_en,"
-            "description_zh,description_en,annotation_status,source_name,parent_event_id,category"
+            "description_zh,description_en,selection_reason,"
+            "annotation_status,source_name,parent_event_id,category"
         )
         .in_("id", event_ids)
         .contains("category", ["movie"])
@@ -2032,6 +2056,32 @@ def post_batch_enrich(event_ids: list[str], *, dry_run: bool = False) -> dict:
                 if new_desc_en != desc_en:
                     update["description_en"] = new_desc_en
 
+        # Fix selection_reason — replace old titles in all three languages
+        sr_raw = event.get("selection_reason") or ""
+        if sr_raw and (name_zh or name_en):
+            try:
+                sr = json.loads(sr_raw) if isinstance(sr_raw, str) else sr_raw
+                if isinstance(sr, dict):
+                    sr_changed = False
+                    if name_zh and sr.get("zh"):
+                        for old_ref in ([old_name_zh, title] if source in _NEWS_MOVIE_SOURCES else [old_name_zh]):
+                            if old_ref and old_ref != name_zh and old_ref in sr["zh"]:
+                                sr["zh"] = sr["zh"].replace(old_ref, name_zh)
+                                sr_changed = True
+                    if name_en and sr.get("en"):
+                        if old_name_en and old_name_en != name_en and old_name_en in sr["en"]:
+                            sr["en"] = sr["en"].replace(old_name_en, name_en)
+                            sr_changed = True
+                    if name_zh and sr.get("ja"):
+                        # ja text may reference the Chinese original title
+                        if old_name_zh and old_name_zh != name_zh and old_name_zh in sr["ja"]:
+                            sr["ja"] = sr["ja"].replace(old_name_zh, name_zh)
+                            sr_changed = True
+                    if sr_changed:
+                        update["selection_reason"] = json.dumps(sr, ensure_ascii=False)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         if dry_run:
             logger.info("  [DRY RUN] would patch %s: %s", event["id"][:8], update)
         else:
@@ -2039,8 +2089,9 @@ def post_batch_enrich(event_ids: list[str], *, dry_run: bool = False) -> dict:
             _lock_fields_via_corrections(sb, event["id"], update)
             movie_patched += 1
             logger.info(
-                "  ✓ movie enrich %s → zh=%r en=%r",
+                "  ✓ movie enrich %s → zh=%r en=%r sr_fixed=%s",
                 event["id"][:8], update.get("name_zh"), update.get("name_en"),
+                "selection_reason" in update,
             )
 
     logger.info(
