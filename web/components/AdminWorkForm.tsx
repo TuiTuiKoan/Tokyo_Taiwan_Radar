@@ -11,6 +11,7 @@ interface Props {
   work: Work | null;       // null = new
   linkedEvents?: Event[];   // events already assigned to this work
   locale: Locale;
+  onSuccess?: () => void;  // called after save instead of router.push (e.g. modal mode)
 }
 
 const TYPE_KEYS: Record<WorkType, string> = {
@@ -21,7 +22,7 @@ const TYPE_KEYS: Record<WorkType, string> = {
   other: "worksTypeOther",
 };
 
-export default function AdminWorkForm({ work, linkedEvents = [], locale }: Props) {
+export default function AdminWorkForm({ work, linkedEvents = [], locale, onSuccess }: Props) {
   const t = useTranslations("admin");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -84,8 +85,12 @@ export default function AdminWorkForm({ work, linkedEvents = [], locale }: Props
         setError(res.error || "save failed");
         return;
       }
-      router.push(`/${locale}/admin/works`);
-      router.refresh();
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.push(`/${locale}/admin/works`);
+        router.refresh();
+      }
     });
   }
 

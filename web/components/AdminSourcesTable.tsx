@@ -142,6 +142,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
   const [showTypeEditor, setShowTypeEditor] = useState(false);
   const [draftOverrides, setDraftOverrides] = useState<Record<number, string>>({});
   const [editorSearch, setEditorSearch] = useState("");
+  const [editorCatFilter, setEditorCatFilter] = useState<Set<string> | null>(null); // null = 全選
 
   function toggleSelect(sourceKey: string) {
     setSelected((prev) => {
@@ -324,8 +325,6 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     45: "event_platform", 15: "event_platform", 77: "event_platform",
     4:  "event_platform",  6: "event_platform", 23: "event_platform",
     79: "event_platform", 83: "event_platform", 106: "event_platform",
-    96: "event_platform", 128: "event_platform", 132: "event_platform",
-   166: "event_platform", 168: "event_platform",
     // 學術單位
     28: "academic", 29: "academic", 24: "academic", 25: "academic",
     10: "academic", 26: "academic", 31: "academic", 27: "academic",
@@ -333,32 +332,28 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     62: "academic", 63: "academic", 64: "academic", 65: "academic",
     84: "academic", 92: "academic", 93: "academic",  1: "academic",
      2: "academic",  3: "academic", 12: "academic", 52: "academic",
-    74: "academic", 218: "academic",
+    74: "academic",
     // 展場
     81: "venue", 76: "venue", 48: "venue", 49: "venue", 75: "venue",
     85: "venue", 53: "venue", 82: "venue",  5: "venue",
-   118: "venue", 167: "venue", 169: "venue", 170: "venue", 213: "venue",
     // 電影
     35: "cinema", 56: "cinema", 38: "cinema", 41: "cinema", 33: "cinema",
     34: "cinema", 50: "cinema", 51: "cinema", 36: "cinema", 59: "cinema",
     58: "cinema", 86: "cinema", 70: "cinema", 67: "cinema", 37: "cinema",
     39: "cinema", 40: "cinema", 207: "cinema",
-   150: "cinema", 163: "cinema", 165: "cinema",
     // 電視
     95: "tv", 71: "tv", 72: "tv", 73: "tv", 94: "tv",
-   133: "tv",
     // 政府機構
      8: "government", 13: "government", 80: "government", 87: "government",
-     7: "government", 16: "government", 60: "government", 66: "government",
+    16: "government", 60: "government", 66: "government",
     68: "government", 89: "government", 90: "government", 88: "government",
-   135: "government",
     // 百貨
     46: "department_store", 129: "department_store", 130: "department_store", 131: "department_store",
     // 活動策劃組織
     57: "organizer", 21: "organizer", 69: "organizer", 91: "organizer",
-    18: "organizer",  9: "organizer", 22: "organizer",
-   101: "organizer", 151: "organizer", 155: "organizer",
-   156: "organizer", 194: "organizer",
+     9: "organizer", 22: "organizer",
+    // 民間團體
+     7: "ngo", 18: "ngo", 101: "ngo", 155: "ngo", 194: "ngo",
     // 個人頁面
     78: "personal",
     // 台灣商家
@@ -369,14 +364,17 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
 
   const SOURCE_TYPE_LABELS: Record<string, string> = {
     all:               "全部分類",
-    event_platform:    "活動平台",
+    event_platform:    "活動・票務平台",
     academic:          "學術單位",
-    venue:             "展場",
+    venue:             "展演空間",
     cinema:            "電影",
     tv:                "電視",
     government:        "政府機構",
-    department_store:  "百貨",
+    department_store:  "百貨・商圈",
     organizer:         "活動策劃組織",
+    ngo:               "民間團體",
+    media_publisher:   "媒體・出版",
+    news_aggregator:   "新聞聚合平台",
     personal:          "個人頁面",
     taiwan_shop:       "台灣商家",
     peatix_organizer:  "Peatix 主辦者",
@@ -487,9 +485,54 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                 className="w-full h-8 border border-gray-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
               />
             </div>
+            {/* Category filter checkboxes */}
+            <div className="px-5 py-2 border-b border-gray-100 flex flex-wrap gap-x-3 gap-y-1 items-center">
+              <button
+                onClick={() => setEditorCatFilter(null)}
+                className={`text-xs px-2 py-0.5 rounded-full border transition ${editorCatFilter === null ? "bg-green-600 text-white border-green-600" : "border-gray-200 text-gray-500 hover:border-green-400"}`}
+              >全選</button>
+              {Object.entries(SOURCE_TYPE_LABELS)
+                .filter(([k]) => k !== "all")
+                .map(([key, label]) => {
+                  const checked = editorCatFilter === null || editorCatFilter.has(key);
+                  return (
+                    <label key={key} className="flex items-center gap-1 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setEditorCatFilter((prev) => {
+                            // 從全選狀態開始：展開為全集再移除這個
+                            const base = prev === null
+                              ? new Set(Object.keys(SOURCE_TYPE_LABELS).filter((k) => k !== "all"))
+                              : new Set(prev);
+                            if (base.has(key)) {
+                              base.delete(key);
+                            } else {
+                              base.add(key);
+                            }
+                            // 若全部都勾了，回到 null（全選）
+                            const allCats = Object.keys(SOURCE_TYPE_LABELS).filter((k) => k !== "all");
+                            return base.size === allCats.length ? null : base;
+                          });
+                        }}
+                        className="rounded"
+                      />
+                      <span className={`text-xs ${checked ? "text-gray-700" : "text-gray-300"}`}>{label}</span>
+                    </label>
+                  );
+                })}
+            </div>
             <div className="overflow-y-auto flex-1 px-5 py-3 space-y-1">
               {sourceList
-                .filter((s) => !editorSearch || s.name.toLowerCase().includes(editorSearch.toLowerCase()) || String(s.id).includes(editorSearch))
+                .filter((s) => {
+                  if (editorSearch && !s.name.toLowerCase().includes(editorSearch.toLowerCase()) && !String(s.id).includes(editorSearch)) return false;
+                  if (editorCatFilter !== null) {
+                    const effective = draftOverrides[s.id] ?? SOURCE_TYPE_MAP[s.id] ?? "other";
+                    if (!editorCatFilter.has(effective)) return false;
+                  }
+                  return true;
+                })
                 .sort((a, b) => {
                   const ta = draftOverrides[a.id] ?? SOURCE_TYPE_MAP[a.id] ?? "other";
                   const tb = draftOverrides[b.id] ?? SOURCE_TYPE_MAP[b.id] ?? "other";
@@ -501,8 +544,18 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                   return (
                     <div key={src.id} className="flex items-center gap-3 py-1.5 border-b border-gray-50">
                       <span className="text-xs text-gray-400 w-6 text-right shrink-0">{src.id}</span>
-                      <span className={`text-sm flex-1 truncate ${isOverridden ? "font-medium text-green-800" : "text-gray-700"}`}>
-                        {src.name}
+                      <span className={`text-sm flex-1 truncate min-w-0 ${isOverridden ? "font-medium text-green-800" : "text-gray-700"}`}>
+                        {src.url ? (
+                          <a
+                            href={src.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                            title={src.url}
+                          >
+                            {src.name}
+                          </a>
+                        ) : src.name}
                       </span>
                       <select
                         value={effective}
@@ -691,6 +744,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
           onClick={() => {
             setDraftOverrides({ ...typeOverrides });
             setEditorSearch("");
+            setEditorCatFilter(null);
             setShowTypeEditor(true);
           }}
           className="ml-auto text-xs px-3 py-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition"
@@ -800,6 +854,8 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
         const hasScraperKey = Boolean(src.scraper_source_name);
         const isChecked = src.scraper_source_name ? selected.has(src.scraper_source_name) : false;
         const schedule = getScheduleForSrc(src);
+        const sourceTypeKey = effectiveTypeMap[src.id] ?? (src.agent_category === "peatix_organizer" ? "peatix_organizer" : null);
+        const sourceTypeLabel = sourceTypeKey ? (SOURCE_TYPE_LABELS[sourceTypeKey] ?? null) : null;
 
         return (
           <div
@@ -819,6 +875,11 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                   />
                 )}
                 <span className="text-base">{ICONS[catKey] ?? "📎"}</span>
+                {sourceTypeLabel && (
+                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium shrink-0">
+                    {sourceTypeLabel}
+                  </span>
+                )}
                 <span className="font-medium text-gray-800">{src.name}</span>
                 <StatusBadge status={src.status} />
                 {src.scraping_feasibility && (

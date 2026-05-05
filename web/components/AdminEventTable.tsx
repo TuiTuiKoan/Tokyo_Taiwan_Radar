@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { type Event, type Locale, getEventName, CATEGORY_GROUPS, type Work, getWorkTitle } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
+import AdminCreateWorkModal from "@/components/AdminCreateWorkModal";
 import { assignWorkToEvent } from "@/app/actions/works";
 import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, matchesCity, type RegionWithCity } from "@/lib/regionPrefectures";
 
@@ -75,6 +76,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [bulkAddingCategory, setBulkAddingCategory] = useState(false);
   const [bulkAddCatPending, setBulkAddCatPending] = useState<Set<string>>(new Set());
   const [bulkAddCatOpen, setBulkAddCatOpen] = useState(false);
+  const [showCreateWorkModal, setShowCreateWorkModal] = useState(false);
   const bulkAddCatRef = useRef<HTMLDivElement>(null);
 
   // Inline filters
@@ -569,6 +571,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   }
 
   return (
+  <>
     <div>
       {/* View toggle + New event button */}
       <div className="flex items-center gap-3 mb-4">
@@ -992,14 +995,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 {bulkAddingCategory ? "…" : `套用到 ${selected.size} 筆`}
               </button>
             )}
-            <a
-              href={`/${locale}/admin/works/new`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => setShowCreateWorkModal(true)}
               className="ml-auto text-xs h-7 px-3 bg-white border border-blue-300 text-blue-700 rounded-full hover:bg-blue-50 transition font-medium flex items-center"
             >
               ＋ 新增作品
-            </a>
+            </button>
           </div>
           {/* Row 3: common category removal — only shown when intersection is non-empty */}
           {commonCategories.length > 0 && (
@@ -1040,10 +1041,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("scraped_at")}>{t("scrapedAt")}{sortArrow("scraped_at")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_active")}>{t("isActive")}{sortArrow("is_active")}</th>
-                <th className="py-2" />
+                <th className="py-2 w-28" />
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("name")}>{t("name")}{sortArrow("name")}</th>
-                <th className="py-2 pr-4 w-32 font-medium">{t("category")}</th>
-                <th className="py-2 pr-4 font-medium">{t("events.columns.work")}</th>
+                <th className="py-2 pr-4 w-96 font-medium">{t("category")}</th>
+                <th className="py-2 pr-4 min-w-[480px] font-medium">{t("events.columns.work")}</th>
                 <th className="py-2 pr-4 font-medium">{t("address")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
@@ -1062,7 +1063,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 </th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("scraped_at")}>{t("scrapedAt")}{sortArrow("scraped_at")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
-                <th className="py-2" />
+                <th className="py-2 w-28" />
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("raw_title")}>{t("name")}{sortArrow("raw_title")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
               </tr>
@@ -1123,7 +1124,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       }`} />
                     </button>
                   </td>
-                  <td className="py-2 whitespace-nowrap">
+                  <td className="py-2 w-28 whitespace-nowrap">
                     <div className="flex gap-2">
                       <button
                         onClick={() => router.push(`/${locale}/admin/${event.id}`)}
@@ -1227,7 +1228,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       </span>
                     )}
                   </td>
-                  <td className="py-2 pr-4 w-32">
+                  <td className="py-2 pr-4 w-96">
                     <div className="flex flex-wrap gap-1">
                       {event.category?.slice(0, 3).map((cat) => (
                         <span key={cat} className="bg-green-50 text-green-700 text-[10px] px-1.5 py-0.5 rounded-full">
@@ -1236,7 +1237,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       ))}
                     </div>
                   </td>
-                  <td className="py-2 pr-4 text-xs max-w-[160px]">
+                  <td className="py-2 pr-4 text-xs min-w-[480px]">
                     {(() => {
                       const cur = event.work_id ? workMap[event.work_id] : null;
                       const isEditing = editingWorkFor === event.id;
@@ -1380,7 +1381,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       {getAnnotationLabel(event.annotation_status)}
                     </span>
                   </td>
-                  <td className="py-2 whitespace-nowrap">
+                  <td className="py-2 w-28 whitespace-nowrap">
                     <div className="flex gap-2">
                       <button
                         onClick={() => router.push(`/${locale}/admin/${event.id}`)}
@@ -1424,5 +1425,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         </table>
       </div>
     </div>
+
+    {showCreateWorkModal && (
+      <AdminCreateWorkModal
+        locale={locale}
+        onClose={() => setShowCreateWorkModal(false)}
+      />
+    )}
+  </>
   );
 }
