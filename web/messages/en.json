@@ -476,7 +476,8 @@
     "wrongSelectionReason": "Inaccurate selection reason",
     "brokenLink": "Original link is broken",
     "selectionReasonHint": "Please describe (you may edit the pre-filled text)",
-    "fieldEditHint": "Please describe the correction (you may edit the pre-filled text)"
+    "fieldEditHint": "Please describe the correction (you may edit the pre-filled text)",
+    "auto_simplified_chinese": "Simplified Chinese"
   },
   "saved": {
     "title": "Saved Events",

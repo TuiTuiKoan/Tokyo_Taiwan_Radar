@@ -476,7 +476,8 @@
     "wrongSelectionReason": "選定理由が不正確",
     "brokenLink": "元のリンクが無効",
     "selectionReasonHint": "理由を記述してください（既定のテキストを編集可）",
-    "fieldEditHint": "修正内容を記述してください（既定のテキストを編集可）"
+    "fieldEditHint": "修正内容を記述してください（既定のテキストを編集可）",
+    "auto_simplified_chinese": "簡体字混入"
   },
   "saved": {
     "title": "お気に入り",
