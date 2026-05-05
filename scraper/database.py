@@ -569,6 +569,7 @@ def archive_ended_events(dry_run: bool = False) -> int:
             .eq("is_active", True)
             .not_.is_("end_date", "null")
             .lt("end_date", cutoff)
+            .is_("work_id", "null")   # preserve work-linked events as historical records
             .execute()
         )
     except Exception as exc:
@@ -594,7 +595,7 @@ def archive_ended_events(dry_run: bool = False) -> int:
     ids = [ev["id"] for ev in ended]
     try:
         client.table("events").update({"is_active": False}).in_("id", ids).execute()
-        logger.info("[archive] Archived %d ended event(s).", len(ended))
+        logger.info("[archive] Archived %d ended event(s). Work-linked events preserved.", len(ended))
     except Exception as exc:
         logger.error("[archive] Failed to archive events: %s", exc)
         return 0

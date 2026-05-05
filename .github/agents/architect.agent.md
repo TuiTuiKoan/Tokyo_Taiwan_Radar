@@ -348,6 +348,26 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）多次被修又�
 
 Reference incident: 2026-05-05 — migration 033 設定 `auto_research_status DEFAULT 'pending'`，但 batch query 只過濾 NULL，導致 14 筆候選來源靜默跳過數日（commit `5d2585d`）。
 
+## Archive Ended Events — Work-Link Bypass Guard
+
+在審核任何涉及 `archive_ended_events()` 修改，或設計「保留過去活動」功能時，**必須**確認：
+
+1. **`archive_ended_events()` 必須跳過 `work_id IS NOT NULL` 的事件**：
+   ```python
+   .is_("work_id", "null")   # preserve work-linked events as historical records
+   ```
+   語意：若事件已被策展性連結至某 Work，視為歷史場次記錄，不自動停用。
+2. **Related screenings query 不得有 `.eq("is_active", true)` 限制**：Work 詳情應顯示所有場次（含過去 inactive），按 active/inactive 分組加標籤。
+3. **Work 指派 = 隱性 preserve 信號**：只要事件有 work_id，就不被每日 archiver 清除。這是讓策展性過去場次持續可見的標準機制，無需額外 `is_archivable` 欄位。
+4. **Past screenings 顯示 pattern**：
+   ```ts
+   const upcomingScreenings = relatedScreenings.filter(r => r.is_active);
+   const pastScreenings = relatedScreenings.filter(r => !r.is_active);
+   // Show "pastScreeningsLabel" header for pastScreenings section
+   ```
+
+Reference incident: 2026-05-05 — チップ・オデッセイ（造山者）過去場次被 archiver 每日重新停用，手動修多次都無效。修復：archive 加 `.is_("work_id", "null")`，detail page 移除 `is_active` filter（commit `fix(scraper,web): preserve work-linked past screenings`）。
+
 ## Required Phases
 
 ### Phase 1: Research

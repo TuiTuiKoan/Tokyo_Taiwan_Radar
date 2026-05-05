@@ -117,7 +117,8 @@
     "eventForm": "開催形式",
     "languageSupport": "対応言語",
     "tvChannel": "テレビチャンネル",
-    "relatedScreeningsTitle": "同作品の他の上映・公演"
+    "relatedScreeningsTitle": "同作品の他の上映・公演",
+    "pastScreeningsLabel": "過去の上映"
   },
   "auth": {
     "loginTitle": "ログイン",

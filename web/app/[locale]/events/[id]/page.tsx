@@ -143,7 +143,6 @@ export default async function EventDetailPage({ params }: PageProps) {
       .from("events")
       .select("id, name_ja, name_zh, name_en, start_date, end_date, location_name, location_name_zh, location_name_en, location_address, source_name, category, is_paid, is_active")
       .eq("work_id", event.work_id)
-      .eq("is_active", true)
       .neq("id", id)
       .order("start_date", { ascending: true });
     relatedScreenings = (related ?? []) as Event[];
@@ -816,18 +815,34 @@ export default async function EventDetailPage({ params }: PageProps) {
       })()}
 
       {/* ===== Related screenings (same work, other venues/dates) ===== */}
-      {relatedScreenings.length > 0 && (
-        <section className="mb-8" aria-labelledby="related-screenings-heading">
-          <h2 id="related-screenings-heading" className="text-sm font-medium text-gray-400 mb-3">
-            {t("relatedScreeningsTitle")}
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {relatedScreenings.map((rel) => (
-              <EventCard key={rel.id} event={rel} locale={locale} />
-            ))}
-          </div>
-        </section>
-      )}
+      {relatedScreenings.length > 0 && (() => {
+        const upcomingScreenings = relatedScreenings.filter((r) => r.is_active);
+        const pastScreenings = relatedScreenings.filter((r) => !r.is_active);
+        return (
+          <section className="mb-8" aria-labelledby="related-screenings-heading">
+            <h2 id="related-screenings-heading" className="text-sm font-medium text-gray-400 mb-3">
+              {t("relatedScreeningsTitle")}
+            </h2>
+            {upcomingScreenings.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                {upcomingScreenings.map((rel) => (
+                  <EventCard key={rel.id} event={rel} locale={locale} />
+                ))}
+              </div>
+            )}
+            {pastScreenings.length > 0 && (
+              <>
+                <h3 className="text-xs font-medium text-gray-400 mb-2">{t("pastScreeningsLabel")}</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {pastScreenings.map((rel) => (
+                    <EventCard key={rel.id} event={rel} locale={locale} />
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+        );
+      })()}
 
       {/* ===== FAQ section (visible counterpart to FAQPage JSON-LD) ===== */}
       {faqLd && (

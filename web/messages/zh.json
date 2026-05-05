@@ -117,7 +117,8 @@
     "eventForm": "活動形式",
     "languageSupport": "語言支援",
     "tvChannel": "電視頻道",
-    "relatedScreeningsTitle": "同作品其他場次"
+    "relatedScreeningsTitle": "同作品其他場次",
+    "pastScreeningsLabel": "過去場次"
   },
   "auth": {
     "loginTitle": "登入",

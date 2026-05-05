@@ -117,7 +117,8 @@
     "eventForm": "Event Format",
     "languageSupport": "Language Support",
     "tvChannel": "TV Channel",
-    "relatedScreeningsTitle": "Other screenings of this work"
+    "relatedScreeningsTitle": "Other screenings of this work",
+    "pastScreeningsLabel": "Past Screenings"
   },
   "auth": {
     "loginTitle": "Login",
