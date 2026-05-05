@@ -163,6 +163,23 @@ router.push('/admin');
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 
+## Homepage vs EventCard — Two Render Paths
+
+事件卡片在本專案有**兩條獨立渲染路徑**，修改前必須同時檢查：
+
+| 路徑 | 檔案 | 用途 |
+|------|------|------|
+| 共用元件 | `web/components/EventCard.tsx` | saved、category、search 等其他頁面 |
+| 首頁 inline | `web/app/[locale]/page.tsx`（行 ~290 的 `events.map`） | **首頁專用**，不 import EventCard |
+
+**修卡片視覺前的 SOP**：
+1. `grep -rn '<EventCard\|EventCard ' web/app/ web/components/` 列出所有 call site。
+2. 確認首頁使用的渲染路徑（首頁是 inline，不是 EventCard）。
+3. 共用邏輯（`getCityLabel`、日期格式、地址解析等純函式）抽至 `web/lib/<name>.ts`，兩處 import；切忌在兩處複製貼上同樣邏輯。
+4. Vercel 部署後驗證：`curl https://tokyotaiwanradar.com/zh | grep -c '<新元素 class>'`，期望非 0。
+
+Reference: 2026-05-05 城市徽章兩輪才生效（commit `5a29c13` → `9f4b468`）。
+
 ## TSX Component vs Helper — react-hooks/static-components Rule
 
 Next.js 15+ / React 19 lints any `PascalCase` function that returns JSX as a React component. Components declared **inside another component's render body** trigger `react-hooks/static-components` and fail Vercel build.

@@ -3,6 +3,41 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — 首頁城市徽章修了兩輪才生效：EventCard.tsx 不是首頁使用的元件（commit `9f4b468`）
+
+### 問題
+第一輪修正 [`web/components/EventCard.tsx`](web/components/EventCard.tsx)（commit `5a29c13`），regex 理論上正確、TypeScript 無錯、Vercel 部署成功——但首頁仍看不到徽章。`curl https://tokyotaiwanradar.com/zh | grep -c '📍'` 只回 1（預期多筆），`grep -c 'border-gray-200 rounded-xl'`（EventCard root class）回 0。
+
+### 根因
+首頁 [`web/app/[locale]/page.tsx`](web/app/[locale]/page.tsx) 是 **inline list-style 渲染**，**沒 import EventCard**。grep `EventCard` in `page.tsx` = 0 match。`EventCard.tsx` 只服務 saved / category / search 頁面。首頁原來的 location 渲染是行 294-295：
+```tsx
+{event.location_name && (
+  <p className="text-xs text-gray-400 mt-0.5">📍 {event.location_name}</p>
+)}
+```
+完全沒有 `cityLabel` 邏輯。
+
+### 修法
+抽共用 helper 至 [`web/lib/cityLabel.ts`](web/lib/cityLabel.ts)：`getCityLabel(prefectures, address)` 內部依優先序走 prefectures 陣列 → `extractCity()` regex fallback。`EventCard.tsx` 與 `page.tsx` 同時 import，首頁第 294 行改為：
+```tsx
+{event.location_name && (() => {
+  const cityLabel = getCityLabel(event.location_prefectures, event.location_address);
+  return (
+    <p className="text-xs text-gray-400 mt-0.5">
+      📍 {cityLabel && <span className="...">{cityLabel}</span>}
+      {event.location_name}
+    </p>
+  );
+})()}
+```
+
+### 教訓
+- **「原件以為被共用」是危險假設**：修任何事件卡片視覺前必在 `web/app/[locale]/` 與 `web/components/` 雙路徑 grep 使用者。`grep -rn '<EventCard\|EventCard ' web/app/ web/components/` 可快速列出實際 call site。
+- **「修了一處忘了另一處」一旦發生必立刻抽 lib**：不要遵 inline 複製邏輯跨檔案；DRY 不是潔癖，是防迴歸。`web/lib/cityLabel.ts` 42 行取代了 EventCard.tsx 24 行 + page.tsx 1 行 × 來回迴歸二次的維護成本。
+- **TypeScript 不能打不同路徑的架構 bug**：`page.tsx` 與 `EventCard.tsx` 各自類型正確，但「首頁使用的是哪個」這個事實 TS 無法驗證——需 grep 手動確認。
+- **Vercel 部署驗證必用 `curl + grep`**：`grep -c` 計數 class 或 emoji，期望值明確。`grep -c '📍'` 與 `grep -c 'bg-gray-100 text-gray-600 px-1.5'`（新徽章識別類名）雙重交叉驗證。
+
+---
 ## 2026-05-05 — annotator `_ai_or_existing()` 定義卻從未呼叫，P1 翻譯欄位被 GPT 重寫（commit `cf2d3f6`）
 
 ### 問題

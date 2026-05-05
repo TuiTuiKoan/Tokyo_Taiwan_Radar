@@ -3,6 +3,19 @@
 <!-- Append new entries at the top -->
 
 ---
+### 2026-05-05 — 首頁 inline 渲染與 `EventCard` 分歧（commit `5a29c13` → `9f4b468`）
+
+**設計問題**：以為全島所有事件卡片都走 `web/components/EventCard.tsx`，實際上首頁 [`web/app/[locale]/page.tsx`](web/app/[locale]/page.tsx) 是窄版面 list-style 設計，完全 inline 渲染不用 `EventCard`。第一輪修正只改 `EventCard.tsx`，首頁完全未受影響，用戶回報「還是沒看到徽章」。
+
+**修法**：抽出 [`web/lib/cityLabel.ts`](web/lib/cityLabel.ts) 共用 helper（`getCityLabel` / `extractCity` / `shortPrefecture`），`EventCard.tsx` 與 `page.tsx` 同時 import。
+
+**教訓**：
+- **「修卡片 UI 必查首頁」**：首頁是窄版面唯一關鍵路徑，inline 渲染獨立於共用元件。任何卡片視覺變更的計畫必同時列出 `EventCard.tsx` 與 `page.tsx` 兩個檔案。
+- **共用邏輯抽 `web/lib/`**：一旦發現「同一邏輯出現在 EventCard 與 page.tsx 兩處」，立刻抽共用 lib，不可容忍雙路維護。`web/components/` 宜個抽可共用 React component，`web/lib/` 宜個抽純函式 / 常量。
+- **驗證 pattern**：改動後 `curl https://tokyotaiwanradar.com/zh | grep -c '<識別類名>'`，期望非 0。只查類型錯誤不能抓到「修了則 EventCard 但首頁仍無變化」這類架構性 bug。
+- 已儲存為 SKILL 「Homepage Inline Card Divergence Guard」。
+
+---
 ### 2026-05-05 — Movie-extend：source 頁面更新場次的設計取捨（commit `8572104`）
 
 **設計問題**：電影類事件（`'movie' ∈ category`）有獨特生命週期——同一部電影在同一戲院連續上映數週，source 頁面**每週更新**檔期。預設 `upsert_events()` 對既存 `(source_name, source_id)` 完全跳過（idempotent），導致 DB 留住第一週舊日期；`force_rescrape=true` 又會**完全覆寫**包含 `start_date`，把首映日（最早觀測）擦掉。

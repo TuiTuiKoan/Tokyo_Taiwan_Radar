@@ -97,6 +97,24 @@ Reference incident: 2026-05-05 — `AdminEventForm` 新增 `tEventForm` prop 後
 
 Reference incident: 2026-05-05 — commit `8572104` 引入 movie-extend；同 commit message 明示「by construction, extend rows touch zero P3.2-protected columns」與 `.update()` not upsert 的設計理由。
 
+## Homepage Inline Card Divergence Guard
+
+在審核任何修改「事件卡片視覺呈現」的計畫前（包含 location 顯示、徽章、日期格式、分類 chip、save 按鈕、報告按鈕等），**必須**確認：
+
+1. **首頁 `web/app/[locale]/page.tsx` 使用 inline list-style 渲染，不使用 `EventCard.tsx`**：grep `EventCard` in `page.tsx` 會回傳 0 match。修改 `EventCard.tsx` 對首頁完全無效。
+2. **其他頁面（saved、category 列表、search）使用 `EventCard.tsx`**：這些頁面共享元件。
+3. **修改卡片 UI 的計畫必同時列出兩個檔案**：
+   - `web/components/EventCard.tsx`（其他頁面）
+   - `web/app/[locale]/page.tsx`（首頁 inline，行 ~290 附近的 `events.map(...)` 區塊）
+4. **共用邏輯必抽至 `web/lib/`**：純函式（如 `getCityLabel`、`extractCity`、日期格式化）抽到 `web/lib/<name>.ts`，兩處 import；避免「修了一處忘了另一處」的迴歸。React component（如 chip 子元件）若值得共用可抽到 `web/components/`。
+5. **驗證 pattern**（Vercel 部署後）：
+   ```bash
+   curl -s https://tokyotaiwanradar.com/zh | grep -c '<新元素 class 識別字>'
+   # 期望非 0，若為 0 → 修了 EventCard 但首頁 inline 沒同步
+   ```
+
+Reference incident: 2026-05-05 — commit `5a29c13` 修 EventCard.tsx 城市徽章邏輯，但首頁完全無變化（首頁不用 EventCard）。commit `9f4b468` 抽 `web/lib/cityLabel.ts` 共用 helper 後雙處同步生效。
+
 ## Database Safety Rules
 
 - **NEVER batch-set `is_active = False` based on `end_date < today`**. Past events must remain `is_active = True` so users can view event history. Visibility for ended events is controlled by the frontend `FilterBar` ("顯示已結束活動" toggle), not by `is_active`.
