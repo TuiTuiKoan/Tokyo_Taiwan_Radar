@@ -3,6 +3,35 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — Promotion checklist 遺漏：新規 scraper の `research_sources` 登錄が抜けた
+
+### 問題
+walkerplus.py を建立した session で、SKILL.md の Promotion checklist（5 步驟）のうち步驟 3/4（`research_sources` 登錄 + `scraper_source_name` 填寫）が実施されず、`main.py` 登錄だけで session が終了した。使用者が `/admin/sources` で 0 件表示を発見して初めて判明。
+
+### 根因
+1. **チェックリストを「後でやる」と分割した**: scraper 作成 commit の直後に research_sources 登錄を「別ステップ」扱いにしたことで、session が切れると未完状態が維持された。
+2. **`update_source.py` の status 制限を把握していなかった**: `update_source.py` は `researched`/`not-viable` のみ対応。`implemented` を設定するには Supabase SDK で直接 upsert する必要があるが、その方法がすぐに出てこず手順が遅れた。
+3. **Promotion checklist の「同一 session 必須」ルールが SKILL.md に明記されていなかった**: 5 步驟の手順は記載されていたが、「全部同一 session で完了せよ」という制約が欠けていた。
+
+### 修復
+Supabase SDK で `research_sources` に直接 upsert:
+```python
+sb.table("research_sources").upsert({
+    "url": "https://www.walkerplus.com/event_list/eg0117/",
+    "name": "Walker+ (walkerplus.com)",
+    "status": "implemented",
+    "scraper_source_name": "walkerplus",
+    "scraping_feasibility": "medium",
+    "agent_category": "event_listing",
+}, on_conflict="url").execute()
+```
+
+### 教訓
+- **Promotion checklist は「1 commit 1 session 完結」を原則とする**。分割すると未完タスクが CI に入り込む。
+- **`update_source.py` の制限を事前確認する**: `researched`/`not-viable` のみ対応。新規 scraper の `implemented` 設定は SDK upsert が唯一の手段。
+- **SKILL.md に「同一 session 必須」ルールを追記した**（2026-05-05）: Promotion checklist セクションに ⚠ 警告と SDK upsert サンプルを追加。
+
+---
 ## 2026-05-05 — 翻譯修正反覆失效：缺持久化鎖 + `enrich_person_names` desc_en 既有 bug 共同造成
 
 ### 問題
