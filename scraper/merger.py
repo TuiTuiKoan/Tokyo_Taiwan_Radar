@@ -65,6 +65,7 @@ SOURCE_PRIORITY: dict[str, int] = {
     "iwafu": 11,
     "arukikata": 12,
     "ide_jetro": 13,
+    "walkerplus": 14,
 }
 
 # Minimum name similarity to consider two events duplicates.
@@ -73,7 +74,7 @@ _SIMILARITY_THRESHOLD = 0.85
 # Sources that publish news/article titles rather than event names.
 # They are matched via date-range + location-overlap (Pass 2), never by
 # name similarity (Pass 1).
-_NEWS_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss"})
+_NEWS_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss", "walkerplus"})
 
 # How many days BEFORE an official event's start_date a news article may be
 # published and still be considered a match (pre-event press releases).
@@ -105,14 +106,22 @@ def _similarity(a: str, b: str) -> float:
 
 
 def _location_overlap(loc_a: str | None, loc_b: str | None) -> bool:
-    """Return True if two location strings share ≥1 token of ≥2 characters."""
+    """Return True if two location strings share ≥1 token of ≥2 chars,
+    OR if one is a substring of the other (both ≥4 chars to avoid noise)."""
     if not loc_a or not loc_b:
         return False
+    a = loc_a.strip()
+    b = loc_b.strip()
+    # Substring containment for longer strings (e.g. "イオン太田" ⊂ "イオンモール太田").
+    # Min length 4 avoids false matches like "東京" ⊂ "東京都".
+    if len(a) >= 4 and len(b) >= 4:
+        if a in b or b in a:
+            return True
 
     def _tokens(s: str) -> set:
         return {t for t in re.split(r'[\s\u3000、,（()）・]', s) if len(t) >= 2}
 
-    return bool(_tokens(loc_a) & _tokens(loc_b))
+    return bool(_tokens(a) & _tokens(b))
 
 
 def _richness_score(ev: dict) -> int:
@@ -141,6 +150,21 @@ def _richness_score(ev: dict) -> int:
     desc_len = len(ev.get("raw_description") or "")
     score += min(desc_len // 200, 5)
     return score
+
+
+def _deactivate_payload(reason: str, pass_id: str) -> dict:
+    """Build the update payload for deactivating an event with audit fields.
+
+    pass_id: 'merger_pass_0' | 'merger_pass_1' | 'merger_pass_2'
+             | 'merger_pass_3' | 'orphan_cleanup' | 'admin_manual'
+    """
+    from datetime import datetime, timezone
+    return {
+        "is_active": False,
+        "deactivated_at": datetime.now(timezone.utc).isoformat(),
+        "deactivated_reason": reason,
+        "deactivated_by_pass": pass_id,
+    }
 
 
 def _date_in_range(
@@ -252,7 +276,12 @@ def run_merger(dry_run: bool = False) -> int:
 
             try:
                 sb.table("events").update(upd).eq("id", primary["id"]).execute()
-                sb.table("events").update({"is_active": False}).eq("id", secondary["id"]).execute()
+                sb.table("events").update(
+                    _deactivate_payload(
+                        f"merged into {primary['id']} (gnews within-source dedup)",
+                        "merger_pass_0",
+                    )
+                ).eq("id", secondary["id"]).execute()
                 pass0_count += 1
                 pass0_handled.add(secondary["id"])
             except Exception as exc:
@@ -383,7 +412,12 @@ def run_merger(dry_run: bool = False) -> int:
                 # Apply updates
                 try:
                     sb.table("events").update(primary_update).eq("id", primary["id"]).execute()
-                    sb.table("events").update({"is_active": False}).eq("id", secondary["id"]).execute()
+                    sb.table("events").update(
+                        _deactivate_payload(
+                            f"merged into {primary['id']} via Pass 1 name similarity {sim:.3f}",
+                            "merger_pass_1",
+                        )
+                    ).eq("id", secondary["id"]).execute()
                     merge_count += 1
                     handled_secondary_ids.add(secondary["id"])
                 except Exception as exc:
@@ -488,7 +522,12 @@ def run_merger(dry_run: bool = False) -> int:
 
         try:
             sb.table("events").update(primary_update).eq("id", primary["id"]).execute()
-            sb.table("events").update({"is_active": False}).eq("id", secondary["id"]).execute()
+            sb.table("events").update(
+                _deactivate_payload(
+                    f"news article merged into {primary['id']} via Pass 2 date+location",
+                    "merger_pass_2",
+                )
+            ).eq("id", secondary["id"]).execute()
             merge_count += 1
             handled_secondary_ids.add(secondary["id"])
         except Exception as exc:
@@ -622,7 +661,12 @@ def run_merger(dry_run: bool = False) -> int:
 
             try:
                 sb.table("events").update(sub_update).eq("id", primary_sub["id"]).execute()
-                sb.table("events").update({"is_active": False}).eq("id", secondary_sub["id"]).execute()
+                sb.table("events").update(
+                    _deactivate_payload(
+                        f"sub-event merged into {primary_sub['id']} via Pass 3 (orphan reattach)",
+                        "merger_pass_3",
+                    )
+                ).eq("id", secondary_sub["id"]).execute()
                 pass3_count += 1
                 handled_secondary_ids.add(secondary_sub["id"])
             except Exception as exc:
@@ -641,9 +685,12 @@ def run_merger(dry_run: bool = False) -> int:
             )
             if not dry_run:
                 try:
-                    sb.table("events").update({"is_active": False}).eq(
-                        "id", orphaned_sub["id"]
-                    ).execute()
+                    sb.table("events").update(
+                        _deactivate_payload(
+                            "orphan sub-event with no surviving primary parent match",
+                            "orphan_cleanup",
+                        )
+                    ).eq("id", orphaned_sub["id"]).execute()
                     pass3_count += 1
                     handled_secondary_ids.add(orphaned_sub["id"])
                 except Exception as exc:
@@ -752,7 +799,12 @@ def _flatten_grandchild_events(sb: Any, dry_run: bool = False) -> int:
         else:
             try:
                 if is_duplicate:
-                    sb.table("events").update({"is_active": False}).eq("id", gc["id"]).execute()
+                    sb.table("events").update(
+                        _deactivate_payload(
+                            f"grandchild duplicate of sibling under root {root_id} (Pass 4 flatten)",
+                            "merger_pass_3",
+                        )
+                    ).eq("id", gc["id"]).execute()
                     logger.info(
                         "Pass 4: deactivated duplicate grandchild %s (%s)",
                         gc["id"][:8],

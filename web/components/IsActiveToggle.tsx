@@ -15,12 +15,23 @@ export default function IsActiveToggle({ eventId, initialIsActive }: Props) {
   async function handleToggle() {
     setLoading(true);
     const supabase = createClient();
+    const targetActive = !isActive;
+    const update: Record<string, unknown> = { is_active: targetActive };
+    if (!targetActive) {
+      update.deactivated_at = new Date().toISOString();
+      update.deactivated_reason = "manually deactivated by admin";
+      update.deactivated_by_pass = "admin_manual";
+    } else {
+      update.deactivated_at = null;
+      update.deactivated_reason = null;
+      update.deactivated_by_pass = null;
+    }
     const { error } = await supabase
       .from("events")
-      .update({ is_active: !isActive })
+      .update(update)
       .eq("id", eventId);
     if (!error) {
-      setIsActive((prev) => !prev);
+      setIsActive(targetActive);
     }
     setLoading(false);
   }

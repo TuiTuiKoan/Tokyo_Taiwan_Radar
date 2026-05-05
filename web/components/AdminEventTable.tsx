@@ -324,7 +324,17 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     if (selected.size === 0) return;
     setBulkToggling(true);
     const ids = Array.from(selected);
-    const { error } = await supabase.from("events").update({ is_active: targetActive }).in("id", ids);
+    const update: Record<string, unknown> = { is_active: targetActive };
+    if (!targetActive) {
+      update.deactivated_at = new Date().toISOString();
+      update.deactivated_reason = "manually deactivated by admin (bulk)";
+      update.deactivated_by_pass = "admin_manual";
+    } else {
+      update.deactivated_at = null;
+      update.deactivated_reason = null;
+      update.deactivated_by_pass = null;
+    }
+    const { error } = await supabase.from("events").update(update).in("id", ids);
     if (error) {
       alert(`操作失敗：${error.message}`);
       setBulkToggling(false);
@@ -478,7 +488,17 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   }
 
   async function handleToggleActive(id: string, newValue: boolean) {
-    await supabase.from("events").update({ is_active: newValue }).eq("id", id);
+    const update: Record<string, unknown> = { is_active: newValue };
+    if (!newValue) {
+      update.deactivated_at = new Date().toISOString();
+      update.deactivated_reason = "manually deactivated by admin";
+      update.deactivated_by_pass = "admin_manual";
+    } else {
+      update.deactivated_at = null;
+      update.deactivated_reason = null;
+      update.deactivated_by_pass = null;
+    }
+    await supabase.from("events").update(update).eq("id", id);
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, is_active: newValue } : e))
     );

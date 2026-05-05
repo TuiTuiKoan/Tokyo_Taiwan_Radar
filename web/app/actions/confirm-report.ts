@@ -120,11 +120,17 @@ export async function confirmReport(
       eventUpdate["category"] = resolvedCategory;
       eventUpdate["is_active"] = true;
       eventUpdate["annotation_status"] = "annotated";
+      eventUpdate["deactivated_at"] = null;
+      eventUpdate["deactivated_reason"] = null;
+      eventUpdate["deactivated_by_pass"] = null;
     } else {
       // No category provided — clear and re-annotate
       eventUpdate["category"] = [];
       eventUpdate["is_active"] = false;
       eventUpdate["annotation_status"] = "pending";
+      eventUpdate["deactivated_at"] = new Date().toISOString();
+      eventUpdate["deactivated_reason"] = "admin reported wrong category; awaiting re-annotation";
+      eventUpdate["deactivated_by_pass"] = "admin_manual";
     }
   }
 
@@ -164,15 +170,24 @@ export async function confirmReport(
       // Reviewed events are protected from AI re-annotation on subsequent scraper/annotator runs.
       eventUpdate["is_active"] = true;
       eventUpdate["annotation_status"] = "reviewed";
+      eventUpdate["deactivated_at"] = null;
+      eventUpdate["deactivated_reason"] = null;
+      eventUpdate["deactivated_by_pass"] = null;
     } else {
       // Some fields still need AI re-fill
       eventUpdate["is_active"] = false;
       eventUpdate["annotation_status"] = "pending";
+      eventUpdate["deactivated_at"] = new Date().toISOString();
+      eventUpdate["deactivated_reason"] = `admin reported wrong details (${needsReannotation.join(",")}); awaiting re-annotation`;
+      eventUpdate["deactivated_by_pass"] = "admin_manual";
     }
   }
 
   if (isIrrelevant && !isWrongCategory && !isWrongDetails) {
     eventUpdate["is_active"] = false;
+    eventUpdate["deactivated_at"] = new Date().toISOString();
+    eventUpdate["deactivated_reason"] = "admin confirmed irrelevant";
+    eventUpdate["deactivated_by_pass"] = "admin_manual";
     // annotation_status intentionally NOT set to 'pending' — keeps current value
     // ('annotated' or 'reviewed') so the annotator never re-processes an event
     // that an admin has confirmed as irrelevant. Setting to 'pending' would cause
