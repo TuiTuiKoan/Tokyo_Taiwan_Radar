@@ -4,6 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CATEGORY_GROUPS, type Locale } from "@/lib/types";
 import { useState, useCallback, useRef, useEffect } from "react";
+import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, type RegionWithCity } from "@/lib/regionPrefectures";
 
 interface Props {
   locale: Locale;
@@ -15,6 +16,7 @@ interface Props {
     paid?: string;
     timeMode?: string;
     location?: string;
+    city?: string;
   };
 }
 
@@ -33,6 +35,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
     paid: currentFilters.paid ?? "",
     timeMode: currentFilters.timeMode ?? "active",
     location: currentFilters.location ?? "",
+    city: currentFilters.city ?? "",
   });
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -85,7 +88,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
   }, [pushWith]);
 
   const clearAll = useCallback(() => {
-    const reset = { q: "", category: "", from: "", to: "", paid: "", timeMode: "active", location: "" };
+    const reset = { q: "", category: "", from: "", to: "", paid: "", timeMode: "active", location: "", city: "" };
     setDraft(reset);
     router.push(pathname);
   }, [pathname, router]);
@@ -212,7 +215,14 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
             <label className="text-xs text-gray-500 font-medium">{t("location")}</label>
             <select
               value={draft.location}
-              onChange={(e) => applyWith("location", e.target.value)}
+              onChange={(e) => {
+                const loc = e.target.value;
+                setDraft((prev) => {
+                  const next = { ...prev, location: loc, city: "" };
+                  pushWith(next);
+                  return next;
+                });
+              }}
               className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("allLocations")}</option>
@@ -224,6 +234,30 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               <option value="overseas">{t("locationOverseas")}</option>
             </select>
           </div>
+
+          {/* City sub-filter — shown only when a region with prefectures is selected */}
+          {(REGIONS_WITH_CITY as readonly string[]).includes(draft.location) && (() => {
+            const region = draft.location as RegionWithCity;
+            const prefs = REGION_PREFECTURES[region];
+            return (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500 font-medium">{t("location")}</label>
+                <select
+                  value={draft.city}
+                  onChange={(e) => applyWith("city", e.target.value)}
+                  className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                >
+                  <option value="">{t("cityAll")}</option>
+                  {prefs.map((p) => (
+                    <option key={p} value={p}>
+                      {_locale === "en" ? (PREFECTURE_LABELS_EN[p] ?? p) : p}
+                    </option>
+                  ))}
+                  <option value={CITY_OTHER}>{t("cityOther")}</option>
+                </select>
+              </div>
+            );
+          })()}
 
           {/* Paid filter */}
           <div className="flex flex-col gap-1">

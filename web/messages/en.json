@@ -32,6 +32,8 @@
     "locationKanto": "Kanto (excl. Tokyo) / Tohoku / Hokkaido",
     "locationChubu": "Chubu / Kinki",
     "locationChugoku": "Chugoku / Kyushu / Shikoku",
+    "cityAll": "All prefectures",
+    "cityOther": "Other",
     "locationOverseas": "Overseas (Taiwan Cities)"
   },
   "categories": {

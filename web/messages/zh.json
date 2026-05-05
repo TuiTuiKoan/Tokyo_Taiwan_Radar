@@ -32,7 +32,9 @@
     "locationKanto": "關東（不含東京）・東北・北海道",
     "locationChubu": "中部・近畿",
     "locationChugoku": "中國・九州・四國",
-    "locationOverseas": "海外（台灣各城市）"
+    "locationOverseas": "海外（台灣各城市）",
+    "cityAll": "全部都道府縣",
+    "cityOther": "其他"
   },
   "categories": {
     "movie": "電影",
