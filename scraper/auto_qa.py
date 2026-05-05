@@ -84,8 +84,10 @@ OVERSEAS_KEYWORDS = (
 TAIWAN_VENUE_KEYWORDS = (
     '台北市', '台中市', '台南市', '高雄市', '新北市', '桃園市',
     '基隆市', '新竹市', '嘉義市', '花蓮市', '台東市',
-    '台北', '台中', '台南', '高雄', '新北', '桃園',
+    '台北', '台中', '台南', '高雄', '桃園',
     '臺北', '臺中', '臺南', '臺灣',
+    # NOTE: '新北' removed — false-positive on 大阪市住之江区新北島 (Osaka address)
+    # '新北市' above is sufficient for New Taipei City detection
 )
 
 QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_taiwan_venue", "auto_qa_missing_hours", "auto_simplified_chinese")
