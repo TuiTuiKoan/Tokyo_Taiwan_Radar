@@ -214,6 +214,62 @@ def get_event_id_by_source(source_name: str, source_id: str) -> str | None:
         return None
 
 
+def _build_movie_extend_row(event: Event, existing_state: dict) -> dict | None:
+    """
+    Build a partial-update row for a movie event that already exists in DB.
+
+    Preserves first-observed start_date (MIN) and extends end_date (MAX),
+    refreshing only raw_description, business_hours, and dates. Other fields
+    (name_*, description_*, category, location_*, etc.) are intentionally
+    excluded — those are owned by the annotator and protected by
+    field_corrections (P3.2 invariant).
+
+    annotation_status is flipped to 'pending' iff raw_description actually
+    changed, so the annotator re-runs translation on the new schedule text.
+
+    Returns None if nothing meaningful would change.
+    """
+    new_start = _dt_iso(event.start_date)
+    new_end = _dt_iso(event.end_date)
+    old_start = existing_state.get("start_date")
+    old_end = existing_state.get("end_date")
+    old_desc = (existing_state.get("raw_description") or "").strip()
+    new_desc = (event.raw_description or "").strip()
+
+    # MIN(existing, scraped) — prefer non-None; ISO 8601 strings sort chronologically.
+    if old_start and new_start:
+        merged_start = min(old_start, new_start)
+    else:
+        merged_start = old_start or new_start
+
+    # MAX(existing, scraped)
+    if old_end and new_end:
+        merged_end = max(old_end, new_end)
+    else:
+        merged_end = old_end or new_end
+
+    desc_changed = new_desc != old_desc
+    start_changed = merged_start != old_start
+    end_changed = merged_end != old_end
+    hours_changed = (event.business_hours or "") != (existing_state.get("business_hours") or "")
+
+    if not (desc_changed or start_changed or end_changed or hours_changed):
+        return None
+
+    row: dict[str, Any] = {
+        "source_name": event.source_name,
+        "source_id": event.source_id,
+        "raw_description": event.raw_description,
+        "business_hours": event.business_hours,
+        "start_date": merged_start,
+        "end_date": merged_end,
+        "scraped_at": datetime.now().isoformat(),
+    }
+    if desc_changed:
+        row["annotation_status"] = "pending"
+    return row
+
+
 def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None = None) -> list[str]:
     """
     Insert or update events in the database.
@@ -276,13 +332,20 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
     reviewed_keys: set[tuple[str, str]] = set()   # human-reviewed — fully protected
     existing_keys: set[tuple[str, str]] = set()   # any row that already exists in DB
     db_force_keys: set[tuple[str, str]] = set()   # rows with force_rescrape=true in DB
+    # Movie extend: for existing rows whose category contains 'movie', we need
+    # the current start_date/end_date/raw_description/business_hours to compute
+    # MIN(start)/MAX(end) and detect description changes.
+    existing_movie_state: dict[tuple[str, str], dict] = {}
 
     source_names = list({e.source_name for e in events})
     try:
         for sn in source_names:
             resp = (
                 client.table("events")
-                .select("source_name,source_id,is_active,annotation_status,force_rescrape")
+                .select(
+                    "source_name,source_id,is_active,annotation_status,force_rescrape,"
+                    "category,start_date,end_date,raw_description,business_hours"
+                )
                 .eq("source_name", sn)
                 .execute()
             )
@@ -295,6 +358,13 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
                     reviewed_keys.add(key)
                 if row.get("force_rescrape"):
                     db_force_keys.add(key)
+                if "movie" in (row.get("category") or []):
+                    existing_movie_state[key] = {
+                        "start_date": row.get("start_date"),
+                        "end_date": row.get("end_date"),
+                        "raw_description": row.get("raw_description"),
+                        "business_hours": row.get("business_hours"),
+                    }
     except Exception as exc:
         logger.warning("Could not fetch existing events (skipping filter): %s", exc)
 
@@ -303,6 +373,7 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
     # Classify incoming events
     new_rows: list[dict] = []       # brand-new events → insert
     force_rows: list[dict] = []     # forced re-scrape → full overwrite
+    extend_rows: list[dict] = []    # movie-extend partial update (preserve first-seen start_date)
 
     for e in events:
         key = (e.source_name, e.source_id)
@@ -314,7 +385,14 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
         if key in existing_keys:
             if key in all_force_keys:
                 force_rows.append(row)
-            # else: already in DB, not forced → skip (idempotent)
+            elif key in existing_movie_state and "movie" in (e.category or []):
+                # Movie-extend: partial update only — preserves first-observed start_date,
+                # extends end_date to cover ongoing run. Does NOT touch any P3.2-protected
+                # fields (name_*, description_*, category, location_*, etc.) by construction.
+                extend_row = _build_movie_extend_row(e, existing_movie_state[key])
+                if extend_row:
+                    extend_rows.append(extend_row)
+            # else: already in DB, not forced, not extendable → skip (idempotent)
         else:
             new_rows.append(row)
 
@@ -324,12 +402,14 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
     skipped_reviewed = sum(
         1 for e in events if (e.source_name, e.source_id) in reviewed_keys
     )
+    extended_keys = {(r["source_name"], r["source_id"]) for r in extend_rows}
     skipped_existing = sum(
         1 for e in events
         if (e.source_name, e.source_id) in existing_keys
         and (e.source_name, e.source_id) not in blocked_keys
         and (e.source_name, e.source_id) not in reviewed_keys
         and (e.source_name, e.source_id) not in all_force_keys
+        and (e.source_name, e.source_id) not in extended_keys
     )
 
     if skipped_deactivated:
@@ -343,11 +423,13 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
         )
     if force_rows:
         logger.info("Force-re-scraping %d event(s) (force_rescrape=true).", len(force_rows))
+    if extend_rows:
+        logger.info("Movie-extending %d event(s) (preserve start, extend end).", len(extend_rows))
     if new_rows:
         logger.info("Inserting %d new event(s).", len(new_rows))
 
     all_rows = new_rows + force_rows
-    if not all_rows:
+    if not all_rows and not extend_rows:
         return []
 
     # P3.2: For force_rows, strip any fields that have a human correction in field_corrections.
@@ -403,18 +485,43 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
             logger.debug("field_corrections check for force_rows skipped: %s", fc_exc)
 
     new_event_ids: list[str] = []
-    try:
-        resp = client.table("events").upsert(all_rows, on_conflict="source_name,source_id").execute()
-        logger.info("Upserted %d events to Supabase.", len(all_rows))
-        # Collect IDs of newly-inserted events only (not force-updates)
-        # Supabase returns the upserted rows — match source_id against new_rows
-        new_source_ids = {r["source_id"] for r in new_rows}
-        for row in (resp.data or []):
-            if row.get("source_id") in new_source_ids and row.get("id"):
-                new_event_ids.append(row["id"])
-    except Exception as exc:
-        logger.error("Failed to upsert events: %s", exc)
-        raise
+    if all_rows:
+        try:
+            resp = client.table("events").upsert(all_rows, on_conflict="source_name,source_id").execute()
+            logger.info("Upserted %d events to Supabase.", len(all_rows))
+            # Collect IDs of newly-inserted events only (not force-updates)
+            # Supabase returns the upserted rows — match source_id against new_rows
+            new_source_ids = {r["source_id"] for r in new_rows}
+            for row in (resp.data or []):
+                if row.get("source_id") in new_source_ids and row.get("id"):
+                    new_event_ids.append(row["id"])
+        except Exception as exc:
+            logger.error("Failed to upsert events: %s", exc)
+            raise
+
+    # Movie-extend partial updates — separate pass after main upsert.
+    # By construction these rows touch only raw_description, business_hours,
+    # start_date, end_date, scraped_at, annotation_status — never any
+    # field_corrections-protected column, so no P3.2 scrubbing is needed.
+    # We use UPDATE (not upsert) because the row is guaranteed to exist and
+    # the partial payload would otherwise violate NOT NULL constraints
+    # (e.g. source_url) on insert-fallback.
+    if extend_rows:
+        try:
+            for row in extend_rows:
+                sn = row.pop("source_name")
+                sid = row.pop("source_id")
+                (
+                    client.table("events")
+                    .update(row)
+                    .eq("source_name", sn)
+                    .eq("source_id", sid)
+                    .execute()
+                )
+            logger.info("Movie-extended %d event(s).", len(extend_rows))
+        except Exception as exc:
+            logger.error("Failed to apply movie-extend updates: %s", exc)
+            raise
 
     # After upserting forced events: reset force_rescrape=false, annotation_status='pending'
     if force_rows:
