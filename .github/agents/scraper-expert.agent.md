@@ -61,6 +61,7 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 1. Read the relevant source file in full before making any changes.
 2. Read `scraper/sources/base.py` for the `Event` dataclass fields.
 3. For new sources: copy the pattern from an existing scraper; register the new class in `SCRAPERS` in `main.py`.
+    - **auto-scraper 生成 branch は 24 時間以内にマージする**: `SCRAPERS` リストと `main.py` の import は全員が同じ行を編集する hot spot。branch を放置すると main 側に複数の scraper 追加コミットが積まれ、マージ時に手動 conflict 解決が必要になる（commit `7cedc68` の Artist Cafe 事例）。
 4. For bugs: run `python main.py --dry-run --source <name> 2>&1` first to reproduce the failure, then fix.
 5. Keep `raw_title` and `raw_description` unchanged — never overwrite original scraped text.
 6. Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` when the event date differs from the post date.

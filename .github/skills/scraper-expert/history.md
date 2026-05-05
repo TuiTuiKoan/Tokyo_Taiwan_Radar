@@ -3,6 +3,95 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-05 — note.com creator 追加 4 件（commit `d7da54a`）
+
+### 問題
+nittaisinzen、vectortw、taiwanryugaku、tcml_osaka を note.com クローラーに追加。
+
+### 修復
+- `note_creators.py` の `CREATOR_META` に 4 行追加
+- `research_sources` の status を `implemented` に同時更新
+- 事前に RSS dry-run（28 → 122 件）で件数確認
+
+### 教訓
+**note.com creator 追加は 2 ステップをセットで実行**：
+1. `CREATOR_META` に `{slug: ..., category: ..., location: ...}` を 1 行追加
+2. DB の `research_sources` を `status=implemented` に更新
+どちらか片方だけでは `/admin/sources` の件数表示や次回 researcher.py の重複排除が狂う。
+
+---
+## 2026-05-04 — auto_research: pending ステータス候補が永久スキップ（commit `5d2585d`）
+
+### 問題
+migration 033 で `auto_research_status DEFAULT 'pending'` が設定されているが、
+batch クエリが `NULL or error` しか条件に入れていなかった。
+→ 新規候補 14 件が 2 日間まったく評価されなかった。
+
+### 根因
+`research_sources.auto_research_status` に DEFAULT 'pending' が設定されており、
+INSERT 時に明示的な NULL 指定がなければ 'pending' が入る。
+しかし `auto_research.py` の batch クエリが `.or_("auto_research_status.is.null,auto_research_status.eq.error")` のみ → 'pending' は永遠にマッチしない。
+
+### 修復
+`.or_()` に `auto_research_status.eq.pending` を追加。
+DB で 14 件を NULL にリセット → 翌夜再評価。
+
+### 教訓
+**migration で DEFAULT 値を追加した場合、batch クエリの `NULL` 条件に DEFAULT 値も含めること**。
+`DEFAULT 'pending'` を設定したなら `.or_("...is.null,...eq.pending")` の両方が必要。
+
+---
+## 2026-05-04 — researcher.py: 重複提案バグ 2 件（commit `7554002`）
+
+### 問題
+GPT が Shibuya Eggman、DjangoGirls Japan、Raycast Community 等を毎日再提案し続けた。
+
+### 根因
+1. `url_verified=False` のソース（URL 疎通確認失敗）が DB に保存されなかった → `known_urls` に含まれず、GPT に「未知」として渡り続けた
+2. `known_urls` に渡す前に `[:30]` でリストを切り詰め → 186 件中 156 件が GPT に見えていなかった
+
+### 修復
+1. `url_verified=False` の初回提案を `status=not-viable` として DB 保存
+2. `[:30]` 制限を削除（全件渡す）
+
+### 教訓
+- **GPT に渡す既知 URL リストは全件渡す**。ソート後の先頭 N 件に切り詰めると、後半の URL が毎日「新規候補」として再提案される
+- **検証失敗ソースも DB に記録**。`url_verified=False` でも `not-viable` として保存しなければ、GPT は翌日も同じ URL を提案する
+
+---
+## 2026-05-04 — auto-scraper branch 長期放置によるマージ衝突（commit `7cedc68`）
+
+### 問題
+`feat/auto-scraper-artistcafe` と `main` の両方で `main.py` の同じ行（import + SCRAPERS リスト）に
+別々の scraper が追加されており、マージ時に conflict。
+HEAD（NoteCreatorsScraper）と branch（ArtistcafeScraper）を両方保持して手動解決。
+
+### 根因
+feature branch が数日放置され、その間 main 側に複数の scraper 追加コミットが積まれた。
+
+### 教訓
+**auto-scraper feature branch は生成後 24 時間以内にマージする**。
+`SCRAPERS` リストは全員が同じ行/ブロックを編集する → 放置するほど conflict が深刻化。
+
+---
+## 2026-05-03 — 本屋B&B / 白水社 scraper プロモーション（commit `1c4f4f8`）
+
+### 問題
+`auto_scraper/runs/169`（白水社）、`170`（本屋B&B）の `generated.py` を `sources/` にプロモーション。
+`meta.json` に `source_name` / `class_name` が含まれていなかったため、クラス名が不明だった。
+
+### 根因
+auto_scraper の runs ディレクトリに保存される `meta.json` は `source_name` を含まない場合がある。
+
+### 修復
+`auto_scraper/runs/{id}/generated.py` の先頭数行（`class XxxScraper(BaseScraper):`）を直接確認してクラス名を取得。
+DB: id=169/170 → `status=implemented`, `auto_scraper_status=deployed-manually`
+
+### 教訓
+**`meta.json` に `source_name` / `class_name` がない場合は `generated.py` 先頭を直接確認する**。
+`class (\w+Scraper)\(BaseScraper\):` パターンで 1 行目付近に必ず存在する。
+
+---
 ## 2026-05-05 — location_address = location_name 全 scraper 稽核修正（commits `9d6e0fc`、`f7a8a71`）
 
 ### 問題

@@ -151,6 +151,7 @@ For each promising source, answer:
      ```bash
      source venv/bin/activate && python scraper/update_source.py --url <exact-url> --status not-viable
      ```
+  **⚠ URL が疎通不可（4xx/5xx / タイムアウト）でも必ず `--status not-viable` を実行する**: `url_verified=False` のソースを DB に保存しないと `researcher.py` の `known_urls` に含まれず、GPT が翌日以降も同じ URL を再提案し続ける（commit `7554002` の重複提案バグ再発防止）。疎通確認失敗 = 「評価したが実行不可」であり、無視ではなく記録が必要。
   `--create-issue` requires `GITHUB_TOKEN` in `scraper/.env` (classic token with `repo` scope or fine-grained with Issues: write + Metadata: read). It automatically advances the status to `recommended` and saves the Issue URL to the DB.
 
   **Feasibility judgement** (Researcher agent's responsibility):

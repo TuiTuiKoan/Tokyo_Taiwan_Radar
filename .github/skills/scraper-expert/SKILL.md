@@ -41,6 +41,8 @@ Read this at the start of every session before writing any scraper.
   3. `research_sources` row — `status = 'implemented'`.
   4. **`research_sources.scraper_source_name = '<scraper key>'`** — MUST be filled manually; `auto_generate` does NOT write this. Omitting it causes `/admin/sources` to show 0 events and disables Run Scraper (backend JOINs `scraper_runs` by this key).
   5. Smoke-test: `python main.py --dry-run --source <key>` returns events.
+- **`meta.json` に `source_name` / `class_name` がない場合は `generated.py` 先頭を直接確認する**: `auto_scraper/runs/{id}/meta.json` に `source_name` が含まれていない場合がある。その場合は `auto_scraper/runs/{id}/generated.py` の先頭数行を読んで `class XxxScraper(BaseScraper):` を探す。クラス名から `source_name` は snake_case 変換で導ける（`BookAndBeerScraper` → `bookandbeer`）。
+- **auto-scraper feature branch は生成後 24 時間以内にマージする**: `SCRAPERS` リストは全員が同じ行/ブロックを編集するため、放置するほど conflict が深刻化。長期放置 → 複数の scraper 追加コミットが main に積まれ → マージ時に手動解決が必要になる（commit `7cedc68` の Artist Cafe 衝突事例）。
 - **Identify source_name from a problem event**: Never guess from the event title — always query the DB:
   ```python
   sb.table('events').select('source_name,source_id,source_url').eq('id', '<uuid>').execute()
@@ -331,6 +333,11 @@ note.com RSS `<description>` 約在 140 字截斷，可能只有「続きをみ�
 解析 `<script type="application/ld+json">` 的 `description` 欄位（~280 字）。
 已實作：`scraper/sources/note_creators.py` → `_fetch_json_ld_description()` helper。
 無需 Playwright，標準 `requests.get()` 即可。
+
+**note.com creator 追加手順（2 ステップ必須）**：
+1. `CREATOR_META` に `{"slug": "<creator_slug>", "category": "<category>", "location": "<prefecture>"}` を追加
+2. DB `research_sources` の対応行を `status=implemented` に更新（`scraper_source_name = 'note_creators'` も確認）
+事前確認：`python main.py --dry-run --source note_creators 2>&1 | grep "events found"` で件数増加を確認してから commit。
 
 ---
 
