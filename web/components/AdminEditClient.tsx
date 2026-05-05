@@ -200,6 +200,15 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
         .then(({ error: corrErr }) => {
           if (corrErr) console.warn("Category correction save failed:", corrErr.message);
         });
+      supabase
+        .from("field_corrections")
+        .upsert(
+          { event_id: event.id, field_name: "category", corrected_value: JSON.stringify(form.category) },
+          { onConflict: "event_id,field_name" }
+        )
+        .then(({ error: fcErr }) => {
+          if (fcErr) console.warn("field_corrections category save failed:", fcErr.message);
+        });
     }
 
     router.refresh();

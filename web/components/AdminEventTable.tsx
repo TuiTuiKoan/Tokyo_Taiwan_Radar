@@ -437,6 +437,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           },
           { onConflict: "event_id" }
         );
+        await supabase.from("field_corrections").upsert(
+          { event_id: e.id, field_name: "category", corrected_value: JSON.stringify(newCategory) },
+          { onConflict: "event_id,field_name" }
+        );
       })
     );
 
@@ -478,6 +482,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             corrected_category: newCategory,
           },
           { onConflict: "event_id" }
+        );
+        await supabase.from("field_corrections").upsert(
+          { event_id: e.id, field_name: "category", corrected_value: JSON.stringify(newCategory) },
+          { onConflict: "event_id,field_name" }
         );
       })
     );

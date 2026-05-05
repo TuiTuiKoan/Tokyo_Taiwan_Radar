@@ -236,6 +236,10 @@ export async function confirmReport(
       },
       { onConflict: "event_id" }
     );
+    await supabase.from("field_corrections").upsert(
+      { event_id: input.eventId, field_name: "category", corrected_value: JSON.stringify(finalCategory) },
+      { onConflict: "event_id,field_name" }
+    );
   }
 
   // 3b. Persist field-level corrections to field_corrections table (P1).
