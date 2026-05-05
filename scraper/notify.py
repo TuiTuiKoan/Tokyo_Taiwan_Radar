@@ -33,7 +33,7 @@ def _parse_env_json(var: str) -> dict:
         return {}
 
 
-def build_message(summary: dict, validate: dict, annotate_outcome: str = "", backlog: dict | None = None) -> str:
+def build_message(summary: dict, validate: dict, annotate_outcome: str = "", backlog: dict | None = None, quality_alert: str = "") -> str:
     today = datetime.now(tz=JST).strftime("%Y-%m-%d")
     lines: list[str] = []
 
@@ -81,6 +81,11 @@ def build_message(summary: dict, validate: dict, annotate_outcome: str = "", bac
         if backlog.get("exclusion_hits_today", 0) > 0:
             lines.append(f"  🚫 今日封鎖：{backlog['exclusion_hits_today']} 件")
 
+    # Precision rate alert
+    if quality_alert:
+        lines.append("")
+        lines.append(quality_alert)
+
     return "\n".join(lines)
 
 
@@ -89,8 +94,9 @@ def main() -> None:
     validate = _parse_env_json("VALIDATE_WARNINGS")
     annotate_outcome = os.environ.get("ANNOTATE_OUTCOME", "").strip()
     backlog = _parse_env_json("BACKLOG_HEALTH")
+    quality_alert = os.environ.get("QUALITY_ALERT", "").strip()
 
-    msg = build_message(summary, validate, annotate_outcome, backlog)
+    msg = build_message(summary, validate, annotate_outcome, backlog, quality_alert)
     logger.info("Sending LINE notification (%d chars)", len(msg))
 
     success = send_line_message(msg)

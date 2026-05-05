@@ -17,6 +17,7 @@ jobs:
       summary: ${{ steps.summarize.outputs.summary }}
       annotate_outcome: ${{ steps.annotate_pending.outcome }}
       backlog_health: ${{ steps.backlog.outputs.json }}
+      quality_alert: ${{ steps.quality.outputs.alert }}
 
     steps:
       - name: Checkout repository
@@ -138,6 +139,7 @@ jobs:
         continue-on-error: true
 
       - name: Daily quality metrics
+        id: quality
         if: always()
         working-directory: scraper
         env:
@@ -153,6 +155,7 @@ jobs:
           if [ -n "$ALERT" ]; then
             echo "::warning::$ALERT"
           fi
+          echo "alert=$ALERT" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Summarize run
@@ -225,4 +228,5 @@ jobs:
           VALIDATE_WARNINGS: ${{ needs.validate.outputs.warnings }}
           ANNOTATE_OUTCOME: ${{ needs.scrape.outputs.annotate_outcome }}
           BACKLOG_HEALTH: ${{ needs.scrape.outputs.backlog_health }}
+          QUALITY_ALERT: ${{ needs.scrape.outputs.quality_alert }}
         run: python notify.py
