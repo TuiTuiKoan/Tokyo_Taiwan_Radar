@@ -1009,6 +1009,43 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 "应": "應", "集": "集",  # 集 same — skip
                 # 着: skip — valid trad as particle (保持着)
                 "乐": "樂", "欢": "歡",
+                # SC chars found by production audit scan (2026-05-05)
+                "识": "識",
+                "药": "藥", "讲": "講", "谱": "譜", "购": "購",
+                "绘": "繪", "们": "們", "该": "該", "课": "課",
+                "谁": "誰", "谢": "謝", "谋": "謀", "词": "詞",
+                "误": "誤", "诚": "誠", "诉": "訴", "诊": "診",
+                "讨": "討", "训": "訓",
+                "检": "檢", "样": "樣", "档": "檔", "桥": "橋",
+                "梦": "夢", "楼": "樓",
+                "浅": "淺", "测": "測", "浏": "瀏", "涂": "塗",
+                "渐": "漸",
+                "线": "線", "练": "練", "终": "終",
+                "绪": "緒", "缘": "緣", "缩": "縮",
+                "肤": "膚", "脑": "腦", "脸": "臉", "腊": "臘",
+                "范": "範", "荡": "蕩",
+                "补": "補", "装": "裝",
+                "车": "車", "轮": "輪", "软": "軟", "输": "輸",
+                "辞": "辭", "边": "邊",
+                "辅": "輔", "辆": "輛", "辩": "辯",
+                "队": "隊", "阶": "階", "阳": "陽",
+                "陆": "陸", "陈": "陳", "随": "隨", "隐": "隱",
+                "页": "頁", "顺": "順", "领": "領", "颗": "顆",
+                "题": "題", "颜": "顏", "额": "額",
+                "风": "風", "饭": "飯", "饮": "飲",
+                "龄": "齡", "齿": "齒", "龟": "龜",
+                "迁": "遷", "递": "遞", "逻": "邏", "遗": "遺",
+                "邮": "郵", "邻": "鄰",
+                "酱": "醬", "酿": "釀",
+                "钟": "鐘", "钢": "鋼", "钱": "錢",
+                "铁": "鐵", "铜": "銅", "铝": "鋁", "银": "銀",
+                "锁": "鎖", "锋": "鋒", "错": "錯",
+                "镇": "鎮", "镜": "鏡",
+                "闭": "閉", "闲": "閒", "闸": "閘",
+                "险": "險", "雾": "霧",
+                "驾": "駕", "骗": "騙", "骤": "驟",
+                "鱼": "魚", "鲜": "鮮", "鸟": "鳥", "鸡": "雞", "鸣": "鳴",
+                "踪": "蹤",
             })
             # Remove identity mappings (same char in both)
             _SIMP_TO_TRAD = {k: v for k, v in _SIMP_TO_TRAD.items() if k != v}
@@ -1169,8 +1206,10 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             # Try to include selection_reason (column may not exist yet)
             selection_reason = annotation.get("selection_reason")
             if selection_reason:
-                # If AI returned a multilingual dict, JSON-encode it
+                # If AI returned a multilingual dict, normalize zh to Traditional Chinese
                 if isinstance(selection_reason, dict):
+                    if "zh" in selection_reason and selection_reason["zh"]:
+                        selection_reason["zh"] = _to_trad(selection_reason["zh"])
                     selection_reason = json.dumps(selection_reason, ensure_ascii=False)
                 update_data["selection_reason"] = selection_reason
 

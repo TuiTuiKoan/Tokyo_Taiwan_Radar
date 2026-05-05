@@ -48,7 +48,14 @@ SIMP_RE = re.compile(
     r"岛带帮当录张归态总职护扩续齐奖将断湾览间气坛静满简洁优连释迹仪壮汇灯"
     r"蕴韵须恳构传经验弥记调节约运办导环义战组织国际临创据点击继阅读"
     r"画获选赛参电热爱独虑忆仅尝试谈龙华灵极标准规细广庆响惊显类宝贵丽尽挡"
-    r"统种学数编价乡网绍预称评议论结应]"
+    r"统种学数编价乡网绍预称评议论结应"
+    r"药讲谱购绘们该课谁谢谋词误诚诉诊讨训"
+    r"检样档桥梦楼浅测浏涂渐线练终绪缘缩"
+    r"肤脑脸腊范荡补装车轮软输辞边辅辆辩"
+    r"队阶阳陆陈随隐页顺领颗题颜额风饭饮"
+    r"龄齿龟迁递逻遗邮邻酱酿"
+    r"钟钢钱铁铜铝银锁锋错镇镜闲闸险雾"
+    r"驾骗骤鱼鲜鸟鸡鸣踪]"
 )
 
 ZH_FIELDS = ("name_zh", "description_zh", "location_name_zh", "location_address_zh", "business_hours_zh")
@@ -81,7 +88,61 @@ TAIWAN_VENUE_KEYWORDS = (
     '臺北', '臺中', '臺南', '臺灣',
 )
 
-QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_taiwan_venue", "auto_qa_missing_hours")
+QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_taiwan_venue", "auto_qa_missing_hours", "auto_simplified_chinese")
+
+# Precise SC-only char set for the broad auto_simplified_chinese detector.
+# Only chars that are unambiguously simplified-only (different glyph in TC).
+SC_ONLY = set(
+    "药讲谱识购专让设证评达运选进过还适连远这该请说话谈读论"
+    "间问关开动办对书学习时现经统场备产温术节历难声变热实"
+    "见观规计认记议讨训诉诊试课调谁谢谋诚诺误词"
+    "条来极构检样标档桥梦楼概欢歼残毕毙"
+    "汇济浅测浏浓涂涌渐满灾灵点烂"
+    "爱独环电疗痴瘫"
+    "线练组细织终结绍绩绪编缘缩总绘"
+    "联职肤脑脸腊"
+    "苏范荡荣蒙虑蜡"
+    "补装裤"
+    "车轮软输辑辞边"
+    "队阶阳际陆陈随隐"
+    "页顺须领颗题颜额风饭饮馆"
+    "龙龟齿龄"
+    "仅从们价优传伤体"
+    "创刚则划"
+    "厂厅压厌"
+    "单卖卫"
+    "团围国图"
+    "块坚坛坝坟"
+    "处复够头夺奋奖"
+    "宝审宪寻导寿将"
+    "尘尝尽层岁岛"
+    "币师帮广库应废"
+    "归当录征"
+    "忆忧怀态恶惊惧"
+    "战扩扰护报拥择挡挤"
+    "损携摄撑"
+    "无旧显晓暂"
+    "杂权"
+    "沟泪浑"
+    "猎献猪环"
+    "盘监确碍"
+    "积称税稳"
+    "签简类粮纠纤纪纯纱纲纳纷纸"
+    "罗罚"
+    "艰艺"
+    "虏蚀"
+    "赏赐赖赚赛赞赠赶"
+    "踪蹈"
+    "辅辆辩"
+    "迁递逻遗"
+    "邮邻郑"
+    "酱酿释"
+    "钟钢钱铁铜铝银锁锋错镇镜长"
+    "闭闲阅闸门"
+    "险雾零"
+    "驾骗骤"
+    "鱼鲜鸟鸡鸣"
+)
 
 
 def _supabase_client():
@@ -181,6 +242,57 @@ def _detect_missing_hours(sb) -> list[dict]:
     return reports
 
 
+def _detect_simplified_chinese(sb) -> list[dict]:
+    """Scan ALL active, annotated/reviewed events for SC chars in zh fields.
+
+    Uses the precise SC_ONLY char set with threshold ≥2 to avoid false positives.
+    Also checks selection_reason.zh (JSON-parsed).
+    """
+    import json as _json
+    rows = (
+        sb.table("events")
+        .select("id,source_name,name_zh,description_zh,selection_reason")
+        .eq("is_active", True)
+        .in_("annotation_status", ["annotated", "reviewed"])
+        .execute()
+        .data
+    )
+    reports = []
+    for row in rows:
+        bad_fields = []
+        total_sc = 0
+
+        for field in ("name_zh", "description_zh"):
+            val = row.get(field) or ""
+            n = sum(1 for c in val if c in SC_ONLY)
+            if n > 0:
+                bad_fields.append(field)
+                total_sc += n
+
+        sr = row.get("selection_reason")
+        if sr:
+            try:
+                sr_dict = _json.loads(sr) if isinstance(sr, str) else sr
+                zh_val = sr_dict.get("zh", "")
+                n = sum(1 for c in zh_val if c in SC_ONLY)
+                if n > 0:
+                    bad_fields.append("selection_reason.zh")
+                    total_sc += n
+            except (ValueError, TypeError, AttributeError):
+                pass
+
+        if total_sc >= 2:
+            reports.append({
+                "event_id": row["id"],
+                "report_type": "auto_simplified_chinese",
+                "details": (
+                    f"簡體字偵測({total_sc}字) fields={','.join(bad_fields)} "
+                    f"source={row.get('source_name', '?')}"
+                ),
+            })
+    return reports
+
+
 def detect(event: dict) -> list[tuple[str, str]]:
     """Return list of (report_type, admin_note) detected for one event."""
     findings: list[tuple[str, str]] = []
@@ -243,6 +355,8 @@ def run(dry_run: bool = False) -> dict:
         for t, note in detect(ev):
             candidates.append((ev["id"], t, note))
     for item in _detect_missing_hours(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
+    for item in _detect_simplified_chinese(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
 
     # Dedup against latest auto_qa reports for each event/type
