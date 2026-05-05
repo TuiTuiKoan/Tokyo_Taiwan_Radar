@@ -5,6 +5,7 @@ import FilterBar from "@/components/FilterBar";
 import Link from "next/link";
 import AnnouncementCard from "@/components/AnnouncementCard";
 import { getCityLabel } from "@/lib/cityLabel";
+import { REGIONS_WITH_CITY, matchesCity, type RegionWithCity } from "@/lib/regionPrefectures";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ interface PageProps {
     paid?: string;
     timeMode?: string; // "active" | "all" | "past" (search date range)
     location?: string; // "tokyo" | "other_japan" | "taiwan" | "online"
+    city?: string;    // prefecture name or "_other" — only when location has sub-filter
   }>;
 }
 
@@ -135,11 +137,30 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     query = query.or(conds);
   }
 
-  const { data: events, error } = await query;
+  const { data: rawEvents, error } = await query;
 
   if (error) {
     console.error("Error fetching events:", error);
   }
+
+  // City sub-filter (client-side post-filter on DB results)
+  const events = (() => {
+    if (!rawEvents) return rawEvents;
+    const cityParam = sp.city;
+    const locationParam = sp.location ?? "";
+    if (!cityParam || !(REGIONS_WITH_CITY as readonly string[]).includes(locationParam)) {
+      return rawEvents;
+    }
+    const region = locationParam as RegionWithCity;
+    return rawEvents.filter((e: Event) =>
+      matchesCity(
+        cityParam,
+        (e as any).location_address as string | null | undefined,
+        (e as any).location_prefectures as string[] | null | undefined,
+        region,
+      )
+    );
+  })();
 
   // Build parent event name map for child events
   const parentIds = [...new Set(
@@ -225,7 +246,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
         </div>
       )}
 
-      <FilterBar locale={locale} currentFilters={sp} />
+      <FilterBar locale={locale} currentFilters={{ ...sp, city: sp.city ?? "" }} />
 
       {!events || events.length === 0 ? (
         <p className="text-center text-gray-500 mt-16 text-lg">

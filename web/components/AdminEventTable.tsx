@@ -7,6 +7,7 @@ import { type Event, type Locale, getEventName, CATEGORY_GROUPS, type Work, getW
 import { useRouter } from "next/navigation";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 import { assignWorkToEvent } from "@/app/actions/works";
+import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, matchesCity, type RegionWithCity } from "@/lib/regionPrefectures";
 
 interface Props {
   events: Event[];
@@ -113,6 +114,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "kanto" | "chubu" | "chugoku" | "online" | "tv" | "overseas">("")
+  const [filterCity, setFilterCity] = useState("");
   const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "reviewed" | "error">("");;  const [filterSource, setFilterSource] = useState("");
   const [filterOrgType, setFilterOrgType] = useState("");
   const [filterEventForm, setFilterEventForm] = useState("");
@@ -176,6 +178,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         const TAIWAN_MARKERS_ADMIN = ["台北", "台中", "高雄", "台南", "新竹", "嘉義", "花蓮", "台東", "基隆", "宜蘭", "桃園", "屏東", "南投", "彰化", "雲林", "澎湖"];
         if (!TAIWAN_MARKERS_ADMIN.some((m) => (e.location_address || "").includes(m))) return false;
       }
+      // City sub-filter
+      if (filterCity && (REGIONS_WITH_CITY as readonly string[]).includes(filterLocation)) {
+        if (!matchesCity(filterCity, e.location_address, (e as any).location_prefectures as string[] | null, filterLocation as RegionWithCity)) return false;
+      }
   if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
       if (filterOrgType && !((e as any).organizer_type ?? []).includes(filterOrgType)) return false;
       if (filterEventForm && !((e as any).event_form ?? []).includes(filterEventForm)) return false;
@@ -222,6 +228,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       else if (filterLocation === "chubu") { if (!hasPrefecture(CHUBU_KINKI_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false; }
       else if (filterLocation === "chugoku") { if (!hasPrefecture(CHUGOKU_KYUSHU_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false; }
       else if (filterLocation === "online") { if (!(e.location_name || "").includes("オンライン")) return false; }
+      if (filterCity && (REGIONS_WITH_CITY as readonly string[]).includes(filterLocation)) {
+        if (!matchesCity(filterCity, e.location_address, (e as any).location_prefectures as string[] | null, filterLocation as RegionWithCity)) return false;
+      }
       if (filterAnnotation && (e as any).annotation_status !== filterAnnotation) return false;
       if (filterOrgType && !((e as any).organizer_type ?? []).includes(filterOrgType)) return false;
       if (filterEventForm && !((e as any).event_form ?? []).includes(filterEventForm)) return false;
@@ -234,7 +243,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     }
     return map;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events, filterQ, filterCategories, filterPaid, filterIsActive, filterTimeMode, filterDateFrom, filterDateTo, filterLocation, filterAnnotation, filterOrgType, filterEventForm, locale]);
+  }, [events, filterQ, filterCategories, filterPaid, filterIsActive, filterTimeMode, filterDateFrom, filterDateTo, filterLocation, filterCity, filterAnnotation, filterOrgType, filterEventForm, locale]);
 
   // Intersection of categories across all selected events
   const commonCategories = useMemo(() => {
@@ -668,7 +677,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             <label className="text-xs text-gray-500 font-medium">{tFilters("location")}</label>
             <select
               value={filterLocation}
-              onChange={(e) => setFilterLocation(e.target.value as any)}
+              onChange={(e) => { setFilterLocation(e.target.value as any); setFilterCity(""); }}
               className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{tFilters("allLocations")}</option>
@@ -680,6 +689,30 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="overseas">{tFilters("locationOverseas")}</option>
             </select>
           </div>
+
+          {/* City sub-filter */}
+          {(REGIONS_WITH_CITY as readonly string[]).includes(filterLocation) && (() => {
+            const region = filterLocation as RegionWithCity;
+            const prefs = REGION_PREFECTURES[region];
+            return (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500 font-medium">{tFilters("location")}</label>
+                <select
+                  value={filterCity}
+                  onChange={(e) => setFilterCity(e.target.value)}
+                  className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                >
+                  <option value="">{tFilters("cityAll")}</option>
+                  {prefs.map((p) => (
+                    <option key={p} value={p}>
+                      {locale === "en" ? (PREFECTURE_LABELS_EN[p] ?? p) : p}
+                    </option>
+                  ))}
+                  <option value={CITY_OTHER}>{tFilters("cityOther")}</option>
+                </select>
+              </div>
+            );
+          })()}
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-500 font-medium">{t("isPaid")}</label>
             <select
@@ -823,9 +856,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <option value="other">{tEventForm("other")}</option>
             </select>
           </div>
-          {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "all" || filterTimeMode !== "all" || filterDateFrom || filterDateTo || filterLocation || filterAnnotation || filterSource || filterOrgType || filterEventForm) && (
+          {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "all" || filterTimeMode !== "all" || filterDateFrom || filterDateTo || filterLocation || filterCity || filterAnnotation || filterSource || filterOrgType || filterEventForm) && (
             <button
-              onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("all"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterAnnotation(""); setFilterSource(""); setFilterOrgType(""); setFilterEventForm(""); }}
+              onClick={() => { setFilterQ(""); setFilterCategories([]); setFilterPaid(""); setFilterIsActive("all"); setFilterTimeMode("all"); setFilterDateFrom("2024-01-01"); setFilterDateTo(""); setFilterLocation(""); setFilterCity(""); setFilterAnnotation(""); setFilterSource(""); setFilterOrgType(""); setFilterEventForm(""); }}
               className="text-xs text-red-500 hover:text-red-700 underline self-end pb-1"
             >
               {tFilters("reset")}

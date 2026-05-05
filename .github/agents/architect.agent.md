@@ -184,9 +184,11 @@ Before approving any change related to `GITHUB_TOKEN` requirements, verify:
 Before approving any change that adds or modifies region filter markers in `web/app/[locale]/page.tsx` or `web/components/AdminEventTable.tsx`, verify:
 
 1. **No short markers that are substrings of other prefectures**: `"京都"` is a substring of `"東京都"` — all Tokyo addresses (`東京都...`) would falsely match the Kyoto marker. Always use the full prefix: `"京都府"` or `"京都市"` instead of `"京都"`.
-2. **Front-end and admin must be in sync**: `CHUBU_KINKI_MARKERS` (page.tsx) and `CHUBU_KINKI_MARKERS_ADMIN` (AdminEventTable.tsx) must contain identical marker sets.
+2. **Front-end and admin must be in sync**: `CHUBU_KINKI_MARKERS` (page.tsx) and `CHUBU_KINKI_MARKERS_ADMIN` (AdminEventTable.tsx) must contain identical marker sets. Since 2026-05-05, the canonical list lives in `web/lib/regionPrefectures.ts → REGION_PREFECTURES`; page.tsx and AdminEventTable.tsx import from there — do NOT hardcode a parallel copy.
 3. **Multi-city parent events**: After adding a new region filter, confirm that multi-city parent events with `location_prefectures` array are also covered by adding `location_prefectures.cs.{"<pref>"}` OR conditions alongside the address marker checks.
 4. **Test with Tokyo addresses**: After any marker change, run a quick sanity check — confirm that `東京都新宿区` does NOT match Kyoto/Kansai markers.
+5. **City sub-filter three-way sync**: `REGION_PREFECTURES[region]` in `web/lib/regionPrefectures.ts` is the single source of truth for prefecture lists. Any change to this list automatically propagates to FilterBar city dropdown, homepage post-filter, and AdminEventTable post-filter. **Never** add or remove prefectures in only one of the three call sites. The helper `matchesCity(city, address, prefectures, region)` handles both named-prefecture matching and the `_other` bucket (events that match the region but no specific prefecture).
+6. **`_other` semantics**: `CITY_OTHER = "_other"` means "matched by the region-level filter but not by any named prefecture in that region". This is a JS post-filter applied after the DB region query — it is NOT a separate DB query.
 
 ## RLS Cross-Status Query Guard
 
