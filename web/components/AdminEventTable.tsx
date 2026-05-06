@@ -1487,14 +1487,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                                   {getWorkTitle(w, locale)}
                                 </button>
                               ))}
-                              <a
-                                href={`/${locale}/admin/works/new`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 border-t"
+                              <button
+                                onClick={() => setShowCreateWorkModal(true)}
+                                className="block w-full text-left px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 border-t"
                               >
                                 {t("events.assignWork.createNew")}
-                              </a>
+                              </button>
                             </div>
                           </div>
                         );
