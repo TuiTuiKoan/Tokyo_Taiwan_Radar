@@ -459,13 +459,16 @@ Reference incident: 2026-05-06 — `category_corrections` 含 2 筆 `セシリ�
 3. **Regex 確定性提取**（`_extract_performer_from_raw(raw_title, raw_description)`）— GPT 失敗時的最後防線
 
 ### 確定性提取覆蓋的關鍵 pattern
-| Pattern | 範例 |
-|---------|------|
-| `<role>・<name>氏を迎え` | `料理研究家・宮武衣充氏を迎え` |
-| `<name>氏を迎え` | `田中花子氏を迎え` |
-| `<name>さんを迎え` | `田中花子さんを迎え` |
-| `<role>: <name>` | `講師：田中花子` / `ゲスト：田中花子` |
-| `<name>による` | `田中花子による` |
+| Pattern | 範例 | Regex |
+|---------|------|-------|
+| `<role>・<name>氏を迎え` | `料理研究家・宮武衣充氏を迎え` | `_PERFORMER_INTRO_RE` |
+| `<name>氏を迎え` / `<name>さんを迎え` | `田中花子氏を迎え` | `_MUKAE_RE` |
+| `<name>　｜<role>` | `前田知里｜植物民族学研究家` | `_PIPE_ROLE_RE` |
+| `<role>: <name>` | `講師：田中花子` / `ゲスト：田中花子` | `_PERFORMER_INTRO_RE` |
+
+**`_PIPE_ROLE_RE` 使用注意**：`<name>　｜<role>` 格式常見於 Peatix の「主催者 = 主講人」型活動（例：`里山文庫　前田知里　｜植物民族学研究家`）。Role suffix 限定 `家/者/師/士/督` 以防假陽性。
+
+**搜索範圍**：`raw_description` 前 **1500 字元**（原為 500，2026-05-06 擴展）。事件 `4427f965` 的講師資訊在 pos 859，500 字元範圍不夠。
 
 ### 防範靜默 null 的 QA 規則
 - **Backfill 後執行 null 掃描**：任何 `--backfill-performer` 後，執行：
@@ -491,7 +494,9 @@ Reference incident: 2026-05-06 — `category_corrections` 含 2 筆 `セシリ�
 - **每次修改後掃描 DB**：對全部 performer=null 事件跑 `_extract_performer_from_raw`，人工確認所有命中
 - **敬語形式需覆蓋**：`をお迎え`（帶 `お`）與 `を迎え` 是不同 pattern，需同時收錄
 
-Reference incident: 2026-05-04 — event `e72b2c15` performer 三層 fallback 缺失；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
+Reference incidents:
+- 2026-05-04 — event `e72b2c15` performer 三層 fallback 缺失；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
+- 2026-05-06 — event `4427f965`（台湾植物紀行）`前田知里｜植物民族学研究家` 未提取，三重根因：(1) 無 `_PIPE_ROLE_RE`；(2) 資訊在 pos 859 > 500 上限；(3) GPT 視主催者不為 guest（commit `c82e746`）。
 
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).

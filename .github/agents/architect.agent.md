@@ -302,8 +302,12 @@ Reference incident: 2026-05-06 — `セシリアママ` 從 `category_correction
 3. **Regex 名字字元類必須保守**：用 `[\u4e00-\u9fff]{2,6}` 純漢字，而非排除清單 `[^\s...]`——排除清單允許平假名 `の` 進入名字（`評論家の龍應台`），產生假陽性。
 4. **敬語形式需完整覆蓋**：`をお迎え` 與 `を迎え` 是不同 pattern。
 5. **每次 regex 修改後掃描 DB**：對所有 performer=null 事件跑 `_extract_performer_from_raw`，人工確認全部命中均為真陽性。
+6. **`_PIPE_ROLE_RE` 覆蓋「主催者 = 主講人」型活動**：`<name>　｜<role>` 格式（例 `前田知里｜植物民族学研究家`）常見於 Peatix 個人講座。Role suffix 必須是 `家/者/師/士/督` 之一，防假陽性。
+7. **搜索範圍 = raw_description 前 1500 字元**（非 500）：講者資訊常在事件說明後段，500 字元不足。
 
-Reference incident: 2026-05-04 — event `e72b2c15` performer=null（缺 fallback）；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
+Reference incidents:
+- 2026-05-04 — event `e72b2c15` performer=null（缺 fallback）；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
+- 2026-05-06 — event `4427f965`（台湾植物紀行）`前田知里｜植物民族学研究家` 未提取，三重根因：(1) 無 `_PIPE_ROLE_RE`；(2) 資訊在 pos 859 > 500 上限；(3) GPT 視主催者不為 guest（commit `c82e746`）。
 
 ## LINE Broadcast Query Guard（annotation_status 過濾）
 

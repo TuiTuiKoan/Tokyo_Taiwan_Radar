@@ -4,6 +4,80 @@
 
 ---
 
+## 2026-05-06 — annotator.py ローカル変更が未コミットのまま `[:500]` に差し戻された
+
+### 問題
+commit `c82e746` で `_extract_performer_from_raw` の検索範囲を `[:500]` → `[:1500]` に拡張したが、その後に生成された `f864121`（organizer guard）commit で、tool が古い context から `oldString` を取り込んだため、 ローカルファイルが `[:500]` に差し戻されたまま unstaged 変更として残った。commit hash は正しく 1500 を含むが、working tree は 500 のまま。
+
+### 修法
+`git restore scraper/annotator.py` で working tree を HEAD (c82e746 の状態) に復元。
+
+### 教訓
+**replace_string_in_file 後は必ず `grep` で実際の変更結果を確認**する。特に「surrounding context を含む oldString」を使う場合、その context が直前の commit で変更されていると tool がサイレントに古い値を書き戻すことがある。
+
+---
+
+## 2026-05-06 — event 4427f965 performer 未提取（三重根因）
+
+### 問題
+Peatix イベント `4427f965`（台湾植物紀行）の performer `前田知里` が DB に入らなかった。
+
+### 根因（三重）
+1. **`_PIPE_ROLE_RE` 未実装**：`<name>　｜<role>` フォーマット（Peatix 個人講座の主催者 = 主講者型）を扱う regex が存在しなかった。
+2. **検索範囲 500 字元不足**：presenter 情報が raw_description の pos 859 にあり、`[:500]` の範囲外。
+3. **SYSTEM_PROMPT performer ルール**：「主催者 ≠ guest」という old prompt が `_PIPE_ROLE_RE` 型の個人主催者を performer 対象から除外していた。
+
+### 修法（commit `c82e746`）
+- `_PIPE_ROLE_RE` 追加（`[\u4e00-\u9fff]{2,6}[\s\u3000]*[｜|][\s\u3000]*[\u4e00-\u9fff]+(?:家|者|師|士|督)`）
+- 検索範囲 `[:500]` → `[:1500]`
+- SYSTEM_PROMPT performer rule: allow extraction when individual is both organizer AND primary speaker
+
+### 教訓
+- performer regex の検索範囲は保守的に設定しすぎると見落としが多い。最低 1500 字元が必要。
+- `<name>｜<role>` 型の個人主催講座は Peatix に多く、performer = organizer となる特殊ケース。
+
+---
+
+## 2026-05-06 — gguide_tv works テーブル fallback 欠如：TV ドラマの中国語タイトルが NULL
+
+### 問題
+`gguide_tv.py` は eiga.com で lookup できない TV ドラマ・バラエティ番組について、`works` テーブルへの fallback がなく、`name_zh`/`name_en` が NULL のまま放置されていた。`螺絲小姐要出嫁`（锺文英監督）など台湾 TV ドラマの日本放送分が該当。
+
+### 修法（commit `0b79986`）
+1. `works` テーブルへの fallback lookup 追加（broadcast-suffix stripping + fullwidth 正規化）。
+2. ドラマ/映画タイトルで `name_zh` なし時の WARNING log 追加（CI 監視用）。
+3. `works.work_type` に `tv_drama` / `tv_variety` 追加（migration 051）。
+4. `_seed_works.py` で初期 TV ドラマ/映画レコードをシード（commit `8dac632`）。
+
+### 教訓
+- **gguide_tv のタイトル正規化**：`字幕版`/`吹替版`/`🅍`/`PG12`/`【…】`/`第N話`/`EPN` などの broadcast suffix を strip してから works テーブルを検索すること。
+- **`work_type` 制約の先行拡張**：新しい work type を追加する前に migration で CHECK constraint を更新する。
+
+---
+
+## 2026-05-06 — backfill_location_prefectures: sub-event と single-row が未処理
+
+### 問題
+`backfill_location_prefectures.py` が multi-aggregation（複数 sub-events を持つ親イベント）のみ処理し、以下 2 ケースをカバーしていなかった：
+1. 自身の address を持つ single-row event（parent も sub も無関係）→ `location_prefectures` が NULL のまま。
+2. 自分の address を持たない sub-event → 親の `location_address` から prefecture を継承できない。
+
+結果：全体カバレッジ 50.9% に留まっていた。
+
+### 修法（commit `d2914d3`）
+3-pass architecture に再設計：
+1. **Pass 1（Multi-aggregation）**：複数 sub-events の親に sorted array を書く（既存動作）。
+2. **Pass 2（Single-row）**：`location_prefectures IS NULL` かつ自身の address がある行に単一 prefecture を書く。`--no-single` フラグで旧動作に戻せる。
+3. **Pass 3（Sub-event parent-address fallback）**：自分の address を持たない sub-event が親の `location_address` から prefecture を継承する。`location_address` 自体は変更しない。
+
+結果：カバレッジ 50.9% → 81.3%（+179 行）。残り 50 件は構造的 NULL（TV/online/books、台湾開催、オンライン住所）。
+
+### 教訓
+- **location_prefectures 補完は 3 段階が必要**：(1) 親集約 → (2) single-row → (3) sub-event 継承。いずれか欠けるとカバレッジが大きく下がる。
+- `--include-single` フラグ（opt-in）より `--no-single`（opt-out）の方が日常運用に適している。
+
+---
+
 ## 2026-05-06 — category_corrections few-shot 污染：セシリアママ 被 hallucinate 為 31 件 Peatix 事件的主辦單位
 
 ### 問題

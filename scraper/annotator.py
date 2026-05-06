@@ -1559,7 +1559,8 @@ def enrich_movie_titles() -> None:
         .select(
             "id,name_ja,raw_title,name_zh,name_en,"
             "description_zh,description_en,selection_reason,"
-            "annotation_status,source_name,parent_event_id"
+            "annotation_status,source_name,parent_event_id,"
+            "performer,director"
         )
         .contains("category", ["movie"])
         .neq("annotation_status", "reviewed")
@@ -1609,14 +1610,21 @@ def enrich_movie_titles() -> None:
 
         name_zh, name_en = lookup_movie_titles(title)
 
-        # Fallback: check works table for canonical titles
-        if not name_zh and not name_en:
-            w_res = sb.table("works").select("title_zh,title_en").eq("title_ja", title).limit(1).execute()
+        # Fallback: check works table for canonical titles + inherit performer/director
+        works_performer = None
+        works_director = None
+        if not name_zh or not name_en or not event.get("performer") or not event.get("director"):
+            w_res = sb.table("works").select("title_zh,title_en,cast_summary,director").eq("title_ja", title).limit(1).execute()
             if w_res.data:
-                name_zh = name_zh or w_res.data[0].get("title_zh")
-                name_en = name_en or w_res.data[0].get("title_en")
+                w_row = w_res.data[0]
+                if not name_zh:
+                    name_zh = w_row.get("title_zh")
+                if not name_en:
+                    name_en = w_row.get("title_en")
                 if name_zh or name_en:
                     logger.info("  works fallback for %r → zh=%r en=%r", title, name_zh, name_en)
+                works_performer = w_row.get("cast_summary")
+                works_director = w_row.get("director")
 
         if not name_zh and not name_en:
             logger.warning(
@@ -1633,6 +1641,10 @@ def enrich_movie_titles() -> None:
             update["name_zh"] = name_zh
         if name_en:
             update["name_en"] = name_en
+        if not event.get("performer") and works_performer:
+            update["performer"] = works_performer
+        if not event.get("director") and works_director:
+            update["director"] = works_director
 
         # Also fix description fields that still reference the old (wrong) title.
         # For news sources we additionally try replacing the Japanese lookup title
@@ -2055,7 +2067,8 @@ def post_batch_enrich(event_ids: list[str], *, dry_run: bool = False) -> dict:
         .select(
             "id,name_ja,raw_title,name_zh,name_en,"
             "description_zh,description_en,selection_reason,"
-            "annotation_status,source_name,parent_event_id,category"
+            "annotation_status,source_name,parent_event_id,category,"
+            "performer,director"
         )
         .in_("id", event_ids)
         .contains("category", ["movie"])
