@@ -125,6 +125,8 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         row["event_status"] = event.event_status
     if event.performer is not None:
         row["performer"] = event.performer
+    if event.performers:
+        row["performers"] = event.performers
     if event.director is not None:
         row["director"] = event.director
 

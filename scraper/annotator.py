@@ -549,6 +549,11 @@ PERFORMER EXTRACTION RULES:
    - Return null for exhibitions, food markets, and large festivals where no single person is prominently featured.
    - Return null when the named person IS an organizational entity acting as organizer (not a speaker). EXCEPTION: if an individual person is listed with a professional title in the format 「<name>　｜<role>」 (e.g. 「前田知里　｜植物民族学研究家」), they are both the organizer AND the primary speaker — extract their name.
 2. performer must be a person name ≥2 characters. Never return a place name, brand, or phrase.
+3. performers: array of ALL named performers, speakers, or featured artists at this event.
+   - Each entry is a bare personal name (no honorifics, no roles, no organization names).
+   - Include everyone who is a named guest/speaker/artist, even if there are multiple.
+   - Return [] (empty array) if no specific person is named, or for food markets/large festivals.
+   - Examples: ["林廉恩", "一青窈"], ["蘇紫雲"], []
 
 ORGANIZER EXTRACTION RULES:
 1. organizer: the primary entity hosting the event. Look for fields like 主催, 主辦, presented by, 主催者. Single string, original-language official name (e.g. "台北駐日経済文化代表処 台湾文化センター"). Do NOT include role labels like "主催:" in the value.
@@ -631,6 +636,7 @@ Respond with valid JSON matching this schema:
   "has_japanese_support": false or true or null,
   "has_english_support": false or true or null,
   "performer": "bare personal name (no honorifics) of the single primary guest/speaker/artist" or null,
+  "performers": ["bare name 1", "bare name 2"] or [],
   "selection_reason": {
     "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
@@ -999,7 +1005,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 "location_name,location_address,location_name_zh,location_name_en,"
                 "location_address_zh,location_address_en,"
                 "business_hours,business_hours_zh,business_hours_en,"
-                "organizer,organizer_type,co_organizers,sponsors,performer"
+                "organizer,organizer_type,co_organizers,sponsors,performer,performers"
             ).eq("id", event["parent_event_id"]).execute()
             _parent_event = _pr.data[0] if _pr.data else None
         raw_title = event.get("raw_title") or event.get("name_ja") or ""
@@ -1271,6 +1277,17 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     )
                     if _final_performer:
                         update_data["performer"] = _final_performer
+
+                # performers array (multi-speaker support)
+                if "performers" not in _human_protected:
+                    _gpt_performers = annotation.get("performers")
+                    if isinstance(_gpt_performers, list) and _gpt_performers:
+                        _valid_performers = [
+                            p for p in _gpt_performers
+                            if isinstance(p, str) and p.strip()
+                        ]
+                        if _valid_performers:
+                            update_data["performers"] = _valid_performers
 
                 # Sub-event parent inheritance:
                 # - If sub-event has no location, or same location as parent → inherit all location fields

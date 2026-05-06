@@ -237,9 +237,12 @@ export default async function EventDetailPage({ params }: PageProps) {
       : { "@type": "Organization", name: "Tokyo Taiwan Radar", url: base };
 
     // performer: output only when DB has a real person name
-    const performerLd = ev.performer
-      ? { "@type": "Person", name: ev.performer }
-      : null;
+    const performerLd =
+      ev.performers && ev.performers.length > 0
+        ? ev.performers.map(n => ({ "@type": "Person", name: n }))
+        : ev.performer
+          ? { "@type": "Person", name: ev.performer }
+          : null;
 
     const directorLd = ev.director
       ? { "@type": "Person", name: ev.director }
@@ -632,6 +635,7 @@ export default async function EventDetailPage({ params }: PageProps) {
         ((event as Event).co_organizers ?? []).length > 0 ||
         ((event as Event).sponsors ?? []).length > 0 ||
         ((event as Event).event_form ?? []).length > 0 ||
+        ((event as Event).performers ?? []).length > 0 ||
         (event as Event).performer ||
         (event as Event).director ||
         (event as Event).has_japanese_support ||
@@ -665,10 +669,14 @@ export default async function EventDetailPage({ params }: PageProps) {
                 </dd>
               </div>
             )}
-            {(event as Event).performer && (
+            {(((event as Event).performers ?? []).length > 0 || (event as Event).performer) && (
               <div className="flex gap-2">
-                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("performer")}：</dt>
-                <dd className="text-gray-900">{(event as Event).performer}</dd>
+                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("performers")}：</dt>
+                <dd className="text-gray-900">
+                  {((event as Event).performers ?? []).length > 0
+                    ? (event as Event).performers!.join("、")
+                    : (event as Event).performer}
+                </dd>
               </div>
             )}
             {(event as Event).director && (

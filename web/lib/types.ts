@@ -61,6 +61,7 @@ export interface Event {
   price_currency?: string | null;
   event_status?: "scheduled" | "cancelled" | "postponed" | "rescheduled" | null;
   performer?: string | null;
+  performers?: string[] | null;
   director?: string | null;
   work_id?: string | null;
   merged_into_event_id?: string | null;

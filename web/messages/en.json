@@ -116,6 +116,7 @@
     "organizerSection": "Organizer Info",
     "organizer": "Organizer",
     "performer": "Performer",
+    "performers": "Performers",
     "director": "Director",
     "coOrganizers": "Co-organizers",
     "sponsors": "Sponsors",
@@ -152,6 +153,7 @@
     "locationUrl": "Venue website",
     "hours": "Business hours",
     "performer": "Performer",
+    "performers": "Performers",
     "director": "Director",
     "organizer": "Organizer",
     "organizerUrl": "Organizer Website",
@@ -528,8 +530,10 @@
     "worksTypeFilm": "Film",
     "worksTypeStage": "Stage",
     "worksTypeExhibition": "Exhibition",
-    "worksTypeConcertTour": "Concert tour",    "worksTypeTvDrama": "TV Drama",
-    "worksTypeTvVariety": "TV Variety",    "worksTypeOther": "Other",
+    "worksTypeConcertTour": "Concert tour",
+    "worksTypeTvDrama": "TV Drama",
+    "worksTypeTvVariety": "TV Variety",
+    "worksTypeOther": "Other",
     "worksConfirmDelete": "Delete this work? Linked events will have their work_id cleared.",
     "events": {
       "columns": {

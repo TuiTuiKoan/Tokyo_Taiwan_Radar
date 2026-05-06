@@ -117,6 +117,7 @@ class Event:
     price_currency: Optional[str] = "JPY"
     event_status: Optional[str] = "scheduled"
     performer: Optional[str] = None
+    performers: list[str] = field(default_factory=list)
     director: Optional[str] = None
 
 
