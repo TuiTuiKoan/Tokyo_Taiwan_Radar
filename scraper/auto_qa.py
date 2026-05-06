@@ -505,7 +505,7 @@ def fix_simplified(dry_run: bool = False) -> dict:
     Applies the same _SIMP_TO_TRAD conversion used by annotator.py.
     Does NOT change annotation_status — events remain annotated/reviewed.
     """
-    from annotator import _to_trad
+    from annotator import _to_trad, _lock_fields_via_corrections
 
     sb = _supabase_client()
     rows = (
@@ -548,7 +548,8 @@ def fix_simplified(dry_run: bool = False) -> dict:
                 logger.info("  [DRY] %s: would fix %s", row["id"][:8], list(update.keys()))
             else:
                 sb.table("events").update(update).eq("id", row["id"]).execute()
-                logger.info("  ✓ fixed SC chars: %s fields=%s", row["id"][:8], list(update.keys()))
+                _lock_fields_via_corrections(sb, row["id"], update)
+                logger.info("  ✓ fixed+locked SC chars: %s fields=%s", row["id"][:8], list(update.keys()))
             fixed_count += 1
 
     logger.info("fix_simplified: %s %d/%d events", "would fix" if dry_run else "fixed", fixed_count, len(rows))
