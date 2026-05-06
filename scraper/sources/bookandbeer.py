@@ -31,10 +31,26 @@ MAX_EVENTS = 200
 
 TAIWAN_KEYWORDS = ["台湾", "Taiwan", "台灣", "タイワン"]
 
+# 著者略歴・大学名に台湾が出るだけのパターンは除外
+# （例: 「台湾・淡江大学で客員教授」「国立台湾大学」）
+import re as _re
+_AUTHOR_BIO_RE = _re.compile(r'台湾[・・]?(?:大学|淡江|国立|師範|政治|成功|交通|中山|清華)')
+
 
 def _is_taiwan_relevant(title: str, description: str) -> bool:
-    combined = (title or "") + " " + (description or "")
-    return any(kw in combined for kw in TAIWAN_KEYWORDS)
+    """台湾がタイトルにある、または説明文の冒頭500字に複数回登場する場合のみ真。
+    著者略歴の大学名への言及（台湾大学・淡江大学など）は除外する。"""
+    # タイトル優先チェック（最も信頼性が高い）
+    if any(kw in (title or "") for kw in TAIWAN_KEYWORDS):
+        return True
+    # 説明文の冒頭500字で確認（著者略歴より前の部分）
+    excerpt = (description or "")[:500]
+    matches = sum(excerpt.count(kw) for kw in TAIWAN_KEYWORDS)
+    if matches < 2:
+        return False
+    # 大学名への言及のみで達成している場合は除外
+    cleaned = _AUTHOR_BIO_RE.sub("", excerpt)
+    return any(kw in cleaned for kw in TAIWAN_KEYWORDS)
 
 
 def _parse_date(text):
