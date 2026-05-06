@@ -3,6 +3,38 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-06 — Cinema series sub-event 誤生成 _sub1（ks_cinema race condition）
+
+**Error:** ks_cinema `taiwan-filmake` 系列頁面的電影出現 2 筆 active 重複事件（`_2_sub1`, `_0_sub1`）。Annotator 看到兩個排片時段（`4/25～5/1`、`5/2～8`）→ 按 "multiple dates → sub_events" 規則生成 `_sub1`，因同 source 被 merger 跳過，永遠不被消除。
+
+**Root cause:** scraper 首次執行時 `_get_parent_uuid` 查不到 parent（同批 upsert 未 commit）→ `parent_event_id=None`，繞過 grandchild 守衛。
+
+**Fix (commit `a6cf029`):**
+1. DB：停用 `_2_sub1`、`_0_sub1`（admin_manual）
+2. SYSTEM_PROMPT Rule 1 加 EXCEPTION：電影時段窗口不建立 sub_events
+3. 程式碼守衛：`_cinema_sources + source_id ends _{digit} + parent_event_id=None → sub_events = []`
+
+**Lesson:** 電影放映時段 ≠ sub_events；`_sub1` 同 source 不被 merger 消除，必須靠守衛預防。
+
+---
+## 2026-05-06 — SC chars 被 enrich_person_names() GPT 重新引入
+
+**Error:** `enrich_person_names()` GPT 輸出直接寫入 DB，未通過 `_to_trad()`，簡體字被重新寫入已修正的繁體欄位。
+
+**Fix (commit `239cb19`):** `_SIMP_TO_TRAD` 提升為模組層級；`enrich_person_names()` 輸出包裹 `_to_trad()`。
+
+**Lesson:** 任何寫入 name_zh/description_zh 的函式都必須過 `_to_trad()`，無論來源是 GPT 還是 DeepL。
+
+---
+## 2026-05-06 — auto_qa --fix SC 轉換後未鎖 field_corrections
+
+**Error:** `fix_simplified()` 轉換 SC→TC 後未呼叫 `_lock_fields_via_corrections()`，下次 re-annotation 直接覆寫，SC 字元復活。
+
+**Fix (commit `6e21c52`):** `fix_simplified()` 轉換後呼叫 `_lock_fields_via_corrections()`。
+
+**Lesson:** 任何手動或批量修正翻譯欄位後必須立即鎖 `field_corrections`（見 Manual Translation Fix Persistence Guard）。
+
+---
 ## 2026-05-08 — main.py import reorder silently dropped 4 scrapers (WalkerplusScraper, BigRomanticRecordsScraper, WasedaIclScraper, TsutayaPortalScraper)
 
 **Error:** commit `694a363` (fix(annotator): extend year-anchor injection to all sources) rewrote the import block in `scraper/main.py` and accidentally dropped 4 scrapers from both the import section and the SCRAPERS list. The source files existed but daily CI never ran them.

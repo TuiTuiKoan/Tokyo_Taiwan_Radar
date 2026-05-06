@@ -1231,3 +1231,38 @@ Reference incidents:
 
 Reference incident: 2026-05-06 — score 0.30–0.70 的 5 筆來源（98/110/144/178/191）被 `not-viable` 阻擋，並發現 4 筆重複 candidate（251/252/257/260）。手動批量修正。根因：誤將自動昇格閾值當作 viable/not-viable 判斷標準。
 
+## Entity Normalization Guard（organizers / venues tables）
+
+在審核任何涉及主辦方聚合、場地報表，或使用 `organizer_id`/`venue_id` FK 欄位的計畫前，**必須**確認：
+
+1. **`events.organizer`/`events.location_name` 保留為稽核用途**：報表與聚合使用 FK 欄位（`organizer_id`/`venue_id`），事件詳情頁仍顯示原始文字欄位。不可直接改動 `organizer` 文字欄。
+2. **`_populate_entity_fks()` 在 `upsert_events()` 後自動執行**：新刮取的事件會自動比對 `organizers.aliases` 和 `venues.aliases` 解析 FK。若 migration 050 未套用，gracefully no-op（不報錯）。
+3. **`backfill_entities.py` 必須在 migration 050 套用後執行**：先用 `_oneoff_review_organizer_clusters.py` 預覽聚類結果（SequenceMatcher ≥ 0.92），人工確認後再執行 backfill。
+4. **新增 organizer/venue 實體時**：在 `organizers`/`venues` 表新增一行（`canonical_name_ja` + `aliases`），FK 解析管道自動處理後續事件。
+5. **`works.work_type` 包含 `tv_drama` 和 `tv_variety`**（migration 051）：設計涉及電視劇或綜藝的 work entity 時直接使用；不需「other」fallback。
+
+Reference: migration `050_entity_tables.sql`、`051_works_tv_drama.sql`（commit `913b7a2`）。
+
+## gnews Sub-Event Merger Guard
+
+在審核任何涉及 `google_news_rss` sub-events（`source_id` 含 `_sub`）的 merger 邏輯前，**必須**確認：
+
+1. **gnews sub-events 必須參與跨來源 dedup（Pass 0/1/2）**：早期版本排除了 `_sub` 事件，導致 gnews 電影場次永遠不被 ks_cinema 等官方來源吸收。
+2. **Pass 0 必須有 `_gnews_base_id` 守衛**：同一篇文章的 sub-events（例 `gnews_abc_sub1`、`gnews_abc_sub2`）代表同場次的不同場，不可彼此合併；比對 base ID 相同時跳過。
+3. **Pass 0 位置守衛**：gnews sub-events 若地點不同（不同電影院），不可以 name similarity 合併——它們是不同場館的同一部電影。
+4. **Pass 2（news matching）work_id 守衛**：有 `work_id` 的 news event 已被 Pass 1 按名稱相似度處理，不再以日期+地點做第二次合併（避免 false positive）。
+5. **每日 CI 在 `enrich-person-names` 後執行第二次 merger**：同日爬取後的新 sub-events 也能在當天完成合併。
+
+Reference: commits `ab3bd9e`（gnews sub-events in all passes）、`5f98b3b`（Pass 5 same-work_id dedup）。
+
+## SC → TC Guard（簡體字防護）
+
+在審核任何涉及 GPT enrichment 函式（`enrich_person_names`、`enrich_movie_titles`）或 `auto_qa --fix` 的計畫前，**必須**確認：
+
+1. **所有 GPT 輸出必須過 `_to_trad()`**：`enrich_person_names()` 的 GPT 回傳值必須通過模組層級的 `_to_trad()` 函式，防止 SC 字元重新引入。
+2. **`auto_qa --fix` 修正後必須鎖 `field_corrections`**：`fix_simplified()` 轉換完畢後呼叫 `_lock_fields_via_corrections()`，防止下次 re-annotation 再覆寫。
+3. **`_SIMP_TO_TRAD` 字元映射表為模組層級**：不可放在函式內（否則 enrichment 函式呼叫不到）。
+
+Reference: commits `239cb19`（enrich SC guard）、`6e21c52`（auto_qa lock）。
+
+

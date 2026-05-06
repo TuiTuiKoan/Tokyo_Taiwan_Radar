@@ -459,6 +459,49 @@ Reference incident: 2026-05-07 — gnews RSS snippet fallback 造成錯誤 start
 Reference incidents:
 - 2026-05-04 — `045d1fa` 新增 WasedaIcl 後丟失 24 個 scraper。
 - 2026-05-08 — `694a363` import 重排，丟失 WalkerplusScraper、BigRomanticRecordsScraper、WasedaIclScraper、TsutayaPortalScraper。
+
+## Cinema Series Sub-Event Sub_Events Guard
+
+在審核任何涉及電影系列場館來源（如 ks_cinema）的 annotator 計畫，或分析同一電影出現多筆事件的問題前，**必須**確認：
+
+1. **Annotator SYSTEM_PROMPT Rule 1 有電影時段豁免**：電影類別的單一放映若只有多個時段（如 `4/25～5/1 10:00、5/2～8 14:40`），不建立 sub_events；用 start_date=首日、end_date=尾日，時段細節放 business_hours。
+2. **程式碼守衛存在**：`_cinema_sources = {"ks_cinema"}`；若 `source_name in _cinema_sources AND source_id ends in _{digit} AND parent_event_id=None → sub_events = []`。
+3. **Race condition 已知**：首次執行時 `_get_parent_uuid` 因同批 upsert 而查不到 parent → `parent_event_id=None`；守衛已防止誤生成 `_sub1`。
+4. **`_sub1` 不被 merger 消除**（同 source 跳過 Pass 1）—— 若有殘留需人工停用。
+
+Reference incident: 2026-05-06 — `車頂上的玄天上帝` 出現 4 筆（commit `a6cf029`）。
+
+## Entity Normalization Guard（organizers / venues tables）
+
+在審核任何涉及主辦方聚合、場地報表，或 `organizer_id`/`venue_id` FK 欄位的計畫前，**必須**確認：
+
+1. **`events.organizer`/`events.location_name` 保留為稽核用途**：報表使用 FK，詳情頁顯示原始文字。不可修改文字欄代替更新 FK。
+2. **`_populate_entity_fks()` 在 `upsert_events()` 後自動執行**：migration 050 未套用時 gracefully no-op。
+3. **`backfill_entities.py` 必須在 migration 050 套用後執行**；先用 `_oneoff_review_organizer_clusters.py` 人工確認聚類結果。
+4. **`works.work_type` 包含 `tv_drama`/`tv_variety`**（migration 051）。
+
+Reference: migrations `050_entity_tables.sql`、`051_works_tv_drama.sql`（commit `913b7a2`）。
+
+## gnews Sub-Event Merger Guard
+
+在審核任何涉及 `google_news_rss` sub-events 的 merger 邏輯前，**必須**確認：
+
+1. **gnews sub-events 必須參與跨來源 dedup（Pass 0/1/2）**：排除 `_sub` 事件會讓 gnews 場次永遠無法被官方來源吸收。
+2. **Pass 0 `_gnews_base_id` 守衛**：同篇文章的 sub-events（不同場次）禁止彼此合併。
+3. **Pass 0 位置守衛**：不同電影院的 gnews sub-events 不可以 name similarity 合併。
+4. **Pass 2 work_id 守衛**：有 `work_id` 的 news event 已走 Pass 1，不再走 Pass 2。
+5. **每日 CI 在 `enrich-person-names` 後執行第二次 merger**（commits `ab3bd9e`、`5f98b3b`）。
+
+## SC → TC Guard（簡體字防護）
+
+在審核任何涉及 GPT enrichment 或 `auto_qa --fix` 的計畫前，**必須**確認：
+
+1. **所有 GPT 輸出必須過模組層級的 `_to_trad()`**（`enrich_person_names` 等）。
+2. **`auto_qa --fix` 轉換後必須鎖 `field_corrections`**（`fix_simplified()` 呼叫 `_lock_fields_via_corrections()`）。
+3. **`_SIMP_TO_TRAD` 字元映射表為模組層級**，不可放在函式內。
+
+Reference: commits `239cb19`（enrich SC guard）、`6e21c52`（auto_qa lock）。
+
 ## Required Phases
 
 ### Phase 1: Research

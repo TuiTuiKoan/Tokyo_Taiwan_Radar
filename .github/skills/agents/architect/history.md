@@ -4,6 +4,64 @@
 
 ---
 
+
+---
+
+## 2026-05-08 — performer regex 假陽性：`翻訳者一青窈` 被誤識別為人名
+
+### 問題
+`_PERFORMER_INTRO_RE` 在 `歌手・翻訳者一青窈氏による` 中：role=`歌手`，separator=`・`，接著以貪婪方式嘗試 2–6 個漢字 + 向前看 `氏`——`翻訳者一青窈`（6 字）恰好滿足條件。`_HONORIFIC_RE` 只去除末尾，無法去除開頭的 `翻訳者`，結果提取值為 `翻訳者一青窈`。同時 `_MUKAE_RE` 也從 `訳者一青窈氏による` 匹配出 `訳者一青窈`（position-based 掃描，`訳` 前面無阻擋）。
+
+另外，該事件（1d741522）是雙人演講（林廉恩 + 一青窈），即使修正也應返回 null。
+
+### 修法（本次 commit）
+1. **INTRO max 6→5**：防止 `翻訳者一青窈`（6 字）被捕獲。`宇田川幸洋`（5 字）仍可匹配。
+2. **MUKAE 加 negative lookbehind** `(?<![一-鿿])`：確保名字前一字不是漢字，防止從 `訳者一青窈` 中間開始匹配。
+3. **INTRO 加入 `翻訳者` 至 role list**：為未來 `翻訳者・<name>氏` 的正確格式預留。
+
+### DB 回填
+- 215 筆 null-performer active 事件掃描後，確認 4 筆 regex 命中：
+  - `蘇紫雲` (`e4a0edcc`) → 已更新 + field_corrections 鎖定
+  - `池澤春菜` (`93c5287a`) → 已更新 + field_corrections 鎖定
+  - `林宏文` (`2d77c2c4`) → 三人講者，保持 null
+  - `宇田川幸洋` (`f7ff56ca`) → 雙人 Talk，保持 null
+
+### 教訓
+1. **`{2,N}?` non-greedy 並不足夠**：N=6 時，false path（翻訳者一青窈=6字）先被試中。縮短上限是主要防護。
+2. **position-based MUKAE 需要 lookbehind**：否則 `役者...` `者...` 等字串中間也會被作為名字起始點。
+3. **多人講者事件應保持 null**：MUKAE 匹配了 `林宏文さんによる` 但不知道前面還有多個講者。DB 回填應僅信任 INTRO（role+separator+name 格式）。
+
+## 2026-05-06 — Cinema 系列 sub-event 誤生成 _sub1（車頂上的玄天上帝出現 4 筆）
+
+### 問題
+ks_cinema `taiwan-filmake` 系列頁面的電影「車頂上的玄天上帝」出現 4 筆 active 事件（其中 2 筆已被 merger 停用，2 筆 ks_cinema active 重複）。
+
+### 根因（兩層）
+1. **Race condition**：scraper 首次執行時 `_get_parent_uuid` 查不到 parent（同批 upsert 未 commit）→ 系列 sub-events（`_0/_1/_2`）的 `parent_event_id = None`
+2. **Annotator 規則過寬**：`parent_event_id=None` 繞過 grandchild 守衛；GPT 看到兩個排片時段（`4/25～5/1 10:00、5/2～8 14:40`）→ 按「multiple dates」規則生成 `_sub1`（start=5/2）
+
+### 修法（commit `a6cf029`）
+- DB：停用 `_2_sub1`、`_0_sub1`（admin_manual）
+- SYSTEM_PROMPT Rule 1 加 EXCEPTION：電影單一放映的時段窗口不建立 sub_events
+- 程式碼守衛：`_cinema_sources + source_id ends _{digit} + parent_event_id=None → sub_events = []`
+- SKILL.md 新增「Cinema Series Sub-Event Sub_Events Guard」
+
+### 教訓
+- 電影放映時段 ≠ sub_events；`_sub1` 不會被 merger 消除（同 source 跳過 Pass 1）
+
+---
+
+## 2026-05-06 — Entity Normalization Migration 050/051
+
+### 功能
+新增 `organizers` 和 `venues` 正規化實體表，events 新增 `organizer_id`/`venue_id` FK 欄位（ON DELETE SET NULL）。原始 `organizer`/`location_name` 文字欄位保留作稽核用途。`database.py` `_populate_entity_fks()` 在 `upsert_events()` 後自動解析 FK；`backfill_entities.py` 用 SequenceMatcher (≥0.92) 聚類現有字串並回填 FK。Migration 051 擴充 `works.work_type` 加入 `tv_drama`/`tv_variety`。
+
+### 注意事項
+- `backfill_entities.py` 必須在 migration 050 **套用後**才能執行（否則 gracefully no-ops）
+- 先用 `_oneoff_review_organizer_clusters.py` 預覽聚類結果再執行 backfill
+
+---
+
 ## 2026-05-06 — annotator.py ローカル変更が未コミットのまま `[:500]` に差し戻された
 
 ### 問題
