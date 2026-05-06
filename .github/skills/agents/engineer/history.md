@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-05-09 — performers[] 優先序蓋過 performer_zh/en，zh/en locale 永遠顯示日文名稱（commit 2e6f4c2）
+
+**Problem:** `web/app/[locale]/events/[id]/page.tsx` 在顯示 performer 時，`performers[]`（永遠是日文陣列）的優先順序高於 `getEventPerformer(locale)`，導致 zh/en 頁面永遠顯示日文名稱，即使 `performer_zh`/`performer_en` 已設定（例：`ホアン・イーウェン` 在 zh 頁應顯示 `黃以文`，但始終顯示日文）。
+
+**Root cause:** performers[] join 邏輯放在最前面，未先檢查 locale + performer_zh/en 的存在性。migration 054 新增多語言欄位後，UI 優先序未同步更新。
+
+**Fix (commit `2e6f4c2`):**
+```tsx
+{locale !== "ja" && ((event as Event).performer_zh || (event as Event).performer_en)
+  ? getEventPerformer(event as Event, locale)
+  : ((event as Event).performers ?? []).length > 0
+    ? (event as Event).performers!.join("、")
+    : getEventPerformer(event as Event, locale)}
+```
+邏輯：zh/en locale + performer_zh/en 存在 → `getEventPerformer(locale)`；否則 `performers[].join("、")`；否則 `getEventPerformer` fallback。
+
+**Lesson:** `performers[]` 永遠是日文陣列，不可作為 zh/en locale 的主要顯示來源。新增多語言欄位後，事件詳情頁的 UI 顯示優先序必須同步更新，否則新欄位永遠不會被 end-user 看到（隱性迴歸）。
+
+---
+
 ## 2026-05-06 — works work_type check constraint 不含 conference
 
 **Error:** 建立學術研討會 work 記錄時使用 `work_type='conference'` → `APIError: violates check constraint "works_work_type_check"`。

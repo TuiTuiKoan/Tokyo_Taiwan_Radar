@@ -180,6 +180,18 @@ router.push('/admin');
 
 Reference: 2026-05-05 城市徽章兩輪才生效（commit `5a29c13` → `9f4b468`）。
 
+## Event Detail Page — Performer Display Priority
+
+`web/app/[locale]/events/[id]/page.tsx` 的 performer 顯示邏輯必須依照以下優先序：
+
+1. **zh/en locale + performer_zh/en 存在** → `getEventPerformer(event, locale)`（多語言欄位優先）
+2. **performers[] 非空** → `performers[].join("、")`（日文多人列表 fallback）
+3. **fallback** → `getEventPerformer(event, locale)`
+
+**關鍵規則**：`performers[]` 是**日文陣列**，永遠不可作為 zh/en locale 的主要顯示來源。新增 `performer_zh`/`performer_en` 欄位後，必須同步更新此優先序，否則新欄位永遠不會被 end-user 看到（隱性迴歸）。
+
+Reference incident: 2026-05-09 — migration 054 新增多語言欄位後 UI 未同步，zh 頁面始終顯示日文（commit `2e6f4c2`）。
+
 ## TSX Component vs Helper — react-hooks/static-components Rule
 
 Next.js 15+ / React 19 lints any `PascalCase` function that returns JSX as a React component. Components declared **inside another component's render body** trigger `react-hooks/static-components` and fail Vercel build.

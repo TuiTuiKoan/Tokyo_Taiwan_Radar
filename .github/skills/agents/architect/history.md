@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-05-09 — performers[] 顯示優先序 UI 迴歸：新欄位 performer_zh/en 永遠不被看到（commit 2e6f4c2）
+
+### 問題
+`web/app/[locale]/events/[id]/page.tsx` 的 performer 顯示邏輯中，`performers[]`（日文陣列）優先於 `getEventPerformer(locale)`。migration 054 新增 `performer_zh`/`performer_en` 後，UI 層未同步更新優先序，導致 zh/en locale 永遠顯示日文名稱（`performers[].join("、")`），即使多語言欄位已設定（例：`ホアン・イーウェン` 在 zh 頁應顯示 `黃以文`，但始終顯示日文）。
+
+### 修復（commit 2e6f4c2）
+事件詳情頁 performer 顯示邏輯改為：zh/en locale + performer_zh/en 存在 → `getEventPerformer(locale)`；否則 `performers[].join("、")`；否則 `getEventPerformer` fallback。
+
+### 教訓
+新增多語言欄位（`performer_zh`/`performer_en`）時，**必須同步更新所有 UI 顯示優先序**：`performers[]` 是日文陣列，不可作為 zh/en 頁面的主要來源。否則新欄位永遠不會被 end-user 看到（隱性迴歸）。已在 architect.agent.md 的 Performer Multilingual Fields Guard 新增第 7 點規則。
+
+---
+
 ## 2026-05-08 — performer_zh/en 翻譯「（AI翻譯）」標記 + 學術大會 performers[] 規則（Incidents A & B, commit 65a50b9）
 
 ### 問題（Incident A：翻譯來源不透明）

@@ -376,6 +376,7 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan
 4. **academic performers[]**：學術研討會（学会大会、研究大会、シンポジウム）中**所有**具名發表者（発表者/報告者/登壇者）必須列入 `performers[]`，即使有 5 人以上。
 5. **手動設定必須鎖 `field_corrections`**：同 `performer` 欄位，`performer_zh`、`performer_en` 手動修正必須同時 upsert 進 `field_corrections`，否則下次 re-annotation 覆寫。
 6. **`works.work_type` 有效值**：`film | stage | exhibition | concert_tour | tv_drama | tv_variety | other`。`conference` **不在**允許清單，學術研討會用 `other`。（migration 048 + 051 的 check constraint 僅允許上列 7 種）
+7. **UI 顯示優先序必須同步更新（event detail page）**：事件詳情頁 `[id]/page.tsx` 中，若 locale 為 zh/en 且 `performer_zh`/`performer_en` 存在，必須優先使用 `getEventPerformer(event, locale)`；`performers[]` 僅作為 ja locale、或 zh/en 無多語言欄位時的 fallback。新增多語言欄位後，若 UI 優先序未同步更新，新欄位永遠不會被 end-user 看到（隱性迴歸）。Reference incident: 2026-05-09 commit `2e6f4c2`。
 
 Reference incidents:
 - 2026-05-06 — `ホアン・イーウェン`（bf783b90）performer_zh=黃以文，performer_en=Huang Yi-wen（AI翻譯）；`林依晨`（4 events）performer_zh=林依晨，performer_en=Lin Yi-chen（commits 65a50b9）。
