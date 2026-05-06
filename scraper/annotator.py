@@ -405,7 +405,7 @@ def _extract_performer_from_raw(raw_title: str, raw_description: str) -> str | N
     Deliberately conservative: only returns when high-confidence.
     Not called for events where performer was already set by the scraper or GPT.
     """
-    for text in (raw_title or "", (raw_description or "")[:500]):
+    for text in (raw_title or "", (raw_description or "")[:1500]):
         if not text:
             continue
         m = _PERFORMER_INTRO_RE.search(text)
