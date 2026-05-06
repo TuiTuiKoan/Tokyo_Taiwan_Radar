@@ -1100,3 +1100,13 @@ Walker+ (walkerplus.com) — KADOKAWA 運営の全国イベントリストサイ
   - 場所/時間: `.m-detailheader__period` 区画、`.m-detailheader__icon` のラベルテキスト（「場所」「開催時間」）で判別
 - **Crawl-delay**: 1 秒（`time.sleep(1)`）。KADOKAWA 系サイトはレート制限が厳しい。
 - **`scraper_source_name = 'walkerplus'`**: `research_sources` 行をこのキーで登録しないと `/admin/sources` で 0 件表示になる。
+
+## stranger-specific
+
+Stranger cinema（東京墨田区）は Eigaland プラットフォームの JSON API を使用。
+
+- **Taiwan filter は `countries` 配列で判定**: `movieDetail.countries` に `"台湾"` または `"台灣"` が含まれるか確認。タイトルやあらすじのキーワード検索は使わない（`仙台湾` 誤検知を防ぐ）。
+- **`synopsis` は base64 エンコード HTML**: `base64.b64decode(b64).decode("utf-8")` → HTMLParser でタグ除去してプレーンテキスト化する。
+- **1 映画 = 1 Event**: 90 日ループで `movieId` ごとに `min_date`/`max_date` を収集してから detail API を呼ぶ。1 日 1 Event を作ると 90 件になるため注意。
+- **`openDate` は公開日（リリース日）であり上映日ではない**: 上映日は `listByDomainAndDate?date=YYYY-MM-DD` のクエリ日付から得る。
+- **`official_url` は映画の公式サイト**: `detail.officialPageUrl` が映画の公式サイト URL（会場サイトではない）。

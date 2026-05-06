@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-05-06 — Add StrangerScraper (Eigaland JSON API)
+
+**Source**: Stranger cinema (東京墨田区) — stranger.jp  
+**Strategy**: Loop 90-day window via `listByDomainAndDate`, filter `movieDetail.countries == 台湾`, one Event per movieId.  
+**Key lesson**: `synopsis` field is base64-encoded HTML — always decode via `base64.b64decode → HTMLParser`. `openDate` in list API is the release date, not the screening date; use the query date as screening date.  
+**Dry-run result**: 1 Taiwan movie found (「霧のごとく」 / 大濛, 2026-05-08〜05-14).
+
+---
+
 ## 2026-05-06 — gnews start_date RSS snippet fallback + tokyoartbeat slug guard 擴大（commits 7df9f56, 1c0f69a）
 
 ### google_news_rss — RSS snippet 作為 start_date fallback（commit 1c0f69a）

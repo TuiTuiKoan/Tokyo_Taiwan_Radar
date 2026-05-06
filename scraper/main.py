@@ -106,6 +106,7 @@ from sources.walkerplus import WalkerplusScraper
 from sources.bigromanticrecords import BigRomanticRecordsScraper
 from sources.waseda_icl import WasedaIclScraper
 from sources.tsutaya_portal import TsutayaPortalScraper
+from sources.stranger import StrangerScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -196,6 +197,7 @@ SCRAPERS = [
     BigRomanticRecordsScraper(),
     WasedaIclScraper(),
     TsutayaPortalScraper(),
+    StrangerScraper(),
 ]
 
 
