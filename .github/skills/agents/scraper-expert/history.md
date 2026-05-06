@@ -3,6 +3,40 @@
 <!-- Append new entries at the top -->
 
 ---
+
+## 2026-05-08 — note_creators 薄文本：organizer hallucination + 非活動文章入庫（commit b589fbb）
+
+**Error:** `note_creators` 來源的 4 個事件出現問題：(1) `name_ja` 為部落格文章標題（如 `大阪で開催される無料の映画上映イベント`），非活動名稱；(2) `organizer='埼玉県日台親善協会'`（note 發文者，非主辦方）；(3) 2 件純介紹文章/觀影心得報導被識別為活動，應 `is_active=false`。
+
+**Root cause:** `note_creators` 的 `raw_description` 通常只有「続きをみる」截斷文字（< 50 字）。GPT 在無法從 raw_description 識別主辦方時，從 note 發文者背景知識推斷 organizer。Non-Hallucination Guard 在文本極短時保護有限。`_HEADLINE_REWRITE_SOURCES` 未包含 `note_creators`，故 raw_title（文章標題）直接被用作 `name_ja`。
+
+**Fix (commit b589fbb):**
+- `note_creators` 加入 `_HEADLINE_REWRITE_SOURCES`（GPT 可改寫 name_ja）
+- 4 件 DB 修正 + `field_corrections` 鎖定
+- `4180ad0f`（台灣電影介紹文）、`4ebc8a35`（觀影心得報導）設 `is_active=false`
+
+**Lesson:**
+1. `note_creators` 等部落格來源 `raw_description` 通常只有截斷文字 → organizer 必然為 null，不可從 note 發文者推斷。
+2. 純介紹文章（標題含「おすすめ」「紹介」等）與觀影心得報導不是活動資料 → `is_active=false`。
+3. `_HEADLINE_REWRITE_SOURCES` 必須包含所有部落格/聚合類來源（`note_creators`、`note.com` 等）。
+
+---
+
+## 2026-05-08 — news headline 標題未改寫 + 學術場次識別碼（commit 47f8184）
+
+**Error:** `e166878a`（gnews）：`name_ja='日本の植民地支配へ抵抗描く 台湾映画 17日那覇で上映会'`（新聞標題，非活動名稱）。`12e375da`（taiwanshi）：`name_ja='第1報告'`（學術會議場次識別碼，非發表題目）。
+
+**Root cause:** (1) `_HEADLINE_REWRITE_SOURCES` 未完整涵蓋所有新聞/聚合來源，gnews 事件的 raw_title 直接被用作 `name_ja`。(2) 學術會議的場次識別碼（`第N報告`/`基調講演`/`招待講演` 等）沒有對應的 `_SLOT_TITLE_RE` 偵測，未觸發改寫邏輯。
+
+**Fix (commit 47f8184):**
+- `_HEADLINE_REWRITE_SOURCES` 常數正式涵蓋 `gnews`/`nhk`/`prtimes`/`walkerplus`
+- `_SLOT_TITLE_RE` 正規表示式偵測學術場次識別碼
+- SYSTEM_PROMPT 加 NEWS HEADLINE REWRITE RULE + ACADEMIC SLOT REWRITE RULE
+
+**Lesson:** 新聞標題是記者寫作，不是活動名稱。學術會議的「第N報告」是場次識別碼，不是論文題目。新增來源時，凡是 raw_title 非活動正式名稱的來源，都必須加入 `_HEADLINE_REWRITE_SOURCES`。
+
+---
+
 ## 2026-05-08 — MUKAE_RE 缺少 をゲストに迎え，一青窈未被捕捉（commit 6c2f1ab）
 
 **Error:** `一青窈氏をゲストに迎え` 無法被 `_MUKAE_RE` 捕捉，performer 返回 null。`をゲストに迎え` 是日式正式邀嘉賓慣用語，與 `をお迎え`/`を迎え` 語義相同，但不在 lookahead 清單中。

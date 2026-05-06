@@ -4,6 +4,85 @@
 
 ---
 
+## 2026-05-08 — note_creators 薄文本 organizer hallucination（Incident A, commit b589fbb）
+
+### 問題
+`note_creators` 來源的 4 個事件出現問題：
+- `2cae572a`：`name_ja='大阪で開催される無料の映画上映イベント'`（部落格標題，非活動名）、`organizer='埼玉県日台親善協会'`（note 發文者，非主辦方）
+- `10a4ee5d`：`name_ja` 為記事標題、organizer 錯誤
+- `4180ad0f`：台灣電影介紹文章被當成活動，`is_active` 應為 false
+- `4ebc8a35`：觀影心得報導被當成活動，`is_active` 應為 false
+
+### 根本原因
+1. `note_creators` 的 `raw_title` 是部落格文章標題，不是活動名稱
+2. `raw_description` 只有「続きをみる」等截斷文字，GPT 無從識別主辦方，從 note 發文者資訊推斷出 `埼玉県日台親善協会`
+3. Non-Hallucination Guard 在 `raw_description` 極短時保護效果有限
+4. 純介紹文章（`4180ad0f`）與觀影心得（`4ebc8a35`）通過了 pipeline
+
+### 修復（commit b589fbb）
+- `note_creators` 加入 `_HEADLINE_REWRITE_SOURCES`（GPT 可改寫 name_ja）
+- 4 件 DB 修正 + `field_corrections` 鎖定
+- `4180ad0f`、`4ebc8a35` 設 `is_active=false`
+
+### 教訓
+`note_creators` 等部落格來源的 `raw_description` 通常只有「続きをみる」截斷文字，organizer 必然為 null，不可從 note 發文者推斷。純介紹文章/觀影報導不是活動資料，應設 `is_active=false`。
+
+---
+
+## 2026-05-08 — news headline 標題未改寫 + 學術場次識別碼（Incident B, commit 47f8184）
+
+### 問題
+- `e166878a`（gnews）：`name_ja='日本の植民地支配へ抵抗描く 台湾映画 17日那覇で上映会'`（新聞標題，非活動名稱）
+- `12e375da`（taiwanshi）：`name_ja='第1報告'`（學術會議場次識別碼，非發表題目）
+
+### 根本原因
+- `_HEADLINE_REWRITE_SOURCES` 未涵蓋所有需要 GPT 改寫標題的來源
+- 學術會議的場次識別碼（`第N報告`/`基調講演` 等）未被識別為需要改寫的 slot title
+
+### 修復（commit 47f8184）
+- `_HEADLINE_REWRITE_SOURCES` 常數涵蓋 gnews/nhk/prtimes/walkerplus
+- `_SLOT_TITLE_RE` 正規表示式偵測學術場次識別碼
+- SYSTEM_PROMPT 加 NEWS HEADLINE REWRITE RULE + ACADEMIC SLOT REWRITE RULE
+
+### 教訓
+新聞標題是記者寫作，不是活動名稱；學術會議的「第N報告」是場次識別碼，不是發表題目。兩者均需在 `_HEADLINE_REWRITE_SOURCES` / `_SLOT_TITLE_RE` 層處理，不可讓 GPT 直接使用 raw_title 作為 name_ja。
+
+---
+
+## 2026-05-08 — 所蔵元被識別為 venue（Collection Attribution Hallucination, Incident C, commit 47f8184）
+
+### 問題
+`e37db12e`（yebizo）：`location_name='高雄市立美術館'`（作品的所蔵機關，非活動場地；實際場地為東京都写真美術館）。
+
+### 根本原因
+`raw_description` 中「高雄市立美術館蔵」的「蔵」字是所蔵歸屬標記，但 GPT 將「高雄市立美術館」識別為活動場地。
+
+### 修復（commit 47f8184）
+- SYSTEM_PROMPT 加 COLLECTION ATTRIBUTION NOTE（`〇〇美術館蔵` 標記所蔵元，不是場地）
+- DB 修正：`e37db12e` `location_name`/`location_address` → 東京都写真美術館
+
+### 教訓
+`〇〇美術館蔵`/`〇〇博物館蔵` 是作品所蔵機關，不是活動場地。yebizo（東京都写真美術館）的 `location_name` 應固定為「東京都写真美術館」，與展品所蔵來源無關。
+
+---
+
+## 2026-05-08 — 主辦者 hallucination — prtimes/tokyoartbeat 短文本（Incident D, commit b589fbb）
+
+### 問題
+- `23bcdc90`（prtimes）：`organizer='熊本市'`（raw_description 中完全不存在）
+- `74ee6d89`（tokyoartbeat）：`organizer='横浜美術館'`（raw_description 中不存在；實際為東京都現代美術館）
+
+### 根本原因
+Non-hallucination guard 確認 organizer 字串是否出現在 `raw_title + raw_description`，但 prtimes/tokyoartbeat 的 `raw_description` 較短，GPT 從背景知識推斷出不正確的主辦者（guard 無法防止 raw_text 中恰好有相關字詞的間接推斷）。
+
+### 修復（commit b589fbb）
+DB 修正兩筆事件 + `field_corrections` 鎖定
+
+### 教訓
+Non-hallucination guard 在 `raw_description` 極短（< 200 字）時保護有限。對短文本事件的 organizer 手動修正，務必立即鎖 `field_corrections`，防止 re-annotation 重新推斷覆寫。
+
+---
+
 ## 2026-05-08 — MUKAE_RE 缺少 をゲストに迎え，一青窈未被捕捉（commit 6c2f1ab）
 
 ### 問題

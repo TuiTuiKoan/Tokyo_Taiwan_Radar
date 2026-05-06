@@ -449,6 +449,64 @@ Reference incident: 2026-05-06 — `category_corrections` 含 2 筆 `セシリ�
 
 ---
 
+## Blog/Creator Source Thin Content Guard
+
+在審核任何涉及 `note_creators`、`note.com` 等部落格/創作者聚合來源的計畫前，**必須**確認：
+
+1. **`raw_description` 通常只有「続きをみる」截斷文字**：organizer 在此情況下必然為 null，絕不可從 note 發文者的個人簡介或背景推斷主辦方。
+2. **純介紹文章/觀影報導不是活動資料**：標題含「おすすめ」「紹介」「行ってきた」「読んでみた」等字樣的文章，應設 `is_active=false`（非活動事件）。
+3. **`_HEADLINE_REWRITE_SOURCES` 必須包含部落格來源**：`note_creators` 的 `raw_title` 是文章標題，不是活動名稱，必須加入 `_HEADLINE_REWRITE_SOURCES` 讓 GPT 從 raw_description 重新生成正確的 `name_ja`。
+4. **Short-text organizer guard 的侷限性**：Non-Hallucination Guard 確認 organizer 字串存在於 `raw_title + raw_description`，但文本極短（< 100 字）時 GPT 仍可能從外部知識推斷，guard 無法完全阻止。對此類事件，organizer 應保持 null。
+
+**快速識別模式（需要 is_active=false 的文章）**：
+```python
+NON_EVENT_TITLE_RE = re.compile(
+    r"(おすすめ|紹介|まとめ|行ってきた|読んでみた|観てきた|鑑賞レポ|映画紹介)",
+    re.IGNORECASE
+)
+# raw_title 命中 → 標為非活動文章
+```
+
+**驗證指令（note_creators 事件 organizer 掃描）**：
+```sql
+SELECT id, name_ja, organizer, LEFT(raw_description, 100)
+FROM events
+WHERE source_name = 'note_creators'
+  AND organizer IS NOT NULL
+  AND is_active = true
+LIMIT 20;
+-- 所有 note_creators 事件的 organizer 應為 NULL
+```
+
+Reference incident: 2026-05-08 — `2cae572a`/`10a4ee5d` organizer 被推斷為 `埼玉県日台親善協会`（note 發文者）；`4180ad0f`/`4ebc8a35` 介紹文章/觀影報導入庫（commit `b589fbb`）。
+
+---
+
+## Collection Attribution Guard（所蔵元 ≠ 活動場地）
+
+在審核任何涉及 `location_name` 抽取邏輯的計畫，或分析展覽類事件 venue 識別錯誤的問題前，**必須**確認：
+
+1. **`〇〇美術館蔵`/`〇〇博物館蔵` 是作品所蔵機關標記，不是活動場地**：GPT 容易將「高雄市立美術館蔵」中的「高雄市立美術館」提取為 `location_name`，這是錯誤的。
+2. **yebizo（東京都写真美術館）的 `location_name` 應固定為「東京都写真美術館」**：無論展品的所蔵機構來自哪個國家或城市，活動場地永遠是東京都写真美術館本身。
+3. **SYSTEM_PROMPT 已有 COLLECTION ATTRIBUTION NOTE**：此規則已注入 GPT 指示，但程式碼層面的 scraper 也應確認 `location_name` 有靜態預設值（如 yebizo scraper 應直接設定 `location_name="東京都写真美術館"`）。
+4. **識別模式**：`raw_description` 中出現「蔵」字緊接機構名，如 `〇〇美術館蔵`/`〇〇博物館蔵`/`〇〇文化基金蔵`，這些是所蔵標記，不是場地。
+
+**驗證指令（展覽來源 location 掃描）**：
+```sql
+-- 確認 yebizo 事件 location 是否正確
+SELECT id, name_ja, location_name, location_address
+FROM events
+WHERE source_name = 'yebizo'
+  AND location_name != '東京都写真美術館'
+  AND is_active = true
+LIMIT 10;
+-- 應為空結果
+```
+
+Reference incident: 2026-05-08 — `e37db12e`（yebizo）`location_name='高雄市立美術館'`（作品所蔵元），修正為「東京都写真美術館」（commit `47f8184`）。
+
+---
+
 ## Performer Null Guard（annotator.py 三層 fallback 守則）
 
 在審核任何涉及 `performer` 欄位的計畫，或分析 `performer = NULL` 案例時，**必須**確認 annotator.py 是否正確執行三層 fallback：
@@ -493,16 +551,13 @@ Reference incident: 2026-05-06 — `category_corrections` 含 2 筆 `セシリ�
   - 正確：`{2,5}` → `宇田川幸洋`（5 字）仍可匹配，`翻訳者一青窈` 不匹配
 - **`_MUKAE_RE` 必須有 negative lookbehind `(?<![\u4e00-\u9fff])`**：防止從職稱字串中間開始匹配。例：`訳者一青窈` 從 `訳` 開始匹配出 `訳者一青窈`（`訳` 前面是漢字 `翻`，lookbehind 阻擋）。
 - **每次修改後掃描 DB**：對全部 performer=null 事件跑 `_extract_performer_from_raw`，人工確認所有命中
-- **MUKAE lookahead 必須涵蓋三種邀嘉賓慣用語**：`をお迎え`（帶 `お`）、`を迎え`、`をゲストに迎え` 三者缺一不可。語義相同但拼法不同，缺少任一則靜默失敗。Reference: 2026-05-08 commit `6c2f1ab`。
-- **`_PERFORMER_INTRO_RE` separator 必須為 `*`（0 或多個）**：日語中角色詞（`絵本作家`、`翻訳者`、`料理研究家`）與人名直接連接（無分隔符）是常見寫法，`+`（1 個以上）會導致靜默失敗。Sanity check：直連（`絵本作家林廉恩`）、點號（`料理研究家・宮武衣充`）、冒號（`講師：田中花子`）三種情況均應命中。Reference: 2026-05-08 commit `fe8b273`。
+- **敬語形式需覆蓋**：`をお迎え`（帶 `お`）與 `を迎え` 是不同 pattern，需同時收錄
 - **DB 回填只用 INTRO pattern**：MUKAE 只感知「名字+敬語」，不知道上下文有幾位講者。多人講者事件（林宏文、宇田川幸洋案例）由 MUKAE 匹配但應保持 null。
 
 Reference incidents:
 - 2026-05-04 — event `e72b2c15` performer 三層 fallback 缺失；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
 - 2026-05-06 — event `4427f965`（台湾植物紀行）`前田知里｜植物民族学研究家` 未提取，三重根因：(1) 無 `_PIPE_ROLE_RE`；(2) 資訊在 pos 859 > 500 上限；(3) GPT 視主催者不為 guest（commit `c82e746`）。
-- 2026-05-08 — `翻訳者一青窈` 假陽性：INTRO `{2,6}` + MUKAE 無 lookbehind 導致 role+name 連串被誤匹配；修法：max 6→5 + lookbehind + `翻訳者` 加入 role list（commit `b2d8a21`）。
-- 2026-05-08 — `一青窈氏をゲストに迎え` 無法被 MUKAE 捕捉：lookahead 缺少 `をゲストに迎え`；修法：加入至 lookahead（commit `6c2f1ab`）。
-- 2026-05-08 — `絵本作家林廉恩氏` 無法被 INTRO_RE 捕捉：separator `+` 不允許無分隔符直連寫法；修法：`+` → `*`（commit `fe8b273`）。
+- 2026-05-08 — `翻訳者一青窈` 假陽性：INTRO `{2,6}` + MUKAE 無 lookbehind 導致 role+name 連串被誤匹配；修法：max 6→5 + lookbehind + `翻訳者` 加入 role list（本 commit）。
 
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).

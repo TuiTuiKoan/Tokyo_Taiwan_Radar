@@ -293,6 +293,27 @@ Reference incidents:
 
 Reference incident: 2026-05-06 — `セシリアママ` 從 `category_corrections` few-shot 污染 31 件 Peatix 活動（commit `fix(annotator): add organizer non-hallucination guard`）。
 
+## Blog/Creator Source Thin Content Guard（部落格來源薄文本防護）
+
+在審核任何涉及 `note_creators`、`note.com` 等部落格/創作者聚合來源的計畫前，**必須**確認：
+
+1. **`raw_description` 通常只有「続きをみる」截斷文字**：organizer 在此情況下必然為 null，絕不可從 note 發文者的背景推斷主辦方。
+2. **純介紹文章/觀影報導不是活動資料**：標題含「おすすめ」「紹介」「行ってきた」「観てきた」「鑑賞レポ」等字樣的文章，應設 `is_active=false`（非活動事件）。
+3. **`_HEADLINE_REWRITE_SOURCES` 必須包含部落格來源**：`note_creators` 的 `raw_title` 是文章標題，不是活動名稱，必須讓 GPT 從 raw_description 重新生成正確的 `name_ja`。
+4. **Non-Hallucination Guard 在薄文本（< 100 字）時保護有限**：文本極短時 GPT 仍可能從外部知識推斷 organizer。對此類事件，organizer 應保持 null，且 DB 修正後必須鎖 `field_corrections`。
+
+Reference incident: 2026-05-08 — `2cae572a`/`10a4ee5d` organizer 被推斷為 note 發文者；`4180ad0f`/`4ebc8a35` 介紹文章/觀影報導入庫（commit `b589fbb`）。
+
+## Collection Attribution Guard（所蔵元 ≠ 活動場地）
+
+在審核任何涉及展覽類事件 `location_name` 抽取邏輯的計畫前，**必須**確認：
+
+1. **`〇〇美術館蔵`/`〇〇博物館蔵` 是作品所蔵機關標記，不是活動場地**：GPT 容易將「高雄市立美術館蔵」中的「高雄市立美術館」誤提取為 `location_name`。
+2. **固定場地的 scraper 應直接設定靜態 `location_name`**：yebizo（東京都写真美術館）等固定場地的 scraper，`location_name` 應在 scraper 層硬設，不依賴 GPT 抽取——無論展品所蔵機構來自何處，活動場地不變。
+3. **SYSTEM_PROMPT 的 COLLECTION ATTRIBUTION NOTE 為第一道防線**：規則已注入 GPT 指示，但 scraper 靜態設定為最可靠的保障。
+
+Reference incident: 2026-05-08 — `e37db12e`（yebizo）`location_name='高雄市立美術館'`（作品所蔵元），修正為「東京都写真美術館」（commit `47f8184`）。
+
 ## Performer Null Guard（三層 fallback + regex 設計規則）
 
 在審核任何涉及 `performer` 欄位的計畫，或分析 `performer = NULL` 案例時，**必須**確認：
