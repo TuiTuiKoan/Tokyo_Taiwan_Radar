@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """
-Backfill location_prefectures for parent events.
+Backfill location_prefectures for parent + sub events.
 
-Two modes:
-  - default: aggregate sub-event addresses; write array only when ≥2 prefectures.
-  - --include-single: also write 1-element arrays for parent events whose own
-    location_address yields a prefecture (and location_prefectures IS NULL).
+Three passes (order matters):
+  1. Multi-aggregation for parents — if sub-event addresses span ≥2 prefectures,
+     write the sorted array to the parent.
+  2. Single-row pass (default ON) — for any row (parent or sub) with
+     location_prefectures IS NULL and a usable own address, write [pref].
+     Use --no-single to skip this pass (legacy behavior).
+  3. Sub-event parent-address fallback — for sub-events with NO own address
+     but whose parent has a usable address, inherit prefecture from parent
+     (writes location_prefectures only; does NOT modify location_address).
 
 Run AFTER migration 012 has been applied in Supabase Dashboard:
-    cd scraper && source ../.venv/bin/activate && python backfill_location_prefectures.py [--include-single] [--dry-run]
+    cd scraper && source ../.venv/bin/activate && python backfill_location_prefectures.py [--no-single] [--dry-run]
 """
 import argparse
 import os
@@ -103,10 +108,14 @@ def extract_prefecture(address: str | None) -> str | None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--no-single", action="store_true",
+                        help="Skip single-row + sub-event passes; only do multi-aggregation for parents (legacy).")
     parser.add_argument("--include-single", action="store_true",
-                        help="Also backfill parent events using their own location_address (1-element array).")
+                        help="(deprecated, kept for compat) Single-row pass is now default ON.")
     parser.add_argument("--dry-run", action="store_true", help="Print would-update counts only; no DB writes.")
     args = parser.parse_args()
+
+    do_single = not args.no_single
 
     sb = create_client(
         os.environ["SUPABASE_URL"],
@@ -148,6 +157,10 @@ def main() -> None:
     skipped_existing = 0
     skipped_no_pref = 0
 
+    # Build parent_id → location_address map for sub-event fallback (pass 3).
+    parent_addr_map: dict[str, str | None] = {p["id"]: p.get("location_address") for p in parents}
+
+    # ----- Pass 1: parents — multi-aggregation OR own-address single-row -----
     for p in parents:
         pid = p["id"]
         name = (p.get("name_ja") or pid)[:50]
@@ -161,7 +174,7 @@ def main() -> None:
         if len(agg) >= 2:
             new_value = sorted(agg)
             kind = "multi"
-        elif args.include_single:
+        elif do_single:
             own_pref = extract_prefecture(p.get("location_address"))
             if own_pref:
                 new_value = [own_pref]
@@ -172,11 +185,11 @@ def main() -> None:
             continue
 
         if args.dry_run:
-            logger.info("  [dry-run %s] %s → %s", kind, name, new_value)
+            logger.info("  [dry-run %s] PAR %s → %s", kind, name, new_value)
         else:
             try:
                 sb.table("events").update({"location_prefectures": new_value}).eq("id", pid).execute()
-                logger.info("  ✓ [%s] %s → %s", kind, name, new_value)
+                logger.info("  ✓ [%s] PAR %s → %s", kind, name, new_value)
             except Exception as e:
                 logger.error("  ✗ %s: %s", pid, e)
                 continue
@@ -186,12 +199,71 @@ def main() -> None:
         else:
             single_updated += 1
 
+    # ----- Pass 2 + 3: sub-events — own address, or parent-address fallback -----
+    sub_own_updated = 0
+    sub_parent_fallback_updated = 0
+    sub_skipped_existing = 0
+    sub_skipped_no_pref = 0
+    sub_scanned = 0
+
+    if do_single:
+        logger.info("Fetching sub-events (full rows for backfill)...")
+        sub_rows = (
+            sb.table("events")
+            .select("id,name_ja,parent_event_id,location_address,location_prefectures")
+            .not_.is_("parent_event_id", "null")
+            .execute()
+        ).data
+        sub_scanned = len(sub_rows)
+
+        for s in sub_rows:
+            sid = s["id"]
+            name = (s.get("name_ja") or sid)[:50]
+            if s.get("location_prefectures"):
+                sub_skipped_existing += 1
+                continue
+
+            own_addr = s.get("location_address")
+            pref = extract_prefecture(own_addr)
+            kind = "sub-own"
+
+            if not pref:
+                # Parent-address fallback (do NOT modify location_address).
+                parent_addr = parent_addr_map.get(s.get("parent_event_id"))
+                pref = extract_prefecture(parent_addr)
+                kind = "sub-parent" if pref else ""
+
+            if not pref:
+                sub_skipped_no_pref += 1
+                continue
+
+            new_value = [pref]
+            if args.dry_run:
+                logger.info("  [dry-run %s] SUB %s → %s", kind, name, new_value)
+            else:
+                try:
+                    sb.table("events").update({"location_prefectures": new_value}).eq("id", sid).execute()
+                    logger.info("  ✓ [%s] SUB %s → %s", kind, name, new_value)
+                except Exception as e:
+                    logger.error("  ✗ %s: %s", sid, e)
+                    continue
+
+            if kind == "sub-own":
+                sub_own_updated += 1
+            else:
+                sub_parent_fallback_updated += 1
+
     logger.info("=" * 60)
-    logger.info("Scanned parents:          %d", scanned)
-    logger.info("Multi-city updated:       %d", multi_updated)
-    logger.info("Single-city updated:      %d", single_updated)
-    logger.info("Skipped (already set):    %d", skipped_existing)
-    logger.info("Skipped (no prefecture):  %d", skipped_no_pref)
+    logger.info("Scanned parents:               %d", scanned)
+    logger.info("  Multi-city updated:          %d", multi_updated)
+    logger.info("  Single-city updated:         %d", single_updated)
+    logger.info("  Skipped (already set):       %d", skipped_existing)
+    logger.info("  Skipped (no prefecture):     %d", skipped_no_pref)
+    logger.info("Scanned sub-events:            %d", sub_scanned)
+    logger.info("  Own-address updated:         %d", sub_own_updated)
+    logger.info("  Parent-address updated:      %d", sub_parent_fallback_updated)
+    logger.info("  Skipped (already set):       %d", sub_skipped_existing)
+    logger.info("  Skipped (no prefecture):     %d", sub_skipped_no_pref)
     if args.dry_run:
         logger.info("(dry-run — no DB writes)")
 
