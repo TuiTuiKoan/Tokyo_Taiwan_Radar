@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale } from "@/lib/types";
@@ -68,19 +69,83 @@ const P_SERIES = [
   { id: "P4.1–4.4", label: "P4 缺口 #1–#4（待用戶確認具體內容）", commit: "—", done: false },
 ];
 
-// ─── Field fill rates (last updated 2026-05-05) ──────────────────────────────
+// ─── Field fill rate targets (computed dynamically below from DB) ──────────
 
-const FILL_RATES = [
-  { field: "category",             pct: 100,  target: 100, note: "" },
-  { field: "start_date",           pct: 100,  target: 100, note: "" },
-  { field: "location_name",        pct: 100,  target: 100, note: "" },
-  { field: "organizer",            pct: 91.1, target: 90,  note: "" },
-  { field: "location_address",     pct: 86.0, target: 80,  note: "" },
-  { field: "event_form",           pct: 88.5, target: 80,  note: "" },
-  { field: "organizer_type (≠unk)",pct: 80.9, target: 85,  note: "仍有 ~18 件 unknown（organizer=null 的節慶）" },
-  { field: "location_prefectures", pct: 68.2, target: 85,  note: "🔴 Product C 城市維度阻斷點" },
-  { field: "performer",            pct: 20.4, target: 45,  note: "僅 lecture/performance 類需達標" },
+const FILL_RATE_TARGETS: { field: string; target: number; note: string }[] = [
+  { field: "category",              target: 100, note: "" },
+  { field: "start_date",            target: 100, note: "" },
+  { field: "location_name",         target: 100, note: "" },
+  { field: "organizer",             target: 90,  note: "" },
+  { field: "location_address",      target: 80,  note: "" },
+  { field: "event_form",            target: 80,  note: "" },
+  { field: "organizer_type",        target: 85,  note: "排除 unknown 才計" },
+  { field: "location_prefectures",  target: 85,  note: "🔴 Product C 城市維度阻斷點" },
+  { field: "performer",             target: 45,  note: "僅 lecture/performance 類需達標" },
 ];
+
+/**
+ * Compute fill rates by counting non-null values across all active+annotated
+ * parent events. Uses service role to bypass RLS (already authed as admin
+ * via cookie client above). Service-role query selects only the columns
+ * needed — never SELECT *.
+ */
+async function computeFillRates(): Promise<
+  { field: string; pct: number; target: number; note: string; total: number }[]
+> {
+  const sb = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+  const cols = [
+    "category",
+    "start_date",
+    "location_name",
+    "organizer",
+    "location_address",
+    "event_form",
+    "organizer_type",
+    "location_prefectures",
+    "performer",
+  ].join(",");
+  const { data } = await sb
+    .from("events")
+    .select(cols)
+    .eq("is_active", true)
+    .is("parent_event_id", null)
+    .in("annotation_status", ["annotated", "reviewed"]);
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
+  const total = rows.length || 1;
+  const filled = (k: string, predicate: (v: unknown) => boolean) =>
+    rows.filter((r) => predicate(r[k])).length;
+  const nonEmpty = (v: unknown): boolean => {
+    if (v === null || v === undefined) return false;
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === "string") return v.trim().length > 0;
+    return true;
+  };
+  const fillCount: Record<string, number> = {
+    category: filled("category", nonEmpty),
+    start_date: filled("start_date", nonEmpty),
+    location_name: filled("location_name", nonEmpty),
+    organizer: filled("organizer", nonEmpty),
+    location_address: filled("location_address", nonEmpty),
+    event_form: filled("event_form", nonEmpty),
+    // organizer_type counted only when array exists AND ≠ ["unknown"]
+    organizer_type: filled("organizer_type", (v) => {
+      if (!Array.isArray(v) || v.length === 0) return false;
+      return !(v.length === 1 && v[0] === "unknown");
+    }),
+    location_prefectures: filled("location_prefectures", nonEmpty),
+    performer: filled("performer", nonEmpty),
+  };
+  return FILL_RATE_TARGETS.map((t) => ({
+    field: t.field,
+    pct: Math.round((fillCount[t.field] / total) * 1000) / 10,
+    target: t.target,
+    note: t.note,
+    total: rows.length,
+  }));
+}
 
 function pctColor(pct: number, target: number) {
   if (pct >= target) return "text-green-700 font-semibold";
@@ -119,6 +184,9 @@ export default async function AdminRoadmapPage({ params }: PageProps) {
     .order("metric_date", { ascending: false })
     .limit(1);
   const quality = latestQuality?.[0];
+
+  // Dynamic fill rates (replaces hardcoded FILL_RATES)
+  const fillRates = await computeFillRates();
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -172,7 +240,7 @@ export default async function AdminRoadmapPage({ params }: PageProps) {
               </tr>
             </thead>
             <tbody>
-              {FILL_RATES.map((r) => (
+              {fillRates.map((r) => (
                 <tr key={r.field} className="border-b border-gray-100 last:border-0">
                   <td className="px-4 py-2 font-mono text-xs text-gray-700">{r.field}</td>
                   <td className="px-4 py-2 text-right">
