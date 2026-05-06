@@ -594,6 +594,7 @@ PERFORMER EXTRACTION RULES:
 
 ORGANIZER EXTRACTION RULES:
 1. organizer: the primary entity hosting the event. Look for fields like 主催, 主辦, presented by, 主催者. Single string, original-language official name (e.g. "台北駐日経済文化代表処 台湾文化センター"). Do NOT include role labels like "主催:" in the value.
+   CINEMA DISTRIBUTOR FALLBACK: For film screenings where 主催 is NOT stated, 配給 (distributor) may be used as organizer — the distributor is the entity responsible for the screening in Japan. Do NOT include "配給：" in the value (strip the label).
 2. co_organizers: array of 共催 / 協力 / 後援 entities. Each entry is the original-language name. Empty array if none mentioned.
 3. sponsors: array of 協賛 / 贊助 / sponsor entities. Empty array if none mentioned.
 4. NEVER fabricate organizer names. If 主催 is not explicitly stated and cannot be safely inferred from the venue's official role (e.g. an exhibition at a museum is hosted by that museum), set organizer = null.

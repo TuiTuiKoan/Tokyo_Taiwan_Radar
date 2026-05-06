@@ -570,7 +570,7 @@ export default async function EventDetailPage({ params }: PageProps) {
             {/* Business hours */}
             <tr>
               <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("hours")}</td>
-              <td className="px-4 py-3">{businessHours || "—"}</td>
+              <td className="px-4 py-3 whitespace-pre-wrap">{businessHours || "—"}</td>
             </tr>
             {/* Price */}
             <tr>
