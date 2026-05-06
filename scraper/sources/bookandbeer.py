@@ -1,6 +1,7 @@
-"""Auto-generated scraper for bookandbeer (Layer B / auto_scraper).
+"""Scraper for 本屋B&B (bookandbeer.com).
 
-DO NOT EDIT BY HAND — regenerate via scraper.auto_scraper.spec_to_code.
+Note: bookandbeer.com の keyword= パラメータはサーバーサイドでフィルタされない
+（全イベントが返される）。台湾関連チェックはクライアント側で実施する。
 """
 
 import re
@@ -27,6 +28,13 @@ SOURCE_ID_PREFIX = "bookandbeer_"
 SOURCE_ID_URL_PATTERN = re.compile("/event/([^/]+)/")
 
 MAX_EVENTS = 200
+
+TAIWAN_KEYWORDS = ["台湾", "Taiwan", "台灣", "タイワン"]
+
+
+def _is_taiwan_relevant(title: str, description: str) -> bool:
+    combined = (title or "") + " " + (description or "")
+    return any(kw in combined for kw in TAIWAN_KEYWORDS)
 
 
 def _parse_date(text):
@@ -179,6 +187,11 @@ class BookandbeerScraper(BaseScraper):
                         logger.debug("Detail page failed %s: %s", detail_url, exc)
 
                 seen_ids.add(source_id)
+
+                if not _is_taiwan_relevant(title or "", full_description or ""):
+                    logger.debug("Skipping non-Taiwan event: %s", title)
+                    continue
+
                 out.append(Event(
                     source_name=self.source_name,
                     source_id=source_id,

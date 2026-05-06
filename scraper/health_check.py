@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 JST = timezone(timedelta(hours=9))
 
 # Sources that are NOT expected to run every day (skip from "missing" alerts)
-# e.g. sources that run weekly, or are temporarily suspended
-NON_DAILY_SOURCES: frozenset[str] = frozenset()
+# weekly_broadcast runs Thu 09:00 JST + Fri 12:00 JST only (not daily)
+NON_DAILY_SOURCES: frozenset[str] = frozenset({"weekly_broadcast"})
 
 
 def _supabase_client():

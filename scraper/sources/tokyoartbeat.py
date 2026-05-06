@@ -109,10 +109,11 @@ class TokyoArtBeatScraper(BaseScraper):
             source_url = TAB_EVENT_BASE + slug if slug else ""
 
             # ── Slug date fallback ────────────────────────────────────
-            # Contentful series events use YYYY-01-01 as placeholder start.
+            # Contentful series events use YYYY-01-xx as placeholder start
+            # (observed: YYYY-01-01 and YYYY-01-15).
             # Extract the real chapter start date from the URL slug.
             slug_m = re.search(r"/(\d{4}-\d{2}-\d{2})$", slug)
-            if slug_m and start_date and start_date.month == 1 and start_date.day == 1:
+            if slug_m and start_date and start_date.month == 1:
                 start_date = self._parse_date(slug_m.group(1))
 
             # ── Official URL ──────────────────────────────────────────
