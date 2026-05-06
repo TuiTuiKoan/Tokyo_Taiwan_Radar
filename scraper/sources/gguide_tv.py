@@ -17,6 +17,7 @@ Rendering: static HTML — no Playwright needed
 
 import json
 import logging
+import os
 import re
 import time
 from datetime import datetime, timedelta
@@ -25,11 +26,70 @@ from urllib.parse import quote
 
 import requests
 from bs4 import BeautifulSoup
+from supabase import create_client
 
 from .base import BaseScraper, Event, dedup_events
 from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
+
+_works_sb = None
+
+
+def _get_works_sb():
+    """Lazily create a Supabase client for works table lookups."""
+    global _works_sb
+    if _works_sb is None:
+        from dotenv import load_dotenv
+        load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+        _works_sb = create_client(
+            os.environ["SUPABASE_URL"],
+            os.environ["SUPABASE_SERVICE_ROLE_KEY"],
+        )
+    return _works_sb
+
+
+def _strip_broadcast_suffix(title: str) -> str:
+    """Remove broadcast-format suffixes like （字幕版）, [吹替版], 🅍, 【…】, 第N話."""
+    t = re.sub(r"[（(]字幕版[）)]", "", title)
+    t = re.sub(r"\[吹替版\]", "", t)
+    t = re.sub(r"🅍", "", t)
+    t = re.sub(r"\[PG12\]", "", t)
+    t = re.sub(r"【[^】]*】", "", t)  # 【ジャッキー劇場】 etc.
+    t = re.sub(r"第\d+話.*$", "", t)  # 第48話「歌を愛して」
+    t = re.sub(r"EP\d+.*$", "", t)  # EP22「狙うべきは弱点」
+    return t.strip()
+
+
+def _normalize_spaces(s: str) -> str:
+    """Collapse fullwidth spaces (\u3000) to ASCII space for comparison."""
+    return s.replace("\u3000", " ")
+
+
+def _works_fallback(show_title: str) -> tuple[str | None, str | None]:
+    """Look up title_zh/title_en from works table for a given Japanese title."""
+    try:
+        sb = _get_works_sb()
+        # Try exact match first
+        w = sb.table("works").select("title_zh,title_en").eq("title_ja", show_title).limit(1).execute()
+        if w.data:
+            return w.data[0].get("title_zh"), w.data[0].get("title_en")
+        # Strip broadcast suffixes and retry
+        clean = _strip_broadcast_suffix(show_title)
+        if clean != show_title:
+            w = sb.table("works").select("title_zh,title_en").eq("title_ja", clean).limit(1).execute()
+            if w.data:
+                return w.data[0].get("title_zh"), w.data[0].get("title_en")
+        # Normalize fullwidth spaces and retry
+        norm = _normalize_spaces(clean)
+        if norm != clean:
+            w = sb.table("works").select("title_zh,title_en").eq("title_ja", norm).limit(1).execute()
+            if w.data:
+                return w.data[0].get("title_zh"), w.data[0].get("title_en")
+    except Exception as exc:
+        logger.debug("gguide_tv: works fallback error: %s", exc)
+    return None, None
+
 
 _BASE_URL = "https://bangumi.org"
 _SEARCH_URL = _BASE_URL + "/search/?q={kw}"
@@ -319,6 +379,12 @@ class GguideTvScraper(BaseScraper):
 
                 show_title = _extract_show_title(title_clean)
                 name_zh, name_en = lookup_movie_titles(show_title)
+                if not name_zh:
+                    wz, we = _works_fallback(show_title)
+                    if wz:
+                        name_zh = wz
+                        name_en = name_en or we
+                        logger.info("gguide_tv: works fallback → zh=%s", name_zh)
                 events.append(
                     Event(
                         source_name="gguide_tv",
@@ -341,4 +407,12 @@ class GguideTvScraper(BaseScraper):
 
         result = dedup_events(events)
         logger.info("gguide_tv: %d events after dedup", len(result))
+        for evt in result:
+            cats = evt.category or []
+            if any(c in cats for c in ("drama", "movie")) and not evt.name_zh:
+                logger.warning(
+                    "gguide_tv: no zh title for drama/movie: %s (source_id=%s)",
+                    evt.name_ja,
+                    evt.source_id,
+                )
         return result
