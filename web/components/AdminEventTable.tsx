@@ -1206,7 +1206,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           <thead className="sticky top-0 z-10 bg-white">
             {viewMode === "annotated" ? (
               <tr className="border-b text-left text-gray-500">
-                <th className="py-2 pr-2 w-8">
+                <th className="py-2 px-2 w-8 text-right text-[11px] select-none">#</th>
+                <th className="py-2 px-2 w-8">
                   <input
                     type="checkbox"
                     checked={getSorted(getFiltered(events)).length > 0 && getSorted(getFiltered(events)).every((e) => selected.has(e.id))}
@@ -1229,7 +1230,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               </tr>
             ) : (
               <tr className="border-b text-left text-gray-500">
-                <th className="py-2 pr-2 w-8">
+                <th className="py-2 px-2 w-8 text-right text-[11px] select-none">#</th>
+                <th className="py-2 px-2 w-8">
                   <input
                     type="checkbox"
                     checked={getSorted(getFiltered(events)).length > 0 && getSorted(getFiltered(events)).every((e) => selected.has(e.id))}
@@ -1255,7 +1257,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               // Global index across ALL events (unfiltered) — used to show merged_into target number even when filtered out
               const globalIndexMap: Record<string, number> = {};
               getSorted(events).forEach((e, idx) => { globalIndexMap[e.id] = idx + 1; });
-              return displayEvents.map((event) => (
+              return displayEvents.map((event, rowIdx) => (
               viewMode === "annotated" ? (
                 <tr
                   key={event.id}
@@ -1273,7 +1275,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       : undefined
                   }
                 >
-                  <td className="py-2 pr-2">
+                  <td className="py-2 px-2 text-right text-[11px] text-gray-400 select-none tabular-nums">{rowIdx + 1}</td>
+                  <td className="py-2 px-2">
                     <input
                       type="checkbox"
                       checked={selected.has(event.id)}
@@ -1546,7 +1549,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 </tr>
               ) : (
                 <tr key={event.id} className="border-b hover:bg-gray-50 transition">
-                  <td className="py-2 pr-2">
+                  <td className="py-2 px-2 text-right text-[11px] text-gray-400 select-none tabular-nums">{rowIdx + 1}</td>
+                  <td className="py-2 px-2">
                     <input
                       type="checkbox"
                       checked={selected.has(event.id)}
