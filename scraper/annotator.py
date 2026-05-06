@@ -377,7 +377,7 @@ _PERFORMER_INTRO_RE = re.compile(
 # context phrases like 「交流のあった萩原健太」 or 「評論家の龍應台」.
 _MUKAE_RE = re.compile(
     r'(?<![\u4e00-\u9fff])([\u4e00-\u9fff]{2,5})'
-    r'(?:氏|さん|先生)(?:をお?迎え|による|が登壇|がトーク|にご登場)',
+    r'(?:氏|さん|先生)(?:をお?迎え|をゲストに迎え|による|が登壇|がトーク|にご登場)',
     re.UNICODE,
 )
 # Match 「<name>　｜<role>」 pattern, e.g. 「前田知里　｜植物民族学研究家」
