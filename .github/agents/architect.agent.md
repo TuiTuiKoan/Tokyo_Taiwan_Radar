@@ -299,15 +299,18 @@ Reference incident: 2026-05-06 — `セシリアママ` 從 `category_correction
 
 1. **`update_data` 包含 `performer` 欄位**：常規 annotation 流程必須在 `update_data` dict 中寫入 performer，不可依賴 `--backfill-performer` 補救。
 2. **三層 fallback 順序**：DB 既有值 → GPT (`annotation.get("performer")`) → regex (`_extract_performer_from_raw`) 。`field_corrections` 保護的值不覆蓋。
-3. **Regex 名字字元類必須保守**：用 `[\u4e00-\u9fff]{2,6}` 純漢字，而非排除清單 `[^\s...]`——排除清單允許平假名 `の` 進入名字（`評論家の龍應台`），產生假陽性。
+3. **Regex 名字字元類必須保守**：用 `[\u4e00-\u9fff]{2,5}` 純漢字（上限 5），而非排除清單 `[^\s...]`——排除清單允許平假名 `の` 進入名字（`評論家の龍應台`），產生假陽性。`{2,6}` 時 `翻訳者一青窈`（6字）會被誤識為名字。
 4. **敬語形式需完整覆蓋**：`をお迎え` 與 `を迎え` 是不同 pattern。
-5. **每次 regex 修改後掃描 DB**：對所有 performer=null 事件跑 `_extract_performer_from_raw`，人工確認全部命中均為真陽性。
-6. **`_PIPE_ROLE_RE` 覆蓋「主催者 = 主講人」型活動**：`<name>　｜<role>` 格式（例 `前田知里｜植物民族学研究家`）常見於 Peatix 個人講座。Role suffix 必須是 `家/者/師/士/督` 之一，防假陽性。
-7. **搜索範圍 = raw_description 前 1500 字元**（非 500）：講者資訊常在事件說明後段，500 字元不足。
+5. **`_MUKAE_RE` 必須加 negative lookbehind `(?<![\u4e00-\u9fff])`**：防止從職稱字串（如 `翻訳者`）中間開始匹配出 `訳者一青窈` 這類假陽性。
+6. **每次 regex 修改後掃描 DB**：對所有 performer=null 事件跑 `_extract_performer_from_raw`，人工確認全部命中均為真陽性。
+7. **`_PIPE_ROLE_RE` 覆蓋「主催者 = 主講人」型活動**：`<name>　｜<role>` 格式（例 `前田知里｜植物民族学研究家`）常見於 Peatix 個人講座。Role suffix 必須是 `家/者/師/士/督` 之一，防假陽性。
+8. **搜索範圍 = raw_description 前 1500 字元**（非 500）：講者資訊常在事件說明後段，500 字元不足。
+9. **DB 回填只採用 INTRO pattern（確定性高）**：MUKAE 只感知「名字+敬語」，不知道上下文有幾位講者。多人講者事件應保持 null。
 
 Reference incidents:
 - 2026-05-04 — event `e72b2c15` performer=null（缺 fallback）；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
 - 2026-05-06 — event `4427f965`（台湾植物紀行）`前田知里｜植物民族学研究家` 未提取，三重根因：(1) 無 `_PIPE_ROLE_RE`；(2) 資訊在 pos 859 > 500 上限；(3) GPT 視主催者不為 guest（commit `c82e746`）。
+- 2026-05-08 — `翻訳者一青窈` 假陽性：INTRO `{2,6}` + MUKAE 無 lookbehind 導致 role+name 連串被誤匹配；修法：max 6→5 + lookbehind + `翻訳者` 加入 role list（本 commit）。
 
 ## LINE Broadcast Query Guard（annotation_status 過濾）
 

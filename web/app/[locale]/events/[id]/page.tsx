@@ -241,6 +241,10 @@ export default async function EventDetailPage({ params }: PageProps) {
       ? { "@type": "Person", name: ev.performer }
       : null;
 
+    const directorLd = ev.director
+      ? { "@type": "Person", name: ev.director }
+      : null;
+
     // location → PostalAddress
     const placeLd = locationName
       ? {
@@ -296,6 +300,7 @@ export default async function EventDetailPage({ params }: PageProps) {
       ...(placeLd ? { location: placeLd } : {}),
       organizer: organizerLd,
       ...(performerLd ? { performer: performerLd } : {}),
+      ...(directorLd ? { director: directorLd } : {}),
       ...(offersLd ? { offers: offersLd } : {}),
       ...(ev.is_paid === false ? { isAccessibleForFree: true } : {}),
     };
@@ -628,6 +633,7 @@ export default async function EventDetailPage({ params }: PageProps) {
         ((event as Event).sponsors ?? []).length > 0 ||
         ((event as Event).event_form ?? []).length > 0 ||
         (event as Event).performer ||
+        (event as Event).director ||
         (event as Event).has_japanese_support ||
         (event as Event).has_english_support ||
         (event as Event).has_chinese_support) && (
@@ -663,6 +669,12 @@ export default async function EventDetailPage({ params }: PageProps) {
               <div className="flex gap-2">
                 <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("performer")}：</dt>
                 <dd className="text-gray-900">{(event as Event).performer}</dd>
+              </div>
+            )}
+            {(event as Event).director && (
+              <div className="flex gap-2">
+                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("director")}：</dt>
+                <dd className="text-gray-900">{(event as Event).director}</dd>
               </div>
             )}
             {((event as Event).co_organizers ?? []).length > 0 && (

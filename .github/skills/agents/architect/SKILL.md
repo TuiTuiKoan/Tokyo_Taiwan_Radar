@@ -488,15 +488,18 @@ Reference incident: 2026-05-06 — `category_corrections` 含 2 筆 `セシリ�
 - **標題中的氏を迎え**：GPT 通常從 description 找 performer，不從 raw_title 找
 
 ### Regex 設計原則（防假陽性）
-- **名字字元類必須保守**：用 `[\u4e00-\u9fff]{2,6}` 純漢字，而非排除清單 `[^\u3000\u30fb...]`
-  - 錯誤：`[^\s・：:]{2,10}` → 捕獲 `評論家の龍應台`、`交流のあった萩原健太`
-  - 正確：`[\u4e00-\u9fff]{2,6}` → 只允許 2-6 個 CJK 字元
+- **名字字元類必須保守**：用 `[\u4e00-\u9fff]{2,5}` 純漢字（上限 5），而非排除清單 `[^\u3000\u30fb...]`
+  - 錯誤：`{2,6}` → `翻訳者一青窈`（6 字）被誤識別為名字（role+name 連串）
+  - 正確：`{2,5}` → `宇田川幸洋`（5 字）仍可匹配，`翻訳者一青窈` 不匹配
+- **`_MUKAE_RE` 必須有 negative lookbehind `(?<![\u4e00-\u9fff])`**：防止從職稱字串中間開始匹配。例：`訳者一青窈` 從 `訳` 開始匹配出 `訳者一青窈`（`訳` 前面是漢字 `翻`，lookbehind 阻擋）。
 - **每次修改後掃描 DB**：對全部 performer=null 事件跑 `_extract_performer_from_raw`，人工確認所有命中
 - **敬語形式需覆蓋**：`をお迎え`（帶 `お`）與 `を迎え` 是不同 pattern，需同時收錄
+- **DB 回填只用 INTRO pattern**：MUKAE 只感知「名字+敬語」，不知道上下文有幾位講者。多人講者事件（林宏文、宇田川幸洋案例）由 MUKAE 匹配但應保持 null。
 
 Reference incidents:
 - 2026-05-04 — event `e72b2c15` performer 三層 fallback 缺失；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
 - 2026-05-06 — event `4427f965`（台湾植物紀行）`前田知里｜植物民族学研究家` 未提取，三重根因：(1) 無 `_PIPE_ROLE_RE`；(2) 資訊在 pos 859 > 500 上限；(3) GPT 視主催者不為 guest（commit `c82e746`）。
+- 2026-05-08 — `翻訳者一青窈` 假陽性：INTRO `{2,6}` + MUKAE 無 lookbehind 導致 role+name 連串被誤匹配；修法：max 6→5 + lookbehind + `翻訳者` 加入 role list（本 commit）。
 
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).

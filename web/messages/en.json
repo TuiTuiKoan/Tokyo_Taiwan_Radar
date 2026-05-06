@@ -115,6 +115,8 @@
     "searchOfficialSite": "Search for official film website",
     "organizerSection": "Organizer Info",
     "organizer": "Organizer",
+    "performer": "Performer",
+    "director": "Director",
     "coOrganizers": "Co-organizers",
     "sponsors": "Sponsors",
     "eventForm": "Event Format",
@@ -150,6 +152,7 @@
     "locationUrl": "Venue website",
     "hours": "Business hours",
     "performer": "Performer",
+    "director": "Director",
     "organizer": "Organizer",
     "organizerUrl": "Organizer Website",
     "eventForm": "Event Format",
@@ -525,8 +528,8 @@
     "worksTypeFilm": "Film",
     "worksTypeStage": "Stage",
     "worksTypeExhibition": "Exhibition",
-    "worksTypeConcertTour": "Concert tour",
-    "worksTypeOther": "Other",
+    "worksTypeConcertTour": "Concert tour",    "worksTypeTvDrama": "TV Drama",
+    "worksTypeTvVariety": "TV Variety",    "worksTypeOther": "Other",
     "worksConfirmDelete": "Delete this work? Linked events will have their work_id cleared.",
     "events": {
       "columns": {

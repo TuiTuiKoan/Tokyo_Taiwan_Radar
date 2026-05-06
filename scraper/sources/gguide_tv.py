@@ -66,29 +66,32 @@ def _normalize_spaces(s: str) -> str:
     return s.replace("\u3000", " ")
 
 
-def _works_fallback(show_title: str) -> tuple[str | None, str | None]:
-    """Look up title_zh/title_en from works table for a given Japanese title."""
+def _works_fallback(show_title: str) -> tuple[str | None, str | None, str | None, str | None]:
+    """Look up title_zh/title_en/cast_summary/director from works table for a given Japanese title."""
     try:
         sb = _get_works_sb()
         # Try exact match first
-        w = sb.table("works").select("title_zh,title_en").eq("title_ja", show_title).limit(1).execute()
+        w = sb.table("works").select("title_zh,title_en,cast_summary,director").eq("title_ja", show_title).limit(1).execute()
         if w.data:
-            return w.data[0].get("title_zh"), w.data[0].get("title_en")
+            d = w.data[0]
+            return d.get("title_zh"), d.get("title_en"), d.get("cast_summary"), d.get("director")
         # Strip broadcast suffixes and retry
         clean = _strip_broadcast_suffix(show_title)
         if clean != show_title:
-            w = sb.table("works").select("title_zh,title_en").eq("title_ja", clean).limit(1).execute()
+            w = sb.table("works").select("title_zh,title_en,cast_summary,director").eq("title_ja", clean).limit(1).execute()
             if w.data:
-                return w.data[0].get("title_zh"), w.data[0].get("title_en")
+                d = w.data[0]
+                return d.get("title_zh"), d.get("title_en"), d.get("cast_summary"), d.get("director")
         # Normalize fullwidth spaces and retry
         norm = _normalize_spaces(clean)
         if norm != clean:
-            w = sb.table("works").select("title_zh,title_en").eq("title_ja", norm).limit(1).execute()
+            w = sb.table("works").select("title_zh,title_en,cast_summary,director").eq("title_ja", norm).limit(1).execute()
             if w.data:
-                return w.data[0].get("title_zh"), w.data[0].get("title_en")
+                d = w.data[0]
+                return d.get("title_zh"), d.get("title_en"), d.get("cast_summary"), d.get("director")
     except Exception as exc:
         logger.debug("gguide_tv: works fallback error: %s", exc)
-    return None, None
+    return None, None, None, None
 
 
 _BASE_URL = "https://bangumi.org"
@@ -379,8 +382,10 @@ class GguideTvScraper(BaseScraper):
 
                 show_title = _extract_show_title(title_clean)
                 name_zh, name_en = lookup_movie_titles(show_title)
+                w_perf = None
+                w_dir = None
                 if not name_zh:
-                    wz, we = _works_fallback(show_title)
+                    wz, we, w_perf, w_dir = _works_fallback(show_title)
                     if wz:
                         name_zh = wz
                         name_en = name_en or we
@@ -400,6 +405,8 @@ class GguideTvScraper(BaseScraper):
                         category=_genre_to_category(genre),
                         location_name=channel,
                         business_hours=business_hours,
+                        performer=w_perf,
+                        director=w_dir,
                     )
                 )
 

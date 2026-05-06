@@ -61,12 +61,13 @@ export interface Event {
   price_currency?: string | null;
   event_status?: "scheduled" | "cancelled" | "postponed" | "rescheduled" | null;
   performer?: string | null;
+  director?: string | null;
   work_id?: string | null;
   merged_into_event_id?: string | null;
   deactivated_reason?: string | null;
 }
 
-export type WorkType = "film" | "stage" | "exhibition" | "concert_tour" | "other";
+export type WorkType = "film" | "stage" | "exhibition" | "concert_tour" | "tv_drama" | "tv_variety" | "other";
 
 export interface Work {
   id: string;

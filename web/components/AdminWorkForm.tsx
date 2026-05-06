@@ -19,6 +19,8 @@ const TYPE_KEYS: Record<WorkType, string> = {
   stage: "worksTypeStage",
   exhibition: "worksTypeExhibition",
   concert_tour: "worksTypeConcertTour",
+  tv_drama: "worksTypeTvDrama",
+  tv_variety: "worksTypeTvVariety",
   other: "worksTypeOther",
 };
 

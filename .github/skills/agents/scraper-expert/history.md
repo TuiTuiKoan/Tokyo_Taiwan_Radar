@@ -3,6 +3,19 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-08 — performer regex 假陽性：INTRO `{2,6}` + MUKAE 缺 lookbehind
+
+**Error:** `_PERFORMER_INTRO_RE` 在 `歌手・翻訳者一青窈氏による` 中擷取出 `翻訳者一青窈`（6 字）。`_MUKAE_RE` 則從 `訳者一青窈氏による` 中間開始匹配出 `訳者一青窈`。兩者均為假陽性，真實姓名為 `一青窈`（3 字）。
+
+**Root cause:** (1) `{2,6}` 上限過寬——role 詞（`翻訳者`=3 字）+ 真名（`一青窈`=3 字）共 6 字符合上限。(2) `_MUKAE_RE` 無 negative lookbehind，從字串中間任意位置開始匹配。
+
+**Fix (本 commit):**
+- INTRO + MUKAE：max 6 → 5，防止 6 字 role+name 組合被捕獲
+- MUKAE：加入 `(?<![一-鿿])` negative lookbehind
+- INTRO：role list 新增 `翻訳者`
+
+**DB impact:** 215 筆 null-performer 事件掃描後，4 筆命中。INTRO 命中 2 筆（真陽性）已鎖 field_corrections；MUKAE 命中 2 筆（多人講者）保持 null。
+
 ## 2026-05-08 — bookandbeer: server-side keyword param silently ignored + author bio false positives
 
 **Error:** `bookandbeer.py` の初版は `?keyword=台湾` URL パラメータを頼りにしていたが、bookandbeer.com サーバーはこのパラメータを完全に無視し全件返却。結果として多数の非台湾関連イベントが DB に登録された。さらに、著者略歴に「台湾大学 客員教授」「淡江大学」という記述があるだけで `_is_taiwan_relevant()` が True を返す問題があった。

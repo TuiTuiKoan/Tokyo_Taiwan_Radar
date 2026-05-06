@@ -123,6 +123,10 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         row["price_currency"] = event.price_currency
     if isinstance(event.event_status, str) and event.event_status in _VALID_EVENT_STATUSES:
         row["event_status"] = event.event_status
+    if event.performer is not None:
+        row["performer"] = event.performer
+    if event.director is not None:
+        row["director"] = event.director
 
     return row
 

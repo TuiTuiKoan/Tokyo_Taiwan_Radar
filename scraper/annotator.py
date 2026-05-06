@@ -363,12 +363,12 @@ _HONORIFIC_RE = re.compile(
 # Match 「<role>・<name>氏を迎え」 — lookahead stops name before honorific.
 _PERFORMER_INTRO_RE = re.compile(
     r'(?:'
-    r'料理研究家|シェフ|作家|著者|詩人|写真家|映画監督|演出家|振付家|音楽家|ミュージシャン'
+    r'料理研究家|シェフ|作家|著者|詩人|翻訳者|写真家|映画監督|演出家|振付家|音楽家|ミュージシャン'
     r'|アーティスト|研究者|学者|評論家|キュレーター|デザイナー|歌手|俳優|女優'
     r'|講師|スピーカー|ゲスト|ゲスト講師|ゲストスピーカー'
     r')'
     r'[・：:\s]+'
-    r'([\u4e00-\u9fff]{2,6}?)'
+    r'([\u4e00-\u9fff]{2,5}?)'
     r'(?=氏|さん|先生|による|を迎え|が登壇|がトーク|にご登場)',
     re.UNICODE,
 )
@@ -376,7 +376,7 @@ _PERFORMER_INTRO_RE = re.compile(
 # Restrict to pure kanji ([\u4e00-\u9fff]{2,6}) to avoid capturing
 # context phrases like 「交流のあった萩原健太」 or 「評論家の龍應台」.
 _MUKAE_RE = re.compile(
-    r'([\u4e00-\u9fff]{2,6})'
+    r'(?<![\u4e00-\u9fff])([\u4e00-\u9fff]{2,5})'
     r'(?:氏|さん|先生)(?:をお?迎え|による|が登壇|がトーク|にご登場)',
     re.UNICODE,
 )
@@ -2101,14 +2101,21 @@ def post_batch_enrich(event_ids: list[str], *, dry_run: bool = False) -> dict:
 
         name_zh, name_en = lookup_movie_titles(title)
 
-        # Fallback: check works table for canonical titles
-        if not name_zh and not name_en:
-            w_res = sb.table("works").select("title_zh,title_en").eq("title_ja", title).limit(1).execute()
+        # Fallback: check works table for canonical titles + inherit performer/director
+        works_performer = None
+        works_director = None
+        if not name_zh or not name_en or not event.get("performer") or not event.get("director"):
+            w_res = sb.table("works").select("title_zh,title_en,cast_summary,director").eq("title_ja", title).limit(1).execute()
             if w_res.data:
-                name_zh = name_zh or w_res.data[0].get("title_zh")
-                name_en = name_en or w_res.data[0].get("title_en")
+                w_row = w_res.data[0]
+                if not name_zh:
+                    name_zh = w_row.get("title_zh")
+                if not name_en:
+                    name_en = w_row.get("title_en")
                 if name_zh or name_en:
                     logger.info("  works fallback for %r → zh=%r en=%r", title, name_zh, name_en)
+                works_performer = w_row.get("cast_summary")
+                works_director = w_row.get("director")
 
         if not name_zh and not name_en:
             logger.warning("  ⚠ eiga.com lookup returned nothing for %s [%s]", event["id"][:8], title[:40])
@@ -2132,6 +2139,10 @@ def post_batch_enrich(event_ids: list[str], *, dry_run: bool = False) -> dict:
             update["name_zh"] = name_zh
         if name_en and "name_en" not in locked_fields:
             update["name_en"] = name_en
+        if not event.get("performer") and works_performer:
+            update["performer"] = works_performer
+        if not event.get("director") and works_director:
+            update["director"] = works_director
 
         if not update:
             skipped_protected += 1
