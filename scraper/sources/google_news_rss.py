@@ -300,10 +300,10 @@ class GoogleNewsRssScraper(BaseScraper):
                     # Google News redirect (works in browsers, expires in ~21 days)
                     final_source_url = original_url if original_url else article_url
 
-                    # start_date: prefer article body (richer text) over RSS snippet
-                    start_date = _extract_start_date(
-                        article_text or description_plain, pub_date
-                    )
+                    # start_date: only extract when article body is available.
+                    # Using RSS snippet as fallback produces unreliable dates
+                    # (snippet too short; annotator guesses from sparse text).
+                    start_date = _extract_start_date(article_text, pub_date) if article_text else None
 
                     # raw_description: article body text with publisher domain label.
                     # Always prepend the RSS publish date so GPT has a year anchor

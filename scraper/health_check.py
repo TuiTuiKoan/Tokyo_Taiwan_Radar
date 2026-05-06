@@ -97,14 +97,20 @@ def run_check(dry_run: bool = False, always_notify: bool = False) -> None:
     # Symptom: raw_description prefix is '開催情報（Google News）:' (no real
     # domain) yet start_date is NOT NULL — the date likely came from a
     # pub_date fallback or upstream error and was never corrected.
+    # Only flag genuinely suspicious cases:
+    #   - start_date is in the PAST (already ended, still active) — likely pub_date residual
+    #   - Ignore future-dated events: even if the date came from a short snippet,
+    #     it doesn't cause user-visible harm and future dates are harder to validate.
     gnews_suspect: list[dict] = []
     try:
+        today_str = now.astimezone(JST).date().isoformat()
         gnews_rows = (
             sb.table("events")
             .select("id,name_ja,start_date,source_url")
             .eq("source_name", "google_news_rss")
             .eq("is_active", True)
             .not_.is_("start_date", None)
+            .lt("start_date", today_str)   # only past dates are actionable
             .like("raw_description", "開催情報（Google News）:%")
             .execute()
         ).data or []
