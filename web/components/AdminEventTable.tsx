@@ -247,9 +247,27 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     return list.filter((e) => {
       if (filterQ) {
         const q = filterQ.toLowerCase();
-        const name = getEventName(e, locale).toLowerCase();
-        const raw = (e.raw_title || "").toLowerCase();
-        if (!name.includes(q) && !raw.includes(q)) return false;
+        const ev = e as any;
+        const candidates = [
+          getEventName(e, locale),
+          e.raw_title,
+          e.name_ja,
+          e.name_zh,
+          e.name_en,
+          e.work_id && workMap[e.work_id] ? getWorkTitle(workMap[e.work_id], locale) : null,
+          e.work_id && workMap[e.work_id] ? workMap[e.work_id].original_title : null,
+          e.parent_event_id && eventMap[e.parent_event_id] ? getEventName(eventMap[e.parent_event_id], locale) : null,
+          ev.description_zh,
+          ev.description_ja,
+          ev.description_en,
+          ev.raw_description,
+          ev.location_name,
+          e.location_address,
+          e.source_name,
+          ev.organizer,
+          ev.performer,
+        ];
+        if (!candidates.some((c) => c && String(c).toLowerCase().includes(q))) return false;
       }
       if (filterCategories.length > 0 && !filterCategories.some((c) => (e.category || []).includes(c))) return false;
       if (filterPaid === "free" && e.is_paid !== false) return false;
@@ -317,9 +335,27 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     const base = events.filter((e) => {
       if (filterQ) {
         const q = filterQ.toLowerCase();
-        const name = getEventName(e, locale).toLowerCase();
-        const raw = (e.raw_title || "").toLowerCase();
-        if (!name.includes(q) && !raw.includes(q)) return false;
+        const ev = e as any;
+        const candidates = [
+          getEventName(e, locale),
+          e.raw_title,
+          e.name_ja,
+          e.name_zh,
+          e.name_en,
+          e.work_id && workMap[e.work_id] ? getWorkTitle(workMap[e.work_id], locale) : null,
+          e.work_id && workMap[e.work_id] ? workMap[e.work_id].original_title : null,
+          e.parent_event_id && eventMap[e.parent_event_id] ? getEventName(eventMap[e.parent_event_id], locale) : null,
+          ev.description_zh,
+          ev.description_ja,
+          ev.description_en,
+          ev.raw_description,
+          ev.location_name,
+          e.location_address,
+          e.source_name,
+          ev.organizer,
+          ev.performer,
+        ];
+        if (!candidates.some((c) => c && String(c).toLowerCase().includes(q))) return false;
       }
       if (filterCategories.length > 0 && !filterCategories.some((c) => (e.category || []).includes(c))) return false;
       if (filterPaid === "free" && e.is_paid !== false) return false;
@@ -1305,6 +1341,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                         <span className="text-[10px] text-green-600 font-medium">
                           {t("mergedPrimaryCount", { count: mergeCountMap[event.id] })}
                         </span>
+                        {/* Relay node: this primary is itself merged into another */}
+                        {event.merged_into_event_id && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium border border-yellow-300" title="この統合先も別の統合先へ吸収されています">
+                            ⚠ 中繼節點
+                          </span>
+                        )}
                       </span>
                     )}
                     {/* Secondary (merged) event: show orange badge + arrow + primary row number */}
@@ -1314,15 +1356,31 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                           {t("mergedIntoBadge")}
                         </span>
                         <span className="text-green-600 text-[10px] font-bold">→</span>
-                        <a
-                          href={rowIndexMap[event.merged_into_event_id]
-                            ? `#row-${event.merged_into_event_id}`
-                            : `/${locale}/admin/${event.merged_into_event_id}`}
-                          className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200"
-                          title={t("mergedIntoBadgeTitle")}
-                        >
-                          {rowIndexMap[event.merged_into_event_id] ?? "→"}
-                        </a>
+                        {rowIndexMap[event.merged_into_event_id] ? (
+                          <a
+                            href={`#row-${event.merged_into_event_id}`}
+                            className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200"
+                            title={t("mergedIntoBadgeTitle")}
+                          >
+                            {rowIndexMap[event.merged_into_event_id]}
+                          </a>
+                        ) : eventMap[event.merged_into_event_id]?.is_active === false ? (
+                          <a
+                            href={`/${locale}/admin/${event.merged_into_event_id}`}
+                            className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium border border-gray-300 hover:bg-gray-200"
+                            title={t("mergedIntoBadgeTitle")}
+                          >
+                            未公開
+                          </a>
+                        ) : (
+                          <a
+                            href={`/${locale}/admin/${event.merged_into_event_id}`}
+                            className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200"
+                            title={t("mergedIntoBadgeTitle")}
+                          >
+                            →
+                          </a>
+                        )}
                       </span>
                     )}
                     <a
