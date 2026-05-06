@@ -1,7 +1,7 @@
 ---
 slug: works-entity-for-films-and-tours
 title: Works 實體 — 同一作品跨場館/巡演的 1:N 關聯
-status: active
+status: done
 branch: feat/works-entity
 created: 2026-05-05
 tags: [data-model, scraper, web, deduplication]

@@ -1,7 +1,7 @@
 ---
 slug: japan-open-data-integration
 title: 日本政府公開資料整合路線圖（e-Stat / JNTO / 法務省 在留統計）
-status: active
+status: done
 branch: feat/japan-open-data-integration
 created: 2026-05-06
 tags: [data, external, government, business, report]
@@ -158,20 +158,29 @@ schedule:
 
 ## 影響到哪些檔案
 
-| 路徑 | 動作 |
-|------|------|
-| `supabase/migrations/043_external_stats.sql` | 新建 |
-| `scraper/external_stats/base.py` | 新建（ABC） |
-| `scraper/external_stats/jnto_visitors.py` | 新建 |
-| `scraper/external_stats/estat_population.py` | 新建 |
-| `scraper/external_stats/moj_residents.py` | 新建 |
-| `scraper/external_stats/pull_all.py` | 新建 |
-| `scraper/requirements.txt` | 新增 `pdfplumber>=0.11` |
-| `scraper/.env` | 新增 `ESTAT_APP_ID` |
-| `.github/workflows/external-stats-pull.yml` | 新建 |
-| `.github/instructions/token-rotation.instructions.md` | 新增 ESTAT_APP_ID 至 secret 清單 |
-| `scraper/report_generator.py` | 新增「對標數據」section |
-| `docs/ARCHITECTURE.md` | 新增 external_stats 區塊說明 |
+| 路徑 | 動作 | 状態 |
+|------|------|------|
+| `supabase/migrations/055_external_stats.sql` | 新建 | ✅ 完了 |
+| `scraper/external_stats/__init__.py` | 新建 | ✅ 完了 |
+| `scraper/external_stats/base.py` | 新建（ABC） | ✅ 完了 |
+| `scraper/external_stats/jnto_visitors.py` | 新建 | ✅ 完了 |
+| `scraper/external_stats/estat_population.py` | 新建 | ✅ 完了 |
+| `scraper/external_stats/moj_residents.py` | 新建（e-Stat XLSX 経由） | ✅ 完了 |
+| `scraper/external_stats/pull_all.py` | 新建 | ✅ 完了 |
+| `scraper/requirements.txt` | `openpyxl>=3.1` 追加 | ✅ 完了 |
+| `scraper/.env` | `ESTAT_APP_ID` 追加 | ✅ 完了 |
+| `.github/workflows/external-stats-pull.yml` | 新建（毎月25日 cron） | ✅ 完了 |
+| `.github/instructions/token-rotation.instructions.md` | `ESTAT_APP_ID` secret 追加 | ✅ 完了 |
+| `scraper/report_generator.py` | `build_section_benchmark()` 追加 | ✅ 完了 |
+| `docs/ARCHITECTURE.md` | external_stats 区块説明 | 後回し |
+
+## 実装メモ（設計変更点）
+
+### MOJ ISA → PDF でなく e-Stat XLSX 経由（設計変更）
+- 当初設計は `pdfplumber` で PDF 解析を想定していたが、MOJ ISA の一覧ページに e-Stat リストページへのリンクが存在することが判明
+- e-Stat list page (lid) → statInfId → XLSX テーブルデータ（表番号 t1）という chain scraping で正規化データを直接取得できる
+- **XLSX 構造**: pivot table 形式（行=都道府県、列=国籍コード）、台湾は `01_022：台湾`（col 21）
+- `pdfplumber` は不要 → `openpyxl>=3.1` のみ追加
 
 ## Verification
 
