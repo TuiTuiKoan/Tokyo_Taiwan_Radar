@@ -588,6 +588,7 @@ PERFORMER EXTRACTION RULES:
 3. performers: array of ALL named performers, speakers, or featured artists at this event.
    - Each entry is a bare personal name (no honorifics, no roles, no organization names).
    - Include everyone who is a named guest/speaker/artist, even if there are multiple.
+   - ACADEMIC EXCEPTION: For academic conferences (学会大会, 研究大会, シンポジウム, 国際会議, 研究集会, 部会), include ALL named research presenters (発表者, 報告者, 登壇者, 基調講演者) in the performers array — even if there are 5 or more. Each individual's name that appears in the raw text as a presenter should be listed.
    - Return [] (empty array) if no specific person is named, or for food markets/large festivals.
    - Examples: ["林廉恩", "一青窈"], ["蘇紫雲"], []
 
@@ -672,12 +673,12 @@ Respond with valid JSON matching this schema:
   "has_japanese_support": false or true or null,
   "has_english_support": false or true or null,
   "performer": "bare personal name (no honorifics) of the single primary guest/speaker/artist — in original language (usually Japanese)" or null,
-  "performer_zh": "Traditional Chinese name of the performer (use known Chinese name if Taiwanese/Chinese person; transliterate for Japanese persons)" or null,
-  "performer_en": "English/romanized name of the performer" or null,
+  "performer_zh": "Traditional Chinese name of the performer. If the Chinese name is explicitly stated in the source text, use it exactly as written. If you must infer or transliterate from the Japanese name (not stated in source), append「（AI翻譯）」e.g. '黃以文（AI翻譯）'" or null,
+  "performer_en": "English/romanized name of the performer. If explicitly in source: use as-is. If inferred/transliterated: append「（AI翻譯）」e.g. 'Huang Yi-wen（AI翻譯）'" or null,
   "performers": ["bare name 1", "bare name 2"] or [],
   "director": "bare personal name (no honorifics) of the director/filmmaker — in original language" or null,
-  "director_zh": "Traditional Chinese name of the director" or null,
-  "director_en": "English/romanized name of the director" or null,
+  "director_zh": "Traditional Chinese name of the director. If explicitly in source: use as-is. If inferred: append「（AI翻譯）」" or null,
+  "director_en": "English/romanized name of the director. If explicitly in source: use as-is. If inferred: append「（AI翻譯）」" or null,
   "selection_reason": {
     "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
