@@ -63,6 +63,8 @@ CATEGORY_JA = {
 # ---------------------------------------------------------------------------
 _BROADCAST_SOURCES: frozenset[str] = frozenset({"gguide_tv"})
 _BROADCAST_CATEGORIES: frozenset[str] = frozenset({"tv_program", "drama"})
+# Categories that mark a TV program's content type (excludes the base tv_program label)
+_TV_CONTENT_CATS: frozenset[str] = frozenset({"movie", "drama", "documentary"})
 
 # Organizer name aliases: raw DB string → canonical display name
 _ORGANIZER_ALIASES: dict[str, str] = {
@@ -229,20 +231,38 @@ def build_section1(sb, month: str) -> str:
 
 
 def build_section2(month_events: list) -> str:
-    """カテゴリ分布"""
-    cat_counter: Counter = Counter()
+    """カテゴリ分布 — primary category (per event) + multi-label tag counts"""
+    # Table A: primary category only (first element) — 1 event = 1 count
+    primary_counter: Counter = Counter()
+    for e in month_events:
+        cats = e.get("category") or []
+        if cats:
+            primary_counter[cats[0]] += 1
+
+    # Table B: all tags counted independently (sum > total events if multi-tag)
+    tag_counter: Counter = Counter()
     for e in month_events:
         for cat in (e.get("category") or []):
-            cat_counter[cat] += 1
+            tag_counter[cat] += 1
 
     lines = [
         "## 2. カテゴリ分布\n",
-        "| カテゴリ | 表示名 | 件数 |",
-        "|----------|--------|------|",
+        "### 主カテゴリ別（1イベント = 1カウント）\n",
+        "| カテゴリ | 件数 |",
+        "|----------|------|",
     ]
-    for cat, cnt in cat_counter.most_common():
+    for cat, cnt in primary_counter.most_common():
         ja_name = CATEGORY_JA.get(cat, cat)
-        lines.append(f"| {cat} | {ja_name} | {cnt} |")
+        lines.append(f"| {ja_name} | {cnt} |")
+    lines += [
+        "",
+        "### タグ別集計（延べ・1イベントが複数タグを持つ場合あり）\n",
+        "| タグ | 延べ件数 |",
+        "|------|----------|",
+    ]
+    for cat, cnt in tag_counter.most_common():
+        ja_name = CATEGORY_JA.get(cat, cat)
+        lines.append(f"| {ja_name} | {cnt} |")
     lines.append("")
     return "\n".join(lines)
 
@@ -378,10 +398,6 @@ def build_section_tv(sb, month: str) -> str:
         return ""
 
     total = len(tv_events)
-    cat_counter: Counter = Counter()
-    for e in tv_events:
-        for cat in (e.get("category") or []):
-            cat_counter[cat] += 1
 
     # Channel top 5 (organizer field = broadcaster)
     channel_counter: Counter = Counter()
@@ -397,16 +413,27 @@ def build_section_tv(sb, month: str) -> str:
         "",
     ]
 
-    if cat_counter:
-        lines += [
-            "### カテゴリ内訳\n",
-            "| カテゴリ | 件数 |",
-            "|--------|------|" ,
-        ]
-        for cat, cnt in cat_counter.most_common():
-            ja = CATEGORY_JA.get(cat, cat)
-            lines.append(f"| {ja} | {cnt} |")
-        lines.append("")
+    # Breakdown: pure TV (tv_program only) vs programs with content-type tags
+    secondary_cat_counter: Counter = Counter()
+    pure_count = 0
+    for e in tv_events:
+        content_cats = [c for c in (e.get("category") or []) if c in _TV_CONTENT_CATS]
+        if not content_cats:
+            pure_count += 1
+        else:
+            for c in set(content_cats):
+                secondary_cat_counter[c] += 1
+
+    lines += [
+        "### 番組内訳\n",
+        "| 種別 | 件数 |",
+        "|------|------|",
+        f"| 純テレビ番組 | {pure_count} |",
+    ]
+    for cat, cnt in secondary_cat_counter.most_common():
+        ja = CATEGORY_JA.get(cat, cat)
+        lines.append(f"| {ja}を含む | {cnt} |")
+    lines.append("")
 
     if channel_counter:
         lines += [
