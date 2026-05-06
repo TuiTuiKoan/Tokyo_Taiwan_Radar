@@ -674,11 +674,11 @@ Respond with valid JSON matching this schema:
   "has_english_support": false or true or null,
   "performer": "bare personal name (no honorifics) of the single primary guest/speaker/artist — in original language (usually Japanese)" or null,
   "performer_zh": "Traditional Chinese name of the performer. If the Chinese name is explicitly stated in the source text, use it exactly as written. If you must infer or transliterate from the Japanese name (not stated in source), append「（AI翻譯）」e.g. '黃以文（AI翻譯）'" or null,
-  "performer_en": "English/romanized name of the performer. If explicitly in source: use as-is. If inferred/transliterated: append「（AI翻譯）」e.g. 'Huang Yi-wen（AI翻譯）'" or null,
+  "performer_en": "English/romanized name of the performer. If explicitly in source: use as-is. If inferred/transliterated: append ' (AI Translation)' e.g. 'Huang Yi-wen (AI Translation)'" or null,
   "performers": ["bare name 1", "bare name 2"] or [],
   "director": "bare personal name (no honorifics) of the director/filmmaker — in original language" or null,
   "director_zh": "Traditional Chinese name of the director. If explicitly in source: use as-is. If inferred: append「（AI翻譯）」" or null,
-  "director_en": "English/romanized name of the director. If explicitly in source: use as-is. If inferred: append「（AI翻譯）」" or null,
+  "director_en": "English/romanized name of the director. If explicitly in source: use as-is. If inferred: append ' (AI Translation)'" or null,
   "selection_reason": {
     "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
