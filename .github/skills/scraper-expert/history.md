@@ -4,6 +4,52 @@
 
 ---
 
+## 2026-05-06 — 《中村地平上映会》business_hours 亂碼字元 U+3016（DB 手動修正）
+
+**Error**: `business_hours='13:30〖16:30'`。`〖`（U+3016 LEFT BLACK LENTICULAR BRACKET）在 kokuchpro scraper 字元轉換過程中出現，導致時間字串顯示異常（非全形波浪號 ～）。
+
+**Fix**: DB 直接修正 → `business_hours='13:30～16:30'`。
+
+**Lesson**: kokuchpro 頁面的時間分隔符可能含非標準 Unicode（〖 U+3016 等），抓取後需驗證分隔符是否為正確字元（全形波浪號 U+FF5E）。新增「〖 U+3016 偵測」至 scraper 字元正規化流程。
+
+→ Added to SKILL.md §「DB 手動修正 — business_hours 亂碼字元偵測」
+
+---
+
+## 2026-05-06 — 《造山者》片名局部錯誤（DB 手動修正）
+
+**Error**: `name_ja='映画『造山者 ― 世紀の賭け』大阪上映会'`（正式日文片名應為「チップ・オデッセイ 台湾の賭け」）；`name_zh='電影《造山者─世紀的賭注》大阪放映會'`（副標題不正確）。note_creators 薄文本（「続きをみる」截斷），GPT 從截斷文字推出錯誤片名。
+
+**Fix**: `name_ja='映画『チップ・オデッセイ 台湾の賭け』大阪上映会'`；`name_zh='電影《造山者》大阪放映會'`。
+
+**Lesson**: note_creators 薄文本案例中 GPT 可能根據截斷文字推出錯誤片名；修正時應以 `works.title_ja` 為可信基準，優先參照 works 表記錄，而非依賴 GPT 推斷。
+
+---
+
+## 2026-05-06 — 《第2報告》學術子事件未啟用且標題為 slot 識別符（DB 手動修正）
+
+**Error**: 子事件 `97f11903`：`is_active=False`（未啟用）、`name_ja='第2報告'`（slot 識別符，非活動題目）。正確題目 `台湾の「雲南菜」から見る「孤軍」と東南アジア（仮題）` 與 `performer='福田真郷'` 存在於 `raw_description` 中卻未被提取。
+
+**Fix**: `is_active=True`；`name_ja='台湾の「雲南菜」から見る「孤軍」と東南アジア（仮題）'`；`performer='福田真郷'`（手動從 raw_description 提取）。
+
+**Lesson**: 學術 slot 子事件啟用時必須同步更新標題，不得保留 slot 識別符（「第2報告」等）；raw_description 往往含有正確題目，需人工提取，不可依賴 annotator 自動補全。
+
+→ Added to SKILL.md §「Sub-event 啟用 — 標題同步規則」
+
+---
+
+## 2026-05-06 — 《大濛/霧のごとく》主辦誤填 + 導演被填入 performer（DB 手動修正）
+
+**Error**: `organizer='台北駐日経済文化代表処 台湾文化センター'`（商業院線映畫不應有主辦方）；`performer='チェン・ユーシュン'`（導演被誤填至 performer 欄）；`director` 欄為 null；主演（`performers`）也缺漏。
+
+**Fix**: `organizer=null`；`director='チェン・ユーシュン'`；`director_zh='陳玉勳'`；`director_en='Chen Yu-hsun'`；`performer=null`；`performers=['ケイトリン・ファン', 'ウィル・オー']`（主演）。`works` 表同步更新 `director` + `cast_summary`。
+
+**Lesson**: 商業院線映畫 `organizer` 應為 `null`（院線不是主辦方）。**導演（director）≠ 表演者（performer）**：導演必須填入 `director` 欄位，主演填入 `performer` / `performers[]`，兩者嚴禁混填。works 表 `director` / `cast_summary` 需與 events 表同步更新。
+
+→ Added to SKILL.md §「Annotator — Performer / Director Field Rules」
+
+---
+
 ## 2026-05-06 — performer/director multilingual fields + performers[] array（commits 3822fb8, 65a50b9, 191d939）
 
 **Change**: migration `054_performer_director_i18n.sql`（performer_zh/en, director_zh/en）+ migration `053_events_performers_array.sql`（performers text[]）+ base.py / database.py / web 多語言 helpers。

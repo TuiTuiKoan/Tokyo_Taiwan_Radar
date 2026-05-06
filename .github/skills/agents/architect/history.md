@@ -4,6 +4,46 @@
 
 ---
 
+## 2026-05-06 — Cinema distributor as organizer fallback
+
+**問題：** `dec5031b`（霧のごとく大濛）`organizer=null`，即使 `raw_description` 末尾有「配給：JAIHO/Stranger」。SYSTEM_PROMPT 的 ORGANIZER EXTRACTION RULES 只定義「主催 / 主辦 / presented by」→ organizer，未定義「配給」fallback。
+
+**修復：** SYSTEM_PROMPT ORGANIZER EXTRACTION RULES Rule 1 加 CINEMA DISTRIBUTOR FALLBACK：「電影放映若 主催 未記載，使用 配給 作為 organizer（strip「配給：」label）」；DB 直接更新 `dec5031b` organizer → `JAIHO/Stranger` + `field_corrections` lock。
+
+**教訓：** 電影放映的 `raw_description` 常只有「配給：○○」沒有「主催：」；需要明確的配給→organizer fallback 規則。院線名稱（場地）不可誤填 organizer。
+
+---
+
+## 2026-05-06 — Health check false alarm for zero-event cinema sources
+
+**問題：** 電影院來源（`eurospace`、`cinemart_shinjuku` 等）在沒有台灣電影上映時正常回傳 0 筆事件，`health_check.py` 誤報「🟡 selector 可能壞掉」。季節性影展（`oaff`、`tokyo_filmex` 等）在非影展期間同樣如此。
+
+**修復：** 新增 `ZERO_EVENT_OK_SOURCES` frozenset，包含所有電影院和季節性影展來源，跳過 zero-event 告警。ok_count 從 50 → 54。
+
+**受影響來源：** `cineswitch_ginza, cine_marine, cinemart_shinjuku, ks_cinema, shin_bungeiza, eurospace, uplink_cinema, human_trust_cinema, stranger, oaff, tokyo_filmex, tiff_jp, ssff`
+
+**教訓：** 電影院來源的 0-event 是正常業務狀態，不是 selector 壞掉。需依來源性質區分「始終應有事件」vs「可以為零」。新增電影院或季節性影展 scraper 時，同一 commit 必須更新 `ZERO_EVENT_OK_SOURCES`（類似 `NON_DAILY_SOURCES` 的登錄規則）。
+
+---
+
+## 2026-05-06 — AdminEventTable 欄寬固定 + works 清單排序 + modal 入口點同步
+
+**問題 A（欄寬不固定）：** `category` 欄使用 `max-w-[160px]` 後，當其他欄被擠壓時仍會縮小（`max-w` 只設上限，不防壓縮）。
+**修復 A：** 改為 `w-[160px] min-w-[160px]`，`w` 設定預期寬度、`min-w` 防止壓縮。`Work` 欄同樣套用。
+
+**問題 B（works 清單日文片名沉底）：** `fetchWorks` 使用 `.order("original_title")`，`original_title` 是原始語言片名（可能是中/英文），`null` 值在 PostgreSQL `ORDER BY ASC` 中排最末，導致大量有 `title_ja` 的日文片名因 `original_title=null` 而沉底，難以瀏覽。
+**修復 B：** 改為 `.order("title_ja", { nullsFirst: false })`，依日文片名排序符合日文後台使用預期。
+
+**問題 C（modal 入口點不一致）：** per-row work dropdown 底部「＋ 新增 work」為 `<a href="…" target="_blank">` 跳頁，與 bulk action bar 的 modal 行為不一致。
+**修復 C：** 改為 `<button>` 觸發 `setShowCreateWorkModal(true)`。
+
+**教訓：**
+1. Tailwind 欄寬固定必須同時設 `w-[Npx]` + `min-w-[Npx]`；`max-w-[Npx]` 單獨只能防上溢，無法防壓縮。
+2. 後台 works 清單以 `title_ja` 排序（非 `original_title`）；PostgreSQL `ASC` 將 null 排末，需 `nullsFirst: false` 明確指定。
+3. 新增 modal 觸發點時，**所有**「新增」入口點（bulk action bar、dropdown 底部鏈結、快捷按鈕）必須同步改為 modal，不可混用跳頁和 modal。
+
+---
+
 ## 2026-05-09 — c6d5232a merger false positive + field_corrections 污染放大
 
 **問題：** gnews 事件 `c6d5232a`（赤い糸 輪廻のひみつ / 新文芸坐）與霧のごとく大濛共用同一場館（新文芸坐），merger Pass 1 基於地點相似設錯 `work_id` → annotator re-annotation 根據錯誤 `work_id` 生成錯誤 `name_ja/zh/en`（霧のごとく）→ 手動「修正」把錯誤值（`name_zh=大濛`）鎖進 `field_corrections`，污染永久化（re-annotation 無法覆寫）。

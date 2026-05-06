@@ -399,10 +399,16 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan
 5. **手動設定必須鎖 `field_corrections`**：同 `performer` 欄位，`performer_zh`、`performer_en` 手動修正必須同時 upsert 進 `field_corrections`，否則下次 re-annotation 覆寫。
 6. **`works.work_type` 有效值**：`film | stage | exhibition | concert_tour | tv_drama | tv_variety | other`。`conference` **不在**允許清單，學術研討會用 `other`。（migration 048 + 051 的 check constraint 僅允許上列 7 種）
 7. **UI 顯示優先序必須同步更新（event detail page）**：事件詳情頁 `[id]/page.tsx` 中，若 locale 為 zh/en 且 `performer_zh`/`performer_en` 存在，必須優先使用 `getEventPerformer(event, locale)`；`performers[]` 僅作為 ja locale、或 zh/en 無多語言欄位時的 fallback。新增多語言欄位後，若 UI 優先序未同步更新，新欄位永遠不會被 end-user 看到（隱性迴歸）。Reference incident: 2026-05-09 commit `2e6f4c2`。
+8. **導演（director）≠ 表演者（performer）嚴格分欄**：
+   - `director` / `director_zh` / `director_en`：電影或舞台**導演**。
+   - `performer` / `performer_en` / `performers[]`：演員、**主演**、講者。
+   - 商業院線映畫的 `organizer` 必須為 `null`（院線是映映場地，非主辦方）。
+   - 審核計畫時，若 GPT 或 scraper 將導演填入 `performer`（或反之），必須同時修正 `director` 欄位並清空錯誤的 `performer` 值；`works.director` + `works.cast_summary` 也需同步更新。
 
 Reference incidents:
 - 2026-05-06 — `ホアン・イーウェン`（bf783b90）performer_zh=黃以文，performer_en=Huang Yi-wen（AI翻譯）；`林依晨`（4 events）performer_zh=林依晨，performer_en=Lin Yi-chen（commits 65a50b9）。
 - 2026-05-06 — 建立 work_id `c3588296` 時 `work_type='conference'` 觸發 check constraint；改用 `'other'`。
+- 2026-05-06 — `dec5031b`（大濛/霧のごとく）`performer='チェン・ユーシュン'`（導演誤填 performer）+ `organizer='台北駐日経済文化代表処 台湾文化センター'`（商業映畫誤填 organizer）→ DB 手動修正。
 
 ## Manual Translation Fix Persistence Guard（手動修翻譯必須鎖 field_corrections）
 
@@ -590,6 +596,26 @@ Reference: commits `239cb19`（enrich SC guard）、`6e21c52`（auto_qa lock）�
 
 Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發無限迴圈（commit `266daa1`）。
 
+## Cinema Distributor → Organizer Fallback Guard
+
+在審核任何涉及電影放映類事件的 annotator SYSTEM_PROMPT 修改，或分析電影事件 `organizer=null` 案例前，**必須**確認：
+
+1. **SYSTEM_PROMPT ORGANIZER EXTRACTION RULES Rule 1 的 CINEMA DISTRIBUTOR FALLBACK 存在**：「電影放映若 主催 未記載，使用 配給 作為 organizer（strip「配給：」label）」。
+2. **不可將院線名稱（上映場地）誤作 organizer**：商業院線映畫的 organizer 應為 配給 公司（或 null），非場地名稱。
+3. **已鎖 `field_corrections` 的值不可被下次 re-annotation 覆寫**：DB 手動修正必須同時 upsert `field_corrections`。
+
+Reference incident: 2026-05-06 — `dec5031b`（霧のごとく大濛）`配給：JAIHO/Stranger` 在 `raw_description` 但 `organizer=null`，因 SYSTEM_PROMPT 未定義 配給→organizer fallback（commit `af33133`）。
+
+## Zero-Event Source Alert Guard
+
+在審核任何涉及 `health_check.py` 的 PR，或設計新電影院/季節性影展 scraper 時，**必須**確認：
+
+1. **電影院和季節性影展來源必須加入 `ZERO_EVENT_OK_SOURCES`**：沒有台灣電影上映時正常回傳 0 筆，不應觸發 selector 警報。
+2. **新增電影院或季節性影展 scraper 後，同一 commit 更新 `ZERO_EVENT_OK_SOURCES`**（類似 `NON_DAILY_SOURCES` 的登錄規則）。
+3. **判斷標準**：若來源「有可能在正常業務情況下沒有任何符合條件的事件」→ 加入 `ZERO_EVENT_OK_SOURCES`。
+
+Reference incident: 2026-05-06 — 電影院來源（`eurospace` 等）0 event 誤觸 health_check 告警；加入 `ZERO_EVENT_OK_SOURCES` 後 ok_count 50 → 54（commit 見 health_check fix）。
+
 ## NON_DAILY_SOURCES Registration Guard
 
 在建立**任何新的定期（非每日）workflow** 前，**必須**確認：
@@ -629,6 +655,23 @@ Reference incident: 2026-05-06 — `b891cc5e` `is_active=True + merged_into_even
 3. **TypeScript 靜默 bug 特性**：`Map.get()` 回傳 `T | undefined`；`undefined` 渲染為空字串，無 error log，只能靠人工觀察發現。
 
 Reference incident: 2026-05-06 — AdminEventTable `rowIndexMap` 從 `displayEvents` 建立，`merged_into` 目標被篩選時全域行號消失（commits cb1bf83, 979725f）。
+
+## Admin Table Column Width Guard
+
+在審核任何 admin 表格欄寬設定（`AdminEventTable.tsx`），或修改 Tailwind 寬度 class 的計畫前，**必須**確認：
+
+1. **固定欄寬必須同時設 `w-[Npx]` + `min-w-[Npx]`**：只設 `max-w-[Npx]` 時，表格被其他欄擠壓後該欄仍會縮小（`max-w` 只設上限，無法防壓縮）。
+   ```tsx
+   <td className="w-[160px] min-w-[160px] ...">  {/* ✅ 固定寬度 */}
+   <td className="max-w-[160px] ...">             {/* ❌ 可被壓縮 */}
+   ```
+2. **Works 清單排序用 `title_ja`，不用 `original_title`**：`original_title` 是原始語言片名（可能是中/英文），PostgreSQL `ORDER BY ASC` 將 null 值排末，導致大量日文片名因 `original_title=null` 而沉底。後台以 `title_ja` 排序符合日文使用習慣。
+   ```ts
+   .order("title_ja", { nullsFirst: false })
+   ```
+3. **新增 modal 觸發點時，所有「新增」入口點必須同步改為 modal**：bulk action bar 的按鈕改為 modal 時，dropdown 底部的次要連結（`<a href="…" target="_blank">`）也必須同步改為 `<button>` 觸發 modal；混用跳頁和 modal 會造成行為不一致。
+
+Reference incident: 2026-05-06 — `category`/`work` 欄從 `max-w-[160px]` 改為 `w-[160px] min-w-[160px]`；works 清單排序從 `.order("original_title")` 改為 `.order("title_ja", { nullsFirst: false })`；dropdown「新增 work」從 `<a>` 改為 `<button>` modal。
 
 ## Required Phases
 

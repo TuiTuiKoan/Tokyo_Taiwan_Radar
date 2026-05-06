@@ -623,6 +623,51 @@ Reference incident: 2026-05-06 — `b891cc5e` 合併後 `is_active` 未更新為
 
 Reference incident: 2026-05-06 — AdminEventTable `rowIndexMap` 從 `displayEvents` 建立，`merged_into` 目標被篩選時行號消失（commits cb1bf83, 979725f）。
 
+## Admin Table Column Width Guard
+
+在審核任何 admin 表格欄寬設定，或修改 `AdminEventTable.tsx` Tailwind 寬度 class 的計畫前，**必須**確認：
+
+1. **固定欄寬必須同時設 `w-[Npx]` + `min-w-[Npx]`**：只設 `max-w-[Npx]` 時，表格被其他欄擠壓後該欄仍會縮小（`max-w` 只設上限，無法防壓縮）。
+   ```tsx
+   // ✅ 固定寬度
+   <td className="w-[160px] min-w-[160px] ...">
+   // ❌ 可被壓縮
+   <td className="max-w-[160px] ...">
+   ```
+2. **Works 清單排序用 `title_ja`，不用 `original_title`**：`original_title` 是原始語言片名（可能是中/英文），PostgreSQL `ORDER BY ASC` 將 null 值排末，導致大量 `title_ja` 有值的日文片名因 `original_title=null` 而沉底。後台以 `title_ja` 排序符合日文使用習慣。
+   ```ts
+   .order("title_ja", { nullsFirst: false })
+   ```
+3. **新增 modal 觸發點時，所有「新增」入口點必須同步改為 modal**：bulk action bar 的按鈕改為 modal 時，dropdown 底部的次要連結（`<a href="…" target="_blank">`）也必須同步改為 `<button>` 觸發 modal；不可混用跳頁和 modal。
+
+Reference incident: 2026-05-06 — `category` 欄從 `w-96` → `max-w-[160px]` → `w-[160px] min-w-[160px]`；works 清單從 `.order("original_title")` 改為 `.order("title_ja", { nullsFirst: false })`；dropdown「新增 work」從 `<a>` 改為 `<button>`。
+
+## Cinema Distributor → Organizer Fallback Guard
+
+在審核任何涉及電影放映類事件的 annotator SYSTEM_PROMPT 修改，或分析電影事件 `organizer=null` 案例前，**必須**確認：
+
+1. **SYSTEM_PROMPT ORGANIZER EXTRACTION RULES Rule 1 的 CINEMA DISTRIBUTOR FALLBACK 存在**：「電影放映若 主催 未記載，使用 配給 作為 organizer（strip「配給：」label）」。
+2. **不可將院線名稱（上映場地）誤作 organizer**：商業院線映畫的 organizer 應為 配給 公司（或 null），非場地名稱。
+3. **已鎖 `field_corrections` 的值不可被下次 re-annotation 覆寫**：DB 手動修正必須同時 upsert `field_corrections`。
+
+Reference incident: 2026-05-06 — `dec5031b`（霧のごとく大濛）`配給：JAIHO/Stranger` 在 `raw_description` 但 `organizer=null`，因 SYSTEM_PROMPT 未定義 配給→organizer fallback（commit `af33133`）。
+
+---
+
+## Zero-Event Source Alert Guard
+
+在審核任何涉及 `health_check.py` 的 PR，或設計新電影院/季節性影展 scraper 時，**必須**確認：
+
+1. **電影院和季節性影展來源必須加入 `ZERO_EVENT_OK_SOURCES`**：沒有台灣電影上映時正常回傳 0 筆，不應觸發 selector 警報。
+2. **新增電影院或季節性影展 scraper 後，同一 commit 更新 `ZERO_EVENT_OK_SOURCES`**（類似 `NON_DAILY_SOURCES` 的登錄規則）。
+3. **判斷標準**：若來源「有可能在正常業務情況下沒有任何符合條件的事件」→ 加入 `ZERO_EVENT_OK_SOURCES`。
+
+現有成員（截至 2026-05-06）：`cineswitch_ginza, cine_marine, cinemart_shinjuku, ks_cinema, shin_bungeiza, eurospace, uplink_cinema, human_trust_cinema, stranger, oaff, tokyo_filmex, tiff_jp, ssff`
+
+Reference incident: 2026-05-06 — 電影院來源（`eurospace` 等）0 event 誤觸 health_check「🟡 selector 可能壞掉」告警；加入 `ZERO_EVENT_OK_SOURCES` 後 ok_count 50 → 54。
+
+---
+
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.

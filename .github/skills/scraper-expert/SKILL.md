@@ -1189,6 +1189,99 @@ Locale 優先序：
 
 Reference: `web/lib/types.ts` の `getEventPerformer` / `getEventDirector` helper（commit `3822fb8`）。
 
+### director（導演）≠ performer（表演者）嚴格分欄規則
+
+**導演和表演者必須分別填入不同欄位。兩者嚴禁混填。**
+
+| 欄位 | 用途 |
+|---|---|
+| `director` / `director_zh` / `director_en` | 電影導演、舞台演出導演 |
+| `performer` / `performer_zh` / `performer_en` | 演員、主演、表演者、講者 |
+| `performers TEXT[]` | 所有具名演員/發表者的陣列 |
+
+**商業院線映畫的額外規則：**
+- `organizer` 必須為 `null`：院線（シネマート、ユーロスペース 等）是**映映場地**，不是主辦方。
+- `director`：填導演（陳玉勳、侯孝賢 等）。
+- `performers[]`：填主演演員陣列。
+- `performer`（單一日文名）：主要主演；`performer_zh` / `performer_en`：多語言名稱。
+
+```python
+# ✅ 正確：商業院線映畫
+Event(
+    organizer=None,                          # 院線不是主辦方
+    director="チェン・ユーシュン",            # 導演
+    director_zh="陳玉勳",
+    director_en="Chen Yu-hsun",
+    performer=None,                           # 若填主演則用 performers[]
+    performers=["ケイトリン・ファン", "ウィル・オー"],
+)
+
+# ❌ 錯誤：導演誤填至 performer
+Event(
+    organizer="台北駐日経済文化代表処 台湾文化センター",  # 商業映畫不應有 organizer
+    performer="チェン・ユーシュン",           # 導演誤填為 performer
+    director=None,                            # director 漏填
+)
+```
+
+**works 表同步**：events.director 修正後，`works.director` 與 `works.cast_summary` 必須同步更新，否則 works 頁面顯示錯誤資訊。
+
+Reference incident: `dec5031b`（大濛/霧のごとく）`performer='チェン・ユーシュン'`（導演誤填），`organizer='台北駐日経済文化代表処 台湾文化センター'`（商業映畫誤填 organizer）→ DB 手動修正（2026-05-06）。
+
+---
+
+## Sub-event 啟用 — 標題同步規則
+
+學術研討會的子事件（sub-event）以 slot 識別符（「第1報告」「第2報告」等）作為初始標題時，**啟用 `is_active=True` 前必須同步更新標題**。
+
+**檢查流程：**
+1. 查看 `raw_description` — 正確的發表題目通常在 `raw_description` 中以「発表タイトル：」或「（仮題）」形式出現。
+2. 從 `raw_description` 手動提取題目，更新 `name_ja`。
+3. 同步更新 `performer`（發表者姓名）。
+4. 最後設 `is_active=True`。
+
+```python
+# ✅ 正確流程（DB 直接修正）
+sb.table("events").update({
+    "is_active": True,
+    "name_ja": "台湾の「雲南菜」から見る「孤軍」と東南アジア（仮題）",
+    "performer": "福田真郷",
+}).eq("id", eid).execute()
+
+# ❌ 錯誤：只啟用，不更新標題
+sb.table("events").update({"is_active": True}).eq("id", eid).execute()
+# → 「第2報告」這種 slot 識別符顯示在前台
+```
+
+Reference incident: `97f11903`（第2報告）`is_active=False` + `name_ja='第2報告'`（slot 識別符）→ raw_description 提取正確題目後手動修正（2026-05-06）。
+
+---
+
+## DB 手動修正 — business_hours 亂碼字元偵測
+
+**kokuchpro（こくちーず）等 scraper 的時間字串可能含非標準 Unicode 分隔符。**
+
+已知問題字元：
+
+| 字元 | Unicode | 說明 |
+|---|---|---|
+| `〖` | U+3016 | LEFT BLACK LENTICULAR BRACKET（誤轉為分隔符） |
+| `〗` | U+3017 | RIGHT BLACK LENTICULAR BRACKET |
+
+**偵測與修正**：
+```python
+# 修正 business_hours 中的非標準分隔符
+business_hours = (
+    business_hours
+    .replace("\u3016", "～")   # 〖 → 全形波浪號
+    .replace("\u3017", "")     # 〗 → 刪除
+)
+```
+
+**DB 修正驗證**：修正後確認值為 `'HH:MM～HH:MM'`（全形波浪號 U+FF5E），而非其他替代字元。
+
+Reference incident: `622f51c1`（中村地平上映会）`business_hours='13:30〖16:30'` → `'13:30～16:30'` 手動修正（2026-05-06）。
+
 ---
 
 ## Annotator — Headline Rewrite Sources & Blog Source Guard
