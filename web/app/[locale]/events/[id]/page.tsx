@@ -673,9 +673,11 @@ export default async function EventDetailPage({ params }: PageProps) {
               <div className="flex gap-2">
                 <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("performers")}：</dt>
                 <dd className="text-gray-900">
-                  {((event as Event).performers ?? []).length > 0
-                    ? (event as Event).performers!.join("、")
-                    : getEventPerformer(event as Event, locale)}
+                  {locale !== "ja" && ((event as Event).performer_zh || (event as Event).performer_en)
+                    ? getEventPerformer(event as Event, locale)
+                    : ((event as Event).performers ?? []).length > 0
+                      ? (event as Event).performers!.join("、")
+                      : getEventPerformer(event as Event, locale)}
                 </dd>
               </div>
             )}
