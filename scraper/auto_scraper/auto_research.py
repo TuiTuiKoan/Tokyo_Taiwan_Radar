@@ -8,7 +8,13 @@ Pipeline per source:
   score >= 0.70 + easy   → status=researched  (feeds generate.py)
   score >= 0.70 + medium → status=recommended + GitHub Issue created
   score <  0.30          → status=not-viable
-  0.30 – 0.70            → status unchanged   (human review needed)
+  0.30 – 0.70            → status=assessed (human review needed)
+
+Human review policy for 0.30–0.70 (assessed) sources:
+  Even if score is below 0.70, a human may manually upgrade status to
+  ``researched``.  Rationale: daily scraper cost ≈ zero; missing a
+  low-frequency but genuine Taiwan event is costlier than scanning 0-result
+  pages.  Score < 0.30 (no Taiwan evidence) remains ``not-viable``.
 
 Run with::
 
@@ -42,6 +48,10 @@ GPT4O_OUTPUT_COST_PER_1M = 10.00
 
 SCORE_PROMOTE_THRESHOLD = 0.70
 SCORE_DEMOTE_THRESHOLD = 0.30
+# Sources with score in [SCORE_DEMOTE_THRESHOLD, SCORE_PROMOTE_THRESHOLD) are
+# marked ``assessed`` and left for human review.  Per Low-Signal Policy, a
+# human reviewer MAY manually set status=researched for these — daily scraping
+# cost is near-zero, and low-frequency Taiwan events would otherwise be missed.
 SAMPLE_HTML_TRUNCATE = 40_000
 MAX_LLM_ATTEMPTS = 2
 COOLDOWN_DAYS = 7

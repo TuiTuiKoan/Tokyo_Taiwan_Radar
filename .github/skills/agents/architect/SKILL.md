@@ -1116,3 +1116,19 @@ Reference incidents:
 - 2026-05-05 — `_oneoff_fix_movies.py` 跳過 `lookup_movie_titles()`，導致 `超低予算ムービー大作戦` 被 GPT 直譯為虛構片名。
 - 2026-05-05 — 月老翻譯反覆被 AI 覆寫，根因為手動修正未鎖 `field_corrections`。
 
+## Auto-Research Low-Signal Policy Guard
+
+在審核任何涉及 `auto_research.py` 閾值或 `not-viable` 判定的計畫前，**必須**確認：
+
+1. **`SCORE_PROMOTE_THRESHOLD = 0.70` 是「自動昇格」的閾值，不是「viable/not-viable」的分界**：score 0.30–0.69 的來源標記為 `assessed`，留人工決定。人工可手動設為 `researched`。
+2. **score < 0.30（台灣證據為零）才應保持 `not-viable`**：LLM 明確找不到任何台灣關聯性 → 真正 not-viable。
+3. **Low-Signal Policy 適用情況（年度影展、低頻文化機構）**：以下情況人工應升格為 `researched`，即使 score 偏低：
+   - 每天爬取成本 near-zero（靜態 HTML、< 5 頁）
+   - 年度或不定期的台灣相關展覽 / 影展（JPIFF、アクロス福岡、Internet Museum 等）
+   - 人工無法預測每年活動時間，定期爬取是唯一可靠方式
+   - LLM 找到間接或弱證據（台灣藝術家「有時被邀請」、台灣電影「偶爾放映」）
+4. **設計 auto_research 相關功能時，禁止用 score < 0.70 自動 → `not-viable`**：正確行為是 `assessed`（保留人工決定權）。
+5. **重複來源必須在 auto_research cron 執行前封鎖**：若 candidate 是已 implemented 來源的重複（同 URL / 同 scraper），立即設為 `not-viable/skipped`，否則浪費 API token。
+
+Reference incident: 2026-05-06 — score 0.30–0.70 的 5 筆來源（98/110/144/178/191）被 `not-viable` 阻擋，並發現 4 筆重複 candidate（251/252/257/260）。手動批量修正。根因：誤將自動昇格閾值當作 viable/not-viable 判斷標準。
+

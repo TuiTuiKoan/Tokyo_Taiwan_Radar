@@ -100,6 +100,28 @@ When writing a source record to the `research_sources` table, use these `status`
 
 **"Too infrequent" is no longer a valid rejection reason.**
 
+### Low-Signal Policy — assessed sources (score 0.30–0.69)
+
+`auto_research` marks these `assessed` and leaves them for human review.
+**Human reviewers MAY manually set `status=researched`** when:
+
+- Daily scraping cost is near-zero (Playwright static HTML, < 5 pages)
+- Missing a rare Taiwan event is costlier than scanning 0-result pages
+- The site hosts annual events / film festivals whose schedule is not predictable in advance (e.g. JPIFF, ACROS Fukuoka, Internet Museum)
+- LLM found indirect or low-signal evidence (Taiwan artists "included", Taiwan film "sometimes shown")
+
+**NOT a valid reason to keep `assessed`:**
+- ~~「スコアが低い」~~ ← Score < 0.70 は「台湾専用ではない」を示すだけ
+- ~~「現時点でコンテンツなし」~~ ← 将来の掲載可能性があれば viable
+
+**Scale for decision:**
+
+| score | taiwan_evidence | Action |
+|-------|----------------|--------|
+| ≥ 0.70 | Direct | auto-promoted → `researched` |
+| 0.30–0.69 | Indirect / low | Human review → manually set `researched` if scrapable |
+| < 0.30 | None | Keep `not-viable` |
+
 Use `LOOKBACK_DAYS` to match the source's natural cadence:
 
 | Source cadence | Recommended LOOKBACK_DAYS |

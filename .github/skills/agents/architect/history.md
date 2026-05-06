@@ -3,6 +3,20 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-06 — auto_research score 閾値誤解：assessed ソースを not-viable に保留し続けた
+
+### 問題
+`SCORE_PROMOTE_THRESHOLD = 0.70` は自動昇格の閾値だが、score 0.30–0.69 の assessed ソース（98/110/144/178/191）が `not-viable` または assessed 状態のまま長期間放置された。また重複 candidate（251/252/257/260）が夜間 auto_research cron に流れる寸前だった。
+
+### 修正
+- 5 ソース手動で `status=researched` に昇格（score < 0.70 でも scraping viable）
+- 4 重複 candidate を `not-viable/skipped`（cron 前に封鎖）
+- 189 MOT / 209 FAAM の sandbox-failed 原因を特定し selector 補完 + `researched` に戻した
+
+### 教訓
+`auto_research_score` が低い = 台湾専用でない、であり、技術的に scrapable であれば `researched` にすべき（日次コスト near-zero、見逃しコスト > スキャンコスト）。score < 0.30 のみが真の `not-viable`。
+
+---
 ## 2026-05-07 — dded67a6 (uplink_cinema 霧のごとく大濛) start_date 年份幻覺 2025-05-08
 
 ### 問題

@@ -3,6 +3,35 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-06 — Low-Signal Policy 拡張：score 0.30–0.69 の assessed ソースを手動 researched へ昇格
+
+**背景：** `auto_research` の自動昇格閾値 `SCORE_PROMOTE_THRESHOLD = 0.70` により、
+score 0.30–0.69 のソース（98 アクロス福岡、178 Internet Museum 関西、110 Tokyo Arts Council、
+191 Live Nation Japan、144 JPIFF など）が `not-viable` または `assessed` に留まっていた。
+
+**問題：** 影展・美術館など「年1回以下で台湾コンテンツが登場する可能性がある」ソースでも、
+人間が毎年のスケジュールを追わないとスクレイピングのタイミングを逃す。
+
+**決定：** daily scraper の実行コストは near-zero（Playwright 静的 HTML、< 5 pages）のため、
+0 events が返ってもコストペナルティはない。**score < 0.70 でも `researched` にして常時爬行**
+する方が、見逃しコストより安い。
+
+**score=0.00 ソース（LLM が台湾証拠ゼロと判断）は `not-viable` を維持**:
+- 137 MatsuriMap（桜ルート静的記事）
+- 199 Walkerplus 福岡（台湾コンテンツ確認不可）
+- 104 HN Tokyo（テック系 Meetup）
+
+**修正内容：**
+- `auto_research.py` docstring + 定数コメントに Low-Signal Policy を明記
+- `SKILL.md` に `assessed → researched` 人工昇格の判断基準テーブルを追加
+- DB: 98/110/144/178/191 → `status=researched`, `auto_scraper_status=null`
+- 重複 candidate (251/252/257/260) → `not-viable/skipped`
+
+**教訓：** `SCORE_PROMOTE_THRESHOLD` はあくまで「自動昇格」の閾値。
+0.30–0.69 の assessed ソースは人間が **Low-Signal Policy** に基づき手動で昇格判断する。
+スコアが低い = 台湾専用でない、であり、技術的に scrapable なら viable。
+
+---
 ## 2026-05-01 — go_taiwan + transit_store スクレイパー実装：5 つの教訓
 
 **実装：** 2 つの新スクレイパーを追加した。
