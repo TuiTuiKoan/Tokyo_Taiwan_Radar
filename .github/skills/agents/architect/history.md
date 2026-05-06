@@ -4,20 +4,42 @@
 
 ---
 
-## 2026-05-06 — performers[] + performer 多語言欄位設計（commits 191d939, 3822fb8, 65a50b9）
+## 2026-05-08 — performer_zh/en 翻譯「（AI翻譯）」標記 + 學術大會 performers[] 規則（Incidents A & B, commit 65a50b9）
 
-**背景：** `performer TEXT` 只儲存日文原名，導致繁中/英文頁面顯示日文名稱。
+### 問題（Incident A：翻譯來源不透明）
+`performer_zh`/`performer_en` 與 `director_zh`/`director_en` 的翻譯來源無法區分「原文直接提供中/英文名稱」vs「AI 從日文片假名音譯/推斷」。例：`ホアン・イーウェン` → `performer_zh: "黃以文"` 是否正確，使用者無從確認。
 
-**設計決策：**
-- Migration 053：新增 `performers TEXT[]` 支援多人表演者陣列
-- Migration 054：新增 `performer_zh / performer_en / director_zh / director_en TEXT`
-- `getEventPerformer(event, locale)` helper：zh → `performer_zh || performer`；en → `performer_en || performer`；ja → `performer`
-- SYSTEM_PROMPT 新規則：AI 填入未在原文出現的名稱須附「（AI翻譯）」標注
-- Academic conferences 規則：學術研討會所有具名發表者皆列入 `performers[]`
+### 問題（Incident B：學術大會多人發表者）
+學術大會（`学会大会`/`研究大会`/`シンポジウム`）有多位 `発表者`/`報告者`/`登壇者`，SYSTEM_PROMPT 未規定將所有人列入 `performers[]`，導致多人發表者僅部分記錄。
 
-**教訓：**
-1. `works.work_type` check constraint 只允許 `film | stage | exhibition | concert_tour | tv_drama | tv_variety | other`——`conference` 不在清單，學術研討會建 work 需用 `other`。建立前先確認允許值（PostgreSQL check constraint 沒有 schema 預覽，執行時才報錯）。
-2. 手動設定 `performer_zh / performer_en` 必須同時 upsert 進 `field_corrections`，否則下次 re-annotation 覆寫。Manual Translation Fix Persistence Guard 已擴展涵蓋這兩個欄位。
+### 修復（commit 65a50b9）
+- SYSTEM_PROMPT 追加 AI 翻譯標記規則：人名翻譯若來自 AI 音譯/推斷（非原文明確提供中/英文原名），翻譯後附加「（AI翻譯）」
+  - 例：`performer_zh: "黃以文（AI翻譯）"`、`performer_en: "Huang Yi-wen（AI翻譯）"`
+- SYSTEM_PROMPT 追加：`学会大会`/`研究大会`/`シンポジウム` 必須將所有具名發表者列入 `performers[]`（而非只填單欄 `performer`）
+- 人工確認正確後，鎖入 `field_corrections` 並移除「（AI翻譯）」標記
+
+### 教訓
+1. AI 翻譯的人名必須標記來源，便於後續人工核查及 `field_corrections` 修正
+2. `performer TEXT`（單人）vs `performers TEXT[]`（多人）語意必須在 SYSTEM_PROMPT 明確區分
+
+---
+
+## 2026-05-08 — performers TEXT[] + performer_zh/en/director_zh/en 多語言欄位新增（Incidents C & D, commits 191d939, 3822fb8）
+
+### 問題（Incident C：performer 只能存單人）
+`performer TEXT` 欄位無法容納多主講人（如「林廉恩、一青窈」需要同時儲存）；合併儲存導致結構化查詢困難。
+
+### 問題（Incident D：performer/director 只有日文名）
+performer/director 欄位只存日文原名（如 `ホアン・イーウェン`），ZH/EN 頁面直接顯示日文，缺乏多語言翻譯欄位。
+
+### 修復
+- migration 053 新增 `performers TEXT[]`（commit 191d939）：annotator 主迴圈寫入，web UI 顯示
+- migration 054 新增 `performer_zh`, `performer_en`, `director_zh`, `director_en` 4 欄位（commit 3822fb8）：annotator SYSTEM_PROMPT + 主迴圈寫入；web 用 `getEventPerformer()`/`getEventDirector()` locale helper 選語言
+- 反向相容：`performer TEXT` 保留，新欄位為附加，未來整合再合併
+
+### 教訓
+1. 新增人名類欄位時，必須在同一 migration 中同時規劃 `_zh`/`_en` 多語言翻譯欄位，避免二次 migration
+2. `works.work_type` check constraint 只允許 `film | stage | exhibition | concert_tour | tv_drama | tv_variety | other`——`conference` 不在清單，學術研討會建 work 需用 `other`（PostgreSQL check constraint 執行時才報錯，無 schema 預覽）
 
 ---
 

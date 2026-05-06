@@ -49,6 +49,27 @@ Reference incident: 2026-05-05 — `赤い糸 輪廻のひみつ` 以日文出�
 
 Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan-Dong` 從 5/4 daily CI 後持續未修正；同事件多次手修又被 AI 覆寫，根因為缺 lock。
 
+## Performer Multilingual Fields Guard（performer_zh/en/director_zh/en）
+
+在審核任何涉及 `performer_zh`、`performer_en`、`director_zh`、`director_en` 的計畫，或設計多語言表演者顯示邏輯時，**必須**確認：
+
+1. **欄位架構（migration 053/054）**：
+   - `performer TEXT`：日文原名（供 ja locale）
+   - `performer_zh / performer_en TEXT`：各語言名稱（GPT 填入或人工設定）
+   - `performers TEXT[]`：所有具名表演者/發表者的陣列（支援多人）
+   - `director / director_zh / director_en`：同上，用於導演
+2. **locale 優先序**：`zh` → `performer_zh || performer`；`en` → `performer_en || performer`；`ja` → `performer`（不走翻譯欄位）
+3. **AI翻譯標注規則**：GPT 填入 performer_zh/en/director_zh/en 時，若該語言名稱**未明確出現在來源文本**，必須附加「（AI翻譯）」（如 `黃以文（AI翻譯）`）。若來源中有該語言名稱，不加標注。
+4. **academic performers[]**：學術研討會（学会大会、研究大会、シンポジウム）中所有具名發表者（発表者/報告者/登壇者）必須列入 `performers[]`，即使有 5 人以上。
+5. **手動設定必須鎖 `field_corrections`**：`performer_zh`、`performer_en`、`director_zh`、`director_en` 手動修正必須同時 upsert 進 `field_corrections`，否則下次 re-annotation 覆寫。
+6. **新增人名欄位的 migration 模式**：新增 performer/director 等人名欄位時，必須在同一 migration 中同時新增對應的 `_zh`/`_en` 欄位，避免二次 migration。
+7. **`works.work_type` 有效值**：`film | stage | exhibition | concert_tour | tv_drama | tv_variety | other`。`conference` 不在允許清單，學術研討會用 `other`。
+
+Reference incidents:
+- 2026-05-08 — commit `65a50b9`：SYSTEM_PROMPT 追加 AI 翻譯標記規則 + 學術大會 performers[] 填寫規則（Incidents A & B）
+- 2026-05-08 — commit `191d939`：migration 053 新增 `performers TEXT[]`（Incident C）
+- 2026-05-08 — commit `3822fb8`：migration 054 新增 `performer_zh`, `performer_en`, `director_zh`, `director_en`（Incident D）
+
 ## Manual Translation Fix Persistence Guard
 
 在審核**任何**直接 SQL UPDATE 翻譯欄位（`name_zh` / `name_en` / `description_zh` / `description_en` / `performer`）的計畫前，**必須**確認：

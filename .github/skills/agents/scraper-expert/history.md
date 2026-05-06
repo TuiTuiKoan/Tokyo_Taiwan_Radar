@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-05-08 — performers TEXT[] 新增 + performer_zh/en/director_zh/en 多語言欄位（commits 191d939, 3822fb8, 65a50b9）
+
+**Error:** `performer TEXT` 欄位無法存多主講人（如「林廉恩、一青窈」需同時儲存），且 performer/director 欄位只有日文原名，ZH/EN 頁面直接顯示日文片假名，缺乏對應翻譯欄位。
+
+**Root cause:** 初版 schema 僅規劃單欄 `performer TEXT`，未預見多主講人場景。多語言翻譯欄位（`_zh`/`_en`）為事後補加，導致二次 migration。annotator SYSTEM_PROMPT 也未規定 AI 翻譯人名的標記原則，導致翻譯來源不透明。
+
+**Fix:**
+- migration 053 新增 `performers TEXT[]`（commit 191d939）：annotator 主迴圈寫入；web UI 顯示
+- migration 054 新增 `performer_zh`, `performer_en`, `director_zh`, `director_en`（commit 3822fb8）：annotator SYSTEM_PROMPT + 主迴圈寫入；web `getEventPerformer()`/`getEventDirector()` locale helper
+- SYSTEM_PROMPT 追加 AI 翻譯標記規則（commit 65a50b9）：人名翻譯若來自 AI 音譯/推斷，附加「（AI翻譯）」；學術研討會所有發表者列入 `performers[]`
+
+**Lesson:**
+1. 新增人名類欄位時，必須在同一 migration 中同時規劃 `_zh`/`_en` 多語言欄位，避免二次 migration。
+2. AI 翻譯的人名必須標記來源（「（AI翻譯）」），便於人工後查與 `field_corrections` 鎖定移除。
+3. `performer TEXT`（單人）與 `performers TEXT[]`（多人）語意必須在 SYSTEM_PROMPT 明確區分；學術大會多位發表者一律進 `performers[]`。
+
+---
+
 ## 2026-05-08 — note_creators 薄文本：organizer hallucination + 非活動文章入庫（commit b589fbb）
 
 **Error:** `note_creators` 來源的 4 個事件出現問題：(1) `name_ja` 為部落格文章標題（如 `大阪で開催される無料の映画上映イベント`），非活動名稱；(2) `organizer='埼玉県日台親善協会'`（note 發文者，非主辦方）；(3) 2 件純介紹文章/觀影心得報導被識別為活動，應 `is_active=false`。
