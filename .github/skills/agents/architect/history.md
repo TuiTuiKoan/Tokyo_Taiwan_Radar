@@ -3,6 +3,28 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-07 — dded67a6 (uplink_cinema 霧のごとく大濛) start_date 年份幻覺 2025-05-08
+
+### 問題
+`uplink_cinema` 事件 `dded67a6`（霧のごとく大濛／A Foggy Tale）的 `start_date` 顯示 `2025-05-08`，但實際開映日為 `2026-05-08`（由「5月8日（金）= 星期五 = 2026年」確認）。
+
+### 根因（三層）
+1. **Annotation-first bug（主因）**：`eaab464`（2026-05-02）之前，annotator 使用 `annotation.get("start_date") or event.get("start_date")`（GPT 優先）。本事件在 eaab464 之前即已標注，GPT 輸出 `2025-05-08` 覆蓋了 scraper 正確設定的 `2026-05-08`。
+2. **誤導性年份**：raw_description 含「2025年11月に公開を迎えた台湾国内での興行収入」（台灣國內上映年份），但日本首映日實為 2026-05-08。GPT 誤將「2025年」當作日本上映年份。
+3. **年份錨點注入範圍不足**：原年份錨點注入（commit `97544e4`）只覆蓋 `_gnews_sources_needing_year = {google_news_rss, nhk_rss, prtimes, walkerplus}`，`uplink_cinema` 不在其中，無法取得 `scraped_at` 年份提示。
+
+### 修法
+1. **DB 修復**：`start_date`/`end_date` 更新為 `2026-05-08`；同時鎖入 `field_corrections`（start_date, end_date）防止 re-annotation 覆寫。
+2. **結構性修復**：擴展年份錨點注入至**所有來源**。修改條件：原 `source_name in _gnews_sources_needing_year` → 改為任意來源只要 `scraped_at` 存在且 `記事配信日:` 未注入即觸發。涵蓋兩類失敗：
+   - (a) raw_desc 完全無年份 → GPT 從訓練資料猜年份
+   - (b) raw_desc 含「誤導性年份」（另一國/地區的上映年份）→ scraped_at 錨點提供正確年份參考
+
+### 教訓
+- **eaab464 的 scraper-first 修復是事後補救**：對已標注為 `annotated` 的事件無效，需搭配主動掃描或 DB 鎖。
+- **年份錨點應覆蓋所有來源**：任何 raw_desc 都可能含誤導性年份；scraped_at 注入是低成本、高收益的通用防護。
+- **「描述中有 20XX」≠「該年份是活動年份」**：電影介紹常含台灣首映年、獲獎年等，GPT 看到即可能誤用。
+
+---
 ## 2026-05-06 — 午夜 cron workflow 連續失敗（Run Merger × 2、Auto Research × 1）
 
 ### 問題

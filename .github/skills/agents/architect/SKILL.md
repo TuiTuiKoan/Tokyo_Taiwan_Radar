@@ -339,33 +339,36 @@ Before acting on any hallucination scan result (address/location not found in ra
 3. **Venue name ≠ postal address**: `MoN Takanawa` (inside Takanawa Gateway City) has postal address 港区三田 — not 高輪. Station names, building brands, and postal addresses can differ.
 4. **Incident**: 2026-05-02 — architect changed correct GPT address `港区三田3-16-1` to wrong `港区高輪4-10-30` based on venue name reasoning. Reverted after user confirmation.
 
-## gnews / News Source Year-Anchor Guard
+## Universal Year-Anchor Guard（年份錨點注入 — 全來源）
 
-在審核任何涉及 `google_news_rss`、`nhk_rss`、`prtimes`、`walkerplus` 的 annotator 修改，或分析新聞類事件日期年份錯誤時，**必須**確認：
+在審核任何涉及 annotator 日期提取邏輯、或分析任何來源事件年份錯誤時，**必須**確認：
 
-1. **annotator 的年份錨點注入機制存在且在 gnews article fetch 之後執行**：
-   - 程式碼位置：gnews article fetch block 結束後、`_parent_event` context block 之前
-   - 觸發條件：`source_name in _gnews_sources_needing_year AND scraped_at AND "記事配信日:" not in raw_desc`
+1. **年份錨點注入必須覆蓋所有來源（非僅 gnews 類）**：
+   - 觸發條件：`scraped_at AND "記事配信日:" not in raw_desc`（不限 source_name）
    - 注入格式：`（記事配信日: YYYY-MM-DD）\n\n` 前綴
-   - **必須在 article fetch 之後注入**：article fetch 會以 `raw_desc = article_text` 完全替換，丟失 scraper 已預置的 pub_year_hint
+   - **必須在 gnews article fetch 之後注入**：article fetch 會替換 raw_desc，丟失已有的年份錨點
 
-2. **SYSTEM_PROMPT DATE Rule 7 必須引用 記事配信日**：
+2. **兩類年份幻覺場景均被覆蓋**：
+   - (a) raw_desc **完全無 4 位年份**（e.g. `5月8日（金）公開`）→ GPT 從訓練資料猜年，可能猜出過去年份
+   - (b) raw_desc **含誤導性年份**（e.g. `2025年11月に公開を迎えた台湾国内での興行収入`，指另一國的上映年）→ GPT 誤用該年份為日本活動年份
+
+3. **SYSTEM_PROMPT DATE Rule 7 必須引用 記事配信日**：
    - 規則文字含 `（記事配信日: YYYY-MM-DD）` → `use that year as the reference year`
-   - 若規則文字已回退為 "If unclear, assume nearest future occurrence"，表示規則被覆寫
 
-3. **scraper 與 annotator 的雙重防護**：
-   - scraper（google_news_rss.py）：新爬事件的 raw_description 已預置 `pub_year_hint`（2026-05-02 起）
-   - annotator：補救舊事件或 article fetch 後丟失年份的情況
-   - 兩者用同一 marker `記事配信日:`，annotator 注入前檢查是否已存在（避免重複）
+4. **field_corrections 鎖定已修正的年份**：
+   - 若曾因幻覺設定錯誤年份，修正後必須同時鎖入 `field_corrections`（start_date, end_date），否則 re-annotation 重新覆寫
 
-4. **失效症狀**：事件 start_date 年份比 scraped_at 早超過 1 年。例：scraped_at=2026-04-28 但 start_date=2024-04-01
+5. **失效症狀**：事件 start_date 年份比 scraped_at 年份差超過 1 年（可能是過去也可能是未來）
 
 **驗證命令**：
 ```bash
-grep -n "記事配信日\|_gnews_sources_needing_year\|scraped_at year anchor" scraper/annotator.py | head -10
+grep -n "記事配信日\|scraped_at year anchor" scraper/annotator.py | head -10
+# 確認不含 "_gnews_sources_needing_year" 的限制條件
 ```
 
-Reference incident: 2026-05-06 — `0d33b617` (gnews 熊本チップ・オデッセイ上映) 爬取於 pub_year_hint 加入前（2026-04-28），annotator article fetch 丟失年份錨點，GPT 幻覺 start_date=2024-04-01（應為 2026-04-12）。
+Reference incidents:
+- 2026-05-06 — `0d33b617` (gnews 熊本チップ・オデッセイ) scraped_at=2026-04-28 → annotated start_date=2024-04-01（應為 2026-04-12）
+- 2026-05-07 — `dded67a6` (uplink_cinema 霧のごとく大濛) raw_desc 含「2025年11月に公開を迎えた台湾国内での」（台灣內地年份），GPT 幻覺 start_date=2025-05-08（應為 2026-05-08）
 
 ## enrich_movie_titles Sub-Event Hallucination Guard
 

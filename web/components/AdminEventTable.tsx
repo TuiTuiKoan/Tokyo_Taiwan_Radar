@@ -1220,8 +1220,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_active")}>{t("isActive")}{sortArrow("is_active")}</th>
                 <th className="py-2 pr-6" />
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("name")}>{t("name")}{sortArrow("name")}</th>
-                <th className="py-2 pr-4 w-96 font-medium">{t("category")}</th>
-                <th className="py-2 pr-4 max-w-[160px] font-medium">{t("events.columns.work")}</th>
+                <th className="py-2 pr-4 w-[160px] min-w-[160px] font-medium">{t("category")}</th>
+                <th className="py-2 pr-4 w-[160px] min-w-[160px] font-medium">{t("events.columns.work")}</th>
                 <th className="py-2 pr-4 font-medium">{t("address")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
                 <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
@@ -1347,37 +1347,23 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       </span>
                     )}
                     {/* Secondary (merged) event: show orange badge + arrow + primary row number */}
-                    {event.merged_into_event_id && (() => {
-                      const targetId = event.merged_into_event_id;
-                      const globalNum = globalIndexMap[targetId];
-                      const inView = !!rowIndexMap[targetId];
-                      const targetInactive = eventMap[targetId]?.is_active === false;
-                      return (
-                        <span className="inline-flex items-center gap-0.5 mb-0.5">
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium border border-amber-300">
-                            {t("mergedIntoBadge")}
-                          </span>
-                          <span className="text-green-600 text-[10px] font-bold">→</span>
-                          {targetInactive ? (
-                            <a
-                              href={`/${locale}/admin/${targetId}`}
-                              className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium border border-gray-300 hover:bg-gray-200"
-                              title={t("mergedIntoBadgeTitle")}
-                            >
-                              未公開
-                            </a>
-                          ) : (
-                            <a
-                              href={inView ? `#row-${targetId}` : `/${locale}/admin/${targetId}`}
-                              className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200"
-                              title={t("mergedIntoBadgeTitle")}
-                            >
-                              {globalNum ?? "→"}
-                            </a>
-                          )}
+                    {event.merged_into_event_id && (
+                      <span className="inline-flex items-center gap-0.5 mb-0.5">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium border border-amber-300">
+                          {t("mergedIntoBadge")}
                         </span>
-                      );
-                    })()}
+                        <span className="text-green-600 text-[10px] font-bold">→</span>
+                        <a
+                          href={rowIndexMap[event.merged_into_event_id]
+                            ? `#row-${event.merged_into_event_id}`
+                            : `/${locale}/admin/${event.merged_into_event_id}`}
+                          className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200"
+                          title={t("mergedIntoBadgeTitle")}
+                        >
+                          {rowIndexMap[event.merged_into_event_id] ?? "→"}
+                        </a>
+                      </span>
+                    )}
                     <a
                       href={event.is_active ? `/${locale}/events/${event.id}` : `/${locale}/admin/${event.id}`}
                       target="_blank"
@@ -1425,7 +1411,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       </span>
                     )}
                   </td>
-                  <td className="py-2 pr-4 w-96">
+                  <td className="py-2 pr-4 w-[160px] min-w-[160px]">
                     <div className="flex flex-wrap gap-1">
                       {event.category?.slice(0, 3).map((cat) => (
                         <span key={cat} className="bg-green-50 text-green-700 text-[10px] px-1.5 py-0.5 rounded-full">
@@ -1434,7 +1420,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       ))}
                     </div>
                   </td>
-                  <td className="py-2 pr-4 text-xs max-w-[160px]">
+                  <td className="py-2 pr-4 text-xs w-[160px] min-w-[160px]">
                     {(() => {
                       const cur = event.work_id ? workMap[event.work_id] : null;
                       const isEditing = editingWorkFor === event.id;

@@ -1056,23 +1056,25 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             else:
                 logger.info("  → Article fetch failed, proceeding with original raw_desc")
 
-        # Year-anchor injection for google_news_rss:
-        # The scraper's pub_year_hint prepends （記事配信日: YYYY年…） to raw_description
-        # since 2026-05-02. But two situations still leave GPT without a year anchor:
-        #   (a) Events scraped before pub_year_hint was added (e.g. scraped 2026-04-28)
-        #       → raw_description in DB lacks the year hint
-        #   (b) Article fetch (above) replaces raw_desc with article body text, which
-        #       loses the pub_year_hint that was prepended in raw_description
-        # Without a year anchor, GPT guesses the year from its training data and
-        # can produce dates like 2024-04-01 for an April 2026 event.
-        # Fix: if scraped_at is available and no year anchor already in raw_desc,
-        # prepend it now (after article fetch, before GPT call).
-        # Reference incident: 2026-05-06 — 0d33b617 (gnews 熊本チップ・オデッセイ)
-        # scraped 2026-04-28 → annotated 2026-05-04 → start_date hallucinated 2024-04-01.
-        _gnews_sources_needing_year = frozenset({"google_news_rss", "nhk_rss", "prtimes", "walkerplus"})
+        # Universal year-anchor injection:
+        # Any raw_description that lacks 「記事配信日:」 risks GPT guessing the wrong year.
+        # Two failure classes:
+        #   (a) Description has NO 4-digit year at all (e.g. "5月8日（金）公開") — GPT
+        #       falls back to training-data knowledge, which can be a past year.
+        #   (b) Description has a MISLEADING 4-digit year referring to a DIFFERENT country's
+        #       release (e.g. "2025年11月に公開を迎えた台湾国内での興行収入") — GPT uses
+        #       that year for the Japan premiere date instead.
+        # Fix: unconditionally inject scraped_at as year anchor for ALL sources when
+        # scraped_at is available and 記事配信日: is not already present.
+        # This covers gnews/nhk_rss/prtimes/walkerplus (previous fix) PLUS cinema scrapers
+        # like uplink_cinema that embed Taiwan-release years in their descriptions.
+        # Reference incidents:
+        #   2026-05-06 — 0d33b617 (gnews 熊本チップ・オデッセイ) hallucinated 2024-04-01.
+        #   2026-05-07 — dded67a6 (uplink_cinema 霧のごとく大濛) hallucinated 2025-05-08
+        #     because "2025年11月に公開を迎えた台湾国内での興行収入" misled GPT into
+        #     thinking the Japan premiere was also 2025.
         if (
-            event.get("source_name") in _gnews_sources_needing_year
-            and event.get("scraped_at")
+            event.get("scraped_at")
             and "記事配信日:" not in (raw_desc or "")
         ):
             _scraped_dt = str(event["scraped_at"])[:10]  # e.g. "2026-04-28"
