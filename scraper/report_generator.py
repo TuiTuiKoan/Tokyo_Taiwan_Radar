@@ -254,7 +254,19 @@ def build_section2(month_events: list) -> str:
     for cat, cnt in primary_counter.most_common():
         ja_name = CATEGORY_JA.get(cat, cat)
         lines.append(f"| {ja_name} | {cnt} |")
+
+    # Mermaid pie chart — top 5 primary categories + その他
+    top5_primary = primary_counter.most_common(5)
+    other_primary = sum(cnt for _, cnt in primary_counter.most_common()[5:])
+    pie_entries = [f'    "{CATEGORY_JA.get(c,c)}" : {n}' for c, n in top5_primary]
+    if other_primary:
+        pie_entries.append(f'    "その他" : {other_primary}')
     lines += [
+        "",
+        "```mermaid",
+        "pie title 主カテゴリ別構成（実体イベント）",
+    ] + pie_entries + [
+        "```",
         "",
         "### タグ別集計（延べ・1イベントが複数タグを持つ場合あり）\n",
         "| タグ | 延べ件数 |",
@@ -278,15 +290,31 @@ def build_section3(month_events: list) -> str:
     tokyo_cnt = pref_counter.get("東京都", 0) or pref_counter.get("東京", 0)
     tokyo_pct = round(tokyo_cnt / total_pref * 100, 1) if total_pref else 0
 
+    top10 = pref_counter.most_common(10)
+
     lines = [
         "## 3. 都道府県分布 Top 10\n",
         f"（東京集中率: {tokyo_pct}%）\n",
         "| 順位 | 都道府県 | 件数 |",
         "|------|----------|------|",
     ]
-    for rank, (pref, cnt) in enumerate(pref_counter.most_common(10), 1):
+    for rank, (pref, cnt) in enumerate(top10, 1):
         lines.append(f"| {rank} | {pref} | {cnt} |")
-    lines.append("")
+
+    # Mermaid xychart bar
+    bar_labels = str([p.replace("都","").replace("府","").replace("道","").replace("県","") for p, _ in top10])
+    bar_values = str([cnt for _, cnt in top10])
+    lines += [
+        "",
+        "```mermaid",
+        "xychart-beta",
+        '    title "都道府県分布 Top 10"',
+        f"    x-axis {bar_labels}",
+        f"    y-axis \"件数\" 0 --> {max(cnt for _, cnt in top10) + 2}",
+        f"    bar {bar_values}",
+        "```",
+        "",
+    ]
     return "\n".join(lines)
 
 
@@ -433,7 +461,20 @@ def build_section_tv(sb, month: str) -> str:
     for cat, cnt in secondary_cat_counter.most_common():
         ja = CATEGORY_JA.get(cat, cat)
         lines.append(f"| {ja}を含む | {cnt} |")
-    lines.append("")
+
+    # Mermaid pie for TV breakdown
+    tv_pie_entries = [f'    "純テレビ" : {pure_count}']
+    for cat, cnt in secondary_cat_counter.most_common():
+        ja = CATEGORY_JA.get(cat, cat)
+        tv_pie_entries.append(f'    "{ja}" : {cnt}')
+    lines += [
+        "",
+        "```mermaid",
+        "pie title 番組内訳（TV・配信）",
+    ] + tv_pie_entries + [
+        "```",
+        "",
+    ]
 
     if channel_counter:
         lines += [
