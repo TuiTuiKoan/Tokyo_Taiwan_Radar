@@ -212,23 +212,32 @@ def run_merger(dry_run: bool = False) -> int:
     # by name_ja similarity ≥ _SIMILARITY_THRESHOLD across all active
     # google_news_rss events (including start_date=NULL).
     # Primary: prefer non-NULL start_date, then longer raw_description.
+    # Guards:
+    #   - Same parent article (same base source_id hash): skip — sub-events
+    #     from the same article represent distinct screenings.
+    #   - Both events have non-null location AND they don't overlap: skip —
+    #     same film at different venues should remain separate events.
     # ------------------------------------------------------------------
     gnews_res = (
         sb.table("events")
         .select(
             "id,source_name,source_id,source_url,name_ja,start_date,"
-            "raw_description,secondary_source_urls,annotation_status"
+            "location_name,raw_description,secondary_source_urls,annotation_status"
         )
         .eq("is_active", True)
         .eq("source_name", "google_news_rss")
         .not_.is_("name_ja", None)
         .execute()
     )
-    gnews_events = [
-        ev for ev in (gnews_res.data or [])
-        if "_sub" not in (ev.get("source_id") or "")
-    ]
+    gnews_events = gnews_res.data or []
     logger.info("Merger Pass 0: %d active google_news_rss events", len(gnews_events))
+
+    def _gnews_base_id(source_id: str | None) -> str:
+        """Extract the base article ID before any _sub suffixes.
+        e.g. 'gnews_abc123_sub1_sub2' → 'gnews_abc123'"""
+        if not source_id:
+            return ""
+        return source_id.split("_sub")[0]
 
     pass0_handled: set[str] = set()
     pass0_count = 0
@@ -244,11 +253,34 @@ def run_merger(dry_run: bool = False) -> int:
             if _similarity(ev_a["name_ja"], ev_b["name_ja"]) < _SIMILARITY_THRESHOLD:
                 continue
 
-            # Determine primary: prefer non-null start_date, then longer raw_description
+            # Guard: same parent article → skip UNLESS same location+date (true dup)
+            if _gnews_base_id(ev_a.get("source_id")) == _gnews_base_id(ev_b.get("source_id")):
+                # Same parent article. Only proceed if same venue AND same start_date
+                # (e.g., two sub-events created for the same screening → true duplicate)
+                same_location = (
+                    ev_a.get("location_name") and ev_b.get("location_name")
+                    and _location_overlap(ev_a["location_name"], ev_b["location_name"])
+                )
+                same_date = ev_a.get("start_date") and ev_b.get("start_date") and (
+                    ev_a["start_date"][:10] == ev_b["start_date"][:10]
+                )
+                if not (same_location and same_date):
+                    continue  # different screenings from same article, skip
+
+            # Guard: both events have location AND locations don't overlap → different
+            # venues for same work (e.g. same film at different cinemas), skip
+            if (
+                ev_a.get("location_name") and ev_b.get("location_name")
+                and not _location_overlap(ev_a["location_name"], ev_b["location_name"])
+            ):
+                continue
+
+            # Determine primary: prefer non-null start_date, then has location, then longer raw_description
             def _gnews_score(ev: dict) -> tuple:
                 has_date = 0 if ev.get("start_date") else 1  # 0 = better
+                no_location = 0 if ev.get("location_name") else 1  # prefer events WITH location
                 desc_len = -(len(ev.get("raw_description") or ""))  # negative = longer is better
-                return (has_date, desc_len)
+                return (has_date, no_location, desc_len)
 
             if _gnews_score(ev_a) <= _gnews_score(ev_b):
                 primary, secondary = ev_a, ev_b
@@ -304,9 +336,10 @@ def run_merger(dry_run: bool = False) -> int:
 
     logger.info("Merger Pass 0: %d google_news_rss within-source pair(s) handled", pass0_count)
 
-    # Fetch all active, non-sub events that have a start_date and name_ja.
-    # Sub-events (source_id contains '_sub') are excluded — they are child
-    # events created by the annotator and should not be merged independently.
+    # Fetch all active events that have a start_date and name_ja.
+    # Note: gnews sub-events (source_id contains '_sub') ARE included here so
+    # Pass 1/2 can match them against official sources by name+location/date.
+    # Same-source within-article dedup is handled by Pass 0.
     res = (
         sb.table("events")
         .select(
@@ -319,12 +352,8 @@ def run_merger(dry_run: bool = False) -> int:
         .not_.is_("name_ja", None)
         .execute()
     )
-    events = [
-        ev
-        for ev in (res.data or [])
-        if "_sub" not in (ev.get("source_id") or "")
-    ]
-    logger.info("Merger: loaded %d active non-sub events", len(events))
+    events = res.data or []
+    logger.info("Merger: loaded %d active events for Pass 1/2", len(events))
 
     # Group by start_date (YYYY-MM-DD prefix)
     date_groups: dict[str, list] = defaultdict(list)
@@ -483,6 +512,11 @@ def run_merger(dry_run: bool = False) -> int:
     #   (a) news.start_date ∈ [official.start_date, official.end_date]
     #   (b) location_name token overlap (≥1 common token of ≥2 chars)
     # News events are ALWAYS secondary; official events are ALWAYS primary.
+    #
+    # Guard: skip news events that already have a work_id — those are
+    # annotated film/work events that Pass 1 already handles by name
+    # similarity.  Using date+location alone for work-linked events causes
+    # false positives when multiple different films screen at the same venue.
     # ------------------------------------------------------------------
     news_events = [
         ev for ev in events
@@ -519,6 +553,16 @@ def run_merger(dry_run: bool = False) -> int:
                 official_ev.get("location_name"),
             ):
                 continue
+
+            # (c) Work-linked guard: if news event has a work_id (annotated film),
+            # require name similarity ≥ threshold to prevent false positives when
+            # multiple different films screen at the same venue on overlapping dates.
+            if news_ev.get("work_id"):
+                if _similarity(
+                    news_ev.get("name_ja") or "",
+                    official_ev.get("name_ja") or "",
+                ) < _SIMILARITY_THRESHOLD:
+                    continue
 
             pri = SOURCE_PRIORITY.get(official_ev["source_name"], 99)
             if pri < best_priority:
