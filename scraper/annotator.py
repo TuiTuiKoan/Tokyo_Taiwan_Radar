@@ -265,6 +265,9 @@ _BRACKET_TITLE_RE = re.compile(r"[\u300c\u300e]([^\u300d\u300f]+)[\u300d\u300f]"
 # from the article body (e.g., the actual movie title or event name).
 _HEADLINE_REWRITE_SOURCES: frozenset[str] = frozenset({
     "google_news_rss", "nhk_rss", "prtimes", "walkerplus",
+    # note_creators: note.com articles by creators; raw_title is the blog post title,
+    # not the event name. GPT should extract the actual film/event name from the body.
+    "note_creators",
 })
 
 # Pattern matching slot identifiers used in academic conference programs.
