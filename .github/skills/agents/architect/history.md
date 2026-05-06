@@ -3,6 +3,88 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-08 — commit 694a363 丟失 4 個 scraper 註冊（walkerplus / BigRomantic / WasedaIcl / TsutayaPortal）
+
+### 問題
+`scraper/main.py` 的 SCRAPERS list 在 commit `694a363`（fix(annotator): extend year-anchor injection to all sources）中，import 重新排序時意外刪除了 4 個 scraper：`WalkerplusScraper`、`BigRomanticRecordsScraper`、`WasedaIclScraper`、`TsutayaPortalScraper`。這些 scraper 的 source files 仍在 `scraper/sources/`，但每日 CI 完全不執行它們。
+
+### 根因
+394a363 對 main.py 做 import 重排序時，git 的 diff merge 將後段 import 區塊截短，4 個 scraper 既未出現在 imports 也未出現在 SCRAPERS list。
+
+### 修法
+重新加入 4 個 import + SCRAPERS 項目（commit 本次）。
+快速驗證：`python main.py --dry-run --source walkerplus`（返回事件）。
+
+### 教訓
+1. **commit 前必須驗證 SCRAPERS list 完整性**：`grep -c "Scraper()" scraper/main.py` 的數字應與上一個 commit 相同（或因新增而增加）。絕對不可減少（除非明確停用某個 scraper）。
+2. 本次 744a363 丟失 incident 與 `045d1fa` 同型——**一般功能 commit 不應修改 SCRAPERS list** 的完整排列，除非明確是 scraper 新增/停用任務。
+
+---
+
+## 2026-05-08 — gnews RSS snippet 被用作 start_date 提取來源（應為 None）
+
+### 問題
+`google_news_rss.py` 在無法抓到 article_text 時，fallback 使用 RSS description snippet 調用 `_extract_start_date(description_plain, pub_date)`。RSS snippet 太短（通常 < 200 字），缺乏完整年份/日期資訊 → annotator 只靠 snippet 猜測 → `start_date` 錯誤率高。
+
+### 修法（commit `1c0f69a`）
+```python
+# OLD
+start_date = _extract_start_date(article_text or description_plain, pub_date)
+# NEW
+start_date = _extract_start_date(article_text, pub_date) if article_text else None
+```
+article_text 為 None 時 `start_date = None`，由 annotator 的 universal year-anchor 補齊。
+
+同時縮窄 health_check gnews_suspect alert：只對 `start_date < today` 的事件報警（未來日期不影響使用者，無需告警）。
+
+### 教訓
+Snippet-based date extraction is never reliable — RSS snippets are truncated marketing copy, not structured event data. If article fetch fails, set `start_date = None` and let annotator's year-anchor handle it.
+
+---
+
+## 2026-05-08 — tokyoartbeat Contentful 佔位符日期：month == 1 而非 day == 1
+
+### 問題
+SKILL.md 的 Contentful Placeholder Date Guard 規則寫 `start_date.day == 1`。實際上，Contentful 使用 `YYYY-01-xx`（整個 1 月）作為系列展佔位符，不限 day=1。觀察到 `2026-01-15` 也是佔位符（event `977da793` 與 `e7cf2a51`）。
+
+### 修法
+1. `tokyoartbeat.py` guard 修改為 `start_date.month == 1`（commit `7df9f56`）。
+2. 直接 DB 修正：`977da793`: 2026-01-15 → 2026-04-04；`e7cf2a51`: 2026-01-xx → 2026-04-25。
+3. SKILL.md Contentful Placeholder Date Guard 更新說明（本次）。
+
+### 教訓
+Platform-specific placeholder conventions should be described broadly. Contentful 系列展的 `scheduleStartsOn` 整個 1 月（YYYY-01-xx）都是財年佔位符，不只 Jan 1。
+
+---
+
+## 2026-05-08 — bookandbeer keyword= 參數被 server 側靜默忽略
+
+### 問題
+`bookandbeer.com` 的 `?keyword=台湾` URL 參數沒有 server-side 效果，API 回傳所有事件。初版 scraper 誤以為 keyword filter 有效，未加 client-side filter → 所有不相關事件進入 DB。
+
+另外，一些活動描述提及台灣大學或淡江大學（如「台湾大学で客員教授」），keyword count ≥ 1，造成誤判。
+
+### 修法（commit `7df9f56` + `e1ab468`）
+```python
+def _is_taiwan_relevant(title: str, description: str) -> bool:
+    # 1. Title match → always relevant
+    if any(kw in (title or "") for kw in TAIWAN_KEYWORDS):
+        return True
+    # 2. Description excerpt ≥ 2 occurrences
+    excerpt = (description or "")[:500]
+    if sum(excerpt.count(kw) for kw in TAIWAN_KEYWORDS) < 2:
+        return False
+    # 3. Exclude pure author-bio mentions (台湾大学, 淡江大学, etc.)
+    cleaned = _AUTHOR_BIO_RE.sub("", excerpt)
+    return any(kw in cleaned for kw in TAIWAN_KEYWORDS)
+```
+
+### 教訓
+1. API keyword filter が server-side で効いているか必ず実証すること（空 keyword で全件取得し一致数を確認）。
+2. 台湾 keyword が著者略歴・大学名にのみ出現するケースはイベント本体とは無関係。
+
+---
+
 ## 2026-05-07 — i18n 197 keys 意外刪除（organizer, eventForm, admin 段落全消失）
 
 ### 問題

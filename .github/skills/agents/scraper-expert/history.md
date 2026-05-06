@@ -3,6 +3,42 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-08 — bookandbeer: server-side keyword param silently ignored + author bio false positives
+
+**Error:** `bookandbeer.py` の初版は `?keyword=台湾` URL パラメータを頼りにしていたが、bookandbeer.com サーバーはこのパラメータを完全に無視し全件返却。結果として多数の非台湾関連イベントが DB に登録された。さらに、著者略歴に「台湾大学 客員教授」「淡江大学」という記述があるだけで `_is_taiwan_relevant()` が True を返す問題があった。
+
+**Fix (commits 7df9f56, e1ab468):**
+1. keyword param をドキュメントコメントにだけ残し、クライアントサイドの `_is_taiwan_relevant()` を追加。
+2. `_AUTHOR_BIO_RE` で大学名マッチングを除外。
+3. タイトル優先 + description 冒頭 500 字で ≥ 2 matches + 大学名除去後も keyword 残存の三段ロジック。
+
+**Lesson:** Before relying on a URL keyword parameter, empirically verify it filters — request with vs without keyword and compare response counts. Also, author biographies are NOT event content; always strip them before counting Taiwan occurrences.
+
+---
+
+## 2026-05-08 — tokyoartbeat: Contentful placeholder dates use entire January (month == 1, not day == 1)
+
+**Error:** `tokyoartbeat.py` の Contentful 佔位符ガードが `start_date.day == 1` だったため、`2026-01-15` の佔位符日付 (events `977da793`, `e7cf2a51`) を見逃した。Contentful は財年未定の系列展に `YYYY-01-xx`（1 月いっぱい）を使う。
+
+**Fix (commit 7df9f56):** ガード条件を `start_date.month == 1` に変更。DB events `977da793` と `e7cf2a51` を直接修正。
+
+**Lesson:** Contentful 佔位符は Jan 1 限定ではない。整 1 月が佔位符として使われる可能性を常に考慮し、`month == 1` でガードする。
+
+---
+
+## 2026-05-07 — google_news_rss: RSS snippet used as start_date fallback when article fetch fails
+
+**Error:** `google_news_rss.py` は article_text の取得に失敗した場合、RSS description snippet を fallback として `_extract_start_date(description_plain, pub_date)` に渡していた。snippet は通常 200 字未満で年月日情報が不完全なため、annotator が誤った start_date を推定していた。
+
+**Fix (commit 1c0f69a):**
+```python
+start_date = _extract_start_date(article_text, pub_date) if article_text else None
+```
+article_text が None の場合は start_date も None にし、annotator の universal year-anchor に委ねる。
+
+**Lesson:** RSS snippets are marketing truncations, not structured event data. Never use them for date extraction. If the full article is unavailable, set start_date = None.
+
+---
 ## 2026-05-05 — artistcafe: auto-generated scraper had no Taiwan filter + wrong description selector
 
 **Error:** `artistcafe.py` は `?keyword=台湾` URL パラメータを使っていたが、artistcafe.jp はこのパラメータを無視しサイト全体のイベントを返す。結果として 12 件中 8 件（後に 14/17 件と判明）が台湾無関係のイベントとして DB に登録された。また `raw_description` に `body.inner_text()` を使っていたため、ナビゲーションヘッダー（`OPEN 11:00 - 19:00 アクセス …`）が格納されていた。

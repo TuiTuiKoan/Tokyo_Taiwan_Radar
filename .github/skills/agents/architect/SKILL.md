@@ -1064,11 +1064,69 @@ Reference incidents:
 
 在審核任何使用 Contentful CDA API 的 scraper 前，**必須**確認：
 
-1. **年度系列展的 `scheduleStartsOn` 可能為 `YYYY-01-01`（財年佔位符）**，不代表實際開展日期。
-2. **Slug fallback 必須存在**：若 `start_date` 的月份 = 1 且日 = 1，從 URL slug 末尾 `/YYYY-MM-DD` 提取真實日期。
-3. **測試模式**：對抓到的所有事件印出 `name, start_date, slug`，確認無 Jan 1 佔位符。
+1. **年度系列展的 `scheduleStartsOn` 可能為 `YYYY-01-xx`（財年佔位符）**，不代表實際開展日期。Contentful 使用整個 1 月（1/1 至 1/31）作為佔位，**不限 Jan 1**。
+2. **Slug fallback 必須存在**：若 `start_date` 的**月份 = 1**（`start_date.month == 1`），從 URL slug 末尾 `/YYYY-MM-DD` 提取真實日期。
+3. **不可只檢查 `day == 1`**：已觀察到 `2026-01-15` 也是佔位符（events `977da793`, `e7cf2a51`）。正確條件：`start_date.month == 1`。
+4. **測試模式**：對抓到的所有事件印出 `name, start_date, slug`，確認無 January 佔位符。
 
-Reference incident: 2026-05-05 — event 6a91a4ce (アジア美術の歩き方 東アジア編) start_date=2026-01-01，真實日期 2026-04-18 在 slug (commit a1e58a9)。
+Reference incidents:
+- 2026-05-05 — event 6a91a4ce (アジア美術の歩き方 東アジア編) start_date=2026-01-01，真實日期 2026-04-18 在 slug (commit a1e58a9)。
+- 2026-05-07 — events 977da793 (2026-01-15) 和 e7cf2a51 也是佔位符，guard 改為 `month == 1` 才完整覆蓋 (commit 7df9f56)。
+
+## Scraper Server-Side Keyword Filter Verification Guard
+
+在審核任何新 scraper 的關鍵字 URL 參數過濾前，**必須**確認：
+
+1. **Server-side keyword filter 是否真正生效**：發送含 keyword 的請求，再發送不含 keyword 的請求，比較回傳數量。若兩次相同 → server-side filter 無效。
+2. **必須加 client-side filter**：無論 server 是否過濾，都應在 Python 層加 `_is_taiwan_relevant()` 檢查，防止 server 行為無聲改變。
+3. **Author bio false positive**：台灣大學名稱（`台湾大学`、`淡江大学`、`国立台湾師範大学` 等）出現在作者略歷中，不代表活動內容與台灣相關。需用 regex 排除後再計 keyword count。
+4. **推薦 pattern**：
+   ```python
+   _AUTHOR_BIO_RE = re.compile(r'台湾[・・]?(?:大学|淡江|国立|師範|政治|成功|交通|中山|清華)')
+
+   def _is_taiwan_relevant(title: str, description: str) -> bool:
+       if any(kw in (title or "") for kw in TAIWAN_KEYWORDS):
+           return True
+       excerpt = (description or "")[:500]
+       if sum(excerpt.count(kw) for kw in TAIWAN_KEYWORDS) < 2:
+           return False
+       cleaned = _AUTHOR_BIO_RE.sub("", excerpt)
+       return any(kw in cleaned for kw in TAIWAN_KEYWORDS)
+   ```
+
+Reference incident: 2026-05-07 — bookandbeer `?keyword=台湾` 被 server 靜默忽略；初版無 client filter → 所有事件進 DB。進階修正排除作者略歷誤判 (commits 7df9f56, e1ab468)。
+
+## gnews RSS Snippet Date Guard
+
+在審核任何 RSS-based scraper 的 start_date 提取邏輯前，**必須**確認：
+
+1. **RSS description snippet 不可用作 start_date 提取來源**：snippet 通常 < 200 字，缺乏完整年份/日期資訊，GPT 只能猜測 → 錯誤率高。
+2. **article fetch 失敗時 start_date = None**（不是 fallback 到 snippet）：
+   ```python
+   # WRONG
+   start_date = _extract_start_date(article_text or description_plain, pub_date)
+   # CORRECT
+   start_date = _extract_start_date(article_text, pub_date) if article_text else None
+   ```
+3. **`start_date = None` + universal year-anchor = 最佳 fallback**：annotator 的 `（記事配信日: YYYY-MM-DD）` 前綴已確保年份正確。
+4. **health_check gnews_suspect alert 只對過去日期報警**：未來日期不影響使用者，屬 annotator 尚未處理的正常狀態，不需告警。條件：`start_date < today`。
+
+Reference incident: 2026-05-07 — gnews RSS snippet fallback 造成錯誤 start_date；health_check gnews_suspect 對未來日期誤報 (commit 1c0f69a)。
+
+## SCRAPERS List Completeness Guard（防止 main.py import 重排時丟失 scraper）
+
+在審核**任何** `scraper/main.py` 的 commit 前，**必須**確認：
+
+1. **SCRAPERS list 項目數不得減少**（除非明確停用某 scraper）：
+   ```bash
+   git diff HEAD -- scraper/main.py | grep "^-.*Scraper()" | wc -l
+   # 若 > 0 → 必須確認每個刪除都是有意的
+   ```
+2. **scraper count 不變性**：`grep -c "Scraper()" scraper/main.py` 值只可增加或維持，不可下降。
+3. **import 重排是高風險操作**：即使只是調整 import 排列順序，也需事後確認 SCRAPERS list 項目完整。
+4. **功能性 commit 不應修改 SCRAPERS list**：year-anchor、merger、annotator 等 commit 不需重排 main.py imports。
+
+Reference incident: 2026-05-08 — commit `694a363` 做 import 重排，意外刪除 `WalkerplusScraper`、`BigRomanticRecordsScraper`、`WasedaIclScraper`、`TsutayaPortalScraper`（與 2026-05-04 `045d1fa` 同型）。
 
 ## Venue = Organizer Default Guard
 

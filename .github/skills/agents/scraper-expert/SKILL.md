@@ -711,3 +711,31 @@ python scraper/backfill_locations.py
 - **content:encoded has full body**: The RSS `<content:encoded>` CDATA block contains the full post HTML. Parse it with BeautifulSoup before falling back to a detail page HTTP request.
 - **XMLParsedAsHTMLWarning must be suppressed**: `warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)` is required when using `html.parser` on the RSS XML.
 - **Low yield is normal**: 1–3 event posts per month. `LOOKBACK_DAYS = 180` is intentional — do not reduce it.
+
+## bookandbeer-specific
+
+- **`?keyword=台湾` URL parameter is silently ignored by the server**: All events are returned regardless of keyword value. A dry-run WITHOUT keyword param returns the same event count. **Always use client-side `_is_taiwan_relevant()` filter.**
+- **Author bio false positive**: 台湾大学・淡江大学 etc. may appear in `書き手` (author profile) but NOT relate to event content. Use `_AUTHOR_BIO_RE` to strip university-name occurrences before keyword count:
+  ```python
+  _AUTHOR_BIO_RE = re.compile(r'台湾[・・]?(?:大学|淡江|国立|師範|政治|成功|交通|中山|清華)')
+  ```
+- **Filter logic** (title-first, then description excerpt):
+  1. Title contains any Taiwan keyword → relevant
+  2. Description first 500 chars has ≥ 2 keyword occurrences AND after stripping university patterns at least one remains → relevant
+  3. Otherwise → skip
+
+## tokyoartbeat — Contentful placeholder dates (month == 1)
+
+- **Contentful uses entire January as fiscal-year placeholder for series exhibitions**: Both `YYYY-01-01` and `YYYY-01-15` (and any `YYYY-01-xx`) have been observed as placeholders. The guard condition must be `start_date.month == 1`, **NOT** `start_date.day == 1`.
+- **Slug fallback**: When `start_date.month == 1`, extract the real date from the Contentful URL slug (`/YYYY-MM-DD` suffix at the end of `fields.slug`).
+- **Verification**: After each dry-run, print `(name, start_date, slug)` for all events and confirm no January start dates remain.
+
+## google_news_rss — article fetch failure handling
+
+- **RSS snippet must NOT be used as start_date fallback**: If `article_text` is None (HTTP error or Playwright timeout), set `start_date = None` — do NOT call `_extract_start_date(description_plain, pub_date)`. The snippet is too short for reliable date parsing.
+  ```python
+  # CORRECT
+  start_date = _extract_start_date(article_text, pub_date) if article_text else None
+  ```
+- **`start_date = None` is handled by annotator's universal year-anchor**: `（記事配信日: YYYY-MM-DD）` prefix injected into raw_description ensures year correctness even when date cannot be extracted from text.
+- **health_check `gnews_suspect` alert**: Only trigger for `start_date < today` (past-dated unreliable dates). Future-dated gnews events are not yet user-visible and do not require an alert.

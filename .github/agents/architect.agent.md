@@ -393,7 +393,57 @@ Reference incident: 2026-05-05 — `超低予算ムービー大作戦` 被 GPT �
 Reference incidents:
 - 2026-05-05 — `_oneoff_fix_movies.py` 跳過 `lookup_movie_titles()`，導致 `超低予算ムービー大作戦` 被 GPT 直譯為虛構片名。
 - 2026-05-05 — 月老翻譯反覆被 AI 覆寫，根因為手動修正未鎖 `field_corrections`。
+## Contentful Placeholder Date Guard
 
+在審核任何使用 Contentful CDA API 的 scraper 前，**必須**確認：
+
+1. **年度系列展的 `scheduleStartsOn` 可能為 `YYYY-01-xx`（財年佔位符）**，不代表實際開展日期。Contentful 使用整個 1 月（1/1 至 1/31）作為佔位，**不限 Jan 1**。
+2. **Slug fallback 必須存在**：若 `start_date` 的**月份 = 1**（`start_date.month == 1`），從 URL slug 末尾 `/YYYY-MM-DD` 提取真實日期。
+3. **不可只檢查 `day == 1`**：已觀察到 `2026-01-15` 也是佔位符。正確條件：`start_date.month == 1`。
+
+Reference incidents:
+- 2026-05-05 — event 6a91a4ce start_date=2026-01-01，真實日期 2026-04-18 在 slug (commit a1e58a9)。
+- 2026-05-07 — events 977da793 (2026-01-15) 也是佔位符，guard 改為 `month == 1` (commit 7df9f56)。
+
+## Scraper Server-Side Keyword Filter Verification Guard
+
+在審核任何新 scraper 的關鍵字 URL 參數過濾前，**必須**確認：
+
+1. **Server-side keyword filter 是否真正生效**：發送含 keyword 的請求，再發送不含 keyword 的請求，比較回傳數量。若兩次相同 → server-side filter 無效。
+2. **必須加 client-side filter**：無論 server 是否過濾，都應在 Python 層加 `_is_taiwan_relevant()` 檢查。
+3. **Author bio false positive**：台灣大學名稱（`台湾大学`、`淡江大学` 等）出現在著者略歷中，不代表活動內容與台灣相關。需 regex 排除後再計 keyword count。
+
+Reference incident: 2026-05-07 — bookandbeer `?keyword=台湾` 被 server 靜默忽略，需 client-side filter (commits 7df9f56, e1ab468)。
+
+## gnews RSS Snippet Date Guard
+
+在審核任何 RSS-based scraper 的 start_date 提取邏輯前，**必須**確認：
+
+1. **RSS description snippet 不可用作 start_date 提取來源**：snippet 通常 < 200 字，缺乏完整年份/日期資訊 → 錯誤率高。
+2. **article fetch 失敗時 start_date = None**（不是 fallback 到 snippet）：
+   ```python
+   # CORRECT
+   start_date = _extract_start_date(article_text, pub_date) if article_text else None
+   ```
+3. **health_check gnews_suspect alert 只對過去日期報警**（`start_date < today`）：未來日期不影響使用者，不需告警。
+
+Reference incident: 2026-05-07 — gnews RSS snippet fallback 造成錯誤 start_date (commit 1c0f69a)。
+
+## SCRAPERS List Completeness Guard（防止 main.py import 重排時丟失 scraper）
+
+在審核**任何** `scraper/main.py` 的 commit 前，**必須**確認：
+
+1. **SCRAPERS list 項目數不得減少**（除非明確停用）：
+   ```bash
+   git diff HEAD -- scraper/main.py | grep "^-.*Scraper()" | wc -l
+   # 若 > 0 → 必須確認每個刪除都是有意的
+   ```
+2. **import 重排是高風險操作**：重排後必須確認 SCRAPERS list 完整。
+3. **功能性 commit 不應修改 SCRAPERS list**：annotator/merger 修改不需重排 imports。
+
+Reference incidents:
+- 2026-05-04 — `045d1fa` 新增 WasedaIcl 後丟失 24 個 scraper。
+- 2026-05-08 — `694a363` import 重排，丟失 WalkerplusScraper、BigRomanticRecordsScraper、WasedaIclScraper、TsutayaPortalScraper。
 ## Required Phases
 
 ### Phase 1: Research

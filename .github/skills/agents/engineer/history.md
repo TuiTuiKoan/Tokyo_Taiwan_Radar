@@ -3,6 +3,41 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-08 — main.py import reorder silently dropped 4 scrapers (WalkerplusScraper, BigRomanticRecordsScraper, WasedaIclScraper, TsutayaPortalScraper)
+
+**Error:** commit `694a363` (fix(annotator): extend year-anchor injection to all sources) rewrote the import block in `scraper/main.py` and accidentally dropped 4 scrapers from both the import section and the SCRAPERS list. The source files existed but daily CI never ran them.
+
+**Detection:** Manual inspection during documentation review showed `grep -c "Scraper()" scraper/main.py` was lower than expected.
+
+**Fix:** Re-added 4 import lines + 4 SCRAPERS list entries. Verified with `python main.py --dry-run --source <name>` for each.
+
+**Lesson:**
+- `main.py` import reordering is HIGH RISK. After any commit touching main.py, run: `git diff HEAD -- scraper/main.py | grep "^-.*Scraper()" | wc -l` — if > 0, confirm each removal is intentional.
+- Feature/fix commits (annotator year-anchor, merger rules, etc.) should NOT touch the SCRAPERS list at all. Keep main.py changes separate from scraper-logic changes.
+- This is the SECOND identical incident (`045d1fa` was the first in 2026-05-04). The pattern is now in SCRAPERS List Completeness Guard.
+
+---
+
+## 2026-05-07 — gnews RSS snippet used as start_date fallback when article_text is None
+
+**Error:** `google_news_rss.py` called `_extract_start_date(article_text or description_plain, pub_date)`. When article fetch failed, `description_plain` (RSS snippet, ≤200 chars) was passed to the date extractor — too short to yield reliable dates. Result: incorrect `start_date` values on gnews events.
+
+**Fix (commit 1c0f69a):** Changed to `_extract_start_date(article_text, pub_date) if article_text else None`. When article is unavailable, annotator's universal year-anchor handles the date.
+
+**Lesson:** RSS snippet ≠ event data. Any date extraction that falls back to a snippet will produce noisy dates. Prefer `None` + annotator over a high-error fallback.
+
+---
+
+## 2026-05-07 — tokyoartbeat Contentful placeholder guard used day==1 instead of month==1
+
+**Error:** The Contentful placeholder date guard in `tokyoartbeat.py` was `start_date.day == 1`, but Contentful uses the **entire January** (`YYYY-01-xx`) as a fiscal-year placeholder. Events `977da793` (2026-01-15) and `e7cf2a51` had placeholder dates that were NOT caught.
+
+**Fix (commit 7df9f56):** Changed guard condition to `start_date.month == 1`. Applied direct DB correction for the 2 affected events.
+
+**Lesson:** Platform placeholder conventions should be described broadly. When a vendor uses an entire month as a placeholder, the guard must cover the entire month, not just the 1st.
+
+---
+
 ### 2026-05-05 — Batch Script Post-Enrichment Guard（程式碼層防護）
 
 **設計問題**：每次寫 `_oneoff_*.py` 批次修復腳本，都從零用 urllib 直接打 REST API，完全繞過 annotator.py 已有的 enrichment pipeline。導致同類錯誤反覆出現：片名 GPT 直譯幻覺（超低預算 2026-05-05）、翻譯被 AI 覆寫（月老 2026-05-04）、人名音譯未修（desc_en 2026-05-05）。
