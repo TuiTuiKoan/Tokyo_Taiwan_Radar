@@ -55,10 +55,12 @@ jobs:
             "$WF_URL")
 
           # Build JSON payload via jq to safely escape newlines and special chars
+          # Filter assigned to variable to avoid YAML parser misreading [{...}]
+          JQ_FILTER='{"to":$to,"messages":[{"type":"text","text":$text}]}'
           PAYLOAD=$(jq -n \
             --arg to "$LINE_USER_ID" \
             --arg text "$MSG" \
-            '{to: $to, messages: [{type: "text", text: $text}]}')
+            "$JQ_FILTER")
 
           HTTP_CODE=$(curl -s -o /tmp/line_resp.json -w "%{http_code}" \
             -X POST https://api.line.me/v2/bot/message/push \
