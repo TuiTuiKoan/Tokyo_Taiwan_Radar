@@ -3,6 +3,37 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-07 — i18n 197 keys 意外刪除（organizer, eventForm, admin 段落全消失）
+
+### 問題
+commit `694a363` 將三個語言檔（zh/en/ja.json）的 197 個 key 意外刪除，包括 `event.organizer`、`event.eventForm`、`admin.exclusions*`、`admin.works*`、`eventForm.*`、`organizerType.*` 等，造成前台 organizer/eventForm 等欄位 UI label 全部消失。
+
+### 根因
+1. 使用者先跑 `/tmp/fix_sources.py`，該腳本對 web/messages/*.json 做了修改並寫入 staging index（git index 汙染）。
+2. Architect 僅 `git add scraper/annotator.py .github/skills/... .github/skills/...`（3 個檔案），沒有執行 `git status` 確認 index 乾淨。
+3. `git diff --cached --stat` 只顯示 3 個 staged 檔案，但 **index 裡另有 7 個舊的 staged 修改**，git commit 將全部 staged 內容一起提交。
+4. 送出的 commit 有 10 個檔案，其中 messages/*.json 含有 197 個 key 的刪除。
+
+### 修法
+1. 從 `979725f`（前一個正確版本）還原三個語言檔：`git show 979725f:web/messages/zh.json > web/messages/zh.json`（三語同做）。
+2. 驗證：`missing=0, extra=0`（key 完整）。
+3. Commit 還原：`fix(web): restore 197 missing i18n keys (organizer, eventForm, admin sections)`。
+4. 補救 DB：`event_form` 為 `[]` 的 7 個 peatix 事件（父 `443e4365` + 6 個 reviewed sub-events）直接 DB 補 `['screening_with_talk']` / `['screening']`。
+5. 在 `.git/hooks/pre-commit` 加入 i18n regression guard：若 staged 的 messages/*.json 刪減任何 key 則 commit 被攔截。
+
+### DB 盤查最終結果（2026-05-07）
+- Active 事件：289 筆
+- name_zh/name_en/description_zh/description_en：**100% 完整**
+- event_form：**100% 完整**（fix 後）
+- organizer：缺 34 筆（11.8%）—— OpenAI quota 耗盡，待每日 CI 補齊
+- annotation_status=error：1 筆 active（peatix 443e4365，quota 耗盡無法重標）
+
+### 教訓
+- **commit 前必須 `git status` 確認 index 乾淨**：若 index 有不預期的 staged 檔案（第一欄為 M），必須先 `git restore --staged <path>` 解除，再做針對性 `git add`。
+- **`git diff --cached --stat` 不夠**：只顯示 HEAD vs staged 的差異，不代表 staged 裡只有那些檔案（若 HEAD 本身就包含那些變更，diff 會為零）。正確做法是 `git status` 確認絕對清單。
+- **i18n pre-commit hook 現為第一道防護**：即使 AI 再犯同樣錯誤，hook 會攔截並列出 deleted keys。
+
+---
 ## 2026-05-06 — auto_research score 閾値誤解：assessed ソースを not-viable に保留し続けた
 
 ### 問題

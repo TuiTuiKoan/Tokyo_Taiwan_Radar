@@ -810,12 +810,16 @@ In the Verification section of any plan involving both CI (GitHub Actions) and w
 ## i18n Regression Prevention (CRITICAL)
 - **翻譯 JSON 只能新增、修改，絕不刪除 key**，除非確認全 codebase 所有 TSX/TS 都已移除該 key 的引用。
 - **Scraper / DB / Agent 等非 web commit 不得修改 `web/messages/*.json`**。如果 AI 在同一 commit 中捆綁了翻譯修改，必須 split commit 或手動 revert 翻譯部分。
+- **Staging index 汙染防護**：commit 前必須先執行 `git status` 確認 staging area 只有預期的 file，再執行 `git add`。若其他檔案意外出現在 index（第一欄為 M 而非空格），代表舊的修改已 staged，需分開 commit。
+- **pre-commit hook 自動保護（2026-05-07 起）**：`.git/hooks/pre-commit` 已加入 i18n regression guard。若 staged 的 messages/*.json 刪減了任何 key，commit 會被攔截並列出缺失 key。可用 `git commit --no-verify` 強制繞過，但必須有充分理由。
 - 每次修改翻譯後，執行 key 完整性驗證：
   ```bash
   python3 -c "import json; a=set(json.load(open('web/messages/zh.json')).keys()); b=set(json.load(open('web/messages/en.json')).keys()); c=set(json.load(open('web/messages/ja.json')).keys()); print('zh-en diff:', a-b); print('zh-ja diff:', a-c)"`
   ```
 - 若懷疑翻譯被洗掉，立即執行：`git log --oneline --since="3 days ago" -- 'web/messages/*.json'` 逐一檢查可疑 commit 的 diff（`git show <hash> -- 'web/messages/*.json' | grep '^-'`）。
 - **根本防護**：`categories` namespace 中的 group_ 標籤（`group_arts`/`group_lifestyle`/`group_knowledge`/`group_society`/`group_archive`）和晚期新增的子分類（`competition`/`indigenous`/`history`/`urban`/`workshop`）是歷史上最常被意外洗掉的 key，每次 web 功能發布前必須確認這些 key 存在。
+
+Reference incident: 2026-05-07 — commit `694a363` 將 web/messages/*.json 的 197 個 key（organizer, eventForm, admin 各段落）意外刪除，因為 `/tmp/fix_sources.py` 已把 messages 修改寫入 staging index，而後續的 `git add <3 files>` + `git commit` 捲走了所有 staged 變更。
 
 ## Reviewed Event Translation Guard (CRITICAL)
 - **`reviewed` 狀態的活動不應有 `name_zh = NULL` 或 `name_en = NULL`**。若有，後台 AdminEventTable 會顯示紅色 ⚠ 徽章提醒管理員。
