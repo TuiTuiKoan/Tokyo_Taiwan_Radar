@@ -493,13 +493,16 @@ Reference incident: 2026-05-06 — `category_corrections` 含 2 筆 `セシリ�
   - 正確：`{2,5}` → `宇田川幸洋`（5 字）仍可匹配，`翻訳者一青窈` 不匹配
 - **`_MUKAE_RE` 必須有 negative lookbehind `(?<![\u4e00-\u9fff])`**：防止從職稱字串中間開始匹配。例：`訳者一青窈` 從 `訳` 開始匹配出 `訳者一青窈`（`訳` 前面是漢字 `翻`，lookbehind 阻擋）。
 - **每次修改後掃描 DB**：對全部 performer=null 事件跑 `_extract_performer_from_raw`，人工確認所有命中
-- **敬語形式需覆蓋**：`をお迎え`（帶 `お`）與 `を迎え` 是不同 pattern，需同時收錄
+- **MUKAE lookahead 必須涵蓋三種邀嘉賓慣用語**：`をお迎え`（帶 `お`）、`を迎え`、`をゲストに迎え` 三者缺一不可。語義相同但拼法不同，缺少任一則靜默失敗。Reference: 2026-05-08 commit `6c2f1ab`。
+- **`_PERFORMER_INTRO_RE` separator 必須為 `*`（0 或多個）**：日語中角色詞（`絵本作家`、`翻訳者`、`料理研究家`）與人名直接連接（無分隔符）是常見寫法，`+`（1 個以上）會導致靜默失敗。Sanity check：直連（`絵本作家林廉恩`）、點號（`料理研究家・宮武衣充`）、冒號（`講師：田中花子`）三種情況均應命中。Reference: 2026-05-08 commit `fe8b273`。
 - **DB 回填只用 INTRO pattern**：MUKAE 只感知「名字+敬語」，不知道上下文有幾位講者。多人講者事件（林宏文、宇田川幸洋案例）由 MUKAE 匹配但應保持 null。
 
 Reference incidents:
 - 2026-05-04 — event `e72b2c15` performer 三層 fallback 缺失；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
 - 2026-05-06 — event `4427f965`（台湾植物紀行）`前田知里｜植物民族学研究家` 未提取，三重根因：(1) 無 `_PIPE_ROLE_RE`；(2) 資訊在 pos 859 > 500 上限；(3) GPT 視主催者不為 guest（commit `c82e746`）。
-- 2026-05-08 — `翻訳者一青窈` 假陽性：INTRO `{2,6}` + MUKAE 無 lookbehind 導致 role+name 連串被誤匹配；修法：max 6→5 + lookbehind + `翻訳者` 加入 role list（本 commit）。
+- 2026-05-08 — `翻訳者一青窈` 假陽性：INTRO `{2,6}` + MUKAE 無 lookbehind 導致 role+name 連串被誤匹配；修法：max 6→5 + lookbehind + `翻訳者` 加入 role list（commit `b2d8a21`）。
+- 2026-05-08 — `一青窈氏をゲストに迎え` 無法被 MUKAE 捕捉：lookahead 缺少 `をゲストに迎え`；修法：加入至 lookahead（commit `6c2f1ab`）。
+- 2026-05-08 — `絵本作家林廉恩氏` 無法被 INTRO_RE 捕捉：separator `+` 不允許無分隔符直連寫法；修法：`+` → `*`（commit `fe8b273`）。
 
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).

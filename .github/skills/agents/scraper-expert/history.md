@@ -3,6 +3,32 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-08 — MUKAE_RE 缺少 をゲストに迎え，一青窈未被捕捉（commit 6c2f1ab）
+
+**Error:** `一青窈氏をゲストに迎え` 無法被 `_MUKAE_RE` 捕捉，performer 返回 null。`をゲストに迎え` 是日式正式邀嘉賓慣用語，與 `をお迎え`/`を迎え` 語義相同，但不在 lookahead 清單中。
+
+**Root cause:** `_MUKAE_RE` lookahead 只列舉 `をお?迎え|による|が登壇|がトーク|にご登場`，缺少 `をゲストに迎え`。
+
+**Fix (commit 6c2f1ab):** Lookahead 加入 `をゲストに迎え`：`(?:をお?迎え|をゲストに迎え|による|が登壇|がトーク|にご登場)`。
+
+**DB impact:** 受影響事件 e0521671（ようこそ物語の島へ）、1d741522（絵本朗読×トーク），以 DB 手動設定 `performer='林廉恩、一青窈'` + `field_corrections` 鎖定。
+
+**Lesson:** MUKAE lookahead 必須涵蓋所有「邀請演出者」語義的日語慣用語：`をお迎え`、`を迎え`、`をゲストに迎え` 三者缺一不可。每次新增邀嘉賓用語時，同步補全。
+
+---
+## 2026-05-08 — PERFORMER_INTRO_RE separator `+` 導致 絵本作家林廉恩 無法捕捉（commit fe8b273）
+
+**Error:** `絵本作家林廉恩氏` 無法被 `_PERFORMER_INTRO_RE` 捕捉。`作家` 在 role list 中，但 `[・：:\s]+`（1+ 個分隔符必填）阻斷了角色與名字直接連接的寫法。
+
+**Root cause:** separator `[・：:\s]+` 要求至少 1 個分隔符，而 `絵本作家林廉恩` 角色詞與人名直連（無任何分隔符）。MUKAE 路徑也無法命中（缺 `をゲストに迎え` 且不含 `と` 連接結構）。
+
+**Fix (commit fe8b273):** `[・：:\s]+` → `[・：:\s]*`（separator 改為 optional，0 個或多個）。
+
+**DB impact:** Event e0521671（ようこそ物語の島へ）文本為 `作家の林廉恩氏`（`の` 不在 `*` 範圍），仍以 DB 手動修正 + lock 處理。Event 1d741522 同上。
+
+**Lesson:** 日語中角色詞與人名直接連接是常見寫法（如 `絵本作家林廉恩`、`料理人鈴木一郎`）。`_PERFORMER_INTRO_RE` separator 必須用 `*`，而非 `+`，否則直連寫法靜默失敗。Sanity check 三種情況：直連、點號分隔（`・`）、冒號分隔（`：`/`:`）均應命中。
+
+---
 ## 2026-05-08 — performer regex 假陽性：INTRO `{2,6}` + MUKAE 缺 lookbehind
 
 **Error:** `_PERFORMER_INTRO_RE` 在 `歌手・翻訳者一青窈氏による` 中擷取出 `翻訳者一青窈`（6 字）。`_MUKAE_RE` 則從 `訳者一青窈氏による` 中間開始匹配出 `訳者一青窈`。兩者均為假陽性，真實姓名為 `一青窈`（3 字）。
