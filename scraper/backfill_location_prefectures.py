@@ -113,13 +113,13 @@ def main() -> None:
         os.environ["SUPABASE_SERVICE_ROLE_KEY"],
     )
 
-    # Fetch all active sub-events with location_address
+    # Fetch ALL sub-events with location_address (including inactive — backfill
+    # historical rows so reports & roadmap reflect total fill rate, not just active).
     logger.info("Fetching sub-events...")
     subs = (
         sb.table("events")
         .select("parent_event_id,location_address")
         .not_.is_("parent_event_id", "null")
-        .eq("is_active", True)
         .execute()
     )
 
@@ -131,12 +131,13 @@ def main() -> None:
         if pref:
             parent_prefectures[pid].add(pref)
 
-    # Fetch parent events: active, parent_event_id IS NULL.
-    logger.info("Fetching active parent events...")
+    # Fetch ALL parent events (parent_event_id IS NULL), regardless of is_active.
+    # Filter `location_prefectures IS NULL` is enforced row-by-row below to keep
+    # idempotency (we still want to emit `skipped_existing` counter for visibility).
+    logger.info("Fetching parent events (all is_active states)...")
     parents = (
         sb.table("events")
         .select("id,name_ja,location_address,location_prefectures")
-        .eq("is_active", True)
         .is_("parent_event_id", "null")
         .execute()
     ).data
@@ -186,7 +187,7 @@ def main() -> None:
             single_updated += 1
 
     logger.info("=" * 60)
-    logger.info("Scanned active parents:   %d", scanned)
+    logger.info("Scanned parents:          %d", scanned)
     logger.info("Multi-city updated:       %d", multi_updated)
     logger.info("Single-city updated:      %d", single_updated)
     logger.info("Skipped (already set):    %d", skipped_existing)
