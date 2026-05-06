@@ -489,6 +489,179 @@ def build_section_tv(sb, month: str) -> str:
     return "\n".join(lines)
 
 
+def build_section_benchmark(sb, month: str) -> str:
+    """
+    対外比較データ（参考）: JNTO 訪日台湾人 + MOJ 在留台湾人 都道府県別。
+    外部統計テーブルにデータがない場合は空文字を返す（graceful skip）。
+    """
+    year, mo = month.split("-")
+    year_int = int(year)
+    mo_int = int(mo)
+
+    lines: list[str] = []
+
+    # ------------------------------------------------------------------
+    # 1. JNTO 訪日外客（台湾）
+    # ------------------------------------------------------------------
+    try:
+        jnto_resp = (
+            sb.table("external_stats_taiwan_visitors")
+            .select("year_month,total_visitors,yoy_change_pct")
+            .eq("year_month", month)
+            .execute()
+        )
+        jnto_data = jnto_resp.data or []
+    except Exception:
+        jnto_data = []
+
+    # Also get the same month from previous year for YoY comparison
+    try:
+        prev_month = f"{year_int - 1}-{mo_int:02d}"
+        jnto_prev_resp = (
+            sb.table("external_stats_taiwan_visitors")
+            .select("year_month,total_visitors")
+            .eq("year_month", prev_month)
+            .execute()
+        )
+        jnto_prev_data = jnto_prev_resp.data or []
+    except Exception:
+        jnto_prev_data = []
+
+    # ------------------------------------------------------------------
+    # 2. MOJ 在留台湾人（最新期）
+    # ------------------------------------------------------------------
+    try:
+        # Get the latest available year_month
+        latest_resp = (
+            sb.table("external_stats_resident_taiwanese")
+            .select("year_month")
+            .order("year_month", desc=True)
+            .limit(1)
+            .execute()
+        )
+        latest_period = (latest_resp.data or [{}])[0].get("year_month")
+    except Exception:
+        latest_period = None
+
+    moj_data: list[dict] = []
+    if latest_period:
+        try:
+            moj_resp = (
+                sb.table("external_stats_resident_taiwanese")
+                .select("prefecture,pref_code,count")
+                .eq("year_month", latest_period)
+                .order("count", desc=True)
+                .execute()
+            )
+            moj_data = moj_resp.data or []
+        except Exception:
+            moj_data = []
+
+    # ------------------------------------------------------------------
+    # 3. e-Stat 都道府県別人口（最新年）
+    # ------------------------------------------------------------------
+    pop_data: list[dict] = []
+    try:
+        pop_year_resp = (
+            sb.table("external_stats_population")
+            .select("year")
+            .order("year", desc=True)
+            .limit(1)
+            .execute()
+        )
+        pop_year = (pop_year_resp.data or [{}])[0].get("year")
+        if pop_year:
+            pop_resp = (
+                sb.table("external_stats_population")
+                .select("prefecture,pref_code,population_1000")
+                .eq("year", pop_year)
+                .execute()
+            )
+            pop_data = pop_resp.data or []
+    except Exception:
+        pop_data = []
+
+    # ------------------------------------------------------------------
+    # Render — skip entire section if all tables empty
+    # ------------------------------------------------------------------
+    if not jnto_data and not moj_data:
+        return ""
+
+    lines = [
+        "---\n",
+        "## 📊 対外比較データ（参考）\n",
+        "> 出典: JNTO 訪日外客統計 / 出入国在留管理庁 在留外国人統計",
+        "> ライセンス: 政府標準利用規約 1.0 / CC BY 4.0\n",
+    ]
+
+    # ---- JNTO section ----
+    if jnto_data:
+        row = jnto_data[0]
+        visitors = row.get("total_visitors", 0)
+        yoy = row.get("yoy_change_pct")
+        yoy_str = f"（前年同月比 {yoy:+.1f}%）" if yoy is not None else ""
+
+        prev_visitors = (jnto_prev_data[0].get("total_visitors", 0)) if jnto_prev_data else None
+        if prev_visitors and visitors and prev_visitors > 0:
+            calc_yoy = (visitors - prev_visitors) / prev_visitors * 100
+            yoy_str = f"（前年同月比 {calc_yoy:+.1f}%）"
+
+        lines += [
+            f"### ✈️ 訪日台湾人 {month}\n",
+            f"- **{visitors:,} 人** {yoy_str}",
+            "",
+        ]
+
+    # ---- MOJ section ----
+    if moj_data:
+        total_taiwan = sum(r.get("count", 0) for r in moj_data)
+
+        # Build population lookup
+        pop_by_pref = {}
+        if pop_data:
+            for p in pop_data:
+                pop_by_pref[p["pref_code"]] = p.get("population_1000", 0) * 1000
+
+        lines += [
+            f"### 🏠 在留台湾人 都道府県別（{latest_period} 末現在）\n",
+            f"- **全国合計: {total_taiwan:,} 人**\n",
+            "#### Top 10 都道府県（在留者数）\n",
+            "| 都道府県 | 在留台湾人 |",
+            "|----------|-----------|",
+        ]
+        for r in moj_data[:10]:
+            pref = r.get("prefecture", "")
+            cnt = r.get("count", 0)
+            lines.append(f"| {pref} | {cnt:,} |")
+
+        lines.append("")
+
+        # Density table if population data is available
+        if pop_by_pref and len(pop_by_pref) >= 10:
+            density_rows: list[tuple[str, int, float]] = []
+            for r in moj_data:
+                pref = r.get("prefecture", "")
+                pref_code = r.get("pref_code", "")
+                cnt = r.get("count", 0)
+                pop = pop_by_pref.get(pref_code, 0)
+                if pop > 0:
+                    density = cnt / pop * 100_000
+                    density_rows.append((pref, cnt, density))
+
+            density_rows.sort(key=lambda x: x[2], reverse=True)
+
+            lines += [
+                "#### Top 10 都道府県（在留率: 人口 10 万人あたり）\n",
+                "| 都道府県 | 在留台湾人 | 在留率（/10万） |",
+                "|----------|-----------|----------------|",
+            ]
+            for pref, cnt, density in density_rows[:10]:
+                lines.append(f"| {pref} | {cnt:,} | {density:.1f} |")
+            lines.append("")
+
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Main report assembler
 # ---------------------------------------------------------------------------
@@ -530,8 +703,9 @@ def generate_report(month: str, fmt: str = "markdown") -> str:
     s4 = build_section4(sb, month_events)
     s5 = build_section5(sb, month)
     s6 = build_section_tv(sb, month)
+    s7 = build_section_benchmark(sb, month)
 
-    return header + s1 + s2 + s3 + s4 + s5 + s6
+    return header + s1 + s2 + s3 + s4 + s5 + s6 + s7
 
 
 def main():

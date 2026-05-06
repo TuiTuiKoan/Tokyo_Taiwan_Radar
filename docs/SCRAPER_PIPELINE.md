@@ -1,7 +1,7 @@
 ---
 title: Scraper Pipeline — 來源研究到爬蟲上線
 description: 從來源發現、研究評估、自動代碼生成，到手動整合與 CI 部署的完整工作流
-ms.date: 2026-05-02
+ms.date: 2026-05-06
 ---
 
 ## 總覽
@@ -357,6 +357,55 @@ python main.py --dry-run --source <name>
 | 每日批次上限 | ~$0.50 + $1.50 | auto-research + auto-generate 各自有上限 |
 
 ---
+
+---
+
+## Layer E — 外部統計資料（Government Open Data）
+
+政府公開統計資料每月自動拉取，作為月報對比基準，**不影響事件爬蟲主 pipeline**。
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  Layer E — 外部統計拉取（每月 1 日 09:30 JST）                                │
+│                                                                              │
+│  external-stats-pull.yml                                                     │
+│    → external_stats/pull_all.py                                              │
+│       ├── jnto_visitors.py  → external_stats_taiwan_visitors（月別）          │
+│       ├── moj_residents.py  → external_stats_resident_taiwanese（都道府縣別）  │
+│       └── estat_population.py → external_stats_population（年更）             │
+│                                                                              │
+│  report_generator.build_section_benchmark()                                  │
+│    → 讀取三張外部統計表，組合月報對比 section                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 資料表與來源
+
+| 表 | Migration | 資料來源 | 授權 |
+|----|-----------|---------|------|
+| `external_stats_taiwan_visitors` | 055 | JNTO 訪日外客統計 | jp-gov-pdl-1.0 |
+| `external_stats_resident_taiwanese` | 055 | MOJ 在留外國人統計 | jp-gov-pdl-1.0 |
+| `external_stats_population` | 055 | e-Stat 住民基本台帳人口 | jp-gov-pdl-1.0 |
+
+### 環境變數
+
+| 變數 | 說明 |
+|------|------|
+| `ESTAT_APP_ID` | e-Stat API 應用程式 ID（[申請頁](https://www.e-stat.go.jp/api/)）— 無過期，洩漏後需重新申請 |
+
+### 檔案對照
+
+| 檔案 | 用途 |
+|------|------|
+| `scraper/external_stats/pull_all.py` | 拉取入口 — 依序執行三個 puller |
+| `scraper/external_stats/jnto_visitors.py` | JNTO Excel 解析 + upsert |
+| `scraper/external_stats/moj_residents.py` | MOJ CSV 解析 + upsert |
+| `scraper/external_stats/estat_population.py` | e-Stat JSON API + upsert |
+| `scraper/external_stats/base.py` | 共用基底（`BaseStatsPuller`）|
+| `scraper/report_generator.py` | `build_section_benchmark()` |
+| `supabase/migrations/055_external_stats.sql` | 三張統計表 schema |
+| `.github/workflows/external-stats-pull.yml` | 每月 CI workflow |
+
 
 ## 相關文件
 

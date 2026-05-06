@@ -1,7 +1,7 @@
 ---
 title: Architecture Overview
 description: 東京台灣雷達全站架構總覽 — 爬蟲、翻譯、資料庫、前端、CI/CD、LINE Bot
-ms.date: 2026-05-01
+ms.date: 2026-05-06
 ---
 
 ## 系統總覽
@@ -100,6 +100,8 @@ python update_source.py --url "https://example.com" --status researched --create
 | `validate.py` | 異常偵測：缺翻譯、缺日期、selector 失效 |
 | `health_check.py` | 每日健康監控（LINE 告警，僅錯誤時推播）|
 | `indexnow.py` | 新事件 URL 提交至 Bing/IndexNow 加速索引 |
+| `external_stats/pull_all.py` | 政府公開資料拉取入口（JNTO/MOJ/e-Stat）— 每月一次 |
+| `report_generator.py` | 月報 section 組合（含 `build_section_benchmark()` 外部統計）|
 
 ### 資料流
 
@@ -173,6 +175,9 @@ scraper.scrape()
 | `announcements` | 030 | 發文管理（三語 + 社群發布狀態）|
 | `announcement_events` | 030 | 發文 ↔ 事件關聯（junction table）|
 | `quota_snapshots` | 042 | 每日配額快照（Supabase DB size / GH Actions minutes）|
+| `external_stats_taiwan_visitors` | 055 | JNTO 訪日台灣人月別統計 |
+| `external_stats_resident_taiwanese` | 055 | MOJ 在留台灣人都道府縣別統計 |
+| `external_stats_population` | 055 | e-Stat 都道府縣別總人口（年更）|
 
 ### 重要 migration 演進
 
@@ -184,6 +189,7 @@ scraper.scrape()
 | 016 | `event_views` 瀏覽統計 |
 | 017 | `reviewed` annotation status |
 | 018 | `official_url` + `scraped_at` |
+| 055 | `external_stats_*` 三張外部統計表（JNTO / MOJ / e-Stat）|
 
 ---
 
@@ -322,6 +328,7 @@ Admin 撰寫發文（三語 title + body + images）
 | `daily-health-check.yml` | 每日 | 健康監控 |
 | `secret-rotation-reminder.yml` | — | 密鑰輪替提醒 |
 | `monthly_health_check.yml` | 每月 1 日 09:00 JST | 月度 feedback-loop 健康檢查 |
+| `external-stats-pull.yml` | 每月 1 日 09:30 JST | JNTO / MOJ / e-Stat 外部統計拉取 |
 
 ### 每日 Pipeline（scraper.yml）
 
@@ -363,6 +370,7 @@ Job 3: notify（depends: scrape + validate, always runs）
 | `INDEXNOW_KEY` | ✓ | — | IndexNow 索引 |
 | `SENTRY_DSN` | ✓ | ✓ | 錯誤追蹤 |
 | `SENTRY_AUTH_TOKEN` | — | ✓ | Source map 上傳 |
+| `ESTAT_APP_ID` | ✓ | — | e-Stat API 應用程式 ID（外部統計）|
 
 ---
 
