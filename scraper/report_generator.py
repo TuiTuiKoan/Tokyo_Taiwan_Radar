@@ -70,6 +70,9 @@ _ORGANIZER_ALIASES: dict[str, str] = {
     "台湾駐日本代表処 台湾文化センター": "台湾文化センター",
     "台北駐大阪経済文化弁事処 台湾文化センター": "台湾文化センター大阪",
     "台北駐大阪経済文化弁事処台湾文化センター": "台湾文化センター大阪",
+    # Individual organizers / placeholder committee names
+    "copochan": "個人主催",
+    "同実行委員会": "『一八九五』上映実行委員会",
 }
 
 # ---------------------------------------------------------------------------
@@ -357,6 +360,67 @@ def build_section5(sb, month: str) -> str:
     return "\n".join(lines)
 
 
+def build_section_tv(sb, month: str) -> str:
+    """テレビ・配信番組統計（参考）"""
+    start_d, end_d = _month_range(month)
+    tv_events = _fetch_all(
+        sb, "events",
+        "id,source_name,name_ja,category,organizer",
+        [
+            ("eq", "is_active", True),
+            ("in_", "annotation_status", ["annotated", "reviewed"]),
+            ("gte", "start_date", start_d),
+            ("lt", "start_date", end_d),
+            ("eq", "source_name", "gguide_tv"),
+        ],
+    )
+    if not tv_events:
+        return ""
+
+    total = len(tv_events)
+    cat_counter: Counter = Counter()
+    for e in tv_events:
+        for cat in (e.get("category") or []):
+            cat_counter[cat] += 1
+
+    # Channel top 5 (organizer field = broadcaster)
+    channel_counter: Counter = Counter()
+    for e in tv_events:
+        ch = (e.get("organizer") or "").strip()
+        if ch:
+            channel_counter[ch] += 1
+
+    lines = [
+        "---\n",
+        "## 📺 テレビ・配信番組（参考・実体イベントに含まず）\n",
+        f"- **番組組数**: {total} 件",
+        "",
+    ]
+
+    if cat_counter:
+        lines += [
+            "### カテゴリ内訳\n",
+            "| カテゴリ | 件数 |",
+            "|--------|------|" ,
+        ]
+        for cat, cnt in cat_counter.most_common():
+            ja = CATEGORY_JA.get(cat, cat)
+            lines.append(f"| {ja} | {cnt} |")
+        lines.append("")
+
+    if channel_counter:
+        lines += [
+            "### 放送局・チャンネル Top 5\n",
+            "| チャンネル | 件数 |",
+            "|--------|------|" ,
+        ]
+        for ch, cnt in channel_counter.most_common(5):
+            lines.append(f"| {ch} | {cnt} |")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Main report assembler
 # ---------------------------------------------------------------------------
@@ -377,6 +441,7 @@ def generate_report(month: str, fmt: str = "markdown") -> str:
             ("lt", "start_date", end_d),
         ],
     )
+    tv_excl = [e for e in month_events if _is_broadcast(e)]
     month_events = [e for e in month_events if not _is_broadcast(e)]
 
     # Build header
@@ -385,7 +450,7 @@ def generate_report(month: str, fmt: str = "markdown") -> str:
         [
             f"# 台湾関連イベント月次レポート — {year}年{mo}月\n",
             f"生成日時: {now}  ",
-            f"データ基準: active + annotated/reviewed イベント  ",
+            f"データ基準: active + annotated/reviewed イベント（TV・配信除く）  ",
             f"対象月: {month}\n",
             "---\n",
         ]
@@ -396,8 +461,9 @@ def generate_report(month: str, fmt: str = "markdown") -> str:
     s3 = build_section3(month_events)
     s4 = build_section4(sb, month_events)
     s5 = build_section5(sb, month)
+    s6 = build_section_tv(sb, month)
 
-    return header + s1 + s2 + s3 + s4 + s5
+    return header + s1 + s2 + s3 + s4 + s5 + s6
 
 
 def main():
