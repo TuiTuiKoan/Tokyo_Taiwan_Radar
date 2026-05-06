@@ -42,6 +42,28 @@ JST = timezone(timedelta(hours=9))
 # weekly_broadcast runs Thu 09:00 JST + Fri 12:00 JST only (not daily)
 NON_DAILY_SOURCES: frozenset[str] = frozenset({"weekly_broadcast"})
 
+# Sources that legitimately return 0 events during quiet periods.
+# These are NOT treated as possible selector breaks.
+#   - Cinema scrapers: only emit events when a Taiwan film is currently showing.
+#   - Seasonal film festivals: only active during their festival window.
+ZERO_EVENT_OK_SOURCES: frozenset[str] = frozenset({
+    # Cinema scrapers — 0 events = no Taiwan film on screen right now (normal)
+    "cineswitch_ginza",
+    "cine_marine",
+    "cinemart_shinjuku",
+    "ks_cinema",
+    "shin_bungeiza",
+    "eurospace",
+    "uplink_cinema",
+    "human_trust_cinema",
+    "stranger",
+    # Seasonal film festivals — only active during festival period
+    "oaff",
+    "tokyo_filmex",
+    "tiff_jp",
+    "ssff",
+})
+
 
 def _supabase_client():
     from supabase import create_client
@@ -88,7 +110,8 @@ def run_check(dry_run: bool = False, always_notify: bool = False) -> None:
         if not r.get("success", True):
             failed.append(src)
         elif r.get("events_processed", 0) == 0:
-            zero_events.append(src)
+            if src not in ZERO_EVENT_OK_SOURCES:
+                zero_events.append(src)
 
     # Sources expected to run but absent from today's runs
     missing: list[str] = sorted(expected_sources - ran_today)
