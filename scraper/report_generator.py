@@ -59,6 +59,20 @@ CATEGORY_JA = {
 }
 
 # ---------------------------------------------------------------------------
+# Broadcast exclusion — sources and categories excluded from client reports
+# ---------------------------------------------------------------------------
+_BROADCAST_SOURCES: frozenset[str] = frozenset({"gguide_tv"})
+_BROADCAST_CATEGORIES: frozenset[str] = frozenset({"tv_program", "drama"})
+
+# Organizer name aliases: raw DB string → canonical display name
+_ORGANIZER_ALIASES: dict[str, str] = {
+    "台北駐日経済文化代表処 台湾文化センター": "台湾文化センター",
+    "台湾駐日本代表処 台湾文化センター": "台湾文化センター",
+    "台北駐大阪経済文化弁事処 台湾文化センター": "台湾文化センター大阪",
+    "台北駐大阪経済文化弁事処台湾文化センター": "台湾文化センター大阪",
+}
+
+# ---------------------------------------------------------------------------
 # URL → short domain name
 # ---------------------------------------------------------------------------
 _DOMAIN_ALIAS = {
@@ -81,6 +95,31 @@ def _url_to_source_name(url: str) -> str:
         return host
     except Exception:
         return url[:40]
+
+
+def _is_broadcast(event: dict) -> bool:
+    """Return True if the event is TV/broadcast content to exclude from client reports."""
+    if event.get("source_name") in _BROADCAST_SOURCES:
+        return True
+    cats = set(event.get("category") or [])
+    return bool(cats) and cats.issubset(_BROADCAST_CATEGORIES)
+
+
+def _group_by_title(rows: list[dict]) -> list[dict]:
+    """Group media-coverage rows by event title, summing counts across all screenings."""
+    grouped: dict[str, dict] = {}
+    for row in rows:
+        name = row.get("name_ja") or "(無題)"
+        if name not in grouped:
+            grouped[name] = {"name_ja": name, "media_count": 0, "media_source_names": set()}
+        grouped[name]["media_count"] += row.get("media_count") or 0
+        src_names = row.get("media_source_names") or []
+        if isinstance(src_names, list):
+            grouped[name]["media_source_names"].update(src_names)
+    result = sorted(grouped.values(), key=lambda x: x["media_count"], reverse=True)
+    for r in result:
+        r["media_source_names"] = sorted(r["media_source_names"])
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +196,7 @@ def build_section1(sb, month: str) -> str:
             ("lt", "start_date", end_d),
         ],
     )
+    month_events = [e for e in month_events if e.get("source_name") not in _BROADCAST_SOURCES]
     total = len(month_events)
 
     month_start = start_d
@@ -255,6 +295,7 @@ def build_section4(sb, month_events: list) -> str:
         else:
             name = row.get("organizer") or None
         if name:
+            name = _ORGANIZER_ALIASES.get(name, name)
             org_counter[name] += 1
 
     lines = [
@@ -269,21 +310,16 @@ def build_section4(sb, month_events: list) -> str:
 
 
 def build_section5(sb, month: str) -> str:
-    """メディア露出 Top 10 — from events table (Python aggregation)"""
+    """メディア露出 Top 10 — grouped by title across all screenings"""
     start_d, end_d = _month_range(month)
 
-    # Try view first (migration 052 applied), fallback to events table
-    rows = []
+    rows: list[dict] = []
     try:
         r = sb.table("event_media_coverage").select(
             "event_id,name_ja,start_date,media_count,media_urls,media_source_names"
-        ).gte("start_date", start_d).lt("start_date", end_d).order("media_count", desc=True).limit(10).execute()
-        rows = r.data
-        used_view = True
+        ).gte("start_date", start_d).lt("start_date", end_d).order("media_count", desc=True).execute()
+        rows = _group_by_title(r.data)[:10]
     except Exception:
-        used_view = False
-
-    if not used_view:
         # Fallback: query events table directly
         raw = _fetch_all(
             sb, "events",
@@ -296,36 +332,27 @@ def build_section5(sb, month: str) -> str:
             ],
         )
         raw = [e for e in raw if (e.get("secondary_source_urls") or [])]
-        raw.sort(key=lambda e: len(e.get("secondary_source_urls") or []), reverse=True)
-        rows = []
-        for e in raw[:10]:
+        flat: list[dict] = []
+        for e in raw:
             urls = e.get("secondary_source_urls") or []
-            source_names = sorted({_url_to_source_name(u) for u in urls})
-            rows.append(
-                {
-                    "event_id": e["id"],
-                    "name_ja": e.get("name_ja", "(無題)"),
-                    "start_date": e.get("start_date", ""),
-                    "media_count": len(urls),
-                    "media_source_names": source_names,
-                }
-            )
+            flat.append({
+                "name_ja": e.get("name_ja", "(無題)"),
+                "media_count": len(urls),
+                "media_source_names": sorted({_url_to_source_name(u) for u in urls}),
+            })
+        rows = _group_by_title(flat)[:10]
 
     lines = [
-        "## 5. メディア露出 Top 10\n",
-        "| 順位 | イベント名 | 開催日 | メディア数 | ソース |",
-        "|------|-----------|--------|-----------|--------|",
+        "## 5. メディア露出 Top 10（作品・活動別）\n",
+        "| 順位 | イベント名 | メディア数 | ソース |",
+        "|------|-----------|-----------|--------|" ,
     ]
     for rank, row in enumerate(rows, 1):
         name = (row.get("name_ja") or "(無題)")[:40]
-        date = row.get("start_date") or ""
         cnt = row.get("media_count") or 0
         src_names = row.get("media_source_names") or []
-        if isinstance(src_names, list):
-            src_display = ", ".join(sorted(src_names))
-        else:
-            src_display = str(src_names)
-        lines.append(f"| {rank} | {name} | {date} | {cnt} | {src_display} |")
+        src_display = ", ".join(sorted(src_names)) if isinstance(src_names, list) else str(src_names)
+        lines.append(f"| {rank} | {name} | {cnt} | {src_display} |")
     lines.append("")
     return "\n".join(lines)
 
@@ -350,6 +377,7 @@ def generate_report(month: str, fmt: str = "markdown") -> str:
             ("lt", "start_date", end_d),
         ],
     )
+    month_events = [e for e in month_events if not _is_broadcast(e)]
 
     # Build header
     year, mo = month.split("-")
