@@ -46,12 +46,13 @@ jobs:
           fi
 
           SHORT_SHA="${WF_HEAD_SHA:0:7}"
-          MSG="⚠️ Workflow Failed
-${WF_NAME} (${WF_CONCLUSION})
-Branch: ${WF_HEAD_BRANCH}  @ ${SHORT_SHA}
-Trigger: ${WF_EVENT}
-Title: ${WF_DISPLAY_TITLE}
-Logs: ${WF_URL}"
+          MSG=$(printf '%s\n%s (%s)\nBranch: %s @ %s\nTrigger: %s\nTitle: %s\nLogs: %s' \
+            "⚠️ Workflow Failed" \
+            "$WF_NAME" "$WF_CONCLUSION" \
+            "$WF_HEAD_BRANCH" "$SHORT_SHA" \
+            "$WF_EVENT" \
+            "$WF_DISPLAY_TITLE" \
+            "$WF_URL")
 
           # Build JSON payload via jq to safely escape newlines and special chars
           PAYLOAD=$(jq -n \
