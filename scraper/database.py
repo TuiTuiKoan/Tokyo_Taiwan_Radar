@@ -127,6 +127,103 @@ def _event_to_row(event: Event) -> dict[str, Any]:
     return row
 
 
+def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
+    """
+    Mutate `rows` in-place: set `organizer_id` / `venue_id` when a matching
+    `organizers` / `venues` entity already exists (either as canonical_name_ja
+    or alias). Missing entity → leave FK unset; raw text columns (organizer,
+    location_name) are unaffected.
+
+    Entity tables come from migration 050 (Tier 2 normalization). On older
+    databases without the tables, the lookup query fails silently and the
+    function becomes a no-op — keeping the upsert pipeline backwards-compatible.
+    """
+    if not rows:
+        return
+    organizer_strs = sorted({r["organizer"] for r in rows
+                             if isinstance(r.get("organizer"), str) and r["organizer"].strip()})
+    venue_strs = sorted({r["location_name"] for r in rows
+                         if isinstance(r.get("location_name"), str) and r["location_name"].strip()})
+
+    org_lookup: dict[str, str] = {}
+    if organizer_strs:
+        try:
+            # Match on canonical_name_ja first.
+            resp = (
+                client.table("organizers")
+                .select("id,canonical_name_ja,aliases")
+                .in_("canonical_name_ja", organizer_strs)
+                .execute()
+            )
+            for r in resp.data or []:
+                org_lookup[r["canonical_name_ja"]] = r["id"]
+            # Then alias hits — separate query per string (PostgREST `cs.{x}`).
+            still_missing = [s for s in organizer_strs if s not in org_lookup]
+            if still_missing:
+                # `aliases @> ARRAY[…]` via `cs` filter on TEXT[] column.
+                # One round-trip per string (small N expected — usually < 50/run).
+                for s in still_missing:
+                    try:
+                        ar = (
+                            client.table("organizers")
+                            .select("id")
+                            .contains("aliases", [s])
+                            .limit(1)
+                            .execute()
+                        )
+                        if ar.data:
+                            org_lookup[s] = ar.data[0]["id"]
+                    except Exception:
+                        pass
+        except Exception as exc:
+            logger.debug("organizer entity lookup skipped (table may not exist yet): %s", exc)
+
+    venue_lookup: dict[str, str] = {}
+    if venue_strs:
+        try:
+            resp = (
+                client.table("venues")
+                .select("id,canonical_name_ja,aliases")
+                .in_("canonical_name_ja", venue_strs)
+                .execute()
+            )
+            for r in resp.data or []:
+                venue_lookup[r["canonical_name_ja"]] = r["id"]
+            still_missing = [s for s in venue_strs if s not in venue_lookup]
+            if still_missing:
+                for s in still_missing:
+                    try:
+                        ar = (
+                            client.table("venues")
+                            .select("id")
+                            .contains("aliases", [s])
+                            .limit(1)
+                            .execute()
+                        )
+                        if ar.data:
+                            venue_lookup[s] = ar.data[0]["id"]
+                    except Exception:
+                        pass
+        except Exception as exc:
+            logger.debug("venue entity lookup skipped (table may not exist yet): %s", exc)
+
+    # Mutate rows in-place.
+    org_hits = 0
+    venue_hits = 0
+    for r in rows:
+        org = r.get("organizer")
+        if isinstance(org, str) and org in org_lookup:
+            r["organizer_id"] = org_lookup[org]
+            org_hits += 1
+        loc = r.get("location_name")
+        if isinstance(loc, str) and loc in venue_lookup:
+            r["venue_id"] = venue_lookup[loc]
+            venue_hits += 1
+    if org_hits or venue_hits:
+        logger.info("Entity FK lookup: organizer_id matched %d row(s); venue_id matched %d row(s).",
+                    org_hits, venue_hits)
+
+
 def find_parent_event_id(name_ja: str | None, source_name: str) -> str | None:
     """
     Try to find a parent event in the database by fuzzy-matching the name.
@@ -431,6 +528,11 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
     all_rows = new_rows + force_rows
     if not all_rows and not extend_rows:
         return []
+
+    # Tier 2: populate organizer_id / venue_id FKs from `organizers` / `venues`
+    # entity tables (migration 050). Raw text columns are preserved — this only
+    # adds FK references when an existing canonical/alias matches.
+    _populate_entity_fks(client, all_rows)
 
     # P3.2: For force_rows, strip any fields that have a human correction in field_corrections.
     # reviewed events are already skipped above; this protects annotated events that have
