@@ -417,6 +417,38 @@ sb.table("events").update({"is_active": False, "deactivated_by_pass": "admin_man
 
 Reference incident: 2026-05-06 — `車頂上的玄天上帝`（ks_cinema `taiwan-filmake_2_sub1`）因 SYSTEM_PROMPT 多時段規則 + race condition 生成 `_sub1`，出現 4 筆重複（其中 2 筆已被 merger 停用）。修復：停用 `_sub1`、SYSTEM_PROMPT 加豁免規則、annotator.py 加程式碼守衛。
 
+## Organizer Non-Hallucination Guard（annotator.py few-shot 污染防護）
+
+在審核任何涉及 `organizer` 欄位，或評估 `category_corrections` few-shot 範例設計的計畫前，**必須**確認：
+
+1. **GPT 返回的 organizer 必須出現在原始文本中**：`_gpt_org_raw` 在寫入 `update_data` 前，需確認 `_gpt_org_raw in (raw_title + " " + raw_description)`。不存在則丟棄（`_guarded_organizer = None`）並發出 WARNING log。
+2. **few-shot 例子中的具名機構有污染風險**：`category_corrections` 的補正例若含具體主辦方名稱，GPT 可能對缺主辦人的其他活動 hallucinate 相同名稱。這是 named entity 的跨事件遷移效應。
+3. **contamination 路徑**：`category_corrections` few-shot → SYSTEM_PROMPT 注入 → GPT hallucinate organizer → P0 保護鏈保存錯值 → 子事件繼承 → 雪球效應。
+4. **organizer 必須走 `_ai_or_existing()`**：確保 P1（field_corrections）保護也覆蓋 organizer 欄位。
+
+**驗證指令（改動 annotator.py organizer 邏輯後執行）**：
+```python
+# 確認 guard 存在
+import ast, pathlib
+src = pathlib.Path("scraper/annotator.py").read_text()
+assert "_gpt_org_raw" in src and "_source_text" in src and "Organizer hallucination detected" in src
+print("Guard: OK")
+
+# DB 掃描：找到 organizer 但 raw_text 不含 organizer 名稱的事件
+# (需在 DB 層做，此為人工 SQL)
+# SELECT id, name_ja, organizer, LEFT(raw_description, 200)
+# FROM events
+# WHERE organizer IS NOT NULL
+#   AND annotation_status = 'annotated'
+#   AND raw_description NOT ILIKE '%' || organizer || '%'
+#   AND raw_title NOT ILIKE '%' || organizer || '%'
+# LIMIT 20;
+```
+
+Reference incident: 2026-05-06 — `category_corrections` 含 2 筆 `セシリアママのHappy Table...` few-shot 範例，導致 31 件 Peatix 活動被 hallucinate `organizer = "セシリアママ"`（commit `fix(annotator): add organizer non-hallucination guard`）。
+
+---
+
 ## Performer Null Guard（annotator.py 三層 fallback 守則）
 
 在審核任何涉及 `performer` 欄位的計畫，或分析 `performer = NULL` 案例時，**必須**確認 annotator.py 是否正確執行三層 fallback：

@@ -282,6 +282,17 @@ Reference incidents:
 - 2026-05-04 — `types.ts` 新增 10 個分類（`tv_program` 等）後 annotator 未同步，導致所有 `gguide_tv` 電視節目被標為 `movie`（commit `0047c31`）。
 - 2026-05-05 — Ghost category：`category_corrections` 含無效分類 `culture`，36 筆事件面臨 re-annotation 時分類被靜默剝離。修復：新增啟動守衛 + category_corrections 驗證 + DB 清理。
 
+## Organizer Non-Hallucination Guard（few-shot 污染防護）
+
+在審核任何涉及 `organizer` 欄位，或評估 `category_corrections` few-shot 範例設計的計畫前，**必須**確認：
+
+1. **GPT 返回的 organizer 必須出現在原始文本中**：`_gpt_org_raw` 寫入 `update_data` 前，先確認 `_gpt_org_raw in (raw_title + " " + raw_description)`。不存在則丟棄並發出 WARNING log。
+2. **few-shot 例子含具名機構有污染風險**：`category_corrections` 補正例若含具體主辦方名稱，GPT 可能對缺主辦人的其他活動 hallucinate 相同名稱。
+3. **contamination 路徑**：`category_corrections` few-shot → SYSTEM_PROMPT 注入 → GPT hallucinate organizer → P0 保護鏈保存錯值 → 子事件繼承 → 雪球效應。
+4. **organizer 必須走 `_ai_or_existing()`**：確保 P1（field_corrections）保護覆蓋 organizer 欄位。
+
+Reference incident: 2026-05-06 — `セシリアママ` 從 `category_corrections` few-shot 污染 31 件 Peatix 活動（commit `fix(annotator): add organizer non-hallucination guard`）。
+
 ## Performer Null Guard（三層 fallback + regex 設計規則）
 
 在審核任何涉及 `performer` 欄位的計畫，或分析 `performer = NULL` 案例時，**必須**確認：

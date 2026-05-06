@@ -380,6 +380,16 @@ _MUKAE_RE = re.compile(
     r'(?:氏|さん|先生)(?:をお?迎え|による|が登壇|がトーク|にご登場)',
     re.UNICODE,
 )
+# Match 「<name>　｜<role>」 pattern, e.g. 「前田知里　｜植物民族学研究家」
+# Covers individual organizer-presenter events where the person is listed as
+# 「<org>　<name>　｜<professional title>」 (common in Peatix お話会 events).
+# Role must end with a profession suffix (家/者/師/士/督) to filter non-names.
+_PIPE_ROLE_RE = re.compile(
+    r'([\u4e00-\u9fff]{2,6})'
+    r'[\s\u3000]*[｜|][\s\u3000]*'
+    r'[\u4e00-\u9fff]+(?:家|者|師|士|督)',
+    re.UNICODE,
+)
 
 
 def _extract_performer_from_raw(raw_title: str, raw_description: str) -> str | None:
@@ -388,7 +398,8 @@ def _extract_performer_from_raw(raw_title: str, raw_description: str) -> str | N
     Tries:
     1. 「<role>・<name>氏」 pattern in title (most reliable).
     2. 「<name>氏を迎え」 pattern in title.
-    3. Same patterns in first 500 chars of description.
+    3. 「<name>　｜<role>」 pattern — individual organizer-presenter events.
+    4. Same patterns in first 500 chars of description.
 
     Returns bare name without honorifics, or None.
     Deliberately conservative: only returns when high-confidence.
@@ -403,6 +414,9 @@ def _extract_performer_from_raw(raw_title: str, raw_description: str) -> str | N
         m2 = _MUKAE_RE.search(text)
         if m2:
             return _HONORIFIC_RE.sub("", m2.group(1)).strip()
+        m3 = _PIPE_ROLE_RE.search(text)
+        if m3:
+            return _HONORIFIC_RE.sub("", m3.group(1)).strip()
     return None
 
 
@@ -529,11 +543,11 @@ NAME WRITING RULES — CRITICAL:
 
 PERFORMER EXTRACTION RULES:
 1. performer: a SINGLE real personal name (person, not organization) who is the primary guest performer, speaker, lecturer, or artist of the event.
-   - Extract from patterns like: 「料理研究家・田中花子氏を迎え」, 「ゲスト：田中花子」, 「田中花子さんによる」, 「講師：田中花子」.
+   - Extract from patterns like: 「料理研究家・田中花子氏を迎え」, 「ゲスト：田中花子」, 「田中花子さんによる」, 「講師：田中花子」, 「田中花子　｜植物民族学研究家」.
    - Return the bare name only — NO honorifics (氏, さん, 先生, 教授, 監督, アーティスト, etc.).
    - If the event has multiple performers (e.g., a festival with 10 artists) or the performer is an organization, return null.
    - Return null for exhibitions, food markets, and large festivals where no single person is prominently featured.
-   - Return null when the named person IS the organizer (not a guest).
+   - Return null when the named person IS an organizational entity acting as organizer (not a speaker). EXCEPTION: if an individual person is listed with a professional title in the format 「<name>　｜<role>」 (e.g. 「前田知里　｜植物民族学研究家」), they are both the organizer AND the primary speaker — extract their name.
 2. performer must be a person name ≥2 characters. Never return a place name, brand, or phrase.
 
 ORGANIZER EXTRACTION RULES:
@@ -1203,11 +1217,23 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "business_hours": event.get("business_hours") or _pre_hours or annotation.get("business_hours"),
                     "is_paid": event.get("is_paid") if event.get("is_paid") is not None else annotation.get("is_paid"),
                     "price_info": annotation.get("price_info") or event.get("price_info"),
-                    "organizer": (
+                    "organizer": _ai_or_existing("organizer", (
+                        # Non-hallucination guard: discard GPT organizer if the name
+                        # doesn't appear anywhere in the source text. This prevents
+                        # few-shot contamination (e.g. category_corrections examples
+                        # that contain an organizer name bleeding into unrelated events).
+                        # Reference incident: 2026-05-06 — セシリアママ appeared in
+                        # category_corrections few-shot examples and was hallucinated
+                        # onto 8 unrelated Peatix events whose raw text had no such name.
                         _str(annotation.get("organizer"))
-                        or event.get("organizer")
-                        or (_default_org_map.get(event.get("source_name") or "", {}).get("organizer"))
-                    ),
+                        if (
+                            _str(annotation.get("organizer"))
+                            and _str(annotation.get("organizer")) in (
+                                (raw_title or "") + " " + (event.get("raw_description") or "")
+                            )
+                        )
+                        else None
+                    ) or (_default_org_map.get(event.get("source_name") or "", {}).get("organizer"))),
                     "co_organizers": [s for s in (annotation.get("co_organizers") or []) if isinstance(s, str)],
                     "sponsors": [s for s in (annotation.get("sponsors") or []) if isinstance(s, str)],
                     "organizer_type": (

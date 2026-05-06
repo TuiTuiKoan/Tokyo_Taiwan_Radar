@@ -3,6 +3,28 @@
 <!-- Append new entries at the top -->
 
 ---
+
+## 2026-05-06 — category_corrections few-shot 污染：セシリアママ 被 hallucinate 為 31 件 Peatix 事件的主辦單位
+
+### 問題
+`category_corrections` 表中有 2 筆 `セシリアママのHappy Table...` 的補正例。`build_feedback_prompt()` 將這些 `raw_title` 原文注入 GPT system prompt 作為 few-shot 範例，GPT 記住「セシリアママ = Taiwan 活動主辦人」→ 對 `raw_title/raw_description` 中完全不含此名稱的其他 Peatix 活動也 hallucinate `organizer = "セシリアママ"`。
+
+**汙染路徑**：`category_corrections` few-shot examples → SYSTEM_PROMPT 注入 → GPT hallucinate organizer → P0/P1 保護鏈保存錯值 → 子事件繼承 → 共 31 件受影響。
+
+### 影響
+- 2 件正規（`セシリアママのHappy Table`，title 含本名）
+- 31 件錯誤（DSPS、VOOID、蘭字勉強会、池澤春菜トーク、変なもの映画 等）
+
+### 修法
+1. **`annotator.py` non-hallucination guard**（`_gpt_org_raw`）：GPT 返回 organizer 後，檢查名稱是否出現在 `raw_title + raw_description` 中。不存在則丟棄並發出 WARNING log。
+2. `organizer` 改用 `_ai_or_existing("organizer", _guarded_organizer)` → 同時取得 P1（field_corrections）保護。
+3. **DB 修復**：31 件設 `organizer=NULL, annotation_status='pending'`，使用新 guard 重新 annotate → DSPS/VOOID 等正確獲得真實主辦人。
+
+### 教訓
+- **Few-shot 例子的 organizer 名稱可能污染無關事件**：`category_corrections` 的 few-shot 補正例含有具體機構名時，GPT 會對缺主辦人的活動産生幻覺。
+- **non-hallucination guard 原則**：GPT 預測的任何 named entity 若不出現在原始文本中，必須視為幻覺並丟棄。
+
+---
 ## 2026-05-08 — commit 694a363 丟失 4 個 scraper 註冊（walkerplus / BigRomantic / WasedaIcl / TsutayaPortal）
 
 ### 問題
