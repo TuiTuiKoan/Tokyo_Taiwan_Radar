@@ -55,6 +55,21 @@ for field, val in [...]:
 
 ---
 
+## 2026-05-06 — business_hours 多日場次換行未顯示（commit af33133）
+
+**Problem:** 電影多日場次的時刻表（`business_hours` 欄位，各場次以 `\n` 分隔）在詳情頁 `<td>` 元素內顯示為單行，換行符被 HTML 忽略。
+
+**Root cause:** `web/app/[locale]/events/[id]/page.tsx` 的 `business_hours` `<td>` 未設定保留空白字元的 CSS 屬性，瀏覽器預設 `whitespace: normal` 折疊所有換行。
+
+**Fix (commit `af33133`):** `<td>` 加入 Tailwind class `whitespace-pre-wrap`：
+```tsx
+<td className="... whitespace-pre-wrap">{getEventBusinessHours(event, locale)}</td>
+```
+
+**Lesson:** `<td>` 或 `<div>` 顯示含 `\n` 的多行文字時，必須加 `whitespace-pre-wrap`（保留換行 + 自動折行）。三種 class 的差異：`whitespace-pre-wrap`（保留換行 + 折行，**正確選擇**）、`whitespace-pre`（保留換行但不折行，內容過長時溢出）、`whitespace-normal`（預設，忽略換行——**勿用於多行字串**）。
+
+---
+
 ## 2026-05-06 — works work_type check constraint 不含 conference
 
 **Error:** 建立學術研討會 work 記錄時使用 `work_type='conference'` → `APIError: violates check constraint "works_work_type_check"`。
