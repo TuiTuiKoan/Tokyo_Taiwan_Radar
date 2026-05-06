@@ -260,6 +260,20 @@ def _check_category_sync() -> None:
 _NEWS_MOVIE_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss"})
 _BRACKET_TITLE_RE = re.compile(r"[\u300c\u300e]([^\u300d\u300f]+)[\u300d\u300f]")
 
+# Sources where raw_title is a news article headline rather than an event name.
+# For these sources, GPT is permitted to propose a rewritten name_ja extracted
+# from the article body (e.g., the actual movie title or event name).
+_HEADLINE_REWRITE_SOURCES: frozenset[str] = frozenset({
+    "google_news_rss", "nhk_rss", "prtimes", "walkerplus",
+})
+
+# Pattern matching slot identifiers used in academic conference programs.
+# When raw_title matches, GPT may extract the actual presentation title
+# from the 題目：line in raw_description.
+_SLOT_TITLE_RE = re.compile(
+    r'^(第\d+報告|第\d+講演?|基調講演|特別講演|招待講演|総合討論|パネルディスカッション)\s*$'
+)
+
 # Prefecture extraction — mirrors web/app/[locale]/events/[id]/page.tsx extractPrefecture()
 _PREFECTURE_RE = re.compile(
     r"^(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県]{2,4}[都道府県])"
@@ -523,6 +537,20 @@ NAME WRITING RULES — CRITICAL:
 - SUB-EVENT name_ja / description_ja: use the ORIGINAL Japanese text from the raw description. Movie titles must use the Japanese release title exactly as written. Person names must use the original Japanese notation (katakana/kanji). NEVER translate Chinese/Taiwanese person names into Japanese or invent katakana readings.
   CRITICAL — DO NOT INFER MOVIE TITLES: If a sub-event's title is a descriptive location/action phrase (e.g., "早稲田大学での上映会", "○○会館上映会", "熊本市での上映イベント") and the specific film title does NOT appear directly adjacent to that sub-event's mention in the raw text, use the descriptive phrase as name_ja. Do NOT replace it with a film title inferred from another part of the article. Only use a film title as name_ja when that exact title is explicitly written next to THIS sub-event's description.
 - SUBTITLE RULE — CRITICAL: When the raw_title or name_ja contains a subtitle separator (――, ──, ―, —, ：, : used as structural separator), the FULL title including the complete subtitle MUST appear in name_zh and name_en. NEVER truncate the subtitle. Example: "台湾の地方選挙と基層社会――80年代以降の桃園県観音･新屋地区を例として" → name_zh must include "以80年代以降的桃園縣觀音・新屋地區為例", name_en must include "A Case Study of Guanyin and Xinwu Districts, Taoyuan, since the 1980s".
+- NEWS HEADLINE REWRITE RULE (applies only to: google_news_rss, nhk_rss, prtimes, walkerplus):
+  When raw_title is a news article headline describing an event rather than naming it
+  (e.g. "台湾映画 17日那覇で上映会", "台湾人アーティストが個展開催"), extract the actual
+  event name from the article body and use it as name_ja.
+  Examples:
+    "日本の植民地支配へ抵抗描く 台湾映画 17日那覇で上映会" → find film title in body
+    → name_ja: "映画『一八九五』上映会・シンポジウム"
+  If no specific event/film name can be identified in the body, keep raw_title as-is.
+- ACADEMIC SLOT REWRITE RULE (applies when raw_title is "第N報告", "第N講演", "基調講演", etc.):
+  The raw_title is a program slot identifier, not the presentation title.
+  Extract the actual title from the "題目：TITLE" line in raw_description and use it as name_ja.
+  Example: raw_title="第1報告", raw_description contains "題目：台湾植民地戦争における..."
+  → name_ja: "台湾植民地戦争における日本軍の出征儀礼と凱旋儀礼"
+  If no 題目 line exists, keep raw_title.
 6. LOCATION ADDRESS RULE:
    - COPY-FIRST: If raw_description contains an explicit address line (〒, 丁目, 番地, or a full prefecture+city+street string), copy it verbatim.
    - DEFAULT-NULL: If no explicit address appears in the raw text, set location_address = null. Do NOT use your training knowledge to infer or guess a venue's street address — LLM address knowledge is unreliable and produces plausible-looking but incorrect street numbers.
@@ -537,6 +565,11 @@ NAME WRITING RULES — CRITICAL:
    ALSO: location_address MUST NEVER be identical to location_name.
    If they would be the same (address lookup failed), keep location_address null instead of
    echoing the venue name.
+   COLLECTION ATTRIBUTION NOTE: In museum exhibit descriptions, text like "○○美術館蔵"
+   or "○○博物館蔵" indicates the collection owner of an artwork, NOT the event venue.
+   Do NOT use collection attribution text as location_name or location_address.
+   For yebizo (東京都写真美術館) events, the venue is always 東京都写真美術館,
+   regardless of where the artworks in the collection come from.
 
    NOTE: Events held IN Taiwan are allowed and welcome. Do NOT force-convert Taiwan addresses to Japanese format. For Taiwan venues, fill location_address with the real Taiwanese address (e.g. "台北市中山區小民生東路3段1號") and set location_name accordingly. The tourism category applies when the event is designed to attract Japanese visitors to Taiwan.
 7. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
@@ -1201,11 +1234,22 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     if _rh:
                         update_data["business_hours"] = _rh
             else:
+                # name_ja policy: preserve scraper's original title (2026-05-02).
+                # Exception 1 — news headline sources (google_news_rss, nhk_rss, etc.):
+                #   raw_title is a news headline, not an event name. GPT may propose
+                #   a rewritten name_ja that reflects the actual event name from the body.
+                # Exception 2 — slot identifier titles ("第N報告", "基調講演", etc.):
+                #   GPT extracts the actual presentation title from 題目：lines.
+                _original_name_ja = event.get("name_ja") or raw_title
+                _gpt_name_ja = _str(annotation.get("name_ja"))
+                if event.get("source_name") in _HEADLINE_REWRITE_SOURCES and _gpt_name_ja:
+                    _final_name_ja = _gpt_name_ja
+                elif _SLOT_TITLE_RE.match(_original_name_ja or "") and _gpt_name_ja:
+                    _final_name_ja = _gpt_name_ja
+                else:
+                    _final_name_ja = _original_name_ja
                 update_data: dict[str, Any] = {
-                    # name_ja is NEVER overwritten by GPT (2026-05-02 policy).
-                    # Always preserve the scraper's original title.
-                    # GPT's name_ja is only consumed for sub-events.
-                    "name_ja": event.get("name_ja") or raw_title,
+                    "name_ja": _final_name_ja,
                     "name_zh": _to_trad(_str(annotation.get("name_zh"))),
                     "name_en": _str(annotation.get("name_en")),
                     "description_ja": _str(annotation.get("description_ja")),
