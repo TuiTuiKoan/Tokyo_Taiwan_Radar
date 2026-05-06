@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-05-06 — archiver 完全刪除，孤兒學術 sub-events 恢復激活
+
+**問題：** 日本台湾学会第23回関西部会（00ae1ea8）及其 sub-events（84a1b677, 0791ddf3）因 merger Pass 3 判斷母事件 inactive 而被停用。原本設計依賴 `archive_ended_events()` 的 work_id bypass 守衛來保護已連結 work 的事件。
+
+**事實確認：** `archive_ended_events()` 已於 2026-05-06 前從 codebase 完全刪除（`scraper/database.py` 和 `scraper/main.py`）。事件的 `is_active` 完全改為手動管理。
+
+**修復：** 重新激活 3 件事件（00ae1ea8, 84a1b677, 0791ddf3），建立 work_id `c3588296`（work_type=other）將三者關聯，作為語意上的歸屬標記。
+
+**教訓：** Guard 文件（architect.agent.md）中「Work 指派 = bypass archiver」的說法已失效。Archiver 已不存在，`work_id` 連結的意義改為「歸屬於同一作品的歷史記錄」，而非技術上的免死護符。已更新 Guard 說明。
+
+---
+
 ## 2026-05-08 — note_creators 薄文本 organizer hallucination（Incident A, commit b589fbb）
 
 ### 問題

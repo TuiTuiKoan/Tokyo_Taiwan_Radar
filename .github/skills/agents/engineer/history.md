@@ -1006,7 +1006,18 @@ Archive cron 一天只跑一次，白天過期的事件留在「expired-but-acti
 
 **修復：** `database.py` 移除 `timedelta(days=1)`，改為 `today 00:00 UTC`；DB 手動下架 4 筆到期事件（`b2589d75`、`78570c96`、`8c08c681`、`dec284a5`）。
 
-**教訓：** scraper `archive_ended_events()` 的 cutoff 必須與 admin quality page 的 `today` 截止一致，否則會有「過期但不下架」的空窗期。如需寬限期，兩端必須使用相同天數。
+**教訓（已廢止）：** ~~scraper `archive_ended_events()` 的 cutoff 必須與 admin quality page 的 `today` 截止一致。~~
+> **⚠️ archiver 已於 2026-05-06 完全刪除**：`archive_ended_events()` 已從 codebase 移除，此教訓不再適用。事件 `is_active` 現為純手動管理。
+
+---
+
+## 2026-05-06 — archiver 完全刪除
+
+**決策：** `archive_ended_events()` 及所有相關呼叫從 `scraper/database.py` 和 `scraper/main.py` 移除。
+
+**影響：** 事件的 `is_active` 狀態不再由每日 CI 自動管理。停用／激活需透過 Admin UI 或手動 DB 操作。Quality page 的「已過期」清單仍顯示，但不再有自動下架動作。
+
+**教訓：** 過去活動（含學術研討會 sub-events）激活後永遠保持激活狀態，不會被 CI 覆蓋。`work_id` 連結作為語意保留信號仍建議保留，但其「bypass archiver」的技術作用已消失。
 
 ---
 ## 2026-05-01 — 品質頁面誤判多城市活動為「地址缺失」

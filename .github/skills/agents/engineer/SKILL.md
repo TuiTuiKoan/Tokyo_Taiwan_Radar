@@ -349,7 +349,9 @@ The bulk action bar includes a "新增分類" row with a multi-select category p
 - DB: `location_name` containing `・` (multi-city events — `location_name` uses `・`-joined city names by convention; no single address exists)
 - Client: short geographic name ≤6 chars with no spaces (e.g. `東京`, `香港`, `岡山`, `文京区` — no actionable address)
 
-**Archive cutoff 一致性規則：** `database.py` 的 `archive_ended_events()` cutoff 必須與 quality page 的 `today` 截止一致（目前為 `datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00+00:00")`，無寬限）。若修改任一端的截止邏輯，另一端必須同步。兩端不一致會產生「quality page 顯示已過期，但 archive 函數尚未下架」的空窗期。
+~~**Archive cutoff 一致性規則：** `database.py` 的 `archive_ended_events()` cutoff 必須與 quality page 的 `today` 截止一致。~~
+
+> **⚠️ archiver 已刪除（2026-05-06）**：`archive_ended_events()` 已從 `database.py` 和 `main.py` 完全移除。Quality page 的截止邏輯不再有對應的自動下架機制；事件 `is_active` 改為純手動管理。此規則已廢止。
 
 **Admin list page link rule:** Event hyperlinks in admin list pages (quality, reports, etc.) must point to `/{locale}/events/{id}` (detail page, `target="_blank"`), **not** `/{locale}/admin/{id}` (edit page). Quality pages are for review, not editing.
 
