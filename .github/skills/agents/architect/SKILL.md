@@ -580,6 +580,49 @@ Reference incidents:
 - 2026-05-06 — event `4427f965`（台湾植物紀行）`前田知里｜植物民族学研究家` 未提取，三重根因：(1) 無 `_PIPE_ROLE_RE`；(2) 資訊在 pos 859 > 500 上限；(3) GPT 視主催者不為 guest（commit `c82e746`）。
 - 2026-05-08 — `翻訳者一青窈` 假陽性：INTRO `{2,6}` + MUKAE 無 lookbehind 導致 role+name 連串被誤匹配；修法：max 6→5 + lookbehind + `翻訳者` 加入 role list（本 commit）。
 
+## Manual Merge Completeness Guard（手動合併必須同時更新所有關聯欄位）
+
+在審核任何手動合併（merger / admin）操作的計畫前，**必須**確認以下三件事全部完成：
+
+1. **合併後次要事件 `is_active` 必須為 `False`**：合併後設定 `merged_into_event_id` 但忘記設 `is_active=False` 是最常見的遺漏步驟。合併後驗證指令：
+   ```sql
+   SELECT id, is_active, merged_into_event_id
+   FROM events
+   WHERE merged_into_event_id IS NOT NULL
+     AND is_active = true;
+   -- 應為空結果；非空 = 資料不一致
+   ```
+2. **Works 表必須與 event 合併同步更新**：合併前補充 works 表的 `director`、`release_year`、`cast_summary`、`description`；合併後確認 `work_id` 正確連結。只做 event 合併但不更新 works 表，則 works 詳情頁缺少作品資訊。
+3. **Events 表的 `director`/`performer` 欄位也需補充**：不能只更新 works 表，events 自身的 `director`/`performer` 欄位也需同步設定（用於清單頁/卡片顯示）。
+
+**`is_active=True + merged_into_event_id IS NOT NULL` 為已知資料不一致模式**：Admin UI 的「⚠ 中繼節點」badge 是偵測工具，但根本防護是每次合併後立即執行上述驗證 SQL。
+
+Reference incident: 2026-05-06 — `b891cc5e` 合併後 `is_active` 未更新為 `False`；`ソウル・オブ・ソイル` 合併後 works 表同時補充 `director=顏蘭權`、`release_year=2024`、`cast_summary`。
+
+## AdminEventTable Cross-filter Reference Guard（globalIndexMap vs displayEvents）
+
+在審核任何 AdminEventTable 或類似 admin 表格中「一行引用另一行 ID」的 UI 計畫前（merged_into、parent_event_id 等），**必須**確認：
+
+1. **行號 map 必須從完整 `events` props 建立，不能從篩選後的 `displayEvents` 建立**：若 map 建立自 displayEvents，被篩選掉的事件 `id` 在 map 中為 `undefined`，行號顯示靜默消失（不報錯）。
+2. **Pattern — 雙 map 架構**：
+   ```ts
+   // globalIndexMap — 從完整 events prop 建立，不受 filter 影響
+   const globalIndexMap = useMemo(() =>
+     new Map(events.map((e, i) => [e.id, i + 1])),
+     [events]
+   );
+   // rowIndexMap — 從 displayEvents 建立，用於顯示當前篩選下的行號
+   const rowIndexMap = useMemo(() =>
+     new Map(displayEvents.map((e, i) => [e.id, i + 1])),
+     [displayEvents]
+   );
+   // merged_into 目標可能被篩選掉 → 優先用 globalIndexMap
+   const targetIdx = globalIndexMap.get(e.merged_into_event_id) ?? "?";
+   ```
+3. **TypeScript 不報錯**：`Map.get()` 回傳 `T | undefined`；`undefined` 靜默渲染為空字串。這是靜默 UI 錯誤，只能靠人工觀察或 QA 發現。
+
+Reference incident: 2026-05-06 — AdminEventTable `rowIndexMap` 從 `displayEvents` 建立，`merged_into` 目標被篩選時行號消失（commits cb1bf83, 979725f）。
+
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.

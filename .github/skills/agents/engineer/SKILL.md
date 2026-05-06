@@ -814,6 +814,17 @@ Admin corrections are recorded in `field_corrections(event_id, field_name, origi
 
 **Few-shot context:** The annotator injects past corrections as few-shot examples into the SYSTEM_PROMPT, so GPT learns from admin feedback over time.
 
+**⚠️ 手動 upsert 前必須驗證值來自 raw_description**：FC 的 P1 保護是「永久覆寫保護」，一旦鎖入錯誤值，後續 re-annotation 永遠無法自動修復（污染 + 鎖定 = 永久污染）。操作前必須先執行：
+```sql
+SELECT id, raw_title, raw_description, name_ja, name_zh FROM events WHERE id = '<eid>';
+```
+確認要鎖的值來自 `raw_description`（原始資料），而非來自已被 annotator 污染的 `name_ja`/`name_zh` 欄位。若需刪除錯誤 FC：
+```python
+sb.table('field_corrections').delete().eq('event_id', eid).eq('field_name', '<field>').execute()
+```
+
+Reference incident: 2026-05-09 — `c6d5232a` 手動修正把污染後的 `name_zh=大濛` 鎖進 FC，需手動 delete + 正確值 re-upsert 才能修復。
+
 **Why both tiers are needed:**
 - P0 alone: `--all` mode or admin overriding a non-null AI value with a different value → correction lost on next re-annotation.
 - P1 alone: excessive DB reads for every field; P0 handles the common case (null-fill) cheaply.

@@ -4,6 +4,75 @@
 
 ---
 
+## 2026-05-06 — performer/director multilingual fields + performers[] array（commits 3822fb8, 65a50b9, 191d939）
+
+**Change**: migration `054_performer_director_i18n.sql`（performer_zh/en, director_zh/en）+ migration `053_events_performers_array.sql`（performers text[]）+ base.py / database.py / web 多語言 helpers。
+
+**Lesson**:
+1. **performer_zh / performer_en 手動修正必須同時 upsert `field_corrections`**: 未鎖定時 re-annotation 會覆蓋修正值。
+2. **UI helper `getEventPerformer(event, locale)` 必須使用**: 不可直接取 `event.performer`；locale 優先序：zh → `performer_zh`，en → `performer_en`，fallback → `performer`。
+3. **performers[] 回填命令**：`scraper/backfill_location_prefectures.py` 模式可複製——批次讀 performer 欄位拆分成 array，寫入 performers 欄位。
+
+→ Added to SKILL.md §「Annotator — Performer / Director Field Rules」
+
+---
+
+## 2026-05-06 — AI translation marker 語言不一致污染 performer_en（commit f07c170）
+
+**Error**: `performer_en` / `director_en` 被填入 `（AI翻譯）`（中文後綴），正確應為 `(AI Translation)`（英語後綴）。DB event `bf783b90` 已被錯誤標記。
+
+**Fix**: annotator.py 依欄位語言分別追加：`performer_zh` → `（AI翻譯）`；`performer_en` → `(AI Translation)`；`performer` / `name_ja` → `（AI翻訳）`（日語）。DB 手動修正 + `field_corrections` 鎖定。
+
+**Lesson**: 多語言 AI 翻譯 marker 必須語言別分開指定；跨語言後綴靜默污染資料，肉眼不易察覺。
+
+→ Added to SKILL.md §「Annotator — Performer / Director Field Rules」
+
+---
+
+## 2026-05-06 — note_creators thin content + blog source headline rewrite guard（commit b589fbb）
+
+**Error**: `note_creators` 的 `raw_description` 通常只有截斷文字「続きをみる」——純介紹文章/觀影報導被誤收錄為活動資料，organizer 欄位被 GPT 幻想填充。
+
+**Fix**: `note_creators` 加入 `_HEADLINE_REWRITE_SOURCES` frozenset；4 件 note_creators 事件設 `is_active=false` 或清空 organizer。
+
+**Lesson**:
+1. `_HEADLINE_REWRITE_SOURCES` 必須涵蓋所有部落格/創作平台來源（note_creators、google_news_rss、nhk_rss、prtimes、walkerplus）。
+2. 純介紹文/觀影報告不是活動資料，應設 `is_active=false`，不依賴 annotator 過濾。
+
+→ Added to SKILL.md §「Annotator — Headline Rewrite Sources & Blog Source Guard」
+
+---
+
+## 2026-05-06 — collection attribution 誤填 location_name（commit 47f8184）
+
+**Error**: Annotator 將 `〇〇美術館蔵` 識別為 `location_name`（e.g. yebizo event `e37db12e` → `location_name='高雄市立美術館'`）。`〇〇蔵` 是作品所蔵機關標記，非活動場地。
+
+**Fix**: SYSTEM_PROMPT 新增 COLLECTION ATTRIBUTION NOTE。DB 手動修正 `location_name='東京都写真美術館'`（Yebisu Garden Cinema）。固定場地 scraper 直接設定靜態 `location_name`。
+
+**Lesson**: `〇〇美術館蔵` / `〇〇所蔵` 是作品借展標記，不是活動場地。固定場地的 scraper 應在程式碼層設靜態 `location_name`，避免依賴 GPT 判斷。
+
+→ Added to SKILL.md §「Annotator — Collection Attribution Guard」
+
+---
+
+## 2026-05-06 — performer regex：`_MUKAE_RE` lookahead 缺漏 + `_PERFORMER_INTRO_RE` separator `+`→`*`（commits 6c2f1ab, fe8b273）
+
+**Error 1**: `_MUKAE_RE` lookahead 只覆蓋 `をお迎え` / `を迎え`，未包含 `をゲストに迎え`，導致 `一青窈氏をゲストに迎え` 無法捕捉。
+
+**Fix 1**: `_MUKAE_RE` 追加 `をゲストに迎え` pattern。
+
+**Lesson 1**: `_MUKAE_RE` 必須完整覆蓋所有敬語形式。目前三種：`をお迎え` / `を迎え` / `をゲストに迎え`。新出現形式需立即補充。
+
+**Error 2**: `_PERFORMER_INTRO_RE` separator 為 `+`（1個以上），導致 `絵本作家林廉恩氏`（角色詞直連人名，0個分隔符）無法匹配。
+
+**Fix 2**: separator 從 `+` 改為 `*`（0個以上）。
+
+**Lesson 2**: 日語角色詞與人名直連無分隔符是常見寫法，separator 必須為 `*`（0個以上）而非 `+`（1個以上）。
+
+→ Added to SKILL.md §「Annotator — Performer / Director Field Rules」
+
+---
+
 ## 2026-05-06 — Add StrangerScraper (Eigaland JSON API)
 
 **Source**: Stranger cinema (東京墨田区) — stranger.jp  

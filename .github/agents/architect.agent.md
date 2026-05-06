@@ -168,6 +168,28 @@ Current members (as of 2026-05-05): `google_news_rss`, `prtimes`, `nhk_rss`, `wa
 
 Reference incident: 2026-05-05 — `walkerplus` 加入 `_NEWS_SOURCES` 因其資料品質低於官方主辦方來源（日期常為文章發布日、地址只到 prefecture）。從此 walkerplus 永不作為主事件，由 iwafu / taiwan_matsuri 等官方來源吸收為 secondary URL。
 
+## Merger Same-Venue Different-Work Collision Guard（同場館不同作品碰撞防護）
+
+在審核任何涉及 merger Pass 1/2 邏輯的計畫，或分析電影類事件被錯誤合併的案例前，**必須**確認：
+
+1. **兩個事件均已設定 `work_id` 且值不同時，Pass 1 必須跳過合併**：`event_A.work_id != event_B.work_id`（且兩者均非 `None`）是最強的不合併信號，優先於 name similarity 分數和地點相似度。
+2. **電影類 gnews sub-event 在 merger 前已透過 `_get_or_create_work_id` 取得 work_id**：若此後 merger Pass 1 基於地點相似合併 → 被合併方的 `work_id` 被覆寫 → annotator re-annotation 根據新 work_id 生成錯誤名稱。
+3. **地點相似 ≠ 相同活動**：同一場館在同一時期常同時放映多部電影；Pass 1 的 `_location_overlap() = True` 不足以推斷是同一活動。
+4. **Pass 1 `work_id` 衝突跳過邏輯**（期望行為）：
+   ```python
+   if event_a.get("work_id") and event_b.get("work_id"):
+       if event_a["work_id"] != event_b["work_id"]:
+           continue  # different works — never merge
+   ```
+5. **安全測試（在 `scraper/` 目錄執行）**：
+   ```python
+   from merger import SOURCE_PRIORITY
+   # 手動驗證：兩個 work_id 不同的事件，merger 應在 log 中出現 "skip: different work_id" 類訊息
+   # 期望行為：無論 name_similarity 分數為何，merge = False
+   ```
+
+Reference incident: 2026-05-09 — `c6d5232a`（赤い糸 輪廻のひみつ / 新文芸坐）被錯誤合併進霧のごとく大濛，因兩者共用同一場館（新文芸坐），merger 忽略了兩個事件均已有不同 work_id 的信號，導致三層污染鏈：work_id 被覆寫 → annotator 生成錯誤名稱 → 手動「修正」把錯誤值鎖進 field_corrections，污染永久化。
+
 ## Secret Permission Consistency Guard
 
 Before approving any change related to `GITHUB_TOKEN` requirements, verify:
@@ -396,8 +418,10 @@ Reference incidents:
    ```
 3. **enrich_* 函式自動鎖**：`enrich_movie_titles` 與 `enrich_person_names` 成功 patch 後**已自動 upsert** `field_corrections`（2026-05-05 起）。手動修正不可漏掉這一步。
 4. **靜默 `continue` 是反 pattern**：lookup 失敗必須 `logger.warning`，否則 CI log 看不到，錯誤翻譯靜默上線數日。
+5. **污染 + 鎖定是最惡劣組合**：若手動「修正」的值本身就是錯的（例如把污染後的 name 鎖進 `field_corrections`），後續 re-annotation 永遠無法自動修復。在執行任何 `field_corrections` upsert 前，必須先確認值來自 `raw_description`，而非來自已被污染的 `name_ja`/`name_zh` 欄位。
 
 Reference incident: 2026-05-05 — event `f970e4e3`（月老）多次被修又被 AI 覆寫，根因為手動修正未寫 `field_corrections`，且 `enrich_movie_titles` lookup 失敗無 WARN。
+Reference incident: 2026-05-09 — `c6d5232a`（赤い糸）手動「修正」把污染後的 `name_zh=大濛` 鎖進 FC，後續 re-annotation 無法自動修復，需手動 delete + 正確值 re-upsert。
 
 ## DB Migration DEFAULT Value — Batch Query Guard
 
@@ -577,6 +601,35 @@ Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發無
 2. **告警視窗需對齊 cron 頻率**：weekly cron 不可被 daily health_check 每天誤報。
 
 Reference incident: 2026-05-06 — `weekly_broadcast` 因 `NON_DAILY_SOURCES = frozenset()` 每天誤報 missing（commit `7df9f56`）。
+## Manual Merge Completeness Guard（手動合併三步驟全做）
+
+在審核任何手動合併操作（包含 merger 清理腳本或 Admin UI 合併）的計畫前，**必須**確認以下三件事全部完成：
+
+1. **`is_active=False` 同步更新**：設 `merged_into_event_id` 後必須同時設 `is_active=False`。合併後驗證：
+   ```sql
+   SELECT id, is_active, merged_into_event_id
+   FROM events
+   WHERE merged_into_event_id IS NOT NULL AND is_active = true;
+   -- 應為空結果；非空 = 資料不一致（⚠ 中繼節點 badge 的觸發條件之一）
+   ```
+2. **Works 表同步更新**：電影/作品類合併後，works 表的 `director`、`release_year`、`cast_summary`、`description` 必須在同一次操作中補全。只做 event 合併不補 works，works 詳情頁顯示空白。
+3. **Events 表 `director`/`performer` 同步補充**：works 表更新同時，events 的 `director`/`performer` 欄位也需對齊（用於卡片/清單頁顯示）。
+
+Reference incident: 2026-05-06 — `b891cc5e` `is_active=True + merged_into_event_id IS NOT NULL`（資料不一致）；`ソウル・オブ・ソイル` 4 筆合併後同步補充 works 表 `director=顏蘭權`、`release_year=2024`、`cast_summary`。
+
+## AdminEventTable Cross-filter Reference Guard（globalIndexMap）
+
+在審核任何涉及 AdminEventTable 或類似 admin 表格中「跨行引用 ID（merged_into, parent_event_id）」的計畫前，**必須**確認：
+
+1. **行號 map 必須從完整 `events` props 建立**：若 map 建立自篩選後的 `displayEvents`，被篩選掉的引用目標在 map 中為 `undefined`，行號靜默消失（TypeScript 不報錯）。
+2. **正確 pattern — 雙 map 架構**：
+   - `globalIndexMap`：`useMemo(() => new Map(events.map((e, i) => [e.id, i+1])), [events])`（完整 events props，不受 filter 影響）
+   - `rowIndexMap`：`useMemo(() => new Map(displayEvents.map(...)), [displayEvents])`（篩選後，顯示當前篩選下的行號）
+   - 跨篩選引用（如 `merged_into_event_id`）優先用 `globalIndexMap`
+3. **TypeScript 靜默 bug 特性**：`Map.get()` 回傳 `T | undefined`；`undefined` 渲染為空字串，無 error log，只能靠人工觀察發現。
+
+Reference incident: 2026-05-06 — AdminEventTable `rowIndexMap` 從 `displayEvents` 建立，`merged_into` 目標被篩選時全域行號消失（commits cb1bf83, 979725f）。
+
 ## Required Phases
 
 ### Phase 1: Research

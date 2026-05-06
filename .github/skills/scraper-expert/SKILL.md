@@ -1110,3 +1110,142 @@ Stranger cinema（東京墨田区）は Eigaland プラットフォームの JSO
 - **1 映画 = 1 Event**: 90 日ループで `movieId` ごとに `min_date`/`max_date` を収集してから detail API を呼ぶ。1 日 1 Event を作ると 90 件になるため注意。
 - **`openDate` は公開日（リリース日）であり上映日ではない**: 上映日は `listByDomainAndDate?date=YYYY-MM-DD` のクエリ日付から得る。
 - **`official_url` は映画の公式サイト**: `detail.officialPageUrl` が映画の公式サイト URL（会場サイトではない）。
+
+---
+
+## Annotator — Performer / Director Field Rules
+
+Rules for `performer`, `performer_zh`, `performer_en`, `director`, `director_zh`, `director_en` fields in `annotator.py`.
+
+### `_MUKAE_RE` — 迎えパターン完全性
+
+`_MUKAE_RE` lookahead は以下 3 種の敬語形式をすべて網羅すること：
+
+| パターン | 例 |
+|---|---|
+| `をお迎え` | 〇〇氏をお迎えして |
+| `を迎え` | 〇〇を迎えるトーク |
+| `をゲストに迎え` | 一青窈氏をゲストに迎え |
+
+新しい「迎え」形式が出現したら即座に追加する。Lookahead の片方だけを更新するミスを防ぐため、変更時は 3 パターン全件をテストすること。
+
+Reference incident: `一青窈氏をゲストに迎え` が捕捉不能 → `をゲストに迎え` 追加（commit `6c2f1ab`）。
+
+### `_PERFORMER_INTRO_RE` — separator は `*`（0 個以上）
+
+```python
+# ✅ 正しい：直連もマッチする
+_PERFORMER_INTRO_RE = re.compile(
+    r"(?P<role>絵本作家|映画監督|俳優|写真家|...)\s*(?P<name>[^\s、。]+)",
+    # 角色詞と人名の間に分隔符なしの直連が常見 → \s* (0個以上)
+)
+
+# ❌ 間違い：直連が漏れる
+_PERFORMER_INTRO_RE = re.compile(r"(?P<role>...)[\s・]+(?P<name>...)")
+#                                                   ^^ + は1個以上 → 直連 NG
+```
+
+日本語の慣例として「絵本作家林廉恩氏」のように角色詞と人名を空白なしで直連するケースが頻出する。separator regex は必ず `*`（0個以上）を使用する。
+
+Reference incident: `絵本作家林廉恩氏` が無マッチ → separator `+` → `*` に変更（commit `fe8b273`）。
+
+### AI 翻訳マーカー — 言語別サフィックス規則
+
+`performer_*` / `director_*` 欄位に AI 翻訳サフィックスを追加する際は、**フィールドの言語に合わせる**こと：
+
+| フィールド | 正しいサフィックス |
+|---|---|
+| `performer_zh` / `director_zh` | `（AI翻譯）`（繁体中文） |
+| `performer_en` / `director_en` | `(AI Translation)`（英語） |
+| `performer` / `name_ja` | `（AI翻訳）`（日本語） |
+
+言語不一致（例：`performer_en` に `（AI翻譯）`）はデータサイレント汚染を招く。フィールド名の末尾（`_zh` / `_en`）から言語を確認してから suffix を選択すること。
+
+Reference incident: `bf783b90` `performer_en = 'Huang Yi-wen（AI翻譯）'`（中文サフィックス）→ `'Huang Yi-wen (AI Translation)'` に修正（commit `f07c170`）。
+
+### performer_zh / performer_en 手動修正の 2 ステップ
+
+手動でフィールドを修正した場合、必ず `field_corrections` テーブルも upsert してロックすること。未ロックだと re-annotation で修正値が上書きされる。
+
+```python
+# ✅ 2 ステップセットで実行
+sb.table("events").update({"performer_en": "Correct Name (AI Translation)"}).eq("id", eid).execute()
+sb.table("field_corrections").upsert({
+    "event_id": eid,
+    "field_name": "performer_en",
+    "original_value": None,
+    "corrected_value": "Correct Name (AI Translation)",
+}, on_conflict="event_id,field_name").execute()
+```
+
+### performers[] 多語言欄位の UI helper
+
+**フロントエンドは `getEventPerformer(event, locale)` / `getEventDirector(event, locale)` を使うこと**。`event.performer` を直接参照してはいけない。
+
+Locale 優先序：
+- `zh` → `performer_zh` → fallback → `performer`
+- `en` → `performer_en` → fallback → `performer`
+- `ja` → `performer` （Japanese field = base field）
+
+Reference: `web/lib/types.ts` の `getEventPerformer` / `getEventDirector` helper（commit `3822fb8`）。
+
+---
+
+## Annotator — Headline Rewrite Sources & Blog Source Guard
+
+### `_HEADLINE_REWRITE_SOURCES` — 必須含む来源
+
+現在の `_HEADLINE_REWRITE_SOURCES` frozenset に含めるべきソース（ニュース/ブログ/プレスリリース系）：
+
+```python
+_HEADLINE_REWRITE_SOURCES = frozenset({
+    "google_news_rss",
+    "nhk_rss",
+    "prtimes",
+    "walkerplus",
+    "note_creators",  # ← ブログ源も必須
+})
+```
+
+**ブログ源は必ず含める**：`note_creators` など創作プラットフォームの記事は純記事（ニュース見出し）と同様の構造を持つ。含めないと organizer 欄が GPT 幻想で汚染される。
+
+### note_creators — thin content guard
+
+`note_creators` の `raw_description` は RSS 截断により「続きをみる」だけになることが多い。以下の判断基準を適用する：
+
+| 内容 | 処理 |
+|---|---|
+| 活動告知（日時・場所あり） | 通常収録 |
+| 純介紹文・感想記事・観影報告 | `is_active = False` で非表示 |
+| `raw_description` が截断のみ | annotator に渡さず先に除外検討 |
+
+「純介紹文/觀影報告は活動資料ではない」— annotator のフィルタリングに依存せず、scraper または admin DB 操作で `is_active=False` にすること。
+
+Reference incident: 4 件の `note_creators` 事件が純観影記事として誤収録 → `is_active=False` + organizer クリア（commit `b589fbb`）。
+
+---
+
+## Annotator — Collection Attribution Guard
+
+`〇〇美術館蔵` / `〇〇所蔵` は**作品の所蔵機関標記**であり、活動場地ではない。
+
+**問題パターン**:
+```
+「高雄市立美術館蔵の作品を〇〇で展示」
+```
+↑ GPT は `高雄市立美術館` を `location_name` に誤って抽出することがある。
+
+**対策**:
+1. SYSTEM_PROMPT に COLLECTION ATTRIBUTION NOTE を追加済み（commit `47f8184`）：「`〇〇蔵` のみの出現は所蔵元の記載であり、活動場地ではない」。
+2. 固定場地の scraper（cinema、venue-specific scraper 等）は `location_name` をコード側で静的設定する。GPT の判断に委ねない。
+
+```python
+# ✅ 固定場地は静的設定
+Event(
+    location_name="東京都写真美術館（恵比寿ガーデンシネマ）",
+    location_address="東京都目黒区三田1-13-3",
+    ...
+)
+```
+
+Reference incident: yebizo event `e37db12e` で `location_name='高雄市立美術館'`（台湾の美術館）が設定された → `東京都写真美術館` に修正（commit `47f8184`）。

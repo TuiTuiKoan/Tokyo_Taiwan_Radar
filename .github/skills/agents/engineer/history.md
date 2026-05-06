@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-05-09 — 手動修正污染了 field_corrections（c6d5232a）
+
+**Problem:** 前次手動修正事件 `c6d5232a` 時，誤把污染後的 `description_ja`（霧のごとく版本）直接更新進 DB，並將 `name_zh=大濛` upsert 進 `field_corrections`。由於 FC 的 P1 保護，後續 re-annotation 永遠無法覆寫，污染被鎖定。
+
+**Root cause:** 手動修正前未先讀取 `raw_description`（原始資料），直接從 `name_ja`/`name_zh`（已被 annotator 污染的欄位）推導修正值，導致把錯誤值當正確值鎖入 FC。
+
+**Fix:**
+```python
+# 1. 刪除錯誤的 FC
+sb.table('field_corrections').delete().eq('event_id', eid).eq('field_name', 'name_zh').execute()
+
+# 2. 從 raw_description 重建正確值，更新 events 表
+sb.table('events').update({
+    'name_ja': '赤い糸 輪廻のひみつ',
+    'name_zh': '月老',
+    'name_en': 'Red Thread: The Secret of Reincarnation',
+    'work_id': 'fd225042-...',
+    'parent_event_id': '6649f6ba-...',
+    'description_ja': '...',  # 從 raw_description 重建
+}).eq('id', eid).execute()
+
+# 3. 鎖定正確值
+for field, val in [...]:
+    sb.table('field_corrections').upsert({'event_id': eid, 'field_name': field, 'corrected_value': val},
+                                          on_conflict='event_id,field_name').execute()
+```
+
+**Lesson:** 手動修正前**必須先讀 `raw_description`**，確認修正方向正確再 upsert FC。從已被污染的 `name_ja`/`name_zh` 欄位取值再鎖定 = 將污染永久化，後續無法自動修復。驗證命令：`SELECT id, raw_title, raw_description, name_ja, name_zh FROM events WHERE id = '<eid>'`。
+
+---
+
 ## 2026-05-09 — performers[] 優先序蓋過 performer_zh/en，zh/en locale 永遠顯示日文名稱（commit 2e6f4c2）
 
 **Problem:** `web/app/[locale]/events/[id]/page.tsx` 在顯示 performer 時，`performers[]`（永遠是日文陣列）的優先順序高於 `getEventPerformer(locale)`，導致 zh/en 頁面永遠顯示日文名稱，即使 `performer_zh`/`performer_en` 已設定（例：`ホアン・イーウェン` 在 zh 頁應顯示 `黃以文`，但始終顯示日文）。

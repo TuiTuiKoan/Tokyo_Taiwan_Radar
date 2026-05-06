@@ -61,6 +61,17 @@ description: "GITHUB_TOKEN lifecycle management — PAT rotation, expiry monitor
 - **Update needed?**: No — this is passive monitoring only. No hardcoded values here.
 - **Note**: GitHub token appears in LINE notification message body automatically when rotation schedule is due.
 
+### Location 5: e-Stat API Application ID (`ESTAT_APP_ID`)
+- **File**: `scraper/.env`
+- **Format**: `ESTAT_APP_ID=<32-char hex string>`
+- **Purpose**: Authenticates e-Stat API calls (`getStatsList`, `getStatsData`, `getMetaInfo`)
+- **Who reads it**: `scraper/external_stats/estat_population.py`, `scraper/external_stats/pull_all.py`
+- **When obtained**: Register free account at [https://www.e-stat.go.jp/api/](https://www.e-stat.go.jp/api/) → Application Management → Register new app
+- **Rotation**: **No expiry** — but revoke and re-register if leaked
+- **CI secret**: Add `ESTAT_APP_ID` to GitHub Actions secrets (`Settings → Secrets and variables → Actions`)
+- **Workflow that uses it**: `.github/workflows/external-stats-pull.yml`
+- **Note**: e-Stat appId is not a rotating secret — no 90-day rotation required. Monitor only if leaked.
+
 ---
 
 ## 🔄 Token Rotation Workflow

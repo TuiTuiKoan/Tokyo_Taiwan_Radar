@@ -4,6 +4,54 @@
 
 ---
 
+## 2026-05-09 — c6d5232a merger false positive + field_corrections 污染放大
+
+**問題：** gnews 事件 `c6d5232a`（赤い糸 輪廻のひみつ / 新文芸坐）與霧のごとく大濛共用同一場館（新文芸坐），merger Pass 1 基於地點相似設錯 `work_id` → annotator re-annotation 根據錯誤 `work_id` 生成錯誤 `name_ja/zh/en`（霧のごとく）→ 手動「修正」把錯誤值（`name_zh=大濛`）鎖進 `field_corrections`，污染永久化（re-annotation 無法覆寫）。
+
+**污染鏈（3 層）：**
+
+```
+gnews 原始資料「赤い糸 輪廻のひみつ 新文芸坐」
+  → merger 設錯 work_id = 霧のごとく大濛（同場館 false positive）
+  → annotator re-annotation → name_ja/zh/en = 霧のごとく
+  → 手動「修正」把污染值鎖進 field_corrections（name_zh=大濛）
+  → 後續 re-annotation 永遠無法自動修復
+```
+
+**修復：** 還原全部 `name_ja/zh/en`、`description_ja/zh/en`、`work_id`（`fd225042` 赤い糸 correct work）、`parent_event_id`（`6649f6ba` 赤い糸 parent）；刪除錯誤的 FC（`name_zh=大濛`）；重新鎖定正確值進 `field_corrections`。
+
+**教訓：**
+1. 兩個事件均已有 `work_id` 且值不同時，merger Pass 1 應強制跳過合併，不論 name similarity 分數和地點相似度——新增 **Merger Same-Venue Different-Work Collision Guard**（architect.agent.md）。
+2. 手動 upsert `field_corrections` 前必須先從 `raw_description` 確認值正確，不可從已被污染的 `name_ja`/`name_zh` 欄位取值。污染 + 鎖定 = 永久污染，後續 re-annotation 無法自動修復。已在 **Manual Translation Fix Persistence Guard** 新增第 5 點。
+
+---
+
+## 2026-05-06 — AdminEventTable globalIndexMap 修正 + 電影合併清理（commits cb1bf83, 979725f）
+
+### AdminEventTable 改進（commits cb1bf83, 979725f）
+
+**問題 A — 中繼節點 badge 缺失**：事件同時具有「N件統合」（是主事件）且「統合済み」（本身被另一主事件吸收）時，管理表格未顯示任何視覺提示，難以識別資料關係異常。  
+**問題 A 修復（commit cb1bf83）**：新增黃色「⚠ 中繼節點」badge。同時新增灰色「未公開」badge：`merged_into` 目標 `is_active=false` 時取代裸箭頭顯示。
+
+**問題 B（根本 bug）— rowIndexMap 只覆蓋 displayEvents**：`rowIndexMap` 從篩選後的 `displayEvents` 建立，當 `merged_into` 目標被篩選掉時，`rowIndexMap[targetId]` 為 `undefined`，無法顯示全域行號。  
+**問題 B 修復（commit 979725f）**：新增 `globalIndexMap`（從完整 `events` prop 陣列建立，不受篩選影響），`merged_into` 引用優先從 `globalIndexMap` 查詢。
+
+**教訓**：client-side map 從 `displayEvents` 建立是「篩選後的截面」，任何跨篩選的 ID 引用（`merged_into`、`parent_event_id` 等）都需要獨立的全域 map（從 props 的完整 `events` 建立）。TypeScript 不報錯，行為靜默錯誤（map miss = `undefined`）。
+
+### 資料不一致 bug pattern：is_active=True + merged_into_event_id IS NOT NULL
+
+`b891cc5e`：`is_active=True` 但已有 `merged_into_event_id`（資料不一致），正確狀態應為 `is_active=False`。僅補 `is_active=False`，不覆寫其他欄位。  
+**教訓**：手動合併後必須確認 `is_active` 同步更新為 `False`。這是合併操作最常見的遺漏步驟。
+
+### 電影合併清理
+
+**霧のごとく 大濛**：7 active → 5 active。`172047f5`（純上映）→ `16c3fa42`（上映＋トーク），`16c3fa42` 加 secondary URL。全部 10 筆均有正確 work_id。  
+**海をみつめる日**（北海道大學）：3 active → 1 active（`16c3fa42` 主事件）；`secondary_source_urls` 擴展為 2 個。  
+**ソウル・オブ・ソイル**：4 active → 1 active（`9084ad67`，上映＆トーク）。events 補充 `director=イェン・ランチュアン`、`performer=イェン・ランチュアン`；works 表補充 `director=顏蘭權`、`release_year=2024`、`cast_summary=アレン（阿仁）、アンホー（安和）`、description。`bedd3ba4`（2026-01-15）停用（同一告知頁面重複抓取，日期解析錯誤）。  
+**教訓**：works 合併必須同時補 `director`/`performer` 欄位（events 表 + works 表雙更新），不能只做 event 合併。
+
+---
+
 ## 2026-05-09 — performers[] 顯示優先序 UI 迴歸：新欄位 performer_zh/en 永遠不被看到（commit 2e6f4c2）
 
 ### 問題
