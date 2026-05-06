@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { type Locale, LOCALES } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
 
@@ -25,12 +25,13 @@ const LOCALE_LABELS: Record<Locale, string> = {
   ja: "日本語",
 };
 
-export default function Navbar({ locale, isAdmin }: Props) {
-  const t = useTranslations("nav");
+interface NavbarLangSwitcherProps {
+  locale: Locale;
+}
+
+function NavbarLangSwitcher({ locale }: NavbarLangSwitcherProps) {
   const pathname = usePathname();
-  const supabase = createClient();
-  const [user, setUser] = useState<User | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const searchParams = useSearchParams();
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
 
@@ -45,6 +46,64 @@ export default function Navbar({ locale, isAdmin }: Props) {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  function localePath(targetLocale: Locale): string {
+    const segments = pathname.split("/");
+    segments[1] = targetLocale;
+    const path = segments.join("/");
+    const qs = searchParams.toString();
+    return qs ? `${path}?${qs}` : path;
+  }
+
+  return (
+    <div className="relative" ref={langRef}>
+      <button
+        onClick={() => setLangOpen((o) => !o)}
+        title={locale.toUpperCase()}
+        aria-expanded={langOpen}
+        aria-label="Switch language"
+        className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500 hover:text-green-700 transition"
+      >
+        {/* Globe icon */}
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="2" y1="12" x2="22" y2="12" />
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+        </svg>
+      </button>
+
+      {langOpen && (
+        <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[110px] z-50">
+          {LOCALES.map((loc) => (
+            <Link
+              key={loc}
+              href={localePath(loc)}
+              scroll={false}
+              onClick={() => {
+                sessionStorage.setItem("ttr_locale_scroll", String(window.scrollY));
+                setLangOpen(false);
+              }}
+              className={`flex items-center gap-2 px-3 py-2 text-sm transition hover:bg-green-50 hover:text-green-700 ${
+                loc === locale ? "font-semibold text-green-700" : "text-gray-700"
+              }`}
+            >
+              <span>{LOCALE_FLAGS[loc]}</span>
+              <span>{LOCALE_LABELS[loc]}</span>
+              {loc === locale && <span className="ml-auto text-green-500 text-xs">✓</span>}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Navbar({ locale, isAdmin }: Props) {
+  const t = useTranslations("nav");
+  const pathname = usePathname();
+  const supabase = createClient();
+  const [user, setUser] = useState<User | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
     const { data: listener } = supabase.auth.onAuthStateChange((_, session) => {
@@ -56,12 +115,6 @@ export default function Navbar({ locale, isAdmin }: Props) {
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.reload();
-  }
-
-  function localePath(targetLocale: Locale) {
-    const segments = pathname.split("/");
-    segments[1] = targetLocale;
-    return segments.join("/");
   }
 
   return (
@@ -103,41 +156,9 @@ export default function Navbar({ locale, isAdmin }: Props) {
           </nav>
 
           {/* Language switcher — globe icon + dropdown */}
-          <div className="relative" ref={langRef}>
-            <button
-              onClick={() => setLangOpen((o) => !o)}
-              title={locale.toUpperCase()}
-              aria-expanded={langOpen}
-              aria-label="Switch language"
-              className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500 hover:text-green-700 transition"
-            >
-              {/* Globe icon */}
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-              </svg>
-            </button>
-
-            {langOpen && (
-              <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[110px] z-50">
-                {LOCALES.map((loc) => (
-                  <Link
-                    key={loc}
-                    href={localePath(loc)}
-                    onClick={() => setLangOpen(false)}
-                    className={`flex items-center gap-2 px-3 py-2 text-sm transition hover:bg-green-50 hover:text-green-700 ${
-                      loc === locale ? "font-semibold text-green-700" : "text-gray-700"
-                    }`}
-                  >
-                    <span>{LOCALE_FLAGS[loc]}</span>
-                    <span>{LOCALE_LABELS[loc]}</span>
-                    {loc === locale && <span className="ml-auto text-green-500 text-xs">✓</span>}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
+          <Suspense fallback={<div className="w-8 h-8" />}>
+            <NavbarLangSwitcher locale={locale} />
+          </Suspense>
 
           {/* Auth — icon only */}
           {user ? (

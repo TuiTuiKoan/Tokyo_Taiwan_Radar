@@ -2,10 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getTranslations } from "next-intl/server";
 import { type Locale, type Event, CATEGORIES, getEventName } from "@/lib/types";
 import FilterBar from "@/components/FilterBar";
+import ListScrollManager from "@/components/ListScrollManager";
 import Link from "next/link";
 import AnnouncementCard from "@/components/AnnouncementCard";
 import { getCityLabel } from "@/lib/cityLabel";
 import { REGIONS_WITH_CITY, matchesCity, type RegionWithCity } from "@/lib/regionPrefectures";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -249,6 +251,9 @@ export default async function HomePage({ params, searchParams }: PageProps) {
       )}
 
       <FilterBar locale={locale} currentFilters={{ ...sp, city: sp.city ?? "" }} />
+      <Suspense fallback={null}>
+        <ListScrollManager />
+      </Suspense>
 
       {!events || events.length === 0 ? (
         <p className="text-center text-gray-500 mt-16 text-lg">

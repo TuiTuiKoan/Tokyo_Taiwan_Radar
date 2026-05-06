@@ -121,7 +121,8 @@
     "languageSupport": "語言支援",
     "tvChannel": "電視頻道",
     "relatedScreeningsTitle": "同作品其他場次",
-    "pastScreeningsLabel": "隱藏合併條目"
+    "pastScreeningsLabel": "隱藏合併條目",
+    "backToList": "返回清單"
   },
   "auth": {
     "loginTitle": "登入",

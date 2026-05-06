@@ -148,6 +148,81 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     setFilterBarHeight(el.offsetHeight);
     return () => ro.disconnect();
   }, []);
+
+  // Restore admin filters from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("ttr_admin_filters");
+      if (!saved) return;
+      const s = JSON.parse(saved);
+      if (s.filterQ !== undefined) setFilterQ(s.filterQ);
+      if (s.filterCategories !== undefined) setFilterCategories(s.filterCategories);
+      if (s.filterPaid !== undefined) setFilterPaid(s.filterPaid);
+      if (s.filterIsActive !== undefined) setFilterIsActive(s.filterIsActive);
+      if (s.filterTimeMode !== undefined) setFilterTimeMode(s.filterTimeMode);
+      if (s.filterDateFrom !== undefined) setFilterDateFrom(s.filterDateFrom);
+      if (s.filterDateTo !== undefined) setFilterDateTo(s.filterDateTo);
+      if (s.filterLocation !== undefined) setFilterLocation(s.filterLocation);
+      if (s.filterCity !== undefined) setFilterCity(s.filterCity);
+      if (s.filterAnnotation !== undefined) setFilterAnnotation(s.filterAnnotation);
+      if (s.filterSource !== undefined) setFilterSource(s.filterSource);
+      if (s.filterOrgType !== undefined) setFilterOrgType(s.filterOrgType);
+      if (s.filterEventForm !== undefined) setFilterEventForm(s.filterEventForm);
+      if (s.sortKey !== undefined) setSortKey(s.sortKey);
+      if (s.sortDir !== undefined) setSortDir(s.sortDir);
+      if (s.viewMode !== undefined) setViewMode(s.viewMode);
+    } catch {
+      sessionStorage.removeItem("ttr_admin_filters");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Save admin filters to sessionStorage whenever they change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("ttr_admin_filters", JSON.stringify({
+        filterQ, filterCategories, filterPaid, filterIsActive, filterTimeMode,
+        filterDateFrom, filterDateTo, filterLocation, filterCity, filterAnnotation,
+        filterSource, filterOrgType, filterEventForm, sortKey, sortDir, viewMode,
+      }));
+    } catch {
+      // ignore quota errors
+    }
+  }, [filterQ, filterCategories, filterPaid, filterIsActive, filterTimeMode,
+      filterDateFrom, filterDateTo, filterLocation, filterCity, filterAnnotation,
+      filterSource, filterOrgType, filterEventForm, sortKey, sortDir, viewMode]);
+
+  // Restore scroll position from sessionStorage on mount (locale switch + edit return)
+  useEffect(() => {
+    // ttr_locale_scroll: written by Navbar on locale switch
+    const localeScroll = sessionStorage.getItem("ttr_locale_scroll");
+    if (localeScroll) {
+      sessionStorage.removeItem("ttr_locale_scroll");
+      const y = parseInt(localeScroll, 10);
+      if (!isNaN(y)) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            window.scrollTo({ top: y, behavior: "instant" });
+          });
+        });
+      }
+      return;
+    }
+    // ttr_admin_scroll: written before navigating to admin/[id] edit page
+    const adminScroll = sessionStorage.getItem("ttr_admin_scroll");
+    if (adminScroll) {
+      sessionStorage.removeItem("ttr_admin_scroll");
+      const y = parseInt(adminScroll, 10);
+      if (!isNaN(y)) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            window.scrollTo({ top: y, behavior: "instant" });
+          });
+        });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const TOKYO_MARKERS_ADMIN = ["東京", "新宿区", "港区", "渋谷区", "千代田区", "文京区", "台東区"];
   const KANTO_MARKERS_ADMIN = ["神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬", "山梨"];
   const TOHOKU_MARKERS_ADMIN = ["北海道", "青森", "岩手", "宮城", "秋田", "山形", "福島"];
@@ -1193,7 +1268,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   <td className="py-2 pr-4 whitespace-nowrap">
                     <div className="flex gap-3">
                       <button
-                        onClick={() => router.push(`/${locale}/admin/${event.id}`)}
+                        onClick={() => {
+                          sessionStorage.setItem("ttr_admin_scroll", String(window.scrollY));
+                          router.push(`/${locale}/admin/${event.id}`);
+                        }}
                         className="text-blue-600 hover:underline text-xs"
                       >
                         {t("edit")}
@@ -1450,7 +1528,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   <td className="py-2 pr-4 whitespace-nowrap">
                     <div className="flex gap-3">
                       <button
-                        onClick={() => router.push(`/${locale}/admin/${event.id}`)}
+                        onClick={() => {
+                          sessionStorage.setItem("ttr_admin_scroll", String(window.scrollY));
+                          router.push(`/${locale}/admin/${event.id}`);
+                        }}
                         className="text-blue-600 hover:underline text-xs"
                       >
                         {t("edit")}

@@ -121,7 +121,8 @@
     "languageSupport": "対応言語",
     "tvChannel": "テレビチャンネル",
     "relatedScreeningsTitle": "同作品の他の上映・公演",
-    "pastScreeningsLabel": "非表示の統合エントリー"
+    "pastScreeningsLabel": "非表示の統合エントリー",
+    "backToList": "一覧へ戻る"
   },
   "auth": {
     "loginTitle": "ログイン",

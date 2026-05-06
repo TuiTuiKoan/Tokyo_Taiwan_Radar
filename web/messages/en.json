@@ -121,7 +121,8 @@
     "languageSupport": "Language Support",
     "tvChannel": "TV Channel",
     "relatedScreeningsTitle": "Other screenings of this work",
-    "pastScreeningsLabel": "Hidden Merged Entries"
+    "pastScreeningsLabel": "Hidden Merged Entries",
+    "backToList": "Back to List"
   },
   "auth": {
     "loginTitle": "Login",
