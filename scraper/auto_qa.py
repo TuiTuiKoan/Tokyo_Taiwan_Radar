@@ -31,6 +31,7 @@ import re
 from collections import defaultdict as _defaultdict
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -498,11 +499,71 @@ def run(dry_run: bool = False) -> dict:
     return summary
 
 
+def fix_simplified(dry_run: bool = False) -> dict:
+    """Auto-fix Simplified Chinese chars in all active annotated/reviewed events.
+
+    Applies the same _SIMP_TO_TRAD conversion used by annotator.py.
+    Does NOT change annotation_status — events remain annotated/reviewed.
+    """
+    from annotator import _to_trad
+
+    sb = _supabase_client()
+    rows = (
+        sb.table("events")
+        .select("id,name_zh,description_zh,selection_reason,annotation_status")
+        .eq("is_active", True)
+        .in_("annotation_status", ["annotated", "reviewed"])
+        .execute()
+        .data
+    )
+
+    fixed_count = 0
+    for row in rows:
+        update: dict[str, Any] = {}
+
+        for field in ("name_zh", "description_zh"):
+            val = row.get(field) or ""
+            if val:
+                converted = _to_trad(val)
+                if converted != val:
+                    update[field] = converted
+
+        # Fix selection_reason.zh
+        sr = row.get("selection_reason")
+        if sr:
+            import json as _json
+            try:
+                sr_dict = _json.loads(sr) if isinstance(sr, str) else sr
+                zh_val = sr_dict.get("zh", "")
+                if zh_val:
+                    converted_zh = _to_trad(zh_val)
+                    if converted_zh != zh_val:
+                        sr_dict["zh"] = converted_zh
+                        update["selection_reason"] = _json.dumps(sr_dict, ensure_ascii=False)
+            except (ValueError, TypeError, AttributeError):
+                pass
+
+        if update:
+            if dry_run:
+                logger.info("  [DRY] %s: would fix %s", row["id"][:8], list(update.keys()))
+            else:
+                sb.table("events").update(update).eq("id", row["id"]).execute()
+                logger.info("  ✓ fixed SC chars: %s fields=%s", row["id"][:8], list(update.keys()))
+            fixed_count += 1
+
+    logger.info("fix_simplified: %s %d/%d events", "would fix" if dry_run else "fixed", fixed_count, len(rows))
+    return {"scanned": len(rows), "fixed": fixed_count}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--fix", action="store_true", help="Auto-fix Simplified Chinese chars instead of just reporting")
     args = parser.parse_args()
-    run(dry_run=args.dry_run)
+    if args.fix:
+        fix_simplified(dry_run=args.dry_run)
+    else:
+        run(dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
