@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-05-06 — CI/Health/gnews/tokyoartbeat 四連故障（commits 266daa1, 7df9f56, 1c0f69a）
+
+### Incident 1 — workflow-failure-notify 自我觸發迴圈（commit 266daa1）
+**問題**：`workflow-failure-notify.yml` 使用 `workflow_run` trigger，job 層級 `if:` 條件為 false（被監控 workflow 成功/skipped）時，GitHub 將整個 run 結論為 `failure`（"No jobs were run"），**而非 `skipped`**。由於 `workflow-failure-notify` 本身在 `workflows:` 監控清單內，它的 `failure` 觸發自身，形成無限迴圈並發送垃圾通知郵件。
+**修復**：在 job 層級 `if:` 加入自我排除：`github.event.workflow_run.name != 'Workflow Failure LINE Notify'`
+**教訓**：`workflow_run` trigger 搭配 job 層級 `if:` 時，"No jobs were run" 結論為 `failure`，不是 `skipped`。任何 notify workflow 必須在 `if:` 加入自我排除條件，或將自身從 `workflows:` 監控清單移除。
+
+### Incident 2 — health_check NON_DAILY_SOURCES 為空（commit 7df9f56）
+**問題**：`NON_DAILY_SOURCES = frozenset()` 為空，`weekly_broadcast` 在 7 天內有執行記錄，但被誤認為每日必跑 source。今天是週三，週四的 cron 未觸發，health_check 每天回報 weekly_broadcast missing。
+**修復**：加入 `NON_DAILY_SOURCES = frozenset({"weekly_broadcast"})`
+**教訓**：建立任何新的定期（非每日）workflow 時，必須**同步**更新 `health_check.py` 的 `NON_DAILY_SOURCES`。
+
+### Incident 3 — tokyoartbeat slug fallback 條件過嚴（commit 7df9f56）
+**問題**：Contentful 年度系列展佔位符日期不只有 `YYYY-01-01`，也有 `YYYY-01-15`（events `977da793`、`e7cf2a51`）。slug fallback 條件 `month == 1 and day == 1` 未涵蓋 day 2–31，造成 DB 日期錯誤。
+**修復**：條件改為 `month == 1`（任何 1 月日期均視為 Contentful 佔位符）
+**教訓**：Contentful 使用整個 1 月（1/1–1/31）作為佔位，不限 Jan 1。正確條件：`start_date.month == 1`。
+
+### Incident 4 — gnews RSS snippet 作為 start_date fallback（commit 1c0f69a）
+**問題**：`_extract_start_date(article_text or description_plain, pub_date)` —— article fetch 失敗時用 RSS snippet（< 200 字）提取日期，annotator 從稀少文本猜出錯誤日期（如 `2023-10-01` 殘留、`2026-10` GPT 幻覺）。另外 `health_check` 對未來 gnews 日期也誤發告警。
+**修復**：(1) `start_date = _extract_start_date(article_text, pub_date) if article_text else None`；(2) `gnews_suspect` query 加 `.lt("start_date", today_str)`，只報過去日期
+**教訓**：RSS snippet 不可用作日期來源；article fetch 失敗時直接 `start_date = None`。health_check 對未來日期不需告警。
+
+---
+
 ## 2026-05-08 — performer regex 假陽性：`翻訳者一青窈` 被誤識別為人名
 
 ### 問題

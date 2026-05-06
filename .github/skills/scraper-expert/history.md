@@ -3,6 +3,22 @@
 <!-- Append new entries at the top -->
 
 ---
+
+## 2026-05-06 — gnews start_date RSS snippet fallback + tokyoartbeat slug guard 擴大（commits 7df9f56, 1c0f69a）
+
+### google_news_rss — RSS snippet 作為 start_date fallback（commit 1c0f69a）
+- `_extract_start_date(article_text or description_plain, pub_date)`：article fetch 失敗時 `article_text=None`，`or description_plain` 使 RSS snippet（< 200 字）成為 fallback 輸入，GPT 從稀少文字猜出錯誤日期
+- 修復：改為 `start_date = _extract_start_date(article_text, pub_date) if article_text else None`
+- 教訓：RSS snippet 不可用作日期提取來源；article fetch 失敗時直接 `start_date = None`，由 annotator 的 `（記事配信日: YYYY-MM-DD）` 前綴確保年份正確
+
+### tokyoartbeat — Contentful 佔位符 slug fallback 條件過嚴（commit 7df9f56）
+- Contentful `scheduleStartsOn` 佔位符不只 `YYYY-01-01`，也有 `YYYY-01-15`（events `977da793`、`e7cf2a51`）
+- `month == 1 and day == 1` 的 slug fallback 條件漏掉 day 2–31，造成 DB 日期錯誤
+- 修復：條件改為 `month == 1`（Contentful 使用整個 1 月作佔位，不限 Jan 1）
+- 教訓：審核所有 Contentful 系列展 scraper 的 slug fallback 條件，正確用 `start_date.month == 1`
+
+---
+
 ### 2026-05-05 — auto_qa TAIWAN_VENUE_KEYWORDS 子字串假陽性：新北 ⊂ 新北島（commit 6b7174a）
 - `'新北'` 是 `'新北島'`（大阪市住之江区）的子字串，`auto_qa_taiwan_venue` 對 event `371cf624`（GRAFFYHALL venue）反覆誤觸
 - 每次 scraper upsert 更新 `updated_at` → dedup 重新觸發 → 即使 dismissed 仍再建立新報告

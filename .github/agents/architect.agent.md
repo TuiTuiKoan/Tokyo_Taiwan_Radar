@@ -504,7 +504,32 @@ Reference: migrations `050_entity_tables.sql`、`051_works_tv_drama.sql`（commi
 3. **`_SIMP_TO_TRAD` 字元映射表為模組層級**，不可放在函式內。
 
 Reference: commits `239cb19`（enrich SC guard）、`6e21c52`（auto_qa lock）。
+## workflow_run Self-Loop Guard
 
+在審核任何使用 `workflow_run` trigger 的 notify workflow 前，**必須**確認：
+
+1. **`workflow_run` + job 層級 `if:` 的 `failure` 語意**：當 `if:` 條件為 false，整個 workflow run 的結論是 `failure`（"No jobs were run"），**不是 `skipped`**。若 notify workflow 本身在監控清單內，它的 `failure` 觸發自身形成無限迴圈。
+2. **self-exclusion 必要守衛**：
+   ```yaml
+   if: >
+     github.event.workflow_run.conclusion == 'failure' &&
+     github.event.workflow_run.name != '<本 workflow 名稱>'
+   ```
+3. **或將自身從 `workflows:` 移除**：清單不可包含本 workflow 自身名稱。
+
+Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發無限迴圈（commit `266daa1`）。
+
+## NON_DAILY_SOURCES Registration Guard
+
+在建立**任何新的定期（非每日）workflow** 前，**必須**確認：
+
+1. **同一 commit 更新 `health_check.py` 的 `NON_DAILY_SOURCES`**：不在清單的 source 每天被 health_check 誤報 missing。
+   ```python
+   NON_DAILY_SOURCES: frozenset[str] = frozenset({"weekly_broadcast"})
+   ```
+2. **告警視窗需對齊 cron 頻率**：weekly cron 不可被 daily health_check 每天誤報。
+
+Reference incident: 2026-05-06 — `weekly_broadcast` 因 `NON_DAILY_SOURCES = frozenset()` 每天誤報 missing（commit `7df9f56`）。
 ## Required Phases
 
 ### Phase 1: Research

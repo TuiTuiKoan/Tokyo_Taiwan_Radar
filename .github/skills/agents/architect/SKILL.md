@@ -1268,4 +1268,36 @@ Reference: commits `ab3bd9e`（gnews sub-events in all passes）、`5f98b3b`（P
 
 Reference: commits `239cb19`（enrich SC guard）、`6e21c52`（auto_qa lock）。
 
+## workflow_run Self-Loop Guard
+
+在審核任何使用 `workflow_run` trigger 的 notify workflow 前，**必須**確認：
+
+1. **`workflow_run` + job 層級 `if:` 的 `failure` 語意**：當 `if:` 條件為 false，整個 workflow run 的結論是 `failure`（"No jobs were run"），**不是 `skipped`**。若 notify workflow 本身在監控清單 `workflows:` 裡，它的 `failure` 會再次觸發自身，形成無限迴圈。
+2. **self-exclusion 是必要守衛**：任何 notify workflow 必須在 job 層級 `if:` 加入自我排除條件：
+   ```yaml
+   if: >
+     github.event.workflow_run.conclusion == 'failure' &&
+     github.event.workflow_run.name != '<本 workflow 名稱>'
+   ```
+3. **或將自身從 `workflows:` 移除**：若 `workflows:` 明確列舉被監控的 workflow，確保列表不包含本 workflow 自身的名稱。
+4. **`skipped` 不等於 `failure`**：workflow 本體的結論 `skipped` 由 GitHub 定義；job 層級 `if: false` 的結論是 `failure`（workflow 有執行，但沒有任何 job 跑）。
+
+Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發 → 無限迴圈 → 垃圾通知郵件（commit `266daa1`）。
+
+## NON_DAILY_SOURCES Registration Guard
+
+在建立**任何新的定期（非每日）workflow** 或 **health_check 相關改動**前，**必須**確認：
+
+1. **`health_check.py` 的 `NON_DAILY_SOURCES` 必須包含所有非每日 source**：每新增一個非每日 cron workflow，立即在同一 commit 更新 `NON_DAILY_SOURCES`。
+   ```python
+   NON_DAILY_SOURCES: frozenset[str] = frozenset({
+       "weekly_broadcast",
+       # <new_non_daily_source>,
+   })
+   ```
+2. **不在 `NON_DAILY_SOURCES` 的 source = health_check 認為應每日執行**：若 7 天內有執行記錄但今天沒跑，health_check 每天回報 missing，直到修復。
+3. **cron 頻率 vs health_check 告警頻率需對齊**：weekly cron（7 天一次）不可被 daily health_check（每天）誤報 missing。告警觸發條件應為「最近 N 天內無記錄（N = cron 間隔 + 1 天緩衝）」。
+4. **同時更新 checklist**：若有 source 進入 `NON_DAILY_SOURCES`，在對應的 workflow yml 加上 comment 標注告警視窗。
+
+Reference incident: 2026-05-06 — `weekly_broadcast` 因 `NON_DAILY_SOURCES = frozenset()` 為空，被 health_check 每天誤報 missing（commit `7df9f56`）。
 
