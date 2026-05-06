@@ -77,7 +77,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [bulkAddCatPending, setBulkAddCatPending] = useState<Set<string>>(new Set());
   const [bulkAddCatOpen, setBulkAddCatOpen] = useState(false);
   const [showCreateWorkModal, setShowCreateWorkModal] = useState(false);
+  const [bulkWorkOpen, setBulkWorkOpen] = useState(false);
+  const [bulkWorkQuery, setBulkWorkQuery] = useState("");
+  const [bulkAssigningWork, setBulkAssigningWork] = useState(false);
   const bulkAddCatRef = useRef<HTMLDivElement>(null);
+  const bulkWorkRef = useRef<HTMLDivElement>(null);
 
   // Inline filters
   const [filterQ, setFilterQ] = useState("");
@@ -92,6 +96,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       }
       if (bulkAddCatRef.current && !bulkAddCatRef.current.contains(e.target as Node)) {
         setBulkAddCatOpen(false);
+      }
+      if (bulkWorkRef.current && !bulkWorkRef.current.contains(e.target as Node)) {
+        setBulkWorkOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -495,6 +502,22 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       setSelected(new Set());
     }
     setBulkRemovingCategory(false);
+  }
+
+  async function handleBulkAssignWork(workId: string) {
+    if (selected.size === 0) return;
+    setBulkAssigningWork(true);
+    setBulkWorkOpen(false);
+    setBulkWorkQuery("");
+    await Promise.all(
+      Array.from(selected).map(async (eventId) => {
+        const { error } = await supabase.from("events").update({ work_id: workId }).eq("id", eventId);
+        if (!error) {
+          setEvents((prev) => prev.map((e) => e.id === eventId ? { ...e, work_id: workId } : e));
+        }
+      })
+    );
+    setBulkAssigningWork(false);
   }
 
   async function handleBulkAddCategory() {
@@ -941,9 +964,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               ✕
             </button>
           </div>
-          {/* Row 2: bulk add category + create work */}
+          {/* Row 2: bulk category annotation + work annotation + create work */}
           <div className="flex items-center gap-2 flex-wrap border-t border-blue-200 pt-2" ref={bulkAddCatRef}>
-            <span className="text-xs text-blue-600 font-medium">新增分類：</span>
+            <span className="text-xs text-blue-600 font-medium">分類標注：</span>
             <div className="relative">
               <button
                 onClick={() => setBulkAddCatOpen((v) => !v)}
@@ -995,9 +1018,52 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 {bulkAddingCategory ? "…" : `套用到 ${selected.size} 筆`}
               </button>
             )}
+            <span className="text-xs text-blue-600 font-medium ml-2">作品標注：</span>
+            <div className="relative" ref={bulkWorkRef}>
+              <button
+                onClick={() => { setBulkWorkOpen((v) => !v); setBulkWorkQuery(""); }}
+                disabled={bulkAssigningWork}
+                className="text-xs h-7 px-2.5 border border-blue-300 rounded-full bg-white text-blue-700 hover:bg-blue-50 transition flex items-center gap-1 disabled:opacity-50"
+              >
+                {bulkAssigningWork ? "套用中…" : "選擇作品… ▾"}
+              </button>
+              {bulkWorkOpen && (
+                <div className="absolute left-0 top-8 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-64">
+                  <div className="p-2 border-b border-gray-100">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={bulkWorkQuery}
+                      onChange={(e) => setBulkWorkQuery(e.target.value)}
+                      placeholder="搜尋作品…"
+                      className="w-full text-xs border border-gray-200 rounded px-2 py-1"
+                    />
+                  </div>
+                  <div className="overflow-y-auto max-h-[280px] py-1">
+                    {works
+                      .filter((w) => {
+                        const q = bulkWorkQuery.trim().toLowerCase();
+                        if (!q) return true;
+                        return [w.original_title, w.title_ja, w.title_zh, w.title_en]
+                          .filter(Boolean)
+                          .some((s) => (s as string).toLowerCase().includes(q));
+                      })
+                      .map((w) => (
+                        <button
+                          key={w.id}
+                          onClick={() => handleBulkAssignWork(w.id)}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 truncate"
+                        >
+                          {getWorkTitle(w, locale)}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setShowCreateWorkModal(true)}
-              className="ml-auto text-xs h-7 px-3 bg-white border border-blue-300 text-blue-700 rounded-full hover:bg-blue-50 transition font-medium flex items-center"
+              className="text-xs h-7 px-3 bg-white border border-blue-300 text-blue-700 rounded-full hover:bg-blue-50 transition font-medium flex items-center"
             >
               ＋ 新增作品
             </button>
