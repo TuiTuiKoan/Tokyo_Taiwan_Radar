@@ -28,6 +28,8 @@ import argparse
 import logging
 import os
 import re
+from collections import defaultdict as _defaultdict
+from datetime import date as _date
 from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
@@ -90,7 +92,7 @@ TAIWAN_VENUE_KEYWORDS = (
     # '新北市' above is sufficient for New Taipei City detection
 )
 
-QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_taiwan_venue", "auto_qa_missing_hours", "auto_simplified_chinese")
+QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_taiwan_venue", "auto_qa_missing_hours", "auto_simplified_chinese", "auto_qa_same_work_duplicate")
 
 # Precise SC-only char set for the broad auto_simplified_chinese detector.
 # Only chars that are unambiguously simplified-only (different glyph in TC).
@@ -295,6 +297,79 @@ def _detect_simplified_chinese(sb) -> list[dict]:
     return reports
 
 
+def _detect_same_work_duplicate(sb) -> list[dict]:
+    """Detect active news events with same work_id + date (≤14 days) + location
+    that were NOT auto-merged by merger Pass 5 (e.g. location overlap failed).
+    These require human review to decide if they are truly the same screening.
+    """
+    _NEWS = frozenset({"google_news_rss", "prtimes", "nhk_rss", "walkerplus"})
+
+    rows = (
+        sb.table("events")
+        .select("id,source_name,name_ja,start_date,location_name,work_id")
+        .eq("is_active", True)
+        .in_("source_name", list(_NEWS))
+        .not_.is_("work_id", "null")
+        .not_.is_("start_date", "null")
+        .execute()
+        .data
+    )
+
+    # Group by work_id
+    by_work: dict = _defaultdict(list)
+    for ev in rows:
+        by_work[ev["work_id"]].append(ev)
+
+    reports = []
+    reported_pairs: set = set()
+
+    for work_id_key, group in by_work.items():
+        if len(group) < 2:
+            continue
+        for i, ev_a in enumerate(group):
+            for j in range(i + 1, len(group)):
+                ev_b = group[j]
+                pair_key = tuple(sorted([ev_a["id"], ev_b["id"]]))
+                if pair_key in reported_pairs:
+                    continue
+
+                # Date check: ≤ 14 days apart
+                try:
+                    diff = abs((
+                        _date.fromisoformat(ev_a["start_date"][:10])
+                        - _date.fromisoformat(ev_b["start_date"][:10])
+                    ).days)
+                except (ValueError, TypeError):
+                    continue
+                if diff > 14:
+                    continue
+
+                # Only report pairs that location overlap FAILED (otherwise Pass 5 would catch)
+                # — i.e. different location OR null location on both
+                # If location overlap passes → Pass 5 handles it automatically
+                # We want to surface pairs that Pass 5 SKIPPED
+                loc_a = ev_a.get("location_name") or ""
+                loc_b = ev_b.get("location_name") or ""
+
+                # Report all ≤14-day same-work pairs (Pass 5 already merged overlapping ones)
+                reported_pairs.add(pair_key)
+                note = (
+                    f"同 work_id={work_id_key[:8]} 兩筆 news 事件日期差 {diff} 天，"
+                    f"可能重複。A=[{ev_a['id'][:8]}] {(ev_a.get('name_ja') or '')[:40]} "
+                    f"loc={loc_a[:20]} date={ev_a['start_date'][:10]}; "
+                    f"B=[{ev_b['id'][:8]}] {(ev_b.get('name_ja') or '')[:40]} "
+                    f"loc={loc_b[:20]} date={ev_b['start_date'][:10]}"
+                )
+                # Report on the lower-quality event (no location = lower quality)
+                target_id = ev_a["id"] if not loc_a else ev_b["id"]
+                reports.append({
+                    "event_id": target_id,
+                    "report_type": "auto_qa_same_work_duplicate",
+                    "details": note,
+                })
+    return reports
+
+
 def detect(event: dict) -> list[tuple[str, str]]:
     """Return list of (report_type, admin_note) detected for one event."""
     findings: list[tuple[str, str]] = []
@@ -359,6 +434,8 @@ def run(dry_run: bool = False) -> dict:
     for item in _detect_missing_hours(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
     for item in _detect_simplified_chinese(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
+    for item in _detect_same_work_duplicate(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
 
     # Dedup against latest auto_qa reports for each event/type

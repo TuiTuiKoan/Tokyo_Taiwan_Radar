@@ -41,6 +41,7 @@ import logging
 import os
 import re
 from collections import defaultdict
+from datetime import date as _date
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -802,11 +803,126 @@ def run_merger(dry_run: bool = False) -> int:
     logger.info("Merger: %d orphaned sub-event(s) handled (Pass 3)", pass3_count)
 
     # ------------------------------------------------------------------
+    # Pass 5 — Same-work_id news-vs-news dedup
+    # When two news-source events share the same work_id + overlapping
+    # date (≤14 days) + overlapping location, they cover the same
+    # screening from different articles.  Merge the lower-quality one
+    # into the higher-quality one.
+    #
+    # This handles cases where name titles diverge too much for Pass 1
+    # (name similarity << 0.85) and both events are in _NEWS_SOURCES
+    # (so Pass 2's news→official loop never sees them together).
+    # ------------------------------------------------------------------
+    pass5_count = 0
+    work_news_events = [
+        ev for ev in events
+        if ev["source_name"] in _NEWS_SOURCES
+        and ev.get("work_id")
+        and ev["id"] not in handled_secondary_ids
+    ]
+
+    # Group by work_id
+    work_groups: dict[str, list] = defaultdict(list)
+    for ev in work_news_events:
+        work_groups[str(ev["work_id"])].append(ev)
+
+    for work_id_key, group in work_groups.items():
+        if len(group) < 2:
+            continue
+        for i, ev_a in enumerate(group):
+            for j in range(i + 1, len(group)):
+                ev_b = group[j]
+                if ev_a["id"] in handled_secondary_ids or ev_b["id"] in handled_secondary_ids:
+                    continue
+
+                # Date guard: start_dates must be ≤ 14 days apart
+                date_a = ev_a.get("start_date")
+                date_b = ev_b.get("start_date")
+                if date_a and date_b:
+                    try:
+                        diff = abs(
+                            (_date.fromisoformat(date_a[:10]) - _date.fromisoformat(date_b[:10])).days
+                        )
+                        if diff > 14:
+                            continue
+                    except ValueError:
+                        continue
+                elif date_a or date_b:
+                    # One has date, other doesn't — still allow if location matches
+                    pass
+
+                # Location guard: must overlap (prevents merging same film at different cities)
+                if not _location_overlap(ev_a.get("location_name"), ev_b.get("location_name")):
+                    continue
+
+                # Quality score: prefer has_date > has_location > longer description
+                def _gnews_q(ev: dict) -> tuple:
+                    has_date = 0 if ev.get("start_date") else 1
+                    no_loc = 0 if ev.get("location_name") else 1
+                    desc_len = -(len(ev.get("raw_description") or ""))
+                    return (has_date, no_loc, desc_len)
+
+                if _gnews_q(ev_a) <= _gnews_q(ev_b):
+                    primary, secondary = ev_a, ev_b
+                else:
+                    primary, secondary = ev_b, ev_a
+
+                secondary_url = secondary["source_url"]
+                existing_urls = primary.get("secondary_source_urls") or []
+                already_merged = secondary_url in existing_urls
+
+                logger.info(
+                    "%s  [gnews work=%s] '%s'  ←  [gnews] '%s'  (same-work Pass 5)",
+                    "EXISTS" if already_merged else "MERGE ",
+                    work_id_key[:8],
+                    (primary["name_ja"] or "")[:40],
+                    (secondary["name_ja"] or "")[:40],
+                )
+
+                if dry_run:
+                    pass5_count += 1
+                    handled_secondary_ids.add(secondary["id"])
+                    continue
+
+                new_urls = list(dict.fromkeys(existing_urls + [secondary_url]))
+                upd5: dict = {"secondary_source_urls": new_urls}
+                if not already_merged:
+                    primary_desc = (primary.get("raw_description") or "").strip()
+                    secondary_desc = (secondary.get("raw_description") or "").strip()
+                    if secondary_desc and secondary_desc not in primary_desc:
+                        upd5["raw_description"] = (
+                            primary_desc
+                            + f"\n\n---\n別来源補足 (gnews)\n{secondary_desc}"
+                        )
+                    upd5["annotation_status"] = "pending"
+
+                try:
+                    sb.table("events").update(upd5).eq("id", primary["id"]).execute()
+                    sb.table("events").update(
+                        _deactivate_as_merged(
+                            primary["id"],
+                            f"same-work_id gnews duplicate merged into {primary['id']} (Pass 5)",
+                            "merger_pass_5",
+                        )
+                    ).eq("id", secondary["id"]).execute()
+                    pass5_count += 1
+                    handled_secondary_ids.add(secondary["id"])
+                except Exception as exc:
+                    logger.error(
+                        "Merger Pass 5: failed to merge %s ← %s: %s",
+                        primary.get("source_id"),
+                        secondary.get("source_id"),
+                        exc,
+                    )
+
+    logger.info("Merger Pass 5: %d same-work_id news-vs-news pair(s) handled", pass5_count)
+
+    # ------------------------------------------------------------------
     # Pass 4 — Grandchild event flattening
     # ------------------------------------------------------------------
     pass4_count = _flatten_grandchild_events(sb, dry_run=dry_run)
 
-    total = pass0_count + merge_count + pass3_count + pass4_count
+    total = pass0_count + merge_count + pass3_count + pass4_count + pass5_count
     return total
 
 
@@ -943,4 +1059,4 @@ if __name__ == "__main__":
 
     count = run_merger(dry_run=args.dry_run)
     action = "would be merged" if args.dry_run else "merged"
-    print(f"Done: {count} pair(s)/orphan(s) {action} (Pass 0+1+2+3).")
+    print(f"Done: {count} pair(s)/orphan(s) {action} (Pass 0+1+2+3+5).")
