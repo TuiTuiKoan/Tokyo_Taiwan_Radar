@@ -359,9 +359,31 @@ Reference incident: 2026-05-05 — `赤い糸 輪廻のひみつ` 以日文出�
 
 Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan-Dong` 從 5/4 daily CI 後一直未修正；同事件已多次手修又被 AI 覆寫，根因是缺 field_corrections lock。
 
+## Performer Multilingual Fields Guard（performer_zh/en/director_zh/en）
+
+在審核任何涉及 `performer_zh`、`performer_en`、`director_zh`、`director_en` 的計畫，或設計多語言表演者顯示邏輯時，**必須**確認：
+
+1. **欄位架構（migration 053/054）**：
+   - `performer TEXT`：日文原名（永遠用日文，供 ja locale）
+   - `performer_zh / performer_en TEXT`：各語言名稱（GPT 填入或人工設定）
+   - `performers TEXT[]`：所有具名表演者/發表者的陣列
+   - `director / director_zh / director_en`：同上，用於導演
+2. **locale 優先序（`getEventPerformer(event, locale)`）**：
+   - `zh` → `performer_zh || performer`
+   - `en` → `performer_en || performer`
+   - `ja` → `performer`（不走翻譯欄位）
+3. **AI翻譯標注規則**：GPT 填入 performer_zh/en/director_zh/en 時，若該語言名稱**未明確出現在來源文本**，必須附加「（AI翻譯）」（如 `黃以文（AI翻譯）`）。若來源中有該語言名稱，不加標注。
+4. **academic performers[]**：學術研討會（学会大会、研究大会、シンポジウム）中**所有**具名發表者（発表者/報告者/登壇者）必須列入 `performers[]`，即使有 5 人以上。
+5. **手動設定必須鎖 `field_corrections`**：同 `performer` 欄位，`performer_zh`、`performer_en` 手動修正必須同時 upsert 進 `field_corrections`，否則下次 re-annotation 覆寫。
+6. **`works.work_type` 有效值**：`film | stage | exhibition | concert_tour | tv_drama | tv_variety | other`。`conference` **不在**允許清單，學術研討會用 `other`。（migration 048 + 051 的 check constraint 僅允許上列 7 種）
+
+Reference incidents:
+- 2026-05-06 — `ホアン・イーウェン`（bf783b90）performer_zh=黃以文，performer_en=Huang Yi-wen（AI翻譯）；`林依晨`（4 events）performer_zh=林依晨，performer_en=Lin Yi-chen（commits 65a50b9）。
+- 2026-05-06 — 建立 work_id `c3588296` 時 `work_type='conference'` 觸發 check constraint；改用 `'other'`。
+
 ## Manual Translation Fix Persistence Guard（手動修翻譯必須鎖 field_corrections）
 
-在審核**任何**直接 SQL UPDATE 翻譯欄位（`name_zh` / `name_en` / `description_zh` / `description_en` / `performer`）的計畫前，**必須**確認：
+在審核**任何**直接 SQL UPDATE 翻譯欄位（`name_zh` / `name_en` / `description_zh` / `description_en` / `performer` / `performer_zh` / `performer_en`）的計畫前，**必須**確認：
 
 1. **手動修正必同時鎖入 `field_corrections`**：否則下一次事件 `annotation_status` 翻回 `pending`（scraper diff / `--all` / `--fix-translations`）時，annotator 主迴圈用 GPT 重寫，所有人工修正瞬間蒸發。這是「修了又錯、錯了又修」迴歸鏈的根因。
 2. **正確操作 pattern**：

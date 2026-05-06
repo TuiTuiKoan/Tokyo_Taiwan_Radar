@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-05-06 — performers[] + performer 多語言欄位設計（commits 191d939, 3822fb8, 65a50b9）
+
+**背景：** `performer TEXT` 只儲存日文原名，導致繁中/英文頁面顯示日文名稱。
+
+**設計決策：**
+- Migration 053：新增 `performers TEXT[]` 支援多人表演者陣列
+- Migration 054：新增 `performer_zh / performer_en / director_zh / director_en TEXT`
+- `getEventPerformer(event, locale)` helper：zh → `performer_zh || performer`；en → `performer_en || performer`；ja → `performer`
+- SYSTEM_PROMPT 新規則：AI 填入未在原文出現的名稱須附「（AI翻譯）」標注
+- Academic conferences 規則：學術研討會所有具名發表者皆列入 `performers[]`
+
+**教訓：**
+1. `works.work_type` check constraint 只允許 `film | stage | exhibition | concert_tour | tv_drama | tv_variety | other`——`conference` 不在清單，學術研討會建 work 需用 `other`。建立前先確認允許值（PostgreSQL check constraint 沒有 schema 預覽，執行時才報錯）。
+2. 手動設定 `performer_zh / performer_en` 必須同時 upsert 進 `field_corrections`，否則下次 re-annotation 覆寫。Manual Translation Fix Persistence Guard 已擴展涵蓋這兩個欄位。
+
+---
+
 ## 2026-05-06 — archiver 完全刪除，孤兒學術 sub-events 恢復激活
 
 **問題：** 日本台湾学会第23回関西部会（00ae1ea8）及其 sub-events（84a1b677, 0791ddf3）因 merger Pass 3 判斷母事件 inactive 而被停用。原本設計依賴 `archive_ended_events()` 的 work_id bypass 守衛來保護已連結 work 的事件。

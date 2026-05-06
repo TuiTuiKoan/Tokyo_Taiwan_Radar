@@ -3,7 +3,50 @@
 <!-- Append new entries at the top -->
 
 ---
-## 2026-05-06 — Cinema series sub-event 誤生成 _sub1（ks_cinema race condition）
+
+## 2026-05-06 — works work_type check constraint 不含 conference
+
+**Error:** 建立學術研討會 work 記錄時使用 `work_type='conference'` → `APIError: violates check constraint "works_work_type_check"`。
+
+**Root cause:** Migration 048 + 051 的 check constraint 只允許 `film | stage | exhibition | concert_tour | tv_drama | tv_variety | other`。PostgreSQL check constraint 沒有 schema 預覽，執行時才報 IntegrityError。
+
+**Fix:** 改用 `work_type='other'`；新建 work `c3588296`（日本台湾学会第23回関西部会研究大会）。
+
+**Lesson:** 建立 works 記錄前先查現有 `work_type` 值：`sb.table("works").select("work_type").execute()`。或查 migration SQL 確認 check constraint 允許值。
+
+---
+
+## 2026-05-06 — CI YAML parser quirk: [{...}] inline jq filter
+
+**Error:** `.github/workflows/workflow-failure-notify.yml` 的 `run: |` block 中包含 `[{type:"text",...}]` inline jq filter → GitHub Actions YAML parser 錯誤：`Nested mappings not allowed in compact mappings`。
+
+**Root cause:** GitHub Actions YAML parser 對 block scalar（`|`）內容仍做 YAML 解析，`[{...}]` 被識別為 inline mapping array。這是 GitHub YAML parser 的 known quirk，非標準 YAML 行為。
+
+**Fix (commit `b9a462c`):** 將 jq filter 指派給 shell 變數 `JQ_FILTER`，避免 `[{...}]` 直接出現在 inline argument：
+```yaml
+run: |
+  JQ_FILTER='[{type:"text",text:"..."}]'
+  curl ... --data "$(jq -n --arg t "$MSG" "$JQ_FILTER")"
+```
+
+**Lesson:** GitHub Actions YAML parser 的兩個 known quirk：
+1. `if:` multi-line block scalar（`>-` / `|`）有時解析失敗 → 改用單行雙引號字串。
+2. `run: |` 中 `[{key:"val",...}]` inline array of objects → 改用 shell 變數。
+兩者都應優先測試；不要假設 block scalar 就能繞過 YAML 解析。
+
+---
+
+## 2026-05-06 — AdminEventTable per-row work dropdown：`<a>` → modal (4a266a1)
+
+**Error:** Per-row work 下拉選單中「＋ 建立新作品」按鈕使用 `<a href="/admin/works/new">` 開新分頁，與 bulk action bar 的「＋ 新增作品」按鈕行為不一致（後者呼叫 `setShowCreateWorkModal(true)`）。
+
+**Fix (commit `4a266a1`):** 改為 `<button onClick={() => setShowCreateWorkModal(true)}`，與 bulk action bar 保持一致。
+
+**Lesson:** AdminEventTable 的 work 操作應一律透過 modal（`AdminCreateWorkModal`），不應從行內連結跳出至獨立頁面。一致性規則：相同操作的 UI 入口必須共用相同的實現路徑。
+
+---
+
+
 
 **Error:** ks_cinema `taiwan-filmake` 系列頁面的電影出現 2 筆 active 重複事件（`_2_sub1`, `_0_sub1`）。Annotator 看到兩個排片時段（`4/25～5/1`、`5/2～8`）→ 按 "multiple dates → sub_events" 規則生成 `_sub1`，因同 source 被 merger 跳過，永遠不被消除。
 

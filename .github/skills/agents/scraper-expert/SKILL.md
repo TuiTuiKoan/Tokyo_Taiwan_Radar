@@ -739,3 +739,11 @@ python scraper/backfill_locations.py
   ```
 - **`start_date = None` is handled by annotator's universal year-anchor**: `（記事配信日: YYYY-MM-DD）` prefix injected into raw_description ensures year correctness even when date cannot be extracted from text.
 - **health_check `gnews_suspect` alert**: Only trigger for `start_date < today` (past-dated unreliable dates). Future-dated gnews events are not yet user-visible and do not require an alert.
+## performer / performers[] \u6ce8\u89e3\u898f\u5247
+
+Annotator \u5c0d\u8868\u6f14\u8005\u6b04\u4f4d\u7684\u898f\u5247\uff08migration 053/054\uff09\uff1a
+
+- **`performer TEXT`**\uff1a\u5c0d\u4e3b\u8981\u5d50\u8cfd\u8005\uff0f\u8b1b\u8005\uff0f\u827d\u8853\u5bb6\u7684\u55ae\u4e00\u65e5\u6587\u539f\u540d\u3002
+- **`performers TEXT[]`**\uff1a\u6240\u6709\u5177\u540d\u8868\u6f14\u8005\uff0f\u767c\u8868\u8005\u7684\u9663\u5217\u3002\u5b78\u8853\u7814\u8a0e\u6703\u5fc5\u9808\u5305\u542b\u5168\u90e8\u5177\u540d\u767c\u8868\u8005\uff08\u767c\u8868\u8005\uff0f\u5831\u544a\u8005\uff0f\u767b\u58c7\u8005\uff09\u3002
+- **`performer_zh / performer_en`**\uff1aGPT \u586b\u5165\u7684\u5404\u8a9e\u8a00\u540d\u7a31\u3002\u82e5\u539f\u6587\u672a\u660e\u793a\u5c0d\u61c9\u8a9e\u8a00\u540d\u7a31\uff0c\u5fc5\u9808\u9644\u52a0\u300c\uff08AI\u7ffb\u8b6f\uff09\u300d\uff08\u5982 `\u9ec3\u4ee5\u6587\uff08AI\u7ffb\u8b6f\uff09`\uff09\u3002
+- **Scraper \u5c64\u7528\u4e0d\u5230**\uff1a`performer` \u7531 annotator GPT \u5c64\u5585\u5165\uff0c\u4e0d\u7531 scraper \u8a2d\u5b9a\u3002Scraper \u53ea\u9700\u6b63\u78ba\u5beb\u5165 `raw_description`\uff08\u542b\u8b1b\u8005\u59d3\u540d\u3001\u8077\u7a31\u3001\u6572\u8a9e\u5f62\u5f0f\uff09\uff0c\u5f8c\u7e8c pipeline \u81ea\u52d5\u5225\u53d6\u3002

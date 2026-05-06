@@ -478,6 +478,8 @@ Whenever this file is modified for **any reason**, verify these 3 lines are inta
 
 These were regressed at least twice when unrelated changes overwrote them. The `tFilters` mistake specifically recurred because old SKILL notes incorrectly listed it as the correct value.
 
+**Work dropdown modal rule:** The "＋ 建立新作品" entry in the per-row work `<select>` dropdown must call `setShowCreateWorkModal(true)` — **never** use `<a href>` or `router.push`. This keeps the UX consistent with the bulk action bar "＋ 新增作品" button. Reference: commit `4a266a1`.
+
 **Column pairing rule:** When adding or removing a `<th>` column, always add or remove the matching `<td>` in the same commit. TypeScript does not detect thead/tbody column count mismatches. This caused an orphaned `is_paid` `<td>` (commit `5597150`) after its `<th>` was already removed.
 
 **Address cell fallback rule:** The address `<td>` must use `event.location_address || event.location_address_zh || event.location_name`. Never read a single field. Any locale-aware field displayed in admin must apply the same fallback chain as the corresponding helper in `lib/types.ts`.
@@ -1037,6 +1039,14 @@ Add city and category pages to `sitemap.ts` with `priority: 0.7` and `changeFreq
     FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   ```
   This is a top-level `env:` key (parallel to `jobs:`), NOT a step-level `env:`.
+- **YAML parser quirk — `if:` multi-line blocks**: Multi-line `if:` conditions using `>-` or `|` block scalars sometimes fail with `All mapping items must start at the same column` or similar. Always prefer **single-line double-quoted strings** for `if:` expressions. If multi-line is unavoidable, test with `act` or push a draft branch before merging.
+- **YAML parser quirk — `[{...}]` inline jq filters in `run:` blocks**: GitHub's YAML parser incorrectly flags `[{type:"text",...}]` inside `run: |` block scalars as `Nested mappings not allowed in compact mappings`. Fix: assign the jq filter to a shell variable:
+  ```yaml
+  run: |
+    JQ_FILTER='[{type:"text",text:"..."}]'
+    curl ... --data "$(jq -n --arg t "$MSG" "$JQ_FILTER")"
+  ```
+  Reference: commits `c38ddd5`, `b9a462c`.
 
 ### Scraper/Merger pipeline step order
 
@@ -1312,6 +1322,10 @@ The location filter is implemented in **three separate files** that must always 
 (Migration `048_works_entity.sql` — 2026-05-05)
 
 `works` 是電影／舞台劇／巡演的「作品層級」上層實體；`events.work_id` 為 nullable FK 指向 `works.id`，`ON DELETE SET NULL`。
+
+**`work_type` 有效值（migration 048 + 051 check constraint）：**
+`film` | `stage` | `exhibition` | `concert_tour` | `tv_drama` | `tv_variety` | `other`
+> `conference` **不在**允許清單！學術研討會建 work 用 `other`。PostgreSQL check constraint 執行時才報錯，無 schema 預覽——建立前先查現有值：`sb.table("works").select("work_type").execute()`。
 
 **規則：**
 
