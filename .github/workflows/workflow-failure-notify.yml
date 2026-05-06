@@ -1,0 +1,74 @@
+name: Workflow Failure LINE Notify
+
+# Sends a LINE push message whenever any monitored cron workflow fails.
+# Triggered via workflow_run event after the monitored workflow completes.
+# Skips successful runs — only failures, timeouts, and cancellations notify.
+
+on:
+  workflow_run:
+    workflows:
+      - "Auto Generate"
+      - "Auto Research"
+      - "Daily Backup Snapshot"
+      - "Daily Dev Report"
+      - "Daily Health Check"
+      - "Daily Account Discovery"
+      - "Run Merger"
+      - "Monthly Feedback-Loop Health Check"
+      - "Quota Monitor"
+      - "Daily Research"
+      - "Daily Scraper"
+      - "Secret Rotation Reminder"
+      - "Weekly LINE Broadcast"
+      - "Weekly Health Report"
+    types: [completed]
+
+jobs:
+  notify:
+    if: ${{ github.event.workflow_run.conclusion != 'success' && github.event.workflow_run.conclusion != 'skipped' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send LINE failure notification
+        env:
+          LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          WF_NAME: ${{ github.event.workflow_run.name }}
+          WF_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          WF_URL: ${{ github.event.workflow_run.html_url }}
+          WF_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          WF_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WF_EVENT: ${{ github.event.workflow_run.event }}
+          WF_DISPLAY_TITLE: ${{ github.event.workflow_run.display_title }}
+        run: |
+          if [ -z "$LINE_CHANNEL_TOKEN" ] || [ -z "$LINE_USER_ID" ]; then
+            echo "LINE_CHANNEL_TOKEN or LINE_USER_ID not set — skipping"
+            exit 0
+          fi
+
+          SHORT_SHA="${WF_HEAD_SHA:0:7}"
+          MSG="⚠️ Workflow Failed
+${WF_NAME} (${WF_CONCLUSION})
+Branch: ${WF_HEAD_BRANCH}  @ ${SHORT_SHA}
+Trigger: ${WF_EVENT}
+Title: ${WF_DISPLAY_TITLE}
+Logs: ${WF_URL}"
+
+          # Build JSON payload via jq to safely escape newlines and special chars
+          PAYLOAD=$(jq -n \
+            --arg to "$LINE_USER_ID" \
+            --arg text "$MSG" \
+            '{to: $to, messages: [{type: "text", text: $text}]}')
+
+          HTTP_CODE=$(curl -s -o /tmp/line_resp.json -w "%{http_code}" \
+            -X POST https://api.line.me/v2/bot/message/push \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LINE_CHANNEL_TOKEN" \
+            -d "$PAYLOAD")
+
+          echo "LINE API status: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "LINE API response:"
+            cat /tmp/line_resp.json
+            exit 1
+          fi
+          echo "✓ LINE notification sent for failed workflow: $WF_NAME"
