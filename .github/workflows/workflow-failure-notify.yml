@@ -25,7 +25,7 @@ on:
 
 jobs:
   notify:
-    if: |
+    if: >-
       github.event.workflow_run.conclusion != 'success' &&
       github.event.workflow_run.conclusion != 'skipped' &&
       github.event.workflow_run.name != 'Workflow Failure LINE Notify'
