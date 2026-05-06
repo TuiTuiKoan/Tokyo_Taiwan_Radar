@@ -129,6 +129,14 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         row["performers"] = event.performers
     if event.director is not None:
         row["director"] = event.director
+    if event.performer_zh is not None:
+        row["performer_zh"] = event.performer_zh
+    if event.performer_en is not None:
+        row["performer_en"] = event.performer_en
+    if event.director_zh is not None:
+        row["director_zh"] = event.director_zh
+    if event.director_en is not None:
+        row["director_en"] = event.director_en
 
     return row
 

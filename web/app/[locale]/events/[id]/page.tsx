@@ -4,7 +4,7 @@ import { createClient as createSsrClient } from "@/lib/supabase/server";
 import { unstable_noStore } from "next/cache";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { type Locale, type Event, getEventName, getEventDescription, getEventLocationName, getEventLocationAddress, getEventBusinessHours } from "@/lib/types";
+import { type Locale, type Event, getEventName, getEventDescription, getEventLocationName, getEventLocationAddress, getEventBusinessHours, getEventPerformer, getEventDirector } from "@/lib/types";
 import SaveButton from "@/components/SaveButton";
 import RawDataSection from "@/components/RawDataSection";
 import ReportSection from "@/components/ReportSection";
@@ -241,11 +241,11 @@ export default async function EventDetailPage({ params }: PageProps) {
       ev.performers && ev.performers.length > 0
         ? ev.performers.map(n => ({ "@type": "Person", name: n }))
         : ev.performer
-          ? { "@type": "Person", name: ev.performer }
+          ? { "@type": "Person", name: getEventPerformer(ev as Event, locale) }
           : null;
 
     const directorLd = ev.director
-      ? { "@type": "Person", name: ev.director }
+      ? { "@type": "Person", name: getEventDirector(ev as Event, locale) }
       : null;
 
     // location → PostalAddress
@@ -675,14 +675,14 @@ export default async function EventDetailPage({ params }: PageProps) {
                 <dd className="text-gray-900">
                   {((event as Event).performers ?? []).length > 0
                     ? (event as Event).performers!.join("、")
-                    : (event as Event).performer}
+                    : getEventPerformer(event as Event, locale)}
                 </dd>
               </div>
             )}
             {(event as Event).director && (
               <div className="flex gap-2">
                 <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("director")}：</dt>
-                <dd className="text-gray-900">{(event as Event).director}</dd>
+                <dd className="text-gray-900">{getEventDirector(event as Event, locale)}</dd>
               </div>
             )}
             {((event as Event).co_organizers ?? []).length > 0 && (

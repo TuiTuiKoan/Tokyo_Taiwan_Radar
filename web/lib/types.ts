@@ -63,6 +63,10 @@ export interface Event {
   performer?: string | null;
   performers?: string[] | null;
   director?: string | null;
+  performer_zh?: string | null;
+  performer_en?: string | null;
+  director_zh?: string | null;
+  director_en?: string | null;
   work_id?: string | null;
   merged_into_event_id?: string | null;
   deactivated_reason?: string | null;
@@ -295,6 +299,20 @@ export function getEventBusinessHours(event: Event, locale: Locale): string | nu
   if (locale === "zh") return event.business_hours_zh || event.business_hours;
   if (locale === "en") return event.business_hours_en || event.business_hours;
   return event.business_hours;
+}
+
+/** Return the localized performer name (falls back to Japanese original). */
+export function getEventPerformer(event: Event, locale: Locale): string | null {
+  if (locale === "zh") return event.performer_zh || event.performer || null;
+  if (locale === "en") return event.performer_en || event.performer || null;
+  return event.performer || null;
+}
+
+/** Return the localized director name (falls back to Japanese original). */
+export function getEventDirector(event: Event, locale: Locale): string | null {
+  if (locale === "zh") return event.director_zh || event.director || null;
+  if (locale === "en") return event.director_en || event.director || null;
+  return event.director || null;
 }
 
 export interface SourceExclusion {

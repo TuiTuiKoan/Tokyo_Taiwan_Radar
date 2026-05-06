@@ -671,8 +671,13 @@ Respond with valid JSON matching this schema:
   "primary_language": "ja" or "zh" or "en" or "mixed" or null,
   "has_japanese_support": false or true or null,
   "has_english_support": false or true or null,
-  "performer": "bare personal name (no honorifics) of the single primary guest/speaker/artist" or null,
+  "performer": "bare personal name (no honorifics) of the single primary guest/speaker/artist — in original language (usually Japanese)" or null,
+  "performer_zh": "Traditional Chinese name of the performer (use known Chinese name if Taiwanese/Chinese person; transliterate for Japanese persons)" or null,
+  "performer_en": "English/romanized name of the performer" or null,
   "performers": ["bare name 1", "bare name 2"] or [],
+  "director": "bare personal name (no honorifics) of the director/filmmaker — in original language" or null,
+  "director_zh": "Traditional Chinese name of the director" or null,
+  "director_en": "English/romanized name of the director" or null,
   "selection_reason": {
     "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
@@ -1335,6 +1340,27 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                         ]
                         if _valid_performers:
                             update_data["performers"] = _valid_performers
+
+                # Performer translations
+                if update_data.get("performer"):
+                    _perf_zh = _to_trad(_str(annotation.get("performer_zh")))
+                    _perf_en = _str(annotation.get("performer_en"))
+                    if _perf_zh:
+                        update_data["performer_zh"] = _perf_zh
+                    if _perf_en:
+                        update_data["performer_en"] = _perf_en
+
+                # Director (from GPT)
+                if "director" not in _human_protected:
+                    _gpt_director = _str(annotation.get("director"))
+                    if _gpt_director:
+                        update_data["director"] = _gpt_director
+                        _dir_zh = _to_trad(_str(annotation.get("director_zh")))
+                        _dir_en = _str(annotation.get("director_en"))
+                        if _dir_zh:
+                            update_data["director_zh"] = _dir_zh
+                        if _dir_en:
+                            update_data["director_en"] = _dir_en
 
                 # Sub-event parent inheritance:
                 # - If sub-event has no location, or same location as parent → inherit all location fields
