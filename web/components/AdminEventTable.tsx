@@ -1252,6 +1252,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               // Map each event id → 1-based row number in current filtered+sorted list
               const rowIndexMap: Record<string, number> = {};
               displayEvents.forEach((e, idx) => { rowIndexMap[e.id] = idx + 1; });
+              // Global index across ALL events (unfiltered) — used to show merged_into target number even when filtered out
+              const globalIndexMap: Record<string, number> = {};
+              getSorted(events).forEach((e, idx) => { globalIndexMap[e.id] = idx + 1; });
               return displayEvents.map((event) => (
               viewMode === "annotated" ? (
                 <tr
@@ -1341,48 +1344,40 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                         <span className="text-[10px] text-green-600 font-medium">
                           {t("mergedPrimaryCount", { count: mergeCountMap[event.id] })}
                         </span>
-                        {/* Relay node: this primary is itself merged into another */}
-                        {event.merged_into_event_id && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium border border-yellow-300" title="この統合先も別の統合先へ吸収されています">
-                            ⚠ 中繼節點
-                          </span>
-                        )}
                       </span>
                     )}
                     {/* Secondary (merged) event: show orange badge + arrow + primary row number */}
-                    {event.merged_into_event_id && (
-                      <span className="inline-flex items-center gap-0.5 mb-0.5">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium border border-amber-300">
-                          {t("mergedIntoBadge")}
+                    {event.merged_into_event_id && (() => {
+                      const targetId = event.merged_into_event_id;
+                      const globalNum = globalIndexMap[targetId];
+                      const inView = !!rowIndexMap[targetId];
+                      const targetInactive = eventMap[targetId]?.is_active === false;
+                      return (
+                        <span className="inline-flex items-center gap-0.5 mb-0.5">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium border border-amber-300">
+                            {t("mergedIntoBadge")}
+                          </span>
+                          <span className="text-green-600 text-[10px] font-bold">→</span>
+                          {targetInactive ? (
+                            <a
+                              href={`/${locale}/admin/${targetId}`}
+                              className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium border border-gray-300 hover:bg-gray-200"
+                              title={t("mergedIntoBadgeTitle")}
+                            >
+                              未公開
+                            </a>
+                          ) : (
+                            <a
+                              href={inView ? `#row-${targetId}` : `/${locale}/admin/${targetId}`}
+                              className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200"
+                              title={t("mergedIntoBadgeTitle")}
+                            >
+                              {globalNum ?? "→"}
+                            </a>
+                          )}
                         </span>
-                        <span className="text-green-600 text-[10px] font-bold">→</span>
-                        {rowIndexMap[event.merged_into_event_id] ? (
-                          <a
-                            href={`#row-${event.merged_into_event_id}`}
-                            className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200"
-                            title={t("mergedIntoBadgeTitle")}
-                          >
-                            {rowIndexMap[event.merged_into_event_id]}
-                          </a>
-                        ) : eventMap[event.merged_into_event_id]?.is_active === false ? (
-                          <a
-                            href={`/${locale}/admin/${event.merged_into_event_id}`}
-                            className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium border border-gray-300 hover:bg-gray-200"
-                            title={t("mergedIntoBadgeTitle")}
-                          >
-                            未公開
-                          </a>
-                        ) : (
-                          <a
-                            href={`/${locale}/admin/${event.merged_into_event_id}`}
-                            className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200"
-                            title={t("mergedIntoBadgeTitle")}
-                          >
-                            →
-                          </a>
-                        )}
-                      </span>
-                    )}
+                      );
+                    })()}
                     <a
                       href={event.is_active ? `/${locale}/events/${event.id}` : `/${locale}/admin/${event.id}`}
                       target="_blank"
