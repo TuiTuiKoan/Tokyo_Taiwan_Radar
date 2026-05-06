@@ -3,6 +3,47 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-06 — 午夜 cron workflow 連續失敗（Run Merger × 2、Auto Research × 1）
+
+### 問題
+- 5/5 19:52 Run Merger (b84d21a) 失敗 46s
+- 5/6 02:04 Auto Research (ead3431) 失敗 3m19s
+- 5/6 02:11 Run Merger (ead3431) 失敗 32s
+
+使用者透過 GitHub email 通知發現，Search Console 同時寄來 vercel.app 重複網頁警告（屬於正常 domain 切換，與本次無關）。
+
+### 根因（Merger）
+5/5 連續 push 三個 merger 相關 commit 沒有跑本地 dry-run 驗證：
+- `56b0ad2` (13:46) — works 表 + merger skip logic
+- `27c21a7` (15:21) — Pass 3 orphan_cleanup skip work-linked
+- `79a5c40` (15:32) — merged_into_event_id badge logic
+
+三者都沒處理 `google_news_rss` sub-events 的特殊形式，跑到生產資料時拋例外。修復：`ab3bd9e` (5/6 13:27) handle gnews sub-events in all passes + post-annotation merger run；`5f98b3b` 又補 Pass 5。
+
+### 根因（Auto Research）
+本地 reproduce 無法重現（單筆 dry-run 完整跑完）。屬於 transient — 可能：
+- 某個 source 的 OpenAI / playwright 抓 hint 超時
+- batch 中後段某筆失敗（持續 3m19s 才退出）
+- 缺乏 `auto_research_error` 欄位記錄具體錯誤訊息
+
+### 修復（本次 P0 + P1）
+**P0**：架構規則新增 `## Merger Schema Change Guard`（architect SKILL.md）：
+- 動到 merger / works / parent_event_id / Pass 邏輯前必跑 `python merger.py --dry-run`
+- 連續多次 merger 改動時每次都要重跑
+- 跨 source 特殊類型（`_NEWS_SOURCES`）必須在所有 Pass 各自驗證
+
+**P1**：新建 `.github/workflows/workflow-failure-notify.yml`：
+- 監聽 14 個 cron workflow 的 `workflow_run.completed` event
+- 任何 conclusion ≠ success/skipped → LINE push（重用 `LINE_CHANNEL_TOKEN` + `LINE_USER_ID`）
+- 訊息含 workflow 名、conclusion、branch、commit short SHA、HTML URL，可立即點開查 logs
+
+### 教訓
+1. **cron workflow 失敗的 email 通知反應太慢**：02:11 失敗 → 13:27 才修復，間隔 11 小時。LINE push 立即送達手機。
+2. **本地 dry-run 是 merger 的最低保險**：UNIT TEST 不用生產資料，merger 邏輯 90% 取決於 DB 內容形狀。
+3. **連續快速 commit 累積風險**：5/5 13:46 → 15:32 三個 merger commit 全沒 dry-run，等 cron 跑才爆。規則：當天每動 merger 都重跑。
+4. **後續 P2/P3 待辦**：auto_research 加 error 欄位記錄詳細錯誤；新增 pre-push smoke script 集中跑 merger / auto_research / annotator dry-run。
+
+---
 ### 2026-05-06 — merger.py 缺少 Pass 5：兩筆不同 gnews 文章、同 work_id、名稱差異大無法自動合併
 
 **問題**：`0d33b617`（KAB 新聞標題）和 `2d77c2c4`（チップ・オデッセイ 活動正式名稱）是同一場熊本放映，卻雙雙出現在首頁，需人工合併。
