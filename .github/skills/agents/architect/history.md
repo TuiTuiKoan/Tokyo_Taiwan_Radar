@@ -3,7 +3,51 @@
 <!-- Append new entries at the top -->
 
 ---
-### 2026-05-06 — Annotator 誤生成 cinema 時段 sub_events（_sub1 重複事件）
+### 2026-05-06 — merger.py 缺少 Pass 5：兩筆不同 gnews 文章、同 work_id、名稱差異大無法自動合併
+
+**問題**：`0d33b617`（KAB 新聞標題）和 `2d77c2c4`（チップ・オデッセイ 活動正式名稱）是同一場熊本放映，卻雙雙出現在首頁，需人工合併。
+
+**根因**：
+1. 兩筆都是 `google_news_rss` → 都落入 `news_events` list
+2. Pass 2 inner loop 只走 `official_events`（非 `_NEWS_SOURCES`）→ gnews 永遠不在 official_events，兩筆 gnews 永遠不相遇
+3. Pass 0 只處理同父文章 sub-events（base source_id 相同）→ 兩筆 source_id 完全不同
+4. name_ja 相似度 = 0.286（新聞標題 vs 活動正式名稱）→ Pass 1 完全失敗
+5. 唯一可用信號：相同 `work_id` + 相同日期 + 熊本地點重疊，但 Pass 0~2 均未利用
+
+**修法（2026-05-06，commit `5f98b3b`）**：
+1. 新增 **Pass 5**（`merger.py`）：同 `work_id` + 日期差 ≤14 天 + location overlap → 合併，主事件依 `(has_date > has_location > desc_len)` 選擇
+2. 新增 **`auto_qa_same_work_duplicate`**（`auto_qa.py`）：偵測 Pass 5 因 location overlap 失敗而漏掉的殘餘對，寫入 `event_reports` 供人工審查
+3. `QA_TYPES` 加入 `auto_qa_same_work_duplicate`
+
+**教訓**：
+- **`work_id` 是強信號**：annotator 驗證後連結，代表「確定是同部影片」。只要加 location 守衛防止不同城市場次誤合，假陽性風險極低。
+- **Pass 2 是 news→official 單向的**：若沒有官方來源，兩筆 gnews 永遠不相遇。需要專門的 Pass 5 處理 news-vs-news 情境。
+- **auto_qa 作為 Pass 5 補充**：Pass 5 自動合併同地點對；auto_qa 通知人工審查跨城市或 location=null 的模糊對。
+
+---
+### 2026-05-06 — merger.py Pass 0 _gnews_score 未優先保留有地址事件導致錯誤主事件選擇
+
+**問題**：月老（赤い糸 輪廻のひみつ）有 19 筆 gnews 事件，merger Pass 0 選擇 `5d9bfe04`（無地址、日期 2027-01-01 錯誤）作為主事件，吸收了 9 筆正確場館事件（新文芸坐、あかつきシアター、シネマスコーレ）。另有 `ecfd1e11` 和 `858c5f04`（同地址同日期真正重複）因 `_gnews_base_id` 守衛過嚴未被合併。
+
+**根因（三層）**：
+1. **`_gnews_score` 未考慮地址**：排序 tuple `(has_date, desc_len)` 中，有日期但無地址的 `5d9bfe04` raw_description 最長 → 成為主事件。
+2. **`_gnews_base_id` 守衛過嚴**：同父文章一律跳過 → `858c5f04`（sub3_sub3）和 `ecfd1e11`（sub2）同地址同日期的真正重複無法合併。
+3. **Pass 1/2 所有流程原本有 `_sub not in source_id` 過濾器**（本次 session 主要 bug，前段已修）→ 所有 gnews sub-events 完全不參與跨來源去重。
+
+**修法（2026-05-06）**：
+1. `_gnews_score` 加入第二排序鍵 `no_location`：有場館的事件（`no_location=0`）永遠勝過無場館事件（`no_location=1`）
+2. `_gnews_base_id` 守衛精細化：同父文章 + 相同地址 + 相同日期 → 允許合併（真正重複），否則跳過
+3. DB 修復：重新激活 9 個被誤吸收的正確場館事件，停用 2 個垃圾事件
+4. scraper.yml：在 `enrich-person-names` 後加入第二次 `python merger.py`（同日去重，減少 1 天時差）
+
+**教訓**：
+- **Pass 0 主事件選擇策略**：`start_date 有值 > 有 location_name > raw_description 較長`。無地址事件不應成為主事件，無論其內容多長。
+- **同父文章守衛不等於「永不合併」**：同一篇文章可能為同一場次生成兩筆 sub-event（parsing bug），此時 same_location + same_date 才是「真正重複」的判斷依據。
+- **Merger 執行次數設計**：每日只跑一次 merger（在 annotation 前）→ 當日新爬取的 gnews 事件要等隔天 annotation 完才能被 name 相似度合併。雙次 merger（annotation 前後）解決此問題。
+
+---
+
+
 
 **問題**：ks_cinema 的 `taiwan-filmake` 系列頁面出現 4 筆相同電影（車頂上的玄天上帝）事件，其中 2 筆是 annotator 誤生成的時段 sub_events（`_2_sub1`, `_0_sub1`）。
 

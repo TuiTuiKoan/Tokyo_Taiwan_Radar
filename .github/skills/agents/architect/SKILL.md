@@ -1022,6 +1022,24 @@ When a function returns different shapes for success/failure paths, instrumentat
 - Fix pattern: maintain `accumulator = {"cost": 0.0, "retries": 0}` at function scope; mutate in every retry branch; persist in `finally` regardless of exit path.
 - Reference incident: 2026-05-02 Phase 2.3 spec-invalid path — 3 retries shown in logs, 0 cost in meta. Phase 2.4 TODO.
 
+## Merger Schema Change Guard
+
+在審核**任何**動到 `merger.py`、`works` 表、`parent_event_id` / `merged_into_event_id` 欄位、或新增 / 修改 Pass 1–N 邏輯的 PR 前，**必須**確認：
+
+1. **Push 前在本地對生產 DB 跑 dry-run**（merger 與 schema 同步度極高，UNIT TEST 不能取代生產資料驗證）：
+   ```bash
+   cd scraper && python merger.py --dry-run 2>&1 | tail -20
+   ```
+   驗收標準：
+   - 結尾必須出現 `Done: N pair(s)/orphan(s) would be merged`
+   - **不可有 `Traceback`**
+   - 所有 Pass 各自印出 `Pass X done` 或 `Pass X: ... handled`
+2. **連續多個 merger 改動 commit 累積風險**：5/5 連 push `56b0ad2 → 27c21a7 → 79a5c40` 三個 merger 改動，全部沒跑 dry-run，導致 02:11 cron 噴 32s。**規則：當天每動 merger 一次都重跑 dry-run，不要連續 commit 不驗證**。
+3. **新增資料模型欄位（`work_id`、`merged_into_event_id` 等）必須掃所有 Pass**：每一個 Pass 的 query / filter / skip 條件都要明確處理新欄位，不可假設「跟其他 Pass 一樣」。
+4. **跨 source 特殊類型（`google_news_rss` 等 `_NEWS_SOURCES`）必須在所有 Pass 各自驗證**：5/5 失敗根因即「sub-event 處理只覆蓋 Pass 1/2 沒覆蓋 Pass 3」（fix `ab3bd9e`）。
+
+Reference incident: 2026-05-05 19:52 + 2026-05-06 02:11 — Run Merger 連續兩次失敗。根因：`56b0ad2 / 27c21a7 / 79a5c40` 加入 `works` skip 與 `merged_into_event_id` badge logic，沒處理 google_news_rss sub-events 的特殊形式。修復 `ab3bd9e`（5/6 13:27）+ `5f98b3b` 又補 Pass 5。
+
 ## Sub-Venue Parent Address Guard
 
 在審核任何包含 `location_name` 或 `location_address` 的 annotator 修改、或任何新 scraper 的 location 欄位邏輯前，**必須**確認以下四點：
