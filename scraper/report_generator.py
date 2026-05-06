@@ -253,7 +253,7 @@ def build_section4(sb, month_events: list) -> str:
         if oid and oid in org_name_map:
             name = org_name_map[oid]
         else:
-            name = row.get("organizer") or "(不明)"
+            name = row.get("organizer") or None
         if name:
             org_counter[name] += 1
 

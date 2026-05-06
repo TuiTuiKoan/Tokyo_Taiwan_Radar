@@ -1,9 +1,10 @@
 ---
 slug: report-prototype-gap-fix
 title: 商業報告 Prototype 資料缺口修補（Entity 表 + Backfill + 媒體聚合 view）
-status: active
+status: done
 branch: feat/report-prototype-gap-fix
 created: 2026-05-06
+completed: 2026-05-06
 tags: [data, report, business, tier2, backfill]
 ---
 

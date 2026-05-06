@@ -21,7 +21,10 @@ const MIGRATIONS = [
   { id: "038b", label: "field_corrections（人工修正保護）", done: true },
   { id: "039", label: "research_sources.default_organizer（來源預設主辦方）", done: true },
   { id: "040", label: "selection_reason_corrections（few-shot 回饋迴路）", done: true },
-  { id: "041+", label: "Tier 2 欄位（媒體 mention / 主辦方 entity 表 / 場地容量）", done: false },
+  { id: "050",  label: "organizers + venues entity 表（204 主辦方 / 210 場地，report-prototype-gap-fix Phase 2）", done: true },
+  { id: "052",  label: "director 欄位（Schema.org）", done: true },
+  { id: "052b", label: "event_media_coverage view（媒體曝光 Top 10，Phase 3）", done: true },
+  { id: "053+", label: "external_stats（JNTO / e-Stat / 法務省 benchmark data）", done: false },
 ];
 
 // ─── Product status ─────────────────────────────────────────────────────────
@@ -32,9 +35,9 @@ const PRODUCTS = [
     name: "月度/季度趨勢報告",
     audience: "公部門、文化機構、智庫",
     price: "¥80,000–¥250,000 / 份",
-    status: "not-started" as const,
-    statusLabel: "⬜ 尚未開始",
-    blocker: "需先完成 Tier 1 fill rate ≥ 85% + 試樣報告 A",
+    status: "in-progress" as const,
+    statusLabel: "🔄 Prototype 就緒",
+    blocker: "report_generator.py 可產出月報草稿（2026-05 已驗證），下一步：人工審核後寄出試樣",
   },
   {
     id: "B",
@@ -52,7 +55,7 @@ const PRODUCTS = [
     price: "¥30,000–¥80,000 / 月",
     status: "in-progress" as const,
     statusLabel: "🔄 設計中（spec 已建立）",
-    blocker: "location_prefectures ≥ 85% 解鎖城市維度後啟動",
+    blocker: "location_prefectures 填充率 81.3%（fillable 100%）— 城市維度已解鎖，可啟動設計",
   },
 ];
 
