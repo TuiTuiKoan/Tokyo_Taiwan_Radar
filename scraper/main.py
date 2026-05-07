@@ -127,6 +127,7 @@ from sources.ycam_cinema import YcamCinemaScraper
 from sources.otto import OttoScraper
 from sources.amayaza import AmayazaScraper
 from sources.theater_kino import TheaterKinoScraper
+from sources.acros_fukuoka import AcrosFukuokaScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -239,6 +240,7 @@ SCRAPERS = [
     OttoScraper(),
     AmayazaScraper(),
     TheaterKinoScraper(),
+    AcrosFukuokaScraper(),
 ]
 
 
