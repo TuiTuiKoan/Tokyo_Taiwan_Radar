@@ -637,7 +637,16 @@
     "viewAll": "View all",
     "relatedEvents": "Related events",
     "backToList": "Back to Latest News",
-    "viewPublic": "View public page"
+    "viewPublic": "View public page",
+    "weeklyBroadcast": "Weekly Broadcast",
+    "weeklyBroadcastNoDraft": "No draft this week (auto-generated on Thursday)",
+    "weeklyBroadcastDraft": "This Week's Draft",
+    "weeklyBroadcastAutoPublish": "Auto-send every Friday noon JST",
+    "weeklyBroadcastSendNow": "Send Now",
+    "weeklyBroadcastSending": "Sending\u2026",
+    "weeklyBroadcastSent": "Sent to {n} subscribers",
+    "weeklyBroadcastEdit": "Edit Draft",
+    "weeklyBroadcastCreatedAt": "Draft created"
   },
   "categoryDesc": {
     "noEvents": "No ongoing events at the moment.",

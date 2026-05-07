@@ -637,7 +637,16 @@
     "viewAll": "すべて見る",
     "relatedEvents": "関連イベント",
     "backToList": "お知らせ一覧へ戻る",
-    "viewPublic": "公開ページを見る"
+    "viewPublic": "公開ページを見る",
+    "weeklyBroadcast": "週報設定",
+    "weeklyBroadcastNoDraft": "今週のドラフトはありません（木曜日 CI 自動生成）",
+    "weeklyBroadcastDraft": "今週のドラフト",
+    "weeklyBroadcastAutoPublish": "毎週金曜日 JST 正午に自動配信",
+    "weeklyBroadcastSendNow": "今すぐ送信",
+    "weeklyBroadcastSending": "送信中…",
+    "weeklyBroadcastSent": "{n} 人の購読者に送信済み",
+    "weeklyBroadcastEdit": "ドラフトを編集",
+    "weeklyBroadcastCreatedAt": "ドラフト作成日"
   },
   "categoryDesc": {
     "noEvents": "現在開催中のイベントはありません。",

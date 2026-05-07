@@ -637,7 +637,16 @@
     "viewAll": "查看全部",
     "relatedEvents": "相關活動",
     "backToList": "返回最新消息",
-    "viewPublic": "前台頁面"
+    "viewPublic": "前台頁面",
+    "weeklyBroadcast": "週報設定",
+    "weeklyBroadcastNoDraft": "尚無本週草稿（週四 CI 自動生成）",
+    "weeklyBroadcastDraft": "本週草稿",
+    "weeklyBroadcastAutoPublish": "週五中午 JST 自動發送",
+    "weeklyBroadcastSendNow": "立即發送",
+    "weeklyBroadcastSending": "發送中…",
+    "weeklyBroadcastSent": "已發送給 {n} 位訂閱者",
+    "weeklyBroadcastEdit": "編輯草稿",
+    "weeklyBroadcastCreatedAt": "草稿建立"
   },
   "categoryDesc": {
     "noEvents": "目前沒有進行中的活動。",
