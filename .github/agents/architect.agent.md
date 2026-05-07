@@ -831,6 +831,32 @@ Reference incident: 2026-05-06 — `category`/`work` 欄從 `max-w-[160px]` 改�
 
 Reference incident: 2026-05-07 — `AnnouncementForm` 的 `tAdmin`/`tAnn` function props 導致 `/admin/announcements/[id]` `<Link>` navigation server error（commit `a1f0472`）。
 
+## 全国ブランドイベント location 分離 Guard
+
+在審核任何全国展開ブランドイベントの `location` フィールド設定前，**必須**確認：
+
+1. **`location_name` = ブランド名のみ**：都市列挙・店舗数を `location_name` に含めない。`location_name = '鼎泰豐'` が正しく、`'鼎泰豐（東京・横浜...）'` は誤り——UI の「会場」フィールドが冗長になる。
+2. **`location_address` = 都市列挙テキスト**：`'東京・横浜・大阪・名古屋・福岡 他全国30店舗'` のようにプレーンテキストで配置。実際の住所でないテキストは地図リンクが生成されず安全。
+3. **`location_prefectures` は全都道府県を正式表記（接尾辞付き）配列で列挙**。
+4. **子活動は具体的 venue を持つ**：POP UP・体験教室等は `location_name` を具体的な会場名にする。
+
+Reference incident: 2026-05-07 — `2cb72ee9`（鼎泰豐30周年）`location_name` に都市列挙混入 → `location_name='鼎泰豐'` + `location_address='東京・横浜...'` に分離。
+
+## 周年記念イベント start_date Guard
+
+在審核任何「○周年」「創立記念」型イベントの `start_date` 設定前，**必須**確認：
+
+1. **`start_date` = 最初の企画開始日**（記念日ではない）：記念日以前に企画が走っている場合は最初の活動日を設定する。
+2. **`end_date` = 周年記念日または最終企画日**：`start_date` に周年日を設定すると子活動が「期間外」として表示されなくなる。
+3. **確認コマンド**：
+   ```sql
+   SELECT MIN(start_date) FROM events WHERE parent_event_id = '<PARENT_ID>';
+   -- 最小値が親 start_date より前なら要修正
+   ```
+4. **FC ロック必須**：`start_date` / `end_date` 両方を `field_corrections` でロックする（re-annotation で記念日テキストから上書きされる危険）。
+
+Reference incident: 2026-05-07 — `2cb72ee9`（鼎泰豐30周年）`start_date=2026-10-04`（記念日）→ `2026-05-15`（最初の企画開始日）に修正 + FC ロック。
+
 ## 手動 Sub-Event INSERT Guard（events.source_url NOT NULL）
 
 在**手動**向 `events` 表 INSERT 子活動前，**必須**確認：

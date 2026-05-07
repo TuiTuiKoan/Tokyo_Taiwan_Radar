@@ -1573,6 +1573,32 @@ Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發 �
 
 Reference incident: 2026-05-06 — `weekly_broadcast` 因 `NON_DAILY_SOURCES = frozenset()` 為空，被 health_check 每天誤報 missing（commit `7df9f56`）。
 
+## 全国ブランドイベント location 分離 Guard
+
+在審核任何全国展開ブランドイベント（複数店舗・複数会場を持つキャンペーン型）の `location` フィールド設定前，**必須**確認：
+
+1. **`location_name` = ブランド名のみ**：都市列挙や店舗数を `location_name` に含めない。`location_name = '鼎泰豐'` が正しく、`location_name = '鼎泰豐（東京・横浜・名古屋...）'` は誤り——UI の「会場」フィールドが冗長になる。
+2. **`location_address` = 都市列挙テキスト**：`location_address = '東京・横浜・大阪・名古屋・福岡 他全国30店舗'` のように都市列挙をプレーンテキストとして配置する。実際の住所でないテキストの場合は地図リンクが生成されず、安全にプレーンテキスト表示される。
+3. **`location_prefectures` は必ず都道府県正式表記の配列**：`['東京都', '神奈川県', '大阪府', ...]`（接尾辞付き）。ブランド展開先の全都道府県を列挙する。
+4. **子活動（sub-event）は具体的な venue を持つ**：POP UP・体験教室等の特定会場イベントは `location_name = '高島屋新宿店 地下1階'` など具体的に設定する。全国系子活動（スタンプラリー等）は親と同じ `location_name = ブランド名` + 全国 prefectures を継承してよい。
+
+Reference incident: 2026-05-07 — `2cb72ee9`（鼎泰豐30周年）`location_name` に都市列挙を混入 → 「会場」フィールドが冗長 → `location_name='鼎泰豐'` + `location_address='東京・横浜...'` に分離して解決。
+
+## 周年記念イベント start_date Guard
+
+在審核任何「○周年」「創立記念」型の親イベントの `start_date` 設定前，**必須**確認：
+
+1. **`start_date` = 最初の企画・告知が始まる日**：記念日（周年日）は `start_date` ではない。記念日以前に企画が走っている場合は最初の企画開始日を `start_date` に設定する。
+2. **`end_date` = 周年記念日または最終企画日**：`name_ja` に周年日が明記されていても、`start_date` を周年日にするとそれ以前の子活動が「期間外」として表示されなくなる。
+3. **確認方法**：子活動（sub-events）の `start_date` を昇順に並べ、最小値を親の `start_date` の下限として確認する。
+   ```sql
+   SELECT MIN(start_date) FROM events WHERE parent_event_id = '<PARENT_ID>';
+   -- これが親の start_date 以前であれば要修正
+   ```
+4. **FC ロック必須**：修正後は `start_date` / `end_date` 両方を `field_corrections` でロックする（annotator の re-annotation で `raw_description` の記念日テキストから誤って上書きされる危険がある）。
+
+Reference incident: 2026-05-07 — `2cb72ee9`（鼎泰豐30周年）`start_date=2026-10-04`（30周年記念日）→ `2026-05-15`（最初の企画「小籠包11種セット販売」開始日）に修正。記念日を `end_date` に設定。
+
 ## 手動 Sub-Event INSERT Guard（events.source_url NOT NULL）
 
 在**手動**向 `events` 表 INSERT 子活動（annotator 不經手的情況）前，**必須**確認：
