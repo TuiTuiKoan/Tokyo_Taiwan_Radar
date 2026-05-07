@@ -303,18 +303,22 @@ export function getEventBusinessHours(event: Event, locale: Locale): string | nu
 
 /**
  * Return the display performer string for a given locale.
- * Priority: performers[] (joined) > performer_zh/en > performer (single legacy field).
- * performers[] is the canonical multi-person field; performer is the legacy single-person field.
+ * Priority (multi-person): performers[] (joined) > performer (legacy).
+ * Priority (single-person): performer_zh/en > performer > performers[0].
+ *
+ * When performers[] has ≥ 2 entries it is the canonical source for ALL locales.
+ * performer_zh/en is only generated from the single `performer` field by the annotator,
+ * so it covers only one person when performers[] has multiple — using it would silently
+ * drop the remaining names on zh/en pages.
  */
 export function getEventPerformer(event: Event, locale: Locale): string | null {
-  // zh/en: locale-specific translated field takes priority over performers[]
-  if (locale === "zh" && event.performer_zh) return event.performer_zh;
-  if (locale === "en" && event.performer_en) return event.performer_en;
-  // All locales (or zh/en without translation): performers[] array (Japanese names)
   const arr = event.performers ?? [];
-  if (arr.length > 0) return arr.join("、");
-  // Legacy single-field fallback
-  return event.performer || null;
+  // Multi-person: performers[] is the canonical source regardless of locale
+  if (arr.length > 1) return arr.join("、");
+  // Single-performer (or no array): locale-specific translation takes priority
+  if (locale === "zh") return event.performer_zh || event.performer || arr[0] || null;
+  if (locale === "en") return event.performer_en || event.performer || arr[0] || null;
+  return arr[0] || event.performer || null;
 }
 
 /** Return the localized director name (falls back to Japanese original). */
