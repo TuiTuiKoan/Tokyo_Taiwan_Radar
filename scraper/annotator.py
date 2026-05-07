@@ -1995,7 +1995,8 @@ def enrich_person_names() -> None:
         sb.table("events")
         .select(
             "id,name_ja,raw_title,raw_description,name_zh,name_en,"
-            "description_zh,description_en,annotation_status,source_name,category"
+            "description_zh,description_en,annotation_status,source_name,category,"
+            "performers,performers_zh,performers_en,director,director_zh,director_en"
         )
         .neq("annotation_status", "reviewed")
         .neq("source_name", "eiga_com")
@@ -2072,6 +2073,68 @@ def enrich_person_names() -> None:
                 if fixed_en:
                     update["description_en"] = fixed_en
 
+        # Fix structured performer/director fields using eiga.com lookup data.
+        # Build zh_name → PersonInfo cross-reference (people is keyed by ja katakana).
+        zh_to_info: dict[str, "PersonInfo"] = {
+            info.name_zh: info
+            for info in people.values()
+            if info.name_zh
+        }
+        ja_to_info: dict[str, "PersonInfo"] = dict(people)
+
+        # performers_en: each entry may be a Chinese name (GPT-generated from katakana)
+        # Map Chinese name → English via zh_to_info, or try direct ja match.
+        cur_performers_en = event.get("performers_en") or []
+        if cur_performers_en:
+            new_performers_en = []
+            changed = False
+            for name in cur_performers_en:
+                if name in zh_to_info and zh_to_info[name].name_en:
+                    new_performers_en.append(zh_to_info[name].name_en)
+                    changed = True
+                elif name in ja_to_info and ja_to_info[name].name_en:
+                    new_performers_en.append(ja_to_info[name].name_en)
+                    changed = True
+                else:
+                    new_performers_en.append(name)
+            if changed:
+                update["performers_en"] = new_performers_en
+
+        # performers_zh: each entry may be katakana — translate to Chinese.
+        cur_performers_zh = event.get("performers_zh") or []
+        if cur_performers_zh:
+            new_performers_zh = []
+            changed = False
+            for name in cur_performers_zh:
+                if name in ja_to_info and ja_to_info[name].name_zh:
+                    new_performers_zh.append(_to_trad(ja_to_info[name].name_zh))
+                    changed = True
+                else:
+                    new_performers_zh.append(name)
+            if changed:
+                update["performers_zh"] = new_performers_zh
+
+        # director_zh / director_en: look up by ja katakana director field.
+        cur_director = event.get("director") or ""
+        if cur_director and cur_director in ja_to_info:
+            info = ja_to_info[cur_director]
+            cur_dir_zh = event.get("director_zh") or ""
+            cur_dir_en = event.get("director_en") or ""
+            # Only update if current value looks like a wrong phonetic transliteration
+            # (i.e. contains AI翻譯 marker OR differs from known correct value).
+            if info.name_zh and (
+                not cur_dir_zh
+                or "AI翻譯" in cur_dir_zh
+                or cur_dir_zh != info.name_zh
+            ):
+                update["director_zh"] = _to_trad(info.name_zh)
+            if info.name_en and (
+                not cur_dir_en
+                or "AI Translation" in cur_dir_en
+                or cur_dir_en != info.name_en
+            ):
+                update["director_en"] = info.name_en
+
         if update:
             sb.table("events").update(update).eq("id", event["id"]).execute()
             # Lock the corrected fields via field_corrections so future
@@ -2080,9 +2143,11 @@ def enrich_person_names() -> None:
             _lock_fields_via_corrections(sb, event["id"], update)
             patched += 1
             logger.info(
-                "  ✓ person names fixed: %s/%s [cat=%s] desc_zh=%s desc_en=%s persons=%s",
+                "  ✓ person names fixed: %s/%s [cat=%s] desc_zh=%s desc_en=%s "
+                "performers_en=%s director_zh=%s persons=%s",
                 source, event["id"][:8], ",".join(categories),
                 "description_zh" in update, "description_en" in update,
+                "performers_en" in update, "director_zh" in update,
                 list(people.keys()),
             )
         elif people:
