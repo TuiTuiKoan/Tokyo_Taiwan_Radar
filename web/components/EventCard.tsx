@@ -99,14 +99,14 @@ export default async function EventCard({ event, locale }: Props) {
           </p>
         )}
         {event.location_name && (
-          <p>
-            📍{" "}
+          <p className="flex items-center gap-1 flex-wrap">
+            <span>📍</span>
             {cityLabel && (
-              <span className="inline-block bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded mr-1 font-medium">
+              <span className="bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded font-medium">
                 {cityLabel}
               </span>
             )}
-            {locationName}
+            <span>{locationName}</span>
           </p>
         )}
       </div>
