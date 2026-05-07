@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-05-07 — performers[] 手動補充 + 非日本地點停用流程
+
+### performers[] 手動補充（三個 taiwanshi 事件）
+
+**操作：** 從 `raw_description` 手動提取發表者姓名，直接 upsert `events.performers[]`，同時在 `field_corrections` 鎖定保護。三個事件：
+- `37d53a28`（1月例会および総会）→ `performers=['野口英佑', '藤田千彩']`
+- `578f0a01`（6月例会）→ `performers=['小林善帆', '釋七月子']`
+- `dfb490c8`（日本台湾学会第22回関西部会研究大会）→ `performers=` 13 位（報告者 5 + 評論者 5 + シンポジウム登壇者 3）
+
+**三人以上時 `performer`（TEXT）保留 null**：不設單一 performer，`performers[]` 為唯一出口。
+**必須鎖定 field_corrections**：upsert 後鎖 `performers` 欄位，防止下次 re-annotation 清空。
+
+```python
+sb.table('events').update({'performers': ['野口英佑', '藤田千彩']}).eq('id', eid).execute()
+sb.table('field_corrections').upsert({
+    'event_id': eid, 'field_name': 'performers',
+    'corrected_value': json.dumps(['野口英佑', '藤田千彩'], ensure_ascii=False)
+}, on_conflict='event_id,field_name').execute()
+```
+
+### 非日本地點停用流程（`7a3d83ac` 首爾公演）
+
+**問題：** 首爾公演被抓取入庫，地址誤設大阪 Channel 1969。
+**修復模式：**
+```python
+sb.table('events').update({
+    'is_active': False,
+    'deactivated_reason': 'out_of_scope: Seoul, South Korea concert — not a Japan event',
+    'location_address': None,
+    'location_prefectures': None,
+}).eq('id', eid).execute()
+```
+**規則：** `deactivated_reason` 格式為 `'out_of_scope: <說明>'`，包含城市與國家。停用時同步清除地址欄位，避免錯誤地址留在 DB 污染後續分析。非日本地點**不**鎖 `field_corrections`（停用後無需保護欄位值）。
+
+---
+
 ## 2026-05-09 — annotator performer → performers[] 自動同步（commit 4526d3a）
 
 **Feature：** 當 annotator 設定 `performer` 且 `performers[]` 為空時，自動設 `performers = [performer]`，讓 UI 永遠能從 `performers[]` 讀取，不需 fallback 回 `performer`。

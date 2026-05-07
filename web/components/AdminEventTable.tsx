@@ -9,6 +9,7 @@ import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEv
 import AdminCreateWorkModal from "@/components/AdminCreateWorkModal";
 import { assignWorkToEvent } from "@/app/actions/works";
 import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, matchesCity, type RegionWithCity } from "@/lib/regionPrefectures";
+import { getCityLabel } from "@/lib/cityLabel";
 
 interface Props {
   events: Event[];
@@ -1287,9 +1288,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     />
                   </td>
                   <td className="py-2 pr-4 text-gray-500 text-xs whitespace-nowrap">
-                    {event.scraped_at
-                      ? new Date(event.scraped_at).toLocaleDateString("zh")
-                      : "—"}
+                    {(() => {
+                      const ts = event.scraped_at ?? event.created_at;
+                      const label = ts ? new Date(ts).toLocaleDateString("zh") : "—";
+                      return event.scraped_at
+                        ? <span>{label}</span>
+                        : <span className="text-gray-300" title="sub-event 生成時間">{label}</span>;
+                    })()}
                   </td>
                   <td className="py-2 pr-4">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${getAnnotationBadgeClass(event.annotation_status)}`}>
@@ -1532,7 +1537,20 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       const display = addr || name || "";
                       const isOnline = /オンライン|online|線上/i.test(display);
                       if (isOnline) return <span className="text-green-600">線上</span>;
-                      return <span className="text-gray-500 truncate block" title={display}>{display}</span>;
+                      const cityLabel = getCityLabel(
+                        (event as any).location_prefectures as string[] | null,
+                        addr,
+                      );
+                      return (
+                        <span className="text-gray-500 truncate block" title={display}>
+                          {cityLabel && (
+                            <span className="inline-block bg-gray-100 text-gray-600 text-[10px] px-1 py-0.5 rounded mr-1 font-medium whitespace-nowrap">
+                              {cityLabel}
+                            </span>
+                          )}
+                          {display}
+                        </span>
+                      );
                     })()}
                   </td>
                   <td className="py-2 pr-4 text-gray-500 text-xs whitespace-nowrap">
@@ -1561,9 +1579,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     />
                   </td>
                   <td className="py-2 pr-4 text-gray-500 text-xs whitespace-nowrap">
-                    {event.scraped_at
-                      ? new Date(event.scraped_at).toLocaleDateString("zh")
-                      : "—"}
+                    {(() => {
+                      const ts = event.scraped_at ?? event.created_at;
+                      const label = ts ? new Date(ts).toLocaleDateString("zh") : "—";
+                      return event.scraped_at
+                        ? <span>{label}</span>
+                        : <span className="text-gray-300" title="sub-event 生成時間">{label}</span>;
+                    })()}
                   </td>
                   <td className="py-2 pr-4">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${getAnnotationBadgeClass(event.annotation_status)}`}>

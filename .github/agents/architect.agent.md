@@ -390,31 +390,19 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan
    - `performer_zh / performer_en TEXT`：各語言名稱（GPT 填入或人工設定）
    - `performers TEXT[]`：所有具名表演者/發表者的陣列
    - `director / director_zh / director_en`：同上，用於導演
-2. **locale 優先序（`getEventPerformer(event, locale)`）**（2026-05-07 更新，commit `9b84d98`）：
-   - （全 locale 共通）`performers[]` 非空時，優先 `performers.join('、')` 作為顯示文字
-   - `zh` → `performer_zh` → `performer`（legacy fallback）
-   - `en` → `performer_en` → `performer`（legacy fallback）
+2. **locale 優先序（`getEventPerformer(event, locale)`）**：
+   - `zh` → `performer_zh || performer`
+   - `en` → `performer_en || performer`
    - `ja` → `performer`（不走翻譯欄位）
-   - **`performer`（TEXT）是 legacy 欄位**：單人事件由 annotator auto-sync 產生 `performers=[performer]`；多人事件直接填 `performers[]`，`performer` 可為 null。UI 永遠從 `performers[]` 優先讀取。
 3. **AI翻譯標注規則**：GPT 填入 performer_zh/en/director_zh/en 時，若該語言名稱**未明確出現在來源文本**，必須附加「（AI翻譯）」（如 `黃以文（AI翻譯）`）。若來源中有該語言名稱，不加標注。
 4. **academic performers[]**：學術研討會（学会大会、研究大会、シンポジウム）中**所有**具名發表者（発表者/報告者/登壇者）必須列入 `performers[]`，即使有 5 人以上。
 5. **手動設定必須鎖 `field_corrections`**：同 `performer` 欄位，`performer_zh`、`performer_en` 手動修正必須同時 upsert 進 `field_corrections`，否則下次 re-annotation 覆寫。
 6. **`works.work_type` 有效值**：`film | stage | exhibition | concert_tour | tv_drama | tv_variety | other`。`conference` **不在**允許清單，學術研討會用 `other`。（migration 048 + 051 的 check constraint 僅允許上列 7 種）
 7. **UI 顯示優先序必須同步更新（event detail page）**：事件詳情頁 `[id]/page.tsx` 中，若 locale 為 zh/en 且 `performer_zh`/`performer_en` 存在，必須優先使用 `getEventPerformer(event, locale)`；`performers[]` 僅作為 ja locale、或 zh/en 無多語言欄位時的 fallback。新增多語言欄位後，若 UI 優先序未同步更新，新欄位永遠不會被 end-user 看到（隱性迴歸）。Reference incident: 2026-05-09 commit `2e6f4c2`。
-8. **`performer` vs `performers[]` 不可互換**：`performer`（TEXT）是 annotator 的單一輸出，也是 `performer_zh/en` 翻譯欄位的錨點。`performers[]`（TEXT[]）是多人顯示陣列，由 annotator 自動 sync 自 `performer`。**絕不可提議刪除 `performer` 欄位**——翻譯欄位依附於它，34+ 處程式碼引用它。
-9. **Auto-sync 規則**：annotator 滿足以下四個條件時自動設 `performers = [performer]`：(1) 本次 pass 設定了 `performer`；(2) 現有 `performers[]` 為空；(3) GPT 未回傳 `performers` 陣列；(4) `performers` 未在 `field_corrections` 保護中。此機制確保 UI 永遠能從 `performers[]` 讀取（commit `4526d3a`）。
-10. **導演（director）≠ 表演者（performer）嚴格分欄**：
-   - `director` / `director_zh` / `director_en`：電影或舞台**導演**。
-   - `performer` / `performer_en` / `performers[]`：演員、**主演**、講者。
-   - 商業院線映畫的 `organizer` 必須為 `null`（院線是映映場地，非主辦方）。
-   - 審核計畫時，若 GPT 或 scraper 將導演填入 `performer`（或反之），必須同時修正 `director` 欄位並清空錯誤的 `performer` 值；`works.director` + `works.cast_summary` 也需同步更新。
-11. **UI 顯示必須透過 `getEventPerformer()` — 禁止直接讀 `event.performer`**：所有前端元件（AdminEventTable、EventCard、event detail page 等）一律呼叫 `getEventPerformer(event, locale)` 讀取表演者。`performers[]` 為主顯示陣列（多人），`performer` 為 legacy 降級路徑。直接讀 `event.performer` 會對擁有 `performers[]` 但 `performer=null` 的多人學術事件（台湾史研究会等）靜默顯示空白。Reference incident: 2026-05-07 commit `9b84d98`。
 
 Reference incidents:
 - 2026-05-06 — `ホアン・イーウェン`（bf783b90）performer_zh=黃以文，performer_en=Huang Yi-wen（AI翻譯）；`林依晨`（4 events）performer_zh=林依晨，performer_en=Lin Yi-chen（commits 65a50b9）。
 - 2026-05-06 — 建立 work_id `c3588296` 時 `work_type='conference'` 觸發 check constraint；改用 `'other'`。
-- 2026-05-06 — `dec5031b`（大濛/霧のごとく）`performer='チェン・ユーシュン'`（導演誤填 performer）+ `organizer='台北駐日経済文化代表処 台湾文化センター'`（商業映畫誤填 organizer）→ DB 手動修正。
-- 2026-05-07 — `b90afe3c`（台湾史研究会3月例会）`performers=['陳志剛','福田真郷']` 但 `performer=null`，AdminEventTable 顯示空白（只讀 `performer`）→ `getEventPerformer()` 重寫為 `performers[]` 優先；commit `9b84d98`。
 
 ## Manual Translation Fix Persistence Guard（手動修翻譯必須鎖 field_corrections）
 
@@ -557,6 +545,33 @@ Reference incidents:
 
 Reference incident: 2026-05-06 — `車頂上的玄天上帝` 出現 4 筆（commit `a6cf029`）。
 
+## Tour Sub-Event Location Guard（巡演 sub-event 地點繼承錯誤防護）
+
+在審核任何涉及巡演（concert tour、全國巡回展等）父事件的 annotator 計畫，或分析 sub-event 地點標記錯誤時，**必須**確認：
+
+1. **父事件 raw_description 含多個城市時，sub-event 地點不可繼承相鄰城市**：raw_description 同時描述大阪/東京/首爾三場資訊時，annotator 容易將第一個城市（大阪）的 `location_address`/`location_prefectures` 繼承給後續城市的 sub-event。每個 sub-event 的地點必須嚴格對應各自描述的城市。
+2. **非日本地點（韓國、台灣、中國等）不應入庫**：annotator 建立 sub-events 時，若某場次地點明確在非日本城市，必須排除。已入庫者執行：
+   ```python
+   sb.table('events').update({
+       'is_active': False,
+       'deactivated_reason': 'out_of_scope: <City>, <Country> concert — not a Japan event',
+       'location_address': None,
+       'location_prefectures': None,
+   }).eq('id', eid).execute()
+   ```
+   停用後不需鎖 `field_corrections`（停用事件不再被 annotator 處理）。
+3. **`deactivated_reason` 格式**：`'out_of_scope: <說明>'`，必須包含城市與國家。例：`'out_of_scope: Seoul, South Korea concert — not a Japan event'`。
+4. **日本境內誤繼承必須修正並鎖 FC**：日本 sub-event `location_prefectures` 被標錯（如東京場標成大阪），修正後必須鎖 `field_corrections`，防止 re-annotation 覆寫：
+   ```python
+   sb.table('events').update({'location_prefectures': ['東京']}).eq('id', eid).execute()
+   sb.table('field_corrections').upsert({
+       'event_id': eid, 'field_name': 'location_prefectures',
+       'corrected_value': json.dumps(['東京'], ensure_ascii=False)
+   }, on_conflict='event_id,field_name').execute()
+   ```
+
+Reference incident: 2026-05-07 — VOOID 日韓巡演 2026（大阪 6/16、東京 6/18、首爾 6/20）。東京場 `5e5ff363` `location_prefectures=['大阪']`（誤繼承第一城市）；首爾場 `7a3d83ac` 被入庫且地址誤設大阪 Channel 1969（境外場次入庫）。
+
 ## Entity Normalization Guard（organizers / venues tables）
 
 在審核任何涉及主辦方聚合、場地報表，或 `organizer_id`/`venue_id` FK 欄位的計畫前，**必須**確認：
@@ -601,53 +616,6 @@ Reference: commits `239cb19`（enrich SC guard）、`6e21c52`（auto_qa lock）�
 3. **或將自身從 `workflows:` 移除**：清單不可包含本 workflow 自身名稱。
 
 Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發無限迴圈（commit `266daa1`）。
-
-## Cinema Distributor → Organizer Fallback Guard
-
-在審核任何涉及電影放映類事件的 annotator SYSTEM_PROMPT 修改，或分析電影事件 `organizer=null` 案例前，**必須**確認：
-
-1. **SYSTEM_PROMPT ORGANIZER EXTRACTION RULES Rule 1 的 CINEMA DISTRIBUTOR FALLBACK 存在**：「電影放映若 主催 未記載，使用 配給 作為 organizer（strip「配給：」label）」。
-2. **不可將院線名稱（上映場地）誤作 organizer**：商業院線映畫的 organizer 應為 配給 公司（或 null），非場地名稱。
-3. **已鎖 `field_corrections` 的值不可被下次 re-annotation 覆寫**：DB 手動修正必須同時 upsert `field_corrections`。
-
-Reference incident: 2026-05-06 — `dec5031b`（霧のごとく大濛）`配給：JAIHO/Stranger` 在 `raw_description` 但 `organizer=null`，因 SYSTEM_PROMPT 未定義 配給→organizer fallback（commit `af33133`）。
-
-## Joint Distributor Split Guard（聯合配給商拆分守護）
-
-在審核任何設定「配給」→ `organizer` 的案例，或分析 organizer 字串含「／」的事件前，**必須**確認：
-
-1. **「配給：A／B」中「／」代表聯合配給**：A 和 B 是兩家獨立公司，不可整串存為 organizer（如 `"JAIHO/Stranger"` 是錯誤的）。
-2. **正確拆分方式**：排名先者（左邊）→ `organizer`，其餘 → `co_organizers[]`。
-3. **工具驗證**：`if "/" in organizer or "／" in organizer: → 需拆分`。
-4. 同樣需鎖 `field_corrections`：`organizer`、`co_organizers`、`organizer_type` 手動修正後必須同時 upsert。
-
-Reference incident: 2026-05-07 — `dec5031b` `organizer = "JAIHO/Stranger"` 應為 `organizer = "JAIHO"`, `co_organizers = ["Stranger"]`, `organizer_type = ["commercial_brand"]`；`dded67a6` 同次修正。
-
-## Work Title ≠ Event Name Guard（作品標題不等於活動名稱守護）
-
-在審核任何涉及 `work_id` 的事件的 `name_zh`/`name_en` 前，**必須**確認：
-
-1. **`name_zh`/`name_en` 必須是 `name_ja`（完整活動標題）的翻譯**；不可從 `works.title_zh`/`works.title_en` 繼承。電影名只是活動的一部分。
-2. **症狀識別**：若 `len(name_zh) << len(name_ja)`（如 `name_zh = "中村地平"`（4字）而 `name_ja`（32字）），屬高可信度異常。zh/en locale 看到的是極短片名，ja locale 看到完整活動標題，形成「兩個標題」的錯覺。
-3. **驗證命令**：
-   ```python
-   # 查所有有 work_id 且 name_zh 長度 < name_ja 長度 50% 的事件
-   suspect = [e for e in events if e.get("work_id") and e.get("name_zh") and e.get("name_ja")
-              and len(e["name_zh"]) < len(e["name_ja"]) * 0.5]
-   ```
-4. 修正後必須同時鎖 `field_corrections`：`name_zh`、`name_en` 均需 upsert，防止 re-annotation 覆寫。
-
-Reference incident: 2026-05-07 — `622f51c1`（第78回 日本と台湾を考える集い）`name_zh = "中村地平"`（4字）vs `name_ja`（32字）；annotator 把 `works.title_zh` 直接用作 `name_zh`；DB 手動改為完整活動標題翻譯後鎖 field_corrections。
-
-## Zero-Event Source Alert Guard
-
-在審核任何涉及 `health_check.py` 的 PR，或設計新電影院/季節性影展 scraper 時，**必須**確認：
-
-1. **電影院和季節性影展來源必須加入 `ZERO_EVENT_OK_SOURCES`**：沒有台灣電影上映時正常回傳 0 筆，不應觸發 selector 警報。
-2. **新增電影院或季節性影展 scraper 後，同一 commit 更新 `ZERO_EVENT_OK_SOURCES`**（類似 `NON_DAILY_SOURCES` 的登錄規則）。
-3. **判斷標準**：若來源「有可能在正常業務情況下沒有任何符合條件的事件」→ 加入 `ZERO_EVENT_OK_SOURCES`。
-
-Reference incident: 2026-05-06 — 電影院來源（`eurospace` 等）0 event 誤觸 health_check 告警；加入 `ZERO_EVENT_OK_SOURCES` 後 ok_count 50 → 54（commit 見 health_check fix）。
 
 ## NON_DAILY_SOURCES Registration Guard
 
@@ -705,19 +673,6 @@ Reference incident: 2026-05-06 — AdminEventTable `rowIndexMap` 從 `displayEve
 3. **新增 modal 觸發點時，所有「新增」入口點必須同步改為 modal**：bulk action bar 的按鈕改為 modal 時，dropdown 底部的次要連結（`<a href="…" target="_blank">`）也必須同步改為 `<button>` 觸發 modal；混用跳頁和 modal 會造成行為不一致。
 
 Reference incident: 2026-05-06 — `category`/`work` 欄從 `max-w-[160px]` 改為 `w-[160px] min-w-[160px]`；works 清單排序從 `.order("original_title")` 改為 `.order("title_ja", { nullsFirst: false })`；dropdown「新增 work」從 `<a>` 改為 `<button>` modal。
-
-## GitHub Actions YAML Guard
-
-在審核任何新增或修改 `.github/workflows/*.yml` 的計畫前，**必須**確認：
-
-1. **`if:` 欄位只允許單行雙引號字串**：
-   - `if: |` 或 `if: >-`（block scalar）→ GitHub Actions YAML 解析器不支援 → parse error。
-   - 正確寫法：`if: "condition1 && condition2"`（全部在雙引號內，單行）。
-2. **`run: |` 區塊內不可包含 `[{...}]` inline 模式**：
-   - `[{"type": "text", ...}]`（flow sequence + nested flow mapping）在 `run: |` 中會被 GitHub Actions YAML 解析器誤判為 nested mapping → parse error。
-   - 修復方法：先賦值給 shell 變數再引用：`JQ_FILTER='...'`，後以 `"$JQ_FILTER"` 傳入。
-
-Reference incidents: 2026-05-07 — commits `0b5ba72`、`c38ddd5`、`b9a462c`：`workflow-failure-notify.yml` 連續三次 YAML parse error，依序為 `if: |` → `if: >-` → `if: "..."`，加上 jq filter 賦值變數才全部解決。
 
 ## Required Phases
 

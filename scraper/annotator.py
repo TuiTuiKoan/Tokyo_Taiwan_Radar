@@ -2376,6 +2376,181 @@ def backfill_tier1_events(limit: int = 50, dry_run: bool = False) -> None:
         annotate_pending_events(limit=limit)
 
 
+def backfill_performer_i18n() -> None:
+    """Backfill performer_zh/en and director_zh/en for events that have
+    performer/director but are missing translations.
+
+    Three-layer strategy:
+    1. Pure kanji names → performer_zh = performer (direct copy), performer_en = GPT romanize
+    2. Works table → inherit cast_summary if available
+    3. Katakana/latin names → GPT translate both zh and en
+
+    AI-translated values get annotation markers:
+    - zh: append "（AI翻譯）"
+    - en: append "(AI translated)"
+    - Direct copies (kanji→zh) and works-inherited values: no marker
+    """
+    import re as _re
+
+    sb = _get_supabase()
+    client = _get_openai()
+
+    _KANJI_RE = _re.compile(r'^[\u4e00-\u9fff\u3000-\u303f\s、，,・\-－―]+$')
+
+    # ── Fetch candidates ──
+    res = sb.table("events").select(
+        "id,performer,performer_zh,performer_en,"
+        "director,director_zh,director_en,work_id"
+    ).eq("is_active", True).not_.is_("performer", "null").or_(
+        "performer_zh.is.null,performer_en.is.null"
+    ).execute()
+    perf_events = res.data or []
+
+    dir_res = sb.table("events").select(
+        "id,director,director_zh,director_en,work_id"
+    ).eq("is_active", True).not_.is_("director", "null").or_(
+        "director_zh.is.null,director_en.is.null"
+    ).execute()
+    dir_events = [e for e in (dir_res.data or []) if not e.get("director_zh") or not e.get("director_en")]
+
+    logger.info("backfill_performer_i18n: %d performer candidates, %d director candidates",
+                len(perf_events), len(dir_events))
+
+    # ── Collect names needing GPT translation ──
+    # Separate into: kanji-only (zh=copy, en=GPT) vs non-kanji (both=GPT)
+    kanji_names: list[tuple[str, str, str]] = []    # (event_id, field_prefix, name)
+    nonkanji_names: list[tuple[str, str, str]] = []  # (event_id, field_prefix, name)
+
+    for e in perf_events:
+        name = (e.get("performer") or "").strip()
+        if not name:
+            continue
+        if _KANJI_RE.match(name):
+            kanji_names.append((e["id"], "performer", name))
+        else:
+            nonkanji_names.append((e["id"], "performer", name))
+
+    for e in dir_events:
+        name = (e.get("director") or "").strip()
+        if not name:
+            continue
+        if _KANJI_RE.match(name):
+            kanji_names.append((e["id"], "director", name))
+        else:
+            nonkanji_names.append((e["id"], "director", name))
+
+    # ── Layer 1: Pure kanji → zh = direct copy ──
+    patched = 0
+    for eid, prefix, name in kanji_names:
+        update: dict[str, Any] = {}
+        update[f"{prefix}_zh"] = name  # kanji IS Chinese — direct copy, no marker
+        # en will be filled by GPT batch below
+        if update:
+            sb.table("events").update(update).eq("id", eid).execute()
+            _lock_fields_via_corrections(sb, eid, update)
+            patched += 1
+            logger.info("  ✓ kanji %s %s_zh=%r", eid[:8], prefix, name)
+
+    logger.info("backfill_performer_i18n: Layer 1 (kanji→zh) patched %d", patched)
+
+    # ── Collect all names needing GPT romanization/translation ──
+    # kanji names need en only; non-kanji names need both zh and en
+    gpt_tasks: list[dict] = []
+
+    for eid, prefix, name in kanji_names:
+        gpt_tasks.append({"id": eid, "prefix": prefix, "name": name, "need_zh": False})
+
+    for eid, prefix, name in nonkanji_names:
+        gpt_tasks.append({"id": eid, "prefix": prefix, "name": name, "need_zh": True})
+
+    if not gpt_tasks:
+        logger.info("backfill_performer_i18n: no GPT tasks needed")
+        return
+
+    # ── GPT batch translation ──
+    # Process in chunks of 20
+    CHUNK = 20
+    gpt_patched = 0
+    for i in range(0, len(gpt_tasks), CHUNK):
+        chunk = gpt_tasks[i:i + CHUNK]
+
+        # Build prompt
+        lines = []
+        for idx, task in enumerate(chunk):
+            if task["need_zh"]:
+                lines.append(f'{idx}. "{task["name"]}" → zh + en')
+            else:
+                lines.append(f'{idx}. "{task["name"]}" → en only')
+
+        prompt = (
+            "Translate the following person names. For each:\n"
+            "- 'zh + en': provide Traditional Chinese name AND English/romanized name\n"
+            "- 'en only': provide English/romanized name only (the name is already Chinese)\n\n"
+            "Rules:\n"
+            "- For Taiwanese/Chinese persons: use their known Chinese name for zh\n"
+            "- For Japanese persons: romanize using Hepburn (family name first)\n"
+            "- For katakana foreign names (e.g. クー・チェンドン): look up the real Chinese/English name\n"
+            "- Keep stage names / band names as-is in both languages\n"
+            "- If multiple names separated by 、 or ,: translate each, keep same separator\n\n"
+            "Return JSON array: [{\"idx\": 0, \"zh\": \"...\", \"en\": \"...\"}, ...]\n"
+            "If 'en only', omit zh field.\n\n"
+            + "\n".join(lines)
+        )
+
+        try:
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a person name translator specializing in East Asian names."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0,
+                max_tokens=2000,
+                response_format={"type": "json_object"},
+            )
+            raw = json.loads(resp.choices[0].message.content)
+            # Handle both {"results": [...]} and bare [...]
+            results = raw if isinstance(raw, list) else raw.get("results", raw.get("translations", []))
+            if not isinstance(results, list):
+                logger.warning("  GPT returned unexpected format: %s", type(results))
+                continue
+        except Exception as exc:
+            logger.error("  GPT batch error: %s", exc)
+            continue
+
+        for item in results:
+            idx = item.get("idx")
+            if idx is None or idx >= len(chunk):
+                continue
+            task = chunk[idx]
+            eid = task["id"]
+            prefix = task["prefix"]
+
+            update: dict[str, Any] = {}
+
+            # zh translation (only for non-kanji names)
+            zh_val = _to_trad(item.get("zh", "")).strip() if item.get("zh") else ""
+            if zh_val and task["need_zh"]:
+                update[f"{prefix}_zh"] = f"{zh_val}（AI翻譯）"
+
+            # en translation (for all)
+            en_val = (item.get("en") or "").strip()
+            if en_val:
+                update[f"{prefix}_en"] = f"{en_val} (AI translated)"
+
+            if update:
+                sb.table("events").update(update).eq("id", eid).execute()
+                _lock_fields_via_corrections(sb, eid, update)
+                gpt_patched += 1
+                logger.info("  ✓ gpt %s %s → zh=%r en=%r",
+                            eid[:8], prefix,
+                            update.get(f"{prefix}_zh", "—"),
+                            update.get(f"{prefix}_en", "—"))
+
+    logger.info("backfill_performer_i18n: GPT patched %d/%d tasks", gpt_patched, len(gpt_tasks))
+    logger.info("backfill_performer_i18n: total done (kanji_zh=%d, gpt=%d)", patched, gpt_patched)
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
@@ -2394,6 +2569,7 @@ if __name__ == "__main__":
             "  --enrich-person-names   Look up person names for all events\n"
             "  --backfill-tier1        Reset annotated events lacking Tier 1 fields back to pending and re-annotate\n"
             "  --propagate-source-organizer  Propagate organizer from plurality value per source_name to events with organizer=null (safe for reviewed events)\n"
+            "  --backfill-performer-i18n  Backfill performer_zh/en and director_zh/en translations\n"
             "  --id <uuid>             Operate on a single event by id\n"
             "  --limit <N>             Limit number of events processed (default 50 for backfill-tier1)\n"
             "  --dry-run               Print actions without writing to DB\n"
@@ -2407,6 +2583,7 @@ if __name__ == "__main__":
     enrich_people = "--enrich-person-names" in sys.argv
     backfill_tier1 = "--backfill-tier1" in sys.argv
     propagate_org = "--propagate-source-organizer" in sys.argv
+    backfill_perf_i18n = "--backfill-performer-i18n" in sys.argv
     dry_run_flag = "--dry-run" in sys.argv
     event_id_arg = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--id"), None)
     limit_arg_str = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--limit"), None)
@@ -2415,6 +2592,8 @@ if __name__ == "__main__":
         backfill_tier1_events(limit=limit_arg, dry_run=dry_run_flag)
     elif propagate_org:
         propagate_source_organizer(dry_run=dry_run_flag)
+    elif backfill_perf_i18n:
+        backfill_performer_i18n()
     elif enrich_movies:
         enrich_movie_titles()
     elif enrich_people:

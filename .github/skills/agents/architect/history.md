@@ -4,98 +4,23 @@
 
 ---
 
-## 2026-05-07 — GitHub Actions YAML 解析器限制（`if:` 欄位與 `run: |` 區塊）
+## 2026-05-07 — 三類手動修正案例：Work Title ≠ Event Name、巡演 sub-event 地點繼承、organizer 完全錯誤
 
-**問題**：`.github/workflows/workflow-failure-notify.yml` 連續三次 YAML 解析錯誤（commits `0b5ba72`、`c38ddd5`、`b9a462c`）：
-- Error A：`if: |`（literal block scalar）→ "Implicit keys need to be on a single line"
-- Error B：`if: >-`（folded block scalar）→ "All mapping items must start at the same column"
-- Error C：`run: |` 區塊內含 `[{...}]` inline jq filter → "Nested mappings are not allowed in compact mappings"
+### 案例 A — Work Title ≠ Event Name（`87fd7249` 中村地平）
 
-**根因**：
-1. GitHub Actions YAML 解析器不支援 `if:` 欄位使用任何 block scalar（`|` / `>-`），必須單行字串。
-2. `run: |` 雖是 block scalar，但 GitHub Actions 解析器仍會掃描區塊內容中的 YAML flow 語法（`[{...}]`），誤判為 nested mapping。
+**問題：** `name_zh` 只填了電影名「中村地平」，沒有活動類型描述。事件實際上是「放映暨座談會」，不是電影本身。`organizer` 被標為「語学スクール」（`commercial_brand`），實際上是從頁面確認的「台湾原住民族との交流会」（`civic_group`）。
+**修復：** `name_zh` → 「紀錄片《中村地平》放映暨座談會」；`name_en` → 「Documentary Film Screening: 'Nakamura Chihei'」；`organizer` → 「台湾原住民族との交流会」；`organizer_type` → `['civic_group']`；補入 `location_address`、`is_paid=false`；清除錯誤 `organizer_id` FK。所有 6 個欄位鎖入 `field_corrections`。
+**教訓：** Work title 只是作品名稱，Event name 必須包含活動類型（放映、座談、展覧等）。`organizer` 從 annotator 自動填入時誤率高，涉及主辦方的手修前必須以頁面原文確認，不可信賴 AI 推斷。
 
-**修復**：
-1. `if:` 改為雙引號單行字串：`if: "condition1 && condition2"`
-2. `run: |` 中的 jq inline filter 改以 shell 變數存儲，再引用：`JQ_FILTER='...'`，後以 `"$JQ_FILTER"` 傳入 jq。
+### 案例 B — 巡演 sub-event 地點繼承錯誤（VOOID 日韓巡演）
 
-**教訓**：
-- `if:` 欄位只允許單行雙引號字串；不可用 `|` 或 `>-`。
-- `run: |` 區塊內不可包含 `[{...}]` 語法（flow sequence + nested flow mapping）——必須先賦值給 shell 變數。
+**問題：** VOOID（台北獨立搖滾樂團）日韓巡演 2026 有三場（大阪 6/16、東京 6/18、首爾 6/20）。annotator 在從父事件 raw_description 建立 sub-events 時：（1）東京場 `5e5ff363` 的 `location_prefectures` 被標為 `['大阪']`；（2）首爾場 `7a3d83ac` 被入庫，且地址誤設大阪 Channel 1969。
+**修復：** `5e5ff363` → `location_prefectures=['東京']`，鎖 FC；`7a3d83ac` → `is_active=false`，`deactivated_reason='out_of_scope: Seoul, South Korea concert — not a Japan event'`，清除 `location_address/location_prefectures`。
+**教訓：** 當父事件 raw_description 同時包含多個巡演地點時，annotator 容易將第一個城市（大阪）的地點資訊繼承到後續城市的 sub-events。非日本地點（韓國、台灣等）應於抓取或標注時即時排除，不應入庫後才修正。
 
-→ Added to SKILL.md §「GitHub Actions YAML Guard」
+### 案例 C — organizer 完全錯誤（已含於案例 A）
 
----
-
-## 2026-05-07 — auto_research.py Playwright 逾時導致整批中止（commit `8029b74`）
-
-**問題**：`auto_research.py` `_fetch_sample_html()` 呼叫 `page.goto(url, timeout=30_000)` 未加 try/except。`note.com/swi0881` 在 CI 逾時 → 未捕獲 `PlaywrightTimeoutError` → 整個 job exit code 1，後續所有來源全部跳過。
-
-**修復**：
-- `_fetch_sample_html` 捕獲 `playwright.sync_api.TimeoutError` → log warning → return `""`
-- `run()` 中空 `sample_html` 視為 `AssessError("error", ...)` → 該來源標記 `error` in DB → batch 繼續到下一列
-
-**教訓**：CI 批次腳本中任何 `page.goto()` 都必須有明確的 `TimeoutError` 處理。單一慢速 / 封鎖的 URL 不得中止整個批次。
-
-→ Added to SKILL.md §「GitHub Actions YAML Guard」 & scraper-expert SKILL.md §「Playwright CI 批次容錯規則」
-
----
-
-## 2026-05-07 — work.title_zh 誤用為 name_zh 導致標題截短
-
-問題：`622f51c1`（第78回 日本と台湾を考える集い）`name_zh = "中村地平"`（只有電影名），zh locale 標題遠短於 name_ja。
-根因：annotator 把 `works.title_zh` 直接用作 `name_zh`，未翻譯完整 name_ja 活動標題。
-修復：DB 手動改 `name_zh = "第78回 日台思考集會 紀錄片《中村地平》放映會"`，`name_en = "78th Japan-Taiwan Gathering: Documentary Film 'Nakamura Chihei' Screening"`，均鎖 field_corrections。
-教訓：name_zh/name_en 必須是 name_ja 完整活動標題的翻譯；電影名（works.title_zh）只是活動一部分，不可繼承為事件標題。
-
----
-
-## 2026-05-07 — 聯合配給商需拆分為 organizer + co_organizers
-
-問題：`dec5031b`（霧のごとく）raw_description「配給：JAIHO/Stranger」被整串設為 `organizer = "JAIHO/Stranger"`。
-發現：JAIHO 和 Stranger 是兩家獨立公司；「A／B」是聯合配給，非一家公司名稱。
-修復：兩筆相關事件改為 `organizer = "JAIHO"`, `co_organizers = ["Stranger"]`, `organizer_type = ["commercial_brand"]`，均鎖 field_corrections。
-教訓：「配給：A／B」中「／」代表聯合配給，應拆為 organizer（排名先者）+ co_organizers。
-
----
-
-## 2026-05-09 — performer / performers[] 設計決策：三欄並存，不做欄位合併
-
-**決策：** 不刪除 `performer` 欄位，不將其遷移至 `performers[]`；三欄並存，annotator 自動同步。
-
-**評估原因：**
-1. `performer_zh/en` 是以 `performer`（TEXT 單值）為錨點的一對一翻譯；若 `performers[]` 存多人，翻譯欄位意義不明（要翻誰？）
-2. `performer` 有 34+ 處引用（annotator.py、database.py、base.py、AdminEditClient、AdminEventForm 等）；全面遷移成本高且風險大
-3. GPT prompt 回傳 `performer` 為 single string；重設計需大改 few-shot + prompt
-
-**正確架構（三欄職責）：**
-- `performer`：單一主表演者日文原名；annotator 輸出；`getEventPerformer()` fallback 錨點
-- `performer_zh / performer_en`：performer 的語言翻譯（一對一對應）
-- `performers[]`：多人顯示陣列；學術研討會全體發表者；annotator 自動 sync 自 `performer`（commit `4526d3a`）
-
-**解法：** 在 annotator 加自動 sync（conditions：performer 本次設定 + existing performers[] empty + GPT 未回傳 performers + performers not in field_corrections），確保 UI 永遠能從 `performers[]` 讀取，不需 fallback。
-
----
-
-## 2026-05-06 — Cinema distributor as organizer fallback
-
-**問題：** `dec5031b`（霧のごとく大濛）`organizer=null`，即使 `raw_description` 末尾有「配給：JAIHO/Stranger」。SYSTEM_PROMPT 的 ORGANIZER EXTRACTION RULES 只定義「主催 / 主辦 / presented by」→ organizer，未定義「配給」fallback。
-
-**修復：** SYSTEM_PROMPT ORGANIZER EXTRACTION RULES Rule 1 加 CINEMA DISTRIBUTOR FALLBACK：「電影放映若 主催 未記載，使用 配給 作為 organizer（strip「配給：」label）」；DB 直接更新 `dec5031b` organizer → `JAIHO/Stranger` + `field_corrections` lock。
-
-**教訓：** 電影放映的 `raw_description` 常只有「配給：○○」沒有「主催：」；需要明確的配給→organizer fallback 規則。院線名稱（場地）不可誤填 organizer。
-
----
-
-## 2026-05-06 — Health check false alarm for zero-event cinema sources
-
-**問題：** 電影院來源（`eurospace`、`cinemart_shinjuku` 等）在沒有台灣電影上映時正常回傳 0 筆事件，`health_check.py` 誤報「🟡 selector 可能壞掉」。季節性影展（`oaff`、`tokyo_filmex` 等）在非影展期間同樣如此。
-
-**修復：** 新增 `ZERO_EVENT_OK_SOURCES` frozenset，包含所有電影院和季節性影展來源，跳過 zero-event 告警。ok_count 從 50 → 54。
-
-**受影響來源：** `cineswitch_ginza, cine_marine, cinemart_shinjuku, ks_cinema, shin_bungeiza, eurospace, uplink_cinema, human_trust_cinema, stranger, oaff, tokyo_filmex, tiff_jp, ssff`
-
-**教訓：** 電影院來源的 0-event 是正常業務狀態，不是 selector 壞掉。需依來源性質區分「始終應有事件」vs「可以為零」。新增電影院或季節性影展 scraper 時，同一 commit 必須更新 `ZERO_EVENT_OK_SOURCES`（類似 `NON_DAILY_SOURCES` 的登錄規則）。
+已記錄於案例 A。**額外教訓：** `organizer_id` 指向錯誤 entity 時，直接清除 FK 即可（不需要鎖 FC，因 `organizer_id` 由 `backfill_entities.py` 動態配對，鎖定無意義）。
 
 ---
 
