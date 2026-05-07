@@ -3,7 +3,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { createClient } from "@/lib/supabase/client";
 import type { Announcement, SocialPlatform, Locale } from "@/lib/types";
 import type { Event } from "@/lib/types";
 
@@ -53,7 +52,6 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const supabase = createClient();
   const [isFeatured, setIsFeatured] = useState(announcement?.is_featured ?? false);
   const [publishedAt, setPublishedAt] = useState(
     announcement?.published_at ? announcement.published_at.slice(0, 16) : ""
@@ -77,14 +75,12 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
     setUploading(true);
     setUploadError(null);
     try {
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const path = `covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { data, error } = await supabase.storage
-        .from("announcements")
-        .upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { data: urlData } = supabase.storage.from("announcements").getPublicUrl(data.path);
-      setCoverImageUrl(urlData.publicUrl);
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Upload failed");
+      setCoverImageUrl(data.url);
     } catch (e: unknown) {
       setUploadError(e instanceof Error ? e.message : String(e));
     } finally {
