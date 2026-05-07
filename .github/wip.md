@@ -5,12 +5,10 @@
 
 ---
 
-## Artist Cafe 爬蟲
-- 狀態: Phase 0/3（POC 測試完成，尚未 commit）
-- 下一步: Phase 1 — 建立 `sources/artistcafe.py`，產生正式 Event 格式，註冊 main.py
-- 最後更新: 2026-05-02
+## ✅ Artist Cafe 爬蟲
+- 狀態: 完成（sources/artistcafe.py 本番稼働中，registered in main.py）
+- 完成日: 2026-05-06
 
-## Cinemart 其他館（Marine / Switch Ginza）
-- 狀態: Phase 0/2（規劃中）
-- 下一步: Phase 1 — 研究場次頁結構，評估是否與 Shinjuku 共用 `_parse_schedule_page()`
-- 最後更新: 2026-05-02
+## ✅ Cinemart 其他館（Marine / Switch Ginza）
+- 狀態: 完成（cinemarine.py + cineswitch_ginza.py 本番稼働中；0件誤報已於 b0bc199 修復）
+- 完成日: 2026-05-06
