@@ -76,8 +76,12 @@ Constraints:
 - max_pages: pick conservatively (3-5 for unknown sites).
 - detail_link_selector: CSS selector for the per-card anchor that links to the event detail page (e.g. "a.title", "a[href*='/event/']"). Set this whenever cards link to detail pages — leave empty ONLY if the listing has no detail links at all. If you leave it empty, the generated scraper will fall back to the first <a href> inside each card, which works for most cases but is less precise.
 
+CRITICAL — card_selector_hint:
+- If the researcher has provided a 'card_selector_hint' in the hints JSON, use it DIRECTLY as card_selector. It was manually verified against the live page and takes priority over your own inference.
+
 CRITICAL — Selector grounding rule:
 - ONLY use CSS classes, IDs, or attributes that appear VERBATIM in the sample HTML provided below.
+- A 'Observed classes (≥3 occurrences)' list is provided — prefer selectors built from these classes over inventing new ones.
 - DO NOT invent class names that look reasonable but are not actually in the HTML (e.g. ".event-card", ".c-event-list__item" are common LLM fabrications).
 - Before outputting each selector, scan the sample HTML and confirm the class/id/tag is present.
 - If you cannot find any clear class to anchor on, prefer tag selectors (e.g. "article", "li.article-list", "div.post") over making up class names.
@@ -257,12 +261,65 @@ def _within_cooldown(row: dict, now: datetime | None = None) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _extract_observed_classes(html: str, min_count: int = 3) -> list[str]:
+    """Return CSS class names that appear >= min_count times in the HTML.
+
+    Gives GPT a verified whitelist to pick selectors from instead of guessing.
+    """
+    import re
+    from collections import Counter
+
+    all_classes: list[str] = []
+    for m in re.finditer(r'class=["\']([^"\']+)["\']', html):
+        all_classes.extend(m.group(1).split())
+    counts = Counter(all_classes)
+    return [cls for cls, n in counts.most_common() if n >= min_count]
+
+
+def _strip_non_structural_html(html: str) -> str:
+    """Remove script/style/svg content to make token budget more useful.
+
+    BeautifulSoup is not available at module level — use simple regex strip.
+    This is best-effort; actual HTML parsing happens in _validate_selectors.
+    """
+    import re
+
+    for tag in ("script", "style", "svg", "noscript"):
+        html = re.sub(
+            rf"<{tag}[^>]*>.*?</{tag}>", f"<!-- {tag} removed -->", html,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+    return html
+
+
 def _build_user_message(row: dict, sample_html: str, retry_error: str | None = None) -> str:
     profile = row.get("source_profile") or {}
+
+    # Option B: strip non-structural tags so the 50k budget contains more structure
+    stripped_html = _strip_non_structural_html(sample_html)
+
+    # Option A: extract class names that actually appear in the HTML
+    observed_classes = _extract_observed_classes(stripped_html)
+    classes_hint = (
+        ", ".join(f".{c}" for c in observed_classes[:60])
+        if observed_classes
+        else "(none found)"
+    )
+
+    # Option C: surface card_selector_hint prominently
+    card_hint = profile.get("card_selector_hint", "")
+    card_hint_line = (
+        f"\n⚠️  card_selector_hint (use this directly): {card_hint}"
+        if card_hint
+        else ""
+    )
+
     parts = [
         f"Source name: {row.get('name', '')}",
         f"Source URL: {row.get('url', '')}",
-        f"Hints from researcher: {json.dumps(profile, ensure_ascii=False)}",
+        f"Hints from researcher: {json.dumps(profile, ensure_ascii=False)}{card_hint_line}",
+        "",
+        f"Observed classes (≥3 occurrences in sample HTML): {classes_hint}",
         "",
         "## Required JSON schema (your output MUST validate against this)",
         SPEC_SCHEMA_TEXT,
@@ -272,9 +329,9 @@ def _build_user_message(row: dict, sample_html: str, retry_error: str | None = N
         "field_selectors (must include title and date), date_regex,",
         "source_id_prefix, source_id_url_pattern",
         "",
-        f"## Sample HTML (first {SAMPLE_HTML_TRUNCATE} chars)",
+        f"## Sample HTML (first {SAMPLE_HTML_TRUNCATE} chars, script/style stripped)",
         "",
-        sample_html[:SAMPLE_HTML_TRUNCATE],
+        stripped_html[:SAMPLE_HTML_TRUNCATE],
     ]
     if retry_error:
         parts.append("")
