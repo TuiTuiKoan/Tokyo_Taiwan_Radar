@@ -107,6 +107,38 @@ Reference incident: 2026-05-07 — `b2589d75` ガブテックカンファレン�
 
 Reference incident: 2026-05-05 — event `f970e4e3`（月老）多次被修又被 AI 覆寫；今日同步補入 `field_corrections` 鎖定四個翻譯欄位後免疫。
 
+## organizer_type Valid Values Guard
+
+在審核任何直接設定 `organizer_type` 的 DB 修正、腳本或計畫前，**必須**確認值在以下允許清單內：
+
+```
+government | semi_official | cultural_institution | academic |
+commercial_brand | independent_venue | civic_group | media | unknown
+```
+
+**常見錯誤**（觸發 DB check constraint error）：
+- `npo_association` → 應改為 `civic_group`
+- `npo` → 應改為 `civic_group`
+- `association` → 應改為 `civic_group`
+- `school` → 應改為 `academic` 或 `civic_group`
+
+**NPO、同好會、親善協会、交流会** 等 civic 性質的主辦方統一使用 `civic_group`。
+
+Reference incident: 2026-05-07 — `4feab235` 設 `organizer_type=['npo_association']` 觸發 check constraint error，正確值為 `civic_group`。
+
+## annotation=error Location Trust Guard
+
+在審核任何 `annotation_status = 'error'` 的事件前，**必須**確認：
+
+1. **location / organizer 值不可信任**：`annotation=error` 表示 GPT 回傳格式異常，這些欄位可能是前次 annotation 的殘留值或亂碼。
+2. **必要的修復步驟**：
+   a. 從 `source_url` 直接查閱原始頁面確認正確場地
+   b. 手動設定正確 `location_name` / `location_address` / `location_prefectures` + FC 鎖定三欄
+   c. 設 `organizer = None`、`annotation_status = 'pending'` 讓 annotator 重新處理
+3. **Collection Attribution Guard 仍適用**：`〇〇美術館蔵` 型的機構名不可作為 `location_name`，作品收藏機關 ≠ 展場。
+
+Reference incident: 2026-05-07 — `977da793` annotation=error，`location_name` 誤填台北當代藝術館（作品所蔵機關），實際展場為 Gallery Biga（京都）。
+
 ## Admin Form Component Prop Completeness Guard
 
 在任何包含「新增 prop 到 shared form component」或「後台新增欄位」的計畫前，**必須**確認：

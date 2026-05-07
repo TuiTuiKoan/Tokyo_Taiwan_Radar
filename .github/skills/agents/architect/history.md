@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-05-07（第三輪）— annotation=error location 誤填 + sub-event 地址繼承 + organizer hallucination + npo_association 非法值
+
+### 案例 A — 977da793 annotation=error：location 誤填台北當代藝術館
+
+**錯誤：** `annotation_status = 'error'` 的事件，`location_name = '台北當代藝術館'`（台北的機構，是作品來源地而非展場）、`organizer = '横浜美術館'`（誤）。實際展覽地點是 Gallery Biga（京都）。
+**修正：** `location_name = 'Gallery Biga'`、`location_address = '〒606-8405 京都府京都市左京区浄土寺上南田町2'`、`location_prefectures = ['京都']`、`organizer = None`、`annotation_status = 'pending'`，三個 location 欄位全部 FC 鎖定。
+**教訓：** `annotation_status = 'error'` 表示 GPT 回傳格式異常，location/organizer 等欄位可能是前次 annotation 的殘留垃圾值。修復前必須從 `source_url` 直接確認正確場地，並 FC 鎖定 location 三欄 + 設 organizer=None + annotation_status='pending'。
+
+### 案例 B — 23213727 sub-event：location_address 未從父事件繼承
+
+**錯誤：** sub-event `23213727`（関西大学千里山キャンパス 第二学舎1号館A503教室）`location_address = None`，但父事件 `dfb490c8` 的 `location_address = '大阪府吹田市千里山東1-10-4'` 已正確設定。
+**修正：** `location_address = '大阪府吹田市千里山東1-10-4'`（從父事件繼承），FC 鎖定。
+**教訓：** Sub-event 的 `location_address` 為 None 時，應先查父事件是否已有正確地址，而非直接留空。
+
+### 案例 C — 2093fd41 kokuchpro：organizer = '語学スクール'（性質描述詞 hallucination）
+
+**錯誤：** `organizer = '語学スクール'`（活動性質描述，非主辦方名稱），`location_prefectures = None`。
+**修正：** `annotation_status = 'pending'`，讓 annotator 重新處理 organizer 和 location。
+**教訓：** generic 性質描述詞（語学スクール、読書会サークル 等）出現在 organizer 欄是 annotator hallucination 的典型模式，應設 pending 重處理而非直接修正。
+
+### 案例 D — 4feab235 note_creators：organizer 誤填 + npo_association 非法 organizer_type
+
+**錯誤：** （1）`organizer = '埼玉県日台親善協会'`（誤）；（2）嘗試設定 `organizer_type = ['npo_association']` 觸發 DB check constraint 錯誤——`npo_association` 不在允許清單。
+**修正：** `organizer = '日台交流会（新宿）'`（從 URL slug `nichitaikouryu` 和 raw_description「新宿に移しての116、117回目の日台交流会」判斷）、`organizer_type = ['civic_group']`，FC 鎖定。
+**教訓：** `npo_association` 不是有效的 organizer_type——NPO、同好會、親善協会、交流会 等 civic 性質的主辦方應使用 `civic_group`。有效值：`government | semi_official | cultural_institution | academic | commercial_brand | independent_venue | civic_group | media | unknown`。
+
+---
+
 ## 2026-05-07（第二輪）— location_name 括弧住所混入 + 2cb72ee9 鼎泰豐多重錯誤 + push 時機確認
 
 ### 案例 A — location_name 括弧住所混入（`b42977f3` / `09c26a2e`）
