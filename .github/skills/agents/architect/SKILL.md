@@ -83,19 +83,21 @@ Reference incidents:
    - `location_address = null`
    - `location_prefectures = []`
 3. **必須 FC 鎖定三欄**：否則下次 re-annotation 會再次從 raw_description 中的主辦方地址填入。
-4. **偵測 SQL**（定期排查）：
+4. **`is_paid` 同樣是 `false`**：助成金/補助金的「受取金額」記述（「助成額は最大〇〇円」「補助金額：〇〇万円」）不是參加費，annotator 易誤設為 `true`。必須同時 FC 鎖定 `is_paid=false`。
+5. **偵測 SQL**（定期排查）：
    ```sql
-   SELECT id, name_ja, location_address
+   SELECT id, name_ja, location_address, is_paid
    FROM events
    WHERE is_active = true
      AND annotation_status IN ('annotated', 'reviewed')
-     AND location_address IS NOT NULL
+     AND (location_address IS NOT NULL OR is_paid = true)
      AND (name_ja LIKE '%公募%' OR name_ja LIKE '%助成%'
           OR name_ja LIKE '%募集%' OR name_ja LIKE '%申請%'
           OR name_ja LIKE '%徵件%' OR name_ja LIKE '%応募%');
    ```
 
-Reference incident: 2026-05-07 — `dec284a5`「2026年度第1期台湾書籍翻訳出版助成金申請」が台湾文化センターの住所（東京都港区虎ノ門）を持っていた → オンラインに修正・FCロック。
+Reference incidents:
+- 2026-05-07 — `dec284a5`「2026年度第1期台湾書籍翻訳出版助成金申請」が台湾文化センターの住所（東京都港区虎ノ門）を持ちかつ `is_paid=True` になっていた → オンライン修正 + `is_paid=False` + FC 4 欄ロック。
 
 ---
 

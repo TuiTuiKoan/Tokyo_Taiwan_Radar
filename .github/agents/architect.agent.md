@@ -245,16 +245,19 @@ Before approving any annotation or data correction for events where `category` i
    - `location_address = null`
    - `location_prefectures = []`
 3. **必須 FC 鎖定三欄**：否則下次 re-annotation 會再次從 raw_description 中的主辦方地址填入。
-4. **偵測 SQL**（定期排查）：
+4. **`is_paid` 同樣必須為 `false`**：助成金/補助金的「受取金額」記述（「助成額は最大〇〇円」「補助金額：〇〇万円」）不是參加費。annotator Rule 7 的金額偵測邏輯會將「受け取る助成金額」誤判為「支払う参加費」而設 `is_paid=true`。必須同時 FC 鎖定 `is_paid=false`。
+5. **偵測 SQL**（定期排查）：
    ```sql
-   SELECT id, name_ja, location_address FROM events
+   SELECT id, name_ja, location_address, is_paid FROM events
    WHERE is_active = true AND annotation_status IN ('annotated', 'reviewed')
-     AND location_address IS NOT NULL
+     AND (location_address IS NOT NULL OR is_paid = true)
      AND (name_ja LIKE '%公募%' OR name_ja LIKE '%助成%' OR name_ja LIKE '%募集%'
           OR name_ja LIKE '%申請%' OR name_ja LIKE '%徵件%' OR name_ja LIKE '%応募%');
    ```
 
-Reference incident: 2026-05-07 — `dec284a5`「2026年度第1期台湾書籍翻訳出版助成金申請」had `location_address='東京都港区虎ノ門1-1-12'`（主辦方住所）→ 修正為 `location_name='オンライン'`、address/prefectures null + FC 鎖定。
+Reference incidents:
+- 2026-05-07 — `dec284a5`「2026年度第1期台湾書籍翻訳出版助成金申請」had `location_address='東京都港区虎ノ門1-1-12'`（主辦方住所）→ 修正為 `location_name='オンライン'`、address/prefectures null + FC 鎖定。
+- 2026-05-07 — 同 `dec284a5` が `is_paid=True` になっていた（「助成額は最大60万台湾ドル」を参加費と誤判定）→ `is_paid=False` + FC 鎖定（commit `473f22c`）。
 
 ## note_creators start_date 系統性問題
 

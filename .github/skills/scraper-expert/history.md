@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-05-07 — KG+ Kyotographie scraper 新規実装 + 4 scrapers 復元（commit `de6c31d`）
+
+### A — KgplusKyotographieScraper 実装
+
+**新規 scraper**: `kgplus_kyotographie` — KYOTOGRAPHIE International Photography Festival の衛星プログラム KG+ の台湾関連展示を取得。
+
+**設計**:
+- **WP REST API で CPT 名を動的検出**：`/wp-json/wp/v2/types` から `exhibitions_plus{YEAR}` を探し、フェスティバル年度を自動判定（ハードコード不要）
+- **全展示スラグ列挙**：`/wp-json/wp/v2/exhibitions_plus{YEAR}?per_page=100&page=N` でページネーション（2026年: 213件 × 3ページ）
+- **個別HTML取得 + 台湾フィルタ**：各展示ページを fetch し `台湾/Taiwan/臺灣/台南/台北/Taiwanese` でフィルタリング
+- **日付パース**：`<p class="-openclose">` の `"Open: M.D Weekday–M.D Weekday"` 形式、年度は CPT 名から推定
+- Playwright 不要（WP REST API + requests のみ）
+
+**2026年実績**: 4件の台湾関連展示を検出（makoto-lin, chan-man-ching, naoki-miyashita, sean-tseng-asano-tsutsumi-sara-wu）
+
+**教訓**:
+- WordPress CPT 名に年度を含むサイト（`exhibitions_plus2026` 等）は `/wp-json/wp/v2/types` で動的に名前を取得すること — ハードコードすると翌年に silent failure する
+- 全件スキャン + クライアントサイドフィルタが最も確実。API 側の台湾フィルタが存在しなくても問題ない（`_REQUEST_DELAY = 0.5s` でレート制限）
+
+### B — 4 scrapers 復元（johakyu, stranger, tsutaya_portal, tsudoi_osaka）
+
+**問題**: 前回のコミットで `main.py` の import/SCRAPERS が再編成され、4 つの scraper が誤ってドロップされていた。
+
+**復元内容** (commit `de6c31d`):
+- `JohakyuScraper` — 浄化湯（映画館）
+- `StrangerScraper` — Stranger（東京墨田区の映画館）
+- `TsutayaPortalScraper` — 蔦屋書店ポータル（`_is_taiwan_relevant()` 偽陽性修正済み）
+- `TsudoiOsakaScraper` — 大阪のコミュニティイベント
+
+**教訓**: SCRAPERS リスト audit を main.py に変更を加える**全コミット前**に実行すること。新規 scraper 追加コミットでも既存 scraper が誤ってドロップされることがある。Audit コマンド:
+```bash
+python3 -c "import re, glob; registered=set(re.findall(r'(\w+Scraper)\(\)', open('main.py').read())); [print('UNREGISTERED:', re.search(r'class (\w+Scraper)\b', open(f).read()).group(1), f) for f in glob.glob('sources/*.py') if re.search(r'class (\w+Scraper)\b', open(f).read()) and re.search(r'class (\w+Scraper)\b', open(f).read()).group(1) not in registered and re.search(r'class (\w+Scraper)\b', open(f).read()).group(1) != 'BaseScraper']"
+```
+
+---
+
 ## 2026-05-07 — note_creators full-article fetch + Vision OCR pipeline 実装（commit `a52f5b2`）
 
 ### A — note_creators.py full-article fetch + og:image
