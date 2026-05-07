@@ -266,6 +266,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           e.source_name,
           ev.organizer,
           ev.performer,
+          ...(ev.performers ?? []),
         ];
         if (!candidates.some((c) => c && String(c).toLowerCase().includes(q))) return false;
       }
@@ -354,6 +355,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           e.source_name,
           ev.organizer,
           ev.performer,
+          ...(ev.performers ?? []),
         ];
         if (!candidates.some((c) => c && String(c).toLowerCase().includes(q))) return false;
       }
@@ -1396,9 +1398,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                         </span>
                       );
                     })()}
-                    {(event as any).performer && (
-                      <span className="block mt-0.5 text-[10px] text-purple-600 truncate" title={`出演者: ${(event as any).performer}`}>
-                        🎭 {(event as any).performer}
+                    {(((event as any).performers ?? []).length > 0 || (event as any).performer) && (
+                      <span className="block mt-0.5 text-[10px] text-purple-600 truncate" title={`出演者: ${((event as any).performers ?? []).length > 0 ? (event as any).performers.join('、') : (event as any).performer}`}>
+                        🎭 {((event as any).performers ?? []).length > 0 ? (event as any).performers.join('、') : (event as any).performer}
                       </span>
                     )}
                     {(event as any).organizer && (

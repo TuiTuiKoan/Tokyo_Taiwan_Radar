@@ -301,8 +301,14 @@ export function getEventBusinessHours(event: Event, locale: Locale): string | nu
   return event.business_hours;
 }
 
-/** Return the localized performer name (falls back to Japanese original). */
+/**
+ * Return the display performer string for a given locale.
+ * Priority: performers[] (joined) > performer_zh/en > performer (single legacy field).
+ * performers[] is the canonical multi-person field; performer is the legacy single-person field.
+ */
 export function getEventPerformer(event: Event, locale: Locale): string | null {
+  const arr = event.performers ?? [];
+  if (arr.length > 0) return arr.join("、");
   if (locale === "zh") return event.performer_zh || event.performer || null;
   if (locale === "en") return event.performer_en || event.performer || null;
   return event.performer || null;

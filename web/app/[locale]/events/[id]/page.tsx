@@ -237,11 +237,12 @@ export default async function EventDetailPage({ params }: PageProps) {
       : { "@type": "Organization", name: "Tokyo Taiwan Radar", url: base };
 
     // performer: output only when DB has a real person name
+    const _performerStr = getEventPerformer(ev as Event, locale);
     const performerLd =
       ev.performers && ev.performers.length > 0
         ? ev.performers.map(n => ({ "@type": "Person", name: n }))
-        : ev.performer
-          ? { "@type": "Person", name: getEventPerformer(ev as Event, locale) }
+        : _performerStr
+          ? { "@type": "Person", name: _performerStr }
           : null;
 
     const directorLd = ev.director
@@ -673,11 +674,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               <div className="flex gap-2">
                 <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("performers")}：</dt>
                 <dd className="text-gray-900">
-                  {locale !== "ja" && ((event as Event).performer_zh || (event as Event).performer_en)
-                    ? getEventPerformer(event as Event, locale)
-                    : ((event as Event).performers ?? []).length > 0
-                      ? (event as Event).performers!.join("、")
-                      : getEventPerformer(event as Event, locale)}
+                  {getEventPerformer(event as Event, locale)}
                 </dd>
               </div>
             )}
