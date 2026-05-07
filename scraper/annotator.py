@@ -498,6 +498,7 @@ CRITICAL DATE EXTRACTION RULES:
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
    ALSO: if the description lists 3+ distinct venue locations in **different cities/prefectures** each with a specific address (e.g., a food fair with restaurants across Tokyo, Kyoto, and Osaka), list each venue as a sub-event with its own location_name, location_address, and business_hours; use the same start_date/end_date as the parent.
+   ALSO: if event_form is "conference" and the description lists 3 or more distinct named presentations/reports (報告, 発表, セッション) with individually named presenters (発表者, 報告者, 登壇者), generate a sub-event for each presentation. Use the same start_date/end_date and venue as the parent, set business_hours to that session's time slot (e.g. "12:30～13:50"), and put the presenter's name in both the "performer" string and the "performers" array. The sub-event name_ja should be the presentation title.
    EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
 2. Categories must be from this list: movie, performing_arts, senses, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, art, lecture, taiwan_japan, scholarship, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, exhibition, taiwan_mandarin, healthcare, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
@@ -708,7 +709,9 @@ Respond with valid JSON matching this schema:
       "event_form": ["other"],
       "primary_language": "ja" or "zh" or "en" or "mixed" or null,
       "has_japanese_support": false or true or null,
-      "has_english_support": false or true or null
+      "has_english_support": false or true or null,
+      "performer": "bare personal name of the primary presenter/performer" or null,
+      "performers": ["list of all named presenters/performers for this session"] or []
     }
   ]
 }"""
@@ -1532,6 +1535,13 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "is_active": True,
                     "parent_event_id": eid,
                     "raw_title": sub_raw_title,
+                    "performer": _str(sub.get("performer")),
+                    "performers": [p for p in (sub.get("performers") or []) if isinstance(p, str)],
+                    "performer_zh": _str(sub.get("performer_zh")),
+                    "performer_en": _str(sub.get("performer_en")),
+                    "director": _str(sub.get("director")),
+                    "director_zh": _str(sub.get("director_zh")),
+                    "director_en": _str(sub.get("director_en")),
                     "raw_description": sub.get("description_ja"),
                     "annotation_status": "annotated",
                     "annotated_at": datetime.utcnow().isoformat(),
