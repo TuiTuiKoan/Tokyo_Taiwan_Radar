@@ -404,6 +404,17 @@ Reference incidents:
 - 2026-05-06 — `ホアン・イーウェン`（bf783b90）performer_zh=黃以文，performer_en=Huang Yi-wen（AI翻譯）；`林依晨`（4 events）performer_zh=林依晨，performer_en=Lin Yi-chen（commits 65a50b9）。
 - 2026-05-06 — 建立 work_id `c3588296` 時 `work_type='conference'` 觸發 check constraint；改用 `'other'`。
 
+## Performer Multi-Person Display Guard（多人表演者顯示防護）
+
+在審核任何涉及 `getEventPerformer()` 或 performers 相關 UI 邏輯的 PR 前，**必須**確認：
+
+1. **`performers[].length ≥ 2` 時，全 locale 一律回傳 `performers[].join("、")`**：`performer_zh/en` 由 annotator 從單一 `performer` 欄位生成（只有 1 人份）。`performers[]` 有多人時優先使用 `performer_zh/en` 會靜默截斷——zh/en 頁面只顯示第 1 人，其餘人名消失。
+2. **單一表演者路徑（`performers[].length ≤ 1`）**：locale-specific translation（`performer_zh/en`）> `performer` > `performers[0]`。
+3. **驗證方式**：查詢 `array_length(performers, 1) >= 2 AND performer_zh IS NOT NULL` 的事件，確認 zh/en 頁面顯示**全部人名**而非只有第 1 人。
+4. **Root cause**：annotator 的 `performer_zh/en` 以 `performer`（單一欄位）為輸入——設計上就是 1 對 1，多人必須走 `performers[]`。
+
+Reference incident: 2026-05-07 — `b2589d75` ガブテックカンファレンス 6 位登壇者，zh/en 頁面只顯示「宮坂 学」1 人（commit `1a38bd5`）。
+
 ## Manual Translation Fix Persistence Guard（手動修翻譯必須鎖 field_corrections）
 
 在審核**任何**直接 SQL UPDATE 翻譯欄位（`name_zh` / `name_en` / `description_zh` / `description_en` / `performer` / `performer_zh` / `performer_en`）的計畫前，**必須**確認：

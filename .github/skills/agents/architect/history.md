@@ -4,6 +4,39 @@
 
 ---
 
+## 2026-05-07 — getEventPerformer() 多人表演者靜默截斷 + 手動停用造成 404 + performers[] 補充
+
+### 案例 A — getEventPerformer() 優先順序 bug（commit 1a38bd5）
+
+**錯誤：** `getEventPerformer()` 在 `performers[].length ≥ 2` 時仍優先回傳 `performer_zh/en`。但 annotator 的 `performer_zh/en` 只從單一 `performer` 欄位生成（1 人份），當 `performers[]` 有多人時，zh/en 頁面靜默只顯示第 1 人，其餘人名全部消失。影響 31 件事件。
+
+**修正：** `performers[].length > 1` 時，所有 locale 直接回傳 `performers[].join("、")`，跳過 `performer_zh/en`；只有單人（`performers[].length ≤ 1`）時才走 locale-specific translation。
+
+```typescript
+// Before（錯誤）：
+if (locale === "zh" && event.performer_zh) return event.performer_zh;
+
+// After（正確）：
+const arr = event.performers ?? [];
+if (arr.length > 1) return arr.join("、");
+if (locale === "zh") return event.performer_zh || event.performer || arr[0] || null;
+```
+
+**教訓：** `performer_zh/en` 為 1 對 1 設計（從單一 `performer` 欄位生成），`performers[]` 為多人陣列設計——兩者語義互不相容。多人情況必須以 `performers[]` 為主，locale-specific 欄位僅用於單人表演者。
+
+### 案例 B — 手動停用過去活動造成 404（事件 `7783734f`）
+
+**錯誤：** `7783734f`（アーティスト・トーク）因 `manually deactivated by admin` 被停用，用戶直接以 URL 分享該頁面時回傳 404。
+**修正：** `is_active = True`，`deactivated_reason = None`。
+**教訓：** 過去的活動（`start_date` 已過）**不應手動停用**，使用者可能以 URL 直連分享，停用會導致 404。停用僅適用於明確無效（重複/不符範圍）的事件，而非「過期」事件。
+
+### 案例 C — performers[] DB 補充與 FC 鎖定
+
+- `7783734f` + 父事件 `1cc93db7`（福岡アジア美術館 AIR 成果展）：`performers = ['チェン・イェンチー', '進藤冬華', 'アルピタ・アカンダ', '小田原ルーカス']`
+- `b2589d75`（ガブテックカンファレンス）：6 人 full list，FC 鎖定
+
+---
+
 ## 2026-05-07 — 三類手動修正案例：Work Title ≠ Event Name、巡演 sub-event 地點繼承、organizer 完全錯誤
 
 ### 案例 A — Work Title ≠ Event Name（`87fd7249` 中村地平）
