@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import type { Announcement, SocialPlatform, Locale } from "@/lib/types";
 import type { Event } from "@/lib/types";
 
@@ -32,12 +33,12 @@ interface Props {
   announcement?: Announcement;
   recentEvents: Pick<Event, "id" | "name_ja" | "name_zh" | "name_en">[];
   locale: Locale;
-  tAdmin: (key: string) => string;
-  tAnn: (key: string) => string;
 }
 
-export default function AnnouncementForm({ announcement, recentEvents, locale, tAdmin, tAnn }: Props) {
+export default function AnnouncementForm({ announcement, recentEvents, locale }: Props) {
   const router = useRouter();
+  const tAnn = useTranslations("announcements");
+  const tAdmin = useTranslations("admin");
   const isEdit = Boolean(announcement?.id);
 
   const [slug, setSlug] = useState(announcement?.slug ?? "");
@@ -292,7 +293,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale, t
             })}
           </div>
           {linkedEvents.length > 0 && (
-            <p className="text-xs text-green-600 mt-1">{tAnn("linkedEventsCount").replace("{n}", String(linkedEvents.length))}</p>
+            <p className="text-xs text-green-600 mt-1">{tAnn("linkedEventsCount", { n: linkedEvents.length })}</p>
           )}
         </div>
       )}

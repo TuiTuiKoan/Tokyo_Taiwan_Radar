@@ -13,7 +13,6 @@ export const dynamic = "force-dynamic";
 
 export default async function NewAnnouncementPage({ params }: PageProps) {
   const { locale } = await params;
-  const t = await getTranslations("admin");
   const tAnn = await getTranslations("announcements");
 
   const supabase = await createClient();
@@ -43,8 +42,6 @@ export default async function NewAnnouncementPage({ params }: PageProps) {
       <AnnouncementForm
         recentEvents={recentEvents ?? []}
         locale={locale}
-        tAdmin={(k) => t(k as Parameters<typeof t>[0])}
-        tAnn={(k) => tAnn(k as Parameters<typeof tAnn>[0])}
       />
     </div>
   );
