@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-05-07 — dec284a5 助成金申請イベントに物理住所が設定されていた
+
+**問題：** `dec284a5`「2026年度第1期台湾書籍翻訳出版助成金申請」の `location_name = '台北駐日経済文化代表処 台湾文化センター'`、`location_address = '東京都港区虎ノ門1-1-12 虎ノ門ビル2階'` — 公募・助成金申請は応募書類を提出する活動であり、参加者が物理的に赴く場所はない。
+**根因：** annotator が主催元（台湾文化センター）の住所を `location` に設定してしまう hallucination。公募ページの本文に住所記載がある場合、それは主催者住所であってイベント開催場所ではない。
+**修正：** `location_name='オンライン'`、`location_address=null`、`location_prefectures=[]` + 3 フィールドを `field_corrections` でロック。
+**教訓：** 公募・助成金・徵件活動（`category` に `competition` 含む、または `name_ja` に「公募」「助成」「募集」「申請」「徵件」を含む）は物理場所を持たない。annotator が主催者住所を場所として設定しがちなため、このカテゴリのイベントは「オンライン」に設定してロックすること。
+
+---
+
 ## 2026-05-07 — note_creators full-article fetch + Vision OCR pipeline 実装
 
 ### A — note_creators full-article fetch（commit `a52f5b2`）
@@ -51,6 +60,24 @@
 **根因：** merger 以日期＋場地＋標題相似度去重，report URL 生成的事件標題含「レポート」，與原始活動標題差異足以繞過 merger 判定。
 **修正：** `994b8c8b` → `merged_into_event_id=3645a3ac`、`is_active=false`；`f7ff56ca` → `is_active=false`、`deactivated_reason='report_article: post-event news report'`。
 **教訓：** Blog/Creator Source Thin Content Guard 已覆蓋 note.com 觀影報導，但 Peatix 等活動來源也可能有 report-article URL；任何 `name_ja` 含「レポート」的事件均須人工確認 `is_active` 是否正確。
+
+---
+
+## 2026-05-07（D）— _SIMP_TO_TRAD_RAW 缺失字元 + Collection Attribution 無蔵字誤判 + 977da793 多項 DB 修正
+
+### A — `_SIMP_TO_TRAD_RAW` 缺少 5 個高頻簡體字（commit `cf2791f`）
+
+**問題：** `description_zh` 中 `语/严/项/摄/书` 未被 `_to_trad()` 轉換為繁體，出現在 `977da793`（林育良 La Tai Mei 展，tokyoartbeat 來源）。
+**修正：** `scraper/annotator.py` `_SIMP_TO_TRAD_RAW` 新增：`语→語, 严→嚴, 项→項, 摄→攝, 书→書`。DB 修正：977da793 description_zh re-annotated + locked FC。
+**根因：** SC→TC 映射表是**增量建立**的，每次生產掃描後補充；過去這 5 個字從未被掃到。Unicode CJK 超過 2 萬個字，`_SIMP_TO_TRAD_RAW` 無法一次全覆蓋。
+**教訓：** 每次生產事件掃描後若發現 `*_zh` 欄位含簡體字，**必須立即補入 `_SIMP_TO_TRAD_RAW` 並 commit**；只修 DB 不補映射，下次 re-annotation 或 enrich 後同樣字元再度出現。映射表為 append-only，不應刪除已有映射。
+
+### B — Collection Attribution 無「蔵」字誤判（commit `cf2791f`）
+
+**問題：** `977da793`（林育良 La Tai Mei 展）`location_name_zh = '台北當代藝術館'`——這是展覽**主題涉及**的機構（展品曾藏於該館），非實際展場；實際展場為 Gallery Biga（京都）。與過去 yebizo 案例不同：**描述中無「蔵」字**，GPT 直接將主題機構誤設為 `location_name_zh`。
+**修正：** `location_name_zh → null`，locked FC；同時修正 `business_hours`（tokyoartbeat 數據 `10:00〜18:00` 錯誤，官網正確為 `13:30〜18:00（月・火曜休）`）；`performers_en → ['Makoto Lin','He Jingchuang']`，locked FC。
+**根因：** Collection Attribution Guard 原有偵測依賴「蔵」字，但「展覽主題機構」案例不含「蔵」字標記，屬未覆蓋的模式。
+**教訓：** Collection Attribution 的錯誤不限於「蔵」字——只要展覽描述**以某機構為主題**，GPT 可能將該機構誤設為 `location_name_zh`。辨識信號：`location_name_zh` 是台灣/海外機構，但 scraper 的 `location_name`（日文原文）是日本場地。
 
 ---
 

@@ -46,8 +46,11 @@ Reference incident: 2026-05-05 — `赤い糸 輪廻のひみつ` 以日文出�
 1. **description_en 中的人名是英文音譯，不是片假名**：GPT 翻譯時已將片假名 → 英文音譯（如 `クー・チェンドン` → `Koo Kuan-Dong`），片假名字串**不在** desc_en 中，`if ja_name in desc_en` 永不命中。
 2. **`description_en` 必須走 `_fix_person_names_gpt_en()` GPT 路徑**（鏡像 desc_zh 的 `_fix_person_names_gpt`）。已於 2026-05-05 修復；任何回退到 katakana direct-replace 的 PR 必須拒絕。
 3. **`enrich_movie_titles` / `enrich_person_names` 成功後必須自動鎖**：透過 `_lock_fields_via_corrections()` upsert 進 `field_corrections` 表，避免下次 re-annotation 覆寫。
+4. **`enrich_person_names()` 必須同時更新所有結構欄位**：此函式不能只修 `description_zh/en`，必須同時更新 `performers_en`（中文名 → 英文）、`performers_zh`（片假名 → 中文）、`director_zh/en`（片假名 → 查 eiga.com）。只修 description 而不修結構欄位是**半套修正**——`performers_en = ['九把刀','柯震東']`（中文名存入英文欄位）是典型症狀。`.select()` 必須包含 `performers, performers_zh, performers_en, director, director_zh, director_en`。
 
-Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan-Dong` 從 5/4 daily CI 後持續未修正；同事件多次手修又被 AI 覆寫，根因為缺 lock。
+Reference incidents:
+- 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan-Dong` 從 5/4 daily CI 後持續未修正；同事件多次手修又被 AI 覆寫，根因為缺 lock。
+- 2026-05-07 — event `f970e4e3`（月老）`performers_en = ['九把刀','柯震東',...]`（中文名存入 en 欄位）；`director_zh = '紀德恩'`（GPT 幻覺音譯）——根因為 `enrich_person_names()` 不更新結構欄位（commit `0f891a7`）。
 
 ## Performer Multilingual Fields Guard（performer_zh/en/director_zh/en）
 
@@ -69,6 +72,32 @@ Reference incidents:
 - 2026-05-08 — commit `65a50b9`：SYSTEM_PROMPT 追加 AI 翻譯標記規則 + 學術大會 performers[] 填寫規則（Incidents A & B）
 - 2026-05-08 — commit `191d939`：migration 053 新增 `performers TEXT[]`（Incident C）
 - 2026-05-08 — commit `3822fb8`：migration 054 新增 `performer_zh`, `performer_en`, `director_zh`, `director_en`（Incident D）
+
+## Application-Only Event Location Guard（公募・助成金・徵件活動の場所ガード）
+
+在審核任何 `category` 含 `competition`、或 `name_ja` / `raw_title` 含「公募」「助成」「募集」「申請」「徵件」「応募」的活動計畫前，**必須**確認：
+
+1. **這類活動不應有物理地址**：公募・助成金・徵件是應募提交型的活動，參加者不需前往特定場所，annotator 常將主辦方住所誤設為 `location_address`。
+2. **正確設定**：
+   - `location_name = 'オンライン'`
+   - `location_address = null`
+   - `location_prefectures = []`
+3. **必須 FC 鎖定三欄**：否則下次 re-annotation 會再次從 raw_description 中的主辦方地址填入。
+4. **偵測 SQL**（定期排查）：
+   ```sql
+   SELECT id, name_ja, location_address
+   FROM events
+   WHERE is_active = true
+     AND annotation_status IN ('annotated', 'reviewed')
+     AND location_address IS NOT NULL
+     AND (name_ja LIKE '%公募%' OR name_ja LIKE '%助成%'
+          OR name_ja LIKE '%募集%' OR name_ja LIKE '%申請%'
+          OR name_ja LIKE '%徵件%' OR name_ja LIKE '%応募%');
+   ```
+
+Reference incident: 2026-05-07 — `dec284a5`「2026年度第1期台湾書籍翻訳出版助成金申請」が台湾文化センターの住所（東京都港区虎ノ門）を持っていた → オンラインに修正・FCロック。
+
+---
 
 ## Annotator name_ja Suffix Omission Guard
 
@@ -586,7 +615,8 @@ Reference incident: 2026-05-08 — `2cae572a`/`10a4ee5d` organizer 被推斷為 
 1. **`〇〇美術館蔵`/`〇〇博物館蔵` 是作品所蔵機關標記，不是活動場地**：GPT 容易將「高雄市立美術館蔵」中的「高雄市立美術館」提取為 `location_name`，這是錯誤的。
 2. **yebizo（東京都写真美術館）的 `location_name` 應固定為「東京都写真美術館」**：無論展品的所蔵機構來自哪個國家或城市，活動場地永遠是東京都写真美術館本身。
 3. **SYSTEM_PROMPT 已有 COLLECTION ATTRIBUTION NOTE**：此規則已注入 GPT 指示，但程式碼層面的 scraper 也應確認 `location_name` 有靜態預設值（如 yebizo scraper 應直接設定 `location_name="東京都写真美術館"`）。
-4. **識別模式**：`raw_description` 中出現「蔵」字緊接機構名，如 `〇〇美術館蔵`/`〇〇博物館蔵`/`〇〇文化基金蔵`，這些是所蔵標記，不是場地。
+4. **識別模式（蔵字）**：`raw_description` 中出現「蔵」字緊接機構名，如 `〇〇美術館蔵`/`〇〇博物館蔵`/`〇〇文化基金蔵`，這些是所蔵標記，不是場地。
+5. **展覽主題機構 ≠ 展場（無「蔵」字的 Collection Attribution 誤判）**：描述中若以某機構（如台北當代藝術館）為**展覽主題或藏品來源**，GPT 可能將該機構誤設為 `location_name_zh`——即使描述中無「蔵」字。辨識信號：`location_name_zh` 是台灣/海外機構名，但 scraper 的 `location_name`（日文原文）是日本場地。應清 `location_name_zh = null` 並鎖 `field_corrections`；同時加強 SYSTEM_PROMPT 說明「展覽主題機構 ≠ 展場」。
 
 **驗證指令（展覽來源 location 掃描）**：
 ```sql
@@ -600,7 +630,9 @@ LIMIT 10;
 -- 應為空結果
 ```
 
-Reference incident: 2026-05-08 — `e37db12e`（yebizo）`location_name='高雄市立美術館'`（作品所蔵元），修正為「東京都写真美術館」（commit `47f8184`）。
+Reference incidents:
+- 2026-05-08 — `e37db12e`（yebizo）`location_name='高雄市立美術館'`（作品所蔵元，含「蔵」字），修正為「東京都写真美術館」（commit `47f8184`）。
+- 2026-05-07 — `977da793`（tokyoartbeat 林育良 La Tai Mei 展）`location_name_zh='台北當代藝術館'`（展覽主題機構，**無「蔵」字**），實際展場為 Gallery Biga（京都）；清為 null（commit `cf2791f`）。
 
 ---
 
@@ -1483,8 +1515,9 @@ Reference: commits `ab3bd9e`（gnews sub-events in all passes）、`5f98b3b`（P
 1. **所有 GPT 輸出必須過 `_to_trad()`**：`enrich_person_names()` 的 GPT 回傳值必須通過模組層級的 `_to_trad()` 函式，防止 SC 字元重新引入。
 2. **`auto_qa --fix` 修正後必須鎖 `field_corrections`**：`fix_simplified()` 轉換完畢後呼叫 `_lock_fields_via_corrections()`，防止下次 re-annotation 再覆寫。
 3. **`_SIMP_TO_TRAD` 字元映射表為模組層級**：不可放在函式內（否則 enrichment 函式呼叫不到）。
+4. **`_SIMP_TO_TRAD_RAW` 是增量建立的映射表（append-only）**：每次生產事件掃描發現新簡體字後，**必須立即補入 `_SIMP_TO_TRAD_RAW` 並 commit**；只修 DB 不補映射，下次 re-annotation 或 enrich 後同樣字元再度出現。高頻已補入字：`语→語, 严→嚴, 项→項, 摄→攝, 书→書`（2026-05-07）。**禁止從映射表刪除已有映射**（append-only 不 append-remove）。
 
-Reference: commits `239cb19`（enrich SC guard）、`6e21c52`（auto_qa lock）。
+Reference: commits `239cb19`（enrich SC guard）、`6e21c52`（auto_qa lock）、`cf2791f`（5 高頻字補入）。
 
 ## workflow_run Self-Loop Guard
 
