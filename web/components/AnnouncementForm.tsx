@@ -32,7 +32,7 @@ function slugify(text: string): string {
 
 interface Props {
   announcement?: Announcement;
-  recentEvents: Pick<Event, "id" | "name_ja" | "name_zh" | "name_en">[];
+  recentEvents: Pick<Event, "id" | "name_ja" | "name_zh" | "name_en" | "location_name" | "start_date">[];
   locale: Locale;
 }
 
@@ -59,7 +59,6 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
     announcement?.published_at ? announcement.published_at.slice(0, 16) : ""
   );
   const [linkedEvents, setLinkedEvents] = useState<string[]>(announcement?.linked_events ?? []);
-  const [eventSearch, setEventSearch] = useState("");
   const [socialStatus, setSocialStatus] = useState(announcement?.social_status ?? {});
   const [publishLocales, setPublishLocales] = useState<Record<SocialPlatform, Locale>>({
     instagram: "ja",
@@ -72,6 +71,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [publishingPlatform, setPublishingPlatform] = useState<SocialPlatform | null>(null);
+  const [eventSearch, setEventSearch] = useState("");
 
   const handleUpload = async (file: File) => {
     setUploading(true);
@@ -336,6 +336,8 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
               ];
               return sorted.map((ev) => {
                 const name = ev[`name_${locale}`] ?? ev.name_ja ?? ev.name_zh ?? ev.name_en ?? ev.id;
+                const dateStr = ev.start_date ? new Date(ev.start_date).toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit" }) : null;
+                const meta = [dateStr, ev.location_name].filter(Boolean).join(" · ");
                 return (
                   <label key={ev.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
                     <input
@@ -344,7 +346,10 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
                       onChange={() => toggleLinkedEvent(ev.id)}
                       className="w-4 h-4 rounded"
                     />
-                    <span className="text-sm truncate">{name}</span>
+                    <span className="text-sm truncate">
+                      {name}
+                      {meta && <span className="text-gray-400 ml-1">{meta}</span>}
+                    </span>
                   </label>
                 );
               });

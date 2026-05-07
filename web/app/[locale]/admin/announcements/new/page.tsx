@@ -24,7 +24,7 @@ export default async function NewAnnouncementPage({ params }: PageProps) {
 
   const { data: recentEvents } = await supabase
     .from("events")
-    .select("id, name_ja, name_zh, name_en")
+    .select("id, name_ja, name_zh, name_en, location_name, start_date")
     .eq("is_active", true)
     .order("created_at", { ascending: false })
     .limit(500);
