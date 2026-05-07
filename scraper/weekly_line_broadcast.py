@@ -349,10 +349,23 @@ def _build_message(
     return "\n".join(lines)
 
 
-def _multicast(user_ids: list[str], message: str, token: str) -> bool:
-    """Send message to up to 500 users per batch."""
+def _multicast(user_ids: list[str], message: str, token: str, image_url: str | None = None) -> bool:
+    """Send message to up to 500 users per batch.
+
+    If image_url is provided, sends an image message followed by the text message
+    in a single API call (LINE supports up to 5 messages per request).
+    image_url must be a public HTTPS URL (e.g. Supabase Storage public URL).
+    """
     if not user_ids:
         return True
+    messages: list[dict] = []
+    if image_url:
+        messages.append({
+            "type": "image",
+            "originalContentUrl": image_url,
+            "previewImageUrl": image_url,
+        })
+    messages.append({"type": "text", "text": message})
     for i in range(0, len(user_ids), 500):
         batch = user_ids[i : i + 500]
         resp = requests.post(
@@ -363,7 +376,7 @@ def _multicast(user_ids: list[str], message: str, token: str) -> bool:
             },
             json={
                 "to": batch,
-                "messages": [{"type": "text", "text": message}],
+                "messages": messages,
             },
             timeout=15,
         )
@@ -464,7 +477,7 @@ def run_send_draft(draft_slug: str | None = None) -> None:
     # Find draft
     q = (
         sb.table("announcements")
-        .select("id, slug, title_zh, body_zh, body_ja, body_en")
+        .select("id, slug, title_zh, body_zh, body_ja, body_en, cover_image_url")
         .eq("type", "weekly_broadcast")
         .is_("published_at", "null")
     )
@@ -501,10 +514,15 @@ def run_send_draft(draft_slug: str | None = None) -> None:
         msg = draft.get(f"body_{lang}") or draft.get("body_zh") or ""
         if not msg:
             continue
-        success = _multicast(user_ids, msg, token)
+        image_url = draft.get("cover_image_url") or None
+        success = _multicast(user_ids, msg, token, image_url=image_url)
         if success:
             sent_total += len(user_ids)
-            logger.info("Sent %s broadcast to %d subscribers", lang.upper(), len(user_ids))
+            logger.info(
+                "Sent %s broadcast to %d subscribers%s",
+                lang.upper(), len(user_ids),
+                " (with image)" if image_url else "",
+            )
 
     # Mark as published
     sb.table("announcements").update({

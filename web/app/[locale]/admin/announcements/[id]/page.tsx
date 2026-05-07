@@ -45,7 +45,7 @@ export default async function EditAnnouncementPage({ params }: PageProps) {
     .select("id, name_ja, name_zh, name_en")
     .eq("is_active", true)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(500);
 
   const title = announcement[`title_${locale}`] ?? announcement.title_zh ?? announcement.title_ja ?? "（無標題）";
 

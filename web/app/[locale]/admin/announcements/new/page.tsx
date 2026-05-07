@@ -27,7 +27,7 @@ export default async function NewAnnouncementPage({ params }: PageProps) {
     .select("id, name_ja, name_zh, name_en")
     .eq("is_active", true)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(500);
 
   return (
     <div>

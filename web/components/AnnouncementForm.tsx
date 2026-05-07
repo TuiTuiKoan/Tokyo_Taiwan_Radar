@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { createClient } from "@/lib/supabase/client";
 import type { Announcement, SocialPlatform, Locale } from "@/lib/types";
 import type { Event } from "@/lib/types";
 
@@ -49,14 +50,16 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
   const [bodyZh, setBodyZh] = useState(announcement?.body_zh ?? "");
   const [bodyEn, setBodyEn] = useState(announcement?.body_en ?? "");
   const [coverImageUrl, setCoverImageUrl] = useState(announcement?.cover_image_url ?? "");
-  const [imageJa, setImageJa] = useState(announcement?.image_ja ?? "");
-  const [imageZh, setImageZh] = useState(announcement?.image_zh ?? "");
-  const [imageEn, setImageEn] = useState(announcement?.image_en ?? "");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const supabase = createClient();
   const [isFeatured, setIsFeatured] = useState(announcement?.is_featured ?? false);
   const [publishedAt, setPublishedAt] = useState(
     announcement?.published_at ? announcement.published_at.slice(0, 16) : ""
   );
   const [linkedEvents, setLinkedEvents] = useState<string[]>(announcement?.linked_events ?? []);
+  const [eventSearch, setEventSearch] = useState("");
   const [socialStatus, setSocialStatus] = useState(announcement?.social_status ?? {});
   const [publishLocales, setPublishLocales] = useState<Record<SocialPlatform, Locale>>({
     instagram: "ja",
@@ -69,6 +72,25 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [publishingPlatform, setPublishingPlatform] = useState<SocialPlatform | null>(null);
+
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { data, error } = await supabase.storage
+        .from("announcements")
+        .upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("announcements").getPublicUrl(data.path);
+      setCoverImageUrl(urlData.publicUrl);
+    } catch (e: unknown) {
+      setUploadError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSlugFromTitle = useCallback(() => {
     if (!slug && titleZh) setSlug(slugify(titleZh));
@@ -91,9 +113,6 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
     body_zh: bodyZh || null,
     body_en: bodyEn || null,
     cover_image_url: coverImageUrl || null,
-    image_ja: imageJa || null,
-    image_zh: imageZh || null,
-    image_en: imageEn || null,
     is_featured: isFeatured,
     published_at: publishedAt ? new Date(publishedAt).toISOString() : null,
     linked_events: linkedEvents,
@@ -220,7 +239,8 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
       {/* Images */}
       <div>
         <p className="text-sm font-medium text-gray-700 mb-2">{tAnn("images")}</p>
-        <div className="space-y-2">
+        <div className="space-y-3">
+          {/* Cover image URL + upload */}
           <div className="flex items-center gap-2">
             <span className="w-24 text-xs text-gray-500 shrink-0">{tAnn("coverImage")}</span>
             <input
@@ -230,23 +250,40 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
               placeholder="https://..."
               className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
             />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="shrink-0 text-xs px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            >
+              {uploading ? "上傳中…" : "📁 上傳"}
+            </button>
           </div>
-          {[
-            { label: "中文 override", value: imageZh, set: setImageZh },
-            { label: "English override", value: imageEn, set: setImageEn },
-            { label: "日本語 override", value: imageJa, set: setImageJa },
-          ].map(({ label, value, set }) => (
-            <div key={label} className="flex items-center gap-2">
-              <span className="w-24 text-xs text-gray-400 shrink-0">{label}</span>
-              <input
-                type="url"
-                value={value}
-                onChange={(e) => set(e.target.value)}
-                placeholder="https://..."
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-              />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleUpload(file);
+              e.target.value = "";
+            }}
+          />
+          {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
+          {coverImageUrl && (
+            <div className="flex items-start gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={coverImageUrl} alt="cover preview" className="w-24 h-16 object-cover rounded border border-gray-200" />
+              <button
+                type="button"
+                onClick={() => setCoverImageUrl("")}
+                className="text-xs text-red-400 hover:text-red-600 mt-1"
+              >
+                移除
+              </button>
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -276,21 +313,42 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
       {recentEvents.length > 0 && (
         <div>
           <p className="text-sm font-medium text-gray-700 mb-2">{tAnn("linkedEvents")}</p>
+          {/* Search box */}
+          <input
+            type="search"
+            placeholder="搜尋活動…"
+            value={eventSearch}
+            onChange={(e) => setEventSearch(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2"
+          />
           <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
-            {recentEvents.map((ev) => {
-              const name = ev[`name_${locale}`] ?? ev.name_ja ?? ev.name_zh ?? ev.name_en ?? ev.id;
-              return (
-                <label key={ev.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                  <input
-                    type="checkbox"
-                    checked={linkedEvents.includes(ev.id)}
-                    onChange={() => toggleLinkedEvent(ev.id)}
-                    className="w-4 h-4 rounded"
-                  />
-                  <span className="text-sm truncate">{name}</span>
-                </label>
-              );
-            })}
+            {(() => {
+              const q = eventSearch.trim().toLowerCase();
+              const filtered = recentEvents.filter((ev) => {
+                if (!q) return true;
+                const name = (ev.name_ja ?? "") + (ev.name_zh ?? "") + (ev.name_en ?? "");
+                return name.toLowerCase().includes(q);
+              });
+              // Checked items first, then unchecked
+              const sorted = [
+                ...filtered.filter((ev) => linkedEvents.includes(ev.id)),
+                ...filtered.filter((ev) => !linkedEvents.includes(ev.id)),
+              ];
+              return sorted.map((ev) => {
+                const name = ev[`name_${locale}`] ?? ev.name_ja ?? ev.name_zh ?? ev.name_en ?? ev.id;
+                return (
+                  <label key={ev.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                    <input
+                      type="checkbox"
+                      checked={linkedEvents.includes(ev.id)}
+                      onChange={() => toggleLinkedEvent(ev.id)}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm truncate">{name}</span>
+                  </label>
+                );
+              });
+            })()}
           </div>
           {linkedEvents.length > 0 && (
             <p className="text-xs text-green-600 mt-1">{tAnn("linkedEventsCount", { n: linkedEvents.length })}</p>
