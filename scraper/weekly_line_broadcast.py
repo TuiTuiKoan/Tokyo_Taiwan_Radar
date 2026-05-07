@@ -318,9 +318,9 @@ def _build_message(
     week_end = today + timedelta(days=6)
 
     headers = {
-        "zh": ("🗓 東京台灣雷達 — 本週精選活動", "【本週活動】", "【下個月不可錯過】"),
-        "ja": ("🗓 東京台湾レーダー — 今週のおすすめイベント", "【今週のハイライト】", "【来月の注目イベント】"),
-        "en": ("🗓 Tokyo Taiwan Radar — Weekly Highlights", "【This Week】", "【Coming Next Month】"),
+        "zh": ("🗓 東京台灣雷達 — 活動精選", "【近期活動】", "【下個月不可錯過】"),
+        "ja": ("🗓 東京台湾レーダー — 注目イベント", "【近日開催】", "【来月の注目】"),
+        "en": ("🗓 Tokyo Taiwan Radar — Event Picks", "【Upcoming Events】", "【Don't Miss Next Month】"),
     }
     h_title, h_week, h_month = headers[lang]
 
@@ -420,7 +420,10 @@ def run_generate_draft() -> None:
         return
 
     slug = f"weekly-{today.strftime('%Y-%m-%d')}"
-    title_zh = f"🗓 東京台灣雷達週報 {today.strftime('%Y/%m/%d')}"
+    date_str = today.strftime('%Y/%m/%d')
+    title_zh = f"🗓 東京台灣雷達「一週偵測」 {date_str}"
+    title_ja = f"🗓 東京台湾レーダー「週間探知」 {date_str}"
+    title_en = f"🗓 Tokyo Taiwan Radar 'Weekly Scan' {date_str}"
     body_zh = _build_message(weekly_events, monthly_events, "zh", base_url, today)
     body_ja = _build_message(weekly_events, monthly_events, "ja", base_url, today)
     body_en = _build_message(weekly_events, monthly_events, "en", base_url, today)
@@ -432,6 +435,8 @@ def run_generate_draft() -> None:
             "slug": slug,
             "type": "weekly_broadcast",
             "title_zh": title_zh,
+            "title_ja": title_ja,
+            "title_en": title_en,
             "body_zh": body_zh,
             "body_ja": body_ja,
             "body_en": body_en,
