@@ -113,7 +113,7 @@ export default async function EventDetailPage({ params }: PageProps) {
   // Fetch sub-events (children of this event)
   const { data: subEvents } = await supabase
     .from("events")
-    .select("id, name_ja, name_zh, name_en, start_date, end_date, category, location_address, performer, performer_zh, performer_en, performers")
+    .select("id, name_ja, name_zh, name_en, start_date, end_date, category, location_address")
     .eq("parent_event_id", id)
     .eq("is_active", true)
     .order("start_date", { ascending: true });
@@ -835,11 +835,6 @@ export default async function EventDetailPage({ params }: PageProps) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800 line-clamp-1">{subName}</p>
-                    {getEventPerformer(sub as Event, locale) && (
-                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
-                        {getEventPerformer(sub as Event, locale)}
-                      </p>
-                    )}
                     {sub.category?.slice(0, 2).map((cat: string) => (
                       <span key={cat} className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded mr-1">
                         {tCat(cat as any)}
