@@ -107,12 +107,26 @@ from sources.tsudoi_osaka import TsudoiOsakaScraper
 from sources.cine_gallery import CineGalleryScraper
 from sources.ginsee import GinseeRobleScraper, GinseeHikarizaScraper
 from sources.united_cinemas import UnitedCinemasScraper
+from sources.kbc_cinema import KbcCinemaScraper
+from sources.kino_shinsaibashi import KinoCinemaShinsaibashiScraper
+from sources.kyoto_cinema import KyotoCinemaScraper
 from sources.transit_store import TransitStoreScraper
 from sources.go_taiwan import GoTaiwanScraper
 from sources.taiwan_festa import TaiwanFestaScraper
 from sources.tiff import TiffJpScraper
 from sources.rightscube import RightscubeScraper
 from sources.walkerplus import WalkerplusScraper
+from sources.ttcg_kansai import TtcgUmedaScraper, CinelibreKobeScraper
+from sources.kawasaki_ac import KawasakiAcScraper
+from sources.midland_cinema import MidlandCinemaScraper
+from sources.cinemadict import CinemadictScraper
+from sources.theater_enya import TheaterEnyaScraper
+from sources.starcat_cinema import StarcatCinemaScraper
+from sources.cinewind import CinewindScraper
+from sources.ycam_cinema import YcamCinemaScraper
+from sources.otto import OttoScraper
+from sources.amayaza import AmayazaScraper
+from sources.theater_kino import TheaterKinoScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -204,12 +218,27 @@ SCRAPERS = [
     GinseeRobleScraper(),
     GinseeHikarizaScraper(),
     UnitedCinemasScraper(),
+    KbcCinemaScraper(),
+    KinoCinemaShinsaibashiScraper(),
+    KyotoCinemaScraper(),
     TransitStoreScraper(),
     GoTaiwanScraper(),
     TaiwanFestaScraper(),
     TiffJpScraper(),
     RightscubeScraper(),
     WalkerplusScraper(),
+    TtcgUmedaScraper(),
+    CinelibreKobeScraper(),
+    KawasakiAcScraper(),
+    MidlandCinemaScraper(),
+    CinemadictScraper(),
+    TheaterEnyaScraper(),
+    StarcatCinemaScraper(),
+    CinewindScraper(),
+    YcamCinemaScraper(),
+    OttoScraper(),
+    AmayazaScraper(),
+    TheaterKinoScraper(),
 ]
 
 

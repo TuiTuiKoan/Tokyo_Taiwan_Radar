@@ -1,7 +1,7 @@
 ---
 title: Architecture Overview
 description: 東京台灣雷達全站架構總覽 — 爬蟲、翻譯、資料庫、前端、CI/CD、LINE Bot
-ms.date: 2026-05-06
+ms.date: 2026-05-07
 ---
 
 ## 系統總覽
@@ -10,7 +10,7 @@ ms.date: 2026-05-06
 ┌────────────────────────────────────────────────────────────────┐
 │                    GitHub Actions（每日 09:00 JST）              │
 │                                                                │
-│  1. main.py ──→ 50+ scrapers ──→ database.py ──→ Supabase     │
+│  1. main.py ──→ 80+ scrapers ──→ database.py ──→ Supabase     │
 │  2. merger.py ──→ 跨來源去重                                    │
 │  3. annotator.py ──→ GPT-4o-mini 標注 14 欄位                   │
 │  4. annotator.py --enrich-movie-titles ──→ eiga.com 官方片名    │
