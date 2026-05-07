@@ -4,6 +4,88 @@
 
 ---
 
+## 2026-05-09 — works 表片假名人名中文化
+
+**任務：** works 表 6 筆片假名人名 → 中文人名轉換 + 英文標題補全（DB-only，無程式碼變更）
+
+### 修正明細（全部手動 SQL 更新）
+
+| work | field | before | after |
+|------|-------|--------|-------|
+| fd225042 月老 (赤い糸) | director | ギデン ズ・コー | 九把刀 |
+| fd225042 月老 | cast_summary | クー・チェンドン、ビビアン・ソン、ワン・ジン | 柯震東、宋芸樺、王淨 |
+| 0d69a88f 大濛 (霧のごとく) | director | チェン・ユーシュン | 陳玉勳 |
+| 0d69a88f 大濛 | cast_summary | ケイトリン・ファン、ウィル・オー、9m88、ツェン・ジンホア | 范少勳、區偉、9m88、曾敬驊 |
+| 8ecdb06b 優雅的相遇 (優雅な邂逅) | cast_summary | リン・チェンシュン、レイ・ジエシー、ワン・シャオユエ、ヨウ・シェンフォン | 林宸順、雷傑西、王曉月、游聖峰 |
+| dc8f1d36 尋找湯德章 | director | 黄明川（ホアン・ミンツァン）/ 連楨惠（リェン・チェンフイ） | 黃明川、連楨惠 |
+| b0a69d83 但願人長久 (テレサ・テン) | title_en | null | May We Live Long |
+| f81c77c9 種土 (ソウル・オブ・ソイル) | cast_summary | アレン（阿仁）、アンホー（安和） | 阿仁、安和 |
+
+### 驗證來源
+
+- **月老**：九把刀/柯震東/宋芸樺/王淨 — 高確信度（知名演員，廣泛公開資料）
+- **大濛**：eiga.com/movie/105857/ 確認演員列表；`ケイトリン・ファン = 范少勳`（英文藝名 Caitlin Fan）、`ウィル・オー = 區偉`
+- **優雅な邂逅**：GPT-4o 音譯還原（林宸順/雷傑西/王曉月/游聖峰 音韻對應驗證）
+- **湯德章**：格式清理，移除片假名括弧讀音，統一用頓號分隔
+- **テレサ・テン**：GPT-4o 確認英文劇名 "May We Live Long"（但願人長久之英譯）
+- **ソウル・オブ・ソイル**：清理括弧格式（阿仁/安和為暱稱，直接保留）
+
+### 關鍵教訓
+
+1. **eiga.com person 頁面不含中文原名**：eiga.com 以英文藝名注音（音譯自英文名），無法直接用來取得中文名，需另查維基百科或官方資料。
+2. **片假名→中文轉換需 GPT-4o + 音韻分析**：GPT-4o-mini 準確度不足；藝名/筆名（如九把刀）無語音對應關係，必須用已驗證名單（`_KNOWN_PERSON_MAP`）或人工確認。
+3. **works 表不受 `field_corrections` 保護**：events 表有 `field_corrections` 鎖定機制，works 表無。若需防止 annotator/backfill 覆寫，需手動設計保護機制（migration 或程式碼層過濾）。
+4. **ケイトリン・ファン = 范少勳 確認方式**：eiga.com 以英文藝名 "Caitlin Fan" 注音，非中文名音譯，因此需獨立查詢確認中文名。
+
+---
+
+## 2026-05-09 — `_KNOWN_PERSON_MAP` GPT 人名翻譯覆寫機制 + `performers_zh/en` 多語言陣列 + 非活躍事件 backfill + 翻譯規則確立
+
+### A — `_KNOWN_PERSON_MAP` — GPT 藝名/筆名翻譯失敗（annotator.py）
+
+**問題：** `backfill_performer_i18n()` 使用 GPT 翻譯片假名導演/表演者名，GPT 對**藝名/筆名**（筆名與片假名無語音對應關係）產生錯誤音譯：
+- `ギデンズ・コー` → `基登斯·高（AI翻譯）`（錯）→ 正確：`九把刀` / `Giddens Ko`
+- `ロー・ウェイ` → `Lau Wai`（錯）→ 正確：`羅維` / `Lo Wei`
+
+**根因：** GPT 無法從片假名反推藝名。`九把刀`（Giddens Ko）是筆名，與 `ギデンズ・コー` 無漢字對應關係；GPT 只能做語音推測，必然失敗。
+
+**修正：** `annotator.py` 新增模組級 `_KNOWN_PERSON_MAP`（14 筆已驗證名人）。三個整合點：
+1. 主 annotation loop：performer/director GPT 輸出自動被 KNOWN_MAP 覆寫
+2. `performers[]` 陣列翻譯：per-element KNOWN_MAP 檢查
+3. `backfill_performer_i18n()`：新增 Layer 0 — 已知名字直接跳過 GPT
+
+**DB 修正：** 11 筆事件：4x ギデンズ・コー、5x チェン・ユーシュン、1x ロー・ウェイ、1x イェン・ランチュアン（大小寫）、4x ホアン・ウェンイン、1x 北村豊晴・蕭力修（清除錯誤 EN）
+
+**教訓：** GPT 無法可靠翻譯藝名/筆名（片假名 ↔ 非語音漢字對應）。`_KNOWN_PERSON_MAP` hardcoded 驗證名單是唯一可靠解法。新增名人時需三語同時驗證（ja/zh/en），資料來源以 eiga.com、官方網站、Wikipedia 為準。
+
+### B — `performers_zh[]` / `performers_en[]` 多語言陣列（migration 056）
+
+**問題：** 多人事件只有 `performers[]`（日文），中英頁面顯示日文名。
+**修正：** migration 056 新增 `performers_zh TEXT[]`、`performers_en TEXT[]`；`getEventPerformer()` 多人分支優先使用語言對應陣列；Event dataclass / `database.py` 同步更新；178 筆事件 backfill 完成。
+**教訓：** 多語言陣列欄位新增時，前端 helper（`getEventPerformer`）必須同步更新 locale 優先序。array 長度判斷（`≥ 2`）必須在 locale-specific lookup 之前。
+
+### C — 非活躍事件 performer/director 翻譯缺失
+
+**問題：** `backfill_performer_i18n()` 僅處理 `is_active=True`，46 筆非活躍事件有 performer/director 但無翻譯。
+**修正：** 一次性批次腳本 backfill 非活躍事件。不確定片假名名字（無驗證來源）依翻譯規則設 NULL。
+**教訓：** backfill 腳本的 `is_active` 過濾條件需明確設計：若目標是「所有有值的事件」則不應限定 active-only。
+
+### D — 使用者翻譯規則確立（嚴格執行）
+
+本次 session 確立並嚴格執行的翻譯規則：
+1. **拉丁字母名** → 原樣保留，不翻譯
+2. **CJK 漢字名無驗證來源** → 不翻譯（zh: 照抄漢字，en: 跳過）
+3. **日文名無完整漢字** → 不翻譯成中文
+4. **片假名音譯** → 僅在有驗證來源時翻譯（`_KNOWN_PERSON_MAP`）
+
+### E — Director 翻譯 pipeline 確認正常
+
+**問題：** 事件 `4a8772ec` 前端顯示錯誤 `director_zh`，懷疑 pipeline/UI bug。
+**確認：** UI `getEventDirector(event, locale)` 在 JSON-LD 和頁面渲染均正確使用。問題純屬資料品質（GPT 填入錯誤 `director_zh`），非 pipeline/UI 問題。
+**教訓：** 翻譯顯示問題優先查 DB 資料品質，再查 pipeline/UI 邏輯。
+
+---
+
 ## 2026-05-07 — note_creators full-article fetch + Vision OCR pipeline 実装
 
 ### A — note_creators full-article fetch（commit `a52f5b2`）
