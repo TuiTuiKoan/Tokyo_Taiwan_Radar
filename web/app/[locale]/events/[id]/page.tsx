@@ -4,7 +4,7 @@ import { createClient as createSsrClient } from "@/lib/supabase/server";
 import { unstable_noStore } from "next/cache";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { type Locale, type Event, getEventName, getEventDescription, getEventLocationName, getEventLocationAddress, getEventBusinessHours, getEventPerformer, getEventDirector } from "@/lib/types";
+import { type Locale, type Event, getEventName, getEventDescription, getEventLocationName, getEventLocationAddress, getEventBusinessHours, getEventPerformer, getEventDirector, getEventOrganizer } from "@/lib/types";
 import SaveButton from "@/components/SaveButton";
 import RawDataSection from "@/components/RawDataSection";
 import ReportSection from "@/components/ReportSection";
@@ -229,7 +229,7 @@ export default async function EventDetailPage({ params }: PageProps) {
     const organizerLd = ev.organizer
       ? {
           "@type": "Organization",
-          name: ev.organizer,
+          name: getEventOrganizer(ev as Event, locale) || ev.organizer,
           ...(ev.organizer_url ?? ev.official_url
             ? { url: ev.organizer_url ?? ev.official_url }
             : {}),
@@ -656,10 +656,10 @@ export default async function EventDetailPage({ params }: PageProps) {
                       rel="noopener noreferrer"
                       className="text-green-700 hover:underline"
                     >
-                      {(event as Event).organizer} ↗
+                      {getEventOrganizer(event as Event, locale)} ↗
                     </a>
                   ) : (
-                    (event as Event).organizer
+                    getEventOrganizer(event as Event, locale)
                   )}
                   {((event as Event).organizer_type ?? [])[0] &&
                     ((event as Event).organizer_type ?? [])[0] !== "unknown" && (

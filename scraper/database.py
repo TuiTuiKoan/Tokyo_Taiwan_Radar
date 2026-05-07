@@ -117,6 +117,10 @@ def _event_to_row(event: Event) -> dict[str, Any]:
     # organizer_url and price_amount pass through (annotator already filtered).
     if event.organizer_url is not None:
         row["organizer_url"] = event.organizer_url
+    if event.organizer_zh is not None:
+        row["organizer_zh"] = event.organizer_zh
+    if event.organizer_en is not None:
+        row["organizer_en"] = event.organizer_en
     if event.price_amount is not None:
         row["price_amount"] = event.price_amount
     if isinstance(event.price_currency, str) and _CURRENCY_RE_DB.match(event.price_currency):

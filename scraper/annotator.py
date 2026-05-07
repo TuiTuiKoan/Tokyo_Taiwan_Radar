@@ -293,6 +293,20 @@ _KNOWN_PERSON_MAP: dict[str, tuple[str, str]] = {
     "ホアン・ウェンイン": ("黃文英", "Huang Wen-Ying"),
 }
 
+# Known organizer name mappings — prevents GPT mis-translation of frequent organizers.
+_KNOWN_ORGANIZER_MAP: dict[str, tuple[str, str]] = {
+    "台湾文化センター": ("台灣文化中心", "Taiwan Cultural Center"),
+    "台北駐日経済文化代表処台湾文化センター": ("台北駐日經濟文化代表處台灣文化中心", "Taipei Economic and Cultural Representative Office in Japan, Taiwan Cultural Center"),
+    "台北駐日経済文化代表処": ("台北駐日經濟文化代表處", "Taipei Economic and Cultural Representative Office in Japan"),
+    "福岡アジア美術館": ("福岡亞洲美術館", "Fukuoka Asian Art Museum"),
+    "東京国際映画祭": ("東京國際影展", "Tokyo International Film Festival"),
+    "日本台湾学会": ("日本台灣學會", "Japan Association for Taiwan Studies"),
+    "台湾史研究会": ("台灣史研究會", "Taiwan History Research Association"),
+    "早稲田大学": ("早稻田大學", "Waseda University"),
+    "ショートショート フィルム フェスティバル & アジア": ("短片電影節 & 亞洲", "Short Shorts Film Festival & Asia"),
+    "安倍晋三研究センター": ("安倍晉三研究中心", "Abe Shinzo Research Center"),
+}
+
 # Pattern matching slot identifiers used in academic conference programs.
 # When raw_title matches, GPT may extract the actual presentation title
 # from the 題目：line in raw_description.
@@ -697,6 +711,8 @@ Respond with valid JSON matching this schema:
   "price_info": "price details" or null,
   "location_url": "official website URL of the venue, extracted from the text only — NEVER infer or hallucinate; set null if not explicitly stated" or null,
   "organizer": "primary host name in original language" or null,
+  "organizer_zh": "Traditional Chinese name of the primary organizer. If explicitly in source: use as-is. If translated from Japanese: append\u300c\uff08AI\u7ffb\u8b6f\uff09\u300d" or null,
+  "organizer_en": "English name of the primary organizer. If explicitly in source: use as-is. If translated: append ' (AI translated)'" or null,
   "co_organizers": ["co-host name", "..."],
   "co_organizer_types": ["civic_group"],
   "sponsors": ["sponsor name", "..."],
@@ -1361,6 +1377,20 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "annotation_status": "annotated",
                     "annotated_at": datetime.utcnow().isoformat(),
                 }
+                # Organizer translations — KNOWN_ORGANIZER_MAP overrides GPT
+                if update_data.get("organizer"):
+                    _org_name = update_data["organizer"]
+                    if _org_name in _KNOWN_ORGANIZER_MAP:
+                        _ko_zh, _ko_en = _KNOWN_ORGANIZER_MAP[_org_name]
+                        update_data["organizer_zh"] = _ko_zh
+                        update_data["organizer_en"] = _ko_en
+                    else:
+                        _org_zh = _to_trad(_str(annotation.get("organizer_zh")))
+                        _org_en = _str(annotation.get("organizer_en"))
+                        if _org_zh:
+                            update_data["organizer_zh"] = _org_zh
+                        if _org_en:
+                            update_data["organizer_en"] = _org_en
                 # Performer: DB existing value (if protected) → deterministic regex → GPT.
                 # Never overwrite a field_corrections-protected value.
                 if "performer" not in _human_protected:
@@ -1474,7 +1504,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                         ):
                             if not update_data.get(_lf):
                                 update_data[_lf] = _parent_event.get(_lf)
-                    for _pf in ("organizer", "organizer_type", "co_organizers", "co_organizer_types", "sponsors", "sponsor_types", "performer"):
+                    for _pf in ("organizer", "organizer_zh", "organizer_en", "organizer_type", "co_organizers", "co_organizer_types", "sponsors", "sponsor_types", "performer"):
                         if not update_data.get(_pf):
                             update_data[_pf] = _parent_event.get(_pf)
 

@@ -113,6 +113,8 @@ class Event:
 
     # Tier 2 schema.org Event JSON-LD fields (migration 037).
     organizer_url: Optional[str] = None
+    organizer_zh: Optional[str] = None
+    organizer_en: Optional[str] = None
     price_amount: Optional[float] = None
     price_currency: Optional[str] = "JPY"
     event_status: Optional[str] = "scheduled"

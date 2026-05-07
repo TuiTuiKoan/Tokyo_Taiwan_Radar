@@ -48,6 +48,8 @@ export interface Event {
   created_at: string;
   updated_at: string;
   organizer?: string | null;
+  organizer_zh?: string | null;
+  organizer_en?: string | null;
   organizer_url?: string | null;
   organizer_type?: string[] | null;
   co_organizers?: string[] | null;
@@ -289,6 +291,13 @@ export function getEventLocationName(event: Event, locale: Locale): string | nul
   if (locale === "zh") return event.location_name_zh || event.location_name;
   if (locale === "en") return event.location_name_en || event.location_name;
   return event.location_name;
+}
+
+/** Return the localized organizer name (falls back to Japanese original). */
+export function getEventOrganizer(event: Event, locale: Locale): string | null {
+  if (locale === "zh") return event.organizer_zh || event.organizer || null;
+  if (locale === "en") return event.organizer_en || event.organizer || null;
+  return event.organizer || null;
 }
 
 /** Return the localized address (falls back to Japanese original). */
