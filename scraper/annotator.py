@@ -1346,6 +1346,18 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                         if _valid_performers:
                             update_data["performers"] = _valid_performers
 
+                # Sync performer → performers[] when performers[] would be empty.
+                # This ensures UI can always read performers[] without falling back to performer.
+                _existing_performers = event.get("performers") or []
+                _incoming_performers = update_data.get("performers") or []
+                if (
+                    update_data.get("performer")
+                    and not _existing_performers
+                    and not _incoming_performers
+                    and "performers" not in _human_protected
+                ):
+                    update_data["performers"] = [update_data["performer"]]
+
                 # Performer translations
                 if update_data.get("performer"):
                     _perf_zh = _to_trad(_str(annotation.get("performer_zh")))
