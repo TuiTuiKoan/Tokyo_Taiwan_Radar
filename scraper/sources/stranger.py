@@ -207,8 +207,11 @@ class StrangerScraper(BaseScraper):
         open_year: str = str(data.get("openYear", "") or "")
         running_time: int = int(data.get("durationMin", 0) or 0)
 
-        start_date = entry["min_date"]
-        end_date = entry["max_date"]
+        # Convert JST-aware datetimes to UTC-midnight date strings to avoid
+        # the JST+9 offset causing the date to shift back to the previous day
+        # when stored as UTC in Supabase (e.g. JST 2026-05-08 00:00 → UTC 15:00 prev day).
+        start_date = entry["min_date"].replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+        end_date = entry["max_date"].replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
 
         # Build raw_description — prepend date marker per scraper conventions
         synopsis_text = _decode_synopsis(synopsis_b64)
