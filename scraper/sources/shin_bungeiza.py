@@ -256,13 +256,13 @@ class ShinBungeizaScraper(BaseScraper):
             if end_day_m:
                 end_day = int(end_day_m.group(1))
                 try:
-                    end_date: datetime | None = datetime(start_date.year, start_date.month, end_day, tzinfo=_JST)
+                    end_date: datetime | None = datetime(start_date.year, start_date.month, end_day, tzinfo=timezone.utc)
                     # Handle month wrap (e.g. start 5/30, end day 6 → must be 6/6)
                     if end_date < start_date:
                         # Try adding a month
                         next_month = start_date.month % 12 + 1
                         next_year = start_date.year + (1 if start_date.month == 12 else 0)
-                        end_date = datetime(next_year, next_month, end_day, tzinfo=_JST)
+                        end_date = datetime(next_year, next_month, end_day, tzinfo=timezone.utc)
                 except ValueError:
                     end_date = start_date
             else:
@@ -315,10 +315,10 @@ class ShinBungeizaScraper(BaseScraper):
             else:
                 em, ed = sm, int(m.group(3))
             year = _infer_year(sm, today)
-            start = datetime(year, sm, sd, tzinfo=_JST)
+            start = datetime(year, sm, sd, tzinfo=timezone.utc)
             end_year = year if em >= sm else year + 1
             try:
-                end = datetime(end_year, em, ed, tzinfo=_JST)
+                end = datetime(end_year, em, ed, tzinfo=timezone.utc)
             except ValueError:
                 end = start
             return start, end
@@ -327,7 +327,7 @@ class ShinBungeizaScraper(BaseScraper):
         if m2:
             sm, sd = int(m2.group(1)), int(m2.group(2))
             year = _infer_year(sm, today)
-            dt = datetime(year, sm, sd, tzinfo=_JST)
+            dt = datetime(year, sm, sd, tzinfo=timezone.utc)
             return dt, dt
 
         return None, None
