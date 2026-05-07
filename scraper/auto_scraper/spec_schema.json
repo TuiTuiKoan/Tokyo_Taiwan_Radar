@@ -15,8 +15,8 @@
   "properties": {
     "source_name": {"type": "string", "pattern": "^[a-z][a-z0-9_]{1,30}$"},
     "class_name": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]{1,40}$"},
-    "base_url": {"type": "string", "pattern": "^https://"},
-    "search_url": {"type": "string", "pattern": "^https://"},
+    "base_url": {"type": "string", "pattern": "^https?://"},
+    "search_url": {"type": "string", "pattern": "^https?://"},
     "search_keyword": {"type": "string", "default": "%E5%8F%B0%E6%B9%BE"},
     "max_pages": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5},
     "card_selector": {"type": "string", "minLength": 1},

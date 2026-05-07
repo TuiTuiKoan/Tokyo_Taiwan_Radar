@@ -86,6 +86,11 @@ CRITICAL — Selector grounding rule:
 - Before outputting each selector, scan the sample HTML and confirm the class/id/tag is present.
 - If you cannot find any clear class to anchor on, prefer tag selectors (e.g. "article", "li.article-list", "div.post") over making up class names.
 - Empty card_selector or selectors that match nothing will cause sandbox failure and waste an expensive retry.
+
+CRITICAL — card_selector must be a CONTAINER element:
+- card_selector must select a CONTAINER element (div, li, article, section, tr) that WRAPS the title, date, and link as DESCENDANTS.
+- NEVER use the title or heading element itself (h1, h2, h3, h4, h5, h6, a, span) as card_selector — field_selectors cannot find elements inside a leaf node.
+- Test mentally: can you find field_selectors.title inside card_selector? If card_selector IS the title element, the answer is always no.
 """
 
 logger = logging.getLogger(__name__)
