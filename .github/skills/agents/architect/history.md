@@ -4,6 +4,81 @@
 
 ---
 
+## 2026-05-07 — note_creators full-article fetch + Vision OCR pipeline 実装
+
+### A — note_creators full-article fetch（commit `a52f5b2`）
+
+**問題：** `note_creators.py` が RSS の「続きをみる」truncated text しか取得できず、`start_date` が記事発布時間にフォールバック、`image_url` も未取得だった（`2cae572a` start_date=2026-03-17 問題の根本原因）。
+**修正：** `_fetch_article_content(url, session) → (body_text, image_url | None)` 実装 — JSON-LD `articleBody` → `description` → BS4 `<p>` フォールバックで本文取得 + `og:image` URL 抽取。`_BODY_DATE_RE` + `_parse_date_from_body()` で本文から日時を直接抽出（パターン：`📅 2026年4月6日`、`日時：4/6` 等）。thin content（39 字以下）検知時は `time.sleep(1)` + detail page fetch を自動実行。
+**教訓：** Blog/Creator Source では必ず detail page fetch を試みること。RSS snippet のみに依存すると `start_date` が記事発布時間になる系統的問題がある（Blog/Creator Source Thin Content Guard 適用）。
+
+### B — Vision OCR pipeline `enrich_poster.py` 新規実装（commit `a52f5b2`）
+
+**新機能：** GPT-4o Vision でイベントポスター画像から date/venue/organizer を抽出する enrichment pipeline。
+**設計：** `confidence ≥ 0.8` で適用 + 全フィールドを `field_corrections` でロック。**Thin Content Guard**：`raw_description < 100 字` の場合は `organizer` 非適用（date/venue のみ）— GPT が外部知識から organizer を hallucinate するリスク防止。migration 057（`events.image_url TEXT`）+ `Event` dataclass / `database.py` に `image_url` フィールド追加。CI：`scraper.yml` の annotator ステップ直後に `Run Vision OCR enrichment` ステップ追加。
+**教訓：** Vision OCR enrichment でも Organizer Non-Hallucination Guard と同様のリスクがある。thin content の場合は organizer 適用を無効化し date/venue のみに限定すること。
+
+---
+
+## 2026-05-07 — f7ff56ca name_ja「レポート」suffix が annotator によって削除
+
+**問題：** イベント `f7ff56ca`（台湾文化センター台湾映画上映会2025 映画『優雅な邂逅』トークイベント）で `raw_title = '...トークイベント レポート'` に対して `name_ja = '...トークイベント'`（「レポート」が脱落）。`category: ['movie','lecture','report']` のデータは正常だが、タイトルに「レポート」が見えないことでカテゴリバッジ調査中に発覚。
+**根因：** annotator が `raw_title` → `name_ja` 変換時に後置された分類語（「レポート」）を「タイトルの装飾語」と判断して削除する挙動がある。カテゴリは `report` が付与されているにもかかわらずタイトルから脱落していた。
+**修正：** `name_ja` を `raw_title` 通り「...トークイベント レポート」に復元 + `field_corrections` でロック。
+**教訓：** カテゴリバッジ表示問題のデバッグ時は、DB の `category` が正常でも `name_ja` が `raw_title` から乖離している可能性がある。「レポート」「告知」「詳細」等の後置分類語は annotator に削除されやすい。調査時は必ず `raw_title` vs `name_ja` の diff を確認すること。
+
+---
+
+## 2026-05-08（A–C）— 優雅的相遇 work 標題錯誤 + 事件 name_zh 不自動同步 + report-article URL 衍生重複事件
+
+### A — work 記錄 GPT 生成錯誤片名（work `8ecdb06b`）
+
+**問題：** `original_title = '優雅的邂逅'`、`title_en = 'An Elegant Meeting'` 為 GPT 幻覺；eiga.com（/movie/103815/）正解為 `original_title='優雅的相遇'`、`title_en='Intimate Encounter'`；`director`/`release_year`/`cast_summary` 全為 null。
+**根因：** work 建立時 eiga.com lookup pipeline 未執行；annotator 直接用 GPT 生成中文/英文片名，產生看似合理的錯誤翻譯（邂逅 vs 相遇、An Elegant Meeting vs Intimate Encounter）。
+**修正：** 手動查 eiga.com，更新 work 全部欄位（original_title、title_zh、title_en、director、release_year、cast_summary）並鎖 `field_corrections`。
+**教訓：** `director`/`release_year` 同時為 null 是 eiga.com lookup 從未執行的**強訊號**；審查 work 記錄時必須先確認這兩欄是否已填。
+
+### B — works.title_zh 錯誤不自動傳播至 events.name_zh
+
+**問題：** 修正 `works.title_zh` 後，已存在 DB 的 linked events `name_zh` 不自動更新，3 個事件均需個別手動修正並鎖 `field_corrections`。
+**根因：** events 的 name 欄位在 annotator 初次寫入後與 works 完全解耦；`work_id` 關聯只用於前端 join，不觸發欄位同步。
+**修正：** `SELECT id FROM events WHERE work_id = '<id>'` → 逐一更新 name_zh/en → 鎖 FC。
+**教訓：** 修正 `work.title_zh` 時，**必須**同步查詢所有 linked events 並逐一修正各事件的 name_zh/en；否則前端展示正確，但 events 表內部值仍是舊片名。
+
+### C — report-article URL 衍生重複事件（994b8c8b、f7ff56ca）
+
+**問題：** `994b8c8b` 來自台灣文化中心 Peatix「座談レポート」URL（s=244302）；該頁面提及 2025-10-04 活動日期，scraper 抓取後生成與 `3645a3ac`（同場座談原始 URL）重複的事件。`f7ff56ca` 同樣為映後報告文章被誤入庫。
+**根因：** merger 以日期＋場地＋標題相似度去重，report URL 生成的事件標題含「レポート」，與原始活動標題差異足以繞過 merger 判定。
+**修正：** `994b8c8b` → `merged_into_event_id=3645a3ac`、`is_active=false`；`f7ff56ca` → `is_active=false`、`deactivated_reason='report_article: post-event news report'`。
+**教訓：** Blog/Creator Source Thin Content Guard 已覆蓋 note.com 觀影報導，但 Peatix 等活動來源也可能有 report-article URL；任何 `name_ja` 含「レポート」的事件均須人工確認 `is_active` 是否正確。
+
+---
+
+## 2026-05-07（C）— shin_bungeiza JST→UTC 日期偏移 + per-day 場次時間缺漏 + enrich_person_names 結構欄位未更新
+
+### A — shin_bungeiza JST→UTC date offset（commit `bcb6142`）
+
+**問題：** `_parse_dates()` 和 `_parse_nihon_date_only()` 使用 `datetime(..., tzinfo=_JST)` 建構日期，傳入 Supabase 後發生 UTC 轉換，start_date 提前一天（5/8 JST → 5/7 15:00 UTC）。
+**修正：** 所有 `tzinfo=_JST` → `timezone.utc`。DB 修正：f970e4e3 start_date 2026-05-07→2026-05-08，locked FC。
+**根因：** 與 Stranger scraper（2026-05-07 同日）完全相同的 bug——JST datetime guard 已在 architect SKILL.md 記錄，但 shin_bungeiza 未同步修正。
+**教訓：** JST-aware datetime guard 是**全 codebase 責任**。每次新 scraper review 或修復 bug 時，應 `grep -rn "tzinfo=_JST\|tzinfo=JST" scraper/sources/` 確認無遺留。
+
+### B — shin_bungeiza per-day screening times 未抓取（commit `1ffb98e`）
+
+**問題：** `_parse_nihon_date_only()` 只收集 `<p class="nihon-date">` 和 `<h2>` 日期，但每日上映時間在 `<div class="schedule-program">` 中完全未被採集，導致 `business_hours = None`。
+**修正：** 同時追蹤 `<h2>` 和跟隨的 `<div class="schedule-program">` 元素，組合成 `business_hours = "5/8（金） 19:45（前説付）\n9（土） 13:40\n..."` 格式。DB 修正：f970e4e3 business_hours patched + locked FC。
+**教訓：** HTML scraper 設計時必須**明確列出**所有業務關鍵資訊的 HTML 元素位置（日期、場次時間、票價），逐一確認已被採集。`schedule-program`、`schedule-table`、`showtimes` 等 class 名稱是常見的場次時間容器，不可遺漏。
+
+### C — enrich_person_names() 結構欄位缺漏（commit `0f891a7`）
+
+**問題：** `enrich_person_names()` 只修 `description_zh/en`，不碰 `performers_en`、`performers_zh`、`director_zh/en`，導致：
+- `performers_en = ['九把刀','柯震東',...]`（中文名存入 en 欄位）
+- `director_zh = '紀德恩'`（GPT 幻覺音譯，應為「九把刀」）
+**修正：** `.select()` 加入結構欄位；建立 `zh_to_info` / `ja_to_info` cross-reference；`performers_en`/`performers_zh`/`director_zh/en` 同步更新（僅當值缺失或含 AI 翻譯標記時）。DB 修正：f970e4e3 performers_en + director_zh locked FC。
+**教訓：** pipeline enrich 函數新增時，必須確認所有相關**結構欄位**（performers_en/zh、director_zh/en）與 description 欄位同步更新。只修 description 而不修結構欄位是半套修正——會導致前端顯示與 DB 內部狀態不一致。
+
+---
+
 ## 2026-05-07（B）— performer 多人名污染 field_corrections + location_name 推廣機構誤設 + note_creators start_date 誤抓文章發布時間
 
 ### A — performer（TEXT）多人名違規儲存污染 field_corrections（f3554212 霧のごとく / 大濛）

@@ -13,6 +13,7 @@ Read this at the start of every session before writing any scraper.
 - `source_id` must be stable across runs — derive from URL slug or platform ID, never from title or list position.
 - Always set `start_date` explicitly. Never fall back silently to the page's publish/update date.
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` when the event date is found in the page body.
+- **`start_date`/`end_date` must use `tzinfo=timezone.utc`**: Never pass JST-aware datetimes (`tzinfo=_JST` / `timezone(timedelta(hours=9))`). Supabase stores datetimes in UTC, so `2026-05-08T00:00:00+09:00` → `2026-05-07T15:00:00+00:00` — the calendar date regresses by one day. Use `datetime(y, m, d, tzinfo=timezone.utc)` to preserve the date. Audit after every scraper fix: `grep -rn "tzinfo=_JST\|tzinfo=JST" scraper/sources/`. (Incidents: Stranger `b7dc34f`, shin_bungeiza `bcb6142`.)
 - **Never restrict geographic scope**: The project covers all of Japan（全日本）. Regional keyword filters (e.g. `_TOKYO_KANTO_KEYWORDS`) must never be added to any scraper.
 - **After fixing a filter bug**: Run `python main.py --source <name>` (non-dry-run) immediately after the fix. A dry-run confirms the fix works but does NOT write to DB — the data gap remains until the next CI cycle.
 - **New scraper checklist** — every new scraper MUST complete all 4 steps, in order:
@@ -274,6 +275,15 @@ GET /entries/{venue_id}  → fields.fullName, fields.address, fields.closedDays,
 
 Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any future single-venue cinema scraper.
 
+**`business_hours` — mandatory schedule collection**: Cinema scrapers must actively collect per-day screening times and store them in `business_hours`. Common HTML containers:
+- `div.schedule-program` (shin_bungeiza)
+- `div.schedule-table` / `table.schedule` (various)
+- `dl.showtime` / `ul.times` (single-venue sites)
+
+Combine date header (`<h2>` or `<p.nihon-date>`) with its following schedule block when the HTML separates them. Format: one line per date — `M/D（曜） HH:MM（note）\nM/D（曜） HH:MM`. **Do NOT return `None` for `business_hours` when schedule data is visually present on the page.** Missing screening times is always a scraper bug.
+
+**Incident**: shin_bungeiza (commit `1ffb98e`) — `_parse_nihon_date_only()` collected date headers from `<h2>` but silently omitted the adjacent `<div class="schedule-program">` elements containing actual screening times.
+
 **Standard strategy:**
 1. Fetch listing page → parse movie cards (title, URL, optional end date from "M/D まで" or similar label)
 2. Fetch each detail page → extract **production country** (`制作国` / `国` field, or `（YEAR／COUNTRY／...）` span)
@@ -403,7 +413,7 @@ sb.table('scraper_runs').select('ran_at,notes') \
 | `cinemarine` | ✅ | ❌ (no public schedule URL found) |
 | `cineswitch_ginza` | ✅ | ❌ |
 | `morc_asagaya` | ✅ | ❌ |
-| `shin_bungeiza` | ✅ | ❌ |
+| `shin_bungeiza` | ✅ | ✅ (`_parse_nihon_date_only` + `schedule-program` div, commit `1ffb98e`) |
 | `uplink_cinema` | ✅ | ❌ |
 | `human_trust_cinema` | ✅ | ❌ |
 | `eurospace` | ✅ (added 2026-05-02) | ❌ |
@@ -419,6 +429,7 @@ sb.table('scraper_runs').select('ran_at,notes') \
 
 - **Triggered by**: `python annotator.py --enrich-person-names` (runs in CI after `--enrich-movie-titles`)
 - **Target scope**: ALL events where `annotation_status != 'reviewed'` and `source_name != 'eiga_com'`
+- **Structural fields sync (fixed 2026-05-07)**: `enrich_person_names()` updates `performers_en`, `performers_zh`, `director_zh`, `director_en` in addition to `description_zh/en`. Cross-reference maps (`zh_to_info`, `ja_to_info`) propagate results across fields. Updates apply only when the target field is null, empty, or contains an AI-translation marker. **Never implement a description-only enrich without also updating structural fields** — mismatched `performers_en=['中文名']` or `director_zh='幻覚音譯'` survive re-annotation because annotator's `_ai_or_existing()` preserves non-null DB values.
 - **Two pipelines**:
   - **Movie events**: `lookup_person_names(title)` → eiga.com movie page → structured cast/crew list → Wikipedia (`strict=False`)
   - **Non-movie events**: `extract_katakana_names(text)` → regex extracts ・-separated katakana names → `lookup_single_person(name)` → eiga.com person search + Wikipedia (`strict=True`)

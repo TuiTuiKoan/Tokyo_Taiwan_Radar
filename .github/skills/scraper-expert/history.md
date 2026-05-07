@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-05-07 — note_creators full-article fetch + Vision OCR pipeline 実装（commit `a52f5b2`）
+
+### A — note_creators.py full-article fetch + og:image
+
+**Problem**: `note_creators.py` が RSS の「続きをみる」truncated text（39 字以下）しか取得できなかった。結果として：
+- `start_date` が記事発布時間（`pub_date` + non-midnight timestamp）にフォールバック（`2cae572a` start_date=2026-03-17 が実際は 2026-04-06 だった問題の根本原因）
+- `raw_description` が薄すぎて annotator が organizer/venue/date を正確に抽出できない
+- `image_url` が未取得
+
+**Fix**: `_fetch_article_content(url, session) → (body_text, image_url | None)` を実装：
+1. JSON-LD `articleBody` → `description` → BS4 `<p>` タグ連結の 3 段階フォールバックで本文取得
+2. `og:image` メタタグで画像 URL 抽取 → `Event.image_url` にセット
+3. `_BODY_DATE_RE` パターン（`📅 2026年4月6日`、`日時：4/6`、`◎ MM月DD日` 等）で本文から直接日時抽出
+4. thin content 検知（`len(body) < 40`）時は `time.sleep(1)` 後に自動 detail fetch を実行
+
+**Lesson**: RSS-based scraper で `raw_description` が短い（「続きをみる」「Read more」等）場合は、scrape 段階で detail page を fetch して本文を取得するべき。`pub_date` フォールバックを debug するより根本的に thin content を解消することで start_date 問題も同時に解決できる。
+
+### B — Vision OCR pipeline `enrich_poster.py` 新規作成
+
+**Feature**: `scraper/enrich_poster.py` — GPT-4o Vision でイベントポスター画像から情報を抽出する enrichment pipeline。
+
+**Design**:
+- `_fetch_candidates(sb, max_events)`: `image_url IS NOT NULL` かつ `annotation_status IN ('pending', 'annotated')` のイベントを選択
+- `_extract_from_poster(image_url)`: GPT-4o Vision で JSON 出力（date, venue, organizer, confidence）
+- `_apply_if_confident(sb, event, result, dry_run)`: `confidence ≥ 0.8` のフィールドのみ適用 + `field_corrections` でロック
+- **Thin Content Guard**: `raw_description < 100 字` の場合は `organizer` フィールドを non-apply（date/venue のみ）
+- CLI: `python enrich_poster.py [--dry-run] [--event-id UUID] [--max N]`
+- migration 057 適用済み：`events.image_url TEXT`; `Event` dataclass + `database.py` に `image_url` フィールド追加
+- CI: `scraper.yml` の annotator ステップ直後に `Run Vision OCR enrichment` ステップ追加
+
+**Lesson**: Vision OCR のような外部知識依存 enrichment では Organizer Non-Hallucination Guard と同様のリスクがある。thin content 時は organizer を適用しない Thin Content Guard を組み込み、GPT の hallucination リスクを抑制すること。confidence threshold（≥ 0.8）による自動適用は一見安全だが、画像から読み取れない情報は GPT が「知っている知識」で補完してしまう点に注意。
+
+---
+
 ## 2026-05-07 — auto_research.py Playwright 逾時導致整批中止（commit `8029b74`）
 
 **Error**: `_fetch_sample_html()` 呼叫 `page.goto(url, timeout=30_000)` 無 try/except。`note.com/swi0881` 逾時 → 未捕獲 `PlaywrightTimeoutError` → 整個 auto-research CI job exit code 1，所有後續來源全部跳過。

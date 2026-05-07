@@ -429,8 +429,11 @@ Reference incident: 2026-05-06 — `セシリアママ` 從 `category_correction
 2. **純介紹文章/觀影報導不是活動資料**：標題含「おすすめ」「紹介」「行ってきた」「観てきた」「鑑賞レポ」等字樣的文章，應設 `is_active=false`（非活動事件）。
 3. **`_HEADLINE_REWRITE_SOURCES` 必須包含部落格來源**：`note_creators` 的 `raw_title` 是文章標題，不是活動名稱，必須讓 GPT 從 raw_description 重新生成正確的 `name_ja`。
 4. **Non-Hallucination Guard 在薄文本（< 100 字）時保護有限**：文本極短時 GPT 仍可能從外部知識推斷 organizer。對此類事件，organizer 應保持 null，且 DB 修正後必須鎖 `field_corrections`。
+5. **report-article URL 亦可從非部落格來源產生重複事件**：Peatix 等活動平台的「レポート」頁面會在報告文中提及過去活動日期，scraper 可能將該日期抓取為新事件的 `start_date`，形成與原始事件的重複——而 merger 因標題含「レポート」差異大，無法自動去重。對任何 `name_ja` 或 `raw_title` 含「レポート」且 `is_active=true` 的事件，**必須**人工確認是否為活動頁或報告文章；報告文章須手動停用（`is_active=false`）或合併（`merged_into_event_id`）。
 
-Reference incident: 2026-05-08 — `2cae572a`/`10a4ee5d` organizer 被推斷為 note 發文者；`4180ad0f`/`4ebc8a35` 介紹文章/觀影報導入庫（commit `b589fbb`）。
+Reference incidents:
+- 2026-05-08 — `2cae572a`/`10a4ee5d` organizer 被推斷為 note 發文者；`4180ad0f`/`4ebc8a35` 介紹文章/觀影報導入庫（commit `b589fbb`）。
+- 2026-05-08 — Peatix `994b8c8b` 從台灣文化中心「座談レポート」URL 誤建立為 2025-10-04 事件，與 `3645a3ac` 重複；`f7ff56ca` 為映後報告文章誤入庫（手動合併/停用）。
 
 ## Collection Attribution Guard（所蔵元 ≠ 活動場地）
 

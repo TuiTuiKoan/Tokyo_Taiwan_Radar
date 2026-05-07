@@ -4,6 +4,41 @@
 
 ---
 
+## 2026-05-08 — report-article URL 衍生重複事件手動合併 + AI 翻譯標記污染修正
+
+### A — report-article URL 衍生 duplicate event 手動處理流程
+
+**操作：** Peatix 台灣文化中心的 `994b8c8b` 從「座談レポート」URL 抓取，報告文章中提及 2025-10-04 活動日期，scraper 誤建立重複事件（原事件為 `3645a3ac`）。
+
+**merger 無法自動去重**：report URL 生成的事件 name_ja 含「レポート」，與原始活動標題差異超過 merger 閾值。
+
+**手動合併**（有明確原始事件時）：
+```python
+sb.table('events').update({
+    'merged_into_event_id': '<original_event_id>',
+    'is_active': False,
+    'deactivated_reason': 'merged_into: <short_id> — <說明>',
+}).eq('id', '<report_event_id>').execute()
+```
+
+**手動停用**（無合併目標，純報告文章）：
+```python
+sb.table('events').update({
+    'is_active': False,
+    'deactivated_reason': 'report_article: post-event news report, not an upcoming event',
+}).eq('id', '<eid>').execute()
+```
+
+**觸發條件：** `name_ja` 或 `raw_title` 含「レポート」「報告」「行ってきた」「観てきた」且 `is_active=true`。
+
+### B — AI 翻譯標記（AI翻譯）不可加到原始語言人名
+
+**問題：** `performer_zh = '張作驥（AI翻譯）'`、`performer_en = 'Cheng Tso-Chi (AI translated)'`——張作驥是繁體中文原名，出現在 eiga.com 與 raw_description，非 AI 翻譯；romanization 拼法亦錯（Cheng → Chang）。
+**修正：** 清除「（AI翻譯）」標記，更正 romanization 為 `Chang Tso-Chi`，鎖 `field_corrections`。
+**規則：** `performer_zh/en` 中「（AI翻譯）」標記**只能**加在確實由 GPT 從日文翻譯的名字上。人名原文已出現在 eiga.com、raw_description 或 raw_title 中，直接使用原文，不加任何標記。
+
+---
+
 ## 2026-05-07 — archive_ended_events 残留 import 修正
 
 **問題：** `archive_ended_events()` は 2026-05-06 に `database.py` から削除されたが、`main.py` の import 行と呼び出しが残留していた。`python main.py --dry-run` 時に `ImportError` が発生。

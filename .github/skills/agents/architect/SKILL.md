@@ -70,6 +70,27 @@ Reference incidents:
 - 2026-05-08 — commit `191d939`：migration 053 新增 `performers TEXT[]`（Incident C）
 - 2026-05-08 — commit `3822fb8`：migration 054 新增 `performer_zh`, `performer_en`, `director_zh`, `director_en`（Incident D）
 
+## Annotator name_ja Suffix Omission Guard
+
+在調查**任何**「カテゴリバッジが表示されない」「カテゴリが DB に存在するのに画面に出ない」問題、または `name_ja` が期待と異なる場合に、**必須**確認：
+
+1. **`name_ja` と `raw_title` の diff を確認する**：annotator は `raw_title` → `name_ja` 変換時に後置された分類語（「レポート」「告知」「詳細」「ご案内」等）を「タイトルの装飾」と判断して削除することがある。
+2. **脱落が発覚した場合の修正パターン**：
+   ```python
+   # name_ja を raw_title 通りに復元 + FC ロック
+   sb.table("events").update({"name_ja": raw_title}).eq("id", eid).execute()
+   sb.table("field_corrections").upsert({
+       "event_id": eid, "field_name": "name_ja",
+       "corrected_value": json.dumps(raw_title, ensure_ascii=False)
+   }, on_conflict="event_id,field_name").execute()
+   ```
+3. **「レポート」は削除対象になりやすい**：報告記事/観覧記 の suffix「レポート」は annotator が装飾語と誤認して削除する典型ケース。`category: ['report']` が付与されていてもタイトルから「レポート」が消えることがある。
+4. **デバッグ優先順序**：① DB `category` 確認 → ② `messages/*.json` `i18n` 確認 → ③ `raw_title` vs `name_ja` diff 確認 → ④ UI レンダリングロジック確認。
+
+Reference incident: 2026-05-07 — `f7ff56ca`「台湾文化センター映画...トークイベント レポート」の `name_ja` から「レポート」が annotator によって削除されており、`category: ['movie','lecture','report']` は正常だがタイトルバッジ調査で発覚。
+
+---
+
 ## Manual Translation Fix Persistence Guard
 
 在審核**任何**直接 SQL UPDATE 翻譯欄位（`name_zh` / `name_en` / `description_zh` / `description_en` / `performer`）的計畫前，**必須**確認：

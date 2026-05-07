@@ -13,6 +13,7 @@ Read this at the start of every session before writing any scraper.
 - `source_id` must be stable across runs — derive from URL slug or platform ID, never from title or list position.
 - Always set `start_date` explicitly. Never fall back silently to the page's publish/update date.
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` when the event date is found in the page body.
+- **`start_date`/`end_date` must use `tzinfo=timezone.utc`**: Never pass JST-aware datetimes (`tzinfo=_JST` / `timezone(timedelta(hours=9))`). Supabase stores datetimes in UTC, so `2026-05-08T00:00:00+09:00` → `2026-05-07T15:00:00+00:00` — the calendar date regresses by one day on Vercel's UTC server. Use `datetime(y, m, d, tzinfo=timezone.utc)` to preserve the date. Audit after every fix: `grep -rn "tzinfo=_JST\|tzinfo=JST" scraper/sources/`. (Incidents: Stranger `b7dc34f`, shin_bungeiza `bcb6142`.)
 - **`location_address ≠ location_name` rule (ALL scrapers):** `location_address` must NEVER equal `location_name`. When a scraper has a single combined "location" field, parse it: venue name → `location_name`, street address (using `_ADDR_RE`: `〒` or prefecture+city+street pattern) → `location_address`. If no real street address can be extracted, set `location_address = None`. This is enforced by `auto_qa_address_is_venue_name` detector. Also note: `_ai_or_existing()` in annotator preserves non-null DB values, so a scraper writing the wrong value cannot be corrected by the annotator.
 - **Never restrict geographic scope**: The project covers all of Japan（全日本）. Regional keyword filters (e.g. `_TOKYO_KANTO_KEYWORDS`) must never be added to any scraper.
 - **After fixing a filter bug**: Run `python main.py --source <name>` (non-dry-run) immediately after the fix. A dry-run confirms the fix works but does NOT write to DB — the data gap remains until the next CI cycle.
@@ -217,6 +218,17 @@ text = element.get_text(strip=True)
 ```
 
 **Incident**: `gguide_tv.py` 排程文字缺 `separator="\n"`，時間資訊擠在一起（commit `a895e07`）。
+
+## Cinema scraper — `business_hours` 場次時間必須主動採集
+
+**Rule**: Cinema scraper 必須主動採集每日場次時間並存入 `business_hours`。常見 HTML 容器：
+- `div.schedule-program` (shin_bungeiza)
+- `div.schedule-table` / `table.schedule` (各影院)
+- `dl.showtime` / `ul.times` (單廳影院)
+
+當 HTML 將日期標題（`<h2>` / `<p class="nihon-date">`）與場次時間（`<div class="schedule-program">`）分開存放時，必須將兩者組合後填入 `business_hours`。格式：每行一個放映場次 — `M/D（曜） HH:MM（備注）`。**視覺上有場次時間但 `business_hours = None` 是 scraper bug**，不是可接受的狀態。
+
+**Incident**: shin_bungeiza（commit `1ffb98e`）— `_parse_nihon_date_only()` 採集了 `<h2>` 日期標題，但完全忽略了相鄰的 `<div class="schedule-program">` 元素中的實際場次時間。
 
 ---
 
@@ -1420,3 +1432,47 @@ Reference incident: yebizo event `e37db12e` で `location_name='高雄市立美�
 3. **CI 批次腳本的 exit code 必須反映批次整體結果**：單筆來源標記 `error` 不就是失敗；全部跳過才是失敗。若選擇類似「至少 N 筆成功」的 exit condition，必須在計畫中明確定義。
 
 Reference incident: 2026-05-07 — commit `8029b74`：`auto_research.py` `_fetch_sample_html()` 無 try/except，`note.com/swi0881` 在 CI 逾時 → 未捕獲 `PlaywrightTimeoutError` → 整個 job exit code 1，所有後續來源全部跳過。
+
+## Vision OCR Enrichment Pipeline（enrich_poster.py）
+
+`scraper/enrich_poster.py` — GPT-4o Vision でイベントポスター画像から情報を抽出する enrichment pipeline。
+
+### 前提条件
+
+- `events.image_url` が非 NULL（migration 057 適用済み）
+- `note_creators.py` など `_fetch_article_content()` を実装した scraper が `og:image` を `Event.image_url` にセット
+
+### 実行方法
+
+```bash
+cd scraper && source ../.venv/bin/activate
+
+# 全件処理（デフォルト最大 50 件）
+python enrich_poster.py
+
+# dry-run（DB 更新なし）
+python enrich_poster.py --dry-run
+
+# 特定イベント
+python enrich_poster.py --event-id <UUID>
+
+# 件数制限
+python enrich_poster.py --max 20
+```
+
+### 動作仕様
+
+1. **対象選択**：`image_url IS NOT NULL AND annotation_status IN ('pending', 'annotated')` のイベントを最大 N 件取得
+2. **Vision 抽出**：GPT-4o Vision で画像を解析 → JSON 出力（`start_date`, `venue`, `organizer`, `confidence` per field）
+3. **適用条件**：`confidence ≥ 0.8` のフィールドのみ適用
+4. **FC ロック**：適用したフィールドは全て `field_corrections` に upsert（re-annotation で上書きされない）
+5. **Thin Content Guard**：`raw_description < 100 字` の場合は `organizer` を非適用（date/venue のみ）— thin content 時は GPT が外部知識から organizer を hallucinate するリスク防止
+
+### 注意事項
+
+- **CI integration**：`scraper.yml` の annotator ステップ直後に自動実行（`python enrich_poster.py` ステップ）
+- **confidence threshold は固定 0.8**：閾値を下げると thin content での false positive が増加するため変更不可
+- **confidence はフィールド単位**：全体 confidence が 0.8 でも個別フィールド（venue）が 0.7 なら venue は非適用
+- **Organizer Non-Hallucination Guard 適用**：Vision 抽出の organizer 値が `raw_description` に存在しない場合は棄却（thin content guard が主要防線）
+
+Reference incident: 2026-05-07 — `note_creators.py` `_fetch_article_content()` 実装により `image_url` 取得が可能になり、Vision OCR pipeline の初回適用先が生まれた（commit `a52f5b2`）。
