@@ -200,17 +200,6 @@ Reference incident: 2026-05-05 — commit `5a29c13` 修 EventCard.tsx 城市徽�
 
 **Incident**: 2026-05-04 `--backfill-tier1` 導致 49 筆 `selection_reason["ja"]` 為中文，需人工腳本修正。
 
-## RSC Function Prop Serialization Guard（RSC 函式 prop 序列化守護）
-
-在審核任何 Server Component 將函式傳給 Client Component 的 PR 前，**必須**確認：
-
-1. **不可把翻譯 function 作為 prop 傳遞**：`(k) => t(k as ...)` 是 closure，React 19 RSC 序列化會失敗（client-side navigation 出現 server error）。SSR（初始載入）因在同一 JS process 執行不會報錯，**僅限 `<Link>` navigation 才觸發**，難以在 SSR-only 測試中發現。
-2. **正確 pattern**：Client Component（`"use client"`）需要翻譯時，直接在 component 內呼叫 `useTranslations("namespace")`；不依賴 Server Component 注入 translation function。
-3. **next-intl interpolation API**：必須用 `t("key", { n: count })`；禁止用 `.replace("{n}", String(count))` workaround。
-4. **症狀識別**：SSR（初始頁面載入）正常，但 `<Link>` client-side navigation 到同一頁面出現 server error（ERROR 3226104792 或類似錯誤碼）——這是 RSC 序列化失敗的典型特徵。
-
-Reference incident: 2026-05-07 — `AnnouncementForm` 的 `tAdmin`/`tAnn` function props 導致 `/admin/announcements/[id]` `<Link>` navigation server error（commit `a1f0472`）。
-
 ## Scope
 
 - State explicitly what is NOT in scope. Ambiguous scope = scope creep = breaking changes.
@@ -416,32 +405,7 @@ Before approving any change to `annotator.py` annotation field priority, verify:
 3. **naive datetime 也有風險**：`datetime` 無 tzinfo 時 Supabase 依伺服器時區解讀（通常 UTC），一般安全，但不如明確設定 UTC midnight。
 4. **驗證**：新 scraper dry-run 後，確認 DB 的 `start_date` 與來源頁面的日期完全一致。
 
-Reference incidents:
-- 2026-05-07 — Stranger scraper `f3554212` start_date 存為 `2026-05-07T15:00:00+00:00`（應為 2026-05-08），Vercel 顯示前一天（commit `b7dc34f`）。
-- 2026-05-09 — rightscube scraper `_parse_venue_dates()` 的 `datetime(yr, mth, day, tzinfo=_JST)` 造成 `6885927b` end_date `2026-05-23T15:00Z`（應為 `2026-05-24T00:00Z`），手動 hotfix + commit `74f5e2e`。**同一 bug 跨 scraper 複現**——新 scraper review 應 grep 所有 `tzinfo=_JST` 使用點。
-
-## Vision OCR via Twitter Poster Guard（X.com 來源事件的海報資料提取）
-
-在審核任何 `official_url` 指向 X.com（Twitter）的事件，或設計 `image_url=null` 事件的資料補強流程時，**必須**確認：
-
-1. **`enrich_poster.py` 不處理 `image_url=null` 的事件**：X.com 連結的事件通常 `image_url=null`，自動 pipeline 跳過。需人工補強。
-2. **Playwright → pbs.twimg.com → GPT-4o Vision 的手動流程**：
-   ```python
-   from playwright.sync_api import sync_playwright
-   import re
-   with sync_playwright() as pw:
-       browser = pw.chromium.launch(headless=True)
-       page = browser.new_page()
-       page.goto("<tweet_url>/photo/N", wait_until="domcontentloaded")
-       # wait 5s for JS render
-       imgs = re.findall(r'https://pbs\.twimg\.com/media/[A-Za-z0-9_\-]+', page.content())
-       # Use: f"{img}?format=jpg&name=large" as image_url for Vision
-   ```
-3. **海報地址優先於 DB 現有地址**：海報上印刷的場地地址（如 `北1条西3丁目3-8`）比 scraper 抓取的地址更可靠，以海報為準更新並 FC 鎖定。
-4. **從海報可取得的欄位**（視海報內容而定）：`business_hours`（場次時間）、`price_info`/`price_amount`（票價）、`location_address`（地址）、`location_name`（場地名）。
-5. **信心度門檻**：與 `enrich_poster.py` 一致，只更新明確出現在海報上的欄位，不推斷缺失資訊。
-
-Reference incident: 2026-05-09 — `6885927b`（台湾Filmake・シアターtalpa）`image_url=null`，透過 Playwright 取得 tweet 圖片 URL，GPT-4o Vision 讀出 4 場次時刻表 + ¥1,500 票價 + `北1条西3丁目3-8` 地址，3 個欄位更新 + FC 鎖定。
+Reference incident: 2026-05-07 — Stranger scraper `f3554212` start_date 存為 `2026-05-07T15:00:00+00:00`（應為 2026-05-08），Vercel 顯示前一天（commit `b7dc34f`）。
 
 ## Hallucination Scan Safety Guard
 
@@ -1572,67 +1536,6 @@ Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發 �
 4. **同時更新 checklist**：若有 source 進入 `NON_DAILY_SOURCES`，在對應的 workflow yml 加上 comment 標注告警視窗。
 
 Reference incident: 2026-05-06 — `weekly_broadcast` 因 `NON_DAILY_SOURCES = frozenset()` 為空，被 health_check 每天誤報 missing（commit `7df9f56`）。
-
-## 全国ブランドイベント location 分離 Guard
-
-在審核任何全国展開ブランドイベント（複数店舗・複数会場を持つキャンペーン型）の `location` フィールド設定前，**必須**確認：
-
-1. **`location_name` = ブランド名のみ**：都市列挙や店舗数を `location_name` に含めない。`location_name = '鼎泰豐'` が正しく、`location_name = '鼎泰豐（東京・横浜・名古屋...）'` は誤り——UI の「会場」フィールドが冗長になる。
-2. **`location_address` = 都市列挙テキスト**：`location_address = '東京・横浜・大阪・名古屋・福岡 他全国30店舗'` のように都市列挙をプレーンテキストとして配置する。実際の住所でないテキストの場合は地図リンクが生成されず、安全にプレーンテキスト表示される。
-3. **`location_prefectures` は必ず都道府県正式表記の配列**：`['東京都', '神奈川県', '大阪府', ...]`（接尾辞付き）。ブランド展開先の全都道府県を列挙する。
-4. **子活動（sub-event）は具体的な venue を持つ**：POP UP・体験教室等の特定会場イベントは `location_name = '高島屋新宿店 地下1階'` など具体的に設定する。全国系子活動（スタンプラリー等）は親と同じ `location_name = ブランド名` + 全国 prefectures を継承してよい。
-
-Reference incident: 2026-05-07 — `2cb72ee9`（鼎泰豐30周年）`location_name` に都市列挙を混入 → 「会場」フィールドが冗長 → `location_name='鼎泰豐'` + `location_address='東京・横浜...'` に分離して解決。
-
-## 周年記念イベント start_date Guard
-
-在審核任何「○周年」「創立記念」型の親イベントの `start_date` 設定前，**必須**確認：
-
-1. **`start_date` = 最初の企画・告知が始まる日**：記念日（周年日）は `start_date` ではない。記念日以前に企画が走っている場合は最初の企画開始日を `start_date` に設定する。
-2. **`end_date` = 周年記念日または最終企画日**：`name_ja` に周年日が明記されていても、`start_date` を周年日にするとそれ以前の子活動が「期間外」として表示されなくなる。
-3. **確認方法**：子活動（sub-events）の `start_date` を昇順に並べ、最小値を親の `start_date` の下限として確認する。
-   ```sql
-   SELECT MIN(start_date) FROM events WHERE parent_event_id = '<PARENT_ID>';
-   -- これが親の start_date 以前であれば要修正
-   ```
-4. **FC ロック必須**：修正後は `start_date` / `end_date` 両方を `field_corrections` でロックする（annotator の re-annotation で `raw_description` の記念日テキストから誤って上書きされる危険がある）。
-
-Reference incident: 2026-05-07 — `2cb72ee9`（鼎泰豐30周年）`start_date=2026-10-04`（30周年記念日）→ `2026-05-15`（最初の企画「小籠包11種セット販売」開始日）に修正。記念日を `end_date` に設定。
-
-## 手動 Sub-Event INSERT Guard（events.source_url NOT NULL）
-
-在**手動**向 `events` 表 INSERT 子活動（annotator 不經手的情況）前，**必須**確認：
-
-1. **`source_url` 必須包含在 INSERT payload 中**：`events.source_url` 有 NOT NULL 約束，省略時報 `null value in column "source_url" violates not-null constraint`。
-2. **子活動無獨立 URL 時，流用父事件的 `source_url`**：
-   ```python
-   parent = sb.table('events').select('source_url').eq('id', PARENT_ID).single().execute().data
-   sub = {**BASE, 'source_url': parent['source_url'], ...}
-   ```
-3. **`source_id` 必須唯一且穩定**：建議格式 `<parent_source_id>_sub1`、`_sub2` 等，防止重複 INSERT（先 `SELECT id WHERE source_id = ...` 確認不存在）。
-4. **手動建立的子活動建議直接設 `annotation_status='reviewed'`**：搭配完整的三語翻譯（name/description）+ FC 鎖定，避免 annotator 覆寫已正確設定的值。
-
-Reference incident: 2026-05-07 — 鼎泰豐30周年（`2cb72ee9`）子活動 4 件手動 INSERT，省略 `source_url` 導致 NOT NULL 約束錯誤；改用父事件 `source_url` 後成功。
-
-## location_prefectures 都道府県正式表記 Guard
-
-在審核任何設定或修改 `location_prefectures` 值的 DB 操作、腳本、或計畫前，**必須**確認：
-
-1. **值必須使用都道府県的正式表記（接尾辞付き）**：
-   - ✅ `東京都`、`大阪府`、`京都府`、`北海道`、`神奈川県`、`愛知県` …
-   - ❌ `東京`、`大阪`、`京都`（接尾辞なし）
-2. **接尾辞なしの値は `REGION_PREFECTURES` との照合に失敗する**：フィルタリングが静默で誤作動し、正しいリージョンに分類されない。
-3. **annotator が短縮形を出力する場合がある**：re-annotation 後は必ず `location_prefectures` 値を確認する。
-4. **偵測 SQL**：
-   ```sql
-   SELECT id, location_prefectures
-   FROM events
-   WHERE location_prefectures && ARRAY['東京','大阪','京都','福岡','北海道']
-     AND is_active = true;
-   -- 接尾辞なしの値（東京 = 東京都 でない）が混在していれば要修正
-   ```
-
-Reference incident: 2026-05-07 — `dec5031b`（霧のごとく）`location_prefectures=['東京']`（接尾辞なし）→ `['東京都']` に修正 + FC ロック。
 
 ## GitHub Actions YAML Guard
 

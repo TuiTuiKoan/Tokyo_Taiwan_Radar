@@ -366,7 +366,14 @@ commercial_brand | independent_venue | civic_group | media | unknown
 
 NPO、同好會、親善協会、交流会 等 civic 性質的主辦方統一使用 `civic_group`。
 
+**Python Supabase client 型別規則**（`malformed array literal` 防護）：
+- ✅ `{'organizer_type': ['government']}` — Python list（正確）
+- ❌ `{'organizer_type': 'government'}` — 字串傳入 `text[]` 欄位會報 `malformed array literal`
+
+`organizer_type` 是 `text[]` 陣列欄位；透過 Python client 設定時，必須傳 Python list，不可傳字串。
+
 Reference incident: 2026-05-07 — `4feab235` 設 `organizer_type=['npo_association']` 觸發 check constraint error，正確值為 `civic_group`。
+Reference incident: 2026-05-07 — `3918f4b9` 設 `organizer_type='government'`（字串）觸發 `malformed array literal`；正確格式為 `['government']`（Python list）。
 
 ## annotation=error Location Trust Guard
 
@@ -455,8 +462,10 @@ Reference incident: 2026-05-06 — `セシリアママ` 從 `category_correction
 3. **`_HEADLINE_REWRITE_SOURCES` 必須包含部落格來源**：`note_creators` 的 `raw_title` 是文章標題，不是活動名稱，必須讓 GPT 從 raw_description 重新生成正確的 `name_ja`。
 4. **Non-Hallucination Guard 在薄文本（< 100 字）時保護有限**：文本極短時 GPT 仍可能從外部知識推斷 organizer。對此類事件，organizer 應保持 null，且 DB 修正後必須鎖 `field_corrections`。
 5. **report-article URL 亦可從非部落格來源產生重複事件**：Peatix 等活動平台的「レポート」頁面會在報告文中提及過去活動日期，scraper 可能將該日期抓取為新事件的 `start_date`，形成與原始事件的重複——而 merger 因標題含「レポート」差異大，無法自動去重。對任何 `name_ja` 或 `raw_title` 含「レポート」且 `is_active=true` 的事件，**必須**人工確認是否為活動頁或報告文章；報告文章須手動停用（`is_active=false`）或合併（`merged_into_event_id`）。
+6. **note publisher profile 被誤用為 `location_name` 的風險**：`note_creators` 的 `raw_description` 常含 note 投稿者的個人簡介文字（如 `台湾華語文学習センター（大阪弁天町）`），這是帳號 profile，不是活動場地。`raw_description` 含 `続きをみる` 截斷時，`location_name` 應設為 null，不可從 raw_description 推斷。
 
 Reference incidents:
+- 2026-05-07 — `3918f4b9`（ビビビビ！台湾！）`location_name='台湾華語文学習センター（大阪弁天町）'` 為 note 帳號 profile，修正為 null + FC 鎖定；同一事件另有 `organizer` 幻覚與 `start_date` 偏移（三重污染）。
 - 2026-05-08 — `2cae572a`/`10a4ee5d` organizer 被推斷為 note 發文者；`4180ad0f`/`4ebc8a35` 介紹文章/觀影報導入庫（commit `b589fbb`）。
 - 2026-05-08 — Peatix `994b8c8b` 從台灣文化中心「座談レポート」URL 誤建立為 2025-10-04 事件，與 `3645a3ac` 重複；`f7ff56ca` 為映後報告文章誤入庫（手動合併/停用）。
 
