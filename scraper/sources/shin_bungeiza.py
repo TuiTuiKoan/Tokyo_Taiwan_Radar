@@ -224,20 +224,39 @@ class ShinBungeizaScraper(BaseScraper):
                 continue
             seen_ids.add(source_id)
 
-            # Date: h2 elements AFTER p inside the same parent container
+            # Date and schedule times: h2 + schedule-program pairs AFTER p
             parent = p.parent
             if parent is None:
                 continue
 
-            # Collect all h2s that follow the nihon-date p in the same parent
             h2_elements = []
+            schedule_times: list[str] = []   # "5/8（金）19:45（前説付）"
+            cur_h2_text = ""
             collecting = False
             for child in parent.children:
                 if child is p:
                     collecting = True
                     continue
-                if collecting and getattr(child, "name", None) == "h2":
+                if not collecting:
+                    continue
+                tag = getattr(child, "name", None)
+                if tag == "h2":
+                    cur_h2_text = child.get_text(strip=True)
                     h2_elements.append(child)
+                elif tag == "div" and "schedule-program" in (child.get("class") or []):
+                    prog_text = child.get_text(separator=" ", strip=True)
+                    time_m = re.search(r"\d{1,2}:\d{2}", prog_text)
+                    if time_m and cur_h2_text:
+                        # Prefix label = text before the movie title in prog_text
+                        label = ""
+                        title_pos = prog_text.find(title)
+                        if title_pos > 0:
+                            label = prog_text[:title_pos].strip()
+                        time_str = time_m.group()
+                        entry = f"{cur_h2_text} {time_str}"
+                        if label:
+                            entry += f"（{label}）"
+                        schedule_times.append(entry)
 
             if not h2_elements:
                 logger.warning("shin_bungeiza: no h2 dates found for %s", title)
@@ -268,6 +287,8 @@ class ShinBungeizaScraper(BaseScraper):
             else:
                 end_date = start_date
 
+            business_hours = "\n".join(schedule_times) if schedule_times else None
+
             date_prefix = f"開催日時: {start_date.year}年{start_date.month}月{start_date.day}日\n\n"
             raw_description = date_prefix + p_text
 
@@ -288,6 +309,7 @@ class ShinBungeizaScraper(BaseScraper):
                 location_name=_VENUE_NAME,
                 location_address=_VENUE_ADDRESS,
                 is_paid=True,
+                business_hours=business_hours,
             ))
         return events
 
