@@ -8,8 +8,8 @@ Strategy:
      store/genre (span.genre), detail href.
   3. Visit each detail page: extract precise date (div.date), full
      description (section div.article), and venue (span.place).
-  4. Taiwan relevance check — keyword search is full-text so some results
-     may only mention 台湾 in the description; all are accepted.
+  4. Taiwan relevance check — keyword must appear in the title or within the
+     first 500 chars of description to avoid artist-bio false positives.
   5. source_id = numeric ID extracted from the detail URL path,
      e.g. /umeda/event/shop/51599-1523431205.html → "51599-1523431205"
      This ID is stable across runs regardless of store slug.
@@ -133,8 +133,18 @@ def _extract_store_name(genre_text: str) -> str:
 
 
 def _is_taiwan_relevant(title: str, description: str) -> bool:
-    combined = (title or "") + " " + (description or "")
-    return any(kw in combined for kw in TAIWAN_KEYWORDS)
+    """Return True only when a Taiwan keyword appears in the event title or
+    within the first 500 characters of the description.
+
+    Limiting the description window prevents false positives caused by artist
+    biographies that mention past Taiwan exhibitions deep in the text (e.g.
+    "ART TAIPEI出展" or "台湾などで活動" appearing at position 600+).
+    The title is always checked in full.
+    """
+    if any(kw in (title or "") for kw in TAIWAN_KEYWORDS):
+        return True
+    desc_head = (description or "")[:500]
+    return any(kw in desc_head for kw in TAIWAN_KEYWORDS)
 
 
 def _fetch_detail(
