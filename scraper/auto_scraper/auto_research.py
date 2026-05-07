@@ -130,15 +130,22 @@ def _get_supabase():
 
 
 def _fetch_sample_html(url: str) -> str:
-    """Fetch the first listing page and return its outerHTML (full, untruncated)."""
-    from playwright.sync_api import sync_playwright
+    """Fetch the first listing page and return its outerHTML (full, untruncated).
+
+    Returns empty string on navigation timeout so callers can handle gracefully.
+    """
+    from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         try:
             context = browser.new_context()
             page = context.new_page()
-            page.goto(url, timeout=30_000)
+            try:
+                page.goto(url, timeout=30_000)
+            except PWTimeout:
+                logger.warning("_fetch_sample_html: goto timeout for %s", url)
+                return ""
             try:
                 page.wait_for_load_state("networkidle", timeout=30_000)
             except Exception:
@@ -591,6 +598,8 @@ def run(opts: ResearchOptions, *, sb: Any | None = None) -> int:
 
         # Step 2: sample HTML
         sample_html = _fetch_sample_html(row["url"])
+        if not sample_html:
+            raise AssessError("error", f"page fetch failed (timeout or empty): {row['url']}")
 
         # Step 3: LLM assessment
         result = _call_llm_assessment(
