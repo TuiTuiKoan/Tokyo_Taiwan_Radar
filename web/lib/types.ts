@@ -51,7 +51,9 @@ export interface Event {
   organizer_url?: string | null;
   organizer_type?: string[] | null;
   co_organizers?: string[] | null;
+  co_organizer_types?: string[] | null;
   sponsors?: string[] | null;
+  sponsor_types?: string[] | null;
   event_form?: string[] | null;
   primary_language?: string | null;
   has_japanese_support?: boolean | null;

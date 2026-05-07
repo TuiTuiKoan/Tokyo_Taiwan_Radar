@@ -625,7 +625,9 @@ ORGANIZER EXTRACTION RULES:
 1. organizer: the primary entity hosting the event. Look for fields like 主催, 主辦, presented by, 主催者. Single string, original-language official name (e.g. "台北駐日経済文化代表処 台湾文化センター"). Do NOT include role labels like "主催:" in the value.
    CINEMA DISTRIBUTOR FALLBACK: For film screenings where 主催 is NOT stated, 配給 (distributor) may be used as organizer — the distributor is the entity responsible for the screening in Japan. Do NOT include "配給：" in the value (strip the label).
 2. co_organizers: array of 共催 / 協力 / 後援 entities. Each entry is the original-language name. Empty array if none mentioned.
+   co_organizer_types: classify each co_organizer using the same type labels as organizer_type (one entry per co_organizer, same index). Use "unknown" if unclear.
 3. sponsors: array of 協賛 / 贊助 / sponsor entities. Empty array if none mentioned.
+   sponsor_types: classify each sponsor entry using the same type labels (one per sponsor, same index). Use "unknown" if unclear.
 4. NEVER fabricate organizer names. If 主催 is not explicitly stated and cannot be safely inferred from the venue's official role (e.g. an exhibition at a museum is hosted by that museum), set organizer = null.
 5. organizer_type: classify the primary organizer into one or more of:
    - "government" — central/local government bodies (外交部, 文化部, 都道府県, 市役所)
@@ -696,7 +698,9 @@ Respond with valid JSON matching this schema:
   "location_url": "official website URL of the venue, extracted from the text only — NEVER infer or hallucinate; set null if not explicitly stated" or null,
   "organizer": "primary host name in original language" or null,
   "co_organizers": ["co-host name", "..."],
+  "co_organizer_types": ["civic_group"],
   "sponsors": ["sponsor name", "..."],
+  "sponsor_types": ["government"],
   "organizer_type": ["semi_official"],
   "event_form": ["screening_with_talk"],
   "primary_language": "ja" or "zh" or "en" or "mixed" or null,
@@ -821,6 +825,11 @@ VALID_PRIMARY_LANGUAGES = frozenset(["ja", "zh", "en", "mixed"])
 
 def _validate_organizer_types(vals) -> list[str]:
     return [v for v in (vals or []) if isinstance(v, str) and v in VALID_ORGANIZER_TYPES]
+
+
+def _validate_organizer_types_list(raw) -> list[str]:
+    """Validate a flat list of organizer_type strings (parallel to co_organizers/sponsors)."""
+    return [t for t in (raw or []) if isinstance(t, str) and t in VALID_ORGANIZER_TYPES]
 
 
 def _validate_event_forms(vals) -> list[str]:
@@ -1328,7 +1337,9 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                         else None
                     ) or (_default_org_map.get(event.get("source_name") or "", {}).get("organizer"))),
                     "co_organizers": [s for s in (annotation.get("co_organizers") or []) if isinstance(s, str)],
+                    "co_organizer_types": _validate_organizer_types_list(annotation.get("co_organizer_types") or []),
                     "sponsors": [s for s in (annotation.get("sponsors") or []) if isinstance(s, str)],
+                    "sponsor_types": _validate_organizer_types_list(annotation.get("sponsor_types") or []),
                     "organizer_type": (
                         _validate_organizer_types(annotation.get("organizer_type", []))
                         if (annotation.get("organizer_type") or ["unknown"]) != ["unknown"]
@@ -1463,7 +1474,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                         ):
                             if not update_data.get(_lf):
                                 update_data[_lf] = _parent_event.get(_lf)
-                    for _pf in ("organizer", "organizer_type", "co_organizers", "sponsors", "performer"):
+                    for _pf in ("organizer", "organizer_type", "co_organizers", "co_organizer_types", "sponsors", "sponsor_types", "performer"):
                         if not update_data.get(_pf):
                             update_data[_pf] = _parent_event.get(_pf)
 
@@ -1612,7 +1623,9 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "price_info": sub.get("price_info") or update_data["price_info"],
                     "organizer": _str(sub.get("organizer")) or update_data.get("organizer"),
                     "co_organizers": [s for s in (sub.get("co_organizers") or []) if isinstance(s, str)],
+                    "co_organizer_types": _validate_organizer_types_list(sub.get("co_organizer_types") or []),
                     "sponsors": [s for s in (sub.get("sponsors") or []) if isinstance(s, str)],
+                    "sponsor_types": _validate_organizer_types_list(sub.get("sponsor_types") or []),
                     "organizer_type": _validate_organizer_types(sub.get("organizer_type", [])) or update_data.get("organizer_type", []),
                     "event_form": _validate_event_forms(sub.get("event_form", [])),
                     "primary_language": _validate_primary_language(sub.get("primary_language")) or update_data.get("primary_language"),

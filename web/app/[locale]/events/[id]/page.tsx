@@ -687,13 +687,37 @@ export default async function EventDetailPage({ params }: PageProps) {
             {((event as Event).co_organizers ?? []).length > 0 && (
               <div className="flex gap-2">
                 <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("coOrganizers")}：</dt>
-                <dd className="text-gray-900">{((event as Event).co_organizers ?? []).join("、")}</dd>
+                <dd className="text-gray-900 flex flex-wrap gap-x-2 gap-y-1">
+                  {((event as Event).co_organizers ?? []).map((name, i) => (
+                    <span key={name} className="flex items-center gap-1">
+                      {name}
+                      {((event as Event).co_organizer_types ?? [])[i] &&
+                        ((event as Event).co_organizer_types ?? [])[i] !== "unknown" && (
+                          <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+                            {tOrgType(((event as Event).co_organizer_types ?? [])[i] as any)}
+                          </span>
+                      )}
+                    </span>
+                  ))}
+                </dd>
               </div>
             )}
             {((event as Event).sponsors ?? []).length > 0 && (
               <div className="flex gap-2">
                 <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("sponsors")}：</dt>
-                <dd className="text-gray-900">{((event as Event).sponsors ?? []).join("、")}</dd>
+                <dd className="text-gray-900 flex flex-wrap gap-x-2 gap-y-1">
+                  {((event as Event).sponsors ?? []).map((name, i) => (
+                    <span key={name} className="flex items-center gap-1">
+                      {name}
+                      {((event as Event).sponsor_types ?? [])[i] &&
+                        ((event as Event).sponsor_types ?? [])[i] !== "unknown" && (
+                          <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+                            {tOrgType(((event as Event).sponsor_types ?? [])[i] as any)}
+                          </span>
+                      )}
+                    </span>
+                  ))}
+                </dd>
               </div>
             )}
             {((event as Event).event_form ?? []).length > 0 && (
