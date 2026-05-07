@@ -147,7 +147,7 @@ def _parse_venue_dates(date_text: str, today: datetime) -> tuple[datetime | None
         mth, day = int(mth_s), int(day_s)
         yr = _infer_year(mth, today)
         try:
-            dates.append(datetime(yr, mth, day, tzinfo=_JST))
+            dates.append(datetime(yr, mth, day, tzinfo=timezone.utc))
         except ValueError:
             pass
 
