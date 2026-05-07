@@ -4,6 +4,47 @@
 
 ---
 
+## 2026-05-07 — AdminEventTable performers[] 顯示修正（commit 9b84d98）
+
+**Error**: 父事件 `b90afe3c`（台湾史研究会3月例会）有 `performers=['陳志剛', '福田真郷']` 但 `performer=null`，`AdminEventTable` 只讀取 `performer` 欄位，導致顯示空白。`getEventPerformer()` helper 也未優先使用 `performers[]`，多人學術事件的表演者一律不顯示。
+
+**Fix**:
+1. `web/lib/types.ts` — `getEventPerformer()` 重寫：優先序 `performers[]`（join「、」）→ `performer_zh/en` → `performer`（legacy fallback）。
+2. `web/components/AdminEventTable.tsx` — 顯示邏輯改用 `performers.join('、')`，全文搜尋也加入 `performers[]` spread。
+3. `web/app/[locale]/events/[id]/page.tsx` — 移除複雜三段式條件，統一呼叫 `getEventPerformer()`。
+
+**Lesson**: `performer`（TEXT）是 legacy 單人欄位，`performers[]`（TEXT[]）是正確的多人欄位。UI 所有使用 performer 的地方都必須改為 `performers[]` 優先，並統一透過 `getEventPerformer()` helper 讀取，不可直接存取 `event.performer`。
+
+→ Updated architect.agent.md §「Performer Multilingual Fields Guard」Rule 2
+
+---
+
+## 2026-05-07 — 0d97e51c（2025年台湾史研究会3月例会）5 件 DB 手動修正
+
+**Error 1 — performers[] 跨年度混入**：`performers=['陳志剛', '福田真郷']`（2026年3月例会成員）被錯填進 2025年3月例会。根本原因：performers[] 批次回填時按 source_name + 月份比對，不同年份的相同月份事件互相污染。  
+**Fix 1**: `performers=['やまだあつし', '下岡友加']`（raw_description 明記）+ `field_corrections` 鎖定。
+
+**Error 2 — event_form 不正確**：`['lecture']` 應為 `['conference']`（兩場報告的學術例会 = conference，非單場 lecture）。  
+**Fix 2**: `event_form=['conference']` + FC 鎖定。
+
+**Error 3 — location_name 不完整**：`関西大学千里山キャンパス 経商研究棟` 漏掉子場地後綴（6階 大会議室）。  
+**Fix 3**: `関西大学千里山キャンパス 経商研究棟6階 大会議室`，多語言欄位（zh/en）同步更新。
+
+**Error 4 — location_url 誤填申込表單 URL**：`https://forms.gle/...`（申込 Google Form）填入 `location_url`。`location_url` 應為會場 URL，不應填入申込表單。  
+**Fix 4**: `location_url=null`。
+
+**Error 5 — sub-events 未啟用**：子事件 a8702ec8（第1報告）和 d85547af（第2報告）`is_active=False`。  
+**Fix 5**: `is_active=True`（兩件）。
+
+**Lessons**:
+- **performers[] 批次回填**必須對照 raw_description 確認姓名，不可只靠 source_name + 月份比對——不同年份同月份事件會互相污染。
+- **event_form 區分**：單場演講 = `['lecture']`；多位報告者的學術例会（2 報告以上）= `['conference']`。taiwanshi 等研究会月例会通常是 `['conference']`。
+- **location_url 語義**：只填會場官方 URL（e.g. 大学キャンパスページ）；申込表單（Google Forms 等）屬於 `source_url` / `official_url` 責任範圍，不填 `location_url`。
+
+→ Added to SKILL.md §「performers[] 批次回填驗證規則」、§「event_form — lecture vs conference 區分」、§「location_url 語義規則補充」
+
+---
+
 ## 2026-05-06 — 《中村地平上映会》business_hours 亂碼字元 U+3016（DB 手動修正）
 
 **Error**: `business_hours='13:30〖16:30'`。`〖`（U+3016 LEFT BLACK LENTICULAR BRACKET）在 kokuchpro scraper 字元轉換過程中出現，導致時間字串顯示異常（非全形波浪號 ～）。

@@ -390,10 +390,12 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan
    - `performer_zh / performer_en TEXT`：各語言名稱（GPT 填入或人工設定）
    - `performers TEXT[]`：所有具名表演者/發表者的陣列
    - `director / director_zh / director_en`：同上，用於導演
-2. **locale 優先序（`getEventPerformer(event, locale)`）**：
-   - `zh` → `performer_zh || performer`
-   - `en` → `performer_en || performer`
+2. **locale 優先序（`getEventPerformer(event, locale)`）**（2026-05-07 更新，commit `9b84d98`）：
+   - （全 locale 共通）`performers[]` 非空時，優先 `performers.join('、')` 作為顯示文字
+   - `zh` → `performer_zh` → `performer`（legacy fallback）
+   - `en` → `performer_en` → `performer`（legacy fallback）
    - `ja` → `performer`（不走翻譯欄位）
+   - **`performer`（TEXT）是 legacy 欄位**：單人事件由 annotator auto-sync 產生 `performers=[performer]`；多人事件直接填 `performers[]`，`performer` 可為 null。UI 永遠從 `performers[]` 優先讀取。
 3. **AI翻譯標注規則**：GPT 填入 performer_zh/en/director_zh/en 時，若該語言名稱**未明確出現在來源文本**，必須附加「（AI翻譯）」（如 `黃以文（AI翻譯）`）。若來源中有該語言名稱，不加標注。
 4. **academic performers[]**：學術研討會（学会大会、研究大会、シンポジウム）中**所有**具名發表者（発表者/報告者/登壇者）必須列入 `performers[]`，即使有 5 人以上。
 5. **手動設定必須鎖 `field_corrections`**：同 `performer` 欄位，`performer_zh`、`performer_en` 手動修正必須同時 upsert 進 `field_corrections`，否則下次 re-annotation 覆寫。
@@ -406,11 +408,13 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan
    - `performer` / `performer_en` / `performers[]`：演員、**主演**、講者。
    - 商業院線映畫的 `organizer` 必須為 `null`（院線是映映場地，非主辦方）。
    - 審核計畫時，若 GPT 或 scraper 將導演填入 `performer`（或反之），必須同時修正 `director` 欄位並清空錯誤的 `performer` 值；`works.director` + `works.cast_summary` 也需同步更新。
+11. **UI 顯示必須透過 `getEventPerformer()` — 禁止直接讀 `event.performer`**：所有前端元件（AdminEventTable、EventCard、event detail page 等）一律呼叫 `getEventPerformer(event, locale)` 讀取表演者。`performers[]` 為主顯示陣列（多人），`performer` 為 legacy 降級路徑。直接讀 `event.performer` 會對擁有 `performers[]` 但 `performer=null` 的多人學術事件（台湾史研究会等）靜默顯示空白。Reference incident: 2026-05-07 commit `9b84d98`。
 
 Reference incidents:
 - 2026-05-06 — `ホアン・イーウェン`（bf783b90）performer_zh=黃以文，performer_en=Huang Yi-wen（AI翻譯）；`林依晨`（4 events）performer_zh=林依晨，performer_en=Lin Yi-chen（commits 65a50b9）。
 - 2026-05-06 — 建立 work_id `c3588296` 時 `work_type='conference'` 觸發 check constraint；改用 `'other'`。
 - 2026-05-06 — `dec5031b`（大濛/霧のごとく）`performer='チェン・ユーシュン'`（導演誤填 performer）+ `organizer='台北駐日経済文化代表処 台湾文化センター'`（商業映畫誤填 organizer）→ DB 手動修正。
+- 2026-05-07 — `b90afe3c`（台湾史研究会3月例会）`performers=['陳志剛','福田真郷']` 但 `performer=null`，AdminEventTable 顯示空白（只讀 `performer`）→ `getEventPerformer()` 重寫為 `performers[]` 優先；commit `9b84d98`。
 
 ## Manual Translation Fix Persistence Guard（手動修翻譯必須鎖 field_corrections）
 
@@ -607,6 +611,33 @@ Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發無
 3. **已鎖 `field_corrections` 的值不可被下次 re-annotation 覆寫**：DB 手動修正必須同時 upsert `field_corrections`。
 
 Reference incident: 2026-05-06 — `dec5031b`（霧のごとく大濛）`配給：JAIHO/Stranger` 在 `raw_description` 但 `organizer=null`，因 SYSTEM_PROMPT 未定義 配給→organizer fallback（commit `af33133`）。
+
+## Joint Distributor Split Guard（聯合配給商拆分守護）
+
+在審核任何設定「配給」→ `organizer` 的案例，或分析 organizer 字串含「／」的事件前，**必須**確認：
+
+1. **「配給：A／B」中「／」代表聯合配給**：A 和 B 是兩家獨立公司，不可整串存為 organizer（如 `"JAIHO/Stranger"` 是錯誤的）。
+2. **正確拆分方式**：排名先者（左邊）→ `organizer`，其餘 → `co_organizers[]`。
+3. **工具驗證**：`if "/" in organizer or "／" in organizer: → 需拆分`。
+4. 同樣需鎖 `field_corrections`：`organizer`、`co_organizers`、`organizer_type` 手動修正後必須同時 upsert。
+
+Reference incident: 2026-05-07 — `dec5031b` `organizer = "JAIHO/Stranger"` 應為 `organizer = "JAIHO"`, `co_organizers = ["Stranger"]`, `organizer_type = ["commercial_brand"]`；`dded67a6` 同次修正。
+
+## Work Title ≠ Event Name Guard（作品標題不等於活動名稱守護）
+
+在審核任何涉及 `work_id` 的事件的 `name_zh`/`name_en` 前，**必須**確認：
+
+1. **`name_zh`/`name_en` 必須是 `name_ja`（完整活動標題）的翻譯**；不可從 `works.title_zh`/`works.title_en` 繼承。電影名只是活動的一部分。
+2. **症狀識別**：若 `len(name_zh) << len(name_ja)`（如 `name_zh = "中村地平"`（4字）而 `name_ja`（32字）），屬高可信度異常。zh/en locale 看到的是極短片名，ja locale 看到完整活動標題，形成「兩個標題」的錯覺。
+3. **驗證命令**：
+   ```python
+   # 查所有有 work_id 且 name_zh 長度 < name_ja 長度 50% 的事件
+   suspect = [e for e in events if e.get("work_id") and e.get("name_zh") and e.get("name_ja")
+              and len(e["name_zh"]) < len(e["name_ja"]) * 0.5]
+   ```
+4. 修正後必須同時鎖 `field_corrections`：`name_zh`、`name_en` 均需 upsert，防止 re-annotation 覆寫。
+
+Reference incident: 2026-05-07 — `622f51c1`（第78回 日本と台湾を考える集い）`name_zh = "中村地平"`（4字）vs `name_ja`（32字）；annotator 把 `works.title_zh` 直接用作 `name_zh`；DB 手動改為完整活動標題翻譯後鎖 field_corrections。
 
 ## Zero-Event Source Alert Guard
 

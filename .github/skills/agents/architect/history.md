@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-05-07 — work.title_zh 誤用為 name_zh 導致標題截短
+
+問題：`622f51c1`（第78回 日本と台湾を考える集い）`name_zh = "中村地平"`（只有電影名），zh locale 標題遠短於 name_ja。
+根因：annotator 把 `works.title_zh` 直接用作 `name_zh`，未翻譯完整 name_ja 活動標題。
+修復：DB 手動改 `name_zh = "第78回 日台思考集會 紀錄片《中村地平》放映會"`，`name_en = "78th Japan-Taiwan Gathering: Documentary Film 'Nakamura Chihei' Screening"`，均鎖 field_corrections。
+教訓：name_zh/name_en 必須是 name_ja 完整活動標題的翻譯；電影名（works.title_zh）只是活動一部分，不可繼承為事件標題。
+
+---
+
+## 2026-05-07 — 聯合配給商需拆分為 organizer + co_organizers
+
+問題：`dec5031b`（霧のごとく）raw_description「配給：JAIHO/Stranger」被整串設為 `organizer = "JAIHO/Stranger"`。
+發現：JAIHO 和 Stranger 是兩家獨立公司；「A／B」是聯合配給，非一家公司名稱。
+修復：兩筆相關事件改為 `organizer = "JAIHO"`, `co_organizers = ["Stranger"]`, `organizer_type = ["commercial_brand"]`，均鎖 field_corrections。
+教訓：「配給：A／B」中「／」代表聯合配給，應拆為 organizer（排名先者）+ co_organizers。
+
+---
+
 ## 2026-05-09 — performer / performers[] 設計決策：三欄並存，不做欄位合併
 
 **決策：** 不刪除 `performer` 欄位，不將其遷移至 `performers[]`；三欄並存，annotator 自動同步。

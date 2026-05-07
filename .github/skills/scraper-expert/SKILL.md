@@ -787,6 +787,54 @@ for e in [x for x in events if x['name_ja'] != x['raw_title']]:
 - **Web 渲染**：Event detail page 以條件渲染實作——`location_url` 存在時將 `location_name` 包在 `<a href={location_url} target="_blank" rel="noopener noreferrer">` 內，並顯示 ↗ 指示符。
 - **`sub_row` 繼承規則**：`annotator.py` 的 `sub_row` 不自動繼承父事件欄位。新增 `location_url` 後，若父事件有 venue URL，`sub_row` 需明確設定 `"location_url": event.get("location_url")`。
 - **Seed 順序**：含 `location_url` 的 Python client seed 必須在 Supabase Dashboard 執行 migration `031` 後才能執行；否則報 `PGRST204`。
+- **⚠ 申込表單 URL 禁止填入 `location_url`**：Google Forms（`forms.gle/...`）、Peatix、Connpass 等**申込/登録表單 URL** 絕對不能填入 `location_url`。`location_url` 語義是「會場的官方 URL」（大学キャンパスページ、施設公式サイト等）。申込表單屬於 `source_url` 或 `official_url` 的責任範圍。DB 手動修正時若發現 `location_url` 含申込表單 → 設為 `null`。
+
+Reference incident: `0d97e51c`（2025年台湾史研究会3月例会）`location_url='https://forms.gle/BwseMtpymDKQY4W47'`（申込表單）→ `null` 手動修正（2026-05-07）。
+
+## event_form — lecture vs conference 區分規則
+
+`event_form` 陣列的學術事件類型選擇：
+
+| 情境 | 正確值 |
+|---|---|
+| 單一登壇者による講演・発表 | `['lecture']` |
+| 複数の登壇者（2 件以上の報告）がある学術例会・研究会 | `['conference']` |
+| シンポジウム・学会大会 | `['conference']` |
+
+**判斷基準**：
+- 「第1報告：〇〇」「第2報告：〇〇」のように**複数の報告**がある → `conference`
+- 台湾史研究会・台湾研究フォーラム等の**月例会**は通常 `conference`（複数報告が標準形式）
+- 単一演講でゲスト1名のみ → `lecture`
+
+Reference incident: `0d97e51c` `event_form=['lecture']` → `['conference']`（2報告あり、2026-05-07 修正）。
+
+## performers[] 批次回填驗證規則
+
+批次回填 `performers[]` 時的必須驗證步驟：
+
+**跨年度混入リスク**：source_name + 月份 で候補を絞ると、異なる年の同月イベントが混在し、performers が誤ったイベントに書き込まれる。
+
+```python
+# ❌ 危険：同月の別年イベントを混入させるパターン
+candidates = sb.table('events').select('id,performers,raw_description').eq('source_name', 'taiwanshi').execute().data
+# 2025-03 の回 と 2026-03 の回 が両方マッチしてしまう
+
+# ✅ 安全：start_date の年月まで絞り込む
+candidates = (
+    sb.table('events').select('id,performers,raw_description')
+    .eq('source_name', 'taiwanshi')
+    .gte('start_date', '2025-03-01')
+    .lt('start_date', '2025-04-01')
+    .execute().data
+)
+```
+
+**回填前の必須確認（人工）**：
+1. 各イベントの `raw_description` を確認し、書き込もうとする performers 名が実際に記載されているか照合する。
+2. 氏名が一致しない場合は当該イベントをスキップし、source_url を再確認する。
+3. 回填後は `field_corrections` にロックし、re-annotation で上書きされないよう保護する。
+
+Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田真郷']`（2026年3月例会の報告者）が誤って書き込まれた（2026-05-07 修正）。
 
 
 ## cinema scrapers — official_url extraction
