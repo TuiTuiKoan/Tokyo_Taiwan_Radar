@@ -62,6 +62,8 @@ export interface Event {
   event_status?: "scheduled" | "cancelled" | "postponed" | "rescheduled" | null;
   performer?: string | null;
   performers?: string[] | null;
+  performers_zh?: string[] | null;
+  performers_en?: string[] | null;
   director?: string | null;
   performer_zh?: string | null;
   performer_en?: string | null;
@@ -313,8 +315,12 @@ export function getEventBusinessHours(event: Event, locale: Locale): string | nu
  */
 export function getEventPerformer(event: Event, locale: Locale): string | null {
   const arr = event.performers ?? [];
-  // Multi-person: performers[] is the canonical source regardless of locale
-  if (arr.length > 1) return arr.join("、");
+  // Multi-person: prefer locale-specific array, fall back to original
+  if (arr.length > 1) {
+    if (locale === "zh" && event.performers_zh?.length) return event.performers_zh.join("、");
+    if (locale === "en" && event.performers_en?.length) return event.performers_en.join("、");
+    return arr.join("、");
+  }
   // Single-performer (or no array): locale-specific translation takes priority
   if (locale === "zh") return event.performer_zh || event.performer || arr[0] || null;
   if (locale === "en") return event.performer_en || event.performer || arr[0] || null;

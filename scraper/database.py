@@ -127,6 +127,10 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         row["performer"] = event.performer
     if event.performers:
         row["performers"] = event.performers
+    if event.performers_zh:
+        row["performers_zh"] = event.performers_zh
+    if event.performers_en:
+        row["performers_en"] = event.performers_en
     if event.director is not None:
         row["director"] = event.director
     if event.performer_zh is not None:

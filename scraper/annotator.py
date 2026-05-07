@@ -679,6 +679,8 @@ Respond with valid JSON matching this schema:
   "performer_zh": "Traditional Chinese name of the performer. If the Chinese name is explicitly stated in the source text, use it exactly as written. If you must infer or transliterate from the Japanese name (not stated in source), append「（AI翻譯）」e.g. '黃以文（AI翻譯）'" or null,
   "performer_en": "English/romanized name of the performer. If explicitly in source: use as-is. If inferred/transliterated: append ' (AI Translation)' e.g. 'Huang Yi-wen (AI Translation)'" or null,
   "performers": ["bare name 1", "bare name 2"] or [],
+  "performers_zh": ["Traditional Chinese name 1", "name 2"] or [],
+  "performers_en": ["English name 1", "name 2"] or [],
   "director": "bare personal name (no honorifics) of the director/filmmaker — in original language" or null,
   "director_zh": "Traditional Chinese name of the director. If explicitly in source: use as-is. If inferred: append「（AI翻譯）」" or null,
   "director_en": "English/romanized name of the director. If explicitly in source: use as-is. If inferred: append ' (AI Translation)'" or null,
@@ -1367,6 +1369,14 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                         update_data["performer_zh"] = _perf_zh
                     if _perf_en:
                         update_data["performer_en"] = _perf_en
+
+                # Performers array translations
+                _gpt_performers_zh = annotation.get("performers_zh")
+                if isinstance(_gpt_performers_zh, list) and _gpt_performers_zh:
+                    update_data["performers_zh"] = [_to_trad(s) if isinstance(s, str) else s for s in _gpt_performers_zh]
+                _gpt_performers_en = annotation.get("performers_en")
+                if isinstance(_gpt_performers_en, list) and _gpt_performers_en:
+                    update_data["performers_en"] = _gpt_performers_en
 
                 # Director (from GPT)
                 if "director" not in _human_protected:

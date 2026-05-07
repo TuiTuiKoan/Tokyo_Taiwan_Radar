@@ -123,6 +123,8 @@ class Event:
     performer_en: Optional[str] = None
     director_zh: Optional[str] = None
     director_en: Optional[str] = None
+    performers_zh: list[str] = field(default_factory=list)
+    performers_en: list[str] = field(default_factory=list)
 
 
 def dedup_events(events: list[Event]) -> list[Event]:
