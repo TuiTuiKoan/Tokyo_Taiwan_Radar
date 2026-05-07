@@ -70,26 +70,6 @@ Reference incidents:
 - 2026-05-08 — commit `191d939`：migration 053 新增 `performers TEXT[]`（Incident C）
 - 2026-05-08 — commit `3822fb8`：migration 054 新增 `performer_zh`, `performer_en`, `director_zh`, `director_en`（Incident D）
 
-## Performer Multi-Person Display Guard（多人表演者顯示防護）
-
-在審核任何涉及 `getEventPerformer()` 或 performers 相關 UI 邏輯的 PR 前，**必須**確認：
-
-1. **`performers[].length ≥ 2` 時，全 locale 一律回傳 `performers[].join("、")`**：`performer_zh/en` 由 annotator 從單一 `performer` 欄位生成，只有 1 人份。`performers[]` 有多人時優先使用 `performer_zh/en` 會靜默截斷（zh/en 頁面只顯示第 1 人，其餘人名消失）。
-2. **單一表演者路徑（`performers[].length ≤ 1`）**：locale-specific translation（`performer_zh/en`）> `performer` > `performers[0]`。
-3. **驗證方式**：查詢 `array_length(performers, 1) >= 2 AND performer_zh IS NOT NULL` 的事件，確認 zh/en 頁面顯示**全部人名**而非只有第 1 人。
-4. **Root cause**：annotator 的 `performer_zh/en` 生成邏輯以 `performer`（單一欄位）為輸入，不以 `performers[]` 為輸入——設計上就是 1 對 1，多人情況必須走 `performers[]`。
-
-```typescript
-// 正確 pattern（commit 1a38bd5）：
-const arr = event.performers ?? [];
-if (arr.length > 1) return arr.join("、");  // 多人時全 locale 用 performers[]
-if (locale === "zh") return event.performer_zh || event.performer || arr[0] || null;
-if (locale === "en") return event.performer_en || event.performer || arr[0] || null;
-return arr[0] || event.performer || null;
-```
-
-Reference incident: 2026-05-07 — `b2589d75` ガブテックカンファレンス 6 位登壇者，zh/en 頁面只顯示「宮坂 学」1 人（commit `1a38bd5`）。
-
 ## Manual Translation Fix Persistence Guard
 
 在審核**任何**直接 SQL UPDATE 翻譯欄位（`name_zh` / `name_en` / `description_zh` / `description_en` / `performer`）的計畫前，**必須**確認：
@@ -106,38 +86,6 @@ Reference incident: 2026-05-07 — `b2589d75` ガブテックカンファレン�
 4. **靜默 `continue` 是反 pattern**：lookup 失敗必須 `logger.warning`，否則 CI log 看不到，錯誤翻譯靜默上線數日。
 
 Reference incident: 2026-05-05 — event `f970e4e3`（月老）多次被修又被 AI 覆寫；今日同步補入 `field_corrections` 鎖定四個翻譯欄位後免疫。
-
-## organizer_type Valid Values Guard
-
-在審核任何直接設定 `organizer_type` 的 DB 修正、腳本或計畫前，**必須**確認值在以下允許清單內：
-
-```
-government | semi_official | cultural_institution | academic |
-commercial_brand | independent_venue | civic_group | media | unknown
-```
-
-**常見錯誤**（觸發 DB check constraint error）：
-- `npo_association` → 應改為 `civic_group`
-- `npo` → 應改為 `civic_group`
-- `association` → 應改為 `civic_group`
-- `school` → 應改為 `academic` 或 `civic_group`
-
-**NPO、同好會、親善協会、交流会** 等 civic 性質的主辦方統一使用 `civic_group`。
-
-Reference incident: 2026-05-07 — `4feab235` 設 `organizer_type=['npo_association']` 觸發 check constraint error，正確值為 `civic_group`。
-
-## annotation=error Location Trust Guard
-
-在審核任何 `annotation_status = 'error'` 的事件前，**必須**確認：
-
-1. **location / organizer 值不可信任**：`annotation=error` 表示 GPT 回傳格式異常，這些欄位可能是前次 annotation 的殘留值或亂碼。
-2. **必要的修復步驟**：
-   a. 從 `source_url` 直接查閱原始頁面確認正確場地
-   b. 手動設定正確 `location_name` / `location_address` / `location_prefectures` + FC 鎖定三欄
-   c. 設 `organizer = None`、`annotation_status = 'pending'` 讓 annotator 重新處理
-3. **Collection Attribution Guard 仍適用**：`〇〇美術館蔵` 型的機構名不可作為 `location_name`，作品收藏機關 ≠ 展場。
-
-Reference incident: 2026-05-07 — `977da793` annotation=error，`location_name` 誤填台北當代藝術館（作品所蔵機關），實際展場為 Gallery Biga（京都）。
 
 ## Admin Form Component Prop Completeness Guard
 
@@ -402,6 +350,23 @@ Before approving any change to `annotator.py` annotation field priority, verify:
 4. **`name_ja` special case**: when `name_ja_locked=true`, the scraper's value is preserved verbatim. The source title may be in Japanese, Chinese, or English — `name_ja` is a field identifier, not a language constraint.
 5. **`location_url`** — conditional write: GPT may extract it from `raw_description` text (schema prompt must say "extract from text only, no hallucination"). Write only when non-null (`_loc_url = event.get("location_url") or _str(annotation.get("location_url"))`); never write `null` back to DB — `null` would overwrite admin-entered values. This is a field shared between scraper/GPT extraction and admin manual entry. (commit `fb568c4`, 2026-05-02)
 6. The safe way to fix a GPT-overwritten date: prepend `開催日時: YYYY年MM月DD日` header to `raw_description`, then set `annotation_status='pending'` to trigger re-annotation.
+
+## Scraper Date Timezone Guard（爬蟲日期時區守護）
+
+在審核任何 scraper 的 `start_date`/`end_date` 傳入邏輯前，**必須**確認：
+
+1. **禁止傳 JST-aware datetime**：`datetime(..., tzinfo=timezone(timedelta(hours=9)))` 傳入 Supabase 後以 UTC 儲存，JST+9 偏移導致日期倒退一天（`2026-05-08T00:00:00+09:00` → `2026-05-07T15:00:00+00:00`）。
+2. **正確模式 — UTC midnight**：
+   ```python
+   # CORRECT — 保留日曆日期，強制 UTC tzinfo
+   start_date = jst_dt.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+   # WRONG — JST-aware datetime 傳入 Supabase
+   start_date = jst_dt  # tzinfo=JST, Supabase 轉成前一天 UTC
+   ```
+3. **naive datetime 也有風險**：`datetime` 無 tzinfo 時 Supabase 依伺服器時區解讀（通常 UTC），一般安全，但不如明確設定 UTC midnight。
+4. **驗證**：新 scraper dry-run 後，確認 DB 的 `start_date` 與來源頁面的日期完全一致。
+
+Reference incident: 2026-05-07 — Stranger scraper `f3554212` start_date 存為 `2026-05-07T15:00:00+00:00`（應為 2026-05-08），Vercel 顯示前一天（commit `b7dc34f`）。
 
 ## Hallucination Scan Safety Guard
 
@@ -1330,21 +1295,6 @@ Reference incident: 2026-05-05 19:52 + 2026-05-06 02:11 — Run Merger 連續兩
 Reference incidents:
 - 2026-05-04 `878660a0 iwafu` — `流山おおたかの森S.C. 森のまち広場` scraper 直接設 `location_address = place_val`（venue name），導致 annotator 的 PARENT VENUE ADDRESS RULE 完全無效。修復：`iwafu.py` 改為 `_ADDR_RE` 抽取真實地址，找不到設 `None`。
 - 2026-05-04 hakusuisha — annotator SYSTEM_PROMPT 加入 PARENT VENUE ADDRESS RULE，`auto_qa_address_is_venue_name` 偵測器加入 auto_qa.py。
-
-## Location Embedded Address Guard（location_name 括弧住所混入防護）
-
-在審核任何 annotator 輸出中涉及 `location_name` / `location_address` 分離的計畫，或分析 location 欄位異常前，**必須**確認：
-
-1. **`location_name` 中不應包含括弧住所**：`南山大学 Q棟103教室 (〒466-8673 名古屋市昭和区山里町18)` 這種混入格式表示 annotator 未能分離。正確格式：`location_name = 南山大学 Q棟103教室`、`location_address = 〒466-8673 名古屋市昭和区山里町18`。
-2. **偵測 SQL**：
-   ```sql
-   SELECT id, location_name FROM events
-   WHERE location_name LIKE '%(〒%' AND is_active = true;
-   ```
-3. **修復後必須 FC 鎖定 location_name + location_address 兩個欄位**：否則下次 re-annotation 可能再次混入。
-4. **範圍**：特別常見於學術研究會（taiwanshi、jats 等）的 sub-event，annotator 會從父事件繼承 location_name 並附加括弧住所。
-
-Reference incident: 2026-05-07 — `b42977f3` / `09c26a2e`（日本台湾学会第23回関西部会 sub-events）location_name 括弧住所混入修復。
 
 ## Contentful Placeholder Date Guard
 

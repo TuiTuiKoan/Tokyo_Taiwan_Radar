@@ -261,6 +261,23 @@ Reference incident: 2026-05-04 hakusuisha `_T` parser 未過濾 script/nav，`�
 
 Reference incident: 2026-05-04 hakusuisha — `_JITSU_RE` 命中 scraper 自注入的 `開催日時:` 前綴，`business_hours` 永遠 null（commit `a0292a2`）。
 
+## Scraper Date Timezone Guard（爬蟲日期時區守護）
+
+在審核任何 scraper 的 `start_date`/`end_date` 傳入邏輯前，**必須**確認：
+
+1. **禁止傳 JST-aware datetime**：`datetime(..., tzinfo=timezone(timedelta(hours=9)))` 傳入 Supabase 後以 UTC 儲存，JST+9 偏移導致日期倒退一天（`2026-05-08T00:00:00+09:00` → `2026-05-07T15:00:00+00:00`）。
+2. **正確模式 — UTC midnight**：
+   ```python
+   # CORRECT — 保留日曆日期，強制 UTC tzinfo
+   start_date = jst_dt.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+   # WRONG — JST-aware datetime 傳入 Supabase
+   start_date = jst_dt  # tzinfo=JST, Supabase 轉成前一天 UTC
+   ```
+3. **naive datetime 也有風險**：`datetime` 無 tzinfo 時 Supabase 依伺服器時區解讀（通常 UTC），一般安全，但不如明確設定 UTC midnight。
+4. **驗證**：新 scraper dry-run 後，確認 DB 的 `start_date` 與來源頁面的日期完全一致。
+
+Reference incident: 2026-05-07 — Stranger scraper `f3554212` start_date 存為 `2026-05-07T15:00:00+00:00`（應為 2026-05-08），Vercel 顯示前一天（commit `b7dc34f`）。
+
 ## organizer_type Valid Values Guard
 
 在審核任何直接設定 `organizer_type` 的 DB 修正、腳本或計畫前，**必須**確認值在以下允許清單內：

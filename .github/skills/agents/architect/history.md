@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-05-07 — Scraper JST-aware datetime → Supabase UTC 日期偏移
+
+問題：Stranger scraper 的 min_date/max_date 是 JST-aware datetime（UTC+9）。Supabase 以 UTC 儲存後，`2026-05-08T00:00:00+09:00` → `2026-05-07T15:00:00+00:00`，Vercel UTC 伺服器顯示前一天（5/7 instead of 5/8）。
+修復：`date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)` — 保留日曆日期，強制 tzinfo=UTC，Supabase 存 `T00:00:00+00:00`（commit `b7dc34f`）。
+教訓：所有 scraper 傳入 start_date/end_date 的 datetime 物件，必須以 UTC midnight（`tzinfo=timezone.utc`）儲存，禁止傳 JST-aware datetime。
+
+---
+
+## 2026-05-07 — performers_zh/en 多語言陣列新增
+
+新功能：migration 056 新增 performers_zh/en TEXT[]，annotator GPT 同時回傳三語名稱陣列，getEventPerformer() 多人時優先使用語言對應陣列（commit `cbdc015`）。
+架構確認：performers[] = 日文原名（仍為主錨點）；performers_zh/en[] = 翻譯陣列（display only）。
+教訓：多語言陣列欄位新增後，getEventPerformer 的多人分支需同步更新 locale 優先序；array 長度判斷（≥ 2）必須在 locale-specific lookup 之前做。
+
+---
+
 ## 2026-05-07（第三輪）— annotation=error location 誤填 + sub-event 地址繼承 + organizer hallucination + npo_association 非法值
 
 ### 案例 A — 977da793 annotation=error：location 誤填台北當代藝術館
