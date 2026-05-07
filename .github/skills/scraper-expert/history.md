@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-05-09 — `_KNOWN_PERSON_MAP` 藝名/筆名 GPT 翻譯覆寫 + performers_zh/en 多語言陣列
+
+### A — GPT 片假名藝名翻譯失敗 → `_KNOWN_PERSON_MAP` hardcoded 解法
+
+**問題：** `backfill_performer_i18n()` 用 GPT 翻譯片假名名，對藝名/筆名產生錯誤音譯：`ギデンズ・コー` → `基登斯·高`（正確：`九把刀` / `Giddens Ko`）。
+**根因：** 藝名與片假名無語音對應關係，GPT 語音推測必然失敗。
+**修正：** `annotator.py` 新增 `_KNOWN_PERSON_MAP`（14 筆已驗證名人），三個整合點（annotation loop、performers[] 逐元素、backfill Layer 0）。11 筆 DB 事件修正。
+**教訓：** 藝名/筆名不可靠 GPT 翻譯。已知名人必須收錄 `_KNOWN_PERSON_MAP`，新增時三語同時驗證（eiga.com / 官方 / Wikipedia）。
+
+### B — `performers_zh[]` / `performers_en[]` 多語言陣列新增
+
+**問題：** 多人事件只有 `performers[]`（日文），中英頁面顯示日文名。
+**修正：** migration 056 新增 `performers_zh TEXT[]`、`performers_en TEXT[]`；Event dataclass / database.py 同步更新；getEventPerformer() 多人分支優先使用語言對應陣列。178 筆 backfill。
+**教訓：** 多語言陣列欄位新增後，前端 locale 優先序和 array 長度判斷需同步更新。
+
+### C — 翻譯規則嚴格化
+
+**確立規則：** (1) 拉丁字母名原樣保留 (2) CJK 漢字名無驗證來源不翻譯 (3) 片假名僅有驗證來源時翻譯 (4) `backfill_performer_i18n()` 不可限定 `is_active=True`
+**教訓：** 翻譯規則必須在 SKILL.md 明文記載，否則每次 backfill 都會重複犯錯。
+
+---
+
 ## 2026-05-07 — KG+ Kyotographie scraper 新規実装 + 4 scrapers 復元（commit `de6c31d`）
 
 ### A — KgplusKyotographieScraper 実装

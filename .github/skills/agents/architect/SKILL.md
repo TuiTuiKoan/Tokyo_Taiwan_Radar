@@ -49,6 +49,24 @@ Reference incident: 2026-05-05 — `赤い糸 輪廻のひみつ` 以日文出�
 
 Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan-Dong` 從 5/4 daily CI 後持續未修正；同事件多次手修又被 AI 覆寫，根因為缺 lock。
 
+## Known Person Map Guard（`_KNOWN_PERSON_MAP` 藝名/筆名覆寫機制）
+
+在審核任何涉及 performer/director 翻譯、`backfill_performer_i18n()`、或新增 `_KNOWN_PERSON_MAP` 條目的計畫前，**必須**確認：
+
+1. **GPT 無法可靠翻譯藝名/筆名**：片假名 `ギデンズ・コー` 與漢字 `九把刀` 無語音對應關係（pen name），GPT 只能語音推測，必然失敗。所有**已知藝名/筆名**必須收錄進 `_KNOWN_PERSON_MAP`。
+2. **三語同時驗證**：新增 `_KNOWN_PERSON_MAP` 條目時，`ja`/`zh`/`en` 三個值必須同時提供且驗證。資料來源優先序：eiga.com → 官方網站 → Wikipedia → 可靠第三方。
+3. **三個整合點全覆蓋**：`_KNOWN_PERSON_MAP` 生效位置：① 主 annotation loop（performer/director GPT 輸出覆寫）② `performers[]` 陣列逐元素檢查 ③ `backfill_performer_i18n()` Layer 0（已知名字跳過 GPT）。新增整合點時需三處同步。
+4. **翻譯規則（嚴格執行）**：
+   - 拉丁字母名 → 原樣保留，不翻譯
+   - CJK 漢字名無驗證來源 → 不翻譯（zh: 照抄漢字，en: 跳過 / NULL）
+   - 日文名無完整漢字 → 不翻譯成中文
+   - 片假名音譯 → 僅在有驗證來源時翻譯（`_KNOWN_PERSON_MAP` 或 eiga.com lookup）
+5. **`backfill_performer_i18n()` 不可限定 `is_active=True`**：非活躍事件同樣需要翻譯完整性。批次 backfill 腳本的 active 過濾需明確設計。
+
+Reference incidents:
+- 2026-05-09 — `ギデンズ・コー` → `基登斯·高` (GPT 幻覺)；正確 `九把刀` / `Giddens Ko`。14 筆已驗證名人收錄 `_KNOWN_PERSON_MAP`，11 筆 DB 事件修正。
+- 2026-05-09 — 46 筆非活躍事件因 `is_active=True` 過濾而缺翻譯，需一次性批次 backfill。
+
 ## Performer Multilingual Fields Guard（performer_zh/en/director_zh/en）
 
 在審核任何涉及 `performer_zh`、`performer_en`、`director_zh`、`director_en` 的計畫，或設計多語言表演者顯示邏輯時，**必須**確認：
@@ -181,6 +199,17 @@ Reference incident: 2026-05-05 — commit `5a29c13` 修 EventCard.tsx 城市徽�
 - 發現污染 → 執行翻譯修正腳本（從 zh 欄 GPT 翻譯覆寫）
 
 **Incident**: 2026-05-04 `--backfill-tier1` 導致 49 筆 `selection_reason["ja"]` 為中文，需人工腳本修正。
+
+## RSC Function Prop Serialization Guard（RSC 函式 prop 序列化守護）
+
+在審核任何 Server Component 將函式傳給 Client Component 的 PR 前，**必須**確認：
+
+1. **不可把翻譯 function 作為 prop 傳遞**：`(k) => t(k as ...)` 是 closure，React 19 RSC 序列化會失敗（client-side navigation 出現 server error）。SSR（初始載入）因在同一 JS process 執行不會報錯，**僅限 `<Link>` navigation 才觸發**，難以在 SSR-only 測試中發現。
+2. **正確 pattern**：Client Component（`"use client"`）需要翻譯時，直接在 component 內呼叫 `useTranslations("namespace")`；不依賴 Server Component 注入 translation function。
+3. **next-intl interpolation API**：必須用 `t("key", { n: count })`；禁止用 `.replace("{n}", String(count))` workaround。
+4. **症狀識別**：SSR（初始頁面載入）正常，但 `<Link>` client-side navigation 到同一頁面出現 server error（ERROR 3226104792 或類似錯誤碼）——這是 RSC 序列化失敗的典型特徵。
+
+Reference incident: 2026-05-07 — `AnnouncementForm` 的 `tAdmin`/`tAnn` function props 導致 `/admin/announcements/[id]` `<Link>` navigation server error（commit `a1f0472`）。
 
 ## Scope
 

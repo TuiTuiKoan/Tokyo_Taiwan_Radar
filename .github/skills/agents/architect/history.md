@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-05-07 — RSC function prop serialization error (ERROR 3226104792)
+
+**Error**: Clicking "Edit Draft" link in WeeklyBroadcastPanel triggered server error ERROR 3226104792 on `/admin/announcements/[id]`.
+**Root cause**: Server Component (`[id]/page.tsx`) passed `(k) => tAnn(k as ...)` closures as `tAdmin`/`tAnn` props to `AnnouncementForm` (Client Component). SSR works (same JS process), but client-side navigation requires RSC payload serialization — functions/closures cannot be serialized in React 19.
+**Fix** (commit `a1f0472`): Removed function props; `AnnouncementForm` now calls `useTranslations("announcements")` and `useTranslations("admin")` directly. Also fixed `linkedEventsCount` interpolation from `.replace("{n}", String(count))` to the correct `tAnn("key", { n: count })` API.
+**Lesson**: Never pass translation functions (or any closure) from Server Component to Client Component as props. Client Components that need translations must call `useTranslations()` themselves. SSR-only symptom (initial load OK, `<Link>` navigation triggers server error) is the telltale sign of RSC serialization failure.
+
+---
+
 ## 2026-05-09 — works 表片假名人名中文化
 
 **任務：** works 表 6 筆片假名人名 → 中文人名轉換 + 英文標題補全（DB-only，無程式碼變更）

@@ -795,6 +795,17 @@ Reference incident: 2026-05-06 — AdminEventTable `rowIndexMap` 從 `displayEve
 
 Reference incident: 2026-05-06 — `category`/`work` 欄從 `max-w-[160px]` 改為 `w-[160px] min-w-[160px]`；works 清單排序從 `.order("original_title")` 改為 `.order("title_ja", { nullsFirst: false })`；dropdown「新增 work」從 `<a>` 改為 `<button>` modal。
 
+## RSC Function Prop Serialization Guard（RSC 函式 prop 序列化守護）
+
+在審核任何 Server Component 將函式傳給 Client Component 的 PR，或調查「Link 導航觸發 server error 但初始載入正常」的問題前，**必須**確認：
+
+1. **不可把翻譯 function 作為 prop 傳遞**：`(k) => t(k as ...)` 是 closure，React 19 RSC 序列化會失敗（client-side navigation 出現 server error）。SSR（初始載入）因在同一 JS process 執行不會報錯，**僅限 `<Link>` navigation 才觸發**，難以在 SSR-only 測試中發現。
+2. **正確 pattern**：Client Component（`"use client"`）需要翻譯時，直接在 component 內呼叫 `useTranslations("namespace")`；不依賴 Server Component 注入 translation function。
+3. **next-intl interpolation API**：必須用 `t("key", { n: count })`；禁止用 `.replace("{n}", String(count))` workaround。
+4. **症狀識別**：SSR（初始頁面載入）正常，但 `<Link>` client-side navigation 到同一頁面出現 server error（ERROR 3226104792 或類似 hash 碼）——這是 RSC 序列化失敗的典型特徵。
+
+Reference incident: 2026-05-07 — `AnnouncementForm` 的 `tAdmin`/`tAnn` function props 導致 `/admin/announcements/[id]` `<Link>` navigation server error（commit `a1f0472`）。
+
 ## Required Phases
 
 ### Phase 1: Research

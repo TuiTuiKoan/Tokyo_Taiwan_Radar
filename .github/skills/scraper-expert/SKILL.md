@@ -1288,6 +1288,26 @@ Event(
 
 Reference incident: `dec5031b`（大濛/霧のごとく）`performer='チェン・ユーシュン'`（導演誤填），`organizer='台北駐日経済文化代表処 台湾文化センター'`（商業映畫誤填 organizer）→ DB 手動修正（2026-05-06）。
 
+### `_KNOWN_PERSON_MAP` — 藝名/筆名 GPT 翻譯覆寫
+
+GPT は藝名・筆名（片假名 ↔ 非語音漢字対応）を正しく翻訳できない。`annotator.py` のモジュールレベル `_KNOWN_PERSON_MAP` に検証済みの名前を登録すること。
+
+**GPT が失敗するケース（片假名 → 漢字が語音対応しない）：**
+- `ギデンズ・コー` → ❌ `基登斯·高` → ✅ `九把刀` / `Giddens Ko`（筆名）
+- `ロー・ウェイ` → ❌ `Lau Wai` → ✅ `羅維` / `Lo Wei`
+
+**新規エントリ追加時の必須事項：**
+1. **三言語同時検証**：`ja`（片假名）、`zh`（漢字名）、`en`（英語名）すべてを信頼できるソースで確認
+2. **ソース優先順位**：eiga.com → 公式サイト → Wikipedia → 信頼できる第三者
+3. **三つの統合ポイントを確認**：① annotation loop ② `performers[]` 配列 per-element ③ `backfill_performer_i18n()` Layer 0
+
+**翻訳ルール（厳格適用）：**
+- ラテン文字名 → そのまま保持（翻訳しない）
+- CJK 漢字名で検証ソースなし → 翻訳しない（zh: 漢字コピー、en: NULL）
+- 片假名音訳 → 検証ソースがある場合のみ翻訳（`_KNOWN_PERSON_MAP` or eiga.com lookup）
+
+Reference incident: 2026-05-09 — 14 名の検証済み名前を `_KNOWN_PERSON_MAP` に登録、11 件の DB イベントを修正。
+
 ---
 
 ## Sub-event 啟用 — 標題同步規則
