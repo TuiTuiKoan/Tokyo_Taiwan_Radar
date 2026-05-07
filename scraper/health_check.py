@@ -78,6 +78,8 @@ ZERO_EVENT_OK_SOURCES: frozenset[str] = frozenset({
     "otto",
     "amayaza",
     "theater_kino",
+    "ciema",
+    "acros_fukuoka",
     # Seasonal film festivals — only active during festival period
     "oaff",
     "tokyo_filmex",
