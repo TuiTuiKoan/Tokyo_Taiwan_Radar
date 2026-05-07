@@ -275,7 +275,7 @@ async function publishLine(
   locale: Locale,
   siteUrl: string
 ): Promise<{ post_id: string }> {
-  const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? process.env.LINE_CHANNEL_TOKEN;
   if (!channelAccessToken) throw new Error("LINE_CHANNEL_ACCESS_TOKEN not configured");
 
   const title = getTextField(announcement, locale) ?? "";
