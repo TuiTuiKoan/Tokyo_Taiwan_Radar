@@ -1388,34 +1388,60 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 ):
                     update_data["performers"] = [update_data["performer"]]
 
-                # Performer translations
+                # Performer translations — KNOWN_PERSON_MAP overrides GPT
                 if update_data.get("performer"):
-                    _perf_zh = _to_trad(_str(annotation.get("performer_zh")))
-                    _perf_en = _str(annotation.get("performer_en"))
-                    if _perf_zh:
-                        update_data["performer_zh"] = _perf_zh
-                    if _perf_en:
-                        update_data["performer_en"] = _perf_en
+                    _perf_name = update_data["performer"]
+                    if _perf_name in _KNOWN_PERSON_MAP:
+                        _kp_zh, _kp_en = _KNOWN_PERSON_MAP[_perf_name]
+                        update_data["performer_zh"] = _kp_zh
+                        update_data["performer_en"] = _kp_en
+                    else:
+                        _perf_zh = _to_trad(_str(annotation.get("performer_zh")))
+                        _perf_en = _str(annotation.get("performer_en"))
+                        if _perf_zh:
+                            update_data["performer_zh"] = _perf_zh
+                        if _perf_en:
+                            update_data["performer_en"] = _perf_en
 
-                # Performers array translations
+                # Performers array translations — apply KNOWN_PERSON_MAP per element
+                _gpt_performers_ja = annotation.get("performers") or []
                 _gpt_performers_zh = annotation.get("performers_zh")
                 if isinstance(_gpt_performers_zh, list) and _gpt_performers_zh:
-                    update_data["performers_zh"] = [_to_trad(s) if isinstance(s, str) else s for s in _gpt_performers_zh]
+                    _fixed_zh = []
+                    for i, zh_name in enumerate(_gpt_performers_zh):
+                        ja_name = _gpt_performers_ja[i] if i < len(_gpt_performers_ja) else ""
+                        if ja_name in _KNOWN_PERSON_MAP:
+                            _fixed_zh.append(_KNOWN_PERSON_MAP[ja_name][0])
+                        else:
+                            _fixed_zh.append(_to_trad(zh_name) if isinstance(zh_name, str) else zh_name)
+                    update_data["performers_zh"] = _fixed_zh
                 _gpt_performers_en = annotation.get("performers_en")
                 if isinstance(_gpt_performers_en, list) and _gpt_performers_en:
-                    update_data["performers_en"] = _gpt_performers_en
+                    _fixed_en = []
+                    for i, en_name in enumerate(_gpt_performers_en):
+                        ja_name = _gpt_performers_ja[i] if i < len(_gpt_performers_ja) else ""
+                        if ja_name in _KNOWN_PERSON_MAP:
+                            _fixed_en.append(_KNOWN_PERSON_MAP[ja_name][1])
+                        else:
+                            _fixed_en.append(en_name)
+                    update_data["performers_en"] = _fixed_en
 
-                # Director (from GPT)
+                # Director (from GPT) — KNOWN_PERSON_MAP overrides GPT
                 if "director" not in _human_protected:
                     _gpt_director = _str(annotation.get("director"))
                     if _gpt_director:
                         update_data["director"] = _gpt_director
-                        _dir_zh = _to_trad(_str(annotation.get("director_zh")))
-                        _dir_en = _str(annotation.get("director_en"))
-                        if _dir_zh:
-                            update_data["director_zh"] = _dir_zh
-                        if _dir_en:
-                            update_data["director_en"] = _dir_en
+                        if _gpt_director in _KNOWN_PERSON_MAP:
+                            _kd_zh, _kd_en = _KNOWN_PERSON_MAP[_gpt_director]
+                            update_data["director_zh"] = _kd_zh
+                            update_data["director_en"] = _kd_en
+                        else:
+                            _dir_zh = _to_trad(_str(annotation.get("director_zh")))
+                            _dir_en = _str(annotation.get("director_en"))
+                            if _dir_zh:
+                                update_data["director_zh"] = _dir_zh
+                            if _dir_en:
+                                update_data["director_en"] = _dir_en
 
                 # Sub-event parent inheritance:
                 # - If sub-event has no location, or same location as parent → inherit all location fields
