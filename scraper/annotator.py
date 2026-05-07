@@ -500,6 +500,7 @@ OTHER RULES:
    ALSO: if the description lists 3+ distinct venue locations in **different cities/prefectures** each with a specific address (e.g., a food fair with restaurants across Tokyo, Kyoto, and Osaka), list each venue as a sub-event with its own location_name, location_address, and business_hours; use the same start_date/end_date as the parent.
    ALSO: if event_form is "conference" and the description lists 3 or more distinct named presentations/reports (報告, 発表, セッション) with individually named presenters (発表者, 報告者, 登壇者), generate a sub-event for each presentation. Use the same start_date/end_date and venue as the parent, set business_hours to that session's time slot (e.g. "12:30～13:50"), and put the presenter's name in both the "performer" string and the "performers" array. The sub-event name_ja should be the presentation title.
    EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
+   EXCEPTION — DO NOT create sub_events when the article is a report/recap. If the raw_title contains レポート, レポ, 報告, 記録, アーカイブ, or recap (case-insensitive), the article is a post-event report and describes a single completed event — return sub_events: [] always. Treat the report as one event and extract its single set of fields (date, performer, etc.) from the body.
 2. Categories must be from this list: movie, performing_arts, senses, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, art, lecture, taiwan_japan, scholarship, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, exhibition, taiwan_mandarin, healthcare, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
    - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
@@ -1478,6 +1479,16 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             # Never create grandchild events: if this event is itself a sub-event
             # (has parent_event_id), skip sub-event creation entirely.
             if event.get("parent_event_id"):
+                sub_events = []
+            # Report/recap articles must never generate sub-events.
+            # The article describes a single completed event; sub-events would be
+            # phantom duplicates of segments already described in the report body.
+            _REPORT_RE = re.compile(r"レポート|レポ|報告|記録|アーカイブ|recap", re.IGNORECASE)
+            if sub_events and _REPORT_RE.search(event.get("raw_title", "") or ""):
+                logger.debug(
+                    "  ⚑ Skipping sub_events for report/recap article %s",
+                    event.get("source_id"),
+                )
                 sub_events = []
             # Defense-in-depth guard for the first-run race condition:
             # When a cinema series page is scraped for the first time, the parent
