@@ -4,26 +4,6 @@
 
 ---
 
-## 2026-05-07 — dec284a5 助成金申請 is_paid=True 誤設定
-
-**問題：** `dec284a5`「2026年度第1期台湾書籍翻訳出版助成金申請」の `is_paid = True`。「助成額は1案件あたり最大60万台湾ドル」という記述が**参加者が受け取る助成金額**なのに、annotator がこれを**参加費**と誤判定。
-**根因：** SYSTEM_PROMPT Rule 7「金額記述があれば `is_paid=true`」の単純なロジックが、助成金・補助金の「受け取る金額」記述と「支払う費用」記述を区別できていなかった。
-**修正：** 
-- DB: `is_paid=False`、`price_info=null`、FC ロック（commit `473f22c`）
-- `annotator.py` Rule 7 に GRANT/SUBSIDY EXCEPTION 追加：公募/助成金/徵件/補助金イベントの金額記述は grant amount であり参加費ではない → 常に `is_paid=false`
-**教訓：** 助成金・補助金・奨学金イベント（「助成額」「補助金額」「支援金」等の受け取り金額記述）は `is_paid=false` が正解。Application-Only Event Location Guard と同じカテゴリのイベントには is_paid 誤設定も発生しやすい。
-
----
-
-## 2026-05-07 — dec284a5 助成金申請イベントに物理住所が設定されていた
-
-**問題：** `dec284a5`「2026年度第1期台湾書籍翻訳出版助成金申請」の `location_name = '台北駐日経済文化代表処 台湾文化センター'`、`location_address = '東京都港区虎ノ門1-1-12 虎ノ門ビル2階'` — 公募・助成金申請は応募書類を提出する活動であり、参加者が物理的に赴く場所はない。
-**根因：** annotator が主催元（台湾文化センター）の住所を `location` に設定してしまう hallucination。公募ページの本文に住所記載がある場合、それは主催者住所であってイベント開催場所ではない。
-**修正：** `location_name='オンライン'`、`location_address=null`、`location_prefectures=[]` + 3 フィールドを `field_corrections` でロック。
-**教訓：** 公募・助成金・徵件活動（`category` に `competition` 含む、または `name_ja` に「公募」「助成」「募集」「申請」「徵件」を含む）は物理場所を持たない。annotator が主催者住所を場所として設定しがちなため、このカテゴリのイベントは「オンライン」に設定してロックすること。
-
----
-
 ## 2026-05-07 — note_creators full-article fetch + Vision OCR pipeline 実装
 
 ### A — note_creators full-article fetch（commit `a52f5b2`）
@@ -74,24 +54,6 @@
 
 ---
 
-## 2026-05-07（D）— _SIMP_TO_TRAD_RAW 缺失字元 + Collection Attribution 無蔵字誤判 + 977da793 多項 DB 修正
-
-### A — `_SIMP_TO_TRAD_RAW` 缺少 5 個高頻簡體字（commit `cf2791f`）
-
-**問題：** `description_zh` 中 `语/严/项/摄/书` 未被 `_to_trad()` 轉換為繁體，出現在 `977da793`（林育良 La Tai Mei 展，tokyoartbeat 來源）。
-**修正：** `scraper/annotator.py` `_SIMP_TO_TRAD_RAW` 新增：`语→語, 严→嚴, 项→項, 摄→攝, 书→書`。DB 修正：977da793 description_zh re-annotated + locked FC。
-**根因：** SC→TC 映射表是**增量建立**的，每次生產掃描後補充；過去這 5 個字從未被掃到。Unicode CJK 超過 2 萬個字，`_SIMP_TO_TRAD_RAW` 無法一次全覆蓋。
-**教訓：** 每次生產事件掃描後若發現 `*_zh` 欄位含簡體字，**必須立即補入 `_SIMP_TO_TRAD_RAW` 並 commit**；只修 DB 不補映射，下次 re-annotation 或 enrich 後同樣字元再度出現。映射表為 append-only，不應刪除已有映射。
-
-### B — Collection Attribution 無「蔵」字誤判（commit `cf2791f`）
-
-**問題：** `977da793`（林育良 La Tai Mei 展）`location_name_zh = '台北當代藝術館'`——這是展覽**主題涉及**的機構（展品曾藏於該館），非實際展場；實際展場為 Gallery Biga（京都）。與過去 yebizo 案例不同：**描述中無「蔵」字**，GPT 直接將主題機構誤設為 `location_name_zh`。
-**修正：** `location_name_zh → null`，locked FC；同時修正 `business_hours`（tokyoartbeat 數據 `10:00〜18:00` 錯誤，官網正確為 `13:30〜18:00（月・火曜休）`）；`performers_en → ['Makoto Lin','He Jingchuang']`，locked FC。
-**根因：** Collection Attribution Guard 原有偵測依賴「蔵」字，但「展覽主題機構」案例不含「蔵」字標記，屬未覆蓋的模式。
-**教訓：** Collection Attribution 的錯誤不限於「蔵」字——只要展覽描述**以某機構為主題**，GPT 可能將該機構誤設為 `location_name_zh`。辨識信號：`location_name_zh` 是台灣/海外機構，但 scraper 的 `location_name`（日文原文）是日本場地。
-
----
-
 ## 2026-05-07（C）— shin_bungeiza JST→UTC 日期偏移 + per-day 場次時間缺漏 + enrich_person_names 結構欄位未更新
 
 ### A — shin_bungeiza JST→UTC date offset（commit `bcb6142`）
@@ -114,6 +76,15 @@
 - `director_zh = '紀德恩'`（GPT 幻覺音譯，應為「九把刀」）
 **修正：** `.select()` 加入結構欄位；建立 `zh_to_info` / `ja_to_info` cross-reference；`performers_en`/`performers_zh`/`director_zh/en` 同步更新（僅當值缺失或含 AI 翻譯標記時）。DB 修正：f970e4e3 performers_en + director_zh locked FC。
 **教訓：** pipeline enrich 函數新增時，必須確認所有相關**結構欄位**（performers_en/zh、director_zh/en）與 description 欄位同步更新。只修 description 而不修結構欄位是半套修正——會導致前端顯示與 DB 內部狀態不一致。
+
+---
+
+## 2026-05-07（E）— 977da793 organizer null → KYOTOGRAPHIE
+
+**問題：** 展覧会事件 `977da793`（林育良「La Tai Mei」/ KG+ 2026）の `organizer = null`、`organizer_type = ['unknown']`。
+**根因：** tokyoartbeat の raw_description が英語の展示説明文のみで主催者情報を含まない。annotator が KG+ = KYOTOGRAPHIE 主催という関係を推論できなかった。
+**修正：** `organizer='KYOTOGRAPHIE'`（公式サイト記載「主催：一般社団法人KYOTOGRAPHIE」）、`organizer_type=['cultural_institution']`、FC ロック。
+**教訓：** フェスティバル傘下の展示は raw_description にフェスティバル主催者情報が含まれないことが多い。`source_url` の親フェスティバルサイト（kgplus.kyotographie.jp/about 等）を確認し手動補完が必要。
 
 ---
 

@@ -273,6 +273,26 @@ _HEADLINE_REWRITE_SOURCES: frozenset[str] = frozenset({
     "note_creators",
 })
 
+# Known katakana→Chinese/English person-name mappings.
+# Prevents GPT phonetic mis-translation of well-known directors/performers.
+# Used by both the main annotation loop and backfill_performer_i18n().
+_KNOWN_PERSON_MAP: dict[str, tuple[str, str]] = {
+    "アリエル・リン": ("林依晨", "Ariel Lin"),
+    "イェン・ランチュアン": ("顏蘭權", "Yen Lan-Chuan"),
+    "クー・チェンドン": ("柯震東", "Ko Chen-Tung"),
+    "ギデンズ・コー": ("九把刀", "Giddens Ko"),
+    "ジャッキー・チェン": ("成龍", "Jackie Chan"),
+    "チェン・ユーシュン": ("陳玉勳", "Chen Yu-Hsun"),
+    "ノラ・ミャオ": ("苗可秀", "Nora Miao"),
+    "ビビアン・ソン": ("宋芸樺", "Vivian Sung"),
+    "ホアン・イーウェン": ("黃以文", "Huang Yi-Wen"),
+    "リウ・グァンティン": ("劉冠廷", "Liu Guan-Ting"),
+    "リム・カーワイ": ("林家威", "Lim Kah-Wai"),
+    "ヴィック・チョウ": ("周渝民", "Vic Chou"),
+    "ロー・ウェイ": ("羅維", "Lo Wei"),
+    "ホアン・ウェンイン": ("黃文英", "Huang Wen-Ying"),
+}
+
 # Pattern matching slot identifiers used in academic conference programs.
 # When raw_title matches, GPT may extract the actual presentation title
 # from the 題目：line in raw_description.
@@ -2498,12 +2518,54 @@ def backfill_performer_i18n() -> None:
     logger.info("backfill_performer_i18n: %d performer candidates, %d director candidates",
                 len(perf_events), len(dir_events))
 
+    # ── Layer 0: KNOWN_PERSON_MAP — exact match, no GPT needed ──
+    known_patched = 0
+    remaining_perf: list[dict] = []
+    remaining_dir: list[dict] = []
+
+    for e in perf_events:
+        name = (e.get("performer") or "").strip()
+        if name in _KNOWN_PERSON_MAP:
+            zh, en = _KNOWN_PERSON_MAP[name]
+            update: dict[str, Any] = {}
+            if not e.get("performer_zh") or "AI翻譯" in (e.get("performer_zh") or ""):
+                update["performer_zh"] = zh
+            if not e.get("performer_en") or "AI translated" in (e.get("performer_en") or ""):
+                update["performer_en"] = en
+            if update:
+                sb.table("events").update(update).eq("id", e["id"]).execute()
+                _lock_fields_via_corrections(sb, e["id"], update)
+                known_patched += 1
+                logger.info("  ✓ known %s performer → zh=%r en=%r", e["id"][:8], update.get("performer_zh", "—"), update.get("performer_en", "—"))
+            # Skip this event — fully handled
+        else:
+            remaining_perf.append(e)
+
+    for e in dir_events:
+        name = (e.get("director") or "").strip()
+        if name in _KNOWN_PERSON_MAP:
+            zh, en = _KNOWN_PERSON_MAP[name]
+            update = {}
+            if not e.get("director_zh") or "AI翻譯" in (e.get("director_zh") or ""):
+                update["director_zh"] = zh
+            if not e.get("director_en") or "AI translated" in (e.get("director_en") or ""):
+                update["director_en"] = en
+            if update:
+                sb.table("events").update(update).eq("id", e["id"]).execute()
+                _lock_fields_via_corrections(sb, e["id"], update)
+                known_patched += 1
+                logger.info("  ✓ known %s director → zh=%r en=%r", e["id"][:8], update.get("director_zh", "—"), update.get("director_en", "—"))
+        else:
+            remaining_dir.append(e)
+
+    logger.info("backfill_performer_i18n: Layer 0 (known map) patched %d", known_patched)
+
     # ── Collect names needing GPT translation ──
     # Separate into: kanji-only (zh=copy, en=GPT) vs non-kanji (both=GPT)
     kanji_names: list[tuple[str, str, str]] = []    # (event_id, field_prefix, name)
     nonkanji_names: list[tuple[str, str, str]] = []  # (event_id, field_prefix, name)
 
-    for e in perf_events:
+    for e in remaining_perf:
         name = (e.get("performer") or "").strip()
         if not name:
             continue
@@ -2512,7 +2574,7 @@ def backfill_performer_i18n() -> None:
         else:
             nonkanji_names.append((e["id"], "performer", name))
 
-    for e in dir_events:
+    for e in remaining_dir:
         name = (e.get("director") or "").strip()
         if not name:
             continue

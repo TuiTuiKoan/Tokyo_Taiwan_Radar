@@ -225,40 +225,6 @@ Before approving any annotation or backfill that sets `location_name_zh` / `loca
 
 Reference incident: 2026-05-07（B）— `f3554212`，`location_name_zh = '台灣文化中心'`（推廣合作方），實際場館是 Stranger（東京墨田区電影院）。
 
-## location_name_zh/en 推廣機構污染防護
-
-Before approving any annotation or backfill that sets `location_name_zh` / `location_name_en`:
-
-1. **推廣機構 ≠ 場館**：協辦、推廣、贊助機構（例：台灣文化中心、TECO 台北駐日）不可設為 `location_name_zh/en`，即使其名稱出現在 raw_description 中。
-2. **清除方式**：直接設 null；null 不會被 re-annotation 覆寫為更差的值，**不需要 FC 鎖定**。
-3. **判斷基準**：`location_name` 必須是實際活動發生的物理場館，與 `location_address` 描述同一地點。
-
-Reference incident: 2026-05-07（B）— `f3554212`，`location_name_zh = '台灣文化中心'`（推廣合作方），實際場館是 Stranger（東京墨田区電影院）。
-
-## Application-Only Event Location Guard（公募・助成金・徵件活動の場所ガード）
-
-Before approving any annotation or data correction for events where `category` includes `competition`, or `name_ja` / `raw_title` contains 「公募」「助成」「募集」「申請」「徵件」「応募」:
-
-1. **這類活動不應有物理地址**：公募・助成金・徵件是應募提交型的活動，參加者不需前往特定場所。annotator 常將主辦方住所（如台灣文化中心的虎ノ門地址）誤設為 `location_address`。
-2. **正確設定**：
-   - `location_name = 'オンライン'`
-   - `location_address = null`
-   - `location_prefectures = []`
-3. **必須 FC 鎖定三欄**：否則下次 re-annotation 會再次從 raw_description 中的主辦方地址填入。
-4. **`is_paid` 同樣必須為 `false`**：助成金/補助金的「受取金額」記述（「助成額は最大〇〇円」「補助金額：〇〇万円」）不是參加費。annotator Rule 7 的金額偵測邏輯會將「受け取る助成金額」誤判為「支払う参加費」而設 `is_paid=true`。必須同時 FC 鎖定 `is_paid=false`。
-5. **偵測 SQL**（定期排查）：
-   ```sql
-   SELECT id, name_ja, location_address, is_paid FROM events
-   WHERE is_active = true AND annotation_status IN ('annotated', 'reviewed')
-     AND (location_address IS NOT NULL OR is_paid = true)
-     AND (name_ja LIKE '%公募%' OR name_ja LIKE '%助成%' OR name_ja LIKE '%募集%'
-          OR name_ja LIKE '%申請%' OR name_ja LIKE '%徵件%' OR name_ja LIKE '%応募%');
-   ```
-
-Reference incidents:
-- 2026-05-07 — `dec284a5`「2026年度第1期台湾書籍翻訳出版助成金申請」had `location_address='東京都港区虎ノ門1-1-12'`（主辦方住所）→ 修正為 `location_name='オンライン'`、address/prefectures null + FC 鎖定。
-- 2026-05-07 — 同 `dec284a5` が `is_paid=True` になっていた（「助成額は最大60万台湾ドル」を参加費と誤判定）→ `is_paid=False` + FC 鎖定（commit `473f22c`）。
-
 ## note_creators start_date 系統性問題
 
 When reviewing events from `note_creators` source whose `start_date` looks suspicious (timestamp with time component, or clearly in the past):

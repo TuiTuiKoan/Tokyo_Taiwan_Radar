@@ -57,6 +57,10 @@ ZERO_EVENT_OK_SOURCES: frozenset[str] = frozenset({
     "uplink_cinema",
     "human_trust_cinema",
     "stranger",
+    "united_cinemas",
+    "ginsee_roble",
+    "ginsee_hikariza",
+    "cine_gallery",
     # Seasonal film festivals — only active during festival period
     "oaff",
     "tokyo_filmex",

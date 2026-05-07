@@ -104,6 +104,9 @@ from sources.johakyu import JohakyuScraper
 from sources.stranger import StrangerScraper
 from sources.tsutaya_portal import TsutayaPortalScraper
 from sources.tsudoi_osaka import TsudoiOsakaScraper
+from sources.cine_gallery import CineGalleryScraper
+from sources.ginsee import GinseeRobleScraper, GinseeHikarizaScraper
+from sources.united_cinemas import UnitedCinemasScraper
 from sources.transit_store import TransitStoreScraper
 from sources.go_taiwan import GoTaiwanScraper
 from sources.taiwan_festa import TaiwanFestaScraper
@@ -197,6 +200,10 @@ SCRAPERS = [
     StrangerScraper(),
     TsutayaPortalScraper(),
     TsudoiOsakaScraper(),
+    CineGalleryScraper(),
+    GinseeRobleScraper(),
+    GinseeHikarizaScraper(),
+    UnitedCinemasScraper(),
     TransitStoreScraper(),
     GoTaiwanScraper(),
     TaiwanFestaScraper(),
