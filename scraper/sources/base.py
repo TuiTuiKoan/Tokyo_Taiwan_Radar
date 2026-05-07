@@ -125,6 +125,7 @@ class Event:
     director_en: Optional[str] = None
     performers_zh: list[str] = field(default_factory=list)
     performers_en: list[str] = field(default_factory=list)
+    image_url: Optional[str] = None  # poster/OGP image URL
 
 
 def dedup_events(events: list[Event]) -> list[Event]:

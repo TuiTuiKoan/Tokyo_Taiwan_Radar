@@ -141,6 +141,8 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         row["director_zh"] = event.director_zh
     if event.director_en is not None:
         row["director_en"] = event.director_en
+    if event.image_url is not None:
+        row["image_url"] = event.image_url
 
     return row
 

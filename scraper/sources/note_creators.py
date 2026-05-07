@@ -28,6 +28,7 @@ Strategy:
 
 import logging
 import re
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import parsedate_to_datetime
@@ -41,30 +42,78 @@ from .base import BaseScraper, Event
 logger = logging.getLogger(__name__)
 
 
-def _fetch_json_ld_description(url: str, session: "requests.Session") -> str:
-    """Fetch note.com article page and extract description from JSON-LD.
+def _fetch_article_content(url: str, session: "requests.Session") -> tuple[str, str | None]:
+    """Fetch note.com article page and extract body text and OGP image URL.
 
-    Falls back to empty string on any error. Used when RSS description is
-    truncated (contains only '続きをみる' or is empty).
+    Returns (body_text, og_image_url).
+
+    Priority for body_text:
+      1. JSON-LD articleBody field (note.com sometimes provides this)
+      2. JSON-LD description field (~280 chars)
+      3. BeautifulSoup <p> text from article body divs
+
+    og_image_url: from <meta property="og:image"> or JSON-LD image field.
+    Falls back to ("", None) on any error.
     """
     import html as html_lib
     import json as json_lib
     try:
         resp = session.get(url, timeout=15)
         resp.raise_for_status()
-        # JSON-LD description field (up to ~280 chars from note.com)
-        m = re.search(r'"description"\s*:\s*"([^"]{50,})"', resp.text)
-        if m:
-            # Use json.loads to properly handle both \uXXXX escapes and raw Unicode.
-            try:
-                desc = json_lib.loads('"' + m.group(1) + '"')
-            except Exception:
-                desc = m.group(1)
-            desc = html_lib.unescape(desc)
-            return desc.strip()
+        html_text = resp.text
     except Exception as exc:
-        logger.debug("JSON-LD fetch failed for %s: %s", url, exc)
-    return ""
+        logger.debug("Article fetch failed for %s: %s", url, exc)
+        return "", None
+
+    body_text = ""
+    og_image_url: str | None = None
+
+    # --- Extract og:image from meta tag ---
+    og_m = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', html_text)
+    if not og_m:
+        og_m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', html_text)
+    if og_m:
+        og_image_url = og_m.group(1)
+
+    # --- Extract body text from JSON-LD ---
+    ld_match = re.search(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', html_text, re.DOTALL)
+    if ld_match:
+        try:
+            ld = json_lib.loads(ld_match.group(1))
+            # articleBody is richest; fall back to description
+            raw = ld.get("articleBody") or ld.get("description") or ""
+            if raw and len(raw) > 50:
+                try:
+                    body_text = json_lib.loads('"' + raw + '"')
+                except Exception:
+                    body_text = raw
+                body_text = html_lib.unescape(body_text).strip()
+            # og:image from JSON-LD image field if meta tag missed it
+            if not og_image_url:
+                ld_img = ld.get("image")
+                if isinstance(ld_img, str):
+                    og_image_url = ld_img
+                elif isinstance(ld_img, dict):
+                    og_image_url = ld_img.get("url")
+        except Exception:
+            pass
+
+    # --- Fallback: BeautifulSoup <p> text extraction ---
+    if not body_text:
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html_text, "html.parser")
+            # note.com article body is typically inside <div class="note-content"> or similar
+            paras = []
+            for tag in soup.find_all("p"):
+                t = tag.get_text(separator=" ", strip=True)
+                if len(t) > 10:
+                    paras.append(t)
+            body_text = "\n".join(paras[:30])  # cap at 30 paragraphs
+        except Exception as exc:
+            logger.debug("BS4 extraction failed for %s: %s", url, exc)
+
+    return body_text.strip(), og_image_url
 
 RSS_TEMPLATE = "https://note.com/{creator}/rss"
 
@@ -194,6 +243,40 @@ def _parse_date_from_title(title: str, pub_year: int, pub_month: int) -> Optiona
         return None
 
 
+# Date patterns in article body with emoji/label prefix
+_BODY_DATE_RE = re.compile(
+    r'(?:📅|日時[：: ]|開催日[：: ]|開催日時[：: ]|■日時)'
+    r'\s*(?:(\d{4})[年/])?(\d{1,2})[月/](\d{1,2})日?'
+)
+
+
+def _parse_date_from_body(body: str, pub_year: int, pub_month: int) -> Optional[datetime]:
+    """Try to extract an event date from article body text.
+
+    Looks for patterns like:
+      📅 2026年4月6日
+      📅 4月6日
+      日時：4/6
+      開催日：2026/4/6
+    """
+    m = _BODY_DATE_RE.search(body)
+    if not m:
+        return None
+    year_str, month_str, day_str = m.group(1), m.group(2), m.group(3)
+    month, day = int(month_str), int(day_str)
+    year = int(year_str) if year_str else pub_year
+    # Cross-year inference (same as _parse_date_from_title)
+    if not year_str:
+        if month < pub_month - 6:
+            year = pub_year + 1
+        elif month > pub_month + 6:
+            year = pub_year - 1
+    try:
+        return datetime(year, month, day)
+    except ValueError:
+        return None
+
+
 def _parse_pubdate(pub_date_str: str) -> Optional[datetime]:
     """Parse RFC 2822 pubDate string to datetime."""
     try:
@@ -294,10 +377,25 @@ class NoteCreatorsScraper(BaseScraper):
         # note.com RSS descriptions often end with just "続きをみる" (read more)
         if plain_desc.strip() in ("続きをみる", ""):
             plain_desc = ""
-        # RSS description is truncated — try fetching the full article's JSON-LD summary.
-        # This adds one HTTP request per truncated article but captures venue/date info.
+
+        # RSS description is truncated — fetch full article body and OGP image.
+        # This adds one HTTP request per truncated article but captures
+        # venue/date info from the article body and the poster image URL.
+        article_image_url: str | None = None
         if not plain_desc and link:
-            plain_desc = _fetch_json_ld_description(link, self._session)
+            time.sleep(1)  # polite delay to avoid rate limiting
+            plain_desc, article_image_url = _fetch_article_content(link, self._session)
+
+        # If start_date fell back to pubDate (no date in title), try extracting
+        # from article body (e.g. "📅 2026年4月6日" or "開催日：4/6").
+        if start_date is not None and pub_dt is not None and start_date == pub_dt and plain_desc:
+            body_date = _parse_date_from_body(plain_desc, pub_year, pub_month)
+            if body_date is not None:
+                logger.debug(
+                    "Replaced pubDate fallback with body date for %s: %s → %s",
+                    title, start_date.date(), body_date.date(),
+                )
+                start_date = body_date
 
         return Event(
             source_name=self.SOURCE_NAME,
@@ -312,6 +410,7 @@ class NoteCreatorsScraper(BaseScraper):
             start_date=start_date,
             location_name=effective_location_name,
             location_address=effective_location_address,
+            image_url=article_image_url,
         )
 
     def _load_db_creators(self) -> dict[str, tuple[str, str | None, list[str]]]:
