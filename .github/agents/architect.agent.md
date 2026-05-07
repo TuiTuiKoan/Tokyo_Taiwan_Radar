@@ -198,6 +198,53 @@ Before approving any change related to `GITHUB_TOKEN` requirements, verify:
   - Fine-grained PAT: `Issues: write + Metadata: read`
   - Classic token: `repo` scope
 2. `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` remains the single checklist source.
+
+## Performer Multi-Value Field Pollution Guard（多人值欄位污染防護）
+
+Before approving any backfill script that touches `performer_zh` / `performer_en`:
+
+1. **`performer`（TEXT）只能存單一人名**：若 `performer` 含逗號（`、` 或 `,`），即為違規——停止輸出 `performer_zh/en`，跳過該事件。
+2. **`performers[].length ≥ 2` 時，`performer_zh/en` 設 null**：多人陣列與單人翻譯欄語義互不相容，不可用逗號連接後填入。
+3. **FC 污染鏈**：錯誤值一旦鎖入 `field_corrections`，re-annotation 無法修復——必須手動先 DELETE FC 再清空欄位（Engineer pattern：DELETE FC → update events → 不重新鎖定）。
+4. **偵測 SQL**：
+   ```sql
+   SELECT id, performer FROM events
+   WHERE performer LIKE '%、%' OR performer LIKE '%,%'
+     AND is_active = true;
+   ```
+
+Reference incident: 2026-05-07（B）— `f3554212` 霧のごとく / 大濛，`backfill_performer_i18n` 將 performers[] 四人名逗號連接存入 performer + performer_zh/en，三欄全 FC 鎖定，形成持久污染。
+
+## location_name_zh/en 推廣機構污染防護
+
+Before approving any annotation or backfill that sets `location_name_zh` / `location_name_en`:
+
+1. **推廣機構 ≠ 場館**：協辦、推廣、贊助機構（例：台灣文化中心、TECO 台北駐日）不可設為 `location_name_zh/en`，即使其名稱出現在 raw_description 中。
+2. **清除方式**：直接設 null；null 不會被 re-annotation 覆寫為更差的值，**不需要 FC 鎖定**。
+3. **判斷基準**：`location_name` 必須是實際活動發生的物理場館，與 `location_address` 描述同一地點。
+
+Reference incident: 2026-05-07（B）— `f3554212`，`location_name_zh = '台灣文化中心'`（推廣合作方），實際場館是 Stranger（東京墨田区電影院）。
+
+## note_creators start_date 系統性問題
+
+When reviewing events from `note_creators` source whose `start_date` looks suspicious (timestamp with time component, or clearly in the past):
+
+1. **系統性問題**：note_creators 的 `raw_description` 通常只有截斷文字（「続きをみる」），annotator 無法提取正確日期，fallback 抓文章發布時間作為 `start_date`。
+2. **識別特徵**：`start_date` 帶非 midnight 時間（如 `T11:38:26+00:00`），或早於活動預期發布期。
+3. **修正流程**：
+   - 前往 note 原文（`source_url`）確認實際活動日期
+   - 更新 `start_date` / `end_date` 為正確日期（UTC midnight）
+   - 鎖定 FC（否則下次 re-annotation 會還原為文章發布時間）
+4. **建議驗證 SQL**：
+   ```sql
+   SELECT id, source_url, start_date, raw_title
+   FROM events
+   WHERE source_name = 'note_creators'
+     AND EXTRACT(HOUR FROM start_date) != 0
+     AND is_active = true;
+   ```
+
+Reference incident: 2026-05-07（B）— `16f90b51`，`start_date = '2026-04-27T11:38:26+00:00'`（文章發布時間），實際活動 2026-07-30〜8/6。
 3. Legacy checklist paths are redirect-only stubs, not duplicated content.
 4. No real token values appear in tracked files; examples must use placeholders.
 

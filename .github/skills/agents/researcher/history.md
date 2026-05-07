@@ -3,6 +3,33 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-07 — source_url vs official_url 分離・works 多欄位搜尋・secondary_source_urls 重複清理
+
+**問題：**
+1. 研究員が `source_url` を公式サイト URL に誤置換した（霧のごとく 11 件）
+2. works 検索が `title_ja` 単一列のみだったため、別名義の作品がヒットしなかった（湯德章映画）
+3. `secondary_source_urls` に `source_url` と同じ URL が重複していた
+
+**根本原因：**
+- `source_url`・`official_url`・`secondary_source_urls` の役割が未定義
+- works テーブルのマルチカラム OR 検索ルールが未記載
+- secondary_source_urls の重複排除ルールが未記載
+
+**修正内容：**
+- 霧のごとく 11 件の `official_url` = `https://www.afoggytale.com/` に更新（`source_url` は保持）
+- 湯德章映画 work を新規作成（id: dc8f1d36-02ec-4c2d-9578-912da27e4dbd）、events.work_id をリンク
+- secondary_source_urls から source_url と重複する URL を除去
+
+**教訓：**
+- `source_url` = 爬蟲が取得した原始 URL（戲院ページ/ニュース記事） → **絶対に上書きしない**（NOT NULL 制約あり、null 不可）
+- `official_url` = 配給会社・公式サイト（全国上映情報など） → 新規追加・更新はこちら
+- `secondary_source_urls` = 合併元の追加 URL → `source_url` と重複させない
+- works 検索は `title_ja`・`title_zh`・`original_title`・`title_en`・`director` を **全列 OR 検索**すること
+- events 検索も `raw_title` と `name_ja` の両方を確認（annotation 後に title が変わることがある）
+- works.external_links JSONB 形式: `{"official": "<公式URL>"}`
+- 監督名形式: `黄明川（ホアン・ミンツァン）/ 連楨惠（リェン・チェンフイ）`（中文漢字＋日語読み＋スラッシュ区切り）
+
+---
 ## 2026-05-06 — Low-Signal Policy 拡張：score 0.30–0.69 の assessed ソースを手動 researched へ昇格
 
 **背景：** `auto_research` の自動昇格閾値 `SCORE_PROMOTE_THRESHOLD = 0.70` により、

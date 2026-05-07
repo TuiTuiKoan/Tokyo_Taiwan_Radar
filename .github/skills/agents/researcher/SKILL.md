@@ -239,6 +239,60 @@ sb.table("research_sources").insert({
 Note: the column is `reason`, **not** `notes` (that column does not exist).
 After INSERT, run: `python scraper/update_source.py --url <url> --status researched --create-issue`
 
+## Events テーブル — URL フィールド分離規則（2026-05-07）
+
+3 つの URL フィールドは役割が異なる。**混在させない**。
+
+| フィールド | 役割 | 上書き可否 |
+|-----------|------|----------|
+| `source_url` | 爬蟲が取得した原始 URL（戲院ページ/ニュース記事） | **絶対不可**（NOT NULL 制約、null 不可） |
+| `official_url` | 配給会社/公式サイト（全国上映情報など） | 新規追加・更新はここ |
+| `secondary_source_urls` | 合併元の追加 URL（配列） | `source_url` と重複させない |
+
+**操作手順（公式サイト URL を追加する場合）:**
+```python
+sb.table("events").update({"official_url": "https://example.com/"}).eq("id", eid).execute()
+# NG: source_url は触らない
+```
+
+**`secondary_source_urls` の重複排除:**
+```python
+# source_url と同じ URL を secondary から除外してから保存
+secondary = [u for u in secondary_urls if u != event["source_url"]]
+```
+
+## Works テーブル — 検索・新規作成規則（2026-05-07）
+
+**検索時は全タイトル列 + director を OR 検索すること:**
+```sql
+SELECT * FROM works
+WHERE title_ja ILIKE '%keyword%'
+   OR title_zh ILIKE '%keyword%'
+   OR original_title ILIKE '%keyword%'
+   OR title_en ILIKE '%keyword%'
+   OR director ILIKE '%keyword%';
+```
+
+**events 検索も `raw_title` と `name_ja` の両方を確認する**（annotation 後に title が変わる）:
+```sql
+SELECT * FROM events
+WHERE raw_title ILIKE '%keyword%'
+   OR name_ja ILIKE '%keyword%';
+```
+
+**新規 work 作成時の必須フィールド:**
+```python
+{
+    "title_ja": "<日本語タイトル>",
+    "title_zh": "<繁体字タイトル>",
+    "title_en": "<英語タイトル（公式 og:title など）>",
+    "director": "<中文漢字（読み）/ 中文漢字（読み）>",  # 共同監督はスラッシュ区切り
+    "external_links": {"official": "<公式URL>"},
+}
+```
+
+**監督名フォーマット例:** `黄明川（ホアン・ミンツァン）/ 連楨惠（リェン・チェンフイ）`
+
 ## After a Source Evaluation Error
 1. Append an entry to `.github/skills/agents/researcher/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.

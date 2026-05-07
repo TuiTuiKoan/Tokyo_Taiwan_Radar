@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-05-07 — archive_ended_events 残留 import 修正
+
+**問題：** `archive_ended_events()` は 2026-05-06 に `database.py` から削除されたが、`main.py` の import 行と呼び出しが残留していた。`python main.py --dry-run` 時に `ImportError` が発生。
+
+**修正：** `main.py` から `archive_ended_events` の import と呼び出しを削除。commit `a52f5b2` に含める。
+
+**教訓：** 関数削除時は import 側も必ず同時に修正する。history.md に「削除済み」と記録されていても実コードを `grep` で確認すること。
+
+---
+
 ## 2026-05-07 — performers[] 手動補充 + 非日本地點停用流程
 
 ### performers[] 手動補充（三個 taiwanshi 事件）

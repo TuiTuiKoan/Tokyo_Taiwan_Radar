@@ -29,6 +29,13 @@ Discovers, evaluates, and profiles new event data sources (websites, APIs, ticke
 1. Append an entry to `.github/skills/agents/researcher/history.md` (newest at top): date, error, fix, lesson.
 2. If the lesson generalizes, add or update a rule in `SKILL.md`.
 
+## URL Field Rules (Events/Works DB)
+
+When manually updating events or works in the DB, follow the field separation rules in SKILL.md:
+- **`source_url`** = 爬蟲が取得した原始 URL → **絶対に上書きしない**（NOT NULL 制約）
+- **`official_url`** = 配給会社/公式サイト → 公式サイトはここに書く
+- Works 検索は `title_ja`/`title_zh`/`title_en`/`original_title`/`director` を全列 OR で検索する
+
 ## Role
 
 - Find platforms and websites that list Taiwan-related events anywhere in Japan

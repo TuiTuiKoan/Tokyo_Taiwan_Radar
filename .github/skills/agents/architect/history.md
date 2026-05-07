@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-05-07（B）— performer 多人名污染 field_corrections + location_name 推廣機構誤設 + note_creators start_date 誤抓文章發布時間
+
+### A — performer（TEXT）多人名違規儲存污染 field_corrections（f3554212 霧のごとく / 大濛）
+
+**問題：** `performer` 存了逗號分隔多人名（`'ケイトリン・ファン、ウィル・オー、9m88、ツェン・ジンホア'`），`performer_zh/en` 同樣存多人名＋`（AI翻譯）`標注，且三欄全被鎖進 `field_corrections`，形成持久污染。
+**Root cause：** `backfill_performer_i18n` 腳本將 `performers[]` 多人名用逗號連接後存入 `performer`（TEXT）單人欄位，違反「performer = 單一人名」規則。
+**修正：** 刪除三個錯誤 FC 記錄，三欄清為 null；`performers[]` 保留片假名原文。
+**教訓：** backfill 腳本輸出 `performer_zh/en` 前，必須確認 `performer` 是單一人名（無逗號分隔），否則跳過。`performers[].length ≥ 2` 時，`performer_zh/en` 直接設 null，不作逗號連接。
+
+### B — location_name_zh/en 誤設推廣機構而非場館（f3554212）
+
+**問題：** `location_name_zh = '台灣文化中心'`、`location_name_en = 'Taiwan Cultural Center'`（完全錯誤），實際場館是 Stranger（東京墨田区的電影院）。
+**Root cause：** 台灣文化中心是該電影的合作推廣單位，GPT 誤將推廣機構設為場館。
+**修正：** 兩欄清為 null。
+**教訓：** `location_name_zh/en` 不可設為推廣機構名稱（即使該機構協辦活動）。null 不會被 re-annotation 覆寫為更差的值，清除方式為直接 null，不需 FC 鎖定。
+
+### C — note_creators start_date = 文章發布時間（16f90b51）
+
+**問題：** `start_date = '2026-04-27T11:38:26+00:00'`（note 文章發布時間），實際活動日期為 2026-07-30〜8/6。
+**Root cause：** note_creators 的 `raw_description` 通常只有截斷文字（「続きをみる」），annotator 無法從 raw_description 提取正確日期，改抓文章發布時間作為 fallback。
+**修正：** 從 note 原文確認正確日期（2026-07-30〜8/6），手動更新並鎖定 FC。
+**教訓：** note_creators 事件的 `start_date` 有系統性誤抓文章發布時間的問題；需前往原文確認，手動修正＋FC 鎖定。
+
+---
+
 ## 2026-05-07 — tsutaya_portal アーティスト略歴偽陽性（artist-bio false positive）
 
 **問題：** `_is_taiwan_relevant()` が `title + description` 全文を連結して台湾キーワードを検索していたため、アーティスト略歴・過去出展歴に「台湾」が登場する無関係イベントが 5 件入庫：
