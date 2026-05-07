@@ -2509,10 +2509,13 @@ def backfill_performer_i18n() -> None:
                 response_format={"type": "json_object"},
             )
             raw = json.loads(resp.choices[0].message.content)
-            # Handle both {"results": [...]} and bare [...]
-            results = raw if isinstance(raw, list) else raw.get("results", raw.get("translations", []))
+            # Handle bare [...] or {"results"|"translations"|"data"|...: [...]}
+            if isinstance(raw, list):
+                results = raw
+            else:
+                results = next((v for v in raw.values() if isinstance(v, list)), None)
             if not isinstance(results, list):
-                logger.warning("  GPT returned unexpected format: %s", type(results))
+                logger.warning("  GPT returned unexpected format: %s", type(raw))
                 continue
         except Exception as exc:
             logger.error("  GPT batch error: %s", exc)

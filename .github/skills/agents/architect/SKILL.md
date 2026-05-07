@@ -438,46 +438,6 @@ sb.table("events").update({"is_active": False, "deactivated_by_pass": "admin_man
 
 Reference incident: 2026-05-06 — `車頂上的玄天上帝`（ks_cinema `taiwan-filmake_2_sub1`）因 SYSTEM_PROMPT 多時段規則 + race condition 生成 `_sub1`，出現 4 筆重複（其中 2 筆已被 merger 停用）。修復：停用 `_sub1`、SYSTEM_PROMPT 加豁免規則、annotator.py 加程式碼守衛。
 
-## Tour Sub-Event Location Inheritance Guard（巡演 sub-event 地點繼承錯誤防護）
-
-在審核任何涉及巡演（concert tour、全國巡回展等）父事件的 annotator 計畫，或分析 sub-event 地點標記錯誤時，**必須**確認：
-
-1. **父事件 raw_description 含多個城市時，sub-event 地點不可繼承相鄰城市**：annotator 在從父事件建立 sub-events 時，若 raw_description 同時包含大阪/東京/首爾三場資訊，容易將第一個城市（大阪）的 `location_address` 或 `location_prefectures` 繼承給後續城市的 sub-event。
-2. **非日本地點（韓國、台灣、中國等）不應入庫**：annotator 建立 sub-events 時，若某場次地點明確在非日本城市，必須排除。偵測後執行：
-   ```python
-   sb.table('events').update({
-       'is_active': False,
-       'deactivated_reason': 'out_of_scope: <City>, <Country> concert — not a Japan event',
-       'location_address': None,
-       'location_prefectures': None,
-   }).eq('id', eid).execute()
-   ```
-3. **`deactivated_reason` 格式**：`'out_of_scope: <說明>'`，包含城市與國家，例如 `'out_of_scope: Seoul, South Korea concert — not a Japan event'`。
-4. **停用後不鎖 field_corrections**：非日本地點停用後，`location_address`/`location_prefectures` 設為 null 即可，不需要鎖定（停用事件不再被 annotator 處理）。
-5. **地點修正需同時鎖 field_corrections**：日本境內的 sub-event `location_prefectures` 被錯誤繼承時（如東京場標成大阪），修正後必須鎖入 FC，防止 re-annotation 覆寫：
-   ```python
-   sb.table('events').update({'location_prefectures': ['東京']}).eq('id', eid).execute()
-   sb.table('field_corrections').upsert({
-       'event_id': eid, 'field_name': 'location_prefectures',
-       'corrected_value': json.dumps(['東京'], ensure_ascii=False)
-   }, on_conflict='event_id,field_name').execute()
-   ```
-
-**QA 指令（發現巡演地點異常時）**：
-```sql
--- 找出同一 parent 下 location_prefectures 完全一致的 sub-events（可能是誤繼承）
-SELECT parent_event_id, array_agg(id) as child_ids, array_agg(location_prefectures) as prefs
-FROM events
-WHERE parent_event_id IS NOT NULL AND is_active = true
-GROUP BY parent_event_id
-HAVING count(DISTINCT location_prefectures::text) < count(*)
-LIMIT 20;
-```
-
-Reference incident: 2026-05-07 — VOOID 日韓巡演 2026（大阪 6/16、東京 6/18、首爾 6/20）。東京場 `5e5ff363` `location_prefectures=['大阪']`（誤繼承）；首爾場 `7a3d83ac` 被入庫且地址誤設大阪 Channel 1969（境外場次入庫）。修復：東京場更正 + 鎖 FC；首爾場 `is_active=false` + `deactivated_reason='out_of_scope: Seoul, South Korea concert — not a Japan event'`。
-
----
-
 ## Organizer Non-Hallucination Guard（annotator.py few-shot 污染防護）
 
 在審核任何涉及 `organizer` 欄位，或評估 `category_corrections` few-shot 範例設計的計畫前，**必須**確認：
@@ -507,6 +467,44 @@ print("Guard: OK")
 ```
 
 Reference incident: 2026-05-06 — `category_corrections` 含 2 筆 `セシリアママのHappy Table...` few-shot 範例，導致 31 件 Peatix 活動被 hallucinate `organizer = "セシリアママ"`（commit `fix(annotator): add organizer non-hallucination guard`）。
+
+---
+
+## Joint Distributor Split Guard（聯合配給商拆分守護）
+
+在審核任何設定「配給」→ `organizer` 的案例，或分析 organizer 字串含「／」的事件前，**必須**確認：
+
+1. **「配給：A／B」中「／」代表聯合配給**：A 和 B 是兩家獨立公司，不可整串存為 organizer（例如 `"JAIHO/Stranger"` 是錯誤的）。
+2. **正確拆分方式**：排名先者（左邊）→ `organizer`，其餘 → `co_organizers[]`。
+3. **工具驗證**：
+   ```python
+   if "/" in (organizer or "") or "／" in (organizer or ""):
+       # 需要拆分，不可整串儲存
+       parts = re.split(r"[/／]", organizer)
+       organizer = parts[0].strip()
+       co_organizers = [p.strip() for p in parts[1:]]
+   ```
+4. 同樣需鎖 `field_corrections`：`organizer`、`co_organizers`、`organizer_type` 手動修正後必須同時 upsert。
+
+Reference incident: 2026-05-07 — `dec5031b` `organizer = "JAIHO/Stranger"` 應為 `organizer = "JAIHO"`, `co_organizers = ["Stranger"]`, `organizer_type = ["commercial_brand"]`。
+
+---
+
+## Work Title ≠ Event Name Guard（作品標題不等於活動名稱守護）
+
+在審核任何涉及 `work_id` 的事件的 `name_zh`/`name_en` 前，**必須**確認：
+
+1. **`name_zh`/`name_en` 必須是 `name_ja`（完整活動標題）的翻譯**；不可從 `works.title_zh`/`works.title_en` 繼承。電影名、作品名只是活動的一部分，不等於活動標題。
+2. **症狀識別**：若 `len(name_zh) << len(name_ja)`（如 `name_zh = "中村地平"`（4字）而 `name_ja = "第78回 日本と台湾を考える集い 紀錄片《中村地平》上映会"`（30+字）），屬高可信度異常。
+3. **驗證命令**：
+   ```python
+   # 查所有有 work_id 且 name_zh 長度 < name_ja 長度 50% 的事件
+   suspect = [e for e in events if e.get("work_id") and e.get("name_zh") and e.get("name_ja")
+              and len(e["name_zh"]) < len(e["name_ja"]) * 0.5]
+   ```
+4. 修正後必須同時鎖 `field_corrections`：`name_zh`、`name_en` 均需 upsert，防止 re-annotation 覆寫。
+
+Reference incident: 2026-05-07 — `622f51c1` `name_zh = "中村地平"`（4字）vs `name_ja`（32字）；根因為 annotator 把 `works.title_zh` 直接用作 `name_zh`，未翻譯完整活動標題。
 
 ---
 
@@ -1481,4 +1479,34 @@ Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發 �
 4. **同時更新 checklist**：若有 source 進入 `NON_DAILY_SOURCES`，在對應的 workflow yml 加上 comment 標注告警視窗。
 
 Reference incident: 2026-05-06 — `weekly_broadcast` 因 `NON_DAILY_SOURCES = frozenset()` 為空，被 health_check 每天誤報 missing（commit `7df9f56`）。
+
+## GitHub Actions YAML Guard
+
+在審核任何新增或修改 `.github/workflows/*.yml` 的計畫前，必須確認：
+
+1. **`if:` 欄位只允許單行雙引號字串**：
+   - ❌ `if: |` 或 `if: >-`（block scalar）→ GitHub Actions YAML 解析器不支援 → parse error。
+   - ✅ 必須：`if: "condition1 && condition2"`（全部在雙引號內，單行）
+   - 長條件可用 `&&` 連接，不可換行。
+
+2. **`run: |` 區塊內不可包含 `[{...}]` inline 模式**：
+   - `[{"type": "text", "text": ...}]`（flow sequence + nested flow mapping）在 `run: |` 區塊內會被 GitHub Actions YAML 解析器誤判為 nested mapping → parse error。
+   - 修復方法：將 jq filter / JSON 內嵌結構先賦值給 shell 變數，再引用：
+   ```bash
+   # ❌ 不可（將被誤判為 nested mapping）
+   run: |
+     echo '{"k": [{"type":"text"}]}' | jq .
+
+   # ✅ 正確（先賦值給 shell 變數）
+   run: |
+     JQ_FILTER='{"k": [{"type":"text"}]}'
+     echo "$JQ_FILTER" | jq .
+   ```
+
+3. **連續 parse error 時的應對順序**：
+   - Error A（`if: |`）→ 改單行雙引號字串。
+   - Error B（`if: >-`）→ 同上。
+   - Error C（`[{...}]` in `run: |`）→ 賦值給 shell 變數。
+
+Reference incidents: 2026-05-07 — commits `0b5ba72`、`c38ddd5`、`b9a462c`：`workflow-failure-notify.yml` 連續三次 YAML parse error，依序為 `if: |` → `if: >-` → `if: "..."`，加上 jq filter 賦值變數才全部解決。
 
