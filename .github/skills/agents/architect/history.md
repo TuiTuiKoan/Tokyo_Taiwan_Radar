@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-05-07 — GitHub Actions YAML 解析器限制（`if:` 欄位與 `run: |` 區塊）
+
+**問題**：`.github/workflows/workflow-failure-notify.yml` 連續三次 YAML 解析錯誤（commits `0b5ba72`、`c38ddd5`、`b9a462c`）：
+- Error A：`if: |`（literal block scalar）→ "Implicit keys need to be on a single line"
+- Error B：`if: >-`（folded block scalar）→ "All mapping items must start at the same column"
+- Error C：`run: |` 區塊內含 `[{...}]` inline jq filter → "Nested mappings are not allowed in compact mappings"
+
+**根因**：
+1. GitHub Actions YAML 解析器不支援 `if:` 欄位使用任何 block scalar（`|` / `>-`），必須單行字串。
+2. `run: |` 雖是 block scalar，但 GitHub Actions 解析器仍會掃描區塊內容中的 YAML flow 語法（`[{...}]`），誤判為 nested mapping。
+
+**修復**：
+1. `if:` 改為雙引號單行字串：`if: "condition1 && condition2"`
+2. `run: |` 中的 jq inline filter 改以 shell 變數存儲，再引用：`JQ_FILTER='...'`，後以 `"$JQ_FILTER"` 傳入 jq。
+
+**教訓**：
+- `if:` 欄位只允許單行雙引號字串；不可用 `|` 或 `>-`。
+- `run: |` 區塊內不可包含 `[{...}]` 語法（flow sequence + nested flow mapping）——必須先賦值給 shell 變數。
+
+→ Added to SKILL.md §「GitHub Actions YAML Guard」
+
+---
+
+## 2026-05-07 — auto_research.py Playwright 逾時導致整批中止（commit `8029b74`）
+
+**問題**：`auto_research.py` `_fetch_sample_html()` 呼叫 `page.goto(url, timeout=30_000)` 未加 try/except。`note.com/swi0881` 在 CI 逾時 → 未捕獲 `PlaywrightTimeoutError` → 整個 job exit code 1，後續所有來源全部跳過。
+
+**修復**：
+- `_fetch_sample_html` 捕獲 `playwright.sync_api.TimeoutError` → log warning → return `""`
+- `run()` 中空 `sample_html` 視為 `AssessError("error", ...)` → 該來源標記 `error` in DB → batch 繼續到下一列
+
+**教訓**：CI 批次腳本中任何 `page.goto()` 都必須有明確的 `TimeoutError` 處理。單一慢速 / 封鎖的 URL 不得中止整個批次。
+
+→ Added to SKILL.md §「GitHub Actions YAML Guard」 & scraper-expert SKILL.md §「Playwright CI 批次容錯規則」
+
+---
+
 ## 2026-05-07 — work.title_zh 誤用為 name_zh 導致標題截短
 
 問題：`622f51c1`（第78回 日本と台湾を考える集い）`name_zh = "中村地平"`（只有電影名），zh locale 標題遠短於 name_ja。

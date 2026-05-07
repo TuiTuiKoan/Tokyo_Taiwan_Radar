@@ -1480,3 +1480,33 @@ Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發 �
 
 Reference incident: 2026-05-06 — `weekly_broadcast` 因 `NON_DAILY_SOURCES = frozenset()` 為空，被 health_check 每天誤報 missing（commit `7df9f56`）。
 
+## GitHub Actions YAML Guard
+
+在審核任何新增或修改 `.github/workflows/*.yml` 的計畫前，必須確認：
+
+1. **`if:` 欄位只允許單行雙引號字串**：
+   - ❌ `if: |` 或 `if: >-`（block scalar）→ GitHub Actions YAML 解析器不支援 → parse error。
+   - ✅ 必須：`if: "condition1 && condition2"`（全部在雙引號內，單行）
+   - 長條件可用 `&&` 連接，不可換行。
+
+2. **`run: |` 區塊內不可包含 `[{...}]` inline 模式**：
+   - `[{"type": "text", "text": ...}]`（flow sequence + nested flow mapping）在 `run: |` 區塊內會被 GitHub Actions YAML 解析器誤判為 nested mapping → parse error。
+   - 修復方法：將 jq filter / JSON 內嵌結構先賦值給 shell 變數，再引用：
+   ```bash
+   # ❌ 不可（將被誤判為 nested mapping）
+   run: |
+     echo '{"k": [{"type":"text"}]}' | jq .
+
+   # ✅ 正確（先賦值給 shell 變數）
+   run: |
+     JQ_FILTER='{"k": [{"type":"text"}]}'
+     echo "$JQ_FILTER" | jq .
+   ```
+
+3. **連續 parse error 時的應對順序**：
+   - Error A（`if: |`）→ 改單行雙引號字串。
+   - Error B（`if: >-`）→ 同上。
+   - Error C（`[{...}]` in `run: |`）→ 賦值給 shell 變數。
+
+Reference incidents: 2026-05-07 — commits `0b5ba72`、`c38ddd5`、`b9a462c`：`workflow-failure-notify.yml` 連續三次 YAML parse error，依序為 `if: |` → `if: >-` → `if: "..."`，加上 jq filter 賦值變數才全部解決。
+

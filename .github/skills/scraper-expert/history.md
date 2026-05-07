@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-05-07 — auto_research.py Playwright 逾時導致整批中止（commit `8029b74`）
+
+**Error**: `_fetch_sample_html()` 呼叫 `page.goto(url, timeout=30_000)` 無 try/except。`note.com/swi0881` 逾時 → 未捕獲 `PlaywrightTimeoutError` → 整個 auto-research CI job exit code 1，所有後續來源全部跳過。
+
+**Fix**:
+1. `_fetch_sample_html` 捕獲 `playwright.sync_api.TimeoutError` → log warning → return `""`
+2. `run()` 將空 `sample_html` 視為 `AssessError("error", ...)` → 該來源標記 `error` in DB → batch 繼續到下一列
+
+**Lesson**: CI 批次腳本中，每個 `page.goto()` 都必須包裝 `TimeoutError` 捕獲。任何單一慢速 / 被封鎖 URL 都不得中止整個批次。
+
+→ Added to SKILL.md §「Playwright CI 批次容錯規則」
+
+---
+
 ## 2026-05-07 — AdminEventTable performers[] 顯示修正（commit 9b84d98）
 
 **Error**: 父事件 `b90afe3c`（台湾史研究会3月例会）有 `performers=['陳志剛', '福田真郷']` 但 `performer=null`，`AdminEventTable` 只讀取 `performer` 欄位，導致顯示空白。`getEventPerformer()` helper 也未優先使用 `performers[]`，多人學術事件的表演者一律不顯示。

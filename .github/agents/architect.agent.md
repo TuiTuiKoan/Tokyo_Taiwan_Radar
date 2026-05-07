@@ -706,6 +706,19 @@ Reference incident: 2026-05-06 — AdminEventTable `rowIndexMap` 從 `displayEve
 
 Reference incident: 2026-05-06 — `category`/`work` 欄從 `max-w-[160px]` 改為 `w-[160px] min-w-[160px]`；works 清單排序從 `.order("original_title")` 改為 `.order("title_ja", { nullsFirst: false })`；dropdown「新增 work」從 `<a>` 改為 `<button>` modal。
 
+## GitHub Actions YAML Guard
+
+在審核任何新增或修改 `.github/workflows/*.yml` 的計畫前，**必須**確認：
+
+1. **`if:` 欄位只允許單行雙引號字串**：
+   - `if: |` 或 `if: >-`（block scalar）→ GitHub Actions YAML 解析器不支援 → parse error。
+   - 正確寫法：`if: "condition1 && condition2"`（全部在雙引號內，單行）。
+2. **`run: |` 區塊內不可包含 `[{...}]` inline 模式**：
+   - `[{"type": "text", ...}]`（flow sequence + nested flow mapping）在 `run: |` 中會被 GitHub Actions YAML 解析器誤判為 nested mapping → parse error。
+   - 修復方法：先賦值給 shell 變數再引用：`JQ_FILTER='...'`，後以 `"$JQ_FILTER"` 傳入。
+
+Reference incidents: 2026-05-07 — commits `0b5ba72`、`c38ddd5`、`b9a462c`：`workflow-failure-notify.yml` 連續三次 YAML parse error，依序為 `if: |` → `if: >-` → `if: "..."`，加上 jq filter 賦值變數才全部解決。
+
 ## Required Phases
 
 ### Phase 1: Research

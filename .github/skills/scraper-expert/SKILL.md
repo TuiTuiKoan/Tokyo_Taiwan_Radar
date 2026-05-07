@@ -1390,3 +1390,33 @@ Event(
 ```
 
 Reference incident: yebizo event `e37db12e` で `location_name='高雄市立美術館'`（台湾の美術館）が設定された → `東京都写真美術館` に修正（commit `47f8184`）。
+
+## Playwright CI 批次容錯規則
+
+在審核任何使用 Playwright 的 CI 批次腳本（`auto_research.py`、`annotator.py` 等）的計畫前，必須確認：
+
+1. **`page.goto()` 必須包裝 `TimeoutError` 捕獲**：
+   ```python
+   from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+   def _fetch_sample_html(url: str) -> str:
+       try:
+           page.goto(url, timeout=30_000)
+           return page.content()
+       except PlaywrightTimeoutError:
+           logger.warning("Playwright timeout for %s, skipping", url)
+           return ""
+   ```
+
+2. **單一 URL 選止整個批次 = 達成零**：空 `sample_html` / 空 `content` 必須被視為「該筆跳過，下一筆繼續」——不可讓它摧毀整個 job。
+   ```python
+   # auto_research.py run() 中的 pattern
+   sample_html = _fetch_sample_html(row["url"])
+   if not sample_html:
+       _update_status(row["id"], "error", "fetch_timeout")
+       continue  # 繼續下一列
+   ```
+
+3. **CI 批次腳本的 exit code 必須反映批次整體結果**：單筆來源標記 `error` 不就是失敗；全部跳過才是失敗。若選擇類似「至少 N 筆成功」的 exit condition，必須在計畫中明確定義。
+
+Reference incident: 2026-05-07 — commit `8029b74`：`auto_research.py` `_fetch_sample_html()` 無 try/except，`note.com/swi0881` 在 CI 逾時 → 未捕獲 `PlaywrightTimeoutError` → 整個 job exit code 1，所有後續來源全部跳過。
