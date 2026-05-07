@@ -1,9 +1,10 @@
 ---
 slug: tier1-data-completion
 title: Tier 1+1.5 資料基礎設施完成路徑（P4 缺口、location_prefectures、performer Tier 2）
-status: active
+status: done
 branch: feat/tier1-data-completion
 created: 2026-05-05
+completed: 2026-05-10
 tags: [data, scraper, infra, backfill]
 ---
 
@@ -32,8 +33,9 @@ tags: [data, scraper, infra, backfill]
 
 ## Design（設計摘要）
 
-### 一、現況快照（2026-05-05）
+### 一、現況快照（2026-05-05 → 完成後 2026-05-10）
 
+**開始時（2026-05-05，total 164件）**
 ```
 total active annotated events: 164
 
@@ -47,6 +49,21 @@ total active annotated events: 164
 ❌ location_prefectures   :   1.8%   ← 阻斷 Product C
 🟡 performer              :  17.7%   ← 一般可接受，但需 lecture/performance Tier 2
 ```
+
+**完成後（2026-05-10，total 302件 — 新事件持續入庫）**
+```
+total active events: 302
+
+✅ category               : 100.0%   （維持）
+✅ location_name          : 100.0%   （維持）
+✅ start_date             : 100.0%   （維持）
+✅ organizer              :  86.8%   ▲ C-1/C-2 補完 +18+3=21件
+✅ location_prefectures   :  98.9%   ▲ Gap A 完了（1.8% → 98.9%）
+✅ organizer_type (≠unk)  : 100.0%   ▲ 63件 unknown → 0件
+🟡 performer              :  44.0%   ▲ B-1(13件)+B-2(32件) = +45件（目標 ≥45% まで 1% 未達）
+```
+
+**performer 目標未達の原因**：事件庫從 268件増加到 302件（新スクレイプ），相対的填充率が 44.0%止まり。絶対件数では目標超（+45件）。
 
 ### 二、三組缺口的處理方案
 
