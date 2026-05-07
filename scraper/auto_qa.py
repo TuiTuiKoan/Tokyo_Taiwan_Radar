@@ -373,9 +373,10 @@ def detect(event: dict) -> list[tuple[str, str]]:
             f"簡體字偵測 fields={','.join(bad_fields)} sample={sample[:80]}",
         ))
 
-    # 2. Has location_name but no location_address (skip online / TV)
+    # 2. Has location_name but no location_address (skip online / TV / multi-city)
     loc_name = event.get("location_name") or ""
     loc_addr = event.get("location_address") or ""
+    loc_prefs = event.get("location_prefectures") or []
     if (
         loc_name.strip()
         and not loc_addr.strip()
@@ -383,6 +384,7 @@ def detect(event: dict) -> list[tuple[str, str]]:
         and event.get("source_name") != "gguide_tv"
         and loc_name.strip() not in VAGUE_CITY_NAMES
         and not any(kw in loc_name for kw in OVERSEAS_KEYWORDS)
+        and len(loc_prefs) < 2  # skip multi-city events (no single venue address)
     ):
         findings.append((
             "auto_qa_missing_address",
@@ -400,7 +402,8 @@ def run(dry_run: bool = False) -> dict:
         sb.table("events")
         .select(
             "id, updated_at, source_name, name_zh, description_zh, "
-            "location_name, location_name_zh, location_address, location_address_zh"
+            "location_name, location_name_zh, location_address, location_address_zh, "
+            "location_prefectures"
         )
         .eq("is_active", True)
         .gte("created_at", since)
