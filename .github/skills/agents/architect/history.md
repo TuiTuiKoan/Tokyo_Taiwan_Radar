@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-05-09 — rightscube JST offset bug + Vision OCR via Twitter poster (6885927b 台湾Filmake・シアターtalpa)
+
+### A — rightscube `_parse_venue_dates()` JST offset → end_date 倒退一天
+
+**問題：** `6885927b`（台湾Filmake・シアターtalpa）の `end_date = 2026-05-23T15:00:00+00:00`（正しくは `2026-05-24T00:00:00+00:00`）。最終上映日が DB 上 1 日ずれて表示。
+**根因：** `rightscube.py` の `_parse_venue_dates()` が `datetime(yr, mth, day, tzinfo=_JST)` で JST-aware datetime を構築し Supabase に渡した。Supabase は UTC に変換するため 5/24 00:00 JST → 5/23 15:00 UTC になった（shin_bungeiza commit `bcb6142` と全く同じ根因）。
+**修正：** `tzinfo=_JST` → `timezone.utc`（commit `74f5e2e`）。DB の `end_date` は手動 hotfix + FC ロック済。
+**教訓：** JST-aware datetime を Supabase に渡すな。日付のみのフィールドは常に `timezone.utc` で UTC midnight を使う。**同一バグが複数の scraper に潜伏していた**ため、新 scraper レビュー時は全 `tzinfo=_JST` 箇所を grep すること。
+
+### B — official_url が X.com の場合 image_url が null → Vision OCR には Playwright が必要
+
+**問題：** `6885927b` の `official_url = 'https://x.com/theater_talpa'`。海報に上映時間・料金が記載されているが `image_url = null` のため `enrich_poster.py` の自動処理対象外。
+**解決法：** Playwright で tweet URL を開き `pbs.twimg.com/media/` の URL を抽出 → GPT-4o Vision で海報 OCR。
+- `business_hours` に 4 場次の時刻を補充（例：`5/17(日) 12:00〜14:10（めぐる面影）/ 15:00〜17:05（台湾ハリウッド）`）
+- `price_info = '¥1,500（当日現金払いのみ）'`、`price_amount = 1500` も OCR から取得
+- 海報に記載の住所（`北1条西3丁目3-8`、CAVIN OSAKAYA）が DB の住所（`南1条西6丁目`）と異なり、海報を正として `location_address` / `location_name` も修正・FC ロック
+**教訓：** `official_url` が X.com の場合、海報情報は `enrich_poster.py` の自動フローに乗らない。Playwright + GPT-4o Vision の手動フローを使う。海報の住所は信頼性が高く、既存 DB 値より優先する。
+
+---
+
 ## 2026-05-07 — 手動 sub-event 作成 source_url 制約 + 全国展開イベント location 設計 + location_name_zh 推廣機構再混入
 
 ### A — events.source_url NOT NULL 制約（手動 INSERT 時）

@@ -416,7 +416,32 @@ Before approving any change to `annotator.py` annotation field priority, verify:
 3. **naive datetime 也有風險**：`datetime` 無 tzinfo 時 Supabase 依伺服器時區解讀（通常 UTC），一般安全，但不如明確設定 UTC midnight。
 4. **驗證**：新 scraper dry-run 後，確認 DB 的 `start_date` 與來源頁面的日期完全一致。
 
-Reference incident: 2026-05-07 — Stranger scraper `f3554212` start_date 存為 `2026-05-07T15:00:00+00:00`（應為 2026-05-08），Vercel 顯示前一天（commit `b7dc34f`）。
+Reference incidents:
+- 2026-05-07 — Stranger scraper `f3554212` start_date 存為 `2026-05-07T15:00:00+00:00`（應為 2026-05-08），Vercel 顯示前一天（commit `b7dc34f`）。
+- 2026-05-09 — rightscube scraper `_parse_venue_dates()` 的 `datetime(yr, mth, day, tzinfo=_JST)` 造成 `6885927b` end_date `2026-05-23T15:00Z`（應為 `2026-05-24T00:00Z`），手動 hotfix + commit `74f5e2e`。**同一 bug 跨 scraper 複現**——新 scraper review 應 grep 所有 `tzinfo=_JST` 使用點。
+
+## Vision OCR via Twitter Poster Guard（X.com 來源事件的海報資料提取）
+
+在審核任何 `official_url` 指向 X.com（Twitter）的事件，或設計 `image_url=null` 事件的資料補強流程時，**必須**確認：
+
+1. **`enrich_poster.py` 不處理 `image_url=null` 的事件**：X.com 連結的事件通常 `image_url=null`，自動 pipeline 跳過。需人工補強。
+2. **Playwright → pbs.twimg.com → GPT-4o Vision 的手動流程**：
+   ```python
+   from playwright.sync_api import sync_playwright
+   import re
+   with sync_playwright() as pw:
+       browser = pw.chromium.launch(headless=True)
+       page = browser.new_page()
+       page.goto("<tweet_url>/photo/N", wait_until="domcontentloaded")
+       # wait 5s for JS render
+       imgs = re.findall(r'https://pbs\.twimg\.com/media/[A-Za-z0-9_\-]+', page.content())
+       # Use: f"{img}?format=jpg&name=large" as image_url for Vision
+   ```
+3. **海報地址優先於 DB 現有地址**：海報上印刷的場地地址（如 `北1条西3丁目3-8`）比 scraper 抓取的地址更可靠，以海報為準更新並 FC 鎖定。
+4. **從海報可取得的欄位**（視海報內容而定）：`business_hours`（場次時間）、`price_info`/`price_amount`（票價）、`location_address`（地址）、`location_name`（場地名）。
+5. **信心度門檻**：與 `enrich_poster.py` 一致，只更新明確出現在海報上的欄位，不推斷缺失資訊。
+
+Reference incident: 2026-05-09 — `6885927b`（台湾Filmake・シアターtalpa）`image_url=null`，透過 Playwright 取得 tweet 圖片 URL，GPT-4o Vision 讀出 4 場次時刻表 + ¥1,500 票價 + `北1条西3丁目3-8` 地址，3 個欄位更新 + FC 鎖定。
 
 ## Hallucination Scan Safety Guard
 
