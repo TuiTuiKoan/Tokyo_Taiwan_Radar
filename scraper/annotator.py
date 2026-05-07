@@ -630,8 +630,8 @@ ORGANIZER EXTRACTION RULES:
    sponsor_types: classify each sponsor entry using the same type labels (one per sponsor, same index). Use "unknown" if unclear.
 4. NEVER fabricate organizer names. If 主催 is not explicitly stated and cannot be safely inferred from the venue's official role (e.g. an exhibition at a museum is hosted by that museum), set organizer = null.
 5. organizer_type: classify the primary organizer into one or more of:
-   - "government" — central/local government bodies (外交部, 文化部, 都道府県, 市役所)
-   - "semi_official" — TECRO offices, Taiwan Cultural Center, JICA-style 外郭団体
+   - "government" — central/local government bodies (外交部, 文化部, 都道府県, 市役所); Taiwan representative offices in Japan (台北駐日経済文化代表処, 台北駐○○経済文化事務所, 台湾文化センター, 台北経済文化代表処, any 台北駐／台湾駐 office)
+   - "semi_official" — quasi-governmental foundations and exchange associations (公益財団法人日本台湾交流協会, JICA-style 外郭団体, 財団法人 type organizations); NOT Taiwan representative offices (those are "government")
    - "cultural_institution" — museums, galleries, foundations, public theaters
    - "academic" — universities, research institutes, scholarly societies
    - "commercial_brand" — for-profit companies running brand events
