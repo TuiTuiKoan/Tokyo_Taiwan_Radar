@@ -6,33 +6,43 @@ import { NextRequest, NextResponse } from "next/server";
 // 分類對照表（數字 / ZH / JA / EN → category key）
 // ---------------------------------------------------------------------------
 const CATEGORY_LABELS: Record<string, string> = {
-  "1": "movie",       "電影": "movie",       "映画": "movie",       "movie": "movie",
-  "2": "performing_arts", "音樂": "performing_arts", "表演": "performing_arts",
+  // ── 大類編號（1–8，對應 footer 顯示順序）──
+  "1": "senses",          // 五感
+  "2": "performing_arts", // 文藝
+  "3": "lifestyle_food",  // 生活
+  "4": "workshop",        // 體驗
+  "5": "academic",        // 學術
+  "6": "geopolitics",     // 社會
+  "7": "tech",            // 科技
+  "8": "tourism",         // 旅遊
+  // ── 細項別名（文字輸入）──
+  "電影": "movie",       "映画": "movie",       "movie": "movie",
+  "五感": "senses",      "台灣五感": "senses",  "senses": "senses",
+  "音樂": "performing_arts", "表演": "performing_arts", "舞台": "performing_arts",
   "音楽": "performing_arts", "performing_arts": "performing_arts",
-  "3": "senses",      "五感": "senses",       "台灣五感": "senses",  "senses": "senses",
-  "4": "retail",      "品牌": "retail",       "消費": "retail",      "retail": "retail",
-  "5": "lifestyle_food", "生活": "lifestyle_food", "飲食": "lifestyle_food",
+  "文藝": "art",         "藝術": "art",          "アート": "art",       "art": "art",
+  "文學": "literature",  "文学": "literature",   "literature": "literature",
+  "書": "books_media",   "媒體": "books_media",  "本": "books_media",   "books_media": "books_media",
+  "電視": "tv_program",  "テレビ": "tv_program", "tv": "tv_program",    "tv_program": "tv_program",
+  "生活": "lifestyle_food", "飲食": "lifestyle_food",
   "ライフスタイル": "lifestyle_food", "lifestyle": "lifestyle_food",
-  "6": "art",         "藝術": "art",          "アート": "art",       "art": "art",
-  "7": "lecture",     "講座": "lecture",      "レクチャー": "lecture", "lecture": "lecture",
-  "8": "taiwan_japan", "台日": "taiwan_japan", "台日交流": "taiwan_japan", "交流": "taiwan_japan",
-  "9": "books_media", "書": "books_media",    "媒體": "books_media", "本": "books_media",
-  "10": "academic",   "學術": "academic",     "学術": "academic",    "academic": "academic",
-  "11": "geopolitics","政治": "geopolitics",  "社會": "geopolitics", "geopolitics": "geopolitics",
-  "12": "gender",     "性別": "gender",       "ジェンダー": "gender", "gender": "gender",
-  "13": "tech",       "科技": "tech",         "テクノロジー": "tech", "tech": "tech",
-  "14": "nature",     "自然": "nature",       "nature": "nature",
-  "15": "tourism",    "旅遊": "tourism",      "旅行": "tourism",     "tourism": "tourism",
-  "16": "workshop",   "工作坊": "workshop",   "ワークショップ": "workshop", "workshop": "workshop",
-  "17": "exhibition", "展覽": "exhibition",   "展示": "exhibition",  "exhibition": "exhibition",
-  "18": "competition","競賽": "competition",  "競技": "competition", "competition": "competition",
-  "19": "indigenous", "原住民": "indigenous", "先住民": "indigenous", "indigenous": "indigenous",
-  "20": "history",    "歷史": "history",      "歴史": "history",     "history": "history",
-  "21": "urban",      "建築": "urban",        "都市": "urban",       "urban": "urban",
-  "22": "business",   "商務": "business",     "ビジネス": "business", "business": "business",
-  "23": "report",     "活動紀錄": "report",   "レポート": "report",  "report": "report",
-  "24": "literature", "文學": "literature",   "文学": "literature",  "literature": "literature",
-  "25": "tv_program", "電視": "tv_program",   "テレビ": "tv_program", "tv": "tv_program",
+  "品牌": "retail",      "消費": "retail",       "retail": "retail",
+  "展覽": "exhibition",  "展示": "exhibition",   "exhibition": "exhibition",
+  "體驗": "workshop",    "工作坊": "workshop",   "ワークショップ": "workshop", "workshop": "workshop",
+  "競賽": "competition", "競技": "competition",  "competition": "competition",
+  "台日": "taiwan_japan", "台日交流": "taiwan_japan", "交流": "taiwan_japan", "taiwan_japan": "taiwan_japan",
+  "學術": "academic",    "学術": "academic",     "academic": "academic",
+  "講座": "lecture",     "レクチャー": "lecture", "lecture": "lecture",
+  "歷史": "history",     "歴史": "history",      "history": "history",
+  "社會": "geopolitics", "政治": "geopolitics",  "geopolitics": "geopolitics",
+  "商務": "business",    "ビジネス": "business",  "business": "business",
+  "性別": "gender",      "ジェンダー": "gender",  "gender": "gender",
+  "建築": "urban",       "都市": "urban",         "urban": "urban",
+  "科技": "tech",        "テクノロジー": "tech",  "tech": "tech",
+  "自然": "nature",      "nature": "nature",
+  "旅遊": "tourism",     "旅行": "tourism",       "tourism": "tourism",
+  "原住民": "indigenous", "先住民": "indigenous",  "indigenous": "indigenous",
+  "活動紀錄": "report",  "レポート": "report",    "report": "report",
 };
 
 // 語言命令對照
@@ -51,12 +61,8 @@ const LANG_CONFIRM: Record<string, string> = {
 
 // 分類列表（廣播結尾用）
 const CATEGORY_LIST_ZH = `📂 活動分類
-1.電影  2.音樂・表演  3.台灣五感  4.品牌消費
-5.生活風格  6.藝術  7.講座  8.台日交流
-9.書・媒體  10.學術  11.社會・政治  12.性別
-13.科技  14.自然  15.旅遊  16.工作坊
-17.展覽  18.競賽  19.原住民  20.歷史
-21.建築  22.商務  23.活動紀錄  24.文學
+1.五感　2.文藝　3.生活　4.體驗
+5.學術　6.社會　7.科技　8.旅遊
 
 💡 輸入編號或分類名稱可客製化推播
 切換語言：輸入「日本語」或「English」`;

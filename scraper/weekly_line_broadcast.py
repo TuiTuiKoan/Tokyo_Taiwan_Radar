@@ -87,22 +87,22 @@ CATEGORY_LABELS: dict[str, dict[str, str]] = {
 CATEGORY_LIST_FOOTER: dict[str, str] = {
     "zh": """━━━━━━━━━━━━━━━━━━
 📂 活動分類
-1.電影  2.表演  3.藝術  4.生活
-5.學術  6.社會  7.科技  8.旅遊
+1.五感　2.文藝　3.生活　4.體驗
+5.學術　6.社會　7.科技　8.旅遊
 
 💡 輸入編號或分類名稱可客製化推播
 切換語言：輸入「日本語」或「English」""",
     "ja": """━━━━━━━━━━━━━━━━━━
 📂 カテゴリ
-1.映画  2.舞台・音楽  3.アート  4.ライフスタイル
-5.学術  6.社会  7.テクノロジー  8.観光
+1.台湾五感　2.文化・芸術　3.ライフスタイル　4.体験
+5.学術　6.社会　7.テクノロジー　8.観光
 
 💡 番号またはカテゴリ名を入力でカスタマイズ配信
 言語切替：「中文」または「English」と入力""",
     "en": """━━━━━━━━━━━━━━━━━━
 📂 Categories
-1.Movie  2.Performance  3.Art  4.Lifestyle
-5.Academic  6.Society  7.Tech  8.Tourism
+1.Senses　2.Arts　3.Lifestyle　4.Experience
+5.Academic　6.Society　7.Tech　8.Tourism
 
 💡 Type a number or category name to customize your feed
 Switch language: type「中文」or「日本語」""",
