@@ -307,10 +307,13 @@ export function getEventBusinessHours(event: Event, locale: Locale): string | nu
  * performers[] is the canonical multi-person field; performer is the legacy single-person field.
  */
 export function getEventPerformer(event: Event, locale: Locale): string | null {
+  // zh/en: locale-specific translated field takes priority over performers[]
+  if (locale === "zh" && event.performer_zh) return event.performer_zh;
+  if (locale === "en" && event.performer_en) return event.performer_en;
+  // All locales (or zh/en without translation): performers[] array (Japanese names)
   const arr = event.performers ?? [];
   if (arr.length > 0) return arr.join("、");
-  if (locale === "zh") return event.performer_zh || event.performer || null;
-  if (locale === "en") return event.performer_en || event.performer || null;
+  // Legacy single-field fallback
   return event.performer || null;
 }
 
