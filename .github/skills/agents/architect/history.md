@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-05-07（第二輪）— location_name 括弧住所混入 + 2cb72ee9 鼎泰豐多重錯誤 + push 時機確認
+
+### 案例 A — location_name 括弧住所混入（`b42977f3` / `09c26a2e`）
+
+**錯誤：** 日本台湾学会第23回関西部会的兩件 sub-events（`b42977f3`、`09c26a2e`）`location_name` 中混入了括弧住所：`南山大学 Q棟103教室 (〒466-8673 名古屋市昭和区山里町18)`，而同一父事件的其他 6 件 sub-events 是正常的（location_name 和 location_address 分離）。
+**修正：** `location_name → 南山大学 Q棟103教室`、`location_address → 〒466-8673 名古屋市昭和区山里町18`。兩個欄位均 FC 鎖定。
+**教訓：** annotator 有時會把住所括弧包在 `location_name` 末端，而非填入 `location_address`。偵測 SQL：`SELECT id, location_name FROM events WHERE location_name LIKE '%(〒%' AND is_active = true;`。修復後必須 FC 鎖定 location_name + location_address 兩個欄位，否則下次 re-annotation 可能再次混入。特別常見於學術研究會（taiwanshi、jats 等）sub-event。
+
+### 案例 B — 2cb72ee9 鼎泰豐（google_news_rss）多重錯誤
+
+**錯誤：** （1）`location_name = '鼎泰豐'`（ブランド名，非會場）；（2）`location_address = None`；（3）`location_prefectures = None`（地域フィルター対象外）；（4）`name_ja` 含新聞標題格式（`2026年10月4日、台湾点心料理「鼎泰豐」は日本上陸30周年を迎えます`）。
+**修正：** `location_name → None`（全国多店舗，場所特定不可）；`location_prefectures → ['東京']`（POP UP と体験が新宿高島屋）FC 鎖定；`annotation_status → 'pending'`（name_ja ヘッドラインを re-annotation で修正させる）。
+**教訓：** google_news_rss プレスリリース型記事ではブランド名が `location_name` に入りやすい。全国多店舗展開の記念企画は `location_address` が特定できないため `None` が正解。`annotation_status` を `pending` に戻して re-annotation させるのが最善手。
+
+### 案例 C — コード push タイミングの確認（b2589d75）
+
+**錯誤：** `getEventPerformer()` の修正コード（commit `1a38bd5`）は push されていなかったため、Vercel では旧コードが動いていた。
+**修正：** push して解決。
+**教訓：** 同一セッションでコード変更 → push まで完了するよう確認が必要。push 漏れは Vercel に旧コードが残るため、修正完了後すぐに `git push` まで実行する。
+
+---
+
 ## 2026-05-07 — getEventPerformer() 多人表演者靜默截斷 + 手動停用造成 404 + performers[] 補充
 
 ### 案例 A — getEventPerformer() 優先順序 bug（commit 1a38bd5）

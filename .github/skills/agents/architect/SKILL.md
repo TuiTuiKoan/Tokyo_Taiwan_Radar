@@ -1299,6 +1299,21 @@ Reference incidents:
 - 2026-05-04 `878660a0 iwafu` — `流山おおたかの森S.C. 森のまち広場` scraper 直接設 `location_address = place_val`（venue name），導致 annotator 的 PARENT VENUE ADDRESS RULE 完全無效。修復：`iwafu.py` 改為 `_ADDR_RE` 抽取真實地址，找不到設 `None`。
 - 2026-05-04 hakusuisha — annotator SYSTEM_PROMPT 加入 PARENT VENUE ADDRESS RULE，`auto_qa_address_is_venue_name` 偵測器加入 auto_qa.py。
 
+## Location Embedded Address Guard（location_name 括弧住所混入防護）
+
+在審核任何 annotator 輸出中涉及 `location_name` / `location_address` 分離的計畫，或分析 location 欄位異常前，**必須**確認：
+
+1. **`location_name` 中不應包含括弧住所**：`南山大学 Q棟103教室 (〒466-8673 名古屋市昭和区山里町18)` 這種混入格式表示 annotator 未能分離。正確格式：`location_name = 南山大学 Q棟103教室`、`location_address = 〒466-8673 名古屋市昭和区山里町18`。
+2. **偵測 SQL**：
+   ```sql
+   SELECT id, location_name FROM events
+   WHERE location_name LIKE '%(〒%' AND is_active = true;
+   ```
+3. **修復後必須 FC 鎖定 location_name + location_address 兩個欄位**：否則下次 re-annotation 可能再次混入。
+4. **範圍**：特別常見於學術研究會（taiwanshi、jats 等）的 sub-event，annotator 會從父事件繼承 location_name 並附加括弧住所。
+
+Reference incident: 2026-05-07 — `b42977f3` / `09c26a2e`（日本台湾学会第23回関西部会 sub-events）location_name 括弧住所混入修復。
+
 ## Contentful Placeholder Date Guard
 
 在審核任何使用 Contentful CDA API 的 scraper 前，**必須**確認：

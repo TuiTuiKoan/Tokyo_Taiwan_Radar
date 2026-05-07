@@ -271,6 +271,17 @@ Reference incident: 2026-05-04 hakusuisha — `_JITSU_RE` 命中 scraper 自注�
 
 Reference incident: 2026-05-04 — `878660a0 iwafu` `流山おおたかの森S.C. 森のまち広場` address = name（失敗）；`3cbe5682` sub-venue 需用親 SC 地址（commit `b95e...`）。
 
+## Location Embedded Address Guard（location_name 括弧住所混入防護）
+
+在審核任何 annotator 輸出中涉及 `location_name` / `location_address` 分離的計畫，或分析 location 欄位異常前，**必須**確認：
+
+1. **`location_name` 中不應包含括弧住所**：`南山大学 Q棟103教室 (〒466-8673 名古屋市昭和区山里町18)` 這種混入格式表示 annotator 未能分離。正確格式：`location_name = 南山大学 Q棟103教室`、`location_address = 〒466-8673 名古屋市昭和区山里町18`。
+2. **偵測 SQL**：`SELECT id, location_name FROM events WHERE location_name LIKE '%(〒%' AND is_active = true;`
+3. **修復後必須 FC 鎖定 location_name + location_address 兩個欄位**：否則下次 re-annotation 可能再次混入。
+4. **範圍**：特別常見於學術研究會（taiwanshi、jats 等）sub-event，annotator 會從父事件繼承 location_name 並附加括弧住所。
+
+Reference incident: 2026-05-07 — `b42977f3` / `09c26a2e`（日本台湾学会第23回関西部会 sub-events）location_name 括弧住所混入修復。
+
 ## Category Sync Guard（annotator.py ↔ types.ts）
 
 在審核**任何**新增 `Category` 至 `web/lib/types.ts` 的 PR，或審核任何涉及 `annotator.py` 的 PR 前，**必須**確認以下三處同步：
