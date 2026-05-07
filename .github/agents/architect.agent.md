@@ -573,6 +573,7 @@ Reference incidents:
 3. **Author bio false positive**：台灣大學名稱（`台湾大学`、`淡江大学` 等）出現在著者略歷中，不代表活動內容與台灣相關。需 regex 排除後再計 keyword count。
 
 Reference incident: 2026-05-07 — bookandbeer `?keyword=台湾` 被 server 靜默忽略，需 client-side filter (commits 7df9f56, e1ab468)。
+Reference incident: 2026-05-07 — tsutaya_portal `_is_taiwan_relevant()` 全文搜索導致 5 件アーティスト略歴偽陽性入庫（artist bio pos 586–1634）。修正：title 全文 + description[:500] に限定（commit `c3ae92a`）。
 
 ## gnews RSS Snippet Date Guard
 

@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-05-07 — tsutaya_portal アーティスト略歴偽陽性（artist-bio false positive）
+
+**問題：** `_is_taiwan_relevant()` が `title + description` 全文を連結して台湾キーワードを検索していたため、アーティスト略歴・過去出展歴に「台湾」が登場する無関係イベントが 5 件入庫：
+- `279b0bb6` 日本画ワークショップ — 略歴「台湾などで活動」(pos 586)
+- `4bdcfa31` Eureka Seven POP UP — 略歴「日本・フランス・台湾で展示」(pos 1424)
+- `e3f7e877` 稲垣美侑 個展「Puddles」 — 過去出展歴「Pon Ding, 台北, 台湾」(pos 1249)
+- `7b7cbc36` パンダ絵師あごぱん展 — 出展歴「ART TAIPEI 出展」(pos 1148)
+- `2da18f15` 廣島Mercato — 多数出店者の 1 つが台湾料理 (pos 1634)
+
+**修正：** `_is_taiwan_relevant()` を「タイトル全文 OR description 先頭 500 文字」チェックに変更（commit `c3ae92a`）。5 件を `is_active=False`、`deactivated_reason='not_taiwan_related: keyword only in artist bio or generic vendor list'` に停用。
+**教訓：** `_is_taiwan_relevant()` はタイトル全文 + description 先頭 500 文字のみ検索すべき。アーティスト略歴・過去出展歴は通常 description 後半（pos 500+）に登場する。SKILL.md の Scraper Server-Side Keyword Filter Verification Guard の推奨パターンに準拠。
+
+---
+
 ## 2026-05-07 — Scraper JST-aware datetime → Supabase UTC 日期偏移
 
 問題：Stranger scraper 的 min_date/max_date 是 JST-aware datetime（UTC+9）。Supabase 以 UTC 儲存後，`2026-05-08T00:00:00+09:00` → `2026-05-07T15:00:00+00:00`，Vercel UTC 伺服器顯示前一天（5/7 instead of 5/8）。
