@@ -399,7 +399,9 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan
 5. **手動設定必須鎖 `field_corrections`**：同 `performer` 欄位，`performer_zh`、`performer_en` 手動修正必須同時 upsert 進 `field_corrections`，否則下次 re-annotation 覆寫。
 6. **`works.work_type` 有效值**：`film | stage | exhibition | concert_tour | tv_drama | tv_variety | other`。`conference` **不在**允許清單，學術研討會用 `other`。（migration 048 + 051 的 check constraint 僅允許上列 7 種）
 7. **UI 顯示優先序必須同步更新（event detail page）**：事件詳情頁 `[id]/page.tsx` 中，若 locale 為 zh/en 且 `performer_zh`/`performer_en` 存在，必須優先使用 `getEventPerformer(event, locale)`；`performers[]` 僅作為 ja locale、或 zh/en 無多語言欄位時的 fallback。新增多語言欄位後，若 UI 優先序未同步更新，新欄位永遠不會被 end-user 看到（隱性迴歸）。Reference incident: 2026-05-09 commit `2e6f4c2`。
-8. **導演（director）≠ 表演者（performer）嚴格分欄**：
+8. **`performer` vs `performers[]` 不可互換**：`performer`（TEXT）是 annotator 的單一輸出，也是 `performer_zh/en` 翻譯欄位的錨點。`performers[]`（TEXT[]）是多人顯示陣列，由 annotator 自動 sync 自 `performer`。**絕不可提議刪除 `performer` 欄位**——翻譯欄位依附於它，34+ 處程式碼引用它。
+9. **Auto-sync 規則**：annotator 滿足以下四個條件時自動設 `performers = [performer]`：(1) 本次 pass 設定了 `performer`；(2) 現有 `performers[]` 為空；(3) GPT 未回傳 `performers` 陣列；(4) `performers` 未在 `field_corrections` 保護中。此機制確保 UI 永遠能從 `performers[]` 讀取（commit `4526d3a`）。
+10. **導演（director）≠ 表演者（performer）嚴格分欄**：
    - `director` / `director_zh` / `director_en`：電影或舞台**導演**。
    - `performer` / `performer_en` / `performers[]`：演員、**主演**、講者。
    - 商業院線映畫的 `organizer` 必須為 `null`（院線是映映場地，非主辦方）。

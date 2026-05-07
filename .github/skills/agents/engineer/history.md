@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-05-09 — annotator performer → performers[] 自動同步（commit 4526d3a）
+
+**Feature：** 當 annotator 設定 `performer` 且 `performers[]` 為空時，自動設 `performers = [performer]`，讓 UI 永遠能從 `performers[]` 讀取，不需 fallback 回 `performer`。
+
+**觸發條件（全部成立才同步）：**
+1. `update_data.get("performer")` — 本次 annotator pass 有設定 performer
+2. `not event.get("performers")` — DB 現有 performers[] 為空/null
+3. `not update_data.get("performers")` — GPT 本次未回傳 performers 陣列
+4. `"performers" not in _human_protected` — performers 未在 field_corrections 保護中
+
+**三欄位職責（不可互換）：**
+
+| Field | Type | 職責 |
+|-------|------|------|
+| `performer` | `TEXT` | 日文單人主表演者；annotator GPT/regex 輸出；`getEventPerformer()` fallback 來源 |
+| `performer_zh` / `performer_en` | `TEXT` | performer 的語言翻譯（一對一對應）；GPT 填入或人工設定 |
+| `performers[]` | `TEXT[]` | 多人顯示陣列；學術研討會全體發表者；自動 sync 自 performer |
+
+**⚠ performer 欄位不可刪除**：`performer_zh/en` 是以 `performer` 為錨點的一對一翻譯；若 `performers[]` 有多人則翻譯欄位意義不明。設計決定：三欄並存，自動 sync 確保 UI 一致。
+
+**Lesson：** 新功能設計前先確認欄位依賴關係。「刪除 performer 改用 performers[]」看似簡化，實際上 annotator.py、database.py、base.py、AdminEditClient、AdminEventForm 等 34+ 處引用，且 performer_zh/en 翻譯對必須有一對一的錨點欄位。
+
+---
+
 ## 2026-05-09 — 手動修正污染了 field_corrections（c6d5232a）
 
 **Problem:** 前次手動修正事件 `c6d5232a` 時，誤把污染後的 `description_ja`（霧のごとく版本）直接更新進 DB，並將 `name_zh=大濛` upsert 進 `field_corrections`。由於 FC 的 P1 保護，後續 re-annotation 永遠無法覆寫，污染被鎖定。

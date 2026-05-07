@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-05-09 — performer / performers[] 設計決策：三欄並存，不做欄位合併
+
+**決策：** 不刪除 `performer` 欄位，不將其遷移至 `performers[]`；三欄並存，annotator 自動同步。
+
+**評估原因：**
+1. `performer_zh/en` 是以 `performer`（TEXT 單值）為錨點的一對一翻譯；若 `performers[]` 存多人，翻譯欄位意義不明（要翻誰？）
+2. `performer` 有 34+ 處引用（annotator.py、database.py、base.py、AdminEditClient、AdminEventForm 等）；全面遷移成本高且風險大
+3. GPT prompt 回傳 `performer` 為 single string；重設計需大改 few-shot + prompt
+
+**正確架構（三欄職責）：**
+- `performer`：單一主表演者日文原名；annotator 輸出；`getEventPerformer()` fallback 錨點
+- `performer_zh / performer_en`：performer 的語言翻譯（一對一對應）
+- `performers[]`：多人顯示陣列；學術研討會全體發表者；annotator 自動 sync 自 `performer`（commit `4526d3a`）
+
+**解法：** 在 annotator 加自動 sync（conditions：performer 本次設定 + existing performers[] empty + GPT 未回傳 performers + performers not in field_corrections），確保 UI 永遠能從 `performers[]` 讀取，不需 fallback。
+
+---
+
 ## 2026-05-06 — Cinema distributor as organizer fallback
 
 **問題：** `dec5031b`（霧のごとく大濛）`organizer=null`，即使 `raw_description` 末尾有「配給：JAIHO/Stranger」。SYSTEM_PROMPT 的 ORGANIZER EXTRACTION RULES 只定義「主催 / 主辦 / presented by」→ organizer，未定義「配給」fallback。

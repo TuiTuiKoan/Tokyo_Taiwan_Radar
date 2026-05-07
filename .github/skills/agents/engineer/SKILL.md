@@ -192,6 +192,24 @@ Reference: 2026-05-05 城市徽章兩輪才生效（commit `5a29c13` → `9f4b46
 
 Reference incident: 2026-05-09 — migration 054 新增多語言欄位後 UI 未同步，zh 頁面始終顯示日文（commit `2e6f4c2`）。
 
+## performer / performers[] / performer_zh/en — 三欄架構
+
+| Field | Type | 職責 |
+|-------|------|------|
+| `performer` | `TEXT` | 日文單人主表演者；annotator GPT/regex 輸出；`getEventPerformer()` fallback 錨點 |
+| `performer_zh` / `performer_en` | `TEXT` | performer 的語言翻譯（一對一對應）；GPT 填入或人工設定 |
+| `performers[]` | `TEXT[]` | 多人顯示陣列；學術研討會全體發表者；annotator 自動 sync 自 `performer` |
+
+**⚠ 絕不可刪除 `performer`**：`performer_zh/en` 錨定於它；34+ 處程式碼引用它；`performers[]` 有多人時翻譯欄位才有意義。
+
+**Auto-sync 規則（commit `4526d3a`）**：annotator 滿足以下四個條件時自動設 `performers = [performer]`：
+1. 本次 pass 設定了 `performer`
+2. 現有 `performers[]` 為空/null
+3. GPT 本次未回傳 `performers` 陣列
+4. `performers` 未在 `field_corrections` 保護中
+
+此機制確保 UI 永遠能從 `performers[]` 讀取，不需在前端 fallback 回 `performer`。
+
 ## TSX Component vs Helper — react-hooks/static-components Rule
 
 Next.js 15+ / React 19 lints any `PascalCase` function that returns JSX as a React component. Components declared **inside another component's render body** trigger `react-hooks/static-components` and fail Vercel build.
