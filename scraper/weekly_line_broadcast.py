@@ -87,35 +87,22 @@ CATEGORY_LABELS: dict[str, dict[str, str]] = {
 CATEGORY_LIST_FOOTER: dict[str, str] = {
     "zh": """━━━━━━━━━━━━━━━━━━
 📂 活動分類
-1.電影  2.音樂・表演  3.台灣五感  4.品牌消費
-5.生活風格  6.藝術  7.講座  8.台日交流
-9.書・媒體  10.學術  11.社會・政治  12.性別
-13.科技  14.自然  15.旅遊  16.工作坊
-17.展覽  18.競賽  19.原住民  20.歷史
-21.建築  22.商務  23.活動紀錄  24.文學
+1.電影  2.表演  3.藝術  4.生活
+5.學術  6.社會  7.科技  8.旅遊
 
 💡 輸入編號或分類名稱可客製化推播
 切換語言：輸入「日本語」或「English」""",
     "ja": """━━━━━━━━━━━━━━━━━━
-📂 イベントカテゴリ
-1.映画  2.音楽・舞台  3.台湾五感  4.ショッピング
-5.ライフスタイル  6.アート  7.講演  8.台日交流
-9.本・メディア  10.学術  11.社会・政治  12.ジェンダー
-13.テクノロジー  14.自然  15.観光  16.ワークショップ
-17.展示  18.競技  19.先住民族  20.歴史
-21.建築  22.ビジネス  23.レポート  24.文学
+📂 カテゴリ
+1.映画  2.舞台・音楽  3.アート  4.ライフスタイル
+5.学術  6.社会  7.テクノロジー  8.観光
 
 💡 番号またはカテゴリ名を入力でカスタマイズ配信
 言語切替：「中文」または「English」と入力""",
     "en": """━━━━━━━━━━━━━━━━━━
-📂 Event Categories
-1.Movie  2.Music & Performing Arts  3.Taiwan Senses
-4.Shopping  5.Lifestyle & Food  6.Art  7.Lecture
-8.Taiwan-Japan Exchange  9.Books & Media  10.Academic
-11.Society & Politics  12.Gender  13.Tech  14.Nature
-15.Tourism  16.Workshop  17.Exhibition  18.Competition
-19.Indigenous  20.History  21.Architecture  22.Business
-23.Event Report  24.Literature
+📂 Categories
+1.Movie  2.Performance  3.Art  4.Lifestyle
+5.Academic  6.Society  7.Tech  8.Tourism
 
 💡 Type a number or category name to customize your feed
 Switch language: type「中文」or「日本語」""",
