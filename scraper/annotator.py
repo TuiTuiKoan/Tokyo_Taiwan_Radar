@@ -581,6 +581,10 @@ NAME WRITING RULES — CRITICAL:
 
    NOTE: Events held IN Taiwan are allowed and welcome. Do NOT force-convert Taiwan addresses to Japanese format. For Taiwan venues, fill location_address with the real Taiwanese address (e.g. "台北市中山區小民生東路3段1號") and set location_name accordingly. The tourism category applies when the event is designed to attract Japanese visitors to Taiwan.
 7. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
+   GRANT/SUBSIDY EXCEPTION: For grant applications, call-for-submissions, and scholarship events
+   (公募, 助成金申請, 奨学金, 徵件, 補助金), any monetary amount mentioned (e.g. "助成額は最大60万台湾ドル",
+   "補助金額：30万円") is the GRANT AMOUNT given to applicants — NOT a participation fee.
+   These events are always is_paid=false. Never set is_paid=true based on grant/subsidy amounts.
 
 PERFORMER EXTRACTION RULES:
 1. performer: a SINGLE real personal name (person, not organization) who is the primary guest performer, speaker, lecturer, or artist of the event.
