@@ -3,45 +3,59 @@ import { createHmac } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 // ---------------------------------------------------------------------------
-// 分類對照表（數字 / ZH / JA / EN → category key）
+// 大類展開表：輸入編號或大類名稱 → 展開為該類所有子類
+// ---------------------------------------------------------------------------
+const GROUP_EXPANSIONS: Record<string, string[]> = {
+  "1": ["senses", "movie", "indigenous"],
+  "五感": ["senses", "movie", "indigenous"],
+  "台灣五感": ["senses", "movie", "indigenous"],
+  "2": ["performing_arts", "art", "literature", "books_media", "tv_program"],
+  "文藝": ["performing_arts", "art", "literature", "books_media", "tv_program"],
+  "3": ["lifestyle_food", "retail", "exhibition"],
+  "生活": ["lifestyle_food", "retail", "exhibition"],
+  "4": ["workshop", "competition", "taiwan_japan"],
+  "體驗": ["workshop", "competition", "taiwan_japan"],
+  "5": ["academic", "lecture", "history"],
+  "學術": ["academic", "lecture", "history"],
+  "学術": ["academic", "lecture", "history"],
+  "6": ["geopolitics", "business", "gender", "urban"],
+  "社會": ["geopolitics", "business", "gender", "urban"],
+  "社会": ["geopolitics", "business", "gender", "urban"],
+  "7": ["tech"],
+  "科技": ["tech"],
+  "テクノロジー": ["tech"],
+  "8": ["tourism"],
+  "旅遊": ["tourism"],
+  "観光": ["tourism"],
+};
+
+// ---------------------------------------------------------------------------
+// 細項別名（文字輸入 → 單一子類）
 // ---------------------------------------------------------------------------
 const CATEGORY_LABELS: Record<string, string> = {
-  // ── 大類編號（1–8，對應 footer 顯示順序）──
-  "1": "senses",          // 五感
-  "2": "performing_arts", // 文藝
-  "3": "lifestyle_food",  // 生活
-  "4": "workshop",        // 體驗
-  "5": "academic",        // 學術
-  "6": "geopolitics",     // 社會
-  "7": "tech",            // 科技
-  "8": "tourism",         // 旅遊
-  // ── 細項別名（文字輸入）──
   "電影": "movie",       "映画": "movie",       "movie": "movie",
-  "五感": "senses",      "台灣五感": "senses",  "senses": "senses",
+  "senses": "senses",   "indigenous": "indigenous",
+  "原住民": "indigenous", "先住民": "indigenous",
   "音樂": "performing_arts", "表演": "performing_arts", "舞台": "performing_arts",
   "音楽": "performing_arts", "performing_arts": "performing_arts",
-  "文藝": "art",         "藝術": "art",          "アート": "art",       "art": "art",
+  "藝術": "art",         "アート": "art",        "art": "art",
   "文學": "literature",  "文学": "literature",   "literature": "literature",
   "書": "books_media",   "媒體": "books_media",  "本": "books_media",   "books_media": "books_media",
   "電視": "tv_program",  "テレビ": "tv_program", "tv": "tv_program",    "tv_program": "tv_program",
-  "生活": "lifestyle_food", "飲食": "lifestyle_food",
-  "ライフスタイル": "lifestyle_food", "lifestyle": "lifestyle_food",
+  "飲食": "lifestyle_food", "ライフスタイル": "lifestyle_food", "lifestyle": "lifestyle_food", "lifestyle_food": "lifestyle_food",
   "品牌": "retail",      "消費": "retail",       "retail": "retail",
   "展覽": "exhibition",  "展示": "exhibition",   "exhibition": "exhibition",
-  "體驗": "workshop",    "工作坊": "workshop",   "ワークショップ": "workshop", "workshop": "workshop",
+  "工作坊": "workshop",  "ワークショップ": "workshop", "workshop": "workshop",
   "競賽": "competition", "競技": "competition",  "competition": "competition",
   "台日": "taiwan_japan", "台日交流": "taiwan_japan", "交流": "taiwan_japan", "taiwan_japan": "taiwan_japan",
-  "學術": "academic",    "学術": "academic",     "academic": "academic",
   "講座": "lecture",     "レクチャー": "lecture", "lecture": "lecture",
-  "歷史": "history",     "歴史": "history",      "history": "history",
-  "社會": "geopolitics", "政治": "geopolitics",  "geopolitics": "geopolitics",
+  "歷史": "history",     "歴史": "history",      "history": "history",   "academic": "academic",
+  "政治": "geopolitics", "geopolitics": "geopolitics",
   "商務": "business",    "ビジネス": "business",  "business": "business",
   "性別": "gender",      "ジェンダー": "gender",  "gender": "gender",
   "建築": "urban",       "都市": "urban",         "urban": "urban",
-  "科技": "tech",        "テクノロジー": "tech",  "tech": "tech",
-  "自然": "nature",      "nature": "nature",
-  "旅遊": "tourism",     "旅行": "tourism",       "tourism": "tourism",
-  "原住民": "indigenous", "先住民": "indigenous",  "indigenous": "indigenous",
+  "tech": "tech",
+  "旅行": "tourism",     "tourism": "tourism",
   "活動紀錄": "report",  "レポート": "report",    "report": "report",
 };
 
@@ -160,6 +174,15 @@ function parseUserInput(text: string): { type: string; value?: string; values?: 
   const tokens = text.trim().split(/[,，\s]+/).filter(Boolean);
   const categories: string[] = [];
   for (const token of tokens) {
+    // Group expansion takes priority (numbers 1-8, group name aliases)
+    const expansion = GROUP_EXPANSIONS[token] ?? GROUP_EXPANSIONS[token.toLowerCase()];
+    if (expansion) {
+      for (const cat of expansion) {
+        if (!categories.includes(cat)) categories.push(cat);
+      }
+      continue;
+    }
+    // Specific subcategory names
     const cat = CATEGORY_LABELS[token] ?? CATEGORY_LABELS[token.toLowerCase()];
     if (cat && !categories.includes(cat)) categories.push(cat);
   }
