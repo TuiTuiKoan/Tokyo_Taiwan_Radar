@@ -806,6 +806,37 @@ Reference incident: 2026-05-06 — `category`/`work` 欄從 `max-w-[160px]` 改�
 
 Reference incident: 2026-05-07 — `AnnouncementForm` 的 `tAdmin`/`tAnn` function props 導致 `/admin/announcements/[id]` `<Link>` navigation server error（commit `a1f0472`）。
 
+## 手動 Sub-Event INSERT Guard（events.source_url NOT NULL）
+
+在**手動**向 `events` 表 INSERT 子活動前，**必須**確認：
+
+1. **`source_url` 必須包含在 INSERT payload 中**：`events.source_url` 有 NOT NULL 約束，省略時報 `null value in column "source_url" violates not-null constraint`。
+2. **子活動無獨立 URL 時，流用父事件的 `source_url`**：
+   ```python
+   parent = sb.table('events').select('source_url').eq('id', PARENT_ID).single().execute().data
+   sub = {**BASE, 'source_url': parent['source_url'], ...}
+   ```
+3. **`source_id` 必須唯一且穩定**：建議格式 `<parent_source_id>_sub1`、`_sub2`，先查重再 INSERT。
+4. **手動子活動建議設 `annotation_status='reviewed'`** + 完整三語翻譯 + FC 鎖定，避免 annotator 覆寫。
+
+Reference incident: 2026-05-07 — 鼎泰豐30周年（`2cb72ee9`）子活動省略 `source_url` 導致 NOT NULL 約束錯誤。
+
+## location_prefectures 都道府県正式表記 Guard
+
+在審核任何設定或修改 `location_prefectures` 的 DB 操作前，**必須**確認：
+
+1. **值必須使用都道府県正式表記（接尾辞付き）**：
+   - ✅ `東京都`、`大阪府`、`京都府`、`北海道`、`神奈川県`
+   - ❌ `東京`、`大阪`、`京都`（接尾辞なし → `REGION_PREFECTURES` 照合に失敗し静默フィルタ誤作動）
+2. **annotator が短縮形を出力する場合がある**：re-annotation 後は必ず `location_prefectures` を確認する。
+3. **偵測 SQL**：
+   ```sql
+   SELECT id, location_prefectures FROM events
+   WHERE location_prefectures && ARRAY['東京','大阪','京都','福岡'] AND is_active = true;
+   ```
+
+Reference incident: 2026-05-07 — `dec5031b` `location_prefectures=['東京']` → `['東京都']` FC ロック。
+
 ## Required Phases
 
 ### Phase 1: Research

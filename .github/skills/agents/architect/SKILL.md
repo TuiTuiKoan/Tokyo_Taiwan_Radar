@@ -1548,6 +1548,41 @@ Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發 �
 
 Reference incident: 2026-05-06 — `weekly_broadcast` 因 `NON_DAILY_SOURCES = frozenset()` 為空，被 health_check 每天誤報 missing（commit `7df9f56`）。
 
+## 手動 Sub-Event INSERT Guard（events.source_url NOT NULL）
+
+在**手動**向 `events` 表 INSERT 子活動（annotator 不經手的情況）前，**必須**確認：
+
+1. **`source_url` 必須包含在 INSERT payload 中**：`events.source_url` 有 NOT NULL 約束，省略時報 `null value in column "source_url" violates not-null constraint`。
+2. **子活動無獨立 URL 時，流用父事件的 `source_url`**：
+   ```python
+   parent = sb.table('events').select('source_url').eq('id', PARENT_ID).single().execute().data
+   sub = {**BASE, 'source_url': parent['source_url'], ...}
+   ```
+3. **`source_id` 必須唯一且穩定**：建議格式 `<parent_source_id>_sub1`、`_sub2` 等，防止重複 INSERT（先 `SELECT id WHERE source_id = ...` 確認不存在）。
+4. **手動建立的子活動建議直接設 `annotation_status='reviewed'`**：搭配完整的三語翻譯（name/description）+ FC 鎖定，避免 annotator 覆寫已正確設定的值。
+
+Reference incident: 2026-05-07 — 鼎泰豐30周年（`2cb72ee9`）子活動 4 件手動 INSERT，省略 `source_url` 導致 NOT NULL 約束錯誤；改用父事件 `source_url` 後成功。
+
+## location_prefectures 都道府県正式表記 Guard
+
+在審核任何設定或修改 `location_prefectures` 值的 DB 操作、腳本、或計畫前，**必須**確認：
+
+1. **值必須使用都道府県的正式表記（接尾辞付き）**：
+   - ✅ `東京都`、`大阪府`、`京都府`、`北海道`、`神奈川県`、`愛知県` …
+   - ❌ `東京`、`大阪`、`京都`（接尾辞なし）
+2. **接尾辞なしの値は `REGION_PREFECTURES` との照合に失敗する**：フィルタリングが静默で誤作動し、正しいリージョンに分類されない。
+3. **annotator が短縮形を出力する場合がある**：re-annotation 後は必ず `location_prefectures` 値を確認する。
+4. **偵測 SQL**：
+   ```sql
+   SELECT id, location_prefectures
+   FROM events
+   WHERE location_prefectures && ARRAY['東京','大阪','京都','福岡','北海道']
+     AND is_active = true;
+   -- 接尾辞なしの値（東京 = 東京都 でない）が混在していれば要修正
+   ```
+
+Reference incident: 2026-05-07 — `dec5031b`（霧のごとく）`location_prefectures=['東京']`（接尾辞なし）→ `['東京都']` に修正 + FC ロック。
+
 ## GitHub Actions YAML Guard
 
 在審核任何新增或修改 `.github/workflows/*.yml` 的計畫前，必須確認：

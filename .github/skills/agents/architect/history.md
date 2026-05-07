@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-05-07 — 手動 sub-event 作成 source_url 制約 + 全国展開イベント location 設計 + location_name_zh 推廣機構再混入
+
+### A — events.source_url NOT NULL 制約（手動 INSERT 時）
+
+**問題：** 全国展開イベント `2cb72ee9`（鼎泰豐30周年）のサブイベント 4 件を手動 Python INSERT しようとした際、`source_url` を省略したため `null value in column "source_url" of relation "events" violates not-null constraint` エラーが発生。
+**根因：** `events.source_url` は NOT NULL 制約あり。scraper 経由のイベントは常に source_url が付与されるが、手動 insert 時は省略できない。
+**修正：** 親イベントの `source_url` を子活動に流用（`source_url = parent['source_url']`）。
+**教訓：** 手動 INSERT 時は `source_url` を必ず含める。親から派生した子活動であれば親の `source_url` を流用するのが正解。
+
+### B — 全国展開イベント location 設計パターン（鼎泰豐30周年）
+
+**設計内容：** 12 都道府県・30 店舗にまたがる全国イベントの親＋子活動 4 件の DB 構造。
+- **親イベント**：`location_name = 'ブランド名（全国N店舗）'`、`location_prefectures = [全都道府県配列]`、`is_paid = None`（価格は子活動で判定）、FC ロック 8 フィールド
+- **全国系子活動**（スタンプラリー等）：`location_prefectures = ALL_PREFS`、`is_paid = False`（入場無料。食事購入前提でも無料）
+- **特定会場系子活動**（POP UP、体験教室）：具体的 `location_name` / `location_address` / `location_prefectures = ['東京都']`
+- **「頃」日付**：「8月頃」→ `2026-08-01T00:00:00+00:00`（当月初日 UTC midnight）
+**教訓：** 親は `is_paid=null`。子活動ごとに `is_paid` を個別判定。「無料だが何か購入が前提」は `is_paid=False` が正しい。
+
+### C — location_prefectures 都道府県正式表記（'東京' → '東京都'）
+
+**問題：** re-annotation 結果の `location_prefectures = ['東京']`（接尾辞なし）を見落とした。正式表記は `東京都`・`大阪府`・`京都府`・`北海道`・`神奈川県` 等、接尾辞まで含める。
+**根因：** annotator が短縮形を出力する場合があり、手動確認時に見落としやすい。接尾辞なしの値は `REGION_PREFECTURES` との照合に失敗しフィルタが静默で誤作動する。
+**修正：** `dec5031b` の `location_prefectures = ['東京'] → ['東京都']` に修正し FC ロック。
+**教訓：** `location_prefectures` の値は必ず都道府県の**正式表記**（都・道・府・県の接尾辞付き）を確認する。
+
+### D — dec5031b location_name_zh に推廣機構名が再混入（「台灣文化中心」）
+
+**問題：** `dec5031b`（霧のごとく）`location_name = 'シネマート新宿'`（正）なのに `location_name_zh = '台灣文化中心'`（誤・共催機関名）になっていた。
+**根因：** annotator が `raw_description` の台灣文化中心への言及を zh フィールドの場所として抽出した。
+**修正：** `location_name_zh = 'シネマート新宿'` に修正 + FC ロック。日本語施設固有名詞は zh でも日本語名をそのまま使う。
+**教訓：** `location_name` と `location_name_zh` が別機関名になっているときは必ず修正。シネマート新宿等の施設固有名詞は無理に中国語訳しない。
+
+---
+
 ## 2026-05-07 — RSC function prop serialization error (ERROR 3226104792)
 
 **Error**: Clicking "Edit Draft" link in WeeklyBroadcastPanel triggered server error ERROR 3226104792 on `/admin/announcements/[id]`.
