@@ -99,6 +99,11 @@ from sources.google_news_rss import GoogleNewsRssScraper
 from sources.nhk_rss import NhkRssScraper
 from sources.gguide_tv import GguideTvScraper
 from sources.mot import MotScraper
+from sources.kgplus_kyotographie import KgplusKyotographieScraper
+from sources.johakyu import JohakyuScraper
+from sources.stranger import StrangerScraper
+from sources.tsutaya_portal import TsutayaPortalScraper
+from sources.tsudoi_osaka import TsudoiOsakaScraper
 from sources.transit_store import TransitStoreScraper
 from sources.go_taiwan import GoTaiwanScraper
 from sources.taiwan_festa import TaiwanFestaScraper
@@ -187,6 +192,11 @@ SCRAPERS = [
     NhkRssScraper(),
     GguideTvScraper(),
     MotScraper(),
+    KgplusKyotographieScraper(),
+    JohakyuScraper(),
+    StrangerScraper(),
+    TsutayaPortalScraper(),
+    TsudoiOsakaScraper(),
     TransitStoreScraper(),
     GoTaiwanScraper(),
     TaiwanFestaScraper(),
