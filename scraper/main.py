@@ -130,6 +130,7 @@ from sources.theater_kino import TheaterKinoScraper
 from sources.acros_fukuoka import AcrosFukuokaScraper
 from sources.ftip import FtipScraper
 from sources.ciema import CiemaScraper
+from sources.whitestone_gallery import WhitestoneGalleryScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -245,6 +246,7 @@ SCRAPERS = [
     AcrosFukuokaScraper(),
     FtipScraper(),
     CiemaScraper(),
+    WhitestoneGalleryScraper(),
 ]
 
 

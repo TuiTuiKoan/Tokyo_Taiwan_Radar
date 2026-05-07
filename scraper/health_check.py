@@ -80,6 +80,7 @@ ZERO_EVENT_OK_SOURCES: frozenset[str] = frozenset({
     "theater_kino",
     "ciema",
     "acros_fukuoka",
+    "whitestone_gallery",  # Occasional Taiwan artist shows; 0 events is normal
     # Seasonal film festivals — only active during festival period
     "oaff",
     "tokyo_filmex",
