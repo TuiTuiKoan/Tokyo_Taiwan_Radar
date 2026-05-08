@@ -1,3 +1,4 @@
+import React from "react";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -6,6 +7,27 @@ import Link from "next/link";
 
 interface PageProps {
   params: Promise<{ locale: Locale; slug: string }>;
+}
+
+/** Render body text with URLs auto-linked. */
+function linkifyBody(text: string) {
+  const URL_RE = /https?:\/\/[^\s<>"'）]+/g;
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = URL_RE.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    const url = match[0];
+    parts.push(
+      <a key={match.index} href={url} target="_blank" rel="noopener noreferrer"
+         className="text-green-700 underline break-all hover:text-green-900">
+        {url}
+      </a>
+    );
+    last = match.index + url.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
 }
 
 export const dynamic = "force-dynamic";
@@ -92,7 +114,7 @@ export default async function AnnouncementDetailPage({ params }: PageProps) {
       {/* Body */}
       {body && (
         <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-line mb-8">
-          {body}
+          {linkifyBody(body)}
         </div>
       )}
 
