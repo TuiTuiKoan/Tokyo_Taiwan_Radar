@@ -325,7 +325,7 @@ def _build_message(
     for e in weekly_events:
         title = e.get(name_col) or e.get("name_zh") or e.get("name_ja") or e.get("name_en") or "?"
         date_str = _format_date(e.get("start_date"))
-        url = f"{base_url}/r/{e['id']}"
+        url = f"{base_url}/{lang}/events/{e['id']}"
         city = _city_label(e, lang)
         prefix = f"{city}" if city else ""
         lines.append(f"• {prefix}{title}　{date_str}")
@@ -338,7 +338,7 @@ def _build_message(
             start = _format_date(e.get("start_date"))
             end = _format_date(e.get("end_date"))
             date_str = f"{start}–{end}" if end and end != start else start
-            url = f"{base_url}/r/{e['id']}"
+            url = f"{base_url}/{lang}/events/{e['id']}"
             city = _city_label(e, lang)
             prefix = f"{city}" if city else ""
             lines.append(f"• {prefix}{title}（{date_str}）")
