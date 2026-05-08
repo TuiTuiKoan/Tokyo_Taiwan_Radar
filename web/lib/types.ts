@@ -193,6 +193,7 @@ export type Category =
   | "exhibition"
   | "taiwan_mandarin"
   | "healthcare"
+  | "market"
   | "report";
 
 export const CATEGORIES: Category[] = [
@@ -228,6 +229,7 @@ export const CATEGORIES: Category[] = [
   "exhibition",
   "taiwan_mandarin",
   "healthcare",
+  "market",
   "report",
 ];
 
@@ -243,7 +245,7 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
   },
   {
     labelKey: "group_lifestyle",
-    categories: ["lifestyle_food", "retail", "tourism", "competition", "workshop", "exhibition", "books_media", "tv_program"],
+    categories: ["lifestyle_food", "retail", "tourism", "market", "competition", "workshop", "exhibition", "books_media", "tv_program"],
   },
   {
     labelKey: "group_knowledge",
