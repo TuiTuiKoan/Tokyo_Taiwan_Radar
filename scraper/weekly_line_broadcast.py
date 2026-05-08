@@ -484,7 +484,7 @@ def run_send_draft(draft_slug: str | None = None) -> None:
     if draft_slug:
         q = q.eq("slug", draft_slug)
     else:
-        q = q.order("created_at", ascending=False).limit(1)
+        q = q.order("created_at", desc=True).limit(1)
     res = q.execute()
 
     if not res.data:
