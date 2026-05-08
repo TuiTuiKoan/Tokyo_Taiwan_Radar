@@ -225,7 +225,7 @@ VALID_CATEGORIES = [
     "gender", "parenting", "geopolitics", "art", "lecture", "taiwan_japan",
     "scholarship", "business", "academic", "competition", "indigenous", "folklore",
     "history", "urban", "workshop", "literature", "tv_program", "exhibition",
-    "taiwan_mandarin", "healthcare", "report",
+    "taiwan_mandarin", "healthcare", "market", "report",
 ]
 
 
