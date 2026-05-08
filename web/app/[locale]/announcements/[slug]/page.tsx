@@ -70,9 +70,9 @@ export default async function AnnouncementDetailPage({ params }: PageProps) {
 
       {/* Cover image */}
       {image && (
-        <div className="aspect-video rounded-xl overflow-hidden bg-gray-100 mb-6">
+        <div className="rounded-xl overflow-hidden bg-gray-100 mb-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={image} alt={title} className="w-full h-full object-cover" />
+          <img src={image} alt={title} className="w-full h-auto" />
         </div>
       )}
 
