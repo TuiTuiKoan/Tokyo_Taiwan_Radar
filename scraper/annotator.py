@@ -149,6 +149,10 @@ _SIMP_TO_TRAD_RAW = {
     # SC chars found in 977da793 description_zh (2026-05-07)
     "语": "語", "严": "嚴", "项": "項",
     "摄": "攝", "书": "書",
+    # SC chars found in production scan (2026-05-08) — 3 events affected
+    "诗": "詩", "禅": "禪", "图": "圖", "猎": "獵",
+    "过": "過", "员": "員", "剧": "劇", "别": "別",
+    "于": "於",
 }
 # Remove identity mappings (same char in both) and build translation table
 _SIMP_TO_TRAD = str.maketrans({k: v for k, v in _SIMP_TO_TRAD_RAW.items() if k != v})
