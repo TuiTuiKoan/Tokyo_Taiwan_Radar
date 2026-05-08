@@ -44,3 +44,27 @@ export async function POST(request: Request) {
   const { data: urlData } = adminClient.storage.from("announcements").getPublicUrl(data.path);
   return NextResponse.json({ url: urlData.publicUrl });
 }
+
+// DELETE /api/upload?path=covers/xxx.jpg
+// Deletes a file from the announcements storage bucket
+export async function DELETE(request: Request) {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", user.id).single();
+  if (!roleRow || roleRow.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { searchParams } = new URL(request.url);
+  const path = searchParams.get("path");
+  if (!path) return NextResponse.json({ error: "No path provided" }, { status: 400 });
+  // Only allow deleting files under covers/ prefix for safety
+  if (!path.startsWith("covers/")) return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+
+  const adminClient = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+  const { error } = await adminClient.storage.from("announcements").remove([path]);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}

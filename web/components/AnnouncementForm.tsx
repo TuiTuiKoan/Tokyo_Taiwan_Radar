@@ -66,10 +66,36 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
     line: "zh",
   });
 
+  const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [publishingPlatform, setPublishingPlatform] = useState<SocialPlatform | null>(null);
   const [eventSearch, setEventSearch] = useState("");
+
+  const handleDeleteImage = async () => {
+    if (!coverImageUrl) return;
+    if (!window.confirm("確定要刪除此圖片？此操作無法復原。")) return;
+    // If it's our Supabase Storage URL, delete the file too
+    const storagePrefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/announcements/`;
+    if (coverImageUrl.startsWith(storagePrefix)) {
+      const filePath = coverImageUrl.replace(storagePrefix, "");
+      setDeleting(true);
+      try {
+        const res = await fetch(`/api/upload?path=${encodeURIComponent(filePath)}`, { method: "DELETE" });
+        if (!res.ok) {
+          const data = await res.json();
+          setUploadError(data.error ?? "Delete failed");
+          return;
+        }
+      } catch (e: unknown) {
+        setUploadError(e instanceof Error ? e.message : "Delete failed");
+        return;
+      } finally {
+        setDeleting(false);
+      }
+    }
+    setCoverImageUrl("");
+  };
 
   const handleUpload = async (file: File) => {
     setUploading(true);
@@ -236,6 +262,24 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
       <div>
         <p className="text-sm font-medium text-gray-700 mb-2">{tAnn("images")}</p>
         <div className="space-y-3">
+          {/* Current image preview with hover-delete */}
+          {coverImageUrl && (
+            <div className="relative group rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={coverImageUrl} alt="cover preview" className="w-full h-auto max-h-72 object-contain" />
+              <button
+                type="button"
+                onClick={handleDeleteImage}
+                disabled={deleting}
+                title="刪除圖片"
+                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity
+                           bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white rounded-full
+                           w-8 h-8 flex items-center justify-center shadow-md text-sm"
+              >
+                {deleting ? "…" : "🗑"}
+              </button>
+            </div>
+          )}
           {/* Cover image URL + upload */}
           <div className="flex items-center gap-2">
             <span className="w-24 text-xs text-gray-500 shrink-0">{tAnn("coverImage")}</span>
@@ -267,19 +311,6 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
             }}
           />
           {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
-          {coverImageUrl && (
-            <div className="flex items-start gap-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={coverImageUrl} alt="cover preview" className="w-24 h-16 object-cover rounded border border-gray-200" />
-              <button
-                type="button"
-                onClick={() => setCoverImageUrl("")}
-                className="text-xs text-red-400 hover:text-red-600 mt-1"
-              >
-                移除
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
