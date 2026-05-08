@@ -302,7 +302,8 @@ def _build_message(
     today: datetime,
 ) -> str:
     name_col = f"name_{lang}"
-    week_end = today + timedelta(days=6)
+    # today is send_date (Friday); week_end = Friday + 13 = next-next Thursday
+    week_end = today + timedelta(days=13)
 
     headers = {
         "zh": ("🗓 東京台灣雷達 — 活動精選", "【近期活動】", "【下個月不可錯過】"),
@@ -414,19 +415,22 @@ def run_generate_draft() -> None:
     sb = _get_supabase()
     ai = _get_openai()
 
-    weekly_events, monthly_events = _generate_weekly_content(sb, ai, today)
+    # send_date = the Friday this draft will be auto-sent (draft day is Thursday)
+    send_date = today + timedelta(days=1)
+
+    weekly_events, monthly_events = _generate_weekly_content(sb, ai, send_date)
     if not weekly_events and not monthly_events:
         logger.warning("No events found — draft not created")
         return
 
-    slug = f"weekly-{today.strftime('%Y-%m-%d')}"
-    date_str = today.strftime('%Y/%m/%d')
+    slug = f"weekly-{send_date.strftime('%Y-%m-%d')}"
+    date_str = send_date.strftime('%Y/%m/%d')
     title_zh = f"🗓 東京台灣雷達「一週偵測」 {date_str}"
     title_ja = f"🗓 東京台湾レーダー「週間スキャン」 {date_str}"
     title_en = f"🗓 Tokyo Taiwan Radar 'Weekly Scan' {date_str}"
-    body_zh = _build_message(weekly_events, monthly_events, "zh", base_url, today)
-    body_ja = _build_message(weekly_events, monthly_events, "ja", base_url, today)
-    body_en = _build_message(weekly_events, monthly_events, "en", base_url, today)
+    body_zh = _build_message(weekly_events, monthly_events, "zh", base_url, send_date)
+    body_ja = _build_message(weekly_events, monthly_events, "ja", base_url, send_date)
+    body_en = _build_message(weekly_events, monthly_events, "en", base_url, send_date)
     all_event_ids = [e["id"] for e in weekly_events + monthly_events]
 
     # Upsert the announcement (slug is UNIQUE — safe to re-run)
