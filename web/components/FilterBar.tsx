@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CATEGORY_GROUPS, type Locale } from "@/lib/types";
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -8,34 +8,25 @@ import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER
 
 interface Props {
   locale: Locale;
-  currentFilters: {
-    q?: string;
-    category?: string;
-    from?: string;
-    to?: string;
-    paid?: string;
-    timeMode?: string;
-    location?: string;
-    city?: string;
-  };
 }
 
-export default function FilterBar({ locale: _locale, currentFilters }: Props) {
+export default function FilterBar({ locale: _locale }: Props) {
   const t = useTranslations("filters");
   const tCat = useTranslations("categories");
   const router = useRouter();
   const pathname = usePathname();
+  const sp = useSearchParams();
 
   const [draft, setDraft] = useState({
-    q: currentFilters.q ?? "",
+    q: sp.get("q") ?? "",
     // category is comma-separated, e.g. "movie,art"
-    category: currentFilters.category ?? "",
-    from: currentFilters.from ?? "",
-    to: currentFilters.to ?? "",
-    paid: currentFilters.paid ?? "",
-    timeMode: currentFilters.timeMode ?? "active",
-    location: currentFilters.location ?? "",
-    city: currentFilters.city ?? "",
+    category: sp.get("category") ?? "",
+    from: sp.get("from") ?? "",
+    to: sp.get("to") ?? "",
+    paid: sp.get("paid") ?? "",
+    timeMode: sp.get("timeMode") ?? "active",
+    location: sp.get("location") ?? "",
+    city: sp.get("city") ?? "",
   });
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -62,7 +53,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
     Object.entries(next).forEach(([k, v]) => {
       if (v) params.set(k, v);
     });
-    router.push(`${pathname}?${params.toString()}`);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [pathname, router]);
 
   /** Immediately push URL when a select changes. */
@@ -90,7 +81,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
   const clearAll = useCallback(() => {
     const reset = { q: "", category: "", from: "", to: "", paid: "", timeMode: "active", location: "", city: "" };
     setDraft(reset);
-    router.push(pathname);
+    router.replace(pathname, { scroll: false });
   }, [pathname, router]);
 
   const selectedCats = draft.category ? draft.category.split(",") : [];

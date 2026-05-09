@@ -10,7 +10,6 @@ import type { User } from "@supabase/supabase-js";
 
 interface Props {
   locale: Locale;
-  isAdmin?: boolean;
 }
 
 const LOCALE_FLAGS: Record<Locale, string> = {
@@ -97,11 +96,12 @@ function NavbarLangSwitcher({ locale }: NavbarLangSwitcherProps) {
   );
 }
 
-export default function Navbar({ locale, isAdmin }: Props) {
+export default function Navbar({ locale }: Props) {
   const t = useTranslations("nav");
   const pathname = usePathname();
   const supabase = createClient();
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -110,6 +110,13 @@ export default function Navbar({ locale, isAdmin }: Props) {
       setUser(session?.user ?? null);
     });
     return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((d) => setIsAdmin(!!d.isAdmin))
+      .catch(() => {});
   }, []);
 
   async function handleLogout() {

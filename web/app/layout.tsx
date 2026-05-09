@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import "./globals.css";
 
 const BASE =
@@ -50,16 +49,13 @@ const websiteJsonLd = {
   ],
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const headersList = await headers();
-  const locale = headersList.get("x-locale") ?? "zh";
-
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang="zh" suppressHydrationWarning>
       <head>
         <script
           type="application/ld+json"

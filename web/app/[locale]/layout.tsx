@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
-import { getMessages, getTranslations } from "next-intl/server";
+import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { LOCALES, type Locale } from "@/lib/types";
 import "../globals.css";
 import Navbar from "@/components/Navbar";
+import HtmlLangSync from "@/components/HtmlLangSync";
 import { Analytics } from "@vercel/analytics/react";
-import { createClient } from "@/lib/supabase/server";
 
 const SITE_TITLES: Record<string, string> = {
   zh: "Tokyo Taiwan Radar 東京台灣雷達｜日本台灣活動雷達",
@@ -81,25 +81,15 @@ export default async function LocaleLayout({
     notFound();
   }
 
+  setRequestLocale(locale);
+
   const messages = await getMessages();
   const tGeneral = await getTranslations("general");
 
-  // Check admin role server-side (for Navbar display only — access control is in middleware + page)
-  let isAdmin = false;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
-    const { data: roleRow } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .single();
-    isAdmin = roleRow?.role === "admin";
-  }
-
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
-      <Navbar locale={locale as Locale} isAdmin={isAdmin} />
+      <HtmlLangSync />
+      <Navbar locale={locale as Locale} />
       <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
       <footer className="border-t border-gray-100 mt-12 py-4 text-center text-xs text-gray-400">
         {tGeneral("footerCredit")}
