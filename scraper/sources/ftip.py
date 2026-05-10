@@ -35,12 +35,12 @@ DATE_PATTERNS = [
     re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日"),
     # YYYY/M/D
     re.compile(r"(\d{4})/(\d{1,2})/(\d{1,2})"),
-    # M/D(曜) — use pubDate year for year inference
-    re.compile(r"(\d{1,2})/(\d{1,2})[（\(][日月火水木金土]"),
+    # M/D(曜) — use pubDate year for year inference; tolerate spaces around `/`
+    re.compile(r"(\d{1,2})\s*/\s*(\d{1,2})\s*[（\(][日月火水木金土]"),
     # M月D日 — use pubDate year
     re.compile(r"(\d{1,2})月(\d{1,2})日"),
     # M/D (simple, no day-of-week) — last resort; skips YYYY/M/D to avoid double-match
-    re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})(?!\d)"),
+    re.compile(r"(?<!\d)(\d{1,2})\s*/\s*(\d{1,2})(?!\d)"),
 ]
 
 # Regex: end-day from range like 8/30~31 or 8/30〜31
@@ -52,9 +52,19 @@ _OFFICIAL_URL_RE = re.compile(
     r"公式サイト[\s\u3000]+(https?://\S+|www\.\S+)"
 )
 
+# Regex: 1st-hand Facebook post URL — ftip posts often start with
+# "www.facebook.com/<id>/posts/<token>/ より" citing the original post.
+_FB_SOURCE_RE = re.compile(
+    r"(?:https?://)?(?:www\.|m\.)?facebook\.com/[\w./\-]+/(?:posts|videos|events)/[\w]+/?"
+)
+
 # Regex: venue name and address from '会場は XXX(〒NNN-NNNN ...)'
 _VENUE_NAME_RE = re.compile(
     r"会場[は\s：:　]*([^\uff08\(\n、。：:\s]{2,20})[（\(]"
+)
+# Loose form: '会場 ○○○ 1階 大集会室 費用' (no parens, terminator = 費用/日時/料金/主催)
+_VENUE_LOOSE_RE = re.compile(
+    r"会場[\s：:　]+([^\n。、：:]{3,40}?)\s+(?:費用|料金|参加費|入場料|日時|主催|お問|定員|申込)"
 )
 _VENUE_ADDR_RE = re.compile(
     r"[\u3012]?(\d{3}-\d{4})\s*([一-鿿぀-ゟ][^\n）\)]{3,50})"
@@ -86,16 +96,39 @@ def _extract_official_url(text: str) -> Optional[str]:
 
 
 def _extract_venue(text: str) -> tuple[Optional[str], Optional[str]]:
-    """Extract (venue_name, address) from '会場は XXX(〒NNN...)' pattern."""
+    """Extract (venue_name, address) from content.
+
+    Tries strict pattern '会場は XXX(〒NNN...)' first, then a looser variant
+    '会場 XXX 1階 大集会室 費用' (no parens — common in FB-republished posts).
+    """
     venue_name = None
     address = None
     m = _VENUE_NAME_RE.search(text)
     if m:
         venue_name = m.group(1).strip().lstrip("：:・・\u2026\u2025…\u30fb")
+    if not venue_name:
+        m_loose = _VENUE_LOOSE_RE.search(text)
+        if m_loose:
+            venue_name = m_loose.group(1).strip()
     m2 = _VENUE_ADDR_RE.search(text)
     if m2:
         address = "〒" + m2.group(1).strip() + " " + m2.group(2).strip()
     return venue_name, address
+
+
+def _extract_fb_source(text: str) -> Optional[str]:
+    """Extract first-hand Facebook post URL from raw description (1st-hand source).
+
+    FTIP posts frequently start with '<fb_url> より' citing the original FB post.
+    Returns a fully-qualified https URL or None.
+    """
+    m = _FB_SOURCE_RE.search(text or "")
+    if not m:
+        return None
+    url = m.group(0)
+    if not url.startswith("http"):
+        url = "https://" + url
+    return url.rstrip("./,、）)")
 
 
 def _extract_date_from_text(text: str, pub_date: datetime) -> Optional[datetime]:
@@ -241,9 +274,12 @@ class FtipScraper(BaseScraper):
             if start_date:
                 end_date = _extract_end_date(search_text, start_date)
 
-            # Prefer official URL embedded in content ("公式サイト www.xxx.com")
-            official_url = _extract_official_url(content_text)
-            source_url = official_url if official_url else rss_url
+            # Prefer official URL embedded in content ("公式サイト www.xxx.com"),
+            # else first-hand FB post URL cited at the top of the description.
+            # Note: source_url stays as the FTIP RSS link (audit trail);
+            # official_url stores the authoritative organiser URL for display priority.
+            official_url = _extract_official_url(content_text) or _extract_fb_source(content_text)
+            source_url = rss_url
 
             # Extract actual venue and address from content
             venue_name, venue_address = _extract_venue(content_text)
@@ -256,6 +292,7 @@ class FtipScraper(BaseScraper):
                 source_name=self.SOURCE_NAME,
                 source_id=source_id,
                 source_url=source_url,
+                official_url=official_url,
                 original_language="ja",
                 name_ja=title,
                 raw_title=title,
@@ -266,6 +303,7 @@ class FtipScraper(BaseScraper):
                 end_date=end_date,
                 location_name=location_name,
                 location_address=location_address,
+                organizer=LOCATION_NAME,  # FTIP is the consistent organizer
             )
             events.append(event)
             logger.info("FTIP event: %s", title)
