@@ -1,44 +1,124 @@
 @import "tailwindcss";
 
+/* ============================================================
+ * Semantic color tokens — Phase 1 foundation for future dark mode
+ * ============================================================
+ * Usage:
+ *   - Prefer semantic tokens (`bg-surface`, `text-fg-muted`) over raw
+ *     palette classes (`bg-white`, `text-gray-500`) in new code.
+ *   - All tokens are exposed both as CSS variables AND as Tailwind v4
+ *     utilities via the @theme block below.
+ *   - Dark mode tokens are pre-defined under `:root.dark` but the class
+ *     is never applied yet — flip the switch in a future phase by
+ *     adding a theme toggle that sets `document.documentElement.classList`.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  /*
-   * Lock the site to light appearance.
-   * The entire UI (cards, FilterBar, admin tables) is designed for light mode.
-   * Without this, iOS/Android dark mode flips body bg to black while children
-   * remain white — causing invisible input text and broken contrast.
-   */
+  /* Core surface */
+  --color-bg: #ffffff;             /* page background */
+  --color-bg-elevated: #f9fafb;    /* cards, panels (gray-50) */
+  --color-bg-muted: #f3f4f6;       /* subtle hover, secondary surface (gray-100) */
+  --color-surface: #ffffff;        /* card / dropdown / input surface */
+
+  /* Text */
+  --color-text: #171717;           /* primary body text */
+  --color-text-muted: #6b7280;     /* secondary text (gray-500) */
+  --color-text-subtle: #9ca3af;    /* placeholder, disabled (gray-400) */
+  --color-text-strong: #111827;    /* headings (gray-900) */
+
+  /* Borders & dividers */
+  --color-border: #e5e7eb;         /* default border (gray-200) */
+  --color-border-strong: #d1d5db;  /* prominent border (gray-300) */
+
+  /* Brand (constant across themes) */
+  --color-brand: #16a34a;          /* green-600 */
+  --color-brand-strong: #15803d;   /* green-700 */
+  --color-brand-soft: #f0fdf4;     /* green-50 */
+
+  /* Aliases kept for legacy references (do not remove) */
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
+
   color-scheme: light;
+}
+
+/* ------------------------------------------------------------
+ * Dark theme (DORMANT — not activated until theme toggle ships).
+ * To enable per-user theme: add `class="dark"` on <html>.
+ * Component classes that switch must consume CSS variables
+ * (preferred — automatic) or use `dark:` Tailwind variants.
+ * ------------------------------------------------------------ */
+:root.dark {
+  --color-bg: #0a0a0a;
+  --color-bg-elevated: #171717;
+  --color-bg-muted: #262626;
+  --color-surface: #1f1f1f;
+
+  --color-text: #ededed;
+  --color-text-muted: #a1a1aa;
+  --color-text-subtle: #71717a;
+  --color-text-strong: #fafafa;
+
+  --color-border: #2a2a2a;
+  --color-border-strong: #3f3f46;
+
+  --color-brand: #22c55e;          /* green-500 */
+  --color-brand-strong: #4ade80;   /* green-400 */
+  --color-brand-soft: #052e16;     /* green-950 */
+
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------
+ * Tailwind v4 @theme: expose tokens as utilities.
+ * Generates classes like `bg-surface`, `text-fg-muted`, `border-line`.
+ * ------------------------------------------------------------ */
+@theme {
+  --color-surface: var(--color-surface);
+  --color-elevated: var(--color-bg-elevated);
+  --color-muted: var(--color-bg-muted);
+
+  --color-fg: var(--color-text);
+  --color-fg-muted: var(--color-text-muted);
+  --color-fg-subtle: var(--color-text-subtle);
+  --color-fg-strong: var(--color-text-strong);
+
+  --color-line: var(--color-border);
+  --color-line-strong: var(--color-border-strong);
+
+  --color-brand: var(--color-brand);
+  --color-brand-strong: var(--color-brand-strong);
+  --color-brand-soft: var(--color-brand-soft);
 }
 
 html {
-  color-scheme: light;
-  background: var(--background);
+  background: var(--color-bg);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-bg);
+  color: var(--color-text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP",
     "Noto Sans TC", sans-serif;
 }
 
-/*
- * Defensive: force form controls to render with explicit light colors so
- * mobile browsers that aggressively re-style inputs in dark mode (iOS Safari,
- * some Android Chrome builds) do not produce invisible text on white inputs.
- */
+/* ------------------------------------------------------------
+ * Defensive: pin form controls to explicit colors via tokens.
+ * Prevents iOS Safari / Android Chrome from re-styling inputs in
+ * system dark mode (which previously caused invisible search text).
+ * When dark mode toggle ships these will follow the active theme
+ * automatically because they reference CSS variables.
+ * ------------------------------------------------------------ */
 input,
 textarea,
 select {
-  color: var(--foreground);
-  background-color: #ffffff;
-  -webkit-text-fill-color: var(--foreground);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  -webkit-text-fill-color: var(--color-text);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #9ca3af; /* tailwind gray-400 */
+  color: var(--color-text-subtle);
   opacity: 1;
 }
