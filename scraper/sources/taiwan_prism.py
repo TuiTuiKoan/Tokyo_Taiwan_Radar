@@ -161,8 +161,8 @@ def _parse_programs(soup: BeautifulSoup) -> list[dict]:
                     break
                 speaker_lines.append(line)
         speakers = "／".join(speaker_lines).strip()
-
-        # Detail URL: /programs/programN
+        # Strip null bytes that can appear in scraped text and break Postgres
+        speakers = speakers.replace("\x00", "")
         detail_url = (
             f"{BASE_URL}/programs/program{prog_num}"
             if prog_num
@@ -257,7 +257,7 @@ class TaiwanPrismScraper(BaseScraper):
             location_name=_VENUE_NAME,
             location_address=_VENUE_ADDRESS,
             organizer="台湾光譜実行委員会",
-            organizer_type=["npo"],
+            organizer_type=["civic_group"],
             event_form=["offline"],
             primary_language="ja",
             has_japanese_support=True,
@@ -265,6 +265,19 @@ class TaiwanPrismScraper(BaseScraper):
             name_ja_locked=True,
         )
         events.append(parent)
+
+        # ----------------------------------------------------------------
+        # Resolve parent UUID: look up existing DB record first, so that
+        # sub-events can correctly set parent_event_id.
+        # On first run the parent may not exist yet — in that case leave
+        # parent_event_id=None; subsequent runs will resolve it correctly.
+        # ----------------------------------------------------------------
+        parent_uuid: Optional[str] = None
+        try:
+            from database import get_event_id_by_source as _get_parent_uuid
+            parent_uuid = _get_parent_uuid(SOURCE_NAME, f"taiwan_prism_{edition_year}")
+        except Exception as exc:
+            logger.warning("taiwan_prism: could not resolve parent UUID: %s", exc)
 
         # ----------------------------------------------------------------
         # Sub-events: individual programs
@@ -289,12 +302,12 @@ class TaiwanPrismScraper(BaseScraper):
                 location_name=_VENUE_NAME,
                 location_address=_VENUE_ADDRESS,
                 organizer="台湾光譜実行委員会",
-                organizer_type=["npo"],
+                organizer_type=["civic_group"],
                 event_form=["offline"],
                 primary_language="ja",
                 has_japanese_support=True,
                 official_url=p["detail_url"],
-                parent_event_id=f"taiwan_prism_{edition_year}",
+                parent_event_id=parent_uuid,  # None on first run; resolved on subsequent runs
                 name_ja_locked=True,
             )
             events.append(sub)
