@@ -4,6 +4,87 @@
 
 ---
 
+## 2026-05-10 — ftip 二手介紹站 FB 一手 URL 萃取 + 場地 loose regex + organizer 智慧判斷
+
+### A — 二手介紹站一手 URL 萃取（`_extract_fb_source()`）
+
+**問題：** ftip.py 的 `source_url` 指向 FTIP 網站，而 `raw_description` 開頭已包含 `<fb_url> より` 格式的一手 Facebook 貼文 URL，但未被利用。
+
+**修正（commit `6885c6f`）：**
+- 新增 `_FB_SOURCE_RE` regex：從 `raw_description` 開頭的 `<url> より` 提取 1st-hand URL
+- 新增 `_extract_fb_source()` 函式，在 `scrape()` 中設為 `official_url` fallback
+- `source_url` 保持指向 ftip 網站（保留可追溯性）
+
+**教訓：** `<URL> より/出典/引用元` 開頭格式表示 raw_description 來自 2nd-hand 彙整站。scraper 應偵測此格式，將 1st-hand URL 設為 `official_url`，保留 2nd-hand URL 作 `source_url`（而非覆蓋）。
+
+---
+
+### B — organizer 智慧判斷精修（兩版錯誤的教訓）
+
+**錯誤 v1：** 全硬編 `organizer = LOCATION_NAME`（全設為 FTIP）
+- 問題：「台湾映画上映会2026」的 raw_description 含「昨年当会で上映した」（過去式提及）→ 誤判為 FTIP 主辦
+
+**錯誤 v2：** `is_ftip_organized = "当会" in (title + " " + content_text[:500])`
+- 問題：description 前 500 字也可能出現「当会」的過去式語境，仍然誤判
+
+**正確做法：** 限定 **title 層級** 的信號
+```python
+is_ftip_organized = (
+    "当会" in title
+    or ("例会" in title and "交流会" in title)
+)
+```
+
+**教訓：** organizer 判斷必須限定在 **title 層級**；description 中的過去式語境（「昨年当会で」「前回当会では」）會導致 False Positive。`content_text[:N]` 切片同樣不安全，過去式仍可能在前段出現。
+
+---
+
+### C — 場地 loose regex 新增
+
+**問題：** `_VENUE_NAME_RE` 只能匹配括弧格式（`会場は VENUE（〒...）`），無括弧格式（「会場 大阪市中央公会堂 1階 大集会室 費用」）無法萃取。
+
+**修正：** 新增 `_VENUE_LOOSE_RE`，`_extract_venue()` 先試嚴格 regex，fallback 到 loose regex。
+
+**教訓：** ftip RSS 的場地格式多樣，嚴格 regex 需配 loose fallback，否則地點資訊靜默遺失。
+
+---
+
+## 2026-05-10 — 原住民語電影片名辨識失敗（哈勇家/GAGA），eiga.com 收錄率問題
+
+**問題：** event `b4d97c35` 放映電影《哈勇家》（台灣泰雅族電影，第 59 屆金馬獎最佳導演），ftip RSS 標題以「GAGA」（泰雅語「祖先規範」）描述活動，annotator 誤以為電影片名是「GAGA」。`lookup_movie_titles()` 回傳 `(None, None)`——eiga.com 未收錄此片。
+
+**修正：**
+- 人工查 Wikipedia / 金馬獎官網確認：`title_ja=ハヨン一家〜タイヤル族のスピリット`、`original_title=哈勇家`、`title_en=Gaga`、`director=陳潔瑤`、`release_year=2022`、`work_type=film`
+- 建立 works 記錄並連結 `work_id`，`director=陳潔瑤`，`category=['movie']`
+- name_ja/zh/en 全部手動修正 + FC 鎖定
+
+**教訓：** 泰雅語/布農語/排灣語等原住民語詞彙作為電影片名時，eiga.com **收錄率低**。`lookup_movie_titles()` 回傳 `(None, None)` 不代表電影不存在——需人工查 Wikipedia（搜尋「哈勇家 電影」）或金馬獎官網確認正確中日文片名，確認後才鎖 `field_corrections`。GPT 直譯原住民語詞彙必然失敗（泰雅語 GAGA 與 Lady Gaga 無關）。
+
+---
+
+## 2026-05-10 — ftip.py 三類 scraper 設計缺陷（start_date / source_url / location_address）
+
+### A — RSS 聚合站 scraper 設計原則更新
+
+**問題：** `ftip.py` 同時暴露三個設計缺陷：
+1. `M/D~D` 多日範圍不識別 → start_date 靜默回退 pubDate
+2. `source_url` 指向聚合站而非 `公式サイト` 官方站
+3. `location_address = "東京都"` 硬編碼，忽略活動真實地點
+
+**根因：** RSS 聚合站的設計假設過度簡化——把「RSS link」當 canonical URL、把「組織城市」當活動地址。
+
+**修正（3 patterns 新增至 ftip.py）：**
+1. `_END_DAY_RE` — 從 `M/D~D` 提取 end_day（`(?![/])` 跨月防護）
+2. `_OFFICIAL_URL_RE` — 提取 `公式サイト www.xxx.com` 作為優先 source_url
+3. `_VENUE_NAME_RE` / `_VENUE_ADDR_RE` — 提取 `会場は VENUE（〒...）` pattern 的場地資料
+
+**架構教訓（通用，可套用到所有 RSS 聚合站 scraper）：**
+- **`source_url` 優先序**：`公式サイト URL` > RSS `<link>` > aggregator homepage。僅無 `公式サイト` 時使用 RSS link。
+- **`location_address` 規則**：全國性組織（活動散佈各都道府縣）的 location fallback 必須為 `None`，不得為組織所在城市。
+- **多日期範圍**：含 `~` 的日期字串（`8/30~31`）必須同時解析 start + end。跨月（`3/10~5/31`）用 `(?![/])` guard 跳過 end_date 提取。
+
+---
+
 ## 2026-05-08 — study_abroad event_form 新增（migration 058）+ 線上活動地點規則
 
 ### D — study_abroad event_form + migration 058

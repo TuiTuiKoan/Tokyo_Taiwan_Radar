@@ -298,6 +298,86 @@ LIMIT 50;
 
 Reference incident: 2026-05-08 — `fe03288b`/`b8621ee9`（湾.味 台湾料理体験会）`organizer_zh/en` 含上田村振興会・普門寺資料，與 raw_description 完全無關。
 
+## RSS 聚合站 — `公式サイト` URL 提取優先
+
+**Rule**: RSS 聚合站（如 FTIP、類似的新聞轉發站）的 scraper，`source_url` 必須優先使用 content 中嵌入的官方 URL，而非 RSS `<link>`（聚合站自身的 URL）。
+
+**偵測模式**：聚合站通常以下列格式在文章內文標示官方站：
+```
+公式サイト www.xxx.com
+公式サイト https://www.xxx.com/...
+```
+
+**實作範例**：
+```python
+_OFFICIAL_URL_RE = re.compile(
+    r"公式サイト\s+(https?://\S+|[\w.-]+\.\w{2,}(?:/\S*)?)",
+    re.IGNORECASE,
+)
+
+def _extract_official_url(self, content: str) -> str | None:
+    m = _OFFICIAL_URL_RE.search(content)
+    if not m:
+        return None
+    url = m.group(1)
+    if not url.startswith("http"):
+        url = "https://" + url
+    return url.rstrip("。、）")
+```
+
+**優先序**：`公式サイト URL` > RSS `<link>` > aggregator homepage。
+
+Reference incident: 2026-05-10 — `ftip.py` 事件 `023dcbec`（台湾光譜）`source_url` 指向 `ftip-japan.org`，實際官方站為 `www.taiwanprism.com`（已在 content 中標示）。
+
+## M/D~D 多日範圍 — end_date 提取與跨月防護
+
+**Rule**: 日期字串含 `~`（如 `8/30~31`）表示多日活動，必須同時提取 `start_date` 和 `end_date`。
+
+**實作範例**：
+```python
+_END_DAY_RE = re.compile(
+    r"(\d{1,2})/(\d{1,2})~(\d{1,2})(?![/])"  # M/D~D — (?![/]) 防止跨月假匹配
+)
+
+def _parse_date_range(self, text: str, year: int) -> tuple[date | None, date | None]:
+    m = _END_DAY_RE.search(text)
+    if m:
+        month, start_day, end_day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return date(year, month, start_day), date(year, month, end_day)
+    return None, None
+```
+
+**跨月防護**：`(?![/])` 確保 `~` 後面不接 `/`。若接 `/`（跨月，如 `3/10~5/31`），跳過 end_date 提取，避免把月份誤解為日數。
+
+**正確/錯誤案例**：
+- `8/30~31` → start=8/30, end=8/31 ✅
+- `3/10~5/31` → `(?![/])` 命中，不提取 end_date ✅（正確放棄）
+- 無 `~` → 僅提取 start_date，end_date=None ✅
+
+Reference incident: 2026-05-10 — `ftip.py` 事件 `023dcbec`（台湾光譜 `8/30~31`）start_date 回退到 RSS pubDate，end_date 未設定（commit `ab771e2`）。
+
+## location_address 硬編碼城市名 — 反模式
+
+**Rule**: 以城市名（`"東京都"`、`"大阪"`、`"京都"`）作為全國性組織的 `location_address` fallback 是反模式，**必須禁止**。
+
+**為何危險**：
+1. GPT annotator 信任 scraper 提供的非 null `location_address`（`_ai_or_existing()` 只在值為 null 時才詢問 GPT）
+2. 錯誤城市名寫入 DB 後，即使活動實際在其他縣市，`location_prefectures` 也會被錯誤推斷
+3. 讓使用者在地圖/篩選功能中看到錯誤地點
+
+**正確做法**：
+```python
+# ✅ 正確：無法確定地址時設 None
+location_address = self._extract_venue_address(content) or None
+
+# ❌ 錯誤：以組織所在城市作為全國活動的 fallback
+location_address = "東京都"  # 全國性組織的活動可能在任何地方
+```
+
+**例外**（允許硬編碼）：scraper 專屬於**單一地點**的場館（固定影院、固定展覽館）時，可硬編碼該場館地址。
+
+Reference incident: 2026-05-10 — `ftip.py` `location_address = "東京都"` 導致台湾光譜（京都活動 `〒603-8163 京都府...`）被錯誤標為東京（commit `ab771e2`）。
+
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.

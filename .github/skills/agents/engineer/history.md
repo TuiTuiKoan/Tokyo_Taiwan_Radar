@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-05-10 — Dark mode Phase 4 + BIG ROMANTIC RECORDS / 台湾料理体験会 DB 手動修正
+
+### A — Dark mode Phase 4（commit `web dark mode`）
+
+**內容：**
+- `ThemeToggle.tsx`（新元件）：Moon/Sun icon toggle，localStorage 持久化（`ttr_theme`）；SSR 期間渲染 placeholder div 避免 hydration mismatch
+- `app/layout.tsx`：inline anti-flash `<script>` — 在第一次 paint 前讀 localStorage，若無則 fallback `prefers-color-scheme: dark`，對 `<html>` 加 `.dark`
+- `Navbar.tsx`：`<ThemeToggle />` 插入 nav links 與語言切換之間
+- `globals.css`：加 `html.dark { color-scheme: dark }`（讓瀏覽器原生控件也切深色）；移除 `html` 規則的 `color-scheme: light` 鎖
+
+**教訓：** SSR anti-flash 必須用 inline `<script>` 在 `<head>` 最早執行，不能用 `useEffect`——後者在 hydration 後才跑，FOUC 已發生。
+
+### B — BIG ROMANTIC RECORDS organizer 修正（commit `e68f390f`）
+
+**問題：** 事件「Andr 東京公演」`organizer = null`；source_url 為 `bigromanticrecords.com`。
+**修正：** `organizer = BIG ROMANTIC RECORDS`、`organizer_zh = 大浪漫唱片`；FC 鎖定。
+**教訓：** source_url 域名（record label / venue 官方站）可直接推斷 organizer，無需 GPT 推理。已知 domain → organizer 映射應加入 `_KNOWN_ORGANIZER_MAP`。
+
+### C — 台湾料理体験会 FC 跨事件污染修正（commit `fe03288b`/`b8621ee9`）
+
+**問題：** `organizer_zh/en` 包含與 raw_description 完全無關的「上田村振興会・普門寺」資料；`performer = シェフ`（職稱非人名）。
+**修正：** 兩件事各 4 欄 FC 鎖定（共 8 筆）；`performer` 設 null；`organizer` 還原正確值。
+**教訓（同 scraper-expert 記錄）：** `organizer_zh/en` 內容若不在 `raw_title + raw_description` 中出現，即為 FC 污染。
+
+---
+
 ## 2026-05-08 — Organizer 多語言欄位 + SC→TC 映射表擴充
 
 ### A — `organizer_zh` / `organizer_en` 多語言欄位（commit `95c7ad8`）

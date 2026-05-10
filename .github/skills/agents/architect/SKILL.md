@@ -104,6 +104,72 @@ Reference incidents:
 - 2026-05-08 — commit `191d939`：migration 053 新增 `performers TEXT[]`（Incident C）
 - 2026-05-08 — commit `3822fb8`：migration 054 新增 `performer_zh`, `performer_en`, `director_zh`, `director_en`（Incident D）
 
+## Second-hand Source URL Detection Pattern（二手介紹站一手 URL 萃取）
+
+**偵測信號**：`raw_description` 開頭出現 `<URL> より/出典/引用元` 格式，代表本站為 2nd-hand 彙整站。
+
+**處理規則**：
+- `official_url` → 設為 `より` 前的 1st-hand URL
+- `source_url` → 保持指向 2nd-hand 彙整站（不覆蓋）
+- 目前已知案例：`ftip.py`（FB 貼文 URL）
+
+**示範 pattern（ftip.py `_FB_SOURCE_RE`）**：
+```python
+_FB_SOURCE_RE = re.compile(r"https?://(?:www\.)?facebook\.com/\S+")
+m = _FB_SOURCE_RE.match(content_text.lstrip())
+official_url = m.group(0).rstrip("、") if m else None
+```
+
+**架構決策**：第二個類似案例出現前，不抽共用 helper（避免 over-engineering）。Playwright 抓 FB 完整內容：成本高（登入牆、封鎖風險、CI 資源 15–30s/頁），只在人工 QA 時使用，不放入 CI。
+
+**CTA URL 優先序（前端 `official_url` 綠色按鈕）**：
+- `official_url` 有值 → 連結 `official_url`，顯示「官方網站」
+- `official_url` 為 null → 連結 `source_url`，顯示「查看原始資訊」
+- 程式碼位置：`web/app/[locale]/events/[id]/page.tsx`
+
+Reference incident: 2026-05-10 — `ftip.py` commit `6885c6f`：raw_description 開頭 `https://www.facebook.com/... より`，一手 FB URL 提取為 `official_url`，ftip 網站 URL 保持 `source_url`。
+
+## Organizer Title-Only Detection Rule（organizer 判斷必須限定 title 層級）
+
+**規則**：用 raw_description 或 content_text 判斷 organizer 時，description 中的**過去式語境**（「昨年当会で上映した」「前回当会では」）會導致 False Positive。`content_text[:N]` 切片也不安全。
+
+**正確 pattern（限定 title 層級信號）**：
+```python
+is_org_organized = (
+    "当会" in title
+    or ("例会" in title and "交流会" in title)
+)
+```
+
+**錯誤 pattern（不可使用）**：
+```python
+# v1: 全硬編 → description 過去式誤判
+organizer = LOCATION_NAME  # 永遠設為固定機構
+
+# v2: content_text 前段 → 過去式仍出現
+is_org = "当会" in (title + " " + content_text[:500])
+```
+
+Reference incident: 2026-05-10 — ftip `b4d97c35` 事件的「台湾映画上映会2026」描述含「昨年当会で上映した」，content_text[:500] 無法排除此過去式語境。
+
+## eiga.com Lookup Failure — 原住民語電影片名人工查證流程
+
+**問題**：泰雅語/布農語/排灣語等原住民語詞彙的台灣電影，eiga.com 收錄率低，`lookup_movie_titles()` 常回傳 `(None, None)`。
+
+**觸發條件（需人工查證）**：
+- `raw_title` 或 `raw_description` 含原住民語說明（如「タイヤル族」「泰雅族」「布農族」「パイワン族」等）
+- 且 `lookup_movie_titles()` 回傳 `(None, None)`
+
+**人工查證路徑**（按優先順序）：
+1. Wikipedia：搜尋「`<片名>` 電影」或「`<片名>` 台湾映画」
+2. 金馬獎官網：https://www.goldenhorse.org.tw（可依年份搜尋得獎作品）
+3. TIDF（台灣國際紀錄片影展）官網
+4. TAICCA 官網
+
+**禁止**：GPT 直譯原住民語詞彙——泰雅語「GAGA」（祖先規範）與 Lady Gaga 無關，布農語、排灣語詞彙的音譯 GPT 必然幻覺。確認後才鎖 `field_corrections`。
+
+Reference incident: 2026-05-10 — event `b4d97c35`（ftip 大阪）：電影《哈勇家》（泰雅語 GAGA = 祖先規範）eiga.com 無收錄；人工查 Wikipedia / 金馬獎官網確認 `title_ja=ハヨン一家〜タイヤル族のスピリット`、`original_title=哈勇家`、`director=陳潔瑤`（第 59 屆金馬獎最佳導演，2022）後鎖定。
+
 ## Organizer Multilingual Fields Guard（organizer_zh/en）
 
 在審核任何涉及 `organizer_zh`、`organizer_en` 的計畫，或設計主辦方顯示邏輯時，**必須**確認：

@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-05-10 — ftip.py `start_date` 回退 / `source_url` 指向聚合站 / `location_address` 硬編碼
+
+### A — `M/D~D` 範圍未識別 → start_date 落到 pubDate（commit `ab771e2`）
+
+**問題：** 事件 `023dcbec`（台湾光譜 taiwan prism）`start_date` 為文章發布日，因為 `8/30~31` 模式未被任何 DATE_PATTERNS 匹配。
+**根因：** `ftip.py` 僅有 `M/D` 全日期 patterns，無 `M/D~D` 多日範圍的結束日提取。`~D` 後的數字被忽略，start_date 靜默回退到 RSS pubDate。
+**修正：** 新增 `DATE_PATTERNS[4]`（`M/D` fallback）+ `_END_DAY_RE`（提取 `M/D~D` 的結束日，附 `(?![/])` 跨月防護）。
+**教訓：** 凡含 `~` 的日期字串（`8/30~31`）應同時解析 start 和 end。若 `~` 後接 `/`（跨月，如 `3/10~5/31`），不提取 end_date 以防假匹配。
+
+### B — `source_url` 指向聚合站而非官方站
+
+**問題：** `source_url = "ftip-japan.org/..."` — 但 raw_description 已明確標示 `公式サイト www.taiwanprism.com`。
+**根因：** scraper 直接把 RSS 的 `<link>` 存為 source_url，未嘗試提取 `公式サイト` URL。
+**修正：** 新增 `_OFFICIAL_URL_RE`，從 content 提取 `公式サイト www.xxx.com` 或 `公式サイト https://...`，優先作為 `source_url`。
+**教訓：** RSS 聚合站 scraper（如 FTIP）應優先提取 `公式サイト` URL 作為 `source_url`；僅當不存在時才使用 RSS link。此為**通用模式**，不限於 ftip。
+
+### C — `location_address` 硬編碼為 `東京都`
+
+**問題：** 台湾光譜活動實際在京都（`〒603-8163 京都府...`），但 `location_address` 被寫死為 `"東京都"`。
+**根因：** ftip.py 使用 `location_address = "東京都"` 作為全組織 fallback，錯誤假設所有活動都在東京。
+**修正：** 新增 `_VENUE_NAME_RE` / `_VENUE_ADDR_RE` 從 `会場は VENUE（...）` 模式提取真實場地與地址；無法提取時 `location_address = None`。
+**教訓：** 以城市名（`東京都`、`大阪`）作為全國性組織的 `location_address` fallback 是反模式——GPT 會信任它並造成錯誤標注。未知時必須設 `None`。
+
+---
+
 ## 2026-05-08 — SC→TC 映射表缺字靜默通過 + organizer 多語言欄位新增
 
 ### A — `_SIMP_TO_TRAD_RAW` 缺 9 字（commit `95b79ef`）

@@ -651,6 +651,47 @@ Reference: 2026-05-06 — archiver 完全刪除；00ae1ea8（日本台湾学会�
 
 Reference incident: 2026-05-05 — `超低予算ムービー大作戦` 被 GPT 直譯為 `超低預算電影大作戰`。eiga.com 有正確答案 `導演你有病 Out of Nowhere`，但批次腳本跳過了 `lookup_movie_titles()` pipeline。
 
+## Indigenous Language Film Title Guard（原住民語電影片名查證守護）
+
+在審核任何涉及**台灣原住民語**（泰雅語、布農語、排灣語、阿美語等）詞彙作為電影片名的計畫，或分析電影片名辨識失敗案例前，**必須**確認：
+
+1. **eiga.com 收錄率低**：`lookup_movie_titles()` 回傳 `(None, None)` **不代表電影不存在**。原住民語標題的台灣電影在 eiga.com 收錄不完整。不可直接放棄查證或信任 GPT 直譯。
+2. **禁止 GPT 直譯原住民語詞彙**：泰雅語「GAGA」（祖先規範）與 Lady Gaga 無關；布農語、排灣語詞彙的音譯 GPT 必然幻覺。直譯結果不可鎖入 `field_corrections`。
+3. **識別信號（需人工查證的觸發條件）**：
+   - `raw_title` 或 `raw_description` 含原住民語說明（如「タイヤル族」「泰雅族」「布農族」「パイワン族」等）
+   - 且 `lookup_movie_titles()` 回傳 `(None, None)`
+4. **人工查證路徑**（按優先順序）：
+   - Wikipedia：搜尋「`<片名>` 電影」或「`<片名>` 台湾映画」
+   - 金馬獎官網：https://www.goldenhorse.org.tw（可依年份搜尋得獎作品）
+   - TIDF（台灣國際紀錄片影展）官網
+   - TAICCA 官網
+5. **確認後才鎖 `field_corrections`**：未經上述查證確認的片名，不可 upsert 進 `field_corrections`。
+
+Reference incident: 2026-05-10 — event `b4d97c35`（ftip 大阪上映會）：電影《哈勇家》（泰雅語 GAGA = 祖先規範），`lookup_movie_titles('ハヨン一家〜タイヤル族のスピリット')` 回傳 `(None, None)`；人工查 Wikipedia / 金馬獎官網確認 `title_ja=ハヨン一家〜タイヤル族のスピリット`、`original_title=哈勇家`、`title_en=Gaga`、`director=陳潔瑤`（第 59 屆金馬獎最佳導演，2022）後鎖定。
+
+## Second-hand Source URL Guard（二手介紹站一手 URL 萃取守護）
+
+在審核任何 scraper 的 `source_url` / `official_url` 欄位設定邏輯，若 raw_description 包含 **`<URL> より/出典/引用元`** 型頭部，**必須**確認：
+
+1. **`<URL> より` 代表 raw_description 來自 2nd-hand 彙整站**：第一手資訊來源在 `より` 前的 URL。
+2. **正確 URL 分配 pattern**：
+   - `official_url` → 設為 1st-hand URL（`より` 前的 `<url>`）
+   - `source_url` → 保持指向 2nd-hand 彙整站（不覆蓋，保留可追溯性）
+3. **示範 regex（ftip.py `_FB_SOURCE_RE`）**：
+   ```python
+   _FB_SOURCE_RE = re.compile(r"https?://(?:www\.)?facebook\.com/\S+")
+   m = _FB_SOURCE_RE.match(content_text.lstrip())
+   official_url = m.group(0).rstrip("、") if m else None
+   ```
+4. **Playwright 抓 FB 完整內容成本高，不適合 CI**：登入牆、封鎖風險、帳號 ToS、CI 資源（每頁 15–30 秒）、selector 維護頻率高。只在人工 QA 需要海報資料時使用（Vision OCR Guard pattern），不放入 CI pipeline。
+5. **共用 helper 等第二個類似案例再抽**：目前僅 ftip 有此模式，避免 over-engineering。
+
+**前端 CTA 按鈕優先序**（`web/app/[locale]/events/[id]/page.tsx`）：
+- `official_url` 有值 → 連結 `official_url`，顯示「官方網站」
+- `official_url` 為 null → 連結 `source_url`，顯示「查看原始資訊」
+
+Reference incident: 2026-05-10 — ftip commit `6885c6f`：raw_description 開頭 `https://www.facebook.com/... より`，一手 FB URL 提取為 `official_url`，ftip 網站 URL 保持 `source_url`。DB 事件 `b4d97c35` 全欄手動修正 + FC 鎖定。
+
 ## Batch Script Post-Enrichment Guard
 
 在審核任何 `_oneoff_*.py` 或 batch 修復腳本的計畫前，**必須**確認：
