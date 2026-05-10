@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
 
   const payload = {
     model: "gpt-4o-mini",
-    max_tokens: 1200,
+    max_tokens: 2500,
     response_format: { type: "json_object" },
     messages: [
       {
@@ -212,6 +212,16 @@ Classification fields (always required):
 - has_english_support: boolean
 - is_paid: boolean (true = admission fee required, false = free)
 
+Name translations (always required when name_ja is provided):
+- name_ja: event name in Japanese (use existing if provided, else extract)
+- name_zh: event name in Traditional Chinese (繁體中文)
+- name_en: event name in English
+
+Description text (always required — generate based on web page or existing info):
+- description_ja: 2–4 sentence description in natural Japanese (丁寧体)
+- description_zh: 2–4 sentence description in Traditional Chinese (繁體中文)
+- description_en: 2–4 sentence description in natural English
+
 Extraction fields (omit if not visible in the web page):
 - organizer: organizer name in Japanese (e.g. "千代田区立日比谷図書文化館")
 - organizer_url: organizer official URL (full https URL)
@@ -223,7 +233,11 @@ Extraction fields (omit if not visible in the web page):
 - start_date: YYYY-MM-DD
 - end_date: YYYY-MM-DD
 
-Return ONLY valid JSON. All classification fields required. Omit extraction fields you cannot confidently determine. Do not fabricate data.`,
+Rules:
+- For Chinese, use Traditional Chinese characters only (繁體字). Never simplified.
+- Do not fabricate. If the web page does not mention a field, omit it.
+- Descriptions should be factual and event-focused. No marketing fluff.
+- Return ONLY valid JSON.`,
       },
       { role: "user", content: eventInfo || "（no info provided）" },
     ],
@@ -246,10 +260,17 @@ Return ONLY valid JSON. All classification fields required. Omit extraction fiel
       const extractionFields = [
         "organizer", "organizer_url", "location_name", "location_address",
         "business_hours", "performer", "price_info", "start_date", "end_date",
+        "name_ja", "name_zh", "name_en",
+      ];
+      // Description and translation fields always overwrite (annotator-generated)
+      const alwaysOverwriteFields = [
+        "description_ja", "description_zh", "description_en",
       ];
       for (const [k, v] of Object.entries(annotated)) {
         if (v === null || v === undefined || v === "") continue;
-        if (extractionFields.includes(k)) {
+        if (alwaysOverwriteFields.includes(k)) {
+          returnedFields[k] = v;
+        } else if (extractionFields.includes(k)) {
           // Only set if event currently has no value
           const cur = (event as Record<string, unknown>)[k];
           if (cur === null || cur === undefined || cur === "") {
