@@ -587,42 +587,29 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     setAnnotating(true);
     setEnrichedReady(false);
 
-    // Trigger enrich-and-annotate workflow
+    // Directly annotate via API (no GitHub Actions, no polling)
     try {
-      await fetch("/api/admin/enrich-and-annotate", {
+      const res = await fetch("/api/admin/annotate-event", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId }),
       });
-    } catch (e) {
-      console.warn("Failed to trigger enrich workflow:", e);
-    }
-
-    // Poll every 5s until annotation_status != "pending"
-    const pollInterval = setInterval(async () => {
-      try {
-        const { data: ev } = await supabase
-          .from("events")
-          .select("id,annotation_status,name_ja,name_zh,name_en,location_name,location_address,organizer,organizer_url,source_url,official_url,business_hours,price_info,category,event_form,start_date,end_date,performer,primary_language,has_japanese_support,has_english_support,has_chinese_support,is_paid")
-          .eq("id", eventId)
-          .single();
-        if (ev && ev.annotation_status !== "pending") {
-          clearInterval(pollInterval);
-          setAnnotating(false);
-          setEnrichedReady(true);
-          // Update form with enriched data
-          const enrichFields = ["name_ja","name_zh","name_en","location_name","location_address","organizer","organizer_url","source_url","official_url","business_hours","price_info","category","event_form","start_date","end_date","performer","primary_language","has_japanese_support","has_english_support","has_chinese_support","is_paid"] as const;
-          for (const field of enrichFields) {
-            const v = (ev as Record<string, unknown>)[field];
-            if (v !== null && v !== undefined) {
-              updateField(field, v);
-            }
+      if (res.ok) {
+        const { fields } = (await res.json()) as { fields: Record<string, unknown> };
+        for (const [k, v] of Object.entries(fields)) {
+          if (v !== null && v !== undefined) {
+            updateField(k, v);
           }
         }
-      } catch {
-        // ignore poll errors
+      } else {
+        console.warn("Annotation API failed:", await res.text());
       }
-    }, 5000);
+    } catch (e) {
+      console.warn("Annotation error:", e);
+    }
+
+    setAnnotating(false);
+    setEnrichedReady(true);
   }
 
   async function handlePublish() {
