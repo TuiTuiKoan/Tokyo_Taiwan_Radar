@@ -181,6 +181,7 @@ export async function POST(req: NextRequest) {
     event.name_zh && `活動名（中文）: ${event.name_zh}`,
     event.name_en && `活動名（英文）: ${event.name_en}`,
     event.description_ja && `説明: ${String(event.description_ja).slice(0, 400)}`,
+    foundUrl && `参考ウェブページのURL: ${foundUrl}`,
     webText && `参考ウェブページ全文（最重要・主催/会場/料金等を抜き出すこと）:\n${webText.slice(0, 4000)}`,
     event.location_name && `現在の場地: ${event.location_name}`,
     event.location_address && `現在の住所: ${event.location_address}`,
@@ -224,10 +225,10 @@ Description text (always required — generate based on web page or existing inf
 
 Extraction fields (omit if not visible in the web page):
 - organizer: organizer name in Japanese (e.g. "千代田区立日比谷図書文化館")
-- organizer_url: organizer official URL (full https URL, the org's homepage)
+- organizer_url: organizer official URL (full https URL, the org's homepage). LOOK CAREFULLY in the web page header/footer/contact section. If the page is hosted on the organizer's own domain (e.g. www.library.chiyoda.tokyo.jp), the homepage URL of that domain IS the organizer_url.
 - location_name: venue name in Japanese
 - location_address: full Japanese postal address (with 〒)
-- location_url: venue official website URL (full https URL, the venue's homepage)
+- location_url: venue official website URL (full https URL, the venue's homepage). Same heuristic as organizer_url — if the venue runs the page, the site root is the location_url.
 - business_hours: opening hours / show times (e.g. "10:00〜20:00")
 - performer: main performer or speaker name (single person or group)
 - price_info: ticket price text (e.g. "入場無料" or "一般 ¥1,500")

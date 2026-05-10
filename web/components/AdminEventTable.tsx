@@ -890,7 +890,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       {/* New event inline form */}
       {showNew && (
         <div className="border border-green-300 rounded-xl p-6 mb-6 bg-green-50">
-          {/* Header: title + 讀取圖檔 button */}
+          {/* Header: title + image OCR button */}
           <div className="flex items-center gap-3 mb-4">
             <h2 className="font-bold text-lg">{t("newEvent")}</h2>
             <button
@@ -899,7 +899,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               disabled={extracting}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-line-strong rounded-lg hover:bg-elevated disabled:opacity-50 transition"
             >
-              📷 讀取圖檔
+              {t("extractFromImage")}
             </button>
             <input
               ref={posterFileRef}
@@ -912,7 +912,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 e.target.value = "";
               }}
             />
-            {extracting && <span className="text-sm text-blue-500 animate-pulse">解析中…</span>}
+            {extracting && <span className="text-sm text-blue-500 animate-pulse">{t("extracting")}</span>}
             {extractError && <span className="text-sm text-red-500">{extractError}</span>}
           </div>
 
@@ -938,12 +938,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       disabled={saving || annotating}
                       className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
                     >
-                      {saving ? "儲存中…" : annotating ? (
+                      {saving ? t("saving") : annotating ? (
                         <span className="flex items-center gap-1.5">
                           <span className="animate-pulse text-blue-200">●</span>
-                          標注中，請稍候…
+                          {t("annotating")}
                         </span>
-                      ) : enrichedReady ? "再次標注" : "儲存並標注"}
+                      ) : enrichedReady ? t("reannotate") : t("saveAndAnnotate")}
                     </button>
                   ) : (
                     <button
@@ -965,13 +965,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
                 {enrichedReady && (
                   <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <span className="text-sm text-blue-700">✅ 標注完成，請確認資料後發布</span>
+                    <span className="text-sm text-blue-700">{t("annotationDone")}</span>
                     <button
                       onClick={handlePublish}
                       disabled={saving}
                       className="ml-auto bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 font-medium"
                     >
-                      {saving ? "..." : "🚀 公開發布"}
+                      {saving ? "..." : t("publish")}
                     </button>
                   </div>
                 )}
