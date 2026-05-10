@@ -25,14 +25,19 @@ async function ddgSearch(query: string): Promise<string[]> {
     });
     const html = await res.text();
     const urls: string[] = [];
-    for (const m of html.matchAll(/uddg=([^&"]+)/g)) {
-      try {
-        const url = decodeURIComponent(m[1]);
-        if (url.startsWith("http") && !url.includes("duckduckgo.com")) {
-          urls.push(url);
-          if (urls.length >= 5) break;
-        }
-      } catch { /* skip */ }
+    const seen = new Set<string>();
+    // Match both /l/?uddg= redirect form and any direct https URL in result links
+    for (const m of html.matchAll(/(?:uddg=|href=")(https?%3A[^"&]+|https?:\/\/[^"\s<>]+)/g)) {
+      let u = m[1];
+      try { u = decodeURIComponent(u); } catch { /* skip */ }
+      // Filter out DDG infrastructure / static asset URLs
+      if (!u.startsWith("http")) continue;
+      if (u.includes("duckduckgo.com")) continue;
+      if (/\.(css|js|ico|png|svg|woff)/.test(u)) continue;
+      if (seen.has(u)) continue;
+      seen.add(u);
+      urls.push(u);
+      if (urls.length >= 5) break;
     }
     return urls;
   } catch {
@@ -176,27 +181,29 @@ export async function POST(req: NextRequest) {
     event.name_zh && `活動名（中文）: ${event.name_zh}`,
     event.name_en && `活動名（英文）: ${event.name_en}`,
     event.description_ja && `説明: ${String(event.description_ja).slice(0, 400)}`,
-    webText && `ウェブページ（抜粋）: ${webText.slice(0, 600)}`,
-    event.location_name && `場地: ${event.location_name}`,
-    event.location_address && `住所: ${event.location_address}`,
-    event.organizer && `主催: ${event.organizer}`,
-    event.performer && `出演者: ${event.performer}`,
-    event.price_info && `料金: ${event.price_info}`,
-    event.business_hours && `時間: ${event.business_hours}`,
+    webText && `参考ウェブページ全文（最重要・主催/会場/料金等を抜き出すこと）:\n${webText.slice(0, 4000)}`,
+    event.location_name && `現在の場地: ${event.location_name}`,
+    event.location_address && `現在の住所: ${event.location_address}`,
+    event.organizer && `現在の主催: ${event.organizer}`,
+    event.performer && `現在の出演者: ${event.performer}`,
+    event.price_info && `現在の料金: ${event.price_info}`,
+    event.business_hours && `現在の時間: ${event.business_hours}`,
   ]
     .filter(Boolean)
     .join("\n");
 
   const payload = {
     model: "gpt-4o-mini",
-    max_tokens: 400,
+    max_tokens: 1200,
     response_format: { type: "json_object" },
     messages: [
       {
         role: "system",
         content: `You annotate Taiwan-related cultural events held in Japan for a multilingual event database.
 
-Given event info, return a JSON with EXACTLY these fields:
+Given event info AND a fetched web page (if provided), return a JSON with these fields. Extract data from the web page when fields are missing or to enrich existing values.
+
+Classification fields (always required):
 - category: array of 1–3 values from: movie | performing_arts | senses | retail | nature | tech | tourism | lifestyle_food | books_media | gender | geopolitics | art | lecture | taiwan_japan | business | academic | competition | report
 - event_form: array of 1–2 values from: exhibition | concert | lecture_seminar | film_screening | festival | market | sports | study_abroad | other
 - primary_language: "ja" | "zh" | "en" | "mixed"
@@ -205,7 +212,18 @@ Given event info, return a JSON with EXACTLY these fields:
 - has_english_support: boolean
 - is_paid: boolean (true = admission fee required, false = free)
 
-Return ONLY valid JSON. All fields required. No extra keys.`,
+Extraction fields (omit if not visible in the web page):
+- organizer: organizer name in Japanese (e.g. "千代田区立日比谷図書文化館")
+- organizer_url: organizer official URL (full https URL)
+- location_name: venue name in Japanese
+- location_address: full Japanese postal address (with 〒)
+- business_hours: opening hours / show times (e.g. "10:00〜20:00")
+- performer: main performer or speaker name (single person or group)
+- price_info: ticket price text (e.g. "入場無料" or "一般 ¥1,500")
+- start_date: YYYY-MM-DD
+- end_date: YYYY-MM-DD
+
+Return ONLY valid JSON. All classification fields required. Omit extraction fields you cannot confidently determine. Do not fabricate data.`,
       },
       { role: "user", content: eventInfo || "（no info provided）" },
     ],
@@ -224,7 +242,23 @@ Return ONLY valid JSON. All fields required. No extra keys.`,
     const content = openaiData.choices?.[0]?.message?.content ?? "{}";
     try {
       const annotated = JSON.parse(content) as Record<string, unknown>;
-      Object.assign(returnedFields, annotated);
+      // Preserve OCR-filled values: only fill extraction fields that are currently empty
+      const extractionFields = [
+        "organizer", "organizer_url", "location_name", "location_address",
+        "business_hours", "performer", "price_info", "start_date", "end_date",
+      ];
+      for (const [k, v] of Object.entries(annotated)) {
+        if (v === null || v === undefined || v === "") continue;
+        if (extractionFields.includes(k)) {
+          // Only set if event currently has no value
+          const cur = (event as Record<string, unknown>)[k];
+          if (cur === null || cur === undefined || cur === "") {
+            returnedFields[k] = v;
+          }
+        } else {
+          returnedFields[k] = v;
+        }
+      }
       // Preserve OCR-filled category / event_form
       if (existingCategory) returnedFields.category = event.category;
       if (existingEventForm) returnedFields.event_form = event.event_form;
