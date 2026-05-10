@@ -1,0 +1,63 @@
+name: X (Twitter) Auto-Post
+
+on:
+  schedule:
+    # Japan prime hours (JST = UTC+9). Three slots per day.
+    - cron: "0 23 * * *"   # 08:00 JST  (commute)
+    - cron: "30 3 * * *"   # 12:30 JST  (lunch)
+    - cron: "0 11 * * *"   # 20:00 JST  (evening peak)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        required: true
+        type: choice
+        default: dry-run
+        options:
+          - dry-run
+          - post
+      event_id:
+        description: "Force a specific event id (optional)"
+        required: false
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  x-post:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Post to X
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.mode }}" = "dry-run" ]; then
+            ARGS="--dry-run"
+          fi
+          if [ -n "${{ github.event.inputs.event_id }}" ]; then
+            ARGS="$ARGS --event-id ${{ github.event.inputs.event_id }}"
+          fi
+          python x_post.py $ARGS
