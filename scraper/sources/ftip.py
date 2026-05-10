@@ -91,7 +91,7 @@ def _extract_venue(text: str) -> tuple[Optional[str], Optional[str]]:
     address = None
     m = _VENUE_NAME_RE.search(text)
     if m:
-        venue_name = m.group(1).strip().lstrip("：: ・・")
+        venue_name = m.group(1).strip().lstrip("：:・・\u2026\u2025…\u30fb")
     m2 = _VENUE_ADDR_RE.search(text)
     if m2:
         address = "〒" + m2.group(1).strip() + " " + m2.group(2).strip()
