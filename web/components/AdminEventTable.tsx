@@ -598,7 +598,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         const respJson = (await res.json()) as {
           fields: Record<string, unknown>;
           foundUrl: string | null;
-          searchDebug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number } | null;
+          searchDebug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number; queries: string[]; topCandidates: Array<{ url: string; score: number }> } | null;
           webTextLength: number;
           needsUrlEnrichment?: boolean;
           sourceUrlFetchOk?: boolean | null;

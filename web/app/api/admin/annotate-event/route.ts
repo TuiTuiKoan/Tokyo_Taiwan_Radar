@@ -110,9 +110,15 @@ async function fetchPageText(url: string): Promise<string> {
 
 function scorePage(text: string, nameJa: string, locationName: string): number {
   let score = 0;
-  const words = nameJa.split(/[\s　]+/).filter((w) => w.length >= 2);
-  for (const w of words) if (text.includes(w)) score += 2;
-  if (locationName && text.includes(locationName)) score += 3;
+  // Strip wrapping quotes/brackets and split on whitespace + punctuation
+  const cleaned = nameJa.replace(/[「」『』《》〝〞"'()（）\[\]【】]/g, " ");
+  const words = cleaned.split(/[\s　・…〜~‐\-―]+/).filter((w) => w.length >= 2);
+  let nameHits = 0;
+  for (const w of words) if (text.includes(w)) { score += 2; nameHits += 1; }
+  // Require at least 2 distinct name tokens to match — otherwise the page
+  // is unrelated even if it contains generic keywords like 2026/開催.
+  if (words.length >= 2 && nameHits < 2) return -1;
+  if (locationName && text.includes(locationName)) score += 5;
   for (const kw of ["開催", "会場", "主催", "チケット", "入場", "日時"])
     if (text.includes(kw)) score += 1;
   return score;
@@ -122,12 +128,15 @@ async function enrichEvent(
   nameJa: string,
   locationName: string,
   startDate: string
-): Promise<{ url: string; text: string; debug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number } }> {
+): Promise<{ url: string; text: string; debug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number; queries: string[]; topCandidates: Array<{ url: string; score: number }> } }> {
   const year = (startDate || "").slice(0, 4);
+  // Strip phrase-search quotes — Brave/DDG often miss when title contains
+  // wrapping brackets like 「」『』 or unusual punctuation. Use plain keywords.
+  const cleanName = nameJa.replace(/[「」『』《》〝〞"]/g, " ").replace(/\s+/g, " ").trim();
   const queries: string[] = [];
-  if (locationName) queries.push(`"${nameJa}" ${year} ${locationName}`);
-  queries.push(`"${nameJa}" ${year} 公式`);
-  queries.push(`${nameJa} ${year}`);
+  if (locationName) queries.push(`${cleanName} ${locationName} ${year}`);
+  queries.push(`${cleanName} ${year} 公式`);
+  queries.push(`${cleanName} ${year}`);
 
   const seen = new Set<string>();
   const candidates: string[] = [];
@@ -170,17 +179,28 @@ async function enrichEvent(
   }
 
   let bestUrl = "", bestText = "", bestScore = -1;
+  const candidateScores: Array<{ url: string; score: number }> = [];
   for (const url of candidates.slice(0, 5)) {
     const text = await fetchPageText(url);
-    if (!text) continue;
+    if (!text) { candidateScores.push({ url, score: -2 }); continue; }
     const score = scorePage(text, nameJa, locationName);
+    candidateScores.push({ url, score });
     if (score > bestScore) { bestScore = score; bestUrl = url; bestText = text; }
   }
 
+  // Require bestScore >= 3 to count as a real match (covers ≥1 name token + a
+  // generic keyword, OR a location_name hit). Below that, the page is too
+  // weakly related and risks polluting the event with unrelated info.
   return {
-    url: bestScore >= 1 ? bestUrl : "",
-    text: bestScore >= 1 ? bestText : "",
-    debug: { braveCount, ddgCount, bingCount, candidateCount: candidates.length, bestScore },
+    url: bestScore >= 3 ? bestUrl : "",
+    text: bestScore >= 3 ? bestText : "",
+    debug: {
+      braveCount, ddgCount, bingCount,
+      candidateCount: candidates.length,
+      bestScore,
+      queries,
+      topCandidates: candidateScores,
+    },
   };
 }
 
@@ -235,7 +255,7 @@ export async function POST(req: NextRequest) {
   let webText = "";
   let foundUrl = "";
   const returnedFields: Record<string, unknown> = {};
-  let searchDebug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number } | null = null;
+  let searchDebug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number; queries: string[]; topCandidates: Array<{ url: string; score: number }> } | null = null;
   let sourceUrlFetchOk: boolean | null = null;
 
   const needsUrlEnrichment =
@@ -248,10 +268,14 @@ export async function POST(req: NextRequest) {
     if (event.source_url) {
       const text = await fetchPageText(event.source_url as string);
       sourceUrlFetchOk = text.length > 0;
-      if (text) {
+      // Verify the existing source_url actually matches the event — a wrong
+      // URL persisted from a previous bad search must NOT be reused.
+      const score = text ? scorePage(text, event.name_ja as string, (event.location_name as string) || "") : -1;
+      if (text && score >= 3) {
         foundUrl = event.source_url as string;
         webText = text;
       }
+      // else: fall through to fresh search; do not trust the stored URL
     }
     if (!webText) {
       const enriched = await enrichEvent(
@@ -271,17 +295,19 @@ export async function POST(req: NextRequest) {
     }
     if (webText) {
       const persist: Record<string, unknown> = { raw_description: webText };
-      // Derive origin (e.g. https://www.library.chiyoda.tokyo.jp) — this is
-      // very often the organizer/venue homepage when the page lives on the
-      // org's own domain.
       let originUrl = "";
       try { originUrl = new URL(foundUrl).origin; } catch { /* skip */ }
 
-      if (!event.source_url) {
+      // If the existing source_url was rejected by the score check (foundUrl
+      // came from a fresh search and differs), OVERWRITE it. This is critical
+      // when a previous run persisted a wrong URL.
+      const sourceUrlIsStale = event.source_url && event.source_url !== foundUrl;
+
+      if (!event.source_url || sourceUrlIsStale) {
         persist.source_url = foundUrl;
         returnedFields.source_url = foundUrl;
       }
-      if (!event.official_url) {
+      if (!event.official_url || sourceUrlIsStale) {
         persist.official_url = foundUrl;
         returnedFields.official_url = foundUrl;
       }
