@@ -69,7 +69,7 @@ export default function AdminEventForm({
 }: Props) {
   const parentCandidates = events.filter((e) => e.id !== editingId);
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4">
       {/* Multilingual names */}
       {(["ja", "zh", "en"] as const).map((lang) => (
         <div key={lang}>
@@ -180,7 +180,7 @@ export default function AdminEventForm({
       </div>
 
       {/* Event Form (multi-checkbox) */}
-      <div className="md:col-span-2">
+      <div className="">
         <label className="block text-xs text-fg-muted mb-2">{t("eventForm")}</label>
         <div className="flex flex-wrap gap-2">
           {VALID_EVENT_FORMS.map((ef) => (
@@ -299,7 +299,7 @@ export default function AdminEventForm({
       </div>
 
       {/* Price info */}
-      <div className="md:col-span-2">
+      <div className="">
         <label className="block text-xs text-fg-muted mb-1">{t("priceInfo")}</label>
         <input
           type="text"
@@ -310,7 +310,7 @@ export default function AdminEventForm({
       </div>
 
       {/* Categories */}
-      <div className="md:col-span-2">
+      <div className="">
         <label className="block text-xs text-fg-muted mb-2">{t("category")}</label>
         <div className="space-y-2">
           {CATEGORY_GROUPS.map((group) => (
@@ -338,7 +338,7 @@ export default function AdminEventForm({
       </div>
 
       {/* Parent event */}
-      <div className="md:col-span-2">
+      <div className="">
         <label className="block text-xs text-fg-muted mb-1">{t("parentEvent")}</label>
         <select
           value={form.parent_event_id}
@@ -356,7 +356,7 @@ export default function AdminEventForm({
 
       {/* Multilingual descriptions */}
       {(["ja", "zh", "en"] as const).map((lang) => (
-        <div key={lang} className="md:col-span-2">
+        <div key={lang} className="">
           <label className="block text-xs text-fg-muted mb-1">
             {t(`desc${lang.charAt(0).toUpperCase() + lang.slice(1)}` as any)}
           </label>
@@ -370,7 +370,7 @@ export default function AdminEventForm({
       ))}
 
       {/* Record links */}
-      <div className="md:col-span-2">
+      <div className="">
         <label className="block text-xs text-fg-muted mb-2">{t("recordLinksSection" as any)}</label>
         <div className="space-y-2">
           {form.record_links.map((link, i) => (
