@@ -793,35 +793,33 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       {showNew && (
         <div className="border border-green-300 rounded-xl p-6 mb-6 bg-green-50">
           {/* Header: title + 讀取圖檔 button */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3 mb-4">
             <h2 className="font-bold text-lg">{t("newEvent")}</h2>
-            <div className="flex items-center gap-2">
-              {extracting && <span className="text-sm text-fg-muted animate-pulse">解析中…</span>}
-              {extractError && <span className="text-sm text-red-500">{extractError}</span>}
-              <button
-                type="button"
-                onClick={() => posterFileRef.current?.click()}
-                disabled={extracting}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-line-strong rounded-lg hover:bg-elevated disabled:opacity-50 transition"
-              >
-                📷 讀取圖檔
-              </button>
-              <input
-                ref={posterFileRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleExtractFromImage(file);
-                  e.target.value = "";
-                }}
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => posterFileRef.current?.click()}
+              disabled={extracting}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-line-strong rounded-lg hover:bg-elevated disabled:opacity-50 transition"
+            >
+              📷 讀取圖檔
+            </button>
+            <input
+              ref={posterFileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleExtractFromImage(file);
+                e.target.value = "";
+              }}
+            />
+            {extracting && <span className="text-sm text-fg-muted animate-pulse">解析中…</span>}
+            {extractError && <span className="text-sm text-red-500">{extractError}</span>}
           </div>
 
           {/* Body: form left + image preview right */}
-          <div className={posterPreview ? "flex gap-6" : undefined}>
+          <div className={posterPreview ? "flex gap-6 items-start" : undefined}>
             <div className={posterPreview ? "flex-1 min-w-0" : undefined}>
               <AdminEventForm
                 form={form}
@@ -852,25 +850,23 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </div>
 
             {posterPreview && (
-              <div className="w-[380px] shrink-0">
-                <div className="sticky top-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-fg-muted">海報預覽</span>
-                    <button
-                      type="button"
-                      onClick={() => setPosterPreview(null)}
-                      className="text-xs text-fg-muted hover:text-fg px-1"
-                    >
-                      ✕ 關閉
-                    </button>
-                  </div>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={posterPreview}
-                    alt="poster preview"
-                    className="w-full rounded-lg border border-line object-contain max-h-[80vh]"
-                  />
+              <div className="w-[760px] shrink-0 sticky top-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-fg-muted">海報預覽</span>
+                  <button
+                    type="button"
+                    onClick={() => setPosterPreview(null)}
+                    className="text-xs text-fg-muted hover:text-fg px-1"
+                  >
+                    ✕ 關閉
+                  </button>
                 </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={posterPreview}
+                  alt="poster preview"
+                  className="w-full rounded-lg border border-line object-contain max-h-[90vh]"
+                />
               </div>
             )}
           </div>
