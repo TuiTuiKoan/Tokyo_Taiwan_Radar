@@ -4,6 +4,41 @@
 
 ---
 
+## 2026-05-10 — TaiwanPrism scraper 三重 bug（null byte + organizer_type + parent_event_id）
+
+**問題（commits `a3d67fc`, `c7e9b73`）：** 新建的 `taiwan_prism.py` scraper dry-run 成功但 DB 寫入失敗，出現三個獨立 bug：
+
+**Bug 1 — `\u0000` null byte（Postgres `22P05`）：**
+- 根因：speaker 清單中含 `×\u0000栖来ひかり`（`×` 為 Unicode cross mark，後接 null byte），直接拼入 `description_ja`。
+- 修正：在 speakers join 後立即 `.replace("\x00", "")`，清除源頭。
+
+**Bug 2 — `organizer_type=["npo"]`（check constraint violation）：**
+- 根因：`npo` 不在 DB 允許清單；正確值為 `civic_group`。
+- 修正：兩處（父事件 + 子事件）改為 `["civic_group"]`。
+
+**Bug 3 — `parent_event_id=f"taiwan_prism_{year}"`（`22P02` uuid 語法錯誤）：**
+- 根因：`parent_event_id` 欄位型別為 `uuid`，不能傳 source_id 字串。
+- 修正：改用 `get_event_id_by_source(SOURCE_NAME, parent_source_id)` 查真實 UUID；首次執行因父事件尚未入庫而回傳 `None`，第二次起正確解析。首次執行後手動 patch 12 筆子事件 `parent_event_id`。
+
+**教訓：**
+1. `parent_event_id` 必須是 DB UUID，不可傳 source_id；需在 `scrape()` 中 import `database.get_event_id_by_source` 解析。
+2. 任何 scraper 在寫入 `raw_description` 之前，必須對所有外部文字 `.replace("\x00", "")` 防護。
+3. `organizer_type` 只允許 8 個值；NPO 型組織統一使用 `civic_group`。
+
+---
+
+## 2026-05-10 — Peatix scraper `_extract_peatix_dates` 缺 return 靜默丟棄事件
+
+**問題（commit `2a9540c`）：** Peatix 連續 7 天 0 新事件。原因不明，無任何 ERROR log。
+
+**根因：** `_extract_peatix_dates()` 在事件有日期但無時間範圍時，`if`-`else` 所有分支執行完畢後直接 fall-through，隱式返回 `None`。呼叫端嘗試 unpack `None`（`start, end = ...`），拋出 `TypeError: cannot unpack non-iterable NoneType object`，該頁面的所有事件被靜默丟棄。
+
+**修正：** 新增明確 `return start, None` 確保所有路徑都有回傳值。
+
+**教訓：** 拆解日期的 helper 函式必須有 exhaustive return path。任何 `if/elif/else` 的 date-parser 函式都應加 `assert False, "unreachable"` 或明確 `return None, None` 作為 fallback，防止隱式 `None` 傳播造成靜默丟棄。
+
+---
+
 ## 2026-05-10 — ftip.py `start_date` 回退 / `source_url` 指向聚合站 / `location_address` 硬編碼
 
 ### A — `M/D~D` 範圍未識別 → start_date 落到 pubDate（commit `ab771e2`）

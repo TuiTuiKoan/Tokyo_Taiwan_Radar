@@ -308,6 +308,43 @@ Reference incident: 2026-05-04 hakusuisha `_T` parser 未過濾 script/nav，`�
 
 Reference incident: 2026-05-04 hakusuisha — `_JITSU_RE` 命中 scraper 自注入的 `開催日時:` 前綴，`business_hours` 永遠 null（commit `a0292a2`）。
 
+## Scraper Null Byte Guard（`\u0000` null byte 防護）
+
+在審核任何 scraper 的 `raw_description` / `name_ja` / speakers 等文字欄位寫入邏輯前，**必須**確認：
+
+1. **所有外部文字在寫入 DB 前必須清除 `\u0000`**：網頁抓取的文字（尤其 speaker 清單、混合 Unicode 符號的文字）可能含 null byte，直接寫入 Postgres 觸發 `22P05: unsupported Unicode escape sequence`，整批 upsert 全數失敗。
+2. **清除位置**：在 string join / concat 之後、Event dataclass 建立之前：
+   ```python
+   speakers = "／".join(speaker_lines).strip().replace("\x00", "")
+   ```
+3. **識別信號**：dry-run 輸出中出現 `×\u0000` 或夾雜不可見 Unicode 控制字元，即為 null byte 存在的警告。Postgres 不接受 null byte 的錯誤只在實際寫入 DB 時才出現，dry-run 不會報錯。
+
+Reference incident: 2026-05-10 — taiwan_prism `c7e9b73`，speaker 文字 `×\u0000栖来ひかり`，dry-run 成功但 13 筆事件全數 DB 寫入失敗。
+
+## Parent Event UUID Guard（父子事件同批 upsert 設計）
+
+在審核任何「1 parent + N sub-events」設計的 scraper 計畫前，**必須**確認：
+
+1. **`parent_event_id` 必須是真實 DB UUID**：欄位型別為 `uuid`，傳入 source_id 字串觸發 Postgres `22P02`，整批 upsert 失敗。
+2. **同批 upsert 的競態問題**：父事件和子事件在同一個 `upsert_events()` 呼叫中，父 UUID 尚未入 DB。`get_event_id_by_source()` 首次執行回傳 `None` → 子事件 `parent_event_id=None`（合法，不報錯，但父子未連結）。
+3. **計畫中必須明確標注**哪種修正設計被採用：
+   - **首次 + 第二次執行**：年度型活動適用。首次跑父事件進 DB，第二次跑自動解析 UUID。
+   - **手動 patch**：首次跑後手動 `UPDATE events SET parent_event_id=...`。
+   - **兩階段 upsert**：scraper 先 insert 父事件取 UUID，再 insert 子事件（高頻更新型適用）。
+4. **不可傳 source_id 字串**：正確 pattern — `get_event_id_by_source(SOURCE_NAME, parent_source_id)` 解析 UUID，回傳 `None` 時子事件 `parent_event_id` 設 `None`。
+
+Reference incident: 2026-05-10 — taiwan_prism `c7e9b73` — 子事件 `parent_event_id=f"taiwan_prism_{edition_year}"` 傳 source_id 字串觸發 `22P02`；修正後首次執行 12 筆子事件 `parent_event_id=None`，手動 DB patch 補填。
+
+## Date-Parser Exhaustive Return Guard（日期解析函式 None 傳播防護）
+
+在審核任何 scraper 的 `_extract_*_dates()` / `_parse_*()` 型 helper 函式前，**必須**確認：
+
+1. **所有執行路徑都有明確 return**：若函式在某些條件下 fall-through 隱式返回 `None`，而 caller 執行 `start, end = helper()` 則拋 `TypeError: cannot unpack non-iterable NoneType`——此 error 通常被外層 try-except 靜默吞掉，造成整頁事件無聲消失、0 事件，無任何 ERROR log。
+2. **正確 pattern**：函式最後必須有 `return None, None`（或同等的 safe fallback），不依賴 Python 隱式 `None`。
+3. **靜默失敗特性**：7 天 0 事件且無任何警告，是此類 bug 的典型症狀。排查時先確認 CI log 有無 `TypeError: cannot unpack`。
+
+Reference incident: 2026-05-10 — peatix `_extract_peatix_dates()` 缺 return，連續 7 天 0 事件（commit `2a9540c`）。
+
 ## Scraper Date Timezone Guard（爬蟲日期時區守護）
 
 在審核任何 scraper 的 `start_date`/`end_date` 傳入邏輯前，**必須**確認：
@@ -365,6 +402,12 @@ commercial_brand | independent_venue | civic_group | media | unknown
 - `association` → 應改為 `civic_group`
 
 NPO、同好會、親善協会、交流会 等 civic 性質的主辦方統一使用 `civic_group`。
+
+**官方媒體機構容易被誤判為 `civic_group`**：
+- 台湾国際放送（RTI / Radio Taiwan International）= 台灣政府出資的對外廣播機構，相當於 NHK World / BBC World Service → **`semi_official`**，不是 `civic_group`。
+- 判斷基準：若主辦方為政府出資的廣播/媒體機構，優先使用 `semi_official` 或 `media`（視主要職能而定）。
+
+Reference incident: 2026-05-10 — event `df0e3f11`（台湾国際放送リスナーの集い），organizer_type 誤設 `civic_group`，查 Wikipedia 確認為官方對外廣播，修正為 `semi_official` + FC 鎖定。
 
 **Python Supabase client 型別規則**（`malformed array literal` 防護）：
 - ✅ `{'organizer_type': ['government']}` — Python list（正確）

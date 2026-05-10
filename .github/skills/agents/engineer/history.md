@@ -4,6 +4,55 @@
 
 ---
 
+## 2026-05-10 — TaiwanPrism scraper 啟用 + X auto-post 基礎建設 + 新 scraper 群
+
+### A — TaiwanPrism scraper 啟用（commits `a3d67fc`, `c7e9b73`）
+
+**內容：** 新建 `sources/taiwan_prism.py`，爬取京都紫明会館年度文化祭（台湾光譜）。
+- 靜態 HTML 解析（不需 Playwright）；`wixui-repeater__item` 結構提取 12 個節目
+- 父事件（整個節慶）+ 12 個子事件（個別節目）= 13 筆
+- 首次 DB 寫入後手動 patch 子事件 `parent_event_id`（首次跑時父 UUID 尚未存在）
+
+**修正記錄（DB 寫入 bug）：** null byte、`organizer_type`、`parent_event_id` 三重 bug — 詳見 scraper-expert history。
+
+**教訓：** 首次執行含子事件的新 scraper 時，需規劃「第二次跑」或手動 patch `parent_event_id`，因為父事件在同批 upsert 中才剛插入。
+
+---
+
+### B — X (Twitter) auto-post 基礎建設（commit `6af7f9e`）
+
+**新增功能：**
+- `scraper/x_post.py`：從 Supabase 挑選未來 14 天活動，發 JST 日文推文（~255 字元）
+- `workflows/x-post-cron.yml`：每日 08:00、12:30、20:00 JST 三次發文
+- 選取策略：有 selection_reason + 已標注 + 無 parent_event_id；最近 60 天內已發過的排除（app_settings.x_post 追蹤）
+- 支援 dry-run / manual event_id 覆蓋
+
+**環境需求：** `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`（需加入 GitHub Actions Secrets）
+
+---
+
+### C — 4 個新 scraper scaffold + StartupTerrace（commits `f680cd4`, `7b031a7`, `78aaa0d`）
+
+| 來源 | Class | 狀態 |
+|------|-------|------|
+| `cineplaza` | `CineplazaScraper` | 已啟用（`7b031a7`） |
+| `internet_museum` | `InternetMuseumScraper` | 已啟用（`7b031a7`） |
+| `onariza` | `OnarizaScraper` | 已啟用（`7b031a7`） |
+| `us_cinema_chiba` | `UsCinemaChibaGekijoScraper` | 已啟用（`7b031a7`） |
+| `startup_terrace` | `StartupTerraceScraper` | 已啟用（`78aaa0d`） |
+| `whitestone_gallery` | `WhitestoneGalleryScraper` | 已啟用（`33b217c`） |
+
+**Whitestone Gallery 特點：** 靜態 HTML、`/tagged/current` 清單頁；detail page 主內容關鍵字過濾（避免 footer 國家下拉的 false positive）；0 events = normal，加入 `ZERO_EVENT_OK_SOURCES`。
+
+---
+
+### D — Peatix `_extract_peatix_dates` 缺 return 靜默丟棄（commit `2a9540c`）
+
+**問題：** 7 天連續 0 事件，無 ERROR log。函式 fall-through 隱式返回 `None`，caller unpack 失敗靜默丟棄整頁。
+**教訓：** 任何 date-parser helper 函式必須在所有 return path 都有明確回傳值，不依賴隱式 `None`。
+
+---
+
 ## 2026-05-10 — Dark mode Phase 4 + BIG ROMANTIC RECORDS / 台湾料理体験会 DB 手動修正
 
 ### A — Dark mode Phase 4（commit `web dark mode`）

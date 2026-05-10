@@ -19,6 +19,36 @@ Read this at the start of every session before producing any plan.
 - **`order()` 語法**：`.order("col", desc=True)` — 不是 `.order("col", ascending=False)`（pandas 風格在此無效）。計畫中任何排序操作必須使用正確語法。
 - **`upsert` vs `update`**：既存 row 的部分更新必須用 `.update().eq()`，不可用 `upsert`（會觸發 INSERT fallback，撞 NOT NULL 約束）。
 
+## Null Byte Guard（`\u0000` 防護）
+
+在審核任何涉及 scraper 文字欄位寫入的計畫前，**必須**確認：
+
+1. **所有 scraped 文字在寫入 DB 前必須清除 `\u0000`**：網頁抓取的文字（特別是 speaker 清單、混合 Unicode 符號的文字）可能含 null byte，直接寫入 Postgres 觸發 `22P05: unsupported Unicode escape sequence`。
+2. **清除位置**：在 scraper 層的字串 join/concat 之後、Event 建立之前。不可依賴 DB 層防護。
+3. **清除 pattern**：
+   ```python
+   text = "".join(text).replace("\x00", "").strip()
+   # 或
+   speakers = "／".join(speaker_lines).strip().replace("\x00", "")
+   ```
+4. **識別信號**：dry-run 輸出中出現 `×\u0000` 或其他非可見 Unicode 符號，即為 null byte 存在的警告。
+
+Reference incident: 2026-05-10 — taiwan_prism `c7e9b73`，speaker 文字 `×\u0000栖来ひかり`，13 筆事件全數寫入失敗。
+
+## Parent Event UUID Guard（父子事件同批 upsert 設計）
+
+在審核任何含「1 parent + N sub-events」設計的 scraper 計畫前，**必須**確認：
+
+1. **`parent_event_id` 必須是真實 DB UUID**：欄位型別為 `uuid`，傳入 source_id 字串（如 `f"taiwan_prism_{year}"`）觸發 Postgres `22P02`，整批 upsert 失敗。
+2. **同批 upsert 的競態問題**：父事件和子事件在同一個 `upsert_events()` 呼叫中，父 UUID 尚未存在。`get_event_id_by_source()` 首次執行回傳 `None` → 子事件 `parent_event_id=None`（合法，不報錯）。
+3. **修正設計**（依序擇一）：
+   - **首次 + 第二次執行**：首次跑父事件進 DB，第二次跑 scraper 時 `get_event_id_by_source()` 正確解析並回填。適合年度活動（每年只新增一次）。
+   - **手動 patch**：首次跑後手動執行 DB UPDATE 填入 `parent_event_id`。
+   - **兩階段 upsert**：scraper 先 insert 父事件，查 UUID，再 insert 子事件（適合高頻更新型）。
+4. **計畫中必須明確標注**：哪種修正設計被採用，以及首次執行後是否需要手動 patch。
+
+Reference incident: 2026-05-10 — taiwan_prism `c7e9b73` — `parent_event_id=f"taiwan_prism_{edition_year}"` 傳 source_id 字串，首次執行後手動 patch 12 筆子事件。
+
 ## Weekly LINE Broadcast 系統設計節奏
 
 在審核任何涉及 `weekly_line_broadcast.py` 的計畫前，**必須**先確認系統設計的執行時序：
@@ -78,6 +108,23 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan
    - 日文名無完整漢字 → 不翻譯成中文
    - 片假名音譯 → 僅在有驗證來源時翻譯（`_KNOWN_PERSON_MAP` 或 eiga.com lookup）
 5. **`backfill_performer_i18n()` 不可限定 `is_active=True`**：非活躍事件同樣需要翻譯完整性。批次 backfill 腳本的 active 過濾需明確設計。
+
+## Vercel Multi-Project Environment Variable Guard
+
+在執行任何 `npx vercel env add` 前，**必須**依序確認：
+
+1. **先執行 `npx vercel project ls`**：確認哪個 project 服務 custom domain（`tokyotaiwanradar.com`）。
+2. **確認 `web/.vercel/project.json` 連結的是正確 project**：
+   - 執行 `npx vercel inspect <deployment-url>` 查看 Aliases，確認 deployment 屬於哪個 project
+   - 若連結錯誤：先 `npx vercel link --project <correct-project-name> --yes` 再繼續
+3. **執行 `env add` 到正確 project** 後，確認目標 project 已有該環境變數：`npx vercel env ls`
+4. **Vercel CLI `--prod` deploy 無法部署到 GitHub integration project**（會報路徑錯誤）：改用空 commit push 觸發重新部署：
+   ```bash
+   git commit --allow-empty -m "ci: redeploy to apply <VAR_NAME> env var"
+   git push origin main
+   ```
+
+Reference incident: 2026-05-10 — `OPENAI_API_KEY` 加到了 `web` project（`prj_kbP2Mkk0kAZW3tTaklBQqZjpsyYu`），實際 production 是 `tokyo-taiwan-radar` project，導致 Admin OCR 功能完全無法運作。
 
 Reference incidents:
 - 2026-05-09 — `ギデンズ・コー` → `基登斯·高` (GPT 幻覺)；正確 `九把刀` / `Giddens Ko`。14 筆已驗證名人收錄 `_KNOWN_PERSON_MAP`，11 筆 DB 事件修正。

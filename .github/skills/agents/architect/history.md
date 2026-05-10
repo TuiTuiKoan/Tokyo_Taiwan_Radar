@@ -4,6 +4,63 @@
 
 ---
 
+## 2026-05-10 — TaiwanPrism scraper 三重 bug 架構分析 + X auto-post 設計
+
+### A — `parent_event_id` UUID vs source_id 設計失誤
+
+**問題：** 新 scraper `taiwan_prism.py` 在子事件的 `parent_event_id` 直接傳 source_id 字串（`f"taiwan_prism_{year}"`）而非 UUID，導致 `22P02` 錯誤。
+
+**架構教訓（同批父子事件 upsert）：**
+1. 父事件和子事件在同一批 `upsert_events()` 呼叫中，父 UUID 尚未存在於 DB，`get_event_id_by_source()` 首次執行會回傳 `None`。
+2. 正確設計：父事件先 upsert（或不在同批），再透過 `get_event_id_by_source()` 查 UUID 填入子事件。
+3. 對於年度型（1 parent + N sub）的 scraper，首次 DB 寫入後需要額外一次執行（或手動 patch）來填入 `parent_event_id`。
+4. **不可**傳 source_id 字串——`parent_event_id` 欄位型別為 `uuid`，非字串型別的資料必然在 Postgres 層報 `22P02`。
+
+### B — Peatix date-parser `None` 傳播設計缺陷
+
+**問題：** `_extract_peatix_dates()` 在某些輸入條件下 fall-through，隱式返回 `None`，造成 7 天靜默 0 事件，無任何 ERROR log。
+
+**架構教訓（Function Contract Guard）：**
+- 任何 parser / extractor helper 函式必須在所有執行路徑都有明確 return。
+- 建議 pattern：在函式最後加 `return None, None` 作為 safe fallback，而非依賴 Python 隱式 `None`。
+- **靜默失敗比顯性錯誤更危險**：`TypeError` 被上層 try-except 吃掉，7 天都看不到任何異常。日後設計 date-parser 時，考慮 raise ValueError 而非 return None，強制上層處理。
+
+---
+
+## 2026-05-10 — Admin OCR 功能 + Vercel Multi-Project 環境變數錯誤
+
+### A — Admin 海報 OCR 自動填表（commits 532d726, d262cc3, ab125cf）
+
+**新增功能：**
+- `web/app/api/admin/extract-from-image/route.ts`：POST endpoint，admin-only（驗 `user_roles.role='admin'`）
+  - 接收 base64 image → GPT-4o Vision → 回傳 `{ fields }` JSON
+  - 支援欄位：name_ja/zh/en, start/end_date, location_name/address, business_hours, performer, organizer, price_info, is_paid, event_form[], category[] 等
+- `web/components/AdminEventTable.tsx`：新增「📷 讀取圖檔」按鈕（標題左側同行）；圖片預覽 760px sticky，flex items-start 左捲右固定
+- `web/components/AdminEventForm.tsx`：從 `md:grid-cols-2` 改為 `grid-cols-1` 單欄布局，移除所有 `md:col-span-2`
+
+**教訓（UI 布局）：** Admin 表單由雙欄改單欄後，`md:col-span-2` 殘留不會報錯但白佔空間，必須同步移除。
+
+---
+
+### B — Vercel Multi-Project 環境變數設到錯誤 project（OPENAI_API_KEY 事件）
+
+**問題：** 截圖顯示「OPENAI_API_KEY not configured」，OCR 功能完全失效。
+
+**根本原因：** 本地 `web/.vercel/project.json` 連結的是 `web` project（`prj_kbP2Mkk0kAZW3tTaklBQqZjpsyYu`，別名 `web-red-five-74.vercel.app`），**不是**服務 `tokyotaiwanradar.com` 的 `tokyo-taiwan-radar` project。執行 `npx vercel env add` 把 key 加到了錯誤的 project。
+
+**修正步驟：**
+1. `npx vercel project ls` — 確認哪個 project 服務 custom domain
+2. `npx vercel link --project tokyo-taiwan-radar --yes` — 重新連結正確 project
+3. `echo $OKEY | npx vercel env add OPENAI_API_KEY production --yes` — 加到正確 project
+4. `git commit --allow-empty -m "ci: redeploy..."` — 空 commit 觸發 GitHub integration 重新部署
+
+**教訓：**
+- **`.vercel/project.json` 不可信**：local project.json 連結的 project 未必是 production 主站；每次 `env add` 前必須先 `npx vercel project ls` 確認 project 名稱與 custom domain 對應
+- **Vercel CLI `--prod` deploy 無效於 GitHub integration project**：會報路徑錯誤；正確做法是空 commit push 觸發 GitHub integration 重新部署
+- **`npx vercel inspect <deployment-url>` 可查 Aliases**：用來確認 deployment 屬於哪個 project
+
+---
+
 ## 2026-05-10 — ftip 二手介紹站 FB 一手 URL 萃取 + 場地 loose regex + organizer 智慧判斷
 
 ### A — 二手介紹站一手 URL 萃取（`_extract_fb_source()`）
