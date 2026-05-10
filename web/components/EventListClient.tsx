@@ -95,14 +95,14 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
 
   if (filtered.length === 0) {
     return (
-      <p className="text-center text-gray-500 mt-16 text-lg">
+      <p className="text-center text-fg-muted mt-16 text-lg">
         {tGeneral("noResults")}
       </p>
     );
   }
 
   return (
-    <div className="flex flex-col divide-y divide-gray-100 mt-4 border border-gray-100 rounded-xl overflow-hidden bg-white">
+      <div className="flex flex-col divide-y divide-line mt-4 border border-line rounded-xl overflow-hidden bg-surface">
       {filtered.map((event: Event) => {
         const name = getEventName(event, locale);
         const ended =
@@ -117,18 +117,18 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
             <div className="w-16 flex-shrink-0 text-center pt-0.5">
               {event.start_date ? (
                 <>
-                  <div className="text-xs text-gray-400">
+                  <div className="text-xs text-fg-subtle">
                     {new Date(event.start_date).toLocaleDateString(locale, {
                       month: "short",
                     })}
                   </div>
-                  <div className="text-2xl font-bold text-gray-700 leading-none">
+                  <div className="text-2xl font-bold text-fg leading-none">
                     {new Date(event.start_date).getDate()}
                   </div>
                   {event.end_date &&
                     event.end_date.slice(0, 10) !==
                       event.start_date.slice(0, 10) && (
-                      <div className="text-[10px] text-gray-800 mt-0.5 leading-tight">
+                      <div className="text-[10px] text-fg mt-0.5 leading-tight">
                         ~
                         {new Date(event.end_date).toLocaleDateString(locale, {
                           month: "numeric",
@@ -138,7 +138,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                     )}
                 </>
               ) : (
-                <div className="text-xs text-gray-300">—</div>
+                <div className="text-xs text-fg-subtle">—</div>
               )}
             </div>
 
@@ -146,7 +146,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                 {ended ? (
-                  <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-muted text-fg-subtle px-2 py-0.5 rounded-full">
                     {tEvent("ended")}
                   </span>
                 ) : (
@@ -160,13 +160,13 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                 {event.category?.slice(0, 2).map((cat) => (
                   <span
                     key={cat}
-                    className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full"
+                    className="text-xs bg-muted text-fg-muted px-2 py-0.5 rounded-full"
                   >
                     {tCat(cat as Parameters<typeof tCat>[0])}
                   </span>
                 ))}
               </div>
-              <p className="text-sm font-medium text-gray-900 group-hover:text-green-700 line-clamp-2 leading-snug">
+              <p className="text-sm font-medium text-fg-strong group-hover:text-green-700 line-clamp-2 leading-snug">
                 {event.parent_event_id && parentMap[event.parent_event_id] && (
                   <span className="block text-xs text-green-600 font-normal mb-0.5 truncate">
                     ↳ {getEventName(parentMap[event.parent_event_id], locale)}
@@ -183,10 +183,10 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                       .location_address,
                   );
                   return (
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-xs text-fg-subtle mt-0.5">
                       📍{" "}
                       {cityLabel && (
-                        <span className="inline-block bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded mr-1 font-medium">
+                        <span className="inline-block bg-muted text-fg-muted px-1.5 py-0.5 rounded mr-1 font-medium">
                           {cityLabel}
                         </span>
                       )}

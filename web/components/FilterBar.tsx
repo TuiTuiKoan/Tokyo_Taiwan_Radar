@@ -111,7 +111,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
           className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition ${
             mobileOpen || hasFilters
               ? "border-green-500 text-green-700 bg-green-50"
-              : "border-gray-300 text-gray-500 bg-white hover:bg-gray-50"
+              : "border-line-strong text-fg-muted bg-surface hover:bg-elevated"
           }`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
@@ -135,18 +135,18 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
       </div>
 
       {/* Filter panel — always visible on md+, toggled on mobile */}
-      <div className={`bg-gray-50 rounded-xl px-4 py-3 ${mobileOpen ? "block" : "hidden"} md:block`}>
+      <div className={`bg-elevated rounded-xl px-4 py-3 ${mobileOpen ? "block" : "hidden"} md:block`}>
 
         {/* Row 1: keyword, category, location, paid, timeMode, date range, reset */}
         <div className="flex flex-wrap gap-3 items-end">
           {/* Keyword search — debounced immediate */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("search")}</label>
+            <label className="text-xs text-fg-muted font-medium">{t("search")}</label>
             <input
               type="search"
               value={draft.q}
               placeholder={t("searchPlaceholder")}
-              className="h-9 border border-gray-300 rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
               onChange={(e) => {
                 const v = e.target.value;
                 setDraft((prev) => ({ ...prev, q: v }));
@@ -160,23 +160,23 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
 
           {/* Category dropdown */}
           <div className="flex flex-col gap-1" ref={catDropdownRef}>
-            <label className="text-xs text-gray-500 font-medium">{t("category")}</label>
+            <label className="text-xs text-fg-muted font-medium">{t("category")}</label>
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setCatDropdownOpen((o) => !o)}
-                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-gray-50 hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-elevated hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
               >
-                <span className={selectedCats.length > 0 ? "text-green-700 font-medium" : "text-gray-500"}>
+                <span className={selectedCats.length > 0 ? "text-green-700 font-medium" : "text-fg-muted"}>
                   {selectedCats.length > 0 ? `${t("category")} (${selectedCats.length})` : t("allCategories")}
                 </span>
-                <span className="text-gray-400 text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
+                <span className="text-fg-subtle text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
               </button>
 
               {catDropdownOpen && (
-                <div className="absolute z-50 top-10 left-0 w-72 bg-white border border-gray-200 rounded-xl shadow-lg py-2 max-h-80 overflow-y-auto">
+                <div className="absolute z-50 top-10 left-0 w-72 bg-surface border border-line rounded-xl shadow-lg py-2 max-h-80 overflow-y-auto">
                   {selectedCats.length > 0 && (
-                    <div className="px-3 pb-1.5 border-b border-gray-100 mb-1">
+                    <div className="px-3 pb-1.5 border-b border-line mb-1">
                       <button
                         type="button"
                         onClick={() => { applyWith("category", ""); setCatDropdownOpen(false); }}
@@ -188,7 +188,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   )}
                   {CATEGORY_GROUPS.map((group) => (
                     <div key={group.labelKey} className="px-3 py-1">
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
+                      <p className="text-xs font-semibold text-fg-subtle uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
                       {group.categories.map((cat) => {
                         const checked = selectedCats.includes(cat);
                         return (
@@ -199,7 +199,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                               onChange={() => toggleCategory(cat)}
                               className="accent-green-600 w-3.5 h-3.5"
                             />
-                            <span className="text-sm text-gray-700">{tCat(cat as any)}</span>
+                            <span className="text-sm text-fg">{tCat(cat as any)}</span>
                           </label>
                         );
                       })}
@@ -212,7 +212,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
 
           {/* Location filter */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("location")}</label>
+            <label className="text-xs text-fg-muted font-medium">{t("location")}</label>
             <select
               value={draft.location}
               onChange={(e) => {
@@ -223,7 +223,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   return next;
                 });
               }}
-              className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("allLocations")}</option>
               <option value="tokyo">{t("locationTokyo")}</option>
@@ -242,11 +242,11 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
             const prefs = REGION_PREFECTURES[region];
             return (
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 font-medium">{t("cityLabel")}</label>
+                <label className="text-xs text-fg-muted font-medium">{t("cityLabel")}</label>
                 <select
                   value={draft.city}
                   onChange={(e) => applyWith("city", e.target.value)}
-                  className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
                 >
                   <option value="">{t("cityAll")}</option>
                   {prefs.map((p) => (
@@ -261,11 +261,11 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
 
           {/* Paid filter */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("paid")}</label>
+            <label className="text-xs text-fg-muted font-medium">{t("paid")}</label>
             <select
               value={draft.paid}
               onChange={(e) => applyWith("paid", e.target.value)}
-              className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("allPaid")}</option>
               <option value="free">{t("freeOnly")}</option>
@@ -275,7 +275,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
 
           {/* Time mode */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("timeMode")}</label>
+            <label className="text-xs text-fg-muted font-medium">{t("timeMode")}</label>
             <select
               value={draft.timeMode}
               onChange={(e) => {
@@ -289,7 +289,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   applyWith("timeMode", e.target.value);
                 }
               }}
-              className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="active">{t("timeModeActive")}</option>
               <option value="all">{t("timeModeAll")}</option>
@@ -301,21 +301,21 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
           {draft.timeMode === "past" && (
             <>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 font-medium">{t("dateFrom")}</label>
+                <label className="text-xs text-fg-muted font-medium">{t("dateFrom")}</label>
                 <input
                   type="date"
                   value={draft.from}
                   onChange={(e) => applyWith("from", e.target.value)}
-                  className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 font-medium">{t("dateTo")}</label>
+                <label className="text-xs text-fg-muted font-medium">{t("dateTo")}</label>
                 <input
                   type="date"
                   value={draft.to}
                   onChange={(e) => applyWith("to", e.target.value)}
-                  className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
             </>

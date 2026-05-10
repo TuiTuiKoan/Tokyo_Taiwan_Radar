@@ -27,12 +27,12 @@ export default async function EventCard({ event, locale }: Props) {
   return (
     <Link
       href={`/${locale}/events/${event.id}`}
-      className="block border border-gray-200 rounded-xl p-4 hover:shadow-md hover:border-green-300 transition bg-white group"
+      className="block border border-line rounded-xl p-4 hover:shadow-md hover:border-green-300 transition bg-surface group"
     >
       {/* Status + paid badges */}
       <div className="flex items-center gap-2 mb-2">
         {ended ? (
-          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+          <span className="text-xs bg-muted text-fg-muted px-2 py-0.5 rounded-full">
             {t("ended")}
           </span>
         ) : (
@@ -58,7 +58,7 @@ export default async function EventCard({ event, locale }: Props) {
       </div>
 
       {/* Title */}
-      <h2 className="font-semibold text-gray-900 group-hover:text-green-700 line-clamp-2 leading-snug mb-2">
+      <h2 className="font-semibold text-fg-strong group-hover:text-green-700 line-clamp-2 leading-snug mb-2">
         {name}
       </h2>
 
@@ -68,7 +68,7 @@ export default async function EventCard({ event, locale }: Props) {
           {event.category.slice(0, 3).map((cat) => (
             <span
               key={cat}
-              className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
+              className="text-xs bg-muted text-fg-muted px-2 py-0.5 rounded-full"
             >
               {tCat(cat as any)}
             </span>
@@ -77,7 +77,7 @@ export default async function EventCard({ event, locale }: Props) {
       )}
 
       {/* Date + location */}
-      <div className="text-xs text-gray-500 space-y-1">
+      <div className="text-xs text-fg-muted space-y-1">
         {event.start_date && (
           <p>
             📅{" "}
@@ -102,7 +102,7 @@ export default async function EventCard({ event, locale }: Props) {
           <p className="flex items-center gap-1 flex-wrap">
             <span>📍</span>
             {cityLabel && (
-              <span className="bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded font-medium">
+              <span className="bg-muted text-fg-muted text-xs px-1.5 py-0.5 rounded font-medium">
                 {cityLabel}
               </span>
             )}
