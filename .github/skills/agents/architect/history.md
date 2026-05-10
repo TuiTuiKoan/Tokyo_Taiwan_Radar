@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-05-10 — ASCII/curly 雙引號破壞 GPT JSON 輸出（taiwan_prism program8）
+
+### 問題
+`taiwan_prism_2025_program8` 的 `name_ja` 含 ASCII `"歴史"` 及 curly `"歴史"` 混合引號，GPT 在 JSON 回應中未正確 escape，導致 `json.loads()` 拋 `Expecting ',' delimiter`。父事件 `raw_description` 也含同一標題，同樣失敗。即使 `response_format={"type": "json_object"}` 也無法防止此問題（已有 6000-token retry 仍失敗）。
+
+### 修復
+1. **DB 即時修正**：將 `name_ja`、`raw_title`（program8）和 `raw_description`（parent）中的 U+201C/U+0022 替換為 〝〞（U+301D/U+301E）
+2. **Scraper 根本修正**：`taiwan_prism.py` 標題提取後加引號正規化（`.replace(U+201C, U+301D)` 等三個替換）
+3. **翻譯修正**：GPT 重新生成的 `name_en` 被截斷，手動設定正確翻譯 + FC 鎖定
+
+### 教訓
+- `response_format={"type": "json_object"}` **不保證 GPT 正確 escape 輸入內容中的雙引號**——GPT 可能在 JSON 字串值中輸出未 escape 的 `"` 造成解析失敗
+- 修正位置：**scraper 提取後立即 normalize**，而非在 annotator 層處理
+- 偵測信號：`annotation_status='error'` + log 含 `Expecting ',' delimiter`
+
+---
+
 ## 2026-05-10 — OCR pipeline 架構 + organizer_type 分類誤判
 
 ### A — OCR save-and-annotate 跨層 pipeline 設計（commit `71e8a67`）

@@ -148,6 +148,14 @@ def _parse_programs(soup: BeautifulSoup) -> list[dict]:
         title = re.sub(r"^プログラム\d+\s*", "", full_title).strip()
         # Remove surrounding 「」
         title = title.strip("「」")
+        # Normalize double quotes: replace ASCII and curly double quotes with
+        # Japanese-style quotation marks to prevent GPT JSON parse failures
+        title = (
+            title
+            .replace("\u201c", "\u301d")  # U+201C " → 〝
+            .replace("\u201d", "\u301e")  # U+201D " → 〞
+            .replace("\u0022", "\u301e")  # U+0022 " → 〞
+        )
 
         # Speakers: lines after the date line, before "Read More"
         after_date = False
