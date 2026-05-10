@@ -137,6 +137,7 @@ from sources.cineplaza import CineplazaScraper
 from sources.internet_museum import InternetMuseumScraper
 from sources.onariza import OnarizaScraper
 from sources.us_cinema_chiba import UsCinemaChibaGekijoScraper
+from sources.rti_jp import RtiJpScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -259,6 +260,7 @@ SCRAPERS = [
     InternetMuseumScraper(),
     OnarizaScraper(),
     UsCinemaChibaGekijoScraper(),
+    RtiJpScraper(),
 ]
 
 
