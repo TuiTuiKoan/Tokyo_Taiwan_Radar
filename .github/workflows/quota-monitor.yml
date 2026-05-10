@@ -39,6 +39,9 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           GH_REPO: "${{ github.repository }}"
+          VERCEL_TOKEN: "${{ secrets.VERCEL_TOKEN }}"
+          VERCEL_PROJECT_ID: "${{ vars.VERCEL_PROJECT_ID }}"
+          VERCEL_TEAM_ID: "${{ vars.VERCEL_TEAM_ID }}"
           LINE_CHANNEL_TOKEN: "${{ secrets.LINE_CHANNEL_TOKEN }}"
           LINE_USER_ID: "${{ secrets.LINE_USER_ID }}"
         run: |

@@ -1,9 +1,10 @@
 """
-quota_monitor.py — Daily quota monitoring for Supabase DB size and GH Actions minutes.
+quota_monitor.py — Daily quota monitoring for Supabase DB, GH Actions, and Vercel.
 
 Checks:
   1. Supabase DB total size (free tier limit: 500 MB)
   2. GitHub Actions minutes used in past 30 days (free tier limit: 2000 min/month)
+  3. Vercel deployments in past 30 days (Hobby: 100/day, build 100h/month)
 
 Writes snapshots to quota_snapshots table.
 Sends LINE alert when any resource exceeds WARN_PCT (80%).
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 SUPABASE_FREE_LIMIT_BYTES = 500 * 1024 * 1024  # 500 MB
 GH_ACTIONS_FREE_LIMIT_MIN = 2000               # 2000 min / month
+VERCEL_HOBBY_BUILD_LIMIT_H = 100               # 100 hours / month
 WARN_PCT = 80
 ALERT_PCT = 90
 
@@ -120,6 +122,68 @@ def check_gh_actions_minutes(repo: str, token: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Vercel deployments check
+# ---------------------------------------------------------------------------
+
+def check_vercel_deployments(token: str, project_id: str, team_id: str | None = None) -> dict:
+    """Count deployments and total build time in the past 30 days via Vercel API."""
+    if not token or not project_id:
+        logger.warning("VERCEL_TOKEN or VERCEL_PROJECT_ID not set — skipping")
+        return {"ok": False, "error": "VERCEL_TOKEN/PROJECT_ID not set"}
+
+    since = int((datetime.now(timezone.utc) - timedelta(days=30)).timestamp() * 1000)
+    headers = {"Authorization": f"Bearer {token}"}
+    url = "https://api.vercel.com/v6/deployments"
+    params: dict = {
+        "projectId": project_id,
+        "since": str(since),
+        "limit": "100",
+    }
+    if team_id:
+        params["teamId"] = team_id
+
+    deploy_count = 0
+    total_build_s = 0
+
+    try:
+        while True:
+            resp = requests.get(url, headers=headers, params=params, timeout=15)
+            if resp.status_code != 200:
+                logger.warning("Vercel API error %d: %s", resp.status_code, resp.text[:200])
+                return {"ok": False, "error": f"HTTP {resp.status_code}"}
+            body = resp.json()
+            deploys = body.get("deployments") or []
+            if not deploys:
+                break
+            for d in deploys:
+                deploy_count += 1
+                building_at = d.get("buildingAt") or 0
+                ready = d.get("ready") or 0
+                if building_at and ready and ready > building_at:
+                    total_build_s += (ready - building_at) / 1000
+            # Pagination
+            pagination = body.get("pagination") or {}
+            next_ts = pagination.get("next")
+            if not next_ts:
+                break
+            params["until"] = str(next_ts)
+
+        build_hours = total_build_s / 3600
+        build_pct = build_hours / VERCEL_HOBBY_BUILD_LIMIT_H * 100
+        return {
+            "ok": True,
+            "deploy_count_30d": deploy_count,
+            "build_hours_30d": round(build_hours, 2),
+            "build_limit_h": VERCEL_HOBBY_BUILD_LIMIT_H,
+            "build_pct": round(build_pct, 1),
+            "avg_build_s": round(total_build_s / deploy_count) if deploy_count else 0,
+        }
+    except Exception as exc:
+        logger.warning("check_vercel_deployments failed: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+
+# ---------------------------------------------------------------------------
 # Snapshot recording
 # ---------------------------------------------------------------------------
 
@@ -149,7 +213,8 @@ def _emoji(pct: float) -> str:
     return "✅"
 
 
-def build_line_message(db_check: dict, gh_check: dict, today: str) -> str:
+def build_line_message(db_check: dict, gh_check: dict, today: str,
+                       vercel_check: dict | None = None) -> str:
     lines = [f"📊 配額監控（{today}）", ""]
 
     # Supabase DB
@@ -180,6 +245,19 @@ def build_line_message(db_check: dict, gh_check: dict, today: str) -> str:
     else:
         lines.append(f"❓ GH Actions: 取得失敗 ({gh_check.get('error', '')})")
 
+    # Vercel
+    if vercel_check is not None:
+        if vercel_check.get("ok"):
+            pct = vercel_check["build_pct"]
+            lines.append(
+                f"{_emoji(pct)} Vercel Build: "
+                f"{vercel_check['build_hours_30d']:.1f}h / {vercel_check['build_limit_h']}h "
+                f"({pct:.1f}%, {vercel_check['deploy_count_30d']} deploys, "
+                f"avg {vercel_check['avg_build_s']}s)"
+            )
+        else:
+            lines.append(f"❓ Vercel: 取得失敗 ({vercel_check.get('error', '')})")
+
     return "\n".join(lines)
 
 
@@ -192,6 +270,9 @@ def main(always: bool = False) -> None:
     supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     github_token = os.environ.get("GITHUB_TOKEN")
     gh_repo = os.environ.get("GH_REPO", "TuiTuiKoan/Tokyo_Taiwan_Radar")
+    vercel_token = os.environ.get("VERCEL_TOKEN")
+    vercel_project_id = os.environ.get("VERCEL_PROJECT_ID")
+    vercel_team_id = os.environ.get("VERCEL_TEAM_ID")
     line_token = os.environ.get("LINE_CHANNEL_TOKEN")
     line_user = os.environ.get("LINE_USER_ID")
 
@@ -211,6 +292,10 @@ def main(always: bool = False) -> None:
     gh_check = check_gh_actions_minutes(gh_repo, github_token)
     logger.info("GH: %s", gh_check)
 
+    logger.info("Checking Vercel deployments...")
+    vercel_check = check_vercel_deployments(vercel_token, vercel_project_id, vercel_team_id)
+    logger.info("Vercel: %s", vercel_check)
+
     # --- Record snapshots ---
     if db_check.get("ok"):
         record_snapshot(sb, "supabase_db", "total_bytes",
@@ -226,16 +311,26 @@ def main(always: bool = False) -> None:
         record_snapshot(sb, "gh_actions_minutes", "pct_used",
                         gh_check["pct"], 100.0)
 
+    if vercel_check.get("ok"):
+        record_snapshot(sb, "vercel_build", "build_hours_30d",
+                        vercel_check["build_hours_30d"],
+                        VERCEL_HOBBY_BUILD_LIMIT_H,
+                        {"deploy_count": vercel_check["deploy_count_30d"],
+                         "avg_build_s": vercel_check["avg_build_s"]})
+        record_snapshot(sb, "vercel_build", "pct_used",
+                        vercel_check["build_pct"], 100.0)
+
     # --- Decide whether to notify ---
     db_pct  = db_check.get("pct", 0) if db_check.get("ok") else 0
     gh_pct  = gh_check.get("pct", 0) if gh_check.get("ok") else 0
-    should_notify = always or db_pct >= WARN_PCT or gh_pct >= WARN_PCT
+    vc_pct  = vercel_check.get("build_pct", 0) if vercel_check.get("ok") else 0
+    should_notify = always or db_pct >= WARN_PCT or gh_pct >= WARN_PCT or vc_pct >= WARN_PCT
 
     if not should_notify:
         logger.info("All quotas below %d%% — skipping LINE notification", WARN_PCT)
         return
 
-    msg = build_line_message(db_check, gh_check, today)
+    msg = build_line_message(db_check, gh_check, today, vercel_check)
     print(msg)
 
     if not line_token or not line_user:
