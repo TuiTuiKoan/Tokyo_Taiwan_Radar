@@ -595,12 +595,16 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         body: JSON.stringify({ eventId }),
       });
       if (res.ok) {
-        const { fields, foundUrl, searchDebug, webTextLength } = (await res.json()) as {
+        const respJson = (await res.json()) as {
           fields: Record<string, unknown>;
           foundUrl: string | null;
-          searchDebug: { ddgCount: number; bingCount: number; bestScore: number } | null;
+          searchDebug: { ddgCount: number; bingCount: number; candidateCount: number; bestScore: number } | null;
           webTextLength: number;
+          needsUrlEnrichment?: boolean;
+          sourceUrlFetchOk?: boolean | null;
+          eventUrls?: Record<string, string | null>;
         };
+        const { fields, foundUrl } = respJson;
         for (const [k, v] of Object.entries(fields)) {
           if (v !== null && v !== undefined) {
             updateField(k, v);
@@ -610,16 +614,15 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           updateField("source_url", foundUrl);
           updateField("official_url", foundUrl);
         }
-        // Log diagnostics so user can see why URL fields stayed empty
-        console.info("[annotate]", {
-          foundUrl,
-          webTextLength,
-          searchDebug,
-          fieldsReturned: Object.keys(fields),
-        });
-        if (!foundUrl && searchDebug) {
+        console.info("[annotate]", respJson);
+        if (!foundUrl && respJson.needsUrlEnrichment === false) {
+          console.warn("[annotate] Web search SKIPPED — all URL fields already had values:", respJson.eventUrls);
+        } else if (!foundUrl && respJson.searchDebug) {
+          const d = respJson.searchDebug;
           console.warn(
-            `[annotate] No URL found. DDG=${searchDebug.ddgCount} candidates, Bing=${searchDebug.bingCount} candidates, bestScore=${searchDebug.bestScore}. Vercel IP may be blocked by search engines.`
+            `[annotate] No URL found. DDG=${d.ddgCount} Bing=${d.bingCount} candidates=${d.candidateCount} bestScore=${d.bestScore}. ` +
+            (d.candidateCount === 0 ? "Both search engines returned 0 — Vercel IP likely blocked." :
+             d.bestScore < 1 ? "Found candidates but pages did not match event name." : "")
           );
         }
       } else {

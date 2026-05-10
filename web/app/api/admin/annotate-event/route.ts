@@ -104,7 +104,7 @@ async function enrichEvent(
   nameJa: string,
   locationName: string,
   startDate: string
-): Promise<{ url: string; text: string; debug: { ddgCount: number; bingCount: number; bestScore: number } } | null> {
+): Promise<{ url: string; text: string; debug: { ddgCount: number; bingCount: number; candidateCount: number; bestScore: number } }> {
   const year = (startDate || "").slice(0, 4);
   const queries: string[] = [];
   if (locationName) queries.push(`"${nameJa}" ${year} ${locationName}`);
@@ -116,7 +116,6 @@ async function enrichEvent(
   let ddgCount = 0;
   let bingCount = 0;
 
-  // Try DDG first
   for (const q of queries) {
     const ddgResults = await ddgSearch(q);
     ddgCount += ddgResults.length;
@@ -126,7 +125,6 @@ async function enrichEvent(
     if (candidates.length >= 5) break;
   }
 
-  // Bing fallback if DDG yielded nothing (Vercel IPs are sometimes blocked)
   if (candidates.length === 0) {
     for (const q of queries) {
       const bingResults = await bingSearch(q);
@@ -146,9 +144,12 @@ async function enrichEvent(
     if (score > bestScore) { bestScore = score; bestUrl = url; bestText = text; }
   }
 
-  const debug = { ddgCount, bingCount, bestScore };
-  // Lower threshold from 2 → 1 (single name-token match is usable; GPT can sift)
-  return bestScore >= 1 ? { url: bestUrl, text: bestText, debug } : null;
+  // Always return debug; if no usable page, url/text are empty strings
+  return {
+    url: bestScore >= 1 ? bestUrl : "",
+    text: bestScore >= 1 ? bestText : "",
+    debug: { ddgCount, bingCount, candidateCount: candidates.length, bestScore },
+  };
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────
@@ -202,7 +203,8 @@ export async function POST(req: NextRequest) {
   let webText = "";
   let foundUrl = "";
   const returnedFields: Record<string, unknown> = {};
-  let searchDebug: { ddgCount: number; bingCount: number; bestScore: number } | null = null;
+  let searchDebug: { ddgCount: number; bingCount: number; candidateCount: number; bestScore: number } | null = null;
+  let sourceUrlFetchOk: boolean | null = null;
 
   const needsUrlEnrichment =
     !event.source_url ||
@@ -211,10 +213,9 @@ export async function POST(req: NextRequest) {
     !event.location_url;
 
   if (needsUrlEnrichment && event.name_ja) {
-    // Prefer fetching the existing source_url (poster URL) directly so GPT
-    // sees the actual event page; fall back to web search if none.
     if (event.source_url) {
       const text = await fetchPageText(event.source_url as string);
+      sourceUrlFetchOk = text.length > 0;
       if (text) {
         foundUrl = event.source_url as string;
         webText = text;
@@ -226,14 +227,13 @@ export async function POST(req: NextRequest) {
         event.location_name || "",
         (event.start_date || "").toString()
       );
-      if (enriched) {
+      searchDebug = enriched.debug;
+      if (enriched.url && enriched.text) {
         foundUrl = enriched.url;
         webText = enriched.text;
-        searchDebug = enriched.debug;
       } else {
-        // Search ran but nothing scored high enough — log so we can see why
         console.warn(
-          `[annotate-event] enrichEvent returned null for "${event.name_ja}" (location=${event.location_name}, year=${(event.start_date || "").slice(0, 4)})`
+          `[annotate-event] no usable page for "${event.name_ja}" location=${event.location_name} year=${(event.start_date || "").slice(0, 4)} debug=${JSON.stringify(enriched.debug)}`
         );
       }
     }
@@ -395,5 +395,13 @@ Rules:
     fields: returnedFields,
     searchDebug,
     webTextLength: webText.length,
+    needsUrlEnrichment,
+    sourceUrlFetchOk,
+    eventUrls: {
+      source_url: event.source_url || null,
+      official_url: event.official_url || null,
+      organizer_url: event.organizer_url || null,
+      location_url: event.location_url || null,
+    },
   });
 }
