@@ -148,27 +148,54 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
-  // 3. Web search enrichment (skip if already has source_url)
+  // 3. Web search enrichment
+  // Trigger when ANY URL field is missing (source_url / official_url /
+  // organizer_url / location_url). OCR may have filled source_url from the
+  // poster but left the others empty — we still need to fetch a page so GPT
+  // can extract the remaining URLs.
   let webText = "";
   let foundUrl = "";
   const returnedFields: Record<string, unknown> = {};
 
-  if (!event.source_url && event.name_ja) {
-    const enriched = await enrichEvent(
-      event.name_ja,
-      event.location_name || "",
-      (event.start_date || "").toString()
-    );
-    if (enriched) {
-      foundUrl = enriched.url;
-      webText = enriched.text;
-      returnedFields.source_url = foundUrl;
-      returnedFields.official_url = foundUrl;
-      // Save raw_description immediately (annotation may time-out)
-      await adminClient
-        .from("events")
-        .update({ source_url: foundUrl, official_url: foundUrl, raw_description: webText })
-        .eq("id", eventId);
+  const needsUrlEnrichment =
+    !event.source_url ||
+    !event.official_url ||
+    !event.organizer_url ||
+    !event.location_url;
+
+  if (needsUrlEnrichment && event.name_ja) {
+    // Prefer fetching the existing source_url (poster URL) directly so GPT
+    // sees the actual event page; fall back to web search if none.
+    if (event.source_url) {
+      const text = await fetchPageText(event.source_url as string);
+      if (text) {
+        foundUrl = event.source_url as string;
+        webText = text;
+      }
+    }
+    if (!webText) {
+      const enriched = await enrichEvent(
+        event.name_ja,
+        event.location_name || "",
+        (event.start_date || "").toString()
+      );
+      if (enriched) {
+        foundUrl = enriched.url;
+        webText = enriched.text;
+      }
+    }
+    if (webText) {
+      // Persist immediately (annotation may time-out)
+      const persist: Record<string, unknown> = { raw_description: webText };
+      if (!event.source_url) {
+        persist.source_url = foundUrl;
+        returnedFields.source_url = foundUrl;
+      }
+      if (!event.official_url) {
+        persist.official_url = foundUrl;
+        returnedFields.official_url = foundUrl;
+      }
+      await adminClient.from("events").update(persist).eq("id", eventId);
     }
   }
 
