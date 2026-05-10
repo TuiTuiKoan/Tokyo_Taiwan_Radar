@@ -67,6 +67,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   }, [events]);
   const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [posterPreview, setPosterPreview] = useState<string | null>(null);
+  const posterFileRef = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<"annotated" | "raw">("annotated");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -461,6 +465,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
   function cancelNew() {
     setShowNew(false);
+    setPosterPreview(null);
+    setExtractError(null);
   }
 
   function updateField(key: string, value: any) {
@@ -474,6 +480,45 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         ? prev.category.filter((c) => c !== cat)
         : [...prev.category, cat],
     }));
+  }
+
+  async function handleExtractFromImage(file: File) {
+    setExtracting(true);
+    setExtractError(null);
+    try {
+      const reader = new FileReader();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      setPosterPreview(dataUrl);
+      const res = await fetch("/api/admin/extract-from-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: dataUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Extraction failed");
+      const fields = data.fields as Record<string, unknown>;
+      const ARRAY_FIELDS = new Set(["event_form", "category"]);
+      for (const [key, val] of Object.entries(fields)) {
+        if (val === null || val === undefined) continue;
+        if (ARRAY_FIELDS.has(key) && Array.isArray(val)) {
+          updateField(key, val);
+        } else if (!ARRAY_FIELDS.has(key)) {
+          updateField(key, val === true ? true : val === false ? false : String(val));
+        }
+      }
+      if (typeof fields.is_paid === "boolean") updateField("is_paid", fields.is_paid);
+      if (typeof fields.has_japanese_support === "boolean") updateField("has_japanese_support", fields.has_japanese_support);
+      if (typeof fields.has_english_support === "boolean") updateField("has_english_support", fields.has_english_support);
+      if (typeof fields.has_chinese_support === "boolean") updateField("has_chinese_support", fields.has_chinese_support);
+    } catch (e: unknown) {
+      setExtractError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExtracting(false);
+    }
   }
 
   async function handleSaveNew() {
@@ -747,32 +792,87 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       {/* New event inline form */}
       {showNew && (
         <div className="border border-green-300 rounded-xl p-6 mb-6 bg-green-50">
-          <h2 className="font-bold text-lg mb-4">{t("newEvent")}</h2>
-          <AdminEventForm
-            form={form}
-            t={t}
-            tCat={tCat}
-            tEventForm={tEventForm}
-            updateField={updateField}
-            toggleCategory={toggleCategory}
-            events={events}
-            editingId={null}
-            locale={locale}
-          />
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={handleSaveNew}
-              disabled={saving}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
-            >
-              {saving ? "..." : t("save")}
-            </button>
-            <button
-              onClick={cancelNew}
-              className="border border-line-strong px-4 py-2 rounded-lg text-sm hover:bg-elevated"
-            >
-              {t("cancel")}
-            </button>
+          {/* Header: title + 讀取圖檔 button */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-lg">{t("newEvent")}</h2>
+            <div className="flex items-center gap-2">
+              {extracting && <span className="text-sm text-fg-muted animate-pulse">解析中…</span>}
+              {extractError && <span className="text-sm text-red-500">{extractError}</span>}
+              <button
+                type="button"
+                onClick={() => posterFileRef.current?.click()}
+                disabled={extracting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-line-strong rounded-lg hover:bg-elevated disabled:opacity-50 transition"
+              >
+                📷 讀取圖檔
+              </button>
+              <input
+                ref={posterFileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleExtractFromImage(file);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Body: form left + image preview right */}
+          <div className={posterPreview ? "flex gap-6" : undefined}>
+            <div className={posterPreview ? "flex-1 min-w-0" : undefined}>
+              <AdminEventForm
+                form={form}
+                t={t}
+                tCat={tCat}
+                tEventForm={tEventForm}
+                updateField={updateField}
+                toggleCategory={toggleCategory}
+                events={events}
+                editingId={null}
+                locale={locale}
+              />
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={handleSaveNew}
+                  disabled={saving}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
+                >
+                  {saving ? "..." : t("save")}
+                </button>
+                <button
+                  onClick={cancelNew}
+                  className="border border-line-strong px-4 py-2 rounded-lg text-sm hover:bg-elevated"
+                >
+                  {t("cancel")}
+                </button>
+              </div>
+            </div>
+
+            {posterPreview && (
+              <div className="w-[380px] shrink-0">
+                <div className="sticky top-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-fg-muted">海報預覽</span>
+                    <button
+                      type="button"
+                      onClick={() => setPosterPreview(null)}
+                      className="text-xs text-fg-muted hover:text-fg px-1"
+                    >
+                      ✕ 關閉
+                    </button>
+                  </div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={posterPreview}
+                    alt="poster preview"
+                    className="w-full rounded-lg border border-line object-contain max-h-[80vh]"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
