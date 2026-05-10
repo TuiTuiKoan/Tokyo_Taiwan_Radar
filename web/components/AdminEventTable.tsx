@@ -70,6 +70,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
+  const [ocrFilled, setOcrFilled] = useState(false);
+  const [annotating, setAnnotating] = useState(false);
+  const [savedEventId, setSavedEventId] = useState<string | null>(null);
+  const [enrichedReady, setEnrichedReady] = useState(false);
   const posterFileRef = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<"annotated" | "raw">("annotated");
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -467,6 +471,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     setShowNew(false);
     setPosterPreview(null);
     setExtractError(null);
+    setOcrFilled(false);
+    setAnnotating(false);
+    setSavedEventId(null);
+    setEnrichedReady(false);
   }
 
   function updateField(key: string, value: any) {
@@ -514,6 +522,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       if (typeof fields.has_japanese_support === "boolean") updateField("has_japanese_support", fields.has_japanese_support);
       if (typeof fields.has_english_support === "boolean") updateField("has_english_support", fields.has_english_support);
       if (typeof fields.has_chinese_support === "boolean") updateField("has_chinese_support", fields.has_chinese_support);
+      setOcrFilled(true);
     } catch (e: unknown) {
       setExtractError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -542,6 +551,97 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     }
     setSaving(false);
     setShowNew(false);
+  }
+
+  async function handleSaveAndAnnotate() {
+    setSaving(true);
+    const { data, error } = await supabase
+      .from("events")
+      .insert({
+        ...form,
+        start_date: form.start_date || null,
+        end_date: form.end_date || null,
+        parent_event_id: form.parent_event_id || null,
+        source_id: `manual-${Date.now()}`,
+        is_active: false,
+        annotation_status: "pending",
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Insert failed:", error);
+      alert(`Save failed: ${error.message}`);
+      setSaving(false);
+      return;
+    }
+
+    const eventId = (data as { id: string }).id;
+    setSavedEventId(eventId);
+    setEvents((prev) => [data as Event, ...prev]);
+    setSaving(false);
+    setAnnotating(true);
+    setEnrichedReady(false);
+
+    // Trigger enrich-and-annotate workflow
+    try {
+      await fetch("/api/admin/enrich-and-annotate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId }),
+      });
+    } catch (e) {
+      console.warn("Failed to trigger enrich workflow:", e);
+    }
+
+    // Poll every 5s until annotation_status != "pending"
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data: ev } = await supabase
+          .from("events")
+          .select("id,annotation_status,name_ja,name_zh,name_en,location_name,location_address,organizer,organizer_url,source_url,official_url,business_hours,price_info,category,event_form,start_date,end_date,performer,primary_language,has_japanese_support,has_english_support,has_chinese_support,is_paid")
+          .eq("id", eventId)
+          .single();
+        if (ev && ev.annotation_status !== "pending") {
+          clearInterval(pollInterval);
+          setAnnotating(false);
+          setEnrichedReady(true);
+          // Update form with enriched data
+          const enrichFields = ["name_ja","name_zh","name_en","location_name","location_address","organizer","organizer_url","source_url","official_url","business_hours","price_info","category","event_form","start_date","end_date","performer","primary_language","has_japanese_support","has_english_support","has_chinese_support","is_paid"] as const;
+          for (const field of enrichFields) {
+            const v = (ev as Record<string, unknown>)[field];
+            if (v !== null && v !== undefined) {
+              updateField(field, v);
+            }
+          }
+        }
+      } catch {
+        // ignore poll errors
+      }
+    }, 5000);
+  }
+
+  async function handlePublish() {
+    if (!savedEventId) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("events")
+      .update({ is_active: true, annotation_status: "reviewed" })
+      .eq("id", savedEventId);
+    if (error) {
+      alert(`Publish failed: ${error.message}`);
+      setSaving(false);
+      return;
+    }
+    // Refresh event in list
+    setEvents((prev) =>
+      prev.map((e) =>
+        e.id === savedEventId ? { ...e, is_active: true, annotation_status: "reviewed" as const } : e
+      )
+    );
+    setSaving(false);
+    setShowNew(false);
+    cancelNew();
   }
 
   async function handleBulkToggleActive(targetActive: boolean) {
@@ -814,7 +914,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 e.target.value = "";
               }}
             />
-            {extracting && <span className="text-sm text-fg-muted animate-pulse">解析中…</span>}
+            {extracting && <span className="text-sm text-blue-500 animate-pulse">解析中…</span>}
             {extractError && <span className="text-sm text-red-500">{extractError}</span>}
           </div>
 
@@ -832,20 +932,51 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                 editingId={null}
                 locale={locale}
               />
-              <div className="flex gap-3 mt-4">
-                <button
-                  onClick={handleSaveNew}
-                  disabled={saving}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
-                >
-                  {saving ? "..." : t("save")}
-                </button>
-                <button
-                  onClick={cancelNew}
-                  className="border border-line-strong px-4 py-2 rounded-lg text-sm hover:bg-elevated"
-                >
-                  {t("cancel")}
-                </button>
+              <div className="flex flex-col gap-3 mt-4">
+                <div className="flex gap-3">
+                  {ocrFilled ? (
+                    <button
+                      onClick={handleSaveAndAnnotate}
+                      disabled={saving || annotating}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {saving ? "儲存中…" : annotating ? (
+                        <span className="flex items-center gap-1.5">
+                          <span className="animate-pulse text-blue-200">●</span>
+                          標注中，請稍候…
+                        </span>
+                      ) : enrichedReady ? "再次標注" : "儲存並標注"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleSaveNew}
+                      disabled={saving}
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {saving ? "..." : t("save")}
+                    </button>
+                  )}
+                  <button
+                    onClick={cancelNew}
+                    disabled={annotating}
+                    className="border border-line-strong px-4 py-2 rounded-lg text-sm hover:bg-elevated disabled:opacity-50"
+                  >
+                    {t("cancel")}
+                  </button>
+                </div>
+
+                {enrichedReady && (
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <span className="text-sm text-blue-700">✅ 標注完成，請確認資料後發布</span>
+                    <button
+                      onClick={handlePublish}
+                      disabled={saving}
+                      className="ml-auto bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 font-medium"
+                    >
+                      {saving ? "..." : "🚀 公開發布"}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
