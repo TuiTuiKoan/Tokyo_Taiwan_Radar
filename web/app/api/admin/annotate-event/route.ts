@@ -239,6 +239,12 @@ export async function POST(req: NextRequest) {
     }
     if (webText) {
       const persist: Record<string, unknown> = { raw_description: webText };
+      // Derive origin (e.g. https://www.library.chiyoda.tokyo.jp) — this is
+      // very often the organizer/venue homepage when the page lives on the
+      // org's own domain.
+      let originUrl = "";
+      try { originUrl = new URL(foundUrl).origin; } catch { /* skip */ }
+
       if (!event.source_url) {
         persist.source_url = foundUrl;
         returnedFields.source_url = foundUrl;
@@ -246,6 +252,14 @@ export async function POST(req: NextRequest) {
       if (!event.official_url) {
         persist.official_url = foundUrl;
         returnedFields.official_url = foundUrl;
+      }
+      if (!event.organizer_url && originUrl) {
+        persist.organizer_url = originUrl;
+        returnedFields.organizer_url = originUrl;
+      }
+      if (!event.location_url && originUrl) {
+        persist.location_url = originUrl;
+        returnedFields.location_url = originUrl;
       }
       await adminClient.from("events").update(persist).eq("id", eventId);
     }
