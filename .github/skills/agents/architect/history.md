@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-05-10 — OCR pipeline 架構 + organizer_type 分類誤判
+
+### A — OCR save-and-annotate 跨層 pipeline 設計（commit `71e8a67`）
+
+**設計模式：** Admin UI → Next.js API Route → GitHub Actions workflow_dispatch → Python scraper script
+
+**架構教訓：**
+1. **GitHub Actions `workflow_dispatch` 從 Vercel 觸發需特殊 token**：`secrets.GITHUB_TOKEN`（CI 內部）不能用於 REST API 觸發；必須準備 fine-grained PAT（`Actions: write`）或 classic token（`workflow` scope）加入 Vercel env。
+2. **前端 poll 間隔設計**：5 秒間隔適合短任務（< 60 秒）；如果 workflow 跑超過 2 分鐘，應改用 WebSocket 或更長的 polling backoff。
+3. **DuckDuckGo HTML 搜尋是無 API key 的替代方案**：適合低頻內部使用；高頻或商業用途需換用正式 Search API（Bing / Google Custom Search）。
+
+### B — organizer_type `semi_official` vs `civic_group` 誤判
+
+**問題：** 台湾国際放送（RTI）被誤設 `civic_group`，實為政府出資對外廣播機構。
+
+**架構教訓：** organizer_type 分類時，**不可只看活動形式**（「リスナーの集い」看似市民聚會）——必須確認主辦方的法人性質。政府廣播機構（NHK 等效機構）屬 `semi_official`，不是 `civic_group`。已在 `organizer_type Valid Values Guard` 中加入規則。
+
+Reference: event `df0e3f11`（台湾国際放送リスナーの集い），Wikipedia 確認 → `semi_official` + FC 鎖定。
+
+---
+
 ## 2026-05-10 — TaiwanPrism scraper 三重 bug 架構分析 + X auto-post 設計
 
 ### A — `parent_event_id` UUID vs source_id 設計失誤

@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-05-10 — OCR save-and-annotate pipeline + organizer_type DB 修正
+
+### A — OCR save-and-annotate 完整流程（commit `71e8a67`）
+
+**新增功能（4 層）：**
+- **UI**（`AdminEventTable.tsx`）：OCR 成功後按鈕自動切換「儲存並標注」；儲存觸發 GitHub Actions；前端每 5 秒 poll；標注完成後表單自動補強、出現「🚀 公開發布」確認列；公開發布 → `is_active=true, annotation_status=reviewed`
+- **API**（`/api/admin/enrich-and-annotate`）：Admin-only POST `{ eventId }` → 觸發 `enrich-and-annotate.yml` workflow
+- **GitHub Actions**（`enrich-and-annotate.yml`）：Step 1 `enrich_ocr_event.py --event-id` → Step 2 `annotator.py`
+- **Script**（`scraper/enrich_ocr_event.py`）：DuckDuckGo HTML 搜尋（無需 API key）→ Playwright 抓取前 8000 字元 → 評分選出最佳命中（score ≥ 2）→ 更新 `source_url / official_url / raw_description`
+
+**環境需求：** `GITHUB_TOKEN` 需 `Actions: write` 權限（fine-grained PAT 或 classic `workflow` scope）。
+
+**教訓：** GitHub Actions workflow_dispatch 觸發需要 Vercel 加 `GITHUB_TOKEN`（不是 CI 內部的 `secrets.GITHUB_TOKEN`）。沒有此 token 時 API 回傳 403，UI 的 poll 永遠不完成。
+
+---
+
+### B — 台湾国際放送 organizer_type 修正
+
+**問題：** 事件 `df0e3f11`（台湾国際放送リスナーの集い）`organizer_type=['civic_group']`，實際上台湾国際放送（RTI）是台灣政府出資的官方對外廣播機構（相當於 NHK World / BBC World Service）。
+
+**修正：** `organizer_type=['semi_official']` + FC 鎖定。查 Wikipedia 確認：台湾国際放送 = Radio Taiwan International（RTI），由中華民國政府出資，屬 `semi_official` 而非 `civic_group`。
+
+**教訓：** 「リスナーの集い」等形式看似市民活動，但主辦方若為政府廣播機構，organizer_type 應為 `semi_official`。判斷時必須查主辦方的組織性質，不可只看活動形式。
+
+---
+
 ## 2026-05-10 — TaiwanPrism scraper 啟用 + X auto-post 基礎建設 + 新 scraper 群
 
 ### A — TaiwanPrism scraper 啟用（commits `a3d67fc`, `c7e9b73`）
