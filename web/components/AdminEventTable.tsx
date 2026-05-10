@@ -539,6 +539,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         start_date: form.start_date || null,
         end_date: form.end_date || null,
         parent_event_id: form.parent_event_id || null,
+        co_organizers: (form as any).co_organizers || null,
+        sponsors: (form as any).sponsors || null,
         source_id: `manual-${Date.now()}`,
       })
       .select()
@@ -562,6 +564,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         start_date: form.start_date || null,
         end_date: form.end_date || null,
         parent_event_id: form.parent_event_id || null,
+        co_organizers: (form as any).co_organizers || null,
+        sponsors: (form as any).sponsors || null,
         source_id: `manual-${Date.now()}`,
         is_active: false,
         annotation_status: "pending",
