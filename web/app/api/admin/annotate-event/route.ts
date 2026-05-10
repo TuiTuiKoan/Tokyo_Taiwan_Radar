@@ -9,6 +9,24 @@ const UA =
 
 // ── Web search helpers ────────────────────────────────────────────────────
 
+async function braveSearch(query: string): Promise<string[]> {
+  const key = process.env.BRAVE_SEARCH_API_KEY;
+  if (!key) return [];
+  try {
+    const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&country=JP&search_lang=jp&count=10`;
+    const res = await fetch(url, {
+      headers: { "X-Subscription-Token": key, Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { web?: { results?: Array<{ url: string }> } };
+    const urls = data.web?.results?.map((r) => r.url).filter(Boolean) ?? [];
+    return urls.slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
 async function ddgSearch(query: string): Promise<string[]> {
   try {
     const body = new URLSearchParams({ q: query, kl: "jp-jp" });
@@ -104,7 +122,7 @@ async function enrichEvent(
   nameJa: string,
   locationName: string,
   startDate: string
-): Promise<{ url: string; text: string; debug: { ddgCount: number; bingCount: number; candidateCount: number; bestScore: number } }> {
+): Promise<{ url: string; text: string; debug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number } }> {
   const year = (startDate || "").slice(0, 4);
   const queries: string[] = [];
   if (locationName) queries.push(`"${nameJa}" ${year} ${locationName}`);
@@ -113,23 +131,38 @@ async function enrichEvent(
 
   const seen = new Set<string>();
   const candidates: string[] = [];
+  let braveCount = 0;
   let ddgCount = 0;
   let bingCount = 0;
 
+  // 1. Brave Search API (paid, requires BRAVE_SEARCH_API_KEY env var)
   for (const q of queries) {
-    const ddgResults = await ddgSearch(q);
-    ddgCount += ddgResults.length;
-    for (const u of ddgResults) {
+    const r = await braveSearch(q);
+    braveCount += r.length;
+    for (const u of r) {
       if (!seen.has(u)) { seen.add(u); candidates.push(u); }
     }
     if (candidates.length >= 5) break;
   }
 
+  // 2. DDG fallback
   if (candidates.length === 0) {
     for (const q of queries) {
-      const bingResults = await bingSearch(q);
-      bingCount += bingResults.length;
-      for (const u of bingResults) {
+      const r = await ddgSearch(q);
+      ddgCount += r.length;
+      for (const u of r) {
+        if (!seen.has(u)) { seen.add(u); candidates.push(u); }
+      }
+      if (candidates.length >= 5) break;
+    }
+  }
+
+  // 3. Bing fallback
+  if (candidates.length === 0) {
+    for (const q of queries) {
+      const r = await bingSearch(q);
+      bingCount += r.length;
+      for (const u of r) {
         if (!seen.has(u)) { seen.add(u); candidates.push(u); }
       }
       if (candidates.length >= 5) break;
@@ -144,11 +177,10 @@ async function enrichEvent(
     if (score > bestScore) { bestScore = score; bestUrl = url; bestText = text; }
   }
 
-  // Always return debug; if no usable page, url/text are empty strings
   return {
     url: bestScore >= 1 ? bestUrl : "",
     text: bestScore >= 1 ? bestText : "",
-    debug: { ddgCount, bingCount, candidateCount: candidates.length, bestScore },
+    debug: { braveCount, ddgCount, bingCount, candidateCount: candidates.length, bestScore },
   };
 }
 
@@ -203,7 +235,7 @@ export async function POST(req: NextRequest) {
   let webText = "";
   let foundUrl = "";
   const returnedFields: Record<string, unknown> = {};
-  let searchDebug: { ddgCount: number; bingCount: number; candidateCount: number; bestScore: number } | null = null;
+  let searchDebug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number } | null = null;
   let sourceUrlFetchOk: boolean | null = null;
 
   const needsUrlEnrichment =

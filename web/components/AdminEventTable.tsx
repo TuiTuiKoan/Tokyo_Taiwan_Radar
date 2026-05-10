@@ -598,7 +598,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         const respJson = (await res.json()) as {
           fields: Record<string, unknown>;
           foundUrl: string | null;
-          searchDebug: { ddgCount: number; bingCount: number; candidateCount: number; bestScore: number } | null;
+          searchDebug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number } | null;
           webTextLength: number;
           needsUrlEnrichment?: boolean;
           sourceUrlFetchOk?: boolean | null;
@@ -620,9 +620,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         } else if (!foundUrl && respJson.searchDebug) {
           const d = respJson.searchDebug;
           console.warn(
-            `[annotate] No URL found. DDG=${d.ddgCount} Bing=${d.bingCount} candidates=${d.candidateCount} bestScore=${d.bestScore}. ` +
-            (d.candidateCount === 0 ? "Both search engines returned 0 — Vercel IP likely blocked." :
-             d.bestScore < 1 ? "Found candidates but pages did not match event name." : "")
+            `[annotate] No URL found. Brave=${d.braveCount} DDG=${d.ddgCount} Bing=${d.bingCount} candidates=${d.candidateCount} bestScore=${d.bestScore}. ` +
+            (d.candidateCount === 0
+              ? (d.braveCount === 0 && d.ddgCount === 0 && d.bingCount === 0
+                  ? "All search engines returned 0 — set BRAVE_SEARCH_API_KEY env var on Vercel."
+                  : "")
+              : d.bestScore < 1 ? "Found candidates but pages did not match event name." : "")
           );
         }
       } else {
