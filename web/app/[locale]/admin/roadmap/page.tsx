@@ -196,24 +196,24 @@ export default async function AdminRoadmapPage({ params }: PageProps) {
       <AdminTabNav locale={locale} activeTab="roadmap" />
 
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t("tabs.roadmap")}</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-fg-strong">{t("tabs.roadmap")}</h1>
+        <p className="text-sm text-fg-muted mt-1">
           {t("roadmap.subtitle")}
         </p>
       </div>
 
       {/* ─── 三層火箭 ──────────────────────────────────────────────── */}
       <section className="mb-8">
-        <h2 className="text-base font-semibold text-gray-700 mb-3">{t("roadmap.strategyTitle")}</h2>
+        <h2 className="text-base font-semibold text-fg mb-3">{t("roadmap.strategyTitle")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {[
             { layer: t("roadmap.layerSurface"), desc: t("roadmap.layerSurfaceDesc"), status: "✅", color: "border-green-400 bg-green-50" },
             { layer: t("roadmap.layerMiddle"),  desc: t("roadmap.layerMiddleDesc"),  status: "🔄", color: "border-amber-400 bg-amber-50" },
-            { layer: t("roadmap.layerDeep"),    desc: t("roadmap.layerDeepDesc"),    status: "⬜", color: "border-gray-300 bg-gray-50" },
+            { layer: t("roadmap.layerDeep"),    desc: t("roadmap.layerDeepDesc"),    status: "⬜", color: "border-line-strong bg-elevated" },
           ].map((l) => (
             <div key={l.layer} className={`rounded-lg border-l-4 p-4 ${l.color}`}>
               <div className="text-lg mb-1">{l.status} {l.layer}</div>
-              <div className="text-sm text-gray-600">{l.desc}</div>
+              <div className="text-sm text-fg-muted">{l.desc}</div>
             </div>
           ))}
         </div>
@@ -221,10 +221,10 @@ export default async function AdminRoadmapPage({ params }: PageProps) {
 
       {/* ─── 資料填充率快照 ────────────────────────────────────────── */}
       <section className="mb-8">
-        <h2 className="text-base font-semibold text-gray-700 mb-3">
+        <h2 className="text-base font-semibold text-fg mb-3">
           {t("roadmap.fillRateTitle")}
           {quality && (
-            <span className="ml-2 text-xs font-normal text-gray-400">
+            <span className="ml-2 text-xs font-normal text-fg-subtle">
               {quality.metric_date} · {quality.events_active} {t("roadmap.activeEvents")}
               {quality.precision_rate !== null && (
                 <> · precision {(Number(quality.precision_rate) * 100).toFixed(1)}%</>
@@ -232,43 +232,43 @@ export default async function AdminRoadmapPage({ params }: PageProps) {
             </span>
           )}
         </h2>
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div className="bg-surface border border-line rounded-lg overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-elevated border-b border-line">
               <tr>
-                <th className="px-4 py-2 text-left text-gray-600 font-medium">{t("roadmap.fieldCol")}</th>
-                <th className="px-4 py-2 text-right text-gray-600 font-medium w-20">{t("roadmap.fillPctCol")}</th>
-                <th className="px-4 py-2 text-right text-gray-600 font-medium w-20">{t("roadmap.targetCol")}</th>
-                <th className="px-4 py-2 text-left text-gray-600 font-medium">{t("roadmap.noteCol")}</th>
+                <th className="px-4 py-2 text-left text-fg-muted font-medium">{t("roadmap.fieldCol")}</th>
+                <th className="px-4 py-2 text-right text-fg-muted font-medium w-20">{t("roadmap.fillPctCol")}</th>
+                <th className="px-4 py-2 text-right text-fg-muted font-medium w-20">{t("roadmap.targetCol")}</th>
+                <th className="px-4 py-2 text-left text-fg-muted font-medium">{t("roadmap.noteCol")}</th>
               </tr>
             </thead>
             <tbody>
               {fillRates.map((r) => (
-                <tr key={r.field} className="border-b border-gray-100 last:border-0">
-                  <td className="px-4 py-2 font-mono text-xs text-gray-700">{r.field}</td>
+                <tr key={r.field} className="border-b border-line last:border-0">
+                  <td className="px-4 py-2 font-mono text-xs text-fg">{r.field}</td>
                   <td className="px-4 py-2 text-right">
                     <span className={pctColor(r.pct, r.target)}>{r.pct}%</span>
                     {pctBar(r.pct, r.target)}
                   </td>
-                  <td className="px-4 py-2 text-right text-gray-400 text-xs">{r.target}%</td>
-                  <td className="px-4 py-2 text-xs text-gray-500">{r.note}</td>
+                  <td className="px-4 py-2 text-right text-fg-subtle text-xs">{r.target}%</td>
+                  <td className="px-4 py-2 text-xs text-fg-muted">{r.note}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-gray-400 mt-1">{t("roadmap.fillRateNote")}</p>
+        <p className="text-xs text-fg-subtle mt-1">{t("roadmap.fillRateNote")}</p>
       </section>
 
       {/* ─── Schema Tier 1+1.5 Migrations ─────────────────────────── */}
       <section className="mb-8">
-        <h2 className="text-base font-semibold text-gray-700 mb-3">{t("roadmap.migrationsTitle")}</h2>
+        <h2 className="text-base font-semibold text-fg mb-3">{t("roadmap.migrationsTitle")}</h2>
         <div className="space-y-1.5">
           {MIGRATIONS.map((m) => (
             <div key={m.id} className="flex items-start gap-3 text-sm">
               <span className="mt-0.5 shrink-0">{m.done ? "✅" : "⬜"}</span>
-              <span className="font-mono text-xs text-gray-500 shrink-0 w-12">{m.id}</span>
-              <span className={m.done ? "text-gray-700" : "text-gray-400"}>{m.label}</span>
+              <span className="font-mono text-xs text-fg-muted shrink-0 w-12">{m.id}</span>
+              <span className={m.done ? "text-fg" : "text-fg-subtle"}>{m.label}</span>
             </div>
           ))}
         </div>
@@ -276,7 +276,7 @@ export default async function AdminRoadmapPage({ params }: PageProps) {
 
       {/* ─── 商業產品 ──────────────────────────────────────────────── */}
       <section className="mb-8">
-        <h2 className="text-base font-semibold text-gray-700 mb-3">{t("roadmap.productsTitle")}</h2>
+        <h2 className="text-base font-semibold text-fg mb-3">{t("roadmap.productsTitle")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {PRODUCTS.map((p) => (
             <div
@@ -284,18 +284,18 @@ export default async function AdminRoadmapPage({ params }: PageProps) {
               className={`rounded-lg border p-4 ${
                 p.status === "in-progress"
                   ? "border-amber-300 bg-amber-50"
-                  : "border-gray-200 bg-gray-50"
+                  : "border-line bg-elevated"
               }`}
             >
               <div className="flex items-start justify-between mb-2">
-                <span className="text-xs font-bold text-gray-500">Product {p.id}</span>
+                <span className="text-xs font-bold text-fg-muted">Product {p.id}</span>
                 <span className="text-xs">{p.statusLabel}</span>
               </div>
-              <div className="font-medium text-gray-800 mb-1">{p.name}</div>
-              <div className="text-xs text-gray-500 mb-1">{p.audience}</div>
+              <div className="font-medium text-fg-strong mb-1">{p.name}</div>
+              <div className="text-xs text-fg-muted mb-1">{p.audience}</div>
               <div className="text-xs font-mono text-green-700 mb-2">{p.price}</div>
               {p.blocker && (
-                <div className="text-xs text-gray-400 bg-white rounded px-2 py-1 border border-gray-100">
+                <div className="text-xs text-fg-subtle bg-surface rounded px-2 py-1 border border-line">
                   {p.blocker}
                 </div>
               )}
@@ -306,22 +306,22 @@ export default async function AdminRoadmapPage({ params }: PageProps) {
 
       {/* ─── 回饋迴路 P 系列 ───────────────────────────────────────── */}
       <section className="mb-4">
-        <h2 className="text-base font-semibold text-gray-700 mb-3">{t("roadmap.pSeriesTitle")}</h2>
+        <h2 className="text-base font-semibold text-fg mb-3">{t("roadmap.pSeriesTitle")}</h2>
         <div className="space-y-1.5">
           {P_SERIES.map((p) => (
             <div key={p.id} className="flex items-start gap-3 text-sm">
               <span className="mt-0.5 shrink-0">{p.done ? "✅" : "⬜"}</span>
-              <span className="font-mono text-xs text-gray-500 shrink-0 w-14">{p.id}</span>
-              <span className={p.done ? "text-gray-700" : "text-gray-400 italic"}>{p.label}</span>
+              <span className="font-mono text-xs text-fg-muted shrink-0 w-14">{p.id}</span>
+              <span className={p.done ? "text-fg" : "text-fg-subtle italic"}>{p.label}</span>
               {p.commit !== "—" && (
-                <span className="ml-auto text-xs font-mono text-gray-300 shrink-0">{p.commit}</span>
+                <span className="ml-auto text-xs font-mono text-fg-subtle shrink-0">{p.commit}</span>
               )}
             </div>
           ))}
         </div>
       </section>
 
-      <p className="text-xs text-gray-400 mt-6">
+      <p className="text-xs text-fg-subtle mt-6">
         {t("roadmap.updatedNote")}
         <a
           href={`/${locale}/admin/specs`}

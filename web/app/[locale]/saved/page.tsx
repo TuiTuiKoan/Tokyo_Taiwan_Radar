@@ -31,7 +31,7 @@ export default async function SavedPage({ params }: PageProps) {
     <div>
       <h1 className="text-2xl font-bold mb-6">{t("title")}</h1>
       {events.length === 0 ? (
-        <p className="text-gray-500 text-center mt-16">{t("empty")}</p>
+        <p className="text-fg-muted text-center mt-16">{t("empty")}</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {events.map((event) => (

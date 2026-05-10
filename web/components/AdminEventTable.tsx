@@ -437,8 +437,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
 
   const sortArrow = (key: string) =>
     sortKey === key
-      ? <span className="ml-0.5 text-gray-800">{sortDir === "asc" ? "▲" : "▼"}</span>
-      : <span className="ml-0.5 text-gray-300">▲</span>;
+      ? <span className="ml-0.5 text-fg-strong">{sortDir === "asc" ? "▲" : "▼"}</span>
+      : <span className="ml-0.5 text-fg-subtle">▲</span>;
 
   function getAnnotationBadgeClass(status: string) {
     if (status === "annotated") return "bg-green-50 text-green-700";
@@ -720,13 +720,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             + {t("newEvent")}
           </button>
         )}
-        <div className="flex rounded-lg border border-gray-300 overflow-hidden ml-auto">
+        <div className="flex rounded-lg border border-line-strong overflow-hidden ml-auto">
           <button
             onClick={() => setViewMode("annotated")}
             className={`px-3 py-1.5 text-xs font-medium transition ${
               viewMode === "annotated"
                 ? "bg-green-600 text-white"
-                : "bg-white text-gray-600 hover:bg-gray-50"
+                : "bg-surface text-fg-muted hover:bg-elevated"
             }`}
           >
             {t("viewAnnotated")}
@@ -736,7 +736,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             className={`px-3 py-1.5 text-xs font-medium transition ${
               viewMode === "raw"
                 ? "bg-green-600 text-white"
-                : "bg-white text-gray-600 hover:bg-gray-50"
+                : "bg-surface text-fg-muted hover:bg-elevated"
             }`}
           >
             {t("viewRaw")}
@@ -769,7 +769,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </button>
             <button
               onClick={cancelNew}
-              className="border border-gray-300 px-4 py-2 rounded-lg text-sm hover:bg-gray-50"
+              className="border border-line-strong px-4 py-2 rounded-lg text-sm hover:bg-elevated"
             >
               {t("cancel")}
             </button>
@@ -780,36 +780,36 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       {/* Sticky wrapper: filter bar + bulk action bar scroll together */}
       <div ref={filterBarRef} className="sticky top-14 z-20 space-y-2 mb-3">
       {/* Inline filter bar */}
-      <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+      <div className="bg-elevated rounded-xl px-4 py-3 space-y-2">
         {/* Row 1: 搜尋、類型、地點、票價、時間、日期 */}
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{tFilters("search")}</label>
+            <label className="text-xs text-fg-muted font-medium">{tFilters("search")}</label>
             <input
               type="search"
               value={filterQ}
               onChange={(e) => setFilterQ(e.target.value)}
               placeholder={tFilters("searchPlaceholder")}
-              className="h-9 border border-gray-300 rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
             />
           </div>
           <div className="flex flex-col gap-1" ref={catDropdownRef}>
-            <label className="text-xs text-gray-500 font-medium">{tFilters("category")}</label>
+            <label className="text-xs text-fg-muted font-medium">{tFilters("category")}</label>
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setCatDropdownOpen((o) => !o)}
-                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 text-sm bg-gray-50 hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-elevated hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
               >
-                <span className={filterCategories.length > 0 ? "text-green-700 font-medium" : "text-gray-500"}>
+                <span className={filterCategories.length > 0 ? "text-green-700 font-medium" : "text-fg-muted"}>
                   {filterCategories.length > 0 ? `${t("category")} (${filterCategories.length})` : t("filterAll")}
                 </span>
-                <span className="text-gray-400 text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
+                <span className="text-fg-subtle text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
               </button>
               {catDropdownOpen && (
-                <div className="absolute z-50 top-10 left-0 w-72 bg-white border border-gray-200 rounded-xl shadow-lg py-2 max-h-80 overflow-y-auto">
+                <div className="absolute z-50 top-10 left-0 w-72 bg-surface border border-line rounded-xl shadow-lg py-2 max-h-80 overflow-y-auto">
                   {filterCategories.length > 0 && (
-                    <div className="px-3 pb-1.5 border-b border-gray-100 mb-1">
+                    <div className="px-3 pb-1.5 border-b border-line mb-1">
                       <button type="button" onClick={() => setFilterCategories([])} className="text-xs text-red-500 hover:text-red-700 underline">
                         {t("filterAll")}
                       </button>
@@ -817,7 +817,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   )}
                   {CATEGORY_GROUPS.map((group) => (
                     <div key={group.labelKey} className="px-3 py-1">
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
+                      <p className="text-xs font-semibold text-fg-subtle uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
                       {group.categories.map((cat) => {
                         const checked = filterCategories.includes(cat);
                         return (
@@ -830,7 +830,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                               )}
                               className="accent-green-600 w-3.5 h-3.5"
                             />
-                            <span className="text-sm text-gray-700">{tCat(cat as any)}{(categoryCounts[cat] ?? 0) > 0 ? ` (${categoryCounts[cat]})` : ""}</span>
+                            <span className="text-sm text-fg">{tCat(cat as any)}{(categoryCounts[cat] ?? 0) > 0 ? ` (${categoryCounts[cat]})` : ""}</span>
                           </label>
                         );
                       })}
@@ -841,11 +841,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </div>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{tFilters("location")}</label>
+            <label className="text-xs text-fg-muted font-medium">{tFilters("location")}</label>
             <select
               value={filterLocation}
               onChange={(e) => { setFilterLocation(e.target.value as any); setFilterCity(""); }}
-              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{tFilters("allLocations")}</option>
               <option value="tokyo">{tFilters("locationTokyo")}</option>
@@ -864,11 +864,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             const prefs = REGION_PREFECTURES[region];
             return (
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 font-medium">{tFilters("location")}</label>
+                <label className="text-xs text-fg-muted font-medium">{tFilters("location")}</label>
                 <select
                   value={filterCity}
                   onChange={(e) => setFilterCity(e.target.value)}
-                  className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
                 >
                   <option value="">{tFilters("cityAll")}</option>
                   {prefs.map((p) => (
@@ -882,11 +882,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             );
           })()}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("isPaid")}</label>
+            <label className="text-xs text-fg-muted font-medium">{t("isPaid")}</label>
             <select
               value={filterPaid}
               onChange={(e) => setFilterPaid(e.target.value)}
-              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("filterAll")}</option>
               <option value="free">{tEvent("free")}</option>
@@ -894,7 +894,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{tFilters("timeMode")}</label>
+            <label className="text-xs text-fg-muted font-medium">{tFilters("timeMode")}</label>
             <select
               value={filterTimeMode}
               onChange={(e) => {
@@ -907,7 +907,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   setFilterDateFrom((prev) => prev || "2024-01-01");
                 }
               }}
-              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="active">{tFilters("timeModeActive")}</option>
               <option value="all">{tFilters("timeModeAll")}</option>
@@ -917,21 +917,21 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           {filterTimeMode === "past" && (
             <>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 font-medium">{tFilters("dateFrom")}</label>
+                <label className="text-xs text-fg-muted font-medium">{tFilters("dateFrom")}</label>
                 <input
                   type="date"
                   value={filterDateFrom}
                   onChange={(e) => setFilterDateFrom(e.target.value)}
-                  className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 font-medium">{tFilters("dateTo")}</label>
+                <label className="text-xs text-fg-muted font-medium">{tFilters("dateTo")}</label>
                 <input
                   type="date"
                   value={filterDateTo}
                   onChange={(e) => setFilterDateTo(e.target.value)}
-                  className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
             </>
@@ -939,13 +939,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         </div>
 
         {/* Row 2: 來源名稱、開放檢視、標註狀態、清除 */}
-        <div className="flex flex-wrap gap-3 items-end border-t border-gray-200 pt-2">
+        <div className="flex flex-wrap gap-3 items-end border-t border-line pt-2">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("sourceName")}</label>
+            <label className="text-xs text-fg-muted font-medium">{t("sourceName")}</label>
             <select
               value={filterSource}
               onChange={(e) => setFilterSource(e.target.value)}
-              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("filterAll")}</option>
               {Array.from(new Set(events.map((e) => (e as any).source_name as string)))
@@ -957,11 +957,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("isActive")}</label>
+            <label className="text-xs text-fg-muted font-medium">{t("isActive")}</label>
             <select
               value={filterIsActive}
               onChange={(e) => setFilterIsActive(e.target.value as any)}
-              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="all">{t("filterAll")}</option>
               <option value="active">{t("filterActive")}</option>
@@ -970,11 +970,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{t("annotationStatusLabel")}</label>
+            <label className="text-xs text-fg-muted font-medium">{t("annotationStatusLabel")}</label>
             <select
               value={filterAnnotation}
               onChange={(e) => setFilterAnnotation(e.target.value as any)}
-              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("filterAll")}</option>
               <option value="pending">{t("filterPendingShort")}</option>
@@ -984,11 +984,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{tEvent("organizer")}</label>
+            <label className="text-xs text-fg-muted font-medium">{tEvent("organizer")}</label>
             <select
               value={filterOrgType}
               onChange={(e) => setFilterOrgType(e.target.value)}
-              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("filterAll")}</option>
               <option value="government">{tOrgType("government")}</option>
@@ -1003,11 +1003,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">{tEvent("eventForm")}</label>
+            <label className="text-xs text-fg-muted font-medium">{tEvent("eventForm")}</label>
             <select
               value={filterEventForm}
               onChange={(e) => setFilterEventForm(e.target.value)}
-              className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("filterAll")}</option>
               <option value="exhibition">{tEventForm("exhibition")}</option>
@@ -1066,13 +1066,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </button>
             <button
               onClick={() => setSelected(new Set())}
-              className="ml-auto text-xs text-gray-500 hover:text-gray-800 underline transition"
+              className="ml-auto text-xs text-fg-muted hover:text-fg-strong underline transition"
             >
               {t("bulkDeselectAll")}
             </button>
             <button
               onClick={() => setSelected(new Set())}
-              className="text-gray-400 hover:text-gray-600 text-sm leading-none transition"
+              className="text-fg-subtle hover:text-fg-muted text-sm leading-none transition"
               aria-label="close"
             >
               ✕
@@ -1084,22 +1084,22 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             <div className="relative">
               <button
                 onClick={() => setBulkAddCatOpen((v) => !v)}
-                className="text-xs h-7 px-2.5 border border-blue-300 rounded-full bg-white text-blue-700 hover:bg-blue-50 transition flex items-center gap-1"
+                className="text-xs h-7 px-2.5 border border-blue-300 rounded-full bg-surface text-blue-700 hover:bg-blue-50 transition flex items-center gap-1"
               >
                 {bulkAddCatPending.size === 0 ? "選擇…" : `已選 ${bulkAddCatPending.size} 個`}
                 <span className="text-blue-400">▾</span>
               </button>
               {bulkAddCatOpen && (
-                <div className="absolute left-0 top-8 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-64 max-h-72 overflow-y-auto space-y-2">
+                <div className="absolute left-0 top-8 z-20 bg-surface border border-line rounded-xl shadow-lg p-3 w-64 max-h-72 overflow-y-auto space-y-2">
                   {CATEGORY_GROUPS.map((group) => (
                     <div key={group.labelKey}>
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
+                      <p className="text-[10px] font-semibold text-fg-subtle uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
                       <div className="flex flex-wrap gap-1">
                         {group.categories.map((cat) => {
                           const checked = bulkAddCatPending.has(cat);
                           return (
                             <label key={cat} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border cursor-pointer select-none transition ${
-                              checked ? "bg-blue-500 text-white border-blue-500" : "border-gray-200 text-gray-700 hover:border-blue-400"
+                              checked ? "bg-blue-500 text-white border-blue-500" : "border-line text-fg hover:border-blue-400"
                             }`}>
                               <input
                                 type="checkbox"
@@ -1137,20 +1137,20 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
               <button
                 onClick={() => { setBulkWorkOpen((v) => !v); setBulkWorkQuery(""); }}
                 disabled={bulkAssigningWork}
-                className="text-xs h-7 px-2.5 border border-blue-300 rounded-full bg-white text-blue-700 hover:bg-blue-50 transition flex items-center gap-1 disabled:opacity-50"
+                className="text-xs h-7 px-2.5 border border-blue-300 rounded-full bg-surface text-blue-700 hover:bg-blue-50 transition flex items-center gap-1 disabled:opacity-50"
               >
                 {bulkAssigningWork ? "套用中…" : "選擇作品… ▾"}
               </button>
               {bulkWorkOpen && (
-                <div className="absolute left-0 top-8 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-64">
-                  <div className="p-2 border-b border-gray-100">
+                <div className="absolute left-0 top-8 z-20 bg-surface border border-line rounded-xl shadow-lg w-64">
+                  <div className="p-2 border-b border-line">
                     <input
                       autoFocus
                       type="text"
                       value={bulkWorkQuery}
                       onChange={(e) => setBulkWorkQuery(e.target.value)}
                       placeholder="搜尋作品…"
-                      className="w-full text-xs border border-gray-200 rounded px-2 py-1"
+                      className="w-full text-xs border border-line rounded px-2 py-1"
                     />
                   </div>
                   <div className="overflow-y-auto max-h-[280px] py-1">
@@ -1177,7 +1177,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             </div>
             <button
               onClick={() => setShowCreateWorkModal(true)}
-              className="text-xs h-7 px-3 bg-white border border-blue-300 text-blue-700 rounded-full hover:bg-blue-50 transition font-medium flex items-center"
+              className="text-xs h-7 px-3 bg-surface border border-blue-300 text-blue-700 rounded-full hover:bg-blue-50 transition font-medium flex items-center"
             >
               ＋ 新增作品
             </button>
@@ -1191,7 +1191,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   key={cat}
                   onClick={() => handleBulkRemoveCategory(cat)}
                   disabled={bulkRemovingCategory}
-                  className="text-xs bg-white border border-blue-300 text-blue-700 px-2 py-0.5 rounded-full hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition disabled:opacity-50"
+                  className="text-xs bg-surface border border-blue-300 text-blue-700 px-2 py-0.5 rounded-full hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition disabled:opacity-50"
                   title={t("bulkRemoveCategoryHint")}
                 >
                   {tCat(cat as any)} ×
@@ -1206,9 +1206,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       {/* Events table — scroll container so thead sticky top-0 is always reliable */}
       <div className="overflow-auto" style={{ height: `calc(100vh - ${56 + filterBarHeight}px)` }}>
         <table className="w-full text-sm border-collapse">
-          <thead className="sticky top-0 z-10 bg-white">
+          <thead className="sticky top-0 z-10 bg-surface">
             {viewMode === "annotated" ? (
-              <tr className="border-b text-left text-gray-500">
+              <tr className="border-b text-left text-fg-muted">
                 <th className="py-2 px-2 w-8 text-right text-[11px] select-none">#</th>
                 <th className="py-2 px-2 w-8">
                   <input
@@ -1219,20 +1219,20 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     title={t("selectAll")}
                   />
                 </th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("scraped_at")}>{t("scrapedAt")}{sortArrow("scraped_at")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("is_active")}>{t("isActive")}{sortArrow("is_active")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-fg-strong" onClick={() => toggleSort("scraped_at")}>{t("scrapedAt")}{sortArrow("scraped_at")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-fg-strong" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-fg-strong" onClick={() => toggleSort("is_active")}>{t("isActive")}{sortArrow("is_active")}</th>
                 <th className="py-2 pr-6" />
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("name")}>{t("name")}{sortArrow("name")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-fg-strong" onClick={() => toggleSort("name")}>{t("name")}{sortArrow("name")}</th>
                 <th className="py-2 pr-4 w-[160px] min-w-[160px] font-medium">{t("category")}</th>
                 <th className="py-2 pr-4 w-[160px] min-w-[160px] font-medium">{t("events.columns.work")}</th>
                 <th className="py-2 pr-4 font-medium">{t("address")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-fg-strong" onClick={() => toggleSort("start_date")}>{t("startDate")}{sortArrow("start_date")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-fg-strong" onClick={() => toggleSort("end_date")}>{t("endDate")}{sortArrow("end_date")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-fg-strong" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
               </tr>
             ) : (
-              <tr className="border-b text-left text-gray-500">
+              <tr className="border-b text-left text-fg-muted">
                 <th className="py-2 px-2 w-8 text-right text-[11px] select-none">#</th>
                 <th className="py-2 px-2 w-8">
                   <input
@@ -1243,11 +1243,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     title={t("selectAll")}
                   />
                 </th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("scraped_at")}>{t("scrapedAt")}{sortArrow("scraped_at")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-fg-strong" onClick={() => toggleSort("scraped_at")}>{t("scrapedAt")}{sortArrow("scraped_at")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-fg-strong" onClick={() => toggleSort("annotation_status")}>{t("annotationStatusLabel")}{sortArrow("annotation_status")}</th>
                 <th className="py-2 pr-6" />
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("raw_title")}>{t("name")}{sortArrow("raw_title")}</th>
-                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-gray-800" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-fg-strong" onClick={() => toggleSort("raw_title")}>{t("name")}{sortArrow("raw_title")}</th>
+                <th className="py-2 pr-4 font-medium cursor-pointer select-none hover:text-fg-strong" onClick={() => toggleSort("source_name")}>{t("sourceName")}{sortArrow("source_name")}</th>
               </tr>
             )}
           </thead>
@@ -1269,7 +1269,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                     !event.work_id &&
                     (event.category || []).some((c) => c === "movie" || c === "performing_arts")
                       ? "bg-red-50 hover:bg-red-100"
-                      : "hover:bg-gray-50"
+                      : "hover:bg-elevated"
                   }`}
                   title={
                     !event.work_id &&
@@ -1278,7 +1278,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       : undefined
                   }
                 >
-                  <td className="py-2 px-2 text-right text-[11px] text-gray-400 select-none tabular-nums">{rowIdx + 1}</td>
+                  <td className="py-2 px-2 text-right text-[11px] text-fg-subtle select-none tabular-nums">{rowIdx + 1}</td>
                   <td className="py-2 px-2">
                     <input
                       type="checkbox"
@@ -1287,13 +1287,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       className="rounded cursor-pointer"
                     />
                   </td>
-                  <td className="py-2 pr-4 text-gray-500 text-xs whitespace-nowrap">
+                  <td className="py-2 pr-4 text-fg-muted text-xs whitespace-nowrap">
                     {(() => {
                       const ts = event.scraped_at ?? event.created_at;
                       const label = ts ? new Date(ts).toLocaleDateString("zh") : "—";
                       return event.scraped_at
                         ? <span>{label}</span>
-                        : <span className="text-gray-300" title="sub-event 生成時間">{label}</span>;
+                        : <span className="text-fg-subtle" title="sub-event 生成時間">{label}</span>;
                     })()}
                   </td>
                   <td className="py-2 pr-4">
@@ -1309,7 +1309,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                         event.is_active ? "bg-green-500" : "bg-gray-300"
                       }`}
                     >
-                      <span className={`inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform duration-200 ${
+                      <span className={`inline-block h-4 w-4 mt-0.5 rounded-full bg-surface shadow transition-transform duration-200 ${
                         event.is_active ? "translate-x-4" : "translate-x-0.5"
                       }`} />
                     </button>
@@ -1328,7 +1328,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       <button
                         onClick={() => handleToggleForceRescrape(event.id)}
                         title={event.force_rescrape ? t("forceRescrapeOff") : t("forceRescrapeOn")}
-                        className={`text-xs hover:underline ${event.force_rescrape ? "text-orange-600 font-medium" : "text-gray-400 hover:text-orange-500"}`}
+                        className={`text-xs hover:underline ${event.force_rescrape ? "text-orange-600 font-medium" : "text-fg-subtle hover:text-orange-500"}`}
                       >
                         🔁
                       </button>
@@ -1409,7 +1409,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       </span>
                     )}
                     {(event as any).organizer && (
-                      <span className="block mt-0.5 text-[10px] text-gray-500 truncate" title={`主催: ${(event as any).organizer}`}>
+                      <span className="block mt-0.5 text-[10px] text-fg-muted truncate" title={`主催: ${(event as any).organizer}`}>
                         🏢 {(event as any).organizer}
                       </span>
                     )}
@@ -1454,7 +1454,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                               onBlur={() => setTimeout(() => setEditingWorkFor(null), 150)}
                               className="w-full text-xs border rounded px-1.5 py-0.5"
                             />
-                            <div className="absolute z-30 mt-0.5 left-0 right-0 bg-white border rounded shadow max-h-48 overflow-y-auto">
+                            <div className="absolute z-30 mt-0.5 left-0 right-0 bg-surface border rounded shadow max-h-48 overflow-y-auto">
                               {cur && (
                                 <button
                                   onClick={async () => {
@@ -1516,11 +1516,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                           title={t("events.assignWork.placeholder")}
                         >
                           {cur ? (
-                            <span className="text-gray-700 truncate block">
+                            <span className="text-fg truncate block">
                               {getWorkTitle(cur, locale)}
                             </span>
                           ) : (
-                            <span className="text-gray-400">
+                            <span className="text-fg-subtle">
                               {t("events.assignWork.unassigned")}
                             </span>
                           )}
@@ -1533,7 +1533,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       const addr = event.location_address;
                       const name = (event as any).location_name as string | null;
                       if (event.source_name === "gguide_tv") return <span className="text-green-600">{tEvent("tvChannel")}</span>;
-                      if (!addr && !name) return <span className="text-gray-300">—</span>;
+                      if (!addr && !name) return <span className="text-fg-subtle">—</span>;
                       const display = addr || name || "";
                       const isOnline = /オンライン|online|線上/i.test(display);
                       if (isOnline) return <span className="text-green-600">線上</span>;
@@ -1542,9 +1542,9 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                         addr,
                       );
                       return (
-                        <span className="text-gray-500 truncate block" title={display}>
+                        <span className="text-fg-muted truncate block" title={display}>
                           {cityLabel && (
-                            <span className="inline-block bg-gray-100 text-gray-600 text-[10px] px-1 py-0.5 rounded mr-1 font-medium whitespace-nowrap">
+                            <span className="inline-block bg-muted text-fg-muted text-[10px] px-1 py-0.5 rounded mr-1 font-medium whitespace-nowrap">
                               {cityLabel}
                             </span>
                           )}
@@ -1553,23 +1553,23 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       );
                     })()}
                   </td>
-                  <td className="py-2 pr-4 text-gray-500 text-xs whitespace-nowrap">
+                  <td className="py-2 pr-4 text-fg-muted text-xs whitespace-nowrap">
                     {event.start_date
                       ? new Date(event.start_date).toLocaleDateString("zh")
                       : "—"}
                   </td>
-                  <td className="py-2 pr-4 text-gray-500 text-xs whitespace-nowrap">
+                  <td className="py-2 pr-4 text-fg-muted text-xs whitespace-nowrap">
                     {event.end_date
                       ? new Date(event.end_date).toLocaleDateString("zh")
                       : "—"}
                   </td>
-                  <td className="py-2 pr-4 text-gray-500 text-xs">
+                  <td className="py-2 pr-4 text-fg-muted text-xs">
                     {event.source_name}
                   </td>
                 </tr>
               ) : (
-                <tr key={event.id} className="border-b hover:bg-gray-50 transition">
-                  <td className="py-2 px-2 text-right text-[11px] text-gray-400 select-none tabular-nums">{rowIdx + 1}</td>
+                <tr key={event.id} className="border-b hover:bg-elevated transition">
+                  <td className="py-2 px-2 text-right text-[11px] text-fg-subtle select-none tabular-nums">{rowIdx + 1}</td>
                   <td className="py-2 px-2">
                     <input
                       type="checkbox"
@@ -1578,13 +1578,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       className="rounded cursor-pointer"
                     />
                   </td>
-                  <td className="py-2 pr-4 text-gray-500 text-xs whitespace-nowrap">
+                  <td className="py-2 pr-4 text-fg-muted text-xs whitespace-nowrap">
                     {(() => {
                       const ts = event.scraped_at ?? event.created_at;
                       const label = ts ? new Date(ts).toLocaleDateString("zh") : "—";
                       return event.scraped_at
                         ? <span>{label}</span>
-                        : <span className="text-gray-300" title="sub-event 生成時間">{label}</span>;
+                        : <span className="text-fg-subtle" title="sub-event 生成時間">{label}</span>;
                     })()}
                   </td>
                   <td className="py-2 pr-4">
@@ -1606,7 +1606,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       <button
                         onClick={() => handleToggleForceRescrape(event.id)}
                         title={event.force_rescrape ? t("forceRescrapeOff") : t("forceRescrapeOn")}
-                        className={`text-xs hover:underline ${event.force_rescrape ? "text-orange-600 font-medium" : "text-gray-400 hover:text-orange-500"}`}
+                        className={`text-xs hover:underline ${event.force_rescrape ? "text-orange-600 font-medium" : "text-fg-subtle hover:text-orange-500"}`}
                       >
                         🔁
                       </button>
@@ -1617,7 +1617,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       href={event.is_active ? `/${locale}/events/${event.id}` : `/${locale}/admin/${event.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-gray-800 line-clamp-2 block hover:underline hover:text-green-700 transition"
+                      className="text-xs text-fg-strong line-clamp-2 block hover:underline hover:text-green-700 transition"
                       title={event.is_active ? t("viewFrontend") : t("edit")}
                     >
                       {event.raw_title || getEventName(event, locale)}
@@ -1628,7 +1628,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                       </span>
                     )}
                   </td>
-                  <td className="py-2 pr-4 text-gray-500 text-xs">
+                  <td className="py-2 pr-4 text-fg-muted text-xs">
                     {event.source_name}
                   </td>
                 </tr>

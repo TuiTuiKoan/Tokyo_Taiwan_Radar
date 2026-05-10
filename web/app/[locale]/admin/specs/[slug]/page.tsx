@@ -44,7 +44,7 @@ export default async function SpecDetailPage({ params }: PageProps) {
     spec.status === "active"
       ? "bg-green-100 text-green-700"
       : spec.status === "parked"
-        ? "bg-gray-100 text-gray-600"
+        ? "bg-muted text-fg-muted"
         : "bg-blue-100 text-blue-700";
 
   return (
@@ -54,13 +54,13 @@ export default async function SpecDetailPage({ params }: PageProps) {
       <div className="mb-4">
         <Link
           href={`/${locale}/admin/specs`}
-          className="text-sm text-gray-500 hover:text-green-700"
+          className="text-sm text-fg-muted hover:text-green-700"
         >
           {tDetail("back")}
         </Link>
       </div>
 
-      <header className="mb-6 pb-4 border-b border-gray-200">
+      <header className="mb-6 pb-4 border-b border-line">
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -70,14 +70,14 @@ export default async function SpecDetailPage({ params }: PageProps) {
               {spec.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded"
+                  className="text-xs px-2 py-0.5 bg-muted text-fg-muted rounded"
                 >
                   {tag}
                 </span>
               ))}
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">{spec.title}</h1>
-            <dl className="text-sm text-gray-500 space-y-1">
+            <h1 className="text-2xl font-bold text-fg-strong mb-2">{spec.title}</h1>
+            <dl className="text-sm text-fg-muted space-y-1">
               {spec.branch && (
                 <div className="flex gap-2">
                   <dt className="font-medium">{tDetail("branch")}:</dt>

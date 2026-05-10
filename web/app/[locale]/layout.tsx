@@ -91,7 +91,7 @@ export default async function LocaleLayout({
       <HtmlLangSync />
       <Navbar locale={locale as Locale} />
       <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
-      <footer className="border-t border-gray-100 mt-12 py-4 text-center text-xs text-gray-400">
+      <footer className="border-t border-line mt-12 py-4 text-center text-xs text-fg-subtle">
         {tGeneral("footerCredit")}
       </footer>
       <Analytics />

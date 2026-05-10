@@ -39,19 +39,19 @@ export default function QualitySection({
   const hasVenue = items.some((i) => i.location_name !== undefined);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
+    <div className="rounded-xl border border-line bg-surface px-5 py-4">
       <button
         type="button"
         className="flex items-center gap-2 w-full text-left"
         onClick={() => setExpanded((v) => !v)}
       >
-        <span className="text-sm font-semibold text-gray-700">{title}</span>
+        <span className="text-sm font-semibold text-fg">{title}</span>
         <span
           className={`text-sm font-medium ${count === 0 ? "text-green-600" : "text-amber-600"}`}
         >
           {count}
         </span>
-        <span className="ml-auto text-gray-400 text-xs">{expanded ? "▲" : "▼"}</span>
+        <span className="ml-auto text-fg-subtle text-xs">{expanded ? "▲" : "▼"}</span>
       </button>
 
       {expanded && (
@@ -63,7 +63,7 @@ export default function QualitySection({
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="text-xs text-gray-400 border-b border-gray-100">
+                    <tr className="text-xs text-fg-subtle border-b border-line">
                       <th className="text-left py-2 pr-4 font-medium">Title</th>
                       {hasVenue && (
                         <th className="text-left py-2 pr-4 font-medium">Venue</th>
@@ -76,7 +76,7 @@ export default function QualitySection({
                     {visible.map((item) => (
                       <tr
                         key={item.id}
-                        className="border-b border-gray-50 hover:bg-gray-50"
+                        className="border-b border-gray-50 hover:bg-elevated"
                       >
                         <td className="py-2 pr-4 max-w-xs truncate">
                           <Link
@@ -89,16 +89,16 @@ export default function QualitySection({
                           </Link>
                         </td>
                         {hasVenue && (
-                          <td className="py-2 pr-4 text-xs text-gray-500 max-w-[12rem] truncate">
+                          <td className="py-2 pr-4 text-xs text-fg-muted max-w-[12rem] truncate">
                             {item.location_name ?? "—"}
                           </td>
                         )}
                         <td className="py-2 pr-4">
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 font-mono">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-muted text-fg-muted font-mono">
                             {item.source_name ?? "—"}
                           </span>
                         </td>
-                        <td className="py-2 text-xs text-gray-400 font-mono">
+                        <td className="py-2 text-xs text-fg-subtle font-mono">
                           {item.id.slice(0, 8)}
                         </td>
                       </tr>
@@ -119,7 +119,7 @@ export default function QualitySection({
               {showAll && items.length > previewRows && (
                 <button
                   type="button"
-                  className="mt-2 text-xs text-gray-500 hover:underline"
+                  className="mt-2 text-xs text-fg-muted hover:underline"
                   onClick={() => setShowAll(false)}
                 >
                   {t("qualityCollapse")}

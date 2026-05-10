@@ -79,7 +79,7 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
   if (sent) {
     return (
       <div className="max-w-sm mx-auto mt-24 text-center">
-        <p className="text-lg text-gray-700">{t("magicLinkSent")}</p>
+        <p className="text-lg text-fg">{t("magicLinkSent")}</p>
       </div>
     );
   }
@@ -99,12 +99,12 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
       )}
 
       <h1 className="text-2xl font-bold mb-2">{t("loginTitle")}</h1>
-      <p className="text-gray-500 mb-8">{t("loginDesc")}</p>
+      <p className="text-fg-muted mb-8">{t("loginDesc")}</p>
 
       <button
         onClick={inAppBrowser ? undefined : handleGoogleLogin}
         disabled={inAppBrowser}
-        className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg px-4 py-3 hover:bg-gray-50 transition mb-4 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-center gap-3 border border-line-strong rounded-lg px-4 py-3 hover:bg-elevated transition mb-4 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true">
           <path
@@ -129,10 +129,10 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
 
       <div className="relative my-4">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-200" />
+          <div className="w-full border-t border-line" />
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="bg-white px-2 text-gray-400">or</span>
+          <span className="bg-surface px-2 text-fg-subtle">or</span>
         </div>
       </div>
 
@@ -143,7 +143,7 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder={t("email")}
-          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full border border-line-strong rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         />
         {error && <p className="text-red-500 text-sm">{error}</p>}
         <button

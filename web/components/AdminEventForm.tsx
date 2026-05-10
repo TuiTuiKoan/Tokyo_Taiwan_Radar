@@ -73,115 +73,115 @@ export default function AdminEventForm({
       {/* Multilingual names */}
       {(["ja", "zh", "en"] as const).map((lang) => (
         <div key={lang}>
-          <label className="block text-xs text-gray-500 mb-1">
+          <label className="block text-xs text-fg-muted mb-1">
             {t(`name${lang.charAt(0).toUpperCase() + lang.slice(1)}` as any)}
           </label>
           <input
             type="text"
             value={(form as any)[`name_${lang}`]}
             onChange={(e) => updateField(`name_${lang}`, e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </div>
       ))}
 
       {/* Dates */}
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("startDate")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("startDate")}</label>
         <input
           type="date"
           value={form.start_date}
           onChange={(e) => updateField("start_date", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("endDate")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("endDate")}</label>
         <input
           type="date"
           value={form.end_date}
           onChange={(e) => updateField("end_date", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
 
       {/* Location */}
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("location")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("location")}</label>
         <input
           type="text"
           value={form.location_name}
           onChange={(e) => updateField("location_name", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("address")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("address")}</label>
         <input
           type="text"
           value={form.location_address}
           onChange={(e) => updateField("location_address", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
 
       {/* Venue website URL */}
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("locationUrl")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("locationUrl")}</label>
         <input
           type="url"
           value={(form as any).location_url ?? ""}
           onChange={(e) => updateField("location_url", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
 
       {/* Hours */}
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("hours")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("hours")}</label>
         <input
           type="text"
           value={form.business_hours}
           onChange={(e) => updateField("business_hours", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
 
       {/* Performer */}
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("performer")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("performer")}</label>
         <input
           type="text"
           value={(form as any).performer ?? ""}
           onChange={(e) => updateField("performer", e.target.value)}
           placeholder="例: 李映萱、唐 顥芸"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
 
       {/* Organizer + Organizer URL */}
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("organizer")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("organizer")}</label>
         <input
           type="text"
           value={(form as any).organizer ?? ""}
           onChange={(e) => updateField("organizer", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("organizerUrl")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("organizerUrl")}</label>
         <input
           type="url"
           value={(form as any).organizer_url ?? ""}
           onChange={(e) => updateField("organizer_url", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
 
       {/* Event Form (multi-checkbox) */}
       <div className="md:col-span-2">
-        <label className="block text-xs text-gray-500 mb-2">{t("eventForm")}</label>
+        <label className="block text-xs text-fg-muted mb-2">{t("eventForm")}</label>
         <div className="flex flex-wrap gap-2">
           {VALID_EVENT_FORMS.map((ef) => (
             <button
@@ -197,7 +197,7 @@ export default function AdminEventForm({
               className={`px-3 py-1 rounded-full text-xs border transition ${
                 ((form as any).event_form ?? []).includes(ef)
                   ? "bg-blue-600 text-white border-blue-600"
-                  : "border-gray-300 hover:border-blue-400"
+                  : "border-line-strong hover:border-blue-400"
               }`}
             >
               {tEventForm(ef as any)}
@@ -208,33 +208,33 @@ export default function AdminEventForm({
 
       {/* Co-organizers + Sponsors */}
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("coOrganizers")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("coOrganizers")}</label>
         <input
           type="text"
           value={(form as any).co_organizers ?? ""}
           onChange={(e) => updateField("co_organizers", e.target.value)}
           placeholder="例: A機構, B機構"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("sponsors")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("sponsors")}</label>
         <input
           type="text"
           value={(form as any).sponsors ?? ""}
           onChange={(e) => updateField("sponsors", e.target.value)}
           placeholder="例: C企業, D企業"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
 
       {/* Primary language */}
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("primaryLanguage")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("primaryLanguage")}</label>
         <select
           value={(form as any).primary_language ?? ""}
           onChange={(e) => updateField("primary_language", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         >
           <option value="">—</option>
           <option value="ja">日本語</option>
@@ -265,12 +265,12 @@ export default function AdminEventForm({
 
       {/* Source URL */}
       <div>
-        <label className="block text-xs text-gray-500 mb-1">{t("sourceUrl")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("sourceUrl")}</label>
         <input
           type="url"
           value={form.source_url}
           onChange={(e) => updateField("source_url", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
 
@@ -300,22 +300,22 @@ export default function AdminEventForm({
 
       {/* Price info */}
       <div className="md:col-span-2">
-        <label className="block text-xs text-gray-500 mb-1">{t("priceInfo")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("priceInfo")}</label>
         <input
           type="text"
           value={form.price_info}
           onChange={(e) => updateField("price_info", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
 
       {/* Categories */}
       <div className="md:col-span-2">
-        <label className="block text-xs text-gray-500 mb-2">{t("category")}</label>
+        <label className="block text-xs text-fg-muted mb-2">{t("category")}</label>
         <div className="space-y-2">
           {CATEGORY_GROUPS.map((group) => (
             <div key={group.labelKey} className="grid grid-cols-[4.5rem_1fr] gap-x-3 items-start">
-              <span className="text-xs text-gray-400 font-medium pt-1 text-right leading-tight shrink-0">{tCat(group.labelKey as any)}</span>
+              <span className="text-xs text-fg-subtle font-medium pt-1 text-right leading-tight shrink-0">{tCat(group.labelKey as any)}</span>
               <div className="flex flex-wrap gap-2">
               {group.categories.map((cat) => (
                 <button
@@ -325,7 +325,7 @@ export default function AdminEventForm({
                   className={`px-3 py-1 rounded-full text-xs border transition ${
                     form.category.includes(cat)
                       ? "bg-green-600 text-white border-green-600"
-                      : "border-gray-300 hover:border-green-400"
+                      : "border-line-strong hover:border-green-400"
                   }`}
                 >
                   {tCat(cat as any)}
@@ -339,11 +339,11 @@ export default function AdminEventForm({
 
       {/* Parent event */}
       <div className="md:col-span-2">
-        <label className="block text-xs text-gray-500 mb-1">{t("parentEvent")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{t("parentEvent")}</label>
         <select
           value={form.parent_event_id}
           onChange={(e) => updateField("parent_event_id", e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
         >
           <option value="">{t("noParent")}</option>
           {parentCandidates.map((e) => (
@@ -357,21 +357,21 @@ export default function AdminEventForm({
       {/* Multilingual descriptions */}
       {(["ja", "zh", "en"] as const).map((lang) => (
         <div key={lang} className="md:col-span-2">
-          <label className="block text-xs text-gray-500 mb-1">
+          <label className="block text-xs text-fg-muted mb-1">
             {t(`desc${lang.charAt(0).toUpperCase() + lang.slice(1)}` as any)}
           </label>
           <textarea
             rows={3}
             value={(form as any)[`description_${lang}`]}
             onChange={(e) => updateField(`description_${lang}`, e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </div>
       ))}
 
       {/* Record links */}
       <div className="md:col-span-2">
-        <label className="block text-xs text-gray-500 mb-2">{t("recordLinksSection" as any)}</label>
+        <label className="block text-xs text-fg-muted mb-2">{t("recordLinksSection" as any)}</label>
         <div className="space-y-2">
           {form.record_links.map((link, i) => (
             <div key={i} className="flex gap-2 items-center">
@@ -384,7 +384,7 @@ export default function AdminEventForm({
                   updated[i] = { ...updated[i], title: e.target.value };
                   updateField("record_links", updated);
                 }}
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="flex-1 border border-line-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
               />
               <input
                 type="url"
@@ -395,9 +395,9 @@ export default function AdminEventForm({
                   updated[i] = { ...updated[i], url: e.target.value };
                   updateField("record_links", updated);
                 }}
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="flex-1 border border-line-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
               />
-              <label className="flex items-center gap-1 text-xs text-gray-500 shrink-0 cursor-pointer select-none">
+              <label className="flex items-center gap-1 text-xs text-fg-muted shrink-0 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={!!link.recommended}

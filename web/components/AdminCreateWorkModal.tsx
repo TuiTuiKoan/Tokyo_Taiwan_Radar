@@ -28,12 +28,12 @@ export default function AdminCreateWorkModal({ locale, onClose }: Props) {
         aria-hidden="true"
       />
       {/* Modal card */}
-      <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4 p-6">
+      <div className="relative z-10 bg-surface rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4 p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-800">新增作品</h2>
+          <h2 className="text-lg font-bold text-fg-strong">新增作品</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 text-xl leading-none transition"
+            className="text-fg-subtle hover:text-fg text-xl leading-none transition"
             aria-label="關閉"
           >
             ✕

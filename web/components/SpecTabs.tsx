@@ -46,7 +46,7 @@ export default function SpecTabs({ proposalMd, tasksMd, notesMd, labels }: Props
         className={
           isActive
             ? "px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600"
-            : "px-4 py-2 text-sm text-gray-500 hover:text-green-700"
+            : "px-4 py-2 text-sm text-fg-muted hover:text-green-700"
         }
       >
         {label}
@@ -56,15 +56,15 @@ export default function SpecTabs({ proposalMd, tasksMd, notesMd, labels }: Props
 
   return (
     <div>
-      <div className="flex gap-1 border-b border-gray-200 mb-4">
+      <div className="flex gap-1 border-b border-line mb-4">
         {tabBtn("proposal", labels.proposal)}
         {tabBtn("tasks", labels.tasks)}
         {tabBtn("notes", labels.notes)}
       </div>
       {fallback ? (
-        <p className="text-sm text-gray-400 italic">{fallback}</p>
+        <p className="text-sm text-fg-subtle italic">{fallback}</p>
       ) : (
-        <article className="prose prose-sm max-w-none prose-headings:font-semibold prose-a:text-green-700 prose-code:before:content-none prose-code:after:content-none prose-code:bg-gray-100 prose-code:px-1 prose-code:rounded">
+        <article className="prose prose-sm max-w-none prose-headings:font-semibold prose-a:text-green-700 prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:px-1 prose-code:rounded">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
         </article>
       )}

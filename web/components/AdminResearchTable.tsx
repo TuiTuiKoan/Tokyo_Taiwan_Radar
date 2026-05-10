@@ -120,7 +120,7 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
 
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-gray-400">{t("researchNoReports")}</p>
+      <p className="text-sm text-fg-subtle">{t("researchNoReports")}</p>
     );
   }
 
@@ -133,19 +133,19 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
         return (
           <div
             key={report.id}
-            className="bg-white border border-gray-200 rounded-xl overflow-hidden"
+            className="bg-surface border border-line rounded-xl overflow-hidden"
           >
             {/* Header row */}
             <button
               type="button"
               onClick={() => setExpandedId(isOpen ? null : report.id)}
-              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition"
+              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-elevated transition"
             >
               <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-fg-subtle">
                   {fmtDate(report.created_at)}
                 </span>
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-fg">
                   {report.report_type}
                 </span>
                 <span
@@ -166,18 +166,18 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
                   )}
                 </span>
               </div>
-              <span className="text-gray-400 text-sm">
+              <span className="text-fg-subtle text-sm">
                 {isOpen ? "▲" : "▼"}
               </span>
             </button>
 
             {/* Expanded content */}
             {isOpen && (
-              <div className="px-4 pb-4 space-y-4 border-t border-gray-100">
+              <div className="px-4 pb-4 space-y-4 border-t border-line">
                 {/* Top sources */}
                 {content.top_sources && content.top_sources.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-600 mt-3 mb-2">
+                    <h4 className="text-sm font-semibold text-fg-muted mt-3 mb-2">
                       📌 {t("researchSources")}
                     </h4>
                     <div className="space-y-2">
@@ -204,7 +204,7 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
 
                         const statusBadgeStyles: Record<string, string> = {
                           implemented: "bg-green-100 text-green-700",
-                          "not-viable": "bg-gray-100 text-gray-500 line-through",
+                          "not-viable": "bg-muted text-fg-muted line-through",
                           researched: "bg-blue-100 text-blue-700",
                           recommended: "bg-purple-100 text-purple-700",
                           candidate: "bg-amber-100 text-amber-700",
@@ -222,22 +222,22 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
                             key={i}
                             className={`rounded-lg p-3 text-sm border ${
                               isDimmed
-                                ? "bg-gray-50 border-gray-100 opacity-50"
+                                ? "bg-elevated border-line opacity-50"
                                 : verified
                                   ? "bg-green-50 border-green-100"
-                                  : "bg-gray-50 border-gray-100 opacity-60"
+                                  : "bg-elevated border-line opacity-60"
                             }`}
                           >
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <span>{ICONS[catKey] ?? "📎"}</span>
-                              <span className={`font-medium ${isDimmed ? "line-through text-gray-400" : ""}`}>
+                              <span className={`font-medium ${isDimmed ? "line-through text-fg-subtle" : ""}`}>
                                 {src.name}
                               </span>
-                              <span className="text-gray-400 text-xs">
+                              <span className="text-fg-subtle text-xs">
                                 {FEASIBILITY[src.scraping_feasibility] ?? "?"}
                               </span>
                               {currentStatus && (
-                                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${statusBadgeStyles[currentStatus] ?? "bg-gray-100 text-gray-500"}`}>
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${statusBadgeStyles[currentStatus] ?? "bg-muted text-fg-muted"}`}>
                                   {statusLabel[currentStatus] ?? currentStatus}
                                 </span>
                               )}
@@ -263,11 +263,11 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
                             </a>
                             {!isDimmed && (
                               <>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-xs text-fg-muted">
                                   <div>{t("researchFrequency")}: {src.frequency}</div>
                                   <div>{t("researchFeasibility")}: {src.scraping_feasibility}</div>
                                 </div>
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-fg-muted mt-1">
                                   {t("researchReason")}: {src.reason}
                                 </p>
                                 {/* Create scraper GitHub Issue button — only for non-implemented, non-excluded */}
@@ -284,7 +284,7 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
                                       </a>
                                     ) : (
                                       <span
-                                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-200 text-gray-400 rounded-lg cursor-not-allowed"
+                                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-200 text-fg-subtle rounded-lg cursor-not-allowed"
                                         title={t("urlNotVerifiedHint")}
                                       >
                                         📋 {t("researchCreateIssue")}
@@ -304,10 +304,10 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
                 {/* News summary */}
                 {content.news_summary && content.news_summary.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-600 mb-2">
+                    <h4 className="text-sm font-semibold text-fg-muted mb-2">
                       📰 {t("researchNews")}
                     </h4>
-                    <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                    <ul className="list-disc list-inside text-sm text-fg-muted space-y-1">
                       {content.news_summary.map((item, i) => (
                         <li key={i}>{item}</li>
                       ))}
@@ -319,14 +319,14 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
                 {content.trend_keywords &&
                   content.trend_keywords.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-600 mb-2">
+                      <h4 className="text-sm font-semibold text-fg-muted mb-2">
                         🔑 {t("researchKeywords")}
                       </h4>
                       <div className="flex flex-wrap gap-1">
                         {content.trend_keywords.map((kw, i) => (
                           <span
                             key={i}
-                            className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded"
+                            className="bg-muted text-fg-muted text-xs px-2 py-1 rounded"
                           >
                             {kw}
                           </span>
@@ -339,10 +339,10 @@ export default function AdminResearchTable({ reports, locale, sources = [] }: Pr
                 {content.category_suggestions &&
                   content.category_suggestions.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-600 mb-2">
+                      <h4 className="text-sm font-semibold text-fg-muted mb-2">
                         🏷️ {t("researchCategories")}
                       </h4>
-                      <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                      <ul className="list-disc list-inside text-sm text-fg-muted space-y-1">
                         {content.category_suggestions.map((s, i) => (
                           <li key={i}>{s}</li>
                         ))}

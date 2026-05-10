@@ -112,13 +112,13 @@ export default async function HomePage({ params, searchParams }: PageProps) {
         />
       )}
       {/* Top tab navigation */}
-      <div className="flex gap-1 border-b border-gray-200 mb-4">
+      <div className="flex gap-1 border-b border-line mb-4">
         <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">
           {tAnn("tabEvents")}
         </span>
         <Link
           href={`/${locale}/announcements`}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
+          className="px-4 py-2 text-sm text-fg-muted hover:text-green-700 transition"
         >
           {tAnn("tabNews")}
         </Link>
@@ -129,7 +129,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
         <div className="mt-4 mb-2">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-amber-700">{tAnn("featuredStrip")}</p>
-            <Link href={`/${locale}/announcements`} className="text-xs text-gray-400 hover:text-green-700">
+            <Link href={`/${locale}/announcements`} className="text-xs text-fg-subtle hover:text-green-700">
               {tAnn("viewAll")} →
             </Link>
           </div>

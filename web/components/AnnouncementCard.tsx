@@ -37,10 +37,10 @@ export default function AnnouncementCard({ announcement, locale }: Props) {
   return (
     <Link
       href={`/${locale}/announcements/${announcement.slug}`}
-      className="block bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-green-200 hover:shadow-sm transition group"
+      className="block bg-surface border border-line rounded-xl overflow-hidden hover:border-green-200 hover:shadow-sm transition group"
     >
       {image && (
-        <div className="aspect-video overflow-hidden bg-gray-100">
+        <div className="aspect-video overflow-hidden bg-muted">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={image}
@@ -56,13 +56,13 @@ export default function AnnouncementCard({ announcement, locale }: Props) {
               {locale === "zh" ? "精選" : locale === "ja" ? "注目" : "Featured"}
             </span>
           )}
-          {date && <span className="text-xs text-gray-400">{date}</span>}
+          {date && <span className="text-xs text-fg-subtle">{date}</span>}
         </div>
-        <h2 className="text-base font-semibold text-gray-800 group-hover:text-green-700 line-clamp-2 mb-1">
+        <h2 className="text-base font-semibold text-fg-strong group-hover:text-green-700 line-clamp-2 mb-1">
           {title}
         </h2>
         {body && (
-          <p className="text-sm text-gray-500 line-clamp-3 whitespace-pre-line">{body}</p>
+          <p className="text-sm text-fg-muted line-clamp-3 whitespace-pre-line">{body}</p>
         )}
       </div>
     </Link>

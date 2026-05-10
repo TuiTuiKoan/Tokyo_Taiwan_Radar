@@ -73,7 +73,7 @@ function ExclusionSuggest({ reportId, sourceName, title, locale }: ExclusionSugg
               className={`text-xs px-2 py-0.5 rounded font-mono border transition ${
                 isApplied
                   ? "bg-green-100 text-green-700 border-green-300 cursor-default"
-                  : "bg-white text-blue-700 border-blue-300 hover:bg-blue-100 disabled:opacity-50"
+                  : "bg-surface text-blue-700 border-blue-300 hover:bg-blue-100 disabled:opacity-50"
               }`}
               title={isApplied ? t("exclusionsSuggestApplied") : t("exclusionsSuggestApply")}
             >
@@ -138,7 +138,7 @@ interface Props {
 const STATUS_CLASSES: Record<string, string> = {
   pending: "bg-amber-100 text-amber-700",
   confirmed: "bg-green-100 text-green-700",
-  dismissed: "bg-gray-100 text-gray-500",
+  dismissed: "bg-muted text-fg-muted",
 };
 
 type LocaleKey = "zh" | "en" | "ja";
@@ -392,19 +392,19 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const others = reports.filter((r) => r.status !== "pending");
 
   if (reports.length === 0) {
-    return <p className="text-gray-400 text-sm mt-4">{t("noReports")}</p>;
+    return <p className="text-fg-subtle text-sm mt-4">{t("noReports")}</p>;
   }
 
   function renderRow(row: ReportRow) {
     const isExpanded = expandedId === row.id;
-    const statusClass = STATUS_CLASSES[row.status] ?? "bg-gray-100 text-gray-500";
+    const statusClass = STATUS_CLASSES[row.status] ?? "bg-muted text-fg-muted";
     const isPending = row.status === "pending";
     return (
-      <div key={row.id} className="bg-white">
+      <div key={row.id} className="bg-surface">
         <div className="flex items-stretch">
           {isPending && (
             <label
-              className="flex items-center px-3 cursor-pointer border-r border-gray-100 shrink-0"
+              className="flex items-center px-3 cursor-pointer border-r border-line shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
               <input
@@ -423,7 +423,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
             </label>
           )}
           <button
-            className="flex-1 text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition"
+            className="flex-1 text-left px-4 py-3 flex items-start gap-3 hover:bg-elevated transition"
             onClick={() => setExpandedId(isExpanded ? null : row.id)}
           >
           <span
@@ -432,17 +432,17 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
             {STATUS_LABELS[row.status] ?? row.status}
           </span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-800 truncate">{getEventName(row)}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{formatTypes(row.report_types)}</p>
+            <p className="text-sm font-medium text-fg-strong truncate">{getEventName(row)}</p>
+            <p className="text-xs text-fg-muted mt-0.5">{formatTypes(row.report_types)}</p>
           </div>
-          <span className="text-xs text-gray-400 flex-shrink-0 mt-0.5">
+          <span className="text-xs text-fg-subtle flex-shrink-0 mt-0.5">
             {new Date(row.created_at).toLocaleDateString("ja-JP")}
           </span>
           </button>
         </div>
 
         {isExpanded && (
-          <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100 space-y-3">
+          <div className="px-4 pb-4 bg-elevated border-t border-line space-y-3">
             <div className="flex gap-3 flex-wrap text-xs pt-2">
               <Link
                 href={`/${locale}/events/${row.event_id}`}
@@ -487,8 +487,8 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                   }
                   return (
                     <div>
-                      <p className="text-xs font-medium text-gray-600 mb-2">{t("fieldPreview")}</p>
-                      <div className="space-y-3 bg-white border border-gray-200 rounded-lg p-3">
+                      <p className="text-xs font-medium text-fg-muted mb-2">{t("fieldPreview")}</p>
+                      <div className="space-y-3 bg-surface border border-line rounded-lg p-3">
                         {wrongFields.map((field) => {
                           const vals = getFieldLocaleValues(field, row.events!);
                           const isNonLocalized = NON_LOCALIZED_FIELDS.has(field);
@@ -498,17 +498,17 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                           const userEditsForField = parsedUserEdits[field] ?? {};
                           return (
                             <div key={field} className="space-y-1.5">
-                              <p className="text-xs text-gray-500 font-medium">
+                              <p className="text-xs text-fg-muted font-medium">
                                 {tReport(`field${field.charAt(0).toUpperCase() + field.slice(1).replace(/_([a-z])/g, (_, c) => c.toUpperCase())}` as any)}
                               </p>
                               <div className="space-y-1">
                                 {displayLocales.map((loc) => (
                                   <div key={loc} className="flex gap-2 items-start">
                                     {!isNonLocalized && (
-                                      <span className="text-xs text-gray-400 text-right pt-1 shrink-0 w-12 leading-tight">{LOCALE_LABELS[loc]}</span>
+                                      <span className="text-xs text-fg-subtle text-right pt-1 shrink-0 w-12 leading-tight">{LOCALE_LABELS[loc]}</span>
                                     )}
                                     <div className={`space-y-0.5 ${isNonLocalized ? "flex-1" : "flex-1 min-w-0"}`}>
-                                      <div className="text-xs bg-gray-50 border border-gray-100 rounded px-2 py-1 text-gray-600 break-words">
+                                      <div className="text-xs bg-elevated border border-line rounded px-2 py-1 text-fg-muted break-words">
                                         {vals[loc] ?? "—"}
                                       </div>
                                       {userEditsForField[loc] && (
@@ -531,7 +531,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                                               }))
                                             }
                                             placeholder={t("directCorrect")}
-                                            className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-gray-300 resize-y"
+                                            className="w-full text-xs border border-line rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-fg-subtle resize-y"
                                           />
                                         ) : (
                                           <input
@@ -547,7 +547,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                                               }))
                                             }
                                             placeholder={t("directCorrect")}
-                                            className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-gray-300"
+                                            className="w-full text-xs border border-line rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 placeholder:text-fg-subtle"
                                           />
                                         )
                                       )}
@@ -556,7 +556,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                                 ))}
                               </div>
                               {!isEditable && (
-                                <p className="text-xs text-gray-400 italic">{t("fieldNotEditable")}</p>
+                                <p className="text-xs text-fg-subtle italic">{t("fieldNotEditable")}</p>
                               )}
                             </div>
                           );
@@ -566,22 +566,22 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                   );
                 })()}
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">{t("adminNotes")}</label>
+                  <label className="text-xs text-fg-muted block mb-1">{t("adminNotes")}</label>
                   <textarea
                     value={notes[row.id] ?? ""}
                     onChange={(e) => setNotes((p) => ({ ...p, [row.id]: e.target.value }))}
                     rows={3}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
+                    className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
                     placeholder={t("adminNotesPlaceholder")}
                   />
                 </div>
                 {row.report_types.includes("wrongCategory") && (
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">{t("correctCategoryLabel")}</label>
+                    <label className="text-xs text-fg-muted block mb-1">{t("correctCategoryLabel")}</label>
                     {/* Show user's suggested categories as a hint */}
                     {row.suggested_category && row.suggested_category.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-2">
-                        <span className="text-xs text-gray-400 mr-1">{t("userSuggested")}:</span>
+                        <span className="text-xs text-fg-subtle mr-1">{t("userSuggested")}:</span>
                         {row.suggested_category.map((cat) => (
                           <span key={cat} className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                             {tCat(cat as any)}
@@ -598,7 +598,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                             : (row.events?.category ?? []);
                         return (
                           <div key={group.labelKey} className="grid grid-cols-[4.5rem_1fr] gap-x-3 items-start">
-                            <span className="text-xs text-gray-400 font-medium pt-1 text-right leading-tight shrink-0">{tCat(group.labelKey as any)}</span>
+                            <span className="text-xs text-fg-subtle font-medium pt-1 text-right leading-tight shrink-0">{tCat(group.labelKey as any)}</span>
                             <div className="flex flex-wrap gap-1.5">
                               {group.categories.map((cat) => {
                                 const selected = defaultCats.includes(cat);
@@ -620,7 +620,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                                     className={`text-xs px-2 py-0.5 rounded-full border transition ${
                                       selected
                                         ? "bg-green-600 text-white border-green-600"
-                                        : "border-gray-300 text-gray-500 hover:border-green-400"
+                                        : "border-line-strong text-fg-muted hover:border-green-400"
                                     }`}
                                   >
                                     {tCat(cat as any)}
@@ -652,8 +652,8 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                   }
                   return (
                     <div>
-                      <label className="text-xs text-gray-500 block mb-1">{t("selectionReasonCorrectionLabel")}</label>
-                      <div className="space-y-1.5 bg-white border border-gray-200 rounded-lg p-3">
+                      <label className="text-xs text-fg-muted block mb-1">{t("selectionReasonCorrectionLabel")}</label>
+                      <div className="space-y-1.5 bg-surface border border-line rounded-lg p-3">
                         {(["zh", "en", "ja"] as const).map((loc) => {
                           const defaultVal =
                             selectionReasonEdits[row.id]?.[loc] ??
@@ -662,7 +662,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                             "";
                           return (
                             <div key={loc} className="flex gap-2 items-start">
-                              <span className="text-xs text-gray-400 text-right pt-1 shrink-0 w-12 leading-tight">
+                              <span className="text-xs text-fg-subtle text-right pt-1 shrink-0 w-12 leading-tight">
                                 {LOCALE_LABELS[loc]}
                               </span>
                               <textarea
@@ -674,7 +674,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                                     [row.id]: { ...(p[row.id] ?? {}), [loc]: e.target.value },
                                   }))
                                 }
-                                className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400"
+                                className="flex-1 text-xs border border-line rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400"
                               />
                             </div>
                           );
@@ -709,7 +709,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                   <button
                     onClick={() => handleDismiss(row.id)}
                     disabled={saving === row.id}
-                    className="text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-40 transition"
+                    className="text-xs border border-line-strong text-fg-muted px-3 py-1.5 rounded-lg hover:bg-muted disabled:opacity-40 transition"
                   >
                     {t("dismissReport")}
                   </button>
@@ -720,12 +720,12 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
             {row.status === "confirmed" && (
               <div className="space-y-2">
                 {row.admin_notes && (
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-fg-muted">
                     <span className="font-medium">{t("adminNotes")}：</span>
                     {row.admin_notes}
                   </p>
                 )}
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-fg-muted">
                   {confirmFeedback[row.id]?.wasReviewed
                     ? t("eventAppliedReviewed")
                     : t("eventDeactivated")}
@@ -758,7 +758,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       {pending.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-medium text-gray-500">
+            <h2 className="text-sm font-medium text-fg-muted">
               {t("statusPending")} ({pending.length})
             </h2>
             <div className="flex items-center gap-2">
@@ -767,7 +767,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                   <button
                     type="button"
                     onClick={() => setSelectedIds(new Set())}
-                    className="text-xs text-gray-400 hover:text-gray-600 underline"
+                    className="text-xs text-fg-subtle hover:text-fg-muted underline"
                   >
                     {t("bulkCancelSelect")}
                   </button>
@@ -775,7 +775,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                     type="button"
                     onClick={() => handleBulkConfirm(pending.filter((r) => selectedIds.has(r.id)))}
                     disabled={bulkConfirming}
-                    className="text-xs border border-green-500 text-green-600 bg-white rounded-lg px-3 py-1.5 hover:bg-green-600 hover:text-white disabled:opacity-40 transition font-medium"
+                    className="text-xs border border-green-500 text-green-600 bg-surface rounded-lg px-3 py-1.5 hover:bg-green-600 hover:text-white disabled:opacity-40 transition font-medium"
                   >
                     {bulkConfirming ? "…" : t("bulkConfirmSelected", { count: selectedIds.size })}
                   </button>
@@ -785,23 +785,23 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                 type="button"
                 onClick={() => handleBulkConfirm(pending)}
                 disabled={bulkConfirming || pending.length === 0}
-                className="text-xs border border-green-500 text-green-600 bg-white rounded-lg px-3 py-1.5 hover:bg-green-600 hover:text-white disabled:opacity-40 transition font-medium"
+                className="text-xs border border-green-500 text-green-600 bg-surface rounded-lg px-3 py-1.5 hover:bg-green-600 hover:text-white disabled:opacity-40 transition font-medium"
               >
                 {bulkConfirming ? "…" : t("bulkConfirmAll", { count: pending.length })}
               </button>
             </div>
           </div>
-          <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+          <div className="border border-line rounded-xl overflow-hidden divide-y divide-line">
             {pending.map(renderRow)}
           </div>
         </section>
       )}
       {others.length > 0 && (
         <section>
-          <h2 className="text-sm font-medium text-gray-500 mb-2">
+          <h2 className="text-sm font-medium text-fg-muted mb-2">
             {t("statusReviewed")} ({others.length})
           </h2>
-          <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+          <div className="border border-line rounded-xl overflow-hidden divide-y divide-line">
             {others.map(renderRow)}
           </div>
         </section>

@@ -315,7 +315,7 @@ export default async function AdminStatsPage({ params }: PageProps) {
       ) : (
         <>
           {/* Block 1: DB Health Cards */}
-          <h2 className="text-base font-semibold text-gray-700 mb-3">{t("dbHealthTitle")}</h2>
+          <h2 className="text-base font-semibold text-fg mb-3">{t("dbHealthTitle")}</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
             {[
               { label: t("dbActiveEvents"), value: dbHealth.activeEvents },
@@ -323,31 +323,31 @@ export default async function AdminStatsPage({ params }: PageProps) {
               { label: t("dbNewThisWeek"), value: dbHealth.newThisWeek },
               { label: t("dbNewThisMonth"), value: dbHealth.newThisMonth },
             ].map(({ label, value }) => (
-              <div key={label} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-                <p className="text-xs text-gray-400 mb-1">{label}</p>
-                <p className="text-2xl font-bold text-gray-800">{fmtNum(value)}</p>
+              <div key={label} className="bg-surface border border-line rounded-xl px-4 py-3">
+                <p className="text-xs text-fg-subtle mb-1">{label}</p>
+                <p className="text-2xl font-bold text-fg-strong">{fmtNum(value)}</p>
               </div>
             ))}
           </div>
 
           {/* Block 1b: Daily quality metrics (precision_rate trend) */}
           <section className="space-y-3 mb-8">
-            <h2 className="text-base font-semibold text-gray-700">{t("qualityKpiTitle")}</h2>
+            <h2 className="text-base font-semibold text-fg">{t("qualityKpiTitle")}</h2>
             {qualityRows.length === 0 ? (
-              <p className="text-sm text-gray-500">{t("qualityKpiEmpty")}</p>
+              <p className="text-sm text-fg-muted">{t("qualityKpiEmpty")}</p>
             ) : (
               <>
                 {avg7 !== null && (
-                  <p className="text-sm text-gray-700">
+                  <p className="text-sm text-fg">
                     {t("qualityKpi7dAvg")}:{" "}
                     <span className={`font-semibold ${avg7 < 0.85 ? "text-red-600" : "text-green-700"}`}>
                       {(avg7 * 100).toFixed(1)}%
                     </span>
                   </p>
                 )}
-                <div className="overflow-x-auto rounded border border-gray-200 bg-white">
+                <div className="overflow-x-auto rounded border border-line bg-surface">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-xs text-gray-600">
+                    <thead className="bg-elevated text-xs text-fg-muted">
                       <tr>
                         <th className="px-3 py-2 text-left">{t("qualityKpiDate")}</th>
                         <th className="px-3 py-2 text-right">{t("qualityKpiEvents")}</th>
@@ -360,7 +360,7 @@ export default async function AdminStatsPage({ params }: PageProps) {
                       {qualityRows.map((r) => {
                         const pct = r.precision_rate === null ? null : r.precision_rate * 100;
                         const cls =
-                          pct === null ? "text-gray-400" :
+                          pct === null ? "text-fg-subtle" :
                           pct < 85 ? "text-red-600 font-semibold" :
                           pct < 95 ? "text-amber-600" :
                           "text-green-700";
@@ -384,14 +384,14 @@ export default async function AdminStatsPage({ params }: PageProps) {
           </section>
 
           {/* Block 2: Latest run per source */}
-          <h2 className="text-base font-semibold text-gray-700 mb-3">{t("sourceStatusTitle")}</h2>
+          <h2 className="text-base font-semibold text-fg mb-3">{t("sourceStatusTitle")}</h2>
           {latestBySource.length === 0 ? (
-            <p className="text-sm text-gray-400 mb-8">{t("statsNoRuns")}</p>
+            <p className="text-sm text-fg-subtle mb-8">{t("statsNoRuns")}</p>
           ) : (
             <div className="overflow-x-auto mb-8">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="text-xs text-gray-400 border-b border-gray-100">
+                  <tr className="text-xs text-fg-subtle border-b border-line">
                     <th className="text-left py-2 pr-4 font-medium">{t("statsSource")}</th>
                     <th className="text-left py-2 pr-4 font-medium">{t("statsRunAt")}</th>
                     <th className="text-right py-2 pr-4 font-medium">{t("statsEventsProcessed")}</th>
@@ -406,16 +406,16 @@ export default async function AdminStatsPage({ params }: PageProps) {
                     const failed = r.success === false;
                     const icon = failed ? "❌" : "✅";
                     return (
-                      <tr key={r.source} className="border-b border-gray-50 hover:bg-gray-50">
+                      <tr key={r.source} className="border-b border-gray-50 hover:bg-elevated">
                         <td className="py-2 pr-4">
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 font-mono">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-muted text-fg-muted font-mono">
                             {r.source}
                           </span>
                         </td>
-                        <td className="py-2 pr-4 text-gray-500 whitespace-nowrap">{fmtDate(r.ran_at)}</td>
+                        <td className="py-2 pr-4 text-fg-muted whitespace-nowrap">{fmtDate(r.ran_at)}</td>
                         <td className="py-2 pr-4 text-right">
                           {r.events_processed === 0 ? (
-                            <span className="text-gray-400">0</span>
+                            <span className="text-fg-subtle">0</span>
                           ) : r.events_processed}
                         </td>
                         <td className="py-2 pr-4 text-right font-mono text-xs">
@@ -428,7 +428,7 @@ export default async function AdminStatsPage({ params }: PageProps) {
                           return (
                             <td className="py-2 pr-4 text-right text-xs">
                               {health} {sla ? `${Math.round(rate * 100)}%` : "—"}
-                              <span className="text-gray-400 ml-1">({sla?.total ?? 0})</span>
+                              <span className="text-fg-subtle ml-1">({sla?.total ?? 0})</span>
                             </td>
                           );
                         })()}
@@ -436,7 +436,7 @@ export default async function AdminStatsPage({ params }: PageProps) {
                           const sla = slaMap[r.source];
                           const avg = sla && sla.total > 0 ? Math.round(sla.totalSec / sla.total) : 0;
                           return (
-                            <td className="py-2 pr-4 text-right text-xs font-mono text-gray-500">
+                            <td className="py-2 pr-4 text-right text-xs font-mono text-fg-muted">
                               {avg > 0 ? `${avg}s` : "—"}
                             </td>
                           );
@@ -451,16 +451,16 @@ export default async function AdminStatsPage({ params }: PageProps) {
           )}
 
           {/* Block 3: 30-day cost summary */}
-          <h2 className="text-base font-semibold text-gray-700 mb-3">{t("costSummaryTitle")}</h2>
+          <h2 className="text-base font-semibold text-fg mb-3">{t("costSummaryTitle")}</h2>
           <div className="grid grid-cols-3 gap-3 mb-8">
             {[
               { label: t("costLast30d"), value: fmtUsd(last30Cost) },
               { label: t("costAvgMonthly"), value: fmtUsd(avgMonthly) },
               { label: t("statsTotal"), value: fmtUsd(allTime.cost) },
             ].map(({ label, value }) => (
-              <div key={label} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-                <p className="text-xs text-gray-400 mb-1">{label}</p>
-                <p className="text-xl font-bold text-gray-800 font-mono">{value}</p>
+              <div key={label} className="bg-surface border border-line rounded-xl px-4 py-3">
+                <p className="text-xs text-fg-subtle mb-1">{label}</p>
+                <p className="text-xl font-bold text-fg-strong font-mono">{value}</p>
               </div>
             ))}
           </div>
@@ -474,23 +474,23 @@ export default async function AdminStatsPage({ params }: PageProps) {
               { label: t("statsTokensOut"), month: fmtNum(month.tokensOut), all: fmtNum(allTime.tokensOut) },
               { label: t("statsCostUsd"), month: fmtUsd(month.cost), all: fmtUsd(allTime.cost) },
             ].map(({ label, month: m, all: a }) => (
-              <div key={label} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-                <p className="text-xs text-gray-400 mb-1">{label}</p>
-                <p className="text-xl font-bold text-gray-800">{m}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{t("statsTotal")}: {a}</p>
+              <div key={label} className="bg-surface border border-line rounded-xl px-4 py-3">
+                <p className="text-xs text-fg-subtle mb-1">{label}</p>
+                <p className="text-xl font-bold text-fg-strong">{m}</p>
+                <p className="text-xs text-fg-subtle mt-0.5">{t("statsTotal")}: {a}</p>
               </div>
             ))}
           </div>
 
           {/* Recent runs table */}
-          <h3 className="text-sm font-semibold text-gray-600 mb-2">{t("statsRecentRuns")}</h3>
+          <h3 className="text-sm font-semibold text-fg-muted mb-2">{t("statsRecentRuns")}</h3>
           {rows.length === 0 ? (
-            <p className="text-sm text-gray-400">{t("statsNoRuns")}</p>
+            <p className="text-sm text-fg-subtle">{t("statsNoRuns")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="text-xs text-gray-400 border-b border-gray-100">
+                  <tr className="text-xs text-fg-subtle border-b border-line">
                     <th className="text-left py-2 pr-4 font-medium">{t("statsRunAt")}</th>
                     <th className="text-left py-2 pr-4 font-medium">{t("statsSource")}</th>
                     <th className="text-right py-2 pr-4 font-medium">{t("statsEventsProcessed")}</th>
@@ -501,16 +501,16 @@ export default async function AdminStatsPage({ params }: PageProps) {
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2 pr-4 text-gray-500 whitespace-nowrap">{fmtDate(r.ran_at)}</td>
+                    <tr key={r.id} className="border-b border-gray-50 hover:bg-elevated">
+                      <td className="py-2 pr-4 text-fg-muted whitespace-nowrap">{fmtDate(r.ran_at)}</td>
                       <td className="py-2 pr-4">
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 font-mono">
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-muted text-fg-muted font-mono">
                           {r.source}
                         </span>
                       </td>
                       <td className="py-2 pr-4 text-right">{r.events_processed}</td>
-                      <td className="py-2 pr-4 text-right text-gray-500">{fmtNum(r.openai_tokens_in)}</td>
-                      <td className="py-2 pr-4 text-right text-gray-500">{fmtNum(r.openai_tokens_out)}</td>
+                      <td className="py-2 pr-4 text-right text-fg-muted">{fmtNum(r.openai_tokens_in)}</td>
+                      <td className="py-2 pr-4 text-right text-fg-muted">{fmtNum(r.openai_tokens_out)}</td>
                       <td className="py-2 text-right font-mono text-xs">
                         {r.cost_usd > 0 ? fmtUsd(r.cost_usd) : "—"}
                       </td>
@@ -527,10 +527,10 @@ export default async function AdminStatsPage({ params }: PageProps) {
       <h2 className="text-lg font-semibold mt-10 mb-4">{t("analyticsTitle")}</h2>
 
       {/* Block A: Top 10 most-viewed events (last 30 days) */}
-      <div className="mb-8 rounded-xl border border-gray-200 bg-white px-5 py-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t("analyticsTopEventsTitle")}</h3>
+      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
+        <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsTopEventsTitle")}</h3>
         {topEvents.length === 0 ? (
-          <p className="text-sm text-gray-400">{t("analyticsTopEventsEmpty")}</p>
+          <p className="text-sm text-fg-subtle">{t("analyticsTopEventsEmpty")}</p>
         ) : (
           <ol className="space-y-2">
             {topEvents.map((ev, idx) => {
@@ -538,15 +538,15 @@ export default async function AdminStatsPage({ params }: PageProps) {
               const pct = Math.round((ev.viewCount / maxViews) * 100);
               return (
                 <li key={ev.id} className="flex items-center gap-3 text-sm">
-                  <span className="w-5 text-right text-xs text-gray-400 shrink-0">{idx + 1}</span>
+                  <span className="w-5 text-right text-xs text-fg-subtle shrink-0">{idx + 1}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
-                      <span className="truncate text-gray-700 text-xs">{label}</span>
-                      <span className="ml-2 shrink-0 text-xs font-medium text-gray-500">
+                      <span className="truncate text-fg text-xs">{label}</span>
+                      <span className="ml-2 shrink-0 text-xs font-medium text-fg-muted">
                         {t("analyticsTopEventsViews", { count: ev.viewCount })}
                       </span>
                     </div>
-                    <div className="h-1.5 w-full rounded-full bg-gray-100">
+                    <div className="h-1.5 w-full rounded-full bg-muted">
                       <div
                         className="h-1.5 rounded-full bg-green-500"
                         style={{ width: `${pct}%` }}
@@ -561,27 +561,27 @@ export default async function AdminStatsPage({ params }: PageProps) {
       </div>
 
       {/* Block B: Category distribution */}
-      <div className="mb-8 rounded-xl border border-gray-200 bg-white px-5 py-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t("analyticsCategoryTitle")}</h3>
+      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
+        <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsCategoryTitle")}</h3>
         {catEntries.length === 0 ? (
-          <p className="text-sm text-gray-400">{t("analyticsMonthlyEmpty")}</p>
+          <p className="text-sm text-fg-subtle">{t("analyticsMonthlyEmpty")}</p>
         ) : (
           <ul className="space-y-2">
             {catEntries.map(([cat, n]) => {
               const pct = Math.round((n / totalCatTags) * 100);
               return (
                 <li key={cat} className="flex items-center gap-3 text-sm">
-                  <span className="w-32 shrink-0 truncate text-xs text-gray-500 font-mono">{cat}</span>
+                  <span className="w-32 shrink-0 truncate text-xs text-fg-muted font-mono">{cat}</span>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 rounded-full bg-gray-100">
+                      <div className="flex-1 h-2 rounded-full bg-muted">
                         <div
                           className="h-2 rounded-full bg-blue-400"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <span className="w-10 text-right text-xs text-gray-500 shrink-0">{pct}%</span>
-                      <span className="w-8 text-right text-xs text-gray-400 shrink-0">{n}</span>
+                      <span className="w-10 text-right text-xs text-fg-muted shrink-0">{pct}%</span>
+                      <span className="w-8 text-right text-xs text-fg-subtle shrink-0">{n}</span>
                     </div>
                   </div>
                 </li>
@@ -592,26 +592,26 @@ export default async function AdminStatsPage({ params }: PageProps) {
       </div>
 
       {/* Block C: Monthly event count (last 12 months) */}
-      <div className="mb-8 rounded-xl border border-gray-200 bg-white px-5 py-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t("analyticsMonthlyTitle")}</h3>
+      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
+        <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsMonthlyTitle")}</h3>
         {monthlyEntries.length === 0 ? (
-          <p className="text-sm text-gray-400">{t("analyticsMonthlyEmpty")}</p>
+          <p className="text-sm text-fg-subtle">{t("analyticsMonthlyEmpty")}</p>
         ) : (
           <ul className="space-y-2">
             {monthlyEntries.map(([month, n]) => {
               const pct = Math.round((n / maxMonthly) * 100);
               return (
                 <li key={month} className="flex items-center gap-3 text-sm">
-                  <span className="w-16 shrink-0 text-xs text-gray-500">{month}</span>
+                  <span className="w-16 shrink-0 text-xs text-fg-muted">{month}</span>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 rounded-full bg-gray-100">
+                      <div className="flex-1 h-2 rounded-full bg-muted">
                         <div
                           className="h-2 rounded-full bg-amber-400"
                           style={{ width: n === 0 ? "1px" : `${pct}%` }}
                         />
                       </div>
-                      <span className="w-16 text-right text-xs text-gray-500 shrink-0">
+                      <span className="w-16 text-right text-xs text-fg-muted shrink-0">
                         {n} {t("analyticsEventsUnit")}
                       </span>
                     </div>
@@ -627,15 +627,15 @@ export default async function AdminStatsPage({ params }: PageProps) {
       <h2 className="text-lg font-semibold mt-10 mb-4">{t("feedbackTitle")}</h2>
 
       {/* Block D: Reports by source_name */}
-      <div className="mb-8 rounded-xl border border-gray-200 bg-white px-5 py-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t("reportsBySourceTitle")}</h3>
+      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
+        <h3 className="text-sm font-semibold text-fg mb-3">{t("reportsBySourceTitle")}</h3>
         {reportsBySrcEntries.length === 0 ? (
-          <p className="text-sm text-gray-400">{t("reportsBySourceEmpty")}</p>
+          <p className="text-sm text-fg-subtle">{t("reportsBySourceEmpty")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="text-xs text-gray-400 border-b border-gray-100">
+                <tr className="text-xs text-fg-subtle border-b border-line">
                   <th className="text-left py-2 pr-4 font-medium">{t("reportsBySourceHeaderSource")}</th>
                   <th className="text-right py-2 pr-4 font-medium">{t("reportsBySourceHeaderTotal")}</th>
                   <th className="text-right py-2 pr-4 font-medium">{t("reportsBySourceHeaderConfirmed")}</th>
@@ -646,11 +646,11 @@ export default async function AdminStatsPage({ params }: PageProps) {
                 {reportsBySrcEntries.map(([src, s]) => {
                   const rate = s.total > 0 ? Math.round((s.confirmed / s.total) * 100) : 0;
                   const rateColor =
-                    rate >= 80 ? "text-green-600" : rate >= 50 ? "text-amber-600" : "text-gray-400";
+                    rate >= 80 ? "text-green-600" : rate >= 50 ? "text-amber-600" : "text-fg-subtle";
                   return (
-                    <tr key={src} className="border-b border-gray-50 hover:bg-gray-50">
+                    <tr key={src} className="border-b border-gray-50 hover:bg-elevated">
                       <td className="py-2 pr-4">
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 font-mono">
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-muted text-fg-muted font-mono">
                           {src}
                         </span>
                       </td>
@@ -667,23 +667,23 @@ export default async function AdminStatsPage({ params }: PageProps) {
       </div>
 
       {/* Block E: Field corrections frequency */}
-      <div className="mb-8 rounded-xl border border-gray-200 bg-white px-5 py-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t("fieldCorrFreqTitle")}</h3>
+      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
+        <h3 className="text-sm font-semibold text-fg mb-3">{t("fieldCorrFreqTitle")}</h3>
         {fieldFreqEntries.length === 0 ? (
-          <p className="text-sm text-gray-400">{t("fieldCorrFreqEmpty")}</p>
+          <p className="text-sm text-fg-subtle">{t("fieldCorrFreqEmpty")}</p>
         ) : (
           <ul className="space-y-2">
             {fieldFreqEntries.map(([field, n]) => {
               const pct = Math.round((n / maxFieldFreq) * 100);
               return (
                 <li key={field} className="flex items-center gap-3 text-sm">
-                  <span className="w-48 shrink-0 truncate text-xs text-gray-500 font-mono">{field}</span>
+                  <span className="w-48 shrink-0 truncate text-xs text-fg-muted font-mono">{field}</span>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 rounded-full bg-gray-100">
+                      <div className="flex-1 h-2 rounded-full bg-muted">
                         <div className="h-2 rounded-full bg-violet-400" style={{ width: `${pct}%` }} />
                       </div>
-                      <span className="w-8 text-right text-xs font-medium text-gray-600 shrink-0">{n}</span>
+                      <span className="w-8 text-right text-xs font-medium text-fg-muted shrink-0">{n}</span>
                     </div>
                   </div>
                 </li>
@@ -694,15 +694,15 @@ export default async function AdminStatsPage({ params }: PageProps) {
       </div>
 
       {/* Block F: Category migration matrix (AI → correct) */}
-      <div className="mb-8 rounded-xl border border-gray-200 bg-white px-5 py-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">{t("catMigrationTitle")}</h3>
+      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
+        <h3 className="text-sm font-semibold text-fg mb-3">{t("catMigrationTitle")}</h3>
         {topMatrix.length === 0 ? (
-          <p className="text-sm text-gray-400">{t("catMigrationEmpty")}</p>
+          <p className="text-sm text-fg-subtle">{t("catMigrationEmpty")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="text-xs text-gray-400 border-b border-gray-100">
+                <tr className="text-xs text-fg-subtle border-b border-line">
                   <th className="text-left py-2 pr-4 font-medium">{t("catMigrationHeaderFrom")}</th>
                   <th className="text-left py-2 pr-4 font-medium">{t("catMigrationHeaderTo")}</th>
                   <th className="text-right py-2 font-medium">{t("catMigrationHeaderCount")}</th>
@@ -710,7 +710,7 @@ export default async function AdminStatsPage({ params }: PageProps) {
               </thead>
               <tbody>
                 {topMatrix.map(({ from, to, count }, idx) => (
-                  <tr key={`${from}-${to}-${idx}`} className="border-b border-gray-50 hover:bg-gray-50">
+                  <tr key={`${from}-${to}-${idx}`} className="border-b border-gray-50 hover:bg-elevated">
                     <td className="py-2 pr-4">
                       <span className="px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700 font-mono">
                         {from}
@@ -721,7 +721,7 @@ export default async function AdminStatsPage({ params }: PageProps) {
                         {to}
                       </span>
                     </td>
-                    <td className="py-2 text-right text-xs font-medium text-gray-600">{count}</td>
+                    <td className="py-2 text-right text-xs font-medium text-fg-muted">{count}</td>
                   </tr>
                 ))}
               </tbody>

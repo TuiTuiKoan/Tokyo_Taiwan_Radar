@@ -95,7 +95,7 @@ export default function WeeklyBroadcastPanel({ locale }: Props) {
         <h2 className="text-sm font-semibold text-blue-800">{t("weeklyBroadcast")}</h2>
         {/* Auto-publish toggle */}
         <label className="flex items-center gap-2 cursor-pointer select-none">
-          <span className="text-xs text-gray-600">{t("weeklyBroadcastAutoPublish")}</span>
+          <span className="text-xs text-fg-muted">{t("weeklyBroadcastAutoPublish")}</span>
           <button
             type="button"
             role="switch"
@@ -110,7 +110,7 @@ export default function WeeklyBroadcastPanel({ locale }: Props) {
           >
             <span
               className={[
-                "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                "inline-block h-4 w-4 transform rounded-full bg-surface transition-transform",
                 settings.auto_publish ? "translate-x-6" : "translate-x-1",
               ].join(" ")}
             />
@@ -130,10 +130,10 @@ export default function WeeklyBroadcastPanel({ locale }: Props) {
       )}
 
       {settings.draft ? (
-        <div className="flex items-start justify-between gap-3 bg-white border border-blue-200 rounded-lg px-3 py-2">
+        <div className="flex items-start justify-between gap-3 bg-surface border border-blue-200 rounded-lg px-3 py-2">
           <div className="min-w-0">
-            <p className="text-xs font-medium text-gray-700 truncate">{draftTitle}</p>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs font-medium text-fg truncate">{draftTitle}</p>
+            <p className="text-xs text-fg-subtle mt-0.5">
               {t("weeklyBroadcastCreatedAt")}: {draftDate} · /{settings.draft.slug}
             </p>
           </div>
@@ -155,7 +155,7 @@ export default function WeeklyBroadcastPanel({ locale }: Props) {
           </div>
         </div>
       ) : (
-        <p className="text-xs text-gray-400 italic">{t("weeklyBroadcastNoDraft")}</p>
+        <p className="text-xs text-fg-subtle italic">{t("weeklyBroadcastNoDraft")}</p>
       )}
     </div>
   );

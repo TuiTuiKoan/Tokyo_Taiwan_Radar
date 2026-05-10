@@ -70,7 +70,7 @@ export default async function AdminUsersPage({ params }: PageProps) {
 
       <h2 className="text-lg font-semibold mb-3">
         {t("usersPageTitle")}
-        <span className="ml-2 text-sm font-normal text-gray-400">
+        <span className="ml-2 text-sm font-normal text-fg-subtle">
           ({users?.length ?? 0})
         </span>
       </h2>
@@ -82,9 +82,9 @@ export default async function AdminUsersPage({ params }: PageProps) {
       )}
 
       {/* Desktop table */}
-      <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200">
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-line">
         <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+          <thead className="bg-elevated text-xs text-fg-muted uppercase">
             <tr>
               <th className="px-4 py-3 text-left">{t("usersEmail")}</th>
               <th className="px-4 py-3 text-left">{t("usersRole")}</th>
@@ -92,10 +92,10 @@ export default async function AdminUsersPage({ params }: PageProps) {
               <th className="px-4 py-3 text-left">{t("usersLastSignIn")}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 bg-white">
+          <tbody className="divide-y divide-line bg-surface">
             {(users ?? []).map((u) => (
-              <tr key={u.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-xs text-gray-700">
+              <tr key={u.id} className="hover:bg-elevated">
+                <td className="px-4 py-3 font-mono text-xs text-fg">
                   {u.email ?? "—"}
                 </td>
                 <td className="px-4 py-3">
@@ -108,18 +108,18 @@ export default async function AdminUsersPage({ params }: PageProps) {
                       {t("usersRoleUser")}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-fg-muted">
                       {t("usersRoleNone")}
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-gray-500 text-xs">
+                <td className="px-4 py-3 text-fg-muted text-xs">
                   {formatDate(u.created_at) ?? "—"}
                 </td>
-                <td className="px-4 py-3 text-gray-500 text-xs">
+                <td className="px-4 py-3 text-fg-muted text-xs">
                   {u.last_sign_in_at
                     ? formatDate(u.last_sign_in_at)
-                    : <span className="text-gray-300">{t("usersNeverSignedIn")}</span>}
+                    : <span className="text-fg-subtle">{t("usersNeverSignedIn")}</span>}
                 </td>
               </tr>
             ))}
@@ -130,8 +130,8 @@ export default async function AdminUsersPage({ params }: PageProps) {
       {/* Mobile card list */}
       <div className="md:hidden space-y-2">
         {(users ?? []).map((u) => (
-          <div key={u.id} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-            <p className="font-mono text-xs text-gray-700 truncate">{u.email ?? "—"}</p>
+          <div key={u.id} className="rounded-xl border border-line bg-surface px-4 py-3">
+            <p className="font-mono text-xs text-fg truncate">{u.email ?? "—"}</p>
             <div className="mt-1 flex items-center gap-2">
               {u.role === "admin" ? (
                 <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
@@ -142,11 +142,11 @@ export default async function AdminUsersPage({ params }: PageProps) {
                   {t("usersRoleUser")}
                 </span>
               ) : (
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-fg-muted">
                   {t("usersRoleNone")}
                 </span>
               )}
-              <span className="text-xs text-gray-400">{formatDate(u.created_at)}</span>
+              <span className="text-xs text-fg-subtle">{formatDate(u.created_at)}</span>
             </div>
           </div>
         ))}

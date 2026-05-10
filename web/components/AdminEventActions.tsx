@@ -37,7 +37,7 @@ export default function AdminEventActions({ eventId, locale, initialIsActive }: 
     <>
       <Link
         href={`/${locale}/admin/${eventId}`}
-        className="shrink-0 text-xs text-gray-400 hover:text-green-700 border border-gray-200 hover:border-green-400 rounded px-1.5 py-0.5 transition"
+        className="shrink-0 text-xs text-fg-subtle hover:text-green-700 border border-line hover:border-green-400 rounded px-1.5 py-0.5 transition"
         title={t("editEvent")}
       >
         ✎

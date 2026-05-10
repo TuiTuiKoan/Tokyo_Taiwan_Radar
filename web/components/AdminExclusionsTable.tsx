@@ -122,7 +122,7 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
   }
 
   function hitsClass(n: number): string {
-    if (n === 0) return "text-gray-400";
+    if (n === 0) return "text-fg-subtle";
     if (n <= 5) return "text-green-600";
     if (n <= 20) return "text-amber-600";
     return "text-red-600 font-semibold";
@@ -138,12 +138,12 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
 
       <form
         onSubmit={onSubmit}
-        className="rounded border border-gray-200 bg-white p-4 space-y-3"
+        className="rounded border border-line bg-surface p-4 space-y-3"
       >
         <h2 className="text-base font-semibold">{t("exclusionsAddTitle")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-gray-600 mb-1">
+            <label className="block text-xs text-fg-muted mb-1">
               {t("exclusionsSourceLabel")}
             </label>
             <input
@@ -160,7 +160,7 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
             </datalist>
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">
+            <label className="block text-xs text-fg-muted mb-1">
               {t("exclusionsPatternLabel")}
             </label>
             <input
@@ -172,7 +172,7 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">
+            <label className="block text-xs text-fg-muted mb-1">
               {t("exclusionsTypeLabel")}
             </label>
             <select
@@ -190,7 +190,7 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">
+            <label className="block text-xs text-fg-muted mb-1">
               {t("exclusionsFieldLabel")}
             </label>
             <select
@@ -206,7 +206,7 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">
+            <label className="block text-xs text-fg-muted mb-1">
               {t("exclusionsTtlLabel")}
             </label>
             <select
@@ -222,7 +222,7 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
           </div>
         </div>
         <div>
-          <label className="block text-xs text-gray-600 mb-1">
+          <label className="block text-xs text-fg-muted mb-1">
             {t("exclusionsReasonLabel")}
           </label>
           <textarea
@@ -243,13 +243,13 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
       </form>
 
       {rows.length === 0 ? (
-        <div className="text-sm text-gray-500 py-8 text-center">
+        <div className="text-sm text-fg-muted py-8 text-center">
           {t("exclusionsEmpty")}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded border border-gray-200 bg-white">
+        <div className="overflow-x-auto rounded border border-line bg-surface">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-600">
+            <thead className="bg-elevated text-xs text-fg-muted">
               <tr>
                 <th className="px-3 py-2 text-left">source</th>
                 <th className="px-3 py-2 text-left">pattern</th>
@@ -312,15 +312,15 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
                     {r.hits_30d}
                   </td>
                   <td
-                    className="px-3 py-2 text-xs text-gray-600 max-w-xs truncate"
+                    className="px-3 py-2 text-xs text-fg-muted max-w-xs truncate"
                     title={r.sample_title ?? ""}
                   >
                     {r.sample_title ?? "—"}
                   </td>
-                  <td className="px-3 py-2 text-right text-xs text-gray-500">
+                  <td className="px-3 py-2 text-right text-xs text-fg-muted">
                     {r.match_count}
                   </td>
-                  <td className="px-3 py-2 text-center text-xs text-gray-500">
+                  <td className="px-3 py-2 text-center text-xs text-fg-muted">
                     {fmtRel(r.last_matched_at)}
                   </td>
                   <td className="px-3 py-2 text-center">{statusBadge}</td>
@@ -340,7 +340,7 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
                         className={`text-xs px-2 py-0.5 rounded ${
                           r.is_active
                             ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-500"
+                            : "bg-muted text-fg-muted"
                         }`}
                       >
                         {r.is_active ? "ON" : "OFF"}

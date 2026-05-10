@@ -50,7 +50,7 @@ export default async function AdminAnnouncementsPage({ params }: PageProps) {
       <WeeklyBroadcastPanel locale={locale} />
 
       {!announcements || announcements.length === 0 ? (
-        <p className="text-gray-400 text-sm">{tAnn("noAnnouncements")}</p>
+        <p className="text-fg-subtle text-sm">{tAnn("noAnnouncements")}</p>
       ) : (
         <div className="space-y-3">
           {announcements.map((ann: Announcement) => {
@@ -61,12 +61,12 @@ export default async function AdminAnnouncementsPage({ params }: PageProps) {
               <Link
                 key={ann.id}
                 href={`/${locale}/admin/announcements/${ann.id}`}
-                className="flex items-start gap-3 px-4 py-3 bg-white border border-gray-100 rounded-xl hover:border-green-200 hover:bg-green-50 transition"
+                className="flex items-start gap-3 px-4 py-3 bg-surface border border-line rounded-xl hover:border-green-200 hover:bg-green-50 transition"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
                     {isDraft && (
-                      <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{tAnn("draft")}</span>
+                      <span className="text-xs bg-muted text-fg-muted px-2 py-0.5 rounded-full">{tAnn("draft")}</span>
                     )}
                     {isFuture && !isDraft && (
                       <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{tAnn("scheduled")}</span>
@@ -79,9 +79,9 @@ export default async function AdminAnnouncementsPage({ params }: PageProps) {
                     )}
                   </div>
                   <p className="text-sm font-medium truncate">{title}</p>
-                  <p className="text-xs text-gray-400 font-mono mt-0.5">/{ann.slug}</p>
+                  <p className="text-xs text-fg-subtle font-mono mt-0.5">/{ann.slug}</p>
                 </div>
-                <div className="text-xs text-gray-400 shrink-0 text-right">
+                <div className="text-xs text-fg-subtle shrink-0 text-right">
                   {ann.published_at
                     ? new Date(ann.published_at).toLocaleDateString(locale)
                     : new Date(ann.created_at).toLocaleDateString(locale)}

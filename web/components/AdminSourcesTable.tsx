@@ -83,7 +83,7 @@ function StatusBadge({ status }: { status: string }) {
     researched: "bg-blue-100 text-blue-700",
     recommended: "bg-purple-100 text-purple-700",
     implemented: "bg-green-100 text-green-700",
-    "not-viable": "bg-gray-100 text-gray-500",
+    "not-viable": "bg-muted text-fg-muted",
   };
   const labelKey: Record<string, string> = {
     candidate: "sourceStatusCandidate",
@@ -92,7 +92,7 @@ function StatusBadge({ status }: { status: string }) {
     implemented: "sourceStatusImplemented",
     "not-viable": "sourceStatusNotViable",
   };
-  const cls = styles[status] ?? "bg-gray-100 text-gray-500";
+  const cls = styles[status] ?? "bg-muted text-fg-muted";
   const key = labelKey[status];
   return (
     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>
@@ -458,7 +458,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
   })();
 
   if (sourceList.length === 0) {
-    return <p className="text-sm text-gray-400">{t("sourcesNone")}</p>;
+    return <p className="text-sm text-fg-subtle">{t("sourcesNone")}</p>;
   }
 
   return (
@@ -466,28 +466,28 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
       {/* Type map editor modal */}
       {showTypeEditor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 className="text-base font-semibold text-gray-800">{t("sourcesEditTypeMapTitle")}</h2>
+          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+              <h2 className="text-base font-semibold text-fg-strong">{t("sourcesEditTypeMapTitle")}</h2>
               <button
                 onClick={() => setShowTypeEditor(false)}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                className="text-fg-subtle hover:text-fg-muted text-xl leading-none"
               >✕</button>
             </div>
-            <div className="px-5 py-3 border-b border-gray-100">
+            <div className="px-5 py-3 border-b border-line">
               <input
                 type="search"
                 value={editorSearch}
                 onChange={(e) => setEditorSearch(e.target.value)}
                 placeholder="搜尋來源名稱…"
-                className="w-full h-8 border border-gray-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="w-full h-8 border border-line rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
               />
             </div>
             {/* Category filter checkboxes */}
-            <div className="px-5 py-2 border-b border-gray-100 flex flex-wrap gap-x-3 gap-y-1 items-center">
+            <div className="px-5 py-2 border-b border-line flex flex-wrap gap-x-3 gap-y-1 items-center">
               <button
                 onClick={() => setEditorCatFilter(null)}
-                className={`text-xs px-2 py-0.5 rounded-full border transition ${editorCatFilter === null ? "bg-green-600 text-white border-green-600" : "border-gray-200 text-gray-500 hover:border-green-400"}`}
+                className={`text-xs px-2 py-0.5 rounded-full border transition ${editorCatFilter === null ? "bg-green-600 text-white border-green-600" : "border-line text-fg-muted hover:border-green-400"}`}
               >全選</button>
               {Object.entries(SOURCE_TYPE_LABELS)
                 .filter(([k]) => k !== "all")
@@ -516,7 +516,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                         }}
                         className="rounded"
                       />
-                      <span className={`text-xs ${checked ? "text-gray-700" : "text-gray-300"}`}>{label}</span>
+                      <span className={`text-xs ${checked ? "text-fg" : "text-fg-subtle"}`}>{label}</span>
                     </label>
                   );
                 })}
@@ -541,8 +541,8 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                   const isOverridden = src.id in draftOverrides;
                   return (
                     <div key={src.id} className="flex items-center gap-3 py-1.5 border-b border-gray-50">
-                      <span className="text-xs text-gray-400 w-6 text-right shrink-0">{src.id}</span>
-                      <span className={`text-sm flex-1 truncate min-w-0 ${isOverridden ? "font-medium text-green-800" : "text-gray-700"}`}>
+                      <span className="text-xs text-fg-subtle w-6 text-right shrink-0">{src.id}</span>
+                      <span className={`text-sm flex-1 truncate min-w-0 ${isOverridden ? "font-medium text-green-800" : "text-fg"}`}>
                         {src.url ? (
                           <a
                             href={src.url}
@@ -558,7 +558,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                       <select
                         value={effective}
                         onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [src.id]: e.target.value }))}
-                        className="h-7 border border-gray-200 rounded-md px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400 shrink-0"
+                        className="h-7 border border-line rounded-md px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400 shrink-0"
                       >
                         {Object.entries(SOURCE_TYPE_LABELS)
                           .filter(([k]) => k !== "all")
@@ -573,7 +573,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                             delete next[src.id];
                             return next;
                           })}
-                          className="text-xs text-gray-400 hover:text-red-500 shrink-0"
+                          className="text-xs text-fg-subtle hover:text-red-500 shrink-0"
                           title="還原預設"
                         >↩</button>
                       )}
@@ -581,14 +581,14 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                   );
                 })}
             </div>
-            <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-gray-100">
-              <span className="text-xs text-gray-400">
+            <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-line">
+              <span className="text-xs text-fg-subtle">
                 {Object.keys(draftOverrides).length} 筆已覆蓋
               </span>
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowTypeEditor(false)}
-                  className="text-xs px-4 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition"
+                  className="text-xs px-4 py-1.5 bg-muted text-fg-muted rounded-lg hover:bg-gray-200 transition"
                 >取消</button>
                 <button
                   onClick={() => {
@@ -616,11 +616,11 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
         {showAddForm && (
           <form
             onSubmit={handleAddCreator}
-            className="mt-3 p-4 bg-white border border-green-200 rounded-xl space-y-3 max-w-lg"
+            className="mt-3 p-4 bg-surface border border-green-200 rounded-xl space-y-3 max-w-lg"
           >
-            <p className="text-xs text-gray-500">{t("addNoteCreatorHint")}</p>
+            <p className="text-xs text-fg-muted">{t("addNoteCreatorHint")}</p>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-fg-muted mb-1">
                 {t("addNoteCreatorSlug")} <span className="text-red-500">*</span>
               </label>
               <input
@@ -629,16 +629,16 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                 onChange={(e) => setCreatorSlug(e.target.value)}
                 placeholder="kuroshio2026"
                 required
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400"
               />
               {creatorSlug.trim() && (
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-fg-subtle mt-1">
                   → https://note.com/{creatorSlug.trim().replace(/^https?:\/\/note\.com\/?/, "").replace(/\/$/, "")}
                 </p>
               )}
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-fg-muted mb-1">
                 {t("addNoteCreatorName")} <span className="text-red-500">*</span>
               </label>
               <input
@@ -647,11 +647,11 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                 onChange={(e) => setCreatorName(e.target.value)}
                 placeholder="黒潮ネット"
                 required
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-fg-muted mb-1">
                 {t("addNoteCreatorLocation")}
               </label>
               <input
@@ -659,7 +659,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                 value={creatorLocation}
                 onChange={(e) => setCreatorLocation(e.target.value)}
                 placeholder="東京都文京区"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400"
               />
             </div>
             {addError && (
@@ -676,7 +676,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                className="text-xs px-4 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition"
+                className="text-xs px-4 py-1.5 bg-muted text-fg-muted rounded-lg hover:bg-gray-200 transition"
               >
                 {t("cancel")}
               </button>
@@ -688,11 +688,11 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
       {/* Filter dropdowns */}
       <div className="flex gap-4 flex-wrap mb-4 items-end">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("sourcesFilterStatus")}</label>
+          <label className="text-xs text-fg-muted font-medium">{t("sourcesFilterStatus")}</label>
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
             <option value="all">{t("sourcesFilterAll")}</option>            <option value="candidate">候選中</option>
             <option value="pending_review">⏳ 待人工審核</option>
@@ -703,11 +703,11 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("sourcesFilterType")}</label>
+          <label className="text-xs text-fg-muted font-medium">{t("sourcesFilterType")}</label>
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
             {Object.entries(SOURCE_TYPE_LABELS).map(([key, label]) => {
               const srcCount = key === "all" ? undefined : typeCountMap[key];
@@ -728,16 +728,16 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">關鍵字搜尋</label>
+          <label className="text-xs text-fg-muted font-medium">關鍵字搜尋</label>
           <input
             type="search"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="名稱 / URL / 爬蟲 ID…"
-            className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 w-52"
+            className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 w-52"
           />
         </div>
-        <span className="text-xs text-gray-400 self-center">{filtered.length} 筆</span>
+        <span className="text-xs text-fg-subtle self-center">{filtered.length} 筆</span>
         <button
           onClick={() => {
             setDraftOverrides({ ...typeOverrides });
@@ -745,7 +745,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
             setEditorCatFilter(null);
             setShowTypeEditor(true);
           }}
-          className="ml-auto text-xs px-3 py-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition"
+          className="ml-auto text-xs px-3 py-1.5 bg-elevated text-fg-muted border border-line rounded-lg hover:bg-muted transition"
         >
           ✏️ {t("sourcesEditTypeMap")}
         </button>
@@ -840,7 +840,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
       )}
 
       {filtered.length === 0 && (
-        <p className="text-sm text-gray-400">{t("sourcesNone")}</p>
+        <p className="text-sm text-fg-subtle">{t("sourcesNone")}</p>
       )}
 
       <div className="space-y-2">
@@ -856,7 +856,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
         return (
           <div
             key={src.id}
-            className={`bg-white border rounded-xl p-4 text-sm transition ${isChecked ? "border-amber-400 ring-1 ring-amber-300" : "border-gray-200"}`}
+            className={`bg-surface border rounded-xl p-4 text-sm transition ${isChecked ? "border-amber-400 ring-1 ring-amber-300" : "border-line"}`}
           >
             {/* Header */}
             <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -871,15 +871,15 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                   />
                 )}
                 <span className="text-base">{ICONS[catKey] ?? "📎"}</span>
-                <span className="font-medium text-gray-800">{src.name}</span>
+                <span className="font-medium text-fg-strong">{src.name}</span>
                 <StatusBadge status={src.status} />
                 {src.scraping_feasibility && (
-                  <span className="text-gray-400 text-xs">
+                  <span className="text-fg-subtle text-xs">
                     {FEASIBILITY[src.scraping_feasibility] ?? "?"}
                   </span>
                 )}
               </div>
-              <span className="text-xs text-gray-400 whitespace-nowrap">
+              <span className="text-xs text-fg-subtle whitespace-nowrap">
                 {t("sourcesLastSeen")}: {fmtDate(src.last_seen_at)}
               </span>
             </div>
@@ -896,14 +896,14 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
 
             {/* Details */}
             {(src.event_types || src.frequency) && (
-              <div className="flex gap-4 mt-2 text-xs text-gray-500">
+              <div className="flex gap-4 mt-2 text-xs text-fg-muted">
                 {src.event_types && <span>{src.event_types}</span>}
                 {src.frequency && <span>{src.frequency}</span>}
               </div>
             )}
 
             {src.reason && (
-              <p className="text-xs text-gray-500 mt-1">{src.reason}</p>
+              <p className="text-xs text-fg-muted mt-1">{src.reason}</p>
             )}
 
             {/* LLM auto-research assessment (待人工審核 mode) */}
@@ -954,7 +954,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
 
               {src.status === "candidate" && src.auto_research_status !== "assessed" && (
                 <span
-                  className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-gray-100 text-gray-400 rounded-lg cursor-not-allowed"
+                  className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-muted text-fg-subtle rounded-lg cursor-not-allowed"
                   title={t("sourcesResearchWith")}
                 >
                   🔍 {t("sourcesResearchWith")}
@@ -1013,26 +1013,26 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
 
             {/* Schedule configuration (for sources with a scraper) */}
             {hasScraperKey && (
-              <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="mt-3 pt-3 border-t border-line">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <span className="text-xs text-gray-500 font-medium">每天爬取</span>
+                  <span className="text-xs text-fg-muted font-medium">每天爬取</span>
                   <select
                     value={schedule.times}
                     onChange={(e) => setScheduleTimes(src.id, Number(e.target.value), src)}
-                    className="h-7 border border-gray-200 rounded-md px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    className="h-7 border border-line rounded-md px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
                   >
                     {[1, 2, 3, 4, 6, 8].map((n) => (
                       <option key={n} value={n}>{n} 次</option>
                     ))}
                   </select>
-                  <span className="text-xs text-gray-500 font-medium">時間（JST）</span>
+                  <span className="text-xs text-fg-muted font-medium">時間（JST）</span>
                   <div className="flex gap-1 flex-wrap">
                     {Array.from({ length: schedule.times }).map((_, i) => (
                       <select
                         key={i}
                         value={schedule.hours[i] ?? 9}
                         onChange={(e) => setScheduleHour(src.id, i, Number(e.target.value), src)}
-                        className="h-7 border border-gray-200 rounded-md px-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                        className="h-7 border border-line rounded-md px-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
                       >
                         {Array.from({ length: 24 }, (_, h) => (
                           <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>
@@ -1043,7 +1043,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                   <button
                     onClick={() => handleSaveSchedule(src)}
                     disabled={scheduleSaving === src.id}
-                    className="text-xs px-2.5 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-40 transition"
+                    className="text-xs px-2.5 py-1 bg-muted text-fg rounded-md hover:bg-gray-200 disabled:opacity-40 transition"
                   >
                     {scheduleSaving === src.id ? "…" : scheduleSaved.has(src.id) ? "✓ 已儲存" : "儲存"}
                   </button>

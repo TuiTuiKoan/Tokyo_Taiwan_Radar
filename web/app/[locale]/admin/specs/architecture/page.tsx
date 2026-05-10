@@ -85,9 +85,9 @@ export default async function ArchitecturePage({ params }: PageProps) {
 
   const fallback = (
     <div className="space-y-3 text-sm">
-      <details className="border border-gray-200 rounded p-3">
+      <details className="border border-line rounded p-3">
         <summary className="font-medium cursor-pointer">JSON</summary>
-        <pre className="mt-2 text-xs overflow-x-auto bg-gray-50 p-3 rounded">
+        <pre className="mt-2 text-xs overflow-x-auto bg-elevated p-3 rounded">
           {JSON.stringify(map, null, 2)}
         </pre>
       </details>
@@ -101,46 +101,46 @@ export default async function ArchitecturePage({ params }: PageProps) {
       <div className="mb-4">
         <Link
           href={`/${locale}/admin/specs`}
-          className="text-sm text-gray-500 hover:text-green-700"
+          className="text-sm text-fg-muted hover:text-green-700"
         >
           {t("back")}
         </Link>
       </div>
 
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t("title")}</h1>
-        <p className="text-sm text-gray-500 mt-1">{t("subtitle")}</p>
+        <h1 className="text-2xl font-bold text-fg-strong">{t("title")}</h1>
+        <p className="text-sm text-fg-muted mt-1">{t("subtitle")}</p>
       </header>
 
       <div className="grid grid-cols-3 gap-3 mb-6 max-w-md">
-        <div className="bg-gray-50 rounded p-3">
-          <p className="text-xs text-gray-500">{t("scrapers")}</p>
-          <p className="text-2xl font-bold text-gray-900">{totalScrapers}</p>
+        <div className="bg-elevated rounded p-3">
+          <p className="text-xs text-fg-muted">{t("scrapers")}</p>
+          <p className="text-2xl font-bold text-fg-strong">{totalScrapers}</p>
         </div>
-        <div className="bg-gray-50 rounded p-3">
-          <p className="text-xs text-gray-500">{t("agents")}</p>
-          <p className="text-2xl font-bold text-gray-900">{map.agents.length}</p>
+        <div className="bg-elevated rounded p-3">
+          <p className="text-xs text-fg-muted">{t("agents")}</p>
+          <p className="text-2xl font-bold text-fg-strong">{map.agents.length}</p>
         </div>
-        <div className="bg-gray-50 rounded p-3">
-          <p className="text-xs text-gray-500">{t("skills")}</p>
-          <p className="text-2xl font-bold text-gray-900">{map.skills.length}</p>
+        <div className="bg-elevated rounded p-3">
+          <p className="text-xs text-fg-muted">{t("skills")}</p>
+          <p className="text-2xl font-bold text-fg-strong">{map.skills.length}</p>
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+      <div className="bg-surface border border-line rounded-lg p-4 mb-6">
         <Mermaid chart={chart} fallback={fallback} />
       </div>
 
       <section className="mb-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-3">{t("scraperGroups")}</h2>
+        <h2 className="text-lg font-semibold text-fg-strong mb-3">{t("scraperGroups")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {map.scraperGroups.map((g) => (
-            <div key={g.id} className="border border-gray-200 rounded p-3">
-              <h3 className="text-sm font-medium text-gray-900 mb-1">
+            <div key={g.id} className="border border-line rounded p-3">
+              <h3 className="text-sm font-medium text-fg-strong mb-1">
                 {g.label}{" "}
-                <span className="text-xs text-gray-400">({g.members.length})</span>
+                <span className="text-xs text-fg-subtle">({g.members.length})</span>
               </h3>
-              <p className="text-xs text-gray-500 leading-relaxed">{g.members.join(", ")}</p>
+              <p className="text-xs text-fg-muted leading-relaxed">{g.members.join(", ")}</p>
             </div>
           ))}
         </div>

@@ -189,7 +189,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-fg-muted">
           {t("creatorsPageTitle")} — {active.length} active / {creators.length} total
         </p>
         <button
@@ -201,15 +201,15 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
       </div>
 
       {creators.length === 0 ? (
-        <p className="text-gray-400 text-sm py-8 text-center">
+        <p className="text-fg-subtle text-sm py-8 text-center">
           {t("creatorsNone")}
         </p>
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+          <div className="hidden md:block overflow-x-auto rounded-xl border border-line shadow-sm">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500">
+              <thead className="bg-elevated text-xs text-fg-muted">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold">{t("creatorsName")}</th>
                   <th className="px-4 py-3 text-left font-semibold">{t("creatorsPlatform")}</th>
@@ -221,11 +221,11 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
+              <tbody className="divide-y divide-line bg-surface">
                 {creators.map((c) => (
-                  <tr key={c.id} className={c.is_active ? "hover:bg-gray-50" : "opacity-50 hover:bg-gray-50"}>
+                  <tr key={c.id} className={c.is_active ? "hover:bg-elevated" : "opacity-50 hover:bg-elevated"}>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">
+                      <div className="font-medium text-fg-strong">
                         <a
                           href={c.profile_url}
                           target="_blank"
@@ -236,21 +236,21 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                         </a>
                       </div>
                       {c.name_zh && (
-                        <div className="text-xs text-gray-400">{c.name_zh}</div>
+                        <div className="text-xs text-fg-subtle">{c.name_zh}</div>
                       )}
                       {c.handle && (
-                        <div className="text-xs text-gray-400">@{c.handle}</div>
+                        <div className="text-xs text-fg-subtle">@{c.handle}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{c.platform}</td>
-                    <td className="px-4 py-3 text-gray-600">{c.category ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{c.base_location ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">
+                    <td className="px-4 py-3 text-fg-muted">{c.platform}</td>
+                    <td className="px-4 py-3 text-fg-muted">{c.category ?? "—"}</td>
+                    <td className="px-4 py-3 text-fg-muted">{c.base_location ?? "—"}</td>
+                    <td className="px-4 py-3 text-fg-muted">
                       {c.approx_followers != null
                         ? c.approx_followers.toLocaleString()
                         : "—"}
                     </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">
+                    <td className="px-4 py-3 text-fg-muted text-xs">
                       {c.last_post_at
                         ? new Date(c.last_post_at).toLocaleDateString(locale)
                         : "—"}
@@ -260,7 +260,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
                           c.is_active
                             ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-500"
+                            : "bg-muted text-fg-muted"
                         }`}
                       >
                         {c.is_active ? "✓" : "—"}
@@ -275,7 +275,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                       </button>
                       <button
                         onClick={() => toggleActive(c)}
-                        className="text-xs text-gray-400 hover:text-gray-700 hover:underline"
+                        className="text-xs text-fg-subtle hover:text-fg hover:underline"
                       >
                         {c.is_active ? t("creatorsDeactivate") : t("creatorsActivate")}
                       </button>
@@ -291,7 +291,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
             {creators.map((c) => (
               <div
                 key={c.id}
-                className={`rounded-xl border border-gray-200 bg-white px-4 py-3 ${
+                className={`rounded-xl border border-line bg-surface px-4 py-3 ${
                   c.is_active ? "" : "opacity-50"
                 }`}
               >
@@ -301,12 +301,12 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                       href={c.profile_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-medium text-gray-900 hover:text-green-700 hover:underline text-sm"
+                      className="font-medium text-fg-strong hover:text-green-700 hover:underline text-sm"
                     >
                       {c.name}
                     </a>
                     {c.name_zh && (
-                      <p className="text-xs text-gray-400">{c.name_zh}</p>
+                      <p className="text-xs text-fg-subtle">{c.name_zh}</p>
                     )}
                   </div>
                   <div className="flex gap-2 shrink-0">
@@ -318,13 +318,13 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                     </button>
                     <button
                       onClick={() => toggleActive(c)}
-                      className="text-xs text-gray-400 hover:underline"
+                      className="text-xs text-fg-subtle hover:underline"
                     >
                       {c.is_active ? t("creatorsDeactivate") : t("creatorsActivate")}
                     </button>
                   </div>
                 </div>
-                <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
+                <div className="mt-1 flex flex-wrap gap-2 text-xs text-fg-muted">
                   <span>{c.platform}</span>
                   {c.category && <span>· {c.category}</span>}
                   {c.base_location && <span>· {c.base_location}</span>}
@@ -333,7 +333,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   )}
                 </div>
                 {c.notes && (
-                  <p className="mt-1 text-xs text-gray-400 line-clamp-2">{c.notes}</p>
+                  <p className="mt-1 text-xs text-fg-subtle line-clamp-2">{c.notes}</p>
                 )}
               </div>
             ))}
@@ -344,7 +344,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
       {/* Add / Edit form modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-lg max-h-screen overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-lg max-h-screen overflow-y-auto rounded-2xl bg-surface p-6 shadow-xl">
             <h2 className="text-lg font-semibold mb-4">
               {editId ? t("creatorsEdit") : t("creatorsAdd")}
             </h2>
@@ -358,33 +358,33 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-fg mb-1">
                     {t("creatorsName")} *
                   </label>
                   <input
                     name="name"
                     value={form.name}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="Display name"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-fg mb-1">
                     {t("creatorsName")} (ZH)
                   </label>
                   <input
                     name="name_zh"
                     value={form.name_zh ?? ""}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="中文名稱（選填）"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-fg mb-1">
                   {t("creatorsProfileUrl")} *
                 </label>
                 <input
@@ -392,21 +392,21 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   value={form.profile_url}
                   onChange={handleChange}
                   type="url"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="https://..."
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-fg mb-1">
                     {t("creatorsPlatform")}
                   </label>
                   <select
                     name="platform"
                     value={form.platform}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     {PLATFORMS.map((p) => (
                       <option key={p} value={p}>{p}</option>
@@ -414,14 +414,14 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-fg mb-1">
                     {t("creatorsHandle")}
                   </label>
                   <input
                     name="handle"
                     value={form.handle ?? ""}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="@handle"
                   />
                 </div>
@@ -429,14 +429,14 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-fg mb-1">
                     {t("creatorsCategory")}
                   </label>
                   <select
                     name="category"
                     value={form.category ?? ""}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     <option value="">—</option>
                     {CATEGORIES.map((c) => (
@@ -445,14 +445,14 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-fg mb-1">
                     {t("creatorsLocation")}
                   </label>
                   <select
                     name="base_location"
                     value={form.base_location ?? ""}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     <option value="">—</option>
                     {LOCATIONS.map((l) => (
@@ -464,14 +464,14 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-fg mb-1">
                     {t("creatorsNationality")}
                   </label>
                   <select
                     name="nationality"
                     value={form.nationality ?? ""}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     <option value="">—</option>
                     {NATIONALITIES.map((n) => (
@@ -480,7 +480,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-fg mb-1">
                     {t("creatorsFollowers")}
                   </label>
                   <input
@@ -489,14 +489,14 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                     onChange={handleChange}
                     type="number"
                     min={0}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="0"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-fg mb-1">
                   {t("creatorsLastPost")}
                 </label>
                 <input
@@ -504,12 +504,12 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   value={form.last_post_at ?? ""}
                   onChange={handleChange}
                   type="date"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-fg mb-1">
                   {t("creatorsNotes")}
                 </label>
                 <textarea
@@ -517,7 +517,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   value={form.notes ?? ""}
                   onChange={handleChange}
                   rows={3}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
 
@@ -528,11 +528,11 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   type="checkbox"
                   checked={form.is_active}
                   onChange={handleChange}
-                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  className="h-4 w-4 rounded border-line-strong text-green-600 focus:ring-green-500"
                 />
                 <label
                   htmlFor="is_active"
-                  className="text-sm text-gray-700"
+                  className="text-sm text-fg"
                 >
                   {t("creatorsIsActive")}
                 </label>
@@ -542,7 +542,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
             <div className="mt-5 flex justify-end gap-3">
               <button
                 onClick={() => setShowForm(false)}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition"
+                className="rounded-lg border border-line-strong px-4 py-2 text-sm text-fg-muted hover:bg-elevated transition"
               >
                 Cancel
               </button>

@@ -467,7 +467,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               </Link>
             </div>
           )}
-          <h1 className="text-2xl font-bold text-gray-900 leading-snug">{name}</h1>
+          <h1 className="text-2xl font-bold text-fg-strong leading-snug">{name}</h1>
           <AdminEventActions eventId={event.id} locale={locale} initialIsActive={event.is_active} />
         </div>
         <SaveButton
@@ -478,13 +478,13 @@ export default async function EventDetailPage({ params }: PageProps) {
       </div>
 
       {/* ===== Summary Card ===== */}
-      <div className="border border-gray-200 rounded-xl overflow-hidden mb-6">
+      <div className="border border-line rounded-xl overflow-hidden mb-6">
         <table className="w-full text-sm">
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-line">
             {/* Categories */}
             {event.category?.length > 0 && (
               <tr>
-                <td className="px-4 py-3 text-gray-400 w-28 align-top whitespace-nowrap">{t("category")}</td>
+                <td className="px-4 py-3 text-fg-subtle w-28 align-top whitespace-nowrap">{t("category")}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1.5">
                     {event.category.map((cat: string) => (
@@ -498,7 +498,7 @@ export default async function EventDetailPage({ params }: PageProps) {
             )}
             {/* Start date */}
             <tr>
-              <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("startDate")}</td>
+              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("startDate")}</td>
               <td className="px-4 py-3">
                 {event.start_date
                   ? <time dateTime={event.start_date}>{new Date(event.start_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}</time>
@@ -507,14 +507,14 @@ export default async function EventDetailPage({ params }: PageProps) {
             </tr>
             {/* End date */}
             <tr>
-              <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("endDate")}</td>
+              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("endDate")}</td>
               <td className="px-4 py-3">
                 {event.end_date
                   ? <time dateTime={event.end_date}>{new Date(event.end_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}</time>
                   : "—"}
                 {ended && (
                   <>
-                    <span className="ml-2 text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
+                    <span className="ml-2 text-xs bg-muted text-fg-subtle px-2 py-0.5 rounded-full">
                       {t("ended")}
                     </span>
                     {(() => {
@@ -537,7 +537,7 @@ export default async function EventDetailPage({ params }: PageProps) {
             </tr>
             {/* Location */}
             <tr>
-              <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("location")}</td>
+              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("location")}</td>
               <td className="px-4 py-3">
                 {subEventPrefectures.length > 1
                   ? subEventPrefectures.join("・")
@@ -550,7 +550,7 @@ export default async function EventDetailPage({ params }: PageProps) {
             </tr>
             {/* Address */}
             <tr>
-              <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("address")}</td>
+              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("address")}</td>
               <td className="px-4 py-3">
                 {subEventPrefectures.length > 1
                   ? subEventPrefectures.join("・")
@@ -570,19 +570,19 @@ export default async function EventDetailPage({ params }: PageProps) {
             </tr>
             {/* Business hours */}
             <tr>
-              <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("hours")}</td>
+              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("hours")}</td>
               <td className="px-4 py-3 whitespace-pre-wrap">{businessHours || "—"}</td>
             </tr>
             {/* Price */}
             <tr>
-              <td className="px-4 py-3 text-gray-400 w-28 whitespace-nowrap">{t("paid")}</td>
+              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("paid")}</td>
               <td className="px-4 py-3">
                 {event.is_paid === false ? (
                   <span className="text-blue-600 font-medium">{t("free")}</span>
                 ) : event.is_paid === true ? (
                   <span>
                     <span className="text-amber-600 font-medium">{t("paid")}</span>
-                    {event.price_info && <span className="text-gray-500 ml-2">{event.price_info}</span>}
+                    {event.price_info && <span className="text-fg-muted ml-2">{event.price_info}</span>}
                   </span>
                 ) : (
                   "—"
@@ -591,7 +591,7 @@ export default async function EventDetailPage({ params }: PageProps) {
             </tr>
             {/* Source link — official first */}
             <tr>
-              <td className="px-4 py-3 text-gray-400 w-28 align-top whitespace-nowrap">{t("source")}</td>
+              <td className="px-4 py-3 text-fg-subtle w-28 align-top whitespace-nowrap">{t("source")}</td>
               <td className="px-4 py-3">
                 <div className="flex flex-col gap-1">
                   {(event as Event).official_url ? (
@@ -642,13 +642,13 @@ export default async function EventDetailPage({ params }: PageProps) {
         (event as Event).has_japanese_support ||
         (event as Event).has_english_support ||
         (event as Event).has_chinese_support) && (
-        <section className="mb-8 border border-gray-200 rounded-xl p-4 bg-gray-50/50">
-          <h2 className="text-sm font-medium text-gray-400 mb-3">{t("organizerSection")}</h2>
+        <section className="mb-8 border border-line rounded-xl p-4 bg-elevated/50">
+          <h2 className="text-sm font-medium text-fg-subtle mb-3">{t("organizerSection")}</h2>
           <dl className="space-y-2 text-sm">
             {(event as Event).organizer && (
               <div className="flex gap-2">
-                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("organizer")}：</dt>
-                <dd className="text-gray-900">
+                <dt className="shrink-0 text-fg-muted min-w-[5rem]">{t("organizer")}：</dt>
+                <dd className="text-fg-strong">
                   {(event as Event).organizer_url ? (
                     <a
                       href={(event as Event).organizer_url!}
@@ -672,22 +672,22 @@ export default async function EventDetailPage({ params }: PageProps) {
             )}
             {(((event as Event).performers ?? []).length > 0 || (event as Event).performer) && (
               <div className="flex gap-2">
-                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("performers")}：</dt>
-                <dd className="text-gray-900">
+                <dt className="shrink-0 text-fg-muted min-w-[5rem]">{t("performers")}：</dt>
+                <dd className="text-fg-strong">
                   {getEventPerformer(event as Event, locale)}
                 </dd>
               </div>
             )}
             {(event as Event).director && (
               <div className="flex gap-2">
-                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("director")}：</dt>
-                <dd className="text-gray-900">{getEventDirector(event as Event, locale)}</dd>
+                <dt className="shrink-0 text-fg-muted min-w-[5rem]">{t("director")}：</dt>
+                <dd className="text-fg-strong">{getEventDirector(event as Event, locale)}</dd>
               </div>
             )}
             {((event as Event).co_organizers ?? []).length > 0 && (
               <div className="flex gap-2">
-                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("coOrganizers")}：</dt>
-                <dd className="text-gray-900 flex flex-wrap gap-x-2 gap-y-1">
+                <dt className="shrink-0 text-fg-muted min-w-[5rem]">{t("coOrganizers")}：</dt>
+                <dd className="text-fg-strong flex flex-wrap gap-x-2 gap-y-1">
                   {((event as Event).co_organizers ?? []).map((name, i) => (
                     <span key={name} className="flex items-center gap-1">
                       {name}
@@ -704,8 +704,8 @@ export default async function EventDetailPage({ params }: PageProps) {
             )}
             {((event as Event).sponsors ?? []).length > 0 && (
               <div className="flex gap-2">
-                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("sponsors")}：</dt>
-                <dd className="text-gray-900 flex flex-wrap gap-x-2 gap-y-1">
+                <dt className="shrink-0 text-fg-muted min-w-[5rem]">{t("sponsors")}：</dt>
+                <dd className="text-fg-strong flex flex-wrap gap-x-2 gap-y-1">
                   {((event as Event).sponsors ?? []).map((name, i) => (
                     <span key={name} className="flex items-center gap-1">
                       {name}
@@ -722,7 +722,7 @@ export default async function EventDetailPage({ params }: PageProps) {
             )}
             {((event as Event).event_form ?? []).length > 0 && (
               <div className="flex gap-2">
-                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("eventForm")}：</dt>
+                <dt className="shrink-0 text-fg-muted min-w-[5rem]">{t("eventForm")}：</dt>
                 <dd className="flex flex-wrap gap-1">
                   {((event as Event).event_form ?? []).map((f) => (
                     <span key={f} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
@@ -736,7 +736,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               (event as Event).has_english_support ||
               (event as Event).has_chinese_support) && (
               <div className="flex gap-2 pt-1">
-                <dt className="shrink-0 text-gray-500 min-w-[5rem]">{t("languageSupport")}：</dt>
+                <dt className="shrink-0 text-fg-muted min-w-[5rem]">{t("languageSupport")}：</dt>
                 <dd className="flex flex-wrap gap-1">
                   {(event as Event).has_japanese_support && (
                     <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">🇯🇵 日本語</span>
@@ -757,9 +757,9 @@ export default async function EventDetailPage({ params }: PageProps) {
       {/* ===== Description ===== */}
       {description && (
         <div className="mb-8">
-          <h2 className="text-sm font-medium text-gray-400 mb-2">{t("description")}</h2>
+          <h2 className="text-sm font-medium text-fg-subtle mb-2">{t("description")}</h2>
           <div className="prose prose-gray max-w-none">
-            <p className="whitespace-pre-wrap text-gray-700 leading-relaxed text-sm">
+            <p className="whitespace-pre-wrap text-fg leading-relaxed text-sm">
               {description}
             </p>
           </div>
@@ -809,8 +809,8 @@ export default async function EventDetailPage({ params }: PageProps) {
       {/* ===== Sub-events ===== */}
       {subEvents && subEvents.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-sm font-medium text-gray-400 mb-3">{t("subEvents")}</h2>
-          <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+          <h2 className="text-sm font-medium text-fg-subtle mb-3">{t("subEvents")}</h2>
+          <div className="border border-line rounded-xl overflow-hidden divide-y divide-line">
             {subEvents.map((sub) => {
               const subName = getEventName(sub as Event, locale);
               return (
@@ -822,26 +822,26 @@ export default async function EventDetailPage({ params }: PageProps) {
                   <div className="w-12 text-center flex-shrink-0">
                     {sub.start_date ? (
                       <time dateTime={sub.start_date}>
-                        <div className="text-[10px] text-gray-400">
+                        <div className="text-[10px] text-fg-subtle">
                           {new Date(sub.start_date).toLocaleDateString(locale, { month: "short" })}
                         </div>
-                        <div className="text-lg font-bold text-gray-600 leading-none">
+                        <div className="text-lg font-bold text-fg-muted leading-none">
                           {new Date(sub.start_date).getDate()}
                         </div>
                       </time>
                     ) : (
-                      <span className="text-gray-300">—</span>
+                      <span className="text-fg-subtle">—</span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 line-clamp-1">{subName}</p>
+                    <p className="text-sm font-medium text-fg-strong line-clamp-1">{subName}</p>
                     {sub.category?.slice(0, 2).map((cat: string) => (
-                      <span key={cat} className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded mr-1">
+                      <span key={cat} className="text-xs bg-muted text-fg-muted px-1.5 py-0.5 rounded mr-1">
                         {tCat(cat as any)}
                       </span>
                     ))}
                   </div>
-                  <span className="text-gray-300 text-sm">→</span>
+                  <span className="text-fg-subtle text-sm">→</span>
                 </Link>
               );
             })}
@@ -859,8 +859,8 @@ export default async function EventDetailPage({ params }: PageProps) {
         if (!showSection) return null;
         return (
           <div className="mb-8">
-            <h2 className="text-sm font-medium text-gray-400 mb-3">{t("recordLinksSection")}</h2>
-            <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+            <h2 className="text-sm font-medium text-fg-subtle mb-3">{t("recordLinksSection")}</h2>
+            <div className="border border-line rounded-xl overflow-hidden divide-y divide-line">
               {/* Movie: official promotional site link */}
               {hasOfficialUrl && isMovie && (
                 <a
@@ -870,7 +870,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                   className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-green-700 hover:underline gap-2"
                 >
                   <span className="flex-1">{t("movieOfficialSite")}</span>
-                  <span className="text-gray-300 shrink-0">↗</span>
+                  <span className="text-fg-subtle shrink-0">↗</span>
                 </a>
               )}
               {(event as Event).record_links?.map((link: { title: string; url: string; recommended?: boolean }, i: number) => {
@@ -890,7 +890,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                         {t("recordLinksRecommended")}
                       </span>
                     )}
-                    <span className="text-gray-300 shrink-0">↗</span>
+                    <span className="text-fg-subtle shrink-0">↗</span>
                   </a>
                 );
               })}
@@ -903,7 +903,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                   className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-blue-500 hover:underline gap-2"
                 >
                   <span className="flex-1">{t("viewAltSource", { n: idx + 1 })}</span>
-                  <span className="text-gray-300 shrink-0">↗</span>
+                  <span className="text-fg-subtle shrink-0">↗</span>
                 </a>
               ))}
               {/* Movie without official_url: Google search fallback */}
@@ -912,10 +912,10 @@ export default async function EventDetailPage({ params }: PageProps) {
                   href={`https://www.google.com/search?q=${encodeURIComponent(((event as Event).name_ja || event.raw_title || name || "") + " 公式サイト")}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center px-4 py-3 hover:bg-gray-50 transition text-sm text-gray-500 hover:underline gap-2"
+                  className="flex items-center px-4 py-3 hover:bg-elevated transition text-sm text-fg-muted hover:underline gap-2"
                 >
                   <span className="flex-1">{t("searchOfficialSite")}</span>
-                  <span className="text-gray-300 shrink-0">↗</span>
+                  <span className="text-fg-subtle shrink-0">↗</span>
                 </a>
               )}
             </div>
@@ -926,7 +926,7 @@ export default async function EventDetailPage({ params }: PageProps) {
       {/* ===== Related screenings (same work, other venues/dates) ===== */}
       {(upcomingScreenings.length > 0 || (isAdmin && pastScreenings.length > 0)) && (
         <section className="mb-8" aria-labelledby="related-screenings-heading">
-          <h2 id="related-screenings-heading" className="text-sm font-medium text-gray-400 mb-3">
+          <h2 id="related-screenings-heading" className="text-sm font-medium text-fg-subtle mb-3">
             {t("relatedScreeningsTitle")}
           </h2>
           {upcomingScreenings.length > 0 && (
@@ -938,7 +938,7 @@ export default async function EventDetailPage({ params }: PageProps) {
           )}
           {isAdmin && pastScreenings.length > 0 && (
             <div className="mt-3">
-              <p className="text-xs text-gray-400 mb-2">{t("pastScreeningsLabel")}</p>
+              <p className="text-xs text-fg-subtle mb-2">{t("pastScreeningsLabel")}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 opacity-50">
                 {pastScreenings.map((rel) => (
                   <EventCard key={rel.id} event={rel} locale={locale} />
@@ -952,14 +952,14 @@ export default async function EventDetailPage({ params }: PageProps) {
       {/* ===== FAQ section (visible counterpart to FAQPage JSON-LD) ===== */}
       {faqLd && (
         <section className="mb-8" aria-labelledby="faq-heading">
-          <h2 id="faq-heading" className="text-sm font-medium text-gray-400 mb-3">
+          <h2 id="faq-heading" className="text-sm font-medium text-fg-subtle mb-3">
             {locale === "ja" ? "よくある質問" : locale === "en" ? "FAQ" : "常見問題"}
           </h2>
-          <dl className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+          <dl className="border border-line rounded-xl overflow-hidden divide-y divide-line">
             {faqQuestions.map((f, i) => (
               <div key={i} className="px-4 py-3">
-                <dt className="font-medium text-gray-900 text-sm mb-1">{f.q}</dt>
-                <dd className="text-sm text-gray-700">{f.a}</dd>
+                <dt className="font-medium text-fg-strong text-sm mb-1">{f.q}</dt>
+                <dd className="text-sm text-fg">{f.a}</dd>
               </div>
             ))}
           </dl>

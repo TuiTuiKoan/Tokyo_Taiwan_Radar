@@ -65,7 +65,7 @@ export default function SaveButton({ eventId, initialSaved, locale }: Props) {
       className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition shrink-0 ${
         saved
           ? "bg-green-600 text-white border-green-600 hover:bg-green-700"
-          : "border-gray-300 hover:border-green-500 hover:text-green-700"
+          : "border-line-strong hover:border-green-500 hover:text-green-700"
       } disabled:opacity-50`}
     >
       {saved ? "♥" : "♡"} {saved ? t("unsave") : t("save")}

@@ -104,11 +104,11 @@ export default function AdminWorkForm({ work, linkedEvents = [], locale, onSucce
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">{t("worksWorkType")} *</label>
+          <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksWorkType")} *</label>
           <select
             value={form.work_type}
             onChange={(e) => update("work_type", e.target.value as WorkType)}
-            className="w-full h-9 border border-gray-300 rounded-lg px-2 text-sm"
+            className="w-full h-9 border border-line-strong rounded-lg px-2 text-sm"
           >
             {(Object.keys(TYPE_KEYS) as WorkType[]).map((wt) => (
               <option key={wt} value={wt}>{t(TYPE_KEYS[wt] as any)}</option>
@@ -116,124 +116,124 @@ export default function AdminWorkForm({ work, linkedEvents = [], locale, onSucce
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">{t("worksOriginalTitle")} *</label>
+          <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksOriginalTitle")} *</label>
           <input
             type="text"
             value={form.original_title}
             onChange={(e) => update("original_title", e.target.value)}
-            className="w-full h-9 border border-gray-300 rounded-lg px-3 text-sm"
+            className="w-full h-9 border border-line-strong rounded-lg px-3 text-sm"
             required
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">{t("worksTitleJa")}</label>
+          <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksTitleJa")}</label>
           <input
             type="text"
             value={form.title_ja}
             onChange={(e) => update("title_ja", e.target.value)}
-            className="w-full h-9 border border-gray-300 rounded-lg px-3 text-sm"
+            className="w-full h-9 border border-line-strong rounded-lg px-3 text-sm"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">{t("worksTitleZh")}</label>
+          <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksTitleZh")}</label>
           <input
             type="text"
             value={form.title_zh}
             onChange={(e) => update("title_zh", e.target.value)}
-            className="w-full h-9 border border-gray-300 rounded-lg px-3 text-sm"
+            className="w-full h-9 border border-line-strong rounded-lg px-3 text-sm"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">{t("worksTitleEn")}</label>
+          <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksTitleEn")}</label>
           <input
             type="text"
             value={form.title_en}
             onChange={(e) => update("title_en", e.target.value)}
-            className="w-full h-9 border border-gray-300 rounded-lg px-3 text-sm"
+            className="w-full h-9 border border-line-strong rounded-lg px-3 text-sm"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">{t("worksDirector")}</label>
+          <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksDirector")}</label>
           <input
             type="text"
             value={form.director}
             onChange={(e) => update("director", e.target.value)}
-            className="w-full h-9 border border-gray-300 rounded-lg px-3 text-sm"
+            className="w-full h-9 border border-line-strong rounded-lg px-3 text-sm"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">{t("worksReleaseYear")}</label>
+          <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksReleaseYear")}</label>
           <input
             type="number"
             value={form.release_year}
             onChange={(e) => update("release_year", e.target.value)}
-            className="w-full h-9 border border-gray-300 rounded-lg px-3 text-sm"
+            className="w-full h-9 border border-line-strong rounded-lg px-3 text-sm"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">{t("worksCountry")}</label>
+          <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksCountry")}</label>
           <input
             type="text"
             value={form.country}
             onChange={(e) => update("country", e.target.value)}
-            className="w-full h-9 border border-gray-300 rounded-lg px-3 text-sm"
+            className="w-full h-9 border border-line-strong rounded-lg px-3 text-sm"
           />
         </div>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">{t("worksCastSummary")}</label>
+        <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksCastSummary")}</label>
         <textarea
           value={form.cast_summary}
           onChange={(e) => update("cast_summary", e.target.value)}
           rows={2}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">{t("worksDescription")}</label>
+        <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksDescription")}</label>
         <textarea
           value={form.description}
           onChange={(e) => update("description", e.target.value)}
           rows={4}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">{t("worksPosterUrl")}</label>
+        <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksPosterUrl")}</label>
         <input
           type="url"
           value={form.poster_url}
           onChange={(e) => update("poster_url", e.target.value)}
-          className="w-full h-9 border border-gray-300 rounded-lg px-3 text-sm"
+          className="w-full h-9 border border-line-strong rounded-lg px-3 text-sm"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">{t("worksExternalLinks")}</label>
+        <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksExternalLinks")}</label>
         <textarea
           value={form.external_links}
           onChange={(e) => update("external_links", e.target.value)}
           rows={3}
           placeholder='{"imdb":"https://...","official_site":"https://..."}'
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm font-mono"
         />
       </div>
 
       {linkedEvents.length > 0 && (
         <div>
-          <h3 className="text-xs font-medium text-gray-500 mb-2">{t("worksLinkedEvents")} ({linkedEvents.length})</h3>
-          <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 text-sm">
+          <h3 className="text-xs font-medium text-fg-muted mb-2">{t("worksLinkedEvents")} ({linkedEvents.length})</h3>
+          <div className="border border-line rounded-lg divide-y divide-line text-sm">
             {linkedEvents.map((ev) => (
               <Link
                 key={ev.id}
                 href={`/${locale}/admin/${ev.id}`}
-                className="block px-3 py-2 hover:bg-gray-50"
+                className="block px-3 py-2 hover:bg-elevated"
               >
-                <span className="text-gray-800">{ev.name_ja || ev.name_zh || ev.name_en}</span>
-                <span className="text-xs text-gray-500 ml-2">
+                <span className="text-fg-strong">{ev.name_ja || ev.name_zh || ev.name_en}</span>
+                <span className="text-xs text-fg-muted ml-2">
                   {ev.source_name} · {ev.start_date ?? "—"} · {ev.location_name ?? "—"}
                 </span>
               </Link>
@@ -253,7 +253,7 @@ export default function AdminWorkForm({ work, linkedEvents = [], locale, onSucce
         </button>
         <Link
           href={`/${locale}/admin/works`}
-          className="border border-gray-300 hover:bg-gray-50 text-sm px-4 py-2 rounded-lg transition"
+          className="border border-line-strong hover:bg-elevated text-sm px-4 py-2 rounded-lg transition"
         >
           {t("cancel")}
         </Link>

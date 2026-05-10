@@ -173,11 +173,11 @@ export default async function AdminAeoPage({ params }: PageProps) {
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-3">AI 爬蟲（30 天）</h2>
         {bots.length === 0 ? (
-          <p className="text-sm text-gray-500">尚無 AI 爬蟲訪問紀錄。</p>
+          <p className="text-sm text-fg-muted">尚無 AI 爬蟲訪問紀錄。</p>
         ) : (
           <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-left text-gray-500">
+              <thead className="bg-elevated text-left text-fg-muted">
                 <tr>
                   <th className="px-3 py-2">爬蟲</th>
                   <th className="px-3 py-2 text-right">24h</th>
@@ -193,17 +193,17 @@ export default async function AdminAeoPage({ params }: PageProps) {
                     .sort((a, b2) => b2[1] - a[1])
                     .slice(0, 3);
                   return (
-                    <tr key={b.name} className="hover:bg-gray-50">
+                    <tr key={b.name} className="hover:bg-elevated">
                       <td className="px-3 py-2 font-medium">{b.name}</td>
                       <td className="px-3 py-2 text-right">{fmtNum(b.count24h)}</td>
                       <td className="px-3 py-2 text-right">{fmtNum(b.count7d)}</td>
                       <td className="px-3 py-2 text-right font-semibold">{fmtNum(b.count30d)}</td>
-                      <td className="px-3 py-2 text-gray-600">{timeAgo(b.lastSeen)}</td>
-                      <td className="px-3 py-2 text-gray-600">
+                      <td className="px-3 py-2 text-fg-muted">{timeAgo(b.lastSeen)}</td>
+                      <td className="px-3 py-2 text-fg-muted">
                         <ul className="space-y-0.5">
                           {top3.map(([path, count]) => (
                             <li key={path} className="truncate max-w-md">
-                              <span className="text-gray-400">{count}×</span>{" "}
+                              <span className="text-fg-subtle">{count}×</span>{" "}
                               <code className="text-xs">{path}</code>
                             </li>
                           ))}
@@ -222,11 +222,11 @@ export default async function AdminAeoPage({ params }: PageProps) {
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-3">AI 引擎引用流量（30 天）</h2>
         {referrals.length === 0 ? (
-          <p className="text-sm text-gray-500">尚無 AI 引用流量紀錄。</p>
+          <p className="text-sm text-fg-muted">尚無 AI 引用流量紀錄。</p>
         ) : (
           <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-left text-gray-500">
+              <thead className="bg-elevated text-left text-fg-muted">
                 <tr>
                   <th className="px-3 py-2">AI 引擎</th>
                   <th className="px-3 py-2 text-right">24h</th>
@@ -242,17 +242,17 @@ export default async function AdminAeoPage({ params }: PageProps) {
                     .sort((a, b2) => b2[1] - a[1])
                     .slice(0, 3);
                   return (
-                    <tr key={r.name} className="hover:bg-gray-50">
+                    <tr key={r.name} className="hover:bg-elevated">
                       <td className="px-3 py-2 font-medium">{r.name}</td>
                       <td className="px-3 py-2 text-right">{fmtNum(r.count24h)}</td>
                       <td className="px-3 py-2 text-right">{fmtNum(r.count7d)}</td>
                       <td className="px-3 py-2 text-right font-semibold">{fmtNum(r.count30d)}</td>
-                      <td className="px-3 py-2 text-gray-600">{timeAgo(r.lastSeen)}</td>
-                      <td className="px-3 py-2 text-gray-600">
+                      <td className="px-3 py-2 text-fg-muted">{timeAgo(r.lastSeen)}</td>
+                      <td className="px-3 py-2 text-fg-muted">
                         <ul className="space-y-0.5">
                           {top3.map(([path, count]) => (
                             <li key={path} className="truncate max-w-md">
-                              <span className="text-gray-400">{count}×</span>{" "}
+                              <span className="text-fg-subtle">{count}×</span>{" "}
                               <code className="text-xs">{path}</code>
                             </li>
                           ))}
@@ -272,7 +272,7 @@ export default async function AdminAeoPage({ params }: PageProps) {
         <h2 className="text-lg font-semibold mb-3">最近訪問（前 50 筆）</h2>
         <div className="border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-gray-500">
+            <thead className="bg-elevated text-left text-fg-muted">
               <tr>
                 <th className="px-3 py-2">時間</th>
                 <th className="px-3 py-2">類型</th>
@@ -283,8 +283,8 @@ export default async function AdminAeoPage({ params }: PageProps) {
             </thead>
             <tbody className="divide-y">
               {rows.slice(0, 50).map((r) => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{fmtDate(r.visited_at)}</td>
+                <tr key={r.id} className="hover:bg-elevated">
+                  <td className="px-3 py-2 text-fg-muted whitespace-nowrap">{fmtDate(r.visited_at)}</td>
                   <td className="px-3 py-2">
                     {r.visit_type === "bot" ? (
                       <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">爬蟲</span>
@@ -296,7 +296,7 @@ export default async function AdminAeoPage({ params }: PageProps) {
                   <td className="px-3 py-2 truncate max-w-xs">
                     <code className="text-xs">{r.path}</code>
                   </td>
-                  <td className="px-3 py-2 text-gray-600">{r.country ?? "—"}</td>
+                  <td className="px-3 py-2 text-fg-muted">{r.country ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -309,8 +309,8 @@ export default async function AdminAeoPage({ params }: PageProps) {
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border rounded-lg p-3 bg-white">
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
+    <div className="border rounded-lg p-3 bg-surface">
+      <div className="text-xs text-fg-muted mb-1">{label}</div>
       <div className="text-2xl font-bold tabular-nums">{value}</div>
     </div>
   );

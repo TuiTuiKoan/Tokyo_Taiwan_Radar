@@ -200,7 +200,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
     <div className="space-y-8">
       {/* Slug */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{tAnn("slug")}</label>
+        <label className="block text-sm font-medium text-fg mb-1">{tAnn("slug")}</label>
         <div className="flex gap-2">
           <input
             type="text"
@@ -208,15 +208,15 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
             onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
             onBlur={handleSlugFromTitle}
             placeholder="my-announcement-slug"
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+            className="flex-1 border border-line-strong rounded-lg px-3 py-2 text-sm font-mono"
           />
         </div>
-        <p className="text-xs text-gray-400 mt-1">{tAnn("slugHint")}</p>
+        <p className="text-xs text-fg-subtle mt-1">{tAnn("slugHint")}</p>
       </div>
 
       {/* Titles */}
       <div>
-        <p className="text-sm font-medium text-gray-700 mb-2">{tAnn("titles")}</p>
+        <p className="text-sm font-medium text-fg mb-2">{tAnn("titles")}</p>
         <div className="grid gap-2">
           {[
             { label: "中文", value: titleZh, set: setTitleZh },
@@ -224,12 +224,12 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
             { label: "日本語", value: titleJa, set: setTitleJa },
           ].map(({ label, value, set }) => (
             <div key={label} className="flex items-center gap-2">
-              <span className="w-16 text-xs text-gray-500 shrink-0">{label}</span>
+              <span className="w-16 text-xs text-fg-muted shrink-0">{label}</span>
               <input
                 type="text"
                 value={value}
                 onChange={(e) => set(e.target.value)}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                className="flex-1 border border-line rounded-lg px-3 py-2 text-sm"
               />
             </div>
           ))}
@@ -238,7 +238,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
 
       {/* Body */}
       <div>
-        <p className="text-sm font-medium text-gray-700 mb-2">{tAnn("bodies")}</p>
+        <p className="text-sm font-medium text-fg mb-2">{tAnn("bodies")}</p>
         <div className="space-y-3">
           {[
             { label: "中文", value: bodyZh, set: setBodyZh },
@@ -246,12 +246,12 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
             { label: "日本語", value: bodyJa, set: setBodyJa },
           ].map(({ label, value, set }) => (
             <div key={label}>
-              <p className="text-xs text-gray-500 mb-1">{label}</p>
+              <p className="text-xs text-fg-muted mb-1">{label}</p>
               <textarea
                 rows={4}
                 value={value}
                 onChange={(e) => set(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-y"
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm resize-y"
               />
             </div>
           ))}
@@ -260,11 +260,11 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
 
       {/* Images */}
       <div>
-        <p className="text-sm font-medium text-gray-700 mb-2">{tAnn("images")}</p>
+        <p className="text-sm font-medium text-fg mb-2">{tAnn("images")}</p>
         <div className="space-y-3">
           {/* Current image preview with hover-delete */}
           {coverImageUrl && (
-            <div className="relative group rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+            <div className="relative group rounded-lg overflow-hidden border border-line bg-elevated">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={coverImageUrl} alt="cover preview" className="w-full h-auto max-h-72 object-contain" />
               <button
@@ -288,19 +288,19 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
           )}
           {/* Cover image URL + upload */}
           <div className="flex items-center gap-2">
-            <span className="w-24 text-xs text-gray-500 shrink-0">{tAnn("coverImage")}</span>
+            <span className="w-24 text-xs text-fg-muted shrink-0">{tAnn("coverImage")}</span>
             <input
               type="url"
               value={coverImageUrl}
               onChange={(e) => setCoverImageUrl(e.target.value)}
               placeholder="https://..."
-              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              className="flex-1 border border-line rounded-lg px-3 py-2 text-sm"
             />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="shrink-0 text-xs px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              className="shrink-0 text-xs px-3 py-2 border border-line-strong rounded-lg hover:bg-elevated disabled:opacity-50"
             >
               {uploading ? "上傳中…" : "📁 上傳"}
             </button>
@@ -332,12 +332,12 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
           <span className="text-sm">{tAnn("isFeatured")}</span>
         </label>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">{tAnn("publishedAt")} ({tAnn("publishedAtHint")})</label>
+          <label className="block text-xs text-fg-muted mb-1">{tAnn("publishedAt")} ({tAnn("publishedAtHint")})</label>
           <input
             type="datetime-local"
             value={publishedAt}
             onChange={(e) => setPublishedAt(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+            className="border border-line rounded-lg px-3 py-2 text-sm"
           />
         </div>
       </div>
@@ -345,16 +345,16 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
       {/* Linked Events */}
       {recentEvents.length > 0 && (
         <div>
-          <p className="text-sm font-medium text-gray-700 mb-2">{tAnn("linkedEvents")}</p>
+          <p className="text-sm font-medium text-fg mb-2">{tAnn("linkedEvents")}</p>
           {/* Search box */}
           <input
             type="search"
             placeholder="搜尋活動…"
             value={eventSearch}
             onChange={(e) => setEventSearch(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2"
+            className="w-full border border-line rounded-lg px-3 py-2 text-sm mb-2"
           />
-          <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
+          <div className="max-h-48 overflow-y-auto border border-line rounded-lg p-2 space-y-1">
             {(() => {
               const q = eventSearch.trim().toLowerCase();
               const filtered = recentEvents.filter((ev) => {
@@ -372,7 +372,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
                 const dateStr = ev.start_date ? new Date(ev.start_date).toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit" }) : null;
                 const meta = [dateStr, ev.location_name].filter(Boolean).join(" · ");
                 return (
-                  <label key={ev.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                  <label key={ev.id} className="flex items-center gap-2 cursor-pointer hover:bg-elevated px-2 py-1 rounded">
                     <input
                       type="checkbox"
                       checked={linkedEvents.includes(ev.id)}
@@ -381,7 +381,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
                     />
                     <span className="text-sm truncate">
                       {name}
-                      {meta && <span className="text-gray-400 ml-1">{meta}</span>}
+                      {meta && <span className="text-fg-subtle ml-1">{meta}</span>}
                     </span>
                   </label>
                 );
@@ -408,8 +408,8 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
 
       {/* Social Media Publish Panel — only shown for saved announcements */}
       {isEdit && (
-        <div className="border-t border-gray-200 pt-6">
-          <p className="text-sm font-semibold text-gray-800 mb-4">{tAnn("socialPublish")}</p>
+        <div className="border-t border-line pt-6">
+          <p className="text-sm font-semibold text-fg-strong mb-4">{tAnn("socialPublish")}</p>
           <div className="space-y-3">
             {PLATFORMS.map(({ key, label, color }) => {
               const isPublishing = publishingPlatform === key;
@@ -423,7 +423,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
                   <select
                     value={publishLocales[key]}
                     onChange={(e) => setPublishLocales((prev) => ({ ...prev, [key]: e.target.value as Locale }))}
-                    className="text-xs border border-gray-200 rounded px-2 py-1"
+                    className="text-xs border border-line rounded px-2 py-1"
                   >
                     {LOCALES.map((l) => (
                       <option key={l.key} value={l.key}>{l.label}</option>
@@ -432,13 +432,13 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
                   <button
                     onClick={() => handlePublish(key)}
                     disabled={isPublishing}
-                    className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50"
+                    className="px-3 py-1 text-xs bg-muted hover:bg-gray-200 rounded-lg disabled:opacity-50"
                   >
                     {isPublishing ? tAnn("publishing") : tAnn("publishNow")}
                   </button>
                   {statusBadge(key)}
                   {status?.status === "published" && status.post_id && (
-                    <span className="text-xs text-gray-400 font-mono">{status.post_id.slice(0, 20)}</span>
+                    <span className="text-xs text-fg-subtle font-mono">{status.post_id.slice(0, 20)}</span>
                   )}
                 </div>
               );

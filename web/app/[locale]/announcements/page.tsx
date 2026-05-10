@@ -27,10 +27,10 @@ export default async function AnnouncementsPage({ params }: PageProps) {
   return (
     <div>
       {/* Top tab navigation (mirrors homepage) */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6">
+      <div className="flex gap-1 border-b border-line mb-6">
         <Link
           href={`/${locale}`}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-green-700 transition"
+          className="px-4 py-2 text-sm text-fg-muted hover:text-green-700 transition"
         >
           {tAnn("tabEvents")}
         </Link>
@@ -40,10 +40,10 @@ export default async function AnnouncementsPage({ params }: PageProps) {
       </div>
 
       <h1 className="text-xl font-bold mb-1">{tAnn("pageTitle")}</h1>
-      <p className="text-sm text-gray-500 mb-6">{tAnn("pageDesc")}</p>
+      <p className="text-sm text-fg-muted mb-6">{tAnn("pageDesc")}</p>
 
       {!announcements || announcements.length === 0 ? (
-        <p className="text-center text-gray-400 mt-12 text-sm">{tAnn("noPublished")}</p>
+        <p className="text-center text-fg-subtle mt-12 text-sm">{tAnn("noPublished")}</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {announcements.map((ann: Announcement) => (

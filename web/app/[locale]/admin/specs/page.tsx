@@ -58,8 +58,8 @@ export default async function AdminSpecsPage({ params }: PageProps) {
 
       <div className="mb-6 flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t("title")}</h1>
-          <p className="text-sm text-gray-500 mt-1">{t("subtitle")}</p>
+          <h1 className="text-2xl font-bold text-fg-strong">{t("title")}</h1>
+          <p className="text-sm text-fg-muted mt-1">{t("subtitle")}</p>
         </div>
         <Link
           href={`/${locale}/admin/specs/architecture`}
@@ -73,30 +73,30 @@ export default async function AdminSpecsPage({ params }: PageProps) {
         {COLUMNS.map((col) => (
           <section
             key={col}
-            className="bg-gray-50 rounded-lg p-3 border border-gray-200 min-h-[120px]"
+            className="bg-elevated rounded-lg p-3 border border-line min-h-[120px]"
           >
             <header className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-gray-700">{tKanban(col)}</h2>
-              <span className="text-xs text-gray-400 px-2 py-0.5 bg-white rounded">
+              <h2 className="text-sm font-semibold text-fg">{tKanban(col)}</h2>
+              <span className="text-xs text-fg-subtle px-2 py-0.5 bg-surface rounded">
                 {grouped[col].length}
               </span>
             </header>
             <div className="space-y-2">
               {grouped[col].length === 0 ? (
-                <p className="text-xs text-gray-400 italic px-1">{tKanban("empty")}</p>
+                <p className="text-xs text-fg-subtle italic px-1">{tKanban("empty")}</p>
               ) : (
                 grouped[col].map((spec) => (
                   <Link
                     key={spec.slug}
                     href={`/${locale}/admin/specs/${spec.slug}`}
-                    className="block bg-white rounded border border-gray-200 p-3 hover:border-green-500 hover:shadow-sm transition"
+                    className="block bg-surface rounded border border-line p-3 hover:border-green-500 hover:shadow-sm transition"
                   >
-                    <h3 className="text-sm font-medium text-gray-900 leading-snug mb-2">
+                    <h3 className="text-sm font-medium text-fg-strong leading-snug mb-2">
                       {spec.title}
                     </h3>
                     {spec.tasks.total > 0 && (
                       <div className="mb-2">
-                        <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                        <div className="flex items-center justify-between text-xs text-fg-muted mb-1">
                           <span>
                             {tCard("tasksProgress", {
                               done: spec.tasks.done,
@@ -107,7 +107,7 @@ export default async function AdminSpecsPage({ params }: PageProps) {
                             {Math.round((spec.tasks.done / spec.tasks.total) * 100)}%
                           </span>
                         </div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                           <div
                             className="h-full bg-green-500"
                             style={{
@@ -121,7 +121,7 @@ export default async function AdminSpecsPage({ params }: PageProps) {
                       </div>
                     )}
                     {spec.branch && (
-                      <p className="text-[11px] text-gray-500 font-mono truncate mb-1">
+                      <p className="text-[11px] text-fg-muted font-mono truncate mb-1">
                         {spec.branch}
                       </p>
                     )}
@@ -130,14 +130,14 @@ export default async function AdminSpecsPage({ params }: PageProps) {
                         {spec.tags.map((tag) => (
                           <span
                             key={tag}
-                            className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded"
+                            className="text-[10px] px-1.5 py-0.5 bg-muted text-fg-muted rounded"
                           >
                             {tag}
                           </span>
                         ))}
                       </div>
                     )}
-                    <p className="text-[11px] text-gray-400">
+                    <p className="text-[11px] text-fg-subtle">
                       {tCard("updatedAt", { date: formatDate(spec.updatedAt) })}
                     </p>
                   </Link>
@@ -148,7 +148,7 @@ export default async function AdminSpecsPage({ params }: PageProps) {
         ))}
       </div>
 
-      <p className="mt-6 text-[11px] text-gray-400">
+      <p className="mt-6 text-[11px] text-fg-subtle">
         snapshot: {formatDate(meta.generatedAt)}
         {meta.commitSha ? ` · ${meta.commitSha.slice(0, 7)}` : ""}
       </p>

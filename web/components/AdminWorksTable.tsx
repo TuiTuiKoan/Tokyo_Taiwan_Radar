@@ -65,11 +65,11 @@ export default function AdminWorksTable({ works, locale }: Props) {
           + {t("worksNew")}
         </Link>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">{t("worksWorkType")}</label>
+          <label className="text-xs text-fg-muted font-medium">{t("worksWorkType")}</label>
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value as "" | WorkType)}
-            className="h-9 border border-gray-300 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           >
             <option value="">{t("filterAll")}</option>
             {(Object.keys(TYPE_KEYS) as WorkType[]).map((wt) => (
@@ -78,13 +78,13 @@ export default function AdminWorksTable({ works, locale }: Props) {
           </select>
         </div>
         <div className="flex flex-col gap-1 flex-1 min-w-[12rem]">
-          <label className="text-xs text-gray-500 font-medium">{t("worksTitle")}</label>
+          <label className="text-xs text-fg-muted font-medium">{t("worksTitle")}</label>
           <input
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("worksSearchPlaceholder")}
-            className="h-9 border border-gray-300 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </div>
       </div>
@@ -92,7 +92,7 @@ export default function AdminWorksTable({ works, locale }: Props) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="border-b text-left text-gray-500">
+            <tr className="border-b text-left text-fg-muted">
               <th className="py-2 pr-4 font-medium">{t("worksOriginalTitle")}</th>
               <th className="py-2 pr-4 font-medium">{t("worksWorkType")}</th>
               <th className="py-2 pr-4 font-medium">{t("worksTitleJa")}</th>
@@ -104,8 +104,8 @@ export default function AdminWorksTable({ works, locale }: Props) {
           </thead>
           <tbody>
             {filtered.map((w) => (
-              <tr key={w.id} className="border-b hover:bg-gray-50 transition">
-                <td className="py-2 pr-4 font-medium text-gray-800">
+              <tr key={w.id} className="border-b hover:bg-elevated transition">
+                <td className="py-2 pr-4 font-medium text-fg-strong">
                   <Link
                     href={`/${locale}/admin/works/${w.id}`}
                     className="hover:underline hover:text-green-700"
@@ -118,10 +118,10 @@ export default function AdminWorksTable({ works, locale }: Props) {
                     {t(TYPE_KEYS[w.work_type] as any)}
                   </span>
                 </td>
-                <td className="py-2 pr-4 text-gray-600">{w.title_ja ?? "—"}</td>
-                <td className="py-2 pr-4 text-gray-600">{w.director ?? "—"}</td>
-                <td className="py-2 pr-4 text-gray-500">{w.release_year ?? "—"}</td>
-                <td className="py-2 pr-4 text-gray-500">{w.event_count}</td>
+                <td className="py-2 pr-4 text-fg-muted">{w.title_ja ?? "—"}</td>
+                <td className="py-2 pr-4 text-fg-muted">{w.director ?? "—"}</td>
+                <td className="py-2 pr-4 text-fg-muted">{w.release_year ?? "—"}</td>
+                <td className="py-2 pr-4 text-fg-muted">{w.event_count}</td>
                 <td className="py-2 pr-4">
                   <div className="flex gap-2">
                     <Link
@@ -144,7 +144,7 @@ export default function AdminWorksTable({ works, locale }: Props) {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-6 text-center text-gray-400 text-sm">—</td>
+                <td colSpan={7} className="py-6 text-center text-fg-subtle text-sm">—</td>
               </tr>
             )}
           </tbody>

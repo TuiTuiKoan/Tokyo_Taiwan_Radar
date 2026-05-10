@@ -52,13 +52,13 @@ export default async function EditAnnouncementPage({ params }: PageProps) {
   return (
     <div>
       <div className="flex items-center gap-3 mb-2">
-        <Link href={`/${locale}/admin/announcements`} className="text-sm text-gray-500 hover:text-green-700">
+        <Link href={`/${locale}/admin/announcements`} className="text-sm text-fg-muted hover:text-green-700">
           ← {tAnn("announcementsTab")}
         </Link>
-        <span className="text-gray-300">/</span>
+        <span className="text-fg-subtle">/</span>
         <h1 className="text-xl font-bold truncate">{title}</h1>
       </div>
-      <p className="text-xs text-gray-400 font-mono mb-6">/{announcement.slug}</p>
+      <p className="text-xs text-fg-subtle font-mono mb-6">/{announcement.slug}</p>
 
       <div className="mb-4 flex gap-2">
         <Link

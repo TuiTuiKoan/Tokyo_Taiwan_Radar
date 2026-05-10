@@ -114,7 +114,7 @@ export default async function CategoryPage({ params }: PageProps) {
       />
 
       {/* Breadcrumb */}
-      <nav className="text-sm text-gray-500 mb-4">
+      <nav className="text-sm text-fg-muted mb-4">
         <Link href={`/${locale}`} className="hover:underline">
           Tokyo Taiwan Radar
         </Link>
@@ -125,12 +125,12 @@ export default async function CategoryPage({ params }: PageProps) {
       {/* Heading + intro */}
       <h1 className="text-2xl font-bold mb-3">{categoryLabel}</h1>
       {description && (
-        <p className="text-sm text-gray-600 mb-6 leading-relaxed">{description}</p>
+        <p className="text-sm text-fg-muted mb-6 leading-relaxed">{description}</p>
       )}
 
       {/* Event grid */}
       {rows.length === 0 ? (
-        <p className="text-gray-500 text-sm">{tCatDesc("noEvents")}</p>
+        <p className="text-fg-muted text-sm">{tCatDesc("noEvents")}</p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {rows.map((e) => (
@@ -145,7 +145,7 @@ export default async function CategoryPage({ params }: PageProps) {
           <Link
             key={c}
             href={`/${locale}/categories/${c}`}
-            className="px-3 py-1 rounded-full border text-gray-600 hover:border-green-600 hover:text-green-700 transition"
+            className="px-3 py-1 rounded-full border text-fg-muted hover:border-green-600 hover:text-green-700 transition"
           >
             {t(c)}
           </Link>

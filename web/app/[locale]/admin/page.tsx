@@ -110,39 +110,39 @@ export default async function AdminPage({ params }: PageProps) {
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-400 mb-1">{t("statsTotalEventsLabel")}</p>
-          <p className="text-2xl font-bold text-gray-800">{totalEvents}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{t("statsActiveCount", { count: activeEvents })}</p>
+        <div className="bg-surface border border-line rounded-xl px-4 py-3">
+          <p className="text-xs text-fg-subtle mb-1">{t("statsTotalEventsLabel")}</p>
+          <p className="text-2xl font-bold text-fg-strong">{totalEvents}</p>
+          <p className="text-xs text-fg-subtle mt-0.5">{t("statsActiveCount", { count: activeEvents })}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-400 mb-1">{t("statsPendingLabel")}</p>
-          <p className={`text-2xl font-bold ${pendingEvents > 0 ? "text-amber-500" : "text-gray-800"}`}>{pendingEvents}</p>
-          <p className="text-xs text-gray-400 mt-0.5">
+        <div className="bg-surface border border-line rounded-xl px-4 py-3">
+          <p className="text-xs text-fg-subtle mb-1">{t("statsPendingLabel")}</p>
+          <p className={`text-2xl font-bold ${pendingEvents > 0 ? "text-amber-500" : "text-fg-strong"}`}>{pendingEvents}</p>
+          <p className="text-xs text-fg-subtle mt-0.5">
             {inactivePendingEvents > 0
               ? t("pendingCountDetail", { active: pendingEvents, total: totalPendingEvents })
               : t("pendingCountActiveOnly", { count: pendingEvents })}
           </p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-400 mb-1">{t("statsUsersLabel")}</p>
-          <p className="text-2xl font-bold text-gray-800">{userCount}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{t("statsUsersDesc")}</p>
+        <div className="bg-surface border border-line rounded-xl px-4 py-3">
+          <p className="text-xs text-fg-subtle mb-1">{t("statsUsersLabel")}</p>
+          <p className="text-2xl font-bold text-fg-strong">{userCount}</p>
+          <p className="text-xs text-fg-subtle mt-0.5">{t("statsUsersDesc")}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-400 mb-1">{t("statsReportsLabel")}</p>
-          <p className={`text-2xl font-bold ${(reportCount ?? 0) > 0 ? "text-red-500" : "text-gray-800"}`}>{reportCount ?? 0}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{t("statsReportsDesc")}</p>
+        <div className="bg-surface border border-line rounded-xl px-4 py-3">
+          <p className="text-xs text-fg-subtle mb-1">{t("statsReportsLabel")}</p>
+          <p className={`text-2xl font-bold ${(reportCount ?? 0) > 0 ? "text-red-500" : "text-fg-strong"}`}>{reportCount ?? 0}</p>
+          <p className="text-xs text-fg-subtle mt-0.5">{t("statsReportsDesc")}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-400 mb-1">{t("statsSourcesLabel")}</p>
-          <p className="text-2xl font-bold text-gray-800">{implementedSourceCount ?? 0}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{t("statsSourcesDesc", { total: totalSourceCount ?? 0 })}</p>
+        <div className="bg-surface border border-line rounded-xl px-4 py-3">
+          <p className="text-xs text-fg-subtle mb-1">{t("statsSourcesLabel")}</p>
+          <p className="text-2xl font-bold text-fg-strong">{implementedSourceCount ?? 0}</p>
+          <p className="text-xs text-fg-subtle mt-0.5">{t("statsSourcesDesc", { total: totalSourceCount ?? 0 })}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-400 mb-1">{t("statsCreatorsLabel")}</p>
-          <p className="text-2xl font-bold text-gray-800">{creatorCount ?? 0}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{t("statsCreatorsDesc")}</p>
+        <div className="bg-surface border border-line rounded-xl px-4 py-3">
+          <p className="text-xs text-fg-subtle mb-1">{t("statsCreatorsLabel")}</p>
+          <p className="text-2xl font-bold text-fg-strong">{creatorCount ?? 0}</p>
+          <p className="text-xs text-fg-subtle mt-0.5">{t("statsCreatorsDesc")}</p>
         </div>
       </div>
 
@@ -157,7 +157,7 @@ export default async function AdminPage({ params }: PageProps) {
               {pendingIssues.map((issue) => (
                 <span
                   key={issue.key}
-                  className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs text-amber-900"
+                  className="rounded-full border border-amber-300 bg-surface px-2.5 py-1 text-xs text-amber-900"
                 >
                   {issue.key === "pendingReasonLocalizedLocationAddress"
                     ? t("pendingReasonLocalizedLocationAddress", { count: issue.count })
@@ -167,14 +167,14 @@ export default async function AdminPage({ params }: PageProps) {
                 </span>
               ))}
               {inactivePendingEvents > 0 && (
-                <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600">
+                <span className="rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-fg-muted">
                   {t("pendingSummaryInactive", { count: inactivePendingEvents })}
                 </span>
               )}
             </div>
           </>
         ) : inactivePendingEvents > 0 ? (
-          <p className="mt-1 text-sm text-gray-700">{t("pendingSummaryInactiveOnly", { count: inactivePendingEvents })}</p>
+          <p className="mt-1 text-sm text-fg">{t("pendingSummaryInactiveOnly", { count: inactivePendingEvents })}</p>
         ) : (
           <p className="mt-1 text-sm text-green-700">{t("pendingSummaryHealthy")}</p>
         )}

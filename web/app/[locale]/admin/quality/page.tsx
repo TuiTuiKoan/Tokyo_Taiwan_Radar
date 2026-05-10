@@ -103,7 +103,7 @@ export default async function AdminQualityPage({ params, searchParams }: PagePro
 
       {/* Source filter bar */}
       <form method="GET" className="flex items-center gap-2 mb-6">
-        <label className="text-sm text-gray-600 shrink-0">
+        <label className="text-sm text-fg-muted shrink-0">
           {t("qualityFilterLabel")}
         </label>
         <input
@@ -111,7 +111,7 @@ export default async function AdminQualityPage({ params, searchParams }: PagePro
           name="source"
           defaultValue={source ?? ""}
           placeholder={t("qualityFilterPlaceholder")}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono w-56 focus:outline-none focus:ring-1 focus:ring-green-400"
+          className="border border-line-strong rounded-lg px-3 py-1.5 text-sm font-mono w-56 focus:outline-none focus:ring-1 focus:ring-green-400"
         />
         <button
           type="submit"
@@ -122,7 +122,7 @@ export default async function AdminQualityPage({ params, searchParams }: PagePro
         {source && (
           <a
             href="?"
-            className="text-sm text-gray-500 hover:underline"
+            className="text-sm text-fg-muted hover:underline"
           >
             {t("qualityFilterClear")}
           </a>

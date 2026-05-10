@@ -32,10 +32,10 @@ export default async function NewAnnouncementPage({ params }: PageProps) {
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <Link href={`/${locale}/admin/announcements`} className="text-sm text-gray-500 hover:text-green-700">
+        <Link href={`/${locale}/admin/announcements`} className="text-sm text-fg-muted hover:text-green-700">
           ← {tAnn("announcementsTab")}
         </Link>
-        <span className="text-gray-300">/</span>
+        <span className="text-fg-subtle">/</span>
         <h1 className="text-xl font-bold">{tAnn("newAnnouncement")}</h1>
       </div>
 

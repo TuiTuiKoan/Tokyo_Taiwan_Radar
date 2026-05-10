@@ -82,17 +82,17 @@ export default async function AnnouncementDetailPage({ params }: PageProps) {
   return (
     <article className="max-w-2xl mx-auto">
       {/* Breadcrumb */}
-      <nav className="text-sm text-gray-400 mb-4">
+      <nav className="text-sm text-fg-subtle mb-4">
         <Link href={`/${locale}/announcements`} className="hover:text-green-700">
           {tAnn("pageTitle")}
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-gray-600">{title}</span>
+        <span className="text-fg-muted">{title}</span>
       </nav>
 
       {/* Cover image */}
       {image && (
-        <div className="rounded-xl overflow-hidden bg-gray-100 mb-6">
+        <div className="rounded-xl overflow-hidden bg-muted mb-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={image} alt={title} className="w-full h-auto" />
         </div>
@@ -106,31 +106,31 @@ export default async function AnnouncementDetailPage({ params }: PageProps) {
               {tAnn("featured")}
             </span>
           )}
-          {date && <time dateTime={ann.published_at ?? ""} className="text-xs text-gray-400">{date}</time>}
+          {date && <time dateTime={ann.published_at ?? ""} className="text-xs text-fg-subtle">{date}</time>}
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+        <h1 className="text-2xl font-bold text-fg-strong">{title}</h1>
       </div>
 
       {/* Body */}
       {body && (
-        <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-line mb-8">
+        <div className="prose prose-sm max-w-none text-fg whitespace-pre-line mb-8">
           {linkifyBody(body)}
         </div>
       )}
 
       {/* Linked events */}
       {linkedEvents.length > 0 && (
-        <div className="border-t border-gray-100 pt-6">
-          <p className="text-sm font-semibold text-gray-700 mb-3">{tAnn("relatedEvents")}</p>
+        <div className="border-t border-line pt-6">
+          <p className="text-sm font-semibold text-fg mb-3">{tAnn("relatedEvents")}</p>
           <div className="space-y-2">
             {linkedEvents.map((ev) => (
               <Link
                 key={ev.id}
                 href={`/${locale}/events/${ev.id}`}
-                className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg hover:bg-green-50 hover:text-green-700 transition text-sm"
+                className="flex items-center gap-3 px-3 py-2 bg-elevated rounded-lg hover:bg-green-50 hover:text-green-700 transition text-sm"
               >
                 {ev.start_date && (
-                  <span className="text-xs text-gray-400 shrink-0">
+                  <span className="text-xs text-fg-subtle shrink-0">
                     {new Date(ev.start_date).toLocaleDateString(locale, { month: "short", day: "numeric" })}
                   </span>
                 )}
@@ -142,8 +142,8 @@ export default async function AnnouncementDetailPage({ params }: PageProps) {
       )}
 
       {/* Back link */}
-      <div className="mt-8 pt-4 border-t border-gray-100">
-        <Link href={`/${locale}/announcements`} className="text-sm text-gray-400 hover:text-green-700">
+      <div className="mt-8 pt-4 border-t border-line">
+        <Link href={`/${locale}/announcements`} className="text-sm text-fg-subtle hover:text-green-700">
           ← {tAnn("backToList")}
         </Link>
       </div>

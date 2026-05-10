@@ -224,7 +224,7 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={handleCancel}
-          className="text-sm text-gray-500 hover:text-gray-800"
+          className="text-sm text-fg-muted hover:text-fg-strong"
         >
           ← {t("back")}
         </button>
@@ -252,7 +252,7 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
           </button>
           <button
             onClick={handleCancel}
-            className="border border-gray-300 px-4 py-2 rounded-lg text-sm hover:bg-gray-50"
+            className="border border-line-strong px-4 py-2 rounded-lg text-sm hover:bg-elevated"
           >
             {t("cancel")}
           </button>
