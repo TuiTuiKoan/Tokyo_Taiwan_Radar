@@ -587,7 +587,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     setAnnotating(true);
     setEnrichedReady(false);
 
-    // Directly annotate via API (no GitHub Actions, no polling)
+    // Directly annotate + web-search enrich via API
     try {
       const res = await fetch("/api/admin/annotate-event", {
         method: "POST",
@@ -595,11 +595,18 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         body: JSON.stringify({ eventId }),
       });
       if (res.ok) {
-        const { fields } = (await res.json()) as { fields: Record<string, unknown> };
+        const { fields, foundUrl } = (await res.json()) as {
+          fields: Record<string, unknown>;
+          foundUrl: string | null;
+        };
         for (const [k, v] of Object.entries(fields)) {
           if (v !== null && v !== undefined) {
             updateField(k, v);
           }
+        }
+        if (foundUrl) {
+          updateField("source_url", foundUrl);
+          updateField("official_url", foundUrl);
         }
       } else {
         console.warn("Annotation API failed:", await res.text());

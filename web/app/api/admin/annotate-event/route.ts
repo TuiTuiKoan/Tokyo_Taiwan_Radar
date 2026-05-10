@@ -4,6 +4,104 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export const maxDuration = 60;
 
+const UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36";
+
+// ── Web search helpers ────────────────────────────────────────────────────
+
+async function ddgSearch(query: string): Promise<string[]> {
+  try {
+    const body = new URLSearchParams({ q: query, kl: "jp-jp" });
+    const res = await fetch("https://html.duckduckgo.com/html/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": UA,
+        "Accept-Language": "ja,en;q=0.9",
+        Accept: "text/html",
+      },
+      body: body.toString(),
+      signal: AbortSignal.timeout(10000),
+    });
+    const html = await res.text();
+    const urls: string[] = [];
+    for (const m of html.matchAll(/uddg=([^&"]+)/g)) {
+      try {
+        const url = decodeURIComponent(m[1]);
+        if (url.startsWith("http") && !url.includes("duckduckgo.com")) {
+          urls.push(url);
+          if (urls.length >= 5) break;
+        }
+      } catch { /* skip */ }
+    }
+    return urls;
+  } catch {
+    return [];
+  }
+}
+
+async function fetchPageText(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA, "Accept-Language": "ja,en;q=0.9", Accept: "text/html" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return "";
+    const html = await res.text();
+    const text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return text.slice(0, 8000);
+  } catch {
+    return "";
+  }
+}
+
+function scorePage(text: string, nameJa: string, locationName: string): number {
+  let score = 0;
+  const words = nameJa.split(/[\s　]+/).filter((w) => w.length >= 2);
+  for (const w of words) if (text.includes(w)) score += 2;
+  if (locationName && text.includes(locationName)) score += 3;
+  for (const kw of ["開催", "会場", "主催", "チケット", "入場", "日時"])
+    if (text.includes(kw)) score += 1;
+  return score;
+}
+
+async function enrichEvent(
+  nameJa: string,
+  locationName: string,
+  startDate: string
+): Promise<{ url: string; text: string } | null> {
+  const year = (startDate || "").slice(0, 4);
+  const queries: string[] = [];
+  if (locationName) queries.push(`"${nameJa}" ${year} ${locationName}`);
+  queries.push(`"${nameJa}" ${year} 公式`);
+  queries.push(`${nameJa} ${year}`);
+
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+  for (const q of queries) {
+    for (const u of await ddgSearch(q)) {
+      if (!seen.has(u)) { seen.add(u); candidates.push(u); }
+    }
+    if (candidates.length >= 5) break;
+  }
+
+  let bestUrl = "", bestText = "", bestScore = -1;
+  for (const url of candidates.slice(0, 5)) {
+    const text = await fetchPageText(url);
+    if (!text) continue;
+    const score = scorePage(text, nameJa, locationName);
+    if (score > bestScore) { bestScore = score; bestUrl = url; bestText = text; }
+  }
+  return bestScore >= 2 ? { url: bestUrl, text: bestText } : null;
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
   // 1. Admin auth check (anon client for session)
   const supabase = await createClient();
@@ -36,7 +134,7 @@ export async function POST(req: NextRequest) {
   const { data: event, error: fetchErr } = await adminClient
     .from("events")
     .select(
-      "name_ja,name_zh,name_en,description_ja,location_name,location_address,organizer,performer,price_info,business_hours,category,event_form,primary_language,has_japanese_support,has_chinese_support,has_english_support,is_paid"
+      "name_ja,name_zh,name_en,description_ja,location_name,location_address,organizer,performer,price_info,business_hours,category,event_form,primary_language,has_japanese_support,has_chinese_support,has_english_support,is_paid,start_date,source_url,official_url"
     )
     .eq("id", eventId)
     .single();
@@ -45,12 +143,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
-  // 3. Build annotation prompt from existing fields
+  // 3. Web search enrichment (skip if already has source_url)
+  let webText = "";
+  let foundUrl = "";
+  const returnedFields: Record<string, unknown> = {};
+
+  if (!event.source_url && event.name_ja) {
+    const enriched = await enrichEvent(
+      event.name_ja,
+      event.location_name || "",
+      (event.start_date || "").toString()
+    );
+    if (enriched) {
+      foundUrl = enriched.url;
+      webText = enriched.text;
+      returnedFields.source_url = foundUrl;
+      returnedFields.official_url = foundUrl;
+      // Save raw_description immediately (annotation may time-out)
+      await adminClient
+        .from("events")
+        .update({ source_url: foundUrl, official_url: foundUrl, raw_description: webText })
+        .eq("id", eventId);
+    }
+  }
+
+  // 4. GPT annotation using all available info
+  const existingCategory = Array.isArray(event.category) && event.category.length > 0;
+  const existingEventForm = Array.isArray(event.event_form) && event.event_form.length > 0;
+
   const eventInfo = [
     event.name_ja && `活動名（日文）: ${event.name_ja}`,
     event.name_zh && `活動名（中文）: ${event.name_zh}`,
     event.name_en && `活動名（英文）: ${event.name_en}`,
-    event.description_ja && `説明: ${String(event.description_ja).slice(0, 600)}`,
+    event.description_ja && `説明: ${String(event.description_ja).slice(0, 400)}`,
+    webText && `ウェブページ（抜粋）: ${webText.slice(0, 600)}`,
     event.location_name && `場地: ${event.location_name}`,
     event.location_address && `住所: ${event.location_address}`,
     event.organizer && `主催: ${event.organizer}`,
@@ -60,10 +186,6 @@ export async function POST(req: NextRequest) {
   ]
     .filter(Boolean)
     .join("\n");
-
-  // Only annotate fields that are empty / need completion
-  const existingCategory = Array.isArray(event.category) && event.category.length > 0;
-  const existingEventForm = Array.isArray(event.event_form) && event.event_form.length > 0;
 
   const payload = {
     model: "gpt-4o-mini",
@@ -85,59 +207,37 @@ Given event info, return a JSON with EXACTLY these fields:
 
 Return ONLY valid JSON. All fields required. No extra keys.`,
       },
-      {
-        role: "user",
-        content: eventInfo || "（no info provided）",
-      },
+      { role: "user", content: eventInfo || "（no info provided）" },
     ],
   };
 
   const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
-  if (!openaiRes.ok) {
-    const errText = await openaiRes.text();
-    return NextResponse.json(
-      { error: `OpenAI error ${openaiRes.status}`, raw: errText },
-      { status: 502 }
-    );
+  if (openaiRes.ok) {
+    const openaiData = (await openaiRes.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    const content = openaiData.choices?.[0]?.message?.content ?? "{}";
+    try {
+      const annotated = JSON.parse(content) as Record<string, unknown>;
+      Object.assign(returnedFields, annotated);
+      // Preserve OCR-filled category / event_form
+      if (existingCategory) returnedFields.category = event.category;
+      if (existingEventForm) returnedFields.event_form = event.event_form;
+    } catch { /* GPT parse error — still return web-search results */ }
   }
 
-  const openaiData = (await openaiRes.json()) as {
-    choices: Array<{ message: { content: string } }>;
-  };
-  const content = openaiData.choices?.[0]?.message?.content ?? "{}";
-
-  let annotated: Record<string, unknown> = {};
-  try {
-    annotated = JSON.parse(content);
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to parse GPT response", raw: content },
-      { status: 500 }
-    );
+  // 5. Save annotation to DB
+  if (Object.keys(returnedFields).length > 0) {
+    await adminClient
+      .from("events")
+      .update({ ...returnedFields, annotation_status: "annotated" })
+      .eq("id", eventId);
   }
 
-  // Keep existing category / event_form if OCR already set them
-  const finalFields: Record<string, unknown> = { ...annotated };
-  if (existingCategory) finalFields.category = event.category;
-  if (existingEventForm) finalFields.event_form = event.event_form;
-
-  // 4. Update DB
-  const { error: updateErr } = await adminClient
-    .from("events")
-    .update({ ...finalFields, annotation_status: "annotated" })
-    .eq("id", eventId);
-
-  if (updateErr) {
-    return NextResponse.json({ error: updateErr.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true, fields: finalFields });
+  return NextResponse.json({ success: true, foundUrl: foundUrl || null, fields: returnedFields });
 }
