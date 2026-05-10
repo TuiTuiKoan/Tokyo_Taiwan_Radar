@@ -618,6 +618,8 @@ NAME WRITING RULES — CRITICAL:
    regardless of where the artworks in the collection come from.
 
    NOTE: Events held IN Taiwan are allowed and welcome. Do NOT force-convert Taiwan addresses to Japanese format. For Taiwan venues, fill location_address with the real Taiwanese address (e.g. "台北市中山區小民生東路3段1號") and set location_name accordingly. The tourism category applies when the event is designed to attract Japanese visitors to Taiwan.
+   ONLINE EVENTS: If the event is conducted online (Zoom, online webinar, streaming, オンライン開催, 線上, ウェビナー) — regardless of organizer's country — set location_name = "オンライン" and location_address = null and location_prefectures = null. This includes study_abroad application webinars, online lectures, and hybrid events where the main audience participation is online.
+   APPLICATION-TYPE EVENTS: For study abroad / scholarship / grant application events (study_abroad event_form), if the application process or info session is online, treat as オンライン. Do NOT use the university's physical campus address as location.
 7. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
    GRANT/SUBSIDY EXCEPTION: For grant applications, call-for-submissions, and scholarship events
    (公募, 助成金申請, 奨学金, 徵件, 補助金), any monetary amount mentioned (e.g. "助成額は最大60万台湾ドル",
@@ -663,7 +665,7 @@ EVENT FORM RULES:
 event_form is the structural shape of the event, distinct from category (which is the topic).
 Pick one or more from:
   exhibition, screening, lecture, performance, market, workshop,
-  conference, networking, screening_with_talk, tour, competition, tasting, broadcast, other
+  conference, networking, screening_with_talk, tour, competition, tasting, broadcast, study_abroad, other
 Decision guides:
 - SCREENING RESTRICTION: "screening" and "screening_with_talk" are ONLY for events where a film, documentary, anime, or video work is actually projected/screened. DO NOT use them for lectures, tastings, launch parties, or other events even if they discuss media.
 - TV broadcast (テレビ放送, 放映, 番組) = ["broadcast"]. NEVER use "screening" for TV programs — screening is for cinema/theater projection only.
@@ -679,6 +681,7 @@ Decision guides:
 - 交流会 / オフ会 / 懇親会 / launch party / ローンチイベント = ["networking"].
 - ツアー / 巡迴 / 街歩き = ["tour"].
 - コンテスト / コンクール / 公募 = ["competition"].
+- 留学プログラム / 大学院進学 / 修士課程募集 / 奨学金付き海外留学 = ["study_abroad"].
 - If genuinely none apply = ["other"]. NEVER leave event_form empty.
 
 LANGUAGE RULES:
@@ -838,7 +841,7 @@ VALID_ORGANIZER_TYPES = frozenset([
 VALID_EVENT_FORMS = frozenset([
     "exhibition", "screening", "lecture", "performance", "market", "workshop",
     "conference", "networking", "screening_with_talk", "tour", "competition",
-    "tasting", "broadcast", "other",
+    "tasting", "broadcast", "study_abroad", "other",
 ])
 VALID_PRIMARY_LANGUAGES = frozenset(["ja", "zh", "en", "mixed"])
 
