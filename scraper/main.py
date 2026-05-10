@@ -130,7 +130,13 @@ from sources.theater_kino import TheaterKinoScraper
 from sources.acros_fukuoka import AcrosFukuokaScraper
 from sources.ftip import FtipScraper
 from sources.ciema import CiemaScraper
+from sources.startup_terrace import StartupTerraceScraper
 from sources.whitestone_gallery import WhitestoneGalleryScraper
+from sources.taiwan_prism import TaiwanPrismScraper
+from sources.cineplaza import CineplazaScraper
+from sources.internet_museum import InternetMuseumScraper
+from sources.onariza import OnarizaScraper
+from sources.us_cinema_chiba import UsCinemaChibaGekijoScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -246,7 +252,13 @@ SCRAPERS = [
     AcrosFukuokaScraper(),
     FtipScraper(),
     CiemaScraper(),
+    StartupTerraceScraper(),
     WhitestoneGalleryScraper(),
+    TaiwanPrismScraper(),
+    CineplazaScraper(),
+    InternetMuseumScraper(),
+    OnarizaScraper(),
+    UsCinemaChibaGekijoScraper(),
 ]
 
 
