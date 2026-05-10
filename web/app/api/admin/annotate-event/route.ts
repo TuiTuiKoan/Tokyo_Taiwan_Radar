@@ -26,13 +26,38 @@ async function ddgSearch(query: string): Promise<string[]> {
     const html = await res.text();
     const urls: string[] = [];
     const seen = new Set<string>();
-    // Match both /l/?uddg= redirect form and any direct https URL in result links
     for (const m of html.matchAll(/(?:uddg=|href=")(https?%3A[^"&]+|https?:\/\/[^"\s<>]+)/g)) {
       let u = m[1];
       try { u = decodeURIComponent(u); } catch { /* skip */ }
-      // Filter out DDG infrastructure / static asset URLs
       if (!u.startsWith("http")) continue;
       if (u.includes("duckduckgo.com")) continue;
+      if (/\.(css|js|ico|png|svg|woff)/.test(u)) continue;
+      if (seen.has(u)) continue;
+      seen.add(u);
+      urls.push(u);
+      if (urls.length >= 5) break;
+    }
+    return urls;
+  } catch {
+    return [];
+  }
+}
+
+async function bingSearch(query: string): Promise<string[]> {
+  try {
+    const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&cc=jp&setlang=ja`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA, "Accept-Language": "ja,en;q=0.9", Accept: "text/html" },
+      signal: AbortSignal.timeout(10000),
+    });
+    const html = await res.text();
+    const urls: string[] = [];
+    const seen = new Set<string>();
+    // Bing wraps result links as <a href="https://...">; pull any external link
+    for (const m of html.matchAll(/<a[^>]+href="(https?:\/\/[^"]+)"/gi)) {
+      const u = m[1];
+      if (u.includes("bing.com") || u.includes("microsoft.com") || u.includes("msn.com")) continue;
+      if (u.includes("go.microsoft.com")) continue;
       if (/\.(css|js|ico|png|svg|woff)/.test(u)) continue;
       if (seen.has(u)) continue;
       seen.add(u);
@@ -79,7 +104,7 @@ async function enrichEvent(
   nameJa: string,
   locationName: string,
   startDate: string
-): Promise<{ url: string; text: string } | null> {
+): Promise<{ url: string; text: string; debug: { ddgCount: number; bingCount: number; bestScore: number } } | null> {
   const year = (startDate || "").slice(0, 4);
   const queries: string[] = [];
   if (locationName) queries.push(`"${nameJa}" ${year} ${locationName}`);
@@ -88,11 +113,29 @@ async function enrichEvent(
 
   const seen = new Set<string>();
   const candidates: string[] = [];
+  let ddgCount = 0;
+  let bingCount = 0;
+
+  // Try DDG first
   for (const q of queries) {
-    for (const u of await ddgSearch(q)) {
+    const ddgResults = await ddgSearch(q);
+    ddgCount += ddgResults.length;
+    for (const u of ddgResults) {
       if (!seen.has(u)) { seen.add(u); candidates.push(u); }
     }
     if (candidates.length >= 5) break;
+  }
+
+  // Bing fallback if DDG yielded nothing (Vercel IPs are sometimes blocked)
+  if (candidates.length === 0) {
+    for (const q of queries) {
+      const bingResults = await bingSearch(q);
+      bingCount += bingResults.length;
+      for (const u of bingResults) {
+        if (!seen.has(u)) { seen.add(u); candidates.push(u); }
+      }
+      if (candidates.length >= 5) break;
+    }
   }
 
   let bestUrl = "", bestText = "", bestScore = -1;
@@ -102,7 +145,10 @@ async function enrichEvent(
     const score = scorePage(text, nameJa, locationName);
     if (score > bestScore) { bestScore = score; bestUrl = url; bestText = text; }
   }
-  return bestScore >= 2 ? { url: bestUrl, text: bestText } : null;
+
+  const debug = { ddgCount, bingCount, bestScore };
+  // Lower threshold from 2 → 1 (single name-token match is usable; GPT can sift)
+  return bestScore >= 1 ? { url: bestUrl, text: bestText, debug } : null;
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────
@@ -156,6 +202,7 @@ export async function POST(req: NextRequest) {
   let webText = "";
   let foundUrl = "";
   const returnedFields: Record<string, unknown> = {};
+  let searchDebug: { ddgCount: number; bingCount: number; bestScore: number } | null = null;
 
   const needsUrlEnrichment =
     !event.source_url ||
@@ -182,10 +229,15 @@ export async function POST(req: NextRequest) {
       if (enriched) {
         foundUrl = enriched.url;
         webText = enriched.text;
+        searchDebug = enriched.debug;
+      } else {
+        // Search ran but nothing scored high enough — log so we can see why
+        console.warn(
+          `[annotate-event] enrichEvent returned null for "${event.name_ja}" (location=${event.location_name}, year=${(event.start_date || "").slice(0, 4)})`
+        );
       }
     }
     if (webText) {
-      // Persist immediately (annotation may time-out)
       const persist: Record<string, unknown> = { raw_description: webText };
       if (!event.source_url) {
         persist.source_url = foundUrl;
@@ -323,5 +375,11 @@ Rules:
       .eq("id", eventId);
   }
 
-  return NextResponse.json({ success: true, foundUrl: foundUrl || null, fields: returnedFields });
+  return NextResponse.json({
+    success: true,
+    foundUrl: foundUrl || null,
+    fields: returnedFields,
+    searchDebug,
+    webTextLength: webText.length,
+  });
 }

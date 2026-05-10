@@ -595,9 +595,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         body: JSON.stringify({ eventId }),
       });
       if (res.ok) {
-        const { fields, foundUrl } = (await res.json()) as {
+        const { fields, foundUrl, searchDebug, webTextLength } = (await res.json()) as {
           fields: Record<string, unknown>;
           foundUrl: string | null;
+          searchDebug: { ddgCount: number; bingCount: number; bestScore: number } | null;
+          webTextLength: number;
         };
         for (const [k, v] of Object.entries(fields)) {
           if (v !== null && v !== undefined) {
@@ -607,6 +609,18 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         if (foundUrl) {
           updateField("source_url", foundUrl);
           updateField("official_url", foundUrl);
+        }
+        // Log diagnostics so user can see why URL fields stayed empty
+        console.info("[annotate]", {
+          foundUrl,
+          webTextLength,
+          searchDebug,
+          fieldsReturned: Object.keys(fields),
+        });
+        if (!foundUrl && searchDebug) {
+          console.warn(
+            `[annotate] No URL found. DDG=${searchDebug.ddgCount} candidates, Bing=${searchDebug.bingCount} candidates, bestScore=${searchDebug.bestScore}. Vercel IP may be blocked by search engines.`
+          );
         }
       } else {
         console.warn("Annotation API failed:", await res.text());
