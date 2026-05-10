@@ -57,6 +57,23 @@ export default function RootLayout({
   return (
     <html lang="zh" suppressHydrationWarning>
       <head>
+        {/*
+          Anti-flash script: runs before first paint to apply the saved theme class.
+          Must be inline so it executes synchronously before hydration.
+          localStorage key: "ttr_theme" → "dark" | "light" | (unset = system)
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){
+  try{
+    var t=localStorage.getItem('ttr_theme');
+    if(t==='dark'||(t==null&&window.matchMedia('(prefers-color-scheme:dark)').matches)){
+      document.documentElement.classList.add('dark');
+    }
+  }catch(e){}
+})();`,
+          }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}

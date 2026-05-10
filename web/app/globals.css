@@ -95,6 +95,13 @@ html {
   background: var(--color-bg);
 }
 
+/* The anti-flash script in app/layout.tsx adds .dark to <html> based on
+   localStorage + matchMedia. This rule ensures color-scheme is updated so
+   native form controls (date pickers, scrollbars) also flip to dark. */
+html.dark {
+  color-scheme: dark;
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-text);

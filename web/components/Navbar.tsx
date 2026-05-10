@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useEffect, useRef, useState, Suspense } from "react";
 import { type Locale, LOCALES } from "@/lib/types";
 import type { User } from "@supabase/supabase-js";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface Props {
   locale: Locale;
@@ -161,6 +162,9 @@ export default function Navbar({ locale }: Props) {
               </Link>
             )}
           </nav>
+
+          {/* Theme toggle */}
+          <ThemeToggle />
 
           {/* Language switcher — globe icon + dropdown */}
           <Suspense fallback={<div className="w-8 h-8" />}>
