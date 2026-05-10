@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
   const { data: event, error: fetchErr } = await adminClient
     .from("events")
     .select(
-      "name_ja,name_zh,name_en,description_ja,location_name,location_address,organizer,performer,price_info,business_hours,category,event_form,primary_language,has_japanese_support,has_chinese_support,has_english_support,is_paid,start_date,source_url,official_url"
+      "name_ja,name_zh,name_en,description_ja,location_name,location_address,location_url,organizer,organizer_url,performer,price_info,business_hours,category,event_form,primary_language,has_japanese_support,has_chinese_support,has_english_support,is_paid,start_date,source_url,official_url"
     )
     .eq("id", eventId)
     .single();
@@ -224,9 +224,10 @@ Description text (always required — generate based on web page or existing inf
 
 Extraction fields (omit if not visible in the web page):
 - organizer: organizer name in Japanese (e.g. "千代田区立日比谷図書文化館")
-- organizer_url: organizer official URL (full https URL)
+- organizer_url: organizer official URL (full https URL, the org's homepage)
 - location_name: venue name in Japanese
 - location_address: full Japanese postal address (with 〒)
+- location_url: venue official website URL (full https URL, the venue's homepage)
 - business_hours: opening hours / show times (e.g. "10:00〜20:00")
 - performer: main performer or speaker name (single person or group)
 - price_info: ticket price text (e.g. "入場無料" or "一般 ¥1,500")
@@ -258,7 +259,7 @@ Rules:
       const annotated = JSON.parse(content) as Record<string, unknown>;
       // Preserve OCR-filled values: only fill extraction fields that are currently empty
       const extractionFields = [
-        "organizer", "organizer_url", "location_name", "location_address",
+        "organizer", "organizer_url", "location_name", "location_address", "location_url",
         "business_hours", "performer", "price_info", "start_date", "end_date",
         "name_ja", "name_zh", "name_en",
       ];
