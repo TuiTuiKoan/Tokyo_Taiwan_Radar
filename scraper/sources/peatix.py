@@ -183,8 +183,8 @@ def _extract_peatix_dates(page_text: str) -> tuple[Optional[datetime], Optional[
         except ValueError:
             pass
 
-    # No time range found — same-day event, start = end
-        # (Caller enforces end_date = start_date when end is still None)
+    # No time range found — same-day event; caller sets end_date = start_date
+    return start, None
 
 
 class PeatixScraper(BaseScraper):
