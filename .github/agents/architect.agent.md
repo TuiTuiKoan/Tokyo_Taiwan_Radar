@@ -168,28 +168,6 @@ Current members (as of 2026-05-05): `google_news_rss`, `prtimes`, `nhk_rss`, `wa
 
 Reference incident: 2026-05-05 — `walkerplus` 加入 `_NEWS_SOURCES` 因其資料品質低於官方主辦方來源（日期常為文章發布日、地址只到 prefecture）。從此 walkerplus 永不作為主事件，由 iwafu / taiwan_matsuri 等官方來源吸收為 secondary URL。
 
-## Merger Same-Venue Different-Work Collision Guard（同場館不同作品碰撞防護）
-
-在審核任何涉及 merger Pass 1/2 邏輯的計畫，或分析電影類事件被錯誤合併的案例前，**必須**確認：
-
-1. **兩個事件均已設定 `work_id` 且值不同時，Pass 1 必須跳過合併**：`event_A.work_id != event_B.work_id`（且兩者均非 `None`）是最強的不合併信號，優先於 name similarity 分數和地點相似度。
-2. **電影類 gnews sub-event 在 merger 前已透過 `_get_or_create_work_id` 取得 work_id**：若此後 merger Pass 1 基於地點相似合併 → 被合併方的 `work_id` 被覆寫 → annotator re-annotation 根據新 work_id 生成錯誤名稱。
-3. **地點相似 ≠ 相同活動**：同一場館在同一時期常同時放映多部電影；Pass 1 的 `_location_overlap() = True` 不足以推斷是同一活動。
-4. **Pass 1 `work_id` 衝突跳過邏輯**（期望行為）：
-   ```python
-   if event_a.get("work_id") and event_b.get("work_id"):
-       if event_a["work_id"] != event_b["work_id"]:
-           continue  # different works — never merge
-   ```
-5. **安全測試（在 `scraper/` 目錄執行）**：
-   ```python
-   from merger import SOURCE_PRIORITY
-   # 手動驗證：兩個 work_id 不同的事件，merger 應在 log 中出現 "skip: different work_id" 類訊息
-   # 期望行為：無論 name_similarity 分數為何，merge = False
-   ```
-
-Reference incident: 2026-05-09 — `c6d5232a`（赤い糸 輪廻のひみつ / 新文芸坐）被錯誤合併進霧のごとく大濛，因兩者共用同一場館（新文芸坐），merger 忽略了兩個事件均已有不同 work_id 的信號，導致三層污染鏈：work_id 被覆寫 → annotator 生成錯誤名稱 → 手動「修正」把錯誤值鎖進 field_corrections，污染永久化。
-
 ## Secret Permission Consistency Guard
 
 Before approving any change related to `GITHUB_TOKEN` requirements, verify:
@@ -198,53 +176,6 @@ Before approving any change related to `GITHUB_TOKEN` requirements, verify:
   - Fine-grained PAT: `Issues: write + Metadata: read`
   - Classic token: `repo` scope
 2. `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` remains the single checklist source.
-
-## Performer Multi-Value Field Pollution Guard（多人值欄位污染防護）
-
-Before approving any backfill script that touches `performer_zh` / `performer_en`:
-
-1. **`performer`（TEXT）只能存單一人名**：若 `performer` 含逗號（`、` 或 `,`），即為違規——停止輸出 `performer_zh/en`，跳過該事件。
-2. **`performers[].length ≥ 2` 時，`performer_zh/en` 設 null**：多人陣列與單人翻譯欄語義互不相容，不可用逗號連接後填入。
-3. **FC 污染鏈**：錯誤值一旦鎖入 `field_corrections`，re-annotation 無法修復——必須手動先 DELETE FC 再清空欄位（Engineer pattern：DELETE FC → update events → 不重新鎖定）。
-4. **偵測 SQL**：
-   ```sql
-   SELECT id, performer FROM events
-   WHERE performer LIKE '%、%' OR performer LIKE '%,%'
-     AND is_active = true;
-   ```
-
-Reference incident: 2026-05-07（B）— `f3554212` 霧のごとく / 大濛，`backfill_performer_i18n` 將 performers[] 四人名逗號連接存入 performer + performer_zh/en，三欄全 FC 鎖定，形成持久污染。
-
-## location_name_zh/en 推廣機構污染防護
-
-Before approving any annotation or backfill that sets `location_name_zh` / `location_name_en`:
-
-1. **推廣機構 ≠ 場館**：協辦、推廣、贊助機構（例：台灣文化中心、TECO 台北駐日）不可設為 `location_name_zh/en`，即使其名稱出現在 raw_description 中。
-2. **清除方式**：直接設 null；null 不會被 re-annotation 覆寫為更差的值，**不需要 FC 鎖定**。
-3. **判斷基準**：`location_name` 必須是實際活動發生的物理場館，與 `location_address` 描述同一地點。
-
-Reference incident: 2026-05-07（B）— `f3554212`，`location_name_zh = '台灣文化中心'`（推廣合作方），實際場館是 Stranger（東京墨田区電影院）。
-
-## note_creators start_date 系統性問題
-
-When reviewing events from `note_creators` source whose `start_date` looks suspicious (timestamp with time component, or clearly in the past):
-
-1. **系統性問題**：note_creators 的 `raw_description` 通常只有截斷文字（「続きをみる」），annotator 無法提取正確日期，fallback 抓文章發布時間作為 `start_date`。
-2. **識別特徵**：`start_date` 帶非 midnight 時間（如 `T11:38:26+00:00`），或早於活動預期發布期。
-3. **修正流程**：
-   - 前往 note 原文（`source_url`）確認實際活動日期
-   - 更新 `start_date` / `end_date` 為正確日期（UTC midnight）
-   - 鎖定 FC（否則下次 re-annotation 會還原為文章發布時間）
-4. **建議驗證 SQL**：
-   ```sql
-   SELECT id, source_url, start_date, raw_title
-   FROM events
-   WHERE source_name = 'note_creators'
-     AND EXTRACT(HOUR FROM start_date) != 0
-     AND is_active = true;
-   ```
-
-Reference incident: 2026-05-07（B）— `16f90b51`，`start_date = '2026-04-27T11:38:26+00:00'`（文章發布時間），實際活動 2026-07-30〜8/6。
 3. Legacy checklist paths are redirect-only stubs, not duplicated content.
 4. No real token values appear in tracked files; examples must use placeholders.
 
@@ -308,86 +239,6 @@ Reference incident: 2026-05-04 hakusuisha `_T` parser 未過濾 script/nav，`�
 
 Reference incident: 2026-05-04 hakusuisha — `_JITSU_RE` 命中 scraper 自注入的 `開催日時:` 前綴，`business_hours` 永遠 null（commit `a0292a2`）。
 
-## Scraper Date Timezone Guard（爬蟲日期時區守護）
-
-在審核任何 scraper 的 `start_date`/`end_date` 傳入邏輯前，**必須**確認：
-
-1. **禁止傳 JST-aware datetime**：`datetime(..., tzinfo=timezone(timedelta(hours=9)))` 傳入 Supabase 後以 UTC 儲存，JST+9 偏移導致日期倒退一天（`2026-05-08T00:00:00+09:00` → `2026-05-07T15:00:00+00:00`）。
-2. **正確模式 — UTC midnight**：
-   ```python
-   # CORRECT — 保留日曆日期，強制 UTC tzinfo
-   start_date = jst_dt.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
-   # WRONG — JST-aware datetime 傳入 Supabase
-   start_date = jst_dt  # tzinfo=JST, Supabase 轉成前一天 UTC
-   ```
-3. **naive datetime 也有風險**：`datetime` 無 tzinfo 時 Supabase 依伺服器時區解讀（通常 UTC），一般安全，但不如明確設定 UTC midnight。
-4. **驗證**：新 scraper dry-run 後，確認 DB 的 `start_date` 與來源頁面的日期完全一致。
-
-Reference incidents:
-- 2026-05-07 — Stranger scraper `f3554212` start_date 存為 `2026-05-07T15:00:00+00:00`（應為 2026-05-08），Vercel 顯示前一天（commit `b7dc34f`）。
-- 2026-05-09 — rightscube scraper `_parse_venue_dates()` 的 `datetime(yr, mth, day, tzinfo=_JST)` 造成 `6885927b` end_date `2026-05-23T15:00Z`（應為 `2026-05-24T00:00Z`），手動 hotfix + commit `74f5e2e`。**同一 bug 跨 scraper 複現**——新 scraper review 應 grep 所有 `tzinfo=_JST` 使用點。
-
-## Vision OCR via Twitter Poster Guard（X.com 來源事件的海報資料提取）
-
-在審核任何 `official_url` 指向 X.com（Twitter）的事件，或設計 `image_url=null` 事件的資料補強流程時，**必須**確認：
-
-1. **`enrich_poster.py` 不處理 `image_url=null` 的事件**：X.com 連結的事件通常 `image_url=null`，自動 pipeline 跳過。需人工補強。
-2. **Playwright → pbs.twimg.com → GPT-4o Vision 的手動流程**：
-   ```python
-   from playwright.sync_api import sync_playwright
-   import re
-   with sync_playwright() as pw:
-       browser = pw.chromium.launch(headless=True)
-       page = browser.new_page()
-       page.goto("<tweet_url>/photo/N", wait_until="domcontentloaded")
-       # wait 5s for JS render
-       imgs = re.findall(r'https://pbs\.twimg\.com/media/[A-Za-z0-9_\-]+', page.content())
-       # Use: f"{img}?format=jpg&name=large" as image_url for Vision
-   ```
-3. **海報地址優先於 DB 現有地址**：海報上印刷的場地地址比 scraper 抓取的地址更可靠，以海報為準更新並 FC 鎖定。
-4. **從海報可取得的欄位**（視海報內容而定）：`business_hours`（場次時間）、`price_info`/`price_amount`（票價）、`location_address`（地址）、`location_name`（場地名）。
-5. **信心度門檻**：只更新明確出現在海報上的欄位，不推斷缺失資訊。
-
-Reference incident: 2026-05-09 — `6885927b`（台湾Filmake・シアターtalpa）`image_url=null`，透過 Playwright 取得 tweet 圖片 URL，GPT-4o Vision 讀出 4 場次時刻表 + ¥1,500 票價 + `北1条西3丁目3-8` 地址，3 個欄位更新 + FC 鎖定。
-
-## organizer_type Valid Values Guard
-
-在審核任何直接設定 `organizer_type` 的 DB 修正、腳本或計畫前，**必須**確認值在以下允許清單內：
-
-```
-government | semi_official | cultural_institution | academic |
-commercial_brand | independent_venue | civic_group | media | unknown
-```
-
-**常見錯誤**（觸發 DB check constraint error）：
-- `npo_association` → 應改為 `civic_group`
-- `npo` → 應改為 `civic_group`
-- `association` → 應改為 `civic_group`
-
-NPO、同好會、親善協会、交流会 等 civic 性質的主辦方統一使用 `civic_group`。
-
-**Python Supabase client 型別規則**（`malformed array literal` 防護）：
-- ✅ `{'organizer_type': ['government']}` — Python list（正確）
-- ❌ `{'organizer_type': 'government'}` — 字串傳入 `text[]` 欄位會報 `malformed array literal`
-
-`organizer_type` 是 `text[]` 陣列欄位；透過 Python client 設定時，必須傳 Python list，不可傳字串。
-
-Reference incident: 2026-05-07 — `4feab235` 設 `organizer_type=['npo_association']` 觸發 check constraint error，正確值為 `civic_group`。
-Reference incident: 2026-05-07 — `3918f4b9` 設 `organizer_type='government'`（字串）觸發 `malformed array literal`；正確格式為 `['government']`（Python list）。
-
-## annotation=error Location Trust Guard
-
-在審核任何 `annotation_status = 'error'` 的事件前，**必須**確認：
-
-1. **location / organizer 值不可信任**：`annotation=error` 表示 GPT 回傳格式異常，location/organizer 等欄位可能是前次 annotation 的殘留值或亂碼。
-2. **必要的修復步驟**：
-   a. 從 `source_url` 直接查閱原始頁面確認正確場地
-   b. 手動設定正確 `location_name` / `location_address` / `location_prefectures` + FC 鎖定三欄
-   c. 設 `organizer = None`、`annotation_status = 'pending'` 讓 annotator 重新處理
-3. **Collection Attribution Guard 仍適用**：`〇〇美術館蔵` 型的機構名不可作為 `location_name`，作品收藏機關 ≠ 展場。
-
-Reference incident: 2026-05-07 — `977da793` annotation=error，`location_name` 誤填台北當代藝術館（作品所蔵機關），實際展場為 Gallery Biga（京都）。
-
 ## Sub-Venue Parent Address Guard
 
 在審核任何包含 `location_name` 或 `location_address` 的 annotator 修改、或任何新 scraper 的 location 欄位邏輯前，**必須**確認：
@@ -397,17 +248,6 @@ Reference incident: 2026-05-07 — `977da793` annotation=error，`location_name`
 3. **auto_qa 偵測器**：`auto_qa_address_is_venue_name` 必須在 `QA_TYPES` 中且由 `run()` 呼叫。
 
 Reference incident: 2026-05-04 — `878660a0 iwafu` `流山おおたかの森S.C. 森のまち広場` address = name（失敗）；`3cbe5682` sub-venue 需用親 SC 地址（commit `b95e...`）。
-
-## Location Embedded Address Guard（location_name 括弧住所混入防護）
-
-在審核任何 annotator 輸出中涉及 `location_name` / `location_address` 分離的計畫，或分析 location 欄位異常前，**必須**確認：
-
-1. **`location_name` 中不應包含括弧住所**：`南山大学 Q棟103教室 (〒466-8673 名古屋市昭和区山里町18)` 這種混入格式表示 annotator 未能分離。正確格式：`location_name = 南山大学 Q棟103教室`、`location_address = 〒466-8673 名古屋市昭和区山里町18`。
-2. **偵測 SQL**：`SELECT id, location_name FROM events WHERE location_name LIKE '%(〒%' AND is_active = true;`
-3. **修復後必須 FC 鎖定 location_name + location_address 兩個欄位**：否則下次 re-annotation 可能再次混入。
-4. **範圍**：特別常見於學術研究會（taiwanshi、jats 等）sub-event，annotator 會從父事件繼承 location_name 並附加括弧住所。
-
-Reference incident: 2026-05-07 — `b42977f3` / `09c26a2e`（日本台湾学会第23回関西部会 sub-events）location_name 括弧住所混入修復。
 
 ## Category Sync Guard（annotator.py ↔ types.ts）
 
@@ -453,53 +293,21 @@ Reference incidents:
 
 Reference incident: 2026-05-06 — `セシリアママ` 從 `category_corrections` few-shot 污染 31 件 Peatix 活動（commit `fix(annotator): add organizer non-hallucination guard`）。
 
-## Blog/Creator Source Thin Content Guard（部落格來源薄文本防護）
-
-在審核任何涉及 `note_creators`、`note.com` 等部落格/創作者聚合來源的計畫前，**必須**確認：
-
-1. **`raw_description` 通常只有「続きをみる」截斷文字**：organizer 在此情況下必然為 null，絕不可從 note 發文者的背景推斷主辦方。
-2. **純介紹文章/觀影報導不是活動資料**：標題含「おすすめ」「紹介」「行ってきた」「観てきた」「鑑賞レポ」等字樣的文章，應設 `is_active=false`（非活動事件）。
-3. **`_HEADLINE_REWRITE_SOURCES` 必須包含部落格來源**：`note_creators` 的 `raw_title` 是文章標題，不是活動名稱，必須讓 GPT 從 raw_description 重新生成正確的 `name_ja`。
-4. **Non-Hallucination Guard 在薄文本（< 100 字）時保護有限**：文本極短時 GPT 仍可能從外部知識推斷 organizer。對此類事件，organizer 應保持 null，且 DB 修正後必須鎖 `field_corrections`。
-5. **report-article URL 亦可從非部落格來源產生重複事件**：Peatix 等活動平台的「レポート」頁面會在報告文中提及過去活動日期，scraper 可能將該日期抓取為新事件的 `start_date`，形成與原始事件的重複——而 merger 因標題含「レポート」差異大，無法自動去重。對任何 `name_ja` 或 `raw_title` 含「レポート」且 `is_active=true` 的事件，**必須**人工確認是否為活動頁或報告文章；報告文章須手動停用（`is_active=false`）或合併（`merged_into_event_id`）。
-6. **note publisher profile 被誤用為 `location_name` 的風險**：`note_creators` 的 `raw_description` 常含 note 投稿者的個人簡介文字（如 `台湾華語文学習センター（大阪弁天町）`），這是帳號 profile，不是活動場地。`raw_description` 含 `続きをみる` 截斷時，`location_name` 應設為 null，不可從 raw_description 推斷。
-
-Reference incidents:
-- 2026-05-07 — `3918f4b9`（ビビビビ！台湾！）`location_name='台湾華語文学習センター（大阪弁天町）'` 為 note 帳號 profile，修正為 null + FC 鎖定；同一事件另有 `organizer` 幻覚與 `start_date` 偏移（三重污染）。
-- 2026-05-08 — `2cae572a`/`10a4ee5d` organizer 被推斷為 note 發文者；`4180ad0f`/`4ebc8a35` 介紹文章/觀影報導入庫（commit `b589fbb`）。
-- 2026-05-08 — Peatix `994b8c8b` 從台灣文化中心「座談レポート」URL 誤建立為 2025-10-04 事件，與 `3645a3ac` 重複；`f7ff56ca` 為映後報告文章誤入庫（手動合併/停用）。
-
-## Collection Attribution Guard（所蔵元 ≠ 活動場地）
-
-在審核任何涉及展覽類事件 `location_name` 抽取邏輯的計畫前，**必須**確認：
-
-1. **`〇〇美術館蔵`/`〇〇博物館蔵` 是作品所蔵機關標記，不是活動場地**：GPT 容易將「高雄市立美術館蔵」中的「高雄市立美術館」誤提取為 `location_name`。
-2. **固定場地的 scraper 應直接設定靜態 `location_name`**：yebizo（東京都写真美術館）等固定場地的 scraper，`location_name` 應在 scraper 層硬設，不依賴 GPT 抽取——無論展品所蔵機構來自何處，活動場地不變。
-3. **SYSTEM_PROMPT 的 COLLECTION ATTRIBUTION NOTE 為第一道防線**：規則已注入 GPT 指示，但 scraper 靜態設定為最可靠的保障。
-
-Reference incident: 2026-05-08 — `e37db12e`（yebizo）`location_name='高雄市立美術館'`（作品所蔵元），修正為「東京都写真美術館」（commit `47f8184`）。
-
 ## Performer Null Guard（三層 fallback + regex 設計規則）
 
 在審核任何涉及 `performer` 欄位的計畫，或分析 `performer = NULL` 案例時，**必須**確認：
 
 1. **`update_data` 包含 `performer` 欄位**：常規 annotation 流程必須在 `update_data` dict 中寫入 performer，不可依賴 `--backfill-performer` 補救。
 2. **三層 fallback 順序**：DB 既有值 → GPT (`annotation.get("performer")`) → regex (`_extract_performer_from_raw`) 。`field_corrections` 保護的值不覆蓋。
-3. **Regex 名字字元類必須保守**：用 `[\u4e00-\u9fff]{2,5}` 純漢字（上限 5），而非排除清單 `[^\s...]`——排除清單允許平假名 `の` 進入名字（`評論家の龍應台`），產生假陽性。`{2,6}` 時 `翻訳者一青窈`（6字）會被誤識為名字。
-4. **敬語形式需完整覆蓋**：`をお迎え`、`を迎え`、`をゲストに迎え` 三者語義相同但拼法不同，必須同時收錄於 `_MUKAE_RE` lookahead。缺一則靜默失敗（Reference: 2026-05-08 commit `6c2f1ab`）。
-5. **`_MUKAE_RE` 必須加 negative lookbehind `(?<![\u4e00-\u9fff])`**：防止從職稱字串（如 `翻訳者`）中間開始匹配出 `訳者一青窈` 這類假陽性。
-6. **每次 regex 修改後掃描 DB**：對所有 performer=null 事件跑 `_extract_performer_from_raw`，人工確認全部命中均為真陽性。
-7. **`_PIPE_ROLE_RE` 覆蓋「主催者 = 主講人」型活動**：`<name>　｜<role>` 格式（例 `前田知里｜植物民族学研究家`）常見於 Peatix 個人講座。Role suffix 必須是 `家/者/師/士/督` 之一，防假陽性。
-8. **搜索範圍 = raw_description 前 1500 字元**（非 500）：講者資訊常在事件說明後段，500 字元不足。
-9. **DB 回填只採用 INTRO pattern（確定性高）**：MUKAE 只感知「名字+敬語」，不知道上下文有幾位講者。多人講者事件應保持 null。
-10. **`_PERFORMER_INTRO_RE` separator 必須為 `*`（0 或多個）**：日語中角色詞（`絵本作家`、`翻訳者`）與人名直接連接（無分隔符）是常見寫法，`+`（1 個以上）會導致靜默失敗（Reference: 2026-05-08 commit `fe8b273`）。
+3. **Regex 名字字元類必須保守**：用 `[\u4e00-\u9fff]{2,6}` 純漢字，而非排除清單 `[^\s...]`——排除清單允許平假名 `の` 進入名字（`評論家の龍應台`），產生假陽性。
+4. **敬語形式需完整覆蓋**：`をお迎え` 與 `を迎え` 是不同 pattern。
+5. **每次 regex 修改後掃描 DB**：對所有 performer=null 事件跑 `_extract_performer_from_raw`，人工確認全部命中均為真陽性。
+6. **`_PIPE_ROLE_RE` 覆蓋「主催者 = 主講人」型活動**：`<name>　｜<role>` 格式（例 `前田知里｜植物民族学研究家`）常見於 Peatix 個人講座。Role suffix 必須是 `家/者/師/士/督` 之一，防假陽性。
+7. **搜索範圍 = raw_description 前 1500 字元**（非 500）：講者資訊常在事件說明後段，500 字元不足。
 
 Reference incidents:
 - 2026-05-04 — event `e72b2c15` performer=null（缺 fallback）；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
 - 2026-05-06 — event `4427f965`（台湾植物紀行）`前田知里｜植物民族学研究家` 未提取，三重根因：(1) 無 `_PIPE_ROLE_RE`；(2) 資訊在 pos 859 > 500 上限；(3) GPT 視主催者不為 guest（commit `c82e746`）。
-- 2026-05-08 — `翻訳者一青窈` 假陽性：INTRO `{2,6}` + MUKAE 無 lookbehind 導致 role+name 連串被誤匹配；修法：max 6→5 + lookbehind + `翻訳者` 加入 role list（commit `b2d8a21`）。
-- 2026-05-08 — `一青窈氏をゲストに迎え` 無法被 MUKAE 捕捉：lookahead 缺少 `をゲストに迎え`；修法：加入至 lookahead（commit `6c2f1ab`）。
-- 2026-05-08 — `絵本作家林廉恩氏` 無法被 INTRO_RE 捕捉：separator `+` 不允許無分隔符直連寫法；修法：`+` → `*`（commit `fe8b273`）。
 
 ## LINE Broadcast Query Guard（annotation_status 過濾）
 
@@ -524,43 +332,9 @@ Reference incident: 2026-05-05 — `赤い糸 輪廻のひみつ` 以日文出�
 
 Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan-Dong` 從 5/4 daily CI 後一直未修正；同事件已多次手修又被 AI 覆寫，根因是缺 field_corrections lock。
 
-## Performer Multilingual Fields Guard（performer_zh/en/director_zh/en）
-
-在審核任何涉及 `performer_zh`、`performer_en`、`director_zh`、`director_en` 的計畫，或設計多語言表演者顯示邏輯時，**必須**確認：
-
-1. **欄位架構（migration 053/054）**：
-   - `performer TEXT`：日文原名（永遠用日文，供 ja locale）
-   - `performer_zh / performer_en TEXT`：各語言名稱（GPT 填入或人工設定）
-   - `performers TEXT[]`：所有具名表演者/發表者的陣列
-   - `director / director_zh / director_en`：同上，用於導演
-2. **locale 優先序（`getEventPerformer(event, locale)`）**：
-   - `zh` → `performer_zh || performer`
-   - `en` → `performer_en || performer`
-   - `ja` → `performer`（不走翻譯欄位）
-3. **AI翻譯標注規則**：GPT 填入 performer_zh/en/director_zh/en 時，若該語言名稱**未明確出現在來源文本**，必須附加「（AI翻譯）」（如 `黃以文（AI翻譯）`）。若來源中有該語言名稱，不加標注。
-4. **academic performers[]**：學術研討會（学会大会、研究大会、シンポジウム）中**所有**具名發表者（発表者/報告者/登壇者）必須列入 `performers[]`，即使有 5 人以上。
-5. **手動設定必須鎖 `field_corrections`**：同 `performer` 欄位，`performer_zh`、`performer_en` 手動修正必須同時 upsert 進 `field_corrections`，否則下次 re-annotation 覆寫。
-6. **`works.work_type` 有效值**：`film | stage | exhibition | concert_tour | tv_drama | tv_variety | other`。`conference` **不在**允許清單，學術研討會用 `other`。（migration 048 + 051 的 check constraint 僅允許上列 7 種）
-7. **UI 顯示優先序必須同步更新（event detail page）**：事件詳情頁 `[id]/page.tsx` 中，若 locale 為 zh/en 且 `performer_zh`/`performer_en` 存在，必須優先使用 `getEventPerformer(event, locale)`；`performers[]` 僅作為 ja locale、或 zh/en 無多語言欄位時的 fallback。新增多語言欄位後，若 UI 優先序未同步更新，新欄位永遠不會被 end-user 看到（隱性迴歸）。Reference incident: 2026-05-09 commit `2e6f4c2`。
-
-Reference incidents:
-- 2026-05-06 — `ホアン・イーウェン`（bf783b90）performer_zh=黃以文，performer_en=Huang Yi-wen（AI翻譯）；`林依晨`（4 events）performer_zh=林依晨，performer_en=Lin Yi-chen（commits 65a50b9）。
-- 2026-05-06 — 建立 work_id `c3588296` 時 `work_type='conference'` 觸發 check constraint；改用 `'other'`。
-
-## Performer Multi-Person Display Guard（多人表演者顯示防護）
-
-在審核任何涉及 `getEventPerformer()` 或 performers 相關 UI 邏輯的 PR 前，**必須**確認：
-
-1. **`performers[].length ≥ 2` 時，全 locale 一律回傳 `performers[].join("、")`**：`performer_zh/en` 由 annotator 從單一 `performer` 欄位生成（只有 1 人份）。`performers[]` 有多人時優先使用 `performer_zh/en` 會靜默截斷——zh/en 頁面只顯示第 1 人，其餘人名消失。
-2. **單一表演者路徑（`performers[].length ≤ 1`）**：locale-specific translation（`performer_zh/en`）> `performer` > `performers[0]`。
-3. **驗證方式**：查詢 `array_length(performers, 1) >= 2 AND performer_zh IS NOT NULL` 的事件，確認 zh/en 頁面顯示**全部人名**而非只有第 1 人。
-4. **Root cause**：annotator 的 `performer_zh/en` 以 `performer`（單一欄位）為輸入——設計上就是 1 對 1，多人必須走 `performers[]`。
-
-Reference incident: 2026-05-07 — `b2589d75` ガブテックカンファレンス 6 位登壇者，zh/en 頁面只顯示「宮坂 学」1 人（commit `1a38bd5`）。
-
 ## Manual Translation Fix Persistence Guard（手動修翻譯必須鎖 field_corrections）
 
-在審核**任何**直接 SQL UPDATE 翻譯欄位（`name_zh` / `name_en` / `description_zh` / `description_en` / `performer` / `performer_zh` / `performer_en`）的計畫前，**必須**確認：
+在審核**任何**直接 SQL UPDATE 翻譯欄位（`name_zh` / `name_en` / `description_zh` / `description_en` / `performer`）的計畫前，**必須**確認：
 
 1. **手動修正必同時鎖入 `field_corrections`**：否則下一次事件 `annotation_status` 翻回 `pending`（scraper diff / `--all` / `--fix-translations`）時，annotator 主迴圈用 GPT 重寫，所有人工修正瞬間蒸發。這是「修了又錯、錯了又修」迴歸鏈的根因。
 2. **正確操作 pattern**：
@@ -572,10 +346,8 @@ Reference incident: 2026-05-07 — `b2589d75` ガブテックカンファレン�
    ```
 3. **enrich_* 函式自動鎖**：`enrich_movie_titles` 與 `enrich_person_names` 成功 patch 後**已自動 upsert** `field_corrections`（2026-05-05 起）。手動修正不可漏掉這一步。
 4. **靜默 `continue` 是反 pattern**：lookup 失敗必須 `logger.warning`，否則 CI log 看不到，錯誤翻譯靜默上線數日。
-5. **污染 + 鎖定是最惡劣組合**：若手動「修正」的值本身就是錯的（例如把污染後的 name 鎖進 `field_corrections`），後續 re-annotation 永遠無法自動修復。在執行任何 `field_corrections` upsert 前，必須先確認值來自 `raw_description`，而非來自已被污染的 `name_ja`/`name_zh` 欄位。
 
 Reference incident: 2026-05-05 — event `f970e4e3`（月老）多次被修又被 AI 覆寫，根因為手動修正未寫 `field_corrections`，且 `enrich_movie_titles` lookup 失敗無 WARN。
-Reference incident: 2026-05-09 — `c6d5232a`（赤い糸）手動「修正」把污染後的 `name_zh=大濛` 鎖進 FC，後續 re-annotation 無法自動修復，需手動 delete + 正確值 re-upsert。
 
 ## DB Migration DEFAULT Value — Batch Query Guard
 
@@ -593,25 +365,25 @@ Reference incident: 2026-05-09 — `c6d5232a`（赤い糸）手動「修正」�
 
 Reference incident: 2026-05-05 — migration 033 設定 `auto_research_status DEFAULT 'pending'`，但 batch query 只過濾 NULL，導致 14 筆候選來源靜默跳過數日（commit `5d2585d`）。
 
-## Archive Ended Events — ~~Archiver 已刪除~~ (2026-05-06)
+## Archive Ended Events — Work-Link Bypass Guard
 
-> **⚠️ archiver 已刪除**：`archive_ended_events()` 函式及相關呼叫已於 2026-05-06 從 `scraper/database.py` 和 `scraper/main.py` 完全移除。
-> 事件的 `is_active` 狀態不再由每日 cron 自動管理；停用／激活需透過 Admin UI 或手動 DB 操作。
+在審核任何涉及 `archive_ended_events()` 修改，或設計「保留過去活動」功能時，**必須**確認：
 
-~~在審核任何涉及 `archive_ended_events()` 修改，或設計「保留過去活動」功能時，**必須**確認：~~
-
-**現行規則（archiver 刪除後）：**
-1. **`work_id IS NOT NULL` 的事件永遠不會被自動停用**（archiver 已不存在，此規則作為設計意圖保留）。
+1. **`archive_ended_events()` 必須跳過 `work_id IS NOT NULL` 的事件**：
+   ```python
+   .is_("work_id", "null")   # preserve work-linked events as historical records
+   ```
+   語意：若事件已被策展性連結至某 Work，視為歷史場次記錄，不自動停用。
 2. **Related screenings query 不得有 `.eq("is_active", true)` 限制**：Work 詳情應顯示所有場次（含過去 inactive），按 active/inactive 分組加標籤。
-3. **Past screenings 顯示 pattern**：
+3. **Work 指派 = 隱性 preserve 信號**：只要事件有 work_id，就不被每日 archiver 清除。這是讓策展性過去場次持續可見的標準機制，無需額外 `is_archivable` 欄位。
+4. **Past screenings 顯示 pattern**：
    ```ts
    const upcomingScreenings = relatedScreenings.filter(r => r.is_active);
    const pastScreenings = relatedScreenings.filter(r => !r.is_active);
    // Show "pastScreeningsLabel" header for pastScreenings section
    ```
 
-Reference incident: 2026-05-05 — チップ・オデッセイ（造山者）過去場次被 archiver 重新停用（archiver 已在 2026-05-06 刪除，此問題不再發生）。
-Reference: 2026-05-06 — archiver 完全刪除；00ae1ea8（日本台湾学会第23回関西部会）孤兒 sub-events 在 archiver 刪除後可以安全激活並持久保留。
+Reference incident: 2026-05-05 — チップ・オデッセイ（造山者）過去場次被 archiver 每日重新停用，手動修多次都無效。修復：archive 加 `.is_("work_id", "null")`，detail page 移除 `is_active` filter（commit `fix(scraper,web): preserve work-linked past screenings`）。
 
 ## Film Title Cross-Language Verification Guard
 
@@ -657,7 +429,6 @@ Reference incidents:
 3. **Author bio false positive**：台灣大學名稱（`台湾大学`、`淡江大学` 等）出現在著者略歷中，不代表活動內容與台灣相關。需 regex 排除後再計 keyword count。
 
 Reference incident: 2026-05-07 — bookandbeer `?keyword=台湾` 被 server 靜默忽略，需 client-side filter (commits 7df9f56, e1ab468)。
-Reference incident: 2026-05-07 — tsutaya_portal `_is_taiwan_relevant()` 全文搜索導致 5 件アーティスト略歴偽陽性入庫（artist bio pos 586–1634）。修正：title 全文 + description[:500] に限定（commit `c3ae92a`）。
 
 ## gnews RSS Snippet Date Guard
 
@@ -688,215 +459,6 @@ Reference incident: 2026-05-07 — gnews RSS snippet fallback 造成錯誤 start
 Reference incidents:
 - 2026-05-04 — `045d1fa` 新增 WasedaIcl 後丟失 24 個 scraper。
 - 2026-05-08 — `694a363` import 重排，丟失 WalkerplusScraper、BigRomanticRecordsScraper、WasedaIclScraper、TsutayaPortalScraper。
-
-## Cinema Series Sub-Event Sub_Events Guard
-
-在審核任何涉及電影系列場館來源（如 ks_cinema）的 annotator 計畫，或分析同一電影出現多筆事件的問題前，**必須**確認：
-
-1. **Annotator SYSTEM_PROMPT Rule 1 有電影時段豁免**：電影類別的單一放映若只有多個時段（如 `4/25～5/1 10:00、5/2～8 14:40`），不建立 sub_events；用 start_date=首日、end_date=尾日，時段細節放 business_hours。
-2. **程式碼守衛存在**：`_cinema_sources = {"ks_cinema"}`；若 `source_name in _cinema_sources AND source_id ends in _{digit} AND parent_event_id=None → sub_events = []`。
-3. **Race condition 已知**：首次執行時 `_get_parent_uuid` 因同批 upsert 而查不到 parent → `parent_event_id=None`；守衛已防止誤生成 `_sub1`。
-4. **`_sub1` 不被 merger 消除**（同 source 跳過 Pass 1）—— 若有殘留需人工停用。
-
-Reference incident: 2026-05-06 — `車頂上的玄天上帝` 出現 4 筆（commit `a6cf029`）。
-
-## Tour Sub-Event Location Guard（巡演 sub-event 地點繼承錯誤防護）
-
-在審核任何涉及巡演（concert tour、全國巡回展等）父事件的 annotator 計畫，或分析 sub-event 地點標記錯誤時，**必須**確認：
-
-1. **父事件 raw_description 含多個城市時，sub-event 地點不可繼承相鄰城市**：raw_description 同時描述大阪/東京/首爾三場資訊時，annotator 容易將第一個城市（大阪）的 `location_address`/`location_prefectures` 繼承給後續城市的 sub-event。每個 sub-event 的地點必須嚴格對應各自描述的城市。
-2. **非日本地點（韓國、台灣、中國等）不應入庫**：annotator 建立 sub-events 時，若某場次地點明確在非日本城市，必須排除。已入庫者執行：
-   ```python
-   sb.table('events').update({
-       'is_active': False,
-       'deactivated_reason': 'out_of_scope: <City>, <Country> concert — not a Japan event',
-       'location_address': None,
-       'location_prefectures': None,
-   }).eq('id', eid).execute()
-   ```
-   停用後不需鎖 `field_corrections`（停用事件不再被 annotator 處理）。
-3. **`deactivated_reason` 格式**：`'out_of_scope: <說明>'`，必須包含城市與國家。例：`'out_of_scope: Seoul, South Korea concert — not a Japan event'`。
-4. **日本境內誤繼承必須修正並鎖 FC**：日本 sub-event `location_prefectures` 被標錯（如東京場標成大阪），修正後必須鎖 `field_corrections`，防止 re-annotation 覆寫：
-   ```python
-   sb.table('events').update({'location_prefectures': ['東京']}).eq('id', eid).execute()
-   sb.table('field_corrections').upsert({
-       'event_id': eid, 'field_name': 'location_prefectures',
-       'corrected_value': json.dumps(['東京'], ensure_ascii=False)
-   }, on_conflict='event_id,field_name').execute()
-   ```
-
-Reference incident: 2026-05-07 — VOOID 日韓巡演 2026（大阪 6/16、東京 6/18、首爾 6/20）。東京場 `5e5ff363` `location_prefectures=['大阪']`（誤繼承第一城市）；首爾場 `7a3d83ac` 被入庫且地址誤設大阪 Channel 1969（境外場次入庫）。
-
-## Entity Normalization Guard（organizers / venues tables）
-
-在審核任何涉及主辦方聚合、場地報表，或 `organizer_id`/`venue_id` FK 欄位的計畫前，**必須**確認：
-
-1. **`events.organizer`/`events.location_name` 保留為稽核用途**：報表使用 FK，詳情頁顯示原始文字。不可修改文字欄代替更新 FK。
-2. **`_populate_entity_fks()` 在 `upsert_events()` 後自動執行**：migration 050 未套用時 gracefully no-op。
-3. **`backfill_entities.py` 必須在 migration 050 套用後執行**；先用 `_oneoff_review_organizer_clusters.py` 人工確認聚類結果。
-4. **`works.work_type` 包含 `tv_drama`/`tv_variety`**（migration 051）。
-
-Reference: migrations `050_entity_tables.sql`、`051_works_tv_drama.sql`（commit `913b7a2`）。
-
-## gnews Sub-Event Merger Guard
-
-在審核任何涉及 `google_news_rss` sub-events 的 merger 邏輯前，**必須**確認：
-
-1. **gnews sub-events 必須參與跨來源 dedup（Pass 0/1/2）**：排除 `_sub` 事件會讓 gnews 場次永遠無法被官方來源吸收。
-2. **Pass 0 `_gnews_base_id` 守衛**：同篇文章的 sub-events（不同場次）禁止彼此合併。
-3. **Pass 0 位置守衛**：不同電影院的 gnews sub-events 不可以 name similarity 合併。
-4. **Pass 2 work_id 守衛**：有 `work_id` 的 news event 已走 Pass 1，不再走 Pass 2。
-5. **每日 CI 在 `enrich-person-names` 後執行第二次 merger**（commits `ab3bd9e`、`5f98b3b`）。
-
-## SC → TC Guard（簡體字防護）
-
-在審核任何涉及 GPT enrichment 或 `auto_qa --fix` 的計畫前，**必須**確認：
-
-1. **所有 GPT 輸出必須過模組層級的 `_to_trad()`**（`enrich_person_names` 等）。
-2. **`auto_qa --fix` 轉換後必須鎖 `field_corrections`**（`fix_simplified()` 呼叫 `_lock_fields_via_corrections()`）。
-3. **`_SIMP_TO_TRAD` 字元映射表為模組層級**，不可放在函式內。
-
-Reference: commits `239cb19`（enrich SC guard）、`6e21c52`（auto_qa lock）。
-## workflow_run Self-Loop Guard
-
-在審核任何使用 `workflow_run` trigger 的 notify workflow 前，**必須**確認：
-
-1. **`workflow_run` + job 層級 `if:` 的 `failure` 語意**：當 `if:` 條件為 false，整個 workflow run 的結論是 `failure`（"No jobs were run"），**不是 `skipped`**。若 notify workflow 本身在監控清單內，它的 `failure` 觸發自身形成無限迴圈。
-2. **self-exclusion 必要守衛**：
-   ```yaml
-   if: >
-     github.event.workflow_run.conclusion == 'failure' &&
-     github.event.workflow_run.name != '<本 workflow 名稱>'
-   ```
-3. **或將自身從 `workflows:` 移除**：清單不可包含本 workflow 自身名稱。
-
-Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發無限迴圈（commit `266daa1`）。
-
-## NON_DAILY_SOURCES Registration Guard
-
-在建立**任何新的定期（非每日）workflow** 前，**必須**確認：
-
-1. **同一 commit 更新 `health_check.py` 的 `NON_DAILY_SOURCES`**：不在清單的 source 每天被 health_check 誤報 missing。
-   ```python
-   NON_DAILY_SOURCES: frozenset[str] = frozenset({"weekly_broadcast"})
-   ```
-2. **告警視窗需對齊 cron 頻率**：weekly cron 不可被 daily health_check 每天誤報。
-
-Reference incident: 2026-05-06 — `weekly_broadcast` 因 `NON_DAILY_SOURCES = frozenset()` 每天誤報 missing（commit `7df9f56`）。
-## Manual Merge Completeness Guard（手動合併三步驟全做）
-
-在審核任何手動合併操作（包含 merger 清理腳本或 Admin UI 合併）的計畫前，**必須**確認以下三件事全部完成：
-
-1. **`is_active=False` 同步更新**：設 `merged_into_event_id` 後必須同時設 `is_active=False`。合併後驗證：
-   ```sql
-   SELECT id, is_active, merged_into_event_id
-   FROM events
-   WHERE merged_into_event_id IS NOT NULL AND is_active = true;
-   -- 應為空結果；非空 = 資料不一致（⚠ 中繼節點 badge 的觸發條件之一）
-   ```
-2. **Works 表同步更新**：電影/作品類合併後，works 表的 `director`、`release_year`、`cast_summary`、`description` 必須在同一次操作中補全。只做 event 合併不補 works，works 詳情頁顯示空白。
-3. **Events 表 `director`/`performer` 同步補充**：works 表更新同時，events 的 `director`/`performer` 欄位也需對齊（用於卡片/清單頁顯示）。
-
-Reference incident: 2026-05-06 — `b891cc5e` `is_active=True + merged_into_event_id IS NOT NULL`（資料不一致）；`ソウル・オブ・ソイル` 4 筆合併後同步補充 works 表 `director=顏蘭權`、`release_year=2024`、`cast_summary`。
-
-## AdminEventTable Cross-filter Reference Guard（globalIndexMap）
-
-在審核任何涉及 AdminEventTable 或類似 admin 表格中「跨行引用 ID（merged_into, parent_event_id）」的計畫前，**必須**確認：
-
-1. **行號 map 必須從完整 `events` props 建立**：若 map 建立自篩選後的 `displayEvents`，被篩選掉的引用目標在 map 中為 `undefined`，行號靜默消失（TypeScript 不報錯）。
-2. **正確 pattern — 雙 map 架構**：
-   - `globalIndexMap`：`useMemo(() => new Map(events.map((e, i) => [e.id, i+1])), [events])`（完整 events props，不受 filter 影響）
-   - `rowIndexMap`：`useMemo(() => new Map(displayEvents.map(...)), [displayEvents])`（篩選後，顯示當前篩選下的行號）
-   - 跨篩選引用（如 `merged_into_event_id`）優先用 `globalIndexMap`
-3. **TypeScript 靜默 bug 特性**：`Map.get()` 回傳 `T | undefined`；`undefined` 渲染為空字串，無 error log，只能靠人工觀察發現。
-
-Reference incident: 2026-05-06 — AdminEventTable `rowIndexMap` 從 `displayEvents` 建立，`merged_into` 目標被篩選時全域行號消失（commits cb1bf83, 979725f）。
-
-## Admin Table Column Width Guard
-
-在審核任何 admin 表格欄寬設定（`AdminEventTable.tsx`），或修改 Tailwind 寬度 class 的計畫前，**必須**確認：
-
-1. **固定欄寬必須同時設 `w-[Npx]` + `min-w-[Npx]`**：只設 `max-w-[Npx]` 時，表格被其他欄擠壓後該欄仍會縮小（`max-w` 只設上限，無法防壓縮）。
-   ```tsx
-   <td className="w-[160px] min-w-[160px] ...">  {/* ✅ 固定寬度 */}
-   <td className="max-w-[160px] ...">             {/* ❌ 可被壓縮 */}
-   ```
-2. **Works 清單排序用 `title_ja`，不用 `original_title`**：`original_title` 是原始語言片名（可能是中/英文），PostgreSQL `ORDER BY ASC` 將 null 值排末，導致大量日文片名因 `original_title=null` 而沉底。後台以 `title_ja` 排序符合日文使用習慣。
-   ```ts
-   .order("title_ja", { nullsFirst: false })
-   ```
-3. **新增 modal 觸發點時，所有「新增」入口點必須同步改為 modal**：bulk action bar 的按鈕改為 modal 時，dropdown 底部的次要連結（`<a href="…" target="_blank">`）也必須同步改為 `<button>` 觸發 modal；混用跳頁和 modal 會造成行為不一致。
-
-Reference incident: 2026-05-06 — `category`/`work` 欄從 `max-w-[160px]` 改為 `w-[160px] min-w-[160px]`；works 清單排序從 `.order("original_title")` 改為 `.order("title_ja", { nullsFirst: false })`；dropdown「新增 work」從 `<a>` 改為 `<button>` modal。
-
-## RSC Function Prop Serialization Guard（RSC 函式 prop 序列化守護）
-
-在審核任何 Server Component 將函式傳給 Client Component 的 PR，或調查「Link 導航觸發 server error 但初始載入正常」的問題前，**必須**確認：
-
-1. **不可把翻譯 function 作為 prop 傳遞**：`(k) => t(k as ...)` 是 closure，React 19 RSC 序列化會失敗（client-side navigation 出現 server error）。SSR（初始載入）因在同一 JS process 執行不會報錯，**僅限 `<Link>` navigation 才觸發**，難以在 SSR-only 測試中發現。
-2. **正確 pattern**：Client Component（`"use client"`）需要翻譯時，直接在 component 內呼叫 `useTranslations("namespace")`；不依賴 Server Component 注入 translation function。
-3. **next-intl interpolation API**：必須用 `t("key", { n: count })`；禁止用 `.replace("{n}", String(count))` workaround。
-4. **症狀識別**：SSR（初始頁面載入）正常，但 `<Link>` client-side navigation 到同一頁面出現 server error（ERROR 3226104792 或類似 hash 碼）——這是 RSC 序列化失敗的典型特徵。
-
-Reference incident: 2026-05-07 — `AnnouncementForm` 的 `tAdmin`/`tAnn` function props 導致 `/admin/announcements/[id]` `<Link>` navigation server error（commit `a1f0472`）。
-
-## 全国ブランドイベント location 分離 Guard
-
-在審核任何全国展開ブランドイベントの `location` フィールド設定前，**必須**確認：
-
-1. **`location_name` = ブランド名のみ**：都市列挙・店舗数を `location_name` に含めない。`location_name = '鼎泰豐'` が正しく、`'鼎泰豐（東京・横浜...）'` は誤り——UI の「会場」フィールドが冗長になる。
-2. **`location_address` = 都市列挙テキスト**：`'東京・横浜・大阪・名古屋・福岡 他全国30店舗'` のようにプレーンテキストで配置。実際の住所でないテキストは地図リンクが生成されず安全。
-3. **`location_prefectures` は全都道府県を正式表記（接尾辞付き）配列で列挙**。
-4. **子活動は具体的 venue を持つ**：POP UP・体験教室等は `location_name` を具体的な会場名にする。
-
-Reference incident: 2026-05-07 — `2cb72ee9`（鼎泰豐30周年）`location_name` に都市列挙混入 → `location_name='鼎泰豐'` + `location_address='東京・横浜...'` に分離。
-
-## 周年記念イベント start_date Guard
-
-在審核任何「○周年」「創立記念」型イベントの `start_date` 設定前，**必須**確認：
-
-1. **`start_date` = 最初の企画開始日**（記念日ではない）：記念日以前に企画が走っている場合は最初の活動日を設定する。
-2. **`end_date` = 周年記念日または最終企画日**：`start_date` に周年日を設定すると子活動が「期間外」として表示されなくなる。
-3. **確認コマンド**：
-   ```sql
-   SELECT MIN(start_date) FROM events WHERE parent_event_id = '<PARENT_ID>';
-   -- 最小値が親 start_date より前なら要修正
-   ```
-4. **FC ロック必須**：`start_date` / `end_date` 両方を `field_corrections` でロックする（re-annotation で記念日テキストから上書きされる危険）。
-
-Reference incident: 2026-05-07 — `2cb72ee9`（鼎泰豐30周年）`start_date=2026-10-04`（記念日）→ `2026-05-15`（最初の企画開始日）に修正 + FC ロック。
-
-## 手動 Sub-Event INSERT Guard（events.source_url NOT NULL）
-
-在**手動**向 `events` 表 INSERT 子活動前，**必須**確認：
-
-1. **`source_url` 必須包含在 INSERT payload 中**：`events.source_url` 有 NOT NULL 約束，省略時報 `null value in column "source_url" violates not-null constraint`。
-2. **子活動無獨立 URL 時，流用父事件的 `source_url`**：
-   ```python
-   parent = sb.table('events').select('source_url').eq('id', PARENT_ID).single().execute().data
-   sub = {**BASE, 'source_url': parent['source_url'], ...}
-   ```
-3. **`source_id` 必須唯一且穩定**：建議格式 `<parent_source_id>_sub1`、`_sub2`，先查重再 INSERT。
-4. **手動子活動建議設 `annotation_status='reviewed'`** + 完整三語翻譯 + FC 鎖定，避免 annotator 覆寫。
-
-Reference incident: 2026-05-07 — 鼎泰豐30周年（`2cb72ee9`）子活動省略 `source_url` 導致 NOT NULL 約束錯誤。
-
-## location_prefectures 都道府県正式表記 Guard
-
-在審核任何設定或修改 `location_prefectures` 的 DB 操作前，**必須**確認：
-
-1. **值必須使用都道府県正式表記（接尾辞付き）**：
-   - ✅ `東京都`、`大阪府`、`京都府`、`北海道`、`神奈川県`
-   - ❌ `東京`、`大阪`、`京都`（接尾辞なし → `REGION_PREFECTURES` 照合に失敗し静默フィルタ誤作動）
-2. **annotator が短縮形を出力する場合がある**：re-annotation 後は必ず `location_prefectures` を確認する。
-3. **偵測 SQL**：
-   ```sql
-   SELECT id, location_prefectures FROM events
-   WHERE location_prefectures && ARRAY['東京','大阪','京都','福岡'] AND is_active = true;
-   ```
-
-Reference incident: 2026-05-07 — `dec5031b` `location_prefectures=['東京']` → `['東京都']` FC ロック。
-
 ## Required Phases
 
 ### Phase 1: Research

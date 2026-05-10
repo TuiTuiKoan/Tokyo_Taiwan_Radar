@@ -4,6 +4,164 @@
 
 ---
 
+## 2026-05-08 — study_abroad event_form 新增（migration 058）+ 線上活動地點規則
+
+### D — study_abroad event_form + migration 058
+
+**問題：** 申請型留學活動（銘傳大学 × ASE 台湾留学説明会，event `b022b452`）的 `event_form` 被設為 `['other']`，語義不準確。
+
+**修正：**
+1. Migration 058：DB check constraint 新增 `study_abroad` 至 `event_form` 有效值
+2. `annotator.py` `VALID_EVENT_FORMS` 新增 `study_abroad`
+3. SYSTEM_PROMPT EVENT FORM RULES 清單 + Decision guides 加入 `study_abroad` 定義
+4. event `b022b452` `event_form` 改為 `['study_abroad']` + FC 鎖定
+
+**教訓：** 新增 `event_form` 值需三處同步：DB migration（check constraint）、`VALID_EVENT_FORMS`、SYSTEM_PROMPT——與 Category Sync Guard 同等邏輯。違反時 GPT 無法選用新值，re-annotation 靜默剝離。
+
+### E — 線上活動地點規則（オンライン 統一）
+
+**問題：** 線上 Zoom 說明會（event `b022b452`）的 `location_name` 被設為 `台湾留学サポートセンター`（note 帳號 profile 的機構名稱）。
+
+**修正：**
+1. SYSTEM_PROMPT LOCATION ADDRESS RULE 新增 ONLINE EVENTS 與 APPLICATION-TYPE EVENTS 段落
+2. 線上活動統一：`location_name = 'オンライン'`、`location_address = null`、`location_prefectures = null`
+3. 申請型活動（`study_abroad`）說明會若在線上，同樣套用 オンライン 規則，不使用主辦方的大學校園地址
+4. event `b022b452` 的 `location_name/zh/en` 改為 `オンライン`/`線上`/`Online` + FC 鎖定三欄
+
+**教訓：** 「日本境內的線上活動」此概念不成立；所有線上活動無論主辦方國籍，`location_name` 統一為 `オンライン`（`location_name_zh = '線上'`，`location_name_en = 'Online'`），`location_address`/`prefectures` 設 null。
+
+---
+
+## 2026-05-08 — Weekly LINE Broadcast 多重問題修復
+
+### A — Supabase Python client `order()` API 錯誤（commit `1fa87ee`）
+
+**問題：** `weekly_line_broadcast.py` 的 `run_send_draft()` 使用 `.order("created_at", ascending=False)`，Supabase Python client 不接受 `ascending` 關鍵字，導致 CI 失敗。
+
+**修正：** `ascending=False` → `desc=True`
+
+**教訓：** Supabase Python client 的排序語法是 `.order("col", desc=True)`，**不是** `.order("col", ascending=False)`（pandas 風格）。任何使用 `ascending=` 的 plan 必須拒絕。
+
+### B — 手動干預造成草稿狀態混亂
+
+**問題：** 誤判系統設計，在本地執行 `--generate-draft` 生成了多餘的 `weekly-2026-05-08`，又把正確草稿 `weekly-2026-05-07` 標為 skipped。
+
+**修正：** 還原 `weekly-2026-05-07` 為 pending，刪除 `weekly-2026-05-08`。
+
+**教訓：** **系統設計是木曜生成草稿、金曜發送。** 診斷 CI 失敗前，必須先確認系統節奏，不要急於本地補跑。若不確定，先讀 `weekly_line_broadcast.py` 的 cron 設計再操作。
+
+### C — LINE_CHANNEL_TOKEN 過期導致 401
+
+**問題：** `Workflow Failure LINE Notify` 失敗，LINE API 回傳 401 "Authentication failed"。
+
+**修正：** 用戶手動在 GitHub Secrets 更新 `LINE_CHANNEL_TOKEN`。
+
+**教訓：** LINE Channel Access Token（長期 token）與 `GITHUB_TOKEN` 是兩個獨立 secret。`GITHUB_TOKEN` PAT 更新後，`LINE_CHANNEL_TOKEN` 也要一同確認有效期。可加入 `secret_reminder.py` 監控。
+
+### D — Weekly broadcast 連結永遠指向 `/zh/`（commit `926f737`）
+
+**問題：** `_build_message` 使用 `/r/{id}` 短連結，而 `/r/[id]/route.ts` 永遠 redirect 到 `/zh/events/{id}`，日文和英文訂閱者收到中文頁面連結。
+
+**修正：** `_build_message` 改為直接生成 `/{lang}/events/{id}`。
+
+**教訓：** `/r/` 短連結無法帶語系。多語言 broadcast 必須在生成訊息時直接嵌入語系路徑，不可依賴通用重導向。
+
+### E — Weekly broadcast 日期範圍顯示錯誤（commit `2b82198`）
+
+**問題：** 草稿以木曜生成日（5/7）為標題日期，期間只顯示 +6 天，實際應顯示發佈日（金曜 5/8）到下下木曜（5/21）共兩週。
+
+**修正：**
+- `run_generate_draft` 加入 `send_date = today + timedelta(days=1)`，slug/title 改用 send_date
+- `_build_message` `week_end = today + timedelta(days=13)`
+
+**教訓：** Weekly broadcast 的「today」在生成草稿語境中應是**發佈日（金曜）**，不是草稿生成日（木曜）。任何計算 broadcast 標題日期或期間的地方都需確認所用的 base date 是否正確。
+
+### F — `gh workflow run` 需要 Actions: write 權限
+
+**問題：** 現有 PAT（`scraper/.env` 的 `GITHUB_TOKEN`）只有 Issues: write 權限，`gh workflow run` 回傳 403。
+
+**修正：** 無法自動觸發，只能瀏覽器手動觸發。
+
+**教訓：** `gh workflow run` 需要 PAT 具備 **Actions: write** 權限。當前 PAT 設計為最小權限（Issues only），不適合觸發 workflow。若需 CI 自動化觸發，需另建 Actions: write 的 PAT 或用 `workflow_dispatch` + GitHub App。
+
+---
+
+## 2026-05-08 — Organizer 多語言欄位新增 + SC→TC 映射表維護負擔
+
+### A — `organizer_zh` / `organizer_en` 多語言欄位（migration 059, commit `95c7ad8`）
+
+**問題：** 日文 organizer 名稱（如 `台湾文化センター`）直接顯示在 zh/en 頁面。使用者誤認為簡體中文（因 `湾` 與 SC `湾` 字形相同），實際是日文漢字。
+
+**修正：** 完整 i18n 欄位流程（與 location_name_zh/en、performer_zh/en 同模式）：
+1. Migration 059：ADD COLUMN `organizer_zh TEXT`, `organizer_en TEXT`
+2. `annotator.py`：`_KNOWN_ORGANIZER_MAP`（10 筆高頻主辦方） + GPT 翻譯邏輯 + 子事件繼承
+3. `scraper/sources/base.py`：Event dataclass 新增欄位
+4. `scraper/database.py`：`_event_to_row()` 映射
+5. `web/lib/types.ts`：Event interface + `getEventOrganizer(event, locale)` helper
+6. `web/app/[locale]/events/[id]/page.tsx`：JSON-LD + 顯示渲染使用 helper
+7. Backfill：273/273 活躍事件完成（Stage A: KNOWN_MAP → Stage B: kanji copy → Stage C: GPT batch）
+
+**教訓：**
+1. 文字欄位多語言化的標準流程已確立（第三次：location → performer → organizer），五步模式可直接套用。
+2. 日文漢字 ≠ 簡體中文：使用者反映「簡體字」時，先判斷是 GPT 輸出的 SC 還是日文原文被顯示在非 ja 頁面。後者的正解是新增多語言欄位，非 SC→TC 轉換。
+
+### B — SC→TC 映射表擴充（commit `95b79ef`）
+
+**問題：** `_SIMP_TO_TRAD_RAW`（292 筆）缺 9 個常見字（`诗`/`禅`/`图`/`猎`/`过`/`员`/`剧`/`别`/`于`），GPT-4o-mini 輸出含 SC 字靜默通過。
+
+**修正：** 新增 9 字 + 修正 3 筆活躍事件 + FC 鎖定。
+
+**教訓：** `_SIMP_TO_TRAD` 手動維護方式是打地鼠——每次 GPT 用到新 SC 字就必須手動新增。表已從初始 ~50 筆成長到 300+ 筆仍不完整。**長期方案應考慮 OpenCC 等完整 SC→TC 轉換庫**，一次解決映射完整性問題。
+
+---
+
+## 2026-05-08 — Migration 059 + 新 scraper + i18n performer 標籤 + LINE broadcast 圖片支援
+
+### A — Migration 059：events 表新增 `organizer_zh` / `organizer_en` 欄位
+
+**內容：** `ALTER TABLE events ADD COLUMN organizer_zh TEXT; ADD COLUMN organizer_en TEXT;`（commit `95c7ad8`）。
+
+**背景：** 主辦方多語言化需求——原有 `organizer`（日文）無法在中文/英文頁面正確顯示。
+
+**教訓：** 多語言欄位新增時，同步更新 `Event` dataclass、`database.py`、前端 `types.ts`；annotator pipeline 需同步處理新欄位的 FC 污染防護。
+
+### B — 新 scraper 上線：AcrosFukuoka / Ciema / Ftip / WhitestoneGallery
+
+| Scraper | commit | 說明 |
+|---------|--------|------|
+| AcrosFukuoka | `18c662c` | 福岡文化ホール |
+| Ciema + Ftip | `4d6d79e` | 兩個影院 source |
+| WhitestoneGallery | latest | Ginza / Karuizawa 台灣藝術家展覽；0 events 正常，已加入 `ZERO_EVENT_OK_SOURCES` |
+
+### C — i18n：performer 標籤語義擴展（commit `7f3dc66`）
+
+**變更：**
+- `zh.json`：`"表演者"` → `"表演者・發表者"`
+- `en.json`：`"Performer"` / `"Performers"` → `"Performer / Presenter"` / `"Performers / Presenters"`
+- `ja.json`：`"出演者"` → `"出演者・発表者"`
+
+**原因：** 學術活動的發表者（presenter）與演藝表演者（performer）語義不同，標籤需能涵蓋兩種角色。
+
+**教訓：** i18n 標籤修改須同時更新全部 3 個 messages 檔案（`zh.json`、`en.json`、`ja.json`）。
+
+### D — sub-events 建立：東文研セミナー fd7f79f6
+
+建立兩筆子活動：
+- `49ef0f0b`（sub1：発表者 李宜学）
+- `d6a335aa`（sub2：発表者 蒋竹山）
+
+Parent `performers=[]` 加 FC 鎖定。sub-event 的 performer 顯示僅在 parent detail page 的 organizer section 呈現，不出現在列表卡（commit `c8936a5`）。
+
+### E — LINE broadcast 圖片支援 + AnnouncementForm cover upload（commit `426ee9d`）
+
+**內容：** LINE weekly broadcast 支援封面圖片；`AnnouncementForm` 新增 cover image upload 欄位。
+
+### F — co_organizer_types 全部分類完成（57 件事件）
+
+2 筆未分類 → `academic`；co_organizer_types 欄位全部補齊。
+
+---
+
 ## 2026-05-09 — works 表片假名人名中文化
 
 **任務：** works 表 6 筆片假名人名 → 中文人名轉換 + 英文標題補全（DB-only，無程式碼變更）

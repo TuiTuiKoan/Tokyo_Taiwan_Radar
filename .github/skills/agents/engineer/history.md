@@ -4,6 +4,69 @@
 
 ---
 
+## 2026-05-08 — Organizer 多語言欄位 + SC→TC 映射表擴充
+
+### A — `organizer_zh` / `organizer_en` 多語言欄位（commit `95c7ad8`）
+
+**問題：** 日文 organizer 名稱（如 `台湾文化センター`）在 zh/en 頁面直接顯示，使用者誤認為簡體中文。實為日文漢字被顯示在非 ja locale。
+
+**修正（跨層完整 i18n）：**
+- `web/lib/types.ts`：Event interface 新增 `organizer_zh`, `organizer_en` + `getEventOrganizer(event, locale)` helper
+- `web/app/[locale]/events/[id]/page.tsx`：JSON-LD `organizer.name` + 顯示渲染改用 `getEventOrganizer()`
+- 模式與 `getEventPerformer()` / `getEventLocation()` 完全一致
+
+**教訓：**
+1. 文字欄位多語言化前端模式：types.ts interface + `getEvent<Field>(event, locale)` helper + page.tsx 渲染同步更新，三步缺一不可。
+2. 使用者反映「簡體字」時，先區分是 GPT SC 輸出還是日文原文顯示在非 ja 頁面——後者需多語言欄位解決，非 SC→TC 轉換。
+
+### B — SC→TC `_SIMP_TO_TRAD_RAW` 新增 9 字（commit `95b79ef`）
+
+**問題：** `_to_trad()` 映射表缺 `诗`/`禅`/`图`/`猎`/`过`/`员`/`剧`/`别`/`于`，GPT 輸出 SC 字直接寫入 `description_zh` 和 `selection_reason`。
+**修正：** 新增 9 字到 `_SIMP_TO_TRAD_RAW`，修正 3 筆活躍事件。
+**教訓：** 映射表從 ~50 筆成長到 300+ 筆仍不完整，本質是打地鼠。長期應評估 OpenCC 等完整 SC→TC 轉換庫。任何寫入 `*_zh` 欄位的路徑都必須過 `_to_trad()`（enrich_*、backfill_*、annotator 主迴圈）。
+
+---
+
+## 2026-05-08 — performer 顯示邏輯修正 + sub-events 建立 + organizer 污染修正
+
+### A — performer 不應顯示在 sub-event 列表卡（commit `c8936a5`）
+
+**問題：** Sub-event 的 performer 出現在列表卡（event list card），視覺上重複；應只在 parent detail page 的 organizer section 顯示。
+
+**修正：** 前端列表卡邏輯加 `parent_event_id` 判斷：若 `event.parent_event_id` 非 null，不顯示 performer badge。
+
+**教訓：** Sub-event 的補充資訊（performer / co_organizer 等）只在 detail view 有意義；列表卡應僅顯示上層活動標題與時間，避免資訊噪音。
+
+### B — sub-events 手動建立：東文研セミナー fd7f79f6
+
+**操作：** 兩筆子活動：
+- `49ef0f0b`（sub1：発表者 李宜学）
+- `d6a335aa`（sub2：発表者 蒋竹山）
+
+Parent event `fd7f79f6` 的 `performers=[]` 加 FC 鎖定，防止 annotator 覆寫。
+
+**教訓：** 建立 sub-event 後，parent 的 `performers` 欄位需加 FC 鎖（`locked_fields` 包含 `performers`），避免 annotator 從 raw_description 重新 extract 並覆寫。
+
+### C — 湾.味(ワンウェイ) organizer 污染手動修正
+
+**問題：** 事件 `fe03288b` / `b8621ee9`（台湾料理体験会 1部・2部）：
+- `organizer` hallucinated 為 `語学スクール`
+- `organizer_zh/en` 被另一事件（上田村振興会・普門寺）的 FC 資料污染
+- `performer = シェフ`（職稱，非人名）
+- `location_address`、`price_info`、`price_amount` 全為 null
+
+**修正：** 兩件事各 4 欄 FC 鎖定（共 8 筆）；`performer` 設 null；`organizer` 還原真實主辦方；`organizer_zh/en` 更正後鎖定。
+
+**教訓：**
+1. `organizer_zh/en` 異常偵測：欄位內容若不出現在 `raw_title + raw_description`，高度懷疑 FC 跨事件污染。
+2. `performer = 職稱` 需手動清空；annotator 不自動過濾純職稱。
+
+### D — LINE broadcast 圖片支援 + AnnouncementForm cover upload（commit `426ee9d`）
+
+**內容：** LINE weekly broadcast 新增封面圖片；`AnnouncementForm` 元件加入 cover image upload 欄位，圖片 URL 存入 `announcements.cover_image_url`。
+
+---
+
 ## 2026-05-08 — report-article URL 衍生重複事件手動合併 + AI 翻譯標記污染修正
 
 ### A — report-article URL 衍生 duplicate event 手動處理流程

@@ -937,9 +937,12 @@ Prompt-only fixes are insufficient: GPT-4o-mini ignores language rules intermitt
 
 - `name_zh`, `description_zh`, `business_hours_zh` — via `_to_trad(_str(annotation.get(...)))`
 - `location_name_zh`, `location_address_zh` — via `_loc_zh()` which calls `_to_trad()` internally
+- `organizer_zh` — via `_to_trad()` on the organizer translation output
 - Sub-event `name_zh`, `description_zh` — via `_to_trad(sub.get(...))`
 
-The char map `_SIMP_TO_TRAD` contains ~110 Simplified→Traditional character mappings, with identity mappings automatically removed. See `annotator.py` for the full table.
+The char map `_SIMP_TO_TRAD` contains ~300 Simplified→Traditional character mappings (grown from ~50 initial entries), with identity mappings automatically removed. See `annotator.py` for the full table.
+
+**⚠ Maintenance burden:** This mapping table approach is inherently incomplete — every time GPT-4o-mini uses a new SC character not in the table, it silently passes through. The table has grown from ~50 to 300+ entries and still requires periodic expansion (e.g. 2026-05-08: +9 chars). **Long-term solution:** evaluate OpenCC or a complete Unicode SC→TC library for robust coverage. Until then, continue manual maintenance.
 
 **When to expand the map:** If a post-annotation scan finds a new Simplified character in any `*_zh` field, add it to `_SIMP_TO_TRAD` in `annotator.py` **and** `SIMP_RE` in `auto_qa.py` simultaneously, then DB-patch all existing rows:
 ```python

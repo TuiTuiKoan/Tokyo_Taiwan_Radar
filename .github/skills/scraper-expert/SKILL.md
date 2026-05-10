@@ -240,6 +240,64 @@ text = element.get_text(strip=True)
 
 Reference incident: 2026-05-05 — `'新北'` 匹配大阪市 `新北島`，event 371cf624 (GRAFFYHALL) 連續三次 auto_qa_taiwan_venue (commit 6b7174a)。
 
+## Performer Job Title Guard
+
+**Rule**: `performer` 欄位只能填**人名**，不可填職稱/職業描述。
+
+下列詞彙單獨出現時必須視為職稱並設 `performer = null`：
+- 日語職稱：`シェフ`、`料理人`、`講師`、`先生`、`司会`、`ゲスト`、`ホスト`、`演者`、`指揮者`、`伴奏者`
+- 中文職稱：`主廚`、`老師`、`講師`、`主持人`
+
+**判斷規則**：
+1. `performer` 字串若**只含**職稱詞且無可辨識人名（CJK 人名 ≥ 2 字、或拉丁姓名）→ 設 null
+2. `_extract_performer_from_raw()` 的 role list regex 命中後，必須確認後方緊跟的是人名而非獨立職稱
+
+**Regex guard 範例**（加在 `_extract_performer_from_raw` 最後）：
+```python
+_JOB_TITLE_ONLY_RE = re.compile(
+    r"^(シェフ|料理人|講師|先生|司会|ゲスト|ホスト|演者|指揮者|伴奏者|主廚|老師|主持人)$"
+)
+if _JOB_TITLE_ONLY_RE.fullmatch(candidate.strip()):
+    return None
+```
+
+Reference incident: 2026-05-08 — 湾.味(ワンウェイ) 台湾料理体験会 `performer='シェフ'` 應為 null。
+
+## ZERO_EVENT_OK_SOURCES — 偶發性 scraper 零事件豁免
+
+**Rule**: 合法情況下絕大多數時間返回 0 events 的 scraper，必須加入 `health_check.py` 的 `ZERO_EVENT_OK_SOURCES` 集合，避免 CI 每日觸發假「missing」警告。
+
+**加入標準**（三項全符合）：
+1. Scraper 邏輯已驗證正確（dry-run 通過、已 commit）
+2. 台灣相關內容為**偶發性**（年 0–3 次，如藝廊特展、部分影院）
+3. 0 events 是預期行為，不代表爬蟲失敗
+
+**反模式**：不應因「通常有 0 events」就忽略加入此集合——遺漏會導致每次 CI 都需人工確認雜訊。
+
+**實作位置**：`scraper/health_check.py` → `ZERO_EVENT_OK_SOURCES: set[str]`
+
+Reference incident: 2026-05-08 — `whitestone_gallery` 加入 `ZERO_EVENT_OK_SOURCES`（台灣藝術家展覽為偶發性）。
+
+## organizer_zh/en FC 跨事件污染偵測
+
+**Rule**: `organizer_zh`/`organizer_en` 若含有在 `raw_title + raw_description` 中**完全找不到**的內容，即為 FC 跨事件污染（cross-event field_corrections pollution）。
+
+**污染機制**：annotator 的 few-shot context 中，若前一事件的 FC 資料帶入了 `organizer_zh/en`，GPT 可能將該值套用到當前事件——即使兩者完全無關。`annotation_status = annotated` 不會重新觸發驗證，因此污染可長期潛伏。
+
+**偵測查詢**（定期執行）：
+```sql
+SELECT id, organizer_zh, organizer_en, source_name
+FROM events
+WHERE organizer_zh IS NOT NULL
+  AND raw_description NOT ILIKE '%' || split_part(organizer_zh, ' ', 1) || '%'
+  AND raw_title NOT ILIKE '%' || split_part(organizer_zh, ' ', 1) || '%'
+LIMIT 50;
+```
+
+**修正流程**：確認污染後，手動設 `organizer_zh/en` 正確值，並在 `field_corrections` 鎖定 `organizer`、`organizer_zh`、`organizer_en`、`performer`（避免再次被 annotator 覆寫）。
+
+Reference incident: 2026-05-08 — `fe03288b`/`b8621ee9`（湾.味 台湾料理体験会）`organizer_zh/en` 含上田村振興会・普門寺資料，與 raw_description 完全無關。
+
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.

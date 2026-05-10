@@ -4,6 +4,61 @@
 
 ---
 
+## 2026-05-08 — SC→TC 映射表缺字靜默通過 + organizer 多語言欄位新增
+
+### A — `_SIMP_TO_TRAD_RAW` 缺 9 字（commit `95b79ef`）
+
+**問題：** GPT-4o-mini 輸出含 `诗`/`禅`/`图`/`猎`/`过`/`员`/`剧`/`别`/`于`，`_to_trad()` 無法轉換，SC 字直接寫入 DB `description_zh` 和 `selection_reason`。
+**根因：** `_SIMP_TO_TRAD_RAW`（292 筆）手動維護不完整，每次 GPT 用到新 SC 字就靜默通過。
+**修正：** 新增 9 字 + 3 筆活躍事件 DB 修正 + FC 鎖定。
+**教訓：** 映射表方式是打地鼠（表已從 ~50 成長到 300+ 筆仍不完整）。長期應考慮 OpenCC 等完整 SC→TC 庫。每次新增字後必須同步更新 `auto_qa.py` 的 `SIMP_RE`。
+
+### B — `organizer_zh` / `organizer_en` 多語言欄位（migration 059, commit `95c7ad8`）
+
+**問題：** 日文 organizer 名稱直接顯示在 zh/en 頁面。
+**修正：** annotator.py 新增 `_KNOWN_ORGANIZER_MAP`（10 筆高頻主辦方） + GPT 翻譯邏輯 + 子事件繼承 organizer_zh/en。scraper infra（base.py + database.py）同步更新。
+**教訓：** 文字欄位多語言化已成標準流程：KNOWN_MAP → kanji copy → GPT batch。`_KNOWN_ORGANIZER_MAP` 設計模式同 `_KNOWN_PERSON_MAP`，高頻主辦方必須 hardcode 確保翻譯品質。
+
+---
+
+## 2026-05-08 — 湾.味(ワンウェイ) organizer 污染 + performer job title 假陽性
+
+**Error:** 事件 `fe03288b` / `b8621ee9`（台湾料理体験会 1部・2部）出現兩類問題：
+1. `organizer` hallucinated 為 `語学スクール`（真實主辦方：湾.味(ワンウェイ)）
+2. `organizer_zh` / `organizer_en` 被另一個完全不同事件（上田村振興会・普門寺）的 `field_corrections` 資料污染
+3. `performer = シェフ`（職稱，非人名）→ 應為 null
+
+**Root cause:**
+1. GPT 在 organizer Non-Hallucination Guard 不足時，從 few-shot context 中其他事件的資料推斷 organizer（few-shot pollution 模式）。
+2. `organizer_zh`/`organizer_en` 欄位內容來自不同事件的 FC 表格——跨事件 FC 污染，`annotation_status = annotated` 不觸發重新驗證，無法自動偵測。
+3. `_extract_performer_from_raw` 未過濾純職稱（`シェフ`/`講師`/`先生` 等），job title 被誤認為人名。
+
+**Fix:** 8 筆 `field_corrections` 鎖定（兩件事各 4 欄）；`performer` 設 null；`organizer_zh/en` 更正後鎖定。
+
+**Lesson:**
+1. **Performer Job Title Guard**：`performer` 只能填人名，不能填職稱（`シェフ`、`講師`、`先生`、`料理人` 等）。regex 應使用 negative filter 過濾純職稱。
+2. **FC 跨事件污染偵測**：若 `organizer_zh`/`organizer_en` 含有在 `raw_title + raw_description` 中找不到的內容，即為 FC 污染。偵測指令：`SELECT id, organizer_zh FROM events WHERE organizer_zh IS NOT NULL AND raw_description NOT ILIKE '%' || split_part(organizer_zh, ' ', 1) || '%'`。
+3. **few-shot pollution**：GPT 從 few-shot examples 的其他事件推斷欄位。annotator 的 Non-Hallucination Guard 在 organizer 文本極短（< 2 字）時效果有限；thin content 事件 organizer 應設 null。
+
+---
+
+## 2026-05-08 — WhitestoneGallery 新 scraper + ZERO_EVENT_OK_SOURCES 模式確立
+
+**Event:** 新增 `whitestone_gallery.py`（Whitestone Gallery Ginza / Karuizawa，台灣藝術家展覽）。
+
+**Design decisions:**
+- 爬取 `/tagged/current` 靜態 HTML listing，不需 JS
+- 過濾日本地點（Ginza、Karuizawa、Tokyo）
+- 在 detail page main content 中檢查台灣關鍵字（避免 footer country dropdown 假陽性）
+- `source_id = whitestone_gallery_{url-slug}`
+- 0 events 是正常結果（台灣藝術家展覽為偶發性），加入 `ZERO_EVENT_OK_SOURCES`
+
+**Lesson:**
+- **ZERO_EVENT_OK_SOURCES 模式**：定期舉辦但大多時候無台灣相關活動的場館（藝廊、部分影院），應加入 `health_check.py` 的 `ZERO_EVENT_OK_SOURCES`，避免每日 CI 觸發假警告。加入標準：(a) scraper 邏輯正確；(b) 台灣內容為偶發性（年 0–3 次）；(c) 0 events 是預期行為。
+- 0 events 且未在 `ZERO_EVENT_OK_SOURCES` → health check 觸發「missing」警告，每次 CI 都需人工確認 → 雜訊過多。
+
+---
+
 ## 2026-05-08 — note_creators 薄文本：organizer hallucination + 非活動文章入庫（commit b589fbb）
 
 **Error:** `note_creators` 來源的 4 個事件出現問題：(1) `name_ja` 為部落格文章標題（如 `大阪で開催される無料の映画上映イベント`），非活動名稱；(2) `organizer='埼玉県日台親善協会'`（note 發文者，非主辦方）；(3) 2 件純介紹文章/觀影心得報導被識別為活動，應 `is_active=false`。

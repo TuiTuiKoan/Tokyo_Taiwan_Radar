@@ -49,66 +49,6 @@ Reference incident: 2026-05-05 — `赤い糸 輪廻のひみつ` 以日文出�
 
 Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan-Dong` 從 5/4 daily CI 後持續未修正；同事件多次手修又被 AI 覆寫，根因為缺 lock。
 
-## Known Person Map Guard（`_KNOWN_PERSON_MAP` 藝名/筆名覆寫機制）
-
-在審核任何涉及 performer/director 翻譯、`backfill_performer_i18n()`、或新增 `_KNOWN_PERSON_MAP` 條目的計畫前，**必須**確認：
-
-1. **GPT 無法可靠翻譯藝名/筆名**：片假名 `ギデンズ・コー` 與漢字 `九把刀` 無語音對應關係（pen name），GPT 只能語音推測，必然失敗。所有**已知藝名/筆名**必須收錄進 `_KNOWN_PERSON_MAP`。
-2. **三語同時驗證**：新增 `_KNOWN_PERSON_MAP` 條目時，`ja`/`zh`/`en` 三個值必須同時提供且驗證。資料來源優先序：eiga.com → 官方網站 → Wikipedia → 可靠第三方。
-3. **三個整合點全覆蓋**：`_KNOWN_PERSON_MAP` 生效位置：① 主 annotation loop（performer/director GPT 輸出覆寫）② `performers[]` 陣列逐元素檢查 ③ `backfill_performer_i18n()` Layer 0（已知名字跳過 GPT）。新增整合點時需三處同步。
-4. **翻譯規則（嚴格執行）**：
-   - 拉丁字母名 → 原樣保留，不翻譯
-   - CJK 漢字名無驗證來源 → 不翻譯（zh: 照抄漢字，en: 跳過 / NULL）
-   - 日文名無完整漢字 → 不翻譯成中文
-   - 片假名音譯 → 僅在有驗證來源時翻譯（`_KNOWN_PERSON_MAP` 或 eiga.com lookup）
-5. **`backfill_performer_i18n()` 不可限定 `is_active=True`**：非活躍事件同樣需要翻譯完整性。批次 backfill 腳本的 active 過濾需明確設計。
-
-Reference incidents:
-- 2026-05-09 — `ギデンズ・コー` → `基登斯·高` (GPT 幻覺)；正確 `九把刀` / `Giddens Ko`。14 筆已驗證名人收錄 `_KNOWN_PERSON_MAP`，11 筆 DB 事件修正。
-- 2026-05-09 — 46 筆非活躍事件因 `is_active=True` 過濾而缺翻譯，需一次性批次 backfill。
-
-## Performer Multilingual Fields Guard（performer_zh/en/director_zh/en）
-
-在審核任何涉及 `performer_zh`、`performer_en`、`director_zh`、`director_en` 的計畫，或設計多語言表演者顯示邏輯時，**必須**確認：
-
-1. **欄位架構（migration 053/054）**：
-   - `performer TEXT`：日文原名（供 ja locale）
-   - `performer_zh / performer_en TEXT`：各語言名稱（GPT 填入或人工設定）
-   - `performers TEXT[]`：所有具名表演者/發表者的陣列（支援多人）
-   - `director / director_zh / director_en`：同上，用於導演
-2. **locale 優先序**：`zh` → `performer_zh || performer`；`en` → `performer_en || performer`；`ja` → `performer`（不走翻譯欄位）
-3. **AI翻譯標注規則**：GPT 填入 performer_zh/en/director_zh/en 時，若該語言名稱**未明確出現在來源文本**，必須附加「（AI翻譯）」（如 `黃以文（AI翻譯）`）。若來源中有該語言名稱，不加標注。
-4. **academic performers[]**：學術研討會（学会大会、研究大会、シンポジウム）中所有具名發表者（発表者/報告者/登壇者）必須列入 `performers[]`，即使有 5 人以上。
-5. **手動設定必須鎖 `field_corrections`**：`performer_zh`、`performer_en`、`director_zh`、`director_en` 手動修正必須同時 upsert 進 `field_corrections`，否則下次 re-annotation 覆寫。
-6. **新增人名欄位的 migration 模式**：新增 performer/director 等人名欄位時，必須在同一 migration 中同時新增對應的 `_zh`/`_en` 欄位，避免二次 migration。
-7. **`works.work_type` 有效值**：`film | stage | exhibition | concert_tour | tv_drama | tv_variety | other`。`conference` 不在允許清單，學術研討會用 `other`。
-
-Reference incidents:
-- 2026-05-08 — commit `65a50b9`：SYSTEM_PROMPT 追加 AI 翻譯標記規則 + 學術大會 performers[] 填寫規則（Incidents A & B）
-- 2026-05-08 — commit `191d939`：migration 053 新增 `performers TEXT[]`（Incident C）
-- 2026-05-08 — commit `3822fb8`：migration 054 新增 `performer_zh`, `performer_en`, `director_zh`, `director_en`（Incident D）
-
-## Annotator name_ja Suffix Omission Guard
-
-在調查**任何**「カテゴリバッジが表示されない」「カテゴリが DB に存在するのに画面に出ない」問題、または `name_ja` が期待と異なる場合に、**必須**確認：
-
-1. **`name_ja` と `raw_title` の diff を確認する**：annotator は `raw_title` → `name_ja` 変換時に後置された分類語（「レポート」「告知」「詳細」「ご案内」等）を「タイトルの装飾」と判断して削除することがある。
-2. **脱落が発覚した場合の修正パターン**：
-   ```python
-   # name_ja を raw_title 通りに復元 + FC ロック
-   sb.table("events").update({"name_ja": raw_title}).eq("id", eid).execute()
-   sb.table("field_corrections").upsert({
-       "event_id": eid, "field_name": "name_ja",
-       "corrected_value": json.dumps(raw_title, ensure_ascii=False)
-   }, on_conflict="event_id,field_name").execute()
-   ```
-3. **「レポート」は削除対象になりやすい**：報告記事/観覧記 の suffix「レポート」は annotator が装飾語と誤認して削除する典型ケース。`category: ['report']` が付与されていてもタイトルから「レポート」が消えることがある。
-4. **デバッグ優先順序**：① DB `category` 確認 → ② `messages/*.json` `i18n` 確認 → ③ `raw_title` vs `name_ja` diff 確認 → ④ UI レンダリングロジック確認。
-
-Reference incident: 2026-05-07 — `f7ff56ca`「台湾文化センター映画...トークイベント レポート」の `name_ja` から「レポート」が annotator によって削除されており、`category: ['movie','lecture','report']` は正常だがタイトルバッジ調査で発覚。
-
----
-
 ## Manual Translation Fix Persistence Guard
 
 在審核**任何**直接 SQL UPDATE 翻譯欄位（`name_zh` / `name_en` / `description_zh` / `description_en` / `performer`）的計畫前，**必須**確認：
@@ -390,23 +330,6 @@ Before approving any change to `annotator.py` annotation field priority, verify:
 5. **`location_url`** — conditional write: GPT may extract it from `raw_description` text (schema prompt must say "extract from text only, no hallucination"). Write only when non-null (`_loc_url = event.get("location_url") or _str(annotation.get("location_url"))`); never write `null` back to DB — `null` would overwrite admin-entered values. This is a field shared between scraper/GPT extraction and admin manual entry. (commit `fb568c4`, 2026-05-02)
 6. The safe way to fix a GPT-overwritten date: prepend `開催日時: YYYY年MM月DD日` header to `raw_description`, then set `annotation_status='pending'` to trigger re-annotation.
 
-## Scraper Date Timezone Guard（爬蟲日期時區守護）
-
-在審核任何 scraper 的 `start_date`/`end_date` 傳入邏輯前，**必須**確認：
-
-1. **禁止傳 JST-aware datetime**：`datetime(..., tzinfo=timezone(timedelta(hours=9)))` 傳入 Supabase 後以 UTC 儲存，JST+9 偏移導致日期倒退一天（`2026-05-08T00:00:00+09:00` → `2026-05-07T15:00:00+00:00`）。
-2. **正確模式 — UTC midnight**：
-   ```python
-   # CORRECT — 保留日曆日期，強制 UTC tzinfo
-   start_date = jst_dt.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
-   # WRONG — JST-aware datetime 傳入 Supabase
-   start_date = jst_dt  # tzinfo=JST, Supabase 轉成前一天 UTC
-   ```
-3. **naive datetime 也有風險**：`datetime` 無 tzinfo 時 Supabase 依伺服器時區解讀（通常 UTC），一般安全，但不如明確設定 UTC midnight。
-4. **驗證**：新 scraper dry-run 後，確認 DB 的 `start_date` 與來源頁面的日期完全一致。
-
-Reference incident: 2026-05-07 — Stranger scraper `f3554212` start_date 存為 `2026-05-07T15:00:00+00:00`（應為 2026-05-08），Vercel 顯示前一天（commit `b7dc34f`）。
-
 ## Hallucination Scan Safety Guard
 
 Before acting on any hallucination scan result (address/location not found in raw_description), verify:
@@ -526,102 +449,6 @@ Reference incident: 2026-05-06 — `category_corrections` 含 2 筆 `セシリ�
 
 ---
 
-## Joint Distributor Split Guard（聯合配給商拆分守護）
-
-在審核任何設定「配給」→ `organizer` 的案例，或分析 organizer 字串含「／」的事件前，**必須**確認：
-
-1. **「配給：A／B」中「／」代表聯合配給**：A 和 B 是兩家獨立公司，不可整串存為 organizer（例如 `"JAIHO/Stranger"` 是錯誤的）。
-2. **正確拆分方式**：排名先者（左邊）→ `organizer`，其餘 → `co_organizers[]`。
-3. **工具驗證**：
-   ```python
-   if "/" in (organizer or "") or "／" in (organizer or ""):
-       # 需要拆分，不可整串儲存
-       parts = re.split(r"[/／]", organizer)
-       organizer = parts[0].strip()
-       co_organizers = [p.strip() for p in parts[1:]]
-   ```
-4. 同樣需鎖 `field_corrections`：`organizer`、`co_organizers`、`organizer_type` 手動修正後必須同時 upsert。
-
-Reference incident: 2026-05-07 — `dec5031b` `organizer = "JAIHO/Stranger"` 應為 `organizer = "JAIHO"`, `co_organizers = ["Stranger"]`, `organizer_type = ["commercial_brand"]`。
-
----
-
-## Work Title ≠ Event Name Guard（作品標題不等於活動名稱守護）
-
-在審核任何涉及 `work_id` 的事件的 `name_zh`/`name_en` 前，**必須**確認：
-
-1. **`name_zh`/`name_en` 必須是 `name_ja`（完整活動標題）的翻譯**；不可從 `works.title_zh`/`works.title_en` 繼承。電影名、作品名只是活動的一部分，不等於活動標題。
-2. **症狀識別**：若 `len(name_zh) << len(name_ja)`（如 `name_zh = "中村地平"`（4字）而 `name_ja = "第78回 日本と台湾を考える集い 紀錄片《中村地平》上映会"`（30+字）），屬高可信度異常。
-3. **驗證命令**：
-   ```python
-   # 查所有有 work_id 且 name_zh 長度 < name_ja 長度 50% 的事件
-   suspect = [e for e in events if e.get("work_id") and e.get("name_zh") and e.get("name_ja")
-              and len(e["name_zh"]) < len(e["name_ja"]) * 0.5]
-   ```
-4. 修正後必須同時鎖 `field_corrections`：`name_zh`、`name_en` 均需 upsert，防止 re-annotation 覆寫。
-
-Reference incident: 2026-05-07 — `622f51c1` `name_zh = "中村地平"`（4字）vs `name_ja`（32字）；根因為 annotator 把 `works.title_zh` 直接用作 `name_zh`，未翻譯完整活動標題。
-
----
-
-## Blog/Creator Source Thin Content Guard
-
-在審核任何涉及 `note_creators`、`note.com` 等部落格/創作者聚合來源的計畫前，**必須**確認：
-
-1. **`raw_description` 通常只有「続きをみる」截斷文字**：organizer 在此情況下必然為 null，絕不可從 note 發文者的個人簡介或背景推斷主辦方。
-2. **純介紹文章/觀影報導不是活動資料**：標題含「おすすめ」「紹介」「行ってきた」「読んでみた」等字樣的文章，應設 `is_active=false`（非活動事件）。
-3. **`_HEADLINE_REWRITE_SOURCES` 必須包含部落格來源**：`note_creators` 的 `raw_title` 是文章標題，不是活動名稱，必須加入 `_HEADLINE_REWRITE_SOURCES` 讓 GPT 從 raw_description 重新生成正確的 `name_ja`。
-4. **Short-text organizer guard 的侷限性**：Non-Hallucination Guard 確認 organizer 字串存在於 `raw_title + raw_description`，但文本極短（< 100 字）時 GPT 仍可能從外部知識推斷，guard 無法完全阻止。對此類事件，organizer 應保持 null。
-
-**快速識別模式（需要 is_active=false 的文章）**：
-```python
-NON_EVENT_TITLE_RE = re.compile(
-    r"(おすすめ|紹介|まとめ|行ってきた|読んでみた|観てきた|鑑賞レポ|映画紹介)",
-    re.IGNORECASE
-)
-# raw_title 命中 → 標為非活動文章
-```
-
-**驗證指令（note_creators 事件 organizer 掃描）**：
-```sql
-SELECT id, name_ja, organizer, LEFT(raw_description, 100)
-FROM events
-WHERE source_name = 'note_creators'
-  AND organizer IS NOT NULL
-  AND is_active = true
-LIMIT 20;
--- 所有 note_creators 事件的 organizer 應為 NULL
-```
-
-Reference incident: 2026-05-08 — `2cae572a`/`10a4ee5d` organizer 被推斷為 `埼玉県日台親善協会`（note 發文者）；`4180ad0f`/`4ebc8a35` 介紹文章/觀影報導入庫（commit `b589fbb`）。
-
----
-
-## Collection Attribution Guard（所蔵元 ≠ 活動場地）
-
-在審核任何涉及 `location_name` 抽取邏輯的計畫，或分析展覽類事件 venue 識別錯誤的問題前，**必須**確認：
-
-1. **`〇〇美術館蔵`/`〇〇博物館蔵` 是作品所蔵機關標記，不是活動場地**：GPT 容易將「高雄市立美術館蔵」中的「高雄市立美術館」提取為 `location_name`，這是錯誤的。
-2. **yebizo（東京都写真美術館）的 `location_name` 應固定為「東京都写真美術館」**：無論展品的所蔵機構來自哪個國家或城市，活動場地永遠是東京都写真美術館本身。
-3. **SYSTEM_PROMPT 已有 COLLECTION ATTRIBUTION NOTE**：此規則已注入 GPT 指示，但程式碼層面的 scraper 也應確認 `location_name` 有靜態預設值（如 yebizo scraper 應直接設定 `location_name="東京都写真美術館"`）。
-4. **識別模式**：`raw_description` 中出現「蔵」字緊接機構名，如 `〇〇美術館蔵`/`〇〇博物館蔵`/`〇〇文化基金蔵`，這些是所蔵標記，不是場地。
-
-**驗證指令（展覽來源 location 掃描）**：
-```sql
--- 確認 yebizo 事件 location 是否正確
-SELECT id, name_ja, location_name, location_address
-FROM events
-WHERE source_name = 'yebizo'
-  AND location_name != '東京都写真美術館'
-  AND is_active = true
-LIMIT 10;
--- 應為空結果
-```
-
-Reference incident: 2026-05-08 — `e37db12e`（yebizo）`location_name='高雄市立美術館'`（作品所蔵元），修正為「東京都写真美術館」（commit `47f8184`）。
-
----
-
 ## Performer Null Guard（annotator.py 三層 fallback 守則）
 
 在審核任何涉及 `performer` 欄位的計畫，或分析 `performer = NULL` 案例時，**必須**確認 annotator.py 是否正確執行三層 fallback：
@@ -661,80 +488,15 @@ Reference incident: 2026-05-08 — `e37db12e`（yebizo）`location_name='高雄�
 - **標題中的氏を迎え**：GPT 通常從 description 找 performer，不從 raw_title 找
 
 ### Regex 設計原則（防假陽性）
-- **名字字元類必須保守**：用 `[\u4e00-\u9fff]{2,5}` 純漢字（上限 5），而非排除清單 `[^\u3000\u30fb...]`
-  - 錯誤：`{2,6}` → `翻訳者一青窈`（6 字）被誤識別為名字（role+name 連串）
-  - 正確：`{2,5}` → `宇田川幸洋`（5 字）仍可匹配，`翻訳者一青窈` 不匹配
-- **`_MUKAE_RE` 必須有 negative lookbehind `(?<![\u4e00-\u9fff])`**：防止從職稱字串中間開始匹配。例：`訳者一青窈` 從 `訳` 開始匹配出 `訳者一青窈`（`訳` 前面是漢字 `翻`，lookbehind 阻擋）。
+- **名字字元類必須保守**：用 `[\u4e00-\u9fff]{2,6}` 純漢字，而非排除清單 `[^\u3000\u30fb...]`
+  - 錯誤：`[^\s・：:]{2,10}` → 捕獲 `評論家の龍應台`、`交流のあった萩原健太`
+  - 正確：`[\u4e00-\u9fff]{2,6}` → 只允許 2-6 個 CJK 字元
 - **每次修改後掃描 DB**：對全部 performer=null 事件跑 `_extract_performer_from_raw`，人工確認所有命中
 - **敬語形式需覆蓋**：`をお迎え`（帶 `お`）與 `を迎え` 是不同 pattern，需同時收錄
-- **DB 回填只用 INTRO pattern**：MUKAE 只感知「名字+敬語」，不知道上下文有幾位講者。多人講者事件（林宏文、宇田川幸洋案例）由 MUKAE 匹配但應保持 null。
 
 Reference incidents:
 - 2026-05-04 — event `e72b2c15` performer 三層 fallback 缺失；初版 regex 3 件假陽性（commits `562a620`, `1ef6953`, `b2a8806`）。
 - 2026-05-06 — event `4427f965`（台湾植物紀行）`前田知里｜植物民族学研究家` 未提取，三重根因：(1) 無 `_PIPE_ROLE_RE`；(2) 資訊在 pos 859 > 500 上限；(3) GPT 視主催者不為 guest（commit `c82e746`）。
-- 2026-05-08 — `翻訳者一青窈` 假陽性：INTRO `{2,6}` + MUKAE 無 lookbehind 導致 role+name 連串被誤匹配；修法：max 6→5 + lookbehind + `翻訳者` 加入 role list（本 commit）。
-
-## Manual Merge Completeness Guard（手動合併必須同時更新所有關聯欄位）
-
-在審核任何手動合併（merger / admin）操作的計畫前，**必須**確認以下三件事全部完成：
-
-1. **合併後次要事件 `is_active` 必須為 `False`**：合併後設定 `merged_into_event_id` 但忘記設 `is_active=False` 是最常見的遺漏步驟。合併後驗證指令：
-   ```sql
-   SELECT id, is_active, merged_into_event_id
-   FROM events
-   WHERE merged_into_event_id IS NOT NULL
-     AND is_active = true;
-   -- 應為空結果；非空 = 資料不一致
-   ```
-2. **Works 表必須與 event 合併同步更新**：合併前補充 works 表的 `director`、`release_year`、`cast_summary`、`description`；合併後確認 `work_id` 正確連結。只做 event 合併但不更新 works 表，則 works 詳情頁缺少作品資訊。
-3. **Events 表的 `director`/`performer` 欄位也需補充**：不能只更新 works 表，events 自身的 `director`/`performer` 欄位也需同步設定（用於清單頁/卡片顯示）。
-
-**`is_active=True + merged_into_event_id IS NOT NULL` 為已知資料不一致模式**：Admin UI 的「⚠ 中繼節點」badge 是偵測工具，但根本防護是每次合併後立即執行上述驗證 SQL。
-
-Reference incident: 2026-05-06 — `b891cc5e` 合併後 `is_active` 未更新為 `False`；`ソウル・オブ・ソイル` 合併後 works 表同時補充 `director=顏蘭權`、`release_year=2024`、`cast_summary`。
-
-## AdminEventTable Cross-filter Reference Guard（globalIndexMap vs displayEvents）
-
-在審核任何 AdminEventTable 或類似 admin 表格中「一行引用另一行 ID」的 UI 計畫前（merged_into、parent_event_id 等），**必須**確認：
-
-1. **行號 map 必須從完整 `events` props 建立，不能從篩選後的 `displayEvents` 建立**：若 map 建立自 displayEvents，被篩選掉的事件 `id` 在 map 中為 `undefined`，行號顯示靜默消失（不報錯）。
-2. **Pattern — 雙 map 架構**：
-   ```ts
-   // globalIndexMap — 從完整 events prop 建立，不受 filter 影響
-   const globalIndexMap = useMemo(() =>
-     new Map(events.map((e, i) => [e.id, i + 1])),
-     [events]
-   );
-   // rowIndexMap — 從 displayEvents 建立，用於顯示當前篩選下的行號
-   const rowIndexMap = useMemo(() =>
-     new Map(displayEvents.map((e, i) => [e.id, i + 1])),
-     [displayEvents]
-   );
-   // merged_into 目標可能被篩選掉 → 優先用 globalIndexMap
-   const targetIdx = globalIndexMap.get(e.merged_into_event_id) ?? "?";
-   ```
-3. **TypeScript 不報錯**：`Map.get()` 回傳 `T | undefined`；`undefined` 靜默渲染為空字串。這是靜默 UI 錯誤，只能靠人工觀察或 QA 發現。
-
-Reference incident: 2026-05-06 — AdminEventTable `rowIndexMap` 從 `displayEvents` 建立，`merged_into` 目標被篩選時行號消失（commits cb1bf83, 979725f）。
-
-## Admin Table Column Width Guard
-
-在審核任何 admin 表格欄寬設定，或修改 `AdminEventTable.tsx` Tailwind 寬度 class 的計畫前，**必須**確認：
-
-1. **固定欄寬必須同時設 `w-[Npx]` + `min-w-[Npx]`**：只設 `max-w-[Npx]` 時，表格被其他欄擠壓後該欄仍會縮小（`max-w` 只設上限，無法防壓縮）。
-   ```tsx
-   // ✅ 固定寬度
-   <td className="w-[160px] min-w-[160px] ...">
-   // ❌ 可被壓縮
-   <td className="max-w-[160px] ...">
-   ```
-2. **Works 清單排序用 `title_ja`，不用 `original_title`**：`original_title` 是原始語言片名（可能是中/英文），PostgreSQL `ORDER BY ASC` 將 null 值排末，導致大量 `title_ja` 有值的日文片名因 `original_title=null` 而沉底。後台以 `title_ja` 排序符合日文使用習慣。
-   ```ts
-   .order("title_ja", { nullsFirst: false })
-   ```
-3. **新增 modal 觸發點時，所有「新增」入口點必須同步改為 modal**：bulk action bar 的按鈕改為 modal 時，dropdown 底部的次要連結（`<a href="…" target="_blank">`）也必須同步改為 `<button>` 觸發 modal；不可混用跳頁和 modal。
-
-Reference incident: 2026-05-06 — `category` 欄從 `w-96` → `max-w-[160px]` → `w-[160px] min-w-[160px]`；works 清單從 `.order("original_title")` 改為 `.order("title_ja", { nullsFirst: false })`；dropdown「新增 work」從 `<a>` 改為 `<button>`。
 
 ## After Identifying a Planning Mistake
 1. Append an entry to `.github/skills/agents/architect/history.md` (newest at top).
@@ -1370,7 +1132,6 @@ Reference incidents:
    ```
 
 Reference incident: 2026-05-07 — bookandbeer `?keyword=台湾` 被 server 靜默忽略；初版無 client filter → 所有事件進 DB。進階修正排除作者略歷誤判 (commits 7df9f56, e1ab468)。
-Reference incident: 2026-05-07 — tsutaya_portal `_is_taiwan_relevant()` 全文搜索導致 5 件アーティスト略歴偽陽性入庫（artist bio pos 586–1634）。修正：title 全文 + description[:500] に限定（commit `c3ae92a`）。
 
 ## gnews RSS Snippet Date Guard
 
@@ -1469,101 +1230,4 @@ Reference incidents:
 5. **重複來源必須在 auto_research cron 執行前封鎖**：若 candidate 是已 implemented 來源的重複（同 URL / 同 scraper），立即設為 `not-viable/skipped`，否則浪費 API token。
 
 Reference incident: 2026-05-06 — score 0.30–0.70 的 5 筆來源（98/110/144/178/191）被 `not-viable` 阻擋，並發現 4 筆重複 candidate（251/252/257/260）。手動批量修正。根因：誤將自動昇格閾值當作 viable/not-viable 判斷標準。
-
-## Entity Normalization Guard（organizers / venues tables）
-
-在審核任何涉及主辦方聚合、場地報表，或使用 `organizer_id`/`venue_id` FK 欄位的計畫前，**必須**確認：
-
-1. **`events.organizer`/`events.location_name` 保留為稽核用途**：報表與聚合使用 FK 欄位（`organizer_id`/`venue_id`），事件詳情頁仍顯示原始文字欄位。不可直接改動 `organizer` 文字欄。
-2. **`_populate_entity_fks()` 在 `upsert_events()` 後自動執行**：新刮取的事件會自動比對 `organizers.aliases` 和 `venues.aliases` 解析 FK。若 migration 050 未套用，gracefully no-op（不報錯）。
-3. **`backfill_entities.py` 必須在 migration 050 套用後執行**：先用 `_oneoff_review_organizer_clusters.py` 預覽聚類結果（SequenceMatcher ≥ 0.92），人工確認後再執行 backfill。
-4. **新增 organizer/venue 實體時**：在 `organizers`/`venues` 表新增一行（`canonical_name_ja` + `aliases`），FK 解析管道自動處理後續事件。
-5. **`works.work_type` 包含 `tv_drama` 和 `tv_variety`**（migration 051）：設計涉及電視劇或綜藝的 work entity 時直接使用；不需「other」fallback。
-
-Reference: migration `050_entity_tables.sql`、`051_works_tv_drama.sql`（commit `913b7a2`）。
-
-## gnews Sub-Event Merger Guard
-
-在審核任何涉及 `google_news_rss` sub-events（`source_id` 含 `_sub`）的 merger 邏輯前，**必須**確認：
-
-1. **gnews sub-events 必須參與跨來源 dedup（Pass 0/1/2）**：早期版本排除了 `_sub` 事件，導致 gnews 電影場次永遠不被 ks_cinema 等官方來源吸收。
-2. **Pass 0 必須有 `_gnews_base_id` 守衛**：同一篇文章的 sub-events（例 `gnews_abc_sub1`、`gnews_abc_sub2`）代表同場次的不同場，不可彼此合併；比對 base ID 相同時跳過。
-3. **Pass 0 位置守衛**：gnews sub-events 若地點不同（不同電影院），不可以 name similarity 合併——它們是不同場館的同一部電影。
-4. **Pass 2（news matching）work_id 守衛**：有 `work_id` 的 news event 已被 Pass 1 按名稱相似度處理，不再以日期+地點做第二次合併（避免 false positive）。
-5. **每日 CI 在 `enrich-person-names` 後執行第二次 merger**：同日爬取後的新 sub-events 也能在當天完成合併。
-
-Reference: commits `ab3bd9e`（gnews sub-events in all passes）、`5f98b3b`（Pass 5 same-work_id dedup）。
-
-## SC → TC Guard（簡體字防護）
-
-在審核任何涉及 GPT enrichment 函式（`enrich_person_names`、`enrich_movie_titles`）或 `auto_qa --fix` 的計畫前，**必須**確認：
-
-1. **所有 GPT 輸出必須過 `_to_trad()`**：`enrich_person_names()` 的 GPT 回傳值必須通過模組層級的 `_to_trad()` 函式，防止 SC 字元重新引入。
-2. **`auto_qa --fix` 修正後必須鎖 `field_corrections`**：`fix_simplified()` 轉換完畢後呼叫 `_lock_fields_via_corrections()`，防止下次 re-annotation 再覆寫。
-3. **`_SIMP_TO_TRAD` 字元映射表為模組層級**：不可放在函式內（否則 enrichment 函式呼叫不到）。
-
-Reference: commits `239cb19`（enrich SC guard）、`6e21c52`（auto_qa lock）。
-
-## workflow_run Self-Loop Guard
-
-在審核任何使用 `workflow_run` trigger 的 notify workflow 前，**必須**確認：
-
-1. **`workflow_run` + job 層級 `if:` 的 `failure` 語意**：當 `if:` 條件為 false，整個 workflow run 的結論是 `failure`（"No jobs were run"），**不是 `skipped`**。若 notify workflow 本身在監控清單 `workflows:` 裡，它的 `failure` 會再次觸發自身，形成無限迴圈。
-2. **self-exclusion 是必要守衛**：任何 notify workflow 必須在 job 層級 `if:` 加入自我排除條件：
-   ```yaml
-   if: >
-     github.event.workflow_run.conclusion == 'failure' &&
-     github.event.workflow_run.name != '<本 workflow 名稱>'
-   ```
-3. **或將自身從 `workflows:` 移除**：若 `workflows:` 明確列舉被監控的 workflow，確保列表不包含本 workflow 自身的名稱。
-4. **`skipped` 不等於 `failure`**：workflow 本體的結論 `skipped` 由 GitHub 定義；job 層級 `if: false` 的結論是 `failure`（workflow 有執行，但沒有任何 job 跑）。
-
-Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發 → 無限迴圈 → 垃圾通知郵件（commit `266daa1`）。
-
-## NON_DAILY_SOURCES Registration Guard
-
-在建立**任何新的定期（非每日）workflow** 或 **health_check 相關改動**前，**必須**確認：
-
-1. **`health_check.py` 的 `NON_DAILY_SOURCES` 必須包含所有非每日 source**：每新增一個非每日 cron workflow，立即在同一 commit 更新 `NON_DAILY_SOURCES`。
-   ```python
-   NON_DAILY_SOURCES: frozenset[str] = frozenset({
-       "weekly_broadcast",
-       # <new_non_daily_source>,
-   })
-   ```
-2. **不在 `NON_DAILY_SOURCES` 的 source = health_check 認為應每日執行**：若 7 天內有執行記錄但今天沒跑，health_check 每天回報 missing，直到修復。
-3. **cron 頻率 vs health_check 告警頻率需對齊**：weekly cron（7 天一次）不可被 daily health_check（每天）誤報 missing。告警觸發條件應為「最近 N 天內無記錄（N = cron 間隔 + 1 天緩衝）」。
-4. **同時更新 checklist**：若有 source 進入 `NON_DAILY_SOURCES`，在對應的 workflow yml 加上 comment 標注告警視窗。
-
-Reference incident: 2026-05-06 — `weekly_broadcast` 因 `NON_DAILY_SOURCES = frozenset()` 為空，被 health_check 每天誤報 missing（commit `7df9f56`）。
-
-## GitHub Actions YAML Guard
-
-在審核任何新增或修改 `.github/workflows/*.yml` 的計畫前，必須確認：
-
-1. **`if:` 欄位只允許單行雙引號字串**：
-   - ❌ `if: |` 或 `if: >-`（block scalar）→ GitHub Actions YAML 解析器不支援 → parse error。
-   - ✅ 必須：`if: "condition1 && condition2"`（全部在雙引號內，單行）
-   - 長條件可用 `&&` 連接，不可換行。
-
-2. **`run: |` 區塊內不可包含 `[{...}]` inline 模式**：
-   - `[{"type": "text", "text": ...}]`（flow sequence + nested flow mapping）在 `run: |` 區塊內會被 GitHub Actions YAML 解析器誤判為 nested mapping → parse error。
-   - 修復方法：將 jq filter / JSON 內嵌結構先賦值給 shell 變數，再引用：
-   ```bash
-   # ❌ 不可（將被誤判為 nested mapping）
-   run: |
-     echo '{"k": [{"type":"text"}]}' | jq .
-
-   # ✅ 正確（先賦值給 shell 變數）
-   run: |
-     JQ_FILTER='{"k": [{"type":"text"}]}'
-     echo "$JQ_FILTER" | jq .
-   ```
-
-3. **連續 parse error 時的應對順序**：
-   - Error A（`if: |`）→ 改單行雙引號字串。
-   - Error B（`if: >-`）→ 同上。
-   - Error C（`[{...}]` in `run: |`）→ 賦值給 shell 變數。
-
-Reference incidents: 2026-05-07 — commits `0b5ba72`、`c38ddd5`、`b9a462c`：`workflow-failure-notify.yml` 連續三次 YAML parse error，依序為 `if: |` → `if: >-` → `if: "..."`，加上 jq filter 賦值變數才全部解決。
 
