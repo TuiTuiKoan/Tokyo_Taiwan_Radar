@@ -288,6 +288,17 @@ class FtipScraper(BaseScraper):
 
             raw_desc = content_text[:1000] if content_text else title
 
+            # Set organizer only when title signals this is FTIP's own event:
+            #   "当会" in title  → direct self-reference (e.g. "当会例会4/25")
+            #   "例会" + "交流会" in title → recurring FTIP meeting
+            # Avoid matching description where "当会" can appear in past-tense
+            # context about FTIP's past activity in third-party-event posts.
+            is_ftip_organized = (
+                "当会" in title
+                or ("例会" in title and "交流会" in title)
+            )
+            organizer_val = LOCATION_NAME if is_ftip_organized else None
+
             event = Event(
                 source_name=self.SOURCE_NAME,
                 source_id=source_id,
@@ -303,7 +314,7 @@ class FtipScraper(BaseScraper):
                 end_date=end_date,
                 location_name=location_name,
                 location_address=location_address,
-                organizer=LOCATION_NAME,  # FTIP is the consistent organizer
+                organizer=organizer_val,
             )
             events.append(event)
             logger.info("FTIP event: %s", title)
