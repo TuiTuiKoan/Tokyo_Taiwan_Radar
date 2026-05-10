@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CATEGORY_GROUPS, type Locale } from "@/lib/types";
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -8,25 +8,34 @@ import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER
 
 interface Props {
   locale: Locale;
+  currentFilters: {
+    q?: string;
+    category?: string;
+    from?: string;
+    to?: string;
+    paid?: string;
+    timeMode?: string;
+    location?: string;
+    city?: string;
+  };
 }
 
-export default function FilterBar({ locale: _locale }: Props) {
+export default function FilterBar({ locale: _locale, currentFilters }: Props) {
   const t = useTranslations("filters");
   const tCat = useTranslations("categories");
   const router = useRouter();
   const pathname = usePathname();
-  const sp = useSearchParams();
 
   const [draft, setDraft] = useState({
-    q: sp.get("q") ?? "",
+    q: currentFilters.q ?? "",
     // category is comma-separated, e.g. "movie,art"
-    category: sp.get("category") ?? "",
-    from: sp.get("from") ?? "",
-    to: sp.get("to") ?? "",
-    paid: sp.get("paid") ?? "",
-    timeMode: sp.get("timeMode") ?? "active",
-    location: sp.get("location") ?? "",
-    city: sp.get("city") ?? "",
+    category: currentFilters.category ?? "",
+    from: currentFilters.from ?? "",
+    to: currentFilters.to ?? "",
+    paid: currentFilters.paid ?? "",
+    timeMode: currentFilters.timeMode ?? "active",
+    location: currentFilters.location ?? "",
+    city: currentFilters.city ?? "",
   });
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -92,7 +101,7 @@ export default function FilterBar({ locale: _locale }: Props) {
   });
 
   return (
-    <div className="mb-2">
+    <div className="sticky top-0 z-20 bg-white -mx-4 px-4 pb-2 mb-0">
       {/* Mobile: icon toggle row */}
       <div className="flex items-center justify-between md:hidden mb-1">
         <button

@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { type Locale, type Event, getEventName } from "@/lib/types";
 import FilterBar from "@/components/FilterBar";
 import ListScrollManager from "@/components/ListScrollManager";
@@ -14,13 +14,23 @@ export const revalidate = 600;
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
+  searchParams: Promise<{
+    q?: string;
+    category?: string;
+    from?: string;
+    to?: string;
+    paid?: string;
+    timeMode?: string;
+    location?: string;
+    city?: string;
+  }>;
 }
 
-export default async function HomePage({ params }: PageProps) {
+export default async function HomePage({ params, searchParams }: PageProps) {
   const { locale } = await params;
-  setRequestLocale(locale);
-  // Filter state is read from `useSearchParams()` inside
-  // <EventListClient> / <FilterBar> so the page stays static (ISR).
+  // searchParams is awaited but not consumed server-side — filter state
+  // is read from `useSearchParams()` inside <EventListClient> / <FilterBar>.
+  const sp = await searchParams;
   const tAnn = await getTranslations("announcements");
 
   const supabase = createClient(
@@ -102,7 +112,7 @@ export default async function HomePage({ params }: PageProps) {
         />
       )}
       {/* Top tab navigation */}
-      <div className="flex gap-1 border-b border-gray-200 mb-0">
+      <div className="flex gap-1 border-b border-gray-200 mb-4">
         <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">
           {tAnn("tabEvents")}
         </span>
@@ -131,16 +141,12 @@ export default async function HomePage({ params }: PageProps) {
         </div>
       )}
 
-      <Suspense fallback={<div className="h-12" />}>
-        <FilterBar locale={locale} />
-      </Suspense>
+      <FilterBar locale={locale} currentFilters={{ ...sp, city: sp.city ?? "" }} />
       <Suspense fallback={null}>
         <ListScrollManager />
       </Suspense>
 
-      <Suspense fallback={null}>
-        <EventListClient events={events} parentMap={parentMap} locale={locale} />
-      </Suspense>
+      <EventListClient events={events} parentMap={parentMap} locale={locale} />
     </div>
   );
 }
