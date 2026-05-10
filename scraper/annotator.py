@@ -892,6 +892,20 @@ _HISTORY_KEYWORDS = frozenset([
 
 _TV_PROGRAM_KEYWORDS = frozenset(["放送:", "放送：", "ジャンル:", "ジャンル："])
 
+# Report article detection: these keywords in raw_title or raw_description
+# signal a post-event recap/report rather than an upcoming event.
+_REPORT_TRIGGER_RE = re.compile(
+    r"レポート|レポ|報告|記録|アーカイブ|recap|行ってきた|観てきた|見てきた|鑑賞レポ",
+    re.IGNORECASE,
+)
+
+# Prefix strings injected into name fields when category includes 'report'.
+_REPORT_PREFIXES: dict[str, str] = {
+    "ja": "【レポート】",
+    "zh": "【活動報導】",
+    "en": "[Report] ",
+}
+
 
 def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     """Inject missing categories based on keyword signals in the event text.
@@ -919,7 +933,20 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     # tv_program: TV broadcast markers (gguide_tv raw_description pattern)
     if "tv_program" not in cats and any(kw in text for kw in _TV_PROGRAM_KEYWORDS):
         cats.append("tv_program")
+    # report: post-event recap/report articles
+    if "report" not in cats and _REPORT_TRIGGER_RE.search(text):
+        cats.append("report")
     return cats
+
+
+def _inject_report_prefix(name: str | None, lang: str) -> str | None:
+    """Prepend locale-specific report prefix to an event name if not already present."""
+    if not name:
+        return name
+    p = _REPORT_PREFIXES.get(lang, "")
+    if not p:
+        return name
+    return name if name.startswith(p) else p + name
 
 
 def _load_default_organizer_map(sb: "Client") -> dict[str, dict[str, str]]:
@@ -1572,6 +1599,18 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     else:
                         del update_data[_pf]
                         field_protect_hits += 1
+
+            # Report prefix injection: when category includes 'report',
+            # prepend locale-specific prefix to name fields.
+            # Skips FC-locked fields (_human_protected).
+            if "report" in update_data.get("category", []):
+                for _rp_field, _rp_lang in [
+                    ("name_ja", "ja"), ("name_zh", "zh"), ("name_en", "en")
+                ]:
+                    if _rp_field not in _human_protected:
+                        update_data[_rp_field] = _inject_report_prefix(
+                            update_data.get(_rp_field), _rp_lang
+                        )
 
             sb.table("events").update(update_data).eq("id", eid).execute()
             events_ok += 1
@@ -2774,6 +2813,80 @@ def backfill_performer_i18n() -> None:
     logger.info("backfill_performer_i18n: total done (kanji_zh=%d, gpt=%d)", patched, gpt_patched)
 
 
+def backfill_report_prefix(dry_run: bool = False) -> None:
+    """Add report prefix to name_ja/zh/en for existing events with category 'report'.
+
+    Skips events whose name fields are FC-locked.
+    FC-locks updated fields after writing to prevent re-annotation stripping.
+    """
+    sb = _get_supabase()
+
+    # Fetch all active events with report category
+    res = (
+        sb.table("events")
+        .select("id,name_ja,name_zh,name_en,category,source_id")
+        .contains("category", ["report"])
+        .eq("is_active", True)
+        .execute()
+    )
+    events = res.data or []
+    logger.info("backfill_report_prefix: %d report events found", len(events))
+
+    # Load all FC locks for these events in bulk
+    eids = [e["id"] for e in events]
+    locked_fields: dict[str, set[str]] = {}
+    if eids:
+        fc_res = (
+            sb.table("field_corrections")
+            .select("event_id,field_name")
+            .in_("event_id", eids)
+            .execute()
+        )
+        for row in (fc_res.data or []):
+            locked_fields.setdefault(row["event_id"], set()).add(row["field_name"])
+
+    updated = 0
+    for event in events:
+        eid = event["id"]
+        fc_locks = locked_fields.get(eid, set())
+        updates: dict[str, str] = {}
+
+        for field, lang in [("name_ja", "ja"), ("name_zh", "zh"), ("name_en", "en")]:
+            if field in fc_locks:
+                continue  # human-locked, skip
+            new_val = _inject_report_prefix(event.get(field), lang)
+            if new_val and new_val != event.get(field):
+                updates[field] = new_val
+
+        if not updates:
+            continue
+
+        logger.info(
+            "  %s %s \u2192 %s",
+            "DRY" if dry_run else "UPDATE",
+            event.get("source_id", eid[:8]),
+            {k: v[:40] for k, v in updates.items()},
+        )
+
+        if not dry_run:
+            sb.table("events").update(updates).eq("id", eid).execute()
+            # FC lock updated fields to prevent re-annotation from stripping prefix
+            fc_rows = [
+                {"event_id": eid, "field_name": k, "corrected_value": v}
+                for k, v in updates.items()
+            ]
+            sb.table("field_corrections").upsert(
+                fc_rows, on_conflict="event_id,field_name"
+            ).execute()
+            updated += 1
+
+    logger.info(
+        "backfill_report_prefix: %s %d events",
+        "would update" if dry_run else "updated",
+        len(events) if dry_run else updated,
+    )
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
@@ -2793,6 +2906,7 @@ if __name__ == "__main__":
             "  --backfill-tier1        Reset annotated events lacking Tier 1 fields back to pending and re-annotate\n"
             "  --propagate-source-organizer  Propagate organizer from plurality value per source_name to events with organizer=null (safe for reviewed events)\n"
             "  --backfill-performer-i18n  Backfill performer_zh/en and director_zh/en translations\n"
+            "  --backfill-report-prefix   Add \u300c\u30ec\u30dd\u30fc\u30c8\u300d/\u300c\u6d3b\u52d5\u5831\u5c0e\u300d/[Report] prefix to existing report-category events\n"
             "  --id <uuid>             Operate on a single event by id\n"
             "  --limit <N>             Limit number of events processed (default 50 for backfill-tier1)\n"
             "  --dry-run               Print actions without writing to DB\n"
@@ -2807,6 +2921,7 @@ if __name__ == "__main__":
     backfill_tier1 = "--backfill-tier1" in sys.argv
     propagate_org = "--propagate-source-organizer" in sys.argv
     backfill_perf_i18n = "--backfill-performer-i18n" in sys.argv
+    backfill_rp = "--backfill-report-prefix" in sys.argv
     dry_run_flag = "--dry-run" in sys.argv
     event_id_arg = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--id"), None)
     limit_arg_str = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--limit"), None)
@@ -2817,6 +2932,8 @@ if __name__ == "__main__":
         propagate_source_organizer(dry_run=dry_run_flag)
     elif backfill_perf_i18n:
         backfill_performer_i18n()
+    elif backfill_rp:
+        backfill_report_prefix(dry_run=dry_run_flag)
     elif enrich_movies:
         enrich_movie_titles()
     elif enrich_people:
