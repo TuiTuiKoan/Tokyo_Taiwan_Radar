@@ -110,15 +110,32 @@ async function fetchPageText(url: string): Promise<string> {
 
 function scorePage(text: string, nameJa: string, locationName: string): number {
   let score = 0;
-  // Strip wrapping quotes/brackets and split on whitespace + punctuation
   const cleaned = nameJa.replace(/[「」『』《》〝〞"'()（）\[\]【】]/g, " ");
-  const words = cleaned.split(/[\s　・…〜~‐\-―]+/).filter((w) => w.length >= 2);
+  const words = cleaned
+    .split(/[\s　・…〜~‐\-―ー－—]+/)
+    .filter((w) => w.length >= 2)
+    .filter((w) => !/^(展示|展覧|企画|特別|研究|室|文化|2026|2025)$/.test(w));
   let nameHits = 0;
   for (const w of words) if (text.includes(w)) { score += 2; nameHits += 1; }
-  // Require at least 2 distinct name tokens to match — otherwise the page
-  // is unrelated even if it contains generic keywords like 2026/開催.
-  if (words.length >= 2 && nameHits < 2) return -1;
-  if (locationName && text.includes(locationName)) score += 5;
+
+  // Match location by its core building name. e.g.
+  // "日比谷図書文化館4階 特別研究室" → also try "日比谷図書文化館" and
+  // any token >= 4 chars.
+  let locHit = false;
+  if (locationName) {
+    const locParts = locationName
+      .split(/[\s　・]+/)
+      .flatMap((p) => [p, p.replace(/\d+階.*$/, "").replace(/[ホール会議室]+$/, "")])
+      .filter((p) => p.length >= 4);
+    for (const p of locParts) {
+      if (text.includes(p)) { locHit = true; break; }
+    }
+    if (!locHit && text.includes(locationName)) locHit = true;
+  }
+  if (locHit) score += 5;
+
+  if (nameHits === 0) return -1;
+  if (nameHits === 1 && !locHit) return -1;
   for (const kw of ["開催", "会場", "主催", "チケット", "入場", "日時"])
     if (text.includes(kw)) score += 1;
   return score;
@@ -284,6 +301,11 @@ export async function POST(req: NextRequest) {
         (event.start_date || "").toString()
       );
       searchDebug = enriched.debug;
+      console.info(
+        `[annotate-event] enrich name="${event.name_ja}" loc="${event.location_name}" ` +
+        `bestScore=${enriched.debug.bestScore} candidates=${JSON.stringify(enriched.debug.topCandidates)} ` +
+        `queries=${JSON.stringify(enriched.debug.queries)}`
+      );
       if (enriched.url && enriched.text) {
         foundUrl = enriched.url;
         webText = enriched.text;
