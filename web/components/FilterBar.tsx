@@ -101,7 +101,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
   });
 
   return (
-    <div className="sticky top-0 z-20 bg-white -mx-4 px-4 pb-2 mb-0">
+    <div className="sticky top-14 z-20 bg-surface -mx-4 px-4 pb-2 mb-0 border-b border-line shadow-sm">
       {/* Mobile: icon toggle row */}
       <div className="flex items-center justify-between md:hidden mb-1">
         <button
