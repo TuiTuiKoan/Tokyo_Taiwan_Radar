@@ -797,5 +797,10 @@
     "typeCreator": "創作者頻道",
     "typeOther": "其他",
     "officialUrlLabel": "官方網站"
+  },
+  "movieList": {
+    "director": "導演",
+    "viewDetails": "詳情",
+    "otherCity": "全國"
   }
 }

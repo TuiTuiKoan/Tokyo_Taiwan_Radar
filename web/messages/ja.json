@@ -797,5 +797,10 @@
     "typeCreator": "クリエイターチャンネル",
     "typeOther": "その他",
     "officialUrlLabel": "公式サイト"
+  },
+  "movieList": {
+    "director": "監督",
+    "viewDetails": "詳細",
+    "otherCity": "全国"
   }
 }

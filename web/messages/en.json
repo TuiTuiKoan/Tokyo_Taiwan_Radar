@@ -797,5 +797,10 @@
     "typeCreator": "Creator Channels",
     "typeOther": "Other",
     "officialUrlLabel": "Official site"
+  },
+  "movieList": {
+    "director": "Director",
+    "viewDetails": "Details",
+    "otherCity": "Nationwide"
   }
 }
