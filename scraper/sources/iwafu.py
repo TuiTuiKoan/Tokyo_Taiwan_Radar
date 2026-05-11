@@ -72,6 +72,14 @@ _OFFICIAL_URL_RE = re.compile(
     r'(?m)^(https?://(?!(?:www\.)?iwafu\.com)\S+)$'
 )
 
+# Regex to extract credit pairs (主催/協力/後援) from an official event site.
+# Matches label:value up to the next credit label, contact info, or end-of-content.
+_OFFICIAL_CREDIT_PAIR_RE = re.compile(
+    r'(主催|協力|後援|特別協力|協賛)[：:]\s*(.+?)'
+    r'(?=主催|協力|後援|特別協力|協賛|mail[:：]|Copyright|©|\n\n|\Z)',
+    re.DOTALL,
+)
+
 # Entire IP series that are permanently blocked regardless of title wording.
 # Add the series name when all events from an IP are confirmed non-Taiwan-themed.
 # These are checked against both the card title AND the h1 title on the detail page.
@@ -377,6 +385,16 @@ class IwafuScraper(BaseScraper):
         if _url_m:
             official_url = _url_m.group(1).rstrip("/")
 
+        # Fetch official site to extract organizer / sponsor credit lines.
+        # iwafu detail pages are brief; official sites carry 主催/協力/後援 info
+        # that is essential for correct annotation.
+        official_organizer: Optional[str] = None
+        official_credits_text: str = ""
+        if official_url:
+            official_organizer, official_credits_text = _fetch_official_organizer_info(
+                page, official_url
+            )
+
         # Strip iwafu page UI noise (Q&A, PR ads, nearby events, map, tags)
         description = _strip_iwafu_noise(description)
 
@@ -454,6 +472,8 @@ class IwafuScraper(BaseScraper):
         raw_description = description or card.get("description_snippet", "")
         if date_prefix:
             raw_description = date_prefix + raw_description
+        if official_credits_text:
+            raw_description += f"\n\n---\n官網補足 (official site)\n{official_credits_text}"
 
         return Event(
             source_name=self.SOURCE_NAME,
@@ -469,6 +489,7 @@ class IwafuScraper(BaseScraper):
             end_date=end_date,
             location_name=location_name,
             location_address=location_address,
+            organizer=official_organizer or None,
             is_paid=is_paid,
             category=[],
         )
@@ -497,3 +518,50 @@ def _detect_paid(text: Optional[str]) -> Optional[bool]:
     if any(w in text for w in ["有料", "入場料", "料金", "円", "¥", "費用"]):
         return True
     return None
+
+
+def _fetch_official_organizer_info(
+    page: Page, url: str
+) -> tuple[Optional[str], str]:
+    """Visit the official event site and extract organizer / sponsor credit lines.
+
+    iwafu detail pages are often too brief to include 主催/後援 info. When the
+    event has an official_url, this function visits that URL and scrapes the
+    credits section (主催：, 協力：, 後援：) that most event official sites publish
+    in their footer or overview table.
+
+    Returns:
+        (organizer, supplemental_text)
+        - organizer: first 主催 value found, or None
+        - supplemental_text: formatted credit lines for appending to raw_description
+    """
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=20_000)
+    except Exception as exc:
+        logger.warning("iwafu: official site fetch failed (%s): %s", url, exc)
+        return None, ""
+
+    try:
+        body_text = page.inner_text("body")
+    except Exception:
+        return None, ""
+
+    if not body_text:
+        return None, ""
+
+    pairs: list[tuple[str, str]] = []
+    for m in _OFFICIAL_CREDIT_PAIR_RE.finditer(body_text):
+        label = m.group(1)
+        value = re.sub(r'\s+', ' ', m.group(2)).strip()
+        # Skip empty or near-empty captures
+        if value and len(value) >= 2:
+            pairs.append((label, value))
+
+    if not pairs:
+        logger.debug("iwafu: no credit pairs found at %s", url)
+        return None, ""
+
+    organizer = next((v for lbl, v in pairs if lbl == "主催"), None)
+    supplemental = "\n".join(f"{lbl}：{v}" for lbl, v in pairs)
+    logger.info("iwafu: official site credits from %s → organizer=%s", url, organizer)
+    return organizer, supplemental

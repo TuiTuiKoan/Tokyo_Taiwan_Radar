@@ -19,6 +19,7 @@ import os
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlparse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -475,19 +476,57 @@ def _get_supabase():
     return create_client(url, key)
 
 
-def _get_known_urls(sb) -> dict[str, str]:
-    """Fetch all known URLs and their statuses from research_sources table."""
+def _domain(url: str) -> str:
+    """Extract normalised domain (strip www.) from a URL."""
+    try:
+        return urlparse(url).netloc.replace("www.", "")
+    except Exception:
+        return ""
+
+
+def _get_known_urls(sb) -> tuple[dict[str, str], dict[str, str]]:
+    """Fetch all known URLs and their statuses from research_sources table.
+
+    Returns:
+        known_urls:    {url -> status}    for exact-URL dedup
+        known_domains: {domain -> status} for domain-level dedup
+                       (status = highest-priority status seen for that domain)
+    """
+    STATUS_PRIORITY = {
+        "implemented": 0,
+        "researched": 1,
+        "recommended": 2,
+        "not-viable": 3,
+        "candidate": 4,
+    }
     try:
         rows = sb.table("research_sources").select("url,status").execute()
-        return {r["url"]: r["status"] for r in (rows.data or [])}
+        known_urls: dict[str, str] = {}
+        known_domains: dict[str, str] = {}
+        for r in (rows.data or []):
+            url = r["url"]
+            status = r["status"]
+            known_urls[url] = status
+            dom = _domain(url)
+            if dom:
+                current = known_domains.get(dom)
+                if current is None or STATUS_PRIORITY.get(status, 99) < STATUS_PRIORITY.get(current, 99):
+                    known_domains[dom] = status
+        return known_urls, known_domains
     except Exception as exc:
         logger.warning("Could not fetch known URLs: %s", exc)
-        return {}
+        return {}, {}
 
 
-def _upsert_sources(sb, sources: list[dict], known_urls: dict[str, str]) -> tuple[int, int]:
+def _upsert_sources(
+    sb,
+    sources: list[dict],
+    known_urls: dict[str, str],
+    known_domains: dict[str, str] | None = None,
+) -> tuple[int, int]:
     """Upsert verified sources to research_sources. Returns (new_count, skipped_count)."""
     CANDIDATES_DIR.mkdir(parents=True, exist_ok=True)
+    known_domains = known_domains or {}
     new_count = 0
     skipped_count = 0
     now = datetime.now(timezone.utc).isoformat()
@@ -495,6 +534,33 @@ def _upsert_sources(sb, sources: list[dict], known_urls: dict[str, str]) -> tupl
     for src in sources:
         url = src.get("url", "")
         if not url:
+            continue
+
+        # --- Domain-level duplicate check (before exact-URL check) ---
+        dom = _domain(url)
+        domain_status = known_domains.get(dom, "")
+        if domain_status and domain_status not in ("candidate",):
+            # A higher-priority entry already exists for this domain.
+            # Save as not-viable so GPT won't re-suggest it tomorrow.
+            existing_exact = known_urls.get(url)
+            if not existing_exact:
+                logger.info(
+                    "Domain duplicate skipped: %s (domain=%s, existing=%s)", url, dom, domain_status
+                )
+                try:
+                    sb.table("research_sources").upsert({
+                        "name": src.get("name", ""),
+                        "url": url,
+                        "agent_category": src.get("agent_category", ""),
+                        "status": "not-viable",
+                        "reason": f"Duplicate domain — a {domain_status} entry already exists for {dom}.",
+                        "url_verified": src.get("url_verified", False),
+                        "first_seen_at": now,
+                        "last_seen_at": now,
+                    }, on_conflict="url").execute()
+                except Exception:
+                    pass
+            skipped_count += 1
             continue
 
         existing_status = known_urls.get(url)
@@ -705,9 +771,10 @@ def run_research(dry_run: bool = False, category_id: str | None = None) -> None:
 
     # Fetch known URLs to skip (only when writing to DB)
     known_urls: dict[str, str] = {}
+    known_domains: dict[str, str] = {}
     if sb:
-        known_urls = _get_known_urls(sb)
-        logger.info("Known URLs to skip: %d", len(known_urls))
+        known_urls, known_domains = _get_known_urls(sb)
+        logger.info("Known URLs to skip: %d (domains: %d)", len(known_urls), len(known_domains))
 
     # Run one agent per category in this slot
     results: list[CategoryResult] = []
@@ -748,6 +815,7 @@ def run_research(dry_run: bool = False, category_id: str | None = None) -> None:
             sb,
             report["top_sources"],
             known_urls,
+            known_domains,
         )
         logger.info("research_sources: %d new candidates, %d skipped (already known)", new_count, skipped_count)
     except Exception as exc:
