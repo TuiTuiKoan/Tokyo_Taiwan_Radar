@@ -7,6 +7,7 @@ import "../globals.css";
 import Navbar from "@/components/Navbar";
 import HtmlLangSync from "@/components/HtmlLangSync";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const SITE_TITLES: Record<string, string> = {
   zh: "Tokyo Taiwan Radar 東京台灣雷達｜日本台灣活動雷達",
@@ -95,6 +96,7 @@ export default async function LocaleLayout({
         {tGeneral("footerCredit")}
       </footer>
       <Analytics />
+      <SpeedInsights />
     </NextIntlClientProvider>
   );
 }
