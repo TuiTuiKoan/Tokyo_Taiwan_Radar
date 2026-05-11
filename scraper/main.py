@@ -100,6 +100,7 @@ from sources.nhk_rss import NhkRssScraper
 from sources.gguide_tv import GguideTvScraper
 from sources.mot import MotScraper
 from sources.kgplus_kyotographie import KgplusKyotographieScraper
+from sources.placebymethod import PlacebymethodScraper
 from sources.johakyu import JohakyuScraper
 from sources.stranger import StrangerScraper
 from sources.tsutaya_portal import TsutayaPortalScraper
@@ -261,6 +262,7 @@ SCRAPERS = [
     OnarizaScraper(),
     UsCinemaChibaGekijoScraper(),
     RtiJpScraper(),
+    PlacebymethodScraper(),
 ]
 
 
