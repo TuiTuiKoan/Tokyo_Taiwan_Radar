@@ -114,6 +114,7 @@ export default async function CityPage({ params }: PageProps) {
 
   const label = tCities(city as any);
   const description = tCities(`${city}_desc` as any);
+  const descriptionLong = tCities(`${city}_descLong` as any) as string;
   const headingSuffix = tCities("headingSuffix");
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
 
@@ -154,7 +155,9 @@ export default async function CityPage({ params }: PageProps) {
       <h1 className="text-2xl font-bold mb-3">
         {label as string}{headingSuffix}
       </h1>
-      <p className="text-sm text-fg-muted mb-6 leading-relaxed">{description as string}</p>
+      <section className="mb-6 space-y-3 text-sm leading-relaxed text-fg-muted">
+        <p>{descriptionLong}</p>
+      </section>
 
       {/* Event grid */}
       {rows.length === 0 ? (

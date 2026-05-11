@@ -493,9 +493,14 @@ def fix_simplified(dry_run: bool = False) -> dict:
     from annotator import _to_trad, _lock_fields_via_corrections
 
     sb = _supabase_client()
+    _FIX_FIELDS = (
+        "name_zh", "description_zh",
+        "location_name_zh", "location_address_zh",
+        "business_hours_zh", "organizer_zh",
+    )
     rows = (
         sb.table("events")
-        .select("id,name_zh,description_zh,selection_reason,annotation_status")
+        .select("id," + ",".join(_FIX_FIELDS) + ",selection_reason,annotation_status")
         .eq("is_active", True)
         .in_("annotation_status", ["annotated", "reviewed"])
         .execute()
@@ -506,7 +511,7 @@ def fix_simplified(dry_run: bool = False) -> dict:
     for row in rows:
         update: dict[str, Any] = {}
 
-        for field in ("name_zh", "description_zh"):
+        for field in _FIX_FIELDS:
             val = row.get(field) or ""
             if val:
                 converted = _to_trad(val)

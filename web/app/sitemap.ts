@@ -85,5 +85,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }))
   );
 
-  return [...staticPages, ...eventPages, ...cityPages, ...categoryPages];
+  // ── Static info pages: /about, /sources ─────────────────────────────────
+  const INFO_SLUGS = ["about", "sources"] as const;
+  const infoPages: MetadataRoute.Sitemap = INFO_SLUGS.flatMap((slug) =>
+    LOCALES.map((locale) => ({
+      url: `${BASE}/${locale}/${slug}`,
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
+      alternates: {
+        languages: {
+          ...Object.fromEntries(LOCALES.map((l) => [l, `${BASE}/${l}/${slug}`])),
+          "x-default": `${BASE}/zh/${slug}`,
+        },
+      },
+    }))
+  );
+
+  return [...staticPages, ...eventPages, ...cityPages, ...categoryPages, ...infoPages];
 }

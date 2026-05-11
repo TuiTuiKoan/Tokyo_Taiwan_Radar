@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient as createSsrClient } from "@/lib/supabase/server";
 import { unstable_noStore } from "next/cache";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale, type Event, getEventName, getEventDescription, getEventLocationName, getEventLocationAddress, getEventBusinessHours, getEventPerformer, getEventDirector, getEventOrganizer } from "@/lib/types";
 import SaveButton from "@/components/SaveButton";
@@ -22,6 +22,18 @@ interface PageProps {
 
 const LOCALES = ["zh", "en", "ja"] as const;
 
+/**
+ * Service-role client for cross-status lookups (e.g. resolving merged events
+ * whose is_active=false). Only `select` minimum required fields. Never expose
+ * SUPABASE_SERVICE_ROLE_KEY to client components.
+ */
+function adminClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
 /** Extract prefecture name (都道府県) from a Japanese address string. */
 function extractPrefecture(address: string | null): string | null {
   if (!address) return null;
@@ -36,6 +48,17 @@ function extractPrefecture(address: string | null): string | null {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { locale, id } = await params;
+  // Resolve merged events first using service role (RLS bypass — is_active may be false).
+  const admin = adminClient();
+  const { data: stub } = await admin
+    .from("events")
+    .select("id, merged_into_event_id, is_active")
+    .eq("id", id)
+    .maybeSingle();
+  if (stub?.merged_into_event_id) {
+    permanentRedirect(`/${locale}/events/${stub.merged_into_event_id}`);
+  }
+  if (!stub || !stub.is_active) return {};
   const supabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -93,20 +116,44 @@ export default async function EventDetailPage({ params }: PageProps) {
   const tCat = await getTranslations("categories");
   const tOrgType = await getTranslations("organizerType");
   const tEventForm = await getTranslations("eventForm");
+  const tNarr = await getTranslations("eventNarrative");
 
   const supabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  // Resolve merged events first using service role (RLS bypass — is_active may be false).
+  const admin = adminClient();
+  const { data: stub } = await admin
+    .from("events")
+    .select("id, merged_into_event_id, is_active")
+    .eq("id", id)
+    .maybeSingle();
+  if (stub?.merged_into_event_id) {
+    permanentRedirect(`/${locale}/events/${stub.merged_into_event_id}`);
+  }
+  if (!stub || !stub.is_active) {
+    notFound();
+  }
+
   const { data: event } = await supabase
     .from("events")
     .select("*")
     .eq("id", id)
-    .eq("is_active", true)
     .single();
 
   if (!event) {
+    notFound();
+  }
+
+  // 308 redirect for merged events (preserves link equity)
+  if (event.merged_into_event_id) {
+    permanentRedirect(`/${locale}/events/${event.merged_into_event_id}`);
+  }
+
+  // Inactive (non-merged) events → 404
+  if (!event.is_active) {
     notFound();
   }
 
@@ -249,22 +296,46 @@ export default async function EventDetailPage({ params }: PageProps) {
       ? { "@type": "Person", name: getEventDirector(ev as Event, locale) }
       : null;
 
-    // location → PostalAddress
-    const placeLd = locationName
-      ? {
-          "@type": "Place",
-          name: locationName,
-          ...(locationAddress
-            ? {
-                address: {
-                  "@type": "PostalAddress",
-                  streetAddress: locationAddress,
-                  addressCountry: "JP",
-                },
-              }
-            : {}),
-        }
-      : null;
+    // location → Schema.org Event location MUST be present (required field).
+    // Detect online events across all three locale labels.
+    const isOnline =
+      locationName === "オンライン" ||
+      locationName === "線上" ||
+      locationName === "Online";
+
+    let placeLd: Record<string, unknown>;
+    let attendanceMode: string;
+    if (isOnline) {
+      attendanceMode = "https://schema.org/OnlineEventAttendanceMode";
+      placeLd = {
+        "@type": "VirtualLocation",
+        url:
+          ev.official_url ??
+          ev.source_url ??
+          `${base}/${locale}/events/${id}`,
+      };
+    } else if (locationName) {
+      attendanceMode = "https://schema.org/OfflineEventAttendanceMode";
+      placeLd = {
+        "@type": "Place",
+        name: locationName,
+        address: locationAddress
+          ? {
+              "@type": "PostalAddress",
+              streetAddress: locationAddress,
+              addressCountry: "JP",
+            }
+          : { "@type": "PostalAddress", addressCountry: "JP" },
+      };
+    } else {
+      // Fallback: physical event with no venue name (rare) — use country-only address.
+      attendanceMode = "https://schema.org/OfflineEventAttendanceMode";
+      placeLd = {
+        "@type": "Place",
+        name: locale === "en" ? "Japan" : "日本",
+        address: { "@type": "PostalAddress", addressCountry: "JP" },
+      };
+    }
 
     // offers
     const offerUrl = ev.official_url ?? ev.source_url;
@@ -299,9 +370,9 @@ export default async function EventDetailPage({ params }: PageProps) {
       description: description ?? undefined,
       url: `${base}/${locale}/events/${id}`,
       image: `${base}/${locale}/events/${id}/opengraph-image`,
-      eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+      eventAttendanceMode: attendanceMode,
       eventStatus: EVENT_STATUS_MAP[ev.event_status ?? "scheduled"],
-      ...(placeLd ? { location: placeLd } : {}),
+      location: placeLd,
       organizer: organizerLd,
       ...(performerLd ? { performer: performerLd } : {}),
       ...(directorLd ? { director: directorLd } : {}),
@@ -476,6 +547,97 @@ export default async function EventDetailPage({ params }: PageProps) {
           locale={locale}
         />
       </div>
+
+      {/* ===== Narrative summary (SEO content thickening) ===== */}
+      {(() => {
+        const ev = event as Event;
+        const fmtDate = (iso: string | null | undefined) =>
+          iso
+            ? new Date(iso).toLocaleDateString(locale, {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })
+            : null;
+        const startStr = fmtDate(ev.start_date ?? null);
+        const endStr = fmtDate(ev.end_date ?? null);
+        const isOnline =
+          locationName === "オンライン" ||
+          locationName === "線上" ||
+          locationName === "Online";
+        const displayName = name ?? ev.name_ja ?? "";
+
+        // Paragraph 1 — when / where overview
+        let p1 = "";
+        if (startStr && displayName) {
+          if (isOnline) {
+            p1 = endStr && endStr !== startStr
+              ? tNarr("p1OnlineWithEnd", { name: displayName, start: startStr, end: endStr })
+              : tNarr("p1Online", { name: displayName, start: startStr });
+          } else if (locationName) {
+            p1 = endStr && endStr !== startStr
+              ? tNarr("p1WithEnd", { name: displayName, start: startStr, end: endStr, location: locationName })
+              : tNarr("p1", { name: displayName, start: startStr, location: locationName });
+          } else {
+            p1 = endStr && endStr !== startStr
+              ? tNarr("p1JapanWithEnd", { name: displayName, start: startStr, end: endStr })
+              : tNarr("p1Japan", { name: displayName, start: startStr });
+          }
+        }
+
+        // Paragraph 2 — categories + organizer
+        const catLabels = (ev.category ?? []).map((c) => tCat(c as never));
+        const organizerName = getEventOrganizer(ev, locale) || ev.organizer || null;
+        const p2Parts: string[] = [];
+        if (catLabels.length > 0) {
+          p2Parts.push(
+            tNarr("p2Categories", { categories: catLabels.join(locale === "en" ? ", " : "、") })
+          );
+        }
+        if (organizerName) {
+          p2Parts.push(tNarr("p2Organizer", { organizer: organizerName }));
+        }
+        const p2 = p2Parts.join(" ");
+
+        // Paragraph 3 — pricing
+        let p3 = "";
+        if (ev.is_paid === false) {
+          p3 = tNarr("p3Free");
+        } else if (ev.is_paid === true) {
+          if (ev.price_amount != null) {
+            p3 = tNarr("p3PaidWithAmount", {
+              amount: String(ev.price_amount),
+              info: ev.price_info ?? "",
+            });
+          } else if (ev.price_info) {
+            p3 = tNarr("p3PaidWithInfo", { info: ev.price_info });
+          } else {
+            p3 = tNarr("p3Paid");
+          }
+        } else {
+          p3 = tNarr("p3Unknown");
+        }
+
+        // Paragraph 4 — venue / access
+        let p4 = "";
+        if (isOnline) {
+          p4 = tNarr("p4Online");
+        } else if (locationName && locationAddress) {
+          p4 = tNarr("p4VenueWithAddress", { venue: locationName, address: locationAddress });
+        } else if (locationName) {
+          p4 = tNarr("p4VenueOnly", { venue: locationName });
+        }
+
+        const paragraphs = [p1, p2, p3, p4].filter((s) => s && s.trim().length > 0);
+        if (paragraphs.length === 0) return null;
+        return (
+          <section className="mb-6 space-y-2 text-sm leading-relaxed text-fg-muted">
+            {paragraphs.map((p, i) => (
+              <p key={i}>{p}</p>
+            ))}
+          </section>
+        );
+      })()}
 
       {/* ===== Summary Card ===== */}
       <div className="border border-line rounded-xl overflow-hidden mb-6">

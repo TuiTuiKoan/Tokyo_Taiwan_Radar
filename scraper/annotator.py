@@ -2099,7 +2099,10 @@ def _lock_fields_via_corrections(
         {
             "event_id": event_id,
             "field_name": fname,
-            "corrected_value": str(fvalue) if fvalue is not None else "",
+            "corrected_value": str(
+                _to_trad(fvalue) if isinstance(fvalue, str) and fname.endswith("_zh")
+                else fvalue
+            ) if fvalue is not None else "",
             "corrected_by": None,
         }
         for fname, fvalue in fields.items()

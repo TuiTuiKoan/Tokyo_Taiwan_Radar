@@ -144,6 +144,12 @@ export default function Navbar({ locale }: Props) {
             <Link href={`/${locale}/announcements`} className="hover:text-green-700 transition">
               {t("news")}
             </Link>
+            <Link href={`/${locale}/about`} className="hover:text-green-700 transition">
+              {t("about")}
+            </Link>
+            <Link href={`/${locale}/sources`} className="hover:text-green-700 transition">
+              {t("sources")}
+            </Link>
             {user && (
               <Link
                 href={`/${locale}/saved`}
@@ -228,6 +234,20 @@ export default function Navbar({ locale }: Props) {
               className="px-3 py-2.5 rounded-md hover:bg-green-50 hover:text-green-700 transition"
             >
               {t("home")}
+            </Link>
+            <Link
+              href={`/${locale}/about`}
+              onClick={() => setMenuOpen(false)}
+              className="px-3 py-2.5 rounded-md hover:bg-green-50 hover:text-green-700 transition"
+            >
+              {t("about")}
+            </Link>
+            <Link
+              href={`/${locale}/sources`}
+              onClick={() => setMenuOpen(false)}
+              className="px-3 py-2.5 rounded-md hover:bg-green-50 hover:text-green-700 transition"
+            >
+              {t("sources")}
             </Link>
             {user && (
               <Link

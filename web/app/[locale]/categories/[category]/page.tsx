@@ -81,6 +81,14 @@ export default async function CategoryPage({ params }: PageProps) {
 
   const categoryLabel = t(category as any) as string;
   const description = tCatDesc(category as any) as string;
+  // Long description for FEATURED categories; falls back to short desc otherwise.
+  const FEATURED_LONG = new Set([
+    "movie", "performing_arts", "senses", "art", "lecture",
+    "taiwan_japan", "lifestyle_food", "books_media",
+  ]);
+  const descriptionLong = FEATURED_LONG.has(category)
+    ? (tCatDesc(`${category}_long` as any) as string)
+    : description;
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
 
   const collectionLd = {
@@ -124,8 +132,10 @@ export default async function CategoryPage({ params }: PageProps) {
 
       {/* Heading + intro */}
       <h1 className="text-2xl font-bold mb-3">{categoryLabel}</h1>
-      {description && (
-        <p className="text-sm text-fg-muted mb-6 leading-relaxed">{description}</p>
+      {descriptionLong && (
+        <section className="mb-6 space-y-3 text-sm leading-relaxed text-fg-muted">
+          <p>{descriptionLong}</p>
+        </section>
       )}
 
       {/* Event grid */}

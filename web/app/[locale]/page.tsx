@@ -32,6 +32,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
   // is read from `useSearchParams()` inside <EventListClient> / <FilterBar>.
   const sp = await searchParams;
   const tAnn = await getTranslations("announcements");
+  const tHome = await getTranslations("home");
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -123,6 +124,21 @@ export default async function HomePage({ params, searchParams }: PageProps) {
           {tAnn("tabNews")}
         </Link>
       </div>
+
+      {/* Brand intro / SEO content */}
+      <section className="mt-6 mb-8 max-w-3xl">
+        <h1 className="text-2xl sm:text-3xl font-bold text-fg-strong mb-1">
+          {tHome("introTitle")}
+        </h1>
+        <p className="text-sm text-green-700 mb-4 font-medium">
+          {tHome("introTagline")}
+        </p>
+        <div className="space-y-3 text-sm leading-relaxed text-fg-muted">
+          <p>{tHome("introP1")}</p>
+          <p>{tHome("introP2")}</p>
+          <p>{tHome("introP3")}</p>
+        </div>
+      </section>
 
       {/* Featured announcements strip */}
       {featuredAnnouncements && featuredAnnouncements.length > 0 && (
