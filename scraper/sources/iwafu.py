@@ -64,6 +64,14 @@ _BLOCKED_TITLE_PATTERNS = re.compile(
     r"|名探偵コナン.*脱出|脱出.*名探偵コナン",  # catch title variants even without リアル
 )
 
+# Regex to find the official website URL embedded in an iwafu detail page.
+# Matches a standalone URL on its own line that is NOT an iwafu.com URL.
+# This extracts the event's own website (e.g. https://yataiwan-fes.jp/) that
+# iwafu shows as plain text near the location/access info section.
+_OFFICIAL_URL_RE = re.compile(
+    r'(?m)^(https?://(?!(?:www\.)?iwafu\.com)\S+)$'
+)
+
 # Entire IP series that are permanently blocked regardless of title wording.
 # Add the series name when all events from an IP are confirmed non-Taiwan-themed.
 # These are checked against both the card title AND the h1 title on the detail page.
@@ -362,6 +370,13 @@ class IwafuScraper(BaseScraper):
         if not description:
             description = card.get("description_snippet", "")
 
+        # Extract official URL: first standalone external URL in the raw description
+        # (before noise stripping, so we don't lose URLs near the end of the content)
+        official_url: Optional[str] = None
+        _url_m = _OFFICIAL_URL_RE.search(description)
+        if _url_m:
+            official_url = _url_m.group(1).rstrip("/")
+
         # Strip iwafu page UI noise (Q&A, PR ads, nearby events, map, tags)
         description = _strip_iwafu_noise(description)
 
@@ -444,6 +459,7 @@ class IwafuScraper(BaseScraper):
             source_name=self.SOURCE_NAME,
             source_id=f"iwafu_{event_id}",
             source_url=url,
+            official_url=official_url,
             original_language="ja",
             name_ja=title,
             description_ja=description or None,
