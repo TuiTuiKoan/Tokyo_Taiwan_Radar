@@ -39,6 +39,20 @@ _USER_AGENT = (
 # Original title regex — same pattern used in eiga_com.py
 _ORIG_TITLE_RE = re.compile(r"原題(?:または英題)?[：:]\s*([^\n]+)")
 
+# Traditional Chinese → Japanese kanji normalisation map.
+# eiga.com indexes movie titles using Japanese kanji (often simplified variants).
+# TC-specific characters like 灣(U+7063) are not found; 湾(U+6E7E) is.
+# Reference incident: 灣生回家 → 湾生回家 needed for lookup.
+_TC_TO_JP = str.maketrans({
+    "\u7063": "\u6e7e",  # 灣 → 湾
+    "\u81fa": "\u53f0",  # 臺 → 台
+    "\u570b": "\u56fd",  # 國 → 国
+    "\u9ad4": "\u4f53",  # 體 → 体
+    "\u5c08": "\u5c02",  # 專 → 専
+    "\u6f22": "\u6f22",  # same: 漢
+    "\u5be7": "\u5be7",  # same: 寧
+})
+
 # In-memory cache: name_ja → (name_zh, name_en)
 _cache: dict[str, tuple[str | None, str | None]] = {}
 
@@ -83,8 +97,12 @@ def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None]:
     if key in _cache:
         return _cache[key]
 
+    # Normalise Traditional Chinese characters to Japanese kanji equivalents
+    # before searching eiga.com (which indexes Japanese titles only).
+    search_key = key.translate(_TC_TO_JP)
+
     try:
-        encoded = quote(key)
+        encoded = quote(search_key)
         search_url = _SEARCH_URL_TMPL.format(encoded)
 
         time.sleep(LOOKUP_DELAY_SEC)

@@ -1887,6 +1887,23 @@ def enrich_movie_titles() -> None:
 
         name_zh, name_en = lookup_movie_titles(title)
 
+        # If full title lookup failed and name_ja looks like a program/lecture event
+        # that embeds a movie title in brackets (e.g. 「…映画『青春18×2』のひみつ」),
+        # try extracting the innermost 『…』/《…》 as a fallback lookup.
+        if not name_zh and not name_en and source not in _NEWS_MOVIE_SOURCES:
+            _embedded_m = re.search(r"[『《]([^』》]{2,40})[』》]", title)
+            if _embedded_m:
+                _extracted_title = _embedded_m.group(1).strip()
+                if _extracted_title != title:
+                    _ez, _ee = lookup_movie_titles(_extracted_title)
+                    if _ez or _ee:
+                        logger.info(
+                            "  ↳ bracket-embedded title fallback for %s: %r → zh=%r en=%r",
+                            event["id"][:8], _extracted_title, _ez, _ee,
+                        )
+                        name_zh, name_en = _ez, _ee
+                        title = _extracted_title  # use for works table lookup too
+
         # Fallback: check works table for canonical titles + inherit performer/director
         works_performer = None
         works_director = None
