@@ -1,9 +1,9 @@
-- [ ] T1: README.md 加超連結 `[tokyotaiwanradar.com](https://tokyotaiwanradar.com)`
-- [ ] T2: AnnouncementCard.tsx `<img>` → `<Image>`
-- [ ] T2: AnnouncementForm.tsx `<img>` → `<Image unoptimized>`
-- [ ] T2: MovieWorksList.tsx `<img>` → `<Image fill>`
+- [x] T1: README.md 加超連結 `[tokyotaiwanradar.com](https://tokyotaiwanradar.com)`
+- [x] T2: AnnouncementCard.tsx `<img>` → `<Image>`
+- [ ] T2: AnnouncementForm.tsx `<img>` → `<Image unoptimized>` (skipped: blob preview URL)
+- [x] T2: MovieWorksList.tsx `<img>` → `<Image fill>`
 - [ ] T2: next.config.ts 加 `images.remotePatterns`
-- [ ] T3: EventCard.tsx 加 `aria-label`
+- [x] T3: EventCard.tsx 加 `aria-label`
 - [ ] T3: messages/{zh,en,ja}.json 加 `eventLink` key
 - [ ] T4: categories/[category]/opengraph-image.tsx
 - [ ] T4: cities/[city]/opengraph-image.tsx
