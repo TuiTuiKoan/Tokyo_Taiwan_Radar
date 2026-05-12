@@ -637,7 +637,7 @@ Every route slug must appear the **same number of times** (= total number of adm
   4. Validate: `python main.py --dry-run --source <key>` returns events cleanly
 - `_warn_unregistered_scrapers()` in `main.py` runs on every non-dry-run and emits a WARNING for any scraper key missing from `research_sources`. Check CI logs if you see `⚠️ scraper(s) NOT registered`.
 - **Auto-QA via `event_reports` queue (2026-05-01):** New automated content-quality checks must write findings into `event_reports` with an `auto_*` prefix in `report_types[]` (e.g. `auto_qa_simplified_zh`, `auto_qa_missing_address`). Do NOT build a separate admin queue — the existing `/admin/reports` confirm/dismiss flow handles auto-findings unchanged. Always dedup against existing rows of the same `auto_*` type per `event_id` — check **ALL statuses** (`pending`, `confirmed`, `dismissed`), not just `pending`. A confirmed/dismissed report means the admin has already reviewed it; re-creating it undoes admin work. Also dedup within a single run via in-memory set. See `scraper/auto_qa.py` and engineer `history.md` 2026-05-01 / 2026-05-05.
-- **`SIMP_RE` / `annotator._SIMP_TO_TRAD` char addition rule (2026-05-01):** Only add a char when its Traditional Chinese / Japanese form is **a different glyph**. Verify each candidate via CC-CEDICT or kanji.jitenon.jp **before** adding. Counter-example: `亮` is identical in Trad/Simp (`照亮` is valid Trad) and triggered a false positive in production. When adding a new char, update **both** `annotator.py._SIMP_TO_TRAD` and `auto_qa.py.SIMP_RE` simultaneously. See scraper-expert `history.md` 2026-05-01.
+- **`SIMP_RE` / `SC_ONLY` / `annotator._SIMP_TO_TRAD` char addition rule (2026-05-01, updated 2026-05-11):** Only add a char when its Traditional Chinese / Japanese form is **a different glyph**. Verify each candidate via CC-CEDICT or kanji.jitenon.jp **before** adding. Counter-example: `亮` is identical in Trad/Simp (`照亮` is valid Trad) and triggered a false positive in production. When adding a new char, update **all three** simultaneously: `annotator.py._SIMP_TO_TRAD`, `auto_qa.py.SIMP_RE`, and `auto_qa.py.SC_ONLY`. Ensure `SC_ONLY ⊆ _SIMP_TO_TRAD_RAW.keys()` — detection must never find chars that fix cannot convert. See scraper-expert `history.md` 2026-05-01 and engineer `history.md` 2026-05-11.
 - **Cron-driven slot rotation modulo wrap (2026-05-01):** When N weekdays drive a `(DAY-1) % M` slot selector with `M < N`, days M+1..N silently re-run slots 0..(N-M-1). Acceptable when slots are idempotent (search + `skip_hint` dedup); NOT acceptable for slots requiring fixed cadence (e.g. Peatix slot 3 only on Thursdays). Override via `DISCOVERY_SLOT` env on extra cron entries, or raise `SLOT_COUNT`. See `discovery-accounts.yml` and engineer `history.md` 2026-05-01.
 - **Multi-city tour detection — never hardcode venue address (2026-05-01):** Any scraper with a hardcoded `location_address` must add multi-city detection logic. Pattern for `taiwan_cultural_center.py`:
   - Check `description + name` for ≥2 regional keywords (`_MULTI_CITY_REGIONS = ["北海道", "大阪", "京都", "神奈川", "福岡", "名古屋", "仙台"]`)
@@ -942,9 +942,9 @@ Prompt-only fixes are insufficient: GPT-4o-mini ignores language rules intermitt
 
 The char map `_SIMP_TO_TRAD` contains ~300 Simplified→Traditional character mappings (grown from ~50 initial entries), with identity mappings automatically removed. See `annotator.py` for the full table.
 
-**⚠ Maintenance burden:** This mapping table approach is inherently incomplete — every time GPT-4o-mini uses a new SC character not in the table, it silently passes through. The table has grown from ~50 to 300+ entries and still requires periodic expansion (e.g. 2026-05-08: +9 chars). **Long-term solution:** evaluate OpenCC or a complete Unicode SC→TC library for robust coverage. Until then, continue manual maintenance.
+**⚠ Maintenance burden:** This mapping table approach is inherently incomplete — every time GPT-4o-mini uses a new SC character not in the table, it silently passes through. The table has grown from ~50 to 300+ entries and still requires periodic expansion (e.g. 2026-05-08: +9 chars, 2026-05-11: +3 chars). **Long-term solution:** evaluate OpenCC or a complete Unicode SC→TC library for robust coverage. Until then, continue manual maintenance.
 
-**When to expand the map:** If a post-annotation scan finds a new Simplified character in any `*_zh` field, add it to `_SIMP_TO_TRAD` in `annotator.py` **and** `SIMP_RE` in `auto_qa.py` simultaneously, then DB-patch all existing rows:
+**When to expand the map:** If a post-annotation scan finds a new Simplified character in any `*_zh` field, add it to `_SIMP_TO_TRAD` in `annotator.py` **and** `SIMP_RE` / `SC_ONLY` in `auto_qa.py` simultaneously, then DB-patch all existing rows:
 ```python
 import os, re; from dotenv import load_dotenv; from supabase import create_client
 load_dotenv('.env'); sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
@@ -975,6 +975,42 @@ print(f'Simplified in *_zh fields: {len(bad)}')
 ```
 
 **Fields covered:** ALL `*_zh` fields — main-event and sub-event. `_to_trad()` is applied to `name_zh`, `description_zh`, `business_hours_zh` directly; `_loc_zh()` (which calls `_to_trad()`) is applied to `location_name_zh` and `location_address_zh`.
+
+### `_lock_fields_via_corrections()` — SC→TC Chokepoint Guard
+
+**`_lock_fields_via_corrections()` 對 field name 以 `_zh` 結尾的值，寫入 FC 前自動呼叫 `_to_trad()`。**
+
+This is the chokepoint guard (Layer 2) of the SC→TC three-layer defence. Any value that enters `field_corrections` becomes permanently locked — if SC characters slip through, they are immune to all automated fixes (annotator re-annotation is blocked by P1 protection).
+
+**Guard 實作位置**：`annotator.py` `_lock_fields_via_corrections()` 函式內，在 `json.dumps(fvalue)` 前加 `fvalue = _to_trad(str(fvalue)) if fname.endswith("_zh") else fvalue`。
+
+**適用場景（所有寫入 FC 的路徑）**：
+- `_lock_fields_via_corrections()` 被 annotator 主迴圈呼叫
+- backfill 腳本（如 `_oneoff_backfill_organizer_i18n.py`）呼叫
+- `enrich_movie_titles()` / `enrich_person_names()` 呼叫
+- 手動 DB patch 後透過此函式鎖定
+
+**反模式：** 直接 upsert `field_corrections` 表而不經 `_lock_fields_via_corrections()` → 繞過 SC→TC guard。所有 FC 寫入**必須**經此函式。
+
+Reference incident: 2026-05-11 commit `f7790a2` — 39 筆 `organizer_zh` SC 被 kanji copy 永久鎖入 FC。
+
+### SC→TC Detection/Fix Consistency Rule
+
+`auto_qa.py` 的偵測範圍與修復範圍必須完全一致：
+
+| 系統 | 字元集來源 | 掃描欄位 |
+|------|-----------|---------|
+| `_detect_simplified_chinese()` | `SC_ONLY` | 6 個 `_zh` 欄位 |
+| `fix_simplified()` | `_SIMP_TO_TRAD_RAW` | 6 個 `_zh` 欄位（2026-05-11 起） |
+
+**一致性規則：**
+1. `SC_ONLY ⊆ _SIMP_TO_TRAD_RAW.keys()` — 偵測到的字元必須都有對應映射可修復
+2. `SC_ONLY` 不可含 SC/TC 共用字元（如 征/蹈/零/蒙）— 這些在 TC 中有合法用法
+3. `fix_simplified()` 的欄位清單必須與 `_detect_simplified_chinese()` 完全相同
+
+**驗證字元是否為假陽性**：CC-CEDICT 或 kanji.jitenon.jp 查詢，確認 TC 字形與 SC 字形**不同**才可加入 `SC_ONLY`。
+
+Reference incident: 2026-05-11 commit `aa24400` — 征/蹈/零/蒙 假陽性 + 见/从/库 缺映射 → 無限 dismiss 循環。
 
 ## AEO Monitoring — proxy.ts Edge Middleware Rules
 

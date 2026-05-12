@@ -4,6 +4,107 @@
 
 ---
 
+## 2026-05-11 — SC→TC 三層防禦架構確立（`_lock_fields_via_corrections` chokepoint guard + detection/fix 一致性）
+
+### A — `_lock_fields_via_corrections()` 缺 `_to_trad()` guard（commit `f7790a2`）
+
+**問題：** `_lock_fields_via_corrections()` 用 `str(fvalue)` 直接寫入 `field_corrections`，未經 `_to_trad()` 轉換。當 backfill 腳本（如 `_oneoff_backfill_organizer_i18n.py` Stage B "kanji copy"）將日文漢字直接複製到 `organizer_zh` 時，日文漢字（與 SC 相同，如 `会`=`会` 而非 `會`）被永久鎖入 FC 表。一旦鎖定，annotator P1 保護阻止任何後續 re-annotation 修正。
+
+**架構教訓：**
+1. **`field_corrections` 是永久性資料閘門**：任何寫入 FC 的函式都是 chokepoint，SC 值一旦通過便免疫於所有自動修復。`_to_trad()` guard 必須在此閘門設置，不僅在 annotator 主迴圈。
+2. **SC→TC 三層防禦模型**（此次確立）：
+   - **Layer 1 — 預防**：annotator 主迴圈對 GPT 輸出呼叫 `_to_trad()`
+   - **Layer 2 — Chokepoint guard**：`_lock_fields_via_corrections()` 對所有 `*_zh` 欄位自動呼叫 `_to_trad()`
+   - **Layer 3 — 偵測 + 修復**：`auto_qa.py` 的 `SC_ONLY` + `fix_simplified()`
+   - 三層必須使用從 `_SIMP_TO_TRAD_RAW` 衍生的一致字元集。
+
+### B — `SC_ONLY` / `_SIMP_TO_TRAD_RAW` 不一致造成無限 dismiss 循環（commit `aa24400`）
+
+**問題：** `SC_ONLY`（偵測用）含 4 個假陽性字元（征/蹈/零/蒙），而 `_SIMP_TO_TRAD_RAW`（修復用）缺 3 個映射（见→見、从→從、库→庫）。偵測系統找到修復系統無法轉換的字元 → 產生報告 → 管理員 dismiss → 下次 CI 又偵測到 → 無限循環。
+
+**架構教訓：**
+1. **偵測系統與修復系統必須使用同一字元集**：不一致時必然產生假陽性（偵測到但無法修復）或假陰性（可修復但未偵測到）。
+2. **理想設計**：偵測與修復的字元集均從 `_SIMP_TO_TRAD_RAW` 單一來源衍生，而非獨立維護。
+3. **`auto_qa.py` 的 `fix_simplified()` 已擴展**：從僅掃描 `name_zh, description_zh` 擴展到全部 6 個 `_zh` 欄位。
+
+---
+
+## 2026-05-10 — レポート記事 自動タグ付け＆接頭辭注入 — annotator 設計決定
+
+**背景（commit `1e00933`）：** event `a7a05be6`（台湾薬膳文化体験レポート from note_creators）手動修正後、同パターン再発防止のため annotator に自動化を組み込んだ。
+
+**設計決定：**
+1. **キーワード検知**：`_REPORT_TRIGGER_RE`（module-level）がレポート系ワードに一致したら `report` category を注入する。`_inject_keyword_categories()` に新ルールとして追加。
+2. **接頭辭注入順序**：`update_data` 確定後 → `report` in category チェック → `_inject_report_prefix()` 実行。FC ロック付き field はスキップして人工修正を尊重。
+3. **バックフィル設計**：`backfill_report_prefix(dry_run=False)` を単一 session 内で実行。`field_corrections` の lock も同時更新して次回 annotate で上書きされないようにする。
+4. **責任分離**：接頭辭 + category 注入は annotator 担当。`start_date`（記事日 ≠ 活動日）と `location`（主催者拠点 ≠ 活動場所）の修正は **human review 必須**——この 2 点は raw_description から機械的に判断できない。
+
+**教訓：** `report` category と接頭辭は常にセット——片方だけでは不完全。FC ロックが掛かっている場合は prefix inject をスキップすることで「手動修正 > 自動修正」の優先順位を保証できる。
+
+---
+
+## 2026-05-10 — GSC_REFRESH_TOKEN 過期（invalid_grant 錯誤）
+
+**問題：** Admin AEO 頁面的 GSC 監控卡片回報 `invalid_grant` 錯誤，Google Search Console API 呼叫全部失敗。
+
+**根因：** OAuth2 refresh token（`GSC_REFRESH_TOKEN`）在約 6 個月未使用後由 Google 自動撤銷，Vercel 環境變數中的舊 token 已失效。
+
+**修復：** 透過 OAuth 2.0 Playground 重新授權，生成新 refresh token，更新 Vercel env vars `GSC_REFRESH_TOKEN`，空 commit push 重新部署。
+
+**教訓：** `GSC_REFRESH_TOKEN` 不是永久有效——Google 會在 token 長期閒置後撤銷。應加入定期輪換清單，與 `GITHUB_TOKEN` 同步提醒；發生 `invalid_grant` 時，標準修復路徑是 OAuth 2.0 Playground 重新授權，而非重建 GSC 整合。
+
+---
+
+## 2026-05-09 — DB 殘留無效分類 `culture`（2 筆事件 MISSING_MESSAGE）
+
+**問題：** 瀏覽器 console 出現 `MISSING_MESSAGE` 錯誤，事件 `443e4365`（新渡戸の夢上映会）和 `05aefbdf`（原住民文化講演）的 `categories` 陣列含 `culture`，前端找不到對應的 i18n 字串。
+
+**根因：** `culture` 從未在 `web/lib/types.ts` 的 `Category` union 中，但歷史 scraper（peatix.py）曾以 `category=["culture"]` 寫入。2 筆事件未曾重新 annotate，殘留至今。
+
+**修復：** 直接 SQL UPDATE 移除兩筆事件 categories 陣列中的 `culture` 值。
+
+**教訓：** `categories.culture` 不是有效分類，但歷史資料可能存在。新增任何前端 category badge 渲染前，需先 SQL 掃描 DB 是否有 `'culture' = ANY(category)` 的殘留事件並清除，否則 MISSING_MESSAGE 靜默出現在 console。
+
+---
+
+## 2026-05-09 — study_abroad 新增後漏同步 web/messages/*.json（i18n 第 4 個同步點）
+
+**問題：** Migration 058 新增 `study_abroad` event_form 值後，DB + annotator.py VALID_EVENT_FORMS + SYSTEM_PROMPT 三處已同步，但 `web/messages/zh.json`、`en.json`、`ja.json` 的 `eventForm` namespace 未加入 `study_abroad` 對應的翻譯字串，導致前端顯示 raw key。
+
+**修復（commit 5a94ee2）：** 三個語系同時新增：
+- zh: `"study_abroad": "留學說明會"`
+- en: `"study_abroad": "Study Abroad Info Session"`
+- ja: `"study_abroad": "留学説明会"`
+
+**教訓：** 新增 `event_form` 值時，**同步點共四個**，缺一必現 raw key 顯示：① DB migration check constraint、② annotator.py `VALID_EVENT_FORMS`、③ annotator.py SYSTEM_PROMPT、④ `web/messages/*.json` eventForm namespace（三個語系）。Event Form Sync Guard 已更新為四處同步。
+
+---
+
+## 2026-05-07 — auto_qa missing_address 未排除多城市活動
+
+**問題：** `location_prefectures` 有 2 個以上縣市的活動（如全國巡迴展）被 `auto_qa_missing_address` 誤 flag，但這類活動本就沒有單一固定場地地址。
+
+**修復（commit dfa315a）：**
+- `run()` select query 新增 `location_prefectures` 欄位
+- `detect()` 的 `missing_address` 檢查加入 `len(loc_prefs) < 2` 守衛：跨縣市活動跳過
+
+**教訓：** `auto_qa_missing_address` 必須考慮多城市活動例外。`location_prefectures.length >= 2` 代表活動刻意設計為跨區域舉辦，無單一場地地址，不應視為資料缺失。auto_qa False Positive Guard 已更新。
+
+---
+
+## 2026-05-07 — auto_qa 誤 flag 台灣地址（taiwan_venue 檢查假設錯誤）
+
+**問題：** `auto_qa_taiwan_venue` 偵測器透過 `TAIWAN_VENUE_KEYWORDS` 比對地址，將日本境內活動中出現的台灣地名標記為疑問，但本專案收錄的是「在日本舉辦的台灣相關活動」，台灣機構/場地名在活動介紹中完全合法（如台灣文化中心、主辦方台北總部地址等）。
+
+**修復（commit 715cb29）：**
+- 移除 `TAIWAN_VENUE_KEYWORDS` 常數
+- 移除 `QA_TYPES` 中的 `"auto_qa_taiwan_venue"`
+- 移除 `detect()` 中的對應偵測邏輯
+
+**教訓：** auto_qa 偵測器的設計假設必須與實際資料模型一致。台灣地址對本專案而言是**有效**的場地/主辦方資訊，不是錯誤。任何新增偵測器前，先確認其假設在本專案業務場景下是否成立。
+
+---
+
 ## 2026-05-10 — ASCII/curly 雙引號破壞 GPT JSON 輸出（taiwan_prism program8）
 
 ### 問題

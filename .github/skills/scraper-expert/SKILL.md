@@ -301,17 +301,15 @@ LIMIT 50;
 
 Reference incident: 2026-05-08 — `fe03288b`/`b8621ee9`（湾.味 台湾料理体験会）`organizer_zh/en` 含上田村振興会・普門寺資料，與 raw_description 完全無關。
 
-## RSS 聚合站 — `公式サイト` URL 提取優先
+## 聚合站 `source_url` vs `official_url` 分離規則
 
-**Rule**: RSS 聚合站（如 FTIP、類似的新聞轉發站）的 scraper，`source_url` 必須優先使用 content 中嵌入的官方 URL，而非 RSS `<link>`（聚合站自身的 URL）。
+**Rule**: 聚合站 scraper（ftip、prtimes、gnews、walkerplus 等）的 `source_url` 必須**永遠保留**聚合站自身的 URL。從文章中提取的第一方主辦方 URL 存入 `official_url`，不可覆寫 `source_url`。
 
-**偵測模式**：聚合站通常以下列格式在文章內文標示官方站：
-```
-公式サイト www.xxx.com
-公式サイト https://www.xxx.com/...
-```
+**正確分工**：
+- `source_url` = 聚合站頁面 URL（`https://www.ftip-japan.org/NNN`、`https://prtimes.jp/...`）— 資料溯源憑證
+- `official_url` = 提取的第一方官方 URL（活動官網、Facebook event 頁、主辦方網站）；無法提取時為 `None`
 
-**實作範例**：
+**常見提取模式**（ftip content 中的 `公式サイト` 格式）：
 ```python
 _OFFICIAL_URL_RE = re.compile(
     r"公式サイト\s+(https?://\S+|[\w.-]+\.\w{2,}(?:/\S*)?)",
@@ -328,9 +326,21 @@ def _extract_official_url(self, content: str) -> str | None:
     return url.rstrip("。、）")
 ```
 
-**優先序**：`公式サイト URL` > RSS `<link>` > aggregator homepage。
+**✅ 正確模式**：
+```python
+source_url = rss_link          # 聚合站 URL，永遠保留
+official_url = self._extract_official_url(content)  # None 是合法值
+```
 
-Reference incident: 2026-05-10 — `ftip.py` 事件 `023dcbec`（台湾光譜）`source_url` 指向 `ftip-japan.org`，實際官方站為 `www.taiwanprism.com`（已在 content 中標示）。
+**❌ 反模式**（已廢棄）：
+```python
+# 用官方 URL 覆蓋 source_url — 破壞資料溯源 audit trail
+source_url = self._extract_official_url(content) or rss_link
+```
+
+Reference incidents:
+- 2026-05-10 commit `ab771e2` — `ftip.py` 首次修正誤以「官方 URL 較有資訊量」讓 `source_url` 指向 `www.taiwanprism.com`，破壞 FTIP audit trail
+- 2026-05-10 commit `7c34788` — 更正為正確模式：`source_url=ftip-japan.org/699`、`official_url=taiwanprism.com`，DB 事件 `023dcbec` 同步修正
 
 ## M/D~D 多日範圍 — end_date 提取與跨月防護
 
@@ -380,6 +390,21 @@ location_address = "東京都"  # 全國性組織的活動可能在任何地方
 **例外**（允許硬編碼）：scraper 專屬於**單一地點**的場館（固定影院、固定展覽館）時，可硬編碼該場館地址。
 
 Reference incident: 2026-05-10 — `ftip.py` `location_address = "東京都"` 導致台湾光譜（京都活動 `〒603-8163 京都府...`）被錯誤標為東京（commit `ab771e2`）。
+
+## note_creators レポート記事 — 三重問題パターン
+
+**Rule**: note_creators 來源的レポート記事には必ず三つの問題が発生する。検出時は以下の三点を一括修正し、FC 鎖定すること。
+
+**三重問題（全件に発生）：**
+1. **`start_date` = 記事公開日（≠ 活動日）**：記事が公開された日が自動的に `start_date` に入り、実際の開催日（1〜数ヶ月前）と異なる。本文中の「〇月〇日開催」「〇月〇日に参加」等から正しい日付を特定すること。
+2. **`location` = 主催者の日本拠点**：主催者が日本に拠点を持つ場合、annotator がその住所を location として設定する。実際の活動場所（特に台灣で開催の場合）を確認し、`location_address` / `location_prefectures` を null に修正。
+3. **接頭辭 + `report` category 欠如**：`annotator.py` の `_REPORT_TRIGGER_RE` が自動注入する（commit `1e00933` 以降）。既存 annotated events は手動で `【レポート】`/`【活動報導】`/`[Report]` を付与し `report` を categories に追加。
+
+**FC 鎖定対象**（計 9 項）：`start_date`、`location_name`、`location_address`、`location_prefectures`、`name_ja`、`name_zh`、`name_en`、`categories`
+
+**自動化範囲（annotator.py commit `1e00933` 以降）**：`report` category 注入 + 三語接頭辭注入は自動処理。`start_date` / `location` の修正は **human review 必須**。
+
+Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験レポート）`start_date=2026-05-08`（記事日）→ 修正後 `2026-04-21`（活動日）；`location_name=台湾華語文学習センター大阪弁天町`（主催者拠点）→ 修正後 `台北医学大学`（活動場所、台灣）。
 
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
@@ -1366,7 +1391,9 @@ Reference incident: `bf783b90` `performer_en = 'Huang Yi-wen（AI翻譯）'`（�
 
 ### performer_zh / performer_en 手動修正の 2 ステップ
 
-手動でフィールドを修正した場合、必ず `field_corrections` テーブルも upsert してロックすること。未ロックだと re-annotation で修正値が上書きされる。
+手動でフィールドを修正した場合、必ず `_lock_fields_via_corrections()` を使うか、`field_corrections` テーブルも upsert してロックすること。未ロックだと re-annotation で修正値が上書きされる。
+
+**⚠ `_zh` フィールドの SC→TC ガード**：`_lock_fields_via_corrections()` は `_zh` で終わるフィールドに自動的に `_to_trad()` を適用してから FC に書き込む（2026-05-11 commit `f7790a2` で追加）。直接 `field_corrections` テーブルに upsert する場合、`_zh` フィールドの値は手動で SC→TC 変換済みであることを確認すること。SC 値が FC に入ると、annotator P1 保護により永久に修正不能になる。
 
 ```python
 # ✅ 2 ステップセットで実行

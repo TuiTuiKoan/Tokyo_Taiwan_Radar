@@ -150,3 +150,9 @@ python update_source.py --url "https://example.com" --status researched --create
 * .github/agents/researcher.agent.md
 * scraper/update_source.py
 * scraper/secret_reminder.py
+
+## Secrets 文件入口
+
+* [GITHUB_TOKEN 快速參考清單](docs/GITHUB_TOKEN_SYNC_CHECKLIST.md)
+* [GITHUB_TOKEN 完整輪替指南](.github/instructions/token-rotation.instructions.md)
+* [Secrets 生命週期與審計路線圖](.github/SECRETS_LIFECYCLE.md)

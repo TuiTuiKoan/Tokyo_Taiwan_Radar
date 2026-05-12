@@ -4,6 +4,69 @@
 
 ---
 
+## 2026-05-11 — SC→TC 偵測/修復不一致 + `fix_simplified()` 掃描範圍不足
+
+### A — `SC_ONLY` 假陽性 + `_SIMP_TO_TRAD_RAW` 缺映射（commit `aa24400`）
+
+**問題：** `_detect_simplified_chinese()` 的 `SC_ONLY` 集合含 4 個假陽性字元（征/蹈/零/蒙——SC/TC 共用字），導致正常 TC 文本被誤報為含 SC。同時 `_SIMP_TO_TRAD_RAW` 缺 3 個映射（见→見、从→從、库→庫），`fix_simplified()` 無法修復真正的 SC 字元，造成無限 dismiss→reappear 循環。
+
+**修正：**
+1. 移除 `SC_ONLY` 中 4 個假陽性：征、蹈、零、蒙
+2. 新增 3 個映射到 `_SIMP_TO_TRAD_RAW`：见→見、从→從、库→庫
+3. Data fix：2 筆 gguide_tv 事件 `description_zh`（智库→智庫、见解→見解）
+4. Dismissed 7 筆 stale pending 報告
+
+**教訓：**
+- **SC_ONLY 字元驗證規則**：加入前必須確認該字元在 TC 中**不存在或字形不同**。共用字元（征=征伐、蹈=舞蹈、零=零、蒙=蒙古）不可加入 SC_ONLY。
+- **偵測與修復字元集必須同步**：從 `_SIMP_TO_TRAD_RAW` 的 keys 衍生 `SC_ONLY`，或至少確保 `SC_ONLY ⊆ _SIMP_TO_TRAD_RAW.keys()`。
+
+### B — `fix_simplified()` 僅掃描 2 個欄位（commit `f7790a2`）
+
+**問題：** `fix_simplified()` 僅修復 `name_zh` 和 `description_zh`，但 `_detect_simplified_chinese()` 掃描全部 6 個 `_zh` 欄位。`location_name_zh`、`location_address_zh`、`business_hours_zh`、`organizer_zh` 中的 SC 字元被偵測到但無法自動修復。
+
+**修正：** `fix_simplified()` 擴展到掃描全部 6 個 `_zh` 欄位。
+
+**教訓：** 偵測範圍與修復範圍必須完全一致。每次擴展偵測範圍時，同步擴展修復範圍。
+
+---
+
+## 2026-05-11 — `_lock_fields_via_corrections()` 缺 SC→TC guard 導致 SC 永久鎖定
+
+**問題（commit `f7790a2`）：** `_lock_fields_via_corrections()` 使用 `str(fvalue)` 寫入 FC 表，未經 `_to_trad()` 轉換。backfill 腳本將日文漢字複製到 `organizer_zh` 時（kanji copy），日文漢字（`会`=SC `会`）被永久鎖入 FC，annotator P1 保護阻止後續修正。39 筆事件 `organizer_zh` 受影響。
+
+**修正：** `_lock_fields_via_corrections()` 對 field name 以 `_zh` 結尾的值自動呼叫 `_to_trad()` 後再寫入 FC。13 筆 taiwan_prism `location_name_zh` + 2 筆 inactive `name_zh` + 39 筆 `organizer_zh` 批量修正。
+
+**教訓：** `field_corrections` 表是資料的永久閘門。任何寫入 FC 的路徑（`_lock_fields_via_corrections()`、手動 upsert、backfill 腳本）都必須對 `_zh` 欄位過 `_to_trad()`，否則 SC 值一旦進入便永久免疫於自動修復。
+
+---
+
+## 2026-05-10 — ftip.py `source_url` vs `official_url` 分離修正
+
+**問題（commit `7c34788`）：** 先前修正（`ab771e2`）讓 `_OFFICIAL_URL_RE` 提取的官方 URL 直接覆寫了 `source_url`，導致 FTIP 聚合站 URL audit trail 遺失。事件 `023dcbec` 的 `source_url` 被改為 `www.taiwanprism.com`，ftip-japan.org 溯源連結中斷。
+
+**修正：**
+- `source_url` = 永遠是 FTIP RSS 項目 URL（`https://www.ftip-japan.org/NNN`）— 聚合站次要連結保留
+- `official_url` = 提取的第一方主辦方 URL（活動官網、Facebook event 頁等）
+- DB 事件 `023dcbec` 手動修正：`source_url=ftip-japan.org/699`、`official_url=taiwanprism.com`，FC×2 鎖定
+
+**教訓：** 聚合站 scraper（ftip、prtimes、gnews、walkerplus）的 `source_url` 必須**永遠保留**聚合站自身的 URL；提取的第一方 URL 存入 `official_url`。`source_url` 的語義是「我從哪裡找到此資料」，覆寫它等同破壞 Second-hand Source URL Guard。SKILL.md 的「RSS 聚合站」section 已同步修正。
+
+---
+
+## 2026-05-10 — note_creators レポート記事の三重問題パターン
+
+**問題（event `a7a05be6`、台湾薬膳文化体験レポート）：** note_creators 來源的レポート記事存在三個固定問題：
+
+1. **`start_date` = 記事公開日（2026-05-08）**：實際活動日期為 2026-04-21（相差 17 天）
+2. **`location` = 主催者の日本拠点**（台湾華語文学習センター大阪弁天町）：實際為台灣場地（台北医学大学）；`location_address` / `location_prefectures` 需設 null（活動在台灣，非日本）
+3. **接頭辭缺失 + `report` category 缺失**：需加 `【レポート】`/`【活動報導】`/`[Report]` 前綴
+
+**修正：** 9 個 FC 鎖定（start_date、location_name、location_address、location_prefectures、name_ja、name_zh、name_en、categories）
+
+**後續自動化（commit `1e00933`）：** annotator.py 的 `_REPORT_TRIGGER_RE` 自動注入 `report` category + 三語接頭辭；但 **`start_date`（記事日 ≠ 活動日）** と **`location`（主催者拠点 ≠ 活動場所）** の修正は依然として人工必須。
+
+---
+
 ## 2026-05-10 — TaiwanPrism scraper 三重 bug（null byte + organizer_type + parent_event_id）
 
 **問題（commits `a3d67fc`, `c7e9b73`）：** 新建的 `taiwan_prism.py` scraper dry-run 成功但 DB 寫入失敗，出現三個獨立 bug：

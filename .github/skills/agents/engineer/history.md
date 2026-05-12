@@ -4,6 +4,52 @@
 
 ---
 
+## 2026-05-11 — SC→TC 三層防禦修正（chokepoint guard + 偵測/修復一致性）
+
+### A — `_lock_fields_via_corrections()` SC→TC guard 新增（commit `f7790a2`）
+
+**問題：** `_lock_fields_via_corrections()` 用 `str(fvalue)` 直接寫入 FC 表，未過 `_to_trad()`。backfill 腳本的 kanji copy 將日文漢字（`会`=SC）永久鎖入 FC，annotator P1 保護阻止修正。
+
+**修正（4 層）：**
+1. `_lock_fields_via_corrections()` 新增：field name 以 `_zh` 結尾時，自動對 value 呼叫 `_to_trad()` 後再寫入 FC
+2. `fix_simplified()` 從 2 欄擴展到 6 欄（`name_zh, description_zh, location_name_zh, location_address_zh, business_hours_zh, organizer_zh`）
+3. Data fix：13 筆 taiwan_prism `location_name_zh`（紫明会館→紫明會館）+ 2 筆 inactive `name_zh`（萬博追踪→萬博追蹤）+ 39 筆 `organizer_zh` SC→TC 修正，全部 FC 鎖定
+4. 全修正值均透過更新後的 `_lock_fields_via_corrections()`（含 `_to_trad()` guard）寫入
+
+**教訓：**
+- `field_corrections` 是永久資料閘門，SC 值通過後免疫於所有自動修復。`_to_trad()` guard 必須在此 chokepoint 設置。
+- `fix_simplified()` 的掃描範圍必須與 `_detect_simplified_chinese()` 完全一致——後者掃 6 欄，前者也必須修 6 欄。
+
+### B — `SC_ONLY` 假陽性 + `_SIMP_TO_TRAD_RAW` 缺映射（commit `aa24400`）
+
+**問題：** `SC_ONLY` 含共用字元（征/蹈/零/蒙）→ 假陽性。`_SIMP_TO_TRAD_RAW` 缺 见→見/从→從/库→庫 → 偵測到但無法修復 → 無限 dismiss 循環。
+
+**修正：**
+1. 移除 `SC_ONLY` 中 4 個假陽性
+2. 新增 `_SIMP_TO_TRAD_RAW` 3 個映射
+3. Data fix：2 筆 gguide_tv `description_zh`
+4. Dismissed 7 筆 stale pending 報告
+
+**教訓：** 偵測系統（`SC_ONLY`）與修復系統（`_SIMP_TO_TRAD_RAW`）使用不同字元集時，必然產生假陽性或假陰性。兩者應從同一來源衍生。
+
+---
+
+## 2026-05-11 — annotator.py レポート記事 `report` category + 接頭辭 自動注入（commit `1e00933`）
+
+**新機能（4 層実装）：**
+1. `_REPORT_TRIGGER_RE`（module-level）：レポート・レポ・報告・記録・アーカイブ・recap・行ってきた・観てきた・見てきた・鑑賞レポ にマッチ
+2. `_inject_report_prefix()`：`【レポート】`/`【活動報導】`/`[Report]` を name_ja/zh/en に prepend；None-safe、二重 prefix 防止チェック付き
+3. `_inject_keyword_categories()`：`report` ルールを追加。`_REPORT_TRIGGER_RE` が raw_title + raw_description に一致したら `report` を categories に注入
+4. `annotate_pending_events()`：`update_data` 確定後に `report` in category → prefix inject；FC ロック field はスキップ
+5. `backfill_report_prefix(dry_run=False)`：既存 `report` category を持つ events への一括バックフィル。`field_corrections` の lock も同時更新
+
+**教訓：**
+- FC ロック field のスキップは `field_corrections` の keys を確認するだけで実装できる（`if field not in fc_keys`）
+- バックフィルは必ず `dry_run=True` で影響範囲を確認してから `dry_run=False` を実行すること
+- `start_date` / `location` の自動修正は実装しない——raw_description から機械的に正しい活動日・会場を特定する信頼できる方法がなく、誤修正リスクが高い
+
+---
+
 ## 2026-05-10 — OCR save-and-annotate pipeline + organizer_type DB 修正
 
 ### A — OCR save-and-annotate 完整流程（commit `71e8a67`）

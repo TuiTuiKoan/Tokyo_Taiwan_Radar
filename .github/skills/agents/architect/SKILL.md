@@ -19,36 +19,6 @@ Read this at the start of every session before producing any plan.
 - **`order()` 語法**：`.order("col", desc=True)` — 不是 `.order("col", ascending=False)`（pandas 風格在此無效）。計畫中任何排序操作必須使用正確語法。
 - **`upsert` vs `update`**：既存 row 的部分更新必須用 `.update().eq()`，不可用 `upsert`（會觸發 INSERT fallback，撞 NOT NULL 約束）。
 
-## Null Byte Guard（`\u0000` 防護）
-
-在審核任何涉及 scraper 文字欄位寫入的計畫前，**必須**確認：
-
-1. **所有 scraped 文字在寫入 DB 前必須清除 `\u0000`**：網頁抓取的文字（特別是 speaker 清單、混合 Unicode 符號的文字）可能含 null byte，直接寫入 Postgres 觸發 `22P05: unsupported Unicode escape sequence`。
-2. **清除位置**：在 scraper 層的字串 join/concat 之後、Event 建立之前。不可依賴 DB 層防護。
-3. **清除 pattern**：
-   ```python
-   text = "".join(text).replace("\x00", "").strip()
-   # 或
-   speakers = "／".join(speaker_lines).strip().replace("\x00", "")
-   ```
-4. **識別信號**：dry-run 輸出中出現 `×\u0000` 或其他非可見 Unicode 符號，即為 null byte 存在的警告。
-
-Reference incident: 2026-05-10 — taiwan_prism `c7e9b73`，speaker 文字 `×\u0000栖来ひかり`，13 筆事件全數寫入失敗。
-
-## Parent Event UUID Guard（父子事件同批 upsert 設計）
-
-在審核任何含「1 parent + N sub-events」設計的 scraper 計畫前，**必須**確認：
-
-1. **`parent_event_id` 必須是真實 DB UUID**：欄位型別為 `uuid`，傳入 source_id 字串（如 `f"taiwan_prism_{year}"`）觸發 Postgres `22P02`，整批 upsert 失敗。
-2. **同批 upsert 的競態問題**：父事件和子事件在同一個 `upsert_events()` 呼叫中，父 UUID 尚未存在。`get_event_id_by_source()` 首次執行回傳 `None` → 子事件 `parent_event_id=None`（合法，不報錯）。
-3. **修正設計**（依序擇一）：
-   - **首次 + 第二次執行**：首次跑父事件進 DB，第二次跑 scraper 時 `get_event_id_by_source()` 正確解析並回填。適合年度活動（每年只新增一次）。
-   - **手動 patch**：首次跑後手動執行 DB UPDATE 填入 `parent_event_id`。
-   - **兩階段 upsert**：scraper 先 insert 父事件，查 UUID，再 insert 子事件（適合高頻更新型）。
-4. **計畫中必須明確標注**：哪種修正設計被採用，以及首次執行後是否需要手動 patch。
-
-Reference incident: 2026-05-10 — taiwan_prism `c7e9b73` — `parent_event_id=f"taiwan_prism_{edition_year}"` 傳 source_id 字串，首次執行後手動 patch 12 筆子事件。
-
 ## Weekly LINE Broadcast 系統設計節奏
 
 在審核任何涉及 `weekly_line_broadcast.py` 的計畫前，**必須**先確認系統設計的執行時序：
@@ -109,23 +79,6 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）desc_en `Koo Kuan
    - 片假名音譯 → 僅在有驗證來源時翻譯（`_KNOWN_PERSON_MAP` 或 eiga.com lookup）
 5. **`backfill_performer_i18n()` 不可限定 `is_active=True`**：非活躍事件同樣需要翻譯完整性。批次 backfill 腳本的 active 過濾需明確設計。
 
-## Vercel Multi-Project Environment Variable Guard
-
-在執行任何 `npx vercel env add` 前，**必須**依序確認：
-
-1. **先執行 `npx vercel project ls`**：確認哪個 project 服務 custom domain（`tokyotaiwanradar.com`）。
-2. **確認 `web/.vercel/project.json` 連結的是正確 project**：
-   - 執行 `npx vercel inspect <deployment-url>` 查看 Aliases，確認 deployment 屬於哪個 project
-   - 若連結錯誤：先 `npx vercel link --project <correct-project-name> --yes` 再繼續
-3. **執行 `env add` 到正確 project** 後，確認目標 project 已有該環境變數：`npx vercel env ls`
-4. **Vercel CLI `--prod` deploy 無法部署到 GitHub integration project**（會報路徑錯誤）：改用空 commit push 觸發重新部署：
-   ```bash
-   git commit --allow-empty -m "ci: redeploy to apply <VAR_NAME> env var"
-   git push origin main
-   ```
-
-Reference incident: 2026-05-10 — `OPENAI_API_KEY` 加到了 `web` project（`prj_kbP2Mkk0kAZW3tTaklBQqZjpsyYu`），實際 production 是 `tokyo-taiwan-radar` project，導致 Admin OCR 功能完全無法運作。
-
 Reference incidents:
 - 2026-05-09 — `ギデンズ・コー` → `基登斯·高` (GPT 幻覺)；正確 `九把刀` / `Giddens Ko`。14 筆已驗證名人收錄 `_KNOWN_PERSON_MAP`，11 筆 DB 事件修正。
 - 2026-05-09 — 46 筆非活躍事件因 `is_active=True` 過濾而缺翻譯，需一次性批次 backfill。
@@ -150,72 +103,6 @@ Reference incidents:
 - 2026-05-08 — commit `65a50b9`：SYSTEM_PROMPT 追加 AI 翻譯標記規則 + 學術大會 performers[] 填寫規則（Incidents A & B）
 - 2026-05-08 — commit `191d939`：migration 053 新增 `performers TEXT[]`（Incident C）
 - 2026-05-08 — commit `3822fb8`：migration 054 新增 `performer_zh`, `performer_en`, `director_zh`, `director_en`（Incident D）
-
-## Second-hand Source URL Detection Pattern（二手介紹站一手 URL 萃取）
-
-**偵測信號**：`raw_description` 開頭出現 `<URL> より/出典/引用元` 格式，代表本站為 2nd-hand 彙整站。
-
-**處理規則**：
-- `official_url` → 設為 `より` 前的 1st-hand URL
-- `source_url` → 保持指向 2nd-hand 彙整站（不覆蓋）
-- 目前已知案例：`ftip.py`（FB 貼文 URL）
-
-**示範 pattern（ftip.py `_FB_SOURCE_RE`）**：
-```python
-_FB_SOURCE_RE = re.compile(r"https?://(?:www\.)?facebook\.com/\S+")
-m = _FB_SOURCE_RE.match(content_text.lstrip())
-official_url = m.group(0).rstrip("、") if m else None
-```
-
-**架構決策**：第二個類似案例出現前，不抽共用 helper（避免 over-engineering）。Playwright 抓 FB 完整內容：成本高（登入牆、封鎖風險、CI 資源 15–30s/頁），只在人工 QA 時使用，不放入 CI。
-
-**CTA URL 優先序（前端 `official_url` 綠色按鈕）**：
-- `official_url` 有值 → 連結 `official_url`，顯示「官方網站」
-- `official_url` 為 null → 連結 `source_url`，顯示「查看原始資訊」
-- 程式碼位置：`web/app/[locale]/events/[id]/page.tsx`
-
-Reference incident: 2026-05-10 — `ftip.py` commit `6885c6f`：raw_description 開頭 `https://www.facebook.com/... より`，一手 FB URL 提取為 `official_url`，ftip 網站 URL 保持 `source_url`。
-
-## Organizer Title-Only Detection Rule（organizer 判斷必須限定 title 層級）
-
-**規則**：用 raw_description 或 content_text 判斷 organizer 時，description 中的**過去式語境**（「昨年当会で上映した」「前回当会では」）會導致 False Positive。`content_text[:N]` 切片也不安全。
-
-**正確 pattern（限定 title 層級信號）**：
-```python
-is_org_organized = (
-    "当会" in title
-    or ("例会" in title and "交流会" in title)
-)
-```
-
-**錯誤 pattern（不可使用）**：
-```python
-# v1: 全硬編 → description 過去式誤判
-organizer = LOCATION_NAME  # 永遠設為固定機構
-
-# v2: content_text 前段 → 過去式仍出現
-is_org = "当会" in (title + " " + content_text[:500])
-```
-
-Reference incident: 2026-05-10 — ftip `b4d97c35` 事件的「台湾映画上映会2026」描述含「昨年当会で上映した」，content_text[:500] 無法排除此過去式語境。
-
-## eiga.com Lookup Failure — 原住民語電影片名人工查證流程
-
-**問題**：泰雅語/布農語/排灣語等原住民語詞彙的台灣電影，eiga.com 收錄率低，`lookup_movie_titles()` 常回傳 `(None, None)`。
-
-**觸發條件（需人工查證）**：
-- `raw_title` 或 `raw_description` 含原住民語說明（如「タイヤル族」「泰雅族」「布農族」「パイワン族」等）
-- 且 `lookup_movie_titles()` 回傳 `(None, None)`
-
-**人工查證路徑**（按優先順序）：
-1. Wikipedia：搜尋「`<片名>` 電影」或「`<片名>` 台湾映画」
-2. 金馬獎官網：https://www.goldenhorse.org.tw（可依年份搜尋得獎作品）
-3. TIDF（台灣國際紀錄片影展）官網
-4. TAICCA 官網
-
-**禁止**：GPT 直譯原住民語詞彙——泰雅語「GAGA」（祖先規範）與 Lady Gaga 無關，布農語、排灣語詞彙的音譯 GPT 必然幻覺。確認後才鎖 `field_corrections`。
-
-Reference incident: 2026-05-10 — event `b4d97c35`（ftip 大阪）：電影《哈勇家》（泰雅語 GAGA = 祖先規範）eiga.com 無收錄；人工查 Wikipedia / 金馬獎官網確認 `title_ja=ハヨン一家〜タイヤル族のスピリット`、`original_title=哈勇家`、`director=陳潔瑤`（第 59 屆金馬獎最佳導演，2022）後鎖定。
 
 ## Organizer Multilingual Fields Guard（organizer_zh/en）
 
@@ -248,6 +135,28 @@ Reference incident: 2026-05-08 — commit `95c7ad8`：migration 059 + annotator 
 2. **長期方案**：評估 OpenCC 或完整 Unicode SC→TC 映射庫，一次解決完整性問題。在正式導入前，繼續維護手動表。
 3. **新增字時必須同步更新兩處**：`annotator.py` 的 `_SIMP_TO_TRAD_RAW` + `auto_qa.py` 的 `SIMP_RE`。
 4. **DB patch**：新增字後立即批量修正現有事件（scan all `*_zh` fields + translate + FC lock）。
+
+## SC→TC Three-Layer Defence Model
+
+SC→TC 防禦分三層，在審核**任何**涉及 `_zh` 欄位寫入路徑的計畫時，確認三層全覆蓋：
+
+| Layer | 機制 | 位置 | 職責 |
+|-------|------|------|------|
+| **L1 — 預防** | `_to_trad()` on GPT output | `annotator.py` 主迴圈 | 捕捉 GPT 輸出的 SC 字元 |
+| **L2 — Chokepoint guard** | `_to_trad()` on FC write | `_lock_fields_via_corrections()` | 捕捉所有寫入 FC 的 `_zh` 值（含 backfill、手動 upsert） |
+| **L3 — 偵測 + 修復** | `SC_ONLY` + `fix_simplified()` | `auto_qa.py` | 捕捉 L1/L2 遺漏的殘留 SC |
+
+**三層一致性規則：**
+1. L1/L2 使用 `_SIMP_TO_TRAD` 字元映射（衍生自 `_SIMP_TO_TRAD_RAW`）
+2. L3 的 `SC_ONLY` 字元集必須是 `_SIMP_TO_TRAD_RAW.keys()` 的子集——不可包含不在映射表中的字元（否則偵測到但無法修復 → 無限 dismiss 循環）
+3. L3 的 `fix_simplified()` 掃描範圍必須與 `_detect_simplified_chinese()` 完全一致（目前 6 個 `_zh` 欄位）
+
+**反模式：**
+- ❌ `SC_ONLY` 包含 SC/TC 共用字元（如 征/蹈/零/蒙）→ 假陽性
+- ❌ `_SIMP_TO_TRAD_RAW` 缺映射但 `SC_ONLY` 有該字元 → 偵測到但無法修復
+- ❌ `fix_simplified()` 掃描範圍 < `_detect_simplified_chinese()` 掃描範圍 → 修復遺漏
+
+Reference incidents: 2026-05-11 commits `f7790a2`, `aa24400`。
 
 Reference incident: 2026-05-08 — commit `95b79ef`：新增 9 字（`诗`/`禅`/`图`/`猎`/`过`/`员`/`剧`/`别`/`于`）。
 
@@ -656,42 +565,6 @@ sb.table("events").update({"is_active": False, "deactivated_by_pass": "admin_man
 ```
 
 Reference incident: 2026-05-06 — `車頂上的玄天上帝`（ks_cinema `taiwan-filmake_2_sub1`）因 SYSTEM_PROMPT 多時段規則 + race condition 生成 `_sub1`，出現 4 筆重複（其中 2 筆已被 merger 停用）。修復：停用 `_sub1`、SYSTEM_PROMPT 加豁免規則、annotator.py 加程式碼守衛。
-
-## Event Form Sync Guard（annotator.py event_form 三處同步）
-
-在審核**任何**新增 `event_form` 有效值的 PR，或審核任何涉及 `annotator.py` event_form 邏輯的 PR 前，**必須**確認以下三處同步：
-
-1. **DB migration**：check constraint 允許清單（`event_form TEXT[] CHECK (...)` 的 VALUES 集合）新增新值。
-2. **`annotator.py` → `VALID_EVENT_FORMS`** 列表包含新值。
-3. **`annotator.py` → SYSTEM_PROMPT** EVENT FORM RULES 清單 + Decision guides 有新值的定義行。
-
-**違反後果**（與 Category Sync Guard 同等邏輯）：
-- GPT 無法選用新值，被迫選最近似的舊值（靜默失敗，不報錯）。
-- Re-annotation 時 `_validate_event_forms()` 靜默剝離不在 `VALID_EVENT_FORMS` 中的值，默認回退。
-- 人工用 SQL 設定的新值在下次 re-annotation 後被覆寫（除非同時鎖 `field_corrections`）。
-
-**現有有效值清單（截至 2026-05-08）**：
-`exhibition | concert | lecture_seminar | film_screening | festival | market | sports | study_abroad | other`
-
-**驗證命令**（在 scraper/ 目錄執行）：
-```bash
-python3 -c "from annotator import VALID_EVENT_FORMS; print(VALID_EVENT_FORMS)"
-```
-
-Reference incident: 2026-05-08 — migration 058 新增 `study_abroad`；event `b022b452`（銘傳大学 × ASE 台湾留学説明会）`event_form` 從 `['other']` 更正為 `['study_abroad']` + FC 鎖定。
-
-## Online Events Location Guard（線上活動地點統一規則）
-
-在審核**任何**涉及 `location_name` 的 annotator 邏輯，或分析線上活動（Zoom / オンライン）地點填寫錯誤前，**必須**確認：
-
-1. **線上活動統一 `location_name = 'オンライン'`**：無論主辦方在哪個國家，Zoom 説明会、オンライン配信、LINE LIVE 等線上活動，`location_name` 一律為 `'オンライン'`。
-2. **`location_address = null`、`location_prefectures = null`**：線上活動無實體地址，不設地址也不設都道府県。
-3. **`location_name_zh = '線上'`、`location_name_en = 'Online'`**（若需設多語版本）。
-4. **申請型活動（`event_form` 含 `study_abroad`）說明會若在線上，同樣套用上述規則**：不使用主辦方大學校園地址，不使用招募機構地址。
-5. **「日本境內的線上活動」此概念不成立**：主辦方在日本但活動為線上舉行，仍設 `オンライン`，不設日本都道府県。
-6. **note 帳號 profile ≠ 線上活動地點**：`raw_description` 含 `続きをみる` 截斷時，note 投稿者 profile 文字中的機構名（如 `台湾留学サポートセンター`）不可設為 `location_name`。Blog/Creator Source Thin Content Guard 中的 note profile 規則同樣適用於地點欄位。
-
-Reference incident: 2026-05-08 — event `b022b452`（台湾留学説明会 / Zoom）`location_name='台湾留学サポートセンター'`（note 帳號 profile），修正為 `'オンライン'`；`location_name_zh='線上'`、`location_name_en='Online'` + FC 鎖定三欄。
 
 ## Organizer Non-Hallucination Guard（annotator.py few-shot 污染防護）
 

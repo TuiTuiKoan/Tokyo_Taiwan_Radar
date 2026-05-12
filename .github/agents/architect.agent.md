@@ -485,19 +485,22 @@ Reference incidents:
 - 2026-05-04 — `types.ts` 新增 10 個分類（`tv_program` 等）後 annotator 未同步，導致所有 `gguide_tv` 電視節目被標為 `movie`（commit `0047c31`）。
 - 2026-05-05 — Ghost category：`category_corrections` 含無效分類 `culture`，36 筆事件面臨 re-annotation 時分類被靜默剝離。修復：新增啟動守衛 + category_corrections 驗證 + DB 清理。
 
-## Event Form Sync Guard（annotator.py event_form 三處同步）
+## Event Form Sync Guard（annotator.py event_form 四處同步）
 
-在審核**任何**新增 `event_form` 有效值的 PR 前，**必須**確認以下三處同步：
+在審核**任何**新增 `event_form` 有效值的 PR 前，**必須**確認以下**四處**同步：
 
 1. **DB migration**：check constraint 允許清單新增新值。
 2. **`annotator.py` → `VALID_EVENT_FORMS`** 列表包含新值。
 3. **`annotator.py` → SYSTEM_PROMPT** EVENT FORM RULES 清單 + Decision guides 有新值的定義行。
+4. **`web/messages/*.json`**：`eventForm` namespace 中，`zh.json`、`en.json`、`ja.json` 三個語系均加入新值的翻譯字串。缺一則前端顯示 raw key。
 
-**違反後果**（與 Category Sync Guard 同等邏輯）：GPT 無法選用新值，靜默失敗；re-annotation 時 `_validate_event_forms()` 靜默剝離，默認回退。
+**違反後果**（與 Category Sync Guard 同等邏輯）：GPT 無法選用新值，靜默失敗；re-annotation 時 `_validate_event_forms()` 靜默剝離，默認回退；第 4 點違反時前端 event_form badge 顯示 raw key（如 `study_abroad`）而非翻譯文字。
 
 **現有有效值（截至 2026-05-08）**：`exhibition | concert | lecture_seminar | film_screening | festival | market | sports | study_abroad | other`
 
-Reference incident: 2026-05-08 — migration 058 新增 `study_abroad`；event `b022b452`（銘傳大学 × ASE 台湾留学説明会）`event_form` 從 `['other']` 更正 + FC 鎖定。
+Reference incidents:
+- 2026-05-08 — migration 058 新增 `study_abroad`；event `b022b452`（銘傳大学 × ASE 台湾留学説明会）`event_form` 從 `['other']` 更正 + FC 鎖定。
+- 2026-05-09 — `web/messages/*.json` 漏加 `study_abroad` 翻譯（commit `5a94ee2`）；確立第 4 個同步點。
 
 ## Online Events Location Guard（線上活動地點統一規則）
 
