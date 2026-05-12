@@ -108,3 +108,7 @@ WHERE id IN (127, 141, 164)
 
 -- ── RLS: allow admins to UPDATE display_type (PATCH endpoint) ──
 -- (existing 012_research_admin_update.sql already grants admin UPDATE)
+
+-- ── Post-review adjustments (2026-05-12, mirror of 067 step 5) ──
+UPDATE research_sources SET display_type = 'organizer'  WHERE scraper_source_name = 'bookandbeer';
+UPDATE research_sources SET display_type = 'government' WHERE scraper_source_name = 'startup_terrace';
