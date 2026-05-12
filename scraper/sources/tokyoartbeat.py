@@ -10,6 +10,7 @@ Tokyo Art Beat scraper — Contentful CDA API 経由で台湾関連アート展�
 """
 
 import logging
+import os
 import re
 from datetime import date, datetime, timezone
 from typing import Optional
@@ -20,8 +21,8 @@ from .base import BaseScraper, Event
 
 CONTENTFUL_SPACE = "j05yk38inose"
 CONTENTFUL_ENV = "master"
-# 公開 Content Delivery API トークン（ブラウザネットワークリクエストから確認済み、読み取り専用）
-CONTENTFUL_TOKEN = "pX663MZtc4BJd-IFo_VZOpqYtz7K9xrSxtBe2Vg33ic"
+# 公開 Content Delivery API トークン（読み取り専用）— loaded from .env
+CONTENTFUL_TOKEN = os.environ.get("CONTENTFUL_TOKEN", "")
 CONTENTFUL_BASE = (
     f"https://cdn.contentful.com/spaces/{CONTENTFUL_SPACE}"
     f"/environments/{CONTENTFUL_ENV}/entries"

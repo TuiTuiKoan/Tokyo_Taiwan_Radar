@@ -1,0 +1,4 @@
+# Contentful CDA (Content Delivery API) token — public read-only by design.
+# Tokyo Art Beat exposes this in their frontend JS; no write/admin access.
+# Token moved to .env in current HEAD; this entry suppresses history scan alerts.
+a8c3c20624387bf743aab68b3b4afb8aaa91cae9:scraper/sources/tokyoartbeat.py:contentful-delivery-api-token:23
