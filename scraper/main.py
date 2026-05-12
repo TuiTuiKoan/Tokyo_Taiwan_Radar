@@ -100,7 +100,6 @@ from sources.nhk_rss import NhkRssScraper
 from sources.gguide_tv import GguideTvScraper
 from sources.mot import MotScraper
 from sources.kgplus_kyotographie import KgplusKyotographieScraper
-from sources.placebymethod import PlacebymethodScraper
 from sources.johakyu import JohakyuScraper
 from sources.stranger import StrangerScraper
 from sources.tsutaya_portal import TsutayaPortalScraper
@@ -139,6 +138,7 @@ from sources.internet_museum import InternetMuseumScraper
 from sources.onariza import OnarizaScraper
 from sources.us_cinema_chiba import UsCinemaChibaGekijoScraper
 from sources.rti_jp import RtiJpScraper
+from sources.nittai_toumonkai import NittaiToumonkaiScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -262,7 +262,7 @@ SCRAPERS = [
     OnarizaScraper(),
     UsCinemaChibaGekijoScraper(),
     RtiJpScraper(),
-    PlacebymethodScraper(),
+    NittaiToumonkaiScraper(),
 ]
 
 
