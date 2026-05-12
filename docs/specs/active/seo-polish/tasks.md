@@ -1,0 +1,14 @@
+- [ ] T1: README.md 加超連結 `[tokyotaiwanradar.com](https://tokyotaiwanradar.com)`
+- [ ] T2: AnnouncementCard.tsx `<img>` → `<Image>`
+- [ ] T2: AnnouncementForm.tsx `<img>` → `<Image unoptimized>`
+- [ ] T2: MovieWorksList.tsx `<img>` → `<Image fill>`
+- [ ] T2: next.config.ts 加 `images.remotePatterns`
+- [ ] T3: EventCard.tsx 加 `aria-label`
+- [ ] T3: messages/{zh,en,ja}.json 加 `eventLink` key
+- [ ] T4: categories/[category]/opengraph-image.tsx
+- [ ] T4: cities/[city]/opengraph-image.tsx
+- [ ] T5: [locale]/loading.tsx（首頁骨架屏）
+- [ ] T5: events/[id]/loading.tsx（事件詳情骨架屏）
+- [ ] T5: categories/[category]/loading.tsx（分類頁骨架屏）
+- [ ] 驗證：pnpm build 通過
+- [ ] 驗證：Lighthouse SEO + Accessibility 分數 ≥ 95
