@@ -193,6 +193,7 @@ export type Category =
   | "tv_program"
   | "exhibition"
   | "design_craft"
+  | "herbal"
   | "taiwan_mandarin"
   | "healthcare"
   | "market"
@@ -230,6 +231,7 @@ export const CATEGORIES: Category[] = [
   "tv_program",
   "exhibition",
   "design_craft",
+  "herbal",
   "taiwan_mandarin",
   "healthcare",
   "market",
@@ -244,7 +246,7 @@ export interface CategoryGroup {
 export const CATEGORY_GROUPS: CategoryGroup[] = [
   {
     labelKey: "group_arts",
-    categories: ["movie", "performing_arts", "art", "design_craft", "senses", "tea_alcohol", "drama", "documentary", "indigenous", "folklore", "nature", "literature"],
+    categories: ["movie", "performing_arts", "art", "design_craft", "senses", "tea_alcohol", "herbal", "drama", "documentary", "indigenous", "folklore", "nature", "literature"],
   },
   {
     labelKey: "group_lifestyle",

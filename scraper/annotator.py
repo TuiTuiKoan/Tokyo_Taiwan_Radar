@@ -227,7 +227,7 @@ VALID_CATEGORIES = [
     "gender", "parenting", "geopolitics", "art", "lecture", "taiwan_japan",
     "scholarship", "business", "academic", "competition", "indigenous", "folklore",
     "history", "urban", "workshop", "literature", "tv_program", "exhibition",
-    "design_craft", "taiwan_mandarin", "healthcare", "market", "report",
+    "design_craft", "herbal", "taiwan_mandarin", "healthcare", "market", "report",
 ]
 
 
@@ -544,7 +544,7 @@ OTHER RULES:
    ALSO: if event_form is "conference" and the description lists 3 or more distinct named presentations/reports (報告, 発表, セッション) with individually named presenters (発表者, 報告者, 登壇者), generate a sub-event for each presentation. Use the same start_date/end_date and venue as the parent, set business_hours to that session's time slot (e.g. "12:30～13:50"), and put the presenter's name in both the "performer" string and the "performers" array. The sub-event name_ja should be the presentation title.
    EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
    EXCEPTION — DO NOT create sub_events when the article is a report/recap. If the raw_title contains レポート, レポ, 報告, 記録, アーカイブ, or recap (case-insensitive), the article is a post-event report and describes a single completed event — return sub_events: [] always. Treat the report as one event and extract its single set of fields (date, performer, etc.) from the body.
-2. Categories must be from this list: movie, performing_arts, senses, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, art, lecture, taiwan_japan, scholarship, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, exhibition, design_craft, taiwan_mandarin, healthcare, report
+2. Categories must be from this list: movie, performing_arts, senses, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, art, lecture, taiwan_japan, scholarship, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, exhibition, design_craft, herbal, taiwan_mandarin, healthcare, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
    - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
    - "competition" = contests, competitions, awards, championships, public calls for entries (コンテスト, 大会, 選手権, 公募, コンクール)
@@ -568,6 +568,7 @@ OTHER RULES:
    - "tea_alcohol" = tea culture, wine, sake, cocktail events, tasting events, tea ceremony workshops, bar/pub events featuring Taiwanese beverages
    - "exhibition" = museum exhibitions, gallery shows, permanent/special exhibitions at a specific venue with defined dates. Distinct from "art" (which covers visual art broadly) and "senses" (creative experiences)
    - "design_craft" = Taiwanese design, craft, handmade goods, product design, industrial design, traditional crafts (ceramics, weaving, lacquerware, metalwork, woodwork). Use for design exhibitions, craft markets, handmade workshops, product showcases. Distinct from "art" (fine art) and "folklore" (folk traditions, even if they include crafts).
+   - "herbal" = Taiwanese spices, herbs, herbal medicine, medicinal cuisine (薬膳/薬膵料理), Chinese herbal pharmacy, aromatherapy with Asian herbs, herbal tea workshops (distinct from tea_alcohol which focuses on tea ceremony/wine culture). Use for events about 中薬, 漢方, 薬膳, herbal cooking classes, spice tastings.
    - "folklore" = folk customs, festivals, folk religion, temple events, traditional crafts rooted in folk traditions
    - "literature" = literary events: poetry readings, literary salons, writer residencies, literary translation. Distinct from "books_media" (publishing/media industry)
    - "parenting" = parenting, childcare, family-oriented events, children's education, parent-child workshops
