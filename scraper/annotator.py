@@ -1838,7 +1838,7 @@ def enrich_movie_titles() -> None:
     res = (
         sb.table("events")
         .select(
-            "id,name_ja,raw_title,name_zh,name_en,"
+            "id,name_ja,raw_title,name_zh,name_en,official_url,"
             "description_zh,description_en,selection_reason,"
             "annotation_status,source_name,parent_event_id,"
             "performer,director"
@@ -1889,7 +1889,7 @@ def enrich_movie_titles() -> None:
         if not title:
             continue
 
-        name_zh, name_en = lookup_movie_titles(title)
+        name_zh, name_en, official_url = lookup_movie_titles(title)
 
         # If full title lookup failed and name_ja looks like a program/lecture event
         # that embeds a movie title in brackets (e.g. 「…映画『青春18×2』のひみつ」),
@@ -1899,13 +1899,15 @@ def enrich_movie_titles() -> None:
             if _embedded_m:
                 _extracted_title = _embedded_m.group(1).strip()
                 if _extracted_title != title:
-                    _ez, _ee = lookup_movie_titles(_extracted_title)
+                    _ez, _ee, _eurl = lookup_movie_titles(_extracted_title)
                     if _ez or _ee:
                         logger.info(
                             "  ↳ bracket-embedded title fallback for %s: %r → zh=%r en=%r",
                             event["id"][:8], _extracted_title, _ez, _ee,
                         )
                         name_zh, name_en = _ez, _ee
+                        if _eurl and not official_url:
+                            official_url = _eurl
                         title = _extracted_title  # use for works table lookup too
 
         # Fallback: check works table for canonical titles + inherit performer/director
@@ -1943,6 +1945,8 @@ def enrich_movie_titles() -> None:
             update["performer"] = works_performer
         if not event.get("director") and works_director:
             update["director"] = works_director
+        if official_url and not event.get("official_url"):
+            update["official_url"] = official_url
 
         # Also fix description fields that still reference the old (wrong) title.
         # For news sources we additionally try replacing the Japanese lookup title
@@ -2431,7 +2435,7 @@ def post_batch_enrich(event_ids: list[str], *, dry_run: bool = False) -> dict:
     res = (
         sb.table("events")
         .select(
-            "id,name_ja,raw_title,name_zh,name_en,"
+            "id,name_ja,raw_title,name_zh,name_en,official_url,"
             "description_zh,description_en,selection_reason,"
             "annotation_status,source_name,parent_event_id,category,"
             "performer,director"
@@ -2465,7 +2469,7 @@ def post_batch_enrich(event_ids: list[str], *, dry_run: bool = False) -> dict:
         if not title:
             continue
 
-        name_zh, name_en = lookup_movie_titles(title)
+        name_zh, name_en, official_url = lookup_movie_titles(title)
 
         # Fallback: check works table for canonical titles + inherit performer/director
         works_performer = None
@@ -2492,7 +2496,7 @@ def post_batch_enrich(event_ids: list[str], *, dry_run: bool = False) -> dict:
             sb.table("field_corrections")
             .select("field_name")
             .eq("event_id", event["id"])
-            .in_("field_name", ["name_zh", "name_en"])
+            .in_("field_name", ["name_zh", "name_en", "official_url"])
             .execute()
         )
         locked_fields = {r["field_name"] for r in (fc_res.data or [])}
@@ -2509,6 +2513,8 @@ def post_batch_enrich(event_ids: list[str], *, dry_run: bool = False) -> dict:
             update["performer"] = works_performer
         if not event.get("director") and works_director:
             update["director"] = works_director
+        if official_url and not event.get("official_url") and "official_url" not in locked_fields:
+            update["official_url"] = official_url
 
         if not update:
             skipped_protected += 1

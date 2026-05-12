@@ -2,8 +2,8 @@
 
 Usage:
     from movie_title_lookup import lookup_movie_titles
-    name_zh, name_en = lookup_movie_titles("霧のごとく")
-    # → ("大濛", "A Foggy Tale") or (None, None) if not found
+    name_zh, name_en, official_url = lookup_movie_titles("霧のごとく")
+    # → ("大濛", "A Foggy Tale", "https://...") or (None, None, None) if not found
 
 Strategy:
   1. Search https://eiga.com/search/{encoded_title}/movie/
@@ -17,8 +17,10 @@ Failures are silenced and return (None, None) so they never break scrapers.
 """
 
 import logging
+import os
 import re
 import time
+import urllib.parse as _urlparse
 from urllib.parse import quote
 
 import requests
@@ -53,8 +55,19 @@ _TC_TO_JP = str.maketrans({
     "\u5be7": "\u5be7",  # same: 寧
 })
 
-# In-memory cache: name_ja → (name_zh, name_en)
-_cache: dict[str, tuple[str | None, str | None]] = {}
+# In-memory cache: name_ja → (name_zh, name_en, official_url)
+_cache: dict[str, tuple[str | None, str | None, str | None]] = {}
+
+_GOOGLE_CSE_API_KEY: str | None = os.environ.get("GOOGLE_CSE_API_KEY")
+_GOOGLE_CSE_ID:      str | None = os.environ.get("GOOGLE_CSE_ID")
+
+_AGGREGATOR_DOMAINS = frozenset({
+    "eiga.com", "filmarks.com", "kinenote.com", "allcinema.net",
+    "imdb.com", "yahoo.co.jp", "amazon.co.jp", "unext.jp",
+    "netflix.com", "youtube.com", "x.com", "twitter.com",
+    "facebook.com", "instagram.com", "wikipedia.org",
+    "google.com", "google.co.jp",
+})
 
 _session = requests.Session()
 _session.headers.update({
@@ -84,14 +97,71 @@ def _parse_original_title(data_text: str) -> tuple[str | None, str | None]:
     return None, orig
 
 
-def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None]:
-    """Return (name_zh, name_en) for a Japanese movie title via eiga.com.
+def _parse_official_url(detail_soup) -> str | None:
+    """Extract official site URL from eiga.com jump link on detail page.
 
-    Returns (None, None) if the title is not found, or on any network/parse error.
+    eiga.com wraps external links as:
+      <a href="https://eiga.com/jump/?...&u=<URL-encoded-target>">オフィシャルサイト</a>
+    """
+    for a in detail_soup.find_all("a", href=True):
+        href = a.get("href", "")
+        text = a.get_text(strip=True)
+        if "eiga.com/jump/" in href and "オフィシャルサイト" in text:
+            qs = _urlparse.parse_qs(_urlparse.urlparse(href).query)
+            u_list = qs.get("u", [])
+            if u_list:
+                return u_list[0]
+    return None
+
+
+def _google_cse_official_url(name_ja: str) -> str | None:
+    """Search Google CSE for official site URL when eiga.com returns nothing.
+
+    Returns first non-aggregator URL from top 3 results, or None.
+    Silently returns None if GOOGLE_CSE_API_KEY / GOOGLE_CSE_ID not set.
+    Rate limiting: uses LOOKUP_DELAY_SEC before the request.
+    """
+    if not _GOOGLE_CSE_API_KEY or not _GOOGLE_CSE_ID:
+        return None
+    try:
+        query = f'"{name_ja}" 映画 公式サイト'
+        params = {
+            "key": _GOOGLE_CSE_API_KEY,
+            "cx":  _GOOGLE_CSE_ID,
+            "q":   query,
+            "num": 3,
+            "lr":  "lang_ja",
+        }
+        time.sleep(LOOKUP_DELAY_SEC)
+        resp = _session.get(
+            "https://www.googleapis.com/customsearch/v1",
+            params=params,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items", [])
+        for item in items:
+            link = item.get("link", "")
+            domain = _urlparse.urlparse(link).netloc.lstrip("www.")
+            if not any(
+                domain == d or domain.endswith("." + d)
+                for d in _AGGREGATOR_DOMAINS
+            ):
+                logger.debug("_google_cse_official_url: %r → %s", name_ja, link)
+                return link
+    except Exception as exc:
+        logger.debug("_google_cse_official_url: error for %r: %s", name_ja, exc)
+    return None
+
+
+def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None, str | None]:
+    """Return (name_zh, name_en, official_url) for a Japanese movie title via eiga.com.
+
+    Returns (None, None, None) if the title is not found, or on any network/parse error.
     Results are cached for the lifetime of the current process.
     """
     if not name_ja or not name_ja.strip():
-        return None, None
+        return None, None, None
 
     key = name_ja.strip()
     if key in _cache:
@@ -120,8 +190,10 @@ def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None]:
 
         if not movie_link:
             logger.debug("lookup_movie_titles: no result for %r", key)
-            _cache[key] = (None, None)
-            return None, None
+            # Phase B: try Google CSE for official_url only
+            cse_url = _google_cse_official_url(key)
+            _cache[key] = (None, None, cse_url)
+            return None, None, cse_url
 
         time.sleep(LOOKUP_DELAY_SEC)
         detail_resp = _session.get(movie_link, timeout=15)
@@ -132,15 +204,16 @@ def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None]:
         data_p = detail_soup.find("p", class_="data")
         data_text = data_p.get_text(separator="\n") if data_p else ""
         name_zh, name_en = _parse_original_title(data_text)
+        official_url = _parse_official_url(detail_soup)
 
         logger.debug(
-            "lookup_movie_titles: %r → zh=%r en=%r (via %s)",
-            key, name_zh, name_en, movie_link,
+            "lookup_movie_titles: %r → zh=%r en=%r official=%r (via %s)",
+            key, name_zh, name_en, official_url, movie_link,
         )
-        _cache[key] = (name_zh, name_en)
-        return name_zh, name_en
+        _cache[key] = (name_zh, name_en, official_url)
+        return name_zh, name_en, official_url
 
     except Exception as exc:
         logger.debug("lookup_movie_titles: error for %r: %s", key, exc)
-        _cache[key] = (None, None)
-        return None, None
+        _cache[key] = (None, None, None)
+        return None, None, None

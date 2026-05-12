@@ -4,6 +4,55 @@
 
 ---
 
+## 2026-05-12 — YCAM event `6801814c` 重整 + movie_title_lookup Phase A 成功 / Phase B (Google CSE) 失敗
+
+### A — YCAM event `6801814c`「台湾という社会で生きる」父事件混入兩部電影資料（DB 修正）
+
+**問題：** 父事件（screening series）被誤填為單一電影，混入「湯德章」與「ヤンヤン 4K」兩部作品的 director / performer / official_url。多場放映未拆分為 sub-event，業務小時欄位也被當成「放映期間摘要」而非場館營業時間。
+
+**修復：**
+1. 拆分 2 個 sub-events：`59b91c0d` 湯徳章（work_id `dc8f1d36`）+ `6d1fb66c` ヤンヤン 4K（work_id `bda864b3`）。
+2. 父事件清空誤填 director/performer，補上 dates 4/15–4/26、organizer=YCAM、`location_prefectures=['山口県']`、price=1400、`event_form=['screening']`。
+3. **父事件 business_hours 改為「場館營業時間」**（10:00–20:00、週二休館），不再放放映期間摘要。Sub-event business_hours 才是該場次放映時刻。
+4. Sub2 official_url `yiyi-movie.jp` → `yi-yi.jp`（4K 重映實際官方網站）。Sub1 performer 從幻覺 `陳佑杰` 改為 `鄭有傑`（Cheng Yu-Chieh，湯徳章役導演）。
+5. 全部欄位 FC 鎖定（35+ locks）。
+
+**架構教訓：**
+- **場館型父事件 vs sub-event 的 business_hours 語義不同**：父=場館營業時間，sub=放映時刻，並存不替代。SKILL 加入「Venue Parent vs Sub-event business_hours Guard」。
+- **4K 重映 / リバイバル 的 official_url 不可信任**：eiga.com 收的是原作頁，重映新版往往在 detail page **沒有** jump link，需人工 Google 補強。SKILL 加入「Movie Re-release official_url Guard」。
+
+### B — `movie_title_lookup` Phase A：eiga.com `オフィシャルサイト` 提取（成功）
+
+**目的：** 過去 `lookup_movie_titles()` 只回傳 `(name_zh, name_en)`，丟棄了 detail page 上的 `オフィシャルサイト` jump link，導致已知官方網站每次靠人工補。
+
+**實作：**
+- 新增 `_parse_official_url(detail_soup)` helper 解析 eiga.com `/jump/?u=<URL-encoded>` 格式（`urllib.parse.parse_qs` 即可）。
+- `lookup_movie_titles()` 回傳型別擴充為 **3-tuple** `(name_zh, name_en, official_url)`。
+- `enrich_movie_titles()` 自動填入空白事件的 `official_url`（**只在 event 目前 official_url 為 null/falsy 才寫入**），寫入後自動 FC 鎖定。
+- 同步更新 `annotator.py` 三個呼叫點（line ~1892、~1902、~2468）保持解包一致。
+
+**架構教訓：** 改變 helper 回傳型別必須掃過所有呼叫點，並設計 backward-compatibility（解包不一致會 silent break）。SKILL 加入「Movie Lookup Official URL Guard」。
+
+### C — `movie_title_lookup` Phase B：Google Custom Search API fallback（失敗）
+
+**目的：** 當 eiga.com 沒收錄 official_url 時（例如 4K 重映、新發行版），改用 Google CSE 搜尋官方網站。
+
+**嘗試流程：**
+1. 建立 `_google_cse_official_url(name_ja)` helper，讀 `GOOGLE_CSE_API_KEY` / `GOOGLE_CSE_ID` env vars，過濾聚合站（eiga.com、filmarks、imdb 等）。
+2. `scraper.yml` 加入對應 secret block。
+3. GCP project 帳單已綁定（顯示 ¥2 用量）、Custom Search JSON API 已 enable、API key 改「無限制」、等待 5+ 分鐘。
+4. **持續回傳 `403 PERMISSION_DENIED: This project does not have the access to Custom Search JSON API`**，換新 key、停用再啟用 API、改用 `customsearch.googleapis.com` endpoint 都失敗。
+
+**根因推測：** Google Workspace 組織政策封鎖，或 GCP project metadata 標記阻擋。**無法在使用者端解決**。
+
+**處置：**
+- 程式碼**保留** Phase B 結構（已 graceful skip when key invalid / 403），無副作用。
+- **不再規劃用 Google Cloud API 作 fallback**。若需外部搜尋 fallback，應改用 **TMDB API**（免費、有 `homepage` 欄位、無 GCP 組織政策問題）。
+
+**架構教訓：** 在審核任何引入 GCP-gated API 的計畫前，先做 30 分鐘 spike test 驗證 403/PERMISSION_DENIED 不會發生；優先選無 GCP 依賴的替代。SKILL 加入「Google Cloud API Avoidance Guard」。
+
+---
+
 ## 2026-05-11 — SC→TC 三層防禦架構確立（`_lock_fields_via_corrections` chokepoint guard + detection/fix 一致性）
 
 ### A — `_lock_fields_via_corrections()` 缺 `_to_trad()` guard（commit `f7790a2`）

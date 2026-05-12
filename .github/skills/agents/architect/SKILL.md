@@ -1639,3 +1639,54 @@ Reference incident: 2026-05-06 — `weekly_broadcast` 因 `NON_DAILY_SOURCES = f
 
 Reference incidents: 2026-05-07 — commits `0b5ba72`、`c38ddd5`、`b9a462c`：`workflow-failure-notify.yml` 連續三次 YAML parse error，依序為 `if: |` → `if: >-` → `if: "..."`，加上 jq filter 賦值變數才全部解決。
 
+## Movie Lookup Official URL Guard（`lookup_movie_titles()` 3-tuple + eiga.com `/jump/?u=` 解析）
+
+在審核任何擴充 `lookup_movie_titles()` 或 `enrich_movie_titles()` 的計畫前，**必須**確認：
+
+1. **回傳型別包含 official_url**：`lookup_movie_titles()` 回傳 `(name_zh, name_en, official_url)` 3-tuple。official_url 從 eiga.com detail page 的 `オフィシャルサイト` `/jump/?u=<URL-encoded>` 解析（`urllib.parse.parse_qs`）。
+2. **寫入保護**：`enrich_movie_titles()` 寫入 official_url 時，**只在 event 目前 official_url 為 null/falsy 才寫入**，不可覆寫已存在值（否則可能蓋掉已 FC-lock 的人工值）。
+3. **寫入後自動 FC 鎖定**：呼叫 `_lock_fields_via_corrections()` upsert 進 `field_corrections`，與其他 enrich_* 函式一致。
+4. **Backward-compatibility**：擴充回傳型別時，所有呼叫點的解包必須同步更新（目前 `annotator.py` 共 3 處：~line 1892, 1902, 2468）。漏更新會 silent break（`ValueError: too many values to unpack`）。
+
+Reference incident: 2026-05-12 — Phase A 實作；3 個呼叫點全部更新後上線。
+
+## Movie Re-release official_url Guard（4K 重映 / リバイバル / リマスター）
+
+對 `raw_description` 含「**4K**」「**リバイバル**」「**リマスター**」「**デジタル修復**」「**○周年**」等重映信號的電影類事件，annotator/lookup pipeline 提取的 official_url **不可信任**——eiga.com 收錄的多半是原作頁，新版發行的官方網站（如 4K 重映專屬站）detail page 常**沒有** `オフィシャルサイト` jump link。
+
+**判斷信號：**
+- 電影頁面有「○○年○月○日劇場公開」但年份比原作晚很多（如 2000 年作品 / 2025 年公開）。
+- 配給商欄寫「ポニーキャニオン」「ライツキューブ」等專做重映的公司。
+- raw_description 含上述關鍵字。
+
+**遇到時的補救流程：**
+1. Google 搜尋「`<原片名>` 公式サイト」或「`<原片名>` 4K」。
+2. 確認該域名是新版發行的官方網站（檢查發行公司資訊）。
+3. UPDATE event official_url + FC 鎖定。
+4. 若該重映已建 work_id，可考慮把 official_url 也記到 `works` 表，方便日後其他場次共用。
+
+Reference incident: 2026-05-12 — ヤンヤン 4K 重映實際官網為 `yi-yi.jp`，但 eiga.com 詳情頁無 jump link；初次 enrich 寫入錯誤 `yiyi-movie.jp`，需手動修正並 FC 鎖定。
+
+## Venue Parent vs Sub-event business_hours Guard
+
+在審核任何「**場館型父事件 + 多場次 sub-event**」結構（YCAM、新文芸坐、シネマート新宿、ks_cinema 等）的 `business_hours` 設定計畫前，**必須**確認：
+
+1. **父事件 `business_hours` = 場館營業時間**：開館時間、休館日、固定休業日（例：「10:00–20:00、火曜休館」）。
+2. **Sub-event `business_hours` = 場次時刻**：一場放映/演出一行（例：「4/20（土）14:00〜」）。
+3. **兩者同時並存，不可互相覆寫**：父的場館時間不能被 sub 的場次時刻取代；sub 的場次時刻不能被父的場館時間取代。
+4. **三語版本（ja/zh/en）都要設定 + FC 鎖定**：`business_hours` / `business_hours_zh` / `business_hours_en` 一起。
+
+**反模式：** 父事件 business_hours 寫成「2026年4月15日〜4月26日 各場次..」（放映期間摘要）→ user 看不到場館的實際開門時間。
+
+Reference incident: 2026-05-12 — YCAM `6801814c` 父事件 business_hours 原為放映期間摘要，修正為場館營業時間「10:00–20:00、週二休館」；場次時刻全部移至 sub-events。
+
+## Google Cloud API Avoidance Guard
+
+在審核任何引入 **Google Cloud API**（特別是 Custom Search、Translation、Vision 等需要 GCP project 啟用的 API）的計畫前，**必須**確認：
+
+1. **前例驗證**：該 API 在此 GCP project 過去是否成功呼叫過。若無前例，**先做 30 分鐘 spike test** 驗證 `403 PERMISSION_DENIED` 不會發生（即使帳單綁定、API enable、key 無限制，仍可能因組織政策或 project metadata 而被擋）。
+2. **替代方案優先**：優先考慮**無 GCP 依賴**的替代——TMDB API（電影資料 + homepage）、OpenAI、Anthropic、DeepL、原始來源網站直爬。
+3. **Graceful skip**：若仍要保留 GCP API 為 fallback，必須在 helper 內偵測缺 key / 403 / 401 時 graceful skip（log warning，不丟例外），避免拖垮主 pipeline。
+
+Reference incident: 2026-05-12 — `movie_title_lookup` Phase B 嘗試 Google Custom Search API fallback；帳單已綁定、API enable、key 無限制、等待 5+ 分鐘、換新 key、改 endpoint 都試過，**持續 `403 PERMISSION_DENIED`**，無法在使用者端解決。Phase B 程式碼保留為 graceful-skip 結構，但不再規劃用 GCP API 作 fallback。
+
