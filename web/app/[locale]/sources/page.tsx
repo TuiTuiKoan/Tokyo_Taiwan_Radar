@@ -44,25 +44,20 @@ export function generateStaticParams() {
 
 const TYPE_ORDER: SourceType[] = [
   "government",
-  "official",
-  "ticketing",
-  "cinema",
   "academic",
-  "news",
+  "event_platform",
+  "cinema",
+  "tv",
+  "venue",
+  "department_store",
+  "organizer",
+  "ngo",
+  "news_media",
+  "taiwan_shop",
+  "personal",
   "creator",
   "other",
 ];
-
-const TYPE_LABEL_KEY: Record<SourceType, string> = {
-  government: "typeGovernment",
-  official: "typeOfficial",
-  ticketing: "typeTicketing",
-  cinema: "typeCinema",
-  academic: "typeAcademic",
-  news: "typeNews",
-  creator: "typeCreator",
-  other: "typeOther",
-};
 
 async function fetchSources(): Promise<SourceInfo[]> {
   const supabase = await createClient();
@@ -90,6 +85,7 @@ async function fetchSources(): Promise<SourceInfo[]> {
 export default async function SourcesPage({ params }: PageProps) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "sources" });
+  const tType = await getTranslations({ locale, namespace: "sourceType" });
 
   const sources = await fetchSources();
 
@@ -125,7 +121,7 @@ export default async function SourcesPage({ params }: PageProps) {
         return (
           <section key={type} className="mb-8">
             <h2 className="text-xl font-semibold mb-3 text-fg-strong">
-              {t(TYPE_LABEL_KEY[type] as never)}
+              {tType(type)}
               <span className="ml-2 text-sm text-fg-subtle font-normal">
                 ({list.length})
               </span>

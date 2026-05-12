@@ -802,5 +802,21 @@
     "director": "監督",
     "viewDetails": "詳細",
     "otherCity": "全国"
+  },
+  "sourceType": {
+    "government": "政府機関",
+    "academic": "学術機関",
+    "event_platform": "イベントプラットフォーム",
+    "cinema": "映画館",
+    "tv": "テレビ",
+    "venue": "会場・ギャラリー",
+    "department_store": "百貨店",
+    "organizer": "イベント主催者",
+    "ngo": "民間団体",
+    "news_media": "ニュースメディア",
+    "taiwan_shop": "台湾系ショップ",
+    "personal": "個人ページ",
+    "creator": "クリエイターチャンネル",
+    "other": "その他"
   }
 }

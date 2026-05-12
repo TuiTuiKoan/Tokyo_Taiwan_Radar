@@ -802,5 +802,21 @@
     "director": "Director",
     "viewDetails": "Details",
     "otherCity": "Nationwide"
+  },
+  "sourceType": {
+    "government": "Government",
+    "academic": "Academic",
+    "event_platform": "Event Platform",
+    "cinema": "Cinema",
+    "tv": "TV",
+    "venue": "Venue",
+    "department_store": "Department Store",
+    "organizer": "Organizer",
+    "ngo": "NGO / Community",
+    "news_media": "News Media",
+    "taiwan_shop": "Taiwanese Shop",
+    "personal": "Personal Page",
+    "creator": "Creator Channel",
+    "other": "Other"
   }
 }
