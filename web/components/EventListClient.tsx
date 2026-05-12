@@ -120,10 +120,11 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                   <div className="text-xs text-fg-subtle">
                     {new Date(event.start_date).toLocaleDateString(locale, {
                       month: "short",
+                      timeZone: "UTC",
                     })}
                   </div>
                   <div className="text-2xl font-bold text-fg leading-none">
-                    {new Date(event.start_date).getDate()}
+                    {new Date(event.start_date).getUTCDate()}
                   </div>
                   {event.end_date &&
                     event.end_date.slice(0, 10) !==
@@ -133,6 +134,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                         {new Date(event.end_date).toLocaleDateString(locale, {
                           month: "numeric",
                           day: "numeric",
+                          timeZone: "UTC",
                         })}
                       </div>
                     )}

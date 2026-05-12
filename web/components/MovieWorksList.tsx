@@ -44,7 +44,7 @@ function eventCities(ev: MovieEventRow): string[] {
 function fmtDate(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
 }
 
 function fmtRange(start: string | null, end: string | null): string {
