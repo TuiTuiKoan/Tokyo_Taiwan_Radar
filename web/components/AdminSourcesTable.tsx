@@ -337,7 +337,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     62: "academic", 63: "academic", 64: "academic", 65: "academic",
     84: "academic", 92: "academic", 93: "academic",  1: "academic",
      2: "academic",  3: "academic", 12: "academic", 52: "academic",
-    74: "academic",
+    74: "academic", 380: "academic",
     // 展場
     81: "venue", 76: "venue", 48: "venue", 49: "venue", 75: "venue",
     85: "venue", 53: "venue", 82: "venue",  5: "venue",

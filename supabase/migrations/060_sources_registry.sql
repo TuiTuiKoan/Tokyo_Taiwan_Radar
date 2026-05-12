@@ -65,7 +65,7 @@ INSERT INTO sources (id, name, type, frequency, official_url, sort_order) VALUES
 ('zinbun_kyoto','京都大学人文科学研究所','academic','daily','https://www.zinbun.kyoto-u.ac.jp/', 320),
 ('kawasaki_ac','川崎学術研究機関','academic','daily','https://www.kawasaki-ac.jp/', 330),
 ('ifi','国際交流基金','academic','daily','https://www.jpf.go.jp/', 340),
-('nittai_toumonkai','日台同友会','academic','daily','https://nittai-toumonkai.com/', 350),
+('nittai_toumonkai','日台稲門会','academic','daily','https://nittai-toumonkai.com/', 350),
 ('ks_cinema','K''s cinema 新宿','cinema','daily','https://www.ks-cinema.com/', 360),
 ('cinemart_shinjuku','シネマート新宿','cinema','daily','https://www.cinemart.co.jp/theater/shinjuku/', 370),
 ('cineswitch_ginza','シネスイッチ銀座','cinema','daily','http://www.cineswitch.com/', 380),
