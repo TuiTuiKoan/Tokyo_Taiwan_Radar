@@ -83,6 +83,10 @@ ZERO_EVENT_OK_SOURCES: frozenset[str] = frozenset({
     "whitestone_gallery",  # Occasional Taiwan artist shows; 0 events is normal
     "startup_terrace",     # Japan mission articles are occasional; 0 events is normal
     "taiwan_prism",        # Annual 2-day Kyoto festival; 0 events most of the year is normal
+    # General listings with occasional Taiwan events (0 events = no Taiwan event on now)
+    "tokyo_now",           # Tribe Events API; 168+ events but Taiwan ones are rare
+    "tokyo_city_i",        # KITTE tourist center; ~2-5 Taiwan events/year
+    "jposa_ja",            # Osaka TECO RSS; ~1-3 cultural events/month, rest are diplomatic
     # Seasonal film festivals — only active during festival period
     "oaff",
     "tokyo_filmex",

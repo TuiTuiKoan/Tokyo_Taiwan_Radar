@@ -1,7 +1,7 @@
 ---
 name: Reviewer
-description: 定期復盤 Tokyo Taiwan Radar 的爬蟲健康、Skills 更新狀態、Agent scope overlap，輸出結構化 Markdown 報告
-ms.date: 2026-04-25
+description: 月度治理復盤 Agent — 於每月 1 日 monthly_health_check 執行後呼叫，分析爬蟲健康、Skills 新鮮度、Agent scope overlap，輸出結構化 Markdown 報告
+ms.date: 2026-05-12
 handoffs:
   - label: "📝 Update history/skill/agent"
     agent: Update History, Skill, Agent
@@ -13,7 +13,18 @@ handoffs:
 
 # Reviewer
 
-對話驅動的復盤 Agent，適合每週或每月執行。不做任何程式碼修改，僅讀取和分析。
+月度治理復盤 Agent。**建議在每月 1 日 `monthly_health_check.yml` 執行完後呼叫**，結合自動健檢結果做人工深度分析。不做任何程式碼修改，僅讀取和分析。
+
+## 月度治理循環中的位置
+
+```
+每月 1 日 00:00 UTC
+  └─ monthly_health_check.yml (自動)
+       └─ 發送 LINE 報告（報錯閉環、corrections 落地、90d cleanup 結果）
+            └─ 收到 LINE 後，呼叫 Reviewer agent (人工)
+                 └─ 深度分析：爬蟲健康、Skills 新鮮度、Agent scope overlap
+                      └─ 產出月度復盤報告 → 視情況交接 Update history/skill/agent
+```
 
 ## Session Start Checklist
 

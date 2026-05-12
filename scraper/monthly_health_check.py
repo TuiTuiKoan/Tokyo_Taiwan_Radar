@@ -147,9 +147,37 @@ def _integrity_flags(reports: dict, corrections: dict) -> list[str]:
     return flags
 
 
-# ─── Build LINE message ───────────────────────────────────────────────────────
+# ─── Step 5: cleanup old records ─────────────────────────────────────────────
 
-def build_line_message(reports: dict, corrections: dict, protect_hits: int, excl_hits: int) -> str:
+_CLEANUP_DAYS = 90  # Keep 90 days of aeo_visits and scraper_runs
+
+def _cleanup_old_records(sb) -> dict:
+    """Delete aeo_visits and scraper_runs records older than CLEANUP_DAYS days.
+
+    Returns dict with row counts deleted per table.
+    """
+    cutoff = (datetime.now(tz=UTC) - timedelta(days=_CLEANUP_DAYS)).isoformat()
+    result = {}
+    for table in ("aeo_visits", "scraper_runs"):
+        try:
+            resp = (
+                sb.table(table)
+                .delete()
+                .lt("created_at" if table == "aeo_visits" else "ran_at", cutoff)
+                .execute()
+            )
+            deleted = len(resp.data) if resp.data else 0
+            result[table] = deleted
+            logger.info("cleanup %s: deleted %d rows older than %d days", table, deleted, _CLEANUP_DAYS)
+        except Exception as exc:
+            logger.warning("cleanup %s failed: %s", table, exc)
+            result[table] = -1
+    return result
+
+
+
+def build_line_message(reports: dict, corrections: dict, protect_hits: int, excl_hits: int,
+                       cleanup: dict | None = None) -> str:
     month = datetime.now(tz=JST).strftime("%Y-%m")
     lines = [
         f"📋 報錯閉環健檢 — {month}",
@@ -188,6 +216,15 @@ def build_line_message(reports: dict, corrections: dict, protect_hits: int, excl
     elif protect_hits > 0:
         lines.append(f"✅ 保護機制運作中（30 天累積 {protect_hits} 次命中）")
 
+    if cleanup:
+        lines.append("")
+        lines.append("[步驟 5：90d 舊資料清理]")
+        for table, cnt in cleanup.items():
+            if cnt >= 0:
+                lines.append(f"  {table}: 删除 {cnt} 筆")
+            else:
+                lines.append(f"  {table}: 清理失敗")
+
     return "\n".join(lines)
 
 
@@ -200,7 +237,11 @@ def run(dry_run: bool = False) -> dict:
     protect_hits = _count_protect_hits(sb)
     excl_hits = _count_exclusion_hits(sb)
 
-    msg = build_line_message(reports, corrections, protect_hits, excl_hits)
+    cleanup = None
+    if not dry_run:
+        cleanup = _cleanup_old_records(sb)
+
+    msg = build_line_message(reports, corrections, protect_hits, excl_hits, cleanup)
     flags = _integrity_flags(reports, corrections)
 
     summary = {
@@ -209,6 +250,7 @@ def run(dry_run: bool = False) -> dict:
         "corrections": corrections,
         "protect_hits_30d": protect_hits,
         "exclusion_hits_30d": excl_hits,
+        "cleanup": cleanup,
         "integrity_flags": flags,
         "message_preview": msg[:200],
     }
