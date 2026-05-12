@@ -192,6 +192,7 @@ export type Category =
   | "literature"
   | "tv_program"
   | "exhibition"
+  | "design_craft"
   | "taiwan_mandarin"
   | "healthcare"
   | "market"
@@ -228,6 +229,7 @@ export const CATEGORIES: Category[] = [
   "literature",
   "tv_program",
   "exhibition",
+  "design_craft",
   "taiwan_mandarin",
   "healthcare",
   "market",
@@ -242,15 +244,15 @@ export interface CategoryGroup {
 export const CATEGORY_GROUPS: CategoryGroup[] = [
   {
     labelKey: "group_arts",
-    categories: ["movie", "performing_arts", "art", "senses", "tea_alcohol", "drama", "documentary", "indigenous", "folklore", "nature", "literature"],
+    categories: ["movie", "performing_arts", "art", "design_craft", "senses", "tea_alcohol", "drama", "documentary", "indigenous", "folklore", "nature", "literature"],
   },
   {
     labelKey: "group_lifestyle",
-    categories: ["lifestyle_food", "retail", "tourism", "market", "competition", "workshop", "exhibition", "books_media", "tv_program"],
+    categories: ["lifestyle_food", "retail", "tourism", "market", "competition", "workshop", "books_media", "tv_program"],
   },
   {
     labelKey: "group_knowledge",
-    categories: ["business", "academic", "lecture", "taiwan_japan", "scholarship"],
+    categories: ["business", "academic", "lecture", "exhibition", "taiwan_japan", "scholarship"],
   },
   {
     labelKey: "group_society",
