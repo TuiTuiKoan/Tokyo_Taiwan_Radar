@@ -101,6 +101,8 @@ Before running `update_source.py --status researched --feasibility easy`, the Re
 
 1. Read `.github/copilot-instructions.md` to understand the project context and existing sources.
 2. Read `scraper/sources/` to see what is already scraped — do not duplicate.
+   **Already-implemented scrapers (partial list — always verify by reading `scraper/sources/`):**
+   - `ftip` — `scraper/sources/ftip.py`（`source_name=ftip`, FTIP Japan `https://www.ftip-japan.org/`）— existed before `research_sources` tracking was introduced; `research_sources.status='recommended'` (not `implemented`) but the scraper is live.
 3. Use `fetch_webpage` to explore candidate platforms:
    - Event ticketing sites: Connpass, Doorkeeper, Eventbrite Japan, Kokucheese
    - Cultural institutions: Tokyo Cultural Center, Taiwan MICE, JETRO, 台北駐日経済文化代表処各弁事処

@@ -142,6 +142,75 @@ AUDIT
   ```
   Backoff: 2s → 4s → 8s. Mount both `https://` and `http://`.
 
+## WordPress RSS — `<strong>` Strip 後空格問題
+
+**Rule**: WordPress RSS の `<description>` を BeautifulSoup で parse すると、`<strong>` 等の inline タグ除去後に数字の間に空白が挿入される（例：`"2026 年 1 月 31 日"`）。日付 regex では `\d` と漢字の間を `\s*` で繋ぐこと。
+
+```python
+# ✅ 正確：\s* で tag-strip artifact を吸収
+_DATE_RE = re.compile(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日")
+
+# ❌ 誤り：スペース固定 or スペースなし — WordPress 環境では失敗する
+_DATE_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
+```
+
+**適用範囲**：WordPress 6.x 以降の全 RSS ベース scraper。`get_text()` / `get_text(strip=True)` を問わず発生する。
+
+Reference incident: 2026-05-12 — `nittai_toumonkai.py`（WordPress 6.9.4）の `<description>` で `2026 年 1 月 31 日` 形式を確認。
+
+## venue regex 負向前瞻 — `(?!<後綴詞>)` 誤匹配防止
+
+**Rule**: `会場`、`場所`、`開催場所` 等の venue キーワード regex に負向前瞻を追加して複合語の誤マッチを防ぐ。
+
+```python
+# ✅ 正確：会場受付 を venue として拾わない
+_VENUE_RE = re.compile(r"会場(?!受付)[：:]\s*(.+)")
+
+# ❌ 誤り：会場受付 も venue として抽出してしまう
+_VENUE_RE = re.compile(r"会場[：:]\s*(.+)")
+```
+
+**要注意の複合語一覧**：`会場受付`、`会場費`、`会場変更`、`会場案内`
+各 regex 追加時に上記複合語を検討し、必要に応じて `(?!受付|費|変更|案内)` を付与すること。
+
+Reference incident: 2026-05-12 — `nittai_toumonkai.py` で `会場受付` が venue name として誤抽出。
+
+## 全形数字 — `unicodedata.normalize("NFKC")` 事前変換
+
+**Rule**: 日本語ウェブページの数字は全角（`２０２６年`）で記述されている場合がある。parse 前に `unicodedata.normalize("NFKC", text)` で半角に統一すること。
+
+```python
+import unicodedata
+
+def _fw_to_ascii(self, text: str) -> str:
+    """全形数字・記号を半形に変換する。"""
+    return unicodedata.normalize("NFKC", text)
+
+# parse pipeline
+text = self._fw_to_ascii(raw_text)
+m = _DATE_RE.search(text)  # \d が全角を拾い損ねない
+```
+
+**適用範囲**：全角数字が出現しうる全 scraper（特に団体サイト・勉強会系）。`BeautifulSoup.get_text()` は全角のまま返すため変換は必須。
+
+Reference incident: 2026-05-12 — `nittai_toumonkai.py` 本文に `２０２６年` が出現。
+
+## Jimdo / 一部 CMS — URL パス encoding 不統一 → `unquote(href)`
+
+**Rule**: Jimdo, 一部の WordPress, FC2 等のCMSは、`<a href>` の日本語パスをあるページでは URL-encode し、別のページでは生の日本語文字で出力する。比較・重複排除を行う前に `unquote()` で正規化すること。
+
+```python
+from urllib.parse import unquote, urljoin
+
+href = a.get("href", "")
+normalized = unquote(href)  # %E3%83%96%E3%83%AD%E3%82%B0 → ブログ
+full_url = urljoin(base_url, normalized)
+```
+
+**注意**：`urljoin` は encode 済み URL も未 encode URL も正しく処理するが、比較は必ず decode 後に行うこと（`/ブログ/` と `/%E3%83%96%E3%83%AD%E3%82%B0/` は同一 URL だが文字列比較では不一致）。
+
+Reference incident: 2026-05-12 — `tsudoi_osaka.py`（Jimdo CMS）の href に encoding 不統一が確認された。
+
 ## Date Extraction — General Rules
 
 Rules that apply to ALL scrapers when constructing `raw_description` and `start_date`/`end_date`.
@@ -301,7 +370,32 @@ LIMIT 50;
 
 Reference incident: 2026-05-08 — `fe03288b`/`b8621ee9`（湾.味 台湾料理体験会）`organizer_zh/en` 含上田村振興会・普門寺資料，與 raw_description 完全無關。
 
-## 聚合站 `source_url` vs `official_url` 分離規則
+## Frontend Client Component — UTC 日期表示一貫性ルール
+
+**Rule**: DB に保存された timestamp は UTC。Next.js の client component で `new Date(dateStr)` を使う場合、ブラウザの TZ が UTC でなければ `getDate()` / `getMonth()` は**ローカル時間**で評価される。JST（UTC+9）では `UTC 15:00` が翌日 `00:00` に見えて日付が 1 日ずれる。
+
+**修正パターン**:
+
+```typescript
+// ✅ 正確：UTC 日付として取り出す
+const d = new Date(dateStr)
+const day = d.getUTCDate()       // getDate() ではなく getUTCDate()
+const month = d.getUTCMonth() + 1
+const year = d.getUTCFullYear()
+
+// ✅ toLocaleDateString も timeZone: "UTC" 必須
+d.toLocaleDateString("ja-JP", { timeZone: "UTC", month: "short", day: "numeric" })
+
+// ❌ 誤り：ブラウザ TZ に依存
+const day = d.getDate()
+d.toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
+```
+
+**対象**: client component 内で `Date` オブジェクトを生成・操作する全コード。SSR（Node.js は UTC 環境）との整合性のために必須。
+
+**根本原因**: 爬蟲が JST 時間を `+00:00` として保存（tzinfo=timezone.utc）しているため、DB の `2026-06-13T00:00:00+00:00` は実際には JST `2026-06-13 09:00`（問題なし）だが、scraper によっては深夜値（`15:00 UTC = 翌日 00:00 JST`）が混入する可能性がある。Client side では常に UTC で読む実装が最も安全。
+
+Reference incident: 2026-05-12 — `EventListClient.tsx` / `MovieWorksList.tsx` の `getDate()` が JST ブラウザで 1 日ずれ → `getUTCDate()` + `{ timeZone: "UTC" }` に修正。
 
 **Rule**: 聚合站 scraper（ftip、prtimes、gnews、walkerplus 等）的 `source_url` 必須**永遠保留**聚合站自身的 URL。從文章中提取的第一方主辦方 URL 存入 `official_url`，不可覆寫 `source_url`。
 

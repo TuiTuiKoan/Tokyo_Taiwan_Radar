@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-05-12 — nittai_toumonkai / tsudoi_osaka scrapers + frontend UTC date fix
+
+### A — WordPress `<strong>` strip 後空格 → `\s*` regex
+
+**問題：** WordPress RSS 的 `<description>` 中，`<strong>` 標籤 strip 後數字之間出現空格：`"2026 年 1 月 31 日"`（本文無空格，但 BeautifulSoup strip 後插入）。
+**根因：** `BeautifulSoup.get_text()` 在移除 inline 標籤時會在 tag 邊界插入隱性空格。
+**修正：** 日期 regex 改用 `\s*`：`r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日"` — 通用於所有 WordPress 來源。
+**教訓：** 所有 WordPress `raw_description` 的日期 regex 必須用 `\s*` 取代固定空格，以應對 tag-strip artifact。
+
+### B — venue regex 負向前瞻 `(?!受付)` 防誤匹配
+
+**問題：** `会場受付` 誤匹配 `会場` venue 偵測 regex，導致後綴詞被截成場地名。
+**修正：** `r"会場(?!受付)"` — 負向前瞻阻止 `会場受付` 命中。
+**教訓：** venue regex（`会場`、`場所`、`開催場所` 等）必須加上 `(?!<後綴詞>)` 防止誤匹配常見複合詞。
+
+### C — 全形數字轉換 `unicodedata.normalize("NFKC")`
+
+**問題：** nittai_toumonkai 網頁含全形數字（`２０２６年`），直接比對 `\d` 失敗。
+**修正：** 在 parse 前呼叫 `unicodedata.normalize("NFKC", text)` 統一轉換為半形。
+**教訓：** 任何日本網頁的文字 parse 前，應先 NFKC normalize。輔助函式可命名 `_fw_to_ascii()`。
+
+### D — Jimdo URL 日語路徑編碼不一致 → `unquote(href)`
+
+**問題：** Jimdo CMS 的 `href` 屬性有時使用 URL-encoded 日語路徑（`%E3%83%96%E3%83%AD%E3%82%B0`），有時直接為日語字元，導致比對/去重失敗。
+**修正：** 收集所有 `<a>` href 時先 `from urllib.parse import unquote; unquote(href)` 正規化，再進行比對。
+**教訓：** Jimdo / WordPress 等 CMS 的 href 需 unquote 後再比對，避免同一 URL 在不同頁面出現兩種編碼。
+
+### E — Frontend client component UTC/本地時間不一致 → `getUTCDate()` + `timeZone:"UTC"`
+
+**問題：** `EventListClient.tsx`（client component）使用 `getDate()` 和 `toLocaleDateString`（無 `timeZone` 參數）。DB 的 timestamp 以 UTC 儲存，JST 瀏覽器將 `UTC 15:00` 解讀為隔天，導致日期顯示比 SSR 多一天（如顯示 14 而非 13）。`MovieWorksList.tsx` 的 `fmtDate()` 有相同問題。
+**根因：** 爬蟲將 JST 時間儲存時未附 `+09:00` offset，Supabase 解讀為 UTC，實際時間變為 JST 深夜（`2026-06-13T00:00:00+00:00` → JST `2026-06-13 09:00` 無問題；但 `2026-06-13T15:00:00+00:00` → JST `2026-06-14 00:00`，跨日）。
+**修正：** `getDate()` → `getUTCDate()`；`toLocaleDateString` 加上 `{ timeZone: "UTC" }` 參數。兩個 client component 同步修正。
+**教訓：** DB 儲存的 timestamp 是 UTC；client component 一律使用 `getUTCDate()` / `{ timeZone: "UTC" }` 才能與 SSR（UTC Node.js 環境）一致。
+
+---
+
 ## 2026-05-09 — `_KNOWN_PERSON_MAP` 藝名/筆名 GPT 翻譯覆寫 + performers_zh/en 多語言陣列
 
 ### A — GPT 片假名藝名翻譯失敗 → `_KNOWN_PERSON_MAP` hardcoded 解法

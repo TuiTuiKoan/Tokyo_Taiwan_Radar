@@ -8,7 +8,7 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `060_sources_registry.sql` (number `044` is reserved for future corrections work — skip to `061` for the next new migration)
+- Number migrations sequentially: `001`, `002`, … Latest is `068_research_sources_display_type.sql` (number `044` is reserved for future corrections work — skip to `069` for the next new migration)
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped; `029_aeo_visits.sql` + `029b_realtime_events.sql`; `038_performer.sql` + `038b_field_corrections.sql`
 
@@ -68,7 +68,7 @@ Unique constraint: `(source_name, source_id)`
 - `event_reports` — user-submitted corrections / reports on events
 - `scraper_runs` — per-run logs (source, event counts, success, duration_seconds)
 - `research_reports` — Researcher agent output per source
-- `research_sources` — curated list of candidate sources with `status` (`pending` / `viable` / `not-viable` / `implemented`); `scraper_source_name` (matches `_scraper_key()` in main.py); `scrape_times_per_day` int (1–8, default 1); `scrape_hours_jst` int[] (default `{9}`)
+- `research_sources` — curated list of candidate sources with `status` (`pending` / `viable` / `not-viable` / `implemented`); `scraper_source_name` (matches `_scraper_key()` in main.py); `scrape_times_per_day` int (1–8, default 1); `scrape_hours_jst` int[] (default `{9}`); `display_type` text (one of the 14 source types — see `sources.type`; admin-editable via PATCH `/api/admin/research-sources/:id`; backfilled in migration 068 from the legacy hardcoded `SOURCE_TYPE_MAP` in `web/components/AdminSourcesTable.tsx`)
 - `backup_archives` — snapshot metadata
 - `event_views` — click analytics per event+locale (view: `event_view_counts`)
 - `admin_users_view` — admin-only view of `auth.users` joined with roles
@@ -83,7 +83,7 @@ Unique constraint: `(source_name, source_id)`
 - `announcement_events` — `(announcement_id, event_id)` junction linking announcements to events
 - `app_settings` — global key-value config: `key` text PK, `value` jsonb; admin-only RLS; seeded with `weekly_broadcast: {auto_publish: false}`
 - `daily_quality_metrics` — daily aggregated KPI: `events_upserted`, `events_active`, `exclusion_hits`, `irrelevant_reports`, `precision_rate`; computed by `scraper/daily_quality.py` (recomputes last 14 days each run to absorb late reports); admin-only RLS
-- `sources` — scraper source registry: `id TEXT PK` (= events.source_name), `name`, `type` (government/official/ticketing/cinema/academic/news/creator/other), `frequency` (daily/weekly), `official_url`, `sort_order INT`, `is_active BOOL`; public SELECT RLS; seeded with 104 rows from web/lib/sources.ts; used by `/sources` public page (migration 060)
+- `sources` — scraper source registry: `id TEXT PK` (= events.source_name), `name`, `type` (one of 14 values: `government` / `academic` / `event_platform` / `cinema` / `tv` / `venue` / `department_store` / `organizer` / `ngo` / `news_media` / `taiwan_shop` / `personal` / `creator` / `other` — see migrations 060 + 067), `frequency` (daily/weekly), `official_url`, `sort_order INT`, `is_active BOOL`; public SELECT RLS; seeded with 104 rows from web/lib/sources.ts; used by `/sources` public page (migration 060). When adding a new source: insert via SQL with the matching `type` value — do NOT touch `web/lib/sources.ts` SOURCE_TYPES; that array is the SourceType union, not data.
 
 ## RLS policies
 
