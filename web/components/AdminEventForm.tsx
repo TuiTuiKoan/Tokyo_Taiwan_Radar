@@ -48,7 +48,7 @@ interface Props {
   form: FormState;
   t: any;
   tCat: any;
-  tEventForm: any;
+  tEventForm?: any;
   updateField: (k: string, v: any) => void;
   toggleCategory: (cat: string) => void;
   events: Event[];
@@ -200,7 +200,7 @@ export default function AdminEventForm({
                   : "border-line-strong hover:border-blue-400"
               }`}
             >
-              {tEventForm(ef as any)}
+              {tEventForm ? tEventForm(ef as any) : ef}
             </button>
           ))}
         </div>

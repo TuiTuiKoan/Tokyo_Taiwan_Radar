@@ -17,7 +17,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const tCat = useTranslations("categories");
   const tFilters = useTranslations("filters");
   const tEvent = useTranslations("event");
-  const tEventForm = useTranslations("eventForm");
   const router = useRouter();
   const supabase = createClient();
 
@@ -521,7 +520,6 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             form={form}
             t={t}
             tCat={tCat}
-            tEventForm={tEventForm}
             updateField={updateField}
             toggleCategory={toggleCategory}
             events={events}
