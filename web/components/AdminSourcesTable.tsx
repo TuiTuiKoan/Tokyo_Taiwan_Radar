@@ -323,8 +323,13 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     14: "event_platform", 47: "event_platform", 20: "event_platform",
     19: "event_platform", 17: "event_platform", 32: "event_platform",
     45: "event_platform", 15: "event_platform", 77: "event_platform",
-    4:  "event_platform",  6: "event_platform", 23: "event_platform",
-    79: "event_platform", 83: "event_platform", 106: "event_platform",
+    23: "event_platform", 79: "event_platform", 83: "event_platform",
+    106: "event_platform",
+    // 新聞媒體
+     4: "news_media",   6: "news_media",  96: "news_media", 128: "news_media",
+   132: "news_media", 133: "news_media", 135: "news_media", 166: "news_media",
+   167: "news_media", 168: "news_media", 229: "news_media", 230: "news_media",
+   237: "news_media", 238: "news_media", 318: "news_media", 391: "news_media",
     // 學術單位
     28: "academic", 29: "academic", 24: "academic", 25: "academic",
     10: "academic", 26: "academic", 31: "academic", 27: "academic",
@@ -372,6 +377,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     government:        "政府機構",
     department_store:  "百貨",
     organizer:         "活動策劃組織",
+    news_media:        "新聞媒體",
     ngo:               "民間團體",
     personal:          "個人頁面",
     taiwan_shop:       "台灣商家",
