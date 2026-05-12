@@ -27,6 +27,7 @@ export default async function EventCard({ event, locale }: Props) {
   return (
     <Link
       href={`/${locale}/events/${event.id}`}
+      aria-label={name}
       className="block border border-line rounded-xl p-4 hover:shadow-md hover:border-green-300 transition bg-surface group"
     >
       {/* Status + paid badges */}

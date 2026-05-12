@@ -1,5 +1,6 @@
 import type { Announcement, Locale } from "@/lib/types";
 import Link from "next/link";
+import Image from "next/image";
 
 interface Props {
   announcement: Announcement;
@@ -40,12 +41,14 @@ export default function AnnouncementCard({ announcement, locale }: Props) {
       className="block bg-surface border border-line rounded-xl overflow-hidden hover:border-green-200 hover:shadow-sm transition group"
     >
       {image && (
-        <div className="aspect-video overflow-hidden bg-muted">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+        <div className="relative aspect-video overflow-hidden bg-muted">
+          <Image
             src={image}
             alt={title}
-            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover group-hover:scale-105 transition duration-300"
+            unoptimized
           />
         </div>
       )}

@@ -1,10 +1,13 @@
 # Tokyo Taiwan Radar 東京台灣雷達
 
-🌐 Website: tokyotaiwanradar.com
+🌐 Website: [tokyotaiwanradar.com](https://tokyotaiwanradar.com)
+
 📅 An aggregator platform for Taiwan-related events across Japan (Movies, Exhibitions, Lectures, Food)
+
 🇹🇼🇯🇵 Trilingual (Chinese / Japanese / English)
 
 - 5/11 -
+
 Week 3 clashed right with Japan's Golden Week, but we were in no mood for a holiday. We were coding like crazy every single day—our keyboards were practically smoking! 🔥 But the hard work totally paid off. We smashed a bunch of amazing goals all at once:
 
 📱 Social Media Matrix Fully Activated!
@@ -48,6 +51,7 @@ The most thrilling news? The "Japan-Taiwan Tomonkai of Waseda University" and "T
 ななんと、「早稲田大学日台稲門会」と、湾生（台湾生まれの日本人）の方々が集う「東京台湾の会」から、自発的にコラボレーションのご連絡をいただきました！これは間違いなく最高のスタートダッシュ。今後の展開に、私たち自身も超ワクワクしています！🤝✨
 
 - 5/5 -
+
 Entering Week 2, our database has exploded to 633 events and 163 sources! We aren't just sweeping through Tokyo anymore; we're scraping all Japan-Taiwan exchange and grant/scholarship info across the entire country!
 Watching Google, Claude, and ChatGPT's crawlers roaming around "Tokyo Taiwan Radar" all day—how does it feel? It's like I threw a massive EDM rave, and watching all these AI VIPs getting wasted and dancing their heads off at my venue. One word: Awesome!
 
@@ -68,6 +72,7 @@ Google、Claude、ChatGPTのクローラーたちが一日中「東京台湾レ�
 LINEの基本連携もリリースし、週報のテスト配信も1回実施しました。さらに、マネタイズに向けたMVPモデルの考案と、市場テストも開始しました。
 
 - 4/26 -
+
 Starting from 4/19, in just one week: 87 sources, 41 crawlers, and 237 event records. The very first version of "Tokyo Taiwan Radar" is finally running relatively smoothly.
 It all started from a personal desire to help out while living overseas. Whether it's for people who love Taiwan, those who want their next generation to stay connected to it, or even those who aren't super familiar but want to give their friends a chance to discover Taiwan—I wanted them to have a small gathering place. A place where they can bring their curiosity, or simply use it as a lifestyle option to take their Japanese, American, Filipino, or even Chinese friends along to check things out.
 This radar is still faint, but it carries a lot of love from everyone. I hope you find it a bit useful, too.

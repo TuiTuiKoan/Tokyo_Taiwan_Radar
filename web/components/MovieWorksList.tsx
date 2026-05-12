@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import type { Locale } from "@/lib/types";
 import { shortPrefecture } from "@/lib/cityLabel";
 
@@ -127,10 +128,13 @@ function WorkRow({ group, locale, labels, expanded, onToggle }: WorkRowProps) {
       <div className="flex items-start gap-3 p-3 bg-surface">
         {/* Poster thumbnail */}
         {group.posterUrl ? (
-          <img
+          <Image
             src={group.posterUrl}
             alt={group.displayTitle}
+            width={40}
+            height={56}
             className="w-10 h-14 object-cover rounded flex-shrink-0"
+            unoptimized
           />
         ) : (
           <div className="w-10 h-14 bg-fg-muted/10 rounded flex-shrink-0 flex items-center justify-center text-lg text-fg-muted">
