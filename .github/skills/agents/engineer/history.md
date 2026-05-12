@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-05-12 — `lookup_movie_titles()` 回傳型別從 2-tuple → 3-tuple
+**修改：** engineer/SKILL.md works pipeline 第 8 點
+**內容：**
+- `(None, None)` → `(None, None, None)`，明示 3-tuple 解包格式
+- 補充「不可沿用舊 2-tuple 解包，會觸發 ValueError」警告
+- 新增 `official_url` 為第三個回傳值（eiga.com jump link）
+**來源：** daily-skills-review（Step 4 建議）
+
+---
+
 ## 2026-05-11 — SC→TC 三層防禦修正（chokepoint guard + 偵測/修復一致性）
 
 ### A — `_lock_fields_via_corrections()` SC→TC guard 新增（commit `f7790a2`）
