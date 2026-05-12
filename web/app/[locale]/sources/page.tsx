@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
 import type { Locale } from "@/lib/types";
-import { SOURCES, type SourceType } from "@/lib/sources";
+import type { SourceInfo, SourceType } from "@/lib/sources";
 
 export const revalidate = 86400;
 
@@ -63,19 +64,44 @@ const TYPE_LABEL_KEY: Record<SourceType, string> = {
   other: "typeOther",
 };
 
+async function fetchSources(): Promise<SourceInfo[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("sources")
+    .select("id, name, type, frequency, official_url")
+    .eq("is_active", true)
+    .order("type")
+    .order("sort_order");
+
+  if (error) {
+    console.warn("[sources page] failed to fetch sources from DB:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+    type: row.type as SourceType,
+    frequency: row.frequency as "daily" | "weekly",
+    officialUrl: row.official_url as string,
+  }));
+}
+
 export default async function SourcesPage({ params }: PageProps) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "sources" });
 
+  const sources = await fetchSources();
+
   // Group sources by type, preserving the TYPE_ORDER sequence.
-  const grouped = new Map<SourceType, typeof SOURCES>();
+  const grouped = new Map<SourceType, SourceInfo[]>();
   for (const ty of TYPE_ORDER) grouped.set(ty, []);
-  for (const s of SOURCES) {
+  for (const s of sources) {
     const arr = grouped.get(s.type);
     if (arr) arr.push(s);
   }
 
-  const total = SOURCES.length;
+  const total = sources.length;
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">

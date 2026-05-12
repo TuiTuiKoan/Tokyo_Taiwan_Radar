@@ -8,7 +8,7 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `046_daily_quality_metrics.sql` (number `044` is reserved for future corrections work — skip to `047` for the next new migration)
+- Number migrations sequentially: `001`, `002`, … Latest is `060_sources_registry.sql` (number `044` is reserved for future corrections work — skip to `061` for the next new migration)
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped; `029_aeo_visits.sql` + `029b_realtime_events.sql`; `038_performer.sql` + `038b_field_corrections.sql`
 
@@ -83,6 +83,7 @@ Unique constraint: `(source_name, source_id)`
 - `announcement_events` — `(announcement_id, event_id)` junction linking announcements to events
 - `app_settings` — global key-value config: `key` text PK, `value` jsonb; admin-only RLS; seeded with `weekly_broadcast: {auto_publish: false}`
 - `daily_quality_metrics` — daily aggregated KPI: `events_upserted`, `events_active`, `exclusion_hits`, `irrelevant_reports`, `precision_rate`; computed by `scraper/daily_quality.py` (recomputes last 14 days each run to absorb late reports); admin-only RLS
+- `sources` — scraper source registry: `id TEXT PK` (= events.source_name), `name`, `type` (government/official/ticketing/cinema/academic/news/creator/other), `frequency` (daily/weekly), `official_url`, `sort_order INT`, `is_active BOOL`; public SELECT RLS; seeded with 104 rows from web/lib/sources.ts; used by `/sources` public page (migration 060)
 
 ## RLS policies
 
@@ -99,7 +100,7 @@ Unique constraint: `(source_name, source_id)`
 
 ## Migration checklist
 7
-1. Number the file `NNN_descriptive_name.sql` (next = `046`)
+1. Number the file `NNN_descriptive_name.sql` (next = `061`)
 2. Use `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE … ADD COLUMN IF NOT EXISTS`
 3. Add RLS with `ALTER TABLE … ENABLE ROW LEVEL SECURITY` + policies
 4. Test in Supabase SQL Editor before committing
