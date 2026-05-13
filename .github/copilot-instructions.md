@@ -12,6 +12,8 @@ scraped from multiple sources, stored in Supabase, and displayed on a
 trilingual Next.js web app.
 
 > **Geographic Scope**: Events in Tokyo, Osaka, Kyoto, Fukuoka, Sapporo, and all other regions are in scope. Do NOT reject an event or source solely because it is outside Tokyo.
+>
+> **Taiwan-based events are also in scope** when they are organized specifically for Japanese audiences or by Japan-based organizations for Japan↔Taiwan exchange (e.g., study tours, cultural immersion programs, academic exchanges targeting Japanese participants). These represent the "go to Taiwan" side of Japan-Taiwan cultural exchange and are a valid part of the project's mission.
 
 - GitHub: TuiTuiKoan/Tokyo_Taiwan_Radar (main branch)
 - Supabase project: cjtndektjjpvvjofdvzr
