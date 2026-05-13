@@ -140,6 +140,7 @@ from sources.us_cinema_chiba import UsCinemaChibaGekijoScraper
 from sources.rti_jp import RtiJpScraper
 from sources.nittai_toumonkai import NittaiToumonkaiScraper
 from sources.wuext_waseda import WuextWasedaScraper
+from sources.asahiculture import AsahiCultureScraper
 from sources.cinemaclair import CinemaClairScraper
 from sources.uedaeigeki import UedaEigekiScraper
 from sources.base import dedup_events
@@ -269,6 +270,7 @@ SCRAPERS = [
     WuextWasedaScraper(),
     CinemaClairScraper(),
     UedaEigekiScraper(),
+    AsahiCultureScraper(),
 ]
 
 
