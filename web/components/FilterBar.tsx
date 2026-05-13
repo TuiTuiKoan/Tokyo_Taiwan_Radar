@@ -113,10 +113,11 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
   });
 
   return (
-    <div className="sticky top-14 z-20 -mx-4 px-4 pt-2 pb-2 mb-0 bg-[var(--color-bg)]/85 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none">
+    <div className="sticky top-14 z-20 -mx-4 px-4 pt-2 pb-2 mb-0">
+      <div className="bg-[#FFF1EE] border border-[#EDD8D0]/60 rounded-2xl px-4 py-3 shadow-sm">
 
       {/* Mobile: icon toggle row */}
-      <div className="flex items-center justify-between md:hidden mb-1">
+      <div className="flex items-center justify-between md:hidden">
         <button
           onClick={() => setMobileOpen((o) => !o)}
           aria-expanded={mobileOpen}
@@ -148,7 +149,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
       </div>
 
       {/* Filter panel — always visible on md+, toggled on mobile */}
-      <div className={`${mobileOpen ? "block bg-[#FFF1EE] border border-[#EDD8D0]/60 rounded-2xl px-4 py-3 shadow-sm mt-2" : "hidden"} md:block md:bg-[#FFF1EE] md:border md:border-[#EDD8D0]/60 md:rounded-2xl md:px-4 md:py-3 md:shadow-sm md:mt-0`}>
+      <div className={`${mobileOpen ? "block mt-3" : "hidden"} md:block md:mt-0`}>
 
         {/* Row 1: keyword, category, location, paid, timeMode, date range, reset */}
         <div className="flex flex-wrap gap-3 items-end">
@@ -361,6 +362,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
           )}
         </div>
 
+      </div>
       </div>
 
       {/* Selected-filter chips strip — click any chip to remove it. */}
