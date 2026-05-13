@@ -161,7 +161,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               type="search"
               value={draft.q}
               placeholder={t("searchPlaceholder")}
-              className="h-9 border border-line-strong rounded-lg px-3 text-sm w-48 bg-white shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-3 text-sm w-48 bg-paper shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
               onChange={(e) => {
                 const v = e.target.value;
                 setDraft((prev) => ({ ...prev, q: v }));
@@ -182,7 +182,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                 type="button"
                 onClick={() => setCatDropdownOpen((o) => !o)}
                 aria-labelledby={`${fieldIds.categoryLabel} ${fieldIds.categoryTrigger}-text`}
-                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-elevated shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer"
+                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer"
               >
                 <span id={`${fieldIds.categoryTrigger}-text`} className={selectedCats.length > 0 ? "text-green-700 font-medium" : "text-fg-muted"}>
                   {selectedCats.length > 0 ? `${t("category")} (${selectedCats.length})` : t("allCategories")}
@@ -241,7 +241,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   return next;
                 });
               }}
-              className="h-9 border border-line-strong rounded-lg px-3 text-sm bg-white shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg pl-3 pr-8 text-sm bg-paper appearance-none select-arrow shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("allLocations")}</option>
               <option value="tokyo">{t("locationTokyo")}</option>
@@ -265,7 +265,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   id={fieldIds.city}
                   value={draft.city}
                   onChange={(e) => applyWith("city", e.target.value)}
-                  className="h-9 border border-line-strong rounded-lg px-3 text-sm bg-white shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-9 border border-line-strong rounded-lg pl-3 pr-8 text-sm bg-paper appearance-none select-arrow shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
                 >
                   <option value="">{t("cityAll")}</option>
                   {prefs.map((p) => (
@@ -285,7 +285,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               id={fieldIds.paid}
               value={draft.paid}
               onChange={(e) => applyWith("paid", e.target.value)}
-              className="h-9 border border-line-strong rounded-lg px-3 text-sm bg-white shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg pl-3 pr-8 text-sm bg-paper appearance-none select-arrow shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("allPaid")}</option>
               <option value="free">{t("freeOnly")}</option>
@@ -317,7 +317,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   applyWith("timeMode", e.target.value);
                 }
               }}
-              className="h-9 border border-line-strong rounded-lg px-3 text-sm bg-white shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg pl-3 pr-8 text-sm bg-paper appearance-none select-arrow shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="active">{t("timeModeActive")}</option>
               <option value="all">{t("timeModeAll")}</option>
@@ -335,7 +335,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   type="date"
                   value={draft.from}
                   onChange={(e) => applyWith("from", e.target.value)}
-                  className="h-9 border border-line-strong rounded-lg px-3 text-sm bg-white shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-9 border border-line-strong rounded-lg px-3 text-sm bg-paper shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -345,7 +345,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   type="date"
                   value={draft.to}
                   onChange={(e) => applyWith("to", e.target.value)}
-                  className="h-9 border border-line-strong rounded-lg px-3 text-sm bg-white shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-9 border border-line-strong rounded-lg px-3 text-sm bg-paper shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
             </>
