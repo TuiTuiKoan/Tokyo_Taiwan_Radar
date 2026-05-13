@@ -94,6 +94,17 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
   }, [pathname, router]);
 
   const selectedCats = draft.category ? draft.category.split(",") : [];
+  const fieldIds = {
+    search: "filter-search",
+    categoryLabel: "filter-category-label",
+    categoryTrigger: "filter-category-trigger",
+    location: "filter-location",
+    city: "filter-city",
+    paid: "filter-paid",
+    timeMode: "filter-time-mode",
+    from: "filter-from",
+    to: "filter-to",
+  };
 
   const hasFilters = Object.entries(draft).some(([k, v]) => {
     if (k === "timeMode") return v !== "active";
@@ -141,8 +152,9 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
         <div className="flex flex-wrap gap-3 items-end">
           {/* Keyword search — debounced immediate */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-fg-muted font-medium">{t("search")}</label>
+            <label htmlFor={fieldIds.search} className="text-xs text-fg-muted font-medium">{t("search")}</label>
             <input
+              id={fieldIds.search}
               type="search"
               value={draft.q}
               placeholder={t("searchPlaceholder")}
@@ -160,14 +172,16 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
 
           {/* Category dropdown */}
           <div className="flex flex-col gap-1" ref={catDropdownRef}>
-            <label className="text-xs text-fg-muted font-medium">{t("category")}</label>
+            <label id={fieldIds.categoryLabel} className="text-xs text-fg-muted font-medium">{t("category")}</label>
             <div className="relative">
               <button
+                id={fieldIds.categoryTrigger}
                 type="button"
                 onClick={() => setCatDropdownOpen((o) => !o)}
+                aria-labelledby={`${fieldIds.categoryLabel} ${fieldIds.categoryTrigger}-text`}
                 className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-elevated hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
               >
-                <span className={selectedCats.length > 0 ? "text-green-700 font-medium" : "text-fg-muted"}>
+                <span id={`${fieldIds.categoryTrigger}-text`} className={selectedCats.length > 0 ? "text-green-700 font-medium" : "text-fg-muted"}>
                   {selectedCats.length > 0 ? `${t("category")} (${selectedCats.length})` : t("allCategories")}
                 </span>
                 <span className="text-fg-subtle text-xs">{catDropdownOpen ? "▲" : "▼"}</span>
@@ -212,8 +226,9 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
 
           {/* Location filter */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-fg-muted font-medium">{t("location")}</label>
+            <label htmlFor={fieldIds.location} className="text-xs text-fg-muted font-medium">{t("location")}</label>
             <select
+              id={fieldIds.location}
               value={draft.location}
               onChange={(e) => {
                 const loc = e.target.value;
@@ -242,8 +257,9 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
             const prefs = REGION_PREFECTURES[region];
             return (
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-fg-muted font-medium">{t("cityLabel")}</label>
+                <label htmlFor={fieldIds.city} className="text-xs text-fg-muted font-medium">{t("cityLabel")}</label>
                 <select
+                  id={fieldIds.city}
                   value={draft.city}
                   onChange={(e) => applyWith("city", e.target.value)}
                   className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
@@ -261,8 +277,9 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
 
           {/* Paid filter */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-fg-muted font-medium">{t("paid")}</label>
+            <label htmlFor={fieldIds.paid} className="text-xs text-fg-muted font-medium">{t("paid")}</label>
             <select
+              id={fieldIds.paid}
               value={draft.paid}
               onChange={(e) => applyWith("paid", e.target.value)}
               className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
@@ -275,8 +292,9 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
 
           {/* Time mode */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-fg-muted font-medium">{t("timeMode")}</label>
+            <label htmlFor={fieldIds.timeMode} className="text-xs text-fg-muted font-medium">{t("timeMode")}</label>
             <select
+              id={fieldIds.timeMode}
               value={draft.timeMode}
               onChange={(e) => {
                 if (e.target.value === "active" || e.target.value === "all") {
@@ -301,8 +319,9 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
           {draft.timeMode === "past" && (
             <>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-fg-muted font-medium">{t("dateFrom")}</label>
+                <label htmlFor={fieldIds.from} className="text-xs text-fg-muted font-medium">{t("dateFrom")}</label>
                 <input
+                  id={fieldIds.from}
                   type="date"
                   value={draft.from}
                   onChange={(e) => applyWith("from", e.target.value)}
@@ -310,8 +329,9 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-fg-muted font-medium">{t("dateTo")}</label>
+                <label htmlFor={fieldIds.to} className="text-xs text-fg-muted font-medium">{t("dateTo")}</label>
                 <input
+                  id={fieldIds.to}
                   type="date"
                   value={draft.to}
                   onChange={(e) => applyWith("to", e.target.value)}

@@ -117,7 +117,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
             <div className="w-16 flex-shrink-0 text-center pt-0.5">
               {event.start_date ? (
                 <>
-                  <div className="text-xs text-fg-subtle">
+                  <div className="text-xs text-fg-muted font-medium">
                     {new Date(event.start_date).toLocaleDateString(locale, {
                       month: "short",
                       timeZone: "UTC",
@@ -140,7 +140,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                     )}
                 </>
               ) : (
-                <div className="text-xs text-fg-subtle">—</div>
+                <div className="text-xs text-fg-muted">—</div>
               )}
             </div>
 
@@ -148,21 +148,21 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                 {ended ? (
-                  <span className="text-xs bg-muted text-fg-subtle px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-muted text-fg px-2 py-0.5 rounded-full font-medium">
                     {tEvent("ended")}
                   </span>
                 ) : (
-                  <span className="text-xs text-green-600 font-medium">●</span>
+                  <span className="text-xs text-green-700 font-medium">●</span>
                 )}
                 {event.is_paid === false && (
-                  <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">
                     {tEvent("free")}
                   </span>
                 )}
                 {event.category?.slice(0, 2).map((cat) => (
                   <span
                     key={cat}
-                    className="text-xs bg-muted text-fg-muted px-2 py-0.5 rounded-full"
+                    className="text-xs bg-muted text-fg px-2 py-0.5 rounded-full font-medium"
                   >
                     {tCat(cat as Parameters<typeof tCat>[0])}
                   </span>
@@ -170,7 +170,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
               </div>
               <p className="text-sm font-medium text-fg-strong group-hover:text-green-700 line-clamp-2 leading-snug">
                 {event.parent_event_id && parentMap[event.parent_event_id] && (
-                  <span className="block text-xs text-green-600 font-normal mb-0.5 truncate">
+                  <span className="block text-xs text-green-700 font-normal mb-0.5 truncate">
                     ↳ {getEventName(parentMap[event.parent_event_id], locale)}
                   </span>
                 )}
@@ -185,10 +185,10 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                       .location_address,
                   );
                   return (
-                    <p className="text-xs text-fg-subtle mt-0.5">
+                    <p className="text-xs text-fg-muted mt-0.5">
                       📍{" "}
                       {cityLabel && (
-                        <span className="inline-block bg-muted text-fg-muted px-1.5 py-0.5 rounded mr-1 font-medium">
+                        <span className="inline-block bg-muted text-fg px-1.5 py-0.5 rounded mr-1 font-medium">
                           {cityLabel}
                         </span>
                       )}

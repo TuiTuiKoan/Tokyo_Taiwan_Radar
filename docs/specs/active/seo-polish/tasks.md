@@ -1,10 +1,10 @@
 - [x] T1: README.md 加超連結 `[tokyotaiwanradar.com](https://tokyotaiwanradar.com)`
 - [x] T2: AnnouncementCard.tsx `<img>` → `<Image>`
-- [ ] T2: AnnouncementForm.tsx `<img>` → `<Image unoptimized>` (skipped: blob preview URL)
+- [ ] T2: AnnouncementForm.tsx `<img>` → `<Image unoptimized>` (skipped / won't fix: blob preview URL 是瀏覽器本地暫存，不是 `next/image` 的適用目標)
 - [x] T2: MovieWorksList.tsx `<img>` → `<Image fill>`
-- [ ] T2: next.config.ts 加 `images.remotePatterns`
+- [ ] T2: next.config.ts 加 `images.remotePatterns` (skipped / not needed: 目前遠端 `<Image>` 用法已設 `unoptimized`，不會走 Next image proxy)
 - [x] T3: EventCard.tsx 加 `aria-label`
-- [ ] T3: messages/{zh,en,ja}.json 加 `eventLink` key
+- [x] T3: messages/{zh,en,ja}.json 加 `eventLink` key
 - [x] T4: categories/[category]/opengraph-image.tsx
 - [x] T4: cities/[city]/opengraph-image.tsx
 - [x] T5: [locale]/loading.tsx（首頁骨架屏）

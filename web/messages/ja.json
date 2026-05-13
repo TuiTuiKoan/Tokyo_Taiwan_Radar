@@ -131,7 +131,8 @@
     "tvChannel": "テレビチャンネル",
     "relatedScreeningsTitle": "同作品の他の上映・公演",
     "pastScreeningsLabel": "非表示の統合エントリー",
-    "backToList": "一覧へ戻る"
+    "backToList": "一覧へ戻る",
+    "eventLink": "{name} の詳細を見る"
   },
   "auth": {
     "loginTitle": "ログイン",

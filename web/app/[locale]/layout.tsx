@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
@@ -27,13 +28,51 @@ const OG_LOCALES: Record<string, string> = {
   ja: "ja_JP",
 };
 
+async function getMetadataBaseContext() {
+  const headerList = await headers();
+  const requestHost =
+    headerList.get("x-forwarded-host") ?? headerList.get("host");
+
+  if (requestHost && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(requestHost)) {
+    const requestProto =
+      headerList.get("x-forwarded-proto") ??
+      (requestHost.startsWith("localhost") || requestHost.startsWith("127.0.0.1")
+        ? "http"
+        : "https");
+    return {
+      base: `${requestProto}://${requestHost}`,
+      isLocalRequest: true,
+    };
+  }
+
+  const configuredBase =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ??
+    process.env.VERCEL_URL;
+
+  if (!configuredBase) {
+    return {
+      base: "http://localhost:3000",
+      isLocalRequest: true,
+    };
+  }
+
+  return {
+    base: (configuredBase.startsWith("http")
+      ? configuredBase
+      : `https://${configuredBase}`
+    ).replace(/\/$/, ""),
+    isLocalRequest: false,
+  };
+}
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
+  const { base, isLocalRequest } = await getMetadataBaseContext();
   const title = SITE_TITLES[locale] ?? SITE_TITLES.zh;
   const description = SITE_DESCRIPTIONS[locale] ?? SITE_DESCRIPTIONS.zh;
 
@@ -42,12 +81,16 @@ export async function generateMetadata({
     description,
     alternates: {
       canonical: `${base}/${locale}`,
-      languages: {
-        zh: `${base}/zh`,
-        en: `${base}/en`,
-        ja: `${base}/ja`,
-        "x-default": `${base}/zh`,
-      },
+      ...(isLocalRequest
+        ? {}
+        : {
+            languages: {
+              zh: `${base}/zh`,
+              en: `${base}/en`,
+              ja: `${base}/ja`,
+              "x-default": `${base}/zh`,
+            },
+          }),
     },
     openGraph: {
       title,
@@ -92,7 +135,7 @@ export default async function LocaleLayout({
       <HtmlLangSync />
       <Navbar locale={locale as Locale} />
       <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
-      <footer className="border-t border-line mt-12 py-4 text-center text-xs text-fg-subtle">
+      <footer className="border-t border-line mt-12 py-4 text-center text-xs text-fg-muted">
         {tGeneral("footerCredit")}
       </footer>
       <Analytics />

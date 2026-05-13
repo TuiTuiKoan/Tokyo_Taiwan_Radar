@@ -131,7 +131,8 @@
     "tvChannel": "TV Channel",
     "relatedScreeningsTitle": "Other screenings of this work",
     "pastScreeningsLabel": "Hidden Merged Entries",
-    "backToList": "Back to List"
+    "backToList": "Back to List",
+    "eventLink": "View details for {name}"
   },
   "auth": {
     "loginTitle": "Login",
