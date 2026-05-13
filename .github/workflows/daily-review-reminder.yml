@@ -1,0 +1,55 @@
+name: Daily Skills Review Reminder
+
+on:
+  schedule:
+    - cron: '0 18 * * *'  # 03:00 JST (UTC+9) = 18:00 UTC previous day
+  workflow_dispatch:       # 可手動觸發測試
+
+jobs:
+  create-review-issue:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect today's commits
+        id: commits
+        run: |
+          # 抓取過去 24 小時的 commits（non-merge）
+          COMMITS=$(git log --since="24 hours ago" --format="- \`%h\` %s" --no-merges)
+          if [ -z "$COMMITS" ]; then
+            COMMITS="_（過去 24 小時無新 commit）_"
+          fi
+          # 多行輸出用 EOF 包裝
+          {
+            echo "list<<EOF"
+            echo "$COMMITS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create daily review issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(TZ=Asia/Tokyo date +%Y-%m-%d)
+          gh issue create \
+            --title "📓 Daily Skills Review ${DATE}" \
+            --label "daily-review" \
+            --body "## 今日 commits（過去 24 小時）
+
+          ${{ steps.commits.outputs.list }}
+
+          ---
+
+          ## 如何執行復盤
+
+          1. 開啟 VS Code Copilot Chat
+          2. 叫出 \`daily-skills-review\` prompt
+          3. 將上方 commits 貼入作為 \`today_work\` 上下文
+          4. 完成後關閉此 Issue ✅
+
+          > _由 \`.github/workflows/daily-review-reminder.yml\` 自動建立_"
