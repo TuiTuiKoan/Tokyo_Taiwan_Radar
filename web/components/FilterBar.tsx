@@ -113,7 +113,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
   });
 
   return (
-    <div className="sticky top-14 z-20 -mx-4 px-4 pt-2 pb-2 mb-0 bg-[var(--color-bg)]/85 backdrop-blur-sm">
+    <div className="sticky top-14 z-20 -mx-4 px-4 pt-2 pb-2 mb-0 bg-[var(--color-bg)]/85 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none">
       {/* Fade veil — sits just below the sticky filter so list items
           scrolling under it dissolve into the page background instead of
           showing through the transparent expanded region. */}
@@ -158,7 +158,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
       </div>
 
       {/* Filter panel — always visible on md+, toggled on mobile */}
-      <div className={`rounded-xl ${mobileOpen ? "block border-[3px] border-fg-strong bg-surface px-4 py-4 mt-2" : "hidden"} md:block md:border-0 md:p-0 md:mt-0 md:bg-transparent`}>
+      <div className={`rounded-xl ${mobileOpen ? "block border-[3px] border-fg-strong bg-surface px-4 py-4 mt-2" : "hidden"} md:block md:bg-[#FFF1EE] md:border md:border-[#EDD8D0]/60 md:rounded-2xl md:px-4 md:py-3 md:shadow-sm md:mt-0`}>
 
         {/* Row 1: keyword, category, location, paid, timeMode, date range, reset */}
         <div className="flex flex-wrap gap-3 items-end">
