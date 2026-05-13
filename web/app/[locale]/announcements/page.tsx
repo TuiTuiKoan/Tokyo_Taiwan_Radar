@@ -22,7 +22,7 @@ export default async function AnnouncementsPage({ params }: PageProps) {
     .select("*")
     .not("published_at", "is", null)
     .lte("published_at", now)
-    .order("published_at", { ascending: false });
+    .order("published_at", { ascending: false }) as { data: Announcement[] | null };
 
   return (
     <div>

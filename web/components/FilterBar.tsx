@@ -315,6 +315,13 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                     pushWith(next);
                     return next;
                   });
+                } else if (e.target.value === "past") {
+                  const today = new Date().toISOString().slice(0, 10);
+                  setDraft((prev) => {
+                    const next = { ...prev, timeMode: "past", to: prev.to || today };
+                    pushWith(next);
+                    return next;
+                  });
                 } else {
                   applyWith("timeMode", e.target.value);
                 }
