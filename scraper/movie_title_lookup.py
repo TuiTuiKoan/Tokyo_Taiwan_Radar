@@ -58,16 +58,9 @@ _TC_TO_JP = str.maketrans({
 # In-memory cache: name_ja → (name_zh, name_en, official_url)
 _cache: dict[str, tuple[str | None, str | None, str | None]] = {}
 
-_GOOGLE_CSE_API_KEY: str | None = os.environ.get("GOOGLE_CSE_API_KEY")
-_GOOGLE_CSE_ID:      str | None = os.environ.get("GOOGLE_CSE_ID")
-
-_AGGREGATOR_DOMAINS = frozenset({
-    "eiga.com", "filmarks.com", "kinenote.com", "allcinema.net",
-    "imdb.com", "yahoo.co.jp", "amazon.co.jp", "unext.jp",
-    "netflix.com", "youtube.com", "x.com", "twitter.com",
-    "facebook.com", "instagram.com", "wikipedia.org",
-    "google.com", "google.co.jp",
-})
+_TMDB_API_KEY: str | None = os.environ.get("TMDB_API_KEY")
+_TMDB_SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
+_TMDB_MOVIE_URL  = "https://api.themoviedb.org/3/movie/{movie_id}"
 
 _session = requests.Session()
 _session.headers.update({
@@ -114,44 +107,76 @@ def _parse_official_url(detail_soup) -> str | None:
     return None
 
 
-def _google_cse_official_url(name_ja: str) -> str | None:
-    """Search Google CSE for official site URL when eiga.com returns nothing.
+def _tmdb_lookup(name_ja: str) -> tuple[str | None, str | None, str | None]:
+    """Look up a Japanese movie title on TMDB.
 
-    Returns first non-aggregator URL from top 3 results, or None.
-    Silently returns None if GOOGLE_CSE_API_KEY / GOOGLE_CSE_ID not set.
-    Rate limiting: uses LOOKUP_DELAY_SEC before the request.
+    Returns (name_zh, name_en, official_url).
+    - name_zh:      original_title when original_language is Chinese (zh/zh-TW/zh-CN)
+    - name_en:      English translation from TMDB translations endpoint
+    - official_url: TMDB homepage field (empty string treated as None)
+
+    Silently returns (None, None, None) if TMDB_API_KEY is not set or on any error.
+    Rate limiting: uses LOOKUP_DELAY_SEC before each request.
     """
-    if not _GOOGLE_CSE_API_KEY or not _GOOGLE_CSE_ID:
-        return None
+    if not _TMDB_API_KEY:
+        return None, None, None
     try:
-        query = f'"{name_ja}" 映画 公式サイト'
-        params = {
-            "key": _GOOGLE_CSE_API_KEY,
-            "cx":  _GOOGLE_CSE_ID,
-            "q":   query,
-            "num": 3,
-            "lr":  "lang_ja",
-        }
+        # Step 1: search for movie ID
         time.sleep(LOOKUP_DELAY_SEC)
         resp = _session.get(
-            "https://www.googleapis.com/customsearch/v1",
-            params=params,
+            _TMDB_SEARCH_URL,
+            params={"api_key": _TMDB_API_KEY, "query": name_ja, "language": "ja"},
             timeout=10,
         )
         resp.raise_for_status()
-        items = resp.json().get("items", [])
-        for item in items:
-            link = item.get("link", "")
-            domain = _urlparse.urlparse(link).netloc.lstrip("www.")
-            if not any(
-                domain == d or domain.endswith("." + d)
-                for d in _AGGREGATOR_DOMAINS
-            ):
-                logger.debug("_google_cse_official_url: %r → %s", name_ja, link)
-                return link
+        results = resp.json().get("results", [])
+        if not results:
+            logger.debug("_tmdb_lookup: no results for %r", name_ja)
+            return None, None, None
+        movie_id = results[0]["id"]
+
+        # Step 2: fetch movie details with translations
+        time.sleep(LOOKUP_DELAY_SEC)
+        resp2 = _session.get(
+            _TMDB_MOVIE_URL.format(movie_id=movie_id),
+            params={
+                "api_key": _TMDB_API_KEY,
+                "language": "ja",
+                "append_to_response": "translations",
+            },
+            timeout=10,
+        )
+        resp2.raise_for_status()
+        data = resp2.json()
+
+        official_url = data.get("homepage") or None
+
+        # name_zh: use original_title when the film's original language is Chinese
+        orig_lang  = data.get("original_language", "")
+        orig_title = data.get("original_title", "")
+        name_zh = None
+        if orig_lang in ("zh", "zh-TW", "zh-CN") and orig_title and re.search(r"[\u4e00-\u9fff]", orig_title):
+            name_zh = orig_title
+
+        # name_en: prefer US English translation; fall back to any English translation
+        name_en = None
+        translations = data.get("translations", {}).get("translations", [])
+        for t in translations:
+            if t.get("iso_639_1") == "en" and t.get("iso_3166_1") == "US":
+                name_en = t.get("data", {}).get("title") or None
+                break
+        if not name_en:
+            for t in translations:
+                if t.get("iso_639_1") == "en":
+                    name_en = t.get("data", {}).get("title") or None
+                    if name_en:
+                        break
+
+        logger.debug("_tmdb_lookup: %r → zh=%r en=%r url=%r", name_ja, name_zh, name_en, official_url)
+        return name_zh, name_en, official_url
     except Exception as exc:
-        logger.debug("_google_cse_official_url: error for %r: %s", name_ja, exc)
-    return None
+        logger.debug("_tmdb_lookup: error for %r: %s", name_ja, exc)
+        return None, None, None
 
 
 def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None, str | None]:
@@ -190,10 +215,10 @@ def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None, str | Non
 
         if not movie_link:
             logger.debug("lookup_movie_titles: no result for %r", key)
-            # Phase B: try Google CSE for official_url only
-            cse_url = _google_cse_official_url(key)
-            _cache[key] = (None, None, cse_url)
-            return None, None, cse_url
+            # Phase B: try TMDB for name_zh, name_en, and official_url
+            tmdb_zh, tmdb_en, tmdb_url = _tmdb_lookup(key)
+            _cache[key] = (tmdb_zh, tmdb_en, tmdb_url)
+            return tmdb_zh, tmdb_en, tmdb_url
 
         time.sleep(LOOKUP_DELAY_SEC)
         detail_resp = _session.get(movie_link, timeout=15)
@@ -205,6 +230,11 @@ def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None, str | Non
         data_text = data_p.get_text(separator="\n") if data_p else ""
         name_zh, name_en = _parse_original_title(data_text)
         official_url = _parse_official_url(detail_soup)
+
+        # Phase B supplement: eiga.com found a result but no official URL → try TMDB
+        if not official_url:
+            _, _, tmdb_url = _tmdb_lookup(key)
+            official_url = tmdb_url
 
         logger.debug(
             "lookup_movie_titles: %r → zh=%r en=%r official=%r (via %s)",
