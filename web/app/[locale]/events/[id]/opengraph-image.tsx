@@ -269,9 +269,27 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
                 </div>
               )}
             </div>
-            <span style={{ fontSize: "20px", fontWeight: "bold", color: MOCHA, fontFamily: FF, opacity: 0.6 }}>
-              Tokyo Taiwan Radar
-            </span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
+              {/* Wax-apple mascot — 蓮霧 */}
+              <svg width="80" height="88" viewBox="0 0 200 220">
+                <g transform="rotate(3 100 150)">
+                  <path d="M100,80 C110,30 60,0 80,20 C100,40 140,50 160,30" fill="none" stroke={FOREST} strokeWidth="4.5" strokeLinecap="round" />
+                  <circle cx="164" cy="26" r="11" fill="none" stroke={FOREST} strokeWidth="1.4" opacity="0.4" />
+                  <circle cx="164" cy="26" r="6" fill={FOREST} />
+                  <circle cx="164" cy="26" r="2.2" fill="#C4E86F" />
+                  <path d="M100,80 C 86,80 78,88 74,98 C 72,108 66,116 60,128 C 46,146 30,166 36,190 C 44,210 72,216 102,216 C 132,216 160,210 164,190 C 170,166 154,146 140,128 C 134,116 128,108 126,98 C 122,88 114,80 100,80 Z" fill={palette.fg} />
+                  <ellipse cx="58" cy="142" rx="13.3" ry="8" fill="#FF7AA0" opacity="0.65" transform="rotate(-10 58 142)" />
+                  <ellipse cx="146" cy="150" rx="12" ry="6.5" fill="#FF7AA0" opacity="0.75" transform="rotate(12 146 150)" />
+                  <ellipse cx="80" cy="116" rx="13" ry="14" fill="white" />
+                  <circle cx="78" cy="118" r="7" fill="#1A1818" />
+                  <circle cx="75" cy="115" r="2.6" fill="white" />
+                  <path d="M116,128 Q124,118 132,128" fill="none" stroke="#1A1818" strokeWidth="4.5" strokeLinecap="round" />
+                </g>
+              </svg>
+              <span style={{ fontSize: "18px", fontWeight: "bold", color: MOCHA, fontFamily: FF, opacity: 0.6 }}>
+                Tokyo Taiwan Radar
+              </span>
+            </div>
           </div>
         </div>
 
