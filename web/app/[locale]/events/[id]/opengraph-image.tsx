@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { createClient } from "@supabase/supabase-js";
 import { type Locale, type Event, getEventName } from "@/lib/types";
-import { satoriTokens } from "@/lib/design";
+import { satoriTokens } from "@/lib/design/tokens";
 
 // Brand colors sourced from the design token library so OG art shares the
 // same palette as the website / future slide generation.
