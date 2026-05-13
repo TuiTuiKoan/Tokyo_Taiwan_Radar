@@ -71,6 +71,7 @@
     "group_archive": "Archive",
     "literature": "Literature",
     "tv_program": "TV Programs",
+    "radio_program": "Radio Programs",
     "exhibition": "Exhibition",
     "design_craft": "Design & Craft",
     "herbal": "Spices, Herbs & Medicinal Cuisine",
@@ -736,6 +737,7 @@
     "tech": "Tech events: Taiwan-Japan tech exchanges, AI/semiconductor forums, developer communities, and startup demos.",
     "tourism": "Tourism events: Taiwan travel promotion, regional tourism introductions, and experiential itinerary briefings.",
     "tv_program": "TV program events: Taiwanese dramas, variety shows, and documentaries broadcast in Japan, fan meetings, and watch parties.",
+    "radio_program": "Radio programs: Japanese-language broadcasts from RTI (Radio Taiwan International) covering music, culture, and Taiwan-Japan exchange.",
     "urban": "Urban and city topics: Taiwan-Japan urban planning, architecture, community building, and regional revitalization.",
     "workshop": "Workshops and hands-on courses: Taiwanese cooking, crafts, language learning, and cultural experiences."
   },

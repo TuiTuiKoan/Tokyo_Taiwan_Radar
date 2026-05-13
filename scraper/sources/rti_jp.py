@@ -64,9 +64,9 @@ STALE_DAYS = 90
 
 # program_id → (name_ja, categories)
 PROGRAMS: dict[int, tuple[str, list[str]]] = {
-    364:  ("ミュージックステーション", ["performing_arts"]),
-    378:  ("文化の台湾",              ["art", "taiwan_japan"]),
-    1456: ("ナルワンアワー",          ["taiwan_japan"]),
+    364:  ("ミュージックステーション", ["performing_arts", "radio_program"]),
+    378:  ("文化の台湾",              ["art", "taiwan_japan", "radio_program"]),
+    1456: ("ナルワンアワー",          ["taiwan_japan", "radio_program"]),
 }
 
 

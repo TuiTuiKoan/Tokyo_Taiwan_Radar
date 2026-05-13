@@ -191,6 +191,7 @@ export type Category =
   | "workshop"
   | "literature"
   | "tv_program"
+  | "radio_program"
   | "exhibition"
   | "design_craft"
   | "herbal"
@@ -229,6 +230,7 @@ export const CATEGORIES: Category[] = [
   "workshop",
   "literature",
   "tv_program",
+  "radio_program",
   "exhibition",
   "design_craft",
   "herbal",
@@ -250,7 +252,7 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
   },
   {
     labelKey: "group_lifestyle",
-    categories: ["lifestyle_food", "retail", "tourism", "market", "competition", "workshop", "books_media", "tv_program"],
+    categories: ["lifestyle_food", "retail", "tourism", "market", "competition", "workshop", "books_media", "tv_program", "radio_program"],
   },
   {
     labelKey: "group_knowledge",

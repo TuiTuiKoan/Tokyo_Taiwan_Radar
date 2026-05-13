@@ -703,11 +703,13 @@ export default async function EventDetailPage({ params }: PageProps) {
               <td className="px-4 py-3">
                 {subEventPrefectures.length > 1
                   ? subEventPrefectures.join("・")
-                  : locationName
-                    ? event.location_url
-                      ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{locationName} ↗</a>
-                      : locationName
-                    : "—"}
+                  : event.source_name === "rti_jp"
+                    ? <a href="https://www.rti.org.tw/jp" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">RTI台湾国際放送（日本語部門）↗</a>
+                    : locationName
+                      ? event.location_url
+                        ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{locationName} ↗</a>
+                        : locationName
+                      : "—"}
               </td>
             </tr>
             {/* Address */}
