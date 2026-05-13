@@ -18,6 +18,7 @@ on:
       - "Quota Monitor"
       - "Daily Research"
       - "Daily Scraper"
+      - "QA Triage"
       - "Secret Rotation Reminder"
       - "Weekly LINE Broadcast"
       - "Weekly Health Report"
