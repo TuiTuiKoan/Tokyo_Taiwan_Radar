@@ -177,7 +177,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               type="search"
               value={draft.q}
               placeholder={t("searchPlaceholder")}
-              className="h-9 border border-line-strong rounded-lg px-3 text-sm w-48 bg-paper shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-3 text-sm w-48 bg-paper appearance-none shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
               onChange={(e) => {
                 const v = e.target.value;
                 setDraft((prev) => ({ ...prev, q: v }));
