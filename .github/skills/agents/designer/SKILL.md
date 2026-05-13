@@ -131,7 +131,48 @@ When designing new components, **mirror the existing patterns**:
 - Border-first design: `border border-line` on most surfaces, shadow only on raised modals/dropdowns
 - Spacing scale: `gap-1` (4px), `gap-2` (8px), `gap-3` (12px), `gap-4` (16px), `gap-6` (24px), `gap-8` (32px)
 
-## Motion Patterns
+## FilterBar Dropdown Convention
+
+All filter dropdowns in `FilterBar.tsx` **must** use custom button + absolute panel pattern. Native `<select>` is banned.
+
+**Reason:** `appearance-none` + CSS chevron cannot reliably suppress browser-default select arrow across Safari/Chrome/iOS. Custom panel gives pixel-accurate brand background (`bg-paper #FFFDF5`) and consistent chevron.
+
+**Pattern:**
+```tsx
+// ✅ Custom button + panel
+const [open, setOpen] = useState(false);
+<div className="relative">
+  <button onClick={() => setOpen(!open)} className="... bg-paper ...">
+    {label} <ChevronDownIcon />
+  </button>
+  {open && (
+    <div className="absolute z-30 bg-paper border border-line rounded-lg shadow-md ...">
+      {options.map(opt => <button key={opt.value} onClick={() => { applyWith(key, opt.value); setOpen(false); }}>{opt.label}</button>)}
+    </div>
+  )}
+</div>
+
+// ❌ Avoid — cross-browser inconsistency
+<select className="appearance-none ...">
+```
+
+## OG Image 規範（`opengraph-image.tsx`）
+
+Current design (as of 2026-05-14, commit `ef305d3`):
+
+- **Size:** 1200×1200 正方形（優於 1200×630 的跨平台相容性）
+- **Background:** `CATEGORY_PALETTE[category].bg`（CategoryThumbnail 的色彩系統，`web/lib/design/CategoryThumbnail.tsx`）
+- **Layout:** 事件圖片佔左側 65% 寬，右欄 35% 含標題 + meta
+- **Right-bottom:** wax-apple 吉祥物 SVG（body color = `palette.fg`）+ 品牌名稱
+- **Fonts:** Noto Sans JP（inline fetch from Google Fonts API）
+
+**Rules:**
+1. Satori 不支援 Tailwind class，**全部使用 inline `style={{}}`**。
+2. 顏色來源只能是 `CATEGORY_PALETTE`；不可在 OG 圖中硬寫 hex。
+3. `export const runtime = "edge"` 必須設定（Edge Runtime 限制見 engineer SKILL.md §OG Image）。
+4. 更改 OG 圖設計時，同步更新 `CategoryThumbnail.tsx` 的 `CATEGORY_PALETTE` 若有新 category。
+
+
 
 **Default transition:** `transition-all duration-200 ease-out`
 **Hover state:** color/border/shadow change only — never layout shift

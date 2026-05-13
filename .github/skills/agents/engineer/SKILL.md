@@ -418,7 +418,31 @@ After adding a key, verify placement with `grep -n "newKey" web/messages/zh.json
 
 Reference incident: `locationOverseas` written to top-level (L400+) instead of `filters.{}` (L10–L40) — production FilterBar rendered key name string, timeMode default disappeared (commit `049edd8`).  
 
-## Shell / Terminal Safety
+## FilterBar timeMode 預設值規則
+
+`FilterBar.tsx` 的每個 timeMode 切換必須同步設定合理的 URL 預設值：
+
+| 切換到 | 動作 |
+|--------|------|
+| `active` | 清空 `from`/`to`，立即 push |
+| `all` | 清空 `from`/`to`，立即 push |
+| `past` | 若 `to` 為空，預填今日（`new Date().toISOString().slice(0,10)`），立即 push |
+
+**Rule:** 不能讓 `EventListClient` 在 URL 參數不足時猜測 mode 的含義。每個 mode 必須有完整的 URL 狀態才能正確過濾。
+
+```ts
+// ✅ 正確：切換 past 時預填 to=today
+} else if (e.target.value === "past") {
+  const today = new Date().toISOString().slice(0, 10);
+  setDraft((prev) => {
+    const next = { ...prev, timeMode: "past", to: prev.to || today };
+    pushWith(next);
+    return next;
+  });
+}
+```
+
+**Reference incident:** 2026-05-14 — 切換 `past` 後畫面不動，因 `from`/`to` 皆空，EventListClient past 分支無任何過濾條件執行（commit `2ed3c7b`）。
 
 **zsh `git add` with glob bracket paths:**
 Any path containing `[...]` (e.g. `web/app/[locale]/page.tsx`) will fail in zsh with `no matches found` because zsh expands brackets as glob patterns.
@@ -1140,6 +1164,13 @@ The IndexNow key verification file (`web/public/<key>.txt`) must be excluded fro
 ### sitemap inclusion
 Add city and category pages to `sitemap.ts` with `priority: 0.7` and `changeFrequency: "daily"`. Add them in the **same commit** as the page files — sitemap-only or page-only commits leave dangling entries.
 
+## Agent Frontmatter Rules
+
+- **Handoff target agents 禁止設 `user-invocable: false`**：此旗標讓 VS Code 把 agent 從可解析清單移除，所有指向它的 `handoffs:` 按鈕靜默失效。
+- 判斷原則：**任何在其他 agent `handoffs:` 裡被引用的 agent，一律不得設 `user-invocable: false`**。
+- `user-invocable: false` 僅適用於純 subagent（只被 parent agent 透過 `agents:` list 呼叫、不出現在 Agent Picker、無人 handoff 到它）。
+- Incident：`update-history-agent.agent.md` 與 `validate-merge-deploy.agent.md` 誤設此旗標，Engineer/Designer/Scraper Expert 的 handoff 按鈕全部消失（commit `6188653` 修正）。
+
 ## GitHub Actions Workflow Rules
 
 - Any `with:` field in an action step whose value is a **pure `${{ expression }}`** (no surrounding text) must be quoted: `path: "${{ steps.x.outputs.y }}"`.
@@ -1210,7 +1241,7 @@ These will always be Pass 2 secondaries (never primary). Current members: `googl
 Every code path that sets `events.is_active = false` MUST also write three audit columns:
 - `deactivated_at` — ISO timestamp (`new Date().toISOString()` or Python `datetime.now(timezone.utc).isoformat()`)
 - `deactivated_reason` — short human-readable string
-- `deactivated_by_pass` — one of: `merger_pass_0` (gnews dedup), `merger_pass_1` (name similarity), `merger_pass_2` (news date+location), `merger_pass_3` (orphan reattach / grandchild flatten), `orphan_cleanup` (orphan with no parent), `admin_manual` (UI deactivate)
+- `deactivated_by_pass` — one of: `merger_pass_0` (gnews dedup), `merger_pass_1` (name similarity), `merger_pass_2` (news date+location), `merger_pass_3` (orphan reattach), `merger_pass_4` (grandchild flatten), `orphan_cleanup` (orphan with no parent), `admin_manual` (UI deactivate)
 
 When **re-activating** (setting `is_active = true`), null out all three fields so stale audit data does not persist.
 

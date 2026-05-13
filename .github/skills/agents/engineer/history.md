@@ -4,6 +4,49 @@
 
 ---
 
+## 2026-05-14 — `user-invocable: false` を handoff ターゲット agent に設定すると VS Code の handoff ボタンが表示されない（commit `6188653`）
+
+**問題：** `update-history-agent.agent.md` と `validate-merge-deploy.agent.md` に `user-invocable: false` が設定されていた。この設定は「ユーザーが agent ピッカーから直接呼び出せない」だけでなく、**他 agent の handoff ボタンのターゲットとしても非表示になる**。結果として handoff ナビゲーションが機能しなかった。
+
+**修正（commit `6188653`）：** 両ファイルから `user-invocable: false` を削除（frontmatter デフォルトは `true`）。
+
+**教訓：**
+- `user-invocable: false` は「サブ agent として parent からのみ呼び出す、ユーザーへは非表示」用途（例: `subagents/` 配下）にのみ使う。
+- `handoffs:` に列挙するターゲット agent は **必ず `user-invocable: true`（デフォルト）のままにすること**。
+- 判別基準: ユーザーが手動で呼び出す可能性があるか？ → あれば `user-invocable` は設定しない。純粋に親 agent の内部ステップか？ → `user-invocable: false` + `subagents/` 配下。
+
+---
+
+## 2026-05-14 — FilterBar `past` timeMode 切換後畫面不動
+
+**問題（commit `2ed3c7b`）：**
+`EventListClient.tsx` 的 `timeMode === "past"` 分支：當 `fromStr` 和 `toStr` 都為空時，沒有任何過濾邏輯執行，所有事件直接通過。使用者切換到「過去」模式後，畫面沒有任何變化，直到手動選擇開始日或結束日才生效。
+
+**修正：**
+`FilterBar.tsx` 中切換到 `timeMode === "past"` 時，若 `to` 為空，自動預填今日日期（`new Date().toISOString().slice(0, 10)`）並立即呼叫 `pushWith()`。切換到 `active`/`all` 時清空 `from`/`to`。
+
+**教訓：**
+- Client-side filter 的每個 mode 必須有明確的「預設過濾行為」。`past` 不能依賴使用者必須填日期——沒填時應 default 顯示「今天以前」的事件。
+- 切換 filter mode 時，同步在 URL 預填合理的預設值（`to=today`），不要讓 EventListClient 自行猜測。
+- **Pattern**: `mode switch → pre-fill sensible defaults → push URL → client filters immediately`。
+
+---
+
+## 2026-05-14 — merger.py Pass 4 `deactivated_by_pass` 標籤錯誤
+
+**問題（commit `36ee77c`）：**
+`_flatten_grandchild_events()` 在停用重複孫子事件時，呼叫 `_deactivate_payload()` 傳入 `"merger_pass_3"`（orphan pass 的 ID），而非 `"merger_pass_4"`（正確的 Pass 4 標籤）。導致 DB audit 欄位 `deactivated_by_pass` 顯示錯誤的 pass 來源。
+
+**修正：**
+1. `_deactivate_payload()` docstring 補上 `'merger_pass_4'` 為合法值
+2. Pass 4 重複孫子事件停用改為 `pass_id="merger_pass_4"`
+3. CLI print 語句由 `Pass 0+1+2+3+5` 改為 `Pass 0+1+2+3+4+5`
+
+**教訓：**
+新增 merger Pass 時，同步更新三處：(1) `_deactivate_payload()` docstring 的合法值清單；(2) 呼叫處的 `pass_id` 字串；(3) 末尾 `print()` 的 Pass 序號摘要。
+
+---
+
 ## 2026-05-14 — Shell History Pollution / Prompt Injection via inline Python f-string
 
 **問題：**
