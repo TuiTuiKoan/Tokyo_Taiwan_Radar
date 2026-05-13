@@ -1,9 +1,10 @@
 {
   "$schema": "./system-map.schema.json",
   "version": "1.0.0",
-  "updated": "2026-05-05",
+  "updated": "2026-05-14",
   "agents": [
     { "id": "architect", "label": "Architect", "owns": ["docs/specs/**", "docs/ARCHITECTURE.md"], "description": "規劃、拆解 spec、寫 plan" },
+    { "id": "designer", "label": "Designer", "owns": ["web/lib/design/**", "web/app/globals.css"], "description": "視覺系統、tokens、字體、吉祥物、OG 圖" },
     { "id": "engineer", "label": "Engineer", "owns": ["scraper/**", "web/**", "supabase/**"], "description": "全棧實作（scraper / web / DB / CI）" },
     { "id": "scraper-expert", "label": "Scraper Expert", "owns": ["scraper/sources/**"], "description": "BaseScraper 慣例、Peatix 模式" },
     { "id": "researcher", "label": "Researcher", "owns": ["scraper/sources/_profiles/**"], "description": "新來源研究 + GitHub Issue" },
@@ -14,6 +15,7 @@
   ],
   "skills": [
     { "id": "agent-customization", "label": "Agent Customization", "appliesTo": ["architect", "engineer"] },
+    { "id": "design-system", "label": "Bauhaus Design System", "appliesTo": ["designer", "engineer"] },
     { "id": "scraper-expert", "label": "Scraper Expert Skill", "appliesTo": ["scraper-expert", "engineer"] },
     { "id": "local-preview", "label": "Local Preview", "appliesTo": ["engineer", "tester"] },
     { "id": "session-analytics", "label": "Session Analytics", "appliesTo": ["architect"] },
