@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-05-14 — Shell History Pollution / Prompt Injection via inline Python f-string
+
+**問題：**
+Terminal で inline Python（`python3 -c "..."`）を実行中、f-string 内の `{zh}` 変数参照が
+シェル履歴の汚染コマンドに置換された：
+```
+{zh}  →  {zhrm -f "/Users/.../credentials/token.json"}
+```
+Python インタープリタが `{zhrm ...}` を未閉じブレースとして `SyntaxError` を発生させたため、
+`rm` は実行されなかった（安全）。
+
+**根因：** シェル履歴汚染（Shell History Pollution）— ツール出力や環境変数の値に悪意のあるコマンドが埋め込まれ、f-string の変数名と一致するとシェルによって展開される。
+
+**修正：** 確認スクリプトを `/tmp/verify_xxx.py` ファイルに書き出してから実行することで回避。
+
+**教訓：**
+- Terminal で `python3 -c "..."` の f-string を使う場合、変数名がシェルコマンドと偶然一致するリスクがある。
+- **確認スクリプトは `/tmp/` ファイルに書き出してから実行する**（シェル展開の影響を受けない）。
+- このパターンを検出した場合はユーザーに Prompt Injection として警告し、`rm` が実行されていないことを確認する。
+
+---
+
+## 2026-05-14 — `user-invocable: false` 在 handoff target agents 造成 handoff 按鈕消失
+
+**問題：** `update-history-agent.agent.md` 與 `validate-merge-deploy.agent.md` 的 YAML frontmatter 包含 `user-invocable: false`。VS Code 讀取此旗標後，不將這些 agents 列入可呼叫清單，導致其他 agent 設定的 `handoffs:` 按鈕完全不顯示。
+
+**根因：** `user-invocable: false` 是給「純後台 subagent」用的旗標，防止它出現在 Agent Picker。但 handoff target 需要被 VS Code 辨識才能渲染 handoff 按鈕。兩者互斥。
+
+**修正：** 從 `update-history-agent.agent.md` 和 `validate-merge-deploy.agent.md` 移除 `user-invocable: false`（預設為 `true`，可被 Agent Picker 找到，也可被 parent agent handoff）。
+
+**教訓：**
+- **Handoff target agents 禁止設 `user-invocable: false`**。這會讓 VS Code 把它們從 handoff 可解析清單移除，所有指向它的 handoff 按鈕都會靜默失效。
+- Subagent（parent agent 透過 `agents:` list 呼叫、不出現在 Picker、不做 handoff 的）才應設 `user-invocable: false`。
+- 判斷規則：**有沒有其他 agent 在 `handoffs:` 裡引用它？有就不能設 `user-invocable: false`。**
+
+---
+
 ## 2026-05-13 — Supabase explicit GRANT rule（migration 069）
 **新增：** `## Database` 段落新增 Supabase explicit GRANT 規則
 **內容：**

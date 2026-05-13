@@ -1281,22 +1281,52 @@ handoffs:
 ```
 
 ### Subagent Configuration for Handoff Targets
-When creating an agent **only for handoff invocation** (not for manual picker):
+
+> ⚠️ **Critical**: `user-invocable: false` **blocks handoff buttons from appearing**.
+> Even though the VS Code docs describe it as "hide from agent picker only", in practice the
+> handoff button does not render in the source agent's response when the target has `user-invocable: false`.
+
+Handoff target agents must use the **default** (omit `user-invocable` entirely, or set `true`):
 ```yaml
 ---
 name: My Handoff Agent
 description: "Brief role description"
-user-invocable: false               # Hide from agent picker
-disable-model-invocation: false     # But allow handoff invocation
 tools: [read, search, execute, web] # Minimal necessary tools
 ---
 ```
 
+If you want the agent hidden from the manual picker AND still reachable via handoff buttons,
+this combination does NOT currently work — `user-invocable: false` suppresses both.
+The only way to keep it out of the picker while allowing handoff is to use `user-invocable: true`
+and instruct users not to invoke it manually (via the description field).
+
+Reference incident: 2026-05-14 — `update-history-agent.agent.md` and `validate-merge-deploy.agent.md`
+had `user-invocable: false`. Handoff buttons were silently invisible in all 7 source agents.
+Fixed by removing `user-invocable: false` (commit `6188653`).
+
+### `send: true` Requirement for Auto-Submit
+
+Without `send: true`, clicking a handoff button opens a new chat but the prompt does **not**
+appear in the input field. Always include `send: true` when you want the prompt to auto-send.
+
+```yaml
+handoffs:
+  - label: "🔧 Button text"
+    agent: AgentNameFromFile
+    prompt: "Chinese instruction"
+    send: true                     # Required: without this, prompt doesn't appear
+```
+
+Reference incident: 2026-05-14 — All 7 agents were missing `send: true`. After `Developer: Reload Window`,
+prompts still didn't appear until `send: true` was added (commit `4f1dd6c`).
+
 ### Best Practices
 1. **Name consistency**: Agent `name:` in frontmatter must match the handoff `agent:` field exactly (case-sensitive).
 2. **Chinese instructions in prompt**: Always include `prompt:` field with clear Chinese task description to ensure context transfer.
-3. **Workflow grouping**: If two agents form a natural sequence (e.g., Plan → Implement → Review), add all three as handoffs in each agent to enable any→any routing.
-4. **Testing**: After adding handoffs, verify in VS Code: restart Copilot Chat, check that buttons appear, test context passing via `prompt:` field.
+3. **Never set `user-invocable: false` on handoff targets** — this silently breaks all buttons pointing to that agent.
+4. **Always include `send: true`** on handoffs that have a `prompt:` field, or the prompt won't appear.
+5. **Workflow grouping**: If two agents form a natural sequence (e.g., Plan → Implement → Review), add all three as handoffs in each agent to enable any→any routing.
+6. **Testing**: After adding handoffs, `Developer: Reload Window`, then verify buttons appear in the response area after a message.
 
 ## Resource Monitoring
 

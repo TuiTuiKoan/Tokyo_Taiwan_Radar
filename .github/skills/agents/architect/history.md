@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-05-14 — Handoff buttons silently invisible: `user-invocable: false` + missing `send: true`
+
+**問題 A — `user-invocable: false` blocks handoff buttons**
+
+SKILL.md の "Subagent Configuration for Handoff Targets" セクションに `user-invocable: false` を推奨していた。
+VS Code 公式ドキュメントでは「エージェントピッカーから非表示にするだけ」と説明されているが、
+実際には **handoff ボタン自体も表示されなくなる**。
+`update-history-agent.agent.md` と `validate-merge-deploy.agent.md` の両方が `user-invocable: false` を持っていたため、
+全 7 agent で handoff ボタンが完全に見えない状態が続いていた。
+
+**修正：** 両ファイルから `user-invocable: false` と `disable-model-invocation: false` を削除（commit `6188653`）。
+SKILL.md の当該セクションも警告付きに書き換えた。
+
+**教訓：** handoff ターゲット agent に `user-invocable: false` を設定してはならない。
+ボタンが表示されない場合の第一確認事項として追加。
+
+---
+
+**問題 B — `send: true` なしだとプロンプトが入力欄に現れない**
+
+`prompt:` フィールドが設定されていても `send: true` がない場合、
+ボタンをクリックすると新しいチャットが開くが入力欄にプロンプトが入らない。
+全 7 agent（architect, engineer, scraper-expert, tester, researcher, reviewer, designer）で
+`send: true` が抜けていた。
+
+**修正：** 全 7 agent に `send: true` を追加（commit `4f1dd6c`）。
+
+**教訓：** `prompt:` フィールドを持つ handoff には必ず `send: true` を付ける。セットで書く習慣にすること。
+
+---
+
 ## 2026-05-12 — YCAM event `6801814c` 重整 + movie_title_lookup Phase A 成功 / Phase B (Google CSE) 失敗
 
 ### A — YCAM event `6801814c`「台湾という社会で生きる」父事件混入兩部電影資料（DB 修正）
