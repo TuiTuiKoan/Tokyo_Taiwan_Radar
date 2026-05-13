@@ -41,14 +41,24 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [catDropdownOpen, setCatDropdownOpen] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [cityOpen, setCityOpen] = useState(false);
+  const [paidOpen, setPaidOpen] = useState(false);
+  const [timeModeOpen, setTimeModeOpen] = useState(false);
   const catDropdownRef = useRef<HTMLDivElement>(null);
+  const locationRef = useRef<HTMLDivElement>(null);
+  const cityRef = useRef<HTMLDivElement>(null);
+  const paidRef = useRef<HTMLDivElement>(null);
+  const timeModeRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (catDropdownRef.current && !catDropdownRef.current.contains(e.target as Node)) {
-        setCatDropdownOpen(false);
-      }
+      if (catDropdownRef.current && !catDropdownRef.current.contains(e.target as Node)) setCatDropdownOpen(false);
+      if (locationRef.current && !locationRef.current.contains(e.target as Node)) setLocationOpen(false);
+      if (cityRef.current && !cityRef.current.contains(e.target as Node)) setCityOpen(false);
+      if (paidRef.current && !paidRef.current.contains(e.target as Node)) setPaidOpen(false);
+      if (timeModeRef.current && !timeModeRef.current.contains(e.target as Node)) setTimeModeOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -106,6 +116,12 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
     from: "filter-from",
     to: "filter-to",
   };
+
+  const locationLabel = draft.location
+    ? t(`location${draft.location.charAt(0).toUpperCase() + draft.location.slice(1)}` as any)
+    : t("allLocations");
+  const paidLabel = draft.paid === "free" ? t("freeOnly") : draft.paid === "paid" ? t("paidOnly") : t("allPaid");
+  const timeModeLabel = draft.timeMode === "past" ? t("timeModePast") : draft.timeMode === "all" ? t("timeModeAll") : t("timeModeActive");
 
   const hasFilters = Object.entries(draft).some(([k, v]) => {
     if (k === "timeMode") return v !== "active";
@@ -205,7 +221,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   )}
                   {CATEGORY_GROUPS.map((group) => (
                     <div key={group.labelKey} className="px-3 py-1">
-                      <p className="text-xs font-semibold text-fg-subtle uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
+                      <p className="text-xs font-semibold text-mascot-pink uppercase tracking-wide mb-1">{tCat(group.labelKey as any)}</p>
                       {group.categories.map((cat) => {
                         const checked = selectedCats.includes(cat);
                         return (
@@ -228,101 +244,175 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
           </div>
 
           {/* Location filter */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor={fieldIds.location} className="text-xs text-fg-muted font-medium">{t("location")}</label>
-            <select
-              id={fieldIds.location}
-              value={draft.location}
-              onChange={(e) => {
-                const loc = e.target.value;
-                setDraft((prev) => {
-                  const next = { ...prev, location: loc, city: "" };
-                  pushWith(next);
-                  return next;
-                });
-              }}
-              className="h-9 border border-line-strong rounded-lg pl-3 pr-8 text-sm bg-paper appearance-none select-arrow shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{t("allLocations")}</option>
-              <option value="tokyo">{t("locationTokyo")}</option>
-              <option value="kanto">{t("locationKanto")}</option>
-              <option value="tohoku">{t("locationTohoku")}</option>
-              <option value="chubu">{t("locationChubu")}</option>
-              <option value="chugoku">{t("locationChugoku")}</option>
-              <option value="online">{t("locationOnline")}</option>
-              <option value="overseas">{t("locationOverseas")}</option>
-            </select>
+          <div className="flex flex-col gap-1" ref={locationRef}>
+            <label className="text-xs text-fg-muted font-medium">{t("location")}</label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setLocationOpen((o) => !o)}
+                className={`h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer ${draft.location ? "text-green-700 font-medium" : "text-fg-muted"}`}
+              >
+                <span>{locationLabel}</span>
+                <span className="text-fg-subtle text-xs">{locationOpen ? "▲" : "▼"}</span>
+              </button>
+              {locationOpen && (
+                <div className="absolute z-50 top-10 left-0 w-48 bg-surface border border-line rounded-xl shadow-lg py-2">
+                  {[
+                    { value: "", label: t("allLocations") },
+                    { value: "tokyo", label: t("locationTokyo") },
+                    { value: "kanto", label: t("locationKanto") },
+                    { value: "tohoku", label: t("locationTohoku") },
+                    { value: "chubu", label: t("locationChubu") },
+                    { value: "chugoku", label: t("locationChugoku") },
+                    { value: "online", label: t("locationOnline") },
+                    { value: "overseas", label: t("locationOverseas") },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setDraft((prev) => {
+                          const next = { ...prev, location: value, city: "" };
+                          pushWith(next);
+                          return next;
+                        });
+                        setLocationOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush hover:text-green-700 ${draft.location === value ? "text-green-700 font-medium" : "text-fg"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* City sub-filter — shown only when a region with prefectures is selected */}
           {(REGIONS_WITH_CITY as readonly string[]).includes(draft.location) && (() => {
             const region = draft.location as RegionWithCity;
             const prefs = REGION_PREFECTURES[region];
+            const cityLabel = draft.city
+              ? (_locale === "en" ? (PREFECTURE_LABELS_EN[draft.city] ?? draft.city) : draft.city)
+              : t("cityAll");
             return (
-              <div className="flex flex-col gap-1">
-                <label htmlFor={fieldIds.city} className="text-xs text-fg-muted font-medium">{t("cityLabel")}</label>
-                <select
-                  id={fieldIds.city}
-                  value={draft.city}
-                  onChange={(e) => applyWith("city", e.target.value)}
-                  className="h-9 border border-line-strong rounded-lg pl-3 pr-8 text-sm bg-paper appearance-none select-arrow shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
-                >
-                  <option value="">{t("cityAll")}</option>
-                  {prefs.map((p) => (
-                    <option key={p} value={p}>
-                      {_locale === "en" ? (PREFECTURE_LABELS_EN[p] ?? p) : p}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex flex-col gap-1" ref={cityRef}>
+                <label className="text-xs text-fg-muted font-medium">{t("cityLabel")}</label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setCityOpen((o) => !o)}
+                    className={`h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer ${draft.city ? "text-green-700 font-medium" : "text-fg-muted"}`}
+                  >
+                    <span>{cityLabel}</span>
+                    <span className="text-fg-subtle text-xs">{cityOpen ? "▲" : "▼"}</span>
+                  </button>
+                  {cityOpen && (
+                    <div className="absolute z-50 top-10 left-0 w-48 bg-surface border border-line rounded-xl shadow-lg py-2 max-h-64 overflow-y-auto">
+                      <button
+                        type="button"
+                        onClick={() => { applyWith("city", ""); setCityOpen(false); }}
+                        className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush hover:text-green-700 ${!draft.city ? "text-green-700 font-medium" : "text-fg"}`}
+                      >
+                        {t("cityAll")}
+                      </button>
+                      {prefs.map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => { applyWith("city", p); setCityOpen(false); }}
+                          className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush hover:text-green-700 ${draft.city === p ? "text-green-700 font-medium" : "text-fg"}`}
+                        >
+                          {_locale === "en" ? (PREFECTURE_LABELS_EN[p] ?? p) : p}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })()}
 
           {/* Paid filter */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor={fieldIds.paid} className="text-xs text-fg-muted font-medium">{t("paid")}</label>
-            <select
-              id={fieldIds.paid}
-              value={draft.paid}
-              onChange={(e) => applyWith("paid", e.target.value)}
-              className="h-9 border border-line-strong rounded-lg pl-3 pr-8 text-sm bg-paper appearance-none select-arrow shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{t("allPaid")}</option>
-              <option value="free">{t("freeOnly")}</option>
-              <option value="paid">{t("paidOnly")}</option>
-            </select>
+          <div className="flex flex-col gap-1" ref={paidRef}>
+            <label className="text-xs text-fg-muted font-medium">{t("paid")}</label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setPaidOpen((o) => !o)}
+                className={`h-9 min-w-[7rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer ${draft.paid ? "text-green-700 font-medium" : "text-fg-muted"}`}
+              >
+                <span>{paidLabel}</span>
+                <span className="text-fg-subtle text-xs">{paidOpen ? "▲" : "▼"}</span>
+              </button>
+              {paidOpen && (
+                <div className="absolute z-50 top-10 left-0 w-36 bg-surface border border-line rounded-xl shadow-lg py-2">
+                  {[
+                    { value: "", label: t("allPaid") },
+                    { value: "free", label: t("freeOnly") },
+                    { value: "paid", label: t("paidOnly") },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => { applyWith("paid", value); setPaidOpen(false); }}
+                      className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush hover:text-green-700 ${draft.paid === value ? "text-green-700 font-medium" : "text-fg"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Time mode */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor={fieldIds.timeMode} className="text-xs text-fg-muted font-medium">{t("timeMode")}</label>
-            <select
-              id={fieldIds.timeMode}
-              value={draft.timeMode}
-              onChange={(e) => {
-                if (e.target.value === "active" || e.target.value === "all") {
-                  setDraft((prev) => {
-                    const next = { ...prev, timeMode: e.target.value, from: "", to: "" };
-                    pushWith(next);
-                    return next;
-                  });
-                } else if (e.target.value === "past") {
-                  const today = new Date().toISOString().slice(0, 10);
-                  setDraft((prev) => {
-                    const next = { ...prev, timeMode: "past", to: prev.to || today };
-                    pushWith(next);
-                    return next;
-                  });
-                } else {
-                  applyWith("timeMode", e.target.value);
-                }
-              }}
-              className="h-9 border border-line-strong rounded-lg pl-3 pr-8 text-sm bg-paper appearance-none select-arrow shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="active">{t("timeModeActive")}</option>
-              <option value="all">{t("timeModeAll")}</option>
-              <option value="past">{t("timeModePast")}</option>
-            </select>
+          <div className="flex flex-col gap-1" ref={timeModeRef}>
+            <label className="text-xs text-fg-muted font-medium">{t("timeMode")}</label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setTimeModeOpen((o) => !o)}
+                className={`h-9 min-w-[7rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer ${draft.timeMode !== "active" ? "text-green-700 font-medium" : "text-fg-muted"}`}
+              >
+                <span>{timeModeLabel}</span>
+                <span className="text-fg-subtle text-xs">{timeModeOpen ? "▲" : "▼"}</span>
+              </button>
+              {timeModeOpen && (
+                <div className="absolute z-50 top-10 left-0 w-36 bg-surface border border-line rounded-xl shadow-lg py-2">
+                  {[
+                    { value: "active", label: t("timeModeActive") },
+                    { value: "all", label: t("timeModeAll") },
+                    { value: "past", label: t("timeModePast") },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        if (value === "active" || value === "all") {
+                          setDraft((prev) => {
+                            const next = { ...prev, timeMode: value, from: "", to: "" };
+                            pushWith(next);
+                            return next;
+                          });
+                        } else if (value === "past") {
+                          const today = new Date().toISOString().slice(0, 10);
+                          setDraft((prev) => {
+                            const next = { ...prev, timeMode: "past", to: prev.to || today };
+                            pushWith(next);
+                            return next;
+                          });
+                        }
+                        setTimeModeOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush hover:text-green-700 ${draft.timeMode === value ? "text-green-700 font-medium" : "text-fg"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Date range (only when searching past) */}
