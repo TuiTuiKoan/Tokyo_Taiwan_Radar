@@ -114,17 +114,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
 
   return (
     <div className="sticky top-14 z-20 -mx-4 px-4 pt-2 pb-2 mb-0 bg-[var(--color-bg)]/85 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none">
-      {/* Fade veil — sits just below the sticky filter so list items
-          scrolling under it dissolve into the page background instead of
-          showing through the transparent expanded region. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-0 right-0 top-full h-8"
-        style={{
-          background:
-            "linear-gradient(to bottom, var(--color-bg) 0%, transparent 100%)",
-        }}
-      />
+
       {/* Mobile: icon toggle row */}
       <div className="flex items-center justify-between md:hidden mb-1">
         <button
