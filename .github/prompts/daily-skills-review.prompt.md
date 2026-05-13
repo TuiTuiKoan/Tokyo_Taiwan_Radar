@@ -74,6 +74,7 @@ argument-hint: "（可選）今天做了什麼，例如：修了 peatix 日期�
 ```
 ---
 ## YYYY-MM-DD — <本輪 review 的一句話標題>
+**決策背景：** <可選 — 為何選這個方案而非其他？有什麼 trade-off？>（若無明顯取捨則省略）
 **新增/修改：** <列出本輪在這個 SKILL.md 加了什麼，1–3 條>
 **來源：** daily-skills-review（Step 4 建議）
 ```
