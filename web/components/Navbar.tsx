@@ -60,7 +60,7 @@ function NavbarLangSwitcher({ locale }: NavbarLangSwitcherProps) {
         title={locale.toUpperCase()}
         aria-expanded={langOpen}
         aria-label="Switch language"
-        className="w-8 h-8 flex items-center justify-center rounded hover:bg-muted text-fg-muted hover:text-green-700 transition"
+        className="w-8 h-8 flex items-center justify-center rounded hover:bg-green-50 text-[#3A261F] hover:text-green-700 transition"
       >
         {/* Globe icon */}
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -125,19 +125,38 @@ export default function Navbar({ locale }: Props) {
   }
 
   return (
-    <header className="border-b border-line bg-surface sticky top-0 z-50">
+    <header className="border-b border-line bg-paper/50 backdrop-blur sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-        {/* Logo */}
+        {/* Logo — wax-apple mascot + wordmark */}
         <Link
           href={`/${locale}`}
-          className="font-bold text-lg text-green-700 whitespace-nowrap"
+          className="flex items-center gap-2 sm:gap-3 text-[#3A261F] whitespace-nowrap"
         >
-          🇹🇼 Tokyo Taiwan Radar
+          <svg viewBox="0 0 200 240" className="w-8 h-8 shrink-0" aria-hidden>
+            {/* inline mascot — antenna + body + cheek + eye */}
+            <g transform="rotate(3 100 150)">
+              <path d="M100,80 C110,30 60,0 80,20 C100,40 140,50 160,30" fill="none" stroke="#1F5E2B" strokeWidth="6" strokeLinecap="round" />
+              <circle cx="164" cy="26" r="8" fill="#1F5E2B" />
+              <circle cx="164" cy="26" r="3" fill="#C4E86F" />
+              <path d="M100,80 C 86,80 78,88 74,98 C 72,108 66,116 60,128 C 46,146 30,166 36,190 C 44,210 72,216 102,216 C 132,216 160,210 164,190 C 170,166 154,146 140,128 C 134,116 128,108 126,98 C 122,88 114,80 100,80 Z" fill="#E84860" />
+              <ellipse cx="58" cy="142" rx="13" ry="8" fill="#FF7AA0" opacity="0.7" transform="rotate(-10 58 142)" />
+              <ellipse cx="80" cy="116" rx="13" ry="14" fill="white" />
+              <circle cx="78" cy="118" r="7" fill="#1A1818" />
+              <circle cx="75" cy="115" r="2.6" fill="white" />
+              <path d="M116,128 Q124,118 132,128" fill="none" stroke="#1A1818" strokeWidth="4.5" strokeLinecap="round" />
+            </g>
+          </svg>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+            <span className="font-display font-black text-sm sm:text-lg shrink-0 text-[#3A261F]">Tokyo Taiwan Radar</span>
+            <span className="hidden min-[380px]:block text-[7px] sm:text-[9px] font-medium text-fg-muted font-sans tracking-wide pt-[2px]">
+              {locale === "en" ? "Catching all of Taiwan in Japan, daily." : locale === "zh" ? "全日本的台灣，每日捕捉。" : "日本ぜんぶの台湾を、毎日キャッチ。"}
+            </span>
+          </div>
         </Link>
 
         <div className="flex items-center gap-1">
           {/* Desktop nav links */}
-          <nav className="hidden md:flex items-center gap-4 text-sm mr-2">
+          <nav className="hidden md:flex items-center gap-4 text-sm mr-2 text-[#3A261F]">
             <Link href={`/${locale}`} className="hover:text-green-700 transition">
               {t("home")}
             </Link>
@@ -154,7 +173,7 @@ export default function Navbar({ locale }: Props) {
               <Link
                 href={`/${locale}/saved`}
                 title={t("saved")}
-                className="w-8 h-8 flex items-center justify-center rounded hover:bg-muted text-fg-muted hover:text-green-700 transition"
+                className="w-8 h-8 flex items-center justify-center rounded hover:bg-green-50 text-[#3A261F] hover:text-green-700 transition"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
@@ -178,7 +197,7 @@ export default function Navbar({ locale }: Props) {
             <button
               onClick={handleLogout}
               title={t("logout")}
-              className="w-8 h-8 flex items-center justify-center rounded hover:bg-red-50 text-fg-muted hover:text-red-500 transition"
+              className="w-8 h-8 flex items-center justify-center rounded hover:bg-green-50 text-[#3A261F] hover:text-green-700 transition"
             >
               {/* Logout icon */}
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -191,7 +210,7 @@ export default function Navbar({ locale }: Props) {
             <Link
               href={`/${locale}/auth/login`}
               title={t("login")}
-              className="w-8 h-8 flex items-center justify-center rounded bg-green-600 text-white hover:bg-green-700 transition"
+              className="w-8 h-8 flex items-center justify-center rounded hover:bg-green-50 text-[#3A261F] hover:text-green-700 transition"
             >
               {/* Person icon */}
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -203,7 +222,7 @@ export default function Navbar({ locale }: Props) {
 
           {/* Hamburger — mobile only */}
           <button
-            className="md:hidden w-8 h-8 flex items-center justify-center rounded hover:bg-muted transition ml-1"
+            className="md:hidden w-8 h-8 flex items-center justify-center rounded hover:bg-green-50 text-[#3A261F] hover:text-green-700 transition ml-1"
             onClick={() => setMenuOpen((o) => !o)}
             aria-label="Menu"
             aria-expanded={menuOpen}
@@ -227,7 +246,7 @@ export default function Navbar({ locale }: Props) {
       {/* Mobile dropdown menu */}
       {menuOpen && (
         <nav className="md:hidden border-t border-line bg-surface shadow-md">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-1 text-sm">
+          <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-1 text-sm text-[#3A261F]">
             <Link
               href={`/${locale}`}
               onClick={() => setMenuOpen(false)}

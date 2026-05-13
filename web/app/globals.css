@@ -35,6 +35,19 @@
   --color-brand-strong: #15803d;   /* green-700 */
   --color-brand-soft: #f0fdf4;     /* green-50 */
 
+  /* ------------------------------------------------------------
+   * Design library decorative palette (mascot, hero, slides, OG).
+   * Mirrored in web/lib/design/tokens.ts — keep in sync.
+   * ------------------------------------------------------------ */
+  --color-mascot-red: #E84860;
+  --color-mascot-pink: #FF7AA0;
+  --color-mascot-pink-deep: #D85862;
+  --color-mascot-green: #1F5E2B;
+  --color-mascot-leaf: #C4E86F;
+  --color-paper: #FFFDF5;
+  --color-blush: #FFF1EE;
+  --color-matcha: #F7FFE8;
+
   /* Aliases kept for legacy references (do not remove) */
   --background: var(--color-bg);
   --foreground: var(--color-text);
@@ -89,6 +102,22 @@
   --color-brand: var(--color-brand);
   --color-brand-strong: var(--color-brand-strong);
   --color-brand-soft: var(--color-brand-soft);
+
+  /* Decorative palette utilities (text-mascot-red, bg-paper, etc.) */
+  --color-mascot-red: var(--color-mascot-red);
+  --color-mascot-pink: var(--color-mascot-pink);
+  --color-mascot-pink-deep: var(--color-mascot-pink-deep);
+  --color-mascot-green: var(--color-mascot-green);
+  --color-mascot-leaf: var(--color-mascot-leaf);
+  --color-paper: var(--color-paper);
+  --color-blush: var(--color-blush);
+  --color-matcha: var(--color-matcha);
+
+  /* Font family utilities (font-display, font-body, font-mono, font-accent) */
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+  --font-accent: var(--font-accent);
 }
 
 html {
@@ -105,8 +134,15 @@ html.dark {
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP",
-    "Noto Sans TC", sans-serif;
+  font-family: var(--font-body), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Noto Sans JP", "Noto Sans TC", sans-serif;
+}
+
+/* When <SiteBackground /> is mounted, it stamps `data-site-bg` on <html>
+   so the body becomes transparent and the fixed-layer gradient shines through.
+   On pages without SiteBackground the body keeps its solid token bg. */
+html:has([data-site-bg]) body {
+  background: transparent;
 }
 
 /* ------------------------------------------------------------
@@ -128,4 +164,113 @@ input::placeholder,
 textarea::placeholder {
   color: var(--color-text-subtle);
   opacity: 1;
+}
+
+@theme {
+  --animate-float: float 20s ease-in-out infinite alternate;
+}
+
+@keyframes float {
+  0% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-30px) rotate(2deg); }
+  66% { transform: translateY(15px) rotate(-1deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+
+@keyframes fly-in-1 {
+  0% { transform: translate(-20vw, -20vh) rotate(-20deg) scale(0.8); opacity: 0; }
+  10% { opacity: 0.8; }
+  90% { opacity: 0.8; }
+  100% { transform: translate(120vw, 120vh) rotate(180deg) scale(1.5); opacity: 0; }
+}
+
+@keyframes fly-in-2 {
+  0% { transform: translate(120vw, -10vh) rotate(45deg) scale(1.2); opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.6; }
+  100% { transform: translate(-20vw, 110vh) rotate(-90deg) scale(0.9); opacity: 0; }
+}
+
+@keyframes fly-in-3 {
+  0% { transform: translate(120vw, 120vh) rotate(0deg) scale(0.5); opacity: 0; }
+  10% { opacity: 0.7; }
+  90% { opacity: 0.7; }
+  100% { transform: translate(-20vw, -20vh) rotate(120deg) scale(2); opacity: 0; }
+}
+
+@keyframes shrink-fly-out {
+  0% { transform: scale(1) translate(0, 0); opacity: 0.8; }
+  100% { transform: scale(0.2) translate(100vw, -50vh); opacity: 0; }
+}
+
+@theme {
+  --animate-fly-1: fly-in-1 45s linear infinite;
+  --animate-fly-2: fly-in-2 35s linear infinite;
+  --animate-fly-3: fly-in-3 55s linear infinite;
+  --animate-shrink-out: shrink-fly-out 30s ease-in infinite alternate;
+}
+
+/* Diverse drift directions — each takes objects all the way across the viewport */
+@keyframes drift-tl-br {
+  0%   { transform: translate(-25vw, -25vh) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.9; }
+  90%  { opacity: 0.9; }
+  100% { transform: translate(125vw, 125vh) rotate(240deg); opacity: 0; }
+}
+@keyframes drift-tr-bl {
+  0%   { transform: translate(125vw, -25vh) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.9; }
+  90%  { opacity: 0.9; }
+  100% { transform: translate(-25vw, 125vh) rotate(-300deg); opacity: 0; }
+}
+@keyframes drift-bl-tr {
+  0%   { transform: translate(-25vw, 125vh) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.85; }
+  90%  { opacity: 0.85; }
+  100% { transform: translate(125vw, -25vh) rotate(180deg); opacity: 0; }
+}
+@keyframes drift-br-tl {
+  0%   { transform: translate(125vw, 125vh) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.9; }
+  90%  { opacity: 0.9; }
+  100% { transform: translate(-25vw, -25vh) rotate(-200deg); opacity: 0; }
+}
+@keyframes drift-l-r {
+  0%   { transform: translate(-30vw, 0) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.85; }
+  90%  { opacity: 0.85; }
+  100% { transform: translate(130vw, 0) rotate(360deg); opacity: 0; }
+}
+@keyframes drift-r-l {
+  0%   { transform: translate(130vw, 0) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.85; }
+  90%  { opacity: 0.85; }
+  100% { transform: translate(-30vw, 0) rotate(-360deg); opacity: 0; }
+}
+@keyframes drift-t-b {
+  0%   { transform: translate(0, -30vh) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.85; }
+  90%  { opacity: 0.85; }
+  100% { transform: translate(0, 130vh) rotate(120deg); opacity: 0; }
+}
+@keyframes drift-b-t {
+  0%   { transform: translate(0, 130vh) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.85; }
+  90%  { opacity: 0.85; }
+  100% { transform: translate(0, -30vh) rotate(-150deg); opacity: 0; }
+}
+
+/* Old-film noise flicker — brief flashes of grain */
+@keyframes noise-flicker {
+  0%, 100%   { opacity: 0; }
+  2%         { opacity: 0.18; }
+  4%         { opacity: 0; }
+  46%        { opacity: 0; }
+  48%        { opacity: 0.22; }
+  49%        { opacity: 0.06; }
+  50%        { opacity: 0.20; }
+  52%        { opacity: 0; }
+  78%        { opacity: 0; }
+  80%        { opacity: 0.16; }
+  81%        { opacity: 0; }
 }

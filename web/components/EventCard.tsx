@@ -2,6 +2,7 @@ import Link from "next/link";
 import { type Event, type Locale, getEventName, getEventLocationName } from "@/lib/types";
 import { getTranslations } from "next-intl/server";
 import { getCityLabel } from "@/lib/cityLabel";
+import { Badge, DateChip } from "@/lib/design";
 
 interface Props {
   event: Event;
@@ -33,33 +34,19 @@ export default async function EventCard({ event, locale }: Props) {
       {/* Status + paid badges */}
       <div className="flex items-center gap-2 mb-2">
         {ended ? (
-          <span className="text-xs bg-muted text-fg-muted px-2 py-0.5 rounded-full">
-            {t("ended")}
-          </span>
+          <Badge tone="neutral">{t("ended")}</Badge>
         ) : (
-          <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
-            ●&nbsp;Open
-          </span>
+          <Badge tone="success">●&nbsp;Open</Badge>
         )}
-        {event.is_paid === false && (
-          <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
-            {t("free")}
-          </span>
-        )}
-        {event.is_paid === true && (
-          <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
-            {t("paid")}
-          </span>
-        )}
+        {event.is_paid === false && <Badge tone="info">{t("free")}</Badge>}
+        {event.is_paid === true && <Badge tone="warning">{t("paid")}</Badge>}
         {event.organizer_type?.[0] && event.organizer_type[0] !== "unknown" && (
-          <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
-            {tOrgType(event.organizer_type[0] as any)}
-          </span>
+          <Badge tone="accent">{tOrgType(event.organizer_type[0] as any)}</Badge>
         )}
       </div>
 
       {/* Title */}
-      <h2 className="font-semibold text-fg-strong group-hover:text-green-700 line-clamp-2 leading-snug mb-2">
+      <h2 className="font-display font-bold text-fg-strong group-hover:text-green-700 line-clamp-2 leading-snug mb-2">
         {name}
       </h2>
 
@@ -67,12 +54,9 @@ export default async function EventCard({ event, locale }: Props) {
       {event.category?.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-3">
           {event.category.slice(0, 3).map((cat) => (
-            <span
-              key={cat}
-              className="text-xs bg-muted text-fg-muted px-2 py-0.5 rounded-full"
-            >
+            <Badge key={cat} tone="neutral">
               {tCat(cat as any)}
-            </span>
+            </Badge>
           ))}
         </div>
       )}
@@ -80,32 +64,15 @@ export default async function EventCard({ event, locale }: Props) {
       {/* Date + location */}
       <div className="text-xs text-fg-muted space-y-1">
         {event.start_date && (
-          <p>
-            📅{" "}
-            {new Date(event.start_date).toLocaleDateString(locale, {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-            })}
-            {event.end_date && event.end_date !== event.start_date && (
-              <>
-                {" "}
-                –{" "}
-                {new Date(event.end_date).toLocaleDateString(locale, {
-                  month: "short",
-                  day: "numeric",
-                })}
-              </>
-            )}
-          </p>
+          <DateChip start={event.start_date} end={event.end_date} locale={locale} />
         )}
         {event.location_name && (
           <p className="flex items-center gap-1 flex-wrap">
             <span>📍</span>
             {cityLabel && (
-              <span className="bg-muted text-fg-muted text-xs px-1.5 py-0.5 rounded font-medium">
+              <Badge tone="neutral" size="xs">
                 {cityLabel}
-              </span>
+              </Badge>
             )}
             <span>{locationName}</span>
           </p>
@@ -114,3 +81,4 @@ export default async function EventCard({ event, locale }: Props) {
     </Link>
   );
 }
+

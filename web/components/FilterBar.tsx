@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { CATEGORY_GROUPS, type Locale } from "@/lib/types";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, type RegionWithCity } from "@/lib/regionPrefectures";
+import { FilterChip } from "@/lib/design";
 
 interface Props {
   locale: Locale;
@@ -112,7 +113,18 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
   });
 
   return (
-    <div className="sticky top-14 z-20 bg-surface -mx-4 px-4 pb-2 mb-0 border-b border-line shadow-sm">
+    <div className="sticky top-14 z-20 -mx-4 px-4 pt-2 pb-2 mb-0 bg-[var(--color-bg)]/85 backdrop-blur-sm">
+      {/* Fade veil — sits just below the sticky filter so list items
+          scrolling under it dissolve into the page background instead of
+          showing through the transparent expanded region. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-0 right-0 top-full h-8"
+        style={{
+          background:
+            "linear-gradient(to bottom, var(--color-bg) 0%, transparent 100%)",
+        }}
+      />
       {/* Mobile: icon toggle row */}
       <div className="flex items-center justify-between md:hidden mb-1">
         <button
@@ -146,7 +158,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
       </div>
 
       {/* Filter panel — always visible on md+, toggled on mobile */}
-      <div className={`bg-elevated rounded-xl px-4 py-3 ${mobileOpen ? "block" : "hidden"} md:block`}>
+      <div className={`rounded-xl ${mobileOpen ? "block border-[3px] border-fg-strong bg-surface px-4 py-4 mt-2" : "hidden"} md:block md:border-0 md:p-0 md:mt-0 md:bg-transparent`}>
 
         {/* Row 1: keyword, category, location, paid, timeMode, date range, reset */}
         <div className="flex flex-wrap gap-3 items-end">
@@ -158,7 +170,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               type="search"
               value={draft.q}
               placeholder={t("searchPlaceholder")}
-              className="h-9 border border-line-strong rounded-lg px-3 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-3 text-sm w-48 shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
               onChange={(e) => {
                 const v = e.target.value;
                 setDraft((prev) => ({ ...prev, q: v }));
@@ -179,7 +191,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                 type="button"
                 onClick={() => setCatDropdownOpen((o) => !o)}
                 aria-labelledby={`${fieldIds.categoryLabel} ${fieldIds.categoryTrigger}-text`}
-                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-elevated hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-elevated shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer"
               >
                 <span id={`${fieldIds.categoryTrigger}-text`} className={selectedCats.length > 0 ? "text-green-700 font-medium" : "text-fg-muted"}>
                   {selectedCats.length > 0 ? `${t("category")} (${selectedCats.length})` : t("allCategories")}
@@ -238,7 +250,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   return next;
                 });
               }}
-              className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-3 text-sm shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("allLocations")}</option>
               <option value="tokyo">{t("locationTokyo")}</option>
@@ -262,7 +274,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   id={fieldIds.city}
                   value={draft.city}
                   onChange={(e) => applyWith("city", e.target.value)}
-                  className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-9 border border-line-strong rounded-lg px-3 text-sm shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
                 >
                   <option value="">{t("cityAll")}</option>
                   {prefs.map((p) => (
@@ -282,7 +294,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               id={fieldIds.paid}
               value={draft.paid}
               onChange={(e) => applyWith("paid", e.target.value)}
-              className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-3 text-sm shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="">{t("allPaid")}</option>
               <option value="free">{t("freeOnly")}</option>
@@ -307,7 +319,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   applyWith("timeMode", e.target.value);
                 }
               }}
-              className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-3 text-sm shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
             >
               <option value="active">{t("timeModeActive")}</option>
               <option value="all">{t("timeModeAll")}</option>
@@ -325,7 +337,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   type="date"
                   value={draft.from}
                   onChange={(e) => applyWith("from", e.target.value)}
-                  className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-9 border border-line-strong rounded-lg px-3 text-sm shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -335,7 +347,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   type="date"
                   value={draft.to}
                   onChange={(e) => applyWith("to", e.target.value)}
-                  className="h-9 border border-line-strong rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="h-9 border border-line-strong rounded-lg px-3 text-sm shadow-sm cursor-pointer hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
             </>
@@ -353,6 +365,70 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
         </div>
 
       </div>
+
+      {/* Selected-filter chips strip — click any chip to remove it. */}
+      {hasFilters && (
+        <div className="flex flex-wrap items-center gap-2 mt-2 px-1">
+          <span className="text-xs font-medium text-fg-muted shrink-0">
+            {t("selectedLabel", { default: "已選：" })}
+          </span>
+          {selectedCats.map((cat) => (
+            <FilterChip
+              key={`cat-${cat}`}
+              label={tCat(cat as any)}
+              onRemove={() => toggleCategory(cat)}
+            />
+          ))}
+          {draft.location && (
+            <FilterChip
+              label={t(`location${draft.location.charAt(0).toUpperCase() + draft.location.slice(1)}` as any, { default: draft.location })}
+              onRemove={() => {
+                setDraft((prev) => {
+                  const next = { ...prev, location: "", city: "" };
+                  pushWith(next);
+                  return next;
+                });
+              }}
+            />
+          )}
+          {draft.city && (
+            <FilterChip
+              label={_locale === "en" ? (PREFECTURE_LABELS_EN[draft.city] ?? draft.city) : draft.city}
+              onRemove={() => applyWith("city", "")}
+            />
+          )}
+          {draft.paid === "free" && (
+            <FilterChip label={t("freeOnly")} onRemove={() => applyWith("paid", "")} />
+          )}
+          {draft.paid === "paid" && (
+            <FilterChip label={t("paidOnly")} onRemove={() => applyWith("paid", "")} />
+          )}
+          {draft.timeMode === "past" && (
+            <FilterChip
+              label={t("timeModePast")}
+              onRemove={() => {
+                setDraft((prev) => {
+                  const next = { ...prev, timeMode: "active", from: "", to: "" };
+                  pushWith(next);
+                  return next;
+                });
+              }}
+            />
+          )}
+          {draft.q && (
+            <FilterChip
+              label={`"${draft.q}"`}
+              onRemove={() => {
+                setDraft((prev) => {
+                  const next = { ...prev, q: "" };
+                  pushWith(next);
+                  return next;
+                });
+              }}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -4,6 +4,8 @@ import { type Locale, type Event, getEventName } from "@/lib/types";
 import FilterBar from "@/components/FilterBar";
 import ListScrollManager from "@/components/ListScrollManager";
 import EventListClient from "@/components/EventListClient";
+import SiteBackground from "@/components/SiteBackground";
+import { MascotAvatar } from "@/lib/design";
 import Link from "next/link";
 import AnnouncementCard from "@/components/AnnouncementCard";
 import { Suspense } from "react";
@@ -106,46 +108,73 @@ export default async function HomePage({ params, searchParams }: PageProps) {
 
   return (
     <div>
+      <SiteBackground />
       {itemListLd && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
         />
       )}
-      {/* Top tab navigation */}
-      <div className="flex gap-1 border-b border-line mb-4">
-        <span className="px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600">
-          {tAnn("tabEvents")}
-        </span>
-        <Link
-          href={`/${locale}/announcements`}
-          className="px-4 py-2 text-sm text-fg-muted hover:text-green-700 transition"
-        >
-          {tAnn("tabNews")}
-        </Link>
-      </div>
 
-      {/* Brand intro / SEO content */}
-      <section className="mt-6 mb-8 max-w-3xl">
-        <h1 className="text-2xl sm:text-3xl font-bold text-fg-strong mb-1">
-          {tHome("introTitle")}
-        </h1>
-        <p className="text-sm text-green-700 mb-4 font-medium">
-          {tHome("introTagline")}
-        </p>
-        <div className="space-y-3 text-sm leading-relaxed text-fg-muted">
-          <p>{tHome("introP1")}</p>
-          <p>{tHome("introP2")}</p>
-          <p>{tHome("introP3")}</p>
+      {/* Brand intro / SEO content — Lianbu mascot hero */}
+      <section className="mt-6 mb-8 relative grid gap-6 md:grid-cols-[260px_1fr] items-center text-center md:text-left">
+        <div className="relative inline-flex flex-col items-center mx-auto md:mx-0 shrink-0">
+          <MascotAvatar variant="inline" size={240} />
+          <div
+            className="absolute bottom-0 right-4 px-3 py-1.5 bg-paper border-2 text-[10px] font-accent font-black tracking-widest text-[#3A261F] -rotate-6 text-center z-10"
+            style={{ borderColor: "var(--color-mocha, #3A261F)" }}
+          >
+            Lianbu
+          </div>
+        </div>
+
+        <div className="w-full flex flex-col items-center md:items-start text-center md:text-left mx-auto md:mx-0">
+          <h1 className="font-display font-black text-[#3A261F] leading-tight text-3xl tracking-tight">
+            <span className="block">{tHome("heroLine1")}</span>
+            <span className="block">{tHome("heroLine2")}</span>
+            <span className="block">{tHome("heroLine3")}</span>
+            <span className="block text-mascot-red">{tHome("heroLine4")}</span>
+          </h1>
+
+          <div className="mt-3 mb-1 inline-flex items-center px-3 py-1 rounded bg-[#C4E86F]/40 text-[#1F5E2B] text-[10px] sm:text-xs font-bold whitespace-nowrap">
+            {tHome("statHero")}
+          </div>
+
+          <p className="mt-3 text-[12px] leading-relaxed text-fg-muted max-w-xl">
+            {tHome("heroPara")}
+          </p>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3 justify-center md:justify-start w-full">
+            <a
+              href="https://line.me/R/ti/p/769qbdkq"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-white text-xs font-semibold shadow-sm hover:opacity-90"
+              style={{ background: "#06C755" }}
+            >
+              <span
+                className="w-3.5 h-3.5 rounded-sm bg-white text-[9px] leading-[14px] text-center font-black"
+                style={{ color: "#06C755" }}
+              >
+                L
+              </span>
+              {tHome("lineCta")}
+            </a>
+          </div>
         </div>
       </section>
 
       {/* Featured announcements strip */}
       {featuredAnnouncements && featuredAnnouncements.length > 0 && (
-        <div className="mt-4 mb-2">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-amber-700">{tAnn("featuredStrip")}</p>
-            <Link href={`/${locale}/announcements`} className="text-xs text-fg-subtle hover:text-green-700">
+        <section className="mt-6 mb-8 space-y-3">
+          <div className="flex items-end justify-between">
+            <h2 className="font-display font-bold text-[#3A261F] text-xl">
+              📌 {tAnn("featuredStrip")}
+            </h2>
+            <Link
+              href={`/${locale}/announcements`}
+              className="text-xs text-mascot-pink-deep hover:underline"
+            >
               {tAnn("viewAll")} →
             </Link>
           </div>
@@ -154,7 +183,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
               <AnnouncementCard key={ann.id} announcement={ann} locale={locale} />
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       <FilterBar locale={locale} currentFilters={{ ...sp, city: sp.city ?? "" }} />

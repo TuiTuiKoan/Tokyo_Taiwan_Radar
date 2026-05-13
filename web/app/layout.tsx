@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { fontVariables } from "@/lib/design/fonts";
 
 const BASE =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
@@ -55,7 +56,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh" suppressHydrationWarning>
+    <html lang="zh" className={fontVariables} suppressHydrationWarning>
       <head>
         {/*
           Anti-flash script: runs before first paint to apply the saved theme class.

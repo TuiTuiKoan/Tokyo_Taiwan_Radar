@@ -1,6 +1,15 @@
 import { ImageResponse } from "next/og";
 import { createClient } from "@supabase/supabase-js";
 import { type Locale, type Event, getEventName } from "@/lib/types";
+import { satoriTokens } from "@/lib/design";
+
+// Brand colors sourced from the design token library so OG art shares the
+// same palette as the website / future slide generation.
+const BG_GREEN = satoriTokens.color.primitive.greenDeep; // mascot green deep (#1F5E2B-ish base, tweaked for AA contrast)
+const OG_BG = "#0E3B23"; // even darker green for OG contrast — kept hard-coded for legibility against white text
+const ACCENT_RED = satoriTokens.color.brand.primary;
+void BG_GREEN; // reserved for future variants
+void ACCENT_RED;
 
 export const runtime = "edge";
 export const size = { width: 1200, height: 630 };
@@ -127,7 +136,7 @@ export default async function Image({
           position: "relative",
           width: "100%",
           height: "100%",
-          background: "#0E3B23",
+          background: OG_BG,
           display: "flex",
         }}
       >
