@@ -143,6 +143,7 @@ from sources.wuext_waseda import WuextWasedaScraper
 from sources.asahiculture import AsahiCultureScraper
 from sources.cinemaclair import CinemaClairScraper
 from sources.uedaeigeki import UedaEigekiScraper
+from sources.snet_taiwan import SnetTaiwanScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -271,6 +272,7 @@ SCRAPERS = [
     CinemaClairScraper(),
     UedaEigekiScraper(),
     AsahiCultureScraper(),
+    SnetTaiwanScraper(),
 ]
 
 
