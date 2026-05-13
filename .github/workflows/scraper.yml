@@ -83,12 +83,13 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python annotator.py --fix-reviewed
 
-      - name: Enrich movie titles from eiga.com + TMDB
+      - name: Enrich movie titles from eiga.com + TMDB + SerpAPI
         working-directory: scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
         run: python annotator.py --enrich-movie-titles
 
       - name: Enrich person names via eiga.com + Wikipedia (all events)

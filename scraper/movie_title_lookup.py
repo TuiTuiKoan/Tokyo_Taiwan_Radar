@@ -62,6 +62,18 @@ _TMDB_API_KEY: str | None = os.environ.get("TMDB_API_KEY")
 _TMDB_SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
 _TMDB_MOVIE_URL  = "https://api.themoviedb.org/3/movie/{movie_id}"
 
+_SERP_API_KEY: str | None = os.environ.get("SERPAPI_KEY")
+_SERP_API_URL = "https://serpapi.com/search"
+
+# Domains excluded from SerpAPI results — aggregators, streaming, social media
+_AGGREGATOR_DOMAINS = frozenset({
+    "eiga.com", "filmarks.com", "kinenote.com", "allcinema.net",
+    "imdb.com", "yahoo.co.jp", "amazon.co.jp", "unext.jp",
+    "netflix.com", "youtube.com", "x.com", "twitter.com",
+    "facebook.com", "instagram.com", "wikipedia.org",
+    "google.com", "google.co.jp", "themoviedb.org",
+})
+
 _session = requests.Session()
 _session.headers.update({
     "User-Agent": _USER_AGENT,
@@ -104,6 +116,46 @@ def _parse_official_url(detail_soup) -> str | None:
             u_list = qs.get("u", [])
             if u_list:
                 return u_list[0]
+    return None
+
+
+def _serpapi_official_url(name_ja: str) -> str | None:
+    """Search Google via SerpAPI for the official site URL of a Japanese movie.
+
+    Returns the first non-aggregator URL from the top organic results, or None.
+    Silently returns None if SERPAPI_KEY is not set or on any error.
+    Rate limiting: uses LOOKUP_DELAY_SEC before the request.
+    """
+    if not _SERP_API_KEY:
+        return None
+    try:
+        query = f'"{name_ja}" 映画 公式サイト'
+        time.sleep(LOOKUP_DELAY_SEC)
+        resp = _session.get(
+            _SERP_API_URL,
+            params={
+                "api_key": _SERP_API_KEY,
+                "engine": "google",
+                "q": query,
+                "gl": "jp",
+                "hl": "ja",
+                "num": 5,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        results = resp.json().get("organic_results", [])
+        for item in results:
+            link = item.get("link", "")
+            domain = _urlparse.urlparse(link).netloc.lstrip("www.")
+            if not any(
+                domain == d or domain.endswith("." + d)
+                for d in _AGGREGATOR_DOMAINS
+            ):
+                logger.debug("_serpapi_official_url: %r → %s", name_ja, link)
+                return link
+    except Exception as exc:
+        logger.debug("_serpapi_official_url: error for %r: %s", name_ja, exc)
     return None
 
 
@@ -217,6 +269,9 @@ def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None, str | Non
             logger.debug("lookup_movie_titles: no result for %r", key)
             # Phase B: try TMDB for name_zh, name_en, and official_url
             tmdb_zh, tmdb_en, tmdb_url = _tmdb_lookup(key)
+            # Phase C: TMDB returned no URL → try SerpAPI
+            if not tmdb_url:
+                tmdb_url = _serpapi_official_url(key)
             _cache[key] = (tmdb_zh, tmdb_en, tmdb_url)
             return tmdb_zh, tmdb_en, tmdb_url
 
@@ -235,6 +290,10 @@ def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None, str | Non
         if not official_url:
             _, _, tmdb_url = _tmdb_lookup(key)
             official_url = tmdb_url
+
+        # Phase C supplement: TMDB also returned no URL → try SerpAPI
+        if not official_url:
+            official_url = _serpapi_official_url(key)
 
         logger.debug(
             "lookup_movie_titles: %r → zh=%r en=%r official=%r (via %s)",
