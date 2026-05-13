@@ -148,7 +148,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
       </div>
 
       {/* Filter panel — always visible on md+, toggled on mobile */}
-      <div className={`rounded-xl ${mobileOpen ? "block border-[3px] border-fg-strong bg-surface px-4 py-4 mt-2" : "hidden"} md:block md:bg-[#FFF1EE] md:border md:border-[#EDD8D0]/60 md:rounded-2xl md:px-4 md:py-3 md:shadow-sm md:mt-0`}>
+      <div className={`${mobileOpen ? "block bg-[#FFF1EE] border border-[#EDD8D0]/60 rounded-2xl px-4 py-3 shadow-sm mt-2" : "hidden"} md:block md:bg-[#FFF1EE] md:border md:border-[#EDD8D0]/60 md:rounded-2xl md:px-4 md:py-3 md:shadow-sm md:mt-0`}>
 
         {/* Row 1: keyword, category, location, paid, timeMode, date range, reset */}
         <div className="flex flex-wrap gap-3 items-end">
