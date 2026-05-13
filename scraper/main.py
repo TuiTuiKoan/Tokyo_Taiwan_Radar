@@ -139,6 +139,8 @@ from sources.onariza import OnarizaScraper
 from sources.us_cinema_chiba import UsCinemaChibaGekijoScraper
 from sources.rti_jp import RtiJpScraper
 from sources.nittai_toumonkai import NittaiToumonkaiScraper
+from sources.wuext_waseda import WuextWasedaScraper
+from sources.cinemaclair import CinemaClairScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -263,6 +265,8 @@ SCRAPERS = [
     UsCinemaChibaGekijoScraper(),
     RtiJpScraper(),
     NittaiToumonkaiScraper(),
+    WuextWasedaScraper(),
+    CinemaClairScraper(),
 ]
 
 
