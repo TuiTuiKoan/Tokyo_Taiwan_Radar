@@ -38,6 +38,11 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
   {"success": False, "duration_seconds": 0}
   ```
   If only the success path is updated, failure rows leave the column NULL and break `NOT NULL` constraints (or silently insert the default, hiding failures).
+- **Every migration that creates a new table MUST include explicit `GRANT` statements** (Supabase policy change, effective October 30, 2026). Without them, PostgREST/supabase-js returns `42501` permission error silently. Migration `069_explicit_grants.sql` retroactively covers all pre-existing tables. Use the tier template in `.github/instructions/database.instructions.md §GRANT template`:
+  - **Tier A** (public-read): `GRANT SELECT ON ... TO anon, authenticated, service_role;`
+  - **Tier B** (admin-only): `GRANT SELECT, INSERT, UPDATE, DELETE ON ... TO authenticated, service_role;`
+  - **Tier C** (service-role only): `GRANT SELECT, INSERT, UPDATE, DELETE ON ... TO service_role;`
+  Always `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` before adding GRANTs.
 
 ## Supabase Realtime
 
@@ -1081,6 +1086,34 @@ When adding `alternates.languages` to sitemap entries, always include `x-default
 languages: { "x-default": zhUrl, zh: zhUrl, en: enUrl, ja: jaUrl }
 ```
 Without `x-default`, search engines cannot determine the primary language version.
+
+### localhost Lighthouse canonical rule
+When validating locale pages on `http://localhost` or `http://127.0.0.1`, do not blindly reuse the deployed `alternates.languages` block in page metadata. Lighthouse can false-fail `canonical` with `Points to another hreflang location` even when the canonical URL equals the current localhost page.
+
+Use a localhost-only branch in `generateMetadata()`:
+```ts
+if (isLocalRequest) {
+  return {
+    alternates: {
+      canonical: `${base}/${locale}`,
+    },
+  };
+}
+
+return {
+  alternates: {
+    canonical: `${base}/${locale}`,
+    languages: {
+      zh: `${base}/zh`,
+      en: `${base}/en`,
+      ja: `${base}/ja`,
+      "x-default": `${base}/zh`,
+    },
+  },
+};
+```
+
+Keep deployed hosts unchanged: full hreflang output including `x-default` must still ship in production.
 
 ## AEO — IndexNow Integration
 

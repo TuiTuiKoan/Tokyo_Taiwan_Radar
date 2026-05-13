@@ -4,6 +4,67 @@
 
 ---
 
+## 2026-05-13 — Supabase explicit GRANT rule（migration 069）
+**新增：** `## Database` 段落新增 Supabase explicit GRANT 規則
+**內容：**
+- 2026-10-30 起，新建 table 若無 GRANT block 會 silent `42501` 錯誤
+- 三種 Tier 模板（A:公開讀取 / B:admin-only / C:service_role）
+- 指向 `database.instructions.md §GRANT template` 取完整範例
+**來源：** daily-skills-review（Step 4 建議）
+
+---
+
+## 2026-05-13 - Flow Explorer set-state-in-effect lint regression
+
+
+**問題：**
+- `ArchitectureFlowExplorer.tsx` 用 `useEffect` 同步 `selectedActionId`/`selectedStep`，觸發 `react-hooks/set-state-in-effect`。
+- `build-specs-snapshot.ts` 留下 `eslint-disable-next-line no-console`，在現行規則下變成 unused directive。
+
+**修正：**
+- 將 action 同步改為衍生狀態：新增 `hasSelectedAction`、`effectiveSelectedActionId`、`effectiveSelectedStep`，移除 effect 內同步 setState。
+- `selectedFlow`、Mermaid `chart`、`<select value>`、step 高亮都改讀 effective 狀態，保留 action 切換與 steps 高亮行為。
+- 移除 `build-specs-snapshot.ts` 兩個多餘的 `eslint-disable` 註解。
+
+**教訓：**
+- UI 同步條件若可由現有 state 推導，優先用衍生值，不要在 effect 內做同步式 setState。
+- lint 規則更新後，舊的 disable 註解可能反而成為警告，修正時要一併清理。
+
+---
+
+## 2026-05-13 - ArchitectureFlowExplorer JSX arrow token parse error
+
+**問題：**
+- `ArchitectureFlowExplorer.tsx` 在 JSX 文字節點直接寫 `->`，TypeScript parser 於 `>` 位置拋出 `TS1382`。
+
+**修正：**
+- 將箭頭文字改為字串插值：`{" -> "}`，避免 JSX 對 `>` 的語法誤判。
+
+**教訓：**
+- JSX 內含 `>` 的純文字片段（例如箭頭）要用字串節點或 HTML entity，不要直接裸寫。
+
+---
+
+## 2026-05-13 - Lighthouse localhost canonical + homepage a11y regression
+
+**問題：**
+- Tester 在 `http://localhost:3000/zh` 回報 `select-name`、`label-content-name-mismatch`、`color-contrast`、`canonical`
+- `FilterBar` 可見 label 沒有和 native form controls 穩定綁定
+- category custom trigger 的 `aria-labelledby` 只指向外部 label，導致 accessible name 不包含按鈕可見文字
+- locale layout 直接沿用 production absolute alternates，localhost Lighthouse 將 canonical 判定為「Points to another hreflang location」
+
+**修正：**
+- `FilterBar.tsx` 為 search/select/date controls 加入固定 `id` + `htmlFor`
+- category trigger 的 accessible name 改為同時包含外部 label 與按鈕內可見文字
+- `EventListClient.tsx` 與 `[locale]/layout.tsx` 將小字、badge、footer 從 `text-fg-subtle` / `text-fg-muted` 調整到更高對比的前景色
+- `[locale]/layout.tsx` 在 localhost/127.0.0.1 request 下使用 request host 輸出 canonical，並省略 `alternates.languages`；deployed hosts 維持完整 hreflang + `x-default`
+
+**教訓：**
+- 自訂 trigger 若使用 `aria-labelledby`，必須把可見 trigger 文字一起納入 accessible name，否則會把 label 修正轉成 `label-content-name-mismatch`
+- locale metadata 的 production hreflang cluster 可能讓 localhost Lighthouse 誤判 canonical；應以 localhost 專用 metadata 分支處理，不要為了本機驗證削弱 deployed canonical 行為
+
+---
+
 ## 2026-05-12 — `lookup_movie_titles()` 回傳型別從 2-tuple → 3-tuple
 **修改：** engineer/SKILL.md works pipeline 第 8 點
 **內容：**
