@@ -37,7 +37,7 @@ export function FilterChip({
       aria-label={removeLabel ?? `Remove ${label}`}
       className={`inline-flex items-center hover:opacity-80 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400 rounded-full ${className}`.trim()}
     >
-      <Badge tone={tone} size="sm" outlined>
+      <Badge tone={tone} size="sm">
         {label}
         <span aria-hidden="true" className="ml-1 text-fg-muted">
           ✕

@@ -63,7 +63,7 @@ export default async function AboutPage({ params }: PageProps) {
         <h2 className="text-xl font-semibold mb-3 text-fg-strong">{t("sourcesTitle")}</h2>
         <p className="text-base leading-relaxed text-fg">
           {t("sourcesBody")}{" "}
-          <Link href={`/${locale}/sources`} className="text-green-700 hover:underline font-medium">
+          <Link href={`/${locale}/sources`} className="hover:underline">
             {t("sourcesLinkText")}
           </Link>
           。
@@ -78,7 +78,7 @@ export default async function AboutPage({ params }: PageProps) {
             href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-green-700 hover:underline font-medium"
+            className="hover:underline"
           >
             {t("githubLabel")}
           </a>

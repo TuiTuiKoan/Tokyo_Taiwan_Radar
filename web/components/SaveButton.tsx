@@ -9,9 +9,11 @@ interface Props {
   eventId: string;
   initialSaved: boolean;
   locale: Locale;
+  /** compact: icon-only, no text label */
+  compact?: boolean;
 }
 
-export default function SaveButton({ eventId, initialSaved, locale }: Props) {
+export default function SaveButton({ eventId, initialSaved, locale, compact = false }: Props) {
   const t = useTranslations("event");
   const [saved, setSaved] = useState(initialSaved);
   const [loading, setLoading] = useState(false);
@@ -62,13 +64,30 @@ export default function SaveButton({ eventId, initialSaved, locale }: Props) {
     <button
       onClick={toggle}
       disabled={loading}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition shrink-0 ${
+      title={saved ? t("unsave") : t("save")}
+      aria-label={saved ? t("unsave") : t("save")}
+      className={`inline-flex items-center gap-2 rounded-lg border text-sm font-medium transition shrink-0 ${
+        compact ? "w-8 h-8 justify-center p-0" : "px-3 py-2"
+      } ${
         saved
           ? "bg-green-600 text-white border-green-600 hover:bg-green-700"
-          : "border-line-strong hover:border-green-500 hover:text-green-700"
+          : "border-line text-[#1F5E2B] hover:text-[#1F5E2B] hover:bg-[#F7FFE8]"
       } disabled:opacity-50`}
     >
-      {saved ? "♥" : "♡"} {saved ? t("unsave") : t("save")}
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill={saved ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="w-4 h-4 shrink-0"
+        aria-hidden
+      >
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+      </svg>
+      {!compact && <span>{saved ? t("unsave") : t("save")}</span>}
     </button>
   );
 }

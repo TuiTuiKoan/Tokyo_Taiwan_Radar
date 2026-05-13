@@ -1,17 +1,13 @@
 import { DesignDefs } from "@/lib/design";
-import { FloatingShapes } from "@/lib/design/FloatingShapes";
 
 /**
- * SiteBackground — global Bauhaus background layer applied via [locale]/layout.tsx.
+ * SiteBackground — static Bauhaus background layer (gradient + grid).
  *
- * Stack (all fixed inset-0, behind page content):
- *   1. Paper-gradient base (cream → blush → pistachio)
- *   2. Faint pink grid SVG pattern
- *   3. 10 floating geometric shapes (procedural, refreshes each cycle)
- *   4. Subtle film-noise overlay
+ * Mounted in [locale]/layout.tsx so every page gets the paper-gradient base
+ * and the faint pink grid. The floating shapes (FloatingShapes) are a separate
+ * client component mounted only on the homepage.
  *
- * The pieces are aria-hidden, pointer-events-none, and live on -z layers so
- * they never interfere with content interaction.
+ * The pieces are aria-hidden, pointer-events-none, fixed z-layers behind content.
  */
 export function SiteBackground() {
   return (
@@ -38,9 +34,6 @@ export function SiteBackground() {
       >
         <rect width="100%" height="100%" fill="url(#gridPink)" opacity="0.6" />
       </svg>
-
-      {/* 3. Floating shapes (client component) */}
-      <FloatingShapes />
     </div>
   );
 }

@@ -513,7 +513,7 @@ export default async function EventDetailPage({ params }: PageProps) {
       {parentEvent && (
         <Link
           href={`/${locale}/events/${parentEvent.id}`}
-          className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 mb-4"
+          className="inline-flex items-center gap-1 text-sm text-[#1F5E2B] mb-4"
         >
           ← {t("viewParent")}：{getEventName(parentEvent as Event, locale)}
         </Link>
@@ -538,7 +538,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               </Link>
             </div>
           )}
-          <h1 className="text-2xl font-bold text-fg-strong leading-snug">{name}</h1>
+          <h1 className="font-display font-bold text-[#3A261F] text-2xl sm:text-[26px] leading-snug">{name}</h1>
           <AdminEventActions eventId={event.id} locale={locale} initialIsActive={event.is_active} />
         </div>
         <SaveButton
@@ -640,7 +640,7 @@ export default async function EventDetailPage({ params }: PageProps) {
       })()}
 
       {/* ===== Summary Card ===== */}
-      <div className="border border-line rounded-xl overflow-hidden mb-6">
+      <div className="border border-line rounded-xl overflow-hidden mb-6 bg-paper">
         <table className="w-full text-sm">
           <tbody className="divide-y divide-line">
             {/* Categories */}
@@ -687,7 +687,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                           href={featured.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="ml-2 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full hover:underline"
+                          className="ml-2 text-xs bg-[#F7FFE8] text-[#1F5E2B] px-2 py-0.5 rounded-full hover:underline"
                         >
                           {t("recordLinksBadge")} ↗
                         </a>
@@ -704,10 +704,10 @@ export default async function EventDetailPage({ params }: PageProps) {
                 {subEventPrefectures.length > 1
                   ? subEventPrefectures.join("・")
                   : event.source_name === "rti_jp"
-                    ? <a href="https://www.rti.org.tw/jp" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">RTI台湾国際放送（日本語部門）↗</a>
+                    ? <a href="https://www.rti.org.tw/jp" target="_blank" rel="noopener noreferrer" className="hover:underline">RTI台湾国際放送（日本語部門）↗</a>
                     : locationName
                       ? event.location_url
-                        ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{locationName} ↗</a>
+                        ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{locationName} ↗</a>
                         : locationName
                       : "—"}
               </td>
@@ -727,7 +727,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationAddress || locationName || "")}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
+                      className="hover:underline"
                     >
                       {locationAddress || locationName} ↗
                     </a>
@@ -744,7 +744,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("paid")}</td>
               <td className="px-4 py-3">
                 {event.is_paid === false ? (
-                  <span className="text-blue-600 font-medium">{t("free")}</span>
+                  <span className="text-[#1F5E2B] font-medium">{t("free")}</span>
                 ) : event.is_paid === true ? (
                   <span>
                     <span className="text-amber-600 font-medium">{t("paid")}</span>
@@ -765,7 +765,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                       href={(event as Event).official_url!}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-green-700 font-medium hover:underline"
+                      className="font-medium hover:underline"
                     >
                       {t("officialSite")} ↗
                     </a>
@@ -775,7 +775,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                       href={event.source_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
+                      className="hover:underline"
                     >
                       {t("viewOriginal")} ↗
                     </a>
@@ -784,7 +784,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                       href={event.source_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
+                      className="hover:underline"
                     >
                       {t("viewOriginal")} ↗
                     </a>
@@ -809,7 +809,7 @@ export default async function EventDetailPage({ params }: PageProps) {
         (event as Event).has_english_support ||
         (event as Event).has_chinese_support) && (
         <section className="mb-8 border border-line rounded-xl p-4 bg-elevated/50">
-          <h2 className="text-sm font-medium text-fg-subtle mb-3">{t("organizerSection")}</h2>
+          <h2 className="font-display font-bold text-[#3A261F] text-base mb-3">{t("organizerSection")}</h2>
           <dl className="space-y-2 text-sm">
             {(event as Event).organizer && (
               <div className="flex gap-2">
@@ -820,7 +820,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                       href={(event as Event).organizer_url!}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-green-700 hover:underline"
+                      className="hover:underline"
                     >
                       {getEventOrganizer(event as Event, locale)} ↗
                     </a>
@@ -923,7 +923,7 @@ export default async function EventDetailPage({ params }: PageProps) {
       {/* ===== Description ===== */}
       {description && (
         <div className="mb-8">
-          <h2 className="text-sm font-medium text-fg-subtle mb-2">{t("description")}</h2>
+          <h2 className="font-display font-bold text-[#3A261F] text-base mb-2">{t("description")}</h2>
           <div className="prose prose-gray max-w-none">
             <p className="whitespace-pre-wrap text-fg leading-relaxed text-sm">
               {description}
@@ -975,7 +975,7 @@ export default async function EventDetailPage({ params }: PageProps) {
       {/* ===== Sub-events ===== */}
       {subEvents && subEvents.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-sm font-medium text-fg-subtle mb-3">{t("subEvents")}</h2>
+          <h2 className="font-display font-bold text-[#3A261F] text-base mb-3">{t("subEvents")}</h2>
           <div className="border border-line rounded-xl overflow-hidden divide-y divide-line">
             {subEvents.map((sub) => {
               const subName = getEventName(sub as Event, locale);
@@ -1025,7 +1025,7 @@ export default async function EventDetailPage({ params }: PageProps) {
         if (!showSection) return null;
         return (
           <div className="mb-8">
-            <h2 className="text-sm font-medium text-fg-subtle mb-3">{t("recordLinksSection")}</h2>
+            <h2 className="font-display font-bold text-[#3A261F] text-base mb-3">{t("recordLinksSection")}</h2>
             <div className="border border-line rounded-xl overflow-hidden divide-y divide-line">
               {/* Movie: official promotional site link */}
               {hasOfficialUrl && isMovie && (
@@ -1033,7 +1033,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                   href={(event as Event).official_url!}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-green-700 hover:underline gap-2"
+                  className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] transition text-sm hover:underline gap-2"
                 >
                   <span className="flex-1">{t("movieOfficialSite")}</span>
                   <span className="text-fg-subtle shrink-0">↗</span>
@@ -1048,7 +1048,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-blue-600 hover:underline gap-2"
+                    className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] transition text-sm hover:underline gap-2"
                   >
                     <span className="flex-1">{link.title || link.url}</span>
                     {showBadge && (
@@ -1066,7 +1066,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                   href={secUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center px-4 py-3 hover:bg-green-50 transition text-sm text-blue-500 hover:underline gap-2"
+                  className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] transition text-sm hover:underline gap-2"
                 >
                   <span className="flex-1">{t("viewAltSource", { n: idx + 1 })}</span>
                   <span className="text-fg-subtle shrink-0">↗</span>
@@ -1092,7 +1092,7 @@ export default async function EventDetailPage({ params }: PageProps) {
       {/* ===== Related screenings (same work, other venues/dates) ===== */}
       {(upcomingScreenings.length > 0 || (isAdmin && pastScreenings.length > 0)) && (
         <section className="mb-8" aria-labelledby="related-screenings-heading">
-          <h2 id="related-screenings-heading" className="text-sm font-medium text-fg-subtle mb-3">
+          <h2 id="related-screenings-heading" className="font-display font-bold text-[#3A261F] text-base mb-3">
             {t("relatedScreeningsTitle")}
           </h2>
           {upcomingScreenings.length > 0 && (
@@ -1118,7 +1118,7 @@ export default async function EventDetailPage({ params }: PageProps) {
       {/* ===== FAQ section (visible counterpart to FAQPage JSON-LD) ===== */}
       {faqLd && (
         <section className="mb-8" aria-labelledby="faq-heading">
-          <h2 id="faq-heading" className="text-sm font-medium text-fg-subtle mb-3">
+          <h2 id="faq-heading" className="font-display font-bold text-[#3A261F] text-base mb-3">
             {locale === "ja" ? "よくある質問" : locale === "en" ? "FAQ" : "常見問題"}
           </h2>
           <dl className="border border-line rounded-xl overflow-hidden divide-y divide-line">

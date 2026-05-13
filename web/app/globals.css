@@ -138,6 +138,29 @@ body {
     "Noto Sans JP", "Noto Sans TC", sans-serif;
 }
 
+/* ---- Design-system typography defaults ----------------------------------- */
+/* Wrapped in @layer base so Tailwind utilities (@layer utilities) take priority */
+@layer base {
+  /* h1–h3 use the display font and brand-mocha (#3A261F) */
+  h1, h2, h3 {
+    font-family: var(--font-display), var(--font-body), sans-serif;
+    color: #3A261F;
+  }
+
+  /* Global link color — brand forest green #1F5E2B; no underline by default */
+  a {
+    color: #1F5E2B;
+    text-decoration: none;
+  }
+  a:hover {
+    color: #1F5E2B;
+  }
+  /* visited stays the same brand green — no purple flash after clicking */
+  a:visited {
+    color: #1F5E2B;
+  }
+}
+
 /* When <SiteBackground /> is mounted, it stamps `data-site-bg` on <html>
    so the body becomes transparent and the fixed-layer gradient shines through.
    On pages without SiteBackground the body keeps its solid token bg. */

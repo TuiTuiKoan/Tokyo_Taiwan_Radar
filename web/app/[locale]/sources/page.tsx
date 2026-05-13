@@ -128,20 +128,20 @@ export default async function SourcesPage({ params }: PageProps) {
             </h2>
             <ul className="divide-y divide-line border border-line rounded-xl overflow-hidden">
               {list.map((s) => (
-                <li key={s.id} className="px-4 py-3 flex items-center justify-between gap-3 text-sm">
+                <li key={s.id} className="px-4 py-3 flex items-center justify-between gap-3 text-sm transition-colors duration-150 hover:bg-paper hover:shadow-sm cursor-default">
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-fg-strong truncate">{s.name}</div>
                     <div className="text-xs text-fg-subtle font-mono">{s.id}</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-[#F7FFE8] text-[#1F5E2B]">
                       {s.frequency === "daily" ? t("frequencyDaily") : t("frequencyWeekly")}
                     </span>
                     <a
                       href={s.officialUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline whitespace-nowrap"
+                      className="text-xs whitespace-nowrap hover:underline"
                     >
                       {t("officialUrlLabel")} ↗
                     </a>

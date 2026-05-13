@@ -44,4 +44,4 @@ scraper/auto_scraper/runs/*/
 scraper/reports/
 
 # Local-only design mockup preview (not for production)
-web/app/[locale]/design/
+web/app/\[locale\]/design/

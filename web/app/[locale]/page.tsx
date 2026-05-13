@@ -4,7 +4,7 @@ import { type Locale, type Event, getEventName } from "@/lib/types";
 import FilterBar from "@/components/FilterBar";
 import ListScrollManager from "@/components/ListScrollManager";
 import EventListClient from "@/components/EventListClient";
-import SiteBackground from "@/components/SiteBackground";
+import { FloatingShapes } from "@/lib/design/FloatingShapes";
 import { MascotAvatar } from "@/lib/design";
 import Link from "next/link";
 import AnnouncementCard from "@/components/AnnouncementCard";
@@ -74,16 +74,15 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     }
   }
 
-  // Featured announcements strip (unrelated to event filters).
+  // Latest published announcements strip (unrelated to event filters).
   const now = new Date().toISOString();
   const { data: featuredAnnouncements } = await supabase
     .from("announcements")
     .select("*")
-    .eq("is_featured", true)
     .not("published_at", "is", null)
     .lte("published_at", now)
     .order("published_at", { ascending: false })
-    .limit(3);
+    .limit(4);
 
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
 
@@ -108,7 +107,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
 
   return (
     <div>
-      <SiteBackground />
+      <FloatingShapes />
       {itemListLd && (
         <script
           type="application/ld+json"
@@ -167,19 +166,21 @@ export default async function HomePage({ params, searchParams }: PageProps) {
       {/* Featured announcements strip */}
       {featuredAnnouncements && featuredAnnouncements.length > 0 && (
         <section className="mt-6 mb-8 space-y-3">
-          <div className="flex items-end justify-between">
+          <div className="flex items-center justify-between gap-2">
             <h2 className="font-display font-bold text-[#3A261F] text-xl">
               📌 {tAnn("featuredStrip")}
             </h2>
-            <Link
-              href={`/${locale}/announcements`}
-              className="text-xs text-mascot-pink-deep hover:underline"
-            >
-              {tAnn("viewAll")} →
-            </Link>
+            {featuredAnnouncements.length > 3 && (
+              <Link
+                href={`/${locale}/announcements`}
+                className="text-xs text-mascot-pink-deep hover:underline shrink-0"
+              >
+                {tAnn("viewAll")} →
+              </Link>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {featuredAnnouncements.map((ann) => (
+            {featuredAnnouncements.slice(0, 3).map((ann) => (
               <AnnouncementCard key={ann.id} announcement={ann} locale={locale} />
             ))}
           </div>

@@ -115,7 +115,7 @@ function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function newFloater(slotIdx: number, prev?: Floater): Floater {
+function newFloater(slotIdx: number, prev?: Floater, fillCounts?: Record<string, number>, forceSolid?: boolean): Floater {
   const tierIdx = Math.floor(slotIdx / 2);
   const tier = TIERS[tierIdx];
   const [minPx, maxPx, minSec, maxSec] = tier;
@@ -123,7 +123,16 @@ function newFloater(slotIdx: number, prev?: Floater): Floater {
   const duration = Math.round(minSec + Math.random() * (maxSec - minSec));
   // For the first paint, stagger the second floater in each pair by half-cycle.
   const initialPhase = prev ? 0 : (slotIdx % 2 === 1 ? duration / 2 : 0);
-  const fill = pick(FILLS);
+  // Max 2 floaters may share the same fill kind simultaneously.
+  // forceSolid overrides the diversity filter to guarantee at least 1 solid on screen.
+  const fill: FillKind = forceSolid
+    ? "solid"
+    : (() => {
+        const available = fillCounts
+          ? FILLS.filter((f) => (fillCounts[f] ?? 0) < 2)
+          : FILLS;
+        return pick(available.length > 0 ? available : FILLS);
+      })();
   // Solid pink (#E84860) is reserved for the two smallest tiers (0 & 1) so the
   // largest shapes never become heavy red blocks. Non-solid (outline/pattern)
   // fills may use pink at any size since they read as airy.
@@ -207,7 +216,16 @@ export function FloatingShapes() {
   const [floaters, setFloaters] = useState<Floater[] | null>(null);
 
   useEffect(() => {
-    setFloaters(Array.from({ length: TOTAL_SLOTS }, (_, i) => newFloater(i)));
+    // Build incrementally so each new floater sees fills already committed.
+    const initial: Floater[] = [];
+    for (let i = 0; i < TOTAL_SLOTS; i++) {
+      const counts: Record<string, number> = {};
+      for (const f of initial) counts[f.fill] = (counts[f.fill] ?? 0) + 1;
+      // On the last slot: if no solid yet, force it.
+      const mustSolid = i === TOTAL_SLOTS - 1 && !initial.some((f) => f.fill === "solid");
+      initial.push(newFloater(i, undefined, mustSolid ? { ...counts, solid: 0 } : counts, mustSolid));
+    }
+    setFloaters(initial);
   }, []);
 
   if (!floaters) return null;
@@ -215,8 +233,16 @@ export function FloatingShapes() {
   const handleCycle = (slotIdx: number) => {
     setFloaters((curr) => {
       if (!curr) return curr;
+      // Compute fill counts excluding the slot being refreshed.
+      const counts: Record<string, number> = {};
+      for (let i = 0; i < curr.length; i++) {
+        if (i === slotIdx) continue;
+        counts[curr[i].fill] = (counts[curr[i].fill] ?? 0) + 1;
+      }
+      // If no other solid exists, force solid on this new floater.
+      const mustSolid = (counts["solid"] ?? 0) === 0;
       const next = curr.slice();
-      next[slotIdx] = newFloater(slotIdx, curr[slotIdx]);
+      next[slotIdx] = newFloater(slotIdx, curr[slotIdx], mustSolid ? { ...counts, solid: 0 } : counts, mustSolid);
       return next;
     });
   };

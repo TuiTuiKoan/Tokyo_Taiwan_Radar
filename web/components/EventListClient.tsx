@@ -7,6 +7,7 @@ import Link from "next/link";
 import { type Locale, type Event, getEventName } from "@/lib/types";
 import { getCityLabel } from "@/lib/cityLabel";
 import { CategoryThumbnail } from "@/lib/design/CategoryThumbnail";
+import SaveButton from "@/components/SaveButton";
 import {
   REGIONS_WITH_CITY,
   matchesCity,
@@ -109,22 +110,28 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
         const ended =
           event.end_date && new Date(event.end_date) < new Date();
         return (
-          <Link
-            key={event.id}
-            href={`/${locale}/events/${event.id}`}
-            className="group flex gap-3 sm:gap-4 items-stretch border border-line rounded-xl bg-surface hover:shadow-md hover:border-green-400 transition overflow-hidden"
+          <div key={event.id} className="relative group/row">
+            <Link
+              href={`/${locale}/events/${event.id}`}
+              className="group flex gap-3 sm:gap-4 items-stretch border border-line rounded-xl bg-paper hover:shadow-md hover:border-green-400 transition overflow-hidden"
           >
             {/* Date column */}
-            <div className="w-16 flex-shrink-0 text-center pt-3 px-2">
+            <div className="w-16 flex-shrink-0 flex flex-col items-center justify-center px-2 py-2">
               {event.start_date ? (
                 <>
-                  <div className="text-[10px] text-fg-muted font-medium uppercase tracking-wide">
+                  <div className="font-display text-[10px] text-[#E84860] font-bold uppercase tracking-wide leading-none">
+                    {new Date(event.start_date).toLocaleDateString(locale, {
+                      weekday: "short",
+                      timeZone: "UTC",
+                    })}
+                  </div>
+                  <div className="font-display text-[10px] text-fg-muted font-medium uppercase tracking-wide mt-0.5">
                     {new Date(event.start_date).toLocaleDateString(locale, {
                       month: "short",
                       timeZone: "UTC",
                     })}
                   </div>
-                  <div className="text-2xl font-bold text-[#3A261F] leading-none mt-0.5">
+                  <div className="font-display text-2xl font-bold text-[#3A261F] leading-none mt-0.5">
                     {new Date(event.start_date).getUTCDate()}
                   </div>
                   {event.end_date &&
@@ -141,7 +148,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                     )}
                 </>
               ) : (
-                <div className="text-xs text-fg-muted pt-2">—</div>
+                <div className="text-xs text-fg-muted">—</div>
               )}
             </div>
 
@@ -208,7 +215,12 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                   );
                 })()}
             </div>
-          </Link>
+            </Link>
+            {/* Compact save button — absolute overlay, top-right corner */}
+            <div className="absolute top-2 right-2 opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 transition-opacity">
+              <SaveButton eventId={event.id} initialSaved={false} locale={locale} compact />
+            </div>
+          </div>
         );
       })}
     </div>

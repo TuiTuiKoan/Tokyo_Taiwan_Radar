@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { LOCALES, type Locale } from "@/lib/types";
 import "../globals.css";
 import Navbar from "@/components/Navbar";
+import SiteBackground from "@/components/SiteBackground";
 import HtmlLangSync from "@/components/HtmlLangSync";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -132,6 +133,7 @@ export default async function LocaleLayout({
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
+      <SiteBackground />
       <HtmlLangSync />
       <Navbar locale={locale as Locale} />
       <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>

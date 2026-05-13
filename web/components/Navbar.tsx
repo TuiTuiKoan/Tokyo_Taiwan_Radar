@@ -60,7 +60,7 @@ function NavbarLangSwitcher({ locale }: NavbarLangSwitcherProps) {
         title={locale.toUpperCase()}
         aria-expanded={langOpen}
         aria-label="Switch language"
-        className="w-8 h-8 flex items-center justify-center rounded hover:bg-green-50 text-[#3A261F] hover:text-green-700 transition"
+        className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#F7FFE8] text-[#3A261F] hover:text-[#1F5E2B] transition"
       >
         {/* Globe icon */}
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -81,7 +81,7 @@ function NavbarLangSwitcher({ locale }: NavbarLangSwitcherProps) {
                 sessionStorage.setItem("ttr_locale_scroll", String(window.scrollY));
                 setLangOpen(false);
               }}
-              className={`flex items-center gap-2 px-3 py-2 text-sm transition hover:bg-green-50 hover:text-green-700 ${
+              className={`flex items-center gap-2 px-3 py-2 text-sm transition hover:bg-[#F7FFE8] hover:text-[#1F5E2B] ${
                 loc === locale ? "font-semibold text-green-700" : "text-fg"
               }`}
             >
@@ -157,23 +157,23 @@ export default function Navbar({ locale }: Props) {
         <div className="flex items-center gap-1">
           {/* Desktop nav links */}
           <nav className="hidden md:flex items-center gap-4 text-sm mr-2 text-[#3A261F]">
-            <Link href={`/${locale}`} className="hover:text-green-700 transition">
+            <Link href={`/${locale}`} className="hover:text-[#1F5E2B] transition">
               {t("home")}
             </Link>
-            <Link href={`/${locale}/announcements`} className="hover:text-green-700 transition">
+            <Link href={`/${locale}/announcements`} className="hover:text-[#1F5E2B] transition">
               {t("news")}
             </Link>
-            <Link href={`/${locale}/about`} className="hover:text-green-700 transition">
+            <Link href={`/${locale}/about`} className="hover:text-[#1F5E2B] transition">
               {t("about")}
             </Link>
-            <Link href={`/${locale}/sources`} className="hover:text-green-700 transition">
+            <Link href={`/${locale}/sources`} className="hover:text-[#1F5E2B] transition">
               {t("sources")}
             </Link>
             {user && (
               <Link
                 href={`/${locale}/saved`}
                 title={t("saved")}
-                className="w-8 h-8 flex items-center justify-center rounded hover:bg-green-50 text-[#3A261F] hover:text-green-700 transition"
+                className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#F7FFE8] text-[#3A261F] hover:text-[#1F5E2B] transition"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
@@ -181,7 +181,7 @@ export default function Navbar({ locale }: Props) {
               </Link>
             )}
             {isAdmin && (
-              <Link href={`/${locale}/admin`} className="hover:text-green-700 transition font-medium text-green-700">
+              <Link href={`/${locale}/admin`} className="text-green-700 transition font-medium">
                 {t("admin")}
               </Link>
             )}
@@ -197,7 +197,7 @@ export default function Navbar({ locale }: Props) {
             <button
               onClick={handleLogout}
               title={t("logout")}
-              className="w-8 h-8 flex items-center justify-center rounded hover:bg-green-50 text-[#3A261F] hover:text-green-700 transition"
+              className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#F7FFE8] text-[#3A261F] hover:text-[#1F5E2B] transition"
             >
               {/* Logout icon */}
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -210,7 +210,7 @@ export default function Navbar({ locale }: Props) {
             <Link
               href={`/${locale}/auth/login`}
               title={t("login")}
-              className="w-8 h-8 flex items-center justify-center rounded hover:bg-green-50 text-[#3A261F] hover:text-green-700 transition"
+              className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#F7FFE8] text-[#3A261F] hover:text-[#1F5E2B] transition"
             >
               {/* Person icon */}
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -222,7 +222,7 @@ export default function Navbar({ locale }: Props) {
 
           {/* Hamburger — mobile only */}
           <button
-            className="md:hidden w-8 h-8 flex items-center justify-center rounded hover:bg-green-50 text-[#3A261F] hover:text-green-700 transition ml-1"
+            className="md:hidden w-8 h-8 flex items-center justify-center rounded hover:bg-[#F7FFE8] text-[#3A261F] hover:text-[#1F5E2B] transition ml-1"
             onClick={() => setMenuOpen((o) => !o)}
             aria-label="Menu"
             aria-expanded={menuOpen}
@@ -250,21 +250,21 @@ export default function Navbar({ locale }: Props) {
             <Link
               href={`/${locale}`}
               onClick={() => setMenuOpen(false)}
-              className="px-3 py-2.5 rounded-md hover:bg-green-50 hover:text-green-700 transition"
+              className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] hover:text-[#1F5E2B] text-[#3A261F] visited:text-[#3A261F] transition"
             >
               {t("home")}
             </Link>
             <Link
               href={`/${locale}/about`}
               onClick={() => setMenuOpen(false)}
-              className="px-3 py-2.5 rounded-md hover:bg-green-50 hover:text-green-700 transition"
+              className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] hover:text-[#1F5E2B] text-[#3A261F] visited:text-[#3A261F] transition"
             >
               {t("about")}
             </Link>
             <Link
               href={`/${locale}/sources`}
               onClick={() => setMenuOpen(false)}
-              className="px-3 py-2.5 rounded-md hover:bg-green-50 hover:text-green-700 transition"
+              className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] hover:text-[#1F5E2B] text-[#3A261F] visited:text-[#3A261F] transition"
             >
               {t("sources")}
             </Link>
@@ -272,7 +272,7 @@ export default function Navbar({ locale }: Props) {
               <Link
                 href={`/${locale}/saved`}
                 onClick={() => setMenuOpen(false)}
-                className="px-3 py-2.5 rounded-md hover:bg-green-50 hover:text-green-700 transition"
+                className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] hover:text-[#1F5E2B] text-[#3A261F] visited:text-[#3A261F] transition"
               >
                 {t("saved")}
               </Link>
@@ -281,7 +281,7 @@ export default function Navbar({ locale }: Props) {
               <Link
                 href={`/${locale}/admin`}
                 onClick={() => setMenuOpen(false)}
-                className="px-3 py-2.5 rounded-md hover:bg-green-50 hover:text-green-700 transition font-medium"
+                className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] hover:text-[#1F5E2B] transition font-medium"
               >
                 {t("admin")}
               </Link>
