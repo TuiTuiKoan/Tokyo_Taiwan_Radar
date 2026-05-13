@@ -277,6 +277,16 @@ source_url = a["href"]
 
 **Incident**: `hakusuisha.py` 的 `../news/n*.html` 直接存入 DB（commit `1b344f7`），導致 10 筆事件 source_url 404。
 
+**Auto-generated scraper 的 detail_url 補全規則**（spec_to_code template 生成的 `_extract_cards` 模式）：
+```python
+# ✅ 必須同時處理兩種相對路徑形式
+if detail_url and detail_url.startswith("/"):
+    detail_url = f"{BASE_URL}{detail_url}"
+elif detail_url and not detail_url.startswith("http"):
+    detail_url = f"{BASE_URL}/{detail_url}"  # document-relative path
+```
+只處理 `/` 前導的版本無法捕捉 `cinema/2026/event/...` 這類 document-relative URL，會讓 source_url 儲存為相對路徑並讓 detail page 開啟失敗（`raw_description = None`）。**Incident**: `cine_gallery.py` 事件 `cdf5e555`（2026-05-14，[scraper-expert/history.md]）。
+
 ## BeautifulSoup 多行文字提取 — `separator="\n"`
 
 **Rule**: 任何需要保留行結構的文字提取（排程、場次、地址、時間表等），必須使用 `separator="\n"`。
@@ -1758,3 +1768,54 @@ python enrich_poster.py --max 20
 - **Organizer Non-Hallucination Guard 適用**：Vision 抽出の organizer 値が `raw_description` に存在しない場合は棄却（thin content guard が主要防線）
 
 Reference incident: 2026-05-07 — `note_creators.py` `_fetch_article_content()` 実装により `image_url` 取得が可能になり、Vision OCR pipeline の初回適用先が生まれた（commit `a52f5b2`）。
+
+## WP REST API — `content` フィールド空の Elementor サイト
+
+Elementor / Gutenberg blocks テーマの WordPress サイトでは、`/wp-json/wp/v2/<post_type>?_fields=content` の `content.rendered` が `""` で返ることがある。JavaScript 側でブロックをレンダリングするため、静的 HTML レスポンスには本文が存在しない。
+
+**検出方法**：
+```python
+r = requests.get(API_URL, params={"_fields": "id,title,date,link,content", "per_page": 1})
+post = r.json()[0]
+print(repr(post["content"]["rendered"]))  # "" → Elementor サイト
+```
+
+**対処**：`content` フィールドは使わず `link` フィールドの URL に対して `requests.get` → `BeautifulSoup` で HTML を直接スクレーピングする。
+
+```python
+# ❌ Elementor サイトでは空
+content = post["content"]["rendered"]  # ""
+
+# ✅ detail ページを直接 fetch
+r = requests.get(post["link"], headers=HEADERS, timeout=15)
+soup = BeautifulSoup(r.text, "html.parser")
+full_text = soup.get_text(" ", strip=True).replace("\x00", "")
+```
+
+**コスト最適化**：詳細ページ fetch は HTTP コストが高い。**API 段階でタイトルフィルタを先に適用し、対象投稿のみ fetch する**（次セクション参照）。
+
+Reference incident: 2026-05-14 — SNET台湾 `snet_taiwan.py`（commit `64034ec`）、Elementor テーマで `content.rendered = ""`。
+
+## 低頻度ソース — タイトルベース 2 段階フィルタ（詳細ページ fetch 前）
+
+年 3〜5 件程度のイベントしか含まない WP REST API ソースで、全 50〜100 投稿のうちイベント告知が少数の場合、詳細ページ fetch 前にタイトルだけで 2 段階 INCLUDE/EXCLUDE フィルタを適用すると HTTP コストを大幅削減できる。
+
+**パターン**：
+```python
+_INCLUDE_RE = re.compile(r"開催のお知らせ|申込|プランニング大賞|ツアー.*ご案内|...")
+_EXCLUDE_RE = re.compile(r"アカデミー.*第\d+回|受賞.*決定|講師.*派遣|...")
+
+for post in api_posts:
+    title = BeautifulSoup(post["title"]["rendered"], "html.parser").get_text()
+    if not _INCLUDE_RE.search(title):
+        continue    # 対象外 — fetch しない
+    if _EXCLUDE_RE.search(title):
+        continue    # 明示除外 — fetch しない
+    event = self._fetch_and_parse(post["link"])  # ここで初めて HTTP fetch
+```
+
+**EXCLUDE の用途**：YouTube 動画シリーズ・過去活動報告・B2B 業務連絡など、タイトルが明らかにイベントではないものを事前排除する。
+
+**INCLUDE/EXCLUDE 条件の記録**：フィルタ条件を module docstring に記録し、将来のメンテナンスで意図を失わないようにする。
+
+Reference incident: 2026-05-14 — `snet_taiwan.py` で 66 投稿 → 5 件（シンポジウム・ツアー募集・コンテスト）に絞り込み（commit `64034ec`）。

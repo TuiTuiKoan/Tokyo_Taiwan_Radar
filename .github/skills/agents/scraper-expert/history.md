@@ -4,6 +4,71 @@
 
 ---
 
+## 2026-05-14 — cine_gallery 相對路徑未加 BASE_URL → source_url 損壞 + raw_description = None
+
+**問題：** auto-generated `cine_gallery.py` 只處理以 `/` 開頭的相對路徑（`detail_url.startswith("/")`），但 cine-gallery.jp 部分 detail link 為 `cinema/2026/event/shinotenshi/shinotenshi_2026.html`（無前導 `/`）。此 URL 被直接存入 `source_url`，detail page 無法開啟，`raw_description = None`，annotator 缺乏資料可用。
+
+**根因：** spec_to_code / template 生成的相對路徑補全邏輯只考慮 absolute-from-root（`/xxx`），未考慮 document-relative（`xxx/yyy`）路徑。
+
+**修正：**
+```python
+if detail_url and detail_url.startswith("/"):
+    detail_url = f"{BASE_URL}{detail_url}"
+elif detail_url and not detail_url.startswith("http"):
+    detail_url = f"{BASE_URL}/{detail_url}"
+```
+
+**連帶效應：** 事件 `cdf5e555`（フィシスの波文 ゲストトーク）因資料損壞且無台灣關聯，設為 `is_active=False` + `deactivated_reason`。
+
+**教訓：**
+- auto-generated scraper 的相對路徑補全必須同時處理：`/` 前導（absolute-from-root）和無前導 document-relative 路徑。
+- `raw_description = None` 是 detail URL 損壞的診斷訊號：annotator 只輸出「details will be announced later」類型的佔位翻譯。
+- 資料損壞且無台灣關聯的事件：直接 `is_active=False`，不嘗試資料補齊。
+
+---
+
+## 2026-05-14 — SNET台湾スクレーパー：WP REST `content` 空 + タイトルフィルタ設計パターン（commit `64034ec`）
+
+### A — Elementor WP サイトで REST API `content` フィールドが空になる
+
+**問題：** `/wp-json/wp/v2/accomplishment?_fields=content` の `content.rendered` が `""` で返る。Elementor テーマが JavaScript 側でレンダリングするため、静的 HTML レスポンスには本文が存在しない。
+
+**修正：** `content` フィールドは使わず、`link` フィールドで取得した URL に対して `requests.get` → `BeautifulSoup` で HTML を直接スクレーピング。`get_text()` でプレーンテキスト化してから日付・会場・本文を正規表現で抽出。
+
+**教訓：** WP REST API を使うソースで `content.rendered` が空の場合、Elementor / Gutenberg blocks ベースのテーマが原因。`link` URL を直接 fetch することで解決できる。詳細ページ取得のコストを抑えるため、**API 段階でタイトルフィルタを先に適用し、対象投稿のみ fetch する（後述 B）**。
+
+### B — 低頻度ソース（年 3〜5 件）のタイトルベースフィルタ設計
+
+**問題：** 66 投稿のうちイベント募集は約 5 件。YouTube アカデミー動画（27 本）・過去活動報告・B2B 講師派遣報告が混在。全件を詳細ページ fetch すると不要な HTTP コスト・レート制限リスクが発生。
+
+**設計：**
+```python
+_INCLUDE_RE = re.compile(r"開催のお知らせ|申込|プランニング大賞|作品募集|ツアー.*ご案内|…")
+_EXCLUDE_RE = re.compile(r"アカデミー.*第\d+回|受賞作品が決定|講師.*派遣|事前学習|事後学習")
+
+for post in posts:
+    if not _INCLUDE_RE.search(title): continue   # 非イベント除外
+    if _EXCLUDE_RE.search(title):    continue   # 明示除外
+    event = fetch_and_parse(post["link"])        # ここで初めて HTTP fetch
+```
+
+**教訓：** 投稿数が多い（50+）のに真のイベントが少ないソースは、**詳細ページ fetch 前に API 取得タイトルだけで 2 段階 INCLUDE/EXCLUDE フィルタ**を入れる。フィルタ条件は `scraper/__doc__` または docstring に記録しておくこと。
+
+### C — 複数形式混在ソースの日付 cascade（5 段階）
+
+**問題：** シンポジウム（`日時　2025年7月19日`）・ツアー募集（`（2026年2月25日`）・コンテスト（`締切：2026年11月13日`）で日付の文脈が異なる。単一パターンでは取れない。
+
+**設計（優先順位付き cascade）：**
+1. `日時[　\s：:]*YYYY年M月D日` — シンポジウム系イベント開催日
+2. `[（(]YYYY年M月D日` — ツアー開始日（括弧内）
+3. `締切[：:]\s*YYYY年M月D日` — コンテスト締切（開催日代理）
+4. 本文中最初の `YYYY年M月D日`
+5. WP publish date（最終フォールバック）
+
+**教訓：** 同一ソース内で「開催日・ツアー出発日・締切日」が混在する場合、1 つの正規表現でまとめようとせず **優先順位を明示した cascade** にする。SKILL.md に「イベント日付 cascade テンプレート」として汎用化済み。
+
+---
+
 ## 2026-05-11 — SC→TC 偵測/修復不一致 + `fix_simplified()` 掃描範圍不足
 
 ### A — `SC_ONLY` 假陽性 + `_SIMP_TO_TRAD_RAW` 缺映射（commit `aa24400`）

@@ -3,6 +3,24 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-14 — スコープ拡張：台湾開催イベント（日本人向け）も収集対象に（commit `b15af9c`）
+
+**背景：** SNET台湾（https://www.snet-taiwan.jp/）を調査した際、主要コンテンツが「日本の学校が台湾へ修学旅行するための支援」と「日本人大学生向け台湾ツアー」で、日本国内開催イベントが年 1〜2 件しかなかったため、一度 `not-viable` と判断した。しかし、そのコンテンツ自体が「日本人が台湾を訪れる」日台交流の文脈であることを再認識。
+
+**スコープ更新（commit `b15af9c`）：** `copilot-instructions.md` の Geographic Scope に以下を追記：
+> **Taiwan-based events are also in scope** when they are organized specifically for Japanese audiences or by Japan-based organizations for Japan↔Taiwan exchange (e.g., study tours, cultural immersion programs, academic exchanges targeting Japanese participants).
+
+**判断基準：**
+- ✅ 対象：日本人向けに台湾で開催されるツアー・研修・留学プログラム（SNET台湾ツアー、JTEP研修など）
+- ✅ 対象：日本の学校・大学が台湾で行う修学旅行・交流プログラム（募集ページが日本人向け）
+- ❌ 対象外：台湾国内向けイベント（日本人を対象としていない）
+- ❌ 対象外：台湾の一般ニュース・行政情報（イベント性なし）
+
+**教訓：**
+- `not-viable` 判断前に「開催場所が日本国外 = 対象外」と即断しない。**主催者が日本人向けか否か**で判断する。
+- スコープ変更後は過去の `not-viable` 判定を遡及して再評価する（SNET台湾は `researched/hard` → `implemented` に格上げ）。
+
+---
 ## 2026-05-07 — source_url vs official_url 分離・works 多欄位搜尋・secondary_source_urls 重複清理
 
 **問題：**

@@ -116,10 +116,12 @@ Before running `update_source.py --status researched --feasibility easy`, the Re
 ### Step 2: Evaluate
 
 > ⚠️ **SCOPE REMINDER**: The question is "does this source have Taiwan events anywhere in Japan?" NOT "are the events in Tokyo?"
+>
+> ⚠️ **TAIWAN-BASED EVENTS IN SCOPE**: Tours, study programs, and cultural exchange activities **held IN Taiwan but organized for Japanese participants** are also in scope (e.g., SNET台湾 student tours, school修学旅行, academic exchange programs targeting Japanese audiences). Do NOT reject a source solely because its events take place in Taiwan. Evaluate whether the target audience is Japanese.
 
 For each promising source, answer:
 
-1. **Relevance**: Does it surface Taiwan-related events **anywhere in Japan**? How many per month? Note which region(s) events are held in.
+1. **Relevance**: Does it surface Taiwan-related events **anywhere in Japan OR Taiwan-based events for Japanese audiences**? How many per month? Note which region(s) events are held in.
 2. **Rendering**: Is the page fully server-rendered HTML, or does it require JS execution (→ Playwright)?
 3. **Structure**: Are event titles, dates, and URLs in stable CSS selectors or a JSON API?
 4. **Dedup key**: What field can serve as a stable `source_id` across runs?
