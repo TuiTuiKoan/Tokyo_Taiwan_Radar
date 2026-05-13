@@ -11,4 +11,4 @@
 - [x] T5: events/[id]/loading.tsx（事件詳情骨架屏）
 - [x] T5: categories/[category]/loading.tsx（分類頁骨架屏）
 - [x] 驗證：pnpm build 通過
-- [ ] 驗證：Lighthouse SEO + Accessibility 分數 ≥ 95
+- [x] 驗證：Lighthouse SEO + Accessibility 分數 ≥ 95
