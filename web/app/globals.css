@@ -170,23 +170,23 @@ html:has([data-site-bg]) body {
 
 /* ------------------------------------------------------------
  * Defensive: pin form controls to explicit colors via tokens.
- * Prevents iOS Safari / Android Chrome from re-styling inputs in
- * system dark mode (which previously caused invisible search text).
- * When dark mode toggle ships these will follow the active theme
- * automatically because they reference CSS variables.
+ * Wrapped in @layer base so Tailwind utility classes (e.g. bg-paper)
+ * can override as needed — @layer utilities > @layer base.
  * ------------------------------------------------------------ */
-input,
-textarea,
-select {
-  color: var(--color-text);
-  background-color: var(--color-surface);
-  -webkit-text-fill-color: var(--color-text);
-}
+@layer base {
+  input,
+  textarea,
+  select {
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    -webkit-text-fill-color: var(--color-text);
+  }
 
-input::placeholder,
-textarea::placeholder {
-  color: var(--color-text-subtle);
-  opacity: 1;
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-text-subtle);
+    opacity: 1;
+  }
 }
 
 /* Unified chevron arrow for FilterBar <select> elements */
