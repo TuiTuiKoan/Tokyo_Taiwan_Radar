@@ -43,6 +43,30 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
   - **Tier B** (admin-only): `GRANT SELECT, INSERT, UPDATE, DELETE ON ... TO authenticated, service_role;`
   - **Tier C** (service-role only): `GRANT SELECT, INSERT, UPDATE, DELETE ON ... TO service_role;`
   Always `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` before adding GRANTs.
+- **GRANT scope を決める前に「誰が書くか」を Python コードから逆引きする。** RLS ポリシーのみ参照すると書き込み GRANT が漏れる。典型的な漏れパターン：`scraper_runs`・`research_reports` は scraper/annotator が service_role で INSERT するため `service_role INSERT` が必要。`creators` は admin UI から `authenticated` が CRUD するため `authenticated CRUD` が必要。
+
+## annotation_status エラーイベントの定期リセット
+
+`annotator.py` は `annotation_status='pending'` のみ処理する。`'error'` になったイベントは**自動リトライされない**。
+
+**確認コマンド（定期的に実行）：**
+```python
+res = sb.table('events').select('id,name_ja', count='exact') \
+    .eq('annotation_status','error').eq('is_active', True).execute()
+print(f"error count: {res.count}")
+```
+
+**リセット手順：**
+```python
+ids = [r['id'] for r in res.data]
+sb.table('events').update({'annotation_status': 'pending'}).in_('id', ids).execute()
+# その後 python annotator.py を実行
+```
+
+**注意事項：**
+- `daily_report.py` は `.limit(5)` でエラー件数を表示するため、実際の件数と一致しない。COUNT で別途確認すること。
+- 薄い `raw_description`（1行のみ）の sub-event も、親イベントのコンテキストを参照することで正常アノテーション可能。
+- error 件数が多い場合は `annotator.py` の GPT JSON パースロジックに問題がある可能性もある（レスポンス形式の変化等）。
 
 ## Supabase Realtime
 

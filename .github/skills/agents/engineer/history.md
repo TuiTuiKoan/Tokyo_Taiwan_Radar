@@ -4,6 +4,61 @@
 
 ---
 
+## 2026-05-14 — `annotation_status='error'` イベントが長期滞留（21件、6日間）
+
+**問題：** annotator が GPT レスポンスの JSON パースに失敗すると `annotation_status='error'` にセットするが、annotator のクエリは `annotation_status='pending'` のみ対象にするため、error のまま放置される。daily_report は `.limit(5)` で取得するため「5件」と表示されていたが、実際は21件が6日間滞留していた。
+
+**修正：**
+```python
+# 全 error イベントを pending にリセット
+res = sb.table('events').select('id').eq('annotation_status','error').eq('is_active', True).execute()
+ids = [r['id'] for r in res.data]
+sb.table('events').update({'annotation_status': 'pending'}).in_('id', ids).execute()
+# その後 python annotator.py を実行
+```
+
+**教訓：**
+- `annotation_status='error'` イベントは annotator が自動リトライしない。定期的に `select ... where annotation_status='error' and is_active=true` でチェックし、手動または CI で `pending` にリセットする必要がある。
+- daily_report が `.limit(5)` で表示する件数と実際の件数は一致しない。エラー件数は COUNT で別途確認すること。
+- 薄い `raw_description`（1行のみ）の sub-event も、親イベントのコンテキストを参照することで正常アノテーション可能。
+
+---
+
+## 2026-05-14 — Supabase migration 069 の GRANT 設計漏れ（scraper_runs / research_reports / creators）
+
+**問題：** migration `069_explicit_grants.sql` で以下の GRANT が不足していた：
+- `scraper_runs`: `service_role` に `INSERT` を付与し忘れ（scraper/annotator が毎回 INSERT する）
+- `research_reports`: `service_role` に `INSERT` を付与し忘れ（researcher agent が INSERT する）
+- `creators`: `authenticated` に `INSERT/UPDATE/DELETE` を付与し忘れ（管理者が CRUD する）
+
+**修正：** 069 適用後に補正 SQL を SQL Editor で追加実行：
+```sql
+GRANT SELECT, INSERT ON public.scraper_runs      TO service_role;
+GRANT SELECT, INSERT ON public.research_reports  TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.creators TO authenticated, service_role;
+```
+
+**教訓：**
+- GRANT 設計は「誰が書くか」を Python コードから逆引きして確認する。RLS ポリシーの存在だけを見て GRANT の scope を決めると書き込み用 GRANT が漏れる。
+- `scraper_runs`, `research_reports` はスクレーパー/annotator/researcher が service_role で INSERT → **必ず service_role に INSERT を付与**。
+- `creators` は管理者が admin UI から CRUD → **authenticated に CRUD を付与**。
+
+---
+
+## 2026-05-14 — `python-dotenv` CVE-2026-28684（symlink following via cross-device rename）
+
+**問題：** `python-dotenv < 1.2.2` の `set_key()` / `unset_key()` が `.env` ファイルを symlink 経由で書き換える際、`/tmp` が別デバイスにある Linux 環境でクロスデバイス rename fallback (`shutil.copy2` → `shutil.move`) が発生し、任意ファイルを上書きできる（CVE-2026-28684、GHSA-mf9w-mj56-hr94、CVSS 6.6/Moderate）。
+
+**このプロジェクトへの影響：** `set_key()`/`unset_key()` は一切使用していない（`load_dotenv()` のみ）→ 実際の攻撃リスクはゼロ。ただし Dependabot アラートをクローズするため予防的にアップグレード。
+
+**修正（commit `3a18640`）：** `scraper/requirements.txt`: `python-dotenv==1.1.0` → `==1.2.2`
+
+**教訓：**
+- Dependabot アラートが来たら「このプロジェクトで脆弱な関数を呼んでいるか」を `grep -rn "set_key\|unset_key" scraper/` で確認してから優先度を判断する。
+- `load_dotenv()` は本脆弱性の対象外（読み取り専用）。
+
+---
+
 ## 2026-05-14 — `user-invocable: false` を handoff ターゲット agent に設定すると VS Code の handoff ボタンが表示されない（commit `6188653`）
 
 **問題：** `update-history-agent.agent.md` と `validate-merge-deploy.agent.md` に `user-invocable: false` が設定されていた。この設定は「ユーザーが agent ピッカーから直接呼び出せない」だけでなく、**他 agent の handoff ボタンのターゲットとしても非表示になる**。結果として handoff ナビゲーションが機能しなかった。
