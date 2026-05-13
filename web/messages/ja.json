@@ -37,6 +37,8 @@
     "locationChugoku": "中国・九州・四国",
     "cityAll": "すべての都道府県",
     "cityOther": "その他",
+    "cityLabel": "都道府県",
+    "selectedLabel": "選択中：",
     "locationOverseas": "海外（台湾各都市）"
   },
   "categories": {
@@ -520,7 +522,22 @@
         "scraperGroups": "Scraper グループ",
         "dataFlow": "データフロー",
         "viewArchitecture": "アーキテクチャ図を見る",
-        "diagramFallback": "（図表は読み込み中または利用不可、以下は JSON 構造）"
+        "diagramFallback": "（図表は読み込み中または利用不可、以下は JSON 構造）",
+        "explorerTitle": "Workflow Explorer",
+        "explorerDesc": "JSON 駆動のアクションフローを切り替えて、データ経路をハイライト表示します。",
+        "actionLabel": "フローアクション",
+        "searchLabel": "アクション検索",
+        "searchPlaceholder": "アクション名または説明で検索",
+        "reset": "表示をリセット",
+        "noFlow": "現在の条件で表示できるフローがありません。",
+        "stepsTitle": "フローステップ",
+        "annotationsTitle": "注記",
+        "evidenceLabel": "Evidence",
+        "channelLabel": "Channel",
+        "payloadLabel": "Payload",
+        "nodesCount": "Nodes",
+        "actionsCount": "Actions",
+        "flowsCount": "Flows"
       }
     },
     "worksTab": "作品",

@@ -37,7 +37,9 @@
     "locationChugoku": "中國・九州・四國",
     "locationOverseas": "海外（台灣各城市）",
     "cityAll": "全部都道府縣",
-    "cityOther": "其他"
+    "cityOther": "其他",
+    "cityLabel": "都道府縣",
+    "selectedLabel": "已選："
   },
   "categories": {
     "movie": "電影",
@@ -520,7 +522,22 @@
         "scraperGroups": "Scraper 分組",
         "dataFlow": "資料流",
         "viewArchitecture": "查看架構地圖",
-        "diagramFallback": "（圖表載入中或不可用，下方為 JSON 結構）"
+        "diagramFallback": "（圖表載入中或不可用，下方為 JSON 結構）",
+        "explorerTitle": "Workflow Explorer",
+        "explorerDesc": "以 JSON 驅動的動作流程視圖；可切換 action 並高亮資料傳遞路徑。",
+        "actionLabel": "流程動作",
+        "searchLabel": "搜尋動作",
+        "searchPlaceholder": "輸入 action 名稱或描述",
+        "reset": "重設視圖",
+        "noFlow": "目前沒有可顯示的流程。",
+        "stepsTitle": "流程步驟",
+        "annotationsTitle": "註解",
+        "evidenceLabel": "Evidence",
+        "channelLabel": "Channel",
+        "payloadLabel": "Payload",
+        "nodesCount": "Nodes",
+        "actionsCount": "Actions",
+        "flowsCount": "Flows"
       }
     },
     "worksTab": "作品",

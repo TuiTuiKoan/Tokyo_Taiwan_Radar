@@ -37,6 +37,8 @@
     "locationChugoku": "Chugoku / Kyushu / Shikoku",
     "cityAll": "All prefectures",
     "cityOther": "Other",
+    "cityLabel": "Prefecture",
+    "selectedLabel": "Selected: ",
     "locationOverseas": "Overseas (Taiwan Cities)"
   },
   "categories": {
@@ -520,7 +522,22 @@
         "scraperGroups": "Scraper groups",
         "dataFlow": "Data flow",
         "viewArchitecture": "View architecture map",
-        "diagramFallback": "(Diagram loading or unavailable; JSON structure below)"
+        "diagramFallback": "(Diagram loading or unavailable; JSON structure below)",
+        "explorerTitle": "Workflow Explorer",
+        "explorerDesc": "JSON-driven action flows with path highlighting and step-level data notes.",
+        "actionLabel": "Flow action",
+        "searchLabel": "Search action",
+        "searchPlaceholder": "Type action label or description",
+        "reset": "Reset view",
+        "noFlow": "No flow available for the current filter.",
+        "stepsTitle": "Flow steps",
+        "annotationsTitle": "Annotations",
+        "evidenceLabel": "Evidence",
+        "channelLabel": "Channel",
+        "payloadLabel": "Payload",
+        "nodesCount": "Nodes",
+        "actionsCount": "Actions",
+        "flowsCount": "Flows"
       }
     },
     "worksTab": "Works",
