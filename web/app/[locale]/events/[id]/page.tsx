@@ -718,6 +718,8 @@ export default async function EventDetailPage({ params }: PageProps) {
                   ? subEventPrefectures.join("・")
                   : event.source_name === "gguide_tv"
                   ? t("tvChannel")
+                  : event.source_name === "rti_jp"
+                  ? t("radioChannel")
                   : (locationAddress || locationName) ? (
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationAddress || locationName || "")}`}

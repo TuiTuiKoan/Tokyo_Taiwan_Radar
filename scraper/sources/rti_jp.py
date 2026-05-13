@@ -215,6 +215,9 @@ class RtiJpScraper(BaseScraper):
                     raw_description=raw_description,
                     start_date=start_date,
                     category=list(categories),
+                    location_name="RTI台湾国際放送（日本語部門）",
+                    location_url="https://www.rti.org.tw/jp",
+                    event_form=["ラジオ放送"],
                 ))
 
             time.sleep(0.5)
