@@ -8,9 +8,44 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `068_research_sources_display_type.sql` (number `044` is reserved for future corrections work — skip to `069` for the next new migration)
+- Number migrations sequentially: `001`, `002`, … Latest is `069_explicit_grants.sql` (number `044` is reserved for future corrections work — skip to `070` for the next new migration)
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped; `029_aeo_visits.sql` + `029b_realtime_events.sql`; `038_performer.sql` + `038b_field_corrections.sql`
+
+## Explicit GRANT requirement (Supabase policy change — effective October 30, 2026)
+
+**Starting October 30, 2026, Supabase no longer grants implicit Data API access to new tables in the public schema.** Every migration that creates a new table MUST include explicit `GRANT` statements, or PostgREST/supabase-js will return a `42501` error.
+
+### GRANT template for new table migrations
+
+Use the tier that matches the table's access model:
+
+```sql
+-- ── Tier A: Public-read table (web app reads via anon key) ──────────────────
+ALTER TABLE public.your_table ENABLE ROW LEVEL SECURITY;
+
+GRANT SELECT ON public.your_table TO anon, authenticated, service_role;
+-- (add INSERT/UPDATE/DELETE to authenticated/service_role as needed)
+
+-- ── Tier B: Admin-only table (no anon access) ───────────────────────────────
+ALTER TABLE public.your_table ENABLE ROW LEVEL SECURITY;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.your_table
+  TO authenticated, service_role;
+
+-- ── Tier C: Service-role only (scraper/internal) ────────────────────────────
+ALTER TABLE public.your_table ENABLE ROW LEVEL SECURITY;
+-- No RLS policy = deny-all for anon/authenticated; service_role bypasses RLS.
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.your_table
+  TO service_role;
+```
+
+**Rules:**
+- Always enable RLS before adding GRANTs — without RLS, any granted role has unrestricted row access
+- `service_role` bypasses RLS but still needs an explicit table-level GRANT post-October 30
+- GRANTs for `anon` should only be added to tables with a public-read RLS policy (`USING (true)` or `USING (is_active = true)`)
+- Migration `069_explicit_grants.sql` covers all tables created before this rule was introduced
 
 ## Schema overview
 
