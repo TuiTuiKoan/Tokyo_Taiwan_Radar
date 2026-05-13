@@ -157,7 +157,7 @@ def _deactivate_payload(reason: str, pass_id: str) -> dict:
     """Build the update payload for deactivating an event with audit fields.
 
     pass_id: 'merger_pass_0' | 'merger_pass_1' | 'merger_pass_2'
-             | 'merger_pass_3' | 'orphan_cleanup' | 'admin_manual'
+             | 'merger_pass_3' | 'merger_pass_4' | 'orphan_cleanup' | 'admin_manual'
     """
     from datetime import datetime, timezone
     return {
@@ -1014,7 +1014,7 @@ def _flatten_grandchild_events(sb: Any, dry_run: bool = False) -> int:
                     sb.table("events").update(
                         _deactivate_payload(
                             f"grandchild duplicate of sibling under root {root_id} (Pass 4 flatten)",
-                            "merger_pass_3",
+                            "merger_pass_4",
                         )
                     ).eq("id", gc["id"]).execute()
                     logger.info(
@@ -1059,4 +1059,4 @@ if __name__ == "__main__":
 
     count = run_merger(dry_run=args.dry_run)
     action = "would be merged" if args.dry_run else "merged"
-    print(f"Done: {count} pair(s)/orphan(s) {action} (Pass 0+1+2+3+5).")
+    print(f"Done: {count} pair(s)/orphan(s) {action} (Pass 0+1+2+3+4+5).")
