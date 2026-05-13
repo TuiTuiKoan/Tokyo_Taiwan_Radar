@@ -244,6 +244,35 @@ if m:
 ```
 Similarly, `N週間` → `N × 7` days. Apply BEFORE falling back to `end_date = start_date`.
 
+### On-Demand / Viewing Period — detail page date extraction
+
+When a listing table cell has only a term name (e.g. `2025年度 冬期 全4回`) with no explicit date range,
+the actual start/end dates are often embedded in the **detail page body** as `(YYYY/MM/DD)` or `YYYY年MM月DD日`.
+
+**Priority order for on-demand / date-less courses:**
+1. **Tier 1**: Parse explicit date range from listing column (e.g. `07月04日～07月25日`)
+2. **Tier 2**: Extract `(YYYY/MM/DD)` or `YYYY年MM月DD日` from detail page body — take earliest as `start_date`, latest as `end_date`
+3. **Tier 3**: Term fallback (`春期`→4/1, `夏期`→7/1, `秋期`→10/1, `冬期`→1/1 of next calendar year)
+
+```python
+_DETAIL_DATE_PARENS_RE = re.compile(r"\((\d{4})/(\d{1,2})/(\d{1,2})\)")
+
+def _extract_detail_dates(detail_soup):
+    text = (detail_soup.find(id="course") or detail_soup).get_text(" ", strip=True)
+    found = []
+    for m in _DETAIL_DATE_PARENS_RE.finditer(text):
+        found.append(datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc))
+    found.sort()
+    return (found[0], found[-1] if len(found) > 1 else None) if found else (None, None)
+```
+
+**Always try detail page dates before term fallback** — term fallback yields `YYYY-01-01` / `YYYY-04-01`
+which shows as "日期未定" on the web UI and misleads users.
+
+Reference incident: 2026-05-14 — wuext_waseda event `30bdfc30`「台湾と日本―興味の台湾案内」
+had `start_date=2026-01-01` (term fallback). Actual viewing period `(2025/11/26)～(2026/04/30)`
+was in the detail body. Fixed in commit `bacd4cd`.
+
 ### annotator `or event.get("end_date")` fallback — blind spot
 The pattern `annotation.get("end_date") or event.get("end_date")` only rescues the scraper's value when GPT returns `null`. When GPT returns a **non-null wrong value** (most commonly SINGLE-DAY RULE: `end_date = start_date`), the `or` branch is never reached — the wrong value is written to DB. Fix: always embed the correct date range in `raw_description` (see § `開催日時:` prefix above) so GPT never needs to fall back to SINGLE-DAY RULE in the first place.
 

@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-05-14 — wuext_waseda オンデマンド講座の日付が term fallback になる
+
+**問題：** 早稲田エクステンション（wuext_waseda）のオンデマンド講座は、一覧表の「日時」列に
+`2025年度 冬期 全4回` のように期間名のみが書かれており、具体的な日付範囲がない。
+スクレイパーが listing column からの日付抽出（Tier 1）に失敗し、
+term fallback（冬期 → `2026-01-01`）を返した。
+ユーザーから「日期沒抓到」と報告：`start_date=2026-01-01` が表示されていた。
+
+**根因：** 実際の視聴期間（`(2025/11/26)から(2026/04/30)まで`）は詳細ページ本文に
+`(YYYY/MM/DD)` 形式で書かれていたが、scraper がその情報を参照していなかった。
+fallback 優先順位が Tier 1（listing）→ Tier 3（term）で、詳細ページ参照（Tier 2）がなかった。
+
+**修正：** `_extract_detail_dates()` 関数を追加（`(YYYY/MM/DD)` と `YYYY年MM月DD日` を抽出）。
+listing 日付失敗時に detail page 日付を Tier 2 として試みてから term fallback（Tier 3）へ進む。
+DB の該当イベント `30bdfc30` を `start=2025-11-26`、`end=2026-04-30` に修正・FC ロック済み（commit `bacd4cd`）。
+
+**教訓：**
+- オンデマンド / 録画配信コースは listing に日付がない場合でも、detail page 本文に `(YYYY/MM/DD)` 形式で視聴期間が書かれていることが多い。**term fallback より前に detail page を参照すること。**
+- term fallback が返す `YYYY-01-01` や `YYYY-04-01` はユーザーに「日期未定」として表示される誤情報。最後の手段として使い、可能な限り具体的な日付を優先する。
+- 汎用ルールを `scraper-expert/SKILL.md § On-Demand / Viewing Period — detail page date extraction` に追加済み。
+
+---
+
 ## 2026-05-14 — cine_gallery 相對路徑未加 BASE_URL → source_url 損壞 + raw_description = None
 
 **問題：** auto-generated `cine_gallery.py` 只處理以 `/` 開頭的相對路徑（`detail_url.startswith("/")`），但 cine-gallery.jp 部分 detail link 為 `cinema/2026/event/shinotenshi/shinotenshi_2026.html`（無前導 `/`）。此 URL 被直接存入 `source_url`，detail page 無法開啟，`raw_description = None`，annotator 缺乏資料可用。
