@@ -1,8 +1,6 @@
 ---
 name: Update History, Skill, Agent
 description: "Document recent changes, fixes, and lessons in history.md, SKILL.md, and agent files — call after fixing bugs or implementing features"
-user-invocable: false
-disable-model-invocation: false
 ---
 
 # 更新 History、Skill、Agent
