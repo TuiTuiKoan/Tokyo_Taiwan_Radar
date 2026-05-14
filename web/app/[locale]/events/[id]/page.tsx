@@ -640,7 +640,7 @@ export default async function EventDetailPage({ params }: PageProps) {
       })()}
 
       {/* ===== Summary Card ===== */}
-      <div className="border border-line rounded-xl overflow-hidden mb-6 bg-paper">
+      <div className="border border-line rounded-xl overflow-hidden mb-6 bg-paper dark:bg-surface">
         <table className="w-full text-sm">
           <tbody className="divide-y divide-line">
             {/* Categories */}
@@ -808,7 +808,7 @@ export default async function EventDetailPage({ params }: PageProps) {
         (event as Event).has_japanese_support ||
         (event as Event).has_english_support ||
         (event as Event).has_chinese_support) && (
-        <section className="mb-8 border border-line rounded-xl p-4 bg-elevated/50">
+        <section className="mb-8 border border-line rounded-xl p-4 bg-elevated/50 dark:bg-surface/80">
           <h2 className="font-display font-bold text-[#3A261F] text-base mb-3">{t("organizerSection")}</h2>
           <dl className="space-y-2 text-sm">
             {(event as Event).organizer && (

@@ -32,7 +32,7 @@ export default function RawDataSection({ rawTitle, rawDescription, selectionReas
   return (
     <div className="mb-8">
       {/* Selection Reason + Report button (always together) */}
-      <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
+      <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 dark:border-amber-900/60 dark:bg-amber-950/70">
         <h2 className="text-sm font-medium text-amber-700 mb-1">{t("selectionReason")}</h2>
         {displayedReason && (
           <p className="text-sm text-amber-900 mb-3">{displayedReason}</p>

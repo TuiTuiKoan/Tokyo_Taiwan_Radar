@@ -30,7 +30,7 @@ export function SiteBackground() {
         className="fixed inset-0 -z-30 pointer-events-none opacity-0 dark:opacity-100 transition-opacity duration-300"
         style={{
           background:
-            "linear-gradient(135deg, #18160f 0%, #1c1a17 45%, #131a12 100%)",
+            "linear-gradient(135deg, #201510 0%, #1b1918 50%, #0d1c11 100%)",
         }}
       />
 

@@ -71,7 +71,7 @@ export default function SaveButton({ eventId, initialSaved, locale, compact = fa
       } ${
         saved
           ? "bg-green-600 text-white border-green-600 hover:bg-green-700"
-          : "border-line text-[#1F5E2B] dark:text-green-400 hover:text-[#1F5E2B] dark:hover:text-green-400 hover:bg-[#F7FFE8] dark:hover:bg-elevated"
+          : "border-line text-[#1F5E2B] dark:text-green-400 hover:text-[#1F5E2B] dark:hover:text-green-400 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40"
       } disabled:opacity-50`}
     >
       <svg

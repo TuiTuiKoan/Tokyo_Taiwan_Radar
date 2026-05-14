@@ -419,10 +419,19 @@ html.dark .bg-amber-50         { background-color: #451a03; }
 html.dark .bg-amber-100        { background-color: #451a03; }
 html.dark .text-amber-700      { color: #fbbf24; }
 html.dark .text-amber-600      { color: #fbbf24; }
+html.dark .text-amber-800      { color: #fcd34d; }  /* was near-black on dark bg */
+html.dark .text-amber-900      { color: #fef3c7; }  /* was near-black — used in inputs, display text */
+html.dark .text-amber-400      { color: #fde68a; }  /* locale labels inside report form */
 html.dark .border-amber-300    { border-color: #92400e; }
 html.dark .border-amber-200    { border-color: #92400e; }
 html.dark .bg-orange-100       { background-color: #431407; }
 html.dark .text-orange-700     { color: #fdba74; }
+html.dark .accent-amber-600    { accent-color: #fbbf24; }
+html.dark .accent-amber-500    { accent-color: #fbbf24; }
+
+/* Hover bg states that need dark overrides */
+html.dark .hover\:bg-green-50:hover  { background-color: #052e16; }
+html.dark .hover\:bg-paper:hover     { background-color: var(--color-bg-elevated); }
 
 /* ============================================================
  * Exception zone: elements inside [data-preserve-theme="light"]
@@ -434,3 +443,5 @@ html.dark [data-preserve-theme="light"] .text-\[\#3A261F\]           { color: #3
 html.dark [data-preserve-theme="light"] .hover\:text-\[\#3A261F\]:hover { color: #3A261F; }
 html.dark [data-preserve-theme="light"] .text-\[\#1F5E2B\]           { color: #1F5E2B; }
 html.dark [data-preserve-theme="light"] .group-hover\:text-green-800 { color: #166534; }
+/* Keep date kicker bg-paper (cream) inside yellow announcement cards */
+html.dark [data-preserve-theme="light"] .bg-paper                    { background-color: #FFFDF5; }
