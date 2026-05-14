@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-05-15 — CI web-darkmode-smoke 一直失敗（HTTP 500）
+
+**問題：** `web-darkmode-smoke` workflow 自建立以來每次都失敗。`pnpm dev` 啟動後健康檢查對 `/zh` 發出 GET 一直收到 500。
+
+**根因：** "Start Next.js app" 步驟沒有設任何 env vars。`NEXT_PUBLIC_SUPABASE_URL` 和 `NEXT_PUBLIC_SUPABASE_ANON_KEY` 在 CI 環境中為 `undefined`，`createServerClient(undefined, undefined, ...)` 在首頁渲染時拋出 → 500。此外，`pnpm dev` 不觸發 `prebuild` hook（prebuild 只在 `next build` 時執行），如果有路由 import 的檔案（如 `specs-snapshot.json`）不存在，也會 500。
+
+**修正：**
+1. 在 "Start Next.js app" 步驟加入 `env:` 區塊：`NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}` 和 `NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_KEY }}`
+2. 在 Start 前加入 "Generate specs snapshot" 步驟：`pnpm run build-specs-snapshot`
+3. 健康檢查超時時自動 dump `/tmp/web-darkmode-smoke-next.log` 輔助排查
+
+**教訓：**
+- CI 啟動 Next.js dev server 時**必須**注入所有 `NEXT_PUBLIC_*` env vars；否則 Supabase client 拿到 `undefined` URL 導致 500。
+- Repo secret 對應：`NEXT_PUBLIC_SUPABASE_URL = secrets.SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY = secrets.SUPABASE_KEY`。
+- `prebuild` 只在 `npm/pnpm run build` 時觸發，`pnpm dev` **不**觸發；CI 若有 build-time 生成的 JSON（如 `specs-snapshot.json`），需在啟動 dev server 前單獨執行 `pnpm run build-specs-snapshot`。
+- 診斷 health check 500 時，優先 dump Next.js dev log（`/tmp/web-darkmode-smoke-next.log`）確認根因，而非盲目猜測。
+
+## 2026-05-15 — CategoryThumbnail 呼叫端 props 介面不符（TS2322）
+
+**問題：** `npm run build` 失敗；`npx tsc --noEmit` 顯示 3 個 TS2322 錯誤，位於 `page.tsx`、`EventListClient.tsx`、`EventCardMockup.tsx`。錯誤訊息：`Type 'string[] | null | undefined' is not assignable to type 'string[] | undefined'`。
+
+**根因：** `CategoryThumbnail.tsx` 的介面已演進，但 3 個呼叫端仍用舊 API：使用不存在的 `seed` prop（應為 `id`）、不存在的 `size` prop（尺寸只能透過 `className` 控制）、並用 `as string[] | null | undefined` 型別轉換規避 null check。`next dev`（Turbopack）不做完整 TS 檢查，所以錯誤在開發期間無症狀。
+
+**修正：** 三個檔案全部改用正確 API：`id={event.id}`、移除 `size` prop、`categories={event.category ?? undefined}`（null-safe，非強制轉型）。
+
+**教訓：**
+- **CategoryThumbnail 現行介面（永遠以 `web/lib/design/CategoryThumbnail.tsx` 為準）：**
+  - `id: string` — 作為 PRNG seed（事件 ID）
+  - `categories?: string[]` — **不接受 null**，必須用 `?? undefined`
+  - `className?: string` — 唯一控制尺寸的方式（例：`"w-[108px] h-[108px]"`）
+  - `forceMotifIdx?: number` — 可選，覆蓋 motif 選取
+  - **無 `seed` prop、無 `size` prop**
+- `next build`（webpack）做完整 TS 檢查；`next dev`（Turbopack）不做。介面修改後，呼叫端可能在開發期間無症狀，直到 CI/Vercel build 才炸。
+- 修改 `CategoryThumbnail` 介面後必須同步搜尋所有呼叫端：`grep -r "CategoryThumbnail" web/`。
+
+---
+
 ## 2026-05-15 — Sources 卡片樣式漂移 + 部署前 MM 漂移風險
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

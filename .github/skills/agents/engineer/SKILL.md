@@ -125,6 +125,55 @@ Tailwind v4 的 `@theme` block 在 **build time** 靜態解析所有 CSS 變數�
 
 **Incident 參考：** 2026-05-14 — `171bea4` 的 TS2873 (`void event ? ...`) 讓 Vercel build 失敗；`4d8b873` 修正後 admin 正常。307 redirect 是誤導性診斷訊號。(history.md 條目：「後台壞掉了」診斷）
 
+## CI Smoke Test — Next.js Dev Server 環境配置
+
+`web-darkmode-smoke` workflow 的 "Start Next.js app" 步驟**必須**包含：
+
+```yaml
+- name: Generate specs snapshot
+  working-directory: web
+  run: pnpm run build-specs-snapshot
+
+- name: Start Next.js app
+  working-directory: web
+  env:
+    NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_KEY }}
+  run: |
+    pnpm dev --hostname 127.0.0.1 --port 3000 > /tmp/web-darkmode-smoke-next.log 2>&1 &
+    echo $! > /tmp/web-darkmode-smoke-next.pid
+```
+
+**原因：**
+- `pnpm dev`（Turbopack）**不**觸發 `prebuild` hook，`specs-snapshot.json` 不會自動產生。若 `/admin/specs` 等路由被 import 到會首先編譯的模組，Next.js 啟動時即 500。
+- `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY` 若未設，`createServerClient(undefined, undefined, ...)` 在第一個頁面請求（`/zh`）拋出 → 500。
+- Repo secret 對應：`SUPABASE_URL` → `NEXT_PUBLIC_SUPABASE_URL`，`SUPABASE_KEY` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`。
+
+**診斷 health check 500 時：**
+在健康檢查失敗後加 `cat /tmp/web-darkmode-smoke-next.log` dump，確認是「missing env」還是「module not found」，再對症修復。
+
+## CategoryThumbnail 呼叫端 API 規則
+
+`web/lib/design/CategoryThumbnail.tsx` 的現行介面（永遠以原始碼為準）：
+
+```tsx
+interface CategoryThumbnailProps {
+  id: string;             // 事件 ID，作為 PRNG seed
+  categories?: string[];  // 不接受 null，用 ?? undefined
+  className?: string;     // 唯一控制尺寸的方式
+  forceMotifIdx?: number; // 可選
+}
+```
+
+**禁止的用法（來自舊介面）：**
+- `seed=` → 改為 `id=`
+- `size={N}` → 已移除，改用 `className="w-[N]px h-[N]px"`
+- `categories={event.category as string[] | null | undefined}` → 改為 `categories={event.category ?? undefined}`
+
+修改介面後執行：`grep -r "CategoryThumbnail" web/` 確認所有呼叫端同步更新。
+
+**Incident:** 2026-05-15 — `EventListClient`、`EventCardMockup`、`events/[id]/page.tsx` 三個呼叫端用舊 API，`npx tsc --noEmit` 顯示 3 個 TS2322，`next build` 失敗。`next dev` 不做完整 TS 檢查，開發期間無症狀。
+
 ## Supabase 1000-row Default Limit Guard
 
 - Do not use `data.length` from an unpaginated `.select()` query as a total count. Supabase can truncate rows at the default limit.
