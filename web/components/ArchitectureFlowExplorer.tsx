@@ -144,25 +144,31 @@ export default function ArchitectureFlowExplorer({ map, labels }: Props) {
 
   const flowNodes = useMemo(() => {
     const byId = new Map<string, SystemMapNode>();
-    for (const node of baseNodes) byId.set(node.id, node);
+    const baseById = new Map<string, SystemMapNode>();
+    for (const node of baseNodes) baseById.set(node.id, node);
 
     for (const step of selectedFlow?.steps ?? []) {
-      if (!byId.has(step.from)) {
-        byId.set(step.from, {
+      const fromNode = baseById.get(step.from);
+      byId.set(
+        step.from,
+        fromNode ?? {
           id: step.from,
           label: virtualLabel(step.from),
           kind: "external",
           sourcePath: step.from,
-        });
-      }
-      if (!byId.has(step.to)) {
-        byId.set(step.to, {
+        },
+      );
+
+      const toNode = baseById.get(step.to);
+      byId.set(
+        step.to,
+        toNode ?? {
           id: step.to,
           label: virtualLabel(step.to),
           kind: "external",
           sourcePath: step.to,
-        });
-      }
+        },
+      );
     }
 
     return Array.from(byId.values());
