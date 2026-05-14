@@ -426,7 +426,7 @@ def run_generate_draft() -> None:
     slug = f"weekly-{send_date.strftime('%Y-%m-%d')}"
     date_str = send_date.strftime('%Y/%m/%d')
     title_zh = f"🗓 東京台灣雷達「一週偵測」 {date_str}"
-    title_ja = f"🗓 東京台湾レーダー「週間スキャン」 {date_str}"
+    title_ja = f"🗓 東京台湾レーダー「週間巡回」 {date_str}"
     title_en = f"🗓 Tokyo Taiwan Radar 'Weekly Scan' {date_str}"
     body_zh = _build_message(weekly_events, monthly_events, "zh", base_url, send_date)
     body_ja = _build_message(weekly_events, monthly_events, "ja", base_url, send_date)
