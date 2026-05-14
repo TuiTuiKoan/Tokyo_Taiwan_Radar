@@ -123,12 +123,12 @@ export default async function AnnouncementDetailPage({ params }: PageProps) {
       {linkedEvents.length > 0 && (
         <div className="border-t border-line pt-6">
           <p className="text-sm font-semibold text-fg mb-3">{tAnn("relatedEvents")}</p>
-          <div className="space-y-2">
+          <div className="border border-line rounded-xl overflow-hidden divide-y divide-line">
             {linkedEvents.map((ev) => (
               <Link
                 key={ev.id}
                 href={`/${locale}/events/${ev.id}`}
-                className={`${CARD_LINK} gap-3 px-3 py-2 bg-elevated rounded-lg text-sm`}
+                className={`${CARD_LINK} gap-3 px-4 py-3 text-sm`}
               >
                 {ev.start_date && (
                   <span className="text-xs text-fg-subtle shrink-0">
