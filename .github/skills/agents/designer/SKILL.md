@@ -185,9 +185,9 @@ import { CARD_LINK, CARD_LINK_ARROW } from "@/lib/classNames";
 
 ## OG Image 規範（`opengraph-image.tsx`）
 
-Current design (as of 2026-05-14, commit `2c6f863`):
+Current design (as of 2026-05-15, commit `a273483`):
 
-- **Size:** 1200×630（Twitter/X・Facebook・Slack 標準 1.9:1 ratio）
+- **Size:** 1200×1200（正方形 — IG・LINE・Pinterest・Discord 均最佳呈現）
 - **Background:** `CATEGORY_PALETTE[category].bg`（CategoryThumbnail 的色彩系統，`web/lib/design/CategoryThumbnail.tsx`）
 - **Layout:** left text block 700×630（full-height, no cream panel）；category motif SVG absolute right 60, top 50, size 480×480
 - **Bottom-right:** wax-apple 吉祥物 SVG（body color = `palette.fg`）+ 品牌名稱
@@ -202,6 +202,7 @@ Current design (as of 2026-05-14, commit `2c6f863`):
 3. `export const runtime = "edge"` 必須設定（Edge Runtime 限制見 engineer SKILL.md §OG Image）。
 4. 更改 OG 圖設計時，同步更新 `CategoryThumbnail.tsx` 的 `CATEGORY_PALETTE` 若有新 category。
 5. **型別定義必須先於使用**：`HeroObjectKey`、`MotifKey`、`SEMANTIC_OBJECT_RULES`、`renderHeroObject()` 必須在 `pickHeroObject()` 呼叫前定義。TS 不會在重設計 diff 中自動偵測跨文件型別缺失，必須整包 commit。
+6. **OG PALETTES は CategoryThumbnail と週次同期**：`opengraph-image.tsx` の `PALETTES` は `CategoryThumbnail.tsx` の `CATEGORY_PALETTE` の値に近似させること。デザインが乖離したら優先的に OG 側を合わせる（CategoryThumbnail が source of truth）。palette 更新後は `localhost:3000/.../opengraph-image` でビジュアル確認してから commit。
 
 **⚠️ `export const size` 修改警示：**
 `height` 改變後必須同步更新：

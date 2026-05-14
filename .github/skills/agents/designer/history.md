@@ -1,60 +1,8 @@
-## 2026-05-14 — OG Image semantic motif + brand hero mode（commit `2c6f863`）
+## 2026-05-15 — OG Image palette chroma 微調 + hero object 簡化（commit `a273483`）
 
-- **Observation**: Bauhaus collage OG 圖的主體物件（wax-apple 吉祥物）與活動類別的語義連結不足，品牌識別度低。
-- **Fix**: 加入語義化關鍵字規則（`SEMANTIC_RULES`、`SEMANTIC_OBJECT_RULES`），根據標題和地點文字自動選擇 motif 與主體物件（`pickSemanticMotif()`、`pickHeroObject()`）。新增 brand hero mode（50% 機率）：讓 wordmark / TTR 字標 / 吉祥物成為畫面主角，提升品牌一致性。locale-seeded PRNG 確保同一活動的不同語言版本有不同設計變體。
-- **Lesson**: OG 圖的主體物件應優先由語義規則（title + location 關鍵字）決定，其次才 fallback 到 category 預設。`HeroObjectKey` / `MotifKey` 等型別定義必須在 `renderHeroObject()` / `pickHeroObject()` 使用前定義，否則 TS 報 2304；重設計必須作為完整單元 commit，不可分段提交只包含部分定義的狀態。
-
-## 2026-05-14 — Navbar desktop admin link hover-only（commit `71338be`）
-
-- **Observation**: Admin link 在桌面版 navbar 有 `text-green-700 font-medium` 永遠亮綠的樣式，其他 nav link 都是 hover-only。視覺不一致。
-- **Fix**: 改為 `hover:text-[#1F5E2B] dark:hover:text-green-400 transition`，與其他 nav link 完全統一。
-- **Lesson**: Navbar 的所有非 CTA link 應遵循「hover-only 顯色」規則，任何 always-on 的 `text-green-*` 或 `font-medium` 都是設計異常，需移除。
-
-## 2026-05-14 — Card-link 預設底色 bg-paper → bg-[#FFFDF5]（dark mode paper fix，commits `3470e28`, `a2b558c`）
-
-- **Observation**: 「相關活動」卡片在 dark mode 下顯示白色背景（暗色模式下應為深色 paper `#262422`）。
-- **Root cause**: Tailwind v4 的 `@theme` block 在 **build time** 靜態解析 CSS 變數：`bg-paper` 被編譯為固定值 `#FFFDF5`。因此 `dark:bg-paper` 生成 `.dark\:bg-paper { background-color: var(--color-paper) }` 雖然能用 CSS variable，但 `bg-paper` 本身已是靜態常數，`html.dark` 的 `:root.dark { --color-paper: #262422 }` 對它無效。
-- **Fix**: `CARD_LINK` 改用 `bg-[#FFFDF5]`（不是 `bg-paper`）。`globals.css` line 378 有 `html.dark .bg-\[\#FFFDF5\] { background-color: var(--color-paper); }` runtime override，在 dark mode 下正確換成 `#262422`。
-- **Lesson**: **paper 背景的 dark mode 正確寫法是 `bg-[#FFFDF5]`，永遠不要用 `bg-paper`。** Tailwind v4 `@theme` 變數 = build-time 靜態值，`dark:bg-paper` 雖然語法正確但在 runtime 無法響應 CSS variable 切換。唯一能 dark-mode-aware 的寫法是透過 globals.css 的 unlayered `html.dark .bg-\[\#FFFDF5\]` 選擇器覆蓋。
-
-## 2026-05-14 — Card-link hover 統一化：CARD_LINK/CARD_LINK_ARROW + classNames.ts（commits `199e331`, `ed0d200`, `0efc5dd`）
-
-- **Observation**: 全站卡片型超連結有三種不同 hover 樣式（`hover:bg-green-50`、`hover:bg-[#F7FFE8]`、`hover:bg-elevated`），且都缺少 dark mode 支援。公告頁只有亮色模式 hover，完全沒有暗色模式。
-- **Fix**:
-  1. 統一 hover 公式（比照 Navbar hamburger 基準）：亮色 `hover:bg-[#F7FFE8] hover:text-[#1F5E2B]`、暗色 `dark:hover:bg-green-900/40 dark:hover:text-green-400`。
-  2. 箭頭 span 有自己的 `text-fg-subtle` 會覆蓋父元素的 hover color — 改用 `group` + `group-hover:text-[#1F5E2B] dark:group-hover:text-green-400`。
-  3. 新建 `web/lib/classNames.ts`，匯出 `CARD_LINK` 和 `CARD_LINK_ARROW` 兩個常數作為單一來源，`events/[id]/page.tsx` 和 `announcements/[slug]/page.tsx` 均改用常數。
-- **Lesson**: 卡片型連結箭頭用 `text-fg-subtle` 設定預設色時，CSS class 優先度會覆蓋父元素的 hover color 繼承 — 必須用 `group` + `group-hover:` 方案。重複的 Tailwind hover class 字串必須集中到 `web/lib/classNames.ts` 管理，新增卡片連結直接 `import { CARD_LINK, CARD_LINK_ARROW }` 即可。
-
-## 2026-05-14 — FAQ + 主辦資訊卡片 hover/背景統一（commits `366e343`, `a13fdcd`）
-
-- **Observation**: 主辦資訊卡片（organizer section）背景使用 `bg-elevated/50 dark:bg-paper`，與活動摘要卡片的 `bg-paper` 不一致。FAQ 列表項 hover 無任何互動回饋。
-- **Fix**: 主辦資訊卡片改為 `bg-paper dark:bg-paper`；FAQ 列表項加上 `hover:bg-paper dark:hover:bg-paper hover:shadow-sm transition-colors duration-150`。
-- **Lesson**: 同一頁面的同類卡片應套用相同 paper 底色。非連結的互動項目（FAQ dl/dt/dd）可用 `hover:bg-paper hover:shadow-sm` 提供視覺回饋，不需要 `group` 方案（沒有子色需要繼承）。
-
-## 2026-05-14 — OG Image typographic collage — Bauhaus 散字效果（commit `7f91447`）
-
-- **Observation**: OG 圖 Bauhaus 方形設計在視覺上仍顯空曠，缺少次層次的紋理感。
-- **Fix**: 在周邊區域（6 個 zone）散置 category label 的單一字元，字體 220–380px，旋轉隨機，不透明度 12–30%，使用 fg/accent/paper 色。字元避開主 label 和右下水印區域。
-- **Lesson**: Bauhaus 設計中的 typographic element 散置須設定明確的 zone 邊界，避免與主要視覺資訊重疊。不透明度 < 30% 可作為裝飾而不搶焦點。
-
-## 2026-05-14 — OG Image punk Bauhaus collage 重設計（commit `171bea4`）
-
-- **Observation**: 使用者要求將 OG 圖改為純幾何扛豁風格，去除所有文字資訊（標題、日期、場地、吸血髀），只保留 category label 和品牌水印。
-- **Fix**: 尺寸改回 1200×1200 正方形；移除所有文字元素；改用 5 個確定性幾何圖形裝飾（disk/ring/tri/slab/arc/dash/plus/diamond 中選取）；主要 category label 以 `[TALK]`/`[FILM]` 形式呈現，對正 − 8°→+8° 隨機旋轉 + palette.fg 陰影；Ghost echo：200px label 以 22% 不透明度旋轉 90° 放於右下角。Supabase SELECT 簡化為只取 `name + category`。
-- **Lesson**: OG 圖水印對品牌知名度有直接影響；設計時必須確認 category label 的可讀性。主要 label 平均 3–5 個字母（[FILM], [TALK], [LIFESTYLE+FOOD]）——最長案例進行了確認。`getCategoryLabel` 函式輸出包含 `[]` 括號的大寫 label，這是既有工具，直接復用。設計迴展實驗即 screenshot 工具確認。
-
-## 2026-05-14 — OG Image 局部還原 bug：只改 height 未更新版面配置
-
-- **Observation**: Validate-Merge-Deploy 流程中，local `opengraph-image.tsx` working tree 只把 `export const size.height` 從 630 改回 1200，但所有 SVG viewBox、corner accent 座標、文字欄寬高全都還是 1200×630 的版本。結果 local preview 下半 570px 完全空白。Production（1200×630 committed 版本）則完全正常。
-- **Fix**: `git restore 'web/app/[locale]/events/[id]/opengraph-image.tsx'` 還原到 committed 狀態。無需重新 commit/push。
-- **Lesson**: `export const size` 是 Satori OG Image 的 canvas 根設定。高度變更後**必須同步更新**：(1) 所有 `<svg viewBox="0 0 W H">` 的 H；(2) 所有絕對定位元素的 `top`/`bottom`/`right` 座標；(3) corner accent 形狀的 pivot 點。只改一行 size 等同於「換了畫框但圖不動」——視覺永遠是錯的。`git diff` 前必須先確認 local preview 是否與 production 一致，再決定是 commit 還是 restore。
-
-## 2026-05-14 — OG Image 1200×1200 → 1200×630 に差し戻し（full-bleed レイアウト、commit `92b9e82`）
-
-- **Observation**: 以前のセッションで「正方形 1200×1200 が Instagram/LINE に強い」として方形に変更したが、Twitter/X・Facebook・Slack はいずれも 1.9:1（1200×630）を標準とし、正方形は上下クロップされてタイトルが見切れるフィードバックがあった。また 1200×1200 の cream bottom panel レイアウトはテキストが下半分に詰まり、1200×630 の横長 canvas では不釣り合いだった。
-- **Fix**: `export const size` を `{ width:1200, height:630 }` に戻し、レイアウトを全面刷新。Motif（カテゴリ SVG 絵柄）を右側絶対配置（`right:60, top:50, 480×480`）に移動、左 700px にテキストブロックを full-height 配置（cream panel 廃止・背景直置き）。Corner accent・パターン SVG の viewBox をすべて `0 0 1200 630` に更新。パターン opacity `0.45→0.35`（cream panel なしでは濃すぎるため）。
-- **Lesson**: OG 画像の縦横比は**変更前にターゲット SNS を列挙して確認**する。Twitter/X 大カード・Facebook・Slack = 1.9:1 必須。Instagram Feed = 1:1 or 4:5。用途が混在する場合は Twitter を優先する。正方形への変更は「Pinterest/Discord に強い」が「Twitter で文字が見切れる」というトレードオフがあり、イベント告知用途では 1.9:1 の方が有利。`export const size` を変えたら**すべての SVG viewBox と絶対配置座標を同時に更新すること**（高さが変わると cornerShape 位置が全てズレる）。
+- **Observation**: PALETTES 中的顏色與 CategoryThumbnail.tsx 的現行 palette 稍有色差，thumbnail 色彩偏淡、對比不足。openBook 和 cyborgFace 的 SVG path 過於繁瑣（多條細小 path），視覺噪點明顯。
+- **Fix**: 8 個 palette 全部重調：提升飽和度（bg 更清爽、fg 更鮮明）、hex 值向 CategoryThumbnail 現行值靠攏。openBook 簡化為大面積書頁 + 一顆大星 + 兩顆圓（刪去 8 個小圓 + 波浪線）；cyborgFace 改為大色塊臉型（刪去細節碎片）。
+- **Lesson**: OG PALETTES 應視為 `CategoryThumbnail.CATEGORY_PALETTE` 的派生版本，定期與其同步；設計稿對比不足時優先調 fg 鮮豔度。Hero object 複雜度標準：100px viewBox 內單個 object 以 4–6 個 path/shape 為上限，超過就視覺嘈雜。
 
 ## 2026-05-14 — FilterBar 全面改為 custom button+panel；OG 圖 Bauhaus 方形重設計
 
