@@ -44,7 +44,7 @@ export default async function AboutPage({ params }: PageProps) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "about" });
   return (
-    <main className="max-w-3xl mx-auto px-4 py-8">
+    <section className="max-w-4xl mx-auto">
       <nav className="text-sm text-fg-muted mb-4">
         <Link href={`/${locale}`} className="text-green-500 hover:underline">
           Tokyo Taiwan Radar
@@ -90,6 +90,6 @@ export default async function AboutPage({ params }: PageProps) {
         <h2 className="text-xl font-semibold mb-3 text-[#3A261F]">{t("contactTitle")}</h2>
         <p className="text-base leading-relaxed text-[#4A362D]">{t("contactBody")}</p>
       </section>
-    </main>
+    </section>
   );
 }

@@ -101,7 +101,7 @@ export default async function SourcesPage({ params }: PageProps) {
   const total = sources.length;
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-8">
+    <section className="max-w-4xl mx-auto">
       <nav className="text-sm text-fg-muted mb-4">
         <Link href={`/${locale}`} className="text-green-500 hover:underline">
           Tokyo Taiwan Radar
@@ -156,6 +156,6 @@ export default async function SourcesPage({ params }: PageProps) {
           </section>
         );
       })}
-    </main>
+    </section>
   );
 }
