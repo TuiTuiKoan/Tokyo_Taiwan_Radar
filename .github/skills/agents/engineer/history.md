@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-05-15 — zombie `next build` 程序封鎖 validate 流程
+
+**問題：** 執行 `npm run build` 時出現 `⨯ Another next build process is already running`，無法重試。
+
+**根因：** 一個早先在背景啟動的 `next build` 程序（pid 52644，4:41AM 啟動）從未結束，`next build` 的 lock 機制偵測到仍在跑就拒絕新啟動。
+
+**修正：**
+```bash
+# 1. 找到殘留 build 程序
+ps aux | grep "next build" | grep -v grep
+# 2. 強制終止
+kill -9 <pid>
+# 3. 等 2 秒後重試
+sleep 2 && npm run build
+```
+
+**教訓：** validate 流程在執行 `npm run build` 前，應先確認沒有殘留 build 程序。若 build 失敗並提示 `already running`，先 `ps aux | grep "next build"` 找 pid，`kill -9` 後再重試，不要刪 `.next/` 目錄（那是 cache，不是 lock）。
+
 ## 2026-05-15 — CI web-darkmode-smoke 一直失敗（HTTP 500）
 
 **問題：** `web-darkmode-smoke` workflow 自建立以來每次都失敗。`pnpm dev` 啟動後健康檢查對 `/zh` 發出 GET 一直收到 500。
