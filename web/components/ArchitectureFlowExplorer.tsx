@@ -110,8 +110,39 @@ function buildChart(
 }
 
 export default function ArchitectureFlowExplorer({ map, labels }: Props) {
-  const actions = useMemo(() => map.actions ?? [], [map.actions]);
   const flows = useMemo(() => map.flows ?? [], [map.flows]);
+  const actions = useMemo(() => {
+    const configured = map.actions ?? [];
+    const configuredById = new Map(configured.map((a) => [a.id, a]));
+
+    // Primary source: flows (always required for rendering)
+    const derived: Array<{ id: string; label: string; description: string }> = [];
+    const seen = new Set<string>();
+    for (const f of flows) {
+      if (seen.has(f.actionId)) continue;
+      seen.add(f.actionId);
+
+      const fromConfig = configuredById.get(f.actionId);
+      if (fromConfig) {
+        derived.push(fromConfig);
+        continue;
+      }
+
+      // Fallback when action metadata is missing in JSON: still keep the flow selectable.
+      derived.push({
+        id: f.actionId,
+        label: f.title,
+        description: f.title,
+      });
+    }
+
+    // Keep configured actions that currently have no flow as trailing options.
+    for (const a of configured) {
+      if (!seen.has(a.id)) derived.push(a);
+    }
+
+    return derived;
+  }, [map.actions, flows]);
   const baseNodes = useMemo(() => map.nodes ?? [], [map.nodes]);
 
   const [search, setSearch] = useState("");
