@@ -277,6 +277,42 @@ To keep UI components clean and provide visual variety, heavy SVG path definitio
 1. **5 Sub-variants:** Each category should define 5 sub-variants of its motif. This ensures that lists of events under the same category avoid visual monotony.
 2. **Layering:** Motifs layer organic SVG path geometries over background patterns.
 3. **Extraction:** Never inline complex vector graphics directly into standard UI components. Always import them from the motif system.
+4. **Verify in debug page:** After adding or editing any `case` in `getSemanticSymbol`, open `/debug/motifs` locally to visually confirm all 5 variants render correctly. Do not commit before visual review.
+5. **Recognizability standard:** Without color, each motif must be identifiable within 2 seconds in a 100px viewBox. If a shape requires >6 path/shape elements, simplify.
+
+**Implemented categories (as of 2026-05-15):**
+
+| Group | Categories |
+|---|---|
+| Core | `movie`, `performing_arts`, `senses`, `retail`, `nature`, `tech`, `tourism`, `lifestyle_food`, `books_media`, `gender`, `geopolitics`, `art`, `lecture`, `taiwan_japan`, `business`, `academic`, `competition`, `report` |
+| Extended | `drama`, `documentary`, `tea_alcohol`, `parenting`, `scholarship`, `indigenous`, `folklore` |
+
+When a new category is added to `web/lib/types.ts` `CATEGORIES`, a corresponding `case` in `getSemanticSymbol` **must be added in the same PR**. Add the category to the Extended table above.
+
+## MascotAvatar Component API
+
+File: `web/lib/design/MascotAvatar.tsx`
+
+```tsx
+interface MascotAvatarProps {
+  size?: number;                    // SVG size in px, default 80
+  upright?: boolean;                // false = tilted 3°, true = straight
+  antennaFlowAnimation?: boolean;   // energy-flow animation along antenna
+  className?: string;
+  title?: string;                   // accessible label
+}
+```
+
+**Animation toggle pattern:**
+- `antennaFlowAnimation` renders extra SVG layers + sets `data-antenna-flow="on"` on the `<svg>` root.
+- CSS in `globals.css` targets `[data-antenna-flow="on"] .lianbu-antenna-flow-line` / `.lianbu-antenna-flow-dot`.
+- Do NOT use inline `animation:` styles — use the data-attribute selector pattern for toggle control.
+
+**SMIL vs CSS keyframe choice:**
+- Circle pulse at antenna tip: SMIL `<animate>` (element-level, no external class needed)
+- Stroke-dashoffset flow along path: CSS `@keyframes` via data-attribute selector (more flexible for timing sync)
+
+**Adding new animation states:** add new CSS selector block under `[data-antenna-flow="on"]` in `globals.css`. Never hardcode animation values in the TSX file itself.
 
 ## Motion and Interaction
 

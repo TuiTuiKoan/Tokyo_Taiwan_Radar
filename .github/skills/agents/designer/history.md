@@ -1,3 +1,13 @@
+## 2026-05-15 — MascotAvatar 觸角能量流動畫（`antennaFlowAnimation` prop）
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-15 | 吉祥物（Lianbu 梨寶）在首頁為靜態圖形，缺乏互動性和生命感；設計上希望加入「能量從觸角尖端流向身體」的動態效果。 | 無，這是新功能設計。原本 `MascotBody` 沒有動畫參數，所有 SVG 均為純靜態。 | 新增 `antennaFlowAnimation?: boolean` prop；抽出觸角 path 字串為常數（`antennaPath`），用 SMIL `<animate>` 驅動 `stroke-dashoffset` + `opacity` 做路徑追蹤動畫；用 `data-antenna-flow="on"` data-attribute 觸發 CSS keyframe（`lianbu-antenna-flow-line`、`lianbu-antenna-flow-dot`），避免 React inline style 的特異性問題。 | 1) SVG 路徑追蹤動畫的最佳模式：`stroke-dasharray` + `stroke-dashoffset` 搭配 CSS `@keyframes`（或 SMIL `<animate>`），不需要 JS 計算座標。2) 用 `data-*` attribute 做 CSS animation toggle，比 React state → className 插值更乾淨，且可從父層控制。3) 同一 SVG path 用兩份不同 stroke 疊加（底色靜態 + 動畫流光），視覺效果比單獨動畫更豐富。
+
+## 2026-05-15 — organicMotifs 詞彙擴充：7 個新分類（`drama`、`documentary` 等）
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-15 | `getSemanticSymbol` 缺少 `drama`、`documentary`、`tea_alcohol`、`parenting`、`scholarship`、`indigenous`、`folklore` 等 7 個分類的 symbol，這些分類在 OG image 和 CategoryThumbnail 中會 fallback 到通用符號。同時既有 4 個 variant（`senses/v2`、`books_media/v3`、`gender/v1`、`gender/v2`）視覺效果不佳，形狀辨識度低。 | 原始設計只涵蓋 CATEGORIES 常數中的主要分類，後補的分類未及時加入 organicMotifs。 | 為 7 個新分類各定義 5 種 sub-variant；修正 4 個既有 variant（簡化形狀、提升辨識度）。使用 Python 腳本（`fix_motifs.py` 系列）批次修正 JSX 字串格式問題。 | 1) **每次新增 `case` 分支後必須在 `/debug/motifs` 測試所有 variant**——本次需要多次 `fix_motifs*.py` 迭代，原因是第一遍 path data 含有無效字元或 JSX attribute 格式錯誤。2) Motif 形狀辨識度標準：去掉顏色後，100px viewBox 內的形狀應可在 2 秒內辨認。超過 6 個 path/shape 必須簡化。3) 既有 variant 需定期審查，不符合辨識度標準的要一併修正，不要只新增不維護。
+
 ## 2026-05-15 — backdrop-blur 子元素被父層 backdrop-filter 封鎖（commit `0a66f93`）
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
