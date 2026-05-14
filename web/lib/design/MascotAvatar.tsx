@@ -67,12 +67,11 @@ function MascotBody({
         <>
           <path
             className="lianbu-antenna-flow-line"
-            d={antennaPath}
+            d={antennaPathReverse}
             fill="none"
             stroke={`url(#${flowGradientId})`}
             strokeWidth="3.6"
             strokeLinecap="round"
-            pathLength={100}
           />
           <circle
             className="lianbu-antenna-flow-dot"
@@ -83,12 +82,12 @@ function MascotBody({
             filter={`url(#${flowGlowId})`}
           >
             <animateMotion
-              dur="2.2s"
+              dur="12s"
               repeatCount="indefinite"
               rotate="auto"
               path={antennaPathReverse}
-              keyTimes="0;0.32;1"
-              keyPoints="0;0;1"
+              keyTimes="0;0.17;0.22;1"
+              keyPoints="0;0;1;1"
               calcMode="linear"
             />
           </circle>
@@ -142,14 +141,15 @@ export function MascotAvatar({
         role="img"
         aria-label={title}
         data-antenna-flow={antennaFlowAnimation ? "on" : "off"}
+        overflow={antennaFlowAnimation ? "visible" : undefined}
       >
         <title>{title}</title>
         {antennaFlowAnimation && (
           <defs>
             <linearGradient id={flowGradientId} x1="160" y1="30" x2="100" y2="80" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.92" />
-              <stop offset="36%" stopColor="#FFFFFF" stopOpacity="1" />
-              <stop offset="100%" stopColor="#FFFDF5" stopOpacity="0.86" />
+              <stop offset="0%" stopColor="#FAEAB0" stopOpacity="1" />
+              <stop offset="50%" stopColor="#C4E86F" stopOpacity="1" />
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
             </linearGradient>
             <filter id={flowGlowId} x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="3.4" result="blur" />
