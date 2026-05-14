@@ -39,8 +39,15 @@ jobs:
         working-directory: web
         run: npx playwright install --with-deps chromium
 
+      - name: Generate specs snapshot
+        working-directory: web
+        run: pnpm run build-specs-snapshot
+
       - name: Start Next.js app
         working-directory: web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
           pnpm dev --hostname 127.0.0.1 --port 3000 > /tmp/web-darkmode-smoke-next.log 2>&1 &
           echo $! > /tmp/web-darkmode-smoke-next.pid
@@ -54,6 +61,8 @@ jobs:
             sleep 2
           done
           echo "App did not become ready in time"
+          echo "=== Next.js dev server log ==="
+          cat /tmp/web-darkmode-smoke-next.log || true
           exit 1
 
       - name: Run dark mode smoke test
