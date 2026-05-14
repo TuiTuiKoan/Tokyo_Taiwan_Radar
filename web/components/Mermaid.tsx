@@ -25,12 +25,18 @@ export default function Mermaid({ chart, fallback }: Props) {
         const { svg } = await mermaid.render(id, chart);
         if (!cancelled && ref.current) {
           ref.current.innerHTML = svg;
-          // Remove Mermaid's max-width constraint so large graphs scroll horizontally
-          // instead of being compressed to fit the container width (unreadable).
+          // Mermaid renders SVG with width="100%" + max-width:Npx.
+          // width="100%" shrinks the diagram to container width (unreadable for
+          // large graphs). Fix: set explicit pixel width from viewBox so the
+          // diagram renders at natural size and the parent scrolls horizontally.
           const svgEl = ref.current.querySelector("svg");
           if (svgEl) {
-            svgEl.style.maxWidth = "none";
-            svgEl.style.height = "auto";
+            const vb = svgEl.getAttribute("viewBox");
+            const vbWidth = vb ? parseFloat(vb.trim().split(/[\s,]+/)[2]) : 0;
+            if (vbWidth > 0) {
+              svgEl.setAttribute("width", String(vbWidth));
+              svgEl.style.maxWidth = "none";
+            }
           }
         }
       } catch (e) {
