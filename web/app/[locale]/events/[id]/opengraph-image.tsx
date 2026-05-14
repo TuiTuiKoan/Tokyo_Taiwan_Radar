@@ -34,15 +34,15 @@ function mulberry32(seed: number) {
 
 // ── Palette (mirrors CategoryThumbnail.tsx) ──────────────────────────────────
 const PALETTES = [
-  // Bright, saturated, high-chroma — matches homepage event thumbnails
-  { bg: "#FFE5D9", fg: "#E94B5C", accent: "#1F7A3A" },   // peach  · red    · green
-  { bg: "#E8F5C8", fg: "#1F7A3A", accent: "#E94B5C" },   // mint   · green  · red
-  { bg: "#FFEFB8", fg: "#E8A722", accent: "#3A261F" },   // butter · gold   · mocha
-  { bg: "#FFD0C8", fg: "#E94B5C", accent: "#2E4A8A" },   // peach  · red    · blue
-  { bg: "#D8E8FF", fg: "#3656B5", accent: "#E94B5C" },   // sky    · blue   · red
-  { bg: "#FFD8E8", fg: "#D8455A", accent: "#1F7A3A" },   // pink   · rose   · green
-  { bg: "#EAD8FF", fg: "#7B4FC8", accent: "#E8A722" },   // lilac  · purple · gold
-  { bg: "#C8EEDC", fg: "#1F8A6A", accent: "#E94B5C" },   // mint   · teal   · red
+  // High chroma + High brightness collage triad
+  { bg: "#F8FFD9", fg: "#FF4500", accent: "#00BFFF" },   // acid yellow · orange-red · cyan
+  { bg: "#F0FFF0", fg: "#FF20A0", accent: "#00FF00" },   // white green  · hot pink    · vivid lime
+  { bg: "#FFFF00", fg: "#6A0DAD", accent: "#00E5FF" },   // acid yellow · electric purp· aqua
+  { bg: "#FFE4E1", fg: "#FF00FF", accent: "#1A237E" },   // mistyrose  · fuchsia     · indigo 900
+  { bg: "#E0FFFF", fg: "#0000FF", accent: "#FF4081" },   // lightcyan   · blue        · pink A200
+  { bg: "#F5F5F5", fg: "#222222", accent: "#FFD600" },   // white smoke· dark gray   · vivid yellow
+  { bg: "#FFF0F5", fg: "#A100FF", accent: "#00E5FF" },   // lavender   · electric purp· aqua
+  { bg: "#E8F5E9", fg: "#2E7D32", accent: "#FF5722" },   // green 50   · green 800   · deep orange
 ];
 
 // ── Category display labels ──────────────────────────────────────────────────
@@ -267,21 +267,44 @@ function renderHeroObject(kind: HeroObjectKey, fg: string, accent: string, bg: s
         </g>
       );
     case "openBook":
-      // Big open book — 3 color pages, single big star eruption
+      // Same collage book treatment shared with tornNewspaper
       return (
         <g>
+          {/* off-center back disc */}
+          <circle cx="34" cy="42" r="24" fill={accent} opacity="0.5" />
           {/* left page bottom */}
-          <path d="M 4 82 Q 28 72 50 84 L 50 48 Q 28 36 4 48 Z" fill={MOCHA} />
+          <path d="M 8 78 Q 28 70 50 80 L 50 50 Q 28 40 8 50 Z" fill={MOCHA} />
           {/* left page top */}
-          <path d="M 4 48 Q 28 36 50 48 L 50 22 Q 28 8 4 22 Z" fill={accent} />
+          <path d="M 8 50 Q 28 40 50 50 L 50 28 Q 28 18 8 28 Z" fill={accent} />
           {/* right page */}
-          <path d="M 96 82 Q 72 72 50 84 L 50 22 Q 72 8 96 22 Z" fill={fg} />
+          <path d="M 92 78 Q 72 70 50 80 L 50 28 Q 72 18 92 28 Z" fill={fg} />
           {/* spine */}
-          <rect x="48" y="20" width="4" height="66" fill={ink} />
-          {/* big erupting star */}
-          <polygon points="54,2 58,12 68,12 60,18 64,28 54,22 44,28 48,18 40,12 50,12" fill={accent} />
-          <circle cx="22" cy="8" r="6" fill={accent} />
-          <circle cx="84" cy="10" r="5" fill={fg} />
+          <rect x="48" y="26" width="4" height="54" fill={ink} />
+          {/* halftone on right page */}
+          <circle cx="64" cy="48" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="68" cy="52" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="72" cy="48" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="76" cy="52" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="80" cy="48" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="66" cy="58" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="74" cy="58" r="0.8" fill={MOCHA} opacity="0.35" />
+          {/* erupting content */}
+          <circle cx="22" cy="14" r="4" fill={accent} />
+          <circle cx="40" cy="6" r="3" fill={fg} />
+          <polygon points="62,4 64,10 70,10 65,14 67,20 62,16 57,20 59,14 54,10 60,10" fill={accent} />
+          <circle cx="80" cy="10" r="3.5" fill={fg} />
+          <circle cx="88" cy="20" r="2.5" fill={accent} />
+          {/* leaves */}
+          <ellipse cx="30" cy="22" rx="5" ry="2.5" fill={fg} transform="rotate(-30 30 22)" />
+          <ellipse cx="70" cy="22" rx="4" ry="2" fill={accent} transform="rotate(40 70 22)" />
+          {/* squiggles */}
+          <path d="M 28 22 Q 32 14 36 20 Q 40 26 44 18" stroke={MOCHA} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          <path d="M 68 24 Q 72 18 76 24" stroke={accent} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          {/* collage scraps */}
+          <rect x="82" y="68" width="10" height="10" fill={MOCHA} transform="rotate(8 87 73)" />
+          <rect x="4" y="38" width="6" height="4" fill={accent} transform="rotate(-15 7 40)" />
+          <path d="M 84 36 A 5 5 0 0 1 94 36 Z" fill={accent} />
+          <circle cx="14" cy="24" r="2" fill={MOCHA} />
         </g>
       );
     case "surrealEye":
@@ -441,119 +464,137 @@ function renderHeroObject(kind: HeroObjectKey, fg: string, accent: string, bg: s
         </g>
       );
     case "lipsStamp":
-      // Solid color lips with sparkles bursting around
+      // Giant lips: massive blocks + offset disc
       return (
         <g>
-          <path d="M 14 50 Q 32 26 50 48 Q 68 26 86 50 Q 68 78 50 58 Q 32 78 14 50 Z" fill={accent} />
-          <path d="M 16 50 Q 50 60 84 50" stroke={MOCHA} strokeWidth="3" fill="none" />
-          <ellipse cx="34" cy="42" rx="5" ry="3" fill={fg} opacity="0.6" />
-          {/* sparkles */}
-          <polygon points="20,16 22,21 27,21 23,24 25,29 20,26 15,29 17,24 13,21 18,21" fill={fg} />
-          <circle cx="82" cy="18" r="4" fill={fg} />
-          <circle cx="14" cy="80" r="3.5" fill={ink} />
-          <polygon points="82,80 84,84 88,84 85,86 86,90 82,88 78,90 79,86 76,84 80,84" fill={accent} />
-          <circle cx="90" cy="50" r="2.5" fill={fg} />
+          {/* huge background disc */}
+          <circle cx="50" cy="50" r="48" fill={accent} opacity="0.4" />
+          {/* upper lip block */}
+          <path d="M 5 50 C 5 20 40 5 50 40 C 60 5 95 20 95 50 Z" fill={fg} />
+          {/* lower lip block */}
+          <path d="M 5 50 C 20 85 80 85 95 50 Z" fill={soft} />
+          {/* parting line */}
+          <rect x="5" y="48" width="90" height="5" fill={ink} rx="2.5" />
         </g>
       );
     case "noseProfile":
-      // Solid head silhouette + color-block hair + sprouting flower + sparkles
+      // Giant silhouette: massive head block + massive hair + nose feature
       return (
         <g>
-          {/* head shape - solid */}
-          <path d="M 28 24 Q 18 32 18 50 Q 18 70 30 78 L 30 90 L 60 90 L 60 78 Q 74 70 74 56 L 80 52 L 72 46 Q 70 30 56 24 Z" fill={fg} />
-          {/* hair as solid block */}
-          <path d="M 22 28 Q 28 14 50 14 Q 66 14 70 28 L 64 26 L 50 22 L 36 26 Z" fill={ink} />
-          {/* eye */}
-          <circle cx="50" cy="50" r="3.5" fill={MOCHA} />
-          {/* cheek blush */}
-          <circle cx="60" cy="62" r="4" fill={accent} opacity="0.7" />
-          {/* lips */}
-          <path d="M 56 70 Q 62 74 64 70 Q 62 68 56 70 Z" fill={accent} />
-          {/* sprouting flower */}
-          <rect x="36" y="10" width="2.5" height="12" fill={MOCHA} />
-          <circle cx="37" cy="8" r="6" fill={accent} />
-          <circle cx="37" cy="8" r="2.5" fill={fg} />
-          {/* sparkles */}
-          <polygon points="86,32 88,36 92,36 89,38 90,42 86,40 82,42 83,38 80,36 84,36" fill={accent} />
-          <circle cx="12" cy="70" r="3" fill={accent} />
-          <circle cx="90" cy="68" r="2.5" fill={ink} />
+          {/* head block */}
+          <path d="M 10 30 Q 10 10 50 10 Q 90 10 90 30 Q 90 60 50 95 Q 10 60 10 30 Z" fill={fg} />
+          {/* hair block */}
+          <path d="M 5 35 L 95 35 L 90 5 L 10 5 Z" fill={ink} />
+          {/* giant nose block */}
+          <path d="M 85 50 L 98 60 L 85 70 Z" fill={accent} />
+          <circle cx="35" cy="45" r="7" fill={ink} />
         </g>
       );
     case "cyborgFace":
-      // Big-block face: head + hair block + bold features. No fussy scraps.
+      // Giant cyborg: square head + heavy bangs + antenna flower
       return (
         <g>
-          {/* big back rectangle for collage depth */}
-          <rect x="58" y="18" width="38" height="38" fill={accent} />
-          {/* head circle dominates */}
-          <circle cx="50" cy="54" r="34" fill={fg} />
-          {/* hair as one solid block */}
-          <path d="M 14 52 Q 16 18 50 18 Q 84 18 86 52 L 78 44 L 64 34 L 50 30 L 36 34 L 22 44 Z" fill={ink} />
-          {/* eyes */}
-          <circle cx="38" cy="54" r="4" fill={MOCHA} />
-          <circle cx="62" cy="54" r="4" fill={MOCHA} />
-          {/* bold cheek blocks */}
-          <circle cx="30" cy="66" r="5" fill={accent} opacity="0.7" />
-          <circle cx="70" cy="66" r="5" fill={accent} opacity="0.7" />
-          {/* smile */}
-          <path d="M 42 72 Q 50 78 58 72" stroke={MOCHA} strokeWidth="4" fill="none" strokeLinecap="round" />
-          {/* big antenna flower */}
-          <rect x="48" y="4" width="4" height="16" fill={MOCHA} />
-          <circle cx="50" cy="4" r="7" fill={accent} />
-          <circle cx="50" cy="4" r="3" fill={fg} />
+          {/* square head block */}
+          <rect x="15" y="25" width="70" height="70" rx="4" fill={fg} />
+          {/* heavy bangs block */}
+          <path d="M 15 25 L 85 25 L 85 45 L 65 45 L 55 35 L 45 45 L 15 45 Z" fill={ink} />
+          {/* massive eyes */}
+          <rect x="25" y="55" width="20" height="20" fill={ink} />
+          <rect x="55" y="55" width="20" height="20" fill={ink} />
+          {/* antenna flower */}
+          <rect x="47" y="0" width="6" height="25" fill={ink} />
+          <circle cx="50" cy="0" r="15" fill={accent} />
         </g>
       );
     case "faceCollage":
-      // Bouquet — big vase + big flower discs, no clutter
+      // Bouquet collage: vase + multi-color flowers + leaves + scattered scraps + halftone
       return (
         <g>
-          {/* big back rectangle */}
-          <rect x="10" y="10" width="54" height="54" fill={accent} opacity="0.65" />
-          {/* big solid vase */}
-          <path d="M 26 60 L 74 60 L 70 94 L 30 94 Z" fill={ink} />
-          <rect x="22" y="56" width="56" height="8" fill={MOCHA} />
-          {/* thick stems */}
-          <rect x="48" y="34" width="4" height="30" fill={fg} transform="rotate(-6 50 50)" />
-          <rect x="58" y="30" width="4" height="34" fill={fg} transform="rotate(14 60 50)" />
-          <rect x="38" y="36" width="4" height="28" fill={fg} transform="rotate(-22 40 52)" />
-          {/* big leaves */}
-          <ellipse cx="58" cy="54" rx="10" ry="5" fill={fg} transform="rotate(30 58 54)" />
-          <ellipse cx="40" cy="50" rx="9" ry="4.5" fill={fg} transform="rotate(-50 40 50)" />
-          {/* HUGE central flower */}
-          <circle cx="42" cy="24" r="18" fill={accent} />
-          <circle cx="42" cy="24" r="10" fill={fg} />
-          <circle cx="42" cy="24" r="4" fill={MOCHA} />
-          {/* secondary flower cluster */}
-          <circle cx="68" cy="20" r="8" fill={fg} />
-          <circle cx="78" cy="26" r="7" fill={fg} />
-          <circle cx="72" cy="32" r="6" fill={accent} />
-          {/* third small flower */}
-          <circle cx="22" cy="40" r="8" fill={accent} />
-          <circle cx="22" cy="40" r="3.5" fill={ink} />
+          {/* off-center back disc for collage depth */}
+          <circle cx="40" cy="24" r="22" fill={accent} opacity="0.5" />
+          {/* vase */}
+          <path d="M 30 64 L 70 64 L 66 92 L 34 92 Z" fill={ink} />
+          <rect x="28" y="60" width="44" height="8" fill={MOCHA} />
+          {/* halftone band on vase */}
+          <circle cx="40" cy="78" r="0.9" fill={MOCHA} opacity="0.45" />
+          <circle cx="44" cy="82" r="0.9" fill={MOCHA} opacity="0.45" />
+          <circle cx="48" cy="78" r="0.9" fill={MOCHA} opacity="0.45" />
+          <circle cx="52" cy="82" r="0.9" fill={MOCHA} opacity="0.45" />
+          <circle cx="56" cy="78" r="0.9" fill={MOCHA} opacity="0.45" />
+          <circle cx="60" cy="82" r="0.9" fill={MOCHA} opacity="0.45" />
+          {/* stems */}
+          <rect x="49" y="36" width="2.5" height="30" fill={fg} transform="rotate(-6 50 50)" />
+          <rect x="59" y="32" width="2.5" height="34" fill={fg} transform="rotate(14 60 50)" />
+          <rect x="39" y="38" width="2.5" height="28" fill={fg} transform="rotate(-22 40 52)" />
+          {/* leaves */}
+          <ellipse cx="56" cy="54" rx="6" ry="3" fill={fg} transform="rotate(30 56 54)" />
+          <ellipse cx="42" cy="50" rx="5" ry="2.5" fill={fg} transform="rotate(-50 42 50)" />
+          <ellipse cx="60" cy="46" rx="4" ry="2" fill={fg} transform="rotate(20 60 46)" />
+          {/* flower 1 — layered */}
+          <circle cx="44" cy="26" r="12" fill={accent} />
+          <circle cx="44" cy="26" r="7" fill={fg} />
+          <circle cx="44" cy="26" r="3" fill={MOCHA} />
+          {/* flower 2 — cluster */}
+          <circle cx="64" cy="22" r="5" fill={fg} />
+          <circle cx="72" cy="24" r="5" fill={fg} />
+          <circle cx="74" cy="32" r="5" fill={fg} />
+          <circle cx="66" cy="32" r="5" fill={fg} />
+          <circle cx="69" cy="28" r="4" fill={accent} />
+          {/* flower 3 */}
+          <circle cx="26" cy="38" r="7" fill={accent} />
+          <circle cx="26" cy="38" r="3" fill={ink} />
+          {/* collage scraps */}
+          <rect x="82" y="36" width="10" height="10" fill={MOCHA} transform="rotate(12 87 41)" />
+          <rect x="6" y="68" width="8" height="5" fill={accent} transform="rotate(-10 10 70)" />
+          <path d="M 84 60 A 6 6 0 0 1 96 60 Z" fill={accent} />
+          <circle cx="12" cy="14" r="3" fill={fg} />
+          {/* sparkles */}
+          <polygon points="86,76 88,80 92,80 89,82 90,86 86,84 82,86 83,82 80,80 84,80" fill={fg} />
+          <circle cx="86" cy="50" r="2.5" fill={accent} />
+          <circle cx="10" cy="86" r="2.5" fill={fg} />
         </g>
       );
     case "dadaScrap":
-      // Framed landscape — big blocks, sun escaping frame, no fussy details
+      // Framed painting bursting out + collage scraps + halftone
       return (
         <g>
+          {/* off-center back disc */}
+          <circle cx="58" cy="42" r="30" fill={accent} opacity="0.55" />
           {/* inner canvas */}
-          <rect x="14" y="18" width="66" height="62" fill={fg} />
-          {/* big landscape ground */}
-          <rect x="14" y="58" width="66" height="22" fill={accent} />
-          {/* big mountains */}
-          <polygon points="14,58 36,30 54,58" fill={ink} />
-          <polygon points="46,58 64,38 80,58" fill={MOCHA} />
-          {/* bold sun INSIDE frame */}
-          <circle cx="66" cy="32" r="9" fill={accent} />
-          {/* frame — 4 thick colored sides */}
-          <rect x="10" y="14" width="74" height="8" fill={ink} />
-          <rect x="10" y="14" width="8" height="70" fill={accent} />
-          <rect x="76" y="14" width="8" height="70" fill={MOCHA} />
-          <rect x="10" y="78" width="74" height="8" fill={fg} />
-          {/* big sun escaping top-right corner */}
-          <circle cx="88" cy="10" r="10" fill={accent} />
-          {/* mountain peak poking above frame */}
-          <polygon points="34,18 44,2 54,18" fill={ink} />
+          <rect x="18" y="22" width="58" height="54" fill={fg} />
+          {/* halftone on sky */}
+          <circle cx="30" cy="34" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="34" cy="38" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="40" cy="34" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="46" cy="38" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="50" cy="34" r="0.8" fill={MOCHA} opacity="0.35" />
+          {/* landscape inside */}
+          <rect x="18" y="60" width="58" height="16" fill={accent} />
+          <polygon points="20,60 36,38 50,60" fill={ink} />
+          <polygon points="44,60 60,44 74,60" fill={MOCHA} />
+          <circle cx="62" cy="34" r="7" fill={accent} />
+          {/* frame — 4 colored sides */}
+          <rect x="14" y="18" width="66" height="6" fill={ink} />
+          <rect x="14" y="18" width="6" height="62" fill={accent} />
+          <rect x="74" y="18" width="6" height="62" fill={MOCHA} />
+          <rect x="14" y="74" width="66" height="6" fill={fg} />
+          {/* bursting outside the frame */}
+          <circle cx="88" cy="14" r="7" fill={accent} />
+          <polygon points="38,18 44,4 50,18" fill={ink} />
+          {/* wave overflow */}
+          <path d="M 14 86 Q 22 80 30 86 Q 38 92 46 86 Q 54 80 62 86" stroke={accent} strokeWidth="4" fill="none" strokeLinecap="round" />
+          {/* small bird escaping */}
+          <path d="M 84 36 Q 90 30 96 36 Q 92 40 88 38 Q 88 42 84 42 Z" fill={fg} />
+          <circle cx="94" cy="36" r="0.8" fill={MOCHA} />
+          {/* collage scraps */}
+          <rect x="82" y="56" width="10" height="10" fill={MOCHA} transform="rotate(15 87 61)" />
+          <rect x="4" y="38" width="6" height="4" fill={accent} transform="rotate(-15 7 40)" />
+          <path d="M 4 64 A 5 5 0 0 1 14 64 Z" fill={fg} />
+          <ellipse cx="92" cy="68" rx="4" ry="2" fill={fg} transform="rotate(30 92 68)" />
+          {/* sparkles */}
+          <polygon points="88,46 90,50 94,50 91,52 92,56 88,54 84,56 85,52 82,50 86,50" fill={accent} />
+          <circle cx="10" cy="14" r="2.5" fill={fg} />
+          <circle cx="90" cy="82" r="2.5" fill={accent} />
         </g>
       );
     case "paperclipNote":
@@ -603,21 +644,46 @@ function renderHeroObject(kind: HeroObjectKey, fg: string, accent: string, bg: s
         </g>
       );
     case "tornNewspaper":
-      // Open book — 3 big color-block pages, big erupting shapes
+      // Open book collage — 3 color pages + content erupting + scraps + halftone
       return (
         <g>
+          {/* off-center back disc */}
+          <circle cx="34" cy="40" r="24" fill={accent} opacity="0.5" />
           {/* left page bottom */}
-          <path d="M 4 84 Q 28 76 50 86 L 50 50 Q 28 40 4 50 Z" fill={accent} />
+          <path d="M 8 80 Q 28 74 50 82 L 50 54 Q 28 46 8 54 Z" fill={accent} />
           {/* left page top */}
-          <path d="M 4 50 Q 28 40 50 50 L 50 22 Q 28 12 4 22 Z" fill={MOCHA} />
+          <path d="M 8 54 Q 28 46 50 54 L 50 30 Q 28 22 8 30 Z" fill={MOCHA} />
           {/* right page */}
-          <path d="M 96 84 Q 72 76 50 86 L 50 22 Q 72 12 96 22 Z" fill={fg} />
+          <path d="M 92 80 Q 72 74 50 82 L 50 30 Q 72 22 92 30 Z" fill={fg} />
           {/* spine */}
-          <rect x="48" y="20" width="4" height="66" fill={ink} />
-          {/* big erupting shapes */}
-          <circle cx="22" cy="10" r="7" fill={accent} />
-          <polygon points="60,2 64,12 74,12 66,18 70,28 60,22 50,28 54,18 46,12 56,12" fill={accent} />
-          <circle cx="82" cy="8" r="6" fill={fg} />
+          <rect x="48" y="28" width="4" height="54" fill={ink} />
+          {/* halftone on right page */}
+          <circle cx="64" cy="50" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="68" cy="54" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="72" cy="50" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="76" cy="54" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="80" cy="50" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="66" cy="60" r="0.8" fill={MOCHA} opacity="0.35" />
+          <circle cx="74" cy="60" r="0.8" fill={MOCHA} opacity="0.35" />
+          {/* erupting content */}
+          <circle cx="20" cy="16" r="4" fill={accent} />
+          <circle cx="36" cy="8" r="3.5" fill={fg} />
+          <polygon points="58,4 60,10 66,10 61,14 63,20 58,16 53,20 55,14 50,10 56,10" fill={accent} />
+          <circle cx="76" cy="10" r="3.5" fill={fg} />
+          <circle cx="88" cy="18" r="3" fill={accent} />
+          {/* leaf */}
+          <ellipse cx="30" cy="22" rx="5" ry="2.5" fill={fg} transform="rotate(-30 30 22)" />
+          <ellipse cx="70" cy="24" rx="4" ry="2" fill={accent} transform="rotate(40 70 24)" />
+          {/* squiggles */}
+          <path d="M 26 22 Q 30 16 34 22" stroke={accent} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          <path d="M 66 22 Q 70 14 74 22" stroke={MOCHA} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          {/* collage scraps */}
+          <rect x="82" y="68" width="10" height="10" fill={MOCHA} transform="rotate(-10 87 73)" />
+          <rect x="4" y="38" width="6" height="4" fill={accent} transform="rotate(-15 7 40)" />
+          <path d="M 84 38 A 5 5 0 0 1 94 38 Z" fill={accent} />
+          {/* sparkles */}
+          <polygon points="86,86 88,90 92,90 89,92 90,96 86,94 82,96 83,92 80,90 84,90" fill={accent} />
+          <circle cx="14" cy="90" r="3" fill={accent} />
         </g>
       );
     case "filmFrame":
@@ -859,9 +925,9 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
   const labelVariant = Math.floor(rand() * 5);
   const objectVariant = Math.floor(rand() * 3);
   const objectRot = -8 + Math.floor(rand() * 17);
-  const objectX = 330 + Math.floor(rand() * 60);
-  const objectY = 530; // Hero sits below the large label
-  const objectSize = 540; // Bold hero — must read clearly at thumbnail size
+  const objectX = 280 + Math.floor(rand() * 90);
+  const objectY = 560; // Keep hero object placed below for large labels
+  const objectSize = 520; // Expanded for strong visual presence
 
   // Font (category labels and split letters only)
   const fontData = await loadFont("ABCDEFGHIJKLMNOPQRSTUVWXYZx");
@@ -901,16 +967,16 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
   ];
   const sectorOrder = sectors.map((s) => ({ s, k: rand() })).sort((a, b) => a.k - b.k).map(x => x.s);
   type Overlay = { kind: Prim; cx: number; cy: number; size: number; rot: number; color: string; opacity: number };
-  const overlays: Overlay[] = Array.from({ length: 2 }, (_, i) => {
-    const [sx, sy, sw, sh] = sectorOrder[i] ?? sectorOrder[0];
+  const overlays: Overlay[] = Array.from({ length: 4 }, (_, i) => {
+    const [sx, sy, sw, sh] = sectorOrder[i] || sectorOrder[0];
     return {
       kind: pickPrim(),
-      cx: Math.round(sx + sw * (0.3 + rand() * 0.4)),
-      cy: Math.round(sy + sh * (0.3 + rand() * 0.4)),
-      size: Math.round(140 + rand() * 140),
+      cx: Math.round(sx + sw * (0.2 + rand() * 0.6)),
+      cy: Math.round(sy + sh * (0.2 + rand() * 0.6)),
+      size: Math.round(260 + rand() * 260),
       rot: Math.round(rand() * 360),
       color: rand() > 0.5 ? palette.fg : accentColor,
-      opacity: 0.18 + rand() * 0.12,
+      opacity: 0.16 + rand() * 0.08,
     };
   });
 
@@ -1004,7 +1070,7 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
 
         {/* 3. Background collage — support shapes only; hero object stays dominant */}
         <svg style={{ position: "absolute", top: 0, left: 0 }} width="1200" height="1200" viewBox="0 0 1200 1200">
-          <g opacity="0.12" transform={`translate(620 610) rotate(${motifRotate} 400 400) scale(5.8) translate(${motifOffsetX} ${motifOffsetY})`}>
+          <g opacity="0.16" transform={`translate(620 610) rotate(${motifRotate} 400 400) scale(6.4) translate(${motifOffsetX} ${motifOffsetY})`}>
             {renderMotif(motifKey, palette.fg, accentColor)}
           </g>
           {overlays.map((p, i) => (
