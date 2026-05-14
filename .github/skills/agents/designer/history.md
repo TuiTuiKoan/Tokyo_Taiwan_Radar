@@ -1,3 +1,8 @@
+## 2026-05-15 — Navbar icon 群組固定化 + hamburger frosted glass 一致性（commit `9f7b7fa`）
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-15 | Saved icon 在 desktop/mobile 的可見性不一致，且 hamburger dropdown 在 light/dark 的材質感不對齊（light 偏實心、dark 幾乎不透明） | 資訊架構把「收藏」放在文字導覽列而非 header icon 群組；menu panel 只調色值、未定義跨主題的透明度與 blur 契約 | 將 Saved icon 固定到 header icon 群組（語言切換前）並移除 mobile menu 的重複文字入口；hamburger dropdown 統一為 frosted 組合：`bg-paper/80 backdrop-blur-md` + `dark:bg-[#0a0909]/80 backdrop-blur-md` | 1) 高頻個人功能（收藏、登入、語言）應優先放在 icon 群組，避免藏在次層選單。2) overlay panel 設計要同時定義顏色、透明度、blur 三要素，不能只改單一 token，否則 light/dark 視覺重量會失衡。
+
 ## 2026-05-15 — Mobile Filter CTA 雙狀態語意（`搜尋或篩選` → `確認`）
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

@@ -121,6 +121,8 @@ UI / visual design specialist owning all front-end visual decisions for Tokyo Ta
 7. **Accessibility floor** — focus-visible ring on every interactive element; min 4.5:1 contrast for body text in both themes; click target ≥ 32px.
 8. **Motion respects `prefers-reduced-motion`** — wrap purely decorative animation in `motion-safe:` Tailwind variant.
 9. **Mobile filter CTA must be two-state** — collapsible filter panels require explicit closed/open semantics: closed = search/filter action, open = confirm/apply action that collapses the panel.
+10. **Navbar personal-action priority** — `saved/auth/lang` are header icon-group first; do not hide high-frequency personal actions only in hamburger text links.
+11. **Hamburger frosted-glass parity** — mobile menu panels must define matching translucent + blur material in light and dark themes (not translucent in one theme and near-opaque in the other).
 
 ---
 

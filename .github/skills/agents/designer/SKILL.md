@@ -195,6 +195,21 @@ import { CARD_LINK, CARD_LINK_ARROW } from "@/lib/classNames";
 
 > ⚠️ **Arrow trap**: Any span with its own `text-*` class WILL override the parent `hover:text-*` via CSS specificity. Always use `group` on the parent and `group-hover:text-[#1F5E2B] dark:group-hover:text-green-400` on icon spans — or use `CARD_LINK_ARROW`.
 
+## Navbar Icon Group Priority
+
+- High-frequency personal actions (`saved`, `auth`, `lang switch`) should live in the header icon group, not only inside the hamburger menu.
+- Avoid duplicate navigation affordances where one is icon-level and another is menu-text-level unless they serve different flows.
+- If an action is kept in the icon group, mobile menu should not repeat it as a parallel primary entry.
+
+## Hamburger Dropdown Frosted-Glass Contract
+
+- Mobile hamburger panel must define a full material contract in both themes: color + opacity + blur.
+- Recommended baseline:
+  - Light: `bg-paper/80 backdrop-blur-md`
+  - Dark: `dark:bg-[#0a0909]/80 backdrop-blur-md`
+- Do not use near-opaque dark overlays (e.g., `.../95`) when light mode is translucent; this breaks theme parity.
+- When tuning menu panel visuals, compare perceived visual weight in light/dark side-by-side, not single-theme screenshots.
+
 ## OG Image 規範（`opengraph-image.tsx`）
 
 Current design (as of 2026-05-15, commit `a273483`):
