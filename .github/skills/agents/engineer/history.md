@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-05-14 — Validate, Merge & Deploy agent も handoffs 未設定（commit `b96ac15`）
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-14 | VMD agent 完了後もボタンが表示されず、次のアクションに進めなかった | `validate-merge-deploy.agent.md` に `handoffs:` が定義されておらず、デプロイ確認後の次ステップ（問題修正→Engineer、履歴更新→Update History）に一切移れない状態だった | frontmatter に 4 つの handoffs を追加（Fix issues found→Engineer `send:true` / Update history→Update History, Skill, Agent `send:true` / Plan next→Architect / Scraper work→Scraper Expert） | **ルール：新規 agent ファイル作成時は handoffs を同時に定義すること。** 「流程型 agent」（Validate/Update History 等）は次ステップへの導線がなければ人が詰まる。agent 作成チェックリストに「handoffs 定義済みか？」を必ず加えること。
+
+---
+
+## 2026-05-14 — `[data-preserve-theme='light'] .group:hover` に空白が入り descendant combinator になるバグ（commit `e3e391f`）
+
+**問題：** ダークモード用の CSS 例外ルール
+```css
+[data-preserve-theme='light'] .group:hover h2 { color: forest; }
+```
+と書くべきところを空白を挟んで
+```css
+[data-preserve-theme='light'] .group:hover
+```
+と分離してしまい、「`[data-preserve-theme='light']` の**子孫**に `.group:hover` がある場合」という descendant combinator として解釈された。しかし `data-preserve-theme` と `group` は**同一要素**（`<Link>`）に付いているため、このルールは永久にマッチしない。
+
+**修正（commit `e3e391f`）：** 空白を除去 → `[data-preserve-theme='light'].group:hover`（結合 specificity 0,5,1 で cacao lock 0,3,1 に勝てる）。
+
+**教訓：**
+- 属性セレクターとクラスセレクターを**同一要素**に適用するとき、間に空白を入れてはいけない。`[attr='x'].class` = 同一要素、`[attr='x'] .class` = 子孫要素。
+- `data-preserve-theme` のような CSS テーマロック機構を使うとき、そのアトリビュートが付く要素とホバー対象が一致しているかを常に確認する。
+- Playwright で `page.evaluate` → `window.getComputedStyle` を使うと hover 前後の色変化を 1 コマンドで検証できる。
+
+---
+
 ## 2026-05-14 — QA 分診 PoC 上線後，LINE 指令閉環與修復邊界需要明文化
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

@@ -1,3 +1,9 @@
+## 2026-05-14 — OG Image 1200×1200 → 1200×630 に差し戻し（full-bleed レイアウト、commit `92b9e82`）
+
+- **Observation**: 以前のセッションで「正方形 1200×1200 が Instagram/LINE に強い」として方形に変更したが、Twitter/X・Facebook・Slack はいずれも 1.9:1（1200×630）を標準とし、正方形は上下クロップされてタイトルが見切れるフィードバックがあった。また 1200×1200 の cream bottom panel レイアウトはテキストが下半分に詰まり、1200×630 の横長 canvas では不釣り合いだった。
+- **Fix**: `export const size` を `{ width:1200, height:630 }` に戻し、レイアウトを全面刷新。Motif（カテゴリ SVG 絵柄）を右側絶対配置（`right:60, top:50, 480×480`）に移動、左 700px にテキストブロックを full-height 配置（cream panel 廃止・背景直置き）。Corner accent・パターン SVG の viewBox をすべて `0 0 1200 630` に更新。パターン opacity `0.45→0.35`（cream panel なしでは濃すぎるため）。
+- **Lesson**: OG 画像の縦横比は**変更前にターゲット SNS を列挙して確認**する。Twitter/X 大カード・Facebook・Slack = 1.9:1 必須。Instagram Feed = 1:1 or 4:5。用途が混在する場合は Twitter を優先する。正方形への変更は「Pinterest/Discord に強い」が「Twitter で文字が見切れる」というトレードオフがあり、イベント告知用途では 1.9:1 の方が有利。`export const size` を変えたら**すべての SVG viewBox と絶対配置座標を同時に更新すること**（高さが変わると cornerShape 位置が全てズレる）。
+
 ## 2026-05-14 — FilterBar 全面改為 custom button+panel；OG 圖 Bauhaus 方形重設計
 
 ### A — FilterBar：native `<select>` → custom button + panel（commits `f72566d`–`06254c7`）

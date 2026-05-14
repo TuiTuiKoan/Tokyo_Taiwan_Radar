@@ -36,6 +36,13 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - For workflow agents, treat handoffs as a required output path, not optional UI polish.
 - If a handoff defines `prompt:`, set `send: true` when the intended behavior is one-click execution.
 - Pre-ship check for agent changes: verify target agent names resolve correctly and at least one post-task handoff exists for the expected next action.
+- **Every new agent file must include `handoffs:` at creation time.** An agent with no handoffs leaves users stranded after task completion.
+
+## CSS Selector Specificity Pitfalls
+
+- `[attr='x'].class` = same element (no space). `[attr='x'] .class` = descendant combinator (space = different element).
+- When combining an attribute selector with a class on the **same element** (e.g., `data-preserve-theme` and `group` on the same `<Link>`), never insert a space between them.
+- For theme-exception rules like `[data-preserve-theme='light'].group:hover h2`, verify: (1) the attribute and the class are on the same DOM element, (2) combined specificity beats any competing rule, (3) use `getComputedStyle` via Playwright to confirm hover color changes.
 
 ## Database
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`
