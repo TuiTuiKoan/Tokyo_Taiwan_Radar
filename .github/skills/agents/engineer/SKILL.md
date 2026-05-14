@@ -117,9 +117,9 @@ Tailwind v4 的 `@theme` block 在 **build time** 靜態解析所有 CSS 變數�
 
 1. **`curl` 307 ≠ 壞掉**：`curl -sI https://tokyotaiwanradar.com/[locale]/admin/...` 回傳 `307 → /auth/login` 是**認證保護正常運作**；未登入時必然如此，不代表頁面有問題。
 
-2. **Vercel build 是否成功**：`npm run build`。TS error（含 `opengraph-image.tsx` 等 Edge runtime route）會讓整個 build 失敗，Vercel 保留舊版本，**表現為所有頁面都「沒更新」**。
+2. **Vercel build 是否成功**：`pnpm run build`（在 `web/` 目錄）。TS error（含 `opengraph-image.tsx` 等 Edge runtime route）會讓整個 build 失敗，Vercel 保留舊版本，**表現為所有頁面都「沒更新」**。
 
-3. **近期 commit 有無 TS error**：`git log --oneline -5 -- web/` 找最近改動，用 `tsc --noEmit` 驗證。Edge runtime route 的 TS error 不一定被 IDE 即時顯示，`npm run build` 才是最終判斷。
+3. **近期 commit 有無 TS error**：`git log --oneline -5 -- web/` 找最近改動，用 `tsc --noEmit` 驗證。Edge runtime route 的 TS error 不一定被 IDE 即時顯示，`pnpm run build` 才是最終判斷。
 
 4. **Production 非 admin 頁面 HTTP 200**：`curl -sI https://tokyotaiwanradar.com/zh` → 200 代表新版已成功部署，admin 的 307 純屬正常 auth redirect。
 

@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-05-15 — 發現 agent 和 SKILL.md 內的建構指令錯誤（`npm run build` 應為 `pnpm run build`）
+
+**問題：** V-M-D agent、engineer SKILL.md、engineer history.md 均寫 `npm run build`，但此專案使用 `pnpm`。
+
+**根因：** Agent 和文件建立時尚未明確將 pnpm 定為建構工具，後續修改未同步欄位。
+
+**修正：**
+- `validate-merge-deploy.agent.md` Step 3：`npm run build` → `pnpm run build`，加入 dev server pre-flight（kill port 3000 + rm -rf web/.next）
+- `engineer/SKILL.md` 「後台壞掉了」排查清單第 2、3 項：`npm run build` → `pnpm run build`
+- `engineer/history.md` zombie build 條目的程式片段：`npm run build` → `pnpm run build`
+
+**教訓：** 建構指令是專案級規格，**不可將 npm/pnpm/yarn 視為同義詞**。`package.json` 對處有 `packageManager: pnpm@...` 字段為權威来源。新增任何 agent 文件、SKILL.md、history.md 內容沿用建構指令前，先執行 `cat web/package.json | grep packageManager` 確認包管理器。
+
 ## 2026-05-15 — zombie `next build` 程序封鎖 validate 流程
 
 **問題：** 執行 `npm run build` 時出現 `⨯ Another next build process is already running`，無法重試。
@@ -17,10 +30,10 @@ ps aux | grep "next build" | grep -v grep
 # 2. 強制終止
 kill -9 <pid>
 # 3. 等 2 秒後重試
-sleep 2 && npm run build
+sleep 2 && pnpm run build
 ```
 
-**教訓：** validate 流程在執行 `npm run build` 前，應先確認沒有殘留 build 程序。若 build 失敗並提示 `already running`，先 `ps aux | grep "next build"` 找 pid，`kill -9` 後再重試，不要刪 `.next/` 目錄（那是 cache，不是 lock）。
+**教訓：** validate 流程在執行 `pnpm run build` 前，應先確認沒有殘留 build 程序。若 build 失敗並提示 `already running`，先 `ps aux | grep "next build"` 找 pid，`kill -9` 後再重試，不要刪 `.next/` 目錄（那是 cache，不是 lock）。
 
 ## 2026-05-15 — CI web-darkmode-smoke 一直失敗（HTTP 500）
 
@@ -214,7 +227,7 @@ Architecture Explorer 中的 Mermaid 圖在顯示時文字過小、圖形被壓�
 **教訓：**
 - 未認證的 `curl` 對 admin route 永遠得到 307 redirect，**不能作為「頁面是否壞掉」的判斷依據**。
 - 「後台壞掉了」的正確診斷順序（見 SKILL.md — Admin 頁面「壞掉了」診斷流程）：
-  1. `npm run build` 是否通過（TS error → Vercel build 失敗 → 舊版被保留）
+  1. `pnpm run build` 是否通過（TS error → Vercel build 失敗 → 舊版被保留）
   2. 近期 commit 有無 TS error（`git log -5 -- web/`）
   3. Production 非 admin 頁面是否 HTTP 200
   4. 若全部正常 → admin 只是需要登入，非真正壞掉
@@ -245,7 +258,7 @@ User 點 VMD agent 的 "🔧 Fix issues found" handoff 按鈕，提示詞為「�
 
 **教訓：**
 - 收到「請修復後重新部署」提示時，**先執行完整驗證**（`tsc`、build、token gate、Vercel curl），若全部 pass 就明確回報「問題未重現，目前狀態健康」，不要強行尋找不存在的問題。
-- VMD agent 的 Step 3 應同時包含 `get_errors`（tsc）**與** `npm run build`，兩者缺一不可：tsc pass ≠ build pass（route handler 錯誤、missing file 等可以通過 tsc 但 build 失敗）。
+- VMD agent 的 Step 3 應同時包含 `get_errors`（tsc）**與** `pnpm run build`，兩者缺一不可：tsc pass ≠ build pass（route handler 錯誤、missing file 等可以通過 tsc 但 build 失敗）。
 
 ---
 
