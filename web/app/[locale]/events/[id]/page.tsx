@@ -6,6 +6,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale, type Event, getEventName, getEventDescription, getEventLocationName, getEventLocationAddress, getEventBusinessHours, getEventPerformer, getEventDirector, getEventOrganizer } from "@/lib/types";
 import SaveButton from "@/components/SaveButton";
+import { CategoryThumbnail } from "@/lib/design/CategoryThumbnail";
 import RawDataSection from "@/components/RawDataSection";
 import ReportSection from "@/components/ReportSection";
 import ViewTracker from "@/components/ViewTracker";
@@ -546,6 +547,12 @@ export default async function EventDetailPage({ params }: PageProps) {
             eventId={event.id}
             initialSaved={false}
             locale={locale}
+          />
+          <CategoryThumbnail
+            seed={event.id}
+            categories={event.category as string[] | null | undefined}
+            size={112}
+            className="w-28 h-28 rounded-xl"
           />
         </div>
       </div>
