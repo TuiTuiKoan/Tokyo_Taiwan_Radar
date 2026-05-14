@@ -261,8 +261,8 @@ html:has([data-site-bg]) body {
 
 @keyframes fly-in-3 {
   0% { transform: translate(120vw, 120vh) rotate(0deg) scale(0.5); opacity: 0; }
-  10% { opacity: 0.7; }
-  90% { opacity: 0.7; }
+  10% { opacity: 0.88; }
+  90% { opacity: 0.88; }
   100% { transform: translate(-20vw, -20vh) rotate(120deg) scale(2); opacity: 0; }
 }
 
@@ -459,3 +459,140 @@ html.dark [data-preserve-theme="light"] .text-\[\#1F5E2B\]           { color: #1
 html.dark [data-preserve-theme="light"].group:hover .group-hover\:text-green-800 { color: #1F5E2B; }
 /* Keep date kicker bg-paper (cream) inside yellow announcement cards */
 html.dark [data-preserve-theme="light"] .bg-paper                    { background-color: #FFFDF5; }
+
+/* Lianbu antenna flow: bright yellow-white energy travels from tip to body. */
+[data-antenna-flow="on"] .lianbu-antenna-flow-line {
+  stroke-dasharray: 22 120;
+  stroke-dashoffset: -24;
+  animation: lianbu-antenna-flow-line 2.2s linear infinite;
+  filter: saturate(1.16) brightness(1.22);
+  opacity: 1;
+}
+
+[data-antenna-flow="on"] .lianbu-antenna-flow-dot {
+  animation: lianbu-antenna-flow-dot 2.2s ease-in-out infinite;
+  transform-origin: 160px 30px;
+}
+
+[data-antenna-flow="on"] .lianbu-tip-ring {
+  animation: lianbu-tip-ring-flash 2.2s ease-in-out infinite;
+}
+
+[data-antenna-flow="on"] .lianbu-tip-core {
+  animation: lianbu-tip-core-flash 2.2s ease-in-out infinite;
+}
+
+[data-antenna-flow="on"] .lianbu-tip-spark {
+  animation: lianbu-tip-spark-flash 2.2s ease-in-out infinite;
+}
+
+@keyframes lianbu-antenna-flow-line {
+  0%,
+  32% {
+    stroke-dashoffset: -24;
+    stroke-width: 4.6;
+    opacity: 0.96;
+  }
+  46% {
+    stroke-width: 4;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 122;
+    stroke-width: 3.6;
+    opacity: 0.42;
+  }
+}
+
+@keyframes lianbu-antenna-flow-dot {
+  0%,
+  32% {
+    opacity: 1;
+    transform: scale(1.38);
+  }
+  56% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 0.96;
+    transform: scale(1);
+  }
+}
+
+@keyframes lianbu-tip-ring-flash {
+  0% {
+    stroke: #1F5E2B;
+    stroke-width: 1.4;
+    opacity: 0.4;
+  }
+  10% {
+    stroke: #FFFFFF;
+    stroke-width: 3.8;
+    opacity: 1;
+  }
+  26% {
+    stroke: #FFFFFF;
+    stroke-width: 3.2;
+    opacity: 0.92;
+  }
+  40%,
+  100% {
+    stroke: #1F5E2B;
+    stroke-width: 1.4;
+    opacity: 0.4;
+  }
+}
+
+@keyframes lianbu-tip-core-flash {
+  0% {
+    fill: #1F5E2B;
+    transform: scale(1);
+  }
+  10%,
+  26% {
+    fill: #FFFFFF;
+    transform: scale(1.22);
+  }
+  40%,
+  100% {
+    fill: #1F5E2B;
+    transform: scale(1);
+  }
+}
+
+@keyframes lianbu-tip-spark-flash {
+  0% {
+    fill: #C4E86F;
+    opacity: 1;
+  }
+  10%,
+  26% {
+    fill: #FFFFFF;
+    opacity: 1;
+  }
+  40%,
+  100% {
+    fill: #C4E86F;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-antenna-flow="on"] .lianbu-antenna-flow-line {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+    opacity: 0.55;
+  }
+
+  [data-antenna-flow="on"] .lianbu-antenna-flow-dot {
+    display: none;
+  }
+
+  [data-antenna-flow="on"] .lianbu-tip-ring,
+  [data-antenna-flow="on"] .lianbu-tip-core,
+  [data-antenna-flow="on"] .lianbu-tip-spark {
+    animation: none;
+  }
+}

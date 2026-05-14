@@ -33,25 +33,71 @@ export interface MascotAvatarProps {
   className?: string;
   /** Accessible label; defaults to "Tokyo Taiwan Radar mascot". */
   title?: string;
+  /** Bright yellow-white flow that travels along antenna into the body. */
+  antennaFlowAnimation?: boolean;
 }
 
-function MascotBody({ upright }: { upright?: boolean }) {
+function MascotBody({
+  upright,
+  antennaFlowAnimation,
+  flowGradientId,
+  flowGlowId,
+}: {
+  upright?: boolean;
+  antennaFlowAnimation?: boolean;
+  flowGradientId?: string;
+  flowGlowId?: string;
+}) {
   const rotate = upright ? 0 : mascotTokens.tilt;
+  const antennaPath = "M100,80 C110,30 60,0 80,20 C100,40 140,50 160,30";
+  const antennaPathReverse = "M160,30 C140,50 100,40 80,20 C60,0 110,30 100,80";
   const bodyPath =
     "M100,80 C 86,80 78,88 74,98 C 72,108 66,116 60,128 C 46,146 30,166 36,190 C 44,210 72,216 102,216 C 132,216 160,210 164,190 C 170,166 154,146 140,128 C 134,116 128,108 126,98 C 122,88 114,80 100,80 Z";
+
   return (
     <g transform={`rotate(${rotate} 100 150)`}>
       <path
-        d="M100,80 C110,30 60,0 80,20 C100,40 140,50 160,30"
+        d={antennaPath}
         fill="none"
         stroke="#1F5E2B"
         strokeWidth="4.5"
         strokeLinecap="round"
       />
+      {antennaFlowAnimation && flowGradientId && flowGlowId && (
+        <>
+          <path
+            className="lianbu-antenna-flow-line"
+            d={antennaPath}
+            fill="none"
+            stroke={`url(#${flowGradientId})`}
+            strokeWidth="3.6"
+            strokeLinecap="round"
+            pathLength={100}
+          />
+          <circle
+            className="lianbu-antenna-flow-dot"
+            cx="100"
+            cy="80"
+            r="4.2"
+            fill="#FFFFFF"
+            filter={`url(#${flowGlowId})`}
+          >
+            <animateMotion
+              dur="2.2s"
+              repeatCount="indefinite"
+              rotate="auto"
+              path={antennaPathReverse}
+              keyTimes="0;0.32;1"
+              keyPoints="0;0;1"
+              calcMode="linear"
+            />
+          </circle>
+        </>
+      )}
       <g>
-        <circle cx="164" cy="26" r="11" fill="none" stroke="#1F5E2B" strokeWidth="1.4" opacity="0.4" />
-        <circle cx="164" cy="26" r="6" fill="#1F5E2B" />
-        <circle cx="164" cy="26" r="2.2" fill="#C4E86F" />
+        <circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill="none" stroke="#1F5E2B" strokeWidth="1.4" opacity="0.4" />
+        <circle className="lianbu-tip-core" cx="164" cy="26" r="6" fill="#1F5E2B" />
+        <circle className="lianbu-tip-spark" cx="164" cy="26" r="2.2" fill="#C4E86F" />
       </g>
       <path
         d={bodyPath}
@@ -80,8 +126,11 @@ export function MascotAvatar({
   upright = false,
   className,
   title = "Tokyo Taiwan Radar mascot",
+  antennaFlowAnimation = false,
 }: MascotAvatarProps) {
   const baseId = useId().replace(/:/g, "");
+  const flowGradientId = `${baseId}-antenna-flow-gradient`;
+  const flowGlowId = `${baseId}-antenna-flow-glow`;
 
   if (variant === "inline") {
     return (
@@ -92,9 +141,31 @@ export function MascotAvatar({
         className={className}
         role="img"
         aria-label={title}
+        data-antenna-flow={antennaFlowAnimation ? "on" : "off"}
       >
         <title>{title}</title>
-        <MascotBody upright={upright} />
+        {antennaFlowAnimation && (
+          <defs>
+            <linearGradient id={flowGradientId} x1="160" y1="30" x2="100" y2="80" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.92" />
+              <stop offset="36%" stopColor="#FFFFFF" stopOpacity="1" />
+              <stop offset="100%" stopColor="#FFFDF5" stopOpacity="0.86" />
+            </linearGradient>
+            <filter id={flowGlowId} x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3.4" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+        )}
+        <MascotBody
+          upright={upright}
+          antennaFlowAnimation={antennaFlowAnimation}
+          flowGradientId={flowGradientId}
+          flowGlowId={flowGlowId}
+        />
       </svg>
     );
   }

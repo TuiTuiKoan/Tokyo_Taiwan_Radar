@@ -118,7 +118,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
       {/* Brand intro / SEO content — Lianbu mascot hero */}
       <section className="mt-6 mb-8 relative grid gap-6 md:grid-cols-[260px_1fr] items-center text-center md:text-left">
         <div className="relative inline-flex flex-col items-center mx-auto md:mx-0 shrink-0">
-          <MascotAvatar variant="inline" size={240} />
+          <MascotAvatar variant="inline" size={240} antennaFlowAnimation />
           <div
             className="absolute bottom-0 right-4 px-3 py-1.5 bg-paper border-2 text-[10px] font-accent font-black tracking-widest text-[#3A261F] dark:text-fg-muted -rotate-6 text-center z-10"
             style={{ borderColor: "var(--color-mocha, #3A261F)" }}
