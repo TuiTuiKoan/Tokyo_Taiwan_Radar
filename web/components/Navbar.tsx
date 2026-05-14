@@ -181,7 +181,7 @@ export default function Navbar({ locale }: Props) {
               </Link>
             )}
             {isAdmin && (
-              <Link href={`/${locale}/admin`} className="text-green-700 transition font-medium">
+              <Link href={`/${locale}/admin`} className="hover:text-[#1F5E2B] dark:hover:text-green-400 transition">
                 {t("admin")}
               </Link>
             )}
