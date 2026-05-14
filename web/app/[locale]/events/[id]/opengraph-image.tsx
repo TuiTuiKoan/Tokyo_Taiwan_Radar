@@ -46,12 +46,12 @@ const PALETTES = [
 
 // ── Category display labels ──────────────────────────────────────────────────
 const CATEGORY_LABEL: Record<string, string> = {
-  movie: "FILM", performing_arts: "LIVE", art: "ART",
-  senses: "FOOD", lifestyle_food: "FOOD", lecture: "TALK",
-  academic: "ACAD", books_media: "BOOK", taiwan_japan: "TWNJ",
-  retail: "SHOP", nature: "ECO", tech: "TECH",
-  tourism: "TOUR", gender: "GNDR", geopolitics: "INTL",
-  competition: "COMP", business: "BIZ", report: "NEWS",
+  movie: "CINEMA", performing_arts: "STAGE", art: "ART",
+  senses: "FLAVOR", lifestyle_food: "FOOD", lecture: "LECTURE",
+  academic: "ACADEMY", books_media: "BOOK", taiwan_japan: "TWxJP",
+  retail: "STORE", nature: "NATURE", tech: "TECH",
+  tourism: "TRAVEL", gender: "GENDER", geopolitics: "INTL",
+  competition: "RIVAL", business: "BIZ", report: "NEWS",
 };
 
 function getCategoryLabel(cats: string[]): string {
@@ -89,72 +89,74 @@ type HeroObjectKey =
   | "filmFrame" | "musicNote" | "galleryFrame" | "coffeeCup" | "marketStall"
   | "openBook" | "tvScreen" | "mountainSun" | "talkCard" | "storeBag"
   | "globe" | "bars" | "trophy" | "filmClap" | "ticket" | "microphone"
-  | "podium" | "graduationCap" | "projector" | "surrealEye" | "meltClock";
+  | "podium" | "graduationCap" | "projector" | "surrealEye" | "meltClock"
+  | "cyborgFace" | "dadaScrap" | "paperclipNote" | "clothespinTape" | "tornNewspaper"
+  | "lipsStamp" | "noseProfile" | "faceCollage";
 
 const SEMANTIC_OBJECT_RULES: { words: string[]; object: HeroObjectKey }[] = [
   { words: ["屋台", "夜市", "市集", "market", "festival", "フェス", "祭"], object: "marketStall" },
   { words: ["珈琲", "咖啡", "coffee", "cafe", "喫茶", "tea", "茶"], object: "coffeeCup" },
   { words: ["音楽", "音樂", "music", "concert", "コンサート", "演唱", "band", "ライブ"], object: "musicNote" },
-  { words: ["展", "exhibition", "個展", "展覽", "gallery", "ギャラリー", "art"], object: "galleryFrame" },
+  { words: ["展", "exhibition", "個展", "展覽", "gallery", "ギャラリー", "art"], object: "faceCollage" },
   { words: ["書", "本", "book", "読書", "書房", "library", "書店"], object: "openBook" },
-  { words: ["講座", "講演", "lecture", "talk", "トーク", "座談"], object: "talkCard" },
-  { words: ["映画", "電影", "film", "cinema", "movie", "シネマ"], object: "filmFrame" },
-  { words: ["digital", "tech", "screen", "video", "テレビ", "映像"], object: "tvScreen" },
+  { words: ["講座", "講演", "lecture", "talk", "トーク", "座談"], object: "lipsStamp" },
+  { words: ["映画", "電影", "film", "cinema", "movie", "シネマ"], object: "cyborgFace" },
+  { words: ["digital", "tech", "screen", "video", "テレビ", "映像"], object: "cyborgFace" },
   { words: ["山", "公園", "park", "森", "forest", "雲", "霧", "濛", "fog"], object: "mountainSun" },
-  { words: ["夢", "dream", "超現実", "surreal", "幻想", "fantasy"], object: "surrealEye" },
+  { words: ["夢", "dream", "超現実", "surreal", "幻想", "fantasy"], object: "dadaScrap" },
 ];
 
 const CATEGORY_OBJECT: Partial<Record<MotifKey, HeroObjectKey>> = {
-  movie: "filmFrame",
-  performing_arts: "musicNote",
-  art: "surrealEye",
-  senses: "coffeeCup",
+  movie: "cyborgFace",
+  performing_arts: "lipsStamp",
+  art: "faceCollage",
+  senses: "lipsStamp",
   lifestyle_food: "coffeeCup",
-  lecture: "talkCard",
+  lecture: "lipsStamp",
   academic: "graduationCap",
-  books_media: "openBook",
+  books_media: "tornNewspaper",
   taiwan_japan: "marketStall",
   retail: "storeBag",
   nature: "mountainSun",
-  tech: "tvScreen",
+  tech: "cyborgFace",
   tourism: "mountainSun",
-  gender: "talkCard",
+  gender: "faceCollage",
   geopolitics: "globe",
   competition: "trophy",
-  business: "bars",
-  report: "talkCard",
+  business: "paperclipNote",
+  report: "tornNewspaper",
 };
 
 const HERO_OBJECT_POOLS: Partial<Record<MotifKey, HeroObjectKey[]>> = {
-  movie: ["filmFrame", "filmClap", "ticket", "surrealEye"],
-  performing_arts: ["musicNote", "microphone"],
-  art: ["galleryFrame", "projector", "surrealEye", "meltClock"],
-  senses: ["coffeeCup", "marketStall", "surrealEye"],
-  lifestyle_food: ["coffeeCup", "marketStall"],
-  lecture: ["talkCard", "microphone", "podium", "surrealEye"],
-  academic: ["openBook", "graduationCap", "podium"],
-  books_media: ["openBook", "talkCard"],
-  taiwan_japan: ["marketStall", "coffeeCup"],
-  retail: ["storeBag", "marketStall"],
+  movie: ["cyborgFace", "filmClap", "ticket", "dadaScrap"],
+  performing_arts: ["musicNote", "microphone", "lipsStamp", "faceCollage"],
+  art: ["faceCollage", "dadaScrap", "surrealEye", "meltClock", "lipsStamp"],
+  senses: ["coffeeCup", "lipsStamp", "noseProfile", "dadaScrap"],
+  lifestyle_food: ["coffeeCup", "marketStall", "lipsStamp"],
+  lecture: ["lipsStamp", "microphone", "paperclipNote", "faceCollage"],
+  academic: ["openBook", "graduationCap", "paperclipNote", "tornNewspaper"],
+  books_media: ["tornNewspaper", "openBook", "paperclipNote"],
+  taiwan_japan: ["marketStall", "coffeeCup", "faceCollage"],
+  retail: ["storeBag", "marketStall", "clothespinTape"],
   nature: ["mountainSun", "galleryFrame"],
-  tech: ["tvScreen", "projector", "surrealEye"],
-  tourism: ["mountainSun", "ticket"],
-  gender: ["talkCard", "microphone", "surrealEye"],
-  geopolitics: ["globe", "podium"],
+  tech: ["cyborgFace", "tvScreen", "projector", "surrealEye"],
+  tourism: ["mountainSun", "ticket", "clothespinTape"],
+  gender: ["faceCollage", "lipsStamp", "noseProfile", "surrealEye"],
+  geopolitics: ["globe", "podium", "tornNewspaper"],
   competition: ["trophy", "bars"],
-  business: ["bars", "projector", "podium"],
-  report: ["talkCard", "projector", "surrealEye"],
+  business: ["paperclipNote", "bars", "tornNewspaper"],
+  report: ["tornNewspaper", "paperclipNote", "faceCollage"],
 };
 
 function pickHeroObject(motifKey: MotifKey, titleBlob: string): HeroObjectKey {
-  if (motifKey === "business") return "bars";
+  if (motifKey === "business") return "paperclipNote";
   if (motifKey === "academic") return "graduationCap";
-  if (motifKey === "tech") return "tvScreen";
+  if (motifKey === "tech") return "cyborgFace";
   const lower = titleBlob.toLowerCase();
   for (const rule of SEMANTIC_OBJECT_RULES) {
     if (rule.words.some((word) => lower.includes(word.toLowerCase()))) return rule.object;
   }
-  return CATEGORY_OBJECT[motifKey] ?? "talkCard";
+  return CATEGORY_OBJECT[motifKey] ?? "faceCollage";
 }
 
 // ── Font loader ──────────────────────────────────────────────────────────────
@@ -430,6 +432,160 @@ function renderHeroObject(kind: HeroObjectKey, fg: string, accent: string, bg: s
           <path d="M 77 34 L 94 24 L 94 68 L 77 58 Z" fill={accent} stroke={ink} strokeWidth="4" />
         </g>
       );
+    case "lipsStamp":
+      // Simple oversized lips floating on a clean card with one small flower drifting
+      return (
+        <g>
+          <path d="M 16 50 Q 32 28 50 48 Q 68 28 84 50 Q 68 76 50 58 Q 32 76 16 50 Z" fill={accent} stroke={ink} strokeWidth="4" />
+          <path d="M 18 50 Q 50 60 82 50" stroke={ink} strokeWidth="3" fill="none" />
+          {/* drifting petal escaping upper-right */}
+          <circle cx="86" cy="22" r="4" fill={fg} stroke={ink} strokeWidth="2" />
+          <circle cx="86" cy="22" r="1.6" fill={ink} />
+          <path d="M 78 30 Q 82 26 86 22" stroke={ink} strokeWidth="2" fill="none" strokeDasharray="2 3" />
+        </g>
+      );
+    case "noseProfile":
+      // Clean profile head silhouette with one eye + one petal sprouting from forehead
+      return (
+        <g>
+          <path d="M 28 22 Q 18 30 18 50 Q 18 70 30 78 L 30 88 L 56 88 L 56 78 Q 70 70 70 56 L 80 50 L 70 44 Q 68 28 56 22 Z" fill={bg} stroke={ink} strokeWidth="4" />
+          <circle cx="46" cy="48" r="3" fill={ink} />
+          <path d="M 56 62 Q 50 64 48 62" stroke={ink} strokeWidth="3" fill="none" strokeLinecap="round" />
+          {/* sprouting flower */}
+          <line x1="40" y1="22" x2="36" y2="10" stroke={ink} strokeWidth="3" strokeLinecap="round" />
+          <circle cx="34" cy="8" r="5" fill={accent} stroke={ink} strokeWidth="2.5" />
+        </g>
+      );
+    case "cyborgFace":
+      // Single clean head, two eyes (one mechanical), small mouth, one flower antenna
+      return (
+        <g>
+          {/* head */}
+          <circle cx="50" cy="54" r="34" fill={bg} stroke={ink} strokeWidth="4" />
+          {/* eyes */}
+          <rect x="28" y="46" width="14" height="10" fill={ink} />
+          <circle cx="35" cy="51" r="3" fill={accent} />
+          <circle cx="63" cy="51" r="6" fill={ink} />
+          <circle cx="61" cy="49" r="1.6" fill={bg} />
+          {/* mouth */}
+          <path d="M 38 70 Q 50 74 62 70" stroke={ink} strokeWidth="3" fill="none" strokeLinecap="round" />
+          {/* antenna with flower bursting */}
+          <line x1="50" y1="20" x2="50" y2="6" stroke={ink} strokeWidth="3" strokeLinecap="round" />
+          <circle cx="50" cy="4" r="4" fill={accent} stroke={ink} strokeWidth="2" />
+          <circle cx="50" cy="4" r="1.6" fill={bg} />
+          {/* ear bolts */}
+          <circle cx="14" cy="56" r="3" fill={accent} stroke={ink} strokeWidth="2" />
+          <circle cx="86" cy="56" r="3" fill={accent} stroke={ink} strokeWidth="2" />
+        </g>
+      );
+    case "faceCollage":
+      // Bouquet — one vase, three flowers (one with an eye as center), petals drifting
+      return (
+        <g>
+          {/* vase */}
+          <path d="M 32 64 L 68 64 L 64 90 L 36 90 Z" fill={accent} stroke={ink} strokeWidth="4" />
+          <rect x="30" y="60" width="40" height="6" fill={ink} />
+          {/* stems */}
+          <path d="M 50 64 Q 48 50 44 32" stroke={ink} strokeWidth="3" fill="none" strokeLinecap="round" />
+          <path d="M 50 64 Q 62 52 70 36" stroke={ink} strokeWidth="3" fill="none" strokeLinecap="round" />
+          <path d="M 50 64 Q 40 56 28 44" stroke={ink} strokeWidth="3" fill="none" strokeLinecap="round" />
+          {/* leaf */}
+          <path d="M 50 56 Q 58 48 54 60 Z" fill={fg} stroke={ink} strokeWidth="2" />
+          {/* flower 1 — eye-flower */}
+          <circle cx="44" cy="28" r="11" fill={fg} stroke={ink} strokeWidth="3" />
+          <ellipse cx="44" cy="28" rx="6" ry="4" fill={bg} stroke={ink} strokeWidth="2" />
+          <circle cx="44" cy="28" r="2" fill={ink} />
+          {/* flower 2 — petal cluster */}
+          <circle cx="70" cy="32" r="5" fill={bg} stroke={ink} strokeWidth="2.5" />
+          <circle cx="76" cy="36" r="5" fill={bg} stroke={ink} strokeWidth="2.5" />
+          <circle cx="74" cy="26" r="5" fill={bg} stroke={ink} strokeWidth="2.5" />
+          <circle cx="73" cy="32" r="3" fill={accent} />
+          {/* flower 3 */}
+          <circle cx="26" cy="40" r="6" fill={accent} stroke={ink} strokeWidth="2.5" />
+          <circle cx="26" cy="40" r="2" fill={bg} />
+          {/* drifting petal */}
+          <circle cx="14" cy="14" r="3" fill={accent} stroke={ink} strokeWidth="2" />
+          <path d="M 22 22 Q 18 18 14 14" stroke={ink} strokeWidth="1.5" strokeDasharray="2 3" fill="none" />
+        </g>
+      );
+    case "dadaScrap":
+      // Painting in a frame with shapes bursting out beyond the frame
+      return (
+        <g>
+          {/* frame */}
+          <rect x="14" y="20" width="62" height="58" fill={ink} />
+          <rect x="20" y="26" width="50" height="46" fill={bg} />
+          {/* inside: horizon + sun */}
+          <rect x="20" y="56" width="50" height="16" fill={fg} />
+          <circle cx="34" cy="44" r="7" fill={accent} stroke={ink} strokeWidth="2" />
+          <path d="M 40 56 L 50 46 L 58 56 Z" fill={ink} />
+          {/* bursting out elements */}
+          <circle cx="80" cy="18" r="5" fill={accent} stroke={ink} strokeWidth="2.5" />
+          <circle cx="80" cy="18" r="1.6" fill={bg} />
+          <path d="M 70 20 Q 76 18 80 18" stroke={ink} strokeWidth="2" fill="none" strokeDasharray="2 3" />
+          {/* butterfly escaping */}
+          <ellipse cx="88" cy="42" rx="6" ry="4" fill={fg} stroke={ink} strokeWidth="2" transform="rotate(-20 88 42)" />
+          <ellipse cx="92" cy="48" rx="5" ry="3" fill={accent} stroke={ink} strokeWidth="2" transform="rotate(-20 92 48)" />
+          {/* lips escaping bottom-left */}
+          <path d="M 4 88 Q 12 80 22 88 Q 12 94 4 88 Z" fill={accent} stroke={ink} strokeWidth="2.5" />
+        </g>
+      );
+    case "paperclipNote":
+      // Clean note with one flower sprouting through the page + paperclip on top
+      return (
+        <g>
+          <rect x="20" y="18" width="58" height="68" fill={bg} stroke={ink} strokeWidth="4" />
+          <line x1="28" y1="34" x2="68" y2="34" stroke={MOCHA} strokeWidth="2.5" />
+          <line x1="28" y1="44" x2="60" y2="44" stroke={MOCHA} strokeWidth="2.5" />
+          <line x1="28" y1="54" x2="64" y2="54" stroke={MOCHA} strokeWidth="2.5" />
+          {/* paperclip */}
+          <path d="M 36 8 L 36 60 Q 36 68 44 68 Q 52 68 52 60 L 52 20 Q 52 14 48 14 Q 44 14 44 20 L 44 56" fill="none" stroke={ink} strokeWidth="4" />
+          {/* flower sprouting through page */}
+          <line x1="64" y1="70" x2="80" y2="86" stroke={ink} strokeWidth="3" strokeLinecap="round" />
+          <circle cx="82" cy="88" r="6" fill={accent} stroke={ink} strokeWidth="2.5" />
+          <circle cx="82" cy="88" r="2" fill={bg} />
+        </g>
+      );
+    case "clothespinTape":
+      // Single hanging sheet with a face poking through + clothespin at top
+      return (
+        <g>
+          <path d="M 30 18 L 70 18 L 72 86 L 28 88 Z" fill={fg} stroke={ink} strokeWidth="4" />
+          {/* face hint */}
+          <circle cx="42" cy="44" r="2.5" fill={ink} />
+          <circle cx="58" cy="44" r="2.5" fill={ink} />
+          <path d="M 42 58 Q 50 62 58 58" stroke={ink} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          {/* drifting petal */}
+          <circle cx="84" cy="34" r="4" fill={accent} stroke={ink} strokeWidth="2" />
+          {/* clothespin */}
+          <rect x="44" y="6" width="6" height="20" fill={ink} />
+          <rect x="50" y="6" width="6" height="20" fill={ink} />
+          <rect x="42" y="12" width="16" height="4" fill={accent} />
+        </g>
+      );
+    case "tornNewspaper":
+      // Open book with content flying out — letters and a small bird escaping the pages
+      return (
+        <g>
+          {/* open book base */}
+          <path d="M 8 76 Q 28 70 50 78 L 50 38 Q 28 32 8 38 Z" fill={bg} stroke={ink} strokeWidth="4" />
+          <path d="M 92 76 Q 72 70 50 78 L 50 38 Q 72 32 92 38 Z" fill={bg} stroke={ink} strokeWidth="4" />
+          <line x1="50" y1="38" x2="50" y2="78" stroke={ink} strokeWidth="4" />
+          {/* text lines */}
+          <line x1="16" y1="50" x2="44" y2="48" stroke={MOCHA} strokeWidth="2" />
+          <line x1="16" y1="58" x2="42" y2="56" stroke={MOCHA} strokeWidth="2" />
+          <line x1="56" y1="48" x2="84" y2="50" stroke={MOCHA} strokeWidth="2" />
+          <line x1="56" y1="56" x2="82" y2="58" stroke={MOCHA} strokeWidth="2" />
+          {/* content flying out */}
+          <circle cx="34" cy="22" r="4" fill={accent} stroke={ink} strokeWidth="2" />
+          <path d="M 30 30 Q 32 26 34 22" stroke={ink} strokeWidth="1.5" strokeDasharray="2 3" fill="none" />
+          {/* small bird escaping */}
+          <path d="M 62 16 Q 68 10 76 14 Q 72 18 68 18 Q 70 22 66 22 Z" fill={fg} stroke={ink} strokeWidth="2" />
+          <circle cx="74" cy="14" r="1" fill={ink} />
+          {/* letter A flying */}
+          <text x="22" y="14" fontSize="10" fontWeight="bold" fill={ink} transform="rotate(-15 22 14)">A</text>
+        </g>
+      );
     case "filmFrame":
     default:
       return (
@@ -446,84 +602,172 @@ function renderHeroObject(kind: HeroObjectKey, fg: string, accent: string, bg: s
   }
 }
 
-function renderLabelHero(label: string, fg: string, accent: string, bg: string, fontFamily: string, variant: number): React.ReactNode {
-  const baseLetters = label.length === 3 ? [...label.split(""), "✴"] : label.padEnd(4, "✧").slice(0, 4).split("");
-  const letters = baseLetters.map(l => l.trim() === "" ? "✦" : l);
+function renderLabelHero(label: string, fg: string, accent: string, bg: string, fontFamily: string, variant: number, rand: () => number): React.ReactNode {
+  const letters = label.split("");
+  const L = letters.length;
   const fontFamilies = [fontFamily, "serif", "monospace", "sans-serif"];
-  if (variant === 3) {
-    const slots = [
-      { x: 0, y: 0, rot: -10, color: MOCHA, shadow: accent },
-      { x: 780, y: 0, rot: 9, color: accent, shadow: MOCHA },
-      { x: 20, y: 610, rot: 7, color: fg, shadow: MOCHA },
-      { x: 770, y: 610, rot: -8, color: MOCHA, shadow: fg },
-    ];
+
+  // Per-letter Dadaist jitter — always applied across all variants
+  type LS = { rot: number; font: string; sizeMult: number; colorPick: number };
+  const styles: LS[] = letters.map(() => ({
+    rot: -14 + rand() * 28,
+    font: fontFamilies[Math.floor(rand() * fontFamilies.length)],
+    sizeMult: 0.85 + rand() * 0.32,
+    colorPick: rand(),
+  }));
+  const colorFor = (s: LS, defaultColor: string) =>
+    s.colorPick < 0.18 ? accent : s.colorPick < 0.32 ? fg : defaultColor;
+
+  // Variant 0 — Bold single row inside Mocha box
+  if (variant === 0) {
+    const baseSize = Math.min(230, Math.floor(960 / L));
     return (
-      <div style={{ position: "relative", width: 1040, height: 930, display: "flex" }}>
-        {letters.map((letter, i) => (
-          <span
-            key={i}
-            style={{
-              position: "absolute",
-              left: slots[i].x,
-              top: slots[i].y,
-              fontSize: 330,
-              fontWeight: "bold",
-              fontFamily: fontFamilies[i % fontFamilies.length],
-              color: slots[i].color,
-              lineHeight: 0.9,
-              transform: `rotate(${slots[i].rot}deg)`,
-              WebkitTextStroke: `5px ${MOCHA}`,
-              textShadow: `14px 14px 0 ${slots[i].shadow}`,
-            }}
-          >
-            {letter}
-          </span>
+      <div style={{ display: "flex", background: MOCHA, padding: "26px 38px 36px", boxShadow: `18px 18px 0 ${fg}`, transform: `rotate(${-5 + rand() * 4}deg)`, alignItems: "center" }}>
+        {letters.map((ch, i) => (
+          <span key={i} style={{
+            fontSize: Math.round(baseSize * styles[i].sizeMult),
+            fontWeight: "bold",
+            color: colorFor(styles[i], bg),
+            fontFamily: styles[i].font,
+            lineHeight: 1,
+            margin: `0 ${Math.round(2 + rand() * 8)}px`,
+            transform: `rotate(${styles[i].rot * 0.6}deg) translateY(${Math.round(-8 + rand() * 16)}px)`,
+            display: "flex",
+          }}>{ch}</span>
         ))}
       </div>
     );
   }
-  if (variant === 4) {
-    const slots = [
-      { x: 0, y: 40, rot: -18, bg: MOCHA, color: bg, size: 250 },
-      { x: 310, y: 0, rot: 13, bg: fg, color: MOCHA, size: 300 },
-      { x: 140, y: 310, rot: 19, bg: accent, color: MOCHA, size: 240 },
-      { x: 500, y: 280, rot: -11, bg: MOCHA, color: bg, size: 320 },
-    ];
-    return (
-      <div style={{ position: "relative", width: 900, height: 720, display: "flex", transform: "rotate(-4deg)" }}>
-        {letters.map((letter, i) => (
-          <div key={i} style={{ position: "absolute", left: slots[i].x, top: slots[i].y, width: slots[i].size, height: slots[i].size * 0.86, background: slots[i].bg, display: "flex", alignItems: "center", justifyContent: "center", transform: `rotate(${slots[i].rot}deg)`, boxShadow: `12px 12px 0 ${i % 2 ? MOCHA : fg}` }}>
-            <span style={{ fontSize: slots[i].size * 0.75, fontWeight: "bold", color: slots[i].color, fontFamily: fontFamilies[(i + 1) % fontFamilies.length], lineHeight: 1 }}>{letter}</span>
-          </div>
-        ))}
-      </div>
-    );
-  }
+
+  // Variant 1 — Tile grid (wrap to multi-row), each letter in own colored block
   if (variant === 1) {
+    const cols = L <= 4 ? L : Math.ceil(L / 2);
+    const tile = Math.min(260, Math.floor(940 / cols));
     return (
-      <div style={{ display: "flex", background: MOCHA, padding: "22px 42px 34px", boxShadow: `18px 18px 0 ${fg}`, transform: "rotate(-5deg)" }}>
-        <span style={{ fontSize: 210, fontWeight: "bold", color: bg, fontFamily: fontFamilies[variant % fontFamilies.length], letterSpacing: 10, lineHeight: 1 }}>{label}</span>
+      <div style={{ display: "flex", flexWrap: "wrap", width: tile * cols + 16, gap: 12, transform: `rotate(${-3 + rand() * 8}deg)` }}>
+        {letters.map((ch, i) => {
+          const bgSwap = i % 3 === 0 ? MOCHA : i % 3 === 1 ? accent : fg;
+          const fgSwap = bgSwap === fg ? MOCHA : bg;
+          return (
+            <div key={i} style={{
+              width: tile,
+              height: Math.round(tile * 0.92),
+              background: bgSwap,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: `${6 + Math.round(rand() * 8)}px ${6 + Math.round(rand() * 8)}px 0 ${i % 2 ? MOCHA : fg}`,
+              transform: `rotate(${styles[i].rot * 0.4}deg)`,
+            }}>
+              <span style={{
+                fontSize: Math.round(tile * 0.78 * styles[i].sizeMult),
+                fontWeight: "bold",
+                color: fgSwap,
+                fontFamily: styles[i].font,
+                lineHeight: 1,
+              }}>{ch}</span>
+            </div>
+          );
+        })}
       </div>
     );
   }
+
+  // Variant 2 — Staircase: each letter on own line, indented progressively
   if (variant === 2) {
+    const baseSize = Math.min(280, Math.floor(820 / L) + 90);
+    const stepX = Math.round(60 + rand() * 70);
+    const stepY = Math.round(baseSize * 0.78);
     return (
-      <div style={{ display: "flex", flexWrap: "wrap", width: 560, gap: 16, transform: "rotate(4deg)" }}>
-        {letters.map((letter, i) => (
-          <div key={i} style={{ width: 260, height: 230, background: i % 2 === 0 ? MOCHA : accent, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `10px 10px 0 ${i % 2 === 0 ? accent : MOCHA}` }}>
-            <span style={{ fontSize: 190, fontWeight: "bold", color: i % 2 === 0 ? bg : MOCHA, fontFamily: fontFamilies[i % fontFamilies.length], lineHeight: 1 }}>{letter}</span>
-          </div>
+      <div style={{ position: "relative", width: stepX * (L - 1) + baseSize + 80, height: stepY * (L - 1) + baseSize + 40, display: "flex" }}>
+        {letters.map((ch, i) => (
+          <span key={i} style={{
+            position: "absolute",
+            left: stepX * i,
+            top: stepY * i,
+            fontSize: Math.round(baseSize * styles[i].sizeMult),
+            fontWeight: "bold",
+            color: colorFor(styles[i], MOCHA),
+            fontFamily: styles[i].font,
+            lineHeight: 0.9,
+            transform: `rotate(${styles[i].rot}deg)`,
+            WebkitTextStroke: `4px ${i % 2 ? accent : MOCHA}`,
+            textShadow: `10px 10px 0 ${i % 2 ? fg : accent}`,
+          }}>{ch}</span>
         ))}
       </div>
     );
   }
+
+  // Variant 3 — Broken-line wrap: split label at uneven midpoint, second line indented
+  if (variant === 3) {
+    const breakAt = L <= 3 ? 1 : Math.max(2, Math.min(L - 2, Math.floor(L / 2) + (rand() < 0.5 ? 0 : 1)));
+    const line1 = letters.slice(0, breakAt);
+    const line2 = letters.slice(breakAt);
+    const maxLen = Math.max(line1.length, line2.length);
+    const baseSize = Math.min(320, Math.floor(880 / maxLen));
+    const indent = Math.round(baseSize * (0.4 + rand() * 0.4));
+    const renderLine = (chars: string[], offsetIdx: number, indentPx: number) => (
+      <div style={{ display: "flex", marginLeft: indentPx, alignItems: "flex-end" }}>
+        {chars.map((ch, j) => {
+          const i = offsetIdx + j;
+          return (
+            <span key={i} style={{
+              fontSize: Math.round(baseSize * styles[i].sizeMult),
+              fontWeight: "bold",
+              color: colorFor(styles[i], MOCHA),
+              fontFamily: styles[i].font,
+              lineHeight: 0.9,
+              transform: `rotate(${styles[i].rot}deg)`,
+              WebkitTextStroke: `4px ${MOCHA}`,
+              textShadow: `${8 + Math.round(rand() * 6)}px ${8 + Math.round(rand() * 6)}px 0 ${j % 2 ? fg : accent}`,
+              margin: `0 ${Math.round(2 + rand() * 10)}px`,
+              display: "flex",
+            }}>{ch}</span>
+          );
+        })}
+      </div>
+    );
+    return (
+      <div style={{ display: "flex", flexDirection: "column", transform: `rotate(${-3 + rand() * 6}deg)` }}>
+        {renderLine(line1, 0, 0)}
+        {renderLine(line2, line1.length, indent)}
+      </div>
+    );
+  }
+
+  // Variant 4 — Scatter: large random anchors across canvas
+  const W = 1040;
+  const H = 930;
+  const cellsX = Math.min(4, L);
+  const cellsY = Math.ceil(L / cellsX);
+  const cellW = W / cellsX;
+  const cellH = H / cellsY;
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", width: 540, background: MOCHA, padding: 24, gap: 12, boxShadow: `18px 18px 0 ${accent}`, transform: "rotate(-2deg)" }}>
-      {letters.map((letter, i) => (
-        <div key={i} style={{ width: 240, height: 210, display: "flex", alignItems: "center", justifyContent: "center", background: i === 1 || i === 2 ? bg : fg }}>
-          <span style={{ fontSize: 178, fontWeight: "bold", color: i === 1 || i === 2 ? MOCHA : bg, fontFamily: fontFamilies[i % fontFamilies.length], lineHeight: 1 }}>{letter}</span>
-        </div>
-      ))}
+    <div style={{ position: "relative", width: W, height: H, display: "flex" }}>
+      {letters.map((ch, i) => {
+        const cx = i % cellsX;
+        const cy = Math.floor(i / cellsX);
+        const x = Math.round(cellW * cx + cellW * 0.1 + rand() * cellW * 0.3);
+        const y = Math.round(cellH * cy + cellH * 0.1 + rand() * cellH * 0.3);
+        const size = Math.min(360, Math.round((cellW * 0.78) * styles[i].sizeMult));
+        const shadowColor = i % 3 === 0 ? accent : i % 3 === 1 ? fg : MOCHA;
+        return (
+          <span key={i} style={{
+            position: "absolute",
+            left: x,
+            top: y,
+            fontSize: size,
+            fontWeight: "bold",
+            color: colorFor(styles[i], i % 2 ? MOCHA : fg),
+            fontFamily: styles[i].font,
+            lineHeight: 0.9,
+            transform: `rotate(${styles[i].rot * 1.4}deg)`,
+            WebkitTextStroke: `5px ${MOCHA}`,
+            textShadow: `${10 + Math.round(rand() * 8)}px ${10 + Math.round(rand() * 8)}px 0 ${shadowColor}`,
+          }}>{ch}</span>
+        );
+      })}
     </div>
   );
 }
@@ -586,7 +830,7 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
   const objectSize = 380; // Keep hero object smaller since label dominates
 
   // Font (category labels and split letters only)
-  const fontData = await loadFont(categoryLabel + "FILM LIVE FOOD TALK BOOK TECH ECO SHOP ART");
+  const fontData = await loadFont("ABCDEFGHIJKLMNOPQRSTUVWXYZx");
   const fontName = "Zen Maru Gothic";
   const FF = fontData ? fontName : "sans-serif";
 
@@ -623,16 +867,16 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
   ];
   const sectorOrder = sectors.map((s) => ({ s, k: rand() })).sort((a, b) => a.k - b.k).map(x => x.s);
   type Overlay = { kind: Prim; cx: number; cy: number; size: number; rot: number; color: string; opacity: number };
-  const overlays: Overlay[] = Array.from({ length: 4 }, (_, i) => {
+  const overlays: Overlay[] = Array.from({ length: 2 }, (_, i) => {
     const [sx, sy, sw, sh] = sectorOrder[i] ?? sectorOrder[0];
     return {
       kind: pickPrim(),
       cx: Math.round(sx + sw * (0.3 + rand() * 0.4)),
       cy: Math.round(sy + sh * (0.3 + rand() * 0.4)),
-      size: Math.round(150 + rand() * 180),
+      size: Math.round(140 + rand() * 140),
       rot: Math.round(rand() * 360),
       color: rand() > 0.5 ? palette.fg : accentColor,
-      opacity: 0.35 + rand() * 0.22,
+      opacity: 0.18 + rand() * 0.12,
     };
   });
 
@@ -783,7 +1027,7 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
 
         {/* 5. Main hero label block */}
         <div style={{ position: "absolute", left: labelX, top: labelY, display: "flex" }}>
-          {renderLabelHero(categoryLabel, palette.fg, accentColor, palette.bg, FF, labelVariant)}
+          {renderLabelHero(categoryLabel, palette.fg, accentColor, palette.bg, FF, labelVariant, rand)}
         </div>
 
         <div
