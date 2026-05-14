@@ -453,8 +453,9 @@ html.dark .hover\:bg-paper:hover     { background-color: var(--color-paper); }  
 html.dark [data-preserve-theme="light"] .text-\[\#3A261F\]           { color: #3A261F; }
 html.dark [data-preserve-theme="light"] .hover\:text-\[\#3A261F\]:hover { color: #3A261F; }
 html.dark [data-preserve-theme="light"] .text-\[\#1F5E2B\]           { color: #1F5E2B; }
-/* On hover inside preserve zone, override the cacao lock with forest green.
- * Specificity 0,5,1 beats the cacao rule 0,3,1 (which would otherwise win). */
-html.dark [data-preserve-theme="light"] .group:hover .group-hover\:text-green-800 { color: #1F5E2B; }
+/* On hover inside preserve zone, text changes to forest green.
+ * Selector: [data-preserve-theme="light"].group:hover (no space) = same element has both.
+ * Specificity 0,5,1 beats the cacao lock 0,3,1. */
+html.dark [data-preserve-theme="light"].group:hover .group-hover\:text-green-800 { color: #1F5E2B; }
 /* Keep date kicker bg-paper (cream) inside yellow announcement cards */
 html.dark [data-preserve-theme="light"] .bg-paper                    { background-color: #FFFDF5; }
