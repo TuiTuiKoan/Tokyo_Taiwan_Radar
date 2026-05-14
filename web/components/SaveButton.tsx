@@ -67,7 +67,7 @@ export default function SaveButton({ eventId, initialSaved, locale, compact = fa
       title={saved ? t("unsave") : t("save")}
       aria-label={saved ? t("unsave") : t("save")}
       className={`inline-flex items-center gap-2 rounded-lg border text-sm font-medium transition shrink-0 ${
-        compact ? "w-8 h-8 justify-center p-0" : "px-3 py-2"
+        compact ? "w-8 h-8 justify-center p-0" : "min-w-[108px] justify-center px-3 py-2"
       } ${
         saved
           ? "bg-green-600 text-white border-green-600 hover:bg-green-700"
