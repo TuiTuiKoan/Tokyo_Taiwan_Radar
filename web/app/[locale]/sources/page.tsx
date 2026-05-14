@@ -134,7 +134,7 @@ export default async function SourcesPage({ params }: PageProps) {
                     <div className="text-xs text-fg-subtle font-mono">{s.id}</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-[#F7FFE8] text-[#1F5E2B] dark:bg-green-900/40 dark:text-green-300">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-[#F7FFE8] text-[#1F5E2B] dark:bg-green-800/60 dark:text-green-200">
                       {s.frequency === "daily" ? t("frequencyDaily") : t("frequencyWeekly")}
                     </span>
                     <a

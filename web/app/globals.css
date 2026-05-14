@@ -91,7 +91,7 @@
   --color-brand-soft: #052e16;     /* green-950 */
 
   /* Decorative palette — darkened for readability */
-  --color-paper: #1c1a17;          /* dark paper (warm very-dark brown) */
+  --color-paper: #262422;          /* dark paper — slightly lighter, shows gray */
   --color-blush: #2a1f1d;          /* dark blush (warm very-dark rose) */
 
   /* Semantic shorthand tokens (dark overrides) */
@@ -394,31 +394,31 @@ html.dark .border-\[\#3A261F\]                      { border-color: var(--color-
  * dark: variants that resolve to the SAME color value are fine.
  * ============================================================ */
 
-/* Green tints → green-950 + green-400 text */
-html.dark .bg-green-50         { background-color: #052e16; }
-html.dark .bg-green-100        { background-color: #052e16; }
-html.dark .text-green-700      { color: #4ade80; }
-html.dark .text-green-600      { color: #4ade80; }
+/* Green tints → green-900 + green-300 text (was 950 + 400, bumped for chroma) */
+html.dark .bg-green-50         { background-color: #14532d; }
+html.dark .bg-green-100        { background-color: #14532d; }
+html.dark .text-green-700      { color: #86efac; }
+html.dark .text-green-600      { color: #86efac; }
 html.dark .border-green-300    { border-color: #166534; }
 html.dark .hover\:bg-green-200:hover { background-color: #14532d; }
 
-/* Blue tints → blue-950 + blue-300 text */
-html.dark .bg-blue-50          { background-color: #172554; }
-html.dark .text-blue-700       { color: #93c5fd; }
+/* Blue tints → blue-900 + blue-200 text */
+html.dark .bg-blue-50          { background-color: #1e3a8a; }
+html.dark .text-blue-700       { color: #bfdbfe; }
 
-/* Purple tints → purple-950 + purple-300 text */
-html.dark .bg-purple-50        { background-color: #2e1065; }
-html.dark .text-purple-700     { color: #c4b5fd; }
+/* Purple tints → purple-900 + purple-200 text */
+html.dark .bg-purple-50        { background-color: #4a1d96; }
+html.dark .text-purple-700     { color: #ddd6fe; }
 
-/* Emerald tints → emerald-950 + emerald-300 text */
-html.dark .bg-emerald-50       { background-color: #022c22; }
-html.dark .text-emerald-700    { color: #6ee7b7; }
+/* Emerald tints → emerald-900 + emerald-200 text */
+html.dark .bg-emerald-50       { background-color: #064e3b; }
+html.dark .text-emerald-700    { color: #a7f3d0; }
 
-/* Amber/orange tints → amber-950 + amber-400 text */
-html.dark .bg-amber-50         { background-color: #451a03; }
-html.dark .bg-amber-100        { background-color: #451a03; }
-html.dark .text-amber-700      { color: #fbbf24; }
-html.dark .text-amber-600      { color: #fbbf24; }
+/* Amber/orange tints → amber-900 + amber-300 text */
+html.dark .bg-amber-50         { background-color: #78350f; }
+html.dark .bg-amber-100        { background-color: #78350f; }
+html.dark .text-amber-700      { color: #fde68a; }
+html.dark .text-amber-600      { color: #fde68a; }
 html.dark .text-amber-800      { color: #fcd34d; }  /* was near-black on dark bg */
 html.dark .text-amber-900      { color: #fef3c7; }  /* was near-black — used in inputs, display text */
 html.dark .text-amber-400      { color: #fde68a; }  /* locale labels inside report form */

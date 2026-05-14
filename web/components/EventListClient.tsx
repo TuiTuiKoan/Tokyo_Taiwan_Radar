@@ -166,21 +166,21 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
             <div className="flex-1 min-w-0 py-3 pr-3">
               <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                 {ended ? (
-                  <span className="text-[10px] bg-muted text-fg-muted px-2 py-0.5 rounded-full font-medium">
+                  <span className="text-[10px] bg-muted dark:bg-stone-700/60 text-fg-muted dark:text-stone-200 px-2 py-0.5 rounded-full font-medium">
                     {tEvent("ended")}
                   </span>
                 ) : (
                   <span className="text-[10px] text-green-700 font-bold">●</span>
                 )}
                 {event.is_paid === false && (
-                  <span className="text-[10px] bg-[#C4E86F]/40 text-[#1F5E2B] dark:bg-green-950 dark:text-green-300 px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-[10px] bg-[#C4E86F]/40 text-[#1F5E2B] dark:bg-green-900/70 dark:text-green-200 px-2 py-0.5 rounded-full font-bold">
                     {tEvent("free")}
                   </span>
                 )}
                 {event.category?.slice(0, 2).map((cat) => (
                   <span
                     key={cat}
-                    className="text-[10px] bg-muted text-fg-muted px-2 py-0.5 rounded-full font-medium"
+                    className="text-[10px] bg-muted dark:bg-stone-700/60 text-fg-muted dark:text-stone-200 px-2 py-0.5 rounded-full font-medium"
                   >
                     {tCat(cat as Parameters<typeof tCat>[0])}
                   </span>
@@ -206,7 +206,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                     <p className="text-[11px] text-fg-muted mt-1">
                       📍{" "}
                       {cityLabel && (
-                        <span className="inline-block bg-muted text-fg-muted px-1.5 py-0.5 rounded mr-1 font-medium">
+                        <span className="inline-block bg-muted dark:bg-stone-700/60 text-fg-muted dark:text-stone-200 px-1.5 py-0.5 rounded mr-1 font-medium">
                           {cityLabel}
                         </span>
                       )}
