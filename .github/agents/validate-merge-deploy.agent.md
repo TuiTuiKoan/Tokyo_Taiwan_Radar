@@ -73,6 +73,7 @@ handoffs:
 
 ### Step 5: Verify Deployment
 1. 確認 Vercel 部署已觸發（檢查 GitHub 動作日誌或 Vercel dashboard）
+   - **⚠️ Docs-only commit 不觸發 Vercel**：Vercel root directory 設為 `web/`，只有 `web/` 內的檔案變更才觸發部署。`.github/`、`scraper/`、`docs/` 的 commit 推送後 GitHub commit status 會顯示 `pending`（舊狀態）或完全不更新——這是**正常現象**，不代表部署失敗。此時應檢查最後一次 *web* commit 的部署狀態，而非當前 commit。
 2. 確認部署完成且無錯誤
 3. 可選：檢查 https://tokyo-taiwan-radar.vercel.app/ 是否顯示最新變更（**注意：production URL 含連字號 `tokyo-taiwan-radar`，不是 `tokyotaiwanradar`**）
 4. 若含 Supabase migration，明確回報「需在 Supabase SQL Editor 手動執行」與最小驗證清單（admin pass / non-admin deny）
