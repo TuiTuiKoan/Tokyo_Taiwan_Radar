@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-14 — `void` 運算符誤用為標記式運算式中歾（TS2873， commit `4d8b873`）
+
+**問題：**
+`opengraph-image.tsx` 在 punk Bauhaus 重設計時，將原有 `getEventName()` 呼叫改為歾碼形式 `void event ? getEventName(event as Event, locale) : undefined`。TypeScript 報 TS2873：`void` 運算符會把任何表達式轉為 `undefined`，所以 `void event` 永遠是 falsy，三元運算式的標記部分才是問題所在。
+
+**修正：**
+1. 刪除歾碼行（該行對實際用途沒有貢獻）
+2. 移除不再使用的 import：`type Event`、`getEventName`
+
+**教訓：**
+- `void expr` 的語意是「評估 expr 然後丟棄結果」，返回內建的 `undefined`。刨3元運算符的**標記部分**前加 `void` 就變成 `undefined ? ... : ...`，永遠為 falsy。正確用法是 `const _ = expr` 或直接刪除。
+- 重設計移除功能時，必須同步清除相關 import。不用的 import 不僅增加 bundle 大小，還會導致 TypeScript 報無用變數/import 警告。
+
+---
+
 ## 2026-05-14 — session memory 路徑不存在 (`/memories/session/plan.md` → 實際在 `grandchild-event-analysis.md`)
 
 **問題：**

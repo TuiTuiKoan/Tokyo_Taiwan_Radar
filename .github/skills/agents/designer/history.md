@@ -1,3 +1,9 @@
+## 2026-05-14 — OG Image punk Bauhaus collage 重設計（commit `171bea4`）
+
+- **Observation**: 使用者要求將 OG 圖改為純幾何扛豁風格，去除所有文字資訊（標題、日期、場地、吸血髀），只保留 category label 和品牌水印。
+- **Fix**: 尺寸改回 1200×1200 正方形；移除所有文字元素；改用 5 個確定性幾何圖形裝飾（disk/ring/tri/slab/arc/dash/plus/diamond 中選取）；主要 category label 以 `[TALK]`/`[FILM]` 形式呈現，對正 − 8°→+8° 隨機旋轉 + palette.fg 陰影；Ghost echo：200px label 以 22% 不透明度旋轉 90° 放於右下角。Supabase SELECT 簡化為只取 `name + category`。
+- **Lesson**: OG 圖水印對品牌知名度有直接影響；設計時必須確認 category label 的可讀性。主要 label 平均 3–5 個字母（[FILM], [TALK], [LIFESTYLE+FOOD]）——最長案例進行了確認。`getCategoryLabel` 函式輸出包含 `[]` 括號的大寫 label，這是既有工具，直接復用。設計迴展實驗即 screenshot 工具確認。
+
 ## 2026-05-14 — OG Image 局部還原 bug：只改 height 未更新版面配置
 
 - **Observation**: Validate-Merge-Deploy 流程中，local `opengraph-image.tsx` working tree 只把 `export const size.height` 從 630 改回 1200，但所有 SVG viewBox、corner accent 座標、文字欄寬高全都還是 1200×630 的版本。結果 local preview 下半 570px 完全空白。Production（1200×630 committed 版本）則完全正常。

@@ -44,7 +44,26 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - When combining an attribute selector with a class on the **same element** (e.g., `data-preserve-theme` and `group` on the same `<Link>`), never insert a space between them.
 - For theme-exception rules like `[data-preserve-theme='light'].group:hover h2`, verify: (1) the attribute and the class are on the same DOM element, (2) combined specificity beats any competing rule, (3) use `getComputedStyle` via Playwright to confirm hover color changes.
 
-## Database
+## TypeScript `void` Operator Pitfall (TS2873)
+
+`void expr` evaluates `expr` and returns `undefined`. Placing `void` before a ternary **condition** makes the condition permanently falsy:
+
+```ts
+// ❌ TS2873: 'void event' is always falsy — ternary never takes true branch
+void event ? getEventName(event, locale) : undefined;
+
+// ✅ If you want to call for side effect only:
+getEventName(event, locale);   // or just delete the line if unused
+
+// ✅ If you want to suppress an unused variable warning:
+const _name = getEventName(event, locale);
+```
+
+**Rule:** When removing a feature that used an import, **always remove the import too**. Unused imports: (1) increase bundle size, (2) may trigger TS "unused variable" warnings in strict mode, (3) silently mislead future readers into thinking the symbol is used.
+
+**Incident:** 2026-05-14 — `opengraph-image.tsx` punk Bauhaus redesign removed title rendering but left `void event ? getEventName(...) : undefined` as dead code. TS2873 caught it at compile time (commit `4d8b873`).
+
+
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`
 - When adding a DB column, wire up the code that populates it in the same commit. Empty columns = silent data gaps.
 - Wrap non-critical DB inserts (logging, analytics) in `try/except`. Never let a failed log write break the main pipeline.
