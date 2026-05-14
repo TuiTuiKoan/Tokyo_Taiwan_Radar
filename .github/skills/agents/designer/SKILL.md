@@ -289,6 +289,12 @@ To keep UI components clean and provide visual variety, heavy SVG path definitio
 
 When a new category is added to `web/lib/types.ts` `CATEGORIES`, a corresponding `case` in `getSemanticSymbol` **must be added in the same PR**. Add the category to the Extended table above.
 
+**Debug page convention:**
+`app/[locale]/debug/motifs/page.tsx` must import `{ CATEGORIES }` from `@/lib/types` — **never maintain a separate hardcoded array**. A local copy silently drifts and hides missing motifs in production.
+
+**Motif iteration cadence:**
+Motif refinement typically requires 2–3 rounds of visual review. After each round, check all 5 variants in `/debug/motifs` locally. A motif passes when: (1) shape is identifiable without color within 2 seconds, (2) ≤6 path/shape elements, (3) all 5 variants are visually distinct from each other.
+
 ## MascotAvatar Component API
 
 File: `web/lib/design/MascotAvatar.tsx`
@@ -348,6 +354,8 @@ interface MascotAvatarProps {
 - `lianbu-tip-ring`, `lianbu-tip-core`, `lianbu-tip-spark` → `animation: none`
 
 **Adding new animation states:** add new CSS selector block under `[data-antenna-flow="on"]` in `globals.css`. Never hardcode animation values in the TSX file itself.
+
+**Caller sync rule:** after adding any new optional animation prop to `MascotAvatar`, run `grep -r "MascotAvatar" web/` and explicitly decide whether each call site should enable the prop. Do not assume "optional = safe to ignore" — production pages that should show the animation will silently remain static otherwise.
 
 ## Motion and Interaction
 

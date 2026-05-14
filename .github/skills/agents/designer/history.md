@@ -1,3 +1,8 @@
+## 2026-05-15 — antennaFlowAnimation 正式上線首頁 + motif 第二輪精修
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-15 | 天線流光動畫（`antennaFlowAnimation`）在元件層完成後，首頁吉祥物仍為靜態（`page.tsx` 未啟用 prop）。同時前幾輪修正後的 `senses/v2`、`books_media/v3`、`gender/v1`、`gender/v2` 四個 variant 再度被判定辨識度不足，需要第二輪精修。另外 `debug/motifs` page 使用獨立硬編碼的 `CATEGORIES` 陣列，與 `lib/types.ts` 容易脫節。 | 元件與 page 各自演進，prop 新增後未同步至呼叫端。Motif 精修需要多輪視覺審查（`/debug/motifs`），不能一次完成。Debug page 的 CATEGORIES 是早期手寫陣列，未與型別系統掛鉤。 | 1) `page.tsx` 的 `<MascotAvatar ... antennaFlowAnimation />` 加上 prop，天線流光在首頁上線。2) `senses/v2` 改為三指展開形狀 + 水滴形底座；`books_media/v3` 改為三角形塔身 + 水平訊號環；`gender/v1` 重繪為更清晰的上唇/下唇分離形；`gender/v2` 花束改為更規則的三圓排列。3) `debug/motifs/page.tsx` 改為 `import { CATEGORIES } from "@/lib/types"`，刪除獨立陣列。加入 `overflow-x-auto` + `flex-shrink-0`，防止 5 個縮圖被截斷。 | 1) **新增 animation prop 後，必須同步搜尋所有呼叫端並決定是否啟用**：`grep -r "MascotAvatar" web/` 確認每個使用位置。2) **Motif 精修是迭代過程，預期需要 2–3 輪**：每輪在 `/debug/motifs` 目視審查，不符合「去色後 2 秒可辨識」標準的一律修，直到通過為止。3) **Debug/tool 頁面的資料陣列必須從 `@/lib/types` 匯入，絕不另維護副本**——副本會悄悄過期，造成「debug 通過但 prod 沒有對應 motif」的盲點。
+
 ## 2026-05-15 — MascotAvatar 天線動效迭代：起點白光脈衝、方向反轉、亮度調校
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
