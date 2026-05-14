@@ -131,7 +131,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                       timeZone: "UTC",
                     })}
                   </div>
-                  <div className="font-display text-2xl font-bold text-[#3A261F] leading-none mt-0.5">
+                  <div className="font-display text-2xl font-bold text-[#3A261F] dark:text-fg leading-none mt-0.5">
                     {new Date(event.start_date).getUTCDate()}
                   </div>
                   {event.end_date &&
@@ -173,7 +173,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                   <span className="text-[10px] text-green-700 font-bold">●</span>
                 )}
                 {event.is_paid === false && (
-                  <span className="text-[10px] bg-[#C4E86F]/40 text-[#1F5E2B] px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-[10px] bg-[#C4E86F]/40 text-[#1F5E2B] dark:bg-green-950 dark:text-green-300 px-2 py-0.5 rounded-full font-bold">
                     {tEvent("free")}
                   </span>
                 )}
@@ -186,7 +186,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                   </span>
                 ))}
               </div>
-              <p className="font-display font-bold text-[#3A261F] text-[14px] sm:text-[15px] group-hover:text-green-700 line-clamp-2 leading-snug">
+              <p className="font-display font-bold text-[#3A261F] dark:text-fg text-[14px] sm:text-[15px] group-hover:text-green-700 dark:group-hover:text-green-400 line-clamp-2 leading-snug">
                 {event.parent_event_id && parentMap[event.parent_event_id] && (
                   <span className="block text-[11px] text-green-700 font-normal mb-0.5 truncate">
                     ↳ {getEventName(parentMap[event.parent_event_id], locale)}

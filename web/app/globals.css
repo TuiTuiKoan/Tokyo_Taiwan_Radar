@@ -150,6 +150,12 @@ body {
     font-family: var(--font-display), var(--font-body), sans-serif;
     color: #3A261F;
   }
+  /* Dark mode: mocha brown is unreadable on dark bg — use primary text token */
+  html.dark h1,
+  html.dark h2,
+  html.dark h3 {
+    color: var(--color-text);
+  }
 
   /* Global link color — brand forest green #1F5E2B; no underline by default */
   a {
@@ -162,6 +168,12 @@ body {
   /* visited stays the same brand green — no purple flash after clicking */
   a:visited {
     color: #1F5E2B;
+  }
+  /* Dark mode: forest green is too dark — use brand-strong (green-400) */
+  html.dark a,
+  html.dark a:hover,
+  html.dark a:visited {
+    color: var(--color-brand-strong);
   }
 }
 

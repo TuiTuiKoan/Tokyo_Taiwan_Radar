@@ -248,7 +248,7 @@ export function FloatingShapes() {
   };
 
   return (
-    <div aria-hidden className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+    <div aria-hidden className="fixed inset-0 -z-10 overflow-hidden pointer-events-none dark:opacity-40">
       {floaters.map((f, i) => (
         <FloaterView
           key={`${i}-${f.bump}`}

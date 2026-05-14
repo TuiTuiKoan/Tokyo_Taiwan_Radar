@@ -120,7 +120,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
         <div className="relative inline-flex flex-col items-center mx-auto md:mx-0 shrink-0">
           <MascotAvatar variant="inline" size={240} />
           <div
-            className="absolute bottom-0 right-4 px-3 py-1.5 bg-paper border-2 text-[10px] font-accent font-black tracking-widest text-[#3A261F] -rotate-6 text-center z-10"
+            className="absolute bottom-0 right-4 px-3 py-1.5 bg-paper border-2 text-[10px] font-accent font-black tracking-widest text-[#3A261F] dark:text-fg-muted -rotate-6 text-center z-10"
             style={{ borderColor: "var(--color-mocha, #3A261F)" }}
           >
             Lianbu
@@ -128,14 +128,14 @@ export default async function HomePage({ params, searchParams }: PageProps) {
         </div>
 
         <div className="w-full flex flex-col items-center md:items-start text-center md:text-left mx-auto md:mx-0">
-          <h1 className="font-display font-black text-[#3A261F] leading-tight text-3xl tracking-tight">
+          <h1 className="font-display font-black text-[#3A261F] dark:text-fg leading-tight text-3xl tracking-tight">
             <span className="block">{tHome("heroLine1")}</span>
             <span className="block">{tHome("heroLine2")}</span>
             <span className="block">{tHome("heroLine3")}</span>
             <span className="block text-mascot-red">{tHome("heroLine4")}</span>
           </h1>
 
-          <div className="mt-3 mb-1 inline-flex items-center px-3 py-1 rounded bg-[#C4E86F]/40 text-[#1F5E2B] text-[10px] sm:text-xs font-bold whitespace-nowrap">
+          <div className="mt-3 mb-1 inline-flex items-center px-3 py-1 rounded bg-[#C4E86F]/40 text-[#1F5E2B] dark:bg-green-950 dark:text-green-300 text-[10px] sm:text-xs font-bold whitespace-nowrap">
             {tHome("statHero")}
           </div>
 
@@ -167,7 +167,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
       {featuredAnnouncements && featuredAnnouncements.length > 0 && (
         <section className="mt-6 mb-8 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="font-display font-bold text-[#3A261F] text-xl">
+            <h2 className="font-display font-bold text-[#3A261F] dark:text-fg text-xl">
               📌 {tAnn("featuredStrip")}
             </h2>
             {featuredAnnouncements.length > 3 && (
