@@ -145,7 +145,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
 
           <div className="mt-4 flex flex-wrap items-center gap-3 justify-center md:justify-start w-full">
             <a
-              href="https://line.me/R/ti/p/769qbdkq"
+              href="https://line.me/R/ti/p/@769qbdkq"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-white text-xs font-semibold shadow-sm hover:opacity-90"
