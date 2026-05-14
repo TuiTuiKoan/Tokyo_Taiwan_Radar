@@ -156,6 +156,31 @@ const [open, setOpen] = useState(false);
 <select className="appearance-none ...">
 ```
 
+## Card Link Hover Pattern
+
+All card-type hyperlinks in the web app use a **unified hover pattern** matching the navbar hamburger menu. This is the single source of truth — import from `web/lib/classNames.ts`.
+
+```ts
+import { CARD_LINK, CARD_LINK_ARROW } from "@/lib/classNames";
+// CARD_LINK      = "group flex items-center transition hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400"
+// CARD_LINK_ARROW = "text-fg-subtle group-hover:text-[#1F5E2B] dark:group-hover:text-green-400 shrink-0"
+```
+
+**Usage:**
+```tsx
+<Link className={`${CARD_LINK} px-4 py-3 gap-3`}>
+  <span className="flex-1">Event title</span>
+  <span className={CARD_LINK_ARROW}>↗</span>
+</Link>
+```
+
+- Light mode: `#F7FFE8` (matcha) background + `#1F5E2B` (forest) text
+- Dark mode: `green-900/40` background + `green-400` text
+- `CARD_LINK` already includes `group` and `transition` — do NOT add again
+- `CARD_LINK_ARROW` uses `group-hover:` because `text-fg-subtle` on the span would otherwise override the parent's hover color (CSS class specificity)
+
+> ⚠️ **Arrow trap**: Any span with its own `text-*` class WILL override the parent `hover:text-*` via CSS specificity. Always use `group` on the parent and `group-hover:text-[#1F5E2B] dark:group-hover:text-green-400` on icon spans — or use `CARD_LINK_ARROW`.
+
 ## OG Image 規範（`opengraph-image.tsx`）
 
 Current design (as of 2026-05-14, commit `92b9e82`):

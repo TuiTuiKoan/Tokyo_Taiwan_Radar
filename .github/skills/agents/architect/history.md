@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-05-14 — `send: true` 從全部 handoff 移除（Architect + Engineer，commits `aa3f615`, `2463547`）
+
+**問題：** Architect 和 Engineer agent 的所有 handoff 都有 `send: true`。按下 handoff 按鈕時 prompt 會**立即自動送出**，使用者沒有機會確認或編輯（例如 Architect → Engineer 的「實作計畫」handoff，plan.md 不存在時也直接觸發）。
+
+**根因：** VS Code 行為在 2026-05-14 前後有差異：
+- 舊行為：沒有 `send: true` 時，按下按鈕開新 chat 但 input 是空的（SKILL.md 問題 B 記錄了這個現象）
+- 新行為：沒有 `send: true` 時，prompt **會出現在 input 欄**等待使用者確認；有 `send: true` 則立即 auto-fire。
+
+**修正：** 移除 Engineer 2 個 handoff 的 `send: true`（commit `aa3f615`）；移除 Architect 4 個 handoff 的 `send: true`（commit `2463547`）。
+
+**教訓：** 目前 VS Code **不應該**在 handoff 上使用 `send: true`。見 SKILL.md § `send: true` 更新說明。
+
+---
+
 ## 2026-05-14 — Handoff buttons silently invisible: `user-invocable: false` + missing `send: true`
 
 **問題 A — `user-invocable: false` blocks handoff buttons**

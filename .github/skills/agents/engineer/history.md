@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-05-14 — Card-link hover 統一化：classNames.ts + group-hover 箭頭修復（commits `199e331`, `ed0d200`, `0efc5dd`）
+
+**問題：**
+全站卡片型連結 hover 樣式分散各處，沒有統一規格，且缺少 dark mode：
+- `events/[id]/page.tsx` 部分連結用 `hover:bg-green-50`（無 dark mode）
+- `announcements/[slug]/page.tsx` 用 `hover:bg-green-50 hover:text-green-700`（無 dark mode）
+- 箭頭 span（`↗`/`→`）有 `text-fg-subtle` class，**覆蓋父元素的 `hover:text-*`**，hover 時箭頭不跟著變色
+
+**根因：**
+1. Tailwind class 未集中管理，各頁面各自 copy-paste 且只處理 light mode
+2. CSS 的 class 優先度問題：子元素上的 `text-fg-subtle` 比繼承的 `hover:text-*` 優先度高，hover color 不生效
+3. Tailwind 的 hover utilities 基於「繼承」，但直接指定 text color class 會截斷繼承鏈
+
+**修復：**
+1. 新建 `web/lib/classNames.ts`，匯出兩個常數：
+   ```ts
+   export const CARD_LINK = "group flex items-center transition hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400";
+   export const CARD_LINK_ARROW = "text-fg-subtle group-hover:text-[#1F5E2B] dark:group-hover:text-green-400 shrink-0";
+   ```
+2. `events/[id]/page.tsx` 5 個卡片連結全部改用 `CARD_LINK`/`CARD_LINK_ARROW`；`announcements/[slug]/page.tsx` 亦同
+3. `CARD_LINK` 已包含 `group`（父元素不需再加）；`CARD_LINK_ARROW` 使用 `group-hover:` 方案繞過 CSS class 優先度問題
+
+**教訓：**
+- 重複使用的 Tailwind class 組合**必須**提取到 `web/lib/classNames.ts` 統一管理（hover pattern、常見按鈕樣式等）
+- 子元素有直接 text color class 時，不可用父元素 `hover:text-*` 控制 hover 色；須改用 `group` + `group-hover:` 方案
+- 所有 hover style 都需同時提供 dark mode（`dark:hover:bg-*` + `dark:hover:text-*`），否則暗色模式下 hover 時前景/背景色可能衝突
+
+---
+
 ## 2026-05-14 — 「後台壞掉了」診斷：307 → /auth/login = 認證保護正常，非真正壞掉
 
 **問題：**

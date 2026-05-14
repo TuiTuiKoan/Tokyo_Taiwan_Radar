@@ -1,3 +1,24 @@
+## 2026-05-14 — Card-link hover 統一化：CARD_LINK/CARD_LINK_ARROW + classNames.ts（commits `199e331`, `ed0d200`, `0efc5dd`）
+
+- **Observation**: 全站卡片型超連結有三種不同 hover 樣式（`hover:bg-green-50`、`hover:bg-[#F7FFE8]`、`hover:bg-elevated`），且都缺少 dark mode 支援。公告頁只有亮色模式 hover，完全沒有暗色模式。
+- **Fix**:
+  1. 統一 hover 公式（比照 Navbar hamburger 基準）：亮色 `hover:bg-[#F7FFE8] hover:text-[#1F5E2B]`、暗色 `dark:hover:bg-green-900/40 dark:hover:text-green-400`。
+  2. 箭頭 span 有自己的 `text-fg-subtle` 會覆蓋父元素的 hover color — 改用 `group` + `group-hover:text-[#1F5E2B] dark:group-hover:text-green-400`。
+  3. 新建 `web/lib/classNames.ts`，匯出 `CARD_LINK` 和 `CARD_LINK_ARROW` 兩個常數作為單一來源，`events/[id]/page.tsx` 和 `announcements/[slug]/page.tsx` 均改用常數。
+- **Lesson**: 卡片型連結箭頭用 `text-fg-subtle` 設定預設色時，CSS class 優先度會覆蓋父元素的 hover color 繼承 — 必須用 `group` + `group-hover:` 方案。重複的 Tailwind hover class 字串必須集中到 `web/lib/classNames.ts` 管理，新增卡片連結直接 `import { CARD_LINK, CARD_LINK_ARROW }` 即可。
+
+## 2026-05-14 — FAQ + 主辦資訊卡片 hover/背景統一（commits `366e343`, `a13fdcd`）
+
+- **Observation**: 主辦資訊卡片（organizer section）背景使用 `bg-elevated/50 dark:bg-paper`，與活動摘要卡片的 `bg-paper` 不一致。FAQ 列表項 hover 無任何互動回饋。
+- **Fix**: 主辦資訊卡片改為 `bg-paper dark:bg-paper`；FAQ 列表項加上 `hover:bg-paper dark:hover:bg-paper hover:shadow-sm transition-colors duration-150`。
+- **Lesson**: 同一頁面的同類卡片應套用相同 paper 底色。非連結的互動項目（FAQ dl/dt/dd）可用 `hover:bg-paper hover:shadow-sm` 提供視覺回饋，不需要 `group` 方案（沒有子色需要繼承）。
+
+## 2026-05-14 — OG Image typographic collage — Bauhaus 散字效果（commit `7f91447`）
+
+- **Observation**: OG 圖 Bauhaus 方形設計在視覺上仍顯空曠，缺少次層次的紋理感。
+- **Fix**: 在周邊區域（6 個 zone）散置 category label 的單一字元，字體 220–380px，旋轉隨機，不透明度 12–30%，使用 fg/accent/paper 色。字元避開主 label 和右下水印區域。
+- **Lesson**: Bauhaus 設計中的 typographic element 散置須設定明確的 zone 邊界，避免與主要視覺資訊重疊。不透明度 < 30% 可作為裝飾而不搶焦點。
+
 ## 2026-05-14 — OG Image punk Bauhaus collage 重設計（commit `171bea4`）
 
 - **Observation**: 使用者要求將 OG 圖改為純幾何扛豁風格，去除所有文字資訊（標題、日期、場地、吸血髀），只保留 category label 和品牌水印。

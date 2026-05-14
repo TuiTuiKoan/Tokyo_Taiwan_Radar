@@ -1304,21 +1304,22 @@ Reference incident: 2026-05-14 — `update-history-agent.agent.md` and `validate
 had `user-invocable: false`. Handoff buttons were silently invisible in all 7 source agents.
 Fixed by removing `user-invocable: false` (commit `6188653`).
 
-### `send: true` Requirement for Auto-Submit
+### `send: true` — ⚠️ Do NOT use（VS Code 行為已改變）
 
-Without `send: true`, clicking a handoff button opens a new chat but the prompt does **not**
-appear in the input field. Always include `send: true` when you want the prompt to auto-send.
+**現行 VS Code 行為（2026-05-14 以後）：**
+- 沒有 `send: true`：按下按鈕開新 chat，prompt **出現在 input 欄**等待使用者確認後按 Enter。✅ 推薦。
+- 有 `send: true`：按下按鈕 prompt **立即 auto-fire**，使用者無法審閱或編輯。❌ 不建議。
 
+**不要在 handoff 加 `send: true`：**
 ```yaml
 handoffs:
   - label: "🔧 Button text"
     agent: AgentNameFromFile
-    prompt: "Chinese instruction"
-    send: true                     # Required: without this, prompt doesn't appear
+    prompt: "Chinese instruction"   # prompt 會出現在 input 欄，等待使用者確認
+    # 不加 send: true
 ```
 
-Reference incident: 2026-05-14 — All 7 agents were missing `send: true`. After `Developer: Reload Window`,
-prompts still didn't appear until `send: true` was added (commit `4f1dd6c`).
+> 歷史備忘：2026-05-14 之前，沒有 `send: true` 時 input 欄是空的（問題 B），所以加了 `send: true`。之後 VS Code 行為改變，`send: true` 變成 auto-fire。commits `4f1dd6c`（加入）→ `aa3f615` + `2463547`（移除）記錄這段轉變。
 
 ### Best Practices
 1. **Name consistency**: Agent `name:` in frontmatter must match the handoff `agent:` field exactly (case-sensitive).
