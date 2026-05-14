@@ -268,13 +268,13 @@ function renderHeroObject(kind: HeroObjectKey, fg: string, accent: string, bg: s
     case "openBook":
       return (
         <g>
-          {/* left page — two stacked color blocks */}
-          <path d="M 8 78 Q 28 70 50 80 L 50 50 Q 28 40 8 50 Z" fill={accent} />
-          <path d="M 8 50 Q 28 40 50 50 L 50 28 Q 28 18 8 28 Z" fill={fg} />
-          {/* right page — single color */}
-          <path d="M 92 78 Q 72 70 50 80 L 50 28 Q 72 18 92 28 Z" fill={ink} />
+          {/* left page — two contrasting color blocks for clear collage feel */}
+          <path d="M 8 78 Q 28 70 50 80 L 50 50 Q 28 40 8 50 Z" fill={MOCHA} />
+          <path d="M 8 50 Q 28 40 50 50 L 50 28 Q 28 18 8 28 Z" fill={accent} />
+          {/* right page — distinct third color */}
+          <path d="M 92 78 Q 72 70 50 80 L 50 28 Q 72 18 92 28 Z" fill={fg} />
           {/* spine */}
-          <rect x="48" y="26" width="4" height="54" fill={MOCHA} />
+          <rect x="48" y="26" width="4" height="54" fill={ink} />
           {/* eruption — circles, stars, waves spraying upward */}
           <circle cx="22" cy="14" r="4" fill={accent} />
           <circle cx="40" cy="6" r="3" fill={fg} />
@@ -619,17 +619,17 @@ function renderHeroObject(kind: HeroObjectKey, fg: string, accent: string, bg: s
         </g>
       );
     case "tornNewspaper":
-      // Open book — left page split into 2 colors, right page 1 color, eruptions flying out
+      // Open book — 3 distinct color-block pages, eruptions flying out
       return (
         <g>
           {/* left page bottom half */}
-          <path d="M 8 80 Q 28 74 50 82 L 50 54 Q 28 46 8 54 Z" fill={fg} />
+          <path d="M 8 80 Q 28 74 50 82 L 50 54 Q 28 46 8 54 Z" fill={accent} />
           {/* left page top half */}
-          <path d="M 8 54 Q 28 46 50 54 L 50 30 Q 28 22 8 30 Z" fill={accent} />
-          {/* right page single color */}
-          <path d="M 92 80 Q 72 74 50 82 L 50 30 Q 72 22 92 30 Z" fill={ink} />
+          <path d="M 8 54 Q 28 46 50 54 L 50 30 Q 28 22 8 30 Z" fill={MOCHA} />
+          {/* right page distinct */}
+          <path d="M 92 80 Q 72 74 50 82 L 50 30 Q 72 22 92 30 Z" fill={fg} />
           {/* spine */}
-          <rect x="48" y="28" width="4" height="54" fill={MOCHA} />
+          <rect x="48" y="28" width="4" height="54" fill={ink} />
           {/* burst of circles, stars, waves */}
           <circle cx="20" cy="16" r="4" fill={accent} />
           <circle cx="36" cy="8" r="3.5" fill={fg} />
@@ -1034,27 +1034,7 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
           ))}
         </svg>
 
-        {/* 4. Typographic collage — supporting letter-shapes, not the main object */}
-        {showCornerLetters && categoryLabel.split("").map((letter, i) => (
-          <span
-            key={`corner-${i}`}
-            style={{
-              position: "absolute",
-              left: cornerLetterSlots[i]?.x ?? 0,
-              top: cornerLetterSlots[i]?.y ?? 0,
-              fontSize: 250,
-              fontWeight: "bold",
-              color: i % 2 ? palette.accent : palette.fg,
-              fontFamily: i % 2 ? "serif" : FF,
-              lineHeight: 1,
-              opacity: 0.26,
-              transform: `rotate(${cornerLetterSlots[i]?.rot ?? 0}deg)`,
-              WebkitTextStroke: `4px ${MOCHA}`,
-            }}
-          >
-            {letter}
-          </span>
-        ))}
+        {/* 4. (background letter scatter removed for cleaner composition) */}
         {/* (scattered background letters removed for cleaner composition) */}
 
         {/* 5. Main hero label block */}
