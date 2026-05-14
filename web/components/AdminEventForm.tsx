@@ -1,6 +1,7 @@
 "use client";
 
 import { type Event, type Locale, CATEGORY_GROUPS, getEventName } from "@/lib/types";
+import DesignSelect from "@/components/DesignSelect";
 
 const VALID_EVENT_FORMS = [
   "exhibition", "screening", "lecture", "performance", "market",
@@ -231,17 +232,17 @@ export default function AdminEventForm({
       {/* Primary language */}
       <div>
         <label className="block text-xs text-fg-muted mb-1">{t("primaryLanguage")}</label>
-        <select
+        <DesignSelect
           value={(form as any).primary_language ?? ""}
-          onChange={(e) => updateField("primary_language", e.target.value)}
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
-        >
-          <option value="">—</option>
-          <option value="ja">日本語</option>
-          <option value="zh">中文</option>
-          <option value="en">English</option>
-          <option value="mixed">Mixed</option>
-        </select>
+          onChange={(v) => updateField("primary_language", v)}
+          options={[
+            { value: "", label: "—" },
+            { value: "ja", label: "日本語" },
+            { value: "zh", label: "中文" },
+            { value: "en", label: "English" },
+            { value: "mixed", label: "Mixed" },
+          ]}
+        />
       </div>
 
       {/* Language support checkboxes */}
@@ -340,18 +341,17 @@ export default function AdminEventForm({
       {/* Parent event */}
       <div className="">
         <label className="block text-xs text-fg-muted mb-1">{t("parentEvent")}</label>
-        <select
+        <DesignSelect
           value={form.parent_event_id}
-          onChange={(e) => updateField("parent_event_id", e.target.value)}
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-        >
-          <option value="">{t("noParent")}</option>
-          {parentCandidates.map((e) => (
-            <option key={e.id} value={e.id}>
-              {getEventName(e, locale)} ({e.start_date?.slice(0, 10) ?? "—"})
-            </option>
-          ))}
-        </select>
+          onChange={(v) => updateField("parent_event_id", v)}
+          options={[
+            { value: "", label: t("noParent") },
+            ...parentCandidates.map((e) => ({
+              value: e.id,
+              label: `${getEventName(e, locale)} (${e.start_date?.slice(0, 10) ?? "—"})`,
+            })),
+          ]}
+        />
       </div>
 
       {/* Multilingual descriptions */}

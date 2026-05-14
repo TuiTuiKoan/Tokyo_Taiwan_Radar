@@ -46,24 +46,24 @@ export default async function AboutPage({ params }: PageProps) {
   return (
     <main className="max-w-3xl mx-auto px-4 py-8">
       <nav className="text-sm text-fg-muted mb-4">
-        <Link href={`/${locale}`} className="hover:underline">
+        <Link href={`/${locale}`} className="text-green-500 hover:underline">
           Tokyo Taiwan Radar
         </Link>
         {" › "}
-        <span>{t("heroTitle")}</span>
+        <span className="text-[#3A261F]">{t("heroTitle")}</span>
       </nav>
 
-      <h1 className="text-3xl font-bold mb-6 text-fg-strong">{t("heroTitle")}</h1>
+      <h1 className="text-3xl font-bold mb-6 text-[#3A261F]">{t("heroTitle")}</h1>
 
       <section className="mb-8">
-        <p className="text-base leading-relaxed text-fg">{t("story")}</p>
+        <p className="text-base leading-relaxed text-[#4A362D]">{t("story")}</p>
       </section>
 
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3 text-fg-strong">{t("sourcesTitle")}</h2>
-        <p className="text-base leading-relaxed text-fg">
+        <h2 className="text-xl font-semibold mb-3 text-[#3A261F]">{t("sourcesTitle")}</h2>
+        <p className="text-base leading-relaxed text-[#4A362D]">
           {t("sourcesBody")}{" "}
-          <Link href={`/${locale}/sources`} className="hover:underline">
+          <Link href={`/${locale}/sources`} className="text-green-500 hover:underline">
             {t("sourcesLinkText")}
           </Link>
           。
@@ -71,14 +71,14 @@ export default async function AboutPage({ params }: PageProps) {
       </section>
 
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3 text-fg-strong">{t("techTitle")}</h2>
-        <p className="text-base leading-relaxed text-fg">
+        <h2 className="text-xl font-semibold mb-3 text-[#3A261F]">{t("techTitle")}</h2>
+        <p className="text-base leading-relaxed text-[#4A362D]">
           {t("techBody")}{" "}
           <a
             href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:underline"
+            className="text-green-500 hover:underline"
           >
             {t("githubLabel")}
           </a>
@@ -87,8 +87,8 @@ export default async function AboutPage({ params }: PageProps) {
       </section>
 
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3 text-fg-strong">{t("contactTitle")}</h2>
-        <p className="text-base leading-relaxed text-fg">{t("contactBody")}</p>
+        <h2 className="text-xl font-semibold mb-3 text-[#3A261F]">{t("contactTitle")}</h2>
+        <p className="text-base leading-relaxed text-[#4A362D]">{t("contactBody")}</p>
       </section>
     </main>
   );

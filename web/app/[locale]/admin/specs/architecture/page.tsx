@@ -125,7 +125,7 @@ export default async function ArchitecturePage({ params }: PageProps) {
         }}
       />
 
-      <section className="mb-6">
+      <section className="mt-6 mb-6">
         <h2 className="text-lg font-semibold text-fg-strong mb-3">{t("scraperGroups")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {scraperGroups.map((g) => (

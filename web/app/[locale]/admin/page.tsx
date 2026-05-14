@@ -21,6 +21,7 @@ export default async function AdminPage({ params }: PageProps) {
   const { locale } = await params;
   const t = await getTranslations("admin");
   const hasText = (value: string | null | undefined) => Boolean(value && value.trim());
+  const EVENT_PAGE_SIZE = 1000;
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -40,11 +41,33 @@ export default async function AdminPage({ params }: PageProps) {
     redirect(`/${locale}`);
   }
 
-  // Fetch all events (including inactive) for admin view
-  const { data: events } = await supabase
+  // Fetch all events (including inactive) for admin view.
+  // Supabase default row limit can truncate to 1000 rows without explicit pagination.
+  const events: Event[] = [];
+  let from = 0;
+  while (true) {
+    const { data: batch } = await supabase
+      .from("events")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, from + EVENT_PAGE_SIZE - 1);
+
+    if (!batch || batch.length === 0) {
+      break;
+    }
+
+    events.push(...(batch as Event[]));
+
+    if (batch.length < EVENT_PAGE_SIZE) {
+      break;
+    }
+
+    from += EVENT_PAGE_SIZE;
+  }
+
+  const { count: totalEventsCount } = await supabase
     .from("events")
-    .select("*")
-    .order("created_at", { ascending: false });
+    .select("id", { count: "exact", head: true });
 
   // Fetch all works for the assign-work dropdown
   const { data: worksData } = await supabase
@@ -54,11 +77,11 @@ export default async function AdminPage({ params }: PageProps) {
   const worksList = (worksData ?? []) as Pick<Work, "id" | "work_type" | "original_title" | "title_ja" | "title_zh" | "title_en">[];
 
   // Stats
-  const totalEvents = events?.length ?? 0;
-  const activeEvents = events?.filter((e) => e.is_active).length ?? 0;
-  const activePendingEvents = events?.filter((e) => e.is_active && e.annotation_status === "pending") ?? [];
+  const totalEvents = totalEventsCount ?? events.length;
+  const activeEvents = events.filter((e) => e.is_active).length;
+  const activePendingEvents = events.filter((e) => e.is_active && e.annotation_status === "pending");
   const pendingEvents = activePendingEvents.length;
-  const totalPendingEvents = events?.filter((e) => e.annotation_status === "pending").length ?? 0;
+  const totalPendingEvents = events.filter((e) => e.annotation_status === "pending").length;
   const inactivePendingEvents = totalPendingEvents - pendingEvents;
   const pendingIssuesRaw: Array<{ key: PendingIssueKey; count: number }> = [
     {
@@ -186,7 +209,7 @@ export default async function AdminPage({ params }: PageProps) {
       <AdminTabNav locale={locale} activeTab="events" />
 
       <AdminEventTable
-        events={(events ?? []) as Event[]}
+        events={events}
         locale={locale}
       />
     </div>

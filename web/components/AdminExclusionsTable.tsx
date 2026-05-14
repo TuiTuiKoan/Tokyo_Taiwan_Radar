@@ -11,6 +11,7 @@ import {
   type SourceExclusionRow,
 } from "@/app/actions/source-exclusions";
 import { type Locale } from "@/lib/types";
+import DesignSelect from "@/components/DesignSelect";
 
 interface Props {
   rows: SourceExclusionRow[];
@@ -175,50 +176,50 @@ export default function AdminExclusionsTable({ rows, knownSources }: Props) {
             <label className="block text-xs text-fg-muted mb-1">
               {t("exclusionsTypeLabel")}
             </label>
-            <select
-              className="w-full border rounded px-2 py-1 text-sm"
+            <DesignSelect
               value={form.pattern_type}
-              onChange={(e) =>
+              onChange={(v) =>
                 setForm({
                   ...form,
-                  pattern_type: e.target.value as "substring" | "regex",
+                  pattern_type: v as "substring" | "regex",
                 })
               }
-            >
-              <option value="substring">{t("exclusionsTypeSubstring")}</option>
-              <option value="regex">{t("exclusionsTypeRegex")}</option>
-            </select>
+              options={[
+                { value: "substring", label: t("exclusionsTypeSubstring") },
+                { value: "regex", label: t("exclusionsTypeRegex") },
+              ]}
+            />
           </div>
           <div>
             <label className="block text-xs text-fg-muted mb-1">
               {t("exclusionsFieldLabel")}
             </label>
-            <select
-              className="w-full border rounded px-2 py-1 text-sm"
+            <DesignSelect
               value={form.match_field}
-              onChange={(e) =>
-                setForm({ ...form, match_field: e.target.value as MatchField })
+              onChange={(v) =>
+                setForm({ ...form, match_field: v as MatchField })
               }
-            >
-              <option value="raw_title">raw_title</option>
-              <option value="raw_description">raw_description</option>
-              <option value="raw_title_or_description">raw_title_or_description</option>
-            </select>
+              options={[
+                { value: "raw_title", label: "raw_title" },
+                { value: "raw_description", label: "raw_description" },
+                { value: "raw_title_or_description", label: "raw_title_or_description" },
+              ]}
+            />
           </div>
           <div>
             <label className="block text-xs text-fg-muted mb-1">
               {t("exclusionsTtlLabel")}
             </label>
-            <select
-              className="w-full border rounded px-2 py-1 text-sm"
+            <DesignSelect
               value={form.ttl}
-              onChange={(e) => setForm({ ...form, ttl: e.target.value as Ttl })}
-            >
-              <option value="permanent">{t("exclusionsTtlPermanent")}</option>
-              <option value="30">{t("exclusionsTtlDays", { days: 30 })}</option>
-              <option value="90">{t("exclusionsTtlDays", { days: 90 })}</option>
-              <option value="365">{t("exclusionsTtlDays", { days: 365 })}</option>
-            </select>
+              onChange={(v) => setForm({ ...form, ttl: v as Ttl })}
+              options={[
+                { value: "permanent", label: t("exclusionsTtlPermanent") },
+                { value: "30", label: t("exclusionsTtlDays", { days: 30 }) },
+                { value: "90", label: t("exclusionsTtlDays", { days: 90 }) },
+                { value: "365", label: t("exclusionsTtlDays", { days: 365 }) },
+              ]}
+            />
           </div>
         </div>
         <div>

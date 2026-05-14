@@ -6,7 +6,6 @@ handoffs:
   - label: "🔧 Fix issues found"
     agent: Engineer
     prompt: "部署驗證發現問題，請修復後重新部署。"
-    send: true
   - label: "📝 Update history/skill/agent"
     agent: Update History, Skill, Agent
     prompt: "根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。"

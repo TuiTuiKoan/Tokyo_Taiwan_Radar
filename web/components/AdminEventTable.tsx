@@ -7,6 +7,7 @@ import { type Event, type Locale, getEventName, CATEGORY_GROUPS, type Work, getW
 import { useRouter } from "next/navigation";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 import AdminCreateWorkModal from "@/components/AdminCreateWorkModal";
+import DesignSelect from "@/components/DesignSelect";
 import { assignWorkToEvent } from "@/app/actions/works";
 import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, matchesCity, type RegionWithCity } from "@/lib/regionPrefectures";
 import { getCityLabel } from "@/lib/cityLabel";
@@ -1087,20 +1088,20 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-fg-muted font-medium">{tFilters("location")}</label>
-            <select
+            <DesignSelect
               value={filterLocation}
-              onChange={(e) => { setFilterLocation(e.target.value as any); setFilterCity(""); }}
-              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{tFilters("allLocations")}</option>
-              <option value="tokyo">{tFilters("locationTokyo")}</option>
-              <option value="kanto">{tFilters("locationKanto")}</option>
-              <option value="tohoku">{tFilters("locationTohoku")}</option>
-              <option value="chubu">{tFilters("locationChubu")}</option>
-              <option value="chugoku">{tFilters("locationChugoku")}</option>
-              <option value="online">{tFilters("locationOnline")}</option>
-              <option value="overseas">{tFilters("locationOverseas")}</option>
-            </select>
+              onChange={(v) => { setFilterLocation(v as any); setFilterCity(""); }}
+              options={[
+                { value: "", label: tFilters("allLocations") },
+                { value: "tokyo", label: tFilters("locationTokyo") },
+                { value: "kanto", label: tFilters("locationKanto") },
+                { value: "tohoku", label: tFilters("locationTohoku") },
+                { value: "chubu", label: tFilters("locationChubu") },
+                { value: "chugoku", label: tFilters("locationChugoku") },
+                { value: "online", label: tFilters("locationOnline") },
+                { value: "overseas", label: tFilters("locationOverseas") },
+              ]}
+            />
           </div>
 
           {/* City sub-filter */}
@@ -1110,40 +1111,36 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
             return (
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-fg-muted font-medium">{tFilters("location")}</label>
-                <select
+                <DesignSelect
                   value={filterCity}
-                  onChange={(e) => setFilterCity(e.target.value)}
-                  className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                >
-                  <option value="">{tFilters("cityAll")}</option>
-                  {prefs.map((p) => (
-                    <option key={p} value={p}>
-                      {locale === "en" ? (PREFECTURE_LABELS_EN[p] ?? p) : p}
-                    </option>
-                  ))}
-                  <option value={CITY_OTHER}>{tFilters("cityOther")}</option>
-                </select>
+                  onChange={setFilterCity}
+                  options={[
+                    { value: "", label: tFilters("cityAll") },
+                    ...prefs.map((p) => ({ value: p, label: locale === "en" ? (PREFECTURE_LABELS_EN[p] ?? p) : p })),
+                    { value: CITY_OTHER, label: tFilters("cityOther") },
+                  ]}
+                />
               </div>
             );
           })()}
           <div className="flex flex-col gap-1">
             <label className="text-xs text-fg-muted font-medium">{t("isPaid")}</label>
-            <select
+            <DesignSelect
               value={filterPaid}
-              onChange={(e) => setFilterPaid(e.target.value)}
-              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{t("filterAll")}</option>
-              <option value="free">{tEvent("free")}</option>
-              <option value="paid">{tEvent("paid")}</option>
-            </select>
+              onChange={setFilterPaid}
+              options={[
+                { value: "", label: t("filterAll") },
+                { value: "free", label: tEvent("free") },
+                { value: "paid", label: tEvent("paid") },
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-fg-muted font-medium">{tFilters("timeMode")}</label>
-            <select
+            <DesignSelect
               value={filterTimeMode}
-              onChange={(e) => {
-                const mode = e.target.value as "active" | "all" | "past";
+              onChange={(v) => {
+                const mode = v as "active" | "all" | "past";
                 setFilterTimeMode(mode);
                 if (mode !== "past") {
                   setFilterDateFrom("2024-01-01");
@@ -1152,12 +1149,12 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   setFilterDateFrom((prev) => prev || "2024-01-01");
                 }
               }}
-              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="active">{tFilters("timeModeActive")}</option>
-              <option value="all">{tFilters("timeModeAll")}</option>
-              <option value="past">{tFilters("timeModePast")}</option>
-            </select>
+              options={[
+                { value: "active", label: tFilters("timeModeActive") },
+                { value: "all", label: tFilters("timeModeAll") },
+                { value: "past", label: tFilters("timeModePast") },
+              ]}
+            />
           </div>
           {filterTimeMode === "past" && (
             <>
@@ -1187,88 +1184,91 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         <div className="flex flex-wrap gap-3 items-end border-t border-line pt-2">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-fg-muted font-medium">{t("sourceName")}</label>
-            <select
+            <DesignSelect
               value={filterSource}
-              onChange={(e) => setFilterSource(e.target.value)}
-              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{t("filterAll")}</option>
-              {Array.from(new Set(events.map((e) => (e as any).source_name as string)))
-                .filter(Boolean)
-                .sort()
-                .map((s) => (
-                  <option key={s} value={s}>{s}{sourceCountMap[s] !== undefined ? ` (${sourceCountMap[s]})` : " (0)"}</option>
-                ))}
-            </select>
+              onChange={setFilterSource}
+              options={[
+                { value: "", label: t("filterAll") },
+                ...Array.from(new Set(events.map((e) => (e as any).source_name as string)))
+                  .filter(Boolean)
+                  .sort()
+                  .map((s) => ({
+                    value: s,
+                    label: `${s}${sourceCountMap[s] !== undefined ? ` (${sourceCountMap[s]})` : " (0)"}`,
+                  })),
+              ]}
+              className="min-w-[10rem]"
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-fg-muted font-medium">{t("isActive")}</label>
-            <select
+            <DesignSelect
               value={filterIsActive}
-              onChange={(e) => setFilterIsActive(e.target.value as any)}
-              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="all">{t("filterAll")}</option>
-              <option value="active">{t("filterActive")}</option>
-              <option value="inactive">{t("filterInactive")}</option>
-              <option value="merged">{t("filterMerged")}</option>
-            </select>
+              onChange={(v) => setFilterIsActive(v as any)}
+              options={[
+                { value: "all", label: t("filterAll") },
+                { value: "active", label: t("filterActive") },
+                { value: "inactive", label: t("filterInactive") },
+                { value: "merged", label: t("filterMerged") },
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-fg-muted font-medium">{t("annotationStatusLabel")}</label>
-            <select
+            <DesignSelect
               value={filterAnnotation}
-              onChange={(e) => setFilterAnnotation(e.target.value as any)}
-              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{t("filterAll")}</option>
-              <option value="pending">{t("filterPendingShort")}</option>
-              <option value="annotated">{t("filterAnnotatedShort")}</option>
-              <option value="reviewed">{t("filterReviewedShort")}</option>
-              <option value="error">{t("filterErrorShort")}</option>
-            </select>
+              onChange={(v) => setFilterAnnotation(v as any)}
+              options={[
+                { value: "", label: t("filterAll") },
+                { value: "pending", label: t("filterPendingShort") },
+                { value: "annotated", label: t("filterAnnotatedShort") },
+                { value: "reviewed", label: t("filterReviewedShort") },
+                { value: "error", label: t("filterErrorShort") },
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-fg-muted font-medium">{tEvent("organizer")}</label>
-            <select
+            <DesignSelect
               value={filterOrgType}
-              onChange={(e) => setFilterOrgType(e.target.value)}
-              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{t("filterAll")}</option>
-              <option value="government">{tOrgType("government")}</option>
-              <option value="semi_official">{tOrgType("semi_official")}</option>
-              <option value="cultural_institution">{tOrgType("cultural_institution")}</option>
-              <option value="academic">{tOrgType("academic")}</option>
-              <option value="commercial_brand">{tOrgType("commercial_brand")}</option>
-              <option value="independent_venue">{tOrgType("independent_venue")}</option>
-              <option value="civic_group">{tOrgType("civic_group")}</option>
-              <option value="media">{tOrgType("media")}</option>
-              <option value="unknown">{tOrgType("unknown")}</option>
-            </select>
+              onChange={setFilterOrgType}
+              options={[
+                { value: "", label: t("filterAll") },
+                { value: "government", label: tOrgType("government") },
+                { value: "semi_official", label: tOrgType("semi_official") },
+                { value: "cultural_institution", label: tOrgType("cultural_institution") },
+                { value: "academic", label: tOrgType("academic") },
+                { value: "commercial_brand", label: tOrgType("commercial_brand") },
+                { value: "independent_venue", label: tOrgType("independent_venue") },
+                { value: "civic_group", label: tOrgType("civic_group") },
+                { value: "media", label: tOrgType("media") },
+                { value: "unknown", label: tOrgType("unknown") },
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-fg-muted font-medium">{tEvent("eventForm")}</label>
-            <select
+            <DesignSelect
               value={filterEventForm}
-              onChange={(e) => setFilterEventForm(e.target.value)}
-              className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">{t("filterAll")}</option>
-              <option value="exhibition">{tEventForm("exhibition")}</option>
-              <option value="screening">{tEventForm("screening")}</option>
-              <option value="lecture">{tEventForm("lecture")}</option>
-              <option value="performance">{tEventForm("performance")}</option>
-              <option value="market">{tEventForm("market")}</option>
-              <option value="workshop">{tEventForm("workshop")}</option>
-              <option value="conference">{tEventForm("conference")}</option>
-              <option value="networking">{tEventForm("networking")}</option>
-              <option value="screening_with_talk">{tEventForm("screening_with_talk")}</option>
-              <option value="tour">{tEventForm("tour")}</option>
-              <option value="competition">{tEventForm("competition")}</option>
-              <option value="tasting">{tEventForm("tasting")}</option>
-              <option value="other">{tEventForm("other")}</option>
-            </select>
+              onChange={setFilterEventForm}
+              options={[
+                { value: "", label: t("filterAll") },
+                { value: "exhibition", label: tEventForm("exhibition") },
+                { value: "screening", label: tEventForm("screening") },
+                { value: "lecture", label: tEventForm("lecture") },
+                { value: "performance", label: tEventForm("performance") },
+                { value: "market", label: tEventForm("market") },
+                { value: "workshop", label: tEventForm("workshop") },
+                { value: "conference", label: tEventForm("conference") },
+                { value: "networking", label: tEventForm("networking") },
+                { value: "screening_with_talk", label: tEventForm("screening_with_talk") },
+                { value: "tour", label: tEventForm("tour") },
+                { value: "competition", label: tEventForm("competition") },
+                { value: "tasting", label: tEventForm("tasting") },
+                { value: "other", label: tEventForm("other") },
+              ]}
+              className="min-w-[10rem]"
+            />
           </div>
           {(filterQ || filterCategories.length > 0 || filterPaid || filterIsActive !== "all" || filterTimeMode !== "all" || filterDateFrom || filterDateTo || filterLocation || filterCity || filterAnnotation || filterSource || filterOrgType || filterEventForm) && (
             <button

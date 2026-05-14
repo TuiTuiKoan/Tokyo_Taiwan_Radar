@@ -144,18 +144,18 @@ export default async function CityPage({ params }: PageProps) {
 
       {/* Breadcrumb */}
       <nav className="text-sm text-fg-muted mb-4">
-        <Link href={`/${locale}`} className="hover:underline">
+        <Link href={`/${locale}`} className="text-green-500 hover:underline">
           Tokyo Taiwan Radar
         </Link>
         {" › "}
-        <span>{label as string}</span>
+        <span className="text-[#3A261F]">{label as string}</span>
       </nav>
 
       {/* Heading + intro */}
-      <h1 className="text-2xl font-bold mb-3">
+      <h1 className="text-2xl font-bold mb-3 text-[#3A261F]">
         {label as string}{headingSuffix}
       </h1>
-      <section className="mb-6 space-y-3 text-sm leading-relaxed text-fg-muted">
+      <section className="mb-6 space-y-3 text-sm leading-relaxed text-[#4A362D]">
         <p>{descriptionLong}</p>
       </section>
 
@@ -176,7 +176,7 @@ export default async function CityPage({ params }: PageProps) {
           <Link
             key={s}
             href={`/${locale}/cities/${s}`}
-            className="px-3 py-1 rounded-full border text-fg-muted hover:border-green-600 hover:text-green-700 transition"
+            className="px-3 py-1 rounded-full border text-green-500 border-green-200 hover:border-green-600 hover:text-green-700 transition"
           >
             {tCities(s as any) as string}
           </Link>

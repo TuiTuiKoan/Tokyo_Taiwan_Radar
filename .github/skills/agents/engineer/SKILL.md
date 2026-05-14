@@ -38,6 +38,11 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - Pre-ship check for agent changes: verify target agent names resolve correctly and at least one post-task handoff exists for the expected next action.
 - **Every new agent file must include `handoffs:` at creation time.** An agent with no handoffs leaves users stranded after task completion.
 
+## Feature Removal Completeness
+
+- When decommissioning a frontend feature, remove all three layers in one patch: caller usage, component API/implementation, and global style hooks/selectors.
+- For prop-driven visual effects, run a post-change grep for both the prop name and effect-specific class/selectors to ensure no dormant re-enable path remains.
+
 ## CSS Selector Specificity Pitfalls
 
 - `[attr='x'].class` = same element (no space). `[attr='x'] .class` = descendant combinator (space = different element).
@@ -119,6 +124,13 @@ Tailwind v4 的 `@theme` block 在 **build time** 靜態解析所有 CSS 變數�
 4. **Production 非 admin 頁面 HTTP 200**：`curl -sI https://tokyotaiwanradar.com/zh` → 200 代表新版已成功部署，admin 的 307 純屬正常 auth redirect。
 
 **Incident 參考：** 2026-05-14 — `171bea4` 的 TS2873 (`void event ? ...`) 讓 Vercel build 失敗；`4d8b873` 修正後 admin 正常。307 redirect 是誤導性診斷訊號。(history.md 條目：「後台壞掉了」診斷）
+
+## Supabase 1000-row Default Limit Guard
+
+- Do not use `data.length` from an unpaginated `.select()` query as a total count. Supabase can truncate rows at the default limit.
+- For totals, always use `.select("id", { count: "exact", head: true })`.
+- If the UI needs all rows (for filtering or table rendering), fetch with explicit `.range(from, to)` pagination and merge batches.
+- Treat any suspiciously round cap (for example exactly 1000) as a truncation signal first, not as real business data.
 
 
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`

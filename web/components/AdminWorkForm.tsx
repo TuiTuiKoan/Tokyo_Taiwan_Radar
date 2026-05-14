@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import type { Work, WorkType, Locale, Event } from "@/lib/types";
 import { createWork, updateWork } from "@/app/actions/works";
+import DesignSelect from "@/components/DesignSelect";
 
 interface Props {
   work: Work | null;       // null = new
@@ -105,15 +106,14 @@ export default function AdminWorkForm({ work, linkedEvents = [], locale, onSucce
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksWorkType")} *</label>
-          <select
+          <DesignSelect
             value={form.work_type}
-            onChange={(e) => update("work_type", e.target.value as WorkType)}
-            className="w-full h-9 border border-line-strong rounded-lg px-2 text-sm"
-          >
-            {(Object.keys(TYPE_KEYS) as WorkType[]).map((wt) => (
-              <option key={wt} value={wt}>{t(TYPE_KEYS[wt] as any)}</option>
-            ))}
-          </select>
+            onChange={(v) => update("work_type", v as WorkType)}
+            options={(Object.keys(TYPE_KEYS) as WorkType[]).map((wt) => ({
+              value: wt,
+              label: t(TYPE_KEYS[wt] as any),
+            }))}
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksOriginalTitle")} *</label>

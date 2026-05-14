@@ -268,12 +268,22 @@ function renderHeroObject(kind: HeroObjectKey, fg: string, accent: string, bg: s
     case "openBook":
       return (
         <g>
-          <path d="M 12 76 Q 30 68 50 78 L 50 26 Q 30 16 12 26 Z" fill={bg} stroke={ink} strokeWidth="5" />
-          <path d="M 88 76 Q 70 68 50 78 L 50 26 Q 70 16 88 26 Z" fill={accent} stroke={ink} strokeWidth="5" />
-          <line x1="50" y1="26" x2="50" y2="78" stroke={ink} strokeWidth="5" />
-          <path d="M 22 42 Q 35 36 44 42" stroke={ink} strokeWidth="4" strokeLinecap="round" fill="none" />
-          <path d="M 22 56 Q 35 50 44 56" stroke={ink} strokeWidth="4" strokeLinecap="round" fill="none" />
-          <path d="M 78 42 Q 65 36 56 42" stroke={bg} strokeWidth="4" strokeLinecap="round" fill="none" />
+          {/* left page — two stacked color blocks */}
+          <path d="M 8 78 Q 28 70 50 80 L 50 50 Q 28 40 8 50 Z" fill={accent} />
+          <path d="M 8 50 Q 28 40 50 50 L 50 28 Q 28 18 8 28 Z" fill={fg} />
+          {/* right page — single color */}
+          <path d="M 92 78 Q 72 70 50 80 L 50 28 Q 72 18 92 28 Z" fill={ink} />
+          {/* spine */}
+          <rect x="48" y="26" width="4" height="54" fill={MOCHA} />
+          {/* eruption — circles, stars, waves spraying upward */}
+          <circle cx="22" cy="14" r="4" fill={accent} />
+          <circle cx="40" cy="6" r="3" fill={fg} />
+          <polygon points="62,4 64,10 70,10 65,14 67,20 62,16 57,20 59,14 54,10 60,10" fill={accent} />
+          <circle cx="80" cy="10" r="3.5" fill={fg} />
+          <circle cx="88" cy="20" r="2.5" fill={accent} />
+          <path d="M 28 22 Q 32 14 36 20 Q 40 26 44 18" stroke={MOCHA} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          <path d="M 68 24 Q 72 18 76 24" stroke={accent} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          <circle cx="14" cy="24" r="2" fill={MOCHA} />
         </g>
       );
     case "surrealEye":
@@ -433,158 +443,203 @@ function renderHeroObject(kind: HeroObjectKey, fg: string, accent: string, bg: s
         </g>
       );
     case "lipsStamp":
-      // Simple oversized lips floating on a clean card with one small flower drifting
+      // Solid color lips with sparkles bursting around
       return (
         <g>
-          <path d="M 16 50 Q 32 28 50 48 Q 68 28 84 50 Q 68 76 50 58 Q 32 76 16 50 Z" fill={accent} stroke={ink} strokeWidth="4" />
-          <path d="M 18 50 Q 50 60 82 50" stroke={ink} strokeWidth="3" fill="none" />
-          {/* drifting petal escaping upper-right */}
-          <circle cx="86" cy="22" r="4" fill={fg} stroke={ink} strokeWidth="2" />
-          <circle cx="86" cy="22" r="1.6" fill={ink} />
-          <path d="M 78 30 Q 82 26 86 22" stroke={ink} strokeWidth="2" fill="none" strokeDasharray="2 3" />
+          <path d="M 14 50 Q 32 26 50 48 Q 68 26 86 50 Q 68 78 50 58 Q 32 78 14 50 Z" fill={accent} />
+          <path d="M 16 50 Q 50 60 84 50" stroke={MOCHA} strokeWidth="3" fill="none" />
+          <ellipse cx="34" cy="42" rx="5" ry="3" fill={fg} opacity="0.6" />
+          {/* sparkles */}
+          <polygon points="20,16 22,21 27,21 23,24 25,29 20,26 15,29 17,24 13,21 18,21" fill={fg} />
+          <circle cx="82" cy="18" r="4" fill={fg} />
+          <circle cx="14" cy="80" r="3.5" fill={ink} />
+          <polygon points="82,80 84,84 88,84 85,86 86,90 82,88 78,90 79,86 76,84 80,84" fill={accent} />
+          <circle cx="90" cy="50" r="2.5" fill={fg} />
         </g>
       );
     case "noseProfile":
-      // Clean profile head silhouette with one eye + one petal sprouting from forehead
+      // Solid head silhouette + color-block hair + sprouting flower + sparkles
       return (
         <g>
-          <path d="M 28 22 Q 18 30 18 50 Q 18 70 30 78 L 30 88 L 56 88 L 56 78 Q 70 70 70 56 L 80 50 L 70 44 Q 68 28 56 22 Z" fill={bg} stroke={ink} strokeWidth="4" />
-          <circle cx="46" cy="48" r="3" fill={ink} />
-          <path d="M 56 62 Q 50 64 48 62" stroke={ink} strokeWidth="3" fill="none" strokeLinecap="round" />
+          {/* head shape - solid */}
+          <path d="M 28 24 Q 18 32 18 50 Q 18 70 30 78 L 30 90 L 60 90 L 60 78 Q 74 70 74 56 L 80 52 L 72 46 Q 70 30 56 24 Z" fill={fg} />
+          {/* hair as solid block */}
+          <path d="M 22 28 Q 28 14 50 14 Q 66 14 70 28 L 64 26 L 50 22 L 36 26 Z" fill={ink} />
+          {/* eye */}
+          <circle cx="50" cy="50" r="3.5" fill={MOCHA} />
+          {/* cheek blush */}
+          <circle cx="60" cy="62" r="4" fill={accent} opacity="0.7" />
+          {/* lips */}
+          <path d="M 56 70 Q 62 74 64 70 Q 62 68 56 70 Z" fill={accent} />
           {/* sprouting flower */}
-          <line x1="40" y1="22" x2="36" y2="10" stroke={ink} strokeWidth="3" strokeLinecap="round" />
-          <circle cx="34" cy="8" r="5" fill={accent} stroke={ink} strokeWidth="2.5" />
+          <rect x="36" y="10" width="2.5" height="12" fill={MOCHA} />
+          <circle cx="37" cy="8" r="6" fill={accent} />
+          <circle cx="37" cy="8" r="2.5" fill={fg} />
+          {/* sparkles */}
+          <polygon points="86,32 88,36 92,36 89,38 90,42 86,40 82,42 83,38 80,36 84,36" fill={accent} />
+          <circle cx="12" cy="70" r="3" fill={accent} />
+          <circle cx="90" cy="68" r="2.5" fill={ink} />
         </g>
       );
     case "cyborgFace":
-      // Single clean head, two eyes (one mechanical), small mouth, one flower antenna
+      // Solid color-block face with bold hair, dot eyes, antenna flower, sparkles
       return (
         <g>
-          {/* head */}
-          <circle cx="50" cy="54" r="34" fill={bg} stroke={ink} strokeWidth="4" />
+          {/* head circle */}
+          <circle cx="50" cy="54" r="32" fill={fg} />
+          {/* hair as solid block on top */}
+          <path d="M 20 50 Q 22 22 50 22 Q 78 22 80 50 L 74 44 L 64 36 L 50 32 L 36 36 L 26 44 Z" fill={ink} />
+          {/* hair fringe */}
+          <path d="M 22 48 L 32 42 L 44 44 L 56 42 L 68 46 L 78 48 L 76 54 L 64 50 L 50 52 L 36 50 L 24 54 Z" fill={ink} />
           {/* eyes */}
-          <rect x="28" y="46" width="14" height="10" fill={ink} />
-          <circle cx="35" cy="51" r="3" fill={accent} />
-          <circle cx="63" cy="51" r="6" fill={ink} />
-          <circle cx="61" cy="49" r="1.6" fill={bg} />
+          <circle cx="38" cy="54" r="3.5" fill={MOCHA} />
+          <circle cx="62" cy="54" r="3.5" fill={MOCHA} />
+          {/* cheeks */}
+          <circle cx="32" cy="64" r="4" fill={accent} opacity="0.7" />
+          <circle cx="68" cy="64" r="4" fill={accent} opacity="0.7" />
           {/* mouth */}
-          <path d="M 38 70 Q 50 74 62 70" stroke={ink} strokeWidth="3" fill="none" strokeLinecap="round" />
-          {/* antenna with flower bursting */}
-          <line x1="50" y1="20" x2="50" y2="6" stroke={ink} strokeWidth="3" strokeLinecap="round" />
-          <circle cx="50" cy="4" r="4" fill={accent} stroke={ink} strokeWidth="2" />
-          <circle cx="50" cy="4" r="1.6" fill={bg} />
-          {/* ear bolts */}
-          <circle cx="14" cy="56" r="3" fill={accent} stroke={ink} strokeWidth="2" />
-          <circle cx="86" cy="56" r="3" fill={accent} stroke={ink} strokeWidth="2" />
+          <path d="M 44 70 Q 50 74 56 70" stroke={MOCHA} strokeWidth="3" fill="none" strokeLinecap="round" />
+          {/* antenna flower */}
+          <rect x="49" y="8" width="2" height="14" fill={MOCHA} />
+          <circle cx="50" cy="8" r="5" fill={accent} />
+          <circle cx="50" cy="8" r="2" fill={fg} />
+          {/* sparkles */}
+          <polygon points="82,18 84,22 88,22 85,24 86,28 82,26 78,28 79,24 76,22 80,22" fill={accent} />
+          <circle cx="14" cy="24" r="3" fill={accent} />
+          <circle cx="88" cy="82" r="3" fill={accent} />
+          <polygon points="14,84 15,87 18,87 16,89 17,92 14,90 11,92 12,89 10,87 13,87" fill={ink} />
         </g>
       );
     case "faceCollage":
-      // Bouquet — one vase, three flowers (one with an eye as center), petals drifting
+      // Pure color-block bouquet — solid vase, layered flower discs, sparkles
       return (
         <g>
           {/* vase */}
-          <path d="M 32 64 L 68 64 L 64 90 L 36 90 Z" fill={accent} stroke={ink} strokeWidth="4" />
-          <rect x="30" y="60" width="40" height="6" fill={ink} />
-          {/* stems */}
-          <path d="M 50 64 Q 48 50 44 32" stroke={ink} strokeWidth="3" fill="none" strokeLinecap="round" />
-          <path d="M 50 64 Q 62 52 70 36" stroke={ink} strokeWidth="3" fill="none" strokeLinecap="round" />
-          <path d="M 50 64 Q 40 56 28 44" stroke={ink} strokeWidth="3" fill="none" strokeLinecap="round" />
+          <path d="M 30 64 L 70 64 L 66 92 L 34 92 Z" fill={ink} />
+          <rect x="28" y="60" width="44" height="8" fill={MOCHA} />
+          {/* stems as solid bars */}
+          <rect x="49" y="36" width="2.5" height="30" fill={fg} transform="rotate(-6 50 50)" />
+          <rect x="59" y="32" width="2.5" height="34" fill={fg} transform="rotate(14 60 50)" />
+          <rect x="39" y="38" width="2.5" height="28" fill={fg} transform="rotate(-22 40 52)" />
           {/* leaf */}
-          <path d="M 50 56 Q 58 48 54 60 Z" fill={fg} stroke={ink} strokeWidth="2" />
-          {/* flower 1 — eye-flower */}
-          <circle cx="44" cy="28" r="11" fill={fg} stroke={ink} strokeWidth="3" />
-          <ellipse cx="44" cy="28" rx="6" ry="4" fill={bg} stroke={ink} strokeWidth="2" />
-          <circle cx="44" cy="28" r="2" fill={ink} />
-          {/* flower 2 — petal cluster */}
-          <circle cx="70" cy="32" r="5" fill={bg} stroke={ink} strokeWidth="2.5" />
-          <circle cx="76" cy="36" r="5" fill={bg} stroke={ink} strokeWidth="2.5" />
-          <circle cx="74" cy="26" r="5" fill={bg} stroke={ink} strokeWidth="2.5" />
-          <circle cx="73" cy="32" r="3" fill={accent} />
-          {/* flower 3 */}
-          <circle cx="26" cy="40" r="6" fill={accent} stroke={ink} strokeWidth="2.5" />
-          <circle cx="26" cy="40" r="2" fill={bg} />
-          {/* drifting petal */}
-          <circle cx="14" cy="14" r="3" fill={accent} stroke={ink} strokeWidth="2" />
-          <path d="M 22 22 Q 18 18 14 14" stroke={ink} strokeWidth="1.5" strokeDasharray="2 3" fill="none" />
+          <ellipse cx="56" cy="54" rx="6" ry="3" fill={fg} transform="rotate(30 56 54)" />
+          {/* flower 1 — layered circles */}
+          <circle cx="44" cy="26" r="12" fill={accent} />
+          <circle cx="44" cy="26" r="7" fill={fg} />
+          <circle cx="44" cy="26" r="3" fill={MOCHA} />
+          {/* flower 2 — cluster of petal circles */}
+          <circle cx="64" cy="22" r="5" fill={fg} />
+          <circle cx="72" cy="24" r="5" fill={fg} />
+          <circle cx="74" cy="32" r="5" fill={fg} />
+          <circle cx="66" cy="32" r="5" fill={fg} />
+          <circle cx="69" cy="28" r="4" fill={accent} />
+          {/* flower 3 — small accent */}
+          <circle cx="26" cy="38" r="7" fill={accent} />
+          <circle cx="26" cy="38" r="3" fill={ink} />
+          {/* drifting sparkles */}
+          <polygon points="12,12 14,16 18,16 15,18 16,22 12,20 8,22 9,18 6,16 10,16" fill={accent} />
+          <circle cx="86" cy="50" r="3" fill={accent} />
+          <circle cx="90" cy="18" r="2.5" fill={fg} />
+          <polygon points="86,72 88,76 92,76 89,78 90,82 86,80 82,82 83,78 80,76 84,76" fill={fg} />
         </g>
       );
     case "dadaScrap":
-      // Painting in a frame with shapes bursting out beyond the frame
+      // Painting frame with 4 different-colored sides + landscape spilling outside
       return (
         <g>
-          {/* frame */}
-          <rect x="14" y="20" width="62" height="58" fill={ink} />
-          <rect x="20" y="26" width="50" height="46" fill={bg} />
-          {/* inside: horizon + sun */}
-          <rect x="20" y="56" width="50" height="16" fill={fg} />
-          <circle cx="34" cy="44" r="7" fill={accent} stroke={ink} strokeWidth="2" />
-          <path d="M 40 56 L 50 46 L 58 56 Z" fill={ink} />
-          {/* bursting out elements */}
-          <circle cx="80" cy="18" r="5" fill={accent} stroke={ink} strokeWidth="2.5" />
-          <circle cx="80" cy="18" r="1.6" fill={bg} />
-          <path d="M 70 20 Q 76 18 80 18" stroke={ink} strokeWidth="2" fill="none" strokeDasharray="2 3" />
-          {/* butterfly escaping */}
-          <ellipse cx="88" cy="42" rx="6" ry="4" fill={fg} stroke={ink} strokeWidth="2" transform="rotate(-20 88 42)" />
-          <ellipse cx="92" cy="48" rx="5" ry="3" fill={accent} stroke={ink} strokeWidth="2" transform="rotate(-20 92 48)" />
-          {/* lips escaping bottom-left */}
-          <path d="M 4 88 Q 12 80 22 88 Q 12 94 4 88 Z" fill={accent} stroke={ink} strokeWidth="2.5" />
+          {/* inner canvas first (so frame sits on top) */}
+          <rect x="18" y="22" width="58" height="54" fill={fg} />
+          {/* landscape inside */}
+          <rect x="18" y="60" width="58" height="16" fill={accent} />
+          <polygon points="20,60 36,38 50,60" fill={ink} />
+          <polygon points="44,60 60,44 74,60" fill={MOCHA} />
+          <circle cx="62" cy="34" r="7" fill={accent} />
+          {/* frame — 4 sides different colors */}
+          <rect x="14" y="18" width="66" height="6" fill={ink} />
+          <rect x="14" y="18" width="6" height="62" fill={accent} />
+          <rect x="74" y="18" width="6" height="62" fill={MOCHA} />
+          <rect x="14" y="74" width="66" height="6" fill={fg} />
+          {/* elements spilling outside the frame */}
+          {/* sun escaping top-right */}
+          <circle cx="88" cy="14" r="7" fill={accent} />
+          {/* mountain peak poking above frame */}
+          <polygon points="38,18 44,4 50,18" fill={ink} />
+          {/* water wave spilling below frame */}
+          <path d="M 14 86 Q 22 80 30 86 Q 38 92 46 86 Q 54 80 62 86" stroke={accent} strokeWidth="4" fill="none" strokeLinecap="round" />
+          {/* sparkles escaping right side */}
+          <polygon points="88,44 90,48 94,48 91,50 92,54 88,52 84,54 85,50 82,48 86,48" fill={accent} />
+          <circle cx="90" cy="66" r="3" fill={fg} />
+          <circle cx="10" cy="40" r="3" fill={accent} />
         </g>
       );
     case "paperclipNote":
-      // Clean note with one flower sprouting through the page + paperclip on top
+      // Solid color sticky note with paperclip + sparkles drifting out
       return (
         <g>
-          <rect x="20" y="18" width="58" height="68" fill={bg} stroke={ink} strokeWidth="4" />
-          <line x1="28" y1="34" x2="68" y2="34" stroke={MOCHA} strokeWidth="2.5" />
-          <line x1="28" y1="44" x2="60" y2="44" stroke={MOCHA} strokeWidth="2.5" />
-          <line x1="28" y1="54" x2="64" y2="54" stroke={MOCHA} strokeWidth="2.5" />
+          {/* note - solid color block */}
+          <rect x="20" y="18" width="58" height="68" fill={fg} />
+          {/* fold corner */}
+          <polygon points="66,76 78,76 78,86 66,86" fill={accent} />
+          <polygon points="66,86 78,86 78,76" fill={MOCHA} opacity="0.3" />
+          {/* lines */}
+          <rect x="28" y="32" width="42" height="3" fill={MOCHA} />
+          <rect x="28" y="42" width="34" height="3" fill={MOCHA} />
+          <rect x="28" y="52" width="40" height="3" fill={MOCHA} />
+          <rect x="28" y="62" width="24" height="3" fill={MOCHA} />
           {/* paperclip */}
-          <path d="M 36 8 L 36 60 Q 36 68 44 68 Q 52 68 52 60 L 52 20 Q 52 14 48 14 Q 44 14 44 20 L 44 56" fill="none" stroke={ink} strokeWidth="4" />
-          {/* flower sprouting through page */}
-          <line x1="64" y1="70" x2="80" y2="86" stroke={ink} strokeWidth="3" strokeLinecap="round" />
-          <circle cx="82" cy="88" r="6" fill={accent} stroke={ink} strokeWidth="2.5" />
-          <circle cx="82" cy="88" r="2" fill={bg} />
+          <path d="M 38 6 L 38 56 Q 38 64 46 64 Q 54 64 54 56 L 54 18 Q 54 12 50 12 Q 46 12 46 18 L 46 52" fill="none" stroke={MOCHA} strokeWidth="5" />
+          {/* sparkles drifting */}
+          <circle cx="86" cy="30" r="4" fill={accent} />
+          <polygon points="86,60 88,64 92,64 89,66 90,70 86,68 82,70 83,66 80,64 84,64" fill={accent} />
+          <circle cx="12" cy="50" r="3" fill={accent} />
+          <circle cx="14" cy="82" r="2.5" fill={ink} />
         </g>
       );
     case "clothespinTape":
-      // Single hanging sheet with a face poking through + clothespin at top
+      // Solid hanging sheet with simple face + clothespin + sparkles
       return (
         <g>
-          <path d="M 30 18 L 70 18 L 72 86 L 28 88 Z" fill={fg} stroke={ink} strokeWidth="4" />
-          {/* face hint */}
-          <circle cx="42" cy="44" r="2.5" fill={ink} />
-          <circle cx="58" cy="44" r="2.5" fill={ink} />
-          <path d="M 42 58 Q 50 62 58 58" stroke={ink} strokeWidth="2.5" fill="none" strokeLinecap="round" />
-          {/* drifting petal */}
-          <circle cx="84" cy="34" r="4" fill={accent} stroke={ink} strokeWidth="2" />
-          {/* clothespin */}
-          <rect x="44" y="6" width="6" height="20" fill={ink} />
-          <rect x="50" y="6" width="6" height="20" fill={ink} />
-          <rect x="42" y="12" width="16" height="4" fill={accent} />
+          {/* sheet - solid color */}
+          <path d="M 30 18 L 70 18 L 72 88 L 28 88 Z" fill={accent} />
+          {/* color stripe across */}
+          <rect x="28" y="54" width="45" height="6" fill={MOCHA} />
+          {/* simple face */}
+          <circle cx="42" cy="40" r="3.5" fill={MOCHA} />
+          <circle cx="58" cy="40" r="3.5" fill={MOCHA} />
+          <circle cx="50" cy="68" r="4" fill={fg} />
+          {/* clothespin - solid blocks */}
+          <rect x="42" y="6" width="6" height="18" fill={MOCHA} />
+          <rect x="52" y="6" width="6" height="18" fill={MOCHA} />
+          <rect x="40" y="12" width="20" height="4" fill={ink} />
+          {/* sparkles */}
+          <polygon points="14,32 16,36 20,36 17,38 18,42 14,40 10,42 11,38 8,36 12,36" fill={fg} />
+          <circle cx="86" cy="38" r="4" fill={fg} />
+          <circle cx="12" cy="72" r="3" fill={ink} />
+          <circle cx="88" cy="78" r="3" fill={fg} />
         </g>
       );
     case "tornNewspaper":
-      // Open book with content flying out — letters and a small bird escaping the pages
+      // Open book — left page split into 2 colors, right page 1 color, eruptions flying out
       return (
         <g>
-          {/* open book base */}
-          <path d="M 8 76 Q 28 70 50 78 L 50 38 Q 28 32 8 38 Z" fill={bg} stroke={ink} strokeWidth="4" />
-          <path d="M 92 76 Q 72 70 50 78 L 50 38 Q 72 32 92 38 Z" fill={bg} stroke={ink} strokeWidth="4" />
-          <line x1="50" y1="38" x2="50" y2="78" stroke={ink} strokeWidth="4" />
-          {/* text lines */}
-          <line x1="16" y1="50" x2="44" y2="48" stroke={MOCHA} strokeWidth="2" />
-          <line x1="16" y1="58" x2="42" y2="56" stroke={MOCHA} strokeWidth="2" />
-          <line x1="56" y1="48" x2="84" y2="50" stroke={MOCHA} strokeWidth="2" />
-          <line x1="56" y1="56" x2="82" y2="58" stroke={MOCHA} strokeWidth="2" />
-          {/* content flying out */}
-          <circle cx="34" cy="22" r="4" fill={accent} stroke={ink} strokeWidth="2" />
-          <path d="M 30 30 Q 32 26 34 22" stroke={ink} strokeWidth="1.5" strokeDasharray="2 3" fill="none" />
-          {/* small bird escaping */}
-          <path d="M 62 16 Q 68 10 76 14 Q 72 18 68 18 Q 70 22 66 22 Z" fill={fg} stroke={ink} strokeWidth="2" />
-          <circle cx="74" cy="14" r="1" fill={ink} />
-          {/* second drifting petal */}
-          <circle cx="22" cy="14" r="3" fill={fg} stroke={ink} strokeWidth="2" />
-          <path d="M 28 22 Q 25 18 22 14" stroke={ink} strokeWidth="1.5" strokeDasharray="2 3" fill="none" />
+          {/* left page bottom half */}
+          <path d="M 8 80 Q 28 74 50 82 L 50 54 Q 28 46 8 54 Z" fill={fg} />
+          {/* left page top half */}
+          <path d="M 8 54 Q 28 46 50 54 L 50 30 Q 28 22 8 30 Z" fill={accent} />
+          {/* right page single color */}
+          <path d="M 92 80 Q 72 74 50 82 L 50 30 Q 72 22 92 30 Z" fill={ink} />
+          {/* spine */}
+          <rect x="48" y="28" width="4" height="54" fill={MOCHA} />
+          {/* burst of circles, stars, waves */}
+          <circle cx="20" cy="16" r="4" fill={accent} />
+          <circle cx="36" cy="8" r="3.5" fill={fg} />
+          <polygon points="58,4 60,10 66,10 61,14 63,20 58,16 53,20 55,14 50,10 56,10" fill={accent} />
+          <circle cx="76" cy="10" r="3.5" fill={fg} />
+          <circle cx="88" cy="18" r="3" fill={accent} />
+          <path d="M 26 22 Q 30 16 34 22" stroke={accent} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          <path d="M 66 22 Q 70 14 74 22" stroke={MOCHA} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          <polygon points="86,86 88,90 92,90 89,92 90,96 86,94 82,96 83,92 80,90 84,90" fill={accent} />
+          <circle cx="14" cy="90" r="3" fill={accent} />
         </g>
       );
     case "filmFrame":
@@ -1000,31 +1055,7 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
             {letter}
           </span>
         ))}
-        {charLayouts.map((cl, i) => (
-          <div
-            key={`ch-${i}`}
-            style={{
-              position: "absolute",
-              left: cl.cx,
-              top: cl.cy,
-              transform: `translate(-50%, -50%) rotate(${cl.rot}deg)`,
-              transformOrigin: "center",
-              display: "flex",
-            }}
-          >
-            <span style={{
-              fontSize: `${cl.size}px`,
-              fontWeight: "bold",
-              color: cl.color,
-              fontFamily: FF,
-              opacity: cl.opacity,
-              lineHeight: 1,
-              ...(cl.variant === 0 ? { WebkitTextStroke: `5px ${cl.color}`, color: "transparent" } : {}),
-            }}>
-              {cl.ch}
-            </span>
-          </div>
-        ))}
+        {/* (scattered background letters removed for cleaner composition) */}
 
         {/* 5. Main hero label block */}
         <div style={{ position: "absolute", left: labelX, top: labelY, display: "flex" }}>

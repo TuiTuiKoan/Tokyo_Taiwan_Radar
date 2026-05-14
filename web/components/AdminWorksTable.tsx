@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import type { Work, WorkType, Locale } from "@/lib/types";
 import { deleteWork } from "@/app/actions/works";
+import DesignSelect from "@/components/DesignSelect";
 
 interface Props {
   works: (Work & { event_count: number })[];
@@ -66,16 +67,17 @@ export default function AdminWorksTable({ works, locale }: Props) {
         </Link>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-fg-muted font-medium">{t("worksWorkType")}</label>
-          <select
+          <DesignSelect
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value as "" | WorkType)}
-            className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="">{t("filterAll")}</option>
-            {(Object.keys(TYPE_KEYS) as WorkType[]).map((wt) => (
-              <option key={wt} value={wt}>{t(TYPE_KEYS[wt] as any)}</option>
-            ))}
-          </select>
+            onChange={(v) => setFilterType(v as "" | WorkType)}
+            options={[
+              { value: "", label: t("filterAll") },
+              ...(Object.keys(TYPE_KEYS) as WorkType[]).map((wt) => ({
+                value: wt,
+                label: t(TYPE_KEYS[wt] as any),
+              })),
+            ]}
+          />
         </div>
         <div className="flex flex-col gap-1 flex-1 min-w-[12rem]">
           <label className="text-xs text-fg-muted font-medium">{t("worksTitle")}</label>

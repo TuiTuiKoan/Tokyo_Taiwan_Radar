@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-05-14 - Admin 事件總數卡在 1000（Supabase 預設回傳上限）
+
+**問題：**
+Admin 首頁統計使用 `events.length`，資料來源是 `.from("events").select("*")`。
+該查詢未分頁時受 Supabase 預設單次回傳上限影響，超過 1000 筆後會被截斷，導致「事件總數」長期停在 1000。
+
+**修正：**
+1. `web/app/[locale]/admin/page.tsx` 改為 `.range()` 分頁迴圈抓完整 events（每批 1000）。
+2. 事件總數改為 `.select("id", { count: "exact", head: true })` 的 `totalEventsCount`，不再用 `events.length` 當總數。
+3. `AdminEventTable` 改傳分頁彙整後的完整 events，避免列表也被截斷。
+
+**教訓：**
+在 Supabase 計數場景，禁止用未分頁 `select()` 的陣列長度代表總筆數。總數必須使用 `count: "exact"`；要拿完整資料時必須顯式分頁。
+
+---
+
+## 2026-05-14 - Tester FAIL: signalAnimation 退場不完整（首頁/元件/CSS 殘留）
+
+**問題：**
+Tester 回報 `signalAnimation` 功能仍在三層殘留：首頁呼叫參數、`MascotAvatar` prop 與動畫圖層、`globals.css` 的 `lianbu-*`/`data-signal-animation` 規則。
+
+**修正：**
+1. `web/app/[locale]/page.tsx`：移除 `<MascotAvatar ... signalAnimation />` 啟用參數。
+2. `web/lib/design/MascotAvatar.tsx`：刪除 `signalAnimation` prop、inline variant 的動畫 defs/style/data-attribute，以及所有 `lianbu-*` 動畫圖層；保留 framed 變體不變。
+3. `web/app/globals.css`：刪除整段 `data-signal-animation` selector 與 `lianbu-*` keyframes（含 reduced-motion 分支）。
+
+**教訓：**
+停用 UI 特效必須做「三層同步退場」檢查：呼叫端、元件 API、全域樣式。只改其中一層會造成功能假下線，實際仍可被啟用或殘留死碼。
+
+---
+
 ## 2026-05-14 - MascotAvatar SVG ID generation triggered React purity lint
 
 **問題：**

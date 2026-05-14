@@ -33,11 +33,9 @@ export interface MascotAvatarProps {
   className?: string;
   /** Accessible label; defaults to "Tokyo Taiwan Radar mascot". */
   title?: string;
-  /** Enable radar-current signal animation layers (inline variant only). */
-  signalAnimation?: boolean;
 }
 
-function MascotBody({ upright, signalAnimation }: { upright?: boolean; signalAnimation?: boolean }) {
+function MascotBody({ upright }: { upright?: boolean }) {
   const rotate = upright ? 0 : mascotTokens.tilt;
   const bodyPath =
     "M100,80 C 86,80 78,88 74,98 C 72,108 66,116 60,128 C 46,146 30,166 36,190 C 44,210 72,216 102,216 C 132,216 160,210 164,190 C 170,166 154,146 140,128 C 134,116 128,108 126,98 C 122,88 114,80 100,80 Z";
@@ -50,19 +48,7 @@ function MascotBody({ upright, signalAnimation }: { upright?: boolean; signalAni
         strokeWidth="4.5"
         strokeLinecap="round"
       />
-      {signalAnimation && (
-        <path
-          className="lianbu-beam"
-          d="M164,26 C148,46 126,62 104,84"
-          fill="none"
-          stroke="url(#lianbuBeamGradient)"
-          strokeWidth="4"
-          strokeLinecap="round"
-          pathLength={100}
-        />
-      )}
-      <g className="lianbu-tip-group">
-        {signalAnimation && <circle className="lianbu-tip-glow" cx="164" cy="26" r="15" fill="url(#lianbuTipGlow)" />}
+      <g>
         <circle cx="164" cy="26" r="11" fill="none" stroke="#1F5E2B" strokeWidth="1.4" opacity="0.4" />
         <circle cx="164" cy="26" r="6" fill="#1F5E2B" />
         <circle cx="164" cy="26" r="2.2" fill="#C4E86F" />
@@ -71,18 +57,6 @@ function MascotBody({ upright, signalAnimation }: { upright?: boolean; signalAni
         d={bodyPath}
         fill="#E84860"
       />
-      {signalAnimation && (
-        <g className="lianbu-shell-sheen" mask="url(#lianbuBodyMask)">
-          <path
-            d={bodyPath}
-            fill="none"
-            stroke="url(#lianbuShellSheenGradient)"
-            strokeWidth="3.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </g>
-      )}
       <ellipse cx="58" cy="142" rx="13.3" ry="8" fill="#FF7AA0" opacity="0.65" transform="rotate(-10 58 142)" />
       <ellipse cx="146" cy="150" rx="12" ry="6.5" fill="#FF7AA0" opacity="0.75" transform="rotate(12 146 150)" />
       <ellipse cx="80" cy="116" rx="13" ry="14" fill="white" />
@@ -106,13 +80,10 @@ export function MascotAvatar({
   upright = false,
   className,
   title = "Tokyo Taiwan Radar mascot",
-  signalAnimation = false,
 }: MascotAvatarProps) {
   const baseId = useId().replace(/:/g, "");
 
   if (variant === "inline") {
-    const signalUid = `ls${baseId}`;
-    const signalId = (key: string) => `${signalUid}-${key}`;
     return (
       <svg
         viewBox={mascotTokens.viewBox}
@@ -121,41 +92,9 @@ export function MascotAvatar({
         className={className}
         role="img"
         aria-label={title}
-        data-signal-animation={signalAnimation ? "on" : "off"}
       >
         <title>{title}</title>
-        {signalAnimation && (
-          <defs>
-            <linearGradient id={signalId("beam-gradient")} x1="164" y1="26" x2="104" y2="84" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#C4E86F" stopOpacity="1" />
-              <stop offset="55%" stopColor="#7ACF65" stopOpacity="0.86" />
-              <stop offset="100%" stopColor="#1F5E2B" stopOpacity="0.25" />
-            </linearGradient>
-            <radialGradient id={signalId("tip-glow")} cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#DDF8A2" stopOpacity="0.55" />
-              <stop offset="70%" stopColor="#8FE26E" stopOpacity="0.22" />
-              <stop offset="100%" stopColor="#8FE26E" stopOpacity="0" />
-            </radialGradient>
-            <linearGradient id={signalId("shell-sheen-gradient")} x1="70" y1="78" x2="140" y2="214" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0" />
-              <stop offset="45%" stopColor="#FFFFFF" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
-            </linearGradient>
-            <mask id={signalId("body-mask")} maskUnits="userSpaceOnUse">
-              <path
-                d="M100,80 C 86,80 78,88 74,98 C 72,108 66,116 60,128 C 46,146 30,166 36,190 C 44,210 72,216 102,216 C 132,216 160,210 164,190 C 170,166 154,146 140,128 C 134,116 128,108 126,98 C 122,88 114,80 100,80 Z"
-                fill="white"
-              />
-            </mask>
-          </defs>
-        )}
-        <style>{`
-          .lianbu-beam{stroke:url(#${signalId("beam-gradient")});}
-          .lianbu-tip-glow{fill:url(#${signalId("tip-glow")});}
-          .lianbu-shell-sheen{mask:url(#${signalId("body-mask")});}
-          .lianbu-shell-sheen path{stroke:url(#${signalId("shell-sheen-gradient")});}
-        `}</style>
-        <MascotBody upright={upright} signalAnimation={signalAnimation} />
+        <MascotBody upright={upright} />
       </svg>
     );
   }
