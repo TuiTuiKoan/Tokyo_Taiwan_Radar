@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-05-14 — 「後台壞掉了」診斷：307 → /auth/login = 認證保護正常，非真正壞掉
+
+**問題：**
+用戶回報 `https://tokyotaiwanradar.com/ja/admin/specs/architecture` 壞掉（由 VMD "🔧 Fix issues found" handoff 觸發調查）。`curl -sI` 回傳 `HTTP/2 307 → location: /ja/auth/login`，看似頁面無法存取。
+
+**根因：**
+307 是 Next.js middleware 對未登入請求的正常 auth redirect，不代表頁面本身壞掉。深入調查確認：
+- `tsc --noEmit` 通過、`npm run build` 成功（architecture 頁面正常列出）
+- 近期 commit `171bea4`（punk Bauhaus OG image）確實引入 TS2873，但已在 `4d8b873` 修正，Vercel 部署已基於修正版本
+- Production `/zh` HTTP 200、OG image 正常回傳（248KB）
+- admin 頁面在登入狀態下可正常存取
+
+**教訓：**
+- 未認證的 `curl` 對 admin route 永遠得到 307 redirect，**不能作為「頁面是否壞掉」的判斷依據**。
+- 「後台壞掉了」的正確診斷順序（見 SKILL.md — Admin 頁面「壞掉了」診斷流程）：
+  1. `npm run build` 是否通過（TS error → Vercel build 失敗 → 舊版被保留）
+  2. 近期 commit 有無 TS error（`git log -5 -- web/`）
+  3. Production 非 admin 頁面是否 HTTP 200
+  4. 若全部正常 → admin 只是需要登入，非真正壞掉
+- OG image route (`opengraph-image.tsx`) 的 TS error 會導致**整個 Vercel build 失敗**，讓所有頁面看起來都「沒更新」，但 admin 特別顯眼因為 auth redirect 像錯誤。
+
+---
+
 ## 2026-05-14 — OG Image `export const size` 只改單一維度導致空白下半部
 
 **問題：**

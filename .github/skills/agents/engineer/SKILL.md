@@ -63,6 +63,20 @@ const _name = getEventName(event, locale);
 
 **Incident:** 2026-05-14 — `opengraph-image.tsx` punk Bauhaus redesign removed title rendering but left `void event ? getEventName(...) : undefined` as dead code. TS2873 caught it at compile time (commit `4d8b873`).
 
+## Admin 頁面「壞掉了」診斷流程
+
+當用戶回報「後台壞掉了」時，按以下順序排查（優先順序高→低）：
+
+1. **`curl` 307 ≠ 壞掉**：`curl -sI https://tokyotaiwanradar.com/[locale]/admin/...` 回傳 `307 → /auth/login` 是**認證保護正常運作**；未登入時必然如此，不代表頁面有問題。
+
+2. **Vercel build 是否成功**：`npm run build`。TS error（含 `opengraph-image.tsx` 等 Edge runtime route）會讓整個 build 失敗，Vercel 保留舊版本，**表現為所有頁面都「沒更新」**。
+
+3. **近期 commit 有無 TS error**：`git log --oneline -5 -- web/` 找最近改動，用 `tsc --noEmit` 驗證。Edge runtime route 的 TS error 不一定被 IDE 即時顯示，`npm run build` 才是最終判斷。
+
+4. **Production 非 admin 頁面 HTTP 200**：`curl -sI https://tokyotaiwanradar.com/zh` → 200 代表新版已成功部署，admin 的 307 純屬正常 auth redirect。
+
+**Incident 參考：** 2026-05-14 — `171bea4` 的 TS2873 (`void event ? ...`) 讓 Vercel build 失敗；`4d8b873` 修正後 admin 正常。307 redirect 是誤導性診斷訊號。(history.md 條目：「後台壞掉了」診斷）
+
 
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`
 - When adding a DB column, wire up the code that populates it in the same commit. Empty columns = silent data gaps.
