@@ -204,11 +204,40 @@ import { CARD_LINK, CARD_LINK_ARROW } from "@/lib/classNames";
 ## Hamburger Dropdown Frosted-Glass Contract
 
 - Mobile hamburger panel must define a full material contract in both themes: color + opacity + blur.
-- Recommended baseline:
-  - Light: `bg-paper/80 backdrop-blur-md`
-  - Dark: `dark:bg-[#0a0909]/80 backdrop-blur-md`
+- Recommended baseline (as of commit `0a66f93`):
+  - Light: `bg-paper/75 backdrop-blur-lg`
+  - Dark: `dark:bg-[#0a0909]/75 backdrop-blur-lg`
 - Do not use near-opaque dark overlays (e.g., `.../95`) when light mode is translucent; this breaks theme parity.
 - When tuning menu panel visuals, compare perceived visual weight in light/dark side-by-side, not single-theme screenshots.
+
+### ⚠️ Stacking Context Rule — backdrop-blur 子元素陷阱
+
+**`backdrop-blur` 不可設在擁有 `backdrop-filter` 的元件的 DOM 子孫上。**
+
+父層 `backdrop-filter` 會建立新的 composite layer，子元素的 `backdrop-blur` 只能模糊父層的合成輸出，看不穿到頁面背後的內容，導致毛玻璃效果完全失效（外觀和純實心背景無差異）。
+
+**修正方式：** 把 overlay/panel 移到 filter 父層**外部**。
+
+```tsx
+// ❌ 錯誤 — <nav> 在 <header backdrop-blur> 內，blur 失效
+<header className="backdrop-blur-md sticky top-0">
+  {menuOpen && <nav className="backdrop-blur-lg">…</nav>}
+</header>
+
+// ✅ 正確 — <nav> 改為兄弟元素，sticky top-14 貼在 h-14 header 下方
+<>
+  <header className="backdrop-blur-md sticky top-0 z-50">…</header>
+  {menuOpen && (
+    <nav className="sticky top-14 z-40 bg-paper/75 backdrop-blur-lg dark:bg-[#0a0909]/75">…</nav>
+  )}
+</>
+```
+
+**診斷步驟（「毛玻璃無效」排查清單）：**
+1. 確認元素有透明度（`bg-.../opacity`）
+2. 確認元素確實覆蓋在其他頁面內容上方（absolute/fixed/sticky）
+3. **檢查 DOM 祖先是否有 `backdrop-filter`** ← 最常見被遺漏的根本原因
+4. 如有，將元素移出該祖先或改用 React Portal
 
 ## OG Image 規範（`opengraph-image.tsx`）
 
@@ -240,7 +269,16 @@ Current design (as of 2026-05-15, commit `a273483`):
 
 **Incident:** 2026-05-14 — working tree 只改 `height: 630→1200` 未同步版面，下半 570px 空白。`git restore` 還原。OG 圖必須做 local preview (`localhost:3000/.../opengraph-image`) 與 production 對比確認再 commit。
 
+## Organic Motifs & Categorical Variants System (`organicMotifs.tsx`)
 
+To keep UI components clean and provide visual variety, heavy SVG path definitions and geometries **must be extracted** into the `organicMotifs.tsx` system.
+
+**Rules:**
+1. **5 Sub-variants:** Each category should define 5 sub-variants of its motif. This ensures that lists of events under the same category avoid visual monotony.
+2. **Layering:** Motifs layer organic SVG path geometries over background patterns.
+3. **Extraction:** Never inline complex vector graphics directly into standard UI components. Always import them from the motif system.
+
+## Motion and Interaction
 
 **Default transition:** `transition-all duration-200 ease-out`
 **Hover state:** color/border/shadow change only — never layout shift

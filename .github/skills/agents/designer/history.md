@@ -1,12 +1,22 @@
-## 2026-05-15 — Navbar icon 群組固定化 + hamburger frosted glass 一致性（commit `9f7b7fa`）
+## 2026-05-15 — backdrop-blur 子元素被父層 backdrop-filter 封鎖（commit `0a66f93`）
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
-2026-05-15 | Saved icon 在 desktop/mobile 的可見性不一致，且 hamburger dropdown 在 light/dark 的材質感不對齊（light 偏實心、dark 幾乎不透明） | 資訊架構把「收藏」放在文字導覽列而非 header icon 群組；menu panel 只調色值、未定義跨主題的透明度與 blur 契約 | 將 Saved icon 固定到 header icon 群組（語言切換前）並移除 mobile menu 的重複文字入口；hamburger dropdown 統一為 frosted 組合：`bg-paper/80 backdrop-blur-md` + `dark:bg-[#0a0909]/80 backdrop-blur-md` | 1) 高頻個人功能（收藏、登入、語言）應優先放在 icon 群組，避免藏在次層選單。2) overlay panel 設計要同時定義顏色、透明度、blur 三要素，不能只改單一 token，否則 light/dark 視覺重量會失衡。
+2026-05-15 | hamburger dropdown 設定了 `bg-paper/75 backdrop-blur-lg` 但畫面上完全無毛玻璃效果（dark 模式純黑、light 模式奶油實心） | `<nav>` 是 `<header>` 的子元素，而 `<header>` 本身有 `backdrop-blur-md`。父層 backdrop-filter 建立新的 composite layer，子元素的 `backdrop-blur` 只能模糊父層的合成輸出，無法看穿到後方的頁面內容。第一次嘗試（commit `9f7b7fa`）只調整色值與透明度，未意識到 DOM 結構才是根本原因，所以毫無效果。 | 將 dropdown `<nav>` 移到 `<header>` 外部，用 React Fragment `<>` 包裹成兄弟元素；`<nav>` 改用 `sticky top-14 z-40` 貼在 header 正下方，`backdrop-blur-lg` 現在可以直接模糊頁面內容，毛玻璃效果立即顯現。 | 1) **任何有毛玻璃效果的 overlay/panel，不可成為另一個 `backdrop-filter` 元件的 DOM 子孫**。必須改為兄弟元素（React Fragment、Portal）或放置於 filter 元件外的 stacking context。2) 排查「backdrop-blur 無效」時，先檢查 DOM 祖先是否有 `backdrop-filter`，而非繼續調整透明度或色值。3) 兩個兄弟 `sticky` 元素可疊加：header `sticky top-0 h-14`，dropdown `sticky top-14`，不需要 JavaScript offset 計算。
 
-## 2026-05-15 — Mobile Filter CTA 雙狀態語意（`搜尋或篩選` → `確認`）
+## 2026-05-15 — CategoryThumbnail 縮圖整合到詳情頁 + frosted glass hamburger 修復
 
-**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
-2026-05-15 | Mobile FilterBar 在展開狀態缺少明確「完成操作」CTA，面板常停留在前景遮擋內容；同時按鈕語意與視覺狀態不夠直覺 | 互動規格只定義了「打開篩選」，沒有定義「套用並關閉」的顯性行為；開關按鈕沒有建立 closed/open 的語意映射與色彩對位 | 將 mobile toggle 設為雙狀態 CTA：closed 顯示實心綠色 `搜尋或篩選`；open 顯示粉框+blush 底的 `確認`，點擊 `確認` 會收合 panel；新增 `filters.searchOrFilter`、`filters.confirm` 並同步 zh/en/ja | 1) 可收合面板的 trigger 必須同時設計 closed/open 兩個語意狀態，不可只有「開啟」狀態。2) 任何新 CTA 文案必須在同一 commit 完成三語系同步，避免 fallback raw key。
+### A — 詳情頁縮圖佈局（commits `36a9c96` → `10f2162` → `56b1429`）
+
+- **Observation**: 詳情頁加入 CategoryThumbnail 後，縮圖與 SaveButton 位置迭代了三次：右欄 → 標題左側 → 與 SaveButton 同寬左欄疊排。最終需要縮圖與 SaveButton 同寬對齊。
+- **Fix**: 建立左欄容器 `<div className="flex flex-col gap-2 shrink-0">`，CategoryThumbnail 用 `className="w-[108px] h-[108px]"` 配合 SaveButton 的 `min-w-[108px]`，標題移至右欄 `<div className="flex-1 min-w-0">`。
+- **Lesson**: 縮圖與相鄰 UI 元素要對齊寬度時，使用 `flex flex-col` 左欄，讓兩者都用相同 `w-[Npx]` / `min-w-[Npx]` 控制；不要用絕對定位或複雜 grid。
+
+### B — Frosted glass hamburger dropdown（commits `9f7b7fa` → `0a66f93`）
+
+- **Observation**: 漢堡選單加入 `backdrop-blur-md` 後，blur 效果在光線下完全無效（透明背景沒有模糊）。
+- **Root cause**: 下拉 div 被包在 `<header>` 內，而 `<header>` 有 `position: sticky/relative`，形成獨立的 stacking context，`backdrop-filter` 對祖先元素外的內容無法取樣 → blur 失效。
+- **Fix**: 將漢堡 dropdown 移到 `<header>` 之外，改為同層 sibling（在根 `<div>` 內）。現在 dropdown 的 `backdrop-blur-md` 能對整個頁面取樣。最終樣式：`bg-paper/80 backdrop-blur-md`（light）、`dark:bg-[#0a0909]/80 backdrop-blur-md`（dark）。
+- **Lesson**: **`backdrop-filter` / `backdrop-blur` 的先決條件：元素不能被包在任何有 `position: sticky/fixed/relative`、`transform`、`will-change`、`filter`、`opacity < 1` 的祖先內。** 如果 blur 不生效，先檢查是否有這類祖先容器。Navbar 這類 sticky 元素永遠會形成 stacking context — hamburger dropdown 必須放在 Navbar 之外。
 
 ## 2026-05-15 — OG Image palette chroma 微調 + hero object 簡化（commit `a273483`）
 
