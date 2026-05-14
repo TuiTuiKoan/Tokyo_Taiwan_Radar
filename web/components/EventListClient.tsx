@@ -155,9 +155,8 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
             {/* Procedural category thumbnail */}
             <div className="shrink-0 self-center pl-1">
               <CategoryThumbnail
-                seed={event.id}
-                categories={event.category as string[] | null | undefined}
-                size={64}
+                id={event.id}
+                categories={event.category ?? undefined}
                 className="w-14 h-14 sm:w-16 sm:h-16"
               />
             </div>

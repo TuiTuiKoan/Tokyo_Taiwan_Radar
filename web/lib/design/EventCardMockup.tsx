@@ -91,9 +91,8 @@ export function EventCardMockup({ event, locale, labels }: Props) {
       {/* Icon column — procedural category thumbnail (always visible) */}
       <div className="shrink-0 self-center pl-1">
         <CategoryThumbnail
-          seed={event.id}
-          categories={event.category as string[] | null | undefined}
-          size={80}
+          id={event.id}
+          categories={event.category ?? undefined}
           className="w-14 h-14 sm:w-20 sm:h-20"
         />
       </div>

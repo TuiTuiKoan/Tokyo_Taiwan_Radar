@@ -520,44 +520,41 @@ export default async function EventDetailPage({ params }: PageProps) {
         </Link>
       )}
 
-      {/* Header: thumbnail left + title right, save button below */}
-      <div className="mb-4">
-        <div className="flex items-start gap-4">
-          {/* Thumbnail — same rounded-lg as list view, size=80 for detail context */}
+      {/* Header: [thumbnail + save button stacked] | [title] */}
+      <div className="flex items-start gap-4 mb-4">
+        {/* Left column: thumbnail and save button share the same width */}
+        <div className="flex flex-col gap-2 shrink-0">
           <CategoryThumbnail
-            seed={event.id}
-            categories={event.category as string[] | null | undefined}
-            size={80}
-            className="w-20 h-20 shrink-0"
+            id={event.id}
+            categories={event.category ?? undefined}
+            className="w-[108px] h-[108px]"
           />
-          <div className="flex-1 min-w-0">
-            {/* Merged-into badge */}
-            {event.merged_into_event_id && primaryEvent && (
-              <div className="flex items-center gap-1 mb-1">
-                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium border border-amber-300 whitespace-nowrap">
-                  {tAdmin("mergedIntoBadge")}
-                </span>
-                <span className="text-green-600 font-bold text-sm">→</span>
-                <Link
-                  href={`/${locale}/events/${primaryEvent.id}`}
-                  className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200 whitespace-nowrap"
-                  title={tAdmin("mergedIntoBadgeTitle")}
-                >
-                  1
-                </Link>
-              </div>
-            )}
-            <h1 className="font-display font-bold text-[#3A261F] text-2xl sm:text-[26px] leading-snug">{name}</h1>
-            <AdminEventActions eventId={event.id} locale={locale} initialIsActive={event.is_active} />
-          </div>
-        </div>
-        {/* Save button below the title row */}
-        <div className="mt-3">
           <SaveButton
             eventId={event.id}
             initialSaved={false}
             locale={locale}
           />
+        </div>
+        {/* Right column: merged badge + title + admin actions */}
+        <div className="flex-1 min-w-0">
+          {/* Merged-into badge */}
+          {event.merged_into_event_id && primaryEvent && (
+            <div className="flex items-center gap-1 mb-1">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium border border-amber-300 whitespace-nowrap">
+                {tAdmin("mergedIntoBadge")}
+              </span>
+              <span className="text-green-600 font-bold text-sm">→</span>
+              <Link
+                href={`/${locale}/events/${primaryEvent.id}`}
+                className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200 whitespace-nowrap"
+                title={tAdmin("mergedIntoBadgeTitle")}
+              >
+                1
+              </Link>
+            </div>
+          )}
+          <h1 className="font-display font-bold text-[#3A261F] text-2xl sm:text-[26px] leading-snug">{name}</h1>
+          <AdminEventActions eventId={event.id} locale={locale} initialIsActive={event.is_active} />
         </div>
       </div>
 
