@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { createClient } from "@supabase/supabase-js";
-import { type Locale, type Event, getEventName } from "@/lib/types";
+import { type Locale } from "@/lib/types";
 import { satoriTokens } from "@/lib/design/tokens";
 
 // Brand colors
@@ -133,8 +133,6 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
     .single();
 
   // We only need category to drive the design now (no title/date/venue rendered).
-  // `name` is still kept available for alt-text purposes only if needed in the future.
-  void event ? getEventName(event as Event, locale) : undefined;
   const cats: string[] = event?.category ?? [];
   const primaryCat = cats[0] ?? "";
   const secondaryCat = cats[1] ?? "";
