@@ -145,7 +145,12 @@
     "loginEmail": "Continue with Email",
     "email": "Email",
     "magicLinkSent": "Check your email — we sent you a login link!",
-    "logout": "Logout"
+    "logout": "Logout",
+    "inAppBrowserWarning": "You are using an in-app browser (such as LINE or Messenger). Google login may fail. Please open this page in Safari or Chrome.",
+    "openInBrowser": "Copy link and open in browser",
+    "linkCopied": "Link copied",
+    "copyUrlPrompt": "Copy this URL and open it in Safari or Chrome:",
+    "or": "or"
   },
   "admin": {
     "title": "Admin",

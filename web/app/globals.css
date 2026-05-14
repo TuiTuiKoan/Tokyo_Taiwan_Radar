@@ -343,6 +343,80 @@ html:has([data-site-bg]) body {
   81%        { opacity: 0; }
 }
 
+[data-signal-animation="on"] {
+  --lianbu-cycle: 2400ms;
+}
+
+[data-signal-animation="on"] .lianbu-tip-glow {
+  opacity: 0.1;
+  filter: blur(0.8px);
+  animation: lianbu-tip-heartbeat var(--lianbu-cycle) ease-in-out infinite;
+}
+
+[data-signal-animation="on"] .lianbu-beam {
+  opacity: 0;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 0;
+  animation: lianbu-beam-retract var(--lianbu-cycle) cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+[data-signal-animation="on"] .lianbu-shell-sheen {
+  opacity: 0;
+  transform-box: view-box;
+  transform-origin: 100px 150px;
+  animation: lianbu-shell-sheen var(--lianbu-cycle) linear infinite;
+}
+
+[data-signal-animation="on"] .lianbu-shell-sheen path {
+  filter: blur(0.25px);
+}
+
+@keyframes lianbu-tip-heartbeat {
+  0% { opacity: 0.08; filter: blur(0.8px); }
+  10% { opacity: 0.2; filter: blur(1.1px); }
+  18% { opacity: 0.1; filter: blur(0.75px); }
+  30% { opacity: 0.24; filter: blur(1.2px); }
+  45% { opacity: 0.11; filter: blur(0.9px); }
+  80% { opacity: 0.06; filter: blur(0.6px); }
+  100% { opacity: 0.08; filter: blur(0.8px); }
+}
+
+@keyframes lianbu-beam-retract {
+  0% { opacity: 0; stroke-dashoffset: 0; }
+  8% { opacity: 0.88; stroke-dashoffset: 0; }
+  30% { opacity: 0.86; stroke-dashoffset: 42; }
+  45% { opacity: 0.12; stroke-dashoffset: 100; }
+  60% { opacity: 0; stroke-dashoffset: 100; }
+  100% { opacity: 0; stroke-dashoffset: 100; }
+}
+
+@keyframes lianbu-shell-sheen {
+  0% { opacity: 0; transform: rotate(0deg); }
+  44% { opacity: 0; transform: rotate(0deg); }
+  50% { opacity: 0.26; transform: rotate(35deg); }
+  62% { opacity: 0.5; transform: rotate(190deg); }
+  80% { opacity: 0; transform: rotate(360deg); }
+  100% { opacity: 0; transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-signal-animation="on"] {
+    --lianbu-cycle: 6000ms;
+  }
+
+  [data-signal-animation="on"] .lianbu-beam,
+  [data-signal-animation="on"] .lianbu-shell-sheen {
+    animation: none;
+    opacity: 0;
+  }
+
+  [data-signal-animation="on"] .lianbu-tip-glow {
+    animation: lianbu-tip-heartbeat var(--lianbu-cycle) ease-in-out infinite;
+    opacity: 0.08;
+    filter: blur(0.6px);
+  }
+}
+
 /* ============================================================
  * Global dark mode catch-all for hardcoded brand palette classes.
  *

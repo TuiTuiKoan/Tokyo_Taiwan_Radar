@@ -145,7 +145,12 @@
     "loginEmail": "使用 Email 登入",
     "email": "Email",
     "magicLinkSent": "我們已寄送登入連結到你的 Email，請查收！",
-    "logout": "登出"
+    "logout": "登出",
+    "inAppBrowserWarning": "你目前使用的是 App 內建瀏覽器（例如 LINE / Messenger），Google 登入可能會失敗。請改用 Safari 或 Chrome 開啟。",
+    "openInBrowser": "複製連結並改用瀏覽器開啟",
+    "linkCopied": "已複製連結",
+    "copyUrlPrompt": "請複製這個網址，並改用 Safari 或 Chrome 開啟：",
+    "or": "或"
   },
   "admin": {
     "title": "管理後台",
@@ -736,7 +741,9 @@
     "tea_alcohol": "茶與酒文化活動：台灣茶藝、烏龍茶品鑑、台灣精釀啤酒與威士忌品酒。",
     "tech": "科技活動：台日科技交流、AI/半導體論壇、開發者社群、新創 demo。",
     "tourism": "觀光與旅遊活動：台灣旅遊推廣、地方觀光介紹、體驗行程說明會。",
-    "tv_program": "電視節目相關活動：台灣戲劇、綜藝、紀實節目在日本的播映、見面會、收視討論。",    "radio_program": "廣播節目：中央廣播電臺（RTI）日語部門節目。音樂、文化、台日交流為主題的節目。",    "urban": "城市與都市議題活動：台日都市規劃、建築、社區營造、地方創生。",
+    "tv_program": "電視節目相關活動：台灣戲劇、綜藝、紀實節目在日本的播映、見面會、收視討論。",
+    "radio_program": "廣播節目：中央廣播電臺（RTI）日語部門節目。音樂、文化、台日交流為主題的節目。",
+    "urban": "城市與都市議題活動：台日都市規劃、建築、社區營造、地方創生。",
     "workshop": "工作坊與體驗課程：台灣料理、手作工藝、語言學習、文化體驗的實作活動。"
   },
   "organizerType": {

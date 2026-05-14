@@ -63,6 +63,49 @@ const _name = getEventName(event, locale);
 
 **Incident:** 2026-05-14 — `opengraph-image.tsx` punk Bauhaus redesign removed title rendering but left `void event ? getEventName(...) : undefined` as dead code. TS2873 caught it at compile time (commit `4d8b873`).
 
+## React Purity Rule for IDs
+
+- Never call `Math.random()` or `Date.now()` inside React component render to generate DOM/SVG IDs.
+- Use `useId()` for stable IDs used by `<defs>`, gradients, masks, and `url(#id)` references.
+- If lint reports `react-hooks/purity` on ID generation, replace impure calls with `useId()` before continuing.
+
+**Incident:** 2026-05-14 — `MascotAvatar.tsx` signal animation initially used `Math.random()` for SVG IDs and failed lint. Replaced with `useId()` for both inline and framed variants.
+
+## Tailwind v4 `@theme` 靜態解析 — `bg-paper` vs `bg-[#FFFDF5]`
+
+Tailwind v4 的 `@theme` block 在 **build time** 靜態解析所有 CSS 變數。這代表：
+
+```css
+/* globals.css */
+@theme { --color-paper: #FFFDF5; }   /* ← build time 凍結為常數 */
+```
+
+`bg-paper` 在編譯後變成靜態的 `background-color: #FFFDF5`，與 runtime 的 CSS 變數切換**完全無關**。即使 `:root.dark { --color-paper: #262422 }` 存在，`bg-paper` 在 dark mode 下永遠是亮色。
+
+**正確的 paper 背景 dark mode 寫法：**
+
+```tsx
+// ✅ 正確 — globals.css line 378 的 html.dark override 在 runtime 切換
+<div className="bg-[#FFFDF5]">...</div>
+// globals.css: html.dark .bg-\[\#FFFDF5\] { background-color: var(--color-paper); }
+
+// ❌ 錯誤 — @theme 靜態解析，dark mode 無效
+<div className="bg-paper dark:bg-paper">...</div>
+```
+
+**為何 `dark:bg-paper` 不管用：**
+- `dark:bg-paper` 生成 `.dark\:bg-paper { background-color: var(--color-paper) }` → 這個能用 CSS variable ✓
+- 但 `bg-paper`（沒有 `dark:` 前綴）生成靜態值 → dark mode 下它覆蓋了 `dark:bg-paper` 的結果 ✗
+
+**設計 token 參考（paper 相關）：**
+| 用途 | 正確寫法 | 錯誤寫法 |
+|------|---------|---------|
+| Paper 背景（支援 dark mode） | `bg-[#FFFDF5]` | `bg-paper` |
+| Matcha hover（支援 dark mode via `dark:hover:`） | `hover:bg-[#F7FFE8]` | N/A |
+| Forest green text | `text-[#1F5E2B]` | N/A |
+
+**Incident:** 2026-05-14 — `CARD_LINK` 在 dark mode 下顯示白色背景。`bg-paper dark:bg-paper` → `bg-[#FFFDF5]` 後修復（commit `a2b558c`）。
+
 ## Admin 頁面「壞掉了」診斷流程
 
 當用戶回報「後台壞掉了」時，按以下順序排查（優先順序高→低）：

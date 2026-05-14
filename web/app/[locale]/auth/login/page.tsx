@@ -37,7 +37,7 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
       setTimeout(() => setLinkCopied(false), 3000);
     } catch {
       // Fallback: prompt the user to copy manually
-      window.prompt("Copy this URL and open it in Safari or Chrome:", window.location.href);
+      window.prompt(t("copyUrlPrompt"), window.location.href);
     }
   }
 
@@ -132,7 +132,7 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
           <div className="w-full border-t border-line" />
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="bg-surface px-2 text-fg-subtle">or</span>
+          <span className="bg-surface px-2 text-fg-subtle">{t("or")}</span>
         </div>
       </div>
 

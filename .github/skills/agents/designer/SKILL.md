@@ -162,9 +162,11 @@ All card-type hyperlinks in the web app use a **unified hover pattern** matching
 
 ```ts
 import { CARD_LINK, CARD_LINK_ARROW } from "@/lib/classNames";
-// CARD_LINK      = "group flex items-center transition hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400"
+// CARD_LINK      = "group flex items-center transition bg-[#FFFDF5] hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400"
 // CARD_LINK_ARROW = "text-fg-subtle group-hover:text-[#1F5E2B] dark:group-hover:text-green-400 shrink-0"
 ```
+
+> ⚠️ **bg-[#FFFDF5] ≠ bg-paper**：`bg-paper` 在 Tailwind v4 `@theme` 被 build-time 靜態編譯為 `#FFFDF5`；`dark:bg-paper` 雖語法正確，但實際上 CSS variable 切換對它無效。`bg-[#FFFDF5]` 搭配 `globals.css` line 378 的 `html.dark .bg-\[\#FFFDF5\]` runtime override 才是正確的 dark mode paper 寫法。
 
 **Usage:**
 ```tsx
@@ -183,19 +185,23 @@ import { CARD_LINK, CARD_LINK_ARROW } from "@/lib/classNames";
 
 ## OG Image 規範（`opengraph-image.tsx`）
 
-Current design (as of 2026-05-14, commit `92b9e82`):
+Current design (as of 2026-05-14, commit `2c6f863`):
 
 - **Size:** 1200×630（Twitter/X・Facebook・Slack 標準 1.9:1 ratio）
 - **Background:** `CATEGORY_PALETTE[category].bg`（CategoryThumbnail 的色彩系統，`web/lib/design/CategoryThumbnail.tsx`）
 - **Layout:** left text block 700×630（full-height, no cream panel）；category motif SVG absolute right 60, top 50, size 480×480
 - **Bottom-right:** wax-apple 吉祥物 SVG（body color = `palette.fg`）+ 品牌名稱
 - **Fonts:** Noto Sans JP（inline fetch from Google Fonts API）
+- **Semantic motif selection:** `pickSemanticMotif(primaryCat, titleBlob)` — 先從 `SEMANTIC_RULES`（title + location 關鍵字）選 motif，找不到才 fallback 到 category
+- **Brand hero mode:** `pickHeroObject()` 50% 機率讓 wordmark / TTR 字標 / 吉祥物成為主角；Bauhaus collage 物件數量依 `isBrandHero` 調整（3 or 4 個）
+- **Locale PRNG:** 同一活動不同語言版本有不同設計（locale-seeded random seed）
 
 **Rules:**
 1. Satori 不支援 Tailwind class，**全部使用 inline `style={{}}`**。
 2. 顏色來源只能是 `CATEGORY_PALETTE`；不可在 OG 圖中硬寫 hex。
 3. `export const runtime = "edge"` 必須設定（Edge Runtime 限制見 engineer SKILL.md §OG Image）。
 4. 更改 OG 圖設計時，同步更新 `CategoryThumbnail.tsx` 的 `CATEGORY_PALETTE` 若有新 category。
+5. **型別定義必須先於使用**：`HeroObjectKey`、`MotifKey`、`SEMANTIC_OBJECT_RULES`、`renderHeroObject()` 必須在 `pickHeroObject()` 呼叫前定義。TS 不會在重設計 diff 中自動偵測跨文件型別缺失，必須整包 commit。
 
 **⚠️ `export const size` 修改警示：**
 `height` 改變後必須同步更新：

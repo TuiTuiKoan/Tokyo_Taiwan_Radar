@@ -145,7 +145,12 @@
     "loginEmail": "Emailでログイン",
     "email": "メールアドレス",
     "magicLinkSent": "ログインリンクをメールで送信しました。ご確認ください。",
-    "logout": "ログアウト"
+    "logout": "ログアウト",
+    "inAppBrowserWarning": "現在、アプリ内ブラウザ（LINE / Messenger など）を使用しています。Googleログインに失敗する場合があります。Safari または Chrome で開いてください。",
+    "openInBrowser": "リンクをコピーしてブラウザで開く",
+    "linkCopied": "リンクをコピーしました",
+    "copyUrlPrompt": "このURLをコピーして、Safari または Chrome で開いてください：",
+    "or": "または"
   },
   "admin": {
     "title": "管理画面",

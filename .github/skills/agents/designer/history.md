@@ -1,3 +1,22 @@
+## 2026-05-14 — OG Image semantic motif + brand hero mode（commit `2c6f863`）
+
+- **Observation**: Bauhaus collage OG 圖的主體物件（wax-apple 吉祥物）與活動類別的語義連結不足，品牌識別度低。
+- **Fix**: 加入語義化關鍵字規則（`SEMANTIC_RULES`、`SEMANTIC_OBJECT_RULES`），根據標題和地點文字自動選擇 motif 與主體物件（`pickSemanticMotif()`、`pickHeroObject()`）。新增 brand hero mode（50% 機率）：讓 wordmark / TTR 字標 / 吉祥物成為畫面主角，提升品牌一致性。locale-seeded PRNG 確保同一活動的不同語言版本有不同設計變體。
+- **Lesson**: OG 圖的主體物件應優先由語義規則（title + location 關鍵字）決定，其次才 fallback 到 category 預設。`HeroObjectKey` / `MotifKey` 等型別定義必須在 `renderHeroObject()` / `pickHeroObject()` 使用前定義，否則 TS 報 2304；重設計必須作為完整單元 commit，不可分段提交只包含部分定義的狀態。
+
+## 2026-05-14 — Navbar desktop admin link hover-only（commit `71338be`）
+
+- **Observation**: Admin link 在桌面版 navbar 有 `text-green-700 font-medium` 永遠亮綠的樣式，其他 nav link 都是 hover-only。視覺不一致。
+- **Fix**: 改為 `hover:text-[#1F5E2B] dark:hover:text-green-400 transition`，與其他 nav link 完全統一。
+- **Lesson**: Navbar 的所有非 CTA link 應遵循「hover-only 顯色」規則，任何 always-on 的 `text-green-*` 或 `font-medium` 都是設計異常，需移除。
+
+## 2026-05-14 — Card-link 預設底色 bg-paper → bg-[#FFFDF5]（dark mode paper fix，commits `3470e28`, `a2b558c`）
+
+- **Observation**: 「相關活動」卡片在 dark mode 下顯示白色背景（暗色模式下應為深色 paper `#262422`）。
+- **Root cause**: Tailwind v4 的 `@theme` block 在 **build time** 靜態解析 CSS 變數：`bg-paper` 被編譯為固定值 `#FFFDF5`。因此 `dark:bg-paper` 生成 `.dark\:bg-paper { background-color: var(--color-paper) }` 雖然能用 CSS variable，但 `bg-paper` 本身已是靜態常數，`html.dark` 的 `:root.dark { --color-paper: #262422 }` 對它無效。
+- **Fix**: `CARD_LINK` 改用 `bg-[#FFFDF5]`（不是 `bg-paper`）。`globals.css` line 378 有 `html.dark .bg-\[\#FFFDF5\] { background-color: var(--color-paper); }` runtime override，在 dark mode 下正確換成 `#262422`。
+- **Lesson**: **paper 背景的 dark mode 正確寫法是 `bg-[#FFFDF5]`，永遠不要用 `bg-paper`。** Tailwind v4 `@theme` 變數 = build-time 靜態值，`dark:bg-paper` 雖然語法正確但在 runtime 無法響應 CSS variable 切換。唯一能 dark-mode-aware 的寫法是透過 globals.css 的 unlayered `html.dark .bg-\[\#FFFDF5\]` 選擇器覆蓋。
+
 ## 2026-05-14 — Card-link hover 統一化：CARD_LINK/CARD_LINK_ARROW + classNames.ts（commits `199e331`, `ed0d200`, `0efc5dd`）
 
 - **Observation**: 全站卡片型超連結有三種不同 hover 樣式（`hover:bg-green-50`、`hover:bg-[#F7FFE8]`、`hover:bg-elevated`），且都缺少 dark mode 支援。公告頁只有亮色模式 hover，完全沒有暗色模式。

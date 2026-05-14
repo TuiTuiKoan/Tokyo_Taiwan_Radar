@@ -4,6 +4,66 @@
 
 ---
 
+## 2026-05-14 - MascotAvatar SVG ID generation triggered React purity lint
+
+**問題：**
+首頁吉祥物動畫實作在 `MascotAvatar.tsx` 使用 `Math.random()` 產生 SVG gradient/mask ID。`pnpm -C web lint` 觸發 `react-hooks/purity`：render 期間呼叫 impure function。
+
+**修正：**
+改用 `useId()` 產生穩定 ID，並在同檔把 framed variant 既有的 random ID 一併改為 `useId()`。
+
+**教訓：**
+React 元件 render 期間不得使用 `Math.random()`、`Date.now()` 等 impure API 建立 ID。需要唯一但穩定的 DOM/SVG ID 時，優先使用 `useId()`。
+
+---
+
+## 2026-05-14 — Tailwind v4 `@theme` 靜態解析：`bg-paper` 無法 dark mode（commits `3470e28`, `a2b558c`）
+
+**問題：**
+`CARD_LINK` 使用 `bg-paper dark:bg-paper` 作為預設底色，期望 dark mode 下卡片顯示深色 paper（`#262422`）。實際上 dark mode 下卡片仍顯示白色 `#FFFDF5`。
+
+**根因：**
+Tailwind v4 的 `@theme` block **在 build time 靜態解析** CSS 變數：
+```css
+@theme { --color-paper: #FFFDF5; }  /* build time baked in */
+```
+因此 `bg-paper` 被編譯為固定的 `#FFFDF5`（靜態常數），而非 `var(--color-paper)`。`dark:bg-paper` 雖然生成 `.dark\:bg-paper { background-color: var(--color-paper) }` 能用 CSS 變數，但 plain `bg-paper` 已是靜態值，`html.dark { --color-paper: #262422 }` 對它完全無效。
+
+**修復：**
+`CARD_LINK` 改為 `bg-[#FFFDF5]`（移除 `dark:bg-paper`）。  
+`globals.css` line 378：
+```css
+html.dark .bg-\[\#FFFDF5\] { background-color: var(--color-paper); }
+```
+此 unlayered 選擇器在 runtime 將 `bg-[#FFFDF5]` 覆蓋為 `#262422`，正確實現 dark mode paper 底色。
+
+**教訓：**
+- Tailwind v4 `@theme` = build-time 靜態值，**不是** runtime CSS 變數代理。`bg-paper` 永遠是固定色，dark mode 切換對它無效。
+- **Paper 背景 dark mode 正確寫法：只用 `bg-[#FFFDF5]`**（不加 `dark:bg-paper`），依賴 globals.css line 378 的 `html.dark` 覆蓋。
+- 所有 `bg-paper` 的出現都應檢查是否需要 dark mode 支援；若需要，改為 `bg-[#FFFDF5]`。
+
+---
+
+## 2026-05-14 — Mermaid 架構圖自動縮放問題與修復（commits `e776fd5`, `75e4479`, `d321619`）
+
+**問題：**
+Architecture Explorer 中的 Mermaid 圖在顯示時文字過小、圖形被壓縮至不可讀。多次嘗試透過強制 inline width/min-width 修復均未達預期。
+
+**根因：**
+1. **`e776fd5`**：Mermaid 注入 `width:100%` 的 inline style 到 SVG，導致 wide diagrams 被壓縮。嘗試透過 viewBox 的 pixel width 強制覆蓋解決，但造成 overflow canvas 和 text overlap。
+2. **更根本問題**（`d321619`）：`ArchitectureFlowExplorer.tsx` 建構圖表時把全部 90 個 base nodes 都加入，即使只選一個 flow，Mermaid 仍嘗試在同一 canvas 渲染全部節點，造成圖形過大後被極度縮放。
+
+**修復：**
+- `75e4479`：revert Mermaid.tsx 到 pre-width-overrides baseline，消除多次 patch 的副作用。
+- `d321619`：`ArchitectureFlowExplorer.tsx` 改為只渲染所選 flow 的 steps 對應節點（with virtual fallback nodes），而非預加載全部 base nodes。stats panel 仍顯示總 node/action/flow 數。
+
+**教訓：**
+- Mermaid 圖太小/不可讀的**根本原因通常是資料量**，不是 CSS 設定。先確認圖中節點數量，再考慮 CSS 修復。
+- `width:100%` inline style 問題若不能從 data 層解決，應 revert 到已知正常狀態，不要疊加多層 CSS hack。
+- `git revert` 到 baseline 再從 data 層修才是正確策略（先 revert，再 fix root cause）。
+
+---
+
 ## 2026-05-14 — Card-link hover 統一化：classNames.ts + group-hover 箭頭修復（commits `199e331`, `ed0d200`, `0efc5dd`）
 
 **問題：**
