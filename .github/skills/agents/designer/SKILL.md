@@ -309,8 +309,43 @@ interface MascotAvatarProps {
 - Do NOT use inline `animation:` styles — use the data-attribute selector pattern for toggle control.
 
 **SMIL vs CSS keyframe choice:**
-- Circle pulse at antenna tip: SMIL `<animate>` (element-level, no external class needed)
-- Stroke-dashoffset flow along path: CSS `@keyframes` via data-attribute selector (more flexible for timing sync)
+- Circle pulse at antenna tip: CSS `@keyframes` with class selectors (`lianbu-tip-ring/core/spark`) — three separate layers allow independent timing without coupling.
+- Stroke-dashoffset flow along path: CSS `@keyframes` via data-attribute selector (more flexible for timing sync).
+- Path-following dot motion: SMIL `<animateMotion>` with `keyTimes` / `keyPoints` for dwell control.
+
+**Tip white-flash pattern (three layers):**
+```tsx
+// In MascotBody: tag each tip circle with a semantic class
+<circle className="lianbu-tip-ring" cx={164} cy={26} r={11} … />
+<circle className="lianbu-tip-core" cx={164} cy={26} r={6}  … />
+<circle className="lianbu-tip-spark" cx={164} cy={26} r={2.2} … />
+```
+```css
+/* globals.css — each keyframe covers: 0% green → 10%–26% white → 40% back to green */
+@keyframes lianbu-tip-ring-flash { … }
+@keyframes lianbu-tip-core-flash { … }
+@keyframes lianbu-tip-spark-flash { … }
+```
+
+**Start-point dwell via SMIL keyTimes:**
+```tsx
+<animateMotion
+  dur="2.2s"
+  repeatCount="indefinite"
+  path={antennaPathReverse}
+  keyTimes="0;0.32;1"
+  keyPoints="0;0;1"
+  calcMode="linear"
+/>
+```
+`keyPoints="0;0;1"` keeps the dot at position 0 (tip) from `t=0` to `t=0.32` before traveling to position 1 (body).
+
+**Direction reversal:** `animateMotion` follows the path *as written*. To reverse direction, reverse the path string coordinates — `antennaPathReverse` starts at the tip `M160,30` instead of the body `M100,80`. Do **not** use CSS `animation-direction: reverse` on SMIL-driven elements.
+
+**`prefers-reduced-motion` checklist for new animation layers:**
+- `lianbu-antenna-flow-line` → `animation: none`
+- `lianbu-antenna-flow-dot` → `display: none`
+- `lianbu-tip-ring`, `lianbu-tip-core`, `lianbu-tip-spark` → `animation: none`
 
 **Adding new animation states:** add new CSS selector block under `[data-antenna-flow="on"]` in `globals.css`. Never hardcode animation values in the TSX file itself.
 

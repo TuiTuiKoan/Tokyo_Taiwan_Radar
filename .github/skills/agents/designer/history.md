@@ -1,3 +1,8 @@
+## 2026-05-15 — MascotAvatar 天線動效迭代：起點白光脈衝、方向反轉、亮度調校
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-15 | 初版天線流光（`antennaFlowAnimation`）方向錯誤（從身體跑向天線），亮度不足，起點天線圓圈無預告直接出發，動效節奏不自然。有一版先實作為 `signalAnimation` 但視覺「很怪」被使用者要求還原，整個清掉重來。 | 1) 第一版用 `signalAnimation` prop 加了過多層（beam/sheen/glow），視覺互相干擾。2) `animateMotion` 預設從 path 起點出發，方向取決於 path 座標順序，反轉方向需改 path 字串本身。3) 起點圓圈沒有「蓄力感」，動畫出現太突然。 | 1) 清除 `signalAnimation` 所有殘留後重新以 `antennaFlowAnimation` 為唯一入口。2) 天線 path 新增 `antennaPathReverse`（座標反向），`animateMotion` 改用 reverse path。3) 流線漸層方向一起反轉（`x1/x2` 對調）。4) `keyTimes="0;0.32;1" keyPoints="0;0;1"` 讓光點在起點停留約 0.7s（2.2s cycle × 32%）再出發。5) 起點天線末梢（cx=164,cy=26）拆成三個獨立 class（`lianbu-tip-ring`、`lianbu-tip-core`、`lianbu-tip-spark`），分別以 `@keyframes lianbu-tip-ring-flash/core-flash/spark-flash` 驅動白色覆蓋動畫（0%→10% 變白、10%→26% 保持、40% 回綠）。6) 漸層白化：`stop-color: #FFFFFF` + `stopOpacity: 0.92~1`，`feGaussianBlur stdDeviation` 從 1.8→3.4，讓發光暈更大。 | 1) **動畫方向靠 path 字串決定，不是靠 CSS `animation-direction: reverse`**——SMIL `animateMotion` 沒有 reverse 屬性，要反向就必須改 path。2) **「蓄力」節奏靠 SMIL `keyTimes/keyPoints` 的停頓窗口**，不需要 JS。起點停留比例設 30%±10% 在視覺上效果最自然。3) **三層 tip 疊加（ring/core/spark）是最小化的「圓圈發白」技巧**，且每層可獨立微調 timing 不互相耦合。4) **動畫整包清除後重建比局部修補更快**——當多個 class/filter 殘留造成衝突時，grep 確認 0 殘留後從空白開始。5) `prefers-reduced-motion: reduce` 必須同步把三個 tip class 都加入 `animation: none`，否則螢幕閱讀器使用者仍會看到閃爍。
+
 ## 2026-05-15 — MascotAvatar 觸角能量流動畫（`antennaFlowAnimation` prop）
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
