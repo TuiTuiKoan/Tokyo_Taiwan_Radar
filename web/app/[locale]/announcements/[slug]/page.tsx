@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale, type Announcement, type Event, getEventName } from "@/lib/types";
 import Link from "next/link";
+import { CARD_LINK } from "@/lib/classNames";
 
 interface PageProps {
   params: Promise<{ locale: Locale; slug: string }>;
@@ -127,7 +128,7 @@ export default async function AnnouncementDetailPage({ params }: PageProps) {
               <Link
                 key={ev.id}
                 href={`/${locale}/events/${ev.id}`}
-                className="flex items-center gap-3 px-3 py-2 bg-elevated rounded-lg hover:bg-green-50 hover:text-green-700 transition text-sm"
+                className={`${CARD_LINK} gap-3 px-3 py-2 bg-elevated rounded-lg text-sm`}
               >
                 {ev.start_date && (
                   <span className="text-xs text-fg-subtle shrink-0">
