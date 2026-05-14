@@ -541,11 +541,22 @@ export default async function EventDetailPage({ params }: PageProps) {
           <h1 className="font-display font-bold text-[#3A261F] text-2xl sm:text-[26px] leading-snug">{name}</h1>
           <AdminEventActions eventId={event.id} locale={locale} initialIsActive={event.is_active} />
         </div>
-        <SaveButton
-          eventId={event.id}
-          initialSaved={false}
-          locale={locale}
-        />
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <SaveButton
+            eventId={event.id}
+            initialSaved={false}
+            locale={locale}
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`/${locale}/events/${id}/opengraph-image`}
+            alt={name ?? ""}
+            width={112}
+            height={112}
+            className="rounded-xl border border-line object-cover"
+            loading="lazy"
+          />
+        </div>
       </div>
 
       {/* ===== Narrative summary (SEO content thickening) ===== */}

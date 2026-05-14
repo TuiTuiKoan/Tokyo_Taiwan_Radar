@@ -279,7 +279,7 @@ export default async function CategoryPage({ params }: PageProps) {
   ];
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-6">
+    <main className="max-w-4xl mx-auto">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionLd) }}
