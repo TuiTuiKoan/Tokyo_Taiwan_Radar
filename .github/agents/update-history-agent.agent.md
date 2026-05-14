@@ -46,6 +46,7 @@ handoffs:
    - 流程型 agent 完成後若預期有下一步，必須提供對應 `handoffs`
    - 若 handoff 含 `prompt:` 且要一鍵執行，必須同時設 `send: true`
    - handoff 目標名稱必須與目標 agent `name:` 完全一致（區分大小寫）
+   - **⚠️ 互觸循環警示**：若 A → B 設有 `send: true`，則 B → A 的 handoff **絕對不可**再設 `send: true`，否則形成無限自動觸發迴圈。典型案例：V-M-D 完成後 `send: true` 自動呼叫 Update History；若 Update History 也 `send: true` 回呼 V-M-D，每次 docs commit 都會再觸發一輪，永不停止。
 
 5. **補齊驗證語境**:
    - 若此次修復涉及 Supabase migration 或 RPC 權限，補上「app request 與 SQL Editor 模擬」兩種語境的驗證教訓

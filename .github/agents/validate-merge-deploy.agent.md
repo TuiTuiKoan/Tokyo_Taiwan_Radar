@@ -10,6 +10,7 @@ handoffs:
     agent: Update History, Skill, Agent
     prompt: "根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。"
     send: true
+    # ⚠️ 互觸循環防護：Update History → V-M-D 的 handoff 不可設 send: true
   - label: "🏗️ Plan next change"
     agent: Architect
   - label: "🕷️ Continue scraper work"

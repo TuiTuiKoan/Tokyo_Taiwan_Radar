@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-05-15 — Agent handoff `send: true` 雙向互觸造成無限迴圈
+
+**問題：** 每次跑完 V-M-D → Update History → V-M-D → Update History…永不停止，使用者無法中斷。
+
+**根因：** `validate-merge-deploy.agent.md`（V-M-D → Update History）與 `update-history-agent.agent.md`（Update History → V-M-D）兩個 handoff 都設了 `send: true`。V-M-D 完成 docs commit 後，自動觸發 Update History；Update History 完成後，又自動觸發 V-M-D；如此循環。
+
+**修正：** 移除 `update-history-agent.agent.md` 中「🚀 Validate, merge & deploy」handoff 的 `send: true`，改為手動點擊。V-M-D → Update History 保留 `send: true`（部署後自動記錄是合理的），但反向不可自動觸發。
+
+**教訓：** 若 A → B 設有 `send: true`，B → A 的 handoff 絕對不可再設 `send: true`，否則形成無限迴圈。每個「會產生 commit」的 agent 結尾都可能再觸發 Update History，而 Update History → V-M-D 的 `send: true` 只要存在就必然循環。
+
+---
+
 ## 2026-05-15 — 發現 agent 和 SKILL.md 內的建構指令錯誤（`npm run build` 應為 `pnpm run build`）
 
 **問題：** V-M-D agent、engineer SKILL.md、engineer history.md 均寫 `npm run build`，但此專案使用 `pnpm`。
