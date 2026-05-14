@@ -1,3 +1,8 @@
+## 2026-05-15 — Mobile Filter CTA 雙狀態語意（`搜尋或篩選` → `確認`）
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-15 | Mobile FilterBar 在展開狀態缺少明確「完成操作」CTA，面板常停留在前景遮擋內容；同時按鈕語意與視覺狀態不夠直覺 | 互動規格只定義了「打開篩選」，沒有定義「套用並關閉」的顯性行為；開關按鈕沒有建立 closed/open 的語意映射與色彩對位 | 將 mobile toggle 設為雙狀態 CTA：closed 顯示實心綠色 `搜尋或篩選`；open 顯示粉框+blush 底的 `確認`，點擊 `確認` 會收合 panel；新增 `filters.searchOrFilter`、`filters.confirm` 並同步 zh/en/ja | 1) 可收合面板的 trigger 必須同時設計 closed/open 兩個語意狀態，不可只有「開啟」狀態。2) 任何新 CTA 文案必須在同一 commit 完成三語系同步，避免 fallback raw key。
+
 ## 2026-05-15 — OG Image palette chroma 微調 + hero object 簡化（commit `a273483`）
 
 - **Observation**: PALETTES 中的顏色與 CategoryThumbnail.tsx 的現行 palette 稍有色差，thumbnail 色彩偏淡、對比不足。openBook 和 cyborgFace 的 SVG path 過於繁瑣（多條細小 path），視覺噪點明顯。

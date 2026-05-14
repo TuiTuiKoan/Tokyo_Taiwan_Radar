@@ -156,6 +156,18 @@ const [open, setOpen] = useState(false);
 <select className="appearance-none ...">
 ```
 
+## Mobile Filter CTA State Rule
+
+- Mobile FilterBar trigger must implement two explicit semantic states:
+  - Closed state: primary action label (example: `searchOrFilter`) with high-visibility solid style.
+  - Open state: confirm/apply label (example: `confirm`) that closes the panel after apply.
+- Open state CTA must not leave the panel expanded after user confirms. "Apply" without collapse is treated as an incomplete interaction spec.
+- Any new FilterBar CTA labels must be added to all three locale files in the same commit:
+  - `web/messages/zh.json`
+  - `web/messages/en.json`
+  - `web/messages/ja.json`
+- Visual state mapping should be obvious at a glance (color + label + icon can all change), but must keep contrast compliant in both light and dark themes.
+
 ## Card Link Hover Pattern
 
 All card-type hyperlinks in the web app use a **unified hover pattern** matching the navbar hamburger menu. This is the single source of truth — import from `web/lib/classNames.ts`.

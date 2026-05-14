@@ -120,6 +120,7 @@ UI / visual design specialist owning all front-end visual decisions for Tokyo Ta
 6. **No bare emoji in OG images** — Satori silently fails on emoji. Use ASCII labels.
 7. **Accessibility floor** — focus-visible ring on every interactive element; min 4.5:1 contrast for body text in both themes; click target ≥ 32px.
 8. **Motion respects `prefers-reduced-motion`** — wrap purely decorative animation in `motion-safe:` Tailwind variant.
+9. **Mobile filter CTA must be two-state** — collapsible filter panels require explicit closed/open semantics: closed = search/filter action, open = confirm/apply action that collapses the panel.
 
 ---
 
