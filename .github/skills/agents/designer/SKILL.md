@@ -158,12 +158,12 @@ const [open, setOpen] = useState(false);
 
 ## OG Image 規範（`opengraph-image.tsx`）
 
-Current design (as of 2026-05-14, commit `ef305d3`):
+Current design (as of 2026-05-14, commit `92b9e82`):
 
-- **Size:** 1200×1200 正方形（優於 1200×630 的跨平台相容性）
+- **Size:** 1200×630（Twitter/X・Facebook・Slack 標準 1.9:1 ratio）
 - **Background:** `CATEGORY_PALETTE[category].bg`（CategoryThumbnail 的色彩系統，`web/lib/design/CategoryThumbnail.tsx`）
-- **Layout:** 事件圖片佔左側 65% 寬，右欄 35% 含標題 + meta
-- **Right-bottom:** wax-apple 吉祥物 SVG（body color = `palette.fg`）+ 品牌名稱
+- **Layout:** left text block 700×630（full-height, no cream panel）；category motif SVG absolute right 60, top 50, size 480×480
+- **Bottom-right:** wax-apple 吉祥物 SVG（body color = `palette.fg`）+ 品牌名稱
 - **Fonts:** Noto Sans JP（inline fetch from Google Fonts API）
 
 **Rules:**
@@ -171,6 +171,15 @@ Current design (as of 2026-05-14, commit `ef305d3`):
 2. 顏色來源只能是 `CATEGORY_PALETTE`；不可在 OG 圖中硬寫 hex。
 3. `export const runtime = "edge"` 必須設定（Edge Runtime 限制見 engineer SKILL.md §OG Image）。
 4. 更改 OG 圖設計時，同步更新 `CategoryThumbnail.tsx` 的 `CATEGORY_PALETTE` 若有新 category。
+
+**⚠️ `export const size` 修改警示：**
+`height` 改變後必須同步更新：
+- 所有 `<svg width="1200" height="H" viewBox="0 0 1200 H">` 的 H 值
+- 所有 `cornerShape` 的 `cx`/`cy`/`points`/`d` 座標（以 H 為基準的定位）
+- 所有絕對定位元素（text block、mascot 等）的 `top`/`bottom`/`height`
+- Pattern SVG 的 `rect height`
+
+**Incident:** 2026-05-14 — working tree 只改 `height: 630→1200` 未同步版面，下半 570px 空白。`git restore` 還原。OG 圖必須做 local preview (`localhost:3000/.../opengraph-image`) 與 production 對比確認再 commit。
 
 
 

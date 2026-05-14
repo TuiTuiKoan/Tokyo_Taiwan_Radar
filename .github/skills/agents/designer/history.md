@@ -1,3 +1,9 @@
+## 2026-05-14 — OG Image 局部還原 bug：只改 height 未更新版面配置
+
+- **Observation**: Validate-Merge-Deploy 流程中，local `opengraph-image.tsx` working tree 只把 `export const size.height` 從 630 改回 1200，但所有 SVG viewBox、corner accent 座標、文字欄寬高全都還是 1200×630 的版本。結果 local preview 下半 570px 完全空白。Production（1200×630 committed 版本）則完全正常。
+- **Fix**: `git restore 'web/app/[locale]/events/[id]/opengraph-image.tsx'` 還原到 committed 狀態。無需重新 commit/push。
+- **Lesson**: `export const size` 是 Satori OG Image 的 canvas 根設定。高度變更後**必須同步更新**：(1) 所有 `<svg viewBox="0 0 W H">` 的 H；(2) 所有絕對定位元素的 `top`/`bottom`/`right` 座標；(3) corner accent 形狀的 pivot 點。只改一行 size 等同於「換了畫框但圖不動」——視覺永遠是錯的。`git diff` 前必須先確認 local preview 是否與 production 一致，再決定是 commit 還是 restore。
+
 ## 2026-05-14 — OG Image 1200×1200 → 1200×630 に差し戻し（full-bleed レイアウト、commit `92b9e82`）
 
 - **Observation**: 以前のセッションで「正方形 1200×1200 が Instagram/LINE に強い」として方形に変更したが、Twitter/X・Facebook・Slack はいずれも 1.9:1（1200×630）を標準とし、正方形は上下クロップされてタイトルが見切れるフィードバックがあった。また 1200×1200 の cream bottom panel レイアウトはテキストが下半分に詰まり、1200×630 の横長 canvas では不釣り合いだった。

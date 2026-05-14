@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-05-14 — session memory 路徑不存在 (`/memories/session/plan.md` → 實際在 `grandchild-event-analysis.md`)
+
+**問題：**
+User 要求「執行 `/memories/session/plan.md` 的計畫」，但該路徑不存在。正確的計畫文件是 `/memories/session/grandchild-event-analysis.md`（孫子事件分析與修復方案）。因為 session memory 只列出文件名而非完整路徑，導致初始查找失敗。
+
+**修正：**
+呼叫 `memory view /memories/session/` 列出目錄，找到唯一文件 `grandchild-event-analysis.md`，確認這就是計畫文件，並依其內容執行修復。
+
+**教訓：**
+- Session memory 的文件名由建立者決定，不一定叫 `plan.md`。每次被要求「執行計畫」前，**必須先 view `/memories/session/` 目錄**，確認實際文件名，不要假設路徑。
+- 呼叫 session memory 前先 `view /memories/session/` 這個步驟應加入 Update History, Skill, Agent agent 的 Required Steps。
+
+---
+
 ## 2026-05-14 — Validate, Merge & Deploy agent も handoffs 未設定（commit `b96ac15`）
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

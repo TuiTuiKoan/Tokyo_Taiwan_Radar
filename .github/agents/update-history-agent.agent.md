@@ -18,6 +18,11 @@ handoffs:
 
 ## 工作流
 
+0. **前置：列出 session memory 目錄**（必做）：
+   - 呼叫 `memory view /memories/session/` 列出所有現有的 session 文件
+   - 若 user 提到「依照 plan.md 執行」，確認實際文件名（可能不叫 `plan.md`）
+   - 確認後再詢問背景或讀取計劃內容
+
 1. **詢問背景**: 
    - 發生了什麼問題？
    - 根本原因是什麼？
