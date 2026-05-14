@@ -179,7 +179,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
               </Link>
             )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex gap-3 overflow-x-auto pb-1">
             {featuredAnnouncements.slice(0, 3).map((ann) => (
               <AnnouncementCard key={ann.id} announcement={ann} locale={locale} />
             ))}

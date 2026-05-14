@@ -51,7 +51,7 @@ export default function AnnouncementCard({ announcement, locale }: Props) {
   return (
     <Link
       href={`/${locale}/announcements/${announcement.slug}`}
-      className="group relative flex overflow-hidden rounded-xl border border-line/70 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
+      className="group relative flex shrink-0 w-[260px] overflow-hidden rounded-xl border border-line/70 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
       style={{ background: "linear-gradient(135deg, #FFF6D1 0%, #FFE9A8 100%)" }}
       data-preserve-theme="light"
     >
