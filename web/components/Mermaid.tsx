@@ -25,6 +25,13 @@ export default function Mermaid({ chart, fallback }: Props) {
         const { svg } = await mermaid.render(id, chart);
         if (!cancelled && ref.current) {
           ref.current.innerHTML = svg;
+          // Remove Mermaid's max-width constraint so large graphs scroll horizontally
+          // instead of being compressed to fit the container width (unreadable).
+          const svgEl = ref.current.querySelector("svg");
+          if (svgEl) {
+            svgEl.style.maxWidth = "none";
+            svgEl.style.height = "auto";
+          }
         }
       } catch (e) {
         if (!cancelled) {
