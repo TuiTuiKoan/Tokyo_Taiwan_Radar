@@ -25,7 +25,9 @@ handoffs:
 ### Step 1: 檢查 Git 狀態
 1. 檢查是否有未解決的 merge/rebase 衝突
 2. 檢查是否有 unstaged 變更（必須先 stage 或 stash）
-3. 提醒用戶解決任何待處理項目
+3. 若 dirty worktree 含本次任務範圍外文件，先列出並請用戶確認提交範圍（只提交目標檔 / 全部一起）
+4. 若同一檔案出現 `MM`（staged + unstaged 同時存在），先 re-stage 最新版本並用 `git diff --cached <file>` 確認後再進入 Step 2
+5. 提醒用戶解決任何待處理項目
 
 ### Step 2: Rebase（如果需要）
 1. 先執行 `git fetch origin main`，更新 remote tracking

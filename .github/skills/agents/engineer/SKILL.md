@@ -316,6 +316,20 @@ router.push('/admin');
 
 Reference: 2026-05-05 城市徽章兩輪才生效（commit `5a29c13` → `9f4b468`）。
 
+## Card-link Consistency Rule（Sources / Announcement / Event Detail）
+
+- 清單型超連結卡片（整列可 hover / 可點擊）必須優先使用 `web/lib/classNames.ts` 的 `CARD_LINK` 與 `CARD_LINK_ARROW`。
+- 禁止在單頁內重複手寫「paper 底色 + 綠色 hover」組合（`bg-[#FFFDF5]`、`hover:bg-[#F7FFE8]`、`hover:text-[#1F5E2B]`）。若發現重複，應回抽到共用 class。
+- `Sources` 頁面列項若需與全站一致，列項容器應以 `CARD_LINK` 為基礎，再補業務差異 class（例如 `justify-between`, `cursor-default`）。
+
+## Pre-Commit MM Drift Guard（staged/unstaged 同檔漂移）
+
+- 任何準備部署的 commit 前，必做以下檢查：
+  1. `git status --short`
+  2. 若同一路徑出現 `MM`，代表 index 與 working tree 版本不一致，禁止直接 commit。
+  3. 先 `git add <file>` 更新 index 到最新，再用 `git diff --cached <file>` 確認最終提交內容。
+- 部署驗證必須以 `--cached` 內容為準。否則會出現「本地看起來修好了，但實際 push 的不是該版本」的偽成功。
+
 ## Event Detail Page — Performer Display Priority
 
 `web/app/[locale]/events/[id]/page.tsx` 的 performer 顯示邏輯必須依照以下優先序：

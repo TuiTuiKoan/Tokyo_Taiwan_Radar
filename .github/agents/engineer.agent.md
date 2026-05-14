@@ -99,14 +99,18 @@ When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
 31. **Pipeline parity rule:** Any post-processing step added to CI workflow (`scraper.yml`) must also be called in `main.py`'s normal (non-dry-run) flow. Current full pipeline: scrape → merger → annotate → `enrich_movie_titles()` → `enrich_person_names()` → IndexNow. Enrich functions are idempotent — double execution in main.py + CI is safe. See `SKILL.md § Python`.
 32. **Admin correction two-tier protection:** When building or modifying a confirm-report flow that resets `annotation_status` to `pending`, verify both tiers are intact: (a) P0 — `_ai_or_existing()` preserves non-null DB values during normal re-annotation; (b) P1 — `field_corrections` table records explicit admin overrides that persist across unlimited re-annotations (including `--all`). `confirm-report.ts` must write to BOTH `events` table AND `field_corrections` table. See `SKILL.md § Admin Correction Protection — Two-Tier Pattern`.
 33. **next-intl `getTranslations()` namespace verification:** After adding any `getTranslations("namespace")` or `useTranslations("namespace")` call, ALWAYS verify the namespace and all keys exist in ALL 3 message files (`zh.json`, `en.json`, `ja.json`). next-intl silently renders the raw key string (e.g. `organizerType.commercial_brand`) for missing keys — no error, no warning, no build failure. Verify with `grep -n "namespace" web/messages/zh.json`.
+34. **Card-link consistency rule:** For list-style clickable rows (sources/announcements/event detail links), reuse `CARD_LINK`/`CARD_LINK_ARROW` from `web/lib/classNames.ts` instead of page-local duplicated hover classes. Keep light-mode paper background + green hover behavior consistent site-wide.
+35. **MM drift pre-commit guard:** Before any commit/deploy, run `git status --short`. If a file is `MM`, re-stage that file and verify with `git diff --cached <file>` before commit. Never commit when staged and working-tree versions diverge.
+36. **Supabase 1000-row default limit guard:** Never use unpaginated `.select()` result length as total count. For totals, use `.select("id", { count: "exact", head: true })`; when the UI needs all rows, fetch with explicit `.range()` pagination and merge batches.
 
 ### Step 3: Verify
 
 1. Run `get_errors` on all modified files.
-2. For scraper changes: `cd scraper && python main.py --dry-run --source <name>`
-3. For web changes: `cd web && npx tsc --noEmit` then `npm run build` (local only, not deploy)
-4. For DB migrations: review SQL against `.github/instructions/database.instructions.md` conventions; do NOT apply without user confirmation.
-5. **After modifying `annotator.py` SYSTEM_PROMPT or `_SIMP_TO_TRAD` char map:** verify every `*_zh` field description says "Traditional Chinese (繁體中文)". After any batch re-annotation **or** char map change, run a full-DB scan on ALL `*_zh` fields:
+2. Run `git status --short` and check for any `MM` files; if found, re-stage and re-check cached diff before proceeding.
+3. For scraper changes: `cd scraper && python main.py --dry-run --source <name>`
+4. For web changes: `cd web && npx tsc --noEmit` then `npm run build` (local only, not deploy)
+5. For DB migrations: review SQL against `.github/instructions/database.instructions.md` conventions; do NOT apply without user confirmation.
+6. **After modifying `annotator.py` SYSTEM_PROMPT or `_SIMP_TO_TRAD` char map:** verify every `*_zh` field description says "Traditional Chinese (繁體中文)". After any batch re-annotation **or** char map change, run a full-DB scan on ALL `*_zh` fields:
    ```python
    import re, os; from dotenv import load_dotenv; from supabase import create_client
    load_dotenv('.env'); sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
@@ -117,7 +121,7 @@ When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
    print(f'Bad: {len(bad)}'); [print(f'  {i} active={a} [{f}] {v!r}') for i,a,f,v in bad]
    ```
    Any new char found → add to `_SIMP_TO_TRAD` AND `auto_qa.py.SIMP_RE` AND DB-patch all affected rows.
-6. **GitHub Actions workflows:** Any `with:` field whose value is a pure `${{ expression }}` must be quoted (`path: "${{ ... }}"`). Bare expressions cause YAML schema validator warnings.
+7. **GitHub Actions workflows:** Any `with:` field whose value is a pure `${{ expression }}` must be quoted (`path: "${{ ... }}"`). Bare expressions cause YAML schema validator warnings.
 
 ### Step 4: Deploy (requires explicit user approval)
 

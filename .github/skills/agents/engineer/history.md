@@ -4,6 +4,11 @@
 
 ---
 
+## 2026-05-15 — Sources 卡片樣式漂移 + 部署前 MM 漂移風險
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-15 | `/[locale]/sources` 在 light mode 卡片未統一 paper 底色，hover 也未對齊全站卡片規格；同輪部署驗證中發現同一檔案出現 `MM`（staged 與 working tree 不同版本） | Sources 列表沒有使用共用 `CARD_LINK` 樣式，仍保留頁面內自定義 class；部署前未檢查「同檔 staged/unstaged 漂移」導致驗證版本與實際提交版本可能不一致 | `web/app/[locale]/sources/page.tsx` 改用 `CARD_LINK` + `group-hover`（亮色固定 paper 底、hover 綠底綠字）；提交前對 `MM` 檔案先重新 `git add` 最新版本，再以 `git diff --cached` 確認最終提交內容 | 1) 清單型超連結卡片禁止重寫 hover/paper 風格，統一走 `web/lib/classNames.ts` 的 `CARD_LINK`。2) 任何部署流程在 commit 前必做 `MM` 檢查，避免「驗證的是 A、推上去的是 B」。
+
 ## 2026-05-15 — `end_date` 被 re-annotation 覆寫為 None（FC 鎖缺失）
 
 **問題：** 事件 `b4d97c35`（GAGA 大阪上映会）在 2026-05-14 被再次 annotate，`end_date` 遭覆寫為 `None`。`start_date` 有 FC 鎖所以保留正確值，但 `end_date` 無 FC 鎖，被 annotator 的 `end_date = start_date` 自動補填邏輯或清空邏輯覆寫。
