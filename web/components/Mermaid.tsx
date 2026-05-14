@@ -25,17 +25,19 @@ export default function Mermaid({ chart, fallback }: Props) {
         const { svg } = await mermaid.render(id, chart);
         if (!cancelled && ref.current) {
           ref.current.innerHTML = svg;
-          // Mermaid renders SVG with width="100%" + max-width:Npx.
-          // width="100%" shrinks the diagram to container width (unreadable for
-          // large graphs). Fix: set explicit pixel width from viewBox so the
-          // diagram renders at natural size and the parent scrolls horizontally.
+          // Mermaid renders SVG with inline width:100% + max-width. For wide
+          // graphs this compresses all labels into unreadable size.
+          // Force natural pixel width from viewBox and rely on horizontal scroll.
           const svgEl = ref.current.querySelector("svg");
           if (svgEl) {
             const vb = svgEl.getAttribute("viewBox");
             const vbWidth = vb ? parseFloat(vb.trim().split(/[\s,]+/)[2]) : 0;
             if (vbWidth > 0) {
               svgEl.setAttribute("width", String(vbWidth));
+              svgEl.style.width = `${vbWidth}px`;
               svgEl.style.maxWidth = "none";
+              svgEl.style.minWidth = `${vbWidth}px`;
+              svgEl.style.height = "auto";
             }
           }
         }
