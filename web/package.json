@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.33.3",
   "scripts": {
     "dev": "next dev",
+    "test:e2e:dark-smoke": "playwright test tests/e2e/darkmode-navbar-related.smoke.spec.ts",
     "build-specs-snapshot": "tsx scripts/build-specs-snapshot.ts",
     "prebuild": "tsx scripts/build-specs-snapshot.ts",
     "build": "next build",
@@ -31,6 +32,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@playwright/test": "^1.56.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",

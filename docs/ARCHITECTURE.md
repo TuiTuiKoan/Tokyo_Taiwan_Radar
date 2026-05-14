@@ -1,7 +1,7 @@
 ---
 title: Architecture Overview
 description: 東京台灣雷達全站架構總覽 — 爬蟲、翻譯、資料庫、前端、CI/CD、LINE Bot
-ms.date: 2026-05-07
+ms.date: 2026-05-14
 ---
 
 ## 系統總覽
@@ -329,6 +329,7 @@ Admin 撰寫發文（三語 title + body + images）
 | `secret-rotation-reminder.yml` | — | 密鑰輪替提醒 |
 | `monthly_health_check.yml` | 每月 1 日 09:00 JST | 月度 feedback-loop 健康檢查 |
 | `external-stats-pull.yml` | 每月 1 日 09:30 JST | JNTO / MOJ / e-Stat 外部統計拉取 |
+| `web-darkmode-smoke.yml` | push(main, web/**) / 手動 | dark mode smoke 測試（Navbar + 發文詳情相關活動） |
 
 ### 每日 Pipeline（scraper.yml）
 

@@ -1,0 +1,78 @@
+name: web-darkmode-smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - web/**
+      - .github/workflows/web-darkmode-smoke.yml
+  workflow_dispatch:
+
+jobs:
+  darkmode-smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install web dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Start Next.js app
+        working-directory: web
+        run: |
+          pnpm dev --hostname 127.0.0.1 --port 3000 > /tmp/web-darkmode-smoke-next.log 2>&1 &
+          echo $! > /tmp/web-darkmode-smoke-next.pid
+
+      - name: Wait for app health
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:3000/zh > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "App did not become ready in time"
+          exit 1
+
+      - name: Run dark mode smoke test
+        working-directory: web
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+        run: pnpm test:e2e:dark-smoke
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-darkmode-smoke
+          path: web/playwright-report
+          if-no-files-found: ignore
+
+      - name: Stop Next.js app
+        if: always()
+        run: |
+          if [ -f /tmp/web-darkmode-smoke-next.pid ]; then
+            kill "$(cat /tmp/web-darkmode-smoke-next.pid)" || true
+          fi
