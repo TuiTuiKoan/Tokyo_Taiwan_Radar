@@ -547,15 +547,6 @@ export default async function EventDetailPage({ params }: PageProps) {
             initialSaved={false}
             locale={locale}
           />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`/${locale}/events/${id}/opengraph-image`}
-            alt={name ?? ""}
-            width={112}
-            height={112}
-            className="rounded-xl border border-line object-cover"
-            loading="lazy"
-          />
         </div>
       </div>
 
