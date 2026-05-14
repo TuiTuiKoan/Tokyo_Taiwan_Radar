@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-05-15 — asahiculture 4 欄位同時抓錯（venue / end_date / performer / organizer）
+
+**根本原因分析（事件 `asahiculture_8759178`，立川サテライト教室）：**
+
+### A — `location_name` 讀搜尋卡片 branch，非實際場地
+搜尋結果 `li.text-school` 顯示**行政管轄教室**（新宿教室），而衛星課程的實際場地（立川サテライト教室）只在 detail 頁`備考`表格以`「会場名」`括弧呈現。爬蟲直接用 card branch，導致 `location_name` 永遠是管理端教室。
+**修正：** `_fetch_detail()` 讀 `備考` `th/td` row，以 `r"「([^」]+)」"` 提取真實場地；fallback 才使用 card branch。
+
+### B — `end_date` 只取第一個日期（`re.search`）
+`_parse_date()` 用 `re.search()` 只回傳第一個 match。`2026/04/07火～2026/06/16火` 兩個完整日期，只抓 `04/07`，`06/16` 永遠遺失。
+**修正：** 替換為 `_parse_date_range()`，用 `re.findall()` 取所有日期，`[0]` 為 `start_date`，`[-1]` 為 `end_date`。
+
+### C — `performer` 被「台湾キーワード」篩選遮蔽
+`_fetch_detail_description()` 只撈含「台湾/Taiwan」的 `<p>` 段落。講師介紹區塊（`<h3>` heading）不含台灣關鍵字，完全被略過。annotator 後來從 `raw_description` 結尾的「（講師・記）」截出「記」作為 performer。
+**修正：** `_fetch_detail()` 獨立掃所有 `<h3>`，用漢字姓名 regex `r"([\u4e00-\u9fff]{1,6}[\s\u3000]+[\u4e00-\u9fff]{1,6})[\s\u3000]*[（(]"` 提取姓名。
+
+### D — `organizer` 從未提取
+爬蟲完全沒有 organizer 提取邏輯，交給 annotator 推斷，annotator 缺線索也留 None。
+**修正：** 加入模組級常數 `ORGANIZER = "朝日カルチャーセンター"`，Event constructor 直接設定。
+
+**修正 commit：** `da3ac31`
+
+---
+
 ## 2026-05-12 — nittai_toumonkai / tsudoi_osaka scrapers + frontend UTC date fix
 
 ### A — WordPress `<strong>` strip 後空格 → `\s*` regex

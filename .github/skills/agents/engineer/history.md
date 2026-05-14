@@ -4,6 +4,75 @@
 
 ---
 
+## 2026-05-15 — Tester FAIL: pytest 匯入失敗 + annotator `--dry-run` 仍寫 DB
+
+**問題：**
+1. `cd scraper && pytest tests/test_single_day_end_date_guard.py -q` 報 `ModuleNotFoundError: No module named annotator`。
+2. `python annotator.py --id <eid> --dry-run` 仍觸發 `events` PATCH 與 `scraper_runs` POST。
+
+**根因：**
+1. 測試執行時未保證 `scraper/` 在 `sys.path` 前段，`from annotator import ...` 在部分環境會失敗。
+2. CLI 有解析 `--dry-run`，但沒有把 flag 傳入 `annotate_pending_events()`；函式內也無 dry-run 寫入封鎖。
+
+**修正：**
+1. 新增 `scraper/tests/conftest.py`，將 `scraper/` 目錄加入 `sys.path`。
+2. `annotate_pending_events(..., dry_run: bool = False)`：
+  - 主事件 `events.update`
+  - localized 欄位更新
+  - sub-event upsert/update
+  - `location_prefectures` 更新
+  - error 狀態回寫
+  - `scraper_runs` insert
+  全部在 dry-run 改為 log only。
+3. CLI 主入口把 `dry_run_flag` 傳入 `annotate_pending_events()`。
+
+**教訓：**
+- `--dry-run` 必須「從 CLI 參數一路 thread 到實際 I/O 呼叫點」才算成立；僅解析旗標但未傳遞，等同沒有 dry-run。
+- 針對 script-style 模組（如 `annotator.py`）的單元測試，應在 `tests/conftest.py` 顯式設定 import path，避免依賴 shell 當下的工作目錄。
+
+## 2026-05-15 — 單日活動 `end_date` 回歸多日值，需以程式守衛 + FC 成對鎖雙重修復
+
+**問題：** 事件 `2cae572a-1024-493a-93ad-74ade21246dc` 的 `start_date=2026-04-06` 但 `end_date` 漂移為 `2026-05-04`，違反單日活動規則。
+
+**根因：** 既有邏輯只在 `end_date` 為 null 時補 `start_date`，未處理「可判定單日但 GPT/資料回寫成跨日」的情境；同時 `field_corrections.end_date` 曾被鎖成 `null`，讓回寫保護失效。
+
+**修正：**
+1. 在 `annotator.py` 新增 `_apply_single_day_end_date_guard()`，僅在「可安全判定單日」時強制 `end_date=start_date`，多日/未知情境不改。
+2. 守衛套用在 parent event 與 sub-event 寫入前。
+3. DB 一次性修復該事件：`events.end_date` 改為 `2026-04-06T00:00:00+00:00`。
+4. `field_corrections` 成對 upsert：`start_date`、`end_date`（並保留 `business_hours` 鎖）。
+
+**教訓：**
+- 單日規則不能只靠 prompt，必須在寫入前有 deterministic guard。
+- 日期欄位修復必須同步維護 FC pair lock（`start_date` + `end_date`），否則 re-annotation 會再次漂移。
+
+## 2026-05-15 — 手動修正 event 欄位時 `organizer_type` check constraint 報錯
+
+**問題：** 修正 event `1334fc96`（朝日カルチャーセンター 立川サテライト）時，設 `organizer_type: ['private_company']`，Supabase 回傳 `APIError: new row violates check constraint "events_organizer_type_check"`，整筆 update 全部 rollback。
+
+**根因：** `events` 表對 `organizer_type` 陣列元素有 check constraint，僅允許特定枚舉值。`private_company` 不在允許清單內。
+
+**修正：** 改用 `['cultural_institution']`（朝日カルチャーセンター 為文化教育機構）後 update 成功。
+
+**合法 `organizer_type` 值（截至 2026-05-15）：**
+`academic` / `civic_group` / `commercial_brand` / `cultural_institution` / `government` / `independent_venue` / `media` / `semi_official` / `unknown`
+
+**教訓：** 手動 DB update 前，先用下列指令確認當前合法值，避免整筆失敗：
+```bash
+python3 -c "
+import os,json; from dotenv import load_dotenv; from supabase import create_client
+load_dotenv('scraper/.env')
+sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+vals = set()
+for row in sb.table('events').select('organizer_type').limit(500).execute().data:
+    for v in (row.get('organizer_type') or []):
+        vals.add(v)
+print(sorted(vals))
+"
+```
+
+---
+
 ## 2026-05-15 — Agent handoff `send: true` 雙向互觸造成無限迴圈
 
 **問題：** 每次跑完 V-M-D → Update History → V-M-D → Update History…永不停止，使用者無法中斷。

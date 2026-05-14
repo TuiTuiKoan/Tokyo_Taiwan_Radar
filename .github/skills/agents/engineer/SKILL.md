@@ -1076,6 +1076,12 @@ sb.table('field_corrections').delete().eq('event_id', eid).eq('field_name', '<fi
 
 Reference incident: 2026-05-09 — `c6d5232a` 手動修正把污染後的 `name_zh=大濛` 鎖進 FC，需手動 delete + 正確值 re-upsert 才能修復。
 
+**`organizer_type` 合法枚舉值（check constraint）：**
+`organizer_type` 欄位有 DB level check constraint，僅接受以下值（陣列元素）：
+`academic` / `civic_group` / `commercial_brand` / `cultural_institution` / `government` / `independent_venue` / `media` / `semi_official` / `unknown`
+使用不在清單內的值（如 `private_company`、`ngo`）會導致整筆 update rollback。
+對應參考：朝日カルチャーセンター → `cultural_institution`；一般企業主辦 → `commercial_brand`；NPO・団体 → `civic_group`。
+
 **日期欄位（start_date / end_date）成對鎖定規則：**
 手動修正日期時，`start_date` 與 `end_date` 必須同時 FC 鎖，缺一不可：
 ```python
