@@ -331,6 +331,16 @@ const res = await fetch(url, { next: { revalidate: 86400 } });
 const res = await fetch(url);
 ```
 
+**`export const size` 改動必須同步更新全部座標：**
+- `size = { width, height }` 決定 Satori canvas 大小，所有 SVG `viewBox`、`<rect>`/`<circle>` 的 `x`/`y`/`cx`/`cy`、`position: absolute` 的 `top`/`right`/`bottom`/`left` 都必須在**同一個 commit** 裡更新。
+- 只改 `size.height` 而不改 layout → 下半部空白或裁切異常。
+- Incident: 2026-05-14 — height-only partial revert caused blank bottom half (fixed with `git restore`).
+
+**Satori 禁止 Emoji：**
+- `opengraph-image.tsx` 內禁止使用任何 emoji 字元（包括 label 文字、watermark）。
+- Satori 對 emoji 的支援取決於 runtime 是否提供 emoji font；edge runtime 下通常為空白方塊。
+- 只用 ASCII 字母、數字、標點符號。
+
 **Google Fonts text API 子集化：**
 - 使用 `?text=...` 參數只取頁面用到的字元，大幅縮小 ArrayBuffer 體積。
 - CSS 中 `src:` 與 `url(` 之間可能有空白；regex 必須用 `/src:\s*url\(/`，不可寫死 `/src: url\(/`。

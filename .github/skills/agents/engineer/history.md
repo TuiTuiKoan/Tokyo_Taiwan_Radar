@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-05-14 — OG Image `export const size` 只改單一維度導致空白下半部
+
+**問題：**
+`opengraph-image.tsx` 的 punk Bauhaus 重設計完成後，在一次局部還原中只把 `size.height` 從 `1200` 改回 `630`，但 SVG `viewBox`、所有幾何圖形座標與 ghost echo label 的絕對位置都是為 `1200×1200` 設計的，沒有同步更新。結果渲染出空白下半部（`630px` 以下全黑/空）。
+
+**修正：** `git restore web/app/[locale]/events/[id]/opengraph-image.tsx`，回到完整的 `1200×1200` 版本。
+
+**教訓：**
+- `export const size = { width, height }` 不是單純的數值宣告；它同時決定 Satori canvas 與所有 SVG 元素的座標系。
+- **任何對 `size` 的修改都必須在同一個 commit 裡更新全部相關座標**：SVG `viewBox`、`<rect>`/`<circle>` 的 `x`/`y`/`cx`/`cy`、ghost echo label 的 `top`/`right` 等。
+- 永遠不要只改 `size.height` 或 `size.width` 而不改 layout。
+
+---
+
+## 2026-05-14 — VMD "問題未重現"（"Fix issues found" 觸發後全部 pass）
+
+**問題：**
+User 點 VMD agent 的 "🔧 Fix issues found" handoff 按鈕，提示詞為「部署驗證發現問題，請修復後重新部署。」但執行完整驗證（`tsc --noEmit`、`npm run build`、token gate、`curl Vercel`）全部通過，找不到任何問題。
+
+**根因：** handoff 按鈕只是一個預設提示，不代表實際有問題存在。VMD 完成時可能就在正常狀態，使用者也可能誤觸按鈕。
+
+**教訓：**
+- 收到「請修復後重新部署」提示時，**先執行完整驗證**（`tsc`、build、token gate、Vercel curl），若全部 pass 就明確回報「問題未重現，目前狀態健康」，不要強行尋找不存在的問題。
+- VMD agent 的 Step 3 應同時包含 `get_errors`（tsc）**與** `npm run build`，兩者缺一不可：tsc pass ≠ build pass（route handler 錯誤、missing file 等可以通過 tsc 但 build 失敗）。
+
+---
+
 ## 2026-05-14 — `void` 運算符誤用為標記式運算式中歾（TS2873， commit `4d8b873`）
 
 **問題：**

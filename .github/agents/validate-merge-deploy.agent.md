@@ -37,7 +37,8 @@ handoffs:
 
 ### Step 3: Verify Changes
 1. 運行 `get_errors` 檢查語法錯誤（所有修改的文件）
-2. 執行 token wording gate（deploy 前必過）：
+2. 執行 **`npm run build`**（在 `web/` 目錄）— `tsc --noEmit` pass ≠ build pass；route handler 錯誤、missing file、動態 import 問題只有完整 build 才能捕捉
+3. 執行 token wording gate（deploy 前必過）：
    - 固定執行：`python3 scripts/check_token_permission_consistency.py`
    - 判斷本次 diff 是否包含 token 高風險檔案（使用 `git diff --name-only origin/main...HEAD`）：
      - `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md`
@@ -80,10 +81,12 @@ handoffs:
 
 ## 成功指標
 - ✅ 無衝突或已解決
-- ✅ 所有語法檢查通過
+- ✅ 所有語法檢查通過（`get_errors` + `npm run build`）
 - ✅ Commit 已推送到 origin/main
 - ✅ Vercel 部署已觸發並完成
 - ✅ 部署驗證通過（無 502/500 錯誤）
+
+> **「問題未重現」情形**：若收到「請修復後重新部署」提示但 Step 3 全部 pass、Vercel HTTP 200，則明確回報「問題未重現，目前狀態健康」——不要強行尋找不存在的問題。
 
 ## 中止條件
 如果遇到以下情況，停止並報告：
