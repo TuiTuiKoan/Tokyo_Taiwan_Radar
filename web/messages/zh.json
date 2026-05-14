@@ -26,6 +26,8 @@
     "searchPlaceholder": "搜尋活動名稱或說明...",
     "reset": "清除篩選",
     "apply": "套用篩選",
+    "searchOrFilter": "搜尋或篩選",
+    "confirm": "確認",
     "location": "地點",
     "allLocations": "全部地點",
     "locationTokyo": "東京",

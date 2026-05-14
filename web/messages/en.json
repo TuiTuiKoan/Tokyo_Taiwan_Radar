@@ -26,6 +26,8 @@
     "searchPlaceholder": "Search events...",
     "reset": "Clear filters",
     "apply": "Apply filters",
+    "searchOrFilter": "Search or filter",
+    "confirm": "Done",
     "location": "Location",
     "allLocations": "All Locations",
     "locationTokyo": "Tokyo",

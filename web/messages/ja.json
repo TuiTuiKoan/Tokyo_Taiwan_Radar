@@ -26,6 +26,8 @@
     "searchPlaceholder": "イベントを検索...",
     "reset": "リセット",
     "apply": "絞り込む",
+    "searchOrFilter": "検索・絞り込み",
+    "confirm": "完了",
     "location": "場所",
     "allLocations": "すべて",
     "locationTokyo": "東京",

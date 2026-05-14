@@ -137,24 +137,26 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
         <button
           onClick={() => setMobileOpen((o) => !o)}
           aria-expanded={mobileOpen}
-          aria-label={t("search")}
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition ${
-            mobileOpen || hasFilters
-              ? "border-green-500 text-green-700 bg-green-50"
-              : "border-line-strong text-fg-muted bg-surface hover:bg-elevated"
+          aria-label={mobileOpen ? t("confirm") : t("searchOrFilter")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm ${
+            mobileOpen
+              ? "border border-mascot-pink-deep bg-blush text-mascot-pink-deep hover:bg-mascot-pink/20"
+              : "border border-transparent bg-brand text-white hover:bg-brand-strong"
           }`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            {mobileOpen ? (
+              <polyline points="20 6 9 17 4 12" />
+            ) : (
+              <>
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </>
+            )}
           </svg>
-          {hasFilters ? (
-            <span className="text-xs font-medium">{t("apply")}</span>
-          ) : (
-            <span className="text-xs">{t("search")}</span>
-          )}
-          {hasFilters && (
-            <span className="ml-1 w-2 h-2 rounded-full bg-green-500 inline-block" />
+          <span>{mobileOpen ? t("confirm") : t("searchOrFilter")}</span>
+          {!mobileOpen && hasFilters && (
+            <span className="ml-1 w-2 h-2 rounded-full bg-white/90 inline-block" />
           )}
         </button>
         {hasFilters && (
