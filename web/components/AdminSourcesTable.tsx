@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
+import DesignSelect from "@/components/DesignSelect";
 
 export interface ResearchSource {
   id: number;
@@ -515,15 +516,16 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                           </a>
                         ) : src.name}
                       </span>
-                      <select
+                      <DesignSelect
                         value={effective}
-                        onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [src.id]: e.target.value }))}
-                        className="h-7 border border-line rounded-md px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400 shrink-0"
-                      >
-                        {SOURCE_TYPE_KEYS.map((key) => (
-                          <option key={key} value={key}>{SOURCE_TYPE_LABELS[key]}</option>
-                        ))}
-                      </select>
+                        onChange={(v) => setDraftOverrides((prev) => ({ ...prev, [src.id]: v }))}
+                        options={SOURCE_TYPE_KEYS.map((key) => ({
+                          value: key,
+                          label: SOURCE_TYPE_LABELS[key],
+                        }))}
+                        className="w-40 shrink-0"
+                        panelClassName="max-h-60"
+                      />
                       {isOverridden && (
                         <button
                           onClick={() => setDraftOverrides((prev) => {
@@ -671,27 +673,27 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
       <div className="flex gap-4 flex-wrap mb-4 items-end">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-fg-muted font-medium">{t("sourcesFilterStatus")}</label>
-          <select
+          <DesignSelect
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="all">{t("sourcesFilterAll")}</option>            <option value="candidate">候選中</option>
-            <option value="pending_review">⏳ 待人工審核</option>
-            <option value="researched">已深度研究</option>
-            <option value="recommended">已推薦</option>            <option value="implemented">已建立爬蟲</option>
-            <option value="not-viable">不適合</option>
-            <option value="has_issue">已建立 Issue</option>
-          </select>
+            onChange={setFilter}
+            options={[
+              { value: "all", label: t("sourcesFilterAll") },
+              { value: "candidate", label: "候選中" },
+              { value: "pending_review", label: "⏳ 待人工審核" },
+              { value: "researched", label: "已深度研究" },
+              { value: "recommended", label: "已推薦" },
+              { value: "implemented", label: "已建立爬蟲" },
+              { value: "not-viable", label: "不適合" },
+              { value: "has_issue", label: "已建立 Issue" },
+            ]}
+          />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-fg-muted font-medium">{t("sourcesFilterType")}</label>
-          <select
+          <DesignSelect
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="h-9 border border-line-strong rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            {Object.entries(SOURCE_TYPE_LABELS).map(([key, label]) => {
+            onChange={setFilterType}
+            options={Object.entries(SOURCE_TYPE_LABELS).map(([key, label]) => {
               const srcCount = key === "all" ? undefined : typeCountMap[key];
               const evtCount = key === "all" ? undefined : eventCountByType[key];
               let suffix = "";
@@ -701,13 +703,10 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
                 if (evtCount != null && evtCount > 0) parts.push(`活動 ${evtCount} 件`);
                 if (parts.length > 0) suffix = ` (${parts.join(" | ")})`;
               }
-              return (
-                <option key={key} value={key}>
-                  {label}{suffix}
-                </option>
-              );
+              return { value: key, label: `${label}${suffix}` };
             })}
-          </select>
+            className="min-w-[16rem]"
+          />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-fg-muted font-medium">關鍵字搜尋</label>
@@ -998,28 +997,27 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
               <div className="mt-3 pt-3 border-t border-line">
                 <div className="flex items-center gap-3 flex-wrap">
                   <span className="text-xs text-fg-muted font-medium">每天爬取</span>
-                  <select
-                    value={schedule.times}
-                    onChange={(e) => setScheduleTimes(src.id, Number(e.target.value), src)}
-                    className="h-7 border border-line rounded-md px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
-                  >
-                    {[1, 2, 3, 4, 6, 8].map((n) => (
-                      <option key={n} value={n}>{n} 次</option>
-                    ))}
-                  </select>
+                  <DesignSelect
+                    value={String(schedule.times)}
+                    onChange={(v) => setScheduleTimes(src.id, Number(v), src)}
+                    options={[1, 2, 3, 4, 6, 8].map((n) => ({ value: String(n), label: `${n} 次` }))}
+                    className="w-20"
+                    panelClassName="max-h-44"
+                  />
                   <span className="text-xs text-fg-muted font-medium">時間（JST）</span>
                   <div className="flex gap-1 flex-wrap">
                     {Array.from({ length: schedule.times }).map((_, i) => (
-                      <select
+                      <DesignSelect
                         key={i}
-                        value={schedule.hours[i] ?? 9}
-                        onChange={(e) => setScheduleHour(src.id, i, Number(e.target.value), src)}
-                        className="h-7 border border-line rounded-md px-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
-                      >
-                        {Array.from({ length: 24 }, (_, h) => (
-                          <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>
-                        ))}
-                      </select>
+                        value={String(schedule.hours[i] ?? 9)}
+                        onChange={(v) => setScheduleHour(src.id, i, Number(v), src)}
+                        options={Array.from({ length: 24 }, (_, h) => ({
+                          value: String(h),
+                          label: `${String(h).padStart(2, "0")}:00`,
+                        }))}
+                        className="w-24"
+                        panelClassName="max-h-56"
+                      />
                     ))}
                   </div>
                   <button

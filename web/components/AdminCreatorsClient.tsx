@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import type { Creator } from "@/app/[locale]/admin/creators/page";
 import type { Locale } from "@/lib/types";
+import DesignSelect from "@/components/DesignSelect";
 
 const PLATFORMS = [
   "note",
@@ -402,16 +403,11 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   <label className="block text-xs font-medium text-fg mb-1">
                     {t("creatorsPlatform")}
                   </label>
-                  <select
-                    name="platform"
+                  <DesignSelect
                     value={form.platform}
-                    onChange={handleChange}
-                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    {PLATFORMS.map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setForm((prev) => ({ ...prev, platform: v as CreatorForm["platform"] }))}
+                    options={PLATFORMS.map((p) => ({ value: p, label: p }))}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-fg mb-1">
@@ -432,33 +428,27 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   <label className="block text-xs font-medium text-fg mb-1">
                     {t("creatorsCategory")}
                   </label>
-                  <select
-                    name="category"
+                  <DesignSelect
                     value={form.category ?? ""}
-                    onChange={handleChange}
-                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">—</option>
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setForm((prev) => ({ ...prev, category: v || null }))}
+                    options={[
+                      { value: "", label: "—" },
+                      ...CATEGORIES.map((c) => ({ value: c, label: c })),
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-fg mb-1">
                     {t("creatorsLocation")}
                   </label>
-                  <select
-                    name="base_location"
+                  <DesignSelect
                     value={form.base_location ?? ""}
-                    onChange={handleChange}
-                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">—</option>
-                    {LOCATIONS.map((l) => (
-                      <option key={l} value={l}>{l}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setForm((prev) => ({ ...prev, base_location: v || null }))}
+                    options={[
+                      { value: "", label: "—" },
+                      ...LOCATIONS.map((l) => ({ value: l, label: l })),
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -467,17 +457,14 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   <label className="block text-xs font-medium text-fg mb-1">
                     {t("creatorsNationality")}
                   </label>
-                  <select
-                    name="nationality"
+                  <DesignSelect
                     value={form.nationality ?? ""}
-                    onChange={handleChange}
-                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">—</option>
-                    {NATIONALITIES.map((n) => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setForm((prev) => ({ ...prev, nationality: v || null }))}
+                    options={[
+                      { value: "", label: "—" },
+                      ...NATIONALITIES.map((n) => ({ value: n, label: n })),
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-fg mb-1">

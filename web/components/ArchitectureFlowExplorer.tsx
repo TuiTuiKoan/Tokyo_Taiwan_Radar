@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Mermaid from "@/components/Mermaid";
+import DesignSelect from "@/components/DesignSelect";
 import type { SystemMap, SystemMapFlow, SystemMapFlowStep, SystemMapNode } from "@/lib/specs/types";
 
 interface Labels {
@@ -255,20 +256,14 @@ export default function ArchitectureFlowExplorer({ map, labels }: Props) {
 
           <label className="text-sm">
             <span className="mb-1 block text-fg-muted">{labels.actionLabel}</span>
-            <select
+            <DesignSelect
               value={effectiveSelectedActionId}
               onChange={(e) => {
-                setSelectedActionId(e.target.value);
+                setSelectedActionId(e);
                 setSelectedStep(null);
               }}
-              className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm"
-            >
-              {filteredActions.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.label}
-                </option>
-              ))}
-            </select>
+              options={filteredActions.map((a) => ({ value: a.id, label: a.label }))}
+            />
           </label>
 
           <div className="flex items-end">

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { Announcement, SocialPlatform, Locale } from "@/lib/types";
 import type { Event } from "@/lib/types";
+import DesignSelect from "@/components/DesignSelect";
 
 const PLATFORMS: { key: SocialPlatform; label: string; color: string }[] = [
   { key: "instagram", label: "Instagram", color: "bg-pink-500" },
@@ -420,15 +421,12 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
                     {label}
                   </span>
                   {/* Locale selector */}
-                  <select
+                  <DesignSelect
                     value={publishLocales[key]}
-                    onChange={(e) => setPublishLocales((prev) => ({ ...prev, [key]: e.target.value as Locale }))}
-                    className="text-xs border border-line rounded px-2 py-1"
-                  >
-                    {LOCALES.map((l) => (
-                      <option key={l.key} value={l.key}>{l.label}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setPublishLocales((prev) => ({ ...prev, [key]: v as Locale }))}
+                    options={LOCALES.map((l) => ({ value: l.key, label: l.label }))}
+                    className="min-w-[8rem]"
+                  />
                   <button
                     onClick={() => handlePublish(key)}
                     disabled={isPublishing}

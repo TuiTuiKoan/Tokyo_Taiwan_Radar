@@ -582,8 +582,9 @@ function renderHeroObject(kind: HeroObjectKey, fg: string, accent: string, bg: s
           {/* small bird escaping */}
           <path d="M 62 16 Q 68 10 76 14 Q 72 18 68 18 Q 70 22 66 22 Z" fill={fg} stroke={ink} strokeWidth="2" />
           <circle cx="74" cy="14" r="1" fill={ink} />
-          {/* letter A flying */}
-          <text x="22" y="14" fontSize="10" fontWeight="bold" fill={ink} transform="rotate(-15 22 14)">A</text>
+          {/* second drifting petal */}
+          <circle cx="22" cy="14" r="3" fill={fg} stroke={ink} strokeWidth="2" />
+          <path d="M 28 22 Q 25 18 22 14" stroke={ink} strokeWidth="1.5" strokeDasharray="2 3" fill="none" />
         </g>
       );
     case "filmFrame":
@@ -925,7 +926,7 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
     [880, 820, 280, 240],  // bottom-right (above watermark)
   ];
   const charZoneOrder = charZones.map((z) => ({ z, k: rand() })).sort((a, b) => a.k - b.k).map(x => x.z);
-  const numChars = 1 + Math.floor(rand() * 2);
+  const numChars = 1;
   const labelChars = categoryLabel.split("");
   const charLayouts = Array.from({ length: numChars }, (_, i) => {
     const [zx, zy, zw, zh] = charZoneOrder[i] ?? charZoneOrder[0];
@@ -939,7 +940,7 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
       rot: -25 + Math.floor(rand() * 50),
       variant,
       color: variant === 0 ? palette.accent : variant === 1 ? palette.fg : MOCHA,
-      opacity: variant === 0 ? 0.45 : variant === 1 ? 0.32 : 0.18,
+      opacity: variant === 0 ? 0.22 : variant === 1 ? 0.16 : 0.10,
     };
   });
   const showCornerLetters = categoryLabel.length <= 4 && rand() > 0.45;
@@ -970,7 +971,7 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
 
         {/* 3. Background collage — support shapes only; hero object stays dominant */}
         <svg style={{ position: "absolute", top: 0, left: 0 }} width="1200" height="1200" viewBox="0 0 1200 1200">
-          <g opacity="0.28" transform={`translate(620 610) rotate(${motifRotate} 400 400) scale(5.8) translate(${motifOffsetX} ${motifOffsetY})`}>
+          <g opacity="0.12" transform={`translate(620 610) rotate(${motifRotate} 400 400) scale(5.8) translate(${motifOffsetX} ${motifOffsetY})`}>
             {renderMotif(motifKey, palette.fg, accentColor)}
           </g>
           {overlays.map((p, i) => (
