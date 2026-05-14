@@ -51,12 +51,14 @@ export default function AnnouncementCard({ announcement, locale }: Props) {
   return (
     <Link
       href={`/${locale}/announcements/${announcement.slug}`}
-      className="group relative flex overflow-hidden rounded-xl border border-line/70 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
+      className="group relative flex overflow-hidden rounded-xl border border-line/70 dark:border-line shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
       style={{ background: "linear-gradient(135deg, #FFF6D1 0%, #FFE9A8 100%)" }}
     >
+      {/* Dark mode bg layer */}
+      <div className="absolute inset-0 opacity-0 dark:opacity-100 pointer-events-none" style={{ background: "linear-gradient(135deg, #1e1b12 0%, #261f0e 100%)" }} />
       {/* Left thumbnail — square, full-bleed cover */}
       {image && (
-        <div className="relative shrink-0 aspect-square w-16 sm:w-20 self-stretch overflow-hidden bg-paper/60">
+        <div className="relative z-10 shrink-0 aspect-square w-16 sm:w-20 self-stretch overflow-hidden bg-paper/60">
           <Image
             src={image}
             alt={title}
@@ -69,7 +71,7 @@ export default function AnnouncementCard({ announcement, locale }: Props) {
       )}
 
       {/* Right content area — date badge + title */}
-      <div className="relative flex-1 min-w-0 px-3 py-2 flex flex-col justify-center gap-1">
+      <div className="relative z-10 flex-1 min-w-0 px-3 py-2 flex flex-col justify-center gap-1">
         {/* Decorative top-right pattern swatch */}
         <svg
           aria-hidden
@@ -97,8 +99,8 @@ export default function AnnouncementCard({ announcement, locale }: Props) {
 
         {kicker && (
           <div
-            className="relative inline-block self-start px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-widest rounded-sm bg-paper"
-            style={{ color: "#3A261F" }}
+            className="relative inline-block self-start px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-widest rounded-sm bg-paper dark:bg-elevated"
+            style={{ color: "var(--color-text)" }}
           >
             {kicker}
             {announcement.is_featured && (
@@ -106,7 +108,7 @@ export default function AnnouncementCard({ announcement, locale }: Props) {
             )}
           </div>
         )}
-        <h2 className="relative font-display font-bold text-[#3A261F] text-[12px] sm:text-[13px] leading-snug line-clamp-2 group-hover:text-green-800 transition-colors">
+        <h2 className="relative font-display font-bold text-[#3A261F] dark:text-fg text-[12px] sm:text-[13px] leading-snug line-clamp-2 group-hover:text-green-800 dark:group-hover:text-green-400 transition-colors">
           {title}
         </h2>
       </div>
