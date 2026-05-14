@@ -983,7 +983,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                 <Link
                   key={sub.id}
                   href={`/${locale}/events/${sub.id}`}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-green-50 transition"
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition"
                 >
                   <div className="w-12 text-center flex-shrink-0">
                     {sub.start_date ? (
@@ -1033,7 +1033,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                   href={(event as Event).official_url!}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] transition text-sm hover:underline gap-2"
+                  className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition text-sm hover:underline gap-2"
                 >
                   <span className="flex-1">{t("movieOfficialSite")}</span>
                   <span className="text-fg-subtle shrink-0">↗</span>
@@ -1048,7 +1048,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] transition text-sm hover:underline gap-2"
+                    className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition text-sm hover:underline gap-2"
                   >
                     <span className="flex-1">{link.title || link.url}</span>
                     {showBadge && (
@@ -1066,7 +1066,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                   href={secUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] transition text-sm hover:underline gap-2"
+                  className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition text-sm hover:underline gap-2"
                 >
                   <span className="flex-1">{t("viewAltSource", { n: idx + 1 })}</span>
                   <span className="text-fg-subtle shrink-0">↗</span>
@@ -1078,7 +1078,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                   href={`https://www.google.com/search?q=${encodeURIComponent(((event as Event).name_ja || event.raw_title || name || "") + " 公式サイト")}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center px-4 py-3 hover:bg-elevated transition text-sm text-fg-muted hover:underline gap-2"
+                  className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition text-sm text-fg-muted hover:underline gap-2"
                 >
                   <span className="flex-1">{t("searchOfficialSite")}</span>
                   <span className="text-fg-subtle shrink-0">↗</span>
