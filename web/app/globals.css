@@ -48,6 +48,10 @@
   --color-blush: #FFF1EE;
   --color-matcha: #F7FFE8;
 
+  /* Semantic shorthand — used by style={{ borderColor: "var(--color-mocha)" }} etc. */
+  --color-mocha: #3A261F;          /* warm brown (same as brand mocha) */
+  --color-forest: #1F5E2B;         /* dark forest green */
+
   /* Aliases kept for legacy references (do not remove) */
   --background: var(--color-bg);
   --foreground: var(--color-text);
@@ -82,6 +86,10 @@
   /* Decorative palette — darkened for readability */
   --color-paper: #1c1a17;          /* dark paper (warm very-dark brown) */
   --color-blush: #2a1f1d;          /* dark blush (warm very-dark rose) */
+
+  /* Semantic shorthand tokens (dark overrides) */
+  --color-mocha: var(--color-text);          /* #ededed in dark */
+  --color-forest: var(--color-brand-strong); /* #4ade80 (green-400) in dark */
 
   color-scheme: dark;
 }
@@ -327,3 +335,39 @@ html:has([data-site-bg]) body {
   80%        { opacity: 0.16; }
   81%        { opacity: 0; }
 }
+
+/* ============================================================
+ * Global dark mode catch-all for hardcoded brand palette classes.
+ *
+ * Placed OUTSIDE any @layer so these rules outrank all @layer
+ * utilities (CSS cascade: unlayered > @layer utilities).
+ * The html.dark selector also provides higher specificity than
+ * the plain utility class — doubly ensuring the override wins.
+ *
+ * Covers every Tailwind arbitrary-value class used sitewide for
+ * the three hardcoded brand colors:
+ *   #3A261F  mocha brown  → var(--color-text)         in dark
+ *   #1F5E2B  forest green → var(--color-brand-strong)  in dark
+ *   #F7FFE8  matcha mint  → var(--color-bg-elevated)   in dark
+ *   #FFF1EE  blush pink   → var(--color-blush)         in dark
+ *   #C4E86F/40 leaf badge → brand-soft (green-950)     in dark
+ * ============================================================ */
+
+/* --- text colours ------------------------------------------ */
+html.dark .text-\[\#3A261F\]                        { color: var(--color-text); }
+html.dark .hover\:text-\[\#3A261F\]:hover           { color: var(--color-text); }
+html.dark .visited\:text-\[\#3A261F\]:visited       { color: var(--color-text); }
+html.dark .group-hover\:text-\[\#3A261F\]           { color: var(--color-text); }
+html.dark .text-\[\#1F5E2B\]                        { color: var(--color-brand-strong); }
+html.dark .hover\:text-\[\#1F5E2B\]:hover           { color: var(--color-brand-strong); }
+html.dark .group-hover\:text-green-800              { color: var(--color-brand-strong); }
+
+/* --- background colours ------------------------------------- */
+html.dark .bg-\[\#F7FFE8\]                          { background-color: var(--color-bg-elevated); }
+html.dark .hover\:bg-\[\#F7FFE8\]:hover             { background-color: var(--color-bg-elevated); }
+html.dark .bg-\[\#FFF1EE\]                          { background-color: var(--color-blush); }
+html.dark .bg-\[\#FFFDF5\]                          { background-color: var(--color-paper); }
+html.dark .bg-\[\#C4E86F\]\/40                      { background-color: var(--color-brand-soft); }
+
+/* --- border colours ----------------------------------------- */
+html.dark .border-\[\#3A261F\]                      { border-color: var(--color-border-strong); }

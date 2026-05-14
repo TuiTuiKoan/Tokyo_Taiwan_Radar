@@ -60,9 +60,9 @@ function NavbarLangSwitcher({ locale }: NavbarLangSwitcherProps) {
         title={locale.toUpperCase()}
         aria-expanded={langOpen}
         aria-label="Switch language"
-        className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#F7FFE8] text-[#3A261F] hover:text-[#1F5E2B] transition"
+        className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#F7FFE8] dark:hover:bg-elevated text-[#3A261F] dark:text-fg-muted hover:text-[#1F5E2B] dark:hover:text-green-400 transition"
       >
-        {/* Globe icon */}
+        {/* Globe icon */}}
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
           <circle cx="12" cy="12" r="10" />
           <line x1="2" y1="12" x2="22" y2="12" />
@@ -281,7 +281,7 @@ export default function Navbar({ locale }: Props) {
               <Link
                 href={`/${locale}/admin`}
                 onClick={() => setMenuOpen(false)}
-                className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] hover:text-[#1F5E2B] transition font-medium"
+                className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] dark:hover:bg-elevated hover:text-[#1F5E2B] dark:hover:text-green-400 transition font-medium"
               >
                 {t("admin")}
               </Link>
