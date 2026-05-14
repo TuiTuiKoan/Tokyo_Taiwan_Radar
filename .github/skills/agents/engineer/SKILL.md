@@ -25,6 +25,18 @@ Same rule applies to ALL agent skills:
 
 Writing to a top-level `skills/<name>/` path recreates deleted directories. Always use `skills/agents/<name>/`.
 
+## Workflow Automation Guardrails
+
+- For alert-driven automation, split into two stages: `triage` first, `auto-fix` second. Never mix high-risk remediation into the triage stage.
+- Keep high-risk classes (for example selector drift or source-structure breakage) in human-review only paths; safe auto-fix should only touch deterministic transforms.
+- Every LINE alert message must include a direct next action (exact workflow name + trigger mode). A warning without CTA is operational noise.
+
+## Agent Handoff Reliability
+
+- For workflow agents, treat handoffs as a required output path, not optional UI polish.
+- If a handoff defines `prompt:`, set `send: true` when the intended behavior is one-click execution.
+- Pre-ship check for agent changes: verify target agent names resolve correctly and at least one post-task handoff exists for the expected next action.
+
 ## Database
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`
 - When adding a DB column, wire up the code that populates it in the same commit. Empty columns = silent data gaps.

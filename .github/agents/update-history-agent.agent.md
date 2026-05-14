@@ -38,6 +38,11 @@ handoffs:
    - 如果規則影響 agent 的行為，更新相應 Agent 的 Required Steps 或前置檢查
    - 參考 `.github/agents/*.agent.md`
 
+   Agent handoff 前置檢查（必做）：
+   - 流程型 agent 完成後若預期有下一步，必須提供對應 `handoffs`
+   - 若 handoff 含 `prompt:` 且要一鍵執行，必須同時設 `send: true`
+   - handoff 目標名稱必須與目標 agent `name:` 完全一致（區分大小寫）
+
 5. **補齊驗證語境**:
    - 若此次修復涉及 Supabase migration 或 RPC 權限，補上「app request 與 SQL Editor 模擬」兩種語境的驗證教訓
    - 若涉及 migration 序號，確認 `.github/instructions/database.instructions.md` 的 latest 標記同步

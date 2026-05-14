@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-05-14 — QA 分診 PoC 上線後，LINE 指令閉環與修復邊界需要明文化
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-14 | Daily Health Check 只會報錯，不提供可執行修復入口，人工處理路徑不一致 | 既有流程缺少「分診（triage）」與「安全自修（safe auto-fix）」分層，LINE 訊息也沒有標準化 CTA | 新增 `qa_triage.py` + `qa_auto_fix.py`、新增 `qa-triage.yml`（11:00 JST）與 `qa-auto-fix.yml`（workflow_dispatch），並將 `QA Triage` 納入 failure notify 監控 | 自動化要分兩層：先分診再修復；高風險項（selector drift）永遠留給人工。LINE 訊息必須附明確下一步（workflow 名稱與觸發方式），否則提醒不會轉成行動。
+
+---
+
+## 2026-05-14 — Update History agent 完成後沒有 handoff 按鈕
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-14 | 任務完成後無法一鍵切到「Validate, Merge & Deploy」或其他後續 agent | `update-history-agent.agent.md` 缺少 `handoffs` 定義，導致流程在文件更新後中斷，需要手動切換 agent | 在 frontmatter 補上 3 個 handoffs（Validate, Merge & Deploy / Scraper Expert / Researcher），並對部署 handoff 設 `send: true` 自動送出標準提示 | 對「流程型 agent」而言，handoff 不是 UX 附加功能而是工作流的一部分。凡是預期有下一步的 agent，交付前都要檢查 handoff 是否完整且可直達。
+
 ## 2026-05-14 — `annotation_status='error'` イベントが長期滞留（21件、6日間）
 
 **問題：** annotator が GPT レスポンスの JSON パースに失敗すると `annotation_status='error'` にセットするが、annotator のクエリは `annotation_status='pending'` のみ対象にするため、error のまま放置される。daily_report は `.limit(5)` で取得するため「5件」と表示されていたが、実際は21件が6日間滞留していた。
