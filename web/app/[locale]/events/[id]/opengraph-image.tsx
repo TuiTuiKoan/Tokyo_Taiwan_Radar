@@ -251,6 +251,37 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
   const ghostX = 620 + Math.floor(rand() * 200);
   const ghostY = 940 + Math.floor(rand() * 60);
 
+  // ── Typographic collage: scatter individual label chars as visual objects ──
+  // Each char placed in a peripheral zone (away from main label + watermark).
+  // Treats letters as Bauhaus elements: huge, rotated, low opacity, varied colors.
+  const charZones: [number, number, number, number][] = [
+    [780, 80, 360, 320],   // top-right
+    [80, 480, 320, 280],   // mid-left
+    [820, 520, 320, 320],  // mid-right
+    [320, 800, 380, 240],  // mid-bottom-center
+    [60, 760, 280, 240],   // bottom-left
+    [880, 820, 280, 240],  // bottom-right (above watermark)
+  ];
+  const charZoneOrder = charZones.map((z) => ({ z, k: rand() })).sort((a, b) => a.k - b.k).map(x => x.z);
+  // Sample 3-4 chars; cycle through label chars (e.g. "TALK" → T,A,L,K)
+  const numChars = 3 + Math.floor(rand() * 2);
+  const labelChars = categoryLabel.split("");
+  const charLayouts = Array.from({ length: numChars }, (_, i) => {
+    const [zx, zy, zw, zh] = charZoneOrder[i] ?? charZoneOrder[0];
+    const ch = labelChars[i % labelChars.length];
+    const variant = Math.floor(rand() * 3); // 0=outline, 1=solid-low-opacity, 2=mocha-tape
+    return {
+      ch,
+      cx: Math.round(zx + zw * (0.3 + rand() * 0.4)),
+      cy: Math.round(zy + zh * (0.3 + rand() * 0.4)),
+      size: 200 + Math.floor(rand() * 160),    // 200–360px
+      rot: -25 + Math.floor(rand() * 50),
+      variant,
+      color: variant === 0 ? palette.accent : variant === 1 ? palette.fg : MOCHA,
+      opacity: variant === 0 ? 0.45 : variant === 1 ? 0.32 : 0.18,
+    };
+  });
+
   return new ImageResponse(
     (
       <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", background: palette.bg }}>
@@ -305,6 +336,33 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
             {categoryLabel}
           </span>
         </div>
+
+        {/* 4b. Typographic collage — scatter individual label chars as Bauhaus elements */}
+        {charLayouts.map((cl, i) => (
+          <div
+            key={`ch-${i}`}
+            style={{
+              position: "absolute",
+              left: cl.cx,
+              top: cl.cy,
+              transform: `translate(-50%, -50%) rotate(${cl.rot}deg)`,
+              transformOrigin: "center",
+              display: "flex",
+            }}
+          >
+            <span style={{
+              fontSize: `${cl.size}px`,
+              fontWeight: "bold",
+              color: cl.color,
+              fontFamily: FF,
+              opacity: cl.opacity,
+              lineHeight: 1,
+              ...(cl.variant === 0 ? { WebkitTextStroke: `5px ${cl.color}`, color: "transparent" } : {}),
+            }}>
+              {cl.ch}
+            </span>
+          </div>
+        ))}
 
         {/* 5. Primary label — solid block with offset shadow, punk-rotated */}
         <div
