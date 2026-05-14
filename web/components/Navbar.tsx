@@ -125,6 +125,7 @@ export default function Navbar({ locale }: Props) {
   }
 
   return (
+    <>
     <header className="border-b border-line bg-paper/60 dark:bg-[#0a0909]/85 backdrop-blur-md sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
         {/* Logo — wax-apple mascot + wordmark */}
@@ -245,51 +246,55 @@ export default function Navbar({ locale }: Props) {
         </div>
       </div>
 
-      {/* Mobile dropdown menu */}
-      {menuOpen && (
-        <nav className="md:hidden border-t border-line bg-paper/80 dark:bg-[#0a0909]/80 backdrop-blur-md shadow-md">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-1 text-sm text-[#3A261F] dark:text-fg">
-            <Link
-              href={`/${locale}`}
-              onClick={() => setMenuOpen(false)}
-              className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 text-[#3A261F] dark:text-fg visited:text-[#3A261F] dark:visited:text-fg transition"
-            >
-              {t("home")}
-            </Link>
-            <Link
-              href={`/${locale}/about`}
-              onClick={() => setMenuOpen(false)}
-              className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 text-[#3A261F] dark:text-fg visited:text-[#3A261F] dark:visited:text-fg transition"
-            >
-              {t("about")}
-            </Link>
-            <Link
-              href={`/${locale}/sources`}
-              onClick={() => setMenuOpen(false)}
-              className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 text-[#3A261F] dark:text-fg visited:text-[#3A261F] dark:visited:text-fg transition"
-            >
-              {t("sources")}
-            </Link>
-            {isAdmin && (
-              <Link
-                href={`/${locale}/admin`}
-                onClick={() => setMenuOpen(false)}
-                className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition font-medium"
-              >
-                {t("admin")}
-              </Link>
-            )}
-            {user && (
-              <button
-                onClick={() => { setMenuOpen(false); handleLogout(); }}
-                className="text-left px-3 py-2.5 rounded-md text-red-500 hover:bg-red-50 transition"
-              >
-                {t("logout")}
-              </button>
-            )}
-          </div>
-        </nav>
-      )}
     </header>
+
+    {/* Mobile dropdown menu — rendered OUTSIDE <header> so its backdrop-blur
+        is not blocked by the parent's backdrop-filter stacking context.
+        sticky top-14 keeps it pinned just below the 56px header. */}
+    {menuOpen && (
+      <nav className="md:hidden sticky top-14 z-40 border-b border-line bg-paper/75 dark:bg-[#0a0909]/75 backdrop-blur-lg shadow-md">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-1 text-sm text-[#3A261F] dark:text-fg">
+          <Link
+            href={`/${locale}`}
+            onClick={() => setMenuOpen(false)}
+            className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 text-[#3A261F] dark:text-fg visited:text-[#3A261F] dark:visited:text-fg transition"
+          >
+            {t("home")}
+          </Link>
+          <Link
+            href={`/${locale}/about`}
+            onClick={() => setMenuOpen(false)}
+            className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 text-[#3A261F] dark:text-fg visited:text-[#3A261F] dark:visited:text-fg transition"
+          >
+            {t("about")}
+          </Link>
+          <Link
+            href={`/${locale}/sources`}
+            onClick={() => setMenuOpen(false)}
+            className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 text-[#3A261F] dark:text-fg visited:text-[#3A261F] dark:visited:text-fg transition"
+          >
+            {t("sources")}
+          </Link>
+          {isAdmin && (
+            <Link
+              href={`/${locale}/admin`}
+              onClick={() => setMenuOpen(false)}
+              className="px-3 py-2.5 rounded-md hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition font-medium"
+            >
+              {t("admin")}
+            </Link>
+          )}
+          {user && (
+            <button
+              onClick={() => { setMenuOpen(false); handleLogout(); }}
+              className="text-left px-3 py-2.5 rounded-md text-red-500 hover:bg-red-50 transition"
+            >
+              {t("logout")}
+            </button>
+          )}
+        </div>
+      </nav>
+    )}
+  </>
   );
 }
