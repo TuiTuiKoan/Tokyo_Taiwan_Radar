@@ -983,7 +983,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                 <Link
                   key={sub.id}
                   href={`/${locale}/events/${sub.id}`}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition"
+                  className="group flex items-center gap-3 px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition"
                 >
                   <div className="w-12 text-center flex-shrink-0">
                     {sub.start_date ? (
@@ -1007,7 +1007,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                       </span>
                     ))}
                   </div>
-                  <span className="text-fg-subtle text-sm">→</span>
+                  <span className="text-fg-subtle group-hover:text-[#1F5E2B] dark:group-hover:text-green-400 text-sm">→</span>
                 </Link>
               );
             })}
@@ -1033,10 +1033,10 @@ export default async function EventDetailPage({ params }: PageProps) {
                   href={(event as Event).official_url!}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition text-sm hover:underline gap-2"
+                  className="group flex items-center px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition text-sm hover:underline gap-2"
                 >
                   <span className="flex-1">{t("movieOfficialSite")}</span>
-                  <span className="text-fg-subtle shrink-0">↗</span>
+                  <span className="text-fg-subtle group-hover:text-[#1F5E2B] dark:group-hover:text-green-400 shrink-0">↗</span>
                 </a>
               )}
               {(event as Event).record_links?.map((link: { title: string; url: string; recommended?: boolean }, i: number) => {
@@ -1048,7 +1048,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition text-sm hover:underline gap-2"
+                    className="group flex items-center px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition text-sm hover:underline gap-2"
                   >
                     <span className="flex-1">{link.title || link.url}</span>
                     {showBadge && (
@@ -1056,7 +1056,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                         {t("recordLinksRecommended")}
                       </span>
                     )}
-                    <span className="text-fg-subtle shrink-0">↗</span>
+                    <span className="text-fg-subtle group-hover:text-[#1F5E2B] dark:group-hover:text-green-400 shrink-0">↗</span>
                   </a>
                 );
               })}
@@ -1066,10 +1066,10 @@ export default async function EventDetailPage({ params }: PageProps) {
                   href={secUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition text-sm hover:underline gap-2"
+                  className="group flex items-center px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition text-sm hover:underline gap-2"
                 >
                   <span className="flex-1">{t("viewAltSource", { n: idx + 1 })}</span>
-                  <span className="text-fg-subtle shrink-0">↗</span>
+                  <span className="text-fg-subtle group-hover:text-[#1F5E2B] dark:group-hover:text-green-400 shrink-0">↗</span>
                 </a>
               ))}
               {/* Movie without official_url: Google search fallback */}
@@ -1078,10 +1078,10 @@ export default async function EventDetailPage({ params }: PageProps) {
                   href={`https://www.google.com/search?q=${encodeURIComponent(((event as Event).name_ja || event.raw_title || name || "") + " 公式サイト")}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition text-sm text-fg-muted hover:underline gap-2"
+                  className="group flex items-center px-4 py-3 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition text-sm text-fg-muted hover:underline gap-2"
                 >
                   <span className="flex-1">{t("searchOfficialSite")}</span>
-                  <span className="text-fg-subtle shrink-0">↗</span>
+                  <span className="text-fg-subtle group-hover:text-[#1F5E2B] dark:group-hover:text-green-400 shrink-0">↗</span>
                 </a>
               )}
             </div>
