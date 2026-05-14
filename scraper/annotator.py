@@ -873,6 +873,57 @@ def _validate_bool_or_none(val):
     return val if isinstance(val, bool) else None
 
 
+_MULTI_DAY_HINT_RE = re.compile(r"～|〜|至|到|から|まで|日間|週間|連日|毎週|各日|会期|期間")
+_YMD_DATE_RE = re.compile(r"(?P<y>\d{4})\s*[./-年]\s*(?P<m>\d{1,2})\s*[./-月]\s*(?P<d>\d{1,2})\s*日?")
+_MD_DATE_RE = re.compile(r"(?<!\d)(?P<m>\d{1,2})\s*[/-]\s*(?P<d>\d{1,2})(?!\d)")
+_JP_MD_DATE_RE = re.compile(r"(?P<m>\d{1,2})\s*月\s*(?P<d>\d{1,2})\s*日")
+
+
+def _parse_iso_date_key(val: str | None) -> str | None:
+    if not isinstance(val, str):
+        return None
+    m = re.match(r"(\d{4}-\d{2}-\d{2})", val)
+    return m.group(1) if m else None
+
+
+def _extract_date_markers(raw_text: str) -> set[tuple[int, int]]:
+    markers: set[tuple[int, int]] = set()
+    for m in _YMD_DATE_RE.finditer(raw_text):
+        markers.add((int(m.group("m")), int(m.group("d"))))
+    for m in _JP_MD_DATE_RE.finditer(raw_text):
+        markers.add((int(m.group("m")), int(m.group("d"))))
+    for m in _MD_DATE_RE.finditer(raw_text):
+        markers.add((int(m.group("m")), int(m.group("d"))))
+    return markers
+
+
+def _apply_single_day_end_date_guard(
+    start_date: str | None,
+    end_date: str | None,
+    raw_text: str,
+) -> tuple[str | None, str | None]:
+    """Force end_date=start_date only when single-day can be determined safely."""
+    start_key = _parse_iso_date_key(start_date)
+    if not start_key:
+        return start_date, end_date
+    if not end_date:
+        return start_date, start_date
+
+    end_key = _parse_iso_date_key(end_date)
+    if not end_key or end_key == start_key:
+        return start_date, end_date
+
+    if _MULTI_DAY_HINT_RE.search(raw_text or ""):
+        return start_date, end_date
+
+    start_md = (int(start_key[5:7]), int(start_key[8:10]))
+    markers = _extract_date_markers(raw_text or "")
+    if markers and markers == {start_md}:
+        return start_date, start_date
+
+    return start_date, end_date
+
+
 _LECTURE_KEYWORDS = frozenset([
     # Japanese
     "座談", "講座", "座談会", "座談會",
@@ -980,7 +1031,14 @@ def _load_default_organizer_map(sb: "Client") -> dict[str, dict[str, str]]:
         return {}
 
 
-def annotate_pending_events(re_annotate_all: bool = False, fix_translations: bool = False, fix_reviewed: bool = False, event_id: str | None = None, limit: int | None = None) -> None:
+def annotate_pending_events(
+    re_annotate_all: bool = False,
+    fix_translations: bool = False,
+    fix_reviewed: bool = False,
+    event_id: str | None = None,
+    limit: int | None = None,
+    dry_run: bool = False,
+) -> None:
     """Fetch pending events from DB, annotate with AI, and update."""
     _check_category_sync()
     sb = _get_supabase()
@@ -1100,7 +1158,7 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
         logger.info("No pending events to annotate.")
         return
 
-    logger.info("Found %d events to annotate", len(events))
+    logger.info("Found %d events to annotate (dry_run=%s)", len(events), dry_run)
 
     # Accumulate usage for scraper_runs logging
     total_tokens_in = 0
@@ -1567,9 +1625,22 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 and not (_protect and event.get(k) is not None)
             }
 
-            # Ensure end_date is not null when start_date exists (skip in fix_reviewed mode)
-            if not fix_reviewed and update_data.get("start_date") and not update_data.get("end_date"):
-                update_data["end_date"] = update_data["start_date"]
+            # Guard: force single-day end_date only in clearly determinable single-day cases.
+            if not fix_reviewed:
+                _guard_raw_text = " ".join(
+                    [
+                        raw_title or "",
+                        event.get("raw_description") or "",
+                        _str(update_data.get("business_hours")) or "",
+                    ]
+                )
+                _guard_start, _guard_end = _apply_single_day_end_date_guard(
+                    _str(update_data.get("start_date")),
+                    _str(update_data.get("end_date")),
+                    _guard_raw_text,
+                )
+                update_data["start_date"] = _guard_start
+                update_data["end_date"] = _guard_end
 
             # location_url: scraper value first, then GPT-extracted from text.
             # Added conditionally so null never overwrites an admin-entered value.
@@ -1617,15 +1688,30 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                             update_data.get(_rp_field), _rp_lang
                         )
 
-            sb.table("events").update(update_data).eq("id", eid).execute()
-            events_ok += 1
+            if dry_run:
+                logger.info(
+                    "  [DRY-RUN] would update events id=%s (keys=%s)",
+                    eid,
+                    sorted(update_data.keys()),
+                )
+                events_ok += 1
+            else:
+                sb.table("events").update(update_data).eq("id", eid).execute()
+                events_ok += 1
             logger.info("  ✓ annotated (categories: %s)", categories)
 
             # Apply localized location/hours fields separately — columns were added
             # in migration 010 and may not exist on older DB schemas.
             if localized_location_data:
                 try:
-                    sb.table("events").update(localized_location_data).eq("id", eid).execute()
+                    if dry_run:
+                        logger.info(
+                            "  [DRY-RUN] would update localized fields for id=%s (keys=%s)",
+                            eid,
+                            sorted(localized_location_data.keys()),
+                        )
+                    else:
+                        sb.table("events").update(localized_location_data).eq("id", eid).execute()
                 except Exception as loc_err:
                     logger.warning("  ⚠ localized location update skipped (run migration 010): %s", loc_err)
 
@@ -1674,8 +1760,20 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
             for j, sub in enumerate(sub_events):
                 sub_cats = _validate_categories(sub.get("category", categories))
                 sub_cats = _inject_keyword_categories(sub_cats, sub.get("name_ja", "") + " " + (sub.get("description_ja") or ""))
-                sub_start = sub.get("start_date")
-                sub_end = sub.get("end_date") or sub_start
+                sub_start = _str(sub.get("start_date"))
+                sub_end = _str(sub.get("end_date"))
+                _sub_guard_text = " ".join(
+                    [
+                        _str(sub.get("name_ja")) or "",
+                        _str(sub.get("description_ja")) or "",
+                        _str(sub.get("business_hours")) or "",
+                    ]
+                )
+                sub_start, sub_end = _apply_single_day_end_date_guard(
+                    sub_start,
+                    sub_end,
+                    _sub_guard_text,
+                )
 
                 sub_source_id = f"{event['source_id']}_sub{j+1}"
                 _prev = _existing_subs.get(sub_source_id)
@@ -1730,9 +1828,15 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                     "scraped_at": event.get("scraped_at"),
                 }
 
-                sb.table("events").upsert(
-                    sub_row, on_conflict="source_name,source_id"
-                ).execute()
+                if dry_run:
+                    logger.info(
+                        "  [DRY-RUN] would upsert sub-event source_id=%s",
+                        sub_source_id,
+                    )
+                else:
+                    sb.table("events").upsert(
+                        sub_row, on_conflict="source_name,source_id"
+                    ).execute()
 
                 # Also try localized location fields for sub-events (migration 010)
                 sub_loc = {k: v for k, v in {
@@ -1745,10 +1849,17 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 }.items() if v is not None}
                 if sub_loc:
                     try:
-                        # Get the upserted sub-event id
-                        sub_result = sb.table("events").select("id").eq("source_name", event["source_name"]).eq("source_id", f"{event['source_id']}_sub{j+1}").single().execute()
-                        if sub_result.data:
-                            sb.table("events").update(sub_loc).eq("id", sub_result.data["id"]).execute()
+                        if dry_run:
+                            logger.info(
+                                "  [DRY-RUN] would update sub-event localized fields source_id=%s (keys=%s)",
+                                sub_source_id,
+                                sorted(sub_loc.keys()),
+                            )
+                        else:
+                            # Get the upserted sub-event id
+                            sub_result = sb.table("events").select("id").eq("source_name", event["source_name"]).eq("source_id", f"{event['source_id']}_sub{j+1}").single().execute()
+                            if sub_result.data:
+                                sb.table("events").update(sub_loc).eq("id", sub_result.data["id"]).execute()
                     except Exception:
                         pass  # migration 010 not applied yet, skip silently
 
@@ -1764,9 +1875,16 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
                 })
                 if len(prefectures) >= 2:
                     try:
-                        sb.table("events").update(
-                            {"location_prefectures": prefectures}
-                        ).eq("id", eid).execute()
+                        if dry_run:
+                            logger.info(
+                                "  [DRY-RUN] would update location_prefectures for id=%s: %s",
+                                eid,
+                                prefectures,
+                            )
+                        else:
+                            sb.table("events").update(
+                                {"location_prefectures": prefectures}
+                            ).eq("id", eid).execute()
                         logger.info("  → location_prefectures: %s", prefectures)
                     except Exception as lp_err:
                         logger.warning(
@@ -1775,9 +1893,12 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
 
         except Exception as exc:
             logger.error("  ✗ annotation failed: %s", exc)
-            sb.table("events").update({
-                "annotation_status": "error",
-            }).eq("id", eid).execute()
+            if dry_run:
+                logger.info("  [DRY-RUN] would set annotation_status=error for id=%s", eid)
+            else:
+                sb.table("events").update({
+                    "annotation_status": "error",
+                }).eq("id", eid).execute()
 
         # Rate limiting — avoid hitting OpenAI too fast
         time.sleep(0.5)
@@ -1799,22 +1920,31 @@ def annotate_pending_events(re_annotate_all: bool = False, fix_translations: boo
     # GPT-4o-mini pricing: $0.15 / 1M input tokens, $0.60 / 1M output tokens
     # -------------------------------------------------------------------
     cost = (total_tokens_in * 0.15 + total_tokens_out * 0.60) / 1_000_000
-    try:
-        sb.table("scraper_runs").insert({
-            "source": "annotator",
-            "events_processed": events_ok,
-            "openai_tokens_in": total_tokens_in,
-            "openai_tokens_out": total_tokens_out,
-            "cost_usd": round(cost, 6),
-            "duration_seconds": int(time.time() - annotation_start),
-            "notes": f"re_annotate_all={re_annotate_all}, fix_translations={fix_translations}, fix_reviewed={fix_reviewed}, total={len(events)}, field_protect_hits={field_protect_hits}",
-        }).execute()
+    if dry_run:
         logger.info(
-            "scraper_runs logged: %d events, %d in / %d out tokens, $%.6f",
-            events_ok, total_tokens_in, total_tokens_out, cost,
+            "[DRY-RUN] scraper_runs insert skipped: %d events, %d in / %d out tokens, $%.6f",
+            events_ok,
+            total_tokens_in,
+            total_tokens_out,
+            cost,
         )
-    except Exception as exc:
-        logger.warning("Could not write scraper_runs (table may not exist yet): %s", exc)
+    else:
+        try:
+            sb.table("scraper_runs").insert({
+                "source": "annotator",
+                "events_processed": events_ok,
+                "openai_tokens_in": total_tokens_in,
+                "openai_tokens_out": total_tokens_out,
+                "cost_usd": round(cost, 6),
+                "duration_seconds": int(time.time() - annotation_start),
+                "notes": f"re_annotate_all={re_annotate_all}, fix_translations={fix_translations}, fix_reviewed={fix_reviewed}, total={len(events)}, field_protect_hits={field_protect_hits}, dry_run={dry_run}",
+            }).execute()
+            logger.info(
+                "scraper_runs logged: %d events, %d in / %d out tokens, $%.6f",
+                events_ok, total_tokens_in, total_tokens_out, cost,
+            )
+        except Exception as exc:
+            logger.warning("Could not write scraper_runs (table may not exist yet): %s", exc)
 
     logger.info("Annotation complete.")
 
@@ -2970,5 +3100,11 @@ if __name__ == "__main__":
     elif enrich_people:
         enrich_person_names()
     else:
-        annotate_pending_events(re_annotate_all=re_all, fix_translations=fix_tr, fix_reviewed=fix_rev, event_id=event_id_arg)
+        annotate_pending_events(
+            re_annotate_all=re_all,
+            fix_translations=fix_tr,
+            fix_reviewed=fix_rev,
+            event_id=event_id_arg,
+            dry_run=dry_run_flag,
+        )
 
