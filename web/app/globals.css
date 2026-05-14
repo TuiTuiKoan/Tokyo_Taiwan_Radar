@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/*
+ * Dark mode via html.dark class (set by anti-flash script in layout.tsx).
+ * Without this, Tailwind v4 `dark:` variants use @media prefers-color-scheme
+ * and ignore the class toggle entirely.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================================
  * Semantic color tokens — Phase 1 foundation for future dark mode
  * ============================================================
