@@ -9,7 +9,7 @@ const MOCHA  = c.primitive.cocoa;     // #3A261F
 const FOREST = c.primitive.greenDeep; // #1F5E2B
 
 export const runtime = "edge";
-export const size = { width: 1200, height: 1200 };
+export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 // ── Deterministic PRNG (mirrors CategoryThumbnail.tsx) ──────────────────────
@@ -203,46 +203,45 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
     (
       <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", background: palette.bg }}>
 
-        {/* Background pattern */}
-        <svg style={{ position: "absolute", top: 0, left: 0 }} width="1200" height="1200" viewBox="0 0 1200 1200">
+        {/* Background pattern — full bleed */}
+        <svg style={{ position: "absolute", top: 0, left: 0 }} width="1200" height="630" viewBox="0 0 1200 630">
           <defs>{patternDef(bgKind, bgPatColor, patRotation)}</defs>
-          <rect width="1200" height="1200" fill="url(#ogpat)" opacity="0.45" />
+          <rect width="1200" height="630" fill="url(#ogpat)" opacity="0.35" />
         </svg>
 
         {/* Corner accent */}
-        <svg style={{ position: "absolute", top: 0, left: 0 }} width="1200" height="1200" viewBox="0 0 1200 1200">
-          {cornerShape === 0 && <circle cx="1104" cy="96" r="168" fill={palette.accent} opacity={cornerOpacity} />}
-          {cornerShape === 1 && <polygon points="1200,0 1200,336 864,0" fill={palette.accent} opacity={cornerOpacity} />}
-          {cornerShape === 2 && <rect x="-48" y="936" width="480" height="480" fill={palette.fg} opacity={cornerOpacity * 0.6} transform="rotate(20 144 1104)" />}
-          {cornerShape === 3 && <path d="M 0 1200 Q 360 840 720 1200 Z" fill={palette.accent} opacity={cornerOpacity * 0.7} />}
+        <svg style={{ position: "absolute", top: 0, left: 0 }} width="1200" height="630" viewBox="0 0 1200 630">
+          {cornerShape === 0 && <circle cx="1100" cy="90" r="150" fill={palette.accent} opacity={cornerOpacity} />}
+          {cornerShape === 1 && <polygon points="1200,0 1200,280 920,0" fill={palette.accent} opacity={cornerOpacity} />}
+          {cornerShape === 2 && <rect x="880" y="370" width="420" height="420" fill={palette.fg} opacity={cornerOpacity * 0.6} transform="rotate(20 1090 490)" />}
+          {cornerShape === 3 && <path d="M 0 630 Q 240 420 480 630 Z" fill={palette.accent} opacity={cornerOpacity * 0.7} />}
         </svg>
 
-        {/* Category motif — centered in top area */}
-        <svg style={{ position: "absolute", top: 80, left: 340 }} width="520" height="520" viewBox="0 0 100 100">
+        {/* Category motif — right side, large */}
+        <svg style={{ position: "absolute", top: 50, right: 60 }} width="480" height="480" viewBox="0 0 100 100">
           <g transform={`translate(${motifOffsetX} ${motifOffsetY}) rotate(${motifRotate} 50 50)`}>
             {renderMotif(primaryCat, palette.fg, accentColor)}
           </g>
         </svg>
 
-        {/* Bottom text panel */}
+        {/* Left text block — full height, no cream panel */}
         <div
           style={{
             position: "absolute",
-            bottom: 0,
+            top: 0,
             left: 0,
-            right: 0,
-            height: "520px",
+            width: "700px",
+            height: "630px",
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
-            padding: "52px 72px 56px",
-            background: "rgba(255,253,245,0.93)",
+            padding: "52px 64px 52px 72px",
           }}
         >
           {/* Category badge */}
           <div style={{ display: "flex" }}>
             <div style={{ display: "flex", background: palette.fg, borderRadius: "8px", padding: "6px 20px" }}>
-              <span style={{ fontSize: "18px", fontWeight: "bold", color: "white", letterSpacing: "2.5px", fontFamily: FF }}>
+              <span style={{ fontSize: "20px", fontWeight: "bold", color: "white", letterSpacing: "2.5px", fontFamily: FF }}>
                 {categoryLabel}
               </span>
             </div>
@@ -255,23 +254,23 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
 
           {/* Date + venue + brand */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-            <div style={{ display: "flex", gap: "56px" }}>
+            <div style={{ display: "flex", gap: "40px" }}>
               {dateStr && (
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: "14px", fontWeight: "bold", color: FOREST, letterSpacing: "2px", marginBottom: "6px" }}>DATE</span>
-                  <span style={{ fontSize: "32px", fontWeight: "bold", color: MOCHA, fontFamily: FF }}>{dateStr}</span>
+                  <span style={{ fontSize: "13px", fontWeight: "bold", color: FOREST, letterSpacing: "2px", marginBottom: "4px" }}>DATE</span>
+                  <span style={{ fontSize: "28px", fontWeight: "bold", color: MOCHA, fontFamily: FF }}>{dateStr}</span>
                 </div>
               )}
               {location && (
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: "14px", fontWeight: "bold", color: FOREST, letterSpacing: "2px", marginBottom: "6px" }}>VENUE</span>
-                  <span style={{ fontSize: "32px", fontWeight: "bold", color: MOCHA, fontFamily: FF }}>{location}</span>
+                  <span style={{ fontSize: "13px", fontWeight: "bold", color: FOREST, letterSpacing: "2px", marginBottom: "4px" }}>VENUE</span>
+                  <span style={{ fontSize: "28px", fontWeight: "bold", color: MOCHA, fontFamily: FF }}>{location}</span>
                 </div>
               )}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
               {/* Wax-apple mascot — 蓮霧 */}
-              <svg width="80" height="88" viewBox="0 0 200 220">
+              <svg width="64" height="70" viewBox="0 0 200 220">
                 <g transform="rotate(3 100 150)">
                   <path d="M100,80 C110,30 60,0 80,20 C100,40 140,50 160,30" fill="none" stroke={FOREST} strokeWidth="4.5" strokeLinecap="round" />
                   <circle cx="164" cy="26" r="11" fill="none" stroke={FOREST} strokeWidth="1.4" opacity="0.4" />
@@ -286,7 +285,7 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
                   <path d="M116,128 Q124,118 132,128" fill="none" stroke="#1A1818" strokeWidth="4.5" strokeLinecap="round" />
                 </g>
               </svg>
-              <span style={{ fontSize: "18px", fontWeight: "bold", color: MOCHA, fontFamily: FF, opacity: 0.6 }}>
+              <span style={{ fontSize: "15px", fontWeight: "bold", color: MOCHA, fontFamily: FF, opacity: 0.6 }}>
                 Tokyo Taiwan Radar
               </span>
             </div>
