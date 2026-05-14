@@ -135,7 +135,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
             <span className="block text-mascot-red">{tHome("heroLine4")}</span>
           </h1>
 
-          <div className="mt-3 mb-1 inline-flex items-center px-3 py-1 rounded bg-[#C4E86F]/40 text-[#1F5E2B] dark:bg-green-950 dark:text-green-300 text-[10px] sm:text-xs font-bold whitespace-nowrap">
+          <div className="mt-3 mb-1 inline-flex items-center px-3 py-1 rounded bg-[#C4E86F]/40 text-[#1F5E2B] dark:bg-green-900/30 dark:text-green-300 text-[10px] sm:text-xs font-bold whitespace-nowrap">
             {tHome("statHero")}
           </div>
 

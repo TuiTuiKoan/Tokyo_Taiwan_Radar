@@ -371,3 +371,55 @@ html.dark .bg-\[\#C4E86F\]\/40                      { background-color: var(--co
 
 /* --- border colours ----------------------------------------- */
 html.dark .border-\[\#3A261F\]                      { border-color: var(--color-border-strong); }
+
+/* ============================================================
+ * @layer base: semantic Tailwind color overrides for dark mode.
+ *
+ * "Light-tint" badge colors (bg-green-50, bg-blue-50, etc.) only work
+ * on white/paper backgrounds. These rules swap them to dark equivalents.
+ *
+ * Placed in @layer base so explicit dark: utilities on elements take
+ * priority (cascade: @layer utilities > @layer base).
+ * ============================================================ */
+@layer base {
+  /* Green tints → green-950 + green-400 text */
+  html.dark .bg-green-50         { background-color: #052e16; }
+  html.dark .bg-green-100        { background-color: #052e16; }
+  html.dark .text-green-700      { color: #4ade80; }
+  html.dark .text-green-600      { color: #4ade80; }
+  html.dark .border-green-300    { border-color: #166534; }
+  html.dark .hover\:bg-green-200:hover { background-color: #14532d; }
+
+  /* Blue tints → blue-950 + blue-300 text */
+  html.dark .bg-blue-50          { background-color: #172554; }
+  html.dark .text-blue-700       { color: #93c5fd; }
+
+  /* Purple tints → purple-950 + purple-300 text */
+  html.dark .bg-purple-50        { background-color: #2e1065; }
+  html.dark .text-purple-700     { color: #c4b5fd; }
+
+  /* Emerald tints → emerald-950 + emerald-300 text */
+  html.dark .bg-emerald-50       { background-color: #022c22; }
+  html.dark .text-emerald-700    { color: #6ee7b7; }
+
+  /* Amber/orange tints → amber-950 + amber-400 text */
+  html.dark .bg-amber-50         { background-color: #451a03; }
+  html.dark .bg-amber-100        { background-color: #451a03; }
+  html.dark .text-amber-700      { color: #fbbf24; }
+  html.dark .text-amber-600      { color: #fbbf24; }
+  html.dark .border-amber-300    { border-color: #92400e; }
+  html.dark .border-amber-200    { border-color: #92400e; }
+  html.dark .bg-orange-100       { background-color: #431407; }
+  html.dark .text-orange-700     { color: #fdba74; }
+}
+
+/* ============================================================
+ * Exception zone: elements inside [data-preserve-theme="light"]
+ * (e.g. AnnouncementCard with yellow gradient) should keep their
+ * original light-mode palette — so override the catch-all above
+ * with the original values, using higher specificity (3 selectors).
+ * ============================================================ */
+html.dark [data-preserve-theme="light"] .text-\[\#3A261F\]           { color: #3A261F; }
+html.dark [data-preserve-theme="light"] .hover\:text-\[\#3A261F\]:hover { color: #3A261F; }
+html.dark [data-preserve-theme="light"] .text-\[\#1F5E2B\]           { color: #1F5E2B; }
+html.dark [data-preserve-theme="light"] .group-hover\:text-green-800 { color: #166534; }

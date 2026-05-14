@@ -125,7 +125,7 @@ export default function Navbar({ locale }: Props) {
   }
 
   return (
-    <header className="border-b border-line bg-paper/50 backdrop-blur sticky top-0 z-50">
+    <header className="border-b border-line bg-paper/60 dark:bg-[#0a0909]/85 backdrop-blur-md sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
         {/* Logo — wax-apple mascot + wordmark */}
         <Link
@@ -245,7 +245,7 @@ export default function Navbar({ locale }: Props) {
 
       {/* Mobile dropdown menu */}
       {menuOpen && (
-        <nav className="md:hidden border-t border-line bg-surface shadow-md">
+        <nav className="md:hidden border-t border-line bg-surface dark:bg-[#0a0909]/95 shadow-md">
           <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-1 text-sm text-[#3A261F] dark:text-fg">
             <Link
               href={`/${locale}`}
