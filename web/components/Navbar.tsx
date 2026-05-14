@@ -247,7 +247,7 @@ export default function Navbar({ locale }: Props) {
 
       {/* Mobile dropdown menu */}
       {menuOpen && (
-        <nav className="md:hidden border-t border-line bg-paper dark:bg-[#0a0909]/95 shadow-md">
+        <nav className="md:hidden border-t border-line bg-paper/80 dark:bg-[#0a0909]/80 backdrop-blur-md shadow-md">
           <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-1 text-sm text-[#3A261F] dark:text-fg">
             <Link
               href={`/${locale}`}
