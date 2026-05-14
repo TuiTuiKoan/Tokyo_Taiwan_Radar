@@ -6,9 +6,15 @@ import AdminTabNav from "@/components/AdminTabNav";
 import ArchitectureFlowExplorer from "@/components/ArchitectureFlowExplorer";
 import { getSystemMap } from "@/lib/specs/reader";
 import type { Locale } from "@/lib/types";
+import { SOURCE_TYPES, type SourceType } from "@/lib/sources";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
+}
+
+interface SourceRow {
+  id: string;
+  type: string;
 }
 
 export const dynamic = "force-dynamic";
@@ -16,6 +22,7 @@ export const dynamic = "force-dynamic";
 export default async function ArchitecturePage({ params }: PageProps) {
   const { locale } = await params;
   const t = await getTranslations("admin.specs.architecture");
+  const tSourceType = await getTranslations("sourceType");
 
   const supabase = await createClient();
   const {
@@ -31,7 +38,38 @@ export default async function ArchitecturePage({ params }: PageProps) {
 
   const map = getSystemMap();
 
-  const totalScrapers = map.scraperGroups.reduce((acc, g) => acc + g.members.length, 0);
+  // Prefer live source groups from DB so this section auto-syncs with source table changes.
+  const { data: sourceRows } = await supabase
+    .from("sources")
+    .select("id, type")
+    .eq("is_active", true)
+    .order("type")
+    .order("sort_order")
+    .order("id");
+
+  const dynamicGroups = new Map<string, string[]>();
+  for (const row of (sourceRows ?? []) as SourceRow[]) {
+    const members = dynamicGroups.get(row.type) ?? [];
+    members.push(row.id);
+    dynamicGroups.set(row.type, members);
+  }
+
+  const knownTypeSet = new Set<string>(SOURCE_TYPES);
+  const orderedTypes = [
+    ...SOURCE_TYPES.filter((type) => dynamicGroups.has(type)),
+    ...Array.from(dynamicGroups.keys()).filter((type) => !knownTypeSet.has(type)),
+  ];
+
+  const scraperGroups =
+    dynamicGroups.size > 0
+      ? orderedTypes.map((type) => ({
+          id: `source-type-${type}`,
+          label: knownTypeSet.has(type) ? tSourceType(type as SourceType) : type,
+          members: dynamicGroups.get(type) ?? [],
+        }))
+      : map.scraperGroups;
+
+  const totalScrapers = scraperGroups.reduce((acc, g) => acc + g.members.length, 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -90,7 +128,7 @@ export default async function ArchitecturePage({ params }: PageProps) {
       <section className="mb-6">
         <h2 className="text-lg font-semibold text-fg-strong mb-3">{t("scraperGroups")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {map.scraperGroups.map((g) => (
+          {scraperGroups.map((g) => (
             <div key={g.id} className="border border-line rounded p-3">
               <h3 className="text-sm font-medium text-fg-strong mb-1">
                 {g.label}{" "}
