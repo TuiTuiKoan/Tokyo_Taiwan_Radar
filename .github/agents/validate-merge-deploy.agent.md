@@ -38,8 +38,12 @@ handoffs:
 
 ### Step 3: Verify Changes
 1. 運行 `get_errors` 檢查語法錯誤（所有修改的文件）
-2. 執行 **`npm run build`**（在 `web/` 目錄）— `tsc --noEmit` pass ≠ build pass；route handler 錯誤、missing file、動態 import 問題只有完整 build 才能捕捉
-   - **殘留 build 程序檢查**：若出現 `⨯ Another next build process is already running`，先 `ps aux | grep "next build" | grep -v grep` 找 pid，`kill -9 <pid>` 後再重試。**不要刪 `.next/` 目錄**（那是 cache，不是 lock）。
+2. **Build 前置清理（必做）**：dev server 與 `next build` 共用 `.next/`，dev server 存活時直接跑 build 會出現 ENOENT 或 lock 衝突
+   ```bash
+   lsof -ti :3000 | xargs kill -9 2>/dev/null; rm -rf web/.next
+   ```
+3. 執行 **`pnpm run build`**（在 `web/` 目錄）— `tsc --noEmit` pass ≠ build pass；route handler 錯誤、missing file、動態 import 問題只有完整 build 才能捕捉
+   - **殘留 build 程序**：若出現 `⨯ Another next build process is already running`，先 `ps aux | grep "next build" | grep -v grep` 找 pid，`kill -9 <pid>` 後再重試。
 3. 執行 token wording gate（deploy 前必過）：
    - 固定執行：`python3 scripts/check_token_permission_consistency.py`
    - 判斷本次 diff 是否包含 token 高風險檔案（使用 `git diff --name-only origin/main...HEAD`）：
@@ -83,7 +87,7 @@ handoffs:
 
 ## 成功指標
 - ✅ 無衝突或已解決
-- ✅ 所有語法檢查通過（`get_errors` + `npm run build`）
+- ✅ 所有語法檢查通過（`get_errors` + `pnpm run build`）
 - ✅ Commit 已推送到 origin/main
 - ✅ Vercel 部署已觸發並完成
 - ✅ 部署驗證通過（無 502/500 錯誤）
