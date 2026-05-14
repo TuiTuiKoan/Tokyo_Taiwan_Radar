@@ -1,22 +1,14 @@
-## 2026-05-15 — antennaFlowAnimation 正式上線首頁 + motif 第二輪精修
+## 2026-05-15 — Antenna 動畫調慢到 12s + 游標游制修正 + Motif 形狀細移（commit `969981d`）
 
-**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
-2026-05-15 | 天線流光動畫（`antennaFlowAnimation`）在元件層完成後，首頁吉祥物仍為靜態（`page.tsx` 未啟用 prop）。同時前幾輪修正後的 `senses/v2`、`books_media/v3`、`gender/v1`、`gender/v2` 四個 variant 再度被判定辨識度不足，需要第二輪精修。另外 `debug/motifs` page 使用獨立硬編碼的 `CATEGORIES` 陣列，與 `lib/types.ts` 容易脫節。 | 元件與 page 各自演進，prop 新增後未同步至呼叫端。Motif 精修需要多輪視覺審查（`/debug/motifs`），不能一次完成。Debug page 的 CATEGORIES 是早期手寫陣列，未與型別系統掛鉤。 | 1) `page.tsx` 的 `<MascotAvatar ... antennaFlowAnimation />` 加上 prop，天線流光在首頁上線。2) `senses/v2` 改為三指展開形狀 + 水滴形底座；`books_media/v3` 改為三角形塔身 + 水平訊號環；`gender/v1` 重繪為更清晰的上唇/下唇分離形；`gender/v2` 花束改為更規則的三圓排列。3) `debug/motifs/page.tsx` 改為 `import { CATEGORIES } from "@/lib/types"`，刪除獨立陣列。加入 `overflow-x-auto` + `flex-shrink-0`，防止 5 個縮圖被截斷。 | 1) **新增 animation prop 後，必須同步搜尋所有呼叫端並決定是否啟用**：`grep -r "MascotAvatar" web/` 確認每個使用位置。2) **Motif 精修是迭代過程，預期需要 2–3 輪**：每輪在 `/debug/motifs` 目視審查，不符合「去色後 2 秒可辨識」標準的一律修，直到通過為止。3) **Debug/tool 頁面的資料陣列必須從 `@/lib/types` 匯入，絕不另維護副本**——副本會悄悄過期，造成「debug 通過但 prod 沒有對應 motif」的盲點。
-
-## 2026-05-15 — MascotAvatar 天線動效迭代：起點白光脈衝、方向反轉、亮度調校
-
-**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
-2026-05-15 | 初版天線流光（`antennaFlowAnimation`）方向錯誤（從身體跑向天線），亮度不足，起點天線圓圈無預告直接出發，動效節奏不自然。有一版先實作為 `signalAnimation` 但視覺「很怪」被使用者要求還原，整個清掉重來。 | 1) 第一版用 `signalAnimation` prop 加了過多層（beam/sheen/glow），視覺互相干擾。2) `animateMotion` 預設從 path 起點出發，方向取決於 path 座標順序，反轉方向需改 path 字串本身。3) 起點圓圈沒有「蓄力感」，動畫出現太突然。 | 1) 清除 `signalAnimation` 所有殘留後重新以 `antennaFlowAnimation` 為唯一入口。2) 天線 path 新增 `antennaPathReverse`（座標反向），`animateMotion` 改用 reverse path。3) 流線漸層方向一起反轉（`x1/x2` 對調）。4) `keyTimes="0;0.32;1" keyPoints="0;0;1"` 讓光點在起點停留約 0.7s（2.2s cycle × 32%）再出發。5) 起點天線末梢（cx=164,cy=26）拆成三個獨立 class（`lianbu-tip-ring`、`lianbu-tip-core`、`lianbu-tip-spark`），分別以 `@keyframes lianbu-tip-ring-flash/core-flash/spark-flash` 驅動白色覆蓋動畫（0%→10% 變白、10%→26% 保持、40% 回綠）。6) 漸層白化：`stop-color: #FFFFFF` + `stopOpacity: 0.92~1`，`feGaussianBlur stdDeviation` 從 1.8→3.4，讓發光暈更大。 | 1) **動畫方向靠 path 字串決定，不是靠 CSS `animation-direction: reverse`**——SMIL `animateMotion` 沒有 reverse 屬性，要反向就必須改 path。2) **「蓄力」節奏靠 SMIL `keyTimes/keyPoints` 的停頓窗口**，不需要 JS。起點停留比例設 30%±10% 在視覺上效果最自然。3) **三層 tip 疊加（ring/core/spark）是最小化的「圓圈發白」技巧**，且每層可獨立微調 timing 不互相耦合。4) **動畫整包清除後重建比局部修補更快**——當多個 class/filter 殘留造成衝突時，grep 確認 0 殘留後從空白開始。5) `prefers-reduced-motion: reduce` 必須同步把三個 tip class 都加入 `animation: none`，否則螢幕閱讀器使用者仍會看到閃爍。
-
-## 2026-05-15 — MascotAvatar 觸角能量流動畫（`antennaFlowAnimation` prop）
-
-**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
-2026-05-15 | 吉祥物（Lianbu 梨寶）在首頁為靜態圖形，缺乏互動性和生命感；設計上希望加入「能量從觸角尖端流向身體」的動態效果。 | 無，這是新功能設計。原本 `MascotBody` 沒有動畫參數，所有 SVG 均為純靜態。 | 新增 `antennaFlowAnimation?: boolean` prop；抽出觸角 path 字串為常數（`antennaPath`），用 SMIL `<animate>` 驅動 `stroke-dashoffset` + `opacity` 做路徑追蹤動畫；用 `data-antenna-flow="on"` data-attribute 觸發 CSS keyframe（`lianbu-antenna-flow-line`、`lianbu-antenna-flow-dot`），避免 React inline style 的特異性問題。 | 1) SVG 路徑追蹤動畫的最佳模式：`stroke-dasharray` + `stroke-dashoffset` 搭配 CSS `@keyframes`（或 SMIL `<animate>`），不需要 JS 計算座標。2) 用 `data-*` attribute 做 CSS animation toggle，比 React state → className 插值更乾淨，且可從父層控制。3) 同一 SVG path 用兩份不同 stroke 疊加（底色靜態 + 動畫流光），視覺效果比單獨動畫更豐富。
-
-## 2026-05-15 — organicMotifs 詞彙擴充：7 個新分類（`drama`、`documentary` 等）
-
-**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
-2026-05-15 | `getSemanticSymbol` 缺少 `drama`、`documentary`、`tea_alcohol`、`parenting`、`scholarship`、`indigenous`、`folklore` 等 7 個分類的 symbol，這些分類在 OG image 和 CategoryThumbnail 中會 fallback 到通用符號。同時既有 4 個 variant（`senses/v2`、`books_media/v3`、`gender/v1`、`gender/v2`）視覺效果不佳，形狀辨識度低。 | 原始設計只涵蓋 CATEGORIES 常數中的主要分類，後補的分類未及時加入 organicMotifs。 | 為 7 個新分類各定義 5 種 sub-variant；修正 4 個既有 variant（簡化形狀、提升辨識度）。使用 Python 腳本（`fix_motifs.py` 系列）批次修正 JSX 字串格式問題。 | 1) **每次新增 `case` 分支後必須在 `/debug/motifs` 測試所有 variant**——本次需要多次 `fix_motifs*.py` 迭代，原因是第一遍 path data 含有無效字元或 JSX attribute 格式錯誤。2) Motif 形狀辨識度標準：去掉顏色後，100px viewBox 內的形狀應可在 2 秒內辨認。超過 6 個 path/shape 必須簡化。3) 既有 variant 需定期審查，不符合辨識度標準的要一併修正，不要只新增不維護。
+- **Antenna duration 2.2s → 12s**：2.2s 帶來視覺干擾。改為 12s 就原地。`globals.css` 全部 5 個 `lianbu-antenna-flow-*` 品顓改寫。SMIL `animateMotion dur` 同步改為 `dur="12s"`。
+- **keyTimes/keyPoints 調整**：旧 `keyTimes="0;0.32;1" keyPoints="0;0;1"`（點停 32%）→ 新 `keyTimes="0;0.17;0.25;1" keyPoints="0;0;1;1"`（點停 0–17%，止於終點 25–100%）。傳達效果：滞留幾秒、快速移動、再滞留。
+- **`lianbu-tip-core-expand` 改名**：`lianbu-tip-core-flash` 之前用 `transform: scale()`，造成 transform-origin stacking context bug。改用 SVG `r` 屬性動畫（`r: 6px → r: 10px`）避开。keyframe 改名，CSS class 名不變（`lianbu-tip-core`）。
+- **SVG `overflow="visible"`**：`antennaFlowAnimation` 開啟時，`<svg>` 跟符加 `overflow={antennaFlowAnimation ? "visible" : undefined}`，避免天線流動點航行到 viewBox 外時被截切。
+- **Gradient 暴小美化**：白色流光 → 暖綠黃（`#FAEAB0 → #C4E86F → #FFFFFF`），與主點激光 palette 傑輔色呢和。
+- **Motif 形狀細移**：`lifestyle_food` 樹葉 → 楽樹葉；`senses` 沙發游樓 → 貓和 icon；`tech` 眼鏡 → 模擬電路板（方形+圓交替）。
+- **教訓**：1) SMIL `dur` 與 CSS animation duration 必須一起改，兩者不同時時序會对不上。
+  2) SVG 動畫超出 viewBox 一定要 `overflow="visible"`，默認 `overflow="hidden"` 不會報错、只是默默截切。
+  3) CSS `transform: scale()` 在 SVG element 上要特別處理 transform-origin，最簡單是用 `r`/`d` 屬性動畫避开。
 
 ## 2026-05-15 — backdrop-blur 子元素被父層 backdrop-filter 封鎖（commit `0a66f93`）
 

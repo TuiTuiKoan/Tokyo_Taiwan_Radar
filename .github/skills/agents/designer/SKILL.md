@@ -329,24 +329,28 @@ interface MascotAvatarProps {
 ```css
 /* globals.css — each keyframe covers: 0% green → 10%–26% white → 40% back to green */
 @keyframes lianbu-tip-ring-flash { … }
-@keyframes lianbu-tip-core-flash { … }
+@keyframes lianbu-tip-core-expand { … }  /* renamed from lianbu-tip-core-flash; uses r-property, not transform:scale */
 @keyframes lianbu-tip-spark-flash { … }
 ```
 
 **Start-point dwell via SMIL keyTimes:**
 ```tsx
 <animateMotion
-  dur="2.2s"
+  dur="12s"
   repeatCount="indefinite"
   path={antennaPathReverse}
-  keyTimes="0;0.32;1"
-  keyPoints="0;0;1"
+  keyTimes="0;0.17;0.25;1"
+  keyPoints="0;0;1;1"
   calcMode="linear"
 />
 ```
-`keyPoints="0;0;1"` keeps the dot at position 0 (tip) from `t=0` to `t=0.32` before traveling to position 1 (body).
+`keyPoints="0;0;1;1"` keeps the dot at position 0 (tip) from `t=0` to `t=0.17`, travels to position 1 (body) by `t=0.25`, then dwells at body until cycle reset.
 
 **Direction reversal:** `animateMotion` follows the path *as written*. To reverse direction, reverse the path string coordinates — `antennaPathReverse` starts at the tip `M160,30` instead of the body `M100,80`. Do **not** use CSS `animation-direction: reverse` on SMIL-driven elements.
+
+**SVG `overflow` for out-of-viewBox animation:** When `antennaFlowAnimation` is on, the dot travels outside the default viewBox. Add `overflow={antennaFlowAnimation ? "visible" : undefined}` to the `<svg>` root — without it the dot silently clips with no error.
+
+**CSS duration and SMIL `dur` must stay in sync:** When changing animation speed, update BOTH the CSS `animation: lianbu-*` duration in `globals.css` AND the SMIL `dur` in `MascotAvatar.tsx`. Mismatched values cause desynchronized tip-flash and dot travel.
 
 **`prefers-reduced-motion` checklist for new animation layers:**
 - `lianbu-antenna-flow-line` → `animation: none`
