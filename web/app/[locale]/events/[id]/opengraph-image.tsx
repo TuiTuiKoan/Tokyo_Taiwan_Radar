@@ -6,10 +6,9 @@ import { satoriTokens } from "@/lib/design/tokens";
 // Brand colors
 const c = satoriTokens.color;
 const MOCHA  = c.primitive.cocoa;     // #3A261F
-const FOREST = c.primitive.greenDeep; // #1F5E2B
 
 export const runtime = "edge";
-export const size = { width: 1200, height: 630 };
+export const size = { width: 1200, height: 1200 };
 export const contentType = "image/png";
 
 // ── Deterministic PRNG (mirrors CategoryThumbnail.tsx) ──────────────────────
@@ -58,11 +57,6 @@ const CATEGORY_LABEL: Record<string, string> = {
 function getCategoryLabel(cats: string[]): string {
   for (const cat of cats) if (CATEGORY_LABEL[cat]) return CATEGORY_LABEL[cat];
   return "EVENT";
-}
-
-function formatDate(dateStr: string | null, locale: string): string {
-  if (!dateStr) return "";
-  return new Date(dateStr).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
 }
 
 // ── Font loader ──────────────────────────────────────────────────────────────
@@ -134,19 +128,17 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
 
   const { data: event } = await supabase
     .from("events")
-    .select("name_ja, name_zh, name_en, start_date, end_date, category, location_name, location_name_zh, is_paid")
+    .select("name_ja, name_zh, name_en, category")
     .eq("id", id)
     .single();
 
-  const name = event ? getEventName(event as Event, locale) ?? event.name_ja ?? "Event" : "Event";
+  // We only need category to drive the design now (no title/date/venue rendered).
+  // `name` is still kept available for alt-text purposes only if needed in the future.
+  void event ? getEventName(event as Event, locale) : undefined;
   const cats: string[] = event?.category ?? [];
   const primaryCat = cats[0] ?? "";
   const secondaryCat = cats[1] ?? "";
   const categoryLabel = cats.length ? getCategoryLabel(cats) : "EVENT";
-  const dateStr = event ? formatDate(event.start_date, locale) : "";
-  const location = locale === "zh"
-    ? (event?.location_name_zh ?? event?.location_name ?? "")
-    : (event?.location_name ?? "");
 
   // Palette — same algorithm as CategoryThumbnail
   const paletteIdx = (hashString((primaryCat || "x") + ":" + (secondaryCat || "y")) + cats.length) % PALETTES.length;
@@ -172,12 +164,8 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
   const cornerShape = Math.floor(rand() * 4);
   const cornerOpacity = 0.55 + rand() * 0.25;
 
-  // Text
-  const truncatedName = name.length > 42 ? name.slice(0, 40) + "…" : name;
-  const titleSize = name.length > 28 ? 54 : name.length > 18 ? 68 : 82;
-
-  const textToLoad = truncatedName + (dateStr ?? "") + (location ?? "") + "Tokyo Taiwan Radar" + categoryLabel;
-  const fontData = await loadFont(textToLoad);
+  // Font (only category label needs glyphs now)
+  const fontData = await loadFont(categoryLabel + "Tokyo Taiwan Radar");
   const fontName = "Zen Maru Gothic";
   const FF = fontData ? fontName : "sans-serif";
 
@@ -199,101 +187,181 @@ export default async function Image({ params }: { params: Promise<{ locale: Loca
     }
   }
 
+  // ── Bauhaus collage: 5 deterministic overlay primitives over an anchor motif ──
+  type Prim = "disk" | "ring" | "tri" | "slab" | "arc" | "dash" | "plus" | "diamond";
+  const PRIMS: Prim[] = ["disk", "ring", "tri", "slab", "arc", "dash", "plus", "diamond"];
+  const pickPrim = (): Prim => PRIMS[Math.floor(rand() * PRIMS.length)];
+
+  // Sectors avoid label zone (top-left 540×360) + watermark (bottom-right 400×120).
+  const sectors: [number, number, number, number][] = [
+    [560, 60, 380, 340],
+    [60, 480, 340, 360],
+    [780, 480, 360, 360],
+    [400, 720, 380, 360],
+    [60, 880, 320, 220],
+    [900, 200, 280, 280],
+  ];
+  const sectorOrder = sectors.map((s) => ({ s, k: rand() })).sort((a, b) => a.k - b.k).map(x => x.s);
+  type Overlay = { kind: Prim; cx: number; cy: number; size: number; rot: number; color: string; opacity: number };
+  const overlays: Overlay[] = Array.from({ length: 5 }, (_, i) => {
+    const [sx, sy, sw, sh] = sectorOrder[i] ?? sectorOrder[0];
+    return {
+      kind: pickPrim(),
+      cx: Math.round(sx + sw * (0.3 + rand() * 0.4)),
+      cy: Math.round(sy + sh * (0.3 + rand() * 0.4)),
+      size: Math.round(180 + rand() * 220),
+      rot: Math.round(rand() * 360),
+      color: rand() > 0.5 ? palette.fg : accentColor,
+      opacity: 0.55 + rand() * 0.3,
+    };
+  });
+
+  function renderPrim(p: Overlay) {
+    const { kind, cx, cy, size, rot, color, opacity } = p;
+    const half = size / 2;
+    const t = `rotate(${rot} ${cx} ${cy})`;
+    switch (kind) {
+      case "disk":
+        return <circle cx={cx} cy={cy} r={half * 0.85} fill={color} opacity={opacity} />;
+      case "ring":
+        return <circle cx={cx} cy={cy} r={half * 0.85} fill="none" stroke={color} strokeWidth={Math.max(10, size * 0.09)} opacity={opacity} />;
+      case "tri":
+        return <polygon points={`${cx},${cy - half} ${cx + half},${cy + half} ${cx - half},${cy + half}`} fill={color} opacity={opacity} transform={t} />;
+      case "slab":
+        return <rect x={cx - half} y={cy - size * 0.14} width={size} height={size * 0.28} fill={color} opacity={opacity} transform={t} />;
+      case "arc":
+        return <path d={`M ${cx - half} ${cy} A ${half} ${half} 0 0 1 ${cx + half} ${cy}`} fill="none" stroke={color} strokeWidth={Math.max(12, size * 0.12)} strokeLinecap="round" opacity={opacity} transform={t} />;
+      case "dash":
+        return <line x1={cx - half} y1={cy} x2={cx + half} y2={cy} stroke={color} strokeWidth={Math.max(14, size * 0.15)} strokeLinecap="round" opacity={opacity} transform={t} />;
+      case "plus":
+        return (
+          <g transform={t} opacity={opacity}>
+            <rect x={cx - half} y={cy - size * 0.13} width={size} height={size * 0.26} fill={color} />
+            <rect x={cx - size * 0.13} y={cy - half} width={size * 0.26} height={size} fill={color} />
+          </g>
+        );
+      case "diamond":
+        return <polygon points={`${cx},${cy - half} ${cx + half},${cy} ${cx},${cy + half} ${cx - half},${cy}`} fill={color} opacity={opacity} transform={t} />;
+    }
+  }
+
+  // Punk label layout: primary big block + ghost echo
+  const labelRot = -8 + Math.floor(rand() * 16);
+  const ghostRot = labelRot + (rand() > 0.5 ? 90 : -90);
+  const labelX = 70 + Math.floor(rand() * 60);
+  const labelY = 100 + Math.floor(rand() * 60);
+  const ghostX = 620 + Math.floor(rand() * 200);
+  const ghostY = 940 + Math.floor(rand() * 60);
+
   return new ImageResponse(
     (
       <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", background: palette.bg }}>
 
-        {/* Background pattern — full bleed */}
-        <svg style={{ position: "absolute", top: 0, left: 0 }} width="1200" height="630" viewBox="0 0 1200 630">
+        {/* 1. Background pattern — full bleed (stripes/grid/halftone/wavy/checker) */}
+        <svg style={{ position: "absolute", top: 0, left: 0 }} width="1200" height="1200" viewBox="0 0 1200 1200">
           <defs>{patternDef(bgKind, bgPatColor, patRotation)}</defs>
-          <rect width="1200" height="630" fill="url(#ogpat)" opacity="0.35" />
+          <rect width="1200" height="1200" fill="url(#ogpat)" opacity="0.4" />
         </svg>
 
-        {/* Corner accent */}
-        <svg style={{ position: "absolute", top: 0, left: 0 }} width="1200" height="630" viewBox="0 0 1200 630">
-          {cornerShape === 0 && <circle cx="1100" cy="90" r="150" fill={palette.accent} opacity={cornerOpacity} />}
-          {cornerShape === 1 && <polygon points="1200,0 1200,280 920,0" fill={palette.accent} opacity={cornerOpacity} />}
-          {cornerShape === 2 && <rect x="880" y="370" width="420" height="420" fill={palette.fg} opacity={cornerOpacity * 0.6} transform="rotate(20 1090 490)" />}
-          {cornerShape === 3 && <path d="M 0 630 Q 240 420 480 630 Z" fill={palette.accent} opacity={cornerOpacity * 0.7} />}
+        {/* 2. Corner accent — bold shape */}
+        <svg style={{ position: "absolute", top: 0, left: 0 }} width="1200" height="1200" viewBox="0 0 1200 1200">
+          {cornerShape === 0 && <circle cx="1080" cy="120" r="200" fill={palette.accent} opacity={cornerOpacity} />}
+          {cornerShape === 1 && <polygon points="1200,0 1200,420 820,0" fill={palette.accent} opacity={cornerOpacity} />}
+          {cornerShape === 2 && <rect x="-60" y="900" width="540" height="540" fill={palette.fg} opacity={cornerOpacity * 0.6} transform="rotate(20 180 1080)" />}
+          {cornerShape === 3 && <path d="M 0 1200 Q 320 880 640 1200 Z" fill={palette.accent} opacity={cornerOpacity * 0.7} />}
         </svg>
 
-        {/* Category motif — right side, large */}
-        <svg style={{ position: "absolute", top: 50, right: 60 }} width="480" height="480" viewBox="0 0 100 100">
-          <g transform={`translate(${motifOffsetX} ${motifOffsetY}) rotate(${motifRotate} 50 50)`}>
+        {/* 3. Bauhaus collage — anchor motif + 5 overlays, occupies ~3/5 area */}
+        <svg style={{ position: "absolute", top: 0, left: 0 }} width="1200" height="1200" viewBox="0 0 1200 1200">
+          {/* Anchor motif: scaled 8× from 100×100 → 800×800, centered+offset.
+              Transform order (right→left): inner offset → scale 8 → rotate around (400,400) → translate. */}
+          <g transform={`translate(220 280) rotate(${motifRotate} 400 400) scale(8) translate(${motifOffsetX} ${motifOffsetY})`}>
             {renderMotif(primaryCat, palette.fg, accentColor)}
           </g>
+          {/* 5 overlay primitives scattered around */}
+          {overlays.map((p, i) => (
+            <g key={i}>{renderPrim(p)}</g>
+          ))}
         </svg>
 
-        {/* Left text block — full height, no cream panel */}
+        {/* 4. Ghost echo label — large outline, rotated */}
         <div
           style={{
             position: "absolute",
-            top: 0,
-            left: 0,
-            width: "700px",
-            height: "630px",
+            left: ghostX,
+            top: ghostY,
+            transform: `rotate(${ghostRot}deg)`,
+            transformOrigin: "left top",
             display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            padding: "52px 64px 52px 72px",
           }}
         >
-          {/* Category badge */}
-          <div style={{ display: "flex" }}>
-            <div style={{ display: "flex", background: palette.fg, borderRadius: "8px", padding: "6px 20px" }}>
-              <span style={{ fontSize: "20px", fontWeight: "bold", color: "white", letterSpacing: "2.5px", fontFamily: FF }}>
-                {categoryLabel}
-              </span>
-            </div>
-          </div>
-
-          {/* Event title */}
-          <span style={{ fontSize: `${titleSize}px`, fontWeight: "bold", color: MOCHA, lineHeight: 1.25, fontFamily: FF }}>
-            {truncatedName}
+          <span style={{
+            fontSize: "200px",
+            fontWeight: "bold",
+            color: palette.accent,
+            letterSpacing: "10px",
+            fontFamily: FF,
+            opacity: 0.22,
+            lineHeight: 1,
+          }}>
+            {categoryLabel}
           </span>
+        </div>
 
-          {/* Date + venue + brand */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-            <div style={{ display: "flex", gap: "40px" }}>
-              {dateStr && (
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: "13px", fontWeight: "bold", color: FOREST, letterSpacing: "2px", marginBottom: "4px" }}>DATE</span>
-                  <span style={{ fontSize: "28px", fontWeight: "bold", color: MOCHA, fontFamily: FF }}>{dateStr}</span>
-                </div>
-              )}
-              {location && (
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: "13px", fontWeight: "bold", color: FOREST, letterSpacing: "2px", marginBottom: "4px" }}>VENUE</span>
-                  <span style={{ fontSize: "28px", fontWeight: "bold", color: MOCHA, fontFamily: FF }}>{location}</span>
-                </div>
-              )}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
-              {/* Wax-apple mascot — 蓮霧 */}
-              <svg width="64" height="70" viewBox="0 0 200 220">
-                <g transform="rotate(3 100 150)">
-                  <path d="M100,80 C110,30 60,0 80,20 C100,40 140,50 160,30" fill="none" stroke={FOREST} strokeWidth="4.5" strokeLinecap="round" />
-                  <circle cx="164" cy="26" r="11" fill="none" stroke={FOREST} strokeWidth="1.4" opacity="0.4" />
-                  <circle cx="164" cy="26" r="6" fill={FOREST} />
-                  <circle cx="164" cy="26" r="2.2" fill="#C4E86F" />
-                  <path d="M100,80 C 86,80 78,88 74,98 C 72,108 66,116 60,128 C 46,146 30,166 36,190 C 44,210 72,216 102,216 C 132,216 160,210 164,190 C 170,166 154,146 140,128 C 134,116 128,108 126,98 C 122,88 114,80 100,80 Z" fill={palette.fg} />
-                  <ellipse cx="58" cy="142" rx="13.3" ry="8" fill="#FF7AA0" opacity="0.65" transform="rotate(-10 58 142)" />
-                  <ellipse cx="146" cy="150" rx="12" ry="6.5" fill="#FF7AA0" opacity="0.75" transform="rotate(12 146 150)" />
-                  <ellipse cx="80" cy="116" rx="13" ry="14" fill="white" />
-                  <circle cx="78" cy="118" r="7" fill="#1A1818" />
-                  <circle cx="75" cy="115" r="2.6" fill="white" />
-                  <path d="M116,128 Q124,118 132,128" fill="none" stroke="#1A1818" strokeWidth="4.5" strokeLinecap="round" />
-                </g>
-              </svg>
-              <span style={{ fontSize: "15px", fontWeight: "bold", color: MOCHA, fontFamily: FF, opacity: 0.6 }}>
-                Tokyo Taiwan Radar
-              </span>
-            </div>
+        {/* 5. Primary label — solid block with offset shadow, punk-rotated */}
+        <div
+          style={{
+            position: "absolute",
+            left: labelX,
+            top: labelY,
+            transform: `rotate(${labelRot}deg)`,
+            transformOrigin: "left top",
+            display: "flex",
+          }}
+        >
+          <div style={{
+            display: "flex",
+            background: MOCHA,
+            padding: "12px 36px 20px",
+            boxShadow: `10px 10px 0 ${palette.fg}`,
+          }}>
+            <span style={{
+              fontSize: "140px",
+              fontWeight: "bold",
+              color: palette.bg,
+              letterSpacing: "10px",
+              fontFamily: FF,
+              lineHeight: 1,
+            }}>
+              {categoryLabel}
+            </span>
           </div>
         </div>
 
-        {/* Bottom accent bar */}
-        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "8px", background: palette.fg, display: "flex" }} />
+        {/* 6. Brand watermark (tiny corner only — no mascot, no title, no date) */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 36,
+            right: 44,
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
+          <span style={{
+            fontSize: "22px",
+            fontWeight: "bold",
+            color: MOCHA,
+            fontFamily: FF,
+            letterSpacing: "1px",
+            opacity: 0.7,
+          }}>
+            Tokyo Taiwan Radar
+          </span>
+        </div>
+
+        {/* 7. Bottom accent bar */}
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "12px", background: palette.fg, display: "flex" }} />
       </div>
     ),
     {
