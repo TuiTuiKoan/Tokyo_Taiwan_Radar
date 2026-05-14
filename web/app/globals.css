@@ -79,6 +79,10 @@
   --color-brand-strong: #4ade80;   /* green-400 */
   --color-brand-soft: #052e16;     /* green-950 */
 
+  /* Decorative palette — darkened for readability */
+  --color-paper: #1c1a17;          /* dark paper (warm very-dark brown) */
+  --color-blush: #2a1f1d;          /* dark blush (warm very-dark rose) */
+
   color-scheme: dark;
 }
 

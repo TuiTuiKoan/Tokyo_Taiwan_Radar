@@ -36,11 +36,11 @@ export interface BadgeProps {
 
 const toneStyles: Record<BadgeTone, string> = {
   neutral: "bg-muted text-fg-muted",
-  success: "bg-[#C4E86F]/40 text-[#1F5E2B]",
-  info: "bg-blue-50 text-blue-700",
-  warning: "bg-amber-50 text-amber-700",
-  danger: "bg-rose-50 text-rose-700",
-  accent: "bg-purple-50 text-purple-700",
+  success: "bg-[#C4E86F]/40 text-[#1F5E2B] dark:bg-green-950 dark:text-green-300",
+  info: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+  warning: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+  danger: "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+  accent: "bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
   brand: "bg-[var(--color-blush)] text-[var(--color-mascot-pink-deep)]",
 };
 

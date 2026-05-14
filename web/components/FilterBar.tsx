@@ -130,7 +130,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
 
   return (
     <div className="sticky top-14 z-20 -mx-4 px-4 pt-2 pb-2 mb-0">
-      <div className="bg-[#FFF1EE] border border-[#EDD8D0]/60 rounded-2xl px-4 py-3 shadow-sm">
+      <div className="bg-blush border border-[#EDD8D0]/60 dark:border-[#3a2a27]/60 rounded-2xl px-4 py-3 shadow-sm">
 
       {/* Mobile: icon toggle row */}
       <div className="flex items-center justify-between md:hidden">
@@ -177,7 +177,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               type="search"
               value={draft.q}
               placeholder={t("searchPlaceholder")}
-              className="h-9 border border-line-strong rounded-lg px-3 text-sm w-48 bg-paper appearance-none shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="h-9 border border-line-strong rounded-lg px-3 text-sm w-48 bg-paper dark:bg-elevated appearance-none shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400"
               onChange={(e) => {
                 const v = e.target.value;
                 setDraft((prev) => ({ ...prev, q: v }));
@@ -198,7 +198,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                 type="button"
                 onClick={() => setCatDropdownOpen((o) => !o)}
                 aria-labelledby={`${fieldIds.categoryLabel} ${fieldIds.categoryTrigger}-text`}
-                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer"
+                className="h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper dark:bg-elevated shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer"
               >
                 <span id={`${fieldIds.categoryTrigger}-text`} className={selectedCats.length > 0 ? "text-green-700 font-medium" : "text-fg-muted"}>
                   {selectedCats.length > 0 ? `${t("category")} (${selectedCats.length})` : t("allCategories")}
@@ -250,7 +250,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               <button
                 type="button"
                 onClick={() => setLocationOpen((o) => !o)}
-                className={`h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer ${draft.location ? "text-green-700 font-medium" : "text-fg-muted"}`}
+                className={`h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper dark:bg-elevated shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer ${draft.location ? "text-green-700 dark:text-green-400 font-medium" : "text-fg-muted"}`}
               >
                 <span>{locationLabel}</span>
                 <span className="text-fg-subtle text-xs">{locationOpen ? "▲" : "▼"}</span>
@@ -278,7 +278,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                         });
                         setLocationOpen(false);
                       }}
-                      className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush hover:text-green-700 ${draft.location === value ? "text-green-700 font-medium" : "text-fg"}`}
+                      className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush dark:hover:bg-[#2a1f1d] hover:text-green-700 dark:hover:text-green-400 ${draft.location === value ? "text-green-700 dark:text-green-400 font-medium" : "text-fg"}`}
                     >
                       {label}
                     </button>
@@ -302,7 +302,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                   <button
                     type="button"
                     onClick={() => setCityOpen((o) => !o)}
-                    className={`h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer ${draft.city ? "text-green-700 font-medium" : "text-fg-muted"}`}
+                    className={`h-9 min-w-[9rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper dark:bg-elevated shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer ${draft.city ? "text-green-700 dark:text-green-400 font-medium" : "text-fg-muted"}`}
                   >
                     <span>{cityLabel}</span>
                     <span className="text-fg-subtle text-xs">{cityOpen ? "▲" : "▼"}</span>
@@ -312,7 +312,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                       <button
                         type="button"
                         onClick={() => { applyWith("city", ""); setCityOpen(false); }}
-                        className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush hover:text-green-700 ${!draft.city ? "text-green-700 font-medium" : "text-fg"}`}
+                        className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush dark:hover:bg-[#2a1f1d] hover:text-green-700 dark:hover:text-green-400 ${!draft.city ? "text-green-700 dark:text-green-400 font-medium" : "text-fg"}`}
                       >
                         {t("cityAll")}
                       </button>
@@ -321,7 +321,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                           key={p}
                           type="button"
                           onClick={() => { applyWith("city", p); setCityOpen(false); }}
-                          className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush hover:text-green-700 ${draft.city === p ? "text-green-700 font-medium" : "text-fg"}`}
+                          className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush dark:hover:bg-[#2a1f1d] hover:text-green-700 dark:hover:text-green-400 ${draft.city === p ? "text-green-700 dark:text-green-400 font-medium" : "text-fg"}`}
                         >
                           {_locale === "en" ? (PREFECTURE_LABELS_EN[p] ?? p) : p}
                         </button>
@@ -340,7 +340,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               <button
                 type="button"
                 onClick={() => setPaidOpen((o) => !o)}
-                className={`h-9 min-w-[7rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer ${draft.paid ? "text-green-700 font-medium" : "text-fg-muted"}`}
+                className={`h-9 min-w-[7rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper dark:bg-elevated shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer ${draft.paid ? "text-green-700 dark:text-green-400 font-medium" : "text-fg-muted"}`}
               >
                 <span>{paidLabel}</span>
                 <span className="text-fg-subtle text-xs">{paidOpen ? "▲" : "▼"}</span>
@@ -356,7 +356,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                       key={value}
                       type="button"
                       onClick={() => { applyWith("paid", value); setPaidOpen(false); }}
-                      className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush hover:text-green-700 ${draft.paid === value ? "text-green-700 font-medium" : "text-fg"}`}
+                      className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush dark:hover:bg-[#2a1f1d] hover:text-green-700 dark:hover:text-green-400 ${draft.paid === value ? "text-green-700 dark:text-green-400 font-medium" : "text-fg"}`}
                     >
                       {label}
                     </button>
@@ -373,7 +373,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
               <button
                 type="button"
                 onClick={() => setTimeModeOpen((o) => !o)}
-                className={`h-9 min-w-[7rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer ${draft.timeMode !== "active" ? "text-green-700 font-medium" : "text-fg-muted"}`}
+                className={`h-9 min-w-[7rem] flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm bg-paper dark:bg-elevated shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400 cursor-pointer ${draft.timeMode !== "active" ? "text-green-700 dark:text-green-400 font-medium" : "text-fg-muted"}`}
               >
                 <span>{timeModeLabel}</span>
                 <span className="text-fg-subtle text-xs">{timeModeOpen ? "▲" : "▼"}</span>
@@ -405,7 +405,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                         }
                         setTimeModeOpen(false);
                       }}
-                      className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush hover:text-green-700 ${draft.timeMode === value ? "text-green-700 font-medium" : "text-fg"}`}
+                      className={`w-full text-left px-4 py-1.5 text-sm hover:bg-blush dark:hover:bg-[#2a1f1d] hover:text-green-700 dark:hover:text-green-400 ${draft.timeMode === value ? "text-green-700 dark:text-green-400 font-medium" : "text-fg"}`}
                     >
                       {label}
                     </button>
