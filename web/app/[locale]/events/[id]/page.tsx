@@ -1123,7 +1123,7 @@ export default async function EventDetailPage({ params }: PageProps) {
           </h2>
           <dl className="border border-line rounded-xl overflow-hidden divide-y divide-line">
             {faqQuestions.map((f, i) => (
-              <div key={i} className="px-4 py-3">
+              <div key={i} className="px-4 py-3 transition-colors duration-150 hover:bg-paper hover:shadow-sm dark:hover:bg-paper">
                 <dt className="font-medium text-fg-strong text-sm mb-1">{f.q}</dt>
                 <dd className="text-sm text-fg">{f.a}</dd>
               </div>
