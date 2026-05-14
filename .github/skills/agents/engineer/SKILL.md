@@ -1013,6 +1013,17 @@ sb.table('field_corrections').delete().eq('event_id', eid).eq('field_name', '<fi
 
 Reference incident: 2026-05-09 — `c6d5232a` 手動修正把污染後的 `name_zh=大濛` 鎖進 FC，需手動 delete + 正確值 re-upsert 才能修復。
 
+**日期欄位（start_date / end_date）成對鎖定規則：**
+手動修正日期時，`start_date` 與 `end_date` 必須同時 FC 鎖，缺一不可：
+```python
+for field, val in [("start_date", start), ("end_date", end)]:
+    sb.table("field_corrections").upsert(
+        {"event_id": eid, "field_name": field, "corrected_value": f'"{val}"'},
+        on_conflict="event_id,field_name"
+    ).execute()
+```
+單日活動 `end_date = start_date`，同樣需要鎖定。忘記鎖 `end_date` 會導致 re-annotation 時 end_date 被覆寫為 None 或 start_date（incident: `b4d97c35` 大阪 GAGA 上映会，2026-05-15）。
+
 **Why both tiers are needed:**
 - P0 alone: `--all` mode or admin overriding a non-null AI value with a different value → correction lost on next re-annotation.
 - P1 alone: excessive DB reads for every field; P0 handles the common case (null-fill) cheaply.

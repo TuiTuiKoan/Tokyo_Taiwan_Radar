@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-15 — `end_date` 被 re-annotation 覆寫為 None（FC 鎖缺失）
+
+**問題：** 事件 `b4d97c35`（GAGA 大阪上映会）在 2026-05-14 被再次 annotate，`end_date` 遭覆寫為 `None`。`start_date` 有 FC 鎖所以保留正確值，但 `end_date` 無 FC 鎖，被 annotator 的 `end_date = start_date` 自動補填邏輯或清空邏輯覆寫。
+
+**根因：** 手動修正 `start_date` 時只補了 `start_date` 的 FC 鎖，忘記同時鎖 `end_date`。Annotator 在 re-annotation 時若 `end_date` 非 null，會以 `start_date` 覆蓋（`not fix_reviewed` 路徑下）；若有條件清空，則設為 `None`。
+
+**修正：** 補回 `end_date = '2025-08-17T00:00:00+00:00'`，同時 upsert FC 鎖（`field_name='end_date'`）。
+
+**教訓：**
+- **手動修正日期欄位，start_date 和 end_date 必須同時 FC 鎖**。兩者是一組，缺一不可。
+- 單日活動：`end_date = start_date`，同樣需要鎖定，不可省略。
+- 判斷標準：活動標題含「x月y日」等具體日期→ end_date 設為同一天並 FC 鎖。
+
+---
+
 ## 2026-05-14 - Admin 事件總數卡在 1000（Supabase 預設回傳上限）
 
 **問題：**
