@@ -109,7 +109,34 @@ useEffect(() => {
 - Keep high-risk classes (for example selector drift or source-structure breakage) in human-review only paths; safe auto-fix should only touch deterministic transforms.
 - Every LINE alert message must include a direct next action (exact workflow name + trigger mode). A warning without CTA is operational noise.
 
-## V-M-D Scope Gate on Dirty Tree
+## GitHub Actions Scheduled Workflow 可靠性 — 雙 cron Fallback 規則
+
+GitHub Actions scheduled cron **不保證準時觸發**，low-activity repo 下排程可能延遲數小時甚至整天跳過。
+
+**規則：**
+1. 關鍵業務 cron（LINE 廣播、報告、財務週期等）**必須**設「主排程 + 次日 fallback」雙 cron。
+2. Python/腳本端**必須**實作冪等查詢（如 `WHERE published_at IS NULL`），防止 fallback cron 重複執行。
+3. `if:` 條件要同時匹配兩個 schedule：
+   ```yaml
+   if: >-
+     (github.event_name == 'schedule' &&
+      (github.event.schedule == '主 cron' || github.event.schedule == 'fallback cron')) ||
+     github.event.inputs.action == 'target-action'
+   ```
+
+**範例：**
+```yaml
+# ❌ 單一 cron — 一次跳過即停止
+- cron: "0 3 * * 5"  # 週五 12:00 JST
+
+# ✅ 雙 cron — 週五主送，週六 fallback
+- cron: "0 3 * * 5"  # 週五 12:00 JST（主送）
+- cron: "0 3 * * 6"  # 週六 12:00 JST（fallback，Python 冪等查詢自動跳過已發草稿）
+```
+
+**Incident:** 2026-05-15 — `weekly-broadcast.yml` 週五 cron 未觸發，`weekly-2026-05-15` 草稿停在 `published_at: null`；補加週六 fallback 後解決（commit `91696a0`）。
+
+
 
 - Before any validate/merge/deploy flow, run `git status --short` first.
 - If the worktree is dirty with unrelated files, stop and ask for explicit commit scope selection before `fetch/rebase/commit/push`.

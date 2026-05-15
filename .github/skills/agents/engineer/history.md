@@ -4,6 +4,45 @@
 
 ---
 
+## 2026-05-15 — Weekly LINE Broadcast 週五 cron 未觸發（GitHub Actions 排程可靠性問題）
+
+**問題：** `weekly-2026-05-15` 草稿於週四 CI 正常生成後，週五 `0 3 * * 5`（03:00 UTC / 12:00 JST）cron 至 06:16 UTC（超時 3h16m）仍無 Actions 記錄，週報未自動發送。使用者手動確認後，本地補發成功（9 位訂閱者 zh+ja）。
+
+**根因：**
+- GitHub Actions scheduled cron 在 **low-activity repo** 下，排程可能被 GitHub 延遲數小時甚至整天跳過，不保證準時觸發。
+- 週四 `0 0 * * 4` 僅延遲 2.5h（09:00 → 11:30 JST），但週五 `0 3 * * 5` 完全未出現在 Run 列表（共 5 runs，無 Run #6）。
+- 系統設計的單點缺陷：每週只有一次觸發機會，若 GitHub 跳過則無任何 fallback，草稿永遠待在 `published_at: null`。
+
+**修正（commit `91696a0`）：**
+- `weekly-broadcast.yml` 新增 `0 3 * * 6`（週六 12:00 JST）safety fallback cron
+- Auto-send step `if:` 條件改為 `schedule == '0 3 * * 5' || schedule == '0 3 * * 6'`
+- Python `run_send_draft()` 已有 `published_at IS NULL` 天然去重保護，fallback 執行時若草稿已發則自動跳過
+
+**教訓：**
+- 關鍵業務操作（LINE 廣播、報告生成等）的 cron 應設「主排程 + 次日 fallback」雙 cron，防止 GitHub 跳過
+- Python/腳本端的冪等查詢（`WHERE published_at IS NULL`）是 fallback cron 安全的前提，實作雙 cron 前先確認腳本具備冪等性
+
+---
+
+## 2026-05-15 — 登入頁面吞掉 OAuth callback 錯誤（`?error=auth_failed` 未顯示）
+
+**問題：** 使用者反映「無法登入」但看不到任何錯誤訊息，停在空白登入頁面。
+
+**根因：**
+- `web/app/auth/callback/route.ts` 在 OAuth code exchange 失敗時，redirect 到 `/zh/auth/login?error=auth_failed`。
+- 但 `login/page.tsx` 完全不讀取 URL 的 `error` 查詢參數，導致使用者看到一個乾淨的登入頁，完全不知道之前的 OAuth 嘗試已失敗。
+- 三語言 messages 檔案也缺少 `auth.loginError` 字串，無法顯示翻譯錯誤訊息。
+
+**修正：**
+1. `web/app/[locale]/auth/login/page.tsx`：在 `useEffect` 中讀取 `new URLSearchParams(window.location.search)`，若含 `error=auth_failed` 則呼叫 `setError(t("loginError"))`。
+2. `web/messages/zh.json`、`en.json`、`ja.json`：各加入 `auth.loginError` 翻譯字串。
+3. 使用 `window.location.search`（非 `useSearchParams()` hook）以避免 Next.js App Router 要求 Page 層級 Suspense 包裝的問題。
+
+**教訓：**
+- Auth callback 的 server-side redirect（帶 `?error=xxx`）**必須**在 login page 用戶端讀取並顯示，否則使用者只看到空白頁面，無法得知根因。
+- 在 `"use client"` page 元件（非子元件）中讀取 URL search params，優先用 `window.location.search`，避免 Next.js App Router 因 `useSearchParams()` 要求 Suspense 邊界而增加複雜度。
+- 每次新增 callback redirect path 帶 error code 時，都要同步確認 target page 有讀取並顯示該 error。
+
 ## 2026-05-15 — OAuth 登入成功但 session 未落地（auth callback cookie 未寫入 redirect response）
 
 **問題：** 使用者透過 Google OAuth 完成登入流程後，網站仍顯示未登入狀態，無法進入管理頁面。
