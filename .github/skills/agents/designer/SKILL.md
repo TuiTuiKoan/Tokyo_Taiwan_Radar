@@ -335,6 +335,11 @@ interface MascotAvatarProps {
 > ⚠️ **峰值色不可用純白 `#FFFFFF`** — 在 homepage 淺色背景（`#FFFDF5`）上完全隱形，無任何視覺 feedback。峰值色統一用品牌黃綠 `#C4E86F`。
 > ⚠️ **`lianbu-tip-core-expand` 必須用 `scale()` 而非 CSS `r` 屬性動畫** — Safari 不支援 CSS `r` 動畫（`@keyframes { r: 6px → r: 10px }`），會靜默凍結在初始值。改用 `transform: scale()` 並加 `transform-box: fill-box; transform-origin: center` 確保跨瀏覽器縮放中心正確。
 
+> ⚠️ **SVG `filter` + `opacity: 0` WebKit FBO 殘影** — `opacity: 0`（CSS 或 SVG attribute）不足以抑制 SVG filter 的渲染。WebKit/Safari 在離屏 FBO 渲染 filter 結果，`opacity` 合成在 FBO 之後；帶有 `filter` 屬性的 SVG 元素在隱藏時**必須同時使用 `visibility: hidden`**：
+> - Element rule：`visibility: hidden` 與 `opacity: 0` 並列
+> - Keyframes：可見期（通常 17–22%）設 `visibility: visible`，其餘設 `visibility: hidden`
+> - SVG attribute：同步加 `visibility="hidden"` 作為 CSS 載入前的雙重防護（CSS animation specificity > SVG presentation attribute，`visibility: visible` keyframe 可正確覆寫）
+
 **Start-point dwell via SMIL keyTimes:**
 ```tsx
 <animateMotion

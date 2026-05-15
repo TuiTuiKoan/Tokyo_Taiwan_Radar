@@ -1,3 +1,20 @@
+## 2026-05-15 — flow-dot WebKit filter FBO 白點殘影（visibility:hidden 雙重防護）
+
+**問題：** 「蓮霧身旁的奇怪小白點」在修復 FOUC（commit `228cb45` 加了 `opacity: 0`）後仍持續出現。
+
+**根因：** SVG `filter` 屬性在 WebKit/Safari 中以**離屏 FBO（framebuffer object）**渲染。FBO 執行在 `opacity: 0` CSS 合成**之前**，即使 `opacity="0"` SVG attribute + CSS `opacity: 0` 雙重設定，filter 產生的白色光暈仍可能在合成前短暫可見。SMIL `<animateMotion keyPoints="0;0;1;1">` 讓 dot 在 23–100% 週期內停在 `(100, 80)`（天線-身體連接點），放大了殘影的持續時間。
+
+**修正（commits `2265c7c`, `ee270b2`）：**
+1. `globals.css`：`.lianbu-antenna-flow-dot` element rule 加入 `visibility: hidden`；`@keyframes lianbu-antenna-flow-dot` 在 0–15% 和 23–100% 設 `visibility: hidden`，17–22%（可見期）設 `visibility: visible`。
+2. `MascotAvatar.tsx`：`<circle className="lianbu-antenna-flow-dot">` 加入 `visibility="hidden"` SVG attribute，堵住 CSS 尚未載入的第一幀空窗（CSS animation 的 `visibility: visible` keyframe specificity 高於 SVG presentation attribute，可正常覆寫）。
+
+**教訓：**
+- **`opacity: 0` 不足以抑制 SVG filter 渲染** — WebKit filter FBO 在 opacity 合成前執行，需改用 `visibility: hidden`（在渲染管線更早阻止 filter 執行）。
+- **雙重防護模式**：CSS `visibility: hidden`（CSS 載入後）+ SVG attribute `visibility="hidden"`（CSS 載入前）共同堵住整個生命週期。
+- **`visibility` 動畫語法**：CSS animation 可離散切換 `visibility`（hidden↔visible），且 CSS animation specificity 高於 SVG presentation attribute，`visibility: visible` keyframe 可正確覆寫 `visibility="hidden"` SVG attribute。
+
+---
+
 ## 2026-05-15 — SKILL.md 修正：tip flash 峰值色 + tip-core Safari scale() 規則
 
 **新增/修改：**
