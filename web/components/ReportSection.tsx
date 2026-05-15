@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { createClient } from "@/lib/supabase/client";
+import { submitReport } from "@/app/actions/submit-report";
 import { CATEGORY_GROUPS, type Category } from "@/lib/types";
 
 interface Props {
@@ -135,16 +135,15 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
     }
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase.from("event_reports").insert({
-        event_id: eventId,
-        report_types: reportTypes,
+      const result = await submitReport({
+        eventId,
+        reportTypes,
         locale,
-        suggested_category: selected.has("wrongCategory") && suggestedCategories.size > 0
+        suggestedCategory: selected.has("wrongCategory") && suggestedCategories.size > 0
           ? Array.from(suggestedCategories)
           : null,
       });
-      if (error) {
+      if (!result.ok) {
         setStatus("error");
         return;
       }
