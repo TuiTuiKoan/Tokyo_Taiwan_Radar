@@ -14,7 +14,6 @@ handoffs:
   - label: "📝 Update history/skill/agent"
     agent: Update History, Skill, Agent
     prompt: "根據最近的設計工作和所學教訓，更新 designer 的 history.md、SKILL.md 和 agent 檔案。"
-    send: true
   - label: "🚀 Validate, merge & deploy"
     agent: Validate, Merge & Deploy
     prompt: "執行完整驗證：build、screenshot diff、push 到 origin/main、確認 Vercel 部署。"
