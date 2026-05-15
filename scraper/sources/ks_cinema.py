@@ -170,6 +170,58 @@ def _parse_schedule_first_last(schedule_str: str, today: datetime) -> tuple[date
     return min(dates), max(dates)
 
 
+def _format_schedule_as_business_hours(schedule_text: str) -> str | None:
+    """Format a schedule line into business_hours string.
+
+    Input examples:
+      '4/25(土)12:30、4/26(日)12:30'
+      '4/27(月)～5/1(金)12:40、5/2(土)～8(金)10:00'
+      '4/25(土)・26(日)12:30'
+
+    Output format (one slot per line):
+      '4/25(土): 12:30'
+      '4/26(日): 12:30'
+      '4/27(月)〜5/1(金): 12:40'
+    """
+    if not schedule_text or not re.search(r"\d{1,2}:\d{2}", schedule_text):
+        return None
+
+    lines: list[str] = []
+
+    # Preprocess: expand dotted multi-day shortcuts like 4/25(土)・26(日)12:30
+    dot_re = re.compile(
+        r"(\d{1,2}/\d{1,2}(?:\([月火水木金土日祝]\))?)"
+        r"(?:\s*[・]\s*(\d{1,2})(?:\([月火水木金土日祝]\))?)"
+        r"([^,、\d\n]*?\d{1,2}:\d{2})"
+    )
+
+    def expand_dot(m: re.Match) -> str:
+        first = m.group(1)
+        month_match = re.match(r"(\d{1,2})/", first)
+        month = month_match.group(1) if month_match else ""
+        second_day = m.group(2)
+        time_part = m.group(3)
+        return f"{first}{time_part}、{month}/{second_day}{time_part}"
+
+    expanded = dot_re.sub(expand_dot, schedule_text)
+
+    segment_re = re.compile(
+        r"(\d{1,2}/\d{1,2}(?:\([月火水木金土日祝]\))?)"
+        r"(?:\s*[〜～]\s*(\d{1,2}/\d{1,2}(?:\([月火水木金土日祝]\))?))?[^,、\d]*?"
+        r"(\d{1,2}:\d{2})"
+    )
+    for m in segment_re.finditer(expanded):
+        start_d = m.group(1)
+        end_d = m.group(2)
+        time_s = m.group(3)
+        if end_d:
+            lines.append(f"{start_d}〜{end_d}: {time_s}")
+        else:
+            lines.append(f"{start_d}: {time_s}")
+
+    return "\n".join(lines) if lines else None
+
+
 def _table_to_dict(table_el: BeautifulSoup) -> dict[str, str]:
     """Convert a <table> of <tr><td>key</td><td>value</td></tr> to a dict."""
     result: dict[str, str] = {}
@@ -412,6 +464,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
                 parent_uuid = _get_parent_uuid(SOURCE_NAME, f"ks_cinema_{url_slug}")
             except (ImportError, Exception):
                 parent_uuid = None
+            biz_hours = _format_schedule_as_business_hours(schedule_text)
             sub_event = Event(
                 source_name=SOURCE_NAME,
                 source_id=f"ks_cinema_{url_slug}_{idx}",
@@ -430,26 +483,40 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
                 price_info=price_info,
                 official_url=official_url,
                 parent_event_id=parent_uuid,
+                business_hours=biz_hours,
             )
             events.append(sub_event)
 
     else:
         # === Single film page ===
 
-        # Collect all description text
+        # Collect description text and schedule lines separately
         desc_parts: list[str] = []
+        schedule_lines: list[str] = []
         if content_div:
             for el in content_div.find_all(["p"]):
                 text = el.get_text(strip=True)
-                if text and not re.match(r"^\d{1,2}/\d{1,2}", text):  # skip pure schedule lines
+                if not text:
+                    continue
+                if re.match(r"^\d{1,2}/\d{1,2}", text):
+                    schedule_lines.append(text)
+                else:
                     desc_parts.append(text)
+
+        schedule_text_single = "、".join(schedule_lines)
+        biz_hours_single = _format_schedule_as_business_hours(schedule_text_single)
 
         raw_desc = "\n".join(desc_parts)
         if biko:
             raw_desc = raw_desc + "\n\n備考：" + biko if raw_desc else "備考：" + biko
         if overall_start:
-            date_str = overall_start.strftime("%Y年%m月%d日")
-            raw_desc = f"開催日時: {date_str}\n\n" + raw_desc
+            if overall_end and overall_end != overall_start:
+                raw_desc = (
+                    f"上映期間: {overall_start.strftime('%Y年%m月%d日')}〜"
+                    f"{overall_end.strftime('%Y年%m月%d日')}\n\n" + raw_desc
+                )
+            else:
+                raw_desc = f"開催日時: {overall_start.strftime('%Y年%m月%d日')}\n\n" + raw_desc
 
         single_name_zh, single_name_en = lookup_movie_titles(title)
         event = Event(
@@ -469,6 +536,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
             is_paid=True,
             price_info=price_info,
             official_url=official_url,
+            business_hours=biz_hours_single,
         )
         events.append(event)
 
