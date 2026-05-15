@@ -474,16 +474,20 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
 }
 
 [data-antenna-flow="on"] .lianbu-antenna-flow-dot {
+  opacity: 0; /* prevent FOUC before first keyframe */
   animation: lianbu-antenna-flow-dot 12s ease-in-out infinite;
 }
 
 [data-antenna-flow="on"] .lianbu-tip-ring {
+  opacity: 0; /* prevent FOUC; quiet state handled by keyframe */
   animation: lianbu-tip-ring-flash 12s ease-in-out infinite;
 }
 
-/* CSS r-property animation: expands from cx/cy center, no transform-origin issues */
+/* transform: scale() for cross-browser r-expansion (Safari doesn't animate CSS r) */
 [data-antenna-flow="on"] .lianbu-tip-core {
   animation: lianbu-tip-core-expand 12s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 [data-antenna-flow="on"] .lianbu-tip-spark {
@@ -535,29 +539,29 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
 }
 
 @keyframes lianbu-tip-ring-flash {
-  0% { r: 11; opacity: 0.35; }
+  0% { r: 11; opacity: 0; }
   7% { r: 22; opacity: 0.9; }
   13% { r: 30; opacity: 0.45; }
   17%,
-  100% { r: 11; opacity: 0.35; }
+  100% { r: 11; opacity: 0; }
 }
 
-/* inner circle expands via CSS r-property from its own cx/cy — no transform needed */
+/* transform: scale() instead of r — universally supported including Safari */
 @keyframes lianbu-tip-core-expand {
   0% {
     fill: #1F5E2B;
-    r: 6;
+    transform: scale(1);
     opacity: 1;
   }
   7% {
     fill: #C4E86F;
-    r: 120;
+    transform: scale(20);
     opacity: 0.6;
   }
   17%,
   100% {
     fill: #1F5E2B;
-    r: 6;
+    transform: scale(1);
     opacity: 1;
   }
 }

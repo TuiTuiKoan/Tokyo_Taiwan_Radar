@@ -97,10 +97,11 @@ function MascotBody({
         </>
       )}
       <g>
-        {tipRingGradientId ? (
+        {/* Static thin stroke circle — always visible regardless of animation state */}
+        <circle cx="164" cy="26" r="11" fill="none" stroke="#1F5E2B" strokeWidth="1.4" opacity="0.4" />
+        {/* Animated gradient ring — flashes on top of stroke circle; hidden at rest */}
+        {tipRingGradientId && (
           <circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill={`url(#${tipRingGradientId})`} opacity={0} />
-        ) : (
-          <circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill="none" stroke="#1F5E2B" strokeWidth="1.4" opacity="0.4" />
         )}
         <circle className="lianbu-tip-core" cx="164" cy="26" r="6" fill="#1F5E2B" />
         <circle className="lianbu-tip-spark" cx="164" cy="26" r="2.2" fill="#C4E86F" />
