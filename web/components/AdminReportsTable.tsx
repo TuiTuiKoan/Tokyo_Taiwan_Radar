@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { type Category, CATEGORIES, CATEGORY_GROUPS, type Locale } from "@/lib/types";
 import Link from "next/link";
 import { confirmReport } from "@/app/actions/confirm-report";
+import { dismissReport } from "@/app/actions/dismiss-report";
 import { createExclusion } from "@/app/actions/source-exclusions";
 
 // Extract up to 3 candidate patterns (katakana ≥4 chars or kanji ≥3 chars) from a title.
@@ -363,12 +364,13 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
 
   async function handleDismiss(id: string) {
     setSaving(id);
-    const update = { status: "dismissed" };
-    const { error } = await supabase.from("event_reports").update(update).eq("id", id);
-    if (!error) {
-      setReports((prev) => prev.map((r) => (r.id === id ? { ...r, ...update } : r)));
+    const result = await dismissReport(id);
+    if (result.ok) {
+      setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: "dismissed" } : r)));
       setExpandedId(null);
       router.refresh(); // invalidate SSR cache
+    } else {
+      alert(result.error ?? "保存に失敗しました。ページを再読み込みしてください。");
     }
     setSaving(null);
   }
