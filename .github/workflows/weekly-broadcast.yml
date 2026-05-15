@@ -6,6 +6,8 @@ on:
     - cron: "0 0 * * 4"
     # Friday 12:00 JST (Fri 03:00 UTC) — auto-send if toggle is enabled
     - cron: "0 3 * * 5"
+    # Saturday 12:00 JST (Sat 03:00 UTC) — safety fallback if Friday cron was skipped by GitHub
+    - cron: "0 3 * * 6"
   workflow_dispatch:
     inputs:
       action:
@@ -54,7 +56,7 @@ jobs:
       # Friday: send the draft if auto_publish=true in app_settings
       - name: Auto-send if enabled (Friday 12:00 JST)
         if: >-
-          (github.event_name == 'schedule' && github.event.schedule == '0 3 * * 5') ||
+          (github.event_name == 'schedule' && (github.event.schedule == '0 3 * * 5' || github.event.schedule == '0 3 * * 6')) ||
           github.event.inputs.action == 'auto-send'
         working-directory: scraper
         env:
