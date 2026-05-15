@@ -29,13 +29,13 @@ function hashForId(s: string): number {
 type Pal = { bg: string; fg: string; accent: string };
 
 function bgDots(fg: string) {
-  const STEP = 72;
-  const N = 18;
+  const STEP = 90;
+  const N = 14;
   const els = [];
   for (let r = 0; r < N; r++) {
     for (let c = 0; c < N; c++) {
       els.push(
-        <circle key={`${r}-${c}`} cx={c * STEP} cy={r * STEP} r="2.8" fill={fg} style={{ opacity: 0.2 }} />
+        <circle key={`${r}-${c}`} cx={c * STEP} cy={r * STEP} r="14" fill={fg} style={{ opacity: 0.2 }} />
       );
     }
   }
