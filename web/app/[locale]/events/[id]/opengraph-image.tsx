@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { createClient } from "@supabase/supabase-js";
 import { type Locale } from "@/lib/types";
-import { getSemanticSymbol } from "@/lib/design/organicMotifs";
+import { getSemanticSymbol, getRandomCollageBase } from "@/lib/design/organicMotifs";
 
 export const runtime = "edge";
 export const size = { width: 1200, height: 1200 };
@@ -27,6 +27,42 @@ function hashForId(s: string): number {
   return h >>> 0;
 }
 
+type Pal = { bg: string; fg: string; accent: string };
+
+function bgDots(fg: string) {
+  const STEP = 72;
+  const N = 18;
+  const els = [];
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      els.push(
+        <circle key={`${r}-${c}`} cx={c * STEP} cy={r * STEP} r="2.8" fill={fg} opacity="0.13" />
+      );
+    }
+  }
+  return <g>{els}</g>;
+}
+
+function motifCell(
+  cat: string, v: number, bv: number, p: Pal,
+  x: number, y: number, sz: number,
+) {
+  const s = sz / 100;
+  return (
+    <g key={`${cat}-${x}`} transform={`translate(${x} ${y}) scale(${s})`}>
+      <rect width="100" height="100" fill={p.bg} />
+      {getRandomCollageBase(bv, p.fg, p.accent)}
+      {getSemanticSymbol(cat, v, p.bg, "#3A261F")}
+      <g transform="translate(2 -2) scale(0.98)">
+        {getSemanticSymbol(cat, v, p.fg, p.accent)}
+      </g>
+    </g>
+  );
+}
+
+const GRID4_X = [80, 640, 80, 640];
+const GRID4_Y = [80, 80, 640, 640];
+
 export default async function Image({
   params,
 }: {
@@ -44,25 +80,35 @@ export default async function Image({
     .eq("id", id)
     .single();
 
-  const categoryKey = event?.category?.[0] ?? "art";
+  const categories = (event?.category as string[] | null) ?? ["art"];
+  const cats = categories.slice(0, 4);
   const h = hashForId(id);
   const palette = PALETTES[h % PALETTES.length];
-  const motifVariant = h % 5;
+  const mv = h % 5;
+  const bv = (h >> 4) % 5;
+
+  const n = cats.length;
+  let cells;
+  if (n === 1) {
+    cells = motifCell(cats[0], mv, bv, palette, 150, 150, 900);
+  } else if (n === 2) {
+    cells = [
+      motifCell(cats[0], mv % 5, bv % 5, palette, 80, 360, 480),
+      motifCell(cats[1], (mv + 1) % 5, (bv + 1) % 5, palette, 640, 360, 480),
+    ];
+  } else {
+    const grid = cats.length >= 4 ? cats : [...cats, cats[0]];
+    cells = grid.slice(0, 4).map((cat, i) =>
+      motifCell(cat, (mv + i) % 5, (bv + i) % 5, palette, GRID4_X[i], GRID4_Y[i], 480)
+    );
+  }
 
   return new ImageResponse(
     (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          background: palette.bg,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <svg width="880" height="880" viewBox="0 0 100 100">
-          {getSemanticSymbol(categoryKey, motifVariant, palette.fg, palette.accent)}
+      <div style={{ width: "100%", height: "100%", background: palette.bg, display: "flex" }}>
+        <svg width="1200" height="1200" viewBox="0 0 1200 1200">
+          {bgDots(palette.fg)}
+          {cells}
         </svg>
       </div>
     ),

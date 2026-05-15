@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { type Locale, CATEGORIES } from "@/lib/types";
-import { getSemanticSymbol } from "@/lib/design/organicMotifs";
+import { getSemanticSymbol, getRandomCollageBase } from "@/lib/design/organicMotifs";
 
 export const runtime = "edge";
 export const size = { width: 1200, height: 1200 };
@@ -26,6 +26,39 @@ function hashForId(s: string): number {
   return h >>> 0;
 }
 
+type Pal = { bg: string; fg: string; accent: string };
+
+function bgDots(fg: string) {
+  const STEP = 72;
+  const N = 18;
+  const els = [];
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      els.push(
+        <circle key={`${r}-${c}`} cx={c * STEP} cy={r * STEP} r="2.8" fill={fg} opacity="0.13" />
+      );
+    }
+  }
+  return <g>{els}</g>;
+}
+
+function motifCell(
+  cat: string, v: number, bv: number, p: Pal,
+  x: number, y: number, sz: number,
+) {
+  const s = sz / 100;
+  return (
+    <g key={`${cat}-${x}`} transform={`translate(${x} ${y}) scale(${s})`}>
+      <rect width="100" height="100" fill={p.bg} />
+      {getRandomCollageBase(bv, p.fg, p.accent)}
+      {getSemanticSymbol(cat, v, p.bg, "#3A261F")}
+      <g transform="translate(2 -2) scale(0.98)">
+        {getSemanticSymbol(cat, v, p.fg, p.accent)}
+      </g>
+    </g>
+  );
+}
+
 export default async function OGImage({
   params,
 }: {
@@ -39,21 +72,15 @@ export default async function OGImage({
 
   const h = hashForId(category);
   const palette = PALETTES[h % PALETTES.length];
+  const mv = h % 5;
+  const bv = (h >> 4) % 5;
 
   return new ImageResponse(
     (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          background: palette.bg,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <svg width="880" height="880" viewBox="0 0 100 100">
-          {getSemanticSymbol(category, 0, palette.fg, palette.accent)}
+      <div style={{ width: "100%", height: "100%", background: palette.bg, display: "flex" }}>
+        <svg width="1200" height="1200" viewBox="0 0 1200 1200">
+          {bgDots(palette.fg)}
+          {motifCell(category, mv, bv, palette, 150, 150, 900)}
         </svg>
       </div>
     ),
