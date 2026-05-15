@@ -102,15 +102,17 @@ When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
 34. **Card-link consistency rule:** For list-style clickable rows (sources/announcements/event detail links), reuse `CARD_LINK`/`CARD_LINK_ARROW` from `web/lib/classNames.ts` instead of page-local duplicated hover classes. Keep light-mode paper background + green hover behavior consistent site-wide.
 35. **MM drift pre-commit guard:** Before any commit/deploy, run `git status --short`. If a file is `MM`, re-stage that file and verify with `git diff --cached <file>` before commit. Never commit when staged and working-tree versions diverge.
 36. **Supabase 1000-row default limit guard:** Never use unpaginated `.select()` result length as total count. For totals, use `.select("id", { count: "exact", head: true })`; when the UI needs all rows, fetch with explicit `.range()` pagination and merge batches.
+37. **Admin API service-role table access rule:** If a Next.js route needs a `service_role`-only table (for example `line_subscribers`), always split permissions into two layers: (a) admin auth gate via SSR client + `user_roles`; (b) DB query via `createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)`. Never query service-role-only tables with `@/lib/supabase/server` client, or RLS will silently return empty results.
 
 ### Step 3: Verify
 
 1. Run `get_errors` on all modified files.
 2. Run `git status --short` and check for any `MM` files; if found, re-stage and re-check cached diff before proceeding.
-3. For scraper changes: `cd scraper && python main.py --dry-run --source <name>`
-4. For web changes: `cd web && npx tsc --noEmit` then `npm run build` (local only, not deploy)
-5. For DB migrations: review SQL against `.github/instructions/database.instructions.md` conventions; do NOT apply without user confirmation.
-6. **After modifying `annotator.py` SYSTEM_PROMPT or `_SIMP_TO_TRAD` char map:** verify every `*_zh` field description says "Traditional Chinese (繁體中文)". After any batch re-annotation **or** char map change, run a full-DB scan on ALL `*_zh` fields:
+3. If `git status --short` shows unrelated modified/untracked files, pause and ask the user to confirm commit scope before any rebase or commit.
+4. For scraper changes: `cd scraper && python main.py --dry-run --source <name>`
+5. For web changes: `cd web && npx tsc --noEmit` then `npm run build` (local only, not deploy)
+6. For DB migrations: review SQL against `.github/instructions/database.instructions.md` conventions; do NOT apply without user confirmation.
+7. **After modifying `annotator.py` SYSTEM_PROMPT or `_SIMP_TO_TRAD` char map:** verify every `*_zh` field description says "Traditional Chinese (繁體中文)". After any batch re-annotation **or** char map change, run a full-DB scan on ALL `*_zh` fields:
    ```python
    import re, os; from dotenv import load_dotenv; from supabase import create_client
    load_dotenv('.env'); sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
@@ -121,7 +123,7 @@ When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
    print(f'Bad: {len(bad)}'); [print(f'  {i} active={a} [{f}] {v!r}') for i,a,f,v in bad]
    ```
    Any new char found → add to `_SIMP_TO_TRAD` AND `auto_qa.py.SIMP_RE` AND DB-patch all affected rows.
-7. **GitHub Actions workflows:** Any `with:` field whose value is a pure `${{ expression }}` must be quoted (`path: "${{ ... }}"`). Bare expressions cause YAML schema validator warnings.
+8. **GitHub Actions workflows:** Any `with:` field whose value is a pure `${{ expression }}` must be quoted (`path: "${{ ... }}"`). Bare expressions cause YAML schema validator warnings.
 
 ### Step 4: Deploy (requires explicit user approval)
 

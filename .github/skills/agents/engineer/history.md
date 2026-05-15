@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-05-15 — LINE 手動發送顯示 0 位訂閱者（RLS 權限語境誤用）
+
+**問題：** 後台「立即發送週報」成功訊息顯示 `已發送給 0 位訂閱者`，但實際上已有訂閱者。
+
+**根因：** `web/app/api/admin/weekly-broadcast/send/route.ts` 用 `@/lib/supabase/server`（anon key + user session）查 `line_subscribers`。該表在 `069_explicit_grants.sql` 屬 service-role only（RLS deny-all for authenticated），因此 API 讀取到空集合。
+
+**修正：**
+1. 保留 `requireAdmin()` 做身份驗證。
+2. 新增 service-role client（`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`）專門查 `line_subscribers`。
+3. 在 API response 加上 `subscriber_count`（zh/ja/en/total）作為運維診斷欄位。
+
+**驗證（雙語境）：**
+- app request 語境：檢查 `/api/admin/weekly-broadcast/send` 路由邏輯已改成 service-role 查詢，並在回應帶出訂閱者統計。
+- SQL Editor / service-role 模擬語境：以 service role 查 `line_subscribers` active count，結果 `active_total=9`，證明不是「真的 0 人」。
+
+**教訓：**
+- 「後台 admin API + 受保護表」是兩階段權限問題：`user_roles` 只決定誰可呼叫 API，不等於該 API 有權讀所有表。
+- 只要目標表是 service-role only，route handler 必須採「admin auth + service-role DB client」分層模式，不能直接沿用 SSR cookie client。
+
+## 2026-05-15 — V-M-D 前遇到 dirty tree，必須先做提交範圍確認
+
+**問題：** 使用者要求直接執行完整 Validate/Merge/Deploy，但工作樹同時存在多個與本次修復無關的變更（包含已修改與未追蹤檔案）。若直接 rebase/commit，容易把不相關變更一起推上 `origin/main`。
+
+**根因：** 部署流程容易把「可以執行 git 操作」誤當成「可以安全提交」。缺少「提交範圍確認（scope gate）」會讓 V-M-D 在 dirty tree 狀態下誤打包。
+
+**修正：** 在 V-M-D 前加入強制前置檢查：
+1. `git status --short` 檢查 dirty tree。
+2. 若存在不相關檔案，先停止流程並要求使用者明確選擇提交範圍（僅本次修復 / 全部變更）。
+3. 範圍確認後才進入 `fetch/rebase/commit/push`。
+
+**教訓：**
+- V-M-D 的安全前提不是「沒有衝突」，而是「提交範圍已明確且經使用者確認」。
+- dirty tree 不是阻止部署的錯誤，而是必須先處理的決策點。
+
 ## 2026-05-15 — Tester FAIL: pytest 匯入失敗 + annotator `--dry-run` 仍寫 DB
 
 **問題：**

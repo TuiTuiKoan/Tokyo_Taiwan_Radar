@@ -31,6 +31,13 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - Keep high-risk classes (for example selector drift or source-structure breakage) in human-review only paths; safe auto-fix should only touch deterministic transforms.
 - Every LINE alert message must include a direct next action (exact workflow name + trigger mode). A warning without CTA is operational noise.
 
+## V-M-D Scope Gate on Dirty Tree
+
+- Before any validate/merge/deploy flow, run `git status --short` first.
+- If the worktree is dirty with unrelated files, stop and ask for explicit commit scope selection before `fetch/rebase/commit/push`.
+- Keep the scope options binary and explicit: ship only the current fix, or ship all pending changes.
+- Re-check staged content with `git diff --cached --name-only` right before commit to ensure no unrelated files were accidentally included.
+
 ## Agent Handoff Reliability
 
 - For workflow agents, treat handoffs as a required output path, not optional UI polish.
@@ -200,6 +207,13 @@ interface CategoryThumbnailProps {
   - **Tier C** (service-role only): `GRANT SELECT, INSERT, UPDATE, DELETE ON ... TO service_role;`
   Always `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` before adding GRANTs.
 - **GRANT scope を決める前に「誰が書くか」を Python コードから逆引きする。** RLS ポリシーのみ参照すると書き込み GRANT が漏れる。典型的な漏れパターン：`scraper_runs`・`research_reports` は scraper/annotator が service_role で INSERT するため `service_role INSERT` が必要。`creators` は admin UI から `authenticated` が CRUD するため `authenticated CRUD` が必要。
+- **Admin API + service-role-only table 規則：** 若 route handler 需要讀寫 `service_role` 專用表（例如 `line_subscribers`），必須採兩層設計：
+  1. 先用 SSR client + `user_roles` 做 admin auth gate。
+  2. 再用 `createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)` 執行該表查詢。
+  不可直接用 `@/lib/supabase/server` client 查 service-role-only 表，否則會因 RLS 拿到空集合而誤判為 0 筆。
+- **權限問題驗證雙語境：**
+  1. app request 語境：檢查 API response 是否含診斷欄位（例如 `subscriber_count`）。
+  2. SQL/service-role 語境：用 service role 直接 count 目標表，確認資料存在與否，避免把「查不到」誤判為「資料為 0」。
 
 ## annotation_status エラーイベントの定期リセット
 

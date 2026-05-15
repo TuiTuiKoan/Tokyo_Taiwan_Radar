@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -8,6 +9,15 @@ async function requireAdmin() {
   const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", user.id).single();
   if (!roleRow || roleRow.role !== "admin") return { supabase, user: null, error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   return { supabase, user, error: null };
+}
+
+function getServiceSupabase() {
+  const url = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) {
+    throw new Error("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not configured");
+  }
+  return createServiceClient(url, serviceKey);
 }
 
 const LINE_MULTICAST_URL = "https://api.line.me/v2/bot/message/multicast";
@@ -37,6 +47,7 @@ async function lineMulticast(userIds: string[], message: string, token: string):
 export async function POST(request: Request) {
   const { supabase, error: authError } = await requireAdmin();
   if (authError) return authError;
+  const serviceSupabase = getServiceSupabase();
 
   const body = await request.json();
   const { id } = body;
@@ -56,10 +67,17 @@ export async function POST(request: Request) {
   if (ann.published_at) return NextResponse.json({ error: "Already published" }, { status: 409 });
 
   // Fetch subscribers by language
-  const { data: subs } = await supabase
+  const { data: subs, error: subsError } = await serviceSupabase
     .from("line_subscribers")
     .select("line_user_id, language_preference")
     .eq("status", "active");
+
+  if (subsError) {
+    return NextResponse.json(
+      { error: `Failed to load LINE subscribers: ${subsError.message}` },
+      { status: 500 },
+    );
+  }
 
   const byLang: Record<string, string[]> = { zh: [], ja: [], en: [] };
   for (const s of subs ?? []) {
@@ -68,13 +86,51 @@ export async function POST(request: Request) {
   }
 
   let sentTotal = 0;
+  const failedLangs: string[] = [];
   for (const lang of ["zh", "ja", "en"] as const) {
     const userIds = byLang[lang];
     if (!userIds.length) continue;
     const msg = (ann[`body_${lang}` as keyof typeof ann] as string | null) ?? ann.body_zh;
     if (!msg) continue;
     const ok = await lineMulticast(userIds, msg, token);
-    if (ok) sentTotal += userIds.length;
+    if (ok) {
+      sentTotal += userIds.length;
+    } else {
+      failedLangs.push(lang);
+    }
+  }
+
+  const totalSubscribers = byLang.zh.length + byLang.ja.length + byLang.en.length;
+  if (failedLangs.length > 0) {
+    return NextResponse.json(
+      {
+        error: `LINE multicast failed for languages: ${failedLangs.join(", ")}`,
+        sent_to: sentTotal,
+        subscriber_count: {
+          zh: byLang.zh.length,
+          ja: byLang.ja.length,
+          en: byLang.en.length,
+          total: totalSubscribers,
+        },
+      },
+      { status: 502 },
+    );
+  }
+
+  if (totalSubscribers > 0 && sentTotal === 0) {
+    return NextResponse.json(
+      {
+        error: "No LINE messages were delivered. Announcement remains draft.",
+        sent_to: sentTotal,
+        subscriber_count: {
+          zh: byLang.zh.length,
+          ja: byLang.ja.length,
+          en: byLang.en.length,
+          total: totalSubscribers,
+        },
+      },
+      { status: 502 },
+    );
   }
 
   // Mark as published
@@ -83,5 +139,13 @@ export async function POST(request: Request) {
     social_status: { line: { status: "published", published_at: new Date().toISOString() } },
   }).eq("id", id);
 
-  return NextResponse.json({ sent_to: sentTotal });
+  return NextResponse.json({
+    sent_to: sentTotal,
+    subscriber_count: {
+      zh: byLang.zh.length,
+      ja: byLang.ja.length,
+      en: byLang.en.length,
+      total: byLang.zh.length + byLang.ja.length + byLang.en.length,
+    },
+  });
 }
