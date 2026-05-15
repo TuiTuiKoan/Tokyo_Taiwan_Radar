@@ -594,6 +594,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId }),
+        signal: AbortSignal.timeout(58000), // 58s hard cap — prevents infinite hang on Vercel timeout or localhost
       });
       if (res.ok) {
         const respJson = (await res.json()) as {
@@ -643,12 +644,18 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   async function handlePublish() {
     if (!savedEventId) return;
     setSaving(true);
-    const { error } = await supabase
+    const { error, data: publishedRows } = await supabase
       .from("events")
       .update({ is_active: true, annotation_status: "reviewed" })
-      .eq("id", savedEventId);
+      .eq("id", savedEventId)
+      .select("id");
     if (error) {
       alert(`Publish failed: ${error.message}`);
+      setSaving(false);
+      return;
+    }
+    if (!publishedRows || publishedRows.length === 0) {
+      alert("發布未生效（session 可能已過期），請重新整理頁面後再試。");
       setSaving(false);
       return;
     }

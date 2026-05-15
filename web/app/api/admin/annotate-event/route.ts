@@ -422,6 +422,7 @@ Rules:
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(25000), // 25s — prevents OpenAI slow response from exceeding Vercel maxDuration
   });
 
   if (openaiRes.ok) {
