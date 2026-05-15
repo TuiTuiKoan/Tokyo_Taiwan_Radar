@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-05-15 — 台湾文化センター海報 OCR で co_organizer 発見 + location_name 幻覚修正（剪花・綻放 切り絵展）
+
+**問題：** イベント `dbfac7c9`（剪花・綻放 切り絵アート展）の `location_name` が `東京・京都`（誤）、`co_organizers` が空。
+
+**根因（2件）：**
+1. **location_name 幻覚**：annotator GPT が東京のみの TCC 会場を `東京・京都` と誤設定。`raw_description` に「台湾文化センター(東京都港区虎ノ門1-1-12 2階)」と明記されているにも関わらず、GPT が京都を付け加えた（ツアー展の記憶汚染と推定）。
+2. **co_organizers 欠落**：`共催：遼江市政府` と `企画運営：日青創藝有限公司` は海報画像（`image_url`）にしか記載されておらず、HTML テキストには `主催：台湾文化センター` のみ → annotator は HTML テキストしか参照しないため空になる。
+
+**修復（直接 DB update）：**
+- GPT-4o Vision で `image_url` の海報 JPEG を OCR → `co_organizers=['遼江市政府']`、`sponsors=['日青創藝有限公司']`、`image_url` を設定
+- `location_name='台湾文化センター'` に修正（`location_name_zh`、`location_name_en` も修正）
+- 6 フィールドを `field_corrections` にロック（再 annotation で上書きされない）
+
+**教訓：**
+- **TCC（台湾文化センター）の `location_name` は annotator が稀に幻覚する**。`東京・京都` は TCC の典型的な誤設定パターン（ツアー展記憶の汚染）。`raw_description` に京都への言及がないのに `location_name` に京都が入っていれば幻覚を疑う。
+- **海報画像（`image_url`）は共催者情報の最終参照元**。HTML テキストに `共催:` がなくても海報には記載されることが多い。admin OCR フロー（GPT-4o Vision）で `image_url` を OCR すれば、スクレイパーが取れない共催者・企画運営を補完できる。
+- **修正後は必ず `field_corrections` にロック**。`co_organizers`、`sponsors`、`location_name` は re-annotation で上書きされる可能性がある。`field_corrections` にロックすることで annotator の上書きを防ぐ。
+
+---
+
 ## 2026-05-06 — bookandbeer: keyword= URL パラメータがサーバー側でフィルタされない（100% ノイズ問題）
 
 **根因：** `bookandbeer.com/event/?keyword=台湾` はサーバー側でフィルタされず全件返却。クライアント側チェックなしだと active 19 件全てが非台湾イベント。
