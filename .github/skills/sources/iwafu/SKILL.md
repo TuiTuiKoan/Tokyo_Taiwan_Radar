@@ -83,6 +83,43 @@ Add new series entries here when an IP is confirmed.
 - Fallback: `card.prefecture` (e.g. `"東京"`) — **only** when `場所：` label is absent.
 - Never store bare prefecture names as `location_address` — they will be flagged by `backfill_locations.py`.
 
+### Address Regex Rules（`_ADDR_RE`）
+
+`_ADDR_RE` は以下のパターンで日本の住所を抽出する：
+
+```python
+_ADDR_RE = re.compile(
+    r'(?:〒\d{3}-\d{4}\s*\n?\s*)?'
+    r'(?:(?:東京都|北海道|(?:大阪|京都)府|.{2,5}[都道府県])\s*)?'  # optional prefecture
+    r'(?:[^\s（(]{1,4}[市区町村])'                               # required city/ward
+    r'.{1,30}?[0-9０-９]+(?:[-ー―][0-9０-９]+)+'
+)
+```
+
+**重要：都道府縣は optional**。日本の住所は都道府縣を省略して市区町村から始まることが多い（例: `渋谷区〇〇1-2-3`）。`[市区町村]` の suffix が唯一の必須 anchor。
+
+### Official Site Body Text Fallback（`official_body_text`）
+
+iwafu 本文（`main_text`）で住所が見つからない場合、official site の body text をフォールバックとして使用する：
+
+1. `_fetch_official_organizer_info(page, official_url)` は **3-tuple** を返す：
+   `(organizer, supplemental_text, body_text)`
+2. `body_text` は公式サイトの全テキスト（`page.inner_text("body")`）
+3. `main_text` で `_ADDR_RE` がマッチしない場合のみ、`official_body_text` を検索する（追加 Playwright フェッチなし）
+
+```python
+addr_m = _ADDR_RE.search(main_text)
+if addr_m is None and official_body_text:
+    addr_m = _ADDR_RE.search(official_body_text)
+```
+
+**注意：** `_fetch_official_organizer_info` の戻り値は 3-tuple。呼び出し元は必ず 3 つの変数で受け取ること：
+```python
+official_organizer, official_credits_text, official_body_text = (
+    _fetch_official_organizer_info(page, official_url)
+)
+```
+
 ## Description Trimming
 
 `_NOISE_MARKERS` defines UI section headers that signal the start of noise content.

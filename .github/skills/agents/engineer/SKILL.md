@@ -49,6 +49,19 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - When adding a DB column, wire up the code that populates it in the same commit. Empty columns = silent data gaps.
 - Wrap non-critical DB inserts (logging, analytics) in `try/except`. Never let a failed log write break the main pipeline.
 - **`supabase/migrations/` must contain only `NNN_name.sql` files.** Never place `.md` files, smoke-test scripts, validation reports, or any non-migration artifacts in this directory. Supabase CLI and tooling will attempt to run every `.sql` file in this directory as a migration — a misplaced file will cause schema errors or no-op runs. If a migration agent produces a smoke-test or verification file alongside the SQL, place it anywhere outside `supabase/` (e.g. a temp directory or delete it). Example incident: `027_smoke_test.sql`, `027_VALIDATION.md`, `027_VERIFICATION_REPORT.md` were accidentally created in `migrations/` by a previous agent and had to be manually deleted (commit `chore(migrations): remove non-migration 027 artifacts`).
+- **PostgREST COUNT は必ず `{ count: 'exact', head: true }` を使う。** `.limit(n)` + client-side filter でカウントを計算すると PostgREST の `max-rows=1000` silent truncation により 1,000 件超で常に過小表示になる。カウントのみ必要な場合は行データを取得しない head-count クエリを使う：
+  ```ts
+  // ❌ client-side count — PostgREST silently truncates at 1000
+  const { data } = await supabase.from("events").select("id").eq("is_active", true);
+  const count = data?.length ?? 0;
+
+  // ✅ head-count — 正確な COUNT、行データ不要
+  const { count } = await supabase
+    .from("events")
+    .select("id", { count: "exact", head: true })
+    .eq("is_active", true);
+  ```
+  複数の COUNT クエリは `Promise.all([...])` で並列実行すること（直列 await は不要）。Reference incident: AEO summary cards capped at 1,000 (commit `518b5a8`, 2026-05-15).
 - When a logging table gains new `NOT NULL` columns (e.g. `success`, `duration_seconds`), **both** the success path and the `except` block must write those columns explicitly. Pattern from `scraper_runs`:
   ```python
   # success path
@@ -100,6 +113,35 @@ if (error) {
 - `web/components/AdminReportsTable.tsx` 所有 bulk-confirm 路徑
 
 替代設計：高風險寫入改走 server action / route handler 用 service role key，繞過 client JWT 過期問題。
+
+## Admin Mutation 成對原則（confirm / dismiss / toggle）
+
+**admin mutation handler は必ずペアで同じ実装パターンを使う。**
+
+`confirmReport` が server action ならば `dismissReport` も server action でなければならない。片方だけ昇格させると、残った方が 0-row silent success トラップに落ちる（2026-05-15 `handleDismiss` 事例）。
+
+**チェックリスト（新規 admin mutation を追加する前に確認）：**
+1. 同じテーブル・同じ権限を必要とする配対 handler が他にないか？
+2. 配対 handler が client-side UPDATE のままなら、同時に server action へ昇格させる。
+3. server action は `.select("id")` + `data.length === 0` guard + `return { ok: false, error }` パターンを必ず含める。
+4. client-side handler は `result.ok` を確認し、false の場合 `alert(result.error)` で即時フィードバックを表示する。
+
+```ts
+// web/app/actions/dismiss-report.ts — server action テンプレート
+"use server";
+import { createClient } from "@/lib/supabase/server";
+export async function dismissReport(reportId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { error, data } = await supabase
+    .from("event_reports")
+    .update({ status: "dismissed" })
+    .eq("id", reportId)
+    .select("id");
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) return { ok: false, error: "0 rows updated" };
+  return { ok: true };
+}
+```
 
 ## annotation_status エラーイベントの定期リセット
 
