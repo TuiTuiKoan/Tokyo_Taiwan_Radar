@@ -306,7 +306,7 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
               onClick={handleSubmit}
               disabled={!canSubmit}
               aria-busy={status === "loading"}
-              className="text-xs bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700 disabled:opacity-40 transition"
+              className="text-xs bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700 disabled:opacity-40 transition whitespace-nowrap min-w-[4.5rem]"
             >
               {status === "loading" ? submittingLabel : t("submit")}
             </button>
