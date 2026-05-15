@@ -4,6 +4,39 @@
 
 ---
 
+## 2026-05-15 — merged_into_event_id 循環 redirect 兩個循環修復（DB-only, 4 rows）
+
+**問題：** `/zh/events/57642851-...` 頁面不停重載。
+
+**根因：** `permanentRedirect()` 在 Next.js SSR 對 `merged_into_event_id IS NOT NULL` 無限觸發：`57642851↔c8e813ae`（二節點）+ `84cb3ff3→2117c91e→a04e7ebb→84cb3ff3`（三節點，跨電影作品誤合併）。
+
+**修復（DB 更新 4 筆，無 code 變更）：**
+- `c8e813ae` merged_into → NULL
+- `57642851` merged_into → `4a8772ec`（cinemart_shinjuku canonical）
+- `2117c91e` merged_into → NULL（台湾Filmake terminal）
+- `a04e7ebb` merged_into → NULL（めぐる面影 × 台湾Filmake 跨作品誤合併清除）
+
+**教訓：** Merger 執行後必須全庫掃描循環；`auto_qa` 加入 cycle check 是正確方向。跨電影作品的 merge 幾乎必然是 bug。
+
+---
+
+## 2026-05-15 — AbortSignal timeout 補齊 + handlePublish 0-row guard（commit `77fc092`）
+
+**問題：** OCR 事件儲存並標注後 UI 卡在「標注中，請稍候…」或「儲存中…」，無法清除。
+
+**根因 A：** `AdminEventTable.tsx` `handleSaveAndAnnotate` 中 `fetch("/api/admin/annotate-event")` 無 `AbortSignal.timeout`；Vercel gateway 截斷時 `await fetch()` 永遠 pending，`setAnnotating(false)` 不執行。
+
+**根因 B：** `annotate-event/route.ts` OpenAI API call 無 `AbortSignal.timeout`；slow GPT response 超過 Vercel `maxDuration = 60` 觸發根因 A。
+
+**根因 C：** `handlePublish` Supabase UPDATE 缺 `.select("id")` + 0-row guard；JWT 過期時 `setSaving(true)` → UPDATE 0 rows → `setSaving(false)` 路徑未走 → 按鈕永遠卡著。
+
+**修復：** commit `77fc092` 三行修改：
+1. `handleSaveAndAnnotate` fetch 加 `signal: AbortSignal.timeout(58000)`
+2. OpenAI fetch 加 `signal: AbortSignal.timeout(25000)`
+3. `handlePublish` 改用 `.select("id")` + 0-row guard + 提示訊息
+
+---
+
 ## 2026-05-15 — kawasaki_ac 日期解析不足與內容薄文本污染導致 selection_reason 矛盾
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

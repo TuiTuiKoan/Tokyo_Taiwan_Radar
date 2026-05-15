@@ -58,6 +58,31 @@ Read this at the start of every session before producing any plan.
 
 ---
 
+## Circular Merge Redirect Loop Guard（merged_into 循環 redirect 防護）
+
+在審核任何 merger 輸出、或手動設定 `merged_into_event_id` 前，**必須**確認不形成循環：
+
+1. **A → B → A、A → B → C → A 等任何循環都會讓 `permanentRedirect()` 無限觸發**，瀏覽器收到 HTTP 308 loop，不停重載。
+2. **偵測指令**（在 `scraper/` 執行）：
+   ```python
+   r = sb.table('events').select('id,merged_into_event_id').not_.is_('merged_into_event_id','null').execute()
+   merged_map = {e['id']: e['merged_into_event_id'] for e in r.data}
+   cycles = []
+   for start in merged_map:
+       visited = set(); cur = start
+       while cur in merged_map and cur not in visited:
+           visited.add(cur); cur = merged_map[cur]
+       if cur in visited: cycles.append(start)
+   print(f"{'✅ No cycles' if not cycles else f'⚠ {len(set(cycles))} cycle nodes'}")
+   ```
+3. **修復方式**：找到循環中「最不重要的節點」（通常是 gnews 二手來源），將其 `merged_into_event_id = NULL`。如有多個事件把此節點當 merge target，評估是否改指向真正的 canonical active 事件。
+4. **跨作品 merge 是警示訊號**：`A`（電影 X）→ `B`（電影 Y，不同片名）幾乎必然是 merger 錯誤，直接 NULL 斷開。
+5. **`auto_qa` 應加入此 cycle 偵測**（待實作）。
+
+Reference incident: 2026-05-15 — `57642851`↔`c8e813ae`（赤い糸）二節點循環 + `84cb3ff3→2117c91e→a04e7ebb→84cb3ff3`（台湾Filmake/めぐる面影）三節點循環，共 4 筆 DB 更新修復。
+
+---
+
 ## Weekly LINE Broadcast 系統設計節奏
 
 在審核任何涉及 `weekly_line_broadcast.py` 的計畫前，**必須**先確認系統設計的執行時序：

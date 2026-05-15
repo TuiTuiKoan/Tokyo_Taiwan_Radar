@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-05-15 — merged_into_event_id 循環 redirect loop 造成頁面不停重載
+
+**問題：** 使用者報 `https://tokyotaiwanradar.com/zh/events/57642851-...`（赤い糸）頁面不停重載。
+
+**根因：** 事件詳情頁遇到 `merged_into_event_id IS NOT NULL` 時呼叫 Next.js `permanentRedirect()`（308）。`57642851` → `c8e813ae` → `57642851` 二節點循環，瀏覽器收到 308 ↔ 308 無限迴圈。全庫掃描後另發現第二個三節點循環：`84cb3ff3`（台湾Filmake）→ `2117c91e` → `a04e7ebb`（めぐる面影）→ `84cb3ff3`，後者跨越不同電影作品（跨作品 merge 幾乎必然是 merger 錯誤）。
+
+**修復（4 筆 DB 更新，無 code 變更）：**
+1. `c8e813ae.merged_into = NULL`（斷開循環 1）
+2. `57642851.merged_into = 4a8772ec`（正確 canonical cinemart_shinjuku active 事件）
+3. `2117c91e.merged_into = NULL`（台湾Filmake terminal node）
+4. `a04e7ebb.merged_into = NULL`（めぐる面影 誤指向台湾Filmake，清除）
+
+**教訓：** Merger 執行後需自動掃描循環；`auto_qa` 加入 cycle check 是正確方向。跨電影作品的 merge 幾乎必然是 bug。已寫入 SKILL.md「Circular Merge Redirect Loop Guard」。
+
+---
+
+## 2026-05-15 — OCR 標注 UI 卡在「儲存中…」根因診斷（AbortSignal 缺失）
+
+**問題：** 使用者 OCR 抓事件頁、點「儲存並標注」後 UI 卡住（`annotating` 狀態永遠不清除）。
+
+**根因：** `handleSaveAndAnnotate` 的 `fetch("/api/admin/annotate-event", ...)` 無 client-side `AbortSignal.timeout`。`annotate-event` API 的 OpenAI `fetch()` 也無 timeout；若 Vercel function 被 gateway 截斷（504）而非標準 HTTP 回應，client-side `await fetch(...)` 可能永遠 pending，`setAnnotating(false)` 不執行。同時 `handlePublish` 的 Supabase UPDATE 缺 0-row guard，JWT 過期時 `setSaving(false)` 也不跑。
+
+**修復（commit `77fc092`）：** Phase 1 — fetch 加 `AbortSignal.timeout(58000)`；Phase 2 — OpenAI call 加 `AbortSignal.timeout(25000)`；Phase 3 — `handlePublish` 加 `.select("id")` + 0-row guard。
+
+**教訓：** 後台任何「觸發外部 API + 等待結果」的 client-side fetch 必須加 `AbortSignal.timeout`；外部 AI API call 在 route 端也需要。已寫入 Engineer SKILL.md「Async Fetch AbortSignal Timeout Guard」。
+
+---
+
 ## 2026-05-15 — 後台 events UPDATE 全失誤診為 migration 069 GRANT 缺失（實為暫時性 JWT 過期）
 
 **問題：** 使用者報後台事件清單管理頁的 toggle、work 指派、AI 報錯 checkbox 三項寫入「突然全部不能 submit」。我作為 Architect 第一輪假設是 migration 069 `_explicit_grants.sql` 漏給 events 表 `authenticated UPDATE`；第二輪假設是 `ae9dc77` 改寫 auth callback 導致 browser session cookie 寫入失敗。準備規劃寫新 migration 補 GRANT。

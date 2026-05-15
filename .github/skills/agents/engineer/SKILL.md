@@ -124,6 +124,36 @@ sb.table('events').update({'annotation_status': 'pending'}).in_('id', ids).execu
 - 薄い `raw_description`（1行のみ）の sub-event も、親イベントのコンテキストを参照することで正常アノテーション可能。
 - error 件数が多い場合は `annotator.py` の GPT JSON パースロジックに問題がある可能性もある（レスポンス形式の変化等）。
 
+## Async Fetch AbortSignal Timeout Guard（UI 永久 loading 防護）
+
+後台任何「觸發外部 API + 等待結果 + 更新 UI 狀態」的 client-side fetch **必須**加 `signal: AbortSignal.timeout(N)` 防護：
+
+**問題場景：** `fetch("/api/admin/annotate-event", ...)` 無 AbortSignal → Vercel function 被 gateway 截斷時（504 但無正常 HTTP 回應），`await fetch()` 永遠 pending → `setAnnotating(false)` 不執行 → UI 卡在「標注中，請稍候…」。
+
+**規則：**
+```ts
+// client-side：呼叫可能耗時 >5s 的 API 一律加 AbortSignal
+const res = await fetch("/api/admin/annotate-event", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ eventId }),
+  signal: AbortSignal.timeout(58000), // 58s hard cap
+});
+
+// API route 端：外部 AI API（OpenAI 等）也必須加 timeout
+const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+  ...
+  signal: AbortSignal.timeout(25000), // 防止超過 Vercel maxDuration
+});
+```
+
+**已修復（commit `77fc092`，2026-05-15）：**
+- `AdminEventTable.tsx` `handleSaveAndAnnotate` 的 annotate-event fetch
+- `annotate-event/route.ts` OpenAI call
+- `AdminEventTable.tsx` `handlePublish` 補 `.select("id")` + 0-row guard
+
+---
+
 ## Supabase Realtime
 
 Supabase Realtime is **NOT enabled by default** for tables. Frontend `.on("postgres_changes", ...)` subscriptions will silently never fire unless the table has been added to the publication first.
