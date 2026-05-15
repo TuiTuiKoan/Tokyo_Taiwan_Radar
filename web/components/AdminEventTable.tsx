@@ -76,9 +76,18 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
   const [ocrFilled, setOcrFilled] = useState(false);
   const [annotating, setAnnotating] = useState(false);
+  const [annotatingElapsed, setAnnotatingElapsed] = useState(0);
+  const [annotationError, setAnnotationError] = useState<string | null>(null);
   const [savedEventId, setSavedEventId] = useState<string | null>(null);
   const [enrichedReady, setEnrichedReady] = useState(false);
   const posterFileRef = useRef<HTMLInputElement>(null);
+  // Elapsed-time counter for annotation progress
+  useEffect(() => {
+    if (!annotating) { setAnnotatingElapsed(0); return; }
+    setAnnotatingElapsed(0);
+    const id = setInterval(() => setAnnotatingElapsed((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [annotating]);
   const [viewMode, setViewMode] = useState<"annotated" | "raw">("annotated");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -561,6 +570,7 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
   }
 
   async function handleSaveAndAnnotate() {
+    setAnnotationError(null);
     setSaving(true);
     const { data, error } = await supabase
       .from("events")
@@ -635,10 +645,14 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
           );
         }
       } else {
-        console.warn("Annotation API failed:", await res.text());
+        const errText = await res.text().catch(() => `HTTP ${res.status}`);
+        console.warn("Annotation API failed:", errText);
+        setAnnotationError(`標注失敗（${res.status}）— 請確認事件已儲存，再點「重新標注」。`);
       }
     } catch (e) {
       console.warn("Annotation error:", e);
+      const isTimeout = e instanceof Error && e.name === "TimeoutError";
+      setAnnotationError(isTimeout ? "標注逾時（58s）— 請點「重新標注」再試一次。" : "標注失敗，請點「重新標注」再試。");
     }
 
     setAnnotating(false);
@@ -1003,7 +1017,7 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
                       {saving ? t("saving") : annotating ? (
                         <span className="flex items-center gap-1.5">
                           <span className="animate-pulse text-blue-200">●</span>
-                          {t("annotating")}
+                          {t("annotating")}{annotatingElapsed > 0 ? ` (${annotatingElapsed}s)` : ""}
                         </span>
                       ) : enrichedReady ? t("reannotate") : t("saveAndAnnotate")}
                     </button>
@@ -1024,6 +1038,13 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
                     {t("cancel")}
                   </button>
                 </div>
+
+                {annotationError && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    <span>⚠</span>
+                    <span>{annotationError}</span>
+                  </div>
+                )}
 
                 {enrichedReady && (
                   <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
