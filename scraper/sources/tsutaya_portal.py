@@ -41,6 +41,8 @@ _EVENT_ID_RE = re.compile(r"/event/[^/]+/(\d+-\d+)\.html$")
 
 # Date patterns in detail page div.date: "梅田 蔦屋書店 ショールーム   2026年 06月06日(土)"
 _DETAIL_DATE_RE = re.compile(r"(\d{4})年\s*(\d{1,2})月(\d{1,2})日")
+# Short end-date without year: "2026年05月08日(金) - 06月07日(日)"
+_DETAIL_END_DATE_SHORT_RE = re.compile(r"-\s*(\d{1,2})月(\d{1,2})日")
 
 # Date range in listing span.date: "2026.05.03(日) - 05.05(火)" or "2026. 05.05(火)"
 _LIST_DATE_RE = re.compile(r"(\d{4})[.\s]+(\d{1,2})[./](\d{1,2})")
@@ -88,7 +90,17 @@ def _parse_detail_date(text: str) -> tuple[Optional[datetime], Optional[datetime
         except (ValueError, IndexError):
             end = start
     else:
-        end = start
+        # Try short end-date like "- 06月07日" (no year — inherit from start)
+        m = _DETAIL_END_DATE_SHORT_RE.search(text)
+        if m:
+            try:
+                end_month, end_day = int(m.group(1)), int(m.group(2))
+                end_year = start.year + (1 if end_month < start.month else 0)
+                end = datetime(end_year, end_month, end_day)
+            except ValueError:
+                end = start
+        else:
+            end = start
     return start, end
 
 
@@ -254,8 +266,10 @@ class TsutayaPortalScraper(BaseScraper):
                 title = det_title or card_title
                 start_date = det_start or card_start
                 end_date = det_end or card_end
-                if not location_name:
-                    location_name = card_store or None
+                # Use store name (card_store) as location_name;
+                # span.place is the in-store area (e.g. "スターバックス横平台"),
+                # not the venue itself.
+                location_name = card_store or location_name or None
 
                 if not _is_taiwan_relevant(title or "", description or ""):
                     logger.debug("Skipping non-Taiwan event: %s", title)
