@@ -42,11 +42,13 @@ function MascotBody({
   antennaFlowAnimation,
   flowGradientId,
   flowGlowId,
+  tipRingGradientId,
 }: {
   upright?: boolean;
   antennaFlowAnimation?: boolean;
   flowGradientId?: string;
   flowGlowId?: string;
+  tipRingGradientId?: string;
 }) {
   const rotate = upright ? 0 : mascotTokens.tilt;
   const antennaPath = "M100,80 C110,30 60,0 80,20 C100,40 140,50 160,30";
@@ -80,6 +82,7 @@ function MascotBody({
             r="4.2"
             fill="#FFFFFF"
             filter={`url(#${flowGlowId})`}
+            opacity={0}
           >
             <animateMotion
               dur="12s"
@@ -94,7 +97,11 @@ function MascotBody({
         </>
       )}
       <g>
-        <circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill="none" stroke="#1F5E2B" strokeWidth="1.4" opacity="0.4" />
+        {tipRingGradientId ? (
+          <circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill={`url(#${tipRingGradientId})`} opacity={0} />
+        ) : (
+          <circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill="none" stroke="#1F5E2B" strokeWidth="1.4" opacity="0.4" />
+        )}
         <circle className="lianbu-tip-core" cx="164" cy="26" r="6" fill="#1F5E2B" />
         <circle className="lianbu-tip-spark" cx="164" cy="26" r="2.2" fill="#C4E86F" />
       </g>
@@ -130,6 +137,7 @@ export function MascotAvatar({
   const baseId = useId().replace(/:/g, "");
   const flowGradientId = `${baseId}-antenna-flow-gradient`;
   const flowGlowId = `${baseId}-antenna-flow-glow`;
+  const tipRingGradientId = `${baseId}-antenna-tip-ring-gradient`;
 
   if (variant === "inline") {
     return (
@@ -151,6 +159,11 @@ export function MascotAvatar({
               <stop offset="50%" stopColor="#C4E86F" stopOpacity="1" />
               <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
             </linearGradient>
+            <radialGradient id={tipRingGradientId} cx="164" cy="26" r="30" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#FFD700" stopOpacity="1" />
+              <stop offset="50%" stopColor="#C4E86F" stopOpacity="0.85" />
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+            </radialGradient>
             <filter id={flowGlowId} x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="3.4" result="blur" />
               <feMerge>
@@ -165,6 +178,7 @@ export function MascotAvatar({
           antennaFlowAnimation={antennaFlowAnimation}
           flowGradientId={flowGradientId}
           flowGlowId={flowGlowId}
+          tipRingGradientId={antennaFlowAnimation ? tipRingGradientId : undefined}
         />
       </svg>
     );
