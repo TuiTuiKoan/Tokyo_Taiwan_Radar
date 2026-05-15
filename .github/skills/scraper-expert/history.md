@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-05-15 — tsutaya_portal: span.place が venue 名に化ける + end_date 年なしパース失敗（event 7b37604e）
+
+**問題 A — location_name に店内エリア名が入る**
+イベントページの `div.date > span.place` には「スターバックス横平台」（店内の棚エリア名）が格納されていた。スクレイパーはこれを `location_name` として採用し、`card_store`（genre span から取得した「六本松 蔦屋書店」）へフォールバックしなかった。
+
+**問題 B — end_date が start_date と同日になる**
+詳細ページの `div.date` テキスト「2026年05月08日(金) - 06月07日(日)」において、end_date の「06月07日」は年を含まない。`_DETAIL_DATE_RE`（年必須パターン）のみでは 1 件しかマッチせず `end = start` になっていた。
+
+**修復（commit 5f247c1）**
+- `_DETAIL_END_DATE_SHORT_RE = re.compile(r"-\s*(\d{1,2})月(\d{1,2})日")` を追加、start_date の年から補完して end_date を算出。
+- `location_name = card_store or location_name or None` — store 名を常に優先、`span.place`（店内エリア名）は venue として使わない。
+- DB 手動修正（end_date / location_name / location_address を 3 件 FC ロック済み）
+
+**教訓**
+1. **詳細ページの「場所」フィールドは venue 名ではなく店内エリア名の場合がある**：`span.place` を `location_name` に使う前に、それが建物名（「〇〇 蔦屋書店」）か店内エリア名（「スターバックス横平台」）かを確認する。蔦屋書店系サイトでは genre span の店名（`card_store`）を優先するのが正しい。
+2. **年なし end_date は short regex で補完する**：`YYYY年MM月DD日 - MM月DD日` 形式（年省略）は蔦屋書店ポータルでよく出現する。`start_date.year` から補完し、`end_month < start_month` の場合は翌年として処理する。
+
+---
+
 ## 2026-05-15 — 台湾映画イベントの片名・人名 3 重誤り（cinemaclair 莎莉/Salli）
 
 **イベント**: `6a0dbfb3` cinemaclair — 映画「サリー」（2023 年台湾）

@@ -756,6 +756,12 @@ python scraper/backfill_locations.py
 - **XMLParsedAsHTMLWarning must be suppressed**: `warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)` is required when using `html.parser` on the RSS XML.
 - **Low yield is normal**: 1–3 event posts per month. `LOOKBACK_DAYS = 180` is intentional — do not reduce it.
 
+## tsutaya_portal-specific
+
+- **`span.place` is in-store area name, NOT venue**: `div.date > span.place` contains the in-store display area (e.g. "スターバックス横平台") — not the building name. Always use `card_store` (from the `span.genre` card on the listing page) as `location_name`. `span.place` can be discarded.
+- **Year-less end-date** (`YYYY年MM月DD日 - MM月DD日`): The end date often omits the year. Use `_DETAIL_END_DATE_SHORT_RE = re.compile(r"-\s*(\d{1,2})月(\d{1,2})日")` and inherit `start_date.year` (add 1 if `end_month < start_month`).
+- **`location_address` not extracted**: The scraper does not fetch per-store addresses. Manual DB fix + `field_corrections` lock is required for events with wrong addresses.
+
 ## bookandbeer-specific
 
 - **`?keyword=台湾` URL parameter is silently ignored by the server**: All events are returned regardless of keyword value. A dry-run WITHOUT keyword param returns the same event count. **Always use client-side `_is_taiwan_relevant()` filter.**

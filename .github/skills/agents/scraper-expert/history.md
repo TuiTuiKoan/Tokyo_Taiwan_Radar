@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-05-15 — tsutaya_portal: span.place 店内エリア名 + end_date 年なしパース失敗
+
+**根因（2件）：**
+1. `div.date > span.place` は店内棚エリア名（例: 「スターバックス横平台」）で、venue 名ではない。`card_store`（genre span）が正しい店名だが、`span.place` が存在すると card_store にフォールバックしなかった。
+2. `YYYY年MM月DD日 - MM月DD日`（end-date に年なし）形式を `_DETAIL_DATE_RE`（年必須）で検出できず `end = start` になった。
+
+**教訓：**
+- 蔦屋書店系サイトでは `card_store`（genre span）を `location_name` に優先し、`span.place` は venue として使わない。
+- 年省略 end-date は `_DETAIL_END_DATE_SHORT_RE` で捕捉し `start_date.year` から補完（end_month < start_month なら翌年）。
+
+---
+
 ## 2026-05-15 — 台湾文化センター海報 OCR で co_organizer 発見 + location_name 幻覚修正（剪花・綻放 切り絵展）
 
 **問題：** イベント `dbfac7c9`（剪花・綻放 切り絵アート展）の `location_name` が `東京・京都`（誤）、`co_organizers` が空。
