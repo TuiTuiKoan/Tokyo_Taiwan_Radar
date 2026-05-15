@@ -29,18 +29,59 @@ function hashForId(s: string): number {
 
 type Pal = { bg: string; fg: string; accent: string };
 
-function bgDots(fg: string) {
-  const STEP = 90;
-  const N = 14;
-  const els = [];
-  for (let r = 0; r < N; r++) {
-    for (let c = 0; c < N; c++) {
-      els.push(
-        <circle key={`${r}-${c}`} cx={c * STEP} cy={r * STEP} r="14" fill={fg} style={{ opacity: 0.2 }} />
-      );
+// 6 bg texture kinds — inline elements only (no <defs>/<pattern>, Satori-safe)
+// Each kind is wrapped in a rotated <g> so random angle applies cleanly
+function bgTexture(kind: number, fg: string, angle: number) {
+  const v = ((kind % 6) + 6) % 6;
+  const els: React.ReactNode[] = [];
+
+  if (v === 0) {
+    // halftone dense: r=28, step=100
+    const S = 100;
+    for (let row = -4; row <= 16; row++)
+      for (let col = -4; col <= 16; col++)
+        els.push(<circle key={`${row},${col}`} cx={col * S} cy={row * S} r={28} fill={fg} />);
+  } else if (v === 1) {
+    // halftone sparse: r=18, step=160
+    const S = 160;
+    for (let row = -3; row <= 11; row++)
+      for (let col = -3; col <= 11; col++)
+        els.push(<circle key={`${row},${col}`} cx={col * S} cy={row * S} r={18} fill={fg} />);
+  } else if (v === 2) {
+    // stripes: vertical rects step=70 width=22
+    for (let i = -12; i <= 30; i++)
+      els.push(<rect key={i} x={i * 70} y="-900" width={22} height="3000" fill={fg} />);
+  } else if (v === 3) {
+    // grid: H + V lines step=80 lineWidth=5
+    for (let i = -7; i <= 23; i++) {
+      els.push(<rect key={`h${i}`} x="-900" y={i * 80} width="3000" height={5} fill={fg} />);
+      els.push(<rect key={`v${i}`} x={i * 80} y="-900" width={5} height="3000" fill={fg} />);
     }
+  } else if (v === 4) {
+    // wavy: sinusoidal horizontal paths
+    const rS = 80, amp = 22, wl = 120;
+    for (let row = -7; row <= 23; row++) {
+      const y0 = row * rS;
+      let d = `M -900 ${y0}`;
+      for (let x = -900; x < 2100; x += wl) {
+        d += ` Q ${x + wl / 4} ${y0 - amp} ${x + wl / 2} ${y0} Q ${x + (3 * wl) / 4} ${y0 + amp} ${x + wl} ${y0}`;
+      }
+      els.push(<path key={row} d={d} stroke={fg} strokeWidth={8} fill="none" />);
+    }
+  } else {
+    // checker: alternating squares sz=110
+    const SZ = 110;
+    for (let row = -8; row <= 19; row++)
+      for (let col = -8; col <= 19; col++)
+        if ((row + col) % 2 === 0)
+          els.push(<rect key={`${row},${col}`} x={col * SZ} y={row * SZ} width={SZ} height={SZ} fill={fg} />);
   }
-  return <g>{els}</g>;
+
+  return (
+    <g transform={`rotate(${angle} 600 600)`} style={{ opacity: 0.18 }}>
+      {els}
+    </g>
+  );
 }
 
 function motifCell(
@@ -86,6 +127,8 @@ export default async function Image({
   const palette = PALETTES[h % PALETTES.length];
   const mv = h % 5;
   const bv = (h >> 4) % 5;
+  const bgKind = (h >> 8) % 6;
+  const bgAngle = ((h >> 12) % 61) - 30;
 
   const n = cats.length;
   let cells;
@@ -107,7 +150,7 @@ export default async function Image({
     (
       <div style={{ width: "100%", height: "100%", background: palette.bg, display: "flex" }}>
         <svg width="1200" height="1200" viewBox="0 0 1200 1200">
-          {bgDots(palette.fg)}
+          {bgTexture(bgKind, palette.fg, bgAngle)}
           {cells}
         </svg>
       </div>
