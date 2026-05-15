@@ -15,7 +15,7 @@ Strategy:
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import requests
@@ -130,9 +130,8 @@ class HumanTrustCinemaScraper(BaseScraper):
             start_date: Optional[datetime] = None
             if data_date:
                 try:
-                    start_date = datetime.fromisoformat(
-                        data_date.replace("+09:00", "")
-                    )
+                    dt_jst = datetime.fromisoformat(data_date)  # parses JST-aware datetime
+                    start_date = datetime(dt_jst.year, dt_jst.month, dt_jst.day, tzinfo=timezone.utc)
                 except (ValueError, AttributeError):
                     pass
 
@@ -156,11 +155,9 @@ class HumanTrustCinemaScraper(BaseScraper):
                 continue
 
             raw_desc = detail["description"]
-            if start_date:
-                raw_desc = (
-                    f"上映開始: {start_date.strftime('%Y年%m月%d日')}\n\n"
-                    + raw_desc
-                )
+            # NOTE: end_date is unavailable on TTCG site. We intentionally omit
+            # start_date from raw_description to prevent annotator SINGLE-DAY RULE
+            # from wrongly setting end_date = start_date.
 
             name_zh, name_en = lookup_movie_titles(title)
             event = Event(
@@ -179,6 +176,7 @@ class HumanTrustCinemaScraper(BaseScraper):
                 end_date=None,
                 location_name=LOCATION_NAME,
                 location_address=LOCATION_ADDRESS,
+                event_form=["film_screening"],
             )
             events.append(event)
             logger.info(
