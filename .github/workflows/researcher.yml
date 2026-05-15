@@ -47,20 +47,22 @@ jobs:
             echo "value=${{ github.event.inputs.slot }}" >> $GITHUB_OUTPUT
             exit 0
           fi
-          # Derive slot from current UTC hour using 6-hour windows
-          # (tolerates GitHub Actions queue delays of up to 3 hours)
+          # Map cron schedule expression → slot using github.event.schedule.
+          # This is immune to GitHub Actions queue delays: even if the job starts
+          # hours late, the triggering cron expression is fixed.
           #
-          # UTC 18–23 → slot 0 (cron 21:00 UTC = 06:00 JST) — cinema / art / music
-          # UTC 00–05 → slot 1 (cron 03:00 UTC = 12:00 JST) — food / books / tech
-          # UTC 06–11 → slot 2 (cron 09:00 UTC = 18:00 JST) — academic / geopolitics / gender
-          # UTC 12–17 → slot 3 (cron 15:00 UTC = 00:00 JST) — community / kansai / fukuoka
-          HOUR=$(date -u +%H | sed 's/^0*//')
-          if [ -z "$HOUR" ]; then HOUR=0; fi
-          if   [ "$HOUR" -ge 18 ]; then echo "value=0" >> $GITHUB_OUTPUT
-          elif [ "$HOUR" -ge 12 ]; then echo "value=3" >> $GITHUB_OUTPUT
-          elif [ "$HOUR" -ge 6 ];  then echo "value=2" >> $GITHUB_OUTPUT
-          else                          echo "value=1" >> $GITHUB_OUTPUT
-          fi
+          # cron "0 21 * * *" → slot 0 (06:00 JST) — cinema / art / music
+          # cron "0  3 * * *" → slot 1 (12:00 JST) — food / books / tech
+          # cron "0  9 * * *" → slot 2 (18:00 JST) — academic / geopolitics / gender
+          # cron "0 15 * * *" → slot 3 (00:00 JST) — community / kansai / fukuoka
+          SCHEDULE="${{ github.event.schedule }}"
+          case "$SCHEDULE" in
+            "0 21 * * *") echo "value=0" >> $GITHUB_OUTPUT ;;
+            "0 3 * * *")  echo "value=1" >> $GITHUB_OUTPUT ;;
+            "0 9 * * *")  echo "value=2" >> $GITHUB_OUTPUT ;;
+            "0 15 * * *") echo "value=3" >> $GITHUB_OUTPUT ;;
+            *)             echo "value=0" >> $GITHUB_OUTPUT ;;  # workflow_dispatch fallback
+          esac
 
       - name: Run daily research
         working-directory: scraper
