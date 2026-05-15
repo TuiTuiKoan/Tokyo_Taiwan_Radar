@@ -4,6 +4,41 @@
 
 ---
 
+## 2026-05-15 — handleDismiss で router.refresh() が画面破損を引き起こした（commit `390826a`）
+
+**問題：** `handleDismiss`（報告を却下するハンドラー）を server action（`dismissReport`）に移行後、`router.refresh()` を呼び出すと画面が突然フリーズ・レイアウト崩壊（"screen break"）した。
+
+**根因：** `handleDismiss` は stay-on-page ハンドラー（`router.push()` なし）であるにもかかわらず、`router.refresh()` が追加されていた。`router.refresh()` が RSC の再レンダリングをトリガーし、Supabase Realtime の `UPDATE` イベントが同時に届いたことで state/render race が発生。`handleConfirm` と異なり、dismiss は `event_reports.status` のみを変更するため SSR キャッシュ無効化は不要。
+
+**修復（commit `390826a`）：**
+- `handleDismiss` から `router.refresh()` を削除
+- ローカル state（`setReports()`）と Realtime 購読で十分（他のセッションにも反映される）
+
+**教訓：**
+- `router.refresh()` は **navigation handler（`router.push()` を伴う場合）にのみ呼ぶ**。stay-on-page の mutation handler では呼ばない。
+- stay-on-page handler で `router.refresh()` を呼ぶと、Realtime サブスクリプションと RSC 再レンダリングが競合し、画面が破損する。
+- dismiss は event fields を変更しない → SSR cache invalidation 不要 → `router.refresh()` 禁止。
+- confirm は event fields（category, is_active）を変更する → SSR cache invalidation 必要 → `router.refresh()` 必須。
+
+---
+
+## 2026-05-15 — _oneoff_migrate_multi_performer で役割 suffix が名前に残る（commit `a3a4bed`）
+
+**問題：** `_split_performer()` で複数人名文字列（例：`ジャッキー・チェン（監督）、ジェット・リー（主演）`）を分割後、各名前に `（監督）`、`（主演）` などの役割表記が残ったまま `performers[]` に格納されていた。
+
+**根因：** `_SEP_RE` で区切り文字を基に分割した後、役割 suffix の除去処理がなかった。「分割」と「suffix 除去」を独立ステップとして実装していなかった。
+
+**修復（commit `a3a4bed`）：**
+- `_ROLE_SUFFIX_RE = re.compile(r"[（(](?:監督|主演|出演|演出|脚本|製作|ゲスト|ナレーター|MC|司会|プロデューサー|ディレクター)[)）]")` を追加
+- `_split_performer()` 内で split 後に各 part へ `_ROLE_SUFFIX_RE.sub("", p).strip()` を適用
+- 空文字になった part をフィルタ；dedup も保持順のまま実施
+
+**教訓：**
+- 人名文字列の split pipeline は「**区切り文字で分割 → 役割 suffix 除去 → trim → フィルタ空文字 → dedup**」の順で実施する。
+- annotator が返す performers[] には事前に suffix 除去済みであるべきだが、既存データの migration スクリプトでも同様の pipeline が必要。
+
+---
+
 ## 2026-05-15 — Admin reports 却下ボタン静默失敗（handleDismiss 缺 server action，commit `dbe8471`）
 
 **問題：** Admin reports 頁面「却下」按鈕點擊後，spinner 出現又消失，報告狀態沒有變更為 `dismissed`，完全靜默——使用者無任何錯誤提示。

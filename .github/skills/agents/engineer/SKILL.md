@@ -293,7 +293,14 @@ router.push('/admin');
 | 同一 tab 內的即時 row 更新（新報告、狀態變更） | Supabase Realtime 訂閱（`INSERT` + `UPDATE`）|
 | 跨頁面導航後列表顯示最新資料 | `router.refresh()` before `router.push()` |
 
-**規則：** 任何 Admin 頁面的 save / confirm / dismiss handler，只要後面接 `router.push()`，一律在其前加 `router.refresh()`。這是 Next.js App Router 的必要模式，不是 optional 優化。
+**規則：** 任何 Admin 頁面的 save / confirm handler，只要後面接 `router.push()`，一律在其前加 `router.refresh()`。這是 Next.js App Router 的必要模式，不是 optional 優化。
+
+**⚠️ 逆に stay-on-page handler（`router.push()` を伴わない dismiss / toggle など）では `router.refresh()` を呼ばない。** `router.refresh()` が RSC 再レンダリングをトリガーし、Realtime `UPDATE` イベントと同時着火することで state/render race → 画面破損が起きる（2026-05-15 `handleDismiss` commit `390826a`）。ローカル state（`setReports()`）と Realtime 購読で十分。
+
+| ハンドラータイプ | `router.refresh()` | 理由 |
+|---|---|---|
+| confirm（event fields 変更 → `router.push()` あり） | ✅ 必要 | SSR キャッシュ無効化が必要 |
+| dismiss（report status のみ変更、stay-on-page） | ❌ 不要・禁止 | Realtime と RSC re-render が競合し画面破損 |
 
 ## Python
 - When changing a function's return type (e.g. `dict` → `tuple`), immediately smoke-test before committing: `python -c "from module import fn; print(type(fn(...)))"`

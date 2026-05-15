@@ -122,6 +122,7 @@ When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
 38. **Weekly broadcast publish-gate rule:** In `web/app/api/admin/weekly-broadcast/send/route.ts`, never mark an announcement as published unless LINE delivery succeeded. If any language multicast fails, or `subscriber_count.total > 0` but `sent_to = 0`, return `502` and keep `published_at = null` with `social_status.line.status = draft`.
 39. **Asahi Culture source key/name split:** For this source, CLI dry-run key is `asahi_culture` while DB records use `source_name='asahiculture'`. Use the key for `python main.py --dry-run --source ...`, and use the source_name for Supabase queries/patch scripts. When patching this series manually, always upsert matching `field_corrections` rows in the same transaction scope, and pair-lock `start_date` + `end_date` together.
 40. **Report submit UX robustness rule:** For client-side report/feedback submit components (for example `web/components/ReportSection.tsx`), always use `try/catch` around async submit, render explicit loading text (not symbol-only), set action buttons to `type="button"`, and expose loading state via `aria-busy` to avoid "clicked but no response" perception.
+41. **router.refresh() は navigation handler（router.push() 直前）にのみ使う：** stay-on-page handler（例：dismiss、toggle）で `router.refresh()` を呼ぶと、Realtime 購読と RSC 再レンダリングが競合し画面が破損する（2026-05-15 `handleDismiss` commit `390826a`）。stay-on-page mutation はローカル state（`setReports()` 等）と Realtime 購読で完結させる。See `SKILL.md § Next.js SSR 快取無效化`.
 
 ### Step 3: Verify
 
