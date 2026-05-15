@@ -52,31 +52,8 @@
 
 ## 2026-05-15 — asahiculture 系列欄位缺漏，需一次性補值 + scraper pipeline 固化
 
-**問題：**
-- `asahiculture` 系列事件存在欄位缺漏與不一致：`performer`、`location_address`、`business_hours`、`official_url`、`is_paid`、`price_info`、`organizer_type`，以及部分 `end_date` 與來源頁課程期間不一致。
-- CLI source key 也容易混淆：`--source asahi_culture` 才是正確 key，但事件 `source_name` 為 `asahiculture`。
-
-**根因：**
-- detail page 結構不一致：有些課程講師在 `h3`，有些只在頁首「姓名/職稱」行。
-- 費用文案格式不一致：`会員14,190円` 與 `会員（テキスト付き）23,780円` 同時存在。
-- 教室地址不一定在 detail 頁可穩定抽到，常需教室固定地址 fallback。
-- 手動補值若未同時寫入 `field_corrections`，下次 re-annotation 會被覆寫。
-
-**修正：**
-1. 批次修復 `source_name=asahiculture` 全系列事件，回填缺漏欄位並同步 upsert `field_corrections`。
-2. 日期欄位以 scraper 實際抽取結果回寫，並成對鎖定 `start_date` + `end_date`。
-3. 強化 `scraper/sources/asahiculture.py`：
-  - 單日課程 `end_date = start_date`
-  - `organizer_type=['cultural_institution']`
-  - `official_url=detail_link`
-  - 費用 regex 支援括號版本（`会員（...）`）
-  - 講師 fallback regex 支援無空格與含假名姓名（如 `栖来ひかり`）
-  - 教室地址 fallback map（新宿/北九州/川西/くずは/立川サテライト）
-
-**教訓：**
-- 朝日教室系列屬「模板頁 + 變體欄位」來源，必須在 scraper 內做多路徑抽取，不能假設單一 selector 永久有效。
-- 任何系列型手動補值都必須同時做 FC 鎖定；日期欄位必須成對鎖（`start_date` + `end_date`）。
-- 操作層面要區分 `source key` 與 `source_name`：dry-run 用 `asahi_culture`，DB 查詢用 `asahiculture`。
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-15 | `asahiculture` 系列事件出現 `performer`、`location_address`、`business_hours`、`official_url`、`is_paid`、`price_info`、`organizer_type` 與部分 `end_date` 缺漏或不一致，且 source key/source_name 容易混淆。 | detail page 有多種變體（講師區塊有時在 `h3`，有時僅在頁首行）、費用字串格式不固定（含/不含括號描述）、地址欄位來源不穩；手動補值未同批寫入 `field_corrections` 會在 re-annotation 被覆寫。 | 1) 批次補值 `source_name=asahiculture` 事件並同步 upsert `field_corrections`；2) 日期欄位回寫後成對鎖定 `start_date` + `end_date`；3) 強化 `scraper/sources/asahiculture.py`：單日課程 `end_date=start_date`、固定 `organizer_type=['cultural_institution']`、`official_url=detail_link`、費用 regex 支援 `会員（...）`、講師抽取加入 header fallback、教室地址加入 fallback map。 | 朝日教室屬於模板頁變體來源，必須在 scraper 內做多路徑抽取；系列型手動補值必須與 FC 鎖定同批執行，且日期欄位要成對鎖；操作時要明確區分 dry-run key `asahi_culture` 與 DB `source_name=asahiculture`。
 
 ## 2026-05-15 — LINE 發送失敗仍被標記 published（假發布）
 

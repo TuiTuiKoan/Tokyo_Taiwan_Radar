@@ -53,6 +53,14 @@ TAIWAN_KEYWORD_SJIS = quote("台湾".encode("shift_jis"))  # %91%E4%98p
 
 ORGANIZER = "朝日カルチャーセンター"
 
+CLASSROOM_ADDRESS_MAP = {
+    "北九州教室": "〒803-0812 北九州市小倉北区室町1丁目1-1 リバーウォーク北九州2階",
+    "新宿教室": "〒163-0210 東京都新宿区西新宿2-6-1 新宿住友ビル10階",
+    "くずは教室": "〒573-1121 枚方市楠葉花園町14-1 京阪くずは駅ビル3階",
+    "川西教室": "〒666-0033 川西市栄町25-1 アステ川西3階",
+    "立川サテライト教室": "〒190-0022 東京都立川市錦町2-6-3 朝日立川ビル2・3階",
+}
+
 HEADERS = {
     "User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)",
     "Accept-Language": "ja,en;q=0.9",
@@ -142,6 +150,7 @@ class AsahiCultureScraper(BaseScraper):
 
         # Prefer detail-page venue (e.g. satellite classroom); fall back to card branch
         location_name = detail["location_name"] or card_branch
+        location_address = detail["location_address"] or CLASSROOM_ADDRESS_MAP.get(location_name)
 
         return Event(
             source_name=self.SOURCE_NAME,
@@ -152,17 +161,21 @@ class AsahiCultureScraper(BaseScraper):
             end_date=end_date,
             source_url=detail_link,
             location_name=location_name,
-            location_address=detail["location_address"],
+            location_address=location_address,
             business_hours=detail["business_hours"],
             performer=detail["performer"],
             organizer=ORGANIZER,
+            organizer_type=["cultural_institution"],
+            official_url=detail_link,
+            is_paid=detail["is_paid"],
+            price_info=detail["price_info"],
             original_language="ja",
         )
 
     def _parse_date_range(self, date_text: str) -> tuple[datetime | None, datetime | None]:
         """Extract (start_date, end_date) from strings like '2026/04/07火～ 2026/06/16火'.
 
-        Returns (start, end) where end is None for single-day courses.
+        Returns (start, end). For single-day courses, end = start.
         """
         matches = re.findall(r"(\d{4})/(\d{1,2})/(\d{1,2})", date_text)
         if not matches:
@@ -172,7 +185,7 @@ class AsahiCultureScraper(BaseScraper):
             end = (
                 datetime(int(matches[-1][0]), int(matches[-1][1]), int(matches[-1][2]))
                 if len(matches) > 1
-                else None
+                else start
             )
             return start, end
         except ValueError:
@@ -181,8 +194,9 @@ class AsahiCultureScraper(BaseScraper):
     def _fetch_detail(self, koza_id: str) -> dict:
         """Fetch course detail page; return dict with description, venue, business_hours, performer.
 
-        Keys: description (str), location_name (str|None), location_address (str|None),
-              business_hours (str|None), performer (str|None)
+          Keys: description (str), location_name (str|None), location_address (str|None),
+              business_hours (str|None), performer (str|None),
+              is_paid (bool|None), price_info (str|None)
 
         Design notes:
         - location_name: extracted from 備考 table row; satellite/external venues appear
@@ -196,6 +210,8 @@ class AsahiCultureScraper(BaseScraper):
             "location_address": None,
             "business_hours": None,
             "performer": None,
+            "is_paid": None,
+            "price_info": None,
         }
         try:
             r = requests.get(
@@ -234,18 +250,39 @@ class AsahiCultureScraper(BaseScraper):
                     if addr_m:
                         result["location_address"] = addr_m.group(1).strip()
 
-            # --- Performer: h3 with Japanese name pattern "姓 名 （よみ）役職" ---
+            # --- Performer: collect lecturer names from profile h3 headings ---
+            performers: list[str] = []
             for h3 in soup.find_all("h3"):
                 txt = h3.get_text(" ", strip=True)
-                # Match: 1-6 CJK chars, space(s), 1-6 CJK chars, then （
+                # Match first Japanese full name in heading text.
                 m = re.match(
-                    r"([\u4e00-\u9fff]{1,6}[\s\u3000]+[\u4e00-\u9fff]{1,6})[\s\u3000]*[（(]",
+                    r"([\u4e00-\u9fff々]{1,6}[\s\u3000]+[\u4e00-\u9fff々]{1,6})",
                     txt,
                 )
                 if m:
                     name = re.sub(r"[\u3000\s]+", " ", m.group(1)).strip()
-                    result["performer"] = name
-                    break
+                    if name not in performers:
+                        performers.append(name)
+
+            if performers:
+                result["performer"] = "、".join(performers)
+            else:
+                # Some pages expose lecturer names only in the header line:
+                # "前田 久美子/..." (no dedicated h3 profile block).
+                fallback_text = soup.get_text(" ", strip=True)
+                m = re.search(
+                    r"([\u4e00-\u9fff々ぁ-んァ-ヶー]{1,12}(?:[\s\u3000]+[\u4e00-\u9fff々ぁ-んァ-ヶー]{1,12})?)\s*/",
+                    fallback_text,
+                )
+                if m:
+                    result["performer"] = re.sub(r"[\u3000\s]+", " ", m.group(1)).strip()
+
+            # --- Fee line: mark paid courses and preserve visible member fee ---
+            full_text = soup.get_text(" ", strip=True)
+            fee_m = re.search(r"会員(?:（[^）]+）)?\s*[0-9,]+円", full_text)
+            if fee_m:
+                result["price_info"] = fee_m.group(0).replace("  ", " ")
+                result["is_paid"] = True
 
             # --- Description: paragraphs containing Taiwan keywords ---
             paragraphs = soup.find_all("p")
