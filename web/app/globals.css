@@ -541,14 +541,14 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
     opacity: 0.4;
   }
   7% {
-    stroke: #FFFFFF;
+    stroke: #C4E86F;
     stroke-width: 13.2;
     opacity: 1;
   }
   13% {
-    stroke: #FFFFFF;
+    stroke: #C4E86F;
     stroke-width: 11.4;
-    opacity: 0.9;
+    opacity: 0.85;
   }
   17%,
   100% {
@@ -566,14 +566,14 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
     opacity: 1;
   }
   7% {
-    fill: white;
+    fill: #C4E86F;
     r: 21;
-    opacity: 0.28;
+    opacity: 0.55;
   }
   13% {
-    fill: white;
+    fill: #C4E86F;
     r: 120;
-    opacity: 0.2;
+    opacity: 0.18;
   }
   17%,
   100% {
