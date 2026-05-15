@@ -1,4 +1,4 @@
--- 010_research_reports_update_policy.sql
+-- 070_research_reports_update_policy.sql
 -- Add admin UPDATE policy for research_reports.
 -- Migration 008 only created a SELECT policy, so the "標記為已審閱" button
 -- was silently blocked by RLS (no matching UPDATE policy → permission denied).
