@@ -1,40 +1,30 @@
-## 2026-05-15 — Antenna 動畫調慢到 12s + 游標游制修正 + Motif 形狀細移（commit `969981d`）
+## 2026-05-15 — MascotAvatar tip-ring stroke 固定化 + tip-core scale() 跨瀏覽器 + flow-dot FOUC 防護
 
-- **Antenna duration 2.2s → 12s**：2.2s 帶來視覺干擾。改為 12s 就原地。`globals.css` 全部 5 個 `lianbu-antenna-flow-*` 品顓改寫。SMIL `animateMotion dur` 同步改為 `dur="12s"`。
-- **keyTimes/keyPoints 調整**：旧 `keyTimes="0;0.32;1" keyPoints="0;0;1"`（點停 32%）→ 新 `keyTimes="0;0.17;0.25;1" keyPoints="0;0;1;1"`（點停 0–17%，止於終點 25–100%）。傳達效果：滞留幾秒、快速移動、再滞留。
-- **`lianbu-tip-core-expand` 改名**：`lianbu-tip-core-flash` 之前用 `transform: scale()`，造成 transform-origin stacking context bug。改用 SVG `r` 屬性動畫（`r: 6px → r: 10px`）避开。keyframe 改名，CSS class 名不變（`lianbu-tip-core`）。
-- **SVG `overflow="visible"`**：`antennaFlowAnimation` 開啟時，`<svg>` 跟符加 `overflow={antennaFlowAnimation ? "visible" : undefined}`，避免天線流動點航行到 viewBox 外時被截切。
-- **Gradient 暴小美化**：白色流光 → 暖綠黃（`#FAEAB0 → #C4E86F → #FFFFFF`），與主點激光 palette 傑輔色呢和。
-- **Motif 形狀細移**：`lifestyle_food` 樹葉 → 楽樹葉；`senses` 沙發游樓 → 貓和 icon；`tech` 眼鏡 → 模擬電路板（方形+圓交替）。
-- **教訓**：1) SMIL `dur` 與 CSS animation duration 必須一起改，兩者不同時時序會对不上。
-  2) SVG 動畫超出 viewBox 一定要 `overflow="visible"`，默認 `overflow="hidden"` 不會報错、只是默默截切。
-  3) CSS `transform: scale()` 在 SVG element 上要特別處理 transform-origin，最簡單是用 `r`/`d` 屬性動畫避开。
+**問題：**
+1. `tip-ring`（天線頂端光環）stroke 在不同瀏覽器寬度不一致（Chrome 粗、Safari 細），視覺不穩定。
+2. `tip-core`（天線頂端核心點）使用 CSS `scale()` 動畫，Firefox/Safari 對 SVG 元素的 `transform-origin` 處理不同，縮放中心跑偏。
+3. `flow-dot`（流光圓點）及 `tip-ring`（改為 `fill=radialGradient` 後）在頁面首次 paint 前以 `opacity=1` 全顯，造成「左上 / 左下白光球」FOUC 殘影。
 
-## 2026-05-15 — backdrop-blur 子元素被父層 backdrop-filter 封鎖（commit `0a66f93`）
+**根因：** 
+- `tip-ring` 改用 `fill=url(#radialGradient)` 而非舊版 `fill="none" stroke=...`，baseline opacity 未設 0。
+- `flow-dot` SVG 屬性 `fillOpacity="0.85"` 在動畫生效前已渲染，CSS `opacity: 0` 第 0% keyframe 來不及壓制。
+- `tip-core` 的 `scale()` 函數在 SVG 環境下需要顯式 `transform-box: fill-box` 才能以元素中心為原點。
 
-**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
-2026-05-15 | hamburger dropdown 設定了 `bg-paper/75 backdrop-blur-lg` 但畫面上完全無毛玻璃效果（dark 模式純黑、light 模式奶油實心） | `<nav>` 是 `<header>` 的子元素，而 `<header>` 本身有 `backdrop-blur-md`。父層 backdrop-filter 建立新的 composite layer，子元素的 `backdrop-blur` 只能模糊父層的合成輸出，無法看穿到後方的頁面內容。第一次嘗試（commit `9f7b7fa`）只調整色值與透明度，未意識到 DOM 結構才是根本原因，所以毫無效果。 | 將 dropdown `<nav>` 移到 `<header>` 外部，用 React Fragment `<>` 包裹成兄弟元素；`<nav>` 改用 `sticky top-14 z-40` 貼在 header 正下方，`backdrop-blur-lg` 現在可以直接模糊頁面內容，毛玻璃效果立即顯現。 | 1) **任何有毛玻璃效果的 overlay/panel，不可成為另一個 `backdrop-filter` 元件的 DOM 子孫**。必須改為兄弟元素（React Fragment、Portal）或放置於 filter 元件外的 stacking context。2) 排查「backdrop-blur 無效」時，先檢查 DOM 祖先是否有 `backdrop-filter`，而非繼續調整透明度或色值。3) 兩個兄弟 `sticky` 元素可疊加：header `sticky top-0 h-14`，dropdown `sticky top-14`，不需要 JavaScript offset 計算。
+**修正（commit `tip-ring…`）：**
+1. `tip-ring`：將 stroke 值固定為 `1.4`（px），加 `opacity={0}` SVG 屬性。
+2. `tip-core`：CSS 動畫加 `transform-box: fill-box`，確保跨瀏覽器縮放中心一致。
+3. `flow-dot`：加 `opacity={0}` SVG 屬性；`globals.css` 的 `lianbu-antenna-flow-line` 初始 `opacity` 改為 `0`。
 
-## 2026-05-15 — CategoryThumbnail 縮圖整合到詳情頁 + frosted glass hamburger 修復
+**教訓：**
+- SVG 元素改為 `fill=url(#gradient)` 時，**必須同步加 `opacity="0"` SVG 屬性**（或 CSS baseline `opacity: 0`），否則 CSS animation 啟動前會以 opacity=1 全顯在 DOM 基底座標，形成 FOUC。
+- SVG 元素的 CSS `scale()` / `rotate()` 動畫需加 `transform-box: fill-box` 才能在 Firefox/Safari 下以元素中心旋轉縮放。
+- SVG stroke 寬度如需跨瀏覽器一致，用 `stroke-width="1.4"` 硬編碼而非繼承或預設值。
 
-### A — 詳情頁縮圖佈局（commits `36a9c96` → `10f2162` → `56b1429`）
+## 2026-05-14 — OG Image 1200×1200 → 1200×630 に差し戻し（full-bleed レイアウト、commit `92b9e82`）
 
-- **Observation**: 詳情頁加入 CategoryThumbnail 後，縮圖與 SaveButton 位置迭代了三次：右欄 → 標題左側 → 與 SaveButton 同寬左欄疊排。最終需要縮圖與 SaveButton 同寬對齊。
-- **Fix**: 建立左欄容器 `<div className="flex flex-col gap-2 shrink-0">`，CategoryThumbnail 用 `className="w-[108px] h-[108px]"` 配合 SaveButton 的 `min-w-[108px]`，標題移至右欄 `<div className="flex-1 min-w-0">`。
-- **Lesson**: 縮圖與相鄰 UI 元素要對齊寬度時，使用 `flex flex-col` 左欄，讓兩者都用相同 `w-[Npx]` / `min-w-[Npx]` 控制；不要用絕對定位或複雜 grid。
-
-### B — Frosted glass hamburger dropdown（commits `9f7b7fa` → `0a66f93`）
-
-- **Observation**: 漢堡選單加入 `backdrop-blur-md` 後，blur 效果在光線下完全無效（透明背景沒有模糊）。
-- **Root cause**: 下拉 div 被包在 `<header>` 內，而 `<header>` 有 `position: sticky/relative`，形成獨立的 stacking context，`backdrop-filter` 對祖先元素外的內容無法取樣 → blur 失效。
-- **Fix**: 將漢堡 dropdown 移到 `<header>` 之外，改為同層 sibling（在根 `<div>` 內）。現在 dropdown 的 `backdrop-blur-md` 能對整個頁面取樣。最終樣式：`bg-paper/80 backdrop-blur-md`（light）、`dark:bg-[#0a0909]/80 backdrop-blur-md`（dark）。
-- **Lesson**: **`backdrop-filter` / `backdrop-blur` 的先決條件：元素不能被包在任何有 `position: sticky/fixed/relative`、`transform`、`will-change`、`filter`、`opacity < 1` 的祖先內。** 如果 blur 不生效，先檢查是否有這類祖先容器。Navbar 這類 sticky 元素永遠會形成 stacking context — hamburger dropdown 必須放在 Navbar 之外。
-
-## 2026-05-15 — OG Image palette chroma 微調 + hero object 簡化（commit `a273483`）
-
-- **Observation**: PALETTES 中的顏色與 CategoryThumbnail.tsx 的現行 palette 稍有色差，thumbnail 色彩偏淡、對比不足。openBook 和 cyborgFace 的 SVG path 過於繁瑣（多條細小 path），視覺噪點明顯。
-- **Fix**: 8 個 palette 全部重調：提升飽和度（bg 更清爽、fg 更鮮明）、hex 值向 CategoryThumbnail 現行值靠攏。openBook 簡化為大面積書頁 + 一顆大星 + 兩顆圓（刪去 8 個小圓 + 波浪線）；cyborgFace 改為大色塊臉型（刪去細節碎片）。
-- **Lesson**: OG PALETTES 應視為 `CategoryThumbnail.CATEGORY_PALETTE` 的派生版本，定期與其同步；設計稿對比不足時優先調 fg 鮮豔度。Hero object 複雜度標準：100px viewBox 內單個 object 以 4–6 個 path/shape 為上限，超過就視覺嘈雜。
+- **Observation**: 以前のセッションで「正方形 1200×1200 が Instagram/LINE に強い」として方形に変更したが、Twitter/X・Facebook・Slack はいずれも 1.9:1（1200×630）を標準とし、正方形は上下クロップされてタイトルが見切れるフィードバックがあった。また 1200×1200 の cream bottom panel レイアウトはテキストが下半分に詰まり、1200×630 の横長 canvas では不釣り合いだった。
+- **Fix**: `export const size` を `{ width:1200, height:630 }` に戻し、レイアウトを全面刷新。Motif（カテゴリ SVG 絵柄）を右側絶対配置（`right:60, top:50, 480×480`）に移動、左 700px にテキストブロックを full-height 配置（cream panel 廃止・背景直置き）。Corner accent・パターン SVG の viewBox をすべて `0 0 1200 630` に更新。パターン opacity `0.45→0.35`（cream panel なしでは濃すぎるため）。
+- **Lesson**: OG 画像の縦横比は**変更前にターゲット SNS を列挙して確認**する。Twitter/X 大カード・Facebook・Slack = 1.9:1 必須。Instagram Feed = 1:1 or 4:5。用途が混在する場合は Twitter を優先する。正方形への変更は「Pinterest/Discord に強い」が「Twitter で文字が見切れる」というトレードオフがあり、イベント告知用途では 1.9:1 の方が有利。`export const size` を変えたら**すべての SVG viewBox と絶対配置座標を同時に更新すること**（高さが変わると cornerShape 位置が全てズレる）。
 
 ## 2026-05-14 — FilterBar 全面改為 custom button+panel；OG 圖 Bauhaus 方形重設計
 
