@@ -19,6 +19,24 @@ Read this at the start of every session before producing any plan.
 - **`order()` 語法**：`.order("col", desc=True)` — 不是 `.order("col", ascending=False)`（pandas 風格在此無效）。計畫中任何排序操作必須使用正確語法。
 - **`upsert` vs `update`**：既存 row 的部分更新必須用 `.update().eq()`，不可用 `upsert`（會觸發 INSERT fallback，撞 NOT NULL 約束）。
 
+## Transient Failure Triage Guard（暫時性故障快速排除）
+
+當使用者報「production 後台 / 客戶端寫入突然全部失效」且最近 24h 有 Vercel 部署，**在深入結構性分析（migration / RLS / GRANT）之前**先要求使用者執行 1 分鐘 DevTools 三點檢查：
+
+1. **Network tab → 觸發那個操作 → 找對應 PATCH/POST 請求 → Request Headers：**
+   - 無 `authorization: Bearer ...` → 客戶端 session 遺失（結構性 bug，深挖 auth callback / cookie 設定）
+   - 有 → 進下一步
+2. **同筆請求 Response body：**
+   - 空陣列 `[]` 或空白 200 → RLS / expired JWT 過濾為 0 列（**可能是暫時性，先請使用者重整再試**）
+   - 4xx/5xx → 結構性錯誤，依 body 訊息深挖（如 `42501` GRANT 缺失）
+3. **Application → Cookies → `sb-<ref>-auth-token` HttpOnly 欄：**
+   - 打勾 → JS 讀不到 cookie，結構性 bug（auth helper 設錯）
+   - 未勾 → 正常
+
+**三點全綠 + 重整後恢復 = 暫時性 Vercel 滾動部署故障，不需動程式碼。** 但應提案在 Engineer SKILL guard 加 0-row UPDATE 防護（`.select("id")` + `data.length === 0` 視為失敗）。
+
+**反面教訓（2026-05-15）：** 後台 events UPDATE 三項全失，第一輪假設 migration 069 漏 events 表 GRANT（錯誤），第二輪假設 `ae9dc77` cookie 寫入問題（錯誤），準備寫新 migration。使用者實測 DevTools 三點全綠後判定暫時性。若一開始就先讓使用者跑三點檢查，可省 20 分鐘誤判時間。
+
 ## Weekly LINE Broadcast 系統設計節奏
 
 在審核任何涉及 `weekly_line_broadcast.py` 的計畫前，**必須**先確認系統設計的執行時序：

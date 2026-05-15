@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-05-15 — 後台 events UPDATE 全失誤診為 migration 069 GRANT 缺失（實為暫時性 JWT 過期）
+
+**問題：** 使用者報後台事件清單管理頁的 toggle、work 指派、AI 報錯 checkbox 三項寫入「突然全部不能 submit」。我作為 Architect 第一輪假設是 migration 069 `_explicit_grants.sql` 漏給 events 表 `authenticated UPDATE`；第二輪假設是 `ae9dc77` 改寫 auth callback 導致 browser session cookie 寫入失敗。準備規劃寫新 migration 補 GRANT。
+
+**實際根因：** Vercel 滾動部署期間 access token 暫時失效，PostgREST 將請求視為 anon → RLS 過濾為 0 列 → supabase-js 回 `{ error: null }` → UI 誤判成功。**無需任何 fix，使用者重整 / 等 5 分鐘後自動恢復。**
+
+**為什麼誤診：** 沒有先要求使用者跑 DevTools 三點檢查（Network 帶不帶 `authorization: Bearer`、Response 是否空陣列 `[]`、Cookies HttpOnly 是否未勾），直接從程式碼層假設結構性 bug，浪費約 20 分鐘設計新 migration。
+
+**教訓：** Architect 面對「production 寫入突然全部失敗」+「最近 24h 有部署」的組合時，**第一步永遠是請使用者跑 1 分鐘 DevTools 三點檢查**。三點全綠 + 重整恢復 = 暫時性故障，不寫程式碼；任一異常才深挖。已寫入 SKILL.md「Transient Failure Triage Guard」段落。
+
+---
+
 ## 2026-05-14 — `send: true` 從全部 handoff 移除（Architect + Engineer，commits `aa3f615`, `2463547`）
 
 **問題：** Architect 和 Engineer agent 的所有 handoff 都有 `send: true`。按下 handoff 按鈕時 prompt 會**立即自動送出**，使用者沒有機會確認或編輯（例如 Architect → Engineer 的「實作計畫」handoff，plan.md 不存在時也直接觸發）。
