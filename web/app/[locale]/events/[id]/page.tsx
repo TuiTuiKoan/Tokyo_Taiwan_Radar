@@ -554,7 +554,12 @@ export default async function EventDetailPage({ params }: PageProps) {
             </div>
           )}
           <h1 className="font-display font-bold text-[#3A261F] text-2xl sm:text-[26px] leading-snug">{name}</h1>
-          <AdminEventActions eventId={event.id} locale={locale} initialIsActive={event.is_active} />
+          <AdminEventActions
+            eventId={event.id}
+            locale={locale}
+            initialIsActive={event.is_active}
+            isAdmin={isAdmin}
+          />
         </div>
       </div>
 

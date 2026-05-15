@@ -10,26 +10,44 @@ interface Props {
   eventId: string;
   locale: string;
   initialIsActive: boolean;
+  isAdmin?: boolean;
 }
 
-export default function AdminEventActions({ eventId, locale, initialIsActive }: Props) {
-  const [isAdmin, setIsAdmin] = useState(false);
+export default function AdminEventActions({ eventId, locale, initialIsActive, isAdmin: isAdminProp }: Props) {
+  const [isAdmin, setIsAdmin] = useState(Boolean(isAdminProp));
   const t = useTranslations("event");
 
   useEffect(() => {
+    // Prefer server-resolved admin state when provided.
+    if (typeof isAdminProp === "boolean") {
+      setIsAdmin(isAdminProp);
+      return;
+    }
+
     const supabase = createClient();
     async function checkAdmin() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .single();
-      if (data?.role === "admin") setIsAdmin(true);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setIsAdmin(false);
+          return;
+        }
+        const { data, error } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .single();
+        if (!error && data?.role === "admin") {
+          setIsAdmin(true);
+        } else {
+          setIsAdmin(false);
+        }
+      } catch {
+        setIsAdmin(false);
+      }
     }
-    checkAdmin();
-  }, []);
+    void checkAdmin();
+  }, [isAdminProp]);
 
   if (!isAdmin) return null;
 

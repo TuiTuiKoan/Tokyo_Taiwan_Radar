@@ -865,7 +865,11 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       update.deactivated_reason = null;
       update.deactivated_by_pass = null;
     }
-    await supabase.from("events").update(update).eq("id", id);
+    const { error } = await supabase.from("events").update(update).eq("id", id);
+    if (error) {
+      alert(`切換公開狀態失敗：${error.message}`);
+      return;
+    }
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, is_active: newValue } : e))
     );

@@ -32,6 +32,8 @@ export default function IsActiveToggle({ eventId, initialIsActive }: Props) {
       .eq("id", eventId);
     if (!error) {
       setIsActive(targetActive);
+    } else {
+      alert(`切換公開狀態失敗：${error.message}`);
     }
     setLoading(false);
   }
