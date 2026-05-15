@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-05-15
+
+### Migration Constraint Violation — event_form check (ERROR 23514)
+- **錯誤**：Migration 047 DROP + ADD CONSTRAINT 時，`study_abroad`（1 筆）不在新允許清單，觸發 `ERROR: 23514: check constraint violated`
+- **診斷**：先跑 `SELECT unnest(event_form) AS val, count(*) FROM events GROUP BY val ORDER BY cnt DESC` 列出所有現存值
+- **修正**：補入缺失值 `study_abroad` 後重跑
+- **教訓**：更換 constraint 前必須先查現存值；新 constraint 必須是現存值的超集
+
+### organizer_type Pattern-Based Batch Inference
+- 來源級別推斷（source_name → 固定類型）適用於高置信度的映画館、學術機構、文化節來源
+- 不可推斷的條件：organizer 欄位為空、或含代號（RTC、湾.味 等縮寫）、薄文本來源（note_creators）
+- 最終覆蓋率：92.1%（22 件保留 unknown 屬可接受殘量）
+
+### Event Form Sync Guard — 四處同步驗證流程
+- DB constraint → VALID_EVENT_FORMS → SYSTEM_PROMPT → web/messages/*.json
+- 驗證指令：`python3 -c "from annotator import VALID_EVENT_FORMS; print(sorted(VALID_EVENT_FORMS))"`
+- i18n 驗證：`python3 -c "import json; [print(lang, json.load(open(f'web/messages/{lang}.json')).get('eventForm',{}).get('broadcast')) for lang in ['zh','en','ja']]"`
+
+---
+
 ## 2026-05-15 — merged_into_event_id 循環 redirect loop 造成頁面不停重載
 
 **問題：** 使用者報 `https://tokyotaiwanradar.com/zh/events/57642851-...`（赤い糸）頁面不停重載。

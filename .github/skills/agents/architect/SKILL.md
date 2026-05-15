@@ -1796,3 +1796,33 @@ Reference incident: 2026-05-12 — YCAM `6801814c` 父事件 business_hours 原�
 
 Reference incident: 2026-05-12 — `movie_title_lookup` Phase B 嘗試 Google Custom Search API fallback；帳單已綁定、API enable、key 無限制、等待 5+ 分鐘、換新 key、改 endpoint 都試過，**持續 `403 PERMISSION_DENIED`**，無法在使用者端解決。Phase B 程式碼保留為 graceful-skip 結構，但不再規劃用 GCP API 作 fallback。
 
+## Migration Constraint Replacement Guard（REPLACE CONSTRAINT 現存值超集守護）
+
+在審核任何 `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT … CHECK` 組合的 migration 前，**必須**確認：
+
+1. **先查現存值**：執行診斷查詢，列出目標欄位的所有現存值：
+   ```sql
+   SELECT unnest(event_form) AS val, count(*) FROM events
+   WHERE event_form IS NOT NULL GROUP BY val ORDER BY count DESC;
+   ```
+2. **新 constraint 必須是現存值的超集**：任何現存值不在新清單內 → `ERROR: 23514` migration 失敗。
+3. **migration 執行前先在 staging 跑診斷**；若無 staging，在 SQL Editor 先 `EXPLAIN` 或只 `SELECT` 檢查。
+
+Reference incident: 2026-05-15 — migration 047 `study_abroad`（1 筆）不在新清單，觸發 23514。
+
+## organizer_type Source-Level Batch Inference Guard（來源級批次推斷守護）
+
+在設計任何 `organizer_type` 批次補值腳本前，**必須**確認：
+
+1. **可批次推斷的條件**（全部滿足）：
+   - 來源名稱（`source_name`）對應的機構性質高度一致
+   - 該來源所有事件的 organizer 均為同一機構（如 cinema、大學、官方文化節）
+2. **不可推斷的條件**（任一條件成立即保留 `['unknown']`）：
+   - `organizer` 欄位為空
+   - `organizer` 為縮寫代號（如 `RTC`、`湾.味`）無法對應已知機構
+   - 薄文本來源（`note_creators`、RSS snippet）依 Blog/Creator Source Guard
+3. **Python 傳值型別**：`organizer_type` 是 `text[]`，必須傳 Python list（`['civic_group']`），不可傳字串
+4. **不需要 FC 鎖定**：`organizer_type` 不在 `TRACKED_FIELDS`，補值後不需寫 `field_corrections`
+
+Reference incident: 2026-05-15 — gguide_tv（media）、cinema 來源（independent_venue）、wuext_waseda（academic）等批次推斷後 organizer_type 非 unknown 從 70% 提升至 92.1%。
+
