@@ -74,6 +74,8 @@ function MascotBody({
             stroke={`url(#${flowGradientId})`}
             strokeWidth="3.6"
             strokeLinecap="round"
+            opacity={0}
+            visibility="hidden"
           />
           <circle
             className="lianbu-antenna-flow-dot"

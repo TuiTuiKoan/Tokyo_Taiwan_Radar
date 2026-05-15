@@ -471,6 +471,7 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
   animation: lianbu-antenna-flow-line 12s linear infinite;
   filter: saturate(1.16) brightness(1.22);
   opacity: 0;
+  visibility: hidden; /* CSS filter causes WebKit FBO artifact at opacity:0 — same fix as flow-dot */
 }
 
 [data-antenna-flow="on"] .lianbu-antenna-flow-dot {
@@ -504,21 +505,25 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
     stroke-dashoffset: 0;
     stroke-width: 4.6;
     opacity: 0;
+    visibility: hidden;
   }
   17% {
     stroke-dashoffset: 0;
     stroke-width: 4.6;
     opacity: 0.96;
+    visibility: visible;
   }
   22% {
     stroke-dashoffset: -147;
     stroke-width: 4.6;
     opacity: 0.96;
+    visibility: visible;
   }
   23%,
   100% {
     stroke-dashoffset: -171;
     opacity: 0;
+    visibility: hidden;
   }
 }
 
