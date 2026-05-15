@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-05-15 — about ページ dark mode でテキストが見えない（commit `8ab8d05`）
+
+**問題：** `https://tokyotaiwanradar.com/ja/about` で dark mode 時にタイトル・本文が背景に溶け込んで読めない。
+
+**根本原因：** `about/page.tsx` の全テキストが hardcoded hex `text-[#3A261F]`（見出し）・`text-[#4A362D]`（本文）に設定されていた。`layout.tsx` の anti-flash script が `prefers-color-scheme: dark` を検知して `<html class="dark">` を付けるため dark mode は有効だが、hardcoded hex は `:root.dark` のセマンティックトークンに追従しない。
+
+**修復（commit `8ab8d05`）：**
+- `text-[#3A261F]` → `text-fg-strong`（見出し h1・h2、パンくずリスト）
+- `text-[#4A362D]` → `text-fg`（本文段落）
+
+Dark mode: `text-fg-strong` = `#fafafa`、`text-fg` = `#ededed`（`:root.dark` に定義済み）。
+
+**教訓：**
+1. **ページコンポーネントで `text-[#hex]` を直接使わない**：`:root.dark` が存在する今、hardcoded hex は dark mode で必ず問題になる。
+2. **見出しは `text-fg-strong`、本文は `text-fg`**：`globals.css` の `@theme` ブロックに定義された semantic token を使う。
+3. **`dark:` variant は不要**：semantic token が `:root.dark` で自動切り替わるため、`dark:text-xxx` を個別に書く必要はない。
+
+---
+
 ## 2026-05-15 — research_reports 「標記為已審閱」按鈕 silent failure（migration `070`）
 
 **問題：** Admin Research Reports 頁面點「標記為已審閱」按鈕，UI 無反應，DB 無變化，無 JS error。

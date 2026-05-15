@@ -1053,6 +1053,31 @@ Current agent_category values and their labels:
 
 **Incident (2026-05-05):** 14 candidates silently skipped for days. Detected by noticing cron ran with 0 processed rows. Fixed in commit `5d2585d`; 14 existing rows manually reset to NULL.
 
+## Tailwind CSS Dark Mode — Semantic Tokens Rule
+
+The app uses **class-based dark mode** (`html.dark` set by anti-flash script in `layout.tsx`). The `:root.dark` block in `globals.css` overrides all semantic token variables.
+
+**Rule: Never use hardcoded hex for text/background colors in page components.**
+
+| Use case | Correct class | Dark mode value |
+|---|---|---|
+| Headings (h1, h2) | `text-fg-strong` | `#fafafa` |
+| Body paragraphs | `text-fg` | `#ededed` |
+| Secondary text | `text-fg-muted` | `#a1a1aa` |
+| Breadcrumb current | `text-fg-strong` | `#fafafa` |
+| Page background | `bg-surface` | `#1f1f1f` |
+
+**Do NOT use:**
+- `text-[#3A261F]` (mocha brown — invisible on dark background)
+- `text-[#4A362D]` (dark brown — invisible on dark background)
+- `dark:text-xxx` variants — semantic tokens self-switch via `:root.dark`, no need for per-class dark variants
+
+**`dark:` variants are still valid** for decorative colors not covered by semantic tokens (e.g. `dark:bg-zinc-800`).
+
+Reference: `about/page.tsx` commit `8ab8d05` (2026-05-15).
+
+---
+
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/agents/engineer/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.

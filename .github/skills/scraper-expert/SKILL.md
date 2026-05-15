@@ -1899,6 +1899,23 @@ sb.table("field_corrections").upsert({
 }, on_conflict="event_id,field_name").execute()
 ```
 
+## Auto-lock location fields — `database.py` upsert_events()
+
+`upsert_events()` は新規イベントを挿入した直後に `_auto_lock_location()` を呼び出す。
+
+**動作：**
+- 新規挿入イベント（existing/blocked/reviewed でないもの）のうち `location_name` が設定されているものを対象とする
+- `location_name`・`location_address`・`location_prefectures` を `field_corrections` に `ignore_duplicates=True`（DO NOTHING on conflict）で自動挿入
+- 既存イベントには適用されない
+
+**スクレイパー側に変更は不要**：`Event(location_name=..., location_address=...)` を設定するだけで自動ロックされる。
+
+**既存イベントへの適用**：手動で FC を upsert するか、`_lock_fields_via_corrections()` を使う。
+
+**`ignore_duplicates=True` の意味**：管理者が FC に別の値を設定済みでも上書きしない（DO NOTHING on conflict）。
+
+---
+
 ### performers[] 多語言欄位の UI helper
 
 **フロントエンドは `getEventPerformer(event, locale)` / `getEventDirector(event, locale)` を使うこと**。`event.performer` を直接参照してはいけない。

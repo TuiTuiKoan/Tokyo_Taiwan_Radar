@@ -171,6 +171,20 @@ Use `LOOKBACK_DAYS` to match the source's natural cadence:
 
 **When modifying the slot-to-category mapping**, update both `SLOT_SCHEDULE` in `researcher.py` and the corresponding cron comments in `researcher.yml`.
 
+**Domain-level skip_hint (Fix A — commit `ab46560`):**
+- `CategoryAgent.run()` の skip_hint は exact URL ではなく **正規化ドメインのリスト** で渡す
+- 実装パターン:
+  ```python
+  skip_domains = {urlparse(u).netloc.lstrip("www.") for u in known_urls}
+  skip_hint = "SKIP these already-covered domains: " + ", ".join(sorted(skip_domains))
+  ```
+- 理由：exact URL では同一ドメインの別パスが毎日新候補として生成され `not-viable` レコードが無限増加する
+
+**Candidate domain dedup (Fix B — commit `ab46560`):**
+- `_upsert_sources()` のドメイン dedup は `candidate` ステータスを含む **全ステータス** でブロックする
+- `www.asahi.com` と `asahi.com` を別候補として挿入させない
+- ブロック判定: `normalize_domain(existing_url) == normalize_domain(new_url)` で全 DB 行を確認
+
 ## discovery_accounts.py — Layer 2 (Weekly note.com Creator Discovery)
 
 `scraper/discovery_accounts.py` discovers new note.com creators who post Taiwan-related content.

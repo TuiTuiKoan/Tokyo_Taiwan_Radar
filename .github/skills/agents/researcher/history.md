@@ -3,6 +3,22 @@
 <!-- Append new entries at the top -->
 
 ---
+## 2026-05-15 — CategoryAgent の skip_hint にドメイン単位の既知リストを渡さず候補が毎日重複生成（commit `ab46560`）
+
+**問題 A — skip_hint が exact URL ベース：** `CategoryAgent.run()` の skip_hint に `implemented`/`researched`/`not-viable` のエントリを個別 URL で渡していた。同一ドメインの別パス（例：`iwafu.com/event/page2`、`iwafu.com/event/page3`）が別候補として毎日生成され、`not-viable` レコードが際限なく増加していた。
+
+**問題 B — candidate ステータスのドメインが dedup 対象外：** `_upsert_sources()` のドメイン dedup が `candidate` ステータスを除外していた。`www.asahi.com/event/` と `asahi.com/event/` が両方 candidate として挿入されていた。
+
+**修復（commit `ab46560`）：**
+- Fix A: skip_hint に 227 ドメインの正規化リストを渡す（`SKIP these already-covered domains`）。exact URL ではなくドメイン単位で GPT に既知リストを伝える。
+- Fix B: `_upsert_sources()` の candidate dedup ブロックを `candidate` ステータスも含む全ステータスに拡張。
+
+**教訓：**
+1. **skip_hint はドメイン単位で渡す**：exact URL では同じドメインの別パスが毎日新候補として現れる。`{urlparse(u).netloc for u in known_urls}` でドメインセットを構築して GPT に渡すこと。
+2. **candidate ステータスも dedup 対象**：candidate であっても同一ドメインの重複挿入を防ぐこと。dedup ロジックは全ステータスに対して適用する。
+3. **not-viable ドメインが際限なく増える症状 → skip_hint の粒度を疑う**：同一サイトの別 URL が毎日 candidate 生成されている場合は skip_hint の exact URL 病を疑う。
+
+---
 ## 2026-05-14 — スコープ拡張：台湾開催イベント（日本人向け）も収集対象に（commit `b15af9c`）
 
 **背景：** SNET台湾（https://www.snet-taiwan.jp/）を調査した際、主要コンテンツが「日本の学校が台湾へ修学旅行するための支援」と「日本人大学生向け台湾ツアー」で、日本国内開催イベントが年 1〜2 件しかなかったため、一度 `not-viable` と判断した。しかし、そのコンテンツ自体が「日本人が台湾を訪れる」日台交流の文脈であることを再認識。

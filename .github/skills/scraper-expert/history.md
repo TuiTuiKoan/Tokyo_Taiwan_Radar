@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-15 — annotator が静的会場データを上書き → `database.py` に `_auto_lock_location()` を追加（commit `435d68a`）
+
+**問題：** `cinemaclair`・`ks_cinema`・`hakusuisha` など固定会場を持つ cinema scraper では、`Event(location_name=..., location_address=...)` をスクレイパーが正確に設定していても、annotator 再実行時に GPT が `location_name` を書き換えることがあった（例：`シネマ・クレール` → `岡山市`）。
+
+**根本原因：** 新規イベントが `upsert_events()` で挿入された後、`field_corrections` にロックレコードが存在しなかったため、annotator の `_ai_or_existing()` が DB 値を null とみなして上書きした。
+
+**修復（commit `435d68a`）：** `database.py` に `_auto_lock_location(client, eid_to_event)` helper を追加。`upsert_events()` が新規イベントを挿入した直後に呼ばれ、`location_name`・`location_address`・`location_prefectures` を `field_corrections` に `ignore_duplicates=True`（DO NOTHING on conflict）で自動挿入する。既存イベントには影響しない。
+
+**教訓：**
+1. **固定会場 scraper は新規挿入時に自動ロックされる**：`location_name` を持つ新規イベントは `upsert_events()` 経由で挿入されると同時に FC にロックされる。手動 `field_corrections` 挿入は不要。
+2. **既存イベントへの適用は手動**：既存イベントは自動ロックされない。`field_corrections` に手動挿入するか、`_lock_fields_via_corrections()` を使う。
+3. **`ignore_duplicates=True` パターン**：FC upsert は常に DO NOTHING on conflict にする。既存の管理者修正値を上書きしないためのセーフガード。
+
+---
+
 ## 2026-05-15 — cinemaclair: GPT-4o Vision OCR でスケジュール画像から上映時刻を取得（commit `33dc715`）
 
 **背景：** シネマ・クレールの上映時刻は HTML に存在せず週次 JPEG スケジュール画像にのみ記載されている。通常の BeautifulSoup パースでは `business_hours` を取得できなかった。
