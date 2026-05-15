@@ -36,19 +36,19 @@ function bgTexture(kind: number, fg: string, angle: number) {
   const els: React.ReactNode[] = [];
 
   if (v === 0) {
-    // halftone dense — staggered hex: r=32, step=90
-    const S = 90;
-    for (let row = -5; row <= 18; row++) {
+    // halftone dense — staggered hex: r=32, step=130 (half density vs step=90)
+    const S = 130;
+    for (let row = -5; row <= 14; row++) {
       const ox = (row % 2 === 0) ? 0 : S / 2;
-      for (let col = -5; col <= 17; col++)
+      for (let col = -5; col <= 13; col++)
         els.push(<circle key={`${row},${col}`} cx={col * S + ox} cy={row * S} r={32} fill={fg} />);
     }
   } else if (v === 1) {
-    // halftone sparse — staggered hex: r=20, step=150
-    const S = 150;
-    for (let row = -3; row <= 11; row++) {
+    // halftone sparse — staggered hex: r=20, step=210 (half density vs step=150)
+    const S = 210;
+    for (let row = -3; row <= 9; row++) {
       const ox = (row % 2 === 0) ? 0 : S / 2;
-      for (let col = -3; col <= 10; col++)
+      for (let col = -3; col <= 8; col++)
         els.push(<circle key={`${row},${col}`} cx={col * S + ox} cy={row * S} r={20} fill={fg} />);
     }
   } else if (v === 2) {
