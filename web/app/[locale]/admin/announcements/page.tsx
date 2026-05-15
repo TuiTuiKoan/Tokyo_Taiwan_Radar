@@ -38,6 +38,14 @@ export default async function AdminAnnouncementsPage({ params }: PageProps) {
 
       <AdminTabNav locale={locale} activeTab="announcements" />
 
+      {/* New announcement button */}
+      <Link
+        href={`/${locale}/admin/announcements/new`}
+        className="inline-block mb-4 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition"
+      >
+        {tAnn("newAnnouncement")}
+      </Link>
+
       {/* Weekly broadcast panel */}
       <WeeklyBroadcastPanel locale={locale} />
 

@@ -92,15 +92,7 @@ export default function WeeklyBroadcastPanel({ locale }: Props) {
   return (
     <div className="mb-6 border border-blue-100 bg-blue-50 rounded-xl p-4 dark:bg-blue-950/30 dark:border-blue-800/40">
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/${locale}/admin/announcements/new`}
-            className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shrink-0"
-          >
-            {t("newAnnouncement")}
-          </Link>
-          <h2 className="text-sm font-semibold text-blue-800 dark:text-blue-300">{t("weeklyBroadcast")}</h2>
-        </div>
+        <h2 className="text-sm font-semibold text-blue-800 dark:text-blue-300">{t("weeklyBroadcast")}</h2>
         {/* Auto-publish toggle */}
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <span className="text-xs text-blue-700 dark:text-blue-300">{t("weeklyBroadcastAutoPublish")}</span>
