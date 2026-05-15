@@ -26,14 +26,17 @@ export default function IsActiveToggle({ eventId, initialIsActive }: Props) {
       update.deactivated_reason = null;
       update.deactivated_by_pass = null;
     }
-    const { error } = await supabase
+    const { error, data: updatedRows } = await supabase
       .from("events")
       .update(update)
-      .eq("id", eventId);
-    if (!error) {
-      setIsActive(targetActive);
-    } else {
+      .eq("id", eventId)
+      .select("id");
+    if (error) {
       alert(`切換公開狀態失敗：${error.message}`);
+    } else if (!updatedRows || updatedRows.length === 0) {
+      alert("切換未生效（session 可能已過期），請重新整理頁面後再試。");
+    } else {
+      setIsActive(targetActive);
     }
     setLoading(false);
   }

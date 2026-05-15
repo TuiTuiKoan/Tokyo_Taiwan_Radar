@@ -677,9 +677,14 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       update.deactivated_reason = null;
       update.deactivated_by_pass = null;
     }
-    const { error } = await supabase.from("events").update(update).in("id", ids);
+    const { error, data: toggleRows } = await supabase.from("events").update(update).in("id", ids).select("id");
     if (error) {
       alert(`操作失敗：${error.message}`);
+      setBulkToggling(false);
+      return;
+    }
+    if (!toggleRows || toggleRows.length === 0) {
+      alert("批次切換未生效（session 可能已過期），請重新整理頁面後再試。");
       setBulkToggling(false);
       return;
     }
@@ -715,19 +720,26 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   }
 
   async function handleReannotate(id: string) {
-    await supabase.from("events").update({ annotation_status: "pending" }).eq("id", id);
-    setEvents((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, annotation_status: "pending" } : e))
-    );
+    const { data: reannRows } = await supabase.from("events").update({ annotation_status: "pending" }).eq("id", id).select("id");
+    if (reannRows && reannRows.length > 0) {
+      setEvents((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, annotation_status: "pending" } : e))
+      );
+    }
   }
 
   async function handleBulkForceRescrape() {
     if (selected.size === 0) return;
     setBulkForceRescrapings(true);
     const ids = Array.from(selected);
-    const { error } = await supabase.from("events").update({ force_rescrape: true }).in("id", ids);
+    const { error, data: rescrapeRows } = await supabase.from("events").update({ force_rescrape: true }).in("id", ids).select("id");
     if (error) {
       alert(`操作失敗：${error.message}`);
+      setBulkForceRescrapings(false);
+      return;
+    }
+    if (!rescrapeRows || rescrapeRows.length === 0) {
+      alert("批次強制重新爬取標記未生效（session 可能已過期），請重新整理頁面後再試。");
       setBulkForceRescrapings(false);
       return;
     }
@@ -747,8 +759,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         const prevCategory = e.category ?? [];
         const newCategory = prevCategory.filter((c) => c !== cat);
         // Update event category
-        const { error } = await supabase.from("events").update({ category: newCategory }).eq("id", e.id);
-        if (error) { hasError = true; return; }
+        const { error, data: rmCatRows } = await supabase.from("events").update({ category: newCategory }).eq("id", e.id).select("id");
+        if (error || !rmCatRows || rmCatRows.length === 0) { hasError = true; return; }
         // Write correction to category_corrections for AI feedback loop
         await supabase.from("category_corrections").upsert(
           {
@@ -789,8 +801,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     setBulkWorkQuery("");
     await Promise.all(
       Array.from(selected).map(async (eventId) => {
-        const { error } = await supabase.from("events").update({ work_id: workId }).eq("id", eventId);
-        if (!error) {
+        const { error, data: workRows } = await supabase.from("events").update({ work_id: workId }).eq("id", eventId).select("id");
+        if (!error && workRows && workRows.length > 0) {
           setEvents((prev) => prev.map((e) => e.id === eventId ? { ...e, work_id: workId } : e));
         }
       })
@@ -810,8 +822,8 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
         const prevCategory = e.category ?? [];
         const newCategory = Array.from(new Set([...prevCategory, ...catsToAdd]));
         if (newCategory.length === prevCategory.length && catsToAdd.every((c) => prevCategory.includes(c))) return;
-        const { error } = await supabase.from("events").update({ category: newCategory }).eq("id", e.id);
-        if (error) { hasError = true; return; }
+        const { error, data: addCatRows } = await supabase.from("events").update({ category: newCategory }).eq("id", e.id).select("id");
+        if (error || !addCatRows || addCatRows.length === 0) { hasError = true; return; }
         await supabase.from("category_corrections").upsert(
           {
             event_id: e.id,
@@ -850,8 +862,10 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
     const ev = events.find((e) => e.id === id);
     if (!ev) return;
     const newValue = !ev.force_rescrape;
-    await supabase.from("events").update({ force_rescrape: newValue }).eq("id", id);
-    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, force_rescrape: newValue } : e));
+    const { data: frRows } = await supabase.from("events").update({ force_rescrape: newValue }).eq("id", id).select("id");
+    if (frRows && frRows.length > 0) {
+      setEvents((prev) => prev.map((e) => e.id === id ? { ...e, force_rescrape: newValue } : e));
+    }
   }
 
   async function handleToggleActive(id: string, newValue: boolean) {
@@ -865,9 +879,13 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
       update.deactivated_reason = null;
       update.deactivated_by_pass = null;
     }
-    const { error } = await supabase.from("events").update(update).eq("id", id);
+    const { error, data: activeRows } = await supabase.from("events").update(update).eq("id", id).select("id");
     if (error) {
       alert(`切換公開狀態失敗：${error.message}`);
+      return;
+    }
+    if (!activeRows || activeRows.length === 0) {
+      alert("切換未生效（session 可能已過期），請重新整理頁面後再試。");
       return;
     }
     setEvents((prev) =>
@@ -1517,7 +1535,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   className={`border-b transition ${
                     !event.work_id &&
                     (event.category || []).some((c) => c === "movie" || c === "performing_arts")
-                      ? "bg-red-50 hover:bg-red-100"
+                      ? "bg-blush hover:bg-[#FFE4E0] dark:hover:bg-[#35231f]"
                       : "hover:bg-elevated"
                   }`}
                   title={

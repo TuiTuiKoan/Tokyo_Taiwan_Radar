@@ -156,14 +156,20 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    const { error } = await supabase
+    const { error, data: updatedRows } = await supabase
       .from("events")
       .update(updatePayload)
-      .eq("id", event.id);
+      .eq("id", event.id)
+      .select("id");
 
     if (error) {
       console.error("Update failed:", error);
       alert(`Save failed: ${error.message}`);
+      setSaving(false);
+      return;
+    }
+    if (!updatedRows || updatedRows.length === 0) {
+      alert("儲存未生效（session 可能已過期），請重新整理頁面後再試。");
       setSaving(false);
       return;
     }
