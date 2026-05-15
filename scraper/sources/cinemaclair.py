@@ -44,6 +44,11 @@ _BASE_URL = "http://www.cinemaclair.co.jp"
 
 _TAIWAN_KEYWORDS = ["台湾", "Taiwan", "臺灣"]
 
+# シネマ・クレール 固定ロケーション（丸の内1・2のみ）
+_LOCATION_NAME    = "シネマ・クレール 丸の内１・２"
+_LOCATION_ADDRESS = "岡山市北区丸の内１丁目５−１"
+_LOCATION_PREF    = ["岡山県"]
+
 _HEADERS = {
     "User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)",
 }
@@ -197,7 +202,10 @@ class CinemaClairScraper(BaseScraper):
                 raw_description=raw_description,
                 start_date=start_date,
                 category=["movie"],
+                event_form=["screening"],
                 official_url=official_url or None,
+                location_name=_LOCATION_NAME,
+                location_address=_LOCATION_ADDRESS,
             )
             events.append(event)
             logger.info("cinemaclair: found Taiwan film: %s [%s]", title, current_h3_text)
