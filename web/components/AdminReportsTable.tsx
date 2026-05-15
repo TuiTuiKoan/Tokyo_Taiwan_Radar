@@ -368,7 +368,10 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
     if (result.ok) {
       setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: "dismissed" } : r)));
       setExpandedId(null);
-      router.refresh(); // invalidate SSR cache
+      // Note: router.refresh() is intentionally omitted here.
+      // Dismiss only changes the report status — no event fields are modified,
+      // so SSR cache invalidation is unnecessary. Local state is already updated
+      // by setReports(), and Realtime subscription keeps other sessions in sync.
     } else {
       alert(result.error ?? "保存に失敗しました。ページを再読み込みしてください。");
     }
