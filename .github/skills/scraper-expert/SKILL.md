@@ -676,6 +676,19 @@ Reference incident: 2026-05-10 — `ftip.py` `location_address = "東京都"` �
 
 Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験レポート）`start_date=2026-05-08`（記事日）→ 修正後 `2026-04-21`（活動日）；`location_name=台湾華語文学習センター大阪弁天町`（主催者拠点）→ 修正後 `台北医学大学`（活動場所、台灣）。
 
+## RSS/Podcast scraper-specific
+- **Normalize `&amp;` in RSS link text before regex**: RSS `<link>` text nodes may contain HTML-entity-encoded `&amp;` even after XML parsing (double-encoded by the origin server). `item.find("link").text` can return `"...?uid=4&amp;pid=103701"`. Any regex on the raw text will miss `&pid=`. Always normalize: `link = link_raw.replace("&amp;", "&")` before extraction. Apply to both `source_url` construction and any `_extract_pid()`-style function. (Incident: rti_jp 0 events, 2026-05-14.)
+- **XML Element truth value — always use `is not None`**: `if element:` on an `xml.etree.ElementTree` Element is always `True` (DeprecationWarning since Python 3.8). Write `element is not None and element.text` instead.
+- **`STALE_DAYS` guard for podcast/RSS scrapers**: For scrapers that loop over a curated list of program IDs, check the latest episode's `pubDate` before iterating all items. If it exceeds `STALE_DAYS` (e.g. 90), the program is discontinued — skip to avoid a full-page fetch that returns 0 events:
+  ```python
+  STALE_DAYS = 90
+  latest_pub = _parse_pubdate(items[0].find("pubDate").text)
+  if latest_pub and (now - latest_pub).days > STALE_DAYS:
+      logger.info("rti_jp: id=%s latest episode %dd old — discontinued", pid, age)
+      continue
+  ```
+- **`LOOKBACK_DAYS` must match broadcast frequency**: Weekly programs → 14d is sufficient. Monthly programs → 60d minimum. If a program's cadence is unknown, default to 60d.
+
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
@@ -965,6 +978,21 @@ Post body typically starts with the article publish date — never take the firs
 6. Last resort: first plain date in body (high risk of matching the publish date)
 
 Use this ladder when the source is a Japanese WordPress blog/CMS.
+
+## Shopify サイト共通注意事項
+
+- **`<a href>` は絶対 URL**: Shopify は `href` にフルドメイン付きの絶対 URL を出力する（例: `https://placebymethod.com/pages/slug`）。相対パス regex（`r"^/pages/"`）では 0 件になる。必ずドメインを含む regex を使うこと:
+  ```python
+  # ❌ 相対パス前提 — Shopify では 0 件
+  soup.find_all("a", href=re.compile(r"^/pages/"))
+
+  # ✅ フル URL にマッチ
+  soup.find_all("a", href=re.compile(r"example\.com/pages/"))
+  ```
+- **一覧ページのアンカー `parent.get_text()` にタイトル/日付が含まれないことがある**: Shopify の展覧会一覧は各リンク要素の親に情報が入っていない構造が多い。全 slug を取得 → 個別ページを visit → 情報抽出するアプローチを採ること。
+- **JSON API パターン（別方式）**: `/collections/event/products.json?limit=20&page={n}` で全展示品を列挙し空ページまでページネーション（`transit_store.py` 参照）。
+
+(Incident: placebymethod.com, 2026-05-11 — `^/pages/` regex で 0 件 → `placebymethod\.com/pages/` に修正)
 
 ## transit_store-specific
 - **Shopify JSON API**: `/collections/event/products.json?limit=20&page={n}` — paginate until empty page.

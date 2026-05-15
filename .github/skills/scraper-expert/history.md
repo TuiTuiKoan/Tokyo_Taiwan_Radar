@@ -4,6 +4,68 @@
 
 ---
 
+## 2026-05-11 — Shopify サイトの `<a href>` は絶対 URL / `update_source.py` は既存行専用 / `feasibility` 列非存在（placebymethod 実装）
+
+**問題①：** `placebymethod.com`（Shopify）の展覧会一覧ページで `soup.find_all("a", href=re.compile(r"^/pages/"))` を試みたところ 0 件返却。
+
+**根因①：** Shopify は `<a href>` に**フル絶対 URL**（`https://placebymethod.com/pages/slug`）を出力する。相対パス `^/pages/` にはマッチしない。
+
+**修正①：**
+```python
+# ❌ 相対パス前提 — Shopify では 0 件
+soup.find_all("a", href=re.compile(r"^/pages/"))
+
+# ✅ フル URL にマッチ
+soup.find_all("a", href=re.compile(r"placebymethod\.com/pages/"))
+```
+
+**問題②：** `python update_source.py --url https://placebymethod.com/pages/contact --status researched` → `ERROR: No row found in research_sources for URL`。
+
+**根因②：** `update_source.py` の UPDATE 処理は**対象 URL の行が既に `research_sources` に存在する場合のみ**動作する。新規ソース（DB 未登録）には使えない。
+
+**修正②：** 新規ソースは Supabase SDK で直接 `insert()` する:
+```python
+sb.table("research_sources").insert({
+    "url": "https://placebymethod.com/pages/contact",
+    "name": "(PLACE) by method",
+    "status": "implemented",
+    "scraper_source_name": "placebymethod",
+    "url_verified": True,
+    "source_profile": {"feasibility": "medium"},
+}).execute()
+```
+
+**問題③：** `insert()` に `"feasibility": "medium"` をトップレベルで指定 → `PGRST204: Could not find the 'feasibility' column`。
+
+**根因③：** `research_sources` のトップレベル列名は `scraping_feasibility`（`feasibility` ではない）。または `source_profile` JSONB 内に `"feasibility"` キーで格納する。
+
+**教訓：**
+- **Shopify サイトは `<a href>` に絶対 URL を出力する。** 相対パス regex は必ず 0 件になる。`href=re.compile(r"{domain}/pages/")` パターンを使うこと。
+- **`update_source.py` は既存行の UPDATE 専用。** 新規ソースを `research_sources` に登録するには Supabase SDK で `insert()` を使う（行が存在する場合は `upsert(on_conflict="url")`）。
+- **`research_sources` の feasibility 列名は `scraping_feasibility`**（`feasibility` ではない）。または `source_profile` JSONB 内に `"feasibility"` キーで格納する。
+
+---
+
+## 2026-05-06 — bookandbeer: keyword= URL パラメータがサーバー側でフィルタされない（100% ノイズ問題）
+
+**問題：** `bookandbeer.com/event/?keyword=台湾` というURLをフェッチしていたが、サイト側でキーワードフィルタが**全く機能していない**（全イベントが返される）。スクレイパーにクライアント側チェックがなく、active 19 件の全てが非台湾イベントだった（台湾関連ヒット率 0%）。
+
+**根因：** auto_scraper で生成されたスクレイパーは、URLの keyword= パラメータが実際にフィルタされているかどうかを検証しない。生成時に 1 件でも台湾イベントが返れば「動いた」と判定して登録してしまう。
+
+**修復（commit e1ab468）：**
+- `_is_taiwan_relevant(title, description)` を 3 段階で実装：
+  1. タイトル（name_ja）に台湾キーワードがあれば即通過
+  2. 説明文冒頭 500 字に台湾キーワードが 2 回以上出現
+  3. 著者略歴の大学名パターン（`_AUTHOR_BIO_RE`：台湾大学・淡江大学等）を除去してから再判定 → false positive 防止
+- DB の既存 active 19 件を `is_active=False` に更新
+
+**教訓：**
+1. **keyword= は信用しない**：サイトによっては keyword URL パラメータがサーバー側でフィルタされず、全件返す。新規 scraper 追加時は `dry-run` で取得結果に台湾キーワードが含まれるか必ず確認。
+2. **著者略歴の false positive**：書店イベントは著者の大学名・所属に「台湾大学」が出やすい。タイトルに台湾がない場合は 500 字冒頭チェック + 大学名パターン除去が有効。
+3. **auto_qa の盲点**：`auto_qa_address_is_venue_name` 等の detector は台湾関連性チェックをしない。keyword フィルタ有効性は人間による定期確認が必要。
+
+---
+
 ## 2026-05-15 — annotator が講座イベントに performers=['記'] を誤設定（手動 DB 修正）
 
 **問題：** asahiculture イベント `1334fc96`（村山秀太郎講師の台湾現代史講座）で `performers=['記']`・`performer_zh='記'`・`performer_en='Ki'` という誤値が存在。`performer='村山 秀太郎'`（FC 済み）は正しいのに `performers[]` が単一漢字「記」で汚染されていた。

@@ -4,6 +4,53 @@
 
 ---
 
+## 2026-05-11 — Shopify 絶対 URL / `update_source.py` 既存行専用 / `feasibility` 列非存在（placebymethod）
+
+**根因：**
+1. Shopify `<a href>` はフル絶対 URL を出力 → 相対パス `r"^/pages/"` で 0 件
+2. `update_source.py` は UPDATE 専用（行が存在しない場合は `No row found` で失敗）
+3. `research_sources` に `feasibility` 列は存在しない（`scraping_feasibility` または `source_profile` JSONB 内に格納）
+
+**教訓：**
+- Shopify の `<a href>` は `href=re.compile(r"example\.com/pages/")` でマッチ
+- 新規ソース登録は `insert()` または `upsert(on_conflict="url")` で直接 SDK 操作
+- 列名は `scraping_feasibility`（`feasibility` は PGRST204 エラー）
+
+---
+
+## 2026-05-14 — rti_jp.py dry-run で 0 件（RSS `&amp;` 二重エンコード）
+
+**問題：** `rti_jp` の dry-run が RSS フェッチ成功（HTTP 200）にも関わらず常に 0 件。DEBUG ログで全 3 番組が 200 OK を受信していることは確認済み。
+
+**根因：** RSS の `<link>` テキストノードが HTML エンティティ `&amp;` を保持したまま配信されていた。例:
+```
+<link>https://www.rti.org.tw/jp/programnews?uid=4&amp;pid=103701</link>
+```
+`xml.etree.ElementTree` は XML パース時に `&amp;` → `&` を復元するが、実際に配信されていたのは既に `&amp;` がリテラル文字列として埋め込まれた二重エンコード状態だった。つまり `.text` は `"...&amp;pid=103701"` を返す。`_extract_pid()` の正規表現 `[?&]pid=(\d+)` は `&amp;` にマッチしないため、全エピソードが `pid=None` → skip。
+
+追加因子:
+- `LOOKBACK_DAYS=14` — ミュージックステーションは月1配信（33日前）のため全件 cutoff 外れ。
+- `PROGRAMS` dict に廃番プログラム 4 件（363/367/375/382、2025年7月以降更新なし）が含まれ、そもそも有効エピソードが 0 件だった。
+
+**修正：**
+- `_extract_pid(link)` と link URL 構築の両方で `.replace("&amp;", "&")` を適用:
+  ```python
+  link = link_raw.replace("&amp;", "&")
+  normalised = link.replace("&amp;", "&")
+  m = re.search(r"[?&]pid=(\d+)", normalised)
+  ```
+- `LOOKBACK_DAYS`: 14 → 60（月次配信番組対応）
+- `STALE_DAYS = 90`: 最新エピソードがこれより古い番組はスキップ（廃番自動検出）
+- `PROGRAMS` dict: 廃番 4 件削除、`文化の台湾`（id=378、15d）追加
+
+**教訓：**
+- **RSS `<link>` テキストノードは `&amp;` を二重エンコードして配信する場合がある。** XML パーサーは本来 `&amp;` → `&` を変換するが、ソースが既に `&amp;` リテラルを持つ場合は二重エンコード状態が残る。リンク URL を正規表現で処理する前に必ず `.replace("&amp;", "&")` を適用すること。
+- **Python の XML Element `if element:` は常に `True`**（DeprecationWarning）。`element is not None and element.text` と書くこと。
+- **Podcast/RSS 型 scraper には `STALE_DAYS` チェックを入れる**: 最新エピソードの `pubDate` が `STALE_DAYS` より古ければ廃番扱いでスキップし、無駄な全件フェッチを防ぐ。
+- **RSS 型 scraper の `LOOKBACK_DAYS` は配信頻度に合わせる**: 週次なら 14d、月次なら 60d 以上。
+
+---
+
 ## 2026-05-15 — asahiculture オンライン受講コースに物理住所が入る
 
 **問題：** `台湾映画最前線2026（オンライン受講）` (d617e8c4) の `location_name = 川西教室`、`location_address = 〒666-0033 川西市栄町25-1 アステ川西3階` — 物理住所が FC ロックされていた。

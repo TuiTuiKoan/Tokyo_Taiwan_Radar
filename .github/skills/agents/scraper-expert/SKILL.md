@@ -35,6 +35,19 @@ Read this at the start of every session before writing any scraper.
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
 
+## RSS/Podcast scraper-specific
+- **Normalize `&amp;` in RSS link text before regex**: RSS `<link>` text nodes may contain HTML-entity-encoded `&amp;` even after XML parsing (double-encoded by the origin server). `item.find("link").text` can return `"...?uid=4&amp;pid=103701"`. Any regex on the raw text will miss `&pid=`. Always normalize: `link = link_raw.replace("&amp;", "&")` before extraction. Apply to both `source_url` construction and any `_extract_pid()`-style function. (Incident: rti_jp 0 events, 2026-05-14.)
+- **XML Element truth value — always use `is not None`**: `if element:` on an `xml.etree.ElementTree` Element is always `True` (DeprecationWarning since Python 3.8). Write `element is not None and element.text` instead.
+- **`STALE_DAYS` guard for podcast/RSS scrapers**: For scrapers that loop over a curated list of program IDs, check the latest episode's `pubDate` before iterating all items. If it exceeds `STALE_DAYS` (e.g. 90), the program is discontinued — skip to avoid a full-page fetch that returns 0 events:
+  ```python
+  STALE_DAYS = 90
+  latest_pub = _parse_pubdate(items[0].find("pubDate").text)
+  if latest_pub and (now - latest_pub).days > STALE_DAYS:
+      logger.info("rti_jp: id=%s latest episode %dd old — discontinued", pid, age)
+      continue
+  ```
+- **`LOOKBACK_DAYS` must match broadcast frequency**: Weekly programs → 14d is sufficient. Monthly programs → 60d minimum. If a program's cadence is unknown, default to 60d.
+
 ## iwafu-specific
 - **Global-tour false positive**: If description contains `台湾など世界各地` / `全国各地.*台湾` etc., the event is a nationwide/global tour where Taiwan is just one stop. Reject it — it is NOT a Taiwan-themed event. The `_GLOBAL_TOUR_PATTERNS` regex in `iwafu.py` implements this guard.
 - **Title-level block**: Known IP series (e.g. `リアル脱出ゲーム×名探偵コナン`) must be blocked by `_BLOCKED_TITLE_PATTERNS` in `_scrape_detail` **before** the page load — this catches all tour stops as new source_ids appear. Add new entries here when a series is confirmed non-Taiwan-themed.
@@ -223,11 +236,7 @@ GET /entries/{venue_id}  → fields.fullName, fields.address, fields.closedDays,
 ## Auto-QA findings → `event_reports` queue
 - New automated content-quality checks (e.g. `scraper/auto_qa.py`) must write findings into `event_reports` with an `auto_*` prefix in `report_types[]` rather than building a separate admin queue. Both auto-detected and user-submitted reports flow through `/admin/reports` unchanged.
 - Dedup against existing pending rows of the same `auto_*` type per `event_id` before insert; also dedup within a single run.
-- Current `QA_TYPES` (as of 2026-05-15): `auto_qa_simplified_zh`, `auto_qa_missing_address`, `auto_qa_missing_hours`, `auto_simplified_chinese`, `auto_qa_same_work_duplicate`, `auto_qa_performer_ai_translation_marker`, `auto_qa_performer_multi_value_pollution`, `auto_qa_performer_zh_equals_katakana`. Future checks follow the same `auto_*` prefix convention.
-- **performer 系 3 detector の役割**（2026-05-15, commit `c4bd9e1`）：
-  - `auto_qa_performer_ai_translation_marker`：movie 事件の `performer_zh/en` に `AI翻譯` / `AI Translation` マーカーが残存 → lookup pipeline が未修正
-  - `auto_qa_performer_multi_value_pollution`：`performer` フィールドに区切り文字（`、,，×／/`）が残存 → `performers[]` 分割が未実行
-  - `auto_qa_performer_zh_equals_katakana`：`performer_zh` が `performer` のカタカナそのままで未翻訳
+- Current types: `auto_qa_simplified_zh`, `auto_qa_missing_address`. Future automated checks (dead links, date sanity) should follow the same `auto_*` prefix convention. See `history.md` 2026-05-01.
 - Events with existing `""` in name/description fields need manual DB reset (`null` + `annotation_status = 'pending'`) then re-run `annotator.py`. The `_str()` helper only prevents future empty strings.
 
 ## Admin form (web) — nullable fields
