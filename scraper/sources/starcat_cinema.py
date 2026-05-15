@@ -16,7 +16,7 @@ Strategy:
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import requests
@@ -72,11 +72,11 @@ def _parse_theater(link_text: str) -> str:
 
 
 def _parse_date(text: str) -> Optional[datetime]:
-    """Parse '2026年5月22日(金)より公開' or '上映中' → datetime or None."""
+    """Parse '2026年5月22日(金)より公開' or '上映中' → UTC midnight datetime or None."""
     m = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", text)
     if m:
         try:
-            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
         except ValueError:
             pass
     return None
@@ -100,8 +100,8 @@ class StarcatCinemaScraper(BaseScraper):
                 "+https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar)"
             )
         })
-        # Cache: theater → {normalized_title: business_hours_string}
-        self._ticket_schedule_cache: dict[str, dict[str, str]] = {}
+        # Cache: theater → {normalized_title: (business_hours_string, end_date)}
+        self._ticket_schedule_cache: dict[str, dict[str, tuple[str, Optional[datetime]]]] = {}
 
     def _get(self, url: str) -> Optional[BeautifulSoup]:
         try:
@@ -112,12 +112,13 @@ class StarcatCinemaScraper(BaseScraper):
             logger.warning("GET %s failed: %s", url, exc)
             return None
 
-    def _build_ticket_schedule(self, theater: str) -> dict[str, str]:
+    def _build_ticket_schedule(self, theater: str) -> dict[str, tuple[str, Optional[datetime]]]:
         """Fetch weekly timetable from starcat-ticket.com for the given theater.
 
-        Returns: {normalized_title: business_hours_string}
+        Returns: {normalized_title: (business_hours_string, last_date_utc)}
         where business_hours_string is multi-line, one day per line:
             "5/15(金): 12:05〜13:49\n5/16(土): 12:05〜13:49\n..."
+        last_date_utc is the last date (= schedule-week Thursday), UTC midnight.
         """
         if theater in self._ticket_schedule_cache:
             return self._ticket_schedule_cache[theater]
@@ -147,7 +148,7 @@ class StarcatCinemaScraper(BaseScraper):
                 title_to_film_id[title_norm] = m.group(1)
 
         # Step 2: film_id → {YYYYMMDD: [time_ranges]}
-        result: dict[str, str] = {}
+        result: dict[str, tuple[str, Optional[datetime]]] = {}
         for title_norm, film_id in title_to_film_id.items():
             film_panels = soup.find_all(
                 "div", id=re.compile(rf"schedule\d{{8}}{re.escape(film_id)}-\d+")
@@ -174,17 +175,19 @@ class StarcatCinemaScraper(BaseScraper):
                 continue
 
             lines = []
+            last_dt: Optional[datetime] = None
             for date_key in sorted(day_slots.keys()):
                 try:
-                    dt = datetime.strptime(date_key, "%Y%m%d")
+                    dt = datetime.strptime(date_key, "%Y%m%d").replace(tzinfo=timezone.utc)
                     wd = _WEEKDAYS[dt.weekday()]
                     label = f"{dt.month}/{dt.day}({wd})"
+                    last_dt = dt
                 except ValueError:
                     label = date_key
                 slots = "、".join(day_slots[date_key])
                 lines.append(f"{label}: {slots}")
 
-            result[title_norm] = "\n".join(lines)
+            result[title_norm] = ("\n".join(lines), last_dt)
 
         self._ticket_schedule_cache[theater] = result
         logger.info(
@@ -192,28 +195,32 @@ class StarcatCinemaScraper(BaseScraper):
         )
         return result
 
-    def _lookup_business_hours(self, theater: str, title: str) -> Optional[str]:
-        """Look up business_hours string for a film by fuzzy-matching its title."""
+    def _lookup_schedule_entry(
+        self, theater: str, title: str
+    ) -> Optional[tuple[str, Optional[datetime]]]:
+        """Return (business_hours_string, end_date) for a film, or None if not found."""
         schedule = self._build_ticket_schedule(theater)
         if not schedule:
             return None
         title_norm = _normalize_title(title)
-        # Exact match first
         if title_norm in schedule:
             return schedule[title_norm]
-        # Fuzzy: check if first 4 chars match
+        # Fuzzy: first 4 chars prefix match
         prefix = title_norm[:4]
-        for key, val in schedule.items():
+        for key, entry in schedule.items():
             if prefix and prefix in key:
-                return val
+                return entry
         return None
-        try:
-            resp = self._session.get(url, timeout=20)
-            resp.raise_for_status()
-            return BeautifulSoup(resp.text, "html.parser")
-        except Exception as exc:
-            logger.warning("GET %s failed: %s", url, exc)
-            return None
+
+    def _lookup_business_hours(self, theater: str, title: str) -> Optional[str]:
+        """Return business_hours string for a film from the weekly ticket schedule."""
+        entry = self._lookup_schedule_entry(theater, title)
+        return entry[0] if entry else None
+
+    def _lookup_end_date(self, theater: str, title: str) -> Optional[datetime]:
+        """Return the last date in the current weekly schedule (= schedule-week Thursday)."""
+        entry = self._lookup_schedule_entry(theater, title)
+        return entry[1] if entry else None
 
     def _collect_listing(self) -> list[dict]:
         """Returns list of {thumbnail_id, detail_url, theater, link_text}."""
@@ -314,11 +321,22 @@ class StarcatCinemaScraper(BaseScraper):
             title = detail["title"] or entry["link_text"].split()[1] if entry["link_text"] else f"film_{tid}"
 
             start_date = _parse_date(detail["date_text"])
+            schedule_end = self._lookup_end_date(theater, title)
 
             loc = THEATER_LOCATIONS.get(theater, DEFAULT_LOCATION)
             raw_desc = detail["description"]
-            if detail["date_text"]:
-                raw_desc = detail["date_text"] + "\n\n" + raw_desc
+            # Embed full date range so annotator SINGLE-DAY RULE does not fire
+            if start_date and schedule_end and schedule_end != start_date:
+                date_prefix = (
+                    f"上映期間: {start_date.year}年{start_date.month}月{start_date.day}日"
+                    f"〜{schedule_end.year}年{schedule_end.month}月{schedule_end.day}日"
+                )
+            elif detail["date_text"]:
+                date_prefix = detail["date_text"]
+            else:
+                date_prefix = ""
+            if date_prefix:
+                raw_desc = date_prefix + "\n\n" + raw_desc
 
             event = Event(
                 source_name=self.SOURCE_NAME,
@@ -331,7 +349,7 @@ class StarcatCinemaScraper(BaseScraper):
                 description_ja=detail["description"] or None,
                 category=["movie"],
                 start_date=start_date,
-                end_date=None,
+                end_date=schedule_end,
                 location_name=loc["name"],
                 location_address=loc["address"],
                 business_hours=self._lookup_business_hours(theater, title),
