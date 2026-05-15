@@ -29,7 +29,12 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
 
   useEffect(() => {
     setInAppBrowser(isInAppBrowser());
-  }, []);
+    // Show error when redirected back from a failed OAuth callback
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("error") === "auth_failed") {
+      setError(t("loginError"));
+    }
+  }, [t]);
 
   async function handleCopyLink() {
     try {

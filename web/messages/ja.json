@@ -152,7 +152,8 @@
     "openInBrowser": "リンクをコピーしてブラウザで開く",
     "linkCopied": "リンクをコピーしました",
     "copyUrlPrompt": "このURLをコピーして、Safari または Chrome で開いてください：",
-    "or": "または"
+    "or": "または",
+    "loginError": "ログインに失敗しました。もう一度お試しください。"
   },
   "admin": {
     "title": "管理画面",

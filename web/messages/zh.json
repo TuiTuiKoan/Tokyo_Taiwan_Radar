@@ -152,7 +152,8 @@
     "openInBrowser": "複製連結並改用瀏覽器開啟",
     "linkCopied": "已複製連結",
     "copyUrlPrompt": "請複製這個網址，並改用 Safari 或 Chrome 開啟：",
-    "or": "或"
+    "or": "或",
+    "loginError": "登入失敗，請再試一次。"
   },
   "admin": {
     "title": "管理後台",

@@ -152,7 +152,8 @@
     "openInBrowser": "Copy link and open in browser",
     "linkCopied": "Link copied",
     "copyUrlPrompt": "Copy this URL and open it in Safari or Chrome:",
-    "or": "or"
+    "or": "or",
+    "loginError": "Login failed. Please try again."
   },
   "admin": {
     "title": "Admin",
