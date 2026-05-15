@@ -955,7 +955,7 @@ _TV_PROGRAM_KEYWORDS = frozenset(["放送:", "放送：", "ジャンル:", "ジ�
 # Report article detection: these keywords in raw_title or raw_description
 # signal a post-event recap/report rather than an upcoming event.
 _REPORT_TRIGGER_RE = re.compile(
-    r"レポート|レポ|報告|記録|アーカイブ|recap|行ってきた|観てきた|見てきた|鑑賞レポ",
+    r"レポート|レポ|報告|記録|アーカイブ|recap|行ってきた|観てきた|見てきた|鑑賞レポ|結果発表",
     re.IGNORECASE,
 )
 
@@ -1006,7 +1006,13 @@ def _inject_report_prefix(name: str | None, lang: str) -> str | None:
     p = _REPORT_PREFIXES.get(lang, "")
     if not p:
         return name
-    return name if name.startswith(p) else p + name
+    if name.startswith(p):
+        return name
+    # For Japanese, avoid double-bracketing: skip if name already starts with 【…】
+    # e.g. 【結果発表】xxx should not become 【レポート】【結果発表】xxx
+    if lang == "ja" and name.startswith("【"):
+        return name
+    return p + name
 
 
 def _load_default_organizer_map(sb: "Client") -> dict[str, dict[str, str]]:
