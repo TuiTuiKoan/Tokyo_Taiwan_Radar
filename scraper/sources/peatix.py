@@ -422,13 +422,25 @@ class PeatixScraper(BaseScraper):
             return None
 
         # Blocklist: skip events from organizers known to run social-mixer events.
-        # Peatix shows the group name in a link to /group/; fall back to text selectors.
-        organizer_name = (
-            _safe_text(page, "a[href*='/group/']")
-            or _safe_text(page, ".group-name")
-            or _safe_text(page, "[class*='organizer']")
-            or ""
-        )
+        # Use query_selector_all + numeric group ID check to avoid matching nav links
+        # (e.g. /group/browse, /group/top) whose inner_text may include extra UI text
+        # like "Translate this page" that pollutes the organizer name.
+        organizer_name = ""
+        for _el in page.query_selector_all("a[href*='peatix.com/group/']"):
+            _href = _el.get_attribute("href") or ""
+            if re.search(r"peatix\.com/group/\d+", _href):
+                _txt = (_el.inner_text() or "").strip()
+                # Collapse whitespace/newlines so multi-line elements show correctly
+                _txt = re.sub(r"\s+", " ", _txt)
+                if _txt:
+                    organizer_name = _txt
+                    break
+        if not organizer_name:
+            organizer_name = (
+                _safe_text(page, ".group-name")
+                or _safe_text(page, "[class*='organizer']")
+                or ""
+            )
         if organizer_name and any(pat in organizer_name for pat in BLOCKED_ORGANIZER_PATTERNS):
             logger.info("Peatix: blocked organizer '%s', skipping: %s", organizer_name[:40], name_ja[:60])
             return None
