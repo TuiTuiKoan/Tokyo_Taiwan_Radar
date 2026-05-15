@@ -27,7 +27,7 @@ import hashlib
 import logging
 import re
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 import requests
@@ -43,6 +43,9 @@ _LISTING_URL = "http://www.cinemaclair.co.jp/a10261.html"
 _BASE_URL = "http://www.cinemaclair.co.jp"
 
 _TAIWAN_KEYWORDS = ["台湾", "Taiwan", "臺灣"]
+
+# "N週間限定上映" pattern — catches 1週間, １週間, 一週間 (with optional trailing 。)
+_WEEK_LIMIT_RE = re.compile(r"([１1一])週間限定上映")
 
 # シネマ・クレール 固定ロケーション（丸の内1・2のみ）
 _LOCATION_NAME    = "シネマ・クレール 丸の内１・２"
@@ -123,6 +126,18 @@ def _build_description(title: str, info_td: Tag, opening_date_str: str) -> str:
     return date_line + body
 
 
+def _extract_screening_duration(table_text: str, start_date: datetime) -> tuple[datetime | None, str | None]:
+    """Detect screening duration from table text.
+
+    Returns (end_date, business_hours) or (None, None) if not detected.
+    Handles: "１週間限定上映", "1週間限定上映", "一週間限定上映" (with optional 。)
+    """
+    if _WEEK_LIMIT_RE.search(table_text):
+        end_date = start_date + timedelta(days=7)
+        return end_date, "１週間限定上映"
+    return None, None
+
+
 class CinemaClairScraper(BaseScraper):
     SOURCE_NAME = SOURCE_NAME
 
@@ -190,6 +205,13 @@ class CinemaClairScraper(BaseScraper):
             else:
                 start_date = today.replace(tzinfo=None)
 
+            # Detect screening duration (e.g. "１週間限定上映")
+            # Only applies when we have a concrete opening date (not 上映中)
+            end_date: datetime | None = None
+            business_hours: str | None = None
+            if current_opening_date:
+                end_date, business_hours = _extract_screening_duration(table_text, start_date)
+
             raw_description = _build_description(title, info_td, current_h3_text)
 
             event = Event(
@@ -201,11 +223,13 @@ class CinemaClairScraper(BaseScraper):
                 raw_title=title,
                 raw_description=raw_description,
                 start_date=start_date,
+                end_date=end_date,
                 category=["movie"],
                 event_form=["screening"],
                 official_url=official_url or None,
                 location_name=_LOCATION_NAME,
                 location_address=_LOCATION_ADDRESS,
+                business_hours=business_hours,
             )
             events.append(event)
             logger.info("cinemaclair: found Taiwan film: %s [%s]", title, current_h3_text)
