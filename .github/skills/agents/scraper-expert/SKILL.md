@@ -223,7 +223,11 @@ GET /entries/{venue_id}  → fields.fullName, fields.address, fields.closedDays,
 ## Auto-QA findings → `event_reports` queue
 - New automated content-quality checks (e.g. `scraper/auto_qa.py`) must write findings into `event_reports` with an `auto_*` prefix in `report_types[]` rather than building a separate admin queue. Both auto-detected and user-submitted reports flow through `/admin/reports` unchanged.
 - Dedup against existing pending rows of the same `auto_*` type per `event_id` before insert; also dedup within a single run.
-- Current types: `auto_qa_simplified_zh`, `auto_qa_missing_address`. Future automated checks (dead links, date sanity) should follow the same `auto_*` prefix convention. See `history.md` 2026-05-01.
+- Current `QA_TYPES` (as of 2026-05-15): `auto_qa_simplified_zh`, `auto_qa_missing_address`, `auto_qa_missing_hours`, `auto_simplified_chinese`, `auto_qa_same_work_duplicate`, `auto_qa_performer_ai_translation_marker`, `auto_qa_performer_multi_value_pollution`, `auto_qa_performer_zh_equals_katakana`. Future checks follow the same `auto_*` prefix convention.
+- **performer 系 3 detector の役割**（2026-05-15, commit `c4bd9e1`）：
+  - `auto_qa_performer_ai_translation_marker`：movie 事件の `performer_zh/en` に `AI翻譯` / `AI Translation` マーカーが残存 → lookup pipeline が未修正
+  - `auto_qa_performer_multi_value_pollution`：`performer` フィールドに区切り文字（`、,，×／/`）が残存 → `performers[]` 分割が未実行
+  - `auto_qa_performer_zh_equals_katakana`：`performer_zh` が `performer` のカタカナそのままで未翻訳
 - Events with existing `""` in name/description fields need manual DB reset (`null` + `annotation_status = 'pending'`) then re-run `annotator.py`. The `_str()` helper only prevents future empty strings.
 
 ## Admin form (web) — nullable fields

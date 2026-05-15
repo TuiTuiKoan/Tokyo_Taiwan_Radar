@@ -4,6 +4,75 @@
 
 ---
 
+## 2026-05-15 — Admin reports 却下ボタン静默失敗（handleDismiss 缺 server action，commit `dbe8471`）
+
+**問題：** Admin reports 頁面「却下」按鈕點擊後，spinner 出現又消失，報告狀態沒有變更為 `dismissed`，完全靜默——使用者無任何錯誤提示。
+
+**根因：** `AdminReportsTable.tsx` 的 `handleDismiss` 直接使用 browser-side `supabase.from("event_reports").update(...)` 走 RLS，同時缺少 `.select("id")` 0-row 守衛與失敗反饋。`handleConfirm` 早已改為 server action（`confirmReport`），但 `handleDismiss` 未同步改造。JWT 過期或 RLS 阻擋時 Supabase-js 回傳 `{ error: null, data: [] }`，`if (!error)` 判斷通過但 DB 無任何更新，`router.refresh()` 後資料回滾，視覺上靜默。
+
+**修復（commit `dbe8471`）：**
+- 新建 `web/app/actions/dismiss-report.ts` server action，使用 server-side `createClient`（cookie session），含 `.select("id")` 0-row guard；失敗回傳 `{ ok: false, error: "..." }`
+- `handleDismiss` 改為呼叫此 server action；`result.ok` 為 false 時顯示 `alert(result.error)` 
+
+**教訓：**
+- **`confirmReport` 和 `dismissReport` 必須成對升格為 server action**；遺漏任一方即存在 silent failure 風險。
+- Admin client-side write + RLS = 0-row silent success 三合一陷阱（JWT 過期 / RLS 阻擋 / ID 不存在）；所有高風險 admin mutation 應優先走 server action，而非僅補 `.select("id")` 守衛。
+- 新建 action 時立即對配對 handler 做同步檢查（例如 confirm 已改 → dismiss 必須跟上）。
+
+---
+
+## 2026-05-15 — iwafu location_address 地址無法抽取（address regex + official body text fallback，commit `ebe54b3`）
+
+**問題：** iwafu 事件的 `location_address` 欄位多數為空；部分地址格式（如「渋谷区〇〇」缺少都道府縣前綴）無法匹配 regex，導致即使官方網站有完整地址也無法填入。
+
+**根因 A（regex 過窄）：** `_ADDR_RE` 要求地址以 `東京都|北海道|大阪府|…|.{2,5}県` 開頭，但日本地址有時省略都道府縣直接寫市區（如 `渋谷区〇〇1-2-3`），因此無法匹配。
+
+**根因 B（fallback 缺失）：** 舊版僅在 `main_text`（iwafu 頁面文字）搜尋地址；官方網站（`official_url` 抓到的頁面）包含更完整的地址資訊，但 `_fetch_official_organizer_info()` 只回傳 organizer + credits，未回傳 body text，無法二次搜尋。
+
+**修復（commit `ebe54b3`）：**
+- `_ADDR_RE` 改為：都道府縣 optional + `[市区町村]` required city/ward anchor，更廣泛匹配省略前綴的地址
+- `_fetch_official_organizer_info()` 回傳值擴充為三元組 `(organizer, supplemental_text, body_text)`
+- 主流程優先在 `main_text` 搜尋 `_ADDR_RE`；若無結果且有 `official_body_text`，fallback 再搜尋官方網站文字
+
+**教訓：**
+- **日本地址 regex 應將都道府縣設為 optional**；只有 `[市区町村]` 是可靠的必要錨點。
+- 官方網站通常是地址的最可靠來源；爬取 `official_url` 後應同時保存 body text 供 address fallback 使用。
+- function 回傳型別擴充（tuple 長度增加）後，**必須立即煙霧測試** (`py_compile` + 至少一次 dry-run)，確認所有呼叫點都已同步更新。
+
+---
+
+## 2026-05-15 — Admin AEO 集計カードが 1,000 件上限に頭打ち（commit `518b5a8`）
+
+**問題：** `/admin/aeo` の Summary カード（Total Visits、Unique Visitors 等）が実際より少ない数字を表示していた。
+
+**根因：** 旧実装が `.select()` で最大 1,000 行取得 → クライアント側で JS フィルタリングして件数を計算していた。PostgREST はデフォルト `max-rows=1000` で黙ってレコードを切り捨てるため、1,000 件超の場合に常に過小表示になっていた。
+
+**修正（commit `518b5a8`）：** 6 つの Summary カードをそれぞれ `.select('id', { count: 'exact', head: true })` による専用 head-count クエリに置き換え（行データを取得せず count のみ）。並列実行で UX 劣化なし。Bot テーブルの割合表示は直近 1,000 件で十分なため従来ロジックを維持。
+
+**教訓：** **集計カードは必ず `.select(..., { count: 'exact', head: true })` を使う。** PostgREST の `max-rows=1000` は silent truncation — `.limit(n)` を超えなくても 1,000 行でカットされる。クライアント側での件数計算は使ってはいけない。
+
+---
+
+## 2026-05-15 — performer multi-value 汚染 → performers[] 分割（commit `c4bd9e1`）
+
+**問題：** 映画事件で `performer = "ジャッキー・チェン、ジェット・リー"` のように区切り文字付き複数人名が 1 フィールドに格納される汚染が存在。翻訳・表示ともに誤動作。
+
+**根因：** annotator の GPT が複数人名をカンマ・読点・× 等で区切って 1 文字列に返すケースがあり、`performer` フィールドに書き込まれていた。`performers[]` への分割が実装されていなかった。
+
+**修正（commit `c4bd9e1`）：**
+- `annotator.py` に `_MULTI_SEP_RE = re.compile(r"[、,，×／/]")` 追加
+- `annotate_pending_events()` — `performer` に区切り文字が含まれる場合は `performers[]` に分割し `performer/performer_zh/performer_en` を `None` にサニタイズ
+- `enrich_person_names()` — B1 策略：既存 `performer` multi-value 汚染を `performers[]` に変換し `ja_to_info` で各名前を個別翻訳 → `performers_zh/performers_en` 生成
+- `auto_qa.py` に 3 検知器を追加：
+  - `auto_qa_performer_ai_translation_marker`（`performer_zh/en` に AI翻譯マーカー残留）
+  - `auto_qa_performer_multi_value_pollution`（`performer` に区切り文字が残存）
+  - `auto_qa_performer_zh_equals_katakana`（`performer_zh` が日本語カタカナのまま）
+- `_oneoff_migrate_multi_performer.py`：既存 movie events の一括移行スクリプト（`--dry-run` / `--execute`）
+
+**教訓：** **annotator が `performer` を返す際は必ず `_MULTI_SEP_RE` チェックを挟み、複数人の場合は `performers[]` に分割する。** `performer` は常に単人であるべき。auto_qa の performer 系 3 detector は今後の汚染を早期発見する監視網として機能する。
+
+---
+
 ## 2026-05-15 — merged_into_event_id 循環 redirect 兩個循環修復（DB-only, 4 rows）
 
 **問題：** `/zh/events/57642851-...` 頁面不停重載。

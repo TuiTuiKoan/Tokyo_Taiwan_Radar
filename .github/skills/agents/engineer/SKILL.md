@@ -325,6 +325,11 @@ Reference incident: 2026-05-09 — migration 054 新增多語言欄位後 UI 未
 
 此機制確保 UI 永遠能從 `performers[]` 讀取，不需在前端 fallback 回 `performer`。
 
+**performer multi-value 淨化規則（commit `c4bd9e1`）**：`performer` 字段必須是單一人物名。annotator 輸出 `performer` 時必須經過 `_MULTI_SEP_RE`（`[、,，×／/]`）檢查：
+- 包含區切符 → `performers[]` に分割し、`performer / performer_zh / performer_en` を `None` にクリア
+- `enrich_person_names()` の B1 策略が `performers[]` の各名前を `ja_to_info` で翻訳 → `performers_zh/performers_en` を生成
+- 既存汚染 DB の一括移行は `_oneoff_migrate_multi_performer.py --execute` で実行する（`--dry-run` で事前確認）
+
 ## TSX Component vs Helper — react-hooks/static-components Rule
 
 Next.js 15+ / React 19 lints any `PascalCase` function that returns JSX as a React component. Components declared **inside another component's render body** trigger `react-hooks/static-components` and fail Vercel build.
@@ -779,6 +784,8 @@ Every route slug must appear the **same number of times** (= total number of adm
   4. Validate: `python main.py --dry-run --source <key>` returns events cleanly
 - `_warn_unregistered_scrapers()` in `main.py` runs on every non-dry-run and emits a WARNING for any scraper key missing from `research_sources`. Check CI logs if you see `⚠️ scraper(s) NOT registered`.
 - **Auto-QA via `event_reports` queue (2026-05-01):** New automated content-quality checks must write findings into `event_reports` with an `auto_*` prefix in `report_types[]` (e.g. `auto_qa_simplified_zh`, `auto_qa_missing_address`). Do NOT build a separate admin queue — the existing `/admin/reports` confirm/dismiss flow handles auto-findings unchanged. Always dedup against existing rows of the same `auto_*` type per `event_id` — check **ALL statuses** (`pending`, `confirmed`, `dismissed`), not just `pending`. A confirmed/dismissed report means the admin has already reviewed it; re-creating it undoes admin work. Also dedup within a single run via in-memory set. See `scraper/auto_qa.py` and engineer `history.md` 2026-05-01 / 2026-05-05.
+  Current `QA_TYPES` (as of 2026-05-15): `auto_qa_simplified_zh`, `auto_qa_missing_address`, `auto_qa_missing_hours`, `auto_simplified_chinese`, `auto_qa_same_work_duplicate`, `auto_qa_performer_ai_translation_marker`, `auto_qa_performer_multi_value_pollution`, `auto_qa_performer_zh_equals_katakana`.
+- **Admin dashboard count — use `head=True` queries (2026-05-15, commit `518b5a8`):** Any summary/count card in admin pages must use `.select('id', count='exact', head=True)` rather than fetching rows and counting client-side. PostgREST silently truncates at `max-rows=1000` regardless of `.limit()` — client-side count is always wrong for large tables. The `head: true` option fetches only the `Content-Range` header with the total count, returning no rows.
 - **`SIMP_RE` / `SC_ONLY` / `annotator._SIMP_TO_TRAD` char addition rule (2026-05-01, updated 2026-05-11):** Only add a char when its Traditional Chinese / Japanese form is **a different glyph**. Verify each candidate via CC-CEDICT or kanji.jitenon.jp **before** adding. Counter-example: `亮` is identical in Trad/Simp (`照亮` is valid Trad) and triggered a false positive in production. When adding a new char, update **all three** simultaneously: `annotator.py._SIMP_TO_TRAD`, `auto_qa.py.SIMP_RE`, and `auto_qa.py.SC_ONLY`. Ensure `SC_ONLY ⊆ _SIMP_TO_TRAD_RAW.keys()` — detection must never find chars that fix cannot convert. See scraper-expert `history.md` 2026-05-01 and engineer `history.md` 2026-05-11.
 - **Cron-driven slot rotation modulo wrap (2026-05-01):** When N weekdays drive a `(DAY-1) % M` slot selector with `M < N`, days M+1..N silently re-run slots 0..(N-M-1). Acceptable when slots are idempotent (search + `skip_hint` dedup); NOT acceptable for slots requiring fixed cadence (e.g. Peatix slot 3 only on Thursdays). Override via `DISCOVERY_SLOT` env on extra cron entries, or raise `SLOT_COUNT`. See `discovery-accounts.yml` and engineer `history.md` 2026-05-01.
 - **Multi-city tour detection — never hardcode venue address (2026-05-01):** Any scraper with a hardcoded `location_address` must add multi-city detection logic. Pattern for `taiwan_cultural_center.py`:
