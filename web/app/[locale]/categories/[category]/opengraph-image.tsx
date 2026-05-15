@@ -33,37 +33,41 @@ function bgTexture(kind: number, fg: string, angle: number) {
   const els: React.ReactNode[] = [];
 
   if (v === 0) {
-    const S = 100;
-    for (let row = -4; row <= 16; row++)
-      for (let col = -4; col <= 16; col++)
-        els.push(<circle key={`${row},${col}`} cx={col * S} cy={row * S} r={28} fill={fg} />);
+    const S = 90;
+    for (let row = -5; row <= 18; row++) {
+      const ox = (row % 2 === 0) ? 0 : S / 2;
+      for (let col = -5; col <= 17; col++)
+        els.push(<circle key={`${row},${col}`} cx={col * S + ox} cy={row * S} r={32} fill={fg} />);
+    }
   } else if (v === 1) {
-    const S = 160;
-    for (let row = -3; row <= 11; row++)
-      for (let col = -3; col <= 11; col++)
-        els.push(<circle key={`${row},${col}`} cx={col * S} cy={row * S} r={18} fill={fg} />);
+    const S = 150;
+    for (let row = -3; row <= 11; row++) {
+      const ox = (row % 2 === 0) ? 0 : S / 2;
+      for (let col = -3; col <= 10; col++)
+        els.push(<circle key={`${row},${col}`} cx={col * S + ox} cy={row * S} r={20} fill={fg} />);
+    }
   } else if (v === 2) {
-    for (let i = -12; i <= 30; i++)
-      els.push(<rect key={i} x={i * 70} y="-900" width={22} height="3000" fill={fg} />);
+    for (let i = -11; i <= 24; i++)
+      els.push(<rect key={i} x={i * 110} y="-900" width={40} height="3000" fill={fg} />);
   } else if (v === 3) {
-    for (let i = -7; i <= 23; i++) {
-      els.push(<rect key={`h${i}`} x="-900" y={i * 80} width="3000" height={5} fill={fg} />);
-      els.push(<rect key={`v${i}`} x={i * 80} y="-900" width={5} height="3000" fill={fg} />);
+    for (let i = -6; i <= 21; i++) {
+      els.push(<rect key={`h${i}`} x="-900" y={i * 100} width="3000" height={8} fill={fg} />);
+      els.push(<rect key={`v${i}`} x={i * 100} y="-900" width={8} height="3000" fill={fg} />);
     }
   } else if (v === 4) {
-    const rS = 80, amp = 22, wl = 120;
-    for (let row = -7; row <= 23; row++) {
+    const rS = 110, amp = 28, wl = 140;
+    for (let row = -6; row <= 17; row++) {
       const y0 = row * rS;
       let d = `M -900 ${y0}`;
       for (let x = -900; x < 2100; x += wl) {
         d += ` Q ${x + wl / 4} ${y0 - amp} ${x + wl / 2} ${y0} Q ${x + (3 * wl) / 4} ${y0 + amp} ${x + wl} ${y0}`;
       }
-      els.push(<path key={row} d={d} stroke={fg} strokeWidth={8} fill="none" />);
+      els.push(<path key={row} d={d} stroke={fg} strokeWidth={16} fill="none" />);
     }
   } else {
-    const SZ = 110;
-    for (let row = -8; row <= 19; row++)
-      for (let col = -8; col <= 19; col++)
+    const SZ = 130;
+    for (let row = -7; row <= 16; row++)
+      for (let col = -7; col <= 16; col++)
         if ((row + col) % 2 === 0)
           els.push(<rect key={`${row},${col}`} x={col * SZ} y={row * SZ} width={SZ} height={SZ} fill={fg} />);
   }
@@ -77,16 +81,19 @@ function bgTexture(kind: number, fg: string, angle: number) {
 
 function motifCell(
   cat: string, v: number, bv: number, p: Pal,
-  x: number, y: number, sz: number,
+  x: number, y: number, sz: number, rot: number,
 ) {
   const s = sz / 100;
   return (
     <g key={`${cat}-${x}`} transform={`translate(${x} ${y}) scale(${s})`}>
-      <rect width="100" height="100" fill={p.bg} />
-      {getRandomCollageBase(bv, p.fg, p.accent)}
-      {getSemanticSymbol(cat, v, p.bg, "#3A261F")}
-      <g transform="translate(2 -2) scale(0.98)">
-        {getSemanticSymbol(cat, v, p.fg, p.accent)}
+      <g transform={`translate(50 50) rotate(${-(rot * 0.7)}) scale(0.9) translate(-50 -50)`}>
+        {getRandomCollageBase(bv, p.fg, p.accent)}
+      </g>
+      <g transform={`translate(${50 + rot * 0.2} ${50 - rot * 0.2}) rotate(${rot}) scale(0.92) translate(-50 -50)`}>
+        {getSemanticSymbol(cat, v, p.bg, "#3A261F")}
+        <g transform="translate(2 -2) scale(0.98)">
+          {getSemanticSymbol(cat, v, p.fg, p.accent)}
+        </g>
       </g>
     </g>
   );
@@ -109,13 +116,14 @@ export default async function OGImage({
   const bv = (h >> 4) % 5;
   const bgKind = (h >> 8) % 6;
   const bgAngle = ((h >> 12) % 61) - 30;
+  const motifRot = ((mv * 7) % 31) - 15;
 
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", background: palette.bg, display: "flex" }}>
         <svg width="1200" height="1200" viewBox="0 0 1200 1200">
           {bgTexture(bgKind, palette.fg, bgAngle)}
-          {motifCell(category, mv, bv, palette, 150, 150, 900)}
+          {motifCell(category, mv, bv, palette, 150, 150, 900, motifRot)}
         </svg>
       </div>
     ),
