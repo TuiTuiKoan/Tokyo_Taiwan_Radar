@@ -435,7 +435,7 @@ business_hours = "\n".join(
 | ycam_cinema | 2 | ✅ 節目期間 | ❌ None（Type 2, 追加調査要） | UTC 修正済み（commit `e91f5cd`） |
 | sakurazaka | 3 | ✅ 上映中/予定 | ❌ None（Type 3 可） | 完全準拠（`film_screening`, commit `e91f5cd`） |
 | uedaeigeki | 2 | ✅ 上映日程 | ❌ None（Type 2, 追加調査要） | UTC + prefix 修正済み（commit `e91f5cd`） |
-| human_trust_cinema | 3 | ❌ None | ❌ None | 🔴 要緊急対応 |
+| human_trust_cinema | 3 | ❌ None（サイト非公開, JS-driven） | ❌ None（同上） | UTC+event_form 完了（commit `7849021`）, end_date はサイト制限 |
 | theater_kino | 2 | ✅ 静的HTML | ❌ None（Type 2, 追加調査要） | UTC + prefix 修正済み（commit `e91f5cd`） |
 
 **新規 cinema scraper 作成時は、上記稽核表に行を追加すること。**
