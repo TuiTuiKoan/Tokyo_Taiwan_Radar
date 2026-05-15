@@ -474,7 +474,8 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
 }
 
 [data-antenna-flow="on"] .lianbu-antenna-flow-dot {
-  opacity: 0; /* prevent FOUC before first keyframe */
+  opacity: 0;
+  visibility: hidden; /* belt-and-suspenders: prevents WebKit filter FBO artifact at opacity 0 */
   animation: lianbu-antenna-flow-dot 12s ease-in-out infinite;
 }
 
@@ -525,16 +526,20 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
   0%,
   15% {
     opacity: 0;
+    visibility: hidden;
   }
   17% {
     opacity: 1;
+    visibility: visible;
   }
   22% {
     opacity: 1;
+    visibility: visible;
   }
   23%,
   100% {
     opacity: 0;
+    visibility: hidden;
   }
 }
 
