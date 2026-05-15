@@ -880,6 +880,10 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
   }
 
   async function handleToggleActive(id: string, newValue: boolean) {
+    // Optimistic update — give immediate visual feedback
+    setEvents((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, is_active: newValue } : e))
+    );
     const update: Record<string, unknown> = { is_active: newValue };
     if (!newValue) {
       update.deactivated_at = new Date().toISOString();
@@ -892,16 +896,20 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     }
     const { error, data: activeRows } = await supabase.from("events").update(update).eq("id", id).select("id");
     if (error) {
+      // Revert optimistic update
+      setEvents((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, is_active: !newValue } : e))
+      );
       alert(`切換公開狀態失敗：${error.message}`);
       return;
     }
     if (!activeRows || activeRows.length === 0) {
+      // Revert optimistic update
+      setEvents((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, is_active: !newValue } : e))
+      );
       alert("切換未生效（session 可能已過期），請重新整理頁面後再試。");
-      return;
     }
-    setEvents((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, is_active: newValue } : e))
-    );
   }
 
   return (
