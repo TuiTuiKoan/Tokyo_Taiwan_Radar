@@ -2297,6 +2297,7 @@ def enrich_person_names() -> None:
         .select(
             "id,name_ja,raw_title,raw_description,name_zh,name_en,"
             "description_zh,description_en,annotation_status,source_name,category,"
+            "performer,performer_zh,performer_en,"
             "performers,performers_zh,performers_en,director,director_zh,director_en"
         )
         .neq("annotation_status", "reviewed")
@@ -2435,6 +2436,38 @@ def enrich_person_names() -> None:
                 or cur_dir_en != info.name_en
             ):
                 update["director_en"] = info.name_en
+
+        # performer_zh / performer_en: look up by ja katakana performer field.
+        # Eiga.com keys cast as "character_name actor_name" (e.g. "雪子ジュディ・オング")
+        # while performer field only stores the actor name ("ジュディ・オング").
+        # Use suffix-match to handle this discrepancy.
+        cur_performer = event.get("performer") or ""
+        if cur_performer:
+            perf_info: "PersonInfo | None" = ja_to_info.get(cur_performer)
+            if perf_info is None:
+                # Suffix match: handle eiga.com "character_name actor_name" key format
+                for key, kinfo in ja_to_info.items():
+                    if key.endswith(cur_performer) and len(key) > len(cur_performer):
+                        perf_info = kinfo
+                        break
+            if perf_info is None and "\u30fb" in cur_performer:
+                # Last resort: direct lookup for katakana foreign names (e.g. ジュディ・オング)
+                perf_info = lookup_single_person(cur_performer)
+            if perf_info:
+                cur_perf_zh = event.get("performer_zh") or ""
+                cur_perf_en = event.get("performer_en") or ""
+                if perf_info.name_zh and (
+                    not cur_perf_zh
+                    or "AI\u7FFB\u8B6F" in cur_perf_zh
+                    or cur_perf_zh != perf_info.name_zh
+                ):
+                    update["performer_zh"] = _to_trad(perf_info.name_zh)
+                if perf_info.name_en and (
+                    not cur_perf_en
+                    or "AI Translation" in cur_perf_en
+                    or cur_perf_en != perf_info.name_en
+                ):
+                    update["performer_en"] = perf_info.name_en
 
         if update:
             sb.table("events").update(update).eq("id", event["id"]).execute()
