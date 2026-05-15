@@ -83,6 +83,34 @@ const _name = getEventName(event, locale);
 
 **Incident:** 2026-05-14 — `MascotAvatar.tsx` signal animation initially used `Math.random()` for SVG IDs and failed lint. Replaced with `useId()` for both inline and framed variants.
 
+## SVG CSS Animation FOUC — 元素初始 opacity 必須在 SVG/CSS 屬性層設為 0
+
+CSS animation 在瀏覽器第一幀 paint 前尚未啟動，元素以**CSS element-rule / SVG 屬性的 baseline 值**渲染一幀（Flash Of Unstyled Content）。
+
+**規則：**
+1. 任何以 CSS `opacity` keyframe 控制顯示隱藏的 SVG 元素，必須在 SVG 屬性層加 `opacity="0"` **或**在 CSS element rule 加 `opacity: 0`，確保動畫前不閃爍。
+2. SVG 元素改用 `fill=url(#gradient)` 時，若舊版有 `fill="none"`，FOUC 影響從「無色」變成「有色」，必須同步補 `opacity="0"` 基底。
+3. `overflow="visible"` 的 SVG 內，FOUC 期的元素以其 DOM 基底座標（`cx/cy`）顯示，可能出現在 SVG bounding box 之外的頁面區域，造成「奇怪白球」或色塊。
+
+**修法範本：**
+```tsx
+{/* ❌ 錯誤 — CSS animation 前會短暫以 opacity=1 顯示 */}
+<circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill="url(#grad)" />
+
+{/* ✅ 正確 — SVG attr 設 opacity=0，CSS animation 接管後才顯示 */}
+<circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill="url(#grad)" opacity={0} />
+```
+
+```css
+/* ❌ 錯誤 — opacity: 1 在動畫前仍生效 */
+[data-antenna-flow="on"] .lianbu-antenna-flow-line { opacity: 1; animation: ... }
+
+/* ✅ 正確 — opacity: 0，動畫 keyframe 控制可見度 */
+[data-antenna-flow="on"] .lianbu-antenna-flow-line { opacity: 0; animation: ... }
+```
+
+**Incident:** 2026-05-15 — `MascotAvatar.tsx` 天線流光動畫新增 `radialGradient` fill 後，首頁重整時在左上（tip-ring 梯度）與左下（flow-dot 白圓圈基底 cx=100,cy=80）各出現一幀白光球，根因為兩元素缺少 `opacity="0"` 初始值。
+
 ## Tailwind v4 `@theme` 靜態解析 — `bg-paper` vs `bg-[#FFFDF5]`
 
 Tailwind v4 的 `@theme` block 在 **build time** 靜態解析所有 CSS 變數。這代表：
@@ -211,6 +239,7 @@ interface CategoryThumbnailProps {
   1. 先用 SSR client + `user_roles` 做 admin auth gate。
   2. 再用 `createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)` 執行該表查詢。
   不可直接用 `@/lib/supabase/server` client 查 service-role-only 表，否則會因 RLS 拿到空集合而誤判為 0 筆。
+- **Weekly broadcast 發布閘門規則：** `web/app/api/admin/weekly-broadcast/send/route.ts` 只有在「至少一個語系送達成功，且無語系送達失敗」時，才可把 `announcements.published_at` 與 `social_status.line.status` 設為 published。任一語系發送失敗，或 `subscriber_count.total > 0` 但 `sent_to = 0`，都必須回 502 並保持 draft，不可標記發布。
 - **權限問題驗證雙語境：**
   1. app request 語境：檢查 API response 是否含診斷欄位（例如 `subscriber_count`）。
   2. SQL/service-role 語境：用 service role 直接 count 目標表，確認資料存在與否，避免把「查不到」誤判為「資料為 0」。
@@ -891,6 +920,13 @@ Every route slug must appear the **same number of times** (= total number of adm
   - Threshold = **2** (not 1) to avoid false positives where a Tokyo event's description merely mentions another city
   - When triggered: set `location_name` to a generic tour label (e.g. `台湾文化センター（全国巡回）`) and set `location_address = None`
   - For DB-patching already-scraped tours: update `location_name`, clear `location_address` directly in Supabase
+- **Asahi Culture series normalization (2026-05-15):**
+  - CLI source key is `asahi_culture`, but DB `source_name` is `asahiculture`.
+  - For this source family, always normalize these fields together: `organizer`, `organizer_type`, `official_url`, `location_address`, `business_hours`, `performer`, `is_paid`, `price_info`, `start_date`, `end_date`.
+  - Date rule is strict: single-day course must persist as `end_date = start_date` (never null).
+  - Detail-page extraction must support both lecturer layouts: `h3` profile blocks and header-line `姓名/肩書` fallback.
+  - Member fee regex must accept variants with and without descriptors: `会員14,190円` and `会員（テキスト付き）23,780円`.
+  - When running a one-off batch patch on this series, upsert `field_corrections` for every patched field in the same run, and pair-lock date fields (`start_date` + `end_date`).
 
 ## Broadcast / Public Output Quality Gate
 
