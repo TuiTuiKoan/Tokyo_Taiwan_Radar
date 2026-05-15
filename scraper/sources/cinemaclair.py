@@ -25,6 +25,8 @@ Date format: "２０２６年５月２２日公開"  → YYYY年MM月DD日
 
 import hashlib
 import logging
+import json
+import os
 import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
@@ -41,6 +43,7 @@ SOURCE_NAME = "cinemaclair"
 
 _LISTING_URL = "http://www.cinemaclair.co.jp/a10261.html"
 _BASE_URL = "http://www.cinemaclair.co.jp"
+_SCHEDULE_URL = "http://www.cinemaclair.co.jp/a6215.html"
 
 _TAIWAN_KEYWORDS = ["台湾", "Taiwan", "臺灣"]
 
@@ -138,6 +141,114 @@ def _extract_screening_duration(table_text: str, start_date: datetime) -> tuple[
     return None, None
 
 
+def _fetch_schedule_image_url() -> str | None:
+    """a6215.html からスケジュール JPEG の URL を動的に取得する。
+
+    HTML 内の <a href="/img/i*.jpg"> を探す（ハッシュは週ごとに変わる）。
+    失敗時は None を返す。
+    """
+    try:
+        resp = requests.get(_SCHEDULE_URL, headers=_HEADERS, timeout=15)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        a = soup.find("a", href=lambda h: h and "/img/i" in h and h.lower().endswith(".jpg"))
+        if a:
+            href = a["href"]
+            return href if href.startswith("http") else f"{_BASE_URL}{href}"
+        logger.debug("cinemaclair: schedule image <a> tag not found on %s", _SCHEDULE_URL)
+    except Exception as exc:
+        logger.warning("cinemaclair: schedule page fetch failed: %s", exc)
+    return None
+
+
+def _ocr_schedule_showtimes(image_url: str, taiwan_titles: list[str]) -> dict[str, str]:
+    """GPT-4o Vision でスケジュール画像をOCRし、台湾映画の上映時刻を返す。
+
+    Args:
+        image_url: スケジュール JPEG の URL
+        taiwan_titles: スクレイパーが抽出した台湾映画タイトルのリスト
+
+    Returns:
+        {title: "HH:MM / HH:MM / ..."} — 見つからなければそのタイトルのキーは含まれない
+        OPENAI_API_KEY 未設定時や例外時は {} を返す
+    """
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        logger.debug("cinemaclair: OPENAI_API_KEY not set, skipping OCR schedule")
+        return {}
+
+    titles_str = "\n".join(f"- {t}" for t in taiwan_titles)
+    prompt = (
+        "以下はシネマ・クレールの週間上映スケジュール画像です。\n"
+        "次の映画の上映時刻を探してください：\n"
+        f"{titles_str}\n\n"
+        'JSON形式で返してください:\n'
+        '{"films":[{"title":"映画タイトル","showtimes":"HH:MM / HH:MM"}]}\n\n'
+        "ルール:\n"
+        "- 時刻は半角HH:MM形式（24時間制）\n"
+        "- 複数回は \" / \" で区切る\n"
+        "- 全角数字は半角に変換\n"
+        "- 画像に見当たらない場合は showtimes: null\n"
+        "- 指定された映画のみ返す"
+    )
+
+    try:
+        from openai import OpenAI  # noqa: PLC0415
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": image_url, "detail": "high"},
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
+            max_tokens=500,
+            response_format={"type": "json_object"},
+        )
+        raw = response.choices[0].message.content or "{}"
+        data = json.loads(raw)
+        result: dict[str, str] = {}
+        for film in data.get("films", []):
+            title = film.get("title", "")
+            showtimes = film.get("showtimes")
+            if title and showtimes:
+                result[title] = str(showtimes)
+        logger.info(
+            "cinemaclair: OCR found showtimes for %d films: %s",
+            len(result),
+            list(result.keys()),
+        )
+        return result
+    except Exception as exc:
+        logger.warning("cinemaclair: OCR schedule failed: %s", exc)
+        return {}
+
+
+def _match_schedule(schedule_map: dict[str, str], title: str) -> str | None:
+    """OCR 結果から title に対応する上映時刻を探す。
+
+    完全一致 → 部分文字列の順でマッチング。
+    見つからなければ None を返す。
+    """
+    if not schedule_map:
+        return None
+    # 完全一致
+    if title in schedule_map:
+        return schedule_map[title]
+    # 部分文字列マッチ（どちらかがもう一方を含む）
+    for key, val in schedule_map.items():
+        if title in key or key in title:
+            return val
+    return None
+
+
 class CinemaClairScraper(BaseScraper):
     SOURCE_NAME = SOURCE_NAME
 
@@ -156,13 +267,14 @@ class CinemaClairScraper(BaseScraper):
             logger.warning("cinemaclair: #content-body not found")
             return []
 
-        events: list[Event] = []
+        candidates: list[dict] = []
         seen_ids: set[str] = set()
         today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
         current_h3_text = "上映中"
         current_opening_date: datetime | None = None
 
+        # 1st pass: Taiwan 関連テーブルを全て収集
         for child in content.children:
             if not isinstance(child, Tag):
                 continue
@@ -208,31 +320,60 @@ class CinemaClairScraper(BaseScraper):
             # Detect screening duration (e.g. "１週間限定上映")
             # Only applies when we have a concrete opening date (not 上映中)
             end_date: datetime | None = None
-            business_hours: str | None = None
             if current_opening_date:
-                end_date, business_hours = _extract_screening_duration(table_text, start_date)
+                end_date, _ = _extract_screening_duration(table_text, start_date)
 
             raw_description = _build_description(title, info_td, current_h3_text)
 
+            candidates.append({
+                "title": title,
+                "official_url": official_url,
+                "source_id": source_id,
+                "start_date": start_date,
+                "end_date": end_date,
+                "raw_description": raw_description,
+            })
+
+        # OCR: スケジュール画像から上映時刻を取得
+        schedule_map: dict[str, str] = {}
+        taiwan_titles = [c["title"] for c in candidates]
+        if taiwan_titles:
+            img_url = _fetch_schedule_image_url()
+            if img_url:
+                schedule_map = _ocr_schedule_showtimes(img_url, taiwan_titles)
+
+        # 2nd pass: Event 生成
+        events: list[Event] = []
+        for c in candidates:
+            ocr_time = _match_schedule(schedule_map, c["title"])
+            if ocr_time:
+                final_bh = ocr_time
+            elif c["end_date"] is not None:
+                final_bh = "１週間限定上映"
+            else:
+                final_bh = None
+
             event = Event(
                 source_name=SOURCE_NAME,
-                source_id=source_id,
+                source_id=c["source_id"],
                 source_url=_LISTING_URL,
                 original_language="ja",
-                name_ja=title,
-                raw_title=title,
-                raw_description=raw_description,
-                start_date=start_date,
-                end_date=end_date,
+                name_ja=c["title"],
+                raw_title=c["title"],
+                raw_description=c["raw_description"],
+                start_date=c["start_date"],
+                end_date=c["end_date"],
                 category=["movie"],
                 event_form=["screening"],
-                official_url=official_url or None,
+                official_url=c["official_url"] or None,
                 location_name=_LOCATION_NAME,
                 location_address=_LOCATION_ADDRESS,
-                business_hours=business_hours,
+                organizer="シネマ・クレール",
+                organizer_type=["commercial_brand"],
+                business_hours=final_bh,
             )
             events.append(event)
-            logger.info("cinemaclair: found Taiwan film: %s [%s]", title, current_h3_text)
+            logger.info("cinemaclair: found Taiwan film: %s", c["title"])
 
         logger.info("cinemaclair: total Taiwan films found: %d", len(events))
         return events
