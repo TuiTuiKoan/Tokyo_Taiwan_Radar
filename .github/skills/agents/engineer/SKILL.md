@@ -114,6 +114,33 @@ if (error) {
 
 替代設計：高風險寫入改走 server action / route handler 用 service role key，繞過 client JWT 過期問題。
 
+## RLS Policy Matrix Completeness Guard（建表時 SELECT/INSERT/UPDATE/DELETE 缺一即 silent failure）
+
+任何含 admin 後台 UPDATE/DELETE 入口的表，建表 migration 必須**同時建立**對應的 RLS policy。缺失任一動詞的 policy，PostgREST 會靜默拒絕（0 rows affected，`error: null`），符合「0-row Silent Success」模式——前端看不出來，DB log 也只是普通 RLS deny。
+
+**規則：** 設計新表 migration 時，逐一檢查 admin UI 是否會對該表執行：
+
+| 動詞 | 觸發場景 | 必要 policy |
+|------|---------|-------------|
+| SELECT | 列表頁、詳情頁 | `FOR SELECT` |
+| INSERT | 新增按鈕、表單送出 | `FOR INSERT` |
+| UPDATE | 「標記為…」按鈕、toggle、編輯 | `FOR UPDATE` |
+| DELETE | 「刪除」按鈕 | `FOR DELETE` |
+
+任一動詞會被 admin UI 觸發但 policy 不存在 → 後續一定要回頭補一支 migration（如 `070_research_reports_update_policy.sql`）。
+
+**已知 incident：** Migration `008_research_reports.sql` 只建 SELECT policy，admin「標記為已審閱」按鈕 silent failure（2026-05-15 補 migration `070`）。
+
+**偵測 SQL（在 Supabase Dashboard 跑）：**
+```sql
+SELECT tablename, cmd, count(*)
+FROM pg_policies
+WHERE schemaname = 'public'
+GROUP BY tablename, cmd
+ORDER BY tablename, cmd;
+-- 任何 admin UI 操作的表，cmd 必須涵蓋 SELECT + UPDATE 至少。
+```
+
 ## Admin Mutation 成對原則（confirm / dismiss / toggle）
 
 **admin mutation handler は必ずペアで同じ実装パターンを使う。**

@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-15 — research_reports 「標記為已審閱」按鈕 silent failure（migration `070`）
+
+**問題：** Admin Research Reports 頁面點「標記為已審閱」按鈕，UI 無反應，DB 無變化，無 JS error。
+
+**根因：** Migration `008_research_reports.sql` 只建立 SELECT policy，未建 UPDATE policy。RLS 預設拒絕，admin 的 UPDATE 被 PostgREST 靜默拒絕（0 rows affected，回傳 `error: null` + 空陣列），符合「Supabase Client UPDATE 0-row Silent Success」模式。
+
+**修復（migration `070_research_reports_update_policy.sql`）：** 補上 admin UPDATE policy，沿用 `006_event_reports.sql` 既有 admin 模式。
+
+**教訓：**
+- 任何 `research_reports`、`event_reports` 等「admin 後台會 UPDATE 的表」建立時，**SELECT / INSERT / UPDATE / DELETE policy 必須一次到位**，缺一即 silent failure。
+- 既存的「0-row Silent Success Guard」前端 `.select("id")` 檢查能偵測但不能根治——根治在 migration 階段確保 policy 完整。
+- 新增 admin UI mutation 入口時必須核對對應 DB table 的 RLS policy 矩陣（SELECT 有 ≠ UPDATE 有）。
+
+---
+
 ## 2026-05-15 — ReportSection 送信ボタンが「送信中…」で永久に固まる（commit `53445be`）
 
 **問題：** イベント詳細ページの「問題を報告」フォームで送信ボタンをクリックすると「送信中…」表示のまま永久に固まり、成功・エラーどちらも表示されない。
