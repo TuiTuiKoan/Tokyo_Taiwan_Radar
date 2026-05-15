@@ -46,6 +46,14 @@ DEFAULT_LOCATION = {
     "address": "愛知県名古屋市",
 }
 
+# starcat-ticket.com schedule pages (weekly timetable with HH:MM slots)
+TICKET_SCHEDULE_URLS = {
+    "伏見ミリオン座": "https://www.starcat-ticket.com/fm/theater/million/schedule",
+    "センチュリーシネマ": "https://www.starcat-ticket.com/cc/theater/century/schedule",
+}
+
+_WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"]
+
 
 def _is_taiwan(text: str) -> bool:
     return any(kw in text for kw in TAIWAN_KEYWORDS)
@@ -74,6 +82,11 @@ def _parse_date(text: str) -> Optional[datetime]:
     return None
 
 
+def _normalize_title(title: str) -> str:
+    """Normalize title for fuzzy matching: collapse whitespace, strip."""
+    return re.sub(r"\s+", " ", title).strip()
+
+
 class StarcatCinemaScraper(BaseScraper):
     """Scrapes Taiwan-related films from 伏見ミリオン座 and センチュリーシネマ (Nagoya)."""
 
@@ -87,8 +100,113 @@ class StarcatCinemaScraper(BaseScraper):
                 "+https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar)"
             )
         })
+        # Cache: theater → {normalized_title: business_hours_string}
+        self._ticket_schedule_cache: dict[str, dict[str, str]] = {}
 
     def _get(self, url: str) -> Optional[BeautifulSoup]:
+        try:
+            resp = self._session.get(url, timeout=20)
+            resp.raise_for_status()
+            return BeautifulSoup(resp.text, "html.parser")
+        except Exception as exc:
+            logger.warning("GET %s failed: %s", url, exc)
+            return None
+
+    def _build_ticket_schedule(self, theater: str) -> dict[str, str]:
+        """Fetch weekly timetable from starcat-ticket.com for the given theater.
+
+        Returns: {normalized_title: business_hours_string}
+        where business_hours_string is multi-line, one day per line:
+            "5/15(金): 12:05〜13:49\n5/16(土): 12:05〜13:49\n..."
+        """
+        if theater in self._ticket_schedule_cache:
+            return self._ticket_schedule_cache[theater]
+
+        ticket_url = TICKET_SCHEDULE_URLS.get(theater, "")
+        if not ticket_url:
+            return {}
+
+        soup = self._get(ticket_url)
+        if not soup:
+            return {}
+
+        # Step 1: title div → panel ID → film_id
+        title_to_film_id: dict[str, str] = {}
+        for title_div in soup.find_all("div", class_="schedule-title"):
+            title_norm = _normalize_title(title_div.get_text(strip=True))
+            if not title_norm or title_norm in title_to_film_id:
+                continue
+            anchor = title_div.find_parent("a")
+            if not anchor:
+                continue
+            panel_target = (
+                anchor.get("data-target") or anchor.get("href") or ""
+            ).lstrip("#")
+            m = re.match(r"schedule\d{8}(\d+)-\d+", panel_target)
+            if m:
+                title_to_film_id[title_norm] = m.group(1)
+
+        # Step 2: film_id → {YYYYMMDD: [time_ranges]}
+        result: dict[str, str] = {}
+        for title_norm, film_id in title_to_film_id.items():
+            film_panels = soup.find_all(
+                "div", id=re.compile(rf"schedule\d{{8}}{re.escape(film_id)}-\d+")
+            )
+            day_slots: dict[str, list[str]] = {}
+            for panel_div in film_panels:
+                pm = re.match(
+                    rf"schedule(\d{{8}}){re.escape(film_id)}-\d+",
+                    panel_div.get("id", ""),
+                )
+                if not pm:
+                    continue
+                date_key = pm.group(1)
+                time_matches = re.findall(
+                    r"(\d+:\d+)\s*～\s*(\d+:\d+)",
+                    panel_div.get_text(" ", strip=True),
+                )
+                for start_t, end_t in time_matches:
+                    day_slots.setdefault(date_key, []).append(
+                        f"{start_t}〜{end_t}"
+                    )
+
+            if not day_slots:
+                continue
+
+            lines = []
+            for date_key in sorted(day_slots.keys()):
+                try:
+                    dt = datetime.strptime(date_key, "%Y%m%d")
+                    wd = _WEEKDAYS[dt.weekday()]
+                    label = f"{dt.month}/{dt.day}({wd})"
+                except ValueError:
+                    label = date_key
+                slots = "、".join(day_slots[date_key])
+                lines.append(f"{label}: {slots}")
+
+            result[title_norm] = "\n".join(lines)
+
+        self._ticket_schedule_cache[theater] = result
+        logger.info(
+            "Ticket schedule for %s: %d films parsed", theater, len(result)
+        )
+        return result
+
+    def _lookup_business_hours(self, theater: str, title: str) -> Optional[str]:
+        """Look up business_hours string for a film by fuzzy-matching its title."""
+        schedule = self._build_ticket_schedule(theater)
+        if not schedule:
+            return None
+        title_norm = _normalize_title(title)
+        # Exact match first
+        if title_norm in schedule:
+            return schedule[title_norm]
+        # Fuzzy: check if first 4 chars match
+        prefix = title_norm[:4]
+        for key, val in schedule.items():
+            if prefix and prefix in key:
+                return val
+        return None
         try:
             resp = self._session.get(url, timeout=20)
             resp.raise_for_status()
@@ -216,6 +334,7 @@ class StarcatCinemaScraper(BaseScraper):
                 end_date=None,
                 location_name=loc["name"],
                 location_address=loc["address"],
+                business_hours=self._lookup_business_hours(theater, title),
             )
             events.append(event)
             logger.info("Found Taiwan film: %s (theater=%s)", title, theater)

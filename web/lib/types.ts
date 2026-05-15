@@ -342,8 +342,8 @@ export function getEventPerformer(event: Event, locale: Locale): string | null {
     return arr.join("、");
   }
   // Single-performer (or no array): locale-specific translation takes priority
-  if (locale === "zh") return event.performer_zh || event.performer || arr[0] || null;
-  if (locale === "en") return event.performer_en || event.performer || arr[0] || null;
+  if (locale === "zh") return event.performer_zh || event.performers_zh?.[0] || event.performer || arr[0] || null;
+  if (locale === "en") return event.performer_en || event.performers_en?.[0] || event.performer || arr[0] || null;
   return arr[0] || event.performer || null;
 }
 
