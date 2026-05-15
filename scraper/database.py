@@ -335,6 +335,35 @@ def get_event_id_by_source(source_name: str, source_id: str) -> str | None:
         return None
 
 
+def _auto_lock_location(client, eid_to_event: dict) -> None:
+    """Auto-lock scraper-provided location fields so annotator cannot overwrite."""
+    import json
+    fc_records = []
+    for eid, event in eid_to_event.items():
+        if not event.location_name:
+            continue
+        for field, value in [
+            ("location_name",        event.location_name),
+            ("location_address",     event.location_address),
+            ("location_prefectures", event.location_prefectures),
+        ]:
+            if value is None or value == []:
+                continue
+            corrected = json.dumps(value, ensure_ascii=False) if isinstance(value, list) else value
+            fc_records.append({"event_id": eid, "field_name": field, "corrected_value": corrected})
+    if not fc_records:
+        return
+    try:
+        client.table("field_corrections").upsert(
+            fc_records,
+            on_conflict="event_id,field_name",
+            ignore_duplicates=True,
+        ).execute()
+        logger.info("Auto-locked location fields for %d new event(s).", len(eid_to_event))
+    except Exception as exc:
+        logger.warning("Auto-lock location FC failed (non-critical): %s", exc)
+
+
 def _build_movie_extend_row(event: Event, existing_state: dict) -> dict | None:
     """
     Build a partial-update row for a movie event that already exists in DB.
@@ -621,6 +650,22 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
             for row in (resp.data or []):
                 if row.get("source_id") in new_source_ids and row.get("id"):
                     new_event_ids.append(row["id"])
+            # ── Auto-lock scraper-provided location fields ────────────────────
+            new_src_to_event = {
+                e.source_id: e for e in events
+                if (e.source_name, e.source_id) not in existing_keys
+                and (e.source_name, e.source_id) not in blocked_keys
+                and (e.source_name, e.source_id) not in reviewed_keys
+                and e.location_name
+            }
+            if new_src_to_event:
+                src_to_eid = {
+                    row["source_id"]: row["id"]
+                    for row in (resp.data or [])
+                    if row.get("source_id") in new_src_to_event and row.get("id")
+                }
+                eid_to_event = {eid: new_src_to_event[src] for src, eid in src_to_eid.items()}
+                _auto_lock_location(client, eid_to_event)
         except Exception as exc:
             logger.error("Failed to upsert events: %s", exc)
             raise
