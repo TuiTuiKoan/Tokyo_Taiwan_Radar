@@ -1,5 +1,6 @@
--- Migration 047: Add 'broadcast' and 'tasting' to events_event_form_check constraint
+-- Migration 047: Add 'broadcast', 'tasting', 'study_abroad' to events_event_form_check constraint
 -- Required by: annotator.py VALID_EVENT_FORMS, gguide_tv batch fix
+-- Note: 'study_abroad' added because 1 existing row had this value (DB diagnostic 2026-05-15)
 
 ALTER TABLE events DROP CONSTRAINT IF EXISTS events_event_form_check;
 
@@ -9,6 +10,6 @@ ALTER TABLE events
     event_form <@ ARRAY[
       'exhibition','screening','lecture','performance','market','workshop',
       'conference','networking','screening_with_talk','tour','competition',
-      'tasting','broadcast','other'
+      'tasting','broadcast','study_abroad','other'
     ]::text[]
   );
