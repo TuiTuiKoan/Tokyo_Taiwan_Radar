@@ -512,8 +512,11 @@ Reference incidents:
 4. **申請型活動（`study_abroad`）說明會若在線上，同樣套用 オンライン 規則**：不使用主辦方大學校園地址或招募機構地址。
 5. **「日本境內的線上活動」此概念不成立**：主辦方在日本但活動為線上舉行，仍設 `オンライン`，不設日本都道府県。
 6. **note 帳號 profile ≠ 線上活動地點**：`続きをみる` 截斷的 note raw_description 中的機構名不可設為 `location_name`。
+7. **多教室型プラットフォーム（朝日カルチャー等）では、タイトル「オンライン」優先**：スクレイパーが `CLASSROOM_ADDRESS_MAP` で物理住所を補填する前に `"オンライン" in raw_title` をチェックすること。タイトルに「オンライン受講」と明記された講座に教室住所が入るのはこのチェック漏れが原因。
 
-Reference incident: 2026-05-08 — event `b022b452`（台湾留学説明会 / Zoom）`location_name` 修正為 `'オンライン'` + FC 鎖定三欄（`location_name`、`location_name_zh`、`location_name_en`）。
+Reference incidents:
+- 2026-05-08 — event `b022b452`（台湾留学説明会 / Zoom）`location_name` 修正為 `'オンライン'` + FC 鎖定三欄（`location_name`、`location_name_zh`、`location_name_en`）。
+- 2026-05-15 — event `d617e8c4`（台湾映画最前線2026 / オンライン受講）`location_name = 川西教室` + FC locked address → scraper オンライン検出追加 + DB/FC 修正（5 フィールド）。
 
 ## Organizer Non-Hallucination Guard（few-shot 污染防護）
 

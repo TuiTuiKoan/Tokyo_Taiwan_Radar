@@ -148,9 +148,15 @@ class AsahiCultureScraper(BaseScraper):
         if detail["description"]:
             description = detail["description"]
 
-        # Prefer detail-page venue (e.g. satellite classroom); fall back to card branch
-        location_name = detail["location_name"] or card_branch
-        location_address = detail["location_address"] or CLASSROOM_ADDRESS_MAP.get(location_name)
+        # Online courses: title contains "オンライン" → location = オンライン, no address
+        _is_online = "オンライン" in raw_title or "オンライン" in (detail["location_name"] or "")
+        if _is_online:
+            location_name = "オンライン"
+            location_address = None
+        else:
+            # Prefer detail-page venue (e.g. satellite classroom); fall back to card branch
+            location_name = detail["location_name"] or card_branch
+            location_address = detail["location_address"] or CLASSROOM_ADDRESS_MAP.get(location_name)
 
         return Event(
             source_name=self.SOURCE_NAME,
