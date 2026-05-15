@@ -235,10 +235,10 @@ export function getSemanticSymbol(cat: string, variant: number, c: string, a: st
 // Background organic collage base
 export function getRandomCollageBase(variant: number, c: string, a: string): React.ReactNode {
   const v = variant % 5;
-  if (v===0) return <g opacity="0.7"><path d="M10 20 Q30 0 60 20 T90 50 L90 80 Q60 100 30 80 T10 40 Z" fill={c}/><circle cx="70" cy="30" r="15" fill={a}/></g>;
-  if (v===1) return <g opacity="0.7"><polygon points="10,40 40,10 80,30 90,70 60,90 20,80" fill={c}/><rect x="70" y="60" width="20" height="20" transform="rotate(15 80 70)" fill={a}/></g>;
-  if (v===2) return <g opacity="0.7"><path d="M20 80 Q50 20 90 40 L70 90 Z" fill={c}/><circle cx="30" cy="30" r="20" fill={a}/></g>;
-  if (v===3) return <g opacity="0.7"><path d="M10 50 A 40 40 0 0 1 90 50 A 30 30 0 0 0 10 50" fill={c}/><path d="M15 65 A 30 30 0 0 1 75 65 A 20 20 0 0 0 15 65" fill={a}/></g>;
-  if (v===4) return <g opacity="0.7"><rect x="20" y="20" width="60" height="60" rx="30" fill={c}/><polygon points="70,10 90,30 70,50" fill={a}/></g>;
+  if (v===0) return <g style={{ opacity: 0.7 }}><path d="M10 20 Q30 0 60 20 T90 50 L90 80 Q60 100 30 80 T10 40 Z" fill={c}/><circle cx="70" cy="30" r="15" fill={a}/></g>;
+  if (v===1) return <g style={{ opacity: 0.7 }}><polygon points="10,40 40,10 80,30 90,70 60,90 20,80" fill={c}/><rect x="70" y="60" width="20" height="20" transform="rotate(15 80 70)" fill={a}/></g>;
+  if (v===2) return <g style={{ opacity: 0.7 }}><path d="M20 80 Q50 20 90 40 L70 90 Z" fill={c}/><circle cx="30" cy="30" r="20" fill={a}/></g>;
+  if (v===3) return <g style={{ opacity: 0.7 }}><path d="M10 50 A 40 40 0 0 1 90 50 A 30 30 0 0 0 10 50" fill={c}/><path d="M15 65 A 30 30 0 0 1 75 65 A 20 20 0 0 0 15 65" fill={a}/></g>;
+  if (v===4) return <g style={{ opacity: 0.7 }}><rect x="20" y="20" width="60" height="60" rx="30" fill={c}/><polygon points="70,10 90,30 70,50" fill={a}/></g>;
   return null;
 }

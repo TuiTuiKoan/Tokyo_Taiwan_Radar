@@ -36,7 +36,7 @@ function bgDots(fg: string) {
   for (let r = 0; r < N; r++) {
     for (let c = 0; c < N; c++) {
       els.push(
-        <circle key={`${r}-${c}`} cx={c * STEP} cy={r * STEP} r="2.8" fill={fg} opacity="0.13" />
+        <circle key={`${r}-${c}`} cx={c * STEP} cy={r * STEP} r="2.8" fill={fg} style={{ opacity: 0.2 }} />
       );
     }
   }
