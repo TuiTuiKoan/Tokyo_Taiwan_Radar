@@ -115,7 +115,7 @@ export default async function OGImage({
   const mv = h % 5;
   const bv = (h >> 4) % 5;
   const bgKind = (h >> 8) % 6;
-  const bgAngle = ((h >> 12) % 61) - 30;
+  const bgAngle = ((h >> 12) % 151) - 75;
   const motifRot = ((mv * 7) % 31) - 15;
 
   return new ImageResponse(
