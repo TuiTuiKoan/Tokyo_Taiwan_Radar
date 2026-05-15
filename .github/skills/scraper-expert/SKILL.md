@@ -490,7 +490,7 @@ business_hours = "\n".join(
 2. **空文字列 `business_hours = ""` 禁止**: 場次が取得できない場合は `None` を設定。空文字列は DB に不要なデータを残す。
 3. **推測による `end_date` 禁止**: 「通常2〜3週間上映」などの仮定で `end_date` を算出してはいけない。ソースから取得できない場合は `None`。
 4. **視覚上に場次時間があるのに `business_hours = None` は scraper bug**: サイトを目視確認して時刻要素のセレクタを追加すること。
-5. **`event_form=["film_screening"]` 必須**: 全 cinema scraper は `event_form=["film_screening"]` を設定すること。`"screening"` は無効値 — DB check constraint エラーを引き起こす。（Incident: `kyoto_cinema`・`sakurazaka`・`kino_shinsaibashi`, commit `e91f5cd`）
+5. **`event_form=["screening"]` 必須**: 全 cinema scraper は `event_form=["screening"]` を設定すること。DB check constraint（migration 047）の valid 値: `'exhibition','screening','lecture','performance','market','workshop','conference','networking','screening_with_talk','tour','competition','tasting','broadcast','study_abroad','other'`。`"film_screening"` は **DB に存在しない**（constraint エラー）。（Incident: `kyoto_cinema`・`sakurazaka`・`kino_shinsaibashi`・`human_trust_cinema` で `"film_screening"` を誤設定 → constraint 違反、commit で revert）
 
 ### JST ISO datetime パース規則
 
@@ -532,17 +532,17 @@ ls scraper/sources/<name>.py
 | starcat_cinema | 1 | ✅ 木曜末日 | ✅ starcat-ticket.com | 完全準拠 |
 | rightscube | 2 | ✅ THEATER区段 | ✅ business_hours_text | 完全準拠 |
 | ks_cinema | 2 | ✅ 表格期間 | ✅ schedule_text (commit `23e417f`) | 完全準拠 |
-| kino_shinsaibashi | 3 | ✅ 終映日 | ❌ None（JS 驅動，Type 3 可） | 完全準拠（`film_screening` + prefix, commit `544bbc4`） |
-| kyoto_cinema | 3 | ✅ 終映日M/D | ❌ None（Type 3 可） | 完全準拠（`film_screening` + prefix, commit `e91f5cd`） |
+| kino_shinsaibashi | 3 | ✅ 終映日 | ❌ None（JS 驅動，Type 3 可） | 完全準拠（`screening` + prefix, commit `544bbc4`） |
+| kyoto_cinema | 3 | ✅ 終映日M/D | ❌ None（Type 3 可） | 完全準拠（`screening` + prefix, commit `e91f5cd`） |
 | cineswitch_ginza | 3 | ✅ M/D まで | ❌ None（Type 3 可） | 完全準拠（UTC fix, commit `e91f5cd`） |
 | theater_enya | 3 | ✅ 期間文字 | ❌ None（Type 3 可） | 完全準拠（UTC fix, commit `e91f5cd`） |
 | cinewind | 2 | ✅ YYYY/M/D | ❌ None（Type 2, 追加調査要） | UTC 修正済み（commit `e91f5cd`） |
 | ciema | 2/3 | ✅ 週表頭 | ❌ None（Type 3 可） | 完全準拠（UTC fix, commit `e91f5cd`） |
 | cinemadict | 2 | ✅ 完整期間（UTC fix） | ✅ date_text HH:MM（commit `544bbc4`） | 完全準拠 |
 | ycam_cinema | 2 | ✅ 節目期間 | ❌ None（Type 2, 追加調査要） | UTC 修正済み（commit `e91f5cd`） |
-| sakurazaka | 3 | ✅ 上映中/予定 | ❌ None（Type 3 可） | 完全準拠（`film_screening`, commit `e91f5cd`） |
+| sakurazaka | 3 | ✅ 上映中/予定 | ❌ None（Type 3 可） | 完全準拠（`screening`, commit `e91f5cd`） |
 | uedaeigeki | 2 | ✅ 上映日程 | ❌ None（Type 2, 追加調査要） | UTC + prefix 修正済み（commit `e91f5cd`） |
-| human_trust_cinema | 3 | ❌ None（サイト非公開, JS-driven） | ❌ None（同上） | UTC+event_form 完了（commit `7849021`）, end_date はサイト制限 |
+| human_trust_cinema | 3 | ❌ None（サイト非公開, JS-driven） | ❌ None（同上） | UTC+event_form 完了（commit `7849021`→revert）, end_date はサイト制限 |
 | theater_kino | 2 | ✅ 静的HTML | ❌ None（Type 2, 追加調査要） | UTC + prefix 修正済み（commit `e91f5cd`） |
 
 **新規 cinema scraper 作成時は、上記稽核表に行を追加すること。**
@@ -734,14 +734,14 @@ location_address = "東京都"  # 全國性組織的活動可能在任何地方
 
 Reference incident: 2026-05-10 — `ftip.py` `location_address = "東京都"` 導致台湾光譜（京都活動 `〒603-8163 京都府...`）被錯誤標為東京（commit `ab771e2`）。
 
-## note_creators レポート記事 — 三重問題パターン
+## note_creators レポート記事・結果発表 — report カテゴリ自動注入パターン
 
 **Rule**: note_creators 來源的レポート記事には必ず三つの問題が発生する。検出時は以下の三点を一括修正し、FC 鎖定すること。
 
 **三重問題（全件に発生）：**
 1. **`start_date` = 記事公開日（≠ 活動日）**：記事が公開された日が自動的に `start_date` に入り、実際の開催日（1〜数ヶ月前）と異なる。本文中の「〇月〇日開催」「〇月〇日に参加」等から正しい日付を特定すること。
 2. **`location` = 主催者の日本拠点**：主催者が日本に拠点を持つ場合、annotator がその住所を location として設定する。実際の活動場所（特に台灣で開催の場合）を確認し、`location_address` / `location_prefectures` を null に修正。
-3. **接頭辭 + `report` category 欠如**：`annotator.py` の `_REPORT_TRIGGER_RE` が自動注入する（commit `1e00933` 以降）。既存 annotated events は手動で `【レポート】`/`【活動報導】`/`[Report]` を付与し `report` を categories に追加。
+3. **接頭辭 + `report` category 欠如**：`annotator.py` の `_REPORT_TRIGGER_RE` が自動注入する（commit `1e00933` + `d0eb93e` 以降）。検知キーワード：レポート・レポ・報告・記録・アーカイブ・recap・行ってきた・観てきた・見てきた・鑑賞レポ・**結果発表**。注入時 ja 名称がすでに `【...】` で始まる場合は `【レポート】` を重ねない（`_inject_report_prefix` の二重括弧ガード）。既存 annotated events には Supabase SQL で `report` を追加後 `python annotator.py --backfill-report-prefix` を実行。
 
 **FC 鎖定対象**（計 9 項）：`start_date`、`location_name`、`location_address`、`location_prefectures`、`name_ja`、`name_zh`、`name_en`、`categories`
 

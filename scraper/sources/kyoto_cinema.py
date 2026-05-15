@@ -147,7 +147,7 @@ class KyotoCinemaScraper(BaseScraper):
                 raw_description=raw_desc,
                 organizer="京都シネマ",
                 organizer_type=["commercial_brand"],
-                event_form=["film_screening"],
+                event_form=["screening"],
             ))
 
         logger.info("%s: %d Taiwan events found", self.source_name, len(events))

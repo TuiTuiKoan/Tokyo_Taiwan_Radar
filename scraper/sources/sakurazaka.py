@@ -188,7 +188,7 @@ class SakurazakaScraper(BaseScraper):
                 raw_description=description,
                 organizer="桜坂劇場",
                 organizer_type=["commercial_brand"],
-                event_form=["film_screening"],
+                event_form=["screening"],
             ))
 
         logger.info("%s: %d Taiwan events found", self.source_name, len(events))

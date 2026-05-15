@@ -2,6 +2,26 @@
 
 <!-- Append new entries at the top -->
 
+---
+
+## 2026-05-15 — annotator.py に `結果発表` パターンを追加 + `_inject_report_prefix` の ja 二重括弧バグを修正（commit `d0eb93e`）
+
+**問題：** `【結果発表】台湾教育旅行プランニング大賞2023`（event `83f0723a`）が `report` カテゴリに分類されず、通常の学術イベントとして表示されていた。また、既存の `_inject_report_prefix` は ja 名称がすでに `【...】` で始まっていても `【レポート】` を前置し、`【レポート】【結果発表】xxx` という二重括弧を生成していた。
+
+**根因：** `_REPORT_TRIGGER_RE` に `結果発表` が含まれていなかった。`_inject_report_prefix` は `name.startswith(p)` のみチェックし、`p = 【レポート】` 以外の任意の `【...】` 前置を考慮していなかった。
+
+**修復（commit `d0eb93e`）：**
+1. `_REPORT_TRIGGER_RE` に `結果発表` を追加 — 今後の re-annotation で自動的に `report` カテゴリが付与される。
+2. `_inject_report_prefix` に `lang == "ja" and name.startswith("【")` ガードを追加 — ja 名称がすでに任意の `【...】` で始まる場合は prefix を注入しない。
+3. Follow-up 作業：Supabase SQL で `raw_title LIKE '%結果発表%'` の既存 events に `report` を追加し、`python annotator.py --backfill-report-prefix` で name 接頭辞を注入。
+
+**教訓：**
+- `report` カテゴリの自動注入範囲を拡張する際は `_REPORT_TRIGGER_RE` を更新する（レポート・レポ・報告・記録・アーカイブ・recap・行ってきた・観てきた・見てきた・鑑賞レポ・**結果発表**）。
+- `_inject_report_prefix` は「このプレフィックスで始まるか」だけでなく「任意の `【...】` ブラケット接頭辞がすでにあるか」も確認すること。単純な `startswith(p)` では不十分。
+- 既存の annotated events は annotator の自動フローでは更新されない。バルク修正には Supabase SQL + `--backfill-report-prefix` を組み合わせる。
+
+---
+
 ## 2026-05-13 — wuext_waseda スクレイパー実装（POST 検索・本文コンテナ・関数消失・日付フォールバック・台湾本文フィルタ）
 
 **A. POST 検索 + 302 リダイレクト**
@@ -119,6 +139,23 @@ sb.table('events').update(updates).eq('id', EID).execute()
   - 日本人名の Chinese 表記：漢字そのまま、スペースなし（例：`村山秀太郎`）
   - 日本人名の English 表記：ローマ字、姓→名順（例：`Murayama Hidetaro`）
 - 修正後は必ず `field_corrections` FC ロックを 3 フィールド（`performers`, `performer_zh`, `performer_en`）に適用する。
+
+---
+
+## 2026-05-15 — `event_form="film_screening"` 誤設定 revert（DB constraint 不存在）
+
+**問題**: Cinema scraper 全稽核修復シリーズで `event_form=["film_screening"]` を4ファイルに設定したが、DB check constraint（migration 047）に `"film_screening"` は存在しない。有効値は `"screening"`。次回 CI 実行時に constraint エラーで upsert が全件失敗するところだった。
+
+**根本原因**: SKILL.md に「`"screening"` は無効値 → `"film_screening"` が正解」と誤記した。実際の constraint を確認せずに文書化・実装した。
+
+**発覚経緯**: cinemaclair イベント `6a0dbfb3` の performers_zh 修正時に `film_screening` で UPDATE を試みたところ `events_event_form_check` constraint エラーが返った。
+
+**修正**:
+- `human_trust_cinema.py`, `sakurazaka.py`, `kino_shinsaibashi.py`, `kyoto_cinema.py`: `["film_screening"]` → `["screening"]`
+- `SKILL.md § 共通禁止事項 #5`: 誤記を訂正（`film_screening` → `screening`）
+- `engineer.agent.md rule #10`: 同様に訂正
+
+**教訓**: event_form の valid 値を変更・追加する場合は必ず migration 047 の check constraint を確認すること。SKILL.md に valid 値を明記して constraint 一覧と照合する。
 
 ---
 

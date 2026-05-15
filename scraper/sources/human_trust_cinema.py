@@ -176,7 +176,7 @@ class HumanTrustCinemaScraper(BaseScraper):
                 end_date=None,
                 location_name=LOCATION_NAME,
                 location_address=LOCATION_ADDRESS,
-                event_form=["film_screening"],
+                event_form=["screening"],
             )
             events.append(event)
             logger.info(
