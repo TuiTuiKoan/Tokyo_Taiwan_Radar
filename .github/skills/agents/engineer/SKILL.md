@@ -111,6 +111,17 @@ CSS animation 在瀏覽器第一幀 paint 前尚未啟動，元素以**CSS eleme
 
 **Incident:** 2026-05-15 — `MascotAvatar.tsx` 天線流光動畫新增 `radialGradient` fill 後，首頁重整時在左上（tip-ring 梯度）與左下（flow-dot 白圓圈基底 cx=100,cy=80）各出現一幀白光球，根因為兩元素缺少 `opacity="0"` 初始值。
 
+## Report submit UX 規則（避免「按了沒反應」）
+
+針對 `web/components/ReportSection.tsx`（或任何 client-side 回報/表單送出元件）：
+
+1. submit handler 必須用 `try/catch` 包住整段 async 寫入邏輯；任何例外都要落到可視 `error` 狀態。
+2. 送出中狀態不可只顯示符號（例如 `…`），必須顯示具語意文案（如 `送信中…` / `Sending...` / `送出中…`）。
+3. 互動按鈕需明確 `type="button"`，避免預設 submit 行為在容器結構調整後引入隱性問題。
+4. 送出按鈕在 loading 期間應具 `aria-busy` 或同等可及性狀態。
+
+**Incident:** 2026-05-15 — 使用者回報「送信點都沒反應」。實際 insert 可成功，但因 loading/錯誤回饋過弱而被感知為 no-op；補齊語意化 loading + try/catch + button type 後恢復可感知互動。
+
 ## Tailwind v4 `@theme` 靜態解析 — `bg-paper` vs `bg-[#FFFDF5]`
 
 Tailwind v4 的 `@theme` block 在 **build time** 靜態解析所有 CSS 變數。這代表：

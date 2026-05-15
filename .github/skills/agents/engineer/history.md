@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-05-15 — ReportSection「送信沒反應」其實是回饋不明確 + 例外未保底
+
+**問題：**
+- 使用者在活動頁「問題を報告」彈窗勾選後按「送信」，主觀體感是「完全沒反應」。
+
+**根因：**
+- 送出中按鈕只顯示單一字元 `…`，缺少明確語意（看起來像沒觸發）。
+- `handleSubmit()` 只處理 Supabase 回傳 `error`，沒有 `try/catch` 包住非預期例外；例外發生時 UI 狀態可能停在不清楚狀態。
+- 按鈕未明確設 `type="button"`，在複雜容器結構下可維護性較差、易產生預設 submit 行為歧義。
+
+**修正：**
+1. `web/components/ReportSection.tsx` 的 `handleSubmit()` 改為 `try/catch` 包裹，確保任何例外都會落到 `status="error"`。
+2. 送出中狀態改為具語意文案（ja: `送信中…` / en: `Sending...` / zh: `送出中…`）。
+3. 彈窗內所有操作按鈕明確加 `type="button"`，送出按鈕補 `aria-busy`。
+
+**驗證：**
+1. Browser 重現：打開事件頁報告彈窗，勾選一項後送出，成功時出現 `✓ ご報告ありがとうございます！`。
+2. 程式驗證：`get_errors` 檢查 `ReportSection.tsx` 無錯誤。
+
+**教訓：**
+- 使用者回報「按了沒反應」時，不只要查 API 成敗，也要先補齊可視化的 loading/error 回饋。
+- 任何 client-side submit handler 都應採 `try/catch + 明確狀態機`，避免非預期例外造成靜默失敗體感。
+
 ## 2026-05-15 — MascotAvatar 天線動畫 FOUC 白光球（左上左下）
 
 **問題：**

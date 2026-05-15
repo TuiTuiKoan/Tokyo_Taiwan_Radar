@@ -56,6 +56,7 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
   const [suggestedCategories, setSuggestedCategories] = useState<Set<Category>>(new Set());
   const [selectionReasonTexts, setSelectionReasonTexts] = useState<Record<LocaleKey, string>>({ zh: "", en: "", ja: "" });
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const submittingLabel = locale === "ja" ? "送信中…" : locale === "en" ? "Sending..." : "送出中…";
 
   function toggle(type: ReportType) {
     setSelected((prev) => {
@@ -133,18 +134,21 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
       }
     }
 
-    const supabase = createClient();
-    const { error } = await supabase.from("event_reports").insert({
-      event_id: eventId,
-      report_types: reportTypes,
-      locale,
-      suggested_category: selected.has("wrongCategory") && suggestedCategories.size > 0
-        ? Array.from(suggestedCategories)
-        : null,
-    });
-    if (error) {
-      setStatus("error");
-    } else {
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("event_reports").insert({
+        event_id: eventId,
+        report_types: reportTypes,
+        locale,
+        suggested_category: selected.has("wrongCategory") && suggestedCategories.size > 0
+          ? Array.from(suggestedCategories)
+          : null,
+      });
+      if (error) {
+        setStatus("error");
+        return;
+      }
+
       setStatus("success");
       setOpen(false);
       setSelected(new Set());
@@ -152,6 +156,8 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
       setFieldEdits({});
       setSuggestedCategories(new Set());
       setSelectionReasonTexts({ zh: "", en: "", ja: "" });
+    } catch {
+      setStatus("error");
     }
   }
 
@@ -173,6 +179,7 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
       <p className="text-xs text-amber-700 mb-2">{t("aiDisclaimer")}</p>
       {!open ? (
         <button
+          type="button"
           onClick={() => setOpen(true)}
           className="text-xs text-amber-600 underline hover:text-amber-800 transition"
         >
@@ -295,13 +302,16 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
           ))}
           <div className="flex gap-2 mt-2">
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={!canSubmit}
+              aria-busy={status === "loading"}
               className="text-xs bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700 disabled:opacity-40 transition"
             >
-              {status === "loading" ? "…" : t("submit")}
+              {status === "loading" ? submittingLabel : t("submit")}
             </button>
             <button
+              type="button"
               onClick={() => {
                 setOpen(false);
                 setSelected(new Set());
