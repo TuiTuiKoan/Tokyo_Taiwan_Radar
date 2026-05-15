@@ -176,6 +176,8 @@ class HumanTrustCinemaScraper(BaseScraper):
                 end_date=None,
                 location_name=LOCATION_NAME,
                 location_address=LOCATION_ADDRESS,
+                organizer="ヒューマントラストシネマ有楽町",
+                organizer_type=["commercial_brand"],
                 event_form=["screening"],
             )
             events.append(event)

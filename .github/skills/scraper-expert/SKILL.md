@@ -29,6 +29,14 @@ Read this at the start of every session before writing any scraper.
 - **Use `re.findall()` for start/end date ranges, never `re.search()`:** Strings like `"2026/04/07火～2026/06/16火"` contain two full dates. `re.search()` stops at the first match, silently dropping `end_date`. Use `re.findall(pattern, text)` then take `matches[0]` as `start_date` and `matches[-1]` as `end_date`. Single-day events have `len(matches) == 1` → `end_date = None`. (Incident: `asahiculture_8759178`, 2026-05-15.)
 - **Keyword-filtered description scan silently hides structured fields:** If `_fetch_detail*` only collects paragraphs containing Taiwan keywords (`台湾/Taiwan`), any structured field in a non-keyword section — lecturer `<h3>`, schedule table, venue `備考` row — will never be captured. Always scan the full detail page with separate passes for each structured field type (table rows, headings) **independent of keyword filtering**. (Incident: `asahiculture` performer `村山 秀太郎` extracted as `"記"`, 2026-05-15.)
 - **`location_address ≠ location_name` rule (ALL scrapers):** `location_address` must NEVER equal `location_name`. When a scraper has a single combined "location" field, parse it: venue name → `location_name`, street address (using `_ADDR_RE`: `〒` or prefecture+city+street pattern) → `location_address`. If no real street address can be extracted, set `location_address = None`. This is enforced by `auto_qa_address_is_venue_name` detector. Also note: `_ai_or_existing()` in annotator preserves non-null DB values, so a scraper writing the wrong value cannot be corrected by the annotator.
+- **Fixed-venue scrapers (cinema, gallery, theater) MUST set `organizer=` and `organizer_type=["commercial_brand"]`:** `location_name` is stored in DB and shown in the venue column, but it does NOT appear in the admin event card. The 🏢 venue line in the event card is powered by the `organizer` field. A fixed-venue scraper that sets only `location_name` without `organizer` produces events that look venue-less in the admin list. Correct pattern (see `kyoto_cinema.py`, `kino_shinsaibashi.py`, `sakurazaka.py`):
+  ```python
+  location_name="シネマ・クレール 丸の内１・２",
+  location_address="岡山市北区丸の内１丁目５−１",
+  organizer="シネマ・クレール",
+  organizer_type=["commercial_brand"],
+  ```
+  (Incident: `cinemaclair.py` and `human_trust_cinema.py` missing `organizer=`, 2026-05-15.)
 - **Never restrict geographic scope**: The project covers all of Japan（全日本）. Regional keyword filters (e.g. `_TOKYO_KANTO_KEYWORDS`) must never be added to any scraper.
 - **Date-parser helper functions must have exhaustive return paths**: Any `_extract_dates()` / `_parse_*_date()` helper must have an explicit `return` on every branch — never rely on Python's implicit `None`. A function that falls through returns `None`, and callers that do `start, end = helper()` will raise `TypeError: cannot unpack non-iterable NoneType object` — this is silently swallowed by outer try-except, causing the entire page's events to be dropped with **no ERROR log**. Add `return None, None` as the final fallback. (Incident: peatix `_extract_peatix_dates`, commit `2a9540c`, 7 days of silent 0 events.)
 - **After fixing a filter bug**: Run `python main.py --source <name>` (non-dry-run) immediately after the fix. A dry-run confirms the fix works but does NOT write to DB — the data gap remains until the next CI cycle.
@@ -1498,6 +1506,81 @@ Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田�
 - Skip entries older than 90 days
 - 0 events is a valid dry-run result when no Taiwan news appears in today's NHK feeds
 - **`_NEWS_SOURCES` member**: same Pass 2 matching rules as `google_news_rss` above — NHK article titles do not match event names by similarity.
+
+## Movie Title Lookup Pattern
+
+`scraper/movie_title_lookup.py` provides `lookup_movie_titles(name_ja)` → `tuple[str | None, str | None, str | None]`.
+
+**Return value (3-tuple):** `(name_zh, name_en, official_url)` — all three may be `None` if not found.
+
+```python
+# ✅ CORRECT — always unpack as 3-tuple
+name_zh, name_en, official_url = lookup_movie_titles(name_ja)
+# or if official_url not needed:
+name_zh, name_en, _ = lookup_movie_titles(name_ja)
+
+# ❌ WRONG — causes ValueError: too many values to unpack
+name_zh, name_en = lookup_movie_titles(name_ja)
+```
+
+**When to call:**
+- Every cinema scraper that sets `category=["movie"]` must call `lookup_movie_titles(name_ja)` before constructing `Event()`.
+- If `lookup_movie_titles` returns a non-None `official_url`, use it as `Event(official_url=official_url)`.
+
+**Exemptions (skip `lookup_movie_titles` for):**
+- Events whose `source_id` ends in `_sub\d+` (sub-events): they inherit translations from parent
+- Events with `name_ja_locked=True` in DB (already manually verified)
+
+**`official_url` from lookup:** When eiga.com finds the movie, the third tuple value is the eiga.com movie page URL. This is a valid `official_url` for the event — use it instead of constructing a Google search fallback.
+
+**For Taiwan-produced films not found on eiga.com:** Check GHFF (`goldenhorse.org.tw/film/about/archive/`) — see `§ 台湾映画の権威ソース優先順位`.
+
+---
+
+## Cinema scraper Vision OCR pattern
+
+Use when showtimes / business_hours are only available in a **schedule image** (JPEG/PNG), not in HTML.
+
+**Pattern: 2-pass scrape + single Vision OCR call**
+
+```python
+# 1st pass — collect candidates (no Event() yet)
+candidates: list[dict] = []
+for movie in listing_movies:
+    if is_taiwan_relevant(movie):
+        candidates.append({"title": movie.title, ...})
+
+# OCR step — single call for all candidates
+schedule_map: dict[str, str] = {}
+if candidates:
+    img_url = _fetch_schedule_image_url()  # dynamic URL from schedule page
+    if img_url:
+        schedule_map = _ocr_schedule_showtimes(img_url, [c["title"] for c in candidates])
+
+# 2nd pass — generate Event() with showtimes
+for c in candidates:
+    bh = _match_schedule(schedule_map, c["title"])  # exact → substring fallback
+    event = Event(..., business_hours=bh)
+```
+
+**Graceful fallback rule:** `_ocr_schedule_showtimes()` must always return `{}` (empty dict) when:
+- `OPENAI_API_KEY` is not set
+- Any exception occurs (`except Exception: return {}`)
+
+Never let Vision errors break the scrape. Events without OCR showtimes get `business_hours=None`.
+
+**Dynamic URL fetch:** Schedule image URLs change weekly. Always fetch the schedule page HTML and extract the current `<a href="/img/i*.jpg">` link — never hardcode the JPEG URL.
+
+**Prompt design for schedule OCR:**
+- Provide the target title list explicitly; do NOT ask GPT to find all movies
+- Request JSON output: `{"films": [{"title": "...", "showtimes": "HH:MM / HH:MM"}]}`
+- Use `response_format={"type": "json_object"}` to prevent markdown wrapping
+- Use `"detail": "high"` for image_url input to improve OCR accuracy
+- Cost: `gpt-4o` Vision ≈ \$0.005/run for a weekly schedule image
+
+Reference: `cinemaclair.py` commit `33dc715` (2026-05-15).
+
+---
 
 ## Cinema scraper pattern
 

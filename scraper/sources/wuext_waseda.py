@@ -64,41 +64,6 @@ _DETAIL_ID_RE = re.compile(r"/course/detail/(\d+)/")
 # Regex: extract price from detail page
 _PRICE_RE = re.compile(r"[\u00a5¥]\s*([\d,]+)")
 
-# Regex: extract dates in (YYYY/MM/DD) or YYYY年MM月DD日 format from detail page body
-# Example: "一般申込開始(2025/11/26)から学期終了翌月末(2026/04/30)まで"
-_DETAIL_DATE_PARENS_RE = re.compile(r"\((\d{4})/(\d{1,2})/(\d{1,2})\)")
-_DETAIL_DATE_KANJI_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
-
-
-def _extract_detail_dates(
-    detail_soup: BeautifulSoup,
-) -> tuple[Optional[datetime], Optional[datetime]]:
-    """Extract start/end dates from detail page body text.
-
-    Looks for (YYYY/MM/DD) patterns (e.g. viewing period for on-demand courses).
-    Returns (earliest_date, latest_date) or (None, None) if none found.
-    """
-    course_div = detail_soup.find(id="course")
-    if not course_div:
-        return None, None
-    text = course_div.get_text(" ", strip=True)
-    found: list[datetime] = []
-    for m in _DETAIL_DATE_PARENS_RE.finditer(text):
-        try:
-            found.append(datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc))
-        except ValueError:
-            pass
-    if not found:
-        for m in _DETAIL_DATE_KANJI_RE.finditer(text):
-            try:
-                found.append(datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc))
-            except ValueError:
-                pass
-    if not found:
-        return None, None
-    found.sort()
-    return found[0], found[-1] if len(found) > 1 else None
-
 
 def _parse_dates(date_str: str) -> tuple[Optional[datetime], Optional[datetime]]:
     """Parse start_date and end_date from listing 日時 column text.
@@ -266,15 +231,8 @@ class WuextWasedaScraper(BaseScraper):
 
             source_id = f"{SOURCE_NAME}_{internal_id}"
             start_date, end_date = _parse_dates(date_str)
-            if start_date is None and detail_soup:
-                # Fallback A: extract dates from detail page body (e.g. on-demand viewing period)
-                detail_start, detail_end = _extract_detail_dates(detail_soup)
-                if detail_start:
-                    start_date = detail_start
-                    end_date = detail_end
-                    logger.debug("%s: dates from detail page: %s ~ %s", SOURCE_NAME, start_date, end_date)
             if start_date is None:
-                # Fallback B: derive from fiscal year + term (for on-demand / date-less rows)
+                # Fallback: derive from fiscal year + term (for on-demand / date-less rows)
                 start_date = _term_fallback_date(date_str)
                 end_date = None
             if start_date is None:

@@ -4,6 +4,58 @@
 
 ---
 
+## 2026-05-15 — cinemaclair: GPT-4o Vision OCR でスケジュール画像から上映時刻を取得（commit `33dc715`）
+
+**背景：** シネマ・クレールの上映時刻は HTML に存在せず週次 JPEG スケジュール画像にのみ記載されている。通常の BeautifulSoup パースでは `business_hours` を取得できなかった。
+
+**解決パターン（2-pass scrape + Vision OCR）：**
+1. **1st pass**: 上映中台湾映画の候補を収集（`candidates` リスト）
+2. **OCR step**: `_fetch_schedule_image_url()` でスケジュールページから週次 JPEG URL を動的取得 → `_ocr_schedule_showtimes(image_url, taiwan_titles)` で GPT-4o Vision に JSON 返答を要求 → `{title: "HH:MM / HH:MM"}` dict を返す
+3. **2nd pass**: `_match_schedule(schedule_map, title)` で完全一致→部分一致の順でマッチング → `Event()` 生成
+
+**Graceful fallback：** `OPENAI_API_KEY` 未設定時・例外時は `{}` を返し、`business_hours` は `NULL`（または `１週間限定上映` ラベルのフォールバック）になる。CI が Vision API なしでも動作する。
+
+**コスト：** gpt-4o Vision 1回/実行 ≈ \$0.005/日。
+
+**教訓：**
+1. **HTML にない情報は Vision OCR で取得できる**：スケジュール画像・海報・掲示板など。2-pass パターン（候補収集 → OCR 1回 → Event 生成）でバッチコストを最小化する。
+2. **Vision OCR は常に graceful fallback 付きで実装**：`OPENAI_API_KEY` 未設定時は `{}` を返す。例外を握り潰す（`except Exception: return {}`）のが正しいパターン。
+3. **週次変更 URL は動的取得**：`_SCHEDULE_URL` を HTML パースして最新 JPEG href を取得する。ハードコードした URL は週替わりで 404 になる。
+
+---
+
+## 2026-05-15 — `lookup_movie_titles()` の戻り値が 2-tuple から 3-tuple に変更 → 16 call site で `ValueError` 発生（commit `c8bf85d`）
+
+**問題：** `lookup_movie_titles(name_ja)` の返り値が `(name_zh, name_en)` 2-tuple から `(name_zh, name_en, official_url)` 3-tuple に変更された。既存の 13 ファイル・16 call site がすべて `a, b = lookup_movie_titles(...)` のまま残っており、実行時に `ValueError: too many values to unpack (expected 2)` が発生した。
+
+**影響：** CinemartShinjuku, UplinkCinema, ShinBungeiza, CineMarine, GguideTV, RightsCube, CineswitchGinza, HumanTrustCinema, Johakyu, KsCinema, MorcAsagaya, TtcgKansai（12 scraper + eurospace logger 修正）。
+
+**修復（commit `c8bf85d`）：** 全 16 call site を `a, b, _ = lookup_movie_titles(...)` に一括更新。`eurospace.py` の `self.logger` → モジュール level `logger` も同時修正。
+
+**教訓：**
+1. **`lookup_movie_titles()` の戻り値は 3-tuple `(name_zh, name_en, official_url)`**：`official_url` が不要な場合は `name_zh, name_en, _ = lookup_movie_titles(name_ja)` と書く。
+2. **API signature 変更時は全 call site を同一 commit で一括更新する**。`grep -rn "lookup_movie_titles" scraper/sources/` で全件確認してから変更する。
+3. **`official_url` は `lookup_movie_titles()` から自動取得できる**：eiga.com で映画が見つかった場合、その映画ページ URL が `official_url` として返される。scraper で `official_url=url` を別途取得する手間が省ける。
+
+---
+
+## 2026-05-15 — 電影院 scraper に `organizer` 未設定で admin イベントカードに場所名が表示されない（cinemaclair / human_trust_cinema）
+
+**問題：** admin イベント一覧で `cinemaclair`（シネマ・クレール）や `human_trust_cinema`（ヒューマントラストシネマ有楽町）のイベントに対し、event card 内に 🏢 venue 行が表示されず、`kyoto_cinema`（🏢 京都シネマ表示）と比較して「場所なし」に見えた。
+
+**根因：** `cinemaclair.py` と `human_trust_cinema.py` が `Event()` 生成時に `organizer=` を設定していなかった。`AdminEventTable` の event card は `organizer` フィールドを使って 🏢 行を表示する。`location_name` は venue column（右端 td）では表示されるが、event card 内には表示されない。一方 `kyoto_cinema.py`・`kino_shinsaibashi.py`・`sakurazaka.py` はいずれも `organizer=` を設定済みだったため表示されていた。
+
+**修復：**
+- `cinemaclair.py`: `organizer="シネマ・クレール"`, `organizer_type=["commercial_brand"]` 追加（commit `b7243a6` で実施済み）
+- `human_trust_cinema.py`: `organizer="ヒューマントラストシネマ有楽町"`, `organizer_type=["commercial_brand"]` 追加
+
+**教訓：**
+1. **専用施設（映画館・劇場・ギャラリー等）の固定会場 scraper は必ず `organizer=` と `organizer_type=["commercial_brand"]` を設定する。** `location_name` は DB に保存されるが admin event card には表示されない。`organizer` が venue name の唯一の card 内表示手段。
+2. **新規 scraper の動作確認チェックリスト**: `--dry-run` 結果に `organizer` フィールドが含まれているかを確認する。`location_name` が設定されていても admin UI 上で「場所なし」に見えることがある。
+3. **参照 scraper**: `kyoto_cinema.py`・`kino_shinsaibashi.py`・`sakurazaka.py` は正しいパターンの例。
+
+---
+
 ## 2026-05-15 — tsutaya_portal: span.place が venue 名に化ける + end_date 年なしパース失敗（event 7b37604e）
 
 **問題 A — location_name に店内エリア名が入る**
