@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-05-15 — Cinema scraper `end_date` / `business_hours` 全体標準化（稽核表作成）
+
+**問題**: 18個の cinema scraper のうち完全準拠は3個のみ（cinemart_shinjuku, shin_bungeiza, starcat_cinema）。15個が `business_hours = None` で、1個（human_trust_cinema）は `end_date` も None。
+
+**根本原因**: `business_hours` と `end_date` の実装基準が文書化されておらず、新規 scraper 作成時の標準として伝達されていなかった。
+
+**修正（commit `e24023c` + 今次 commit）**:
+1. SKILL.md の重複セクション（`## Cinema scraper — business_hours`）を削除・統合
+2. 3タイプ分類（Type 1: 票務平台分離型 / Type 2: 排片表嵌入型 / Type 3: 上映中リスト型）を定義
+3. 共通禁止事項（`end_date=start_date`, 空 `business_hours=""`, 推測 `end_date`）を明記
+4. annotator SINGLE-DAY RULE 防護規則（`raw_description` 前綴に期間範囲必須）を追記
+5. 18 scraper 稽核表を SKILL.md に追加（新規 scraper 作成時に更新義務）
+6. `engineer.agent.md` に Cinema scraper rule #10 を追加（3タイプ要約 + SKILL.md 参照）
+
+**要対応リスト（`business_hours = None`）**:
+ks_cinema, kino_shinsaibashi, kyoto_cinema, cineswitch_ginza, theater_enya, cinewind, ciema, cinemadict, ycam_cinema, sakurazaka, ciemarine, uedaeigeki, theater_kino
+
+**緊急対応（`end_date = None` かつ `business_hours = None`）**:
+- human_trust_cinema: TTCG CMS からの場次取得方法を調査必要
+
+**規則**: Cinema scraper は Type 1/2/3 に従い `end_date` + `business_hours` を実装すること。新規作成時は SKILL.md § Cinema scraper 完全規則 + 稽核表を必ず参照。
+
+---
+
 ## 2026-05-15 — starcat_cinema end_date 錯誤（SINGLE-DAY RULE 覆寫）
 
 **問題：** `end_date = start_date`（兩者均為 2026-05-15）。電影實際上映至 5/21（木），但 annotator SINGLE-DAY RULE 把 end_date 覆寫成開始日。

@@ -333,63 +333,117 @@ text = element.get_text(strip=True)
 
 **Incident**: `gguide_tv.py` 排程文字缺 `separator="\n"`，時間資訊擠在一起（commit `a895e07`）。
 
-## Cinema scraper — `business_hours` 場次時間必須主動採集
+## Cinema scraper — `end_date` と `business_hours` 完全規則
 
-**Rule**: Cinema scraper 必須主動採集每日場次時間並存入 `business_hours`。常見 HTML 容器：
-- `div.schedule-program` (shin_bungeiza)
-- `div.schedule-table` / `table.schedule` (各影院)
-- `dl.showtime` / `ul.times` (單廳影院)
+> **適用対象**: 全ての cinema scraper（`category=["movie"]` を持つ全 scraper）
 
-當 HTML 將日期標題（`<h2>` / `<p class="nihon-date">`）與場次時間（`<div class="schedule-program">`）分開存放時，必須將兩者組合後填入 `business_hours`。格式：每行一個放映場次 — `M/D（曜） HH:MM（備注）`。**視覺上有場次時間但 `business_hours = None` 是 scraper bug**，不是可接受的狀態。
+### 分類ごとの実装パターン
 
-**場次資料在票務平台的情況（如 starcat_cinema）**: 若主頁不含每日場次，場次資料可能存放在配對的票務平台（如 `starcat-ticket.com`）。此時：
-1. 建立 `TICKET_SCHEDULE_URLS` dict，映射電影片名 → 票務頁面 URL。
-2. 實作 `_build_ticket_schedule(url)` 解析票務頁每日場次，回傳 `dict[date_str, list[time_str]]`。
-3. `_lookup_business_hours(title, start_date, end_date)` 依日期範圍格式化成：`M/DD(曜): HH:MM〜HH:MM`，多天 `\n` 分隔。
-4. 若票務頁找不到對應片名，`business_hours` 設 `None`（非空字串），避免誤填 garbage。
+日本の電影院 scraper は**3タイプ**に分類される。タイプごとに `end_date` と `business_hours` の取得戦略が異なる。
 
-## Cinema scraper — `business_hours` 場次時間必須主動採集
+---
 
-**Rule**: Cinema scraper 必須主動採集每日場次時間並存入 `business_hours`。常見 HTML 容器：
-- `div.schedule-program` (shin_bungeiza)
-- `div.schedule-table` / `table.schedule` (各影院)
-- `dl.showtime` / `ul.times` (單廳影院)
+#### Type 1: 票務平台分離型（例: starcat_cinema）
 
-當 HTML 將日期標題（`<h2>` / `<p class="nihon-date">`）與場次時間（`<div class="schedule-program">`）分開存放時，必須將兩者組合後填入 `business_hours`。格式：每行一個放映場次 — `M/D（曜） HH:MM（備注）`。**視覺上有場次時間但 `business_hours = None` 是 scraper bug**，不是可接受的狀態。
+**特徴**: 主サイト（eiga.starcat.co.jp）は映画情報・あらすじのみ。場次時間と排片日程は**別の票務平台**（starcat-ticket.com など）に存在する。
 
-**場次資料在票務平台的情況（如 starcat_cinema）**: 若主頁不含每日場次，場次資料可能存放在配對的票務平台（如 `starcat-ticket.com`）。此時：
-1. 建立 `TICKET_SCHEDULE_URLS` dict，映射電影片名 → 票務頁面 URL。
-2. 實作 `_build_ticket_schedule(url)` 解析票務頁每日場次，回傳 `dict[date_str, list[time_str]]`。
-3. `_lookup_business_hours(title, start_date, end_date)` 依日期範圍格式化成：`M/DD(曜): HH:MM〜HH:MM`，多天 `\n` 分隔。
-4. 若票務頁找不到對應片名，`business_hours` 設 `None`（非空字串），避免誤填 garbage。
+**`end_date` 規則**: 日本の映画館は毎週木曜日に翌週（金曜〜木曜）の上映スケジュールを発表する。したがって:
+- `end_date` = 票務スケジュール内のその映画の**最後の日（当週木曜）**
+- `_build_ticket_schedule()` は `dict[str, tuple[str, Optional[datetime]]]` を返す: `(business_hours_str, last_date_utc)`
+- 上映スケジュールに未登場の映画（未公開または上映終了）: `end_date = None`
+- 每次 CI 実行で `end_date` は自動延伸（滚动视窗）
 
-**Incident**: shin_bungeiza（commit `1ffb98e`）— `_parse_nihon_date_only()` 採集了 `<h2>` 日期標題，但完全忽略了相鄰的 `<div class="schedule-program">` 元素中的實際場次時間。
-**Incident**: starcat_cinema（2026-05-15）— 主頁無場次，需從 `starcat-ticket.com` 另行抓取。實作 `TICKET_SCHEDULE_URLS` + `_build_ticket_schedule()` + `_lookup_business_hours()` 解決。
+**`business_hours` 規則**: `_build_ticket_schedule(ticket_url)` から取得。形式: `M/DD(曜): HH:MM〜HH:MM`（複数日は `\n` 区切り）
 
-## Cinema scraper — `end_date` 每週排片末日（木曜）規則
-
-**Rule**: 日本電影院每週四公布下週（金曜〜木曜）的排片。因此：
-
-1. **`end_date` = 票務 schedule 中該片最後一天（當週木曜）**：從 `_build_ticket_schedule()` 的 `day_slots` 取最後日期 key → `last_dt`，以 `timezone.utc` midnight 格式回傳。
-2. **`_build_ticket_schedule()` 回傳 tuple 而非字串**：`dict[str, tuple[str, Optional[datetime]]]`，即 `(business_hours_str, last_date_utc)`。
-3. **`raw_description` 前綴必須包含完整日期範圍**：當 `end_date ≠ start_date` 時，前綴改為 `上映期間: YYYY年M月D日〜YYYY年M月D日`（而非只有開始日）。若只寫開始日，annotator 的 SINGLE-DAY RULE 會把 `end_date` 覆寫成 `start_date`（GPT 讀到單一日期 → 設 end = start）。
-4. **未出現在當週排片中的電影**（尚未上映或已下檔）：`end_date = None`，不做猜測。
-5. **每次 CI 執行自動延伸 `end_date`**：下一個木曜 CI 跑完後，upsert 更新 `end_date` 到新一週的末日，實現滾動視窗語義。
-
-**Pattern** (starcat_cinema.py):
+**`raw_description` 前綴必須規則（SINGLE-DAY RULE 防止）**:
 ```python
-# _build_ticket_schedule: 改為回傳 tuple
-result[title_norm] = ("\n".join(lines), last_dt)  # (business_hours_str, end_date)
-
-# scrape(): 取得 end_date 並更新 raw_description 前綴
-schedule_end = self._lookup_end_date(theater, title)
+# end_date が start_date と異なる場合、必ず完整な期間範囲を前綴に入れる
 if start_date and schedule_end and schedule_end != start_date:
     date_prefix = f"上映期間: {start_date.year}年{start_date.month}月{start_date.day}日〜{schedule_end.year}年{schedule_end.month}月{schedule_end.day}日"
-else:
-    date_prefix = detail["date_text"]  # fallback: 開始日
+# ❌ NG: "2026年5月15日(金)より公開" のみ → annotator SINGLE-DAY RULE → end_date = start_date
 ```
 
-**Incident**: starcat_cinema（2026-05-15）— `end_date=None` 後被 annotator SINGLE-DAY RULE 設為 `start_date`。修正：從票務頁末日推導 `end_date`，並更新 `raw_description` 前綴。
+**参考実装**: `starcat_cinema.py` — `TICKET_SCHEDULE_URLS` + `_build_ticket_schedule()` + `_lookup_schedule_entry()` + `_lookup_end_date()` + `_lookup_business_hours()`
+
+---
+
+#### Type 2: 排片表嵌入型（例: shin_bungeiza, cinemart_shinjuku, ks_cinema, rightscube）
+
+**特徴**: 映画詳細ページ内に上映スケジュール（日付 + 時刻）が直接含まれる。
+
+**`end_date` 規則**: `max(dates in schedule)` — スケジュール内の最終日
+```python
+end_date = max(parsed_dates, default=None)
+```
+
+**`business_hours` 規則**: HTML スケジュール要素から直接抽出。常見容器:
+- `div.schedule-program` (shin_bungeiza)
+- `div.schedule-table` / `table.schedule` (各映画館)
+- `dl.showtime` / `ul.times` (単館映画館)
+- `p.nihon-date` + `div.program` 組合せ (shin_bungeiza パターン)
+
+日付ヘッダー（`<h2>` / `<p class="nihon-date">`）と上映時刻（`<div class="schedule-program">`）が**別要素**の場合は両者を組み合わせる:
+```python
+business_hours = "\n".join(
+    f"{date_label}: {' '.join(times)}"
+    for date_label, times in schedule_map.items()
+)
+```
+
+---
+
+#### Type 3: 上映中リスト型（例: cineswitch_ginza, human_trust_cinema, uedaeigeki）
+
+**特徴**: 現在上映中 / 近日公開映画のカード一覧ページ。詳細な場次時間は別ページまたは別プラットフォームに存在する。
+
+**`end_date` 規則**: カードに `"M/D まで"` / `"〜M/D"` / `"終映日：M/D"` / `"※M/D で上映終了"` ラベルがある場合はそこから解析。ない場合は `None`（推測禁止）。
+
+**`business_hours` 規則**: リストページに場次時間がない場合は `None`。ただし詳細ページに時刻がある場合は詳細ページを取得して抽出する（コスト対効果を考慮すること）。
+
+---
+
+### 共通禁止事項
+
+1. **`end_date = start_date` は禁止**: `end_date` を設定する場合、少なくとも `start_date + 1日` でなければならない。`start_date` と同じ値は scraper 内で検出して `None` に戻すこと。
+2. **空文字列 `business_hours = ""` 禁止**: 場次が取得できない場合は `None` を設定。空文字列は DB に不要なデータを残す。
+3. **推測による `end_date` 禁止**: 「通常2〜3週間上映」などの仮定で `end_date` を算出してはいけない。ソースから取得できない場合は `None`。
+4. **視覚上に場次時間があるのに `business_hours = None` は scraper bug**: サイトを目視確認して時刻要素のセレクタを追加すること。
+
+### Annotator SINGLE-DAY RULE 防護
+
+`raw_description` に**単一の日付**しか含まれない場合、annotator は `end_date = start_date` と設定する（SINGLE-DAY RULE）。Cinema scraper では以下を守ること:
+
+- `raw_description` の前綴に**必ず上映期間全体**を記載する: `上映期間: YYYY年M月D日〜YYYY年M月D日`
+- Type 1 scraper で `end_date` が取得できた場合は前綴を期間表示に置き換える（単日 `より公開` 記述のまま放置しない）
+
+### 現況稽核表（2026-05-15 時点）
+
+| Scraper | Type | `end_date` | `business_hours` | 状態 |
+|---------|------|-----------|-----------------|------|
+| cinemart_shinjuku | 2 | ✅ max(dates) | ✅ cineticket.jp | 完全準拠 |
+| shin_bungeiza | 2 | ✅ h2 dates max | ✅ schedule-program | 完全準拠 |
+| starcat_cinema | 1 | ✅ 木曜末日 | ✅ starcat-ticket.com | 完全準拠 |
+| rightscube | 2 | ✅ THEATER区段 | ✅ business_hours_text | 完全準拠 |
+| ks_cinema | 2 | ✅ 表格期間 | ❌ None | 要対応 |
+| kino_shinsaibashi | 3 | ✅ 終映日 | ❌ None | 要対応 |
+| kyoto_cinema | 3 | ✅ 終映日M/D | ❌ None | 要対応 |
+| cineswitch_ginza | 3 | ✅ M/D まで | ❌ None | 要対応 |
+| theater_enya | 3 | ✅ 期間文字 | ❌ None | 要対応 |
+| cinewind | 3 | ✅ YYYY/M/D | ❌ None | 要対応 |
+| ciema | 2/3 | ✅ 週表頭 | ❌ None | 要対応 |
+| cinemadict | 2 | ✅ 完整期間 | ❌ None | 要対応 |
+| ycam_cinema | 2 | ✅ 節目期間 | ❌ None | 要対応 |
+| sakurazaka | 3 | ✅ 上映中/予定 | ❌ None | 要対応 |
+| ciemarine | 3 | ✅ h2 範囲 | ❌ None | 要対応 |
+| uedaeigeki | 2 | ✅ 上映日程 | ❌ None | 要対応 |
+| human_trust_cinema | 3 | ❌ None | ❌ None | 🔴 要緊急対応 |
+| theater_kino | 2 | ✅ 静的HTML | ❌ None | 要対応 |
+
+**新規 cinema scraper 作成時は、上記稽核表に行を追加すること。**
+
+**Incidents:**
+- shin_bungeiza（commit `1ffb98e`）— `_parse_nihon_date_only()` が `<h2>` 日付のみ取得し `<div class="schedule-program">` の場次時間を無視。
+- starcat_cinema（2026-05-15）— 主サイトに場次なし → `starcat-ticket.com` から別途取得。`end_date=None` が annotator SINGLE-DAY RULE で `start_date` に上書きされた。
 
 ---
 
