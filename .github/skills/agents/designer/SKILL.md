@@ -319,7 +319,7 @@ interface MascotAvatarProps {
 - Stroke-dashoffset flow along path: CSS `@keyframes` via data-attribute selector (more flexible for timing sync).
 - Path-following dot motion: SMIL `<animateMotion>` with `keyTimes` / `keyPoints` for dwell control.
 
-**Tip white-flash pattern (three layers):**
+**Tip flash pattern (three layers):**
 ```tsx
 // In MascotBody: tag each tip circle with a semantic class
 <circle className="lianbu-tip-ring" cx={164} cy={26} r={11} … />
@@ -327,11 +327,13 @@ interface MascotAvatarProps {
 <circle className="lianbu-tip-spark" cx={164} cy={26} r={2.2} … />
 ```
 ```css
-/* globals.css — each keyframe covers: 0% green → 10%–26% white → 40% back to green */
+/* globals.css — each keyframe covers: 0% green → ~7% #C4E86F peak → 17% back to green */
 @keyframes lianbu-tip-ring-flash { … }
-@keyframes lianbu-tip-core-expand { … }  /* renamed from lianbu-tip-core-flash; uses r-property, not transform:scale */
+@keyframes lianbu-tip-core-expand { … }  /* uses CSS scale() + transform-box:fill-box; Safari does NOT animate CSS r, so r-property keyframes silently freeze on Safari */
 @keyframes lianbu-tip-spark-flash { … }
 ```
+> ⚠️ **峰值色不可用純白 `#FFFFFF`** — 在 homepage 淺色背景（`#FFFDF5`）上完全隱形，無任何視覺 feedback。峰值色統一用品牌黃綠 `#C4E86F`。
+> ⚠️ **`lianbu-tip-core-expand` 必須用 `scale()` 而非 CSS `r` 屬性動畫** — Safari 不支援 CSS `r` 動畫（`@keyframes { r: 6px → r: 10px }`），會靜默凍結在初始值。改用 `transform: scale()` 並加 `transform-box: fill-box; transform-origin: center` 確保跨瀏覽器縮放中心正確。
 
 **Start-point dwell via SMIL keyTimes:**
 ```tsx

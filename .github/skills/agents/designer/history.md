@@ -1,3 +1,12 @@
+## 2026-05-15 — SKILL.md 修正：tip flash 峰值色 + tip-core Safari scale() 規則
+
+**新增/修改：**
+- `Tip white-flash pattern` 標題改為 `Tip flash pattern`；峰值色描述從「green → white」改為「green → #C4E86F」；加⚠️ 警告純白在淺色背景不可見
+- `lianbu-tip-core-expand` 說明從「uses r-property, not transform:scale」改為「uses CSS scale() + transform-box:fill-box；Safari 不支援 CSS r 動畫」；加⚠️ 警告
+**來源：** daily-skills-review（commits `18c0f1b` / `228cb45` 改了實作但未更新 SKILL）
+
+---
+
 ## 2026-05-15 — MascotAvatar tip-ring stroke 固定化 + tip-core scale() 跨瀏覽器 + flow-dot FOUC 防護
 
 **問題：**
