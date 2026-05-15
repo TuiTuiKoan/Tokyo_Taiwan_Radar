@@ -395,6 +395,14 @@ class CategoryAgent:
         logger.info("CategoryAgent[%s]: starting search", cat["id"])
 
         try:
+            # Build domain-level block list from implemented/researched/not-viable entries.
+            # Passing domains (not exact URLs) prevents GPT from suggesting new paths
+            # on already-known domains (e.g. different event pages on iwafu.com).
+            block_domains = {
+                _domain(url)
+                for url, status in self.known_urls.items()
+                if status in ("implemented", "researched", "not-viable") and _domain(url)
+            }
             response = self.client.chat.completions.create(
                 model="gpt-4o-search-preview",
                 messages=[
@@ -406,7 +414,7 @@ class CategoryAgent:
                             f"Search for: {cat['query_ja']}\n"
                             f"Also search: {cat['query_en']}\n\n"
                             f"Find up to 3 event source websites NOT already in: {EXISTING_SOURCES}\n\n"
-                            + (f"SKIP these already-known URLs (do not suggest them again): {', '.join(sorted(self.known_urls.keys()))}\n\n" if self.known_urls else "")
+                            + (f"SKIP these already-covered domains entirely — do NOT suggest any URL from them: {', '.join(sorted(block_domains))}\n\n" if block_domains else "")
                             + f"Also provide 2-3 recent Taiwan-related news bullets and top trend keywords.\n\n"
                             f"Respond ONLY as valid JSON matching this schema:\n{SOURCE_SCHEMA}"
                         ),
@@ -539,27 +547,31 @@ def _upsert_sources(
         # --- Domain-level duplicate check (before exact-URL check) ---
         dom = _domain(url)
         domain_status = known_domains.get(dom, "")
-        if domain_status and domain_status not in ("candidate",):
-            # A higher-priority entry already exists for this domain.
-            # Save as not-viable so GPT won't re-suggest it tomorrow.
-            existing_exact = known_urls.get(url)
-            if not existing_exact:
-                logger.info(
-                    "Domain duplicate skipped: %s (domain=%s, existing=%s)", url, dom, domain_status
-                )
-                try:
-                    sb.table("research_sources").upsert({
-                        "name": src.get("name", ""),
-                        "url": url,
-                        "agent_category": src.get("agent_category", ""),
-                        "status": "not-viable",
-                        "reason": f"Duplicate domain — a {domain_status} entry already exists for {dom}.",
-                        "url_verified": src.get("url_verified", False),
-                        "first_seen_at": now,
-                        "last_seen_at": now,
-                    }, on_conflict="url").execute()
-                except Exception:
-                    pass
+        if domain_status:
+            # A known entry already exists for this domain — skip this URL.
+            if domain_status not in ("candidate",):
+                # Non-candidate domain: save as not-viable so GPT won't re-suggest it tomorrow.
+                existing_exact = known_urls.get(url)
+                if not existing_exact:
+                    logger.info(
+                        "Domain duplicate skipped: %s (domain=%s, existing=%s)", url, dom, domain_status
+                    )
+                    try:
+                        sb.table("research_sources").upsert({
+                            "name": src.get("name", ""),
+                            "url": url,
+                            "agent_category": src.get("agent_category", ""),
+                            "status": "not-viable",
+                            "reason": f"Duplicate domain — a {domain_status} entry already exists for {dom}.",
+                            "url_verified": src.get("url_verified", False),
+                            "first_seen_at": now,
+                            "last_seen_at": now,
+                        }, on_conflict="url").execute()
+                    except Exception:
+                        pass
+            else:
+                # Candidate domain duplicate (e.g. www vs non-www variant) — skip quietly.
+                logger.info("Candidate domain duplicate skipped: %s (domain=%s)", url, dom)
             skipped_count += 1
             continue
 
