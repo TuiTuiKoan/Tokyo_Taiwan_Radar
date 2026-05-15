@@ -64,6 +64,7 @@ export default function RootLayout({
           localStorage key: "ttr_theme" → "dark" | "light" | (unset = system)
         */}
         <script
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `(function(){
   try{
