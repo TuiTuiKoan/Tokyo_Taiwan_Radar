@@ -40,6 +40,15 @@ handoffs:
 
 ### Step 1: 檢查 Git 狀態
 1. 檢查是否有未解決的 merge/rebase 衝突
+1a. **🔁 未配對 docs commit 偵測（防 V-M-D ↔ docs 循環）**：執行以下檢查，若觸發**停止 V-M-D 並回到 Engineer 補 docs**：
+   ```bash
+   # 列出本地未推送的 fix/feat commits
+   git log origin/main..HEAD --oneline --grep="^fix\|^feat" --extended-regexp
+   # 確認這些 commits 是否同時改了 docs（history.md / SKILL.md / agent.md）
+   git log origin/main..HEAD --name-only --pretty=format: | sort -u | grep -E '\.github/skills.*(history|SKILL)\.md|\.github/agents/.*\.agent\.md' || echo NO_DOCS
+   ```
+   - 若有 `fix:` / `feat:` commit **且** 輸出 `NO_DOCS`：詢問用戶「此次修改是否含新教訓？若有，應先 amend docs 進 fix commit 再 push」。用戶確認「無教訓」或「下次再補」才繼續 Step 2。
+   - 此檢查不適用於 docs-only commits（commit message 以 `docs(` 開頭）。
 2. **⚠️ Untracked scraper 前置檢查**：若 `git status --short` 顯示 `??` 在 `scraper/sources/` 下，立即執行 SCRAPERS audit：
    ```bash
    cd scraper && python3 -c "

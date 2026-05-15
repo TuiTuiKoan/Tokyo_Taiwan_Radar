@@ -130,6 +130,19 @@ When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
 1. Run `get_errors` on all modified files.
 2. Run `git status --short` and check for any `MM` files; if found, re-stage and re-check cached diff before proceeding.
 3. If `git status --short` shows unrelated modified/untracked files, pause and ask the user to confirm commit scope before any rebase or commit.
+3a. **🔁 Lesson-in-fix-commit rule (避免 V-M-D ↔ docs 循環)**：若本次 fix 揭露了**新教訓**（GPT pollution pattern、scraper edge case、Server Action 一致性等），在 commit fix 之前 **必須**同步：
+    - 在對應的 `.github/skills/agents/<agent>/history.md` 最上方新增 entry（日期 + 問題 + 根因 + 修復 + 教訓）
+    - 若教訓可推廣為通則，更新對應 `SKILL.md` 章節或 agent.md Step
+    - 將 fix code 與 docs 改動**合併為單一 commit**（commit message 包含 fix 摘要 + `- updates: <history/SKILL/agent>` 條列）
+
+   **判斷標準**：以下任一情況需補 docs：
+   - 修復涉及 silent failure（無錯誤訊息但行為異常）
+   - 修復涉及 GPT/AI 輸出污染
+   - 修復需要新增 detector / Guard / validation step
+   - 修復改變 paired-handler 模式（confirm/dismiss 等）
+   - 修復涉及第三方 API 未文件化的行為（PostgREST max-rows、RLS silent truncation 等）
+
+   **若僅是 cosmetic / dependency bump / typo**：不需 docs，跳過此步。
 4. For scraper changes: `cd scraper && python main.py --dry-run --source <name>`
 5. For web changes: `cd web && npx tsc --noEmit` then `npm run build` (local only, not deploy)
 6. For DB migrations: review SQL against `.github/instructions/database.instructions.md` conventions; do NOT apply without user confirmation.

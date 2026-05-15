@@ -5,6 +5,7 @@ handoffs:
   - label: "🚀 Validate, merge & deploy"
     agent: Validate, Merge & Deploy
     prompt: "執行完整的驗證流程：檢查衝突、rebase、commit 和推送到 origin/main，最後確認 Vercel 部署。"
+    send: true
   - label: "🕷️ Continue scraper work"
     agent: Scraper Expert
   - label: "🔬 Research new source"
@@ -17,11 +18,6 @@ handoffs:
 
 ## 工作流
 
-0. **前置：列出 session memory 目錄**（必做）：
-   - 呼叫 `memory view /memories/session/` 列出所有現有的 session 文件
-   - 若 user 提到「依照 plan.md 執行」，確認實際文件名（可能不叫 `plan.md`）
-   - 確認後再詢問背景或讀取計劃內容
-
 1. **詢問背景**: 
    - 發生了什麼問題？
    - 根本原因是什麼？
@@ -30,13 +26,17 @@ handoffs:
 
 2. **更新 history.md**:
    - 找到相應的 `.github/skills/agents/*/history.md` 或 `.github/skills/*/history.md`
+   - ⚠️ **必須先用 `read_file` 讀取目標文件的現有內容**，再決定插入位置與措辭，避免用舊版本覆蓋已 commit 的內容（若直接從記憶寫入，會丟失前一個 commit 新增的節）
    - 在最上面添加新項目（YYYY-MM-DD 格式）
    - 格式：**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+   - 寫入後執行 `git diff <file>` 確認：僅有新增行（`+`），無已 commit 的行被刪除（`-`）
 
 3. **更新 SKILL.md**:
    - 檢查相應的 `SKILL.md` 檔案
+   - ⚠️ **必須先 `read_file` 讀取目標 SKILL.md**，確認相關節（section）是否已存在，再決定新增或修改
    - 如果教訓可以推廣成規則，添加或更新相關章節
    - 保持簡潔、可執行
+   - 寫入後執行 `git diff <file>` 確認無已 commit 的節被刪除
 
 4. **更新 agent.md**:
    - 如果規則影響 agent 的行為，更新相應 Agent 的 Required Steps 或前置檢查

@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-05-15 — annotator が講座イベントに performers=['記'] を誤設定（手動 DB 修正）
+
+**問題：** asahiculture イベント `1334fc96`（村山秀太郎講師の台湾現代史講座）で `performers=['記']`・`performer_zh='記'`・`performer_en='Ki'` という誤値が存在。`performer='村山 秀太郎'`（FC 済み）は正しいのに `performers[]` が単一漢字「記」で汚染されていた。
+
+**根因：** annotator の GPT（または `enrich_person_names()` の B1 ロジック）が `performer` フィールドから `performers[]` を導出する際、テキスト断片の単一文字「記」を performer 名と誤解析した。その後 `enrich_person_names()` がその誤値をそのまま翻訳し `performer_zh='記'` → `performer_en='Ki'` になった。
+
+**修復（手動 DB 修正、2026-05-15）：**
+```python
+EID = '1334fc96-6dac-4862-afbb-6b95b78c1abc'
+updates = {
+    'performers':   ['村山 秀太郎'],
+    'performer_zh': '村山秀太郎',      # 中国語表記：スペースなし
+    'performer_en': 'Murayama Hidetaro',  # ローマ字：姓→名順
+}
+sb.table('events').update(updates).eq('id', EID).execute()
+# + field_corrections FC lock（3フィールド全て）
+```
+
+**教訓：**
+- `performers[]` に単一漢字・単一記号が含まれる場合は annotator の誤解析シグナル。現行 `auto_qa_performer_multi_value_pollution` は検出しない（1 要素のため）。
+- 手動修正パターン：`performer` FC が正しい → `performers[0]` に sync → `performer_zh/en` はソース確認後に設定。
+  - 日本人名の Chinese 表記：漢字そのまま、スペースなし（例：`村山秀太郎`）
+  - 日本人名の English 表記：ローマ字、姓→名順（例：`Murayama Hidetaro`）
+- 修正後は必ず `field_corrections` FC ロックを 3 フィールド（`performers`, `performer_zh`, `performer_en`）に適用する。
+
+---
+
 ## 2026-05-15 — Cinema scraper 全稽核修復シリーズ（13 scraper、4コミット）
 
 **問題**: Cinema scraper 稽核表の作成後、実際の修復作業を実施。13個の scraper が UTC datetime 未対応・`event_form` 未設定・SINGLE-DAY RULE 未防護のいずれか（または複数）の問題を抱えていた。

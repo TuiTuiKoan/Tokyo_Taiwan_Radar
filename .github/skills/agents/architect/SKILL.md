@@ -14,6 +14,19 @@ Read this at the start of every session before producing any plan.
 - Never ship a plan with an untested API or signature change. Include an explicit smoke-test step.
 - Confirm that all pending migrations are applied before designing features that build on them.
 
+## 🔁 Lesson-in-fix-commit Rule（避免 V-M-D ↔ docs update 循環）
+
+**問題模式**：fix commit → V-M-D → docs commit → V-M-D 第二輪。每個邏輯變更跑兩次部署，浪費 token 又阻礙 session。
+
+**規則**：Architect 設計計畫時，若預判修復會揭露新教訓（silent failure、GPT 污染、新 Guard、paired-handler 模式、第三方 API 行為），必須在計畫的 Verification 段明示：
+> 「**Engineer Step 3a 必做**：在 commit fix 之前，將教訓寫入對應的 `history.md` / `SKILL.md` / `agent.md`，與 fix code 合併為單一 commit。」
+
+**對應稽核點**：
+- Engineer agent Step 3a（前置稽核）
+- V-M-D Step 1a（推送前偵測未配對 docs 的 fix/feat commit）
+
+**不適用情境**：cosmetic refactor、dependency bump、typo、純 i18n 字串調整、純 CSS 調整。
+
 ## Supabase Python Client API Rules
 
 - **`order()` 語法**：`.order("col", desc=True)` — 不是 `.order("col", ascending=False)`（pandas 風格在此無效）。計畫中任何排序操作必須使用正確語法。
