@@ -119,6 +119,13 @@ class KinoCinemaShinsaibashiScraper(BaseScraper):
                 except ValueError:
                     pass
 
+            raw_desc = description
+            if start_date and end_date and end_date != start_date:
+                raw_desc = (
+                    f"上映期間: {start_date.strftime('%Y年%m月%d日')}"
+                    f"〜{end_date.strftime('%Y年%m月%d日')}\n\n" + raw_desc
+                )
+
             events.append(Event(
                 source_name=self.source_name,
                 source_id=f"kino_cinema_shinsaibashi_{mid}",
@@ -132,10 +139,10 @@ class KinoCinemaShinsaibashiScraper(BaseScraper):
                 location_url="https://kinocinema.jp/shinsaibashi/",
                 is_paid=True,
                 raw_title=title,
-                raw_description=description,
+                raw_description=raw_desc,
                 organizer="kino cinéma",
                 organizer_type=["commercial_brand"],
-                event_form=["screening"],
+                event_form=["film_screening"],
             ))
 
         logger.info("%s: %d Taiwan events found", self.source_name, len(events))

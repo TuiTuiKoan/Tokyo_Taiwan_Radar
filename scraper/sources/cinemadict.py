@@ -12,7 +12,7 @@ Strategy:
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import unquote, urlparse
 
@@ -48,11 +48,30 @@ def _parse_dates(text: str) -> tuple[Optional[datetime], Optional[datetime]]:
     if not m:
         return None, None
     try:
-        start = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        end = datetime(int(m.group(4)), int(m.group(5)), int(m.group(6)))
+        start = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
+        end = datetime(int(m.group(4)), int(m.group(5)), int(m.group(6)), tzinfo=timezone.utc)
         return start, end
     except ValueError:
         return None, None
+
+
+def _extract_times_from_date_text(text: str) -> Optional[str]:
+    """Extract showtime patterns from schedule block text.
+
+    Looks for HH:MM patterns (e.g. '14:30\u300016:10') and returns them
+    as comma-separated string, or None if no times found.
+    """
+    times = re.findall(r"\b\d{1,2}:\d{2}\b", text)
+    if not times:
+        return None
+    # Deduplicate preserving order
+    seen: set[str] = set()
+    unique_times: list[str] = []
+    for t in times:
+        if t not in seen:
+            seen.add(t)
+            unique_times.append(t)
+    return "\u3000".join(unique_times)
 
 
 class CinemadictScraper(BaseScraper):
@@ -167,6 +186,7 @@ class CinemadictScraper(BaseScraper):
 
             date_text = entry["date_text"]
             start_date, end_date = _parse_dates(date_text)
+            business_hours = _extract_times_from_date_text(date_text)
 
             raw_desc = detail["description"]
             if start_date:
@@ -190,6 +210,7 @@ class CinemadictScraper(BaseScraper):
                 end_date=end_date,
                 location_name=LOCATION_NAME,
                 location_address=LOCATION_ADDRESS,
+                business_hours=business_hours,
             )
             events.append(event)
             logger.info("Found Taiwan film: %s", title)
