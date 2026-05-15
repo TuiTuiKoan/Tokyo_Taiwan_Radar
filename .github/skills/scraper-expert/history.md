@@ -2,6 +2,35 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-13 — wuext_waseda スクレイパー実装（POST 検索・本文コンテナ・関数消失・日付フォールバック・台湾本文フィルタ）
+
+**A. POST 検索 + 302 リダイレクト**
+**問題：** `https://www.wuext.waseda.jp/course/search-list/` は GET パラメータでなく POST body で検索し、Cookie なしで 302 リダイレクトを返す。`?keyword=台湾` 形式の GET パラメータは無視される。
+**根因：** サイトの `<form method="post">` を確認せず GET アクセスした。
+**修復：** `requests.post(url, data={"keyword": "台湾", ...}, allow_redirects=True)` に変更。セッション Cookie 不要。
+**教訓：** 大学・機関サイトの検索フォームは POST + 302 パターンが多い。`form[method]` 属性を必ず確認すること。
+
+**B. 本文コンテナの特定（`id="course"`）**
+**問題：** `soup.find('main')` / `soup.find('body')` でナビゲーションリンクが大量混入し、台湾キーワード判定が不正確になった。
+**修復：** ブラウザ devtools / curl + grep で `id="course"` を特定し使用。
+**教訓：** 本文コンテナは必ずソース確認で id/class を特定する。`find('main')` は万能ではない。
+
+**C. `multi_replace_string_in_file` による関数消失**
+**問題：** 複数箇所を一括置換した際、`def _get_detail_price(soup)` が `_is_taiwan_content()` の末尾に docstring のみとして混入し関数本体が消えた。実行時に `NameError: name '_get_detail_price' is not defined` が発生。
+**根因：** 2 つの `newString` に `def _get_detail_price` が含まれ、2 回目の置換で関数定義行が孤立した。
+**修復：** `read_file` でファイルの実際の内容を確認後、`replace_string_in_file` 1 回で正しく挿入。
+**教訓：** `multi_replace_string_in_file` 後は必ず `read_file` で各関数境界（空行 2 行）を確認する。新しいヘルパー関数を追加する際は、空行 2 行の境界を明確にした `newString` を書くこと。
+
+**D. オンデマンド講座の日付フォールバック（学期 → 月初）**
+**問題：** オンデマンド講座の `日時` 列に日付範囲がなく `_parse_dates()` が `(None, None)` を返し、イベントがスキップされた。
+**修復：** 3 段階（明示日付 → detail body 日付 → 学期フォールバック）の優先順位を実装。`_TERM_MONTH = {"年間":(4,1,False), "春期":(4,1,False), "夏期":(7,1,False), "秋期":(10,1,False), "冬期":(1,1,True)}`（`True` = 翌暦年）
+**教訓：** オンデマンド・アーカイブ型コンテンツには学期・学年度から日付を導出するフォールバックを用意する。`None` でスキップするより近似値のほうが有用。→ SKILL.md § On-Demand / Viewing Period 参照
+
+**E. タイトル非台湾コースの台湾本文フィルタ**
+**問題：** 「緊迫する世界状勢と現代地政学」「沖縄現場学」など、タイトルに「台湾」を含まないが内容で台湾を扱うコースがスキップされた。
+**修復：** 詳細ページ `id="course"` 本文を常に取得（価格取得と兼用）し、台湾キーワード（台湾・台北・台中・高雄・台南・日台・台日・中華民国）を検索。タイトルまたは本文のどちらかに含まれれば収録。
+**教訓：** 大学講座では「台湾有事」「日台関係」のみ言及するコースが多い。台湾フィルタはタイトルだけでなく詳細ページ本文も検索すること。
+
 ---
 
 ## 2026-05-11 — Shopify サイトの `<a href>` は絶対 URL / `update_source.py` は既存行専用 / `feasibility` 列非存在（placebymethod 実装）

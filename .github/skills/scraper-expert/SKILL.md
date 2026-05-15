@@ -223,6 +223,79 @@ full_url = urljoin(base_url, normalized)
 
 Reference incident: 2026-05-12 — `tsudoi_osaka.py`（Jimdo CMS）の href に encoding 不統一が確認された。
 
+## POST 検索フォームサイト — `requests.post` + 302 追跡
+
+大学・機関サイトの検索機能は GET パラメータでなく POST body を使うことが多い。
+
+**必須確認**：ブラウザ devtools の Network タブまたは `curl -v` でフォームの `method` 属性を確認する。
+
+```python
+# ✅ POST 検索 — Cookie なし、302 自動追跡
+resp = requests.post(
+    "https://www.wuext.waseda.jp/course/search-list/",
+    data={"keyword": "台湾", "page": 1},
+    allow_redirects=True,
+    headers={"User-Agent": "Mozilla/5.0"},
+    timeout=30,
+)
+
+# ❌ GET パラメータは無視される（POST フォームサイト）
+resp = requests.get("https://www.wuext.waseda.jp/course/search-list/?keyword=台湾")
+```
+
+**規則**:
+- POST フォームサイトは Cookie なしで動作することが多い（まず試す）。セッション Cookie が必要な場合のみ `requests.Session()` を使う。
+- `allow_redirects=True` で 302 を自動追跡する。
+- `form[method="post"]` サイトへの GET リクエストは検索結果でなくデフォルトページを返す。結果が 0 件の場合は必ず POST を試すこと。
+
+Reference incident: 2026-05-13 — `wuext_waseda.py` で `?keyword=台湾` GET が無視され 0 件。POST に変更で正常動作。
+
+## 大学・機関サイト — コンテンツコンテナと台湾フィルタ
+
+### 本文コンテナの特定
+
+大学・機関サイトの detail ページは固有の `id` または `class` を持つコンテンツコンテナを使う。
+
+```python
+# ✅ 早稲田エクステンション: id="course"
+content = soup.find(id="course") or soup.find("main") or soup
+
+# ❌ find('body') はナビゲーション・サイドバー・フッターを含む — キーワード判定が不正確
+content = soup.find("body")
+```
+
+**手順**:
+1. `curl -s <url> | grep -E 'id=|class=' | head -30` でコンテナ候補を列挙する。
+2. ブラウザ devtools で実際のコンテンツ div を確認する。
+3. `id` を優先し、なければ `class` セレクターを使う。`find('main')` は最終手段。
+
+**要注意のサイト別コンテナ例**:
+- 早稲田エクステンション（wuext_waseda）: `id="course"`
+- 朝日カルチャーセンター（asahiculture）: `div.course-detail` / `備考` `th/td` row
+
+### 台湾フィルタは詳細ページ本文まで検索する
+
+大学講座・機関イベントはタイトルに「台湾」を含まず、本文のみで台湾を言及する場合が多い（例: 「緊迫する世界状勢と現代地政学」「台湾有事」を内容で扱う）。
+
+```python
+_TAIWAN_KEYWORDS = ("台湾", "台北", "台中", "高雄", "台南", "日台", "台日", "中華民国")
+
+def _is_taiwan_content(self, title: str, detail_soup) -> bool:
+    """タイトルまたは詳細ページ本文に台湾キーワードが含まれるか判定する。"""
+    if any(kw in title for kw in _TAIWAN_KEYWORDS):
+        return True
+    content = detail_soup.find(id="course") or detail_soup
+    body_text = content.get_text(" ", strip=True)
+    return any(kw in body_text for kw in _TAIWAN_KEYWORDS)
+```
+
+**規則**:
+- 詳細ページ取得が価格・日付抽出と兼用できる場合は必ず本文フィルタを有効にする。
+- タイトルのみフィルタは教育・学術系サイトでは収録漏れが多い。
+- `_TAIWAN_KEYWORDS` は最低限 `台湾` `日台` `台日` を含めること。
+
+Reference incident: 2026-05-13 — `wuext_waseda.py` でタイトルのみフィルタにより「緊迫する世界状勢と現代地政学」等が脱落。
+
 ## Date Extraction — General Rules
 
 Rules that apply to ALL scrapers when constructing `raw_description` and `start_date`/`end_date`.
