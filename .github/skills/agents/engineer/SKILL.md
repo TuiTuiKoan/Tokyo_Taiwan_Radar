@@ -25,6 +25,84 @@ Same rule applies to ALL agent skills:
 
 Writing to a top-level `skills/<name>/` path recreates deleted directories. Always use `skills/agents/<name>/`.
 
+## Supabase Auth — Route Handler Cookie Store Rule
+
+在 Next.js Route Handler 中做 OAuth code exchange（`exchangeCodeForSession`）時，**必須**使用 response-bound cookie store：
+
+```ts
+// ✅ 正確 — setAll 寫到 NextResponse 物件
+const successRedirect = NextResponse.redirect(`${origin}${next}`);
+const supabase = createServerClient(url, key, {
+  cookies: {
+    getAll() { return request.cookies.getAll(); },
+    setAll(cookiesToSet) {
+      cookiesToSet.forEach(({ name, value, options }) =>
+        successRedirect.cookies.set(name, value, options)  // ← 綁到 redirect response
+      );
+    },
+  },
+});
+const { error } = await supabase.auth.exchangeCodeForSession(code);
+return successRedirect;
+
+// ❌ 錯誤 — @/lib/supabase/server 的 setAll 寫到 next/headers cookieStore
+// next/headers cookies 不會自動合併進獨立建立的 NextResponse 物件
+const supabase = await createClient();  // ← 使用 @/lib/supabase/server
+const { error } = await supabase.auth.exchangeCodeForSession(code);
+return NextResponse.redirect(`${origin}${next}`);  // ← 此 response 沒有 auth cookies
+```
+
+**規則：**
+- `@/lib/supabase/server` 的 `setAll` 只適合 Server Component / server action（Next.js 自動把 `next/headers` cookies 附加到 response）。
+- Route Handler 若自行建立 `NextResponse`，必須在 `createServerClient` 的 `setAll` 中明確寫到該 response 物件。
+- `auth/callback/route.ts` 必須加 `export const dynamic = "force-dynamic"` 防止靜態化。
+
+**Incident:** 2026-05-15 — `web/app/auth/callback/route.ts` 改為 response-bound cookie store 後，部署環境 OAuth 登入的 session 持久化問題解決（commit `ae9dc77`）。
+
+## Navbar 登入/Admin 狀態 — 唯一來源規則
+
+Navbar 的 `user` 與 `isAdmin` 狀態**必須**以 `/api/me`（`cache: "no-store"`）為唯一來源：
+
+```ts
+// ✅ 正確 — server 端 /api/me 是 ground truth
+async function loadMe() {
+  const res = await fetch("/api/me", { cache: "no-store" });
+  const data = await res.json();
+  setIsAdmin(Boolean(data?.isAdmin));
+  setUser(data?.user ?? null);
+}
+// onAuthStateChange 只觸發 loadMe()，不直接 setUser
+supabase.auth.onAuthStateChange(() => { void loadMe(); });
+
+// ❌ 錯誤 — 直接使用 browser client，可能與 server 判斷不一致
+supabase.auth.getUser().then(({ data }) => setUser(data.user));
+fetch("/api/me").then(...);  // 兩個獨立 effect，競態問題
+```
+
+**Incident:** 2026-05-15 — Navbar 原本分兩個 `useEffect` 分別處理 user 與 isAdmin，合併為單一 `loadMe()` 後狀態同步問題消失（commit `ae9dc77`）。
+
+## Admin Server Prop Pattern — ISR 頁面 admin 判斷規則
+
+在 ISR 或 Server Component 頁面中，**admin 判斷必須在 server 層預計算後以 prop 下傳**：
+
+```ts
+// ✅ 正確 — page.tsx (server component) 計算後傳入
+const isAdmin = await computeIsAdmin(supabase);
+return <AdminEventActions isAdmin={isAdmin} />;
+
+// ✅ AdminEventActions — prop 優先，undefined 時 fallback
+const [isAdmin, setIsAdmin] = useState(Boolean(isAdminProp));
+useEffect(() => {
+  if (typeof isAdminProp === "boolean") return;  // server prop 已提供，跳過
+  checkAdmin();  // 只在 prop 缺失時才 client-side 查詢
+}, [isAdminProp]);
+
+// ❌ 錯誤 — 完全依賴 client-side useEffect
+// ISR 命中時 useEffect 在 mount 前不執行 → isAdmin 永遠是 false → 控制項不渲染
+```
+
+**Incident:** 2026-05-15 — 活動詳情頁 admin 控制項消失，因 ISR 快取命中時 client useEffect 未及時執行（commit `4aa84ba`）。
+
 ## Workflow Automation Guardrails
 
 - For alert-driven automation, split into two stages: `triage` first, `auto-fix` second. Never mix high-risk remediation into the triage stage.

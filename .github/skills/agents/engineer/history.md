@@ -4,6 +4,59 @@
 
 ---
 
+## 2026-05-15 — OAuth 登入成功但 session 未落地（auth callback cookie 未寫入 redirect response）
+
+**問題：** 使用者透過 Google OAuth 完成登入流程後，網站仍顯示未登入狀態，無法進入管理頁面。
+
+**根因：**
+- `web/app/auth/callback/route.ts` 使用 `createClient()` from `@/lib/supabase/server`。
+- 該 helper 的 `setAll` 把 session cookies 寫到 `next/headers` 的 `cookieStore`。
+- Route Handler 建立 `NextResponse.redirect()` 物件後，`next/headers` cookieStore 的內容**不會自動合併**進這個 redirect response 的 HTTP headers。
+- 結果：瀏覽器收到 redirect，但 response 沒有任何 Supabase auth cookies → 後續所有請求都無 session。
+- `server.ts` 的 `setAll` 有 `try/catch` 靜默吞掉錯誤，導致問題難以察覺。
+
+**修正（`ae9dc77`）：**
+1. `web/app/auth/callback/route.ts` 改用 `createServerClient` 直接在 route handler 內建立。
+2. `setAll` 改為直接寫到 `successRedirect.cookies.set()`（response-bound cookie store）。
+3. 補 `export const dynamic = "force-dynamic"` 與 `normalizeNextPath()` 防止異常回跳路徑。
+4. `web/components/Navbar.tsx` 改用 `/api/me`（`cache: "no-store"`）作為 user/isAdmin 的唯一來源，onAuthStateChange 觸發時重新 fetch。
+
+**教訓：**
+- Next.js Route Handler 中做 OAuth code exchange 時，**必須**用 response-bound cookie store（`setAll` 寫到 `NextResponse` 物件），不能用 `next/headers` cookieStore。
+- `@/lib/supabase/server` 的 `setAll` 只適合 Server Component / server action — 不適合 Route Handler 回傳 redirect response 的情境。
+- Navbar 的登入狀態應以 `/api/me` 為單一來源，而非直接呼叫 `supabase.auth.getUser()`，後者在跨 SSR/CSR 邊界時可能與 server 判斷不一致。
+
+## 2026-05-15 — Admin 控制項消失 + IsActiveToggle 靜默失敗
+
+**問題：**
+1. 活動詳情頁標題下方的「編輯」和「關閉公開」按鈕消失。
+2. 後台列表的「公開/關閉」切換按鈕點擊無反應（靜默失敗）。
+
+**根因：**
+1. `AdminEventActions` 的 admin 狀態依賴 client-side `useEffect` + Supabase browser client 查詢 `user_roles`；在 ISR 頁面或快取命中時，client 尚未 mount 前 `isAdmin=false`，導致控制項不渲染。
+2. `IsActiveToggle.tsx` 和 `AdminEventTable.tsx` 的 toggle handler 沒有 error branch，Supabase PATCH 失敗時 UI 靜默保持舊狀態。
+
+**修正（`4aa84ba`）：**
+1. `web/app/[locale]/events/[id]/page.tsx` server component 預計算 `isAdmin`，透過 prop 傳入 `AdminEventActions`。
+2. `AdminEventActions` 優先採用 server prop；只在 prop 為 `undefined` 時才 fallback 到 client-side 查詢。
+3. `IsActiveToggle.tsx`、`AdminEventTable.tsx` 的 toggle handler 加 `try/catch`，失敗時顯示 toast/alert 錯誤訊息。
+
+**教訓：**
+- ISR 或 Server Component 頁面中，admin 判斷應在 server 層計算後以 prop 下傳，不可完全依賴 client-side useEffect（mount 前永遠是 false）。
+- Admin UI 的所有 mutate 操作都必須有可視 error 分支，避免靜默失敗讓使用者誤以為操作成功。
+
+## 2026-05-15 — Chrome 擴充套件觸發 hydration warning（主題初始化 script tag）
+
+**問題：** 瀏覽器 console 出現 React hydration mismatch warning，指向 `web/app/layout.tsx` 的 theme-init `<script>` tag。
+
+**根因：** Chrome 擴充套件在 React hydrate 前修改 `<head>` 中的 `<script>` 屬性（注入 `src=chrome-extension://...`），造成 SSR 渲染與 client DOM 屬性不一致。
+
+**修正（`9d4186c`）：** 在 theme-init `<script>` 上加 `suppressHydrationWarning`，告知 React 此元素的屬性允許 SSR/client 不一致。
+
+**教訓：**
+- 第三方瀏覽器擴充套件修改 `<head>` 造成的 hydration warning，正確處置是 `suppressHydrationWarning`，不代表邏輯 bug。
+- Inline `<script>` 和 theme-init 腳本建議預設加上 `suppressHydrationWarning`，防止未來擴充套件干擾產生雜訊。
+
 ## 2026-05-15 — ReportSection「送信沒反應」其實是回饋不明確 + 例外未保底
 
 **問題：**
