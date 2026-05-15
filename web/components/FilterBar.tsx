@@ -19,9 +19,11 @@ interface Props {
     location?: string;
     city?: string;
   };
+  /** Field keys to hide from the filter bar. e.g. ["category", "paid"] */
+  hiddenFilters?: Array<"category" | "paid" | "timeMode" | "location" | "date">;
 }
 
-export default function FilterBar({ locale: _locale, currentFilters }: Props) {
+export default function FilterBar({ locale: _locale, currentFilters, hiddenFilters = [] }: Props) {
   const t = useTranslations("filters");
   const tCat = useTranslations("categories");
   const router = useRouter();
@@ -192,7 +194,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
           </div>
 
           {/* Category dropdown */}
-          <div className="flex flex-col gap-1" ref={catDropdownRef}>
+          {!hiddenFilters.includes("category") && <div className="flex flex-col gap-1" ref={catDropdownRef}>
             <label id={fieldIds.categoryLabel} className="text-xs text-fg-muted font-medium">{t("category")}</label>
             <div className="relative">
               <button
@@ -243,7 +245,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                 </div>
               )}
             </div>
-          </div>
+          </div>}
 
           {/* Location filter */}
           <div className="flex flex-col gap-1" ref={locationRef}>
@@ -336,7 +338,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
           })()}
 
           {/* Paid filter */}
-          <div className="flex flex-col gap-1" ref={paidRef}>
+          {!hiddenFilters.includes("paid") && <div className="flex flex-col gap-1" ref={paidRef}>
             <label className="text-xs text-fg-muted font-medium">{t("paid")}</label>
             <div className="relative">
               <button
@@ -366,7 +368,7 @@ export default function FilterBar({ locale: _locale, currentFilters }: Props) {
                 </div>
               )}
             </div>
-          </div>
+          </div>}
 
           {/* Time mode */}
           <div className="flex flex-col gap-1" ref={timeModeRef}>

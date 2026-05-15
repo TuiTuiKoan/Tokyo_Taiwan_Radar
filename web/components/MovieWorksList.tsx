@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import type { Locale } from "@/lib/types";
 import { shortPrefecture } from "@/lib/cityLabel";
+import { matchesLocation } from "@/lib/locationMarkers";
+import { matchesCity, REGIONS_WITH_CITY, type RegionWithCity } from "@/lib/regionPrefectures";
 
 // ── Serialisable types (server → client) ──────────────────────────────────────
 
@@ -71,6 +74,38 @@ interface Props {
 
 export default function MovieWorksList({ groups, locale, labels }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const sp = useSearchParams();
+
+  const filtered = useMemo(() => {
+    const q = sp.get("q")?.trim().toLowerCase() ?? "";
+    const location = sp.get("location") ?? "";
+    const city = sp.get("city") ?? "";
+
+    return groups.filter((group) => {
+      // Keyword: match display title or director
+      if (q) {
+        const hay = [group.displayTitle, group.director]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+
+      // Location / city: at least one event in the group must match
+      if (location || city) {
+        const anyMatch = group.events.some((ev) => {
+          if (location && !matchesLocation(ev, location)) return false;
+          if (city && (REGIONS_WITH_CITY as readonly string[]).includes(location)) {
+            if (!matchesCity(city, ev.location_address, ev.location_prefectures, location as RegionWithCity)) return false;
+          }
+          return true;
+        });
+        if (!anyMatch) return false;
+      }
+
+      return true;
+    });
+  }, [groups, sp]);
 
   const toggle = (key: string) =>
     setExpanded((prev) => {
@@ -79,9 +114,13 @@ export default function MovieWorksList({ groups, locale, labels }: Props) {
       return next;
     });
 
+  if (filtered.length === 0) {
+    return <p className="text-center text-fg-muted mt-12 text-sm">該当する作品がありません</p>;
+  }
+
   return (
     <div className="space-y-2">
-      {groups.map((group) => (
+      {filtered.map((group) => (
         <WorkRow
           key={group.key}
           group={group}

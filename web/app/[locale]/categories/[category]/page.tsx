@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { type Locale, type Event, type Work, CATEGORIES, type Category, getEventName, getWorkTitle } from "@/lib/types";
 import EventCard from "@/components/EventCard";
+import FilterBar from "@/components/FilterBar";
 import MovieWorksList, { type MovieEventRow, type WorkGroupData } from "@/components/MovieWorksList";
 import Link from "next/link";
 import { shortPrefecture } from "@/lib/cityLabel";
@@ -302,17 +304,24 @@ export default async function CategoryPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* Movie: work accordion list */}
+      {/* Movie: FilterBar + work accordion list */}
       {movieGroups !== null && (
-        movieGroups.length === 0 ? (
-          <p className="text-fg-muted text-sm">{tCatDesc("noEvents")}</p>
-        ) : (
-          <MovieWorksList
-            groups={movieGroups}
-            locale={locale}
-            labels={movieLabels}
-          />
-        )
+        <>
+          <Suspense>
+            <FilterBar locale={locale} currentFilters={{}} hiddenFilters={["category", "paid"]} />
+          </Suspense>
+          {movieGroups.length === 0 ? (
+            <p className="text-fg-muted text-sm">{tCatDesc("noEvents")}</p>
+          ) : (
+            <Suspense>
+              <MovieWorksList
+                groups={movieGroups}
+                locale={locale}
+                labels={movieLabels}
+              />
+            </Suspense>
+          )}
+        </>
       )}
 
       {/* Other categories: event card grid */}
