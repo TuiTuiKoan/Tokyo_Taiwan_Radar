@@ -108,8 +108,7 @@ function motifCell(
   );
 }
 
-const GRID4_X = [80, 640, 80, 640];
-const GRID4_Y = [80, 80, 640, 640];
+// Organic multi-category layouts — varied sizes, overlapping cells
 
 export default async function Image({
   params,
@@ -146,16 +145,31 @@ export default async function Image({
   const n = cats.length;
   let cells;
   if (n === 1) {
+    // single: centered large
     cells = motifCell(cats[0], mv, bv, palette, 150, 150, 900, motifRots[0]);
   } else if (n === 2) {
+    // diagonal bloom: two large cells overlapping at center
     cells = [
-      motifCell(cats[0], mv % 5, bv % 5, palette, 80, 360, 480, motifRots[0]),
-      motifCell(cats[1], (mv + 1) % 5, (bv + 1) % 5, palette, 640, 360, 480, motifRots[1]),
+      motifCell(cats[0], mv % 5, bv % 5,       palette,  0,   0,  840, motifRots[0]),
+      motifCell(cats[1], (mv+1) % 5, (bv+1) % 5, palette, 360, 360, 840, motifRots[1]),
+    ];
+  } else if (n === 3) {
+    // triad: large left, medium top-right, medium bottom-right — diagonal cascade
+    cells = [
+      motifCell(cats[0], mv % 5,     bv % 5,     palette,   0,  80, 720, motifRots[0]),
+      motifCell(cats[1], (mv+1) % 5, (bv+1) % 5, palette, 600,   0, 580, motifRots[1]),
+      motifCell(cats[2], (mv+2) % 5, (bv+2) % 5, palette, 400, 580, 620, motifRots[2]),
     ];
   } else {
-    const grid = cats.length >= 4 ? cats : [...cats, cats[0]];
-    cells = grid.slice(0, 4).map((cat, i) =>
-      motifCell(cat, (mv + i) % 5, (bv + i) % 5, palette, GRID4_X[i], GRID4_Y[i], 480, motifRots[i])
+    // mosaic: one dominant + three scattered at varied sizes
+    const layout = [
+      { x:   0, y:   0, sz: 720 },
+      { x: 660, y:   0, sz: 540 },
+      { x:   0, y: 660, sz: 540 },
+      { x: 520, y: 520, sz: 620 },
+    ];
+    cells = cats.slice(0, 4).map((cat, i) =>
+      motifCell(cat, (mv + i) % 5, (bv + i) % 5, palette, layout[i].x, layout[i].y, layout[i].sz, motifRots[i])
     );
   }
 
