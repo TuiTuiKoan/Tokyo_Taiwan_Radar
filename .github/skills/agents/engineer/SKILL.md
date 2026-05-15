@@ -76,6 +76,7 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
   - **Tier C** (service-role only): `GRANT SELECT, INSERT, UPDATE, DELETE ON ... TO service_role;`
   Always `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` before adding GRANTs.
 - **GRANT scope を決める前に「誰が書くか」を Python コードから逆引きする。** RLS ポリシーのみ参照すると書き込み GRANT が漏れる。典型的な漏れパターン：`scraper_runs`・`research_reports` は scraper/annotator が service_role で INSERT するため `service_role INSERT` が必要。`creators` は admin UI から `authenticated` が CRUD するため `authenticated CRUD` が必要。
+- **Admin が UPDATE/DELETE するテーブルには SELECT だけでなく全 DML の RLS policy を migration 時に一括作成する。** `CREATE TABLE` 時に SELECT policy のみ追加し UPDATE policy を漏らすと、admin UI からの更新が PostgREST により 0-row silent success として返り、JS 側では `error: null` なので原因特定が困難になる。チェックリスト（admin 操作テーブル）：`SELECT` / `INSERT` / `UPDATE` / `DELETE` の 4 種 policy を全て作成したか確認すること。参照インシデント：`research_reports` が UPDATE policy なしのため「標記為已審閱」ボタンが無反応（migration `070`、2026-05-15）。
 
 ## Supabase Client UPDATE — 0-row Silent Success Guard
 

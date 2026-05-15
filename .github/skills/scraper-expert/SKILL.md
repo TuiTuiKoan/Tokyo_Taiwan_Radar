@@ -187,6 +187,41 @@ _VENUE_RE = re.compile(r"会場[：:]\s*(.+)")
 
 Reference incident: 2026-05-12 — `nittai_toumonkai.py` で `会場受付` が venue name として誤抽出。
 
+## Venue / 日時ラベル抽出 — セパレーター量詞と `get_text` 使い分け
+
+### セパレーター文字クラスは `+`（1 回以上）にする
+
+venue・日時ラベル（`会場`、`場所`、`開催場所`、`日時` 等）の後ろに続くセパレーター文字クラスは必ず `+` にする。`*` を使うと本文中の同名の一般名詞（例：`称揚する場所」...`）にマッチしてゴミテキストを venue として取得してしまう。
+
+```python
+# ✅ 正確：セパレーターが最低 1 文字必要
+_VENUE_RE = re.compile(r"(?:会場|場所|開催場所)[　\s：:]+([^\n]{3,60})")
+
+# ❌ 誤り：セパレーターなし（0 回）でもマッチ → 本文中の一般名詞に誤マッチ
+_VENUE_RE = re.compile(r"(?:会場|場所|開催場所)[　\s：:]*([^\n]{3,60})")
+```
+
+### `get_text("\n")` と `get_text(" ")` の使い分け
+
+| 用途 | 推奨 | 理由 |
+|------|------|------|
+| venue・日時（構造依存、`[^\n]` を使う regex） | `get_text("\n", strip=True)` | HTML ブロック境界が `\n` に変換され `[^\n]` がブロック内で停止する |
+| 日付・概要・キーワード判定（改行不要） | `get_text(" ", strip=True)` | 1 行テキストで regex が扱いやすい |
+
+両バリアントを変数として保持するのが安全：
+
+```python
+full_text    = soup.get_text(" ",  strip=True).replace("\x00", "")  # 日付・概要用
+full_text_nl = soup.get_text("\n", strip=True).replace("\x00", "")  # venue・日時用
+
+mv = _VENUE_RE.search(full_text_nl)   # ✅ [^\n] がブロック境界で停止
+md = _DATE_RE.search(full_text)        # ✅ 改行なし 1 行テキストで日付 regex
+```
+
+`get_text(" ")` のみで venue regex を走らせると、会場行と次のセクション（プログラム・講師情報 etc.）が 1 行に結合されるため、`[^\n]{3,60}` が 60 文字まで次のセクションを取り込む。
+
+Reference incident: 2026-05-15 — `snet_taiwan.py` で `場所` が本文に誤マッチ（量詞 `*` 修正）後も `get_text(" ")` によりプログラム情報が混入（`get_text("\n")` 導入で解決）。
+
 ## 全形数字 — `unicodedata.normalize("NFKC")` 事前変換
 
 **Rule**: 日本語ウェブページの数字は全角（`２０２６年`）で記述されている場合がある。parse 前に `unicodedata.normalize("NFKC", text)` で半角に統一すること。
