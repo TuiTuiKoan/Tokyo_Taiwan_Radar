@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { createClient } from "@supabase/supabase-js";
 import { type Locale, CATEGORIES } from "@/lib/types";
+import { getSemanticSymbol } from "@/lib/design/organicMotifs";
 
 export const runtime = "edge";
 export const size = { width: 1200, height: 630 };
@@ -113,6 +114,25 @@ export default async function OGImage({
             <line x1="0" y1="490" x2="680" y2="490" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
             <line x1="1130" y1="490" x2="1200" y2="490" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
             <polyline points={YUSHAN_POINTS} fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+
+        {/* Category motif decoration — top-right, above Yushan ridge */}
+        <div
+          style={{
+            position: "absolute",
+            right: "80px",
+            top: "90px",
+            width: "256px",
+            height: "256px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: 0.8,
+          }}
+        >
+          <svg width="240" height="240" viewBox="0 0 100 100">
+            {getSemanticSymbol(category, 0, "#C4E86F", "#E84860")}
           </svg>
         </div>
 

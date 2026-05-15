@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { createClient } from "@supabase/supabase-js";
 import { type Locale, type Event, getEventName } from "@/lib/types";
+import { getSemanticSymbol } from "@/lib/design/organicMotifs";
 
 export const runtime = "edge";
 export const size = { width: 1200, height: 630 };
@@ -72,6 +73,15 @@ async function loadFont(text: string, locale: string): Promise<ArrayBuffer | nul
   }
 }
 
+function hashForId(s: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
 export default async function Image({
   params,
 }: {
@@ -98,8 +108,10 @@ export default async function Image({
     ? (event?.location_name_zh ?? event?.location_name ?? "")
     : (event?.location_name ?? "");
 
-  const truncatedName = name.length > 36 ? name.slice(0, 34) + "…" : name;
-  const fontSize = name.length > 22 ? 54 : 72;
+  const truncatedName = name.length > 28 ? name.slice(0, 26) + "…" : name;
+  const fontSize = name.length > 16 ? 52 : 66;
+  const categoryKey = event?.category?.[0] ?? "art";
+  const motifVariant = hashForId(id) % 5;
 
   // --- Load bold CJK font subset for the actual text ---
   const textToLoad = truncatedName + (dateStr ?? "") + (location ?? "") + "Tokyo Taiwan Radar";
@@ -150,38 +162,49 @@ export default async function Image({
           )}
         </div>
 
-        {/* Event name — main content */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: "20px",
-            maxWidth: "1060px",
-          }}
-        >
-          <div
-            style={{
-              background: "#16a34a",
-              color: "white",
-              fontSize: "18px",
-              fontWeight: "bold",
-              padding: "6px 12px",
-              borderRadius: "8px",
-              flexShrink: 0,
-              marginTop: "8px",
-            }}
-          >
-            {categoryLabel}
+        {/* Event name + motif */}
+        <div style={{ display: "flex", alignItems: "center", gap: "40px", width: "100%" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "20px", flex: 1 }}>
+            <div
+              style={{
+                background: "#16a34a",
+                color: "white",
+                fontSize: "18px",
+                fontWeight: "bold",
+                padding: "6px 12px",
+                borderRadius: "8px",
+                flexShrink: 0,
+                marginTop: "8px",
+              }}
+            >
+              {categoryLabel}
+            </div>
+            <div
+              style={{
+                fontSize: `${fontSize}px`,
+                fontWeight: "bold",
+                color: "#111827",
+                lineHeight: 1.25,
+              }}
+            >
+              {truncatedName}
+            </div>
           </div>
           <div
             style={{
-              fontSize: `${fontSize}px`,
-              fontWeight: "bold",
-              color: "#111827",
-              lineHeight: 1.25,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "252px",
+              height: "252px",
+              flexShrink: 0,
+              background: "rgba(22, 163, 74, 0.08)",
+              borderRadius: "126px",
             }}
           >
-            {truncatedName}
+            <svg width="208" height="208" viewBox="0 0 100 100">
+              {getSemanticSymbol(categoryKey, motifVariant, "#1F5E2B", "#E84860")}
+            </svg>
           </div>
         </div>
 
