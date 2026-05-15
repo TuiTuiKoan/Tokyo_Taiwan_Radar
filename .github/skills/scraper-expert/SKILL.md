@@ -426,17 +426,17 @@ business_hours = "\n".join(
 | rightscube | 2 | ✅ THEATER区段 | ✅ business_hours_text | 完全準拠 |
 | ks_cinema | 2 | ✅ 表格期間 | ✅ schedule_text (commit `23e417f`) | 完全準拠 |
 | kino_shinsaibashi | 3 | ✅ 終映日 | ❌ None（JS 驅動，Type 3 可） | 完全準拠（`film_screening` + prefix, commit `544bbc4`） |
-| kyoto_cinema | 3 | ✅ 終映日M/D | ❌ None | 要対応 |
-| cineswitch_ginza | 3 | ✅ M/D まで | ❌ None | 要対応 |
-| theater_enya | 3 | ✅ 期間文字 | ❌ None | 要対応 |
-| cinewind | 3 | ✅ YYYY/M/D | ❌ None | 要対応 |
-| ciema | 2/3 | ✅ 週表頭 | ❌ None | 要対応 |
+| kyoto_cinema | 3 | ✅ 終映日M/D | ❌ None（Type 3 可） | 完全準拠（`film_screening` + prefix, commit `e91f5cd`） |
+| cineswitch_ginza | 3 | ✅ M/D まで | ❌ None（Type 3 可） | 完全準拠（UTC fix, commit `e91f5cd`） |
+| theater_enya | 3 | ✅ 期間文字 | ❌ None（Type 3 可） | 完全準拠（UTC fix, commit `e91f5cd`） |
+| cinewind | 2 | ✅ YYYY/M/D | ❌ None（Type 2, 追加調査要） | UTC 修正済み（commit `e91f5cd`） |
+| ciema | 2/3 | ✅ 週表頭 | ❌ None（Type 3 可） | 完全準拠（UTC fix, commit `e91f5cd`） |
 | cinemadict | 2 | ✅ 完整期間（UTC fix） | ✅ date_text HH:MM（commit `544bbc4`） | 完全準拠 |
-| ycam_cinema | 2 | ✅ 節目期間 | ❌ None | 要対応 |
-| sakurazaka | 3 | ✅ 上映中/予定 | ❌ None | 要対応 |
-| uedaeigeki | 2 | ✅ 上映日程 | ❌ None | 要対応 |
+| ycam_cinema | 2 | ✅ 節目期間 | ❌ None（Type 2, 追加調査要） | UTC 修正済み（commit `e91f5cd`） |
+| sakurazaka | 3 | ✅ 上映中/予定 | ❌ None（Type 3 可） | 完全準拠（`film_screening`, commit `e91f5cd`） |
+| uedaeigeki | 2 | ✅ 上映日程 | ❌ None（Type 2, 追加調査要） | UTC + prefix 修正済み（commit `e91f5cd`） |
 | human_trust_cinema | 3 | ❌ None | ❌ None | 🔴 要緊急対応 |
-| theater_kino | 2 | ✅ 静的HTML | ❌ None | 要対応 |
+| theater_kino | 2 | ✅ 静的HTML | ❌ None（Type 2, 追加調査要） | UTC + prefix 修正済み（commit `e91f5cd`） |
 
 **新規 cinema scraper 作成時は、上記稽核表に行を追加すること。**
 
