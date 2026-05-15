@@ -4,6 +4,69 @@
 
 ---
 
+## 2026-05-15 — starcat_cinema end_date 被 annotator SINGLE-DAY RULE 覆寫
+
+**問題：** `starcat_cinema` 事件的 `end_date` 設為每週排片最後一天（木曜），但 annotator SINGLE-DAY RULE 將其覆寫為 `start_date`，導致存檔時所有事件都變成「單日活動」。
+
+**根因：** annotator 的 `_get_end_date()` 邏輯中，SINGLE-DAY RULE 檢查 `description` 是否含「單日」關鍵詞，但 starcat `raw_description` 起始為 `"上映日: YYYY年M月D日"` (含空格，只標單日)，被誤判為單日活動。即使 `start_date != end_date`，RULE 也會強制覆寫 `end_date = start_date`。
+
+**修正：**
+1. `_build_ticket_schedule()` 改為回傳 tuple：`(business_hours_str, last_date_utc)`。
+2. 新增 `_lookup_end_date()` helper，從 schedule 取得最後一天。
+3. `_parse_date()` 加入 `tzinfo=timezone.utc`（符合 SKILL.md 規則）。
+4. `raw_description` 前綴改為 `"上映期間: YYYY年M月D日〜YYYY年M月D日"` → annotator 不再誤判為單日。
+5. `scrape()` 中 `Event()` 的 `end_date = _lookup_end_date(schedule, start_date)` 確保日期跨度。
+
+**驗證：** `python main.py --dry-run --source starcat_cinema` 輸出顯示 `"start_date": "2026-05-19T00:00:00", "end_date": "2026-05-30T00:00:00"` ✅。
+
+**教訓：**
+- **scraper raw_description 的措辭會影響 annotator 決策：** 「上映日」(単日含意) vs 「上映期間」(期間含意) 的字眼差異導致 SINGLE-DAY RULE 觸發。
+- **Scraper 改動時要考慮 annotator 層級的副作用：** 日期改動不只是改 code，還要確保 raw_description 前綴不會被 SINGLE-DAY RULE 誤判。
+- **多日排片的 end_date 應由 scraper 負責取得，不應仰賴 annotator 推導：** annotator 的 SINGLE-DAY RULE 是為了處理資訊不足的情況，不能用來處理 scraper 本應產出的完整日期跨度。
+
+---
+
+## 2026-05-15 — starcat_cinema business_hours 場次資訊需從 starcat-ticket.com 抓取
+
+**問題：** `matsumoto_cinema_select.py` の初回 dry-run で 0 件取得。サイトマップ fetch で `ReadTimeout` 発生。
+
+**根因：** teket.jp の `sitemap.xml` は 34,000+ URL を含む大容量ファイルで、応答完了に 15〜20 秒かかる。`timeout=15` では完了前に打ち切られた。
+
+**修正：** `requests.get(SITEMAP_URL, timeout=30)` に変更（15 → 30）。
+
+**教訓：**
+- **teket.jp sitemap.xml は timeout=30 以上を使うこと。** teket.jp の全プラットフォームイベントが詰まった大容量 sitemap のため、デフォルト 15s では失敗する。
+- **サイトマップ取得 0 件 → 第一確認: timeout を 30s 以上に引き上げる。** その後エラーログで `ReadTimeout` を確認する。
+- **teket.jp の `/api/events?group_id=` は使用不可**: group フィルタが無効で全プラットフォーム (34,000+ 件) を返す。グループ別列挙には sitemap.xml が唯一の手段。
+- **teket.jp JSON-LD `description` はフェスタ名のみ**: 台湾フィルタを JSON-LD に適用しても無意味。full page text (script/style 除去後) に `2021年｜台湾｜カラー` / `台湾映画社` 等のキーワードが含まれる。
+- **teket.jp JSON-LD `location.name` は常に `その他のホール`**: page title の `| venue` 部分または OG description の `[venue_name address]` ブラケットから取得する。
+
+---
+
+## 2026-05-15 — starcat_cinema business_hours 場次資訊需從 starcat-ticket.com 抓取
+
+**問題：** `starcat_cinema.py` 爬取的事件缺少 `business_hours`（每日場次時間），無法讓使用者知道實際放映時刻。
+
+**根因：** 台灣電影資訊（スターキャット・シネマ）主頁面不包含每週詳細場次，場次資料存放在 `starcat-ticket.com`（票務平台），需另外查詢。
+
+**修正：**
+1. 新增 `TICKET_SCHEDULE_URLS` dict，映射電影片名 → 票務頁面 URL。
+2. `_build_ticket_schedule(url)` 從票務頁解析每日放映時段，回傳 `dict[date_str, list[time_str]]`。
+3. `_lookup_business_hours(title, start_date, end_date)` 依日期範圍格式化成：
+   ```
+   5/15(金): 12:05〜13:49
+   5/16(土): 12:05〜13:49
+   …
+   ```
+4. `scrape()` 在建立 Event 時呼叫 `_lookup_business_hours()`，填入 `business_hours`。
+
+**教訓：**
+- **場次時間（business_hours）與主要活動資訊常分散在不同頁面**（主頁 vs 票務平台）。實作時需判斷主頁是否含場次，若無則需額外爬取票務頁。
+- `TICKET_SCHEDULE_URLS` 應作為 scraper 內的 dict，避免每次 dry-run 都重新 fetch 票務頁（可考慮加 TTL cache）。
+- `business_hours` 格式統一為 `M/DD(曜): HH:MM〜HH:MM`，多天用 `\n` 分隔。
+
+---
+
 ## 2026-05-14 — wuext_waseda オンデマンド講座の日付が term fallback になる
 
 **問題：** 早稲田エクステンション（wuext_waseda）のオンデマンド講座は、一覧表の「日時」列に

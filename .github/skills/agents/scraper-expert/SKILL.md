@@ -129,6 +129,20 @@ for e in [x for x in events if x['name_ja'] != x['raw_title']]:
     sb.table('events').update({'name_ja': e['raw_title']}).eq('id', e['id']).execute()
 ```
 
+## raw_description 措辭影響 annotator SINGLE-DAY RULE
+
+**Problem**: Annotator's `_get_end_date()` includes a SINGLE-DAY RULE that detects keywords like `「単日」`, `「開催日」` (singular form) in `raw_description` and forces `end_date = start_date`. Scraper-set multi-day events get collapsed if the description's wording triggers this rule.
+
+**Example**: `starcat_cinema` originally used `raw_description` prefix `"上映日: YYYY年M月D日"` (singular `上映日`). Annotator detected the singular form + checked `start_date != end_date`, then interpreted this as a mismatch and overwrote `end_date = start_date`, collapsing a multi-week film run into a one-day event.
+
+**Solution**: When `end_date > start_date` in your scraper, ensure `raw_description` uses plural or period form:
+- ✅ `"上映期間: YYYY年M月D日〜YYYY年M月D日"` (plural period)
+- ✅ `"開催期間: YYYY年M月D日～YYYY年M月D日"` (period)
+- ✅ `"上映日程: YYYY年M月D日～YYYY年M月D日"` (schedule)
+- ❌ `"上映日: YYYY年M月D日"` (singular, triggers SINGLE-DAY RULE)
+
+**Rule**: Before setting multi-day `end_date` in a scraper, audit the `raw_description` prefix to ensure it does NOT use singular keywords that will trigger annotator's SINGLE-DAY RULE. If unsure, check `annotator.py` `_get_end_date()` for the current RULE heuristics.
+
 ## Annotator date protection — manual date fix protocol
 
 **Problem**: `annotator.py` lines 581-582 always prefer GPT output over DB values for dates:
