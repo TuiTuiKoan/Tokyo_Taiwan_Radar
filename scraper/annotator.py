@@ -451,6 +451,10 @@ _PIPE_ROLE_RE = re.compile(
     re.UNICODE,
 )
 
+# Separators that indicate a performer field contains multiple people.
+# Matches: 、（日本語読点）, , （半形）, ，（全形）, × （共演表記）, ／（全形スラッシュ）, / （半形）
+_MULTI_SEP_RE = re.compile(r"[、,，×／/]")
+
 
 def _extract_performer_from_raw(raw_title: str, raw_description: str) -> str | None:
     """Deterministically extract a single personal performer name from raw text.
@@ -1502,6 +1506,19 @@ def annotate_pending_events(
                     )
                     if _final_performer:
                         update_data["performer"] = _final_performer
+                        # Sanitize: if performer contains separators → treat as multi-person
+                        if _MULTI_SEP_RE.search(_final_performer):
+                            _parts = [p.strip() for p in _MULTI_SEP_RE.split(_final_performer) if p.strip()]
+                            if len(_parts) >= 2:
+                                update_data["performers"] = _parts
+                                update_data["performer"] = None
+                                update_data["performer_zh"] = None
+                                update_data["performer_en"] = None
+                                logger.warning(
+                                    "[annotator] %s performer sanitize: multi-value split → %s",
+                                    (event.get("source_id") or event.get("id", ""))[:8],
+                                    _parts,
+                                )
 
                 # performers array (multi-speaker support)
                 if "performers" not in _human_protected:
@@ -2436,6 +2453,47 @@ def enrich_person_names() -> None:
                 or cur_dir_en != info.name_en
             ):
                 update["director_en"] = info.name_en
+
+        # ── 多人 performer 偵測（B1 策略）─────────────────────────────────────
+        # If performer field contains a separator → split into performers[],
+        # translate each name using ja_to_info (single-pass, no second run needed).
+        _b1_performer = event.get("performer") or ""
+        if _b1_performer and _MULTI_SEP_RE.search(_b1_performer):
+            _raw_names = [n.strip() for n in _MULTI_SEP_RE.split(_b1_performer) if n.strip()]
+            # Remove role name prefix (eiga.com key format: "character_name actor_name")
+            _cleaned_names: list[str] = []
+            for _n in _raw_names:
+                _actor = _n
+                for _key in ja_to_info:
+                    if " " in _key and _key.endswith(" " + _n):
+                        _actor = _n
+                        break
+                _cleaned_names.append(_actor)
+            _cleaned_names = list(dict.fromkeys(_cleaned_names))  # dedup, preserve order
+            update["performers"] = _cleaned_names
+            update["performer"] = None
+            update["performer_zh"] = None
+            update["performer_en"] = None
+            # Translate each split name using ja_to_info (best-effort, single pass)
+            _new_zh: list[str] = []
+            _new_en: list[str] = []
+            for _n in _cleaned_names:
+                _pinfo = ja_to_info.get(_n)
+                if _pinfo is None:
+                    for _key, _kinfo in ja_to_info.items():
+                        if _key.endswith(_n) and len(_key) > len(_n):
+                            _pinfo = _kinfo
+                            break
+                _new_zh.append(_to_trad(_pinfo.name_zh) if _pinfo and _pinfo.name_zh else _n)
+                _new_en.append(_pinfo.name_en if _pinfo and _pinfo.name_en else _n)
+            if _new_zh != _cleaned_names:
+                update["performers_zh"] = _new_zh
+            if _new_en != _cleaned_names:
+                update["performers_en"] = _new_en
+            logger.info(
+                "[enrich_person] %s multi-performer split → %s",
+                event["id"][:8], _cleaned_names,
+            )
 
         # performer_zh / performer_en: look up by ja katakana performer field.
         # Eiga.com keys cast as "character_name actor_name" (e.g. "雪子ジュディ・オング")

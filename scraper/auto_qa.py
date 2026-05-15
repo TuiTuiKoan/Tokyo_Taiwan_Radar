@@ -82,7 +82,16 @@ OVERSEAS_KEYWORDS = (
     'ニューヨーク', 'パリ', 'ロンドン', 'ベルリン', '台湾', '香港',
 )
 
-QA_TYPES = ("auto_qa_simplified_zh", "auto_qa_missing_address", "auto_qa_missing_hours", "auto_simplified_chinese", "auto_qa_same_work_duplicate")
+QA_TYPES = (
+    "auto_qa_simplified_zh",
+    "auto_qa_missing_address",
+    "auto_qa_missing_hours",
+    "auto_simplified_chinese",
+    "auto_qa_same_work_duplicate",
+    "auto_qa_performer_ai_translation_marker",
+    "auto_qa_performer_multi_value_pollution",
+    "auto_qa_performer_zh_equals_katakana",
+)
 
 # Precise SC-only char set for the broad auto_simplified_chinese detector.
 # Only chars that are unambiguously simplified-only (different glyph in TC).
@@ -360,6 +369,95 @@ def _detect_same_work_duplicate(sb) -> list[dict]:
     return reports
 
 
+def _detect_performer_ai_marker(sb) -> list[dict]:
+    """Flag movie events where performer_zh or performer_en still contains
+    AI翻譯 / AI Translation marker — indicating lookup pipeline did not fix them."""
+    rows = (
+        sb.table("events")
+        .select("id,source_name,performer,performer_zh,performer_en")
+        .eq("is_active", True)
+        .contains("category", ["movie"])
+        .or_("performer_zh.like.%AI翻譯%,performer_en.like.%AI Translation%")
+        .execute()
+        .data
+    )
+    reports = []
+    for row in rows:
+        bad = []
+        if "AI翻譯" in (row.get("performer_zh") or ""):
+            bad.append(f"performer_zh={row['performer_zh']!r}")
+        if "AI Translation" in (row.get("performer_en") or ""):
+            bad.append(f"performer_en={row['performer_en']!r}")
+        if bad:
+            reports.append({
+                "event_id": row["id"],
+                "report_type": "auto_qa_performer_ai_translation_marker",
+                "details": (
+                    f"performer AI翻譯 marker 未清除: {'; '.join(bad)} "
+                    f"source={row.get('source_name', '?')}"
+                ),
+            })
+    return reports
+
+
+def _detect_performer_multi_value(sb) -> list[dict]:
+    """Flag movie events where performer field still contains separator chars
+    — indicates the field was not split to performers[] array."""
+    rows = (
+        sb.table("events")
+        .select("id,source_name,performer")
+        .eq("is_active", True)
+        .contains("category", ["movie"])
+        .not_.is_("performer", "null")
+        .execute()
+        .data
+    )
+    reports = []
+    import re as _re
+    _SEP = _re.compile(r"[、,，×／/]")
+    for row in rows:
+        pf = row.get("performer") or ""
+        if _SEP.search(pf):
+            reports.append({
+                "event_id": row["id"],
+                "report_type": "auto_qa_performer_multi_value_pollution",
+                "details": (
+                    f"performer 含分隔符（未拆解到 performers[]）: performer={pf!r} "
+                    f"source={row.get('source_name', '?')}"
+                ),
+            })
+    return reports
+
+
+def _detect_performer_zh_katakana(sb) -> list[dict]:
+    """Flag events where performer_zh equals performer (katakana unchanged)
+    and performer contains ・ — indicates name lookup silently failed."""
+    rows = (
+        sb.table("events")
+        .select("id,source_name,performer,performer_zh")
+        .eq("is_active", True)
+        .not_.is_("performer", "null")
+        .not_.is_("performer_zh", "null")
+        .execute()
+        .data
+    )
+    reports = []
+    for row in rows:
+        pf = row.get("performer") or ""
+        pf_zh = row.get("performer_zh") or ""
+        # performer_zh equals performer AND performer contains ・ (katakana foreign name)
+        if pf and pf_zh == pf and "\u30fb" in pf:
+            reports.append({
+                "event_id": row["id"],
+                "report_type": "auto_qa_performer_zh_equals_katakana",
+                "details": (
+                    f"performer_zh = performer (lookup 失敗): performer={pf!r} "
+                    f"source={row.get('source_name', '?')}"
+                ),
+            })
+    return reports
+
+
 def detect(event: dict) -> list[tuple[str, str]]:
     """Return list of (report_type, admin_note) detected for one event."""
     findings: list[tuple[str, str]] = []
@@ -422,6 +520,12 @@ def run(dry_run: bool = False) -> dict:
     for item in _detect_simplified_chinese(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
     for item in _detect_same_work_duplicate(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
+    for item in _detect_performer_ai_marker(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
+    for item in _detect_performer_multi_value(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
+    for item in _detect_performer_zh_katakana(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
 
     # Dedup against latest auto_qa reports for each event/type
