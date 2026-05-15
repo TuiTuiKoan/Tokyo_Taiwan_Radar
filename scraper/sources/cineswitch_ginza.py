@@ -160,7 +160,7 @@ class CineswitchGinzaScraper(BaseScraper):
             raw_desc_parts.append(detail["description"])
             raw_description = "\n".join(raw_desc_parts)
 
-            name_zh, name_en = lookup_movie_titles(title)
+            name_zh, name_en, _ = lookup_movie_titles(title)
             event = Event(
                 source_name=self.SOURCE_NAME,
                 source_id=source_id,

@@ -385,7 +385,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
             date_str = overall_start.strftime("%Y年%m月%d日")
             parent_raw_desc = f"開催日時: {date_str}\n\n" + parent_raw_desc
 
-        parent_name_zh, parent_name_en = lookup_movie_titles(title)
+        parent_name_zh, parent_name_en, _ = lookup_movie_titles(title)
         parent_event = Event(
             source_name=SOURCE_NAME,
             source_id=f"ks_cinema_{url_slug}",
@@ -458,7 +458,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
                 date_str = film_start.strftime("%Y年%m月%d日")
                 raw_desc = f"開催日時: {date_str}\n\n" + raw_desc
 
-            sub_name_zh, sub_name_en = lookup_movie_titles(film_title)
+            sub_name_zh, sub_name_en, _ = lookup_movie_titles(film_title)
             try:
                 from database import get_event_id_by_source as _get_parent_uuid
                 parent_uuid = _get_parent_uuid(SOURCE_NAME, f"ks_cinema_{url_slug}")
@@ -518,7 +518,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
             else:
                 raw_desc = f"開催日時: {overall_start.strftime('%Y年%m月%d日')}\n\n" + raw_desc
 
-        single_name_zh, single_name_en = lookup_movie_titles(title)
+        single_name_zh, single_name_en, _ = lookup_movie_titles(title)
         event = Event(
             source_name=SOURCE_NAME,
             source_id=f"ks_cinema_{url_slug}",

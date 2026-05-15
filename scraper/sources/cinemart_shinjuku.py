@@ -328,7 +328,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> Even
 
     movie_number = _extract_movie_number(url)
 
-    name_zh, name_en = lookup_movie_titles(title)
+    name_zh, name_en, _ = lookup_movie_titles(title)
     return Event(
         source_name=SOURCE_NAME,
         source_id=f"cinemart_shinjuku_{movie_number}",

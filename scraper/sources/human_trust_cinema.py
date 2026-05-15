@@ -159,7 +159,7 @@ class HumanTrustCinemaScraper(BaseScraper):
             # start_date from raw_description to prevent annotator SINGLE-DAY RULE
             # from wrongly setting end_date = start_date.
 
-            name_zh, name_en = lookup_movie_titles(title)
+            name_zh, name_en, _ = lookup_movie_titles(title)
             event = Event(
                 source_name=self.SOURCE_NAME,
                 source_id=source_id,

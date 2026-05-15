@@ -6,6 +6,7 @@ Eurospace Cinema scraper — 渋谷のミニシアター（ユーロスペース
     理由: サーバー側が古い TLS 設定（Python 3.14 の strict SSL と非互換）
 """
 
+import logging
 import re
 import time
 from datetime import date, datetime, timezone
@@ -20,6 +21,8 @@ from movie_title_lookup import lookup_movie_titles
 BASE_URL = "http://www.eurospace.co.jp"
 
 TAIWAN_KEYWORDS = ["台湾", "Taiwan", "taiwan"]
+
+logger = logging.getLogger(__name__)
 
 
 class EurospaceScraper(BaseScraper):
@@ -65,7 +68,7 @@ class EurospaceScraper(BaseScraper):
                     ids.append(m.group(1))
             return ids
         except Exception as e:
-            self.logger.warning("Failed to fetch %s: %s", url, e)
+            logger.warning("Failed to fetch %s: %s", url, e)
             return []
 
     def _scrape_detail(self, w_id: str, headers: dict) -> Optional[Event]:
@@ -135,7 +138,7 @@ class EurospaceScraper(BaseScraper):
                 if len(parts) >= 2:
                     country = parts[1]
 
-            name_zh, name_en = lookup_movie_titles(title)
+            name_zh, name_en, _ = lookup_movie_titles(title)
 
             return Event(
                 source_name=self.SOURCE_NAME,
@@ -156,7 +159,7 @@ class EurospaceScraper(BaseScraper):
                 official_url=official_url or url,
             )
         except Exception as e:
-            self.logger.warning("Failed to scrape detail w_id=%s: %s", w_id, e)
+            logger.warning("Failed to scrape detail w_id=%s: %s", w_id, e)
             return None
 
     def _parse_start_date(

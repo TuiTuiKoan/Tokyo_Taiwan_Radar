@@ -174,7 +174,7 @@ class MorcAsagayaScraper(BaseScraper):
         date_prefix = f"開催日時: {start_date.year}年{start_date.month}月{start_date.day}日\n\n"
         raw_description = date_prefix + (raw_desc or "")
 
-        name_zh, name_en = lookup_movie_titles(title)
+        name_zh, name_en, _ = lookup_movie_titles(title)
         return Event(
             source_name=SOURCE_NAME,
             source_id=source_id,

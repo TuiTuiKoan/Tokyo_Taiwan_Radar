@@ -149,7 +149,7 @@ class _TtcgVenueScraper(BaseScraper):
                     f"上映開始: {start_date.strftime('%Y年%m月%d日')}\n\n" + raw_desc
                 )
 
-            name_zh, name_en = lookup_movie_titles(title)
+            name_zh, name_en, _ = lookup_movie_titles(title)
             event = Event(
                 source_name=self.SOURCE_NAME,
                 source_id=source_id,

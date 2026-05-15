@@ -196,7 +196,7 @@ class JohakyuScraper(BaseScraper):
                     continue
 
                 # Try to get multilingual titles via movie_title_lookup
-                name_zh, name_en = lookup_movie_titles(title)
+                name_zh, name_en, _ = lookup_movie_titles(title)
                 time.sleep(0.3)
 
                 source_id = f"johakyu_{movie_id}"

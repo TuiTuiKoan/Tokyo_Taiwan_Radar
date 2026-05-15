@@ -308,7 +308,7 @@ class RightscubeScraper(BaseScraper):
 
         parent_source_id = f"rightscube_{slug}"
 
-        name_zh, name_en = lookup_movie_titles(title_clean)
+        name_zh, name_en, _ = lookup_movie_titles(title_clean)
 
         parent = Event(
             source_name=SOURCE_NAME,

@@ -191,7 +191,7 @@ class UplinkCinemaScraper(BaseScraper):
             desc_el = detail_soup.select_one("div.l-wysiwyg, div.wysiwyg-wrap")
             description = desc_el.get_text(separator="\n", strip=True) if desc_el else ""
 
-            name_zh, name_en = lookup_movie_titles(title)
+            name_zh, name_en, _ = lookup_movie_titles(title)
             event = Event(
                 source_name=self.SOURCE_NAME,
                 source_id=source_id,

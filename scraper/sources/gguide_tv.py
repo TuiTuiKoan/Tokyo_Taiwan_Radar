@@ -381,7 +381,7 @@ class GguideTvScraper(BaseScraper):
                 source_url = _DETAIL_URL.format(ebis_id=ebis_id)
 
                 show_title = _extract_show_title(title_clean)
-                name_zh, name_en = lookup_movie_titles(show_title)
+                name_zh, name_en, _ = lookup_movie_titles(show_title)
                 w_perf = None
                 w_dir = None
                 if not name_zh:
