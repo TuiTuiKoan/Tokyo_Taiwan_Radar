@@ -82,7 +82,8 @@ _PAREN_DATE_RE = re.compile(r"[（(](\d{4})年(\d{1,2})月(\d{1,2})日")
 _BARE_DATE_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
 
 # 会場　早稲田大学早稲田キャンパス 3号館305教室
-_VENUE_RE = re.compile(r"(?:会場|場所|開催場所)[　\s：:]*([^\n]{3,60})")
+# Use + (one-or-more) separator so inline "場所」" phrases don't match.
+_VENUE_RE = re.compile(r"(?:会場|場所|開催場所)[　\s：:]+([^\n]{3,60})")
 
 
 def _to_utc(m: re.Match) -> datetime:

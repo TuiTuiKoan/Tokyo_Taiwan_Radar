@@ -6,6 +6,12 @@
 
 ## 2026-05-15
 
+### Migration 070 — research_reports UPDATE policy 欠落（RLS サイレント失敗）
+- **問題**：Admin Research Reports 画面の「標記為已審閱」ボタンが無反応。JS エラーなし、DB 変化なし。
+- **根因**：`008_research_reports.sql` が SELECT policy のみ作成し、UPDATE policy を未作成。RLS は未一致 policy をデフォルト拒絶し、PostgREST は 0 rows + `error: null` を返す（silent failure）。
+- **修正（migration `070_research_reports_update_policy.sql`）**：admin UPDATE policy を追加。
+- **教訓**：admin が UPDATE する可能性のあるすべての table は、**SELECT / INSERT / UPDATE / DELETE policy を migration 作成時に一括で整備する**。SELECT があっても UPDATE がなければ admin mutation は silent fail する。新規 table migration のチェックリストに「admin CRUD policy 完備確認」を追加。
+
 ### Migration Constraint Violation — event_form check (ERROR 23514)
 - **錯誤**：Migration 047 DROP + ADD CONSTRAINT 時，`study_abroad`（1 筆）不在新允許清單，觸發 `ERROR: 23514: check constraint violated`
 - **診斷**：先跑 `SELECT unnest(event_form) AS val, count(*) FROM events GROUP BY val ORDER BY cnt DESC` 列出所有現存值
