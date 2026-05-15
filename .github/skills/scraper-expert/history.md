@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-05-15 — starcat_cinema end_date 錯誤（SINGLE-DAY RULE 覆寫）
+
+**問題：** `end_date = start_date`（兩者均為 2026-05-15）。電影實際上映至 5/21（木），但 annotator SINGLE-DAY RULE 把 end_date 覆寫成開始日。
+
+**根本原因：**
+1. scraper 設 `end_date=None` → annotator GPT 讀 raw_description 中的「2026年5月15日(金)より公開」 → 只有單一日期 → SINGLE-DAY RULE → `end_date = start_date`
+2. scraper 沒有實作從票務排片推導 end_date 的邏輯
+
+**修正（commit `3b40cb5`）：**
+- `_build_ticket_schedule()` 改回傳 `(business_hours_str, last_date_utc)` tuple
+- 新增 `_lookup_schedule_entry()` / `_lookup_end_date()` helpers
+- `scrape()` 從 ticket schedule 最後一日取 `end_date`（= 當週木曜）
+- `raw_description` 前綴改為「上映期間: YYYY年M月D日〜YYYY年M月D日」— 防止 annotator SINGLE-DAY RULE 覆寫
+- `_parse_date()` 加 `tzinfo=timezone.utc`
+
+**規則：** 日本電影院每週四公布排片（金曜〜木曜）。Cinema scraper 必須從票務 schedule 取 `last_dt` 作為 `end_date`，並在 `raw_description` 前綴中同時標明開始與結束日期。→ 新增至 SKILL.md § Cinema scraper — `end_date` 每週排片末日（木曜）規則
+
+---
+
 ## 2026-05-15 — asahiculture 4 欄位同時抓錯（venue / end_date / performer / organizer）
 
 **根本原因分析（事件 `asahiculture_8759178`，立川サテライト教室）：**

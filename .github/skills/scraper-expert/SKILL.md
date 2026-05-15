@@ -342,7 +342,54 @@ text = element.get_text(strip=True)
 
 當 HTML 將日期標題（`<h2>` / `<p class="nihon-date">`）與場次時間（`<div class="schedule-program">`）分開存放時，必須將兩者組合後填入 `business_hours`。格式：每行一個放映場次 — `M/D（曜） HH:MM（備注）`。**視覺上有場次時間但 `business_hours = None` 是 scraper bug**，不是可接受的狀態。
 
+**場次資料在票務平台的情況（如 starcat_cinema）**: 若主頁不含每日場次，場次資料可能存放在配對的票務平台（如 `starcat-ticket.com`）。此時：
+1. 建立 `TICKET_SCHEDULE_URLS` dict，映射電影片名 → 票務頁面 URL。
+2. 實作 `_build_ticket_schedule(url)` 解析票務頁每日場次，回傳 `dict[date_str, list[time_str]]`。
+3. `_lookup_business_hours(title, start_date, end_date)` 依日期範圍格式化成：`M/DD(曜): HH:MM〜HH:MM`，多天 `\n` 分隔。
+4. 若票務頁找不到對應片名，`business_hours` 設 `None`（非空字串），避免誤填 garbage。
+
+## Cinema scraper — `business_hours` 場次時間必須主動採集
+
+**Rule**: Cinema scraper 必須主動採集每日場次時間並存入 `business_hours`。常見 HTML 容器：
+- `div.schedule-program` (shin_bungeiza)
+- `div.schedule-table` / `table.schedule` (各影院)
+- `dl.showtime` / `ul.times` (單廳影院)
+
+當 HTML 將日期標題（`<h2>` / `<p class="nihon-date">`）與場次時間（`<div class="schedule-program">`）分開存放時，必須將兩者組合後填入 `business_hours`。格式：每行一個放映場次 — `M/D（曜） HH:MM（備注）`。**視覺上有場次時間但 `business_hours = None` 是 scraper bug**，不是可接受的狀態。
+
+**場次資料在票務平台的情況（如 starcat_cinema）**: 若主頁不含每日場次，場次資料可能存放在配對的票務平台（如 `starcat-ticket.com`）。此時：
+1. 建立 `TICKET_SCHEDULE_URLS` dict，映射電影片名 → 票務頁面 URL。
+2. 實作 `_build_ticket_schedule(url)` 解析票務頁每日場次，回傳 `dict[date_str, list[time_str]]`。
+3. `_lookup_business_hours(title, start_date, end_date)` 依日期範圍格式化成：`M/DD(曜): HH:MM〜HH:MM`，多天 `\n` 分隔。
+4. 若票務頁找不到對應片名，`business_hours` 設 `None`（非空字串），避免誤填 garbage。
+
 **Incident**: shin_bungeiza（commit `1ffb98e`）— `_parse_nihon_date_only()` 採集了 `<h2>` 日期標題，但完全忽略了相鄰的 `<div class="schedule-program">` 元素中的實際場次時間。
+**Incident**: starcat_cinema（2026-05-15）— 主頁無場次，需從 `starcat-ticket.com` 另行抓取。實作 `TICKET_SCHEDULE_URLS` + `_build_ticket_schedule()` + `_lookup_business_hours()` 解決。
+
+## Cinema scraper — `end_date` 每週排片末日（木曜）規則
+
+**Rule**: 日本電影院每週四公布下週（金曜〜木曜）的排片。因此：
+
+1. **`end_date` = 票務 schedule 中該片最後一天（當週木曜）**：從 `_build_ticket_schedule()` 的 `day_slots` 取最後日期 key → `last_dt`，以 `timezone.utc` midnight 格式回傳。
+2. **`_build_ticket_schedule()` 回傳 tuple 而非字串**：`dict[str, tuple[str, Optional[datetime]]]`，即 `(business_hours_str, last_date_utc)`。
+3. **`raw_description` 前綴必須包含完整日期範圍**：當 `end_date ≠ start_date` 時，前綴改為 `上映期間: YYYY年M月D日〜YYYY年M月D日`（而非只有開始日）。若只寫開始日，annotator 的 SINGLE-DAY RULE 會把 `end_date` 覆寫成 `start_date`（GPT 讀到單一日期 → 設 end = start）。
+4. **未出現在當週排片中的電影**（尚未上映或已下檔）：`end_date = None`，不做猜測。
+5. **每次 CI 執行自動延伸 `end_date`**：下一個木曜 CI 跑完後，upsert 更新 `end_date` 到新一週的末日，實現滾動視窗語義。
+
+**Pattern** (starcat_cinema.py):
+```python
+# _build_ticket_schedule: 改為回傳 tuple
+result[title_norm] = ("\n".join(lines), last_dt)  # (business_hours_str, end_date)
+
+# scrape(): 取得 end_date 並更新 raw_description 前綴
+schedule_end = self._lookup_end_date(theater, title)
+if start_date and schedule_end and schedule_end != start_date:
+    date_prefix = f"上映期間: {start_date.year}年{start_date.month}月{start_date.day}日〜{schedule_end.year}年{schedule_end.month}月{schedule_end.day}日"
+else:
+    date_prefix = detail["date_text"]  # fallback: 開始日
+```
+
+**Incident**: starcat_cinema（2026-05-15）— `end_date=None` 後被 annotator SINGLE-DAY RULE 設為 `start_date`。修正：從票務頁末日推導 `end_date`，並更新 `raw_description` 前綴。
 
 ---
 
@@ -1851,3 +1898,46 @@ for post in api_posts:
 **INCLUDE/EXCLUDE 条件の記録**：フィルタ条件を module docstring に記録し、将来のメンテナンスで意図を失わないようにする。
 
 Reference incident: 2026-05-14 — `snet_taiwan.py` で 66 投稿 → 5 件（シンポジウム・ツアー募集・コンテスト）に絞り込み（commit `64034ec`）。
+
+---
+
+## teket.jp プラットフォーム — グループ別イベント列挙
+
+teket.jp は日本の電子チケット販売プラットフォーム。URL 構造: `https://teket.jp/{group_id}/{event_id}`。
+
+### グループ別イベント列挙
+
+- **`/api/events?group_id={id}` は使用不可**: group_id パラメータが無視され、全プラットフォーム (34,000+件) を返す。
+- **唯一の有効手段**: `https://teket.jp/sitemap.xml` に `/{group_id}/{event_id}` 形式で全イベント URL が列挙されている。
+
+```python
+# ⚠ timeout=30 必須 — teket.jp sitemap は大容量 (34k+ URL) で 15〜20s かかる
+r = requests.get("https://teket.jp/sitemap.xml", headers=_HEADERS, timeout=30)
+ids = re.findall(r'https://teket\.jp/1841/(\d+)', r.text)
+candidate_ids = sorted(ids, key=int, reverse=True)[:30]  # 最新 30 件
+```
+
+### イベントページ — データ取得元
+
+| フィールド | 取得元 | 注意 |
+|-----------|--------|------|
+| `raw_title` | JSON-LD `name` | — |
+| `start_date`/`end_date` | JSON-LD `startDate`/`endDate` | `YYYY/MM/DD HH:MM +09:00` → **date 部分のみ** → UTC midnight |
+| `location_name` | page title `\| venue` サフィックス | JSON-LD `location.name` は常に `その他のホール`（無効）|
+| `location_address` | OG description `[venue_name address][日時]` ブラケット内 | — |
+| `image_url` | JSON-LD `image` | 相対パスは `https://teket.jp` を prepend |
+| `raw_description` | full page text (script/style 除去後) | JSON-LD `description` はフェスタ名のみ（使用不可）|
+
+### 台湾フィルタは full page text で適用
+
+JSON-LD `description` は短すぎる（例: `爆音映画祭2026 in 松本`）。full page text には `2021年｜台湾｜カラー`・`台湾映画社` などが含まれる。
+
+```python
+for tag in soup(['script', 'style']):
+    tag.decompose()
+full_text = soup.get_text(' ', strip=True)
+if not any(kw in full_text for kw in ('台湾', '台灣')):
+    return None  # 台湾無関係 → スキップ
+```
+
+Reference incident: 2026-05-15 — `matsumoto_cinema_select.py`（teket.jp group_id=1841 ＮＰＯ松本シネマセレクト）。
