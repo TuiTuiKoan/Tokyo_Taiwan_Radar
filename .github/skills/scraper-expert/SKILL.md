@@ -424,14 +424,14 @@ business_hours = "\n".join(
 | shin_bungeiza | 2 | ✅ h2 dates max | ✅ schedule-program | 完全準拠 |
 | starcat_cinema | 1 | ✅ 木曜末日 | ✅ starcat-ticket.com | 完全準拠 |
 | rightscube | 2 | ✅ THEATER区段 | ✅ business_hours_text | 完全準拠 |
-| ks_cinema | 2 | ✅ 表格期間 | ❌ None | 要対応 |
-| kino_shinsaibashi | 3 | ✅ 終映日 | ❌ None | 要対応 |
+| ks_cinema | 2 | ✅ 表格期間 | ✅ schedule_text (commit `23e417f`) | 完全準拠 |
+| kino_shinsaibashi | 3 | ✅ 終映日 | ❌ None（JS 驅動，Type 3 可） | 完全準拠（`film_screening` + prefix, commit `544bbc4`） |
 | kyoto_cinema | 3 | ✅ 終映日M/D | ❌ None | 要対応 |
 | cineswitch_ginza | 3 | ✅ M/D まで | ❌ None | 要対応 |
 | theater_enya | 3 | ✅ 期間文字 | ❌ None | 要対応 |
 | cinewind | 3 | ✅ YYYY/M/D | ❌ None | 要対応 |
 | ciema | 2/3 | ✅ 週表頭 | ❌ None | 要対応 |
-| cinemadict | 2 | ✅ 完整期間 | ❌ None | 要対応 |
+| cinemadict | 2 | ✅ 完整期間（UTC fix） | ✅ date_text HH:MM（commit `544bbc4`） | 完全準拠 |
 | ycam_cinema | 2 | ✅ 節目期間 | ❌ None | 要対応 |
 | sakurazaka | 3 | ✅ 上映中/予定 | ❌ None | 要対応 |
 | ciemarine | 3 | ✅ h2 範囲 | ❌ None | 要対応 |
