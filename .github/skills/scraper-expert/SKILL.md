@@ -1150,6 +1150,8 @@ print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
 
 ### Taiwan Keyword Filter
 - auto_generate specs for keyword-search sources (e.g. TIFF `?s=台湾`) may return non-Taiwan results. Always add a `_TAIWAN_KW` client-side filter in the generated scraper during promotion review.
+- **keyword= URL パラメータはサーバー側でフィルタされないサイトがある**（例: bookandbeer）。dry-run で台湾キーワードが実際にヒットするか確認。ヒット率 0% の場合はクライアント側フィルタの実装が必要。
+- **書店・著者イベントの false positive**：著者の所属欄に「台湾大学」「淡江大学」等が含まれる場合、台湾キーワードが著者略歴から来ている可能性がある。`_AUTHOR_BIO_RE` パターン（大学名）を除去してから再判定する 3 段階フィルタが有効：①タイトルに台湾キーワード → 即通過、②説明冒頭 500 字に 2 件以上 → 著者略歴パターン除去後に再判定、③除去後にキーワードなし → 除外。
 
 ## Annotator CLI — `--id` 強制重新標注
 
