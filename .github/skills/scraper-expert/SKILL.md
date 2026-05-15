@@ -408,6 +408,22 @@ business_hours = "\n".join(
 2. **空文字列 `business_hours = ""` 禁止**: 場次が取得できない場合は `None` を設定。空文字列は DB に不要なデータを残す。
 3. **推測による `end_date` 禁止**: 「通常2〜3週間上映」などの仮定で `end_date` を算出してはいけない。ソースから取得できない場合は `None`。
 4. **視覚上に場次時間があるのに `business_hours = None` は scraper bug**: サイトを目視確認して時刻要素のセレクタを追加すること。
+5. **`event_form=["film_screening"]` 必須**: 全 cinema scraper は `event_form=["film_screening"]` を設定すること。`"screening"` は無効値 — DB check constraint エラーを引き起こす。（Incident: `kyoto_cinema`・`sakurazaka`・`kino_shinsaibashi`, commit `e91f5cd`）
+
+### JST ISO datetime パース規則
+
+一部 CMS（TTCG など）は `data-date="2026-05-15T00:00:00+09:00"` のような JST-aware ISO 文字列を出力する。**`.replace("+09:00", "")` パターンは禁止** — JST offset を除去しても naive datetime が生成されるだけで UTC 変換にならない。
+
+```python
+# ✅ 正確：JST-aware parse → UTC midnight
+dt_jst = datetime.fromisoformat(data_date)  # 2026-05-15 00:00:00+09:00
+start_date = datetime(dt_jst.year, dt_jst.month, dt_jst.day, tzinfo=timezone.utc)
+
+# ❌ 誤り：offset を strip した naive datetime になる
+start_date = datetime.fromisoformat(data_date.replace("+09:00", ""))
+```
+
+Incident: `human_trust_cinema` commit `7849021`。
 
 ### Annotator SINGLE-DAY RULE 防護
 
@@ -415,6 +431,15 @@ business_hours = "\n".join(
 
 - `raw_description` の前綴に**必ず上映期間全体**を記載する: `上映期間: YYYY年M月D日〜YYYY年M月D日`
 - Type 1 scraper で `end_date` が取得できた場合は前綴を期間表示に置き換える（単日 `より公開` 記述のまま放置しない）
+- **Type 3 で `end_date` が取得不可の場合は date prefix を入れない**: サイトに end_date 情報がない場合に `"上映開始: YYYY年M月D日"` を入れると SINGLE-DAY RULE が発動し `end_date=start_date` に上書きされる。`start_date` はフィールドに正しく格納済みなので raw_description に繰り返す必要はない。（Incident: `human_trust_cinema` commit `7849021`）
+
+### 稽核表 ghost エントリ防止
+
+稽核表に新行を追加する前に、ファイルの実在を確認すること:
+```bash
+ls scraper/sources/<name>.py
+```
+不存在のファイルを稽核表に記載すると後続の修復作業で混乱を招く。（Incident: `ciemarine` 行 — ファイル不存在のまま記載されていたため削除）
 
 ### 現況稽核表（2026-05-15 時点）
 

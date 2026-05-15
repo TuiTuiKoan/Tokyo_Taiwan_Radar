@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-05-15 — Cinema scraper 全稽核修復シリーズ（13 scraper、4コミット）
+
+**問題**: Cinema scraper 稽核表の作成後、実際の修復作業を実施。13個の scraper が UTC datetime 未対応・`event_form` 未設定・SINGLE-DAY RULE 未防護のいずれか（または複数）の問題を抱えていた。
+
+**修復コミット**:
+- `23e417f`: ks_cinema — `business_hours` 提取追加
+- `544bbc4`: cinemadict UTC + business_hours / kino_shinsaibashi `film_screening` + prefix
+- `e91f5cd`: 9 scraper 一括 — event_form×2（`"screening"` → `"film_screening"`）、SINGLE-DAY RULE prefix×3、UTC×7
+- `7849021`: human_trust_cinema UTC + SINGLE-DAY RULE 防護 + event_form
+
+**発見した bug パターン**:
+1. **`event_form=["screening"]` 無効値**: `kyoto_cinema`・`sakurazaka`・`kino_shinsaibashi` が `"screening"` を使用。有効値は `"film_screening"`。DB check constraint エラーを引き起こす。
+2. **naive datetime（UTC 未設定）**: 7ファイルで `datetime(y, m, d)` が naive。一般規則はあったが cinema scraper では徹底されていなかった。
+3. **JST ISO datetime 誤変換**: `human_trust_cinema` が `.replace("+09:00", "")` で naive datetime を生成。正解: `datetime.fromisoformat(data_date)` → JST-aware → `datetime(y, m, d, tzinfo=timezone.utc)`。
+4. **Type 3 SINGLE-DAY RULE 誤発動**: `end_date=None`（サイト情報なし）のとき、`raw_description` に単日付 prefix を入れると annotator が `end_date=start_date` に設定する。Type 3 で end_date 取得不可の場合は date prefix を入れない。start_date はフィールドに格納済みなので raw_description に繰り返す必要はない。
+5. **稽核表の ghost エントリ**: `ciemarine` がファイル不存在なのに稽核表に記載されていた → 削除。
+
+**規則（→ SKILL.md § Cinema scraper 共通禁止事項に追加）**:
+- 全 cinema scraper は `event_form=["film_screening"]` 必須（`"screening"` は無効）
+- Type 3 で end_date 取得不可の場合、raw_description に単日付 prefix を入れない
+- JST ISO datetime: `.replace("+09:00", "")` パターン禁止 → fromisoformat + UTC midnight 変換
+- 稽核表に新行追加前に `ls scraper/sources/<name>.py` でファイル存在を確認する
+
+---
+
 ## 2026-05-15 — Cinema scraper `end_date` / `business_hours` 全体標準化（稽核表作成）
 
 **問題**: 18個の cinema scraper のうち完全準拠は3個のみ（cinemart_shinjuku, shin_bungeiza, starcat_cinema）。15個が `business_hours = None` で、1個（human_trust_cinema）は `end_date` も None。
