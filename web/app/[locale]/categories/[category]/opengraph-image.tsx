@@ -33,10 +33,10 @@ function bgTexture(kind: number, fg: string, angle: number) {
   const els: React.ReactNode[] = [];
 
   if (v === 0) {
-    const S = 225;
-    for (let row = -4; row <= 10; row++) {
+    const S = 384;
+    for (let row = -4; row <= 7; row++) {
       const ox = (row % 2 === 0) ? 0 : S / 2;
-      for (let col = -4; col <= 10; col++)
+      for (let col = -4; col <= 7; col++)
         els.push(<circle key={`${row},${col}`} cx={col * S + ox} cy={row * S} r={64} fill={fg} />);
     }
   } else if (v === 1) {
