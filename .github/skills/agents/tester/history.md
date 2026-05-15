@@ -3,6 +3,22 @@
 <!-- Append new entries at the top -->
 
 ---
+
+## 2026-05-15 — teket.jp sitemap timeout が 0件として現れる（ReadTimeout 静黙失敗）
+
+**問題：** `matsumoto_cinema_select` dry-run で 0件取得。エラーではなく WARNING のみで完了。
+
+**根因：** teket.jp の `sitemap.xml` が 34,000+ URL を含む大容量ファイルで、応答完了に 15〜20 秒かかる。`timeout=15` では `ReadTimeout` → `logger.warning` → `return []` で静黙 0件。
+
+**Tester 判断パターン:**
+- scraper が 0件 + WARNING のみ = timeout または filter が厳しすぎる
+- `curl -o /dev/null -s -w "%{time_total}\n" <URL>` でレスポンス時間を計測
+- `time_total > timeout` なら timeout 値を 2倍以上に増やす
+- `time_total < timeout` なら Taiwan filter logic を確認
+
+**修正:** `timeout=15` → `timeout=30` で再 dry-run → 3件取得 ✅
+
+---
 ## 2026-05-05 — LINE 廣播 dry-run 驗證應確認 pool 過濾效果
 
 ### 問題

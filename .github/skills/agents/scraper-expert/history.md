@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-15 — matsumoto_cinema_select.py 建立後未同步登錄 main.py（Promotion Checklist 遺漏）
+
+**問題：** `matsumoto_cinema_select.py` 建立並修正完畢，但 V-M-D 流程中 `git status` 顯示為 `??`（untracked），且 `scraper/main.py` 無對應 import 與 SCRAPERS 登錄。CI 無法執行此 scraper。
+
+**根因：** 實作 matsumoto_cinema_select 時，session 聚焦在修正 3 個 dry-run 錯誤（class 名稱、回傳值解包、非法欄位），修正後直接結束 session，未執行 Promotion Checklist Step 2（main.py 登錄）與 Step 5（Combined Post-Build Audit）。
+
+**修正：** V-M-D 流程中補齊 `scraper/main.py` import + `SCRAPERS` 登錄，確認 SCRAPERS audit ALL CLEAR 後一起 commit。
+
+**教訓：**
+- **Scraper 實作 session 結束前，必須確認 `git status` 中 `scraper/sources/` 無 `??` 未 tracked 檔案。** 若有，代表 Promotion Checklist 未完成。
+- **`main.py` 登錄要和 scraper 檔案在同一個 commit**。分開 commit 會造成 CI 執行期間 import error。
+- **每次 debug 循環（fix → dry-run）結束後，立即跑 SCRAPERS audit 確認登錄狀態**，不要等到 V-M-D 才發現。
+
+---
+
 ## 2026-05-15 — starcat_cinema end_date 被 annotator SINGLE-DAY RULE 覆寫
 
 **問題：** `starcat_cinema` 事件的 `end_date` 設為每週排片最後一天（木曜），但 annotator SINGLE-DAY RULE 將其覆寫為 `start_date`，導致存檔時所有事件都變成「單日活動」。
@@ -26,7 +41,7 @@
 
 ---
 
-## 2026-05-15 — starcat_cinema business_hours 場次資訊需從 starcat-ticket.com 抓取
+## 2026-05-15 — matsumoto_cinema_select (teket.jp) 初回 dry-run 0 件 — sitemap timeout
 
 **問題：** `matsumoto_cinema_select.py` の初回 dry-run で 0 件取得。サイトマップ fetch で `ReadTimeout` 発生。
 
