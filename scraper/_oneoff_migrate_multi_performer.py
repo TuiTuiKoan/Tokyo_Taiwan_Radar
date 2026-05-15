@@ -39,6 +39,8 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
 _SEP_RE = re.compile(r"[、,，×／/]")
+# Role/honorific suffixes to strip from each individual name after splitting
+_ROLE_SUFFIX_RE = re.compile(r"[（(](?:監督|主演|出演|演出|脚本|製作|ゲスト|ナレーター|MC|司会|プロデューサー|ディレクター)[)）]")
 
 MAX_SAFE = 20  # Pause threshold — require --force if count exceeds this
 
@@ -54,9 +56,20 @@ def _supabase_client():
 
 
 def _split_performer(raw: str) -> list[str]:
-    """Split a multi-value performer string into individual names."""
+    """Split a multi-value performer string into individual names.
+    Also strips role/honorific suffixes like （監督）（主演）etc from each name.
+    """
     parts = [p.strip() for p in _SEP_RE.split(raw) if p.strip()]
-    return list(dict.fromkeys(parts))  # dedup, preserve order
+    # Remove role suffixes and re-strip whitespace
+    cleaned = [_ROLE_SUFFIX_RE.sub("", p).strip() for p in parts]
+    # Filter empty strings and deduplicate preserving order
+    seen: set[str] = set()
+    result = []
+    for p in cleaned:
+        if p and p not in seen:
+            seen.add(p)
+            result.append(p)
+    return result
 
 
 def main() -> None:
