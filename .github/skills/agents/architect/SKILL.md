@@ -1502,7 +1502,18 @@ Reference incidents:
 - 2026-05-04 `878660a0 iwafu` — `流山おおたかの森S.C. 森のまち広場` scraper 直接設 `location_address = place_val`（venue name），導致 annotator 的 PARENT VENUE ADDRESS RULE 完全無效。修復：`iwafu.py` 改為 `_ADDR_RE` 抽取真實地址，找不到設 `None`。
 - 2026-05-04 hakusuisha — annotator SYSTEM_PROMPT 加入 PARENT VENUE ADDRESS RULE，`auto_qa_address_is_venue_name` 偵測器加入 auto_qa.py。
 
-## Contentful Placeholder Date Guard
+## Scraper Address Regex Prefecture-Optional Guard
+
+在審核任何 scraper 的 `_ADDR_RE`（或類似地址抽取 regex）定義前，**必須**確認：
+
+1. **都道府県プレフィックスは `(?:...)?` 省略可能にする**：`東京都|...府|...県` を必須にすると、`港区芝公園3-2`（プレフィックスなし）のように公式サイトが都道府県を省略した住所がサイレントに `None` になる。
+2. **`[市区町村]` を必須アンカーとして設ける**：prefecture optional にする代わりに `[^\s]{1,4}[市区町村]` を必須にすることで false positive を防ぐ。
+3. **公式サイトの `body_text` を住所フォールバックとして活用する**：公式サイトを fetch する scraper では、`_ADDR_RE` を `main_text` に適用して失敗した場合、公式サイト `body_text` にも適用する。helper 関数は `body_text` を戻り値に含めること（iwafu は `_fetch_official_organizer_info` を 3-tuple 化済み）。
+4. **サイレント失敗の識別**：`location_address = None` かつ `location_prefectures = None` のまま入庫 → annotator が正しく推定できず、Vercel 地図リンクも生成されない。CI では気づきにくい。
+
+Reference incident: 2026-05-15 — 屋台湾フェス2026 `iwafu_1137442`、`location_address=None` / `location_prefectures=None`。根因は `_ADDR_RE` の都道府県必須プレフィックスと `official_body_text` の未活用（commit 修正済み）。
+
+
 
 在審核任何使用 Contentful CDA API 的 scraper 前，**必須**確認：
 

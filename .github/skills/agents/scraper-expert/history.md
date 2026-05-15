@@ -4,6 +4,50 @@
 
 ---
 
+## 2026-05-15 — asahiculture オンライン受講コースに物理住所が入る
+
+**問題：** `台湾映画最前線2026（オンライン受講）` (d617e8c4) の `location_name = 川西教室`、`location_address = 〒666-0033 川西市栄町25-1 アステ川西3階` — 物理住所が FC ロックされていた。
+
+**根因：** `scrape_card()` 内の location 解決ロジックが `CLASSROOM_ADDRESS_MAP.get(location_name)` で川西教室の住所を補填。raw_title に「（オンライン受講）」と明記されているが、スクレイパーがそれを見ていなかった。
+
+**修正：**
+- `asahiculture.py` scrape_card() に「オンライン」検出を追加：
+  ```python
+  _is_online = "オンライン" in raw_title or "オンライン" in (detail["location_name"] or "")
+  if _is_online:
+      location_name, location_address = "オンライン", None
+  else:
+      location_name = detail["location_name"] or card_branch
+      location_address = detail["location_address"] or CLASSROOM_ADDRESS_MAP.get(location_name)
+  ```
+- DB: `location_name='オンライン'`, `location_address=None`, `location_name_zh='線上'`, `location_name_en='Online'`, `location_prefectures=None` に更新。
+- FC: 旧 `location_address` FC を削除し、5 フィールド全て FC ロック。
+
+**教訓：** **課程タイトルに「オンライン」が含まれる場合、物理的な教室情報より title が優先される。** 教室名・住所 MAP の前に title による `_is_online` チェックを挟むこと。この pattern は他の多教室型カルチャースクール scraper（shinjuku 系、hankyu 系など）にも適用可能。
+
+---
+
+## 2026-05-15 — iwafu.py `location_address` が取れない（公式サイト body_text 未活用）
+
+**問題：** `屋台湾フェス2026 in 芝公園` (iwafu_1137442) の `location_address`・`location_prefectures` が共に `None` のまま入庫。DB に手動で `東京都港区芝公園3-2` を設定 + FC ロック済み。
+
+**根因（3層）：**
+1. **`_ADDR_RE` が都道府県プレフィックス必須** — iwafu ページの `場所：都立芝公園4号地（御成門駅前広場）` には住所がなく、公式サイトには `港区芝公園3-2`（`東京都` なし）があったが regex が不一致。
+2. **公式サイトは既に fetch 済み**（`_fetch_official_organizer_info`）だが、`body_text` を返さずローカル変数で捨てていた。
+3. **`_fetch_official_organizer_info` の戻り値が `(organizer, supplemental)` の 2-tuple** だったため、住所フォールバックとして再利用できなかった。
+
+**修正（`scraper/sources/iwafu.py`）：**
+- `_ADDR_RE`：都道府県プレフィックスを `(?:...)?`（省略可能）に変更、代わりに `[市区町村]` を必須アンカーに追加 → `港区芝公園3-2` がマッチするようになる。
+- `_fetch_official_organizer_info`：戻り値を `(organizer, supplemental, body_text)` の 3-tuple に変更（全 return 箇所修正）。
+- `_scrape_detail`：`place_m` マッチ後、`main_text` で住所が取れない場合に `official_body_text` をフォールバック検索するよう追加。
+
+**教訓：**
+- **公式サイトを fetch する scraper は、住所抽出のフォールバックとして `body_text` を保持すること。** iwafu 形式のイベントは公式サイトの方が詳細な住所を持つ場合が多い。
+- **`_ADDR_RE` に都道府県のない住所（`港区...`、`中央区...`）が入ることは正常。** プレフィックスは省略可能にし、`[市区町村]` を必須アンカーとする。
+- **正規表現の「必須プレフィックス」はサイレントミスの温床。** マッチしなくても例外を投げず `None` が入るだけなので、CI では気づきにくい。
+
+---
+
 ## 2026-05-15 — matsumoto_cinema_select.py 建立後未同步登錄 main.py（Promotion Checklist 遺漏）
 
 **問題：** `matsumoto_cinema_select.py` 建立並修正完畢，但 V-M-D 流程中 `git status` 顯示為 `??`（untracked），且 `scraper/main.py` 無對應 import 與 SCRAPERS 登錄。CI 無法執行此 scraper。

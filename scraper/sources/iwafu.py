@@ -390,9 +390,10 @@ class IwafuScraper(BaseScraper):
         # that is essential for correct annotation.
         official_organizer: Optional[str] = None
         official_credits_text: str = ""
+        official_body_text: str = ""
         if official_url:
-            official_organizer, official_credits_text = _fetch_official_organizer_info(
-                page, official_url
+            official_organizer, official_credits_text, official_body_text = (
+                _fetch_official_organizer_info(page, official_url)
             )
 
         # Strip iwafu page UI noise (Q&A, PR ads, nearby events, map, tags)
@@ -437,7 +438,8 @@ class IwafuScraper(BaseScraper):
         #   Never echo the venue name as the address (violates Sub-Venue Parent Address Rule).
         _ADDR_RE = re.compile(
             r'(?:〒\d{3}-\d{4}\s*\n?\s*)?'
-            r'(?:東京都|北海道|(?:大阪|京都)府|.{2,5}県)'
+            r'(?:(?:東京都|北海道|(?:大阪|京都)府|.{2,5}[都道府県])\s*)?'  # optional prefecture
+            r'(?:[^\s（(]{1,4}[市区町村])'                               # required city/ward
             r'.{1,30}?[0-9０-９]+(?:[-ー―][0-9０-９]+)+'
         )
         place_m = re.search(
@@ -446,8 +448,10 @@ class IwafuScraper(BaseScraper):
         if place_m:
             place_val = place_m.group(1).strip()
             location_name = place_val
-            # Try to find a real address in surrounding text (not the venue name itself)
+            # Try address in iwafu text first, then fall back to official site text
             addr_m = _ADDR_RE.search(main_text)
+            if addr_m is None and official_body_text:
+                addr_m = _ADDR_RE.search(official_body_text)
             if addr_m:
                 candidate = addr_m.group(0).strip()
                 location_address = candidate if candidate != place_val else None
@@ -531,23 +535,24 @@ def _fetch_official_organizer_info(
     in their footer or overview table.
 
     Returns:
-        (organizer, supplemental_text)
+        (organizer, supplemental_text, body_text)
         - organizer: first 主催 value found, or None
         - supplemental_text: formatted credit lines for appending to raw_description
+        - body_text: full body text of the official site (for address fallback)
     """
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=20_000)
     except Exception as exc:
         logger.warning("iwafu: official site fetch failed (%s): %s", url, exc)
-        return None, ""
+        return None, "", ""
 
     try:
         body_text = page.inner_text("body")
     except Exception:
-        return None, ""
+        return None, "", ""
 
     if not body_text:
-        return None, ""
+        return None, "", ""
 
     pairs: list[tuple[str, str]] = []
     for m in _OFFICIAL_CREDIT_PAIR_RE.finditer(body_text):
@@ -559,9 +564,9 @@ def _fetch_official_organizer_info(
 
     if not pairs:
         logger.debug("iwafu: no credit pairs found at %s", url)
-        return None, ""
+        return None, "", body_text
 
     organizer = next((v for lbl, v in pairs if lbl == "主催"), None)
     supplemental = "\n".join(f"{lbl}：{v}" for lbl, v in pairs)
     logger.info("iwafu: official site credits from %s → organizer=%s", url, organizer)
-    return organizer, supplemental
+    return organizer, supplemental, body_text
