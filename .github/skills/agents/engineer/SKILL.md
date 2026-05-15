@@ -25,123 +25,11 @@ Same rule applies to ALL agent skills:
 
 Writing to a top-level `skills/<name>/` path recreates deleted directories. Always use `skills/agents/<name>/`.
 
-## Supabase Auth — Route Handler Cookie Store Rule
-
-在 Next.js Route Handler 中做 OAuth code exchange（`exchangeCodeForSession`）時，**必須**使用 response-bound cookie store：
-
-```ts
-// ✅ 正確 — setAll 寫到 NextResponse 物件
-const successRedirect = NextResponse.redirect(`${origin}${next}`);
-const supabase = createServerClient(url, key, {
-  cookies: {
-    getAll() { return request.cookies.getAll(); },
-    setAll(cookiesToSet) {
-      cookiesToSet.forEach(({ name, value, options }) =>
-        successRedirect.cookies.set(name, value, options)  // ← 綁到 redirect response
-      );
-    },
-  },
-});
-const { error } = await supabase.auth.exchangeCodeForSession(code);
-return successRedirect;
-
-// ❌ 錯誤 — @/lib/supabase/server 的 setAll 寫到 next/headers cookieStore
-// next/headers cookies 不會自動合併進獨立建立的 NextResponse 物件
-const supabase = await createClient();  // ← 使用 @/lib/supabase/server
-const { error } = await supabase.auth.exchangeCodeForSession(code);
-return NextResponse.redirect(`${origin}${next}`);  // ← 此 response 沒有 auth cookies
-```
-
-**規則：**
-- `@/lib/supabase/server` 的 `setAll` 只適合 Server Component / server action（Next.js 自動把 `next/headers` cookies 附加到 response）。
-- Route Handler 若自行建立 `NextResponse`，必須在 `createServerClient` 的 `setAll` 中明確寫到該 response 物件。
-- `auth/callback/route.ts` 必須加 `export const dynamic = "force-dynamic"` 防止靜態化。
-
-**Incident:** 2026-05-15 — `web/app/auth/callback/route.ts` 改為 response-bound cookie store 後，部署環境 OAuth 登入的 session 持久化問題解決（commit `ae9dc77`）。
-
-## Navbar 登入/Admin 狀態 — 唯一來源規則
-
-Navbar 的 `user` 與 `isAdmin` 狀態**必須**以 `/api/me`（`cache: "no-store"`）為唯一來源：
-
-```ts
-// ✅ 正確 — server 端 /api/me 是 ground truth
-async function loadMe() {
-  const res = await fetch("/api/me", { cache: "no-store" });
-  const data = await res.json();
-  setIsAdmin(Boolean(data?.isAdmin));
-  setUser(data?.user ?? null);
-}
-// onAuthStateChange 只觸發 loadMe()，不直接 setUser
-supabase.auth.onAuthStateChange(() => { void loadMe(); });
-
-// ❌ 錯誤 — 直接使用 browser client，可能與 server 判斷不一致
-supabase.auth.getUser().then(({ data }) => setUser(data.user));
-fetch("/api/me").then(...);  // 兩個獨立 effect，競態問題
-```
-
-**Incident:** 2026-05-15 — Navbar 原本分兩個 `useEffect` 分別處理 user 與 isAdmin，合併為單一 `loadMe()` 後狀態同步問題消失（commit `ae9dc77`）。
-
-## Admin Server Prop Pattern — ISR 頁面 admin 判斷規則
-
-在 ISR 或 Server Component 頁面中，**admin 判斷必須在 server 層預計算後以 prop 下傳**：
-
-```ts
-// ✅ 正確 — page.tsx (server component) 計算後傳入
-const isAdmin = await computeIsAdmin(supabase);
-return <AdminEventActions isAdmin={isAdmin} />;
-
-// ✅ AdminEventActions — prop 優先，undefined 時 fallback
-const [isAdmin, setIsAdmin] = useState(Boolean(isAdminProp));
-useEffect(() => {
-  if (typeof isAdminProp === "boolean") return;  // server prop 已提供，跳過
-  checkAdmin();  // 只在 prop 缺失時才 client-side 查詢
-}, [isAdminProp]);
-
-// ❌ 錯誤 — 完全依賴 client-side useEffect
-// ISR 命中時 useEffect 在 mount 前不執行 → isAdmin 永遠是 false → 控制項不渲染
-```
-
-**Incident:** 2026-05-15 — 活動詳情頁 admin 控制項消失，因 ISR 快取命中時 client useEffect 未及時執行（commit `4aa84ba`）。
-
 ## Workflow Automation Guardrails
 
 - For alert-driven automation, split into two stages: `triage` first, `auto-fix` second. Never mix high-risk remediation into the triage stage.
 - Keep high-risk classes (for example selector drift or source-structure breakage) in human-review only paths; safe auto-fix should only touch deterministic transforms.
 - Every LINE alert message must include a direct next action (exact workflow name + trigger mode). A warning without CTA is operational noise.
-
-## GitHub Actions Scheduled Workflow 可靠性 — 雙 cron Fallback 規則
-
-GitHub Actions scheduled cron **不保證準時觸發**，low-activity repo 下排程可能延遲數小時甚至整天跳過。
-
-**規則：**
-1. 關鍵業務 cron（LINE 廣播、報告、財務週期等）**必須**設「主排程 + 次日 fallback」雙 cron。
-2. Python/腳本端**必須**實作冪等查詢（如 `WHERE published_at IS NULL`），防止 fallback cron 重複執行。
-3. `if:` 條件要同時匹配兩個 schedule：
-   ```yaml
-   if: >-
-     (github.event_name == 'schedule' &&
-      (github.event.schedule == '主 cron' || github.event.schedule == 'fallback cron')) ||
-     github.event.inputs.action == 'target-action'
-   ```
-
-**範例：**
-```yaml
-# ❌ 單一 cron — 一次跳過即停止
-- cron: "0 3 * * 5"  # 週五 12:00 JST
-
-# ✅ 雙 cron — 週五主送，週六 fallback
-- cron: "0 3 * * 5"  # 週五 12:00 JST（主送）
-- cron: "0 3 * * 6"  # 週六 12:00 JST（fallback，Python 冪等查詢自動跳過已發草稿）
-```
-
-**Incident:** 2026-05-15 — `weekly-broadcast.yml` 週五 cron 未觸發，`weekly-2026-05-15` 草稿停在 `published_at: null`；補加週六 fallback 後解決（commit `91696a0`）。
-
-
-
-- Before any validate/merge/deploy flow, run `git status --short` first.
-- If the worktree is dirty with unrelated files, stop and ask for explicit commit scope selection before `fetch/rebase/commit/push`.
-- Keep the scope options binary and explicit: ship only the current fix, or ship all pending changes.
-- Re-check staged content with `git diff --cached --name-only` right before commit to ensure no unrelated files were accidentally included.
 
 ## Agent Handoff Reliability
 
@@ -150,189 +38,13 @@ GitHub Actions scheduled cron **不保證準時觸發**，low-activity repo 下�
 - Pre-ship check for agent changes: verify target agent names resolve correctly and at least one post-task handoff exists for the expected next action.
 - **Every new agent file must include `handoffs:` at creation time.** An agent with no handoffs leaves users stranded after task completion.
 
-## Feature Removal Completeness
-
-- When decommissioning a frontend feature, remove all three layers in one patch: caller usage, component API/implementation, and global style hooks/selectors.
-- For prop-driven visual effects, run a post-change grep for both the prop name and effect-specific class/selectors to ensure no dormant re-enable path remains.
-
 ## CSS Selector Specificity Pitfalls
 
 - `[attr='x'].class` = same element (no space). `[attr='x'] .class` = descendant combinator (space = different element).
 - When combining an attribute selector with a class on the **same element** (e.g., `data-preserve-theme` and `group` on the same `<Link>`), never insert a space between them.
 - For theme-exception rules like `[data-preserve-theme='light'].group:hover h2`, verify: (1) the attribute and the class are on the same DOM element, (2) combined specificity beats any competing rule, (3) use `getComputedStyle` via Playwright to confirm hover color changes.
 
-## TypeScript `void` Operator Pitfall (TS2873)
-
-`void expr` evaluates `expr` and returns `undefined`. Placing `void` before a ternary **condition** makes the condition permanently falsy:
-
-```ts
-// ❌ TS2873: 'void event' is always falsy — ternary never takes true branch
-void event ? getEventName(event, locale) : undefined;
-
-// ✅ If you want to call for side effect only:
-getEventName(event, locale);   // or just delete the line if unused
-
-// ✅ If you want to suppress an unused variable warning:
-const _name = getEventName(event, locale);
-```
-
-**Rule:** When removing a feature that used an import, **always remove the import too**. Unused imports: (1) increase bundle size, (2) may trigger TS "unused variable" warnings in strict mode, (3) silently mislead future readers into thinking the symbol is used.
-
-**Incident:** 2026-05-14 — `opengraph-image.tsx` punk Bauhaus redesign removed title rendering but left `void event ? getEventName(...) : undefined` as dead code. TS2873 caught it at compile time (commit `4d8b873`).
-
-## React Purity Rule for IDs
-
-- Never call `Math.random()` or `Date.now()` inside React component render to generate DOM/SVG IDs.
-- Use `useId()` for stable IDs used by `<defs>`, gradients, masks, and `url(#id)` references.
-- If lint reports `react-hooks/purity` on ID generation, replace impure calls with `useId()` before continuing.
-
-**Incident:** 2026-05-14 — `MascotAvatar.tsx` signal animation initially used `Math.random()` for SVG IDs and failed lint. Replaced with `useId()` for both inline and framed variants.
-
-## SVG CSS Animation FOUC — 元素初始 opacity 必須在 SVG/CSS 屬性層設為 0
-
-CSS animation 在瀏覽器第一幀 paint 前尚未啟動，元素以**CSS element-rule / SVG 屬性的 baseline 值**渲染一幀（Flash Of Unstyled Content）。
-
-**規則：**
-1. 任何以 CSS `opacity` keyframe 控制顯示隱藏的 SVG 元素，必須在 SVG 屬性層加 `opacity="0"` **或**在 CSS element rule 加 `opacity: 0`，確保動畫前不閃爍。
-2. SVG 元素改用 `fill=url(#gradient)` 時，若舊版有 `fill="none"`，FOUC 影響從「無色」變成「有色」，必須同步補 `opacity="0"` 基底。
-3. `overflow="visible"` 的 SVG 內，FOUC 期的元素以其 DOM 基底座標（`cx/cy`）顯示，可能出現在 SVG bounding box 之外的頁面區域，造成「奇怪白球」或色塊。
-
-**修法範本：**
-```tsx
-{/* ❌ 錯誤 — CSS animation 前會短暫以 opacity=1 顯示 */}
-<circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill="url(#grad)" />
-
-{/* ✅ 正確 — SVG attr 設 opacity=0，CSS animation 接管後才顯示 */}
-<circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill="url(#grad)" opacity={0} />
-```
-
-```css
-/* ❌ 錯誤 — opacity: 1 在動畫前仍生效 */
-[data-antenna-flow="on"] .lianbu-antenna-flow-line { opacity: 1; animation: ... }
-
-/* ✅ 正確 — opacity: 0，動畫 keyframe 控制可見度 */
-[data-antenna-flow="on"] .lianbu-antenna-flow-line { opacity: 0; animation: ... }
-```
-
-**Incident:** 2026-05-15 — `MascotAvatar.tsx` 天線流光動畫新增 `radialGradient` fill 後，首頁重整時在左上（tip-ring 梯度）與左下（flow-dot 白圓圈基底 cx=100,cy=80）各出現一幀白光球，根因為兩元素缺少 `opacity="0"` 初始值。
-
-## Report submit UX 規則（避免「按了沒反應」）
-
-針對 `web/components/ReportSection.tsx`（或任何 client-side 回報/表單送出元件）：
-
-1. submit handler 必須用 `try/catch` 包住整段 async 寫入邏輯；任何例外都要落到可視 `error` 狀態。
-2. 送出中狀態不可只顯示符號（例如 `…`），必須顯示具語意文案（如 `送信中…` / `Sending...` / `送出中…`）。
-3. 互動按鈕需明確 `type="button"`，避免預設 submit 行為在容器結構調整後引入隱性問題。
-4. 送出按鈕在 loading 期間應具 `aria-busy` 或同等可及性狀態。
-
-**Incident:** 2026-05-15 — 使用者回報「送信點都沒反應」。實際 insert 可成功，但因 loading/錯誤回饋過弱而被感知為 no-op；補齊語意化 loading + try/catch + button type 後恢復可感知互動。
-
-## Tailwind v4 `@theme` 靜態解析 — `bg-paper` vs `bg-[#FFFDF5]`
-
-Tailwind v4 的 `@theme` block 在 **build time** 靜態解析所有 CSS 變數。這代表：
-
-```css
-/* globals.css */
-@theme { --color-paper: #FFFDF5; }   /* ← build time 凍結為常數 */
-```
-
-`bg-paper` 在編譯後變成靜態的 `background-color: #FFFDF5`，與 runtime 的 CSS 變數切換**完全無關**。即使 `:root.dark { --color-paper: #262422 }` 存在，`bg-paper` 在 dark mode 下永遠是亮色。
-
-**正確的 paper 背景 dark mode 寫法：**
-
-```tsx
-// ✅ 正確 — globals.css line 378 的 html.dark override 在 runtime 切換
-<div className="bg-[#FFFDF5]">...</div>
-// globals.css: html.dark .bg-\[\#FFFDF5\] { background-color: var(--color-paper); }
-
-// ❌ 錯誤 — @theme 靜態解析，dark mode 無效
-<div className="bg-paper dark:bg-paper">...</div>
-```
-
-**為何 `dark:bg-paper` 不管用：**
-- `dark:bg-paper` 生成 `.dark\:bg-paper { background-color: var(--color-paper) }` → 這個能用 CSS variable ✓
-- 但 `bg-paper`（沒有 `dark:` 前綴）生成靜態值 → dark mode 下它覆蓋了 `dark:bg-paper` 的結果 ✗
-
-**設計 token 參考（paper 相關）：**
-| 用途 | 正確寫法 | 錯誤寫法 |
-|------|---------|---------|
-| Paper 背景（支援 dark mode） | `bg-[#FFFDF5]` | `bg-paper` |
-| Matcha hover（支援 dark mode via `dark:hover:`） | `hover:bg-[#F7FFE8]` | N/A |
-| Forest green text | `text-[#1F5E2B]` | N/A |
-
-**Incident:** 2026-05-14 — `CARD_LINK` 在 dark mode 下顯示白色背景。`bg-paper dark:bg-paper` → `bg-[#FFFDF5]` 後修復（commit `a2b558c`）。
-
-## Admin 頁面「壞掉了」診斷流程
-
-當用戶回報「後台壞掉了」時，按以下順序排查（優先順序高→低）：
-
-1. **`curl` 307 ≠ 壞掉**：`curl -sI https://tokyotaiwanradar.com/[locale]/admin/...` 回傳 `307 → /auth/login` 是**認證保護正常運作**；未登入時必然如此，不代表頁面有問題。
-
-2. **Vercel build 是否成功**：`pnpm run build`（在 `web/` 目錄）。TS error（含 `opengraph-image.tsx` 等 Edge runtime route）會讓整個 build 失敗，Vercel 保留舊版本，**表現為所有頁面都「沒更新」**。
-
-3. **近期 commit 有無 TS error**：`git log --oneline -5 -- web/` 找最近改動，用 `tsc --noEmit` 驗證。Edge runtime route 的 TS error 不一定被 IDE 即時顯示，`pnpm run build` 才是最終判斷。
-
-4. **Production 非 admin 頁面 HTTP 200**：`curl -sI https://tokyotaiwanradar.com/zh` → 200 代表新版已成功部署，admin 的 307 純屬正常 auth redirect。
-
-**Incident 參考：** 2026-05-14 — `171bea4` 的 TS2873 (`void event ? ...`) 讓 Vercel build 失敗；`4d8b873` 修正後 admin 正常。307 redirect 是誤導性診斷訊號。(history.md 條目：「後台壞掉了」診斷）
-
-## CI Smoke Test — Next.js Dev Server 環境配置
-
-`web-darkmode-smoke` workflow 的 "Start Next.js app" 步驟**必須**包含：
-
-```yaml
-- name: Generate specs snapshot
-  working-directory: web
-  run: pnpm run build-specs-snapshot
-
-- name: Start Next.js app
-  working-directory: web
-  env:
-    NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_KEY }}
-  run: |
-    pnpm dev --hostname 127.0.0.1 --port 3000 > /tmp/web-darkmode-smoke-next.log 2>&1 &
-    echo $! > /tmp/web-darkmode-smoke-next.pid
-```
-
-**原因：**
-- `pnpm dev`（Turbopack）**不**觸發 `prebuild` hook，`specs-snapshot.json` 不會自動產生。若 `/admin/specs` 等路由被 import 到會首先編譯的模組，Next.js 啟動時即 500。
-- `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY` 若未設，`createServerClient(undefined, undefined, ...)` 在第一個頁面請求（`/zh`）拋出 → 500。
-- Repo secret 對應：`SUPABASE_URL` → `NEXT_PUBLIC_SUPABASE_URL`，`SUPABASE_KEY` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`。
-
-**診斷 health check 500 時：**
-在健康檢查失敗後加 `cat /tmp/web-darkmode-smoke-next.log` dump，確認是「missing env」還是「module not found」，再對症修復。
-
-## CategoryThumbnail 呼叫端 API 規則
-
-`web/lib/design/CategoryThumbnail.tsx` 的現行介面（永遠以原始碼為準）：
-
-```tsx
-interface CategoryThumbnailProps {
-  id: string;             // 事件 ID，作為 PRNG seed
-  categories?: string[];  // 不接受 null，用 ?? undefined
-  className?: string;     // 唯一控制尺寸的方式
-  forceMotifIdx?: number; // 可選
-}
-```
-
-**禁止的用法（來自舊介面）：**
-- `seed=` → 改為 `id=`
-- `size={N}` → 已移除，改用 `className="w-[N]px h-[N]px"`
-- `categories={event.category as string[] | null | undefined}` → 改為 `categories={event.category ?? undefined}`
-
-修改介面後執行：`grep -r "CategoryThumbnail" web/` 確認所有呼叫端同步更新。
-
-**Incident:** 2026-05-15 — `EventListClient`、`EventCardMockup`、`events/[id]/page.tsx` 三個呼叫端用舊 API，`npx tsc --noEmit` 顯示 3 個 TS2322，`next build` 失敗。`next dev` 不做完整 TS 檢查，開發期間無症狀。
-
-## Supabase 1000-row Default Limit Guard
-
-- Do not use `data.length` from an unpaginated `.select()` query as a total count. Supabase can truncate rows at the default limit.
-- For totals, always use `.select("id", { count: "exact", head: true })`.
-- If the UI needs all rows (for filtering or table rendering), fetch with explicit `.range(from, to)` pagination and merge batches.
-- Treat any suspiciously round cap (for example exactly 1000) as a truncation signal first, not as real business data.
-
-
+## Database
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`
 - When adding a DB column, wire up the code that populates it in the same commit. Empty columns = silent data gaps.
 - Wrap non-critical DB inserts (logging, analytics) in `try/except`. Never let a failed log write break the main pipeline.
@@ -351,14 +63,43 @@ interface CategoryThumbnailProps {
   - **Tier C** (service-role only): `GRANT SELECT, INSERT, UPDATE, DELETE ON ... TO service_role;`
   Always `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` before adding GRANTs.
 - **GRANT scope を決める前に「誰が書くか」を Python コードから逆引きする。** RLS ポリシーのみ参照すると書き込み GRANT が漏れる。典型的な漏れパターン：`scraper_runs`・`research_reports` は scraper/annotator が service_role で INSERT するため `service_role INSERT` が必要。`creators` は admin UI から `authenticated` が CRUD するため `authenticated CRUD` が必要。
-- **Admin API + service-role-only table 規則：** 若 route handler 需要讀寫 `service_role` 專用表（例如 `line_subscribers`），必須採兩層設計：
-  1. 先用 SSR client + `user_roles` 做 admin auth gate。
-  2. 再用 `createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)` 執行該表查詢。
-  不可直接用 `@/lib/supabase/server` client 查 service-role-only 表，否則會因 RLS 拿到空集合而誤判為 0 筆。
-- **Weekly broadcast 發布閘門規則：** `web/app/api/admin/weekly-broadcast/send/route.ts` 只有在「至少一個語系送達成功，且無語系送達失敗」時，才可把 `announcements.published_at` 與 `social_status.line.status` 設為 published。任一語系發送失敗，或 `subscriber_count.total > 0` 但 `sent_to = 0`，都必須回 502 並保持 draft，不可標記發布。
-- **權限問題驗證雙語境：**
-  1. app request 語境：檢查 API response 是否含診斷欄位（例如 `subscriber_count`）。
-  2. SQL/service-role 語境：用 service role 直接 count 目標表，確認資料存在與否，避免把「查不到」誤判為「資料為 0」。
+
+## Supabase Client UPDATE — 0-row Silent Success Guard
+
+任何 **client-side** `supabase.from(T).update(...).eq("id", x)` 在以下三種情況都會回傳 `error: null` + 空 `data`，supabase-js **不會丟錯**：
+
+1. RLS policy 過濾掉（角色不對、anon 落地）
+2. JWT expired，supabase-js 來不及自動 refresh
+3. `id` 在 DB 不存在
+
+三者透過 `error` 無法區分。Vercel 滾動部署期間 access token 短暫失效正是情境 (2)，曾於 2026-05-15 在 production 同時打掉 toggle / work 指派 / AI 報錯 checkbox 三個入口。
+
+**規則：** 後台所有 client-side UPDATE 必須加 `.select("id")` 並檢查回傳列數，0 列視為失敗：
+
+```ts
+const { error, data } = await supabase
+  .from("events")
+  .update(update)
+  .eq("id", eventId)
+  .select("id");
+
+if (error) {
+  alert(`操作失敗：${error.message}`);
+} else if (!data || data.length === 0) {
+  alert("操作未生效（session 可能已過期），請重新整理頁面後再試。");
+} else {
+  // success path
+}
+```
+
+**已知需套用的呼叫點（截至 2026-05-15）：**
+- `web/components/IsActiveToggle.tsx` `handleToggle`
+- `web/components/AdminEditClient.tsx` `handleSave`
+- `web/components/AdminEventTable.tsx` `handleToggleActive` / `handleBulkToggleActive` / `handleBulkForceRescrape` / category bulk update / `handleSaveWork`
+- `web/components/AdminCreatorsClient.tsx` `toggleActive`
+- `web/components/AdminReportsTable.tsx` 所有 bulk-confirm 路徑
+
+替代設計：高風險寫入改走 server action / route handler 用 service role key，繞過 client JWT 過期問題。
 
 ## annotation_status エラーイベントの定期リセット
 
@@ -524,20 +265,6 @@ router.push('/admin');
 
 Reference: 2026-05-05 城市徽章兩輪才生效（commit `5a29c13` → `9f4b468`）。
 
-## Card-link Consistency Rule（Sources / Announcement / Event Detail）
-
-- 清單型超連結卡片（整列可 hover / 可點擊）必須優先使用 `web/lib/classNames.ts` 的 `CARD_LINK` 與 `CARD_LINK_ARROW`。
-- 禁止在單頁內重複手寫「paper 底色 + 綠色 hover」組合（`bg-[#FFFDF5]`、`hover:bg-[#F7FFE8]`、`hover:text-[#1F5E2B]`）。若發現重複，應回抽到共用 class。
-- `Sources` 頁面列項若需與全站一致，列項容器應以 `CARD_LINK` 為基礎，再補業務差異 class（例如 `justify-between`, `cursor-default`）。
-
-## Pre-Commit MM Drift Guard（staged/unstaged 同檔漂移）
-
-- 任何準備部署的 commit 前，必做以下檢查：
-  1. `git status --short`
-  2. 若同一路徑出現 `MM`，代表 index 與 working tree 版本不一致，禁止直接 commit。
-  3. 先 `git add <file>` 更新 index 到最新，再用 `git diff --cached <file>` 確認最終提交內容。
-- 部署驗證必須以 `--cached` 內容為準。否則會出現「本地看起來修好了，但實際 push 的不是該版本」的偽成功。
-
 ## Event Detail Page — Performer Display Priority
 
 `web/app/[locale]/events/[id]/page.tsx` 的 performer 顯示邏輯必須依照以下優先序：
@@ -621,16 +348,6 @@ const res = await fetch(url, { next: { revalidate: 86400 } });
 // ✅ 純 Web API，正確
 const res = await fetch(url);
 ```
-
-**`export const size` 改動必須同步更新全部座標：**
-- `size = { width, height }` 決定 Satori canvas 大小，所有 SVG `viewBox`、`<rect>`/`<circle>` 的 `x`/`y`/`cx`/`cy`、`position: absolute` 的 `top`/`right`/`bottom`/`left` 都必須在**同一個 commit** 裡更新。
-- 只改 `size.height` 而不改 layout → 下半部空白或裁切異常。
-- Incident: 2026-05-14 — height-only partial revert caused blank bottom half (fixed with `git restore`).
-
-**Satori 禁止 Emoji：**
-- `opengraph-image.tsx` 內禁止使用任何 emoji 字元（包括 label 文字、watermark）。
-- Satori 對 emoji 的支援取決於 runtime 是否提供 emoji font；edge runtime 下通常為空白方塊。
-- 只用 ASCII 字母、數字、標點符號。
 
 **Google Fonts text API 子集化：**
 - 使用 `?text=...` 參數只取頁面用到的字元，大幅縮小 ArrayBuffer 體積。
@@ -1022,6 +739,9 @@ Every route slug must appear the **same number of times** (= total number of adm
 - `raw_title` and `raw_description` store original scraped text. **Never overwrite** them with translated or processed content.
 - Date rules: follow the 4-tier cascade in `.github/skills/date-extraction/SKILL.md`. Tier 4 (publish date fallback) fires only when tiers 1–3 all fail.
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` whenever `start_date` is known.
+- **Structured `raw_description` extraction — prioritize content blocks over enumeration:** Detail pages often contain navigation noise (navigation links, footers, breadcrumbs). Never enumerate `<p>` tags or slice first N elements to populate `raw_description`. Instead: (1) identify structural blocks (e.g., `<table class="theater-detail">`, `<div class="detail-root">`, or semantic headers) that contain event metadata, (2) extract each block as a labeled section (e.g., `"作品紹介: ..."`, `"料金: ..."`, `"公式サイト: <url>"`), (3) join with `\n\n`. This ensures annotator receives clean context rather than noisy text, preventing misclassification. Incident (2026-05-15): `kawasaki_ac` extracted first 8 `<p>` tags (mostly navigation), caused GPT to reject valid Taiwan film events as "unrelated".
+- **Series-type scraper pattern — coordinate date format support with field extraction:** When expanding a scraper's date parsing to support new formats (e.g., adding `YYYY年M/D(土)～` support), **simultaneously** audit all related field extraction (pricing, times, location, organizer). Series-type sources often embed metadata in structured page sections (cinema event blocks, performance program tables) that depend on date parsing success to identify the correct block. If date parsing changes but pricing/times extraction doesn't, you risk incomplete or misaligned records. Pattern from `kawasaki_ac` (2026-05-15): supporting new date formats required also upgrading `raw_description` structure and extraction of `business_hours`, `price_info`, and `official_url` from the same detail page. Rule: **When modifying a scraper's date logic, assume you must also update 3-5 other fields in the same commit.**
+- **selection_reason is documentation, not a gate:** The `selection_reason` field records why an event was annotated (e.g., "Taiwan-related" vs "not selected"). It is **not** an enforcement mechanism. Three dangers: (1) a negative `selection_reason` written by annotator does NOT set `is_active=false` automatically, (2) upstream layers cannot rely on `selection_reason` to exclude bad data from downstream, (3) contradictions (e.g., `is_active=true` with `selection_reason="not selected"`) silently propagate. To enforce exclusions, either: (a) have the scraper skip bad records entirely (preferred), (b) have annotator explicitly set `is_active=false` when rejecting, or (c) add consistency checks in DB with a `CHECK` constraint on `(is_active, selection_reason)` pairs. Do not rely on `selection_reason` text alone.
 - **New scraper checklist — all 4 steps required:**
   1. Create `scraper/sources/<name>.py` extending `BaseScraper`
   2. Register in `scraper/main.py` → `SCRAPERS` (import + add instance)
@@ -1036,13 +756,6 @@ Every route slug must appear the **same number of times** (= total number of adm
   - Threshold = **2** (not 1) to avoid false positives where a Tokyo event's description merely mentions another city
   - When triggered: set `location_name` to a generic tour label (e.g. `台湾文化センター（全国巡回）`) and set `location_address = None`
   - For DB-patching already-scraped tours: update `location_name`, clear `location_address` directly in Supabase
-- **Asahi Culture series normalization (2026-05-15):**
-  - CLI source key is `asahi_culture`, but DB `source_name` is `asahiculture`.
-  - For this source family, always normalize these fields together: `organizer`, `organizer_type`, `official_url`, `location_address`, `business_hours`, `performer`, `is_paid`, `price_info`, `start_date`, `end_date`.
-  - Date rule is strict: single-day course must persist as `end_date = start_date` (never null).
-  - Detail-page extraction must support both lecturer layouts: `h3` profile blocks and header-line `姓名/肩書` fallback.
-  - Member fee regex must accept variants with and without descriptors: `会員14,190円` and `会員（テキスト付き）23,780円`.
-  - When running a one-off batch patch on this series, upsert `field_corrections` for every patched field in the same run, and pair-lock date fields (`start_date` + `end_date`).
 
 ## Broadcast / Public Output Quality Gate
 
@@ -1241,23 +954,6 @@ sb.table('field_corrections').delete().eq('event_id', eid).eq('field_name', '<fi
 ```
 
 Reference incident: 2026-05-09 — `c6d5232a` 手動修正把污染後的 `name_zh=大濛` 鎖進 FC，需手動 delete + 正確值 re-upsert 才能修復。
-
-**`organizer_type` 合法枚舉值（check constraint）：**
-`organizer_type` 欄位有 DB level check constraint，僅接受以下值（陣列元素）：
-`academic` / `civic_group` / `commercial_brand` / `cultural_institution` / `government` / `independent_venue` / `media` / `semi_official` / `unknown`
-使用不在清單內的值（如 `private_company`、`ngo`）會導致整筆 update rollback。
-對應參考：朝日カルチャーセンター → `cultural_institution`；一般企業主辦 → `commercial_brand`；NPO・団体 → `civic_group`。
-
-**日期欄位（start_date / end_date）成對鎖定規則：**
-手動修正日期時，`start_date` 與 `end_date` 必須同時 FC 鎖，缺一不可：
-```python
-for field, val in [("start_date", start), ("end_date", end)]:
-    sb.table("field_corrections").upsert(
-        {"event_id": eid, "field_name": field, "corrected_value": f'"{val}"'},
-        on_conflict="event_id,field_name"
-    ).execute()
-```
-單日活動 `end_date = start_date`，同樣需要鎖定。忘記鎖 `end_date` 會導致 re-annotation 時 end_date 被覆寫為 None 或 start_date（incident: `b4d97c35` 大阪 GAGA 上映会，2026-05-15）。
 
 **Why both tiers are needed:**
 - P0 alone: `--all` mode or admin overriding a non-null AI value with a different value → correction lost on next re-annotation.

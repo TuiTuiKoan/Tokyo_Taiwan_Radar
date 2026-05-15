@@ -4,99 +4,94 @@
 
 ---
 
-## 2026-05-15 — Weekly LINE Broadcast 週五 cron 未觸發（GitHub Actions 排程可靠性問題）
+## 2026-05-15 — kawasaki_ac 日期解析不足與內容薄文本污染導致 selection_reason 矛盾
 
-**問題：** `weekly-2026-05-15` 草稿於週四 CI 正常生成後，週五 `0 3 * * 5`（03:00 UTC / 12:00 JST）cron 至 06:16 UTC（超時 3h16m）仍無 Actions 記錄，週報未自動發送。使用者手動確認後，本地補發成功（9 位訂閱者 zh+ja）。
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
 
-**根因：**
-- GitHub Actions scheduled cron 在 **low-activity repo** 下，排程可能被 GitHub 延遲數小時甚至整天跳過，不保證準時觸發。
-- 週四 `0 0 * * 4` 僅延遲 2.5h（09:00 → 11:30 JST），但週五 `0 3 * * 5` 完全未出現在 Run 列表（共 5 runs，無 Run #6）。
-- 系統設計的單點缺陷：每週只有一次觸發機會，若 GitHub 跳過則無任何 fallback，草稿永遠待在 `published_at: null`。
-
-**修正（commit `91696a0`）：**
-- `weekly-broadcast.yml` 新增 `0 3 * * 6`（週六 12:00 JST）safety fallback cron
-- Auto-send step `if:` 條件改為 `schedule == '0 3 * * 5' || schedule == '0 3 * * 6'`
-- Python `run_send_draft()` 已有 `published_at IS NULL` 天然去重保護，fallback 執行時若草稿已發則自動跳過
-
-**教訓：**
-- 關鍵業務操作（LINE 廣播、報告生成等）的 cron 應設「主排程 + 次日 fallback」雙 cron，防止 GitHub 跳過
-- Python/腳本端的冪等查詢（`WHERE published_at IS NULL`）是 fallback cron 安全的前提，實作雙 cron 前先確認腳本具備冪等性
+2026-05-15 | kawasaki_ac 系列事件被收錄但日期、價格、上映時段、主辦方等欄位缺失；annotation 產出拒絕理由「未提供台灣相關資訊」卻 is_active=true（矛盾）。 | 1) detail page 抽取只取前 N 個 `<p>`，導致導航文字（TOP、施設案內...）污染 raw_description，使 GPT 吃不到作品介紹與欄位標籤。2) 日期 regex 僅支援 `M.D～M.D` 與 `M/D(土)` 格式，無法解析 `YYYY年M/D(土)～` 或單日 `M/D(土)` 格式。3) annotator 的 selection_reason 只是文案欄位，不會反向驅動 is_active 開關；拒絕理由與 is_active 無強制一致性。 | 1) detail page 改為內容區塊優先（detail-root + table.theater-detail 標籤欄位），抽取「開催日時」「作品紹介」「作品情報」「上映日」「料金」「公式サイト」等結構化段落；2) 日期 regex 擴充支援 YYYY年M/D(土)～、M/D(土)～、M.D～M.D 與單日結束日邏輯 end_date=start_date；3) 補齊上映時間、價格、官方連結、主辦方提取邏輯；4) 針對目標事件 re-annotate，確認 selection_reason 與 is_active 一致。 | 1) scraper raw_description 薄文本或噪音污染是 annotator 誤判的主因，修復應從 source 端結構化敘述開始，不要期望 GPT 從垃圾文本反推；2) 系列型改動（如日期格式擴充、欄位新增）要同時更新 raw_description 編排與相關提取邏輯，避免混亂；3) selection_reason 是文案用欄位，不是守門開關——若要「拒絕判定」真正動作，必須明確在來源抽取層或 annotator 層驅動 is_active，或明確由人工鎖定；純文案矛盾不會自動生效。
 
 ---
 
-## 2026-05-15 — 登入頁面吞掉 OAuth callback 錯誤（`?error=auth_failed` 未顯示）
+## 2026-05-15 — ReportSection submit 按鈕 loading 狀態文字換行導致錯位
 
-**問題：** 使用者反映「無法登入」但看不到任何錯誤訊息，停在空白登入頁面。
+**問題：** 使用者按下「問題を報告」彈窗的 Submit，按鈕切換為 `送信中…` 後，submit 按鈕與 Cancel 文字連結出現垂直錯位（日語截圖清晰可見「中…」被分成兩行）。
 
-**根因：**
-- `web/app/auth/callback/route.ts` 在 OAuth code exchange 失敗時，redirect 到 `/zh/auth/login?error=auth_failed`。
-- 但 `login/page.tsx` 完全不讀取 URL 的 `error` 查詢參數，導致使用者看到一個乾淨的登入頁，完全不知道之前的 OAuth 嘗試已失敗。
-- 三語言 messages 檔案也缺少 `auth.loginError` 字串，無法顯示翻譯錯誤訊息。
+**根因：** 日語斷行規則允許在 `…`（U+2026，HORIZONTAL ELLIPSIS）前斷行。按鈕沒設 `whitespace-nowrap`，所以 `送信中…` 可能在 `…` 前換行，使按鈕高度從 `1 行` 變 `2 行`，導致相鄰 Cancel 按鈕在 flex row 中垂直位移。
 
-**修正：**
-1. `web/app/[locale]/auth/login/page.tsx`：在 `useEffect` 中讀取 `new URLSearchParams(window.location.search)`，若含 `error=auth_failed` 則呼叫 `setError(t("loginError"))`。
-2. `web/messages/zh.json`、`en.json`、`ja.json`：各加入 `auth.loginError` 翻譯字串。
-3. 使用 `window.location.search`（非 `useSearchParams()` hook）以避免 Next.js App Router 要求 Page 層級 Suspense 包裝的問題。
+**修正：** `web/components/ReportSection.tsx` submit 按鈕加 `whitespace-nowrap min-w-[4.5rem]`。  
+`whitespace-nowrap` 防止日語斷行；`min-w-[4.5rem]` 鎖定最小寬度，避免 idle ↔ loading 切換時 flex 容器寬度抖動。
 
 **教訓：**
-- Auth callback 的 server-side redirect（帶 `?error=xxx`）**必須**在 login page 用戶端讀取並顯示，否則使用者只看到空白頁面，無法得知根因。
-- 在 `"use client"` page 元件（非子元件）中讀取 URL search params，優先用 `window.location.search`，避免 Next.js App Router 因 `useSearchParams()` 要求 Suspense 邊界而增加複雜度。
-- 每次新增 callback redirect path 帶 error code 時，都要同步確認 target page 有讀取並顯示該 error。
+- 日文按鈕文字含 `…` 時**必須加 `whitespace-nowrap`**；`…` 在 CJK 排版中是合法斷行點。
+- 狀態切換時按鈕文字長度改變（`送信` → `送信中…`）會引發 flex 容器寬度變化，加 `min-w-[N]` 可消除排版抖動。
 
-## 2026-05-15 — OAuth 登入成功但 session 未落地（auth callback cookie 未寫入 redirect response）
+---
 
-**問題：** 使用者透過 Google OAuth 完成登入流程後，網站仍顯示未登入狀態，無法進入管理頁面。
+## 2026-05-15 — AdminEventTable 警告列在 dark mode 顏色過亮
 
-**根因：**
-- `web/app/auth/callback/route.ts` 使用 `createClient()` from `@/lib/supabase/server`。
-- 該 helper 的 `setAll` 把 session cookies 寫到 `next/headers` 的 `cookieStore`。
-- Route Handler 建立 `NextResponse.redirect()` 物件後，`next/headers` cookieStore 的內容**不會自動合併**進這個 redirect response 的 HTTP headers。
-- 結果：瀏覽器收到 redirect，但 response 沒有任何 Supabase auth cookies → 後續所有請求都無 session。
-- `server.ts` 的 `setAll` 有 `try/catch` 靜默吞掉錯誤，導致問題難以察覺。
+**問題：** 未指派 work 的事件列在 dark mode 下顯示鮮豔粉紅（`bg-red-50` = `#FEF2F2`，固定明亮色），與深色 UI 背景嚴重對比。
 
-**修正（`ae9dc77`）：**
-1. `web/app/auth/callback/route.ts` 改用 `createServerClient` 直接在 route handler 內建立。
-2. `setAll` 改為直接寫到 `successRedirect.cookies.set()`（response-bound cookie store）。
-3. 補 `export const dynamic = "force-dynamic"` 與 `normalizeNextPath()` 防止異常回跳路徑。
-4. `web/components/Navbar.tsx` 改用 `/api/me`（`cache: "no-store"`）作為 user/isAdmin 的唯一來源，onAuthStateChange 觸發時重新 fetch。
+**根因：** `bg-red-50` 是 Tailwind 靜態 utility，不響應 dark mode。沒有對應的 `dark:bg-*` override。
+
+**修正：** 改為 `bg-blush hover:bg-[#FFE4E0] dark:hover:bg-[#35231f]`。  
+`bg-blush` = CSS variable token（light `#FFF1EE` / dark `#2a1f1d`），自動隨 `:root.dark` 切換。
 
 **教訓：**
-- Next.js Route Handler 中做 OAuth code exchange 時，**必須**用 response-bound cookie store（`setAll` 寫到 `NextResponse` 物件），不能用 `next/headers` cookieStore。
-- `@/lib/supabase/server` 的 `setAll` 只適合 Server Component / server action — 不適合 Route Handler 回傳 redirect response 的情境。
-- Navbar 的登入狀態應以 `/api/me` 為單一來源，而非直接呼叫 `supabase.auth.getUser()`，後者在跨 SSR/CSR 邊界時可能與 server 判斷不一致。
+- 警告色或狀態色 **永遠用語意 token（`bg-blush`、`bg-amber-*`）而非 Tailwind 靜態 light-only class**（`bg-red-50`、`bg-yellow-50`），否則 dark mode 一定爆。
+- 需要 hover 變化時，token 本身不提供 hover 值，要在 JSX 加 `hover:bg-[hex] dark:hover:bg-[hex]` 手動指定。
 
-## 2026-05-15 — Admin 控制項消失 + IsActiveToggle 靜默失敗
+---
 
-**問題：**
-1. 活動詳情頁標題下方的「編輯」和「關閉公開」按鈕消失。
-2. 後台列表的「公開/關閉」切換按鈕點擊無反應（靜默失敗）。
+## 2026-05-15 — getEventPerformer 不支援 performers_zh array，單人表演者顯示空白
 
-**根因：**
-1. `AdminEventActions` 的 admin 狀態依賴 client-side `useEffect` + Supabase browser client 查詢 `user_roles`；在 ISR 頁面或快取命中時，client 尚未 mount 前 `isAdmin=false`，導致控制項不渲染。
-2. `IsActiveToggle.tsx` 和 `AdminEventTable.tsx` 的 toggle handler 沒有 error branch，Supabase PATCH 失敗時 UI 靜默保持舊狀態。
+**問題：** 部分活動有演出者，但前端 EventCard 顯示演出者欄位空白。
 
-**修正（`4aa84ba`）：**
-1. `web/app/[locale]/events/[id]/page.tsx` server component 預計算 `isAdmin`，透過 prop 傳入 `AdminEventActions`。
-2. `AdminEventActions` 優先採用 server prop；只在 prop 為 `undefined` 時才 fallback 到 client-side 查詢。
-3. `IsActiveToggle.tsx`、`AdminEventTable.tsx` 的 toggle handler 加 `try/catch`，失敗時顯示 toast/alert 錯誤訊息。
+**根因：** annotator 寫入的欄位為 `performers_zh`（陣列），而 `getEventPerformer()` 只讀 `performer_zh`（舊版字串欄位）。當 annotator 寫新欄位但 scraper 未填舊欄位時，函數回傳 `undefined`。
+
+**修正：** `web/lib/types.ts` `getEventPerformer()` 加入 fallback 順序：
+`performer_zh` → `performers_zh[0]` → `performer_en` → `performers_en[0]`。
 
 **教訓：**
-- ISR 或 Server Component 頁面中，admin 判斷應在 server 層計算後以 prop 下傳，不可完全依賴 client-side useEffect（mount 前永遠是 false）。
-- Admin UI 的所有 mutate 操作都必須有可視 error 分支，避免靜默失敗讓使用者誤以為操作成功。
+- 增加新陣列欄位（`performers_zh[]`）時，必須同步更新所有讀取舊字串欄位（`performer_zh`）的 helper，否則過渡期 DB 中僅有新欄位的事件在前端靜默空白。
+- `getEventPerformer` 等 helper 應以 `老欄位 → 新欄位[0]` 的方式保持向後相容，而非直接替換。
 
-## 2026-05-15 — Chrome 擴充套件觸發 hydration warning（主題初始化 script tag）
+---
 
-**問題：** 瀏覽器 console 出現 React hydration mismatch warning，指向 `web/app/layout.tsx` 的 theme-init `<script>` tag。
+## 2026-05-15 — 後台 events UPDATE 三項操作同時靜默失效（Vercel 滾動部署期間 expired JWT）
 
-**根因：** Chrome 擴充套件在 React hydrate 前修改 `<head>` 中的 `<script>` 屬性（注入 `src=chrome-extension://...`），造成 SSR 渲染與 client DOM 屬性不一致。
+**問題：** 使用者報告後台事件清單管理頁的 toggle（is_active）、work 指派、AI 報錯 checkbox 三項全部 click 後無反應；無 alert、UI 看似不動，重新整理或等 5–10 分鐘後自動恢復。
 
-**修正（`9d4186c`）：** 在 theme-init `<script>` 上加 `suppressHydrationWarning`，告知 React 此元素的屬性允許 SSR/client 不一致。
+**根因鏈：**
+1. 24h 內推 5 個 commit（含 `ae9dc77` auth callback 改寫）→ Vercel 滾動部署。
+2. 瀏覽器持有的 access token 在新部署 edge node 下短暫無效 → PostgREST 收到 expired JWT 退回 anon role。
+3. RLS `Admins update events` policy 對 anon 過濾為 0 列。
+4. **PostgREST 0-row UPDATE 不視為 error** → supabase-js 回傳 `{ error: null, data: undefined }` → `IsActiveToggle` / `AdminEditClient` / `AdminEventTable.handleSaveWork` 三處的 `if (!error)` 全部判定為成功，但 DB 實際未變動。
+5. middleware 下次刷新 access token 後自動恢復。
+
+**驗證證據（DevTools 三點檢查）：** 使用者實測確認 Network PATCH 請求 `authorization: Bearer ...` 已存在、Response body 為空陣列 `[]`、cookie `sb-*-auth-token` HttpOnly 未勾 → 排除結構性 bug（cookie / session storage / GRANT 缺失皆非）。
+
+**修正：** 未動程式碼，等待自然恢復。但補上預防性規則於 SKILL.md「Supabase Client UPDATE — 0-row Silent Success Guard」段落：所有 client-side UPDATE 必須加 `.select("id")` 並檢查 `data.length === 0` 作為失敗 alert 條件。
 
 **教訓：**
-- 第三方瀏覽器擴充套件修改 `<head>` 造成的 hydration warning，正確處置是 `suppressHydrationWarning`，不代表邏輯 bug。
-- Inline `<script>` 和 theme-init 腳本建議預設加上 `suppressHydrationWarning`，防止未來擴充套件干擾產生雜訊。
+- `supabase.from(T).update(...).eq("id", x)` 在以下三種情況都回傳 `error: null` + 空 data：RLS 過濾、JWT 過期、id 不存在。三者無法靠 `error` 區分。
+- Vercel 滾動部署 + auth 相關 commit 是 expired JWT 的高風險組合，必須在客戶端寫入路徑加 0-row guard 防使用者誤判。
+- 不可只用 `if (!error)` 判斷 admin 寫入成功；要嘛 `.select("id")` 後檢查列數，要嘛改走 server action / route handler 用 service role 寫入。
 
-## 2026-05-15 — ReportSection「送信沒反應」其實是回饋不明確 + 例外未保底
+---
+
+## 2026-05-15 — matsumoto_cinema_select スクレーパー実装での3つの修正
+
+**エラー1:** `MatsumotoCinemaScraper` → CLI key が `matsumoto_cinema`（`--source matsumoto_cinema_select` で "Unknown source"）  
+**修正:** クラス名を `MatsumotoCinemaSelectScraper` に変更（`_scraper_key` はクラス名から snake_case を派生させる）  
+**教訓:** SOURCE_NAME にアンダースコア複合語を含む場合、クラス名も完全一致させる（`MatsumotoCinemaSelectScraper` → `matsumoto_cinema_select`）。
+
+**エラー2:** `lookup_movie_titles()` 戻り値を `name_zh, name_en` の2値で受けたが実際は3値  
+**修正:** `name_zh, name_en, name_ja_override = lookup_movie_titles(...)` に変更し `name_ja=name_ja_override` を Event に渡す
+
+**エラー3:** `Event(location_prefectures=[...])` — `location_prefectures` は Event dataclass に存在しないフィールド  
+**修正:** 削除。新フィールド追加前に `base.py` を確認する。
+
+---「送信沒反應」其實是回饋不明確 + 例外未保底
 
 **問題：**
 - 使用者在活動頁「問題を報告」彈窗勾選後按「送信」，主觀體感是「完全沒反應」。
