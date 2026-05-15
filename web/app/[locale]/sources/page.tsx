@@ -107,11 +107,11 @@ export default async function SourcesPage({ params }: PageProps) {
           Tokyo Taiwan Radar
         </Link>
         {" › "}
-        <span className="text-[#3A261F]">{t("pageTitle")}</span>
+        <span className="text-fg-muted">{t("pageTitle")}</span>
       </nav>
 
-      <h1 className="text-3xl font-bold mb-3 text-[#3A261F]">{t("pageTitle")}</h1>
-      <p className="text-base leading-relaxed text-[#4A362D] mb-6">
+      <h1 className="text-3xl font-bold mb-3 text-fg-strong">{t("pageTitle")}</h1>
+      <p className="text-base leading-relaxed text-fg mb-6">
         {t("intro", { n: total })}
       </p>
       <p className="text-sm text-fg-subtle mb-8">{t("totalLabel", { n: total })}</p>
@@ -121,7 +121,7 @@ export default async function SourcesPage({ params }: PageProps) {
         if (!list || list.length === 0) return null;
         return (
           <section key={type} className="mb-8">
-            <h2 className="text-xl font-semibold mb-3 text-[#3A261F]">
+            <h2 className="text-xl font-semibold mb-3 text-fg-strong">
               {tType(type)}
               <span className="ml-2 text-sm text-fg-subtle font-normal">
                 ({list.length})
@@ -138,7 +138,7 @@ export default async function SourcesPage({ params }: PageProps) {
                     <div className="text-xs text-fg-subtle font-mono">{s.id}</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-[#F7FFE8] text-[#1F5E2B]">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400">
                       {s.frequency === "daily" ? t("frequencyDaily") : t("frequencyWeekly")}
                     </span>
                     <a
