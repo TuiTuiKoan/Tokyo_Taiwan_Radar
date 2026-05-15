@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-05-15 — ReportSection 送信ボタンが「送信中…」で永久に固まる（commit `53445be`）
+
+**問題：** イベント詳細ページの「問題を報告」フォームで送信ボタンをクリックすると「送信中…」表示のまま永久に固まり、成功・エラーどちらも表示されない。
+
+**根因：** `ReportSection.tsx`（Client Component）がブラウザ Supabase クライアントで直接 `supabase.from("event_reports").insert(...)` を呼び出していた。PostgREST からレスポンスが返らない（ネットワークハング）場合、`await` は永遠に pending のまま。`try/catch` は **thrown error** しか捕捉できず、**hanging fetch** は捕捉しない。結果として `setStatus("error")` が呼ばれず、ボタンが `loading` 状態で固まる。
+
+**修復（commit `53445be`）：**
+- `web/app/actions/submit-report.ts` を新規作成（`dismissReport` と同じ Server Action パターン）
+- `ReportSection.tsx` の browser client INSERT を `submitReport()` Server Action 呼び出しに置き換え
+- `@/lib/supabase/client` import を削除
+
+**教訓：**
+- **Client Component で `supabase.from(...).insert()` を直接呼び出してはならない。** ネットワークハング時に `try/catch` は発動せず UI が永久 loading 状態に陥る。
+- ユーザー向けフォームの INSERT（anon・authenticated 問わず）も Server Action に統一する。RLS で `anon INSERT` を許可していても、ブラウザ直接 INSERT はハング耐性がない。
+- `dismissReport` / `confirmReport` が Server Action に昇格済みであれば、同一テーブルへの user-facing INSERT も Server Action にすべきだった（パターン一貫性）。
+
+---
+
 ## 2026-05-15 — handleDismiss で router.refresh() が画面破損を引き起こした（commit `390826a`）
 
 **問題：** `handleDismiss`（報告を却下するハンドラー）を server action（`dismissReport`）に移行後、`router.refresh()` を呼び出すと画面が突然フリーズ・レイアウト崩壊（"screen break"）した。

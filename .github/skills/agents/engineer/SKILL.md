@@ -194,6 +194,29 @@ const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
 - `annotate-event/route.ts` OpenAI call
 - `AdminEventTable.tsx` `handlePublish` 補 `.select("id")` + 0-row guard
 
+## Client Component 直接 INSERT 禁止 — Server Action 義務化
+
+**Client Component 内で `supabase.from(...).insert()` を直接呼び出してはならない（admin・一般ユーザー問わず）。**
+
+ブラウザ→PostgREST のリクエストがネットワークレベルでハングすると、`await` は永遠に pending → `try/catch` は発動しない（thrown error ではなく hanging fetch のため） → `setStatus("error")` が呼ばれない → ボタンが loading 状態で固まる（2026-05-15 `ReportSection` commit `53445be`）。
+
+**規則：**
+- ユーザー向けフォームの INSERT（anon・authenticated 問わず）は必ず Server Action で行う。
+- RLS で `anon INSERT` を許可していても、ブラウザ直接 INSERT はハング耐性がない。
+- Server Action はネットワークハング時も Next.js が適切なエラーレスポンスを返すため `catch` ブロックが確実に発動する。
+
+```ts
+// ❌ Client Component での直接 INSERT — ハング時に永久 loading
+const supabase = createClient(); // browser client
+const { error } = await supabase.from("event_reports").insert({ ... }); // may hang silently
+
+// ✅ Server Action 経由 INSERT — ハング耐性あり
+const result = await submitReport({ eventId, reportTypes, locale, suggestedCategory });
+if (!result.ok) { setStatus("error"); return; }
+```
+
+**参照：** `web/app/actions/submit-report.ts`（user-facing）、`web/app/actions/dismiss-report.ts`（admin）
+
 ---
 
 ## Supabase Realtime
