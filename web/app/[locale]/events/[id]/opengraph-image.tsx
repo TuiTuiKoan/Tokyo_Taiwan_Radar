@@ -1,77 +1,22 @@
 import { ImageResponse } from "next/og";
 import { createClient } from "@supabase/supabase-js";
-import { type Locale, type Event, getEventName } from "@/lib/types";
+import { type Locale } from "@/lib/types";
 import { getSemanticSymbol } from "@/lib/design/organicMotifs";
 
 export const runtime = "edge";
-export const size = { width: 1200, height: 630 };
+export const size = { width: 1200, height: 1200 };
 export const contentType = "image/png";
 
-const CATEGORY_LABEL: Record<string, string> = {
-  movie: "FILM",
-  performing_arts: "LIVE",
-  art: "ART",
-  senses: "FOOD",
-  lifestyle_food: "FOOD",
-  lecture: "TALK",
-  academic: "ACAD",
-  books_media: "BOOK",
-  taiwan_japan: "TWNJ",
-  exhibition: "EXPO",
-  drama: "DRAM",
-  retail: "SHOP",
-  nature: "ECO",
-  tech: "TECH",
-  tourism: "TOUR",
-  gender: "GNDR",
-  geopolitics: "INTL",
-  competition: "COMP",
-  workshop: "WKSP",
-  literature: "LIT",
-  indigenous: "INDIG",
-  history: "HIST",
-  urban: "ARCH",
-  business: "BIZ",
-  taiwan_mandarin: "LANG",
-  tv_program: "TV",
-  report: "NEWS",
-};
-
-function getCategoryLabel(categories: string[]): string {
-  for (const cat of categories) {
-    if (CATEGORY_LABEL[cat]) return CATEGORY_LABEL[cat];
-  }
-  return "EVENT";
-}
-
-function formatDate(dateStr: string | null, locale: string): string {
-  if (!dateStr) return "";
-  return new Date(dateStr).toLocaleDateString(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-async function loadFont(text: string, locale: string): Promise<ArrayBuffer | null> {
-  const family = locale === "ja" ? "Noto+Sans+JP:wght@700" : "Noto+Sans+TC:wght@700";
-  const url = `https://fonts.googleapis.com/css2?family=${family}&text=${encodeURIComponent(text)}&display=swap`;
-
-  try {
-    const css = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-    }).then((r) => r.text());
-
-    // Extract first woff2 src URL from CSS
-    const match = css.match(/src:\s*url\((https:\/\/fonts\.gstatic\.com[^)]+\.woff2)\)/);
-    if (!match) return null;
-
-    const fontRes = await fetch(match[1]);
-    return fontRes.ok ? fontRes.arrayBuffer() : null;
-  } catch {
-    return null;
-  }
-}
+const PALETTES = [
+  { bg: "#FFE9DD", fg: "#E84860", accent: "#1F5E2B" },
+  { bg: "#E8F6D6", fg: "#1F5E2B", accent: "#E84860" },
+  { bg: "#FFF1C2", fg: "#C9A227", accent: "#3A261F" },
+  { bg: "#FFD9D0", fg: "#F47A86", accent: "#3A261F" },
+  { bg: "#E0EBFF", fg: "#3B5BA9", accent: "#E84860" },
+  { bg: "#FFE0EF", fg: "#D85862", accent: "#1F5E2B" },
+  { bg: "#F0E6FF", fg: "#7B4FB8", accent: "#C9A227" },
+  { bg: "#D6F0EA", fg: "#2C8A7A", accent: "#E84860" },
+];
 
 function hashForId(s: string): number {
   let h = 2166136261 >>> 0;
@@ -87,36 +32,22 @@ export default async function Image({
 }: {
   params: Promise<{ locale: Locale; id: string }>;
 }) {
-  const { locale, id } = await params;
+  const { id } = await params;
 
-  // --- Fetch event data ---
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
-
   const { data: event } = await supabase
     .from("events")
-    .select("name_ja, name_zh, name_en, start_date, end_date, category, location_name, location_name_zh, is_paid")
+    .select("category")
     .eq("id", id)
     .single();
 
-  const name = event ? getEventName(event as Event, locale) ?? event.name_ja ?? "Event" : "Event";
-  const categoryLabel = event?.category ? getCategoryLabel(event.category) : "EVENT";
-  const dateStr = event ? formatDate(event.start_date, locale) : "";
-  const location = locale === "zh"
-    ? (event?.location_name_zh ?? event?.location_name ?? "")
-    : (event?.location_name ?? "");
-
-  const truncatedName = name.length > 28 ? name.slice(0, 26) + "…" : name;
-  const fontSize = name.length > 16 ? 52 : 66;
   const categoryKey = event?.category?.[0] ?? "art";
-  const motifVariant = hashForId(id) % 5;
-
-  // --- Load bold CJK font subset for the actual text ---
-  const textToLoad = truncatedName + (dateStr ?? "") + (location ?? "") + "Tokyo Taiwan Radar";
-  const fontData = await loadFont(textToLoad, locale);
-  const fontName = locale === "ja" ? "NotoSansJP" : "NotoSansTC";
+  const h = hashForId(id);
+  const palette = PALETTES[h % PALETTES.length];
+  const motifVariant = h % 5;
 
   return new ImageResponse(
     (
@@ -124,140 +55,17 @@ export default async function Image({
         style={{
           width: "100%",
           height: "100%",
+          background: palette.bg,
           display: "flex",
-          flexDirection: "column",
-          background: "linear-gradient(145deg, #f0fdf4 0%, #e8f5e9 60%, #dcfce7 100%)",
-          padding: "56px 64px",
-          justifyContent: "space-between",
-          fontFamily: fontData ? fontName : "sans-serif",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        {/* Top bar — branding */}
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <div
-            style={{
-              background: "#16a34a",
-              borderRadius: "10px",
-              padding: "8px 20px",
-              color: "white",
-              fontSize: "20px",
-              fontWeight: "bold",
-            }}
-          >
-            TW Tokyo Taiwan Radar
-          </div>
-          {event?.is_paid === false && (
-            <div
-              style={{
-                background: "#dbeafe",
-                borderRadius: "8px",
-                padding: "6px 14px",
-                color: "#1d4ed8",
-                fontSize: "16px",
-                fontWeight: "bold",
-              }}
-            >
-              FREE
-            </div>
-          )}
-        </div>
-
-        {/* Event name + motif */}
-        <div style={{ display: "flex", alignItems: "center", gap: "40px", width: "100%" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: "20px", flex: 1 }}>
-            <div
-              style={{
-                background: "#16a34a",
-                color: "white",
-                fontSize: "18px",
-                fontWeight: "bold",
-                padding: "6px 12px",
-                borderRadius: "8px",
-                flexShrink: 0,
-                marginTop: "8px",
-              }}
-            >
-              {categoryLabel}
-            </div>
-            <div
-              style={{
-                fontSize: `${fontSize}px`,
-                fontWeight: "bold",
-                color: "#111827",
-                lineHeight: 1.25,
-              }}
-            >
-              {truncatedName}
-            </div>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "252px",
-              height: "252px",
-              flexShrink: 0,
-              background: "rgba(22, 163, 74, 0.08)",
-              borderRadius: "126px",
-            }}
-          >
-            <svg width="208" height="208" viewBox="0 0 100 100">
-              {getSemanticSymbol(categoryKey, motifVariant, "#1F5E2B", "#E84860")}
-            </svg>
-          </div>
-        </div>
-
-        {/* Bottom bar — date + location */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "32px",
-            borderTop: "2px solid #bbf7d0",
-            paddingTop: "20px",
-          }}
-        >
-          {dateStr && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                color: "#374151",
-                fontSize: "22px",
-              }}
-            >
-              <span style={{ color: "#16a34a", fontWeight: "bold" }}>DATE</span>
-              <span>{dateStr}</span>
-            </div>
-          )}
-          {location && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                color: "#374151",
-                fontSize: "22px",
-              }}
-            >
-              <span style={{ color: "#16a34a", fontWeight: "bold" }}>AT</span>
-              <span>{location}</span>
-            </div>
-          )}
-          <div style={{ flex: 1 }} />
-          <div style={{ color: "#9ca3af", fontSize: "18px" }}>
-            tokyo-taiwan-radar.vercel.app
-          </div>
-        </div>
+        <svg width="880" height="880" viewBox="0 0 100 100">
+          {getSemanticSymbol(categoryKey, motifVariant, palette.fg, palette.accent)}
+        </svg>
       </div>
     ),
-    {
-      ...size,
-      fonts: fontData
-        ? [{ name: fontName, data: fontData, weight: 700, style: "normal" }]
-        : [],
-    }
+    { ...size }
   );
 }
