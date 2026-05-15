@@ -160,9 +160,9 @@ export function MascotAvatar({
               <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
             </linearGradient>
             <radialGradient id={tipRingGradientId} cx="164" cy="26" r="30" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#FFD700" stopOpacity="1" />
-              <stop offset="50%" stopColor="#C4E86F" stopOpacity="0.85" />
-              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+              <stop offset="0%"   stopColor="#C4E86F" stopOpacity="1"   /> {/* leaf-green center */}
+              <stop offset="55%"  stopColor="#FFD700" stopOpacity="0.55" /> {/* yellow mid */}
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.2"  /> {/* white edge ~20% */}
             </radialGradient>
             <filter id={flowGlowId} x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="3.4" result="blur" />

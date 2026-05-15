@@ -551,7 +551,7 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
   }
   7% {
     fill: #C4E86F;
-    r: 20;
+    r: 120;
     opacity: 0.6;
   }
   17%,
