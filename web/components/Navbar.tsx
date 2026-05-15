@@ -6,7 +6,11 @@ import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useRef, useState, Suspense } from "react";
 import { type Locale, LOCALES } from "@/lib/types";
-import type { User } from "@supabase/supabase-js";
+
+type NavbarUser = {
+  id: string;
+  email?: string | null;
+};
 
 interface Props {
   locale: Locale;
@@ -100,24 +104,37 @@ export default function Navbar({ locale }: Props) {
   const t = useTranslations("nav");
   const pathname = usePathname();
   const supabase = createClient();
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<NavbarUser | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
-    const { data: listener } = supabase.auth.onAuthStateChange((_, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => listener.subscription.unsubscribe();
-  }, []);
+    let alive = true;
 
-  useEffect(() => {
-    fetch("/api/me")
-      .then((r) => r.json())
-      .then((d) => setIsAdmin(!!d.isAdmin))
-      .catch(() => {});
-  }, []);
+    async function loadMe() {
+      try {
+        const res = await fetch("/api/me", { cache: "no-store" });
+        const data = await res.json();
+        if (!alive) return;
+        setIsAdmin(Boolean(data?.isAdmin));
+        setUser(data?.user ?? null);
+      } catch {
+        if (!alive) return;
+        setIsAdmin(false);
+        setUser(null);
+      }
+    }
+
+    void loadMe();
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      void loadMe();
+    });
+
+    return () => {
+      alive = false;
+      listener.subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   async function handleLogout() {
     await supabase.auth.signOut();

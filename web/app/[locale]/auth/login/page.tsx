@@ -22,6 +22,7 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inAppBrowser, setInAppBrowser] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -44,15 +45,35 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
   const supabase = createClient();
 
   async function handleGoogleLogin() {
+    setGoogleLoading(true);
+    setError(null);
     const origin = window.location.origin;
     const locale = window.location.pathname.split("/")[1];
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        // Must match the URL added in Supabase → Authentication → URL Configuration
-        redirectTo: `${origin}/auth/callback?next=/${locale}`,
-      },
-    });
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          // Must match the URL added in Supabase → Authentication → URL Configuration
+          redirectTo: `${origin}/auth/callback?next=/${locale}`,
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      if (data?.url) {
+        window.location.assign(data.url);
+      } else {
+        setError("Google OAuth URL not returned. Please try Email login.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Google login failed.");
+    } finally {
+      setGoogleLoading(false);
+    }
   }
 
   async function handleEmailLogin(e: React.FormEvent) {
@@ -103,7 +124,7 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
 
       <button
         onClick={inAppBrowser ? undefined : handleGoogleLogin}
-        disabled={inAppBrowser}
+        disabled={inAppBrowser || googleLoading}
         className="w-full flex items-center justify-center gap-3 border border-line-strong rounded-lg px-4 py-3 hover:bg-elevated transition mb-4 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true">
@@ -124,7 +145,7 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
             fill="#EA4335"
           />
         </svg>
-        {t("loginGoogle")}
+        {googleLoading ? "..." : t("loginGoogle")}
       </button>
 
       <div className="relative my-4">
