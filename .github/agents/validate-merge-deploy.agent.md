@@ -23,6 +23,21 @@ handoffs:
 
 ## 工作流
 
+### Step 0: Stash Awareness Check（多線開發保險）
+
+執行 `./scripts/stash-status.sh list`，分析輸出：
+
+- **若輸出「📭 No stashes found.」**：跳過，繼續 Step 1。
+- **若有 `[READY]` stash 且 working tree 為空**：
+  提示使用者：
+  > 「偵測到 N 個 [READY] stash 尚未合併。要先 promote 再部署嗎？」
+  - 使用者選 **是** → 執行 `./scripts/stash-status.sh promote <N>` 後回到 Step 1
+  - 使用者選 **否** → 繼續 Step 1（只部署當前 HEAD）
+- **若有 `[WIP]` / `[REVIEW]` stash**：僅輸出提醒，不中止，繼續 Step 1。
+- **若 stash-status.sh 不存在**：跳過此步驟（舊 clone 相容）。
+
+---
+
 ### Step 1: 檢查 Git 狀態
 1. 檢查是否有未解決的 merge/rebase 衝突
 2. **⚠️ Untracked scraper 前置檢查**：若 `git status --short` 顯示 `??` 在 `scraper/sources/` 下，立即執行 SCRAPERS audit：

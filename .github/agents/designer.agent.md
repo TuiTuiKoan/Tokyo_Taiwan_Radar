@@ -45,6 +45,19 @@ UI / visual design specialist owning all front-end visual decisions for Tokyo Ta
 - **📝 Update history/skill/agent** — Document lessons after design iteration.
 - **🚀 Validate, merge & deploy** — Ship the changes.
 
+## Stash 命名約定（多線開發）
+
+Session 結束或暫停時，stash message **必須**以 `[STATE]` 開頭：
+
+```bash
+git stash push -m "[WIP] designer/area: summary"      # 草稿，禁止合併
+git stash push -m "[READY] designer/area: summary"    # 驗證完，可合併
+git stash push -m "[REVIEW] designer/area: summary"   # 等人工確認
+```
+
+查看所有 stash 狀態：`./scripts/stash-status.sh list`
+一鍵合併 ready stash：`./scripts/stash-status.sh promote <N>`
+
 ## Role
 
 - Own all front-end visual decisions: layout, typography, color, spacing, motion, icons.

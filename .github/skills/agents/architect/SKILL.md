@@ -37,6 +37,27 @@ Read this at the start of every session before producing any plan.
 
 **反面教訓（2026-05-15）：** 後台 events UPDATE 三項全失，第一輪假設 migration 069 漏 events 表 GRANT（錯誤），第二輪假設 `ae9dc77` cookie 寫入問題（錯誤），準備寫新 migration。使用者實測 DevTools 三點全綠後判定暫時性。若一開始就先讓使用者跑三點檢查，可省 20 分鐘誤判時間。
 
+## Multi-Session Stash Discipline（多線開發 Stash 紀律）
+
+在審核任何多 session/subagent 平行開發工作流前，**必須**確認：
+
+1. **Stash message 必須以 `[STATE]` 開頭**：
+   - `[WIP]` — 草稿，禁止合併
+   - `[READY]` — 已驗證，可立即合併
+   - `[REVIEW]` — 待人工確認
+   - `[BLOCKED]` — 有外部依賴未就緒
+2. **`./scripts/stash-status.sh list`** 是快速狀態總覽的入口，點 VMD agent 前應先執行。
+3. **Promote 流程（`./scripts/stash-status.sh promote <N>`）**：
+   - 自動檢查 working tree clean → fetch + rebase → pop → diff preview → commit → push prompt
+   - 任何步驟失敗即中止，stash 保留原狀
+4. **VMD agent Step 0 自動攔截**：VMD agent 啟動時會自動偵測 `[READY]` stash 並提示促銷，無需手動記得跑 stash-status。
+5. **3 天 STALE 警告**：`[READY]` stash 超過 3 天未合併，CLI 標記 `⚠ STALE`——可能與 main 衝突或內容過時。
+
+**architect 設計 multi-session 任務計畫時，必須在「完成條件」中明確指定 stash state 標籤**，例如：
+> 完成後執行 `git stash push -m "[READY] scraper/starcat: end_date fix"`
+
+---
+
 ## Weekly LINE Broadcast 系統設計節奏
 
 在審核任何涉及 `weekly_line_broadcast.py` 的計畫前，**必須**先確認系統設計的執行時序：

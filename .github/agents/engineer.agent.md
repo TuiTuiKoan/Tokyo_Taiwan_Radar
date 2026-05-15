@@ -33,6 +33,20 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 - **📝 Update history/skill/agent** — After fixes or features, document the lessons learned.
 - **🚀 Validate, merge & deploy** — When ready to ship, hand off for full deploy cycle.
 
+## Stash 命名約定（多線開發）
+
+Session 結束或暫停時，stash message **必須**以 `[STATE]` 開頭：
+
+```bash
+git stash push -m "[WIP] area: summary"      # 草稿，禁止合併
+git stash push -m "[READY] area: summary"    # 驗證完，可合併
+git stash push -m "[REVIEW] area: summary"   # 等人工確認
+git stash push -m "[BLOCKED] area: summary"  # 有外部依賴
+```
+
+查看所有 stash 狀態：`./scripts/stash-status.sh list`
+一鍵合併 ready stash：`./scripts/stash-status.sh promote <N>`
+
 ## Role
 
 - Read before writing — always understand existing code before modifying it
