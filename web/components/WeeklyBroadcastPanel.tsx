@@ -90,12 +90,20 @@ export default function WeeklyBroadcastPanel({ locale }: Props) {
     : null;
 
   return (
-    <div className="mb-6 border border-blue-100 bg-blue-50 rounded-xl p-4">
+    <div className="mb-6 border border-blue-100 bg-blue-50 rounded-xl p-4 dark:bg-blue-950/30 dark:border-blue-800/40">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-blue-800">{t("weeklyBroadcast")}</h2>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/${locale}/admin/announcements/new`}
+            className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shrink-0"
+          >
+            {t("newAnnouncement")}
+          </Link>
+          <h2 className="text-sm font-semibold text-blue-800 dark:text-blue-300">{t("weeklyBroadcast")}</h2>
+        </div>
         {/* Auto-publish toggle */}
         <label className="flex items-center gap-2 cursor-pointer select-none">
-          <span className="text-xs text-fg-muted">{t("weeklyBroadcastAutoPublish")}</span>
+          <span className="text-xs text-blue-700 dark:text-blue-300">{t("weeklyBroadcastAutoPublish")}</span>
           <button
             type="button"
             role="switch"
@@ -104,7 +112,7 @@ export default function WeeklyBroadcastPanel({ locale }: Props) {
             onClick={() => handleToggle(!settings.auto_publish)}
             className={[
               "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500",
-              settings.auto_publish ? "bg-blue-600" : "bg-gray-300",
+              settings.auto_publish ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600",
               toggling ? "opacity-50 cursor-not-allowed" : "",
             ].join(" ")}
           >
@@ -130,7 +138,7 @@ export default function WeeklyBroadcastPanel({ locale }: Props) {
       )}
 
       {settings.draft ? (
-        <div className="flex items-start justify-between gap-3 bg-surface border border-blue-200 rounded-lg px-3 py-2">
+        <div className="flex items-start justify-between gap-3 bg-surface border border-blue-200 rounded-lg px-3 py-2 dark:border-blue-700/50">
           <div className="min-w-0">
             <p className="text-xs font-medium text-fg truncate">{draftTitle}</p>
             <p className="text-xs text-fg-subtle mt-0.5">
@@ -140,7 +148,7 @@ export default function WeeklyBroadcastPanel({ locale }: Props) {
           <div className="flex items-center gap-2 shrink-0">
             <Link
               href={`/${locale}/admin/announcements/${settings.draft.id}`}
-              className="text-xs px-2.5 py-1 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-100 transition"
+              className="text-xs px-2.5 py-1 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-100 transition dark:border-blue-600 dark:text-blue-300 dark:hover:bg-blue-900/30"
             >
               {t("weeklyBroadcastEdit")}
             </Link>
@@ -155,7 +163,7 @@ export default function WeeklyBroadcastPanel({ locale }: Props) {
           </div>
         </div>
       ) : (
-        <p className="text-xs text-fg-subtle italic">{t("weeklyBroadcastNoDraft")}</p>
+        <p className="text-xs text-blue-700 dark:text-blue-300 italic">{t("weeklyBroadcastNoDraft")}</p>
       )}
     </div>
   );

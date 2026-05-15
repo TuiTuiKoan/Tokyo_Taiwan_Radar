@@ -31,15 +31,7 @@ export default async function AdminAnnouncementsPage({ params }: PageProps) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">{tAnn("adminTitle")}</h1>
-        <Link
-          href={`/${locale}/admin/announcements/new`}
-          className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
-        >
-          {tAnn("newAnnouncement")}
-        </Link>
-      </div>
+      <h1 className="text-2xl font-bold mb-4">{tAnn("adminTitle")}</h1>
 
       {/* Tab nav */}
 
