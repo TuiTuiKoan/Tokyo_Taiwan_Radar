@@ -624,7 +624,12 @@
   "saved": {
     "title": "我的收藏",
     "empty": "你還沒有收藏任何活動",
-    "loginPrompt": "請先登入才能查看收藏"
+    "loginPrompt": "請先登入才能查看收藏",
+    "remove": "移除",
+    "removeAriaLabel": "從收藏移除",
+    "removeConfirmPrompt": "確定移除嗎？",
+    "removeConfirm": "確認",
+    "removeCancel": "取消"
   },
   "general": {
     "loading": "載入中...",

@@ -624,7 +624,12 @@
   "saved": {
     "title": "お気に入り",
     "empty": "まだイベントを保存していません",
-    "loginPrompt": "お気に入りを見るにはログインしてください"
+    "loginPrompt": "お気に入りを見るにはログインしてください",
+    "remove": "削除",
+    "removeAriaLabel": "お気に入りから削除",
+    "removeConfirmPrompt": "削除しますか？",
+    "removeConfirm": "はい",
+    "removeCancel": "キャンセル"
   },
   "general": {
     "loading": "読み込み中...",

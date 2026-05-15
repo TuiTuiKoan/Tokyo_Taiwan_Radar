@@ -624,7 +624,12 @@
   "saved": {
     "title": "Saved Events",
     "empty": "You haven't saved any events yet",
-    "loginPrompt": "Please login to view saved events"
+    "loginPrompt": "Please login to view saved events",
+    "remove": "Remove",
+    "removeAriaLabel": "Remove from saved",
+    "removeConfirmPrompt": "Remove this event?",
+    "removeConfirm": "Confirm",
+    "removeCancel": "Cancel"
   },
   "general": {
     "loading": "Loading...",
