@@ -63,20 +63,33 @@ export default async function AdminAeoPage({ params }: PageProps) {
     .single();
   if (!roleRow || roleRow.role !== "admin") redirect(`/${locale}`);
 
-  // Fetch last 30 days of AEO visits (capped at 5000 to avoid memory issues)
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  // Fetch last 30 days of AEO visits (capped at 1000 for bot-table breakdown)
+  const now = Date.now();
+  const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const sevenDaysAgoIso = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const oneDayAgoIso = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+
   const { data: visits, error } = await supabase
     .from("aeo_visits")
     .select("*")
     .gte("visited_at", thirtyDaysAgo)
     .order("visited_at", { ascending: false })
-    .limit(5000);
+    .limit(1000);
 
   const tableExists = !error || !error.message?.includes("does not exist");
   const rows: AeoVisit[] = (visits ?? []) as AeoVisit[];
 
-  // Time windows
-  const now = Date.now();
+  // Accurate summary counts via DB COUNT (bypasses PostgREST max-rows=1000)
+  const [b24Res, b7Res, b30Res, a24Res, a7Res, a30Res] = await Promise.all([
+    supabase.from("aeo_visits").select("id", { count: "exact", head: true }).eq("visit_type", "bot").gte("visited_at", oneDayAgoIso),
+    supabase.from("aeo_visits").select("id", { count: "exact", head: true }).eq("visit_type", "bot").gte("visited_at", sevenDaysAgoIso),
+    supabase.from("aeo_visits").select("id", { count: "exact", head: true }).eq("visit_type", "bot").gte("visited_at", thirtyDaysAgo),
+    supabase.from("aeo_visits").select("id", { count: "exact", head: true }).eq("visit_type", "ai_referral").gte("visited_at", oneDayAgoIso),
+    supabase.from("aeo_visits").select("id", { count: "exact", head: true }).eq("visit_type", "ai_referral").gte("visited_at", sevenDaysAgoIso),
+    supabase.from("aeo_visits").select("id", { count: "exact", head: true }).eq("visit_type", "ai_referral").gte("visited_at", thirtyDaysAgo),
+  ]);
+
+  // Time windows (for bot-table breakdown from fetched rows)
   const oneDayAgo = now - 24 * 60 * 60 * 1000;
   const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
 
@@ -132,12 +145,12 @@ export default async function AdminAeoPage({ params }: PageProps) {
   const referrals = Array.from(referralStats.values()).sort((a, b) => b.count30d - a.count30d);
 
   const totals = {
-    botVisits30d: rows.filter((r) => r.visit_type === "bot").length,
-    referrals30d: rows.filter((r) => r.visit_type === "ai_referral").length,
-    botVisits7d: last7d.filter((r) => r.visit_type === "bot").length,
-    referrals7d: last7d.filter((r) => r.visit_type === "ai_referral").length,
-    botVisits24h: last24h.filter((r) => r.visit_type === "bot").length,
-    referrals24h: last24h.filter((r) => r.visit_type === "ai_referral").length,
+    botVisits30d: b30Res.count ?? 0,
+    referrals30d: a30Res.count ?? 0,
+    botVisits7d: b7Res.count ?? 0,
+    referrals7d: a7Res.count ?? 0,
+    botVisits24h: b24Res.count ?? 0,
+    referrals24h: a24Res.count ?? 0,
   };
 
   return (
