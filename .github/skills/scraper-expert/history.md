@@ -4,7 +4,45 @@
 
 ---
 
-## 2026-05-15 — snet_taiwan venue 抽出バグ修正（セパレーター量詞 `*`→`+` / `get_text("\n")` 切替）
+## 2026-05-15 — 台湾映画イベントの片名・人名 3 重誤り（cinemaclair 莎莉/Salli）
+
+**イベント**: `6a0dbfb3` cinemaclair — 映画「サリー」（2023 年台湾）
+
+**問題 A — 片名の誤り（薩莉 → 莎莉 / Sally → Salli）**
+
+scraper が eiga.com に登録のない台湾映画を処理した際、GPT が漢字片名と英語片名を誤生成した。
+- `name_zh = '薩莉'`（誤）→ `'莎莉'`（正）
+- `name_en = 'Sally'`（誤）→ `'Salli'`（正）
+- `works.title_zh`, `works.title_en`, `description_zh/en` も同様に誤り
+
+**問題 B — 導演名の誤り（連建宏 → 練建宏 / Chien-hong → Chien-hung）**
+
+導演名の漢字が 1 文字違い（`連` vs `練`）、ローマ字も誤り。
+- `director_zh = '連建宏'`（誤）→ `'練建宏'`（正）
+- `director_en = 'Lien Chien-hong'`（誤）→ `'Lien Chien-hung'`（正）
+- `works.director` も同様
+
+**問題 C — performers_zh[0] が片假名音訳（艾絲特·劉 → 劉品言）**
+
+annotator が `performers[]` の片假名 `エスター・リウ` を機械的に音訳して `performers_zh[0] = '艾絲特·劉'` とした。エスター・リウの本名 `劉品言` とは一致しない。
+
+**発覚経緯**: 金馬獎（GHFF）公式ページ `goldenhorse.org.tw/film/about/archive/detail/3913` を参照。
+
+**修正**:
+- `events`: `name_zh`, `name_en`, `director_zh`, `director_en`, `description_zh`, `description_en` 修正
+- `works`: `original_title`, `title_zh`, `title_en`, `director` 修正
+- `performers_zh[0]`: `'艾絲特·劉'` → `'劉品言'`
+- `field_corrections` で 4 フィールド FC lock（re-annotation 上書き防止）
+
+**規則**:
+1. **台湾映画の権威ソース優先順位: GHFF > eiga.com > GPT**。金馬獎ページには正式な中文・英文片名と監督名が記載される。eiga.com に登録のない台湾映画は必ず GHFF を確認する。
+2. **performers_zh[] は片假名音訳禁止**。エスター・リウ(`エスター・リウ`) → `艾絲特·劉` は機械音訳であり本名ではない。`_KNOWN_PERSON_MAP` に登録するか GHFF/eiga.com で本名を確認してから設定する。
+3. **漢字 1 文字違いの人名を GPT に信頼しない**。`練建宏` vs `連建宏` のような近似漢字の誤りは視覚的に気づきにくい。人名は必ず信頼ソースで確認する。
+4. **works 作成時は description_zh/en 内の片名参照も同時修正する**。`name_zh` だけ修正すると説明文内に旧片名が残る。
+
+---
+
+（セパレーター量詞 `*`→`+` / `get_text("\n")` 切替）
 
 **A. `場所` キーワードが本文の一般名詞にマッチ（量詞 `*` → `+` 修正）**
 

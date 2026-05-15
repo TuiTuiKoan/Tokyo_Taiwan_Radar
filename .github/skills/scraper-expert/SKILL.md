@@ -1886,6 +1886,50 @@ GPT は藝名・筆名（片假名 ↔ 非語音漢字対応）を正しく翻�
 
 Reference incident: 2026-05-09 — 14 名の検証済み名前を `_KNOWN_PERSON_MAP` に登録、11 件の DB イベントを修正。
 
+### `performers_zh[]` 機械音訳禁止ガード
+
+**`performers_zh[]` 配列の各要素は、片假名の機械的音訳であってはならない。**
+
+annotator が `performers[]`（片假名）を `performers_zh[]` に変換する際、音訳 mapping のない人名は `エスター・リウ → 艾絲特·劉` のような機械音訳になる。これは本名（`劉品言`）と一致しない別名であり、データ汚染となる。
+
+**判定方法**：
+- `performers_zh[i]` に `·`（中黒）が含まれ、かつ前半が 2〜3 文字で「アルファベット名の音訳漢字」（愛、艾、艾絲特 等）なら機械音訳の疑いが高い
+- `performers_zh[i] == performer_zh`（単一演者）と一致しない場合も要確認
+
+**修正パターン**：
+1. GHFF / eiga.com / Wikipedia で本名を確認
+2. `performers_zh[i]` を本名に書き換え
+3. `field_corrections` は `performers_zh` 配列全体をまとめてロック（フィールド名: `performers_zh`）
+
+```python
+# ✅ 正しい: GHFF で確認した本名
+performers_zh = ["劉品言", "林柏宏"]  # 艾絲特·劉 は誤り
+
+# ❌ 機械音訳
+performers_zh = ["艾絲特·劉", "林柏宏"]  # エスター・リウ のカタカナ音訳
+```
+
+Reference incident: 2026-05-15 — `6a0dbfb3` cinemaclair 莎莉、`performers_zh[0]='艾絲特·劉'`（機械音訳）→ `'劉品言'`（本名）に修正。
+
+### 台湾映画の権威ソース優先順位
+
+eiga.com に登録のない台湾映画は**金馬獎（GHFF）公式サイト**が最も信頼度の高い情報源。
+
+**優先順位**:
+1. **GHFF** (`goldenhorse.org.tw/film/about/archive/`) — 正式中文片名・英文片名・監督・出演者。金馬獎入選作品は全掲載。
+2. **eiga.com** (`eiga.com/movie/search/?name=...`) — 日本公開済み映画の日本語公式情報。
+3. **TAICCA 公式** / **台北電影節** / **映画公式サイト** — 金馬獎外の作品に使用。
+4. **Wikipedia** — 上記が見つからない場合の補完。
+5. **GPT 生成** — 最終手段。必ず上記で検証してから FC lock する。
+
+**注意事項**:
+- **漢字 1 文字違い**（`練` vs `連`、`惠` vs `慧` 等）は視覚的に気づきにくい。人名・片名は必ずコピー&ペーストで GHFF 原文と照合する。
+- **ローマ字綴り**も GHFF の表記が正式（`Chien-hung` vs `Chien-hong` 等）。GPT は類似綴りを混同しやすい。
+- **description_zh/en 内の片名参照も同時修正**：`name_zh` だけ直すと説明文内に旧片名が残る。`str.replace(old, new)` で一括置換してから update する。
+- **works テーブルも必ず同時修正**：`works.original_title`、`works.title_zh`、`works.title_en`、`works.director` は `events` と別テーブル。片名修正時は必ず両方を update する。
+
+Reference incident: 2026-05-15 — `6a0dbfb3` cinemaclair 莎莉。GHFF で `薩莉→莎莉`、`Sally→Salli`、`連建宏→練建宏`、`Chien-hong→Chien-hung` を確認して修正。
+
 ---
 
 ## Sub-event 啟用 — 標題同步規則
