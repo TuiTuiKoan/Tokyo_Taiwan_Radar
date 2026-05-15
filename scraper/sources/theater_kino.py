@@ -13,7 +13,7 @@ Strategy:
 import hashlib
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import requests
@@ -52,7 +52,7 @@ def _parse_dates(date_text: str) -> tuple[Optional[datetime], Optional[datetime]
         m2 = re.search(r"(\d{1,2})/(\d{1,2})", date_text)
         if m2:
             try:
-                start = datetime(current_year, int(m2.group(1)), int(m2.group(2)))
+                start = datetime(current_year, int(m2.group(1)), int(m2.group(2)), tzinfo=timezone.utc)
                 return start, None
             except ValueError:
                 pass
@@ -60,9 +60,9 @@ def _parse_dates(date_text: str) -> tuple[Optional[datetime], Optional[datetime]
     try:
         s_m, s_d = int(m.group(1)), int(m.group(2))
         e_m, e_d = int(m.group(3)), int(m.group(4))
-        start = datetime(current_year, s_m, s_d)
+        start = datetime(current_year, s_m, s_d, tzinfo=timezone.utc)
         end_year = current_year if e_m >= s_m else current_year + 1
-        end = datetime(end_year, e_m, e_d)
+        end = datetime(end_year, e_m, e_d, tzinfo=timezone.utc)
         return start, end
     except ValueError:
         return None, None
@@ -188,7 +188,12 @@ class TheaterKinoScraper(BaseScraper):
             source_id = f"theater_kino_{_make_slug(title)}"
             raw_desc = film["description"]
             if film["start_date"]:
-                raw_desc = f"上映期間: {film['date_text']}\n\n" + raw_desc
+                start = film["start_date"]
+                end = film["end_date"]
+                period = start.strftime('%Y年%m月%d日')
+                if end and end != start:
+                    period += f"〜{end.strftime('%Y年%m月%d日')}"
+                raw_desc = f"上映期間: {period}\n\n" + raw_desc
 
             event = Event(
                 source_name=self.SOURCE_NAME,

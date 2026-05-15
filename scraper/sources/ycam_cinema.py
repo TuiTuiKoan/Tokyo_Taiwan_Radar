@@ -14,7 +14,7 @@ Strategy:
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -56,10 +56,10 @@ def _parse_ycam_dates(text: str) -> tuple[Optional[datetime], Optional[datetime]
         return None, None
     y = int(m.group(1))
     try:
-        start = datetime(y, int(m.group(2)), int(m.group(3)))
-        end = datetime(y, int(m.group(4)), int(m.group(5)))
+        start = datetime(y, int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
+        end = datetime(y, int(m.group(4)), int(m.group(5)), tzinfo=timezone.utc)
         if end < start:
-            end = datetime(y + 1, int(m.group(4)), int(m.group(5)))
+            end = datetime(y + 1, int(m.group(4)), int(m.group(5)), tzinfo=timezone.utc)
         return start, end
     except ValueError:
         return None, None

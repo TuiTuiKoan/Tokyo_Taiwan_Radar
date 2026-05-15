@@ -14,7 +14,7 @@ Strategy:
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -50,11 +50,11 @@ def _parse_enya_dates(text: str) -> tuple[Optional[datetime], Optional[datetime]
         return None, None
     year = datetime.now().year
     try:
-        start = datetime(year, int(m.group(1)), int(m.group(2)))
-        end = datetime(year, int(m.group(3)), int(m.group(4)))
+        start = datetime(year, int(m.group(1)), int(m.group(2)), tzinfo=timezone.utc)
+        end = datetime(year, int(m.group(3)), int(m.group(4)), tzinfo=timezone.utc)
         # Handle year rollover for December→January
         if end < start:
-            end = datetime(year + 1, int(m.group(3)), int(m.group(4)))
+            end = datetime(year + 1, int(m.group(3)), int(m.group(4)), tzinfo=timezone.utc)
         return start, end
     except ValueError:
         return None, None

@@ -12,7 +12,7 @@ Strategy:
 import logging
 import re
 import time
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional
 from urllib.parse import unquote
 
@@ -50,7 +50,7 @@ def _parse_end_date(label: str, today: date) -> Optional[datetime]:
         end = date(year, month, day)
         if end < today:
             end = date(year + 1, month, day)
-        return datetime(end.year, end.month, end.day, 23, 59, 59)
+        return datetime(end.year, end.month, end.day, tzinfo=timezone.utc)
     except ValueError:
         return None
 
@@ -150,7 +150,7 @@ class CineswitchGinzaScraper(BaseScraper):
                 logger.debug("Skipping non-Taiwan film: %s (country=%s)", title, detail["country"])
                 continue
 
-            start_date = datetime(today.year, today.month, today.day)
+            start_date = datetime(today.year, today.month, today.day, tzinfo=timezone.utc)
 
             raw_desc_parts = []
             if end_date:

@@ -29,7 +29,7 @@ Taiwan keyword filter (applied to full detail page text):
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -75,7 +75,7 @@ def _parse_date_from_body(body_text: str) -> tuple[datetime | None, datetime | N
         return None, None
 
     sy, sm, sd = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    start = datetime(sy, sm, sd)
+    start = datetime(sy, sm, sd, tzinfo=timezone.utc)
 
     end = None
     if m.group(6):  # end day present
@@ -85,7 +85,7 @@ def _parse_date_from_body(body_text: str) -> tuple[datetime | None, datetime | N
         # If end month < start month, it wraps to next year
         if em < sm:
             ey += 1
-        end = datetime(ey, em, ed)
+        end = datetime(ey, em, ed, tzinfo=timezone.utc)
 
     return start, end
 
@@ -181,11 +181,17 @@ class UedaEigekiScraper(BaseScraper):
                 month = int(m.group(1))
                 day = int(m.group(2))
                 year = today.year if month >= today.month else today.year + 1
-                start_date = datetime(year, month, day)
+                start_date = datetime(year, month, day, tzinfo=timezone.utc)
 
-        raw_description = body_text
-        if start_date:
-            raw_description = f"開催日時: {start_date.strftime('%Y年%m月%d日')}\n\n" + body_text
+        if start_date and end_date and end_date != start_date:
+            raw_description = (
+                f"上映期間: {start_date.strftime('%Y年%m月%d日')}"
+                f"〜{end_date.strftime('%Y年%m月%d日')}\n\n" + body_text
+            )
+        elif start_date:
+            raw_description = f"上映期間: {start_date.strftime('%Y年%m月%d日')}\n\n" + body_text
+        else:
+            raw_description = body_text
 
         return Event(
             source_name=SOURCE_NAME,

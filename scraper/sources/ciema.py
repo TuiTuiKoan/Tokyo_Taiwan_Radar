@@ -12,7 +12,7 @@ Strategy:
 import hashlib
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import requests
@@ -43,7 +43,7 @@ def _parse_week_header(header_text: str) -> Optional[datetime]:
     m = re.search(r"(\d{4})\.(\d{1,2})\.(\d{1,2})", header_text)
     if m:
         try:
-            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
         except ValueError:
             pass
     return None
@@ -56,7 +56,7 @@ def _parse_week_end(header_text: str, start: datetime) -> Optional[datetime]:
         mo, day = int(m.group(1)), int(m.group(2))
         yr = start.year
         try:
-            return datetime(yr, mo, day)
+            return datetime(yr, mo, day, tzinfo=timezone.utc)
         except ValueError:
             pass
     return None
@@ -138,9 +138,9 @@ def _scrape_events_section(soup: BeautifulSoup) -> list[Event]:
             year = datetime.now().year
             mo, day = int(m.group(1)), int(m.group(2))
             try:
-                candidate = datetime(year, mo, day)
-                if candidate < datetime.now().replace(month=1, day=1):
-                    candidate = datetime(year + 1, mo, day)
+                candidate = datetime(year, mo, day, tzinfo=timezone.utc)
+                if candidate < datetime(year, 1, 1, tzinfo=timezone.utc):
+                    candidate = datetime(year + 1, mo, day, tzinfo=timezone.utc)
                 start_date = candidate
             except ValueError:
                 pass

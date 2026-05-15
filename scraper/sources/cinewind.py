@@ -12,7 +12,7 @@ Strategy:
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urljoin, urlparse
 
@@ -51,9 +51,9 @@ def _parse_dates(text: str) -> tuple[Optional[datetime], Optional[datetime]]:
     if m:
         y = int(m.group(1))
         try:
-            start = datetime(y, int(m.group(2)), int(m.group(3)))
+            start = datetime(y, int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
             end_m, end_d = int(m.group(4)), int(m.group(5))
-            end = datetime(y if end_m >= int(m.group(2)) else y + 1, end_m, end_d)
+            end = datetime(y if end_m >= int(m.group(2)) else y + 1, end_m, end_d, tzinfo=timezone.utc)
             return start, end
         except ValueError:
             pass

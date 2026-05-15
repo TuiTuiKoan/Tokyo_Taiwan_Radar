@@ -434,7 +434,6 @@ business_hours = "\n".join(
 | cinemadict | 2 | ✅ 完整期間（UTC fix） | ✅ date_text HH:MM（commit `544bbc4`） | 完全準拠 |
 | ycam_cinema | 2 | ✅ 節目期間 | ❌ None | 要対応 |
 | sakurazaka | 3 | ✅ 上映中/予定 | ❌ None | 要対応 |
-| ciemarine | 3 | ✅ h2 範囲 | ❌ None | 要対応 |
 | uedaeigeki | 2 | ✅ 上映日程 | ❌ None | 要対応 |
 | human_trust_cinema | 3 | ❌ None | ❌ None | 🔴 要緊急対応 |
 | theater_kino | 2 | ✅ 静的HTML | ❌ None | 要対応 |
