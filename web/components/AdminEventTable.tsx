@@ -15,9 +15,10 @@ import { getCityLabel } from "@/lib/cityLabel";
 interface Props {
   events: Event[];
   locale: Locale;
+  initialWorks?: Work[];
 }
 
-export default function AdminEventTable({ events: initialEvents, locale }: Props) {
+export default function AdminEventTable({ events: initialEvents, locale, initialWorks = [] }: Props) {
   const t = useTranslations("admin");
   const tCat = useTranslations("categories");
   const tFilters = useTranslations("filters");
@@ -30,17 +31,19 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [showNew, setShowNew] = useState(false);
 
-  // Works list (loaded once) for inline assign-work column
-  const [works, setWorks] = useState<Work[]>([]);
+  // Works list — pre-populated from server-side fetch (initialWorks prop),
+  // client-side effect re-fetches after a new work is created via the modal.
+  const [works, setWorks] = useState<Work[]>(initialWorks);
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from("works")
         .select("id,work_type,original_title,title_ja,title_zh,title_en")
-        .order("original_title", { ascending: true });
+        .order("title_ja", { ascending: true });
       if (data) setWorks(data as Work[]);
     })();
-  }, [supabase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const workMap = useMemo<Record<string, Work>>(() => {
     const m: Record<string, Work> = {};
     for (const w of works) m[w.id] = w;
@@ -1788,14 +1791,16 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                                   {getWorkTitle(w, locale)}
                                 </button>
                               ))}
-                              <a
-                                href={`/${locale}/admin/works/new`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 border-t"
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingWorkFor(null);
+                                  setShowCreateWorkModal(true);
+                                }}
+                                className="block w-full text-left px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 border-t"
                               >
                                 {t("events.assignWork.createNew")}
-                              </a>
+                              </button>
                             </div>
                           </div>
                         );

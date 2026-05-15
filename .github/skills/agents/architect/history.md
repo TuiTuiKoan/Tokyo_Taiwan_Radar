@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-05-16
+
+### Admin Work 下拉空白 — SSR Props 未傳遞（Silent Race Condition）
+- **問題**：Admin Event Table 的 Work 指定下拉清單顯示空白，儘管 DB 有 48 筆 works 資料。
+- **根因**：`page.tsx` 已在 server-side 抓取 `worksList`，但**忘記以 prop 傳給 `AdminEventTable`**。`AdminEventTable` 的 `works` state 初始化為 `[]`，依賴 client-side useEffect 非同步補齊。用戶在 client fetch 完成前開啟下拉，看到空清單。
+- **修正**：加入 `initialWorks` prop → 以 SSR 資料初始化 `works` state → client-side useEffect 降格為「新增 work 後刷新」。同時修正排序（`original_title` → `title_ja`）及「新規 work 作成」從 `<a>` 改為 modal `<button>`。
+- **教訓**：如果 `page.tsx` 已 SSR 抓取資料，**必須**以 prop 傳入子 component；不可讓子 component 再做 client-side 重複抓取當作唯一來源。特別是用戶操作（下拉、選單）需即時可用的資料，不能依賴非同步 fetch。
+
 ## 2026-05-15
 
 ### Migration 070 — research_reports UPDATE policy 欠落（RLS サイレント失敗）

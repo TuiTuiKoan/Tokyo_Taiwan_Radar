@@ -69,12 +69,12 @@ export default async function AdminPage({ params }: PageProps) {
     .from("events")
     .select("id", { count: "exact", head: true });
 
-  // Fetch all works for the assign-work dropdown
+  // Fetch all works for the assign-work dropdown (sorted by title_ja per Architect notes)
   const { data: worksData } = await supabase
     .from("works")
     .select("id, work_type, original_title, title_ja, title_zh, title_en")
-    .order("original_title", { ascending: true });
-  const worksList = (worksData ?? []) as Pick<Work, "id" | "work_type" | "original_title" | "title_ja" | "title_zh" | "title_en">[];
+    .order("title_ja", { ascending: true, nullsFirst: false });
+  const worksList = (worksData ?? []) as Work[];
 
   // Stats
   const totalEvents = totalEventsCount ?? events.length;
@@ -211,6 +211,7 @@ export default async function AdminPage({ params }: PageProps) {
       <AdminEventTable
         events={events}
         locale={locale}
+        initialWorks={worksList}
       />
     </div>
   );

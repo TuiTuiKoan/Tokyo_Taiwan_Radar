@@ -453,6 +453,27 @@ if ((e.location_prefectures?.length ?? 0) > 1) return false;
 
 Reference incident: 2026-05-02 — `location_prefectures` 未加入 select，多城市活動過濾靜默失效。
 
+## SSR Props Pass-Through Guard（Server 抓取資料必須傳入子 Component）
+
+在審核任何 **Server Component（page.tsx）** 的 PR 前，若 page.tsx 抓取了資料並用 prop 傳給子 component，**必須**確認：
+
+1. **page.tsx 抓取的每一份資料都有對應的 prop 傳入**：若 page.tsx 抓取 `worksList` 但 `<AdminEventTable>` 沒有 `initialWorks={worksList}`，資料完全浪費，子 component 會自己做一次 client-side 重複 fetch。
+2. **用戶即時操作（下拉、選單、自動完成）的資料不能依賴 client-side fetch**：非同步 fetch 有 race condition——用戶在 fetch 完成前操作，看到空清單。
+3. **正確模式**：
+   ```tsx
+   // page.tsx（Server Component）
+   const { data: worksData } = await supabase.from("works").select(...);
+   const works = (worksData ?? []) as Work[];
+   return <AdminEventTable initialWorks={works} ... />;
+
+   // AdminEventTable（Client Component）
+   const [works, setWorks] = useState<Work[]>(initialWorks); // 立即可用
+   useEffect(() => { /* refresh after creation */ }, []);     // 僅作刷新用
+   ```
+4. **確認清單**：在 page.tsx 搜尋所有 `const { data: ... } = await supabase.from(...)` 呼叫，對照子 component 的 Props interface 確認每份資料都有對應 prop。
+
+Reference incident: 2026-05-16 — `page.tsx` 抓取 `worksList` 但未傳給 `AdminEventTable`，`works` state 初始化為 `[]`，用戶開下拉時 fetch 未完成 → 空清單（`work選項又不見了`）。
+
 ## QA Keyword Precision Guard（地名關鍵字子字串污染）
 
 在審核任何修改 `TAIWAN_VENUE_KEYWORDS`（或類似地名比對清單）的 PR 前，**必須**確認：
