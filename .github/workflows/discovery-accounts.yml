@@ -1,22 +1,12 @@
-name: Daily Account Discovery
+name: Weekly Account Discovery
 
 on:
   schedule:
-    # Mon-Sun 11:00 JST (02:00 UTC) — slot derived from (weekday-1) % 4
-    # Mon → slot 0 (note.com community/exchange events)
+    # 週一 11:00 JST (02:00 UTC) — 全 4 slot 在週一輪轉（降頻：7×/週 → 1×/週）
+    # slot 0 (note.com community/exchange events)
     - cron: "0 2 * * 1"
-    # Tue → slot 1 (note.com culture & arts)
-    - cron: "0 2 * * 2"
-    # Wed → slot 2 (note.com food & lifestyle)
-    - cron: "0 2 * * 3"
-    # Thu → slot 3 (Peatix organizer groups)
+    # 週四 11:00 JST — slot 3 (Peatix organizer groups)
     - cron: "0 2 * * 4"
-    # Fri → slot 0 (note.com community, repeat — skip_hint dedups known accounts)
-    - cron: "0 2 * * 5"
-    # Sat → slot 1 (note.com culture, repeat)
-    - cron: "0 2 * * 6"
-    # Sun → slot 2 (note.com food, repeat)
-    - cron: "0 2 * * 0"
   workflow_dispatch:
     inputs:
       slot:

@@ -32,6 +32,7 @@ RUNS_DIR = Path(__file__).parent / "auto_scraper" / "runs"
 
 COST_DAILY_WARN  = 0.50   # ⚠ show in report section
 COST_DAILY_ALERT = 1.00   # 🔴 also send LINE push
+COST_MONTH_WARN  = 12.00  # ⚠ 80% of budget — show in report only
 COST_MONTH_ALERT = 15.00  # 🔴 also send LINE push
 COST_SOURCE_SPIKE = 1.50  # 🚨 any single source today
 
@@ -167,6 +168,7 @@ def check_cost_anomalies(sb, today_runs: list, window_start_30d: str) -> dict:
         month_cost       float
         today_warn       bool  (> COST_DAILY_WARN)
         today_alert      bool  (> COST_DAILY_ALERT)
+        month_warn       bool  (> COST_MONTH_WARN)  — show in report, no LINE push
         month_alert      bool  (> COST_MONTH_ALERT)
         spike_sources    list[tuple[str, float]]  sources exceeding COST_SOURCE_SPIKE
         top3_today       list[tuple[str, float]]
@@ -197,6 +199,7 @@ def check_cost_anomalies(sb, today_runs: list, window_start_30d: str) -> dict:
 
     today_warn  = today_cost > COST_DAILY_WARN
     today_alert = today_cost > COST_DAILY_ALERT
+    month_warn  = month_cost > COST_MONTH_WARN
     month_alert = month_cost > COST_MONTH_ALERT
     any_alert   = today_alert or month_alert or bool(spike_sources)
 
@@ -205,6 +208,7 @@ def check_cost_anomalies(sb, today_runs: list, window_start_30d: str) -> dict:
         "month_cost":    month_cost,
         "today_warn":    today_warn,
         "today_alert":   today_alert,
+        "month_warn":    month_warn,
         "month_alert":   month_alert,
         "spike_sources": spike_sources,
         "top3_today":    top3,
@@ -511,6 +515,8 @@ def generate_report() -> tuple[str, dict]:
         _month_flag = ""
         if cost_check["month_alert"]:
             _month_flag = f"  ← 🔴 ALERT（>{COST_MONTH_ALERT}）"
+        elif cost_check["month_warn"]:
+            _month_flag = f"  ← ⚠ warn（>{COST_MONTH_WARN}）"
         lines.append(f"  30 天累計費用  ：${cost_check['month_cost']:.2f}{_month_flag}")
         if cost_check["spike_sources"]:
             for src, c in cost_check["spike_sources"]:
@@ -555,10 +561,15 @@ def send_cost_alert_if_needed(cost_check: dict, report_date: str) -> None:
         f"  (warn=${COST_DAILY_WARN}, alert=${COST_DAILY_ALERT})"
     )
 
-    month_icon = "🔴" if cost_check["month_alert"] else "✅"
+    if cost_check["month_alert"]:
+        month_icon = "🔴"
+    elif cost_check["month_warn"]:
+        month_icon = "⚠️"
+    else:
+        month_icon = "✅"
     lines.append(
         f"{month_icon} 30 天：${cost_check['month_cost']:.2f}"
-        f"  (alert=${COST_MONTH_ALERT})"
+        f"  (warn=${COST_MONTH_WARN}, alert=${COST_MONTH_ALERT})"
     )
 
     if cost_check["spike_sources"]:

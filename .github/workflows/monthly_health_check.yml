@@ -45,3 +45,17 @@ jobs:
           if [ -n "$FLAGS" ]; then
             echo "::warning::$FLAGS"
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "## 📌 下一步：月度治理復盤" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "收到 LINE 報告後，請在 VS Code 中呼叫 **Reviewer agent** 進行深度分析：" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "1. 開啟 VS Code Copilot Chat" >> $GITHUB_STEP_SUMMARY
+          echo '2. 選擇 Agent: "Reviewer"' >> $GITHUB_STEP_SUMMARY
+          echo "3. 輸入：請進行本月治理復盤，分析爬蟲健康、Skills 新鮮度與 Agent scope overlap，輸出報告至 docs/monthly_review/$(date +%Y-%m).md" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> Reviewer agent 為唯讀分析，不修改程式碼。詳見 \`.github/agents/reviewer.agent.md\`" >> $GITHUB_STEP_SUMMARY
+
