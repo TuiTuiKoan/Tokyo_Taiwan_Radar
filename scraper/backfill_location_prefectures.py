@@ -36,44 +36,44 @@ logger = logging.getLogger(__name__)
 # never match here; the 都道府県 regex above also rejects them, returning None.
 _CITY_TO_PREF: dict[str, str] = {
     # 政令指定都市
-    "横浜市": "神奈川",
-    "川崎市": "神奈川",
-    "相模原市": "神奈川",
-    "名古屋市": "愛知",
-    "福岡市": "福岡",
-    "北九州市": "福岡",
+    "横浜市": "神奈川県",
+    "川崎市": "神奈川県",
+    "相模原市": "神奈川県",
+    "名古屋市": "愛知県",
+    "福岡市": "福岡県",
+    "北九州市": "福岡県",
     "札幌市": "北海道",
-    "仙台市": "宮城",
-    "神戸市": "兵庫",
-    "さいたま市": "埼玉",
-    "千葉市": "千葉",
-    "広島市": "広島",
-    "新潟市": "新潟",
-    "静岡市": "静岡",
-    "浜松市": "静岡",
-    "堺市": "大阪",
-    "岡山市": "岡山",
-    "熊本市": "熊本",
+    "仙台市": "宮城県",
+    "神戸市": "兵庫県",
+    "さいたま市": "埼玉県",
+    "千葉市": "千葉県",
+    "広島市": "広島県",
+    "新潟市": "新潟県",
+    "静岡市": "静岡県",
+    "浜松市": "静岡県",
+    "堺市": "大阪府",
+    "岡山市": "岡山県",
+    "熊本市": "熊本県",
     # Tokyo 23 special wards (a 23-ward address with no 都 prefix is unambiguously Tokyo).
-    **{w: "東京" for w in [
+    **{w: "東京都" for w in [
         "千代田区", "中央区", "港区", "新宿区", "文京区", "台東区", "墨田区",
         "江東区", "品川区", "目黒区", "大田区", "世田谷区", "渋谷区", "中野区",
         "杉並区", "豊島区", "北区", "荒川区", "板橋区", "練馬区", "足立区",
         "葛飾区", "江戸川区",
     ]},
     # 県庁所在地 (non-seirei) — capital cities of remaining prefectures.
-    "青森市": "青森", "盛岡市": "岩手", "秋田市": "秋田", "山形市": "山形",
-    "福島市": "福島", "水戸市": "茨城", "宇都宮市": "栃木", "前橋市": "群馬",
-    "富山市": "富山", "金沢市": "石川", "福井市": "福井", "甲府市": "山梨",
-    "長野市": "長野", "岐阜市": "岐阜", "津市": "三重", "大津市": "滋賀",
-    "奈良市": "奈良", "和歌山市": "和歌山", "鳥取市": "鳥取", "松江市": "島根",
-    "山口市": "山口", "徳島市": "徳島", "高松市": "香川", "松山市": "愛媛",
-    "高知市": "高知", "佐賀市": "佐賀", "長崎市": "長崎", "大分市": "大分",
-    "宮崎市": "宮崎", "鹿児島市": "鹿児島", "那覇市": "沖縄",
+    "青森市": "青森県", "盛岡市": "岩手県", "秋田市": "秋田県", "山形市": "山形県",
+    "福島市": "福島県", "水戸市": "茨城県", "宇都宮市": "栃木県", "前橋市": "群馬県",
+    "富山市": "富山県", "金沢市": "石川県", "福井市": "福井県", "甲府市": "山梨県",
+    "長野市": "長野県", "岐阜市": "岐阜県", "津市": "三重県", "大津市": "滋賀県",
+    "奈良市": "奈良県", "和歌山市": "和歌山県", "鳥取市": "鳥取県", "松江市": "島根県",
+    "山口市": "山口県", "徳島市": "徳島県", "高松市": "香川県", "松山市": "愛媛県",
+    "高知市": "高知県", "佐賀市": "佐賀県", "長崎市": "長崎県", "大分市": "大分県",
+    "宮崎市": "宮崎県", "鹿児島市": "鹿児島県", "那覇市": "沖縄県",
 }
 
 # English address fallback (e.g. "4-1-1 Miyoshi, Koto-ku, Tokyo").
-_EN_TO_PREF: dict[str, str] = {"tokyo": "東京", "osaka": "大阪", "kyoto": "京都"}
+_EN_TO_PREF: dict[str, str] = {"tokyo": "東京都", "osaka": "大阪府", "kyoto": "京都府"}
 
 # Strip leading noise such as `日本、` and postal code `〒xxx-xxxx ` before matching.
 _PREFIX_RE = re.compile(r"^(?:日本[、,]?\s*)?(?:〒\s*\d{3}-?\d{4}[\s　]*)?")
@@ -87,13 +87,11 @@ def extract_prefecture(address: str | None) -> str | None:
     m = re.match(r"^(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県]{2,4}[都道府県])", address)
     if m:
         full = m.group(1)
-        if full == "北海道":
-            return "北海道"
         if full in ("大阪市", "大阪府"):
-            return "大阪"
+            return "大阪府"
         if full in ("京都市", "京都府"):
-            return "京都"
-        return full.rstrip("都道府県")
+            return "京都府"
+        return full  # 北海道, 東京都, ○○府, ○○道, ○○県 — suffix already included
     # Fallback: bare 政令市 name without 都道府県 prefix.
     for city, pref in _CITY_TO_PREF.items():
         if address.startswith(city):
@@ -273,19 +271,19 @@ if __name__ == "__main__":
     assert extract_prefecture("桃園市中壢區") is None
     assert extract_prefecture("台北市信義區") is None
     assert extract_prefecture("新北市板橋區") is None
-    assert extract_prefecture("福岡市博多区博多駅前1-1-1") == "福岡"
-    assert extract_prefecture("横浜市西区") == "神奈川"
-    assert extract_prefecture("東京都渋谷区") == "東京"
+    assert extract_prefecture("福岡市博多区博多駅前1-1-1") == "福岡県"
+    assert extract_prefecture("横浜市西区") == "神奈川県"
+    assert extract_prefecture("東京都渋谷区") == "東京都"
     assert extract_prefecture("北海道札幌市中央区") == "北海道"
-    assert extract_prefecture("大阪府大阪市北区") == "大阪"
-    assert extract_prefecture("〒310-0015　茨城県水戸市宮町1丁目7") == "茨城"
-    assert extract_prefecture("日本、〒106-0045 東京都港区麻布十番") == "東京"
-    assert extract_prefecture("港区麻布十番２丁目") == "東京"
-    assert extract_prefecture("渋谷区猿楽町17-10") == "東京"
-    assert extract_prefecture("〒338-8506 さいたま市中央区上峰3-15-1") == "埼玉"
-    assert extract_prefecture("高知市五台山4200-6") == "高知"
-    assert extract_prefecture("4-1-1 Miyoshi, Koto-ku, Tokyo 135-0022") == "東京"
-    assert extract_prefecture("津市本町1-1") == "三重"
-    assert extract_prefecture("那覇市首里") == "沖縄"
+    assert extract_prefecture("大阪府大阪市北区") == "大阪府"
+    assert extract_prefecture("〒310-0015　茨城県水戸市宮町1丁目7") == "茨城県"
+    assert extract_prefecture("日本、〒106-0045 東京都港区麻布十番") == "東京都"
+    assert extract_prefecture("港区麻布十番２丁目") == "東京都"
+    assert extract_prefecture("渋谷区猿楽町17-10") == "東京都"
+    assert extract_prefecture("〒338-8506 さいたま市中央区上峰3-15-1") == "埼玉県"
+    assert extract_prefecture("高知市五台山4200-6") == "高知県"
+    assert extract_prefecture("4-1-1 Miyoshi, Koto-ku, Tokyo 135-0022") == "東京都"
+    assert extract_prefecture("津市本町1-1") == "三重県"
+    assert extract_prefecture("那覇市首里") == "沖縄県"
     assert extract_prefecture("オンライン") is None
     main()
