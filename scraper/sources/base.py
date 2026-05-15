@@ -74,6 +74,7 @@ class Event:
     location_name: Optional[str] = None
     location_address: Optional[str] = None
     location_url: Optional[str] = None   # official website of the venue
+    location_prefectures: list[str] = field(default_factory=list)
     business_hours: Optional[str] = None
 
     is_paid: Optional[bool] = None

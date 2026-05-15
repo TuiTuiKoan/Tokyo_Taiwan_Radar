@@ -51,13 +51,27 @@ class KyotoCinemaScraper(BaseScraper):
 
         soup = BeautifulSoup(resp.text, "html.parser")
 
+        # Extract today's showing date from the selected tab: ul.main-movie-tab li.selected
+        today_date: datetime | None = None
+        tab = soup.find("ul", class_="main-movie-tab")
+        if tab:
+            selected = tab.find("li", class_="selected")
+            if selected:
+                m_tab = re.search(r"(\d+)\.(\d+)", selected.get_text(strip=True))
+                if m_tab:
+                    try:
+                        now = datetime.now(timezone.utc)
+                        month, day = int(m_tab.group(1)), int(m_tab.group(2))
+                        year = now.year if month >= now.month else now.year + 1
+                        today_date = datetime(year, month, day, tzinfo=timezone.utc)
+                    except ValueError:
+                        pass
+
         # Collect unique movie IDs from homepage schedule links /movie/{id}/
         movie_ids: dict[str, datetime | None] = {}  # id → earliest start_date
         seen: set[str] = set()
 
-        # Parse schedule: date headers are in ul.main-movie-date-list > li
-        # Movie cards are in li.main-movie-content-once
-        # Group them by looking at the schedule structure
+        # Movie cards are in li.main-movie-content-once (today's schedule)
         for card in soup.find_all("li", class_="main-movie-content-once"):
             link = card.find("a", href=re.compile(r"/movie/\d+/"))
             if not link:
@@ -68,11 +82,35 @@ class KyotoCinemaScraper(BaseScraper):
             mid = m.group(1)
             if mid not in seen:
                 seen.add(mid)
-                # Try to find start date: look for date in enclosing schedule block
-                start_date = _extract_date_from_schedule_block(card)
-                movie_ids[mid] = start_date
+                movie_ids[mid] = today_date
 
-        # Also collect any movie links we might have missed
+        # Collect showtimes and movie IDs from main-movie-once blocks (all currently running films)
+        # Each block appears once per tab (today + future days), so we only process the first occurrence.
+        movie_times: dict[str, str] = {}  # movie_id → "HH:MM / HH:MM"
+
+        for block in soup.find_all(class_="main-movie-once"):
+            link = block.find("a", href=re.compile(r"/movie/\d+/"))
+            if not link:
+                continue
+            mt = re.search(r"/movie/(\d+)/", link["href"])
+            if not mt:
+                continue
+            mid_t = mt.group(1)
+            # Register in movie_ids with today's date (first occurrence = selected tab = today)
+            if mid_t not in seen:
+                seen.add(mid_t)
+                movie_ids[mid_t] = today_date
+            if mid_t not in movie_times:
+                tds = block.find_all("td")
+                start_times = []
+                for td in tds:
+                    tm = re.match(r"(\d{1,2}:\d{2})", td.get_text(strip=True))
+                    if tm:
+                        start_times.append(tm.group(1))
+                if start_times:
+                    movie_times[mid_t] = " / ".join(start_times)
+
+        # Collect any additional movie links not yet seen
         for a in soup.find_all("a", href=re.compile(r"kyotocinema\.jp/movie/\d+/")):
             m = re.search(r"/movie/(\d+)/", a["href"])
             if m and m.group(1) not in seen:
@@ -145,8 +183,8 @@ class KyotoCinemaScraper(BaseScraper):
                 is_paid=True,
                 raw_title=title,
                 raw_description=raw_desc,
-                organizer="京都シネマ",
-                organizer_type=["commercial_brand"],
+                business_hours=movie_times.get(mid),
+                location_prefectures=["京都府"],
                 event_form=["screening"],
             ))
 
