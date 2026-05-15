@@ -150,6 +150,9 @@ class SnetTaiwanScraper(BaseScraper):
 
         soup = BeautifulSoup(r.text, "html.parser")
         full_text = soup.get_text(" ", strip=True).replace("\x00", "")
+        # Newline-separated text preserves block boundaries — used for venue
+        # extraction so _VENUE_RE stops at the end of the venue line.
+        full_text_nl = soup.get_text("\n", strip=True).replace("\x00", "")
 
         # Title: prefer <h3> (Elementor article heading); fallback to API title
         h3 = soup.find("h3")
@@ -209,7 +212,7 @@ class SnetTaiwanScraper(BaseScraper):
         # Venue
         # ------------------------------------------------------------------
         location_name: str | None = None
-        mv = _VENUE_RE.search(full_text)
+        mv = _VENUE_RE.search(full_text_nl)
         if mv:
             location_name = mv.group(1).strip()[:80]
 
