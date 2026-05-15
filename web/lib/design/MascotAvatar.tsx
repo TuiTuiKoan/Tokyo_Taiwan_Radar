@@ -83,6 +83,7 @@ function MascotBody({
             fill="#FFFFFF"
             filter={`url(#${flowGlowId})`}
             opacity={0}
+            visibility="hidden"
           >
             <animateMotion
               dur="12s"
