@@ -90,6 +90,7 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
   const [bulkWorkOpen, setBulkWorkOpen] = useState(false);
   const [bulkWorkQuery, setBulkWorkQuery] = useState("");
   const [bulkAssigningWork, setBulkAssigningWork] = useState(false);
+  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
   const bulkAddCatRef = useRef<HTMLDivElement>(null);
   const bulkWorkRef = useRef<HTMLDivElement>(null);
 
@@ -1697,11 +1698,30 @@ export default function AdminEventTable({ events: initialEvents, locale }: Props
                   </td>
                   <td className="py-2 pr-4 w-[160px] min-w-[160px]">
                     <div className="flex flex-wrap gap-1">
-                      {event.category?.slice(0, 3).map((cat) => (
-                        <span key={cat} className="bg-green-50 text-green-700 text-[10px] px-1.5 py-0.5 rounded-full">
-                          {tCat(cat as any)}
-                        </span>
-                      ))}
+                      {(() => {
+                        const cats = event.category ?? [];
+                        const isExpanded = expandedCategoryId === event.id;
+                        const visible = isExpanded ? cats : cats.slice(0, 3);
+                        const overflow = cats.length - 3;
+                        return (
+                          <>
+                            {visible.map((cat) => (
+                              <span key={cat} className="bg-green-50 text-green-700 text-[10px] px-1.5 py-0.5 rounded-full">
+                                {tCat(cat as any)}
+                              </span>
+                            ))}
+                            {overflow > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedCategoryId(isExpanded ? null : event.id)}
+                                className="text-[10px] text-blue-500 hover:text-blue-700 hover:underline leading-none px-0.5"
+                              >
+                                {isExpanded ? "−」" : `+${overflow}`}
+                              </button>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </td>
                   <td className="py-2 pr-4 text-xs w-[160px] min-w-[160px]">
