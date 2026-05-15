@@ -572,32 +572,46 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
   async function handleSaveAndAnnotate() {
     setAnnotationError(null);
     setSaving(true);
-    const { data, error } = await supabase
-      .from("events")
-      .insert({
-        ...form,
-        start_date: form.start_date || null,
-        end_date: form.end_date || null,
-        parent_event_id: form.parent_event_id || null,
-        co_organizers: (form as any).co_organizers || null,
-        sponsors: (form as any).sponsors || null,
-        source_id: `manual-${Date.now()}`,
-        is_active: false,
-        annotation_status: "pending",
-      })
-      .select()
-      .single();
+    let data: Record<string, unknown> | null = null;
+    try {
+      const result = await supabase
+        .from("events")
+        .insert({
+          ...form,
+          start_date: form.start_date || null,
+          end_date: form.end_date || null,
+          parent_event_id: form.parent_event_id || null,
+          co_organizers: (form as any).co_organizers || null,
+          sponsors: (form as any).sponsors || null,
+          source_id: `manual-${Date.now()}`,
+          is_active: false,
+          annotation_status: "pending",
+        })
+        .select()
+        .single();
+      if (result.error) {
+        console.error("Insert failed:", result.error);
+        alert(`Save failed: ${result.error.message}`);
+        setSaving(false);
+        return;
+      }
+      data = result.data as unknown as Record<string, unknown>;
+    } catch (insertErr) {
+      console.error("Insert threw:", insertErr);
+      alert(`Save failed: ${insertErr instanceof Error ? insertErr.message : String(insertErr)}`);
+      setSaving(false);
+      return;
+    }
 
-    if (error) {
-      console.error("Insert failed:", error);
-      alert(`Save failed: ${error.message}`);
+    if (!data) {
+      alert("Save failed: no data returned.");
       setSaving(false);
       return;
     }
 
     const eventId = (data as { id: string }).id;
     setSavedEventId(eventId);
-    setEvents((prev) => [data as Event, ...prev]);
+    setEvents((prev) => [data as unknown as Event, ...prev]);
     setSaving(false);
     setAnnotating(true);
     setEnrichedReady(false);
