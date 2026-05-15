@@ -144,6 +144,7 @@ from sources.asahiculture import AsahiCultureScraper
 from sources.cinemaclair import CinemaClairScraper
 from sources.uedaeigeki import UedaEigekiScraper
 from sources.snet_taiwan import SnetTaiwanScraper
+from sources.matsumoto_cinema_select import MatsumotoCinemaSelectScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -273,6 +274,7 @@ SCRAPERS = [
     UedaEigekiScraper(),
     AsahiCultureScraper(),
     SnetTaiwanScraper(),
+    MatsumotoCinemaSelectScraper(),
 ]
 
 
