@@ -43,12 +43,14 @@ function MascotBody({
   flowGradientId,
   flowGlowId,
   tipRingGradientId,
+  translateX = 0,
 }: {
   upright?: boolean;
   antennaFlowAnimation?: boolean;
   flowGradientId?: string;
   flowGlowId?: string;
   tipRingGradientId?: string;
+  translateX?: number;
 }) {
   const rotate = upright ? 0 : mascotTokens.tilt;
   const antennaPath = "M100,80 C110,30 60,0 80,20 C100,40 140,50 160,30";
@@ -57,7 +59,7 @@ function MascotBody({
     "M100,80 C 86,80 78,88 74,98 C 72,108 66,116 60,128 C 46,146 30,166 36,190 C 44,210 72,216 102,216 C 132,216 160,210 164,190 C 170,166 154,146 140,128 C 134,116 128,108 126,98 C 122,88 114,80 100,80 Z";
 
   return (
-    <g transform={`rotate(${rotate} 100 150)`}>
+    <g transform={`translate(${translateX} 0) rotate(${rotate} 100 150)`}>
       <path
         d={antennaPath}
         fill="none"
@@ -165,10 +167,12 @@ export function MascotAvatar({
     // (peak r=64 at the upper-right tip) is fully contained inside the SVG's own
     // CSS box. Avoids relying on `overflow="visible"`, which iOS Safari clips
     // when parent containers have `overflow: hidden` / transforms.
-    // Add 50 units of transparent padding on the left (min-x = -50) so the body,
-    // originally at x=0..200, sits closer to the visual horizontal center of the
-    // 300-unit-wide viewBox instead of being pushed left by the right-side glow.
-    const inlineViewBox = antennaFlowAnimation ? "-50 -50 300 270" : mascotTokens.viewBox;
+    const inlineViewBox = antennaFlowAnimation ? "0 -50 250 270" : mascotTokens.viewBox;
+    // Translate the body group to the right so it sits closer to the visual
+    // center of the SVG box. The right-side viewBox padding (50 units) hosts
+    // the tip-ring glow; without this offset the body itself looks left-shifted.
+    // 20 units keeps the glow's peak radius safely inside the viewBox (164+20+64=248).
+    const bodyOffsetX = antennaFlowAnimation ? 20 : 0;
     return (
       <svg
         viewBox={inlineViewBox}
@@ -210,6 +214,7 @@ export function MascotAvatar({
           flowGradientId={flowGradientId}
           flowGlowId={flowGlowId}
           tipRingGradientId={antennaFlowAnimation ? tipRingGradientId : undefined}
+          translateX={bodyOffsetX}
         />
       </svg>
     );
