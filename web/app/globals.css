@@ -279,52 +279,55 @@ html:has([data-site-bg]) body {
 }
 
 /* Diverse drift directions — each takes objects all the way across the viewport */
+/* opacity plateau is 20%–80% (not 10%–90%) so shapes fully fade BEFORE reaching
+   viewport edges; otherwise overflow-hidden clips them with visible right-angle
+   edges. */
 @keyframes drift-tl-br {
   0%   { transform: translate(-25vw, -25vh) rotate(0deg); opacity: 0; }
-  10%  { opacity: 0.9; }
-  90%  { opacity: 0.9; }
+  20%  { opacity: 0.9; }
+  80%  { opacity: 0.9; }
   100% { transform: translate(125vw, 125vh) rotate(240deg); opacity: 0; }
 }
 @keyframes drift-tr-bl {
   0%   { transform: translate(125vw, -25vh) rotate(0deg); opacity: 0; }
-  10%  { opacity: 0.9; }
-  90%  { opacity: 0.9; }
+  20%  { opacity: 0.9; }
+  80%  { opacity: 0.9; }
   100% { transform: translate(-25vw, 125vh) rotate(-300deg); opacity: 0; }
 }
 @keyframes drift-bl-tr {
   0%   { transform: translate(-25vw, 125vh) rotate(0deg); opacity: 0; }
-  10%  { opacity: 0.85; }
-  90%  { opacity: 0.85; }
+  20%  { opacity: 0.85; }
+  80%  { opacity: 0.85; }
   100% { transform: translate(125vw, -25vh) rotate(180deg); opacity: 0; }
 }
 @keyframes drift-br-tl {
   0%   { transform: translate(125vw, 125vh) rotate(0deg); opacity: 0; }
-  10%  { opacity: 0.9; }
-  90%  { opacity: 0.9; }
+  20%  { opacity: 0.9; }
+  80%  { opacity: 0.9; }
   100% { transform: translate(-25vw, -25vh) rotate(-200deg); opacity: 0; }
 }
 @keyframes drift-l-r {
   0%   { transform: translate(-30vw, 0) rotate(0deg); opacity: 0; }
-  10%  { opacity: 0.85; }
-  90%  { opacity: 0.85; }
+  20%  { opacity: 0.85; }
+  80%  { opacity: 0.85; }
   100% { transform: translate(130vw, 0) rotate(360deg); opacity: 0; }
 }
 @keyframes drift-r-l {
   0%   { transform: translate(130vw, 0) rotate(0deg); opacity: 0; }
-  10%  { opacity: 0.85; }
-  90%  { opacity: 0.85; }
+  20%  { opacity: 0.85; }
+  80%  { opacity: 0.85; }
   100% { transform: translate(-30vw, 0) rotate(-360deg); opacity: 0; }
 }
 @keyframes drift-t-b {
   0%   { transform: translate(0, -30vh) rotate(0deg); opacity: 0; }
-  10%  { opacity: 0.85; }
-  90%  { opacity: 0.85; }
+  20%  { opacity: 0.85; }
+  80%  { opacity: 0.85; }
   100% { transform: translate(0, 130vh) rotate(120deg); opacity: 0; }
 }
 @keyframes drift-b-t {
   0%   { transform: translate(0, 130vh) rotate(0deg); opacity: 0; }
-  10%  { opacity: 0.85; }
-  90%  { opacity: 0.85; }
+  20%  { opacity: 0.85; }
+  80%  { opacity: 0.85; }
   100% { transform: translate(0, -30vh) rotate(-150deg); opacity: 0; }
 }
 
