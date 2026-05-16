@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-05-16 — `tokyoartbeat` aggregator が `official_url=source_url` フォールバックでイベント詳細ページの「公式サイト」リンクを汚染
+
+**問題：** event `74ee6d89`（共時的星叢―時を共にした星たち　越境する芸術のまなざし）の `official_url` が `https://www.tokyoartbeat.com/events/-/Synchronic-Constellation-...`（aggregator 自身）になっており、UI の「公式サイト」ボタンが東京都現代美術館の展覧会ページではなく tokyoartbeat に戻ってしまっていた。
+
+**根本原因：** `scraper/sources/tokyoartbeat.py` line 124 の `or source_url` フォールバック。Contentful CMS の `showsWebpage` フィールドが空のとき、`official_url = source_url` となり tokyoartbeat URL に汚染される。
+
+```python
+# ❌ 汚染源
+official_url = (
+    self._loc(f.get("showsWebpage", {}), "en-US")
+    or self._loc(f.get("showsWebpage", {}), "ja-JP")
+    or source_url  # ← aggregator URL に汚染
+)
+```
+
+**修復：**
+1. DB レベル — event `74ee6d89` の `official_url` を `https://www.mot-art-museum.jp/exhibitions/Constellation/#section1` に修正し `field_corrections` にロック
+2. scraper レベル — `or source_url` を `or None` に変更（aggregator は first-party ではないため null が正しい）
+3. SKILL.md — 既存の「聚合站 scraper」ルールに `or source_url` フォールバックを「反パターンの第二形（CMS / API 系 aggregator 用）」として追記
+
+**教訓：**
+- Aggregator scraper（tokyoartbeat、peatix、doorkeeper、connpass、eplus、livepocket、kokuchpro 等）は **`source_url ≠ official_url`** が原則。CMS フィールドが空のときは `or None` でフォールバックを止め、annotator や手動 enrichment に委ねる。
+- First-party scraper（taiwan_cultural_center、taiwan_matsuri、koryu、asahiculture、各シネマ等）は `official_url=url` / `official_url=detail_link` を明示的に設定してよい——`source_url` 自体が主催者の公式ページだから。
+- 監査コマンド：`grep -rn "official_url.*or source_url\|official_url=source_url" scraper/sources/` → 0 件であるべき。
+
+---
+
 ## 2026-05-15 — annotator が静的会場データを上書き → `database.py` に `_auto_lock_location()` を追加（commit `435d68a`）
 
 **問題：** `cinemaclair`・`ks_cinema`・`hakusuisha` など固定会場を持つ cinema scraper では、`Event(location_name=..., location_address=...)` をスクレイパーが正確に設定していても、annotator 再実行時に GPT が `location_name` を書き換えることがあった（例：`シネマ・クレール` → `岡山市`）。

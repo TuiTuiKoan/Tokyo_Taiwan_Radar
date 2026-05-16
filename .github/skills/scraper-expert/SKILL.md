@@ -728,6 +728,40 @@ Reference incidents:
 - 2026-05-10 commit `ab771e2` — `ftip.py` 首次修正誤以「官方 URL 較有資訊量」讓 `source_url` 指向 `www.taiwanprism.com`，破壞 FTIP audit trail
 - 2026-05-10 commit `7c34788` — 更正為正確模式：`source_url=ftip-japan.org/699`、`official_url=taiwanprism.com`，DB 事件 `023dcbec` 同步修正
 
+**反パターンの第二形：`or source_url` フォールバック**（CMS / API 系 aggregator 用）：
+
+Contentful / API 駆動の aggregator（`tokyoartbeat` 等）では「公式 URL フィールド」（例：`showsWebpage`）が CMS 上で空のことがある。フォールバックを `or source_url` にすると、フィールド欠落のたび `official_url` が aggregator URL に汚染される——コードレビュー時に見逃しやすい静默バグ。
+
+```python
+# ❌ 反パターン — CMS 欠落時に source_url で汚染
+official_url = (
+    self._loc(f.get("showsWebpage", {}), "en-US")
+    or self._loc(f.get("showsWebpage", {}), "ja-JP")
+    or source_url
+)
+
+# ✅ 正しい — None を許容し、後段の annotator/手動 enrichment に委ねる
+official_url = (
+    self._loc(f.get("showsWebpage", {}), "en-US")
+    or self._loc(f.get("showsWebpage", {}), "ja-JP")
+    or None
+)
+```
+
+**Aggregator 判定**（このルールが適用される source）：
+- 第三者がイベントを掲載する集約サイト：`tokyoartbeat`、`peatix`、`doorkeeper`、`connpass`、`eplus`、`livepocket`、`kokuchpro`、`walkerplus`、`arukikata`、`prtimes`、`ftip`
+- ニュース / RSS 由来：`google_news_rss`、`nhk_rss`、`note_creators`
+
+**例外（first-party、フォールバック OK）**：`source_url` 自体が主催者の公式ページである scraper。例：`taiwan_cultural_center`、`taiwan_matsuri`、`koryu`、`taioan_dokyokai`、`taiwan_kyokai`、`asahiculture`（カルチャーセンター自身が主催）、各シネマ scraper（劇場自身が主催）。これらは `official_url=url` / `official_url=detail_link` を明示的に設定してよい。
+
+**監査コマンド**：
+```bash
+grep -rn "official_url.*or source_url\|official_url=source_url" scraper/sources/
+# → 0 件であるべき
+```
+
+Reference incident: 2026-05-16 — `tokyoartbeat.py` line 124 `or source_url` フォールバックが root cause。event `74ee6d89`（共時的星叢）の `official_url` が tokyoartbeat aggregator URL に汚染、DB 修正＋FC ロック後 scraper も修正（`or None` に変更）。
+
 ## M/D~D 多日範圍 — end_date 提取與跨月防護
 
 **Rule**: 日期字串含 `~`（如 `8/30~31`）表示多日活動，必須同時提取 `start_date` 和 `end_date`。

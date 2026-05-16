@@ -1807,6 +1807,30 @@ Reference incident: 2026-05-12 — Phase A 實作；3 個呼叫點全部更新�
 
 Reference incident: 2026-05-12 — ヤンヤン 4K 重映實際官網為 `yi-yi.jp`，但 eiga.com 詳情頁無 jump link；初次 enrich 寫入錯誤 `yiyi-movie.jp`，需手動修正並 FC 鎖定。
 
+## Aggregator official_url Guard（聚合站來源的 `official_url ≠ source_url`）
+
+在審核**任何**新 scraper 或既有 scraper 修改的計畫前，**必須**確認 `official_url` 的設定方式與 source 性質一致：
+
+1. **Aggregator 來源**（第三者投稿型／集約站）`official_url` 不可 fallback 到 `source_url`：
+   - 對象：`tokyoartbeat`、`peatix`、`doorkeeper`、`connpass`、`eplus`、`livepocket`、`kokuchpro`、`walkerplus`、`arukikata`、`prtimes`、`ftip`、`google_news_rss`、`nhk_rss`、`note_creators`
+   - `source_url` = aggregator 頁面（保留作 audit trail）
+   - `official_url` = 從頁面 body 提取的主辦方一手 URL；提取不到時必須為 `None`
+2. **常見反 pattern**：
+   - `source_url = official_url_extracted` — 破壞 audit trail（已於 ftip 2026-05-10 處理）
+   - `official_url = ... or source_url` — CMS 欄位為空時靜默汚染（已於 tokyoartbeat 2026-05-16 處理）
+3. **First-party 來源例外**（`source_url` 自體即官方頁，可明示設定 `official_url=url`）：
+   - `taiwan_cultural_center`、`taiwan_matsuri`、`koryu`、`taioan_dokyokai`、`taiwan_kyokai`、`asahiculture`、各 cinema scraper
+4. **審核命令**（規劃完成前執行）：
+   ```bash
+   grep -rn "official_url.*or source_url\|official_url=source_url" scraper/sources/
+   # 期待結果：0 件
+   ```
+5. **影響範圍**：`official_url` 汚染後 UI「公式サイト」按鈕指回 aggregator 而非主辦方頁面，使用者無法到達真正的活動資訊源。
+
+Reference incidents:
+- 2026-05-10 — `ftip.py` `source_url` 被 official_url 覆寫，破壞 FTIP audit trail（commits `ab771e2` → `7c34788`）。
+- 2026-05-16 — `tokyoartbeat.py` line 124 `or source_url` fallback 汚染 event `74ee6d89`（共時的星叢）official_url；DB 修正 + FC 鎖定，scraper 改為 `or None`。
+
 ## Venue Parent vs Sub-event business_hours Guard
 
 在審核任何「**場館型父事件 + 多場次 sub-event**」結構（YCAM、新文芸坐、シネマート新宿、ks_cinema 等）的 `business_hours` 設定計畫前，**必須**確認：
