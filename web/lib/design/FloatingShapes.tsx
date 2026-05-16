@@ -264,7 +264,21 @@ export function FloatingShapes() {
   };
 
   return (
-    <div aria-hidden className="fixed inset-0 -z-10 overflow-hidden pointer-events-none opacity-40">
+    <div
+      aria-hidden
+      className="fixed inset-0 -z-10 overflow-hidden pointer-events-none opacity-40"
+      style={{
+        // Fade out the outer 8% of each axis so shapes never form right-angle
+        // clipped edges against the viewport. Two linear masks composited via
+        // intersect produce a soft rectangular vignette.
+        WebkitMaskImage:
+          "linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)",
+        WebkitMaskComposite: "source-in",
+        maskImage:
+          "linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)",
+        maskComposite: "intersect",
+      }}
+    >
       {floaters.map((f, i) => (
         <FloaterView
           key={`${i}-${f.bump}`}
