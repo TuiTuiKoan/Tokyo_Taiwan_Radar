@@ -479,19 +479,12 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
   display: none;
 }
 
-[data-antenna-flow="on"] .lianbu-tip-ring {
-  opacity: 0; /* prevent FOUC; quiet state handled by keyframe */
-  animation: lianbu-tip-ring-flash 12s ease-in-out infinite;
-}
+/* tip-ring is now animated via SMIL <animate> on the <circle> itself (see MascotAvatar.tsx).
+   Safari does NOT animate CSS `r` property, but it DOES animate the SVG `r` attribute via SMIL.
+   Class kept only for prefers-reduced-motion targeting below. */
 
 /* Keep the core dot fixed-size: mobile WebKit/Chromium can clip huge SVG transform-scale pulses. */
-[data-antenna-flow="on"] .lianbu-tip-core {
-  animation: lianbu-tip-core-flash 12s ease-in-out infinite;
-}
-
-[data-antenna-flow="on"] .lianbu-tip-spark {
-  animation: lianbu-tip-spark-flash 12s ease-in-out infinite;
-}
+/* lianbu-tip-core and lianbu-tip-spark animations disabled — only the expanding ring is active */
 
 @keyframes lianbu-antenna-flow-line {
   /* Flash ends at 17%; segment immediately appears and travels 1s (17→25%);
@@ -545,25 +538,6 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
   }
 }
 
-@keyframes lianbu-tip-ring-flash {
-  0% { r: 11; opacity: 0; }
-  7% { r: 24; opacity: 0.95; }
-  13% { r: 32; opacity: 0.5; }
-  17%,
-  100% { r: 11; opacity: 0; }
-}
-
-/* Desktop / tablet: viewport has room for the full-size glow without rectangular clipping. */
-@media (min-width: 768px) {
-  @keyframes lianbu-tip-ring-flash {
-    0% { r: 11; opacity: 0; }
-    7% { r: 48; opacity: 0.95; }
-    13% { r: 64; opacity: 0.5; }
-    17%,
-    100% { r: 11; opacity: 0; }
-  }
-}
-
 @keyframes lianbu-tip-core-flash {
   0% {
     fill: #1F5E2B;
@@ -609,7 +583,10 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
     display: none;
   }
 
-  [data-antenna-flow="on"] .lianbu-tip-ring,
+  [data-antenna-flow="on"] .lianbu-tip-ring {
+    display: none; /* hide SMIL-driven ring entirely under reduced-motion */
+  }
+
   [data-antenna-flow="on"] .lianbu-tip-core,
   [data-antenna-flow="on"] .lianbu-tip-spark {
     animation: none;
