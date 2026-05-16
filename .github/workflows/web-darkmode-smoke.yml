@@ -43,11 +43,18 @@ jobs:
         working-directory: web
         run: pnpm run build-specs-snapshot
 
-      - name: Start Next.js app
+      - name: Create .env.local for CI
         working-directory: web
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          echo "NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}" >> .env.local
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_KEY}" >> .env.local
+          echo "NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000" >> .env.local
+
+      - name: Start Next.js app
+        working-directory: web
         run: |
           pnpm dev --hostname 127.0.0.1 --port 3000 > /tmp/web-darkmode-smoke-next.log 2>&1 &
           echo $! > /tmp/web-darkmode-smoke-next.pid
