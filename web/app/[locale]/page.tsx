@@ -116,7 +116,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
       )}
 
       {/* Brand intro / SEO content — Lianbu mascot hero */}
-      <section className="mt-6 mb-8 relative grid gap-6 md:grid-cols-[300px_1fr] items-center text-center md:text-left">
+      <section className="mt-6 mb-8 relative grid gap-6 md:grid-cols-[300px_1fr] items-start text-center md:text-left">
         <div className="relative inline-flex flex-col items-center mx-auto md:mx-0 shrink-0">
           <MascotAvatar variant="inline" size={300} antennaFlowAnimation />
           <div
@@ -127,7 +127,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
           </div>
         </div>
 
-        <div className="w-full flex flex-col items-center md:items-start text-center md:text-left mx-auto md:mx-0">
+        <div className="w-full flex flex-col items-center md:items-start text-center md:text-left mx-auto md:mx-0 md:pt-[118px]">
           <h1 className="font-display font-black text-[#3A261F] dark:text-fg leading-tight text-3xl tracking-tight">
             <span className="block">{tHome("heroLine1")}</span>
             <span className="block">{tHome("heroLine2")}</span>
