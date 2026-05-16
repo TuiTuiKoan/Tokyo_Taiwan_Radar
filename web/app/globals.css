@@ -475,9 +475,8 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
 }
 
 [data-antenna-flow="on"] .lianbu-antenna-flow-dot {
-  opacity: 0;
-  visibility: hidden; /* belt-and-suspenders: prevents WebKit filter FBO artifact at opacity 0 */
-  animation: lianbu-antenna-flow-dot 12s ease-in-out infinite;
+  /* Disabled — the bright white traveling dot surfaced as an unwanted top-left flash on mobile WebKit. */
+  display: none;
 }
 
 [data-antenna-flow="on"] .lianbu-tip-ring {
@@ -548,10 +547,21 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
 
 @keyframes lianbu-tip-ring-flash {
   0% { r: 11; opacity: 0; }
-  7% { r: 22; opacity: 0.9; }
-  13% { r: 26; opacity: 0.38; }
+  7% { r: 24; opacity: 0.95; }
+  13% { r: 32; opacity: 0.5; }
   17%,
   100% { r: 11; opacity: 0; }
+}
+
+/* Desktop / tablet: viewport has room for the full-size glow without rectangular clipping. */
+@media (min-width: 768px) {
+  @keyframes lianbu-tip-ring-flash {
+    0% { r: 11; opacity: 0; }
+    7% { r: 48; opacity: 0.95; }
+    13% { r: 64; opacity: 0.5; }
+    17%,
+    100% { r: 11; opacity: 0; }
+  }
 }
 
 @keyframes lianbu-tip-core-flash {
@@ -577,7 +587,7 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
   }
   7%,
   13% {
-    fill: #FFFFFF;
+    fill: #C4E86F;
     opacity: 0;
   }
   17%,
