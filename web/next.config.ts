@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: projectRoot,
   },
+  // Allow LAN devices (phones, tablets) to load Next.js dev resources (HMR, RSC payloads)
+  // when previewing via http://192.168.x.x:3000. No effect on production builds.
+  allowedDevOrigins: ["192.168.161.110"],
 };
 
 export default withSentryConfig(
