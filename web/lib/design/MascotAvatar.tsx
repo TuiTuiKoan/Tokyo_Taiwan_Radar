@@ -102,9 +102,26 @@ function MascotBody({
       <g>
         {/* Static thin stroke circle — always visible regardless of animation state */}
         <circle cx="164" cy="26" r="11" fill="none" stroke="#1F5E2B" strokeWidth="1.4" opacity="0.4" />
-        {/* Animated gradient ring — flashes on top of stroke circle; hidden at rest */}
+        {/* Animated gradient ring — flashes via SMIL <animate> (Safari does not animate CSS `r` property) */}
         {tipRingGradientId && (
-          <circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill={`url(#${tipRingGradientId})`} opacity={0} />
+          <circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill={`url(#${tipRingGradientId})`} opacity={0}>
+            <animate
+              attributeName="r"
+              values="11;64;64;11;11"
+              keyTimes="0;0.07;0.17;0.18;1"
+              dur="12s"
+              repeatCount="indefinite"
+              calcMode="linear"
+            />
+            <animate
+              attributeName="opacity"
+              values="0;0.95;0;0;0"
+              keyTimes="0;0.07;0.17;0.18;1"
+              dur="12s"
+              repeatCount="indefinite"
+              calcMode="linear"
+            />
+          </circle>
         )}
         <circle className="lianbu-tip-core" cx="164" cy="26" r="6" fill="#1F5E2B" />
         <circle className="lianbu-tip-spark" cx="164" cy="26" r="2.2" fill="#C4E86F" />
@@ -144,9 +161,14 @@ export function MascotAvatar({
   const tipRingGradientId = `${baseId}-antenna-tip-ring-gradient`;
 
   if (variant === "inline") {
+    // Expand viewBox when antenna flow is on so the SMIL-animated tip ring
+    // (peak r=64 at the upper-right tip) is fully contained inside the SVG's own
+    // CSS box. Avoids relying on `overflow="visible"`, which iOS Safari clips
+    // when parent containers have `overflow: hidden` / transforms.
+    const inlineViewBox = antennaFlowAnimation ? "0 -50 250 270" : mascotTokens.viewBox;
     return (
       <svg
-        viewBox={mascotTokens.viewBox}
+        viewBox={inlineViewBox}
         width={size}
         height={size}
         className={className}
@@ -163,10 +185,12 @@ export function MascotAvatar({
               <stop offset="50%" stopColor="#C4E86F" stopOpacity="1" />
               <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
             </linearGradient>
-            <radialGradient id={tipRingGradientId} cx="164" cy="26" r="30" gradientUnits="userSpaceOnUse">
-              <stop offset="0%"   stopColor="#C4E86F" stopOpacity="1"   /> {/* leaf-green center */}
-              <stop offset="55%"  stopColor="#FFD700" stopOpacity="0.55" /> {/* yellow mid */}
-              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.2"  /> {/* white edge ~20% */}
+            {/* Gradient r matches SMIL peak (r=64) so the glow scales correctly.
+                Edge fades to transparent (not white) so it's visible on light backgrounds too. */}
+            <radialGradient id={tipRingGradientId} cx="164" cy="26" r="64" gradientUnits="userSpaceOnUse">
+              <stop offset="0%"   stopColor="#C4E86F" stopOpacity="0.95" /> {/* leaf-green center */}
+              <stop offset="50%"  stopColor="#FFD700" stopOpacity="0.6"  /> {/* yellow mid */}
+              <stop offset="100%" stopColor="#A8D840" stopOpacity="0"    /> {/* fade to transparent */}
             </radialGradient>
             <filter id={flowGlowId} x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="3.4" result="blur" />
