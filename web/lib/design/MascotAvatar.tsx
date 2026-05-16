@@ -122,16 +122,16 @@ function MascotBody({
           >
             <animate
               attributeName="r"
-              values="11;64;64;64;11;11"
-              keyTimes="0;0.07;0.08;0.17;0.18;1"
+              values="11;64;64;11;11"
+              keyTimes="0;0.07;0.17;0.18;1"
               dur="12s"
               repeatCount="indefinite"
               calcMode="linear"
             />
             <animate
               attributeName="opacity"
-              values="0;0.95;0.95;0.95;0;0"
-              keyTimes="0;0.07;0.08;0.17;0.18;1"
+              values="0;0.95;0.95;0;0"
+              keyTimes="0;0.07;0.17;0.18;1"
               dur="12s"
               repeatCount="indefinite"
               calcMode="linear"
@@ -222,8 +222,8 @@ export function MascotAvatar({
               <circle cx="164" cy="26" r="0" fill="black">
                 <animate
                   attributeName="r"
-                  values="0;0;0;64;0;0"
-                  keyTimes="0;0.07;0.08;0.17;0.18;1"
+                  values="0;0;64;0;0"
+                  keyTimes="0;0.055;0.17;0.18;1"
                   dur="12s"
                   repeatCount="indefinite"
                   calcMode="linear"
