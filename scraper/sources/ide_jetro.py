@@ -40,6 +40,7 @@ LISTING_URL = f"{BASE_URL}/Japanese/Event/Seminar.html"
 HEADERS = {"User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)"}
 LOOKBACK_DAYS = 180
 REQUEST_DELAY = 1.0  # seconds between detail-page fetches
+REQUEST_TIMEOUT = 30  # seconds — ide.go.jp can be slow
 
 _HREF_RE = re.compile(r"/Japanese/Event/(?:Seminar|Sympo)/(\d{6})\.html")
 _DATE_DOTTED_RE = re.compile(r"(\d{4})\.(\d{2})\.(\d{2})")
@@ -81,7 +82,7 @@ def _fetch_detail(url: str) -> dict:
     Returns an empty dict on any network / parse error.
     """
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
     except Exception as exc:
         logger.warning("Detail fetch failed %s: %s", url, exc)
@@ -122,10 +123,10 @@ class IdeJetroScraper(BaseScraper):
         seen_ids: set[str] = set()
 
         try:
-            resp = requests.get(LISTING_URL, headers=HEADERS, timeout=15)
+            resp = requests.get(LISTING_URL, headers=HEADERS, timeout=REQUEST_TIMEOUT)
             resp.raise_for_status()
         except Exception as exc:
-            logger.error("Failed to fetch IDE-JETRO listing: %s", exc)
+            logger.warning("Failed to fetch IDE-JETRO listing: %s", exc)
             return []
 
         soup = BeautifulSoup(resp.text, "html.parser")
