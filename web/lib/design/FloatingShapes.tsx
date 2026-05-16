@@ -154,9 +154,10 @@ function newFloater(slotIdx: number, prev?: Floater, fillCounts?: Record<string,
 }
 
 // ----- Render --------------------------------------------------------------
-function FloaterView({ slotIdx, f, onCycle }: { slotIdx: number; f: Floater; onCycle: () => void }) {
+function FloaterView({ slotIdx, f, scale, onCycle }: { slotIdx: number; f: Floater; scale: number; onCycle: () => void }) {
   const { tag, attrs } = shapePath(f.shape);
   const patternId = `pat-${slotIdx}-${f.bump}`;
+  const renderSize = f.size * scale;
   const isPattern = ["dotsDense", "dotsSparse", "stripes", "hatch", "grid"].includes(f.fill);
   const isOutline = f.fill === "outlineThin" || f.fill === "outlineThick" || f.fill === "dashed";
   const strokeWidth = f.fill === "outlineThin" ? 1.4 : f.fill === "dashed" ? 2.4 : 3.2;
@@ -186,8 +187,8 @@ function FloaterView({ slotIdx, f, onCycle }: { slotIdx: number; f: Floater; onC
       style={{
         top: 0,
         left: 0,
-        width: f.size,
-        height: f.size,
+        width: renderSize,
+        height: renderSize,
         opacity: f.opacity,
         animation: `${f.drift} ${f.duration}s linear infinite`,
         animationDelay: `${f.delay}s`,
@@ -214,6 +215,21 @@ const TOTAL_SLOTS = TIERS.length * 2; // 10
 export function FloatingShapes() {
   // null until mounted → avoids SSR hydration mismatch (Math.random is client-only).
   const [floaters, setFloaters] = useState<Floater[] | null>(null);
+  // Viewport-responsive scale: largest tier is 700px, baseline viewport 1100px.
+  // On mobile (~390px) this clamps the largest shape to ~248px so the
+  // animation no longer feels brutally cropped.
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const computeScale = () => {
+      const vw = window.innerWidth;
+      // Below 1100px viewport, shrink proportionally; min 0.35.
+      setScale(Math.max(0.35, Math.min(1, vw / 1100)));
+    };
+    computeScale();
+    window.addEventListener("resize", computeScale);
+    return () => window.removeEventListener("resize", computeScale);
+  }, []);
 
   useEffect(() => {
     // Build incrementally so each new floater sees fills already committed.
@@ -254,6 +270,7 @@ export function FloatingShapes() {
           key={`${i}-${f.bump}`}
           slotIdx={i}
           f={f}
+          scale={scale}
           onCycle={() => handleCycle(i)}
         />
       ))}
