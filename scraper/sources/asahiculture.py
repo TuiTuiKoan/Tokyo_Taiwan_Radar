@@ -158,6 +158,11 @@ class AsahiCultureScraper(BaseScraper):
             location_name = detail["location_name"] or card_branch
             location_address = detail["location_address"] or CLASSROOM_ADDRESS_MAP.get(location_name)
 
+        # Build enhanced business_hours: append （全N回） when session count is available
+        bh = detail["business_hours"]
+        if bh and detail["session_count"] and f"全{detail['session_count']}回" not in bh:
+            bh = f"{bh}（全{detail['session_count']}回）"
+
         return Event(
             source_name=self.SOURCE_NAME,
             source_id=source_id,
@@ -168,7 +173,7 @@ class AsahiCultureScraper(BaseScraper):
             source_url=detail_link,
             location_name=location_name,
             location_address=location_address,
-            business_hours=detail["business_hours"],
+            business_hours=bh,
             performer=detail["performer"],
             organizer=ORGANIZER,
             organizer_type=["cultural_institution"],
@@ -215,6 +220,7 @@ class AsahiCultureScraper(BaseScraper):
             "location_name": None,
             "location_address": None,
             "business_hours": None,
+            "session_count": None,
             "performer": None,
             "is_paid": None,
             "price_info": None,
@@ -229,7 +235,7 @@ class AsahiCultureScraper(BaseScraper):
             r.encoding = "MS932"
             soup = BeautifulSoup(r.text, "html.parser")
 
-            # --- Table rows: 曜日・時間 (business hours) and 備考 (satellite venue) ---
+            # --- Table rows: 曜日・時間 (business hours), 回数, and 備考 (satellite venue) ---
             for tr in soup.find_all("tr"):
                 th_tag = tr.find("th")
                 td_tag = tr.find("td")
@@ -241,6 +247,12 @@ class AsahiCultureScraper(BaseScraper):
                 if "曜日" in label or "時間" in label:
                     # e.g. "火曜\u300011:45～13:15"
                     result["business_hours"] = re.sub(r"[\u3000\s]+", " ", value).strip()
+
+                if "回数" in label:
+                    # e.g. "3回"
+                    cnt_m = re.search(r"(\d+)", value)
+                    if cnt_m:
+                        result["session_count"] = int(cnt_m.group(1))
 
                 if "備考" in label:
                     # Satellite/external venue announced in「…」brackets
