@@ -194,7 +194,7 @@ export default function FilterBar({ locale: _locale, currentFilters, hiddenFilte
           </div>
 
           {/* Category dropdown */}
-          {!hiddenFilters.includes("category") && <div className="flex flex-col gap-1" ref={catDropdownRef}>
+          <div className="flex flex-col gap-1" ref={catDropdownRef}>
             <label id={fieldIds.categoryLabel} className="text-xs text-fg-muted font-medium">{t("category")}</label>
             <div className="relative">
               <button
@@ -245,7 +245,7 @@ export default function FilterBar({ locale: _locale, currentFilters, hiddenFilte
                 </div>
               )}
             </div>
-          </div>}
+          </div>
 
           {/* Location filter */}
           <div className="flex flex-col gap-1" ref={locationRef}>
@@ -338,7 +338,7 @@ export default function FilterBar({ locale: _locale, currentFilters, hiddenFilte
           })()}
 
           {/* Paid filter */}
-          {!hiddenFilters.includes("paid") && <div className="flex flex-col gap-1" ref={paidRef}>
+          <div className="flex flex-col gap-1" ref={paidRef}>
             <label className="text-xs text-fg-muted font-medium">{t("paid")}</label>
             <div className="relative">
               <button
@@ -368,7 +368,7 @@ export default function FilterBar({ locale: _locale, currentFilters, hiddenFilte
                 </div>
               )}
             </div>
-          </div>}
+          </div>
 
           {/* Time mode */}
           <div className="flex flex-col gap-1" ref={timeModeRef}>

@@ -85,6 +85,7 @@
     "parenting": "Family & Parenting",
     "folklore": "Folklore & Seasonal Customs",
     "scholarship": "Open Calls, Grants & Scholarships",
+    "study_abroad": "Study Abroad",
     "tea_alcohol": "Tea & Drinks"
   },
   "event": {
@@ -744,7 +745,8 @@
     "parenting": "Parenting and family events: Taiwan-Japan cross-cultural parenting, picture book readings, and children's cultural experiences.",
     "report": "Reports and presentations: research outcome reports, survey releases, annual reviews, and policy evaluations.",
     "retail": "Retail and brand events: Taiwanese brand pop-up stores, new product launches, and curated shop events.",
-    "scholarship": "Scholarship and study-abroad events: Taiwan-Japan scholarship briefings, study-abroad sharing, and academic exchange programs.",
+    "scholarship": "Scholarship and grant events: Taiwan-Japan scholarship briefings, open calls, and academic exchange program funding.",
+    "study_abroad": "Study abroad events: information sessions, exchange programs, university application briefings, and Taiwan-Japan cross-cultural study programs.",
     "taiwan_mandarin": "Taiwanese Mandarin events: Mandarin teaching, language and cultural experiences, and proficiency tests.",
     "tea_alcohol": "Tea and alcohol culture: Taiwanese tea ceremonies, oolong tasting, craft beer, and whisky appreciation events.",
     "tech": "Tech events: Taiwan-Japan tech exchanges, AI/semiconductor forums, developer communities, and startup demos.",

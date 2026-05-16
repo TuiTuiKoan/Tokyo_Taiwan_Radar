@@ -118,10 +118,17 @@ class TokyoArtBeatScraper(BaseScraper):
                 start_date = self._parse_date(slug_m.group(1))
 
             # ── Official URL ──────────────────────────────────────────
+            # NEVER fall back to source_url — tokyoartbeat is an aggregator,
+            # not the organizer. If `showsWebpage` is absent in CMS, leave
+            # official_url as None and let the annotator/GPT extract the
+            # venue's own URL from raw_description. Setting it equal to
+            # source_url makes the UI "official site" link point back to
+            # tokyoartbeat instead of the museum/gallery website.
+            # See: scraper-expert SKILL.md § Aggregator official_url rule
             official_url = (
                 self._loc(f.get("showsWebpage", {}), "en-US")
                 or self._loc(f.get("showsWebpage", {}), "ja-JP")
-                or source_url
+                or None
             )
 
             # ── Description ───────────────────────────────────────────
