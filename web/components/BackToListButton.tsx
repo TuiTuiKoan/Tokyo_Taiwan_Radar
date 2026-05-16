@@ -1,32 +1,20 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import type { Locale } from "@/lib/types";
 
 interface Props {
   locale: Locale;
 }
 
-export default function BackToListButton({ locale }: Props) {
-  const router = useRouter();
-  const t = useTranslations("event");
-
-  function handleBack() {
-    const saved = sessionStorage.getItem("ttr_list_scroll");
-    if (saved) {
-      router.back();
-    } else {
-      router.push(`/${locale}`);
-    }
-  }
+export default async function BackToListButton({ locale }: Props) {
+  const t = await getTranslations({ locale, namespace: "event" });
 
   return (
-    <button
-      onClick={handleBack}
+    <Link
+      href={`/${locale}`}
       className="inline-flex items-center gap-1 text-sm text-fg-muted hover:text-green-700 dark:hover:text-green-400 mb-4 transition"
     >
       ← {t("backToList")}
-    </button>
+    </Link>
   );
 }
