@@ -23,7 +23,7 @@ Read this at the start of every session before producing any plan.
 | 1 | `web/lib/types.ts` | Category union + CATEGORIES array + CATEGORY_GROUPS |
 | 2 | `scraper/annotator.py` | VALID_CATEGORIES + SYSTEM_PROMPT enum string + definition |
 | 3 | `web/messages/{zh,en,ja}.json` | `categories.<key>` + `categoryDesc.<key>`（三語各一）|
-| 4 | `web/lib/design/organicMotifs.tsx` | `case '<key>':` 5 個 SVG 變體（缺少則 fallback 為預設 blob，無報錯）|
+| 4 | `web/lib/design/organicMotifs.tsx` | `case '<key>':` 5 個 SVG 變體（缺少則 fallback 為預設 blob，無報錯）↳ **同時自動涵蓋 CategoryThumbnail UI + category OG image + event OG image**（三者均動態呼叫 `getSemanticSymbol()`，無硬編碼列表）|
 | 5 | Sync Guard 驗證 | `python3 -c "from annotator import VALID_CATEGORIES, _check_category_sync; _check_category_sync()"` pass |
 
 **步驟 4（縮圖）是最容易被遺漏的**：TypeScript 不報錯、build 不失敗、只有在 `/debug/motifs` 頁才能看到 fallback blob。計畫中必須明確標注 Engineer 要加 `case` 到 `organicMotifs.tsx`。

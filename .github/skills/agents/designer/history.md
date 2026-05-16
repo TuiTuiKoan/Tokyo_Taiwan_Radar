@@ -1,3 +1,24 @@
+## 2026-05-16 — OG 圖無需獨立步驟（organicMotifs 自動涵蓋）+ Implemented 表格補齊 38 分類
+
+**發現：** category OG image（`app/[locale]/categories/[category]/opengraph-image.tsx`）和 event OG image（`app/[locale]/events/[id]/opengraph-image.tsx`）均動態呼叫 `getSemanticSymbol(category, variant, fg, accent)` — 無硬編碼 per-category 列表，無 `CATEGORY_PALETTE` / `SEMANTIC_RULES` / `pickSemanticMotif`（舊設計稿殘留，已廢棄）。
+
+**結論：** 新增 `organicMotifs.tsx` `case` 即自動涵蓋三處：
+1. `CategoryThumbnail` UI 元件
+2. 分類 OG image（`/categories/[category]/opengraph-image.tsx`）
+3. 活動 OG image（`/events/[id]/opengraph-image.tsx`）
+
+**無需獨立 OG 步驟。**
+
+**同時修正 SKILL.md Implemented 表格：** 補齊 6 個缺漏分類（`tv_program`, `radio_program`, `exhibition`, `taiwan_mandarin`, `healthcare`, `market`），表格從 32/38 達到正確的 **38/38**。
+
+**SKILL.md OG 段落更正：** 移除對不存在 API（`CATEGORY_PALETTE`、`pickSemanticMotif`、`SEMANTIC_RULES`）的引用，改為正確描述現行 `PALETTES`（8 種通用 palette）+ `getSemanticSymbol()` 動態機制。
+
+**Architect SKILL.md 步驟 4 補充：** 標注 `organicMotifs.tsx` case 同時涵蓋 UI + 兩個 OG image。
+
+**教訓：** 新增 Category 時，**只需一個 `organicMotifs.tsx` case**，即完整覆蓋 UI 縮圖與所有 OG 圖。Designer/Architect 計畫不需再列「OG 圖」為獨立步驟。
+
+---
+
 ## 2026-05-16 — study_abroad 縮圖補加 + Category Thumbnail Sync Rule 確立
 
 **問題：** `design_craft`、`herbal`、`study_abroad` 三個分類在「annotator + i18n 同步」commit 後，才以獨立 commit 補加 `organicMotifs.tsx` 縮圖 case，違反「新分類 5 步驟同一 commit」原則。

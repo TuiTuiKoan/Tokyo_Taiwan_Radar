@@ -244,21 +244,20 @@ import { CARD_LINK, CARD_LINK_ARROW } from "@/lib/classNames";
 Current design (as of 2026-05-15, commit `a273483`):
 
 - **Size:** 1200×1200（正方形 — IG・LINE・Pinterest・Discord 均最佳呈現）
-- **Background:** `CATEGORY_PALETTE[category].bg`（CategoryThumbnail 的色彩系統，`web/lib/design/CategoryThumbnail.tsx`）
-- **Layout:** left text block 700×630（full-height, no cream panel）；category motif SVG absolute right 60, top 50, size 480×480
-- **Bottom-right:** wax-apple 吉祥物 SVG（body color = `palette.fg`）+ 品牌名稱
+- **Background:** `PALETTES[hash(id) % 8].bg`（8 種通用 palette，依 event id / category name hash 選色，非 per-category 固定對應）
+- **Layout:** Collage motif（多個 `getSemanticSymbol()` cell）＋ bg texture ＋ 右下角品牌名稱
+- **Motif selection:** `getSemanticSymbol(cat, v, fg, accent)` — 直接從 `organicMotifs.tsx` **動態**取得；⚠ `SEMANTIC_RULES` / `pickSemanticMotif` / `CATEGORY_PALETTE` **不存在於現行程式碼**（2026 年舊設計稿殘留，已廢棄）
 - **Fonts:** Noto Sans JP（inline fetch from Google Fonts API）
-- **Semantic motif selection:** `pickSemanticMotif(primaryCat, titleBlob)` — 先從 `SEMANTIC_RULES`（title + location 關鍵字）選 motif，找不到才 fallback 到 category
-- **Brand hero mode:** `pickHeroObject()` 50% 機率讓 wordmark / TTR 字標 / 吉祥物成為主角；Bauhaus collage 物件數量依 `isBrandHero` 調整（3 or 4 個）
 - **Locale PRNG:** 同一活動不同語言版本有不同設計（locale-seeded random seed）
+
+**⚠ 新增分類時 OG 圖自動涵蓋**：category OG image（`app/[locale]/categories/[category]/opengraph-image.tsx`）和 event OG image（`app/[locale]/events/[id]/opengraph-image.tsx`）均動態呼叫 `getSemanticSymbol(category, ...)` — **新增 `organicMotifs.tsx` case 即自動支援，無需任何 OG 圖額外修改**。
 
 **Rules:**
 1. Satori 不支援 Tailwind class，**全部使用 inline `style={{}}`**。
-2. 顏色來源只能是 `CATEGORY_PALETTE`；不可在 OG 圖中硬寫 hex。
+2. 顏色來源只能是 `PALETTES` 陣列（8 種）；不可在 OG 圖中硬寫 hex。
 3. `export const runtime = "edge"` 必須設定（Edge Runtime 限制見 engineer SKILL.md §OG Image）。
-4. 更改 OG 圖設計時，同步更新 `CategoryThumbnail.tsx` 的 `CATEGORY_PALETTE` 若有新 category。
-5. **型別定義必須先於使用**：`HeroObjectKey`、`MotifKey`、`SEMANTIC_OBJECT_RULES`、`renderHeroObject()` 必須在 `pickHeroObject()` 呼叫前定義。TS 不會在重設計 diff 中自動偵測跨文件型別缺失，必須整包 commit。
-6. **OG PALETTES は CategoryThumbnail と週次同期**：`opengraph-image.tsx` の `PALETTES` は `CategoryThumbnail.tsx` の `CATEGORY_PALETTE` の値に近似させること。デザインが乖離したら優先的に OG 側を合わせる（CategoryThumbnail が source of truth）。palette 更新後は `localhost:3000/.../opengraph-image` でビジュアル確認してから commit。
+4. **型別定義必須先於使用**：`HeroObjectKey`、`MotifKey`、`SEMANTIC_OBJECT_RULES`、`renderHeroObject()` 必須在 `pickHeroObject()` 呼叫前定義。TS 不會在重設計 diff 中自動偵測跨文件型別缺失，必須整包 commit。
+5. **OG PALETTES は CategoryThumbnail と週次同期**：`opengraph-image.tsx` の `PALETTES` は `CategoryThumbnail.tsx` の `PALETTES` の値に近似させること。デザインが乖離したら優先的に OG 側を合わせる（CategoryThumbnail が source of truth）。palette 更新後は `localhost:3000/.../opengraph-image` でビジュアル確認してから commit。
 
 **⚠️ `export const size` 修改警示：**
 `height` 改變後必須同步更新：
@@ -280,12 +279,12 @@ To keep UI components clean and provide visual variety, heavy SVG path definitio
 4. **Verify in debug page:** After adding or editing any `case` in `getSemanticSymbol`, open `/debug/motifs` locally to visually confirm all 5 variants render correctly. Do not commit before visual review.
 5. **Recognizability standard:** Without color, each motif must be identifiable within 2 seconds in a 100px viewBox. If a shape requires >6 path/shape elements, simplify.
 
-**Implemented categories (as of 2026-05-16):**
+**Implemented categories (as of 2026-05-16) — all 38:**
 
 | Group | Categories |
 |---|---|
 | Core | `movie`, `performing_arts`, `senses`, `retail`, `nature`, `tech`, `tourism`, `lifestyle_food`, `books_media`, `gender`, `geopolitics`, `art`, `lecture`, `taiwan_japan`, `business`, `academic`, `competition`, `report` |
-| Extended | `drama`, `documentary`, `tea_alcohol`, `parenting`, `scholarship`, `indigenous`, `folklore`, `history`, `urban`, `workshop`, `literature`, `design_craft`, `herbal`, `study_abroad` |
+| Extended | `drama`, `documentary`, `tea_alcohol`, `parenting`, `scholarship`, `indigenous`, `folklore`, `history`, `urban`, `workshop`, `literature`, `design_craft`, `herbal`, `study_abroad`, `tv_program`, `radio_program`, `exhibition`, `taiwan_mandarin`, `healthcare`, `market` |
 
 **⚠ Category Thumbnail Sync Rule (mandatory):** When a new category is added to `web/lib/types.ts` `CATEGORIES`, a corresponding `case` in `getSemanticSymbol` (`web/lib/design/organicMotifs.tsx`) **must be added in the same commit**. No exceptions. Missing cases fall through to the default blob and are invisible on debug page `/debug/motifs`.
 
@@ -293,7 +292,8 @@ Checklist for every new category:
 1. `web/lib/types.ts` — Category union + CATEGORIES array + CATEGORY_GROUPS
 2. `scraper/annotator.py` — VALID_CATEGORIES + SYSTEM_PROMPT enum + definition
 3. `web/messages/{zh,en,ja}.json` — `categories.*` + `categoryDesc.*`
-4. `web/lib/design/organicMotifs.tsx` — `case '<key>':` with 5 variants (airplane/globe/etc.)
+4. `web/lib/design/organicMotifs.tsx` — `case '<key>':` with 5 variants (airplane/globe/etc.) ↳ **automatically covers CategoryThumbnail + category OG image + event OG image** (all three call `getSemanticSymbol()` dynamically — no separate OG step needed)
+5. Sync Guard — `python3 -c "from annotator import _check_category_sync; _check_category_sync()"` must pass
 
 Add the new category slug to the Extended table above.
 
