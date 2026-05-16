@@ -222,8 +222,8 @@ export function MascotAvatar({
               <circle cx="164" cy="26" r="0" fill="black">
                 <animate
                   attributeName="r"
-                  values="0;0;64;0;0"
-                  keyTimes="0;0.055;0.17;0.18;1"
+                  values="0;0;64;64;0;0"
+                  keyTimes="0;0.055;0.17;0.18;0.181;1"
                   dur="12s"
                   repeatCount="indefinite"
                   calcMode="linear"
