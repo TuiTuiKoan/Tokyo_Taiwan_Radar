@@ -485,11 +485,9 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
   animation: lianbu-tip-ring-flash 12s ease-in-out infinite;
 }
 
-/* transform: scale() for cross-browser r-expansion (Safari doesn't animate CSS r) */
+/* Keep the core dot fixed-size: mobile WebKit/Chromium can clip huge SVG transform-scale pulses. */
 [data-antenna-flow="on"] .lianbu-tip-core {
-  animation: lianbu-tip-core-expand 12s ease-in-out infinite;
-  transform-box: fill-box;
-  transform-origin: center;
+  animation: lianbu-tip-core-flash 12s ease-in-out infinite;
 }
 
 [data-antenna-flow="on"] .lianbu-tip-spark {
@@ -551,27 +549,23 @@ html.dark [data-preserve-theme="light"] .bg-paper                    { backgroun
 @keyframes lianbu-tip-ring-flash {
   0% { r: 11; opacity: 0; }
   7% { r: 22; opacity: 0.9; }
-  13% { r: 30; opacity: 0.45; }
+  13% { r: 26; opacity: 0.38; }
   17%,
   100% { r: 11; opacity: 0; }
 }
 
-/* transform: scale() instead of r — universally supported including Safari */
-@keyframes lianbu-tip-core-expand {
+@keyframes lianbu-tip-core-flash {
   0% {
     fill: #1F5E2B;
-    transform: scale(1);
     opacity: 1;
   }
   7% {
     fill: #C4E86F;
-    transform: scale(20);
-    opacity: 0.6;
+    opacity: 1;
   }
   17%,
   100% {
     fill: #1F5E2B;
-    transform: scale(1);
     opacity: 1;
   }
 }
