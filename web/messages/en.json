@@ -131,7 +131,6 @@
     "performers": "Performers / Presenters",
     "director": "Director",
     "coOrganizers": "Co-organizers",
-    "distributor": "Distributor",
     "sponsors": "Sponsors",
     "eventForm": "Event Format",
     "languageSupport": "Language Support",
@@ -584,8 +583,6 @@
     "worksTypeTvVariety": "TV Variety",
     "worksTypeOther": "Other",
     "worksConfirmDelete": "Delete this work? Linked events will have their work_id cleared.",
-    "worksDistributor": "Distributor",
-    "worksDistributorUrl": "Distributor URL",
     "events": {
       "columns": {
         "work": "Work"
