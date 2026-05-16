@@ -306,3 +306,49 @@ def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None, str | Non
         logger.debug("lookup_movie_titles: error for %r: %s", key, exc)
         _cache[key] = (None, None, None)
         return None, None, None
+
+
+_DISTRIBUTOR_RE = re.compile(r"配給[：:]\s*([^\n\/（劇]+?)(?=劇場公開日|配信開始日|\n|$)")
+
+
+def lookup_distributor_ja(name_ja: str) -> tuple[str | None, str | None]:
+    """Search eiga.com for name_ja and return (distributor_ja, eiga_detail_url).
+
+    Returns (None, None) if not found or if the film has no theatrical distributor.
+    Uses the same rate-limiting (LOOKUP_DELAY_SEC) as lookup_movie_titles.
+    """
+    if not name_ja:
+        return None, None
+    search_key = name_ja.translate(_TC_TO_JP)
+    try:
+        encoded = quote(search_key)
+        search_url = _SEARCH_URL_TMPL.format(encoded)
+        time.sleep(LOOKUP_DELAY_SEC)
+        resp = _session.get(search_url, timeout=15)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        movie_link = None
+        for a in soup.select("ul.row.list-tile li.col-s-3 a[href]"):
+            href = a.get("href", "")
+            if re.match(r"^/movie/\d+/$", href):
+                movie_link = _BASE_URL + href
+                break
+
+        if not movie_link:
+            return None, None
+
+        time.sleep(LOOKUP_DELAY_SEC)
+        detail_resp = _session.get(movie_link, timeout=15)
+        detail_resp.raise_for_status()
+        detail_soup = BeautifulSoup(detail_resp.text, "html.parser")
+
+        data_p = detail_soup.find("p", class_="data")
+        data_text = data_p.get_text(separator="\n") if data_p else ""
+        m = _DISTRIBUTOR_RE.search(data_text)
+        distributor = m.group(1).strip() if m else None
+        return distributor, movie_link
+
+    except Exception as exc:
+        logger.debug("lookup_distributor_ja: error for %r: %s", name_ja, exc)
+        return None, None
