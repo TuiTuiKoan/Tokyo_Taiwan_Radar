@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-05-16 — `wuext_waseda` 多重セッション講座: `performer` が片假名+漢字複合名で截斷 + `business_hours` 不完整
+
+**問題：** event `1be67e0f-36a3-4299-b178-9a6f13de98ee`（沖縄現場学, source=wuext_waseda）で 2 つの不具合：
+1. `performer` = `吉田`（截斷）。本来は `カベルナリア 吉田`（片假名筆名 + 漢字姓）。
+2. `business_hours` = `19:00〜20:30`（曜日・全N回・個別開講日が脱落）。詳細頁の `(日程詳細) 07/09, 07/16, 07/23, 07/30, 08/20, 08/27, 09/03` から構成すべき。
+
+**根本原因：**
+1. `scraper/sources/wuext_waseda.py` が `Event.performer=` を設定していなかった。Annotator の `_PERFORMER_INTRO_RE` は `[\u4e00-\u9fff]{2,5}` 純漢字パターンを使うため、`カベルナリア 吉田` は漢字部分 `吉田` のみ抽出されて DB に書き込まれた。
+2. Scraper が `business_hours=` を設定していなかった。Annotator は単一の時間範囲（`19:00〜20:30`）しか抽出できず、曜日・全7回・跳週日付（08/06, 08/13 抜け）を保存できない。
+
+**修正：**
+1. `wuext_waseda.py` に `_SESSION_DATES_RE`、`_WEEKDAY_LISTING_RE`、`_KAISU_RE` regex と `_build_business_hours()` helper を追加。`Event(performer=instructor, performers=[instructor], business_hours=bh, ...)` を構造化欄から直接設定。
+2. DB 直接 fix（`scraper/_oneoff_*` 不要、admin が手動で行う）。`field_corrections` で `performer` / `performers` / `business_hours` 3 件 lock。
+
+**Lesson：**
+- **Annotator の regex は構造化フィールドの代替ではない。** Source page に instructor / 講師 / 登壇者 / 時間表 のような structured field があるなら、scraper で `Event(...)` に直接設定。Annotator は raw text からの fallback 抽出のみ。
+- 多重セッション講座（wuext_waseda、asahiculture 等）は `business_hours` を scraper で組み立てる必要がある。曜日 + 時間範囲 + 全N回 + 個別開講日逐項列出 を含める。
+
+---
+
 ## 2026-05-16 — `tokyoartbeat` aggregator が `official_url=source_url` フォールバックでイベント詳細ページの「公式サイト」リンクを汚染
 
 **問題：** event `74ee6d89`（共時的星叢―時を共にした星たち　越境する芸術のまなざし）の `official_url` が `https://www.tokyoartbeat.com/events/-/Synchronic-Constellation-...`（aggregator 自身）になっており、UI の「公式サイト」ボタンが東京都現代美術館の展覧会ページではなく tokyoartbeat に戻ってしまっていた。

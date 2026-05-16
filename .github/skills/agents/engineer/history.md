@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-05-16 — wuext_waseda 多重セッション講座：performer 截斷 + business_hours 不完整（event `1be67e0f`）
+
+**問題：** event `1be67e0f`（沖縄現場学）で `performer='吉田'`（本来 `カベルナリア 吉田`）+ `business_hours='19:00〜20:30'`（曜日・全7回・個別開講日が脱落）。
+
+**根本原因：** `scraper/sources/wuext_waseda.py` が `Event.performer=`、`Event.business_hours=` を設定せず annotator regex に依存。Annotator の `_PERFORMER_INTRO_RE` は `[\u4e00-\u9fff]{2,5}` 純漢字 pattern なので片假名+漢字複合名 `カベルナリア 吉田` から `吉田` のみ抽出。Annotator は曜日・全N回・跳週日付も抽出できない。
+
+**修正：** wuext_waseda.py に `_SESSION_DATES_RE`、`_WEEKDAY_LISTING_RE`、`_KAISU_RE` + `_build_business_hours()` helper を追加。`Event(performer=instructor, performers=[instructor], business_hours=bh)` を構造化欄位から直接設定。DB は event 1be67e0f の 3 欄位 patch + `field_corrections` lock。Docs: scraper-expert SKILL.md / history.md、architect SKILL.md に新 guard 2 件。
+
+**Lesson：** 来源頁有結構化 instructor / 講師 / 時間表欄位なら scraper で `Event(...)` に直接設定。Annotator の regex は raw text からの fallback のみで、構造化フィールドの代替ではない。
+
+---
+
 ## 2026-05-15 — about ページ dark mode でテキストが見えない（commit `8ab8d05`）
 
 **問題：** `https://tokyotaiwanradar.com/ja/about` で dark mode 時にタイトル・本文が背景に溶け込んで読めない。

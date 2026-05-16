@@ -58,6 +58,11 @@ _DATE_RANGE_RE = re.compile(r"(\d{1,2})月(\d{1,2})日[～〜-](\d{1,2})月(\d{1
 _SINGLE_DATE_RE = re.compile(r"(\d{1,2})月(\d{1,2})日")
 _TIME_RE = re.compile(r"(\d{1,2}):(\d{2})～(\d{1,2}):(\d{2})")
 
+# Regex: multi-session helpers
+_SESSION_DATES_RE = re.compile(r"\(日程詳細\)\s*([\d/,\s\u3000]+)")
+_WEEKDAY_LISTING_RE = re.compile(r"[\s\u3000]([月火水木金土日])[\s\u3000]")
+_KAISU_RE = re.compile(r"全(\d+)回")
+
 # Regex: extract internal ID from detail URL
 _DETAIL_ID_RE = re.compile(r"/course/detail/(\d+)/")
 
@@ -158,6 +163,45 @@ def _get_detail_price(soup: BeautifulSoup) -> Optional[str]:
 def _extract_internal_id(url: str) -> Optional[str]:
     m = _DETAIL_ID_RE.search(url)
     return m.group(1) if m else None
+
+
+def _build_business_hours(
+    date_str_listing: str,
+    detail_soup: Optional[BeautifulSoup],
+) -> Optional[str]:
+    """Construct business_hours like '木曜日 19:00〜20:30（全7回：07/09, 07/16, ...）'.
+
+    Pulls weekday/time/全N回 from the listing date_str column;
+    extracts the (日程詳細) comma-separated date list from detail page #course div.
+    Returns None if weekday or time cannot be determined.
+    """
+    wd_m = _WEEKDAY_LISTING_RE.search(date_str_listing)
+    time_m = _TIME_RE.search(date_str_listing)
+    kaisu_m = _KAISU_RE.search(date_str_listing)
+    if not wd_m or not time_m:
+        return None
+    weekday = wd_m.group(1)
+    time_range = f"{time_m.group(1)}:{time_m.group(2)}〜{time_m.group(3)}:{time_m.group(4)}"
+    kaisu = kaisu_m.group(1) if kaisu_m else None
+
+    session_dates: list[str] = []
+    if detail_soup:
+        course = detail_soup.find(id="course")
+        if course:
+            text = course.get_text(" ", strip=True)
+            sd_m = _SESSION_DATES_RE.search(text)
+            if sd_m:
+                raw = sd_m.group(1).replace("\u3000", " ")
+                for tok in raw.split(","):
+                    tok = tok.strip()
+                    if re.match(r"^\d{1,2}/\d{1,2}$", tok):
+                        session_dates.append(tok)
+
+    if session_dates and kaisu:
+        return f"{weekday}曜日 {time_range}（全{kaisu}回：{', '.join(session_dates)}）"
+    if kaisu:
+        return f"{weekday}曜日 {time_range}（全{kaisu}回）"
+    return f"{weekday}曜日 {time_range}"
 
 
 class WuextWasedaScraper(BaseScraper):
@@ -282,6 +326,9 @@ class WuextWasedaScraper(BaseScraper):
                 desc_parts.append(f"受講料: {price_info}")
             raw_description = "\n".join(desc_parts).replace("\x00", "")
 
+            business_hours = _build_business_hours(date_str, detail_soup)
+            instructor_clean = instructor.replace("\x00", "") if instructor else None
+
             event = Event(
                 source_name=SOURCE_NAME,
                 source_id=source_id,
@@ -299,6 +346,9 @@ class WuextWasedaScraper(BaseScraper):
                 price_info=price_info,
                 organizer="早稲田大学エクステンションセンター",
                 organizer_type=["academic"],
+                performer=instructor_clean,
+                performers=[instructor_clean] if instructor_clean else [],
+                business_hours=business_hours,
             )
             events.append(event)
             logger.info(

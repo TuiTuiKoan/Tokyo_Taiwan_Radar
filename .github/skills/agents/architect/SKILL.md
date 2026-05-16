@@ -197,6 +197,14 @@ Reference incidents:
 - 2026-05-08 — commit `191d939`：migration 053 新增 `performers TEXT[]`（Incident C）
 - 2026-05-08 — commit `3822fb8`：migration 054 新增 `performer_zh`, `performer_en`, `director_zh`, `director_en`（Incident D）
 
+## Mixed-Script Performer Name Guard（片假名+漢字複合名）
+
+Annotator 的 `_PERFORMER_INTRO_RE` 使用 `[\u4e00-\u9fff]{2,5}` 純漢字 pattern，會將 `カベルナリア 吉田` 這類片假名筆名+漢字姓的複合名靜默截斷為 `吉田`。審核任何新 scraper 計畫，若來源頁面有結構化 instructor / 講師 / 登壇者欄位，**必須**確認 scraper 在 `Event(performer=..., performers=[...])` 直接設定，而非依賴 annotator regex。Reference: wuext_waseda event `1be67e0f`, 2026-05-16.
+
+## Multi-Session Course business_hours Guard
+
+審核任何 multi-session 課程型 scraper（wuext_waseda、asahiculture 等）計畫前，**必須**確認 `business_hours` 在 scraper 層直接組裝（曜日 + 時間 + 全N回 + 個別開講日逐項列出），不留給 annotator。Annotator 只能抽取單一時間範圍（`19:00〜20:30`），無法保留曜日、N 回、跳週日期等資訊。Reference: wuext_waseda event `1be67e0f`, 2026-05-16.
+
 ## Organizer Multilingual Fields Guard（organizer_zh/en）
 
 在審核任何涉及 `organizer_zh`、`organizer_en` 的計畫，或設計主辦方顯示邏輯時，**必須**確認：
