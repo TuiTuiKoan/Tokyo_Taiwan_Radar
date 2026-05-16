@@ -165,7 +165,10 @@ export function MascotAvatar({
     // (peak r=64 at the upper-right tip) is fully contained inside the SVG's own
     // CSS box. Avoids relying on `overflow="visible"`, which iOS Safari clips
     // when parent containers have `overflow: hidden` / transforms.
-    const inlineViewBox = antennaFlowAnimation ? "0 -50 250 270" : mascotTokens.viewBox;
+    // Add 50 units of transparent padding on the left (min-x = -50) so the body,
+    // originally at x=0..200, sits closer to the visual horizontal center of the
+    // 300-unit-wide viewBox instead of being pushed left by the right-side glow.
+    const inlineViewBox = antennaFlowAnimation ? "-50 -50 300 270" : mascotTokens.viewBox;
     return (
       <svg
         viewBox={inlineViewBox}
