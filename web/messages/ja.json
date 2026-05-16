@@ -131,6 +131,7 @@
     "performers": "出演者・発表者",
     "director": "監督",
     "coOrganizers": "共催",
+    "distributor": "配給",
     "sponsors": "協賛",
     "eventForm": "開催形式",
     "languageSupport": "対応言語",
@@ -583,6 +584,8 @@
     "worksTypeTvVariety": "バラエティ番組",
     "worksTypeOther": "その他",
     "worksConfirmDelete": "この作品を削除しますか？紐付くイベントの work_id はクリアされます。",
+    "worksDistributor": "配給会社",
+    "worksDistributorUrl": "配給会社 URL",
     "events": {
       "columns": {
         "work": "Work"

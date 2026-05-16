@@ -131,6 +131,7 @@
     "performers": "表演者・發表者",
     "director": "導演",
     "coOrganizers": "協辦單位",
+    "distributor": "發行",
     "sponsors": "贊助單位",
     "eventForm": "活動形式",
     "languageSupport": "語言支援",
@@ -583,6 +584,8 @@
     "worksTypeTvVariety": "綜藝節目",
     "worksTypeOther": "其他",
     "worksConfirmDelete": "確認刪除此作品？關聯活動的 work_id 會被清空。",
+    "worksDistributor": "配給会社",
+    "worksDistributorUrl": "配給会社 URL",
     "events": {
       "columns": {
         "work": "作品"

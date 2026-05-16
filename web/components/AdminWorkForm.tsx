@@ -44,6 +44,10 @@ export default function AdminWorkForm({ work, linkedEvents = [], locale, onSucce
     description: work?.description ?? "",
     poster_url: work?.poster_url ?? "",
     external_links: work?.external_links ? JSON.stringify(work.external_links, null, 2) : "",
+    distributor_ja: work?.distributor_ja ?? "",
+    distributor_zh: work?.distributor_zh ?? "",
+    distributor_en: work?.distributor_en ?? "",
+    distributor_url: work?.distributor_url ?? "",
   });
 
   function update<K extends keyof typeof form>(key: K, value: typeof form[K]) {
@@ -79,6 +83,10 @@ export default function AdminWorkForm({ work, linkedEvents = [], locale, onSucce
       description: form.description,
       poster_url: form.poster_url,
       external_links: externalLinks,
+      distributor_ja: form.distributor_ja || null,
+      distributor_zh: form.distributor_zh || null,
+      distributor_en: form.distributor_en || null,
+      distributor_url: form.distributor_url || null,
     };
     startTransition(async () => {
       const res = work
@@ -221,7 +229,47 @@ export default function AdminWorkForm({ work, linkedEvents = [], locale, onSucce
           className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm font-mono"
         />
       </div>
-
+      {/* Distributor */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksDistributor")} (日本語)</label>
+          <input
+            type="text"
+            value={form.distributor_ja}
+            onChange={(e) => update("distributor_ja", e.target.value)}
+            className="w-full h-9 border border-line-strong rounded-lg px-3 text-sm"
+            placeholder="株式会社ライツキューブ"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksDistributor")} (繁體中文)</label>
+          <input
+            type="text"
+            value={form.distributor_zh}
+            onChange={(e) => update("distributor_zh", e.target.value)}
+            className="w-full h-9 border border-line-strong rounded-lg px-3 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksDistributor")} (English)</label>
+          <input
+            type="text"
+            value={form.distributor_en}
+            onChange={(e) => update("distributor_en", e.target.value)}
+            className="w-full h-9 border border-line-strong rounded-lg px-3 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-fg-muted mb-1">{t("worksDistributorUrl")}</label>
+          <input
+            type="url"
+            value={form.distributor_url}
+            onChange={(e) => update("distributor_url", e.target.value)}
+            className="w-full h-9 border border-line-strong rounded-lg px-3 text-sm"
+            placeholder="https://..."
+          />
+        </div>
+      </div>
       {linkedEvents.length > 0 && (
         <div>
           <h3 className="text-xs font-medium text-fg-muted mb-2">{t("worksLinkedEvents")} ({linkedEvents.length})</h3>

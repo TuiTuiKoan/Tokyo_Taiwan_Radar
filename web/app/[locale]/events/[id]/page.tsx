@@ -216,6 +216,21 @@ export default async function EventDetailPage({ params }: PageProps) {
     relatedScreenings = (related ?? []) as Event[];
   }
 
+  // Fetch work distributor for film events
+  let workDistributor: { distributor_ja: string | null; distributor_zh: string | null; distributor_en: string | null; distributor_url: string | null } | null = null;
+  if (event.work_id) {
+    const supabaseAdmin2 = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    const { data: wData } = await supabaseAdmin2
+      .from("works")
+      .select("distributor_ja, distributor_zh, distributor_en, distributor_url")
+      .eq("id", event.work_id)
+      .single();
+    if (wData?.distributor_ja) workDistributor = wData;
+  }
+
   // Admin detection — opt-out of ISR cache for this check only
   unstable_noStore();
   let isAdmin = false;
@@ -822,7 +837,8 @@ export default async function EventDetailPage({ params }: PageProps) {
         (event as Event).director ||
         (event as Event).has_japanese_support ||
         (event as Event).has_english_support ||
-        (event as Event).has_chinese_support) && (
+        (event as Event).has_chinese_support ||
+        (workDistributor !== null && !(event as Event).organizer)) && (
         <section className="mb-8 border border-line rounded-xl p-4 bg-paper dark:bg-paper">
           <h2 className="font-display font-bold text-[#3A261F] text-base mb-3">{t("organizerSection")}</h2>
           <dl className="space-y-2 text-sm">
@@ -847,6 +863,25 @@ export default async function EventDetailPage({ params }: PageProps) {
                       <span className="ml-2 text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
                         {tOrgType(((event as Event).organizer_type ?? [])[0] as any)}
                       </span>
+                  )}
+                </dd>
+              </div>
+            )}
+            {workDistributor && !(event as Event).organizer && (
+              <div className="flex gap-2">
+                <dt className="shrink-0 text-fg-muted min-w-[5rem]">{t("distributor")}：</dt>
+                <dd className="text-fg-strong">
+                  {workDistributor.distributor_url ? (
+                    <a
+                      href={workDistributor.distributor_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline"
+                    >
+                      {(locale === "zh" ? workDistributor.distributor_zh : locale === "en" ? workDistributor.distributor_en : null) || workDistributor.distributor_ja} ↗
+                    </a>
+                  ) : (
+                    (locale === "zh" ? workDistributor.distributor_zh : locale === "en" ? workDistributor.distributor_en : null) || workDistributor.distributor_ja
                   )}
                 </dd>
               </div>

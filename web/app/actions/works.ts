@@ -16,6 +16,10 @@ type WorkInput = {
   description?: string | null;
   poster_url?: string | null;
   external_links?: Record<string, string> | null;
+  distributor_ja?: string | null;
+  distributor_zh?: string | null;
+  distributor_en?: string | null;
+  distributor_url?: string | null;
 };
 
 const VALID_TYPES = ["film", "stage", "exhibition", "concert_tour", "other"];
@@ -55,6 +59,10 @@ function sanitize(input: WorkInput): Partial<WorkInput> {
     description: trim(input.description),
     poster_url: trim(input.poster_url),
     external_links: input.external_links ?? null,
+    distributor_ja: trim(input.distributor_ja),
+    distributor_zh: trim(input.distributor_zh),
+    distributor_en: trim(input.distributor_en),
+    distributor_url: trim(input.distributor_url),
   };
 }
 

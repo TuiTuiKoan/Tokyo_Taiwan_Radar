@@ -95,6 +95,10 @@ export interface Work {
   description: string | null;
   poster_url: string | null;
   external_links: Record<string, string> | null;
+  distributor_ja?: string | null;
+  distributor_zh?: string | null;
+  distributor_en?: string | null;
+  distributor_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -104,6 +108,16 @@ export function getWorkTitle(work: Pick<Work, "original_title" | "title_ja" | "t
   if (locale === "ja") return work.title_ja || work.original_title;
   if (locale === "en") return work.title_en || work.title_ja || work.original_title;
   return work.title_zh || work.original_title;
+}
+
+/** Locale-aware distributor name for a Work. */
+export function getWorkDistributor(
+  work: Pick<Work, "distributor_ja" | "distributor_zh" | "distributor_en">,
+  locale: Locale
+): string | null {
+  if (locale === "zh") return work.distributor_zh || work.distributor_ja || null;
+  if (locale === "en") return work.distributor_en || work.distributor_ja || null;
+  return work.distributor_ja || null;
 }
 
 export type SocialPlatform = "instagram" | "threads" | "facebook" | "linkedin" | "line";
