@@ -43,6 +43,7 @@ function MascotBody({
   flowGradientId,
   flowGlowId,
   tipRingGradientId,
+  tipRingMaskId,
   translateX = 0,
 }: {
   upright?: boolean;
@@ -50,6 +51,7 @@ function MascotBody({
   flowGradientId?: string;
   flowGlowId?: string;
   tipRingGradientId?: string;
+  tipRingMaskId?: string;
   translateX?: number;
 }) {
   const rotate = upright ? 0 : mascotTokens.tilt;
@@ -104,21 +106,32 @@ function MascotBody({
       <g>
         {/* Static thin stroke circle — always visible regardless of animation state */}
         <circle cx="164" cy="26" r="11" fill="none" stroke="#1F5E2B" strokeWidth="1.4" opacity="0.4" />
-        {/* Animated gradient ring — flashes via SMIL <animate> (Safari does not animate CSS `r` property) */}
+        {/* Animated gradient ring — flashes via SMIL <animate> (Safari does not animate CSS `r` property).
+            Ending: outer edge stays at r=64 while a transparent hole grows from
+            center outward via the mask, eating the disk from inside until the
+            inner hole meets the outer edge. */}
         {tipRingGradientId && (
-          <circle className="lianbu-tip-ring" cx="164" cy="26" r="11" fill={`url(#${tipRingGradientId})`} opacity={0}>
+          <circle
+            className="lianbu-tip-ring"
+            cx="164"
+            cy="26"
+            r="11"
+            fill={`url(#${tipRingGradientId})`}
+            opacity={0}
+            mask={tipRingMaskId ? `url(#${tipRingMaskId})` : undefined}
+          >
             <animate
               attributeName="r"
-              values="11;64;64;11;11"
-              keyTimes="0;0.07;0.17;0.18;1"
+              values="11;64;64;64;11;11"
+              keyTimes="0;0.07;0.08;0.17;0.18;1"
               dur="12s"
               repeatCount="indefinite"
               calcMode="linear"
             />
             <animate
               attributeName="opacity"
-              values="0;0.95;0;0;0"
-              keyTimes="0;0.07;0.17;0.18;1"
+              values="0;0.95;0.95;0.95;0;0"
+              keyTimes="0;0.07;0.08;0.17;0.18;1"
               dur="12s"
               repeatCount="indefinite"
               calcMode="linear"
@@ -161,6 +174,7 @@ export function MascotAvatar({
   const flowGradientId = `${baseId}-antenna-flow-gradient`;
   const flowGlowId = `${baseId}-antenna-flow-glow`;
   const tipRingGradientId = `${baseId}-antenna-tip-ring-gradient`;
+  const tipRingMaskId = `${baseId}-antenna-tip-ring-mask`;
 
   if (variant === "inline") {
     // Expand viewBox when antenna flow is on so the SMIL-animated tip ring
@@ -199,6 +213,23 @@ export function MascotAvatar({
               <stop offset="50%"  stopColor="#FFD700" stopOpacity="0.6"  /> {/* yellow mid */}
               <stop offset="100%" stopColor="#A8D840" stopOpacity="0"    /> {/* fade to transparent */}
             </radialGradient>
+            {/* Mask drives the ending: a transparent hole grows from center
+                outward (r 0→64) while the outer edge of the ring stays at
+                r=64, eating the disk from inside until it disappears at the
+                outer edge. Outside the ending phase the hole stays at r=0. */}
+            <mask id={tipRingMaskId} maskUnits="userSpaceOnUse" x="100" y="-38" width="128" height="128">
+              <circle cx="164" cy="26" r="64" fill="white" />
+              <circle cx="164" cy="26" r="0" fill="black">
+                <animate
+                  attributeName="r"
+                  values="0;0;0;64;0;0"
+                  keyTimes="0;0.07;0.08;0.17;0.18;1"
+                  dur="12s"
+                  repeatCount="indefinite"
+                  calcMode="linear"
+                />
+              </circle>
+            </mask>
             <filter id={flowGlowId} x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="3.4" result="blur" />
               <feMerge>
@@ -214,6 +245,7 @@ export function MascotAvatar({
           flowGradientId={flowGradientId}
           flowGlowId={flowGlowId}
           tipRingGradientId={antennaFlowAnimation ? tipRingGradientId : undefined}
+          tipRingMaskId={antennaFlowAnimation ? tipRingMaskId : undefined}
           translateX={bodyOffsetX}
         />
       </svg>
