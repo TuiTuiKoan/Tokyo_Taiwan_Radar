@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 
 // ----- Palette + drift ------------------------------------------------------
 // Only the two brand accent colors, used at low opacity for a soft pastel field.
@@ -31,6 +32,10 @@ const TIERS: [number, number, number, number][] = [
   [380, 460, 60, 85],
   [560, 700, 95, 130],
 ];
+
+const SPRITE_PADDING_RATIO = 0.2;
+const SPRITE_VIEWBOX_PAD = 20;
+const SPRITE_VIEWBOX_SIZE = 100 + SPRITE_VIEWBOX_PAD * 2;
 
 // ----- Shapes ---------------------------------------------------------------
 type ShapeKind =
@@ -158,6 +163,8 @@ function FloaterView({ slotIdx, f, scale, onCycle }: { slotIdx: number; f: Float
   const { tag, attrs } = shapePath(f.shape);
   const patternId = `pat-${slotIdx}-${f.bump}`;
   const renderSize = f.size * scale;
+  const spritePadding = renderSize * SPRITE_PADDING_RATIO;
+  const spriteSize = renderSize + spritePadding * 2;
   const isPattern = ["dotsDense", "dotsSparse", "stripes", "hatch", "grid"].includes(f.fill);
   const isOutline = f.fill === "outlineThin" || f.fill === "outlineThick" || f.fill === "dashed";
   const strokeWidth = f.fill === "outlineThin" ? 1.4 : f.fill === "dashed" ? 2.4 : 3.2;
@@ -181,19 +188,27 @@ function FloaterView({ slotIdx, f, scale, onCycle }: { slotIdx: number; f: Float
   if (isOutline) shapeProps.strokeWidth = strokeWidth;
   if (strokeDash) shapeProps.strokeDasharray = strokeDash;
 
+  const style = {
+    top: 0,
+    left: 0,
+    width: spriteSize,
+    height: spriteSize,
+    opacity: f.opacity,
+    animation: `${f.drift} ${f.duration}s linear infinite`,
+    animationDelay: `${f.delay}s`,
+    "--x-min": `${-spritePadding}px`,
+    "--y-min": `${-spritePadding}px`,
+    "--x-mid": `calc((100svw - ${renderSize}px) / 2 - ${spritePadding}px)`,
+    "--y-mid": `calc((100svh - ${renderSize}px) / 2 - ${spritePadding}px)`,
+    "--x-max": `calc(100svw - ${renderSize}px - ${spritePadding}px)`,
+    "--y-max": `calc(100svh - ${renderSize}px - ${spritePadding}px)`,
+  } as CSSProperties;
+
   return (
     <svg
       className="absolute"
-      style={{
-        top: 0,
-        left: 0,
-        width: renderSize,
-        height: renderSize,
-        opacity: f.opacity,
-        animation: `${f.drift} ${f.duration}s linear infinite`,
-        animationDelay: `${f.delay}s`,
-      }}
-      viewBox="0 0 100 100"
+      style={style}
+      viewBox={`${-SPRITE_VIEWBOX_PAD} ${-SPRITE_VIEWBOX_PAD} ${SPRITE_VIEWBOX_SIZE} ${SPRITE_VIEWBOX_SIZE}`}
       onAnimationIteration={onCycle}
     >
       {isPattern && (
@@ -266,41 +281,17 @@ export function FloatingShapes() {
   return (
     <div
       aria-hidden
-      className="fixed inset-0 -z-10 overflow-hidden pointer-events-none"
+      className="fixed inset-0 -z-10 overflow-hidden pointer-events-none opacity-40"
     >
-      {/* Shapes layer — opacity applied here so edge overlays below stay opaque */}
-      <div className="absolute inset-0 opacity-40">
-        {floaters.map((f, i) => (
-          <FloaterView
-            key={`${i}-${f.bump}`}
-            slotIdx={i}
-            f={f}
-            scale={scale}
-            onCycle={() => handleCycle(i)}
-          />
-        ))}
-      </div>
-      {/* Edge fade overlays — paint page bg color over outer 8% so shapes
-          never form visible right-angle clipped edges against the viewport.
-          Uses plain paint (no CSS mask) for cross-browser reliability — Safari
-          on iOS has known flaky behavior with mask + GPU-composited animated
-          children. */}
-      <div
-        className="absolute inset-x-0 top-0 h-[8%]"
-        style={{ background: "linear-gradient(to bottom, var(--color-bg), transparent)" }}
-      />
-      <div
-        className="absolute inset-x-0 bottom-0 h-[8%]"
-        style={{ background: "linear-gradient(to top, var(--color-bg), transparent)" }}
-      />
-      <div
-        className="absolute inset-y-0 left-0 w-[8%]"
-        style={{ background: "linear-gradient(to right, var(--color-bg), transparent)" }}
-      />
-      <div
-        className="absolute inset-y-0 right-0 w-[8%]"
-        style={{ background: "linear-gradient(to left, var(--color-bg), transparent)" }}
-      />
+      {floaters.map((f, i) => (
+        <FloaterView
+          key={`${i}-${f.bump}`}
+          slotIdx={i}
+          f={f}
+          scale={scale}
+          onCycle={() => handleCycle(i)}
+        />
+      ))}
     </div>
   );
 }
