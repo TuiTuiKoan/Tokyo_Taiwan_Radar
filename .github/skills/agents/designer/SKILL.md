@@ -280,14 +280,22 @@ To keep UI components clean and provide visual variety, heavy SVG path definitio
 4. **Verify in debug page:** After adding or editing any `case` in `getSemanticSymbol`, open `/debug/motifs` locally to visually confirm all 5 variants render correctly. Do not commit before visual review.
 5. **Recognizability standard:** Without color, each motif must be identifiable within 2 seconds in a 100px viewBox. If a shape requires >6 path/shape elements, simplify.
 
-**Implemented categories (as of 2026-05-15):**
+**Implemented categories (as of 2026-05-16):**
 
 | Group | Categories |
 |---|---|
 | Core | `movie`, `performing_arts`, `senses`, `retail`, `nature`, `tech`, `tourism`, `lifestyle_food`, `books_media`, `gender`, `geopolitics`, `art`, `lecture`, `taiwan_japan`, `business`, `academic`, `competition`, `report` |
-| Extended | `drama`, `documentary`, `tea_alcohol`, `parenting`, `scholarship`, `indigenous`, `folklore` |
+| Extended | `drama`, `documentary`, `tea_alcohol`, `parenting`, `scholarship`, `indigenous`, `folklore`, `history`, `urban`, `workshop`, `literature`, `design_craft`, `herbal`, `study_abroad` |
 
-When a new category is added to `web/lib/types.ts` `CATEGORIES`, a corresponding `case` in `getSemanticSymbol` **must be added in the same PR**. Add the category to the Extended table above.
+**⚠ Category Thumbnail Sync Rule (mandatory):** When a new category is added to `web/lib/types.ts` `CATEGORIES`, a corresponding `case` in `getSemanticSymbol` (`web/lib/design/organicMotifs.tsx`) **must be added in the same commit**. No exceptions. Missing cases fall through to the default blob and are invisible on debug page `/debug/motifs`.
+
+Checklist for every new category:
+1. `web/lib/types.ts` — Category union + CATEGORIES array + CATEGORY_GROUPS
+2. `scraper/annotator.py` — VALID_CATEGORIES + SYSTEM_PROMPT enum + definition
+3. `web/messages/{zh,en,ja}.json` — `categories.*` + `categoryDesc.*`
+4. `web/lib/design/organicMotifs.tsx` — `case '<key>':` with 5 variants (airplane/globe/etc.)
+
+Add the new category slug to the Extended table above.
 
 **Debug page convention:**
 `app/[locale]/debug/motifs/page.tsx` must import `{ CATEGORIES }` from `@/lib/types` — **never maintain a separate hardcoded array**. A local copy silently drifts and hides missing motifs in production.

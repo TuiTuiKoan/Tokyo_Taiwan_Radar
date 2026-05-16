@@ -1,3 +1,23 @@
+## 2026-05-16 — study_abroad 縮圖補加 + Category Thumbnail Sync Rule 確立
+
+**問題：** `design_craft`、`herbal`、`study_abroad` 三個分類在「annotator + i18n 同步」commit 後，才以獨立 commit 補加 `organicMotifs.tsx` 縮圖 case，違反「新分類 5 步驟同一 commit」原則。
+
+**根因：** Category Sync Guard（SKILL.md）原本只列了 4 個步驟（types.ts / annotator / messages），沒有明確要求縮圖為第 5 個必須步驟。缺少縮圖時 TypeScript 不報錯、`pnpm build` 不失敗，只有 `/debug/motifs` 才能看到 fallback blob，極易被遺漏。
+
+**修正：**
+- `SKILL.md` Organic Motifs 段落更新「Implemented categories」表格，加入全部 14 個 Extended 分類（含 `design_craft`、`herbal`、`study_abroad`）
+- 新增「⚠ Category Thumbnail Sync Rule」區塊，明列 4 步驟（types.ts / annotator / messages / organicMotifs）作為完整 checklist
+- `architect/SKILL.md` 新增「Category Addition Checklist」表格，步驟 4 明確標注縮圖（commit `7e2a49d` 或後續）
+
+**`study_abroad` 縮圖 5 變體：**
+- v=0 飛機（俯視）、v=1 地球（緯線/經線）、v=2 行李箱（把手 + 車輪）、v=3 護照（徽章 + 文字行）、v=4 畢業帽
+
+**教訓：**
+- **新增 Category 必須同一 commit 完成 5 個步驟**（types.ts → annotator → messages zh/en/ja → organicMotifs → sync check）
+- **縮圖缺失不報錯**：fallback 是通用 blob，在 EventCard / CategoryThumbnail 上顯示但與分類不相關，只能用 `/debug/motifs` 發現
+
+---
+
 ## 2026-05-15 — flow-dot WebKit filter FBO 白點殘影（visibility:hidden 雙重防護）
 
 **問題：** 「蓮霧身旁的奇怪小白點」在修復 FOUC（commit `228cb45` 加了 `opacity: 0`）後仍持續出現。

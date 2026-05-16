@@ -14,6 +14,22 @@ Read this at the start of every session before producing any plan.
 - Never ship a plan with an untested API or signature change. Include an explicit smoke-test step.
 - Confirm that all pending migrations are applied before designing features that build on them.
 
+## Category Addition Checklist（新增分類的必備 5 步驟）
+
+每次新增 `Category` 值，以下 **5 個位置必須同一 commit 同步**，缺一返工：
+
+| 步驟 | 位置 | 說明 |
+|------|------|------|
+| 1 | `web/lib/types.ts` | Category union + CATEGORIES array + CATEGORY_GROUPS |
+| 2 | `scraper/annotator.py` | VALID_CATEGORIES + SYSTEM_PROMPT enum string + definition |
+| 3 | `web/messages/{zh,en,ja}.json` | `categories.<key>` + `categoryDesc.<key>`（三語各一）|
+| 4 | `web/lib/design/organicMotifs.tsx` | `case '<key>':` 5 個 SVG 變體（缺少則 fallback 為預設 blob，無報錯）|
+| 5 | Sync Guard 驗證 | `python3 -c "from annotator import VALID_CATEGORIES, _check_category_sync; _check_category_sync()"` pass |
+
+**步驟 4（縮圖）是最容易被遺漏的**：TypeScript 不報錯、build 不失敗、只有在 `/debug/motifs` 頁才能看到 fallback blob。計畫中必須明確標注 Engineer 要加 `case` 到 `organicMotifs.tsx`。
+
+**Reference incident:** 2026-05-16 — `design_craft`、`herbal`、`study_abroad` 三個分類在 annotator/i18n sync 後，縮圖 case 補加為獨立 commit，違反「同一 commit」原則。教訓：Architect 計畫從此明列步驟 4。
+
 ## 🔁 Lesson-in-fix-commit Rule（避免 V-M-D ↔ docs update 循環）
 
 **問題模式**：fix commit → V-M-D → docs commit → V-M-D 第二輪。每個邏輯變更跑兩次部署，浪費 token 又阻礙 session。
