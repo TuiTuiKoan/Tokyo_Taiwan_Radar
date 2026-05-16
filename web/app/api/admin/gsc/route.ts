@@ -1,30 +1,55 @@
+import { createSign } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-// Google Search Console API via OAuth2 refresh token
+// Google Search Console API via Service Account (JWT bearer)
+// No expiry — key is valid until revoked in Google Cloud Console.
 // Required env vars:
-//   GSC_CLIENT_ID      — OAuth2 client ID
-//   GSC_CLIENT_SECRET  — OAuth2 client secret
-//   GSC_REFRESH_TOKEN  — refresh token from OAuth Playground
-//   GSC_SITE_URL       — e.g. https://tokyotaiwanradar.com/
+//   GSC_SERVICE_ACCOUNT_EMAIL — service account email (xxx@project.iam.gserviceaccount.com)
+//   GSC_SERVICE_ACCOUNT_KEY   — service account private key, PEM format
+//                               (in Vercel: paste full PEM; literal \n stored by Vercel are fine)
+//   GSC_SITE_URL              — e.g. https://tokyotaiwanradar.com/
+//
+// Setup:
+//   1. Google Cloud Console → IAM → Service Accounts → create account
+//   2. Keys tab → Add key → JSON → extract "client_email" and "private_key"
+//   3. Google Search Console → Settings → Users and permissions → Add user
+//      (use the service account email, at least "Restricted" permission)
 
 const GSC_SITE_URL =
   process.env.GSC_SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com/";
 
+function b64url(buf: Buffer | string): string {
+  const b = Buffer.isBuffer(buf) ? buf : Buffer.from(buf as string);
+  return b.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
 async function getAccessToken(): Promise<string> {
-  const clientId = process.env.GSC_CLIENT_ID;
-  const clientSecret = process.env.GSC_CLIENT_SECRET;
-  const refreshToken = process.env.GSC_REFRESH_TOKEN;
-  if (!clientId || !clientSecret || !refreshToken) throw new Error("GSC credentials not configured");
+  const email = process.env.GSC_SERVICE_ACCOUNT_EMAIL;
+  // Vercel stores newlines as literal \n — restore them
+  const key = process.env.GSC_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n");
+  if (!email || !key) throw new Error("GSC credentials not configured");
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claim = b64url(JSON.stringify({
+    iss: email,
+    scope: "https://www.googleapis.com/auth/webmasters.readonly",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now,
+  }));
+  const signer = createSign("RSA-SHA256");
+  signer.write(`${header}.${claim}`);
+  signer.end();
+  const jwt = `${header}.${claim}.${b64url(signer.sign(key))}`;
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt,
     }),
   });
   const data = await res.json();
@@ -41,7 +66,7 @@ export async function GET() {
   if (!roleRow || roleRow.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   // Check credentials configured
-  if (!process.env.GSC_CLIENT_ID || !process.env.GSC_CLIENT_SECRET || !process.env.GSC_REFRESH_TOKEN) {
+  if (!process.env.GSC_SERVICE_ACCOUNT_EMAIL || !process.env.GSC_SERVICE_ACCOUNT_KEY) {
     return NextResponse.json({ configured: false });
   }
 
