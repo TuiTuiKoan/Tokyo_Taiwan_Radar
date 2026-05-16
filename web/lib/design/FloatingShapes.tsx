@@ -266,28 +266,41 @@ export function FloatingShapes() {
   return (
     <div
       aria-hidden
-      className="fixed inset-0 -z-10 overflow-hidden pointer-events-none opacity-40"
-      style={{
-        // Fade out the outer 8% of each axis so shapes never form right-angle
-        // clipped edges against the viewport. Two linear masks composited via
-        // intersect produce a soft rectangular vignette.
-        WebkitMaskImage:
-          "linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)",
-        WebkitMaskComposite: "source-in",
-        maskImage:
-          "linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)",
-        maskComposite: "intersect",
-      }}
+      className="fixed inset-0 -z-10 overflow-hidden pointer-events-none"
     >
-      {floaters.map((f, i) => (
-        <FloaterView
-          key={`${i}-${f.bump}`}
-          slotIdx={i}
-          f={f}
-          scale={scale}
-          onCycle={() => handleCycle(i)}
-        />
-      ))}
+      {/* Shapes layer — opacity applied here so edge overlays below stay opaque */}
+      <div className="absolute inset-0 opacity-40">
+        {floaters.map((f, i) => (
+          <FloaterView
+            key={`${i}-${f.bump}`}
+            slotIdx={i}
+            f={f}
+            scale={scale}
+            onCycle={() => handleCycle(i)}
+          />
+        ))}
+      </div>
+      {/* Edge fade overlays — paint page bg color over outer 8% so shapes
+          never form visible right-angle clipped edges against the viewport.
+          Uses plain paint (no CSS mask) for cross-browser reliability — Safari
+          on iOS has known flaky behavior with mask + GPU-composited animated
+          children. */}
+      <div
+        className="absolute inset-x-0 top-0 h-[8%]"
+        style={{ background: "linear-gradient(to bottom, var(--color-bg), transparent)" }}
+      />
+      <div
+        className="absolute inset-x-0 bottom-0 h-[8%]"
+        style={{ background: "linear-gradient(to top, var(--color-bg), transparent)" }}
+      />
+      <div
+        className="absolute inset-y-0 left-0 w-[8%]"
+        style={{ background: "linear-gradient(to right, var(--color-bg), transparent)" }}
+      />
+      <div
+        className="absolute inset-y-0 right-0 w-[8%]"
+        style={{ background: "linear-gradient(to left, var(--color-bg), transparent)" }}
+      />
     </div>
   );
 }
