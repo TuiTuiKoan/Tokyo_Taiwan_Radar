@@ -63,6 +63,12 @@ TAIWAN_KEYWORDS = [
     "日台",
     "台湾語",
     "台湾夜市",
+    "台灣文學",
+    "台灣創作者",
+    "台灣設計",
+    "台灣工藝",
+    "台灣繪本",
+    "台灣建築",
 ]
 
 # Only keep events whose start_date is within this window from today
