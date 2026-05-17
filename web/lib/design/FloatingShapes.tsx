@@ -114,20 +114,24 @@ interface Floater {
   rotation: number;
   patternRotation: number;
   bump: number;
+  tierIdx: number;
 }
 
 function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function newFloater(slotIdx: number, prev?: Floater, fillCounts?: Record<string, number>, forceSolid?: boolean): Floater {
-  const tierIdx = Math.floor(slotIdx / 2);
+function newFloater(tierIdx: number, prev?: Floater, fillCounts?: Record<string, number>, forceSolid?: boolean): Floater {
   const tier = TIERS[tierIdx];
   const [minPx, maxPx, minSec, maxSec] = tier;
   const size = Math.round(minPx + Math.random() * (maxPx - minPx));
   const duration = Math.round(minSec + Math.random() * (maxSec - minSec));
-  // For the first paint, stagger the second floater in each pair by half-cycle.
-  const initialPhase = prev ? 0 : (slotIdx % 2 === 1 ? duration / 2 : 0);
+  // Initial-paint phase: a tiny 0–5% forward offset only. We deliberately do NOT
+  // half-cycle stagger pair partners — a half-cycle delay drops them mid-journey
+  // at full opacity, which on a narrow mobile viewport looks like the shape
+  // "popping into view at the center of the screen" instead of drifting in from
+  // an edge. Subsequent cycles (prev defined) always start at phase 0.
+  const initialPhase = prev ? 0 : Math.random() * duration * 0.05;
   // Max 2 floaters may share the same fill kind simultaneously.
   // forceSolid overrides the diversity filter to guarantee at least 1 solid on screen.
   const fill: FillKind = forceSolid
@@ -149,12 +153,13 @@ function newFloater(slotIdx: number, prev?: Floater, fillCounts?: Record<string,
     color,
     size,
     duration,
-    delay: -Math.round(initialPhase),
+    delay: -Math.round(initialPhase * 10) / 10,
     drift: pick(DRIFTS),
     opacity: 0.18 + Math.random() * 0.22,
     rotation: Math.round(Math.random() * 360),
     patternRotation: Math.round(Math.random() * 90) - 45,
     bump: prev ? prev.bump + 1 : 0,
+    tierIdx,
   };
 }
 
@@ -188,14 +193,21 @@ function FloaterView({ slotIdx, f, scale, onCycle }: { slotIdx: number; f: Float
   if (isOutline) shapeProps.strokeWidth = strokeWidth;
   if (strokeDash) shapeProps.strokeDasharray = strokeDash;
 
+  // Scale animation duration with viewport so the perceived linear velocity
+  // (px/sec) stays roughly constant between desktop (~1100px) and mobile
+  // (~390px). Without this, durations stay 12–130s while the drift distance
+  // shrinks proportionally — mobile shapes appear to crawl. Scale the delay
+  // by the same factor to preserve the keyframe phase.
+  const animDuration = Math.max(2, f.duration * scale);
+  const animDelay = f.delay * scale;
   const style = {
     top: 0,
     left: 0,
     width: spriteSize,
     height: spriteSize,
     opacity: f.opacity,
-    animation: `${f.drift} ${f.duration}s linear infinite`,
-    animationDelay: `${f.delay}s`,
+    animation: `${f.drift} ${animDuration.toFixed(1)}s linear infinite`,
+    animationDelay: `${animDelay.toFixed(1)}s`,
     "--x-min": `${-spritePadding}px`,
     "--y-min": `${-spritePadding}px`,
     "--x-mid": `calc((100svw - ${renderSize}px) / 2 - ${spritePadding}px)`,
@@ -225,9 +237,20 @@ function FloaterView({ slotIdx, f, scale, onCycle }: { slotIdx: number; f: Float
   );
 }
 
-const TOTAL_SLOTS = TIERS.length * 2; // 10
+const FULL_SLOTS = TIERS.length * 2; // 10
 
-export function FloatingShapes() {
+export interface FloatingShapesProps {
+  /**
+   * `full` (default) — the original homepage / design-page background:
+   *   10 slots, 2 per tier, solid-fill guarantee, paired layout.
+   * `subtle` — lightweight variant for inner pages:
+   *   only the two smallest tiers (sizes 40–150px), random 2–6 floaters,
+   *   no solid-fill guarantee. Easy on the eyes inside event lists / details.
+   */
+  variant?: "full" | "subtle";
+}
+
+export function FloatingShapes({ variant = "full" }: FloatingShapesProps = {}) {
   // null until mounted → avoids SSR hydration mismatch (Math.random is client-only).
   const [floaters, setFloaters] = useState<Floater[] | null>(null);
   // Viewport-responsive scale: largest tier is 700px, baseline viewport 1100px.
@@ -247,41 +270,58 @@ export function FloatingShapes() {
   }, []);
 
   useEffect(() => {
-    // Build incrementally so each new floater sees fills already committed.
     const initial: Floater[] = [];
-    for (let i = 0; i < TOTAL_SLOTS; i++) {
-      const counts: Record<string, number> = {};
-      for (const f of initial) counts[f.fill] = (counts[f.fill] ?? 0) + 1;
-      // On the last slot: if no solid yet, force it.
-      const mustSolid = i === TOTAL_SLOTS - 1 && !initial.some((f) => f.fill === "solid");
-      initial.push(newFloater(i, undefined, mustSolid ? { ...counts, solid: 0 } : counts, mustSolid));
+    if (variant === "subtle") {
+      // Inner pages: random 2–6 floaters, drawn from the two smallest tiers only.
+      const count = 2 + Math.floor(Math.random() * 5); // 2..6
+      for (let i = 0; i < count; i++) {
+        const tierIdx = Math.random() < 0.5 ? 0 : 1;
+        initial.push(newFloater(tierIdx, undefined, undefined, false));
+      }
+    } else {
+      // Full background: build incrementally so each new floater sees fills already committed.
+      for (let i = 0; i < FULL_SLOTS; i++) {
+        const counts: Record<string, number> = {};
+        for (const f of initial) counts[f.fill] = (counts[f.fill] ?? 0) + 1;
+        const mustSolid = i === FULL_SLOTS - 1 && !initial.some((f) => f.fill === "solid");
+        const tierIdx = Math.floor(i / 2);
+        initial.push(newFloater(tierIdx, undefined, mustSolid ? { ...counts, solid: 0 } : counts, mustSolid));
+      }
     }
     setFloaters(initial);
-  }, []);
+  }, [variant]);
 
   if (!floaters) return null;
 
   const handleCycle = (slotIdx: number) => {
     setFloaters((curr) => {
       if (!curr) return curr;
-      // Compute fill counts excluding the slot being refreshed.
-      const counts: Record<string, number> = {};
-      for (let i = 0; i < curr.length; i++) {
-        if (i === slotIdx) continue;
-        counts[curr[i].fill] = (counts[curr[i].fill] ?? 0) + 1;
-      }
-      // If no other solid exists, force solid on this new floater.
-      const mustSolid = (counts["solid"] ?? 0) === 0;
+      const prev = curr[slotIdx];
       const next = curr.slice();
-      next[slotIdx] = newFloater(slotIdx, curr[slotIdx], mustSolid ? { ...counts, solid: 0 } : counts, mustSolid);
+      if (variant === "subtle") {
+        // Re-roll tier randomly between the two smallest tiers; no solid enforcement.
+        const tierIdx = Math.random() < 0.5 ? 0 : 1;
+        next[slotIdx] = newFloater(tierIdx, prev, undefined, false);
+      } else {
+        const counts: Record<string, number> = {};
+        for (let i = 0; i < curr.length; i++) {
+          if (i === slotIdx) continue;
+          counts[curr[i].fill] = (counts[curr[i].fill] ?? 0) + 1;
+        }
+        const mustSolid = (counts["solid"] ?? 0) === 0;
+        next[slotIdx] = newFloater(prev.tierIdx, prev, mustSolid ? { ...counts, solid: 0 } : counts, mustSolid);
+      }
       return next;
     });
   };
 
+  // Subtle variant: lighter base opacity so inner-page content stays the focus.
+  const wrapperOpacity = variant === "subtle" ? "opacity-25" : "opacity-40";
+
   return (
     <div
       aria-hidden
-      className="fixed inset-0 -z-10 overflow-hidden pointer-events-none opacity-40"
+      className={`fixed inset-0 -z-10 overflow-hidden pointer-events-none ${wrapperOpacity}`}
     >
       {floaters.map((f, i) => (
         <FloaterView

@@ -278,53 +278,57 @@ html:has([data-site-bg]) body {
   --animate-shrink-out: shrink-fly-out 30s ease-in infinite alternate;
 }
 
-/* Diverse drift directions — sprite padding may cross the viewport; visible shape stays inside. */
+/* Diverse drift directions. Opacity ramps in/out over the first/last 5% of the
+ * cycle so shapes fade in while still near the entry edge (not 25% in toward
+ * the center — that read as "popping in at the screen middle" on mobile, where
+ * the absolute drift distance is small). The sprite padding crosses the
+ * viewport edge; the visible shape stays inside. */
 @keyframes drift-tl-br {
   0%   { transform: translate(var(--x-min), var(--y-min)) rotate(0deg); opacity: 0; }
-  25%  { opacity: 0.9; }
-  75%  { opacity: 0.9; }
+  5%   { opacity: 0.9; }
+  95%  { opacity: 0.9; }
   100% { transform: translate(var(--x-max), var(--y-max)) rotate(240deg); opacity: 0; }
 }
 @keyframes drift-tr-bl {
   0%   { transform: translate(var(--x-max), var(--y-min)) rotate(0deg); opacity: 0; }
-  25%  { opacity: 0.9; }
-  75%  { opacity: 0.9; }
+  5%   { opacity: 0.9; }
+  95%  { opacity: 0.9; }
   100% { transform: translate(var(--x-min), var(--y-max)) rotate(-300deg); opacity: 0; }
 }
 @keyframes drift-bl-tr {
   0%   { transform: translate(var(--x-min), var(--y-max)) rotate(0deg); opacity: 0; }
-  25%  { opacity: 0.85; }
-  75%  { opacity: 0.85; }
+  5%   { opacity: 0.85; }
+  95%  { opacity: 0.85; }
   100% { transform: translate(var(--x-max), var(--y-min)) rotate(180deg); opacity: 0; }
 }
 @keyframes drift-br-tl {
   0%   { transform: translate(var(--x-max), var(--y-max)) rotate(0deg); opacity: 0; }
-  25%  { opacity: 0.9; }
-  75%  { opacity: 0.9; }
+  5%   { opacity: 0.9; }
+  95%  { opacity: 0.9; }
   100% { transform: translate(var(--x-min), var(--y-min)) rotate(-200deg); opacity: 0; }
 }
 @keyframes drift-l-r {
   0%   { transform: translate(var(--x-min), var(--y-mid)) rotate(0deg); opacity: 0; }
-  25%  { opacity: 0.85; }
-  75%  { opacity: 0.85; }
+  5%   { opacity: 0.85; }
+  95%  { opacity: 0.85; }
   100% { transform: translate(var(--x-max), var(--y-mid)) rotate(360deg); opacity: 0; }
 }
 @keyframes drift-r-l {
   0%   { transform: translate(var(--x-max), var(--y-mid)) rotate(0deg); opacity: 0; }
-  25%  { opacity: 0.85; }
-  75%  { opacity: 0.85; }
+  5%   { opacity: 0.85; }
+  95%  { opacity: 0.85; }
   100% { transform: translate(var(--x-min), var(--y-mid)) rotate(-360deg); opacity: 0; }
 }
 @keyframes drift-t-b {
   0%   { transform: translate(var(--x-mid), var(--y-min)) rotate(0deg); opacity: 0; }
-  25%  { opacity: 0.85; }
-  75%  { opacity: 0.85; }
+  5%   { opacity: 0.85; }
+  95%  { opacity: 0.85; }
   100% { transform: translate(var(--x-mid), var(--y-max)) rotate(120deg); opacity: 0; }
 }
 @keyframes drift-b-t {
   0%   { transform: translate(var(--x-mid), var(--y-max)) rotate(0deg); opacity: 0; }
-  25%  { opacity: 0.85; }
-  75%  { opacity: 0.85; }
+  5%   { opacity: 0.85; }
+  95%  { opacity: 0.85; }
   100% { transform: translate(var(--x-mid), var(--y-min)) rotate(-150deg); opacity: 0; }
 }
 
