@@ -452,6 +452,7 @@
     "analyticsViews7d": "Last 7 Days",
     "analyticsViews30d": "Last 30 Days",
     "analyticsRecentViewsTitle": "Recently Viewed Events",
+    "analyticsRecentViewsCount30d": "Views (30d)",
     "analyticsRecentViewsEmpty": "No recent views yet",
     "analyticsTopEventsTitle": "Top 10 Most-Viewed Events (Last 30 Days)",
     "analyticsTopEventsEmpty": "No view data yet",

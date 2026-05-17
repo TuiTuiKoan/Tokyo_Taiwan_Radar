@@ -452,6 +452,7 @@
     "analyticsViews7d": "直近7日",
     "analyticsViews30d": "直近30日",
     "analyticsRecentViewsTitle": "最近閲覧されたイベント",
+    "analyticsRecentViewsCount30d": "閲覧数（30日）",
     "analyticsRecentViewsEmpty": "最近の閲覧データはありません",
     "analyticsTopEventsTitle": "閲覧数 Top 10（過去30日）",
     "analyticsTopEventsEmpty": "閲覧データなし",

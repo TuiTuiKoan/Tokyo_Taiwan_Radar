@@ -452,6 +452,7 @@
     "analyticsViews7d": "近 7 天",
     "analyticsViews30d": "近 30 天",
     "analyticsRecentViewsTitle": "最近被閱覽的活動",
+    "analyticsRecentViewsCount30d": "瀏覽次數（30天）",
     "analyticsRecentViewsEmpty": "最近尚無瀏覽記錄",
     "analyticsTopEventsTitle": "瀏覽量 Top 10（近30天）",
     "analyticsTopEventsEmpty": "尚無瀏覽記錄",

@@ -126,20 +126,21 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
     last30d: last30Res.count ?? 0,
   };
 
+  const viewCountMap: Record<string, number> = {};
+  for (const row of topViewsRawRes.data ?? []) {
+    viewCountMap[row.event_id] = (viewCountMap[row.event_id] ?? 0) + 1;
+  }
+
   const recentRows = ((recentRawRes.data ?? []) as RecentViewRow[]).map((row) => {
     const event = Array.isArray(row.events) ? (row.events[0] ?? null) : row.events;
     return {
       viewed_at: row.viewed_at,
       locale: row.locale,
       event_id: row.event_id,
+      viewCount: viewCountMap[row.event_id] ?? 0,
       eventName: resolveEventName(event, locale, row.event_id),
     };
   });
-
-  const viewCountMap: Record<string, number> = {};
-  for (const row of topViewsRawRes.data ?? []) {
-    viewCountMap[row.event_id] = (viewCountMap[row.event_id] ?? 0) + 1;
-  }
 
   const topEventIds = Object.entries(viewCountMap)
     .sort((a, b) => b[1] - a[1])
@@ -216,6 +217,75 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
       </div>
 
       <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
+        <h2 className="text-base font-semibold text-fg mb-3">{t("analyticsGscTitle")}</h2>
+
+        {!gsc.configured ? (
+          <div className="border border-dashed border-line rounded-lg px-4 py-3 text-sm text-fg-muted">
+            <p className="font-medium text-fg mb-1">{t("analyticsGscNotConfigured")}</p>
+            <p>{t("analyticsGscConfigGuide")}</p>
+          </div>
+        ) : gsc.error ? (
+          <div className="border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+            {t("analyticsGscError", { error: gsc.error })}
+          </div>
+        ) : (
+          <>
+            <p className="text-xs text-fg-subtle mb-3">
+              {gsc.period?.startDate} - {gsc.period?.endDate}
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+              <div className="border border-line rounded-lg px-4 py-3 bg-elevated">
+                <p className="text-xs text-fg-subtle mb-1">{t("analyticsGscClicks")}</p>
+                <p className="text-2xl font-bold tabular-nums">{fmtNum(gsc.totalClicks ?? 0)}</p>
+              </div>
+              <div className="border border-line rounded-lg px-4 py-3 bg-elevated">
+                <p className="text-xs text-fg-subtle mb-1">{t("analyticsGscImpressions")}</p>
+                <p className="text-2xl font-bold tabular-nums">{fmtNum(gsc.totalImpressions ?? 0)}</p>
+              </div>
+              <div className="border border-line rounded-lg px-4 py-3 bg-elevated">
+                <p className="text-xs text-fg-subtle mb-1">{t("analyticsGscCtr")}</p>
+                <p className="text-2xl font-bold tabular-nums">{fmtPercent(gsc.avgCtr ?? 0)}</p>
+              </div>
+              <div className="border border-line rounded-lg px-4 py-3 bg-elevated">
+                <p className="text-xs text-fg-subtle mb-1">{t("analyticsGscPosition")}</p>
+                <p className="text-2xl font-bold tabular-nums">{(gsc.avgPosition ?? 0).toFixed(1)}</p>
+              </div>
+            </div>
+
+            <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsGscTopQueriesTitle")}</h3>
+            {!gsc.topQueries || gsc.topQueries.length === 0 ? (
+              <p className="text-sm text-fg-subtle">{t("analyticsGscTopQueriesEmpty")}</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="text-xs text-fg-subtle border-b border-line">
+                      <th className="text-left py-2 pr-4 font-medium">{t("analyticsGscQuery")}</th>
+                      <th className="text-right py-2 pr-4 font-medium">{t("analyticsGscClicks")}</th>
+                      <th className="text-right py-2 pr-4 font-medium">{t("analyticsGscImpressions")}</th>
+                      <th className="text-right py-2 pr-4 font-medium">{t("analyticsGscCtr")}</th>
+                      <th className="text-right py-2 font-medium">{t("analyticsGscPosition")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gsc.topQueries.map((q) => (
+                      <tr key={q.query} className="border-b border-gray-50 hover:bg-elevated">
+                        <td className="py-2 pr-4 truncate max-w-[26rem]">{q.query}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums">{fmtNum(q.clicks)}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums">{fmtNum(q.impressions)}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums">{fmtPercent(q.ctr)}</td>
+                        <td className="py-2 text-right tabular-nums">{q.position.toFixed(1)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
         <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsRecentViewsTitle")}</h3>
         {recentRows.length === 0 ? (
           <p className="text-sm text-fg-subtle">{t("analyticsRecentViewsEmpty")}</p>
@@ -227,6 +297,7 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
                   <th className="text-left py-2 pr-4 font-medium">{t("statsRunAt")}</th>
                   <th className="text-left py-2 pr-4 font-medium">{t("language")}</th>
                   <th className="text-left py-2 font-medium">{t("name")}</th>
+                  <th className="text-right py-2 pl-4 font-medium">{t("analyticsRecentViewsCount30d")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -243,12 +314,13 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
                     </td>
                     <td className="py-2 min-w-0">
                       <Link
-                        href={`/${locale}/admin/${row.event_id}`}
+                        href={`/${locale}/events/${row.event_id}`}
                         className="text-green-700 hover:text-green-800 hover:underline truncate inline-block max-w-[42rem]"
                       >
                         {row.eventName}
                       </Link>
                     </td>
+                    <td className="py-2 pl-4 text-right tabular-nums text-fg-muted">{fmtNum(row.viewCount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -343,75 +415,6 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
               );
             })}
           </ul>
-        )}
-      </div>
-
-      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
-        <h2 className="text-base font-semibold text-fg mb-3">{t("analyticsGscTitle")}</h2>
-
-        {!gsc.configured ? (
-          <div className="border border-dashed border-line rounded-lg px-4 py-3 text-sm text-fg-muted">
-            <p className="font-medium text-fg mb-1">{t("analyticsGscNotConfigured")}</p>
-            <p>{t("analyticsGscConfigGuide")}</p>
-          </div>
-        ) : gsc.error ? (
-          <div className="border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-            {t("analyticsGscError", { error: gsc.error })}
-          </div>
-        ) : (
-          <>
-            <p className="text-xs text-fg-subtle mb-3">
-              {gsc.period?.startDate} - {gsc.period?.endDate}
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-              <div className="border border-line rounded-lg px-4 py-3 bg-elevated">
-                <p className="text-xs text-fg-subtle mb-1">{t("analyticsGscClicks")}</p>
-                <p className="text-2xl font-bold tabular-nums">{fmtNum(gsc.totalClicks ?? 0)}</p>
-              </div>
-              <div className="border border-line rounded-lg px-4 py-3 bg-elevated">
-                <p className="text-xs text-fg-subtle mb-1">{t("analyticsGscImpressions")}</p>
-                <p className="text-2xl font-bold tabular-nums">{fmtNum(gsc.totalImpressions ?? 0)}</p>
-              </div>
-              <div className="border border-line rounded-lg px-4 py-3 bg-elevated">
-                <p className="text-xs text-fg-subtle mb-1">{t("analyticsGscCtr")}</p>
-                <p className="text-2xl font-bold tabular-nums">{fmtPercent(gsc.avgCtr ?? 0)}</p>
-              </div>
-              <div className="border border-line rounded-lg px-4 py-3 bg-elevated">
-                <p className="text-xs text-fg-subtle mb-1">{t("analyticsGscPosition")}</p>
-                <p className="text-2xl font-bold tabular-nums">{(gsc.avgPosition ?? 0).toFixed(1)}</p>
-              </div>
-            </div>
-
-            <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsGscTopQueriesTitle")}</h3>
-            {!gsc.topQueries || gsc.topQueries.length === 0 ? (
-              <p className="text-sm text-fg-subtle">{t("analyticsGscTopQueriesEmpty")}</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="text-xs text-fg-subtle border-b border-line">
-                      <th className="text-left py-2 pr-4 font-medium">{t("analyticsGscQuery")}</th>
-                      <th className="text-right py-2 pr-4 font-medium">{t("analyticsGscClicks")}</th>
-                      <th className="text-right py-2 pr-4 font-medium">{t("analyticsGscImpressions")}</th>
-                      <th className="text-right py-2 pr-4 font-medium">{t("analyticsGscCtr")}</th>
-                      <th className="text-right py-2 font-medium">{t("analyticsGscPosition")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gsc.topQueries.map((q) => (
-                      <tr key={q.query} className="border-b border-gray-50 hover:bg-elevated">
-                        <td className="py-2 pr-4 truncate max-w-[26rem]">{q.query}</td>
-                        <td className="py-2 pr-4 text-right tabular-nums">{fmtNum(q.clicks)}</td>
-                        <td className="py-2 pr-4 text-right tabular-nums">{fmtNum(q.impressions)}</td>
-                        <td className="py-2 pr-4 text-right tabular-nums">{fmtPercent(q.ctr)}</td>
-                        <td className="py-2 text-right tabular-nums">{q.position.toFixed(1)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
         )}
       </div>
     </div>
