@@ -112,6 +112,9 @@ from sources.cinemaclair import CinemaClairScraper
 from sources.kyoto_cinema import KyotoCinemaScraper
 from sources.cine_gallery import CineGalleryScraper
 from sources.wuext_waseda import WuextWasedaScraper
+from sources.startup_terrace import StartupTerraceScraper
+from sources.taiwan_prism import TaiwanPrismScraper
+from sources.ftip import FtipScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -136,6 +139,7 @@ SCRAPERS = [
     TaiwanCulturalCenterScraper(),
     PeatixScraper(),
     TaioanDokyokaiScraper(),
+    FtipScraper(),
     IwafuScraper(),
     TaiwanFestivalTokyoScraper(),
     KoryuScraper(),
@@ -208,6 +212,8 @@ SCRAPERS = [
     KyotoCinemaScraper(),
     CineGalleryScraper(),
     WuextWasedaScraper(),
+    StartupTerraceScraper(),
+    TaiwanPrismScraper(),
 ]
 
 
