@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-05-17 — Peatix: ロケール付き URL（/us/event/）が source_url に保存 → broken link（event e9c6f80b）
+
+**根因：** Peatix group ページで取得した `<a href>` が `/us/event/{id}` 形式（ブラウザロケール起因のリダイレクト先）。`source_url=url` がそのまま保存されるため、ロケールプレフィックス付き URL が DB に入り 404 になる。
+
+**教訓：**
+- `_scrape_detail()` 入口で `re.sub(r"^(https://peatix\.com)/[a-z]{2}/event/", r"\1/event/", url)` を実行し、ロケールプレフィックスを除去してから `page.goto()` する。
+- Peatix に限らず、ロケール別 URL（`/en/`、`/us/`、`/jp/`）が `source_url` に混入していないかスクレイパーテスト時に確認。
+
+---
+
 ## 2026-05-15 — tsutaya_portal: span.place 店内エリア名 + end_date 年なしパース失敗
 
 **根因（2件）：**

@@ -864,6 +864,11 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
+- **Locale-prefixed URLs must be normalized before `page.goto()`**: Peatix redirects to `/us/event/{id}` or `/jp/event/{id}` depending on browser locale. Strip the prefix in `_scrape_detail()` **before** goto so `source_url` is always `https://peatix.com/event/{id}`:
+  ```python
+  url = re.sub(r"^(https://peatix\.com)/[a-z]{2}/event/", r"\1/event/", url)
+  ```
+  (Incident: event `e9c6f80b`, 2026-05-17)
 - **Three-layer organizer architecture**:
   - Layer 1: keyword search (`peatix.com/search?q=...`)
   - Layer 2: hardcoded organizer list in `_ORGANIZERS` — **never remove**; serves as backup if DB changes

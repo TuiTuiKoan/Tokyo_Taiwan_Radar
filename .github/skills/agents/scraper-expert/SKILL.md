@@ -34,6 +34,11 @@ Read this at the start of every session before writing any scraper.
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
+- **Locale-prefixed URLs must be normalized before `page.goto()`**: Peatix redirects to `/us/event/{id}` or `/jp/event/{id}` depending on browser locale. Strip the prefix in `_scrape_detail()` **before** goto so `source_url` is always `https://peatix.com/event/{id}`:
+  ```python
+  url = re.sub(r"^(https://peatix\.com)/[a-z]{2}/event/", r"\1/event/", url)
+  ```
+  (Incident: event `e9c6f80b`, 2026-05-17)
 
 ## RSS/Podcast scraper-specific
 - **Normalize `&amp;` in RSS link text before regex**: RSS `<link>` text nodes may contain HTML-entity-encoded `&amp;` even after XML parsing (double-encoded by the origin server). `item.find("link").text` can return `"...?uid=4&amp;pid=103701"`. Any regex on the raw text will miss `&pid=`. Always normalize: `link = link_raw.replace("&amp;", "&")` before extraction. Apply to both `source_url` construction and any `_extract_pid()`-style function. (Incident: rti_jp 0 events, 2026-05-14.)
