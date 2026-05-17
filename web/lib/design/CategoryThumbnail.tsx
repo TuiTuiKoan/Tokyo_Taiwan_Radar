@@ -79,7 +79,8 @@ export function CategoryThumbnail({ id, categories = [], className = "", forceMo
   const m1Dy = Math.floor(rand() * 12) - 6;
 
   return (
-    <div className={`relative overflow-hidden ${className}`} style={{ backgroundColor: palette.bg }}>
+    // z-20 keeps the thumbnail above the subtle FloatingShapes overlay (z-10) on inner pages.
+    <div className={`relative z-20 overflow-hidden ${className}`} style={{ backgroundColor: palette.bg }}>
       <svg viewBox="0 0 100 100" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
         <BgPattern kind={bgKind} color={bgPatColor} rotation={patRotation} id={id} />
         

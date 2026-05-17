@@ -57,7 +57,7 @@ export default function AnnouncementCard({ announcement, locale }: Props) {
     >
       {/* Left thumbnail — square, full-bleed cover */}
       {image && (
-        <div className="relative shrink-0 aspect-square w-16 sm:w-20 self-stretch overflow-hidden bg-paper/60">
+        <div className="relative z-20 shrink-0 aspect-square w-16 sm:w-20 self-stretch overflow-hidden bg-paper/60">
           <Image
             src={image}
             alt={title}
