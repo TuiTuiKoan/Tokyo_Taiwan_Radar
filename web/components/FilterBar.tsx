@@ -131,7 +131,7 @@ export default function FilterBar({ locale: _locale, currentFilters, hiddenFilte
   });
 
   return (
-    <div className="sticky top-14 z-20 -mx-4 px-4 pt-2 pb-2 mb-0">
+    <div className="sticky top-14 z-30 -mx-4 px-4 pt-2 pb-2 mb-0">
       <div className="bg-blush border border-[#EDD8D0]/60 dark:border-[#3a2a27]/60 rounded-2xl px-4 py-3 shadow-sm">
 
       {/* Mobile: icon toggle row */}
