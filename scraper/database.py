@@ -711,5 +711,28 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
         except Exception as exc:
             logger.warning("Could not reset force_rescrape flag: %s", exc)
 
+    # Auto-clear force_rescrape for annotator-generated sub-events (_sub suffix).
+    # Sub-events are produced by the annotator, not scrapers — their source_ids
+    # (e.g. "abc123_sub1") never appear in scraper output, so they can never be
+    # matched in force_rows above and would stay stuck indefinitely.
+    # Instead we trigger re-annotation by resetting annotation_status='pending'.
+    try:
+        sub_cleanup = (
+            client.table("events")
+            .update({"force_rescrape": False, "annotation_status": "pending"})
+            .in_("source_name", source_names)
+            .eq("force_rescrape", True)
+            .like("source_id", "%_sub%")
+            .execute()
+        )
+        if sub_cleanup.data:
+            logger.info(
+                "Auto-cleared force_rescrape for %d annotator-generated sub-event(s) "
+                "(re-annotation triggered instead of re-scrape).",
+                len(sub_cleanup.data),
+            )
+    except Exception as exc:
+        logger.warning("Could not auto-clear sub-event force_rescrape flags: %s", exc)
+
     return new_event_ids
 
