@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-05-17 — `ftip`: Peatix チャンネル URL がイベント URL より先に HTML に現れ、チャンネルページが source_url に設定された（event `eeb5b12e`）
+
+**問題:** `source_url` / `official_url` が `https://nerimaokinawaeigasai.peatix.com`（主催者チャンネルページ）に設定され、個別イベントページ `https://peatix.com/event/4572285/view` が使われなかった。
+
+**根本原因:** `_extract_peatix_url_from_html` が HTML アンカーを先頭から走査して**最初の** `peatix.com` リンクを返す設計。ftip 記事ではバナーのチャンネルリンク（`nerimaokinawaeigasai.peatix.com`）が個別イベントリンク（`peatix.com/event/4572285/view`）より先に出現するため、チャンネルページが返された。
+
+**修正（commit `34368e3`）:** `_extract_peatix_url_from_html` を全アンカーを走査し `peatix.com/event/NNN` 形式を即時返却するよう改修。`/event/` が存在しない場合のみチャンネル URL を fallback として返す。
+
+**教訓:** Peatix には `peatix.com/event/NNN`（個別イベント）と `org.peatix.com`（チャンネル）の 2 種類の URL がある。HTML 内で両方が出現する場合は `/event/NNN` を優先すること。「最初に見つかった URL を返す」実装は URL 種別の優先度を無視するため誤りを招く。
+
+---
+
 ## 2026-05-17 — Peatix: ロケール付き URL（/us/event/）が source_url に保存される → broken link（event e9c6f80b）
 
 **問題**

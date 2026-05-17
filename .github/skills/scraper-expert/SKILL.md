@@ -193,15 +193,23 @@ _DATE_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
 def _extract_peatix_url_from_html(html_text: str) -> Optional[str]:
     """Extract Peatix event URL from HTML anchor href attributes.
 
-    ftip / WordPress posts often embed Peatix links as <a href>
-    rather than plain-text URLs — .get_text() strips these hrefs.
+    Priority: peatix.com/event/NNN (specific event page) over
+    *.peatix.com subdomain (organizer channel page).
+    Channel links often appear as banners BEFORE the event link.
     """
     soup = BeautifulSoup(html_text or "", "html.parser")
+    channel_url: Optional[str] = None
     for a in soup.find_all("a", href=True):
         href: str = a["href"]
-        if "peatix.com" in href:
-            return href.rstrip("./,、）)")
-    return None
+        if "peatix.com" not in href:
+            continue
+        href = href.rstrip("./,、）)")
+        # Prefer /event/NNN path — return immediately
+        if re.search(r"peatix\.com/event/\d+", href):
+            return href
+        if channel_url is None:
+            channel_url = href
+    return channel_url
 ```
 
 呼び出し側でテキスト検索と HTML 検索を OR で組み合わせる:
@@ -210,9 +218,15 @@ def _extract_peatix_url_from_html(html_text: str) -> Optional[str]:
 _peatix = _extract_peatix_url(content_text) or _extract_peatix_url_from_html(content_html)
 ```
 
+**⚠️ URL 種別の優先度:** Peatix には 2 種類の URL が存在する:
+- `peatix.com/event/NNN/view` — 個別イベントページ（チケット購入・詳細情報あり）← **優先**
+- `org.peatix.com` — 主催者チャンネルページ（イベント一覧のみ）← fallback
+
+HTML 内に両方が現れる場合、チャンネルページが先に出現することが多い。常に全アンカーを走査して `/event/NNN` を優先すること。
+
 **適用範囲**: WordPress RSS を使う全 scraper（ftip、その他 WordPress ベースのソース）。
 
-(Incident: ftip `ee870f7`, 2026-05-17.)
+(Incidents: ftip `ee870f7` CDATA extraction, `34368e3` channel-vs-event priority, 2026-05-17.)
 
 ## aggregator scraper の `location_name` フォールバックに組織名を使わない
 

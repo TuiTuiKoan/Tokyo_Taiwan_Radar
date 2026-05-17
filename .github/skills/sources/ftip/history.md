@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-05-17 — Peatix チャンネル URL がイベント URL より先に出現し、チャンネルページが source_url に設定された（event `eeb5b12e`）
+
+**問題:** `source_url` / `official_url` が `https://nerimaokinawaeigasai.peatix.com`（主催者チャンネルページ）に設定され、正しい個別イベントページ `https://peatix.com/event/4572285/view` が使われなかった。
+
+**根本原因:** `_extract_peatix_url_from_html` が最初に見つかった `peatix.com` URL を返す設計。ftip 記事ではチャンネルバナー（`nerimaokinawaeigasai.peatix.com`）が個別イベントリンク（`peatix.com/event/4572285/view`）より先に HTML に出現する。
+
+**修正（commit `34368e3`）:** 全アンカーを走査し `peatix.com/event/NNN` 形式（個別イベントページ）を即時返却。チャンネル URL は `/event/` が存在しない場合の fallback に格下げ。DB の `source_url` / `official_url` も修正 + FC lock 済み。
+
+**教訓:** `_extract_peatix_url_from_html` は「最初に見つかった URL」ではなく「最も具体的な URL」を返すべき。`/event/NNN` > チャンネルサブドメインの優先度を常に維持する。
+
+---
+
 ## 2026-05-17 — Peatix URL が HTML アンカーとして埋め込まれ `.get_text()` で消失
 
 **問題:** `official_url` / `source_url` に Peatix URL が設定されず、イベント詳細ページの CTA ボタンが ftip.org（二手）を指したままだった。
