@@ -96,7 +96,7 @@ from sources.mot import MotScraper
 from sources.transit_store import TransitStoreScraper
 from sources.go_taiwan import GoTaiwanScraper
 from sources.taiwan_festa import TaiwanFestaScraper
-from sources.tiff import TiffJpScraper
+from sources.tiff import TiffJpScraper, TiffScraper
 from sources.note_creators import NoteCreatorsScraper
 from sources.artistcafe import ArtistcafeScraper
 from sources.rightscube import RightscubeScraper
@@ -197,6 +197,7 @@ SCRAPERS = [
     GoTaiwanScraper(),
     TaiwanFestaScraper(),
     TiffJpScraper(),
+    TiffScraper(),
     NoteCreatorsScraper(),
     ArtistcafeScraper(),
     RightscubeScraper(),

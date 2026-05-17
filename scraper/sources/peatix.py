@@ -154,7 +154,18 @@ def _extract_peatix_dates(page_text: str) -> tuple[Optional[datetime], Optional[
         page_text
     )
     if not date_match:
-        # Fallback: try Japanese date pattern
+        # Fallback 1: look for 開催日時-labelled date FIRST (avoids confusing
+        # "申し込み開始" dates that appear earlier in the description body).
+        # e.g. "開催日時：2026年6月13日（土）" → June 13, not April 25.
+        kai_match = re.search(
+            r'開催[日時：:]+\s*(\d{4}年\d{1,2}月\d{1,2}日)',
+            page_text,
+        )
+        if kai_match:
+            start = _parse_peatix_date(kai_match.group(1))
+            return start, start
+        # Fallback 2: first Japanese date in text (may be application/sale start
+        # date rather than the actual event date — use only as last resort)
         jp_match = re.search(r'(\d{4}[年/]\d{1,2}[月/]\d{1,2}日?)', page_text)
         if jp_match:
             start = _parse_peatix_date(jp_match.group(1))

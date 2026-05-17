@@ -17,14 +17,16 @@ import re
 import time
 import random
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.request import urlopen
 from urllib.error import URLError
 
+import requests
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 from .base import BaseScraper, Event
+from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
 
@@ -240,3 +242,141 @@ class TiffJpScraper(BaseScraper):
                 logger.warning("tiff_jp: failed to parse card %d: %s", i, exc)
                 continue
         return out
+
+
+# ---------------------------------------------------------------------------
+# TiffScraper — Taiwan-related films from TIFF Films API
+# ---------------------------------------------------------------------------
+
+_API_URL = "https://api-{year}.tiff-jp.net/api/films"
+_FILM_PAGE_URL = "https://{year}.tiff-jp.net/en/lineup/film_en/{film_id}.html"
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+class TiffScraper(BaseScraper):
+    """Scrapes Taiwan-related films from the Tokyo International Film Festival Films API.
+
+    The API endpoint (api-{year}.tiff-jp.net) is only available after the TIFF
+    lineup announcement (~September each year). ConnectionError/DNS failures are
+    expected and handled gracefully for the months before announcement.
+    """
+
+    source_name = "tiff"
+
+    def scrape(self) -> list[Event]:
+        year = datetime.now(timezone.utc).year
+        url = _API_URL.format(year=year)
+        try:
+            resp = requests.get(url, timeout=15)
+            resp.raise_for_status()
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+            logger.info("tiff: API not available for year %d (%s); returning []", year, exc)
+            return []
+        except requests.exceptions.HTTPError as exc:
+            logger.warning("tiff: HTTP error from API (%s); returning []", exc)
+            return []
+        except Exception as exc:
+            logger.warning("tiff: unexpected error fetching API: %s", exc)
+            return []
+
+        try:
+            films = resp.json()
+        except Exception as exc:
+            logger.warning("tiff: failed to parse API JSON: %s", exc)
+            return []
+
+        events: list[Event] = []
+        for film in films:
+            if not isinstance(film, dict):
+                continue
+            made_in = film.get("made_in_en") or ""
+            if "Taiwan" not in made_in:
+                continue
+            event = self._build_event(film, year)
+            if event:
+                events.append(event)
+
+        logger.info("tiff: %d Taiwan films found (year=%d)", len(events), year)
+        return events
+
+    def _build_event(self, film: dict, year: int) -> Optional[Event]:
+        film_id = film.get("film_identifier", "")
+        if not film_id:
+            return None
+
+        source_id = f"tiff_{film_id}"
+        source_url = _FILM_PAGE_URL.format(year=year, film_id=film_id)
+
+        title_ja = film.get("title_ja") or ""
+        title_en = film.get("title_en") or ""
+        original_title = film.get("original_title") or ""
+
+        name_ja = film.get("title_ja") or original_title or title_en or None
+        raw_title = film.get("title_ja") or title_en or film_id
+
+        # Lookup Chinese/English titles via eiga.com
+        name_zh: Optional[str] = None
+        name_en_lookup: Optional[str] = None
+        if name_ja:
+            try:
+                name_zh, name_en_lookup, _ = lookup_movie_titles(name_ja)
+            except Exception:
+                pass
+
+        name_en_final: Optional[str] = title_en or name_en_lookup or name_ja or None
+
+        # acts / screening dates
+        acts = film.get("acts") or []
+        act_dates = sorted(set(a["act_date"][:10] for a in acts if a.get("act_date")))
+        if not act_dates:
+            return None
+
+        y, m, d = [int(x) for x in act_dates[0].split("-")]
+        start_date = datetime(y, m, d, tzinfo=timezone.utc)
+
+        end_date: Optional[datetime] = None
+        if len(act_dates) > 1:
+            y2, m2, d2 = [int(x) for x in act_dates[-1].split("-")]
+            end_date = datetime(y2, m2, d2, tzinfo=timezone.utc)
+
+        # price_info — strip HTML tags
+        price_info: Optional[str] = None
+        if acts:
+            raw_price = acts[0].get("ticket_price_en") or acts[0].get("ticket_price_ja")
+            if raw_price:
+                price_info = _HTML_TAG_RE.sub(" ", raw_price).strip()
+
+        # raw_description
+        parts = []
+        if film.get("exp_ja"):
+            parts.append(film["exp_ja"])
+        if film.get("exp_en"):
+            parts.append(f"[EN] {film['exp_en']}")
+        if film.get("director_ja"):
+            parts.append(f"監督：{film['director_ja']}")
+        if film.get("made_in_en"):
+            parts.append(f"制作国：{film['made_in_en']}")
+        screening_dates = sorted(set(a["act_date"][:10] for a in acts if a.get("act_date")))
+        parts.append(f"上映日：{', '.join(screening_dates)}")
+        raw_description = "\n\n".join(parts).replace("\x00", "")[:4000]
+
+        return Event(
+            source_name=self.source_name,
+            source_id=source_id,
+            source_url=source_url,
+            original_language="ja",
+            raw_title=raw_title,
+            raw_description=raw_description,
+            name_ja=name_ja,
+            name_en=name_en_final,
+            name_zh=name_zh,
+            start_date=start_date,
+            end_date=end_date,
+            location_name="東京国際映画祭",
+            location_address=None,
+            location_prefectures=["東京都"],
+            category=["movie"],
+            director=film.get("director_ja"),
+            price_info=price_info,
+            official_url=film.get("url"),
+        )
