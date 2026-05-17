@@ -331,7 +331,7 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     "news_media",
     "taiwan_shop",
     "personal",
-    "creator",
+    "cultural_center",
     "other",
   ];
 
