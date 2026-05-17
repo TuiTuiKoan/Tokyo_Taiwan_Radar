@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-05-17 — Peatix: ロケール付き URL（/us/event/）が source_url に保存される → broken link（event e9c6f80b）
+
+**問題**
+Peatix は訪問者のブラウザロケール設定によって `https://peatix.com/us/event/{id}` 形式（または `/jp/event/` 等）にリダイレクトする。Playwright が group ページから取得した `<a href>` がこのロケールプレフィックス付き形式だったため、`source_url=url` がそのまま保存され 404 になっていた。
+
+**修復（commit ece9d33）**
+`_scrape_detail()` の先頭で `re.sub(r"^(https://peatix\.com)/[a-z]{2}/event/", r"\1/event/", url)` を実行しロケールプレフィックスを除去。DB の event `e9c6f80b` も直接 update + `field_corrections` でロック済み。
+
+**教訓**
+- **Playwright が redirect 後の URL を `href` に反映することがある**：`page.goto(url)` 前にロケールプレフィックスを除去する。Peatix 以外でも `/en/`、`/us/`、`/jp/` 付き URL が `source_url` に混入しないかスクレイパーテスト時に確認する。
+- **broken source_url の発見は user レポートに依存しがち**：`source_url` に `/us/`、`/en/`、`/jp/` が入っていないか dry-run ログで確認する習慣をつける。
+
+---
+
 ## 2026-05-17 — `ftip`: WordPress RSS CDATA の `<a href>` が `.get_text()` で消え Peatix URL が未設定
 
 **問題:** `scraper/sources/ftip.py` で Peatix URL が `official_url` / `source_url` に設定されなかった。ftip 記事ページには「Peatixからご購入」という記載はあったが、Peatix URL はプレインテキストではなく `<a href="https://xxx.peatix.com/...">` アンカーとして WordPress 記事本文（RSS CDATA）に埋め込まれていた。
