@@ -3,6 +3,9 @@ name: Architect
 description: "Plans architecture, roadmaps, and technical design for Tokyo Taiwan Radar — read-only, no code changes"
 model: claude-sonnet-4-5
 handoffs:
+  - label: "🧐 交給 Plan Critic 批評"
+    agent: Plan Critic
+    prompt: "請批評 /memories/session/plan.md 中的計畫，並將批評報告寫入 /memories/session/plan-critique.md。"
   - label: "🔧 Implement this plan"
     agent: Engineer
     prompt: "請根據 /memories/session/plan.md 中的計畫執行實作，並回傳 Changes Log。"
