@@ -315,14 +315,18 @@ export function FloatingShapes({ variant = "full" }: FloatingShapesProps = {}) {
     });
   };
 
-  // Subtle variant: lighter base opacity so inner-page content stays the focus.
-  const wrapperOpacity = variant === "subtle" ? "opacity-25" : "opacity-40";
+  // Subtle variant: inner pages have solid card backgrounds (`bg-paper`)
+  // covering most of the viewport, so floaters at -z-10 would be invisible.
+  // Lift the subtle layer ABOVE content (z-10) with pointer-events-none and a
+  // low wrapper opacity so the shapes show as a faint translucent overlay
+  // without obscuring text or blocking clicks.
+  const wrapperClass =
+    variant === "subtle"
+      ? "fixed inset-0 z-10 overflow-hidden pointer-events-none opacity-30 mix-blend-multiply dark:mix-blend-screen"
+      : "fixed inset-0 -z-10 overflow-hidden pointer-events-none opacity-40";
 
   return (
-    <div
-      aria-hidden
-      className={`fixed inset-0 -z-10 overflow-hidden pointer-events-none ${wrapperOpacity}`}
-    >
+    <div aria-hidden className={wrapperClass}>
       {floaters.map((f, i) => (
         <FloaterView
           key={`${i}-${f.bump}`}
