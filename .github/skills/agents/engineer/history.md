@@ -2,6 +2,16 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-17: zsh 方括號路徑未加引號造成 `no matches found`
+
+**問題：** 執行 `git diff -- web/app/[locale]/admin/...` 時，zsh 先把 `[...]` 視為 glob pattern，命令在 shell 層直接失敗。
+
+**根本原因：** 路徑含 `[` `]`（Next.js 動態路由資料夾）但未用單引號包住，觸發 zsh 路徑展開。
+
+**修正：** 所有含方括號的路徑改用單引號，例如 `git diff -- 'web/app/[locale]/admin/stats/page.tsx'`。
+
+**教訓：** 在 zsh 下，任何含 `[...]` 的路徑都必須加單引號；否則命令不會送到 git，會先被 shell 擋下。
+
 ---
 
 ## 2026-05-17 — DB クエリ出力に Prompt Injection（2件：f-string 経由 `rm -f` 実行試行）
