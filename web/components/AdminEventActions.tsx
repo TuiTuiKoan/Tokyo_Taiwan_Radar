@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import IsActiveToggle from "@/components/IsActiveToggle";
+import ReviewStatusToggle from "@/components/ReviewStatusToggle";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
@@ -10,10 +11,11 @@ interface Props {
   eventId: string;
   locale: string;
   initialIsActive: boolean;
+  initialAnnotationStatus: string | null;
   isAdmin?: boolean;
 }
 
-export default function AdminEventActions({ eventId, locale, initialIsActive, isAdmin: isAdminProp }: Props) {
+export default function AdminEventActions({ eventId, locale, initialIsActive, initialAnnotationStatus, isAdmin: isAdminProp }: Props) {
   const [isAdmin, setIsAdmin] = useState(Boolean(isAdminProp));
   const t = useTranslations("event");
 
@@ -61,6 +63,7 @@ export default function AdminEventActions({ eventId, locale, initialIsActive, is
         ✎
       </Link>
       <IsActiveToggle eventId={eventId} initialIsActive={initialIsActive} />
+      <ReviewStatusToggle eventId={eventId} initialAnnotationStatus={initialAnnotationStatus} />
     </>
   );
 }

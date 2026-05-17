@@ -573,6 +573,7 @@ export default async function EventDetailPage({ params }: PageProps) {
             eventId={event.id}
             locale={locale}
             initialIsActive={event.is_active}
+            initialAnnotationStatus={event.annotation_status ?? null}
             isAdmin={isAdmin}
           />
         </div>
