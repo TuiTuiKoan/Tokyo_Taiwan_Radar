@@ -384,6 +384,8 @@ class PeatixScraper(BaseScraper):
 
     def _scrape_detail(self, page: Page, url: str) -> Optional[Event]:
         """Extract structured data from a Peatix event detail page."""
+        # Normalize locale-prefixed URLs: /us/event/ or /jp/event/ → /event/
+        url = re.sub(r"^(https://peatix\.com)/[a-z]{2}/event/", r"\1/event/", url)
         try:
             page.goto(url, wait_until="networkidle", timeout=30_000)
         except PWTimeout:
