@@ -58,6 +58,11 @@ _FB_SOURCE_RE = re.compile(
     r"(?:https?://)?(?:www\.|m\.)?facebook\.com/[\w./\-]+/(?:posts|videos|events)/[\w]+/?"
 )
 
+# Regex: Peatix event URL embedded in post content
+_PEATIX_URL_RE = re.compile(
+    r"https?://(?:[a-z0-9-]+\.)?peatix\.com/[^\s\)、。\n）]+"
+)
+
 # Regex: venue name and address from '会場は XXX(〒NNN-NNNN ...)'
 _VENUE_NAME_RE = re.compile(
     r"会場[は\s：:　]*([^\uff08\(\n、。：:\s]{2,20})[（\(]"
@@ -129,6 +134,32 @@ def _extract_fb_source(text: str) -> Optional[str]:
     if not url.startswith("http"):
         url = "https://" + url
     return url.rstrip("./,、）)")
+
+
+def _extract_peatix_url(text: str) -> Optional[str]:
+    """Extract Peatix event URL from content text."""
+    m = _PEATIX_URL_RE.search(text or "")
+    if m:
+        return m.group(0).rstrip("./,、）)")
+    return None
+
+
+_SHOWTIME_RE = re.compile(r"(\d{1,2})[：:]\d{2}")
+
+
+def _extract_showtime(text: str) -> Optional[str]:
+    """Extract first HH:MM showtime pattern from content."""
+    m = _SHOWTIME_RE.search(text or "")
+    return m.group(0).replace("：", ":") if m else None
+
+
+_ORGANIZER_RE = re.compile(r"主催(?:者)?[：:\s　]+([^\n、。\(\（]{2,30})")
+
+
+def _extract_organizer(text: str) -> Optional[str]:
+    """Extract organizer name from '主催：XXX' pattern in content."""
+    m = _ORGANIZER_RE.search(text or "")
+    return m.group(1).strip() if m else None
 
 
 def _extract_date_from_text(text: str, pub_date: datetime) -> Optional[datetime]:
@@ -278,12 +309,16 @@ class FtipScraper(BaseScraper):
             # else first-hand FB post URL cited at the top of the description.
             # Note: source_url stays as the FTIP RSS link (audit trail);
             # official_url stores the authoritative organiser URL for display priority.
-            official_url = _extract_official_url(content_text) or _extract_fb_source(content_text)
+            official_url = (
+                _extract_peatix_url(content_text)
+                or _extract_official_url(content_text)
+                or _extract_fb_source(content_text)
+            )
             source_url = rss_url
 
             # Extract actual venue and address from content
             venue_name, venue_address = _extract_venue(content_text)
-            location_name = venue_name if venue_name else LOCATION_NAME
+            location_name = venue_name if venue_name else None
             location_address = venue_address  # None if not found (better than hardcoded 東京都)
 
             raw_desc = content_text[:1000] if content_text else title
@@ -297,7 +332,8 @@ class FtipScraper(BaseScraper):
                 "当会" in title
                 or ("例会" in title and "交流会" in title)
             )
-            organizer_val = LOCATION_NAME if is_ftip_organized else None
+            organizer_val = LOCATION_NAME if is_ftip_organized else _extract_organizer(content_text)
+            showtime = _extract_showtime(content_text)
 
             event = Event(
                 source_name=self.SOURCE_NAME,
@@ -314,6 +350,7 @@ class FtipScraper(BaseScraper):
                 end_date=end_date,
                 location_name=location_name,
                 location_address=location_address,
+                business_hours=showtime,
                 organizer=organizer_val,
             )
             events.append(event)
