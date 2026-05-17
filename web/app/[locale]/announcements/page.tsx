@@ -31,16 +31,16 @@ export default async function AnnouncementsPage({ params }: PageProps) {
           Tokyo Taiwan Radar
         </Link>
         {" › "}
-        <span className="text-[#3A261F]">{tAnn("pageTitle")}</span>
+        <span className="text-fg">{tAnn("pageTitle")}</span>
       </nav>
 
-      <h1 className="font-display font-bold text-[#3A261F] text-2xl mb-1">{tAnn("pageTitle")}</h1>
+      <h1 className="font-display font-bold text-fg text-2xl mb-1">{tAnn("pageTitle")}</h1>
       <p className="text-sm text-fg-muted mb-6">{tAnn("pageDesc")}</p>
 
       {!announcements || announcements.length === 0 ? (
         <p className="text-center text-fg-subtle mt-12 text-sm">{tAnn("noPublished")}</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="flex flex-wrap gap-4">
           {announcements.map((ann: Announcement) => (
             <AnnouncementCard key={ann.id} announcement={ann} locale={locale} />
           ))}

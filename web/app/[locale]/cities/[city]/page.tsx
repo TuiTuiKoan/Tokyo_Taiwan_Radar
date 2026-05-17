@@ -148,14 +148,14 @@ export default async function CityPage({ params }: PageProps) {
           Tokyo Taiwan Radar
         </Link>
         {" › "}
-        <span className="text-[#3A261F]">{label as string}</span>
+        <span className="text-fg">{label as string}</span>
       </nav>
 
       {/* Heading + intro */}
-      <h1 className="text-2xl font-bold mb-3 text-[#3A261F]">
+      <h1 className="text-2xl font-bold mb-3 text-fg">
         {label as string}{headingSuffix}
       </h1>
-      <section className="mb-6 space-y-3 text-sm leading-relaxed text-[#4A362D]">
+      <section className="mb-6 space-y-3 text-sm leading-relaxed text-fg-muted">
         <p>{descriptionLong}</p>
       </section>
 

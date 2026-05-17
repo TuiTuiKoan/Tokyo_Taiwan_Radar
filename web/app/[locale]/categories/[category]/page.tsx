@@ -293,13 +293,13 @@ export default async function CategoryPage({ params }: PageProps) {
           Tokyo Taiwan Radar
         </Link>
         {" › "}
-        <span className="text-[#3A261F]">{categoryLabel}</span>
+        <span className="text-fg">{categoryLabel}</span>
       </nav>
 
       {/* Heading + intro */}
-      <h1 className="text-2xl font-bold mb-3 text-[#3A261F]">{categoryLabel}</h1>
+      <h1 className="text-2xl font-bold mb-3 text-fg">{categoryLabel}</h1>
       {descriptionLong && (
-        <section className="mb-6 space-y-3 text-sm leading-relaxed text-[#4A362D]">
+        <section className="mb-6 space-y-3 text-sm leading-relaxed text-fg-muted">
           <p>{descriptionLong}</p>
         </section>
       )}
