@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-17 — `location_url` が Peatix チャンネル / `official_url` が null（event `9084ad67` 種土）
+
+**問題：** 詳細ページの「場地 ↗」が `https://taiwanculture.peatix.com/`（Peatix チャンネルページ）にリンク。`official_url=null` のためソースリンクが「查看原始資訊」表示。
+
+**根本原因：** annotator が `location_url` をイベント登録先 Peatix チャンネルに設定（会場公式サイトと混同）。`taiwan_cultural_center` スクレイパーは `location_url` を設定しないため annotator 任せになっている。`official_url` は null のまま放置 — `source_url`（`jp.taiwan.culture.tw` イベントページ）が昇格されていなかった。
+
+**修正：** `location_url = 'https://jp.taiwan.culture.tw/'`、`official_url = source_url` の値、両フィールドを FC ロック。
+
+**教訓：** `taiwan_cultural_center` ソースのイベント手動修正時は常に確認:
+1. `location_url` → `https://jp.taiwan.culture.tw/`（会場公式サイト、Peatix ではない）
+2. `official_url` → `source_url` と同じ値を設定（`jp.taiwan.culture.tw/News_Content2.aspx?...`）
+3. 両フィールドを FC ロック（annotator が再設定しないよう）
+
+---
+
 ## 2026-04-29 — 台湾映画上映会2026: sub-events の name_zh 誤り・source_url 404・親日程ずれ
 
 **発見：**

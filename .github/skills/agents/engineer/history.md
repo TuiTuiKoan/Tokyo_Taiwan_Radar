@@ -4,6 +4,57 @@
 
 ---
 
+## 2026-05-17 — DB クエリ出力に Prompt Injection（2件：f-string 経由 `rm -f` 実行試行）
+
+**問題：** `python3 -c "...f'{r[\"corrected_value\"]}' ..."` でターミナル出力に `rm -f "/Users/.../token.json"` が埋め込まれ、SyntaxError もしくは silent 実行が発生。2セッション中に2件検出。
+
+**根本原因：** Supabase の `field_corrections` テーブルに格納されている値（`corrected_value`）に悪意あるシェルコマンドが埋め込まれていた。`python3 -c` のインライン f-string はその値を文字列展開するため、`{` / `}` の対称破壊 → SyntaxError、またはコマンド文字列が print 出力を通じてターミナル履歴に挿入される。
+
+**修正：** `create_file /tmp/<name>.py` + `python3 /tmp/<name>.py` に切り替えることで、DB 値がファイルに書き込まれず安全に分離。
+
+**教訓：** DB クエリ（特に `field_corrections`）を f-string で展開するスクリプトは**絶対に** `python3 -c` で実行しない。アラートが出たら即 `/tmp/*.py` に切り替える。
+
+---
+
+## 2026-05-17 — performer QA 3件修正：AI翻訳マーカー除去 + multi-value null化 + bad FC lock 削除（`eeb5b12e`・`9084ad67`・`6200fbe1`）
+
+**問題：**
+1. `eeb5b12e`：`performer_zh='中村葉子（AI翻譯）'`、`performer_en='Yoko Nakamura (AI Translation)'` — AI翻訳マーカーが残存。
+2. `9084ad67`：`performer='阿仁、安和'`（`、` 区切りの複数人 → multi-value pollution）。さらに FC に `performer='阿仁、安和'` がロックされており、events table を null にしても annotator が復元する状態。
+3. `6200fbe1`：`performer='林宸順、雷傑西、王曉月、游聖峰'`（同上）。
+
+**根本原因：** auto_qa がレポートを作成していたが、FC lock に悪い値が残っていたため events table 修正だけでは不十分だった。FC lock の存在を確認せずに events table だけを更新する一般的なミス。
+
+**修正：** `eeb5b12e` — performer_zh/en から AI翻訳マーカーを除去し FC ロック。`9084ad67`・`6200fbe1` — events table `performer=null` + FC の `performer` 行を DELETE。auto_qa レポートを dismissed。
+
+**教訓：** `performer` を events table で修正したら**必ず** `field_corrections` の `performer` 行を確認し、悪い値がロックされていれば DELETE する。
+
+---
+
+## 2026-05-17 — 9084ad67（種土）：`location_url` が Peatix チャンネル、`official_url` が null
+
+**問題：** イベント詳細ページの「場地 ↗」が `https://taiwanculture.peatix.com/`（台湾文化センターの Peatix チャンネル）にリンク。`official_url` は null で、ソースリンクが「查看原始資訊」表示になっていた。
+
+**根本原因：** annotator が `location_url` を Peatix チャンネル URL に設定（イベント登録リンクと会場リンクを混同）。`official_url` は null のまま放置 — `source_url`（台湾文化センターの公式イベントページ）が官方URLとして昇格されていなかった。
+
+**修正：** `location_url = 'https://jp.taiwan.culture.tw/'`（台湾文化センター公式サイト）、`official_url = source_url の値`（イベントページ）に更新し、両フィールドを FC ロック。
+
+**教訓：** `taiwan_cultural_center` ソースのイベントは `source_url` が官方イベントページを指している場合、`official_url` にコピーして昇格する。`location_url` は会場の公式サイト（`https://jp.taiwan.culture.tw/`）を設定する。
+
+---
+
+## 2026-05-17 — `location_url` 修正時に apex ドメインのみ確認し「公式サイトなし」と誤判断（event `eeb5b12e`）
+
+**問題:** `location_url` を null にセットし「Coconeri に公式サイトなし」と結論した後、ユーザーが `https://www.coconeri.jp` を指摘。サイトは存在しており `200 OK` を返す。
+
+**根本原因:** URL 確認で `https://coconeri.jp/`（apex ドメイン）のみ試した。`curl` が `000`（DNS 解決失敗）を返したため「サイト不在」と判断。`www.` サブドメイン（`https://www.coconeri.jp/`）を試さなかった。日本の多くのサイトは apex→www リダイレクトを設定しておらず、`www.domain.jp` のみ有効なケースが多い。
+
+**修正:** `location_url = 'https://www.coconeri.jp'` に更新し FC lock。
+
+**教訓:** 会場・組織の公式サイト有無を `curl` で確認する際は `domain.jp` と `www.domain.jp` の**両方**を必ず試す。`000` は「その変形が DNS 解決できない」であり「サイト不在」ではない。
+
+---
+
 ## 2026-05-17 — startup_terrace Playwright stub → requests 版に刷新 + TaiwanPrism 登録漏れ修正
 
 **問題 1:** `sources/startup_terrace.py` が auto-scraper 生成の Playwright stub のままで production 未対応。SSL cert エラー（Missing Subject Key Identifier）も未対処。

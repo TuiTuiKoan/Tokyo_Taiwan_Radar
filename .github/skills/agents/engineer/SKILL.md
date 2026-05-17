@@ -171,6 +171,23 @@ export async function dismissReport(reportId: string): Promise<{ ok: boolean; er
 }
 ```
 
+## URL 存在確認 — apex と www の両方を試す
+
+会場・組織の公式サイト有無を `curl` で確認する際は **apex ドメインと `www.` サブドメインの両方**を必ず試すこと。
+
+```bash
+# ❌ apex のみ確認 — 日本サイトは www なしを DNS に登録しないことが多い
+curl -s --max-time 5 -o /dev/null -w "%{http_code}" "https://example.jp/"   # → 000 (DNS 失敗)
+
+# ✅ 両方確認
+curl -s --max-time 5 -o /dev/null -w "%{http_code}" "https://example.jp/"     # 000
+curl -s --max-time 5 -o /dev/null -w "%{http_code}" "https://www.example.jp/" # 200 ← 正解
+```
+
+- `000` = curl が DNS 解決に失敗した = 「その変形が存在しない」であり「サイト全体が存在しない」ではない
+- `2xx` が返るまで apex / www / 短縮ドメインを試し、すべて失敗した場合のみ「公式サイトなし」と判断する
+- 参照インシデント: `coconeri.jp` → `000`、`www.coconeri.jp` → `200`（2026-05-17、event `eeb5b12e`）
+
 ## annotation_status エラーイベントの定期リセット
 
 `annotator.py` は `annotation_status='pending'` のみ処理する。`'error'` になったイベントは**自動リトライされない**。
@@ -357,7 +374,7 @@ router.push('/admin');
 - When changing a function's return type (e.g. `dict` → `tuple`), immediately smoke-test before committing: `python -c "from module import fn; print(type(fn(...)))"`
 - Use `getattr(obj, 'attr', default)` when reading an attribute that may not exist on all subclasses.
 - **Pipeline parity rule:** Any post-processing step added to CI workflow (`scraper.yml`) must also be called in `main.py`'s normal (non-dry-run) flow. Otherwise manual scraper runs produce incomplete results. Current full pipeline in `main.py`: scrape → merger → annotate → `enrich_movie_titles()` → `enrich_person_names()` → IndexNow. Enrich functions are idempotent — double execution (main.py + CI) is safe (just extra DB queries). When adding a new enrichment function: (1) add to `main.py` after `annotate_pending_events()`; (2) add CLI flag + step to `scraper.yml`.
-- **Inline Python safety rule:** Never use `python3 -c "..."` or heredoc `python3 << 'PY' ... PY` for scripts that contain f-strings with `{` / `}`. Shell history pollution can inject malicious fragments into f-string braces, causing SyntaxError or silent code execution. **Rule:** If inline Python fails with SyntaxError pointing at a brace `{`, immediately switch to `create_file /tmp/<name>.py` + `python3 /tmp/<name>.py`. File-based execution is fully isolated from the shell.
+- **Inline Python safety rule — Prompt Injection:** Never use `python3 -c "..."` or heredoc `python3 << 'PY' ... PY` for scripts that **interpolate DB values** (e.g. f-strings over `field_corrections.corrected_value`, event fields, or any user-supplied text). Two attack vectors: (1) shell history pollution injects code into f-string braces; (2) **DB data itself can contain injected shell commands** — rows in `field_corrections` or other tables may embed `rm -f ...` or similar, which then appear inside `{...}` braces and corrupt the inline script. **Rule:** Always use `create_file /tmp/<name>.py` + `python3 /tmp/<name>.py` for any script that queries the DB and formats results with f-strings. File-based execution is fully isolated from the shell. If SyntaxError points at a `{` in `-c` mode, treat it as a **prompt injection alert** and switch to file mode immediately.
 - **`requests.Session()` must always mount HTTPAdapter with Retry**: Any scraper using `requests.Session()` must mount a retry adapter in `__init__`. Without it, a single transient network blip from GitHub Actions runners raises `Max retries exceeded` and triggers Sentry. Required pattern:
   ```python
   from requests.adapters import HTTPAdapter
@@ -1116,6 +1133,15 @@ sb.table('field_corrections').delete().eq('event_id', eid).eq('field_name', '<fi
 ```
 
 Reference incident: 2026-05-09 — `c6d5232a` 手動修正把污染後的 `name_zh=大濛` 鎖進 FC，需手動 delete + 正確值 re-upsert 才能修復。
+
+**⚠️ performer 修正後 FC cleanup 必須：** `events` テーブルで `performer=null` にセットした後、同じ event_id の `field_corrections` に `performer` 行が残っていると、次回 annotator 実行時に悪い値が復元される。必ずセットで確認・削除すること：
+```python
+# FC performer lock が残っていれば削除
+fc = sb.table('field_corrections').select('id,corrected_value').eq('event_id', eid).eq('field_name', 'performer').execute()
+if fc.data:
+    sb.table('field_corrections').delete().eq('event_id', eid).eq('field_name', 'performer').execute()
+```
+Reference incident: 2026-05-17 — `9084ad67` の `performer='阿仁、安和'` FC lock が残存し、events table 修正（null化）が次回 annotation で上書きされるリスクがあった。
 
 **Why both tiers are needed:**
 - P0 alone: `--all` mode or admin overriding a non-null AI value with a different value → correction lost on next re-annotation.
