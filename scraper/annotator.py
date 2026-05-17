@@ -385,6 +385,13 @@ def _extract_venue_from_raw(text: str) -> dict:
     return result
 
 
+
+def _valid_hours(v: str | None) -> str | None:
+    """Return v if it is a valid hours string; None for known placeholder values."""
+    if not v or v.strip() in _HOURS_INVALID:
+        return None
+    return v
+
 def _extract_hours_from_raw(text: str) -> str | None:
     """Deterministically extract business hours from raw_description.
 
@@ -450,6 +457,9 @@ _PIPE_ROLE_RE = re.compile(
     r'[\u4e00-\u9fff]+(?:家|者|師|士|督)',
     re.UNICODE,
 )
+
+# Business hours placeholder values to treat as null
+_HOURS_INVALID: frozenset[str] = frozenset({"不明", "unknown", "未定", "TBD", "TBA"})
 
 # Separators that indicate a performer field contains multiple people.
 # Matches: 、（日本語読点）, , （半形）, ，（全形）, × （共演表記）, ／（全形スラッシュ）, / （半形）
@@ -1440,7 +1450,7 @@ def annotate_pending_events(
                     # GPT only fills in when the scraper left the field empty.
                     "location_name": _loc(event.get("location_name")) or _loc(_pre_location_name) or _loc(annotation.get("location_name")),
                     "location_address": _loc(event.get("location_address")) or _loc(_pre_location_address) or _loc(annotation.get("location_address")),
-                    "business_hours": event.get("business_hours") or _pre_hours or annotation.get("business_hours"),
+                    "business_hours": _valid_hours(event.get("business_hours")) or _valid_hours(_pre_hours) or _valid_hours(annotation.get("business_hours")),
                     "is_paid": event.get("is_paid") if event.get("is_paid") is not None else annotation.get("is_paid"),
                     "price_info": annotation.get("price_info") or event.get("price_info"),
                     "organizer": _ai_or_existing("organizer", (
