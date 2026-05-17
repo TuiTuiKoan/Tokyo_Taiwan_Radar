@@ -150,13 +150,25 @@ def _extract_peatix_url_from_html(html_text: str) -> Optional[str]:
     ftip WordPress posts often have Peatix links as ``<a href="...">`` rather
     than plain-text URLs.  BeautifulSoup.get_text() strips these hrefs, so we
     need to search the raw HTML string separately.
+
+    Priority: peatix.com/event/NNN paths (specific event page) over
+    *.peatix.com subdomain links (organizer channel page).  Channel links
+    often appear first as a banner/header before the actual event link.
     """
     soup = BeautifulSoup(html_text or "", "html.parser")
+    channel_url: Optional[str] = None
     for a in soup.find_all("a", href=True):
         href: str = a["href"]
-        if "peatix.com" in href:
-            return href.rstrip("./,、）)")
-    return None
+        if "peatix.com" not in href:
+            continue
+        href = href.rstrip("./,、）)")
+        # Prefer /event/ path (specific event page) — return immediately
+        if re.search(r"peatix\.com/event/\d+", href):
+            return href
+        # Keep channel URL as fallback (e.g. nerimaokinawaeigasai.peatix.com)
+        if channel_url is None:
+            channel_url = href
+    return channel_url
 
 
 _SHOWTIME_RE = re.compile(r"(\d{1,2})[：:]\d{2}")
