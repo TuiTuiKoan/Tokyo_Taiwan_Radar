@@ -183,6 +183,53 @@ _DATE_RE = re.compile(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日")
 _DATE_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
 ```
 
+## WordPress RSS CDATA — `<a href>` URL は `.get_text()` で消える
+
+**Rule**: WordPress RSS の `<content:encoded>` CDATA には Peatix・チケット販売サイト・公式サイトへのリンクが `<a href="...">` アンカーとして埋め込まれる。`BeautifulSoup(content_html, "html.parser").get_text()` でテキスト変換すると href 属性が消えるため、正規表現によるプレインテキスト検索では URL を検出できない。
+
+必ず生 HTML 文字列を別途 BS4 でパースし `find_all("a", href=True)` を走査する関数を用意すること:
+
+```python
+def _extract_peatix_url_from_html(html_text: str) -> Optional[str]:
+    """Extract Peatix event URL from HTML anchor href attributes.
+
+    ftip / WordPress posts often embed Peatix links as <a href>
+    rather than plain-text URLs — .get_text() strips these hrefs.
+    """
+    soup = BeautifulSoup(html_text or "", "html.parser")
+    for a in soup.find_all("a", href=True):
+        href: str = a["href"]
+        if "peatix.com" in href:
+            return href.rstrip("./,、）)")
+    return None
+```
+
+呼び出し側でテキスト検索と HTML 検索を OR で組み合わせる:
+
+```python
+_peatix = _extract_peatix_url(content_text) or _extract_peatix_url_from_html(content_html)
+```
+
+**適用範囲**: WordPress RSS を使う全 scraper（ftip、その他 WordPress ベースのソース）。
+
+(Incident: ftip `ee870f7`, 2026-05-17.)
+
+## aggregator scraper の `location_name` フォールバックに組織名を使わない
+
+**Rule**: 会場抽出に失敗した場合、組織名定数（例: `LOCATION_NAME = "台湾原住民族との交流会"`）を `location_name` のフォールバックに使わないこと。組織名が会場として DB に入り、UI で「会場：台湾原住民族との交流会」と誤表示される。
+
+```python
+# ✅ 正確：会場不明なら None
+location_name = venue_name if venue_name else None
+
+# ❌ 誤り：組織名定数をフォールバックに使う
+location_name = venue_name if venue_name else LOCATION_NAME  # "〇〇協会" が venue になる
+```
+
+会場が不明な場合は `location_name = None` とし、annotator または手動修正に委ねること。
+
+(Incident: ftip `278e6d8`, 2026-05-17.)
+
 **適用範囲**：WordPress 6.x 以降の全 RSS ベース scraper。`get_text()` / `get_text(strip=True)` を問わず発生する。
 
 Reference incident: 2026-05-12 — `nittai_toumonkai.py`（WordPress 6.9.4）の `<description>` で `2026 年 1 月 31 日` 形式を確認。

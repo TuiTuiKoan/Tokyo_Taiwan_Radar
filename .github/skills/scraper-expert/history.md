@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-05-17 — `ftip`: WordPress RSS CDATA の `<a href>` が `.get_text()` で消え Peatix URL が未設定
+
+**問題:** `scraper/sources/ftip.py` で Peatix URL が `official_url` / `source_url` に設定されなかった。ftip 記事ページには「Peatixからご購入」という記載はあったが、Peatix URL はプレインテキストではなく `<a href="https://xxx.peatix.com/...">` アンカーとして WordPress 記事本文（RSS CDATA）に埋め込まれていた。
+
+**根本原因:** `content_html = content_el.get_text()` → `content_text = BeautifulSoup(content_html, "html.parser").get_text()` の二段階テキスト変換で `href` 属性が消える。既存の `_extract_peatix_url(content_text)` は正規表現でプレインテキストを検索するため URL を検出できなかった。
+
+**修正:** `_extract_peatix_url_from_html(html_text)` を追加（commit `ee870f7`）。生の CDATA HTML 文字列（`content_html`）を BeautifulSoup で再パースし `find_all("a", href=True)` を走査。テキスト検索と HTML anchor 検索を OR で組み合わせ: `_extract_peatix_url(content_text) or _extract_peatix_url_from_html(content_html)`.
+
+**教訓:** WordPress RSS CDATA にはリンクが `<a href>` として埋め込まれる。URL 抽出には `.get_text()` だけでなく、生 HTML 文字列を別途 BS4 でパースして `find_all("a", href=True)` を走査する関数が必要。テキスト検索と HTML 検索の両方を試みること。
+
+---
+
+## 2026-05-17 — `ftip`: `location_name` フォールバックに組織名定数を使用 → 会場欄に組織名が誤表示
+
+**問題:** 会場抽出に失敗した全イベントで `location_name = "台湾原住民族との交流会"`（組織名）が設定されていた。event `eeb5b12e` では実際の会場「Coconeri３階 練馬区民・産業プラザ研修室１」ではなく組織名が会場として表示されていた。
+
+**根本原因:** `LOCATION_NAME = "台湾原住民族との交流会"` 定数を venue フォールバックに使う設計。`location_name = venue_name if venue_name else LOCATION_NAME` というコードが原因。
+
+**修正:** `location_name = venue_name if venue_name else None`（commit `278e6d8`）。
+
+**教訓:** 組織名定数を `location_name` のフォールバックに使わない。会場が不明なら `None` を設定し、annotator や手動修正に委ねること。
+
+---
+
 ## 2026-05-16 — `wuext_waseda` 多重セッション講座: `performer` が片假名+漢字複合名で截斷 + `business_hours` 不完整
 
 **問題：** event `1be67e0f-36a3-4299-b178-9a6f13de98ee`（沖縄現場学, source=wuext_waseda）で 2 つの不具合：
