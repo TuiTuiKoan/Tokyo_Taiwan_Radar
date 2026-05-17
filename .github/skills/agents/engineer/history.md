@@ -2,6 +2,23 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-17 — annotator: GPT '不明' が business_hours に保存 → `_HOURS_INVALID` ガード追加
+
+**問題：** 局外談 `63625c1a` の `business_hours` が `'不明'`（GPT 出力）のまま保存されていた。annotator は `event.get("business_hours")` が truthy ならそのまま使うため、再 annotation 後も `'不明'` が保持され続け auto_qa から除外されなかった。
+
+**根本原因：**
+1. GPT が時刻不明のとき `null` でなく `'不明'` を返すことがある。
+2. `business_hours = event.get("business_hours") or _pre_hours or annotation.get("business_hours")` のロジックで `'不明'`（truthy）が常に優先され、`_pre_hours`（raw_description からの決定論的抽出）が実行されなかった。
+
+**修正（commit `533f980`）：**
+- `_HOURS_INVALID = frozenset({'不明', 'unknown', '未定', 'TBD', 'TBA'})` をモジュールレベルに追加。
+- `_valid_hours(v)` helper：`v.strip() in _HOURS_INVALID` なら `None` を返す。
+- `business_hours` 代入を `_valid_hours()` でラップし、無効値を null 扱いにして `_pre_hours` フォールバックを有効化。
+
+**付随教訓 — `_extract_hours_from_raw()` の `時` 形式非対応：** 種土 `9084ad67` の raw_description に `13時30分開場 / 14時00分開演` が含まれていたが、`_extract_hours_from_raw()` は `\d{1,2}:\d{2}` のみ対応で `\d時\d{2}分` を検出できない。このケースは **手動バックフィル + FC lock** で対応。
+
+---
+
 ## 2026-05-17: zsh 方括號路徑未加引號造成 `no matches found`
 
 **問題：** 執行 `git diff -- web/app/[locale]/admin/...` 時，zsh 先把 `[...]` 視為 glob pattern，命令在 shell 層直接失敗。

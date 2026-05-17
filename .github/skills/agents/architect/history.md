@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-05-17 — auto_qa 4件根因修正（missing_hours × 3・performer pollution・missing_address）
+
+**背景：** admin panel に auto_qa フラグ 4 件表示（種土・優雅的相遇・生祥樂隊・局外談）。
+
+**根因一覧：**
+| 事件 | 根因 |
+|---|---|
+| 種土 `9084ad67` `missing_hours` | `_extract_hours_from_raw()` が `時` 形式（`13時30分`）を検出できない；GPT も annotate 時に時刻未抽出 |
+| 局外談 `e9c6f80b` `missing_hours` | 手動 review 時に `business_hours` 未記入 |
+| 局外談 `63625c1a` `missing_hours` | GPT が `'不明'` を返し annotator がそのまま保存（truthy → フォールバック無効化）|
+| 優雅的相遇 `6200fbe1` performer pollution | `_MULTI_SEP_RE` sanitize コード追加以前に annotation 済み → 再 annotation が未実行 |
+| 生祥樂隊 `11d08ed2` `missing_address` | prtimes 記事に住所なし；annotator 推測不可 |
+
+**修正：**
+- DB 5 件を手動バックフィル + FC lock（再 annotation 上書き防止）。
+- annotator.py に `_HOURS_INVALID` ガードを追加（`'不明'` → null 扱い）。
+- 生祥樂隊 ADRIFT 住所：Google Maps で `東京都世田谷区北沢3丁目9-23` を確認。
+
+**調査パターン（次回 auto_qa 根因調査時の手順）：**
+1. `name_zh` で DB 検索して full UUID + 全フィールドを確認。
+2. FC lock（`field_corrections`）を必ずチェック — events table だけ修正しても FC が上書きする。
+3. `reviewed` events の `missing_hours` → `_detect_missing_hours()` は `annotation_status='reviewed'` のみ対象（`annotated` はスキャンしない）。
+4. 住所不明 venue → Google Maps で手動検索し FC lock で固定。
+
+---
+
 ## 2026-05-17 — Admin confirm button lock-up (handleConfirm no try/catch + GitHub fetch no timeout)
 - **Error**: `handleConfirm()` had no try/catch; if `confirmReport()` threw, `setSaving(null)` was skipped → button stuck in "…" permanently
 - **Trigger**: `b2e8b92` added `appendPendingRuleToSkill` (4 total GitHub fetches); GitHub API occasional hang made this reproducible
