@@ -110,6 +110,7 @@ from sources.sakurazaka import SakurazakaScraper
 from sources.nagano_aioiza import NaganoAioizaScraper
 from sources.cinemaclair import CinemaClairScraper
 from sources.kyoto_cinema import KyotoCinemaScraper
+from sources.cine_gallery import CineGalleryScraper
 from sources.wuext_waseda import WuextWasedaScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
@@ -205,6 +206,7 @@ SCRAPERS = [
     NaganoAioizaScraper(),
     CinemaClairScraper(),
     KyotoCinemaScraper(),
+    CineGalleryScraper(),
     WuextWasedaScraper(),
 ]
 

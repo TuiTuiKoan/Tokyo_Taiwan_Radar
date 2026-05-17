@@ -1,200 +1,197 @@
-"""Auto-generated scraper for cine_gallery (Layer B / auto_scraper).
+"""
+Scraper for シネ・ギャラリー (Cine Gallery), Shizuoka.
 
-DO NOT EDIT BY HAND — regenerate via scraper.auto_scraper.spec_to_code.
+Strategy:
+  1. Fetch https://www.cine-gallery.jp (static HTML, requests + BeautifulSoup)
+  2. Parse article.article-entry cards; extract URL from div.desc h2 a[href]
+     (NOT a.blog-img which points to the same URL for all cards)
+  3. Fetch each detail page for raw_description
+  4. Taiwan filter: raw_title or detail text contains 台湾/台灣/Taiwan keywords
+  5. start_date: extracted from raw_title via regex YYYY/M/D → UTC datetime
+  6. source_id: cine_gallery_{slug} from cinema/YYYY/event/{slug}/
 """
 
+import logging
 import re
 import time
-import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
-from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeout
+import requests
+from bs4 import BeautifulSoup
 
 from .base import BaseScraper, Event
+from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.cine-gallery.jp"
-SEARCH_URL = "https://www.cine-gallery.jp"
-SEARCH_KEYWORD = "%E5%8F%B0%E6%B9%BE"
-MAX_PAGES = 5
-CARD_SELECTOR = "article.article-entry"
-DETAIL_LINK_SELECTOR = "a.blog-img"
-FIELD_SELECTORS = {"title": "div.desc h2 a", "date": "div.desc h2 a"}
-DATE_REGEX = re.compile("(\\d{4})/(\\d{1,2})/(\\d{1,2})")
-SOURCE_ID_PREFIX = "cine_gallery_"
-SOURCE_ID_URL_PATTERN = re.compile("cinema/2026/event/(\\w+)/")
 
-MAX_EVENTS = 200
+LOCATION_NAME = "静岡シネ・ギャラリー"
+LOCATION_ADDRESS = "静岡県静岡市葵区御幸町11-14 サールナートホール3階"
+LOCATION_PREFECTURES = ["静岡県"]
+
+TAIWAN_KEYWORDS = {"台湾", "台灣", "Taiwan", "taiwan"}
+
+_DATE_RE = re.compile(r"(\d{4})/(\d{1,2})/(\d{1,2})")
+_SLUG_RE = re.compile(r"cinema/\d+/event/([^/]+)/")
+_DATE_PREFIX_RE = re.compile(r"^\d{4}/\d{1,2}/\d{1,2}[（(][月火水木金土日][）)]\s*")
 
 
-def _parse_date(text):
-    if not text:
-        return None
-    m = DATE_REGEX.search(text)
+def _is_taiwan(text: str) -> bool:
+    return any(kw in text for kw in TAIWAN_KEYWORDS)
+
+
+def _parse_date(text: str) -> Optional[datetime]:
+    """Extract first YYYY/M/D from text and return as UTC datetime."""
+    m = _DATE_RE.search(text)
     if not m:
         return None
-    raw = m.group(0)
-    for fmt in ("%Y.%m.%d", "%Y/%m/%d", "%Y-%m-%d", "%Y年%m月%d日"):
-        try:
-            return datetime.strptime(raw, fmt)
-        except ValueError:
-            continue
-    return None
-
-
-def _extract_source_id(url):
-    m = SOURCE_ID_URL_PATTERN.search(url or "")
-    return f"{SOURCE_ID_PREFIX}{m.group(1)}" if m else None
-
-
-def _safe_text(card, selector):
-    if not selector:
-        return None
+    y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
     try:
-        loc = card.locator(selector).first
-        if loc.count() == 0:
-            return None
-        return (loc.inner_text(timeout=5000) or "").strip() or None
-    except PWTimeout:
-        return None
-    except Exception as exc:
-        logger.debug("selector %s failed: %s", selector, exc)
+        return datetime(y, mo, d, tzinfo=timezone.utc)
+    except ValueError:
         return None
 
 
-def _safe_attr(card, selector, attr):
-    if not selector:
-        return None
-    try:
-        loc = card.locator(selector).first
-        if loc.count() == 0:
-            return None
-        return loc.get_attribute(attr, timeout=5000)
-    except PWTimeout:
-        return None
-    except Exception as exc:
-        logger.debug("attr %s on %s failed: %s", attr, selector, exc)
-        return None
+def _extract_slug(url: str) -> Optional[str]:
+    """Extract event slug from URL like cinema/2026/event/physisnohamon/..."""
+    m = _SLUG_RE.search(url)
+    return m.group(1) if m else None
 
+
+def _build_absolute_url(href: str) -> str:
+    if href.startswith("http"):
+        return href
+    if href.startswith("/"):
+        return BASE_URL + href
+    return BASE_URL + "/" + href
 
 
 class CineGalleryScraper(BaseScraper):
+    """Scrapes Taiwan-related events at 静岡シネ・ギャラリー."""
+
+    SOURCE_NAME = "cine_gallery"
     source_name = "cine_gallery"
 
+    def __init__(self) -> None:
+        self._session = requests.Session()
+        self._session.headers.update({
+            "User-Agent": (
+                "Mozilla/5.0 (compatible; TokyoTaiwanRadar/1.0; "
+                "+https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar)"
+            )
+        })
 
-    def scrape(self):
-        events = []
-        seen_ids = set()
+    def _get(self, url: str) -> Optional[BeautifulSoup]:
+        try:
+            resp = self._session.get(url, timeout=20)
+            resp.raise_for_status()
+            return BeautifulSoup(resp.text, "html.parser")
+        except Exception as exc:
+            logger.warning("GET %s failed: %s", url, exc)
+            return None
 
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context()
-            page = context.new_page()
+    def _fetch_detail_text(self, url: str) -> str:
+        """Fetch detail page and return plain text (up to 4000 chars)."""
+        soup = self._get(url)
+        if not soup:
+            return ""
+        body = soup.find("body")
+        if body:
+            return body.get_text(" ", strip=True)[:4000]
+        return ""
 
+    def scrape(self) -> list[Event]:
+        events: list[Event] = []
+        seen_ids: set[str] = set()
+
+        soup = self._get(BASE_URL)
+        if not soup:
+            logger.error("Failed to fetch listing page: %s", BASE_URL)
+            return events
+
+        cards = soup.select("article.article-entry")
+        logger.info("cine_gallery: found %d cards on listing page", len(cards))
+
+        for card in cards:
             try:
-                for page_num in range(1, MAX_PAGES + 1):
-                    if len(events) >= MAX_EVENTS:
-                        logger.info("Hit MAX_EVENTS cap (%d); stopping.", MAX_EVENTS)
-                        break
-                    url = f"{SEARCH_URL}?keyword={SEARCH_KEYWORD}&page={page_num}"
-                    logger.info("Fetching listing page %d: %s", page_num, url)
-                    try:
-                        page.goto(url, timeout=30000)
-                        page.wait_for_load_state("networkidle", timeout=15000)
-                    except PWTimeout:
-                        logger.warning("Timeout loading %s; skipping page", url)
-                        continue
-
-                    cards = page.locator(CARD_SELECTOR)
-                    count = cards.count()
-                    if count == 0:
-                        logger.info("No cards on page %d; end of pagination", page_num)
-                        break
-
-                    page_events = self._extract_cards(page, context, cards, count, seen_ids)
-                    if not page_events:
-                        logger.info("Page %d had cards but yielded 0 events; stopping", page_num)
-                        break
-                    events.extend(page_events)
-                    if len(events) >= MAX_EVENTS:
-                        events = events[:MAX_EVENTS]
-                        break
-            finally:
-                context.close()
-                browser.close()
-
-        logger.info("%s: collected %d events", self.source_name, len(events))
-        return events
-
-    def _extract_cards(self, page, context, cards, count, seen_ids):
-        out = []
-        for i in range(count):
-            card = cards.nth(i)
-            try:
-                title = _safe_text(card, FIELD_SELECTORS["title"])
-                date_text = _safe_text(card, FIELD_SELECTORS["date"])
-                description = None
-                if "description" in FIELD_SELECTORS:
-                    description = _safe_text(card, FIELD_SELECTORS["description"])
-                location = None
-                if "location" in FIELD_SELECTORS:
-                    location = _safe_text(card, FIELD_SELECTORS["location"])
-
-                detail_url = None
-                if DETAIL_LINK_SELECTOR:
-                    detail_url = _safe_attr(card, DETAIL_LINK_SELECTOR, "href")
-                # Fallback: when detail_link_selector is empty, grab the first <a href>
-                # inside the card. Most listing cards wrap the event in a single anchor.
-                if not detail_url:
-                    detail_url = _safe_attr(card, "a", "href")
-                if detail_url and detail_url.startswith("/"):
-                    detail_url = f"{BASE_URL}{detail_url}"
-                elif detail_url and not detail_url.startswith("http"):
-                    detail_url = f"{BASE_URL}/{detail_url}"
-
-                source_url = detail_url or page.url
-                source_id = _extract_source_id(source_url)
-                if not source_id or source_id in seen_ids:
-                    continue
-                if not title or not date_text:
+                # Use div.desc h2 a for URL and title (a.blog-img points to same URL for all)
+                link_el = card.select_one("div.desc h2 a")
+                if not link_el:
                     continue
 
-                start_date = _parse_date(date_text)
+                href = link_el.get("href", "").strip()
+                if not href:
+                    continue
+
+                source_url = _build_absolute_url(href)
+                slug = _extract_slug(href)
+                if not slug:
+                    logger.debug("cine_gallery: could not extract slug from href: %s", href)
+                    continue
+
+                source_id = f"cine_gallery_{slug}"
+                if source_id in seen_ids:
+                    continue
+
+                raw_title = link_el.get_text(strip=True)
+                if not raw_title:
+                    continue
+
+                # Parse start_date from raw_title (e.g. "2026/5/23（土）...")
+                start_date = _parse_date(raw_title)
                 if not start_date:
+                    logger.debug("cine_gallery: no date in title: %s", raw_title)
                     continue
 
-                full_description = description
-                if detail_url:
-                    try:
-                        detail_page = context.new_page()
-                        detail_page.goto(detail_url, timeout=30000)
-                        detail_page.wait_for_load_state("networkidle", timeout=15000)
-                        body_text = detail_page.locator("body").inner_text(timeout=5000)
-                        if body_text:
-                            full_description = body_text.strip()[:2000]
-                        detail_page.close()
-                    except PWTimeout:
-                        logger.warning("Detail page timeout: %s", detail_url)
-                    except Exception as exc:
-                        logger.debug("Detail page failed %s: %s", detail_url, exc)
+                # Fetch detail page
+                time.sleep(0.5)
+                detail_text = self._fetch_detail_text(source_url)
+
+                # Taiwan keyword filter
+                combined = raw_title + " " + detail_text
+                if not _is_taiwan(combined):
+                    logger.debug("cine_gallery: skipping non-Taiwan event: %s", raw_title)
+                    continue
+
+                # Build raw_description with date header
+                date_header = (
+                    f"開催日時: {start_date.year}年{start_date.month}月{start_date.day}日"
+                )
+                raw_description = f"{date_header}\n\n{detail_text}".replace("\x00", "")
+
+                # Clean name_ja: strip date + weekday prefix
+                name_ja = _DATE_PREFIX_RE.sub("", raw_title).strip() or raw_title
+
+                # Movie title lookup — always unpack as 3-tuple
+                name_zh, name_en, official_url = lookup_movie_titles(name_ja)
 
                 seen_ids.add(source_id)
-                out.append(Event(
-                    source_name=self.source_name,
+                events.append(Event(
+                    source_name=self.SOURCE_NAME,
                     source_id=source_id,
                     source_url=source_url,
                     original_language="ja",
-                    name_ja=title,
-                    description_ja=full_description,
+                    raw_title=raw_title,
+                    raw_description=raw_description,
+                    name_ja=name_ja,
+                    name_zh=name_zh,
+                    name_en=name_en,
+                    category=["movie"],
                     start_date=start_date,
-                    location_name=location,
-                    raw_title=title,
-                    raw_description=full_description,
+                    end_date=None,
+                    location_name=LOCATION_NAME,
+                    location_address=LOCATION_ADDRESS,
+                    location_prefectures=LOCATION_PREFECTURES,
+                    official_url=official_url,
                 ))
+                logger.info("cine_gallery: Taiwan event found: %s", name_ja)
+
             except Exception as exc:
-                logger.warning("Failed to parse card %d: %s", i, exc)
+                logger.warning("cine_gallery: failed to parse card: %s", exc)
                 continue
-        return out
+
+        logger.info("cine_gallery: %d Taiwan events found", len(events))
+        return events
 
