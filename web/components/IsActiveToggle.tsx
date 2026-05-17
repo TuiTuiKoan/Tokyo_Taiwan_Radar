@@ -43,6 +43,7 @@ export default function IsActiveToggle({ eventId, initialIsActive }: Props) {
 
   return (
     <button
+      type="button"
       onClick={handleToggle}
       disabled={loading}
       title={isActive ? "停用活動（設為 inactive）" : "啟用活動（設為 active）"}

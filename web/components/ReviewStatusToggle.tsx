@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 interface Props {
   eventId: string;
@@ -30,25 +29,32 @@ export default function ReviewStatusToggle({ eventId, initialAnnotationStatus }:
 
   async function handleToggle() {
     setLoading(true);
-    const supabase = createClient();
-    const target = isReviewed ? "annotated" : "reviewed";
-    const { error, data: updatedRows } = await supabase
-      .from("events")
-      .update({ annotation_status: target })
-      .eq("id", eventId)
-      .select("id");
-    if (error) {
-      alert(`切換確認狀態失敗：${error.message}`);
-    } else if (!updatedRows || updatedRows.length === 0) {
-      alert("切換未生效（session 可能已過期），請重新整理頁面後再試。");
-    } else {
-      setStatus(target);
+    try {
+      const target = isReviewed ? "annotated" : "reviewed";
+      const res = await fetch(`/api/admin/events/${eventId}/review-status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        annotation_status?: string | null;
+      };
+      if (!res.ok) {
+        alert(`切換確認狀態失敗：${payload.error ?? `HTTP ${res.status}`}`);
+      } else {
+        setStatus(payload.annotation_status ?? target);
+      }
+    } catch (err) {
+      alert(`切換確認狀態失敗：${err instanceof Error ? err.message : "未知錯誤"}`);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (
     <button
+      type="button"
       onClick={handleToggle}
       disabled={loading}
       title={
