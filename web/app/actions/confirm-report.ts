@@ -363,8 +363,8 @@ async function appendToHistoryFile(
   };
 
   try {
-    // GET current file
-    const getRes = await fetch(apiBase, { headers });
+    // GET current file (10s timeout — prevents button lock-up if GitHub API is slow)
+    const getRes = await fetch(apiBase, { headers, signal: AbortSignal.timeout(10_000) });
     if (!getRes.ok) {
       console.error("[confirm-report] GitHub GET failed:", getRes.status, await getRes.text());
       return false;
@@ -445,7 +445,7 @@ async function appendToHistoryFile(
       updatedContent = lines.join("\n");
     }
 
-    // PUT updated file
+    // PUT updated file (10s timeout)
     const putRes = await fetch(apiBase, {
       method: "PUT",
       headers: { ...headers, "Content-Type": "application/json" },
@@ -454,6 +454,7 @@ async function appendToHistoryFile(
         content: Buffer.from(updatedContent, "utf-8").toString("base64"),
         sha,
       }),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!putRes.ok) {
@@ -484,7 +485,7 @@ async function appendPendingRuleToSkill(
   };
 
   try {
-    const getRes = await fetch(apiBase, { headers });
+    const getRes = await fetch(apiBase, { headers, signal: AbortSignal.timeout(10_000) });
     if (!getRes.ok) return;
     const fileData = await getRes.json();
     const currentContent = Buffer.from(fileData.content, "base64").toString("utf-8");
@@ -545,6 +546,7 @@ async function appendPendingRuleToSkill(
         content: Buffer.from(updatedContent, "utf-8").toString("base64"),
         sha,
       }),
+      signal: AbortSignal.timeout(10_000),
     });
   } catch (err) {
     console.error("[confirm-report] per-source SKILL.md update error:", err);

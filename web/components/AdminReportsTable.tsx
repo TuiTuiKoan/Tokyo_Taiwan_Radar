@@ -272,7 +272,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
 
   async function handleConfirm(row: ReportRow) {
     setSaving(row.id);
-
+    try {
     // Re-parse user-submitted fieldEdit suggestions so we can use them as fallback
     // when the admin has not explicitly overridden a value in the input box.
     const parsedUserEdits: Record<string, Record<string, string>> = {};
@@ -358,8 +358,15 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       setConfirmFeedback((prev) => ({ ...prev, [row.id]: { githubUpdated: result.githubUpdated, wasReviewed: result.wasReviewed } }));
       setExpandedId(row.id); // keep expanded to show feedback
       router.refresh(); // invalidate SSR cache so /admin list reflects updated event fields
+    } else if (result.error) {
+      alert(result.error);
     }
-    setSaving(null);
+    } catch (err) {
+      console.error("[handleConfirm] unexpected error:", err);
+      alert("保存に失敗しました。ページを再読み込みしてください。");
+    } finally {
+      setSaving(null);
+    }
   }
 
   async function handleDismiss(id: string) {
