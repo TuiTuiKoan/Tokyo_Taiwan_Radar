@@ -527,6 +527,7 @@ def _apply_assessment(
         "auto_research_score": round(score, 2),
         "auto_research_attempted_at": datetime.now(timezone.utc).isoformat(),
         "source_profile": merged_profile,
+        "scraping_feasibility": result.feasibility,
     }
     if github_issue_url:
         patch["github_issue_url"] = github_issue_url

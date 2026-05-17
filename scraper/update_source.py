@@ -236,6 +236,10 @@ def update_source(
             existing_profile = {}
         update_fields["source_profile"] = {**existing_profile, **profile_update}
 
+    # Sync feasibility to the top-level column (UI reads scraping_feasibility directly)
+    if feasibility is not None:
+        update_fields["scraping_feasibility"] = feasibility
+
     # Optionally create a GitHub Issue and advance to 'recommended'
     if create_issue:
         profile_path = _find_source_profile(name, url)

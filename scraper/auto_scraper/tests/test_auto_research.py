@@ -173,6 +173,7 @@ class AssessmentTests(unittest.TestCase):
         self.assertIsNotNone(holder.update_payload)
         self.assertEqual(holder.update_payload["status"], "researched")
         self.assertEqual(holder.update_payload["auto_research_status"], "assessed")
+        self.assertEqual(holder.update_payload["scraping_feasibility"], "easy")
 
     def test_mock_llm_demotes_to_not_viable(self):
         """score=0.15 → patch['status']='not-viable'."""
