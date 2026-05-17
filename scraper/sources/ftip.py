@@ -137,10 +137,25 @@ def _extract_fb_source(text: str) -> Optional[str]:
 
 
 def _extract_peatix_url(text: str) -> Optional[str]:
-    """Extract Peatix event URL from content text."""
+    """Extract Peatix event URL from plain-text content."""
     m = _PEATIX_URL_RE.search(text or "")
     if m:
         return m.group(0).rstrip("./,、）)")
+    return None
+
+
+def _extract_peatix_url_from_html(html_text: str) -> Optional[str]:
+    """Extract Peatix event URL from HTML anchor href attributes.
+
+    ftip WordPress posts often have Peatix links as ``<a href="...">`` rather
+    than plain-text URLs.  BeautifulSoup.get_text() strips these hrefs, so we
+    need to search the raw HTML string separately.
+    """
+    soup = BeautifulSoup(html_text or "", "html.parser")
+    for a in soup.find_all("a", href=True):
+        href: str = a["href"]
+        if "peatix.com" in href:
+            return href.rstrip("./,、）)")
     return None
 
 
@@ -305,16 +320,19 @@ class FtipScraper(BaseScraper):
             if start_date:
                 end_date = _extract_end_date(search_text, start_date)
 
-            # Prefer official URL embedded in content ("公式サイト www.xxx.com"),
-            # else first-hand FB post URL cited at the top of the description.
-            # Note: source_url stays as the FTIP RSS link (audit trail);
-            # official_url stores the authoritative organiser URL for display priority.
+            # When a first-hand URL exists (Peatix ticket page, 公式サイト, or FB
+            # post), use it as both source_url AND official_url so the event
+            # detail page CTA button links directly to the authoritative source.
+            # Fall back to the FTIP RSS link only when no first-hand URL is found.
+            # Search plain text first, then HTML anchor hrefs (Peatix links are
+            # commonly embedded as <a href> in the WordPress post body).
+            _peatix = _extract_peatix_url(content_text) or _extract_peatix_url_from_html(content_html)
             official_url = (
-                _extract_peatix_url(content_text)
+                _peatix
                 or _extract_official_url(content_text)
                 or _extract_fb_source(content_text)
             )
-            source_url = rss_url
+            source_url = _peatix if _peatix else rss_url
 
             # Extract actual venue and address from content
             venue_name, venue_address = _extract_venue(content_text)
