@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-05-17 — startup_terrace Playwright stub → requests 版に刷新 + TaiwanPrism 登録漏れ修正
+
+**問題 1:** `sources/startup_terrace.py` が auto-scraper 生成の Playwright stub のままで production 未対応。SSL cert エラー（Missing Subject Key Identifier）も未対処。
+
+**問題 2:** `TaiwanPrismScraper` が `main.py` の `SCRAPERS` リストに未登録（session notes に「登録済み」とあったが実際は漏れていた）。
+
+**根本原因:** auto-scraper が Playwright stub を生成した後、manual 実装を行った際に `main.py` 登録を同一セッションで完了しなかった。また `startupterrace.tw` の TLS 証明書が Missing Subject Key Identifier 拡張 → `requests` の `verify=True`（デフォルト）が `SSLCertVerificationError` を raise。
+
+**修正 (commit `99d9fde`):**
+- `startup_terrace.py` を requests + BeautifulSoup 版に完全書き換え。`verify=False` + `warnings.simplefilter("ignore")` で SSL 回避。
+- title-first JAPAN_KW フィルタ（detail ページ fetch 前に判定）でパフォーマンス改善。
+- `name_en`, `organizer`, `organizer_zh/en`, `organizer_url`, `organizer_type`, `event_form`, `category`, `official_url` を追加。
+- `main.py` に `StartupTerraceScraper` と `TaiwanPrismScraper` を同時に登録。
+- `research_sources` id=331 の `status → implemented`。
+- dry-run: 6 件正常取得。
+
+**教訓:** 台湾政府サイト（`.tw` ドメイン）は Missing Subject Key Identifier 証明書エラーを起こすことがある → `verify=False` + `warnings.simplefilter("ignore")` を scraper helper の `_get()` に組み込む。Promotion checklist の「SCRAPERS 登録」は commit と同一 session で実施し、Post-Build Audit を必ず実行すること。
+
+---
+
 ## 2026-05-16 — wuext_waseda 多重セッション講座：performer 截斷 + business_hours 不完整（event `1be67e0f`）
 
 **問題：** event `1be67e0f`（沖縄現場学）で `performer='吉田'`（本来 `カベルナリア 吉田`）+ `business_hours='19:00〜20:30'`（曜日・全7回・個別開講日が脱落）。

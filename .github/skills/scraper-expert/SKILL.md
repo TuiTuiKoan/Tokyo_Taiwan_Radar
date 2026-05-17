@@ -13,6 +13,15 @@ Read this at the start of every session before writing any scraper.
 - `source_id` must be stable across runs — derive from URL slug or platform ID, never from title or list position.
 - Always set `start_date` explicitly. Never fall back silently to the page's publish/update date.
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` when the event date is found in the page body.
+- **`.tw` ドメインの SSL 証明書エラー (Missing Subject Key Identifier)**: 台湾政府サイト（`startupterrace.tw` 等）は TLS 証明書に Subject Key Identifier 拡張が欠落しており、`requests` のデフォルト `verify=True` が `SSLCertVerificationError` を raise する。該当サイトには `verify=False` + `warnings.simplefilter("ignore")` を使う helper `_get()` を定義すること。
+  ```python
+  def _get(url: str) -> requests.Response:
+      """GET with SSL verification disabled (cert missing SKI extension)."""
+      with warnings.catch_warnings():
+          warnings.simplefilter("ignore")
+          return requests.get(url, headers=_HEADERS, timeout=15, verify=False)
+  ```
+  (Incident: startup_terrace `99d9fde`, 2026-05-17.)
 - **`start_date`/`end_date` must use `tzinfo=timezone.utc`**: Never pass JST-aware datetimes (`tzinfo=_JST` / `timezone(timedelta(hours=9))`). Supabase stores datetimes in UTC, so `2026-05-08T00:00:00+09:00` → `2026-05-07T15:00:00+00:00` — the calendar date regresses by one day on Vercel's UTC server. Use `datetime(y, m, d, tzinfo=timezone.utc)` to preserve the date. Audit after every fix: `grep -rn "tzinfo=_JST\|tzinfo=JST" scraper/sources/`. (Incidents: Stranger `b7dc34f`, shin_bungeiza `bcb6142`.)
 - **Strip null bytes from all scraped text**: Before writing any string to `raw_description`, `name_ja`, or speaker fields, call `.replace("\x00", "")`. Null bytes (`\u0000`) can appear in web-scraped text and cause Postgres error `22P05: unsupported Unicode escape sequence`. (Incident: taiwan_prism.py `c7e9b73` — `×\u0000栖来ひかり` in speakers field broke all 13 events.)
 - **`parent_event_id` must be a real UUID, never a source_id string**: `parent_event_id` is a `uuid` column. Passing a source_id string (e.g. `f"scraper_{year}"`) causes Postgres `22P02`. Use `database.get_event_id_by_source(SOURCE_NAME, parent_source_id)` to resolve the UUID. On the **first run**, if parent and sub-events are in the same batch, the parent UUID does not yet exist — `get_event_id_by_source()` returns `None`. Plan for a second run or manual patch to backfill `parent_event_id`. (Incident: taiwan_prism `c7e9b73`)
@@ -37,8 +46,6 @@ Read this at the start of every session before writing any scraper.
   organizer_type=["commercial_brand"],
   ```
   (Incident: `cinemaclair.py` and `human_trust_cinema.py` missing `organizer=`, 2026-05-15.)
-- **Multi-session course scrapers (`wuext_waseda`, etc.) — set `business_hours` explicitly with full session list.** When the detail page has a per-session date list (Waseda's `(日程詳細)` block), format `business_hours` as `木曜日 19:00〜20:30（全7回：07/09, 07/16, ..., 09/03）` in the scraper. Do NOT leave to annotator: annotator only extracts time-range (`19:00〜20:30`), losing weekday + 全N回 + 跳週の個別開講日. (Incident: wuext_waseda event `1be67e0f`, 2026-05-16.)
-- **Mixed-script performer names (片假名+漢字, e.g. `カベルナリア 吉田`) must be set on `Event.performer=` directly by the scraper.** Annotator's `_PERFORMER_INTRO_RE` uses `[\u4e00-\u9fff]{2,5}` pure-kanji pattern, which silently truncates such names to the kanji surname (`吉田`). When the source page has a structured instructor / 講師 / 登壇者 column, populate `performer` and `performers` on the `Event(...)` directly, bypassing annotator. (Incident: wuext_waseda event `1be67e0f`, 2026-05-16.)
 - **Never restrict geographic scope**: The project covers all of Japan（全日本）. Regional keyword filters (e.g. `_TOKYO_KANTO_KEYWORDS`) must never be added to any scraper.
 - **Date-parser helper functions must have exhaustive return paths**: Any `_extract_dates()` / `_parse_*_date()` helper must have an explicit `return` on every branch — never rely on Python's implicit `None`. A function that falls through returns `None`, and callers that do `start, end = helper()` will raise `TypeError: cannot unpack non-iterable NoneType object` — this is silently swallowed by outer try-except, causing the entire page's events to be dropped with **no ERROR log**. Add `return None, None` as the final fallback. (Incident: peatix `_extract_peatix_dates`, commit `2a9540c`, 7 days of silent 0 events.)
 - **After fixing a filter bug**: Run `python main.py --source <name>` (non-dry-run) immediately after the fix. A dry-run confirms the fix works but does NOT write to DB — the data gap remains until the next CI cycle.
@@ -729,40 +736,6 @@ source_url = self._extract_official_url(content) or rss_link
 Reference incidents:
 - 2026-05-10 commit `ab771e2` — `ftip.py` 首次修正誤以「官方 URL 較有資訊量」讓 `source_url` 指向 `www.taiwanprism.com`，破壞 FTIP audit trail
 - 2026-05-10 commit `7c34788` — 更正為正確模式：`source_url=ftip-japan.org/699`、`official_url=taiwanprism.com`，DB 事件 `023dcbec` 同步修正
-
-**反パターンの第二形：`or source_url` フォールバック**（CMS / API 系 aggregator 用）：
-
-Contentful / API 駆動の aggregator（`tokyoartbeat` 等）では「公式 URL フィールド」（例：`showsWebpage`）が CMS 上で空のことがある。フォールバックを `or source_url` にすると、フィールド欠落のたび `official_url` が aggregator URL に汚染される——コードレビュー時に見逃しやすい静默バグ。
-
-```python
-# ❌ 反パターン — CMS 欠落時に source_url で汚染
-official_url = (
-    self._loc(f.get("showsWebpage", {}), "en-US")
-    or self._loc(f.get("showsWebpage", {}), "ja-JP")
-    or source_url
-)
-
-# ✅ 正しい — None を許容し、後段の annotator/手動 enrichment に委ねる
-official_url = (
-    self._loc(f.get("showsWebpage", {}), "en-US")
-    or self._loc(f.get("showsWebpage", {}), "ja-JP")
-    or None
-)
-```
-
-**Aggregator 判定**（このルールが適用される source）：
-- 第三者がイベントを掲載する集約サイト：`tokyoartbeat`、`peatix`、`doorkeeper`、`connpass`、`eplus`、`livepocket`、`kokuchpro`、`walkerplus`、`arukikata`、`prtimes`、`ftip`
-- ニュース / RSS 由来：`google_news_rss`、`nhk_rss`、`note_creators`
-
-**例外（first-party、フォールバック OK）**：`source_url` 自体が主催者の公式ページである scraper。例：`taiwan_cultural_center`、`taiwan_matsuri`、`koryu`、`taioan_dokyokai`、`taiwan_kyokai`、`asahiculture`（カルチャーセンター自身が主催）、各シネマ scraper（劇場自身が主催）。これらは `official_url=url` / `official_url=detail_link` を明示的に設定してよい。
-
-**監査コマンド**：
-```bash
-grep -rn "official_url.*or source_url\|official_url=source_url" scraper/sources/
-# → 0 件であるべき
-```
-
-Reference incident: 2026-05-16 — `tokyoartbeat.py` line 124 `or source_url` フォールバックが root cause。event `74ee6d89`（共時的星叢）の `official_url` が tokyoartbeat aggregator URL に汚染、DB 修正＋FC ロック後 scraper も修正（`or None` に変更）。
 
 ## M/D~D 多日範圍 — end_date 提取與跨月防護
 
@@ -1934,23 +1907,6 @@ sb.table("field_corrections").upsert({
     "corrected_value": "Correct Name (AI Translation)",
 }, on_conflict="event_id,field_name").execute()
 ```
-
-## Auto-lock location fields — `database.py` upsert_events()
-
-`upsert_events()` は新規イベントを挿入した直後に `_auto_lock_location()` を呼び出す。
-
-**動作：**
-- 新規挿入イベント（existing/blocked/reviewed でないもの）のうち `location_name` が設定されているものを対象とする
-- `location_name`・`location_address`・`location_prefectures` を `field_corrections` に `ignore_duplicates=True`（DO NOTHING on conflict）で自動挿入
-- 既存イベントには適用されない
-
-**スクレイパー側に変更は不要**：`Event(location_name=..., location_address=...)` を設定するだけで自動ロックされる。
-
-**既存イベントへの適用**：手動で FC を upsert するか、`_lock_fields_via_corrections()` を使う。
-
-**`ignore_duplicates=True` の意味**：管理者が FC に別の値を設定済みでも上書きしない（DO NOTHING on conflict）。
-
----
 
 ### performers[] 多語言欄位の UI helper
 

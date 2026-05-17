@@ -66,6 +66,36 @@ Read this at the start of every session before producing any plan.
 
 **反面教訓（2026-05-15）：** 後台 events UPDATE 三項全失，第一輪假設 migration 069 漏 events 表 GRANT（錯誤），第二輪假設 `ae9dc77` cookie 寫入問題（錯誤），準備寫新 migration。使用者實測 DevTools 三點全綠後判定暫時性。若一開始就先讓使用者跑三點檢查，可省 20 分鐘誤判時間。
 
+## Loading State Try/Finally Guard（loading state 必須用 try/finally 重置）
+
+在審核**任何**包含 async button handler（`handleConfirm`、`handleDismiss`、`handlePublish` 等）的計畫或 PR 前，**必須**確認：
+
+1. **任何設定 loading state 的 async 函式，必須在 `finally` 塊中重置**，不論例外或正常結束：
+   ```tsx
+   async function handleAction() {
+     setLoading(true);
+     try {
+       const result = await someServerAction();
+       // handle result
+     } catch (err) {
+       console.error(err);
+       alert("操作に失敗しました。");
+     } finally {
+       setLoading(false);
+     }
+   }
+   ```
+2. **外部 API 呼叫（GitHub、Google、LINE 等）必須加 `AbortSignal.timeout(N)`**，防止無限 hang：
+   ```ts
+   const res = await fetch("https://api.github.com/...", {
+     signal: AbortSignal.timeout(10_000),
+   });
+   ```
+3. **症狀識別**：用戶點擊按鈕後 UI 卡在 loading 狀態，頁面重整才能恢復。根因通常是外部 API hang（fetch 永久 pending）+ `finally` 缺失的雙重故障。
+4. **設計計畫時**，若 server action 中有外部 API 呼叫（`appendToHistoryFile`、`appendPendingRuleToSkill` 等），必須在計畫中明確標注 Engineer 需加 `AbortSignal.timeout`。
+
+**Reference incident:** 2026-05-17 — `AdminReportsTable` `handleConfirm()` 無 try/catch，`b2e8b92` 後累計 4 次 GitHub fetch，GitHub API hang 時按鈕永久卡死（commit `9319f57` 修復）。
+
 ## Multi-Session Stash Discipline（多線開發 Stash 紀律）
 
 在審核任何多 session/subagent 平行開發工作流前，**必須**確認：

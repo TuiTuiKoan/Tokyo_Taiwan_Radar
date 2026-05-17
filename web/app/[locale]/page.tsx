@@ -127,7 +127,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
           </div>
         </div>
 
-        <div className="w-full flex flex-col items-center md:items-start text-center md:text-left mx-auto md:mx-0 md:pt-[118px]">
+        <div className="w-full flex flex-col items-center md:items-start text-center md:text-left mx-auto md:mx-0 md:pt-[36px]">
           <h1 className="font-display font-black text-[#3A261F] dark:text-fg leading-tight text-3xl tracking-tight">
             <span className="block">{tHome("heroLine1")}</span>
             <span className="block">{tHome("heroLine2")}</span>

@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-05-17 — Admin confirm button lock-up (handleConfirm no try/catch + GitHub fetch no timeout)
+- **Error**: `handleConfirm()` had no try/catch; if `confirmReport()` threw, `setSaving(null)` was skipped → button stuck in "…" permanently
+- **Trigger**: `b2e8b92` added `appendPendingRuleToSkill` (4 total GitHub fetches); GitHub API occasional hang made this reproducible
+- **Fix**: `try/catch/finally` in `handleConfirm` (commit `9319f57`); `AbortSignal.timeout(10_000)` on all 4 GitHub `fetch()` calls
+- **Lesson**: Any async client function that sets loading state MUST use `try/catch/finally` to reset it. External API calls (GitHub, GSC, etc.) MUST have `AbortSignal.timeout()`.
+
+---
+
 ## 2026-05-16
 
 ### Admin Work 下拉空白 — SSR Props 未傳遞（Silent Race Condition）
