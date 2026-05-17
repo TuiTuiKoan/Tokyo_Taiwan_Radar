@@ -69,6 +69,18 @@ PY
 2. 找出 `ms.date` 距今 > 30 天的項目
 3. 輸出：「⚠ 以下 Skills 超過 30 天未更新：XXX（最後更新 YYYY-MM-DD）」
 
+**2.b SKILL.md Scanner 候選審讀（自動產出，每月 1 日）**
+
+monthly_health_check workflow 末段執行 `scraper/skill_scanner.py`，產出：
+- **完整報告**：`docs/skill_scan/YYYY-MM.md`（git commit，VS Code 可直接讀檔）
+- **LINE 摘要**：計數 + 完整報告 GitHub URL
+
+分類：
+- `hookable_candidate`：尚未實作為 startup guard 的同步 / 強制規則
+- `duplicate_candidate`：跨 agent 的重複規則
+
+Reviewer 月度復盤時：開啟 `docs/skill_scan/YYYY-MM.md` → 挑 1–3 件最高價值的 → 建議使用者交 Engineer 實作為 hook；其餘記錄為「下月再評估」。
+
 ### 功能 3：Agent Scope 分析
 
 1. 讀取 `.github/agents/` 下所有 `.agent.md`（僅讀取前 20 行取得 frontmatter 與 description）
