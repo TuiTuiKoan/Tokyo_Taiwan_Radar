@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "created_at": null,
+  "target_cases": 50,
+  "actual_cases": 0,
+  "frozen_corrections_sha256": null,
+  "note": "Run build_golden_dataset.py --target 50 --interactive to populate"
+}

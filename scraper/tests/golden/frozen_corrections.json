@@ -1,0 +1,7 @@
+{
+  "snapshot_at": null,
+  "category_corrections": [],
+  "selection_reason_corrections": [],
+  "sha256": null,
+  "note": "Run build_golden_dataset.py --rebuild-frozen-only to populate"
+}

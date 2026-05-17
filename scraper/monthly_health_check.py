@@ -20,6 +20,8 @@ import os
 import re
 import sys
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
+from statistics import median
 
 from dotenv import load_dotenv
 from supabase import create_client
@@ -175,9 +177,252 @@ def _cleanup_old_records(sb) -> dict:
     return result
 
 
+# ─── A1: Recurrence rate (same source×field corrected ≥2 times in 90d) ──────
+
+def _count_recurrence(sb) -> dict:
+    """A1 — (source_name, field_name) pairs corrected ≥ 2 times in last 90 days."""
+    cutoff = (datetime.now(tz=UTC) - timedelta(days=90)).isoformat()
+    try:
+        fc_rows = (
+            sb.table("field_corrections")
+            .select("event_id,field_name,created_at")
+            .gte("created_at", cutoff)
+            .execute()
+            .data or []
+        )
+    except Exception as exc:
+        logger.warning("_count_recurrence: field_corrections fetch failed: %s", exc)
+        return {"recurrence_pairs": -1, "top_pairs": []}
+
+    if not fc_rows:
+        return {"recurrence_pairs": 0, "top_pairs": []}
+
+    # Fetch source_name for each event_id (batch)
+    event_ids = list({r["event_id"] for r in fc_rows if r.get("event_id")})
+    source_by_event: dict[str, str] = {}
+    for i in range(0, len(event_ids), 200):
+        batch = event_ids[i:i + 200]
+        try:
+            rows = (
+                sb.table("events")
+                .select("id,source_name")
+                .in_("id", batch)
+                .execute()
+                .data or []
+            )
+            for r in rows:
+                source_by_event[r["id"]] = r.get("source_name", "unknown")
+        except Exception as exc:
+            logger.warning("_count_recurrence: events batch failed: %s", exc)
+
+    # Count (source_name, field_name) occurrences
+    pair_counts: dict[tuple[str, str], int] = {}
+    for row in fc_rows:
+        eid = row.get("event_id", "")
+        source = source_by_event.get(eid, "unknown")
+        field = row.get("field_name", "")
+        if source and field:
+            pair_counts[(source, field)] = pair_counts.get((source, field), 0) + 1
+
+    recurring = {pair: cnt for pair, cnt in pair_counts.items() if cnt >= 2}
+    top = sorted(recurring.items(), key=lambda x: -x[1])[:10]
+
+    return {
+        "recurrence_pairs": len(recurring),
+        "top_pairs": [
+            {"source_name": src, "field_name": fld, "count": cnt}
+            for (src, fld), cnt in top
+        ],
+    }
+
+
+# ─── A2: Protect hit trend (30/60/90 day windows) ────────────────────────────
+
+def _protect_hit_trend(sb) -> dict:
+    """A2 — field_protect_hits / annotated_events ratio for 30/60/90 day windows."""
+    now = datetime.now(tz=UTC)
+    windows = [("30d", 30), ("60d", 60), ("90d", 90)]
+    result: dict[str, int | float | None] = {}
+
+    try:
+        all_runs = (
+            sb.table("scraper_runs")
+            .select("notes,ran_at")
+            .eq("source", "annotator")
+            .gte("ran_at", (now - timedelta(days=90)).isoformat())
+            .execute()
+            .data or []
+        )
+    except Exception as exc:
+        logger.warning("_protect_hit_trend: scraper_runs fetch failed: %s", exc)
+        return {f"hit_{k}": -1 for k, _ in windows}
+
+    for label, days in windows:
+        cutoff = (now - timedelta(days=days)).isoformat()
+        hits = 0
+        annotated = 0
+        for r in all_runs:
+            if (r.get("ran_at") or "") < cutoff:
+                continue
+            notes = r.get("notes") or ""
+            m_hits = re.search(r"field_protect_hits=(\d+)", notes)
+            m_ann = re.search(r"annotated=(\d+)", notes)
+            if m_hits:
+                hits += int(m_hits.group(1))
+            if m_ann:
+                annotated += int(m_ann.group(1))
+        result[f"hit_{label}"] = hits
+        result[f"annotated_{label}"] = annotated
+        result[f"rate_{label}"] = round(hits / annotated, 4) if annotated else None
+
+    return result
+
+
+# ─── A3: First-pass accuracy (reported within 24h / new events, per source) ──
+
+def _first_pass_accuracy(sb) -> dict:
+    """A3 — per source: events reported via event_reports within 24h of creation."""
+    cutoff = (datetime.now(tz=UTC) - timedelta(days=30)).isoformat()
+    try:
+        events = (
+            sb.table("events")
+            .select("id,source_name,created_at")
+            .gte("created_at", cutoff)
+            .eq("is_active", True)
+            .is_("parent_event_id", "null")
+            .execute()
+            .data or []
+        )
+    except Exception as exc:
+        logger.warning("_first_pass_accuracy: events fetch failed: %s", exc)
+        return {"sources": []}
+
+    if not events:
+        return {"sources": []}
+
+    event_ids = [e["id"] for e in events]
+    created_at_by_id = {e["id"]: e["created_at"] for e in events}
+
+    # Fetch event_reports for those events
+    reports_within_24h: dict[str, bool] = {}
+    for i in range(0, len(event_ids), 200):
+        batch = event_ids[i:i + 200]
+        try:
+            reps = (
+                sb.table("event_reports")
+                .select("event_id,created_at")
+                .in_("event_id", batch)
+                .execute()
+                .data or []
+            )
+            for rep in reps:
+                eid = rep.get("event_id")
+                if not eid:
+                    continue
+                ev_created = created_at_by_id.get(eid)
+                rep_created = rep.get("created_at")
+                if ev_created and rep_created:
+                    try:
+                        ev_dt = datetime.fromisoformat(ev_created.replace("Z", "+00:00"))
+                        rep_dt = datetime.fromisoformat(rep_created.replace("Z", "+00:00"))
+                        if (rep_dt - ev_dt).total_seconds() < 86400:
+                            reports_within_24h[eid] = True
+                    except Exception:
+                        pass
+        except Exception as exc:
+            logger.warning("_first_pass_accuracy: event_reports batch failed: %s", exc)
+
+    # Aggregate per source
+    source_total: dict[str, int] = {}
+    source_reported: dict[str, int] = {}
+    source_by_source: dict[str, str] = {}
+    for e in events:
+        src = e.get("source_name", "unknown")
+        eid = e["id"]
+        source_total[src] = source_total.get(src, 0) + 1
+        if eid in reports_within_24h:
+            source_reported[src] = source_reported.get(src, 0) + 1
+
+    rows = []
+    for src, total in source_total.items():
+        reported = source_reported.get(src, 0)
+        rate = reported / total if total else 0.0
+        rows.append({"source_name": src, "total_new": total, "reported_within_24h": reported, "error_rate": round(rate, 4)})
+
+    rows.sort(key=lambda x: -x["error_rate"])
+    return {"sources": rows[:10]}
+
+
+# ─── A4: Repair latency (median days from event creation to field_correction) ─
+
+def _repair_latency(sb) -> dict:
+    """A4 — per source: median days from event creation to field_corrections."""
+    cutoff = (datetime.now(tz=UTC) - timedelta(days=180)).isoformat()
+    try:
+        fc_rows = (
+            sb.table("field_corrections")
+            .select("event_id,created_at")
+            .gte("created_at", cutoff)
+            .execute()
+            .data or []
+        )
+    except Exception as exc:
+        logger.warning("_repair_latency: field_corrections fetch failed: %s", exc)
+        return {"sources": []}
+
+    if not fc_rows:
+        return {"sources": []}
+
+    event_ids = list({r["event_id"] for r in fc_rows if r.get("event_id")})
+    event_created_at: dict[str, str] = {}
+    event_source: dict[str, str] = {}
+    for i in range(0, len(event_ids), 200):
+        batch = event_ids[i:i + 200]
+        try:
+            rows = (
+                sb.table("events")
+                .select("id,created_at,source_name")
+                .in_("id", batch)
+                .execute()
+                .data or []
+            )
+            for r in rows:
+                event_created_at[r["id"]] = r["created_at"]
+                event_source[r["id"]] = r.get("source_name", "unknown")
+        except Exception as exc:
+            logger.warning("_repair_latency: events batch failed: %s", exc)
+
+    # Compute latency in days per source
+    source_latencies: dict[str, list[float]] = {}
+    for fc in fc_rows:
+        eid = fc.get("event_id")
+        if not eid or eid not in event_created_at:
+            continue
+        try:
+            ev_dt = datetime.fromisoformat(event_created_at[eid].replace("Z", "+00:00"))
+            fc_dt = datetime.fromisoformat(fc["created_at"].replace("Z", "+00:00"))
+            days = max(0.0, (fc_dt - ev_dt).total_seconds() / 86400)
+        except Exception:
+            continue
+        src = event_source.get(eid, "unknown")
+        source_latencies.setdefault(src, []).append(days)
+
+    rows = []
+    for src, lats in source_latencies.items():
+        if not lats:
+            continue
+        med = median(lats)
+        rows.append({"source_name": src, "n_corrections": len(lats), "median_days": round(med, 1)})
+
+    rows.sort(key=lambda x: -x["median_days"])
+    return {"sources": rows[:5]}
+
+
 
 def build_line_message(reports: dict, corrections: dict, protect_hits: int, excl_hits: int,
-                       cleanup: dict | None = None) -> str:
+                       cleanup: dict | None = None,
+                       a1: dict | None = None, a2: dict | None = None,
+                       a3: dict | None = None, a4: dict | None = None) -> str:
     month = datetime.now(tz=JST).strftime("%Y-%m")
     lines = [
         f"📋 報錯閉環健檢 — {month}",
@@ -225,7 +470,134 @@ def build_line_message(reports: dict, corrections: dict, protect_hits: int, excl
             else:
                 lines.append(f"  {table}: 清理失敗")
 
+    # A1–A4 evaluation metrics (appended as Step 6)
+    if a1 is not None or a2 is not None or a3 is not None or a4 is not None:
+        lines.append("")
+        lines.append("【閉環效能指標（Evaluation A1–A4）】")
+
+    if a1 is not None:
+        n = a1.get("recurrence_pairs", -1)
+        top = a1.get("top_pairs", [])
+        if n >= 0:
+            lines.append(f"  A1 重犯率 (90d): {n} 對 (source×field 修正 ≥2 次)")
+            if top:
+                lines.append(f"    最高: {top[0]['source_name']}/{top[0]['field_name']} ×{top[0]['count']}")
+        else:
+            lines.append("  A1 重犯率: 取得失敗")
+
+    if a2 is not None:
+        r30 = a2.get("rate_30d")
+        h30 = a2.get("hit_30d", "?")
+        h90 = a2.get("hit_90d", "?")
+        rate_str = f"{r30:.2%}" if r30 is not None else "n/a"
+        lines.append(f"  A2 保護命中率 (30d): {h30} hits ({rate_str}) | 90d: {h90} hits")
+
+    if a3 is not None:
+        sources = a3.get("sources", [])
+        if sources:
+            top_src = sources[0]
+            lines.append(
+                f"  A3 首次正確率 (30d): 最高錯誤率 {top_src['source_name']} "
+                f"{top_src['error_rate']:.1%} ({top_src['reported_within_24h']}/{top_src['total_new']})"
+            )
+        else:
+            lines.append("  A3 首次正確率: 無資料")
+
+    if a4 is not None:
+        sources = a4.get("sources", [])
+        if sources:
+            top_src = sources[0]
+            lines.append(
+                f"  A4 修復延遲 (180d): 最高 {top_src['source_name']} "
+                f"中位數 {top_src['median_days']} 天 (n={top_src['n_corrections']})"
+            )
+        else:
+            lines.append("  A4 修復延遲: 無資料")
+
     return "\n".join(lines)
+
+
+def _write_evaluation_md(
+    a1: dict, a2: dict, a3: dict, a4: dict,
+    protect_hits: int, corrections: dict,
+) -> Path:
+    """Write detailed A1–A4 evaluation markdown to docs/monthly_review/."""
+    month = datetime.now(tz=JST).strftime("%Y-%m")
+    docs_dir = Path(__file__).resolve().parent.parent / "docs" / "monthly_review"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    out_path = docs_dir / f"{month}-evaluation.md"
+
+    now_jst = datetime.now(tz=JST).strftime("%Y-%m-%d %H:%M JST")
+    lines = [
+        f"# 閉環效能指標 — {month}",
+        f"_Generated: {now_jst}_",
+        "",
+        "## A1 — 重犯率（Recurrence Rate）",
+        f"過去 90 天中，同一 source × field_name 被修正 ≥ 2 次的組合數：**{a1.get('recurrence_pairs', 'n/a')}**",
+        "",
+    ]
+
+    top_pairs = a1.get("top_pairs", [])
+    if top_pairs:
+        lines += ["| source_name | field_name | count |", "|---|---|---|"]
+        for p in top_pairs:
+            lines.append(f"| {p['source_name']} | {p['field_name']} | {p['count']} |")
+    else:
+        lines.append("_No recurring correction pairs found._")
+
+    lines += [
+        "",
+        "## A2 — 保護命中率趨勢（Protect Hit Rate Trend）",
+        "| 期間 | Protect Hits | Annotated Events | 命中率 |",
+        "|---|---|---|---|",
+    ]
+    for period in ("30d", "60d", "90d"):
+        hits = a2.get(f"hit_{period}", "?")
+        annotated = a2.get(f"annotated_{period}", "?")
+        rate = a2.get(f"rate_{period}")
+        rate_str = f"{rate:.2%}" if rate is not None else "n/a"
+        lines.append(f"| {period} | {hits} | {annotated} | {rate_str} |")
+
+    lines += [
+        "",
+        "## A3 — 首次正確率（First-Pass Accuracy）",
+        "過去 30 天新事件中，24h 內被 event_reports 報錯的比例（per source）：",
+        "",
+        "| source_name | 新事件數 | 24h 內報錯 | 錯誤率 |",
+        "|---|---|---|---|",
+    ]
+    for s in a3.get("sources", []):
+        lines.append(
+            f"| {s['source_name']} | {s['total_new']} | {s['reported_within_24h']} | {s['error_rate']:.1%} |"
+        )
+    if not a3.get("sources"):
+        lines.append("_No data_")
+
+    lines += [
+        "",
+        "## A4 — 修復延遲（Repair Latency）",
+        "過去 180 天 field_corrections.created_at − events.created_at 中位數（per source）：",
+        "",
+        "| source_name | 修正次數 | 中位數（天） |",
+        "|---|---|---|",
+    ]
+    for s in a4.get("sources", []):
+        lines.append(f"| {s['source_name']} | {s['n_corrections']} | {s['median_days']} |")
+    if not a4.get("sources"):
+        lines.append("_No data_")
+
+    lines += [
+        "",
+        "## 其他健檢指標（摘要）",
+        f"- field_protect_hits (30d): {protect_hits if protect_hits >= 0 else 'n/a'}",
+        f"- field_corrections (30d): {corrections.get('field_corrections', '?')}",
+        f"- category_corrections (30d): {corrections.get('category_corrections', '?')}",
+        f"- selection_reason_corrections (30d): {corrections.get('selection_reason_corrections', '?')}",
+    ]
+
+    out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    logger.info("Evaluation markdown written: %s", out_path)
+    return out_path
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -237,12 +609,25 @@ def run(dry_run: bool = False) -> dict:
     protect_hits = _count_protect_hits(sb)
     excl_hits = _count_exclusion_hits(sb)
 
+    # A1–A4 evaluation metrics
+    a1 = _count_recurrence(sb)
+    a2 = _protect_hit_trend(sb)
+    a3 = _first_pass_accuracy(sb)
+    a4 = _repair_latency(sb)
+
     cleanup = None
     if not dry_run:
         cleanup = _cleanup_old_records(sb)
 
-    msg = build_line_message(reports, corrections, protect_hits, excl_hits, cleanup)
+    msg = build_line_message(reports, corrections, protect_hits, excl_hits, cleanup, a1, a2, a3, a4)
     flags = _integrity_flags(reports, corrections)
+
+    # Write evaluation markdown
+    eval_md_path = None
+    try:
+        eval_md_path = str(_write_evaluation_md(a1, a2, a3, a4, protect_hits, corrections))
+    except Exception as exc:
+        logger.warning("Could not write evaluation md: %s", exc)
 
     summary = {
         "month": datetime.now(tz=JST).strftime("%Y-%m"),
@@ -252,11 +637,18 @@ def run(dry_run: bool = False) -> dict:
         "exclusion_hits_30d": excl_hits,
         "cleanup": cleanup,
         "integrity_flags": flags,
+        "a1_recurrence": a1,
+        "a2_protect_trend": a2,
+        "a3_first_pass": a3,
+        "a4_repair_latency": a4,
+        "eval_md": eval_md_path,
         "message_preview": msg[:200],
     }
 
     if dry_run:
         logger.info("[dry-run] LINE message:\n%s", msg)
+        logger.info("[dry-run] recurrence=%s protect_hit_rate=%s first_pass=%s repair_latency=%s",
+                    a1.get("recurrence_pairs"), a2.get("rate_30d"), a3.get("sources", [])[:1], a4.get("sources", [])[:1])
     else:
         success = send_line_message(msg)
         if not success:

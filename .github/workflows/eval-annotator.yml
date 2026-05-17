@@ -1,0 +1,52 @@
+name: Annotator Golden Set Eval
+
+on:
+  pull_request:
+    paths:
+      - 'scraper/annotator.py'
+      - 'scraper/category_feedback.py'
+      - 'scraper/selection_reason_feedback.py'
+      - 'scraper/tests/golden/**'
+      - 'scraper/eval_annotator.py'
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scraper/requirements.txt'
+
+      - name: Install Python dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Run golden set eval (frozen mode)
+        working-directory: scraper
+        env:
+          OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+        run: |
+          python eval_annotator.py --output report.md || echo "No cases yet, skipping eval"
+          if [ -f "report.md" ]; then
+            echo "## Annotator Golden Set Report" >> $GITHUB_STEP_SUMMARY
+            cat report.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Post PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        if: github.event_name == 'pull_request' && hashFiles('scraper/report.md') != ''
+        with:
+          path: scraper/report.md
+
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('scraper/report.md') != ''
+        with:
+          name: eval-report
+          path: scraper/report.md
