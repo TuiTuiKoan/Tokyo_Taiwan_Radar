@@ -91,9 +91,9 @@ export default async function AnnouncementDetailPage({ params }: PageProps) {
         <span className="text-fg-muted">{title}</span>
       </nav>
 
-      {/* Cover image */}
+      {/* Cover image — z-20 keeps it above subtle FloatingShapes overlay (z-10) */}
       {image && (
-        <div className="rounded-xl overflow-hidden bg-muted mb-6">
+        <div className="relative z-20 rounded-xl overflow-hidden bg-muted mb-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={image} alt={title} className="w-full h-auto" />
         </div>
