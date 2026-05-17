@@ -101,6 +101,15 @@ export async function confirmReport(
 
   // 2. Update the event based on what was reported wrong
   const eventUpdate: Record<string, unknown> = {};
+  const { data: currentEvent, error: currentEventError } = await supabase
+    .from("events")
+    .select("annotation_status")
+    .eq("id", input.eventId)
+    .single();
+  if (currentEventError) {
+    return { ok: false, githubUpdated: false, error: currentEventError.message };
+  }
+  const currentAnnotationStatus = currentEvent?.annotation_status;
   const isWrongCategory = input.reportTypes.includes("wrongCategory");
   const isWrongDetails = input.reportTypes.includes("wrongDetails") && wrongFields.length > 0;
   const isIrrelevant = input.reportTypes.includes("irrelevant");
@@ -119,7 +128,7 @@ export async function confirmReport(
       // Apply category immediately — no need for full re-annotation
       eventUpdate["category"] = resolvedCategory;
       eventUpdate["is_active"] = true;
-      eventUpdate["annotation_status"] = "annotated";
+      eventUpdate["annotation_status"] = currentAnnotationStatus === "reviewed" ? "reviewed" : "annotated";
       eventUpdate["deactivated_at"] = null;
       eventUpdate["deactivated_reason"] = null;
       eventUpdate["deactivated_by_pass"] = null;
@@ -199,6 +208,11 @@ export async function confirmReport(
   if (isWrongSelectionReason && input.correctedSelectionReason) {
     eventUpdate["selection_reason"] = input.correctedSelectionReason;
   }
+
+  const finalAnnotationStatus =
+    typeof eventUpdate["annotation_status"] === "string"
+      ? (eventUpdate["annotation_status"] as string)
+      : currentAnnotationStatus;
 
   if (Object.keys(eventUpdate).length > 0) {
     const { error: eventError } = await supabase
@@ -332,7 +346,12 @@ export async function confirmReport(
       );
     }
   }
-  const githubUpdated = await appendToHistoryFile(input, wrongFields, hasScraperOnlyFields);
+  const githubUpdated = await appendToHistoryFile(
+    input,
+    wrongFields,
+    hasScraperOnlyFields,
+    finalAnnotationStatus
+  );
 
   // 5. Append "Pending Rule" to per-source SKILL.md if one exists
   const skillPath = input.sourceName ? SOURCE_SKILL_PATHS[input.sourceName] : undefined;
@@ -340,14 +359,15 @@ export async function confirmReport(
     await appendPendingRuleToSkill(skillPath, input, wrongFields);
   }
 
-  return { ok: true, githubUpdated, wasReviewed: eventUpdate["annotation_status"] === "reviewed" };
+  return { ok: true, githubUpdated, wasReviewed: finalAnnotationStatus === "reviewed" };
 }
 
 
 async function appendToHistoryFile(
   input: ConfirmReportInput,
   wrongFields: string[],
-  hasScraperOnlyFields: boolean
+  hasScraperOnlyFields: boolean,
+  finalAnnotationStatus?: string
 ): Promise<boolean> {
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
@@ -406,7 +426,7 @@ async function appendToHistoryFile(
     if (input.reportTypes.includes("irrelevant")) {
       actionLine = "Event hidden (is_active=false). Irrelevant content.";
     } else if (isWrongCat && finalCat) {
-      actionLine = "Category corrected inline — event remains active (is_active=true, annotation_status=annotated).";
+      actionLine = `Category corrected inline — event remains active (is_active=true, annotation_status=${finalAnnotationStatus ?? "annotated"}).`;
     } else if (isWrongCat && !finalCat) {
       actionLine = "Category cleared — re-annotation triggered (annotation_status=pending).";
     } else if (wrongFields.some(f => f in ANNOTATOR_FIELDS)) {

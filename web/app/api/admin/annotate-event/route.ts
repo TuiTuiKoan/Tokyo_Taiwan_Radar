@@ -255,7 +255,7 @@ export async function POST(req: NextRequest) {
   const { data: event, error: fetchErr } = await adminClient
     .from("events")
     .select(
-      "name_ja,name_zh,name_en,description_ja,location_name,location_address,location_url,organizer,organizer_url,performer,price_info,business_hours,category,event_form,primary_language,has_japanese_support,has_chinese_support,has_english_support,is_paid,start_date,source_url,official_url"
+      "name_ja,name_zh,name_en,description_ja,location_name,location_address,location_url,organizer,organizer_url,performer,price_info,business_hours,category,event_form,primary_language,has_japanese_support,has_chinese_support,has_english_support,is_paid,start_date,source_url,official_url,annotation_status"
     )
     .eq("id", eventId)
     .single();
@@ -464,9 +464,10 @@ Rules:
 
   // 5. Save annotation to DB
   if (Object.keys(returnedFields).length > 0) {
+    const nextAnnotationStatus = event.annotation_status === "reviewed" ? "reviewed" : "annotated";
     await adminClient
       .from("events")
-      .update({ ...returnedFields, annotation_status: "annotated" })
+      .update({ ...returnedFields, annotation_status: nextAnnotationStatus })
       .eq("id", eventId);
   }
 
