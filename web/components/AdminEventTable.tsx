@@ -1455,9 +1455,9 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
               <button
                 onClick={handleBulkAddCategory}
                 disabled={bulkAddingCategory}
-                className="text-xs h-7 px-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 transition font-medium whitespace-nowrap"
+                className="text-xs h-7 px-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 transition font-medium whitespace-nowrap min-w-[5rem]"
               >
-                {bulkAddingCategory ? "…" : `套用到 ${selected.size} 筆`}
+                {bulkAddingCategory ? "套用中…" : `套用到 ${selected.size} 筆`}
               </button>
             )}
             <span className="text-xs text-blue-600 font-medium ml-2">作品標注：</span>
