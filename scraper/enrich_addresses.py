@@ -18,6 +18,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from supabase import create_client
 
+from annotator import _to_trad
+
 load_dotenv()
 
 
@@ -172,7 +174,7 @@ def main():
                 "location_address": addr_ja,
             }
             if result.get("location_address_zh"):
-                patch["location_address_zh"] = result["location_address_zh"]
+                patch["location_address_zh"] = _to_trad(result["location_address_zh"])
             if result.get("location_address_en"):
                 patch["location_address_en"] = result["location_address_en"]
             if normalized_venue != venue:
