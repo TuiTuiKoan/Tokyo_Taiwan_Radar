@@ -238,11 +238,13 @@ class EplusScraper(BaseScraper):
                 )
                 ev.location_address = info["city"]
 
+            extra_lines = []
             if info.get("performer"):
-                ev.performer = info["performer"]
-
+                extra_lines.append("出演: " + info["performer"])
             if info.get("program"):
-                ev.raw_description = ev.raw_description.rstrip() + "\n\n曲目・演目: " + info["program"]
+                extra_lines.append("曲目・演目: " + info["program"])
+            if extra_lines:
+                ev.raw_description = ev.raw_description.rstrip() + "\n\n" + "\n".join(extra_lines)
 
         logger.info("eplus: %d events scraped (Japan-wide)", len(events))
         return events
