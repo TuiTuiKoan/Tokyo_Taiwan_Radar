@@ -113,26 +113,41 @@ def _parse_card(link_el) -> Optional[dict]:
     }
 
 
-def _fetch_city_from_detail(url: str) -> str | None:
-    """GET an eplus detail page and return the city name from its H1 subtitle.
+def _fetch_detail_info(url: str) -> dict:
+    """GET an eplus detail page and return enriched fields.
 
-    Detail page H1 format: "…のチケット情報 (福岡市・2026/8/1(土))"
-    The city/ward name appears before the '・' separator, inside half-width parens.
-    Returns None when the page is unreachable or the pattern is absent.
+    Returns a dict with keys (all optional):
+      city     — city/ward name from H1, e.g. "福岡市"
+      performer — 出演 dt/dd text, e.g. "指揮:準･メルクル 管弦楽:国家青年交響楽団"
+      program   — 曲目・演目 dt/dd text
+
+    Returns empty dict when the page is unreachable.
     """
+    result: dict = {}
     try:
         r = requests.get(url, timeout=10, headers={"User-Agent": _DETAIL_UA})
         if r.status_code != 200:
-            return None
+            return result
         soup = BeautifulSoup(r.text, "html.parser")
+
+        # City from H1: "…のチケット情報 (福岡市・YYYY/M/D(曜))"
         h1 = soup.find("h1")
         if h1:
             m = _CITY_FROM_DETAIL_RE.search(h1.get_text())
             if m:
-                return m.group(1)
+                result["city"] = m.group(1)
+
+        # Performer / program from dt/dd pairs
+        _WANTED_LABELS = {"出演": "performer", "曲目・演目": "program"}
+        for dt in soup.find_all("dt"):
+            label = dt.get_text(strip=True)
+            if label in _WANTED_LABELS:
+                dd = dt.find_next_sibling("dd")
+                if dd:
+                    result[_WANTED_LABELS[label]] = dd.get_text(strip=True)
     except Exception:
         pass
-    return None
+    return result
 
 
 class EplusScraper(BaseScraper):
@@ -208,17 +223,26 @@ class EplusScraper(BaseScraper):
 
             browser.close()
 
-        # Upgrade prefecture-only address to city level by fetching each detail page.
-        # eplus search cards only expose 都道府県; the detail page H1 contains the 市/区.
+        # Fetch detail page for each event to enrich: city, performer, program.
+        # eplus search cards only expose 都道府県; detail page has 市/区 and dt/dd data.
         for ev in events:
-            if ev.location_address and _PREF_ONLY_RE.fullmatch(ev.location_address):
-                city = _fetch_city_from_detail(ev.source_url)
-                if city:
-                    logger.debug(
-                        "eplus: address upgrade %r → %r (%s)",
-                        ev.location_address, city, ev.source_id,
-                    )
-                    ev.location_address = city
+            needs_city = ev.location_address and _PREF_ONLY_RE.fullmatch(ev.location_address)
+            info = _fetch_detail_info(ev.source_url)
+            if not info:
+                continue
+
+            if needs_city and info.get("city"):
+                logger.debug(
+                    "eplus: address upgrade %r → %r (%s)",
+                    ev.location_address, info["city"], ev.source_id,
+                )
+                ev.location_address = info["city"]
+
+            if info.get("performer"):
+                ev.performer = info["performer"]
+
+            if info.get("program"):
+                ev.raw_description = ev.raw_description.rstrip() + "\n\n曲目・演目: " + info["program"]
 
         logger.info("eplus: %d events scraped (Japan-wide)", len(events))
         return events
