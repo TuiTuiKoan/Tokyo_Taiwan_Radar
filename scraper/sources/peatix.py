@@ -627,6 +627,7 @@ class PeatixScraper(BaseScraper):
             raw_description=raw_desc_with_date,
             start_date=start_date,
             end_date=end_date,
+            organizer=organizer_name or None,
             location_name=location_name,
             location_address=location_address,
             is_paid=is_paid,
