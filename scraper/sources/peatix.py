@@ -477,15 +477,19 @@ class PeatixScraper(BaseScraper):
                 _txt = (_el.inner_text() or "").strip()
                 # Collapse whitespace/newlines so multi-line elements show correctly
                 _txt = re.sub(r"\s+", " ", _txt)
-                if _txt:
+                # Guard: a real organizer name is short; skip if the element
+                # returns a large page-level text blob (e.g. >100 chars).
+                if _txt and len(_txt) <= 100:
                     organizer_name = _txt
                     break
         if not organizer_name:
-            organizer_name = (
+            _fallback = (
                 _safe_text(page, ".group-name")
                 or _safe_text(page, "[class*='organizer']")
                 or ""
             )
+            # Apply same length guard to fallback path
+            organizer_name = _fallback if len(_fallback) <= 100 else ""
         if organizer_name and any(pat in organizer_name for pat in BLOCKED_ORGANIZER_PATTERNS):
             logger.info("Peatix: blocked organizer '%s', skipping: %s", organizer_name[:40], name_ja[:60])
             return None
