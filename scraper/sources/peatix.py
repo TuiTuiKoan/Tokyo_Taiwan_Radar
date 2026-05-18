@@ -20,6 +20,23 @@ logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://peatix.com/search"
 
+# Peatix sometimes serves locale-prefixed URLs (e.g. /us/event/, /ja/event/) to
+# headless browsers. These redirect to the homepage instead of the event page.
+# Normalise to the canonical /event/{id} form before storing.
+_PEATIX_LOCALE_RE = re.compile(
+    r"(https://peatix\.com)/[a-z]{2,5}(?:-[A-Z]{2})?(/event/)"
+)
+
+
+def _normalize_peatix_url(url: str) -> str:
+    """Strip locale prefix from Peatix URLs.
+
+    https://peatix.com/us/event/123  →  https://peatix.com/event/123
+    https://peatix.com/ja/event/123  →  https://peatix.com/event/123
+    https://peatix.com/event/123     →  unchanged
+    """
+    return _PEATIX_LOCALE_RE.sub(r"\1\2", url)
+
 # Keywords that suggest a Taiwan-related event in Tokyo
 TAIWAN_KEYWORDS = [
     "台湾",
@@ -279,7 +296,7 @@ class PeatixScraper(BaseScraper):
         for a in anchors:
             href = a.get_attribute("href") or ""
             full = href if href.startswith("http") else f"https://peatix.com{href}"
-            full = full.split("?")[0]
+            full = _normalize_peatix_url(full.split("?")[0])
             if full and full not in seen:
                 seen.add(full)
                 links.append(full)
@@ -383,8 +400,8 @@ class PeatixScraper(BaseScraper):
                 if not href or "peatix.com/event/" not in href and not href.startswith("/event/"):
                     continue
                 full = href if href.startswith("http") else f"https://peatix.com{href}"
-                # Strip query params for dedup
-                full = full.split("?")[0]
+                # Strip query params and normalise locale prefix for dedup
+                full = _normalize_peatix_url(full.split("?")[0])
                 if full not in links:
                     page_links.append(full)
 
