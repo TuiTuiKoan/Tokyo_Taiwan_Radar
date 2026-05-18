@@ -856,45 +856,52 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     const catsToAdd = Array.from(bulkAddCatPending);
     let hasError = false;
 
-    await Promise.all(
-      selectedEvents.map(async (e) => {
-        const prevCategory = e.category ?? [];
-        const newCategory = Array.from(new Set([...prevCategory, ...catsToAdd]));
-        if (newCategory.length === prevCategory.length && catsToAdd.every((c) => prevCategory.includes(c))) return;
-        const { error, data: addCatRows } = await supabase.from("events").update({ category: newCategory }).eq("id", e.id).select("id");
-        if (error || !addCatRows || addCatRows.length === 0) { hasError = true; return; }
-        await supabase.from("category_corrections").upsert(
-          {
-            event_id: e.id,
-            raw_title: e.raw_title ?? null,
-            raw_description: e.raw_description ? e.raw_description.slice(0, 2000) : null,
-            ai_category: prevCategory,
-            corrected_category: newCategory,
-          },
-          { onConflict: "event_id" }
-        );
-        await supabase.from("field_corrections").upsert(
-          { event_id: e.id, field_name: "category", corrected_value: JSON.stringify(newCategory) },
-          { onConflict: "event_id,field_name" }
-        );
-      })
-    );
-
-    if (hasError) {
-      alert("部分更新失敗，請重新整理頁面確認結果");
-    } else {
-      setEvents((prev) =>
-        prev.map((e) =>
-          selected.has(e.id)
-            ? { ...e, category: Array.from(new Set([...(e.category ?? []), ...catsToAdd])) }
-            : e
-        )
+    try {
+      await Promise.all(
+        selectedEvents.map(async (e) => {
+          const prevCategory = e.category ?? [];
+          const newCategory = Array.from(new Set([...prevCategory, ...catsToAdd]));
+          if (newCategory.length === prevCategory.length && catsToAdd.every((c) => prevCategory.includes(c))) return;
+          const { error, data: addCatRows } = await supabase.from("events").update({ category: newCategory }).eq("id", e.id).select("id");
+          if (error || !addCatRows || addCatRows.length === 0) { hasError = true; return; }
+          // raw_description may contain null bytes (\u0000) — strip before writing to DB
+          const safeDesc = e.raw_description ? e.raw_description.slice(0, 2000).replace(/\u0000/g, "") : null;
+          await supabase.from("category_corrections").upsert(
+            {
+              event_id: e.id,
+              raw_title: e.raw_title ?? null,
+              raw_description: safeDesc,
+              ai_category: prevCategory,
+              corrected_category: newCategory,
+            },
+            { onConflict: "event_id" }
+          );
+          await supabase.from("field_corrections").upsert(
+            { event_id: e.id, field_name: "category", corrected_value: JSON.stringify(newCategory) },
+            { onConflict: "event_id,field_name" }
+          );
+        })
       );
-      setSelected(new Set());
-      setBulkAddCatPending(new Set());
-      setBulkAddCatOpen(false);
+
+      if (hasError) {
+        alert("部分更新失敗，請重新整理頁面確認結果");
+      } else {
+        setEvents((prev) =>
+          prev.map((e) =>
+            selected.has(e.id)
+              ? { ...e, category: Array.from(new Set([...(e.category ?? []), ...catsToAdd])) }
+              : e
+          )
+        );
+        setSelected(new Set());
+        setBulkAddCatPending(new Set());
+        setBulkAddCatOpen(false);
+      }
+    } catch (err) {
+      alert(`套用分類失敗：${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setBulkAddingCategory(false);
     }
-    setBulkAddingCategory(false);
   }
 
   async function handleToggleForceRescrape(id: string) {
