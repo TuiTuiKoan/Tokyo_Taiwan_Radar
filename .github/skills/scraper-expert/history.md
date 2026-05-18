@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-05-19 — eplus: 詳細ページ fetch による都道府県→市区レベルアドレス補完（commit `0cfd07f`）
+
+**問題：** eplus.jp 検索結果カードには会場名が `（福岡県）` 形式（都道府県レベル）でしか含まれない。`location_address = "福岡県"` がそのまま DB に保存されるが、`enrich_location.py` は `location_address IS NULL OR ''` のみ処理するためスキップされ続けた（event `7cdd06cb` — アクロス福岡シンフォニーホール）。
+
+**根本原因：** `_parse_card()` はカードテキストから `（都道府県）` パターンを抽出する設計。詳細ページ H1 には `(福岡市・2026/8/1(土))` という市区名が含まれるが、カードスクレイプではアクセスされない。
+
+**修正（commit `0cfd07f`）：** Playwright セッション終了後、`_PREF_ONLY_RE = re.compile(r"^[^\s]+[都道府県]$")` にマッチした各イベントに対して `requests.get()` + `BeautifulSoup` で詳細ページ H1 を fetch。`r"\(([^・)]+[市区])\s*・"` パターンで市区名を抽出し `ev.location_address = city` に更新。
+
+**教訓：**
+- eplus.jp（および同様のチケットプラットフォーム）では詳細ページ H1 の `(市名・日付)` パターンから市区名が取得できる。
+- `enrich_location.py` に頼らず、スクレイパー自身でアドレス精緻化を完結させる設計のほうが確実（後段スクリプトは null/空のみ処理するため）。
+- regex に特定 Unicode 文字を使う場合は literal 文字を直接埋め込む（raw string 内の `\u30fb` は Unicode 文字として解釈されない）。
+
+---
+
+## 2026-05-19 — Peatix URL 正規化を URL 収集段階に拡張（7 件 DB 修正、commit `8b901ec`）
+
+**問題：** 2026-05-17 の `_scrape_detail()` 入口修正（`e9c6f80b`）後も、DB に `/us/event/` URL が 7 件蓄積されており `55d766ae`（台湾家庭料理会in亀有）で再発。`peatix.com/us/event/4994536` → 302 → トップへリダイレクト。
+
+**根本原因：** `_scrape_group_events` と `_search_events` でも locale prefix 付き URL が取得されていた。`_scrape_detail()` 入口の修正は detail scrape 時のみ有効で、URL 収集リストへの混入を防げなかった。正規 URL でスクレイプ済みの重複レコードが存在する場合、`/us/event/` 版は `source_id`（md5 ハッシュ）が異なる別レコードとして重複していた。
+
+**修正（commit `8b901ec`）：** `_normalize_peatix_url()` をモジュールレベルに追加。`_scrape_group_events` と `_search_events` の URL 収集ループで適用。DB 7 件：5 件は `merged_into_event_id` で merge soft-delete、1 件は `source_url`/`source_id` 正規化、1 件（inactive）skip。
+
+**教訓：** URL 正規化は収集段階（`_search_events`・`_scrape_group_events`）で行う。detail 入口修正は後段のため収集済みリストの汚染を防げない。DB 修正は「重複チェック → DUP: merge soft-delete / NO-DUP: update in place」の 2 分岐で設計する。
+
+---
+
 ## 2026-05-17 — `ftip`: Peatix チャンネル URL がイベント URL より先に HTML に現れ、チャンネルページが source_url に設定された（event `eeb5b12e`）
 
 **問題:** `source_url` / `official_url` が `https://nerimaokinawaeigasai.peatix.com`（主催者チャンネルページ）に設定され、個別イベントページ `https://peatix.com/event/4572285/view` が使われなかった。

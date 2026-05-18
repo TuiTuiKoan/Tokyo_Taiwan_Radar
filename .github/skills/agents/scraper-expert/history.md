@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-05-19 — eplus: 詳細ページ fetch による都道府県→市区レベルアドレス補完（commit `0cfd07f`）
+
+**問題：** eplus.jp 検索結果カードは会場名を `（福岡県）` 形式（都道府県レベル）でしか提供しない。`location_address = "福岡県"` が DB に保存されるが `enrich_location.py` が null/空のみ対象のためスキップ（event `7cdd06cb` — アクロス福岡シンフォニーホール）。
+
+**根本原因：** `_parse_card()` はカードテキストの `（都道府県）` パターンのみ抽出。詳細ページ H1 の `(福岡市・2026/8/1(土))` 市区名はカードスクレイプでは到達できなかった。
+
+**修正（commit `0cfd07f`）：** Playwright セッション終了後、`_PREF_ONLY_RE`（純粋な都道府県名）にマッチする各イベントに対して `requests.get()` + `BeautifulSoup` で詳細ページ H1 を fetch。`r"\(([^・)]+[市区])\s*・"` で市区名抽出 → `ev.location_address = city`。
+
+**教訓：** プラットフォームの検索カードが都道府県レベルしか持たない場合は詳細ページ H1 の `(市名・日付)` パターンを fetch して補完する。`enrich_location.py` は null/空のみ対象のため、都道府県 placeholder には効かない。
+
+---
+
+## 2026-05-19 — Peatix URL 正規化を URL 収集段階に拡張（7 件 DB 修正、commit `8b901ec`）
+
+**問題：** 2026-05-17 の `_scrape_detail()` 入口修正は 1 件（`e9c6f80b`）のみカバーしていたが、DB に `/us/event/` URL が 7 件蓄積されており `55d766ae`（台湾家庭料理会in亀有）で再発。`peatix.com/us/event/4994536` → 302 → トップへリダイレクト。
+
+**根本原因：** `_scrape_group_events` と `_search_events` でも locale prefix 付き URL が取得されていた。`_scrape_detail()` 入口の修正は detail scrape 時のみ有効で、URL 収集リストへの混入を防げなかった。さらに正規 URL (`/event/`) でスクレイプ済みの重複レコードが別途存在する場合、`/us/event/` 版は `source_id` が異なる別レコードとして重複していた。
+
+**修正（commit `8b901ec`）：** `_normalize_peatix_url()` をモジュールレベルに追加。`_scrape_group_events` と `_search_events` の URL 収集ループで適用。DB 7 件：5 件は `merged_into_event_id` で merge soft-delete、1 件は `source_url`/`source_id` 正規化、1 件（inactive）skip。
+
+**教訓：** URL 正規化は収集段階（`_search_events`・`_scrape_group_events`）で行う。detail 入口の修正は後段であり収集済みリストの汚染を防げない。DB 修正スクリプトは「重複チェック → DUP: merge / NO-DUP: update」の 2 分岐で設計。
+
+---
+
 ## 2026-05-17 — Peatix: ロケール付き URL（/us/event/）が source_url に保存 → broken link（event e9c6f80b）
 
 **根因：** Peatix group ページで取得した `<a href>` が `/us/event/{id}` 形式（ブラウザロケール起因のリダイレクト先）。`source_url=url` がそのまま保存されるため、ロケールプレフィックス付き URL が DB に入り 404 になる。

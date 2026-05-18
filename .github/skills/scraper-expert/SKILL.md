@@ -228,6 +228,42 @@ HTML 内に両方が現れる場合、チャンネルページが先に出現す
 
 (Incidents: ftip `ee870f7` CDATA extraction, `34368e3` channel-vs-event priority, 2026-05-17.)
 
+## Peatix — ロケールプレフィックス URL の正規化（URL 収集段階で実施）
+
+**Rule**: Peatix は headless ブラウザのロケール設定に応じて `https://peatix.com/us/event/{id}` や `/ja/event/{id}` 形式の URL を返すことがある。これらは実際のイベントページ（`https://peatix.com/event/{id}`）へのリダイレクトが失われると `302 → トップ` になり broken link となる。URL は **収集段階**（`_search_events`・`_scrape_group_events`）で正規化すること。
+
+```python
+import re
+
+_PEATIX_LOCALE_RE = re.compile(
+    r"(https://peatix\.com)/[a-z]{2,5}(?:-[A-Z]{2})?(/event/)"
+)
+
+def _normalize_peatix_url(url: str) -> str:
+    """Strip locale prefix from Peatix URLs.
+
+    https://peatix.com/us/event/123  →  https://peatix.com/event/123
+    https://peatix.com/ja/event/123  →  https://peatix.com/event/123
+    https://peatix.com/event/123     →  unchanged
+    """
+    return _PEATIX_LOCALE_RE.sub(r"\1\2", url)
+```
+
+収集ループでの適用:
+```python
+# _scrape_group_events / _search_events 両方に適用
+full = _normalize_peatix_url(full.split("?")[0])
+```
+
+**既存 DB に locale 付き URL が混入している場合の修正手順**:
+1. `sb.table('events').select(...).like('source_url','%/us/event/%')` で件数確認
+2. 正規化後 `source_id = hashlib.md5(new_url).hexdigest()[:16]` を計算
+3. その `source_id` で既存レコードが存在するか確認
+   - DUP あり → `/us/` 版を `merged_into_event_id` 設定して soft-delete
+   - DUP なし → `source_url`・`source_id` を直接 update
+
+(Incidents: peatix `e9c6f80b` 2026-05-17, `55d766ae` 2026-05-19, commit `8b901ec`.)
+
 ## aggregator scraper の `location_name` フォールバックに組織名を使わない
 
 **Rule**: 会場抽出に失敗した場合、組織名定数（例: `LOCATION_NAME = "台湾原住民族との交流会"`）を `location_name` のフォールバックに使わないこと。組織名が会場として DB に入り、UI で「会場：台湾原住民族との交流会」と誤表示される。
@@ -1184,6 +1220,52 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
 - **JSON API パターン（別方式）**: `/collections/event/products.json?limit=20&page={n}` で全展示品を列挙し空ページまでページネーション（`transit_store.py` 参照）。
 
 (Incident: placebymethod.com, 2026-05-11 — `^/pages/` regex で 0 件 → `placebymethod\.com/pages/` に修正)
+
+## eplus.jp — 詳細ページ fetch によるアドレス精緻化（都道府県 → 市区）
+
+eplus.jp の検索カードは会場名を `（都道府県）` 形式（e.g. `（福岡県）`）でしか表示しない。詳細ページの H1 には `(市名・YYYY/M/D(曜))` 形式で市区名が含まれるため、Playwright セッション終了後に `requests` + `BeautifulSoup` で詳細ページを fetch して市区レベルに更新する。
+
+```python
+import requests
+from bs4 import BeautifulSoup
+import re
+
+# H1 format: "…のチケット情報 (福岡市・2026/8/1(土))"
+# ⚠ literal ・ (U+30FB) を使うこと。raw string 内の \u30fb は Unicode 文字と
+#   して解釈されない（[^\u30fb] は [\, u, 3, 0, f, b] と等価 — バグになる）。
+_CITY_FROM_DETAIL_RE = re.compile(r"\(([^・)]+[市区])\s*・")
+_PREF_ONLY_RE = re.compile(r"^[^\s]+[都道府県]$")  # e.g. "福岡県"（東京都も含む）
+
+def _fetch_city_from_detail(url: str) -> str | None:
+    """GET eplus 詳細ページの H1 から市区名を抽出して返す。取得不能なら None。"""
+    try:
+        r = requests.get(url, timeout=10, headers={"User-Agent": _DETAIL_UA})
+        if r.status_code != 200:
+            return None
+        soup = BeautifulSoup(r.text, "html.parser")
+        h1 = soup.find("h1")
+        if h1:
+            m = _CITY_FROM_DETAIL_RE.search(h1.get_text())
+            if m:
+                return m.group(1)
+    except Exception:
+        pass
+    return None
+
+# scrape() 末尾（browser.close() 後）で実行:
+for ev in events:
+    if ev.location_address and _PREF_ONLY_RE.fullmatch(ev.location_address):
+        city = _fetch_city_from_detail(ev.source_url)
+        if city:
+            ev.location_address = city
+```
+
+**注意点：**
+- `東京都` は `_PREF_ONLY_RE` にマッチするが `_CITY_FROM_DETAIL_RE` の `[市区]` にはマッチしない → `東京都` のまま保持。正常動作。
+- `enrich_location.py` は `location_address IS NULL OR ''` のみ処理するため、都道府県レベル placeholder（非 null）には効かない。スクレイパー内で精緻化まで完結させること。
+- 同様の構造（検索カードは都道府県、詳細ページ H1 は市区）のプラットフォームに対して同じパターンが再利用できる。
+
+(Incident: アクロス福岡シンフォニーホール `7cdd06cb` — `福岡県` → `福岡市` — commit `0cfd07f`, 2026-05-19.)
 
 ## transit_store-specific
 - **Shopify JSON API**: `/collections/event/products.json?limit=20&page={n}` — paginate until empty page.

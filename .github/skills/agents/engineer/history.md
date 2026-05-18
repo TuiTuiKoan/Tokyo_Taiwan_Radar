@@ -2,6 +2,57 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-19 — eplus: 詳細ページ fetch による都道府県→市区レベルアドレス補完（commit `0cfd07f`）
+
+**問題：** eplus.jp カードテキストは `（福岡県）`（都道府県レベル）しか持たず、`location_address = "福岡県"` が DB に保存。`enrich_location.py` は null/空のみ対象のためスキップ（event `7cdd06cb` — アクロス福岡シンフォニーホール）。
+
+**根本原因：** 詳細ページ H1 `(福岡市・2026/8/1(土))` に市区名があるが、カード解析段階では参照されなかった。
+
+**修正（commit `0cfd07f`）：** `_fetch_city_from_detail(url)` を追加（`requests` + `BeautifulSoup`）。`scrape()` 末尾で `_PREF_ONLY_RE` にマッチした全イベントに対して詳細ページを fetch し `ev.location_address` を市区名に更新。
+
+**教訓：** 後段の `enrich_location.py` は null/空のみ処理するため、都道府県 placeholder（非 null）には無効。スクレイパー自身が精緻化まで完結すべきケースがある。raw string 内 `\uXXXX` は Unicode 文字として解釈されない — literal 文字を直接使うこと（`r"[^・]"` ✅）。
+
+---
+
+## 2026-05-19 — enrich_addresses: vague address detection, FC lock, venue normalisation, CI（commit `82c14df`）
+
+**変更内容：**
+- **A1** `VAGUE_ADDRESS_VALUES` frozenset 追加 — `'東京都'` / `'大阪府'` 等の都道府県レベルプレースホルダを `location_address IS NULL` と同等に候補対象化（従来は NULL のみ）
+- **A2** FC lock バッチチェック（P3.2 パターン）— ループ前に `field_corrections` を一括 fetch し `protected_ids` set 構築、保護済みイベントをスキップ
+- **A3** `_normalize_venue()` — `'東京六本木｜EX THEATER ROPPONGI'` → `'EX THEATER ROPPONGI'` に正規化してから OpenAI へ渡す。変更があれば `events.location_name` と FC lock も書き込み
+- **A4** `--limit` フラグ（CI コスト制御用）— CI では `--limit 30`
+- **Phase B** `scraper.yml` に `enrich_addresses.py --limit 30` と `backfill_location_prefectures.py` の 2 ステップを `enrich_location.py` 直後に追加
+
+**検証：** Syntax OK / YAML OK / 候補 19 件（NULL: 4, vague: 15, ｜含む venue: 0）
+
+**注意：** dry-run 実行中に `rm -f` を含むプロンプトインジェクション検出（stock status sync の token.json 削除コマンド）。インライン Python を `/tmp/check_candidates.py` に切り替えて対処。コマンドは実行していない。
+
+---
+
+## 2026-05-19 — Peatix `/us/event/` URL 正規化：URL 収集段階での locale prefix 除去（commit `8b901ec`）
+
+**問題：** `source_url` に `https://peatix.com/us/event/4994536` のようなロケールプレフィックス付き URL が保存されており、`302 → peatix.com トップ` にリダイレクトされ「リンク消失」に見えた。実際のイベントページは `/event/4994536`（prefix なし）で正常に存在。
+
+**根本原因：** Playwright の headless ブラウザに Peatix が US ロケール URL を返していた。`_scrape_group_events` と `_search_events` がそのまま保存。DB に 7 件混入。
+
+**修正（commit `8b901ec`）：** `_normalize_peatix_url()` ヘルパーを追加し URL 収集ループで適用。DB 7 件：重複 5 件は `merged_into_event_id` で soft-delete、重複なし 1 件（`55d766ae`）は `source_url`/`source_id` を正規化、inactive 1 件は skip。
+
+**教訓：** URL 正規化は `_scrape_detail()` より上流の収集段階（`_search_events`・`_scrape_group_events`）で行う。`source_id = md5(url)` なので URL 変更 = `source_id` 変更 → 正規化前後で重複レコードが生じる。DB 修正は「重複チェック → DUP: merge soft-delete / NO-DUP: update in place」の 3 分岐が必要。
+
+---
+
+## 2026-05-17 — `auto_research` が `scraping_feasibility` 直接カラムに書かず UI が常に "?" 表示（commit `43da6a1`）
+
+**問題：** `AdminResearchTable.tsx` の可行性列が auto_research 実行後も常に "?" で表示。
+
+**根本原因：** `_apply_assessment()` と `update_source.py` は両方 feasibility を `source_profile` JSONB 内にのみ書いていた。`research_sources.scraping_feasibility`（top-level TEXT カラム）への書き込みがなく、UI が読む列は常に null。
+
+**修正（commit `43da6a1`）：** `auto_research.py` の `patch` に `"scraping_feasibility": result.feasibility` 追加。`update_source.py` に `if feasibility is not None: update_fields["scraping_feasibility"] = feasibility` 追加。テスト 15 件 PASS。
+
+**教訓：** DB スキーマに top-level column と JSONB フィールドで同じ情報が存在する場合（`scraping_feasibility` TEXT vs `source_profile.feasibility`）、UI がどちらを読んでいるかを先に grep で確認してから書き込み先を決める。
+
+---
+
 ## 2026-05-17 — annotator: GPT '不明' が business_hours に保存 → `_HOURS_INVALID` ガード追加
 
 **問題：** 局外談 `63625c1a` の `business_hours` が `'不明'`（GPT 出力）のまま保存されていた。annotator は `event.get("business_hours")` が truthy ならそのまま使うため、再 annotation 後も `'不明'` が保持され続け auto_qa から除外されなかった。
