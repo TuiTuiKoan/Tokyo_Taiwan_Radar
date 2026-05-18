@@ -24,6 +24,12 @@ load_dotenv()
 SKIP_SOURCES = {"gguide_tv"}
 SKIP_VENUE_KEYWORDS = ["オンライン", "電視頻道", "online", "Online"]
 
+VAGUE_ADDRESS_VALUES: frozenset[str] = frozenset({
+    '東京', '大阪', '京都', '名古屋', '福岡', '神奈川', '埼玉', '千葉',
+    '東京都', '大阪府', '京都府', '神奈川県', '愛知県', '兵庫県',
+    '東京都内', '大阪府内', '全国',
+})
+
 SYSTEM_PROMPT = """\
 You are a venue address lookup assistant.
 Given a Japanese venue name, search the web and return the verified physical address in JSON.
@@ -46,6 +52,16 @@ Return JSON only (no markdown code fences):
   "confidence": "high" | "medium" | "low"
 }
 """
+
+
+def _normalize_venue(name: str) -> str:
+    """Strip city/region prefix from prtimes-style venue names.
+
+    '東京六本木｜EX THEATER ROPPONGI' → 'EX THEATER ROPPONGI'
+    """
+    if '｜' in name:
+        return name.split('｜', 1)[1].strip()
+    return name
 
 
 def lookup_address(client: OpenAI, venue_name: str) -> dict | None:
@@ -81,6 +97,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--source", help="Limit to a specific source_name")
+    parser.add_argument('--limit', type=int, default=0,
+                        help='Max events to process (0=unlimited)')
     args = parser.parse_args()
 
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
@@ -88,9 +106,8 @@ def main():
 
     query = (
         sb.table("events")
-        .select("id, name_ja, location_name, source_name")
+        .select("id, name_ja, location_name, location_address, source_name")
         .eq("is_active", True)
-        .is_("location_address", None)
         .not_.is_("location_name", None)
     )
     if args.source:
@@ -99,20 +116,41 @@ def main():
     r = query.execute()
     candidates = [
         e for e in r.data
-        if e["source_name"] not in SKIP_SOURCES
-        and not any(kw in (e["location_name"] or "") for kw in SKIP_VENUE_KEYWORDS)
+        if (e.get('location_address') is None
+            or e.get('location_address') in VAGUE_ADDRESS_VALUES)
+        and e['source_name'] not in SKIP_SOURCES
+        and not any(kw in (e['location_name'] or '') for kw in SKIP_VENUE_KEYWORDS)
     ]
 
+    if args.limit > 0:
+        candidates = candidates[:args.limit]
+
     print(f"Found {len(candidates)} events to enrich (dry_run={args.dry_run})")
+
+    # ── ループ前：FC 保護済みイベント ID を一括取得 ──────────
+    candidate_ids = [e['id'] for e in candidates]
+    protected_ids: set[str] = set()
+    if candidate_ids:
+        fc_res = sb.table('field_corrections').select('event_id') \
+            .in_('event_id', candidate_ids) \
+            .eq('field_name', 'location_address').execute().data or []
+        protected_ids = {r['event_id'] for r in fc_res}
 
     updated = 0
     skipped = 0
 
     for e in candidates:
         venue = e["location_name"]
+        normalized_venue = _normalize_venue(venue)
         print(f"\n[{e['id'][:8]}] {e['source_name']} | venue={venue!r}")
 
-        result = lookup_address(ai, venue)
+        # FC 保護チェック：保護済みならイベント全体をスキップ
+        if e['id'] in protected_ids:
+            print(f"  → FC lock exists, skipping")
+            skipped += 1
+            continue
+
+        result = lookup_address(ai, normalized_venue)
         if not result:
             print("  → No result from OpenAI, skipping")
             skipped += 1
@@ -133,14 +171,26 @@ def main():
             print(f"     en: {result['location_address_en']}")
 
         if not args.dry_run:
-            patch = {
-                "location_address": addr_ja,
-            }
+            patch = {"location_address": addr_ja}
             if result.get("location_address_zh"):
                 patch["location_address_zh"] = result["location_address_zh"]
             if result.get("location_address_en"):
                 patch["location_address_en"] = result["location_address_en"]
+            if normalized_venue != venue:
+                patch["location_name"] = normalized_venue
             sb.table("events").update(patch).eq("id", e["id"]).execute()
+            # FC lock（AI 生成住址として記録）
+            sb.table('field_corrections').upsert({
+                'event_id': e['id'],
+                'field_name': 'location_address',
+                'corrected_value': json.dumps(addr_ja, ensure_ascii=False),
+            }, on_conflict='event_id,field_name').execute()
+            if normalized_venue != venue:
+                sb.table('field_corrections').upsert({
+                    'event_id': e['id'],
+                    'field_name': 'location_name',
+                    'corrected_value': json.dumps(normalized_venue, ensure_ascii=False),
+                }, on_conflict='event_id,field_name').execute()
             updated += 1
 
         time.sleep(0.3)  # rate limit
