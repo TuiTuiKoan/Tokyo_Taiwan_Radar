@@ -8,7 +8,7 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `070_research_reports_update_policy.sql` (next = `071`)
+- Number migrations sequentially: `001`, `002`, … Latest is `073_event_views_country.sql` (next = `074`)
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped; `029_aeo_visits.sql` + `029b_realtime_events.sql`; `038_performer.sql` + `038b_field_corrections.sql`
 
@@ -105,7 +105,7 @@ Unique constraint: `(source_name, source_id)`
 - `research_reports` — Researcher agent output per source
 - `research_sources` — curated list of candidate sources with `status` (`pending` / `viable` / `not-viable` / `implemented`); `scraper_source_name` (matches `_scraper_key()` in main.py); `scrape_times_per_day` int (1–8, default 1); `scrape_hours_jst` int[] (default `{9}`); `display_type` text (one of the 14 source types — see `sources.type`; admin-editable via PATCH `/api/admin/research-sources/:id`; backfilled in migration 068 from the legacy hardcoded `SOURCE_TYPE_MAP` in `web/components/AdminSourcesTable.tsx`)
 - `backup_archives` — snapshot metadata
-- `event_views` — click analytics per event+locale (view: `event_view_counts`)
+- `event_views` — click analytics per event+locale+country (view: `event_view_counts`)
 - `admin_users_view` — admin-only view of `auth.users` joined with roles
 - `creators` — Taiwan creators/voices in Japan: name, platform, handle, profile_url, category, base_location, nationality, is_active, approx_followers, last_post_at, notes
 - `creator_events` — `(creator_id uuid, event_id uuid, relationship text)` links creators to events
@@ -135,7 +135,7 @@ Unique constraint: `(source_name, source_id)`
 
 ## Migration checklist
 7
-1. Number the file `NNN_descriptive_name.sql` (next = `061`)
+1. Number the file `NNN_descriptive_name.sql` (next = `074`)
 2. Use `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE … ADD COLUMN IF NOT EXISTS`
 3. Add RLS with `ALTER TABLE … ENABLE ROW LEVEL SECURITY` + policies
 4. Test in Supabase SQL Editor before committing

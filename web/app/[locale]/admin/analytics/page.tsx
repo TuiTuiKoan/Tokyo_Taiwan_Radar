@@ -24,6 +24,68 @@ interface RecentViewRow {
   events: EventNameRow | EventNameRow[] | null;
 }
 
+interface TopViewRow {
+  event_id: string;
+  country: string | null;
+}
+
+type RegionKey =
+  | "japan"
+  | "taiwan"
+  | "east_asia"
+  | "southeast_asia"
+  | "north_america"
+  | "europe"
+  | "oceania"
+  | "other"
+  | "unknown";
+
+const COUNTRY_TO_REGION: Record<string, RegionKey> = {
+  JP: "japan",
+  TW: "taiwan",
+  HK: "east_asia",
+  KR: "east_asia",
+  SG: "southeast_asia",
+  TH: "southeast_asia",
+  MY: "southeast_asia",
+  ID: "southeast_asia",
+  PH: "southeast_asia",
+  VN: "southeast_asia",
+  US: "north_america",
+  CA: "north_america",
+  GB: "europe",
+  DE: "europe",
+  FR: "europe",
+  ES: "europe",
+  IT: "europe",
+  NL: "europe",
+  AU: "oceania",
+  NZ: "oceania",
+};
+
+function normalizeCountryCode(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const normalized = raw.trim().toUpperCase().slice(0, 2);
+  return /^[A-Z]{2}$/.test(normalized) ? normalized : null;
+}
+
+function getRegionKey(countryCode: string | null): RegionKey {
+  if (!countryCode) return "unknown";
+  return COUNTRY_TO_REGION[countryCode] ?? "other";
+}
+
+function getRegionLabel(region: RegionKey, t: (key: string) => string): string {
+  if (region === "japan") return t("analyticsRegionJapan");
+  if (region === "taiwan") return t("analyticsRegionTaiwan");
+  if (region === "east_asia") return t("analyticsRegionEastAsia");
+  if (region === "southeast_asia") return t("analyticsRegionSoutheastAsia");
+  if (region === "north_america") return t("analyticsRegionNorthAmerica");
+  if (region === "europe") return t("analyticsRegionEurope");
+  if (region === "oceania") return t("analyticsRegionOceania");
+  if (region === "other") return t("analyticsRegionOther");
+  return t("analyticsUnknownCountry");
+}
+
 function fmtNum(n: number) {
   return n.toLocaleString("en-US");
 }
@@ -108,7 +170,7 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
         .select("viewed_at, locale, event_id, events(id, name_ja, name_zh, name_en)")
         .order("viewed_at", { ascending: false })
         .limit(20),
-      supabase.from("event_views").select("event_id").gte("viewed_at", c30d),
+      supabase.from("event_views").select("event_id, country").gte("viewed_at", c30d),
       supabase.from("events").select("category").eq("is_active", true).not("category", "is", null),
       supabase
         .from("events")
@@ -127,9 +189,41 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
   };
 
   const viewCountMap: Record<string, number> = {};
-  for (const row of topViewsRawRes.data ?? []) {
+  const countryCountMap: Record<string, number> = {};
+  const regionCountMap: Record<RegionKey, number> = {
+    japan: 0,
+    taiwan: 0,
+    east_asia: 0,
+    southeast_asia: 0,
+    north_america: 0,
+    europe: 0,
+    oceania: 0,
+    other: 0,
+    unknown: 0,
+  };
+
+  const topViewRows = (topViewsRawRes.data ?? []) as TopViewRow[];
+  for (const row of topViewRows) {
     viewCountMap[row.event_id] = (viewCountMap[row.event_id] ?? 0) + 1;
+
+    const countryCode = normalizeCountryCode(row.country);
+    const countryBucket = countryCode ?? "__unknown__";
+    countryCountMap[countryBucket] = (countryCountMap[countryBucket] ?? 0) + 1;
+
+    const region = getRegionKey(countryCode);
+    regionCountMap[region] += 1;
   }
+
+  const topCountries = Object.entries(countryCountMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  const regionEntries = (Object.entries(regionCountMap) as Array<[RegionKey, number]>)
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  const maxCountryViews = topCountries[0]?.[1] ?? 1;
+  const maxRegionViews = regionEntries[0]?.[1] ?? 1;
 
   const recentRows = ((recentRawRes.data ?? []) as RecentViewRow[]).map((row) => {
     const event = Array.isArray(row.events) ? (row.events[0] ?? null) : row.events;
@@ -282,6 +376,84 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
               </div>
             )}
           </>
+        )}
+      </div>
+
+      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
+        <h2 className="text-base font-semibold text-fg mb-3">{t("analyticsGeoTitle")}</h2>
+        {topCountries.length === 0 ? (
+          <p className="text-sm text-fg-subtle">{t("analyticsGeoEmpty")}</p>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsTopCountriesTitle")}</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="text-xs text-fg-subtle border-b border-line">
+                      <th className="text-left py-2 pr-4 font-medium">{t("analyticsCountry")}</th>
+                      <th className="text-right py-2 pl-4 font-medium">{t("analyticsViews30dUnit")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topCountries.map(([countryCode, count]) => {
+                      const pct = Math.round((count / maxCountryViews) * 100);
+                      const label = countryCode === "__unknown__" ? t("analyticsUnknownCountry") : countryCode;
+
+                      return (
+                        <tr key={countryCode} className="border-b border-gray-50 hover:bg-elevated">
+                          <td className="py-2 pr-4">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-mono text-xs text-fg-muted">
+                                {label}
+                              </span>
+                              <div className="h-1.5 flex-1 rounded-full bg-muted max-w-32">
+                                <div className="h-1.5 rounded-full bg-green-500" style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-2 pl-4 text-right tabular-nums text-fg-muted">{fmtNum(count)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsRegionDistributionTitle")}</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="text-xs text-fg-subtle border-b border-line">
+                      <th className="text-left py-2 pr-4 font-medium">{t("analyticsRegion")}</th>
+                      <th className="text-right py-2 pl-4 font-medium">{t("analyticsViews30dUnit")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {regionEntries.map(([region, count]) => {
+                      const pct = Math.round((count / maxRegionViews) * 100);
+
+                      return (
+                        <tr key={region} className="border-b border-gray-50 hover:bg-elevated">
+                          <td className="py-2 pr-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-fg-muted truncate">{getRegionLabel(region, t)}</span>
+                              <div className="h-1.5 flex-1 rounded-full bg-muted max-w-32">
+                                <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-2 pl-4 text-right tabular-nums text-fg-muted">{fmtNum(count)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
