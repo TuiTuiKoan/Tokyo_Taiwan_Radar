@@ -319,9 +319,22 @@ def _build_interactive(sb, target: int) -> list[dict]:
     tier1_cases = _fetch_tier1_cases(sb)
     tier1_ids = {c["event_id"] for c in tier1_cases}
 
-    # Limit Tier 1 to target//2 to leave room for Tier 2
-    tier1_budget = max(target // 2, len(tier1_cases))
-    tier1_cases = tier1_cases[:tier1_budget]
+    # Apply per-source diversity cap (max 8/source) then limit to target
+    SOURCE_CAP = 8
+    source_counts: dict[str, int] = {}
+    diverse_t1: list[dict] = []
+    for c in tier1_cases:
+        src = c.get("source_name", "")
+        if source_counts.get(src, 0) < SOURCE_CAP:
+            diverse_t1.append(c)
+            source_counts[src] = source_counts.get(src, 0) + 1
+        if len(diverse_t1) >= target:
+            break
+    tier1_cases = diverse_t1
+    logger.info(
+        "Tier 1 after diversity cap (max %d/source): %d cases, %d sources",
+        SOURCE_CAP, len(tier1_cases), len(source_counts),
+    )
 
     tier2_candidates = _fetch_tier2_candidates(sb, exclude_ids=tier1_ids, limit=target * 3)
     tier2_needed = max(0, target - len(tier1_cases))
