@@ -914,11 +914,12 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
-- **Locale-prefixed URLs must be normalized before `page.goto()`**: Peatix redirects to `/us/event/{id}` or `/jp/event/{id}` depending on browser locale. Strip the prefix in `_scrape_detail()` **before** goto so `source_url` is always `https://peatix.com/event/{id}`:
-  ```python
-  url = re.sub(r"^(https://peatix\.com)/[a-z]{2}/event/", r"\1/event/", url)
-  ```
-  (Incident: event `e9c6f80b`, 2026-05-17)
+- **Locale-prefixed URLs must be normalized before `page.goto()`**: Peatix redirects to `/us/event/{id}` or `/jp/event/{id}` depending on browser locale. Strip the prefix in both the collection stage (`_search_events`/`_scrape_group_events`) AND `_scrape_detail()` so `source_url` is always `https://peatix.com/event/{id}`.
+  (Incidents: peatix `e9c6f80b` 2026-05-17, `55d766ae` 2026-05-19.)
+- **`inner_text()` length guard for short-string fields**: Playwright `inner_text()` on a group anchor or any interactive DOM element can return the **entire page content** (e.g. starting with "Translate this page...") instead of just the element text. Always add a length guard for fields expected to be short:  
+  `if _txt and len(_txt) <= 100`  
+  Without this guard, a multi-thousand-character blob silently passes through to `organizer_name`, `performer`, `location_name` etc. Apply to both primary extraction path and any fallback path. The threshold should be ≈2–3× the expected maximum (organizer/location names: ≤ 100). (Incident: peatix organizer `f839508`, 2026-05-19.)
+- **"Extract but not store" anti-pattern**: When a field is extracted for one purpose (e.g. blocklist checking), ensure it is **also passed to `Event()`**. Forgetting to include it in the constructor causes the field to always be `null` in DB — silent failure, no error. Before submitting a PR, cross-check all extracted variables against `Event()` constructor arguments. Pattern: `organizer=organizer_name or None`. (Incident: peatix `organizer_name` always null — commit `24198d0`, 2026-05-19.)
 - **Three-layer organizer architecture**:
   - Layer 1: keyword search (`peatix.com/search?q=...`)
   - Layer 2: hardcoded organizer list in `_ORGANIZERS` — **never remove**; serves as backup if DB changes

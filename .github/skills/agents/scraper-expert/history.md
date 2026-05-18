@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-05-19 — Peatix: Playwright `inner_text()` がページ全体テキストを返し `organizer_name` が数千文字になる（commit `f839508`）
+
+**問題：** Playwright の `inner_text()` がグループアンカー要素に対して、組織名（数十文字）ではなく「Translate this page...」から始まるページ全体テキスト（数千文字）を返すケースがあった。`organizer_name` がページ全体テキストになりブロックリスト照合が誤動作する可能性があった。
+
+**根本原因：** Playwright `inner_text()` は live DOM テキストを返すが、DOM 構造や SPA レンダリング状態によって要素が期待以上のコンテンツを含む場合がある。「主催者名は短い文字列」という暗黙の前提を検証するガードがなかった。
+
+**修正（commit `f839508`）：** 主パスと fallback パス両方に `len(_txt) <= 100` ガード追加。
+
+**教訓：** Playwright `inner_text()` を短い文字列フィールド（組織名・タイトル・地名等）に使う場合は `if _txt and len(_txt) <= 100` の長さガードを必ず設ける。
+
+---
+
+## 2026-05-19 — Peatix: `organizer_name` を抽出しながら `Event()` に渡していなかった（commit `24198d0`）
+
+**問題：** Peatix イベントの `ev.organizer` が常に null。`organizer_name` はブロックリスト照合のために抽出されていたが、`Event()` コンストラクタには渡されていなかった。
+
+**根本原因：** フィールドが「ブロックリスト照合」目的として追加されたとき「DB 保存」という第 2 の用途が見落とされた。「Extract but not store」anti-pattern。
+
+**修正（commit `24198d0`）：** `Event()` の引数に `organizer=organizer_name or None` を追加。
+
+**教訓：** (1) 抽出ロジック (2) `Event()` コンストラクタへの代入 (3) DB migration の 3 点が揃っているか確認する。ブロックリスト照合用に抽出した変数は必ず `Event()` にも渡す。
+
+---
+
+## 2026-05-19 — eplus: 詳細ページを既に fetch していたが `dt/dd` フィールドを無視（commit `e897d29`）
+
+**問題：** eplus イベントの `ev.performer` が常に null。詳細ページには `<dt>出演</dt><dd>…</dd>` と `<dt>曲目・演目</dt><dd>…</dd>` が構造化されていたが取得していなかった（event `7cdd06cb`）。
+
+**根本原因：** `_fetch_city_from_detail()` は都市抽出のみを目的として設計。同一 HTTP レスポンスに含まれる `dt/dd` ペアを無視。「1 リクエスト 1 フィールド」の設計。
+
+**修正（commit `e897d29`）：** `_fetch_city_from_detail()` → `_fetch_detail_info()` に拡張。`{"出演": "performer", "曲目・演目": "program"}` の dt/dd を一括取得し `ev.performer` と `ev.raw_description` に反映。
+
+**教訓：** 詳細ページを fetch しているなら同一リクエストで取れる全フィールドを一括抽出する。「1 リクエスト 1 フィールド」は追加要件発生のたびにリクエスト数が増加する。
+
+---
+
 ## 2026-05-19 — eplus: 詳細ページ fetch による都道府県→市区レベルアドレス補完（commit `0cfd07f`）
 
 **問題：** eplus.jp 検索結果カードは会場名を `（福岡県）` 形式（都道府県レベル）でしか提供しない。`location_address = "福岡県"` が DB に保存されるが `enrich_location.py` が null/空のみ対象のためスキップ（event `7cdd06cb` — アクロス福岡シンフォニーホール）。

@@ -34,11 +34,15 @@ Read this at the start of every session before writing any scraper.
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
-- **Locale-prefixed URLs must be normalized before `page.goto()`**: Peatix redirects to `/us/event/{id}` or `/jp/event/{id}` depending on browser locale. Strip the prefix in `_scrape_detail()` **before** goto so `source_url` is always `https://peatix.com/event/{id}`:
+- **Locale-prefixed URLs must be normalized before `page.goto()`**: Peatix redirects to `/us/event/{id}` or `/jp/event/{id}` depending on browser locale. Strip the prefix in both the collection stage (`_search_events`/`_scrape_group_events`) AND `_scrape_detail()` so `source_url` is always `https://peatix.com/event/{id}`:
   ```python
   url = re.sub(r"^(https://peatix\.com)/[a-z]{2}/event/", r"\1/event/", url)
   ```
-  (Incident: event `e9c6f80b`, 2026-05-17)
+  (Incidents: event `e9c6f80b` 2026-05-17, `55d766ae` 2026-05-19.)
+- **`inner_text()` length guard for short-string fields**: Playwright `inner_text()` on a group anchor or any interactive DOM element can return the **entire page content** (e.g. starting with "Translate this page...") instead of the element's own text. Always add a length guard for fields expected to be short:  
+  `if _txt and len(_txt) <= 100`  
+  Apply to both primary extraction path and any fallback path. (Incident: peatix organizer `f839508`, 2026-05-19.)
+- **"Extract but not store" anti-pattern**: When a field is extracted for one purpose (e.g. blocklist check), ensure it is **also passed to `Event()`**. Forgetting to add it to the constructor causes the field to always be `null` in DB — silent failure, no error. Checklist before PR: cross-check all extracted variables against `Event()` constructor args. (Incident: peatix `organizer_name` always null — commit `24198d0`, 2026-05-19.)
 
 ## RSS/Podcast scraper-specific
 - **Normalize `&amp;` in RSS link text before regex**: RSS `<link>` text nodes may contain HTML-entity-encoded `&amp;` even after XML parsing (double-encoded by the origin server). `item.find("link").text` can return `"...?uid=4&amp;pid=103701"`. Any regex on the raw text will miss `&pid=`. Always normalize: `link = link_raw.replace("&amp;", "&")` before extraction. Apply to both `source_url` construction and any `_extract_pid()`-style function. (Incident: rti_jp 0 events, 2026-05-14.)

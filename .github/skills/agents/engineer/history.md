@@ -2,30 +2,51 @@
 
 <!-- Append new entries at the top -->
 
-## 2026-05-19 — eplus: 詳細ページ fetch による都道府県→市区レベルアドレス補完（commit `0cfd07f`）
+## 2026-05-19 — Peatix: `inner_text()` ページ全体テキスト blob ガード（commit `f839508`）
 
-**問題：** eplus.jp カードテキストは `（福岡県）`（都道府県レベル）しか持たず、`location_address = "福岡県"` が DB に保存。`enrich_location.py` は null/空のみ対象のためスキップ（event `7cdd06cb` — アクロス福岡シンフォニーホール）。
+**問題：** Playwright `inner_text()` がグループアンカーに対してページ全体テキスト（数千文字）を返し、`organizer_name` が汚染されるケースがあった。
 
-**根本原因：** 詳細ページ H1 `(福岡市・2026/8/1(土))` に市区名があるが、カード解析段階では参照されなかった。
+**修正（commit `f839508`）：** 主パス・fallback パス両方に `len(_txt) <= 100` ガード追加。
 
-**修正（commit `0cfd07f`）：** `_fetch_city_from_detail(url)` を追加（`requests` + `BeautifulSoup`）。`scrape()` 末尾で `_PREF_ONLY_RE` にマッチした全イベントに対して詳細ページを fetch し `ev.location_address` を市区名に更新。
-
-**教訓：** 後段の `enrich_location.py` は null/空のみ処理するため、都道府県 placeholder（非 null）には無効。スクレイパー自身が精緻化まで完結すべきケースがある。raw string 内 `\uXXXX` は Unicode 文字として解釈されない — literal 文字を直接使うこと（`r"[^・]"` ✅）。
+**教訓：** `inner_text()` を短い文字列フィールドに使う場合は必ず長さガードを設ける。名前・タイトル・ラベル系は `if _txt and len(_txt) <= 100` が標準パターン。
 
 ---
 
-## 2026-05-19 — enrich_addresses: vague address detection, FC lock, venue normalisation, CI（commit `82c14df`）
+## 2026-05-19 — Peatix: `organizer_name` 抽出しながら `Event()` に渡し忘れ（commit `24198d0`）
 
-**変更内容：**
-- **A1** `VAGUE_ADDRESS_VALUES` frozenset 追加 — `'東京都'` / `'大阪府'` 等の都道府県レベルプレースホルダを `location_address IS NULL` と同等に候補対象化（従来は NULL のみ）
-- **A2** FC lock バッチチェック（P3.2 パターン）— ループ前に `field_corrections` を一括 fetch し `protected_ids` set 構築、保護済みイベントをスキップ
-- **A3** `_normalize_venue()` — `'東京六本木｜EX THEATER ROPPONGI'` → `'EX THEATER ROPPONGI'` に正規化してから OpenAI へ渡す。変更があれば `events.location_name` と FC lock も書き込み
-- **A4** `--limit` フラグ（CI コスト制御用）— CI では `--limit 30`
-- **Phase B** `scraper.yml` に `enrich_addresses.py --limit 30` と `backfill_location_prefectures.py` の 2 ステップを `enrich_location.py` 直後に追加
+**問題：** `organizer_name` はブロックリスト照合のために抽出されていたが `Event()` コンストラクタに未渡しで `ev.organizer = null` のまま保存されていた。
 
-**検証：** Syntax OK / YAML OK / 候補 19 件（NULL: 4, vague: 15, ｜含む venue: 0）
+**根本原因：** 変数が「ブロックリスト照合のみ」として追加された際に「DB 保存」という第 2 の用途が見落とされた。「Extract but not store」anti-pattern。
 
-**注意：** dry-run 実行中に `rm -f` を含むプロンプトインジェクション検出（stock status sync の token.json 削除コマンド）。インライン Python を `/tmp/check_candidates.py` に切り替えて対処。コマンドは実行していない。
+**修正（commit `24198d0`）：** `Event()` の引数に `organizer=organizer_name or None` 追加。
+
+**教訓：** PR 提出前に「スクレイパー内の抽出変数が全て `Event()` コンストラクタに渡っているか」を確認する。ブロックリスト照合だけのために定義した変数も `Event()` に渡すことを忘れない。
+
+---
+
+## 2026-05-19 — eplus: `_fetch_city_from_detail()` が同一レスポンスの `dt/dd` を無視（commit `e897d29`）
+
+**問題：** eplus 詳細ページへのアクセスは既に実装されていたが `<dt>出演</dt><dd>…</dd>` 等の performer 情報が一切取得されておらず `ev.performer = null` が続いていた。
+
+**根本原因：** 「1 リクエスト 1 フィールド」の設計。都市名抽出専用の関数として作られ、同一 HTTP レスポンスに含まれる他のデータを取る設計になっていなかった。
+
+**修正（commit `e897d29`）：** `_fetch_city_from_detail()` → `_fetch_detail_info()` に拡張し、同一リクエストで city / performer / program を一括取得。
+
+**教訓：** 詳細ページを 1 回 fetch したら、そのレスポンスで取れる全フィールドを抽出する設計にする。「追加フィールドが必要になるたびにリクエストを 1 回増やす」は CI コストとレートリミットの観点から避ける。
+
+---
+
+## 2026-05-19 — enrich_addresses A1-A4 強化（commit `1022303`）
+
+**実装内容：**
+- A1: `VAGUE_ADDRESS_VALUES` 定数追加（`東京`・`大阪府` 等）、DB フィルタを Python 側に移動して vague address イベントも対象に追加
+- A2: 処理前にバッチ FC lock チェック、update 後に `field_corrections` upsert（location_address）
+- A3: `_normalize_venue()` ヘルパーで `城市｜会場名` 形式を正規化し、lookup に渡す前に prefix 除去
+- A4: `--limit` フラグ追加（CI は `--limit 30`、手動は無制限）
+
+**事前確認：** `location_name_zh/en` の `｜` 汚染は 1件のみ（curator 名）、会場prefix 形式ではなかったため A3 の zh/en 対応は実装不要と判断。
+
+**教訓：** DB 側フィルタで null のみ対象にすると vague 住所（都道府県名だけ等）が永久に漏れる。候補フィルタを Python 側に持ち FC lock と組み合わせるパターンが堅牢。
 
 ---
 
