@@ -24,7 +24,7 @@ load_dotenv()
 SKIP_SOURCES = {"gguide_tv"}
 SKIP_VENUE_KEYWORDS = ["オンライン", "電視頻道", "online", "Online"]
 
-VAGUE_ADDRESS_VALUES: frozenset[str] = frozenset({
+VAGUE_ADDRESS_VALUES = frozenset({
     '東京', '大阪', '京都', '名古屋', '福岡', '神奈川', '埼玉', '千葉',
     '東京都', '大阪府', '京都府', '神奈川県', '愛知県', '兵庫県',
     '東京都内', '大阪府内', '全国',
@@ -55,8 +55,7 @@ Return JSON only (no markdown code fences):
 
 
 def _normalize_venue(name: str) -> str:
-    """Strip city/region prefix from prtimes-style venue names.
-
+    """Strip city prefix before ｜ separator.
     '東京六本木｜EX THEATER ROPPONGI' → 'EX THEATER ROPPONGI'
     """
     if '｜' in name:
@@ -116,10 +115,10 @@ def main():
     r = query.execute()
     candidates = [
         e for e in r.data
-        if (e.get('location_address') is None
-            or e.get('location_address') in VAGUE_ADDRESS_VALUES)
-        and e['source_name'] not in SKIP_SOURCES
-        and not any(kw in (e['location_name'] or '') for kw in SKIP_VENUE_KEYWORDS)
+        if (e.get("location_address") is None
+            or e.get("location_address") in VAGUE_ADDRESS_VALUES)
+        and e["source_name"] not in SKIP_SOURCES
+        and not any(kw in (e["location_name"] or "") for kw in SKIP_VENUE_KEYWORDS)
     ]
 
     if args.limit > 0:
@@ -127,28 +126,26 @@ def main():
 
     print(f"Found {len(candidates)} events to enrich (dry_run={args.dry_run})")
 
-    # ── ループ前：FC 保護済みイベント ID を一括取得 ──────────
+    # ── FC lock batch check ──────────────────────────────────────────────────
     candidate_ids = [e['id'] for e in candidates]
-    protected_ids: set[str] = set()
-    if candidate_ids:
-        fc_res = sb.table('field_corrections').select('event_id') \
-            .in_('event_id', candidate_ids) \
-            .eq('field_name', 'location_address').execute().data or []
-        protected_ids = {r['event_id'] for r in fc_res}
+    fc_res = sb.table('field_corrections').select('event_id,field_name') \
+        .in_('event_id', candidate_ids) \
+        .eq('field_name', 'location_address').execute().data or []
+    protected_ids = {r['event_id'] for r in fc_res}
+    print(f"FC-protected (skip): {len(protected_ids)}")
 
     updated = 0
     skipped = 0
 
     for e in candidates:
+        if e['id'] in protected_ids:
+            print(f"  → [SKIP] FC lock exists: {e['id'][:8]}")
+            skipped += 1
+            continue
+
         venue = e["location_name"]
         normalized_venue = _normalize_venue(venue)
         print(f"\n[{e['id'][:8]}] {e['source_name']} | venue={venue!r}")
-
-        # FC 保護チェック：保護済みならイベント全体をスキップ
-        if e['id'] in protected_ids:
-            print(f"  → FC lock exists, skipping")
-            skipped += 1
-            continue
 
         result = lookup_address(ai, normalized_venue)
         if not result:
@@ -171,7 +168,9 @@ def main():
             print(f"     en: {result['location_address_en']}")
 
         if not args.dry_run:
-            patch = {"location_address": addr_ja}
+            patch = {
+                "location_address": addr_ja,
+            }
             if result.get("location_address_zh"):
                 patch["location_address_zh"] = result["location_address_zh"]
             if result.get("location_address_en"):
@@ -179,18 +178,20 @@ def main():
             if normalized_venue != venue:
                 patch["location_name"] = normalized_venue
             sb.table("events").update(patch).eq("id", e["id"]).execute()
-            # FC lock（AI 生成住址として記録）
             sb.table('field_corrections').upsert({
                 'event_id': e['id'],
                 'field_name': 'location_address',
                 'corrected_value': json.dumps(addr_ja, ensure_ascii=False),
             }, on_conflict='event_id,field_name').execute()
             if normalized_venue != venue:
-                sb.table('field_corrections').upsert({
-                    'event_id': e['id'],
-                    'field_name': 'location_name',
-                    'corrected_value': json.dumps(normalized_venue, ensure_ascii=False),
-                }, on_conflict='event_id,field_name').execute()
+                fc_ln_res = sb.table('field_corrections').select('id') \
+                    .eq('event_id', e['id']).eq('field_name', 'location_name').execute().data
+                if not fc_ln_res:
+                    sb.table('field_corrections').upsert({
+                        'event_id': e['id'],
+                        'field_name': 'location_name',
+                        'corrected_value': json.dumps(normalized_venue, ensure_ascii=False),
+                    }, on_conflict='event_id,field_name').execute()
             updated += 1
 
         time.sleep(0.3)  # rate limit
