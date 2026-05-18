@@ -243,6 +243,15 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
           }
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "events" },
+        () => {
+          // An admin updated an event (e.g. from the events list tab) —
+          // re-fetch SSR data so embedded event fields in report cards stay fresh.
+          router.refresh();
+        }
+      )
       .subscribe();
     return () => { rt.removeChannel(channel); };
   }, []);
