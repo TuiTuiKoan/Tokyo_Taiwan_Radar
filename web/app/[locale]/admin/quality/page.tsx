@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { type Locale } from "@/lib/types";
 import AdminTabNav from "@/components/AdminTabNav";
 import QualitySection, { type QualityRow } from "@/components/QualitySection";
+import QualityRealtimeRefresh from "@/components/QualityRealtimeRefresh";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
@@ -93,6 +94,7 @@ export default async function AdminQualityPage({ params, searchParams }: PagePro
 
   return (
     <div>
+      <QualityRealtimeRefresh />
       <h1 className="text-2xl font-bold mb-4">{t("title")}</h1>
 
       {/* Tab nav */}
