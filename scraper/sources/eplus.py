@@ -17,6 +17,9 @@ import re
 from datetime import datetime
 from typing import Optional
 
+import requests
+from bs4 import BeautifulSoup
+
 from playwright.sync_api import TimeoutError as PWTimeout
 from playwright.sync_api import sync_playwright
 
@@ -37,6 +40,16 @@ _BLOCKED_TITLE_RE = re.compile(r"神韻")
 # Regex patterns
 _DATE_RE = re.compile(r"(\d{4})/(\d{1,2})/(\d{1,2})")
 _TIME_RE = re.compile(r"開演[：:]\s*(\d{1,2}):(\d{2})")
+
+# City extraction from eplus detail page H1:
+# "…のチケット情報 (福岡市・YYYY/M/D(曜))"  ← half-width parens + 市 or 区
+_CITY_FROM_DETAIL_RE = re.compile(r"\(([^・)]+[市区])\s*・")
+_PREF_ONLY_RE = re.compile(r"^[^\s]+[都道府県]$")  # pure prefecture e.g. "福岡県"
+_DETAIL_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0 Safari/537.36"
+)
 
 
 def _parse_card(link_el) -> Optional[dict]:
@@ -98,6 +111,28 @@ def _parse_card(link_el) -> Optional[dict]:
         "card_text": card_text,
         "time_str": time_str,
     }
+
+
+def _fetch_city_from_detail(url: str) -> str | None:
+    """GET an eplus detail page and return the city name from its H1 subtitle.
+
+    Detail page H1 format: "…のチケット情報 (福岡市・2026/8/1(土))"
+    The city/ward name appears before the '・' separator, inside half-width parens.
+    Returns None when the page is unreachable or the pattern is absent.
+    """
+    try:
+        r = requests.get(url, timeout=10, headers={"User-Agent": _DETAIL_UA})
+        if r.status_code != 200:
+            return None
+        soup = BeautifulSoup(r.text, "html.parser")
+        h1 = soup.find("h1")
+        if h1:
+            m = _CITY_FROM_DETAIL_RE.search(h1.get_text())
+            if m:
+                return m.group(1)
+    except Exception:
+        pass
+    return None
 
 
 class EplusScraper(BaseScraper):
@@ -172,6 +207,18 @@ class EplusScraper(BaseScraper):
                 )
 
             browser.close()
+
+        # Upgrade prefecture-only address to city level by fetching each detail page.
+        # eplus search cards only expose 都道府県; the detail page H1 contains the 市/区.
+        for ev in events:
+            if ev.location_address and _PREF_ONLY_RE.fullmatch(ev.location_address):
+                city = _fetch_city_from_detail(ev.source_url)
+                if city:
+                    logger.debug(
+                        "eplus: address upgrade %r → %r (%s)",
+                        ev.location_address, city, ev.source_id,
+                    )
+                    ev.location_address = city
 
         logger.info("eplus: %d events scraped (Japan-wide)", len(events))
         return events
