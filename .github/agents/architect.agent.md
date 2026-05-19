@@ -455,22 +455,27 @@ Reference incident: 2026-05-04 — `878660a0 iwafu` `流山おおたかの森S.C
 
 Reference incident: 2026-05-07 — `b42977f3` / `09c26a2e`（日本台湾学会第23回関西部会 sub-events）location_name 括弧住所混入修復。
 
-## Category Sync Guard（annotator.py ↔ types.ts）
+## Category Sync Guard（annotator.py ↔ types.ts ↔ admin API prompts）
 
-在審核**任何**新增 `Category` 至 `web/lib/types.ts` 的 PR，或審核任何涉及 `annotator.py` 的 PR 前，**必須**確認以下三處同步：
+在審核**任何**新增 `Category` 至 `web/lib/types.ts` 的 PR，或審核任何涉及 `annotator.py` 的 PR 前，**必須**確認以下**五處**同步：
 
 1. `scraper/annotator.py` → `VALID_CATEGORIES` 列表包含新分類。
 2. `scraper/annotator.py` → SYSTEM_PROMPT 第 2 條 categories 逗號分隔列表包含新分類。
 3. `scraper/annotator.py` → SYSTEM_PROMPT 分類定義清單有新分類的定義行。
+4. `web/messages/{zh,en,ja}.json` → `categories.<key>` + `categoryDesc.<key>` 三語各一。
+5. `web/app/api/admin/extract-from-image/route.ts` L59 **及** `web/app/api/admin/annotate-event/route.ts` L381 → 兩個 GPT prompt 內的 `category:` 枚舉清單。
 
 **違反後果**：
 - GPT 無法選用新分類，被迫選最近似的舊分類（靜默失敗，不報錯）。
 - Re-annotation 時 `_validate_categories()` 靜默剝離不在 `VALID_CATEGORIES` 中的分類，默認回退 `["senses"]`——**靜默資料遺失**。
 - `category_corrections` 表的人工校正也會被靜默剝離（第二資料路徑）。
+- 第 5 點違反時：管理画面 OCR / annotate-event 的 GPT 看不到新值 → **自創假分類**（例：types.ts 有 `healthcare` 但 prompt 缺 → GPT 回傳 `health`）→ 前端顯示 raw i18n key（如 `categories.health`）。
 
 **自動防護**（2026-05-05 新增）：
 - `_check_category_sync()`：annotator.py 啟動時讀取 types.ts 並比對。不一致時 `SystemExit(1)` 終止，CI 不會處理任何事件。
 - `human_category_map` 驗證：載入 category_corrections 後逐筆驗證，無效分類被剝離並記錄 warning。
+
+> **盲點**：自動防護只覆蓋 annotator ↔ types.ts。第 5 點（admin API prompts）**沒有自動防護** — 必須在 PR 審核時手動 grep `web/app/api/admin/{extract-from-image,annotate-event}/route.ts` 的 `category:` 行。
 
 **驗證命令**（在 scraper/ 目錄執行）：
 ```bash
@@ -482,27 +487,38 @@ ts_cats = re.findall(r'^\s*\| \"(\w+)\"', ts, re.MULTILINE)
 missing = [c for c in ts_cats if c not in VALID_CATEGORIES]
 print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
 "
+# Plus manual check:
+grep -E '^- category:' ../web/app/api/admin/extract-from-image/route.ts ../web/app/api/admin/annotate-event/route.ts
 ```
 
 Reference incidents:
 - 2026-05-04 — `types.ts` 新增 10 個分類（`tv_program` 等）後 annotator 未同步，導致所有 `gguide_tv` 電視節目被標為 `movie`（commit `0047c31`）。
 - 2026-05-05 — Ghost category：`category_corrections` 含無效分類 `culture`，36 筆事件面臨 re-annotation 時分類被靜默剝離。修復：新增啟動守衛 + category_corrections 驗證 + DB 清理。
+- 2026-05-20 — types.ts 38 值、annotator.py 同步，但兩個 admin API prompt 只列 18 值；OCR 時 GPT 自創 `health`，前端顯示 `categories.health`（commit `997378c`）。教訓：新增第 5 同步位置。
 
-## Event Form Sync Guard（annotator.py event_form 四處同步）
+## Event Form Sync Guard（DB constraint ↔ annotator.py ↔ admin API prompts ↔ i18n）
 
-在審核**任何**新增 `event_form` 有效值的 PR 前，**必須**確認以下**四處**同步：
+在審核**任何**新增 `event_form` 有效值的 PR 前，**必須**確認以下**五處**同步：
 
-1. **DB migration**：check constraint 允許清單新增新值。
-2. **`annotator.py` → `VALID_EVENT_FORMS`** 列表包含新值。
-3. **`annotator.py` → SYSTEM_PROMPT** EVENT FORM RULES 清單 + Decision guides 有新值的定義行。
-4. **`web/messages/*.json`**：`eventForm` namespace 中，`zh.json`、`en.json`、`ja.json` 三個語系均加入新值的翻譯字串。缺一則前端顯示 raw key。
+1. **DB migration**：`events_event_form_check` CHECK constraint 允許清單新增新值（**authoritative source**）。
+2. **`annotator.py` → `VALID_EVENT_FORMS`** frozenset 包含新值（L863 附近）。
+3. **`annotator.py` → SYSTEM_PROMPT** EVENT FORM RULES 清單 + Decision guides 有新值的定義行（L686 附近）。
+4. **`web/app/api/admin/extract-from-image/route.ts` L58 + `web/app/api/admin/annotate-event/route.ts` L382** → 兩個 GPT prompt 內的 `event_form:` 枚舉清單。
+5. **`web/messages/*.json`**：`eventForm` namespace 中，`zh.json`、`en.json`、`ja.json` 三個語系均加入新值的翻譯字串。缺一則前端顯示 raw key。
 
-**違反後果**（與 Category Sync Guard 同等邏輯）：GPT 無法選用新值，靜默失敗；re-annotation 時 `_validate_event_forms()` 靜默剝離，默認回退；第 4 點違反時前端 event_form badge 顯示 raw key（如 `study_abroad`）而非翻譯文字。
+**違反後果**：
+- 第 1–3 點：GPT 無法選用新值，靜默失敗；re-annotation 時 `_validate_event_forms()` 靜默剝離，默認回退。
+- 第 4 點：管理画面 OCR / annotate-event 的 GPT 用舊命名輸出（如 pre-047 的 `concert`/`lecture_seminar`/`film_screening`）→ DB CHECK constraint 拒絕 → **管理画面保存 400 失敗，UI 卡住「保存中…」超過 1 分鐘**。
+- 第 5 點：前端 event_form badge 顯示 raw key（如 `study_abroad`）而非翻譯文字。
 
-**現有有效值（截至 2026-05-08）**：`exhibition | concert | lecture_seminar | film_screening | festival | market | sports | study_abroad | other`
+**現有有效值（截至 2026-05-20，migration 047）**：
+`exhibition | screening | lecture | performance | market | workshop | conference | networking | screening_with_talk | tour | competition | tasting | broadcast | study_abroad | other`
+
+> ⚠️ migration 047 重命名舊值：`concert` → `performance`、`lecture_seminar` → `lecture`、`film_screening` → `screening`；移除 `festival` / `sports`。任何引用舊命名的代碼或 prompt 都是 bug。
 
 Reference incidents:
 - 2026-05-08 — migration 058 新增 `study_abroad`；event `b022b452`（銘傳大学 × ASE 台湾留学説明会）`event_form` 從 `['other']` 更正 + FC 鎖定。
+- 2026-05-20 — 兩個 admin API prompt 用 pre-047 命名（`concert`/`lecture_seminar`/`film_screening`/`festival`/`sports`）→ OCR 健康まつり海報後 DB 拒絕 → 管理画面保存失敗 400（commit `9ecaae6`）。教訓：第 4 同步位置必須與 migration 同 commit 更新。
 - 2026-05-09 — `web/messages/*.json` 漏加 `study_abroad` 翻譯（commit `5a94ee2`）；確立第 4 個同步點。
 
 ## Online Events Location Guard（線上活動地點統一規則）

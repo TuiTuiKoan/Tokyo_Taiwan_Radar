@@ -2,6 +2,48 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-20 — 管理画面 OCR + annotate-event の event_form / category プロンプトが DB / types.ts と乖離（管理画面 event 保存が 400 / 不正な i18n キー表示）
+
+**問題：**
+1. 海報を OCR で保存しようとすると `Save failed: new row for relation "events" violates check constraint "events_event_form_check"` で 400 エラー。「保存中…」が 1 分以上ハングして見える。
+2. 保存成功後、カテゴリーに `categories.health` という生 i18n キーが表示される（翻訳なし）。
+
+**根本原因：**
+1. `web/app/api/admin/extract-from-image/route.ts` L58 と `web/app/api/admin/annotate-event/route.ts` L382 の GPT プロンプト内 `event_form` リストが **migration 047 以降の DB CHECK constraint と乖離**。プロンプトは pre-047 命名（`concert`, `lecture_seminar`, `film_screening`, `festival`, `sports`）、DB は新命名（`performance`, `lecture`, `screening`, `broadcast`, `tasting`, `study_abroad` 等 15 値）。重複 4 値のみ（`exhibition`, `market`, `study_abroad`, `other`）。
+2. 同 2 ファイル L59/L381 の `category` リストが **`web/lib/types.ts` の 38 値より 20 値不足**（`healthcare`, `tea_alcohol`, `drama`, `documentary`, `parenting`, `scholarship`, `study_abroad`, `indigenous`, `folklore`, `history`, `urban`, `workshop`, `literature`, `tv_program`, `radio_program`, `exhibition`, `design_craft`, `herbal`, `taiwan_mandarin`, `market` が欠落）。GPT は欠落値の代わりに `health` を捏造 → 前端で i18n key 未マッチ → `categories.health` のまま表示。
+
+**修正：**
+1. `extract-from-image/route.ts` L58 / `annotate-event/route.ts` L382 の `event_form` リストを DB 047 の 15 値に同期（commit `9ecaae6`）。
+2. 同 2 ファイル L59/L381 の `category` リストを types.ts の 38 値に同期（commit `997378c`）。
+3. DB 内 `category=['health',...]` を `['healthcare','workshop','lecture']` に修正 + `field_corrections` ロック。
+4. `scraper/annotator.py` `VALID_EVENT_FORMS` (L863) と `VALID_CATEGORIES` (L224) は既に正しい — 影響は Web API プロンプトのみ。
+
+**教訓：**
+- **GPT プロンプト内の enum リストは「第 4 の同期位置」**：DB constraint → annotator → web API プロンプト × 2。Architect SKILL の Category/Event Form Addition Checklist に **`web/app/api/admin/{extract-from-image,annotate-event}/route.ts`** を明記する必要がある。
+- TypeScript の型チェックは prompt 文字列内の列挙値を検証しない。リストはコードコメントとして劣化する。**migration を追加するたびに、両 API ファイルを `grep` で確認すべし。**
+- GPT は与えられた enum 以外の値を **静かに捏造する**（`concert` の代わりに `concert` を返さず、`performance` も知らない → `concert` 維持 / `health` 創作）。validation は DB CHECK constraint と前端 i18n の 2 か所にしかない。
+
+---
+
+## 2026-05-20 — annotate-event の SELECT で end_date 欠落 → ユーザー入力が GPT 幻覚で上書き
+
+**問題：** 管理画面で event を作成し end_date を明示的に選択 → 保存 → annotate-event 自動実行後、end_date が `2023-10-14` 等の幻覚値に置き換わっていた。
+
+**根本原因：** `web/app/api/admin/annotate-event/route.ts` L258 の `select(...)` 句が **`start_date` のみ含み `end_date` を欠落**。「ユーザー入力済みフィールドを保持」ロジック
+```ts
+if (cur === null || cur === undefined || cur === "") returnedFields[k] = v;
+```
+は `event.end_date` が `undefined`（SELECT に無いため）なら「空」と判定 → GPT が返した任意の値で上書き。OCR から GPT を 2 回通過する間にハルシネーションが入る。
+
+**修正：** L258 SELECT 句に `end_date` を追加（commit `e0a5ea8`）。
+
+**教訓：**
+- **保持したいフィールドは必ず SELECT に含める**。「empty なら上書き」パターンの落とし穴：SELECT 漏れ ＝ undefined ＝ empty 扱い ＝ サイレント上書き。
+- `extractionFields` 配列に列挙されているのに SELECT で fetch していないフィールドは 100% バグ。**新規 extractionField を追加する時は SELECT 句も同時更新する**ことを `annotate-event/route.ts` 冒頭にコメントで明記すべし。
+- ユーザーが「明確に選択した」フィールドが知らぬ間に変わる症状を見たら、まず該当 API の SELECT 句を確認。
+
+---
+
 ## 2026-05-20 — performers[] 繁体字混入 + performers_zh[] ステージネーム GPT ハルシネーション（DB 直接修正）
 
 **問題：** 霧のごとく（映画 大濛）11 件の `performers[]` に繁体字（`['范少勳', '區偉', '9m88', '曾敬驊']`）が入り、日本語ロケールで映画サイトのカタカナではなく漢字が表示された。さらに `performers_zh[]` に `9m88 → 'Ju 88轟炸機'`（WW2 ユンカース爆撃機）という GPT ハルシネーションが混入。`field_corrections` も誤った値でロックされ汚染が固定化していた。

@@ -14,9 +14,9 @@ Read this at the start of every session before producing any plan.
 - Never ship a plan with an untested API or signature change. Include an explicit smoke-test step.
 - Confirm that all pending migrations are applied before designing features that build on them.
 
-## Category Addition Checklist（新增分類的必備 5 步驟）
+## Category Addition Checklist（新增分類的必備 6 步驟）
 
-每次新增 `Category` 值，以下 **5 個位置必須同一 commit 同步**，缺一返工：
+每次新增 `Category` 值，以下 **6 個位置必須同一 commit 同步**，缺一返工：
 
 | 步驟 | 位置 | 說明 |
 |------|------|------|
@@ -24,11 +24,29 @@ Read this at the start of every session before producing any plan.
 | 2 | `scraper/annotator.py` | VALID_CATEGORIES + SYSTEM_PROMPT enum string + definition |
 | 3 | `web/messages/{zh,en,ja}.json` | `categories.<key>` + `categoryDesc.<key>`（三語各一）|
 | 4 | `web/lib/design/organicMotifs.tsx` | `case '<key>':` 5 個 SVG 變體（缺少則 fallback 為預設 blob，無報錯）↳ **同時自動涵蓋 CategoryThumbnail UI + category OG image + event OG image**（三者均動態呼叫 `getSemanticSymbol()`，無硬編碼列表）|
-| 5 | Sync Guard 驗證 | `python3 -c "from annotator import VALID_CATEGORIES, _check_category_sync; _check_category_sync()"` pass |
+| 5 | `web/app/api/admin/extract-from-image/route.ts` + `web/app/api/admin/annotate-event/route.ts` | 兩個 GPT prompt 內的 `category:` 枚舉清單（**靜默漂移風險最高**：TS 不檢查 prompt 字串，GPT 缺值時會自創 `health` 等假分類）|
+| 6 | Sync Guard 驗證 | `python3 -c "from annotator import VALID_CATEGORIES, _check_category_sync; _check_category_sync()"` pass |
 
 **步驟 4（縮圖）是最容易被遺漏的**：TypeScript 不報錯、build 不失敗、只有在 `/debug/motifs` 頁才能看到 fallback blob。計畫中必須明確標注 Engineer 要加 `case` 到 `organicMotifs.tsx`。
 
-**Reference incident:** 2026-05-16 — `design_craft`、`herbal`、`study_abroad` 三個分類在 annotator/i18n sync 後，縮圖 case 補加為獨立 commit，違反「同一 commit」原則。教訓：Architect 計畫從此明列步驟 4。
+**步驟 5（GPT prompt 枚舉）2026-05-20 才被發現是同步位置**：兩個 admin API 的 prompt 寫死了分類清單，types.ts 加新值時不會自動同步。GPT 看不到新值就會自創（例：types.ts 有 `healthcare` 但 prompt 缺 → GPT 回傳 `health` → 前端顯示 `categories.health` 生 key）。**Architect 計畫必須將兩個 route.ts 明列為同步位置。**
+
+**Reference incidents:**
+- 2026-05-16 — `design_craft`、`herbal`、`study_abroad` 三分類在 annotator/i18n sync 後，縮圖 case 補加為獨立 commit，違反「同一 commit」原則。教訓：Architect 計畫從此明列步驟 4。
+- 2026-05-20 — types.ts 38 值，兩個 admin API prompt 只列 18 值（缺 20 個含 `healthcare`），GPT 自創 `health`，前端顯示 raw i18n key（commits `997378c`）。教訓：新增步驟 5。
+
+## Event Form Addition Checklist（新增 event_form 值的必備 4 步驟）
+
+每次新增 `event_form` 值，以下 **4 個位置必須同一 commit 同步**：
+
+| 步驟 | 位置 | 說明 |
+|------|------|------|
+| 1 | `supabase/migrations/<NNN>_*.sql` | `events_event_form_check` CHECK constraint（**authoritative source**）|
+| 2 | `scraper/annotator.py` | `VALID_EVENT_FORMS` frozenset（L863 附近）+ EVENT FORM RULES prompt 區塊（L686 附近） |
+| 3 | `web/app/api/admin/extract-from-image/route.ts` + `web/app/api/admin/annotate-event/route.ts` | 兩個 GPT prompt 內的 `event_form:` 枚舉清單 |
+| 4 | `web/messages/{zh,en,ja}.json` | `eventForms.<key>`（三語各一）|
+
+**Reference incident:** 2026-05-20 — migration 047 加入 `broadcast`/`tasting`/`study_abroad` 等新值並重命名舊值（`concert`→`performance`、`lecture_seminar`→`lecture`、`film_screening`→`screening`、`festival`→ 移除、`sports`→ 移除）。annotator.py 跟上了，但兩個 admin API prompt 留在 pre-047 命名 → OCR 回傳舊值 → DB CHECK 拒絕 → 管理画面保存 400 失敗（commit `9ecaae6`）。教訓：建立此 checklist。
 
 ## 🔁 Lesson-in-fix-commit Rule（避免 V-M-D ↔ docs update 循環）
 

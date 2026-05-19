@@ -248,6 +248,28 @@ const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
 **規則：**
 - ユーザー向けフォームの INSERT（anon・authenticated 問わず）は必ず Server Action で行う。
 - RLS で `anon INSERT` を許可していても、ブラウザ直接 INSERT はハング耐性がない。
+
+## annotate-event SELECT 紀律（ユーザー入力欄を守る）
+
+`web/app/api/admin/annotate-event/route.ts` は **「OCR 已填值は保持、空欄のみ GPT 補完」** パターン：
+```ts
+const cur = (event as Record<string, unknown>)[k];
+if (cur === null || cur === undefined || cur === "") {
+  returnedFields[k] = v;  // GPT 値で上書き
+}
+```
+
+**これは SELECT 句で fetch したフィールドにしか効かない**。SELECT 漏れ ＝ `undefined` ＝ 空判定 ＝ サイレント上書き。
+
+**規則：**
+1. `extractionFields` 配列に列挙したフィールドは **すべて L258 の SELECT 句に含める**。
+2. 新規「保持したい」フィールドを追加するときは 3 箇所同時編集：
+   - L258 SELECT 句
+   - `extractionFields` 配列（L437 付近）
+   - 必要なら `alwaysOverwriteFields`（description 系のみ）
+3. PR レビュー時：`extractionFields` の各 key が SELECT 句にあるか目視確認。
+
+**Reference incident:** 2026-05-20 — `end_date` が `extractionFields` にあるのに SELECT に無く、ユーザーが画面で選択した `end_date` が毎回 GPT 幻覚（例：`2023-10-14`）で上書きされていた（commit `e0a5ea8`）。
 - Server Action はネットワークハング時も Next.js が適切なエラーレスポンスを返すため `catch` ブロックが確実に発動する。
 
 ```ts
