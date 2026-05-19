@@ -378,7 +378,7 @@ export async function POST(req: NextRequest) {
 Given event info AND a fetched web page (if provided), return a JSON with these fields. Extract data from the web page when fields are missing or to enrich existing values.
 
 Classification fields (always required):
-- category: array of 1–3 values from: movie | performing_arts | senses | retail | nature | tech | tourism | lifestyle_food | books_media | gender | geopolitics | art | lecture | taiwan_japan | business | academic | competition | report
+- category: array of 1–3 values from: movie | performing_arts | senses | tea_alcohol | drama | documentary | retail | nature | tech | tourism | lifestyle_food | books_media | gender | parenting | geopolitics | art | lecture | taiwan_japan | scholarship | study_abroad | business | academic | competition | indigenous | folklore | history | urban | workshop | literature | tv_program | radio_program | exhibition | design_craft | herbal | taiwan_mandarin | healthcare | market | report
 - event_form: array of 1–2 values from: exhibition | screening | lecture | performance | market | workshop | conference | networking | screening_with_talk | tour | competition | tasting | broadcast | study_abroad | other
 - primary_language: "ja" | "zh" | "en" | "mixed"
 - has_japanese_support: boolean

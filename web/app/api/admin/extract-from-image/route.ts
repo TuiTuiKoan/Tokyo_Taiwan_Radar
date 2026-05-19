@@ -56,7 +56,7 @@ Extract all visible information and return a JSON object with these fields (omit
 - has_chinese_support: true/false
 - has_english_support: true/false
 - event_form: array using only these values: exhibition | screening | lecture | performance | market | workshop | conference | networking | screening_with_talk | tour | competition | tasting | broadcast | study_abroad | other
-- category: array using only these values: movie | performing_arts | senses | retail | nature | tech | tourism | lifestyle_food | books_media | gender | geopolitics | art | lecture | taiwan_japan | business | academic | competition | report
+- category: array using only these values: movie | performing_arts | senses | tea_alcohol | drama | documentary | retail | nature | tech | tourism | lifestyle_food | books_media | gender | parenting | geopolitics | art | lecture | taiwan_japan | scholarship | study_abroad | business | academic | competition | indigenous | folklore | history | urban | workshop | literature | tv_program | radio_program | exhibition | design_craft | herbal | taiwan_mandarin | healthcare | market | report
 
 Title rules:
 - Read the poster top to bottom and capture the COMPLETE title (main title + sub-title + series name).
