@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-05-20 — performers[]: 繁体字が入り日本語（カタカナ）が消失 + performers_zh に 'Ju 88轟炸機' ハルシネーション（DB 直接修正）
+
+**問題：** 霧のごとく（大濛）11 件の `performers[]` が繁体字（`['范少勳', '區偉', '9m88', '曾敬驊']`）で格納されており、日本語モードでカタカナ名が表示されなかった。`performers_zh[]` には `'Ju 88轟炸機'`（WW2 爆撃機名）というハルシネーションが入っており、GPT が `9m88`（台湾ミュージシャンの芸名）を爆撃機名に誤変換していた。加えて `field_corrections` に旧来の悪い値がロックされており、FC 削除なしには修正できない状態だった。
+
+**根本原因：** (1) `performers[]` 言語規約が annotator SYSTEM_PROMPT に明記されておらず、GPT が繁体字をそのまま格納した。(2) アーティスト芸名（英数字混じり）は翻訳不可だが GPT へその指示がなかった。
+
+**修正：** 京都シネマ公式ページから正確なカタカナ（`ケイトリン・ファン`、`ウィル・オー`、`9m88`、`ツェン・ジンホア`、`リウ・グァンティン`、`ビビアン・ソン`）を確認。全 11 件の `performers[]` をカタカナに更新、`performers_zh[]` を正しい繁体字 6 名に修正、FC 削除・再ロック、`works.cast_summary` 更新。
+
+**教訓：** (1) `performers[]` は日本語ソースのカタカナ名が入る。`performers_zh[]` が繁体字。(2) アーティスト芸名（`9m88` 等）は翻訳不可 — GPT に `performers_zh` を生成させる場合は「芸名はそのまま転記」の指示を SYSTEM_PROMPT に追加する。(3) performers データを手動修正する場合は必ずソースページをフェッチしてカタカナを確認してから FC をロックする。
+
+---
+
+## 2026-05-19 — annotator Phase C: 地域名｜会場名 prefix が location_name に混入（commit `2b328e1`）
+
+**問題：** eplus 等のプラットフォームが `東京六本木｜EX THEATER ROPPONGI`・`大阪梅田｜Zepp Osaka Bayside` 形式で会場を表示する。`｜` 前の地域ナビゲーションラベルが `location_name` に丸ごと混入していた。
+
+**根本原因：** annotator SYSTEM_PROMPT Rule 6 に `｜` 形式への指示がなく、GPT が `｜` を含む全文字列を会場名として採用していた。
+
+**修正（commit `2b328e1`）：** SYSTEM_PROMPT Rule 6 に VENUE NAME PREFIX NOTE を追加。`地域名｜会場名` 形式を検出し `｜` 以降のみを `location_name` とするルール。
+
+**教訓：** eplus / livepocket など `地域名｜会場名` 形式のプラットフォームを扱う場合は annotator SYSTEM_PROMPT にこのルールが適用されているか確認する。
+
+---
+
+## 2026-05-19 — enrich_addresses: location_address_zh が SC のまま DB に書き込まれていた（commit `2b328e1`）
+
+**問題：** `enrich_addresses.py` が gpt-4o-search-preview から取得した `location_address_zh` を `_to_trad()` なしで DB に直接書き込んでいた。dry-run では `东京都涩谷区圆山町2-3 6楼`（簡体字）が表示され DB に SC が混入するバグ。
+
+**根本原因：** `_to_trad()` は `annotator.py` の `annotate()` 内でのみ呼ばれており、外部スクリプト `enrich_addresses.py` はこの処理が漏れていた。
+
+**修正（commit `2b328e1`）：** `from annotator import _to_trad` を追加し、`patch["location_address_zh"] = _to_trad(result["location_address_zh"])` に変更。
+
+**教訓：** annotator 外部のスクリプト（バックフィル、`enrich_*` 系）が `_zh` フィールドを直接 DB に書き込む場合は必ず `_to_trad()` を通すこと。
+
+---
+
 ## 2026-05-19 — eplus: scraper 層で `ev.performer` 直接セット — SKILL.md performer ルール違反（commit `fe72ea2`）
 
 **問題：** `_fetch_detail_info()` が performer を `ev.performer = info["performer"]` と直接セット。SKILL.md「Scraper 層用不到」ルール違反（performer は annotator GPT が raw_description から抽出する）。

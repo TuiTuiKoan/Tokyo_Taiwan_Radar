@@ -20,6 +20,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
   const title = t("pageTitle");
   const description = t("pageDesc").slice(0, 160);
+  const image = `${base}/${locale}/sources/opengraph-image`;
   return {
     title,
     description,
@@ -35,6 +36,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description,
       url: `${base}/${locale}/sources`,
       type: "website",
+      images: [{ url: image, width: 1200, height: 1200, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [image],
     },
   };
 }

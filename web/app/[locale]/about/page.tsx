@@ -17,6 +17,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
   const title = t("heroTitle");
   const description = t("story").slice(0, 160);
+  const image = `${base}/${locale}/about/opengraph-image`;
   return {
     title,
     description,
@@ -32,6 +33,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description,
       url: `${base}/${locale}/about`,
       type: "website",
+      images: [{ url: image, width: 1200, height: 1200, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [image],
     },
   };
 }

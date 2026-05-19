@@ -1985,6 +1985,119 @@ def annotate_pending_events(
     logger.info("Annotation complete.")
 
 
+def _resolve_movie_titles_for_event(
+    sb: "Client | None",
+    raw_title: str | None,
+    name_ja: str | None,
+    source_name: str | None,
+    has_parent: bool = False,
+) -> tuple[str | None, str | None, str | None, str | None, str | None, str]:
+    """Resolve canonical movie titles via works table + eiga.com.
+
+    Mirrors enrich_movie_titles() title-resolution logic and is reused by
+    eval_annotator.py --stage 2 / --full-pipeline.
+
+    Order (Plan B3): works table first, then eiga.com fallback.
+    Works table is queried by title_ja AND title_zh (Plan B2).
+
+    sb may be None to skip works lookup (eval frozen mode without DB).
+
+    Returns: (name_zh, name_en, official_url, works_performer, works_director, title_used)
+    """
+    # Determine the lookup title from raw_title / name_ja per source rules.
+    if source_name in _NEWS_MOVIE_SOURCES:
+        raw = raw_title or ""
+        m = _BRACKET_TITLE_RE.search(raw)
+        title_from_raw = bool(m)
+        if not m:
+            m = _BRACKET_TITLE_RE.search(name_ja or "")
+        # Guard: news sub-events whose brackets only come from GPT name_ja
+        # may be hallucinated — skip resolution.
+        if m and not title_from_raw and has_parent:
+            return None, None, None, None, None, ""
+        title = m.group(1).strip() if m else ""
+    else:
+        title = name_ja or raw_title or ""
+
+    if not title:
+        return None, None, None, None, None, ""
+
+    name_zh: str | None = None
+    name_en: str | None = None
+    official_url: str | None = None
+    works_performer: str | None = None
+    works_director: str | None = None
+
+    def _query_works(t: str) -> dict | None:
+        if sb is None:
+            return None
+        try:
+            r = (
+                sb.table("works")
+                .select("title_zh,title_en,cast_summary,director")
+                .eq("title_ja", t)
+                .limit(1)
+                .execute()
+            )
+            if r.data:
+                return r.data[0]
+            # B2: also try title_zh column when title_ja missed.
+            r2 = (
+                sb.table("works")
+                .select("title_zh,title_en,cast_summary,director")
+                .eq("title_zh", t)
+                .limit(1)
+                .execute()
+            )
+            return r2.data[0] if r2.data else None
+        except Exception:
+            return None
+
+    # B3: works first.
+    w_row = _query_works(title)
+    if w_row:
+        name_zh = w_row.get("title_zh")
+        name_en = w_row.get("title_en")
+        works_performer = w_row.get("cast_summary")
+        works_director = w_row.get("director")
+
+    # Fallback: eiga.com lookup for whatever is still missing.
+    if not name_zh or not name_en:
+        lz, le, lurl = lookup_movie_titles(title)
+        if not name_zh:
+            name_zh = lz
+        if not name_en:
+            name_en = le
+        if lurl:
+            official_url = lurl
+
+    # Bracket-embedded title fallback (existing behavior).
+    if not name_zh and not name_en and source_name not in _NEWS_MOVIE_SOURCES:
+        emb = re.search(r"[『《]([^』》]{2,40})[』》]", title)
+        if emb:
+            extracted = emb.group(1).strip()
+            if extracted and extracted != title:
+                # Re-run full pipeline on extracted title.
+                w_row2 = _query_works(extracted)
+                if w_row2:
+                    name_zh = w_row2.get("title_zh")
+                    name_en = w_row2.get("title_en")
+                    works_performer = works_performer or w_row2.get("cast_summary")
+                    works_director = works_director or w_row2.get("director")
+                if not name_zh or not name_en:
+                    ez, ee, eurl = lookup_movie_titles(extracted)
+                    if not name_zh:
+                        name_zh = ez
+                    if not name_en:
+                        name_en = ee
+                    if eurl and not official_url:
+                        official_url = eurl
+                if name_zh or name_en:
+                    title = extracted
+
+    return name_zh, name_en, official_url, works_performer, works_director, title
+
+
 def enrich_movie_titles() -> None:
     """Look up official zh/en movie titles from eiga.com and overwrite all
     AI-translated names.
@@ -2025,23 +2138,12 @@ def enrich_movie_titles() -> None:
     for event in events:
         source = event.get("source_name", "")
 
-        # News sources: extract title from 「…」/『…』 brackets in raw_title.
-        # raw_title is often a plain news headline (no brackets), so fall back
-        # to name_ja before giving up.
-        if source in _NEWS_MOVIE_SOURCES:
+        # News sub-event guard mirrors the helper but emits a warning
+        # for observability (matches pre-refactor behavior).
+        if source in _NEWS_MOVIE_SOURCES and event.get("parent_event_id"):
             raw = event.get("raw_title") or ""
-            m = _BRACKET_TITLE_RE.search(raw)
-            _title_from_raw = bool(m)
-            if not m:
-                m = _BRACKET_TITLE_RE.search(event.get("name_ja") or "")
-            # Guard: for sub-events of news articles, reject bracket titles
-            # derived from GPT-generated name_ja — they may be hallucinated.
-            # Sub-event name_ja is produced from thin context (a single
-            # descriptive sentence); GPT may infer a plausible-sounding
-            # film title from an unrelated part of the article.
-            # Only trust brackets found in raw_title (scraper-captured text).
-            # Reference incident: 2026-05-05 d18339d5 gnews_sub3 → 月老 hallucination.
-            if m and not _title_from_raw and event.get("parent_event_id"):
+            m_raw = _BRACKET_TITLE_RE.search(raw)
+            if not m_raw and _BRACKET_TITLE_RE.search(event.get("name_ja") or ""):
                 logger.warning(
                     "  ⚠ skipping enrich for news sub-event %s — bracket title "
                     "derived from GPT name_ja (unreliable); raw_title has no brackets "
@@ -2049,49 +2151,19 @@ def enrich_movie_titles() -> None:
                     event["id"][:8], (event.get("name_ja") or "")[:60],
                 )
                 continue
-            title = m.group(1).strip() if m else ""
-        else:
-            title = event.get("name_ja") or event.get("raw_title") or ""
+
+        name_zh, name_en, official_url, works_performer, works_director, title = (
+            _resolve_movie_titles_for_event(
+                sb,
+                event.get("raw_title"),
+                event.get("name_ja"),
+                source,
+                has_parent=bool(event.get("parent_event_id")),
+            )
+        )
 
         if not title:
             continue
-
-        name_zh, name_en, official_url = lookup_movie_titles(title)
-
-        # If full title lookup failed and name_ja looks like a program/lecture event
-        # that embeds a movie title in brackets (e.g. 「…映画『青春18×2』のひみつ」),
-        # try extracting the innermost 『…』/《…》 as a fallback lookup.
-        if not name_zh and not name_en and source not in _NEWS_MOVIE_SOURCES:
-            _embedded_m = re.search(r"[『《]([^』》]{2,40})[』》]", title)
-            if _embedded_m:
-                _extracted_title = _embedded_m.group(1).strip()
-                if _extracted_title != title:
-                    _ez, _ee, _eurl = lookup_movie_titles(_extracted_title)
-                    if _ez or _ee:
-                        logger.info(
-                            "  ↳ bracket-embedded title fallback for %s: %r → zh=%r en=%r",
-                            event["id"][:8], _extracted_title, _ez, _ee,
-                        )
-                        name_zh, name_en = _ez, _ee
-                        if _eurl and not official_url:
-                            official_url = _eurl
-                        title = _extracted_title  # use for works table lookup too
-
-        # Fallback: check works table for canonical titles + inherit performer/director
-        works_performer = None
-        works_director = None
-        if not name_zh or not name_en or not event.get("performer") or not event.get("director"):
-            w_res = sb.table("works").select("title_zh,title_en,cast_summary,director").eq("title_ja", title).limit(1).execute()
-            if w_res.data:
-                w_row = w_res.data[0]
-                if not name_zh:
-                    name_zh = w_row.get("title_zh")
-                if not name_en:
-                    name_en = w_row.get("title_en")
-                if name_zh or name_en:
-                    logger.info("  works fallback for %r → zh=%r en=%r", title, name_zh, name_en)
-                works_performer = w_row.get("cast_summary")
-                works_director = w_row.get("director")
 
         if not name_zh and not name_en:
             logger.warning(
@@ -2161,6 +2233,36 @@ def enrich_movie_titles() -> None:
                         update["selection_reason"] = json.dumps(sr, ensure_ascii=False)
             except (json.JSONDecodeError, TypeError):
                 pass
+
+        # B1: field_corrections guard — before writing, drop any name_zh/name_en
+        # from update that conflicts with an existing FC value. The FC table is
+        # the source of truth for admin-locked translations; enrich must never
+        # overwrite them with a fresh works/eiga.com lookup that disagrees.
+        try:
+            fc_res = (
+                sb.table("field_corrections")
+                .select("field_name,corrected_value")
+                .eq("event_id", event["id"])
+                .in_("field_name", ["name_zh", "name_en"])
+                .execute()
+            )
+            for fc in (fc_res.data or []):
+                fname = fc.get("field_name")
+                fval = fc.get("corrected_value")
+                if fname in update and fval and update[fname] != fval:
+                    logger.warning(
+                        "  ⚠ FC guard: skip %s for %s (FC=%r vs enrich=%r)",
+                        fname, event["id"][:8], fval, update[fname],
+                    )
+                    del update[fname]
+        except Exception as fc_exc:
+            logger.debug(
+                "  field_corrections FC guard skipped for %s: %s",
+                event["id"][:8], fc_exc,
+            )
+
+        if not update:
+            continue
 
         sb.table("events").update(update).eq("id", event["id"]).execute()
         _lock_fields_via_corrections(sb, event["id"], update)

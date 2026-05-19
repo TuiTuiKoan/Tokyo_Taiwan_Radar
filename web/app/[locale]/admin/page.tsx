@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -8,6 +9,42 @@ import Link from "next/link";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
+}
+
+const LOCALES: Locale[] = ["zh", "en", "ja"];
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "admin" });
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
+  const title = t("title");
+  const description = title;
+  const image = `${base}/${locale}/admin/opengraph-image`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `${base}/${locale}/admin`,
+      languages: {
+        ...Object.fromEntries(LOCALES.map((l) => [l, `${base}/${l}/admin`])),
+        "x-default": `${base}/zh/admin`,
+      },
+    },
+    openGraph: {
+      title,
+      description,
+      url: `${base}/${locale}/admin`,
+      type: "website",
+      images: [{ url: image, width: 1200, height: 1200, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [image],
+    },
+  };
 }
 
 export const dynamic = "force-dynamic";

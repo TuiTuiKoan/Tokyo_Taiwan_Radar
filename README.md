@@ -6,6 +6,38 @@
 
 🇹🇼🇯🇵 Trilingual (Chinese / Japanese / English)
 
+- 5/18 -
+Teaching a Wax Apple to Drive
+
+What would you do if your Tesla, mid-drive, insisted there was a giraffe in the road?
+
+That's what every AI product developer wakes up to in 2026.
+
+Old-school software was like building a car — finish it, ship it. AI changes the game. Now you build all of this at once:
+
+🚙 The car — the website users see
+🧭 Navigation — how the AI judges, translates, classifies
+🏭 The factory — keeping the system stable, affordable, error-free
+🔁 Driving school — daily exams to make the AI smarter
+Fix one bug, and all four domains need attention. That's the real story behind 350+ updates this week — not more hours, just every fix splitting into four.
+
+This week, our mascot "Miss Wax Apple" officially made her debut.
+
+Why a wax apple? Like Taiwan's semiconductors, it's a product of high technology. Originally from Indonesia — where you can no longer find this variety; brought to Taiwan by Dutch traders during the Age of Sail; the name 蓮霧(Lianbu) is a Taiwanese phonetic adaptation of the Malay jambu; postwar Taiwanese agriculture transformed it into the crisp, sweet fruit it is today.
+
+One fruit, four hundred years — Indonesian roots, Dutch trade routes, Taiwanese phonetics, modern agri-science. Not in Japan. Not in Korea. Only in Taiwan.
+
+This week's visual overhaul orbited entirely around her: the antenna flickers, petals drift across the screen, share images auto-compose motifs based on event category. Open the site, and digital petals float past you.
+
+📋 What We Fixed This Week
+
+🚙 Visuals: mascot and animation effects upgraded; share images now include category illustrations; dark mode unified across the site
+🧭 AI judgment: added movie-poster visual recognition; blocked AI from inventing non-existent organizers; automatic simplified-to-traditional Chinese correction
+🏭 Stability: form writes hardened against silent failures; client-side permissions tightened; added an AI "plan reviewer" for cross-checking decisions
+🔁 Continuous improvement: launched daily AI translation quality exams; monthly governance scanner; 70+ permanent guard rules accumulated
+📡 Data: 4 new sources added (film festival, cinemas); 42 blocked events recovered
+See you next week 👋🍎
+
 - 5/11 -
 
 Week 3 clashed right with Japan's Golden Week, but we were in no mood for a holiday. We were coding like crazy every single day—our keyboards were practically smoking! 🔥 But the hard work totally paid off. We smashed a bunch of amazing goals all at once:
@@ -22,34 +54,6 @@ Content depth has evolved again! We've expanded from secondary event info, diggi
 🎉 The Biggest Surprise Easter Egg of the Week!
 The most thrilling news? The "Japan-Taiwan Tomonkai of Waseda University" and "Tokyo Taiwan no Kai" (a group formed by Wansei—Japanese born in Taiwan) actually reached out to us proactively for collaboration! This is an absolutely fantastic start, and we are beyond excited for what's coming next! 🤝✨
 
-第三週剛好撞上日本的黃金週，但我們完全沒有放假的心情，幾乎天天都在瘋狂 coding，鍵盤都快敲到冒煙啦！🔥 不過辛苦是有滿滿代價的，我們一口氣達成了超多驚人目標：
-
-📱 社群矩陣全面啟動！
-我們正式打通了社群的任督二脈！除了推出超方便的 LINE QRcode 週報訂閱，我們的 X、Instagram、Threads 到 Facebook 也通通開通上線啦，歡迎大家隨時來找我們玩！
-
-📊 全方位 Dashboard 監控升級
-為了更精準地打中日本市場，我們針對日本的 PMF（產品市場契合度）做了好幾輪深度研究。同時，網站的後台監控也全面進化！現在的 Dashboard 涵蓋了開發進度、商業策略、SEO/AEO、資料治理到來源管理，各種維度一目了然，網站健康度我們精準掌握！😎
-
-🔍 資料庫火力與精準度 UP！
-內容深度再進化！我們從原本的二手活動資訊，進一步深挖並拓展到「一手資料」，把主辦方資訊和活動詳情扒得更透徹。大家很在意的電影與人名翻譯，我們也卯足全力比對官方正式名稱，力求中日對照精準到位！🎬
-
-🎉 本週最大驚喜彩蛋
-最讓人振奮的消息是，「早稻田大學日台稻門會」以及由灣生日本人集結而成的「東京台湾の会」竟然主動聯繫我們談合作了！這絕對是一個超級棒的起步，未來的發展連我們自己都超期待！🤝✨
-
-第3週目はちょうど日本のゴールデンウィークと重なりましたが、お休み気分はゼロ！ほぼ毎日狂ったようにコーディングしていて、キーボードから煙が出そうでした！🔥 でも、その苦労の甲斐あって、一気に驚くべき目標をいくつも達成できました：
-
-📱 SNSマトリックス、全面始動！
-ついにSNSの全チャネルをフルオープン！超便利なLINE QRコードによる週報購読のリリースに加え、X、Instagram、Threads、そしてFacebookもすべて開設しました。いつでも遊びに来てくださいね！
-
-📊 全方位ダッシュボード監視のアップグレード！
-日本市場に的確に刺さるよう、日本でのPMF（プロダクト・マーケット・フィット）について何往復もディープなリサーチを行いました。同時に、サイトのバックエンド監視も全面進化！現在のダッシュボードは、開発進捗、ビジネス戦略、SEO/AEO、データガバナンス、ソース管理まで網羅。様々な指標が一目でわかり、サイトの健康状態を完全に掌握しています！😎
-
-🔍 データベースの火力と精度がUP！
-コンテンツの深さがさらに進化！これまでの二次的なイベント情報からさらに深掘りし、主催者情報やイベント詳細を徹底的に網羅する「一次情報」へと拡張しました。皆さんが気にする映画のタイトルや人名の翻訳についても、公式の正式名称と全力で照合し、日中対訳の正確さを極限まで追求しています！🎬
-
-🎉 今週最大のサプライズ・ビッグニュース！
-ななんと、「早稲田大学日台稲門会」と、湾生（台湾生まれの日本人）の方々が集う「東京台湾の会」から、自発的にコラボレーションのご連絡をいただきました！これは間違いなく最高のスタートダッシュ。今後の展開に、私たち自身も超ワクワクしています！🤝✨
-
 - 5/5 -
 
 Entering Week 2, our database has exploded to 633 events and 163 sources! We aren't just sweeping through Tokyo anymore; we're scraping all Japan-Taiwan exchange and grant/scholarship info across the entire country!
@@ -58,18 +62,6 @@ Watching Google, Claude, and ChatGPT's crawlers roaming around "Tokyo Taiwan Rad
 🔥 Nothing comes easy here—only hardcore dedication!
 Battling through trilingual translations until our noses bleed. Even with AI bowing down to help us out, the workload of data cleaning is beyond imagination. From movie titles and personal names to professional academic publications, no matter how many "final bosses" stand in the way, I'm going to smash them all one by one!
 Basic LINE integration is live, and we've successfully tested publishing one weekly newsletter. We've also started brainstorming MVP models for monetization and running market tests.
-
-進入第二週，我們的資料庫已經爆衝到 633 個活動、163 個來源！不只掃蕩東京，現在全日本的日台交流、獎助金資訊，我們通通都要抓進來！
-看著 Google、Claude 和 ChatGPT 的爬蟲整天在「東京台灣雷達」逛大街，那種感覺是什麼？就像我辦了一場電音派對，看著這群 AI 大咖通通在我的場子喝爆、跳爆，只有一個字：爽！
-🔥 這裡沒有輕鬆的事，只有硬核的堅持！
-三國語言翻譯搏鬥到流鼻血，即便有 AI 跪著幫忙，資料清洗的工作量還是超乎想像。從電影譯名、人名到專業學術發表，管他前方有多少「大魔王」，我通通一個一個打爆給你看！
-Line基本串接上線，週報測試發佈一次。並且開始思考商業化的MVP模式，進行市場測試。
-
-第2週目に突入し、データベースは633のイベント、163のソースへと爆増！東京を席巻するだけでなく、今や日本全国の日台交流や助成金情報まで、すべてをキャッチしにいっています！
-Google、Claude、ChatGPTのクローラーたちが一日中「東京台湾レーダー」をうろうろ巡回しているのを見る気分って？例えるなら、自分が主催したEDMパーティーで、AIの大物たちが自分のフロアでガンガン飲んで踊り狂っているのを見ているような感覚。一言で言って……「最高！」です。
-🔥 ここには「楽な道」なんてない、あるのはガチの（ハードコアな）執念のみ！
-3カ国語の翻訳と鼻血が出るほど格闘中。AIに泣きついて手伝ってもらっても、データクレンジングの作業量は想像を絶します。映画の邦題、人名、さらには専門的な学術発表まで、前にどれだけ「ラスボス」が立ちはだかろうと、一人残らず全員ぶっ倒してやります！
-LINEの基本連携もリリースし、週報のテスト配信も1回実施しました。さらに、マネタイズに向けたMVPモデルの考案と、市場テストも開始しました。
 
 - 4/26 -
 

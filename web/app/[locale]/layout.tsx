@@ -77,6 +77,7 @@ export async function generateMetadata({
   const { base, isLocalRequest } = await getMetadataBaseContext();
   const title = SITE_TITLES[locale] ?? SITE_TITLES.zh;
   const description = SITE_DESCRIPTIONS[locale] ?? SITE_DESCRIPTIONS.zh;
+  const image = `${base}/${locale}/opengraph-image`;
 
   return {
     title,
@@ -101,11 +102,13 @@ export async function generateMetadata({
       siteName: "Tokyo Taiwan Radar",
       locale: OG_LOCALES[locale] ?? "zh_TW",
       type: "website",
+      images: [{ url: image, width: 1200, height: 1200, alt: title }],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title,
       description,
+      images: [image],
     },
   };
 }

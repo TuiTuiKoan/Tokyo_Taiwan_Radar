@@ -36,7 +36,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 # Import SYSTEM_PROMPT from annotator (same directory).
 # _annotate_one is sync; we implement annotate_one_async below using AsyncOpenAI.
-from annotator import SYSTEM_PROMPT, _get_supabase
+from annotator import SYSTEM_PROMPT, _get_supabase, _resolve_movie_titles_for_event
 from category_feedback import load_corrections, build_feedback_prompt
 from selection_reason_feedback import load_sr_corrections, build_sr_feedback_prompt
 
@@ -241,6 +241,8 @@ def write_report(
         "",
         "## 執行模式",
         f"- mode: {snapshot_meta.get('mode', 'frozen')}",
+        f"- stage: {snapshot_meta.get('stage', 1)} "
+        f"({'LLM only' if snapshot_meta.get('stage', 1) == 1 else 'LLM + enrich_movie_titles pipeline'})",
     ]
     if snapshot_meta.get("mode") == "frozen":
         lines += [
@@ -328,6 +330,7 @@ async def run_golden(
     sample: int | None = None,
     use_live: bool = False,
     case_id: str | None = None,
+    stage: int = 1,
 ) -> None:
     cases = load_cases(cases_path, limit=sample, case_id=case_id)
 
@@ -343,7 +346,7 @@ async def run_golden(
         sb = _get_supabase()
         corrections = load_corrections(sb)
         sr_corrections = load_sr_corrections(sb)
-        snapshot_meta = {"mode": "live"}
+        snapshot_meta = {"mode": "live", "stage": stage}
     else:
         if not frozen_path.exists():
             print(f"WARNING: {frozen_path} not found. Run build_golden_dataset.py --rebuild-frozen-only.", file=sys.stderr)
@@ -354,9 +357,21 @@ async def run_golden(
         sr_corrections = frozen.get("selection_reason_corrections", [])
         snapshot_meta = {
             "mode": "frozen",
+            "stage": stage,
             "sha256": frozen.get("sha256"),
             "snapshot_at": frozen.get("snapshot_at"),
         }
+
+    # Stage 2 needs a Supabase client to query the works table.
+    # Read-only — works table lookup mirrors enrich_movie_titles().
+    sb_for_pipeline = None
+    if stage >= 2:
+        try:
+            sb_for_pipeline = _get_supabase()
+        except Exception as exc:
+            logger.warning(
+                "Stage 2 works lookup disabled — Supabase unavailable: %s", exc,
+            )
 
     feedback_prompt = build_feedback_prompt(corrections)
     sr_feedback_prompt = build_sr_feedback_prompt(sr_corrections)
@@ -388,6 +403,50 @@ async def run_golden(
     annotations = [r[0] for r in results]
     usages = [r[1] for r in results]
 
+    # ── Stage 2 / --full-pipeline ────────────────────────────────────────
+    # After LLM annotation, apply enrich_movie_titles() title resolution
+    # in-memory: works table (B3 first, B2 title_zh fallback) → eiga.com.
+    # No DB writes. FC lookup is skipped — the golden cases were derived
+    # from field_corrections so the "expected" value already encodes the
+    # post-FC state. Stage 2 measures how close the works + eiga.com pipeline
+    # gets without the explicit FC override.
+    pipeline_log: list[dict] = []
+    if stage >= 2:
+        for case, ann in zip(cases, annotations):
+            cats = ann.get("category") or []
+            if not isinstance(cats, list) or "movie" not in cats:
+                continue
+            inp = case.get("input", {})
+            source_name = case.get("source_name") or ""
+            name_zh, name_en, _url, _wp, _wd, title = _resolve_movie_titles_for_event(
+                sb_for_pipeline,
+                inp.get("raw_title"),
+                ann.get("name_ja") or inp.get("raw_title"),
+                source_name,
+                has_parent=False,
+            )
+            before_zh = ann.get("name_zh")
+            before_en = ann.get("name_en")
+            changed_zh = bool(name_zh and name_zh != before_zh)
+            changed_en = bool(name_en and name_en != before_en)
+            if name_zh:
+                ann["name_zh"] = name_zh
+            if name_en:
+                ann["name_en"] = name_en
+            if changed_zh or changed_en:
+                pipeline_log.append({
+                    "case_id": case.get("case_id"),
+                    "title": title,
+                    "before_zh": before_zh,
+                    "after_zh": ann.get("name_zh"),
+                    "before_en": before_en,
+                    "after_en": ann.get("name_en"),
+                })
+        logger.info(
+            "Stage 2 pipeline applied: %d cases had movie titles resolved",
+            len(pipeline_log),
+        )
+
     diffs = [
         compare_fields(c["expected"], ann)
         for c, ann in zip(cases, annotations)
@@ -404,7 +463,21 @@ def main() -> int:
     ap.add_argument("--live", action="store_true", help="Use live DB corrections (default: frozen)")
     ap.add_argument("--sample", type=int, default=None, help="Limit to N cases (debug)")
     ap.add_argument("--case", type=str, default=None, help="Run a single case by case_id")
+    ap.add_argument(
+        "--stage",
+        type=int,
+        choices=[1, 2],
+        default=1,
+        help="1 = LLM-only baseline (default); 2 = LLM + enrich_movie_titles pipeline (works → eiga.com).",
+    )
+    ap.add_argument(
+        "--full-pipeline",
+        action="store_true",
+        help="Alias for --stage 2: run LLM output through the enrich_movie_titles resolver before scoring.",
+    )
     args = ap.parse_args()
+
+    stage = 2 if args.full_pipeline else args.stage
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
@@ -415,6 +488,7 @@ def main() -> int:
         sample=args.sample,
         use_live=args.live,
         case_id=args.case,
+        stage=stage,
     ))
     return 0
 

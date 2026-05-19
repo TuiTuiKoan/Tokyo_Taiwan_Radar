@@ -141,6 +141,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const LOCALES: Locale[] = ["zh", "en", "ja"];
   const desc = tCatDesc(category as any) as string;
   const label = tCat(category as any) as string;
+  const image = `${base}/${locale}/categories/${category}/opengraph-image`;
   return {
     title: label,
     description: desc.slice(0, 160),
@@ -156,6 +157,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description: desc.slice(0, 160),
       url: `${base}/${locale}/categories/${category}`,
       type: "website",
+      images: [{ url: image, width: 1200, height: 1200, alt: label }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: label,
+      description: desc.slice(0, 160),
+      images: [image],
     },
   };
 }

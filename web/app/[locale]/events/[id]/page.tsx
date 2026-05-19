@@ -75,6 +75,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
   const name = getEventName(event as Event, locale);
   const description = getEventDescription(event as Event, locale);
+  const image = `${base}/${locale}/events/${id}/opengraph-image`;
 
   const SITE_NAMES: Record<string, string> = {
     zh: "Tokyo Taiwan Radar 東京台灣雷達",
@@ -101,11 +102,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       type: "article",
       publishedTime: event.start_date ?? undefined,
       modifiedTime: event.updated_at,
+      images: [{ url: image, width: 1200, height: 1200, alt: name ?? siteName }],
     },
     twitter: {
       card: "summary_large_image",
       title: name ?? undefined,
       description: description?.slice(0, 160) ?? undefined,
+      images: [image],
     },
   };
 }

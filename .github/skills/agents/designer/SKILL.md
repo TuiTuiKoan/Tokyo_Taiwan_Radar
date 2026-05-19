@@ -252,7 +252,7 @@ Current design (as of 2026-05-15, commit `a273483`):
 
 **⚠ 新增分類時 OG 圖自動涵蓋**：category OG image（`app/[locale]/categories/[category]/opengraph-image.tsx`）和 event OG image（`app/[locale]/events/[id]/opengraph-image.tsx`）均動態呼叫 `getSemanticSymbol(category, ...)` — **新增 `organicMotifs.tsx` case 即自動支援，無需任何 OG 圖額外修改**。
 
-**Fallback OG 圖分層規則：** `app/[locale]/opengraph-image.tsx` 是沒有分類標籤的一般頁面 fallback，必須沿用 `CategoryThumbnail` 的 `PALETTES`、FNV hash、`mulberry32`、背景 pattern、organic base blob、雙層 semantic symbol 邏輯，只替換 foreground motif 為台灣熱帶自然風物（雪線玉山、出海口溼地植物、颱風、太陽、蕉業）。事件、分類、城市頁必須保留更深層的專屬 `opengraph-image.tsx`，且在 `generateMetadata()` 同步指定 `openGraph.images` 與 `twitter.images`，避免 Twitter 繼承 fallback。
+**Fallback OG 圖分層規則：** `app/[locale]/opengraph-image.tsx` 是沒有分類標籤的一般頁面 fallback，必須沿用 `CategoryThumbnail` 的 `PALETTES`、FNV hash、`mulberry32`、背景 pattern、organic base blob、雙層 semantic symbol 邏輯，只替換 foreground motif 為台灣熱帶自然風物（雪線玉山、出海口溼地植物、颱風、太陽、蕉業）。一般頁面要是單頁單 motif，不可把五個 motif 同時拼進同一張圖；home、announcements、about、sources、saved、admin 這類頁面可以各自新增 segment-level `opengraph-image.tsx` 並用固定 page key 產圖。不要使用 runtime random，社群平台會快取第一次抓到的圖片；需要變化時使用 deterministic seed / page key。事件、分類、城市頁必須保留更深層的專屬 `opengraph-image.tsx`，且在 `generateMetadata()` 同步指定 `openGraph.images` 與 `twitter.images`，避免 Twitter 繼承 fallback。
 
 **Rules:**
 1. Satori 不支援 Tailwind class，**全部使用 inline `style={{}}`**。

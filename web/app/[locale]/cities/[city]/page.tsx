@@ -51,9 +51,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const desc = tCities(`${city}_desc` as any);
   const headingSuffix = tCities("headingSuffix");
   const LOCALES: Locale[] = ["zh", "en", "ja"];
+  const title = `${label}${headingSuffix}`;
+  const description = (desc as string).slice(0, 160);
+  const image = `${base}/${locale}/cities/${city}/opengraph-image`;
   return {
-    title: `${label}${headingSuffix}`,
-    description: (desc as string).slice(0, 160),
+    title,
+    description,
     alternates: {
       canonical: `${base}/${locale}/cities/${city}`,
       languages: {
@@ -62,10 +65,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       },
     },
     openGraph: {
-      title: `${label}${headingSuffix}`,
-      description: (desc as string).slice(0, 160),
+      title,
+      description,
       url: `${base}/${locale}/cities/${city}`,
       type: "website",
+      images: [{ url: image, width: 1200, height: 630, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [image],
     },
   };
 }

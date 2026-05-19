@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getTranslations } from "next-intl/server";
 import { type Locale, type Announcement } from "@/lib/types";
@@ -9,6 +10,42 @@ interface PageProps {
 }
 
 export const dynamic = "force-dynamic";
+
+const LOCALES: Locale[] = ["zh", "en", "ja"];
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { locale } = await params;
+  const tAnn = await getTranslations({ locale, namespace: "announcements" });
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
+  const title = tAnn("pageTitle");
+  const description = tAnn("pageDesc").slice(0, 160);
+  const image = `${base}/${locale}/announcements/opengraph-image`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `${base}/${locale}/announcements`,
+      languages: {
+        ...Object.fromEntries(LOCALES.map((l) => [l, `${base}/${l}/announcements`])),
+        "x-default": `${base}/zh/announcements`,
+      },
+    },
+    openGraph: {
+      title,
+      description,
+      url: `${base}/${locale}/announcements`,
+      type: "website",
+      images: [{ url: image, width: 1200, height: 1200, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [image],
+    },
+  };
+}
 
 export default async function AnnouncementsPage({ params }: PageProps) {
   const { locale } = await params;

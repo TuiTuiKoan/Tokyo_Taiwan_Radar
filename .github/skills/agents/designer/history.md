@@ -1,3 +1,13 @@
+## 2026-05-19 — 一般頁 OG 改為單頁單 motif
+
+**觀察：** 使用者指出 fallback OG 不應同時出現五個自然 motif。原需求是主頁、公告、about、資料來源、個人書籤、管理頁各自分享時都能有一張自然 motif 縮圖。
+
+**修正：** 將共用繪圖邏輯抽到 `web/lib/design/pageMotifOg.tsx`，用固定 page key 產生 deterministic palette / pattern / organic base / motif；新增 `home`、`announcements`、`about`、`sources`、`saved`、`admin` segment-level OG route。每個頁面只渲染一個 motif，不使用 runtime random。
+
+**教訓：** 社群平台會快取 OG 圖，真正亂數會讓分享預覽不可預期；設計需要變化時應用 page key seed，確保「看起來有變化，但同一 URL 永遠穩定」。
+
+---
+
 ## 2026-05-19 — 沒有分類標籤頁面的 fallback OG 圖
 
 **問題：** 一般頁面分享時會出現灰色社群預覽占位，因為只有事件、分類、城市路由有專屬 `opengraph-image.tsx`，其他沒有分類標籤的頁面缺少站台級 fallback 圖。

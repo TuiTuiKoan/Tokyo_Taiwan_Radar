@@ -1,8 +1,8 @@
 # 閉環效能指標 — 2026-05
-_Generated: 2026-05-17 21:39 JST_
+_Generated: 2026-05-19 01:16 JST_
 
 ## A1 — 重犯率（Recurrence Rate）
-過去 90 天中，同一 source × field_name 被修正 ≥ 2 次的組合數：**136**
+過去 90 天中，同一 source × field_name 被修正 ≥ 2 次的組合數：**135**
 
 | source_name | field_name | count |
 |---|---|---|
@@ -33,8 +33,8 @@ _Generated: 2026-05-17 21:39 JST_
 | taiwan_prism | 1 | 1 | 100.0% |
 | mot | 1 | 1 | 100.0% |
 | jinf | 1 | 1 | 100.0% |
-| amayaza | 1 | 1 | 100.0% |
 | taiwan_kyokai | 1 | 1 | 100.0% |
+| amayaza | 1 | 1 | 100.0% |
 | placebymethod | 1 | 1 | 100.0% |
 | asahiculture | 7 | 6 | 85.7% |
 | hakusuisha | 5 | 4 | 80.0% |
@@ -53,6 +53,6 @@ _Generated: 2026-05-17 21:39 JST_
 
 ## 其他健檢指標（摘要）
 - field_protect_hits (30d): 196
-- field_corrections (30d): 2163
-- category_corrections (30d): 290
+- field_corrections (30d): 2218
+- category_corrections (30d): 299
 - selection_reason_corrections (30d): 2

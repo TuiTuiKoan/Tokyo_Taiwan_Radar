@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -8,6 +9,42 @@ import { createClient as createAnonClient } from "@supabase/supabase-js";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
+}
+
+const LOCALES: Locale[] = ["zh", "en", "ja"];
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "saved" });
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
+  const title = t("title");
+  const description = t("loginPrompt");
+  const image = `${base}/${locale}/saved/opengraph-image`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `${base}/${locale}/saved`,
+      languages: {
+        ...Object.fromEntries(LOCALES.map((l) => [l, `${base}/${l}/saved`])),
+        "x-default": `${base}/zh/saved`,
+      },
+    },
+    openGraph: {
+      title,
+      description,
+      url: `${base}/${locale}/saved`,
+      type: "website",
+      images: [{ url: image, width: 1200, height: 1200, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [image],
+    },
+  };
 }
 
 export default async function SavedPage({ params }: PageProps) {
