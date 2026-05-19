@@ -32,6 +32,11 @@ VAGUE_ADDRESS_VALUES = frozenset({
     '東京都内', '大阪府内', '全国',
 })
 
+# Prefecture-only or city/ward-only — e.g. "福岡県", "福岡市", "渋谷区"
+# These lack a street-level address and should be upgraded by web search.
+import re as _re
+_VAGUE_GEO_RE = _re.compile(r'^[^\s]{2,10}[都道府県市区]$')
+
 SYSTEM_PROMPT = """\
 You are a venue address lookup assistant.
 Given a Japanese venue name, search the web and return the verified physical address in JSON.
@@ -118,7 +123,8 @@ def main():
     candidates = [
         e for e in r.data
         if (e.get("location_address") is None
-            or e.get("location_address") in VAGUE_ADDRESS_VALUES)
+            or e.get("location_address") in VAGUE_ADDRESS_VALUES
+            or bool(_VAGUE_GEO_RE.match(e.get("location_address") or "")))
         and e["source_name"] not in SKIP_SOURCES
         and not any(kw in (e["location_name"] or "") for kw in SKIP_VENUE_KEYWORDS)
     ]
