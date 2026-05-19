@@ -143,6 +143,11 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+  const isMetadataImage = /\/(opengraph-image|twitter-image)$/.test(pathname);
+
+  if (isMetadataImage) {
+    return response;
+  }
 
   // 3. Protect /[locale]/saved — requires login
   if (pathname.match(/^\/(zh|en|ja)\/saved/) && !user) {

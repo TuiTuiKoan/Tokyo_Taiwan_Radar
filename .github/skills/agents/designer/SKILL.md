@@ -254,6 +254,8 @@ Current design (as of 2026-05-15, commit `a273483`):
 
 **Fallback OG 圖分層規則：** `app/[locale]/opengraph-image.tsx` 是沒有分類標籤的一般頁面 fallback，必須沿用 `CategoryThumbnail` 的 `PALETTES`、FNV hash、`mulberry32`、背景 pattern、organic base blob、雙層 semantic symbol 邏輯，只替換 foreground motif 為台灣熱帶自然風物（雪線玉山、出海口溼地植物、颱風、太陽、蕉業）。一般頁面要是單頁單 motif，不可把五個 motif 同時拼進同一張圖；home、announcements、about、sources、saved、admin 這類頁面可以各自新增 segment-level `opengraph-image.tsx` 並用固定 page key 產圖。不要使用 runtime random，社群平台會快取第一次抓到的圖片；需要變化時使用 deterministic seed / page key。事件、分類、城市頁必須保留更深層的專屬 `opengraph-image.tsx`，且在 `generateMetadata()` 同步指定 `openGraph.images` 與 `twitter.images`，避免 Twitter 繼承 fallback。
 
+**受保護頁 OG 圖規則：** `saved`、`admin` 這類登入保護頁若有 segment-level `opengraph-image.tsx`，`proxy.ts` 必須放行 `/(opengraph-image|twitter-image)$` metadata image route，否則分享平台抓圖會被 307 redirect 到登入頁。頁面 URL 本身仍可維持登入保護；若要讓社群平台讀到受保護頁的 `<meta>`，需要另設公開 preview/landing URL，不可直接放寬頁面內容。
+
 **Rules:**
 1. Satori 不支援 Tailwind class，**全部使用 inline `style={{}}`**。
 2. 顏色來源只能是 `PALETTES` 陣列（8 種）；不可在 OG 圖中硬寫 hex。

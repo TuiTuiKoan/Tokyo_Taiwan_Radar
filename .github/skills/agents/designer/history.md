@@ -4,6 +4,8 @@
 
 **修正：** 將共用繪圖邏輯抽到 `web/lib/design/pageMotifOg.tsx`，用固定 page key 產生 deterministic palette / pattern / organic base / motif；新增 `home`、`announcements`、`about`、`sources`、`saved`、`admin` segment-level OG route。每個頁面只渲染一個 motif，不使用 runtime random。
 
+**保護頁補充：** `saved`、`admin` 的 metadata image route 一開始被登入保護 redirect 擋住，因此在 `proxy.ts` 放行 `opengraph-image` / `twitter-image` route。頁面本身仍保持登入保護，真實分享受保護 URL 時可能仍顯示登入頁 metadata；需要完整公開預覽時應另做公開 preview URL。
+
 **教訓：** 社群平台會快取 OG 圖，真正亂數會讓分享預覽不可預期；設計需要變化時應用 page key seed，確保「看起來有變化，但同一 URL 永遠穩定」。
 
 ---
