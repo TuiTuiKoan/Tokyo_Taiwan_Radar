@@ -55,7 +55,7 @@ Extract all visible information and return a JSON object with these fields (omit
 - has_japanese_support: true/false
 - has_chinese_support: true/false
 - has_english_support: true/false
-- event_form: array using only these values: exhibition | concert | lecture_seminar | film_screening | festival | market | sports | study_abroad | other
+- event_form: array using only these values: exhibition | screening | lecture | performance | market | workshop | conference | networking | screening_with_talk | tour | competition | tasting | broadcast | study_abroad | other
 - category: array using only these values: movie | performing_arts | senses | retail | nature | tech | tourism | lifestyle_food | books_media | gender | geopolitics | art | lecture | taiwan_japan | business | academic | competition | report
 
 Title rules:

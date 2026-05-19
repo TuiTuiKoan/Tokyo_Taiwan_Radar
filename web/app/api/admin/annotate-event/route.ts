@@ -379,7 +379,7 @@ Given event info AND a fetched web page (if provided), return a JSON with these 
 
 Classification fields (always required):
 - category: array of 1–3 values from: movie | performing_arts | senses | retail | nature | tech | tourism | lifestyle_food | books_media | gender | geopolitics | art | lecture | taiwan_japan | business | academic | competition | report
-- event_form: array of 1–2 values from: exhibition | concert | lecture_seminar | film_screening | festival | market | sports | study_abroad | other
+- event_form: array of 1–2 values from: exhibition | screening | lecture | performance | market | workshop | conference | networking | screening_with_talk | tour | competition | tasting | broadcast | study_abroad | other
 - primary_language: "ja" | "zh" | "en" | "mixed"
 - has_japanese_support: boolean
 - has_chinese_support: boolean
