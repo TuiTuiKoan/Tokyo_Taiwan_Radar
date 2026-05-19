@@ -22,6 +22,22 @@
 
 ---
 
+## 2026-05-20 — Safari 管理画面「保存中…」永久卡住（client-side supabase.insert hang）
+
+**問題：** Safari で OCR 後の event を「保存して標注」しようとすると、ボタンが「保存中…」のまま 1 分以上止まり、ユーザーは再試行不能。Chrome では同じフローが通る。alert も出ず、コンソールエラーも出ない。
+
+**根本原因：** Safari の fetch 実装が、特定のネットワーク条件下で `supabase.from("events").insert(...).select().single()` の Promise を **rejection も resolution もしないまま放置**。`try/catch` は throw された場合のみ発動するため、ハングした fetch では catch されず `setSaving(false)` も実行されない。同じパターンが 2026-05-15 の `ReportSection` で `submitReport` Server Action 化により回避済み（commit `53445be`）だが、管理画面の `handleSaveNew` / `handleSaveAndAnnotate` / `handlePublish` の 3 か所はまだ client-side `supabase.insert()` を直接呼んでいた。
+
+**修正：** `withClientTimeout(promise, ms, label)` ヘルパー（Promise.race + setTimeout reject）を導入し、3 か所すべての client-side insert/update を hard cap timeout で包んだ（insert 20s、publish 15s）。timeout 時は catch 分岐が発動 → alert + `setSaving(false)`（commit `de05da6`）。
+
+**教訓：**
+- `engineer/SKILL.md` の「Client Component 直接 INSERT 禁止 — Server Action 義務化」を **2026-05-15 に書いたのに 2026-05-20 まで管理画面に同じ罠が残っていた**。SKILL は書いた直後にコードベース全体を grep して既存 violation を全件除去すべし。
+- **Safari と Chrome で挙動が違う症状はほぼ確実に「fetch hang vs rejection」の差**。Chrome で再現しないからと言って bug が無いわけではない。
+- Server Action 化が長期解だが、それまでの間 `withClientTimeout` を全 client-side supabase 呼び出しに付ければ「永久 loading」だけは防げる（defense-in-depth）。
+- **「保存中…」が 10 秒以上止まったら必ず疑え**：通常の INSERT は 1–2 秒。10 秒 = 既に hang。
+
+---
+
 ## 2026-05-20 — 管理画面 OCR + annotate-event の event_form / category プロンプトが DB / types.ts と乖離（管理画面 event 保存が 400 / 不正な i18n キー表示）
 
 **問題：**

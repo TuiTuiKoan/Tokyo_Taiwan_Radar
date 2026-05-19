@@ -243,11 +243,29 @@ const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
 
 **Client Component 内で `supabase.from(...).insert()` を直接呼び出してはならない（admin・一般ユーザー問わず）。**
 
-ブラウザ→PostgREST のリクエストがネットワークレベルでハングすると、`await` は永遠に pending → `try/catch` は発動しない（thrown error ではなく hanging fetch のため） → `setStatus("error")` が呼ばれない → ボタンが loading 状態で固まる（2026-05-15 `ReportSection` commit `53445be`）。
+ブラウザ→PostgREST のリクエストがネットワークレベルでハングすると、`await` は永遠に pending → `try/catch` は発動しない（thrown error ではなく hanging fetch のため） → `setStatus("error")` が呼ばれない → ボタンが loading 状態で固まる（2026-05-15 `ReportSection` commit `53445be`、2026-05-20 `AdminEventTable` Safari hang）。
 
 **規則：**
 - ユーザー向けフォームの INSERT（anon・authenticated 問わず）は必ず Server Action で行う。
 - RLS で `anon INSERT` を許可していても、ブラウザ直接 INSERT はハング耐性がない。
+- **Safari は特に hang しやすい**。Chrome で動いても Safari で再現する。
+
+**暫定防護（Server Action 化が間に合わないとき）：** `withClientTimeout(promise, ms, label)` helper で `supabase.from(...).insert/.update()` を包む。Promise.race + setTimeout で hard cap reject → catch 分岐が必ず発動 → `setSaving(false)` 復帰。
+- insert：20 秒
+- update（軽い）：15 秒
+- 既存實裝：`web/components/AdminEventTable.tsx` の `handleSaveNew` / `handleSaveAndAnnotate` / `handlePublish`（2026-05-20 commit `de05da6`）
+
+```ts
+function withClientTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    Promise.resolve(p).then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+```
 
 ## annotate-event SELECT 紀律（ユーザー入力欄を守る）
 
