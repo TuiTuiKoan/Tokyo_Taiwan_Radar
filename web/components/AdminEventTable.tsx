@@ -12,6 +12,27 @@ import { assignWorkToEvent } from "@/app/actions/works";
 import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, matchesCity, type RegionWithCity } from "@/lib/regionPrefectures";
 import { getCityLabel } from "@/lib/cityLabel";
 
+// Safari 等瀏覽器在某些網路情境下會讓 supabase.from(...).insert/update 的 fetch 永久 pending；
+// try/catch 不會觸發、按鈕一直停在 "保存中…"。用 Promise.race 加 hard timeout 保底。
+function withClientTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms}ms — 通常為 Safari/網路掛起，請重新整理頁面再試。`)),
+      ms,
+    );
+    Promise.resolve(p).then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 interface Props {
   events: Event[];
   locale: Locale;
@@ -546,27 +567,37 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
 
   async function handleSaveNew() {
     setSaving(true);
-    const { data, error } = await supabase
-      .from("events")
-      .insert({
-        ...form,
-        start_date: form.start_date || null,
-        end_date: form.end_date || null,
-        parent_event_id: form.parent_event_id || null,
-        co_organizers: (form as any).co_organizers || null,
-        sponsors: (form as any).sponsors || null,
-        source_id: `manual-${Date.now()}`,
-      })
-      .select()
-      .single();
-    if (error) {
-      console.error("Insert failed:", error);
-      alert(`Save failed: ${error.message}`);
-    } else if (data) {
-      setEvents((prev) => [data as Event, ...prev]);
+    try {
+      const { data, error } = await withClientTimeout(
+        supabase
+          .from("events")
+          .insert({
+            ...form,
+            start_date: form.start_date || null,
+            end_date: form.end_date || null,
+            parent_event_id: form.parent_event_id || null,
+            co_organizers: (form as any).co_organizers || null,
+            sponsors: (form as any).sponsors || null,
+            source_id: `manual-${Date.now()}`,
+          })
+          .select()
+          .single(),
+        20000,
+        "Insert",
+      );
+      if (error) {
+        console.error("Insert failed:", error);
+        alert(`Save failed: ${error.message}`);
+      } else if (data) {
+        setEvents((prev) => [data as Event, ...prev]);
+        setShowNew(false);
+      }
+    } catch (e) {
+      console.error("Insert threw:", e);
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setShowNew(false);
   }
 
   async function handleSaveAndAnnotate() {
@@ -574,21 +605,25 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     setSaving(true);
     let data: Record<string, unknown> | null = null;
     try {
-      const result = await supabase
-        .from("events")
-        .insert({
-          ...form,
-          start_date: form.start_date || null,
-          end_date: form.end_date || null,
-          parent_event_id: form.parent_event_id || null,
-          co_organizers: (form as any).co_organizers || null,
-          sponsors: (form as any).sponsors || null,
-          source_id: `manual-${Date.now()}`,
-          is_active: false,
-          annotation_status: "pending",
-        })
-        .select()
-        .single();
+      const result = await withClientTimeout(
+        supabase
+          .from("events")
+          .insert({
+            ...form,
+            start_date: form.start_date || null,
+            end_date: form.end_date || null,
+            parent_event_id: form.parent_event_id || null,
+            co_organizers: (form as any).co_organizers || null,
+            sponsors: (form as any).sponsors || null,
+            source_id: `manual-${Date.now()}`,
+            is_active: false,
+            annotation_status: "pending",
+          })
+          .select()
+          .single(),
+        20000,
+        "Insert",
+      );
       if (result.error) {
         console.error("Insert failed:", result.error);
         alert(`Save failed: ${result.error.message}`);
@@ -676,28 +711,39 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
   async function handlePublish() {
     if (!savedEventId) return;
     setSaving(true);
-    const { error, data: publishedRows } = await supabase
-      .from("events")
-      .update({ is_active: true, annotation_status: "reviewed" })
-      .eq("id", savedEventId)
-      .select("id");
-    if (error) {
-      alert(`Publish failed: ${error.message}`);
+    try {
+      const { error, data: publishedRows } = await withClientTimeout(
+        supabase
+          .from("events")
+          .update({ is_active: true, annotation_status: "reviewed" })
+          .eq("id", savedEventId)
+          .select("id"),
+        15000,
+        "Publish",
+      );
+      if (error) {
+        alert(`Publish failed: ${error.message}`);
+        setSaving(false);
+        return;
+      }
+      if (!publishedRows || publishedRows.length === 0) {
+        alert("發布未生效（session 可能已過期），請重新整理頁面後再試。");
+        setSaving(false);
+        return;
+      }
+      // Refresh event in list
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === savedEventId ? { ...e, is_active: true, annotation_status: "reviewed" as const } : e
+        )
+      );
+      setSaving(false);
+    } catch (e) {
+      console.error("Publish threw:", e);
+      alert(e instanceof Error ? e.message : String(e));
       setSaving(false);
       return;
     }
-    if (!publishedRows || publishedRows.length === 0) {
-      alert("發布未生效（session 可能已過期），請重新整理頁面後再試。");
-      setSaving(false);
-      return;
-    }
-    // Refresh event in list
-    setEvents((prev) =>
-      prev.map((e) =>
-        e.id === savedEventId ? { ...e, is_active: true, annotation_status: "reviewed" as const } : e
-      )
-    );
-    setSaving(false);
     setShowNew(false);
     cancelNew();
   }
