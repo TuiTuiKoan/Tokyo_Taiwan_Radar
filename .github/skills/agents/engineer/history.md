@@ -2,6 +2,50 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-20 — performers[] 繁体字混入 + performers_zh[] ステージネーム GPT ハルシネーション（DB 直接修正）
+
+**問題：** 霧のごとく（映画 大濛）11 件の `performers[]` に繁体字（`['范少勳', '區偉', '9m88', '曾敬驊']`）が入り、日本語ロケールで映画サイトのカタカナではなく漢字が表示された。さらに `performers_zh[]` に `9m88 → 'Ju 88轟炸機'`（WW2 ユンカース爆撃機）という GPT ハルシネーションが混入。`field_corrections` も誤った値でロックされ汚染が固定化していた。
+
+**根本原因：** annotator が繁体字 film DB から performers[] を生成し、日本語ソースページのカタカナではなく漢字をセット。`performers_zh[]` 生成時に GPT がステージネーム `9m88` を軍用機型番「Ju 88」と誤一致させた。
+
+**修正：**
+1. 全 11 件の `performers[]` をカタカナ（京都シネマ公式ページ準拠）に更新。
+2. `performers_zh[]` を繁体字 6 名に修正（劉冠廷・宋芸樺 2 名追加）。
+3. `field_corrections` を全件削除 → 正しい値で再ロック。
+4. `works.cast_summary` もカタカナ 6 名に更新。
+5. 他 3 件（赤い糸・優雅な邂逅・ナルワンアワー）の performer 区切り文字も null クリア。QA レポート 14 件全確認済み。
+
+**教訓：**
+- `performers[]` は **日本語（カタカナ）ソースページから取得した名前** が正しい値。繁体字 film DB から補完したデータは `performers_zh[]` に入れる（`performers[]` ではない）。
+- `performers_zh[]` 生成時、英数字・記号含むステージネーム（`9m88`、`88rising` 等）は **翻訳禁止**。言語横断で同一表記のまま維持する。
+- PostgREST で UUID 列に `.like('%prefix%')` を使うと `operator does not exist: uuid ~~ unknown` エラー。UUID フィルタには `eq(full_uuid)` または name/source_name 等の TEXT 列で代替する。
+
+---
+
+## 2026-05-20 — auto_qa_performer_multi_value_pollution: ステールレポート 10 件 + event_reports カラム名誤認（DB 直接修正）
+
+**問題：** `auto_qa_performer_multi_value_pollution` ペンディングレポート 14 件のうち 10 件は underlying の `performer` がすでに null に修正済みのステール。調査時に `event_reports.details` カラムを参照したところ `column event_reports.details does not exist` エラーが発生した。
+
+**根本原因：** (1) QA レポートは underlying data が修正されても自動でクローズされない。(2) `event_reports` に `details` カラムは存在せず、正しいカラム名は `report_types TEXT[]`（複数形）。
+
+**修正：** pending レポートを対象に `events.performer` を確認し、区切り文字がなくなった 10 件を `status='confirmed'` に更新。残り 4 件（performer に区切り文字残存）は performer を null に修正した上でクローズ。
+
+**教訓：** (1) `event_reports` の正しいカラム: `report_types TEXT[]`（複数形）、`status`、`confirmed_at`。`details`・`report_type`（単数）は存在しない。(2) データ修正後 QA レポートは手動でクローズが必要 — `auto_qa.py` は「作成」のみ。
+
+---
+
+## 2026-05-20 — field_corrections.corrected_value NOT NULL: performer=null は `""` で表現（DB 直接修正）
+
+**問題：** `performer = null` を表現するために `corrected_value = None` で `field_corrections` upsert したところ `null value in column "corrected_value" violates not-null constraint` が発生した（event `13d618e5` sakurazaka 修正時）。
+
+**根本原因：** `field_corrections.corrected_value` カラムは NOT NULL 制約あり。null performers を保存する既存慣例（`corrected_value = ""`）を事前確認しなかった。
+
+**修正：** `corrected_value = ""` （空文字列）が `performer = null` を表す既存慣例と確認し `None` → `""` に変更。
+
+**教訓：** `field_corrections` で `performer = null` をロックするときは `corrected_value = ""`（空文字列）。Python `None` は DB NOT NULL 制約で弾かれる。
+
+---
+
 ## 2026-05-19 — eplus performer → raw_description 修正（SKILL.md performer ルール違反）（commit `fe72ea2`）
 
 **問題：** `_fetch_detail_info()` が `<dt>出演</dt>` の performer を `ev.performer` に直接セット。SKILL.md「Scraper 層用不到 — performer は annotator GPT 層が raw_description から抽出する」ルール違反。

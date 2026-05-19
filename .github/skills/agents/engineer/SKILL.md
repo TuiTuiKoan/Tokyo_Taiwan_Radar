@@ -430,7 +430,9 @@ Reference incident: 2026-05-09 — migration 054 新增多語言欄位後 UI 未
 |-------|------|------|
 | `performer` | `TEXT` | 日文單人主表演者；annotator GPT/regex 輸出；`getEventPerformer()` fallback 錨點 |
 | `performer_zh` / `performer_en` | `TEXT` | performer 的語言翻譯（一對一對應）；GPT 填入或人工設定 |
-| `performers[]` | `TEXT[]` | 多人顯示陣列；學術研討會全體發表者；annotator 自動 sync 自 `performer` |
+| `performers[]` | `TEXT[]` | **日本語（カタカナ）多人陣列**；日本語ソースページのキャスト表記を使用；`performers_zh[]` は繁体字対応 |
+| `performers_zh[]` | `TEXT[]` | performers の繁体字対応；`getEventPerformer(event,'zh')` が参照する |
+| `performers_en[]` | `TEXT[]` | performers の英語対応；`getEventPerformer(event,'en')` が参照する |
 
 **⚠ 絕不可刪除 `performer`**：`performer_zh/en` 錨定於它；34+ 處程式碼引用它；`performers[]` 有多人時翻譯欄位才有意義。
 
@@ -441,6 +443,8 @@ Reference incident: 2026-05-09 — migration 054 新增多語言欄位後 UI 未
 4. `performers` 未在 `field_corrections` 保護中
 
 此機制確保 UI 永遠能從 `performers[]` 讀取，不需在前端 fallback 回 `performer`。
+
+**performers[] 言語規則**：`performers[]` は必ず**日本語（カタカナ）**で入力する。繁体字 film DB・works.cast_summary から補完したデータは `performers_zh[]` に入れること。日本語の映画サイト・劇場サイトのキャスト欄（例：`出演：ケイトリン・ファン、ウィル・オー、9m88...`）が権威ソース。繁体字が `performers[]` に混入すると日本語ロケールで漢字が表示される（incident: 霧のごとく 11 件, 2026-05-20）。
 
 **performer multi-value 淨化規則（commit `c4bd9e1`）**：`performer` 字段必須是單一人物名。annotator 輸出 `performer` 時必須經過 `_MULTI_SEP_RE`（`[、,，×／/]`）檢查：
 - 包含區切符 → `performers[]` に分割し、`performer / performer_zh / performer_en` を `None` にクリア

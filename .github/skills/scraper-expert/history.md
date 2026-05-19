@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-20 — performers[] 言語違反（繁体字→カタカナ）+ performers_zh[] ステージネーム GPT ハルシネーション（DB 直接修正）
+
+**問題：** 霧のごとく（映画 大濛）11 件の `performers[]` に繁体字（`['范少勳', '區偉', '9m88', '曾敬驊']`）が格納されており、日本語ロケールで日本の映画サイトのカタカナ表記ではなく漢字が表示された。また `performers_zh[]` に `9m88 → 'Ju 88轟炸機'`（WW2 ユンカース爆撃機）という GPT ハルシネーションが混入し、`field_corrections` でロックされ固定化していた。
+
+**根本原因：** annotator が繁体字 film DB（`works.cast_summary`）から performers[] を補完する際、日本語ソースページのカタカナ形を参照しなかった。`performers_zh[]` 生成時に GPT がステージネーム `9m88` を軍用機型番「Ju 88」と誤一致させた。
+
+**修正：** 京都シネマ公式ページ（`出演：ケイトリン・ファン、ウィル・オー、9m88、ツェン・ジンホア、リウ・グァンティン、ビビアン・ソン`）のカタカナを権威ソースとして参照。全 11 件を更新し FC 再ロック。`works.cast_summary` もカタカナ 6 名に更新。
+
+**教訓：**
+- `performers[]` は **日本語（カタカナ）ソースページから取得した名前** が正しい値。繁体字 film DB のデータは `performers_zh[]` に入れること。
+- `performers_zh[]` 生成時、英数字・記号含むステージネーム（`9m88` 等）は **翻訳・変換禁止**。元の表記をそのままコピーする。
+- `field_corrections` を手動修正する際は `corrected_value` NOT NULL 制約に注意（`None` → `""` で null 表現）。
+
+---
+
 ## 2026-05-19 — eplus: scraper 層で `ev.performer` を直接セット — SKILL.md performer ルール違反（commit `fe72ea2`）
 
 **問題：** `_fetch_detail_info()` が `<dt>出演</dt><dd>…</dd>` から取得した performer 文字列を `ev.performer = info["performer"]` と直接セット。SKILL.md `## performer / performers[] 注解規則` に「scraper 層では performer を直接セットしない。raw_description に書き込むこと」という既存ルールが存在していたが、実装前に確認されなかった。
