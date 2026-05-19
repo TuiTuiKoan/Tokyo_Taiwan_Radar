@@ -4,6 +4,36 @@
 
 ---
 
+## 2026-05-19 — eplus: scraper 層で `ev.performer` を直接セット — SKILL.md performer ルール違反（commit `fe72ea2`）
+
+**問題：** `_fetch_detail_info()` が `<dt>出演</dt><dd>…</dd>` から取得した performer 文字列を `ev.performer = info["performer"]` と直接セット。SKILL.md `## performer / performers[] 注解規則` に「scraper 層では performer を直接セットしない。raw_description に書き込むこと」という既存ルールが存在していたが、実装前に確認されなかった。
+
+**根本原因：** 機能追加前に SKILL.md の performer ルールを検索しなかった。「performer フィールドを扱う際のルール確認」ステップがチェックリストに入っていなかった。
+
+**修正（commit `fe72ea2`）：** `ev.performer = info["performer"]` を削除。performer と program の両方を `raw_description` に `出演: …\n曲目・演目: …` 形式で追記。annotator GPT が raw_description から performer を自動抽出する（`SKILL.md § performer/performers[] 注解規則` 準拠）。
+
+**教訓：** performer / performers[] / performer_zh/en 関連フィールドを scraper で扱う場合、必ず SKILL.md の `## performer / performers[] 注解規則` を事前確認する。「**Scraper 層用不到**」 — scraper は raw_description に `出演: …` 形式で書き込むだけ。直接セットは FC ロックとの整合性も崩す。
+
+---
+
+## 2026-05-19 — enrich_addresses: 市区レベルアドレス（`'福岡市'` 等）が VAGUE 判定されずスキップ + FC ロック二重ブロック（commit `113fceb`）
+
+**問題：** eplus スクレイパーが H1 fetch で取得した `'福岡市'`（市区レベル）は `VAGUE_ADDRESS_VALUES` に含まれず、`enrich_addresses.py` の候補フィルタを通過できなかった。さらに `field_corrections` に `location_address: '福岡県'` が 2026-05-16 時点でロックされており、eplus の `'福岡市'` 更新も毎回 FC で上書きされる二重ブロック状態（event `7cdd06cb` — アクロス福岡シンフォニーホール）。
+
+**根本原因：** `VAGUE_ADDRESS_VALUES` は固定 frozenset（`'東京'`・`'大阪府'` 等）のみカバー。市区名（`'福岡市'`・`'渋谷区'`）は未収録。また eplus（都道府県→市区）と enrich_addresses（市区→街路）は 2 段階補完パイプラインだが、前段が市区まで補完しても後段が市区を VAGUE と見なさなければ街路補完に進めない構造上の穴があった。
+
+**修正（commit `113fceb`）：**
+1. `_VAGUE_GEO_RE = re.compile(r'^[^\s]{2,10}[都道府県市区]$')` を追加。
+2. 候補フィルタに `or bool(_VAGUE_GEO_RE.match(...))` を追加。
+3. 対象イベントの FC ロック削除 + `location_address = NULL` にリセット後、`enrich_addresses.py --source eplus` 実行 → `'福岡県福岡市中央区天神1-1-1'`（conf=high）で補完・FC 再ロック。
+
+**教訓：**
+- `enrich_addresses.py` の候補判定は `VAGUE_ADDRESS_VALUES`（固定 set）と `_VAGUE_GEO_RE`（正規表現）の**両方**で行う。
+- `field_corrections` に `location_address` ロックがあるイベントは enrich_addresses の FC batch check で**常にスキップ**。手動で街路補完を取得する場合は FC 削除 + `location_address = NULL` が必要。
+- eplus の 2 段階補完パイプライン：`_PREF_ONLY_RE`（都道府県→市区）→ `enrich_addresses`（市区→街路）。後段は前段の出力（市区）を VAGUE と認識できなければパイプラインが詰まる。
+
+---
+
 ## 2026-05-19 — Peatix: Playwright `inner_text()` がページ全体テキストを返し `organizer_name` が数千文字になる（commit `f839508`）
 
 **問題：** Playwright の `inner_text()` がグループアンカー要素に対して、期待どおりの組織名（数十文字）ではなく「Translate this page...」から始まるページ全体テキスト（数千文字）を返すケースがあった。`organizer_name` がページ全体テキストになり、ブロックリスト照合が誤動作する可能性があった。

@@ -1222,51 +1222,69 @@ Use this ladder when the source is a Japanese WordPress blog/CMS.
 
 (Incident: placebymethod.com, 2026-05-11 — `^/pages/` regex で 0 件 → `placebymethod\.com/pages/` に修正)
 
-## eplus.jp — 詳細ページ fetch によるアドレス精緻化（都道府県 → 市区）
+## eplus.jp — 詳細ページ fetch によるアドレス・出演者情報の精緻化
 
-eplus.jp の検索カードは会場名を `（都道府県）` 形式（e.g. `（福岡県）`）でしか表示しない。詳細ページの H1 には `(市名・YYYY/M/D(曜))` 形式で市区名が含まれるため、Playwright セッション終了後に `requests` + `BeautifulSoup` で詳細ページを fetch して市区レベルに更新する。
+eplus.jp の検索カードは会場名を `（都道府県）` 形式（e.g. `（福岡県）`）でしか表示しない。詳細ページには (1) H1 に市区名、(2) `<dt>出演</dt><dd>…</dd>` に出演者、(3) `<dt>曲目・演目</dt><dd>…</dd>` に演目情報が含まれる。Playwright セッション終了後に `requests` + `BeautifulSoup` で詳細ページを fetch して一括取得する。
 
 ```python
-import requests
-from bs4 import BeautifulSoup
-import re
-
 # H1 format: "…のチケット情報 (福岡市・2026/8/1(土))"
 # ⚠ literal ・ (U+30FB) を使うこと。raw string 内の \u30fb は Unicode 文字と
 #   して解釈されない（[^\u30fb] は [\, u, 3, 0, f, b] と等価 — バグになる）。
 _CITY_FROM_DETAIL_RE = re.compile(r"\(([^・)]+[市区])\s*・")
 _PREF_ONLY_RE = re.compile(r"^[^\s]+[都道府県]$")  # e.g. "福岡県"（東京都も含む）
 
-def _fetch_city_from_detail(url: str) -> str | None:
-    """GET eplus 詳細ページの H1 から市区名を抽出して返す。取得不能なら None。"""
+def _fetch_detail_info(url: str) -> dict:
+    """GET eplus 詳細ページから city / performer / program を一括抽出。"""
+    result: dict = {}
     try:
         r = requests.get(url, timeout=10, headers={"User-Agent": _DETAIL_UA})
         if r.status_code != 200:
-            return None
+            return result
         soup = BeautifulSoup(r.text, "html.parser")
+        # City from H1
         h1 = soup.find("h1")
         if h1:
             m = _CITY_FROM_DETAIL_RE.search(h1.get_text())
             if m:
-                return m.group(1)
+                result["city"] = m.group(1)
+        # Performer / program from dt/dd
+        _WANTED_LABELS = {"出演": "performer", "曲目・演目": "program"}
+        for dt in soup.find_all("dt"):
+            label = dt.get_text(strip=True)
+            if label in _WANTED_LABELS:
+                dd = dt.find_next_sibling("dd")
+                if dd:
+                    result[_WANTED_LABELS[label]] = dd.get_text(strip=True)
     except Exception:
         pass
-    return None
+    return result
 
 # scrape() 末尾（browser.close() 後）で実行:
 for ev in events:
-    if ev.location_address and _PREF_ONLY_RE.fullmatch(ev.location_address):
-        city = _fetch_city_from_detail(ev.source_url)
-        if city:
-            ev.location_address = city
+    needs_city = ev.location_address and _PREF_ONLY_RE.fullmatch(ev.location_address)
+    info = _fetch_detail_info(ev.source_url)
+    if not info:
+        continue
+    if needs_city and info.get("city"):
+        ev.location_address = info["city"]
+    # performer/program → raw_description に追記（ev.performer には直接セットしない）
+    extra_lines = []
+    if info.get("performer"):
+        extra_lines.append("出演: " + info["performer"])
+    if info.get("program"):
+        extra_lines.append("曲目・演目: " + info["program"])
+    if extra_lines:
+        ev.raw_description = ev.raw_description.rstrip() + "\n\n" + "\n".join(extra_lines)
 ```
 
 **注意点：**
 - `東京都` は `_PREF_ONLY_RE` にマッチするが `_CITY_FROM_DETAIL_RE` の `[市区]` にはマッチしない → `東京都` のまま保持。正常動作。
-- `enrich_location.py` は `location_address IS NULL OR ''` のみ処理するため、都道府県レベル placeholder（非 null）には効かない。スクレイパー内で精緻化まで完結させること。
-- 同様の構造（検索カードは都道府県、詳細ページ H1 は市区）のプラットフォームに対して同じパターンが再利用できる。
+- **performer は `ev.performer` に直接セットしない**（SKILL.md § performer/performers[] 注解規則）。`raw_description` に `出演: …` 形式で追記し annotator GPT が抽出する。
+- eplus 市区補完は **2 段階パイプライン**の前段：`_PREF_ONLY_RE`（都道府県→市区）→ `enrich_addresses.py`（市区→街路）。後段が市区を VAGUE と見なすことで初めて街路まで補完できる（`_VAGUE_GEO_RE` が対応）。
+- `enrich_location.py` は `location_address IS NULL OR ''` のみ処理するため、都道府県 placeholder（非 null）には効かない。
+- 同一リクエストで取れる全フィールドは一括取得する（「1 リクエスト 1 フィールド」は設計上のアンチパターン）。
 
-(Incident: アクロス福岡シンフォニーホール `7cdd06cb` — `福岡県` → `福岡市` — commit `0cfd07f`, 2026-05-19.)
+(Incident: アクロス福岡シンフォニーホール `7cdd06cb` — `福岡県` → `福岡市` → `福岡県福岡市中央区天神1-1-1` — commits `0cfd07f`・`113fceb`, 2026-05-19.)
 
 ## transit_store-specific
 - **Shopify JSON API**: `/collections/event/products.json?limit=20&page={n}` — paginate until empty page.
@@ -1392,9 +1410,20 @@ print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
 - **正例（correct pattern）**：`"record_links": links` （直接傳 Python list）。
 
 ## enrich_addresses.py
-- **Purpose**: GPT-4o-mini batch-fills `location_address` / `location_address_zh` / `location_address_en` for events that have `location_name` set but `location_address = NULL`.
+- **Purpose**: gpt-4o-search-preview batch-fills `location_address` / `location_address_zh` / `location_address_en` for events that have `location_name` set but `location_address = NULL` (or VAGUE).
+- **Candidate filter (2 conditions — either triggers):**
+  1. `location_address IS NULL`
+  2. `location_address in VAGUE_ADDRESS_VALUES`（固定 set: `'東京'`・`'大阪府'` 等）
+  3. `_VAGUE_GEO_RE.match(location_address)`（正規表現: `^[^\s]{2,10}[都道府県市区]$`）← **2026-05-19 追加**
+  →市区レベル（`'福岡市'`・`'渋谷区'`）や都道府県レベル（`'福岡県'`）は全て候補になる。
+- **FC lock は候補フィルタの後にチェック：** `field_corrections` に `location_address` ロックがあるイベントは **FC batch check で常にスキップ**される。手動で街路補完を強制する場合は先に FC 削除 + `location_address = NULL` が必要。
+  ```python
+  sb.table('field_corrections').delete().eq('event_id', EID).eq('field_name', 'location_address').execute()
+  sb.table('events').update({'location_address': None}).eq('id', EID).execute()
+  python enrich_addresses.py --source <source_name>
+  ```
 - **Skipped sources**: `gguide_tv` (TV broadcast, no physical address) and events with `location_name ILIKE '%オンライン%'` are excluded by default.
-- **Output is AI-generated, NOT verified**: GPT-4o-mini can hallucinate street numbers for new or renamed venues. Known failure: MoN Takanawa filled with `東京都港区高輪4-10-30` instead of correct `東京都港区高輪2-21-2` (2026-05-01).
+- **Output is AI-generated, NOT verified**: gpt-4o-search-preview can hallucinate street numbers for new or renamed venues. Known failure: MoN Takanawa filled with `東京都港区高輪4-10-30` instead of correct `東京都港区高輪2-21-2` (2026-05-01).
 - **Post-run audit**: After running `enrich_addresses.py`, manually spot-check records from high-profile partner venues (SSFF, TAICCA, TCC) against the organizer's official access page (`会場・アクセス` section).
 - **Verification source**: For SSFF, use `shortshorts.org/2026/ja/schedule/` Venue access section. For other venues, search the organizer's official site for the address.
 - **Direct DB fix**: When a wrong address is found, correct it directly via Supabase SDK UPDATE — no code change or commit needed (data-only correction).

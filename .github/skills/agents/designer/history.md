@@ -1,3 +1,15 @@
+## 2026-05-19 — 沒有分類標籤頁面的 fallback OG 圖
+
+**問題：** 一般頁面分享時會出現灰色社群預覽占位，因為只有事件、分類、城市路由有專屬 `opengraph-image.tsx`，其他沒有分類標籤的頁面缺少站台級 fallback 圖。
+
+**修正：** 新增 `app/[locale]/opengraph-image.tsx`，以台灣熱帶自然風物做共用 OG 圖：帶雪的玉山、出海口溼地植物、颱風、太陽、蕉業。初版做成深綠站台插畫，與 `CategoryThumbnail` 視覺系統斷開；最終版改為沿用 `CategoryThumbnail` 的 `PALETTES`、FNV hash、`mulberry32`、背景 pattern、organic base blob、雙層 semantic symbol 邏輯，只替換 foreground motif。`layout.tsx` 將一般頁面的 `openGraph.images` 與 `twitter.images` 指向 fallback；`about` 與 `sources` 這類自訂 metadata 頁也明確指定 fallback。
+
+**保護專屬圖：** 事件、分類、城市頁同步指定自己的 `openGraph.images` 與 `twitter.images`，避免 locale-level fallback 影響更具體的 route。
+
+**教訓：** OG 圖要分層：站台 fallback 服務一般頁面；事件、分類、城市用更深層 file-based OG 覆蓋；Twitter image 也要同步指定，否則會繼承上層 fallback。fallback 不應另開一套插畫語彙，應是 CategoryThumbnail 系統的自然 motif 變體。
+
+---
+
 ## 2026-05-16 — OG 圖無需獨立步驟（organicMotifs 自動涵蓋）+ Implemented 表格補齊 38 分類
 
 **發現：** category OG image（`app/[locale]/categories/[category]/opengraph-image.tsx`）和 event OG image（`app/[locale]/events/[id]/opengraph-image.tsx`）均動態呼叫 `getSemanticSymbol(category, variant, fg, accent)` — 無硬編碼 per-category 列表，無 `CATEGORY_PALETTE` / `SEMANTIC_RULES` / `pickSemanticMotif`（舊設計稿殘留，已廢棄）。

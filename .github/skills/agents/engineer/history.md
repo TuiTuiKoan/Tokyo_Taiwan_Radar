@@ -2,6 +2,28 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-19 — eplus performer → raw_description 修正（SKILL.md performer ルール違反）（commit `fe72ea2`）
+
+**問題：** `_fetch_detail_info()` が `<dt>出演</dt>` の performer を `ev.performer` に直接セット。SKILL.md「Scraper 層用不到 — performer は annotator GPT 層が raw_description から抽出する」ルール違反。
+
+**修正：** performer/program を `raw_description` に `出演: …\n曲目・演目: …` 形式で追記するよう変更（`fe72ea2`）。
+
+**教訓：** scraper に performer 関連フィールドを追加する前に SKILL.md `## performer / performers[] 注解規則` を確認する。
+
+---
+
+## 2026-05-19 — enrich_addresses: 市区レベルアドレスの VAGUE 未判定 + FC ロックによる二重ブロック（commit `113fceb`）
+
+**問題：** eplus が市区レベル（`'福岡市'`）まで補完しても `enrich_addresses.py` が街路補完を適用しなかった（アクロス福岡 `7cdd06cb`）。原因は 2 つ：(1) `VAGUE_ADDRESS_VALUES` に市区名が未収録、(2) `field_corrections` に古い `'福岡県'` がロックされ eplus の補完が毎回上書きされていた。
+
+**修正：** `_VAGUE_GEO_RE = re.compile(r'^[^\s]{2,10}[都道府県市区]$')` 追加（`113fceb`）。FC 削除 + NULL リセット後に enrich_addresses 実行 → `'福岡県福岡市中央区天神1-1-1'`（gpt-4o-search-preview, conf=high）。
+
+**教訓：**
+- FC ロックは enrich_addresses を完全ブロックする。手動で街路補完が必要な場合は FC 削除 + `location_address = NULL` が前提。
+- スクレイパー側の部分補完（都道府県→市区）と enrich_addresses の街路補完は 2 段階。後段が前段の出力を VAGUE と見なすことで初めてパイプラインが繋がる。
+
+---
+
 ## 2026-05-19 — Peatix: `inner_text()` ページ全体テキスト blob ガード（commit `f839508`）
 
 **問題：** Playwright `inner_text()` がグループアンカーに対してページ全体テキスト（数千文字）を返し、`organizer_name` が汚染されるケースがあった。
