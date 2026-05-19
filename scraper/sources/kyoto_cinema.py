@@ -160,6 +160,10 @@ class KyotoCinemaScraper(BaseScraper):
                     end_date = datetime(year, month, day, tzinfo=timezone.utc)
                 except ValueError:
                     pass
+            # Fallback: if no 終映日 found, use today's date so _build_movie_extend_row
+            # can advance end_date each daily run via MAX(old, new) logic.
+            if end_date is None and start_date is not None:
+                end_date = start_date
 
             raw_desc = description
             if start_date and end_date and end_date != start_date:

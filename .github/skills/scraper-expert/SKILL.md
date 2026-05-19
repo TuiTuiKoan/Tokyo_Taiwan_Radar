@@ -635,7 +635,7 @@ business_hours = "\n".join(
 
 ### 共通禁止事項
 
-1. **`end_date = start_date` は禁止**: `end_date` を設定する場合、少なくとも `start_date + 1日` でなければならない。`start_date` と同じ値は scraper 内で検出して `None` に戻すこと。
+1. **`end_date = start_date` は禁止（ただし movie-extend 用 fallback を除く）**: `end_date` を設定する場合、少なくとも `start_date + 1日` でなければならない。ただし **movie-extend 機能を持つ映画館 scraper**（Type 3 の継続上映型）では `end_date = None` のままでは `_build_movie_extend_row` の MAX ロジックが機能しないため `end_date = start_date` を明示的 fallback として設定することが許容される。この場合 movie-extend が毎日 MAX で端を延ばす。（Incident: `kyoto_cinema`, 2026-05-20）
 2. **空文字列 `business_hours = ""` 禁止**: 場次が取得できない場合は `None` を設定。空文字列は DB に不要なデータを残す。
 3. **推測による `end_date` 禁止**: 「通常2〜3週間上映」などの仮定で `end_date` を算出してはいけない。ソースから取得できない場合は `None`。
 4. **視覚上に場次時間があるのに `business_hours = None` は scraper bug**: サイトを目視確認して時刻要素のセレクタを追加すること。
@@ -682,7 +682,7 @@ ls scraper/sources/<name>.py
 | rightscube | 2 | ✅ THEATER区段 | ✅ business_hours_text | 完全準拠 |
 | ks_cinema | 2 | ✅ 表格期間 | ✅ schedule_text (commit `23e417f`) | 完全準拠 |
 | kino_shinsaibashi | 3 | ✅ 終映日 | ❌ None（JS 驅動，Type 3 可） | 完全準拠（`screening` + prefix, commit `544bbc4`） |
-| kyoto_cinema | 3 | ✅ 終映日M/D | ❌ None（Type 3 可） | 完全準拠（`screening` + prefix, commit `e91f5cd`） |
+| kyoto_cinema | 3 | ✅ 終映日M/D; fallback=start_date（movie-extend 用） | ✅ homepage time slots | 完全準拠（`screening` + prefix, commit `e91f5cd`; movie-extend fallback, 2026-05-20） |
 | cineswitch_ginza | 3 | ✅ M/D まで | ❌ None（Type 3 可） | 完全準拠（UTC fix, commit `e91f5cd`） |
 | theater_enya | 3 | ✅ 期間文字 | ❌ None（Type 3 可） | 完全準拠（UTC fix, commit `e91f5cd`） |
 | cinewind | 2 | ✅ YYYY/M/D | ❌ None（Type 2, 追加調査要） | UTC 修正済み（commit `e91f5cd`） |

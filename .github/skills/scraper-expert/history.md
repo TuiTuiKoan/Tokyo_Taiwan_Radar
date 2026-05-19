@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-05-20 — kyoto_cinema: end_date が初日のまま固定、movie-extend パスが発動しなかった（database.py + kyoto_cinema.py 修正）
+
+**問題：** kyoto_cinema スクレイパーが毎日走っているのに、イベントの `end_date` が最初にスクレイプした日で固定された。`business_hours` も初日の 1 タイム（例: `14:50`）のまま更新されなかった。
+
+**根本原因：**
+1. `database.py` movie-extend 条件に `and "movie" in (e.category or [])` が含まれていた。スクレイパーが生成する Event は annotator 実行前のため `category=[]` → 条件が常に False → extend パス発動なし。
+2. `kyoto_cinema.py` は「終映日」が見つからない場合 `end_date = None` を設定。movie-extend の MAX ロジックは `new_end=None` 時に `old_end` をそのまま返すため、日付が進まない。
+
+**修正：**
+1. `database.py` L538: `and "movie" in (e.category or [])` を削除（`existing_movie_state` 自体が DB 側 movie 確認済み）。
+2. `kyoto_cinema.py` L163: `if end_date is None and start_date is not None: end_date = start_date` を追加（毎日 MAX で end_date が前進する）。
+
+**教訓：**
+- **映画スクレイパーで end_date 未取得の場合は `start_date` をフォールバックにする**。MAX ロジックが機能するために非 None の新しい日付が必要。
+- movie-extend の発動条件は DB 行のカテゴリだけで判定する。スクレイパーの Event.category を確認しても意味がない（常に空）。
+
+---
+
 ## 2026-05-20 — performers[] 言語違反（繁体字→カタカナ）+ performers_zh[] ステージネーム GPT ハルシネーション（DB 直接修正）
 
 **問題：** 霧のごとく（映画 大濛）11 件の `performers[]` に繁体字（`['范少勳', '區偉', '9m88', '曾敬驊']`）が格納されており、日本語ロケールで日本の映画サイトのカタカナ表記ではなく漢字が表示された。また `performers_zh[]` に `9m88 → 'Ju 88轟炸機'`（WW2 ユンカース爆撃機）という GPT ハルシネーションが混入し、`field_corrections` でロックされ固定化していた。

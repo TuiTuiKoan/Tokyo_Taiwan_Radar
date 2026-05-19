@@ -535,10 +535,13 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
         if key in existing_keys:
             if key in all_force_keys:
                 force_rows.append(row)
-            elif key in existing_movie_state and "movie" in (e.category or []):
+            elif key in existing_movie_state:
                 # Movie-extend: partial update only — preserves first-observed start_date,
                 # extends end_date to cover ongoing run. Does NOT touch any P3.2-protected
                 # fields (name_*, description_*, category, location_*, etc.) by construction.
+                # NOTE: We use the DB row's category (stored in existing_movie_state, already
+                # filtered to 'movie') — NOT e.category — because scrapers emit category=[]
+                # before the annotator runs; checking e.category would always be False.
                 extend_row = _build_movie_extend_row(e, existing_movie_state[key])
                 if extend_row:
                     extend_rows.append(extend_row)

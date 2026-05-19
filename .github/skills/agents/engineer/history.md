@@ -2,6 +2,26 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-20 — kyoto_cinema の end_date が初日のまま止まる（movie-extend パス発動せず）（database.py + kyoto_cinema.py 修正）
+
+**問題：** kyoto_cinema イベント（霧のごとく 等）の `end_date` が初スクレイプ日（例: 2026-05-15）で固定され、映画が継続上映されているにも関わらず日付が更新されなかった。`business_hours` も初日取得値（例: 14:50）のまま。
+
+**根本原因：**
+1. `database.py` `upsert_events()` の movie-extend 条件：`key in existing_movie_state and "movie" in (e.category or [])`。スクレイパーは Event 生成時に `category=[]`（アノテーター前は空）なので `"movie" in []` が常に False → extend パスが**一切発動しない**。`existing_movie_state` は DB 行のカテゴリ（アノテーター済み）で正しくフィルタされているのに、受信側の empty category チェックが無意味な二重チェックになっていた。
+2. `kyoto_cinema.py`：「終映日」が映画ページに記載されていない場合 `end_date = None`。movie-extend の MAX ロジックは `old_end or new_end` → `None` の場合は `old_end` を維持するだけで日付が進まなかった。
+
+**修正：**
+1. `scraper/database.py` L538：条件から `and "movie" in (e.category or [])` を削除。`existing_movie_state` への登録自体が「DB で movie カテゴリ確認済み」を意味するため二重チェック不要（commit 対象）。
+2. `scraper/sources/kyoto_cinema.py` L163：「終映日」未検出時に `end_date = start_date`（今日の日付）をフォールバックとして設定 → MAX ロジックが毎日の scraper 実行で end_date を進められるようになった（commit 対象）。
+3. DB 即時修正：霧のごとく 2 件（`96dd4d16`, `c61292cd`）の `end_date` を 2026-05-20 に手動更新。
+
+**教訓：**
+- **movie-extend の trigger 条件は DB 行のカテゴリのみで判定**。スクレイパーが生成する Event は annotator 前なので `category=[]`。スクレイパー側の category を見てはいけない。
+- 映画スクレイパーで「終映日」が未取得の場合は `end_date = start_date`（今日）をフォールバックにすること。movie-extend の MAX ロジックはフォールバックがあって初めて機能する。
+- `existing_movie_state` に登録されること自体が DB 側で movie カテゴリ確認済みの証拠 — 呼び出し側の `e.category` チェックは不要。
+
+---
+
 ## 2026-05-20 — 管理画面 OCR + annotate-event の event_form / category プロンプトが DB / types.ts と乖離（管理画面 event 保存が 400 / 不正な i18n キー表示）
 
 **問題：**
