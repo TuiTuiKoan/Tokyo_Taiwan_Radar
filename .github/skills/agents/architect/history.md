@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-05-20 — movie-extend 觸發條件設計ミス：e.category を参照してはいけない
+
+**問題：** `database.py` の `upsert_events()` movie-extend 分岐に `and "movie" in (e.category or [])` が含まれていた。スクレイパーが生成する `Event` は annotator 前なので `category=[]`（空リスト）のため、この条件が **常に False** → movie-extend パスが一切発動しなかった。kyoto_cinema の `end_date` と `business_hours` が初日のまま固定されていた（霧のごとく 2 件 = `c61292cd`, `96dd4d16`）。
+
+**根本原因：** `Movie-Extend Invariant Guard` 条件 2 で `'movie' ∈ category`（incoming `e.category`）と書いたため、実装者が `e.category` を参照する条件を追加してしまった。しかしスクレイパー層の `e.category` は annotator 前で常に空。`existing_movie_state` への登録自体が「DB 側で movie カテゴリ確認済み」の証拠であり、それ以上の条件は不要だった。
+
+**修正（commit `a2f5828`）：**
+1. `database.py` L538 から `and "movie" in (e.category or [])` を削除。
+2. `kyoto_cinema.py` に `end_date = start_date` フォールバック追加（end_date=None 時 MAX ロジック不動作の防止）。
+3. `Movie-Extend Invariant Guard` 条件 2 を修正（`e.category` 不可 → `existing_movie_state` のみ）。
+
+**教訓：**
+- **movie-extend の発動条件は DB 行のカテゴリのみ**。スクレイパー Event の `category` を guard 条件に書いてはいけない（annotator 前 = 常に空）。
+- `existing_movie_state` に入ることが唯一の発動条件として十分——同 dict は DB 行 `'movie' ∈ category` でフィルタ済み。
+- Guard テキストに「`e.category`」という言葉を入れると実装者が誤解する。「DB 行の category」と「incoming event の category」を明確に区別した言葉で書くべきだった。
+
+---
+
 ## 2026-05-17 — auto_qa 4件根因修正（missing_hours × 3・performer pollution・missing_address）
 
 **背景：** admin panel に auto_qa フラグ 4 件表示（種土・優雅的相遇・生祥樂隊・局外談）。

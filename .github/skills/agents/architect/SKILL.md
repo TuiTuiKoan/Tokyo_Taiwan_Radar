@@ -371,12 +371,15 @@ Reference incident: 2026-05-05 — `AdminEventForm` 新增 `tEventForm` prop 後
 在審核任何修改 `database.py` `_build_movie_extend_row()`、新增 movie-extend 觸發分支、或擴張「對既存 row 部分更新」邏輯的計畫前，**必須**確認：
 
 1. **白名單欄位不可擴張至 P3.2 受保護欄位**：`_build_movie_extend_row()` 允許更新的欄位限定為 `raw_description`、`business_hours`、`start_date`、`end_date`、`scraped_at`、`annotation_status`（僅在 `raw_description` 變動時 flip 為 `pending`）。**禁止**新增 `name_*` / `description_*` / `category` / `location_*` / `performer` / `organizer*` / `is_paid` / `price_*` / `event_*` 任何欄位。新增白名單欄位的 PR 必須拒絕。
-2. **觸發條件必須三重 AND**：`'movie' ∈ category` + 既存於 DB（`existing_keys`）+ 不在 `blocked` / `reviewed` / `force_keys`。任何單一條件放寬會破壞「reviewed 事件不被自動更新」的保證。
+2. **觸發條件は `existing_movie_state` への登録のみ**：`key in existing_movie_state` が唯一の発動条件。`existing_movie_state` は事前に DB 行の `'movie' ∈ category` でフィルタ済み。**`e.category`（incoming scraper event の category）を条件に入れてはいけない** ——スクレイパーは annotator 前なので `e.category = []` が常であり、`and "movie" in (e.category or [])` は条件として常に False になる（incident: 2026-05-20）。残りの条件：不在 `blocked` / `reviewed` / `force_keys`——これらは DB 行属性で判定するため問題なし。
 3. **Partial 寫入必須用 `.update().eq().eq()` 而非 upsert**：既存 row 確認存在後不可用 `client.table("events").upsert(rows, on_conflict=...)` ——supabase-py 會嘗試 INSERT fallback，撞 NOT NULL 約束（如 `source_url`）。詳見 engineer history `2026-05-05 — Partial-payload upsert violates NOT NULL constraints`。
 4. **對處流程互斥檢查**：計畫不可同時觸發 movie-extend 與 `force_rescrape=true`（後者全覆寫會吃掉 movie-extend 的 MIN(start_date) 保留語意）。如需 reviewed 電影更新場次，走 manual SQL + `field_corrections` 路徑，不可改 movie-extend 條件。
 5. **新類型擴張需獨立分支**：演唱會巡演、巡迴展等「同 source_id 多檔期」需求，不可在 `_build_movie_extend_row()` 加 if-else，必須獨立 helper 並重新評估白名單欄位。
+6. **映画スクレイパーの end_date フォールバック**：「終映日」未取得の場合 `end_date = None` のままでは `_build_movie_extend_row()` の MAX ロジックが機能しない（`None` fallback で old_end そのまま）。映画スクレイパーは「終映日」未取得時に `end_date = start_date`（当日）をフォールバックとして設定すること——毎日 MAX で端を延ばせる（incident: kyoto_cinema 2026-05-20）。
 
-Reference incident: 2026-05-05 — commit `8572104` 引入 movie-extend；同 commit message 明示「by construction, extend rows touch zero P3.2-protected columns」與 `.update()` not upsert 的設計理由。
+Reference incidents:
+- 2026-05-05 — commit `8572104` 引入 movie-extend；同 commit message 明示「by construction, extend rows touch zero P3.2-protected columns」與 `.update()` not upsert 的設計理由。
+- 2026-05-20 — kyoto_cinema `end_date` 固定在初日：`e.category` 参照バグ + `end_date=None` fallback 漏れ（commit `a2f5828`）。
 
 ## Homepage Inline Card Divergence Guard
 
