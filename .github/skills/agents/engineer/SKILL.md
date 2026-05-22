@@ -253,7 +253,11 @@ const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
 **暫定防護（Server Action 化が間に合わないとき）：** `withClientTimeout(promise, ms, label)` helper で `supabase.from(...).insert/.update()` を包む。Promise.race + setTimeout で hard cap reject → catch 分岐が必ず発動 → `setSaving(false)` 復帰。
 - insert：20 秒
 - update（軽い）：15 秒
-- 既存實裝：`web/components/AdminEventTable.tsx` の `handleSaveNew` / `handleSaveAndAnnotate` / `handlePublish`（2026-05-20 commit `de05da6`）
+- bulk handlers + works fetch 等、Server Action 化が未完了の path 用の保底メカニズム。
+
+**完了済み Server Action 化（2026-05-22 commit）：** `web/components/AdminEventTable.tsx` の `handleSaveNew` / `handleSaveAndAnnotate` / `handlePublish` は `@/app/actions/admin-events.ts` の `createEventNoAnnotate` / `createDraftEvent` / `publishEvent` を呼び出す。共通 admin 認証は `@/app/actions/_shared/admin-guard.ts` (`requireAdmin()`)。`withClientTimeout` ラップは defense-in-depth として保持。
+
+**残存技術債（同 file 内 7+ 處）：** `AdminEventTable.tsx` の bulk handlers（`handleBulkToggleActive` / `handleBulkForceRescrape` / `handleBulkRemoveCategory` / `handleBulkAssignWork` / `handleBulkAddCategory`）と単列 toggle（`force_rescrape` / `is_active`）はまだ client-side `supabase.from("events").update()` を使用。Safari hang が再発したら同 pattern で Server Action 化する。
 
 ```ts
 function withClientTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {

@@ -2,6 +2,41 @@
 
 <!-- Append new entries at the top -->
 
+# Engineer Error History
+
+<!-- Append new entries at the top -->
+
+## 2026-05-22 — admin 三個 handler Server Action 化（Safari hang 根除 + requireAdmin 共通化）
+
+**変更内容：** `web/components/AdminEventTable.tsx` の `handleSaveNew` / `handleSaveAndAnnotate` / `handlePublish` をブラウザ直接 `supabase.from("events").insert/.update()` から Server Action 呼び出しに移行。
+
+**新規ファイル：**
+- `web/app/actions/_shared/admin-guard.ts` — 共通 `requireAdmin()`（cookie auth + `user_roles.role='admin'` 検証）
+- `web/app/actions/admin-events.ts` — `createDraftEvent` / `createEventNoAnnotate` / `publishEvent` の 3 つの Server Action、`ActionResult<T>` 統一返り値
+
+**変更ファイル：**
+- `web/app/actions/works.ts` — inline `requireAdmin()` 削除 → shared module から import（drift = 0）
+- `web/components/AdminEventTable.tsx` — 3 handler 書き換え。`withClientTimeout` ラップは defense-in-depth として保持
+
+**Phase 0.1 schema 確認結果：** `events` テーブルは `migration 001` で `UNIQUE (source_name, source_id)` 複合 unique constraint を持つ（後続 migration で変更なし）。`source_id = manual-${Date.now()}-${random6}` 形式 + 23505 retry × 1 で衝突防護。
+
+**残存技術債（明示記録）：** 同 file 内に client-side `supabase.from("events").update()` が 7+ 箇所残存：
+- L734 `handleBulkToggleActive`
+- L777 単列 reannotate
+- L789 `handleBulkForceRescrape`
+- L816 `handleBulkRemoveCategory`
+- L858 `handleBulkAssignWork`
+- L880 `handleBulkAddCategory`
+- L926 単列 force_rescrape toggle
+- L947 単列 is_active toggle
+
+これらも同じ Safari hang root cause を持つ。再発報告が来たら同 pattern（admin-events.ts に Server Action 追加 → handler 書き換え）で対処する。
+
+**Lesson：**
+- Server Action と Client Component で同じ admin 認証を再実装すると drift リスクが高い。最初から `_shared/admin-guard.ts` のような shared module に置く。
+- 既存 unique constraint を migration 履歴で確認するのは psql 不要で十分（後続 migration の `DROP CONSTRAINT` 有無 grep）。
+- `Awaited<ReturnType<typeof X>> extends { ok: true; supabase: infer S } ? S : never` は TS の narrowing で `never` になりがち。素直に `Awaited<ReturnType<typeof createClient>>` を抽出する方が安全。
+
 ## 2026-05-20 — kyoto_cinema の end_date が初日のまま止まる（movie-extend パス発動せず）（database.py + kyoto_cinema.py 修正）
 
 **問題：** kyoto_cinema イベント（霧のごとく 等）の `end_date` が初スクレイプ日（例: 2026-05-15）で固定され、映画が継続上映されているにも関わらず日付が更新されなかった。`business_hours` も初日取得値（例: 14:50）のまま。

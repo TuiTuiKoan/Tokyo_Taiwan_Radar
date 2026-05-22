@@ -9,6 +9,7 @@ import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEv
 import AdminCreateWorkModal from "@/components/AdminCreateWorkModal";
 import DesignSelect from "@/components/DesignSelect";
 import { assignWorkToEvent } from "@/app/actions/works";
+import { createDraftEvent, createEventNoAnnotate, publishEvent } from "@/app/actions/admin-events";
 import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, matchesCity, type RegionWithCity } from "@/lib/regionPrefectures";
 import { getCityLabel } from "@/lib/cityLabel";
 
@@ -568,30 +569,18 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
   async function handleSaveNew() {
     setSaving(true);
     try {
-      const { data, error } = await withClientTimeout(
-        supabase
-          .from("events")
-          .insert({
-            ...form,
-            start_date: form.start_date || null,
-            end_date: form.end_date || null,
-            parent_event_id: form.parent_event_id || null,
-            co_organizers: (form as any).co_organizers || null,
-            sponsors: (form as any).sponsors || null,
-            source_id: `manual-${Date.now()}`,
-          })
-          .select()
-          .single(),
+      const res = await withClientTimeout(
+        createEventNoAnnotate(form),
         20000,
-        "Insert",
+        "createEventNoAnnotate",
       );
-      if (error) {
-        console.error("Insert failed:", error);
-        alert(`Save failed: ${error.message}`);
-      } else if (data) {
-        setEvents((prev) => [data as Event, ...prev]);
-        setShowNew(false);
+      if (!res.ok) {
+        console.error("Insert failed:", res.error);
+        alert(`Save failed: ${res.error}`);
+        return;
       }
+      setEvents((prev) => [res.data, ...prev]);
+      setShowNew(false);
     } catch (e) {
       console.error("Insert threw:", e);
       alert(e instanceof Error ? e.message : String(e));
@@ -603,34 +592,20 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
   async function handleSaveAndAnnotate() {
     setAnnotationError(null);
     setSaving(true);
-    let data: Record<string, unknown> | null = null;
+    let created: Event | null = null;
     try {
-      const result = await withClientTimeout(
-        supabase
-          .from("events")
-          .insert({
-            ...form,
-            start_date: form.start_date || null,
-            end_date: form.end_date || null,
-            parent_event_id: form.parent_event_id || null,
-            co_organizers: (form as any).co_organizers || null,
-            sponsors: (form as any).sponsors || null,
-            source_id: `manual-${Date.now()}`,
-            is_active: false,
-            annotation_status: "pending",
-          })
-          .select()
-          .single(),
+      const res = await withClientTimeout(
+        createDraftEvent(form),
         20000,
-        "Insert",
+        "createDraftEvent",
       );
-      if (result.error) {
-        console.error("Insert failed:", result.error);
-        alert(`Save failed: ${result.error.message}`);
+      if (!res.ok) {
+        console.error("Insert failed:", res.error);
+        alert(`Save failed: ${res.error}`);
         setSaving(false);
         return;
       }
-      data = result.data as unknown as Record<string, unknown>;
+      created = res.data;
     } catch (insertErr) {
       console.error("Insert threw:", insertErr);
       alert(`Save failed: ${insertErr instanceof Error ? insertErr.message : String(insertErr)}`);
@@ -638,15 +613,15 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
       return;
     }
 
-    if (!data) {
+    if (!created) {
       alert("Save failed: no data returned.");
       setSaving(false);
       return;
     }
 
-    const eventId = (data as { id: string }).id;
+    const eventId = created.id;
     setSavedEventId(eventId);
-    setEvents((prev) => [data as unknown as Event, ...prev]);
+    setEvents((prev) => [created as Event, ...prev]);
     setSaving(false);
     setAnnotating(true);
     setEnrichedReady(false);
@@ -712,22 +687,16 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     if (!savedEventId) return;
     setSaving(true);
     try {
-      const { error, data: publishedRows } = await withClientTimeout(
-        supabase
-          .from("events")
-          .update({ is_active: true, annotation_status: "reviewed" })
-          .eq("id", savedEventId)
-          .select("id"),
+      const res = await withClientTimeout(
+        publishEvent(savedEventId),
         15000,
-        "Publish",
+        "publishEvent",
       );
-      if (error) {
-        alert(`Publish failed: ${error.message}`);
-        setSaving(false);
-        return;
-      }
-      if (!publishedRows || publishedRows.length === 0) {
-        alert("發布未生效（session 可能已過期），請重新整理頁面後再試。");
+      if (!res.ok) {
+        const msg = res.error === "publish_no_rows"
+          ? "発布未生效（session 可能已過期），請重新整理頁面後再試。"
+          : `Publish failed: ${res.error}`;
+        alert(msg);
         setSaving(false);
         return;
       }
