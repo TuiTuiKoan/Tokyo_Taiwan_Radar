@@ -4,6 +4,65 @@
 
 ---
 
+## 2026-05-22 — `_inject_report_prefix()` 非新聞來源污染 + end_date 固化問題（ZINE Fes）
+
+**背景：** event `6850265d`（peatix「ZINE Fes 誠品生活日本橋」）。首次爬取時頁面部分載入（networkidle 超時 → domcontentloaded fallback），`raw_description = "開催日時: 2026年05月22日\n\n"`（僅日期，無 description body）。手動補救：重爬頁面、更新 `description_ja`，設 `annotation_status = 'pending'`，再跑 annotator。
+
+**根因一：`【レポート】` 前綴誤注入**
+
+- GPT 看到 ZINE 市集描述（「ZINEをつくるクリエイターたちが集合」「読むと旅する気分」）＋ 3 個 talk sub-events，誤分類為 `['senses', 'workshop', 'lecture', 'report']`
+- annotator L1717 的 `_inject_report_prefix()` 對所有 `'report' in categories` 的事件注入前綴，**未區分來源類型**
+- peatix `raw_title` 是官方活動標題，不含任何 report 關鍵字，前綴注入後 `name_ja`/`name_zh`/`name_en` 三欄全被污染
+
+**修正（commit `7b2f821`）：** 加入守衛：只在 `_HEADLINE_REWRITE_SOURCES` 來源 OR `raw_title` 含 `_REPORT_TRIGGER_RE` 時才注入前綴。手動清除污染 + FC lock `name_ja`/`name_en`/`end_date`。
+
+**根因二：`end_date` 固化（兩日活動只顯示一天）**
+
+- 首次 annotation（稀疏 raw_description）：GPT 只看到 `2026年05月22日` → `end_date = 2026-05-22`
+- 手動再 annotation：設 `annotation_status = 'pending'` 但**未清除 `end_date`**
+- annotator L1453：`"end_date": event.get("end_date") or annotation.get("end_date")` — DB 中的 `2026-05-22`（truthy）贏過 GPT 的新推論值 `2026-05-23`
+
+**修正：** 手動設 `end_date = 2026-05-23` + FC lock。
+
+**教訓：**
+- **再 annotation 的標準操作必須包含 `end_date = None`**：更新 `raw_description` 時，必須一併清除 `end_date`（及懷疑有誤的 `start_date`），否則舊值永久固化
+- **`_inject_report_prefix()` 不可無差別注入**：爬蟲來源（peatix/eplus/doorkeeper）的 `raw_title` 是正式活動名，GPT `report` 分類不等於標題需要前綴
+- **兩個 guard 新增至 SKILL.md**：「Report Prefix Injection Guard」、「Re-annotation Date Clearing Guard」
+
+---
+
+## 2026-05-22 — LINE 週報兩個獨立問題同時發生：Vercel token 無效 + 月送出配額耗盡
+
+**背景：** `weekly-2026-05-22` 草稿生成後，管理介面「立即發送」顯示 "× LINE multicast failed for languages: zh, ja"。本地 `python weekly_line_broadcast.py --auto-send` 因 `auto_publish=false` 跳過，並未測試 LINE token。
+
+**根因一（Vercel token 無效）：**
+- Web API route `send/route.ts` 讀取 `LINE_CHANNEL_ACCESS_TOKEN ?? LINE_CHANNEL_TOKEN`
+- Vercel 環境變數疑為舊 token 或與本地 `.env` 不同步
+- 管理介面嘗試時兩語言均失敗（zh + ja 都失敗），`social_status` 維持 `{}`
+- 診斷依據：本地正確 token 發送時 ZH=11 成功，表示 LINE channel 本身正常
+
+**根因二（LINE 月配額耗盡，Free plan 200 則/月）：**
+- 本地直接呼叫 `run_send_draft()` 繞過 `auto_publish` 閘門
+- ZH 11 則發送成功；JA 3 則回傳 `429: {"message":"You have reached your monthly limit."}`
+- JA 3 位訂閱者本週未收到週報
+
+**最終狀態：**
+- 草稿 `weekly-2026-05-22` 已標記 `published_at = 2026-05-22T04:12Z`
+- ZH 11 人收到，JA 3 人未收到
+- 訂閱者總數：ZH=11、JA=3（共 14 人，較上週 9 人成長）
+
+**行動項目（使用者需手動完成）：**
+1. **Vercel**: 確認 `LINE_CHANNEL_ACCESS_TOKEN` 環境變數存在且值與 `scraper/.env LINE_CHANNEL_TOKEN` 一致
+2. **LINE OA 計畫升級**: Free plan 200 則/月已不夠用（14 訂閱者 × 4 週 = 56 則/月，加上 webhook 回應可能超標）→ 升級 Light plan (¥5,000/月, 5,000 則)
+3. **JA 補送**: 計畫升級後，手動呼叫 `run_send_draft()` 但需先將草稿的 `published_at` 重設為 NULL 才能重送；或建立獨立補送腳本
+
+**教訓：**
+- `run_auto_send()` 的 `auto_publish=false` 閘門不代表 LINE token 正常——應有獨立的 token 有效性監控
+- 管理介面的 `lineMulticast()` 不區分 401（認證失敗）與 429（配額耗盡）錯誤碼，回傳同樣的「failed」訊息，造成診斷困難
+- 訂閱者成長（9→14）代表月配額問題將越來越嚴重——Free plan 已不適合繼續使用
+
+---
+
 ## 2026-05-20 — movie-extend 觸發條件設計ミス：e.category を参照してはいけない
 
 **問題：** `database.py` の `upsert_events()` movie-extend 分岐に `and "movie" in (e.category or [])` が含まれていた。スクレイパーが生成する `Event` は annotator 前なので `category=[]`（空リスト）のため、この条件が **常に False** → movie-extend パスが一切発動しなかった。kyoto_cinema の `end_date` と `business_hours` が初日のまま固定されていた（霧のごとく 2 件 = `c61292cd`, `96dd4d16`）。

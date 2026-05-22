@@ -1717,7 +1717,17 @@ def annotate_pending_events(
             # Report prefix injection: when category includes 'report',
             # prepend locale-specific prefix to name fields.
             # Skips FC-locked fields (_human_protected).
-            if "report" in update_data.get("category", []):
+            # Guard: for non-headline-rewrite sources, only inject when raw_title
+            # contains report keywords — prevents a GPT mis-classification of
+            # 'report' on a peatix/eplus market or fair from prepending
+            # 【レポート】 to a perfectly valid scraped event title.
+            _src_is_rewrite = event.get("source_name") in _HEADLINE_REWRITE_SOURCES
+            _title_is_report = bool(
+                _REPORT_TRIGGER_RE.search(event.get("raw_title") or "")
+            )
+            if "report" in update_data.get("category", []) and (
+                _src_is_rewrite or _title_is_report
+            ):
                 for _rp_field, _rp_lang in [
                     ("name_ja", "ja"), ("name_zh", "zh"), ("name_en", "en")
                 ]:
