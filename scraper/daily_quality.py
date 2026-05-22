@@ -120,22 +120,47 @@ def _count_irrelevant_for_day(sb, day: date) -> int:
         return 0
 
 
+def _count_fc_override_attempts(sb, day: date) -> int:
+    """Count field_corrections rows whose override_attempted_at falls on `day`.
+
+    Migration 060 added override_attempted_at. The annotator B1 guard writes
+    this timestamp every time enrich tries to overwrite an FC-locked value.
+    Used as a baseline metric — no LINE alert until 30d baseline is collected.
+    """
+    start = datetime.combine(day, datetime.min.time(), tzinfo=UTC).isoformat()
+    end = datetime.combine(day + timedelta(days=1), datetime.min.time(), tzinfo=UTC).isoformat()
+    try:
+        resp = (
+            sb.table("field_corrections")
+            .select("id", count="exact", head=True)
+            .gte("override_attempted_at", start)
+            .lt("override_attempted_at", end)
+            .execute()
+        )
+        return resp.count or 0
+    except Exception as exc:
+        logger.debug("fc_override_attempts for %s skipped: %s", day, exc)
+        return 0
+
+
 def compute_day(sb, day: date) -> dict:
     events_upserted = _count_events_for_day(sb, day, only_active=False)
     events_active   = _count_events_for_day(sb, day, only_active=True)
     excl_hits       = _count_exclusion_hits(sb, day)
     irrelevant      = _count_irrelevant_for_day(sb, day)
+    fc_overrides    = _count_fc_override_attempts(sb, day)
     precision = None
     if events_upserted > 0:
         precision = round(1.0 - (irrelevant / events_upserted), 4)
     return {
-        "metric_date":        day.isoformat(),
-        "events_upserted":    events_upserted,
-        "events_active":      events_active,
-        "exclusion_hits":     excl_hits,
-        "irrelevant_reports": irrelevant,
-        "precision_rate":     precision,
-        "computed_at":        datetime.now(tz=UTC).isoformat(),
+        "metric_date":          day.isoformat(),
+        "events_upserted":      events_upserted,
+        "events_active":        events_active,
+        "exclusion_hits":       excl_hits,
+        "irrelevant_reports":   irrelevant,
+        "precision_rate":       precision,
+        "fc_override_attempts": fc_overrides,
+        "computed_at":          datetime.now(tz=UTC).isoformat(),
     }
 
 

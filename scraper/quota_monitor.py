@@ -18,6 +18,7 @@ import argparse
 import logging
 import math
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -262,6 +263,77 @@ def build_line_message(db_check: dict, gh_check: dict, today: str,
 
 
 # ---------------------------------------------------------------------------
+# Budget guard (used by eval-annotator-stage2.yml)
+# ---------------------------------------------------------------------------
+
+def check_budget(budget_usd: float) -> int:
+    """Pre-flight check: estimate 30d OpenAI annotator spend vs budget.
+
+    Scans scraper_runs.notes for cost=$X.XXXX entries (source='annotator')
+    in the past 30 days. If any cost data is logged AND the sum exceeds
+    `budget_usd`, returns exit code 1 (skip eval). Otherwise returns 0.
+
+    If no cost data is logged yet, returns 0 (graceful pass) — the Stage 2
+    eval uses 14 frozen cases ≈ $0.001/run so this is mostly forward-compat.
+    Plan v6 Phase 2.B: integrate with quota_monitor before Stage 2 cron.
+    """
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not supabase_key:
+        logger.warning("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — skipping budget check")
+        return 0
+
+    sb = create_client(supabase_url, supabase_key)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    try:
+        rows = (
+            sb.table("scraper_runs")
+            .select("notes")
+            .eq("source", "annotator")
+            .gte("ran_at", cutoff)
+            .execute()
+            .data or []
+        )
+    except Exception as exc:
+        logger.warning("check_budget: scraper_runs fetch failed: %s — passing through", exc)
+        return 0
+
+    total = 0.0
+    found_any = False
+    pat = re.compile(r"cost=\$?([0-9]+\.[0-9]+)")
+    for r in rows:
+        notes = r.get("notes") or ""
+        m = pat.search(notes)
+        if m:
+            found_any = True
+            try:
+                total += float(m.group(1))
+            except ValueError:
+                continue
+
+    logger.info(
+        "Budget check: 30d annotator spend ≈ $%.4f (budget $%.2f, cost_logs=%s)",
+        total, budget_usd, "yes" if found_any else "none-yet",
+    )
+    if found_any and total > budget_usd:
+        logger.error(
+            "Budget exceeded: $%.4f > $%.2f — skipping Stage 2 eval",
+            total, budget_usd,
+        )
+        # Best-effort LINE alert (no failure if creds missing).
+        try:
+            from line_notify import send_line_message
+            send_line_message(
+                f"⚠️ Stage 2 eval skipped: 30d annotator spend "
+                f"${total:.4f} > budget ${budget_usd:.2f}"
+            )
+        except Exception:
+            pass
+        return 1
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -350,5 +422,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--always", action="store_true",
                         help="Send LINE report even when below threshold")
+    parser.add_argument("--check-budget", action="store_true",
+                        help="Pre-flight budget guard. Exit 1 if estimated 30d "
+                             "OpenAI annotator spend exceeds --budget-usd. "
+                             "Used by eval-annotator-stage2.yml before running Stage 2.")
+    parser.add_argument("--budget-usd", type=float, default=0.50,
+                        help="USD budget cap for --check-budget (default 0.50).")
     args = parser.parse_args()
+
+    if args.check_budget:
+        sys.exit(check_budget(args.budget_usd))
+
     main(always=args.always)

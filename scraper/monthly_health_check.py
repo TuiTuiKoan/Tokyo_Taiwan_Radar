@@ -419,10 +419,59 @@ def _repair_latency(sb) -> dict:
 
 
 
+def _researcher_health(sb) -> dict:
+    """Researcher 健康度 — research_sources status counts (30d).
+
+    Plan v6 Phase 5' (降級版): 不新建 eval_researcher.py / golden set，
+    只在 monthly health check 中加 retrospective 統計。後續 30 天 baseline
+    收齊後再考慮設 LINE 警報門檻。
+
+    Actual status taxonomy in production:
+      - implemented  — scraper merged & shipping events (success)
+      - not-viable   — researcher proposed but rejected (no-go)
+      - candidate    — pending researcher follow-up
+      - researched   — investigation done, awaiting decision
+
+    Approval rate = implemented / (implemented + not-viable).
+    """
+    cutoff = (datetime.now(tz=UTC) - timedelta(days=30)).isoformat()
+    counts = {"implemented": 0, "not_viable": 0, "candidate": 0, "researched": 0, "other": 0}
+    try:
+        rows = (
+            sb.table("research_sources")
+            .select("status")
+            .gte("created_at", cutoff)
+            .execute()
+            .data or []
+        )
+    except Exception as exc:
+        logger.warning("_researcher_health: research_sources fetch failed: %s", exc)
+        return {**counts, "total": -1, "approval_rate": None}
+
+    for r in rows:
+        st = (r.get("status") or "").strip().lower()
+        if st == "implemented":
+            counts["implemented"] += 1
+        elif st in ("not-viable", "not_viable", "rejected"):
+            counts["not_viable"] += 1
+        elif st in ("candidate", "pending"):
+            counts["candidate"] += 1
+        elif st == "researched":
+            counts["researched"] += 1
+        else:
+            counts["other"] += 1
+
+    total = sum(counts.values())
+    denom = counts["implemented"] + counts["not_viable"]
+    approval_rate = round(counts["implemented"] / denom, 4) if denom else None
+    return {**counts, "total": total, "approval_rate": approval_rate}
+
+
 def build_line_message(reports: dict, corrections: dict, protect_hits: int, excl_hits: int,
                        cleanup: dict | None = None,
                        a1: dict | None = None, a2: dict | None = None,
-                       a3: dict | None = None, a4: dict | None = None) -> str:
+                       a3: dict | None = None, a4: dict | None = None,
+                       researcher: dict | None = None) -> str:
     month = datetime.now(tz=JST).strftime("%Y-%m")
     lines = [
         f"📋 報錯閉環健檢 — {month}",
@@ -514,12 +563,27 @@ def build_line_message(reports: dict, corrections: dict, protect_hits: int, excl
         else:
             lines.append("  A4 修復延遲: 無資料")
 
+    # Researcher 健康度（Plan v6 Phase 5'）
+    if researcher is not None:
+        lines.append("")
+        lines.append("【Researcher 健康度（30d）】")
+        rate = researcher.get("approval_rate")
+        rate_str = f"{rate:.1%}" if rate is not None else "n/a"
+        lines.append(
+            f"  implemented {researcher.get('implemented', '?')} / "
+            f"not-viable {researcher.get('not_viable', '?')} / "
+            f"candidate {researcher.get('candidate', '?')} / "
+            f"researched {researcher.get('researched', '?')}"
+        )
+        lines.append(f"  通過率: {rate_str}（implemented / (implemented+not-viable)）")
+
     return "\n".join(lines)
 
 
 def _write_evaluation_md(
     a1: dict, a2: dict, a3: dict, a4: dict,
     protect_hits: int, corrections: dict,
+    researcher: dict | None = None,
 ) -> Path:
     """Write detailed A1–A4 evaluation markdown to docs/monthly_review/."""
     month = datetime.now(tz=JST).strftime("%Y-%m")
@@ -595,6 +659,29 @@ def _write_evaluation_md(
         f"- selection_reason_corrections (30d): {corrections.get('selection_reason_corrections', '?')}",
     ]
 
+    # Researcher 健康度（Plan v6 Phase 5'）
+    if researcher is not None:
+        rate = researcher.get("approval_rate")
+        rate_str = f"{rate:.1%}" if rate is not None else "n/a"
+        lines += [
+            "",
+            "## Researcher 健康度（30d）",
+            "過去 30 天 `research_sources` 各 status 計數（retrospective）：",
+            "",
+            "| status | count |",
+            "|---|---|",
+            f"| implemented | {researcher.get('implemented', 0)} |",
+            f"| not-viable | {researcher.get('not_viable', 0)} |",
+            f"| candidate | {researcher.get('candidate', 0)} |",
+            f"| researched | {researcher.get('researched', 0)} |",
+            f"| other | {researcher.get('other', 0)} |",
+            f"| **total** | **{researcher.get('total', 0)}** |",
+            "",
+            f"通過率：**{rate_str}** （implemented / (implemented + not-viable)）",
+            "",
+            "_v6 降級版：先觀察 30–60 天 baseline 再考慮 LINE 警報門檻。_",
+        ]
+
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     logger.info("Evaluation markdown written: %s", out_path)
     return out_path
@@ -615,17 +702,20 @@ def run(dry_run: bool = False) -> dict:
     a3 = _first_pass_accuracy(sb)
     a4 = _repair_latency(sb)
 
+    # Researcher 健康度（Plan v6 Phase 5'）
+    researcher = _researcher_health(sb)
+
     cleanup = None
     if not dry_run:
         cleanup = _cleanup_old_records(sb)
 
-    msg = build_line_message(reports, corrections, protect_hits, excl_hits, cleanup, a1, a2, a3, a4)
+    msg = build_line_message(reports, corrections, protect_hits, excl_hits, cleanup, a1, a2, a3, a4, researcher)
     flags = _integrity_flags(reports, corrections)
 
     # Write evaluation markdown
     eval_md_path = None
     try:
-        eval_md_path = str(_write_evaluation_md(a1, a2, a3, a4, protect_hits, corrections))
+        eval_md_path = str(_write_evaluation_md(a1, a2, a3, a4, protect_hits, corrections, researcher))
     except Exception as exc:
         logger.warning("Could not write evaluation md: %s", exc)
 
@@ -641,14 +731,17 @@ def run(dry_run: bool = False) -> dict:
         "a2_protect_trend": a2,
         "a3_first_pass": a3,
         "a4_repair_latency": a4,
+        "researcher_health": researcher,
         "eval_md": eval_md_path,
         "message_preview": msg[:200],
     }
 
     if dry_run:
         logger.info("[dry-run] LINE message:\n%s", msg)
-        logger.info("[dry-run] recurrence=%s protect_hit_rate=%s first_pass=%s repair_latency=%s",
-                    a1.get("recurrence_pairs"), a2.get("rate_30d"), a3.get("sources", [])[:1], a4.get("sources", [])[:1])
+        logger.info("[dry-run] recurrence=%s protect_hit_rate=%s first_pass=%s repair_latency=%s researcher=%s",
+                    a1.get("recurrence_pairs"), a2.get("rate_30d"),
+                    a3.get("sources", [])[:1], a4.get("sources", [])[:1],
+                    researcher.get("approval_rate"))
     else:
         success = send_line_message(msg)
         if not success:

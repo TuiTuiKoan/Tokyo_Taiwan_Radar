@@ -19,7 +19,9 @@ import os
 import re
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
+
+UTC = timezone.utc
 from pathlib import Path
 from typing import Any
 
@@ -2241,7 +2243,7 @@ def enrich_movie_titles() -> None:
         try:
             fc_res = (
                 sb.table("field_corrections")
-                .select("field_name,corrected_value")
+                .select("id,field_name,corrected_value,override_attempt_count")
                 .eq("event_id", event["id"])
                 .in_("field_name", ["name_zh", "name_en"])
                 .execute()
@@ -2250,11 +2252,25 @@ def enrich_movie_titles() -> None:
                 fname = fc.get("field_name")
                 fval = fc.get("corrected_value")
                 if fname in update and fval and update[fname] != fval:
+                    attempted = update[fname]
                     logger.warning(
                         "  ⚠ FC guard: skip %s for %s (FC=%r vs enrich=%r)",
-                        fname, event["id"][:8], fval, update[fname],
+                        fname, event["id"][:8], fval, attempted,
                     )
                     del update[fname]
+                    # Migration 060: log the attempted overwrite so daily_quality
+                    # can track FC conflict pressure (fc_override_attempts metric).
+                    try:
+                        sb.table("field_corrections").update({
+                            "override_attempted_at": datetime.now(UTC).isoformat(),
+                            "override_attempted_value": str(attempted)[:1000],
+                            "override_attempt_count": (fc.get("override_attempt_count") or 0) + 1,
+                        }).eq("id", fc["id"]).execute()
+                    except Exception as upd_exc:
+                        logger.debug(
+                            "  field_corrections override-log skipped for %s/%s: %s",
+                            event["id"][:8], fname, upd_exc,
+                        )
         except Exception as fc_exc:
             logger.debug(
                 "  field_corrections FC guard skipped for %s: %s",

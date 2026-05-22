@@ -186,6 +186,65 @@ def _estimate_cost(usages: list) -> float:
 
 # ─── Report writer ────────────────────────────────────────────────────────────
 
+def build_snapshot(
+    cases: list[dict],
+    diffs: list[list[dict]],
+    snapshot_meta: dict,
+    runtime_s: float,
+    usages: list,
+) -> dict:
+    """Build a machine-readable snapshot of eval results.
+
+    Used by CI KPI guards (eval-annotator.yml / eval-annotator-stage2.yml)
+    so they can fail fast without parsing the markdown report.
+    """
+    tier_stats: dict[int, dict[str, dict]] = {1: {}, 2: {}}
+    for diff_list in diffs:
+        for entry in diff_list:
+            t = entry["tier"]
+            f = entry["field"]
+            if f not in tier_stats[t]:
+                tier_stats[t][f] = {"tested": 0, "passed": 0, "failed": 0}
+            tier_stats[t][f]["tested"] += 1
+            if entry["match"]:
+                tier_stats[t][f]["passed"] += 1
+            else:
+                tier_stats[t][f]["failed"] += 1
+
+    per_field: dict[str, dict] = {}
+    for tier in (1, 2):
+        for f, s in tier_stats[tier].items():
+            # Tier 1 wins if a field appears in both (Tier 1 is the strict baseline).
+            if f not in per_field:
+                per_field[f] = {
+                    "tier": tier,
+                    "tested": s["tested"],
+                    "passed": s["passed"],
+                    "failed": s["failed"],
+                }
+
+    t1_tested = sum(v["tested"] for v in tier_stats[1].values())
+    t1_passed = sum(v["passed"] for v in tier_stats[1].values())
+    t2_tested = sum(v["tested"] for v in tier_stats[2].values())
+    t2_passed = sum(v["passed"] for v in tier_stats[2].values())
+
+    return {
+        "mode": snapshot_meta.get("mode", "frozen"),
+        "stage": snapshot_meta.get("stage", 1),
+        "snapshot_at": snapshot_meta.get("snapshot_at"),
+        "sha256": snapshot_meta.get("sha256"),
+        "n_cases": len(cases),
+        "per_field": per_field,
+        "tier1_tested": t1_tested,
+        "tier1_passed": t1_passed,
+        "tier2_tested": t2_tested,
+        "tier2_passed": t2_passed,
+        "cost_usd": round(_estimate_cost(usages), 6),
+        "runtime_s": round(runtime_s, 2),
+        "ran_at": datetime.now(tz=JST).isoformat(),
+    }
+
+
 def write_report(
     cases: list[dict],
     diffs: list[list[dict]],
@@ -331,6 +390,7 @@ async def run_golden(
     use_live: bool = False,
     case_id: str | None = None,
     stage: int = 1,
+    json_output: Path | None = None,
 ) -> None:
     cases = load_cases(cases_path, limit=sample, case_id=case_id)
 
@@ -456,6 +516,12 @@ async def run_golden(
 
     write_report(cases, diffs, snapshot_meta, output_path, runtime_s, usages)
 
+    if json_output is not None:
+        snap = build_snapshot(cases, diffs, snapshot_meta, runtime_s, usages)
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        json_output.write_text(json.dumps(snap, ensure_ascii=False, indent=2))
+        logger.info("Snapshot JSON written: %s", json_output)
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Run annotator golden set eval")
@@ -475,6 +541,12 @@ def main() -> int:
         action="store_true",
         help="Alias for --stage 2: run LLM output through the enrich_movie_titles resolver before scoring.",
     )
+    ap.add_argument(
+        "--json-output",
+        type=Path,
+        default=None,
+        help="Optional path to dump a machine-readable JSON snapshot (per-field passed/tested counts, cost, runtime). Used by CI KPI guards.",
+    )
     args = ap.parse_args()
 
     stage = 2 if args.full_pipeline else args.stage
@@ -489,6 +561,7 @@ def main() -> int:
         use_live=args.live,
         case_id=args.case,
         stage=stage,
+        json_output=args.json_output,
     ))
     return 0
 
