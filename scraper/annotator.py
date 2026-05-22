@@ -538,6 +538,16 @@ REJECT (set is_active=false in your mind; write selection_reason explaining why 
   - The event is a Japanese TV programme that once covered Taiwan
   - SOURCE=bookandbeer: apply STRICT standard. The event MUST feature a Taiwanese author, a book about Taiwan/Taiwan-Japan relations, or an explicit Taiwan cultural theme. A book merely mentioning Taiwan incidentally does NOT qualify.
 
+LOCATION GATE — JAPAN FOCUS:
+This radar covers events with a Japan connection. An event qualifies if it meets at least one of the following rules:
+  Rule 1: Physically takes place IN Japan AND has a Taiwan-related theme.
+  Rule 2: Physically takes place IN Japan AND features joint Taiwan-Japan participation.
+  Rule 3: Physically takes place IN Japan, organized by a Japanese entity, with Taiwanese artists/speakers/performers participating.
+  Rule 4: Physically takes place IN Taiwan but is explicitly designed to attract Japanese participants (study abroad, tourism, business exchange, cultural immersion for Japanese audiences).
+EXCLUSION: If an event takes place ONLY in Taiwan AND does not meet Rule 4, set is_active = false and explain in selection_reason.
+IMPORTANT INTEGRATION: Rule 4 corresponds to category labels tourism, study_abroad, scholarship, and business when the target audience is Japanese. If GPT has already assigned any of these categories AND the description clearly targets Japanese participants, the event PASSES the LOCATION GATE — regardless of whether the physical location is in Taiwan. Do NOT double-penalise.
+SCOPE — PROSPECTIVE ONLY: This gate applies at annotation time to events in pending / re-annotation state. Do NOT use this gate to retroactively set is_active = false for events that already have field_corrections locking any field (i.e. human-reviewed events). Those must be handled manually.
+
 LANGUAGE RULE — CRITICAL: ALL *_zh fields (name_zh, description_zh, location_name_zh, location_address_zh, business_hours_zh, selection_reason.zh, and sub-event zh fields) MUST be written in Traditional Chinese (繁體中文). NEVER use Simplified Chinese (简体字). This applies to every single zh field without exception.
 
 Given the raw title and description of an event (usually in Japanese), extract structured data and translate into three languages.
@@ -560,6 +570,7 @@ OTHER RULES:
    ALSO: if event_form is "conference" and the description lists 3 or more distinct named presentations/reports (報告, 発表, セッション) with individually named presenters (発表者, 報告者, 登壇者), generate a sub-event for each presentation. Use the same start_date/end_date and venue as the parent, set business_hours to that session's time slot (e.g. "12:30～13:50"), and put the presenter's name in both the "performer" string and the "performers" array. The sub-event name_ja should be the presentation title.
    EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
    EXCEPTION — DO NOT create sub_events when the article is a report/recap. If the raw_title contains レポート, レポ, 報告, 記録, アーカイブ, or recap (case-insensitive), the article is a post-event report and describes a single completed event — return sub_events: [] always. Treat the report as one event and extract its single set of fields (date, performer, etc.) from the body.
+   NOTE: For events with exactly two venues across different countries (e.g. Japan + Taiwan), do NOT create sub_events. Use the Japan venue as the single primary location (see MULTI-COUNTRY VENUE RULE above).
 2. Categories must be from this list: movie, performing_arts, senses, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, art, lecture, taiwan_japan, scholarship, study_abroad, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, radio_program, exhibition, design_craft, herbal, taiwan_mandarin, healthcare, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
    - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
@@ -642,6 +653,13 @@ NAME WRITING RULES — CRITICAL:
    regardless of where the artworks in the collection come from.
 
    NOTE: Events held IN Taiwan are allowed and welcome. Do NOT force-convert Taiwan addresses to Japanese format. For Taiwan venues, fill location_address with the real Taiwanese address (e.g. "台北市中山區小民生東路3段1號") and set location_name accordingly. The tourism category applies when the event is designed to attract Japanese visitors to Taiwan.
+   MULTI-COUNTRY VENUE RULE: When an event has physical venues in BOTH Japan AND a non-Japan country (Taiwan, South Korea, etc.), ALWAYS use the Japan-side venue as the primary location_name and location_address.
+   How to identify the Japan venue:
+     - Primary signal: address contains a Japanese prefecture suffix (都/道/府/県 — e.g. 東京都、大阪府、京都府、北海道).
+     - Secondary signal: section header like ＜日本＞ / 【日本】 immediately precedes the venue block.
+     - Fallback (no address): if only a Japanese venue name is present (e.g. 誠品生活日本橋), use that name as location_name and set location_address = null.
+   The non-Japan venue may be mentioned in description_* for context, but MUST NOT be used as location_name, location_address, or location_prefectures.
+   Do NOT create sub_events solely to represent the non-Japan venue.
    ONLINE EVENTS: If the event is conducted online (Zoom, online webinar, streaming, オンライン開催, 線上, ウェビナー) — regardless of organizer's country — set location_name = "オンライン" and location_address = null and location_prefectures = null. This includes study_abroad application webinars, online lectures, and hybrid events where the main audience participation is online.
    APPLICATION-TYPE EVENTS: For study abroad / scholarship / grant application events (study_abroad event_form), if the application process or info session is online, treat as オンライン. Do NOT use the university's physical campus address as location.
 7. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
