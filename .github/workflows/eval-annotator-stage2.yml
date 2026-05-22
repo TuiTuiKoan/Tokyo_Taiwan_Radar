@@ -1,0 +1,136 @@
+name: Annotator Golden Set Eval (Stage 2 — Weekly)
+
+# Plan v6 Phase 2.B — Stage 2 (LLM + enrich_movie_titles pipeline) weekly cron.
+# Schedule: Sunday 18:00 UTC = Monday 03:00 JST (off-peak).
+# KPI thresholds tighter than Stage 1 because pipeline output is the user-facing state.
+
+on:
+  schedule:
+    - cron: '0 18 * * 0'
+  workflow_dispatch:
+
+jobs:
+  eval-stage2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'scraper/requirements.txt'
+
+      - name: Install Python dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Pre-flight budget guard (quota_monitor)
+        id: budget
+        working-directory: scraper
+        env:
+          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          LINE_CHANNEL_TOKEN: "${{ secrets.LINE_CHANNEL_TOKEN }}"
+          LINE_USER_ID: "${{ secrets.LINE_USER_ID }}"
+        run: |
+          python quota_monitor.py --check-budget --budget-usd 0.50
+
+      - name: Run golden set eval (Stage 2)
+        working-directory: scraper
+        env:
+          OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+        run: |
+          python eval_annotator.py \
+            --stage 2 \
+            --output report-stage2.md \
+            --json-output eval_snapshot_stage2.json
+          if [ -f "report-stage2.md" ]; then
+            echo "## Annotator Golden Set Report (Stage 2)" >> $GITHUB_STEP_SUMMARY
+            cat report-stage2.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upsert KPI into daily_quality_metrics + enforce thresholds
+        id: kpi
+        working-directory: scraper
+        env:
+          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          from datetime import datetime, timezone
+          from supabase import create_client
+
+          snap = json.load(open("eval_snapshot_stage2.json"))
+          per_field = snap.get("per_field", {})
+          nz = per_field.get("name_zh", {})
+          ne = per_field.get("name_en", {})
+          nz_p, nz_t = nz.get("passed", 0), nz.get("tested", 0)
+          ne_p, ne_t = ne.get("passed", 0), ne.get("tested", 0)
+          print(f"Stage 2 results: name_zh {nz_p}/{nz_t}, name_en {ne_p}/{ne_t}")
+
+          # Upsert into daily_quality_metrics
+          sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
+          today = datetime.now(tz=timezone.utc).date().isoformat()
+          # Stage 1 baseline is recorded by the PR workflow; here we record Stage 2.
+          payload = {
+              "metric_date": today,
+              "annotator_stage2_pass": nz_p + ne_p,
+              "annotator_eval_run_at": datetime.now(tz=timezone.utc).isoformat(),
+          }
+          try:
+              sb.table("daily_quality_metrics").upsert(payload, on_conflict="metric_date").execute()
+              print(f"Upserted daily_quality_metrics for {today}: {payload}")
+          except Exception as exc:
+              print(f"WARN: upsert failed: {exc}", file=sys.stderr)
+
+          # KPI thresholds — Stage 2 includes works + eiga.com pipeline so accuracy
+          # should clearly beat the LLM-only Stage 1 baseline.
+          NZ_MIN, NE_MIN = 12, 11
+          fails = []
+          if nz_t > 0 and nz_p < NZ_MIN:
+              fails.append(f"name_zh {nz_p}/{nz_t} < {NZ_MIN}/{nz_t}")
+          if ne_t > 0 and ne_p < NE_MIN:
+              fails.append(f"name_en {ne_p}/{ne_t} < {NE_MIN}/{ne_t}")
+          if fails:
+              print("KPI FAIL: " + "; ".join(fails), file=sys.stderr)
+              sys.exit(1)
+          print("Stage 2 KPI passed")
+          PY
+
+      - name: LINE alert on KPI failure
+        if: failure() && steps.kpi.conclusion == 'failure'
+        working-directory: scraper
+        env:
+          LINE_CHANNEL_TOKEN: "${{ secrets.LINE_CHANNEL_TOKEN }}"
+          LINE_USER_ID: "${{ secrets.LINE_USER_ID }}"
+        run: |
+          python - <<'PY'
+          import json, sys
+          try:
+              from line_notify import send_line_message
+              snap = json.load(open("eval_snapshot_stage2.json"))
+              nz = snap.get("per_field", {}).get("name_zh", {})
+              ne = snap.get("per_field", {}).get("name_en", {})
+              msg = (
+                  "⚠️ Annotator Stage 2 KPI fail\n"
+                  f"  name_zh: {nz.get('passed', 0)}/{nz.get('tested', 0)} (min 12)\n"
+                  f"  name_en: {ne.get('passed', 0)}/{ne.get('tested', 0)} (min 11)\n"
+                  f"  cost: ${snap.get('cost_usd', 0):.4f}\n"
+                  f"  runtime: {snap.get('runtime_s', 0):.1f}s"
+              )
+              send_line_message(msg)
+          except Exception as exc:
+              print(f"LINE notify failed: {exc}", file=sys.stderr)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always() && hashFiles('scraper/report-stage2.md') != ''
+        with:
+          name: eval-report-stage2
+          path: |
+            scraper/report-stage2.md
+            scraper/eval_snapshot_stage2.json

@@ -28,16 +28,38 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r scraper/requirements.txt
 
-      - name: Run golden set eval (frozen mode)
+      - name: Run golden set eval (Stage 1, frozen mode)
         working-directory: scraper
         env:
           OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
         run: |
-          python eval_annotator.py --output report.md || echo "No cases yet, skipping eval"
+          python eval_annotator.py \
+            --stage 1 \
+            --output report.md \
+            --json-output eval_snapshot.json \
+            || echo "No cases yet, skipping eval"
           if [ -f "report.md" ]; then
-            echo "## Annotator Golden Set Report" >> $GITHUB_STEP_SUMMARY
+            echo "## Annotator Golden Set Report (Stage 1)" >> $GITHUB_STEP_SUMMARY
             cat report.md >> $GITHUB_STEP_SUMMARY
           fi
+
+      - name: Enforce Stage 1 KPI (PR only)
+        if: github.event_name == 'pull_request' && hashFiles('scraper/eval_snapshot.json') != ''
+        working-directory: scraper
+        run: |
+          python -c "
+          import json, sys
+          snap = json.load(open('eval_snapshot.json'))
+          per_field = snap.get('per_field', {})
+          nz = per_field.get('name_zh', {})
+          passed = nz.get('passed', 0)
+          tested = nz.get('tested', 0)
+          # Stage 1 baseline: name_zh >= 1/14 (LLM-only, pre-pipeline).
+          # Tightened thresholds live in eval-annotator-stage2.yml.
+          if tested > 0 and passed < 1:
+              sys.exit(f'Stage 1 KPI regression: name_zh {passed}/{tested} < 1 baseline')
+          print(f'Stage 1 KPI passed: name_zh {passed}/{tested}')
+          "
 
       - name: Post PR comment
         uses: marocchino/sticky-pull-request-comment@v2
@@ -48,5 +70,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: hashFiles('scraper/report.md') != ''
         with:
-          name: eval-report
-          path: scraper/report.md
+          name: eval-report-stage1
+          path: |
+            scraper/report.md
+            scraper/eval_snapshot.json

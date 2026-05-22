@@ -331,6 +331,7 @@ Admin 撰寫發文（三語 title + body + images）
 | `external-stats-pull.yml` | 每月 1 日 09:30 JST | JNTO / MOJ / e-Stat 外部統計拉取 |
 | `web-darkmode-smoke.yml` | push(main, web/**) / 手動 | dark mode smoke 測試（Navbar + 發文詳情相關活動） |
 | `eval-annotator.yml` | PR(annotator 相關路徑) / 手動 | Annotator Golden Set regression eval（frozen 模式，不接 DB）|
+| `eval-annotator-stage2.yml` | 週日 03:00 JST / 手動 | Annotator Stage 2 weekly eval（budget guard + KPI 門檻） |
 
 ### 每日 Pipeline（scraper.yml）
 
