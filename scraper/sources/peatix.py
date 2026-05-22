@@ -500,6 +500,10 @@ class PeatixScraper(BaseScraper):
             or _safe_text(page, "#description")
             or _safe_text(page, ".description")
         )
+        # Peatix injects section header text into the element (e.g. "Event description\n\n…")
+        # Strip it so raw_description only contains actual event content.
+        if description_ja:
+            description_ja = re.sub(r'^Event\s+description\s*\n+', '', description_ja).strip() or None
 
         # --- Date ---
         # Extract dates from full page text using regex (more reliable than CSS selectors
