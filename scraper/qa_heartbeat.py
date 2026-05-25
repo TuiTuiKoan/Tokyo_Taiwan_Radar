@@ -274,7 +274,7 @@ def _dispatch(
                     "fields": result.get("updated_fields")}
         _append_report_note(
             sb, report["id"],
-            f"heartbeat enrich found no fix (people lookup empty?)",
+            "heartbeat enrich found no fix (people lookup empty?)",
             dry_run=dry_run,
         )
         return {"action": "enrich_noop", "r_class": r_class, "confidence": conf}
