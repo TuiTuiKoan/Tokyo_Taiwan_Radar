@@ -91,7 +91,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       canonical: `${base}/${locale}/events/${id}`,
       languages: {
         ...Object.fromEntries(LOCALES.map((l) => [l, `${base}/${l}/events/${id}`])),
-        "x-default": `${base}/zh/events/${id}`,
+        "x-default": `${base}/ja/events/${id}`,
       },
     },
     openGraph: {
@@ -260,6 +260,14 @@ export default async function EventDetailPage({ params }: PageProps) {
   const locationName = getEventLocationName(event as Event, locale);
   const locationAddress = getEventLocationAddress(event as Event, locale);
   const businessHours = getEventBusinessHours(event as Event, locale);
+  // Split multi-venue strings on Japanese fullwidth comma; trim and drop blanks.
+  const splitVenues = (s: string | null | undefined): string[] =>
+    (s ?? "").split("、").map((v) => v.trim()).filter(Boolean);
+  // Strip Japanese postal code prefix "〒NNN-NNNN " from each segment.
+  const stripPostal = (s: string): string =>
+    s.replace(/^〒\d{3}-\d{4}\s*/, "").trim();
+  const venueSegments = splitVenues(locationName);
+  const addressSegments = splitVenues(locationAddress).map(stripPostal).filter(Boolean);
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
 
@@ -739,11 +747,18 @@ export default async function EventDetailPage({ params }: PageProps) {
                   ? subEventPrefectures.join("・")
                   : event.source_name === "rti_jp"
                     ? <a href="https://www.rti.org.tw/jp" target="_blank" rel="noopener noreferrer" className="hover:underline">RTI台湾国際放送（日本語部門）↗</a>
-                    : locationName
-                      ? event.location_url
-                        ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{locationName} ↗</a>
-                        : locationName
-                      : "—"}
+                    : venueSegments.length > 1
+                      ? venueSegments.map((v, i) => (
+                          <span key={i}>
+                            {i > 0 && <br />}
+                            {v}
+                          </span>
+                        ))
+                      : locationName
+                        ? event.location_url
+                          ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{locationName} ↗</a>
+                          : locationName
+                        : "—"}
               </td>
             </tr>
             {/* Address */}
@@ -756,16 +771,34 @@ export default async function EventDetailPage({ params }: PageProps) {
                   ? t("tvChannel")
                   : event.source_name === "rti_jp"
                   ? t("radioChannel")
-                  : (locationAddress || locationName) ? (
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationAddress || locationName || "")}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline"
-                    >
-                      {locationAddress || locationName} ↗
-                    </a>
-                  ) : "—"}
+                  : addressSegments.length > 1
+                  ? addressSegments.map((addr, i) => (
+                      <span key={i}>
+                        {i > 0 && <br />}
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {addr} ↗
+                        </a>
+                      </span>
+                    ))
+                  : (locationAddress || locationName) ? (() => {
+                      const displayAddr = stripPostal(locationAddress || locationName || "");
+                      const queryAddr = displayAddr || locationName || "";
+                      return (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryAddr)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {displayAddr || locationName} ↗
+                        </a>
+                      );
+                    })() : "—"}
               </td>
             </tr>
             {/* Business hours */}
