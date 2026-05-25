@@ -121,6 +121,33 @@ from sources.wuext_waseda import WuextWasedaScraper
 from sources.startup_terrace import StartupTerraceScraper
 from sources.taiwan_prism import TaiwanPrismScraper
 from sources.ftip import FtipScraper
+from sources.acros_fukuoka import AcrosFukuokaScraper
+from sources.amayaza import AmayazaScraper
+from sources.asahiculture import AsahiCultureScraper
+from sources.ciema import CiemaScraper
+from sources.cinemadict import CinemadictScraper
+from sources.cineplaza import CineplazaScraper
+from sources.cinewind import CinewindScraper
+from sources.ginsee import GinseeRobleScraper, GinseeHikarizaScraper
+from sources.internet_museum import InternetMuseumScraper
+from sources.johakyu import JohakyuScraper
+from sources.kbc_cinema import KbcCinemaScraper
+from sources.kgplus_kyotographie import KgplusKyotographieScraper
+from sources.matsumoto_cinema_select import MatsumotoCinemaSelectScraper
+from sources.nittai_toumonkai import NittaiToumonkaiScraper
+from sources.otto import OttoScraper
+from sources.placebymethod import PlacebymethodScraper
+from sources.rti_jp import RtiJpScraper
+from sources.snet_taiwan import SnetTaiwanScraper
+from sources.theater_enya import TheaterEnyaScraper
+from sources.theater_kino import TheaterKinoScraper
+from sources.tsudoi_osaka import TsudoiOsakaScraper
+from sources.ttcg_kansai import TtcgUmedaScraper, CinelibreKobeScraper
+from sources.uedaeigeki import UedaEigekiScraper
+from sources.united_cinemas import UnitedCinemasScraper
+from sources.us_cinema_chiba import UsCinemaChibaGekijoScraper
+from sources.whitestone_gallery import WhitestoneGalleryScraper
+from sources.ycam_cinema import YcamCinemaScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -227,6 +254,36 @@ SCRAPERS = [
     WuextWasedaScraper(),
     StartupTerraceScraper(),
     TaiwanPrismScraper(),
+    # ---- Registered via T-0.1 audit (2026-05-25): orphaned but production-ready ----
+    AcrosFukuokaScraper(),
+    AmayazaScraper(),
+    AsahiCultureScraper(),
+    CiemaScraper(),
+    CinemadictScraper(),
+    CineplazaScraper(),
+    CinewindScraper(),
+    GinseeRobleScraper(),
+    GinseeHikarizaScraper(),
+    InternetMuseumScraper(),
+    JohakyuScraper(),
+    KbcCinemaScraper(),
+    KgplusKyotographieScraper(),
+    MatsumotoCinemaSelectScraper(),
+    NittaiToumonkaiScraper(),
+    OttoScraper(),
+    PlacebymethodScraper(),
+    RtiJpScraper(),
+    SnetTaiwanScraper(),
+    TheaterEnyaScraper(),
+    TheaterKinoScraper(),
+    TsudoiOsakaScraper(),
+    TtcgUmedaScraper(),
+    CinelibreKobeScraper(),
+    UedaEigekiScraper(),
+    UnitedCinemasScraper(),
+    UsCinemaChibaGekijoScraper(),
+    WhitestoneGalleryScraper(),
+    YcamCinemaScraper(),
 ]
 
 
