@@ -110,6 +110,12 @@ from sources.sakurazaka import SakurazakaScraper
 from sources.nagano_aioiza import NaganoAioizaScraper
 from sources.cinemaclair import CinemaClairScraper
 from sources.kyoto_cinema import KyotoCinemaScraper
+from sources.kino_shinsaibashi import KinoCinemaShinsaibashiScraper
+from sources.kawasaki_ac import KawasakiAcScraper
+from sources.midland_cinema import MidlandCinemaScraper
+from sources.onariza import OnarizaScraper
+from sources.stranger import StrangerScraper
+from sources.starcat_cinema import StarcatCinemaScraper
 from sources.cine_gallery import CineGalleryScraper
 from sources.wuext_waseda import WuextWasedaScraper
 from sources.startup_terrace import StartupTerraceScraper
@@ -211,6 +217,12 @@ SCRAPERS = [
     NaganoAioizaScraper(),
     CinemaClairScraper(),
     KyotoCinemaScraper(),
+    KinoCinemaShinsaibashiScraper(),
+    KawasakiAcScraper(),
+    MidlandCinemaScraper(),
+    OnarizaScraper(),
+    StrangerScraper(),
+    StarcatCinemaScraper(),
     CineGalleryScraper(),
     WuextWasedaScraper(),
     StartupTerraceScraper(),
