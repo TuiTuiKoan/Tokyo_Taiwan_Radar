@@ -46,7 +46,9 @@ Extract all visible information and return a JSON object with these fields (omit
 - location_url: venue official website URL (if printed on poster)
 - business_hours: show times or opening hours (e.g. "14:00〜16:00" or "10:00-18:00")
 - performer: main performer/artist/speaker name (single person or group, Japanese)
-- organizer: organizer name (Japanese)
+- organizer: primary organizer name (Japanese, single string). Look for "主催" label.
+- co_organizers: array of co-host / supporting organizations (Japanese). Look for "共催", "協力", "後援" labels — typically printed in small text in the credit block at the bottom of the poster. Return [] if none visible.
+- sponsors: array of sponsor names (Japanese). Look for "協賛", "助成", "Sponsored by" labels in the credit block. Return [] if none visible.
 - organizer_url: organizer website URL (if printed on poster)
 - source_url: event official page URL (if printed on poster)
 - price_info: ticket price info as string (e.g. "一般 ¥1,500 / 学生 ¥1,000" or "入場無料")
@@ -81,7 +83,7 @@ Return ONLY the JSON. Omit any field you cannot confidently read. Do not guess o
           },
           {
             type: "text",
-            text: "Extract ALL event information from this promotional poster. Be thorough — capture the full title including subtitles, all dates, venue address, organizer, prices, URLs.",
+            text: "Extract ALL event information from this promotional poster. Be thorough — capture the full title including subtitles, all dates, venue address, organizer, prices, URLs, and ALL co-hosts (共催/協力/後援) and sponsors (協賛) printed in the credit block.",
           },
         ],
       },

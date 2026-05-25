@@ -545,7 +545,7 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Extraction failed");
       const fields = data.fields as Record<string, unknown>;
-      const ARRAY_FIELDS = new Set(["event_form", "category"]);
+      const ARRAY_FIELDS = new Set(["event_form", "category", "co_organizers", "sponsors"]);
       for (const [key, val] of Object.entries(fields)) {
         if (val === null || val === undefined) continue;
         if (ARRAY_FIELDS.has(key) && Array.isArray(val)) {
