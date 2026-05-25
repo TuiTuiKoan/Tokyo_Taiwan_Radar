@@ -1,13 +1,16 @@
 name: QA Auto Fix
 
 on:
+  schedule:
+    # Daily 13:30 JST (04:30 UTC) — 30 min after QA Heartbeat (04:00 UTC) as fallback
+    - cron: "30 4 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
         description: "Run in dry-run mode (no DB writes, no LINE push)"
         required: true
         type: boolean
-        default: true
+        default: false
 
 jobs:
   auto-fix:

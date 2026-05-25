@@ -15,6 +15,7 @@ on:
       - "Daily Account Discovery"
       - "Run Merger"
       - "Monthly Feedback-Loop Health Check"
+      - "QA Heartbeat (self-healing)"
       - "Quota Monitor"
       - "Daily Research"
       - "Daily Scraper"
