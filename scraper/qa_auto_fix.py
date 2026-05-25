@@ -638,7 +638,15 @@ def handle_performer_multi_value_split(sb, event_id: str, report: dict, *, dry_r
 
     raw = row.get("performer") or ""
     if not _PERFORMER_SEP_RE.search(raw):
-        # No separator — false positive
+        # performer already cleared and performers[] populated → split was done elsewhere; confirm
+        if not raw and (row.get("performers") or []):
+            _confirm_report(
+                sb, report.get("id", ""),
+                note="auto-confirm: performer already split and cleared; performers[] populated",
+                dry_run=dry_run,
+            )
+            return True
+        # No separator and performers[] empty — genuine false positive
         _append_report_note(sb, report.get("id", ""), "skipped: performer has no separator", dry_run=dry_run)
         return False
 

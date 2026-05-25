@@ -157,6 +157,8 @@ _SIMP_TO_TRAD_RAW = {
     "于": "於",
     # SC chars found in auto_simplified_chinese false-negative gap (2026-05-11)
     "见": "見", "从": "從", "库": "庫",
+    # SC chars found in qa_heartbeat false-negative gap (2026-05-25)
+    "销": "銷", "册": "冊", "张": "張",
 }
 # Remove identity mappings (same char in both) and build translation table
 _SIMP_TO_TRAD = str.maketrans({k: v for k, v in _SIMP_TO_TRAD_RAW.items() if k != v})
