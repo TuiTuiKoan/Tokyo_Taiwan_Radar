@@ -91,7 +91,7 @@ export async function generateMetadata({
               zh: `${base}/zh`,
               en: `${base}/en`,
               ja: `${base}/ja`,
-              "x-default": `${base}/zh`,
+              "x-default": `${base}/ja`,
             },
           }),
     },

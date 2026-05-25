@@ -15,8 +15,8 @@ export const dynamic = "force-dynamic";
  * then redirects the user to the page they originally wanted.
  */
 function normalizeNextPath(next: string | null): string {
-  if (!next) return "/zh";
-  return next.startsWith("/") ? next : "/zh";
+  if (!next) return "/ja";
+  return next.startsWith("/") ? next : "/ja";
 }
 
 export async function GET(request: NextRequest) {
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   const next = normalizeNextPath(searchParams.get("next"));
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/zh/auth/login?error=auth_failed`);
+    return NextResponse.redirect(`${origin}/ja/auth/login?error=auth_failed`);
   }
 
   const successRedirect = NextResponse.redirect(`${origin}${next}`);
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
     console.error("Supabase auth callback failed", error.message);
-    return NextResponse.redirect(`${origin}/zh/auth/login?error=auth_failed`);
+    return NextResponse.redirect(`${origin}/ja/auth/login?error=auth_failed`);
   }
 
   return successRedirect;

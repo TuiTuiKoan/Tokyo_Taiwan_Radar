@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       canonical: `${base}/${locale}/announcements`,
       languages: {
         ...Object.fromEntries(LOCALES.map((l) => [l, `${base}/${l}/announcements`])),
-        "x-default": `${base}/zh/announcements`,
+        "x-default": `${base}/ja/announcements`,
       },
     },
     openGraph: {

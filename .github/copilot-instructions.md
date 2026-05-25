@@ -37,7 +37,7 @@ scraper/
 supabase/
   migrations/             001–005 SQL migrations (run via Supabase Dashboard)
 web/
-  app/[locale]/           Localized routes — zh (default), en, ja
+  app/[locale]/           Localized routes — ja (default), zh, en
   components/             EventCard, FilterBar, Navbar, AdminEventTable, …
   lib/types.ts            Shared TypeScript types: Event, Category, Locale
   messages/               i18n strings: zh.json, en.json, ja.json
@@ -48,7 +48,7 @@ web/
 | Layer | Technology |
 |-------|------------|
 | Web framework | Next.js 16.2.4, React 19, TypeScript, Tailwind CSS 4 |
-| i18n | next-intl 4.9.1 — locales: `zh` (default), `en`, `ja` |
+| i18n | next-intl 4.9.1 — locales: `ja` (default), `zh`, `en` |
 | Auth + DB | Supabase — `@supabase/ssr` 0.10.2 |
 | Scraper | Python 3.12, Playwright 1.51, OpenAI ≥1.30, DeepL 1.21 |
 | CI | GitHub Actions — daily 09:00 JST (`scraper.yml`) |
@@ -85,7 +85,7 @@ Canonical list defined in `web/lib/types.ts` as `Category` type and `CATEGORIES`
 
 ## i18n conventions
 
-- Default locale: `zh`; fallback chain for display: locale → `ja` → `zh` → `en`
+- Default locale: `ja`; fallback chain for display: locale → `ja` → `zh` → `en`
 - Locale helpers in `web/lib/types.ts`: `getEventName(event, locale)`, `getEventDescription(event, locale)`
 - Add new strings to all three `messages/*.json` files simultaneously
 

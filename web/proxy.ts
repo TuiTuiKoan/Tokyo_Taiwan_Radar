@@ -5,7 +5,7 @@ import { LOCALES } from "@/lib/types";
 
 const intlMiddleware = createMiddleware({
   locales: LOCALES,
-  defaultLocale: "zh",
+  defaultLocale: "ja",
   localePrefix: "always",
 });
 
@@ -95,7 +95,7 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
   const localeSegment = request.nextUrl.pathname.split("/")[1] ?? "";
   const detectedLocale = (LOCALES as readonly string[]).includes(localeSegment)
     ? localeSegment
-    : "zh";
+    : "ja";
   response.headers.set("x-locale", detectedLocale);
 
   // 1b. AEO monitoring — log AI bot crawls + AI engine referrals (fire-and-forget)

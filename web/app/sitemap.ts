@@ -26,7 +26,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     alternates: {
       languages: {
         ...Object.fromEntries(LOCALES.map((l) => [l, `${BASE}/${l}`])),
-        "x-default": `${BASE}/zh`,
+        "x-default": `${BASE}/ja`,
       },
     },
   }));
@@ -49,7 +49,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           ...Object.fromEntries(
             LOCALES.map((l) => [l, `${BASE}/${l}/events/${e.id}`])
           ),
-          "x-default": `${BASE}/zh/events/${e.id}`,
+          "x-default": `${BASE}/ja/events/${e.id}`,
         },
       },
     }))
@@ -64,7 +64,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       alternates: {
         languages: {
           ...Object.fromEntries(LOCALES.map((l) => [l, `${BASE}/${l}/cities/${city}`])),
-          "x-default": `${BASE}/zh/cities/${city}`,
+          "x-default": `${BASE}/ja/cities/${city}`,
         },
       },
     }))
@@ -79,7 +79,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       alternates: {
         languages: {
           ...Object.fromEntries(LOCALES.map((l) => [l, `${BASE}/${l}/categories/${cat}`])),
-          "x-default": `${BASE}/zh/categories/${cat}`,
+          "x-default": `${BASE}/ja/categories/${cat}`,
         },
       },
     }))
@@ -95,7 +95,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       alternates: {
         languages: {
           ...Object.fromEntries(LOCALES.map((l) => [l, `${BASE}/${l}/${slug}`])),
-          "x-default": `${BASE}/zh/${slug}`,
+          "x-default": `${BASE}/ja/${slug}`,
         },
       },
     }))

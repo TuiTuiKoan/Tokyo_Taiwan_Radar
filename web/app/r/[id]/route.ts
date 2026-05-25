@@ -6,5 +6,5 @@ export async function GET(
 ) {
   const { id } = await params;
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
-  return NextResponse.redirect(`${base}/zh/events/${id}`, { status: 301 });
+  return NextResponse.redirect(`${base}/ja/events/${id}`, { status: 301 });
 }

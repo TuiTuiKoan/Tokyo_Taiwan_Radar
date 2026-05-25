@@ -18,7 +18,7 @@ function isNearWhite(rgb: string): boolean {
 async function captureColors(page: Page): Promise<Snapshot> {
   return page.evaluate(() => {
     const navbar = document.querySelector("header");
-    const related = document.querySelector("article a[href^='/zh/events/']");
+    const related = document.querySelector("article a[href^='/ja/events/']");
 
     if (!navbar) {
       throw new Error("Navbar header not found");
@@ -36,10 +36,10 @@ async function captureColors(page: Page): Promise<Snapshot> {
 }
 
 async function openAnnouncementWithRelatedSection(page: Page): Promise<void> {
-  await page.goto("/zh/announcements");
+  await page.goto("/ja/announcements");
 
   const links = page
-    .locator("a[href^='/zh/announcements/']")
+    .locator("a[href^='/ja/announcements/']")
     .filter({ hasNotText: "admin" });
   const count = await links.count();
 
@@ -54,7 +54,7 @@ async function openAnnouncementWithRelatedSection(page: Page): Promise<void> {
     }
 
     await page.goto(href);
-    if (await page.locator("article a[href^='/zh/events/']").first().isVisible()) {
+    if (await page.locator("article a[href^='/ja/events/']").first().isVisible()) {
       return;
     }
   }

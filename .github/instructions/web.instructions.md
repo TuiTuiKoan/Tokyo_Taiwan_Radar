@@ -39,15 +39,15 @@ web/
   lib/
     types.ts            Event, Category, Locale types + helpers
   messages/
-    zh.json             Default locale strings
+    ja.json             Default locale strings
+    zh.json
     en.json
-    ja.json
-  i18n.ts               next-intl config (default locale: zh)
+  i18n.ts               next-intl config (default locale: ja)
 ```
 
 ## i18n rules
 
-- Default locale: `zh`; supported locales: `zh`, `en`, `ja`
+- Default locale: `ja`; supported locales: `ja`, `zh`, `en`
 - Fallback chain when displaying event content: `locale → ja → zh → en`
 - Use `getEventName(event, locale)` and `getEventDescription(event, locale)` from `web/lib/types.ts`
 - Add new UI strings to **all three** `messages/*.json` files at the same time
@@ -109,7 +109,7 @@ When converting to `generateMetadata`, delete the old static `export const metad
 Use this mapping in `title.template`, OG `siteName`, and Twitter card — never hardcode a single language.
 
 ### x-default hreflang
-Always include `"x-default": /zh/...` in `alternates.languages` pointing to the default locale.
+Always include `"x-default": /ja/...` in `alternates.languages` pointing to the default locale.
 
 ### NEXT_PUBLIC_SITE_URL fallback
 All metadata files that construct absolute URLs must use:

@@ -27,7 +27,7 @@ const websiteJsonLd = {
         "@type": "SearchAction",
         target: {
           "@type": "EntryPoint",
-          urlTemplate: `${BASE}/zh?q={search_term_string}`,
+          urlTemplate: `${BASE}/ja?q={search_term_string}`,
         },
         "query-input": "required name=search_term_string",
       },
@@ -56,7 +56,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh" className={fontVariables} suppressHydrationWarning>
+    <html lang="ja" className={fontVariables} suppressHydrationWarning>
       <head>
         {/*
           Anti-flash script: runs before first paint to apply the saved theme class.
