@@ -44,10 +44,26 @@ _TAIWAN_KW = [
 ]
 
 
-def _load_run_artifacts(source_id: int) -> dict:
+def _load_run_artifacts(source_id: int, *, db_artifacts: dict | None = None) -> dict:
     """Load meta.json, spec.json, and sample events from dry_run.txt for a given source_id.
+    Prefers db_artifacts (from research_sources.auto_scraper_artifacts) when available.
+    Falls back to local filesystem for backward compatibility.
     Returns a dict with keys: meta, spec, sample_titles. Empty dict on any error.
     """
+    # ── DB-first path ─────────────────────────────────────────────────────────
+    if db_artifacts:
+        return {
+            "meta": {
+                "events_found": db_artifacts.get("events_found", "?"),
+                "cost_usd": db_artifacts.get("cost_usd", 0.0),
+            },
+            "spec": {
+                "source_id_url_pattern": db_artifacts.get("source_id_url_pattern", ""),
+            },
+            "sample_titles": db_artifacts.get("sample_titles", []),
+        }
+
+    # ── Filesystem fallback (local dev or legacy rows) ────────────────────────
     run_dir = RUNS_DIR / str(source_id)
     if not run_dir.is_dir():
         return {}
@@ -340,7 +356,7 @@ def generate_report() -> tuple[str, dict]:
     # ── auto-generate success but no PR yet (needs human review) ────────────────
     review_queue = (
         sb.table("research_sources")
-        .select("id,name,scraping_feasibility")
+        .select("id,name,scraping_feasibility,auto_scraper_artifacts")
         .eq("auto_scraper_status", "success")
         .is_("auto_scraper_pr_url", "null")
         .order("id")
@@ -436,7 +452,7 @@ def generate_report() -> tuple[str, dict]:
             src_id = item["id"]
             name = item.get("name", "?")
             feas = item.get("scraping_feasibility") or "?"
-            arts = _load_run_artifacts(src_id)
+            arts = _load_run_artifacts(src_id, db_artifacts=item.get("auto_scraper_artifacts"))
             meta = arts.get("meta", {})
             spec = arts.get("spec", {})
             titles = arts.get("sample_titles", [])

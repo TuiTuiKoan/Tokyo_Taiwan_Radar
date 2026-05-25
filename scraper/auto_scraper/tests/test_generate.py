@@ -160,6 +160,13 @@ class HappyPathTests(unittest.TestCase):
             self.assertEqual(meta["events_found"], 1)
             self.assertEqual(holder.update_payload["auto_scraper_status"], "success")
             self.assertIsNone(holder.update_payload["auto_scraper_failed_reason"])
+            # --- Plan A 新增斷言 ---
+            artifacts = holder.update_payload.get("auto_scraper_artifacts")
+            self.assertIsNotNone(artifacts, "auto_scraper_artifacts should be in DB update payload")
+            self.assertEqual(artifacts["events_found"], 1)
+            self.assertEqual(artifacts["sample_titles"], ["Event 1"])
+            self.assertIn("source_id_url_pattern", artifacts)
+            self.assertIn("cost_usd", artifacts)
 
     def test_artifact_files_written(self):
         # Same as happy path but explicit file-list assertion (per plan §7).

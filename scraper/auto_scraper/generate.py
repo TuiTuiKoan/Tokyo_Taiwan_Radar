@@ -647,6 +647,7 @@ def _update_db_status(
     *,
     status: str,
     failed_reason: str | None,
+    artifacts: dict | None = None,
 ) -> None:
     payload = {
         "auto_scraper_status": status,
@@ -655,6 +656,8 @@ def _update_db_status(
     }
     if not failed_reason:
         payload["auto_scraper_failed_reason"] = None
+    if artifacts is not None:
+        payload["auto_scraper_artifacts"] = artifacts
     sb.table("research_sources").update(payload).eq("id", source_id).execute()
 
 
@@ -732,6 +735,7 @@ def run(opts: GenerateOptions, *, sb: Any | None = None) -> int:
         # Step 7: sandbox
         sandbox_output = ""
         events_found = 0
+        sample_events: list = []
         if not opts.skip_sandbox:
             ok, sandbox_output, sample_events = _run_sandbox(llm.spec, generated_code)
             events_found = len(sample_events)
@@ -764,7 +768,23 @@ def run(opts: GenerateOptions, *, sb: Any | None = None) -> int:
                 sample_html=sample_html,
                 meta=meta,
             )
-            _update_db_status(sb, opts.source_id, status="success", failed_reason=None)
+            _artifacts = {
+                "events_found": events_found,
+                "cost_usd": round(llm.cost_usd, 6),
+                "source_id_url_pattern": llm.spec.get("source_id_url_pattern", ""),
+                "sample_titles": [
+                    ev.get("name_ja") or ev.get("name_zh") or ev.get("name_en") or ev.get("raw_title") or ""
+                    for ev in sample_events[:3]
+                    if ev.get("name_ja") or ev.get("name_zh") or ev.get("name_en") or ev.get("raw_title")
+                ],
+            }
+            _update_db_status(
+                sb,
+                opts.source_id,
+                status="success",
+                failed_reason=None,
+                artifacts=_artifacts,
+            )
 
         print("=" * 60)
         print(f"source_id={opts.source_id} status=success")
