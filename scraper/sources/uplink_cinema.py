@@ -17,7 +17,7 @@ Monitored locations:
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urljoin
 
@@ -103,6 +103,59 @@ def _extract_country_from_detail(soup: BeautifulSoup) -> str:
         if m:
             return m.group(1)
     return ""
+
+
+_CAL_DATE_RE = re.compile(r"(\d{1,2})\.(\d{2})([月火水木金土日])")
+_CAL_TIME_RE = re.compile(r"(\d{1,2}:\d{2})[–—](\d{1,2}:\d{2})")
+_WEEKDAY_JP = {"月": "（月）", "火": "（火）", "水": "（水）", "木": "（木）",
+               "金": "（金）", "土": "（土）", "日": "（日）"}
+
+
+def _extract_schedule_from_detail(
+    soup: BeautifulSoup,
+    fetch_year: int,
+) -> tuple[Optional[str], Optional[datetime]]:
+    """
+    Parse the "スケジュールとチケット" section from an Uplink detail page.
+
+    Each day is a ``div.list-calendar-wrap`` containing:
+      - ``div.list-calendar-header`` → "05.25月"
+      - ``div.list-calendar-information`` → "11:50—14:04"
+
+    Returns:
+        (business_hours, end_date) where
+          business_hours: newline-joined "M/D（曜） HH:MM-HH:MM" lines, or None
+          end_date:       UTC midnight of the last scheduled day, or None
+    """
+    entries: list[tuple[int, int, str, str]] = []  # (month, day, weekday_jp, time)
+
+    for wrap in soup.select("div.list-calendar-wrap"):
+        header = wrap.select_one("div.list-calendar-header")
+        info = wrap.select_one("div.list-calendar-information")
+        if not header or not info:
+            continue
+        dm = _CAL_DATE_RE.search(header.get_text(strip=True))
+        tm = _CAL_TIME_RE.search(info.get_text(strip=True))
+        if not dm or not tm:
+            continue
+        mon, day, wd = int(dm.group(1)), int(dm.group(2)), dm.group(3)
+        time_str = f"{tm.group(1)}-{tm.group(2)}"
+        entries.append((mon, day, _WEEKDAY_JP.get(wd, f"（{wd}）"), time_str))
+
+    if not entries:
+        return None, None
+
+    bh_lines = [f"{mon}/{day}{wd} {t}" for mon, day, wd, t in entries]
+    business_hours = "\n".join(bh_lines)
+
+    last_mon, last_day, _, _ = entries[-1]
+    try:
+        end_date = datetime(fetch_year, last_mon, last_day, tzinfo=timezone.utc)
+    except ValueError:
+        end_date = None
+
+    return business_hours, end_date
+
 
 
 class UplinkCinemaScraper(BaseScraper):
@@ -191,6 +244,15 @@ class UplinkCinemaScraper(BaseScraper):
             desc_el = detail_soup.select_one("div.l-wysiwyg, div.wysiwyg-wrap")
             description = desc_el.get_text(separator="\n", strip=True) if desc_el else ""
 
+            # Extract weekly schedule → business_hours + end_date
+            sched_hours, sched_end = _extract_schedule_from_detail(detail_soup, fetch_year)
+            resolved_end = sched_end or end_date
+            if sched_end:
+                logger.info(
+                    "Uplink schedule: %s — last day %s, %d time slots",
+                    title, sched_end.date(), len((sched_hours or "").splitlines()),
+                )
+
             name_zh, name_en, _ = lookup_movie_titles(title)
             event = Event(
                 source_name=self.SOURCE_NAME,
@@ -205,13 +267,16 @@ class UplinkCinemaScraper(BaseScraper):
                 description_ja=description or None,
                 category=["movie"],
                 start_date=start_date,
-                end_date=end_date,
+                end_date=resolved_end,
+                business_hours=sched_hours,
                 location_name=location_name,
                 location_address=location_address,
                 is_paid=True,
             )
             events.append(event)
             logger.info("Found Taiwan movie: %s (country=%s, %s)", title, country, date_text)
+
+        return events
 
         return events
 
