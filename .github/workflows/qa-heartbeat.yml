@@ -1,0 +1,77 @@
+name: QA Heartbeat (self-healing)
+
+on:
+  workflow_dispatch:
+    inputs:
+      live:
+        description: "Run live (writes to DB). When false, runs --dry-run only."
+        type: boolean
+        default: false
+      limit:
+        description: "Max pending reports to process"
+        type: number
+        default: 200
+  # Optional scheduled dry-run. Repository variable `QA_HEARTBEAT_LIVE=true`
+  # is required to skip --dry-run on scheduled runs; otherwise the cron only
+  # produces a report artifact and a LINE summary.
+  schedule:
+    - cron: "0 4 * * *"  # 13:00 JST daily
+
+concurrency:
+  group: qa-self-healing
+  cancel-in-progress: false
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+      SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+      OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+      LINE_CHANNEL_TOKEN: "${{ secrets.LINE_CHANNEL_TOKEN }}"
+      LINE_USER_ID: "${{ secrets.LINE_USER_ID }}"
+    defaults:
+      run:
+        working-directory: scraper
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Decide run mode
+        id: mode
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.live }}" == "true" ]]; then
+            echo "dry=" >> "$GITHUB_OUTPUT"
+            echo "limit=${{ inputs.limit || 200 }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "schedule" && "${{ vars.QA_HEARTBEAT_LIVE }}" == "true" ]]; then
+            echo "dry=" >> "$GITHUB_OUTPUT"
+            echo "limit=200" >> "$GITHUB_OUTPUT"
+          else
+            echo "dry=--dry-run" >> "$GITHUB_OUTPUT"
+            # Scheduled dry-run keeps payload small to avoid wasted token spend
+            echo "limit=20" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run heartbeat
+        run: |
+          python qa_heartbeat.py ${{ steps.mode.outputs.dry }} \
+            --limit ${{ steps.mode.outputs.limit }} \
+            --model gpt-4o \
+            --max-input-chars 1200
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-heartbeat-report
+          path: scraper/reports/qa_heartbeat_*.md
+          if-no-files-found: warn

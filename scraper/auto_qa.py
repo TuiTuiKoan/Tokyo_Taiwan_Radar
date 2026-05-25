@@ -250,13 +250,19 @@ def _detect_simplified_chinese(sb) -> list[dict]:
 
     Uses the precise SC_ONLY char set with threshold ≥2 to avoid false positives.
     Also checks selection_reason.zh (JSON-parsed).
+
+    Filters: skips human-reviewed events (annotation_status='reviewed') and only
+    scans events created in the last 30 days — stops perpetual re-flagging of
+    historical events that admins have already reviewed/accepted.
     """
     import json as _json
+    thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
-        .select("id,source_name,name_zh,description_zh,selection_reason")
+        .select("id,source_name,name_zh,description_zh,selection_reason,annotation_status,created_at")
         .eq("is_active", True)
-        .in_("annotation_status", ["annotated", "reviewed"])
+        .eq("annotation_status", "annotated")
+        .gte("created_at", thirty_days_ago_iso)
         .execute()
         .data
     )
@@ -371,11 +377,18 @@ def _detect_same_work_duplicate(sb) -> list[dict]:
 
 def _detect_performer_ai_marker(sb) -> list[dict]:
     """Flag movie events where performer_zh or performer_en still contains
-    AI翻譯 / AI Translation marker — indicating lookup pipeline did not fix them."""
+    AI翻譯 / AI Translation marker — indicating lookup pipeline did not fix them.
+
+    Filters: skips human-reviewed events and only scans events created in the
+    last 30 days to prevent perpetual re-flagging.
+    """
+    thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
         .select("id,source_name,performer,performer_zh,performer_en")
         .eq("is_active", True)
+        .neq("annotation_status", "reviewed")
+        .gte("created_at", thirty_days_ago_iso)
         .contains("category", ["movie"])
         .or_("performer_zh.like.%AI翻譯%,performer_en.like.%AI Translation%")
         .execute()
@@ -402,11 +415,18 @@ def _detect_performer_ai_marker(sb) -> list[dict]:
 
 def _detect_performer_multi_value(sb) -> list[dict]:
     """Flag movie events where performer field still contains separator chars
-    — indicates the field was not split to performers[] array."""
+    — indicates the field was not split to performers[] array.
+
+    Filters: skips human-reviewed events and only scans events created in the
+    last 30 days to prevent perpetual re-flagging.
+    """
+    thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
         .select("id,source_name,performer")
         .eq("is_active", True)
+        .neq("annotation_status", "reviewed")
+        .gte("created_at", thirty_days_ago_iso)
         .contains("category", ["movie"])
         .not_.is_("performer", "null")
         .execute()
@@ -528,9 +548,30 @@ def run(dry_run: bool = False) -> dict:
     for item in _detect_performer_zh_katakana(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
 
-    # Dedup against latest auto_qa reports for each event/type
-    latest_reports = _latest_auto_qa_reports(sb, list({c[0] for c in candidates}))
-    event_updated_at = {ev["id"]: _parse_ts(ev.get("updated_at")) for ev in events}
+    # Dedup against latest auto_qa reports for each event/type.
+    #
+    # Global detectors above (`_detect_simplified_chinese`,
+    # `_detect_performer_*`, `_detect_same_work_duplicate`,
+    # `_detect_missing_hours`) may emit candidates for events OUTSIDE the
+    # 14-day initial scan. We must fetch `updated_at` for ALL candidate
+    # event ids so `skipped_resolved_unchanged` works for old events too.
+    candidate_ids = sorted({c[0] for c in candidates})
+    latest_reports = _latest_auto_qa_reports(sb, candidate_ids)
+    event_updated_at: dict[str, datetime | None] = {
+        ev["id"]: _parse_ts(ev.get("updated_at")) for ev in events
+    }
+    missing_ids = [eid for eid in candidate_ids if eid not in event_updated_at]
+    if missing_ids:
+        for i in range(0, len(missing_ids), 200):
+            chunk = missing_ids[i : i + 200]
+            res = (
+                sb.table("events")
+                .select("id,updated_at")
+                .in_("id", chunk)
+                .execute()
+            )
+            for row in res.data or []:
+                event_updated_at[row["id"]] = _parse_ts(row.get("updated_at"))
     in_run_seen: dict[str, set[str]] = {}
 
     new_rows: list[dict] = []

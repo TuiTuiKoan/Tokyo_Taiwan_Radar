@@ -2456,7 +2456,12 @@ def _lock_fields_via_corrections(
         )
 
 
-def enrich_person_names() -> None:
+def enrich_person_names(
+    *,
+    event_ids: list[str] | None = None,
+    force_fc_override: bool = False,
+    model: str = "gpt-4o-mini",
+) -> None:
     """Look up official Chinese/English names for people in ALL events
     and fix wrong phonetic translations in descriptions.
 
@@ -2468,13 +2473,28 @@ def enrich_person_names() -> None:
     - In description_zh: use GPT-4o-mini to replace wrong phonetic
       translations with correct Chinese names.
     - In description_en: direct-replace katakana names with English names.
-    - 'reviewed' events are never touched.
+    - 'reviewed' events are never touched (unless force_fc_override + event_ids).
     - Does NOT change annotation_status.
+
+    Parameters:
+        event_ids: when provided, only process these event ids
+            (qa_heartbeat uses this to fix single reports).
+        force_fc_override: when True, delete protecting field_corrections
+            rows before re-writing fields. **Caller must pass event_ids** —
+            running --force-fc-override without target ids would clobber
+            all admin-locked translations across the DB.
+        model: OpenAI model name for description fix GPT calls.
     """
+    if force_fc_override and not event_ids:
+        raise RuntimeError(
+            "--force-fc-override requires --event-id|--event-ids "
+            "(refusing to clobber every admin-locked translation in the DB)"
+        )
+
     sb = _get_supabase()
     client = _get_openai()
 
-    res = (
+    query = (
         sb.table("events")
         .select(
             "id,name_ja,raw_title,raw_description,name_zh,name_en,"
@@ -2482,242 +2502,259 @@ def enrich_person_names() -> None:
             "performer,performer_zh,performer_en,"
             "performers,performers_zh,performers_en,director,director_zh,director_en"
         )
-        .neq("annotation_status", "reviewed")
         .neq("source_name", "eiga_com")
-        .execute()
     )
+    if event_ids:
+        query = query.in_("id", list(event_ids))
+    else:
+        query = query.neq("annotation_status", "reviewed")
+    res = query.execute()
     events = res.data or []
     logger.info(
-        "enrich_person_names: %d candidate events (excluding eiga_com + reviewed)",
+        "enrich_person_names: %d candidate events (excluding eiga_com%s)",
         len(events),
+        " + reviewed" if not event_ids else f"; restricted to {len(event_ids)} ids",
     )
 
     patched = 0
     for event in events:
-        source = event.get("source_name", "")
-        categories = event.get("category") or []
-        is_movie = "movie" in categories
-
-        # --- Resolve person names based on event type ---
-        people: dict[str, "PersonInfo"] = {}
-
-        if is_movie:
-            # Movie events: structured lookup via eiga.com movie page
-            if source in _NEWS_MOVIE_SOURCES:
-                raw = event.get("raw_title") or ""
-                m = _BRACKET_TITLE_RE.search(raw)
-                if not m:
-                    m = _BRACKET_TITLE_RE.search(event.get("name_ja") or "")
-                title = m.group(1).strip() if m else ""
-            else:
-                title = event.get("name_ja") or event.get("raw_title") or ""
-            if title:
-                people = lookup_person_names(title)
-        else:
-            # Non-movie events: extract katakana names from text
-            raw_desc = event.get("raw_description") or ""
-            raw_title = event.get("raw_title") or event.get("name_ja") or ""
-            text = f"{raw_title}\n{raw_desc}"
-            katakana_names = extract_katakana_names(text)
-            for name in katakana_names:
-                info = lookup_single_person(name)
-                if info:
-                    people[name] = info
-
-        if not people:
-            continue
-
-        update: dict[str, Any] = {}
-
-        # Fix desc_zh using GPT (phonetic translations can't be string-matched)
-        desc_zh = event.get("description_zh") or ""
-        if desc_zh:
-            zh_mappings = [
-                (info.role or "人物", ja_name, info.name_zh)
-                for ja_name, info in people.items()
-                if info.name_zh
-            ]
-            if zh_mappings:
-                fixed_zh = _fix_person_names_gpt(client, desc_zh, zh_mappings)
-                if fixed_zh:
-                    update["description_zh"] = _to_trad(fixed_zh)
-
-        # Fix desc_en using GPT — direct katakana replacement is futile
-        # because GPT already transliterated names to English in desc_en
-        # (e.g. クー・チェンドン → "Koo Kuan-Dong"). See _fix_person_names_gpt_en.
-        desc_en = event.get("description_en") or ""
-        if desc_en:
-            en_mappings = [
-                (info.role or "person", ja_name, info.name_en)
-                for ja_name, info in people.items()
-                if info.name_en
-            ]
-            if en_mappings:
-                fixed_en = _fix_person_names_gpt_en(client, desc_en, en_mappings)
-                if fixed_en:
-                    update["description_en"] = fixed_en
-
-        # Fix structured performer/director fields using eiga.com lookup data.
-        # Build zh_name → PersonInfo cross-reference (people is keyed by ja katakana).
-        zh_to_info: dict[str, "PersonInfo"] = {
-            info.name_zh: info
-            for info in people.values()
-            if info.name_zh
-        }
-        ja_to_info: dict[str, "PersonInfo"] = dict(people)
-
-        # performers_en: each entry may be a Chinese name (GPT-generated from katakana)
-        # Map Chinese name → English via zh_to_info, or try direct ja match.
-        cur_performers_en = event.get("performers_en") or []
-        if cur_performers_en:
-            new_performers_en = []
-            changed = False
-            for name in cur_performers_en:
-                if name in zh_to_info and zh_to_info[name].name_en:
-                    new_performers_en.append(zh_to_info[name].name_en)
-                    changed = True
-                elif name in ja_to_info and ja_to_info[name].name_en:
-                    new_performers_en.append(ja_to_info[name].name_en)
-                    changed = True
-                else:
-                    new_performers_en.append(name)
-            if changed:
-                update["performers_en"] = new_performers_en
-
-        # performers_zh: each entry may be katakana — translate to Chinese.
-        cur_performers_zh = event.get("performers_zh") or []
-        if cur_performers_zh:
-            new_performers_zh = []
-            changed = False
-            for name in cur_performers_zh:
-                if name in ja_to_info and ja_to_info[name].name_zh:
-                    new_performers_zh.append(_to_trad(ja_to_info[name].name_zh))
-                    changed = True
-                else:
-                    new_performers_zh.append(name)
-            if changed:
-                update["performers_zh"] = new_performers_zh
-
-        # director_zh / director_en: look up by ja katakana director field.
-        cur_director = event.get("director") or ""
-        if cur_director and cur_director in ja_to_info:
-            info = ja_to_info[cur_director]
-            cur_dir_zh = event.get("director_zh") or ""
-            cur_dir_en = event.get("director_en") or ""
-            # Only update if current value looks like a wrong phonetic transliteration
-            # (i.e. contains AI翻譯 marker OR differs from known correct value).
-            if info.name_zh and (
-                not cur_dir_zh
-                or "AI翻譯" in cur_dir_zh
-                or cur_dir_zh != info.name_zh
-            ):
-                update["director_zh"] = _to_trad(info.name_zh)
-            if info.name_en and (
-                not cur_dir_en
-                or "AI Translation" in cur_dir_en
-                or cur_dir_en != info.name_en
-            ):
-                update["director_en"] = info.name_en
-
-        # ── 多人 performer 偵測（B1 策略）─────────────────────────────────────
-        # If performer field contains a separator → split into performers[],
-        # translate each name using ja_to_info (single-pass, no second run needed).
-        _b1_performer = event.get("performer") or ""
-        if _b1_performer and _MULTI_SEP_RE.search(_b1_performer):
-            _raw_names = [n.strip() for n in _MULTI_SEP_RE.split(_b1_performer) if n.strip()]
-            # Remove role name prefix (eiga.com key format: "character_name actor_name")
-            _cleaned_names: list[str] = []
-            for _n in _raw_names:
-                _actor = _n
-                for _key in ja_to_info:
-                    if " " in _key and _key.endswith(" " + _n):
-                        _actor = _n
-                        break
-                _cleaned_names.append(_actor)
-            _cleaned_names = list(dict.fromkeys(_cleaned_names))  # dedup, preserve order
-            update["performers"] = _cleaned_names
-            update["performer"] = None
-            update["performer_zh"] = None
-            update["performer_en"] = None
-            # Translate each split name using ja_to_info (best-effort, single pass)
-            _new_zh: list[str] = []
-            _new_en: list[str] = []
-            for _n in _cleaned_names:
-                _pinfo = ja_to_info.get(_n)
-                if _pinfo is None:
-                    for _key, _kinfo in ja_to_info.items():
-                        if _key.endswith(_n) and len(_key) > len(_n):
-                            _pinfo = _kinfo
-                            break
-                _new_zh.append(_to_trad(_pinfo.name_zh) if _pinfo and _pinfo.name_zh else _n)
-                _new_en.append(_pinfo.name_en if _pinfo and _pinfo.name_en else _n)
-            if _new_zh != _cleaned_names:
-                update["performers_zh"] = _new_zh
-            if _new_en != _cleaned_names:
-                update["performers_en"] = _new_en
-            logger.info(
-                "[enrich_person] %s multi-performer split → %s",
-                event["id"][:8], _cleaned_names,
-            )
-
-        # performer_zh / performer_en: look up by ja katakana performer field.
-        # Eiga.com keys cast as "character_name actor_name" (e.g. "雪子ジュディ・オング")
-        # while performer field only stores the actor name ("ジュディ・オング").
-        # Use suffix-match to handle this discrepancy.
-        cur_performer = event.get("performer") or ""
-        if cur_performer:
-            perf_info: "PersonInfo | None" = ja_to_info.get(cur_performer)
-            if perf_info is None:
-                # Suffix match: handle eiga.com "character_name actor_name" key format
-                for key, kinfo in ja_to_info.items():
-                    if key.endswith(cur_performer) and len(key) > len(cur_performer):
-                        perf_info = kinfo
-                        break
-            if perf_info is None and "\u30fb" in cur_performer:
-                # Last resort: direct lookup for katakana foreign names (e.g. ジュディ・オング)
-                perf_info = lookup_single_person(cur_performer)
-            if perf_info:
-                cur_perf_zh = event.get("performer_zh") or ""
-                cur_perf_en = event.get("performer_en") or ""
-                if perf_info.name_zh and (
-                    not cur_perf_zh
-                    or "AI\u7FFB\u8B6F" in cur_perf_zh
-                    or cur_perf_zh != perf_info.name_zh
-                ):
-                    update["performer_zh"] = _to_trad(perf_info.name_zh)
-                if perf_info.name_en and (
-                    not cur_perf_en
-                    or "AI Translation" in cur_perf_en
-                    or cur_perf_en != perf_info.name_en
-                ):
-                    update["performer_en"] = perf_info.name_en
-
-        if update:
-            sb.table("events").update(update).eq("id", event["id"]).execute()
-            # Lock the corrected fields via field_corrections so future
-            # re-annotation passes won't clobber them with fresh GPT output
-            # (which would re-introduce phonetic katakana transliterations).
-            _lock_fields_via_corrections(sb, event["id"], update)
+        if enrich_person_names_single(
+            sb, event_id=event["id"], event=event, client=client,
+            force_fc_override=force_fc_override, model=model,
+        ).get("patched"):
             patched += 1
-            logger.info(
-                "  ✓ person names fixed: %s/%s [cat=%s] desc_zh=%s desc_en=%s "
-                "performers_en=%s director_zh=%s persons=%s",
-                source, event["id"][:8], ",".join(categories),
-                "description_zh" in update, "description_en" in update,
-                "performers_en" in update, "director_zh" in update,
-                list(people.keys()),
+
+    logger.info("enrich_person_names: patched %d/%d events", patched, len(events))
+
+
+def enrich_person_names_single(
+    sb=None,
+    *,
+    event_id: str,
+    event: dict | None = None,
+    client=None,
+    force_fc_override: bool = False,
+    model: str = "gpt-4o-mini",
+) -> dict:
+    """Single-event entry point used by qa_heartbeat.
+
+    Returns: {"patched": bool, "updated_fields": [...]} so callers can audit.
+    Mirrors the per-event body of enrich_person_names() exactly.
+    """
+    sb = sb or _get_supabase()
+    client = client or _get_openai()
+
+    if event is None:
+        res = (
+            sb.table("events")
+            .select(
+                "id,name_ja,raw_title,raw_description,name_zh,name_en,"
+                "description_zh,description_en,annotation_status,source_name,category,"
+                "performer,performer_zh,performer_en,"
+                "performers,performers_zh,performers_en,director,director_zh,director_en"
             )
-        elif people:
-            # People found but no fix applied. desc_en may still contain
-            # wrong transliterations that GPT considered already-correct,
-            # OR there was a transient OpenAI failure. Surface this for
-            # the auto-QA dashboard.
+            .eq("id", event_id)
+            .single()
+            .execute()
+        )
+        event = res.data or {}
+    if not event:
+        return {"patched": False, "updated_fields": []}
+
+    source = event.get("source_name", "")
+    categories = event.get("category") or []
+    is_movie = "movie" in categories
+
+    people: dict[str, "PersonInfo"] = {}
+
+    if is_movie:
+        if source in _NEWS_MOVIE_SOURCES:
+            raw = event.get("raw_title") or ""
+            m = _BRACKET_TITLE_RE.search(raw)
+            if not m:
+                m = _BRACKET_TITLE_RE.search(event.get("name_ja") or "")
+            title = m.group(1).strip() if m else ""
+        else:
+            title = event.get("name_ja") or event.get("raw_title") or ""
+        if title:
+            people = lookup_person_names(title)
+    else:
+        raw_desc = event.get("raw_description") or ""
+        raw_title = event.get("raw_title") or event.get("name_ja") or ""
+        text = f"{raw_title}\n{raw_desc}"
+        katakana_names = extract_katakana_names(text)
+        for name in katakana_names:
+            info = lookup_single_person(name)
+            if info:
+                people[name] = info
+
+    if not people:
+        return {"patched": False, "updated_fields": []}
+
+    update: dict[str, Any] = {}
+
+    desc_zh = event.get("description_zh") or ""
+    if desc_zh:
+        zh_mappings = [
+            (info.role or "人物", ja_name, info.name_zh)
+            for ja_name, info in people.items()
+            if info.name_zh
+        ]
+        if zh_mappings:
+            fixed_zh = _fix_person_names_gpt(client, desc_zh, zh_mappings)
+            if fixed_zh:
+                update["description_zh"] = _to_trad(fixed_zh)
+
+    desc_en = event.get("description_en") or ""
+    if desc_en:
+        en_mappings = [
+            (info.role or "person", ja_name, info.name_en)
+            for ja_name, info in people.items()
+            if info.name_en
+        ]
+        if en_mappings:
+            fixed_en = _fix_person_names_gpt_en(client, desc_en, en_mappings)
+            if fixed_en:
+                update["description_en"] = fixed_en
+
+    zh_to_info: dict[str, "PersonInfo"] = {
+        info.name_zh: info for info in people.values() if info.name_zh
+    }
+    ja_to_info: dict[str, "PersonInfo"] = dict(people)
+
+    cur_performers_en = event.get("performers_en") or []
+    if cur_performers_en:
+        new_performers_en = []
+        changed = False
+        for name in cur_performers_en:
+            if name in zh_to_info and zh_to_info[name].name_en:
+                new_performers_en.append(zh_to_info[name].name_en)
+                changed = True
+            elif name in ja_to_info and ja_to_info[name].name_en:
+                new_performers_en.append(ja_to_info[name].name_en)
+                changed = True
+            else:
+                new_performers_en.append(name)
+        if changed:
+            update["performers_en"] = new_performers_en
+
+    cur_performers_zh = event.get("performers_zh") or []
+    if cur_performers_zh:
+        new_performers_zh = []
+        changed = False
+        for name in cur_performers_zh:
+            if name in ja_to_info and ja_to_info[name].name_zh:
+                new_performers_zh.append(_to_trad(ja_to_info[name].name_zh))
+                changed = True
+            else:
+                new_performers_zh.append(name)
+        if changed:
+            update["performers_zh"] = new_performers_zh
+
+    cur_director = event.get("director") or ""
+    if cur_director and cur_director in ja_to_info:
+        info = ja_to_info[cur_director]
+        cur_dir_zh = event.get("director_zh") or ""
+        cur_dir_en = event.get("director_en") or ""
+        if info.name_zh and (
+            not cur_dir_zh
+            or "AI翻譯" in cur_dir_zh
+            or cur_dir_zh != info.name_zh
+        ):
+            update["director_zh"] = _to_trad(info.name_zh)
+        if info.name_en and (
+            not cur_dir_en
+            or "AI Translation" in cur_dir_en
+            or cur_dir_en != info.name_en
+        ):
+            update["director_en"] = info.name_en
+
+    _b1_performer = event.get("performer") or ""
+    if _b1_performer and _MULTI_SEP_RE.search(_b1_performer):
+        _raw_names = [n.strip() for n in _MULTI_SEP_RE.split(_b1_performer) if n.strip()]
+        _cleaned_names: list[str] = []
+        for _n in _raw_names:
+            _actor = _n
+            for _key in ja_to_info:
+                if " " in _key and _key.endswith(" " + _n):
+                    _actor = _n
+                    break
+            _cleaned_names.append(_actor)
+        _cleaned_names = list(dict.fromkeys(_cleaned_names))
+        update["performers"] = _cleaned_names
+        update["performer"] = None
+        update["performer_zh"] = None
+        update["performer_en"] = None
+        _new_zh: list[str] = []
+        _new_en: list[str] = []
+        for _n in _cleaned_names:
+            _pinfo = ja_to_info.get(_n)
+            if _pinfo is None:
+                for _key, _kinfo in ja_to_info.items():
+                    if _key.endswith(_n) and len(_key) > len(_n):
+                        _pinfo = _kinfo
+                        break
+            _new_zh.append(_to_trad(_pinfo.name_zh) if _pinfo and _pinfo.name_zh else _n)
+            _new_en.append(_pinfo.name_en if _pinfo and _pinfo.name_en else _n)
+        if _new_zh != _cleaned_names:
+            update["performers_zh"] = _new_zh
+        if _new_en != _cleaned_names:
+            update["performers_en"] = _new_en
+        logger.info(
+            "[enrich_person] %s multi-performer split → %s",
+            event["id"][:8], _cleaned_names,
+        )
+
+    cur_performer = event.get("performer") or ""
+    if cur_performer:
+        perf_info: "PersonInfo | None" = ja_to_info.get(cur_performer)
+        if perf_info is None:
+            for key, kinfo in ja_to_info.items():
+                if key.endswith(cur_performer) and len(key) > len(cur_performer):
+                    perf_info = kinfo
+                    break
+        if perf_info is None and "\u30fb" in cur_performer:
+            perf_info = lookup_single_person(cur_performer)
+        if perf_info:
+            cur_perf_zh = event.get("performer_zh") or ""
+            cur_perf_en = event.get("performer_en") or ""
+            if perf_info.name_zh and (
+                not cur_perf_zh
+                or "AI\u7FFB\u8B6F" in cur_perf_zh
+                or cur_perf_zh != perf_info.name_zh
+            ):
+                update["performer_zh"] = _to_trad(perf_info.name_zh)
+            if perf_info.name_en and (
+                not cur_perf_en
+                or "AI Translation" in cur_perf_en
+                or cur_perf_en != perf_info.name_en
+            ):
+                update["performer_en"] = perf_info.name_en
+
+    if not update:
+        if people:
             logger.warning(
                 "  ⚠ person names found but no description fix applied: %s/%s persons=%s",
                 source, event["id"][:8], list(people.keys()),
             )
+        return {"patched": False, "updated_fields": []}
 
-    logger.info("enrich_person_names: patched %d/%d events", patched, len(events))
+    if force_fc_override:
+        # Caller-asserted override: drop protecting FC rows so the write
+        # sticks even for fields previously locked by admin or earlier auto-fix.
+        for field_name in list(update.keys()):
+            sb.table("field_corrections").delete().eq(
+                "event_id", event["id"]
+            ).eq("field_name", field_name).execute()
+
+    sb.table("events").update(update).eq("id", event["id"]).execute()
+    _lock_fields_via_corrections(sb, event["id"], update)
+    logger.info(
+        "  ✓ person names fixed: %s/%s [cat=%s] fields=%s persons=%s",
+        source, event["id"][:8], ",".join(categories),
+        list(update.keys()), list(people.keys()),
+    )
+    return {"patched": True, "updated_fields": list(update.keys())}
 
 
 def propagate_source_organizer(dry_run: bool = False) -> None:
@@ -3341,6 +3378,21 @@ if __name__ == "__main__":
     backfill_rp = "--backfill-report-prefix" in sys.argv
     dry_run_flag = "--dry-run" in sys.argv
     event_id_arg = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--id"), None)
+    # qa_heartbeat uses --event-id / --event-ids; --id is the legacy single-event flag.
+    event_id_new = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--event-id"), None)
+    event_ids_raw = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--event-ids"), None)
+    event_ids_list: list[str] | None = None
+    if event_ids_raw:
+        event_ids_list = [s.strip() for s in event_ids_raw.split(",") if s.strip()]
+    if event_id_new:
+        event_ids_list = (event_ids_list or []) + [event_id_new]
+    force_fc_override = "--force-fc-override" in sys.argv
+    if force_fc_override and not event_ids_list:
+        sys.stderr.write(
+            "ERROR: --force-fc-override requires --event-id|--event-ids "
+            "(refusing to clobber every admin-locked translation in the DB)\n"
+        )
+        sys.exit(2)
     limit_arg_str = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--limit"), None)
     limit_arg = int(limit_arg_str) if limit_arg_str else 50
     if backfill_tier1:
@@ -3354,7 +3406,10 @@ if __name__ == "__main__":
     elif enrich_movies:
         enrich_movie_titles()
     elif enrich_people:
-        enrich_person_names()
+        enrich_person_names(
+            event_ids=event_ids_list,
+            force_fc_override=force_fc_override,
+        )
     else:
         annotate_pending_events(
             re_annotate_all=re_all,
