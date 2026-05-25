@@ -65,6 +65,23 @@ Read this at the start of every session before producing any plan.
 
 - **`order()` 語法**：`.order("col", desc=True)` — 不是 `.order("col", ascending=False)`（pandas 風格在此無效）。計畫中任何排序操作必須使用正確語法。
 - **`upsert` vs `update`**：既存 row 的部分更新必須用 `.update().eq()`，不可用 `upsert`（會觸發 INSERT fallback，撞 NOT NULL 約束）。
+- **`field_corrections.corrected_value` は TEXT NOT NULL**：`qa_auto_fix.unlock_and_write()` の `lock_empty` モードで `corrected_value=None` を渡すと HTTP 400 (23502) になる。必ず `""` 番兵を使用すること（annotator FC guard は行の存在のみチェック）。`lock_clean` の list/dict 値は `json.dumps(v, ensure_ascii=False)` で文字列化する。Reference: `_fc_value()` helper in `qa_auto_fix.py`。
+
+## QA Heartbeat 自修復 Guard（field_corrections NOT NULL 番兵）
+
+`unlock_and_write()` で `field_corrections` へ upsert する際の制約：
+
+| mode | `corrected_value` に渡す値 | 理由 |
+|---|---|---|
+| `lock_clean`（新値あり） | `_fc_value(new_value)` → list/dict は `json.dumps()`、str は `str()` | NOT NULL 対応 |
+| `lock_empty`（フィールドを NULL クリア） | `""` （空文字列・番兵） | `None` は 23502 違反 |
+| `unlock_only` | FC row ごと DELETE | corrected_value 不要 |
+
+**なぜ `""` 番兵で安全か**：`annotator.py` の FC guard（L1136）は `(event_id, field_name)` ペアの存在のみチェックし、`corrected_value` の内容は参照しない。空文字列でも「ロック済み」と正しく判定される。
+
+**Partial-write リスク**：`lock_empty` で `events.update()` 成功後に FC upsert が 400 エラーになると、イベントフィールドは NULL になるが FC ロックが存在しない中途半端な状態になる。`_fc_value()` helper で事前に型変換してこのリスクを防ぐこと。
+
+Reference incident: 2026-05-25 — `qa_heartbeat` live run で 23 件が `verify_failed`（Error 23502）。`lock_empty` モードが `corrected_value=None` を渡していた。`_fc_value()` helper 追加後に解消。
 
 ## Transient Failure Triage Guard（暫時性故障快速排除）
 
