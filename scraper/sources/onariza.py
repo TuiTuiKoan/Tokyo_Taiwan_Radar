@@ -13,7 +13,7 @@ import hashlib
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import urljoin
 
@@ -56,6 +56,113 @@ def _parse_date(text: str) -> Optional[datetime]:
         except ValueError:
             pass
     return None
+
+
+_WEEKDAY_JP_FROM_INT = "月火水木金土日"
+_ONARIZA_TOKEN_RE = re.compile(
+    r"(\d{1,2})月(\d{1,2})日（[月火水木金土日]）|[～〜]|休映|(\d{1,2}:\d{2})"
+)
+
+
+def _extract_schedule_from_detail(
+    soup: BeautifulSoup, current_year: int
+) -> tuple[Optional[str], Optional[datetime], Optional[datetime]]:
+    """Parse the 上映スケジュール block from an onariza detail page.
+
+    The page renders schedule as a flat text run, e.g.:
+        "上映スケジュール 6月5日（金）～ 6月6日（土）13:00 6月7日（日）～ 6月9日（火）10:00
+         6月10日（水）休映 6月11日（木）13:00 ... 6月20日（土）15:30"
+
+    Tokenize: a date may stand alone with a time, be followed by ～ to form a
+    range whose times apply to every day in between, or be marked 休映 (skip).
+
+    Returns (business_hours, start_date, end_date). All three are None if no
+    schedule entries can be extracted.
+    """
+    text = soup.get_text(" ", strip=True)
+    block = re.search(r"上映スケジュール([\s\S]+?)(?:tweet|関連記事|トップページ|$)", text)
+    if not block:
+        return None, None, None
+    sched_text = block.group(1)
+
+    all_entries: list[tuple[int, int, str, str]] = []  # (year, month, day, time)
+    cur_dates: list[tuple[int, int]] = []
+    expecting_end = False
+    just_emitted_time = False
+
+    for tk in _ONARIZA_TOKEN_RE.finditer(sched_text):
+        tok = tk.group(0)
+        if tk.group(1):  # date
+            mon, day = int(tk.group(1)), int(tk.group(2))
+            if just_emitted_time and not expecting_end:
+                cur_dates = []
+                just_emitted_time = False
+            if expecting_end and cur_dates:
+                sm, sd = cur_dates[-1]
+                cur_dates = cur_dates[:-1]
+                try:
+                    d1 = datetime(current_year, sm, sd)
+                    d2 = datetime(current_year, mon, day)
+                except ValueError:
+                    expecting_end = False
+                    continue
+                if d2 < d1:
+                    try:
+                        d2 = datetime(current_year + 1, mon, day)
+                    except ValueError:
+                        expecting_end = False
+                        continue
+                cur = d1
+                while cur <= d2:
+                    cur_dates.append((cur.month, cur.day))
+                    cur = cur + timedelta(days=1)
+                expecting_end = False
+            else:
+                cur_dates.append((mon, day))
+        elif tok in ("～", "〜"):
+            expecting_end = True
+        elif tok == "休映":
+            cur_dates = []
+            expecting_end = False
+            just_emitted_time = False
+        elif tk.group(3):  # time
+            time_str = tk.group(3)
+            # Determine year for each date with simple rollover heuristic
+            for (mon, day) in cur_dates:
+                year = current_year
+                if all_entries:
+                    prev_year, prev_mon, _, _ = all_entries[-1]
+                    if mon < prev_mon - 1:
+                        year = prev_year + 1
+                    else:
+                        year = prev_year
+                all_entries.append((year, mon, day, time_str))
+            just_emitted_time = True
+
+    if not all_entries:
+        return None, None, None
+
+    bh_lines: list[str] = []
+    for y, mon, day, t in all_entries:
+        try:
+            wd_int = datetime(y, mon, day).weekday()
+            wd_jp = _WEEKDAY_JP_FROM_INT[wd_int]
+            bh_lines.append(f"{mon}/{day}（{wd_jp}）{t}")
+        except ValueError:
+            bh_lines.append(f"{mon}/{day} {t}")
+    business_hours = "\n".join(bh_lines)
+
+    fy, fm, fd, _ = all_entries[0]
+    ly, lm, ld, _ = all_entries[-1]
+    try:
+        start_date = datetime(fy, fm, fd, tzinfo=timezone.utc)
+    except ValueError:
+        start_date = None
+    try:
+        end_date = datetime(ly, lm, ld, tzinfo=timezone.utc)
+    except ValueError:
+        end_date = None
+    return business_hours, start_date, end_date
 
 
 class OnarizaScraper(BaseScraper):
@@ -116,7 +223,12 @@ class OnarizaScraper(BaseScraper):
             h = (content_area or soup).select_one("h2, h1")
             title = h.get_text(strip=True) if h else ""
 
-        start_date = _parse_date(full_text)
+        current_year = datetime.now(timezone.utc).year
+        business_hours, sched_start, sched_end = _extract_schedule_from_detail(
+            soup, current_year
+        )
+        start_date = sched_start or _parse_date(full_text)
+        end_date = sched_end
 
         # Description: main content paragraphs
         content = soup.select_one(".entry-content, .post-content, article")
@@ -125,6 +237,11 @@ class OnarizaScraper(BaseScraper):
             desc = "\n".join(paras[:5])
         else:
             desc = full_text[:500]
+
+        # Include full schedule in raw_description so the annotator
+        # SINGLE-DAY RULE does not overwrite end_date.
+        if business_hours:
+            desc = (desc or "") + "\n\n上映スケジュール:\n" + business_hours
 
         return Event(
             source_name=self.SOURCE_NAME,
@@ -135,8 +252,11 @@ class OnarizaScraper(BaseScraper):
             raw_title=title,
             raw_description=desc,
             description_ja=desc or None,
-            category=["art"],
+            category=["movie"],
+            event_form=["screening"],
             start_date=start_date,
+            end_date=end_date,
+            business_hours=business_hours,
             location_name=LOCATION_NAME,
             location_address=LOCATION_ADDRESS,
         )
