@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-05-26 — Architect 規劃過度工程：為 2 個事件造 daily CI pipeline
+
+**問題：** 接到使用者「co_organizers / sponsors 沒抓到，希望跨來源處理」需求，Architect 初版計畫設 5 個 Phase（OCR 強化 + 新 `enrich_organizers.py` 腳本 + annotator prompt 強化 + daily CI 整合 + DB 手動修），跨 Python 新檔 ~200 行 + workflow YAML + Vision prompt 改動。
+
+**根因：** 規劃時**沒先量化問題規模**。Plan Critic 介入後實測 DB：active 579 個事件中，`raw_description LIKE '%共催%' AND co_organizers=[]` 僅 **2 個**；協力 21 個但多為「ご協力ください」noise。換言之 **backlog < 15 個歷史事件**，根本不需要 daily CI pipeline。
+
+**修法：** Plan Critic 重排優先順序，砍掉 Phase 1（enrich_organizers.py）+ Phase 3（daily CI 整合），只保留：
+- Phase 4 手動 DB patch 示範事件 + FC 鎖定（10 分鐘）
+- Phase 2 annotator prompt 加自然語句範例（5 行改動）
+- Phase 0 OCR prompt 強化（覆蓋未來新海報）
+
+實際 commits：`280fdc4`（annotator）+ `e54b925`（OCR + ARRAY_FIELDS sync）+ DB direct patch。**從規劃 5 Phase 工具化方案瘦身到 3 個輕量改動**，省去 ~200 行 Python + CI step 維護成本。
+
+**Lesson（已上 SKILL）：** **規模量化先於工具化**——Architect 起草「批次處理 / daily CI / backfill 腳本」前，必須先跑 DB SQL 量化候選池規模。`< 20 個事件`一律改為「一次性手動 patch」或「prompt-only 修法」，不做成 daily routine。違反這條會徒增 CI 時間與檔案維護成本。Plan Critic 在這次成功攔截，應**主動將「規模查詢」列入 Architect 起草階段必做動作**。
+
+---
+
 ## 2026-05-22 — LINE 週報兩個獨立問題同時發生：Vercel token 無效 + 月送出配額耗盡
 
 **背景：** `weekly-2026-05-22` 草稿生成後，管理介面「立即發送」顯示 "× LINE multicast failed for languages: zh, ja"。本地 `python weekly_line_broadcast.py --auto-send` 因 `auto_publish=false` 跳過，並未測試 LINE token。

@@ -2,6 +2,23 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-26 — co_organizers / sponsors 跨三路徑同步遺漏
+
+**問題：** 事件 `25e27de9`（写真家・鄧南光の視界）raw_description 已含「○○との共催、○○の協力により実施します」自然語句，但 DB `co_organizers=[]`、`sponsors=[]`，前端不顯示主辦階層。`source_name=manual`（OCR 建立），既不會自動重抽 OCR，annotation_status=reviewed 也鎖死了 annotator。
+
+**根因（多重）：**
+1. **annotator SYSTEM_PROMPT 只列條列式 label**（共催/協力/後援/協賛），對「○○との共催」「in cooperation with ○○」這類自然語句**沒給範例**，GPT 看到也抽不出。
+2. **OCR Vision prompt 完全沒有 `co_organizers` / `sponsors` 兩欄位**——海報底部 credit block 印了也不會被抽。schema 鏈通了（types.ts / AdminEventForm / i18n 都有對應），唯獨 Vision prompt 沒填。
+3. **`AdminEventTable.tsx` 的 `ARRAY_FIELDS` 集合只含 `event_form` + `category`**——OCR 回填時，array 欄位若不在這集合會被 `String(val)` 強轉成字串污染 form state。新增 array 欄位必須同步該集合（**隱性 sync point**）。
+
+**修法（commits `280fdc4` + `e54b925` + DB patch）：**
+- `scraper/annotator.py` SYSTEM_PROMPT 加 rule 3a，明列自然語句模式 + HOSEI worked example。
+- `web/app/api/admin/extract-from-image/route.ts` 加 `co_organizers` / `sponsors` 欄位定義（含「找海報底部 credit block」提示）+ user message 補同樣 hint。
+- `web/components/AdminEventTable.tsx` 擴 `ARRAY_FIELDS` 集合加入 `co_organizers`, `sponsors`。
+- DB patch event `25e27de9`：6 欄位（co_organizers / co_organizer_types / sponsors / sponsor_types / organizer_type / official_url）+ 6 個 FC 鎖定。
+
+**Lesson（已上 SKILL）：** **OCR/annotator/前端 form state 是三路徑收斂的 sync point**——任何新增 array 結構欄位都必須同時改三處：(1) Vision prompt 加欄位定義，(2) annotator prompt 加自然語句範例，(3) `AdminEventTable.tsx` 的 `ARRAY_FIELDS` 集合擴展。漏其中一處都會造成「schema 通了但欄位永遠空」的 silent failure。
+
 ## 2026-05-25 — Playwright smoke 測試 `ERR_CONNECTION_REFUSED`（非程式回歸）
 
 **問題：** 執行 `web/tests/e2e/darkmode-navbar-related.smoke.spec.ts` 時失敗：`page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:3000/ja/announcements`。

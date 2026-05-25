@@ -13,6 +13,26 @@ Read this at the start of every session before producing any plan.
 - Identify all code paths affected by a data model change — not just the obvious one (a new column needs both the table AND every writer that populates it).
 - Never ship a plan with an untested API or signature change. Include an explicit smoke-test step.
 - Confirm that all pending migrations are applied before designing features that build on them.
+- **規模量化先於工具化（2026-05-26 教訓）**：起草任何「批次處理 / daily CI / backfill 腳本」前，必須先跑 DB SQL 量化候選池規模。
+  - **`< 20 個事件`** → 一律改為「一次性手動 patch」或「prompt-only 修法」，不做成 daily routine
+  - **`20–100 個事件`** → 一次性 backfill 腳本，跑完 archive，不接 CI
+  - **`> 100 個事件`且持續累積** → 才考慮做成 daily CI step
+  違反這條會徒增 CI 時間 + 檔案維護成本，且 Plan Critic 會擋下。Reference: 2026-05-26 enrich_organizers.py 計畫瘦身（5 Phase → 3 Phase）。
+
+## OCR Vision Array 欄位 — 三路徑 Sync Point（2026-05-26 教訓）
+
+任何要在「OCR 上傳海報建活動」流程新增 array 結構欄位（如 co_organizers / sponsors / tags），**必須同時改 4 處**，缺一即 silent failure：
+
+| 步驟 | 位置 | 說明 |
+|------|------|------|
+| 1 | `web/app/api/admin/extract-from-image/route.ts` Vision SYSTEM prompt | 加欄位定義 + **視覺位置提示**（如「海報底部 credit block」「主辦資訊欄」）— Vision 模型對位置線索反應好於通用提示 |
+| 2 | `web/components/AdminEventTable.tsx` `ARRAY_FIELDS` 集合 | 加欄位 key — 否則被 `String(val)` 強轉成字串污染 form state，TypeScript 不會報錯 |
+| 3 | `scraper/annotator.py` SYSTEM_PROMPT | 加**自然語句模式**範例（如「○○との共催」「in cooperation with ○○」）— GPT-4o-mini 只認得條列式 label，自然語句要靠 few-shot 觸發 |
+| 4 | `web/components/AdminEventForm.tsx` | 確認 form state 初始值 + 編輯 UI 存在 |
+
+**為什麼這是 Architect 必須掌握的 Guard：** 該事件 schema 鏈完整（types.ts / DB / i18n / form state 都有 `co_organizers`），唯獨 Vision prompt + ARRAY_FIELDS + annotator prompt 三路徑漏抽，**任何單點修補都無法解決 silent empty array 問題**。Architect 在計畫中要明列 4 個 sync points，並標注「ARRAY_FIELDS 是隱性 sync point」。
+
+Reference incident: 2026-05-26 — event `25e27de9` co_organizers / sponsors 三路徑漏（commits `280fdc4` + `e54b925`）。
 
 ## Category Addition Checklist（新增分類的必備 6 步驟）
 

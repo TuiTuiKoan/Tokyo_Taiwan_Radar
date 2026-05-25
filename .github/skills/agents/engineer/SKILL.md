@@ -850,6 +850,14 @@ This pattern applies to any `<select>` filter whose options map 1-to-1 with a fi
 
 **Annotation status label consistency rule:** One status value = one i18n key, used consistently in **all** display surfaces: badge (`getAnnotationLabel`), filter dropdown `<option>`, any column header. Use the **short-form keys**: `t("filterAnnotatedShort")`, `t("filterReviewedShort")`, `t("filterErrorShort")`, `t("filterPendingShort")`. The long-form family (`annotated`, `reviewed`, `error`, `pending`) has been deleted — do not recreate it.
 
+**OCR-回填 array 欄位 sync rule:** `handleExtractFromImage` 的 `ARRAY_FIELDS = new Set([...])` 必須涵蓋**所有** OCR Vision prompt 會回傳的陣列欄位。未列入集合的 array 會走 `String(val)` 分支被強轉成字串，**污染 form state**（型別變成字串而非 `string[] | null`），但 TypeScript 不會報錯（`updateField` 接 `unknown`）。新增任何 array OCR 欄位時，這四處必須同 commit 同步：
+1. `web/app/api/admin/extract-from-image/route.ts` Vision prompt 加欄位定義（含視覺位置提示，如「海報底部 credit block」）
+2. `web/components/AdminEventTable.tsx` `ARRAY_FIELDS` 集合擴增該欄位 key
+3. `web/lib/types.ts` Event interface 欄位定義為 `string[] | null`
+4. `web/components/AdminEventForm.tsx` 表單 state 初始值（避免新增欄位卻無 input UI）
+
+Reference incident: 2026-05-26 — `co_organizers` / `sponsors` 三路徑 sync 同時補齊（commits `280fdc4` + `e54b925`）。
+
 ## AdminSourcesTable.tsx — agent_category Sync Rule
 
 `web/components/AdminSourcesTable.tsx` maintains a `SOURCE_TYPE_LABELS` map and a `getFilteredSources` function. Both must be updated whenever a new `agent_category` value is introduced in `discovery_accounts.py`:
