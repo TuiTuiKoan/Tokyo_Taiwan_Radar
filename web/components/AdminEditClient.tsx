@@ -70,6 +70,7 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
 
   async function handleSave() {
     setSaving(true);
+    try {
     // Convert empty strings to null for nullable fields so that
     // getEventName / getEventDescription can fall back correctly via ||.
     // Without this, "" gets written to the DB and blocks the fallback chain.
@@ -154,7 +155,12 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
       updatePayload["annotation_status"] = "reviewed";
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      alert("Session 已過期，請重新登入後再試。");
+      return;
+    }
+    const user = authData.user;
 
     const { error, data: updatedRows } = await supabase
       .from("events")
@@ -165,12 +171,10 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
     if (error) {
       console.error("Update failed:", error);
       alert(`Save failed: ${error.message}`);
-      setSaving(false);
       return;
     }
     if (!updatedRows || updatedRows.length === 0) {
       alert("儲存未生效（session 可能已過期），請重新整理頁面後再試。");
-      setSaving(false);
       return;
     }
 
@@ -217,8 +221,13 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
         });
     }
 
-    setSaving(false);
     router.push(`/${locale}/admin`);
+    } catch (err) {
+      console.error("Unexpected save error:", err);
+      alert(`儲存失敗：${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleCancel() {
