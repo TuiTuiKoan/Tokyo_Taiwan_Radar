@@ -2503,3 +2503,20 @@ if not any(kw in full_text for kw in ('台湾', '台灣')):
 ```
 
 Reference incident: 2026-05-15 — `matsumoto_cinema_select.py`（teket.jp group_id=1841 ＮＰＯ松本シネマセレクト）。
+
+## QA Root-Cause Catalog
+
+The `qa_heartbeat.py` classifier emits one of these R-classes per pending
+`auto_qa_*` report. The catalog block below is consumed by humans + the
+heartbeat itself. Keep entries ≤ 1 line, format: `- R-CLASS | detector report_type | one-line fix pattern`.
+
+<!-- qa-root-cause-catalog-start -->
+- R-ANN-SC | auto_qa_simplified_zh / auto_simplified_chinese | run `_to_trad()` on all `*_zh` fields + lock via field_corrections
+- R-ANN-AI-MARKER | auto_qa_performer_ai_translation_marker | strip `（AI翻譯）` / `(AI Translation)`; clear field to NULL if stripped value equals original katakana
+- R-SCR-PERF-MULTI | auto_qa_performer_multi_value_pollution | split `performer` on `[、,，×／/]` into `performers[]`; clear stale `performer*_zh/en` so enrich rebuilds
+- R-ANN-PERF-PHON | (subset of marker / katakana detectors) | call `enrich_person_names_single` for the event id
+- R-ENRICH-MISS | auto_qa_performer_zh_equals_katakana | retry `enrich_person_names_single`; on miss, leave for human review
+- R-AMBIGUOUS | any | append note to report; leave for human review (no auto-write)
+<!-- qa-root-cause-catalog-end -->
+
+> ⚠️ When adding a new R-class: also update `scraper/qa_heartbeat.py` `R_CLASSES` + `ROUTING`, and seed `.github/skills/scraper-expert/cases.jsonl` with a row.

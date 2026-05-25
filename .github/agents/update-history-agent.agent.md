@@ -23,6 +23,8 @@ handoffs:
    - 根本原因是什麼？
    - 如何修復的？
    - 學到了什麼教訓？
+   - **是否與 `auto_qa_*` report_type 相關？若是，對應 R-class 是哪一個（R-ANN-SC / R-ANN-AI-MARKER / R-SCR-PERF-MULTI / R-ANN-PERF-PHON / R-ENRICH-MISS / R-AMBIGUOUS / 其他新建類別）？**
+     - 若是新建 R-class，需同步更新 `.github/skills/scraper-expert/SKILL.md` 的 `<!-- qa-root-cause-catalog-start -->` 區塊，以及 `scraper/qa_heartbeat.py` 的 `R_CLASSES` / `ROUTING`
 
 2. **更新 history.md**:
    - 找到相應的 `.github/skills/agents/*/history.md` 或 `.github/skills/*/history.md`

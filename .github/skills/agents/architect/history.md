@@ -4,33 +4,6 @@
 
 ---
 
-## 2026-05-22 — `_inject_report_prefix()` 非新聞來源污染 + end_date 固化問題（ZINE Fes）
-
-**背景：** event `6850265d`（peatix「ZINE Fes 誠品生活日本橋」）。首次爬取時頁面部分載入（networkidle 超時 → domcontentloaded fallback），`raw_description = "開催日時: 2026年05月22日\n\n"`（僅日期，無 description body）。手動補救：重爬頁面、更新 `description_ja`，設 `annotation_status = 'pending'`，再跑 annotator。
-
-**根因一：`【レポート】` 前綴誤注入**
-
-- GPT 看到 ZINE 市集描述（「ZINEをつくるクリエイターたちが集合」「読むと旅する気分」）＋ 3 個 talk sub-events，誤分類為 `['senses', 'workshop', 'lecture', 'report']`
-- annotator L1717 的 `_inject_report_prefix()` 對所有 `'report' in categories` 的事件注入前綴，**未區分來源類型**
-- peatix `raw_title` 是官方活動標題，不含任何 report 關鍵字，前綴注入後 `name_ja`/`name_zh`/`name_en` 三欄全被污染
-
-**修正（commit `7b2f821`）：** 加入守衛：只在 `_HEADLINE_REWRITE_SOURCES` 來源 OR `raw_title` 含 `_REPORT_TRIGGER_RE` 時才注入前綴。手動清除污染 + FC lock `name_ja`/`name_en`/`end_date`。
-
-**根因二：`end_date` 固化（兩日活動只顯示一天）**
-
-- 首次 annotation（稀疏 raw_description）：GPT 只看到 `2026年05月22日` → `end_date = 2026-05-22`
-- 手動再 annotation：設 `annotation_status = 'pending'` 但**未清除 `end_date`**
-- annotator L1453：`"end_date": event.get("end_date") or annotation.get("end_date")` — DB 中的 `2026-05-22`（truthy）贏過 GPT 的新推論值 `2026-05-23`
-
-**修正：** 手動設 `end_date = 2026-05-23` + FC lock。
-
-**教訓：**
-- **再 annotation 的標準操作必須包含 `end_date = None`**：更新 `raw_description` 時，必須一併清除 `end_date`（及懷疑有誤的 `start_date`），否則舊值永久固化
-- **`_inject_report_prefix()` 不可無差別注入**：爬蟲來源（peatix/eplus/doorkeeper）的 `raw_title` 是正式活動名，GPT `report` 分類不等於標題需要前綴
-- **兩個 guard 新增至 SKILL.md**：「Report Prefix Injection Guard」、「Re-annotation Date Clearing Guard」
-
----
-
 ## 2026-05-22 — LINE 週報兩個獨立問題同時發生：Vercel token 無效 + 月送出配額耗盡
 
 **背景：** `weekly-2026-05-22` 草稿生成後，管理介面「立即發送」顯示 "× LINE multicast failed for languages: zh, ja"。本地 `python weekly_line_broadcast.py --auto-send` 因 `auto_publish=false` 跳過，並未測試 LINE token。

@@ -2,9 +2,25 @@
 
 <!-- Append new entries at the top -->
 
-# Engineer Error History
+## 2026-05-25 — Playwright smoke 測試 `ERR_CONNECTION_REFUSED`（非程式回歸）
 
-<!-- Append new entries at the top -->
+**問題：** 執行 `web/tests/e2e/darkmode-navbar-related.smoke.spec.ts` 時失敗：`page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:3000/ja/announcements`。
+
+**根因：** Playwright 直接執行時本機 Next dev server 未啟動；測試腳本本身與 locale path 修改無關。
+
+**修法：** 先啟動 `npm run dev`，再重跑同一支 smoke test，結果 `1 passed`。驗證後關閉 dev server，避免殘留背景程序。
+
+**Lesson：** 針對需本機服務的 E2E，先確認 3000 port 有可用 app（或在 Playwright 設定 webServer 自動啟動）。`ERR_CONNECTION_REFUSED` 優先判斷執行環境，不要誤判為功能回歸。
+
+## 2026-05-22 — taiwan_festival_tokyo scraper 抓到 widget 過時日期
+
+**問題：** 事件 `80214e50-07da-4fbe-b85d-fb3bcb71a3f0`（台湾フェスティバル™TOKYO2026）DB 顯示 6/25–28，但官網主體文章已公告為 7/9–7/12。
+
+**根因：** scraper 只讀頁尾「開催詳細」widget（`#text-7`），主辦方在主體文章更新後忘了同步該 widget，導致 scraper 永遠抓到舊日期。
+
+**修法：** [scraper/sources/taiwan_festival_tokyo.py](scraper/sources/taiwan_festival_tokyo.py) 重寫抽取順序為「主體文章 (`section.p-entry__body` 內 `《開催日時》` 區塊) 優先 → widget fallback」。`_parse_date_range` 新增含年份格式 `YYYY年M月D日（曜）～(M月)?D日(曜)` 的 regex 分支；start/end_date 改用 `datetime(..., tzinfo=timezone.utc)`（遵守 Scraper Date Timezone Guard）。兩者皆成功且日期不一致時 `logger.warning(... — using body)`。
+
+**Lesson（已上 SKILL）：** **官方資訊多處顯示時，永遠優先主體文章而非 sidebar/footer widget。** widget 是 WordPress 常見的「設定一次忘了改」陷阱，主體文章才是編輯的焦點。任何 scraper 若依賴次要顯示位置，都要加 fallback 鏈並 log mismatch。
 
 ## 2026-05-22 — admin 三個 handler Server Action 化（Safari hang 根除 + requireAdmin 共通化）
 
