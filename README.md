@@ -6,6 +6,9 @@
 
 🇹🇼🇯🇵 Trilingual (Chinese / Japanese / English)
 
+- 5/25 -
+This is a reflection week.  I try to start a new pipeline around evaluation and auto-QA.  After a month of debugging, I finally realized the complexity of flooding scraper and the untamed hallucination around annotation and polluted fields.  The system is evolving into something I need to digest codes and plan closely.  Time to slow down, though many exciting backlogs push me to move on.  Wish I can overcome this stage asap!
+
 - 5/18 -
 Teaching a Wax Apple to Drive
 
