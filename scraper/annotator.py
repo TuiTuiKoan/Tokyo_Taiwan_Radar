@@ -692,6 +692,13 @@ ORGANIZER EXTRACTION RULES:
    co_organizer_types: classify each co_organizer using the same type labels as organizer_type (one entry per co_organizer, same index). Use "unknown" if unclear.
 3. sponsors: array of 協賛 / 贊助 / sponsor entities. Empty array if none mentioned.
    sponsor_types: classify each sponsor entry using the same type labels (one per sponsor, same index). Use "unknown" if unclear.
+3a. NATURAL-LANGUAGE PATTERNS (in addition to bulleted "共催：○○" labels, also extract co-hosts/sponsors from embedded prose):
+   - "○○との共催" / "○○と共催で" / "co-hosted with ○○" → co_organizers += [○○]
+   - "○○の協力により" / "○○協力のもと" / "in cooperation with ○○" / "with the cooperation of ○○" → co_organizers += [○○]
+   - "○○の後援を受けて" / "supported by ○○" / "endorsed by ○○" → co_organizers += [○○]
+   - "○○の協賛" / "○○の助成" / "sponsored by ○○" / "funded by ○○" → sponsors += [○○]
+   - Example: "HOSEIミュージアムは、新竹県北埔郷公所 鄧南光影像紀念館との共催、法政大学法学部福田円研究室の協力により実施します。"
+     → organizer="HOSEIミュージアム", co_organizers=["新竹県北埔郷公所 鄧南光影像紀念館","法政大学法学部福田円研究室"]
 4. NEVER fabricate organizer names. If 主催 is not explicitly stated and cannot be safely inferred from the venue's official role (e.g. an exhibition at a museum is hosted by that museum), set organizer = null.
 5. organizer_type: classify the primary organizer into one or more of:
    - "government" — central/local government bodies (外交部, 文化部, 都道府県, 市役所); Taiwan representative offices in Japan (台北駐日経済文化代表処, 台北駐○○経済文化事務所, 台湾文化センター, 台北経済文化代表処, any 台北駐／台湾駐 office)
