@@ -226,7 +226,7 @@ def _fetch_gnews_article_text(gnews_url: str, browser: "Browser") -> str | None:
 # Valid categories (must match web/lib/types.ts)
 # ---------------------------------------------------------------------------
 VALID_CATEGORIES = [
-    "movie", "performing_arts", "senses", "tea_alcohol", "drama", "documentary",
+    "movie", "performing_arts", "senses", "photography", "tea_alcohol", "drama", "documentary",
     "retail", "nature", "tech", "tourism", "lifestyle_food", "books_media",
     "gender", "parenting", "geopolitics", "art", "lecture", "taiwan_japan",
     "scholarship", "study_abroad", "business", "academic", "competition", "indigenous", "folklore",
@@ -573,7 +573,7 @@ OTHER RULES:
    EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
    EXCEPTION — DO NOT create sub_events when the article is a report/recap. If the raw_title contains レポート, レポ, 報告, 記録, アーカイブ, or recap (case-insensitive), the article is a post-event report and describes a single completed event — return sub_events: [] always. Treat the report as one event and extract its single set of fields (date, performer, etc.) from the body.
    NOTE: For events with exactly two venues across different countries (e.g. Japan + Taiwan), do NOT create sub_events. Use the Japan venue as the single primary location (see MULTI-COUNTRY VENUE RULE above).
-2. Categories must be from this list: movie, performing_arts, senses, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, art, lecture, taiwan_japan, scholarship, study_abroad, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, radio_program, exhibition, design_craft, herbal, taiwan_mandarin, healthcare, report
+2. Categories must be from this list: movie, performing_arts, senses, photography, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, art, lecture, taiwan_japan, scholarship, study_abroad, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, radio_program, exhibition, design_craft, herbal, taiwan_mandarin, healthcare, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
    - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
    - "competition" = contests, competitions, awards, championships, public calls for entries (コンテスト, 大会, 選手権, 公募, コンクール)
@@ -584,6 +584,7 @@ OTHER RULES:
    - "movie" = film screenings, movie events, documentary showings, film festivals. IMPORTANT: any event with 上映, 映画, film, screening, cinema in its title or description MUST include "movie" as a category, even if it also involves talks or other elements.
    - "performing_arts" = LIVE stage performances ONLY: concerts, theater, dance, opera. NOT for film screenings. For Asia/Japan tour events (アジアツアー, 日本ツアー), only use if the Tokyo show is confirmed a live performance.
    - "senses" = art exhibitions, photography, design shows, creative/visual experiences. NOT for film screenings or book-only events.
+   - "photography" = photograph exhibitions, photographer talks, photo workshops, photo books. Use for events where photography is the primary medium (e.g. 写真展, 写真家トーク, フォトワークショップ). Often co-occurs with art or exhibition; pair with history for archival/documentary photography of Taiwan.
    - "lifestyle_food" = food, cooking, tea ceremony, restaurants, cafes, lifestyle events. Do NOT add taiwan_japan just because the food is Taiwanese — use taiwan_japan only when the event emphasizes bilateral exchange.
    - "books_media" = books, literature, publishing, authors, readings, book launch events, media, journalism. FORMULA: when title contains 著者名+『書名』 (author + book in 『』) OR ブックサロン/刊行記念/出版記念 → ALWAYS add books_media + lecture + academic. Then add geopolitics if political/policy content, history if historical content, taiwan_japan ONLY if explicitly about Japan-Taiwan bilateral topic.
    - "lecture" = talks, presentations, lectures, panels, Q&A sessions. MANDATORY when title/description contains any of: トークイベント, トークショー, 講演会, 講演, 講座, シンポジウム, 勉強会, 例会, 基調講演, 映後座談, セッション, 研究会. Also ALWAYS add lecture when movie + トーク/座談 co-occur.

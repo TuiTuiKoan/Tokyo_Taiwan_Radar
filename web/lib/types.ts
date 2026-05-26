@@ -179,6 +179,7 @@ export type Category =
   | "movie"
   | "performing_arts"
   | "senses"
+  | "photography"
   | "tea_alcohol"
   | "drama"
   | "documentary"
@@ -219,6 +220,7 @@ export const CATEGORIES: Category[] = [
   "movie",
   "performing_arts",
   "senses",
+  "photography",
   "tea_alcohol",
   "drama",
   "documentary",
@@ -264,7 +266,7 @@ export interface CategoryGroup {
 export const CATEGORY_GROUPS: CategoryGroup[] = [
   {
     labelKey: "group_arts",
-    categories: ["movie", "performing_arts", "art", "design_craft", "senses", "tea_alcohol", "herbal", "drama", "documentary", "indigenous", "folklore", "nature", "literature"],
+    categories: ["movie", "performing_arts", "art", "design_craft", "senses", "photography", "tea_alcohol", "herbal", "drama", "documentary", "indigenous", "folklore", "nature", "literature"],
   },
   {
     labelKey: "group_lifestyle",
