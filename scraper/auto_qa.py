@@ -419,6 +419,8 @@ def _detect_performer_multi_value(sb) -> list[dict]:
 
     Filters: skips human-reviewed events and only scans events created in the
     last 30 days to prevent perpetual re-flagging.
+    Sentinel skip: skips events where FC.performer='' (lock-empty) and
+    events.performer IS NULL — field already cleaned and locked.
     """
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
@@ -435,7 +437,37 @@ def _detect_performer_multi_value(sb) -> list[dict]:
     reports = []
     import re as _re
     _SEP = _re.compile(r"[、,，×／/]")
+
+    # Build sentinel set: event_ids where FC.performer='' sentinel is in place
+    candidate_ids = [row["id"] for row in rows]
+    sentinel_ids: set[str] = set()
+    if candidate_ids:
+        skip_skipped = 0
+        for i in range(0, len(candidate_ids), 200):
+            chunk = candidate_ids[i : i + 200]
+            fc_rows = (
+                sb.table("field_corrections")
+                .select("event_id,corrected_value")
+                .in_("event_id", chunk)
+                .eq("field_name", "performer")
+                .execute()
+                .data or []
+            )
+            for fc in fc_rows:
+                if fc.get("corrected_value") == "":
+                    sentinel_ids.add(fc["event_id"])
+                    skip_skipped += 1
+        if skip_skipped:
+            import logging as _logging
+            _logging.getLogger(__name__).info(
+                "_detect_performer_multi_value: skip by sentinel=%d, skip by archived=0 (pre-filtered by is_active)",
+                skip_skipped,
+            )
+
+    newly_reported = 0
     for row in rows:
+        if row["id"] in sentinel_ids:
+            continue
         pf = row.get("performer") or ""
         if _SEP.search(pf):
             reports.append({
@@ -446,6 +478,13 @@ def _detect_performer_multi_value(sb) -> list[dict]:
                     f"source={row.get('source_name', '?')}"
                 ),
             })
+            newly_reported += 1
+
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        "_detect_performer_multi_value: newly reported=%d, skip by sentinel=%d",
+        newly_reported, len(sentinel_ids),
+    )
     return reports
 
 

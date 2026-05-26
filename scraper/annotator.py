@@ -1156,16 +1156,10 @@ def annotate_pending_events(
     # Load field-level corrections (migration 038b — P1).
     # Builds: event_id → set of DB column names that must NOT be overwritten by AI.
     # Falls back to empty dict when the table doesn't exist yet (pre-migration).
+    # Uses pagination to load ALL rows (Supabase default limit is 1000 per call).
     human_field_map: dict[str, set[str]] = {}
     try:
-        fc_res = sb.table("field_corrections").select("event_id,field_name").execute()
-        for r in (fc_res.data or []):
-            eid_fc = r.get("event_id")
-            fname = r.get("field_name")
-            if eid_fc and fname:
-                human_field_map.setdefault(eid_fc, set()).add(fname)
-        if human_field_map:
-            logger.info("Loaded field corrections for %d events", len(human_field_map))
+        human_field_map = _load_human_field_map(sb)
     except Exception as fc_err:
         logger.debug("field_corrections table not available (run migration 038b): %s", fc_err)
     # Used as fallback when GPT returns organizer=null.
@@ -2481,6 +2475,38 @@ def _lock_fields_via_corrections(
         )
 
 
+def _load_human_field_map(sb: "Client") -> dict[str, set[str]]:
+    """Load ALL field_corrections rows using pagination.
+
+    Supabase Python client returns at most 1000 rows per execute() call.
+    Without pagination, events beyond the first 1000 FC rows are invisible
+    to _human_protected, allowing annotator/enrich to overwrite sentinels.
+    """
+    result: dict[str, set[str]] = {}
+    offset = 0
+    while True:
+        rows = (
+            sb.table("field_corrections")
+            .select("event_id,field_name")
+            .range(offset, offset + 999)
+            .execute()
+            .data or []
+        )
+        if not rows:
+            break
+        for r in rows:
+            eid_fc = r.get("event_id")
+            fname = r.get("field_name")
+            if eid_fc and fname:
+                result.setdefault(eid_fc, set()).add(fname)
+        if len(rows) < 1000:
+            break
+        offset += 1000
+    if result:
+        logger.info("Loaded field corrections for %d events", len(result))
+    return result
+
+
 def enrich_person_names(
     *,
     event_ids: list[str] | None = None,
@@ -2762,6 +2788,47 @@ def enrich_person_names_single(
                 "  ⚠ person names found but no description fix applied: %s/%s persons=%s",
                 source, event["id"][:8], list(people.keys()),
             )
+        return {"patched": False, "updated_fields": []}
+
+    # FC guard: before writing, drop any field from update that conflicts
+    # with an existing field_corrections row. Mirrors the B1 guard in
+    # enrich_movie_titles(). Protects:
+    # - corrected_value == "" (lock-empty sentinel) — never overwrite
+    # - corrected_value != "" (explicit admin correction) — never overwrite with a different value
+    if not force_fc_override and update:
+        try:
+            fc_rows = (
+                sb.table("field_corrections")
+                .select("field_name,corrected_value")
+                .eq("event_id", event["id"])
+                .in_("field_name", list(update.keys()))
+                .execute()
+                .data or []
+            )
+            for fc in fc_rows:
+                fname = fc.get("field_name")
+                fval = fc.get("corrected_value")
+                if fname in update:
+                    if fval == "":
+                        # lock-empty sentinel: field must stay NULL
+                        logger.info(
+                            "  [enrich guard] skip %s for %s (lock-empty sentinel)",
+                            fname, event["id"][:8],
+                        )
+                        del update[fname]
+                    elif fval and update[fname] != fval:
+                        # explicit admin correction: don't overwrite with different value
+                        logger.info(
+                            "  [enrich guard] skip %s for %s (FC=%r vs enrich=%r)",
+                            fname, event["id"][:8], fval, update[fname],
+                        )
+                        del update[fname]
+        except Exception as fc_exc:
+            logger.debug(
+                "  enrich FC guard skipped for %s: %s", event["id"][:8], fc_exc
+            )
+
+    if not update:
         return {"patched": False, "updated_fields": []}
 
     if force_fc_override:
