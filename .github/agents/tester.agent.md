@@ -44,6 +44,7 @@ Runs the scraper pipeline, validates event output, and reports failures. Does NO
 
 1. Run a terminal preflight command to ensure execution tooling is available (for example: `pwd`).
    - If terminal execution is unavailable, report a tooling/configuration failure first and stop test execution.
+   - **Shell safety check**: `[[ -o BANG_HIST ]] && echo "WARN: zsh history expansion enabled — wrap any inline script in quoted heredoc <<'PY' to prevent `!` substitution"`. See `SKILL.md` § Shell Safety. (Repo owner has `NO_BANG_HIST` set since 2026-05-26.)
 2. Activate the virtual environment and run full dry-run:
    `cd scraper && source ../.venv/bin/activate && python main.py --dry-run 2>&1`
 3. Run each source individually for cleaner output:

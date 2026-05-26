@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-05-26 — zsh history expansion で過去の `rm` を意図せず復元（Tester 由来のセキュリティ事故）
+
+**問題：** Tester が inline shell command 内で `!r` という文字列（Python の `repr()` 用途等）を含めたところ、zsh の history expansion が発動し、shell history 内の `rm -f .../credentials/token.json` を取り出して実行候補にした。今回は Python SyntaxError で実行は阻止されたが、別パターンでは実害が出る。
+
+**根因：**
+- zsh はデフォルトで `BANG_HIST` が有効 → `!`, `!r`, `!$`, `!!` 等が history substitution として解釈される
+- Tester / subagent が生成する inline `python3 -c '...'` や heredoc に `!` が含まれると、shell が事前にコマンドへ展開してしまう
+- 単引用符 `'...'` でも quoting 前に history expansion が起きるため防げない
+
+**Tester 判断パターン：**
+- inline command を組む前に preflight：`[[ -o BANG_HIST ]] && echo WARN` で現在の shell オプションを確認
+- `!` を含む文字列は heredoc + `<<'PY'`（quoted delimiter）で渡すか、`\!` でエスケープ
+- 過去コマンド復元の兆候（`zsh: event not found` / 意図しないコマンドが echo される）が見えたら即停止し、ユーザーに報告
+
+**恒久修正（実施済み 2026-05-26）：**
+1. `~/.zshrc` に `setopt NO_BANG_HIST` を追加
+2. `~/.zsh_history` から高危指令 2 件を削除（`rm -f .../token.json`、`sudo rm -rf /Library/...Defender`）
+3. 新しい shell で `[[ -o BANG_HIST ]] → BANG_HIST_OFF` を確認
+
+**教訓：** Tester は read-only/execute のみだが、shell の history expansion 経由で副作用を起こせる可能性がある。`!` を含む inline command を組む際は必ず quoted heredoc を使う。
+
+---
+
 ## 2026-05-15 — teket.jp sitemap timeout が 0件として現れる（ReadTimeout 静黙失敗）
 
 **問題：** `matsumoto_cinema_select` dry-run で 0件取得。エラーではなく WARNING のみで完了。
