@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-05-26 — 計畫中 `CATEGORY_GROUPS.group_senses` 假設錯誤（實為 `group_arts`）
+
+**問題：** 撰寫「新增 `photography` 分類」計畫時，Phase 1 步驟 1 寫「`CATEGORY_GROUPS.group_senses` 加 `'photography'`」。Engineer 實作時發現 `web/lib/types.ts` 並無 `group_senses` 群組，`senses` 本身位於 `group_arts` 之下。Tester 在「歸在五感之下」一致性檢查時也報告了此差異。
+
+**根因：** 起草計畫時憑記憶推測 group 命名（誤把分類值 `senses` 想成群組名 `group_senses`），未先 grep 確認既有 `CATEGORY_GROUPS` 結構。Architect 在 read-only 模式下查 DB 蠻積極（已量化 backfill 規模），但對前端 types.ts 既有命名約定的查證不足。
+
+**修法：** Engineer 自動修正，將 `photography` 加入 `group_arts.categories`（與 `senses`、`art`、`design_craft` 並列）。User 接受該歸屬。
+
+**Lesson：** **新增 enum 值的計畫，必須先讀 source-of-truth 檔案再下筆**——對 Category 而言是 `web/lib/types.ts` 的 `CATEGORY_GROUPS` 物件結構；對 event_form 而言是 `events_event_form_check` migration。憑名稱猜測 group 容易撞「分類值與群組同名」陷阱（如 `senses` ≠ `group_senses`）。Architect Required Steps 應加：「Category/event_form 計畫起草前 `grep -n CATEGORY_GROUPS web/lib/types.ts`」。
+
+---
+
 ## 2026-05-26 — Architect 規劃過度工程：為 2 個事件造 daily CI pipeline
 
 **問題：** 接到使用者「co_organizers / sponsors 沒抓到，希望跨來源處理」需求，Architect 初版計畫設 5 個 Phase（OCR 強化 + 新 `enrich_organizers.py` 腳本 + annotator prompt 強化 + daily CI 整合 + DB 手動修），跨 Python 新檔 ~200 行 + workflow YAML + Vision prompt 改動。

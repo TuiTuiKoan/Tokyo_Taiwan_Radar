@@ -2,6 +2,16 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-26 — GPT 自創 `photography` 分類繞過 VALID_CATEGORIES，前端顯示 raw i18n key
+
+**問題：** 事件 `25e27de9`（鄧南光展）詳情頁顯示 `categories.photography` raw i18n key。DB 查詢確認 `category = ['photography','art','exhibition','history']`，但 annotator 的 `VALID_CATEGORIES` frozenset（共 38 值）**不含 `photography`**。
+
+**根因：** Admin 建立路徑（OCR `extract-from-image/route.ts` + 手動 `annotate-event/route.ts`）的 GPT prompt 雖列了枚舉清單，但**沒有伺服器端白名單過濾器**。GPT 可自由產生 prompt 外的分類字串（例：海報含「写真展」→ GPT 自創 `photography`），直接寫入 `events.category` 陣列。Daily scraper 的 `scraper/annotator.py::_validate_categories()` 會 strip 不認識的值，但 admin route 路徑**完全沒走這層**。
+
+**修法（commit `264afed`）：** 新增 `photography` 為合法分類（6 處同步：types.ts / annotator.py / 三語 i18n / organicMotifs.tsx / 兩個 admin route），歸屬 `group_arts`。同時 backfill 兩個攝影展事件（`493c5fc3` 台湾写真展、`9798712d` 鄧南光寫真展）含 FC 鎖定。
+
+**Lesson（已上 SKILL）：** **Admin API routes 必須在伺服器端做 enum whitelist intersect**，鏡像 `scraper/annotator.py::_validate_categories()`。GPT 輸出 enum 欄位（`category` / `event_form` / `prefecture_code` 等）入庫前一律 `[v for v in gpt_output if v in WHITELIST]`，否則 GPT 自創值繞過 TypeScript / DB CHECK / annotator 三道防線（CHECK 對 `text[]` 陣列元素無效）。本 commit 暫未實作此過濾器，已列 backlog。
+
 ## 2026-05-26 — co_organizers / sponsors 跨三路徑同步遺漏
 
 **問題：** 事件 `25e27de9`（写真家・鄧南光の視界）raw_description 已含「○○との共催、○○の協力により実施します」自然語句，但 DB `co_organizers=[]`、`sponsors=[]`，前端不顯示主辦階層。`source_name=manual`（OCR 建立），既不會自動重抽 OCR，annotation_status=reviewed 也鎖死了 annotator。

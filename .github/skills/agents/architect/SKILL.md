@@ -54,6 +54,33 @@ Reference incident: 2026-05-26 — event `25e27de9` co_organizers / sponsors 三
 **Reference incidents:**
 - 2026-05-16 — `design_craft`、`herbal`、`study_abroad` 三分類在 annotator/i18n sync 後，縮圖 case 補加為獨立 commit，違反「同一 commit」原則。教訓：Architect 計畫從此明列步驟 4。
 - 2026-05-20 — types.ts 38 值，兩個 admin API prompt 只列 18 值（缺 20 個含 `healthcare`），GPT 自創 `health`，前端顯示 raw i18n key（commits `997378c`）。教訓：新增步驟 5。
+- 2026-05-26 — 事件 `25e27de9` 顯示 `categories.photography` raw key。GPT 自創 `photography` 由 admin OCR route 寫入，繞過 annotator 的 `_validate_categories()`（commit `264afed`）。教訓：見下方「Admin API enum 防禦」rule。
+
+### 計畫起草前置動作（**Required**）
+
+新增 Category / event_form 計畫**起草前**必跑：
+
+```bash
+grep -nE "CATEGORY_GROUPS|group_(arts|culture|sense|lifestyle|society)" web/lib/types.ts | head -20
+```
+
+憑記憶推測 group 名稱會撞「分類值與群組同名」陷阱（如 `senses` 是分類值、`group_arts` 是群組名，不存在 `group_senses`）。Reference: 2026-05-26 photography 計畫誤寫 `group_senses` 被 Tester 抓出。
+
+### Admin API enum 防禦（2026-05-26 教訓 — backlog item）
+
+**問題模式：** GPT 在 admin OCR/annotate route 自創 enum 外的值（例：`photography` 不在 VALID_CATEGORIES 但寫入 DB → 前端 raw i18n key）。三道防線都擋不住：
+- TypeScript：只檢查靜態型別，不檢查 runtime GPT 輸出
+- DB CHECK：對 `text[]` 陣列**元素**無效（只能 CHECK 整個陣列）
+- annotator `_validate_categories()`：只有 daily scraper 路徑會跑，admin route 不會
+
+**規則：** 任何由 GPT 輸出 enum 欄位的 admin API route 必須在 server 端 intersect whitelist：
+
+```ts
+const VALID_CATEGORIES = new Set([...]);  // 與 types.ts CATEGORIES 同步
+const sanitized = (gpt_response.category ?? []).filter(c => VALID_CATEGORIES.has(c));
+```
+
+Architect 在「新增 enum 值」計畫**外**，遇到相關 admin route 修改時，應主動建議加白名單過濾器。Reference: 2026-05-26 event `25e27de9` `categories.photography` raw key（commit `264afed` 修分類但未加過濾器，已建 backlog）。
 
 ## Event Form Addition Checklist（新增 event_form 值的必備 4 步驟）
 

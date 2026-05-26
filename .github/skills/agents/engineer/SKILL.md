@@ -50,6 +50,29 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - Treat `net::ERR_CONNECTION_REFUSED` as an execution-environment failure first, not an application regression.
 - After the test run, stop any background dev server to avoid orphaned processes and cross-session interference.
 
+## Admin GPT routes — server-side enum whitelist intersect（2026-05-26 教訓）
+
+Admin OCR/annotate API routes（`web/app/api/admin/extract-from-image/route.ts`、`web/app/api/admin/annotate-event/route.ts`）由 GPT 直接輸出 enum 欄位（`category[]`、`event_form`、`prefecture_code`），**寫入 DB 前必須做白名單過濾**。三道天然防線對此無效：
+
+| 防線 | 為何失效 |
+|---|---|
+| TypeScript | 只檢查靜態型別，不檢查 runtime LLM 輸出 |
+| DB CHECK constraint | `text[]` 陣列**元素**無法 CHECK，只能 CHECK 整個陣列存在性 |
+| `scraper/annotator.py::_validate_categories()` | 只有 daily scraper 路徑會跑，admin route 完全繞過 |
+
+**規則：** 兩個 admin route 在 GPT 回傳後、`upsert` 前必須：
+
+```ts
+const VALID_CATEGORIES = new Set([
+  /* 與 web/lib/types.ts CATEGORIES 同步 */
+]);
+const sanitized = (parsed.category ?? []).filter((c: string) => VALID_CATEGORIES.has(c));
+```
+
+`VALID_CATEGORIES` 集合可從 `web/lib/types.ts` 匯入 `CATEGORIES` 陣列轉成 Set，避免雙重維護。同理適用 `event_form`、`prefecture_code` 等所有 enum 欄位。
+
+**Reference incident:** 2026-05-26 — event `25e27de9` GPT 自創 `photography` 入庫，前端顯示 `categories.photography` raw i18n key（commit `264afed` 解了眼前事件，未實作 whitelist filter，列 backlog）。
+
 ## Database
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`
 - When adding a DB column, wire up the code that populates it in the same commit. Empty columns = silent data gaps.
