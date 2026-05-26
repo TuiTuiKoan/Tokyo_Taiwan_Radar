@@ -13,6 +13,11 @@ Read this at the start of every session before producing any plan.
 - Identify all code paths affected by a data model change — not just the obvious one (a new column needs both the table AND every writer that populates it).
 - Never ship a plan with an untested API or signature change. Include an explicit smoke-test step.
 - Confirm that all pending migrations are applied before designing features that build on them.
+- **Supabase 分頁完整性先驗證（2026-05-26 教訓）**：凡計畫依賴 `select(...).execute()` 載入「保護判斷資料」（例如 `field_corrections`、blacklist、mapping）時，必須先驗證是否被預設分頁截斷。最少要做三件事：
+   - 比對 `first_page_count` 與 `count='exact'`
+   - 以 `.range(offset, offset+999)` 全量掃描一次確認總筆數
+   - 用已知關鍵樣本驗證是否在首 1000 筆之外
+   未完成這三步前，不可把問題歸因於 upsert/constraint 異常。
 - **規模量化先於工具化（2026-05-26 教訓）**：起草任何「批次處理 / daily CI / backfill 腳本」前，必須先跑 DB SQL 量化候選池規模。
   - **`< 20 個事件`** → 一律改為「一次性手動 patch」或「prompt-only 修法」，不做成 daily routine
   - **`20–100 個事件`** → 一次性 backfill 腳本，跑完 archive，不接 CI
@@ -1248,6 +1253,23 @@ Reference incident: 2026-05-04 — 13 個 0 件來源全部屬於正常狀態，
 ## AI Model Selection
 - Verify model capabilities before designing features requiring real-time data (web search, live prices, current events). `gpt-4o-mini` and `gpt-4o` have no web browsing. Use `gpt-4o-search-preview` or a real search API for current data.
 - "Plausible-looking output" ≠ "real data access." A model without search access will hallucinate convincing-looking URLs.
+
+## Kanji Time Format business_hours Guard（漢字時刻形式守護）
+
+在審核任何涉及 `business_hours` 欄位提取的 scraper 或 annotator 計畫前，**必須**確認：
+
+1. **`_extract_hours_from_raw()` 同時支援漢字時刻格式**：`HH 時MM 分`（含空格）與 `HH時MM分`（無空格）。Taiwan Cultural Center（`jp.taiwan.culture.tw`）使用這種格式：`開 演： 13 時30 分`。
+2. **優先序**（`_extract_hours_from_raw`）：
+   - `HH:MM〜HH:MM`（冒號範圍）
+   - `HH〜HH時`（小時範圍）
+   - 日時 label 後的單一 `HH:MM`
+   - `開演/上映開始/開始` label 後的 `HH 時MM 分` → `HH:MM〜`
+   - `開場` label 後的 `HH 時MM 分` → `HH:MM〜`
+   - 任意 `HH 時MM 分`（最低信心）
+3. **raw_description 的完整長度需確認**：taiwan_cultural_center 的 `business_hours` 資訊通常出現在 `raw_description` 末尾的「詳細」區塊（最後 400 字元）。若 DB 的 `raw_description` 截斷，時刻資訊不會被提取。查詢時必須讀取完整欄位（勿用 `[:200]` 等截斷）。
+4. **已入庫但 `business_hours=null` 的 taiwan_cultural_center 事件**：annotator re-annotation 後會自動補填（透過 `_pre_hours`），無需人工 patch。人工修正後仍需 FC 鎖定。
+
+Reference incident: 2026-05-26 — event `16c3fa42`（台湾映画上映会 北海道大学）：raw_description 末尾有 `開 演： 13 時30 分` 但 `business_hours=null`，原因為 `_extract_hours_from_raw` 只支援 `HH:MM` 格式。修正：新增漢字時刻 regex patterns（commit `15d06e4`），手動 patch `business_hours=13:30〜` + FC 鎖定。
 
 ## HTMLParser Thin Content Guard
 

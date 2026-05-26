@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-05-26 — `business_hours` 未提取：`_extract_hours_from_raw` 只支援 `HH:MM` 格式
+
+**問題：** event `16c3fa42`（台湾映画上映会 北海道大学）的 `raw_description` 末尾明確有 `開 演： 13 時30 分`，但 `business_hours=null`。調查時先懷疑 raw_description 被截斷，查後發現全文完整（1695 字元）；繼而懷疑 GPT 未抽出，最後確認根因是 `_extract_hours_from_raw()` 的 regex 只匹配 `HH:MM` 冒號格式，不匹配 `HH 時MM 分` 漢字空格格式（Taiwan Cultural Center 站台特有格式）。
+
+**修正：** 在 `_extract_hours_from_raw()` 加入三個新 pattern：`開演/上映開始/開始` label、`開場` label、任意 `HH 時MM 分`（commit `15d06e4`）。手動 patch DB + FC 鎖定。
+
+**教訓：** 調查 `business_hours=null` 時，若 raw_description 包含時刻資訊，應立即執行 `_extract_hours_from_raw(raw_description)` 來確認是 regex 不匹配還是 raw_description 根本沒有時刻。台灣文化部相關站台常用漢字時刻格式，不用冒號。
+
+---
+
+## 2026-05-26 — 誤判 performer 循環污染根因：忽略 Supabase 預設分頁上限
+
+**問題：** v10.x 計畫將根因優先假設為 `field_corrections` UNIQUE 缺失或 upsert 異常，直到 Phase 0 read-only 追查才發現主因是 `annotator.py` 載入 `human_field_map` 時使用單次 `.select(...).execute()`，實際只抓到第一頁 1000 筆。`d6cd0b74.performer` 的 FC sentinel 不在第一頁，導致 `_human_protected` 缺漏，後續 enrich/annotate 路徑可寫回污染值。
+
+**根因：** 計畫前期雖有 DB 量化，但未對「保護表讀取是否分頁完整」做實測。把資料層回歸誤當成寫入層（upsert）問題，造成修復方向偏移。
+
+**修法：** 新版 v11 將核心修復改為：
+1. `annotator.py` 以 `.range(offset, offset+999)` 完整分頁載入 `field_corrections`。
+2. `enrich_person_names_single()` 寫入前加入 FC guard（含 `corrected_value == ""` 的 lock-empty 保護）。
+3. 補 oneoff 清理收斂歷史污染。
+
+**Lesson：** 任何依賴 Supabase Python client 全表查詢做保護判斷（如 `human_field_map`、blacklist、source map）時，Architect 計畫必須先驗證分頁完整性：
+`first_page_count`、`exact_count`、關鍵樣本是否落在首 1000 筆之外。若未驗證，禁止把問題歸因到 upsert/constraint。
+
+---
+
 ## 2026-05-26 — 計畫中 `CATEGORY_GROUPS.group_senses` 假設錯誤（實為 `group_arts`）
 
 **問題：** 撰寫「新增 `photography` 分類」計畫時，Phase 1 步驟 1 寫「`CATEGORY_GROUPS.group_senses` 加 `'photography'`」。Engineer 實作時發現 `web/lib/types.ts` 並無 `group_senses` 群組，`senses` 本身位於 `group_arts` 之下。Tester 在「歸在五感之下」一致性檢查時也報告了此差異。
