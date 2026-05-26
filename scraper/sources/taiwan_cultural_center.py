@@ -102,6 +102,61 @@ _PROSE_DATE_RANGE = re.compile(
 # Title keywords that mark an article as a report/recap
 _REPORT_KEYWORDS = re.compile(r"レポート|レポ|報告|記録|アーカイブ|recap", re.IGNORECASE)
 
+# Multi-city detection uses full prefecture names (no short substring tokens)
+# and requires venue-style context nearby to reduce false positives.
+_MULTI_CITY_REGIONS = (
+    "北海道",
+    "東京都",
+    "大阪府",
+    "京都府",
+    "神奈川県",
+    "福岡県",
+    "愛知県",
+    "宮城県",
+    "兵庫県",
+    "沖縄県",
+)
+
+_PREFECTURE_SHORT_NAME = {
+    "東京都": "東京",
+    "大阪府": "大阪",
+    "京都府": "京都",
+    "北海道": "北海道",
+    "神奈川県": "神奈川",
+    "福岡県": "福岡",
+    "宮城県": "仙台",
+    "兵庫県": "神戸",
+    "沖縄県": "沖縄",
+    # "愛知県": user decision pending; fallback keeps full name
+}
+
+_VENUE_CONTEXT_RE = re.compile(r"会場[：:]|開催地")
+
+
+def _short_name(prefecture_full: str) -> str:
+    """Return a short city-like name for display; fallback to full name."""
+    return _PREFECTURE_SHORT_NAME.get(prefecture_full, prefecture_full)
+
+
+def _detect_multi_city_prefectures(text: str) -> list[str]:
+    """Detect prefectures with strict venue-style context near token matches."""
+    if not text:
+        return []
+    found: list[str] = []
+    for pref in _MULTI_CITY_REGIONS:
+        short = _short_name(pref)
+        has_match = False
+        for m in re.finditer(re.escape(pref), text):
+            start = max(0, m.start() - 200)
+            end = min(len(text), m.end() + 200)
+            window = text[start:end]
+            if _VENUE_CONTEXT_RE.search(window) or re.search(rf"[（(]\s*{re.escape(short)}\s*[）)]", window):
+                has_match = True
+                break
+        if has_match:
+            found.append(pref)
+    return found
+
 # Tier 1b: dot-separated date in labeled body section — e.g. "10.11 Sat" or "10.11 (Sat)"
 # Matches M.DD or MM.DD followed by an English weekday abbreviation
 _DOTDAY_DATE = re.compile(
@@ -440,14 +495,15 @@ class TaiwanCulturalCenterScraper(BaseScraper):
         location_name = "台北駐日経済文化代表処 台湾文化センター"
         location_address: str | None = "東京都港区虎ノ門1-1-12 虎ノ門ビル2階"
 
-        # If the description mentions multiple cities, this is a multi-city tour —
-        # clear the single Tokyo address and list the detected prefectures.
-        _MULTI_CITY_REGIONS = ["北海道", "東京", "大阪", "京都", "神奈川", "福岡", "名古屋", "仙台", "愛知"]
-        _desc_check = (description_ja or "") + (name_ja or "")
-        _found_regions = [r for r in _MULTI_CITY_REGIONS if r in _desc_check]
+        location_prefectures = ["東京都"]
+
+        # If text clearly indicates multiple event cities, treat it as multi-city.
+        _desc_check = (description_ja or "") + "\n" + (name_ja or "")
+        _found_regions = _detect_multi_city_prefectures(_desc_check)
         if len(_found_regions) >= 2:
-            location_name = "・".join(_found_regions)
+            location_name = "・".join(_short_name(r) for r in _found_regions)
             location_address = None
+            location_prefectures = list(_found_regions)
 
         # --- Price ---
         # Extract from description text if available
@@ -476,6 +532,7 @@ class TaiwanCulturalCenterScraper(BaseScraper):
             end_date=end_date,
             location_name=location_name,
             location_address=location_address,
+            location_prefectures=location_prefectures,
             is_paid=is_paid,
             price_info=price_text,
             category=categories,

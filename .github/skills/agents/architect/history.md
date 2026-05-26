@@ -2,6 +2,18 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-27 — TCC C-class detector 誤覆寫 multi-city parent（`51f7cd44`）
+
+**問題：** PR-1 第一版 oneoff 修復腳本以「`location_name` 含 `台湾文化` + 地址不含 `虎ノ門`」作 C-class 條件，未做 multi-city safeguard，導致 `51f7cd44`（台湾映画上映会2026）被覆寫為單一東京地址。該事件 raw_description 明確列出「北海道、東京、神奈川、京都、大阪」5 都市，屬 multi-city parent。
+
+**修正：**
+1. 在 oneoff C-class detector 增加 `raw_description` distinct-prefecture 檢查（>=2 即 skip C-class）。
+2. 回滾 `51f7cd44` 為 multi-city path（`location_address=null` + 完整 `location_prefectures`）。
+3. 將 B-class 補完由「`location_name` 含 `・`」改為「raw_description 多地訊號」，避免漏抓 YPAM 等事件。
+4. 在 `architect.agent.md` 新增 `TCC Multi-City False Positive Guard`。
+
+**教訓：** 任何「單一場館 canonical 覆寫」腳本都必須先過 multi-city safeguard。`location_name` 不是可靠 detector（可能是主辦方名或單一 venue 名），真正訊號在 raw_description 的地理分佈。
+
 ---
 
 ## 2026-05-26 — `business_hours` 未提取：`_extract_hours_from_raw` 只支援 `HH:MM` 格式
