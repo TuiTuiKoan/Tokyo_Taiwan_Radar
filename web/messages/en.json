@@ -586,7 +586,12 @@
         "payloadLabel": "Payload",
         "nodesCount": "Nodes",
         "actionsCount": "Actions",
-        "flowsCount": "Flows"
+        "flowsCount": "Flows",
+        "categoryAll": "All",
+        "categoryManual": "Manual",
+        "categoryBatch": "Batch",
+        "categorySchedule": "Schedule",
+        "categoryQa": "QA"
       }
     },
     "worksTab": "Works",

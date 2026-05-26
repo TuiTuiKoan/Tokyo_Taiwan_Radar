@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Mermaid from "@/components/Mermaid";
 import DesignSelect from "@/components/DesignSelect";
-import type { SystemMap, SystemMapFlow, SystemMapFlowStep, SystemMapNode } from "@/lib/specs/types";
+import type { SystemMap, SystemMapFlow, SystemMapFlowAction, SystemMapFlowStep, SystemMapNode } from "@/lib/specs/types";
 
 interface Labels {
   explorerTitle: string;
@@ -21,7 +21,14 @@ interface Labels {
   nodesCount: string;
   actionsCount: string;
   flowsCount: string;
+  categoryAll: string;
+  categoryManual: string;
+  categoryBatch: string;
+  categorySchedule: string;
+  categoryQa: string;
 }
+
+type CategoryFilter = "all" | "manual" | "batch" | "schedule" | "qa";
 
 interface Props {
   map: SystemMap;
@@ -117,7 +124,7 @@ export default function ArchitectureFlowExplorer({ map, labels }: Props) {
     const configuredById = new Map(configured.map((a) => [a.id, a]));
 
     // Primary source: flows (always required for rendering)
-    const derived: Array<{ id: string; label: string; description: string }> = [];
+    const derived: SystemMapFlowAction[] = [];
     const seen = new Set<string>();
     for (const f of flows) {
       if (seen.has(f.actionId)) continue;
@@ -147,14 +154,27 @@ export default function ArchitectureFlowExplorer({ map, labels }: Props) {
   const baseNodes = useMemo(() => map.nodes ?? [], [map.nodes]);
 
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>("all");
   const [selectedActionId, setSelectedActionId] = useState<string>(actions[0]?.id ?? "");
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<CategoryFilter, number> = { all: actions.length, manual: 0, batch: 0, schedule: 0, qa: 0 };
+    for (const a of actions) {
+      const cat = (a.category ?? "manual") as Exclude<CategoryFilter, "all">;
+      if (cat in counts) counts[cat] += 1;
+    }
+    return counts;
+  }, [actions]);
+
   const filteredActions = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return actions;
-    return actions.filter((a) => `${a.label} ${a.description}`.toLowerCase().includes(q));
-  }, [actions, search]);
+    const byCategory = selectedCategory === "all"
+      ? actions
+      : actions.filter((a) => (a.category ?? "manual") === selectedCategory);
+    if (!q) return byCategory;
+    return byCategory.filter((a) => `${a.label} ${a.description}`.toLowerCase().includes(q));
+  }, [actions, search, selectedCategory]);
 
   const hasSelectedAction = useMemo(
     () => filteredActions.some((a) => a.id === selectedActionId),
@@ -213,9 +233,18 @@ export default function ArchitectureFlowExplorer({ map, labels }: Props) {
 
   const resetView = () => {
     setSearch("");
+    setSelectedCategory("all");
     setSelectedActionId(actions[0]?.id ?? "");
     setSelectedStep(null);
   };
+
+  const categoryChips: Array<{ key: CategoryFilter; label: string }> = [
+    { key: "all", label: labels.categoryAll },
+    { key: "manual", label: labels.categoryManual },
+    { key: "batch", label: labels.categoryBatch },
+    { key: "schedule", label: labels.categorySchedule },
+    { key: "qa", label: labels.categoryQa },
+  ];
 
   const fallback = (
     <div className="space-y-3 text-sm">
@@ -242,6 +271,32 @@ export default function ArchitectureFlowExplorer({ map, labels }: Props) {
       <div className="rounded-xl border border-line bg-surface p-4">
         <h2 className="text-lg font-semibold text-fg-strong">{labels.explorerTitle}</h2>
         <p className="mt-1 text-sm text-fg-muted">{labels.explorerDesc}</p>
+
+        <div className="mt-4 flex flex-wrap gap-2 mb-3">
+          {categoryChips.map((chip) => {
+            const isActive = selectedCategory === chip.key;
+            const count = categoryCounts[chip.key];
+            return (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={() => {
+                  setSelectedCategory(chip.key);
+                  setSelectedStep(null);
+                }}
+                aria-pressed={isActive}
+                className={
+                  isActive
+                    ? "bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)] border border-[var(--color-brand)] rounded-full px-3 py-1 text-sm font-medium"
+                    : "text-fg-muted border border-line rounded-full px-3 py-1 text-sm hover:border-fg-muted hover:text-fg"
+                }
+              >
+                {chip.label}
+                <span className="ml-1 text-xs opacity-70">({count})</span>
+              </button>
+            );
+          })}
+        </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
           <label className="text-sm">

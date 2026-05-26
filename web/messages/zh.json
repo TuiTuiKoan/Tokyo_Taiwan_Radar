@@ -586,7 +586,12 @@
         "payloadLabel": "Payload",
         "nodesCount": "Nodes",
         "actionsCount": "Actions",
-        "flowsCount": "Flows"
+        "flowsCount": "Flows",
+        "categoryAll": "全部",
+        "categoryManual": "手動操作",
+        "categoryBatch": "批次處理",
+        "categorySchedule": "定期排程",
+        "categoryQa": "品質保證"
       }
     },
     "worksTab": "作品",

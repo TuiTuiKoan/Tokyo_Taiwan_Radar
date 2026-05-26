@@ -1,129 +1,401 @@
 {
   "$schema": "./system-map.schema.json",
   "version": "1.0.0",
-  "updated": "2026-05-14",
+  "updated": "2026-05-26",
   "agents": [
-    { "id": "architect", "label": "Architect", "owns": ["docs/specs/**", "docs/ARCHITECTURE.md"], "description": "規劃、拆解 spec、寫 plan" },
-    { "id": "designer", "label": "Designer", "owns": ["web/lib/design/**", "web/app/globals.css"], "description": "視覺系統、tokens、字體、吉祥物、OG 圖" },
-    { "id": "engineer", "label": "Engineer", "owns": ["scraper/**", "web/**", "supabase/**"], "description": "全棧實作（scraper / web / DB / CI）" },
-    { "id": "scraper-expert", "label": "Scraper Expert", "owns": ["scraper/sources/**"], "description": "BaseScraper 慣例、Peatix 模式" },
-    { "id": "researcher", "label": "Researcher", "owns": ["scraper/sources/_profiles/**"], "description": "新來源研究 + GitHub Issue" },
-    { "id": "tester", "label": "Tester", "owns": [], "description": "驗證 build / lint / dry-run" },
-    { "id": "reviewer", "label": "Reviewer", "owns": [], "description": "Code review" },
-    { "id": "validate-merge-deploy", "label": "Validate, Merge & Deploy", "owns": [".github/workflows/**"], "description": "合併與部署" },
-    { "id": "update-history-agent", "label": "Update History Agent", "owns": ["**/history.md"], "description": "更新 lessons learned" }
+    {
+      "id": "architect",
+      "label": "Architect",
+      "owns": [
+        "docs/specs/**",
+        "docs/ARCHITECTURE.md"
+      ],
+      "description": "規劃、拆解 spec、寫 plan"
+    },
+    {
+      "id": "designer",
+      "label": "Designer",
+      "owns": [
+        "web/lib/design/**",
+        "web/app/globals.css"
+      ],
+      "description": "視覺系統、tokens、字體、吉祥物、OG 圖"
+    },
+    {
+      "id": "engineer",
+      "label": "Engineer",
+      "owns": [
+        "scraper/**",
+        "web/**",
+        "supabase/**"
+      ],
+      "description": "全棧實作（scraper / web / DB / CI）"
+    },
+    {
+      "id": "scraper-expert",
+      "label": "Scraper Expert",
+      "owns": [
+        "scraper/sources/**"
+      ],
+      "description": "BaseScraper 慣例、Peatix 模式"
+    },
+    {
+      "id": "researcher",
+      "label": "Researcher",
+      "owns": [
+        "scraper/sources/_profiles/**"
+      ],
+      "description": "新來源研究 + GitHub Issue"
+    },
+    {
+      "id": "tester",
+      "label": "Tester",
+      "owns": [],
+      "description": "驗證 build / lint / dry-run"
+    },
+    {
+      "id": "reviewer",
+      "label": "Reviewer",
+      "owns": [],
+      "description": "Code review"
+    },
+    {
+      "id": "validate-merge-deploy",
+      "label": "Validate, Merge & Deploy",
+      "owns": [
+        ".github/workflows/**"
+      ],
+      "description": "合併與部署"
+    },
+    {
+      "id": "update-history-agent",
+      "label": "Update History Agent",
+      "owns": [
+        "**/history.md"
+      ],
+      "description": "更新 lessons learned"
+    }
   ],
   "skills": [
-    { "id": "agent-customization", "label": "Agent Customization", "appliesTo": ["architect", "engineer"] },
-    { "id": "design-system", "label": "Bauhaus Design System", "appliesTo": ["designer", "engineer"] },
-    { "id": "scraper-expert", "label": "Scraper Expert Skill", "appliesTo": ["scraper-expert", "engineer"] },
-    { "id": "local-preview", "label": "Local Preview", "appliesTo": ["engineer", "tester"] },
-    { "id": "session-analytics", "label": "Session Analytics", "appliesTo": ["architect"] },
-    { "id": "cc-statusline", "label": "CC Statusline", "appliesTo": ["engineer"] }
+    {
+      "id": "agent-customization",
+      "label": "Agent Customization",
+      "appliesTo": [
+        "architect",
+        "engineer"
+      ]
+    },
+    {
+      "id": "design-system",
+      "label": "Bauhaus Design System",
+      "appliesTo": [
+        "designer",
+        "engineer"
+      ]
+    },
+    {
+      "id": "scraper-expert",
+      "label": "Scraper Expert Skill",
+      "appliesTo": [
+        "scraper-expert",
+        "engineer"
+      ]
+    },
+    {
+      "id": "local-preview",
+      "label": "Local Preview",
+      "appliesTo": [
+        "engineer",
+        "tester"
+      ]
+    },
+    {
+      "id": "session-analytics",
+      "label": "Session Analytics",
+      "appliesTo": [
+        "architect"
+      ]
+    },
+    {
+      "id": "cc-statusline",
+      "label": "CC Statusline",
+      "appliesTo": [
+        "engineer"
+      ]
+    }
   ],
   "scraperGroups": [
     {
       "id": "cinema",
       "label": "電影院・影展",
       "members": [
-        "cinemarine", "cinemart_shinjuku", "cineswitch_ginza", "eiga_com",
-        "eurospace", "human_trust_cinema", "ks_cinema", "shin_bungeiza",
-        "ssff", "tiff", "tokyo_filmex", "uplink_cinema", "oaff",
-        "taiwan_faasai", "yebizo"
+        "cinemarine",
+        "cinemart_shinjuku",
+        "cineswitch_ginza",
+        "eiga_com",
+        "eurospace",
+        "human_trust_cinema",
+        "ks_cinema",
+        "shin_bungeiza",
+        "ssff",
+        "tiff",
+        "tokyo_filmex",
+        "uplink_cinema",
+        "oaff",
+        "taiwan_faasai",
+        "yebizo"
       ]
     },
     {
       "id": "cultural",
       "label": "文化機構・學術",
       "members": [
-        "taiwan_cultural_center", "ifi", "koryu", "taiwan_kyokai",
-        "taioan_dokyokai", "waseda_taiwan", "waseda_icl", "ide_jetro",
-        "jats", "jinf", "mot", "tobunken", "zinbun_kyoto",
-        "eslite_spectrum", "hakusuisha", "faam_fukuoka", "tuat_global"
+        "taiwan_cultural_center",
+        "ifi",
+        "koryu",
+        "taiwan_kyokai",
+        "taioan_dokyokai",
+        "waseda_taiwan",
+        "waseda_icl",
+        "ide_jetro",
+        "jats",
+        "jinf",
+        "mot",
+        "tobunken",
+        "zinbun_kyoto",
+        "eslite_spectrum",
+        "hakusuisha",
+        "faam_fukuoka",
+        "tuat_global"
       ]
     },
     {
       "id": "platform",
       "label": "活動平台",
       "members": [
-        "peatix", "eplus", "kokuchpro", "connpass", "doorkeeper",
-        "livepocket", "prtimes", "note_creators", "tokyoartbeat", "arukikata"
+        "peatix",
+        "eplus",
+        "kokuchpro",
+        "connpass",
+        "doorkeeper",
+        "livepocket",
+        "prtimes",
+        "note_creators",
+        "tokyoartbeat",
+        "arukikata"
       ]
     },
     {
       "id": "venue",
       "label": "店家・會場",
       "members": [
-        "artistcafe", "bookandbeer", "daimaru_matsuzakaya", "hankyu_umeda",
-        "iwafu", "maruhiro", "moonromantic", "morc_asagaya",
-        "rightscube", "transit_store"
+        "artistcafe",
+        "bookandbeer",
+        "daimaru_matsuzakaya",
+        "hankyu_umeda",
+        "iwafu",
+        "maruhiro",
+        "moonromantic",
+        "morc_asagaya",
+        "rightscube",
+        "transit_store"
       ]
     },
     {
       "id": "festival",
       "label": "節慶・地方資訊",
       "members": [
-        "taiwan_festa", "taiwan_festival_tokyo", "taiwan_matsuri",
-        "taiwanbunkasai", "taipei_fukuoka", "fukuoka_now",
-        "tokyocity_i", "tokyonow", "taiwanshi"
+        "taiwan_festa",
+        "taiwan_festival_tokyo",
+        "taiwan_matsuri",
+        "taiwanbunkasai",
+        "taipei_fukuoka",
+        "fukuoka_now",
+        "tokyocity_i",
+        "tokyonow",
+        "taiwanshi"
       ]
     },
     {
       "id": "news",
       "label": "新聞・RSS",
-      "members": ["google_news_rss", "nhk_rss", "gguide_tv"]
+      "members": [
+        "google_news_rss",
+        "nhk_rss",
+        "gguide_tv"
+      ]
     },
     {
       "id": "tourism",
       "label": "觀光・政府",
-      "members": ["go_taiwan", "jposa_ja"]
+      "members": [
+        "go_taiwan",
+        "jposa_ja"
+      ]
     }
   ],
   "dataFlow": [
-    { "from": "scrapers", "to": "merger", "label": "raw events" },
-    { "from": "merger", "to": "annotator", "label": "deduped events" },
-    { "from": "annotator", "to": "movie_title_lookup", "label": "movie events" },
-    { "from": "annotator", "to": "person_name_lookup", "label": "person names" },
-    { "from": "annotator", "to": "supabase", "label": "annotated events" },
-    { "from": "supabase", "to": "web", "label": "trilingual UI" },
-    { "from": "auto_qa", "to": "event_reports", "label": "auto findings" },
-    { "from": "event_reports", "to": "admin_reports", "label": "admin review" }
+    {
+      "from": "scrapers",
+      "to": "merger",
+      "label": "raw events"
+    },
+    {
+      "from": "merger",
+      "to": "annotator",
+      "label": "deduped events"
+    },
+    {
+      "from": "annotator",
+      "to": "movie_title_lookup",
+      "label": "movie events"
+    },
+    {
+      "from": "annotator",
+      "to": "person_name_lookup",
+      "label": "person names"
+    },
+    {
+      "from": "annotator",
+      "to": "supabase",
+      "label": "annotated events"
+    },
+    {
+      "from": "supabase",
+      "to": "web",
+      "label": "trilingual UI"
+    },
+    {
+      "from": "auto_qa",
+      "to": "event_reports",
+      "label": "auto findings"
+    },
+    {
+      "from": "event_reports",
+      "to": "admin_reports",
+      "label": "admin review"
+    }
   ],
   "actions": [
     {
       "id": "invite-new-user",
       "label": "Invite new user",
-      "description": "Admin checks user roles and current auth users list via RPC."
+      "description": "Admin checks user roles and current auth users list via RPC.",
+      "category": "manual"
     },
     {
       "id": "todesktop-build",
       "label": "ToDesktop build",
-      "description": "Desktop build and release trigger is modeled as an external/manual flow."
+      "description": "Desktop build and release trigger is modeled as an external/manual flow.",
+      "category": "manual"
     },
     {
       "id": "run-scraper-now",
       "label": "Run scraper now",
-      "description": "Admin triggers scrape-now workflow_dispatch with optional source list."
+      "description": "Admin triggers scrape-now workflow_dispatch with optional source list.",
+      "category": "manual"
     },
     {
       "id": "annotate-event",
       "label": "Annotate event",
-      "description": "Admin triggers enrich-and-annotate for one event or annotate-now for pending queue."
+      "description": "Admin triggers enrich-and-annotate for one event or annotate-now for pending queue.",
+      "category": "manual"
     },
     {
       "id": "weekly-line-broadcast",
       "label": "Weekly LINE broadcast",
-      "description": "Generate/send weekly announcements through admin API and scheduled workflow."
+      "description": "Generate/send weekly announcements through admin API and scheduled workflow.",
+      "category": "manual"
     },
     {
       "id": "create-announcement",
       "label": "Create announcement",
-      "description": "Admin creates announcements and optional event links in Supabase tables."
+      "description": "Admin creates announcements and optional event links in Supabase tables.",
+      "category": "manual"
     },
     {
       "id": "ai-correction-feedback-loop",
       "label": "AI correction feedback loop",
-      "description": "Admin report confirmations persist corrections that annotator reuses in future runs."
+      "description": "Admin report confirmations persist corrections that annotator reuses in future runs.",
+      "category": "qa"
+    },
+    {
+      "id": "enrich-movie-titles",
+      "label": "Enrich movie titles",
+      "description": "Look up canonical movie titles via eiga.com and fix zh/en names.",
+      "category": "batch"
+    },
+    {
+      "id": "enrich-person-names",
+      "label": "Enrich person names",
+      "description": "Fix wrong phonetic translations of person names across all events.",
+      "category": "batch"
+    },
+    {
+      "id": "fix-translations",
+      "label": "Fix missing translations",
+      "description": "Fill missing zh/en translation fields without resetting annotation_status.",
+      "category": "batch"
+    },
+    {
+      "id": "fix-reviewed",
+      "label": "Fix reviewed missing translations",
+      "description": "Fill missing zh/en translations on reviewed events while preserving reviewed status.",
+      "category": "batch"
+    },
+    {
+      "id": "daily-scraper-cron",
+      "label": "Daily scraper + merger + annotator",
+      "description": "Daily 09:00 JST cron: scrape -> merger -> annotate -> enrich -> IndexNow.",
+      "category": "schedule"
+    },
+    {
+      "id": "researcher-cron",
+      "label": "Researcher 4-slot schedule",
+      "description": "Auto-discovery of candidate sources via Google CSE on 4 daily slots (06/12/18/00 JST).",
+      "category": "schedule"
+    },
+    {
+      "id": "auto-research-cron",
+      "label": "Auto-research batch source assessment",
+      "description": "Weekly Thu 00:30 JST batch that scores and classifies candidate sources.",
+      "category": "schedule"
+    },
+    {
+      "id": "auto-generate-cron",
+      "label": "Auto-generate scraper scaffolding",
+      "description": "Daily 01:00 JST cron that generates BaseScraper scaffolding for approved candidates.",
+      "category": "schedule"
+    },
+    {
+      "id": "daily-health-check",
+      "label": "Daily health check",
+      "description": "Daily check of DB connectivity, scraper freshness, and secret expiry.",
+      "category": "schedule"
+    },
+    {
+      "id": "secret-rotation-reminder",
+      "label": "Secret rotation reminder",
+      "description": "Quarterly check (Jan/Apr/Jul/Oct 25) for secrets due for 90-day rotation.",
+      "category": "schedule"
+    },
+    {
+      "id": "external-stats-pull",
+      "label": "e-Stat external stats pull",
+      "description": "Monthly pull of Taiwan resident statistics from e-Stat API.",
+      "category": "schedule"
+    },
+    {
+      "id": "auto-qa-scan",
+      "label": "QA triage scheduled run",
+      "description": "Daily scan of events to detect QA issues and file auto_qa_* reports.",
+      "category": "qa"
+    },
+    {
+      "id": "qa-auto-fix-cron",
+      "label": "QA auto-fix scheduled run",
+      "description": "Daily run of automatic QA fixes derived from triage findings.",
+      "category": "qa"
     }
   ],
   "flows": [
@@ -312,7 +584,8 @@
       ],
       "annotations": [
         "Panel supports both manual send and auto-publish toggle.",
-        "Scheduled workflow covers Thursday draft generation and Friday auto-send."
+        "Scheduled workflow covers Thursday draft generation and Friday auto-send.",
+        "Schedule trigger: .github/workflows/weekly-broadcast.yml — cron 0 0 * * 4 (Thu draft), 0 3 * * 5/6 (Fri/Sat auto-send) JST."
       ]
     },
     {
@@ -398,6 +671,415 @@
       "annotations": [
         "confirm-report writes both event_reports status and correction tables.",
         "annotator.py imports category_feedback and selection_reason_feedback at startup."
+      ]
+    },
+    {
+      "id": "enrich-movie-titles",
+      "actionId": "enrich-movie-titles",
+      "title": "Enrich movie titles",
+      "steps": [
+        {
+          "from": "admin-cli",
+          "to": "scraper/annotator.py",
+          "channel": "cli",
+          "payloadNote": "python scraper/annotator.py --enrich-movie-titles",
+          "evidenceRef": "scraper/annotator.py"
+        },
+        {
+          "from": "scraper/annotator.py",
+          "to": "scraper/movie_title_lookup.py",
+          "channel": "function call",
+          "payloadNote": "lookup_movie_titles(name_ja) via eiga.com",
+          "evidenceRef": "scraper/movie_title_lookup.py"
+        },
+        {
+          "from": "scraper/annotator.py",
+          "to": "db:events",
+          "channel": "Supabase update",
+          "payloadNote": "update name_zh / name_en + bracket-aware description sync",
+          "evidenceRef": "scraper/annotator.py"
+        }
+      ],
+      "annotations": [
+        "Idempotent — only writes when lookup differs.",
+        "Also called by main.py at end of full pipeline."
+      ]
+    },
+    {
+      "id": "enrich-person-names",
+      "actionId": "enrich-person-names",
+      "title": "Enrich person names",
+      "steps": [
+        {
+          "from": "admin-cli",
+          "to": "scraper/annotator.py",
+          "channel": "cli",
+          "payloadNote": "python scraper/annotator.py --enrich-person-names",
+          "evidenceRef": "scraper/annotator.py"
+        },
+        {
+          "from": "scraper/annotator.py",
+          "to": "scraper/person_name_lookup.py",
+          "channel": "function call",
+          "payloadNote": "movie events use eiga.com (strict=False); non-movie events use Wikipedia (strict=True)",
+          "evidenceRef": "scraper/person_name_lookup.py"
+        },
+        {
+          "from": "scraper/annotator.py",
+          "to": "db:events",
+          "channel": "Supabase update",
+          "payloadNote": "update performer_zh/en + director_zh/en",
+          "evidenceRef": "scraper/annotator.py"
+        }
+      ],
+      "annotations": [
+        "Fixes wrong phonetic name translations across all event categories.",
+        "Idempotent — runs both in CI pipeline and as ad-hoc CLI."
+      ]
+    },
+    {
+      "id": "fix-translations",
+      "actionId": "fix-translations",
+      "title": "Fix missing translations",
+      "steps": [
+        {
+          "from": "admin-cli",
+          "to": "scraper/annotator.py",
+          "channel": "cli",
+          "payloadNote": "python scraper/annotator.py --fix-translations",
+          "evidenceRef": "scraper/annotator.py"
+        },
+        {
+          "from": "scraper/annotator.py",
+          "to": "external:openai",
+          "channel": "Chat Completions",
+          "payloadNote": "GPT-4o-mini fills missing name_zh / name_en / description_zh / description_en",
+          "evidenceRef": "scraper/annotator.py"
+        },
+        {
+          "from": "scraper/annotator.py",
+          "to": "db:events",
+          "channel": "Supabase update",
+          "payloadNote": "write only zh/en translation fields; annotation_status preserved",
+          "evidenceRef": "scraper/annotator.py"
+        }
+      ],
+      "annotations": [
+        "Targets active events missing zh/en fields; sub-events excluded.",
+        "Does not reset annotation_status (unlike --all)."
+      ]
+    },
+    {
+      "id": "fix-reviewed",
+      "actionId": "fix-reviewed",
+      "title": "Fix reviewed missing translations",
+      "steps": [
+        {
+          "from": "admin-cli",
+          "to": "scraper/annotator.py",
+          "channel": "cli",
+          "payloadNote": "python scraper/annotator.py --fix-reviewed",
+          "evidenceRef": "scraper/annotator.py"
+        },
+        {
+          "from": "scraper/annotator.py",
+          "to": "external:openai",
+          "channel": "Chat Completions",
+          "payloadNote": "GPT-4o-mini fills missing zh/en on reviewed events",
+          "evidenceRef": "scraper/annotator.py"
+        },
+        {
+          "from": "scraper/annotator.py",
+          "to": "db:events",
+          "channel": "Supabase update",
+          "payloadNote": "only translation fields written; reviewed status preserved",
+          "evidenceRef": "scraper/annotator.py"
+        }
+      ],
+      "annotations": [
+        "Exception path to --all that respects 'reviewed' lock.",
+        "Used after manual review when zh/en remain missing."
+      ]
+    },
+    {
+      "id": "daily-scraper-cron",
+      "actionId": "daily-scraper-cron",
+      "title": "Daily scraper + merger + annotator",
+      "steps": [
+        {
+          "from": "github-actions-cron",
+          "to": ".github/workflows/scraper.yml",
+          "channel": "cron",
+          "payloadNote": "0 0 * * * (UTC) = 09:00 JST",
+          "evidenceRef": ".github/workflows/scraper.yml"
+        },
+        {
+          "from": ".github/workflows/scraper.yml",
+          "to": "scraper/main.py",
+          "channel": "Python CLI",
+          "payloadNote": "scrape -> merger -> annotate -> enrich movie/person -> IndexNow",
+          "evidenceRef": ".github/workflows/scraper.yml"
+        },
+        {
+          "from": "scraper/main.py",
+          "to": "db:events",
+          "channel": "Supabase upsert",
+          "payloadNote": "deduped + annotated events",
+          "evidenceRef": "scraper/main.py"
+        }
+      ],
+      "annotations": [
+        "Also supports workflow_dispatch for ad-hoc runs.",
+        "Distinct from scrape-now.yml (per-source admin dispatch)."
+      ]
+    },
+    {
+      "id": "researcher-cron",
+      "actionId": "researcher-cron",
+      "title": "Researcher 4-slot schedule",
+      "steps": [
+        {
+          "from": "github-actions-cron",
+          "to": ".github/workflows/researcher.yml",
+          "channel": "cron",
+          "payloadNote": "4 cron entries / day (06/12/18/00 JST)",
+          "evidenceRef": ".github/workflows/researcher.yml"
+        },
+        {
+          "from": ".github/workflows/researcher.yml",
+          "to": "scraper/researcher.py",
+          "channel": "Python CLI",
+          "payloadNote": "Google CSE auto-discovery; slot index = (weekday-1) % SLOT_COUNT",
+          "evidenceRef": "scraper/researcher.py"
+        },
+        {
+          "from": "scraper/researcher.py",
+          "to": "db:source_candidates",
+          "channel": "Supabase upsert",
+          "payloadNote": "candidate sources for human review",
+          "evidenceRef": "scraper/researcher.py"
+        }
+      ],
+      "annotations": [
+        "DISCOVERY_SLOT env can override the weekday-derived slot.",
+        "Optional --create-issue opens GitHub Issue for accepted candidates."
+      ]
+    },
+    {
+      "id": "auto-research-cron",
+      "actionId": "auto-research-cron",
+      "title": "Auto-research batch source assessment",
+      "steps": [
+        {
+          "from": "github-actions-cron",
+          "to": ".github/workflows/auto-research.yml",
+          "channel": "cron",
+          "payloadNote": "30 15 * * 3 (UTC) = Thu 00:30 JST",
+          "evidenceRef": ".github/workflows/auto-research.yml"
+        },
+        {
+          "from": ".github/workflows/auto-research.yml",
+          "to": "scraper/auto_scraper/auto_research.py",
+          "channel": "Python module",
+          "payloadNote": "python -m auto_scraper.auto_research",
+          "evidenceRef": "scraper/auto_scraper/auto_research.py"
+        },
+        {
+          "from": "scraper/auto_scraper/auto_research.py",
+          "to": "db:source_candidates",
+          "channel": "Supabase update",
+          "payloadNote": "score & classify candidate sources",
+          "evidenceRef": "scraper/auto_scraper/auto_research.py"
+        }
+      ],
+      "annotations": [
+        "Once-weekly batch to keep API cost low.",
+        "Feeds Researcher's manual review queue."
+      ]
+    },
+    {
+      "id": "auto-generate-cron",
+      "actionId": "auto-generate-cron",
+      "title": "Auto-generate scraper scaffolding",
+      "steps": [
+        {
+          "from": "github-actions-cron",
+          "to": ".github/workflows/auto-generate.yml",
+          "channel": "cron",
+          "payloadNote": "0 16 * * * (UTC) = 01:00 JST next day",
+          "evidenceRef": ".github/workflows/auto-generate.yml"
+        },
+        {
+          "from": ".github/workflows/auto-generate.yml",
+          "to": "scraper/auto_scraper/auto_research.py",
+          "channel": "Python module",
+          "payloadNote": "generate BaseScraper scaffolding for approved candidates",
+          "evidenceRef": ".github/workflows/auto-generate.yml"
+        }
+      ],
+      "annotations": [
+        "Companion to auto-research.yml; turns approved candidates into code drafts.",
+        "Output committed back via PR or stored as scaffolding draft."
+      ]
+    },
+    {
+      "id": "daily-health-check",
+      "actionId": "daily-health-check",
+      "title": "Daily health check",
+      "steps": [
+        {
+          "from": "github-actions-cron",
+          "to": ".github/workflows/daily-health-check.yml",
+          "channel": "cron",
+          "payloadNote": "30 1 * * * (UTC) = 10:30 JST",
+          "evidenceRef": ".github/workflows/daily-health-check.yml"
+        },
+        {
+          "from": ".github/workflows/daily-health-check.yml",
+          "to": "scraper/health_check.py",
+          "channel": "Python CLI",
+          "payloadNote": "verify DB connectivity, scraper freshness, secret expiry",
+          "evidenceRef": "scraper/health_check.py"
+        },
+        {
+          "from": "scraper/health_check.py",
+          "to": "external:line",
+          "channel": "LINE notify",
+          "payloadNote": "alert on degraded health",
+          "evidenceRef": "scraper/health_check.py"
+        }
+      ],
+      "annotations": [
+        "Single daily check covers DB + scraper + secrets.",
+        "LINE notification fires only on failure."
+      ]
+    },
+    {
+      "id": "secret-rotation-reminder",
+      "actionId": "secret-rotation-reminder",
+      "title": "Secret rotation reminder",
+      "steps": [
+        {
+          "from": "github-actions-cron",
+          "to": ".github/workflows/secret-rotation-reminder.yml",
+          "channel": "cron",
+          "payloadNote": "0 1 25 1,4,7,10 * (UTC) = quarterly on 25th",
+          "evidenceRef": ".github/workflows/secret-rotation-reminder.yml"
+        },
+        {
+          "from": ".github/workflows/secret-rotation-reminder.yml",
+          "to": "scraper/secret_reminder.py",
+          "channel": "Python CLI",
+          "payloadNote": "check 90-day rotation schedule for all secrets",
+          "evidenceRef": "scraper/secret_reminder.py"
+        },
+        {
+          "from": "scraper/secret_reminder.py",
+          "to": "external:line",
+          "channel": "LINE notify",
+          "payloadNote": "list secrets due for rotation",
+          "evidenceRef": "scraper/secret_reminder.py"
+        }
+      ],
+      "annotations": [
+        "Quarterly cadence aligned with 90-day token rotation policy.",
+        "GITHUB_TOKEN, OPENAI_API_KEY, SUPABASE keys monitored."
+      ]
+    },
+    {
+      "id": "external-stats-pull",
+      "actionId": "external-stats-pull",
+      "title": "e-Stat external stats pull",
+      "steps": [
+        {
+          "from": "github-actions-cron",
+          "to": ".github/workflows/external-stats-pull.yml",
+          "channel": "cron",
+          "payloadNote": "0 13 25 * * (UTC) = monthly 22:00 JST on 25th",
+          "evidenceRef": ".github/workflows/external-stats-pull.yml"
+        },
+        {
+          "from": ".github/workflows/external-stats-pull.yml",
+          "to": "scraper/external_stats/pull_all.py",
+          "channel": "Python module",
+          "payloadNote": "ESTAT_APP_ID auth -> getStatsData",
+          "evidenceRef": "scraper/external_stats/pull_all.py"
+        },
+        {
+          "from": "scraper/external_stats/pull_all.py",
+          "to": "db:external_stats",
+          "channel": "Supabase upsert",
+          "payloadNote": "Taiwan resident statistics in Japan",
+          "evidenceRef": "scraper/external_stats/pull_all.py"
+        }
+      ],
+      "annotations": [
+        "Authenticated by ESTAT_APP_ID (free, no rotation needed).",
+        "Monthly cadence to keep API quota low."
+      ]
+    },
+    {
+      "id": "auto-qa-scan",
+      "actionId": "auto-qa-scan",
+      "title": "QA triage scheduled run",
+      "steps": [
+        {
+          "from": "github-actions-cron",
+          "to": ".github/workflows/qa-triage.yml",
+          "channel": "cron",
+          "payloadNote": "0 2 * * * (UTC) = 11:00 JST",
+          "evidenceRef": ".github/workflows/qa-triage.yml"
+        },
+        {
+          "from": ".github/workflows/qa-triage.yml",
+          "to": "scraper/qa_triage.py",
+          "channel": "Python CLI",
+          "payloadNote": "scan events and produce auto_qa_* findings",
+          "evidenceRef": "scraper/qa_triage.py"
+        },
+        {
+          "from": "scraper/qa_triage.py",
+          "to": "db:event_reports",
+          "channel": "Supabase upsert",
+          "payloadNote": "writes auto_qa_* report_types with dedup across ALL statuses",
+          "evidenceRef": "scraper/qa_triage.py"
+        }
+      ],
+      "annotations": [
+        "Findings flow into the shared /admin/reports queue (no separate queue).",
+        "Dedup must check pending + confirmed + dismissed to respect admin review."
+      ]
+    },
+    {
+      "id": "qa-auto-fix-cron",
+      "actionId": "qa-auto-fix-cron",
+      "title": "QA auto-fix scheduled run",
+      "steps": [
+        {
+          "from": "github-actions-cron",
+          "to": ".github/workflows/qa-auto-fix.yml",
+          "channel": "cron",
+          "payloadNote": "30 4 * * * (UTC) = 13:30 JST",
+          "evidenceRef": ".github/workflows/qa-auto-fix.yml"
+        },
+        {
+          "from": ".github/workflows/qa-auto-fix.yml",
+          "to": "scraper/qa_auto_fix.py",
+          "channel": "Python CLI",
+          "payloadNote": "apply safe automatic fixes for known auto_qa_* report types",
+          "evidenceRef": "scraper/qa_auto_fix.py"
+        },
+        {
+          "from": "scraper/qa_auto_fix.py",
+          "to": "db:events",
+          "channel": "Supabase update",
+          "payloadNote": "patch corrected fields; respects field_corrections protection",
+          "evidenceRef": "scraper/qa_auto_fix.py"
+        }
+      ],
+      "annotations": [
+        "Companion to auto-qa-scan; closes the auto-correction loop.",
+        "Only fix types whitelisted in qa_auto_fix.py are applied automatically."
       ]
     }
   ]

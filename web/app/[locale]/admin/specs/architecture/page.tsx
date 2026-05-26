@@ -122,6 +122,11 @@ export default async function ArchitecturePage({ params }: PageProps) {
           nodesCount: t("nodesCount"),
           actionsCount: t("actionsCount"),
           flowsCount: t("flowsCount"),
+          categoryAll: t("categoryAll"),
+          categoryManual: t("categoryManual"),
+          categoryBatch: t("categoryBatch"),
+          categorySchedule: t("categorySchedule"),
+          categoryQa: t("categoryQa"),
         }}
       />
 

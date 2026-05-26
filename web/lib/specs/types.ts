@@ -84,6 +84,7 @@ export interface SystemMapFlowAction {
   id: string;
   label: string;
   description: string;
+  category?: "manual" | "batch" | "schedule" | "qa";
 }
 
 export interface SystemMapFlowStep {
