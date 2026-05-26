@@ -2520,6 +2520,9 @@ heartbeat itself. Keep entries ≤ 1 line, format: `- R-CLASS | detector report_
 - R-SCR-PERF-MULTI | auto_qa_performer_multi_value_pollution | split `performer` on `[、,，×／/]` into `performers[]`; clear stale `performer*_zh/en` so enrich rebuilds
 - R-ANN-PERF-PHON | (subset of marker / katakana detectors) | call `enrich_person_names_single` for the event id
 - R-ENRICH-MISS | auto_qa_performer_zh_equals_katakana | retry `enrich_person_names_single`; on miss, leave for human review
+- R-SCR-ADDR-MISS | auto_qa_missing_address | TBD - handler vs detector precision review (see Issue #111)
+- R-SCR-HOURS-MISS | auto_qa_missing_hours | TBD - detector covers business_hours nullability; handler design pending
+- R-UNCLASSIFIED | auto_qa_taiwan_venue / auto_qa_address_is_venue_name | review-only; no auto-handler (catch-all for unclassified detectors)
 - R-AMBIGUOUS | any | append note to report; leave for human review (no auto-write)
 <!-- qa-root-cause-catalog-end -->
 

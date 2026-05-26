@@ -63,6 +63,9 @@ R_CLASSES = (
     "R-ANN-PERF-PHON",     # annotator phonetic-translated katakana performer
     "R-ENRICH-MISS",       # enrich_person_names lookup failed; needs retry
     "R-AMBIGUOUS",         # GPT could not classify confidently
+    "R-SCR-ADDR-MISS",     # scraper/annotator missing location_address (NEW v9)
+    "R-SCR-HOURS-MISS",    # scraper missing business_hours (NEW v9)
+    "R-UNCLASSIFIED",      # catch-all for detectors without a dedicated R-class (NEW v9)
 )
 
 # Per-class handler routing. (None means "no auto-handler — review only".)
@@ -73,6 +76,10 @@ ROUTING: dict[str, dict[str, Any]] = {
     "R-ENRICH-MISS": {"handler_key": "__enrich_person__", "min_confidence": 0.75},
     "R-ANN-PERF-PHON": {"handler_key": "__enrich_person__", "min_confidence": 0.80},
     "R-AMBIGUOUS": {"handler_key": None, "min_confidence": 0.0},
+    # NEW (v9) — review-only 登録、handler 未実装
+    "R-SCR-ADDR-MISS": {"handler_key": None, "min_confidence": 0.0},
+    "R-SCR-HOURS-MISS": {"handler_key": None, "min_confidence": 0.0},
+    "R-UNCLASSIFIED": {"handler_key": None, "min_confidence": 0.0},
 }
 
 
