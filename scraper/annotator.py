@@ -418,6 +418,21 @@ def _extract_hours_from_raw(text: str) -> str | None:
     m3 = re.search(r'日時[：:][^\n]{0,80}?(\d{1,2}:\d{2})', text)
     if m3:
         return m3.group(1)
+    # Kanji time format with optional spaces: "13 時30 分" or "13時30分"
+    # Used by Taiwan Cultural Center (e.g. "開 演： 13 時30 分")
+    _KANJI = r'(\d{1,2})\s*時(\d{1,2})\s*分'
+    # 開演 / 上映開始 / 開始 label → event start time
+    m4 = re.search(r'(?:開\s*演|上映\s*開\s*始|開\s*始)\s*[:：]?\s*' + _KANJI, text)
+    if m4:
+        return f"{m4.group(1)}:{m4.group(2).zfill(2)}〜"
+    # 開場 label → door-open time
+    m5 = re.search(r'開\s*場\s*[:：]?\s*' + _KANJI, text)
+    if m5:
+        return f"{m5.group(1)}:{m5.group(2).zfill(2)}〜"
+    # Any standalone kanji time (lowest confidence)
+    m6 = re.search(_KANJI, text)
+    if m6:
+        return f"{m6.group(1)}:{m6.group(2).zfill(2)}"
     return None
 
 
