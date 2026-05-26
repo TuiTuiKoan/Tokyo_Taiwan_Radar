@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-26 — `main.py --source X` を本地 staging 用ループで使い、annotator/merger が 27 回フル DB 走査されコスト膨張
+
+**問題：** 29 個の新規 scraper 登録（commit `bfad6e9`）後、明日 09:00 JST cron 前に「quota を打ち破らないか」を確認するため、27 source を `for s in SOURCES: python main.py --source $s --timeout 420s` で順に流した。結果 20 source が 420s timeout（実 scrape は数秒で完了、残り全部 annotator phase で消費）。OpenAI コール量は本来の 27 倍規模。
+
+**根本原因：** `scraper/main.py` L443–444 は `--source` 指定の有無に関わらず、scrape 完了後に **無条件で** `annotate_pending_events()` + `enrich_movie_titles()` + `enrich_person_names()` を実行する。これらは DB 全体の `annotation_status='pending'` 行を対象とするため、`--source X` を呼ぶたびに全 pending queue が再走査される。設計上「scrape + annotate is one indivisible pipeline」であり、daily cron（`python main.py` 引数なし）では 1 回しか走らないため正しい挙動。問題は **本地 staging スクリプトの使い方**。
+
+**修正：** コード変更なし（生産挙動は正しい）。`SKILL.md` に「本地で多 source の scrape 妥当性だけ見たい時は必ず `--dry-run --source X` を使う」ルールを追記。`--dry-run` は DB 書き込みも annotator/merger 起動もスキップする。
+
+**教訓：**
+- **`--source X` ≠ cost-bounded**：`--source` は「どの scraper を走らせるか」のフィルタであり、annotator/merger phase はスキップしない。本地で N source × 個別 `--source` 呼び出しを行うと、annotator が **N 倍** 走る。
+- **本地多 source staging は `--dry-run` 一択**：DB 書き込みと OpenAI コール両方を回避するのは `--dry-run` だけ。Quota 検証や registration audit は dry-run で十分。
+- **production cron は無影響**：`python main.py`（引数なし）は全 114 scraper → merger → annotator 1 回、というのが正しい設計。今回観察したコスト膨張は staging 側ループの誤用が原因。
+
+---
+
 ## 2026-05-20 — kyoto_cinema: end_date が初日のまま固定、movie-extend パスが発動しなかった（database.py + kyoto_cinema.py 修正）
 
 **問題：** kyoto_cinema スクレイパーが毎日走っているのに、イベントの `end_date` が最初にスクレイプした日で固定された。`business_hours` も初日の 1 タイム（例: `14:50`）のまま更新されなかった。
