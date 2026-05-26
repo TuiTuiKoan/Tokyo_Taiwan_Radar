@@ -262,6 +262,18 @@ Before approving any change that adds or modifies region filter markers in `web/
 5. **City sub-filter three-way sync**: `REGION_PREFECTURES[region]` in `web/lib/regionPrefectures.ts` is the single source of truth for prefecture lists. Any change to this list automatically propagates to FilterBar city dropdown, homepage post-filter, and AdminEventTable post-filter. **Never** add or remove prefectures in only one of the three call sites. The helper `matchesCity(city, address, prefectures, region)` handles both named-prefecture matching and the `_other` bucket (events that match the region but no specific prefecture).
 6. **`_other` semantics**: `CITY_OTHER = "_other"` means "matched by the region-level filter but not by any named prefecture in that region". This is a JS post-filter applied after the DB region query — it is NOT a separate DB query.
 
+## TCC Multi-City False Positive Guard
+
+Before approving any change to `scraper/sources/taiwan_cultural_center.py` or one-off scripts that rewrite TCC location fields:
+
+1. **Region tokens must be full prefecture names** (`東京都`, `大阪府`, `京都府`) — never short substrings (`東京`, `大阪`) for detector input.
+2. **Context filter must avoid generic verbs** (`上映`, `開催`, `参加`). Allowed context markers are `会場：`/`会場:`/`開催地`/explicit parentheses city markers like `（東京）`.
+3. **Do not single-venue overwrite multi-city parents**: if raw text contains >=2 distinct prefectures/city aliases (normalized to prefectures), event must go multi-city path (`location_address = null`, complete `location_prefectures`).
+4. **C-class detector needs multi-city safeguard**: before applying canonical TCC address, run distinct-prefecture scan on `raw_description`; if >=2, skip C-class rewrite.
+5. **B-class backfill should be raw-text driven**: do not rely only on `location_name` containing `・`; use raw_description multi-city signal to backfill `location_prefectures`.
+
+Reference incident: 2026-05-27 — event `51f7cd44` (台湾映画上映会2026) was incorrectly rewritten to single Tokyo by C-class detector despite raw text listing 5 cities (北海道・東京・神奈川・京都・大阪).
+
 ## RLS Cross-Status Query Guard
 
 Before approving **any** SSR page that queries related records (parent events, linked entities), verify:
