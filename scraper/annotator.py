@@ -36,6 +36,7 @@ from supabase import create_client, Client
 from category_feedback import load_corrections, build_feedback_prompt
 from selection_reason_feedback import load_sr_corrections, build_sr_feedback_prompt
 from movie_title_lookup import lookup_movie_titles
+from venue_registry import lookup_venue
 from person_name_lookup import (
     PersonInfo,
     extract_katakana_names,
@@ -353,6 +354,20 @@ _PREF_ADDR_INLINE_RE = re.compile(
     r'北海道|宮城県|広島県|静岡県|茨城県|岡山県|新潟県|長野県|栃木県|'
     r'群馬県|滋賀県|岐阜県|奈良県|熊本県|石川県)[^\n]{5,80})'
 )
+
+_CITY_TOKENS = frozenset({
+    "東京", "大阪", "京都", "北海道", "福岡", "名古屋",
+    "仙台", "横浜", "神戸", "札幌", "沖縄", "愛知", "兵庫",
+    "東京都", "大阪府", "京都府", "神奈川県", "福岡県", "愛知県",
+    "宮城県", "兵庫県", "沖縄県",
+})
+
+
+def _is_multi_city_parent(name: str | None) -> bool:
+    if not name or "・" not in name:
+        return False
+    parts = [p.strip() for p in name.split("・")]
+    return sum(1 for p in parts if p in _CITY_TOKENS) >= 2
 
 
 def _extract_venue_from_raw(text: str) -> dict:
@@ -1680,6 +1695,28 @@ def annotate_pending_events(
                         if not update_data.get(_pf):
                             update_data[_pf] = _parent_event.get(_pf)
 
+                _loc_name_for_lookup = update_data.get("location_name")
+                if not _is_multi_city_parent(_loc_name_for_lookup):
+                    _venue = lookup_venue(_loc_name_for_lookup)
+                    if _venue:
+                        _venue_cols = {
+                            "location_name": _venue.get("canonical_name_ja"),
+                            "location_address": None if _venue.get("is_multi_venue") else _venue.get("address"),
+                            "location_prefectures": _venue.get("prefectures") or (
+                                [_venue.get("prefecture")] if _venue.get("prefecture") else None
+                            ),
+                            "location_name_zh": _venue.get("canonical_name_zh"),
+                            "location_name_en": _venue.get("canonical_name_en"),
+                            "location_url": _venue.get("homepage"),
+                            "venue_id": _venue.get("id"),
+                        }
+                        for _col, _val in _venue_cols.items():
+                            if _col in _human_protected:
+                                continue
+                            if _val is None and _col != "location_address":
+                                continue
+                            update_data[_col] = _val
+
             # Localized location/hours fields added in migration 010.
             # Kept separate so the primary update above never fails on old DB schemas.
             localized_location_data: dict[str, Any] = {
@@ -1690,6 +1727,11 @@ def annotate_pending_events(
                 "business_hours_zh": _to_trad(_str(annotation.get("business_hours_zh"))),
                 "business_hours_en": _str(annotation.get("business_hours_en")),
             }
+            if not fix_reviewed:
+                if update_data.get("location_name_zh"):
+                    localized_location_data["location_name_zh"] = update_data["location_name_zh"]
+                if update_data.get("location_name_en"):
+                    localized_location_data["location_name_en"] = update_data["location_name_en"]
             # Only send non-null values; in protect mode also skip fields where DB
             # already has a non-null value (admin-corrected localized location fields).
             # Also skip any field in _human_protected (explicitly corrected by admin).
@@ -1720,7 +1762,7 @@ def annotate_pending_events(
             # location_url: scraper value first, then GPT-extracted from text.
             # Added conditionally so null never overwrites an admin-entered value.
             if not fix_reviewed:
-                _loc_url = event.get("location_url") or _str(annotation.get("location_url"))
+                _loc_url = update_data.get("location_url") or event.get("location_url") or _str(annotation.get("location_url"))
                 if _loc_url:
                     update_data["location_url"] = _loc_url
 

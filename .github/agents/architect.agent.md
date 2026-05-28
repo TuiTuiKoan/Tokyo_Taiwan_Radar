@@ -274,6 +274,16 @@ Before approving any change to `scraper/sources/taiwan_cultural_center.py` or on
 
 Reference incident: 2026-05-27 — event `51f7cd44` (台湾映画上映会2026) was incorrectly rewritten to single Tokyo by C-class detector despite raw text listing 5 cities (北海道・東京・神奈川・京都・大阪).
 
+## Fixed Venue Authority Guard
+
+Before approving any plan that writes or normalizes fixed venue fields, verify:
+
+1. Fixed venues shared by multiple events must resolve via `venue_registry` with `venues.is_authoritative = true`.
+2. Adding a new fixed venue must be done by inserting/updating a `venues` row with `is_authoritative = true`, not by hardcoding address logic inside a scraper.
+3. When lookup hits, the write path must also set `events.venue_id`.
+4. Before applying lookup values, any field protected by `field_corrections` must be skipped and counted via the existing override-attempt path.
+5. Lookup writes must include i18n venue fields (`location_name_zh`, `location_name_en`, `location_url`). `location_address_zh/en` remains optional and can be handled in a follow-up PR.
+
 ## RLS Cross-Status Query Guard
 
 Before approving **any** SSR page that queries related records (parent events, linked entities), verify:

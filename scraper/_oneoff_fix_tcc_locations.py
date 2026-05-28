@@ -1,156 +1,110 @@
-"""One-off: fix Taiwan Cultural Center location pollution (PR-1).
-
-What this script does:
-1) Restores known false-positive multi-city parent event if it was overwritten.
-2) Fixes true C-class TCC address pollution and locks corrected fields.
-3) Backfills B-class multi-city parent `location_prefectures` from raw text.
+"""One-off: reconcile active events with authoritative venues.
 
 Usage:
-  python _oneoff_fix_tcc_locations.py --dry-run
-  python _oneoff_fix_tcc_locations.py
+    python _oneoff_fix_tcc_locations.py --dry-run
+    python _oneoff_fix_tcc_locations.py
 """
 
 from __future__ import annotations
 
 import argparse
-import json
+import logging
 import os
 from dataclasses import dataclass
+from typing import Any
 
 from dotenv import load_dotenv
 
 from database import _get_client
+from venue_registry import lookup_venue
 
+logger = logging.getLogger(__name__)
 
-SOURCE_NAME = "taiwan_cultural_center"
-KNOWN_MULTI_CITY_FALSE_POSITIVE_ID = "51f7cd44-1a45-4f01-af24-0d6750536f41"
-
-TCC_AUTHORITATIVE = {
-    "location_name": "台北駐日経済文化代表処 台湾文化センター",
-    "location_address": "東京都港区虎ノ門1-1-12 虎ノ門ビル2階",
-    "location_prefectures": ["東京都"],
-    "location_name_zh": "台北駐日經濟文化代表處 台灣文化中心",
-    "location_name_en": "Taiwan Cultural Center, Taipei Economic and Cultural Representative Office in Japan",
-}
-
-LOCATION_LOCK_FIELDS = (
+LOCATION_UPDATE_FIELDS = (
     "location_name",
     "location_address",
     "location_prefectures",
     "location_name_zh",
     "location_name_en",
+    "location_url",
+    "venue_id",
 )
 
-TOKEN_TO_PREF = {
-    "北海道": "北海道",
-    "東京": "東京都",
-    "東京都": "東京都",
-    "大阪": "大阪府",
-    "大阪府": "大阪府",
-    "京都": "京都府",
-    "京都府": "京都府",
-    "神奈川": "神奈川県",
-    "神奈川県": "神奈川県",
-    "福岡": "福岡県",
-    "福岡県": "福岡県",
-    "愛知": "愛知県",
-    "愛知県": "愛知県",
-    "宮城": "宮城県",
-    "宮城県": "宮城県",
-    "兵庫": "兵庫県",
-    "兵庫県": "兵庫県",
-    "沖縄": "沖縄県",
-    "沖縄県": "沖縄県",
-    "仙台": "宮城県",
-    "横浜": "神奈川県",
-    "神戸": "兵庫県",
-    "札幌": "北海道",
-    "名古屋": "愛知県",
+_AUTHORITY_COLUMNS = (
+    "is_authoritative",
+    "is_multi_venue",
+    "homepage",
+    "prefectures",
+)
+
+_TCC_FALLBACK_NAMES = {
+    "台湾文化センター",
+    "台北駐日経済文化代表処 台湾文化センター",
+    "台北駐日経済文化代表処台湾文化センター",
+    "台湾文化中心",
 }
 
-PREF_ORDER = [
-    "北海道",
-    "東京都",
-    "神奈川県",
-    "大阪府",
-    "京都府",
-    "福岡県",
-    "愛知県",
-    "宮城県",
-    "兵庫県",
-    "沖縄県",
-]
+_TCC_FALLBACK_VENUE: dict[str, Any] = {
+    "id": None,
+    "canonical_name_ja": "台北駐日経済文化代表処 台湾文化センター",
+    "canonical_name_zh": "台北駐日經濟文化代表處 台灣文化中心",
+    "canonical_name_en": "Taiwan Cultural Center, Taipei Economic and Cultural Representative Office in Japan",
+    "address": "東京都港区虎ノ門1-1-12 虎ノ門ビル2階",
+    "prefecture": "東京都",
+    "prefectures": ["東京都"],
+    "homepage": "https://www.taiwanembassy.org/jp_ja/post/84095.html",
+    "is_multi_venue": False,
+}
 
 
 @dataclass
 class Result:
-    c_candidates: int = 0
-    c_skipped_multi_city: int = 0
-    c_fixed: int = 0
-    b_candidates: int = 0
-    b_fixed: int = 0
-    restored_false_positive: int = 0
+    scanned: int = 0
+    matched: int = 0
+    updated: int = 0
+    skipped_locked: int = 0
+    skipped_same: int = 0
 
 
-def _pref_sort_key(pref: str) -> tuple[int, str]:
+def _is_missing_authority_column_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return ("column" in msg or "schema cache" in msg) and "venues" in msg and any(c in msg for c in _AUTHORITY_COLUMNS)
+
+
+def _has_venues_authority_columns(sb) -> bool:
     try:
-        return (PREF_ORDER.index(pref), pref)
-    except ValueError:
-        return (999, pref)
+        (
+            sb.table("venues")
+            .select("is_authoritative,is_multi_venue,homepage,prefectures")
+            .limit(1)
+            .execute()
+        )
+        return True
+    except Exception as exc:
+        if not _is_missing_authority_column_error(exc):
+            raise
+        logger.warning(
+            "venues authority migration not applied, skip registry mode and keep TCC fallback mode enabled. error=%s",
+            exc,
+        )
+        print("[WARN] migration 未套用，跳過 registry 模式（compatibility fallback）")
+        return False
 
 
-def _normalize_pref_list(values: list[str] | None) -> list[str]:
-    if not values:
-        return []
-    out: set[str] = set()
-    for value in values:
-        s = (value or "").strip()
-        if not s:
-            continue
-        out.add(TOKEN_TO_PREF.get(s, s))
-    return sorted(out, key=_pref_sort_key)
+def _lookup_tcc_fallback(name: str | None) -> dict[str, Any] | None:
+    key = (name or "").strip()
+    if key in _TCC_FALLBACK_NAMES:
+        return dict(_TCC_FALLBACK_VENUE)
+    return None
 
 
-def _detect_distinct_prefectures(raw_text: str | None, max_chars: int = 2000) -> list[str]:
-    text = (raw_text or "")[:max_chars]
-    found: set[str] = set()
-    for token, pref in TOKEN_TO_PREF.items():
-        if token in text:
-            found.add(pref)
-    return sorted(found, key=_pref_sort_key)
-
-
-def _is_multi_city(raw_text: str | None) -> bool:
-    return len(_detect_distinct_prefectures(raw_text)) >= 2
-
-
-def _corrected_value(val: object) -> str:
-    if isinstance(val, list):
-        return json.dumps(val, ensure_ascii=False)
-    return "" if val is None else str(val)
-
-
-def _upsert_locks(sb, event_id: str, values: dict[str, object], fields: tuple[str, ...]) -> None:
-    rows = [
-        {
-            "event_id": event_id,
-            "field_name": field,
-            "corrected_value": _corrected_value(values.get(field)),
-            "corrected_by": None,
-        }
-        for field in fields
-    ]
-    sb.table("field_corrections").upsert(rows, on_conflict="event_id,field_name").execute()
-
-
-def _fetch_tcc_events(sb) -> list[dict]:
+def _fetch_active_events(sb) -> list[dict[str, Any]]:
     return (
         sb.table("events")
         .select(
-            "id,name_ja,raw_description,location_name,location_address,"
-            "location_prefectures,parent_event_id"
+            "id,location_name,location_address,location_prefectures,"
+            "location_name_zh,location_name_en,location_url,venue_id"
         )
-        .eq("source_name", SOURCE_NAME)
         .eq("is_active", True)
         .execute()
         .data
@@ -158,115 +112,84 @@ def _fetch_tcc_events(sb) -> list[dict]:
     )
 
 
-def _restore_known_false_positive(sb, dry_run: bool) -> int:
-    row = (
-        sb.table("events")
-        .select("id,raw_description")
-        .eq("id", KNOWN_MULTI_CITY_FALSE_POSITIVE_ID)
-        .limit(1)
+def _get_locked_fields(sb, event_id: str) -> set[str]:
+    rows = (
+        sb.table("field_corrections")
+        .select("field_name")
+        .eq("event_id", event_id)
+        .in_("field_name", list(LOCATION_UPDATE_FIELDS))
         .execute()
         .data
+        or []
     )
-    if not row:
-        return 0
+    return {r.get("field_name") for r in rows if r.get("field_name")}
 
-    detected = _detect_distinct_prefectures(row[0].get("raw_description"))
-    if len(detected) < 2:
-        return 0
 
-    restored = {
-        "location_name": "台湾文化センター・北海道・神奈川・京都・大阪",
-        "location_address": None,
-        "location_prefectures": ["東京都", "北海道", "神奈川県", "京都府", "大阪府"],
+def _build_updates(event: dict[str, Any], venue: dict[str, Any], locked: set[str]) -> dict[str, Any]:
+    candidate = {
+        "location_name": venue.get("canonical_name_ja"),
+        "location_address": None if venue.get("is_multi_venue") else venue.get("address"),
+        "location_prefectures": venue.get("prefectures") or (
+            [venue.get("prefecture")] if venue.get("prefecture") else None
+        ),
+        "location_name_zh": venue.get("canonical_name_zh"),
+        "location_name_en": venue.get("canonical_name_en"),
+        "location_url": venue.get("homepage"),
+        "venue_id": venue.get("id"),
     }
 
-    if dry_run:
-        print(
-            f"[DRY-RUN] restore false-positive {KNOWN_MULTI_CITY_FALSE_POSITIVE_ID[:8]}: "
-            f"prefectures={restored['location_prefectures']}"
-        )
-        return 1
-
-    sb.table("events").update(restored).eq("id", KNOWN_MULTI_CITY_FALSE_POSITIVE_ID).execute()
-
-    # Remove wrong locks generated by the first run, then re-lock only stable fields.
-    sb.table("field_corrections").delete().eq("event_id", KNOWN_MULTI_CITY_FALSE_POSITIVE_ID).in_(
-        "field_name", list(LOCATION_LOCK_FIELDS)
-    ).execute()
-    _upsert_locks(
-        sb,
-        KNOWN_MULTI_CITY_FALSE_POSITIVE_ID,
-        {
-            "location_address": None,
-            "location_prefectures": restored["location_prefectures"],
-        },
-        ("location_address", "location_prefectures"),
-    )
-    print(f"[APPLY] restored false-positive {KNOWN_MULTI_CITY_FALSE_POSITIVE_ID[:8]}")
-    return 1
+    updates: dict[str, Any] = {}
+    for key, val in candidate.items():
+        if key in locked:
+            continue
+        if val is None and key != "location_address":
+            continue
+        if event.get(key) == val:
+            continue
+        updates[key] = val
+    return updates
 
 
 def run(dry_run: bool) -> Result:
     sb = _get_client()
     result = Result()
+    registry_enabled = _has_venues_authority_columns(sb)
 
-    result.restored_false_positive = _restore_known_false_positive(sb, dry_run)
-
-    events = _fetch_tcc_events(sb)
-    c_targets: list[dict] = []
+    events = _fetch_active_events(sb)
+    result.scanned = len(events)
 
     for event in events:
-        loc_name = event.get("location_name") or ""
-        loc_addr = event.get("location_address") or ""
+        loc_name = event.get("location_name")
+        venue = lookup_venue(loc_name) if registry_enabled else _lookup_tcc_fallback(loc_name)
+        if not venue:
+            continue
+        result.matched += 1
 
-        if "台湾文化" in loc_name and "虎ノ門" not in loc_addr:
-            result.c_candidates += 1
-            if _is_multi_city(event.get("raw_description")):
-                result.c_skipped_multi_city += 1
-                print(f"[SKIP-C] {event['id'][:8]} multi-city signal in raw_description")
-            else:
-                c_targets.append(event)
-
-    for event in c_targets:
-        eid = event["id"]
-        if dry_run:
-            print(f"[DRY-RUN C] {eid[:8]} -> canonical TCC address")
-            result.c_fixed += 1
+        locked = _get_locked_fields(sb, event["id"])
+        if locked:
+            result.skipped_locked += 1
+            print(f"[SKIP locked] {event['id'][:8]} fields={sorted(locked)}")
             continue
 
-        sb.table("events").update(TCC_AUTHORITATIVE).eq("id", eid).execute()
-        _upsert_locks(sb, eid, TCC_AUTHORITATIVE, LOCATION_LOCK_FIELDS)
-        print(f"[APPLY C] {eid[:8]} fixed + FC locks")
-        result.c_fixed += 1
-
-    # B-class: parent events with multi-city signals in raw text.
-    for event in events:
-        if event.get("parent_event_id") is not None:
-            continue
-        detected = _detect_distinct_prefectures(event.get("raw_description"))
-        if len(detected) < 2:
-            continue
-
-        result.b_candidates += 1
-        existing = _normalize_pref_list(event.get("location_prefectures"))
-        merged = sorted(set(existing) | set(detected), key=_pref_sort_key)
-        if merged == existing:
+        updates = _build_updates(event, venue, locked)
+        if not updates:
+            result.skipped_same += 1
             continue
 
         if dry_run:
-            print(f"[DRY-RUN B] {event['id'][:8]} {existing} -> {merged}")
-            result.b_fixed += 1
+            print(f"[DRY-RUN] {event['id'][:8]} keys={sorted(updates.keys())}")
+            result.updated += 1
             continue
 
-        sb.table("events").update({"location_prefectures": merged}).eq("id", event["id"]).execute()
-        print(f"[APPLY B] {event['id'][:8]} location_prefectures={merged}")
-        result.b_fixed += 1
+        sb.table("events").update(updates).eq("id", event["id"]).execute()
+        print(f"[APPLY] {event['id'][:8]} keys={sorted(updates.keys())}")
+        result.updated += 1
 
     return result
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Fix TCC location pollution and multi-city prefectures")
+    parser = argparse.ArgumentParser(description="Reconcile active events with authoritative venues")
     parser.add_argument("--dry-run", action="store_true", help="Show updates without writing DB")
     args = parser.parse_args()
 
@@ -275,9 +198,8 @@ def main() -> None:
     res = run(args.dry_run)
     mode = "DRY-RUN" if args.dry_run else "APPLY"
     print(
-        f"[{mode}] done | restored_false_positive={res.restored_false_positive} "
-        f"C: candidates={res.c_candidates} skipped_multi={res.c_skipped_multi_city} fixed={res.c_fixed} "
-        f"B: candidates={res.b_candidates} fixed={res.b_fixed}"
+        f"[{mode}] done | scanned={res.scanned} matched={res.matched} updated={res.updated} "
+        f"skipped_locked={res.skipped_locked} skipped_same={res.skipped_same}"
     )
 
 

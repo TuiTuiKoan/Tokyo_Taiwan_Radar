@@ -91,6 +91,13 @@ Read this at the start of every session before writing any scraper.
     }, on_conflict="url").execute()
     ```
 
+## Venue Registry 使用慣例
+
+1. Scraper 端不要硬編固定場館地址。固定場館應新增到 `venues`，並設定 `is_authoritative = true`，scraper 只保留 `location_name` 原文。
+2. Annotator 會透過 `venue_registry.lookup_venue()` 自動補齊 `location_address`、`location_prefectures`、`venue_id` 與 i18n 欄位。
+3. 新場館流程：先由 scraper 穩定抓到 `location_name`，確認重複出現（至少 2 筆）後，將場館加入 `scraper/_oneoff_seed_authoritative_venues.py` 的 `SEED_DATA`，並附上 pre-flight diff 無衝突證據。
+4. 多場館系列（影展等）請設定 `is_multi_venue = true`，讓 annotator 自動使用 `prefectures` 並將 `location_address` 保持為 `None`。
+
 ## ⚡ Combined Post-Build Audit — 新規 scraper 完成後に必ず実行
 
 **新しい scraper ファイルを作成・編集するたびに、task_complete 前に必ずこのコマンドを実行し、両方 ALL CLEAR を確認すること。**
