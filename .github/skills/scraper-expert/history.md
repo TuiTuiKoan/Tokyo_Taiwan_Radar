@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-05-30 — iwafu: 主催者 URL が `location_url` に誤設定、`official_url` vs `source_url` 表示区別を確認（DB 直接修正）
+
+**問題：** iwafu イベント `c61470db`（赤城で台湾さんぽ）の `location_url` が `https://gunma-taiwan-association.studio.site/`（群馬台湾総会 = 主催者サイト）に設定されており、会場リンクが主催者サイトに誤誘導。また公式サイト `https://gunma-kanko.jp/events/290` が未設定のため「公式サイト」として表示されていなかった。
+
+**根本原因：**
+1. iwafu の `raw_description` 末尾に主催者 URL が含まれており、scraper が `location_url` に誤設定（会場 URL ではなく主催者 URL）。
+2. `official_url` フィールドが未設定 → frontend が `source_url`（iwafu URL）を「原始資訊」として表示し、「公式サイト」として認識されなかった。
+
+**修正（DB 直接修正）：**
+- `location_url = null`（会場リンクを削除）
+- `organizer = '群馬台湾総会'`、`organizer_url = 'https://gunma-taiwan-association.studio.site/'`（主催者フィールドへ移動）
+- `official_url = 'https://gunma-kanko.jp/events/290'`（「公式サイト ↗」として表示）
+- `source_url = 'https://www.iwafu.com/jp/events/1140344'`（iwafu URL に戻す = 「原始資訊 ↗」として表示）
+- FC lock: `organizer`、`organizer_url`、`official_url`（`null` は FC の NOT NULL 制約で保存不可）
+
+**教訓：**
+- **フロントエンド表示区別**：`official_url` → 「公式サイト ↗」、`source_url` → 「原始資訊 ↗」。公式イベントページを「公式サイト」として表示させるには `source_url` ではなく `official_url` に設定すること。
+- **`field_corrections.corrected_value` は NOT NULL**：`null` 値を FC で保存・ロックすることは不可能。null にしたフィールドを保護するには `annotation_status = 'annotated'` を維持するか、scraper が再設定しないことを確認する。
+- iwafu の `raw_description` 末尾 URL は主催者サイトである可能性が高い。`location_url` ではなく `organizer_url` に設定すること。
+
+---
+
 ## 2026-05-30 — annotator: `enrich_movie_titles()` が `work_id` を自動付与しない → kyoto_cinema 新規 movie_id ごとに `work_id=None`（commit `7e5b124`）
 
 **問題：** `kyoto_cinema_341456`（霧のごとく / 大濛）に `work_id=None`。`works` テーブルには同作品のレコード（`0d69a88f`）が存在するにもかかわらず紐付けされていなかった。

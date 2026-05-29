@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-05-30 — 主催者 URL が `location_url` に誤設定（DB 直接修正）
+
+**問題：** `iwafu_1140344`（赤城で台湾さんぽ）の `location_url` が `https://gunma-taiwan-association.studio.site/`（群馬台湾総会 = 主催者サイト）に誤設定。会場リンクが主催者サイトに誤誘導されていた。
+
+**根本原因：** `raw_description` 末尾に主催者 URL が含まれており、scraper または annotator が `location_url` に設定してしまった（会場 URL ではなく主催者 URL）。
+
+**修正：** `location_url = null`、`organizer = '群馬台湾総会'`、`organizer_url` に移動、`official_url = 'https://gunma-kanko.jp/events/290'`（群馬観光公式サイト）。FC lock 3 フィールド。
+
+**教訓：** iwafu の `raw_description` 末尾 URL は主催者サイトである可能性が高い。`location_url` ではなく `organizer_url` へ。
+
+---
+
 ## 2026-05-15 — location_address 取得できない根本原因修正（commit `ebe54b3`）
 
 **問題：** iwafu イベントの `location_address` が多くの場合 NULL になる。正確な住所が公式サイトにあっても抽出できない。

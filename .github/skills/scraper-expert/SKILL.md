@@ -1651,8 +1651,17 @@ for e in [x for x in events if x['name_ja'] != x['raw_title']]:
 - **`sub_row` 繼承規則**：`annotator.py` 的 `sub_row` 不自動繼承父事件欄位。新增 `location_url` 後，若父事件有 venue URL，`sub_row` 需明確設定 `"location_url": event.get("location_url")`。
 - **Seed 順序**：含 `location_url` 的 Python client seed 必須在 Supabase Dashboard 執行 migration `031` 後才能執行；否則報 `PGRST204`。
 - **⚠ 申込表單 URL 禁止填入 `location_url`**：Google Forms（`forms.gle/...`）、Peatix、Connpass 等**申込/登録表單 URL** 絕對不能填入 `location_url`。`location_url` 語義是「會場的官方 URL」（大学キャンパスページ、施設公式サイト等）。申込表單屬於 `source_url` 或 `official_url` 的責任範圍。DB 手動修正時若發現 `location_url` 含申込表單 → 設為 `null`。
+- **⚠ 主催者 URL 禁止填入 `location_url`**：イベント説明文に主催者・団体のウェブサイト URL が含まれる場合（特に `raw_description` 末尾）、scraper や annotator がそれを `location_url` に誤帰属することがある。主催者 URL は `organizer_url` フィールドへ。DB 手動修正時は `location_url = null`・`organizer_url = <organizer site>` に変更。iwafu 系 scraper で頻発。
 
 Reference incident: `0d97e51c`（2025年台湾史研究会3月例会）`location_url='https://forms.gle/BwseMtpymDKQY4W47'`（申込表單）→ `null` 手動修正（2026-05-07）。
+Reference incident: `c61470db`（赤城で台湾さんぽ）`location_url='https://gunma-taiwan-association.studio.site/'`（主催者サイト）→ `null` + `organizer_url` に移動（2026-05-30）。
+
+**`official_url` vs `source_url` — フロントエンド表示区別：**
+- `official_url` が設定されている → イベント詳細ページに **「公式サイト ↗」** として表示
+- `official_url` が null → `source_url` が **「原始資訊 ↗」** として表示（「公式サイト」表示にはならない）
+- 公式イベントページを「公式サイト」として表示させるには、必ず `official_url` に設定すること（`source_url` だけでは不十分）。
+
+Reference incident: `c61470db`（赤城で台湾さんぽ）`official_url` 未設定のため iwafu URL が「原始資訊」として表示 → `official_url = 'https://gunma-kanko.jp/events/290'` に修正（2026-05-30）。
 
 ## event_form — lecture vs conference 區分規則
 
