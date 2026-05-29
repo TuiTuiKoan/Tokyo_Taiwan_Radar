@@ -426,8 +426,8 @@ def _extract_hours_from_raw(text: str) -> str | None:
     if not text:
         return None
     _TIME = r'\d{1,2}:\d{2}'
-    # Range: 10:00〜16:00 or 10:00-16:00 or 10:00～16:00
-    m = re.search(rf'({_TIME})\s*[〜~～\-]\s*({_TIME})', text)
+    # Range: 10:00〜16:00 or 10:00-16:00 or 10:00～16:00 or 10:00－16:00 (U+FF0D)
+    m = re.search(rf'({_TIME})\s*[〜~～\-－]\s*({_TIME})', text)
     if m:
         return f"{m.group(1)}〜{m.group(2)}"
     # Hour-only range: 11〜17時 or 11～17時
