@@ -1014,6 +1014,9 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
   - **対処フロー**: Playwright で再取得 → `raw_description` パッチ → `annotation_status = 'pending'` → `annotator.py --source-ids <source_id>` で手動実行。
   - (Incident: peatix `ee17c509` 2026-05-30)
 - **performer vs organizer 区別**: Peatix ページの「By ‹名前›」= `organizer`（主催者）。イベントを実施するアーティスト/動作者 = `performer`。GPT が両者を入れ替える可能性があるので、日本語淡化語（「夫婦」「ユニット」など一般名詞）が performer に入っていたら手修正 + FC lock。(Incident: peatix `ee17c509` performer='夫婦' → 'Floti Studio' 2026-05-30)
+- **`performers` 一般名詞ガード**: `performers` に「夫婦」「カップル」「グループ」等の一般名詞が入っていたらアーティストの固有名（ユニット名・人名）に修正 + FC lock が必須。annotator は `raw_description` のカタカナ/漢字をそのまま取り込むため、一般名詞を固有名詞と誤認することがある。(Incident: peatix `ee17c509` performers=['夫婦'] → ['Floti Studio'] 2026-05-30)
+- **英語ブランド名 → performer_zh/en は翻訳不要**: Floti Studio 等の英語固定名称は `performer_zh` も `performer_en` も同じ値を設定。GPT は英語名を繁体中文に翻訳しようとして null を返すことがある。手動補完 + FC lock が必要。(Incident: peatix `ee17c509` 2026-05-30)
+- **専用イベントページ非存在時の `official_url`**: Peatix が `source_url` の場合、創作者/主催者の公式 Instagram や SNS を `official_url` に設定することでフロントエンドに「公式サイト ↗」リンクを表示できる。source_url と official_url を両方設定しても重複にならない（表示ラベルが異なる）。(Incident: peatix `ee17c509` `official_url='https://www.instagram.com/flotistudio/'` 2026-05-30)
 
 ## iwafu-specific
 - **Global-tour false positive**: If description contains `台湾など世界各地` / `全国各地.*台湾` etc., the event is a nationwide/global tour where Taiwan is just one stop. Reject it — it is NOT a Taiwan-themed event. The `_GLOBAL_TOUR_PATTERNS` regex in `iwafu.py` implements this guard.
@@ -1665,8 +1668,10 @@ Reference incident: `c61470db`（赤城で台湾さんぽ）`location_url='https
 - `official_url` が設定されている → イベント詳細ページに **「公式サイト ↗」** として表示
 - `official_url` が null → `source_url` が **「原始資訊 ↗」** として表示（「公式サイト」表示にはならない）
 - 公式イベントページを「公式サイト」として表示させるには、必ず `official_url` に設定すること（`source_url` だけでは不十分）。
+- 専用イベントページが存在しない場合（Peatix が source_url のみの場合など）、創作者/主催者の公式 Instagram や SNS を `official_url` に設定して「公式サイト ↗」として表示できる。
 
 Reference incident: `c61470db`（赤城で台湾さんぽ）`official_url` 未設定のため iwafu URL が「原始資訊」として表示 → `official_url = 'https://gunma-kanko.jp/events/290'` に修正（2026-05-30）。
+Reference incident: `ee17c509`（Floti Studio 似顔絵ワークショップ）専用ページ非存在 → `official_url = 'https://www.instagram.com/flotistudio/'` で「公式サイト ↗」表示（2026-05-30）。
 
 ## event_form — lecture vs conference 區分規則
 

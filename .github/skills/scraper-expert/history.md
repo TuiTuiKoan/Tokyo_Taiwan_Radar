@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-05-30 — peatix `ee17c509`: `performers=['夫婦']`（一般名詞）→ ユニット固有名・performer_zh/en 補完・official_url(Instagram)・organizer_url 設定
+
+**問題：** `ee17c509`（Floti Studio 似顔絵ワークショップ）の `performers = ['夫婦']`（一般名詞）が残留し、`performer_zh/en` が null のまま。フロントエンドで多言語表示不可かつ「公式サイト」「主催者」リンクも非表示。
+
+**根本原因：** annotator が `raw_description`「台湾と日本の作家夫婦によるユニット Floti Studio」から `夫婦` を performers に設定（一般名詞を固有名詞と誤認）。英語ブランド名 "Floti Studio" は GPT 翻訳生成の対象にならず `performer_zh/en = null` のまま。`official_url` と `organizer_url` は annotator が自動設定しないフィールドのため未設定。
+
+**修正（DB 直接修正）：**
+- `performers = ['Floti Studio']`（`'夫婦'` → 正式ユニット名）
+- `performer_zh = performer_en = 'Floti Studio'`（英語ブランド名は翻訳不要、そのまま設定）
+- `official_url = 'https://www.instagram.com/flotistudio/'`（専用イベントページ非存在 → 創作者公式 Instagram）
+- `organizer_url = 'https://www.eslitespectrum.jp/'`（誠品生活日本橋公式サイト）
+- FC lock: `performer_zh`, `performer_en`, `official_url`, `organizer_url`
+
+**教訓：**
+- **performers の一般名詞ガード**: `performers` に「夫婦」「ユニット」「グループ」等の一般名詞が入っていたら固有名詞（ユニット名・人名）に修正 + FC lock。
+- **英語ブランド名 → performer_zh/en は翻訳不要**: 英語固定名称は `_zh`/`_en` も同じ値を設定。GPT が null を返す場合は手動補完 + FC lock。
+- **イベント専用ページ非存在時の official_url**: Peatix が `source_url` の場合、創作者の公式 Instagram/SNS を `official_url` に設定することで「公式サイト ↗」リンクを表示できる。
+- **organizer_url の店舗専用 URL は不安定**: `https://www.eslitespectrum.jp/nihonbashi/` → 404。ルートドメインを優先（`https://www.eslitespectrum.jp/`）。
+
+---
+
 ## 2026-05-30 — peatix: React SPA の遅延レンダリングで `raw_description` が空になり全フィールド欠落（DB 直接修正 + annotator 再実行）
 
 **問題：** peatix イベント `ee17c509`（Floti Studio 似顔絵ワークショップ）の `raw_description` が `開催日時: 2026年06月20日\n\n` のみ。2日間開催・会場・時間・出演者情報が全欠落。
