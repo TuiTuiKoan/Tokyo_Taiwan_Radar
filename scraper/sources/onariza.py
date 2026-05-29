@@ -227,7 +227,20 @@ class OnarizaScraper(BaseScraper):
         business_hours, sched_start, sched_end = _extract_schedule_from_detail(
             soup, current_year
         )
-        start_date = sched_start or _parse_date(full_text)
+        # Prefer schedule-derived start date.  Fall back to _parse_date only when
+        # the schedule isn't published yet AND the date is in the future — this
+        # avoids storing the WordPress post publication date (which appears in the
+        # page text as "YYYY-M-D 上映") as start_date, which would then be locked
+        # in forever by the movie-extend MIN logic.
+        if sched_start:
+            start_date = sched_start
+        else:
+            fallback = _parse_date(full_text)
+            today = datetime.now(timezone.utc).replace(tzinfo=None).date()
+            if fallback and fallback.date() >= today:
+                start_date = fallback
+            else:
+                start_date = None  # will be set on next scrape when schedule is available
         end_date = sched_end
 
         # Description: main content paragraphs

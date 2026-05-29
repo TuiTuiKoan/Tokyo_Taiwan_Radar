@@ -386,11 +386,12 @@ def _build_movie_extend_row(event: Event, existing_state: dict) -> dict | None:
     old_desc = (existing_state.get("raw_description") or "").strip()
     new_desc = (event.raw_description or "").strip()
 
-    # MIN(existing, scraped) — prefer non-None; ISO 8601 strings sort chronologically.
-    if old_start and new_start:
-        merged_start = min(old_start, new_start)
-    else:
-        merged_start = old_start or new_start
+    # Prefer the scraper's current start_date (new_start) over the stored one.
+    # Rationale: the first scrape may have captured a publication date (before the
+    # schedule was published), so MIN would permanently lock in that wrong date.
+    # Trusting new_start means re-scrapes reflect the current schedule.
+    # If new_start is None (schedule not yet available), fall back to old_start.
+    merged_start = new_start or old_start
 
     # MAX(existing, scraped)
     if old_end and new_end:
