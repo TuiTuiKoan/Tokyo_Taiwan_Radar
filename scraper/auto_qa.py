@@ -82,6 +82,17 @@ OVERSEAS_KEYWORDS = (
     'ニューヨーク', 'パリ', 'ロンドン', 'ベルリン', '台湾', '香港',
 )
 
+# Sources whose start_date legitimately reflects publish date (often January
+# placeholder) — skip January placeholder guard in missing_date detection.
+PUBLISH_DATE_SOURCES = frozenset({"note_creators", "google_news_rss", "prtimes", "nhk_rss", "walkerplus"})
+
+# Sources that legitimately produce thin metadata (news/article feeds) — skip
+# missing_organizer detection (organizer is rarely available for these).
+THIN_CONTENT_SOURCES = frozenset({"note_creators", "google_news_rss", "prtimes", "nhk_rss", "walkerplus"})
+
+# Max raw_description length considered "thin content".
+THIN_CONTENT_MAX_LEN = 50
+
 QA_TYPES = (
     "auto_qa_simplified_zh",
     "auto_qa_missing_address",
@@ -91,6 +102,9 @@ QA_TYPES = (
     "auto_qa_performer_ai_translation_marker",
     "auto_qa_performer_multi_value_pollution",
     "auto_qa_performer_zh_equals_katakana",
+    "auto_qa_missing_date",
+    "auto_qa_missing_organizer",
+    "auto_qa_thin_content",
 )
 
 # Precise SC-only char set for the broad auto_simplified_chinese detector.
@@ -517,6 +531,117 @@ def _detect_performer_zh_katakana(sb) -> list[dict]:
     return reports
 
 
+def _detect_missing_date(sb) -> list[dict]:
+    """Flag active annotated/reviewed events with missing or placeholder
+    start_date. Review-only — no auto-fix.
+
+    A start_date in January is treated as a Contentful placeholder and flagged,
+    EXCEPT for publish-date sources whose January dates may be legitimate.
+    """
+    rows = (
+        sb.table("events")
+        .select("id,source_name,start_date,annotation_status")
+        .eq("is_active", True)
+        .in_("annotation_status", ["annotated", "reviewed"])
+        .execute()
+        .data
+    )
+    reports = []
+    for row in rows:
+        start_date = row.get("start_date")
+        source_name = row.get("source_name")
+        if start_date is None:
+            reports.append({
+                "event_id": row["id"],
+                "report_type": "auto_qa_missing_date",
+                "details": f"start_date missing/placeholder (value={start_date!r}); source={source_name}",
+            })
+            continue
+        try:
+            month = datetime.fromisoformat(start_date).month
+        except (ValueError, TypeError):
+            continue
+        if month == 1 and source_name not in PUBLISH_DATE_SOURCES:
+            reports.append({
+                "event_id": row["id"],
+                "report_type": "auto_qa_missing_date",
+                "details": f"start_date missing/placeholder (value={start_date!r}); source={source_name}",
+            })
+    return reports
+
+
+def _detect_missing_organizer(sb) -> list[dict]:
+    """Flag active annotated/reviewed events with null organizer. Review-only.
+
+    Organizer is NEVER auto-filled (Organizer Non-Hallucination Guard) — this
+    detector only surfaces the gap for human review. Thin-content sources are
+    skipped because they rarely expose organizer data.
+    """
+    rows = (
+        sb.table("events")
+        .select("id,source_name,organizer")
+        .eq("is_active", True)
+        .in_("annotation_status", ["annotated", "reviewed"])
+        .is_("organizer", "null")
+        .execute()
+        .data
+    )
+    reports = []
+    for row in rows:
+        source_name = row.get("source_name")
+        if source_name in THIN_CONTENT_SOURCES:
+            continue
+        reports.append({
+            "event_id": row["id"],
+            "report_type": "auto_qa_missing_organizer",
+            "details": f"organizer is null; source={source_name}",
+        })
+    return reports
+
+
+def _detect_thin_content(sb) -> list[dict]:
+    """Flag recent active events with thin metadata. Review-only.
+
+    Hits when raw_description is short/missing, or when start_date, location_name
+    and organizer are all null.
+    """
+    thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    rows = (
+        sb.table("events")
+        .select(
+            "id,source_name,source_url,raw_description,start_date,"
+            "location_name,organizer,created_at"
+        )
+        .eq("is_active", True)
+        .gte("created_at", thirty_days_ago_iso)
+        .execute()
+        .data
+    )
+    reports = []
+    for row in rows:
+        raw = row.get("raw_description")
+        raw_len = len(raw) if raw else 0
+        reasons = []
+        if raw is None or raw_len < THIN_CONTENT_MAX_LEN:
+            reasons.append("thin_raw")
+        if (
+            row.get("start_date") is None
+            and row.get("location_name") is None
+            and row.get("organizer") is None
+        ):
+            reasons.append("triple_null")
+        if reasons:
+            reports.append({
+                "event_id": row["id"],
+                "report_type": "auto_qa_thin_content",
+                "details": (
+                    f"thin content [{','.join(reasons)}]: raw_len={raw_len}; "
+                    f"source={row.get('source_name')}; url={row.get('source_url')}"
+                ),
+            })
+    return reports
+
+
 def detect(event: dict) -> list[tuple[str, str]]:
     """Return list of (report_type, admin_note) detected for one event."""
     findings: list[tuple[str, str]] = []
@@ -585,6 +710,12 @@ def run(dry_run: bool = False) -> dict:
     for item in _detect_performer_multi_value(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
     for item in _detect_performer_zh_katakana(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
+    for item in _detect_missing_date(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
+    for item in _detect_missing_organizer(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
+    for item in _detect_thin_content(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
 
     # Dedup against latest auto_qa reports for each event/type.
