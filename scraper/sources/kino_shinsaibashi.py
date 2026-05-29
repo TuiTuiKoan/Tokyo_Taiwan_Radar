@@ -92,27 +92,33 @@ class KinoCinemaShinsaibashiScraper(BaseScraper):
             if not _is_taiwan(title + " " + description):
                 continue
 
-            # start_date: first day shown in schedule buttons
+            # start_date: earliest date from all schedule buttons
+            # Recon (2026-05-30): buttons cover rolling 7-day booking window only,
+            # NOT the full screening period — so end_date must NOT use max(buttons).
             start_date: datetime | None = None
-            schedule_btn = soup2.find("button", attrs={"aria-label": re.compile(r"\d+月\d+日")})
-            if schedule_btn:
-                m_date = re.search(r"(\d+)月(\d+)日", schedule_btn.get("aria-label", ""))
+            now = datetime.now(timezone.utc)
+            schedule_btns = soup2.find_all(
+                "button", attrs={"aria-label": re.compile(r"\d+月\d+日")}
+            )
+            btn_dates: list[datetime] = []
+            for btn in schedule_btns:
+                m_date = re.search(r"(\d+)月(\d+)日", btn.get("aria-label", ""))
                 if m_date:
                     try:
-                        now = datetime.now(timezone.utc)
                         month, day = int(m_date.group(1)), int(m_date.group(2))
                         year = now.year if month >= now.month else now.year + 1
-                        start_date = datetime(year, month, day, tzinfo=timezone.utc)
+                        btn_dates.append(datetime(year, month, day, tzinfo=timezone.utc))
                     except ValueError:
                         pass
+            if btn_dates:
+                start_date = min(btn_dates)
 
-            # end_date: "※N/N(曜)で上映終了" note
+            # end_date: "※N/N(曜)で上映終了" note (only reliable source for end_date)
             end_date = None
             page_text = soup2.get_text(" ", strip=True)
             em = re.search(r"※(\d{1,2})[/月](\d{1,2})[^終]*終了", page_text)
             if em:
                 try:
-                    now = datetime.now(timezone.utc)
                     month, day = int(em.group(1)), int(em.group(2))
                     year = now.year if month >= now.month else now.year + 1
                     end_date = datetime(year, month, day, tzinfo=timezone.utc)
