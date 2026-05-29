@@ -1009,6 +1009,11 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
 - **Layer 3 expansion rule**: When extending Layer 3 to a new platform, use a platform-specific `agent_category` (e.g. `peatix_organizer`). Do NOT reuse `note_creator` or generic names.
 - **Group page scraping**: `_scrape_group_events()` fetches `peatix.com/group/{group_id}/events`; `group_id` extracted from `source_profile.group_id` or URL path.
 - **Validation**: `python discovery_accounts.py --dry-run --slot 3` to verify Peatix slot without DB writes.
+- **⚠ React SPA 遅延レンダリング問題**: Peatix は React SPA。`networkidle` 発火後も `.event-description` 内容が数十ms 遅延してレンダリングされる場合があり、`description_ja` が `None` → `raw_description` が日付 prefix のみになる。
+  - **検出**: `raw_description` の長さが 50 字未満かつ内容が `開催日時:` のみ → 「汚薄 raw_description」と判定。
+  - **対処フロー**: Playwright で再取得 → `raw_description` パッチ → `annotation_status = 'pending'` → `annotator.py --source-ids <source_id>` で手動実行。
+  - (Incident: peatix `ee17c509` 2026-05-30)
+- **performer vs organizer 区別**: Peatix ページの「By ‹名前›」= `organizer`（主催者）。イベントを実施するアーティスト/動作者 = `performer`。GPT が両者を入れ替える可能性があるので、日本語淡化語（「夫婦」「ユニット」など一般名詞）が performer に入っていたら手修正 + FC lock。(Incident: peatix `ee17c509` performer='夫婦' → 'Floti Studio' 2026-05-30)
 
 ## iwafu-specific
 - **Global-tour false positive**: If description contains `台湾など世界各地` / `全国各地.*台湾` etc., the event is a nationwide/global tour where Taiwan is just one stop. Reject it — it is NOT a Taiwan-themed event. The `_GLOBAL_TOUR_PATTERNS` regex in `iwafu.py` implements this guard.

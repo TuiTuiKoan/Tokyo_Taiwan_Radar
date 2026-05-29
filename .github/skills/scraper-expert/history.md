@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-05-30 — peatix: React SPA の遅延レンダリングで `raw_description` が空になり全フィールド欠落（DB 直接修正 + annotator 再実行）
+
+**問題：** peatix イベント `ee17c509`（Floti Studio 似顔絵ワークショップ）の `raw_description` が `開催日時: 2026年06月20日\n\n` のみ。2日間開催・会場・時間・出演者情報が全欠落。
+
+**根本原因：** Peatix は React SPA。CI スクレイプ時に `networkidle` が発火した直後のタイミングで `.event-description` のコンテンツがまだレンダリングされておらず、CSS セレクタが空文字列を返した。`page_text` は取得できた（台湾キーワードチェック通過）が `description_ja = None` → 日付 prefix のみが `raw_description` に格納された。annotator も全フィールドを `null` 出力。
+
+**副作用：** 薄い `raw_description` から annotator が `performer = '夫婦'`（一般名詞）・`organizer = 'Floti Studio'`（実際は主催者 = 誠品生活日本橋）と逆転設定。
+
+**修正（DB 直接修正）：**
+- Playwright で再取得し完全な `raw_description` + `end_date=2026-06-21` + `location_name` + `location_address` + `location_prefectures` を手動パッチ。
+- `annotation_status = 'pending'` にリセット → `annotator.py --source-ids 4d588dee68c88e15` で手動再実行。
+- `performer = 'Floti Studio'`・`organizer = '誠品生活日本橋'` に手修正し FC lock。
+
+**教訓：**
+- **Peatix SPA 遅延レンダリング**: `networkidle` 後も `.event-description` 内容が数十ms 遅延してレンダリングされる場合がある。`raw_description` が日付 prefix のみの場合は認識して手動対処が必要。次回 CI スクレイプで後から修正される可能性もあるが、発見次第 DB 手動パッチ。
+- **performer vs organizer 区別**: Peatix ページの「By ‹名前›」= `organizer`（主催者）。イベントを実施するアーティスト/動作者 = `performer`。GPT が両者を入れ替える可能性があるので、日本語淡化語（「夫婦」「ユニット」など一般名詞）が performer に入っていたら手修正 + FC lock。
+- **raw_description 汚薄イベント対処フロー**: 日付 prefix のみ → Playwright 再取得 → `raw_description` パッチ → `annotation_status = 'pending'` → `annotator.py --source-ids <source_id>` で手動再実行。
+
+---
+
 ## 2026-05-30 — iwafu: 主催者 URL が `location_url` に誤設定、`official_url` vs `source_url` 表示区別を確認（DB 直接修正）
 
 **問題：** iwafu イベント `c61470db`（赤城で台湾さんぽ）の `location_url` が `https://gunma-taiwan-association.studio.site/`（群馬台湾総会 = 主催者サイト）に設定されており、会場リンクが主催者サイトに誤誘導。また公式サイト `https://gunma-kanko.jp/events/290` が未設定のため「公式サイト」として表示されていなかった。
