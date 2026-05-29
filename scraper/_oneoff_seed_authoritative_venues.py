@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
+import unicodedata
 from collections import Counter
 from typing import Any
 
@@ -179,6 +181,45 @@ def _distinct_non_empty(values: list[str | None]) -> list[str]:
     return sorted({(v or "").strip() for v in values if (v or "").strip()})
 
 
+# ── Address normalisation helpers ────────────────────────────────────────────
+
+_STREET_NUM_RE = re.compile(r"\d+(?:-\d+)+")
+
+
+def _normalize_addr(addr: str) -> str:
+    """NFKC-normalise (collapses full-width spaces/digits) and strip."""
+    return unicodedata.normalize("NFKC", addr or "").strip()
+
+
+def _street_prefix(addr: str) -> str:
+    """Return the address truncated at the end of the street number (番地),
+    discarding building name / floor details.
+
+    Examples:
+      '東京都港区虎ノ門1-1-12 虎ノ門ビル2階'  →  '東京都港区虎ノ門1-1-12'
+      '福岡県福岡市博多区下川端町3-1 リバレイン7F・8F'  →  '福岡県福岡市博多区下川端町3-1'
+    """
+    a = _normalize_addr(addr)
+    m = _STREET_NUM_RE.search(a)
+    return a[: m.end()].strip() if m else a
+
+
+def _addresses_compatible(a: str, b: str) -> bool:
+    """Return True when *a* and *b* describe the same physical location.
+
+    Handles:
+    - Full-width characters (\u3000, ２, etc.) via NFKC normalisation
+    - Missing prefecture prefix (e.g. '港区虎ノ門1-1-12' vs '東京都港区虎ノ門1-1-12')
+    - Differing building/floor detail (shorter = less detail is OK)
+    - 7F vs 7F・8F (both truncated to same street prefix)
+    """
+    pa, pb = _street_prefix(a), _street_prefix(b)
+    if not pa or not pb:
+        return _normalize_addr(a) == _normalize_addr(b)
+    # Exact street match, or one is a suffix of the other (missing prefecture prefix)
+    return pa == pb or pa.endswith(pb) or pb.endswith(pa)
+
+
 def _merge_aliases(existing: list[str] | None, incoming: list[str] | None, canonical: str) -> list[str]:
     merged = {(a or "").strip() for a in (existing or []) + (incoming or []) if (a or "").strip()}
     merged.discard(canonical)
@@ -207,7 +248,8 @@ def _has_conflict(seed_row: dict[str, Any], event_rows: list[dict[str, Any]]) ->
         return False, db_addresses, []
     if not seed_address:
         return False, db_addresses, []
-    conflicts = [a for a in db_addresses if a != seed_address]
+    # Use street-level normalised comparison instead of exact string match
+    conflicts = [a for a in db_addresses if not _addresses_compatible(a, seed_address)]
     return len(conflicts) > 0, db_addresses, conflicts
 
 
