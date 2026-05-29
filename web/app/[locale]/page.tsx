@@ -14,6 +14,9 @@ import { Suspense } from "react";
 // every URL (with or without query params) shares the same cached payload.
 export const revalidate = 600;
 
+// Attribution required: "Powered by Yahoo! JAPAN" footer when map is visible
+// See: https://developer.yahoo.co.jp/webapi/map/openlocalplatform/v1/geocoder.html
+
 interface PageProps {
   params: Promise<{ locale: Locale }>;
   searchParams: Promise<{

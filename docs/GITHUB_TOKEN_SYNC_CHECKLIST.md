@@ -156,3 +156,16 @@ python update_source.py --url "https://example.com" --status researched --create
 * [GITHUB_TOKEN 快速參考清單](docs/GITHUB_TOKEN_SYNC_CHECKLIST.md)
 * [GITHUB_TOKEN 完整輪替指南](.github/instructions/token-rotation.instructions.md)
 * [Secrets 生命週期與審計路線圖](.github/SECRETS_LIFECYCLE.md)
+
+---
+
+### Location 6: Yahoo! JAPAN ジオコーダ API AppID (`YAHOO_GEOCODER_APPID`)
+
+- **File**: `scraper/.env`
+- **Format**: `YAHOO_GEOCODER_APPID=<appid>`
+- **Purpose**: Geocodes `events.location_address` → lat/lng
+- **Who reads it**: `scraper/geocode_events.py`
+- **Rotation**: No expiry — revoke and re-register if leaked
+- **CI secret**: Add `YAHOO_GEOCODER_APPID` to GitHub Actions secrets (`Settings → Secrets and variables → Actions`)
+- **Attribution required**: Footer "Powered by Yahoo! JAPAN" on any page displaying geocoded data
+- **Note**: 50,000 requests/day free tier. Not a rotating secret. See [Yahoo! Developer Network](https://developer.yahoo.co.jp/webapi/map/openlocalplatform/v1/geocoder.html) for registration.
