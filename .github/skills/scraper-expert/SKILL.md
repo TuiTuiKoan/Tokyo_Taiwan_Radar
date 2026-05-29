@@ -725,6 +725,38 @@ ls scraper/sources/<name>.py
 
 Reference incident: 2026-05-05 — `'新北'` 匹配大阪市 `新北島`，event 371cf624 (GRAFFYHALL) 連續三次 auto_qa_taiwan_venue (commit 6b7174a)。
 
+## `_extract_after_label()` を使う構造化テキスト scraper の `_STOP_LABELS` 管理
+
+`_extract_after_label(text, label_re)` は `_STOP_LABELS` に登録された語で抽出を打ち切るが、**同一行に出現しうる全ラベルが未登録だと venue_raw に発表者・対象者情報が混入する**。
+
+**Rule: `_STOP_LABELS` は「同一行に現れうる全ラベル」を網羅すること**
+
+```
+# 典型的な早稲田台湾研究所ソース行：
+場所：〇〇教室 講演者：郭智輝氏（...） モデレーター：久保克行 対象：学生・一般
+```
+
+`講演者`/`モデレーター`/`対象` が `_STOP_LABELS` に未登録だと、`venue_raw` が `〇〇教室 講演者：郭智輝氏... 対象：...` になり、`会場: {venue_raw}` として `raw_description` に混入 → annotator が全テキストを `location_name` に格納する。
+
+**学術イベント系 raw_description 構成ルール**
+
+`講演者`/`モデレーター` が存在する場合、`raw_desc_parts` に**独立したエントリ**として追加する：
+
+```python
+speaker_raw = _extract_after_label(content, r"講演者")   # stops at モデレーター:
+moderator_raw = _extract_after_label(content, r"モデレーター")  # stops at 対象:
+
+raw_desc_parts = []
+if date_raw:     raw_desc_parts.append(f"開催日時: {date_raw}")
+if venue:        raw_desc_parts.append(f"会場: {venue_raw[:200] or venue}")
+if speaker_raw:  raw_desc_parts.append(f"講演者: {speaker_raw}")
+if moderator_raw: raw_desc_parts.append(f"モデレーター: {moderator_raw}")
+```
+
+`会場:` 行に発表者情報を混ぜると annotator は performers を正しく抽出できない。
+
+Reference incident: 2026-05-30 — waseda_taiwan event `75a46729`、`_STOP_LABELS` 未登録で venue に発表者混入 (commits `0604a6f`, `b3be645`)。
+
 ## Performer Job Title Guard
 
 **Rule**: `performer` 欄位只能填**人名**，不可填職稱/職業描述。

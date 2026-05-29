@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-05-30 — waseda_taiwan: `_STOP_LABELS` 欠如で venue_raw に発表者情報が混入、performers にモデレーター未収録（commits `0604a6f`, `b3be645`）
+
+**問題：** `location_name` に `早稲田大学...教室 講演者：郭智輝氏... モデレーター：久保克行...` と発表者情報が混入。かつ `performers = ['郭智輝']` のみで モデレーター未収録。
+
+**根本原因：**
+1. `_STOP_LABELS` に `講演者`/`モデレーター`/`対象` が未登録 → `_extract_after_label()` が会場ラベル後の全行を取り込んだ。`raw_description` の `会場:` 行に発表者情報が混入 → annotator が全テキストを `location_name` に格納。
+2. `raw_desc_parts` に `講演者`/`モデレーター` が含まれていなかった → annotator が `performers` に複数人を収録できなかった。
+
+**修正：**
+- `_STOP_LABELS` に 3 語追加（venue 抽出の truncate boundary）。
+- `raw_desc_parts` に `f"講演者: {speaker_raw}"` / `f"モデレーター: {moderator_raw}"` を追加（各々 `_extract_after_label()` で boundary 付き抽出）。
+- DB 直接修正 + FC lock（`location_name`、`performers`、`performer_zh/en`）。
+
+**教訓：**
+- `_extract_after_label()` を使うスクレイパーは、**ソース同一行に現れうる全ラベルを `_STOP_LABELS` に登録**すること。
+- 学術イベント系スクレイパーで `講演者`/`モデレーター` を使う場合、`raw_description` に**独立した構造化エントリとして追加**する。`会場:` 行に混ぜると annotator は performers を抽出できない。
+- 多人イベント: `performers.length ≥ 2` になったら `performer_zh/en = null` に設定する（多人 Guard）。
+
+---
+
 ## 2026-05-30 — seed script 住所衝突チェックが NFKC 非正規化 + exact 比較のため false positive（commit `b32aad2`）
 
 **問題：** `_oneoff_seed_authoritative_venues.py` dry-run で TCC・FAAM 2 件が毎回 SKIP。DB 住所バリアント（全形スペース `\u3000`、全形数字、都道府縣前綴欠如、大樓名有無の違い）が全て「衝突」と誤判定されていた。例：`港区虎ノ門1-1-12 虎ノ門ビル2階`（都道府縣なし）vs seed `東京都港区虎ノ門1-1-12 虎ノ門ビル2階` → 完全不一致でSKIP。
