@@ -12,7 +12,7 @@ Strategy:
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import requests
@@ -103,11 +103,17 @@ class MidlandCinemaScraper(BaseScraper):
                     result["country"] = td.get_text(strip=True)
                 break
 
-        # Date: look for text pattern like "N月N日公開予定"
+        # Date: capture range (X月X日〜X月X日), end-only (X月X日まで), or start (X月X日公開予定)
         full_text = soup.get_text(" ", strip=True)
-        m = re.search(r"(\d+月\d+日)公開予定", full_text)
-        if m:
-            result["date_text"] = m.group(1)
+        m_range = re.search(r"\d+月\d+日[〜～~]\d+月\d+日", full_text)
+        m_made = re.search(r"\d+月\d+日まで", full_text)
+        m_open = re.search(r"(\d+月\d+日)公開予定", full_text)
+        if m_range:
+            result["date_text"] = m_range.group(0)
+        elif m_made:
+            result["date_text"] = m_made.group(0)
+        elif m_open:
+            result["date_text"] = m_open.group(1)
 
         # Description from story section
         story_el = soup.find("h3", string=re.compile("ストーリー|解説|あらすじ"))
@@ -150,15 +156,32 @@ class MidlandCinemaScraper(BaseScraper):
             source_id = f"midland_cinema_{movie_id}"
             title = detail["title"]
 
-            # Parse start date from "N月N日" text
+            # Parse start date + end date from date_text
+            now = datetime.now(timezone.utc)
             start_date: Optional[datetime] = None
             if detail["date_text"]:
                 m = re.match(r"(\d+)月(\d+)日", detail["date_text"])
                 if m:
-                    year = datetime.now().year
                     mon, day = int(m.group(1)), int(m.group(2))
+                    year = now.year
+                    if mon < now.month:
+                        year += 1
                     try:
-                        start_date = datetime(year, mon, day)
+                        start_date = datetime(year, mon, day, tzinfo=timezone.utc)
+                    except ValueError:
+                        pass
+
+            end_date: Optional[datetime] = None
+            if detail["date_text"]:
+                em = re.search(r"[〜～~](\d+)月(\d+)日|(\d+)月(\d+)日まで", detail["date_text"])
+                if em:
+                    e_mon = int(em.group(1) or em.group(3))
+                    e_day = int(em.group(2) or em.group(4))
+                    e_year = now.year
+                    if e_mon < now.month:
+                        e_year += 1
+                    try:
+                        end_date = datetime(e_year, e_mon, e_day, tzinfo=timezone.utc)
                     except ValueError:
                         pass
 
@@ -177,7 +200,7 @@ class MidlandCinemaScraper(BaseScraper):
                 description_ja=detail["description"] or None,
                 category=["movie"],
                 start_date=start_date,
-                end_date=None,
+                end_date=end_date,
                 location_name=LOCATION_NAME,
                 location_address=LOCATION_ADDRESS,
             )
