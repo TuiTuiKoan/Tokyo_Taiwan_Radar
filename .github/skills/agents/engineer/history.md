@@ -2,6 +2,21 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-30 — annotator `_resolve_movie_titles_for_event()` 6-tuple → 7-tuple 拡張と `work_id` 自動付与（commit `7e5b124`）
+
+**問題：** `kyoto_cinema_341456`（霧のごとく）が `works` テーブルの既存エントリとマッチしているにもかかわらず `work_id=None` のまま。
+
+**根本原因：** `_query_works()` の select に `id` が含まれておらず、マッチ結果から `work_id` を取り出せなかった。`enrich_movie_titles()` には `work_id` 書き込みロジック自体がなかった（手動バッチ `_oneoff_fix_movies.py` のみ）。
+
+**修法（commit `7e5b124`）：**
+- `_query_works()` select に `"id"` 追加（`title_ja` クエリ・`title_zh` フォールバックの両方）。
+- `_resolve_movie_titles_for_event()` → **7-tuple** `(name_zh, name_en, official_url, works_performer, works_director, works_id, title_used)`。early return は全て `None×6, ""` に変更。
+- `enrich_movie_titles()` で `if works_id and not event.get("work_id"): update["work_id"] = works_id`。
+- `work_id` は `_lock_fields_via_corrections()` から除外（FC 保護外）。
+- `eval_annotator.py` のアンパック `name_zh, name_en, _url, _wp, _wd, _wi, title =` に更新。
+
+**Lesson：** `_resolve_movie_titles_for_event()` の戻り値は **7-tuple 固定**。呼び出し元を修正する際は全ての return 分岐（early return を含む）が 7-tuple であることを確認すること。`work_id` は FC 保護外フィールドなので、`_lock_fields_via_corrections()` の呼び出し直前に `{k: v for k, v in update.items() if k != "work_id"}` でフィルタすること。
+
 ## 2026-05-26 — GPT 自創 `photography` 分類繞過 VALID_CATEGORIES，前端顯示 raw i18n key
 
 **問題：** 事件 `25e27de9`（鄧南光展）詳情頁顯示 `categories.photography` raw i18n key。DB 查詢確認 `category = ['photography','art','exhibition','history']`，但 annotator 的 `VALID_CATEGORIES` frozenset（共 38 值）**不含 `photography`**。

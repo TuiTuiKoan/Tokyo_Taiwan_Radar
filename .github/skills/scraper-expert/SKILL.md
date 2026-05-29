@@ -1776,6 +1776,47 @@ Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田�
 - 0 events is a valid dry-run result when no Taiwan news appears in today's NHK feeds
 - **`_NEWS_SOURCES` member**: same Pass 2 matching rules as `google_news_rss` above — NHK article titles do not match event names by similarity.
 
+## `enrich_movie_titles()` の `work_id` 自動付与
+
+`scraper/annotator.py` の `enrich_movie_titles()` は `works` テーブルとの照合成功時に `work_id` を自動付与する（2026-05-30 以降）。
+
+### `_resolve_movie_titles_for_event()` は 7-tuple を返す
+
+```python
+# ✅ CORRECT — 7-tuple
+name_zh, name_en, official_url, works_performer, works_director, works_id, title = (
+    _resolve_movie_titles_for_event(event, sb)
+)
+
+# ❌ WRONG — ValueError: not enough values to unpack
+name_zh, name_en, official_url, works_performer, works_director, title = (
+    _resolve_movie_titles_for_event(event, sb)
+)
+```
+
+**全 return 分岐が 7-tuple であることを守ること**（early return も含む）:
+- 失敗 early return: `return None, None, None, None, None, None, ""`（6×None + 空文字列）
+- 正常 return: `return name_zh, name_en, official_url, works_performer, works_director, works_id, title_used`
+
+### `work_id` フィールドは FC 保護外
+
+`_lock_fields_via_corrections()` の呼び出し時に必ず除外すること:
+
+```python
+lock_update = {k: v for k, v in update.items() if k != "work_id"}
+_lock_fields_via_corrections(lock_update, corrections_for_event)
+```
+
+`work_id` を FC lock に含めると annotator が毎回上書き不能になる。
+
+### kyoto_cinema など URL 毎回変動ソースへの対応
+
+kyoto_cinema は上映期間ごとに新しい movie_id を URL に割り当てる → `source_id` が毎回異なる → movie-extend も merger Pass 1 も発動しない。このようなソースでは `work_id` の付与は **annotator `enrich_movie_titles()` の自動照合のみ**に依存する（手動バッチ不要）。
+
+Reference incident: 2026-05-30 — kyoto_cinema event `edcc3578` (霧のごとく / 大濛)、`work_id=None` → commit `7e5b124` で修正。
+
+---
+
 ## Movie Title Lookup Pattern
 
 `scraper/movie_title_lookup.py` provides `lookup_movie_titles(name_ja)` → `tuple[str | None, str | None, str | None]`.

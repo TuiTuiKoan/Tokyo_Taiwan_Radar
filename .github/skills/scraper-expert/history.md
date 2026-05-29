@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-05-30 — annotator: `enrich_movie_titles()` が `work_id` を自動付与しない → kyoto_cinema 新規 movie_id ごとに `work_id=None`（commit `7e5b124`）
+
+**問題：** `kyoto_cinema_341456`（霧のごとく / 大濛）に `work_id=None`。`works` テーブルには同作品のレコード（`0d69a88f`）が存在するにもかかわらず紐付けされていなかった。
+
+**根本原因：**
+1. `_query_works()` の `.select()` に `id` が含まれていなかった → `w_row.get("id")` が `None` を返し `works_id` が伝播されなかった。
+2. `enrich_movie_titles()` は works テーブルで名前照合しても `work_id` を更新しない設計だった（`_oneoff_fix_movies.py` による手動バッチのみ）。
+3. kyoto_cinema サイトはスクレイプ期間ごとに新しい movie_id を URL に割り当てる → `source_id` が毎回変わる → movie-extend が一切発動しない → 常に新規 INSERT → `work_id` が引き継がれない。
+
+**修正（commit `7e5b124`）：**
+- `_query_works()` の `.select()` に `"id"` を追加（両方のクエリ分岐）。
+- `_resolve_movie_titles_for_event()` を 6-tuple → **7-tuple** 化：`(name_zh, name_en, official_url, works_performer, works_director, works_id, title_used)`。
+- `enrich_movie_titles()` に `if works_id and not event.get("work_id"): update["work_id"] = works_id` を追加。`work_id` は FC 保護外なので `_lock_fields_via_corrections()` フィルタから除外。
+- `eval_annotator.py` の呼び出し元を 7-tuple アンパックに対応。
+- DB 直接パッチ：`kyoto_cinema_341360`・`kyoto_cinema_341456` に `work_id=0d69a88f` を設定。
+
+**教訓：**
+- `enrich_movie_titles()` は **works テーブルとの照合に成功した時点で `work_id` も自動付与**する。`_resolve_movie_titles_for_event()` の戻り値は 7-tuple であり、6-tuple に変更してはいけない。
+- `work_id` フィールドは `field_corrections` による FC lock の対象外。`_lock_fields_via_corrections()` 呼び出し時に `{k: v for k, v in update.items() if k != "work_id"}` でフィルタすること。
+- **ソースが毎回新しい movie_id を URL に生成するシネマ系スクレイパー**（kyoto_cinema など）では `source_id` が変わるため movie-extend も merger Pass 1 も発動しない。`work_id` は annotator の自動付与に委ねるしかない。
+
+---
+
 ## 2026-05-30 — annotator: `_extract_hours_from_raw()` が `－`（U+FF0D）を認識せず終了時刻を欠落（commit `b3b32b3`）
 
 **問題：** `waseda_taiwan` イベント `75a46729`（早稲田大学講演会）の `business_hours` が `15:05` のみで、原文 `15:05－17:00` の終了時刻 `17:00` が欠落。
