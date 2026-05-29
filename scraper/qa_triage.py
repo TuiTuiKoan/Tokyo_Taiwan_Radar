@@ -34,7 +34,14 @@ logger = logging.getLogger(__name__)
 
 JST = timezone(timedelta(hours=9))
 SAFE_AUTO_FIX_TYPES = frozenset({"auto_qa_simplified_zh", "auto_simplified_chinese"})
-NON_DAILY_SOURCES = frozenset({"weekly_broadcast"})
+NON_DAILY_SOURCES = frozenset({
+    "weekly_broadcast",
+    # Weekly-only scrapers (run on Monday UTC only)
+    "oaff", "tokyo_filmex", "tiff", "tiff_jp",
+    "ifi", "waseda_icl", "tuat_global",
+    "tokyo_now", "fukuoka_now", "hankyu_umeda",
+    "nagano_aioiza", "maruhiro", "whitestone_gallery",
+})
 DATE_IN_TAB_URL_RE = re.compile(r"/(\d{4}-\d{2}-\d{2})$")
 
 

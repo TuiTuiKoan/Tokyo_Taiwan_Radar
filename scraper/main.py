@@ -24,7 +24,7 @@ import os
 import re
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone as _tz
 
 from dotenv import load_dotenv
 
@@ -284,6 +284,18 @@ SCRAPERS = [
     YcamCinemaScraper(),
 ]
 
+# ---------------------------------------------------------------------------
+# Weekly-only sources — skip on non-Monday UTC days (unless _RUN_ALL or --source)
+# ---------------------------------------------------------------------------
+_RUN_ALL: bool = os.getenv("SCRAPER_RUN_ALL", "0") == "1"
+
+WEEKLY_SOURCES: frozenset[str] = frozenset({
+    "oaff", "tokyo_filmex", "tiff", "tiff_jp",
+    "ifi", "waseda_icl", "tuat_global",
+    "tokyo_now", "fukuoka_now", "hankyu_umeda",
+    "nagano_aioiza", "maruhiro", "whitestone_gallery",
+})
+
 
 def _scraper_key(scraper) -> str:
     """Convert a scraper class name to its snake_case source key.
@@ -381,9 +393,14 @@ def run(dry_run: bool = False, source: str | None = None, rescrape_ids: list[str
             except Exception as exc:
                 logger.warning("Could not pre-resolve --rescrape-ids: %s", exc)
 
+    _is_monday_utc = datetime.now(_tz.utc).weekday() == 0
+
     for scraper in active_scrapers:
         source_label = type(scraper).__name__
         source_key = _scraper_key(scraper)
+        if source is None and not _RUN_ALL and source_key in WEEKLY_SOURCES and not _is_monday_utc:
+            logger.info("Skipping %s (weekly-only, today is not Monday UTC)", source_key)
+            continue
         logger.info("=== Starting scraper: %s ===", source_label)
         try:
             scraper_start = time.time()

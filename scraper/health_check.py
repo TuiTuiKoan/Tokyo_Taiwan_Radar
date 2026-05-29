@@ -40,7 +40,14 @@ JST = timezone(timedelta(hours=9))
 
 # Sources that are NOT expected to run every day (skip from "missing" alerts)
 # weekly_broadcast runs Thu 09:00 JST + Fri 12:00 JST only (not daily)
-NON_DAILY_SOURCES: frozenset[str] = frozenset({"weekly_broadcast"})
+NON_DAILY_SOURCES: frozenset[str] = frozenset({
+    "weekly_broadcast",
+    # Weekly-only scrapers (run on Monday UTC only)
+    "oaff", "tokyo_filmex", "tiff", "tiff_jp",
+    "ifi", "waseda_icl", "tuat_global",
+    "tokyo_now", "fukuoka_now", "hankyu_umeda",
+    "nagano_aioiza", "maruhiro", "whitestone_gallery",
+})
 
 # Sources that legitimately return 0 events during quiet periods.
 # These are NOT treated as possible selector breaks.
@@ -92,8 +99,16 @@ ZERO_EVENT_OK_SOURCES: frozenset[str] = frozenset({
     # Seasonal film festivals — only active during festival period
     "oaff",
     "tokyo_filmex",
+    "tiff",
     "tiff_jp",
     "ssff",
+    # Weekly scrapers — 0 events on non-Monday days is expected
+    "ifi",
+    "waseda_icl",
+    "tuat_global",
+    "fukuoka_now",
+    "hankyu_umeda",
+    "maruhiro",
 })
 
 
