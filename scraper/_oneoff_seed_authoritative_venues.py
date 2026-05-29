@@ -189,7 +189,7 @@ def _get_event_rows_for_seed(sb, row: dict[str, Any]) -> list[dict[str, Any]]:
     names = [row["canonical_name_ja"]] + (row.get("aliases") or [])
     name_rows = (
         sb.table("events")
-        .select("id,location_name,location_address")
+        .select("id,location_name,location_address,is_active")
         .in_("location_name", names)
         .execute()
         .data
@@ -200,7 +200,9 @@ def _get_event_rows_for_seed(sb, row: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _has_conflict(seed_row: dict[str, Any], event_rows: list[dict[str, Any]]) -> tuple[bool, list[str], list[str]]:
     seed_address = (seed_row.get("address") or "").strip()
-    db_addresses = _distinct_non_empty([r.get("location_address") for r in event_rows])
+    # Only consider active events — inactive gnews/secondhand events often carry stale addresses
+    active_rows = [r for r in event_rows if r.get("is_active", True)]
+    db_addresses = _distinct_non_empty([r.get("location_address") for r in active_rows])
     if not db_addresses:
         return False, db_addresses, []
     if not seed_address:

@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-05-27 - Venue authority migration 未套用導致 registry runtime 失敗，PR-1 污染檢查未過
+
+**問題：** 在 PR-2 驗證中，`venue_registry.lookup_venue()` 與 `_oneoff_fix_tcc_locations.py --dry-run` 皆回報 `column venues.prefectures does not exist`；同時 TCC 污染檢查（`location_name` 含「台湾文化」且 `location_address` 非空且不含「虎ノ門」）結果為 13 筆，未達 0。
+
+**根因：** DB 尚未套用 `076_venues_authority.sql`（或套用順序衝突），導致 registry 查詢新欄位失敗，PR-1 清理腳本也無法執行；舊污染資料因此仍留存。
+
+**修正：** 先在 Supabase SQL Editor 套用 `076_venues_authority.sql`，再重跑 `_oneoff_fix_tcc_locations.py --dry-run` / apply，最後重驗污染查詢是否回到 0。
+
+**教訓：** 只做 `py_compile` 不足以保證可執行性；凡新增 DB 欄位且被 runtime 查詢依賴時，必須加做一次「實際查詢呼叫」驗證（例如直接呼叫 `lookup_venue`）。
+
+---
+
+---
+
 ## 2026-05-26 — zsh history expansion で過去の `rm` を意図せず復元（Tester 由来のセキュリティ事故）
 
 **問題：** Tester が inline shell command 内で `!r` という文字列（Python の `repr()` 用途等）を含めたところ、zsh の history expansion が発動し、shell history 内の `rm -f .../credentials/token.json` を取り出して実行候補にした。今回は Python SyntaxError で実行は阻止されたが、別パターンでは実害が出る。
