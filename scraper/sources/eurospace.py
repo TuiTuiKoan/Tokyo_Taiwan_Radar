@@ -231,9 +231,9 @@ class EurospaceScraper(BaseScraper):
             d = _make_date(int(m.group(1)), int(m.group(2)))
             return (_to_dt(d) if d else None), None
 
-        # Pattern B: X/X 公開 → start_date; end_date = None
+        # Pattern B: X/X → start_date; end_date = None
         m = re.search(r"(\d{1,2})/(\d{1,2})", date_text)
-        if m and "公開" in date_text:
+        if m:
             d = _make_date(int(m.group(1)), int(m.group(2)))
             return (_to_dt(d) if d else None), None
 

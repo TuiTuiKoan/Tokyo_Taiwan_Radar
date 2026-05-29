@@ -108,12 +108,20 @@ class MidlandCinemaScraper(BaseScraper):
         m_range = re.search(r"\d+月\d+日[〜～~]\d+月\d+日", full_text)
         m_made = re.search(r"\d+月\d+日まで", full_text)
         m_open = re.search(r"(\d+月\d+日)公開予定", full_text)
+        m_open_plain = re.search(r"(\d+月\d+日)公開(?!予定)", full_text)
         if m_range:
             result["date_text"] = m_range.group(0)
         elif m_made:
             result["date_text"] = m_made.group(0)
         elif m_open:
             result["date_text"] = m_open.group(1)
+        elif m_open_plain:
+            result["date_text"] = m_open_plain.group(1)
+        else:
+            # Fallback: extract first X月X日 as direct start_date reference
+            m_any = re.search(r"\d{1,2}月\d{1,2}日", full_text)
+            if m_any:
+                result["date_text"] = m_any.group(0)
 
         # Description from story section
         story_el = soup.find("h3", string=re.compile("ストーリー|解説|あらすじ"))
