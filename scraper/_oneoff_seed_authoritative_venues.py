@@ -167,6 +167,19 @@ SEED_DATA: list[dict[str, Any]] = [
         "is_authoritative": True,
         "is_multi_venue": True,
     },
+    {
+        "canonical_name_ja": "道の駅まえばし赤城",
+        "canonical_name_zh": "前橋赤城道路休息站",
+        "canonical_name_en": "Roadside Station Maebashi Akagi",
+        "address": "群馬県前橋市田口町36番地",
+        "prefecture": "群馬県",
+        "prefectures": ["群馬県"],
+        "city": "前橋市",
+        "aliases": ["道の駅 まえばし赤城", "まえばし赤城"],
+        "homepage": "https://maebashi-akagi.jp/",
+        "is_authoritative": True,
+        "is_multi_venue": False,
+    },
 ]
 
 _AUTHORITY_COLUMNS = (
