@@ -97,6 +97,10 @@ Read this at the start of every session before writing any scraper.
 2. Annotator 會透過 `venue_registry.lookup_venue()` 自動補齊 `location_address`、`location_prefectures`、`venue_id` 與 i18n 欄位。
 3. 新場館流程：先由 scraper 穩定抓到 `location_name`，確認重複出現（至少 2 筆）後，將場館加入 `scraper/_oneoff_seed_authoritative_venues.py` 的 `SEED_DATA`，並附上 pre-flight diff 無衝突證據。
 4. 多場館系列（影展等）請設定 `is_multi_venue = true`，讓 annotator 自動使用 `prefectures` 並將 `location_address` 保持為 `None`。
+5. **Seed pre-flight 衝突 SKIP の注意点**:
+   - `_has_conflict()` は NFKC 正規化 + 番地レベルのトランケートで住所を比較する（exact match 禁止）。`\u3000`・全形数字・大樓名有無・都道府縣前綴の有無はすべて compatible として扱われる。
+   - 衝突チェックは **active イベントのみ**（`is_active=True`）を対象にする。inactive gnews イベントの住所は不完全なことが多く、seed を誤ブロックする原因になる。
+   - SKIP が出た場合は event_id sample を確認し、住所が本当に異なるか（別場所）または単なるフォーマット差異かを判別すること。
 
 ## ⚡ Combined Post-Build Audit — 新規 scraper 完成後に必ず実行
 

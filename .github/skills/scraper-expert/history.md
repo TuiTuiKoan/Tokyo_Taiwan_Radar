@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-05-30 — seed script 住所衝突チェックが NFKC 非正規化 + exact 比較のため false positive（commit `b32aad2`）
+
+**問題：** `_oneoff_seed_authoritative_venues.py` dry-run で TCC・FAAM 2 件が毎回 SKIP。DB 住所バリアント（全形スペース `\u3000`、全形数字、都道府縣前綴欠如、大樓名有無の違い）が全て「衝突」と誤判定されていた。例：`港区虎ノ門1-1-12 虎ノ門ビル2階`（都道府縣なし）vs seed `東京都港区虎ノ門1-1-12 虎ノ門ビル2階` → 完全不一致でSKIP。
+
+**根本原因：** `_has_conflict()` が `a != seed_address`（exact string 比較）を使っていた。Unicode 正規化も、建物名・フロアの detail level の違いも考慮なし。
+
+**修正（commit `b32aad2`）：**
+- `_normalize_addr()`: `unicodedata.normalize("NFKC", ...)` で全形文字・全形スペースを半角に統一。
+- `_street_prefix()`: 番地（`1-1-12` / `3-1` 等）末尾までの street-level prefix を抽出し、大樓名・フロアを捨てる。
+- `_addresses_compatible()`: street prefix が一致、または一方が他方の suffix になっている（都道府縣前綴の有無）場合を compatible と判定。
+- `_has_conflict()` の比較を `not _addresses_compatible(a, seed_address)` に変更。
+- 結果：dry-run が `skip=0 conflict=0`（全 11 件 update）に改善。
+
+**教訓：**
+- **住所の衝突チェックは exact 比較禁止**。最低限 NFKC 正規化 + 番地レベルのトランケートが必要。
+- `unicodedata.normalize("NFKC", addr)` 一発で全形スペース・全形数字・全形英字が全て半角化される。
+- 都道府縣前綴の有無（`港区…` vs `東京都港区…`）は `pa.endswith(pb) or pb.endswith(pa)` で吸収可。
+- seed pre-flight の衝突ログには必ず event_id sample を出力しておくこと。事後調査が格段に速くなる。
+
+---
+
+## 2026-05-27 — authoritative venue registry 導入：inactive イベント汚染住所が pre-flight conflict を誤発火（PR-2 + commit `31e1493`）
+
+**問題：** migration 076 + `venue_registry.py` + seed script で authoritative venues を確立しようとしたが、seed pre-flight で 6 件が SKIP。原因は inactive gnews イベントが古い住所（省略形）を持っており、active 扱いで衝突判定に混入していた。
+
+**根本原因：** `_get_event_rows_for_seed()` が `is_active` カラムを select しておらず、`_has_conflict()` も active/inactive を区別していなかった。inactive gnews イベントは二次情報であり、住所が不完全なケースが多い（例：`東京都港区虎ノ門1-1-12` — 大樓名なし）。
+
+**修正（commit `31e1493`）：**
+- `_get_event_rows_for_seed()`: select に `is_active` を追加。
+- `_has_conflict()`: `active_rows = [r for r in event_rows if r.get("is_active", True)]` でフィルタリング。
+
+**教訓：**
+- **seed pre-flight の衝突チェックは active イベントのみを対象にする**。gnews / secondhand ソースの inactive イベントは住所品質が低く、seed を誤ブロックする。
+- authoritative venue registry の導入時は migration の compatibility fallback を実装しておくこと（migration 未套用の staging 環境でスクリプトがクラッシュしない）。`venues` テーブルの `is_authoritative` カラム存在チェックを先行実行し、欠如なら `SystemExit(2)` で明示的にエラーを出す。
+
+---
+
 ## 2026-05-26 — `main.py --source X` を本地 staging 用ループで使い、annotator/merger が 27 回フル DB 走査されコスト膨張
 
 **問題：** 29 個の新規 scraper 登録（commit `bfad6e9`）後、明日 09:00 JST cron 前に「quota を打ち破らないか」を確認するため、27 source を `for s in SOURCES: python main.py --source $s --timeout 420s` で順に流した。結果 20 source が 420s timeout（実 scrape は数秒で完了、残り全部 annotator phase で消費）。OpenAI コール量は本来の 27 倍規模。

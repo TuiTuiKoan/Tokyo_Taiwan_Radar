@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-05-27 — C-class 単一場館覆寫が multi-city parent を破壊 + B-class `location_prefectures` 不足（PR-1）
+
+**問題：** oneoff 修正スクリプトの C-class 判定（`location_name` 含 `台湾文化` ＋ 住所に `虎ノ門` なし）が multi-city safeguard なしで実行され、`51f7cd44`（台湾映画上映会2026）が単一東京に上書きされた。raw_description には北海道・東京・神奈川・京都・大阪の 5 都市が明記されていた。B-class（住所なし + `location_name` に `・`）では `location_prefectures` が設定されないケースが残っていた（YPAM 等）。
+
+**根本原因：** `location_name` は信頼性の低いシグナル（主催者名や会場名どちらでもありうる）。multi-city の真のシグナルは raw_description の地理分布。B-class detector も `・` という記号に依存していたが、単一名称でも `・` を含む例が多い。
+
+**修正（PR-1）：**
+1. C-class 覆寫前に `raw_description` の distinct prefecture scan（>=2 で skip）を追加。
+2. B-class 補完を「`location_name` に `・`」→「raw_description に複数都市シグナル」で判定に変更。
+3. `51f7cd44` を multi-city に回滾（`location_address=null` + 5 都道府縣 `location_prefectures`）。
+4. `architect.agent.md` に `TCC Multi-City False Positive Guard` を追記。
+
+**教訓：**
+- 単一場館 canonical 覆寫は **必ず multi-city check ファースト**。`location_name` ではなく raw_description を見る。
+- Region token は必ず full prefecture 形式（`東京都`）。短縮形（`東京`）は誤マッチを起こす。
+- C-class / B-class いずれの detector も「`location_name` に文字列を含む」だけでは不十分。raw_description の地理情報を一次ソースにすること。
+
+---
+
 ## 2026-05-17 — `location_url` が Peatix チャンネル / `official_url` が null（event `9084ad67` 種土）
 
 **問題：** 詳細ページの「場地 ↗」が `https://taiwanculture.peatix.com/`（Peatix チャンネルページ）にリンク。`official_url=null` のためソースリンクが「查看原始資訊」表示。
