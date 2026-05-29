@@ -160,6 +160,11 @@ _SIMP_TO_TRAD_RAW = {
     "见": "見", "从": "從", "库": "庫",
     # SC chars found in qa_heartbeat false-negative gap (2026-05-25)
     "销": "銷", "册": "冊", "张": "張",
+    # SC chars found via OpenCC cross-check on stuck pending reports (2026-05-30)
+    # NOTE: 台→臺 deliberately EXCLUDED — project standard is 台灣, not 臺灣.
+    "万": "萬", "两": "兩", "卖": "賣", "围": "圍",
+    "岚": "嵐", "师": "師", "绕": "繞", "绝": "絕",
+    "费": "費", "赵": "趙", "黄": "黃",
 }
 # Remove identity mappings (same char in both) and build translation table
 _SIMP_TO_TRAD = str.maketrans({k: v for k, v in _SIMP_TO_TRAD_RAW.items() if k != v})
