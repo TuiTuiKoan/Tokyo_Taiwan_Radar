@@ -102,7 +102,7 @@ class EurospaceScraper(BaseScraper):
             # ── 公開日 / 上映期間 ─────────────────────────────────
             h3 = section.find("h3")
             date_text = h3.get_text().strip() if h3 else ""
-            start_date = self._parse_start_date(date_text, section)
+            start_date, end_date = self._parse_date_range(date_text, section)
 
             # ── info ブロック (p.ttl → p.info) ───────────────────
             info_blocks: dict[str, str] = {}
@@ -151,7 +151,7 @@ class EurospaceScraper(BaseScraper):
                 raw_title=title,
                 raw_description=description,
                 start_date=start_date,
-                end_date=None,
+                end_date=end_date,
                 location_name="ユーロスペース",
                 location_address="東京都渋谷区円山町1-5 KINOHAUS 3F・4F",
                 category=["movie"],
@@ -162,16 +162,19 @@ class EurospaceScraper(BaseScraper):
             logger.warning("Failed to scrape detail w_id=%s: %s", w_id, e)
             return None
 
-    def _parse_start_date(
+    def _parse_date_range(
         self, date_text: str, section: BeautifulSoup
-    ) -> Optional[datetime]:
-        """h3 のテキストから公開日を解析する。
+    ) -> tuple[Optional[datetime], Optional[datetime]]:
+        """h3 のテキストから公開日・終了日を解析する。
+
+        まで suffix を最優先で検出し、Pattern A が誤って終了日を
+        start_date に塩込むバグを防止する。
 
         パターン:
-        - "5月30日（土）公開"  →  start_date = 5/30 (today's year)
-        - "9月25日（金）公開"  →  start_date = 9/25
-        - "4/30（木）から公開" →  start_date = 4/30
-        - "4/30（木）までの上映" → 上映時間ブロックから最初の日付を抽出
+        - "5月30日（土）公開"   →  (5/30, None)
+        - "6/10（水）まで"     →  (上映時間首日, 6/10)
+        - "5月3日まで"        →  (上映時間首日, 5/3)
+        - "上映中"            →  (上映時間首日, None)
         """
         today = date.today()
         year = today.year
@@ -179,51 +182,59 @@ class EurospaceScraper(BaseScraper):
         def _to_dt(d: date) -> datetime:
             return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
 
-        # パターン A: X月X日 形式
-        m = re.search(r"(\d{1,2})月(\d{1,2})日", date_text)
-        if m:
-            month, day = int(m.group(1)), int(m.group(2))
-            try:
-                d = date(year, month, day)
-                # 過去1年以内にない場合は翌年
-                if (today - d).days > 365:
-                    d = date(year + 1, month, day)
-                return _to_dt(d)
-            except ValueError:
-                pass
-
-        # パターン B: X/X 形式 + 公開
-        m = re.search(r"(\d{1,2})/(\d{1,2})", date_text)
-        if m and "公開" in date_text:
-            month, day = int(m.group(1)), int(m.group(2))
+        def _make_date(month: int, day: int) -> Optional[date]:
             try:
                 d = date(year, month, day)
                 if (today - d).days > 365:
                     d = date(year + 1, month, day)
-                return _to_dt(d)
+                return d
             except ValueError:
-                pass
+                return None
 
-        # パターン C: 「までの上映」→ 上映時間ブロックの最初の日付を使用
-        if "まで" in date_text or "上映中" in date_text:
-            showtimes_info = ""
+        def _first_showtime_date() -> Optional[datetime]:
+            """上映時間ブロックから最初の日付を抽出"""
             for li in section.select("ul.work-info li"):
                 ttl_el = li.find("p", class_="ttl")
                 if ttl_el and "上映時間" in ttl_el.get_text():
                     info_el = li.find("p", class_="info")
                     if info_el:
-                        showtimes_info = info_el.get_text()
-                    break
-            if showtimes_info:
-                sm = re.search(r"(\d{1,2})月(\d{1,2})日", showtimes_info)
-                if sm:
-                    month, day = int(sm.group(1)), int(sm.group(2))
-                    try:
-                        d = date(year, month, day)
-                        if (today - d).days > 365:
-                            d = date(year + 1, month, day)
-                        return _to_dt(d)
-                    except ValueError:
-                        pass
+                        sm = re.search(r"(\d{1,2})月(\d{1,2})日", info_el.get_text())
+                        if sm:
+                            d = _make_date(int(sm.group(1)), int(sm.group(2)))
+                            return _to_dt(d) if d else None
+            return None
 
-        return None
+        # ── まで suffix を最優先で検出 ──────────────────────────────────────
+        # Pattern C: X月X日まで  →  end_date = その日付; start_date = 上映時間首日
+        m = re.search(r"(\d{1,2})月(\d{1,2})日.*?まで", date_text)
+        if m:
+            end_d = _make_date(int(m.group(1)), int(m.group(2)))
+            end_dt = _to_dt(end_d) if end_d else None
+            start_dt = _first_showtime_date()
+            return start_dt, end_dt
+
+        # Pattern C': X/Xまで  →  end_date = その日付; start_date = 上映時間首日
+        m = re.search(r"(\d{1,2})/(\d{1,2}).*?まで", date_text)
+        if m:
+            end_d = _make_date(int(m.group(1)), int(m.group(2)))
+            end_dt = _to_dt(end_d) if end_d else None
+            start_dt = _first_showtime_date()
+            return start_dt, end_dt
+
+        # 上映中（まで なし）→ start_date = 上映時間首日, end_date = None
+        if "上映中" in date_text:
+            return _first_showtime_date(), None
+
+        # Pattern A: X月X日（公開/から）→ start_date; end_date = None
+        m = re.search(r"(\d{1,2})月(\d{1,2})日", date_text)
+        if m:
+            d = _make_date(int(m.group(1)), int(m.group(2)))
+            return (_to_dt(d) if d else None), None
+
+        # Pattern B: X/X 公開 → start_date; end_date = None
+        m = re.search(r"(\d{1,2})/(\d{1,2})", date_text)
+        if m and "公開" in date_text:
+            d = _make_date(int(m.group(1)), int(m.group(2)))
+            return (_to_dt(d) if d else None), None
+
+        return None, None
