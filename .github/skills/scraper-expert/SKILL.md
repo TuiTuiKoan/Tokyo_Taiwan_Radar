@@ -371,6 +371,41 @@ m = _DATE_RE.search(text)  # \d が全角を拾い損ねない
 
 Reference incident: 2026-05-12 — `nittai_toumonkai.py` 本文に `２０２６年` が出現。
 
+## 時間レンジ区切り文字 — 5 種類すべてを character class に含める
+
+**Rule**: 日本語テキストの時間レンジ（開始〜終了）を正規表現でパースする際は、以下 **5 種類**の区切り文字すべてを character class に含めること。
+
+| 文字 | Unicode | 典型ソース |
+|---|---|---|
+| `〜` | U+301C WAVE DASH | 一般的 |
+| `~` | U+007E ASCII TILDE | 一般的 |
+| `～` | U+FF5E FULLWIDTH TILDE | 一般的 |
+| `-` | U+002D HYPHEN-MINUS | ASCII |
+| `－` | U+FF0D FULLWIDTH HYPHEN-MINUS | 学術・waseda 系 |
+
+```python
+_TIME = r'\d{1,2}:\d{2}'
+# ✅ 全 5 種の区切り文字を網羅
+m = re.search(rf'({_TIME})\s*[〜~～\-－]\s*({_TIME})', text)
+```
+
+`annotator.py` の `_extract_hours_from_raw()` はこのパターンを実装済み（commit `b3b32b3`）。新たに時間パーサを書く際は同じ character class を踏襲すること。
+
+**修正時のテスト手順：**
+```python
+cases = [
+    '15:05－17:00',  # U+FF0D
+    '15:05～17:00',  # U+FF5E
+    '15:05〜17:00',  # U+301C
+    '15:05-17:00',   # ASCII
+    '15:05~17:00',   # U+007E
+]
+for t in cases:
+    assert re.search(rf'({_TIME})\s*[〜~～\-－]\s*({_TIME})', t), f'MISS: {t!r}'
+```
+
+Reference incident: 2026-05-30 — `waseda_taiwan` event `75a46729` で `business_hours` が `15:05` のみ（`17:00` 欠落）。commit `b3b32b3`。
+
 ## Jimdo / 一部 CMS — URL パス encoding 不統一 → `unquote(href)`
 
 **Rule**: Jimdo, 一部の WordPress, FC2 等のCMSは、`<a href>` の日本語パスをあるページでは URL-encode し、別のページでは生の日本語文字で出力する。比較・重複排除を行う前に `unquote()` で正規化すること。

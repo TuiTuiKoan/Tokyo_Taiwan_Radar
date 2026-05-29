@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-05-30 — annotator: `_extract_hours_from_raw()` が `－`（U+FF0D）を認識せず終了時刻を欠落（commit `b3b32b3`）
+
+**問題：** `waseda_taiwan` イベント `75a46729`（早稲田大学講演会）の `business_hours` が `15:05` のみで、原文 `15:05－17:00` の終了時刻 `17:00` が欠落。
+
+**根本原因：** `_extract_hours_from_raw()` の時間レンジ正規表現 `[〜~～\-]` に `－`（U+FF0D, FULLWIDTH HYPHEN-MINUS）が未収録。waseda-taiwan 系の原文は全角ハイフン `－` を区切りに使用しており、マッチ失敗 → fallback の「`日時` ラベル後の最初の時刻」パターンで `15:05` のみ返していた。
+
+**修正（commit `b3b32b3`）：**
+- `annotator.py` L427: `[〜~～\-]` → `[〜~～\-－]`（U+FF0D 追加）
+- DB 直パッチ：event `75a46729` に `business_hours = '15:05〜17:00'`、`annotation_status = 'pending'`
+
+**教訓：**
+- 日本語テキストの時間レンジ区切り文字は **5 種類** ある：`〜`(U+301C)・`~`(U+007E)・`～`(U+FF5E)・`-`(U+002D)・`－`(U+FF0D)。正規表現は全種類を含めること。
+- `_extract_hours_from_raw` を新規作成・修正する際は 5 種類全てに対してテストケースを実行すること。
+- waseda-taiwan 系・学術イベント系サイトは `－`（U+FF0D）を多用する。
+
+---
+
 ## 2026-05-30 — waseda_taiwan: `_STOP_LABELS` 欠如で venue_raw に発表者情報が混入、performers にモデレーター未収録（commits `0604a6f`, `b3be645`）
 
 **問題：** `location_name` に `早稲田大学...教室 講演者：郭智輝氏... モデレーター：久保克行...` と発表者情報が混入。かつ `performers = ['郭智輝']` のみで モデレーター未収録。
