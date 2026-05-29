@@ -2087,7 +2087,7 @@ def _resolve_movie_titles_for_event(
     name_ja: str | None,
     source_name: str | None,
     has_parent: bool = False,
-) -> tuple[str | None, str | None, str | None, str | None, str | None, str]:
+) -> tuple[str | None, str | None, str | None, str | None, str | None, str | None, str]:
     """Resolve canonical movie titles via works table + eiga.com.
 
     Mirrors enrich_movie_titles() title-resolution logic and is reused by
@@ -2098,7 +2098,7 @@ def _resolve_movie_titles_for_event(
 
     sb may be None to skip works lookup (eval frozen mode without DB).
 
-    Returns: (name_zh, name_en, official_url, works_performer, works_director, title_used)
+    Returns: (name_zh, name_en, official_url, works_performer, works_director, works_id, title_used)
     """
     # Determine the lookup title from raw_title / name_ja per source rules.
     if source_name in _NEWS_MOVIE_SOURCES:
@@ -2110,19 +2110,20 @@ def _resolve_movie_titles_for_event(
         # Guard: news sub-events whose brackets only come from GPT name_ja
         # may be hallucinated — skip resolution.
         if m and not title_from_raw and has_parent:
-            return None, None, None, None, None, ""
+            return None, None, None, None, None, None, ""
         title = m.group(1).strip() if m else ""
     else:
         title = name_ja or raw_title or ""
 
     if not title:
-        return None, None, None, None, None, ""
+        return None, None, None, None, None, None, ""
 
     name_zh: str | None = None
     name_en: str | None = None
     official_url: str | None = None
     works_performer: str | None = None
     works_director: str | None = None
+    works_id: str | None = None
 
     def _query_works(t: str) -> dict | None:
         if sb is None:
@@ -2130,7 +2131,7 @@ def _resolve_movie_titles_for_event(
         try:
             r = (
                 sb.table("works")
-                .select("title_zh,title_en,cast_summary,director")
+                .select("id,title_zh,title_en,cast_summary,director")
                 .eq("title_ja", t)
                 .limit(1)
                 .execute()
@@ -2140,7 +2141,7 @@ def _resolve_movie_titles_for_event(
             # B2: also try title_zh column when title_ja missed.
             r2 = (
                 sb.table("works")
-                .select("title_zh,title_en,cast_summary,director")
+                .select("id,title_zh,title_en,cast_summary,director")
                 .eq("title_zh", t)
                 .limit(1)
                 .execute()
@@ -2156,6 +2157,7 @@ def _resolve_movie_titles_for_event(
         name_en = w_row.get("title_en")
         works_performer = w_row.get("cast_summary")
         works_director = w_row.get("director")
+        works_id = w_row.get("id")
 
     # Fallback: eiga.com lookup for whatever is still missing.
     if not name_zh or not name_en:
@@ -2180,6 +2182,7 @@ def _resolve_movie_titles_for_event(
                     name_en = w_row2.get("title_en")
                     works_performer = works_performer or w_row2.get("cast_summary")
                     works_director = works_director or w_row2.get("director")
+                    works_id = works_id or w_row2.get("id")
                 if not name_zh or not name_en:
                     ez, ee, eurl = lookup_movie_titles(extracted)
                     if not name_zh:
@@ -2191,7 +2194,7 @@ def _resolve_movie_titles_for_event(
                 if name_zh or name_en:
                     title = extracted
 
-    return name_zh, name_en, official_url, works_performer, works_director, title
+    return name_zh, name_en, official_url, works_performer, works_director, works_id, title
 
 
 def enrich_movie_titles() -> None:
@@ -2217,7 +2220,7 @@ def enrich_movie_titles() -> None:
             "id,name_ja,raw_title,name_zh,name_en,official_url,"
             "description_zh,description_en,selection_reason,"
             "annotation_status,source_name,parent_event_id,"
-            "performer,director"
+            "performer,director,work_id"
         )
         .contains("category", ["movie"])
         .neq("annotation_status", "reviewed")
@@ -2248,7 +2251,7 @@ def enrich_movie_titles() -> None:
                 )
                 continue
 
-        name_zh, name_en, official_url, works_performer, works_director, title = (
+        name_zh, name_en, official_url, works_performer, works_director, works_id, title = (
             _resolve_movie_titles_for_event(
                 sb,
                 event.get("raw_title"),
@@ -2280,6 +2283,8 @@ def enrich_movie_titles() -> None:
             update["performer"] = works_performer
         if not event.get("director") and works_director:
             update["director"] = works_director
+        if works_id and not event.get("work_id"):
+            update["work_id"] = works_id
         if official_url and not event.get("official_url"):
             update["official_url"] = official_url
 
@@ -2375,7 +2380,7 @@ def enrich_movie_titles() -> None:
             continue
 
         sb.table("events").update(update).eq("id", event["id"]).execute()
-        _lock_fields_via_corrections(sb, event["id"], update)
+        _lock_fields_via_corrections(sb, event["id"], {k: v for k, v in update.items() if k != "work_id"})
         patched += 1
         logger.info(
             "  ✓ %s/%s [%s] → zh=%r en=%r desc_zh=%s desc_en=%s sr=%s",
