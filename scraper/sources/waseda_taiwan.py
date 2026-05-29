@@ -203,11 +203,19 @@ class WasedaTaiwanScraper(BaseScraper):
                 # no real address found — let annotator fill it
                 # (NEVER echo venue name as address)
 
+                # Extract speaker/moderator for annotator
+                speaker_raw = _extract_after_label(content, r"講演者")
+                moderator_raw = _extract_after_label(content, r"モデレーター")
+
                 raw_desc_parts = []
                 if date_raw:
                     raw_desc_parts.append(f"開催日時: {date_raw}")
                 if venue:
                     raw_desc_parts.append(f"会場: {venue_raw[:200] or venue}")
+                if speaker_raw:
+                    raw_desc_parts.append(f"講演者: {speaker_raw}")
+                if moderator_raw:
+                    raw_desc_parts.append(f"モデレーター: {moderator_raw}")
                 raw_description = "\n\n".join(raw_desc_parts) if raw_desc_parts else content[:400]
 
                 events.append(Event(
