@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-05-30 — annotator: `location_prefectures` が `location_address` FC 修正後にサイレント drift → auto-sync 実装（commit `eb94bb9`）
+
+**問題：** 4 件のイベント（`7b37604e`、`9de63ffc`、`10a4ee5d`、`5e5ff363`）が `location_address` を FC 修正されていたが `location_prefectures` は null のまま。フロントエンドの都道府縣チップが表示されなかった。
+
+**根本原因：** `annotate_pending_events()` はアノテーション時に `location_prefectures` を venue_registry lookup かサブイベント集計でしか設定しない設計だった。`field_corrections` で `location_address` を手動パッチしても `location_prefectures` は自動連動しないため、再アノテーションを回しても drift が解消されなかった。
+
+**修正（commit `eb94bb9`）：** `annotate_pending_events()` の末尾に auto-sync ステップを追加。`location_prefectures` が FC ロックされておらず・venue lookup 未設定・`fix_reviewed` 非フラグの場合、`_PREFECTURE_RE` で `location_address` 先頭をマッチし `location_prefectures` を自動付与（単一都道府縣のみ、`オンライン` スキップ）。Architect Guard 文書（`.github/agents/architect.agent.md`）に Sync Guard ルール 5 条と検出 SQL を追記。
+
+**教訓：**
+- **`location_address` を手動 FC 修正した後は `location_prefectures` も確認**：auto-sync は次の annotator 実行時まで遅延するため、即時反映が必要な場合は `location_prefectures` も同時に FC 修正する。
+- **auto-sync は単一都道府縣のみ**: 複数都道府縣イベントは multi-city de-anchor フローで `location_prefectures` が設定されるため、auto-sync は `len(cur_prefectures) <= 1` の場合のみ発動。
+- **FC ロックの null 制約**: `location_prefectures` を null に FC 保護したい場合は `field_corrections` では不可（NOT NULL 制約）。`annotation_status = 'annotated'` を維持して再アノテーション対象外にする方法を使う。
+
+---
+
+## 2026-05-30 — hakusuisha.py: `../news/n*.html` 相対 URL がそのまま DB 格納 → `urljoin` 修正 + f6ccf6bf/06d080a3 DB 直接修正（commit `c099bcb`）
+
+**問題：** `hakusuisha.py` の `detail_url` が `../news/n64013.html` 形式の相対パスのまま DB に格納され、フロントエンドの「詳細 ↗」リンクが 404。影響イベント：`f6ccf6bf`（及川茜・台湾文学翻訳講演）、`06d080a3`（同スクレイプ）。さらに `f6ccf6bf` は `start_date = 2026-05-25`（公開日）・`description` に「台湾との直接的な関連性はありません」という誤記述・`location_name/address` null という複合不具合があった。
+
+**根本原因：**
+1. `hakusuisha.py` の URL 補完が `startswith("/")` のみを処理していたため、`../` 形式の document-relative パスが素通りして DB 格納された。
+2. annotator が `raw_description`（記事公開日しか読まず）から `start_date` を「イベント開催日」ではなく「公開日」として抽出。
+3. annotator が「台湾との直接的な関連性はありません」と誤判定 — 及川茜氏は台湾作家（呉明益・何致和・鯨向海・唐捐）の日本語翻訳者として知られる。
+
+**修正：**
+- `hakusuisha.py`：`startswith("/")` → `not startswith(("http://", "https://"))` + `urljoin(page.url, detail_url)`
+- `f6ccf6bf` DB 直接修正（7 FC locks）：`source_url`（絶対 URL）、`official_url`、`start_date`（2026-06-06）、`end_date`、`location_name`（白水社）、`location_address`（東京都新宿区）、`location_prefectures`
+- `06d080a3`：`source_url` 絶対化 + FC lock
+
+**教訓：**
+- **Auto-generated scraper の detail_url 補完**: `startswith("/")` だけでは `../` パスを取り逃す。`urljoin(page.url, href)` が唯一の正解（`BASE_URL +` 文字列結合は `../` 解決不可）。
+- **`scraper/sources/hakusuisha.py` の相対パス形式**: Hakusuisha はリスト ページから見た相対パス `../news/n*.html` を使う。将来の白水社系スクレイパーは `urljoin(page.url, ...)` を必ず使うこと。
+- **公開日 vs. 開催日の混同**：annotator がアーカイブ記事ページの日付を `start_date` に使う場合がある。イベント告知記事の場合は `raw_description` 本文内の「開催日」記述と照合すること。
+- **「台湾との関連性なし」誤判定**：人物名と翻訳者実績は `raw_description` に直接記載されないケースがある（Hakusuisha の著者ページ等）。公式ページ参照で台湾作家との繋がりを確認してから `selection_reason` + `description` を補完すること。
+
+---
+
 ## 2026-05-30 — event `fb12bfa7`: `organizer_zh` に無関係な組織名が幻覚（`上田村振興会・普門寺` 再発 → null クリア + FC 鎖定）
 
 **問題：** `fb12bfa7`（台湾茶・ゲームイベント / kokuchpro）の `organizer_zh = '上田村振興会・普門寺（AI翻訳）'` が格納されており、フロントエンド zh 表示が汚染されていた。`organizer_en = 'Ueda Village Revitalization Association - Fumonji (AI translated)'` も同様。`location_name = '三軒茶屋'`（地区名のみ）・`location_address = '東京都世田谷区三軒茶屋'`（門牌番号欠落）も不正確。

@@ -592,13 +592,16 @@ source_url = a["href"]
 
 **Auto-generated scraper 的 detail_url 補全規則**（spec_to_code template 生成的 `_extract_cards` 模式）：
 ```python
-# ✅ 必須同時處理兩種相對路徑形式
-if detail_url and detail_url.startswith("/"):
-    detail_url = f"{BASE_URL}{detail_url}"
-elif detail_url and not detail_url.startswith("http"):
-    detail_url = f"{BASE_URL}/{detail_url}"  # document-relative path
+# ✅ 最正確：urljoin(page.url, href) — 處理 /path、../path、relative/path 等所有形式
+from urllib.parse import urljoin
+if detail_url and not detail_url.startswith(("http://", "https://")):
+    detail_url = urljoin(page.url, detail_url)
+
+# ❌ 不完全：BASE_URL + path は ../news/n*.html 形式を解決できない
+# if detail_url and not detail_url.startswith("http"):
+#     detail_url = f"{BASE_URL}/{detail_url}"
 ```
-只處理 `/` 前導的版本無法捕捉 `cinema/2026/event/...` 這類 document-relative URL，會讓 source_url 儲存為相對路徑並讓 detail page 開啟失敗（`raw_description = None`）。**Incident**: `cine_gallery.py` 事件 `cdf5e555`（2026-05-14，[scraper-expert/history.md]）。
+`BASE_URL` 文字列結合は `/` 前導パスには機能するが `../news/n*.html` 形式では `{BASE_URL}/../news/...` という無効 URL になる。`urljoin(page.url, href)` が唯一の正解。**Incidents**: `cine_gallery.py` 事件 `cdf5e555`（2026-05-14）; `hakusuisha.py` `../news/n*.html` → 2026-05-30 `c099bcb` で修正。
 
 ## BeautifulSoup 多行文字提取 — `separator="\n"`
 
@@ -1580,6 +1583,7 @@ print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
 - **`_extract_prefecture()` regex 必須覆蓋兩種格式**：
   - 標準格式：`東京都`、`大阪府`、`京都府`、`北海道`
   - 市開頭格式：`大阪市`、`京都市`（省略「府」的地址，如「大阪市中央区...」）
+- **Auto-sync from `location_address`（annotator re-annotation）**: `annotate_pending_events()` 末尾で `location_prefectures` が FC ロックされていない・venue lookup 未設定・`fix_reviewed` 非フラグの場合、`_PREFECTURE_RE` で `location_address` 先頭をマッチし単一都道府県を自動付与（commit `eb94bb9`, 2026-05-30）。`オンライン` 住所はスキップ。`len(cur_prefectures) > 1` の複数都道府県イベントは skip（multi-city フローで管理）。**影響**: `location_address` を FC 修正した後、次の annotator 実行で `location_prefectures` も自動追従する。即時反映が必要なら `location_prefectures` も同時に FC 修正すること。
 - **Backfill**：現有多城市母活動可用 `scraper/backfill_location_prefectures.py` 補填。
 - **篩選整合**：前台（`web/app/[locale]/page.tsx`）和後台（`web/components/AdminEventTable.tsx`）各地區篩選需加入 `location_prefectures.cs.{"X"}` OR 條件，否則多城市母活動無法命中地區篩選。
 
