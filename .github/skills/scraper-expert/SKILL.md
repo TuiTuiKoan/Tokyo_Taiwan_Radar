@@ -1048,7 +1048,9 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
 - **Permanent IP series block**: For series where ALL events are non-Taiwan-themed (e.g. `名探偵コナン`), add the IP name to `_BLOCKED_SERIES`. Checked on BOTH card title (pre-load, fast-reject) AND h1 title (post-load). Card titles from search results can be truncated, so the pre-load check alone is not sufficient.
 - Taiwan relevance criterion: Taiwan must be the **theme or primary focus**, not just one venue on a multi-city tour.
 - **`organizer_url` enrichment**: iwafu ソースページは主催者の公式サイト URL を常に含むわけではない。ブランド商標の場合は `raw_description` 内の `extract_first_party_url()` で抽出を試みるか、公式サイトを手動で FC 設定すること。`organizer_url` を設定すると UI に「主催者名 ↗」リンクが自動表示される。(Incident: `a4442567` QUEEN SHOP 2026-05-31)
-- **小売 / モールイベントの `business_hours`**: デパート・ショッピングモールの定常営業時間（ルミネエスト: 11:00～22:30 等）はイベント固有ではなく venue-level データ。`venues` テーブルに `business_hours` カラムが指置されていないため、現状は手動 FC 修正で対応。将来的には `venues.business_hours` カラム（migration 必要）+ `enrich_location.py` から自動身取りする設計。UI 側は `event.business_hours` 存在時の表示に既対応済み。
+- **小売 / モールイベントの `business_hours`**: デパート・ショッピングモールの定常営業時間はイベント固有ではなく venue-level データ。`venues` テーブルに `business_hours` カラムが存在しないため、現状は手動 FC 修正で対応。将来的には `venues.business_hours` カラム（migration 必要）+ `enrich_location.py` から自動取得する設計。UI 側は `event.business_hours` 存在時の表示に既対応済み。
+  - ⚠️ **必ず公式 venue サイトを確認してから FC 設定**。推測・常識での設定は誤りの原因（Incident: `a4442567` ルミネエスト `11:00〜22:30` と推測設定 → 実際は平日 `11:00〜21:00 / 土日祝 10:30〜21:00` だった）。
+  - 参考: ルミネエスト新宿（2026-05）ショッピング: 平日 11:00〜21:00 / 土日祝 10:30〜21:00、レストラン: 11:00〜22:00。
 - **After adding a scraper filter, always audit the DB**: run `ilike("raw_title", "%keyword%")` to find existing records that should also be deactivated. The filter only prevents future inserts.
 - **Hard delete vs deactivation**: If an IP series is confirmed permanently non-Taiwan-themed, hard delete (`table.delete().eq("id", eid)`) rather than just deactivating. Deactivated events remain accessible via direct URL unless the event page also checks `is_active`.
 - **location_name / location_address**: Extract from `場所[：:]\s*(.+?)(?:\n|交通手段|Q&A|https?://|$)` in `main_text`.

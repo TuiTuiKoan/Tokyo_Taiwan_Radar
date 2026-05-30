@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-05-31 — `a4442567` `business_hours` 二次訂正：推測値を公式サイト確認値に上書き
+
+**問題：** 同日（前エントリ）で `business_hours` を `"11:00〜22:30"` に FC 修正したが、これは公式確認なしの推測値だった。ルミネエスト新宿公式サイト（`lumine.ne.jp/est/`）を取得すると、実際は **ショッピング: 平日 11:00〜21:00 / 土日祝 10:30〜21:00**（22:30 は存在しない）。
+
+**根本原因：** Venue の `business_hours` を手動 FC 修正する際に公式 venue サイトを確認せず、一般的なショッピングモール像から推測で値を設定した。
+
+**修正：** `business_hours` → `"平日 11:00〜21:00 / 土日祝 10:30〜21:00"`（公式サイト確認値）＋ FC lock 上書き（`field_corrections` upsert）
+
+**教訓：**
+- **Venue `business_hours` の手動 FC 修正は必ず公式 venue サイトを確認してから設定**。推測・常識での設定は誤りの原因。
+- ルミネエスト新宿の正確な営業時間（2026-05）: ショッピング 平日 11:00〜21:00 / 土日祝 10:30〜21:00、レストラン 11:00〜22:00。
+
+---
+
 ## 2026-05-31 — iwafu `a4442567` (QUEEN SHOP): `organizer_zh/en` に英語ブランド名が AI 翻訳マーカー付きで格納、`organizer_url`・`business_hours` null
 
 **問題：** `a4442567`（QUEEN SHOP ルミネエスト新宿初登場）の `organizer_zh = 'QUEEN SHOP（AI翻譯）'`、`organizer_en = 'QUEEN SHOP (AI translated)'`が格納。QUEEN SHOP は英語固定商標名で翻訳不要。また `organizer_url`（QUEEN SHOP 公式サイト）・`business_hours`（ルミネエスト新宿の営業時間）が共に null。
@@ -16,7 +30,7 @@
 **修正：**
 - `organizer_zh/en` → `"QUEEN SHOP"`（AI マーカー除去、英語固定商標なので翻訳不要）
 - `organizer_url` → `https://www.queenshop.com.tw/`（QUEEN SHOP 台湾公式）
-- `business_hours` → `"11:00～22:30"`（ルミネエスト新宿 標準営業時間）
+- `business_hours` → `"11:00〜22:30"`（※この値は推測誤り。同日の二次訂正で `"平日 11:00〜21:00 / 土日祝 10:30〜21:00"` に上書き）
 - FC lock: 4 フィールド全て
 
 **教訓：**
