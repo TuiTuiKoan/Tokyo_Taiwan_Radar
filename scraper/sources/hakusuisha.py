@@ -8,6 +8,7 @@ import time
 import logging
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urljoin
 
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeout
 
@@ -149,8 +150,8 @@ class HakusuishaScraper(BaseScraper):
                 # inside the card. Most listing cards wrap the event in a single anchor.
                 if not detail_url:
                     detail_url = _safe_attr(card, "a", "href")
-                if detail_url and detail_url.startswith("/"):
-                    detail_url = f"{BASE_URL}{detail_url}"
+                if detail_url and not detail_url.startswith(("http://", "https://")):
+                    detail_url = urljoin(page.url, detail_url)
 
                 source_url = detail_url or page.url
                 source_id = _extract_source_id(source_url)

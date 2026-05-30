@@ -846,9 +846,24 @@ WHERE organizer_zh IS NOT NULL
 LIMIT 50;
 ```
 
-**修正流程**：確認污染後，手動設 `organizer_zh/en` 正確值，並在 `field_corrections` 鎖定 `organizer`、`organizer_zh`、`organizer_en`、`performer`（避免再次被 annotator 覆寫）。
+**修正流程**：確認污染後，`field_corrections` で `organizer_zh`・`organizer_en` を FC lock（annotator の再上書き防止）。
+- **source に正式な中国語名がある場合** → 正しい値を設定して FC lock。
+- **source に信頼できる中国語名が存在しない場合** → `null` に設定して FC lock（幻覚値より `null` が安全。UI は `organizer`（ja）へ fallback する）。
 
-Reference incident: 2026-05-08 — `fe03288b`/`b8621ee9`（湾.味 台湾料理体験会）`organizer_zh/en` 含上田村振興会・普門寺資料，與 raw_description 完全無關。
+**追加検出サイン**：`organizer_zh` 値に `（AI翻訳）` / `（AI翻譯）` サフィックスが含まれる場合は即 null クリア + FC lock。⚠️ `auto_qa.py _detect_performer_ai_marker` は `performer_zh/en + category=movie` 限定であり **`organizer_zh` は自動検出されない**。定期的に以下 SQL で補完すること：
+
+```sql
+-- organizer_zh の AI マーカー残留スキャン
+SELECT id, organizer_zh, source_name
+FROM events
+WHERE is_active = true
+  AND (organizer_zh LIKE '%AI翻譯%' OR organizer_zh LIKE '%AI翻訳%')
+LIMIT 50;
+```
+
+Reference incidents:
+- 2026-05-08 — `fe03288b`/`b8621ee9`（湾.味 台湾料理体験会）`organizer_zh/en` 含上田村振興会・普門寺資料，與 raw_description 完全無關。
+- 2026-05-30 — `fb12bfa7`（台湾茶ゲームイベント / kokuchpro）同一の `上田村振興会・普門寺（AI翻訳）` が再発。`raw_description` は「語学スクール」のみ。`organizer_zh/en = null` + FC lock で対応。`location_name`・`location_address` も kokuchpro 構造フィールド（`会場:`/`住所:`）から正値に修正。
 
 ## Frontend Client Component — UTC 日期表示一貫性ルール
 

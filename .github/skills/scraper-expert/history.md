@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-05-30 — event `fb12bfa7`: `organizer_zh` に無関係な組織名が幻覚（`上田村振興会・普門寺` 再発 → null クリア + FC 鎖定）
+
+**問題：** `fb12bfa7`（台湾茶・ゲームイベント / kokuchpro）の `organizer_zh = '上田村振興会・普門寺（AI翻訳）'` が格納されており、フロントエンド zh 表示が汚染されていた。`organizer_en = 'Ueda Village Revitalization Association - Fumonji (AI translated)'` も同様。`location_name = '三軒茶屋'`（地区名のみ）・`location_address = '東京都世田谷区三軒茶屋'`（門牌番号欠落）も不正確。
+
+**根本原因：** annotator.py の few-shot context に前回 FC 汚染値（2026-05-08 `fe03288b` と同一の `上田村振興会・普門寺`）が混入し、GPT が再利用。`raw_description` には「語学スクール開催のイベントです」しかなく、組織名は一切登場しない。`（AI翻訳）` サフィックス付きで格納されたが、`auto_qa.py _detect_performer_ai_marker` は `performer_zh/en + category=movie` 限定のため **`organizer_zh` の AI マーカーは検出対象外**（検出ギャップ）。
+
+**修正（DB 直接修正）：**
+- `organizer_zh = null`・`organizer_en = null`（信頼できる中国語名なし → 幻覚より null が安全）
+- `location_name = 'ふれあい貸し会議室 三軒茶屋A'`（kokuchpro 構造フィールド `会場:` から）
+- `location_address = '東京都世田谷区三軒茶屋1-35-5'`（同上 `住所:` から）
+- FC lock: 4 フィールド（+ 既存 `category` 含め計 5 ロック）
+
+**教訓：**
+- **`organizer_zh` 汚染検出の早期サイン**: `（AI翻訳）` サフィックス付き + 組織名が `raw_description` に不在 → 即 null クリア + FC lock。
+- **null fix が正解のケース**: 信頼できる中国語名がソースに存在しない場合は幻覚値を保持するより `null` の方が安全（UI は `organizer`（ja）へ fallback する）。
+- **`R-ANN-AI-MARKER` の scope 不足**: `organizer_zh/en` の AI マーカーは現在自動検出されない。定期的な SQL スキャンで補完が必要。
+- **kokuchpro の構造フィールド**: `会場:`・`住所:`・`事務局:` は annotator より信頼度が高い。将来的に scraper 側で直接マッピング推奨。
+
+---
+
 ## 2026-05-30 — performer_urls[] 追加 + c52caa6e (THE SILENCE) URL フィールド修正
 
 **問題：** `c52caa6e`（THE SILENCE / livepocket）に演者3名（DIGI NOA・樹・肆舞藝-451-）それぞれ Instagram があるが、単一フィールド `performer_url` では1名分しか設定できなかった。また `location_url` にイベントページ URL が誤設定されていた。
