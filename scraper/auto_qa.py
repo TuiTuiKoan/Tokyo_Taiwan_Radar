@@ -90,6 +90,12 @@ PUBLISH_DATE_SOURCES = frozenset({"note_creators", "google_news_rss", "prtimes",
 # missing_organizer detection (organizer is rarely available for these).
 THIN_CONTENT_SOURCES = frozenset({"note_creators", "google_news_rss", "prtimes", "nhk_rss", "walkerplus"})
 
+# Rule 6: addresses that do NOT require location_prefectures.
+_TAIWAN_ADDR_RE = re.compile(
+    r'台北|台中|台南|高雄|台湾|基隆|新竹|桃園|彰化|嘉義|花蓮|宜蘭|台東|台灣'
+)
+_ONLINE_ADDR_RE = re.compile(r'^オンライン$|^online$|^zoom$', re.IGNORECASE)
+
 # Max raw_description length considered "thin content".
 THIN_CONTENT_MAX_LEN = 50
 
@@ -715,17 +721,24 @@ def detect(event: dict) -> list[tuple[str, str]]:
     loc_addr_val = event.get("location_address") or ""
     loc_prefs_val = event.get("location_prefectures") or []
     if loc_addr_val.strip() and not loc_prefs_val:
-        created_at_str = event.get("created_at")
-        skip_grace = False
-        if created_at_str:
-            created_dt = _parse_ts(created_at_str)
-            if created_dt and (datetime.now(timezone.utc) - created_dt).days <= 3:
-                skip_grace = True
-        if not skip_grace:
-            findings.append((
-                "auto_qa_missing_prefectures",
-                f"location_prefectures 欠落（区域フィルタ無効）addr={loc_addr_val[:80]}",
-            ))
+        # Skip non-Japan addresses — Taiwan events have no prefecture
+        if _TAIWAN_ADDR_RE.search(loc_addr_val):
+            pass
+        # Skip 'オンライン' — Online Guard violation handled separately
+        elif _ONLINE_ADDR_RE.match(loc_addr_val.strip()):
+            pass
+        else:
+            created_at_str = event.get("created_at")
+            skip_grace = False
+            if created_at_str:
+                created_dt = _parse_ts(created_at_str)
+                if created_dt and (datetime.now(timezone.utc) - created_dt).days <= 3:
+                    skip_grace = True
+            if not skip_grace:
+                findings.append((
+                    "auto_qa_missing_prefectures",
+                    f"location_prefectures 欠落（区域フィルタ無効）addr={loc_addr_val[:80]}",
+                ))
 
     return findings
 
