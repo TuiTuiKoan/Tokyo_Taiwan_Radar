@@ -1,16 +1,18 @@
 """
 Weekly health report for Tokyo Taiwan Radar.
 Queries scraper_runs and events tables for the past 7 days,
-sends a LINE notification, and exits.
+writes a markdown snapshot to docs/weekly_review/,
+and optionally sends a LINE notification.
 
 Usage:
-    python weekly_report.py [--dry-run]
+    python weekly_report.py [--dry-run] [--no-line]
 """
 import argparse
 import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from dotenv import load_dotenv
 from supabase import create_client
@@ -235,9 +237,80 @@ def format_line_message(report: dict) -> str:
     return "\n".join(lines)
 
 
+def format_markdown_report(report: dict) -> str:
+    """Format the report as a markdown document for docs/weekly_review/."""
+    period = report["period_start"]
+    lines = [
+        f"# 週報 — {period}",
+        "",
+        f"| 指標 | 值 |",
+        f"|---|---|",
+        f"| 本週新增事件 | {report['new_events']} 件 |",
+        f"| 待標注 | {report['pending_annotation']} 件 |",
+        f"| 本週總費用 | ${report['total_cost_usd']:.4f} |",
+        f"| OpenAI 本週 | ${report['weekly_openai_cost_usd']:.4f} |",
+        f"| DeepL 本週 | {report['weekly_deepl_chars']:,} 字元 |",
+        f"| 本月迄今 | ${report['month_to_date_cost_usd']:.2f} / ${report['monthly_budget_usd']:.2f} |",
+        f"| 預算狀態 | {report['budget_status']} |",
+        f"| 執行次數 | {report['total_runs']} 次 |",
+        "",
+    ]
+
+    # Source status table
+    healthy, watch, broken = [], [], []
+    for src, d in report["by_source"].items():
+        rate = d["success_rate"]
+        ev = d["total_events"]
+        row = f"| `{src}` | {d['runs']}x | {int(rate*100)}% | {ev} |"
+        if rate == 1.0 and ev > 0:
+            healthy.append(row)
+        elif rate == 0 or ev == 0:
+            broken.append(row)
+        else:
+            watch.append(row)
+
+    hdr = "| 來源 | 執行 | 成功率 | 事件數 |\n|---|---|---|---|"
+
+    if healthy:
+        lines += ["## 🟢 健康", "", hdr] + healthy + [""]
+    if watch:
+        lines += ["## 🟡 待觀察", "", hdr] + watch + [""]
+    if broken:
+        lines += ["## 🔴 需修復", "", hdr] + broken + [""]
+
+    # Auto-QA
+    qa = report.get("auto_qa") or {}
+    if qa.get("total", 0) > 0:
+        lines += [
+            "## 🔍 自動 QA",
+            "",
+            f"本週偵測 {qa['total']} 件，待處理 {qa.get('pending', 0)} 件",
+            "",
+        ]
+        for t, n in (qa.get("by_type") or {}).items():
+            if n > 0:
+                label = AUTO_QA_LABELS.get(t, t)
+                lines.append(f"- {label}: {n} 件")
+        lines.append("")
+
+    lines.append(f"*自動產生於 {datetime.now(JST).strftime('%Y-%m-%d %H:%M JST')}*")
+    return "\n".join(lines)
+
+
+def _write_report_file(report: dict) -> Path:
+    """Write markdown report to docs/weekly_review/YYYY-MM-DD.md."""
+    docs_dir = Path(__file__).parent.parent / "docs" / "weekly_review"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    filename = docs_dir / f"{report['period_start']}.md"
+    filename.write_text(format_markdown_report(report), encoding="utf-8")
+    logger.info("Weekly report written to %s", filename)
+    return filename
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--no-line", action="store_true", help="Skip LINE notification")
     args = parser.parse_args()
 
     sb = _supabase_client()
@@ -246,10 +319,15 @@ def main() -> None:
 
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
+    # Always write the markdown file (CI reads it for git commit)
+    if not args.dry_run:
+        _write_report_file(report)
+
     message = format_line_message(report)
     if args.dry_run:
         logger.info("[DRY RUN] LINE message:\n%s", message)
-    else:
+        logger.info("[DRY RUN] markdown:\n%s", format_markdown_report(report))
+    elif not args.no_line:
         _send_line(message)
 
 
