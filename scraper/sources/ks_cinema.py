@@ -3,8 +3,8 @@
 Source URL: https://www.ks-cinema.com/movie/
 Platform  : WordPress static HTML — no JS rendering required
 Source name: ks_cinema
-Source ID : ks_cinema_{url_slug}  (parent/single film)
-           ks_cinema_{url_slug}_{film_index}  (sub-film within a series)
+Source ID : ks_cinema_{md5(normalized_title)[:12]}  (parent/single film)
+           ks_cinema_{md5(normalized_title)[:12]}_{film_index}  (sub-film within a series)
 
 Strategy:
   1. Fetch nowshowing + comingsoon listing pages
@@ -35,7 +35,8 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
-from sources.base import BaseScraper, Event
+from sources.base import Event
+from sources._cinema_base import CinemaScraper, make_film_source_id
 from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
@@ -337,7 +338,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
         price_info = period_table.get("当日料金")
         biko = period_table.get("備考")
 
-    url_slug = _url_to_slug(url)
+    parent_source_id = make_film_source_id("ks_cinema", title)
 
     # --- Official URL: look for "オフィシャルサイト" or "公式サイト" external link ---
     official_url: str | None = None
@@ -388,7 +389,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
         parent_name_zh, parent_name_en, _ = lookup_movie_titles(title)
         parent_event = Event(
             source_name=SOURCE_NAME,
-            source_id=f"ks_cinema_{url_slug}",
+            source_id=parent_source_id,
             source_url=url,
             original_language="ja",
             name_zh=parent_name_zh,
@@ -461,13 +462,13 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
             sub_name_zh, sub_name_en, _ = lookup_movie_titles(film_title)
             try:
                 from database import get_event_id_by_source as _get_parent_uuid
-                parent_uuid = _get_parent_uuid(SOURCE_NAME, f"ks_cinema_{url_slug}")
+                parent_uuid = _get_parent_uuid(SOURCE_NAME, parent_source_id)
             except (ImportError, Exception):
                 parent_uuid = None
             biz_hours = _format_schedule_as_business_hours(schedule_text)
             sub_event = Event(
                 source_name=SOURCE_NAME,
-                source_id=f"ks_cinema_{url_slug}_{idx}",
+                source_id=f"{parent_source_id}_{idx}",
                 source_url=url,
                 original_language="ja",
                 name_zh=sub_name_zh,
@@ -521,7 +522,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
         single_name_zh, single_name_en, _ = lookup_movie_titles(title)
         event = Event(
             source_name=SOURCE_NAME,
-            source_id=f"ks_cinema_{url_slug}",
+            source_id=parent_source_id,
             source_url=url,
             original_language="ja",
             name_zh=single_name_zh,
@@ -547,7 +548,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> list
 # Scraper class
 # ---------------------------------------------------------------------------
 
-class KsCinemaScraper(BaseScraper):
+class KsCinemaScraper(CinemaScraper):
     """Scraper for K's Cinema（新宿K'sシネマ） Taiwan film screenings."""
 
     SOURCE_NAME = SOURCE_NAME

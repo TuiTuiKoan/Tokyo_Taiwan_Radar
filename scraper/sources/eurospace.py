@@ -15,7 +15,8 @@ from typing import Optional
 import requests
 from bs4 import BeautifulSoup
 
-from .base import BaseScraper, Event
+from .base import Event
+from ._cinema_base import CinemaScraper
 from movie_title_lookup import lookup_movie_titles
 
 BASE_URL = "http://www.eurospace.co.jp"
@@ -25,7 +26,7 @@ TAIWAN_KEYWORDS = ["台湾", "Taiwan", "taiwan"]
 logger = logging.getLogger(__name__)
 
 
-class EurospaceScraper(BaseScraper):
+class EurospaceScraper(CinemaScraper):
     SOURCE_NAME = "eurospace"
 
     def scrape(self) -> list[Event]:
@@ -142,7 +143,7 @@ class EurospaceScraper(BaseScraper):
 
             return Event(
                 source_name=self.SOURCE_NAME,
-                source_id=f"eurospace_{w_id}",
+                source_id=self.make_film_source_id("eurospace", title),
                 source_url=url,
                 original_language="ja",
                 name_ja=title,

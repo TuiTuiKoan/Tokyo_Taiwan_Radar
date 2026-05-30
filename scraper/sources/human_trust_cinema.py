@@ -21,7 +21,8 @@ from typing import Optional
 import requests
 from bs4 import BeautifulSoup
 
-from .base import BaseScraper, Event
+from .base import Event
+from ._cinema_base import CinemaScraper
 from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ def _parse_movie_id(href: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
-class HumanTrustCinemaScraper(BaseScraper):
+class HumanTrustCinemaScraper(CinemaScraper):
     """Scrapes Taiwan-related films currently showing at ヒューマントラストシネマ有楽町."""
 
     SOURCE_NAME = "human_trust_cinema"
@@ -119,7 +120,6 @@ class HumanTrustCinemaScraper(BaseScraper):
                 continue
 
             detail_url = BASE_URL + href if href.startswith("/") else href
-            source_id = f"human_yurakucho_{movie_id}"
 
             # Start date from data-date attribute
             data_date = link_el.get("data-date", "")
@@ -159,6 +159,7 @@ class HumanTrustCinemaScraper(BaseScraper):
             # start_date from raw_description to prevent annotator SINGLE-DAY RULE
             # from wrongly setting end_date = start_date.
 
+            source_id = self.make_film_source_id("human_yurakucho", title)
             name_zh, name_en, _ = lookup_movie_titles(title)
             event = Event(
                 source_name=self.SOURCE_NAME,
