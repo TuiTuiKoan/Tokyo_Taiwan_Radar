@@ -21,6 +21,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from .base import BaseScraper, Event
+from ._cinema_dates import parse_iso_date, WEEKDAY_JP as _WEEKDAY_JP_FROM_INT
 
 logger = logging.getLogger(__name__)
 
@@ -48,17 +49,10 @@ def _slug_from_url(url: str) -> str:
 
 
 def _parse_date(text: str) -> Optional[datetime]:
-    """Parse 'YYYY-M-D' from page text."""
-    m = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", text)
-    if m:
-        try:
-            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        except ValueError:
-            pass
-    return None
+    """Parse 'YYYY-M-D' → UTC midnight datetime or None."""
+    return parse_iso_date(text)
 
 
-_WEEKDAY_JP_FROM_INT = "月火水木金土日"
 _ONARIZA_TOKEN_RE = re.compile(
     r"(\d{1,2})月(\d{1,2})日（[月火水木金土日]）|[～〜]|休映|(\d{1,2}:\d{2})"
 )

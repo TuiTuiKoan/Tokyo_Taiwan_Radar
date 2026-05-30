@@ -10,7 +10,7 @@ Strategy:
   2. Deduplicate by thumbnail ID; record theater name from link text prefix
   3. Fetch each detail page — check full text for Taiwan keywords (台湾/台灣/Taiwan)
      Detail pages have: title in h1 "(XX分)", date text, description, copyright
-  4. source_id: "starcat_{thumbnail_id}"
+  4. source_id: "starcat_{md5(normalized_title)[:12]}"
 """
 
 import logging
@@ -22,7 +22,9 @@ from typing import Optional
 import requests
 from bs4 import BeautifulSoup
 
-from .base import BaseScraper, Event
+from .base import Event
+from ._cinema_base import CinemaScraper
+from ._cinema_dates import parse_japanese_date
 
 logger = logging.getLogger(__name__)
 
@@ -73,13 +75,7 @@ def _parse_theater(link_text: str) -> str:
 
 def _parse_date(text: str) -> Optional[datetime]:
     """Parse '2026年5月22日(金)より公開' or '上映中' → UTC midnight datetime or None."""
-    m = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", text)
-    if m:
-        try:
-            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
-        except ValueError:
-            pass
-    return None
+    return parse_japanese_date(text)
 
 
 def _normalize_title(title: str) -> str:
@@ -87,7 +83,7 @@ def _normalize_title(title: str) -> str:
     return re.sub(r"\s+", " ", title).strip()
 
 
-class StarcatCinemaScraper(BaseScraper):
+class StarcatCinemaScraper(CinemaScraper):
     """Scrapes Taiwan-related films from 伏見ミリオン座 and センチュリーシネマ (Nagoya)."""
 
     SOURCE_NAME = "starcat_cinema"
@@ -317,8 +313,8 @@ class StarcatCinemaScraper(BaseScraper):
                 logger.debug("Skipping non-Taiwan film: %s", detail["title"])
                 continue
 
-            source_id = f"starcat_{tid}"
             title = detail["title"] or entry["link_text"].split()[1] if entry["link_text"] else f"film_{tid}"
+            source_id = self.make_film_source_id("starcat", title)
 
             start_date = _parse_date(detail["date_text"])
             schedule_end = self._lookup_end_date(theater, title)

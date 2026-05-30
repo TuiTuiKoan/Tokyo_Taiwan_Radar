@@ -5,7 +5,7 @@ import re
 
 
 def parse_japanese_date(text: str) -> Optional[datetime]:
-    """解析「YYYY年MM月DD日」或「MM月DD日」，含全形數字。回傳 UTC midnight datetime。"""
+    """解析「YYYY年MM月DD日」，含全形數字。回傳 UTC midnight datetime。"""
     text = text.translate(str.maketrans("０１２３４５６７８９", "0123456789"))
     # 嘗試 YYYY年MM月DD日
     m = re.search(r"(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日", text)
@@ -17,12 +17,39 @@ def parse_japanese_date(text: str) -> Optional[datetime]:
             )
         except ValueError:
             pass
-    # 嘗試 MM月DD日（無年份，用當年）
+    return None  # Date-Parser Exhaustive Return Guard
+
+
+def parse_iso_date(text: str) -> Optional[datetime]:
+    """解析「YYYY-M-D」或「YYYY-MM-DD」，回傳 UTC midnight datetime。"""
+    text = text.translate(str.maketrans("０１２３４５６７８９", "0123456789"))
+    m = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", text)
+    if m:
+        try:
+            return datetime(
+                int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                tzinfo=timezone.utc,
+            )
+        except ValueError:
+            pass
+    return None  # Date-Parser Exhaustive Return Guard
+
+
+def parse_month_day(text: str, *, rollover: bool = True) -> Optional[datetime]:
+    """解析「MM月DD日」（無年份），含全形數字。
+    rollover=True: 月份 < 當月時，年份 +1（跨年片使用）。
+    回傳 UTC midnight datetime。
+    """
+    text = text.translate(str.maketrans("０１２３４５６７８９", "0123456789"))
     m = re.search(r"(\d{1,2})月\s*(\d{1,2})日", text)
     if m:
         try:
             now = datetime.now(timezone.utc)
-            return datetime(now.year, int(m.group(1)), int(m.group(2)), tzinfo=timezone.utc)
+            mon, day = int(m.group(1)), int(m.group(2))
+            year = now.year
+            if rollover and mon < now.month:
+                year += 1
+            return datetime(year, mon, day, tzinfo=timezone.utc)
         except ValueError:
             pass
     return None  # Date-Parser Exhaustive Return Guard
@@ -69,3 +96,17 @@ def extract_showtimes(text: str) -> Optional[str]:
     if times:
         return "／".join(times)
     return None
+
+
+# ── 星期・全形数字原語（_cinema_base / onariza 共用）──────────────────────
+WEEKDAY_JP: dict[int, str] = {0: "月", 1: "火", 2: "水", 3: "木", 4: "金", 5: "土", 6: "日"}
+
+
+def weekday_jp_from_int(idx: int) -> str:
+    """0=月 … 6=日 の漢字一字を返す。"""
+    return "月火水木金土日"[idx]
+
+
+def _to_halfwidth_digits(text: str) -> str:
+    """全形数字・コロンを半角に変換する。"""
+    return text.translate(str.maketrans("０１２３４５６７８９：", "0123456789:"))

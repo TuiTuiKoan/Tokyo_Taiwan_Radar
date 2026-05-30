@@ -18,7 +18,9 @@ from datetime import datetime, timedelta, timezone
 import requests
 from bs4 import BeautifulSoup
 
-from sources.base import BaseScraper, Event
+from sources.base import Event
+from sources._cinema_base import CinemaScraper
+from sources._cinema_dates import parse_japanese_date, parse_month_day
 
 logger = logging.getLogger(__name__)
 
@@ -32,28 +34,13 @@ def _is_taiwan(text: str) -> bool:
 
 
 def _parse_expire(text: str) -> datetime | None:
-    """Parse "2026年05月29日まで" → datetime."""
-    m = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", text)
-    if m:
-        try:
-            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
-        except ValueError:
-            pass
-    return None
+    """Parse "2026年05月29日まで" → UTC datetime (delegated to shared helper)."""
+    return parse_japanese_date(text)
 
 
 def _parse_release(text: str) -> datetime | None:
-    """Parse "05月08日(金)〜" → datetime."""
-    m = re.search(r"(\d{1,2})月(\d{1,2})日", text)
-    if m:
-        try:
-            now = datetime.now(timezone.utc)
-            month, day = int(m.group(1)), int(m.group(2))
-            year = now.year if month >= now.month else now.year + 1
-            return datetime(year, month, day, tzinfo=timezone.utc)
-        except ValueError:
-            pass
-    return None
+    """Parse "05月08日(金)〜" → UTC datetime with rollover (delegated to shared helper)."""
+    return parse_month_day(text, rollover=True)
 
 
 def _extract_movie_id(url: str) -> str | None:
@@ -216,7 +203,7 @@ def _get_session() -> requests.Session:
     return s
 
 
-class SakurazakaScraper(BaseScraper):
+class SakurazakaScraper(CinemaScraper):
     source_name = "sakurazaka"
 
     def scrape(self) -> list[Event]:
@@ -288,7 +275,7 @@ class SakurazakaScraper(BaseScraper):
             detail_url = info["url"]
 
             # Quick title check first
-            if not _is_taiwan(title):
+            if not self.is_taiwan_relevant(title):
                 # Fetch individual page for country check
                 time.sleep(0.5)
                 try:
@@ -297,7 +284,7 @@ class SakurazakaScraper(BaseScraper):
                     soup2 = BeautifulSoup(resp2.text, "html.parser")
                     # Check 作品情報 in dl/dd
                     page_text = soup2.get_text(" ", strip=True)
-                    if not _is_taiwan(page_text):
+                    if not self.is_taiwan_relevant(page_text):
                         continue
                     # Extract description
                     description = page_text[:500]
@@ -343,7 +330,7 @@ class SakurazakaScraper(BaseScraper):
 
             events.append(Event(
                 source_name=self.source_name,
-                source_id=f"sakurazaka_{mid}",
+                source_id=self.make_film_source_id("sakurazaka", title),
                 source_url=detail_url,
                 original_language="ja",
                 name_ja=title,
