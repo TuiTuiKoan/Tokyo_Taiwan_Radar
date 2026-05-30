@@ -1034,6 +1034,7 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
 - **performer vs organizer 区別**: Peatix ページの「By ‹名前›」= `organizer`（主催者）。イベントを実施するアーティスト/動作者 = `performer`。GPT が両者を入れ替える可能性があるので、日本語淡化語（「夫婦」「ユニット」など一般名詞）が performer に入っていたら手修正 + FC lock。(Incident: peatix `ee17c509` performer='夫婦' → 'Floti Studio' 2026-05-30)
 - **`performers` 一般名詞ガード**: `performers` に「夫婦」「カップル」「グループ」等の一般名詞が入っていたらアーティストの固有名（ユニット名・人名）に修正 + FC lock が必須。annotator は `raw_description` のカタカナ/漢字をそのまま取り込むため、一般名詞を固有名詞と誤認することがある。(Incident: peatix `ee17c509` performers=['夫婦'] → ['Floti Studio'] 2026-05-30)
 - **英語ブランド名 → performer_zh/en は翻訳不要**: Floti Studio 等の英語固定名称は `performer_zh` も `performer_en` も同じ値を設定。GPT は英語名を繁体中文に翻訳しようとして null を返すことがある。手動補完 + FC lock が必要。(Incident: peatix `ee17c509` 2026-05-30)
+- **英語ブランド名 → organizer_zh/en も同様**: `organizer` 値が英語固定商標の場合、`organizer_zh/en` も翻訳不要—同じ値を FC lock。翻訳しようとした GPT が `（AI翻譯）` マーカー付きで格納する場合もある。**判定基準**: `organizer` 値の文字が全て ASCII / アルファベット → `organizer_zh/en = organizer`。(Incident: iwafu `a4442567` QUEEN SHOP 2026-05-31)
 - **専用イベントページ非存在時の URL 設定**: Peatix が `source_url` の場合、SNS リンクの設定先は次のルールに従う:
   - **演者の Instagram/SNS** → `performer_url`（単一演者）または `performer_urls[]`（複数演者、インデックスは `performers[]` と対応）
   - **主催者の SNS/公式サイト** → `organizer_url`
@@ -1046,6 +1047,8 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
 - **Title-level block**: Known IP series (e.g. `リアル脱出ゲーム×名探偵コナン`) must be blocked by `_BLOCKED_TITLE_PATTERNS` in `_scrape_detail` **before** the page load — this catches all tour stops as new source_ids appear. Add new entries here when a series is confirmed non-Taiwan-themed.
 - **Permanent IP series block**: For series where ALL events are non-Taiwan-themed (e.g. `名探偵コナン`), add the IP name to `_BLOCKED_SERIES`. Checked on BOTH card title (pre-load, fast-reject) AND h1 title (post-load). Card titles from search results can be truncated, so the pre-load check alone is not sufficient.
 - Taiwan relevance criterion: Taiwan must be the **theme or primary focus**, not just one venue on a multi-city tour.
+- **`organizer_url` enrichment**: iwafu ソースページは主催者の公式サイト URL を常に含むわけではない。ブランド商標の場合は `raw_description` 内の `extract_first_party_url()` で抽出を試みるか、公式サイトを手動で FC 設定すること。`organizer_url` を設定すると UI に「主催者名 ↗」リンクが自動表示される。(Incident: `a4442567` QUEEN SHOP 2026-05-31)
+- **小売 / モールイベントの `business_hours`**: デパート・ショッピングモールの定常営業時間（ルミネエスト: 11:00～22:30 等）はイベント固有ではなく venue-level データ。`venues` テーブルに `business_hours` カラムが指置されていないため、現状は手動 FC 修正で対応。将来的には `venues.business_hours` カラム（migration 必要）+ `enrich_location.py` から自動身取りする設計。UI 側は `event.business_hours` 存在時の表示に既対応済み。
 - **After adding a scraper filter, always audit the DB**: run `ilike("raw_title", "%keyword%")` to find existing records that should also be deactivated. The filter only prevents future inserts.
 - **Hard delete vs deactivation**: If an IP series is confirmed permanently non-Taiwan-themed, hard delete (`table.delete().eq("id", eid)`) rather than just deactivating. Deactivated events remain accessible via direct URL unless the event page also checks `is_active`.
 - **location_name / location_address**: Extract from `場所[：:]\s*(.+?)(?:\n|交通手段|Q&A|https?://|$)` in `main_text`.

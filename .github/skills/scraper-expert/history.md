@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-05-31 — iwafu `a4442567` (QUEEN SHOP): `organizer_zh/en` に英語ブランド名が AI 翻訳マーカー付きで格納、`organizer_url`・`business_hours` null
+
+**問題：** `a4442567`（QUEEN SHOP ルミネエスト新宿初登場）の `organizer_zh = 'QUEEN SHOP（AI翻譯）'`、`organizer_en = 'QUEEN SHOP (AI translated)'`が格納。QUEEN SHOP は英語固定商標名で翻訳不要。また `organizer_url`（QUEEN SHOP 公式サイト）・`business_hours`（ルミネエスト新宿の営業時間）が共に null。
+
+**根本原因：**
+1. annotator GPT が英語ブランド名を繁体中文に翻訳しようとして `（AI翻譯）` マーカー付きで格納。`performer_zh` と同様の問題だが `organizer_zh` は自動検出対象外。
+2. iwafu scraper は `organizer_url` をソースページから抽出しない設計。外部ブランドの公式サイトは enrichment パイプラインがなければ null。
+3. `venues` テーブルに `business_hours` カラムなし（ショッピングモール・でぱートの定常営業時間は venue-level データだが DB に格納先がない）。
+
+**修正：**
+- `organizer_zh/en` → `"QUEEN SHOP"`（AI マーカー除去、英語固定商標なので翻訳不要）
+- `organizer_url` → `https://www.queenshop.com.tw/`（QUEEN SHOP 台湾公式）
+- `business_hours` → `"11:00～22:30"`（ルミネエスト新宿 標準営業時間）
+- FC lock: 4 フィールド全て
+
+**教訓：**
+- **英語固定商標周の `organizer_zh/en`**: `organizer` 値が英語ブランド名の場合、`organizer_zh/en` は翻訳不要—同じ値を FC lock。null や AI 翻訳値にするのは誤り（performer_zh/en と同じルール）。
+- **`organizer_url` enrichment ギャップ**: iwafu ・ peatix 等のブランド B2C イベントは `organizer_url` が空になりやすい。`raw_description` 内の `extract_first_party_url()` や外部検索で補充すること。事後に発見した場合は手動 FC 修正。
+- **小売 / ショッピングモールイベントの `business_hours`**: ルミネ・マルイ・高島屋等の定常営業時間はイベント固有ではなく venue-level データ。`venues` テーブルに `business_hours` カラムがないため現状は手動 FC 修正。将来的には migration で追加して `enrich_location.py` から返す設計。
+
+---
+
 ## 2026-05-31 — note_creators.py: 三層根因修復（truncation guard endswith 漏判 / embedded official_url 未萃取 / 投稿者 location 套到外部活動）
 
 **問題：** `147c5dde` 「🌏 2026年夏 台湾華語サマーキャンプのご紹介」（source=note_creators）DB raw_description = 42 字截斷、official_url=None、location=大阪弁天町（投稿者教室，非開催地台北）。
