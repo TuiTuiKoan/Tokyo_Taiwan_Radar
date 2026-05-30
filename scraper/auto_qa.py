@@ -90,7 +90,13 @@ PUBLISH_DATE_SOURCES = frozenset({"note_creators", "google_news_rss", "prtimes",
 # missing_organizer detection (organizer is rarely available for these).
 THIN_CONTENT_SOURCES = frozenset({"note_creators", "google_news_rss", "prtimes", "nhk_rss", "walkerplus"})
 
-# Rule 6: addresses that do NOT require location_prefectures.
+_PRICE_KW_RE = re.compile(
+    r'[¥￥]\s*\d|円[（(]|参加費|入場料|チケット代|参加料|受講料|鑑賞料'
+)
+_BOOKING_DOMAINS = frozenset({
+    "bookandbeer.com", "peatix.com", "loft-prj.co.jp", "eplus.jp",
+    "ticket.pia.jp", "l-tike.com", "teket.jp", "passmarket.yahoo.co.jp",
+})
 _TAIWAN_ADDR_RE = re.compile(
     r'台北|台中|台南|高雄|台湾|基隆|新竹|桃園|彰化|嘉義|花蓮|宜蘭|台東|台灣'
 )
@@ -110,6 +116,7 @@ QA_TYPES = (
     "auto_qa_performer_zh_equals_katakana",
     "auto_qa_missing_date",
     "auto_qa_missing_organizer",
+    "auto_qa_missing_price",
     "auto_qa_thin_content",
     "auto_qa_missing_location_name",
     "auto_qa_missing_category",
@@ -240,17 +247,19 @@ def _latest_auto_qa_reports(sb, event_ids: list[str]) -> dict[str, dict[str, dic
 
 
 def _detect_missing_hours(sb) -> list[dict]:
-    """Flag reviewed events with null business_hours but extractable time
+    """Flag annotated/reviewed events with null business_hours but extractable time
     info in raw_description. Human-review only — no auto-fix."""
     import re as _re
-    _TIME_RE = _re.compile(r'\d{1,2}:\d{2}')
+    _TIME_RE = _re.compile(r'\d{1,2}[時:]\d{2}')
+    thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
         .select("id,source_name,raw_description")
         .eq("is_active", True)
-        .eq("annotation_status", "reviewed")
+        .in_("annotation_status", ["annotated", "reviewed"])
         .is_("business_hours", "null")
         .not_.is_("raw_description", "null")
+        .gte("created_at", thirty_days_ago_iso)
         .execute()
         .data
     )
@@ -613,6 +622,48 @@ def _detect_missing_organizer(sb) -> list[dict]:
     return reports
 
 
+def _detect_missing_price(sb) -> list[dict]:
+    """Flag events where is_paid/price_info are null but price signals exist
+    in raw_description or official_url. Review-only — no auto-fix."""
+    from urllib.parse import urlparse
+    import re as _re
+
+    thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    rows = (
+        sb.table("events")
+        .select("id,source_name,raw_description,official_url")
+        .eq("is_active", True)
+        .in_("annotation_status", ["annotated", "reviewed"])
+        .is_("is_paid", "null")
+        .is_("price_info", "null")
+        .gte("created_at", thirty_days_ago_iso)
+        .execute()
+        .data
+    )
+    reports = []
+    for row in rows:
+        source_name = row.get("source_name") or ""
+        if source_name in THIN_CONTENT_SOURCES:
+            continue
+        if source_name == "gguide_tv":
+            continue
+        raw = row.get("raw_description") or ""
+        official_url = row.get("official_url") or ""
+        price_in_desc = bool(_PRICE_KW_RE.search(raw))
+        domain = urlparse(official_url).hostname or ""
+        booking_url = any(domain.endswith(d) for d in _BOOKING_DOMAINS)
+        if price_in_desc or booking_url:
+            reason = "price_keyword" if price_in_desc else f"booking_domain:{domain}"
+            reports.append({
+                "event_id": row["id"],
+                "report_type": "auto_qa_missing_price",
+                "details": (
+                    f"is_paid/price_info null but {reason}; source={source_name}"
+                ),
+            })
+    return reports
+
+
 def _detect_thin_content(sb) -> list[dict]:
     """Flag recent active events with thin metadata. Review-only.
 
@@ -781,6 +832,8 @@ def run(dry_run: bool = False) -> dict:
     for item in _detect_missing_date(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
     for item in _detect_missing_organizer(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
+    for item in _detect_missing_price(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
     for item in _detect_thin_content(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
