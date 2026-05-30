@@ -54,6 +54,36 @@ PY
 
 ---
 
+## Step 1.5：盤點本週 Git 推送
+
+執行以下指令，取得本週 commit 清單與新增檔案：
+
+```bash
+# Commits（無 merge，依 conventional commit type 分類）
+git log --since="7 days ago" --pretty=format:"%h %s" --no-merges
+
+# 新增爬蟲檔
+git log --since="7 days ago" --diff-filter=A --name-only --pretty=format: -- scraper/sources/ | grep "\.py$"
+
+# 新增 Migration
+git log --since="7 days ago" --diff-filter=A --name-only --pretty=format: -- supabase/migrations/ | grep "\.sql$"
+
+# Commit 數快計
+git log --since="7 days ago" --oneline --no-merges | wc -l
+```
+
+依以下維度整理（可並行與 Step 1 一起跑）：
+
+| 維度 | 說明 |
+|---|---|
+| 🚙 車身（web/admin） | `feat(web)` `fix(web)` `style` `design` |
+| 🧭 導航（annotator/AI） | `fix(annotator)` `feat(annotator)` `fix(scraper)` |
+| 🏭 後勤工廠（CI/DB/infra） | `fix(ci)` `fix(database)` `feat(governance)` `chore` |
+| 🔁 駕訓場（評估/文件） | `docs(skills)` `docs(agents)` `feat(evaluation)` |
+| 📡 資料來源（scraper） | `feat(scraper)` `feat(sources)` 新增爬蟲 |
+
+---
+
 ## Step 2：列出本週 Session Memory 中的問題
 
 讀取 `/memories/session/` 目錄，若有記錄本週工作問題則列出；若無 session memory 則略過此步驟。
@@ -89,8 +119,22 @@ PY
 - 本週總費用：$X.XXXXXX
 - 費用最高來源：XXX（$X.XXXXXX）
 
-## 📌 下週優先事項（最多 5 項，依優先順序）
-1. ...
+## � 本週推送摘要
+- Commits：N 個（feat N / fix N / docs N / chore N）
+- 新增爬蟲：N 個（列出名稱）
+- 新增 Migration：N 個（列出編號）
+- 新增功能亮點（3–5 個最重要的 feat commit）
+
+## ✅ 優點
+1. （本週做對的事，值得延續的模式）
 2. ...
-3. ...
+
+## ⚠️ 缺點與風險
+1. （技術債、設計不一致、遺留問題）
+2. ...
+
+## 📌 下週優先事項（最多 5 項，🔴P0 / 🟡P1 / 🟢P2）
+1. 🔴 ...
+2. 🟡 ...
+3. 🟢 ...
 ```

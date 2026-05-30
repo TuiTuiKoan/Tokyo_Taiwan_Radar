@@ -11,6 +11,8 @@ import argparse
 import json
 import logging
 import os
+import re
+import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -237,6 +239,42 @@ def format_line_message(report: dict) -> str:
     return "\n".join(lines)
 
 
+def _analyze_git_commits(repo_root: Path) -> dict:
+    """Count commits and new files from the past 7 days via git log."""
+    def _git(*args: str) -> str:
+        r = subprocess.run(list(args), cwd=repo_root, capture_output=True, text=True, timeout=20)
+        return r.stdout.strip()
+
+    raw = _git("git", "log", "--since=7 days ago", "--pretty=format:%s", "--no-merges")
+    msgs = [line for line in raw.split("\n") if line]
+
+    by_type: dict[str, int] = {}
+    for msg in msgs:
+        m = re.match(r"^(\w+)[\(\:!]", msg)
+        t = m.group(1) if m else "other"
+        by_type[t] = by_type.get(t, 0) + 1
+
+    raw_src = _git("git", "log", "--since=7 days ago", "--diff-filter=A",
+                   "--name-only", "--pretty=format:", "--", "scraper/sources/")
+    new_scrapers = sorted(set(
+        p.split("/")[-1] for p in raw_src.split("\n")
+        if p.endswith(".py") and "base.py" not in p and "__" not in p
+    ))
+
+    raw_mig = _git("git", "log", "--since=7 days ago", "--diff-filter=A",
+                   "--name-only", "--pretty=format:", "--", "supabase/migrations/")
+    new_migrations = sorted(set(
+        p.split("/")[-1] for p in raw_mig.split("\n") if p.endswith(".sql")
+    ))
+
+    return {
+        "total_commits": len(msgs),
+        "by_type": by_type,
+        "new_scrapers": new_scrapers,
+        "new_migrations": new_migrations,
+    }
+
+
 def format_markdown_report(report: dict) -> str:
     """Format the report as a markdown document for docs/weekly_review/."""
     period = report["period_start"]
@@ -293,6 +331,30 @@ def format_markdown_report(report: dict) -> str:
                 lines.append(f"- {label}: {n} 件")
         lines.append("")
 
+    # Git commits section
+    git = report.get("git") or {}
+    if git.get("total_commits", 0) > 0:
+        lines += ["## 📦 本週推送摘要", ""]
+        lines.append(f"**Commits**：{git['total_commits']} 個")
+        lines.append("")
+        by_type = git.get("by_type") or {}
+        if by_type:
+            lines += ["| 類型 | 數量 |", "|---|---|"] + [
+                f"| `{t}` | {n} |"
+                for t, n in sorted(by_type.items(), key=lambda x: -x[1])
+            ]
+            lines.append("")
+        new_scrapers = git.get("new_scrapers") or []
+        if new_scrapers:
+            lines.append(f"**新增爬蟲**（{len(new_scrapers)}）：" +
+                         "、".join(f"`{s}`" for s in new_scrapers))
+            lines.append("")
+        new_migrations = git.get("new_migrations") or []
+        if new_migrations:
+            lines.append(f"**新 Migration**（{len(new_migrations)}）：" +
+                         "、".join(f"`{m}`" for m in new_migrations))
+            lines.append("")
+
     lines.append(f"*自動產生於 {datetime.now(JST).strftime('%Y-%m-%d %H:%M JST')}*")
     return "\n".join(lines)
 
@@ -316,6 +378,15 @@ def main() -> None:
     sb = _supabase_client()
     since = datetime.now(JST) - timedelta(days=7)
     report = generate_report(sb, since)
+
+    # Enrich with git commit analysis
+    repo_root = Path(__file__).parent.parent
+    try:
+        report["git"] = _analyze_git_commits(repo_root)
+        logger.info("git analysis: %d commits", report["git"]["total_commits"])
+    except Exception as exc:
+        logger.warning("git analysis failed: %s", exc)
+        report["git"] = {}
 
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
