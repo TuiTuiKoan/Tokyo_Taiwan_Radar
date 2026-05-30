@@ -105,7 +105,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ error: "Upload failed (server error)" }));
       if (!res.ok) throw new Error(data.error ?? "Upload failed");
       setCoverImageUrl(data.url);
     } catch (e: unknown) {

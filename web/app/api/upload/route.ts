@@ -6,43 +6,52 @@ import { NextResponse } from "next/server";
 // Body: FormData with field "file"
 // Returns: { url: string }
 export async function POST(request: Request) {
-  // Auth check — must be admin
-  const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", user.id).single();
-  if (!roleRow || roleRow.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  try {
+    // Auth check — must be admin
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", user.id).single();
+    if (!roleRow || roleRow.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const formData = await request.formData();
-  const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    const formData = await request.formData();
+    const file = formData.get("file") as File | null;
+    if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-  if (!allowedTypes.includes(file.type)) {
-    return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return NextResponse.json({ error: "File too large (max 5MB)" }, { status: 400 });
+    }
+
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceKey) return NextResponse.json({ error: "Server misconfiguration: storage key not set" }, { status: 500 });
+
+    // Use service role to bypass RLS on storage
+    const adminClient = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      serviceKey
+    );
+
+    const rawExt = file.name.split(".").pop() ?? "jpg";
+    const ext = rawExt.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "jpg";
+    const path = `covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const buffer = await file.arrayBuffer();
+    const { data, error } = await adminClient.storage
+      .from("announcements")
+      .upload(path, buffer, { contentType: file.type, upsert: true });
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const { data: urlData } = adminClient.storage.from("announcements").getPublicUrl(data.path);
+    return NextResponse.json({ url: urlData.publicUrl });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Upload failed";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-  if (file.size > 5 * 1024 * 1024) {
-    return NextResponse.json({ error: "File too large (max 5MB)" }, { status: 400 });
-  }
-
-  // Use service role to bypass RLS on storage
-  const adminClient = createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
-  const ext = file.name.split(".").pop() ?? "jpg";
-  const path = `covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-
-  const buffer = await file.arrayBuffer();
-  const { data, error } = await adminClient.storage
-    .from("announcements")
-    .upload(path, buffer, { contentType: file.type, upsert: true });
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  const { data: urlData } = adminClient.storage.from("announcements").getPublicUrl(data.path);
-  return NextResponse.json({ url: urlData.publicUrl });
 }
 
 // DELETE /api/upload?path=covers/xxx.jpg
