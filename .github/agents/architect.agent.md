@@ -675,6 +675,31 @@ Reference incidents:
 
 Reference incident: 2026-05-07 — `b2589d75` ガブテックカンファレンス 6 位登壇者，zh/en 頁面只顯示「宮坂 学」1 人（commit `1a38bd5`）。
 
+## location_address ↔ location_prefectures Sync Guard（地址與都道府縣同步守護）
+
+在審核**任何**手動修正 `location_address` 的 DB 操作（直接 UPDATE 或 FC upsert）前，**必須**確認：
+
+1. **`location_prefectures` 必須同步更新並 FC 鎖定**：Annotator 不會從 `location_address` 自動推導 `location_prefectures`（除非重新 re-annotation 觸發 auto-sync）。只修 address 不修 prefectures，homepage chip 會持續顯示舊都道府縣。
+2. **FC lock 不支援 null 值**：`field_corrections.corrected_value` 有 NOT NULL constraint，無法儲存 null 作為「鎖定成 null」語意。若需鎖定 null 值（如 `location_url = null`），需改用其他方式（如保留舊值不設、或在 annotator code 層面防止重設）。
+3. **Sub-event 繼承的地址需個別驗證**：巡演/系列展的 sub-event 可能從錯誤的 parent leg 繼承 `location_address`，此時 `location_prefectures` 可能是正確的，address 才是錯的——須確認「哪個欄位正確」再決定修哪個。
+4. **Annotator auto-sync（2026-05-30 起）**：`annotator.py` 在 `update_data` 構築後新增自動同步邏輯：若 `location_prefectures` 未被 FC 鎖定、未被 venue lookup 設定，且 `location_address` 有都道府縣前綴，則自動從 address 推導並寫入 `location_prefectures`。但此邏輯僅在 re-annotation 時觸發，立即修正仍需手動。
+5. **快速偵測 SQL**：
+   ```python
+   # 找出 address 與 prefectures 不一致的事件
+   import re
+   _PREF_RE = re.compile(r'(北海道|東京都|(?:大阪|京都)府|[^\s都道府県\d〒\-]{2,4}[都道府県])')
+   for e in events:
+       m = _PREF_RE.search(e.get('location_address') or '')
+       if m:
+           derived = re.sub(r'[都道府県]$','',m.group(1))
+           prefs_short = [re.sub(r'[都道府県]$','',p) for p in (e.get('location_prefectures') or [])]
+           if derived not in prefs_short and len(prefs_short) == 1:
+               print(f"MISMATCH: {e['id'][:8]} addr→{derived} pref→{prefs_short}")
+   ```
+
+Reference incidents:
+- 2026-05-30 — 4件の不一致を一括修正：`7b37604e`（tsutaya_portal，手動 FC address 修正後 pref 未更新）、`9de63ffc`（ftip，同上）、`10a4ee5d`（note_creators，初回アノテーション誤設定）、`5e5ff363`（bigromanticrecords，sub-event が Osaka address を継承，pref は正しく Tokyo）。
+
 ## Manual Translation Fix Persistence Guard（手動修翻譯必須鎖 field_corrections）
 
 在審核**任何**直接 SQL UPDATE 翻譯欄位（`name_zh` / `name_en` / `description_zh` / `description_en` / `performer` / `performer_zh` / `performer_en`）的計畫前，**必須**確認：

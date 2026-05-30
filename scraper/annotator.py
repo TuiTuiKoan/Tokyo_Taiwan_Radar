@@ -1722,6 +1722,36 @@ def annotate_pending_events(
                                 continue
                             update_data[_col] = _val
 
+            # Auto-sync location_prefectures from location_address.
+            # Handles the case where location_address was manually FC-corrected but
+            # location_prefectures was not updated alongside it (common drift pattern).
+            # Only runs when:
+            #   1. location_prefectures is NOT FC-locked (_human_protected)
+            #   2. location_prefectures was NOT already set by venue lookup (not in update_data)
+            #   3. location_address is available in DB (possibly FC-corrected)
+            #   4. Single-prefecture events only (multi-city arrays are not touched)
+            if (
+                not fix_reviewed
+                and "location_prefectures" not in _human_protected
+                and "location_prefectures" not in update_data
+            ):
+                _sync_addr = event.get("location_address")
+                if _sync_addr and "オンライン" not in _sync_addr:
+                    _pm = _PREFECTURE_RE.match(_sync_addr)
+                    if _pm:
+                        _derived_pref = _pm.group(1)  # full name e.g. "福岡県", "東京都"
+                        _cur_pref = event.get("location_prefectures") or []
+                        def _short_pref(p: str) -> str:
+                            return p if p == "北海道" else re.sub(r"[都道府県]$", "", p)
+                        _derived_s = _short_pref(_derived_pref)
+                        _cur_shorts = [_short_pref(p) for p in _cur_pref]
+                        if len(_cur_pref) <= 1 and _derived_s not in _cur_shorts:
+                            update_data["location_prefectures"] = [_derived_pref]
+                            logger.info(
+                                "  → auto-sync location_prefectures: %s (derived from address)",
+                                [_derived_pref],
+                            )
+
             # Localized location/hours fields added in migration 010.
             # Kept separate so the primary update above never fails on old DB schemas.
             localized_location_data: dict[str, Any] = {
