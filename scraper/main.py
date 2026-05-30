@@ -147,6 +147,9 @@ from sources.united_cinemas import UnitedCinemasScraper
 from sources.us_cinema_chiba import UsCinemaChibaGekijoScraper
 from sources.whitestone_gallery import WhitestoneGalleryScraper
 from sources.ycam_cinema import YcamCinemaScraper
+from sources.ndl_opensearch import NdlOpensearchScraper
+from sources.kawade_rss import KawadeRssScraper
+from sources.hanmoto import HanmotoScraper
 from sources.base import dedup_events
 from database import upsert_events, _get_client
 from annotator import annotate_pending_events
@@ -282,6 +285,9 @@ SCRAPERS = [
     UsCinemaChibaGekijoScraper(),
     WhitestoneGalleryScraper(),
     YcamCinemaScraper(),
+    NdlOpensearchScraper(),
+    KawadeRssScraper(),
+    HanmotoScraper(),
 ]
 
 # ---------------------------------------------------------------------------
