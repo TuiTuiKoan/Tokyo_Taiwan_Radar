@@ -22,8 +22,9 @@ export async function POST(request: Request) {
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
     }
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: "File too large (max 5MB)" }, { status: 400 });
+    // 4 MB — keeps request well under Vercel's 4.5 MB function payload cap
+    if (file.size > 4 * 1024 * 1024) {
+      return NextResponse.json({ error: "File too large (max 4MB)" }, { status: 400 });
     }
 
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

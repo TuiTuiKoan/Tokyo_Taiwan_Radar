@@ -102,6 +102,10 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
     setUploading(true);
     setUploadError(null);
     try {
+      // Vercel serverless function payload cap is 4.5 MB — reject early on client
+      if (file.size > 4 * 1024 * 1024) {
+        throw new Error("ファイルサイズが大きすぎます（上限 4 MB）");
+      }
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
