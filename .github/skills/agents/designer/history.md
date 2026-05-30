@@ -1,3 +1,13 @@
+## 2026-05-30 — 首頁 FloatingShapes 邊緣穿越規則
+
+**問題：** 首頁背景圖形原本每個 tier 固定兩個，最大與次大圖形可能同時出現多個，且固定 drift class 容易讓圖形從相近邊緣點或同一側平行移動。使用者要求最大與次大各自同時最多一個，所有圖形都從邊緣出現、穿越中心、往對邊離開，且起點不能重疊或黏在一起。
+
+**修正：** 將 full variant slot 分布改為 `[2, 2, 2, 1, 1]`，並讓最大與次大先產生相對邊起點。`FloatingShapes` 不再隨機選 `drift-*` class，而是每個圖形保存 `path.side`、`path.offset`、`path.spin`，用 `drift-edge-through-center` keyframes 讀取 CSS variables。起點用 viewport 尺寸、responsive scale、圖形尺寸做間距檢查；初次載入以 positive delay 加 `animation-fill-mode: both` 停在透明邊緣起點，避免從中央 pop in。
+
+**教訓：** 程序化背景動畫不能只抽方向 class。需要把 motion path 視為資料，先約束同時存在的起點集合，再渲染動畫；否則大型圖案的視覺重量會放大任何重疊、平行或中央生成的問題。
+
+---
+
 ## 2026-05-19 — 一般頁 OG 改為單頁單 motif
 
 **觀察：** 使用者指出 fallback OG 不應同時出現五個自然 motif。原需求是主頁、公告、about、資料來源、個人書籤、管理頁各自分享時都能有一張自然 motif 縮圖。

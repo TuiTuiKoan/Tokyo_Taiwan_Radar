@@ -247,6 +247,7 @@ export default async function EventDetailPage({ params }: PageProps) {
   // Service role used so query bypasses RLS — only minimum fields selected.
   let relatedScreenings: Event[] = [];
   if (event.work_id) {
+    const today = new Date().toISOString().slice(0, 10);
     const supabaseAdmin = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -256,6 +257,9 @@ export default async function EventDetailPage({ params }: PageProps) {
       .select("id, name_ja, name_zh, name_en, start_date, end_date, location_name, location_name_zh, location_name_en, location_address, source_name, category, is_paid, is_active")
       .eq("work_id", event.work_id)
       .neq("id", id)
+      .eq("is_active", true)
+      .is("merged_into_event_id", null)
+      .or(`end_date.is.null,end_date.gte.${today}`)
       .order("start_date", { ascending: true });
     relatedScreenings = (related ?? []) as Event[];
   }
@@ -292,9 +296,6 @@ export default async function EventDetailPage({ params }: PageProps) {
   } catch {
     // non-admin / unauthenticated — fall through
   }
-
-  const upcomingScreenings = relatedScreenings.filter((r) => r.is_active);
-  const pastScreenings = relatedScreenings.filter((r) => !r.is_active);
 
   const name = getEventName(event as Event, locale);
   const description = getEventDescription(event as Event, locale);
@@ -1259,28 +1260,16 @@ export default async function EventDetailPage({ params }: PageProps) {
       })()}
 
       {/* ===== Related screenings (same work, other venues/dates) ===== */}
-      {(upcomingScreenings.length > 0 || (isAdmin && pastScreenings.length > 0)) && (
+      {relatedScreenings.length > 0 && (
         <section className="mb-8" aria-labelledby="related-screenings-heading">
           <h2 id="related-screenings-heading" className="font-display font-bold text-[#3A261F] text-base mb-3">
             {t("relatedScreeningsTitle")}
           </h2>
-          {upcomingScreenings.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {upcomingScreenings.map((rel) => (
-                <EventCard key={rel.id} event={rel} locale={locale} />
-              ))}
-            </div>
-          )}
-          {isAdmin && pastScreenings.length > 0 && (
-            <div className="mt-3">
-              <p className="text-xs text-fg-subtle mb-2">{t("pastScreeningsLabel")}</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 opacity-50">
-                {pastScreenings.map((rel) => (
-                  <EventCard key={rel.id} event={rel} locale={locale} />
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {relatedScreenings.map((rel) => (
+              <EventCard key={rel.id} event={rel} locale={locale} />
+            ))}
+          </div>
         </section>
       )}
 

@@ -397,6 +397,17 @@ Only when **multiple components** would benefit. Examples that justify it:
 
 For single-element micro-interactions, prefer Tailwind transitions.
 
+### FloatingShapes motion constraints
+
+Homepage full-mode `FloatingShapes` must keep motion path data-driven:
+
+- Use `[2, 2, 2, 1, 1]` tier distribution: tiers 0-2 may show two shapes each, while tiers 3-4 show one shape each.
+- Generate the tier 3 and tier 4 shapes first, and force their start sides to be opposite edges.
+- Give every floater a unique edge start point (`path.side` + `path.offset`) and reject candidates whose start points are too close after viewport scale and shape size are applied.
+- Animate with CSS variables through a shared edge-to-center-to-opposite-edge keyframe. Do not return to fixed drift classes that can start multiple large shapes from the same half of the viewport.
+- Use positive initial delays with `animation-fill-mode: both`, so delayed shapes remain transparent at their edge start instead of appearing midway through the screen.
+- Avoid mixing the `animation` shorthand with individual animation properties in React style objects. Use `animationName`, `animationDuration`, `animationTimingFunction`, `animationIterationCount`, `animationDelay`, and `animationFillMode` separately.
+
 ### Reduced motion
 
 ```tsx

@@ -6,7 +6,7 @@ Individual movie pages at /movie/{id}/ have synopsis text that includes
 country info in format "YYYY/国/N分/監督：.../出演：...".
 
 source_name : kyoto_cinema
-source_id   : kyoto_cinema_{movie_id}
+source_id   : kyoto_cinema_{md5(normalized_title)[:12]}
 """
 
 import logging
@@ -14,34 +14,23 @@ import re
 import time
 from datetime import datetime, timezone
 
-import requests
 from bs4 import BeautifulSoup
 
-from sources.base import BaseScraper, Event
+from sources._cinema_base import CinemaScraper, make_film_source_id
+from sources._cinema_dates import extract_showtimes, parse_date_range
+from sources.base import Event
 
 logger = logging.getLogger(__name__)
 
 _HOME_URL = "https://www.kyotocinema.jp/"
 _MOVIE_URL = "https://www.kyotocinema.jp/movie/{id}/"
-_UA = "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)"
-_TAIWAN_KEYWORDS = ["台湾", "Taiwan", "臺灣", "台灣", "金馬", "金马", "台北", "台中"]
 
 
-def _is_taiwan(text: str) -> bool:
-    return any(kw in text for kw in _TAIWAN_KEYWORDS)
-
-
-def _get_session() -> requests.Session:
-    s = requests.Session()
-    s.headers["User-Agent"] = _UA
-    return s
-
-
-class KyotoCinemaScraper(BaseScraper):
+class KyotoCinemaScraper(CinemaScraper):
     source_name = "kyoto_cinema"
 
     def scrape(self) -> list[Event]:
-        session = _get_session()
+        session = self.make_session()
         try:
             resp = session.get(_HOME_URL, timeout=20)
             resp.raise_for_status()
@@ -102,13 +91,10 @@ class KyotoCinemaScraper(BaseScraper):
                 movie_ids[mid_t] = today_date
             if mid_t not in movie_times:
                 tds = block.find_all("td")
-                start_times = []
-                for td in tds:
-                    tm = re.match(r"(\d{1,2}:\d{2})", td.get_text(strip=True))
-                    if tm:
-                        start_times.append(tm.group(1))
-                if start_times:
-                    movie_times[mid_t] = " / ".join(start_times)
+                td_text = " ".join(td.get_text(strip=True) for td in tds)
+                bh = extract_showtimes(td_text)
+                if bh:
+                    movie_times[mid_t] = bh
 
         # Collect any additional movie links not yet seen
         for a in soup.find_all("a", href=re.compile(r"kyotocinema\.jp/movie/\d+/")):
@@ -139,7 +125,7 @@ class KyotoCinemaScraper(BaseScraper):
             if not title:
                 continue
 
-            if not _is_taiwan(title + " " + page_text):
+            if not self.is_taiwan_relevant(title + " " + page_text):
                 continue
 
             # Extract description: look for main content paragraphs
@@ -151,15 +137,10 @@ class KyotoCinemaScraper(BaseScraper):
 
             # end_date from "終映日：M/D" pattern
             end_date = None
-            em = re.search(r"終映日[：:](\d{1,2})[/月](\d{1,2})", page_text)
+            em = re.search(r"終映日[：:][^\n]{0,20}", page_text)
             if em:
-                try:
-                    now = datetime.now(timezone.utc)
-                    month, day = int(em.group(1)), int(em.group(2))
-                    year = now.year if month >= now.month else now.year + 1
-                    end_date = datetime(year, month, day, tzinfo=timezone.utc)
-                except ValueError:
-                    pass
+                _end_start, _ = parse_date_range(em.group(0))
+                end_date = _end_start
             # Fallback: if no 終映日 found, use today's date so _build_movie_extend_row
             # can advance end_date each daily run via MAX(old, new) logic.
             if end_date is None and start_date is not None:
@@ -175,7 +156,7 @@ class KyotoCinemaScraper(BaseScraper):
                 raw_desc = f"上映期間: {start_date.strftime('%Y年%m月%d日')}\n\n" + raw_desc
             events.append(Event(
                 source_name=self.source_name,
-                source_id=f"kyoto_cinema_{mid}",
+                source_id=make_film_source_id("kyoto_cinema", title),
                 source_url=url,
                 original_language="ja",
                 name_ja=title,

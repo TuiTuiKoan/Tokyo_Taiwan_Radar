@@ -2,134 +2,19 @@
 
 <!-- Append new entries at the top -->
 
-## 2026-05-30 — annotator `_resolve_movie_titles_for_event()` 6-tuple → 7-tuple 拡張と `work_id` 自動付与（commit `7e5b124`）
+## 2026-05-30 — PR1 電影院 scraper 統合基盤（Phase 1A + 1B + 1C）
 
-**問題：** `kyoto_cinema_341456`（霧のごとく）が `works` テーブルの既存エントリとマッチしているにもかかわらず `work_id=None` のまま。
+**實作：**
+1. **Phase 1A**：新增 `_cinema_constants.py`（FIXED_CINEMA_SOURCES）、`_cinema_base.py`（CinemaScraper + make_film_source_id + _normalize_film_title）、`_cinema_dates.py`（parse_date_range / parse_japanese_date / extract_showtimes）。
+2. **Phase 1B**：`kyoto_cinema.py` 改繼承 `CinemaScraper`，source_id 從 `kyoto_cinema_{movie_id}` 改為 `make_film_source_id("kyoto_cinema", title)`（hash 穩定化）；日期/時刻改用共通函式。新增 `_oneoff_migrate_kyoto_source_id.py`（dry-run 預設）。
+3. **Phase 1C**：`web/app/[locale]/events/[id]/page.tsx` relatedScreenings query 加三件過濾（`.eq("is_active",true)` + `.is("merged_into_event_id",null)` + `.or("end_date.is.null,end_date.gte.${today}")`）；刪除 client-side `upcomingScreenings`/`pastScreenings` const；移除 past 區塊 JSX；i18n key `pastScreeningsLabel` 保留。
 
-**根本原因：** `_query_works()` の select に `id` が含まれておらず、マッチ結果から `work_id` を取り出せなかった。`enrich_movie_titles()` には `work_id` 書き込みロジック自体がなかった（手動バッチ `_oneoff_fix_movies.py` のみ）。
-
-**修法（commit `7e5b124`）：**
-- `_query_works()` select に `"id"` 追加（`title_ja` クエリ・`title_zh` フォールバックの両方）。
-- `_resolve_movie_titles_for_event()` → **7-tuple** `(name_zh, name_en, official_url, works_performer, works_director, works_id, title_used)`。early return は全て `None×6, ""` に変更。
-- `enrich_movie_titles()` で `if works_id and not event.get("work_id"): update["work_id"] = works_id`。
-- `work_id` は `_lock_fields_via_corrections()` から除外（FC 保護外）。
-- `eval_annotator.py` のアンパック `name_zh, name_en, _url, _wp, _wd, _wi, title =` に更新。
-
-**Lesson：** `_resolve_movie_titles_for_event()` の戻り値は **7-tuple 固定**。呼び出し元を修正する際は全ての return 分岐（early return を含む）が 7-tuple であることを確認すること。`work_id` は FC 保護外フィールドなので、`_lock_fields_via_corrections()` の呼び出し直前に `{k: v for k, v in update.items() if k != "work_id"}` でフィルタすること。
-
-## 2026-05-26 — GPT 自創 `photography` 分類繞過 VALID_CATEGORIES，前端顯示 raw i18n key
-
-**問題：** 事件 `25e27de9`（鄧南光展）詳情頁顯示 `categories.photography` raw i18n key。DB 查詢確認 `category = ['photography','art','exhibition','history']`，但 annotator 的 `VALID_CATEGORIES` frozenset（共 38 值）**不含 `photography`**。
-
-**根因：** Admin 建立路徑（OCR `extract-from-image/route.ts` + 手動 `annotate-event/route.ts`）的 GPT prompt 雖列了枚舉清單，但**沒有伺服器端白名單過濾器**。GPT 可自由產生 prompt 外的分類字串（例：海報含「写真展」→ GPT 自創 `photography`），直接寫入 `events.category` 陣列。Daily scraper 的 `scraper/annotator.py::_validate_categories()` 會 strip 不認識的值，但 admin route 路徑**完全沒走這層**。
-
-**修法（commit `264afed`）：** 新增 `photography` 為合法分類（6 處同步：types.ts / annotator.py / 三語 i18n / organicMotifs.tsx / 兩個 admin route），歸屬 `group_arts`。同時 backfill 兩個攝影展事件（`493c5fc3` 台湾写真展、`9798712d` 鄧南光寫真展）含 FC 鎖定。
-
-**Lesson（已上 SKILL）：** **Admin API routes 必須在伺服器端做 enum whitelist intersect**，鏡像 `scraper/annotator.py::_validate_categories()`。GPT 輸出 enum 欄位（`category` / `event_form` / `prefecture_code` 等）入庫前一律 `[v for v in gpt_output if v in WHITELIST]`，否則 GPT 自創值繞過 TypeScript / DB CHECK / annotator 三道防線（CHECK 對 `text[]` 陣列元素無效）。本 commit 暫未實作此過濾器，已列 backlog。
-
-## 2026-05-26 — co_organizers / sponsors 跨三路徑同步遺漏
-
-**問題：** 事件 `25e27de9`（写真家・鄧南光の視界）raw_description 已含「○○との共催、○○の協力により実施します」自然語句，但 DB `co_organizers=[]`、`sponsors=[]`，前端不顯示主辦階層。`source_name=manual`（OCR 建立），既不會自動重抽 OCR，annotation_status=reviewed 也鎖死了 annotator。
-
-**根因（多重）：**
-1. **annotator SYSTEM_PROMPT 只列條列式 label**（共催/協力/後援/協賛），對「○○との共催」「in cooperation with ○○」這類自然語句**沒給範例**，GPT 看到也抽不出。
-2. **OCR Vision prompt 完全沒有 `co_organizers` / `sponsors` 兩欄位**——海報底部 credit block 印了也不會被抽。schema 鏈通了（types.ts / AdminEventForm / i18n 都有對應），唯獨 Vision prompt 沒填。
-3. **`AdminEventTable.tsx` 的 `ARRAY_FIELDS` 集合只含 `event_form` + `category`**——OCR 回填時，array 欄位若不在這集合會被 `String(val)` 強轉成字串污染 form state。新增 array 欄位必須同步該集合（**隱性 sync point**）。
-
-**修法（commits `280fdc4` + `e54b925` + DB patch）：**
-- `scraper/annotator.py` SYSTEM_PROMPT 加 rule 3a，明列自然語句模式 + HOSEI worked example。
-- `web/app/api/admin/extract-from-image/route.ts` 加 `co_organizers` / `sponsors` 欄位定義（含「找海報底部 credit block」提示）+ user message 補同樣 hint。
-- `web/components/AdminEventTable.tsx` 擴 `ARRAY_FIELDS` 集合加入 `co_organizers`, `sponsors`。
-- DB patch event `25e27de9`：6 欄位（co_organizers / co_organizer_types / sponsors / sponsor_types / organizer_type / official_url）+ 6 個 FC 鎖定。
-
-**Lesson（已上 SKILL）：** **OCR/annotator/前端 form state 是三路徑收斂的 sync point**——任何新增 array 結構欄位都必須同時改三處：(1) Vision prompt 加欄位定義，(2) annotator prompt 加自然語句範例，(3) `AdminEventTable.tsx` 的 `ARRAY_FIELDS` 集合擴展。漏其中一處都會造成「schema 通了但欄位永遠空」的 silent failure。
-
-## 2026-05-25 — Playwright smoke 測試 `ERR_CONNECTION_REFUSED`（非程式回歸）
-
-**問題：** 執行 `web/tests/e2e/darkmode-navbar-related.smoke.spec.ts` 時失敗：`page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:3000/ja/announcements`。
-
-**根因：** Playwright 直接執行時本機 Next dev server 未啟動；測試腳本本身與 locale path 修改無關。
-
-**修法：** 先啟動 `npm run dev`，再重跑同一支 smoke test，結果 `1 passed`。驗證後關閉 dev server，避免殘留背景程序。
-
-**Lesson：** 針對需本機服務的 E2E，先確認 3000 port 有可用 app（或在 Playwright 設定 webServer 自動啟動）。`ERR_CONNECTION_REFUSED` 優先判斷執行環境，不要誤判為功能回歸。
-
-## 2026-05-22 — taiwan_festival_tokyo scraper 抓到 widget 過時日期
-
-**問題：** 事件 `80214e50-07da-4fbe-b85d-fb3bcb71a3f0`（台湾フェスティバル™TOKYO2026）DB 顯示 6/25–28，但官網主體文章已公告為 7/9–7/12。
-
-**根因：** scraper 只讀頁尾「開催詳細」widget（`#text-7`），主辦方在主體文章更新後忘了同步該 widget，導致 scraper 永遠抓到舊日期。
-
-**修法：** [scraper/sources/taiwan_festival_tokyo.py](scraper/sources/taiwan_festival_tokyo.py) 重寫抽取順序為「主體文章 (`section.p-entry__body` 內 `《開催日時》` 區塊) 優先 → widget fallback」。`_parse_date_range` 新增含年份格式 `YYYY年M月D日（曜）～(M月)?D日(曜)` 的 regex 分支；start/end_date 改用 `datetime(..., tzinfo=timezone.utc)`（遵守 Scraper Date Timezone Guard）。兩者皆成功且日期不一致時 `logger.warning(... — using body)`。
-
-**Lesson（已上 SKILL）：** **官方資訊多處顯示時，永遠優先主體文章而非 sidebar/footer widget。** widget 是 WordPress 常見的「設定一次忘了改」陷阱，主體文章才是編輯的焦點。任何 scraper 若依賴次要顯示位置，都要加 fallback 鏈並 log mismatch。
-
-## 2026-05-22 — admin 三個 handler Server Action 化（Safari hang 根除 + requireAdmin 共通化）
-
-**変更内容：** `web/components/AdminEventTable.tsx` の `handleSaveNew` / `handleSaveAndAnnotate` / `handlePublish` をブラウザ直接 `supabase.from("events").insert/.update()` から Server Action 呼び出しに移行。
-
-**新規ファイル：**
-- `web/app/actions/_shared/admin-guard.ts` — 共通 `requireAdmin()`（cookie auth + `user_roles.role='admin'` 検証）
-- `web/app/actions/admin-events.ts` — `createDraftEvent` / `createEventNoAnnotate` / `publishEvent` の 3 つの Server Action、`ActionResult<T>` 統一返り値
-
-**変更ファイル：**
-- `web/app/actions/works.ts` — inline `requireAdmin()` 削除 → shared module から import（drift = 0）
-- `web/components/AdminEventTable.tsx` — 3 handler 書き換え。`withClientTimeout` ラップは defense-in-depth として保持
-
-**Phase 0.1 schema 確認結果：** `events` テーブルは `migration 001` で `UNIQUE (source_name, source_id)` 複合 unique constraint を持つ（後続 migration で変更なし）。`source_id = manual-${Date.now()}-${random6}` 形式 + 23505 retry × 1 で衝突防護。
-
-**残存技術債（明示記録）：** 同 file 内に client-side `supabase.from("events").update()` が 7+ 箇所残存：
-- L734 `handleBulkToggleActive`
-- L777 単列 reannotate
-- L789 `handleBulkForceRescrape`
-- L816 `handleBulkRemoveCategory`
-- L858 `handleBulkAssignWork`
-- L880 `handleBulkAddCategory`
-- L926 単列 force_rescrape toggle
-- L947 単列 is_active toggle
-
-これらも同じ Safari hang root cause を持つ。再発報告が来たら同 pattern（admin-events.ts に Server Action 追加 → handler 書き換え）で対処する。
-
-**Lesson：**
-- Server Action と Client Component で同じ admin 認証を再実装すると drift リスクが高い。最初から `_shared/admin-guard.ts` のような shared module に置く。
-- 既存 unique constraint を migration 履歴で確認するのは psql 不要で十分（後続 migration の `DROP CONSTRAINT` 有無 grep）。
-- `Awaited<ReturnType<typeof X>> extends { ok: true; supabase: infer S } ? S : never` は TS の narrowing で `never` になりがち。素直に `Awaited<ReturnType<typeof createClient>>` を抽出する方が安全。
-
-## 2026-05-20 — kyoto_cinema の end_date が初日のまま止まる（movie-extend パス発動せず）（database.py + kyoto_cinema.py 修正）
-
-**問題：** kyoto_cinema イベント（霧のごとく 等）の `end_date` が初スクレイプ日（例: 2026-05-15）で固定され、映画が継続上映されているにも関わらず日付が更新されなかった。`business_hours` も初日取得値（例: 14:50）のまま。
-
-**根本原因：**
-1. `database.py` `upsert_events()` の movie-extend 条件：`key in existing_movie_state and "movie" in (e.category or [])`。スクレイパーは Event 生成時に `category=[]`（アノテーター前は空）なので `"movie" in []` が常に False → extend パスが**一切発動しない**。`existing_movie_state` は DB 行のカテゴリ（アノテーター済み）で正しくフィルタされているのに、受信側の empty category チェックが無意味な二重チェックになっていた。
-2. `kyoto_cinema.py`：「終映日」が映画ページに記載されていない場合 `end_date = None`。movie-extend の MAX ロジックは `old_end or new_end` → `None` の場合は `old_end` を維持するだけで日付が進まなかった。
-
-**修正：**
-1. `scraper/database.py` L538：条件から `and "movie" in (e.category or [])` を削除。`existing_movie_state` への登録自体が「DB で movie カテゴリ確認済み」を意味するため二重チェック不要（commit 対象）。
-2. `scraper/sources/kyoto_cinema.py` L163：「終映日」未検出時に `end_date = start_date`（今日の日付）をフォールバックとして設定 → MAX ロジックが毎日の scraper 実行で end_date を進められるようになった（commit 対象）。
-3. DB 即時修正：霧のごとく 2 件（`96dd4d16`, `c61292cd`）の `end_date` を 2026-05-20 に手動更新。
-
-**教訓：**
-- **movie-extend の trigger 条件は DB 行のカテゴリのみで判定**。スクレイパーが生成する Event は annotator 前なので `category=[]`。スクレイパー側の category を見てはいけない。
-- 映画スクレイパーで「終映日」が未取得の場合は `end_date = start_date`（今日）をフォールバックにすること。movie-extend の MAX ロジックはフォールバックがあって初めて機能する。
-- `existing_movie_state` に登録されること自体が DB 側で movie カテゴリ確認済みの証拠 — 呼び出し側の `e.category` チェックは不要。
-
----
-
-## 2026-05-20 — Safari 管理画面「保存中…」永久卡住（client-side supabase.insert hang）
-
-**問題：** Safari で OCR 後の event を「保存して標注」しようとすると、ボタンが「保存中…」のまま 1 分以上止まり、ユーザーは再試行不能。Chrome では同じフローが通る。alert も出ず、コンソールエラーも出ない。
-
-**根本原因：** Safari の fetch 実装が、特定のネットワーク条件下で `supabase.from("events").insert(...).select().single()` の Promise を **rejection も resolution もしないまま放置**。`try/catch` は throw された場合のみ発動するため、ハングした fetch では catch されず `setSaving(false)` も実行されない。同じパターンが 2026-05-15 の `ReportSection` で `submitReport` Server Action 化により回避済み（commit `53445be`）だが、管理画面の `handleSaveNew` / `handleSaveAndAnnotate` / `handlePublish` の 3 か所はまだ client-side `supabase.insert()` を直接呼んでいた。
-
-**修正：** `withClientTimeout(promise, ms, label)` ヘルパー（Promise.race + setTimeout reject）を導入し、3 か所すべての client-side insert/update を hard cap timeout で包んだ（insert 20s、publish 15s）。timeout 時は catch 分岐が発動 → alert + `setSaving(false)`（commit `de05da6`）。
-
-**教訓：**
-- `engineer/SKILL.md` の「Client Component 直接 INSERT 禁止 — Server Action 義務化」を **2026-05-15 に書いたのに 2026-05-20 まで管理画面に同じ罠が残っていた**。SKILL は書いた直後にコードベース全体を grep して既存 violation を全件除去すべし。
-- **Safari と Chrome で挙動が違う症状はほぼ確実に「fetch hang vs rejection」の差**。Chrome で再現しないからと言って bug が無いわけではない。
-- Server Action 化が長期解だが、それまでの間 `withClientTimeout` を全 client-side supabase 呼び出しに付ければ「永久 loading」だけは防げる（defense-in-depth）。
-- **「保存中…」が 10 秒以上止まったら必ず疑え**：通常の INSERT は 1–2 秒。10 秒 = 既に hang。
-
----
+**Guard 落實：**
+- `_normalize_film_title` 的 NFKC 正規化確保全形英數不影響 hash。
+- `_STATUS_WORDS` regex 剝除狀態詞但保留版本資訊（Same-Venue Different-Work Collision Guard）。
+- 所有日期函式明確 `return None` / `return None, None`（Date-Parser Exhaustive Return Guard）。
+- `.or()` 保留 `end_date.is.null` 分支，避免 NULL 被 SQL 三值邏輯誤隱藏（缺陷 N1）。
+- related query 維持 service role（RLS Cross-Status Query Guard）。
 
 ## 2026-05-20 — 管理画面 OCR + annotate-event の event_form / category プロンプトが DB / types.ts と乖離（管理画面 event 保存が 400 / 不正な i18n キー表示）
 
