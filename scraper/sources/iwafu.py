@@ -16,10 +16,11 @@ import time
 import logging
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeout
 
-from .base import BaseScraper, Event
+from .base import BaseScraper, Event, extract_first_party_url
 
 logger = logging.getLogger(__name__)
 
@@ -391,10 +392,20 @@ class IwafuScraper(BaseScraper):
         official_organizer: Optional[str] = None
         official_credits_text: str = ""
         official_body_text: str = ""
+        organizer_url: Optional[str] = None
         if official_url:
             official_organizer, official_credits_text, official_body_text = (
                 _fetch_official_organizer_info(page, official_url)
             )
+            # Extract organizer's own website from the official event page body.
+            # Exclude the event page's own domain so we get the brand/org site.
+            if official_body_text:
+                try:
+                    _off_host = urlparse(official_url).netloc.lower().lstrip("www.")
+                except Exception:
+                    _off_host = ""
+                _exc = tuple(h for h in (_off_host, "iwafu.com") if h)
+                organizer_url = extract_first_party_url(official_body_text, exclude_hosts=_exc)
 
         # Strip iwafu page UI noise (Q&A, PR ads, nearby events, map, tags)
         description = _strip_iwafu_noise(description)
@@ -494,6 +505,7 @@ class IwafuScraper(BaseScraper):
             location_name=location_name,
             location_address=location_address,
             organizer=official_organizer or None,
+            organizer_url=organizer_url,
             is_paid=is_paid,
             category=[],
         )

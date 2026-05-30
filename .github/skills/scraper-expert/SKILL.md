@@ -1047,9 +1047,14 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
 - **Title-level block**: Known IP series (e.g. `リアル脱出ゲーム×名探偵コナン`) must be blocked by `_BLOCKED_TITLE_PATTERNS` in `_scrape_detail` **before** the page load — this catches all tour stops as new source_ids appear. Add new entries here when a series is confirmed non-Taiwan-themed.
 - **Permanent IP series block**: For series where ALL events are non-Taiwan-themed (e.g. `名探偵コナン`), add the IP name to `_BLOCKED_SERIES`. Checked on BOTH card title (pre-load, fast-reject) AND h1 title (post-load). Card titles from search results can be truncated, so the pre-load check alone is not sufficient.
 - Taiwan relevance criterion: Taiwan must be the **theme or primary focus**, not just one venue on a multi-city tour.
-- **`organizer_url` enrichment**: iwafu ソースページは主催者の公式サイト URL を常に含むわけではない。ブランド商標の場合は `raw_description` 内の `extract_first_party_url()` で抽出を試みるか、公式サイトを手動で FC 設定すること。`organizer_url` を設定すると UI に「主催者名 ↗」リンクが自動表示される。(Incident: `a4442567` QUEEN SHOP 2026-05-31)
-- **小売 / モールイベントの `business_hours`**: デパート・ショッピングモールの定常営業時間はイベント固有ではなく venue-level データ。`venues` テーブルに `business_hours` カラムが存在しないため、現状は手動 FC 修正で対応。将来的には `venues.business_hours` カラム（migration 必要）+ `enrich_location.py` から自動取得する設計。UI 側は `event.business_hours` 存在時の表示に既対応済み。
+- **`organizer_url` 自動抽出（✅ 2026-05-31 実装済み）**: `_scrape_detail()` で `_fetch_official_organizer_info()` から `official_body_text` を取得後、`extract_first_party_url(official_body_text, exclude_hosts=(_off_host, "iwafu.com"))` を呼んで `organizer_url` を自動設定。`_off_host` は `official_url` のドメインから自動生成し、イベントページ自身のドメインを除外することでブランド公式サイトを抽出する。`organizer_url` を設定すると UI に「主催者名 ↗」リンクが自動表示される。(Incident: `a4442567` QUEEN SHOP 2026-05-31 — 手動 FC 修正で対応、以降は自動化)
+- **小売 / モールイベントの `business_hours`**: デパート・ショッピングモールの定常営業時間はイベント固有ではなく venue-level データ。
   - ⚠️ **必ず公式 venue サイトを確認してから FC 設定**。推測・常識での設定は誤りの原因（Incident: `a4442567` ルミネエスト `11:00〜22:30` と推測設定 → 実際は平日 `11:00〜21:00 / 土日祝 10:30〜21:00` だった）。
+  - **[Roadmap] `venues.business_hours` 自動伝播 — migration 080 仕様**:
+    1. `supabase/migrations/080_venues_business_hours.sql` で `ALTER TABLE venues ADD COLUMN business_hours TEXT` (ファイル作成済み)
+    2. 既知 authoritative venue に実際の営業時間をシード（例: ルミネエスト新宿 → `平日 11:00〜21:00 / 土日祝 10:30〜21:00`）
+    3. `enrich_location.py` または新規 `backfill_venue_business_hours.py`: `event.location_name` が `venues.name` と一致 かつ `is_authoritative=true` かつ `event.business_hours IS NULL` かつ FC ロックなし → `venue.business_hours` を伝播
+    4. 完了後は手動 FC 修正リスクがゼロになる
   - 参考: ルミネエスト新宿（2026-05）ショッピング: 平日 11:00〜21:00 / 土日祝 10:30〜21:00、レストラン: 11:00〜22:00。
 - **After adding a scraper filter, always audit the DB**: run `ilike("raw_title", "%keyword%")` to find existing records that should also be deactivated. The filter only prevents future inserts.
 - **Hard delete vs deactivation**: If an IP series is confirmed permanently non-Taiwan-themed, hard delete (`table.delete().eq("id", eid)`) rather than just deactivating. Deactivated events remain accessible via direct URL unless the event page also checks `is_active`.
