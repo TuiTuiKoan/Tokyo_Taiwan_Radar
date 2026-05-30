@@ -105,9 +105,17 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json().catch(() => ({ error: "Upload failed (server error)" }));
+      // Read raw text first so we can show it even if JSON.parse fails
+      const rawText = await res.text();
+      let data: { url?: string; error?: string };
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        // Non-JSON response — show status code + first 300 chars of body for debugging
+        throw new Error(`HTTP ${res.status}: ${rawText.slice(0, 300) || "(empty body)"}`);
+      }
       if (!res.ok) throw new Error(data.error ?? "Upload failed");
-      setCoverImageUrl(data.url);
+      setCoverImageUrl(data.url!);
     } catch (e: unknown) {
       setUploadError(e instanceof Error ? e.message : String(e));
     } finally {
