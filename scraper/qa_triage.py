@@ -41,6 +41,8 @@ NON_DAILY_SOURCES = frozenset({
     "ifi", "waseda_icl", "tuat_global",
     "tokyo_now", "fukuoka_now", "hankyu_umeda",
     "nagano_aioiza", "maruhiro", "whitestone_gallery",
+    # Cinemas that rarely/never screen Taiwan films (0 events in 180d)
+    "human_trust_cinema", "cineswitch_ginza", "cine_gallery",
 })
 DATE_IN_TAB_URL_RE = re.compile(r"/(\d{4}-\d{2}-\d{2})$")
 
