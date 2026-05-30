@@ -13,6 +13,7 @@ import ViewTracker from "@/components/ViewTracker";
 import AdminEventActions from "@/components/AdminEventActions";
 import EventCard from "@/components/EventCard";
 import BackToListButton from "@/components/BackToListButton";
+import AddToCalendarButton from "@/components/AddToCalendarButton";
 import Link from "next/link";
 
 export const revalidate = 3600;
@@ -312,6 +313,14 @@ export default async function EventDetailPage({ params }: PageProps) {
   const addressSegments = splitVenues(locationAddress).map(stripPostal).filter(Boolean);
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
+
+  // Calendar expiry: independent check — compare last day against today UTC 00:00
+  // (do NOT reuse `ended`; start_date stores JST day as UTC midnight, using `now`
+  //  would hide the button during the same day the event starts)
+  const startOfTodayUTC = new Date();
+  startOfTodayUTC.setUTCHours(0, 0, 0, 0);
+  const lastDay = event.end_date ?? event.start_date;
+  const calendarExpired = !!lastDay && new Date(lastDay) < startOfTodayUTC;
 
   // Aggregate unique prefecture names from sub-events (only for parent events with 2+ prefectures)
   const subEventPrefectures: string[] =
@@ -1113,6 +1122,20 @@ export default async function EventDetailPage({ params }: PageProps) {
           {(event as Event).official_url ? t("officialSite") : t("viewOriginal")}
           <span aria-hidden="true">↗</span>
         </a>
+      )}
+
+      {/* ===== Add to Calendar ===== */}
+      {event.start_date && !calendarExpired && (
+        <AddToCalendarButton
+          title={name ?? event.name_ja ?? ""}
+          description={description}
+          startDate={event.start_date}
+          endDate={event.end_date}
+          businessHours={businessHours}
+          location={locationAddress || locationName}
+          eventUrl={`${base}/${locale}/events/${event.id}`}
+          locale={locale}
+        />
       )}
 
       {/* ===== AI Selection Reason ===== */}

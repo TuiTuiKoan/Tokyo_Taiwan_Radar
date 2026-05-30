@@ -140,7 +140,10 @@
     "relatedScreeningsTitle": "Other screenings of this work",
     "pastScreeningsLabel": "Hidden Merged Entries",
     "backToList": "Back to List",
-    "eventLink": "View details for {name}"
+    "eventLink": "View details for {name}",
+    "addToCalendar": "Add to Calendar",
+    "addToGoogleCalendar": "Google Calendar",
+    "addToAppleCalendar": "Apple / Other (.ics)"
   },
   "auth": {
     "loginTitle": "Login",
