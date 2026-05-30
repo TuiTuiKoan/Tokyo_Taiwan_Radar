@@ -468,6 +468,47 @@ router.push('/admin');
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 
+## API Route JSON Safety Guard（Safari SyntaxError 防護）
+
+**所有 API route POST handler 必須用 try/catch 包整個函式體，確保任何情況下都回傳 JSON。**
+
+Safari 的 `fetch().then(r => r.json())` 遇到非 JSON 回應（如原始 HTML error page）直接拋 `SyntaxError: The string did not match the expected pattern.`；Chrome 在同樣情況下靜默失敗。不包 try/catch 的 route 在 uncaught exception 時回傳 HTML 500，Safari 用戶看到崩潰，Chrome 用戶靜默無感——跨瀏覽器行為完全不同，難以 debug。
+
+```ts
+// ❌ 未包 try/catch — uncaught exception 回傳 HTML, Safari 拋 SyntaxError
+export async function POST(request: Request) {
+  const data = await request.formData(); // 若此行拋例外 → 回傳 HTML 500
+  return NextResponse.json({ url: "..." });
+}
+
+// ✅ 包整個函式體
+export async function POST(request: Request) {
+  try {
+    const data = await request.formData();
+    // … all logic …
+    return NextResponse.json({ url: "..." });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Server error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+```
+
+**配套規則：**
+- **File extension 必須消毒**：從 user-uploaded filename 取副檔名前必須過濾特殊字元，防止破壞 Supabase storage path：
+  ```ts
+  const rawExt = file.name.split(".").pop() ?? "jpg";
+  const ext = rawExt.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "jpg";
+  ```
+- **Client side fallback**：`const json = await res.json().catch(() => ({ error: "Upload failed (server error)" }))` — 防止 non-JSON 500 在 client 端拋 SyntaxError。
+- **`SUPABASE_SERVICE_ROLE_KEY` 必須顯式 guard**：若依賴 service role 的 route 缺 key，要回傳明確錯誤訊息而非 undefined 引爆 TypeError：
+  ```ts
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) return NextResponse.json({ error: "Server misconfiguration: storage key not set" }, { status: 500 });
+  ```
+
+Reference incident: 2026-05-31 — `web/app/api/upload/route.ts` 未包 try/catch + extension 未消毒，Safari 上傳圖片全失敗；Chrome 無感（commit `616eecc`）。
+
 ## Homepage vs EventCard — Two Render Paths
 
 事件卡片在本專案有**兩條獨立渲染路徑**，修改前必須同時檢查：

@@ -2,6 +2,14 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-31 — API Route JSON Safety Guard 新增至 SKILL.md
+**新增/修改：**
+- 新增 `## API Route JSON Safety Guard` 段落：try/catch 包整個 POST handler 確保永遠回傳 JSON（Safari SyntaxError 防護）
+- 配套規則：file extension 消毒、client-side `.json().catch()` fallback、service role key 顯式 guard
+**來源：** daily-skills-review（commit `616eecc` Safari 上傳圖片全失敗，Chrome 無感）
+
+---
+
 ## 2026-05-31 — Phase 3 空白事件重抓（refetch_thin_events.py + workflow）
 
 **實作：**
