@@ -159,8 +159,18 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
   const c7d = new Date(nowMs - 7 * 86400e3).toISOString();
   const c30d = new Date(nowMs - 30 * 86400e3).toISOString();
 
-  const [totalRes, last24Res, last7Res, last30Res, recentRawRes, topViewsRawRes, allActiveEventsRes, monthlyRawRes, gsc] =
-    await Promise.all([
+  const [
+    totalRes,
+    last24Res,
+    last7Res,
+    last30Res,
+    recentRawRes,
+    topViewsRawRes,
+    allActiveEventsRes,
+    monthlyRawRes,
+    collectedMonthlyRawRes,
+    gsc,
+  ] = await Promise.all([
       supabase.from("event_views").select("id", { count: "exact", head: true }),
       supabase.from("event_views").select("id", { count: "exact", head: true }).gte("viewed_at", c24h),
       supabase.from("event_views").select("id", { count: "exact", head: true }).gte("viewed_at", c7d),
@@ -178,6 +188,11 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
         .eq("is_active", true)
         .gte("start_date", new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1).toISOString())
         .not("start_date", "is", null),
+      supabase
+        .from("events")
+        .select("created_at")
+        .gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1).toISOString())
+        .not("created_at", "is", null),
       fetchGscStats(),
     ]);
 
@@ -288,6 +303,21 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
   }
   const monthlyEntries = Object.entries(monthlyMap).sort((a, b) => a[0].localeCompare(b[0]));
   const maxMonthly = Math.max(...monthlyEntries.map(([, value]) => value), 1);
+
+  const collectedMonthlyMap: Record<string, number> = {};
+  for (let i = 0; i < 12; i++) {
+    const monthDate = new Date(new Date().getFullYear(), new Date().getMonth() - 11 + i, 1);
+    const key = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
+    collectedMonthlyMap[key] = 0;
+  }
+  for (const event of collectedMonthlyRawRes.data ?? []) {
+    if (!event.created_at) continue;
+    const monthDate = new Date(event.created_at as string);
+    const key = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
+    if (key in collectedMonthlyMap) collectedMonthlyMap[key] += 1;
+  }
+  const collectedMonthlyEntries = Object.entries(collectedMonthlyMap).sort((a, b) => a[0].localeCompare(b[0]));
+  const maxCollectedMonthly = Math.max(...collectedMonthlyEntries.map(([, value]) => value), 1);
 
   return (
     <div>
@@ -575,6 +605,37 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
                       <div className="flex-1 h-2 rounded-full bg-muted">
                         <div
                           className="h-2 rounded-full bg-amber-400"
+                          style={{ width: count === 0 ? "1px" : `${pct}%` }}
+                        />
+                      </div>
+                      <span className="w-16 text-right text-xs text-fg-muted shrink-0">
+                        {count} {t("analyticsEventsUnit")}
+                      </span>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
+        <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsCollectedMonthlyTitle")}</h3>
+        {collectedMonthlyEntries.length === 0 ? (
+          <p className="text-sm text-fg-subtle">{t("analyticsMonthlyEmpty")}</p>
+        ) : (
+          <ul className="space-y-2">
+            {collectedMonthlyEntries.map(([month, count]) => {
+              const pct = Math.round((count / maxCollectedMonthly) * 100);
+              return (
+                <li key={month} className="flex items-center gap-3 text-sm">
+                  <span className="w-16 shrink-0 text-xs text-fg-muted">{month}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 rounded-full bg-muted">
+                        <div
+                          className="h-2 rounded-full bg-sky-400"
                           style={{ width: count === 0 ? "1px" : `${pct}%` }}
                         />
                       </div>
