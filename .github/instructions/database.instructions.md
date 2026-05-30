@@ -8,7 +8,7 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `080_fc_metric_fix.sql` (next = `081`). Previous milestones: `076_venues_authority.sql`, `077_*`, `078_performer_url.sql`, `079` (skipped).
+- Number migrations sequentially: `001`, `002`, … Latest is `081_venues_business_hours.sql` (next = `082`). Previous milestones: `076_venues_authority.sql`, `077_*`, `078_performer_url.sql`, `079` (skipped), `080_fc_metric_fix.sql`.
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped; `029_aeo_visits.sql` + `029b_realtime_events.sql`; `038_performer.sql` + `038b_field_corrections.sql`
 
@@ -119,6 +119,7 @@ Unique constraint: `(source_name, source_id)`
 - `announcement_events` — `(announcement_id, event_id)` junction linking announcements to events
 - `app_settings` — global key-value config: `key` text PK, `value` jsonb; admin-only RLS; seeded with `weekly_broadcast: {auto_publish: false}`
 - `daily_quality_metrics` — daily aggregated KPI: `events_upserted`, `events_active`, `exclusion_hits`, `irrelevant_reports`, `precision_rate`, `fc_override_attempts` (first-occurrence count via `first_override_attempted_at`), `annotator_stage1_pass`, `annotator_stage2_pass` (combined), `annotator_stage2_nz_pass`, `annotator_stage2_ne_pass` (split), `annotator_eval_run_at`; computed by `scraper/daily_quality.py` (recomputes last 14 days each run to absorb late reports); admin-only RLS
+- `venues` — venue registry: `id UUID PK`, `name TEXT`, `address TEXT`, `prefecture TEXT`, `lat/lng NUMERIC`, `is_authoritative BOOL`, `location_name_zh/en TEXT`, `location_url TEXT`, `business_hours TEXT` (standard operating hours; used by `enrich_location.py` to auto-populate `events.business_hours` when `is_authoritative=true` and no FC lock exists)
 - `sources` — scraper source registry: `id TEXT PK` (= events.source_name), `name`, `type` (one of 14 values: `government` / `academic` / `event_platform` / `cinema` / `tv` / `venue` / `department_store` / `organizer` / `ngo` / `news_media` / `taiwan_shop` / `personal` / `creator` / `other` — see migrations 060 + 067), `frequency` (daily/weekly), `official_url`, `sort_order INT`, `is_active BOOL`; public SELECT RLS; seeded with 104 rows from web/lib/sources.ts; used by `/sources` public page (migration 060). When adding a new source: insert via SQL with the matching `type` value — do NOT touch `web/lib/sources.ts` SOURCE_TYPES; that array is the SourceType union, not data.
 
 ## RLS policies
