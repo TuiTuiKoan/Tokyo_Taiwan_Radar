@@ -259,26 +259,26 @@ export default function AddToCalendarButton({
   }
 
   return (
-    <div ref={ref} className="relative mb-4">
+    <div ref={ref} className="relative w-[108px] min-w-[108px] max-w-[108px]">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-2 w-full border border-green-600 text-green-700 hover:bg-green-50 font-medium py-3 px-4 rounded-xl transition"
+        className="flex items-center gap-1.5 w-full border border-line-strong bg-paper dark:bg-elevated text-fg-strong hover:bg-muted font-medium py-2 px-2.5 rounded-xl transition"
       >
         <span aria-hidden="true">📅</span>
-        <span>{t("addToCalendar")}</span>
+        <span className="text-sm truncate">{t("addToCalendar")}</span>
         <span className="ml-auto" aria-hidden="true">
           {open ? "▲" : "▼"}
         </span>
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-20">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-surface border border-line rounded-xl shadow-lg overflow-hidden z-20">
           <a
             href={calData.googleUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-3 text-sm hover:bg-gray-50 transition"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-fg-strong hover:bg-muted transition"
             onClick={() => setOpen(false)}
           >
             <span aria-hidden="true">📅</span>
@@ -286,7 +286,7 @@ export default function AddToCalendarButton({
           </a>
           <button
             type="button"
-            className="flex items-center gap-2 w-full px-4 py-3 text-sm hover:bg-gray-50 transition text-left"
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-fg-strong hover:bg-muted transition text-left border-t border-line"
             onClick={handleApple}
           >
             <span aria-hidden="true">🍎</span>

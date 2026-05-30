@@ -141,9 +141,9 @@
     "pastScreeningsLabel": "Hidden Merged Entries",
     "backToList": "Back to List",
     "eventLink": "View details for {name}",
-    "addToCalendar": "Add to Calendar",
-    "addToGoogleCalendar": "Google Calendar",
-    "addToAppleCalendar": "Apple / Other (.ics)"
+    "addToCalendar": "Add",
+    "addToGoogleCalendar": "Google",
+    "addToAppleCalendar": "Apple/.ics"
   },
   "auth": {
     "loginTitle": "Login",

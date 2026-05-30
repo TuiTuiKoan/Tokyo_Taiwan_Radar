@@ -141,9 +141,9 @@
     "pastScreeningsLabel": "非表示の統合エントリー",
     "backToList": "一覧へ戻る",
     "eventLink": "{name} の詳細を見る",
-    "addToCalendar": "カレンダーに追加",
-    "addToGoogleCalendar": "Google カレンダー",
-    "addToAppleCalendar": "Apple・その他(.ics)"
+    "addToCalendar": "追加",
+    "addToGoogleCalendar": "Google",
+    "addToAppleCalendar": "Apple/.ics"
   },
   "auth": {
     "loginTitle": "ログイン",
