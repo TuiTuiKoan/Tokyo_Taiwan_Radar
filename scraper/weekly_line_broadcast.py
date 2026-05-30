@@ -293,9 +293,11 @@ def _city_label(event: dict, lang: str) -> str:
     4. location_prefectures[0] fallback when location_address is absent
     5. Still nothing → no label
     """
-    # Online events have no city
+    # Online events get a language-appropriate label
     if (event.get("location_name") or "").strip() == "オンライン":
-        return ""
+        online_labels = {"zh": "線上", "en": "Online", "ja": "オンライン"}
+        label = online_labels.get(lang, "オンライン")
+        return f"[{label}]"
     addr = (event.get("location_address") or "").strip()
     if addr:
         # Tokyo
