@@ -8,7 +8,7 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `076_venues_authority.sql` (next = `077`). Previous milestones: `073_event_views_country.sql`, `074_auto_scraper_artifacts.sql`, `075_field_corrections_audit.sql`.
+- Number migrations sequentially: `001`, `002`, … Latest is `080_fc_metric_fix.sql` (next = `081`). Previous milestones: `076_venues_authority.sql`, `077_*`, `078_performer_url.sql`, `079` (skipped).
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped; `029_aeo_visits.sql` + `029b_realtime_events.sql`; `038_performer.sql` + `038b_field_corrections.sql`
 
@@ -110,7 +110,7 @@ Unique constraint: `(source_name, source_id)`
 - `creators` — Taiwan creators/voices in Japan: name, platform, handle, profile_url, category, base_location, nationality, is_active, approx_followers, last_post_at, notes
 - `creator_events` — `(creator_id uuid, event_id uuid, relationship text)` links creators to events
 - `line_subscribers` — LINE OA subscribers: `line_user_id`, `status` (`active`/`blocked`), `language_preference`, `category_preferences text[]`; service-role-only RLS (migration 022)
-- `field_corrections` — admin-corrected field values: `(event_id, field_name)` unique; `original_value`, `corrected_value`, `corrected_by`, `report_id` (FK→event_reports, nullable); annotator reads at startup and never overwrites protected fields
+- `field_corrections` — admin-corrected field values: `(event_id, field_name)` unique; `original_value`, `corrected_value`, `corrected_by`, `report_id` (FK→event_reports, nullable); `first_override_attempted_at` (write-once, set on first B1 guard hit); `last_override_attempted_at` (updated on every B1 guard hit); `override_attempt_count` (cumulative); annotator reads at startup and never overwrites protected fields
 - `field_corrections_audit` — audit trail for `qa_heartbeat.py` automatic FC unlock/override (migration 075): `event_id`, `field_name`, `report_id`, `event_before_value_json`/`event_after_value_json` (JSONB so text[] roundtrips), `fc_before_*` columns, `unlock_reason`, `r_class`, `model_used`, `confidence`, `operation_status` (`started`|`applied`|`verify_failed`|`rolled_back`), `verified_at`, `rolled_back_at`, `rolled_back_reason`; service-role-only RLS
 - `selection_reason_corrections` — admin-corrected `selection_reason` records: `event_id` unique; `raw_title`, `raw_description` (for few-shot context); `ai_sr` jsonb, `corrected_sr` jsonb; annotator reads at startup via `selection_reason_feedback.py` for few-shot injection
 - `source_exclusions` — admin-defined pattern rules for blocking irrelevant events before upsert: `source_name`, `pattern`, `pattern_type` (substring/regex), `match_field`, `is_active`, `expires_at` (NULL = permanent), `auto_disabled_at`, `auto_disabled_reason` (`expired` | `stale_no_hits`); admin-only RLS. View `source_exclusions_effective` exposes only currently-in-force rules (active, not auto-disabled, not expired); daily CI job `exclusions_maintenance.py` flips `auto_disabled_at` for expired or 90-day-stale rules.
@@ -118,7 +118,7 @@ Unique constraint: `(source_name, source_id)`
 - `announcements` — social/LINE post drafts: `slug` (UNIQUE), `type` (`'manual'` | `'weekly_broadcast'`), `title_*/body_*/image_*` (trilingual), `published_at` (null=draft, future=scheduled, past=published), `social_status` jsonb, `is_featured`; admin-only write RLS
 - `announcement_events` — `(announcement_id, event_id)` junction linking announcements to events
 - `app_settings` — global key-value config: `key` text PK, `value` jsonb; admin-only RLS; seeded with `weekly_broadcast: {auto_publish: false}`
-- `daily_quality_metrics` — daily aggregated KPI: `events_upserted`, `events_active`, `exclusion_hits`, `irrelevant_reports`, `precision_rate`; computed by `scraper/daily_quality.py` (recomputes last 14 days each run to absorb late reports); admin-only RLS
+- `daily_quality_metrics` — daily aggregated KPI: `events_upserted`, `events_active`, `exclusion_hits`, `irrelevant_reports`, `precision_rate`, `fc_override_attempts` (first-occurrence count via `first_override_attempted_at`), `annotator_stage1_pass`, `annotator_stage2_pass` (combined), `annotator_stage2_nz_pass`, `annotator_stage2_ne_pass` (split), `annotator_eval_run_at`; computed by `scraper/daily_quality.py` (recomputes last 14 days each run to absorb late reports); admin-only RLS
 - `sources` — scraper source registry: `id TEXT PK` (= events.source_name), `name`, `type` (one of 14 values: `government` / `academic` / `event_platform` / `cinema` / `tv` / `venue` / `department_store` / `organizer` / `ngo` / `news_media` / `taiwan_shop` / `personal` / `creator` / `other` — see migrations 060 + 067), `frequency` (daily/weekly), `official_url`, `sort_order INT`, `is_active BOOL`; public SELECT RLS; seeded with 104 rows from web/lib/sources.ts; used by `/sources` public page (migration 060). When adding a new source: insert via SQL with the matching `type` value — do NOT touch `web/lib/sources.ts` SOURCE_TYPES; that array is the SourceType union, not data.
 
 ## RLS policies
@@ -136,7 +136,7 @@ Unique constraint: `(source_name, source_id)`
 
 ## Migration checklist
 
-1. Number the file `NNN_descriptive_name.sql` (next = `077`)
+1. Number the file `NNN_descriptive_name.sql` (next = `081`)
 2. Use `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE … ADD COLUMN IF NOT EXISTS`
 3. Add RLS with `ALTER TABLE … ENABLE ROW LEVEL SECURITY` + policies
 4. Test in Supabase SQL Editor before committing
