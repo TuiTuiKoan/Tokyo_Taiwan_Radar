@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
 
 export const maxDuration = 60;
 
@@ -378,8 +379,8 @@ export async function POST(req: NextRequest) {
 Given event info AND a fetched web page (if provided), return a JSON with these fields. Extract data from the web page when fields are missing or to enrich existing values.
 
 Classification fields (always required):
-- category: array of 1–3 values from: movie | performing_arts | senses | photography | retail | nature | tech | tourism | lifestyle_food | books_media | gender | geopolitics | art | lecture | taiwan_japan | business | academic | competition | report
-- event_form: array of 1–2 values from: exhibition | screening | lecture | performance | market | workshop | conference | networking | screening_with_talk | tour | competition | tasting | broadcast | study_abroad | other
+- category: array of 1–3 values from: ${CATEGORIES.join(" | ")}
+- event_form: array of 1–2 values from: ${EVENT_FORMS.join(" | ")}
 - primary_language: "ja" | "zh" | "en" | "mixed"
 - has_japanese_support: boolean
 - has_chinese_support: boolean
@@ -460,6 +461,47 @@ Rules:
       if (existingCategory) returnedFields.category = event.category;
       if (existingEventForm) returnedFields.event_form = event.event_form;
     } catch { /* GPT parse error — still return web-search results */ }
+  }
+
+  // ── Enum whitelist validation (OWASP A03) ───────────────────────────────
+  // Alias normalization: migration 047 old names → current names
+  const EVENT_FORM_ALIASES: Record<string, string> = {
+    concert: "performance",
+    lecture_seminar: "lecture",
+    film_screening: "screening",
+    festival: "other",
+    sports: "other",
+  };
+  const validCategories = new Set<string>(CATEGORIES);
+  const validEventForms = new Set<string>(EVENT_FORMS);
+
+  if (Array.isArray(returnedFields.category)) {
+    const filtered = (returnedFields.category as string[])
+      .filter((v): v is string => typeof v === "string")
+      .filter(v => validCategories.has(v));
+    if (filtered.length > 0) {
+      returnedFields.category = filtered;
+    } else {
+      console.error("[annotate-event] category whitelist: all values invalid, dropped", {
+        eventId, raw: returnedFields.category,
+      });
+      delete returnedFields.category;
+    }
+  }
+
+  if (Array.isArray(returnedFields.event_form)) {
+    const normalized = (returnedFields.event_form as string[])
+      .filter((v): v is string => typeof v === "string")
+      .map(v => EVENT_FORM_ALIASES[v] ?? v)
+      .filter(v => validEventForms.has(v));
+    if (normalized.length > 0) {
+      returnedFields.event_form = normalized;
+    } else {
+      console.error("[annotate-event] event_form whitelist: all values invalid, dropped", {
+        eventId, raw: returnedFields.event_form,
+      });
+      delete returnedFields.event_form;
+    }
   }
 
   // 5. Save annotation to DB

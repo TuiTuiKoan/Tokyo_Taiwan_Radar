@@ -260,6 +260,26 @@ export const CATEGORIES: Category[] = [
   "report",
 ];
 
+export const EVENT_FORMS = [
+  "exhibition",
+  "screening",
+  "lecture",
+  "performance",
+  "market",
+  "workshop",
+  "conference",
+  "networking",
+  "screening_with_talk",
+  "tour",
+  "competition",
+  "tasting",
+  "broadcast",
+  "study_abroad",
+  "other",
+] as const;
+
+export type EventForm = (typeof EVENT_FORMS)[number];
+
 export interface CategoryGroup {
   labelKey: string;
   categories: Category[];

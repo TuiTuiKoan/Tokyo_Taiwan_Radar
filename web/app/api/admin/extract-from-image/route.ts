@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
   // 1. Admin auth check
@@ -57,8 +58,8 @@ Extract all visible information and return a JSON object with these fields (omit
 - has_japanese_support: true/false
 - has_chinese_support: true/false
 - has_english_support: true/false
-- event_form: array using only these values: exhibition | screening | lecture | performance | market | workshop | conference | networking | screening_with_talk | tour | competition | tasting | broadcast | study_abroad | other
-- category: array using only these values: movie | performing_arts | senses | photography | tea_alcohol | drama | documentary | retail | nature | tech | tourism | lifestyle_food | books_media | gender | parenting | geopolitics | art | lecture | taiwan_japan | scholarship | study_abroad | business | academic | competition | indigenous | folklore | history | urban | workshop | literature | tv_program | radio_program | exhibition | design_craft | herbal | taiwan_mandarin | healthcare | market | report
+- event_form: array using only these values: ${EVENT_FORMS.join(" | ")}
+- category: array using only these values: ${CATEGORIES.join(" | ")}
 
 Title rules:
 - Read the poster top to bottom and capture the COMPLETE title (main title + sub-title + series name).
