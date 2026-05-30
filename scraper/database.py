@@ -26,7 +26,8 @@ _VALID_ORGANIZER_TYPES = frozenset([
 ])
 _VALID_EVENT_FORMS = frozenset([
     "exhibition", "screening", "lecture", "performance", "market", "workshop",
-    "conference", "networking", "screening_with_talk", "tour", "competition", "other",
+    "conference", "networking", "screening_with_talk", "tour", "competition",
+    "tasting", "broadcast", "study_abroad", "other",
 ])
 _VALID_PRIMARY_LANGUAGES = frozenset(["ja", "zh", "en", "mixed"])
 
@@ -207,8 +208,10 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
             logger.debug("organizer entity lookup skipped (table may not exist yet): %s", exc)
 
     venue_lookup: dict[str, str] = {}
+    venue_hours_lookup: dict[str, str] = {}
     if venue_strs:
         try:
+            # 1-a. venue_id lookup (canonical_name_ja).
             resp = (
                 client.table("venues")
                 .select("id,canonical_name_ja,aliases")
@@ -217,27 +220,82 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
             )
             for r in resp.data or []:
                 venue_lookup[r["canonical_name_ja"]] = r["id"]
+
+            # 1-b. venue_hours_lookup（is_authoritative=True only）
+            venue_hours_resp = (
+                client.table("venues")
+                .select("canonical_name_ja,business_hours")
+                .in_("canonical_name_ja", venue_strs)
+                .eq("is_authoritative", True)
+                .not_.is_("business_hours", "null")
+                .execute()
+            )
+            for r in venue_hours_resp.data or []:
+                if r.get("business_hours"):
+                    venue_hours_lookup[r["canonical_name_ja"]] = r["business_hours"]
+
             still_missing = [s for s in venue_strs if s not in venue_lookup]
             if still_missing:
                 for s in still_missing:
                     try:
                         ar = (
                             client.table("venues")
-                            .select("id")
+                            .select("id,business_hours,is_authoritative")
                             .contains("aliases", [s])
                             .limit(1)
                             .execute()
                         )
                         if ar.data:
                             venue_lookup[s] = ar.data[0]["id"]
+                            bh = ar.data[0].get("business_hours")
+                            if bh and ar.data[0].get("is_authoritative"):
+                                venue_hours_lookup[s] = bh
                     except Exception:
                         pass
         except Exception as exc:
             logger.debug("venue entity lookup skipped (table may not exist yet): %s", exc)
 
+    # FC 保護：預查 DB 取 business_hours 候選事件的 UUID
+    bh_candidates = [r for r in rows if not r.get("business_hours")
+                     and r.get("location_name") in venue_hours_lookup]
+    fc_protected_bh_ids: set[str] = set()
+    id_map: dict[tuple, str] = {}
+    if bh_candidates:
+        from collections import defaultdict
+        by_sn: dict[str, list[str]] = defaultdict(list)
+        for r in bh_candidates:
+            by_sn[r["source_name"]].append(r["source_id"])
+        for sn, sids in by_sn.items():
+            try:
+                id_resp = (
+                    client.table("events")
+                    .select("id,source_id")
+                    .eq("source_name", sn)
+                    .in_("source_id", sids)
+                    .execute()
+                )
+                for item in id_resp.data or []:
+                    id_map[(sn, item["source_id"])] = item["id"]
+            except Exception:
+                pass
+        candidate_uuids = list(id_map.values())
+        if candidate_uuids:
+            try:
+                fc_resp = (
+                    client.table("field_corrections")
+                    .select("event_id")
+                    .eq("field_name", "business_hours")
+                    .in_("event_id", candidate_uuids)
+                    .execute()
+                )
+                fc_protected_bh_ids = {r["event_id"] for r in fc_resp.data or []}
+            except Exception:
+                pass
+
     # Mutate rows in-place.
     org_hits = 0
     venue_hits = 0
+    bh_hits = 0
     for r in rows:
         org = r.get("organizer")
         if isinstance(org, str) and org in org_lookup:
@@ -247,9 +305,19 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
         if isinstance(loc, str) and loc in venue_lookup:
             r["venue_id"] = venue_lookup[loc]
             venue_hits += 1
+        # business_hours 傳播（僅 authoritative venues，無 FC 鎖）
+        if (not r.get("business_hours")
+                and isinstance(loc, str)
+                and loc in venue_hours_lookup):
+            row_uuid = id_map.get((r.get("source_name"), r.get("source_id")))
+            if row_uuid is None or row_uuid not in fc_protected_bh_ids:
+                r["business_hours"] = venue_hours_lookup[loc]
+                bh_hits += 1
     if org_hits or venue_hits:
         logger.info("Entity FK lookup: organizer_id matched %d row(s); venue_id matched %d row(s).",
                     org_hits, venue_hits)
+    if bh_hits:
+        logger.info("Venue business_hours propagated to %d row(s).", bh_hits)
 
 
 def find_parent_event_id(name_ja: str | None, source_name: str) -> str | None:
