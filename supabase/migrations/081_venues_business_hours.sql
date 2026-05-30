@@ -1,16 +1,16 @@
 -- Migration 081: venues.business_hours column
--- Purpose: Store venue-level standard operating hours so enrich_location.py
+-- Purpose: Store venue-level standard operating hours so annotator.py
 --          can auto-propagate to events.business_hours without manual FC correction.
 --
 -- Design intent:
 --   1. Seed known authoritative venues with their actual hours (see INSERT below).
---   2. enrich_location.py: when event.location_name matches venues.name and
+--   2. annotator.py: when event.location_name matches venues.canonical_name_ja and
 --      venues.is_authoritative = true and event.business_hours IS NULL and no
 --      field_corrections lock exists → copy venue.business_hours to event.
 --   3. This removes the human error path of guessing/assuming hours.
 --
 -- Related: venues.is_authoritative (migration 076)
--- Next step: update enrich_location.py or add backfill_venue_business_hours.py
+-- Next step: update annotator.py `_venue_cols` block (see Plan B Phase 3)
 
 ALTER TABLE venues
   ADD COLUMN IF NOT EXISTS business_hours TEXT;

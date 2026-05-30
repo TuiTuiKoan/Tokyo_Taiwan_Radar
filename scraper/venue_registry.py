@@ -30,6 +30,7 @@ def _ensure_defaults(row: dict[str, Any]) -> dict[str, Any]:
     patched.setdefault("is_multi_venue", False)
     patched.setdefault("homepage", None)
     patched.setdefault("prefectures", None)
+    patched.setdefault("business_hours", None)
     return patched
 
 
@@ -44,7 +45,7 @@ def _build_cache() -> dict[str, dict[str, Any]]:
             .select(
                 "id,canonical_name_ja,canonical_name_zh,canonical_name_en,"
                 "address,prefecture,prefectures,city,homepage,aliases,"
-                "is_authoritative,is_multi_venue"
+                "is_authoritative,is_multi_venue,business_hours"
             )
             .eq("is_authoritative", True)
             .execute()

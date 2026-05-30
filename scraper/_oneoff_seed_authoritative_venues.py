@@ -101,6 +101,7 @@ SEED_DATA: list[dict[str, Any]] = [
         "homepage": "https://faam.city.fukuoka.lg.jp/",
         "is_authoritative": True,
         "is_multi_venue": False,
+        "business_hours": "9:30〜19:30（金・土は20:00まで）/ 水曜休館",
     },
     {
         "canonical_name_ja": "東京都写真美術館",
@@ -114,6 +115,7 @@ SEED_DATA: list[dict[str, Any]] = [
         "homepage": "https://topmuseum.jp/",
         "is_authoritative": True,
         "is_multi_venue": False,
+        "business_hours": "10:00〜18:00（木・金曜日は20:00まで）/ 月曜休館",
     },
     {
         "canonical_name_ja": "東京国際映画祭",

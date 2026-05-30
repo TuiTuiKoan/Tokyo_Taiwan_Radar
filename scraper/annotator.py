@@ -1722,6 +1722,16 @@ def annotate_pending_events(
                                 continue
                             update_data[_col] = _val
 
+                        # business_hours：fill-only-if-empty（不覆寫既有場次時刻表）
+                        _vh = _venue.get("business_hours")
+                        if (
+                            _vh
+                            and "business_hours" not in _human_protected
+                            and not update_data.get("business_hours")
+                            and not event.get("business_hours")
+                        ):
+                            update_data["business_hours"] = _vh
+
             # Auto-sync location_prefectures from location_address.
             # Handles the case where location_address was manually FC-corrected but
             # location_prefectures was not updated alongside it (common drift pattern).
