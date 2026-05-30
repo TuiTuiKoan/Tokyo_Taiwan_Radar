@@ -39,10 +39,11 @@ export async function POST(request: Request) {
     const ext = rawExt.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "jpg";
     const path = `covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-    const buffer = await file.arrayBuffer();
+    // Pass the File/Blob directly — avoids ArrayBuffer serialisation issues
+    // in certain Supabase storage-js versions when running in Node.js runtime.
     const { data, error } = await adminClient.storage
       .from("announcements")
-      .upload(path, buffer, { contentType: file.type, upsert: true });
+      .upload(path, file, { contentType: file.type, upsert: true });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
