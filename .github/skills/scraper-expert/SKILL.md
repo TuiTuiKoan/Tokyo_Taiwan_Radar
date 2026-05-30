@@ -1016,7 +1016,12 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
 - **performer vs organizer 区別**: Peatix ページの「By ‹名前›」= `organizer`（主催者）。イベントを実施するアーティスト/動作者 = `performer`。GPT が両者を入れ替える可能性があるので、日本語淡化語（「夫婦」「ユニット」など一般名詞）が performer に入っていたら手修正 + FC lock。(Incident: peatix `ee17c509` performer='夫婦' → 'Floti Studio' 2026-05-30)
 - **`performers` 一般名詞ガード**: `performers` に「夫婦」「カップル」「グループ」等の一般名詞が入っていたらアーティストの固有名（ユニット名・人名）に修正 + FC lock が必須。annotator は `raw_description` のカタカナ/漢字をそのまま取り込むため、一般名詞を固有名詞と誤認することがある。(Incident: peatix `ee17c509` performers=['夫婦'] → ['Floti Studio'] 2026-05-30)
 - **英語ブランド名 → performer_zh/en は翻訳不要**: Floti Studio 等の英語固定名称は `performer_zh` も `performer_en` も同じ値を設定。GPT は英語名を繁体中文に翻訳しようとして null を返すことがある。手動補完 + FC lock が必要。(Incident: peatix `ee17c509` 2026-05-30)
-- **専用イベントページ非存在時の `official_url`**: Peatix が `source_url` の場合、創作者/主催者の公式 Instagram や SNS を `official_url` に設定することでフロントエンドに「公式サイト ↗」リンクを表示できる。source_url と official_url を両方設定しても重複にならない（表示ラベルが異なる）。(Incident: peatix `ee17c509` `official_url='https://www.instagram.com/flotistudio/'` 2026-05-30)
+- **専用イベントページ非存在時の URL 設定**: Peatix が `source_url` の場合、SNS リンクの設定先は次のルールに従う:
+  - **演者の Instagram/SNS** → `performer_url`（単一演者）または `performer_urls[]`（複数演者、インデックスは `performers[]` と対応）
+  - **主催者の SNS/公式サイト** → `organizer_url`
+  - **`official_url`** = 専用イベントページ URL のみ。SNS を `official_url` に設定するのは非推奨（`performer_url` / `organizer_url` を優先）。専用ページが存在しない場合は `official_url = null`。
+  - ⚠ **旧ルール廃止**: `performer_url` 新設（migration 078、2026-05-30）以前は演者 Instagram を `official_url` に設定していたが、現在は `performer_url` に設定し `official_url` は null のままにする。
+  - (Incident: peatix `ee17c509` 旧: `official_url='https://www.instagram.com/flotistudio/'` → 新: `performer_url='https://www.instagram.com/flotistudio/'` + `official_url=null` 2026-05-30)
 
 ## iwafu-specific
 - **Global-tour false positive**: If description contains `台湾など世界各地` / `全国各地.*台湾` etc., the event is a nationwide/global tour where Taiwan is just one stop. Reject it — it is NOT a Taiwan-themed event. The `_GLOBAL_TOUR_PATTERNS` regex in `iwafu.py` implements this guard.
@@ -1663,6 +1668,7 @@ for e in [x for x in events if x['name_ja'] != x['raw_title']]:
 
 Reference incident: `0d97e51c`（2025年台湾史研究会3月例会）`location_url='https://forms.gle/BwseMtpymDKQY4W47'`（申込表單）→ `null` 手動修正（2026-05-07）。
 Reference incident: `c61470db`（赤城で台湾さんぽ）`location_url='https://gunma-taiwan-association.studio.site/'`（主催者サイト）→ `null` + `organizer_url` に移動（2026-05-30）。
+Reference incident: `c52caa6e`（THE SILENCE）`location_url='https://www.diginoa.net/silencepuppet'`（イベントページ）→ `null` + `official_url` に移動（venue URL = `https://theater-green.com/theater/base/` に修正）（2026-05-30）。
 
 **`official_url` vs `source_url` — フロントエンド表示区別：**
 - `official_url` が設定されている → イベント詳細ページに **「公式サイト ↗」** として表示
@@ -2247,7 +2253,9 @@ Reference: `web/lib/types.ts` の `getEventPerformer` / `getEventDirector` helpe
 |---|---|
 | `director` / `director_zh` / `director_en` | 電影導演、舞台演出導演 |
 | `performer` / `performer_zh` / `performer_en` | 演員、主演、表演者、講者 |
-| `performers TEXT[]` | 所有具名演員/發表者的陣列 |
+| `performers TEXT[]` | 所有具名演員/發表者の陣列 |
+| `performer_url TEXT` | 単一演者の公式 URL（Instagram、YouTube 等）— 単一演者イベント用 |
+| `performer_urls TEXT[]` | 複数演者の URL 配列（`performers[]` とインデックス対応）— `performer_urls[i]` が `performers[i]` の URL |
 
 **商業院線映畫的額外規則：**
 - `organizer` 必須為 `null`：院線（シネマート、ユーロスペース 等）是**映映場地**，不是主辦方。

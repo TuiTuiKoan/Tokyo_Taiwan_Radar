@@ -2342,7 +2342,7 @@ def enrich_movie_titles() -> None:
         try:
             fc_res = (
                 sb.table("field_corrections")
-                .select("id,field_name,corrected_value,override_attempt_count")
+                .select("id,field_name,corrected_value,override_attempt_count,first_override_attempted_at")
                 .eq("event_id", event["id"])
                 .in_("field_name", ["name_zh", "name_en"])
                 .execute()
@@ -2357,14 +2357,20 @@ def enrich_movie_titles() -> None:
                         fname, event["id"][:8], fval, attempted,
                     )
                     del update[fname]
-                    # Migration 060: log the attempted overwrite so daily_quality
+                    # Migration 079: log the attempted overwrite so daily_quality
                     # can track FC conflict pressure (fc_override_attempts metric).
+                    # last_override_attempted_at is updated every time (renamed from
+                    # override_attempted_at). first_override_attempted_at is write-once.
                     try:
-                        sb.table("field_corrections").update({
-                            "override_attempted_at": datetime.now(UTC).isoformat(),
+                        now_iso = datetime.now(UTC).isoformat()
+                        _upd = {
+                            "last_override_attempted_at": now_iso,
                             "override_attempted_value": str(attempted)[:1000],
                             "override_attempt_count": (fc.get("override_attempt_count") or 0) + 1,
-                        }).eq("id", fc["id"]).execute()
+                        }
+                        if not fc.get("first_override_attempted_at"):
+                            _upd["first_override_attempted_at"] = now_iso
+                        sb.table("field_corrections").update(_upd).eq("id", fc["id"]).execute()
                     except Exception as upd_exc:
                         logger.debug(
                             "  field_corrections override-log skipped for %s/%s: %s",

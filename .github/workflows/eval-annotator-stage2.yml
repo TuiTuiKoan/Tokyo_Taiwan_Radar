@@ -79,6 +79,8 @@ jobs:
           payload = {
               "metric_date": today,
               "annotator_stage2_pass": nz_p + ne_p,
+              "annotator_stage2_nz_pass": nz_p,
+              "annotator_stage2_ne_pass": ne_p,
               "annotator_eval_run_at": datetime.now(tz=timezone.utc).isoformat(),
           }
           try:

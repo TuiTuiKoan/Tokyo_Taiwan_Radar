@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-05-30 — performer_urls[] 追加 + c52caa6e (THE SILENCE) URL フィールド修正
+
+**問題：** `c52caa6e`（THE SILENCE / livepocket）に演者3名（DIGI NOA・樹・肆舞藝-451-）それぞれ Instagram があるが、単一フィールド `performer_url` では1名分しか設定できなかった。また `location_url` にイベントページ URL が誤設定されていた。
+
+**根本原因：**
+1. `performer_url` は単一フィールド設計のため、multi-performer イベントの全演者 URL をカバーできなかった。
+2. `location_url` に `https://www.diginoa.net/silencepuppet`（イベントページ）が格納されており、会場 URL（`https://theater-green.com/theater/base/`）と混同されていた。`location_url` の語義は「会場の公式サイト」だが、annotator / scraper が description 中のイベント URL を `location_url` に誤帰属することがある。
+
+**修正：**
+- migration 079: `events.performer_urls TEXT[]` 追加（`performers[]` と並行インデックス）
+- `base.py` / `database.py` / `types.ts`: `performer_urls` フィールド追加
+- `page.tsx`: `performer_urls[]` に値がある場合、各演者名の横に個別アイコンリンクを表示（`performer_url` 単一フィールドは fallback として継続）
+- DB patch `c52caa6e`:
+  - `location_url = 'https://theater-green.com/theater/base/'`（venue URL に修正）
+  - `official_url = 'https://www.diginoa.net/silencepuppet'`（イベントページ）
+  - `organizer_url = 'https://x.com/silence_puppet'`（主催者 X）
+  - `performer_urls = ['digi_noa', 'tatsuki_magic', '451_tw'] Instagram`
+  - FC locked: 4 フィールド全て
+
+**教訓：**
+- **multi-performer イベント** → `performer_urls TEXT[]` を使い `performers[]` と同じインデックスで URL を設定する。`performer_url`（単一）は単一演者イベント専用 fallback。
+- **`location_url` \≠ イベントページ URL**: `location_url` は「会場の公式サイト」のみ。イベントページ URL は `official_url` へ。scraper / DB パッチ時に `location_url` に `diginoa.net/silencepuppet` のようなイベント固有 URL が入っていたら要修正。
+- **演者の Instagram/SNS URL の設定先**: `performer_url` または `performer_urls[]`（`official_url` は ❌）。
+
+---
+
 ## 2026-05-30 — peatix `ee17c509`: `performers=['夫婦']`（一般名詞）→ ユニット固有名・performer_zh/en 補完・official_url(Instagram)・organizer_url 設定
 
 **問題：** `ee17c509`（Floti Studio 似顔絵ワークショップ）の `performers = ['夫婦']`（一般名詞）が残留し、`performer_zh/en` が null のまま。フロントエンドで多言語表示不可かつ「公式サイト」「主催者」リンクも非表示。

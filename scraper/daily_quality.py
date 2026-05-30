@@ -121,10 +121,12 @@ def _count_irrelevant_for_day(sb, day: date) -> int:
 
 
 def _count_fc_override_attempts(sb, day: date) -> int:
-    """Count field_corrections rows whose override_attempted_at falls on `day`.
+    """Count field_corrections rows *first* detected as FC conflicts on `day`.
 
-    Migration 060 added override_attempted_at. The annotator B1 guard writes
-    this timestamp every time enrich tries to overwrite an FC-locked value.
+    Uses first_override_attempted_at (write-once, set only on the first override
+    attempt). Migration 079 renamed override_attempted_at → last_override_attempted_at
+    and added first_override_attempted_at. Querying first ensures the daily metric
+    counts new conflicts discovered today, not events re-attempted today.
     Used as a baseline metric — no LINE alert until 30d baseline is collected.
     """
     start = datetime.combine(day, datetime.min.time(), tzinfo=UTC).isoformat()
@@ -133,8 +135,8 @@ def _count_fc_override_attempts(sb, day: date) -> int:
         resp = (
             sb.table("field_corrections")
             .select("id", count="exact", head=True)
-            .gte("override_attempted_at", start)
-            .lt("override_attempted_at", end)
+            .gte("first_override_attempted_at", start)
+            .lt("first_override_attempted_at", end)
             .execute()
         )
         return resp.count or 0
