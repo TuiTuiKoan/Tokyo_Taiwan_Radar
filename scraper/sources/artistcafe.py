@@ -125,9 +125,9 @@ class ArtistcafeScraper(BaseScraper):
                         break
 
                     page_events = self._extract_cards(page, context, cards, count, seen_ids)
-                    if not page_events:
-                        logger.info("Page %d had cards but yielded 0 events; stopping", page_num)
-                        break
+                    # Do NOT early-exit on empty results — Taiwan keywords may appear in
+                    # the detail page body even when the listing title has no keywords.
+                    # Only stop when the listing page itself has no cards (count == 0 above).
                     events.extend(page_events)
                     if len(events) >= MAX_EVENTS:
                         events = events[:MAX_EVENTS]

@@ -109,9 +109,6 @@ ZERO_EVENT_OK_SOURCES: frozenset[str] = frozenset({
     "fukuoka_now",
     "hankyu_umeda",
     "maruhiro",
-    "ndl_opensearch",  # 台湾フィルタ後 0 件は正常（出版サイクル依存）
-    "kawade_rss",      # 同上（nhk_rss と同性質）
-    # hanmoto は server-side で台湾検索済み → 0 件は異常、追加しない
 })
 
 

@@ -2,6 +2,18 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-31 — Venue business_hours 傳播 + auto_qa 品質缺口修補 + Event Form Sync
+
+**修改：**
+- `scraper/database.py` `_populate_entity_fks()`：新增 `venue_hours_lookup`（1-b 查詢 is_authoritative venues），aliases 迴圈擴展 select，FC 保護 pre-fetch，mutate rows 加入 business_hours 傳播，`bh_hits` 計數
+- `scraper/database.py` `_VALID_EVENT_FORMS`：加入 `"tasting"`, `"broadcast"`, `"study_abroad"`
+- `scraper/auto_qa.py` `_detect_missing_hours()`：新增 30 天時間窗口，status 改為 `in_(["annotated","reviewed"])`，`_TIME_RE` 加入日文時間格式 `[時:]`
+- `scraper/auto_qa.py`：新增 `_PRICE_KW_RE`、`_BOOKING_DOMAINS` 常數；新增 `_detect_missing_price()` 偵測器；`QA_TYPES` 加入 `auto_qa_missing_price`；`run()` 加入對應呼叫
+**Commit:** `33678f0` (database.py), `2f63bcf` (auto_qa.py)
+**Phase 1：** 需人工在 Supabase Dashboard 執行 `supabase/migrations/081_venues_business_hours.sql`
+
+---
+
 ## 2026-05-31 — API Route JSON Safety Guard 新增至 SKILL.md
 **新增/修改：**
 - 新增 `## API Route JSON Safety Guard` 段落：try/catch 包整個 POST handler 確保永遠回傳 JSON（Safari SyntaxError 防護）
