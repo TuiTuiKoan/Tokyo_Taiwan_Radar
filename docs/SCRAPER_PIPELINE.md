@@ -1,7 +1,7 @@
 ---
 title: Scraper Pipeline — 來源研究到爬蟲上線
 description: 從來源發現、研究評估、自動代碼生成，到手動整合與 CI 部署的完整工作流
-ms.date: 2026-05-06
+ms.date: 2026-05-31
 ---
 
 ## 總覽
@@ -333,6 +333,8 @@ python main.py --dry-run --source <name>
 | `.github/workflows/auto-generate.yml` | B2 | 每日 01:00 JST 自動生成 |
 | `.github/agents/researcher.agent.md` | A/B1 | Researcher Agent 指令 |
 | `.github/agents/scraper-expert.agent.md` | B2/C | Scraper Expert Agent 指令 |
+| `scraper/refetch_thin_events.py` | D | 空白事件重抓 — 重抓 `auto_qa_thin_content` 事件的詳細頁 |
+| `.github/workflows/refetch-thin-events.yml` | D | 每日 14:00 JST 重抓（`REFETCH_THIN_LIVE` 控制）|
 
 ---
 
@@ -345,6 +347,7 @@ python main.py --dry-run --source <name>
 | `auto-research.yml` | 00:30 | Layer B Phase 1 自動評估 |
 | `auto-generate.yml` | 01:00 | Layer B Phase 2 自動代碼生成 |
 | `scraper.yml` | 09:00 | Layer D 每日爬取（整合後的爬蟲生效）|
+| `refetch-thin-events.yml` | 14:00 | Layer D 空白事件重抓（`REFETCH_THIN_LIVE` 控制）|
 
 ---
 

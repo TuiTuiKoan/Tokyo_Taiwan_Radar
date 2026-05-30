@@ -1,4 +1,4 @@
--- Migration 080: venues.business_hours column
+-- Migration 081: venues.business_hours column
 -- Purpose: Store venue-level standard operating hours so enrich_location.py
 --          can auto-propagate to events.business_hours without manual FC correction.
 --
