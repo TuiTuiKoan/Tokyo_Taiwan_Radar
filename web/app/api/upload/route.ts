@@ -29,26 +29,34 @@ export async function POST(request: Request) {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!serviceKey) return NextResponse.json({ error: "Server misconfiguration: storage key not set" }, { status: 500 });
 
-    // Use service role to bypass RLS on storage
-    const adminClient = createServiceClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      serviceKey
-    );
-
     const rawExt = file.name.split(".").pop() ?? "jpg";
     const ext = rawExt.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "jpg";
-    const path = `covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const objectPath = `covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-    // Pass the File/Blob directly — avoids ArrayBuffer serialisation issues
-    // in certain Supabase storage-js versions when running in Node.js runtime.
-    const { data, error } = await adminClient.storage
-      .from("announcements")
-      .upload(path, file, { contentType: file.type, upsert: true });
+    // Call Supabase Storage REST API directly — bypasses storage-js SDK
+    // multipart/FormData serialisation issues that caused 422 errors in Node.js runtime.
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const uploadUrl = `${supabaseUrl}/storage/v1/object/announcements/${objectPath}`;
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const uploadRes = await fetch(uploadUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": file.type,
+        "x-upsert": "true",
+        apikey: serviceKey,
+      },
+      body: buffer,
+    });
 
-    const { data: urlData } = adminClient.storage.from("announcements").getPublicUrl(data.path);
-    return NextResponse.json({ url: urlData.publicUrl });
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text().catch(() => "unknown");
+      return NextResponse.json({ error: `Storage error ${uploadRes.status}: ${errText}` }, { status: 500 });
+    }
+
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/announcements/${objectPath}`;
+    return NextResponse.json({ url: publicUrl });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Upload failed";
     return NextResponse.json({ error: message }, { status: 500 });
