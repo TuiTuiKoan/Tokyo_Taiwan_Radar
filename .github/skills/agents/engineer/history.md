@@ -2,6 +2,17 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-31 — Phase 3 空白事件重抓（refetch_thin_events.py + workflow）
+
+**實作：**
+1. 新增 `scraper/refetch_thin_events.py`：讀取 `event_reports` 中 `report_types ov auto_qa_thin_content + status=pending` 的報告，跳過 SKIP_SOURCES（google_news_rss / nhk_rss / prtimes / note_creators / walkerplus）及 inactive 事件，httpx HEAD probe 偵測死連結，Playwright 抓取頁面文字（移除 script/style/nav/header/footer），符合 is_significant_improvement（new_len >= 200 且 > max(old*1.5, old+100)）才更新 DB。
+2. 新增 `.github/workflows/refetch-thin-events.yml`：每日 14:00 JST（cron 0 5 * * *）觸發，guard 為 `vars.REFETCH_THIN_LIVE == 'true'`，執行 refetch → annotator --limit 100。
+3. 驗證：dry-run 列出 5 筆（SKIP_SOURCES 正確過濾），taiwan_prism 真實測試 old=38 → new=1084，annotation_status 更新為 pending，admin_notes 追加 refetched:2026-05-31 note。
+
+**教訓：**
+- `event_reports.report_types` 是 `text[]`，查詢用 `.ov()` 方法（overlap），不是 `.contains()`。
+- Playwright 移除噪音元素後直接用 `page.inner_text("body")` 比 `page.evaluate("document.body.innerText")` 更可靠（前者等待 DOM 穩定）。
+
 ## 2026-05-30 — PR1 電影院 scraper 統合基盤（Phase 1A + 1B + 1C）
 
 **實作：**
