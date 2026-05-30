@@ -105,6 +105,10 @@ QA_TYPES = (
     "auto_qa_missing_date",
     "auto_qa_missing_organizer",
     "auto_qa_thin_content",
+    "auto_qa_missing_location_name",
+    "auto_qa_missing_category",
+    "auto_qa_missing_title",
+    "auto_qa_missing_prefectures",
 )
 
 # Precise SC-only char set for the broad auto_simplified_chinese detector.
@@ -538,11 +542,13 @@ def _detect_missing_date(sb) -> list[dict]:
     A start_date in January is treated as a Contentful placeholder and flagged,
     EXCEPT for publish-date sources whose January dates may be legitimate.
     """
+    thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
         .select("id,source_name,start_date,annotation_status")
         .eq("is_active", True)
         .in_("annotation_status", ["annotated", "reviewed"])
+        .gte("created_at", thirty_days_ago_iso)
         .execute()
         .data
     )
@@ -577,12 +583,14 @@ def _detect_missing_organizer(sb) -> list[dict]:
     detector only surfaces the gap for human review. Thin-content sources are
     skipped because they rarely expose organizer data.
     """
+    thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
         .select("id,source_name,organizer")
         .eq("is_active", True)
         .in_("annotation_status", ["annotated", "reviewed"])
         .is_("organizer", "null")
+        .gte("created_at", thirty_days_ago_iso)
         .execute()
         .data
     )
@@ -673,6 +681,52 @@ def detect(event: dict) -> list[tuple[str, str]]:
             f"地址缺失 venue={loc_name[:80]}",
         ))
 
+    # 3. Missing location_name (skip online/TV events and gguide_tv source)
+    if not event.get("location_name"):
+        source_nm = event.get("source_name") or ""
+        name_ja_val = event.get("name_ja") or ""
+        if (
+            source_nm != "gguide_tv"
+            and not any(kw in name_ja_val for kw in ADDRESS_SKIP_KEYWORDS)
+        ):
+            findings.append((
+                "auto_qa_missing_location_name",
+                f"会場名欠落 source={source_nm}",
+            ))
+
+    # 4. Missing category (category is array; report if None or empty list)
+    cat = event.get("category")
+    if cat is None or cat == []:
+        findings.append((
+            "auto_qa_missing_category",
+            "カテゴリ未設定",
+        ))
+
+    # 5. Missing title (name_ja is NULL — rare but fatal)
+    if not event.get("name_ja"):
+        findings.append((
+            "auto_qa_missing_title",
+            f"name_ja 欠落 source={event.get('source_name')}",
+        ))
+
+    # 6. Has location_address but missing location_prefectures (region filter broken)
+    #    Grace period: skip events created within the last 3 days
+    #    (backfill_location_prefectures.py may not have run yet).
+    loc_addr_val = event.get("location_address") or ""
+    loc_prefs_val = event.get("location_prefectures") or []
+    if loc_addr_val.strip() and not loc_prefs_val:
+        created_at_str = event.get("created_at")
+        skip_grace = False
+        if created_at_str:
+            created_dt = _parse_ts(created_at_str)
+            if created_dt and (datetime.now(timezone.utc) - created_dt).days <= 3:
+                skip_grace = True
+        if not skip_grace:
+            findings.append((
+                "auto_qa_missing_prefectures",
+                f"location_prefectures 欠落（区域フィルタ無効）addr={loc_addr_val[:80]}",
+            ))
+
     return findings
 
 
@@ -683,8 +737,8 @@ def run(dry_run: bool = False) -> dict:
     res = (
         sb.table("events")
         .select(
-            "id, updated_at, source_name, name_zh, description_zh, "
-            "location_name, location_name_zh, location_address, location_address_zh, "
+            "id, updated_at, created_at, source_name, name_ja, name_zh, description_zh, "
+            "category, location_name, location_name_zh, location_address, location_address_zh, "
             "location_prefectures"
         )
         .eq("is_active", True)
