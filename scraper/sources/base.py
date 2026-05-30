@@ -125,6 +125,7 @@ class Event:
     performer_zh: Optional[str] = None
     performer_en: Optional[str] = None
     performer_url: Optional[str] = None  # performer's official page (Instagram, YouTube, etc.)
+    performer_urls: list[str] = field(default_factory=list)  # per-performer URLs, parallel index to performers[]
     director_zh: Optional[str] = None
     director_en: Optional[str] = None
     performers_zh: list[str] = field(default_factory=list)

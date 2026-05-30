@@ -143,6 +143,8 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         row["performer_en"] = event.performer_en
     if event.performer_url is not None:
         row["performer_url"] = event.performer_url
+    if event.performer_urls:
+        row["performer_urls"] = event.performer_urls
     if event.director_zh is not None:
         row["director_zh"] = event.director_zh
     if event.director_en is not None:

@@ -72,6 +72,7 @@ export interface Event {
   performer_zh?: string | null;
   performer_en?: string | null;
   performer_url?: string | null;
+  performer_urls?: string[] | null;
   director_zh?: string | null;
   director_en?: string | null;
   work_id?: string | null;

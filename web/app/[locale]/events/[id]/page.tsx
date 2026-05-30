@@ -967,18 +967,48 @@ export default async function EventDetailPage({ params }: PageProps) {
             {(((event as Event).performers ?? []).length > 0 || (event as Event).performer) && (
               <div className="flex gap-2">
                 <dt className="shrink-0 text-fg-muted min-w-[5rem]">{t("performers")}：</dt>
-                <dd className="text-fg-strong flex items-center gap-1.5">
-                  {getEventPerformer(event as Event, locale)}
-                  {(event as Event).performer_url && (
-                    <a
-                      href={(event as Event).performer_url!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-fg-muted hover:text-fg-strong transition-colors"
-                      title={(event as Event).performer_url!}
-                    >
-                      <PerformerUrlIcon url={(event as Event).performer_url!} />
-                    </a>
+                <dd className="text-fg-strong flex flex-wrap items-center gap-1">
+                  {((event as Event).performer_urls ?? []).some(u => u) ? (
+                    (event as Event).performers?.map((name, i) => {
+                      const urls = (event as Event).performer_urls ?? [];
+                      const displayName =
+                        locale === "zh" ? ((event as Event).performers_zh ?? [])[i] || name
+                        : locale === "en" ? ((event as Event).performers_en ?? [])[i] || name
+                        : name;
+                      const url = urls[i];
+                      return (
+                        <span key={name} className="inline-flex items-center gap-1">
+                          {i > 0 && <span className="text-fg-muted">、</span>}
+                          {displayName}
+                          {url && (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-fg-muted hover:text-fg-strong transition-colors"
+                              title={url}
+                            >
+                              <PerformerUrlIcon url={url} />
+                            </a>
+                          )}
+                        </span>
+                      );
+                    })
+                  ) : (
+                    <>
+                      {getEventPerformer(event as Event, locale)}
+                      {(event as Event).performer_url && (
+                        <a
+                          href={(event as Event).performer_url!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-fg-muted hover:text-fg-strong transition-colors"
+                          title={(event as Event).performer_url!}
+                        >
+                          <PerformerUrlIcon url={(event as Event).performer_url!} />
+                        </a>
+                      )}
+                    </>
                   )}
                 </dd>
               </div>
