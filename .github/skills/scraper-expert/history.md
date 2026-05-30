@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-05-31 — note_creators.py: 三層根因修復（truncation guard endswith 漏判 / embedded official_url 未萃取 / 投稿者 location 套到外部活動）
+
+**問題：** `147c5dde` 「🌏 2026年夏 台湾華語サマーキャンプのご紹介」（source=note_creators）DB raw_description = 42 字截斷、official_url=None、location=大阪弁天町（投稿者教室，非開催地台北）。
+
+**根本原因（3 層）：**
+1. `_parse_item()` L~378 truncation guard `plain_desc.strip() in ("続きをみる","")` 只比對完全等於。實際 RSS preview 為 `'...ご案内です。 続きをみる'`（endswith）→ guard False → `_fetch_article_content` 永不呼叫 → 只拿到 42 字 RSS preview。
+2. 全文含「🔗 詳細・申込み https://clec.ntue.edu.tw/...」但無 embedded official_url 萃取邏輯。
+3. 投稿者 `tcml_osaka` CREATOR_META 的 `location_name="台湾華語文学習センター（大阪弁天町）"` 直接套用到「代為宣傳的他機構活動」，且 `database.py._auto_lock_location` 會自動 FC 鎖定此錯誤地點。
+
+**SSL 發現：** `clec.ntue.edu.tw` 用 `verify=True` 失敗（Missing Subject Key Identifier，台灣 .edu.tw/.gov.tw 常見），`verify=False` 成功（755 字，含兩梯次日程/早鳥費用/報名連結）。
+
+**修復：**
+- A1: `_is_truncated(text)` = `text.endswith("続きをみる") or len(text) < 120`；改 guard 為 `if _is_truncated(plain_desc) and link:` → 取較長者。
+- A2: `base.py.extract_first_party_url(body, exclude_hosts)` 共用 helper，regex 優先 🔗/詳細/申込 signal 附近 URL，排除 note.com + signup platforms。
+- A2b: `official_url` 為外部機構域時 → `effective_location_name=None`，`_auto_lock_location` 因 `if not event.location_name: continue` 跳過上鎖。
+- A3: `base.py.fetch_ref_text(url, verify_ssl=True)` 新增 `verify_ssl` 參數；`tw_insecure_domain(url)` helper 偵測 .edu.tw/.gov.tw → `verify_ssl=False`。fail-safe：ref < 200 字 → fallback 回 note 全文，永不阻斷活動建立。
+- Phase B: FC 先鎖 7 結構欄位（category/event_form/official_url/organizer/location_*）→ 寫入 enriched raw_description → annotator 自動生成三語。
+
+**教訓：**
+- **二手聚合源 truncation guard 必須用 `endswith`**，not `== "続きをみる"`。RSS preview 幾乎都有 prose prefix。
+- **投稿者 metadata location 不得直接套用到他機構主辦活動**。當 official_url 指向外部機構域時，須清空 location 讓 annotator 或 FC 修復。
+- **台灣 .edu.tw/.gov.tw SSL 白名單**：`verify=False` 僅限此域，唯讀公開資訊，不可全域停用。
+- **annotator LOCATION GATE 不停用主事件**：`update_data` 完全不含 `is_active`，LOCATION GATE 僅影響 `selection_reason`。
+
+---
+
+
+
 ## 2026-05-30 — annotator: `location_prefectures` が `location_address` FC 修正後にサイレント drift → auto-sync 実装（commit `eb94bb9`）
 
 **問題：** 4 件のイベント（`7b37604e`、`9de63ffc`、`10a4ee5d`、`5e5ff363`）が `location_address` を FC 修正されていたが `location_prefectures` は null のまま。フロントエンドの都道府縣チップが表示されなかった。

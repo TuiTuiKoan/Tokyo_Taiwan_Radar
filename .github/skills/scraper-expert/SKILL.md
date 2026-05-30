@@ -1219,11 +1219,36 @@ scraper 的 `_extract_venue()` 應優先識別 `[（(](〒\d{3}-\d{4}...)` 模�
 
 ## note.com RSS 截斷處理
 
-note.com RSS `<description>` 約在 140 字截斷，可能只有「続きをみる」。
-當 `plain_desc == ""` 時，`_parse_item()` 應 fallback 至 HTTP GET 文章頁，
-解析 `<script type="application/ld+json">` 的 `description` 欄位（~280 字）。
-已實作：`scraper/sources/note_creators.py` → `_fetch_json_ld_description()` helper。
+note.com RSS `<description>` 約在 140 字截斷，末尾可能為「続きをみる」（endswith，非 equals）。
+當 `_is_truncated(plain_desc)` 為 True 時，`_parse_item()` 呼叫 `_fetch_article_content()` 取得全文（JSON-LD articleBody / description / BeautifulSoup p fallback）。
+已實作：`scraper/sources/note_creators.py` → `_fetch_article_content()` helper。
 無需 Playwright，標準 `requests.get()` 即可。
+
+**Note Creator Source Guard（二手聚合源截斷修復模式）**
+
+### 問題模式
+- note.com RSS preview 以 `...続きをみる` 結尾（endswith，非 equals）→ 舊 truncation guard `plain_desc in ("続きをみる","")` 漏判 → `_fetch_article_content` 永不呼叫
+- 全文中含「🔗詳細・申込み」embedded official URL 未萃取
+- 投稿者 creator DB metadata location（如教室地址）套到外部活動公告 → `_auto_lock_location` 自動 FC 鎖定錯誤地點
+
+### 修復設計（note_creators.py + base.py）
+1. `_is_truncated(text)`: `text.endswith("続きをみる") or len(text) < _NOTE_THIN_CHARS(120)`
+2. `extract_first_party_url(body, exclude_hosts)` in `base.py`（共用）: 從全文萃取 official URL，排除報名平台（peatix/forms.gle/google/linktr.ee）；優先「🔗詳細/申込/公式」標記附近 URL
+3. A2b: 當 `official_url` 為外部機構域（非報名平台）→ 設 `effective_location_name=None` 抑制投稿者 metadata location，讓 `_auto_lock_location` 跳過上鎖（`if not event.location_name: continue`）
+4. `tw_insecure_domain(url)` in `base.py`（共用）: host endswith `.edu.tw`/`.gov.tw` → True（fetch_ref_text verify=False）
+5. `fetch_ref_text(url, verify_ssl=True)` in `base.py`: 新增 `verify_ssl` 參數；既有 caller 預設 True，行為不變
+6. A3 fail-safe: ref fetch 失敗 / < 200 字 → fallback 回 note 全文，永不阻斷活動建立
+7. OWASP: verify=False 僅限 `.edu.tw`/`.gov.tw` 白名單域
+
+### LOCATION GATE 說明（annotator 不停用主事件）
+annotator 的 LOCATION GATE（SYSTEM_PROMPT）是給 GPT 的指示文字，NOT Python code。
+主事件 `update_data` 完全不含 `is_active`——re-annotate **不會**停用主事件。
+LOCATION GATE 僅影響 `selection_reason` 品質。正確設定 `study_abroad`/`tourism` 等 category 是資料正確性問題，非「過 gate 求存活」。
+
+### DB 修復模式（FC-first-then-annotate）
+1. FC 鎖定所有結構欄位（category/event_form/official_url/organizer/location_*）
+2. 寫入 enriched raw_description（note 全文 + 原始頁摘要）後設 annotation_status=pending
+3. 跑一次 annotator（不帶 --id，保留 P0 non-null 保護）自動生成三語；FC 欄位被還原不被覆寫
 
 **note.com creator 追加手順（2 ステップ必須）**：
 1. `CREATOR_META` に `{"slug": "<creator_slug>", "category": "<category>", "location": "<prefecture>"}` を追加

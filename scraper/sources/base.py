@@ -1,7 +1,9 @@
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 import logging
 
 import requests
@@ -15,8 +17,22 @@ logger = logging.getLogger(__name__)
 
 _REF_FETCH_HEADERS = {"User-Agent": "TokyoTaiwanRadar/1.0 (+https://tokyotaiwanradar.com)"}
 
+# ---------------------------------------------------------------------------
+# URL extraction helpers for aggregator / thin-pointer sources
+# ---------------------------------------------------------------------------
 
-def fetch_ref_text(ref_url: str, max_chars: int = 3000) -> Optional[str]:
+_FIRST_PARTY_SIGNAL_RE = re.compile(
+    r'(?:🔗|詳細|申込|公式|詳細・申込)[^\n]*?(https?://[^\s\u3000\u300d\uff09\)「」\n]+)',
+    re.IGNORECASE,
+)
+_URL_BARE_RE = re.compile(r'https?://[^\s\u3000\u300d\uff09\)「」\n]+')
+_SIGNUP_HOSTS: frozenset[str] = frozenset({
+    "peatix.com", "forms.gle", "google.com", "docs.google.com", "linktr.ee",
+    "bit.ly", "t.co",
+})
+
+
+def fetch_ref_text(ref_url: str, max_chars: int = 3000, verify_ssl: bool = True) -> Optional[str]:
     """Fetch an external reference page and return its plain-text body.
 
     Use this when a scraper encounters a **thin pointer article** — a page
@@ -25,13 +41,20 @@ def fetch_ref_text(ref_url: str, max_chars: int = 3000) -> Optional[str]:
     text to raw_description gives the annotator's GPT enough context to
     extract correct dates, categories, and descriptions.
 
+    verify_ssl: set to False for .edu.tw/.gov.tw domains that commonly use
+        self-signed or SKI-deficient certificates. Use tw_insecure_domain()
+        to detect such domains automatically.
+
     Returns None on any network error or if the fetched content is too
     short (< 200 chars) to be useful.
 
     Selector priority: main > article > body (returns first with ≥200 chars).
     """
     try:
-        resp = requests.get(ref_url, headers=_REF_FETCH_HEADERS, timeout=15)
+        import urllib3
+        if not verify_ssl:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        resp = requests.get(ref_url, headers=_REF_FETCH_HEADERS, timeout=15, verify=verify_ssl)
         resp.raise_for_status()
     except Exception as exc:
         logger.debug("fetch_ref_text: failed %s: %s", ref_url[:80], exc)
@@ -45,6 +68,52 @@ def fetch_ref_text(ref_url: str, max_chars: int = 3000) -> Optional[str]:
             if len(text) > 200:
                 return text[:max_chars]
     return None
+
+
+def extract_first_party_url(body: str, exclude_hosts: tuple[str, ...] = ("note.com",)) -> Optional[str]:
+    """From a text body, extract the first URL that looks like a first-party
+    official/detail page.
+
+    Prioritises URLs near signal words (🔗 詳細 / 申込 / 公式).
+    Excludes the source host (e.g. note.com) and pure signup-platform hosts
+    (peatix, forms.gle, google, linktr.ee …).
+
+    Returns None if no suitable URL is found.
+    """
+
+    def _is_valid(url: str) -> bool:
+        try:
+            host = urlparse(url).netloc.lower().lstrip("www.")
+        except Exception:
+            return False
+        if any(host == h or host.endswith("." + h) for h in exclude_hosts):
+            return False
+        if host in _SIGNUP_HOSTS:
+            return False
+        return bool(host)
+
+    # Priority: near signal words
+    for m in _FIRST_PARTY_SIGNAL_RE.finditer(body):
+        url = m.group(1).rstrip("。、）》」")
+        if _is_valid(url):
+            return url
+    # Fallback: any bare URL
+    for m in _URL_BARE_RE.finditer(body):
+        url = m.group(0).rstrip("。、）》」")
+        if _is_valid(url):
+            return url
+    return None
+
+
+def tw_insecure_domain(url: str) -> bool:
+    """Return True for Taiwan gov/edu domains that commonly have self-signed certs.
+
+    These domains often fail requests' default verify=True due to missing Subject
+    Key Identifier (SKI) in their TLS certificates. Pass the result as
+    ``verify_ssl=not tw_insecure_domain(url)`` to fetch_ref_text().
+    """
+    host = urlparse(url).netloc.lower()
+    return host.endswith(".edu.tw") or host.endswith(".gov.tw")
 
 
 @dataclass

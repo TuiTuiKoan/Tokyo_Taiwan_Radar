@@ -2,6 +2,24 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-30 — `location_address` FC 修正後に `location_prefectures` がサイレント drift（4 件一括修正、commit `eb94bb9`）
+
+**問題：** 4 件のイベント（`7b37604e` / `9de63ffc` / `10a4ee5d` / `5e5ff363`）で `location_address` が FC 修正されていたが `location_prefectures` は更新されておらず、フロントエンドの都道府縣チップが誤都道府縣を表示。488 件の全スキャンで発見。
+
+**根本原因（3 パターン）：**
+- **Pattern A**（7b37604e, 9de63ffc）：手動 FC で address を修正したが prefectures を同時更新し忘れ。
+- **Pattern B**（5e5ff363）：巡演 sub-event が別ツアー leg の Osaka address を継承（pref は正しく Tokyo）。address 側が間違い。
+- **Pattern C**（10a4ee5d）：初回アノテーション時に GPT が prefectures を誤設定（address は正しい Tokyo）。
+
+**修正（commit `eb94bb9`）：**
+1. 4 件 DB 直接修正 + FC ロック（各パターンに応じて address か prefectures かを修正）。
+2. `annotator.py` に auto-sync ステップを追加：`location_prefectures` が FC ロックされていない・venue lookup 未設定の場合、`_PREFECTURE_RE` で `location_address` から自動導出（単一都道府縣のみ・オンラインスキップ）。
+3. `architect.agent.md` に `## location_address ↔ location_prefectures Sync Guard` を追加（5 条ルール + 検出 SQL + インシデント記録）。
+
+**教訓：** `location_address` を手動修正する場合は `location_prefectures` も同時確認・FC 修正すること。auto-sync は次の annotator 実行時まで遅延する。「どちらが正しいか」は address と prefectures を照合して判断（Pattern B は address が間違い、Pattern A/C は prefectures が間違い）。
+
+---
+
 ## 2026-05-27 — TCC C-class detector 誤覆寫 multi-city parent（`51f7cd44`）
 
 **問題：** PR-1 第一版 oneoff 修復腳本以「`location_name` 含 `台湾文化` + 地址不含 `虎ノ門`」作 C-class 條件，未做 multi-city safeguard，導致 `51f7cd44`（台湾映画上映会2026）被覆寫為單一東京地址。該事件 raw_description 明確列出「北海道、東京、神奈川、京都、大阪」5 都市，屬 multi-city parent。

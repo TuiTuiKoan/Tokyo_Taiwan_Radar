@@ -36,8 +36,9 @@ from html.parser import HTMLParser
 from typing import Optional
 
 import requests
+from urllib.parse import urlparse
 
-from .base import BaseScraper, Event
+from .base import BaseScraper, Event, extract_first_party_url, fetch_ref_text, tw_insecure_domain
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,23 @@ _EVENT_CATEGORIES = frozenset([
     "tourism", "lifestyle_food", "books_media", "gender", "geopolitics",
     "art", "lecture", "taiwan_japan", "business", "academic", "competition", "report",
 ])
+
+# Minimum character count for a non-truncated note.com preview.
+_NOTE_THIN_CHARS = 120
+
+
+def _is_truncated(text: str) -> bool:
+    """Return True if the text is a thin/truncated note.com RSS preview."""
+    t = text.strip()
+    return t.endswith("続きをみる") or len(t) < _NOTE_THIN_CHARS
+
+
+# Signup-platform hosts: when official_url resolves to one of these,
+# the note post may still be a creator's own event — do NOT suppress location.
+_SIGNUP_HOSTS_NOTE: frozenset[str] = frozenset({
+    "peatix.com", "forms.gle", "google.com", "docs.google.com", "linktr.ee",
+    "bit.ly", "t.co",
+})
 
 # Static seed creators: always scraped regardless of DB state.
 # creator → (location_name, location_address, default_category)
@@ -374,17 +392,15 @@ class NoteCreatorsScraper(BaseScraper):
 
         # Description — strip HTML and drop boilerplate continuation link
         plain_desc = _strip_html(raw_desc_html) if raw_desc_html else ""
-        # note.com RSS descriptions often end with just "続きをみる" (read more)
-        if plain_desc.strip() in ("続きをみる", ""):
-            plain_desc = ""
-
-        # RSS description is truncated — fetch full article body and OGP image.
-        # This adds one HTTP request per truncated article but captures
-        # venue/date info from the article body and the poster image URL.
+        # A1: fetch full article when RSS preview is truncated.
+        # note.com RSS previews may end with "続きをみる" (endswith, not equals)
+        # or simply be too short (< _NOTE_THIN_CHARS chars).
         article_image_url: str | None = None
-        if not plain_desc and link:
+        if _is_truncated(plain_desc) and link:
             time.sleep(1)  # polite delay to avoid rate limiting
-            plain_desc, article_image_url = _fetch_article_content(link, self._session)
+            fetched, article_image_url = _fetch_article_content(link, self._session)
+            if fetched and len(fetched) > len(plain_desc):
+                plain_desc = fetched
 
         # If start_date fell back to pubDate (no date in title), try extracting
         # from article body (e.g. "📅 2026年4月6日" or "開催日：4/6").
@@ -397,6 +413,42 @@ class NoteCreatorsScraper(BaseScraper):
                 )
                 start_date = body_date
 
+        # A2: extract first-party official_url from full article text.
+        # Must run AFTER A1 so plain_desc contains the full article body.
+        official_url: str | None = extract_first_party_url(plain_desc)
+
+        # A2b: if official_url points to an external institution (not a signup
+        # platform), this note post is an "external event announcement" — the
+        # poster's metadata location is unreliable.  Clear location fields to
+        # prevent _auto_lock_location from locking the wrong venue.
+        if official_url:
+            _host = urlparse(official_url).netloc.lower().lstrip("www.")
+            _is_signup = any(
+                _host == h or _host.endswith("." + h) for h in _SIGNUP_HOSTS_NOTE
+            )
+            if not _is_signup:
+                effective_location_name = None
+                effective_location_address = None
+
+        # A3: fetch ref text from official_url and append to raw_description.
+        # fail-safe: SSL failure / thin response → fallback to note body only.
+        raw_description = plain_desc
+        if official_url:
+            try:
+                ref = fetch_ref_text(
+                    official_url,
+                    max_chars=4000,
+                    verify_ssl=not tw_insecure_domain(official_url),
+                )
+            except Exception:
+                ref = None
+            if ref and len(ref) >= 200:
+                raw_description = (
+                    plain_desc
+                    + f"\n\n―― 原始出處 ({official_url}) ――\n"
+                    + ref
+                )
+
         return Event(
             source_name=self.SOURCE_NAME,
             source_id=source_id,
@@ -404,10 +456,11 @@ class NoteCreatorsScraper(BaseScraper):
             original_language="ja",
             name_ja=title,
             raw_title=title,
-            raw_description=plain_desc,
+            raw_description=raw_description,
             description_ja=plain_desc or None,
             category=list(category),
             start_date=start_date,
+            official_url=official_url,
             location_name=effective_location_name,
             location_address=effective_location_address,
             image_url=article_image_url,
