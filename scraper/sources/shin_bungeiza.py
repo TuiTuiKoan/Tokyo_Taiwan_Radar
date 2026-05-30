@@ -29,13 +29,13 @@ Venue (fixed):
 import logging
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from urllib.parse import urljoin
 
-import requests
 from bs4 import BeautifulSoup
 
-from sources.base import BaseScraper, Event
+from sources._cinema_base import CinemaScraper
+from sources.base import Event
 from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,6 @@ logger = logging.getLogger(__name__)
 SOURCE_NAME = "shin_bungeiza"
 
 _SCHEDULE_URL = "https://www.shin-bungeiza.com/schedule"
-_JST = timezone(timedelta(hours=9))
 
 _USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -93,20 +92,20 @@ def _slugify(title: str) -> str:
     return title[:60]
 
 
-class ShinBungeizaScraper(BaseScraper):
+class ShinBungeizaScraper(CinemaScraper):
     """Scraper for 新文芸坐 (Ikebukuro art cinema with regular Taiwan special screenings)."""
 
     SOURCE_NAME = SOURCE_NAME
 
     def __init__(self) -> None:
-        self._session = requests.Session()
+        self._session = self.make_session()
         self._session.headers.update({
             "User-Agent": _USER_AGENT,
             "Accept-Language": "ja,en;q=0.9",
         })
 
     def scrape(self) -> list[Event]:
-        today = datetime.now(tz=_JST)
+        today = datetime.now(timezone.utc)
         resp = self._session.get(_SCHEDULE_URL, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")

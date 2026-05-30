@@ -29,13 +29,13 @@ Venue (fixed):
 import logging
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from urllib.parse import urljoin
 
-import requests
 from bs4 import BeautifulSoup
 
-from sources.base import BaseScraper, Event
+from sources._cinema_base import CinemaScraper
+from sources.base import Event
 from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
@@ -44,8 +44,6 @@ SOURCE_NAME = "cinemart_shinjuku"
 
 _BASE_URL = "https://www.cinemart.co.jp"
 _LISTING_URL = "https://www.cinemart.co.jp/theater/shinjuku/movie/"
-
-_JST = timezone(timedelta(hours=9))
 
 _USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -105,7 +103,7 @@ def _parse_release_date(date_str: str, today: datetime) -> tuple[datetime | None
     month, day = int(m.group(1)), int(m.group(2))
     year = _infer_year(month, today)
     try:
-        start = datetime(year, month, day, tzinfo=_JST)
+        start = datetime(year, month, day, tzinfo=timezone.utc)
     except ValueError:
         return None, None
 
@@ -125,7 +123,7 @@ def _normalize_title(title: str) -> str:
     return _TITLE_BRACKET_RE.sub("", title).strip()
 
 
-def _parse_schedule_page(session: requests.Session) -> dict[str, dict]:
+def _parse_schedule_page(session) -> dict[str, dict]:
     """Scrape the weekly schedule page and return {normalized_title: {start_date, end_date, business_hours}}."""
     soup = _fetch(_SCHEDULE_URL, session)
     if not soup:
@@ -171,7 +169,7 @@ def _parse_schedule_page(session: requests.Session) -> dict[str, dict]:
                     dates_map[ds] = sorted(set(dates_map[ds]))
 
             date_objs = [
-                datetime(int(d[:4]), int(d[4:6]), int(d[6:]), tzinfo=_JST)
+                datetime(int(d[:4]), int(d[4:6]), int(d[6:]), tzinfo=timezone.utc)
                 for d in sorted(dates_map)
             ]
             start_date = min(date_objs)
@@ -179,7 +177,7 @@ def _parse_schedule_page(session: requests.Session) -> dict[str, dict]:
 
             lines: list[str] = []
             for ds in sorted(dates_map):
-                dt = datetime(int(ds[:4]), int(ds[4:6]), int(ds[6:]), tzinfo=_JST)
+                dt = datetime(int(ds[:4]), int(ds[4:6]), int(ds[6:]), tzinfo=timezone.utc)
                 dow = _WEEKDAY_JA[dt.weekday()]
                 month_day = f"{dt.month}/{dt.day}"
                 times_str = "・".join(dates_map[ds])
@@ -206,14 +204,14 @@ def _parse_schedule_page(session: requests.Session) -> dict[str, dict]:
 # HTTP helpers
 # ---------------------------------------------------------------------------
 
-def _fetch(url: str, session: requests.Session) -> BeautifulSoup | None:
+def _fetch(url: str, session) -> BeautifulSoup | None:
     try:
         resp = session.get(url, timeout=15)
         resp.encoding = "utf-8"
         if resp.status_code == 200:
             return BeautifulSoup(resp.text, "html.parser")
         logger.warning("HTTP %s for %s", resp.status_code, url)
-    except requests.RequestException as e:
+    except Exception as e:
         logger.warning("Request error for %s: %s", url, e)
     return None
 
@@ -222,7 +220,7 @@ def _fetch(url: str, session: requests.Session) -> BeautifulSoup | None:
 # Listing page
 # ---------------------------------------------------------------------------
 
-def _get_movie_links(session: requests.Session) -> list[tuple[str, str]]:
+def _get_movie_links(session) -> list[tuple[str, str]]:
     """Return list of (full_url, listing_text) pairs.
 
     Links on the listing page are relative 6-digit numbers like '002491.html'.
@@ -263,7 +261,7 @@ def _extract_movie_number(url: str) -> str:
     return m.group(1) if m else url.rsplit("/", 1)[-1].replace(".html", "")
 
 
-def _scrape_detail(url: str, session: requests.Session, today: datetime) -> Event | None:
+def _scrape_detail(url: str, session, today: datetime) -> Event | None:
     """Scrape a movie detail page. Returns None if not Taiwan-relevant."""
     soup = _fetch(url, session)
     if not soup:
@@ -352,7 +350,7 @@ def _scrape_detail(url: str, session: requests.Session, today: datetime) -> Even
 # Scraper class
 # ---------------------------------------------------------------------------
 
-class CinemartShinjukuScraper(BaseScraper):
+class CinemartShinjukuScraper(CinemaScraper):
     """Scraper for シネマート新宿 (Cinemart Shinjuku) Taiwan film screenings.
 
     Cinemart Shinjuku is an Asia-focused art cinema in Shinjuku (Shinjuku Bunka
@@ -363,8 +361,8 @@ class CinemartShinjukuScraper(BaseScraper):
     SOURCE_NAME = SOURCE_NAME
 
     def scrape(self) -> list[Event]:
-        today = datetime.now(_JST)
-        session = requests.Session()
+        today = datetime.now(timezone.utc)
+        session = self.make_session()
         session.headers.update({"User-Agent": _USER_AGENT})
 
         # Step 1: collect movie links from listing

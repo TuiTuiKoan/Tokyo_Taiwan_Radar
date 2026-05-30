@@ -7,9 +7,11 @@ from __future__ import annotations
 import hashlib
 import re
 import unicodedata
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Optional
 
 import requests
+from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -26,6 +28,18 @@ _TAIWAN_KEYWORDS = [
 _STATUS_WORDS = re.compile(
     r'[　 ]*(?:上映中|公開中|公開終了|好評上映中|近日公開|先行上映|絶賛上映中|上映予定)\s*$'
 )
+
+_CAL_DATE_RE = re.compile(r"(\d{1,2})\.(\d{2})([月火水木金土日])")
+_CAL_TIME_RE = re.compile(r"(\d{1,2}:\d{2})[–—](\d{1,2}:\d{2})")
+_WEEKDAY_JP = {
+    "月": "（月）",
+    "火": "（火）",
+    "水": "（水）",
+    "木": "（木）",
+    "金": "（金）",
+    "土": "（土）",
+    "日": "（日）",
+}
 
 
 def _normalize_film_title(name_ja: str) -> str:
@@ -53,6 +67,62 @@ def make_film_source_id(cinema_slug: str, name_ja: str) -> str:
     normalized = _normalize_film_title(name_ja)
     h = hashlib.md5(f"{cinema_slug}:{normalized}".encode()).hexdigest()[:12]
     return f"{cinema_slug}_{h}"
+
+
+def extract_weekly_calendar_schedule(
+    soup: BeautifulSoup,
+    fetch_year: int,
+) -> tuple[Optional[str], Optional[datetime]]:
+    """Parse weekly schedule from Uplink-like calendar blocks.
+
+    Expected DOM:
+      - div.list-calendar-wrap
+      - div.list-calendar-header: "05.25月"
+      - div.list-calendar-information: "11:50—14:04"
+
+    Returns:
+      (business_hours, end_date_utc_midnight)
+    """
+    entries: list[tuple[int, int, str, str]] = []
+
+    for wrap in soup.select("div.list-calendar-wrap"):
+        header = wrap.select_one("div.list-calendar-header")
+        info = wrap.select_one("div.list-calendar-information")
+        if not header or not info:
+            continue
+
+        dm = _CAL_DATE_RE.search(header.get_text(strip=True))
+        tm = _CAL_TIME_RE.search(info.get_text(strip=True))
+        if not dm or not tm:
+            continue
+
+        mon, day, wd = int(dm.group(1)), int(dm.group(2)), dm.group(3)
+        time_str = f"{tm.group(1)}-{tm.group(2)}"
+        entries.append((mon, day, _WEEKDAY_JP.get(wd, f"（{wd}）"), time_str))
+
+    if not entries:
+        return None, None
+
+    business_hours = "\n".join(f"{mon}/{day}{wd} {t}" for mon, day, wd, t in entries)
+
+    inferred_year = fetch_year
+    prev_month: int | None = None
+    dated_entries: list[tuple[datetime, str, str]] = []
+    for mon, day, wd, t in entries:
+        if prev_month is not None and mon < prev_month - 6:
+            inferred_year += 1
+        prev_month = mon
+        try:
+            dt = datetime(inferred_year, mon, day, tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        dated_entries.append((dt, wd, t))
+
+    if not dated_entries:
+        return business_hours, None
+
+    end_date = dated_entries[-1][0]
+    return business_hours, end_date
 
 
 class CinemaScraper(BaseScraper):
@@ -85,6 +155,20 @@ class CinemaScraper(BaseScraper):
     def make_film_source_id(self, cinema_slug: str, name_ja: str) -> str:
         """instance method ラッパー（モジュール関数への委譲）。"""
         return make_film_source_id(cinema_slug, name_ja)
+
+    def fetch_weekly_schedule(
+        self,
+        detail_url: str,
+        fetch_year: int | None = None,
+        session: requests.Session | None = None,
+    ) -> tuple[Optional[str], Optional[datetime]]:
+        """Fetch detail page and parse Uplink-like weekly calendar blocks."""
+        effective_year = fetch_year or datetime.now(timezone.utc).year
+        sess = session or self.make_session()
+        resp = sess.get(detail_url, timeout=20)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        return extract_weekly_calendar_schedule(soup, effective_year)
 
     def set_fixed_venue(
         self,
