@@ -150,7 +150,7 @@ def _fetch_upcoming_events(sb) -> list[dict]:
     res = (
         sb.table("events")
         .select(
-            "id,name_zh,name_ja,name_en,start_date,end_date,category,location_name,location_address"
+            "id,name_zh,name_ja,name_en,start_date,end_date,category,location_name,location_address,location_prefectures"
         )
         .eq("is_active", True)
         .is_("parent_event_id", "null")
@@ -199,20 +199,32 @@ def _ai_select_events(client: OpenAI, events: list[dict], today: datetime) -> di
         "          in a multi-country Asia tour (e.g. 'Asia tour including Taiwan'), Japanese events with\n"
         "          no Taiwanese participant, book launches about non-Taiwan topics.\n\n"
         "DEDUPLICATION RULE: Each event id MUST appear at most once across weekly + monthly combined.\n\n"
-        "=== WEEKLY SELECTION (5–7 events starting within next 21 days) ===\n"
-        "Follow these MANDATORY slot rules in order:\n"
+        "=== WEEKLY SELECTION (exactly 10 events, starting within next 21 days) ===\n"
+        "Follow these MANDATORY slot rules — ALL must be satisfied if matching events exist:\n"
         "1. 五感: fill ≥2 slots; prefer movie/performing_arts/art first within the group.\n"
-        "   If NO 五感 events exist in the next 28 days, give those slots to 知識交流.\n"
+        "   Fallback to 知識交流 if no 五感 events exist.\n"
         "2. 生活風格: fill ≥1 slot.\n"
-        "   If NO 生活風格 events in next 28 days, give that slot to 知識交流.\n"
+        "   Fallback to 知識交流 if no 生活風格 events exist.\n"
         "3. 知識交流: fill ≥1 slot.\n"
-        "   If NO 知識交流 events in next 28 days, give that slot to 社會.\n"
+        "   Fallback to 社會 if no 知識交流 events exist.\n"
         "4. 社會: fill ≥1 slot.\n"
-        "   If NO 社會 events in next 28 days, give that slot to 五感.\n"
+        "   Fallback to 五感 if no 社會 events exist.\n"
+        "5. 台灣華語 slot (MANDATORY): include ≥1 event that teaches or promotes Taiwan Mandarin (華語)\n"
+        "   or Taiwanese (台語) language — e.g. 語言交流, 語文, 華語会話. Skip only if none exist.\n"
+        "6. 國際政治講座 slot (MANDATORY): include ≥1 event with category 'geopolitics' or a\n"
+        "   lecture/academic event with political or international-relations theme. Skip if none exist.\n"
+        "7. 品牌消費・設計 slot (MANDATORY when available): if ANY events with category 'retail' exist,\n"
+        "   MUST include ≥1 of them — these are rare and high-value. Skip only if none exist.\n"
+        "8. CITY DIVERSITY (aim): include events from ≥3 distinct cities OUTSIDE Tokyo if possible.\n"
+        "   Prefer 大阪, 福岡, 京都, 名古屋, etc. Use location_address to determine city.\n"
         "Fill remaining slots with the best available events across any group.\n\n"
-        f"=== MONTHLY SELECTION (2–3 events starting {month_start.strftime('%m/%d')} – {month_end.strftime('%m/%d')}) ===\n"
-        "Priority: large-venue events, live film screenings (movie), music performances (performing_arts), lectures, competitions.\n"
-        "STRICTLY EXCLUDE events with category 'taiwan_japan' or 'tv_program'.\n\n"
+        f"=== MONTHLY SELECTION (exactly 10 events, starting {month_start.strftime('%m/%d')} – {month_end.strftime('%m/%d')}) ===\n"
+        "Rules for monthly selection:\n"
+        "- No category restriction — pick the 10 most noteworthy events by scale and duration.\n"
+        "- Prefer: large-venue exhibitions, long-running shows (end_date far from start_date),\n"
+        "  ticketed concerts, stage performances, high-profile screenings with guest talks.\n"
+        "- Up to 50% overlap with last week's monthly section is acceptable (promotional period is long).\n"
+        "- EXCLUDE events with category 'tv_program'.\n\n"
         "Return ONLY JSON: {\"weekly\": [\"id1\",...], \"monthly\": [\"id1\",...]}\n\n"
         "Events:\n" + json.dumps(events, ensure_ascii=False)
     )
@@ -272,25 +284,43 @@ _TOKYO_LABEL: dict[str, str] = {"zh": "東京", "ja": "東京", "en": "Tokyo"}
 
 
 def _city_label(event: dict, lang: str) -> str:
-    """Return a bracketed city label for every event with a known location_address.
+    """Return a bracketed city label for every event, including Tokyo.
 
     Detection order:
-    1. location_address starts with '東京都'/'東京' → '[東京]'
-    2. location_address starts with a known non-Tokyo prefix → use _PREF_LABEL
-    3. location_address is absent → no label (avoid false positives)
+    1. location_name == 'オンライン' → no label (online event)
+    2. location_address starts with '東京都'/'東京' → '[東京]'
+    3. location_address starts with a known non-Tokyo prefix → use _PREF_LABEL
+    4. location_prefectures[0] fallback when location_address is absent
+    5. Still nothing → no label
     """
-    addr = (event.get("location_address") or "").strip()
-    if not addr:
+    # Online events have no city
+    if (event.get("location_name") or "").strip() == "オンライン":
         return ""
-    # Tokyo
-    if addr.startswith(_TOKYO_PREFIXES):
-        label = _TOKYO_LABEL.get(lang) or _TOKYO_LABEL["ja"]
-        return f"[{label}]"
-    # Check known non-Tokyo prefectures
-    for pref, labels in _PREF_LABEL.items():
-        if addr.startswith(pref):
-            label = labels.get(lang) or labels["ja"]
+    addr = (event.get("location_address") or "").strip()
+    if addr:
+        # Tokyo
+        if addr.startswith(_TOKYO_PREFIXES):
+            label = _TOKYO_LABEL.get(lang) or _TOKYO_LABEL["ja"]
             return f"[{label}]"
+        # Check known non-Tokyo prefectures
+        for pref, labels in _PREF_LABEL.items():
+            if addr.startswith(pref):
+                label = labels.get(lang) or labels["ja"]
+                return f"[{label}]"
+    # Fallback: use location_prefectures array
+    prefs = event.get("location_prefectures") or []
+    if prefs:
+        pref = prefs[0]
+        if pref in ("東京都", "東京"):
+            label = _TOKYO_LABEL.get(lang) or _TOKYO_LABEL["ja"]
+            return f"[{label}]"
+        for known_pref, labels in _PREF_LABEL.items():
+            if pref == known_pref:
+                label = labels.get(lang) or labels["ja"]
+                return f"[{label}]"
+        # Strip suffix and use raw prefecture short name
+        short = pref.rstrip("都道府県")
+        return f"[{short}]"
     return ""
 
 
@@ -300,10 +330,9 @@ def _build_message(
     lang: str,
     base_url: str,
     today: datetime,
+    nearterm_events: list[dict] | None = None,
 ) -> str:
     name_col = f"name_{lang}"
-    # today is send_date (Friday); week_end = Friday + 13 = next-next Thursday
-    week_end = today + timedelta(days=13)
 
     headers = {
         "zh": ("🗓 東京台灣雷達 — 活動精選", "【近期活動】", "【下個月不可錯過】"),
@@ -312,16 +341,13 @@ def _build_message(
     }
     h_title, h_week, h_month = headers[lang]
 
-    weekdays_ja = "月火水木金土日"
-    if lang == "ja":
-        date_range = (
-            f"{today.strftime('%-m/%-d')}（{weekdays_ja[today.weekday()]}）"
-            f" ～ {week_end.strftime('%-m/%-d')}（{weekdays_ja[week_end.weekday()]}）"
-        )
-    else:
-        date_range = f"{today.strftime('%-m/%-d')} ～ {week_end.strftime('%-m/%-d')}"
+    nearterm_hdrs: dict[str, str] = {
+        "zh": "─ 本週・下週全部活動 ─",
+        "ja": "─ 今週・来週の全イベント ─",
+        "en": "─ All Events This & Next Week ─",
+    }
 
-    lines = [h_title, date_range, "", h_week]
+    lines = [h_title, "", h_week]
 
     for e in weekly_events:
         title = e.get(name_col) or e.get("name_zh") or e.get("name_ja") or e.get("name_en") or "?"
@@ -331,6 +357,17 @@ def _build_message(
         prefix = f"{city}" if city else ""
         lines.append(f"• {prefix}{title}　{date_str}")
         lines.append(f"  {url}")
+
+    if nearterm_events:
+        lines.extend(["", nearterm_hdrs[lang]])
+        for e in nearterm_events:
+            title = e.get(name_col) or e.get("name_zh") or e.get("name_ja") or e.get("name_en") or "?"
+            date_str = _format_date(e.get("start_date"))
+            url = f"{base_url}/{lang}/events/{e['id']}"
+            city = _city_label(e, lang)
+            prefix = f"{city}" if city else ""
+            lines.append(f"• {prefix}{title}　{date_str}")
+            lines.append(f"  {url}")
 
     if monthly_events:
         lines.extend(["", h_month])
@@ -387,12 +424,17 @@ def _multicast(user_ids: list[str], message: str, token: str, image_url: str | N
     return True
 
 
-def _generate_weekly_content(sb, ai, today: datetime) -> tuple[list[dict], list[dict]]:
-    """Fetch events and run AI selection. Returns (weekly_events, monthly_events)."""
+def _generate_weekly_content(sb, ai, today: datetime) -> tuple[list[dict], list[dict], list[dict]]:
+    """Fetch events and run AI selection.
+
+    Returns (weekly_events, monthly_events, nearterm_events).
+    nearterm_events: all active annotated events from today (send_date, Fri) through today+9 (next Sun)
+    that are NOT already in the curated weekly top-10 — listed for exhaustive near-term reference.
+    """
     events = _fetch_upcoming_events(sb)
     logger.info("Fetched %d upcoming events", len(events))
     if not events:
-        return [], []
+        return [], [], []
     selected = _ai_select_events(ai, events, today)
     event_map = {e["id"]: e for e in events}
     weekly_ids: list[str] = selected.get("weekly", [])
@@ -400,8 +442,27 @@ def _generate_weekly_content(sb, ai, today: datetime) -> tuple[list[dict], list[
     weekly_events = [event_map[i] for i in weekly_ids if i in event_map]
     weekly_id_set = {e["id"] for e in weekly_events}
     monthly_events = [event_map[i] for i in monthly_ids if i in event_map and i not in weekly_id_set]
-    logger.info("AI selected: %d weekly, %d monthly", len(weekly_events), len(monthly_events))
-    return weekly_events, monthly_events
+
+    # Near-term exhaustive list: all events from today (Fri) through today+9 (next Sun)
+    # that are not already in the curated top-10 picks
+    nearterm_end = today + timedelta(days=9)
+    nearterm_start_iso = today.date().isoformat()
+    nearterm_end_iso = nearterm_end.date().isoformat()
+    nearterm_events = sorted(
+        [
+            e for e in events
+            if (e.get("start_date") or "")[:10] >= nearterm_start_iso
+            and (e.get("start_date") or "")[:10] <= nearterm_end_iso
+            and e["id"] not in weekly_id_set
+        ],
+        key=lambda e: e.get("start_date") or "",
+    )
+
+    logger.info(
+        "AI selected: %d weekly, %d monthly; nearterm additional: %d",
+        len(weekly_events), len(monthly_events), len(nearterm_events),
+    )
+    return weekly_events, monthly_events, nearterm_events
 
 
 def run_generate_draft() -> None:
@@ -418,7 +479,7 @@ def run_generate_draft() -> None:
     # send_date = the Friday this draft will be auto-sent (draft day is Thursday)
     send_date = today + timedelta(days=1)
 
-    weekly_events, monthly_events = _generate_weekly_content(sb, ai, send_date)
+    weekly_events, monthly_events, nearterm_events = _generate_weekly_content(sb, ai, send_date)
     if not weekly_events and not monthly_events:
         logger.warning("No events found — draft not created")
         return
@@ -428,10 +489,13 @@ def run_generate_draft() -> None:
     title_zh = f"🗓 東京台灣雷達「一週偵測」 {date_str}"
     title_ja = f"🗓 東京台湾レーダー「週間巡回」 {date_str}"
     title_en = f"🗓 Tokyo Taiwan Radar 'Weekly Scan' {date_str}"
-    body_zh = _build_message(weekly_events, monthly_events, "zh", base_url, send_date)
-    body_ja = _build_message(weekly_events, monthly_events, "ja", base_url, send_date)
-    body_en = _build_message(weekly_events, monthly_events, "en", base_url, send_date)
-    all_event_ids = [e["id"] for e in weekly_events + monthly_events]
+    body_zh = _build_message(weekly_events, monthly_events, "zh", base_url, send_date, nearterm_events)
+    body_ja = _build_message(weekly_events, monthly_events, "ja", base_url, send_date, nearterm_events)
+    body_en = _build_message(weekly_events, monthly_events, "en", base_url, send_date, nearterm_events)
+    weekly_monthly_ids = {e["id"] for e in weekly_events + monthly_events}
+    all_event_ids = list(weekly_monthly_ids) + [
+        e["id"] for e in nearterm_events if e["id"] not in weekly_monthly_ids
+    ]
 
     # Upsert the announcement (slug is UNIQUE — safe to re-run)
     sb.table("announcements").upsert(
@@ -569,7 +633,7 @@ def run_broadcast(dry_run: bool = False, admin_only: bool = False) -> None:
     ai = _get_openai()
 
     # 1. Fetch + AI-select events
-    weekly_events, monthly_events = _generate_weekly_content(sb, ai, today)
+    weekly_events, monthly_events, nearterm_events = _generate_weekly_content(sb, ai, today)
     if not weekly_events and not monthly_events:
         logger.warning("No upcoming events found — broadcast skipped")
         return
@@ -596,7 +660,7 @@ def run_broadcast(dry_run: bool = False, admin_only: bool = False) -> None:
     if dry_run:
         for lang in ["zh", "en", "ja"]:
             if by_lang[lang]:
-                msg = _build_message(weekly_events, monthly_events, lang, base_url, today)
+                msg = _build_message(weekly_events, monthly_events, lang, base_url, today, nearterm_events)
                 logger.info("=== DRY RUN: %s message ===\n%s", lang.upper(), msg[:500])
         logger.info("Dry run complete — no messages sent")
         return
@@ -612,7 +676,7 @@ def run_broadcast(dry_run: bool = False, admin_only: bool = False) -> None:
                 "Add: ADMIN_LINE_USER_IDS=Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
             )
             return
-        msg = _build_message(weekly_events, monthly_events, "zh", base_url, today)
+        msg = _build_message(weekly_events, monthly_events, "zh", base_url, today, nearterm_events)
         logger.info("=== ADMIN-ONLY: sending ZH message to %d admin(s) ===\n%s", len(admin_ids), msg[:500])
         success = _multicast(admin_ids, msg, token)
         if success:
@@ -625,7 +689,7 @@ def run_broadcast(dry_run: bool = False, admin_only: bool = False) -> None:
         user_ids = by_lang[lang]
         if not user_ids:
             continue
-        msg = _build_message(weekly_events, monthly_events, lang, base_url, today)
+        msg = _build_message(weekly_events, monthly_events, lang, base_url, today, nearterm_events)
         success = _multicast(user_ids, msg, token)
         if success:
             sent_total += len(user_ids)
