@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Detect events where name_ja was shortened but name_zh/name_en still reflect the old title.
+"""Detect events with multilingual field sync mismatches.
 
-This script is intentionally heuristic and outputs candidates for manual review.
+Checks for events where edits to the Japanese version of multilingual fields
+(name, location_name, location_address, organizer) were not reflected in Chinese/English versions.
 
-Checks include:
-1) subtitle marker mismatch:
-   raw_title has subtitle markers, name_ja does not, but name_zh/name_en still do.
-2) field_corrections drift:
-   name_ja correction exists without matching name_zh/name_en corrections.
+Heuristics:
+1) subtitle_marker_mismatch: raw/ja has no separators, but zh/en still have them
+2) field_edited_without_translation: ja_fc exists but zh_en_fc missing (newer_than)
+3) length_mismatch: ja is much shorter than zh/en (suggests shortening without resync)
 
-Exit code:
-- 0: no findings, or findings exist but --fail-on-findings is not set
+Exit codes:
+- 0: no findings, or findings without --fail-on-findings
 - 1: findings exist and --fail-on-findings is set
-- 2: runtime/config error
+- 2: configuration error
 """
 
 from __future__ import annotations
@@ -32,6 +32,22 @@ from supabase import create_client
 SEP_RE = re.compile(r"[~〜―—]|\\s[-–—]\\s")
 STRIP_RE = re.compile(r"[「」『』【】（）()\[\]\s]")
 
+MULTILINGUAL_FIELDS = [
+    ("name", "raw_title"),           # (base_field_name, raw_source_for_marker_check)
+    ("location_name", None),
+    ("location_address", None),
+    ("organizer", None),
+]
+
+
+@dataclass
+class FieldMismatch:
+    field_name: str
+    reasons: list[str]
+    value_ja: str
+    value_zh: str
+    value_en: str
+
 
 @dataclass
 class Finding:
@@ -39,11 +55,7 @@ class Finding:
     source_name: str
     annotation_status: str | None
     updated_at: str | None
-    reasons: list[str]
-    raw_title: str
-    name_ja: str
-    name_zh: str
-    name_en: str
+    mismatches: list[FieldMismatch]
     source_url: str | None
 
 
@@ -79,8 +91,72 @@ def _latest_dt(rows: Iterable[dict], field: str) -> datetime | None:
     return max(vals) if vals else None
 
 
+def _check_field_mismatch(
+    field_name: str,
+    ja: str,
+    zh: str,
+    en: str,
+    raw_source: str | None,
+    fc_rows: list[dict],
+) -> FieldMismatch | None:
+    """Check if a multilingual field has sync issues."""
+    
+    reasons: list[str] = []
+
+    # Skip if zh or en missing
+    if not zh or not en:
+        return None
+
+    # Heuristic 1: Subtitle marker mismatch
+    # Raw has markers but ja doesn't, yet zh/en still do
+    if raw_source and ja:
+        if _has_sep(raw_source) and not _has_sep(ja) and (_has_sep(zh) or _has_sep(en)):
+            reasons.append("subtitle_marker_mismatch")
+
+    # Heuristic 2: Length mismatch
+    # JA is much shorter than zh/en (suggests shortening without translation sync)
+    if ja and zh and en:
+        ja_len = len(_norm(ja))
+        zh_len = len(_norm(zh))
+        en_len = len(_norm(en))
+        
+        if (
+            raw_source
+            and _has_sep(raw_source)
+            and (_has_sep(zh) or _has_sep(en))
+            and len(_norm(raw_source)) >= 12
+            and ja_len <= int(len(_norm(raw_source)) * 0.75)
+            and (zh_len >= ja_len + 6 or en_len >= ja_len + 6)
+        ):
+            reasons.append("length_mismatch_ja_short")
+
+    # Heuristic 3: Field-correction drift
+    # Check if ja was corrected but zh/en weren't
+    if fc_rows:
+        ja_latest = _latest_dt(fc_rows, f"{field_name}_ja")
+        zh_latest = _latest_dt(fc_rows, f"{field_name}_zh")
+        en_latest = _latest_dt(fc_rows, f"{field_name}_en")
+
+        if ja_latest and not zh_latest and not en_latest:
+            reasons.append(f"{field_name}_ja_edited_without_zh_en")
+        elif ja_latest and (
+            (zh_latest and ja_latest > zh_latest) or (en_latest and ja_latest > en_latest)
+        ):
+            reasons.append(f"{field_name}_ja_edited_more_recently")
+
+    if reasons:
+        return FieldMismatch(
+            field_name=field_name,
+            reasons=sorted(set(reasons)),
+            value_ja=ja,
+            value_zh=zh,
+            value_en=en,
+        )
+    return None
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Check title sync mismatch candidates")
+    parser = argparse.ArgumentParser(description="Check multilingual field sync mismatches")
     parser.add_argument("--since-hours", type=int, default=36, help="Lookback window in hours")
     parser.add_argument("--limit", type=int, default=500, help="Max findings to print")
     parser.add_argument("--event-id", default="", help="Check only one event ID")
@@ -98,8 +174,15 @@ def main() -> int:
     sb = create_client(supabase_url, service_key)
     since_iso = _iso_hours_ago(args.since_hours)
 
+    # Query events with all multilingual fields
     q = sb.table("events").select(
-        "id,source_name,source_url,raw_title,name_ja,name_zh,name_en,annotation_status,updated_at,is_active"
+        "id,source_name,source_url,"
+        "raw_title,"
+        "name_ja,name_zh,name_en,"
+        "location_name,location_name_zh,location_name_en,"
+        "location_address,location_address_zh,location_address_en,"
+        "organizer,organizer_zh,organizer_en,"
+        "annotation_status,updated_at,is_active"
     ).eq("is_active", True)
 
     if args.event_id:
@@ -109,74 +192,56 @@ def main() -> int:
 
     events = q.execute().data or []
 
-    findings: list[Finding] = []
-
-    for e in events:
-        raw = (e.get("raw_title") or "").strip()
-        ja = (e.get("name_ja") or "").strip()
-        zh = (e.get("name_zh") or "").strip()
-        en = (e.get("name_en") or "").strip()
-
-        # If zh/en are missing entirely, this is a different class of issue.
-        if not zh or not en:
-            continue
-
-        reasons: list[str] = []
-
-        if raw and ja and _norm(raw) != _norm(ja):
-            if _has_sep(raw) and (not _has_sep(ja)) and (_has_sep(zh) or _has_sep(en)):
-                reasons.append("subtitle_marker_mismatch")
-
-            # Length-based signal: JA got much shorter while zh/en look long.
-            raw_len = len(_norm(raw))
-            ja_len = len(_norm(ja))
-            zh_len = len(_norm(zh))
-            en_len = len(_norm(en))
-            if (
-                _has_sep(raw)
-                and (_has_sep(zh) or _has_sep(en))
-                and raw_len >= 12
-                and ja_len <= int(raw_len * 0.75)
-                and (zh_len >= ja_len + 6 or en_len >= ja_len + 6)
-            ):
-                reasons.append("title_shortened_without_zh_en_resync")
-
-        # Field-correction drift check for edited titles.
+    # Fetch all field_corrections for these events
+    event_ids = [e["id"] for e in events]
+    all_fc: dict[str, list[dict]] = {}
+    if event_ids:
         try:
-            fc_rows = (
+            fc_data = (
                 sb.table("field_corrections")
-                .select("field_name,created_at")
-                .eq("event_id", e["id"])
-                .in_("field_name", ["name_ja", "name_zh", "name_en"])
+                .select("event_id,field_name,created_at")
+                .in_("event_id", event_ids)
                 .execute()
                 .data
                 or []
             )
+            for row in fc_data:
+                eid = row["event_id"]
+                if eid not in all_fc:
+                    all_fc[eid] = []
+                all_fc[eid].append(row)
         except Exception:
-            fc_rows = []
+            pass
 
-        if fc_rows:
-            ja_latest = _latest_dt(fc_rows, "name_ja")
-            zh_latest = _latest_dt(fc_rows, "name_zh")
-            en_latest = _latest_dt(fc_rows, "name_en")
+    findings: list[Finding] = []
 
-            if ja_latest and not zh_latest and not en_latest:
-                reasons.append("name_ja_fc_without_name_zh_en_fc")
-            elif ja_latest and ((zh_latest and ja_latest > zh_latest) or (en_latest and ja_latest > en_latest)):
-                reasons.append("name_ja_fc_newer_than_name_zh_en_fc")
+    for e in events:
+        eid = e["id"]
+        fc_rows = all_fc.get(eid, [])
+        mismatches: list[FieldMismatch] = []
 
-        if reasons:
+        for field_name, raw_field in MULTILINGUAL_FIELDS:
+            ja_key = field_name if field_name == "name" else field_name
+            zh_key = f"{field_name}_zh"
+            en_key = f"{field_name}_en"
+
+            ja = (e.get(ja_key) or "").strip()
+            zh = (e.get(zh_key) or "").strip()
+            en = (e.get(en_key) or "").strip()
+            raw_source = (e.get(raw_field) or "").strip() if raw_field else None
+
+            mismatch = _check_field_mismatch(field_name, ja, zh, en, raw_source, fc_rows)
+            if mismatch:
+                mismatches.append(mismatch)
+
+        if mismatches:
             findings.append(
                 Finding(
-                    event_id=e["id"],
+                    event_id=eid,
                     source_name=e.get("source_name") or "",
                     annotation_status=e.get("annotation_status"),
                     updated_at=e.get("updated_at"),
-                    reasons=sorted(set(reasons)),
-                    raw_title=raw,
-                    name_ja=ja,
-                    name_zh=zh,
-                    name_en=en,
+                    mismatches=mismatches,
                     source_url=e.get("source_url"),
                 )
             )
@@ -189,16 +254,25 @@ def main() -> int:
 
     for i, f in enumerate(findings[: args.limit], start=1):
         print(f"\n[{i}] {f.event_id} | {f.source_name} | {f.annotation_status} | {f.updated_at}")
-        print("  reasons:", ", ".join(f.reasons))
-        print("  raw:", f.raw_title[:160])
-        print("  ja :", f.name_ja[:160])
-        print("  zh :", f.name_zh[:160])
-        print("  en :", f.name_en[:160])
+        for mm in f.mismatches:
+            print(f"  field: {mm.field_name}")
+            print(f"    reasons: {', '.join(mm.reasons)}")
+            print(f"    ja: {mm.value_ja[:100]}")
+            print(f"    zh: {mm.value_zh[:100]}")
+            print(f"    en: {mm.value_en[:100]}")
 
     if args.output_json:
         os.makedirs(os.path.dirname(args.output_json) or ".", exist_ok=True)
         with open(args.output_json, "w", encoding="utf-8") as wf:
-            json.dump([asdict(x) for x in findings], wf, ensure_ascii=False, indent=2)
+            # Convert to dict for JSON serialization
+            data = [
+                {
+                    **{k: v for k, v in asdict(f).items() if k != "mismatches"},
+                    "mismatches": [asdict(mm) for mm in f.mismatches],
+                }
+                for f in findings
+            ]
+            json.dump(data, wf, ensure_ascii=False, indent=2)
         print(f"\njson_written: {args.output_json}")
 
     if findings and args.fail_on_findings:
