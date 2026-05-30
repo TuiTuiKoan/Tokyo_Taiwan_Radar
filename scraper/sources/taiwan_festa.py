@@ -181,4 +181,5 @@ class TaiwanFestaScraper(BaseScraper):
             end_date=end_date,
             location_name=location,
             location_address=None,
+            organizer="台湾祭実行委員会",
         )
