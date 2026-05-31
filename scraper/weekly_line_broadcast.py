@@ -430,9 +430,13 @@ def _build_message(
         lines.extend(["", nearterm_hdrs[lang]])
         h_ev, h_film, h_book, h_on, h_tv = _TYPE_GROUP_HDRS[lang]
         regular, film_evts, book_evts, online_evts, tv_evts = _group_by_type(nearterm_events)
+        first_group = True
         for group_hdr, group in [(h_ev, regular), (h_film, film_evts), (h_book, book_evts), (h_on, online_evts), (h_tv, tv_evts)]:
             if not group:
                 continue
+            if not first_group:
+                lines.append("")
+            first_group = False
             lines.append(group_hdr)
             for e in group:
                 title = _title(e)
