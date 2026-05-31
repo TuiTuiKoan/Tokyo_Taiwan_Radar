@@ -249,7 +249,7 @@ export async function GET(req: Request) {
       let foundPref = false;
       if (e.location_prefectures && e.location_prefectures.length > 0) {
         for (const pref of e.location_prefectures) {
-          const cleanPref = pref.replace(/(都|道|府|県)$/, "");
+          const cleanPref = pref.replace(/(都|府|県)$/, "");
           eventPrefectureMap[cleanPref] = (eventPrefectureMap[cleanPref] ?? 0) + 1;
           foundPref = true;
         }

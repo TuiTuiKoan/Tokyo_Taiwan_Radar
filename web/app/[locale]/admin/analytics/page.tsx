@@ -309,7 +309,7 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
             {!gsc.topQueries || gsc.topQueries.length === 0 ? (
               <p className="text-sm text-fg-subtle">{t("analyticsGscTopQueriesEmpty")}</p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto mb-6">
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="text-xs text-fg-subtle border-b border-line">
@@ -330,6 +330,54 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
                         <td className="py-2 text-right tabular-nums">{q.position.toFixed(1)}</td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsGscTopPagesTitle")}</h3>
+            {!gsc.topPages || gsc.topPages.length === 0 ? (
+              <p className="text-sm text-fg-subtle">{t("analyticsGscTopPagesEmpty")}</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="text-xs text-fg-subtle border-b border-line">
+                      <th className="text-left py-2 pr-4 font-medium">{t("analyticsGscPage")}</th>
+                      <th className="text-right py-2 pr-4 font-medium">{t("analyticsGscClicks")}</th>
+                      <th className="text-right py-2 pr-4 font-medium">{t("analyticsGscImpressions")}</th>
+                      <th className="text-right py-2 pr-4 font-medium">{t("analyticsGscCtr")}</th>
+                      <th className="text-right py-2 font-medium">{t("analyticsGscPosition")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gsc.topPages.map((p) => {
+                      let displayPath = p.page;
+                      try {
+                        const parsed = new URL(p.page);
+                        displayPath = parsed.pathname;
+                      } catch {
+                        displayPath = p.page.replace(/^https?:\/\/[^\/]+/, "");
+                      }
+                      return (
+                        <tr key={p.page} className="border-b border-gray-50 hover:bg-elevated">
+                          <td className="py-2 pr-4 truncate max-w-[26rem]">
+                            <a
+                              href={p.page}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-green-700 hover:text-green-800 hover:underline"
+                            >
+                              {displayPath || "/"}
+                            </a>
+                          </td>
+                          <td className="py-2 pr-4 text-right tabular-nums">{fmtNum(p.clicks)}</td>
+                          <td className="py-2 pr-4 text-right tabular-nums">{fmtNum(p.impressions)}</td>
+                          <td className="py-2 pr-4 text-right tabular-nums">{fmtPercent(p.ctr)}</td>
+                          <td className="py-2 text-right tabular-nums">{p.position.toFixed(1)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
