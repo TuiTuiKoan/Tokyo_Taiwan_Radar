@@ -63,11 +63,13 @@ web/
 | Language | Name | Notes |
 |----------|------|---------|
 | English | **Lianbu** | Always use this romanization — never "Renbu" or "Lianwu" |
+| English (nickname) | **Bubu** | Cute short form of Lianbu — use where 小霧 / レンブちゃん appears |
 | Traditional Chinese | **蓮霧** or **小霧** | 蓮霧 (wax apple) is the full name; 小霧 is the affectionate short form used in UI |
 | Japanese | **レンブ** or **レンブちゃん** | Katakana transliteration; add ちゃん for warmth |
 
 > **Rule**: Whenever the mascot name appears in code, comments, UI strings, docs, or agent instructions,
 > use the correct language-specific form above. The English form is always **Lianbu** — never Renbu.
+> The affectionate nickname (小霧 / レンブちゃん) is **Bubu** in English.
 
 ## Categories
 
