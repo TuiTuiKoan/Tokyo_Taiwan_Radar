@@ -444,6 +444,10 @@ def _build_message(
                 date_str = _format_date(e.get("start_date"))
                 city = _city_label(e, lang)
                 prefix = f"{city}" if city else ""
+                if group is film_evts:
+                    venue = e.get("location_name") or ""
+                    if venue:
+                        prefix = f"{prefix}[{venue}]"
                 lines.append(f"• {prefix}{title}　{date_str}")
 
     if monthly_events:
