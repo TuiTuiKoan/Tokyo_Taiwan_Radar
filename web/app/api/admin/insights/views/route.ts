@@ -118,19 +118,35 @@ export async function GET(req: Request) {
     const rangeEnd = `${toMonth}-${String(lastDay).padStart(2, "0")}T23:59:59.999Z`;
 
     // Fetch meeting records
-    // Range capped up to 5000 records to align with Supabase 1000-row limit guard
-    const { data: rawViews, error: fetchErr } = await supabase
-      .from("event_views")
-      .select("viewed_at, country, locale, event_id, events(category, location_name, location_address, location_prefectures)")
-      .gte("viewed_at", rangeStart)
-      .lte("viewed_at", rangeEnd)
-      .range(0, 4999);
+    // Loop paging to fetch all records (completely removing limit)
+    let views: any[] = [];
+    let page = 0;
+    const pageSize = 5000;
+    let hasMore = true;
 
-    if (fetchErr) {
-      return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+    while (hasMore) {
+      const { data: pageData, error: fetchErr } = await supabase
+        .from("event_views")
+        .select("viewed_at, country, locale, event_id, events(category, location_name, location_address, location_prefectures)")
+        .gte("viewed_at", rangeStart)
+        .lte("viewed_at", rangeEnd)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (fetchErr) {
+        return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+      }
+
+      if (pageData && pageData.length > 0) {
+        views = views.concat(pageData);
+        if (pageData.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
     }
-
-    const views = rawViews || [];
 
     // Filter server-side
     const filteredViews = views.filter(v => {

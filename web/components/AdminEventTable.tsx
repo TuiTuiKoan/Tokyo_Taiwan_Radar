@@ -131,6 +131,7 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
   // Inline filters
   const [filterQ, setFilterQ] = useState("");
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [catDropdownOpen, setCatDropdownOpen] = useState(false);
   const catDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -998,6 +999,38 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     }
   }
 
+  const hasFilters = Boolean(
+    filterQ ||
+    filterCategories.length > 0 ||
+    filterPaid ||
+    filterIsActive !== "all" ||
+    filterTimeMode !== "all" ||
+    filterDateFrom !== "2024-01-01" ||
+    filterDateTo ||
+    filterLocation ||
+    filterCity ||
+    filterAnnotation ||
+    filterSource ||
+    filterOrgType ||
+    filterEventForm
+  );
+
+  const handleClearAllFilters = () => {
+    setFilterQ("");
+    setFilterCategories([]);
+    setFilterPaid("");
+    setFilterIsActive("all");
+    setFilterTimeMode("all");
+    setFilterDateFrom("2024-01-01");
+    setFilterDateTo("");
+    setFilterLocation("");
+    setFilterCity("");
+    setFilterAnnotation("");
+    setFilterSource("");
+    setFilterOrgType("");
+    setFilterEventForm("");
+  };
+
   return (
   <>
     <div>
@@ -1185,8 +1218,48 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
       <div ref={filterBarRef} className="sticky top-14 z-20 space-y-2 mb-3">
       {/* Inline filter bar */}
       <div className="bg-elevated rounded-xl px-4 py-3 space-y-2">
-        {/* Row 1: 搜尋、類型、地點、票價、時間、日期 */}
-        <div className="flex flex-wrap gap-3 items-end">
+        {/* Mobile toggle button row */}
+        <div className="flex items-center justify-between lg:hidden mb-2">
+          <button
+            type="button"
+            onClick={() => setMobileFiltersOpen((o) => !o)}
+            aria-expanded={mobileFiltersOpen}
+            aria-label={mobileFiltersOpen ? tFilters("confirm") : tFilters("searchOrFilter")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm cursor-pointer ${
+              mobileFiltersOpen
+                ? "border border-mascot-pink-deep bg-blush dark:bg-zinc-800 text-mascot-pink-deep dark:text-mascot-pink hover:bg-mascot-pink/20"
+                : "border border-transparent bg-brand text-white hover:bg-brand-strong"
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              {mobileFiltersOpen ? (
+                <polyline points="20 6 9 17 4 12" />
+              ) : (
+                <>
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </>
+              )}
+            </svg>
+            <span>{mobileFiltersOpen ? tFilters("confirm") : tFilters("searchOrFilter")}</span>
+            {!mobileFiltersOpen && hasFilters && (
+              <span className="ml-1 w-2 h-2 rounded-full bg-white/90 inline-block animate-pulse" />
+            )}
+          </button>
+          {hasFilters && (
+            <button
+              onClick={handleClearAllFilters}
+              className="text-xs text-red-500 hover:text-red-700 underline cursor-pointer"
+            >
+              {tFilters("reset")}
+            </button>
+          )}
+        </div>
+
+        {/* Collapsible parts: Hidden on mobile/tablet unless mobileFiltersOpen is true */}
+        <div className={`${mobileFiltersOpen ? "block" : "hidden"} lg:block space-y-2`}>
+          {/* Row 1: 搜尋、類型、地點、票價、時間、日期 */}
+          <div className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-fg-muted font-medium">{tFilters("search")}</label>
             <input

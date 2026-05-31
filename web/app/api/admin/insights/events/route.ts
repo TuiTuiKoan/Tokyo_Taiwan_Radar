@@ -62,18 +62,34 @@ export async function GET(req: Request) {
     const rangeEnd = `${toMonth}-${String(lastDay).padStart(2, "0")}`;
 
     // Load active and inactive events in the range
-    // Safeguard page limit up to 5000 rows (Supabase 1000-row default limit guard)
-    const { data: rawEvents, error: fetchErr } = await supabase
-      .from("events")
-      .select("id, created_at, start_date, end_date, category, location_name, location_address, location_prefectures, is_active")
-      .or(`start_date.lte.${rangeEnd},created_at.gte.${rangeStart}`)
-      .range(0, 4999);
+    // Loop paging to fetch all records (completely removing limit)
+    let allEvents: any[] = [];
+    let page = 0;
+    const pageSize = 5000;
+    let hasMore = true;
 
-    if (fetchErr) {
-      return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+    while (hasMore) {
+      const { data: pageData, error: fetchErr } = await supabase
+        .from("events")
+        .select("id, created_at, start_date, end_date, category, location_name, location_address, location_prefectures, is_active")
+        .or(`start_date.lte.${rangeEnd},created_at.gte.${rangeStart}`)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (fetchErr) {
+        return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+      }
+
+      if (pageData && pageData.length > 0) {
+        allEvents = allEvents.concat(pageData);
+        if (pageData.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
     }
-
-    let allEvents = rawEvents || [];
 
     // Apply location filter (JS server-side post-filter)
     if (location && location !== "all") {
