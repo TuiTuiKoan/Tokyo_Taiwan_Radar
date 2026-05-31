@@ -182,6 +182,19 @@ SEED_DATA: list[dict[str, Any]] = [
         "is_authoritative": True,
         "is_multi_venue": False,
     },
+    {
+        "canonical_name_ja": "あまや座",
+        "canonical_name_zh": "あまや座",
+        "canonical_name_en": "Amayaza",
+        "address": "茨城県那珂市瓜連1724-2",
+        "prefecture": "茨城県",
+        "prefectures": ["茨城県"],
+        "city": "那珂市",
+        "aliases": ["あまや座", "amayaza"],
+        "homepage": "https://amaya-za.com/",
+        "is_authoritative": True,
+        "is_multi_venue": False,
+    },
 ]
 
 _AUTHORITY_COLUMNS = (
