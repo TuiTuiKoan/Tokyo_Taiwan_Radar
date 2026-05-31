@@ -281,6 +281,15 @@ _PREF_LABEL: dict[str, dict[str, str]] = {
 
 _TOKYO_PREFIXES = ("東京都", "東京")
 _TOKYO_LABEL: dict[str, str] = {"zh": "東京", "ja": "東京", "en": "Tokyo"}
+
+# Taiwan city address prefixes → show [台灣]/[台湾]/[Taiwan]
+_TAIWAN_ADDRESS_PREFIXES = (
+    "台北市", "臺北市", "新北市", "台中市", "臺中市", "台南市", "臺南市",
+    "高雄市", "桃園市", "新竹市", "新竹縣", "基隆市", "嘉義市", "嘉義縣",
+    "宜蘭縣", "花蓮縣", "台東縣", "臺東縣", "屏東縣", "南投縣", "彰化縣",
+    "雲林縣", "苗栗縣", "澎湖縣", "金門縣", "連江縣",
+)
+_TAIWAN_LABEL: dict[str, str] = {"zh": "台灣", "ja": "台湾", "en": "Taiwan"}
 # Prefixes added to TV event names in DB — strip from broadcast titles to avoid duplication
 # with the [電視節目]/[TV Program]/[テレビ番組] city-slot label
 _TV_NAME_PREFIXES: dict[str, str] = {"zh": "【電視節目】", "en": "【TV Program】", "ja": "【テレビ番組】"}
@@ -338,6 +347,10 @@ def _city_label(event: dict, lang: str) -> str:
         if addr.startswith(_TOKYO_PREFIXES):
             label = _TOKYO_LABEL.get(lang) or _TOKYO_LABEL["ja"]
             return f"[{label}]"
+        # Taiwan address
+        if addr.startswith(_TAIWAN_ADDRESS_PREFIXES):
+            label = _TAIWAN_LABEL.get(lang) or _TAIWAN_LABEL["zh"]
+            return f"[{label}]"
         # Check known non-Tokyo prefectures
         for pref, labels in _PREF_LABEL.items():
             if addr.startswith(pref):
@@ -378,8 +391,11 @@ def _build_message(
     }
     h_title, h_week, h_month = headers[lang]
 
-    nearterm_start_label = today.strftime("%-m/%-d")
-    nearterm_end_label = (today + timedelta(days=6)).strftime("%-m/%-d")
+    # Header shows: broadcast Friday (next Friday on or after today) → broadcast Friday + 7 days
+    days_to_fri = (4 - today.weekday()) % 7  # 0 if today is already Friday
+    broadcast_fri = today + timedelta(days=days_to_fri)
+    nearterm_start_label = broadcast_fri.strftime("%-m/%-d")
+    nearterm_end_label = (broadcast_fri + timedelta(days=7)).strftime("%-m/%-d")
     nearterm_range = f"{nearterm_start_label}–{nearterm_end_label}"
     nearterm_hdrs: dict[str, str] = {
         "zh": f"─ 本週・下週全部活動（{nearterm_range}）─",
@@ -398,7 +414,7 @@ def _build_message(
             return raw[len(tv_pfx):]
         return raw
 
-    for e in weekly_events:
+    for e in weekly_events[:10]:  # AI selection capped at 10
         title = _title(e)
         date_str = _format_date(e.get("start_date"))
         url = f"{base_url}/{lang}/events/{e['id']}"
