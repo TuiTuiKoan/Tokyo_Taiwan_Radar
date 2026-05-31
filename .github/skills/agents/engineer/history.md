@@ -2,6 +2,23 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-31 — weekly_line_broadcast URL 過多 + venue-name-as-address city label 缺失
+
+**問題 1：** nearterm・monthly セクションの全イベントに URL が付いてメッセージが長すぎる
+- **根本原因：** `_build_message()` が精選段と同じ `lines.append(f"  {url}")` を nearterm group ループ・monthly ループにも持っていた
+- **修復：** 両ループの `url` 変数宣言と `lines.append(f"  {url}")` を削除。URL は `【小霧精選】` 段のみ残す
+- **教訓：** broadcast メッセージに URL を追加するときは「精選段のみ」を原則とする。nearterm/monthly は日付・都市ラベルだけで十分
+
+**問題 2：** `location_address == location_name`（venue 名がそのまま住所に入っている）イベントで `_city_label()` が空になる
+- **事例：** 早稲田大学早稲田キャンパス11号館 → `location_address='早稲田大学早稲田キャンパス11号館710教室'`、`location_prefectures=null`
+- **根本原因：** `_city_label()` は `location_prefectures` or `location_address.startswith(都道府県)` で判定するが、venue 名では両方とも miss する
+- **修復：** `location_address='東京都新宿区西早稲田1-6-1'`、`location_prefectures=['東京都']` に修正し FC ロック
+- **教訓：** `location_address == location_name` の場合は **venue 名であり住所ではない**。`auto_qa_address_is_venue_name` アラートが出たイベントは必ず正式住所を調べて FC ロックする
+
+**Commits:** `cedbaac`（URL 削除）、DB FC ロック（半導体イベント 75a46729）
+
+---
+
 ## 2026-05-31 — Venue business_hours 傳播 + auto_qa 品質缺口修補 + Event Form Sync
 
 **修改：**

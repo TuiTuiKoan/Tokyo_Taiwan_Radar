@@ -1046,6 +1046,27 @@ Every route slug must appear the **same number of times** (= total number of adm
 
 **Reference:** `weekly_line_broadcast.py` `_fetch_upcoming_events()` — pool filter added in commit `b2864ea` after pending events appeared with Japanese-only titles in the LINE weekly broadcast.
 
+### weekly_line_broadcast URL placement rule
+
+URLs belong **only in the `【小霧精選】` weekly picks section**. The nearterm (type-grouped) and monthly sections must NOT append `lines.append(f"  {url}")` — message length is the concern.
+
+Checklist when editing `_build_message()`:
+- `weekly_events` loop → URL line ✅ keep
+- nearterm group loop → URL line ❌ remove
+- monthly loop → URL line ❌ remove
+
+### city_label diagnosis checklist
+
+`_city_label()` returns empty when **both** of these are missing:
+1. `location_prefectures` is `null`
+2. `location_address` does not start with a prefecture name (e.g. `東京都…`)
+
+Common cause: `location_address == location_name` (venue name written as address — caught by `auto_qa_address_is_venue_name`). Typical sub-patterns:
+- Address starts with a non-prefecture prefix like `会場は…` (→ `startswith` miss)
+- Address is just the venue hall name (e.g. `早稲田大学早稲田キャンパス11号館710教室`)
+
+**Fix**: look up the real street address, set `location_address = '東京都…'` and `location_prefectures = ['東京都']`, FC-lock both fields.
+
 ## Person Name Lookup Pattern
 
 GPT-4o-mini translates katakana person names phonetically, producing wrong Chinese names (e.g. ギデンズ・コー → 「紀德恩」instead of 「九把刀」). `scraper/person_name_lookup.py` corrects this for **all events**, not just movies.
