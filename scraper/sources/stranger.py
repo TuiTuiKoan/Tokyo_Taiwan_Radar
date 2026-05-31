@@ -6,12 +6,15 @@ Source name : stranger
 Source ID   : stranger_{movieId}
 
 Strategy:
-  1. Loop through today + 0..89 days (90-day window)
+  1. Loop through today - 14 .. today + 89 days (14-day lookback + 90-day forward)
+     Lookback catches mid-run movies whose Eigaland booking lags behind the website.
   2. For each date call listByDomainAndDate API
   3. Filter entries whose movieDetail.countries contains "台湾" or "台灣"
   4. Track min_date / max_date per movieId across the entire window
   5. For each unique Taiwan movie call movie/detail API for full synopsis
-  6. Build one Event per movieId (start_date = earliest showing, end_date = latest)
+  6. Build one Event per movieId:
+     - start_date = openDate from detail API (official premiere date, stable)
+     - end_date   = max_date from scan window (latest confirmed booking)
 
 Venue (fixed):
   Stranger
@@ -46,6 +49,7 @@ _VENUE_ADDRESS = "東京都墨田区菊川3丁目6-13"
 _TAIWAN_COUNTRIES = {"台湾", "台灣"}
 
 _WINDOW_DAYS = 90
+_LOOKBACK_DAYS = 14   # scan past N days to catch mid-run movies (Eigaland lags behind website)
 _SLEEP = 0.3  # seconds between API calls
 
 
@@ -107,7 +111,7 @@ class StrangerScraper(BaseScraper):
         # movie_id → {"min_date": datetime, "max_date": datetime, "summary": dict}
         taiwan_movies: dict[str, dict] = {}
 
-        for i in range(_WINDOW_DAYS):
+        for i in range(-_LOOKBACK_DAYS, _WINDOW_DAYS):
             date = today + timedelta(days=i)
             date_str = date.strftime("%Y-%m-%d")
             shows = self._fetch_shows(date_str)
@@ -136,8 +140,10 @@ class StrangerScraper(BaseScraper):
                         entry["max_date"] = date
 
         logger.info(
-            "Stranger: found %d Taiwan movie(s) in %d-day window",
+            "Stranger: found %d Taiwan movie(s) in %d-day window (-%d..+%d)",
             len(taiwan_movies),
+            _LOOKBACK_DAYS + _WINDOW_DAYS,
+            _LOOKBACK_DAYS,
             _WINDOW_DAYS,
         )
 
@@ -207,10 +213,27 @@ class StrangerScraper(BaseScraper):
         open_year: str = str(data.get("openYear", "") or "")
         running_time: int = int(data.get("durationMin", 0) or 0)
 
-        # Convert JST-aware datetimes to UTC-midnight date strings to avoid
-        # the JST+9 offset causing the date to shift back to the previous day
-        # when stored as UTC in Supabase (e.g. JST 2026-05-08 00:00 → UTC 15:00 prev day).
-        start_date = entry["min_date"].replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+        # Use openDate from detail API as the authoritative start_date (official premiere
+        # at Stranger). This value is stable across re-scrapes and prevents start_date
+        # from being overwritten when the movie pauses and resumes with new bookings
+        # (API gap scenario). Fall back to min_date if openDate is absent.
+        open_date_str: str = (data.get("openDate") or "").strip()
+        if open_date_str:
+            try:
+                _open_dt = datetime.fromisoformat(open_date_str)
+                # Extract the Japan-local date part and store as UTC midnight
+                # (convention: all cinema dates stored as UTC midnight of the local date)
+                start_date = datetime(
+                    _open_dt.year, _open_dt.month, _open_dt.day, tzinfo=timezone.utc
+                )
+            except Exception:
+                start_date = entry["min_date"].replace(
+                    hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc
+                )
+        else:
+            start_date = entry["min_date"].replace(
+                hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc
+            )
         end_date = entry["max_date"].replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
 
         # Build raw_description — prepend date marker per scraper conventions
