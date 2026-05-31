@@ -2494,6 +2494,24 @@ _HEADLINE_REWRITE_SOURCES = frozenset({
 
 **ブログ源は必ず含める**：`note_creators` など創作プラットフォームの記事は純記事（ニュース見出し）と同様の構造を持つ。含めないと organizer 欄が GPT 幻想で汚染される。
 
+> **CODE↔PROMPT 同步必須**：SYSTEM_PROMPT の NEWS HEADLINE REWRITE RULE / SALIENT SUBJECT RULE の「applies only to: ...」来源清单は、code 側の `_HEADLINE_REWRITE_SOURCES` frozenset と**必ず同步**させる。どちらか一方を更新したら、もう一方も同じソースを含むように更新すること。不同步だと、当該ソースは code 上で書き換え許可されているのに GPT は書き換え指示を受け取らず、泛標題をそのまま照抄する（silent failure）。
+
+### SALIENT SUBJECT rule — 泛標題に内文の顕著主題を取り込む
+
+headline-rewrite 来源（`note_creators` などのブログ源を含む）で、`raw_title` が**泛標題**（例：「台湾のポスター展」「上映会」「イベント」「展示」）であり、かつ `raw_description` 内に**顕著で識別可能な主題**——著名機関名（例：「二二八国家記念館」/「228国家記念館」）、歴史・人権テーマ、具体的な展覧/映画/作品名——が出現する場合、`name_ja` はその顕著主題を取り込み、読者がタイトルだけで活動の焦点を理解できるようにする。
+
+**範例**（228 国家紀念館）：
+
+```
+raw_title: 「台湾のポスター展（６月７日＠ふじみ野）」
+body 含:   「二二八国家記念館」
+→ name_ja: 「台湾「二二八国家記念館」ポスター展（6月7日＠ふじみ野）」
+```
+
+内文に `raw_title` より顕著な主題がない場合は、`raw_title` をそのまま維持する。
+
+Reference incident: `cceca5a2`（note_creators）が泛標題「台湾のポスター展」を照抄し、内文の「二二八国家記念館」を欠落 → タイトル手動修正 + FC ロック（2026-05-31）。根因は `note_creators` が `_HEADLINE_REWRITE_SOURCES` にあるのに SYSTEM_PROMPT の来源清单に未記載だったこと。
+
 ### note_creators — thin content guard
 
 `note_creators` の `raw_description` は RSS 截断により「続きをみる」だけになることが多い。以下の判断基準を適用する：

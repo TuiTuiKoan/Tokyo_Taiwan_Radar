@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-05-31 — note_creators 泛標題が内文の顕著主題（二二八国家記念館）を欠落（prompt/code 不同步）
+
+**問題：** `note_creators` 来源の事件 `cceca5a2` が、部落格の泛標題「台湾のポスター展」を `name_ja` にそのまま照抄し、内文中で最も顕著な主題「二二八国家記念館」を欠落していた。タイトルだけでは活動の焦点（228 国家紀念館のポスター展）が読者に伝わらなかった。
+
+**根本原因：** `note_creators` は code 側の `_HEADLINE_REWRITE_SOURCES` frozenset に含まれていたが、SYSTEM_PROMPT の NEWS HEADLINE REWRITE RULE「applies only to: ...」来源清单には記載されていなかった。そのため当該ソースは書き換え許可されているのに GPT は書き換え指示を受け取らず、泛標題を silent に照抄した。さらに「泛標題は内文の顕著主題を取り込む」という SALIENT SUBJECT ルール自体が存在しなかった。
+
+**修正：** (A) `annotator.py` SYSTEM_PROMPT の NEWS HEADLINE REWRITE RULE 来源清单に `note_creators` を追加し、新たに SALIENT SUBJECT RULE（泛標題 + 内文の顕著主題 → name_ja に取り込む、228 範例付き）を追加。(B) `scraper-expert/SKILL.md` の Headline Rewrite セクションに SALIENT SUBJECT rule と code↔prompt 同步注意を追記。事件 `cceca5a2` は Architect が DB タイトルを手動修正し FC をロック済み（再 annotation 不要）。
+
+**教訓：** (1) headline-rewrite 来源清单は code（`_HEADLINE_REWRITE_SOURCES`）↔ prompt（SYSTEM_PROMPT「applies only to: ...」）を必ず同步させる。どちらか一方の更新時、もう一方も同じソースを含めること。不同步は silent な泛標題照抄を招く。(2) 泛標題が内文の顕著主題（著名機関名・歴史/人権テーマ・具体的作品名）を欠落している場合は、その主題を取り込むよう name_ja を書き換える。
+
+---
+
 ## 2026-05-20 — performers[]: 繁体字が入り日本語（カタカナ）が消失 + performers_zh に 'Ju 88轟炸機' ハルシネーション（DB 直接修正）
 
 **問題：** 霧のごとく（大濛）11 件の `performers[]` が繁体字（`['范少勳', '區偉', '9m88', '曾敬驊']`）で格納されており、日本語モードでカタカナ名が表示されなかった。`performers_zh[]` には `'Ju 88轟炸機'`（WW2 爆撃機名）というハルシネーションが入っており、GPT が `9m88`（台湾ミュージシャンの芸名）を爆撃機名に誤変換していた。加えて `field_corrections` に旧来の悪い値がロックされており、FC 削除なしには修正できない状態だった。

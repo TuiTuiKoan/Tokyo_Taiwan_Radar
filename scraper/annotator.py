@@ -654,7 +654,7 @@ NAME WRITING RULES — CRITICAL:
 - SUB-EVENT name_ja / description_ja: use the ORIGINAL Japanese text from the raw description. Movie titles must use the Japanese release title exactly as written. Person names must use the original Japanese notation (katakana/kanji). NEVER translate Chinese/Taiwanese person names into Japanese or invent katakana readings.
   CRITICAL — DO NOT INFER MOVIE TITLES: If a sub-event's title is a descriptive location/action phrase (e.g., "早稲田大学での上映会", "○○会館上映会", "熊本市での上映イベント") and the specific film title does NOT appear directly adjacent to that sub-event's mention in the raw text, use the descriptive phrase as name_ja. Do NOT replace it with a film title inferred from another part of the article. Only use a film title as name_ja when that exact title is explicitly written next to THIS sub-event's description.
 - SUBTITLE RULE — CRITICAL: When the raw_title or name_ja contains a subtitle separator (――, ──, ―, —, ：, : used as structural separator), the FULL title including the complete subtitle MUST appear in name_zh and name_en. NEVER truncate the subtitle. Example: "台湾の地方選挙と基層社会――80年代以降の桃園県観音･新屋地区を例として" → name_zh must include "以80年代以降的桃園縣觀音・新屋地區為例", name_en must include "A Case Study of Guanyin and Xinwu Districts, Taoyuan, since the 1980s".
-- NEWS HEADLINE REWRITE RULE (applies only to: google_news_rss, nhk_rss, prtimes, walkerplus):
+- NEWS HEADLINE REWRITE RULE (applies only to: google_news_rss, nhk_rss, prtimes, walkerplus, note_creators):
   When raw_title is a news article headline describing an event rather than naming it
   (e.g. "台湾映画 17日那覇で上映会", "台湾人アーティストが個展開催"), extract the actual
   event name from the article body and use it as name_ja.
@@ -662,6 +662,16 @@ NAME WRITING RULES — CRITICAL:
     "日本の植民地支配へ抵抗描く 台湾映画 17日那覇で上映会" → find film title in body
     → name_ja: "映画『一八九五』上映会・シンポジウム"
   If no specific event/film name can be identified in the body, keep raw_title as-is.
+- SALIENT SUBJECT RULE (applies to the same headline-rewrite sources: google_news_rss, nhk_rss, prtimes, walkerplus, note_creators):
+  When raw_title is a GENERIC title (e.g. "台湾のポスター展", "上映会", "イベント", "展示")
+  and the raw_description contains a SALIENT, identifiable subject — such as a well-known
+  institution name (e.g. "二二八国家記念館" / "228国家記念館"), a historical or human-rights
+  theme, or a specific exhibition/film/work title — then name_ja MUST incorporate that salient
+  subject so a reader can grasp the event's focus from the title alone.
+  Example:
+    raw_title: "台湾のポスター展（６月７日＠ふじみ野）", body contains "二二八国家記念館"
+    → name_ja: "台湾「二二八国家記念館」ポスター展（6月7日＠ふじみ野）"
+  If the body contains no subject more salient than raw_title, keep raw_title as-is.
 - ACADEMIC SLOT REWRITE RULE (applies when raw_title is "第N報告", "第N講演", "基調講演", etc.):
   The raw_title is a program slot identifier, not the presentation title.
   Extract the actual title from the "題目：TITLE" line in raw_description and use it as name_ja.
@@ -1054,6 +1064,16 @@ _REPORT_PREFIXES: dict[str, str] = {
     "en": "[Report] ",
 }
 
+# field_corrections.corrected_value is stored as TEXT.
+# For non-text DB columns, prefer DB-native value to avoid type pollution.
+_NON_TEXT_FC_FIELDS = {
+    "category", "event_form", "performers",
+    "performers_zh", "performers_en",
+    "location_prefectures", "organizer_type", "co_organizers",
+    "is_paid", "is_active",
+    "selection_reason",
+}
+
 
 def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     """Inject missing categories based on keyword signals in the event text.
@@ -1434,16 +1454,28 @@ def annotate_pending_events(
             # P1 field-protection: honour field_corrections table (migration 038b).
             # Any (event_id, field_name) pair in human_field_map was explicitly corrected
             # by an admin and must NEVER be overwritten by AI output.
-            _human_protected: set[str] = human_field_map.get(eid, set())
+            _human_protected: dict[str, str] = human_field_map.get(eid, {})
 
             def _ai_or_existing(fname: str, ai_val: Any) -> Any:
                 """Use AI value for null DB fields; keep DB value when protect mode active.
                 Always defer to human_field_map entries regardless of protect mode."""
                 nonlocal field_protect_hits
                 if fname in _human_protected:
-                    # Human explicitly corrected this field — never overwrite
+                    # Human explicitly corrected this field — prefer FC text value
+                    # for text columns, keep DB-native value for non-text columns.
+                    _fc_val = _human_protected.get(fname)
+                    _db_val = event.get(fname)
+                    _is_non_text = fname in _NON_TEXT_FC_FIELDS or isinstance(_db_val, (list, dict, bool))
+                    if _is_non_text and fname not in _NON_TEXT_FC_FIELDS and _fc_val:
+                        logger.warning(
+                            "P1: %s 未登錄黑名單但 DB 值為 %s，走 DB-native 分支",
+                            fname,
+                            type(_db_val).__name__,
+                        )
                     field_protect_hits += 1
-                    return event.get(fname)
+                    if _fc_val and not _is_non_text:
+                        return _fc_val
+                    return _db_val
                 if _protect:
                     existing = event.get(fname)
                     if existing is not None:
@@ -1840,8 +1872,19 @@ def annotate_pending_events(
             _NEVER_PROTECT = {"annotation_status", "annotated_at"}
             for _pf in _human_protected:
                 if _pf in update_data and _pf not in _NEVER_PROTECT:
+                    _fc_val = _human_protected.get(_pf)
                     _db_val = event.get(_pf)
-                    if _db_val is not None:
+                    _is_non_text = _pf in _NON_TEXT_FC_FIELDS or isinstance(_db_val, (list, dict, bool))
+                    if _is_non_text and _pf not in _NON_TEXT_FC_FIELDS and _fc_val:
+                        logger.warning(
+                            "P1: %s 未登錄黑名單但 DB 值為 %s，走 DB-native 分支",
+                            _pf,
+                            type(_db_val).__name__,
+                        )
+                    if _fc_val and not _is_non_text:
+                        update_data[_pf] = _fc_val
+                        field_protect_hits += 1
+                    elif _db_val is not None:
                         update_data[_pf] = _db_val
                         field_protect_hits += 1
                     else:
@@ -2168,6 +2211,12 @@ def _resolve_movie_titles_for_event(
     if not title:
         return None, None, None, None, None, None, ""
 
+    _lookup_title = title
+    for _pfx in _REPORT_PREFIXES.values():
+        if _lookup_title.startswith(_pfx):
+            _lookup_title = _lookup_title[len(_pfx):]
+            break
+
     name_zh: str | None = None
     name_en: str | None = None
     official_url: str | None = None
@@ -2201,7 +2250,7 @@ def _resolve_movie_titles_for_event(
             return None
 
     # B3: works first.
-    w_row = _query_works(title)
+    w_row = _query_works(_lookup_title)
     if w_row:
         name_zh = w_row.get("title_zh")
         name_en = w_row.get("title_en")
@@ -2211,7 +2260,7 @@ def _resolve_movie_titles_for_event(
 
     # Fallback: eiga.com lookup for whatever is still missing.
     if not name_zh or not name_en:
-        lz, le, lurl = lookup_movie_titles(title)
+        lz, le, lurl = lookup_movie_titles(_lookup_title)
         if not name_zh:
             name_zh = lz
         if not name_en:
@@ -2583,19 +2632,19 @@ def _lock_fields_via_corrections(
         )
 
 
-def _load_human_field_map(sb: "Client") -> dict[str, set[str]]:
+def _load_human_field_map(sb: "Client") -> dict[str, dict[str, str]]:
     """Load ALL field_corrections rows using pagination.
 
     Supabase Python client returns at most 1000 rows per execute() call.
     Without pagination, events beyond the first 1000 FC rows are invisible
     to _human_protected, allowing annotator/enrich to overwrite sentinels.
     """
-    result: dict[str, set[str]] = {}
+    result: dict[str, dict[str, str]] = {}
     offset = 0
     while True:
         rows = (
             sb.table("field_corrections")
-            .select("event_id,field_name")
+            .select("event_id,field_name,corrected_value")
             .range(offset, offset + 999)
             .execute()
             .data or []
@@ -2606,7 +2655,7 @@ def _load_human_field_map(sb: "Client") -> dict[str, set[str]]:
             eid_fc = r.get("event_id")
             fname = r.get("field_name")
             if eid_fc and fname:
-                result.setdefault(eid_fc, set()).add(fname)
+                result.setdefault(eid_fc, {})[fname] = r.get("corrected_value") or ""
         if len(rows) < 1000:
             break
         offset += 1000

@@ -82,6 +82,8 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
         - **A3**: `base.py.fetch_ref_text(url, verify_ssl=not tw_insecure_domain(url))` で公式ページの本文を取得し `raw_description` に追記。台湾 `.edu.tw`/`.gov.tw` ドメインは `tw_insecure_domain()` で検出し `verify_ssl=False` で取得（OWASP: 白名單ドメインのみ、唯讀 GET）。A3 fail-safe: ref < 200 字 → fallback 回 note 全文、活動建立を阻断しない。
         - 詳細パターンは SKILL.md `## Note Creator Source Guard` 参照。
 
+    17. **Headline Rewrite Source-List Sync Guard**: Any PR that modifies `scraper/annotator.py`'s `_HEADLINE_REWRITE_SOURCES` frozenset MUST also update the SYSTEM_PROMPT NEWS HEADLINE REWRITE RULE / SALIENT SUBJECT RULE「applies only to: ...」source list to include the same sources. The two lists must stay in sync — if they diverge, the source is allowed to be rewritten in code but GPT never receives the rewrite instruction, so it silently copies the generic blog/news headline verbatim (incident `cceca5a2`: `note_creators` 泛標題「台湾のポスター展」照抄, 内文の「二二八国家記念館」欠落). See SKILL.md `## Annotator — Headline Rewrite Sources & Blog Source Guard`.
+
 1. Run `cd scraper && python main.py --dry-run --source <name> 2>&1 | head -80`.
 2. Verify: `start_date` is populated, not the publish date; `category` values are canonical; no unhandled exceptions.
 3. **For `gguide_tv` events specifically**: confirm `tv_program` appears in `category`. If `movie` appears alone (without `tv_program`), the annotator's `_inject_keyword_categories` was bypassed — check that `raw_description` contains `放送:` / `ジャンル:` markers.
