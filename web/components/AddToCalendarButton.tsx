@@ -278,18 +278,16 @@ export default function AddToCalendarButton({
             href={calData.googleUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 text-sm text-fg-strong hover:bg-muted transition"
+            className="block px-3 py-2 text-sm text-fg-strong hover:bg-muted transition"
             onClick={() => setOpen(false)}
           >
-            <span aria-hidden="true">📅</span>
             <span>{t("addToGoogleCalendar")}</span>
           </a>
           <button
             type="button"
-            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-fg-strong hover:bg-muted transition text-left border-t border-line"
+            className="block w-full px-3 py-2 text-sm text-fg-strong hover:bg-muted transition text-left border-t border-line"
             onClick={handleApple}
           >
-            <span aria-hidden="true">🍎</span>
             <span>{t("addToAppleCalendar")}</span>
           </button>
         </div>
