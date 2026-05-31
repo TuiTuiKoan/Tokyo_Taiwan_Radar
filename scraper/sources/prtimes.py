@@ -73,6 +73,7 @@ _SEARCH_KEYWORDS = [
     "台湾 開催",
     "台湾 夜市",
     "台湾 祭",
+    "台湾映画",  # 上映・配信・映画祭 全覆蓋；Amazon/U-NEXT 等有使用 prtimes 發稿
 ]
 
 # Title must contain at least one Taiwan keyword
@@ -82,7 +83,8 @@ _TAIWAN_KW = re.compile(r"台湾|Taiwan|台灣|臺灣")
 _EVENT_KW = re.compile(
     r"イベント|フェア|フェス|フェスタ|フェスティバル|開催|展示|展覧|祭|セミナー|"
     r"講演|シンポジウム|ワークショップ|体験|交流会|コンサート|公演|"
-    r"上映|夜市|マルシェ|マーケット|博覧会|発表会|説明会"
+    r"上映|夜市|マルシェ|マーケット|博覧会|発表会|説明会|"
+    r"配信|独占配信|デジタル配信"  # VOD / 串流平台上架公告
 )
 
 # PR body patterns to extract event date

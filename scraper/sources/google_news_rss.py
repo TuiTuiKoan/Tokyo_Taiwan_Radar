@@ -60,6 +60,8 @@ QUERIES = [
     "台湾 フェスティバル 祭り",
     "台湾映画 上映会",
     "台湾 講演 シンポジウム",
+    "台湾映画 配信",   # Netflix / Amazon Prime / U-NEXT 等 VOD 上架公告
+    "台湾ドラマ 配信", # 台灣劇集串流公告
 ]
 BASE_RSS = "https://news.google.com/rss/search?q={q}&hl=ja&gl=JP&ceid=JP:ja"
 
