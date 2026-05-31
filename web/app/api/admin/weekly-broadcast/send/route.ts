@@ -21,11 +21,31 @@ function getServiceSupabase() {
 }
 
 const LINE_MULTICAST_URL = "https://api.line.me/v2/bot/message/multicast";
+const LINE_TEXT_LIMIT = 5000;
+const LINE_MESSAGES_PER_REQUEST = 5;
 
 interface MulticastResult {
   ok: boolean;
   status?: number;
   error?: any;
+}
+
+function splitLineTextMessage(text: string): string[] {
+  if (text.length <= LINE_TEXT_LIMIT) return [text];
+
+  const segments: string[] = [];
+  let remaining = text;
+
+  while (remaining.length > LINE_TEXT_LIMIT) {
+    // LINE text message max length is 5000 chars; prefer splitting at newlines.
+    const newlineIndex = remaining.lastIndexOf("\n", LINE_TEXT_LIMIT - 1);
+    const splitIndex = newlineIndex > 0 ? newlineIndex + 1 : LINE_TEXT_LIMIT;
+    segments.push(remaining.slice(0, splitIndex));
+    remaining = remaining.slice(splitIndex);
+  }
+
+  if (remaining.length > 0) segments.push(remaining);
+  return segments;
 }
 
 async function lineMulticast(
@@ -34,36 +54,41 @@ async function lineMulticast(
   token: string
 ): Promise<MulticastResult> {
   const msgsArray = Array.isArray(messages) ? messages : [messages];
-  const lineMessages = msgsArray.map(m => ({ type: "text", text: m }));
+  const lineMessages = msgsArray
+    .flatMap(splitLineTextMessage)
+    .map(m => ({ type: "text", text: m }));
 
   for (let i = 0; i < userIds.length; i += 500) {
     const batch = userIds.slice(i, i + 500);
-    try {
-      const res = await fetch(LINE_MULTICAST_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ to: batch, messages: lineMessages }),
-        signal: AbortSignal.timeout(10000),
-      });
+    for (let j = 0; j < lineMessages.length; j += LINE_MESSAGES_PER_REQUEST) {
+      const messageBatch = lineMessages.slice(j, j + LINE_MESSAGES_PER_REQUEST);
+      try {
+        const res = await fetch(LINE_MULTICAST_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ to: batch, messages: messageBatch }),
+          signal: AbortSignal.timeout(10000),
+        });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.error("LINE multicast error", res.status, err);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          console.error("LINE multicast error", res.status, err);
+          return {
+            ok: false,
+            status: res.status,
+            error: err,
+          };
+        }
+      } catch (error: any) {
+        console.error("LINE multicast fetch error", error);
         return {
           ok: false,
-          status: res.status,
-          error: err,
+          error: error instanceof Error ? error.message : String(error),
         };
       }
-    } catch (error: any) {
-      console.error("LINE multicast fetch error", error);
-      return {
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
     }
   }
   return { ok: true };
