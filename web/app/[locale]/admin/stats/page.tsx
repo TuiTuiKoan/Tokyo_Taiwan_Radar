@@ -56,24 +56,45 @@ export default async function AdminStatsPage({ params }: PageProps) {
     .single();
   if (!roleRow || roleRow.role !== "admin") redirect(`/${locale}`);
 
-  // Fetch last 100 runs
-  const { data: runs, error } = await supabase
-    .from("scraper_runs")
-    .select("*")
-    .order("ran_at", { ascending: false })
-    .limit(100);
-
-  const tableExists = !error || !error.message?.includes("does not exist");
-  const rows: ScraperRun[] = (runs ?? []) as ScraperRun[];
-
   // Aggregates
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   // Week start (Monday)
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
   weekStart.setHours(0, 0, 0, 0);
+
+  // Scraper runs: 7 parallel queries for accurate aggregates
+  const [
+    recentRunsRes,
+    totalRunsCountRes,
+    monthRunsCountRes,
+    allTimeCostRes,
+    monthCostRes,
+    last30Res,
+    firstRunRes,
+  ] = await Promise.all([
+    // recentRows: display-only, keep limit(100)
+    supabase.from("scraper_runs").select("*").order("ran_at", { ascending: false }).limit(100),
+    // total run count (no limit)
+    supabase.from("scraper_runs").select("id", { count: "exact", head: true }),
+    // this-month run count
+    supabase.from("scraper_runs").select("id", { count: "exact", head: true }).gte("ran_at", startOfMonth),
+    // all-time cost/token/events (no limit)
+    supabase.from("scraper_runs").select("cost_usd, events_processed, openai_tokens_in, openai_tokens_out"),
+    // this-month cost/token/events
+    supabase.from("scraper_runs").select("cost_usd, events_processed, openai_tokens_in, openai_tokens_out").gte("ran_at", startOfMonth),
+    // last 30 days full rows (for latestBySource / SLA)
+    supabase.from("scraper_runs").select("*").gte("ran_at", thirtyDaysAgo).order("ran_at", { ascending: false }),
+    // oldest row (for avgMonthly)
+    supabase.from("scraper_runs").select("ran_at").order("ran_at", { ascending: true }).limit(1),
+  ]);
+
+  const tableExists = !recentRunsRes.error || !recentRunsRes.error.message?.includes("does not exist");
+  const recentRows: ScraperRun[] = (recentRunsRes.data ?? []) as ScraperRun[];
+  const last30Rows: ScraperRun[] = (last30Res.data ?? []) as ScraperRun[];
 
   // DB health queries
   const [activeEventsRes, pendingRes, weekNewRes, monthNewRes] = await Promise.all([
@@ -112,47 +133,49 @@ export default async function AdminStatsPage({ params }: PageProps) {
     return valid.reduce((s, r) => s + r.precision_rate, 0) / valid.length;
   })();
 
-  const monthRows = rows.filter((r) => r.ran_at >= startOfMonth);
-
-  function sum(arr: ScraperRun[], key: keyof ScraperRun) {
+  type NumericRow = { [key: string]: unknown };
+  function sum(arr: NumericRow[], key: string): number {
     return arr.reduce((acc, r) => acc + Number(r[key] ?? 0), 0);
   }
 
+  // allTime aggregate (full table, no limit)
+  const allTimeCostRows = (allTimeCostRes.data ?? []) as NumericRow[];
   const allTime = {
-    runs: rows.length,
-    events: sum(rows, "events_processed"),
-    tokensIn: sum(rows, "openai_tokens_in"),
-    tokensOut: sum(rows, "openai_tokens_out"),
-    cost: sum(rows, "cost_usd"),
+    runs: totalRunsCountRes.count ?? 0,
+    events: sum(allTimeCostRows, "events_processed"),
+    tokensIn: sum(allTimeCostRows, "openai_tokens_in"),
+    tokensOut: sum(allTimeCostRows, "openai_tokens_out"),
+    cost: sum(allTimeCostRows, "cost_usd"),
   };
+
+  // month aggregate
+  const monthCostRows = (monthCostRes.data ?? []) as NumericRow[];
   const month = {
-    runs: monthRows.length,
-    events: sum(monthRows, "events_processed"),
-    tokensIn: sum(monthRows, "openai_tokens_in"),
-    tokensOut: sum(monthRows, "openai_tokens_out"),
-    cost: sum(monthRows, "cost_usd"),
+    runs: monthRunsCountRes.count ?? 0,
+    events: sum(monthCostRows, "events_processed"),
+    tokensIn: sum(monthCostRows, "openai_tokens_in"),
+    tokensOut: sum(monthCostRows, "openai_tokens_out"),
+    cost: sum(monthCostRows, "cost_usd"),
   };
 
   // 30-day cost summary
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const last30Rows = rows.filter((r) => r.ran_at >= thirtyDaysAgo);
-  const last30Cost = sum(last30Rows, "cost_usd");
-  const firstRun = rows.length > 0 ? new Date(rows[rows.length - 1].ran_at) : now;
+  const last30Cost = sum(last30Rows as unknown as NumericRow[], "cost_usd");
+  const firstRunAt = firstRunRes.data?.[0]?.ran_at as string | undefined;
+  const firstRun = firstRunAt ? new Date(firstRunAt) : now;
   const monthsElapsed = Math.max(1, (now.getTime() - firstRun.getTime()) / (1000 * 60 * 60 * 24 * 30));
   const avgMonthly = allTime.cost / monthsElapsed;
 
-  // Latest run per source
+  // Latest run per source (from last 30 days)
   const latestBySource = Object.values(
-    rows.reduce((acc, r) => {
+    last30Rows.reduce((acc, r) => {
       if (!acc[r.source] || r.ran_at > acc[r.source].ran_at) acc[r.source] = r;
       return acc;
     }, {} as Record<string, ScraperRun>)
   ).sort((a, b) => a.source.localeCompare(b.source));
 
-  // 30-day SLA per source
-  const slaCutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  // 30-day SLA per source (last30Rows already scoped to 30 days)
   const slaMap: Record<string, { total: number; success: number; totalSec: number }> = {};
-  for (const r of rows.filter(r => r.ran_at >= slaCutoff)) {
+  for (const r of last30Rows) {
     if (!slaMap[r.source]) slaMap[r.source] = { total: 0, success: 0, totalSec: 0 };
     slaMap[r.source].total++;
     if (r.success !== false) slaMap[r.source].success++;
@@ -412,7 +435,7 @@ export default async function AdminStatsPage({ params }: PageProps) {
 
           {/* Recent runs table */}
           <h3 className="text-sm font-semibold text-fg-muted mb-2">{t("statsRecentRuns")}</h3>
-          {rows.length === 0 ? (
+          {recentRows.length === 0 ? (
             <p className="text-sm text-fg-subtle">{t("statsNoRuns")}</p>
           ) : (
             <div className="overflow-x-auto">
@@ -428,7 +451,7 @@ export default async function AdminStatsPage({ params }: PageProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {recentRows.map((r) => (
                     <tr key={r.id} className="border-b border-gray-50 hover:bg-elevated">
                       <td className="py-2 pr-4 text-fg-muted whitespace-nowrap">{fmtDate(r.ran_at)}</td>
                       <td className="py-2 pr-4">
