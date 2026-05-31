@@ -77,6 +77,9 @@ _SIMILARITY_THRESHOLD = 0.85
 # name similarity (Pass 1).
 _NEWS_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss", "walkerplus"})
 
+# Sources enabled for within-source aggregator dedup (Pass 1.5).
+_WITHIN_SOURCE_DEDUP_SOURCES = frozenset({"iwafu"})
+
 # How many days BEFORE an official event's start_date a news article may be
 # published and still be considered a match (pre-event press releases).
 _PRESS_RELEASE_LOOKBACK_DAYS = 90
@@ -156,8 +159,9 @@ def _richness_score(ev: dict) -> int:
 def _deactivate_payload(reason: str, pass_id: str) -> dict:
     """Build the update payload for deactivating an event with audit fields.
 
-    pass_id: 'merger_pass_0' | 'merger_pass_1' | 'merger_pass_2'
-             | 'merger_pass_3' | 'merger_pass_4' | 'orphan_cleanup' | 'admin_manual'
+    pass_id: 'merger_pass_0' | 'merger_pass_1' | 'merger_pass_1_5' | 'merger_pass_2'
+             | 'merger_pass_3' | 'merger_pass_4' | 'merger_pass_5'
+             | 'orphan_cleanup' | 'admin_manual'
     """
     from datetime import datetime, timezone
     return {
@@ -346,7 +350,7 @@ def run_merger(dry_run: bool = False) -> int:
         .select(
             "id,source_name,source_id,source_url,official_url,name_ja,start_date,end_date,"
             "location_name,location_address,raw_description,secondary_source_urls,"
-            "annotation_status,work_id,category"
+            "annotation_status,work_id,category,parent_event_id,location_prefectures"
         )
         .eq("is_active", True)
         .not_.is_("start_date", None)
@@ -366,6 +370,184 @@ def run_merger(dry_run: bool = False) -> int:
     # Track secondary IDs already handled in this run to avoid double-processing
     handled_secondary_ids: set[str] = set()
     merge_count = 0
+
+    # ------------------------------------------------------------------
+    # Pass 1.5 — Within-source aggregator dedup (allowlist)
+    # Some aggregators publish the same event under different page IDs.
+    # This pass merges duplicates only within selected sources (e.g. iwafu).
+    # ------------------------------------------------------------------
+    pass1_5_count = 0
+
+    def _annotation_rank(status: str | None) -> int:
+        # Higher rank = preferred as primary
+        order = {
+            "reviewed": 3,
+            "annotated": 2,
+            "pending": 1,
+        }
+        return order.get((status or "").strip().lower(), 0)
+
+    def _source_id_trailing_number(source_id: str | None) -> int:
+        if not source_id:
+            return -1
+        m = re.search(r"(\d+)$", source_id)
+        return int(m.group(1)) if m else -1
+
+    def _prefecture_set(ev: dict) -> set[str]:
+        vals = ev.get("location_prefectures")
+        if not vals:
+            return set()
+        if isinstance(vals, list):
+            return {str(v).strip() for v in vals if str(v).strip()}
+        if isinstance(vals, str):
+            return {v.strip() for v in vals.split(",") if v.strip()}
+        return set()
+
+    source_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for ev in events:
+        src = ev.get("source_name")
+        if src in _WITHIN_SOURCE_DEDUP_SOURCES:
+            source_groups[str(src)].append(ev)
+
+    for source_name, group in sorted(source_groups.items()):
+        if len(group) < 2:
+            continue
+
+        for i in range(len(group)):
+            ev_a = group[i]
+            if ev_a["id"] in handled_secondary_ids:
+                continue
+
+            for j in range(i + 1, len(group)):
+                ev_b = group[j]
+                if ev_b["id"] in handled_secondary_ids:
+                    continue
+
+                source_id_a = ev_a.get("source_id") or ""
+                source_id_b = ev_b.get("source_id") or ""
+
+                # Skip sub-events and parent-linked rows.
+                if "_sub" in source_id_a or "_sub" in source_id_b:
+                    continue
+                if ev_a.get("parent_event_id") is not None or ev_b.get("parent_event_id") is not None:
+                    continue
+
+                start_a = (ev_a.get("start_date") or "")[:10]
+                start_b = (ev_b.get("start_date") or "")[:10]
+                if start_a != start_b:
+                    continue
+
+                end_a = (ev_a.get("end_date") or "")[:10]
+                end_b = (ev_b.get("end_date") or "")[:10]
+                if bool(end_a) != bool(end_b):
+                    continue
+                if end_a and end_b and end_a != end_b:
+                    continue
+
+                wa = ev_a.get("work_id")
+                wb = ev_b.get("work_id")
+                if wa and wb and wa != wb:
+                    continue
+
+                pref_a = _prefecture_set(ev_a)
+                pref_b = _prefecture_set(ev_b)
+                if pref_a and pref_b and not (pref_a & pref_b):
+                    continue
+
+                name_a = ev_a.get("name_ja") or ""
+                name_b = ev_b.get("name_ja") or ""
+                norm_a = _normalize(name_a)
+                norm_b = _normalize(name_b)
+                sim = _similarity(name_a, name_b)
+
+                short_norm, long_norm = sorted([norm_a, norm_b], key=len)
+                substring_match = len(short_norm) >= 6 and short_norm in long_norm
+                if sim < _SIMILARITY_THRESHOLD and not substring_match:
+                    continue
+
+                # Primary selection: richer first; then annotation status;
+                # then larger source_id trailing number.
+                score_a = _richness_score(ev_a)
+                score_b = _richness_score(ev_b)
+                if score_a > score_b:
+                    primary, secondary = ev_a, ev_b
+                elif score_b > score_a:
+                    primary, secondary = ev_b, ev_a
+                else:
+                    rank_a = _annotation_rank(ev_a.get("annotation_status"))
+                    rank_b = _annotation_rank(ev_b.get("annotation_status"))
+                    if rank_a > rank_b:
+                        primary, secondary = ev_a, ev_b
+                    elif rank_b > rank_a:
+                        primary, secondary = ev_b, ev_a
+                    else:
+                        id_num_a = _source_id_trailing_number(source_id_a)
+                        id_num_b = _source_id_trailing_number(source_id_b)
+                        if id_num_a >= id_num_b:
+                            primary, secondary = ev_a, ev_b
+                        else:
+                            primary, secondary = ev_b, ev_a
+
+                secondary_url = secondary["source_url"]
+                existing_urls = primary.get("secondary_source_urls") or []
+                already_merged = secondary_url in existing_urls
+
+                logger.info(
+                    "%s  [%s] '%s'  ←  [%s] '%s'  (within-source sim=%.2f substr=%s)",
+                    "EXISTS" if already_merged else "MERGE ",
+                    primary["source_name"],
+                    (primary["name_ja"] or "")[:40],
+                    secondary["source_name"],
+                    (secondary["name_ja"] or "")[:40],
+                    sim,
+                    substring_match,
+                )
+
+                if dry_run:
+                    pass1_5_count += 1
+                    handled_secondary_ids.add(secondary["id"])
+                    continue
+
+                new_secondary_urls = list(dict.fromkeys(existing_urls + [secondary_url]))
+                primary_update: dict = {"secondary_source_urls": new_secondary_urls}
+
+                if not primary.get("official_url") and secondary.get("official_url"):
+                    primary_update["official_url"] = secondary["official_url"]
+
+                if not already_merged:
+                    primary_desc = (primary.get("raw_description") or "").strip()
+                    secondary_desc = (secondary.get("raw_description") or "").strip()
+
+                    if secondary_desc and secondary_desc not in primary_desc:
+                        primary_update["raw_description"] = (
+                            primary_desc
+                            + f"\n\n---\n別来源補足 ({secondary['source_name']})\n{secondary_desc}"
+                        )
+
+                    # Keep reviewed as reviewed after merge.
+                    if primary.get("annotation_status") != "reviewed":
+                        primary_update["annotation_status"] = "pending"
+
+                try:
+                    sb.table("events").update(primary_update).eq("id", primary["id"]).execute()
+                    sb.table("events").update(
+                        _deactivate_as_merged(
+                            primary["id"],
+                            f"merged into {primary['id']} via Pass 1.5 within-source dedup",
+                            "merger_pass_1_5",
+                        )
+                    ).eq("id", secondary["id"]).execute()
+                    pass1_5_count += 1
+                    handled_secondary_ids.add(secondary["id"])
+                except Exception as exc:
+                    logger.error(
+                        "Merger Pass 1.5: failed to merge %s ← %s: %s",
+                        primary["source_id"],
+                        secondary["source_id"],
+                        exc,
+                    )
+
+    logger.info("Merger: Pass 1.5 done (%d pairs)", pass1_5_count)
 
     for date_key, group in sorted(date_groups.items()):
         if len(group) < 2:
@@ -922,7 +1104,7 @@ def run_merger(dry_run: bool = False) -> int:
     # ------------------------------------------------------------------
     pass4_count = _flatten_grandchild_events(sb, dry_run=dry_run)
 
-    total = pass0_count + merge_count + pass3_count + pass4_count + pass5_count
+    total = pass0_count + pass1_5_count + merge_count + pass3_count + pass4_count + pass5_count
     return total
 
 
@@ -1059,4 +1241,4 @@ if __name__ == "__main__":
 
     count = run_merger(dry_run=args.dry_run)
     action = "would be merged" if args.dry_run else "merged"
-    print(f"Done: {count} pair(s)/orphan(s) {action} (Pass 0+1+2+3+4+5).")
+    print(f"Done: {count} pair(s)/orphan(s) {action} (Pass 0+1+1.5+2+3+4+5).")
