@@ -141,7 +141,7 @@
     "pastScreeningsLabel": "隱藏合併條目",
     "backToList": "返回清單",
     "eventLink": "查看 {name} 的詳情",
-    "addToCalendar": "加行事曆",
+    "addToCalendar": "添加",
     "addToGoogleCalendar": "Google",
     "addToAppleCalendar": "Apple/.ics"
   },

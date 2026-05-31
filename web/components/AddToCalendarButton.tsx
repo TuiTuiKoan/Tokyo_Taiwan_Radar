@@ -263,11 +263,11 @@ export default function AddToCalendarButton({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 w-full border border-line-strong bg-paper dark:bg-elevated text-fg-strong hover:bg-muted font-medium py-2 px-2.5 rounded-xl transition"
+        className="flex items-center gap-1.5 w-full border border-line bg-paper dark:bg-elevated text-fg-strong hover:bg-muted py-2 px-2.5 rounded-xl transition"
       >
         <span aria-hidden="true">📅</span>
         <span className="text-sm truncate">{t("addToCalendar")}</span>
-        <span className="ml-auto" aria-hidden="true">
+        <span className="ml-auto text-fg-subtle text-xs" aria-hidden="true">
           {open ? "▲" : "▼"}
         </span>
       </button>
