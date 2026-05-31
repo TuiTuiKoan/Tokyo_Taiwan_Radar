@@ -662,7 +662,8 @@
     "FilterCategory": "Category",
     "FilterLocale": "Locale",
     "AllCategories": "All Categories",
-    "AllLocales": "All Interfaces"
+    "AllLocales": "All Interfaces",
+    "unsaved_confirm": "Unsaved changes will be lost. Are you sure you want to cancel?"
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",

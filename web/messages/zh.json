@@ -661,7 +661,8 @@
     "FilterCategory": "類別",
     "FilterLocale": "語系",
     "AllCategories": "全部類別",
-    "AllLocales": "全部語系"
+    "AllLocales": "全部語系",
+    "unsaved_confirm": "表單尚未保存，確定要取消嗎？"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",

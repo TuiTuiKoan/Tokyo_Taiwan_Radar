@@ -347,6 +347,7 @@ def generate_report() -> tuple[str, dict]:
         .select("id,name,scraping_feasibility,auto_scraper_pr_url")
         .not_.is_("auto_scraper_pr_url", "null")
         .neq("status", "implemented")
+        .neq("status", "rejected")
         .order("id")
         .execute()
         .data
@@ -359,6 +360,8 @@ def generate_report() -> tuple[str, dict]:
         .select("id,name,scraping_feasibility,auto_scraper_artifacts")
         .eq("auto_scraper_status", "success")
         .is_("auto_scraper_pr_url", "null")
+        .neq("status", "implemented")
+        .neq("status", "rejected")
         .order("id")
         .execute()
         .data

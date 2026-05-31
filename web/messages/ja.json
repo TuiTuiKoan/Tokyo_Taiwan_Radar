@@ -661,7 +661,8 @@
     "FilterCategory": "カテゴリー",
     "FilterLocale": "言語",
     "AllCategories": "全てのカテゴリー",
-    "AllLocales": "全ての言語"
+    "AllLocales": "全ての言語",
+    "unsaved_confirm": "入力中の内容は保存されていません。本当にキャンセルしますか？"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",

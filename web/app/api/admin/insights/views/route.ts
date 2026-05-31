@@ -121,7 +121,7 @@ export async function GET(req: Request) {
     // Range capped up to 5000 records to align with Supabase 1000-row limit guard
     const { data: rawViews, error: fetchErr } = await supabase
       .from("event_views")
-      .select("viewed_at, country, locale, event_id, events(categories, location_name, location_address, location_prefectures)")
+      .select("viewed_at, country, locale, event_id, events(category, location_name, location_address, location_prefectures)")
       .gte("viewed_at", rangeStart)
       .lte("viewed_at", rangeEnd)
       .range(0, 4999);
@@ -149,7 +149,8 @@ export async function GET(req: Request) {
 
       // Category filter
       if (category && category !== "all") {
-        if (!e.categories || !e.categories.includes(category)) return false;
+        const cats = (e as any).category;
+        if (!cats || !cats.includes(category)) return false;
       }
 
       // Locale filter (applies exclusively to event_views!)
@@ -211,9 +212,12 @@ export async function GET(req: Request) {
     const eventCategoryMap: Record<string, number> = {};
     for (const v of filteredViews) {
       const e = Array.isArray(v.events) ? v.events[0] : v.events;
-      if (e && e.categories) {
-        for (const cat of e.categories) {
-          eventCategoryMap[cat] = (eventCategoryMap[cat] ?? 0) + 1;
+      if (e) {
+        const cats = (e as any).category;
+        if (cats) {
+          for (const cat of cats) {
+            eventCategoryMap[cat] = (eventCategoryMap[cat] ?? 0) + 1;
+          }
         }
       }
     }

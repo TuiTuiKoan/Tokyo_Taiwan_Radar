@@ -65,7 +65,7 @@ export async function GET(req: Request) {
     // Safeguard page limit up to 5000 rows (Supabase 1000-row default limit guard)
     const { data: rawEvents, error: fetchErr } = await supabase
       .from("events")
-      .select("id, created_at, start_date, end_date, categories, location_name, location_address, location_prefectures, is_active")
+      .select("id, created_at, start_date, end_date, category, location_name, location_address, location_prefectures, is_active")
       .or(`start_date.lte.${rangeEnd},created_at.gte.${rangeStart}`)
       .range(0, 4999);
 
@@ -87,7 +87,11 @@ export async function GET(req: Request) {
 
     // Apply category filter
     if (category && category !== "all") {
-      allEvents = allEvents.filter(e => e.categories && e.categories.includes(category));
+      allEvents = allEvents.filter(e => {
+        // Handle database single/array mapping or custom types
+        const cats = (e as any).category;
+        return cats && cats.includes(category);
+      });
     }
 
     // Generate month buckets

@@ -531,9 +531,10 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (saving || extracting || annotating) return;
         const isEdited = JSON.stringify(form) !== JSON.stringify(EMPTY_FORM);
         if (isEdited) {
-          if (window.confirm("表單尚未保存，確定要取消嗎？")) {
+          if (window.confirm(t("unsaved_confirm"))) {
             cancelNew();
           }
         } else {
@@ -546,7 +547,7 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [showNew, form, cancelNew]);
+  }, [showNew, form, cancelNew, saving, extracting, annotating, t]);
 
   function updateField(key: string, value: any) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -1036,7 +1037,7 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
 
       {/* New event overlay modal */}
       {showNew && (
-        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4 md:p-6 lg:p-12 overflow-y-auto flex items-start justify-center">
+        <div className="fixed inset-0 z-[100] bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4 md:p-6 lg:p-12 overflow-y-auto flex items-start justify-center">
           <div className="bg-surface dark:bg-zinc-900 border border-line rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col p-6 my-auto relative">
             
             {/* Header: title + image OCR button + Close button */}
@@ -1067,17 +1068,19 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
               </div>
               <button
                 type="button"
+                disabled={saving || extracting || annotating}
                 onClick={() => {
+                  if (saving || extracting || annotating) return;
                   const isEdited = JSON.stringify(form) !== JSON.stringify(EMPTY_FORM);
                   if (isEdited) {
-                    if (window.confirm("表單尚未保存，確定要取消嗎？")) {
+                    if (window.confirm(t("unsaved_confirm"))) {
                       cancelNew();
                     }
                   } else {
                     cancelNew();
                   }
                 }}
-                className="text-fg-muted hover:text-fg p-1.5 rounded-lg hover:bg-elevated transition text-xl font-medium"
+                className="text-fg-muted hover:text-fg p-1.5 rounded-lg hover:bg-elevated transition text-xl font-medium disabled:opacity-50"
                 title={t("cancel")}
               >
                 ✕

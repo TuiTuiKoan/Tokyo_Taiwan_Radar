@@ -1316,7 +1316,7 @@ def annotate_pending_events(
                 "location_name,location_address,location_name_zh,location_name_en,"
                 "location_address_zh,location_address_en,"
                 "business_hours,business_hours_zh,business_hours_en,"
-                "organizer,organizer_type,co_organizers,sponsors,performer,performers"
+                "organizer,organizer_type,co_organizers,sponsors"
             ).eq("id", event["parent_event_id"]).execute()
             _parent_event = _pr.data[0] if _pr.data else None
         raw_title = event.get("raw_title") or event.get("name_ja") or ""
@@ -1767,7 +1767,7 @@ def annotate_pending_events(
                         ):
                             if not update_data.get(_lf):
                                 update_data[_lf] = _parent_event.get(_lf)
-                    for _pf in ("organizer", "organizer_zh", "organizer_en", "organizer_type", "co_organizers", "co_organizer_types", "sponsors", "sponsor_types", "performer"):
+                    for _pf in ("organizer", "organizer_zh", "organizer_en", "organizer_type", "co_organizers", "co_organizer_types", "sponsors", "sponsor_types"):
                         if not update_data.get(_pf):
                             update_data[_pf] = _parent_event.get(_pf)
 

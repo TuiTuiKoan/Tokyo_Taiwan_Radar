@@ -34,6 +34,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from dotenv import load_dotenv
+from sources._cinema_constants import FIXED_CINEMA_SOURCES
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -267,7 +268,7 @@ def _detect_missing_hours(sb) -> list[dict]:
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
-        .select("id,source_name,raw_description")
+        .select("id,source_name,raw_description,category")
         .eq("is_active", True)
         .in_("annotation_status", ["annotated", "reviewed"])
         .is_("business_hours", "null")
@@ -278,6 +279,15 @@ def _detect_missing_hours(sb) -> list[dict]:
     )
     reports = []
     for row in rows:
+        source_name = row.get("source_name")
+        category = row.get("category") or ""
+        if (
+            source_name in FIXED_CINEMA_SOURCES
+            or source_name == "gguide_tv"
+            or "movie" in category
+            or "tv_program" in category
+        ):
+            continue
         raw = row.get("raw_description") or ""
         if _TIME_RE.search(raw):
             reports.append({
@@ -614,7 +624,7 @@ def _detect_missing_organizer(sb) -> list[dict]:
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
-        .select("id,source_name,organizer")
+        .select("id,source_name,organizer,category")
         .eq("is_active", True)
         .in_("annotation_status", ["annotated", "reviewed"])
         .is_("organizer", "null")
@@ -625,6 +635,14 @@ def _detect_missing_organizer(sb) -> list[dict]:
     reports = []
     for row in rows:
         source_name = row.get("source_name")
+        category = row.get("category") or ""
+        if (
+            source_name in FIXED_CINEMA_SOURCES
+            or source_name == "gguide_tv"
+            or "movie" in category
+            or "tv_program" in category
+        ):
+            continue
         if source_name in THIN_CONTENT_SOURCES:
             continue
         reports.append({
@@ -684,7 +702,7 @@ def _detect_missing_performers(sb) -> list[dict]:
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
-        .select("id,source_name,raw_title,raw_description,event_form")
+        .select("id,source_name,raw_title,raw_description,event_form,parent_event_id,category")
         .eq("is_active", True)
         .in_("annotation_status", ["annotated", "reviewed"])
         .is_("performers", "null")
@@ -695,6 +713,10 @@ def _detect_missing_performers(sb) -> list[dict]:
     reports = []
     for row in rows:
         source_name = row.get("source_name") or ""
+        parent_event_id = row.get("parent_event_id")
+        category = row.get("category") or ""
+        if parent_event_id is not None or "movie" in category or "tv_program" in category:
+            continue
         if source_name in THIN_CONTENT_SOURCES:
             continue
         forms = row.get("event_form") or []

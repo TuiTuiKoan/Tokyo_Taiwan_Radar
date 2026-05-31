@@ -36,6 +36,7 @@ SEED_DATA: list[dict[str, Any]] = [
         "homepage": "https://www.taiwanembassy.org/jp_ja/post/84095.html",
         "is_authoritative": True,
         "is_multi_venue": False,
+        "business_hours": "平日 10:00〜17:00 / 土日祝休館",
     },
     {
         "canonical_name_ja": "ユーロライブ",
@@ -49,6 +50,7 @@ SEED_DATA: list[dict[str, Any]] = [
         "homepage": "https://eurolive.jp/",
         "is_authoritative": True,
         "is_multi_venue": False,
+        "business_hours": "上映スケジュールによる",
     },
     {
         "canonical_name_ja": "シネ・ヌーヴォ",
@@ -62,6 +64,7 @@ SEED_DATA: list[dict[str, Any]] = [
         "homepage": "https://www.cinenouveau.com/",
         "is_authoritative": True,
         "is_multi_venue": False,
+        "business_hours": "上映スケジュールによる",
     },
     {
         "canonical_name_ja": "新文芸坐",
@@ -75,6 +78,7 @@ SEED_DATA: list[dict[str, Any]] = [
         "homepage": "https://www.shin-bungeiza.com/",
         "is_authoritative": True,
         "is_multi_venue": False,
+        "business_hours": "上映スケジュールによる",
     },
     {
         "canonical_name_ja": "京都シネマ",
@@ -88,6 +92,7 @@ SEED_DATA: list[dict[str, Any]] = [
         "homepage": "https://www.kyotocinema.jp/",
         "is_authoritative": True,
         "is_multi_venue": False,
+        "business_hours": "上映スケジュールによる",
     },
     {
         "canonical_name_ja": "福岡アジア美術館",
