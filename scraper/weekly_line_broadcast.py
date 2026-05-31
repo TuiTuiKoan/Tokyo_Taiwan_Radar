@@ -281,6 +281,9 @@ _PREF_LABEL: dict[str, dict[str, str]] = {
 
 _TOKYO_PREFIXES = ("東京都", "東京")
 _TOKYO_LABEL: dict[str, str] = {"zh": "東京", "ja": "東京", "en": "Tokyo"}
+# Prefixes added to TV event names in DB — strip from broadcast titles to avoid duplication
+# with the [電視節目]/[TV Program]/[テレビ番組] city-slot label
+_TV_NAME_PREFIXES: dict[str, str] = {"zh": "【電視節目】", "en": "【TV Program】", "ja": "【テレビ番組】"}
 
 
 def _city_label(event: dict, lang: str) -> str:
@@ -357,8 +360,17 @@ def _build_message(
 
     lines = [h_title, "", h_week]
 
+    tv_pfx = _TV_NAME_PREFIXES.get(lang, "")
+
+    def _title(e: dict) -> str:
+        """Get display title, stripping redundant TV prefix if city label covers it."""
+        raw = e.get(name_col) or e.get("name_zh") or e.get("name_ja") or e.get("name_en") or "?"
+        if tv_pfx and raw.startswith(tv_pfx) and e.get("source_name") == "gguide_tv":
+            return raw[len(tv_pfx):]
+        return raw
+
     for e in weekly_events:
-        title = e.get(name_col) or e.get("name_zh") or e.get("name_ja") or e.get("name_en") or "?"
+        title = _title(e)
         date_str = _format_date(e.get("start_date"))
         url = f"{base_url}/{lang}/events/{e['id']}"
         city = _city_label(e, lang)
@@ -369,7 +381,7 @@ def _build_message(
     if nearterm_events:
         lines.extend(["", nearterm_hdrs[lang]])
         for e in nearterm_events:
-            title = e.get(name_col) or e.get("name_zh") or e.get("name_ja") or e.get("name_en") or "?"
+            title = _title(e)
             date_str = _format_date(e.get("start_date"))
             url = f"{base_url}/{lang}/events/{e['id']}"
             city = _city_label(e, lang)
@@ -380,7 +392,7 @@ def _build_message(
     if monthly_events:
         lines.extend(["", h_month])
         for e in monthly_events:
-            title = e.get(name_col) or e.get("name_zh") or e.get("name_ja") or e.get("name_en") or "?"
+            title = _title(e)
             start = _format_date(e.get("start_date"))
             end = _format_date(e.get("end_date"))
             date_str = f"{start}–{end}" if end and end != start else start
