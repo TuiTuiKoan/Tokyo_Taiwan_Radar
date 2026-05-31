@@ -285,6 +285,28 @@ _TOKYO_LABEL: dict[str, str] = {"zh": "東京", "ja": "東京", "en": "Tokyo"}
 # with the [電視節目]/[TV Program]/[テレビ番組] city-slot label
 _TV_NAME_PREFIXES: dict[str, str] = {"zh": "【電視節目】", "en": "【TV Program】", "ja": "【テレビ番組】"}
 
+# Sub-section headers for 活動/電視/線上 grouping (used in nearterm section and listing output)
+_TYPE_GROUP_HDRS: dict[str, tuple[str, str, str]] = {
+    "zh": ("【活動】", "【電視節目】", "【線上活動】"),
+    "ja": ("【活動】", "【テレビ番組】", "【オンライン】"),
+    "en": ("【Events】", "【TV Programs】", "【Online】"),
+}
+
+
+def _group_by_type(events: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
+    """Split events into (regular, tv, online) groups, preserving order within each group."""
+    tv: list[dict] = []
+    online: list[dict] = []
+    regular: list[dict] = []
+    for e in events:
+        if e.get("source_name") == "gguide_tv":
+            tv.append(e)
+        elif e.get("location_name") == "オンライン":
+            online.append(e)
+        else:
+            regular.append(e)
+    return regular, tv, online
+
 
 def _city_label(event: dict, lang: str) -> str:
     """Return a bracketed city label for every event, including Tokyo.
@@ -380,14 +402,20 @@ def _build_message(
 
     if nearterm_events:
         lines.extend(["", nearterm_hdrs[lang]])
-        for e in nearterm_events:
-            title = _title(e)
-            date_str = _format_date(e.get("start_date"))
-            url = f"{base_url}/{lang}/events/{e['id']}"
-            city = _city_label(e, lang)
-            prefix = f"{city}" if city else ""
-            lines.append(f"• {prefix}{title}　{date_str}")
-            lines.append(f"  {url}")
+        h_ev, h_tv, h_on = _TYPE_GROUP_HDRS[lang]
+        regular, tv_evts, online_evts = _group_by_type(nearterm_events)
+        for group_hdr, group in [(h_ev, regular), (h_tv, tv_evts), (h_on, online_evts)]:
+            if not group:
+                continue
+            lines.append(group_hdr)
+            for e in group:
+                title = _title(e)
+                date_str = _format_date(e.get("start_date"))
+                url = f"{base_url}/{lang}/events/{e['id']}"
+                city = _city_label(e, lang)
+                prefix = f"{city}" if city else ""
+                lines.append(f"• {prefix}{title}　{date_str}")
+                lines.append(f"  {url}")
 
     if monthly_events:
         lines.extend(["", h_month])
