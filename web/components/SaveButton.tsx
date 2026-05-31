@@ -29,7 +29,7 @@ export default function SaveButton({ eventId, initialSaved, locale, compact = fa
         .select("id")
         .eq("user_id", user.id)
         .eq("event_id", eventId)
-        .single();
+        .maybeSingle();
       setSaved(!!data);
     }
     loadSaved();

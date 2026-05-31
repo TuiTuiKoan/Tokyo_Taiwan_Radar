@@ -1,6 +1,14 @@
 # Engineer Error History
 
 <!-- Append new entries at the top -->
+## 2026-06-01 - SaveButton saved_events existence check returned 406 for normal empty state
+
+**問題：** [web/components/SaveButton.tsx](/Users/flyingship/development/Tokyo%20Taiwan%20Radar/web/components/SaveButton.tsx) 在 mount 時用 `.single()` 查 `saved_events` 是否存在。對尚未收藏的事件，0 筆結果會被 PostgREST 回成 406，造成前端 console noise，但這其實是正常未收藏狀態。
+
+**修復：** 將存在性查詢從 `.single()` 改為 `.maybeSingle()`，保留 `setSaved(!!data)` 與既有 toggle 流程不變，讓 0 筆結果回傳 `null` 而非 406。
+
+**教訓：** Supabase/PostgREST 的「0 或 1 筆」存在性查詢必須用 `.maybeSingle()`；只有把 1 筆結果視為強約束時才應使用 `.single()`。
+
 ## 2026-05-31 — feat(annotator): auto-create eiga-verified film works for fixed cinemas (`e5dbbd9`)
 
 **実装内容：**
