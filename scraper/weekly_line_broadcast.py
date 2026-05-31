@@ -150,7 +150,7 @@ def _fetch_upcoming_events(sb) -> list[dict]:
     res = (
         sb.table("events")
         .select(
-            "id,name_zh,name_ja,name_en,start_date,end_date,category,location_name,location_address,location_prefectures"
+            "id,name_zh,name_ja,name_en,start_date,end_date,category,source_name,location_name,location_address,location_prefectures"
         )
         .eq("is_active", True)
         .is_("parent_event_id", "null")
@@ -287,12 +287,18 @@ def _city_label(event: dict, lang: str) -> str:
     """Return a bracketed city label for every event, including Tokyo.
 
     Detection order:
-    1. location_name == 'オンライン' → no label (online event)
+    0. source_name == 'gguide_tv' → TV program label
+    1. location_name == 'オンライン' → online label
     2. location_address starts with '東京都'/'東京' → '[東京]'
     3. location_address starts with a known non-Tokyo prefix → use _PREF_LABEL
     4. location_prefectures[0] fallback when location_address is absent
     5. Still nothing → no label
     """
+    # TV program events
+    if event.get("source_name") == "gguide_tv":
+        tv_labels = {"zh": "電視節目", "en": "TV Program", "ja": "テレビ番組"}
+        label = tv_labels.get(lang, "テレビ番組")
+        return f"[{label}]"
     # Online events get a language-appropriate label
     if (event.get("location_name") or "").strip() == "オンライン":
         online_labels = {"zh": "線上", "en": "Online", "ja": "オンライン"}
@@ -446,13 +452,28 @@ def _generate_weekly_content(sb, ai, today: datetime) -> tuple[list[dict], list[
     monthly_events = [event_map[i] for i in monthly_ids if i in event_map and i not in weekly_id_set]
 
     # Near-term exhaustive list: all events from today (Fri) through today+9 (next Sun)
-    # that are not already in the curated top-10 picks
+    # that are not already in the curated top-10 picks — includes gguide_tv (TV programs)
     nearterm_end = today + timedelta(days=9)
     nearterm_start_iso = today.date().isoformat()
     nearterm_end_iso = nearterm_end.date().isoformat()
+    # Fetch gguide_tv events separately for near-term (excluded from AI selection pool)
+    tv_res = (
+        sb.table("events")
+        .select("id,name_zh,name_ja,name_en,start_date,end_date,category,source_name,location_name,location_address,location_prefectures")
+        .eq("is_active", True)
+        .is_("parent_event_id", "null")
+        .eq("source_name", "gguide_tv")
+        .in_("annotation_status", ["annotated", "reviewed"])
+        .gte("start_date", nearterm_start_iso)
+        .lte("start_date", nearterm_end_iso + "T23:59:59Z")
+        .order("start_date")
+        .execute()
+    )
+    tv_events = tv_res.data or []
+    nearterm_pool = events + [e for e in tv_events if e["id"] not in event_map]
     nearterm_events = sorted(
         [
-            e for e in events
+            e for e in nearterm_pool
             if (e.get("start_date") or "")[:10] >= nearterm_start_iso
             and (e.get("start_date") or "")[:10] <= nearterm_end_iso
             and e["id"] not in weekly_id_set
