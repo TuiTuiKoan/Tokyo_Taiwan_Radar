@@ -442,11 +442,9 @@ def _build_message(
             for e in group:
                 title = _title(e)
                 date_str = _format_date(e.get("start_date"))
-                url = f"{base_url}/{lang}/events/{e['id']}"
                 city = _city_label(e, lang)
                 prefix = f"{city}" if city else ""
                 lines.append(f"• {prefix}{title}　{date_str}")
-                lines.append(f"  {url}")
 
     if monthly_events:
         lines.extend(["", h_month])
@@ -455,11 +453,9 @@ def _build_message(
             start = _format_date(e.get("start_date"))
             end = _format_date(e.get("end_date"))
             date_str = f"{start}–{end}" if end and end != start else start
-            url = f"{base_url}/{lang}/events/{e['id']}"
             city = _city_label(e, lang)
             prefix = f"{city}" if city else ""
-            lines.append(f"• {prefix}{title}（{date_str}）")
-            lines.append(f"  {url}")
+            lines.append(f"• {prefix}{title}（{date_str})")
 
     lines.append("")
     lines.append(CATEGORY_LIST_FOOTER[lang])
