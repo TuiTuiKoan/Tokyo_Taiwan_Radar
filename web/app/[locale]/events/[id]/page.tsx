@@ -611,18 +611,6 @@ export default async function EventDetailPage({ params }: PageProps) {
             initialSaved={false}
             locale={locale}
           />
-          {event.start_date && !calendarExpired && (
-            <AddToCalendarButton
-              title={name ?? event.name_ja ?? ""}
-              description={description}
-              startDate={event.start_date}
-              endDate={event.end_date}
-              businessHours={businessHours}
-              location={locationAddress || locationName}
-              eventUrl={`${base}/${locale}/events/${event.id}`}
-              locale={locale}
-            />
-          )}
         </div>
         {/* Right column: merged badge + title + admin actions */}
         <div className="flex-1 min-w-0">
@@ -1134,6 +1122,20 @@ export default async function EventDetailPage({ params }: PageProps) {
           {(event as Event).official_url ? t("officialSite") : t("viewOriginal")}
           <span aria-hidden="true">↗</span>
         </a>
+      )}
+
+      {/* ===== Add to Calendar ===== */}
+      {event.start_date && !calendarExpired && (
+        <AddToCalendarButton
+          title={name ?? event.name_ja ?? ""}
+          description={description}
+          startDate={event.start_date}
+          endDate={event.end_date}
+          businessHours={businessHours}
+          location={locationAddress || locationName}
+          eventUrl={`${base}/${locale}/events/${event.id}`}
+          locale={locale}
+        />
       )}
 
       {/* ===== AI Selection Reason ===== */}
