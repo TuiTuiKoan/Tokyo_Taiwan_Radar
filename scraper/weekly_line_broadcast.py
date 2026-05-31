@@ -378,10 +378,13 @@ def _build_message(
     }
     h_title, h_week, h_month = headers[lang]
 
+    nearterm_start_label = today.strftime("%-m/%-d")
+    nearterm_end_label = (today + timedelta(days=6)).strftime("%-m/%-d")
+    nearterm_range = f"{nearterm_start_label}–{nearterm_end_label}"
     nearterm_hdrs: dict[str, str] = {
-        "zh": "─ 本週・下週全部活動 ─",
-        "ja": "─ 今週・来週の全イベント ─",
-        "en": "─ All Events This & Next Week ─",
+        "zh": f"─ 本週・下週全部活動（{nearterm_range}）─",
+        "ja": f"─ 今週・来週の全イベント（{nearterm_range}）─",
+        "en": f"─ All Events {nearterm_range} ─",
     }
 
     lines = [h_title, "", h_week]
