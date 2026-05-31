@@ -1,7 +1,7 @@
 ---
 title: Architecture Overview
 description: 東京台灣雷達全站架構總覽 — 爬蟲、翻譯、資料庫、前端、CI/CD、LINE Bot
-ms.date: 2026-05-14
+ms.date: 2026-06-01
 ---
 
 ## 系統總覽
@@ -222,6 +222,7 @@ web/app/
 │       ├── page.tsx           事件管理主表
 │       ├── [id]/page.tsx      事件編輯表單
 │       ├── sources/           來源健康監控
+│       ├── analytics/         數據分析儀表板 (Unit 2 實作)
 │       ├── stats/             爬蟲統計（token/費用）
 │       ├── reports/           舉報管理
 │       ├── research/          研究來源管理
@@ -230,7 +231,7 @@ web/app/
 │       ├── aeo/               AI 引擎造訪分析
 │       └── users/             使用者管理
 ├── api/
-│   ├── admin/                 admin API routes
+│   ├── admin/                 admin API routes (包含 /api/admin/insights 數據分析端點)
 │   ├── announcements/         發文 CRUD + 社群發布
 │   └── line-webhook/          LINE Bot webhook
 ├── robots.ts                  SEO robots.txt（含 AI bot 許可）

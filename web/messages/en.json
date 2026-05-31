@@ -642,7 +642,26 @@
       "warnings": {
         "missingWorkForFilm": "Film / performing-arts event has no work assigned"
       }
-    }
+    },
+    "insightsTitle": "Data Insights Dashboard",
+    "FromMonth": "From Month",
+    "ToMonth": "To Month",
+    "Collected": "Collected",
+    "Ongoing": "Ongoing",
+    "ViewsTrend": "Views Trend",
+    "Loading": "Loading...",
+    "NoData": "No data available",
+    "Apply": "Apply",
+    "RangeTooWide": "Time range must be 24 months or less",
+    "ByVisitorRegion": "Views by Visitor Region",
+    "ByVisitorCountry": "Views by Visitor Country (Top 10)",
+    "ByEventCategory": "Views by Event Category",
+    "ByEventPrefecture": "Views by Event Prefecture",
+    "ByLocale": "Views by Interface Language",
+    "FilterCategory": "Category",
+    "FilterLocale": "Locale",
+    "AllCategories": "All Categories",
+    "AllLocales": "All Interfaces"
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",

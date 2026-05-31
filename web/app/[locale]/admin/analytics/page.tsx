@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale } from "@/lib/types";
 import AdminTabNav from "@/components/AdminTabNav";
+import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
 import Link from "next/link";
 import { fetchGscStats } from "@/lib/gsc";
 
@@ -167,8 +168,6 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
     recentRawRes,
     topViewsRawRes,
     allActiveEventsRes,
-    monthlyRawRes,
-    collectedMonthlyRawRes,
     gsc,
   ] = await Promise.all([
       supabase.from("event_views").select("id", { count: "exact", head: true }),
@@ -182,17 +181,6 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
         .limit(20),
       supabase.from("event_views").select("event_id, country").gte("viewed_at", c30d),
       supabase.from("events").select("category").eq("is_active", true).not("category", "is", null),
-      supabase
-        .from("events")
-        .select("start_date")
-        .eq("is_active", true)
-        .gte("start_date", new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1).toISOString())
-        .not("start_date", "is", null),
-      supabase
-        .from("events")
-        .select("created_at")
-        .gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1).toISOString())
-        .not("created_at", "is", null),
       fetchGscStats(),
     ]);
 
@@ -204,41 +192,10 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
   };
 
   const viewCountMap: Record<string, number> = {};
-  const countryCountMap: Record<string, number> = {};
-  const regionCountMap: Record<RegionKey, number> = {
-    japan: 0,
-    taiwan: 0,
-    east_asia: 0,
-    southeast_asia: 0,
-    north_america: 0,
-    europe: 0,
-    oceania: 0,
-    other: 0,
-    unknown: 0,
-  };
-
   const topViewRows = (topViewsRawRes.data ?? []) as TopViewRow[];
   for (const row of topViewRows) {
     viewCountMap[row.event_id] = (viewCountMap[row.event_id] ?? 0) + 1;
-
-    const countryCode = normalizeCountryCode(row.country);
-    const countryBucket = countryCode ?? "__unknown__";
-    countryCountMap[countryBucket] = (countryCountMap[countryBucket] ?? 0) + 1;
-
-    const region = getRegionKey(countryCode);
-    regionCountMap[region] += 1;
   }
-
-  const topCountries = Object.entries(countryCountMap)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10);
-
-  const regionEntries = (Object.entries(regionCountMap) as Array<[RegionKey, number]>)
-    .filter(([, count]) => count > 0)
-    .sort((a, b) => b[1] - a[1]);
-
-  const maxCountryViews = topCountries[0]?.[1] ?? 1;
-  const maxRegionViews = regionEntries[0]?.[1] ?? 1;
 
   const recentRows = ((recentRawRes.data ?? []) as RecentViewRow[]).map((row) => {
     const event = Array.isArray(row.events) ? (row.events[0] ?? null) : row.events;
@@ -289,41 +246,13 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
   const totalCatTags = Object.values(catMap).reduce((a, b) => a + b, 0) || 1;
   const catEntries = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
 
-  const monthlyMap: Record<string, number> = {};
-  for (let i = 0; i < 12; i++) {
-    const monthDate = new Date(new Date().getFullYear(), new Date().getMonth() - 11 + i, 1);
-    const key = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
-    monthlyMap[key] = 0;
-  }
-  for (const event of monthlyRawRes.data ?? []) {
-    if (!event.start_date) continue;
-    const monthDate = new Date(event.start_date);
-    const key = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
-    if (key in monthlyMap) monthlyMap[key] += 1;
-  }
-  const monthlyEntries = Object.entries(monthlyMap).sort((a, b) => a[0].localeCompare(b[0]));
-  const maxMonthly = Math.max(...monthlyEntries.map(([, value]) => value), 1);
-
-  const collectedMonthlyMap: Record<string, number> = {};
-  for (let i = 0; i < 12; i++) {
-    const monthDate = new Date(new Date().getFullYear(), new Date().getMonth() - 11 + i, 1);
-    const key = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
-    collectedMonthlyMap[key] = 0;
-  }
-  for (const event of collectedMonthlyRawRes.data ?? []) {
-    if (!event.created_at) continue;
-    const monthDate = new Date(event.created_at as string);
-    const key = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
-    if (key in collectedMonthlyMap) collectedMonthlyMap[key] += 1;
-  }
-  const collectedMonthlyEntries = Object.entries(collectedMonthlyMap).sort((a, b) => a[0].localeCompare(b[0]));
-  const maxCollectedMonthly = Math.max(...collectedMonthlyEntries.map(([, value]) => value), 1);
-
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">{t("analyticsPageTitle")}</h1>
 
       <AdminTabNav locale={locale} activeTab="analytics" />
+
+      <AnalyticsDashboard locale={locale} />
 
       <h2 className="text-base font-semibold text-fg mb-3">{t("analyticsSummaryTitle")}</h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
@@ -406,84 +335,6 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
               </div>
             )}
           </>
-        )}
-      </div>
-
-      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
-        <h2 className="text-base font-semibold text-fg mb-3">{t("analyticsGeoTitle")}</h2>
-        {topCountries.length === 0 ? (
-          <p className="text-sm text-fg-subtle">{t("analyticsGeoEmpty")}</p>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsTopCountriesTitle")}</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="text-xs text-fg-subtle border-b border-line">
-                      <th className="text-left py-2 pr-4 font-medium">{t("analyticsCountry")}</th>
-                      <th className="text-right py-2 pl-4 font-medium">{t("analyticsViews30dUnit")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topCountries.map(([countryCode, count]) => {
-                      const pct = Math.round((count / maxCountryViews) * 100);
-                      const label = countryCode === "__unknown__" ? t("analyticsUnknownCountry") : countryCode;
-
-                      return (
-                        <tr key={countryCode} className="border-b border-gray-50 hover:bg-elevated">
-                          <td className="py-2 pr-4">
-                            <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-mono text-xs text-fg-muted">
-                                {label}
-                              </span>
-                              <div className="h-1.5 flex-1 rounded-full bg-muted max-w-32">
-                                <div className="h-1.5 rounded-full bg-green-500" style={{ width: `${pct}%` }} />
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-2 pl-4 text-right tabular-nums text-fg-muted">{fmtNum(count)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsRegionDistributionTitle")}</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="text-xs text-fg-subtle border-b border-line">
-                      <th className="text-left py-2 pr-4 font-medium">{t("analyticsRegion")}</th>
-                      <th className="text-right py-2 pl-4 font-medium">{t("analyticsViews30dUnit")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {regionEntries.map(([region, count]) => {
-                      const pct = Math.round((count / maxRegionViews) * 100);
-
-                      return (
-                        <tr key={region} className="border-b border-gray-50 hover:bg-elevated">
-                          <td className="py-2 pr-4">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-fg-muted truncate">{getRegionLabel(region, t)}</span>
-                              <div className="h-1.5 flex-1 rounded-full bg-muted max-w-32">
-                                <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-2 pl-4 text-right tabular-nums text-fg-muted">{fmtNum(count)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
         )}
       </div>
 
@@ -589,67 +440,6 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
         )}
       </div>
 
-      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
-        <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsMonthlyTitle")}</h3>
-        {monthlyEntries.length === 0 ? (
-          <p className="text-sm text-fg-subtle">{t("analyticsMonthlyEmpty")}</p>
-        ) : (
-          <ul className="space-y-2">
-            {monthlyEntries.map(([month, count]) => {
-              const pct = Math.round((count / maxMonthly) * 100);
-              return (
-                <li key={month} className="flex items-center gap-3 text-sm">
-                  <span className="w-16 shrink-0 text-xs text-fg-muted">{month}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 rounded-full bg-muted">
-                        <div
-                          className="h-2 rounded-full bg-amber-400"
-                          style={{ width: count === 0 ? "1px" : `${pct}%` }}
-                        />
-                      </div>
-                      <span className="w-16 text-right text-xs text-fg-muted shrink-0">
-                        {count} {t("analyticsEventsUnit")}
-                      </span>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      <div className="mb-8 rounded-xl border border-line bg-surface px-5 py-4">
-        <h3 className="text-sm font-semibold text-fg mb-3">{t("analyticsCollectedMonthlyTitle")}</h3>
-        {collectedMonthlyEntries.length === 0 ? (
-          <p className="text-sm text-fg-subtle">{t("analyticsMonthlyEmpty")}</p>
-        ) : (
-          <ul className="space-y-2">
-            {collectedMonthlyEntries.map(([month, count]) => {
-              const pct = Math.round((count / maxCollectedMonthly) * 100);
-              return (
-                <li key={month} className="flex items-center gap-3 text-sm">
-                  <span className="w-16 shrink-0 text-xs text-fg-muted">{month}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 rounded-full bg-muted">
-                        <div
-                          className="h-2 rounded-full bg-sky-400"
-                          style={{ width: count === 0 ? "1px" : `${pct}%` }}
-                        />
-                      </div>
-                      <span className="w-16 text-right text-xs text-fg-muted shrink-0">
-                        {count} {t("analyticsEventsUnit")}
-                      </span>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
     </div>
   );
 }

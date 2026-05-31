@@ -641,7 +641,26 @@
       "warnings": {
         "missingWorkForFilm": "映画・舞台芸術イベントに work が未指定"
       }
-    }
+    },
+    "insightsTitle": "データ分析ダッシュボード",
+    "FromMonth": "開始月",
+    "ToMonth": "終了月",
+    "Collected": "収集済み",
+    "Ongoing": "開催中",
+    "ViewsTrend": "閲覧数トレンド",
+    "Loading": "読み込み中...",
+    "NoData": "データがありません",
+    "Apply": "適用",
+    "RangeTooWide": "期間は24ヶ月以内に指定してください",
+    "ByVisitorRegion": "ビジター地域別閲覧数",
+    "ByVisitorCountry": "ビジター国籍別閲覧数 (Top 10)",
+    "ByEventCategory": "閲覧イベントのカテゴリー別",
+    "ByEventPrefecture": "閲覧イベントの都道府県別",
+    "ByLocale": "言語別閲覧数",
+    "FilterCategory": "カテゴリー",
+    "FilterLocale": "言語",
+    "AllCategories": "全てのカテゴリー",
+    "AllLocales": "全ての言語"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",
