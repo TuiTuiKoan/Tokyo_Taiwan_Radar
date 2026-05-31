@@ -2637,7 +2637,7 @@ def _load_human_field_map(sb: "Client") -> dict[str, dict[str, str]]:
 
     Supabase Python client returns at most 1000 rows per execute() call.
     Without pagination, events beyond the first 1000 FC rows are invisible
-    to _human_protected, allowing annotator/enrich to overwrite sentinels.
+    to _human_protected, allowing annotator/enrich paths to overwrite sentinels.
     """
     result: dict[str, dict[str, str]] = {}
     offset = 0

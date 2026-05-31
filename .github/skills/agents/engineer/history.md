@@ -2,6 +2,30 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-31 - annotator Phase B buffer/disk mismatch left runtime on old FC logic
+
+**問題：** `scraper/annotator.py` 在編輯器內容已顯示新版 Phase B，但新 Python process `inspect.getsource()` 仍載入舊版 runtime：`_load_human_field_map()` 還是 `dict[str, set[str]]`，`_resolve_movie_titles_for_event()` 也仍以未剝前綴的 `title` 做 lookup。
+
+**修復：** 對 [scraper/annotator.py](/Users/flyingship/development/Tokyo%20Taiwan%20Radar/scraper/annotator.py) 做實質 patch，強制將已修正的 buffer 寫回磁碟；之後用全新 Python process 驗證 `_load_human_field_map()` 已改為 `dict[event_id][field]=corrected_value`，且 report prefix title lookup 與無前綴版本一致。
+
+**教訓：** 針對 Python runtime 行為修復時，不能只看 editor/read_file 片段；必須用新 process 的 `inspect.getsource()` 或等價磁碟驗證確認 import 到的就是落地版本，再做行為驗證。
+
+## 2026-05-31 - Validation script could not import `annotator`
+
+**問題：** 驗證腳本放在 `/tmp` 執行時，`import annotator` 失敗（`ModuleNotFoundError`）。
+
+**修復：** 在腳本中加入 `sys.path.insert(0, '/Users/flyingship/development/Tokyo Taiwan Radar/scraper')`，明確把 `scraper/` 加入模組搜尋路徑。
+
+**教訓：** 以 `/tmp` 一次性腳本驗證專案模組時，要先設定 `sys.path` 或改用專案目錄內可匯入的腳本位置。
+
+## 2026-05-31 - Phase D UUID prefix query failed on `ilike`
+
+**問題：** D-2/D-3 一次性修復腳本對 `events.id`（UUID）使用 `.ilike('id', 'prefix%')`，Postgres 回傳 `operator does not exist: uuid ~~* unknown`（42883）。
+
+**修復：** 改為先以 `source_name='google_news_rss'` 分頁載入候選事件，再在 Python 端做 `id.startswith(prefix)` 對應短 ID 前綴，避免 UUID 欄位做文字運算。
+
+**教訓：** UUID 欄位不可直接用 `like/ilike` 前綴查詢。需要短碼對應時，應使用完整 UUID 精確匹配，或先查文字欄位後在應用層比對。
+
 ## 2026-05-31 — weekly_line_broadcast URL 過多 + venue-name-as-address city label 缺失
 
 **問題 1：** nearterm・monthly セクションの全イベントに URL が付いてメッセージが長すぎる
