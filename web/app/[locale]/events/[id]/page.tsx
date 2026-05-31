@@ -893,7 +893,10 @@ export default async function EventDetailPage({ params }: PageProps) {
                 ) : event.is_paid === true ? (
                   <span>
                     <span className="text-amber-600 font-medium">{t("paid")}</span>
-                    {event.price_info && <span className="text-fg-muted ml-2">{event.price_info}</span>}
+                    {event.price_info && 
+                     !["有料", "有料（預設）", "有料 (預設)", "有料(預設)", "Paid", "paid", "收費", "收费"].includes(event.price_info.trim()) && (
+                      <span className="text-fg-muted ml-2">{event.price_info}</span>
+                    )}
                   </span>
                 ) : (
                   "—"

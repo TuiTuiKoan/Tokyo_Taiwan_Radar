@@ -166,7 +166,6 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
     last7Res,
     last30Res,
     recentRawRes,
-    topViewsRawRes,
     allActiveEventsRes,
     gsc,
   ] = await Promise.all([
@@ -179,10 +178,37 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
         .select("viewed_at, locale, event_id, events(id, name_ja, name_zh, name_en)")
         .order("viewed_at", { ascending: false })
         .limit(20),
-      supabase.from("event_views").select("event_id, country").gte("viewed_at", c30d),
       supabase.from("events").select("category").eq("is_active", true).not("category", "is", null),
       fetchGscStats(),
     ]);
+
+  // Bypasses PostgREST max-rows=1000 default limit using loop paging
+  let topViewRows: TopViewRow[] = [];
+  let pageViews = 0;
+  const pageSizeViews = 5000;
+  let hasMoreViews = true;
+
+  while (hasMoreViews) {
+    const { data: pageData, error: pageErr } = await supabase
+      .from("event_views")
+      .select("event_id, country")
+      .gte("viewed_at", c30d)
+      .range(pageViews * pageSizeViews, (pageViews + 1) * pageSizeViews - 1);
+
+    if (pageErr) {
+      console.error("Error fetching event views for top ranking:", pageErr);
+      hasMoreViews = false;
+    } else if (pageData && pageData.length > 0) {
+      topViewRows = topViewRows.concat(pageData as TopViewRow[]);
+      if (pageData.length < pageSizeViews) {
+        hasMoreViews = false;
+      } else {
+        pageViews++;
+      }
+    } else {
+      hasMoreViews = false;
+    }
+  }
 
   const summary = {
     total: totalRes.count ?? 0,
@@ -192,7 +218,6 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
   };
 
   const viewCountMap: Record<string, number> = {};
-  const topViewRows = (topViewsRawRes.data ?? []) as TopViewRow[];
   for (const row of topViewRows) {
     viewCountMap[row.event_id] = (viewCountMap[row.event_id] ?? 0) + 1;
   }
@@ -210,7 +235,7 @@ export default async function AdminAnalyticsPage({ params }: PageProps) {
 
   const topEventIds = Object.entries(viewCountMap)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
+    .slice(0, 30)
     .map(([id]) => id);
 
   let topEvents: Array<{

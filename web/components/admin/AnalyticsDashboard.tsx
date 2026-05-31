@@ -54,6 +54,7 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
     byEventCategory: Array<{ category: string; count: number }>;
     byEventPrefecture: Array<{ prefecture: string; count: number }>;
     byLocale: Array<{ locale: string; count: number }>;
+    bySource?: Array<{ source: string; count: number }>;
   } | null>(null);
 
   // Handle location update to reset/validate city
@@ -184,6 +185,18 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
     return tAdmin("analyticsUnknownCountry");
   };
 
+  const getSourceLabel = (src: string) => {
+    if (src === "google") return tAdmin("trafficSourceGoogle");
+    if (src === "line") return tAdmin("trafficSourceLine");
+    if (src === "instagram") return tAdmin("trafficSourceInstagram");
+    if (src === "threads") return tAdmin("trafficSourceThreads");
+    if (src === "facebook") return tAdmin("trafficSourceFacebook");
+    if (src === "twitter") return tAdmin("trafficSourceTwitter");
+    if (src === "direct") return tAdmin("trafficSourceDirect");
+    if (src === "other") return tAdmin("trafficSourceOther");
+    return src;
+  };
+
   // Calculate maximums for inline progress bar ratios
   const maxCollected = eventData?.months.reduce((max, m) => Math.max(max, m.collected), 0) || 1;
   const maxOngoing = eventData?.months.reduce((max, m) => Math.max(max, m.ongoing), 0) || 1;
@@ -193,6 +206,7 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
   const maxCategoryCount = viewData?.byEventCategory.reduce((max, c) => Math.max(max, c.count), 0) || 1;
   const maxPrefectureCount = viewData?.byEventPrefecture.reduce((max, p) => Math.max(max, p.count), 0) || 1;
   const maxLocaleCount = viewData?.byLocale.reduce((max, l) => Math.max(max, l.count), 0) || 1;
+  const maxSourceCount = viewData?.bySource?.reduce((max, s) => Math.max(max, s.count), 0) || 1;
 
   const totalRegionCount = viewData?.byVisitorRegion.reduce((acc, r) => acc + r.count, 0) || 1;
 
@@ -565,6 +579,32 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
                           />
                         </div>
                         <span className="w-12 text-right text-xs text-fg-subtle shrink-0 tabular-nums">{l.count}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            {/* Views by Traffic Source */}
+            <div className="border border-line rounded-lg p-4 bg-elevated">
+              <h3 className="text-sm font-semibold text-fg mb-4">{tAdmin("ByTrafficSource")}</h3>
+              {!viewData.bySource || viewData.bySource.length === 0 ? (
+                <p className="text-sm text-fg-subtle text-center py-4">{tAdmin("NoData")}</p>
+              ) : (
+                <ul className="space-y-2">
+                  {viewData.bySource.map((s) => {
+                    const pct = Math.round((s.count / maxSourceCount) * 100) || 0;
+                    return (
+                      <li key={s.source} className="flex items-center gap-3 text-sm">
+                        <span className="w-24 truncate text-xs text-fg-muted shrink-0">{getSourceLabel(s.source)}</span>
+                        <div className="flex-1 h-3 rounded-full bg-muted">
+                          <div
+                            className="h-3 rounded-full bg-orange-500 transition-all duration-300"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="w-12 text-right text-xs text-fg-subtle shrink-0 tabular-nums">{s.count}</span>
                       </li>
                     );
                   })}

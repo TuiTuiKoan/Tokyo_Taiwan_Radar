@@ -665,7 +665,8 @@
     "FilterLocale": "言語",
     "AllCategories": "全てのカテゴリー",
     "AllLocales": "全ての言語",
-    "unsaved_confirm": "入力中の内容は保存されていません。本当にキャンセルしますか？"
+    "unsaved_confirm": "入力中の内容は保存されていません。本当にキャンセルしますか？",
+    "analyticsCollectedMonthlyTitle": "月別の新規収集イベント数（過去12ヶ月）"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",
@@ -775,7 +776,10 @@
     "weeklyBroadcastSending": "送信中…",
     "weeklyBroadcastSent": "{n} 人の購読者に送信済み",
     "weeklyBroadcastEdit": "ドラフトを編集",
-    "weeklyBroadcastCreatedAt": "ドラフト作成日"
+    "weeklyBroadcastCreatedAt": "ドラフト作成日",
+    "weeklyBroadcastSendTest": "テスト送信 (Admin)",
+    "weeklyBroadcastSendingTest": "テスト中…",
+    "testSendSuccess": "テスト購読メッセージが {n} 人の管理責任者に送信されました"
   },
   "categoryDesc": {
     "noEvents": "現在開催中のイベントはありません。",

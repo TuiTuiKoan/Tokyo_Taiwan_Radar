@@ -665,7 +665,8 @@
     "FilterLocale": "語系",
     "AllCategories": "全部類別",
     "AllLocales": "全部語系",
-    "unsaved_confirm": "表單尚未保存，確定要取消嗎？"
+    "unsaved_confirm": "表單尚未保存，確定要取消嗎？",
+    "analyticsCollectedMonthlyTitle": "每月新收錄活動（過去 12 個月）"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",
@@ -775,7 +776,10 @@
     "weeklyBroadcastSending": "發送中…",
     "weeklyBroadcastSent": "已發送給 {n} 位訂閱者",
     "weeklyBroadcastEdit": "編輯草稿",
-    "weeklyBroadcastCreatedAt": "草稿建立"
+    "weeklyBroadcastCreatedAt": "草稿建立",
+    "weeklyBroadcastSendTest": "傳送測試 (Admin)",
+    "weeklyBroadcastSendingTest": "測試中…",
+    "testSendSuccess": "測試週報已成功推播至 {n} 位管理員"
   },
   "categoryDesc": {
     "noEvents": "目前沒有進行中的活動。",

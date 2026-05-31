@@ -776,7 +776,10 @@
     "weeklyBroadcastSending": "Sending…",
     "weeklyBroadcastSent": "Sent to {n} subscribers",
     "weeklyBroadcastEdit": "Edit Draft",
-    "weeklyBroadcastCreatedAt": "Draft created"
+    "weeklyBroadcastCreatedAt": "Draft created",
+    "weeklyBroadcastSendTest": "Test Send (Admin)",
+    "weeklyBroadcastSendingTest": "Testing...",
+    "testSendSuccess": "Test broadcast successfully sent to {n} admin user(s)"
   },
   "categoryDesc": {
     "noEvents": "No ongoing events at the moment.",
