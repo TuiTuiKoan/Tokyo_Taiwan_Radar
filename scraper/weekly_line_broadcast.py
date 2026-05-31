@@ -389,7 +389,7 @@ def _build_message(
     date_label = today.strftime("%Y/%m/%d")
     headers = {
         "zh": (f"🗓 東京台灣雷達「一週偵測」 {date_label}", "【小霧精選】", "【下個月不可錯過】"),
-        "ja": (f"🗓 東京台湾レーダー「今週のスキャン」 {date_label}", "【レンブ厳選】", "【来月の注目】"),
+        "ja": (f"🗓 東京台湾レーダー「今週のレーダー」 {date_label}", "【レンブ厳選】", "【来月の注目】"),
         "en": (f'🗓 Tokyo Taiwan Radar "Weekly Scan" {date_label}', "【Bubu's Picks】", "【Don't Miss Next Month】"),
     }
     h_title, h_week, h_month = headers[lang]
