@@ -1,5 +1,17 @@
 # PR TIMES Scraper — Implementation History
 
+---
+
+## 2026-05-31 — VOD/ストリーミング クエリ追加（commit `a9a0066`）
+
+**変更：** `prtimes.py` の検索クエリに VOD/ストリーミング関連キーワードを追加。従来は映画館上映とイベント PR が主な取得対象だったが、台湾コンテンツのオンライン配信・VOD リリース関連プレスリリースが漏れていた。
+
+**修正（commit `a9a0066`）：** `QUERIES` リストに VOD/ストリーミング系クエリを追加。
+
+**教訓：** PR TIMES は映画・ドラマ・ドキュメンタリーの VOD/ストリーミング配信告知も頻出する。新たな配信プラットフォームや台湾コンテンツのストリーミング関連キーワードが登場したらクエリを定期更新する。
+
+---
+
 ## 2026-04-26 — prtimes: initial implementation
 
 **Context:** PR TIMES was identified as a high-value source for Taiwan-related event

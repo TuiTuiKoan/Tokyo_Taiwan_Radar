@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-05-31 — 批評誤導 Architect 重造輪子：叫他「抽出 page.tsx 既有 marker 邏輯為新 helper」
+
+**錯誤：** 批評 Unit 2 地區模型缺口時（正確抓到東京/online/overseas 不在 prefecture 陣列），建議 Architect「從首頁 page.tsx 抽出 marker 過濾邏輯，新建共用 helper」。Architect 據此在 v3 計畫的 2-pre 新增 `web/lib/analytics/locationFilter.ts`。下一輪 grep 才發現：(1) 該邏輯**早已不在 page.tsx**，(2) **已存在 `web/lib/locationMarkers.ts`** export `LOCATION_KEYS` + `matchesLocation()`（正是要新建的東西），(3) AdminEventTable.tsx 還另有一份。新建 locationFilter.ts 等於**第三份平行實作**——與我自己「消除平行實作分歧」的訴求矛盾。
+
+**修正：** 下一輪 critique 第 4/5/6 段建議刪除 locationFilter.ts，改 `import { LOCATION_KEYS, matchesLocation } from "@/lib/locationMarkers"` + regionPrefectures.matchesCity，零新過濾 helper。
+
+**教訓：**
+1. **建議「抽出既有邏輯為新 helper」前，必先 grep 是否已有共用模組**（搜 `matchesLocation`、`LOCATION_*`、`*_MARKERS`）。假設「邏輯在 X 檔」而不查證，會把 Architect 推向重造輪子。
+2. **「復用」型批評本身也要驗證復用標的存在且 API 對得上**，不能只說「抽出來共用」就交差——要指名實際檔案路徑與 export 名。
+3. 抓到「缺口」是對的，但**開的藥方（新建檔）可能比病更糟**；先找既有解再決定是否真要新檔。
+
+---
+
 ## 2026-05-30 — 重大誤判：以為「LOCATION GATE 會自動停用事件」（連錯兩輪）
 
 **錯誤：** 批評 note_creators 計畫時，第 1 輪把「re-annotate 會觸發 LOCATION GATE 把台灣活動 is_active=false」標為 🔴 blocker，主導計畫改「不走 pending」。第 2 輪又引 annotator.py L586 當「FC 鎖定→gate 強制豁免」，反過來主導計畫改「FC-first-then-annotate」。第 3 輪實際讀 code 才發現：LOCATION GATE 全文（L571-586）在 `SYSTEM_PROMPT` 內（給 GPT 的指示），主事件 `update_data`（L1497-1557）**根本不含 is_active**；全 scraper 只有 merger.py（去重）會設 is_active=false。**沒有任何 code 依 gate 停用事件**——gate 的 is_active=false 只落在 selection_reason。

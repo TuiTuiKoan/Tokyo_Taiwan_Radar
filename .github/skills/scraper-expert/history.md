@@ -4,6 +4,57 @@
 
 ---
 
+## 2026-06-01 — TCC sub-event: タイムゾーンバグ / location_name_zh 機械翻訳 / google_news_rss 誤配監督名 / 11b4e1d2 work_id 未紐付け
+
+**問題：** 4 件の問題が同時発生:
+1. **タイムゾーンバグ**: 台湾映画上映会2026（親 `51f7cd44`）の全 14 件の子イベントで JST 時刻が UTC として保存されていた（例: `12:00 JST` → `12:00 UTC` 誤、正: `03:00 UTC`）。TCC スクレイパーの `_parse_date()` は naive datetime を返し、caller 側に UTC 変換なし。
+2. **location_name_zh 機械翻訳**: ユーロライブ → `'歐洲直播'`（「欧州ライブ放送」の直訳）。5 件に影響（fb0468b3, efc14238, 9c36f36d, 2f50b8fd, 401bc0fa）。固有名詞の会場名は翻訳せず日本語をそのまま保持すべき。
+3. **google_news_rss 誤配監督名**: `fb0468b3`（余燼）の raw_description に同日別作品（うなぎ）の google_news_rss 補足が誤配され、チュウ・ジュンタン（うなぎ監督）が余燼の監督として annotator に登録された。余燼の正しい監督は **鍾孟宏（チョン・モンホン）**。
+4. **11b4e1d2（湯德章）work_id 未紐付け**: `work_id=None`、name_ja 空、name_zh/en が GPT ハルシネーション値、director が一人のみ（連名 2 名中 1 名欠落）、director_zh が誤文字（`黃敏貞` → 正: `黃明川`）。works テーブルに正しい `dc8f1d36`（title_zh='尋找湯德章', director='黃明川、連楨惠'）が存在していたが未紐付け。
+
+**根本原因：**
+- TCC スクレイパーの datetime naive 問題は scraper コードに残存（修正は別タスク）。
+- annotator の `location_name_zh` 生成が固有名詞（劇場名）を一般名詞として翻訳してしまう。
+- merger.py の google_news_rss 補足マッチが同日開催の別作品記事と同じイベントに誤配される。
+- amayaza の 湯德章 は works テーブルにレコードが存在したにもかかわらず、annotator が自力で work_id を解決できなかった（手動 FC 紐付けが必要なケース）。
+
+**修正：**
+- 全 14 件 sub-event: `start_date/end_date` を DB 直接 -9h 補正
+- 5 件の `location_name_zh='歐洲直播'` → `'ユーロライブ'`
+- `fb0468b3`: director/director_zh/director_en + name_en を FC lock 修正、works.director='鍾孟宏'・title_en='The Embers' 更新、annotation_status=pending
+- `11b4e1d2`: work_id・name_ja/zh/en・director 全 3 フィールドを FC lock + DB 更新、annotation_status=pending
+
+**教訓：**
+- TCC sub-event に時刻が含まれる場合、scraper コードを修正するまで毎回再発する。次スクレイプ前にコード修正が必要（SKILL.md に注記追加）。
+- 会場固有名詞（ユーロライブ等）の `location_name_zh` が機械翻訳されていたら FC lock で元の日本語名に戻す。
+- google_news_rss 補足が追加されたイベントの director/performer は出所を必ず確認すること（同日別作品の記事が混入し得る）。
+- works テーブルに正しいレコードが存在しても annotator が work_id を紐付けられない場合は手動で FC lock + `annotation_status=pending` を設定する。
+
+---
+
+## 2026-05-31 — 手動マージ後 primary event: annotation_status=error + FC locked 誤値 + 片名翻訳未適用
+
+**問題：** XiXi (`dd792b98`) と 赤い糸 (`e4516272`) の手動マージ後、両 primary event で 3 点の問題が同時発生:
+1. `annotation_status=error`（annotator が過去に失敗したまま）→ `enrich_movie_titles()` がスキップ → 片名翻訳未適用
+2. `name_ja` に `【ＮＰＯ松本シネマセレクト】` suffix が残留（annotator が error 状態のため未処理）
+3. `e4516272` の `name_zh` が FC locked で `'電影《赤い糸 輪廻のひみつ》...'`（日本語タイトル）のまま、`works.title_zh='月老'` が未反映
+
+**根本原因：** `annotation_status=error` のイベントは `annotate_pending_events()` も `enrich_movie_titles()` もスキップする。手動マージで primary を指定しても、その primary が error 状態であれば enrichment パイプラインは動かない。
+
+**修正：**
+- 両 primary の `name_ja` から `【ＮＰＯ松本シネマセレクト】` を除去 + FC lock
+- `dd792b98` `name_en`：`works.title_en='XiXi, Let Me Dance'` を使った正式イベント名に更新 + FC lock
+- `e4516272` `name_zh`：FC lock を `upsert on_conflict` で `'電影《月老》松本電影選擇放映會'` に上書き
+- `e4516272` `name_en`：`works.title_en='Till We Meet Again'` を使った正式名 + FC lock
+- 両 primary の `annotation_status` を `error` → `pending` にリセット（次回 CI で他フィールドを補完）
+
+**教訓：**
+- 手動マージ後は primary の `annotation_status` を必ず確認。`error` ならば name_ja/zh/en を手動修正 + FC lock + `pending` リセットが必要。
+- FC locked フィールドに誤値が格納されていた場合は `field_corrections.upsert(on_conflict='event_id,field_name')` で上書き可能（DELETE 不要）。
+- 映画 primary の `name_zh` が日本語タイトルのままになっていたら `works.title_zh` を確認して FC 値を更新する。
+
+---
+
 ## 2026-05-31 — gguide_tv false positive "仙台湾 (Sendai Bay)" bypassed `_is_taiwan_title` filter
 
 - **Incident**: G-Guide TV 抓到「宮城・仙台湾」電視節目，因標題含「台湾」子字串，誤入庫為台灣活動。`_is_taiwan_title` 過濾函式雖已定義，但在 `scrape()` 主迴圈中從未被呼叫，導致靜默漏洞。

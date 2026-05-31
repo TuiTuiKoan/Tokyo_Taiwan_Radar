@@ -2,6 +2,24 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-31 — 吉祥物英語表記を "Lianbu" に統一（commit `a32b57a`）
+
+**変更：** `.github/copilot-instructions.md` に吉祥物命名規則表を追加。English: **Lianbu**（ローマ字・正式）/ **Bubu**（愛称）、繁体中文: 蓮霧 / 小霧、日本語: レンブ / レンブちゃん の四言語対応表を全エージェントへのグローバル規範として確立。
+
+**背景：** 英語でのローマ字表記が "Renbu" / "Lianwu" 等に揺れていた。`copilot-instructions.md` を source of truth として明記することで全 agent に一貫した表記が適用される。
+
+**教訓：** 吉祥物名称はコード・コメント・UI 文字列・ドキュメント・agent 指示において必ず四言語対応表に従う。英語の愛称は常に **"Bubu"**（"Lianbu" の短縮形）。`copilot-instructions.md` の吉祥物区段が全 agent の命名規範の source of truth。
+
+## 2026-05-31 — 手動 FC 修正後に location 翻訳フィールド 4 列がサイレントドリフト（手動 DB 修正、event `147c5dde`）
+
+**問題：** イベント `147c5dde` の `location_name` / `location_address` を手動修正した後、`location_name_zh` / `location_name_en` / `location_address_zh` / `location_address_en` の 4 翻訳フィールドが更新されず旧値（誤った台北・大阪表記）のまま残存。フロントエンドの zh ロケールで誤地点が表示された。
+
+**根本原因：** 手動 FC ワークフローに「主フィールド更新後は対応する `_zh` / `_en` 4 列も同時確認・更新する」ステップが明示されていなかった。
+
+**修正：** 4 翻訳フィールドを直接更新し `field_corrections` でロック。
+
+**教訓：** `location_name` / `location_address` を手動 FC 修正する場合は、**必ず対応する `_zh` / `_en` 4 列も同時に確認・更新する**。FC ロック後は annotator による自動補完が止まるため、翻訳列がロック漏れすると永続的にドリフトする。Supabase Dashboard 修正時は翻訳列も開いて確認する。
+
 ## 2026-05-30 — `location_address` FC 修正後に `location_prefectures` がサイレント drift（4 件一括修正、commit `eb94bb9`）
 
 **問題：** 4 件のイベント（`7b37604e` / `9de63ffc` / `10a4ee5d` / `5e5ff363`）で `location_address` が FC 修正されていたが `location_prefectures` は更新されておらず、フロントエンドの都道府縣チップが誤都道府縣を表示。488 件の全スキャンで発見。

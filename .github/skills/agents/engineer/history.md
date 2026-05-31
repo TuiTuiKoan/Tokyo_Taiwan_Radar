@@ -18,6 +18,16 @@
 ---
 
 
+## 2026-05-31 — matsumoto_cinema_select 手動マージ後の primary event フィールド修正
+
+**実施内容：**
+- XiXi `dd792b98`：`name_ja` `【NPO】` suffix 除去 + FC lock、`name_en` を `works.title_en='XiXi, Let Me Dance'` 使用に変更 + FC lock、`annotation_status` error → pending
+- 月老 `e4516272`：`name_zh` の FC lock 誤値（`'電影《赤い糸 輪廻のひみつ》...'` → `'電影《月老》...'`）を upsert で上書き、`name_en` を `works.title_en='Till We Meet Again'` 使用に変更 + FC lock、`name_ja` `【NPO】` suffix 除去 + FC lock、`annotation_status` error → pending
+
+**教訓：** 手動マージ後の primary event は `annotation_status` と全 name フィールドをセットで確認する。`error` 状態では enrichment も走らず `name_ja` に raw_title の suffix が残る。FC lock 誤値の上書きは `field_corrections.upsert(on_conflict='event_id,field_name')` で可能。
+
+---
+
 ## 2026-05-31 — Phase D+A: auto_qa performer gap detection + annotator SYSTEM_PROMPT event_form branching（commit `67951af`）
 
 **実装：**

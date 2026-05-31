@@ -2008,6 +2008,8 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 - **海報 OCR で co_organizer を補完**: TCC のイベントは HTML テキストに `主催` のみ記載されるが、海報（`image_url`）には `共催`・`協力` が記載されていることが多い。`image_url` が取得済みなら GPT-4o Vision OCR で追加情報を抽出し、`co_organizers`・`sponsors` を補完 → `field_corrections` にロック。
 - **`News_Content2.aspx`**: These pages use the same Playwright-rendered structure as `News_Content.aspx`. The scraper's link collector targets `a[href*='News_Content']` which matches both.
 - **連続上映企画 (film series) sub-events**: GPT-4o-mini only produces ≤2 sub-events from descriptions with 13,000+ chars, even with 20,000-char truncation limit. **Generate each screening as a separate `Event(parent_event_id=…)` in the scraper layer.** Do NOT rely on annotator sub-event extraction for series with 6+ entries. Pattern: `source_id = f"{parent_source_id}_sub{n}"`. (2026-04-29 実績: 台湾映画上映会2026 16件手動挿入)
+- **⚠ TCC sub-event 時刻は JST → UTC 変換が必要（未修正バグ）**: `_parse_date()` が naive datetime を返すため、スクレイパーが sub-event の時刻（JST）を UTC として Supabase に書き込む。例: 12:00 JST → `12:00+00:00` 誤（正: `03:00+00:00`）。台湾映画上映会2026（2026-04-29 挿入）の全 14 件に影響を確認済み。**スクレイパーコードの修正が完了するまで、新規挿入または再スクレイプ後に必ず start_date/end_date の -9h 補正 DB スクリプトを実行すること。** 修正方法: `_parse_date()` 返値に `replace(tzinfo=ZoneInfo('Asia/Tokyo')).astimezone(timezone.utc).replace(tzinfo=None)` または caller 側で `datetime(..., tzinfo=timezone.utc)` に置換。
+- **location_name_zh に固有名詞の会場名を翻訳しない**: annotator が `ユーロライブ` → `'歐洲直播'` のように劇場・会場の固有名詞を一般名詞として機械翻訳することがある。日本語固有名詞の会場名はそのまま（`'ユーロライブ'`）を `location_name_zh` に使うこと。誤訳を発見したら FC lock で上書き。
 
 ## annotator sub-events — reliability limits
 
@@ -2098,6 +2100,16 @@ print("All 4 pass ✅")
 ```
 
 **Known source pattern**: `matsumoto_cinema_select` appends `【ＮＰＯ松本シネマセレクト】` to all titles (teket.jp group_id=1841). Other teket.jp group sources may use the same pattern. Two merge failures discovered 2026-05-31: `dd792b98`/`e910d7f2` (XiXi) and `ff15eb1d`/`e4516272` (赤い糸); both manually resolved.
+
+### 手動マージ後の primary event 修正チェックリスト
+
+自動マージが失敗して手動でペアを解消した場合、primary event に以下を確認・修正する：
+
+1. **`annotation_status` 確認** — `error` の場合は `enrich_movie_titles()` / `enrich_person_names()` が走らない。name_ja/zh/en を手動修正後 `pending` にリセットする。
+2. **`name_ja` suffix 除去** — `annotation_status=error` の matsumoto_cinema_select primary には `【ＮＰＯ松本シネマセレクト】` が残留している。除去 + FC lock が必要。
+3. **映画 primary の `name_zh` 確認** — `works.title_zh`（正式中国語タイトル）が反映されているか。FC locked で日本語タイトルのまま格納されていたら upsert で上書き。
+4. **`name_en` 確認** — `works.title_en` を使ったイベント名形式（`Title – Venue Screening`）になっているか。
+5. **FC lock 誤値の上書き方法** — `field_corrections.upsert({'event_id': id, 'field_name': f, 'corrected_value': v}, on_conflict='event_id,field_name')` で既存ロック値を上書きできる（DELETE 不要）。
 
 ## Registration
 - After creating a new scraper file, always add it to `SCRAPERS = [...]` in `scraper/main.py`.
