@@ -85,7 +85,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
     .not("published_at", "is", null)
     .lte("published_at", now)
     .order("published_at", { ascending: false })
-    .limit(4);
+    .limit(6);
 
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
 
@@ -169,11 +169,11 @@ export default async function HomePage({ params, searchParams }: PageProps) {
       {/* Featured announcements strip */}
       {featuredAnnouncements && featuredAnnouncements.length > 0 && (
         <section className="mt-6 mb-8 space-y-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-baseline gap-3">
             <h2 className="font-display font-bold text-[#3A261F] dark:text-fg text-xl">
               📌 {tAnn("featuredStrip")}
             </h2>
-            {featuredAnnouncements.length > 3 && (
+            {featuredAnnouncements.length > 5 && (
               <Link
                 href={`/${locale}/announcements`}
                 className="text-xs text-mascot-pink-deep hover:underline shrink-0"
@@ -183,7 +183,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
             )}
           </div>
           <div className="flex gap-3 overflow-x-auto pb-1">
-            {featuredAnnouncements.slice(0, 3).map((ann) => (
+            {featuredAnnouncements.slice(0, 5).map((ann) => (
               <AnnouncementCard key={ann.id} announcement={ann} locale={locale} />
             ))}
           </div>
