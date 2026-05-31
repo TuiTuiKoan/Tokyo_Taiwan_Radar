@@ -706,20 +706,30 @@ NAME WRITING RULES — CRITICAL:
    "補助金額：30万円") is the GRANT AMOUNT given to applicants — NOT a participation fee.
    These events are always is_paid=false. Never set is_paid=true based on grant/subsidy amounts.
 
+DESCRIPTION CONTENT RULE — TAIWAN PARTICIPANTS:
+If the event features named Taiwanese creators, artists, speakers, performers, or collaborating brands as central participants, their names MUST appear in description_ja, description_zh, and description_en. Do NOT omit named Taiwanese participants from the description by using vague phrases like "台湾クリエイターとのコラボ" without naming them. If the names appear in the raw text, list them explicitly in descriptions. Example: "参加台湾クリエイター：X、Y、Z" in description_ja; "參與的台灣創作者：X、Y、Z" in description_zh; "Taiwan creators: X, Y, Z" in description_en.
+
 PERFORMER EXTRACTION RULES:
+
+ROLE KEYWORDS BY EVENT FORM — use these to identify performer candidates:
+- screening / performance / screening_with_talk: 出演者, キャスト, 主演, 演者, ゲスト, 監督 (for directors only if no separate "director" field)
+- lecture / conference / workshop: 講師, 登壇者, 報告者, 発表者, モデレーター, 基調講演者, パネリスト, ゲスト
+- market / exhibition: 出展者, 参加クリエイター, コラボクリエイター, デザイナー, アーティスト, 出展ブランド
+- networking / tasting: ゲスト, 講師, 主催クリエイター
+
 1. performer: a SINGLE real personal name (person, not organization) who is the primary guest performer, speaker, lecturer, or artist of the event.
    - Extract from patterns like: 「料理研究家・田中花子氏を迎え」, 「ゲスト：田中花子」, 「田中花子さんによる」, 「講師：田中花子」, 「田中花子　｜植物民族学研究家」.
    - Return the bare name only — NO honorifics (氏, さん, 先生, 教授, 監督, アーティスト, etc.).
    - If the event has multiple performers (e.g., a festival with 10 artists) or the performer is an organization, return null.
-   - Return null for exhibitions, food markets, and large festivals where no single person is prominently featured.
    - Return null when the named person IS an organizational entity acting as organizer (not a speaker). EXCEPTION: if an individual person is listed with a professional title in the format 「<name>　｜<role>」 (e.g. 「前田知里　｜植物民族学研究家」), they are both the organizer AND the primary speaker — extract their name.
 2. performer must be a person name ≥2 characters. Never return a place name, brand, or phrase.
-3. performers: array of ALL named performers, speakers, or featured artists at this event.
-   - Each entry is a bare personal name (no honorifics, no roles, no organization names).
-   - Include everyone who is a named guest/speaker/artist, even if there are multiple.
+3. performers: array of ALL named performers, speakers, creators, or featured artists at this event.
+   - Each entry is a bare personal name or brand name — no honorifics, no roles.
+   - Include everyone matching the ROLE KEYWORDS for the given event_form, even if there are multiple.
+   - MARKET / EXHIBITION EXCEPTION: For market (マルシェ, 物産展, POP UP) and exhibition events, named Taiwanese creators, collaborating designers, and participating brands ARE the performers. Include all named creators/brands even if there are 2 or more. A brand name (e.g. "N senses", "BALANCE WU") counts as a performers[] entry for market events.
    - ACADEMIC EXCEPTION: For academic conferences (学会大会, 研究大会, シンポジウム, 国際会議, 研究集会, 部会), include ALL named research presenters (発表者, 報告者, 登壇者, 基調講演者) in the performers array — even if there are 5 or more. Each individual's name that appears in the raw text as a presenter should be listed.
-   - Return [] (empty array) if no specific person is named, or for food markets/large festivals.
-   - Examples: ["林廉恩", "一青窈"], ["蘇紫雲"], []
+   - Return [] (empty array) if no specific person or creator is named.
+   - Examples: ["林廉恩", "一青窈"], ["蘇紫雲"], ["N senses", "BALANCE WU", "顧筱茵"]
 
 ORGANIZER EXTRACTION RULES:
 1. organizer: the primary entity hosting the event. Look for fields like 主催, 主辦, presented by, 主催者. Single string, original-language official name (e.g. "台北駐日経済文化代表処 台湾文化センター"). Do NOT include role labels like "主催:" in the value.

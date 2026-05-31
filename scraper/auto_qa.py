@@ -97,6 +97,18 @@ _BOOKING_DOMAINS = frozenset({
     "bookandbeer.com", "peatix.com", "loft-prj.co.jp", "eplus.jp",
     "ticket.pia.jp", "l-tike.com", "teket.jp", "passmarket.yahoo.co.jp",
 })
+
+# Keyword signals that a named performer/creator should exist in the event.
+_PERFORMER_SIGNAL_RE = re.compile(
+    r'クリエイター|出展者|出展ブランド|デザイナー|登壇者?|講師|モデレーター'
+    r'|アーティスト|出演者?|コラボ|参加クリエイター|ゲスト'
+)
+# event_form values that make performers[] meaningful.
+_PERFORMER_SIGNAL_FORMS = frozenset({
+    "market", "exhibition", "lecture", "conference",
+    "performance", "workshop", "networking",
+})
+
 _TAIWAN_ADDR_RE = re.compile(
     r'台北|台中|台南|高雄|台湾|基隆|新竹|桃園|彰化|嘉義|花蓮|宜蘭|台東|台灣'
 )
@@ -117,6 +129,7 @@ QA_TYPES = (
     "auto_qa_missing_date",
     "auto_qa_missing_organizer",
     "auto_qa_missing_price",
+    "auto_qa_missing_performers",
     "auto_qa_thin_content",
     "auto_qa_missing_location_name",
     "auto_qa_missing_category",
@@ -664,6 +677,42 @@ def _detect_missing_price(sb) -> list[dict]:
     return reports
 
 
+def _detect_missing_performers(sb) -> list[dict]:
+    """Flag events where performers[] is empty but role-signal keywords appear
+    in raw_title or raw_description, and event_form is a performer-relevant form.
+    Review-only — no auto-fix."""
+    thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    rows = (
+        sb.table("events")
+        .select("id,source_name,raw_title,raw_description,event_form")
+        .eq("is_active", True)
+        .in_("annotation_status", ["annotated", "reviewed"])
+        .is_("performers", "null")
+        .gte("created_at", thirty_days_ago_iso)
+        .execute()
+        .data
+    )
+    reports = []
+    for row in rows:
+        source_name = row.get("source_name") or ""
+        if source_name in THIN_CONTENT_SOURCES:
+            continue
+        forms = row.get("event_form") or []
+        if not any(f in _PERFORMER_SIGNAL_FORMS for f in forms):
+            continue
+        raw = ((row.get("raw_title") or "") + " " + (row.get("raw_description") or ""))[:2000]
+        if _PERFORMER_SIGNAL_RE.search(raw):
+            reports.append({
+                "event_id": row["id"],
+                "report_type": "auto_qa_missing_performers",
+                "details": (
+                    f"performers[] null but role signal in raw text; "
+                    f"event_form={forms}; source={source_name}"
+                ),
+            })
+    return reports
+
+
 def _detect_thin_content(sb) -> list[dict]:
     """Flag recent active events with thin metadata. Review-only.
 
@@ -834,6 +883,8 @@ def run(dry_run: bool = False) -> dict:
     for item in _detect_missing_organizer(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
     for item in _detect_missing_price(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
+    for item in _detect_missing_performers(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
     for item in _detect_thin_content(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
