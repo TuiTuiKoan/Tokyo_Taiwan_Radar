@@ -6,6 +6,14 @@ export interface GscTopQuery {
   position: number;
 }
 
+export interface GscTopPage {
+  page: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
 export interface GscStats {
   configured: boolean;
   error?: string;
@@ -16,6 +24,7 @@ export interface GscStats {
   avgCtr?: number;
   avgPosition?: number;
   topQueries?: GscTopQuery[];
+  topPages?: GscTopPage[];
 }
 
 interface GscRow {
@@ -130,6 +139,17 @@ export async function fetchGscStats(): Promise<GscStats> {
       position: round(row.position ?? 0, 1),
     }));
 
+    const topPages = pageRows
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 10)
+      .map((row) => ({
+        page: row.keys[0] ?? "",
+        clicks: row.clicks ?? 0,
+        impressions: row.impressions ?? 0,
+        ctr: round((row.ctr ?? 0) * 100, 1),
+        position: round(row.position ?? 0, 1),
+      }));
+
     return {
       configured: true,
       period: { startDate, endDate },
@@ -139,6 +159,7 @@ export async function fetchGscStats(): Promise<GscStats> {
       avgCtr,
       avgPosition,
       topQueries,
+      topPages,
     };
   } catch (error) {
     return {
