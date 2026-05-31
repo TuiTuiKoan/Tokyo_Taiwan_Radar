@@ -48,6 +48,8 @@ _VENUE_ADDRESS = "東京都墨田区菊川3丁目6-13"
 # Taiwan relevance — countries field values to match
 _TAIWAN_COUNTRIES = {"台湾", "台灣"}
 
+_WEEKDAY_SHORT = ["月", "火", "水", "木", "金", "土", "日"]
+
 _WINDOW_DAYS = 90
 _LOOKBACK_DAYS = 14   # scan past N days to catch mid-run movies (Eigaland lags behind website)
 _SLEEP = 0.3  # seconds between API calls
@@ -88,6 +90,23 @@ def _decode_synopsis(b64_html: str) -> str:
     except Exception as exc:
         logger.debug("Stranger: failed to decode synopsis: %s", exc)
         return ""
+
+
+def _format_showtimes(showtimes: dict, today: "date_type") -> "str | None":
+    """Format {date_str: [HH:MM, ...]} into a human-readable schedule string.
+    Only includes today and future dates."""
+    from datetime import date as date_type  # noqa: F811
+    today_str = today.strftime("%Y-%m-%d")
+    future = {d: times for d, times in showtimes.items() if d >= today_str}
+    if not future:
+        return None
+    parts: list[str] = []
+    for date_str in sorted(future.keys()):
+        d = date_type.fromisoformat(date_str)
+        wd = _WEEKDAY_SHORT[d.weekday()]
+        for t in sorted(set(future[date_str])):
+            parts.append(f"{d.month}/{d.day}({wd}) {t}")
+    return "\u3001".join(parts) if parts else None  # "、"
 
 
 def _is_taiwan_relevant(countries: list) -> bool:
@@ -131,6 +150,7 @@ class StrangerScraper(BaseScraper):
                         "min_date": date,
                         "max_date": date,
                         "summary": md,
+                        "showtimes": {},
                     }
                 else:
                     entry = taiwan_movies[movie_id]
@@ -138,6 +158,14 @@ class StrangerScraper(BaseScraper):
                         entry["min_date"] = date
                     if date > entry["max_date"]:
                         entry["max_date"] = date
+
+                # Collect per-day show times (for business_hours field)
+                _entry = taiwan_movies[movie_id]
+                for _house in show.get("houseList", []):
+                    for _sl in _house.get("showList", []):
+                        _st = _sl.get("startTime", "")
+                        if _st and len(_st) >= 16:
+                            _entry["showtimes"].setdefault(_st[:10], []).append(_st[11:16])
 
         logger.info(
             "Stranger: found %d Taiwan movie(s) in %d-day window (-%d..+%d)",
@@ -236,6 +264,11 @@ class StrangerScraper(BaseScraper):
             )
         end_date = entry["max_date"].replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
 
+        # Compute business_hours from collected show times (future dates only)
+        from datetime import date as _date_type
+        _today_jst = datetime.now(tz=_JST).date()
+        business_hours = _format_showtimes(entry.get("showtimes", {}), _today_jst)
+
         # Build raw_description — prepend date marker per scraper conventions
         synopsis_text = _decode_synopsis(synopsis_b64)
         desc_parts: list[str] = [
@@ -266,6 +299,7 @@ class StrangerScraper(BaseScraper):
             raw_description=raw_description,
             start_date=start_date,
             end_date=end_date,
+            business_hours=business_hours,
             category=["movie"],
             location_name=_VENUE_NAME,
             location_address=_VENUE_ADDRESS,
