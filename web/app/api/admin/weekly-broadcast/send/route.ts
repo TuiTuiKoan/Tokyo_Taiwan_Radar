@@ -91,7 +91,7 @@ export async function POST(request: Request) {
     .single();
 
   if (fetchErr || !ann) return NextResponse.json({ error: "Announcement not found" }, { status: 404 });
-  if (ann.published_at) return NextResponse.json({ error: "Already published" }, { status: 409 });
+  if (ann.published_at && !adminOnly) return NextResponse.json({ error: "Already published" }, { status: 409 });
 
   // Admin-only sandbox path
   if (adminOnly) {
