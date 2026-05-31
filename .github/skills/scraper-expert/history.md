@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-05-31 — gguide_tv false positive "仙台湾 (Sendai Bay)" bypassed `_is_taiwan_title` filter
+
+- **Incident**: G-Guide TV 抓到「宮城・仙台湾」電視節目，因標題含「台湾」子字串，誤入庫為台灣活動。`_is_taiwan_title` 過濾函式雖已定義，但在 `scrape()` 主迴圈中從未被呼叫，導致靜默漏洞。
+- **Fix**: 在 `GguideTvScraper.scrape()` 清理標題後，立即呼叫 `if not _is_taiwan_title(title_clean): continue`。
+- **Lesson**: Utility 過濾函式若未在業務主流程中呼叫，等於沉默代碼（dead code）。新增任何過濾函式時，必須同步確認有對應的調用點，否則過濾規則永遠不會生效。
+
+---
+
 ## 2026-05-31 — merger._normalize(): 末尾 【主催者名】 アノテーション strip の順序バグ（commit `e53c106`）
 
 **問題：** `matsumoto_cinema_select` が全タイトルに `【ＮＰＯ松本シネマセレクト】` を末尾付加するため、`iwafu` 同一イベントとの merger Pass 1 類似度が **0.764** に低下、閾値 0.85 を下回り自動マージ失敗。2 ペアが重複として表示された（XiXi dd792b98/e910d7f2・赤い糸 ff15eb1d/e4516272）。

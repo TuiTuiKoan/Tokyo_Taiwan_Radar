@@ -321,6 +321,10 @@ class GguideTvScraper(BaseScraper):
                 if not title_clean or not schedule_raw:
                     continue
 
+                if not _is_taiwan_title(title_clean):
+                    logger.info("gguide_tv: skip false-positive or non-Taiwan title '%s'", title_clean)
+                    continue
+
                 # For テレサ・テン keyword: only keep programs where テレサ・テン
                 # appears as a primary subject (full name in title), not as a minor guest
                 if keyword == "テレサ・テン" and "テレサ・テン" not in title_clean:
