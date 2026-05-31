@@ -438,6 +438,7 @@ def _build_message(
                 lines.append("")
             first_group = False
             lines.append(group_hdr)
+            lines.append("")
             for e in group:
                 title = _title(e)
                 date_str = _format_date(e.get("start_date"))
