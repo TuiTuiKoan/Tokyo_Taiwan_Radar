@@ -132,7 +132,16 @@ _NOTE_THIN_CHARS = 120
 def _is_truncated(text: str) -> bool:
     """Return True if the text is a thin/truncated note.com RSS preview."""
     t = text.strip()
-    return t.endswith("続きをみる") or len(t) < _NOTE_THIN_CHARS
+    # Note.com RSS previews typically end with:
+    # - "続きをみる" (with or without trailing dots)
+    # - "..." or "…"
+    return (
+        t.endswith("続きをみる") or
+        t.endswith("...") or
+        t.endswith("…") or
+        "続きをみる" in t or
+        len(t) < _NOTE_THIN_CHARS
+    )
 
 
 # Signup-platform hosts: when official_url resolves to one of these,
