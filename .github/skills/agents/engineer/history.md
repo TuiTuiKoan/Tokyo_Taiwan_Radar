@@ -1,6 +1,22 @@
 # Engineer Error History
 
 <!-- Append new entries at the top -->
+## 2026-05-31 — feat(annotator): auto-create eiga-verified film works for fixed cinemas (`e5dbbd9`)
+
+**実装内容：**
+- `_get_or_create_film_work()`: `works` テーブルへの atomic get-or-create ヘルパー。一意制約違反（race）は `23505` で捕捉し再クエリ。
+- `_norm_work_key()`: NFKC 正規化 + strip で去重アンカーを統一（全角/半角・スペース差異を吸収）。
+- `enrich_movie_titles()` 拡張: FC locked `name_zh`/`name_en` がある映画イベントは `works` レコードを自動生成し `work_id` を紐付ける。
+- 新 CLI フラグ: `--enrich-dry-run`、`--enrich-source <name>`、`--enrich-limit <N>`
+
+**設計ルール（§4 参照基準）：**
+- **§4-B アンカー**: `original_title` には `name_zh` 優先 → `name_en` フォールバック。`name_ja` や未検証 GPT 値は使わない。
+- **§4-E**: auto-create 時は GPT director を `works.director` に書かない（未検証値汚染防止）。
+- **NFKC**: `_norm_work_key()` を経由しないと全角/半角ゆれで重複 works が生まれる。caller 責務で正規化すること。
+- **dry_run**: `--enrich-dry-run` で DB 書き込みなしの pre-flight 確認が可能。
+
+---
+
 
 ## 2026-05-31 — Phase D+A: auto_qa performer gap detection + annotator SYSTEM_PROMPT event_form branching（commit `67951af`）
 

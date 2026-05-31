@@ -43,6 +43,7 @@ from person_name_lookup import (
     lookup_person_names,
     lookup_single_person,
 )
+from sources._cinema_constants import FIXED_CINEMA_SOURCES
 
 logger = logging.getLogger(__name__)
 
@@ -2296,7 +2297,69 @@ def _resolve_movie_titles_for_event(
     return name_zh, name_en, official_url, works_performer, works_director, works_id, title
 
 
-def enrich_movie_titles() -> None:
+import unicodedata
+
+
+def _norm_work_key(s: str) -> str:
+    """works.original_title 去重錨點：NFKC（全/半形、空白統一）+ strip。
+    caller 必須對 canonical 片名呼叫此函式後再傳入 helper。"""
+    return unicodedata.normalize("NFKC", s).strip()
+
+
+def _get_or_create_film_work(
+    sb: "Client", *, original_title: str, title_ja: str | None,
+    title_zh: str | None, title_en: str | None,
+    official_url: str | None, director: str | None,
+    dry_run: bool = False,
+) -> str | None:
+    """Get existing film work by UNIQUE original_title, else create one.
+    original_title MUST already be normalized via _norm_work_key by the caller.
+    dry_run: keep the read-only pre-query, log would-create/reuse, never insert.
+    Returns work_id, or None on failure / dry-run-would-create (never raises)."""
+    try:
+        r = sb.table("works").select("id").eq("original_title", original_title).limit(1).execute()
+        if r.data:
+            if dry_run:
+                logger.info("  DRY reuse work %s for %r", r.data[0]["id"], original_title)
+            return r.data[0]["id"]
+    except Exception as exc:
+        logger.warning("  ⚠ works pre-query failed for %r: %s", original_title, exc)
+        return None
+    if dry_run:
+        logger.info("  DRY would-create work for %r (zh=%r en=%r)", original_title, title_zh, title_en)
+        return None
+    ins = {
+        "work_type": "film",
+        "original_title": original_title,
+        "title_ja": title_ja, "title_zh": title_zh, "title_en": title_en,
+        "director": director or None,        # §4-E: auto-create 不寫未驗證 GPT director
+        "country": "TW",
+        "external_links": {"eiga": official_url} if official_url else None,
+    }
+    try:
+        res = sb.table("works").insert(ins).execute()
+        return res.data[0]["id"] if res.data else None
+    except Exception as exc:
+        msg = str(exc)
+        # 只有 UNIQUE 違規（race）才 re-query；其餘（CHECK/RLS 等）為真錯誤，明確 log。
+        if "23505" in msg or "duplicate key" in msg or "unique" in msg.lower():
+            try:
+                r2 = sb.table("works").select("id").eq("original_title", original_title).limit(1).execute()
+                if r2.data:
+                    return r2.data[0]["id"]
+            except Exception:
+                pass
+            logger.warning("  ⚠ work unique-race requery empty for %r", original_title)
+        else:
+            logger.error("  ✗ work insert failed (non-unique) for %r: %s", original_title, exc)
+        return None
+
+
+def enrich_movie_titles(
+    dry_run: bool = False,
+    source: str | None = None,
+    limit: int | None = None,
+) -> None:
     """Look up official zh/en movie titles from eiga.com and overwrite all
     AI-translated names.
 
@@ -2313,7 +2376,7 @@ def enrich_movie_titles() -> None:
     """
     sb = _get_supabase()
 
-    res = (
+    res_query = (
         sb.table("events")
         .select(
             "id,name_ja,raw_title,name_zh,name_en,official_url,"
@@ -2324,8 +2387,13 @@ def enrich_movie_titles() -> None:
         .contains("category", ["movie"])
         .neq("annotation_status", "reviewed")
         .neq("source_name", "eiga_com")
-        .execute()
     )
+    if source:
+        res_query = res_query.eq("source_name", source)
+    if limit is not None:
+        res_query = res_query.limit(limit)
+
+    res = res_query.execute()
     events = res.data or []
     logger.info(
         "enrich_movie_titles: %d candidate events (excluding eiga_com + reviewed)",
@@ -2334,11 +2402,11 @@ def enrich_movie_titles() -> None:
 
     patched = 0
     for event in events:
-        source = event.get("source_name", "")
+        source_name = event.get("source_name", "")
 
         # News sub-event guard mirrors the helper but emits a warning
         # for observability (matches pre-refactor behavior).
-        if source in _NEWS_MOVIE_SOURCES and event.get("parent_event_id"):
+        if source_name in _NEWS_MOVIE_SOURCES and event.get("parent_event_id"):
             raw = event.get("raw_title") or ""
             m_raw = _BRACKET_TITLE_RE.search(raw)
             if not m_raw and _BRACKET_TITLE_RE.search(event.get("name_ja") or ""):
@@ -2355,7 +2423,7 @@ def enrich_movie_titles() -> None:
                 sb,
                 event.get("raw_title"),
                 event.get("name_ja"),
-                source,
+                source_name,
                 has_parent=bool(event.get("parent_event_id")),
             )
         )
@@ -2366,7 +2434,7 @@ def enrich_movie_titles() -> None:
         if not name_zh and not name_en:
             logger.warning(
                 "  ⚠ eiga.com lookup returned no titles for movie event %s/%s [%s]",
-                source, event["id"][:8], title[:60],
+                source_name, event["id"][:8], title[:60],
             )
             continue
 
@@ -2395,7 +2463,7 @@ def enrich_movie_titles() -> None:
             if desc_zh:
                 old_refs_zh = (
                     [old_name_zh, title]
-                    if source in _NEWS_MOVIE_SOURCES
+                    if source_name in _NEWS_MOVIE_SOURCES
                     else [old_name_zh]
                 )
                 new_desc_zh = _replace_title_in_desc(desc_zh, old_refs_zh, name_zh)
@@ -2417,7 +2485,7 @@ def enrich_movie_titles() -> None:
                 if isinstance(sr, dict):
                     sr_changed = False
                     if name_zh and sr.get("zh"):
-                        for old_ref in ([old_name_zh, title] if source in _NEWS_MOVIE_SOURCES else [old_name_zh]):
+                        for old_ref in ([old_name_zh, title] if source_name in _NEWS_MOVIE_SOURCES else [old_name_zh]):
                             if old_ref and old_ref != name_zh and old_ref in sr["zh"]:
                                 sr["zh"] = sr["zh"].replace(old_ref, name_zh)
                                 sr_changed = True
@@ -2438,6 +2506,7 @@ def enrich_movie_titles() -> None:
         # from update that conflicts with an existing FC value. The FC table is
         # the source of truth for admin-locked translations; enrich must never
         # overwrite them with a fresh works/eiga.com lookup that disagrees.
+        fc_locked: dict[str, str] = {}
         try:
             fc_res = (
                 sb.table("field_corrections")
@@ -2449,6 +2518,9 @@ def enrich_movie_titles() -> None:
             for fc in (fc_res.data or []):
                 fname = fc.get("field_name")
                 fval = fc.get("corrected_value")
+                if fname and fval:
+                    fc_locked[fname] = fval
+
                 if fname in update and fval and update[fname] != fval:
                     attempted = update[fname]
                     logger.warning(
@@ -2469,7 +2541,14 @@ def enrich_movie_titles() -> None:
                         }
                         if not fc.get("first_override_attempted_at"):
                             _upd["first_override_attempted_at"] = now_iso
-                        sb.table("field_corrections").update(_upd).eq("id", fc["id"]).execute()
+                        
+                        if not dry_run:
+                            sb.table("field_corrections").update(_upd).eq("id", fc["id"]).execute()
+                        else:
+                            logger.info(
+                                "  DRY FC guard: would-update override count on fc %s (event %s, field %s) to %d",
+                                fc["id"][:8], event["id"][:8], fname, _upd["override_attempt_count"],
+                            )
                     except Exception as upd_exc:
                         logger.debug(
                             "  field_corrections override-log skipped for %s/%s: %s",
@@ -2481,20 +2560,52 @@ def enrich_movie_titles() -> None:
                 event["id"][:8], fc_exc,
             )
 
+        # ── auto-create（FC guard 之後）────────────────────────────────
+        if (
+            works_id is None
+            and official_url                      # eiga.com 驗證成功（跨語言確認）
+            and source_name in FIXED_CINEMA_SOURCES    # 限固定戲院
+            and not event.get("work_id")
+        ):
+            # §4-A + §N1: 只取已驗證來源（FC=admin 驗證、update=本次 eiga 驗證）。
+            # 絕不回退 event.get("name_zh")（可能是未驗證 GPT 音譯）→ 否則污染去重錨點。
+            final_zh = fc_locked.get("name_zh") or update.get("name_zh")
+            final_en = fc_locked.get("name_en") or update.get("name_en")
+            # §4-B: 單一錨點——恆取 zh，無 zh 才退 en；不以 name_ja / 舊 GPT 值當錨點
+            canonical = final_zh or final_en
+            if canonical:
+                new_wid = _get_or_create_film_work(
+                    sb,
+                    original_title=_norm_work_key(canonical),
+                    title_ja=title,
+                    title_zh=final_zh,            # 可能 None（僅 en 驗證）→ 不塞 GPT 值
+                    title_en=final_en,
+                    official_url=official_url,
+                    director=None,                # §4-E
+                    dry_run=dry_run,              # §N3
+                )
+                if new_wid:
+                    update["work_id"] = new_wid
+
         if not update:
             continue
 
-        sb.table("events").update(update).eq("id", event["id"]).execute()
-        _lock_fields_via_corrections(sb, event["id"], {k: v for k, v in update.items() if k != "work_id"})
+        if not dry_run:
+            sb.table("events").update(update).eq("id", event["id"]).execute()
+            _lock_fields_via_corrections(sb, event["id"], {k: v for k, v in update.items() if k != "work_id"})
+        else:
+            logger.info("  DRY would-update event %s: %s", event["id"][:8], list(update.keys()))
+
         patched += 1
         logger.info(
-            "  ✓ %s/%s [%s] → zh=%r en=%r desc_zh=%s desc_en=%s sr=%s",
-            source, event["id"][:8], title[:40], name_zh, name_en,
+            "  %s %s/%s [%s] → zh=%r en=%r desc_zh=%s desc_en=%s sr=%s",
+            "[DRY]" if dry_run else "✓",
+            source_name, event["id"][:8], title[:40], name_zh, name_en,
             "description_zh" in update, "description_en" in update,
             "selection_reason" in update,
         )
 
-    logger.info("enrich_movie_titles: patched %d/%d events", patched, len(events))
+    logger.info("enrich_movie_titles: enriched %d/%d events", patched, len(events))
 
 
 _PERSON_FIX_PROMPT = """你是翻譯校對專家。以下中文描述中的人名可能是從日文片假名音譯而來的錯誤翻譯。
@@ -3605,6 +3716,9 @@ if __name__ == "__main__":
             "  --fix-translations      Fix only zh/en translation fields\n"
             "  --fix-reviewed          Re-translate reviewed events without resetting status\n"
             "  --enrich-movie-titles   Look up movie titles via eiga.com\n"
+            "  --enrich-dry-run        Pre-flight dry-run for movie enrichment\n"
+            "  --enrich-source <name>  Scope movie enrichment to a single source_name\n"
+            "  --enrich-limit <N>      Limit number of events processed in movie enrichment\n"
             "  --enrich-person-names   Look up person names for all events\n"
             "  --backfill-tier1        Reset annotated events lacking Tier 1 fields back to pending and re-annotate\n"
             "  --propagate-source-organizer  Propagate organizer from plurality value per source_name to events with organizer=null (safe for reviewed events)\n"
@@ -3620,6 +3734,10 @@ if __name__ == "__main__":
     fix_tr = "--fix-translations" in sys.argv
     fix_rev = "--fix-reviewed" in sys.argv
     enrich_movies = "--enrich-movie-titles" in sys.argv
+    enrich_dry_run_flag = "--enrich-dry-run" in sys.argv
+    enrich_source_arg = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--enrich-source"), None)
+    enrich_limit_arg_str = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--enrich-limit"), None)
+    enrich_limit_arg = int(enrich_limit_arg_str) if enrich_limit_arg_str else None
     enrich_people = "--enrich-person-names" in sys.argv
     backfill_tier1 = "--backfill-tier1" in sys.argv
     propagate_org = "--propagate-source-organizer" in sys.argv
@@ -3653,7 +3771,11 @@ if __name__ == "__main__":
     elif backfill_rp:
         backfill_report_prefix(dry_run=dry_run_flag)
     elif enrich_movies:
-        enrich_movie_titles()
+        enrich_movie_titles(
+            dry_run=dry_run_flag or enrich_dry_run_flag,
+            source=enrich_source_arg,
+            limit=enrich_limit_arg,
+        )
     elif enrich_people:
         enrich_person_names(
             event_ids=event_ids_list,
