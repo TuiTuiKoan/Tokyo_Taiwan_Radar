@@ -195,6 +195,20 @@ SEED_DATA: list[dict[str, Any]] = [
         "is_authoritative": True,
         "is_multi_venue": False,
     },
+    {
+        "canonical_name_ja": "ミッドランドシネマ 名古屋空港",
+        "canonical_name_zh": "中部名古屋機場米德蘭影城",
+        "canonical_name_en": "Midland Cinema Nagoya Airport",
+        "address": "愛知県西春日井郡豊山町豊場南長廻間1 エアポートウォーク名古屋2F",
+        "prefecture": "愛知県",
+        "prefectures": ["愛知県"],
+        "city": "西春日井郡豊山町",
+        "aliases": ["ミッドランドシネマ名古屋空港", "ミッドランドシネマ 名古屋空港"],
+        "homepage": "https://www.midland-cinema.jp/",
+        "is_authoritative": True,
+        "is_multi_venue": False,
+        "business_hours": "劇場オープン時間等、日によって異なります",
+    },
 ]
 
 _AUTHORITY_COLUMNS = (

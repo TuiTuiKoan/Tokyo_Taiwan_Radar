@@ -93,6 +93,7 @@
     "source": "出典",
     "location": "会場・チャンネル",
     "hours": "営業時間",
+    "referToOriginalSource": "公式情報を参照してください",
     "startDate": "開始",
     "endDate": "終了",
     "free": "無料",

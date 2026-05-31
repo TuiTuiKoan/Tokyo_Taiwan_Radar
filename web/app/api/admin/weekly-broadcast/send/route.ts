@@ -22,35 +22,62 @@ function getServiceSupabase() {
 
 const LINE_MULTICAST_URL = "https://api.line.me/v2/bot/message/multicast";
 
-async function lineMulticast(userIds: string[], message: string, token: string): Promise<boolean> {
+interface MulticastResult {
+  ok: boolean;
+  status?: number;
+  error?: any;
+}
+
+async function lineMulticast(
+  userIds: string[],
+  messages: string | string[],
+  token: string
+): Promise<MulticastResult> {
+  const msgsArray = Array.isArray(messages) ? messages : [messages];
+  const lineMessages = msgsArray.map(m => ({ type: "text", text: m }));
+
   for (let i = 0; i < userIds.length; i += 500) {
     const batch = userIds.slice(i, i + 500);
-    const res = await fetch(LINE_MULTICAST_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ to: batch, messages: [{ type: "text", text: message }] }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error("LINE multicast error", res.status, err);
-      return false;
+    try {
+      const res = await fetch(LINE_MULTICAST_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ to: batch, messages: lineMessages }),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("LINE multicast error", res.status, err);
+        return {
+          ok: false,
+          status: res.status,
+          error: err,
+        };
+      }
+    } catch (error: any) {
+      console.error("LINE multicast fetch error", error);
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   }
-  return true;
+  return { ok: true };
 }
 
 // POST /api/admin/weekly-broadcast/send
-// Body: { id: string }
+// Body: { id: string, adminOnly?: boolean }
 export async function POST(request: Request) {
   const { supabase, error: authError } = await requireAdmin();
   if (authError) return authError;
   const serviceSupabase = getServiceSupabase();
 
   const body = await request.json();
-  const { id } = body;
+  const { id, adminOnly = false } = body;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? process.env.LINE_CHANNEL_TOKEN;
@@ -65,6 +92,43 @@ export async function POST(request: Request) {
 
   if (fetchErr || !ann) return NextResponse.json({ error: "Announcement not found" }, { status: 404 });
   if (ann.published_at) return NextResponse.json({ error: "Already published" }, { status: 409 });
+
+  // Admin-only sandbox path
+  if (adminOnly) {
+    const rawIds = process.env.ADMIN_LINE_USER_IDS || "";
+    const adminIds = rawIds.split(",").map(uid => uid.trim()).filter(Boolean);
+    if (adminIds.length === 0) {
+      return NextResponse.json({ error: "ADMIN_LINE_USER_IDS not configured" }, { status: 400 });
+    }
+
+    const testMessages: string[] = [];
+    if (ann.body_zh) testMessages.push(ann.body_zh);
+    if (ann.body_ja) testMessages.push(ann.body_ja);
+    if (ann.body_en) testMessages.push(ann.body_en);
+
+    if (testMessages.length === 0) {
+      return NextResponse.json({ error: "No content available in weekly broadcast" }, { status: 400 });
+    }
+
+    const multicastRes = await lineMulticast(adminIds, testMessages, token);
+    if (!multicastRes.ok) {
+      return NextResponse.json(
+        {
+          error: `LINE multicast failed for admin-only: ${multicastRes.error ? JSON.stringify(multicastRes.error) : "Unknown error"}`,
+          status: multicastRes.status,
+          mode: "admin_only"
+        },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json({
+      mode: "admin_only",
+      status: "success",
+      sent_to: adminIds.length,
+      admin_count: adminIds.length,
+    });
+  }
 
   // Fetch subscribers by language
   const { data: subs, error: subsError } = await serviceSupabase
@@ -86,17 +150,21 @@ export async function POST(request: Request) {
   }
 
   let sentTotal = 0;
-  const failedLangs: string[] = [];
+  const failedLangs: Array<{ lang: string; error?: any; status?: number }> = [];
   for (const lang of ["zh", "ja", "en"] as const) {
     const userIds = byLang[lang];
     if (!userIds.length) continue;
     const msg = (ann[`body_${lang}` as keyof typeof ann] as string | null) ?? ann.body_zh;
     if (!msg) continue;
-    const ok = await lineMulticast(userIds, msg, token);
-    if (ok) {
+    const multicastRes = await lineMulticast(userIds, msg, token);
+    if (multicastRes.ok) {
       sentTotal += userIds.length;
     } else {
-      failedLangs.push(lang);
+      failedLangs.push({
+        lang,
+        status: multicastRes.status,
+        error: multicastRes.error,
+      });
     }
   }
 
@@ -104,7 +172,8 @@ export async function POST(request: Request) {
   if (failedLangs.length > 0) {
     return NextResponse.json(
       {
-        error: `LINE multicast failed for languages: ${failedLangs.join(", ")}`,
+        error: `LINE multicast failed for languages: ${failedLangs.map(f => f.lang).join(", ")}`,
+        failed_languages: failedLangs,
         sent_to: sentTotal,
         subscriber_count: {
           zh: byLang.zh.length,
@@ -140,12 +209,13 @@ export async function POST(request: Request) {
   }).eq("id", id);
 
   return NextResponse.json({
+    mode: "broadcast",
     sent_to: sentTotal,
     subscriber_count: {
       zh: byLang.zh.length,
       ja: byLang.ja.length,
       en: byLang.en.length,
-      total: byLang.zh.length + byLang.ja.length + byLang.en.length,
+      total: totalSubscribers,
     },
   });
 }

@@ -47,6 +47,15 @@ Do **not** invent new category strings. All values must exist in this list.
 
 When a single TCC page lists multiple independent programme items (e.g. different screening days), create one child `Event` per item and set `parent_event_id` to the parent's `source_id`.
 
+## Default Fallback & Pricing Policies (預設收費政策 & 時間空白回退)
+
+- **時間空白回退**: 當事件無 `business_hours` (場次/營業時間) 時，前端在 UI 上不應只顯示 `"—"`。
+  - 若 `official_url` 或 `source_url` 存在，前端會顯示 `「請參照原始來源」` 並加上指向該 URL 的超連結。這由 [web/app/[locale]/events/[id]/page.tsx](web/app/%5Blocale%5D/events/%5Bid%5D/page.tsx) 中實作。
+- **電影院類的預設有料 (Cinema Default Pricing Fallback)**:
+  - 針對電影院類別（`event_form` 含有 `screening` 或 `screening_with_talk`，或 `category` 是 `movie`，或 `source_name` 符合電影院來源（如 `cinema`, `cinemart`, `cineswitch`, `eurospace`, `human_trust`, `bungeiza`, `cinemarine`, `morc`））：
+    - 若 `is_paid` 為空，且**非**台灣文化中心（`source_name="taiwan_cultural_center"` 或 organizer 含有台灣文化中心）主辦，預設為 `is_paid = True`（有料）。
+    - 若 `is_paid` 為 `True` 且 `price_info` 為空白，預設為 `price_info = "有料"`，避免前台因沒有票價顯示留空或破圖。
+
 ## selection_reason format
 
 Always a JSON string: `'{"ja":"…","zh":"…","en":"…"}'`

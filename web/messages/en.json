@@ -93,6 +93,7 @@
     "source": "Source",
     "location": "Venue / Channel",
     "hours": "Hours",
+    "referToOriginalSource": "Please refer to the original source",
     "startDate": "Start",
     "endDate": "End",
     "free": "Free",

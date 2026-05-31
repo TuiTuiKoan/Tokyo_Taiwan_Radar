@@ -102,6 +102,16 @@ Read this at the start of every session before writing any scraper.
    - 衝突チェックは **active イベントのみ**（`is_active=True`）を対象にする。inactive gnews イベントの住所は不完全なことが多く、seed を誤ブロックする原因になる。
    - SKIP が出た場合は event_id sample を確認し、住所が本当に異なるか（別場所）または単なるフォーマット差異かを判別すること。
 
+## Default Fallback & Pricing Policies (系統預設回退與收費政策)
+
+1. **時間空白回退 (Empty Business Hours Fallback)**:
+   當事件無 `business_hours` (場次/營業時間) 時，前端在 UI 上不應只顯示 `"—"`。
+   - 若 `official_url` 或 `source_url` 存在，前端會顯示 `「請參照原始來源」` 并加上指向該 URL 的超連結。這由 `web/app/[locale]/events/[id]/page.tsx` 中實作。
+2. **電影院類的預設有料 (Cinema Default Pricing Fallback)**:
+   在 `annotator.py` AI enrichment 過程中，針對電影院類別（`event_form` 含有 `screening` 或 `screening_with_talk`，或 `category` 是 `movie`，或 `source_name` 符合電影院來源（如 `cinema`, `cinemart`, `cineswitch`, `eurospace`, `human_trust`, `bungeiza`, `cinemarine`, `morc`））：
+   - 若 `is_paid` 為空，且**非**台灣文化中心（`source_name="taiwan_cultural_center"` 或 organizer 含有台灣文化中心）主辦，預設為 `is_paid = True`（有料）。
+   - 若 `is_paid` 為 `True` 且 `price_info` 為空白，預設為 `price_info = "有料"`，避免前台因沒有票價顯示留空或破圖。
+
 ## ⚡ Combined Post-Build Audit — 新規 scraper 完成後に必ず実行
 
 **新しい scraper ファイルを作成・編集するたびに、task_complete 前に必ずこのコマンドを実行し、両方 ALL CLEAR を確認すること。**

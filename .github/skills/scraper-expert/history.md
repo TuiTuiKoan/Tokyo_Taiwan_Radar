@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-06-03 — 預設收費政策 & 時間空白回退規則實作 (Cinema Default Pricing & Empty Business Hours Fallback)
+
+**問題：**
+- Midland Cinema Nagoya Airport 等電影院來源，由於動態架構原因其時間及收費資訊無法直接靜態爬取，在入庫時因資訊留空會造成前端顯示 `"—"`。
+- Amayaza 等電影院也存在部分票價或營業時間落空的現象。
+
+**修正與對策：**
+1. **空白時間超連結回退 (Empty Business Hours Fallback)**：
+   在前端 [web/app/[locale]/events/[id]/page.tsx](web/app/[locale]/events/[id]/page.tsx) 進行時間顯示修補。若活動 `business_hours` 為空且 `official_url` 或 `source_url` 存在，會渲染超連結且各語言顯示為 `「請參照原始來源」`（ja: `"公式情報を参照してください"`, en: `"Please refer to the original source"`），引導使用者前往原始排程頁面。
+2. **電影院類的預設有料 (Cinema Default Pricing Fallback)**：
+   在 `scraper/annotator.py` 的 AI annotation 流程中自動寫入。若為電影院類別（包含「影展」、分類為 `movie`、或來源在 `cinema` 等電影院清單內），且排除免費上映為常態的「台灣文化中心」後：
+   - 當 `is_paid` 為空時，自動設為 `is_paid = True`（有料）。
+   - 當 `is_paid` 為 `True` 但價格說明欄位為空時，自動補上 `"有料"`，避免前台破圖。
+3. **場館基本資料種入 (Ground Truth seeding)**：
+   將「ミッドランドシネマ 名古屋空港」基本資料及首頁與 business_hours 註冊至 `scraper/_oneoff_seed_authoritative_venues.py` 中並進行庫內資料種入，確保關聯對齊。
+
+**教訓：**
+- 企業網站架構經常將核心排程與價目表拆分到獨立外鏈，靜態爬蟲宜使用 "showtime window" 來標誌起迄，再由前端配合 hyperlinked fallbacks 與全域 default 進行優雅降級，可降低對動態爬蟲的依維度與頻寬損耗。
+
+---
+
 ## 2026-06-01 — TCC sub-event: タイムゾーンバグ / location_name_zh 機械翻訳 / google_news_rss 誤配監督名 / 11b4e1d2 work_id 未紐付け
 
 **問題：** 4 件の問題が同時発生:

@@ -89,6 +89,11 @@ Canonical list defined in `web/lib/types.ts` as `Category` type and `CATEGORIES`
 - `selection_reason`: stored as JSON string `{"ja":"…","zh":"…","en":"…"}`
 - Sub-events set `parent_event_id`; the homepage filters them out with `.is("parent_event_id", null)`
 - Test without DB writes: `python main.py --dry-run [--source NAME]`
+- **Default Fallbacks (預設回退政策)**:
+  - 當 `business_hours` 為空時的前端回退：如果 `official_url` 或 `source_url` 存在，前端各語言會顯示 `「請參照原始來源」` 並附上超連結。
+  - 電影院類別（`event_form` 含有 `screening` 或 `screening_with_talk`，或 `category` 是 `movie`，或 `source_name` 符合電影院來源（如 `cinema`, `cinemart`, `cineswitch`, `eurospace`, `human_trust`, `bungeiza`, `cinemarine`, `morc`））：
+    - 若 `is_paid` 為空，且**非**台灣文化中心（`source_name="taiwan_cultural_center"` 或 organizer 含有台灣文化中心）主辦，設定其在 `annotator.py` 自帶 `is_paid = True`（有料）預設。
+    - 若 `is_paid` 為 `True` 且 `price_info` 為空白，預設寫入 `price_info = "有料"`。
 
 ## Database conventions
 

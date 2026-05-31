@@ -867,7 +867,22 @@ export default async function EventDetailPage({ params }: PageProps) {
             {/* Business hours */}
             <tr>
               <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("hours")}</td>
-              <td className="px-4 py-3 whitespace-pre-wrap">{businessHours || "—"}</td>
+              <td className="px-4 py-3 whitespace-pre-wrap">
+                {businessHours ? (
+                  businessHours
+                ) : ((event as Event).official_url || event.source_url) ? (
+                  <a
+                    href={(event as Event).official_url || event.source_url || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-amber-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    {t("referToOriginalSource")} ↗
+                  </a>
+                ) : (
+                  "—"
+                )}
+              </td>
             </tr>
             {/* Price */}
             <tr>
