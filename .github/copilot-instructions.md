@@ -58,6 +58,17 @@ web/
 > Read `node_modules/next/dist/docs/` before writing any web code.
 > Heed all deprecation notices in the output.
 
+## Mascot — Lianbu (蓮霧 / 小霧 / レンブ)
+
+| Language | Name | Notes |
+|----------|------|---------|
+| English | **Lianbu** | Always use this romanization — never "Renbu" or "Lianwu" |
+| Traditional Chinese | **蓮霧** or **小霧** | 蓮霧 (wax apple) is the full name; 小霧 is the affectionate short form used in UI |
+| Japanese | **レンブ** or **レンブちゃん** | Katakana transliteration; add ちゃん for warmth |
+
+> **Rule**: Whenever the mascot name appears in code, comments, UI strings, docs, or agent instructions,
+> use the correct language-specific form above. The English form is always **Lianbu** — never Renbu.
+
 ## Categories
 
 Canonical list defined in `web/lib/types.ts` as `Category` type and `CATEGORIES` array:
