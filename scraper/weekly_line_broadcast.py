@@ -294,19 +294,20 @@ _TAIWAN_LABEL: dict[str, str] = {"zh": "台灣", "ja": "台湾", "en": "Taiwan"}
 # with the [電視節目]/[TV Program]/[テレビ番組] city-slot label
 _TV_NAME_PREFIXES: dict[str, str] = {"zh": "【電視節目】", "en": "【TV Program】", "ja": "【テレビ番組】"}
 
-# Sub-section headers for 活動/電影/線上/電視 grouping (used in nearterm section and listing output)
-_TYPE_GROUP_HDRS: dict[str, tuple[str, str, str, str]] = {
-    "zh": ("【活動】", "【電影】", "【線上活動】", "【電視節目】"),
-    "ja": ("【活動】", "【映画】", "【オンライン】", "【テレビ番組】"),
-    "en": ("【Events】", "【Films】", "【Online】", "【TV Programs】"),
+# Sub-section headers for 活動/電影/新書出版/線上/電視 grouping (used in nearterm section and listing output)
+_TYPE_GROUP_HDRS: dict[str, tuple[str, str, str, str, str]] = {
+    "zh": ("【活動】", "【電影】", "【新書出版】", "【線上活動】", "【電視節目】"),
+    "ja": ("【活動】", "【映画】", "【新刊書籍】", "【オンライン】", "【テレビ番組】"),
+    "en": ("【Events】", "【Films】", "【New Books】", "【Online】", "【TV Programs】"),
 }
 
 
-def _group_by_type(events: list[dict]) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
-    """Split events into (regular, film, online, tv) groups, preserving order within each group."""
+def _group_by_type(events: list[dict]) -> tuple[list[dict], list[dict], list[dict], list[dict], list[dict]]:
+    """Split events into (regular, film, books, online, tv) groups, preserving order within each group."""
     tv: list[dict] = []
     online: list[dict] = []
     film: list[dict] = []
+    books: list[dict] = []
     regular: list[dict] = []
     for e in events:
         if e.get("source_name") == "gguide_tv":
@@ -315,9 +316,11 @@ def _group_by_type(events: list[dict]) -> tuple[list[dict], list[dict], list[dic
             online.append(e)
         elif "movie" in (e.get("category") or []):
             film.append(e)
+        elif "books_media" in (e.get("category") or []):
+            books.append(e)
         else:
             regular.append(e)
-    return regular, film, online, tv
+    return regular, film, books, online, tv
 
 
 def _city_label(event: dict, lang: str) -> str:
@@ -385,9 +388,9 @@ def _build_message(
 
     date_label = today.strftime("%Y/%m/%d")
     headers = {
-        "zh": (f"🗓 東京台灣雷達「一週偵測」 {date_label}", "【近期活動】", "【下個月不可錯過】"),
-        "ja": (f"🗓 東京台湾レーダー「今週のスキャン」 {date_label}", "【近日開催】", "【来月の注目】"),
-        "en": (f'🗓 Tokyo Taiwan Radar "Weekly Scan" {date_label}', "【Upcoming Events】", "【Don't Miss Next Month】"),
+        "zh": (f"🗓 東京台灣雷達「一週偵測」 {date_label}", "【小霧精選】", "【下個月不可錯過】"),
+        "ja": (f"🗓 東京台湾レーダー「今週のスキャン」 {date_label}", "【レンブちゃんピック】", "【来月の注目】"),
+        "en": (f'🗓 Tokyo Taiwan Radar "Weekly Scan" {date_label}', "【Renbu's Picks】", "【Don't Miss Next Month】"),
     }
     h_title, h_week, h_month = headers[lang]
 
@@ -425,9 +428,9 @@ def _build_message(
 
     if nearterm_events:
         lines.extend(["", nearterm_hdrs[lang]])
-        h_ev, h_film, h_on, h_tv = _TYPE_GROUP_HDRS[lang]
-        regular, film_evts, online_evts, tv_evts = _group_by_type(nearterm_events)
-        for group_hdr, group in [(h_ev, regular), (h_film, film_evts), (h_on, online_evts), (h_tv, tv_evts)]:
+        h_ev, h_film, h_book, h_on, h_tv = _TYPE_GROUP_HDRS[lang]
+        regular, film_evts, book_evts, online_evts, tv_evts = _group_by_type(nearterm_events)
+        for group_hdr, group in [(h_ev, regular), (h_film, film_evts), (h_book, book_evts), (h_on, online_evts), (h_tv, tv_evts)]:
             if not group:
                 continue
             lines.append(group_hdr)
