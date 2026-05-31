@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-05-31 — merger._normalize(): 末尾 【主催者名】 アノテーション strip の順序バグ（commit `e53c106`）
+
+**問題：** `matsumoto_cinema_select` が全タイトルに `【ＮＰＯ松本シネマセレクト】` を末尾付加するため、`iwafu` 同一イベントとの merger Pass 1 類似度が **0.764** に低下、閾値 0.85 を下回り自動マージ失敗。2 ペアが重複として表示された（XiXi dd792b98/e910d7f2・赤い糸 ff15eb1d/e4516272）。
+
+**根本原因：** `_normalize()` の wrapping bracket strip `re.sub(r"[」』》\"')）\]】]+$", ...)` が末尾の `】` を先に消費。その後に `【[^】]*】\s*$` パターンを適用してもマッチ対象が消えているため、`【ＮＰＯ松本シネマセレクト` が残留したまま類似度が低下。
+
+**修正（commit `e53c106`）：** `re.sub(r"【[^】]*】\s*$", "", name)` を wrapping bracket strip の**前**に実行する順序に変更。4 ケーススポットチェック全 PASS（bracket-annotation 1.000 新規追加）。
+
+**データ修正：**
+- Pair-A (dd792b98/e910d7f2): iwafu を deactivate、matsumoto を primary に。`work_id=651ae313`（XiXi，請讓我跳舞）・`location_prefectures=['長野県']`・`name_zh='電影《XiXi，請讓我跳舞》松本電影選擇放映會'` を FC ロック付きで設定。iwafu の `organizer='ワールドリカーインポーターズ株式会社'`（ハルシネーション）は deactivate で無効化。
+- Pair-B (ff15eb1d/e4516272): 前セッションで手動マージ済み・work_id=fd225042（赤い糸）設定済み。
+
+**教訓：**
+- `_normalize()` で strip パターンを追加する際は**実行順序が重要**。末尾 `】` を消費するパターンが先に走ると `【...】` 全体マッチが永遠に失敗する。
+- `_normalize()` 変更後は必ず 4 ケーススポットチェックを実行（year-suffix / dash+quote / false-positive / bracket-annotation）。
+- `matsumoto_cinema_select` は全タイトルに `【ＮＰＯ松本シネマセレクト】` を末尾付加。他の teket.jp グループ来源も同パターンの可能性がある。
+
+---
+
 ## 2026-05-31 — `a4442567` `business_hours` 二次訂正：推測値を公式サイト確認値に上書き
 
 **問題：** 同日（前エントリ）で `business_hours` を `"11:00〜22:30"` に FC 修正したが、これは公式確認なしの推測値だった。ルミネエスト新宿公式サイト（`lumine.ne.jp/est/`）を取得すると、実際は **ショッピング: 平日 11:00〜21:00 / 土日祝 10:30〜21:00**（22:30 は存在しない）。

@@ -2067,6 +2067,38 @@ cd scraper && python merger.py             # apply
 ```
 Run after discovering a new cross-source duplicate that the merger missed. Then check `--dry-run` to confirm the pair is detected before applying.
 
+### _normalize() — Strip Ordering and Guard Spot-Check
+
+When modifying `_normalize()` in `merger.py`, the **execution order** of strip steps matters:
+
+1. Trademark symbols (`™` `®`)
+2. CJK full-width dashes → ASCII (`―`/`—` → `-`)
+3. **Trailing `【主催者名】` annotation** — `re.sub(r"【[^】]*】\s*$", "", name)` ← **MUST run BEFORE wrapping-bracket strip**
+4. Wrapping quotes/brackets at ends — `re.sub(r"^[「『《\"'(（\[【]+", ...)` and `re.sub(r"[」』》\"')）\]】]+$", ...)`
+5. Subtitle suffix (`～...～`)
+6. Year suffix (`（2026）` / `(2026)`)
+7. Whitespace collapse
+
+> **Why order matters**: The wrapping-bracket strip (step 4) consumes the trailing `】`, leaving `【ＮＰＯ...` residue. Once `】` is gone, the `【[^】]*】\s*$` pattern in step 3 never matches.
+
+**Guard spot-check** — run after any `_normalize()` change, all 4 cases must pass:
+
+```python
+from difflib import SequenceMatcher
+from merger import _normalize
+
+def sim(a, b): return SequenceMatcher(None, _normalize(a), _normalize(b)).ratio()
+
+assert sim("劇映画 PLAY!～ライブの神様～（2024年）", "劇映画 PLAY!～ライブの神様～") >= 0.85, "year-suffix"
+assert sim("「台湾、一年の始まり」", "台湾、一年の始まり") >= 0.85, "dash+quote"
+assert sim("ラーメン屋", "台湾カフェ") < 0.85, "false-positive"
+assert sim("XiXi、私を踊る\u3000松本シネマセレクト上映会【ＮＰＯ松本シネマセレクト】",
+           "XiXi、私を踊る\u3000松本シネマセレクト上映会") >= 0.85, "bracket-annotation"
+print("All 4 pass ✅")
+```
+
+**Known source pattern**: `matsumoto_cinema_select` appends `【ＮＰＯ松本シネマセレクト】` to all titles (teket.jp group_id=1841). Other teket.jp group sources may use the same pattern. Two merge failures discovered 2026-05-31: `dd792b98`/`e910d7f2` (XiXi) and `ff15eb1d`/`e4516272` (赤い糸); both manually resolved.
+
 ## Registration
 - After creating a new scraper file, always add it to `SCRAPERS = [...]` in `scraper/main.py`.
 - Test with `python main.py --dry-run --source <source_name>` before any other step.

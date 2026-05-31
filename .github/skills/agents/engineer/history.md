@@ -2,6 +2,26 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-05-31 — Phase D+A: auto_qa performer gap detection + annotator SYSTEM_PROMPT event_form branching（commit `67951af`）
+
+**実装：**
+- `auto_qa.py` Phase D: `_detect_missing_performers()` 偵測器新增。`_PERFORMER_SIGNAL_RE`（クリエイター/出演者/登壇者等）と `_PERFORMER_SIGNAL_FORMS` frozenset（market/exhibition/lecture 等）の OR 条件で performer が null のイベントを検出。`QA_TYPES` タプルと `run()` に `"auto_qa_missing_performers"` を追加。
+- `annotator.py` Phase A: SYSTEM_PROMPT PERFORMER EXTRACTION RULES に `ROLE KEYWORDS BY EVENT FORM` ブロックを追加（market/exhibition は named brands を `performers[]` エントリとする `MARKET / EXHIBITION EXCEPTION` 付き）。rule 1 から旧 food market null ルールを削除。`DESCRIPTION CONTENT RULE — TAIWAN PARTICIPANTS` 段落を追加。
+
+**教訓：** `_PERFORMER_SIGNAL_FORMS` は frozenset にする（`in` 演算が list より O(1)）。performer gap 検出は「シグナルキーワード OR シグナルフォーム」の OR 条件が適切（AND にすると検出漏れが増える）。
+
+---
+
+## 2026-05-31 — merger._normalize() 末尾 【...】 strip（commit `e53c106`）
+
+**問題：** `matsumoto_cinema_select` の `【ＮＰＯ松本シネマセレクト】` 末尾アノテーションが merger Pass 1 類似度を 0.764 に低下させ、2 ペアの重複イベントが発生（XiXi・赤い糸）。
+
+**修正：** `_normalize()` に `re.sub(r"【[^】]*】\s*$", "", name)` を追加。wrapping bracket strip（末尾 `】` を消費）より**前**に実行しないとマッチしない。4 ケースガードスポットチェック全 PASS（bracket-annotation 1.000 新規）。
+
+**教訓：** 複数の strip パターンを `_normalize()` に追加するとき、後発パターンが先行パターンの副作用でマッチ不可になる順序依存バグが起きる。追加後は必ずスポットチェックで全 4 ケース通過を確認する。
+
+---
+
 ## 2026-05-31 - annotator Phase B buffer/disk mismatch left runtime on old FC logic
 
 **問題：** `scraper/annotator.py` 在編輯器內容已顯示新版 Phase B，但新 Python process `inspect.getsource()` 仍載入舊版 runtime：`_load_human_field_map()` 還是 `dict[str, set[str]]`，`_resolve_movie_titles_for_event()` 也仍以未剝前綴的 `title` 做 lookup。
