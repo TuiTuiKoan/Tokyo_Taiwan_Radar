@@ -1510,6 +1510,7 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
             </button>
           )}
         </div>
+        </div>
       </div>
 
       {/* Bulk action bar */}
