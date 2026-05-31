@@ -39,7 +39,7 @@ SEED_DATA: list[dict[str, Any]] = [
     },
     {
         "canonical_name_ja": "ユーロライブ",
-        "canonical_name_zh": "Euro Live",
+        "canonical_name_zh": "ユーロライブ",
         "canonical_name_en": "Euro Live",
         "address": "東京都渋谷区円山町1-5 KINOHAUS 2F",
         "prefecture": "東京都",
@@ -52,7 +52,7 @@ SEED_DATA: list[dict[str, Any]] = [
     },
     {
         "canonical_name_ja": "シネ・ヌーヴォ",
-        "canonical_name_zh": "Cine Nouveau",
+        "canonical_name_zh": "シネ・ヌーヴォ",
         "canonical_name_en": "Cine Nouveau",
         "address": "大阪府大阪市西区九条1-20-24",
         "prefecture": "大阪府",
