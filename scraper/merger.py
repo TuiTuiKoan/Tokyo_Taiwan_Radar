@@ -93,6 +93,9 @@ def _normalize(name: str) -> str:
     # em dash (—), horizontal bar (―) and ASCII hyphen-minus all compare as equal.
     # Without this, "台南ランタン祭ー" (walkerplus, ー) ≠ "台南ランタン祭－" (prtimes, －).
     name = re.sub(r"[ー－—―]", "-", name)
+    # Strip trailing 【organizer annotation】 e.g. "上映会【ＮＰＯ松本シネマセレクト】"
+    # MUST run before the wrapping-bracket strip below (which would eat the trailing 】 first).
+    name = re.sub(r"【[^】]*】\s*$", "", name)
     # Strip wrapping quotes/brackets at the very ends so "「台湾祭…－」" ≡ "台湾祭…－".
     name = re.sub(r"^[「『《\"'(（\[【]+", "", name)
     name = re.sub(r"[」』》\"')）\]】]+$", "", name)
