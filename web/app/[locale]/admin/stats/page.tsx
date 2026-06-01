@@ -83,9 +83,9 @@ export default async function AdminStatsPage({ params }: PageProps) {
     // this-month run count
     supabase.from("scraper_runs").select("id", { count: "exact", head: true }).gte("ran_at", startOfMonth),
     // all-time cost/token/events (no limit)
-    supabase.from("scraper_runs").select("cost_usd, events_processed, openai_tokens_in, openai_tokens_out"),
+    supabase.from("scraper_runs").select("cost_usd, events_processed, openai_tokens_in, openai_tokens_out, deepl_chars"),
     // this-month cost/token/events
-    supabase.from("scraper_runs").select("cost_usd, events_processed, openai_tokens_in, openai_tokens_out").gte("ran_at", startOfMonth),
+    supabase.from("scraper_runs").select("cost_usd, events_processed, openai_tokens_in, openai_tokens_out, deepl_chars").gte("ran_at", startOfMonth),
     // last 30 days full rows (for latestBySource / SLA)
     supabase.from("scraper_runs").select("*").gte("ran_at", thirtyDaysAgo).order("ran_at", { ascending: false }),
     // oldest row (for avgMonthly)
@@ -140,26 +140,41 @@ export default async function AdminStatsPage({ params }: PageProps) {
 
   // allTime aggregate (full table, no limit)
   const allTimeCostRows = (allTimeCostRes.data ?? []) as NumericRow[];
+  const allTimeOpenaiCost = sum(allTimeCostRows, "cost_usd");
+  const allTimeDeeplChars = sum(allTimeCostRows, "deepl_chars");
+  const allTimeDeeplCost = (allTimeDeeplChars * 22) / 1000000;
   const allTime = {
     runs: totalRunsCountRes.count ?? 0,
     events: sum(allTimeCostRows, "events_processed"),
     tokensIn: sum(allTimeCostRows, "openai_tokens_in"),
     tokensOut: sum(allTimeCostRows, "openai_tokens_out"),
-    cost: sum(allTimeCostRows, "cost_usd"),
+    openai_cost: allTimeOpenaiCost,
+    deepl_chars: allTimeDeeplChars,
+    deepl_cost: allTimeDeeplCost,
+    cost: allTimeOpenaiCost + allTimeDeeplCost,
   };
 
   // month aggregate
   const monthCostRows = (monthCostRes.data ?? []) as NumericRow[];
+  const monthOpenaiCost = sum(monthCostRows, "cost_usd");
+  const monthDeeplChars = sum(monthCostRows, "deepl_chars");
+  const monthDeeplCost = (monthDeeplChars * 22) / 1000000;
   const month = {
     runs: monthRunsCountRes.count ?? 0,
     events: sum(monthCostRows, "events_processed"),
     tokensIn: sum(monthCostRows, "openai_tokens_in"),
     tokensOut: sum(monthCostRows, "openai_tokens_out"),
-    cost: sum(monthCostRows, "cost_usd"),
+    openai_cost: monthOpenaiCost,
+    deepl_chars: monthDeeplChars,
+    deepl_cost: monthDeeplCost,
+    cost: monthOpenaiCost + monthDeeplCost,
   };
 
   // 30-day cost summary
-  const last30Cost = sum(last30Rows as unknown as NumericRow[], "cost_usd");
+  const last30OpenaiCost = sum(last30Rows as unknown as NumericRow[], "cost_usd");
+  const last30DeeplChars = sum(last30Rows as unknown as NumericRow[], "deepl_chars");
+  const last30DeeplCost = (last30DeeplChars * 22) / 1000000;
+  const last30Cost = last30OpenaiCost + last30DeeplCost;
   const firstRunAt = firstRunRes.data?.[0]?.ran_at as string | undefined;
   const firstRun = firstRunAt ? new Date(firstRunAt) : now;
   const monthsElapsed = Math.max(1, (now.getTime() - firstRun.getTime()) / (1000 * 60 * 60 * 24 * 30));
@@ -346,7 +361,7 @@ export default async function AdminStatsPage({ params }: PageProps) {
                     <th className="text-left py-2 pr-4 font-medium">{t("statsSource")}</th>
                     <th className="text-left py-2 pr-4 font-medium">{t("statsRunAt")}</th>
                     <th className="text-right py-2 pr-4 font-medium">{t("statsEventsProcessed")}</th>
-                    <th className="text-right py-2 pr-4 font-medium">{t("statsCostUsd")}</th>
+                    <th className="text-right py-2 pr-4 font-medium">{t("statsUnifiedCost")}</th>
                     <th className="text-right py-2 pr-4 font-medium">{t("statsSlaHeader")}</th>
                     <th className="text-right py-2 pr-4 font-medium">{t("statsAvgDuration")}</th>
                     <th className="text-right py-2 font-medium">Status</th>
@@ -369,9 +384,17 @@ export default async function AdminStatsPage({ params }: PageProps) {
                             <span className="text-fg-subtle">0</span>
                           ) : r.events_processed}
                         </td>
-                        <td className="py-2 pr-4 text-right font-mono text-xs">
-                          {r.cost_usd > 0 ? fmtUsd(r.cost_usd) : "—"}
-                        </td>
+                        {(() => {
+                          const hasOpenai = (r.cost_usd ?? 0) > 0;
+                          const hasDeepl = (r.deepl_chars ?? 0) > 0;
+                          const runDeeplCost = hasDeepl ? (r.deepl_chars * 22) / 1000000 : 0;
+                          const totalCost = (r.cost_usd ?? 0) + runDeeplCost;
+                          return (
+                            <td className="py-2 pr-4 text-right font-mono text-xs">
+                              {totalCost > 0 ? fmtUsd(totalCost) : "—"}
+                            </td>
+                          );
+                        })()}
                         {(() => {
                           const sla = slaMap[r.source];
                           const rate = sla ? sla.success / sla.total : 1;
@@ -417,18 +440,21 @@ export default async function AdminStatsPage({ params }: PageProps) {
           </div>
 
           {/* Summary cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
             {[
-              { label: t("statsRunsCount"), month: month.runs, all: allTime.runs },
-              { label: t("statsEventsProcessed"), month: fmtNum(month.events), all: fmtNum(allTime.events) },
-              { label: t("statsTokensIn"), month: fmtNum(month.tokensIn), all: fmtNum(allTime.tokensIn) },
-              { label: t("statsTokensOut"), month: fmtNum(month.tokensOut), all: fmtNum(allTime.tokensOut) },
-              { label: t("statsCostUsd"), month: fmtUsd(month.cost), all: fmtUsd(allTime.cost) },
-            ].map(({ label, month: m, all: a }) => (
+              { label: t("statsRunsCount"), month: month.runs, all: allTime.runs, isMono: false },
+              { label: t("statsEventsProcessed"), month: fmtNum(month.events), all: fmtNum(allTime.events), isMono: false },
+              { label: t("statsTokensIn"), month: fmtNum(month.tokensIn), all: fmtNum(allTime.tokensIn), isMono: true },
+              { label: t("statsTokensOut"), month: fmtNum(month.tokensOut), all: fmtNum(allTime.tokensOut), isMono: true },
+              { label: t("statsCostUsd"), month: fmtUsd(month.openai_cost), all: fmtUsd(allTime.openai_cost), isMono: true },
+              { label: t("statsDeeplChars"), month: fmtNum(month.deepl_chars), all: fmtNum(allTime.deepl_chars), isMono: true },
+              { label: t("statsDeeplCost"), month: fmtUsd(month.deepl_cost), all: fmtUsd(allTime.deepl_cost), isMono: true },
+              { label: t("statsUnifiedCost"), month: fmtUsd(month.cost), all: fmtUsd(allTime.cost), isMono: true },
+            ].map(({ label, month: m, all: a, isMono }) => (
               <div key={label} className="bg-surface border border-line rounded-xl px-4 py-3">
                 <p className="text-xs text-fg-subtle mb-1">{label}</p>
-                <p className="text-xl font-bold text-fg-strong">{m}</p>
-                <p className="text-xs text-fg-subtle mt-0.5">{t("statsTotal")}: {a}</p>
+                <p className={`text-xl font-bold text-fg-strong ${isMono ? "font-mono" : ""}`}>{m}</p>
+                <p className={`text-xs text-fg-subtle mt-0.5 ${isMono ? "font-mono" : ""}`}>{t("statsTotal")}: {a}</p>
               </div>
             ))}
           </div>
@@ -447,26 +473,34 @@ export default async function AdminStatsPage({ params }: PageProps) {
                     <th className="text-right py-2 pr-4 font-medium">{t("statsEventsProcessed")}</th>
                     <th className="text-right py-2 pr-4 font-medium">{t("statsTokensIn")}</th>
                     <th className="text-right py-2 pr-4 font-medium">{t("statsTokensOut")}</th>
-                    <th className="text-right py-2 font-medium">{t("statsCostUsd")}</th>
+                    <th className="text-right py-2 pr-4 font-medium">{t("statsDeeplChars")}</th>
+                    <th className="text-right py-2 font-medium">{t("statsUnifiedCost")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {recentRows.map((r) => (
-                    <tr key={r.id} className="border-b border-gray-50 hover:bg-elevated">
-                      <td className="py-2 pr-4 text-fg-muted whitespace-nowrap">{fmtDate(r.ran_at)}</td>
-                      <td className="py-2 pr-4">
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-muted text-fg-muted font-mono">
-                          {r.source}
-                        </span>
-                      </td>
-                      <td className="py-2 pr-4 text-right">{r.events_processed}</td>
-                      <td className="py-2 pr-4 text-right text-fg-muted">{fmtNum(r.openai_tokens_in)}</td>
-                      <td className="py-2 pr-4 text-right text-fg-muted">{fmtNum(r.openai_tokens_out)}</td>
-                      <td className="py-2 text-right font-mono text-xs">
-                        {r.cost_usd > 0 ? fmtUsd(r.cost_usd) : "—"}
-                      </td>
-                    </tr>
-                  ))}
+                  {recentRows.map((r) => {
+                    const runDeeplCost = ((r.deepl_chars ?? 0) * 22) / 1000000;
+                    const totalCost = (r.cost_usd ?? 0) + runDeeplCost;
+                    return (
+                      <tr key={r.id} className="border-b border-gray-50 hover:bg-elevated">
+                        <td className="py-2 pr-4 text-fg-muted whitespace-nowrap">{fmtDate(r.ran_at)}</td>
+                        <td className="py-2 pr-4">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-muted text-fg-muted font-mono">
+                            {r.source}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-4 text-right">{r.events_processed}</td>
+                        <td className="py-2 pr-4 text-right text-fg-muted">{fmtNum(r.openai_tokens_in)}</td>
+                        <td className="py-2 pr-4 text-right text-fg-muted">{fmtNum(r.openai_tokens_out)}</td>
+                        <td className="py-2 pr-4 text-right text-fg-muted">
+                          {r.deepl_chars > 0 ? fmtNum(r.deepl_chars) : "—"}
+                        </td>
+                        <td className="py-2 text-right font-mono text-xs">
+                          {totalCost > 0 ? fmtUsd(totalCost) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

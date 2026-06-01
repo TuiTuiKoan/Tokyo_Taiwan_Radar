@@ -235,7 +235,7 @@ def _fetch_gnews_article_text(gnews_url: str, browser: "Browser") -> str | None:
 VALID_CATEGORIES = [
     "movie", "performing_arts", "senses", "photography", "tea_alcohol", "drama", "documentary",
     "retail", "nature", "tech", "tourism", "lifestyle_food", "books_media",
-    "gender", "parenting", "geopolitics", "art", "lecture", "taiwan_japan",
+    "gender", "parenting", "geopolitics", "human_rights", "art", "lecture", "taiwan_japan",
     "scholarship", "study_abroad", "business", "academic", "competition", "indigenous", "folklore",
     "history", "urban", "workshop", "literature", "tv_program", "radio_program", "exhibition",
     "design_craft", "herbal", "taiwan_mandarin", "healthcare", "market", "report",
@@ -609,7 +609,7 @@ OTHER RULES:
    EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
    EXCEPTION — DO NOT create sub_events when the article is a report/recap. If the raw_title contains レポート, レポ, 報告, 記録, アーカイブ, or recap (case-insensitive), the article is a post-event report and describes a single completed event — return sub_events: [] always. Treat the report as one event and extract its single set of fields (date, performer, etc.) from the body.
    NOTE: For events with exactly two venues across different countries (e.g. Japan + Taiwan), do NOT create sub_events. Use the Japan venue as the single primary location (see MULTI-COUNTRY VENUE RULE above).
-2. Categories must be from this list: movie, performing_arts, senses, photography, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, art, lecture, taiwan_japan, scholarship, study_abroad, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, radio_program, exhibition, design_craft, herbal, taiwan_mandarin, healthcare, report
+2. Categories must be from this list: movie, performing_arts, senses, photography, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, human_rights, art, lecture, taiwan_japan, scholarship, study_abroad, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, radio_program, exhibition, design_craft, herbal, taiwan_mandarin, healthcare, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
    - "business" = business, investment, commerce, startups, corporate events, trade, entrepreneurship
    - "competition" = contests, competitions, awards, championships, public calls for entries (コンテスト, 大会, 選手権, 公募, コンクール)
@@ -625,6 +625,7 @@ OTHER RULES:
    - "books_media" = books, literature, publishing, authors, readings, book launch events, media, journalism. FORMULA: when title contains 著者名+『書名』 (author + book in 『』) OR ブックサロン/刊行記念/出版記念 → ALWAYS add books_media + lecture + academic. Then add geopolitics if political/policy content, history if historical content, taiwan_japan ONLY if explicitly about Japan-Taiwan bilateral topic.
    - "lecture" = talks, presentations, lectures, panels, Q&A sessions. MANDATORY when title/description contains any of: トークイベント, トークショー, 講演会, 講演, 講座, シンポジウム, 勉強会, 例会, 基調講演, 映後座談, セッション, 研究会. Also ALWAYS add lecture when movie + トーク/座談 co-occur.
    - "geopolitics" = Taiwan political history, cross-strait relations, Taiwan identity/sovereignty, Taiwan Strait crisis, Japan-Taiwan national security strategy, government/public policy (移民政策, 給食政策, デジタル政府). Add alongside history or academic for relevant films, books, talks. Trigger keywords: 危機, 海峡, 独立, 民主化, 移民政策, インド太平洋, 日台関係 (security/policy sense), 主権, 国際フォーラム.
+    - "human_rights" = human rights, democracy, civil liberties, judicial justice, transitional justice, political persecution memory, advocacy events. Use for events centered on rights discourse (言論自由, 司法正義, 轉型正義, 人權倡議).
    - "history" = historical events, Taiwan colonial era, war memory. MANDATORY for: films/docs about colonial-era or war-era Taiwan (日本統治, 戦没者, 同化, 傷痕); historical figures (李登輝, 蒋介石); photo exhibitions of historical Taiwan. Keywords: 戦没, 植民地, 統治, 秘録, 同化, 傷痕, 歴史.
    - "taiwan_japan" = Taiwan-Japan BILATERAL relations ONLY. Use for: formal diplomatic/exchange events; Taiwanese diaspora in Japan (台湾系移住民); Taiwan veteran memorials (台湾出身戦没者); academic research on bilateral topics. DO NOT USE for: Taiwan food events, Taiwan concerts/tours, Taiwan children's books, Taiwan tourism promotion seminars, general Taiwan cultural events without explicit bilateral focus.
    - "report" = event reports/recaps (only if the text IS a report about a past event, not an upcoming event)

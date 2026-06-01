@@ -194,6 +194,7 @@ export type Category =
   | "gender"
   | "parenting"
   | "geopolitics"
+  | "human_rights"
   | "art"
   | "lecture"
   | "taiwan_japan"
@@ -235,6 +236,7 @@ export const CATEGORIES: Category[] = [
   "gender",
   "parenting",
   "geopolitics",
+  "human_rights",
   "art",
   "lecture",
   "taiwan_japan",
@@ -300,7 +302,7 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
   },
   {
     labelKey: "group_society",
-    categories: ["tech", "gender", "parenting", "geopolitics", "history", "taiwan_mandarin", "urban", "healthcare"],
+    categories: ["tech", "gender", "parenting", "geopolitics", "human_rights", "history", "taiwan_mandarin", "urban", "healthcare"],
   },
   {
     labelKey: "group_archive",
