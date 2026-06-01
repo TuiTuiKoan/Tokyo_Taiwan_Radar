@@ -9,6 +9,12 @@ function normalizeCountry(raw: string | null): string | null {
   return /^[A-Z]{2}$/.test(normalized) ? normalized : null;
 }
 
+function normalizeRegion(raw: string | null): string | null {
+  if (!raw) return null;
+  const v = raw.trim().toUpperCase().slice(0, 8);
+  return /^[A-Z0-9]{1,8}$/.test(v) ? v : null;
+}
+
 export async function recordEventView(eventId: string, locale: string): Promise<void> {
   try {
     // Dev environment has no x-vercel-ip-country header → pollutes prod with null country
@@ -16,6 +22,7 @@ export async function recordEventView(eventId: string, locale: string): Promise<
 
     const headerList = await headers();
     const country = normalizeCountry(headerList.get("x-vercel-ip-country"));
+    const region = normalizeRegion(headerList.get("x-vercel-ip-country-region"));
     const supabase = await createClient();
 
     // Exclude admin self-views (public visitors have no session → getUser returns null, no extra query)
@@ -31,7 +38,7 @@ export async function recordEventView(eventId: string, locale: string): Promise<
       if (roleRow?.role === "admin") return;
     }
 
-    await supabase.from("event_views").insert({ event_id: eventId, locale, country });
+    await supabase.from("event_views").insert({ event_id: eventId, locale, country, country_region: region });
   } catch {
     // Analytics failures should never surface to the user — swallow silently.
   }

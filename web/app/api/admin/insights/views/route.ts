@@ -50,6 +50,19 @@ const ALL_PREFECTURES = [
   "熊本", "大分", "宮崎", "鹿児島", "沖縄", "高知", "愛媛", "徳島", "香川"
 ];
 
+const JP_REGION_TO_PREFECTURE: Record<string, string> = {
+  "01": "北海道", "02": "青森", "03": "岩手", "04": "宮城", "05": "秋田",
+  "06": "山形", "07": "福島", "08": "茨城", "09": "栃木", "10": "群馬",
+  "11": "埼玉", "12": "千葉", "13": "東京", "14": "神奈川", "15": "新潟",
+  "16": "富山", "17": "石川", "18": "福井", "19": "山梨", "20": "長野",
+  "21": "岐阜", "22": "静岡", "23": "愛知", "24": "三重", "25": "滋賀",
+  "26": "京都", "27": "大阪", "28": "兵庫", "29": "奈良", "30": "和歌山",
+  "31": "鳥取", "32": "島根", "33": "岡山", "34": "広島", "35": "山口",
+  "36": "徳島", "37": "香川", "38": "愛媛", "39": "高知", "40": "福岡",
+  "41": "佐賀", "42": "長崎", "43": "熊本", "44": "大分", "45": "宮崎",
+  "46": "鹿児島", "47": "沖縄",
+};
+
 function normalizeCountryCode(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const normalized = raw.trim().toUpperCase().slice(0, 2);
@@ -127,7 +140,7 @@ export async function GET(req: Request) {
     while (hasMore) {
       const { data: pageData, error: fetchErr } = await supabase
         .from("event_views")
-        .select("viewed_at, country, locale, event_id, events(category, location_name, location_address, location_prefectures)")
+        .select("viewed_at, country, country_region, locale, event_id, events(category, location_name, location_address, location_prefectures)")
         .gte("viewed_at", rangeStart)
         .lte("viewed_at", rangeEnd)
         .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -224,6 +237,21 @@ export async function GET(req: Request) {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
+    // 3b. byVisitorPrefecture (JP only)
+    const visitorPrefMap: Record<string, number> = {};
+    for (const v of filteredViews) {
+      const code = normalizeCountryCode(v.country);
+      if (code !== "JP") continue;
+      if (!v.country_region) continue;
+      const key = String(v.country_region).padStart(2, "0");
+      const pref = JP_REGION_TO_PREFECTURE[key];
+      if (!pref) continue;
+      visitorPrefMap[pref] = (visitorPrefMap[pref] ?? 0) + 1;
+    }
+    const byVisitorPrefecture = Object.entries(visitorPrefMap)
+      .map(([prefecture, count]) => ({ prefecture, count }))
+      .sort((a, b) => b.count - a.count);
+
     // 4. byEventCategory
     const eventCategoryMap: Record<string, number> = {};
     for (const v of filteredViews) {
@@ -285,6 +313,7 @@ export async function GET(req: Request) {
       byMonth,
       byVisitorRegion,
       byVisitorCountry,
+      byVisitorPrefecture,
       byEventCategory,
       byEventPrefecture,
       byLocale,

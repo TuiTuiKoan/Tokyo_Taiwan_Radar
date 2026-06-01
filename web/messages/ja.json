@@ -679,6 +679,7 @@
     "RangeTooWide": "期間は24ヶ月以内に指定してください",
     "ByVisitorRegion": "ビジター地域別閲覧数",
     "ByVisitorCountry": "ビジター国籍別閲覧数 (Top 10)",
+    "ByVisitorPrefecture": "ビジター都道府県別閲覧数（日本）",
     "ByEventCategory": "閲覧イベントのカテゴリー別",
     "ByEventPrefecture": "閲覧イベントの都道府県別",
     "ByLocale": "言語別閲覧数",

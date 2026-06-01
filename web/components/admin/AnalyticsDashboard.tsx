@@ -51,6 +51,7 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
     byMonth: Array<{ month: string; count: number }>;
     byVisitorRegion: Array<{ region: string; count: number }>;
     byVisitorCountry: Array<{ country: string; count: number }>;
+    byVisitorPrefecture: Array<{ prefecture: string; count: number }>;
     byEventCategory: Array<{ category: string; count: number }>;
     byEventPrefecture: Array<{ prefecture: string; count: number }>;
     byLocale: Array<{ locale: string; count: number }>;
@@ -203,6 +204,7 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
   const maxMonthViews = viewData?.byMonth.reduce((max, m) => Math.max(max, m.count), 0) || 1;
   const maxRegionCount = viewData?.byVisitorRegion.reduce((max, r) => Math.max(max, r.count), 0) || 1;
   const maxCountryCount = viewData?.byVisitorCountry.reduce((max, c) => Math.max(max, c.count), 0) || 1;
+  const maxVisitorPrefCount = viewData?.byVisitorPrefecture.reduce((max, p) => Math.max(max, p.count), 0) || 1;
   const maxCategoryCount = viewData?.byEventCategory.reduce((max, c) => Math.max(max, c.count), 0) || 1;
   const maxPrefectureCount = viewData?.byEventPrefecture.reduce((max, p) => Math.max(max, p.count), 0) || 1;
   const maxLocaleCount = viewData?.byLocale.reduce((max, l) => Math.max(max, l.count), 0) || 1;
@@ -526,6 +528,32 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
                           />
                         </div>
                         <span className="w-12 text-right text-xs text-fg-subtle shrink-0 tabular-nums">{c.count}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            {/* Views by Visitor Prefecture (Japan) */}
+            <div className="border border-line rounded-lg p-4 bg-elevated">
+              <h3 className="text-sm font-semibold text-fg mb-4">{tAdmin("ByVisitorPrefecture")}</h3>
+              {viewData.byVisitorPrefecture.length === 0 ? (
+                <p className="text-sm text-fg-subtle text-center py-4">{tAdmin("NoData")}</p>
+              ) : (
+                <ul className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                  {viewData.byVisitorPrefecture.map((p) => {
+                    const pct = Math.round((p.count / maxVisitorPrefCount) * 100) || 0;
+                    return (
+                      <li key={p.prefecture} className="flex items-center gap-3 text-sm">
+                        <span className="w-24 truncate text-xs text-fg-muted shrink-0">{getPrefectureLabel(p.prefecture)}</span>
+                        <div className="flex-1 h-3 rounded-full bg-muted">
+                          <div
+                            className="h-3 rounded-full bg-rose-500 transition-all duration-300"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="w-12 text-right text-xs text-fg-subtle shrink-0 tabular-nums">{p.count}</span>
                       </li>
                     );
                   })}

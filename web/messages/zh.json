@@ -679,6 +679,7 @@
     "RangeTooWide": "時間範圍不可超過 24 個月",
     "ByVisitorRegion": "訪客地區分佈",
     "ByVisitorCountry": "訪客國別分佈 (Top 10)",
+    "ByVisitorPrefecture": "訪客都道府縣分佈（日本）",
     "ByEventCategory": "被瀏覽事件類別",
     "ByEventPrefecture": "被瀏覽事件都道府縣",
     "ByLocale": "被瀏覽語言別",

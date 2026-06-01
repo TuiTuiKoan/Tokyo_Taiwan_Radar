@@ -680,6 +680,7 @@
     "RangeTooWide": "Time range must be 24 months or less",
     "ByVisitorRegion": "Views by Visitor Region",
     "ByVisitorCountry": "Views by Visitor Country (Top 10)",
+    "ByVisitorPrefecture": "Views by Visitor Prefecture (Japan)",
     "ByEventCategory": "Views by Event Category",
     "ByEventPrefecture": "Views by Event Prefecture",
     "ByLocale": "Views by Interface Language",
