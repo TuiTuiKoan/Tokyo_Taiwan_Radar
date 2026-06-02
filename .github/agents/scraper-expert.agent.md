@@ -89,7 +89,6 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
   19. **`gguide_tv` report 誤判防護（劇情中的「報告」≠ 活動報導）**: 若事件來源是 `gguide_tv`，不得僅因 raw_description 內出現單詞 `報告` 就注入 `report` category 或加上 `【レポート】` 接頭辭。電視劇劇情簡介常出現 `交際の報告`、`上司に報告` 等語境，這是劇情文本而非活動報導。`report` 判定對 `gguide_tv` 必須以節目型態/ジャンル為主（如 `報道`、`ドキュメンタリー`），不可直接套用 generic keyword trigger。
 
   20. **`google_news_rss` 配信記事欄位補齊（手動修復標準）**: 若 `raw_description` 明確含有平台/價格/出演者訊號（例如 `BS11+`、`見放題・単品レンタル配信`、`演じたのは`），但 `location_name` / `business_hours` / `is_paid` / `price_info` / `performers` 為空，必須手動回填並立刻 FC lock。`business_hours` 僅保留單行可讀格式（`YYYY年M月D日から配信中`），避免把整段新聞文本塞入 UI。若 `field_corrections.corrected_by` 型別不明，先只寫 `event_id/field_name/corrected_value`，避免 `22P02`。
-
 1. Run `cd scraper && python main.py --dry-run --source <name> 2>&1 | head -80`.
 2. Verify: `start_date` is populated, not the publish date; `category` values are canonical; no unhandled exceptions.
 3. **For `gguide_tv` events specifically**: confirm `tv_program` appears in `category`. If `movie` appears alone (without `tv_program`), the annotator's `_inject_keyword_categories` was bypassed — check that `raw_description` contains `放送:` / `ジャンル:` markers.

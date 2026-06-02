@@ -874,7 +874,8 @@
     "independent_venue": "Independent Venue",
     "civic_group": "Civic Group",
     "media": "Media",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "individual": "Individual"
   },
   "eventForm": {
     "exhibition": "Exhibition",
@@ -916,7 +917,8 @@
     "listTitle": "Events",
     "badgeNew": "NEW",
     "portalCta": "Submit Event / My Page",
-    "portalProfile": "My Page"
+    "portalProfile": "My Page",
+    "portalLoading": "Checking..."
   },
   "eventNarrative": {
     "p1WithEnd": "{name} runs from {start} to {end} at {location}.",
@@ -986,5 +988,80 @@
     "creator": "Creator Channel",
     "cultural_center": "Cultural Center / Language School",
     "other": "Other"
+  },
+  "actorCategory": {
+    "government": "Government",
+    "semi_official": "Semi-official",
+    "cultural_institution": "Cultural Institution",
+    "academic": "Academic",
+    "commercial_brand": "Commercial Brand",
+    "independent_venue": "Independent Venue",
+    "civic_group": "Civic Group",
+    "media": "Media",
+    "unknown": "Unknown",
+    "traveler": "Traveler",
+    "writer": "Writer",
+    "food": "Food",
+    "art": "Art"
+  },
+  "account": {
+    "title": "My Account",
+    "intro": "Manage saved events and events you submit.",
+    "loading": "Loading...",
+    "favoritesTab": "Favorites",
+    "myEventsTab": "My Events",
+    "editProfile": "Edit Profile",
+    "favoritesEmpty": "You haven't saved any events yet",
+    "myEventsEmpty": "You haven't submitted any events yet",
+    "profileMissingTitle": "Create your organizer profile first",
+    "profileMissingDesc": "After your profile is complete, you can manage submitted events here.",
+    "profileMissingCta": "Create Profile",
+    "closedByOwner": "Closed by organizer",
+    "userSubmitted": "User submitted",
+    "parentEvent": "Series: {name}"
+  },
+  "profile": {
+    "title": "Organizer Profile",
+    "intro": "Create a public organizer profile for submitting and managing events.",
+    "userHandle": "Public Handle",
+    "userHandlePlaceholder": "e.g. taiwanlife",
+    "userHandleHint": "Use lowercase letters and numbers only.",
+    "organizerNameZh": "Organizer Name (Chinese)",
+    "organizerNameJa": "Organizer Name (Japanese)",
+    "organizerNameEn": "Organizer Name (English)",
+    "websiteUrl": "Official Website",
+    "urlPlaceholder": "https://example.com",
+    "category": "Type",
+    "categoryPlaceholder": "Select a type",
+    "region": "Region",
+    "regionPlaceholder": "e.g. Tokyo, Kansai, Nationwide",
+    "social_x": "X",
+    "social_instagram": "Instagram",
+    "social_note": "note",
+    "social_facebook": "Facebook",
+    "social_threads": "Threads",
+    "social_youtube": "YouTube",
+    "avatarUpload": "Upload Avatar",
+    "avatarUploadHint": "JPG, PNG, or WebP up to 2 MB.",
+    "avatarUrl": "Avatar URL",
+    "avatarPreviewAlt": "Organizer avatar preview",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving...",
+    "errors": {
+      "authRequired": "Please log in before editing your profile",
+      "handleRequired": "Please enter a public handle",
+      "handleInvalid": "The public handle can only use lowercase letters and numbers",
+      "organizerNamesRequired": "Please enter organizer names in all three languages",
+      "websiteRequired": "Please enter an official website",
+      "websiteInvalid": "Please enter a valid http or https URL",
+      "categoryInvalid": "Please select a valid type",
+      "handleTaken": "This public handle is already taken",
+      "serverMisconfigured": "Server configuration is not complete",
+      "saveFailed": "Could not save your profile. Please try again later",
+      "avatarTooLarge": "Image size must be 2 MB or less",
+      "avatarInvalidType": "Only JPG, PNG, and WebP images are supported",
+      "avatarUploadFailed": "Could not upload the avatar. Please try again later"
+    }
   }
 }

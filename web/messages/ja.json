@@ -874,7 +874,8 @@
     "independent_venue": "独立会場",
     "civic_group": "市民団体",
     "media": "メディア",
-    "unknown": "不明"
+    "unknown": "不明",
+    "individual": "個人主催"
   },
   "eventForm": {
     "exhibition": "展示",
@@ -916,7 +917,8 @@
     "listTitle": "開催イベント",
     "badgeNew": "NEW",
     "portalCta": "イベント投稿 / マイページ",
-    "portalProfile": "マイページ"
+    "portalProfile": "マイページ",
+    "portalLoading": "確認中..."
   },
   "eventNarrative": {
     "p1WithEnd": "{name} は {start} から {end} まで、{location} にて開催されます。",
@@ -986,5 +988,80 @@
     "creator": "クリエイターチャンネル",
     "cultural_center": "文化センター / 語学教室",
     "other": "その他"
+  },
+  "actorCategory": {
+    "government": "政府機関",
+    "semi_official": "準公的機関",
+    "cultural_institution": "文化機関",
+    "academic": "学術機関",
+    "commercial_brand": "企業ブランド",
+    "independent_venue": "独立会場",
+    "civic_group": "市民団体",
+    "media": "メディア",
+    "unknown": "不明",
+    "traveler": "旅行者",
+    "writer": "ライター",
+    "food": "フード",
+    "art": "アート"
+  },
+  "account": {
+    "title": "マイアカウント",
+    "intro": "お気に入りイベントと投稿したイベントを管理できます。",
+    "loading": "読み込み中...",
+    "favoritesTab": "お気に入り",
+    "myEventsTab": "自分のイベント",
+    "editProfile": "プロフィール編集",
+    "favoritesEmpty": "まだお気に入りイベントがありません",
+    "myEventsEmpty": "まだ投稿したイベントがありません",
+    "profileMissingTitle": "先に主催者プロフィールを作成してください",
+    "profileMissingDesc": "プロフィールを完成すると、投稿したイベントをここで管理できます。",
+    "profileMissingCta": "プロフィールを作成",
+    "closedByOwner": "主催者により終了",
+    "userSubmitted": "ユーザー投稿",
+    "parentEvent": "シリーズ：{name}"
+  },
+  "profile": {
+    "title": "主催者プロフィール",
+    "intro": "イベント投稿と管理に使う公開プロフィールを作成します。",
+    "userHandle": "公開ハンドル",
+    "userHandlePlaceholder": "例 taiwanlife",
+    "userHandleHint": "小文字英字と数字のみ使用できます。",
+    "organizerNameZh": "主催名（中文）",
+    "organizerNameJa": "主催名（日本語）",
+    "organizerNameEn": "主催名（English）",
+    "websiteUrl": "公式サイト",
+    "urlPlaceholder": "https://example.com",
+    "category": "タイプ",
+    "categoryPlaceholder": "タイプを選択",
+    "region": "活動地域",
+    "regionPlaceholder": "例 東京・関西・全国",
+    "social_x": "X",
+    "social_instagram": "Instagram",
+    "social_note": "note",
+    "social_facebook": "Facebook",
+    "social_threads": "Threads",
+    "social_youtube": "YouTube",
+    "avatarUpload": "アバターをアップロード",
+    "avatarUploadHint": "JPG、PNG、WebP、最大 2MB。",
+    "avatarUrl": "アバター URL",
+    "avatarPreviewAlt": "主催者アバターのプレビュー",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "saving": "保存中...",
+    "errors": {
+      "authRequired": "ログインしてからプロフィールを編集してください",
+      "handleRequired": "公開ハンドルを入力してください",
+      "handleInvalid": "公開ハンドルは小文字英字と数字のみ使用できます",
+      "organizerNamesRequired": "3言語の主催名を入力してください",
+      "websiteRequired": "公式サイトを入力してください",
+      "websiteInvalid": "有効な http または https の URL を入力してください",
+      "categoryInvalid": "有効なタイプを選択してください",
+      "handleTaken": "この公開ハンドルはすでに使われています",
+      "serverMisconfigured": "サーバー設定が未完了です",
+      "saveFailed": "保存できませんでした。時間をおいて再試行してください",
+      "avatarTooLarge": "画像サイズは 2MB 以下にしてください",
+      "avatarInvalidType": "JPG、PNG、WebP 画像のみ対応しています",
+      "avatarUploadFailed": "アバターをアップロードできませんでした。時間をおいて再試行してください"
+    }
   }
 }

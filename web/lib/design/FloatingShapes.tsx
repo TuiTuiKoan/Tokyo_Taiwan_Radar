@@ -121,17 +121,28 @@ function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function newFloater(tierIdx: number, prev?: Floater, fillCounts?: Record<string, number>, forceSolid?: boolean): Floater {
+function shuffle<T>(array: readonly T[]): T[] {
+  const copy = array.slice();
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function newFloater(
+  tierIdx: number,
+  prev?: Floater,
+  fillCounts?: Record<string, number>,
+  forceSolid?: boolean,
+  fixedDrift?: string
+): Floater {
   const tier = TIERS[tierIdx];
   const [minPx, maxPx, minSec, maxSec] = tier;
   const size = Math.round(minPx + Math.random() * (maxPx - minPx));
   const duration = Math.round(minSec + Math.random() * (maxSec - minSec));
-  // Initial-paint phase: a tiny 0–5% forward offset only. We deliberately do NOT
-  // half-cycle stagger pair partners — a half-cycle delay drops them mid-journey
-  // at full opacity, which on a narrow mobile viewport looks like the shape
-  // "popping into view at the center of the screen" instead of drifting in from
-  // an edge. Subsequent cycles (prev defined) always start at phase 0.
-  const initialPhase = prev ? 0 : Math.random() * duration * 0.05;
+  // Initial-paint phase: random across 0 to 100% progress of its full lifetime to look natural when the page loads, subsequent cycles still start from edges
+  const initialPhase = prev ? 0 : Math.random() * duration;
   // Max 2 floaters may share the same fill kind simultaneously.
   // forceSolid overrides the diversity filter to guarantee at least 1 solid on screen.
   const fill: FillKind = forceSolid
@@ -154,7 +165,7 @@ function newFloater(tierIdx: number, prev?: Floater, fillCounts?: Record<string,
     size,
     duration,
     delay: -Math.round(initialPhase * 10) / 10,
-    drift: pick(DRIFTS),
+    drift: fixedDrift ?? (prev ? prev.drift : pick(DRIFTS)),
     opacity: 0.18 + Math.random() * 0.22,
     rotation: Math.round(Math.random() * 360),
     patternRotation: Math.round(Math.random() * 90) - 45,
@@ -237,12 +248,13 @@ function FloaterView({ slotIdx, f, scale, onCycle }: { slotIdx: number; f: Float
   );
 }
 
-const FULL_SLOTS = TIERS.length * 2; // 10
+const FULL_TIERS = [0, 0, 1, 1, 2, 2, 3, 4] as const;
+const FULL_SLOTS = FULL_TIERS.length; // 8
 
 export interface FloatingShapesProps {
   /**
    * `full` (default) — the original homepage / design-page background:
-   *   10 slots, 2 per tier, solid-fill guarantee, paired layout.
+   *   8 slots, absolute unique trails, solid-fill guarantee.
    * `subtle` — lightweight variant for inner pages:
    *   only the two smallest tiers (sizes 40–150px), random 2–6 floaters,
    *   no solid-fill guarantee. Easy on the eyes inside event lists / details.
@@ -274,18 +286,22 @@ export function FloatingShapes({ variant = "full" }: FloatingShapesProps = {}) {
     if (variant === "subtle") {
       // Inner pages: random 2–6 floaters, drawn from the two smallest tiers only.
       const count = 2 + Math.floor(Math.random() * 5); // 2..6
+      const shuffledDrifts = shuffle(DRIFTS);
       for (let i = 0; i < count; i++) {
         const tierIdx = Math.random() < 0.5 ? 0 : 1;
-        initial.push(newFloater(tierIdx, undefined, undefined, false));
+        const drift = shuffledDrifts[i % shuffledDrifts.length];
+        initial.push(newFloater(tierIdx, undefined, undefined, false, drift));
       }
     } else {
       // Full background: build incrementally so each new floater sees fills already committed.
+      const shuffledDrifts = shuffle(DRIFTS);
       for (let i = 0; i < FULL_SLOTS; i++) {
         const counts: Record<string, number> = {};
         for (const f of initial) counts[f.fill] = (counts[f.fill] ?? 0) + 1;
         const mustSolid = i === FULL_SLOTS - 1 && !initial.some((f) => f.fill === "solid");
-        const tierIdx = Math.floor(i / 2);
-        initial.push(newFloater(tierIdx, undefined, mustSolid ? { ...counts, solid: 0 } : counts, mustSolid));
+        const tierIdx = FULL_TIERS[i];
+        const drift = shuffledDrifts[i];
+        initial.push(newFloater(tierIdx, undefined, mustSolid ? { ...counts, solid: 0 } : counts, mustSolid, drift));
       }
     }
     setFloaters(initial);

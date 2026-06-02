@@ -399,14 +399,12 @@ For single-element micro-interactions, prefer Tailwind transitions.
 
 ### FloatingShapes motion constraints
 
-Homepage full-mode `FloatingShapes` must keep motion path data-driven:
+Homepage full-mode `FloatingShapes` follows unique trails and size weight constraints to avoid overlap and noise:
 
-- Use `[2, 2, 2, 1, 1]` tier distribution: tiers 0-2 may show two shapes each, while tiers 3-4 show one shape each.
-- Generate the tier 3 and tier 4 shapes first, and force their start sides to be opposite edges.
-- Give every floater a unique edge start point (`path.side` + `path.offset`) and reject candidates whose start points are too close after viewport scale and shape size are applied.
-- Animate with CSS variables through a shared edge-to-center-to-opposite-edge keyframe. Do not return to fixed drift classes that can start multiple large shapes from the same half of the viewport.
-- Use positive initial delays with `animation-fill-mode: both`, so delayed shapes remain transparent at their edge start instead of appearing midway through the screen.
-- Avoid mixing the `animation` shorthand with individual animation properties in React style objects. Use `animationName`, `animationDuration`, `animationTimingFunction`, `animationIterationCount`, `animationDelay`, and `animationFillMode` separately.
+- **Strictly Unique Trails**: Background slots are reduced to 8. Upon page mount, randomly shuffle the 8 drift directions (`DRIFTS`). Each slot is 1-to-1 uniquely assigned a direction. Subsequent cycles (`handleCycle`) preserve this original assigned path by inheriting `prev.drift`, ensuring no two shapes ever share a parallel overlapping trajectory.
+- **Size Weight Limits**: Full background slot tier allocation is configured as `[0, 0, 1, 1, 2, 2, 3, 4]`. This limits large (tier 3) and largest (tier 4) geometries to at most 1 each simultaneously, preventing screen congestion.
+- **Natural Mid-journey Start**: At initial page mount, shapes have `initialPhase = Math.random() * duration` (0% to 100% of their lifespan), turning into a negative delay. This allows shapes to appear pre-scattered across the viewport upon page load, rather than simultaneously emerging from the edges in a rigid lineup. Subsequent cycles reset delay to JST J-start edges.
+- **Subtle Variant Trail Unification**: The inner-page subtle variant (randomly 2–6 floaters) similarly maps shuffled `DRIFTS` using modulo limits and preserves `prev.drift` on cycle to guarantee a noise-free overlay.
 
 ### Reduced motion
 

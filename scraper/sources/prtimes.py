@@ -12,7 +12,7 @@ Strategy:
   4. Fetch the PR detail page to extract the actual event date and venue.
   5. Only include PRs released within the last LOOKBACK_DAYS (default 90).
 
-source_id  = "prtimes_{release_id}"  — the numeric release_id is stable.
+source_id  = "prtimes_{company_id}_{release_id}"  — avoids cross-company collisions.
 source_url = "https://prtimes.jp{release_url}"  — the direct PR page URL.
 
 No Playwright needed — the search API returns JSON and the detail pages are
@@ -129,6 +129,8 @@ _TAIWAN_VENUE_RE = re.compile(
     r"Taiwan|Taipei|Kaohsiung|Tainan|Taichung|Hsinchu"
 )
 
+_RELEASE_PATH_IDS_RE = re.compile(r"/(\d{9})\.(\d{9})\.html$")
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -217,6 +219,29 @@ def _extract_venue_from_body(body_text: str) -> Optional[str]:
     return None
 
 
+def _build_source_id(release_id: int | str, company_id: int | str | None, release_url_path: str) -> str:
+    """Build collision-safe source_id.
+
+    Preferred format: prtimes_<company_id:09d>_<release_id:09d>
+    Fallback:         prtimes_<release_id>
+    """
+    rid = str(release_id).strip()
+    cid = str(company_id or "").strip()
+
+    # 1) Prefer explicit company_id from API payload.
+    if cid.isdigit() and rid.isdigit():
+        return f"prtimes_{int(cid):09d}_{int(rid):09d}"
+
+    # 2) Fallback: derive both IDs from release_url path /.../000000030.000050200.html
+    m = _RELEASE_PATH_IDS_RE.search(release_url_path or "")
+    if m:
+        rid_from_path, cid_from_path = m.group(1), m.group(2)
+        return f"prtimes_{cid_from_path}_{rid_from_path}"
+
+    # 3) Last-resort legacy format.
+    return f"prtimes_{rid}"
+
+
 def _fetch_detail(url: str, session: requests.Session) -> tuple[str, str]:
     """Fetch a PR detail page and return (body_text, raw_description).
 
@@ -299,7 +324,12 @@ class PrtimesScraper(BaseScraper):
                     if not release_id:
                         continue
 
-                    source_id = f"prtimes_{release_id}"
+                    release_url_path = rel.get("release_url", "")
+                    source_id = _build_source_id(
+                        release_id=release_id,
+                        company_id=rel.get("company_id"),
+                        release_url_path=release_url_path,
+                    )
                     if source_id in seen_ids:
                         continue
 
@@ -328,7 +358,6 @@ class PrtimesScraper(BaseScraper):
                     seen_ids.add(source_id)
                     new_count += 1
 
-                    release_url_path = rel.get("release_url", "")
                     source_url = _PR_BASE + release_url_path
 
                     # Fetch detail page to get event date & venue

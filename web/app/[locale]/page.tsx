@@ -9,8 +9,8 @@ import { FloatingShapes } from "@/lib/design/FloatingShapes";
 import { MascotAvatar } from "@/lib/design";
 import Link from "next/link";
 import AnnouncementCard from "@/components/AnnouncementCard";
-import AccountPortalButton from "@/components/AccountPortalButton";
 import { Suspense } from "react";
+import AccountPortalButton from "@/components/AccountPortalButton";
 
 // ISR: revalidate every 10 minutes. All filter logic runs client-side so
 // every URL (with or without query params) shares the same cached payload.
@@ -202,7 +202,9 @@ export default async function HomePage({ params, searchParams }: PageProps) {
         <EventShelf events={events} locale={locale} />
       </Suspense>
 
-      <EventListClient events={events} parentMap={parentMap} locale={locale} />
+      <Suspense fallback={null}>
+        <EventListClient events={events} parentMap={parentMap} locale={locale} />
+      </Suspense>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import type { Creator } from "@/app/[locale]/admin/creators/page";
 import type { Locale } from "@/lib/types";
+import { ACTOR_CATEGORIES } from "@/lib/actorTypes";
 import DesignSelect from "@/components/DesignSelect";
 
 const PLATFORMS = [
@@ -18,17 +19,6 @@ const PLATFORMS = [
   "blog",
   "substack",
   "other",
-] as const;
-
-const CATEGORIES = [
-  "researcher",
-  "traveler",
-  "writer",
-  "activist",
-  "food",
-  "art",
-  "business",
-  "media",
 ] as const;
 
 const LOCATIONS = [
@@ -71,6 +61,7 @@ interface Props {
 
 export default function AdminCreatorsClient({ initialCreators, locale }: Props) {
   const t = useTranslations("admin");
+  const tActor = useTranslations("actorCategory");
   const [creators, setCreators] = useState<Creator[]>(initialCreators);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -433,7 +424,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                     onChange={(v) => setForm((prev) => ({ ...prev, category: v || null }))}
                     options={[
                       { value: "", label: "—" },
-                      ...CATEGORIES.map((c) => ({ value: c, label: c })),
+                      ...ACTOR_CATEGORIES.map((c) => ({ value: c, label: tActor(c) })),
                     ]}
                   />
                 </div>

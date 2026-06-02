@@ -1,6 +1,22 @@
 # Engineer Error History
 
 <!-- Append new entries at the top -->
+## 2026-06-03 - 完修首頁/內頁 FloatingShapes 幾何背景動畫防重疊、Slot 綁定與 unique-path 機制
+
+**問題：** 幾何飄浮圖形在首頁有時會發生完全重疊、黏在一起平行前進的現象（視覺打架），開場載入集中從邊緣彈出不夠自然，且全版最大與次大幾何物件多達 4 個過於擁擠。
+
+**修復：**
+- 重構 [web/lib/design/FloatingShapes.tsx](web/lib/design/FloatingShapes.tsx)。
+- 將 background geometric slots 數量從 10 縮減至 8 個，採用 `[0, 0, 1, 1, 2, 2, 3, 4]` 之 size tier 分配防止大圖擁擠。
+- 建立 `shuffle` 函式。在 initialization 時對這 8 個 Slot 分配 1-to-1 的 `shuffledDrifts`（絕對唯一行進軌跡）。
+- 在 `handleCycle` 時傳入 `prev`，使在生命週期重啟時仍可自動繼承並鎖定其原專屬唯一的 `drift` 軌跡。
+- 放寬 mount 時的 `initialPhase` 係數至全生命週期進度 `Math.random() * duration`，消弭初次開盤排隊冒出的生硬感。
+- 同步更新設計師手冊 [.github/skills/agents/designer/SKILL.md](.github/skills/agents/designer/SKILL.md) 與 [.github/skills/agents/designer/history.md](.github/skills/agents/designer/history.md)。
+- 通過 `cd web && npx tsc --noEmit` 無編譯警告，並完成本地測試。
+
+**教訓：**
+- 動態背景效果如果採用完全隨機機制，隨時間推移以及隨機衝突，一定會產生機率性軌跡重疊；應使用對 Slot 1-to-1 的 unique shuffle 綁定並在生命週期內傳遞 prev 進行傳承。
+
 ## 2026-06-03 - 解決爬蟲與首頁優化衝突，無縫整合並成功 NPM Build
 
 **問題：** 工作區具有多個 Stash（含爬蟲專家與首頁改動 Stash），直接 Apply 時在 `scraper-expert.agent.md`、`history.md`、`hanmoto.py` 及 `ndl_opensearch.py` 發生多重內容衝突，阻礙首頁優化元件的無縫倒回與整合。
