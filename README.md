@@ -6,6 +6,9 @@
 
 🇹🇼🇯🇵 Trilingual (Chinese / Japanese / English)
 
+- 6/1 -
+This is a learning and optimizing week.  Auto qa pipeline gradually assembled. Most importantly, I start collecting groundtruth table for venues, official urls, which I haven't thought before.  1 click to calendar is online. Source expands to book publishing.  Still don't have any idea on SNS.  Positioning carefully would be more important for managing energy.
+
 - 5/25 -
 This is a reflection week.  I try to start a new pipeline around evaluation and auto-QA.  After a month of debugging, I finally realized the complexity of flooding scraper and the untamed hallucination around annotation and polluted fields.  The system is evolving into something I need to digest codes and plan closely.  Time to slow down, though many exciting backlogs push me to move on.  Wish I can overcome this stage asap!
 
