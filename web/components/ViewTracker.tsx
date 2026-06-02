@@ -14,7 +14,8 @@ interface Props {
  */
 export default function ViewTracker({ eventId, locale }: Props) {
   useEffect(() => {
-    recordEventView(eventId, locale);
+    const utmSource = new URLSearchParams(window.location.search).get("utm_source");
+    recordEventView(eventId, locale, utmSource);
     // Run once on mount only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

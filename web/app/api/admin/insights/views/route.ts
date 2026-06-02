@@ -140,7 +140,7 @@ export async function GET(req: Request) {
     while (hasMore) {
       const { data: pageData, error: fetchErr } = await supabase
         .from("event_views")
-        .select("viewed_at, country, country_region, locale, event_id, events(category, location_name, location_address, location_prefectures)")
+        .select("viewed_at, country, country_region, traffic_source, locale, event_id, events(category, location_name, location_address, location_prefectures)")
         .gte("viewed_at", rangeStart)
         .lte("viewed_at", rangeEnd)
         .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -309,6 +309,18 @@ export async function GET(req: Request) {
       .map(([locale, count]) => ({ locale, count }))
       .sort((a, b) => b.count - a.count);
 
+    // 7. bySource (traffic source) — null = pre-deploy untracked → "unknown"
+    const sourceMap: Record<string, number> = {};
+    for (const v of filteredViews) {
+      const s = v.traffic_source ?? "unknown";
+      sourceMap[s] = (sourceMap[s] ?? 0) + 1;
+    }
+    const unknownCount = sourceMap["unknown"] ?? 0;
+    const bySource = Object.entries(sourceMap)
+      .filter(([source]) => source !== "unknown")
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count);
+
     return NextResponse.json({
       byMonth,
       byVisitorRegion,
@@ -318,6 +330,8 @@ export async function GET(req: Request) {
       byEventPrefecture,
       byLocale,
       byVisitorCity: [],
+      bySource,
+      unknownSourceCount: unknownCount,
     });
 
   } catch (err: any) {

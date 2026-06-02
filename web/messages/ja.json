@@ -688,7 +688,17 @@
     "AllCategories": "全てのカテゴリー",
     "AllLocales": "全ての言語",
     "unsaved_confirm": "入力中の内容は保存されていません。本当にキャンセルしますか？",
-    "analyticsCollectedMonthlyTitle": "月別の新規収集イベント数（過去12ヶ月）"
+    "analyticsCollectedMonthlyTitle": "月別の新規収集イベント数（過去12ヶ月）",
+    "ByTrafficSource": "流入元別閲覧数",
+    "trafficSourceGoogle": "Google 検索",
+    "trafficSourceLine": "LINE",
+    "trafficSourceInstagram": "Instagram",
+    "trafficSourceThreads": "Threads",
+    "trafficSourceFacebook": "Facebook",
+    "trafficSourceTwitter": "X (Twitter)",
+    "trafficSourceDirect": "直接アクセス",
+    "trafficSourceOther": "その他の外部リンク",
+    "trafficSourceUnknown": "未計測（旧データ）"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",

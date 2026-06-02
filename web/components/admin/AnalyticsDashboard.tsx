@@ -56,6 +56,7 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
     byEventPrefecture: Array<{ prefecture: string; count: number }>;
     byLocale: Array<{ locale: string; count: number }>;
     bySource?: Array<{ source: string; count: number }>;
+    unknownSourceCount?: number;
   } | null>(null);
 
   // Handle location update to reset/validate city
@@ -195,6 +196,7 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
     if (src === "twitter") return tAdmin("trafficSourceTwitter");
     if (src === "direct") return tAdmin("trafficSourceDirect");
     if (src === "other") return tAdmin("trafficSourceOther");
+    if (src === "unknown") return tAdmin("trafficSourceUnknown");
     return src;
   };
 
@@ -637,6 +639,12 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
                     );
                   })}
                 </ul>
+              )}
+              {viewData.unknownSourceCount !== undefined && viewData.unknownSourceCount > 0 && (
+                <div className="mt-3 pt-3 border-t border-line text-xs text-fg-subtle flex justify-between items-center">
+                  <span>{getSourceLabel("unknown")}</span>
+                  <span className="font-mono tabular-nums">{viewData.unknownSourceCount}</span>
+                </div>
               )}
             </div>
 

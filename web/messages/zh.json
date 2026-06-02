@@ -688,7 +688,17 @@
     "AllCategories": "全部類別",
     "AllLocales": "全部語系",
     "unsaved_confirm": "表單尚未保存，確定要取消嗎？",
-    "analyticsCollectedMonthlyTitle": "每月新收錄活動（過去 12 個月）"
+    "analyticsCollectedMonthlyTitle": "每月新收錄活動（過去 12 個月）",
+    "ByTrafficSource": "流量來源分佈",
+    "trafficSourceGoogle": "Google 搜尋",
+    "trafficSourceLine": "LINE",
+    "trafficSourceInstagram": "Instagram",
+    "trafficSourceThreads": "Threads",
+    "trafficSourceFacebook": "Facebook",
+    "trafficSourceTwitter": "X (Twitter)",
+    "trafficSourceDirect": "直接訪問",
+    "trafficSourceOther": "其他外部連結",
+    "trafficSourceUnknown": "未追蹤（舊資料）"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",
