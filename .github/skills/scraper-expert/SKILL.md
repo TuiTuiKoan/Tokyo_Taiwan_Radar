@@ -8,6 +8,16 @@ applyTo: .github/agents/scraper-expert.agent.md
 
 Read this at the start of every session before writing any scraper.
 
+## Taiwan Relevance & Selection Reason Guidelines
+
+- **The "Wansei" (湾生) Signal**: For any Japanese artist or historical figure, check if they were born in Taiwan during the colonial period. This "Wansei" status is a primary signal for High Taiwan Relevance. Explicitly mention this in the `description` and `selection_reason`.
+- **Concrete Selection Reasons**: **NEVER** use generic descriptions like "promotes Taiwan-Japan exchange" as the sole reason. You must specify the concrete connection:
+  - "The artist X was born in Kaohsiung, Taiwan (Wansei)."
+  - "Exhibition features 15th-century artifacts from Taiwan's Yami people."
+  - "Film directed by Z, who won the Golden Horse Award in Taiwan."
+  - "Lecture discussing Japan's infrastructure legacy in Taiwan."
+- **Category Enrichment**: Events with direct Taiwan-Japan historical or biographical links (like Wansei artists) MUST include the `taiwan_japan` category in addition to `art`, `history`, etc.
+
 ## BaseScraper Contract
 - Every scraper must extend `BaseScraper` and implement `scrape() → list[Event]`.
 - `source_id` must be stable across runs — derive from URL slug or platform ID, never from title or list position.

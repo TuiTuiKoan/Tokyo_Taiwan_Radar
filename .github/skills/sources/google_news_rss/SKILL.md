@@ -55,3 +55,6 @@ Google RSS `<link>` tags are Google redirect URLs. Prefer `<guid>` when it start
 - 1.5s sleep between queries to avoid rate-limiting.
 - Items older than 60 days (by pubDate) are silently skipped.
 - `start_date` defaults to pubDate for news articles — the annotator is expected to refine it using the article body.
+- Taiwan-only OTT/VOD launch news can still pass the Taiwan keyword filter. If the article is only about a Taiwan platform adding a title, with no Japan venue, participation path, or in-scope persistent value, the correct remediation is to deactivate the DB event (`is_active=false`) rather than trying to preserve it as a streaming event.
+- Treat Taiwan-only OTT/VOD or news articles with no Japan event value as out-of-scope noise in the active pool: deactivate the DB event instead of preserving it.
+- If the candidate pool for the same misfit class is under 20 active events, prefer a one-off DB patch or deactivation first. Do not introduce a new routine, backfill pipeline, or toolization before verifying that manual cleanup is insufficient.

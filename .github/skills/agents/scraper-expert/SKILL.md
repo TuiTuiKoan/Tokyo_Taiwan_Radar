@@ -1,6 +1,6 @@
 ---
 name: scraper-expert
-description: BaseScraper contract, field rules, and source-specific conventions (Peatix, iwafu, cinema, prtimes, fukuoka_now, etc.) for the Scraper Expert agent
+description: BaseScraper contract, field rules, and Peatix-specific conventions for the Scraper Expert agent
 applyTo: .github/agents/scraper-expert.agent.md
 ---
 
@@ -8,101 +8,592 @@ applyTo: .github/agents/scraper-expert.agent.md
 
 Read this at the start of every session before writing any scraper.
 
+## Taiwan Relevance & Selection Reason Guidelines
+
+- **The "Wansei" (湾生) Signal**: For any Japanese artist or historical figure, check if they were born in Taiwan during the colonial period. This "Wansei" status is a primary signal for High Taiwan Relevance. Explicitly mention this in the `description` and `selection_reason`.
+- **Concrete Selection Reasons**: **NEVER** use generic descriptions like "promotes Taiwan-Japan exchange" as the sole reason. You must specify the concrete connection:
+  - "The artist X was born in Kaohsiung, Taiwan (Wansei)."
+  - "Exhibition features 15th-century artifacts from Taiwan's Yami people."
+  - "Film directed by Z, who won the Golden Horse Award in Taiwan."
+  - "Lecture discussing Japan's infrastructure legacy in Taiwan."
+- **Category Enrichment**: Events with direct Taiwan-Japan historical or biographical links (like Wansei artists) MUST include the `taiwan_japan` category in addition to `art`, `history`, etc.
+
 ## BaseScraper Contract
 - Every scraper must extend `BaseScraper` and implement `scrape() → list[Event]`.
 - `source_id` must be stable across runs — derive from URL slug or platform ID, never from title or list position.
 - Always set `start_date` explicitly. Never fall back silently to the page's publish/update date.
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` when the event date is found in the page body.
-- **`start_date`/`end_date` must use `tzinfo=timezone.utc`**: Never pass JST-aware datetimes (`tzinfo=_JST` / `timezone(timedelta(hours=9))`). Supabase stores datetimes in UTC, so `2026-05-08T00:00:00+09:00` → `2026-05-07T15:00:00+00:00` — the calendar date regresses by one day. Use `datetime(y, m, d, tzinfo=timezone.utc)` to preserve the date. Audit after every scraper fix: `grep -rn "tzinfo=_JST\|tzinfo=JST" scraper/sources/`. (Incidents: Stranger `b7dc34f`, shin_bungeiza `bcb6142`.)
+- **`.tw` ドメインの SSL 証明書エラー (Missing Subject Key Identifier)**: 台湾政府サイト（`startupterrace.tw` 等）は TLS 証明書に Subject Key Identifier 拡張が欠落しており、`requests` のデフォルト `verify=True` が `SSLCertVerificationError` を raise する。該当サイトには `verify=False` + `warnings.simplefilter("ignore")` を使う helper `_get()` を定義すること。
+  ```python
+  def _get(url: str) -> requests.Response:
+      """GET with SSL verification disabled (cert missing SKI extension)."""
+      with warnings.catch_warnings():
+          warnings.simplefilter("ignore")
+          return requests.get(url, headers=_HEADERS, timeout=15, verify=False)
+  ```
+  (Incident: startup_terrace `99d9fde`, 2026-05-17.)
+- **`start_date`/`end_date` must use `tzinfo=timezone.utc`**: Never pass JST-aware datetimes (`tzinfo=_JST` / `timezone(timedelta(hours=9))`). Supabase stores datetimes in UTC, so `2026-05-08T00:00:00+09:00` → `2026-05-07T15:00:00+00:00` — the calendar date regresses by one day on Vercel's UTC server. Use `datetime(y, m, d, tzinfo=timezone.utc)` to preserve the date. Audit after every fix: `grep -rn "tzinfo=_JST\|tzinfo=JST" scraper/sources/`. (Incidents: Stranger `b7dc34f`, shin_bungeiza `bcb6142`.)
+- **Strip null bytes from all scraped text**: Before writing any string to `raw_description`, `name_ja`, or speaker fields, call `.replace("\x00", "")`. Null bytes (`\u0000`) can appear in web-scraped text and cause Postgres error `22P05: unsupported Unicode escape sequence`. (Incident: taiwan_prism.py `c7e9b73` — `×\u0000栖来ひかり` in speakers field broke all 13 events.)
+- **`parent_event_id` must be a real UUID, never a source_id string**: `parent_event_id` is a `uuid` column. Passing a source_id string (e.g. `f"scraper_{year}"`) causes Postgres `22P02`. Use `database.get_event_id_by_source(SOURCE_NAME, parent_source_id)` to resolve the UUID. On the **first run**, if parent and sub-events are in the same batch, the parent UUID does not yet exist — `get_event_id_by_source()` returns `None`. Plan for a second run or manual patch to backfill `parent_event_id`. (Incident: taiwan_prism `c7e9b73`)
+- **List-page / search-card `location_name` ≠ actual venue (multi-page scrapers):** When a platform shows events on a search/list page AND has a separate detail page, the list card may display the **admin/managing branch** (e.g. `新宿教室`) rather than the **actual venue** (e.g. `立川サテライト教室`). Always fetch the detail page to extract the real `location_name`. Pattern to look for on detail page: table row `備考` → `「会場名」` bracket pattern; fall back to card branch only if the detail page yields nothing. (Incident: `asahiculture` `da3ac31`, 2026-05-15.)
+- **Multi-classroom scrapers: detect online courses BEFORE resolving physical address.** Platforms like 朝日カルチャーセンター serve both in-person (classroom) and online courses. If `"オンライン" in raw_title or "オンライン" in location_name`, set `location_name = "オンライン"`, `location_address = None` and skip `CLASSROOM_ADDRESS_MAP` lookup entirely. Failure to check causes the course's managing classroom address to be written to DB even though the event is online-only. (Incident: asahiculture `d617e8c4`, 2026-05-15.)
+  ```python
+  _is_online = "オンライン" in raw_title or "オンライン" in (detail["location_name"] or "")
+  if _is_online:
+      location_name, location_address = "オンライン", None
+  else:
+      location_name = detail["location_name"] or card_branch
+      location_address = detail["location_address"] or CLASSROOM_ADDRESS_MAP.get(location_name)
+  ```
+- **Use `re.findall()` for start/end date ranges, never `re.search()`:** Strings like `"2026/04/07火～2026/06/16火"` contain two full dates. `re.search()` stops at the first match, silently dropping `end_date`. Use `re.findall(pattern, text)` then take `matches[0]` as `start_date` and `matches[-1]` as `end_date`. Single-day events have `len(matches) == 1` → `end_date = None`. (Incident: `asahiculture_8759178`, 2026-05-15.)
+- **Keyword-filtered description scan silently hides structured fields:** If `_fetch_detail*` only collects paragraphs containing Taiwan keywords (`台湾/Taiwan`), any structured field in a non-keyword section — lecturer `<h3>`, schedule table, venue `備考` row — will never be captured. Always scan the full detail page with separate passes for each structured field type (table rows, headings) **independent of keyword filtering**. (Incident: `asahiculture` performer `村山 秀太郎` extracted as `"記"`, 2026-05-15.)
+- **`location_address ≠ location_name` rule (ALL scrapers):** `location_address` must NEVER equal `location_name`. When a scraper has a single combined "location" field, parse it: venue name → `location_name`, street address (using `_ADDR_RE`: `〒` or prefecture+city+street pattern) → `location_address`. If no real street address can be extracted, set `location_address = None`. This is enforced by `auto_qa_address_is_venue_name` detector. Also note: `_ai_or_existing()` in annotator preserves non-null DB values, so a scraper writing the wrong value cannot be corrected by the annotator.
+- **Fixed-venue scrapers (cinema, gallery, theater) MUST set `organizer=` and `organizer_type=["commercial_brand"]`:** `location_name` is stored in DB and shown in the venue column, but it does NOT appear in the admin event card. The 🏢 venue line in the event card is powered by the `organizer` field. A fixed-venue scraper that sets only `location_name` without `organizer` produces events that look venue-less in the admin list. Correct pattern (see `kyoto_cinema.py`, `kino_shinsaibashi.py`, `sakurazaka.py`):
+  ```python
+  location_name="シネマ・クレール 丸の内１・２",
+  location_address="岡山市北区丸の内１丁目５−１",
+  organizer="シネマ・クレール",
+  organizer_type=["commercial_brand"],
+  ```
+  (Incident: `cinemaclair.py` and `human_trust_cinema.py` missing `organizer=`, 2026-05-15.)
 - **Never restrict geographic scope**: The project covers all of Japan（全日本）. Regional keyword filters (e.g. `_TOKYO_KANTO_KEYWORDS`) must never be added to any scraper.
+- **Date-parser helper functions must have exhaustive return paths**: Any `_extract_dates()` / `_parse_*_date()` helper must have an explicit `return` on every branch — never rely on Python's implicit `None`. A function that falls through returns `None`, and callers that do `start, end = helper()` will raise `TypeError: cannot unpack non-iterable NoneType object` — this is silently swallowed by outer try-except, causing the entire page's events to be dropped with **no ERROR log**. Add `return None, None` as the final fallback. (Incident: peatix `_extract_peatix_dates`, commit `2a9540c`, 7 days of silent 0 events.)
 - **After fixing a filter bug**: Run `python main.py --source <name>` (non-dry-run) immediately after the fix. A dry-run confirms the fix works but does NOT write to DB — the data gap remains until the next CI cycle.
-- **New scraper checklist** — every new scraper MUST complete all 4 steps, in order:
-  1. Create `scraper/sources/<name>.py` extending `BaseScraper`
-  2. Register in `scraper/main.py` → `SCRAPERS` list (import + add instance)
-  3. **Register in `research_sources`** — insert a row with `status='implemented'`, `scraper_source_name=<key>`, and a valid `url`. Omitting this causes CI to emit `⚠️ scraper(s) NOT registered` warnings every day until fixed.
-  4. Verify: `python main.py --dry-run --source <key>` returns events cleanly
-- **Sub-events — always look up parent UUID via `get_event_id_by_source()`**: When setting `parent_event_id` on a sub-event, call `database.get_event_id_by_source(source_name, source_id) -> str | None` to retrieve the parent's UUID. **Never assign a source_id string directly** — the column type is UUID and it will cause `invalid input syntax for type uuid` on upsert. Returns `None` on first run (parent not yet in DB); subsequent runs get the correct UUID. Pattern used in `taiwanshi.py` and `ks_cinema.py`. Example:
-  ```python
-  try:
-      from database import get_event_id_by_source as _get_parent_uuid
-      parent_uuid = _get_parent_uuid(SOURCE_NAME, parent_source_id)
-  except (ImportError, Exception):
-      parent_uuid = None
-  sub_event = Event(..., parent_event_id=parent_uuid)
+- **`--source X` is NOT cost-bounded — it always runs the full annotator/merger over the whole DB after scraping**. `scraper/main.py` unconditionally calls `annotate_pending_events()` + `enrich_movie_titles()` + `enrich_person_names()` regardless of `--source`. These scan the entire `events` table for `annotation_status='pending'`, so **looping `--source X` over N sources locally triggers the annotator N times** and burns ~N× the OpenAI quota of the daily cron. Use cases:
+  - **Local staging / quota check / SCRAPERS audit across many sources** → `python main.py --dry-run --source X` (no DB writes, no annotator/merger, no OpenAI calls).
+  - **Verify a single scraper's DB upsert path after a fix** → `python main.py --source X` (one call, accept the annotator pass as cost).
+  - **Production daily cron** → `python main.py` (no `--source`) — scrapes all 114 sources then runs annotator/merger ONCE. Do not "optimize" this by sharding into per-source calls; it would increase cost, not reduce it.
+- **SCRAPERS registration**: Every new scraper class must be registered in `SCRAPERS` in `main.py` in the **same commit** it is created. Audit command:
+  ```bash
+  cd scraper && python3 -c "
+  import re, glob
+  registered = set(re.findall(r'(\w+Scraper)\(\)', open('main.py').read()))
+  for f in glob.glob('sources/*.py'):
+      c = open(f).read()
+      m = re.search(r'class (\w+Scraper)\b', c)
+      if m and m.group(1) not in registered and m.group(1) != 'BaseScraper':
+          print('UNREGISTERED:', m.group(1), f)
+  "
   ```
+- **Run SCRAPERS audit after ANY `main.py` change**: Not only when adding new scrapers. Any refactor or chore commit touching `main.py` risks silently dropping registrations. Run the audit and confirm "ALL CLEAR" before `git push`.
+- **⚠ Rewriting main.py drops all registrations**: When adding a new scraper, NEVER regenerate the full imports+SCRAPERS block from scratch — always append to the existing list. In commit `045d1fa`, adding WasedaICL by rewriting main.py silently dropped 24 scrapers that ran without error for weeks (`6a83c64` restored them). SCRAPERS count before any commit: `python3 -c "import re; print(len(re.findall(r'\\w+Scraper\\(\\)', open('scraper/main.py').read())))"` — if count drops vs prior commit, something was lost.
+- **Source removal procedure (3-step atomically)**: When removing a scraper entirely:
+  1. Remove `import` from `main.py`
+  2. Remove `ScrapeClass()` from `SCRAPERS` in `main.py`
+  3. Hard delete existing DB records: `sb.table('events').delete().eq('source_name', '<source_name>').execute()`
+  All 3 steps must happen in the same session. Missing step 3 leaves stale data visible in production.
+- **Promotion checklist (新規スクレイパー完成時 — auto_generate 問わず全件適用)**: 新しい scraper ファイルを作成した時点で、以下 5 ステップを **同一 session** で完了すること。ファイル作成 ≠ 完成。
+  1. `scraper/sources/<name>.py` 作成・dry-run 確認済み。
+  2. `scraper/main.py` — import + `SCRAPERS` 登録済み（下記 SCRAPERS audit で確認）。
+  3. `research_sources` row — `status = 'implemented'`。
+  4. **`research_sources.scraper_source_name = '<scraper key>'`** — 手動で必ず入力。`auto_generate` も Researcher も書かない。省略すると `/admin/sources` のイベント数が 0 になり、「今すぐ実行」ボタンも非表示になる（backend が `scraper_runs` を source_name で JOIN するため）。
+  5. 下記 **Combined Post-Build Audit** を実行し ALL CLEAR を確認。
+  - **⚠ 必須在同一個 session で全 5 ステップを完了すること。** 途中で session を切ると研究状態が中断し、`research_sources` 未登録のまま scraper が CI に入る。
+  - **`update_source.py` は `researched`/`not-viable` のみ対応。** `implemented` ステータスは `update_source.py` で設定できない — Supabase SDK で直接 upsert する必要がある:
+    ```python
+    sb.table("research_sources").upsert({
+        "url": "<listing_url>",
+        "name": "<display name>",
+        "status": "implemented",
+        "scraper_source_name": "<source_key>",
+        "scraping_feasibility": "medium",  # or easy/hard
+        "agent_category": "event_listing",
+    }, on_conflict="url").execute()
+    ```
 
-## Peatix-specific
-- Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
-- 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
-- **Locale-prefixed URLs must be normalized before `page.goto()`**: Peatix redirects to `/us/event/{id}` or `/jp/event/{id}` depending on browser locale. Strip the prefix in both the collection stage (`_search_events`/`_scrape_group_events`) AND `_scrape_detail()` so `source_url` is always `https://peatix.com/event/{id}`:
+## Venue Registry 使用慣例
+
+1. Scraper 端不要硬編固定場館地址。固定場館應新增到 `venues`，並設定 `is_authoritative = true`，scraper 只保留 `location_name` 原文。
+2. Annotator 會透過 `venue_registry.lookup_venue()` 自動補齊 `location_address`、`location_prefectures`、`venue_id` 與 i18n 欄位。
+3. 新場館流程：先由 scraper 穩定抓到 `location_name`，確認重複出現（至少 2 筆）後，將場館加入 `scraper/_oneoff_seed_authoritative_venues.py` 的 `SEED_DATA`，並附上 pre-flight diff 無衝突證據。
+4. 多場館系列（影展等）請設定 `is_multi_venue = true`，讓 annotator 自動使用 `prefectures` 並將 `location_address` 保持為 `None`。
+5. **Seed pre-flight 衝突 SKIP の注意点**:
+   - `_has_conflict()` は NFKC 正規化 + 番地レベルのトランケートで住所を比較する（exact match 禁止）。`\u3000`・全形数字・大樓名有無・都道府縣前綴の有無はすべて compatible として扱われる。
+   - 衝突チェックは **active イベントのみ**（`is_active=True`）を対象にする。inactive gnews イベントの住所は不完全なことが多く、seed を誤ブロックする原因になる。
+   - SKIP が出た場合は event_id sample を確認し、住所が本当に異なるか（別場所）または単なるフォーマット差異かを判別すること。
+
+## Default Fallback & Pricing Policies (系統預設回退與收費政策)
+
+1. **時間空白回退 (Empty Business Hours Fallback)**:
+   當事件無 `business_hours` (場次/營業時間) 時，前端在 UI 上不應只顯示 `"—"`。
+   - 若 `official_url` 或 `source_url` 存在，前端會顯示 `「請參照原始來源」` 并加上指向該 URL 的超連結。這由 `web/app/[locale]/events/[id]/page.tsx` 中實作。
+2. **電影院類的預設有料 (Cinema Default Pricing Fallback)**:
+   在 `annotator.py` AI enrichment 過程中，針對電影院類別（`event_form` 含有 `screening` 或 `screening_with_talk`，或 `category` 是 `movie`，或 `source_name` 符合電影院來源（如 `cinema`, `cinemart`, `cineswitch`, `eurospace`, `human_trust`, `bungeiza`, `cinemarine`, `morc`））：
+   - 若 `is_paid` 為空，且**非**台灣文化中心（`source_name="taiwan_cultural_center"` 或 organizer 含有台灣文化中心）主辦，預設為 `is_paid = True`（有料）。
+   - 若 `is_paid` 為 `True` 且 `price_info` 為空白，預設為 `price_info = "有料"`，避免前台因沒有票價顯示留空或破圖。
+
+## ⚡ Combined Post-Build Audit — 新規 scraper 完成後に必ず実行
+
+**新しい scraper ファイルを作成・編集するたびに、task_complete 前に必ずこのコマンドを実行し、両方 ALL CLEAR を確認すること。**
+
+```bash
+cd scraper && python3 -W ignore - << 'AUDIT'
+import re, glob, os, sys
+from dotenv import load_dotenv; load_dotenv('.env')
+from supabase import create_client
+
+errors = []
+
+# ── 1. SCRAPERS registration audit ──────────────────────────────────────────
+registered = set(re.findall(r'(\w+Scraper)\(\)', open('main.py').read()))
+for f in glob.glob('sources/*.py'):
+    c = open(f).read()
+    m = re.search(r'class (\w+Scraper)\b', c)
+    if m and m.group(1) not in registered and m.group(1) != 'BaseScraper':
+        errors.append(f'❌ UNREGISTERED in main.py: {m.group(1)} ({f})')
+if not any('UNREGISTERED' in e for e in errors):
+    print('✅ SCRAPERS: all registered')
+
+# ── 2. research_sources.scraper_source_name audit ───────────────────────────
+sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+rows = sb.table('research_sources').select('name,scraper_source_name,status').eq('status','implemented').execute().data
+missing = [r for r in rows if not r['scraper_source_name']]
+if missing:
+    for r in missing:
+        errors.append(f'❌ scraper_source_name NULL: "{r["name"]}" (status=implemented)')
+else:
+    print('✅ research_sources: all implemented rows have scraper_source_name')
+
+# ── Result ───────────────────────────────────────────────────────────────────
+if errors:
+    for e in errors:
+        print(e)
+    sys.exit(1)
+else:
+    print('🎉 ALL CLEAR — safe to commit')
+AUDIT
+```
+
+**出力例（正常）:**
+```
+✅ SCRAPERS: all registered
+✅ research_sources: all implemented rows have scraper_source_name
+🎉 ALL CLEAR — safe to commit
+```
+
+**エラー例（未対応時）:**
+```
+❌ UNREGISTERED in main.py: TsutayaPortalScraper (sources/tsutaya_portal.py)
+❌ scraper_source_name NULL: "蔦屋書店ポータル（台湾キーワード横断検索）" (status=implemented)
+```
+- **`meta.json` に `source_name` / `class_name` がない場合は `generated.py` 先頭を直接確認する**: `auto_scraper/runs/{id}/meta.json` に `source_name` が含まれていない場合がある。その場合は `auto_scraper/runs/{id}/generated.py` の先頭数行を読んで `class XxxScraper(BaseScraper):` を探す。クラス名から `source_name` は snake_case 変換で導ける（`BookAndBeerScraper` → `bookandbeer`）。
+- **auto-scraper feature branch は生成後 24 時間以内にマージする**: `SCRAPERS` リストは全員が同じ行/ブロックを編集するため、放置するほど conflict が深刻化。長期放置 → 複数の scraper 追加コミットが main に積まれ → マージ時に手動解決が必要になる（commit `7cedc68` の Artist Cafe 衝突事例）。
+- **Identify source_name from a problem event**: Never guess from the event title — always query the DB:
   ```python
-  url = re.sub(r"^(https://peatix\.com)/[a-z]{2}/event/", r"\1/event/", url)
+  sb.table('events').select('source_name,source_id,source_url').eq('id', '<uuid>').execute()
   ```
-  (Incidents: event `e9c6f80b` 2026-05-17, `55d766ae` 2026-05-19.)
-- **`inner_text()` length guard for short-string fields**: Playwright `inner_text()` on a group anchor or any interactive DOM element can return the **entire page content** (e.g. starting with "Translate this page...") instead of the element's own text. Always add a length guard for fields expected to be short:  
-  `if _txt and len(_txt) <= 100`  
-  Apply to both primary extraction path and any fallback path. (Incident: peatix organizer `f839508`, 2026-05-19.)
-- **"Extract but not store" anti-pattern**: When a field is extracted for one purpose (e.g. blocklist check), ensure it is **also passed to `Event()`**. Forgetting to add it to the constructor causes the field to always be `null` in DB — silent failure, no error. Checklist before PR: cross-check all extracted variables against `Event()` constructor args. (Incident: peatix `organizer_name` always null — commit `24198d0`, 2026-05-19.)
-
-## RSS/Podcast scraper-specific
-- **Normalize `&amp;` in RSS link text before regex**: RSS `<link>` text nodes may contain HTML-entity-encoded `&amp;` even after XML parsing (double-encoded by the origin server). `item.find("link").text` can return `"...?uid=4&amp;pid=103701"`. Any regex on the raw text will miss `&pid=`. Always normalize: `link = link_raw.replace("&amp;", "&")` before extraction. Apply to both `source_url` construction and any `_extract_pid()`-style function. (Incident: rti_jp 0 events, 2026-05-14.)
-- **XML Element truth value — always use `is not None`**: `if element:` on an `xml.etree.ElementTree` Element is always `True` (DeprecationWarning since Python 3.8). Write `element is not None and element.text` instead.
-- **`STALE_DAYS` guard for podcast/RSS scrapers**: For scrapers that loop over a curated list of program IDs, check the latest episode's `pubDate` before iterating all items. If it exceeds `STALE_DAYS` (e.g. 90), the program is discontinued — skip to avoid a full-page fetch that returns 0 events:
+- **`start_date` / `end_date` must be `datetime.datetime`, NOT `datetime.date`**: `dedup_events` in `base.py` calls `.date()` on `start_date`. Passing a bare `date` object raises `AttributeError: 'datetime.date' object has no attribute 'date'`. Always use `datetime(y, m, d)` when constructing dates in scrapers.
+- **`category` must be `list[str]`, NOT a bare string**: The DB column is `text[]`. Passing `category="movie"` raises `malformed array literal` at write time. Always use `category=["movie"]`. This fails silently at compile time and only surfaces on DB upsert.
+- **Sub-events — always look up parent UUID via `get_event_id_by_source()`**: When setting `parent_event_id` on a sub-event, call `database.get_event_id_by_source(source_name, source_id) -> str | None` to retrieve the parent's UUID. Never assume the UUID in the scraper or depend on insertion order. Example:
   ```python
-  STALE_DAYS = 90
-  latest_pub = _parse_pubdate(items[0].find("pubDate").text)
-  if latest_pub and (now - latest_pub).days > STALE_DAYS:
-      logger.info("rti_jp: id=%s latest episode %dd old — discontinued", pid, age)
-      continue
+  from scraper.database import get_event_id_by_source
+  parent_uuid = get_event_id_by_source("taiwanshi", parent_source_id)
+  Event(..., parent_event_id=parent_uuid)
   ```
-- **`LOOKBACK_DAYS` must match broadcast frequency**: Weekly programs → 14d is sufficient. Monthly programs → 60d minimum. If a program's cadence is unknown, default to 60d.
+- **`requests.Session()` must always mount HTTPAdapter with Retry**: Any scraper that creates a `requests.Session()` must attach a retry adapter in `__init__`. Without it, a single transient network blip from GitHub Actions runners raises `Max retries exceeded` and triggers Sentry — even when the target site is healthy. Required pattern:
+  ```python
+  from requests.adapters import HTTPAdapter
+  from urllib3.util.retry import Retry
 
-## iwafu-specific
-- **Global-tour false positive**: If description contains `台湾など世界各地` / `全国各地.*台湾` etc., the event is a nationwide/global tour where Taiwan is just one stop. Reject it — it is NOT a Taiwan-themed event. The `_GLOBAL_TOUR_PATTERNS` regex in `iwafu.py` implements this guard.
-- **Title-level block**: Known IP series (e.g. `リアル脱出ゲーム×名探偵コナン`) must be blocked by `_BLOCKED_TITLE_PATTERNS` in `_scrape_detail` **before** the page load — this catches all tour stops as new source_ids appear. Add new entries here when a series is confirmed non-Taiwan-themed.
-- **Permanent IP series block**: For series where ALL events are non-Taiwan-themed (e.g. `名探偵コナン`), add the IP name to `_BLOCKED_SERIES`. Checked on BOTH card title (pre-load, fast-reject) AND h1 title (post-load). Card titles from search results can be truncated, so the pre-load check alone is not sufficient.
-- Taiwan relevance criterion: Taiwan must be the **theme or primary focus**, not just one venue on a multi-city tour.
-- **After adding a scraper filter, always audit the DB**: run `ilike("raw_title", "%keyword%")` to find existing records that should also be deactivated. The filter only prevents future inserts.
-- **Hard delete vs deactivation**: If an IP series is confirmed permanently non-Taiwan-themed, hard delete (`table.delete().eq("id", eid)`) rather than just deactivating. Deactivated events remain accessible via direct URL unless the event page also checks `is_active`.
-- **location_name / location_address**: Extract from `場所[：:]\s*(.+?)(?:\n|交通手段|Q&A|https?://|$)` in `main_text`. Set `location_name` to the captured venue name; for `location_address`, run `_ADDR_RE` on `main_text` first, then fall back to `official_body_text` (returned as 3rd element of `_fetch_official_organizer_info`). Fall back to `card.prefecture` for `location_name` only when the `場所：` label is absent. Never store bare prefecture names (e.g. `"東京"`) as the address.
-- **`_ADDR_RE` must be city/ward-anchored, not prefecture-anchored**: The prefecture prefix (`東京都|...府|...県`) must be `(?:...)?` optional; `[市区町村]` is the required anchor. Reason: many official event sites omit the prefecture prefix (e.g. `港区芝公園3-2`), so a mandatory prefix silently drops valid addresses. Ref: 屋台湾フェス2026 `location_address=None` incident (2026-05-15).
-- **`_fetch_official_organizer_info` returns 3-tuple**: `(organizer, supplemental_text, body_text)`. All callers must unpack 3 values. The `body_text` is used as address fallback when `main_text` has no address. If the official site fetch fails, return `(None, "", "")`.
+  _retry = Retry(
+      total=3,
+      backoff_factor=2,
+      status_forcelist=[429, 500, 502, 503, 504],
+      raise_on_status=False,
+  )
+  self._session.mount("https://", HTTPAdapter(max_retries=_retry))
+  self._session.mount("http://", HTTPAdapter(max_retries=_retry))
+  ```
+  Backoff: 2s → 4s → 8s. Mount both `https://` and `http://`.
+- **WordPress 活動頁標籤變體防漏抓（主催/講師）**: 對 WordPress/類 CMS 活動頁，人物與主辦欄位不得只依賴單一標籤。至少實作 `講演者 → 講師 → 登壇者` 的 fallback，並同時抽取 `主催`（必要時 `共催`）。此外，需將 `主催:` 與 `講師:` 顯式寫入 `raw_description`，確保 annotator 可在結構化文本中穩定回填 `organizer` / `performer`，避免觸發 `auto_qa_missing_organizer` / `auto_qa_missing_performers`。
 
-## eiga_com-specific
-- **Per-theater granularity**: One event per theater per movie. `source_id = eiga_com_{movie_id}_{theater_id}`. Each daily run upserts and updates `end_date` to the last date in the current week's schedule.
-- **URL flow**: `/movie/{id}/theater/` → area links `/movie-area/{id}/{pref}/{area}/` → `div.movie-schedule[data-theater]` + `.more-schedule a.icon.arrow` → `/movie-theater/{id}/{pref}/{area}/{theater_id}/` (address).
-- **`a.icon.arrow` is the all-schedule link**: The `.more-schedule` div has 3 links — copy (`/mail/`), print (`/print/`), all-schedule (bare `/{theater_id}/`). Always use `a.icon.arrow`; the first `a[href*='/movie-theater/']` is the `/mail/` link.
-- **Address extraction**: Use `table.theater-table th:contains("住所") + td` on the theater page. Call `a_tag.decompose()` on all `<a>` children before `get_text()` to strip "映画館公式ページ". Never use page-wide address regex — JS code can contain `東京都` fragments.
-- **Fallback event**: If no area links found, emit one movie-level event with `source_id = eiga_com_{movie_id}` and `location_name=None`.
+## WordPress RSS — `<strong>` Strip 後空格問題
 
-## koryu-specific
-- **location_address fallback**: `_extract_location_address()` searches for `所在地/住所` sections. When absent (common for 後援-type posts), fall back to the venue name from `_extract_venue()`: `location_address = _extract_location_address(body_text) or (venue if venue else None)`.
-- **404 on old koryu URLs**: When a koryu event page returns 404, `main_text` will be a redirect message with no venue section. `_extract_venue` returns `None`, so `location_address` is also `None`. This is acceptable — the event is stale.
-- **Single-day end_date**: Always set `end_date = start_date` at the end of `_extract_event_fields`. Taiwan Kyokai events are single-day ceremonies/lectures.
-- **Publish-date false positive**: The page body starts with the article publish date (`2026年4月20日`) before the actual event content. Do NOT rely solely on the generic `YYYY年MM月DD日` fallback — it will pick up the publish date if no structured `日時：` field exists.
-- **DOW-qualified date extraction**: Dates like `5月16日（土）` (with day-of-week) are actual event dates. Extract these BEFORE the generic fallback, then infer the year from the nearest `20XX年` in the text.
-- Priority order for date extraction: `日時：` field → `時間：` field (with date) → DOW-qualified `月\d+日（曜日）` → generic `YYYY年MM月DD日` fallback.
+**Rule**: WordPress RSS の `<description>` を BeautifulSoup で parse すると、`<strong>` 等の inline タグ除去後に数字の間に空白が挿入される（例：`"2026 年 1 月 31 日"`）。日付 regex では `\d` と漢字の間を `\s*` で繋ぐこと。
 
-## DeepL Tracking
-- Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
-- Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
-- `main.py` reads `getattr(scraper, "_deepl_chars_used", 0)` when writing to `scraper_runs`.
+```python
+# ✅ 正確：\s* で tag-strip artifact を吸収
+_DATE_RE = re.compile(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日")
 
-## `name_ja_locked` — protect structured titles from annotator overwrite
+# ❌ 誤り：スペース固定 or スペースなし — WordPress 環境では失敗する
+_DATE_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
+```
 
-**Problem**: Annotator GPT always rewrites `name_ja`, even when the scraper already populated it from a precise structured source field (e.g. academic paper `題目:`, official film programme titles). GPT tends to truncate the subtitle or append generic suffixes like「に関する講演会」.
+## WordPress RSS CDATA — `<a href>` URL は `.get_text()` で消える
 
-**Solution**: Set `name_ja_locked=True` on the `Event` when `name_ja` is extracted from a definitive structured field. The annotator will preserve the existing `name_ja` unchanged, while still generating `name_zh`, `name_en`, `description_*`, and `category` normally.
+**Rule**: WordPress RSS の `<content:encoded>` CDATA には Peatix・チケット販売サイト・公式サイトへのリンクが `<a href="...">` アンカーとして埋め込まれる。`BeautifulSoup(content_html, "html.parser").get_text()` でテキスト変換すると href 属性が消えるため、正規表現によるプレインテキスト検索では URL を検出できない。
 
-**Language note**: `name_ja` is a field identifier, not a language constraint. A `name_ja_locked` title may legitimately be Chinese (`name_ja="台灣..."`) or English (`name_ja="Taiwan..."`) when the authoritative source uses that language. Do not correct the language.
+必ず生 HTML 文字列を別途 BS4 でパースし `find_all("a", href=True)` を走査する関数を用意すること:
 
-**When to use**:
-- Academic sub-events where `name_ja` = structured `題目:` / paper title with full subtitle (e.g. `taiwanshi` scraper)
-- Film sub-events from official programme PDFs with definitive Japanese titles
-- Any event where the raw source provides the official Japanese title as a discrete field — not inferred from free-text description
+```python
+def _extract_peatix_url_from_html(html_text: str) -> Optional[str]:
+    """Extract Peatix event URL from HTML anchor href attributes.
 
-**When NOT to use**:
-- Events where the source only provides a vague or generic title and annotator enrichment is desirable
+    Priority: peatix.com/event/NNN (specific event page) over
+    *.peatix.com subdomain (organizer channel page).
+    Channel links often appear as banners BEFORE the event link.
+    """
+    soup = BeautifulSoup(html_text or "", "html.parser")
+    channel_url: Optional[str] = None
+    for a in soup.find_all("a", href=True):
+        href: str = a["href"]
+        if "peatix.com" not in href:
+            continue
+        href = href.rstrip("./,、）)")
+        # Prefer /event/NNN path — return immediately
+        if re.search(r"peatix\.com/event/\d+", href):
+            return href
+        if channel_url is None:
+            channel_url = href
+    return channel_url
+```
+
+呼び出し側でテキスト検索と HTML 検索を OR で組み合わせる:
+
+```python
+_peatix = _extract_peatix_url(content_text) or _extract_peatix_url_from_html(content_html)
+```
+
+**⚠️ URL 種別の優先度:** Peatix には 2 種類の URL が存在する:
+- `peatix.com/event/NNN/view` — 個別イベントページ（チケット購入・詳細情報あり）← **優先**
+- `org.peatix.com` — 主催者チャンネルページ（イベント一覧のみ）← fallback
+
+HTML 内に両方が現れる場合、チャンネルページが先に出現することが多い。常に全アンカーを走査して `/event/NNN` を優先すること。
+
+**適用範囲**: WordPress RSS を使う全 scraper（ftip、その他 WordPress ベースのソース）。
+
+(Incidents: ftip `ee870f7` CDATA extraction, `34368e3` channel-vs-event priority, 2026-05-17.)
+
+## Peatix — ロケールプレフィックス URL の正規化（URL 収集段階で実施）
+
+**Rule**: Peatix は headless ブラウザのロケール設定に応じて `https://peatix.com/us/event/{id}` や `/ja/event/{id}` 形式の URL を返すことがある。これらは実際のイベントページ（`https://peatix.com/event/{id}`）へのリダイレクトが失われると `302 → トップ` になり broken link となる。URL は **収集段階**（`_search_events`・`_scrape_group_events`）で正規化すること。
+
+```python
+import re
+
+_PEATIX_LOCALE_RE = re.compile(
+    r"(https://peatix\.com)/[a-z]{2,5}(?:-[A-Z]{2})?(/event/)"
+)
+
+def _normalize_peatix_url(url: str) -> str:
+    """Strip locale prefix from Peatix URLs.
+
+    https://peatix.com/us/event/123  →  https://peatix.com/event/123
+    https://peatix.com/ja/event/123  →  https://peatix.com/event/123
+    https://peatix.com/event/123     →  unchanged
+    """
+    return _PEATIX_LOCALE_RE.sub(r"\1\2", url)
+```
+
+収集ループでの適用:
+```python
+# _scrape_group_events / _search_events 両方に適用
+full = _normalize_peatix_url(full.split("?")[0])
+```
+
+**既存 DB に locale 付き URL が混入している場合の修正手順**:
+1. `sb.table('events').select(...).like('source_url','%/us/event/%')` で件数確認
+2. 正規化後 `source_id = hashlib.md5(new_url).hexdigest()[:16]` を計算
+3. その `source_id` で既存レコードが存在するか確認
+   - DUP あり → `/us/` 版を `merged_into_event_id` 設定して soft-delete
+   - DUP なし → `source_url`・`source_id` を直接 update
+
+(Incidents: peatix `e9c6f80b` 2026-05-17, `55d766ae` 2026-05-19, commit `8b901ec`.)
+
+## aggregator scraper の `location_name` フォールバックに組織名を使わない
+
+**Rule**: 会場抽出に失敗した場合、組織名定数（例: `LOCATION_NAME = "台湾原住民族との交流会"`）を `location_name` のフォールバックに使わないこと。組織名が会場として DB に入り、UI で「会場：台湾原住民族との交流会」と誤表示される。
+
+```python
+# ✅ 正確：会場不明なら None
+location_name = venue_name if venue_name else None
+
+# ❌ 誤り：組織名定数をフォールバックに使う
+location_name = venue_name if venue_name else LOCATION_NAME  # "〇〇協会" が venue になる
+```
+
+会場が不明な場合は `location_name = None` とし、annotator または手動修正に委ねること。
+
+(Incident: ftip `278e6d8`, 2026-05-17.)
+
+**適用範囲**：WordPress 6.x 以降の全 RSS ベース scraper。`get_text()` / `get_text(strip=True)` を問わず発生する。
+
+Reference incident: 2026-05-12 — `nittai_toumonkai.py`（WordPress 6.9.4）の `<description>` で `2026 年 1 月 31 日` 形式を確認。
+
+## venue regex 負向前瞻 — `(?!<後綴詞>)` 誤匹配防止
+
+**Rule**: `会場`、`場所`、`開催場所` 等の venue キーワード regex に負向前瞻を追加して複合語の誤マッチを防ぐ。
+
+```python
+# ✅ 正確：会場受付 を venue として拾わない
+_VENUE_RE = re.compile(r"会場(?!受付)[：:]\s*(.+)")
+
+# ❌ 誤り：会場受付 も venue として抽出してしまう
+_VENUE_RE = re.compile(r"会場[：:]\s*(.+)")
+```
+
+**要注意の複合語一覧**：`会場受付`、`会場費`、`会場変更`、`会場案内`
+各 regex 追加時に上記複合語を検討し、必要に応じて `(?!受付|費|変更|案内)` を付与すること。
+
+Reference incident: 2026-05-12 — `nittai_toumonkai.py` で `会場受付` が venue name として誤抽出。
+
+## Venue / 日時ラベル抽出 — セパレーター量詞と `get_text` 使い分け
+
+### セパレーター文字クラスは `+`（1 回以上）にする
+
+venue・日時ラベル（`会場`、`場所`、`開催場所`、`日時` 等）の後ろに続くセパレーター文字クラスは必ず `+` にする。`*` を使うと本文中の同名の一般名詞（例：`称揚する場所」...`）にマッチしてゴミテキストを venue として取得してしまう。
+
+```python
+# ✅ 正確：セパレーターが最低 1 文字必要
+_VENUE_RE = re.compile(r"(?:会場|場所|開催場所)[　\s：:]+([^\n]{3,60})")
+
+# ❌ 誤り：セパレーターなし（0 回）でもマッチ → 本文中の一般名詞に誤マッチ
+_VENUE_RE = re.compile(r"(?:会場|場所|開催場所)[　\s：:]*([^\n]{3,60})")
+```
+
+### `get_text("\n")` と `get_text(" ")` の使い分け
+
+| 用途 | 推奨 | 理由 |
+|------|------|------|
+| venue・日時（構造依存、`[^\n]` を使う regex） | `get_text("\n", strip=True)` | HTML ブロック境界が `\n` に変換され `[^\n]` がブロック内で停止する |
+| 日付・概要・キーワード判定（改行不要） | `get_text(" ", strip=True)` | 1 行テキストで regex が扱いやすい |
+
+両バリアントを変数として保持するのが安全：
+
+```python
+full_text    = soup.get_text(" ",  strip=True).replace("\x00", "")  # 日付・概要用
+full_text_nl = soup.get_text("\n", strip=True).replace("\x00", "")  # venue・日時用
+
+mv = _VENUE_RE.search(full_text_nl)   # ✅ [^\n] がブロック境界で停止
+md = _DATE_RE.search(full_text)        # ✅ 改行なし 1 行テキストで日付 regex
+```
+
+`get_text(" ")` のみで venue regex を走らせると、会場行と次のセクション（プログラム・講師情報 etc.）が 1 行に結合されるため、`[^\n]{3,60}` が 60 文字まで次のセクションを取り込む。
+
+Reference incident: 2026-05-15 — `snet_taiwan.py` で `場所` が本文に誤マッチ（量詞 `*` 修正）後も `get_text(" ")` によりプログラム情報が混入（`get_text("\n")` 導入で解決）。
+
+## 全形数字 — `unicodedata.normalize("NFKC")` 事前変換
+
+**Rule**: 日本語ウェブページの数字は全角（`２０２６年`）で記述されている場合がある。parse 前に `unicodedata.normalize("NFKC", text)` で半角に統一すること。
+
+```python
+import unicodedata
+
+def _fw_to_ascii(self, text: str) -> str:
+    """全形数字・記号を半形に変換する。"""
+    return unicodedata.normalize("NFKC", text)
+
+# parse pipeline
+text = self._fw_to_ascii(raw_text)
+m = _DATE_RE.search(text)  # \d が全角を拾い損ねない
+```
+
+**適用範囲**：全角数字が出現しうる全 scraper（特に団体サイト・勉強会系）。`BeautifulSoup.get_text()` は全角のまま返すため変換は必須。
+
+Reference incident: 2026-05-12 — `nittai_toumonkai.py` 本文に `２０２６年` が出現。
+
+## 時間レンジ区切り文字 — 5 種類すべてを character class に含める
+
+**Rule**: 日本語テキストの時間レンジ（開始〜終了）を正規表現でパースする際は、以下 **5 種類**の区切り文字すべてを character class に含めること。
+
+| 文字 | Unicode | 典型ソース |
+|---|---|---|
+| `〜` | U+301C WAVE DASH | 一般的 |
+| `~` | U+007E ASCII TILDE | 一般的 |
+| `～` | U+FF5E FULLWIDTH TILDE | 一般的 |
+| `-` | U+002D HYPHEN-MINUS | ASCII |
+| `－` | U+FF0D FULLWIDTH HYPHEN-MINUS | 学術・waseda 系 |
+
+```python
+_TIME = r'\d{1,2}:\d{2}'
+# ✅ 全 5 種の区切り文字を網羅
+m = re.search(rf'({_TIME})\s*[〜~～\-－]\s*({_TIME})', text)
+```
+
+`annotator.py` の `_extract_hours_from_raw()` はこのパターンを実装済み（commit `b3b32b3`）。新たに時間パーサを書く際は同じ character class を踏襲すること。
+
+**修正時のテスト手順：**
+```python
+cases = [
+    '15:05－17:00',  # U+FF0D
+    '15:05～17:00',  # U+FF5E
+    '15:05〜17:00',  # U+301C
+    '15:05-17:00',   # ASCII
+    '15:05~17:00',   # U+007E
+]
+for t in cases:
+    assert re.search(rf'({_TIME})\s*[〜~～\-－]\s*({_TIME})', t), f'MISS: {t!r}'
+```
+
+Reference incident: 2026-05-30 — `waseda_taiwan` event `75a46729` で `business_hours` が `15:05` のみ（`17:00` 欠落）。commit `b3b32b3`。
+
+## Jimdo / 一部 CMS — URL パス encoding 不統一 → `unquote(href)`
+
+**Rule**: Jimdo, 一部の WordPress, FC2 等のCMSは、`<a href>` の日本語パスをあるページでは URL-encode し、別のページでは生の日本語文字で出力する。比較・重複排除を行う前に `unquote()` で正規化すること。
+
+```python
+from urllib.parse import unquote, urljoin
+
+href = a.get("href", "")
+normalized = unquote(href)  # %E3%83%96%E3%83%AD%E3%82%B0 → ブログ
+full_url = urljoin(base_url, normalized)
+```
+
+**注意**：`urljoin` は encode 済み URL も未 encode URL も正しく処理するが、比較は必ず decode 後に行うこと（`/ブログ/` と `/%E3%83%96%E3%83%AD%E3%82%B0/` は同一 URL だが文字列比較では不一致）。
+
+Reference incident: 2026-05-12 — `tsudoi_osaka.py`（Jimdo CMS）の href に encoding 不統一が確認された。
+
+## POST 検索フォームサイト — `requests.post` + 302 追跡
+
+大学・機関サイトの検索機能は GET パラメータでなく POST body を使うことが多い。
+
+**必須確認**：ブラウザ devtools の Network タブまたは `curl -v` でフォームの `method` 属性を確認する。
+
+```python
+# ✅ POST 検索 — Cookie なし、302 自動追跡
+resp = requests.post(
+    "https://www.wuext.waseda.jp/course/search-list/",
+    data={"keyword": "台湾", "page": 1},
+    allow_redirects=True,
+    headers={"User-Agent": "Mozilla/5.0"},
+    timeout=30,
+)
+
+# ❌ GET パラメータは無視される（POST フォームサイト）
+resp = requests.get("https://www.wuext.waseda.jp/course/search-list/?keyword=台湾")
+```
+
+**規則**:
+- POST フォームサイトは Cookie なしで動作することが多い（まず試す）。セッション Cookie が必要な場合のみ `requests.Session()` を使う。
+- `allow_redirects=True` で 302 を自動追跡する。
+- `form[method="post"]` サイトへの GET リクエストは検索結果でなくデフォルトページを返す。結果が 0 件の場合は必ず POST を試すこと。
+
+Reference incident: 2026-05-13 — `wuext_waseda.py` で `?keyword=台湾` GET が無視され 0 件。POST に変更で正常動作。
+
+## 大学・機関サイト — コンテンツコンテナと台湾フィルタ
+
+### 本文コンテナの特定
+
+大学・機関サイトの detail ページは固有の `id` または `class` を持つコンテンツコンテナを使う。
+
+```python
+# ✅ 早稲田エクステンション: id="course"
+content = soup.find(id="course") or soup.find("main") or soup
+
+# ❌ find('body') はナビゲーション・サイドバー・フッターを含む — キーワード判定が不正確
+content = soup.find("body")
+```
+
+**手順**:
+1. `curl -s <url> | grep -E 'id=|class=' | head -30` でコンテナ候補を列挙する。
+2. ブラウザ devtools で実際のコンテンツ div を確認する。
+3. `id` を優先し、なければ `class` セレクターを使う。`find('main')` は最終手段。
+
+**要注意のサイト別コンテナ例**:
+- 早稲田エクステンション（wuext_waseda）: `id="course"`
+- 朝日カルチャーセンター（asahiculture）: `div.course-detail` / `備考` `th/td` row
+
+### 台湾フィルタは詳細ページ本文まで検索する
+
+大学講座・機関イベントはタイトルに「台湾」を含まず、本文のみで台湾を言及する場合が多い（例: 「緊迫する世界状勢と現代地政学」「台湾有事」を内容で扱う）。
+
+```python
+_TAIWAN_KEYWORDS = ("台湾", "台北", "台中", "高雄", "台南", "日台", "台日", "中華民国")
+
+def _is_taiwan_content(self, title: str, detail_soup) -> bool:
+    """タイトルまたは詳細ページ本文に台湾キーワードが含まれるか判定する。"""
+    if any(kw in title for kw in _TAIWAN_KEYWORDS):
+        return True
+    content = detail_soup.find(id="course") or detail_soup
+    body_text = content.get_text(" ", strip=True)
+    return any(kw in body_text for kw in _TAIWAN_KEYWORDS)
+```
+
+**規則**:
+- 詳細ページ取得が価格・日付抽出と兼用できる場合は必ず本文フィルタを有効にする。
+- タイトルのみフィルタは教育・学術系サイトでは収録漏れが多い。
+- `_TAIWAN_KEYWORDS` は最低限 `台湾` `日台` `台日` を含めること。
+
+Reference incident: 2026-05-13 — `wuext_waseda.py` でタイトルのみフィルタにより「緊迫する世界状勢と現代地政学」等が脱落。
+
+## Date Extraction — General Rules
+
+Rules that apply to ALL scrapers when constructing `raw_description` and `start_date`/`end_date`.
+
+### `開催日時:` prefix — complete format when end_date is known
+When a scraper already knows `end_date` AND `end_date ≠ start_date`, the `開催日時:` prefix in `raw_description` **must** include the full date range:
+```
+開催日時: YYYY年MM月DD日〜YYYY年MM月DD日
+```
+Writing only the start date (`開催日時: YYYY年MM月DD日`) tells GPT there is a single day → SINGLE-DAY RULE fires → `end_date` is set to `start_date`, discarding the correct value already held by the scraper.
+
+Note: `annotator.py`'s `annotation.get("end_date") or event.get("end_date")` fallback is **blind to non-null wrong values** — it only activates when GPT returns `null`. If GPT returns a non-null but incorrect `end_date` (e.g. same as `start_date` via SINGLE-DAY RULE), the scraper's correct value is silently discarded.
+
+### Year anchor for date-less news scrapers
+When a news-type scraper (`google_news_rss`, `prtimes`, `nhk_rss`, etc.) cannot extract a complete date from the article (i.e. the article only mentions a month/day or no date at all), embed the RSS `pub_date` as a year anchor in `raw_description`:
+```
+（記事配信日: YYYY年MM月DD日）
+```
+Insert this before the article body text. Without a year anchor, GPT may infer the wrong year (e.g. guessing 2024 when the correct year is 2026).
+
+### N日間 duration keywords
+`annotator.py` SYSTEM_PROMPT Rule 10 covers `N日間` → `end_date = start_date + (N-1)` days, but scrapers should also attempt self-resolution rather than defaulting to `end_date = start_date`:
+```python
+import re
+from datetime import timedelta
+
+m = re.search(r'(\d+)日間', raw_description)
+if m:
+    n = int(m.group(1))
+    end_date = start_date + timedelta(days=n - 1)
+```
+Similarly, `N週間` → `N × 7` days. Apply BEFORE falling back to `end_date = start_date`.
+
+### On-Demand / Viewing Period — detail page date extraction
+
+When a listing table cell has only a term name (e.g. `2025年度 冬期 全4回`) with no explicit date range,
+the actual start/end dates are often embedded in the **detail page body** as `(YYYY/MM/DD)` or `YYYY年MM月DD日`.
+
+**Priority order for on-demand / date-less courses:**
+1. **Tier 1**: Parse explicit date range from listing column (e.g. `07月04日～07月25日`)
+2. **Tier 2**: Extract `(YYYY/MM/DD)` or `YYYY年MM月DD日` from detail page body — take earliest as `start_date`, latest as `end_date`
+3. **Tier 3**: Term fallback (`春期`→4/1, `夏期`→7/1, `秋期`→10/1, `冬期`→1/1 of next calendar year)
+
+```python
+_DETAIL_DATE_PARENS_RE = re.compile(r"\((\d{4})/(\d{1,2})/(\d{1,2})\)")
+
+def _extract_detail_dates(detail_soup):
+    text = (detail_soup.find(id="course") or detail_soup).get_text(" ", strip=True)
+    found = []
+    for m in _DETAIL_DATE_PARENS_RE.finditer(text):
+        found.append(datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc))
+    found.sort()
+    return (found[0], found[-1] if len(found) > 1 else None) if found else (None, None)
+```
+
+**Always try detail page dates before term fallback** — term fallback yields `YYYY-01-01` / `YYYY-04-01`
+which shows as "日期未定" on the web UI and misleads users.
+
+Reference incident: 2026-05-14 — wuext_waseda event `30bdfc30`「台湾と日本―興味の台湾案内」
+had `start_date=2026-01-01` (term fallback). Actual viewing period `(2025/11/26)～(2026/04/30)`
+was in the detail body. Fixed in commit `bacd4cd`.
+
+### annotator `or event.get("end_date")` fallback — blind spot
+The pattern `annotation.get("end_date") or event.get("end_date")` only rescues the scraper's value when GPT returns `null`. When GPT returns a **non-null wrong value** (most commonly SINGLE-DAY RULE: `end_date = start_date`), the `or` branch is never reached — the wrong value is written to DB. Fix: always embed the correct date range in `raw_description` (see § `開催日時:` prefix above) so GPT never needs to fall back to SINGLE-DAY RULE in the first place.
+
+## Contentful CDA — 年度系列展日期 slug Fallback
+
+**問題**：Contentful 年度系列展使用 `scheduleStartsOn=YYYY-01-01` 作為財年佔位符。
+**偵測**：`start_date.month == 1 and start_date.day == 1`
+**修復**：從 URL slug 末尾提取真實日期：
+```python
+slug_m = re.search(r"/(\d{4}-\d{2}-\d{2})$", slug)
+if slug_m and start_date and start_date.month == 1 and start_date.day == 1:
+    start_date = self._parse_date(slug_m.group(1))
+```
+**驗證**：乾跑後確認無事件 start_date 為 Jan 1。
+
+Reference incident: 2026-05-05 — event 6a91a4ce (アジア美術の歩き方 東アジア編) scheduleStartsOn=2026-01-01 為佔位符，真實日期 2026-04-18 在 slug 末尾 (commit a1e58a9)。
 
 ## URL Handling — Relative Path Guard
 
@@ -120,6 +611,19 @@ source_url = a["href"]
 
 **Incident**: `hakusuisha.py` 的 `../news/n*.html` 直接存入 DB（commit `1b344f7`），導致 10 筆事件 source_url 404。
 
+**Auto-generated scraper 的 detail_url 補全規則**（spec_to_code template 生成的 `_extract_cards` 模式）：
+```python
+# ✅ 最正確：urljoin(page.url, href) — 處理 /path、../path、relative/path 等所有形式
+from urllib.parse import urljoin
+if detail_url and not detail_url.startswith(("http://", "https://")):
+    detail_url = urljoin(page.url, detail_url)
+
+# ❌ 不完全：BASE_URL + path は ../news/n*.html 形式を解決できない
+# if detail_url and not detail_url.startswith("http"):
+#     detail_url = f"{BASE_URL}/{detail_url}"
+```
+`BASE_URL` 文字列結合は `/` 前導パスには機能するが `../news/n*.html` 形式では `{BASE_URL}/../news/...` という無効 URL になる。`urljoin(page.url, href)` が唯一の正解。**Incidents**: `cine_gallery.py` 事件 `cdf5e555`（2026-05-14）; `hakusuisha.py` `../news/n*.html` → 2026-05-30 `c099bcb` で修正。
+
 ## BeautifulSoup 多行文字提取 — `separator="\n"`
 
 **Rule**: 任何需要保留行結構的文字提取（排程、場次、地址、時間表等），必須使用 `separator="\n"`。
@@ -133,124 +637,1077 @@ text = element.get_text(strip=True)
 ```
 
 **Incident**: `gguide_tv.py` 排程文字缺 `separator="\n"`，時間資訊擠在一起（commit `a895e07`）。
+
+## Cinema scraper — `end_date` と `business_hours` 完全規則
+
+> **適用対象**: 全ての cinema scraper（`category=["movie"]` を持つ全 scraper）
+
+### 分類ごとの実装パターン
+
+日本の電影院 scraper は**3タイプ**に分類される。タイプごとに `end_date` と `business_hours` の取得戦略が異なる。
+
+---
+
+#### Type 1: 票務平台分離型（例: starcat_cinema）
+
+**特徴**: 主サイト（eiga.starcat.co.jp）は映画情報・あらすじのみ。場次時間と排片日程は**別の票務平台**（starcat-ticket.com など）に存在する。
+
+**`end_date` 規則**: 日本の映画館は毎週木曜日に翌週（金曜〜木曜）の上映スケジュールを発表する。したがって:
+- `end_date` = 票務スケジュール内のその映画の**最後の日（当週木曜）**
+- `_build_ticket_schedule()` は `dict[str, tuple[str, Optional[datetime]]]` を返す: `(business_hours_str, last_date_utc)`
+- 上映スケジュールに未登場の映画（未公開または上映終了）: `end_date = None`
+- 每次 CI 実行で `end_date` は自動延伸（滚动视窗）
+
+**`business_hours` 規則**: `_build_ticket_schedule(ticket_url)` から取得。形式: `M/DD(曜): HH:MM〜HH:MM`（複数日は `\n` 区切り）
+
+**`raw_description` 前綴必須規則（SINGLE-DAY RULE 防止）**:
+```python
+# end_date が start_date と異なる場合、必ず完整な期間範囲を前綴に入れる
+if start_date and schedule_end and schedule_end != start_date:
+    date_prefix = f"上映期間: {start_date.year}年{start_date.month}月{start_date.day}日〜{schedule_end.year}年{schedule_end.month}月{schedule_end.day}日"
+# ❌ NG: "2026年5月15日(金)より公開" のみ → annotator SINGLE-DAY RULE → end_date = start_date
+```
+
+**参考実装**: `starcat_cinema.py` — `TICKET_SCHEDULE_URLS` + `_build_ticket_schedule()` + `_lookup_schedule_entry()` + `_lookup_end_date()` + `_lookup_business_hours()`
+
+---
+
+#### Type 2: 排片表嵌入型（例: shin_bungeiza, cinemart_shinjuku, ks_cinema, rightscube）
+
+**特徴**: 映画詳細ページ内に上映スケジュール（日付 + 時刻）が直接含まれる。
+
+**`end_date` 規則**: `max(dates in schedule)` — スケジュール内の最終日
+```python
+end_date = max(parsed_dates, default=None)
+```
+
+**`business_hours` 規則**: HTML スケジュール要素から直接抽出。常見容器:
+- `div.schedule-program` (shin_bungeiza)
+- `div.schedule-table` / `table.schedule` (各映画館)
+- `dl.showtime` / `ul.times` (単館映画館)
+- `p.nihon-date` + `div.program` 組合せ (shin_bungeiza パターン)
+
+日付ヘッダー（`<h2>` / `<p class="nihon-date">`）と上映時刻（`<div class="schedule-program">`）が**別要素**の場合は両者を組み合わせる:
+```python
+business_hours = "\n".join(
+    f"{date_label}: {' '.join(times)}"
+    for date_label, times in schedule_map.items()
+)
+```
+
+---
+
+#### Type 3: 上映中リスト型（例: cineswitch_ginza, human_trust_cinema, uedaeigeki）
+
+**特徴**: 現在上映中 / 近日公開映画のカード一覧ページ。詳細な場次時間は別ページまたは別プラットフォームに存在する。
+
+**`end_date` 規則**: カードに `"M/D まで"` / `"〜M/D"` / `"終映日：M/D"` / `"※M/D で上映終了"` ラベルがある場合はそこから解析。ない場合は `None`（推測禁止）。
+
+**`business_hours` 規則**: リストページに場次時間がない場合は `None`。ただし詳細ページに時刻がある場合は詳細ページを取得して抽出する（コスト対効果を考慮すること）。
+
+---
+
+### 共通禁止事項
+
+1. **`end_date = start_date` は禁止（ただし movie-extend 用 fallback を除く）**: `end_date` を設定する場合、少なくとも `start_date + 1日` でなければならない。ただし **movie-extend 機能を持つ映画館 scraper**（Type 3 の継続上映型）では `end_date = None` のままでは `_build_movie_extend_row` の MAX ロジックが機能しないため `end_date = start_date` を明示的 fallback として設定することが許容される。この場合 movie-extend が毎日 MAX で端を延ばす。（Incident: `kyoto_cinema`, 2026-05-20）
+2. **空文字列 `business_hours = ""` 禁止**: 場次が取得できない場合は `None` を設定。空文字列は DB に不要なデータを残す。
+3. **推測による `end_date` 禁止**: 「通常2〜3週間上映」などの仮定で `end_date` を算出してはいけない。ソースから取得できない場合は `None`。
+4. **視覚上に場次時間があるのに `business_hours = None` は scraper bug**: サイトを目視確認して時刻要素のセレクタを追加すること。
+5. **`event_form=["screening"]` 必須**: 全 cinema scraper は `event_form=["screening"]` を設定すること。DB check constraint（migration 047）の valid 値: `'exhibition','screening','lecture','performance','market','workshop','conference','networking','screening_with_talk','tour','competition','tasting','broadcast','study_abroad','other'`。`"film_screening"` は **DB に存在しない**（constraint エラー）。（Incident: `kyoto_cinema`・`sakurazaka`・`kino_shinsaibashi`・`human_trust_cinema` で `"film_screening"` を誤設定 → constraint 違反、commit で revert）
+
+### JST ISO datetime パース規則
+
+一部 CMS（TTCG など）は `data-date="2026-05-15T00:00:00+09:00"` のような JST-aware ISO 文字列を出力する。**`.replace("+09:00", "")` パターンは禁止** — JST offset を除去しても naive datetime が生成されるだけで UTC 変換にならない。
+
+```python
+# ✅ 正確：JST-aware parse → UTC midnight
+dt_jst = datetime.fromisoformat(data_date)  # 2026-05-15 00:00:00+09:00
+start_date = datetime(dt_jst.year, dt_jst.month, dt_jst.day, tzinfo=timezone.utc)
+
+# ❌ 誤り：offset を strip した naive datetime になる
+start_date = datetime.fromisoformat(data_date.replace("+09:00", ""))
+```
+
+Incident: `human_trust_cinema` commit `7849021`。
+
+### Annotator SINGLE-DAY RULE 防護
+
+`raw_description` に**単一の日付**しか含まれない場合、annotator は `end_date = start_date` と設定する（SINGLE-DAY RULE）。Cinema scraper では以下を守ること:
+
+- `raw_description` の前綴に**必ず上映期間全体**を記載する: `上映期間: YYYY年M月D日〜YYYY年M月D日`
+- Type 1 scraper で `end_date` が取得できた場合は前綴を期間表示に置き換える（単日 `より公開` 記述のまま放置しない）
+- **Type 3 で `end_date` が取得不可の場合は date prefix を入れない**: サイトに end_date 情報がない場合に `"上映開始: YYYY年M月D日"` を入れると SINGLE-DAY RULE が発動し `end_date=start_date` に上書きされる。`start_date` はフィールドに正しく格納済みなので raw_description に繰り返す必要はない。（Incident: `human_trust_cinema` commit `7849021`）
+
+### 稽核表 ghost エントリ防止
+
+稽核表に新行を追加する前に、ファイルの実在を確認すること:
+```bash
+ls scraper/sources/<name>.py
+```
+不存在のファイルを稽核表に記載すると後続の修復作業で混乱を招く。（Incident: `ciemarine` 行 — ファイル不存在のまま記載されていたため削除）
+
+### 現況稽核表（2026-05-15 時点）
+
+| Scraper | Type | `end_date` | `business_hours` | 状態 |
+|---------|------|-----------|-----------------|------|
+| cinemart_shinjuku | 2 | ✅ max(dates) | ✅ cineticket.jp | 完全準拠 |
+| shin_bungeiza | 2 | ✅ h2 dates max | ✅ schedule-program | 完全準拠 |
+| starcat_cinema | 1 | ✅ 木曜末日 | ✅ starcat-ticket.com | 完全準拠 |
+| rightscube | 2 | ✅ THEATER区段 | ✅ business_hours_text | 完全準拠 |
+| ks_cinema | 2 | ✅ 表格期間 | ✅ schedule_text (commit `23e417f`) | 完全準拠 |
+| kino_shinsaibashi | 3 | ✅ 終映日 | ❌ None（JS 驅動，Type 3 可） | 完全準拠（`screening` + prefix, commit `544bbc4`） |
+| kyoto_cinema | 3 | ✅ 終映日M/D; fallback=start_date（movie-extend 用） | ✅ homepage time slots | 完全準拠（`screening` + prefix, commit `e91f5cd`; movie-extend fallback, 2026-05-20） |
+| cineswitch_ginza | 3 | ✅ M/D まで | ❌ None（Type 3 可） | 完全準拠（UTC fix, commit `e91f5cd`） |
+| theater_enya | 3 | ✅ 期間文字 | ❌ None（Type 3 可） | 完全準拠（UTC fix, commit `e91f5cd`） |
+| cinewind | 2 | ✅ YYYY/M/D | ❌ None（Type 2, 追加調査要） | UTC 修正済み（commit `e91f5cd`） |
+| ciema | 2/3 | ✅ 週表頭 | ❌ None（Type 3 可） | 完全準拠（UTC fix, commit `e91f5cd`） |
+| cinemadict | 2 | ✅ 完整期間（UTC fix） | ✅ date_text HH:MM（commit `544bbc4`） | 完全準拠 |
+| ycam_cinema | 2 | ✅ 節目期間 | ❌ None（Type 2, 追加調査要） | UTC 修正済み（commit `e91f5cd`） |
+| sakurazaka | 3 | ✅ 上映中/予定 | ❌ None（Type 3 可） | 完全準拠（`screening`, commit `e91f5cd`） |
+| uedaeigeki | 2 | ✅ 上映日程 | ❌ None（Type 2, 追加調査要） | UTC + prefix 修正済み（commit `e91f5cd`） |
+| human_trust_cinema | 3 | ❌ None（サイト非公開, JS-driven） | ❌ None（同上） | UTC+event_form 完了（commit `7849021`→revert）, end_date はサイト制限 |
+| theater_kino | 2 | ✅ 静的HTML | ❌ None（Type 2, 追加調査要） | UTC + prefix 修正済み（commit `e91f5cd`） |
+
+**新規 cinema scraper 作成時は、上記稽核表に行を追加すること。**
+
+**Incidents:**
+- shin_bungeiza（commit `1ffb98e`）— `_parse_nihon_date_only()` が `<h2>` 日付のみ取得し `<div class="schedule-program">` の場次時間を無視。
+- starcat_cinema（2026-05-15）— 主サイトに場次なし → `starcat-ticket.com` から別途取得。`end_date=None` が annotator SINGLE-DAY RULE で `start_date` に上書きされた。
+
+---
+
+## auto_qa 地名關鍵字設計規則
+
+- `TAIWAN_VENUE_KEYWORDS` 必須使用完整行政單位名（`台北市`、`新北市`），禁用裸縮寫（`台北`、`新北`）以避免日本地名假陽性
+- 新增關鍵字前：`grep -rn "<keyword>" scraper/sources/` 確認不在任何已知日本地名中
+- 假陽性無法靠 dismiss 解決：dedup 邏輯在 `updated_at > confirmed_at` 時重新觸發；根治需修正關鍵字
+
+Reference incident: 2026-05-05 — `'新北'` 匹配大阪市 `新北島`，event 371cf624 (GRAFFYHALL) 連續三次 auto_qa_taiwan_venue (commit 6b7174a)。
+
+## `_extract_after_label()` を使う構造化テキスト scraper の `_STOP_LABELS` 管理
+
+`_extract_after_label(text, label_re)` は `_STOP_LABELS` に登録された語で抽出を打ち切るが、**同一行に出現しうる全ラベルが未登録だと venue_raw に発表者・対象者情報が混入する**。
+
+**Rule: `_STOP_LABELS` は「同一行に現れうる全ラベル」を網羅すること**
+
+```
+# 典型的な早稲田台湾研究所ソース行：
+場所：〇〇教室 講演者：郭智輝氏（...） モデレーター：久保克行 対象：学生・一般
+```
+
+`講演者`/`モデレーター`/`対象` が `_STOP_LABELS` に未登録だと、`venue_raw` が `〇〇教室 講演者：郭智輝氏... 対象：...` になり、`会場: {venue_raw}` として `raw_description` に混入 → annotator が全テキストを `location_name` に格納する。
+
+**学術イベント系 raw_description 構成ルール**
+
+`講演者`/`モデレーター` が存在する場合、`raw_desc_parts` に**独立したエントリ**として追加する：
+
+```python
+speaker_raw = _extract_after_label(content, r"講演者")   # stops at モデレーター:
+moderator_raw = _extract_after_label(content, r"モデレーター")  # stops at 対象:
+
+raw_desc_parts = []
+if date_raw:     raw_desc_parts.append(f"開催日時: {date_raw}")
+if venue:        raw_desc_parts.append(f"会場: {venue_raw[:200] or venue}")
+if speaker_raw:  raw_desc_parts.append(f"講演者: {speaker_raw}")
+if moderator_raw: raw_desc_parts.append(f"モデレーター: {moderator_raw}")
+```
+
+`会場:` 行に発表者情報を混ぜると annotator は performers を正しく抽出できない。
+
+Reference incident: 2026-05-30 — waseda_taiwan event `75a46729`、`_STOP_LABELS` 未登録で venue に発表者混入 (commits `0604a6f`, `b3be645`)。
+
+## Performer Job Title Guard
+
+**Rule**: `performer` 欄位只能填**人名**，不可填職稱/職業描述。
+
+下列詞彙單獨出現時必須視為職稱並設 `performer = null`：
+- 日語職稱：`シェフ`、`料理人`、`講師`、`先生`、`司会`、`ゲスト`、`ホスト`、`演者`、`指揮者`、`伴奏者`
+- 中文職稱：`主廚`、`老師`、`講師`、`主持人`
+
+**判斷規則**：
+1. `performer` 字串若**只含**職稱詞且無可辨識人名（CJK 人名 ≥ 2 字、或拉丁姓名）→ 設 null
+2. `_extract_performer_from_raw()` 的 role list regex 命中後，必須確認後方緊跟的是人名而非獨立職稱
+
+**Regex guard 範例**（加在 `_extract_performer_from_raw` 最後）：
+```python
+_JOB_TITLE_ONLY_RE = re.compile(
+    r"^(シェフ|料理人|講師|先生|司会|ゲスト|ホスト|演者|指揮者|伴奏者|主廚|老師|主持人)$"
+)
+if _JOB_TITLE_ONLY_RE.fullmatch(candidate.strip()):
+    return None
+```
+
+Reference incident: 2026-05-08 — 湾.味(ワンウェイ) 台湾料理体験会 `performer='シェフ'` 應為 null。
+
+## ZERO_EVENT_OK_SOURCES — 偶發性 scraper 零事件豁免
+
+**Rule**: 合法情況下絕大多數時間返回 0 events 的 scraper，必須加入 `health_check.py` 的 `ZERO_EVENT_OK_SOURCES` 集合，避免 CI 每日觸發假「missing」警告。
+
+**加入標準**（三項全符合）：
+1. Scraper 邏輯已驗證正確（dry-run 通過、已 commit）
+2. 台灣相關內容為**偶發性**（年 0–3 次，如藝廊特展、部分影院）
+3. 0 events 是預期行為，不代表爬蟲失敗
+
+**反模式**：不應因「通常有 0 events」就忽略加入此集合——遺漏會導致每次 CI 都需人工確認雜訊。
+
+**實作位置**：`scraper/health_check.py` → `ZERO_EVENT_OK_SOURCES: set[str]`
+
+Reference incident: 2026-05-08 — `whitestone_gallery` 加入 `ZERO_EVENT_OK_SOURCES`（台灣藝術家展覽為偶發性）。
+
+## organizer_zh/en FC 跨事件污染偵測
+
+**Rule**: `organizer_zh`/`organizer_en` 若含有在 `raw_title + raw_description` 中**完全找不到**的內容，即為 FC 跨事件污染（cross-event field_corrections pollution）。
+
+**污染機制**：annotator 的 few-shot context 中，若前一事件的 FC 資料帶入了 `organizer_zh/en`，GPT 可能將該值套用到當前事件——即使兩者完全無關。`annotation_status = annotated` 不會重新觸發驗證，因此污染可長期潛伏。
+
+**偵測查詢**（定期執行）：
+```sql
+SELECT id, organizer_zh, organizer_en, source_name
+FROM events
+WHERE organizer_zh IS NOT NULL
+  AND raw_description NOT ILIKE '%' || split_part(organizer_zh, ' ', 1) || '%'
+  AND raw_title NOT ILIKE '%' || split_part(organizer_zh, ' ', 1) || '%'
+LIMIT 50;
+```
+
+**修正流程**：確認污染後，`field_corrections` で `organizer_zh`・`organizer_en` を FC lock（annotator の再上書き防止）。
+- **source に正式な中国語名がある場合** → 正しい値を設定して FC lock。
+- **source に信頼できる中国語名が存在しない場合** → `null` に設定して FC lock（幻覚値より `null` が安全。UI は `organizer`（ja）へ fallback する）。
+
+**追加検出サイン**：`organizer_zh` 値に `（AI翻訳）` / `（AI翻譯）` サフィックスが含まれる場合は即 null クリア + FC lock。⚠️ `auto_qa.py _detect_performer_ai_marker` は `performer_zh/en + category=movie` 限定であり **`organizer_zh` は自動検出されない**。定期的に以下 SQL で補完すること：
+
+```sql
+-- organizer_zh の AI マーカー残留スキャン
+SELECT id, organizer_zh, source_name
+FROM events
+WHERE is_active = true
+  AND (organizer_zh LIKE '%AI翻譯%' OR organizer_zh LIKE '%AI翻訳%')
+LIMIT 50;
+```
+
+Reference incidents:
+- 2026-05-08 — `fe03288b`/`b8621ee9`（湾.味 台湾料理体験会）`organizer_zh/en` 含上田村振興会・普門寺資料，與 raw_description 完全無關。
+- 2026-05-30 — `fb12bfa7`（台湾茶ゲームイベント / kokuchpro）同一の `上田村振興会・普門寺（AI翻訳）` が再発。`raw_description` は「語学スクール」のみ。`organizer_zh/en = null` + FC lock で対応。`location_name`・`location_address` も kokuchpro 構造フィールド（`会場:`/`住所:`）から正値に修正。
+
+## Frontend Client Component — UTC 日期表示一貫性ルール
+
+**Rule**: DB に保存された timestamp は UTC。Next.js の client component で `new Date(dateStr)` を使う場合、ブラウザの TZ が UTC でなければ `getDate()` / `getMonth()` は**ローカル時間**で評価される。JST（UTC+9）では `UTC 15:00` が翌日 `00:00` に見えて日付が 1 日ずれる。
+
+**修正パターン**:
+
+```typescript
+// ✅ 正確：UTC 日付として取り出す
+const d = new Date(dateStr)
+const day = d.getUTCDate()       // getDate() ではなく getUTCDate()
+const month = d.getUTCMonth() + 1
+const year = d.getUTCFullYear()
+
+// ✅ toLocaleDateString も timeZone: "UTC" 必須
+d.toLocaleDateString("ja-JP", { timeZone: "UTC", month: "short", day: "numeric" })
+
+// ❌ 誤り：ブラウザ TZ に依存
+const day = d.getDate()
+d.toLocaleDateString("ja-JP", { month: "short", day: "numeric" })
+```
+
+**対象**: client component 内で `Date` オブジェクトを生成・操作する全コード。SSR（Node.js は UTC 環境）との整合性のために必須。
+
+**根本原因**: 爬蟲が JST 時間を `+00:00` として保存（tzinfo=timezone.utc）しているため、DB の `2026-06-13T00:00:00+00:00` は実際には JST `2026-06-13 09:00`（問題なし）だが、scraper によっては深夜値（`15:00 UTC = 翌日 00:00 JST`）が混入する可能性がある。Client side では常に UTC で読む実装が最も安全。
+
+Reference incident: 2026-05-12 — `EventListClient.tsx` / `MovieWorksList.tsx` の `getDate()` が JST ブラウザで 1 日ずれ → `getUTCDate()` + `{ timeZone: "UTC" }` に修正。
+
+**Rule**: 聚合站 scraper（ftip、prtimes、gnews、walkerplus 等）的 `source_url` 必須**永遠保留**聚合站自身的 URL。從文章中提取的第一方主辦方 URL 存入 `official_url`，不可覆寫 `source_url`。
+
+**正確分工**：
+- `source_url` = 聚合站頁面 URL（`https://www.ftip-japan.org/NNN`、`https://prtimes.jp/...`）— 資料溯源憑證
+- `official_url` = 提取的第一方官方 URL（活動官網、Facebook event 頁、主辦方網站）；無法提取時為 `None`
+
+**常見提取模式**（ftip content 中的 `公式サイト` 格式）：
+```python
+_OFFICIAL_URL_RE = re.compile(
+    r"公式サイト\s+(https?://\S+|[\w.-]+\.\w{2,}(?:/\S*)?)",
+    re.IGNORECASE,
+)
+
+def _extract_official_url(self, content: str) -> str | None:
+    m = _OFFICIAL_URL_RE.search(content)
+    if not m:
+        return None
+    url = m.group(1)
+    if not url.startswith("http"):
+        url = "https://" + url
+    return url.rstrip("。、）")
+```
+
+**✅ 正確模式**：
+```python
+source_url = rss_link          # 聚合站 URL，永遠保留
+official_url = self._extract_official_url(content)  # None 是合法值
+```
+
+**❌ 反模式**（已廢棄）：
+```python
+# 用官方 URL 覆蓋 source_url — 破壞資料溯源 audit trail
+source_url = self._extract_official_url(content) or rss_link
+```
+
+Reference incidents:
+- 2026-05-10 commit `ab771e2` — `ftip.py` 首次修正誤以「官方 URL 較有資訊量」讓 `source_url` 指向 `www.taiwanprism.com`，破壞 FTIP audit trail
+- 2026-05-10 commit `7c34788` — 更正為正確模式：`source_url=ftip-japan.org/699`、`official_url=taiwanprism.com`，DB 事件 `023dcbec` 同步修正
+
+## M/D~D 多日範圍 — end_date 提取與跨月防護
+
+**Rule**: 日期字串含 `~`（如 `8/30~31`）表示多日活動，必須同時提取 `start_date` 和 `end_date`。
+
+**實作範例**：
+```python
+_END_DAY_RE = re.compile(
+    r"(\d{1,2})/(\d{1,2})~(\d{1,2})(?![/])"  # M/D~D — (?![/]) 防止跨月假匹配
+)
+
+def _parse_date_range(self, text: str, year: int) -> tuple[date | None, date | None]:
+    m = _END_DAY_RE.search(text)
+    if m:
+        month, start_day, end_day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return date(year, month, start_day), date(year, month, end_day)
+    return None, None
+```
+
+**跨月防護**：`(?![/])` 確保 `~` 後面不接 `/`。若接 `/`（跨月，如 `3/10~5/31`），跳過 end_date 提取，避免把月份誤解為日數。
+
+**正確/錯誤案例**：
+- `8/30~31` → start=8/30, end=8/31 ✅
+- `3/10~5/31` → `(?![/])` 命中，不提取 end_date ✅（正確放棄）
+- 無 `~` → 僅提取 start_date，end_date=None ✅
+
+Reference incident: 2026-05-10 — `ftip.py` 事件 `023dcbec`（台湾光譜 `8/30~31`）start_date 回退到 RSS pubDate，end_date 未設定（commit `ab771e2`）。
+
+## location_address 硬編碼城市名 — 反模式
+
+**Rule**: 以城市名（`"東京都"`、`"大阪"`、`"京都"`）作為全國性組織的 `location_address` fallback 是反模式，**必須禁止**。
+
+**為何危險**：
+1. GPT annotator 信任 scraper 提供的非 null `location_address`（`_ai_or_existing()` 只在值為 null 時才詢問 GPT）
+2. 錯誤城市名寫入 DB 後，即使活動實際在其他縣市，`location_prefectures` 也會被錯誤推斷
+3. 讓使用者在地圖/篩選功能中看到錯誤地點
+
+**正確做法**：
+```python
+# ✅ 正確：無法確定地址時設 None
+location_address = self._extract_venue_address(content) or None
+
+# ❌ 錯誤：以組織所在城市作為全國活動的 fallback
+location_address = "東京都"  # 全國性組織的活動可能在任何地方
+```
+
+**例外**（允許硬編碼）：scraper 專屬於**單一地點**的場館（固定影院、固定展覽館）時，可硬編碼該場館地址。
+
+Reference incident: 2026-05-10 — `ftip.py` `location_address = "東京都"` 導致台湾光譜（京都活動 `〒603-8163 京都府...`）被錯誤標為東京（commit `ab771e2`）。
+
+## note_creators レポート記事・結果発表 — report カテゴリ自動注入パターン
+
+**Rule**: note_creators 來源的レポート記事には必ず三つの問題が発生する。検出時は以下の三点を一括修正し、FC 鎖定すること。
+
+**三重問題（全件に発生）：**
+1. **`start_date` = 記事公開日（≠ 活動日）**：記事が公開された日が自動的に `start_date` に入り、実際の開催日（1〜数ヶ月前）と異なる。本文中の「〇月〇日開催」「〇月〇日に参加」等から正しい日付を特定すること。
+2. **`location` = 主催者の日本拠点**：主催者が日本に拠点を持つ場合、annotator がその住所を location として設定する。実際の活動場所（特に台灣で開催の場合）を確認し、`location_address` / `location_prefectures` を null に修正。
+3. **接頭辭 + `report` category 欠如**：`annotator.py` の `_REPORT_TRIGGER_RE` が自動注入する（commit `1e00933` + `d0eb93e` 以降）。検知キーワード：レポート・レポ・報告・記録・アーカイブ・recap・行ってきた・観てきた・見てきた・鑑賞レポ・**結果発表**。注入時 ja 名称がすでに `【...】` で始まる場合は `【レポート】` を重ねない（`_inject_report_prefix` の二重括弧ガード）。既存 annotated events には Supabase SQL で `report` を追加後 `python annotator.py --backfill-report-prefix` を実行。
+
+**FC 鎖定対象**（計 9 項）：`start_date`、`location_name`、`location_address`、`location_prefectures`、`name_ja`、`name_zh`、`name_en`、`categories`
+
+**自動化範囲（annotator.py commit `1e00933` 以降）**：`report` category 注入 + 三語接頭辭注入は自動処理。`start_date` / `location` の修正は **human review 必須**。
+
+Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験レポート）`start_date=2026-05-08`（記事日）→ 修正後 `2026-04-21`（活動日）；`location_name=台湾華語文学習センター大阪弁天町`（主催者拠点）→ 修正後 `台北医学大学`（活動場所、台灣）。
+
+## RSS/Podcast scraper-specific
+- **Normalize `&amp;` in RSS link text before regex**: RSS `<link>` text nodes may contain HTML-entity-encoded `&amp;` even after XML parsing (double-encoded by the origin server). `item.find("link").text` can return `"...?uid=4&amp;pid=103701"`. Any regex on the raw text will miss `&pid=`. Always normalize: `link = link_raw.replace("&amp;", "&")` before extraction. Apply to both `source_url` construction and any `_extract_pid()`-style function. (Incident: rti_jp 0 events, 2026-05-14.)
+- **XML Element truth value — always use `is not None`**: `if element:` on an `xml.etree.ElementTree` Element is always `True` (DeprecationWarning since Python 3.8). Write `element is not None and element.text` instead.
+- **`STALE_DAYS` guard for podcast/RSS scrapers**: For scrapers that loop over a curated list of program IDs, check the latest episode's `pubDate` before iterating all items. If it exceeds `STALE_DAYS` (e.g. 90), the program is discontinued — skip to avoid a full-page fetch that returns 0 events:
+  ```python
+  STALE_DAYS = 90
+  latest_pub = _parse_pubdate(items[0].find("pubDate").text)
+  if latest_pub and (now - latest_pub).days > STALE_DAYS:
+      logger.info("rti_jp: id=%s latest episode %dd old — discontinued", pid, age)
+      continue
+  ```
+- **`LOOKBACK_DAYS` must match broadcast frequency**: Weekly programs → 14d is sufficient. Monthly programs → 60d minimum. If a program's cadence is unknown, default to 60d.
+
+## Peatix-specific
+- Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
+- 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
+- **Locale-prefixed URLs must be normalized before `page.goto()`**: Peatix redirects to `/us/event/{id}` or `/jp/event/{id}` depending on browser locale. Strip the prefix in both the collection stage (`_search_events`/`_scrape_group_events`) AND `_scrape_detail()` so `source_url` is always `https://peatix.com/event/{id}`.
+  (Incidents: peatix `e9c6f80b` 2026-05-17, `55d766ae` 2026-05-19.)
+- **`inner_text()` length guard for short-string fields**: Playwright `inner_text()` on a group anchor or any interactive DOM element can return the **entire page content** (e.g. starting with "Translate this page...") instead of just the element text. Always add a length guard for fields expected to be short:
+  `if _txt and len(_txt) <= 100`
+  Without this guard, a multi-thousand-character blob silently passes through to `organizer_name`, `performer`, `location_name` etc. Apply to both primary extraction path and any fallback path. The threshold should be ≈2–3× the expected maximum (organizer/location names: ≤ 100). (Incident: peatix organizer `f839508`, 2026-05-19.)
+- **"Extract but not store" anti-pattern**: When a field is extracted for one purpose (e.g. blocklist checking), ensure it is **also passed to `Event()`**. Forgetting to include it in the constructor causes the field to always be `null` in DB — silent failure, no error. Before submitting a PR, cross-check all extracted variables against `Event()` constructor arguments. Pattern: `organizer=organizer_name or None`. (Incident: peatix `organizer_name` always null — commit `24198d0`, 2026-05-19.)
+- **Three-layer organizer architecture**:
+  - Layer 1: keyword search (`peatix.com/search?q=...`)
+  - Layer 2: hardcoded organizer list in `_ORGANIZERS` — **never remove**; serves as backup if DB changes
+  - Layer 3: DB-driven dynamic load via `_load_db_organizers()` — queries `research_sources WHERE agent_category='peatix_organizer' AND status='implemented'`
+- **Layer 3 expansion rule**: When extending Layer 3 to a new platform, use a platform-specific `agent_category` (e.g. `peatix_organizer`). Do NOT reuse `note_creator` or generic names.
+- **Group page scraping**: `_scrape_group_events()` fetches `peatix.com/group/{group_id}/events`; `group_id` extracted from `source_profile.group_id` or URL path.
+- **Validation**: `python discovery_accounts.py --dry-run --slot 3` to verify Peatix slot without DB writes.
+- **⚠ React SPA 遅延レンダリング問題**: Peatix は React SPA。`networkidle` 発火後も `.event-description` 内容が数十ms 遅延してレンダリングされる場合があり、`description_ja` が `None` → `raw_description` が日付 prefix のみになる。
+  - **検出**: `raw_description` の長さが 50 字未満かつ内容が `開催日時:` のみ → 「汚薄 raw_description」と判定。
+  - **対処フロー**: Playwright で再取得 → `raw_description` パッチ → `annotation_status = 'pending'` → `annotator.py --source-ids <source_id>` で手動実行。
+  - (Incident: peatix `ee17c509` 2026-05-30)
+- **performer vs organizer 区別**: Peatix ページの「By ‹名前›」= `organizer`（主催者）。イベントを実施するアーティスト/動作者 = `performer`。GPT が両者を入れ替える可能性があるので、日本語淡化語（「夫婦」「ユニット」など一般名詞）が performer に入っていたら手修正 + FC lock。(Incident: peatix `ee17c509` performer='夫婦' → 'Floti Studio' 2026-05-30)
+- **`performers` 一般名詞ガード**: `performers` に「夫婦」「カップル」「グループ」等の一般名詞が入っていたらアーティストの固有名（ユニット名・人名）に修正 + FC lock が必須。annotator は `raw_description` のカタカナ/漢字をそのまま取り込むため、一般名詞を固有名詞と誤認することがある。(Incident: peatix `ee17c509` performers=['夫婦'] → ['Floti Studio'] 2026-05-30)
+- **英語ブランド名 → performer_zh/en は翻訳不要**: Floti Studio 等の英語固定名称は `performer_zh` も `performer_en` も同じ値を設定。GPT は英語名を繁体中文に翻訳しようとして null を返すことがある。手動補完 + FC lock が必要。(Incident: peatix `ee17c509` 2026-05-30)
+- **英語ブランド名 → organizer_zh/en も同様**: `organizer` 値が英語固定商標の場合、`organizer_zh/en` も翻訳不要—同じ値を FC lock。翻訳しようとした GPT が `（AI翻譯）` マーカー付きで格納する場合もある。**判定基準**: `organizer` 値の文字が全て ASCII / アルファベット → `organizer_zh/en = organizer`。(Incident: iwafu `a4442567` QUEEN SHOP 2026-05-31)
+- **専用イベントページ非存在時の URL 設定**: Peatix が `source_url` の場合、SNS リンクの設定先は次のルールに従う:
+  - **演者の Instagram/SNS** → `performer_url`（単一演者）または `performer_urls[]`（複数演者、インデックスは `performers[]` と対応）
+  - **主催者の SNS/公式サイト** → `organizer_url`
+  - **`official_url`** = 専用イベントページ URL のみ。SNS を `official_url` に設定するのは非推奨（`performer_url` / `organizer_url` を優先）。専用ページが存在しない場合は `official_url = null`。
+  - ⚠ **旧ルール廃止**: `performer_url` 新設（migration 078、2026-05-30）以前は演者 Instagram を `official_url` に設定していたが、現在は `performer_url` に設定し `official_url` は null のままにする。
+  - (Incident: peatix `ee17c509` 旧: `official_url='https://www.instagram.com/flotistudio/'` → 新: `performer_url='https://www.instagram.com/flotistudio/'` + `official_url=null` 2026-05-30)
+
+## iwafu-specific
+- **Global-tour false positive**: If description contains `台湾など世界各地` / `全国各地.*台湾` etc., the event is a nationwide/global tour where Taiwan is just one stop. Reject it — it is NOT a Taiwan-themed event. The `_GLOBAL_TOUR_PATTERNS` regex in `iwafu.py` implements this guard.
+- **Title-level block**: Known IP series (e.g. `リアル脱出ゲーム×名探偵コナン`) must be blocked by `_BLOCKED_TITLE_PATTERNS` in `_scrape_detail` **before** the page load — this catches all tour stops as new source_ids appear. Add new entries here when a series is confirmed non-Taiwan-themed.
+- **Permanent IP series block**: For series where ALL events are non-Taiwan-themed (e.g. `名探偵コナン`), add the IP name to `_BLOCKED_SERIES`. Checked on BOTH card title (pre-load, fast-reject) AND h1 title (post-load). Card titles from search results can be truncated, so the pre-load check alone is not sufficient.
+- Taiwan relevance criterion: Taiwan must be the **theme or primary focus**, not just one venue on a multi-city tour.
+- **`organizer_url` enrichment**: iwafu ソースページは主催者の公式サイト URL を常に含むわけではない。ブランド商標の場合は `raw_description` 内の `extract_first_party_url()` で抽出を試みるか、公式サイトを手動で FC 設定すること。`organizer_url` を設定すると UI に「主催者名 ↗」リンクが自動表示される。(Incident: `a4442567` QUEEN SHOP 2026-05-31)
+- **小売 / モールイベントの `business_hours`**: デパート・ショッピングモールの定常営業時間はイベント固有ではなく venue-level データ。`venues` テーブルに `business_hours` カラムが存在しないため、現状は手動 FC 修正で対応。将来的には `venues.business_hours` カラム（migration 必要）+ `enrich_location.py` から自動取得する設計。UI 側は `event.business_hours` 存在時の表示に既対応済み。
+  - ⚠️ **必ず公式 venue サイトを確認してから FC 設定**。推測・常識での設定は誤りの原因（Incident: `a4442567` ルミネエスト `11:00〜22:30` と推測設定 → 実際は平日 `11:00〜21:00 / 土日祝 10:30〜21:00` だった）。
+  - 参考: ルミネエスト新宿（2026-05）ショッピング: 平日 11:00〜21:00 / 土日祝 10:30〜21:00、レストラン: 11:00〜22:00。
+- **After adding a scraper filter, always audit the DB**: run `ilike("raw_title", "%keyword%")` to find existing records that should also be deactivated. The filter only prevents future inserts.
+- **Hard delete vs deactivation**: If an IP series is confirmed permanently non-Taiwan-themed, hard delete (`table.delete().eq("id", eid)`) rather than just deactivating. Deactivated events remain accessible via direct URL unless the event page also checks `is_active`.
+- **location_name / location_address**: Extract from `場所[：:]\s*(.+?)(?:\n|交通手段|Q&A|https?://|$)` in `main_text`.
+  - `location_name` = the venue name captured from `場所：`.
+  - `location_address` = search the surrounding text with `_ADDR_RE` (matches `〒` or prefecture+city+street pattern). If a real address is found AND it differs from the venue name, use it; otherwise set `None`. **NEVER set `location_address = location_name`** — identical values are flagged by `auto_qa_address_is_venue_name` and violate the Sub-Venue Parent Address Rule (sub-spaces like `SC 広場` need the parent building's address, not the sub-space name).
+  - Fall back to `card.prefecture` for `location_address` only when the `場所：` label is absent. Never store bare prefecture names (e.g. `"東京"`) as the address.
+
+## Venue / live house scrapers — management post blocklist
+
+For scrapers on **live houses / venue sites** (e.g. moonromantic), the site publishes both public event listings and **internal venue-management posts** (rental announcements, wedding inquiries, system maintenance). These are NEVER Taiwan-related.
+
+- **Always add `_BLOCKED_POST_PATTERNS`** at the module level for known management post types.
+- Apply the block **BEFORE** the Taiwan keyword check — it avoids loading the detail page unnecessarily.
+- Apply **twice**: once on `page_text` first-line (fast-reject) and once on the confirmed `title` (second-pass, catches nav-renders-first edge cases).
+- Known patterns to always block for live venue sites:
+  - `RENTAL` / `PRIVATE RENTAL` / `RENT` (venue hire)
+  - `場所貸し` / `会場貸し` (Japanese venue rental)
+  - `WEDDING` (if venue offers wedding venue hire)
+- Example:
+  ```python
+  _BLOCKED_POST_PATTERNS = re.compile(
+      r"\bRENTAL\b|PRIVATE\s+RENTAL|\bRENT\b|場所貸し|会場貸し",
+      re.IGNORECASE,
+  )
+  ```
+
+## eiga_com-specific
+- **Per-theater granularity**: One event per theater per movie. `source_id = eiga_com_{movie_id}_{theater_id}`. Each daily run upserts and updates `end_date` to the last date in the current week's schedule.
+- **URL flow**: `/movie/{id}/theater/` → area links `/movie-area/{id}/{pref}/{area}/` → `div.movie-schedule[data-theater]` + `.more-schedule a.icon.arrow` → `/movie-theater/{id}/{pref}/{area}/{theater_id}/` (address).
+- **`a.icon.arrow` is the all-schedule link**: The `.more-schedule` div has 3 links — copy (`/mail/`), print (`/print/`), all-schedule (bare `/{theater_id}/`). Always use `a.icon.arrow`; the first `a[href*='/movie-theater/']` is the `/mail/` link.
+- **Address extraction**: Use `table.theater-table th:contains("住所") + td` on the theater page. Call `a_tag.decompose()` on all `<a>` children before `get_text()` to strip "映画館公式ページ". Never use page-wide address regex — JS code can contain `東京都` fragments.
+- **Fallback event**: If no area links found, emit one movie-level event with `source_id = eiga_com_{movie_id}` and `location_name=None`.
+
+## Thin Pointer Article Detection — General Rule (all scrapers)
+
+任何 scraper 遇到「薄內容指引文」時，應主動抓取外部 ref URL 補充 `raw_description`。
+
+**偵測條件**（兩者同時成立）：
+1. `len(body_text) < N`（各 scraper 自行設定閾值，koryu 使用 600 chars）
+2. body_text 包含**非本站**的外部 HTTP URL
+
+**處理流程**：
+1. 提取外部 URL（正則排除本站 domain）
+2. 呼叫 `fetch_ref_text(ref_url)` — 已在 `base.py` 實作，直接 import 使用
+3. 追加到 raw_description：`[参照ページ ({ref_url})]:\n{ref_text}`
+4. `date_prefix` 改用 `記事投稿日:` 而非 `開催日時:` — 避免 GPT 把文章發布日當活動日
+
+**薄內容指引文的典型特徵**：
+- 組織公告：「弊社は XX イベントを後援します。詳細は URL をご確認ください。」
+- 新聞式 RSS 摘要：只有標題＋一句描述＋原文連結
+- 公募通知：只說明有公募，所有細節在外部網站
+
+**通用函數**：`from .base import fetch_ref_text`
+- `fetch_ref_text(url, max_chars=3000)` — requests + BeautifulSoup，selector 優先序：`main` > `article` > `body`
+- 回傳 `None` 表示失敗或內容 < 200 chars
+
+**Annotator-side thin content detection（`annotator.py`）**：
+- Playwright 文章 fetch 觸發條件：`not start_date` **OR** `len(raw_description) < 400 chars`
+- 常數：`_GNEWS_THIN_DESC_CHARS = 400`
+- 實作：inner 函數 `_gnews_needs_article_fetch(e)` — `gnews_needs_fetch` 計數與 per-event trigger 統一使用此函數
+- 適用來源：目前僅 `google_news_rss`（使用 Playwright 跟進 Google News redirect）
+- **注意**：手動修正 start_date 後重新 annotate 時，若 raw_desc 仍短，fetch 仍會觸發 → 確保 GPT 看到完整文章
+- **原則**：「start_date 有值」不代表「描述足夠豐富」，薄內容偵測邏輯應在 scraper 和 annotator 兩層都套用
+
+### Thin Content Detection — Applicability Matrix
+
+| Source | Scraper-side fix | Annotator-side fallback | Reason |
+|--------|-----------------|------------------------|--------|
+| google_news_rss | pub_date anchor + Playwright (in annotator) | ✅ `_GNEWS_THIN_DESC_CHARS=400`, Playwright | RSS snippet only; Google redirect URL |
+| koryu | `fetch_ref_text()` for pointer articles | — (scraper handles) | Pointer articles < 600 chars + external URL |
+| nhk_rss | pub_date anchor + `fetch_ref_text(article_url)` | ✅ `_NHK_THIN_CHARS=400`, requests-based | RSS snippet always < 200 chars |
+| doorkeeper | N/A | N/A | API returns full description |
+| connpass | N/A | N/A | API returns full description |
+| iwafu | N/A | N/A | Visits detail page |
+| arukikata | N/A | N/A | Fetches full article (BS4) |
+| peatix | N/A | N/A | Visits detail page (Playwright) |
+| taiwan_cultural_center | N/A | N/A | Visits detail page (Playwright) |
+| hakusuisha | `skip_tags` HTMLParser + **8000 char limit** in `_fetch_detail_text_fallback()` | ✅ thin-content rescue when `source_name == "hakusuisha"` and `日時` absent in `raw_description` | JS/nav content consuming 2000-char budget; `■日時:` typically appears after char 2000; raised from 4000→8000 (commit `a0292a2`) |
+| taioan_dokyokai | N/A | N/A | Visits detail page (Playwright) |
+| taiwan_kyokai | N/A | N/A | Visits detail page (Playwright) |
+| taiwan_festival_tokyo | N/A | N/A | Structured widget, not article-based |
+| ide_jetro | N/A | N/A | date_prefix fix sufficient |
+
+**Rule**: Only apply thin-content detection when the scraper stores a snippet (RSS/headline) and the full content lives at a separate URL. API-based and detail-page-visiting scrapers are inherently complete.
+
+## Auto-generated Scraper Date Accuracy
+
+auto_generate が生成した `FIELD_SELECTORS["date"]` が指すセレクタは、**記事公開日（publication date）** を指している場合がある。プロモーション審査時に必ず確認すること。
+
+### 確認ステップ
+1. listing page の HTML を実際に開き、`FIELD_SELECTORS["date"]` のセレクタが何を取得するか確認する（`span.note`、`.date`、`time[datetime]` 等）。
+2. 取得した値が「記事公開日」か「活動日」かを目視確認（`YYYY.MM.DD` 形式は公開日の可能性が高い）。
+3. 活動日が detail page の `日時：` / `開催日時：` ラベルに存在する場合は、listing page の selector を使わずに detail page から抽出すること。
+
+### 活動日が detail page にある場合の実装パターン
+```python
+# _extract_event_dates(detail_text, card_year) パターン（hakusuisha.py を参照）
+# 対応パターン1: 2026年3月20日・21日（同月 ・ 複数日）
+# 対応パターン2: 2025年11月23日...／24日（同月 ／ 複数日）
+# 対応パターン3: 2026年1月10日 / 2026年1月11日（完全日付2つ）
+```
+
+### `raw_description` プレフィックスルール
+- `日時` ラベルあり → `開催日時: YYYY年MM月DD日` プレフィックス（GPT annotator への明確なシグナル）
+- `日時` ラベルなし（公告・お知らせ文）→ `（記事投稿日: YYYY年MM月DD日）` 年号アンカー
+
+### 対象
+`auto_generate` で生成されたすべての scraper のプロモーション前に `FIELD_SELECTORS["date"]` を人工審査すること。Playwright ベースのスクレーパー（detail page を訪問する）でも、listing page の date selector が残っている場合は要確認。
+
+Reference incident: 2026-05-04 hakusuisha `FIELD_SELECTORS["date"] = "span.note"` → 記事公開日を取得（活動日ではない）（commit `b3708e1`）。
+### Auto-generated Scraper — Body Text Limit
+
+**Rule**: auto-generated scraper の `body.inner_text()` および HTTP fallback のスライス上限は **最低 8000 字元** を使うこと。4000 字元では nav / header ノイズに予算を消費され、イベント本文の `■日時:` / `会場:` / `主催:` が切り捨てられる。
+
+```python
+# ❌ 4000 は nav のある site では不足
+full_description = body.inner_text()[:4000]
+
+# ✅ 8000 以上を推奨
+full_description = body.inner_text()[:8000]
+```
+
+Incident: `hakusuisha.py` — nav menu が 2000+ 字消費し、`■日時：` を截斷点の外に押し出した（commit `a0292a2`）。
+
+### Self-injected Prefix Interference
+
+**Rule**: scraper が `raw_description` 先頭に `開催日時: YYYY年MM月DD日` 等のプレフィックスを追加する**前に**、日時/会場/主催の regex 抽出を完了させること。
+
+**問題**：`_JITSU_RE = re.compile(r"日時[:：]")` は `開催日時:` にもマッチする。scraper が自己注入したプレフィックスを先に検索すると、group(1) がプレフィックスの日付テキスト（時間なし）になり、後続の `_TIME_RE` が正文の時間 (`HH:MM〜HH:MM`) を永遠に見つけられなくなる。
+
+```python
+# ❌ Bad: プレフィックスを先に加えてから検索
+raw_description = f"開催日時: {date_str}\n\n{full_description}"
+m = _JITSU_RE.search(raw_description)  # → マッチするのはプレフィックスの "開催日時:"
+
+# ✅ Good: 検索を先に行い、プレフィックスは最後に加える
+m = _JITSU_RE.search(full_description)  # または _TIME_RE で直接時間を検索
+# ... 抽出完了後 ...
+raw_description = f"開催日時: {date_str}\n\n{full_description}"
+```
+
+代替解法：`日時[：:]` の代わりに `[■◆●▼]\s*日時[：:]` で検索（行頭の記号を要求）するか、`_TIME_RE`（`\d{1,2}:\d{2}` を含む時刻パターン）で full_description を直接検索して前綴を回避する。
+
+Incident: `hakusuisha.py` — `_JITSU_RE.search()` が `開催日時: 2026年4月26日` プレフィックスにマッチし、`_TIME_RE` が正文の `14:00〜16:00` を見つけられなかった（commit `a0292a2`）。
+---
+
+## Auto-Generate Scraper — Date Field Accuracy Check
+
+`FIELD_SELECTORS["date"]` が正確なイベント開催日を返すか検証する手順：
+
+1. ブラウザで listing ページを開き、カード上の日付テキスト要素を inspect
+2. その日付が「記事投稿日」「更新日」「公開日」のラベルに付いていれば ⚠️ 要注意
+3. detail ページの本文に `日時：` / `開催日：` / `期間：` ラベルがあればそちらを使う
+4. 修正パターン：
+   - `_JITSU_RE = re.compile(r"[■◆●▼]?\s*日時[：:]\s*(.{5,150})", re.MULTILINE)`
+   - `_FULL_YMD_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")`
+   - `_END_DAY_RE = re.compile(r"[・/／]\s*(\d{1,2})日")`
+   - 参照実装：`scraper/sources/hakusuisha.py` の `_extract_event_dates()`
+5. `end_date` も同時に設定すること（「・DD日」パターンで終了日が取れる場合が多い）
+
+---
+
+## 学術場地括弧地址模式
+
+日本學術研討會的 `location_name` 有時包含完整郵遞區號地址於括號中：
+```
+南山大学 Q棟103教室 (〒466-8673 名古屋市昭和区山里町18)
+```
+scraper 的 `_extract_venue()` 應優先識別 `[（(](〒\d{3}-\d{4}...)` 模式，提取為 `location_address` 並從 `location_name` 中去除括號部分。
+已實作：`scraper/sources/taiwanshi.py` 作為參考實作。
+
+## note.com RSS 截斷處理
+
+note.com RSS `<description>` 約在 140 字截斷，末尾可能為「続きをみる」（endswith，非 equals）。
+當 `_is_truncated(plain_desc)` 為 True 時，`_parse_item()` 呼叫 `_fetch_article_content()` 取得全文（JSON-LD articleBody / description / BeautifulSoup p fallback）。
+已實作：`scraper/sources/note_creators.py` → `_fetch_article_content()` helper。
+無需 Playwright，標準 `requests.get()` 即可。
+
+**Note Creator Source Guard（二手聚合源截斷修復模式）**
+
+### 問題模式
+- note.com RSS preview 以 `...続きをみる` 結尾（endswith，非 equals）→ 舊 truncation guard `plain_desc in ("続きをみる","")` 漏判 → `_fetch_article_content` 永不呼叫
+- 全文中含「🔗詳細・申込み」embedded official URL 未萃取
+- 投稿者 creator DB metadata location（如教室地址）套到外部活動公告 → `_auto_lock_location` 自動 FC 鎖定錯誤地點
+
+### 修復設計（note_creators.py + base.py）
+1. `_is_truncated(text)`: `text.endswith("続きをみる") or len(text) < _NOTE_THIN_CHARS(120)`
+2. `extract_first_party_url(body, exclude_hosts)` in `base.py`（共用）: 從全文萃取 official URL，排除報名平台（peatix/forms.gle/google/linktr.ee）；優先「🔗詳細/申込/公式」標記附近 URL
+3. A2b: 當 `official_url` 為外部機構域（非報名平台）→ 設 `effective_location_name=None` 抑制投稿者 metadata location，讓 `_auto_lock_location` 跳過上鎖（`if not event.location_name: continue`）
+4. `tw_insecure_domain(url)` in `base.py`（共用）: host endswith `.edu.tw`/`.gov.tw` → True（fetch_ref_text verify=False）
+5. `fetch_ref_text(url, verify_ssl=True)` in `base.py`: 新增 `verify_ssl` 參數；既有 caller 預設 True，行為不變
+6. A3 fail-safe: ref fetch 失敗 / < 200 字 → fallback 回 note 全文，永不阻斷活動建立
+7. OWASP: verify=False 僅限 `.edu.tw`/`.gov.tw` 白名單域
+
+### LOCATION GATE 說明（annotator 不停用主事件）
+annotator 的 LOCATION GATE（SYSTEM_PROMPT）是給 GPT 的指示文字，NOT Python code。
+主事件 `update_data` 完全不含 `is_active`——re-annotate **不會**停用主事件。
+LOCATION GATE 僅影響 `selection_reason` 品質。正確設定 `study_abroad`/`tourism` 等 category 是資料正確性問題，非「過 gate 求存活」。
+
+### DB 修復模式（FC-first-then-annotate）
+1. FC 鎖定所有結構欄位（category/event_form/official_url/organizer/location_*）
+2. 寫入 enriched raw_description（note 全文 + 原始頁摘要）後設 annotation_status=pending
+3. 跑一次 annotator（不帶 --id，保留 P0 non-null 保護）自動生成三語；FC 欄位被還原不被覆寫
+
+**note.com creator 追加手順（2 ステップ必須）**：
+1. `CREATOR_META` に `{"slug": "<creator_slug>", "category": "<category>", "location": "<prefecture>"}` を追加
+2. DB `research_sources` の対応行を `status=implemented` に更新（`scraper_source_name = 'note_creators'` も確認）
+事前確認：`python main.py --dry-run --source note_creators 2>&1 | grep "events found"` で件数増加を確認してから commit。
+
+---
+
+## enrich_location.py — GPT Output Guard
+
+`enrich_location.py` 使用 GPT 補充缺少的地址。接收 GPT 回傳後，寫入 DB **前**必須套用以下 guard：
+
+1. **Identical address guard（Rule 6）**：`if addr.strip() == venue_name.strip(): skip + log warning`。`address == venue_name` 是提取失敗的確定標誌（GPT 只是複製了場地名）。
+2. **Sub-venue address rule（Rule 7）**：子場地（如 `○○ビル2階`、`○○カフェ（寺内）`）需用**親設施的地址**，不得用子場地名作為 address。
+3. **SELECT `location_name`**：query 必須 SELECT `location_name`，才能執行 identical address guard。
+4. **雙重防護原則**：SYSTEM_PROMPT 規則（讓 GPT 返回 null）+ 程式碼 guard（兜底攔截）都必須存在；不能只靠 GPT 自律。
+
+```python
+# enrich_location.py — 寫入前 guard 範例
+if location_address and location_address.strip() == (location_name or "").strip():
+    logger.warning("SKIP: address == venue_name for event %s (%s)", eid, location_address)
+    continue
+```
+
+Reference incident: 2026-05-05 — GPT extracted `仙六屋カフェ` from `会場：仙六屋カフェ` as address → identical guard added (commit `628e3e7`).
+
+---
+
+## koryu-specific
+- **location_address fallback**: `_extract_location_address()` searches for `所在地/住所` sections. When absent (common for 後援-type posts), set `location_address = None` — **do NOT fall back to the venue name**. The annotator will fill the address via PARENT VENUE ADDRESS RULE. Old pattern `or (venue if venue else None)` was removed (commit `9d6e0fc`) because it echoed venue name as address, blocking annotator correction.
+- **404 on old koryu URLs**: When a koryu event page returns 404, `main_text` will be a redirect message with no venue section. `_extract_venue` returns `None`, so `location_address` is also `None`. This is acceptable — the event is stale.
+- **Single-day end_date**: Always set `end_date = start_date` at the end of `_extract_event_fields`. Taiwan Kyokai events are single-day ceremonies/lectures.
+- **Publish-date false positive**: The page body starts with the article publish date (`2026年4月20日`) before the actual event content. Do NOT rely solely on the generic `YYYY年MM月DD日` fallback — it will pick up the publish date if no structured `日時：` field exists.
+- **DOW-qualified date extraction**: Dates like `5月16日（土）` (with day-of-week) are actual event dates. Extract these BEFORE the generic fallback, then infer the year from the nearest `20XX年` in the text.
+- **後援公告の prose 日付 (`（後援）` 始まりの title)**：後援公告ページには `日時:` ラベルがない。正しい活動日は body text 中の `MM月DD日（曜日）に開催` という prose パターンに年号なしで出現する。`日時：` / `時間：` / DOW-qualified 全て失敗したら、`r'(\d{1,2})月(\d{1,2})日[（(][月火水木金土日祝][）)]\s*に開催'` を検索し、年号は pub_date から推定する（月が pub_date より大幅に前なら翌年）。この prose 検索は generic `YYYY年MM月DD日` fallback より **前に** 実施すること。
+  ```python
+  m = re.search(
+      r'(\d{1,2})月(\d{1,2})日[（(][月火水木金土日祝][）)]\s*に開催',
+      body_text,
+  )
+  if m:
+      month, day = int(m.group(1)), int(m.group(2))
+      pub_dt = _parse_date(item["pub_date_str"])
+      year = pub_dt.year if pub_dt else datetime.now().year
+      if pub_dt and month < pub_dt.month - 1:
+          year += 1
+      start_date = datetime(year, month, day)
+  ```
+- **`開催日時:` 前置語の正確性**：Scraper が `raw_description` の先頭に `開催日時: YYYY年MM月DD日` を前置する場合、その日付は **必ず正しい活動日** を使うこと。この前置語は GPT annotator への強烈なシグナルであり、誤った日付を前置すると GPT は body 中の正確な日付を無視し、誤日付が DB に書き込まれる。
+- **Priority order for date extraction**: `日時：` field → `時間：` field (with date) → DOW-qualified `月\d+日（曜日）` → `に開催` prose pattern → generic `YYYY年MM月DD日` fallback (last resort, high risk of matching publish date).
+- **指引文（pointer article）偵測と ref URL 抓取**：koryu.py は「薄內容指引文偵測」パターンの**最初の実装例**。汎用 `fetch_ref_text()` は `base.py` に昇格済み（→ 上記 § *Thin Pointer Article Detection — General Rule* 参照）。koryu 固有の実装詳細：
+  - 閾値：`_THIN_BODY_CHARS = 600`
+  - 外部 URL 判定：`_EXT_URL_RE = re.compile(r'https?://(?!(?:www\.)?koryu\.or\.jp)[^\s）)]+')`
+  - import：`from .base import BaseScraper, Event, fetch_ref_text`（`requests`・`BeautifulSoup` は koryu.py 内で直接 import 不要）
+  - `date_prefix` = `記事投稿日: {pub_date_str}`（`開催日時:` は使わない）
+  - 適用場景：公募公告（コンテスト）、後援公告、簡短通知類記事。これらの category/venue/date はすべて ref URL 側にある。
+
+## WordPress mixed-content sites (e.g. go_taiwan)
+
+For WordPress sites that mix Japan-hosted and Taiwan-hosted events, apply all three patterns:
+
+**1. Listing-page 90-day pre-filter**
+Before fetching any article detail, parse `<time datetime="...">` on the listing page.
+Skip articles older than 90 days; stop paginating when an entire page is older than 90 days.
+This reduces HTTP requests 30–40× (e.g. 220 → 6 fetches on go-taiwan.net).
+
+**2. Three-pass Japan-event filter — apply in this order**
+```python
+def _is_japan_event(title: str, body: str) -> bool:
+    if TAIWAN_ONLY_PATTERNS.search(title):   # Stage 1: title clearly Taiwan-only
+        return False
+    if TAIWAN_VENUE_KW.search(body):         # Stage 2: venue explicitly in Taiwan
+        # Exception: Taiwan-venue events targeting Japanese visitors are in scope
+        if TAIWAN_FOR_JAPANESE_KW.search(body):
+            return True
+        return False
+    return bool(JAPAN_LOCATION_KW.search(body))  # Stage 3: Japan city present
+```
+**Critical**: Stage 2 (Taiwan-venue exclusion) MUST come before Stage 3 (Japan-keyword check).
+Reversing the order causes false positives: a Taiwan-held event mentioning Japanese travel companies
+(e.g. 近畿日本ツーリスト → triggers 近畿 keyword) passes Stage 3 before Stage 2 can reject it.
+
+**`TAIWAN_FOR_JAPANESE_KW` exception list** (current): `日本人向け`, `日本語対応`, `日本から参加`, `日本から`, `日本発`, `ファムトリップ`, `日台交流ツアー`.
+Events matching this exception should be categorized as `tourism` and/or `taiwan_japan`. Their `location_address` must use the real Taiwan address — do NOT convert to Japanese format. Future additions: `台湾ツアー`, `訪台`, `台湾研修`, `台湾旅行`.
+
+**3. Date extraction priority ladder for Japanese WordPress**
+Post body typically starts with the article publish date — never take the first date naively:
+1. `日時：` labeled date range
+2. Weekday-annotated range (`YYYY年M月D日（曜日）〜D日（曜日）`)
+3. Any labeled single date
+4. Weekday-annotated single date
+5. Plain date range
+6. Last resort: first plain date in body (high risk of matching the publish date)
+
+Use this ladder when the source is a Japanese WordPress blog/CMS.
+
+## Shopify サイト共通注意事項
+
+- **`<a href>` は絶対 URL**: Shopify は `href` にフルドメイン付きの絶対 URL を出力する（例: `https://placebymethod.com/pages/slug`）。相対パス regex（`r"^/pages/"`）では 0 件になる。必ずドメインを含む regex を使うこと:
+  ```python
+  # ❌ 相対パス前提 — Shopify では 0 件
+  soup.find_all("a", href=re.compile(r"^/pages/"))
+
+  # ✅ フル URL にマッチ
+  soup.find_all("a", href=re.compile(r"example\.com/pages/"))
+  ```
+- **一覧ページのアンカー `parent.get_text()` にタイトル/日付が含まれないことがある**: Shopify の展覧会一覧は各リンク要素の親に情報が入っていない構造が多い。全 slug を取得 → 個別ページを visit → 情報抽出するアプローチを採ること。
+- **JSON API パターン（別方式）**: `/collections/event/products.json?limit=20&page={n}` で全展示品を列挙し空ページまでページネーション（`transit_store.py` 参照）。
+
+(Incident: placebymethod.com, 2026-05-11 — `^/pages/` regex で 0 件 → `placebymethod\.com/pages/` に修正)
+
+## eplus.jp — 詳細ページ fetch によるアドレス・出演者情報の精緻化
+
+eplus.jp の検索カードは会場名を `（都道府県）` 形式（e.g. `（福岡県）`）でしか表示しない。詳細ページには (1) H1 に市区名、(2) `<dt>出演</dt><dd>…</dd>` に出演者、(3) `<dt>曲目・演目</dt><dd>…</dd>` に演目情報が含まれる。Playwright セッション終了後に `requests` + `BeautifulSoup` で詳細ページを fetch して一括取得する。
+
+```python
+# H1 format: "…のチケット情報 (福岡市・2026/8/1(土))"
+# ⚠ literal ・ (U+30FB) を使うこと。raw string 内の \u30fb は Unicode 文字と
+#   して解釈されない（[^\u30fb] は [\, u, 3, 0, f, b] と等価 — バグになる）。
+_CITY_FROM_DETAIL_RE = re.compile(r"\(([^・)]+[市区])\s*・")
+_PREF_ONLY_RE = re.compile(r"^[^\s]+[都道府県]$")  # e.g. "福岡県"（東京都も含む）
+
+def _fetch_detail_info(url: str) -> dict:
+    """GET eplus 詳細ページから city / performer / program を一括抽出。"""
+    result: dict = {}
+    try:
+        r = requests.get(url, timeout=10, headers={"User-Agent": _DETAIL_UA})
+        if r.status_code != 200:
+            return result
+        soup = BeautifulSoup(r.text, "html.parser")
+        # City from H1
+        h1 = soup.find("h1")
+        if h1:
+            m = _CITY_FROM_DETAIL_RE.search(h1.get_text())
+            if m:
+                result["city"] = m.group(1)
+        # Performer / program from dt/dd
+        _WANTED_LABELS = {"出演": "performer", "曲目・演目": "program"}
+        for dt in soup.find_all("dt"):
+            label = dt.get_text(strip=True)
+            if label in _WANTED_LABELS:
+                dd = dt.find_next_sibling("dd")
+                if dd:
+                    result[_WANTED_LABELS[label]] = dd.get_text(strip=True)
+    except Exception:
+        pass
+    return result
+
+# scrape() 末尾（browser.close() 後）で実行:
+for ev in events:
+    needs_city = ev.location_address and _PREF_ONLY_RE.fullmatch(ev.location_address)
+    info = _fetch_detail_info(ev.source_url)
+    if not info:
+        continue
+    if needs_city and info.get("city"):
+        ev.location_address = info["city"]
+    # performer/program → raw_description に追記（ev.performer には直接セットしない）
+    extra_lines = []
+    if info.get("performer"):
+        extra_lines.append("出演: " + info["performer"])
+    if info.get("program"):
+        extra_lines.append("曲目・演目: " + info["program"])
+    if extra_lines:
+        ev.raw_description = ev.raw_description.rstrip() + "\n\n" + "\n".join(extra_lines)
+```
+
+**注意点：**
+- `東京都` は `_PREF_ONLY_RE` にマッチするが `_CITY_FROM_DETAIL_RE` の `[市区]` にはマッチしない → `東京都` のまま保持。正常動作。
+- **performer は `ev.performer` に直接セットしない**（SKILL.md § performer/performers[] 注解規則）。`raw_description` に `出演: …` 形式で追記し annotator GPT が抽出する。
+- eplus 市区補完は **2 段階パイプライン**の前段：`_PREF_ONLY_RE`（都道府県→市区）→ `enrich_addresses.py`（市区→街路）。後段が市区を VAGUE と見なすことで初めて街路まで補完できる（`_VAGUE_GEO_RE` が対応）。
+- `enrich_location.py` は `location_address IS NULL OR ''` のみ処理するため、都道府県 placeholder（非 null）には効かない。
+- 同一リクエストで取れる全フィールドは一括取得する（「1 リクエスト 1 フィールド」は設計上のアンチパターン）。
+
+(Incident: アクロス福岡シンフォニーホール `7cdd06cb` — `福岡県` → `福岡市` → `福岡県福岡市中央区天神1-1-1` — commits `0cfd07f`・`113fceb`, 2026-05-19.)
+
+## transit_store-specific
+- **Shopify JSON API**: `/collections/event/products.json?limit=20&page={n}` — paginate until empty page.
+- Taiwan filter: check `title` and `body_html` against Taiwan keywords.
+- Date extraction: `日程[：:][^\d]*(\d{4})年(\d{1,2})月(\d{1,2})日` regex on `body_html`.
+- `source_id`: `transit_store_{product.handle}` — handle is stable across runs.
+
+## rightscube-specific
+- **Homepage + /movies/ 雙頁爬取**：`/movies/` 目錄頁只列出常規放映作品；特集上映系列（如 taiwan-filmake）只出現在 homepage。爬蟲必須同時抓 homepage + /movies/ 目錄，再對 slug 去重。
+- **Unicode Bold Math section 標題**：section 標題（如 `𝗧𝗛𝗘𝗔𝗧𝗘𝗥`）使用 Unicode Mathematical Bold Sans-Serif 字元（U+1D5D4+）。字串比對前必須用 `_normalize_bold_math()` 轉換成 ASCII；不轉換則 `== "THEATER"` 永遠為 False。
+  ```python
+  _BOLD_MATH_RANGES = [
+      (0x1D400, 0x1D419, ord('A')),  # bold uppercase
+      (0x1D41A, 0x1D433, ord('a')),  # bold lowercase
+      (0x1D5D4, 0x1D5ED, ord('A')),  # bold sans uppercase
+      (0x1D5EE, 0x1D607, ord('a')),  # bold sans lowercase
+  ]
+  def _normalize_bold_math(text: str) -> str:
+      result = []
+      for ch in text:
+          cp = ord(ch)
+          for start, end, base in _BOLD_MATH_RANGES:
+              if start <= cp <= end:
+                  ch = chr(base + (cp - start))
+                  break
+          result.append(ch)
+      return "".join(result)
+  ```
+- **`<span><a>` 包裝下的 sibling 日期文字**：劇場連結結構為 `<span><a href="...">劇場名</a></span>｜5/17(日)・5/24(日)`。日期文字是 `a.parent.next_sibling`（即 `<span>` 的下一個兄弟文字節點），**不是** `a.next_sibling`（= None，因為 `<a>` 在 `<span>` 內部）。
+- **沒有 THEATER section 的電影應跳過**：DVD 專售或非戲院作品不含 THEATER section → 先確認 section 存在再產生 child events；若 section 缺失則只產生 parent event。
+- **venue_key 派生規則（production contract，勿修改）**：SNS domain（x.com / twitter.com / instagram.com）→ URL path 第一段；CDN 平台 host（jimdofree.com / thebase.in 等）→ subdomain；一般域名 → 去掉 TLD 的 domain，lowercase，非英數字換為 `-`。此規則決定 `source_id` 後綴，變更會造成 duplicate 插入而非更新現有記錄。
+
+## annotator.py ↔ types.ts 同步守則（Three-Location Sync Rule + Startup Guard）
+
+每次在 `web/lib/types.ts` 新增 `Category` 型別時，**必須同時更新三個地方**：
+
+1. `scraper/annotator.py` → `VALID_CATEGORIES` 列表
+2. `scraper/annotator.py` → SYSTEM_PROMPT 第 2 條 categories 列表（單行逗號分隔）
+3. `scraper/annotator.py` → SYSTEM_PROMPT 分類定義清單（每個新分類需加定義行）
+
+**違反後果**：GPT 無法選用新分類，被迫選最近似的舊分類（例如 `tv_program` 不存在時選 `movie`）。更嚴重的是，re-annotation 時 `_validate_categories()` 會靜默剝離不在 `VALID_CATEGORIES` 中的分類，默認回退為 `["senses"]`——造成**靜默資料遺失**。
+
+### 自動防護機制（2026-05-05 新增）
+
+1. **`_check_category_sync()` 啟動守衛**：annotator.py 啟動時自動讀取 `web/lib/types.ts`，比對 VALID_CATEGORIES。若有遺漏，`SystemExit(1)` 終止執行。CI/standalone 環境（types.ts 不存在）靜默跳過。
+2. **`human_category_map` 驗證**：載入 `category_corrections` 表後，每筆記錄的分類都會對 VALID_CATEGORIES 驗證。無效分類被剝離並記錄 `logger.warning`。全部無效時回退為 `["senses"]`。
+
+### 第二資料路徑警告
+`category_corrections` 是 annotator 之外的第二條分類資料路徑。此表由 Admin UI 手動修正寫入，**不經過 VALID_CATEGORIES 驗證**（已在程式碼層修復）。新增分類時除了同步上述三處，也須確認既有 `category_corrections` 記錄不含已廢棄的分類值。
+
+**驗證命令**：
+```bash
+cd scraper && python3 -c "
+from annotator import VALID_CATEGORIES
+import re
+ts = open('../web/lib/types.ts').read()
+ts_cats = re.findall(r'^\s*\| \"(\w+)\"', ts, re.MULTILINE)
+missing = [c for c in ts_cats if c not in VALID_CATEGORIES]
+print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
+"
+```
+
+**已知遺漏（2026-05-04 修正）**：tv_program, drama, documentary, tea_alcohol, exhibition, folklore, literature, parenting, scholarship, taiwan_mandarin, healthcare — 這 10 個分類在 types.ts 存在多月但 annotator.py 未同步，導致 gguide_tv 電視節目被標為 movie。
+
+**Ghost category 事件（2026-05-05 修正）**：`category_corrections` 表中 10 筆記錄含無效分類 `culture`，36 筆事件面臨 re-annotation 時分類被靜默剝離的風險。修復後新增啟動守衛與 category_corrections 驗證。
+
+---
+
+## gguide_tv-specific
+- **schedule_str has two formats** — must handle both:
+  - 單行：`"12:00 テレ東"` → 正規表達式可直接抓 `HH:MM <channel>`
+  - 多行：`"23:45\n-\n0:00 歌謡ポップス"` → 第一行是開始時間，第二行固定是 `-`，第三行是 `H:MM <channel>`
+- **`_parse_schedule()` 回傳值**：`(datetime, channel, end_time_str | None)`，三元組。單行格式 `end_time_str=None`。
+- **多行格式解析規則**：
+  ```python
+  lines = schedule_str.strip().splitlines()
+  if len(lines) >= 3 and lines[1].strip() == "-":
+      start_hhmm = lines[0].strip()   # e.g. "23:45"
+      end_channel = lines[2].strip()  # e.g. "0:00 歌謡ポップス"
+      m = re.match(r"(\d{1,2}:\d{2})\s+(.*)", end_channel)
+      end_time_str = m.group(1) if m else None
+      channel = m.group(2) if m else end_channel
+  ```
+- **`business_hours` 格式**（三步 fallback）：
+  1. list page `end_time_str` 存在 → `f"{start_hhmm}〜{end_time_str}"`
+  2. `end_time_str = None` 但 `detail_text` 存在 → 用 `r"(\d{1,2}:\d{2})\s*\n[-−]\s*\n(\d{1,2}:\d{2})"` 從 detail page 提取，成功時同上格式
+  3. 兩者皆無 → `business_hours = None`（不填單純開始時間）
+- **`ps[2].get_text()` 必須加 `separator="\n"`**：`schedule_raw = ps[2].get_text(separator="\n", strip=True)`。不加 separator 時，HTML 子節點直接串接，多行分支永遠不觸發（commit `a895e07`）。
+- **`location_name` = 實際頻道名稱**：如「歌謡ポップス」。gguide_tv 事件絕對沒有實體地址，`enrich_addresses.py` 預設 skip 此 source（依 `source_name` 判斷）。
+- **UI 規則**：event detail page 的地址欄用 `event.source_name === "gguide_tv"` 偵測 TV 事件，顯示 `location_name`（頻道名）純文字，不加 Google Maps 超連結。⚠ 不要用 `location_name === "電視頻道"` 判斷——`location_name` 是可變內容欄位，已改為實際頻道名稱。
+- **`end_time` fallback from detail page**：list page 格式為單行（只有開始時間）時，`end_time_str = None`。fallback 邏輯從 `detail_text` 用 `r"(\d{1,2}:\d{2})\s*\n[-−]\s*\n(\d{1,2}:\d{2})"` 補抓結束時間。
+- **BeautifulSoup `get_text` 注意事項**：`get_text(strip=True)` 會直接串接子元素。有跨行結構的欄位（如時間範圍），必須用 `get_text(separator="\n")` 保留換行符。
+- **gguide_tv ↔ Annotator 分類注意事項**：
+  - `_genre_to_category()` 已正確產生 `["tv_program"]` 初始分類；annotator 透過 `_inject_keyword_categories` 的 `_TV_PROGRAM_KEYWORDS` 確保 tv_program 注入
+  - `放送: [channel]` + `ジャンル: [genre]` 是 gguide_tv 的固定 raw_description 格式標記（`_TV_PROGRAM_KEYWORDS = frozenset(["放送:", "放送：", "ジャンル:", "ジャンル："])`）
+  - 映画 genre（`ジャンル: 映画`）的 TV 廣播 → 保留 `movie` + 加 `tv_program`；其他 genre（バラエティ/ドラマ/ドキュメンタリー 等）→ 只有 `tv_program`，絕不單獨用 `movie`
+    - `_inject_keyword_categories` 邏輯：含 TV markers → 加 `tv_program`；同時若有 `movie` 且非「ジャンル: 映画」→ 移除錯誤的 `movie`
+- **`report` 誤判防護（劇情文本中的「報告」）**：`gguide_tv` 的劇情摘要常含「交際の報告」「上司に報告」等詞，這不是活動報導。`gguide_tv` 不可只因 generic `_REPORT_TRIGGER_RE` 命中 `報告` 就注入 `report` 或加 `【レポート】`。`report` 需以 TV genre/context（`報道`、`ドキュメンタリー`）判定為主。
+
+## DeepL Tracking
+- Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
+- Increment `self._deepl_chars_used += len(text)` at every DeepL API call.
+- `main.py` reads `getattr(scraper, "_deepl_chars_used", 0)` when writing to `scraper_runs`.
+
+## CLI Module 入口 — `load_dotenv()` 必要性
+- **任何有獨立 CLI 入口（`-m module` / `if __name__ == '__main__'`）的 Python module 必須在頂部加 `load_dotenv()`**。
+- `main.py` 已有 `load_dotenv`，但子 module（如 `auto_scraper/generate.py`）以 `python -m auto_scraper.generate` 直接執行時，不會繼承 `main.py` 的 `load_dotenv` 呼叫。
+- CI 用 GitHub Actions secret 注入 env var，load_dotenv 為 no-op，不受影響。
+- **Pattern**：
+  ```python
+  try:
+      from dotenv import load_dotenv
+      load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # scraper/.env
+  except ImportError:
+      pass
+  ```
+- **根因**：`python -m auto_scraper.generate --source-id <id>` 本機崩潰 `KeyError: SUPABASE_URL`（commit `d94fc80` 修復）。
+
+## Supabase SDK — JSONB Field Rules
+- **JSONB 欄位（`jsonb`、`jsonb[]`）必須傳 Python `list`/`dict`**，不可用 `json.dumps()` 先序列化。Supabase Python SDK 自動序列化 native types；手動 `json.dumps()` 造成雙重編碼，欄位存入 `"[{...}]"` 字串而非 JSONB 陣列。前端 `.map()` 等 Array 操作會因此 crash。
+- **受影響欄位（目前）**：`record_links`（`jsonb[]`）、`secondary_source_urls`（`text[]`，同規則）。新增 JSONB 欄位時務必確認傳入型別。
+- **診斷**：若前端出現 `.map is not a function` 或 `.filter is not a function`，優先確認 DB 欄位中儲存的是字串還是陣列（在 Supabase Dashboard 直接 SELECT 該欄位）。
+- **反例（bug pattern）**：`_event_to_row()` 中 `"record_links": json.dumps(links)` → 存入 `"[{...}]"` 字串。
+- **正例（correct pattern）**：`"record_links": links` （直接傳 Python list）。
+
+## enrich_addresses.py
+- **Purpose**: gpt-4o-search-preview batch-fills `location_address` / `location_address_zh` / `location_address_en` for events that have `location_name` set but `location_address = NULL` (or VAGUE).
+- **Candidate filter (2 conditions — either triggers):**
+  1. `location_address IS NULL`
+  2. `location_address in VAGUE_ADDRESS_VALUES`（固定 set: `'東京'`・`'大阪府'` 等）
+  3. `_VAGUE_GEO_RE.match(location_address)`（正規表現: `^[^\s]{2,10}[都道府県市区]$`）← **2026-05-19 追加**
+  →市区レベル（`'福岡市'`・`'渋谷区'`）や都道府県レベル（`'福岡県'`）は全て候補になる。
+- **FC lock は候補フィルタの後にチェック：** `field_corrections` に `location_address` ロックがあるイベントは **FC batch check で常にスキップ**される。手動で街路補完を強制する場合は先に FC 削除 + `location_address = NULL` が必要。
+  ```python
+  sb.table('field_corrections').delete().eq('event_id', EID).eq('field_name', 'location_address').execute()
+  sb.table('events').update({'location_address': None}).eq('id', EID).execute()
+  python enrich_addresses.py --source <source_name>
+  ```
+- **Skipped sources**: `gguide_tv` (TV broadcast, no physical address) and events with `location_name ILIKE '%オンライン%'` are excluded by default.
+- **Output is AI-generated, NOT verified**: gpt-4o-search-preview can hallucinate street numbers for new or renamed venues. Known failure: MoN Takanawa filled with `東京都港区高輪4-10-30` instead of correct `東京都港区高輪2-21-2` (2026-05-01).
+- **Post-run audit**: After running `enrich_addresses.py`, manually spot-check records from high-profile partner venues (SSFF, TAICCA, TCC) against the organizer's official access page (`会場・アクセス` section).
+- **Verification source**: For SSFF, use `shortshorts.org/2026/ja/schedule/` Venue access section. For other venues, search the organizer's official site for the address.
+- **Direct DB fix**: When a wrong address is found, correct it directly via Supabase SDK UPDATE — no code change or commit needed (data-only correction).
+
+## auto_generate Pipeline
+
+### Eligibility Check
+- `generate.py` `_check_eligibility()` accepts **both `'researched'` and `'recommended'` statuses**. `recommended` sources (highest confidence, GitHub Issue created) are valid targets.
+- If a source returns "not eligible" unexpectedly, check `research_sources.status` first — it may be `'recommended'` if the researcher used `--create-issue`.
+
+### 403 / Headless Fallback
+- Some WordPress/UIkit sites return **403 to headless Playwright** but serve full static HTML to `requests`. Signs: sandbox shows 0 events, `card_selector` not found in rendered DOM.
+- When `auto_generate` fails with 0 events, immediately test `requests.get(url)` manually before retrying with Playwright.
+- If static HTML is complete → write the scraper manually with `requests + BeautifulSoup`. Attach a `Retry` adapter to `requests.Session` (see § BaseScraper Contract).
+
+### Annual-Subdomain URLs (e.g. TIFF)
+- Sites like TIFF use `YYYY.tiff-jp.net` — hardcoded year must be replaced with dynamic resolution before promotion:
+  ```python
+  def _resolve_base_url() -> str:
+      r = requests.head("https://www.tiff-jp.net", allow_redirects=True, timeout=10)
+      m = re.search(r"(https://\d{4}\.tiff-jp\.net)", r.url)
+      if m:
+          return m.group(1)
+      return f"https://{datetime.now().year}.tiff-jp.net"
+  ```
+- Mark any URL containing a 4-digit year as "needs annual review" in the spec.
+
+### Taiwan Keyword Filter
+- auto_generate specs for keyword-search sources (e.g. TIFF `?s=台湾`) may return non-Taiwan results. Always add a `_TAIWAN_KW` client-side filter in the generated scraper during promotion review.
+- **keyword= URL パラメータはサーバー側でフィルタされないサイトがある**（例: bookandbeer）。dry-run で台湾キーワードが実際にヒットするか確認。ヒット率 0% の場合はクライアント側フィルタの実装が必要。
+- **書店・著者イベントの false positive**：著者の所属欄に「台湾大学」「淡江大学」等が含まれる場合、台湾キーワードが著者略歴から来ている可能性がある。`_AUTHOR_BIO_RE` パターン（大学名）を除去してから再判定する 3 段階フィルタが有効：①タイトルに台湾キーワード → 即通過、②説明冒頭 500 字に 2 件以上 → 著者略歴パターン除去後に再判定、③除去後にキーワードなし → 除外。
+
+## Annotator CLI — `--id` 強制重新標注
+
+- `python annotator.py --id <uuid>`：對單一 event 強制重新標注，**不限** `annotation_status`（但 `reviewed` 事件除外）。
+- 使用場景：台東祭等多城市活動在首次 annotate 時規則不足，需在修正 prompt 後重新執行。
+- 若不加 `--id`，annotator 只處理 `annotation_status = 'pending'` 的事件。
+
+## `location_prefectures` — 多城市母活動都道府縣陣列
+
+- DB 欄位：`location_prefectures text[]`（nullable，migration 012）
+- **何時寫入**：annotator 子活動 loop 結束後，若聚合出 ≥ 2 個不同都道府縣，自動 UPDATE 父事件的 `location_prefectures`；單城市不寫入（維持 null）。
+- **計算方式**：`_extract_prefecture(location_address)` 從每個子活動的 `location_address` 提取都道府縣名，去重後排序。
+- **`_extract_prefecture()` regex 必須覆蓋兩種格式**：
+  - 標準格式：`東京都`、`大阪府`、`京都府`、`北海道`
+  - 市開頭格式：`大阪市`、`京都市`（省略「府」的地址，如「大阪市中央区...」）
+- **Auto-sync from `location_address`（annotator re-annotation）**: `annotate_pending_events()` 末尾で `location_prefectures` が FC ロックされていない・venue lookup 未設定・`fix_reviewed` 非フラグの場合、`_PREFECTURE_RE` で `location_address` 先頭をマッチし単一都道府県を自動付与（commit `eb94bb9`, 2026-05-30）。`オンライン` 住所はスキップ。`len(cur_prefectures) > 1` の複数都道府県イベントは skip（multi-city フローで管理）。**影響**: `location_address` を FC 修正した後、次の annotator 実行で `location_prefectures` も自動追従する。即時反映が必要なら `location_prefectures` も同時に FC 修正すること。
+- **Backfill**：現有多城市母活動可用 `scraper/backfill_location_prefectures.py` 補填。
+- **篩選整合**：前台（`web/app/[locale]/page.tsx`）和後台（`web/components/AdminEventTable.tsx`）各地區篩選需加入 `location_prefectures.cs.{"X"}` OR 條件，否則多城市母活動無法命中地區篩選。
+
+## Multi-City Tour De-anchoring (HQ-anchored scrapers)
+
+For any scraper that hardcodes a fallback `location_address` to a single HQ / 駐日機構 (e.g. `taiwan_cultural_center`, `koryu`, future 駐日辦事處 sources):
+
+- **Detect multi-city descriptions before falling back to HQ.** If the article description mentions ≥ 2 regional keywords from `東京|北海道|大阪|京都|神奈川|福岡|名古屋|愛知|仙台|札幌|広島|沖縄`, the event is a tour, not an HQ event. **`東京` must be in the list** — it appears in most multi-city tours.
+- **De-anchor pattern when multi-city detected:**
+  - `location_name = '・'.join(found_regions)` — list the detected cities directly (e.g. `北海道・東京・神奈川・京都・大阪`). **Never use a generic label like `全国巡回`** — it is meaningless to users.
+  - `location_address = None`（清空 HQ 地址，避免錯誤錨定）
+- **Downstream takes over:** Annotator splits the event into per-city sub-events, then auto-aggregates `location_prefectures` on the parent (see section above).
+- **Without this de-anchor:** All tour stops display as HQ-city events, regional filters break, multi-city UI never triggers. Reference incident: 台湾映画上映会2026 (5-city tour) — fixed in commit `a2d6eea` (2026-05-01).
+
+## Annotator NAME WRITING RULES
+
+`annotator.py` system prompt requires the following rules for the `name_ja` / `name_zh` / `name_en` fields:
+
+- **Titles must be self-contained**: A reader who sees only the title (without the description) must understand what the event is.
+- **Generic terms must not appear alone**: When the title consists only of a generic word, it MUST be prefixed with the organiser, topic, or series context.
+  - Generic words: `オフ会`, `ライブ`, `上映会`, `展示`, `イベント`, `セミナー`, `勉強会`
+  - Bad: `東京オフ会` → no one knows whose fan meetup this is
+  - Good: `台湾系YouTuber copochanの東京オフ会`
+- **Target length**: 10–40 characters (Japanese). Avoid unnecessary padding.
+- **Sub-events must also be self-contained**: A sub-event title like `CSRデー` with no parent context is rejected. Include the series or organiser name.
+- **When to re-annotate**: If the DB has an existing generic title (e.g. `東京オフ会`), set `annotation_status = 'pending'` and re-run `annotator.py`.
+
+## `name_ja_locked` — protect structured titles from annotator overwrite
+
+**Problem**: Annotator GPT always rewrites `name_ja`, even when the scraper already populated it from a precise structured source field (e.g. academic paper `題目:`, official film programme titles). GPT tends to truncate the subtitle or append generic suffixes like「に関する講演会」.
+
+**Solution**: Set `name_ja_locked=True` on the `Event` when `name_ja` is extracted from a definitive structured field. The annotator will preserve the existing `name_ja` unchanged, while still generating `name_zh`, `name_en`, `description_*`, and `category` normally.
+
+**When to use**:
+- Academic sub-events where `name_ja` = structured `題目:` / paper title with full subtitle (e.g. `taiwanshi` scraper)
+- Film sub-events from official programme PDFs with definitive Japanese titles
+- Any event where the raw source provides the official Japanese title as a discrete field — not inferred from free-text description
+
+**When NOT to use**:
+- Events where the source only provides a vague or generic title and annotator enrichment is desirable
 - Parent events (usually fine to let annotator improve the title)
 
 **Implementation**:
 ```python
+# In the scraper, set name_ja_locked=True when name_ja comes from a structured field:
 Event(
-    name_ja=r["title"],      # from 題目: field — precise and definitive
+    name_ja=r["title"],          # from 題目: field — precise and definitive
     raw_title=r["title"],
-    name_ja_locked=True,     # protect from annotator overwrite
+    name_ja_locked=True,         # protect from annotator overwrite
     ...
 )
 ```
-Requires `supabase/migrations/034_name_ja_locked.sql` to be applied (adds `name_ja_locked boolean default false`).
+Requires `supabase/migrations/034_name_ja_locked.sql` to be applied.
 
 **DB fix for already-misannotated events** (if annotator has already run):
 ```python
+# Restore raw_title → name_ja for all affected sub-events
 events = sb.table('events').select('id,name_ja,raw_title').like('source_id','<source>_%_sub%').eq('is_active', True).execute().data
 for e in [x for x in events if x['name_ja'] != x['raw_title']]:
     sb.table('events').update({'name_ja': e['raw_title']}).eq('id', e['id']).execute()
 ```
 
-## raw_description 措辭影響 annotator SINGLE-DAY RULE
-
-**Problem**: Annotator's `_get_end_date()` includes a SINGLE-DAY RULE that detects keywords like `「単日」`, `「開催日」` (singular form) in `raw_description` and forces `end_date = start_date`. Scraper-set multi-day events get collapsed if the description's wording triggers this rule.
-
-**Example**: `starcat_cinema` originally used `raw_description` prefix `"上映日: YYYY年M月D日"` (singular `上映日`). Annotator detected the singular form + checked `start_date != end_date`, then interpreted this as a mismatch and overwrote `end_date = start_date`, collapsing a multi-week film run into a one-day event.
-
-**Solution**: When `end_date > start_date` in your scraper, ensure `raw_description` uses plural or period form:
-- ✅ `"上映期間: YYYY年M月D日〜YYYY年M月D日"` (plural period)
-- ✅ `"開催期間: YYYY年M月D日～YYYY年M月D日"` (period)
-- ✅ `"上映日程: YYYY年M月D日～YYYY年M月D日"` (schedule)
-- ❌ `"上映日: YYYY年M月D日"` (singular, triggers SINGLE-DAY RULE)
-
-**Rule**: Before setting multi-day `end_date` in a scraper, audit the `raw_description` prefix to ensure it does NOT use singular keywords that will trigger annotator's SINGLE-DAY RULE. If unsure, check `annotator.py` `_get_end_date()` for the current RULE heuristics.
-
-## Annotator date protection — manual date fix protocol
-
-**Problem**: `annotator.py` lines 581-582 always prefer GPT output over DB values for dates:
-```python
-"start_date": annotation.get("start_date") or event.get("start_date"),
-"end_date": annotation.get("end_date") or event.get("end_date"),
-```
-If `annotation_status` is reset to `'pending'` after a manual date fix, the next annotator run will overwrite the corrected dates with whatever GPT extracts from `raw_description`.
-
-**Root cause**: GPT extracts dates from `raw_description` free-text. Sources like `tokyoartbeat`, `gnews`, `note_creators` often lack a structured `開催日時:` header — GPT will guess from stray date mentions.
-
-**Safe protocol for manual date correction**:
-
-Option A — Re-annotate (safe):
-1. Update `start_date`/`end_date` in DB.
-2. Prepend `開催日時: YYYY年MM月DD日 〜 YYYY年MM月DD日\n\n` to `raw_description`.
-3. Set `annotation_status='pending'` — annotator re-runs with the header as ground truth.
-
-Option B — Skip re-annotation (simplest):
-1. Update `start_date`/`end_date` in DB.
-2. Set `annotation_status='annotated'` (NOT `'pending'`) — annotator will not touch this event again.
-
-**Never do**: Update `start_date`/`end_date` then set `annotation_status='pending'` WITHOUT updating `raw_description`. The next annotator run will overwrite your fix.
-
-**High-risk sources** (frequently missing `開催日時:` header in `raw_description`):
-- `tokyoartbeat` — dates embedded in URL, not description
-- `google_news_rss` / `nhk_rss` — article publication date ≠ event date
-- `note_creators` — free-prose blog posts
-
-**Incident**: デニス・リン展 (id: `1e375d6c`, 2026-05-02) — GPT output `2026-01-15` overwrote corrected `2026-04-10` because `raw_description` lacked the header. See `history.md` 2026-05-02.
-
-## Annotator location protection — manual address correction rule
-
-**Manual address correction rule**: Before overriding a GPT-generated `location_address`, verify with Google Maps. Venue names containing place names (e.g. `MoN Takanawa`, `WITH HARAJUKU HALL`) do NOT guarantee the postal address matches that place name.
-
-**Why this matters**: GPT correctly recalls well-known venue addresses from training data. An address absent from `raw_description` does NOT mean GPT hallucinated — it may have recalled the correct postal address from knowledge.
-
-**Protocol**:
-1. Search the venue name on Google Maps (30 seconds).
-2. Confirm the postal address matches what GPT generated.
-3. Only override if Google Maps shows a different address.
-4. After correcting, set `annotation_status='reviewed'` to lock the event.
-
-**Incident**: MoN Takanawa (ssff events, 2026-05-02) — architect inferred address as `港区高輪4-10-30` from venue name "Takanawa". Correct address is `港区三田3-16-1` (confirmed via Google Maps). GPT's original annotation was correct. See `architect/history.md` 2026-05-02（深夜 4）.
-
-## tokyoartbeat — raw_description must include venue header (Contentful)
-
-**Rule**: When tokyoartbeat scraper is re-enabled, `raw_description` **must** prepend a structured venue header using data from the Contentful API. Without it, annotator GPT will hallucinate well-known venues (e.g. 東京都現代美術館, 森美術館) from training knowledge.
-
-**Incident**: デニス・リン展 (id: `1e375d6c`, 2026-05-02) — GPT annotated venue as 東京都現代美術館 (incorrect); correct venue was Yukikomizutani, TERRADA ART COMPLEX II 1F, 品川区. `raw_description` had only an English artist bio with no location data.
-
-**Contentful API flow**:
-```
-GET /entries/{event_id}  → fields.venue.sys.id (e.g. "88E9E737") + fields.openingHours
-GET /entries/{venue_id}  → fields.fullName, fields.address, fields.closedDays, fields.openingHours
-```
-
-**Required header format** (prepend before body text):
-```
-開催日時: YYYY年MM月DD日 〜 YYYY年MM月DD日
-会場: {fullName}
-住所: {address}
-開場時間: {openingHoursOpens}〜{openingHoursCloses}
-休廊日: {closedDays}
-入場料: {admissionFee}円（0 = 無料）
-```
-
-**Why GPT hallucinates**: The annotator prompt contains a LOCATION ADDRESS RULE that says "fill in if you know it". GPT over-confidently applies training knowledge to high-profile venues, even when nothing in `raw_description` confirms the location. The structured header is the only reliable ground truth.
-
-
+## Annotator output cleaning
 - Empty strings from GPT (`""`) must be treated as `None` — use `_str()` helper that returns `None` for falsy/blank strings. Prevents empty `name_zh`/`name_en` from blocking the `||` fallback chain in `getEventName`.
 - Location fields must be stripped of leading label separators — use `_loc()` helper that calls `.lstrip("：；:; \u3000")`. GPT often includes the `会場：` or `場所：` separator as the first character of `location_name`.
 - Apply `_loc()` to both `location_name` and `location_address`.
-- **`SIMP_RE` / `_SIMP_TO_TRAD` char addition rule (2026-05-01):** Only add a char when its Traditional Chinese / Japanese form is a **different glyph**. Verify each candidate via CC-CEDICT or kanji.jitenon.jp before adding. Counter-example: `亮` is identical in Trad/Simp (`照亮` is valid Traditional) — produced a false positive in `auto_qa.py` dry-run. When adding new chars, update both `annotator.py._SIMP_TO_TRAD` and `auto_qa.py.SIMP_RE`. See `history.md` 2026-05-01.
-
-## Auto-QA findings → `event_reports` queue
-- New automated content-quality checks (e.g. `scraper/auto_qa.py`) must write findings into `event_reports` with an `auto_*` prefix in `report_types[]` rather than building a separate admin queue. Both auto-detected and user-submitted reports flow through `/admin/reports` unchanged.
-- Dedup against existing pending rows of the same `auto_*` type per `event_id` before insert; also dedup within a single run.
-- Current `QA_TYPES` (as of 2026-05-15): `auto_qa_simplified_zh`, `auto_qa_missing_address`, `auto_qa_missing_hours`, `auto_simplified_chinese`, `auto_qa_same_work_duplicate`, `auto_qa_performer_ai_translation_marker`, `auto_qa_performer_multi_value_pollution`, `auto_qa_performer_zh_equals_katakana`. Future checks follow the same `auto_*` prefix convention.
-- **performer 系 3 detector の役割**（2026-05-15, commit `c4bd9e1`）：
-  - `auto_qa_performer_ai_translation_marker`：movie 事件の `performer_zh/en` に `AI翻譯` / `AI Translation` マーカーが残存 → lookup pipeline が未修正
-  - `auto_qa_performer_multi_value_pollution`：`performer` フィールドに区切り文字（`、,，×／/`）が残存 → `performers[]` 分割が未実行
-  - `auto_qa_performer_zh_equals_katakana`：`performer_zh` が `performer` のカタカナそのままで未翻訳
 - Events with existing `""` in name/description fields need manual DB reset (`null` + `annotation_status = 'pending'`) then re-run `annotator.py`. The `_str()` helper only prevents future empty strings.
+
+## Annotator sub-event row fields
+- `sub_row` in `annotator.py` must **explicitly include `scraped_at`** inherited from the parent event: `"scraped_at": event.get("scraped_at")`. Fields omitted from `sub_row` default to `NULL` — they are not inherited automatically.
+- Rule of thumb: any field that is meaningful for admin operations (e.g. `scraped_at` / クロール日時) must be carried over from parent to sub-event explicitly.
+- When adding a new column to the `events` table, check whether `sub_row` in `annotator.py` also needs updating.
 
 ## Admin form (web) — nullable fields
 - `AdminEditClient.tsx` initializes form fields with `event.field ?? ""`, converting `null` → `""`. On save, this writes `""` to the DB — which silences the locale fallback chain in `getEventName`/`getEventDescription`.
@@ -269,10 +1726,92 @@ GET /entries/{venue_id}  → fields.fullName, fields.address, fields.closedDays,
 - Event detail page (`/events/[id]/page.tsx`) uses these helpers instead of raw field access.
 - **Rule**: Any field that a non-Japanese visitor reads on the event page must have locale variants OR use a helper with Japanese fallback. Check the event detail page for raw `event.field` access when adding new DB columns.
 
+## `location_url` — 官方會場網站 URL（migration 031）
+
+- `location_url: Optional[str] = None` in `Event` dataclass（`scraper/sources/base.py`）— 填入官方場館/會場的完整 URL（非活動頁面 URL）。
+- **填寫來源**：scraper 從場館官網連結萃取，或管理員在 Admin UI 手動輸入。
+- **Annotator 不填寫**：GPT 容易 hallucinate URL，`annotator.py` 的 schema 不包含 `location_url`。
+- **Web 渲染**：Event detail page 以條件渲染實作——`location_url` 存在時將 `location_name` 包在 `<a href={location_url} target="_blank" rel="noopener noreferrer">` 內，並顯示 ↗ 指示符。
+- **`sub_row` 繼承規則**：`annotator.py` 的 `sub_row` 不自動繼承父事件欄位。新增 `location_url` 後，若父事件有 venue URL，`sub_row` 需明確設定 `"location_url": event.get("location_url")`。
+- **Seed 順序**：含 `location_url` 的 Python client seed 必須在 Supabase Dashboard 執行 migration `031` 後才能執行；否則報 `PGRST204`。
+- **⚠ 申込表單 URL 禁止填入 `location_url`**：Google Forms（`forms.gle/...`）、Peatix、Connpass 等**申込/登録表單 URL** 絕對不能填入 `location_url`。`location_url` 語義是「會場的官方 URL」（大学キャンパスページ、施設公式サイト等）。申込表單屬於 `source_url` 或 `official_url` 的責任範圍。DB 手動修正時若發現 `location_url` 含申込表單 → 設為 `null`。
+- **⚠ 主催者 URL 禁止填入 `location_url`**：イベント説明文に主催者・団体のウェブサイト URL が含まれる場合（特に `raw_description` 末尾）、scraper や annotator がそれを `location_url` に誤帰属することがある。主催者 URL は `organizer_url` フィールドへ。DB 手動修正時は `location_url = null`・`organizer_url = <organizer site>` に変更。iwafu 系 scraper で頻発。
+
+Reference incident: `0d97e51c`（2025年台湾史研究会3月例会）`location_url='https://forms.gle/BwseMtpymDKQY4W47'`（申込表單）→ `null` 手動修正（2026-05-07）。
+Reference incident: `c61470db`（赤城で台湾さんぽ）`location_url='https://gunma-taiwan-association.studio.site/'`（主催者サイト）→ `null` + `organizer_url` に移動（2026-05-30）。
+Reference incident: `c52caa6e`（THE SILENCE）`location_url='https://www.diginoa.net/silencepuppet'`（イベントページ）→ `null` + `official_url` に移動（venue URL = `https://theater-green.com/theater/base/` に修正）（2026-05-30）。
+
+**`official_url` vs `source_url` — フロントエンド表示区別：**
+- `official_url` が設定されている → イベント詳細ページに **「公式サイト ↗」** として表示
+- `official_url` が null → `source_url` が **「原始資訊 ↗」** として表示（「公式サイト」表示にはならない）
+- 公式イベントページを「公式サイト」として表示させるには、必ず `official_url` に設定すること（`source_url` だけでは不十分）。
+- 専用イベントページが存在しない場合（Peatix が source_url のみの場合など）、創作者/主催者の公式 Instagram や SNS を `official_url` に設定して「公式サイト ↗」として表示できる。
+
+Reference incident: `c61470db`（赤城で台湾さんぽ）`official_url` 未設定のため iwafu URL が「原始資訊」として表示 → `official_url = 'https://gunma-kanko.jp/events/290'` に修正（2026-05-30）。
+Reference incident: `ee17c509`（Floti Studio 似顔絵ワークショップ）専用ページ非存在 → `official_url = 'https://www.instagram.com/flotistudio/'` で「公式サイト ↗」表示（2026-05-30）。
+
+## event_form — lecture vs conference 區分規則
+
+`event_form` 陣列的學術事件類型選擇：
+
+| 情境 | 正確值 |
+|---|---|
+| 單一登壇者による講演・発表 | `['lecture']` |
+| 複数の登壇者（2 件以上の報告）がある学術例会・研究会 | `['conference']` |
+| シンポジウム・学会大会 | `['conference']` |
+
+**判斷基準**：
+- 「第1報告：〇〇」「第2報告：〇〇」のように**複数の報告**がある → `conference`
+- 台湾史研究会・台湾研究フォーラム等の**月例会**は通常 `conference`（複数報告が標準形式）
+- 単一演講でゲスト1名のみ → `lecture`
+
+Reference incident: `0d97e51c` `event_form=['lecture']` → `['conference']`（2報告あり、2026-05-07 修正）。
+
+## performers[] 批次回填驗證規則
+
+批次回填 `performers[]` 時的必須驗證步驟：
+
+**跨年度混入リスク**：source_name + 月份 で候補を絞ると、異なる年の同月イベントが混在し、performers が誤ったイベントに書き込まれる。
+
+```python
+# ❌ 危険：同月の別年イベントを混入させるパターン
+candidates = sb.table('events').select('id,performers,raw_description').eq('source_name', 'taiwanshi').execute().data
+# 2025-03 の回 と 2026-03 の回 が両方マッチしてしまう
+
+# ✅ 安全：start_date の年月まで絞り込む
+candidates = (
+    sb.table('events').select('id,performers,raw_description')
+    .eq('source_name', 'taiwanshi')
+    .gte('start_date', '2025-03-01')
+    .lt('start_date', '2025-04-01')
+    .execute().data
+)
+```
+
+**回填前の必須確認（人工）**：
+1. 各イベントの `raw_description` を確認し、書き込もうとする performers 名が実際に記載されているか照合する。
+2. 氏名が一致しない場合は当該イベントをスキップし、source_url を再確認する。
+3. 回填後は `field_corrections` にロックし、re-annotation で上書きされないよう保護する。
+
+Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田真郷']`（2026年3月例会の報告者）が誤って書き込まれた（2026-05-07 修正）。
+
 
 ## cinema scrapers — official_url extraction
 - Cinema detail pages often have an "オフィシャルサイトはこちら" or "公式サイト" anchor linking to the film's external promotional site. Extract this as `official_url`.
 - Selector pattern: iterate `soup.find_all("a", href=True)`; skip hrefs that do not start with `http` and skip hrefs containing the cinema's own domain.
+
+## Keyword filter — exclude non-article sections (関連記事 etc.)
+- **Wix/SPA pages** (e.g. moonromantic) append a "関連記事" or "おすすめ" block at the bottom of every page. These sections contain links to OTHER events, including past Taiwan events.
+- **Rule**: Before checking Taiwan keywords, truncate `page_text` at the first occurrence of `"関連記事"` (and similar section headers like `"関連イベント"`, `"おすすめ"` if applicable). Only scan the event's own body text.
+- **Pattern**:
+  ```python
+  related_idx = page_text.find("関連記事")
+  check_text = page_text[:related_idx] if related_idx != -1 else page_text
+  if not any(kw in check_text for kw in TAIWAN_KEYWORDS):
+      return None
+  ```
+- **⚠ DO NOT use `> 200` threshold**: The old pattern `if related_idx > 200` was incorrect — when `"関連記事"` appears before position 200 (e.g., after a short site nav), the condition falls through to `check_text = page_text` (full text), causing Taiwan keywords in the related sidebar to produce false positives. Always truncate on the marker itself using `!= -1`.
+- This pattern applies to any SPA scraper that uses `page.inner_text("body")` or full-page text extraction.
 - Accept link texts: `オフィシャルサイト`, `公式サイト`, `official site`, `Official Site` (case-insensitive variants).
 - When `official_url` is added to an existing scraper, **existing DB records are not automatically updated** — either set `force_rescrape=True` for affected events or run a targeted Supabase UPDATE. The scraper only writes `official_url` on upsert; stale rows keep `null` until they are re-upserted.
 
@@ -288,8 +1827,22 @@ GET /entries/{venue_id}  → fields.fullName, fields.address, fields.closedDays,
 - **403 stores**: `daimaru/fukuoka` and `matsuzakaya/takatsuki` return 403 even via Playwright. Permanently excluded from `_STORES`.
 - **source_id**: `daimaru_matsuzakaya_{slug}_{ev["id"]}` — JSON `id` (integer) is stable across daily runs.
 - **Date format**: `eventStartDate` / `eventEndDate` = `"YYYYMMDDHHII"` string. Parse with `datetime.strptime(ds[:8], "%Y%m%d")`.
+
+## prtimes-specific
+- **`_SEARCH_KEYWORDS` MUST NOT contain city/region names**: Keywords like `"台湾 イベント 東京"` restrict prtimes API results to articles mentioning that city. Project scope is all-Japan — always use city-free terms (`"台湾 イベント"`, `"台湾フェア"`, etc.).
+- **`_EVENT_KW` must include `フェア`**: Without this, titles like「台湾フェア」have no `_EVENT_KW` match and are rejected.
+- **`_TAIWAN_BASED_TITLE_RE` must be precise**: Overly broad patterns like `台湾.*?で` match Japan-held Taiwan fairs (e.g. `台湾フェア」で`). Only match explicit Taiwan-location context:
+  - `台湾国内|現地|本島|の地.*?で`
+  - `in 台湾` / `in Taiwan`
+  - `台湾出展|輸出|進出|販路|海外展示|海外販売`- **Taiwan venue exception (`_JAPAN_VISITOR_KW`)**: If `_TAIWAN_VENUE_RE` matches but `body_text` or `title` contains a Japanese-visitor keyword (`日本人向け`, `ファムトリップ`, `日台交流ツアー`, `日本発`, `日本から` etc.), do NOT skip — the event targets Japanese visitors and is in scope. Categorize as `tourism` and/or `taiwan_japan`. Use the real Taiwan address as `location_address`.- **When a PR TIMES article is missing, check in order**:
+  1. `_SEARCH_KEYWORDS` — does any keyword contain a city/region name?
+  2. `_EVENT_KW` — does the event-type word (e.g. `フェア`) appear in the list?
+  3. `_TAIWAN_BASED_TITLE_RE` — is the pattern falsely matching a Japan-based Taiwan event?
+  4. `_TAIWAN_VENUE_RE` — is the venue filter incorrectly excluding it?
 - **Referer header required**: `requests.get(url, headers={"Referer": page_url})` — without Referer some stores return 403.
 - **Taiwan events are rare and unpredictable** (food fairs, not seasonal). 0-event dry-runs are expected.
+- **多城市活動偵測（`_MULTI_CITY_SECTION_RE`）**: 當 PR 文章前半為商品介紹、活動行程落在後半時，固定截斷（`text[:3000]`）會漏掉多城市日程。解法：在 `_fetch_detail()` 用正則偵測「東京｜日期」/「大阪｜日期」等多城市模式，偵測到時選擇性延長（前段 2,000 字 + `---[イベント開催情報]---` 分隔標記 + 行程區塊 4,000 字），未偵測到則維持原 3,000 字上限。
+- **多城市子活動補建標準流程**（偵測到漏建時）：① 手動建子活動確認資料正確 → ② 刪除手動建的子活動 → ③ 修正 scraper raw_description 邏輯 → ④ 重新抓取 + 更新 DB + 重置 `annotation_status = pending` → ⑤ 執行 `annotator.py` 自動生成正確 sub_events。不可跳過步驟 ②（保留手動建的子活動會導致重複）。
 
 ## hankyu_umeda-specific
 - **Static HTML, no Playwright**: requests + BeautifulSoup only. Page at `https://www.hankyu-dept.co.jp/honten/event/` returns full HTML.
@@ -299,14 +1852,20 @@ GET /entries/{venue_id}  → fields.fullName, fields.address, fields.closedDays,
 
 ## google_news_rss-specific
 - Fetches 4 Google News RSS queries; Taiwan-filtered; `category: ["report"]` (annotator refines)
-- `start_date` extracted from description text; fallback to pubDate — DO NOT set to null
+- **`start_date` must NOT fall back to pubDate**: RSS `<description>` is a short snippet (often just the article title) — it never contains event dates. `pubDate` is the article publish date, completely unrelated to when the event takes place. If no date pattern is found in the description, return `None`. (Fixed in commit `9510a05`; 40 events with wrong pub_date fallback were deactivated.) The annotator handles date extraction by fetching the full article body via Playwright — see engineer `SKILL.md § Annotator — google_news_rss 文章補抓`.
 - `source_id`: `gnews_{md5(url)[:12]}` — stable across runs; `url` is guid if real article URL, else `<link>` tag value
-- Skip entries older than 60 days (based on pubDate)
+- **`_STALE_DAYS = 21`**: Skip entries older than 21 days (based on pubDate). Google News redirect URLs (`news.google.com/rss/articles/...`) expire within ~2–3 weeks — any link older than 21 days is likely dead. The previous value of 60 was too long.
 - Google `<guid>` may contain real article URL; prefer it over `<link>` tag when it starts with `http` and does not contain `news.google.com`
+- **Google News redirect URL decoding**: Use `googlenewsdecoder.new_decoderv1(url, interval=0)` to decode `news.google.com/rss/articles/...` URLs server-side. Add `time.sleep(_DECODE_SLEEP)` (1.0 s) after each call. Add `googlenewsdecoder>=0.1.6` to `requirements.txt`. Do NOT attempt base64 decoding of the URL path (it is encrypted protobuf, not base64) and do NOT use `requests.get()` directly (returns HTTP 400 with JavaScript redirect).
+- **RSS description href is also a Google News URL**: The `<a href>` inside `<description>` HTML points to `news.google.com/rss/articles/...` — NOT the original article. A "non-google.com" filter on this href yields zero results. Always decode the RSS `<link>` URL with `googlenewsdecoder`, not the description href.
+- **`_is_yahoo_aggregation()` filter**: Skip articles whose title ends with `「- Yahoo!ニュース」`. Yahoo news aggregation pages are duplicates of the source article AND their redirect URLs expire faster. Check: `title.endswith("- Yahoo!ニュース")` or equivalent strip+suffix check.
+- **Query precision**: Use `"台湾映画 上映会"` (not `"台湾映画 上映"`) to filter out pure news articles that report on upcoming release dates without being event listings.
 - **配信記事欄位補齊（manual hotfix）**: 若 article text 明確包含平台/價格/出演者（`BS11+`, `見放題・単品レンタル配信`, `演じたのは`）但事件欄位為空，手動回填 `location_name`, `business_hours`, `is_paid`, `price_info`, `event_form=["broadcast"]`, `performers`。
 - **`business_hours` for streaming events must be one-line**: use concise format `YYYY年M月D日から配信中`; do not paste long article paragraphs into `business_hours`.
 - **FC lock is mandatory after manual backfill**: upsert `field_corrections` for all corrected fields immediately. If `corrected_by` column type is uncertain, omit it and write only `event_id + field_name + corrected_value` to avoid `22P02` UUID errors.
+- **`_clean_title_for_dedup()`**: strips the `- Source Name` or `｜Source Name` suffix that Google News appends to RSS article titles. `Event.name_ja` is set to the cleaned title (improves in-scraper `dedup_events` key matching). `raw_title` always retains the original full title including the suffix. Apply cleaning before constructing the `Event` object.
 - **`_NEWS_SOURCES` member**: `merger.py` uses Pass 2 (date-range + location-overlap) — NOT name similarity — to merge google_news_rss events into official primaries. This is intentional: article titles don't match event names. Never add `google_news_rss` to Pass 1 name-similarity matching.
+- **Within-source dedup**: handled by `merger.py` Pass 0 (name_ja similarity ≥ 0.85), which explicitly includes `start_date=NULL` events. Pass 1 skips same-source pairs, so Pass 0 is the only dedup layer for gnews-vs-gnews.
 
 ## nhk_rss-specific
 - Fetches NHK news category RSS feeds (cat4=international, cat7=culture/science); Taiwan-filtered; `category: ["report", "books_media"]`
@@ -316,18 +1875,125 @@ GET /entries/{venue_id}  → fields.fullName, fields.address, fields.closedDays,
 - 0 events is a valid dry-run result when no Taiwan news appears in today's NHK feeds
 - **`_NEWS_SOURCES` member**: same Pass 2 matching rules as `google_news_rss` above — NHK article titles do not match event names by similarity.
 
+## `enrich_movie_titles()` の `work_id` 自動付与
+
+`scraper/annotator.py` の `enrich_movie_titles()` は `works` テーブルとの照合成功時に `work_id` を自動付与する（2026-05-30 以降）。
+
+### `_resolve_movie_titles_for_event()` は 7-tuple を返す
+
+```python
+# ✅ CORRECT — 7-tuple
+name_zh, name_en, official_url, works_performer, works_director, works_id, title = (
+    _resolve_movie_titles_for_event(event, sb)
+)
+
+# ❌ WRONG — ValueError: not enough values to unpack
+name_zh, name_en, official_url, works_performer, works_director, title = (
+    _resolve_movie_titles_for_event(event, sb)
+)
+```
+
+**全 return 分岐が 7-tuple であることを守ること**（early return も含む）:
+- 失敗 early return: `return None, None, None, None, None, None, ""`（6×None + 空文字列）
+- 正常 return: `return name_zh, name_en, official_url, works_performer, works_director, works_id, title_used`
+
+### `work_id` フィールドは FC 保護外
+
+`_lock_fields_via_corrections()` の呼び出し時に必ず除外すること:
+
+```python
+lock_update = {k: v for k, v in update.items() if k != "work_id"}
+_lock_fields_via_corrections(lock_update, corrections_for_event)
+```
+
+`work_id` を FC lock に含めると annotator が毎回上書き不能になる。
+
+### kyoto_cinema など URL 毎回変動ソースへの対応
+
+kyoto_cinema は上映期間ごとに新しい movie_id を URL に割り当てる → `source_id` が毎回異なる → movie-extend も merger Pass 1 も発動しない。このようなソースでは `work_id` の付与は **annotator `enrich_movie_titles()` の自動照合のみ**に依存する（手動バッチ不要）。
+
+Reference incident: 2026-05-30 — kyoto_cinema event `edcc3578` (霧のごとく / 大濛)、`work_id=None` → commit `7e5b124` で修正。
+
+---
+
+## Movie Title Lookup Pattern
+
+`scraper/movie_title_lookup.py` provides `lookup_movie_titles(name_ja)` → `tuple[str | None, str | None, str | None]`.
+
+**Return value (3-tuple):** `(name_zh, name_en, official_url)` — all three may be `None` if not found.
+
+```python
+# ✅ CORRECT — always unpack as 3-tuple
+name_zh, name_en, official_url = lookup_movie_titles(name_ja)
+# or if official_url not needed:
+name_zh, name_en, _ = lookup_movie_titles(name_ja)
+
+# ❌ WRONG — causes ValueError: too many values to unpack
+name_zh, name_en = lookup_movie_titles(name_ja)
+```
+
+**When to call:**
+- Every cinema scraper that sets `category=["movie"]` must call `lookup_movie_titles(name_ja)` before constructing `Event()`.
+- If `lookup_movie_titles` returns a non-None `official_url`, use it as `Event(official_url=official_url)`.
+
+**Exemptions (skip `lookup_movie_titles` for):**
+- Events whose `source_id` ends in `_sub\d+` (sub-events): they inherit translations from parent
+- Events with `name_ja_locked=True` in DB (already manually verified)
+
+**`official_url` from lookup:** When eiga.com finds the movie, the third tuple value is the eiga.com movie page URL. This is a valid `official_url` for the event — use it instead of constructing a Google search fallback.
+
+**For Taiwan-produced films not found on eiga.com:** Check GHFF (`goldenhorse.org.tw/film/about/archive/`) — see `§ 台湾映画の権威ソース優先順位`.
+
+---
+
+## Cinema scraper Vision OCR pattern
+
+Use when showtimes / business_hours are only available in a **schedule image** (JPEG/PNG), not in HTML.
+
+**Pattern: 2-pass scrape + single Vision OCR call**
+
+```python
+# 1st pass — collect candidates (no Event() yet)
+candidates: list[dict] = []
+for movie in listing_movies:
+    if is_taiwan_relevant(movie):
+        candidates.append({"title": movie.title, ...})
+
+# OCR step — single call for all candidates
+schedule_map: dict[str, str] = {}
+if candidates:
+    img_url = _fetch_schedule_image_url()  # dynamic URL from schedule page
+    if img_url:
+        schedule_map = _ocr_schedule_showtimes(img_url, [c["title"] for c in candidates])
+
+# 2nd pass — generate Event() with showtimes
+for c in candidates:
+    bh = _match_schedule(schedule_map, c["title"])  # exact → substring fallback
+    event = Event(..., business_hours=bh)
+```
+
+**Graceful fallback rule:** `_ocr_schedule_showtimes()` must always return `{}` (empty dict) when:
+- `OPENAI_API_KEY` is not set
+- Any exception occurs (`except Exception: return {}`)
+
+Never let Vision errors break the scrape. Events without OCR showtimes get `business_hours=None`.
+
+**Dynamic URL fetch:** Schedule image URLs change weekly. Always fetch the schedule page HTML and extract the current `<a href="/img/i*.jpg">` link — never hardcode the JPEG URL.
+
+**Prompt design for schedule OCR:**
+- Provide the target title list explicitly; do NOT ask GPT to find all movies
+- Request JSON output: `{"films": [{"title": "...", "showtimes": "HH:MM / HH:MM"}]}`
+- Use `response_format={"type": "json_object"}` to prevent markdown wrapping
+- Use `"detail": "high"` for image_url input to improve OCR accuracy
+- Cost: `gpt-4o` Vision ≈ \$0.005/run for a weekly schedule image
+
+Reference: `cinemaclair.py` commit `33dc715` (2026-05-15).
+
+---
+
 ## Cinema scraper pattern
 
 Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any future single-venue cinema scraper.
-
-**`business_hours` — mandatory schedule collection**: Cinema scrapers must actively collect per-day screening times and store them in `business_hours`. Common HTML containers:
-- `div.schedule-program` (shin_bungeiza)
-- `div.schedule-table` / `table.schedule` (various)
-- `dl.showtime` / `ul.times` (single-venue sites)
-
-Combine date header (`<h2>` or `<p.nihon-date>`) with its following schedule block when the HTML separates them. Format: one line per date — `M/D（曜） HH:MM（note）\nM/D（曜） HH:MM`. **Do NOT return `None` for `business_hours` when schedule data is visually present on the page.** Missing screening times is always a scraper bug.
-
-**Incident**: shin_bungeiza (commit `1ffb98e`) — `_parse_nihon_date_only()` collected date headers from `<h2>` but silently omitted the adjacent `<div class="schedule-program">` elements containing actual screening times.
 
 **Standard strategy:**
 1. Fetch listing page → parse movie cards (title, URL, optional end date from "M/D まで" or similar label)
@@ -348,6 +2014,8 @@ Combine date header (`<h2>` or `<p.nihon-date>`) with its following schedule blo
 
 **`start_date` rule for currently-showing movies:** Use `datetime.now()` (today). Do NOT use the movie's release date (`劇場公開日`) as `start_date` unless the movie is not yet showing.
 
+**`start_date` rule for upcoming / COMING SOON movies:** When the movie page shows "COMING SOON" or a pre-announcement article without a confirmed release date, set `start_date = null` rather than using any date on the page. Pages scraped before the official release announcement may contain only an article publication date or a vague season label — using such a date produces a wrong `start_date` that persists until the next scrape (e.g. ナギ日記: scraper set `2026-05-01`, actual release `2026-09-25`). Priority order for extracting a movie release date: `「○月○日（曜日）公開」` pattern in body → `「公開日：YYYY年MM月DD日」` labeled field → null.
+
 ## taiwan_matsuri-specific
 - **Geographic scope**: taiwan-matsuri.com hosts events all over Japan (Gunma, Kumamoto, Fukuoka, Nara, Shimane, etc.). Never add a regional keyword filter — the project covers 全日本.
 - **Link discovery**: Homepage `<a href="/YYYYMM-slug/">` links include the event status in the link text (`開催中` / `イベント終了`). Skip links whose text contains `終了` to avoid re-scraping ended events.
@@ -360,9 +2028,13 @@ Combine date header (`<h2>` or `<p.nihon-date>`) with its following schedule blo
 - **Date extraction tiers**: Tier 1 (`_BODY_DATE_LABELS`) → Tier 1b (dot-day) → Tier 1.3 (unlabeled range) → Tier 1.5 (prose DOW) → Tier 2 (title slash) → Tier 3 (publish date fallback). Always add new date patterns at the correct tier before the publish-date fallback.
 - **Month-only date ranges**: `期間：2026年5月～10月` is a valid date range for multi-month series. `_parse_date()` handles `YYYY年M月` (no day) → first day of month. End date is adjusted to last day of month via `calendar.monthrange`.
 - **`publish date ≠ event date`**: The `.list-text.detail` field contains `日付：YYYY-MM-DD` which is the **publish date**, not the event date. It is used as Tier-3 fallback only. Always verify that `start_date` in dry-run output is NOT the publish date.
-- **Location defaults to TCC**: The site rarely provides a venue field. Default is `台北駐日経済文化代表処 台湾文化センター / 東京都港区虎ノ門1-1-12 虎ノ門ビル2階`. For events held at other venues (universities, cinemas), the address appears in the body text but is not extracted — acceptable.
+- **Location defaults to TCC, but de-anchor for multi-city tours**: Default is `台北駐日経済文化代表処 台湾文化センター / 東京都港区虎ノ門1-1-12 虎ノ門ビル2階`. **When `description` mentions ≥ 2 regional keywords (`東京|北海道|大阪|京都|神奈川|福岡|名古屋|愛知|仙台`), set `location_name = '・'.join(found_regions)` (e.g. `北海道・東京・神奈川・京都・大阪`) and `location_address = None`** — never use a generic label like `全国巡回`. `東京` must be in the detection list. Annotator will then split into per-city sub-events and aggregate `location_prefectures` (commit `a2d6eea` + `0d900b5`, 2026-05-01).
+- **TCC location_name 幻覚パターン（`東京・京都`）**: annotator が東京のみの TCC 展覧会に `東京・京都` を設定することがある。raw_description に京都への言及がないのに `location_name` に `京都` が含まれていれば幻覚。修正手順：① raw_description で会場を直接確認 → ② `location_name='台湾文化センター'` に修正 → ③ `field_corrections` にロック。Reference incident: 2026-05-15 `dbfac7c9`（剪花・綻放 切り絵展）。
+- **海報 OCR で co_organizer を補完**: TCC のイベントは HTML テキストに `主催` のみ記載されるが、海報（`image_url`）には `共催`・`協力` が記載されていることが多い。`image_url` が取得済みなら GPT-4o Vision OCR で追加情報を抽出し、`co_organizers`・`sponsors` を補完 → `field_corrections` にロック。
 - **`News_Content2.aspx`**: These pages use the same Playwright-rendered structure as `News_Content.aspx`. The scraper's link collector targets `a[href*='News_Content']` which matches both.
 - **連続上映企画 (film series) sub-events**: GPT-4o-mini only produces ≤2 sub-events from descriptions with 13,000+ chars, even with 20,000-char truncation limit. **Generate each screening as a separate `Event(parent_event_id=…)` in the scraper layer.** Do NOT rely on annotator sub-event extraction for series with 6+ entries. Pattern: `source_id = f"{parent_source_id}_sub{n}"`. (2026-04-29 実績: 台湾映画上映会2026 16件手動挿入)
+- **⚠ TCC sub-event 時刻は JST → UTC 変換が必要（未修正バグ）**: `_parse_date()` が naive datetime を返すため、スクレイパーが sub-event の時刻（JST）を UTC として Supabase に書き込む。例: 12:00 JST → `12:00+00:00` 誤（正: `03:00+00:00`）。台湾映画上映会2026（2026-04-29 挿入）の全 14 件に影響を確認済み。**スクレイパーコードの修正が完了するまで、新規挿入または再スクレイプ後に必ず start_date/end_date の -9h 補正 DB スクリプトを実行すること。** 修正方法: `_parse_date()` 返値に `replace(tzinfo=ZoneInfo('Asia/Tokyo')).astimezone(timezone.utc).replace(tzinfo=None)` または caller 側で `datetime(..., tzinfo=timezone.utc)` に置換。
+- **location_name_zh に固有名詞の会場名を翻訳しない**: annotator が `ユーロライブ` → `'歐洲直播'` のように劇場・会場の固有名詞を一般名詞として機械翻訳することがある。日本語固有名詞の会場名はそのまま（`'ユーロライブ'`）を `location_name_zh` に使うこと。誤訳を発見したら FC lock で上書き。
 
 ## annotator sub-events — reliability limits
 
@@ -374,12 +2046,23 @@ Combine date header (`<h2>` or `<p.nihon-date>`) with its following schedule blo
 
 ## merger.py
 
-`scraper/merger.py` runs after every scraper cycle to deduplicate cross-source events. Two detection passes:
+`scraper/merger.py` runs after every scraper cycle to deduplicate cross-source events. Four detection passes:
+
+### Pass 0 — Within-source google_news_rss dedup
+- Runs **before** Pass 1. Fetches all active `google_news_rss` events, **including those with `start_date=NULL`**.
+- Pairs events with `name_ja` similarity ≥ 0.85 (`SequenceMatcher` on normalised names).
+- Primary selection rules (in order): (1) non-null `start_date` preferred over null; (2) tie → longer `raw_description` wins.
+- Secondary: `is_active=False`; `source_url` appended to primary's `secondary_source_urls`.
+- **Why needed**: `source_id` for gnews is `gnews_{md5(url)[:12]}` — different articles about the same event have different IDs, so in-scraper dedup misses them. Pass 1 explicitly skips same-source pairs, so Pass 0 must handle this case first.
+- **Debug tip**: when investigating gnews duplicates, check Pass 0 log first to confirm whether the pair was detected.
+- Print output format: `Done: N pair(s)/orphan(s) merged (Pass 0+1+2+3).`
 
 ### Pass 1 — Name similarity (same start_date group)
 - Groups all active events by `start_date` (YYYY-MM-DD).
 - Within each group, pairs events from different sources with name similarity ≥ 0.85 (`SequenceMatcher` on normalised names).
-- Lower `SOURCE_PRIORITY` number wins as primary. Current order: `taiwan_cultural_center` (1) → … → `taiwan_matsuri` (6) → … → `iwafu` (11) → `ide_jetro` (13).
+- Lower `SOURCE_PRIORITY` number wins as primary (strict `<`). Current order: `taiwan_cultural_center` (1) → … → `taiwan_matsuri` (6) → … → `iwafu` (11) → `ide_jetro` (13).
+- **`_richness_score()` tiebreaker**: when two events have the **same** `SOURCE_PRIORITY`, the one with the higher richness score is chosen as primary. Scoring (0–10): `official_url` (+1), `start_date` (+1), `end_date` (+1), `location_address` (+1), `location_name` (+1), `raw_description` +1 per 200 chars (capped at 5). Never rely on iteration order to decide primary — always use richness when priorities are equal.
+- **annotator pubDate trap**: annotator may fill `start_date` from the article publish date (`pubDate`) rather than the actual event date. If after merging the primary's `start_date` looks like a recent news publish date (not an event date), reset `start_date = NULL` and re-run annotator.
 
 ### Pass 2 — News-report matching (date-range + location overlap)
 - Sources in `_NEWS_SOURCES = {"google_news_rss", "prtimes", "nhk_rss"}` use article titles that cannot match event names by similarity.
@@ -389,6 +2072,15 @@ Combine date header (`<h2>` or `<p.nihon-date>`) with its following schedule blo
   - `location_name` tokens overlap (≥1 common token of ≥2 characters)
 - News events are **always secondary** (priority 100). Official events are **always primary**.
 - Pass 2 catches cases where `start_date` differs (e.g. article published mid-festival or months before) and names are stylistically different.
+
+### Pass 3 — Orphaned sub-event cleanup
+After Pass 1/2, some sub-events are left active while their parent has been deactivated (orphaned). Pass 3 cleans these up:
+1. Find all `is_active=True` sub-events whose `parent_event_id` points to an `is_active=False` parent (orphans).
+2. For each orphan, find the primary parent via `secondary_source_urls contains orphan.source_url` query.
+3. If the primary parent has a sub-event with `name_ja` similarity ≥ 0.85 **and** matching `start_date` → merge (deactivate orphan, keep winner per `SOURCE_PRIORITY`).
+4. If no matching sub found under the primary parent → deactivate the orphan directly.
+
+**Pass 3 must run after Pass 0+1+2** (so parent merge results are already settled). Print output format: `Done: N pair(s)/orphan(s) merged (Pass 0+1+2+3).`
 
 ### Merge result
 - Primary: `secondary_source_urls` extended; `raw_description` enriched with secondary content (first merge only); `annotation_status` reset to `pending` for re-annotation.
@@ -402,135 +2094,89 @@ cd scraper && python merger.py             # apply
 ```
 Run after discovering a new cross-source duplicate that the merger missed. Then check `--dry-run` to confirm the pair is detected before applying.
 
+### _normalize() — Strip Ordering and Guard Spot-Check
+
+When modifying `_normalize()` in `merger.py`, the **execution order** of strip steps matters:
+
+1. Trademark symbols (`™` `®`)
+2. CJK full-width dashes → ASCII (`―`/`—` → `-`)
+3. **Trailing `【主催者名】` annotation** — `re.sub(r"【[^】]*】\s*$", "", name)` ← **MUST run BEFORE wrapping-bracket strip**
+4. Wrapping quotes/brackets at ends — `re.sub(r"^[「『《\"'(（\[【]+", ...)` and `re.sub(r"[」』》\"')）\]】]+$", ...)`
+5. Subtitle suffix (`～...～`)
+6. Year suffix (`（2026）` / `(2026)`)
+7. Whitespace collapse
+
+> **Why order matters**: The wrapping-bracket strip (step 4) consumes the trailing `】`, leaving `【ＮＰＯ...` residue. Once `】` is gone, the `【[^】]*】\s*$` pattern in step 3 never matches.
+
+**Guard spot-check** — run after any `_normalize()` change, all 4 cases must pass:
+
+```python
+from difflib import SequenceMatcher
+from merger import _normalize
+
+def sim(a, b): return SequenceMatcher(None, _normalize(a), _normalize(b)).ratio()
+
+assert sim("劇映画 PLAY!～ライブの神様～（2024年）", "劇映画 PLAY!～ライブの神様～") >= 0.85, "year-suffix"
+assert sim("「台湾、一年の始まり」", "台湾、一年の始まり") >= 0.85, "dash+quote"
+assert sim("ラーメン屋", "台湾カフェ") < 0.85, "false-positive"
+assert sim("XiXi、私を踊る\u3000松本シネマセレクト上映会【ＮＰＯ松本シネマセレクト】",
+           "XiXi、私を踊る\u3000松本シネマセレクト上映会") >= 0.85, "bracket-annotation"
+print("All 4 pass ✅")
+```
+
+**Known source pattern**: `matsumoto_cinema_select` appends `【ＮＰＯ松本シネマセレクト】` to all titles (teket.jp group_id=1841). Other teket.jp group sources may use the same pattern. Two merge failures discovered 2026-05-31: `dd792b98`/`e910d7f2` (XiXi) and `ff15eb1d`/`e4516272` (赤い糸); both manually resolved.
+
+### 手動マージ後の primary event 修正チェックリスト
+
+自動マージが失敗して手動でペアを解消した場合、primary event に以下を確認・修正する：
+
+1. **`annotation_status` 確認** — `error` の場合は `enrich_movie_titles()` / `enrich_person_names()` が走らない。name_ja/zh/en を手動修正後 `pending` にリセットする。
+2. **`name_ja` suffix 除去** — `annotation_status=error` の matsumoto_cinema_select primary には `【ＮＰＯ松本シネマセレクト】` が残留している。除去 + FC lock が必要。
+3. **映画 primary の `name_zh` 確認** — `works.title_zh`（正式中国語タイトル）が反映されているか。FC locked で日本語タイトルのまま格納されていたら upsert で上書き。
+4. **`name_en` 確認** — `works.title_en` を使ったイベント名形式（`Title – Venue Screening`）になっているか。
+5. **FC lock 誤値の上書き方法** — `field_corrections.upsert({'event_id': id, 'field_name': f, 'corrected_value': v}, on_conflict='event_id,field_name')` で既存ロック値を上書きできる（DELETE 不要）。
+
 ## Registration
 - After creating a new scraper file, always add it to `SCRAPERS = [...]` in `scraper/main.py`.
 - Test with `python main.py --dry-run --source <source_name>` before any other step.
 - **Periodic audit**: Occasionally cross-check `ls scraper/sources/*.py` against the `SCRAPERS` list in `scraper/main.py`. Source files not in `SCRAPERS` are silently ignored by CI — they never run. In April 2026, 8 scrapers were discovered in this state (CineMarineScraper, EsliteSpectrumScraper, MoonRomanticScraper, MorcAsagayaScraper, ShinBungeizaScraper, SsffScraper, TaiwanFaasaiScraper, TokyoFilmexScraper).
-- **`_scraper_key()` naming rule**: `main.py`'s `_scraper_key()` splits class names on CamelCase boundaries (`LivePocketScraper` → `live_pocket`). The class `SOURCE_NAME` constant must match exactly. Name the class to match: `LivepocketScraper` (not `LivePocketScraper`) so `_scraper_key()` produces `livepocket`.
-
-## Debugging — scraper_runs diagnostics
-
-**When checking if a scraper is running, always derive the exact `scraper_runs.source` key from `_scraper_key()` — never guess from memory.**
-
-```bash
-cd scraper && python3 -c "
-import sys; sys.path.insert(0, '.')
-from main import SCRAPERS, _scraper_key
-for s in SCRAPERS: print(_scraper_key(s))
-" | grep <partial>
-```
-
-Common traps where intuition fails:
-| Class name | Actual key |
-|---|---|
-| `CineMarineScraper` | `cine_marine` (NOT `cinemarine`) |
-| `MoonRomanticScraper` | `moon_romantic` (NOT `moonromantic`) |
-| `TiffJpScraper` | `tiff_jp` (NOT `tiff`) |
-| `TokyoArtBeatScraper` | `tokyo_art_beat` (NOT `tokyoartbeat`) |
-
-**Check failure reason from DB** (commit `7e9f617`: `notes` now contains `"ExceptionType: message"`):
-```python
-sb.table('scraper_runs').select('ran_at,notes') \
-  .eq('source', '<key>').eq('success', False) \
-  .order('ran_at', desc=True).limit(5).execute()
-```
-
-**0 events ≠ not running**: `events_processed=0` with `success=True` means the scraper ran but found no Taiwan events (normal for `tokyo_city_i`, `tokyo_now` outside event season). Only `success=False` indicates a failure.
-
-
-
-`scraper/movie_title_lookup.py` provides `lookup_movie_titles(name_ja) → (name_zh, name_en)` via eiga.com search.
-
-- **Always call before constructing `Event()`** in cinema scrapers: `name_zh, name_en = lookup_movie_titles(title)`.
-- **In-memory cache**: `_cache` deduplicates requests within a single scraper run. No DB writes.
-- **Silent failure**: returns `(None, None)` on any error — never raises, never breaks scrapers.
-- **Annotator fallback**: GPT-4o-mini still provides `name_zh`/`name_en` for events where lookup returns `(None, None)`.
-- **Annotator enrichment**: `annotator.py --enrich-movie-titles` retroactively fills NULL `name_zh`/`name_en` fields for existing `movie` events. Only patches NULL fields — never overwrites existing values. Runs after `--fix-reviewed` step in `scraper.yml`.
-- **Rate limit**: `LOOKUP_DELAY_SEC = 1.0` between requests. Do not lower.
-- **Scope**: cinema scrapers only (category contains `"movie"`). Do not use for non-film events.
-
-### Adoption status (as of 2026-05-02)
-
-| Scraper | `lookup_movie_titles` | Weekly schedule (`business_hours`) |
-|---|---|---|
-| `cinemart_shinjuku` | ✅ | ✅ (`_parse_schedule_page` via cineticket.jp) |
-| `ks_cinema` | ✅ | ✅ (`_parse_schedule_first_last`) |
-| `cinemarine` | ✅ | ❌ (no public schedule URL found) |
-| `cineswitch_ginza` | ✅ | ❌ |
-| `morc_asagaya` | ✅ | ❌ |
-| `shin_bungeiza` | ✅ | ✅ (`_parse_nihon_date_only` + `schedule-program` div, commit `1ffb98e`) |
-| `uplink_cinema` | ✅ | ❌ |
-| `human_trust_cinema` | ✅ | ❌ |
-| `eurospace` | ✅ (added 2026-05-02) | ❌ |
-| `tokyo_filmex` | ❌ (festival; title in multiple languages already) | ❌ (annual) |
-| `ssff` | ❌ (English titles primary) | ❌ (festival) |
-| `oaff` | ❌ (festival) | ❌ (annual) |
-
-**When adding a new cinema scraper**: always add `from movie_title_lookup import lookup_movie_titles` and call `lookup_movie_titles(title)` before `Event()`. Update this table.
-
-## person_name_lookup — multilingual person names
-
-`scraper/person_name_lookup.py` provides person name lookup via eiga.com + zh/ja.wikipedia for **all events** (not just movies).
-
-- **Triggered by**: `python annotator.py --enrich-person-names` (runs in CI after `--enrich-movie-titles`)
-- **Target scope**: ALL events where `annotation_status != 'reviewed'` and `source_name != 'eiga_com'`
-- **Structural fields sync (fixed 2026-05-07)**: `enrich_person_names()` updates `performers_en`, `performers_zh`, `director_zh`, `director_en` in addition to `description_zh/en`. Cross-reference maps (`zh_to_info`, `ja_to_info`) propagate results across fields. Updates apply only when the target field is null, empty, or contains an AI-translation marker. **Never implement a description-only enrich without also updating structural fields** — mismatched `performers_en=['中文名']` or `director_zh='幻覚音譯'` survive re-annotation because annotator's `_ai_or_existing()` preserves non-null DB values.
-- **Two pipelines**:
-  - **Movie events**: `lookup_person_names(title)` → eiga.com movie page → structured cast/crew list → Wikipedia (`strict=False`)
-  - **Non-movie events**: `extract_katakana_names(text)` → regex extracts ・-separated katakana names → `lookup_single_person(name)` → eiga.com person search + Wikipedia (`strict=True`)
-- **strict mode**: Non-movie lookups require zh interlanguage link (ja.wikipedia) or person-keyword match (zh.wikipedia) to prevent false positives (e.g. `リン・インジュ` → `安永亜季` was a false positive without strict mode)
-- **Noise filtering**: max 3 ・-parts, max 7 chars/part, noise suffix exclusion (ホテル, センター, etc.)
-- **Output fields**:
-  - `description_zh`: GPT-corrected phonetic person names (replaces katakana-derived wrong translations with correct 中文 names)
-  - `description_en`: direct katakana → English replacement
-- **Silent failure**: returns empty dict / None on any error — never raises, never breaks the pipeline
-- **In CI**: Step order is `--fix-reviewed` → `--enrich-movie-titles` → `--enrich-person-names` → `summarize_run.py`
-- **Rule**: If you implement a new enrichment function in `annotator.py`, always add the corresponding CI step to `.github/workflows/scraper.yml` — implementation without CI registration means it never runs in production.
-
-## prtimes-specific
-
-- **API endpoint**: `GET https://prtimes.jp/api/keyword_search.php/search?keyword=<kw>&page=<N>&limit=40` — internal Next.js API, returns JSON. No Playwright needed.
-- **No geographic restriction**: `_SEARCH_KEYWORDS` must NEVER contain city names (東京, 大阪, etc.). Project scope is all of Japan. Bad example: `"台湾 イベント 東京"`. Correct: `"台湾 イベント"`.
-- **Event keyword filter**: title must contain a Taiwan KW AND an event-type KW (`_EVENT_KW`). PR releases about business/export activities are excluded by `_TAIWAN_BASED_TITLE_RE`.
-- **Press release ≠ event**: Extract the actual event date from PR body (`開催日時:` / `日時:` labels), NOT the PR release date. Fallback to release date only if no event date found in body.
-- **⚠️ Fallback date risks hallucination**: If start_date falls back to the PR release date AND raw_description lacks a `開催日時:` header, the annotator will also fail to extract the real event date — GPT cannot distinguish PR release date from event date in unstructured body text. Always add a `プレスリリース発信日: YYYY年MM月DD日\n開催日時: (要本文確認)\n\n` note when extracting event dates from PR body. Incident: `e45d4022`（台湾＆沖縄フードイベント, 2026-05-02）— `start_date=2026-02-25`（release date）instead of `2026-03-11`（actual event）.
-- **LOOKBACK_DAYS = 90**: Skip PRs older than 90 days. PR TIMES has no end-of-event concept — ~~rely on `archive_ended_events` in main pipeline~~ (archiver deleted 2026-05-06; stale events must be deactivated manually via Admin UI).
-- **Venue extraction**: `_VENUE_LABELS` regex on body text (会場: / 開催場所: etc.). Venue often in second or third paragraph.
-- **`_NEWS_SOURCES` member**: `prtimes` participates in merger.py Pass 2 (date-range + location-overlap), NOT Pass 1 (name similarity). Article-style PR titles don't match event names by similarity.
-- **Dry-run validation**: Run `python main.py --dry-run --source prtimes 2>&1 > /tmp/prtimes_out.txt` — expect 5–30 events per run depending on Taiwan events in the last 90 days.
-
-## Online events — location_name must be set by scraper
-
-- **Do NOT leave `location_name=None` for online events**: Annotator GPT does not reliably identify online events and set `location_name='オンライン'` — it depends on clear textual cues in `raw_description`. If the scraper can determine the event is online (keywords: `オンライン`、`オンデマンド`、`ウェビナー`、`ライブ配信`、`Zoom`、`YouTube`、`配信`), the scraper must set `location_name` directly.
-- **Online event type vocabulary**:
-  - `オンライン（ライブ配信）` — live stream (同期)
-  - `オンライン（オンデマンド）` — on-demand replay (非同期)
-  - `オンライン（ウェビナー）` — webinar platform (Zoom / Teams)
-  - `オンライン` — generic fallback when type is unclear
-- **Sources with frequent online events**: `ide_jetro` (on-demand courses), `connpass`, `doorkeeper`, `jposa_ja`. Incidents: `86efda2a`（オンデマンド講座, ide_jetro, 2026-05-02）— `location_name=null` needed manual DB fix.
-
-## fukuoka_now-specific
-
-- **Static HTML, no Playwright**: WordPress site, `requests` + BeautifulSoup only.
-- **Seasonal pattern**: Only one confirmed annual Taiwan event — 台湾祭 in 福岡 (Jan/Feb). 0 dry-run events during spring–winter is **correct** — not a bug.
-- **source_id**: `fukuoka_now_{slug}` where slug = `url.rstrip('/').split('/')[-1]`.
-- **Detail page always preferred for dates**: `time[datetime]` attribute gives ISO dates. Listing page also has dates, but detail page has both start and end dates.
-- **Venue**: No structured `場所:` label. Extract via line-by-line keyword match: "City Hall", "Fureai", "Tenjin", "Canal", "ACROS", "Hakata", "博多", "天神".
-- **Pagination**: `/en/event/` (page 1), `/en/event/page/{N}/` (pages 2+). Stop on HTTP 404 or empty `li.c-page-sub__guide-item`.
 
 ## gguide_tv-specific
-- **`location_name` must always be `'電視頻道'`**: Set this fixed canonical value regardless of the actual broadcast channel (tvk1, BS朝日1, etc.). Raw channel names stored as `location_name` cause false positives in the `other_japan` geographic filter and the quality page address check.
-- **`location_address` must be `None`**: TV programmes have no physical address. Never attempt to fill `location_address`.
-- **No address enrichment**: `enrich_addresses.py` must skip gguide_tv events. The `--skip-source gguide_tv` flag (or equivalent guard in the script) should prevent GPT from generating hallucinated addresses for broadcast channels.
-- **DB normalization**: If older records contain raw channel names as `location_name`, run a targeted UPDATE: `UPDATE events SET location_name = '電視頻道' WHERE source_name = 'gguide_tv'` to normalize them before the filter exclusion takes effect.
+- **Source**: 番組表Gガイド (bangumi.org) — Japanese TV program listing. Uses `"台湾"` as the search keyword to fetch candidate programs, then `_is_taiwan_title()` to re-filter.
+- **`tv_program` category is always first**: Every `gguide_tv` event is a TV broadcast. `_genre_to_category()` always prepends `"tv_program"` to the result. A genre-specific secondary category is appended when applicable:
+  - `ドラマ` → `[tv_program, drama]`
+  - `映画` → `[tv_program, movie]`
+  - `音楽` → `[tv_program, performing_arts]`
+  - `ドキュメンタリー` / `教養` / `報道` → `[tv_program, report]`
+  - その他 → `[tv_program]`
+- **User-report pattern for gguide_tv**: Most wrongCategory reports on gguide_tv events involve missing `tv_program`. When correcting a report, always ensure `tv_program` is included (the annotator does not know these are TV programs).
+- **`仙台湾` false positive**: `仙台湾` = 仙台 (Sendai city) + 湾 (bay). It is a geographic bay in Miyagi Prefecture, **completely unrelated to Taiwan**. `"台湾"` appears only as a substring of `"仙台湾"`. This was scraped as Taiwan-related before the fix (2026-04-29, event id `421d763d`).
+- **`_FALSE_POSITIVE_PATTERNS` guard**: `gguide_tv.py` maintains `_FALSE_POSITIVE_PATTERNS = re.compile(r"仙台湾")`. `_is_taiwan_title()` strips all false-positive substrings from the title first; if no Taiwan keyword remains in the cleaned title, the program is rejected.
+- **Adding new false positives**: When a new false-positive pattern is found, add it to `_FALSE_POSITIVE_PATTERNS` with alternation: `re.compile(r"仙台湾|新パターン")`. Add a comment explaining what the pattern means.
+- **General rule for substring keyword filters**: Any scraper that uses `"台湾" in text` must consider that `台湾` may appear inside unrelated Japanese words. Apply the strip-and-recheck pattern:
+  ```python
+  cleaned = _FALSE_POSITIVE_PATTERNS.sub("", title)
+  return any(kw in cleaned for kw in _TAIWAN_KEYWORDS)
+  ```
 
+## DB Operations Safety Rules
+
+These rules apply to any manual or scripted DB operation. Violating them has caused production incidents.
+
+- **NEVER batch-set `is_active = False` based on `end_date < today`**. Ended events must remain `is_active = True` — users browse event history, and the frontend `FilterBar` ("顯示已結束活動" toggle) controls their visibility. `is_active` reflects **admin intent to hide**, NOT event expiry status.
+- **`is_active` has exactly three legitimate write sources**:
+  1. Admin manually disables a specific event via the admin page.
+  2. `merger.py` deactivates a duplicate secondary event.
+  3. Scraper or admin sets `is_active=False` when an event's `source_url` is **permanently broken** (DNS failure, 404, domain expired). Do not attempt to preserve these events — a dead source URL means the event can no longer be verified or updated.
+  Any other bulk UPDATE setting `is_active = False` is an error. Verify against these three sources before executing.
+- **Reference incident**: 2026-05-01 — batch script set `end_date < today AND is_active = True → is_active = False`, deactivating 342 events. Immediate emergency revert required.
 
 ## Mandatory Post-Change Checklist
 
 **Every time a scraper is modified or a new scraper is added, you MUST complete ALL of the following before returning. No exceptions.**
 
 ### 1. history.md — always update on bug fix or unexpected behaviour
-- File: `.github/skills/agents/scraper-expert/history.md`
+- File: `.github/skills/scraper-expert/history.md`
 - Append at the TOP (newest first):
   ```
   ---
@@ -543,7 +2189,7 @@ sb.table('scraper_runs').select('ran_at,notes') \
 - Skip only if the change is purely additive with zero unexpected behaviour (e.g. adding a new source that worked perfectly on first try with no surprises).
 
 ### 2. SKILL.md — update if a new rule is discovered
-- File: `.github/skills/agents/scraper-expert/SKILL.md` (this file)
+- File: `.github/skills/scraper-expert/SKILL.md` (this file)
 - If the lesson is source-specific: add a `## <source>-specific` subsection or extend the existing one.
 - If the lesson is universal (applies to all scrapers): add it under `## BaseScraper Contract` or `## Registration`.
 - Never duplicate a rule that already exists.
@@ -562,251 +2208,604 @@ cd scraper && python main.py --dry-run --source <source_name> 2>&1 | head -80
 ```
 Confirm: `start_date` populated, no unhandled exceptions, events count is non-zero (or zero for an expected reason).
 
-## Documentation Protocol (Phase 4 — mandatory)
+## maruhiro-specific
+- **All data on list page**: Detail pages contain only a JPEG image. Never fetch detail pages — title, date, floor, and store name are all in `p.card-text` on the list page.
+- **`start_date` must be `datetime.datetime`, NOT `datetime.date`**: `dedup_events` calls `.date()` on `start_date`. Passing a bare `date` object raises `AttributeError: 'datetime.date' object has no attribute 'date'`.
+- **Taiwan events are seasonal**: Primarily Golden Week (Apr–May). 0-event dry-runs outside this period are normal.
+- **source_id**: `maruhiro_{event_id}` from `data-url="/events/view/{id}"` — integer, stable across runs.
+- **Store address**: Resolved from `開催店舗: {name}` in `p.card-text` via static `_STORE_ADDRESS` dict. All stores are in Saitama Prefecture.
 
-After every new source or bug fix, complete **all** items below **before `git add`**. Skipping any item is a protocol violation.
+## auto-scraper Phase 2 — LLM CSS selector hallucination
 
-### New source — mandatory checklist
+GPT-4o invents plausible-looking CSS classes that look reasonable but are NOT in the sample HTML. The most common fabrications: `.event-card`, `.event-list-item`, `.c-event-list__item-title`, `.post-list-item`. Each hallucination wastes ~30s Playwright sandbox + ~$0.04 LLM cost.
 
-| # | Item | File / Location |
-|---|------|-----------------|
-| 1 | `import` added | `scraper/main.py` |
-| 2 | `SCRAPERS` entry added | `scraper/main.py` |
-| 3 | SCRAPERS audit passes (zero UNREGISTERED) | run audit command |
-| 4 | Per-source `SKILL.md` created | `.github/skills/sources/<source_name>/SKILL.md` |
-| 5 | Per-source `history.md` created | `.github/skills/sources/<source_name>/history.md` |
-| 6 | `## <source_name>-specific` section added | `.github/skills/agents/scraper-expert/SKILL.md` |
-| 7 | `research_sources.status = 'implemented'` | Supabase DB |
-| 8 | `research_sources.scraper_source_name = '<key>'` | Supabase DB |
+**Defenses (in `scraper/auto_scraper/generate.py`)**:
+1. SYSTEM_PROMPT hard rule: "ONLY use CSS classes/IDs that appear VERBATIM in the sample HTML." List common LLM fabrications explicitly. Prefer tag selectors (`article`, `li`) over inventing classes.
+2. Pre-sandbox `_validate_selectors_against_html()` using BeautifulSoup (~50ms): confirm `card_selector` matches ≥ 1 element AND `field_selectors.title` / `field_selectors.date` resolve within the first card. Validation failures feed back into the LLM retry loop with explicit error.
+3. Researcher's `--card-selector-hint` is the most effective defense — batch e2e on 2026-05-02 showed Phase 2 success rate **17% without hint vs success with hint**. `researcher.agent.md` enforces hint-filling for `feasibility=easy`.
 
-> **Root cause of the ArtistcafeScraper incident (2026-05-05)**: The scraper file was created, committed, and even archived as "POC complete", but items 1–2 (import + SCRAPERS) were never done in the same session. Result: CI silently ignored the scraper for 3+ days. **Items 1–2 must be done atomically with the source file in the same commit.**
+**Generalisable rule**: For any LLM-generated artifact that references real-world data (CSS selectors, file paths, function names, URLs, env var names), add a fast pre-validation step that confirms the reference exists. LLM grounding > LLM trust.
 
-### Bug fix — mandatory checklist
+## auto-scraper Phase 2 — Optional-but-critical spec field fallbacks
 
-| # | Item | File / Location |
-|---|------|-----------------|
-| 1 | History entry prepended | `.github/skills/agents/scraper-expert/history.md` |
-| 2 | History entry prepended (source-specific) | `.github/skills/sources/<source_name>/history.md` |
-| 3 | Universal rule added/updated | `scraper-expert/SKILL.md` (if lesson generalizes) |
-| 4 | Source-specific rule added/updated | per-source `SKILL.md` (if lesson is specific) |
+`spec_schema.json` declares `detail_link_selector` with default `""`. The LLM frequently leaves it empty even though the field is critical: an empty value makes the generated scraper set `source_url = page.url` (the listing URL), which never matches `source_id_url_pattern`, causing every card to be skipped → 0 events.
 
-### Per-source SKILL.md template
+**Fix (in `scraper/auto_scraper/template.py.j2`)**: When `DETAIL_LINK_SELECTOR == ""`, grab the first `<a href>` inside the card element. Verified: Artist Cafe Fukuoka 0 → 12 events.
 
-```markdown
+**Generalisable rule**: For any optional spec field whose absence breaks the scraper, the **template** (not the LLM) must implement a sensible fallback. Do not expect the LLM to read between the lines of the schema. When adding new optional fields to `spec_schema.json`, ask: "What does the template do when the LLM leaves this empty?" If the answer is "crash" or "skip everything", write a fallback in the template before merging the schema change.
+
+## waseda_icl-specific
+
+1. **WP REST API, NOT Cloudflare-blocked**: `waseda.jp/folaw/icl/` allows `/wp-json/wp/v2/posts?search=台湾`. Main `waseda.jp` domain is blocked — do not confuse them.
+2. **Skip `_REPORT_RE` posts**: Posts containing `【開催報告】` or `が開催されました` are event summaries published AFTER the event — skip them or you get stale past-event dates.
+3. **Two-stage filter is mandatory**: API `search=` has broad recall; `_TAIWAN_TITLE_RE` on title is the precision gate. Body-only Taiwan mentions (bibliography, references) must not pass.
+4. **0 events is almost always correct**: ~1–2 genuine Taiwan events per year. Never inflate keywords to increase counts.
+5. **No overlap with `waseda_taiwan`**: Different institutions, different WP sites, different post IDs. Merger will not deduplicate them.
+
+## walkerplus-specific
+
+Walker+ (walkerplus.com) — KADOKAWA 運営の全国イベントリストサイト。
+
+- **対象カテゴリ**: `eg0117`（グルメ・フードフェス）、`eg0118`（物産展・観光フェア）、`eg0107`（美術展・博物展）。台湾関係イベントが多いのは `eg0117`/`eg0118`。
+- **台湾キーワードフィルタはカード title のみ**: Walker+ には台湾キーワードで絞り込む検索 API が存在しない。分類ページ（`/event_list/{category}/{page}.html`）を全ページ取得し、カード title で台湾キーワードを照合する（URL クエリパラメータでの絞り込み不可）。
+- **分页 URL パターン**: 第1ページは `/event_list/{category}/`（`.html` 不要）、第2ページ以降は `/event_list/{category}/{page}.html`。
+- **`source_id`**: `walkerplus_{area+event_code}`（例: `walkerplus_ar0313e462812`）— URL path の area+event code 部分。stable across runs。
+- **`m-articleset--3` は 3 インスタンスある**: `#0` と `#1` は `.m-detail__contents` 内（本文）。`#2` は `.l-main` 直下（「関連イベント」ウィジェット）。`raw_description` の `p` タグ抽出は必ず `.m-detail__contents` スコープに限定すること。スコープを外すと関連イベントウィジェットの説明文が混入する。
+  ```python
+  # ✅ 正しい
+  content = soup.select_one(".m-detail__contents")
+  paras = content.select("p") if content else []
+
+  # ❌ NG — #2 インスタンスまで抜けてしまう
+  paras = soup.select(".m-articleset--3 p")
+  ```
+- **場地リンクの順序**: `.m-detailheader__period[場所]` セクションのリンクは `[地域, 都道府県, 市区町村, 施設名]` の順序。**最後のリンク = `location_name`（施設名）、中間リンクを結合 = `location_address`**。`location_name` を `location_address` にコピーしてはいけない。
+  ```python
+  links = venue_section.select("a")
+  if links:
+      location_name = links[-1].get_text(strip=True)
+      location_address = "".join(a.get_text(strip=True) for a in links[1:-1]) or None
+  ```
+- **Detail page selectors**:
+  - タイトル: `h1.m-detailheader-heading__ttl`
+  - 開催日: `p.m-detailheader__text`（日付範囲テキスト、`〜` 区切り）
+  - 場所/時間: `.m-detailheader__period` 区画、`.m-detailheader__icon` のラベルテキスト（「場所」「開催時間」）で判別
+- **Crawl-delay**: 1 秒（`time.sleep(1)`）。KADOKAWA 系サイトはレート制限が厳しい。
+- **`scraper_source_name = 'walkerplus'`**: `research_sources` 行をこのキーで登録しないと `/admin/sources` で 0 件表示になる。
+
+## stranger-specific
+
+Stranger cinema（東京墨田区）は Eigaland プラットフォームの JSON API を使用。
+
+- **Taiwan filter は `countries` 配列で判定**: `movieDetail.countries` に `"台湾"` または `"台灣"` が含まれるか確認。タイトルやあらすじのキーワード検索は使わない（`仙台湾` 誤検知を防ぐ）。
+- **`synopsis` は base64 エンコード HTML**: `base64.b64decode(b64).decode("utf-8")` → HTMLParser でタグ除去してプレーンテキスト化する。
+- **1 映画 = 1 Event**: 90 日ループで `movieId` ごとに `min_date`/`max_date` を収集してから detail API を呼ぶ。1 日 1 Event を作ると 90 件になるため注意。
+- **`openDate` は公開日（リリース日）であり上映日ではない**: 上映日は `listByDomainAndDate?date=YYYY-MM-DD` のクエリ日付から得る。
+- **`official_url` は映画の公式サイト**: `detail.officialPageUrl` が映画の公式サイト URL（会場サイトではない）。
+
 ---
-name: <source_name>
-description: Platform rules, <key_feature>, and troubleshooting for the <source_name> scraper
-applyTo: scraper/sources/<source_name>.py
----
 
-# <Source Display Name> Scraper — Platform Reference
+## Annotator — Performer / Director Field Rules
 
-## Platform Profile
+Rules for `performer`, `performer_zh`, `performer_en`, `director`, `director_zh`, `director_en` fields in `annotator.py`.
 
-| Field | Value |
-|-------|-------|
-| Site URL | ... |
-| API/Rendering | ... |
-| Auth required | No |
-| Rate limit | ... |
-| Source name | `<source_name>` |
-| Source ID format | `<source_name>_{stable_id}` |
+### `_MUKAE_RE` — 迎えパターン完全性
 
-## Field Mappings
+`_MUKAE_RE` lookahead は以下 3 種の敬語形式をすべて網羅すること：
 
-| Event Field | Source |
-|-------------|--------|
-| `source_id` | ... |
-| `start_date` | ... |
-| `location_name` | ... |
-| `raw_description` | `"開催日時: YYYY年MM月DD日\n\n" + ...` |
+| パターン | 例 |
+|---|---|
+| `をお迎え` | 〇〇氏をお迎えして |
+| `を迎え` | 〇〇を迎えるトーク |
+| `をゲストに迎え` | 一青窈氏をゲストに迎え |
 
-## Taiwan Relevance Filter
+新しい「迎え」形式が出現したら即座に追加する。Lookahead の片方だけを更新するミスを防ぐため、変更時は 3 パターン全件をテストすること。
 
-...
+Reference incident: `一青窈氏をゲストに迎え` が捕捉不能 → `をゲストに迎え` 追加（commit `6c2f1ab`）。
 
-## Troubleshooting
+### `_PERFORMER_INTRO_RE` — separator は `*`（0 個以上）
 
-| Symptom | Likely Cause | Fix |
-|---------|--------------|-----|
-| ... | ... | ... |
+```python
+# ✅ 正しい：直連もマッチする
+_PERFORMER_INTRO_RE = re.compile(
+    r"(?P<role>絵本作家|映画監督|俳優|写真家|...)\s*(?P<name>[^\s、。]+)",
+    # 角色詞と人名の間に分隔符なしの直連が常見 → \s* (0個以上)
+)
 
-## oaff-specific
-
-1. **WP REST API over HTML scraping**: Use `/wp-json/wp/v2/posts?categories=8&per_page=100` — returns all editions without needing to discover year-specific URLs.
-2. **Three date formats**: 2024 uses `M/D(曜) HH:MM　venue`; 2025+ uses `M月D日（曜）HH:MM／venue`. Always infer year from slug prefix via `re.search(r"(\d{4})", slug)`.
-3. **source_id = `oaff_{wp_post_id}`**: Use the WP integer post ID (not slug) for stable dedup.
-4. **0 events is expected when festival not running**: OAFF runs in March and Aug–Sep. Returning 0 between seasons is correct.
-5. **Venue delimiter varies**: Both `/`, `／`, and `　` (full-width space) appear as delimiters between time and venue name across editions.
-
-## taiwanbunkasai-specific
-
-1. **`name_ja` MUST include year**: Use `f"台湾文化祭{start_date.year}"` — the raw `<title>` is "台湾文化祭" (no year), giving merger similarity 0.71 vs iwafu. With year suffix = 1.000.
-2. **Single-page site returns 0 or 1 events**: The site shows only the next upcoming event. Returning `[]` between events is correct behaviour, not a bug.
-3. **`_VENUE_MAP` resolves 中野 / KITTE**: Raw venue text is not a valid address. Always match against `_VENUE_MAP` keywords to get canonical `location_name` + `location_address`.
-4. **`merger.py SOURCE_PRIORITY["taiwanbunkasai"] = 7`**: Must be lower (higher authority) than iwafu (11) so official site wins as primary when merger detects the duplicate.
-5. **`is_paid = False`**: Confirmed 入場無料 on all known editions (KITTE and 中野).
-
-## gguide_tv-specific
-
-1. **2-step HTTP session**: Always GET `/search/?q={kw}` first to set `_ggm-web_session` cookie before calling `/fetch_search_content/`.
-2. **ebisId dedup key**: Parse `a.js-logging[data-content]` JSON → `.ebisId`; use `seen_ebis_ids` set to skip across multiple keyword searches.
-3. **Year inference**: Schedule strings (`4月29日 水曜 12:00`) have no year — try current year; if result is older than `LOOKBACK_DAYS` days, try `current_year + 1` (handles Dec→Jan boundary).
-4. **テレサ・テン filter**: Only keep programs where the full string `テレサ・テン` appears in the title; blocks variety shows where テレサ is a minor guest alongside other artists.
-5. **`台湾ドラマ` is redundant**: All results from `台湾ドラマ` are already returned by the `台湾` keyword search — do not add it to `SEARCH_KEYWORDS`.
-6. **Report false-positive guard (`報告` in drama synopsis)**: Do NOT classify a `gguide_tv` event as `report` solely because `raw_description` contains the word `報告`. TV drama summaries often contain phrases like `交際の報告` / `上司に報告`, which are plot narration, not event reports. For `gguide_tv`, `report` should be driven by TV genre/context (e.g. `報道`, `ドキュメンタリー`) rather than generic report keywords.
-
-## livepocket-specific
-- **`dl` class is `event-detail-info__list`**, not `event-detail-info`. The `dt`/`dd` pairs are wrapped in `div.event-detail-info__block` inside the `dl`. Use `_get_dd_text(dl, label)` iterating `div.event-detail-info__block`.
-- **Class name convention**: Class `LivePocketScraper` → `_scraper_key = live_pocket` (CamelCase split), conflicting with `source_name = "livepocket"`. Always use `LivepocketScraper` (lowercase `p`) so `_scraper_key = livepocket`.
-- **Venue address is in a `<span>`** inside the `会場` `dd`, after the `(都道府県)` parenthetical. Split at the parenthetical match; strip map link boilerplate.
-- **Taiwan filter is detail-page only**: Search results match "台湾" in performer names or venue names unrelated to Taiwan events. Always apply keyword filter on full detail page text.
-- **Two duplicate `dl` blocks per page** (desktop + mobile): always use `select_one()`.
-
-## artistcafe-specific
-
-- **`?keyword=` ignored**: artistcafe.jp ignores `?keyword=台湾` entirely — returns all events regardless. Verified 2026-05-05 by comparing results with/without param (same 12 cards).
-- **Taiwan filter is in-scraper**: `_is_taiwan(title + article_text)` must be checked after visiting each detail page. Without this, 8-14/12-17 non-Taiwan events are collected.
-- **Use `article` selector for description**: `body.inner_text()` captures navigation headers. `DETAIL_CONTENT_SELECTOR = "article"` excludes nav/header.
-- **Verify `?keyword=` on any new site**: Before deploying an auto-generated scraper that relies on URL keyword filtering, compare `?keyword=...` vs no-keyword response. If card counts are equal, the param is ignored.
-
-## Pending Rules
-
-<!-- Added automatically by confirm-report -->
+# ❌ 間違い：直連が漏れる
+_PERFORMER_INTRO_RE = re.compile(r"(?P<role>...)[\s・]+(?P<name>...)")
+#                                                   ^^ + は1個以上 → 直連 NG
 ```
 
-### history.md entry format
+日本語の慣例として「絵本作家林廉恩氏」のように角色詞と人名を空白なしで直連するケースが頻出する。separator regex は必ず `*`（0個以上）を使用する。
 
-```markdown
+Reference incident: `絵本作家林廉恩氏` が無マッチ → separator `+` → `*` に変更（commit `fe8b273`）。
 
-## YYYY-MM-DD — <source>: <short description>
+### AI 翻訳マーカー — 言語別サフィックス規則
 
-**Error:** What went wrong.
+`performer_*` / `director_*` 欄位に AI 翻訳サフィックスを追加する際は、**フィールドの言語に合わせる**こと：
 
-**Root cause:** Why it happened.
+| フィールド | 正しいサフィックス |
+|---|---|
+| `performer_zh` / `director_zh` | `（AI翻譯）`（繁体中文） |
+| `performer_en` / `director_en` | `(AI Translation)`（英語） |
+| `performer` / `name_ja` | `（AI翻訳）`（日本語） |
 
-**Fix:** What was changed.
+言語不一致（例：`performer_en` に `（AI翻譯）`）はデータサイレント汚染を招く。フィールド名の末尾（`_zh` / `_en`）から言語を確認してから suffix を選択すること。
 
-**Lesson:** What to remember.
+Reference incident: `bf783b90` `performer_en = 'Huang Yi-wen（AI翻譯）'`（中文サフィックス）→ `'Huang Yi-wen (AI Translation)'` に修正（commit `f07c170`）。
+
+### performer_zh / performer_en 手動修正の 2 ステップ
+
+手動でフィールドを修正した場合、必ず `_lock_fields_via_corrections()` を使うか、`field_corrections` テーブルも upsert してロックすること。未ロックだと re-annotation で修正値が上書きされる。
+
+**⚠ `_zh` フィールドの SC→TC ガード**：`_lock_fields_via_corrections()` は `_zh` で終わるフィールドに自動的に `_to_trad()` を適用してから FC に書き込む（2026-05-11 commit `f7790a2` で追加）。直接 `field_corrections` テーブルに upsert する場合、`_zh` フィールドの値は手動で SC→TC 変換済みであることを確認すること。SC 値が FC に入ると、annotator P1 保護により永久に修正不能になる。
+
+```python
+# ✅ 2 ステップセットで実行
+sb.table("events").update({"performer_en": "Correct Name (AI Translation)"}).eq("id", eid).execute()
+sb.table("field_corrections").upsert({
+    "event_id": eid,
+    "field_name": "performer_en",
+    "original_value": None,
+    "corrected_value": "Correct Name (AI Translation)",
+}, on_conflict="event_id,field_name").execute()
 ```
 
-## Geographic Scope — All of Japan（全日本）
-- **NEVER add a Tokyo-only location filter** unless the source itself is physically Tokyo-only (e.g. a single venue).
-- Events in Osaka, Kyoto, Fukuoka, Sapporo, Nagoya, Sendai, Hiroshima and all other prefectures are **in scope**.
-- API scrapers that accept a `prefecture=` or region param must either omit it (nationwide) or iterate all prefectures.
-- Connpass `prefecture=tokyo` was removed 2026-04-26 — do NOT re-add it.
-- Doorkeeper has no location filter — keep it that way.
-- The Taiwan relevance gate (`_TAIWAN_KEYWORDS`) is the only required filter; location is irrelevant to inclusion.
+### performers[] 多語言欄位の UI helper
 
-## ifi-specific
-- **Low yield**: IFI has ~1–2 Taiwan events per year. 0 results on dry-run is expected.
-- **Upcoming events only**: Scrape `/event/` (upcoming) only — do NOT paginate `/old-event/`. Past events are not re-ingested.
-- **URL in venue**: `会場：` value often has a map URL on the next line. Always filter out lines starting with `http` before setting `location_name`/`location_address`.
-- **Single-day events**: Always set `end_date = start_date`.
-- **Title selector**: `h1.module_title-01` is the event title. `<h1>` at page top always reads `"イベント"` — do NOT use it.
+**フロントエンドは `getEventPerformer(event, locale)` / `getEventDirector(event, locale)` を使うこと**。`event.performer` を直接参照してはいけない。
 
-## tokyocity_i-specific
-- **Fixed venue**: All events are held at KITTE 地下1階, 東京都千代田区丸の内2-7-2. Hardcode `location_address = "東京都千代田区丸の内2-7-2 KITTE地下1階"` regardless of what `場所` row contains.
-- **h1 is useless**: The `<h1>` always reads `"イベント"`. Use `h2.cap-lv1` for the actual event title.
-- **Listing-page date typos**: WordPress editors sometimes enter wrong year in the date range (e.g., `2026/5/8～2025/5/10`). Always use `期間` from the detail-page table, not the listing-page date snippet.
-- **0 results = normal**: Tokyo City i has ~2–5 Taiwan events per year. Dry-runs returning 0 are expected.
-- **is_paid = False**: All Tokyo City i events are free admission — hardcode `False`, do not attempt to infer.
+Locale 優先序：
+- `zh` → `performer_zh` → fallback → `performer`
+- `en` → `performer_en` → fallback → `performer`
+- `ja` → `performer` （Japanese field = base field）
 
-## tokyonow-specific
-- **API keyword search broken**: `search=台湾` on the Tribe Events v1 API returns 0 — it does not index Japanese. Always use full-page scan + local `_TAIWAN_KEYWORDS` filter.
-- **0 results = correct**: Tokyo Now typically has 0 Taiwan events at any given time. A dry-run returning 0 is expected behaviour, not a scraper error.
-- **source_id stability**: Use `ev["id"]` (numeric WordPress post ID from the API response), NOT anything derived from the URL slug or title. The slug can change; the numeric ID is permanent.
-- **Date format**: API returns `"YYYY-MM-DD HH:MM:SS"` without timezone. Parse with `datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=JST)`. Do NOT use `fromisoformat()`.
-- **台東 false positive**: `台東区` is a Tokyo ward. Do NOT add `台東` or `台東区` to `_TAIWAN_KEYWORDS`.
+Reference: `web/lib/types.ts` の `getEventPerformer` / `getEventDirector` helper（commit `3822fb8`）。
 
-## tuat_global-specific
-- **Filter on title only**: Taiwan appears as `（台湾）` in the researcher's affiliation within the title (e.g. `/ 国立陽明交通大学（台湾）`). Filter `_TAIWAN_KEYWORDS` on title only.
-- **All info on listing page**: Each event's `<table>` already contains title, date, and venue — no need to fetch detail pages.
-- **Date format uses full-width colon**: `"2026.4.15（14：00～15：30）"` — match `HH：MM` with `[：:]` to handle both full-width and ASCII colon.
-- **LOOKBACK_DAYS = 60**: Events older than 60 days are skipped. Low yield (~1–3 Taiwan events/year) is normal.
-- **Venue may have Zoom line**: Take first line of venue cell as `location_name`; join all non-http lines as `location_address`.
+### director（導演）≠ performer（表演者）嚴格分欄規則
 
-## jinf-specific
-- **Correct page is `/meeting`**: `/event`, `/lecture` return 404. The upcoming events list is at `https://jinf.jp/meeting`.
-- **`meetingbox` div not `<li>` or `<article>`**: Upcoming events are `<div class="meetingbox">` elements. Do NOT query for list items.
-- **`【場　所】` has full-width space**: The label uses U+3000 between 場 and 所. Use both `場　所` and `場所` in fallback extraction.
-- **`source_id` = form ID**: Use the numeric ID from `/meeting/form?id=NNNN` as the stable dedup key. Do NOT hash the title.
-- **Filter on full box text**: Taiwan may appear only in speaker affiliations (`台湾元行政院副院長`), not in the title. Filter on full `box_text`, not just the title element.
+**導演和表演者必須分別填入不同欄位。兩者嚴禁混填。**
 
-## note_creators-specific
+| 欄位 | 用途 |
+|---|---|
+| `director` / `director_zh` / `director_en` | 電影導演、舞台演出導演 |
+| `performer` / `performer_zh` / `performer_en` | 演員、主演、表演者、講者 |
+| `performers TEXT[]` | 所有具名演員/發表者の陣列 |
+| `performer_url TEXT` | 単一演者の公式 URL（Instagram、YouTube 等）— 単一演者イベント用 |
+| `performer_urls TEXT[]` | 複数演者の URL 配列（`performers[]` とインデックス対応）— `performer_urls[i]` が `performers[i]` の URL |
 
-- **Dynamic account list (DB-driven)**: `NoteCreatorsScraper._load_db_creators()` queries `research_sources WHERE url LIKE 'note.com/%' AND status='implemented'`. To add a new note.com creator, insert a row with the creator root URL (`https://note.com/{creator_id}`) and set `status='implemented'`. No code change needed.
-- **Static seeds always run**: The 2 hardcoded entries in `CREATOR_META` (`kuroshio2026`, `nichitaikouryu`) always run and take precedence over any matching DB row. Hardcoded metadata is richer (exact address); DB entries only need `name`.
-- **`source_profile` JSONB**: Optionally store `{"location_name": "...", "location_address": "...", "categories": ["taiwan_japan"]}` in the DB row's `source_profile` column to override defaults.
-- **No Taiwan filter applied**: All posts from registered creators are assumed Taiwan-related. Do NOT add a keyword filter — it would drop legitimate event-focused posts.
-- **RSS feed URL**: `https://note.com/{creator}/rss` — no auth required. Template URL `https://note.com/{creator}/rss` (with literal `{creator}`) in the DB is ignored automatically by `_extract_creator_from_url` (curly braces rejected by the regex).
-- **DB unavailable = graceful degradation**: When env vars are missing (dry-run on CI), `_load_db_creators()` catches the exception and returns `{}` — static creators still run normally.
-- **`source_id` format**: `note_{creator}_{note_id}` where `note_id` is the article-level path segment (e.g. `n4f9a42875b82`). Stable across runs.
+**商業院線映畫的額外規則：**
+- `organizer` 必須為 `null`：院線（シネマート、ユーロスペース 等）是**映映場地**，不是主辦方。
+- `director`：填導演（陳玉勳、侯孝賢 等）。
+- `performers[]`：填主演演員陣列。
+- `performer`（單一日文名）：主要主演；`performer_zh` / `performer_en`：多語言名稱。
 
-## Location Backfill
+```python
+# ✅ 正確：商業院線映畫
+Event(
+    organizer=None,                          # 院線不是主辦方
+    director="チェン・ユーシュン",            # 導演
+    director_zh="陳玉勳",
+    director_en="Chen Yu-hsun",
+    performer=None,                           # 若填主演則用 performers[]
+    performers=["ケイトリン・ファン", "ウィル・オー"],
+)
 
-When the DB contains events whose `location_address` is a bare prefecture name (`"東京"`, `"東京都"`, `"東　京"`, `"Tokyo"` etc.) rather than a real venue, use the backfill script to repair them:
+# ❌ 錯誤：導演誤填至 performer
+Event(
+    organizer="台北駐日経済文化代表処 台湾文化センター",  # 商業映畫不應有 organizer
+    performer="チェン・ユーシュン",           # 導演誤填為 performer
+    director=None,                            # director 漏填
+)
+```
+
+**works 表同步**：events.director 修正後，`works.director` 與 `works.cast_summary` 必須同步更新，否則 works 頁面顯示錯誤資訊。
+
+Reference incident: `dec5031b`（大濛/霧のごとく）`performer='チェン・ユーシュン'`（導演誤填），`organizer='台北駐日経済文化代表処 台湾文化センター'`（商業映畫誤填 organizer）→ DB 手動修正（2026-05-06）。
+
+### `_KNOWN_PERSON_MAP` — 藝名/筆名 GPT 翻譯覆寫
+
+GPT は藝名・筆名（片假名 ↔ 非語音漢字対応）を正しく翻訳できない。`annotator.py` のモジュールレベル `_KNOWN_PERSON_MAP` に検証済みの名前を登録すること。
+
+**GPT が失敗するケース（片假名 → 漢字が語音対応しない）：**
+- `ギデンズ・コー` → ❌ `基登斯·高` → ✅ `九把刀` / `Giddens Ko`（筆名）
+- `ロー・ウェイ` → ❌ `Lau Wai` → ✅ `羅維` / `Lo Wei`
+
+**新規エントリ追加時の必須事項：**
+1. **三言語同時検証**：`ja`（片假名）、`zh`（漢字名）、`en`（英語名）すべてを信頼できるソースで確認
+2. **ソース優先順位**：eiga.com → 公式サイト → Wikipedia → 信頼できる第三者
+3. **三つの統合ポイントを確認**：① annotation loop ② `performers[]` 配列 per-element ③ `backfill_performer_i18n()` Layer 0
+
+**翻訳ルール（厳格適用）：**
+- ラテン文字名 → そのまま保持（翻訳しない）
+- CJK 漢字名で検証ソースなし → 翻訳しない（zh: 漢字コピー、en: NULL）
+- 片假名音訳 → 検証ソースがある場合のみ翻訳（`_KNOWN_PERSON_MAP` or eiga.com lookup）
+
+Reference incident: 2026-05-09 — 14 名の検証済み名前を `_KNOWN_PERSON_MAP` に登録、11 件の DB イベントを修正。
+
+### `performers_zh[]` 機械音訳禁止ガード
+
+**`performers_zh[]` 配列の各要素は、片假名の機械的音訳であってはならない。**
+
+annotator が `performers[]`（片假名）を `performers_zh[]` に変換する際、音訳 mapping のない人名は `エスター・リウ → 艾絲特·劉` のような機械音訳になる。これは本名（`劉品言`）と一致しない別名であり、データ汚染となる。
+
+**判定方法**：
+- `performers_zh[i]` に `·`（中黒）が含まれ、かつ前半が 2〜3 文字で「アルファベット名の音訳漢字」（愛、艾、艾絲特 等）なら機械音訳の疑いが高い
+- `performers_zh[i] == performer_zh`（単一演者）と一致しない場合も要確認
+
+**修正パターン**：
+1. GHFF / eiga.com / Wikipedia で本名を確認
+2. `performers_zh[i]` を本名に書き換え
+3. `field_corrections` は `performers_zh` 配列全体をまとめてロック（フィールド名: `performers_zh`）
+
+```python
+# ✅ 正しい: GHFF で確認した本名
+performers_zh = ["劉品言", "林柏宏"]  # 艾絲特·劉 は誤り
+
+# ❌ 機械音訳
+performers_zh = ["艾絲特·劉", "林柏宏"]  # エスター・リウ のカタカナ音訳
+```
+
+Reference incident: 2026-05-15 — `6a0dbfb3` cinemaclair 莎莉、`performers_zh[0]='艾絲特·劉'`（機械音訳）→ `'劉品言'`（本名）に修正。
+
+### ステージネーム / 英数字混じり芸名の翻訳禁止ガード
+
+**`performers_zh[]` 生成時、英数字・記号を含む非標準のステージネームは翻訳・変換禁止。**
+
+GPT が `performers_zh[]` を生成する際、英数字・記号含む名前（`9m88`、`88rising`、`DJ Macky` 等）を誤って実在の別単語（軍用機型番・地名・普通名詞）に対応付けるハルシネーションが発生する。
+
+**Incident（2026-05-20）：** 映画「大濛」出演者 `9m88`（台湾の音楽アーティスト）が `performers_zh[2] = 'Ju 88轟炸機'`（ユンカース Ju 88 爆撃機）として DB に保存された。数字「88」が軍用機型番と誤一致した。`field_corrections` でロックされたため長期間気づかれなかった。
+
+**ガード規則**：
+- `performers_zh[i]` の内容が元の `performers[i]`（英数字・記号含む）と全く異なるパターン（漢字のみ構成など）になっている場合は要確認
+- ステージネームは言語横断で **同一表記を維持**（`9m88` → `9m88`、`88rising` → `88rising`）
+- 修正後は `field_corrections` で `performers_zh` 配列全体をロックする
+
+```python
+# ✅ ステージネームはそのまま維持
+performers_zh = ['范少勳', '區偉', '9m88', '曾敬驊']  # 9m88 は変換しない
+
+# ❌ GPT ハルシネーション
+performers_zh = ['范少勳', '區偉', 'Ju 88轟炸機', '曾敬驊']  # 爆撃機名に誤変換
+```
+
+### 台湾映画の権威ソース優先順位
+
+eiga.com に登録のない台湾映画は**金馬獎（GHFF）公式サイト**が最も信頼度の高い情報源。
+
+**優先順位**:
+1. **GHFF** (`goldenhorse.org.tw/film/about/archive/`) — 正式中文片名・英文片名・監督・出演者。金馬獎入選作品は全掲載。
+2. **eiga.com** (`eiga.com/movie/search/?name=...`) — 日本公開済み映画の日本語公式情報。
+3. **TAICCA 公式** / **台北電影節** / **映画公式サイト** — 金馬獎外の作品に使用。
+4. **Wikipedia** — 上記が見つからない場合の補完。
+5. **GPT 生成** — 最終手段。必ず上記で検証してから FC lock する。
+
+**注意事項**:
+- **漢字 1 文字違い**（`練` vs `連`、`惠` vs `慧` 等）は視覚的に気づきにくい。人名・片名は必ずコピー&ペーストで GHFF 原文と照合する。
+- **ローマ字綴り**も GHFF の表記が正式（`Chien-hung` vs `Chien-hong` 等）。GPT は類似綴りを混同しやすい。
+- **description_zh/en 内の片名参照も同時修正**：`name_zh` だけ直すと説明文内に旧片名が残る。`str.replace(old, new)` で一括置換してから update する。
+- **works テーブルも必ず同時修正**：`works.original_title`、`works.title_zh`、`works.title_en`、`works.director` は `events` と別テーブル。片名修正時は必ず両方を update する。
+
+Reference incident: 2026-05-15 — `6a0dbfb3` cinemaclair 莎莉。GHFF で `薩莉→莎莉`、`Sally→Salli`、`連建宏→練建宏`、`Chien-hong→Chien-hung` を確認して修正。
+
+---
+
+## Sub-event 啟用 — 標題同步規則
+
+學術研討會的子事件（sub-event）以 slot 識別符（「第1報告」「第2報告」等）作為初始標題時，**啟用 `is_active=True` 前必須同步更新標題**。
+
+**檢查流程：**
+1. 查看 `raw_description` — 正確的發表題目通常在 `raw_description` 中以「発表タイトル：」或「（仮題）」形式出現。
+2. 從 `raw_description` 手動提取題目，更新 `name_ja`。
+3. 同步更新 `performer`（發表者姓名）。
+4. 最後設 `is_active=True`。
+
+```python
+# ✅ 正確流程（DB 直接修正）
+sb.table("events").update({
+    "is_active": True,
+    "name_ja": "台湾の「雲南菜」から見る「孤軍」と東南アジア（仮題）",
+    "performer": "福田真郷",
+}).eq("id", eid).execute()
+
+# ❌ 錯誤：只啟用，不更新標題
+sb.table("events").update({"is_active": True}).eq("id", eid).execute()
+# → 「第2報告」這種 slot 識別符顯示在前台
+```
+
+Reference incident: `97f11903`（第2報告）`is_active=False` + `name_ja='第2報告'`（slot 識別符）→ raw_description 提取正確題目後手動修正（2026-05-06）。
+
+---
+
+## DB 手動修正 — business_hours 亂碼字元偵測
+
+**kokuchpro（こくちーず）等 scraper 的時間字串可能含非標準 Unicode 分隔符。**
+
+已知問題字元：
+
+| 字元 | Unicode | 說明 |
+|---|---|---|
+| `〖` | U+3016 | LEFT BLACK LENTICULAR BRACKET（誤轉為分隔符） |
+| `〗` | U+3017 | RIGHT BLACK LENTICULAR BRACKET |
+
+**偵測與修正**：
+```python
+# 修正 business_hours 中的非標準分隔符
+business_hours = (
+    business_hours
+    .replace("\u3016", "～")   # 〖 → 全形波浪號
+    .replace("\u3017", "")     # 〗 → 刪除
+)
+```
+
+**DB 修正驗證**：修正後確認值為 `'HH:MM～HH:MM'`（全形波浪號 U+FF5E），而非其他替代字元。
+
+Reference incident: `622f51c1`（中村地平上映会）`business_hours='13:30〖16:30'` → `'13:30～16:30'` 手動修正（2026-05-06）。
+
+---
+
+## Annotator — Headline Rewrite Sources & Blog Source Guard
+
+### `_HEADLINE_REWRITE_SOURCES` — 必須含む来源
+
+現在の `_HEADLINE_REWRITE_SOURCES` frozenset に含めるべきソース（ニュース/ブログ/プレスリリース系）：
+
+```python
+_HEADLINE_REWRITE_SOURCES = frozenset({
+    "google_news_rss",
+    "nhk_rss",
+    "prtimes",
+    "walkerplus",
+    "note_creators",  # ← ブログ源も必須
+})
+```
+
+**ブログ源は必ず含める**：`note_creators` など創作プラットフォームの記事は純記事（ニュース見出し）と同様の構造を持つ。含めないと organizer 欄が GPT 幻想で汚染される。
+
+> **CODE↔PROMPT 同步必須**：SYSTEM_PROMPT の NEWS HEADLINE REWRITE RULE / SALIENT SUBJECT RULE の「applies only to: ...」来源清单は、code 側の `_HEADLINE_REWRITE_SOURCES` frozenset と**必ず同步**させる。どちらか一方を更新したら、もう一方も同じソースを含むように更新すること。不同步だと、当該ソースは code 上で書き換え許可されているのに GPT は書き換え指示を受け取らず、泛標題をそのまま照抄する（silent failure）。
+
+### SALIENT SUBJECT rule — 泛標題に内文の顕著主題を取り込む
+
+headline-rewrite 来源（`note_creators` などのブログ源を含む）で、`raw_title` が**泛標題**（例：「台湾のポスター展」「上映会」「イベント」「展示」）であり、かつ `raw_description` 内に**顕著で識別可能な主題**——著名機関名（例：「二二八国家記念館」/「228国家記念館」）、歴史・人権テーマ、具体的な展覧/映画/作品名——が出現する場合、`name_ja` はその顕著主題を取り込み、読者がタイトルだけで活動の焦点を理解できるようにする。
+
+**範例**（228 国家紀念館）：
+
+```
+raw_title: 「台湾のポスター展（６月７日＠ふじみ野）」
+body 含:   「二二八国家記念館」
+→ name_ja: 「台湾「二二八国家記念館」ポスター展（6月7日＠ふじみ野）」
+```
+
+内文に `raw_title` より顕著な主題がない場合は、`raw_title` をそのまま維持する。
+
+Reference incident: `cceca5a2`（note_creators）が泛標題「台湾のポスター展」を照抄し、内文の「二二八国家記念館」を欠落 → タイトル手動修正 + FC ロック（2026-05-31）。根因は `note_creators` が `_HEADLINE_REWRITE_SOURCES` にあるのに SYSTEM_PROMPT の来源清单に未記載だったこと。
+
+### note_creators — thin content guard
+
+`note_creators` の `raw_description` は RSS 截断により「続きをみる」だけになることが多い。以下の判断基準を適用する：
+
+| 内容 | 処理 |
+|---|---|
+| 活動告知（日時・場所あり） | 通常収録 |
+| 純介紹文・感想記事・観影報告 | `is_active = False` で非表示 |
+| `raw_description` が截断のみ | annotator に渡さず先に除外検討 |
+
+「純介紹文/觀影報告は活動資料ではない」— annotator のフィルタリングに依存せず、scraper または admin DB 操作で `is_active=False` にすること。
+
+Reference incident: 4 件の `note_creators` 事件が純観影記事として誤収録 → `is_active=False` + organizer クリア（commit `b589fbb`）。
+
+---
+
+## Annotator — Collection Attribution Guard
+
+`〇〇美術館蔵` / `〇〇所蔵` は**作品の所蔵機関標記**であり、活動場地ではない。
+
+**問題パターン**:
+```
+「高雄市立美術館蔵の作品を〇〇で展示」
+```
+↑ GPT は `高雄市立美術館` を `location_name` に誤って抽出することがある。
+
+**対策**:
+1. SYSTEM_PROMPT に COLLECTION ATTRIBUTION NOTE を追加済み（commit `47f8184`）：「`〇〇蔵` のみの出現は所蔵元の記載であり、活動場地ではない」。
+2. 固定場地の scraper（cinema、venue-specific scraper 等）は `location_name` をコード側で静的設定する。GPT の判断に委ねない。
+
+```python
+# ✅ 固定場地は静的設定
+Event(
+    location_name="東京都写真美術館（恵比寿ガーデンシネマ）",
+    location_address="東京都目黒区三田1-13-3",
+    ...
+)
+```
+
+Reference incident: yebizo event `e37db12e` で `location_name='高雄市立美術館'`（台湾の美術館）が設定された → `東京都写真美術館` に修正（commit `47f8184`）。
+
+## Playwright CI 批次容錯規則
+
+在審核任何使用 Playwright 的 CI 批次腳本（`auto_research.py`、`annotator.py` 等）的計畫前，必須確認：
+
+1. **`page.goto()` 必須包裝 `TimeoutError` 捕獲**：
+   ```python
+   from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+   def _fetch_sample_html(url: str) -> str:
+       try:
+           page.goto(url, timeout=30_000)
+           return page.content()
+       except PlaywrightTimeoutError:
+           logger.warning("Playwright timeout for %s, skipping", url)
+           return ""
+   ```
+
+2. **單一 URL 選止整個批次 = 達成零**：空 `sample_html` / 空 `content` 必須被視為「該筆跳過，下一筆繼續」——不可讓它摧毀整個 job。
+   ```python
+   # auto_research.py run() 中的 pattern
+   sample_html = _fetch_sample_html(row["url"])
+   if not sample_html:
+       _update_status(row["id"], "error", "fetch_timeout")
+       continue  # 繼續下一列
+   ```
+
+3. **CI 批次腳本的 exit code 必須反映批次整體結果**：單筆來源標記 `error` 不就是失敗；全部跳過才是失敗。若選擇類似「至少 N 筆成功」的 exit condition，必須在計畫中明確定義。
+
+Reference incident: 2026-05-07 — commit `8029b74`：`auto_research.py` `_fetch_sample_html()` 無 try/except，`note.com/swi0881` 在 CI 逾時 → 未捕獲 `PlaywrightTimeoutError` → 整個 job exit code 1，所有後續來源全部跳過。
+
+## Vision OCR Enrichment Pipeline（enrich_poster.py）
+
+`scraper/enrich_poster.py` — GPT-4o Vision でイベントポスター画像から情報を抽出する enrichment pipeline。
+
+### 前提条件
+
+- `events.image_url` が非 NULL（migration 057 適用済み）
+- `note_creators.py` など `_fetch_article_content()` を実装した scraper が `og:image` を `Event.image_url` にセット
+
+### 実行方法
 
 ```bash
-# Preview — no DB writes
-python scraper/backfill_locations.py --dry-run
+cd scraper && source ../.venv/bin/activate
 
-# Apply
-python scraper/backfill_locations.py
+# 全件処理（デフォルト最大 50 件）
+python enrich_poster.py
+
+# dry-run（DB 更新なし）
+python enrich_poster.py --dry-run
+
+# 特定イベント
+python enrich_poster.py --event-id <UUID>
+
+# 件数制限
+python enrich_poster.py --max 20
 ```
 
-**Rules:**
-- The script only updates `location_name` and `location_address` — it never touches `name_*`, `description_*`, translations, or any other field.
-- After running, re-run `annotator.py` so the localized `location_name_zh/en` and `location_address_zh/en` variants are filled.
-- If you add a new source that may store generic addresses, add its `SOURCE_NAME` to the `_SOURCES` list in `backfill_locations.py`.
-- Generic address sentinel values are defined in `_GENERIC_ADDRESSES` — add new ones when discovered (e.g. `"大阪"` for future Osaka sources).
+### 動作仕様
 
-## jposa_ja-specific
+1. **対象選択**：`image_url IS NOT NULL AND annotation_status IN ('pending', 'annotated')` のイベントを最大 N 件取得
+2. **Vision 抽出**：GPT-4o Vision で画像を解析 → JSON 出力（`start_date`, `venue`, `organizer`, `confidence` per field）
+3. **適用条件**：`confidence ≥ 0.8` のフィールドのみ適用
+4. **FC ロック**：適用したフィールドは全て `field_corrections` に upsert（re-annotation で上書きされない）
+5. **Thin Content Guard**：`raw_description < 100 字` の場合は `organizer` を非適用（date/venue のみ）— thin content 時は GPT が外部知識から organizer を hallucinate するリスク防止
 
-- **Use RSS feeds, not the listing page**: `/jposa_ja/cat/4.html` is JS-rendered; the listing skeleton returns no event links. WordPress category RSS feeds (`/jposa_ja/category/<encoded>/feed/`) are the correct data source. Paginate with `?paged=N` (10 items/page, newest-first).
-- **Most posts are diplomatic visit recaps**: ~90% of posts match patterns like `の表敬訪問を受ける` / `と面会` / `を歓迎`. Apply `_EVENT_KW` (positive) + `_SKIP_KW` (negative) title filter before fetching detail pages.
-- **content:encoded has full body**: The RSS `<content:encoded>` CDATA block contains the full post HTML. Parse it with BeautifulSoup before falling back to a detail page HTTP request.
-- **XMLParsedAsHTMLWarning must be suppressed**: `warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)` is required when using `html.parser` on the RSS XML.
-- **Low yield is normal**: 1–3 event posts per month. `LOOKBACK_DAYS = 180` is intentional — do not reduce it.
+### 注意事項
 
-## tsutaya_portal-specific
+- **CI integration**：`scraper.yml` の annotator ステップ直後に自動実行（`python enrich_poster.py` ステップ）
+- **confidence threshold は固定 0.8**：閾値を下げると thin content での false positive が増加するため変更不可
+- **confidence はフィールド単位**：全体 confidence が 0.8 でも個別フィールド（venue）が 0.7 なら venue は非適用
+- **Organizer Non-Hallucination Guard 適用**：Vision 抽出の organizer 値が `raw_description` に存在しない場合は棄却（thin content guard が主要防線）
 
-- **`span.place` is in-store area name, NOT venue**: `div.date > span.place` contains the in-store display area (e.g. "スターバックス横平台") — not the building name. Always use `card_store` (from the `span.genre` card on the listing page) as `location_name`. `span.place` can be discarded.
-- **Year-less end-date** (`YYYY年MM月DD日 - MM月DD日`): The end date often omits the year. Use `_DETAIL_END_DATE_SHORT_RE = re.compile(r"-\s*(\d{1,2})月(\d{1,2})日")` and inherit `start_date.year` (add 1 if `end_month < start_month`).
-- **`location_address` not extracted**: The scraper does not fetch per-store addresses. Manual DB fix + `field_corrections` lock is required for events with wrong addresses.
+Reference incident: 2026-05-07 — `note_creators.py` `_fetch_article_content()` 実装により `image_url` 取得が可能になり、Vision OCR pipeline の初回適用先が生まれた（commit `a52f5b2`）。
 
-## bookandbeer-specific
+## WP REST API — `content` フィールド空の Elementor サイト
 
-- **`?keyword=台湾` URL parameter is silently ignored by the server**: All events are returned regardless of keyword value. A dry-run WITHOUT keyword param returns the same event count. **Always use client-side `_is_taiwan_relevant()` filter.**
-- **Author bio false positive**: 台湾大学・淡江大学 etc. may appear in `書き手` (author profile) but NOT relate to event content. Use `_AUTHOR_BIO_RE` to strip university-name occurrences before keyword count:
-  ```python
-  _AUTHOR_BIO_RE = re.compile(r'台湾[・・]?(?:大学|淡江|国立|師範|政治|成功|交通|中山|清華)')
-  ```
-- **Filter logic** (title-first, then description excerpt):
-  1. Title contains any Taiwan keyword → relevant
-  2. Description first 500 chars has ≥ 2 keyword occurrences AND after stripping university patterns at least one remains → relevant
-  3. Otherwise → skip
+Elementor / Gutenberg blocks テーマの WordPress サイトでは、`/wp-json/wp/v2/<post_type>?_fields=content` の `content.rendered` が `""` で返ることがある。JavaScript 側でブロックをレンダリングするため、静的 HTML レスポンスには本文が存在しない。
 
-## tokyoartbeat — Contentful placeholder dates (month == 1)
+**検出方法**：
+```python
+r = requests.get(API_URL, params={"_fields": "id,title,date,link,content", "per_page": 1})
+post = r.json()[0]
+print(repr(post["content"]["rendered"]))  # "" → Elementor サイト
+```
 
-- **Contentful uses entire January as fiscal-year placeholder for series exhibitions**: Both `YYYY-01-01` and `YYYY-01-15` (and any `YYYY-01-xx`) have been observed as placeholders. The guard condition must be `start_date.month == 1`, **NOT** `start_date.day == 1`.
-- **Slug fallback**: When `start_date.month == 1`, extract the real date from the Contentful URL slug (`/YYYY-MM-DD` suffix at the end of `fields.slug`).
-- **Verification**: After each dry-run, print `(name, start_date, slug)` for all events and confirm no January start dates remain.
+**対処**：`content` フィールドは使わず `link` フィールドの URL に対して `requests.get` → `BeautifulSoup` で HTML を直接スクレーピングする。
 
-## google_news_rss — article fetch failure handling
+```python
+# ❌ Elementor サイトでは空
+content = post["content"]["rendered"]  # ""
 
-- **RSS snippet must NOT be used as start_date fallback**: If `article_text` is None (HTTP error or Playwright timeout), set `start_date = None` — do NOT call `_extract_start_date(description_plain, pub_date)`. The snippet is too short for reliable date parsing.
-  ```python
-  # CORRECT
-  start_date = _extract_start_date(article_text, pub_date) if article_text else None
-  ```
-- **`start_date = None` is handled by annotator's universal year-anchor**: `（記事配信日: YYYY-MM-DD）` prefix injected into raw_description ensures year correctness even when date cannot be extracted from text.
-- **health_check `gnews_suspect` alert**: Only trigger for `start_date < today` (past-dated unreliable dates). Future-dated gnews events are not yet user-visible and do not require an alert.
-## performer / performers[] \u6ce8\u89e3\u898f\u5247
+# ✅ detail ページを直接 fetch
+r = requests.get(post["link"], headers=HEADERS, timeout=15)
+soup = BeautifulSoup(r.text, "html.parser")
+full_text = soup.get_text(" ", strip=True).replace("\x00", "")
+```
 
-Annotator \u5c0d\u8868\u6f14\u8005\u6b04\u4f4d\u7684\u898f\u5247\uff08migration 053/054\uff09\uff1a
+**コスト最適化**：詳細ページ fetch は HTTP コストが高い。**API 段階でタイトルフィルタを先に適用し、対象投稿のみ fetch する**（次セクション参照）。
 
-- **`performer TEXT`**\uff1a\u5c0d\u4e3b\u8981\u5d50\u8cfd\u8005\uff0f\u8b1b\u8005\uff0f\u827d\u8853\u5bb6\u7684\u55ae\u4e00\u65e5\u6587\u539f\u540d\u3002
-- **`performers TEXT[]`**\uff1a\u6240\u6709\u5177\u540d\u8868\u6f14\u8005\uff0f\u767c\u8868\u8005\u7684\u9663\u5217\u3002\u5b78\u8853\u7814\u8a0e\u6703\u5fc5\u9808\u5305\u542b\u5168\u90e8\u5177\u540d\u767c\u8868\u8005\uff08\u767c\u8868\u8005\uff0f\u5831\u544a\u8005\uff0f\u767b\u58c7\u8005\uff09\u3002
-- **`performer_zh / performer_en`**\uff1aGPT \u586b\u5165\u7684\u5404\u8a9e\u8a00\u540d\u7a31\u3002\u82e5\u539f\u6587\u672a\u660e\u793a\u5c0d\u61c9\u8a9e\u8a00\u540d\u7a31\uff0c\u5fc5\u9808\u9644\u52a0\u300c\uff08AI\u7ffb\u8b6f\uff09\u300d\uff08\u5982 `\u9ec3\u4ee5\u6587\uff08AI\u7ffb\u8b6f\uff09`\uff09\u3002
-- **Scraper \u5c64\u7528\u4e0d\u5230**\uff1a`performer` \u7531 annotator GPT \u5c64\u5585\u5165\uff0c\u4e0d\u7531 scraper \u8a2d\u5b9a\u3002Scraper \u53ea\u9700\u6b63\u78ba\u5beb\u5165 `raw_description`\uff08\u542b\u8b1b\u8005\u59d3\u540d\u3001\u8077\u7a31\u3001\u6572\u8a9e\u5f62\u5f0f\uff09\uff0c\u5f8c\u7e8c pipeline \u81ea\u52d5\u5225\u53d6\u3002
+Reference incident: 2026-05-14 — SNET台湾 `snet_taiwan.py`（commit `64034ec`）、Elementor テーマで `content.rendered = ""`。
+
+## 低頻度ソース — タイトルベース 2 段階フィルタ（詳細ページ fetch 前）
+
+年 3〜5 件程度のイベントしか含まない WP REST API ソースで、全 50〜100 投稿のうちイベント告知が少数の場合、詳細ページ fetch 前にタイトルだけで 2 段階 INCLUDE/EXCLUDE フィルタを適用すると HTTP コストを大幅削減できる。
+
+**パターン**：
+```python
+_INCLUDE_RE = re.compile(r"開催のお知らせ|申込|プランニング大賞|ツアー.*ご案内|...")
+_EXCLUDE_RE = re.compile(r"アカデミー.*第\d+回|受賞.*決定|講師.*派遣|...")
+
+for post in api_posts:
+    title = BeautifulSoup(post["title"]["rendered"], "html.parser").get_text()
+    if not _INCLUDE_RE.search(title):
+        continue    # 対象外 — fetch しない
+    if _EXCLUDE_RE.search(title):
+        continue    # 明示除外 — fetch しない
+    event = self._fetch_and_parse(post["link"])  # ここで初めて HTTP fetch
+```
+
+**EXCLUDE の用途**：YouTube 動画シリーズ・過去活動報告・B2B 業務連絡など、タイトルが明らかにイベントではないものを事前排除する。
+
+**INCLUDE/EXCLUDE 条件の記録**：フィルタ条件を module docstring に記録し、将来のメンテナンスで意図を失わないようにする。
+
+Reference incident: 2026-05-14 — `snet_taiwan.py` で 66 投稿 → 5 件（シンポジウム・ツアー募集・コンテスト）に絞り込み（commit `64034ec`）。
+
+---
+
+## teket.jp プラットフォーム — グループ別イベント列挙
+
+teket.jp は日本の電子チケット販売プラットフォーム。URL 構造: `https://teket.jp/{group_id}/{event_id}`。
+
+### グループ別イベント列挙
+
+- **`/api/events?group_id={id}` は使用不可**: group_id パラメータが無視され、全プラットフォーム (34,000+件) を返す。
+- **唯一の有効手段**: `https://teket.jp/sitemap.xml` に `/{group_id}/{event_id}` 形式で全イベント URL が列挙されている。
+
+```python
+# ⚠ timeout=30 必須 — teket.jp sitemap は大容量 (34k+ URL) で 15〜20s かかる
+r = requests.get("https://teket.jp/sitemap.xml", headers=_HEADERS, timeout=30)
+ids = re.findall(r'https://teket\.jp/1841/(\d+)', r.text)
+candidate_ids = sorted(ids, key=int, reverse=True)[:30]  # 最新 30 件
+```
+
+### イベントページ — データ取得元
+
+| フィールド | 取得元 | 注意 |
+|-----------|--------|------|
+| `raw_title` | JSON-LD `name` | — |
+| `start_date`/`end_date` | JSON-LD `startDate`/`endDate` | `YYYY/MM/DD HH:MM +09:00` → **date 部分のみ** → UTC midnight |
+| `location_name` | page title `\| venue` サフィックス | JSON-LD `location.name` は常に `その他のホール`（無効）|
+| `location_address` | OG description `[venue_name address][日時]` ブラケット内 | — |
+| `image_url` | JSON-LD `image` | 相対パスは `https://teket.jp` を prepend |
+| `raw_description` | full page text (script/style 除去後) | JSON-LD `description` はフェスタ名のみ（使用不可）|
+
+### 台湾フィルタは full page text で適用
+
+JSON-LD `description` は短すぎる（例: `爆音映画祭2026 in 松本`）。full page text には `2021年｜台湾｜カラー`・`台湾映画社` などが含まれる。
+
+```python
+for tag in soup(['script', 'style']):
+    tag.decompose()
+full_text = soup.get_text(' ', strip=True)
+if not any(kw in full_text for kw in ('台湾', '台灣')):
+    return None  # 台湾無関係 → スキップ
+```
+
+Reference incident: 2026-05-15 — `matsumoto_cinema_select.py`（teket.jp group_id=1841 ＮＰＯ松本シネマセレクト）。
+
+## QA Root-Cause Catalog
+
+The `qa_heartbeat.py` classifier emits one of these R-classes per pending
+`auto_qa_*` report. The catalog block below is consumed by humans + the
+heartbeat itself. Keep entries ≤ 1 line, format: `- R-CLASS | detector report_type | one-line fix pattern`.
+
+<!-- qa-root-cause-catalog-start -->
+- R-ANN-SC | auto_qa_simplified_zh / auto_simplified_chinese | run `_to_trad()` on all `*_zh` fields + lock via field_corrections
+- R-ANN-AI-MARKER | auto_qa_performer_ai_translation_marker | strip `（AI翻譯）` / `(AI Translation)`; clear field to NULL if stripped value equals original katakana
+- R-SCR-PERF-MULTI | auto_qa_performer_multi_value_pollution | split `performer` on `[、,，×／/]` into `performers[]`; clear stale `performer*_zh/en` so enrich rebuilds
+- R-ANN-PERF-PHON | (subset of marker / katakana detectors) | call `enrich_person_names_single` for the event id
+- R-ENRICH-MISS | auto_qa_performer_zh_equals_katakana | retry `enrich_person_names_single`; on miss, leave for human review
+- R-SCR-ADDR-MISS | auto_qa_missing_address | TBD - handler vs detector precision review (see Issue #111)
+- R-SCR-HOURS-MISS | auto_qa_missing_hours | TBD - detector covers business_hours nullability; handler design pending
+- R-UNCLASSIFIED | auto_qa_taiwan_venue / auto_qa_address_is_venue_name / auto_qa_missing_organizer / auto_qa_missing_performers | review-only; no auto-handler (catch-all for unclassified detectors)
+- R-AMBIGUOUS | any | append note to report; leave for human review (no auto-write)
+<!-- qa-root-cause-catalog-end -->
+
+> ⚠️ When adding a new R-class: also update `scraper/qa_heartbeat.py` `R_CLASSES` + `ROUTING`, and seed `.github/skills/scraper-expert/cases.jsonl` with a row.

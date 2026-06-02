@@ -655,7 +655,10 @@ SYSTEM_PROMPT = """You are an expert event data analyst specializing in Taiwan-r
 
 TAIWAN RELEVANCE GATE — CRITICAL:
 Before extracting any data, judge whether this event has a DIRECT, EXPLICIT Taiwan connection.
-A direct connection means: Taiwanese artist/author/performer/director is the primary subject OR the event explicitly features Taiwan culture/products/identity as its main theme.
+A direct connection means:
+  - Taiwanese artist/author/performer/director is the primary subject.
+  - The event explicitly features Taiwan culture/products/identity as its main theme.
+  - "Wansei" (灣生 - individuals born in Taiwan during the Japanese colonial era) are featured: events involving Wansei artists, authors, or historical figures are inherently relevant.
 REJECT (set is_active=false in your mind; write selection_reason explaining why it is marginal) if:
   - The Taiwan link is only "this tour includes Taiwan" or "the author was inspired by Asia"
   - The event is a book launch where Taiwan appears only as a passing reference in the description
@@ -889,6 +892,15 @@ LANGUAGE RULES:
 3. has_english_support: same logic for English. Most Japan-domestic events default to false. Only set true when explicitly advertised.
 4. NEVER guess. If the source text gives no language signal at all, set primary_language=null and both support flags=null.
 
+SELECTION REASON RULES:
+1. AVOID generic phrases like "promotes Taiwan-Japan cultural exchange" or "features Taiwan culture."
+2. MUST use concrete details found in the text.
+   Examples of GOOD reasons:
+   - "Features Taiwanese director [Name]'s latest film."
+   - "Exhibition of works by Wansei artist [Name] exploring colonial memories."
+   - "A talk session by author [Name] on Taiwan's [Specific Topic]."
+3. selection_reason.zh MUST be in Traditional Chinese (繁體中文). This is mandatory.
+
 Respond with valid JSON matching this schema:
 {
   "name_ja": "Japanese event name",
@@ -934,9 +946,9 @@ Respond with valid JSON matching this schema:
   "director_zh": "Traditional Chinese name of the director. If explicitly in source: use as-is. If inferred: append「（AI翻譯）」" or null,
   "director_en": "English/romanized name of the director. If explicitly in source: use as-is. If inferred: append ' (AI Translation)'" or null,
   "selection_reason": {
-    "ja": "1-2文の日本語で、このイベントが台湿関連である理由と選定理由",
-    "zh": "1-2句繁體中文，說明此活動與台灣的關聯及收錄原因",
-    "en": "1-2 sentences in English explaining why this event is Taiwan-related and was selected"
+    "ja": "1-2文の日本語で、このイベントが台灣関連である理由と詳細な選定理由（「誰の作品か」「何のトピックか」など具体的に）",
+    "zh": "1-2句繁體中文，說明此活動與台灣的關聯及具體的收錄原因（避免籠統描述，需包含具體人物或主題細節）",
+    "en": "1-2 sentences in English explaining specific Taiwan relevance, including concrete details like artist names or topics; AVOID generic phrases."
   },
   "sub_events": [
     {

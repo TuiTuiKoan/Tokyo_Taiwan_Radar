@@ -916,8 +916,7 @@
     "shelfPersistent": "Always on",
     "listTitle": "Events",
     "badgeNew": "NEW",
-    "portalCta": "Submit Event / My Page",
-    "portalProfile": "My Page",
+    "portalCta": "Submit Event",
     "portalLoading": "Checking..."
   },
   "eventNarrative": {

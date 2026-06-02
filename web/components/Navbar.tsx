@@ -107,6 +107,8 @@ export default function Navbar({ locale }: Props) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
   const logoutHref = `/auth/logout?next=/${locale}`;
 
   useEffect(() => {
@@ -139,6 +141,17 @@ export default function Navbar({ locale }: Props) {
       alive = false;
       listener.subscription.unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (accountRef.current && !accountRef.current.contains(e.target as Node)) {
+        setAccountOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
   return (
@@ -212,35 +225,64 @@ export default function Navbar({ locale }: Props) {
             <NavbarLangSwitcher locale={locale} />
           </Suspense>
 
-          {/* Auth — icon only */}
-          {user ? (
-            <Link
-              href={logoutHref}
-              title={t("logout")}
-              aria-disabled={loggingOut}
-              onClick={() => setLoggingOut(true)}
+          {/* Account menu */}
+          <div className="relative" ref={accountRef}>
+            <button
+              type="button"
+              onClick={() => setAccountOpen((o) => !o)}
+              title={user ? t("logout") : t("login")}
+              aria-haspopup="menu"
+              aria-expanded={accountOpen}
               className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 text-[#3A261F] dark:text-fg-muted hover:text-[#1F5E2B] dark:hover:text-green-400 transition"
             >
-              {/* Logout icon */}
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 20a8 8 0 0 1 16 0" />
               </svg>
-            </Link>
-          ) : (
-            <Link
-              href={`/${locale}/auth/login`}
-              title={t("login")}
-              className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 text-[#3A261F] dark:text-fg-muted hover:text-[#1F5E2B] dark:hover:text-green-400 transition"
-            >
-              {/* Person icon */}
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-            </Link>
-          )}
+            </button>
+
+            {accountOpen && (
+              <div className="absolute right-0 top-10 min-w-[180px] rounded-xl border border-line bg-surface shadow-lg py-1 z-50">
+                {user ? (
+                  <>
+                    <Link
+                      href={logoutHref}
+                      aria-disabled={loggingOut}
+                      onClick={() => {
+                        setLoggingOut(true);
+                        setAccountOpen(false);
+                      }}
+                      className="flex items-center px-3 py-2 text-sm font-semibold text-mascot-red hover:bg-[#FFF2F4] dark:hover:bg-red-950/40 transition"
+                    >
+                      {t("logout")}
+                    </Link>
+                    <Link
+                      href={`/${locale}/account`}
+                      onClick={() => setAccountOpen(false)}
+                      className="flex items-center px-3 py-2 text-sm text-fg hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition"
+                    >
+                      我辦的活動
+                    </Link>
+                    <Link
+                      href={`/${locale}/saved`}
+                      onClick={() => setAccountOpen(false)}
+                      className="flex items-center px-3 py-2 text-sm text-fg hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition"
+                    >
+                      我的最愛
+                    </Link>
+                  </>
+                ) : (
+                  <Link
+                    href={`/${locale}/auth/login`}
+                    onClick={() => setAccountOpen(false)}
+                    className="flex items-center px-3 py-2 text-sm font-semibold text-mascot-red hover:bg-[#FFF2F4] dark:hover:bg-red-950/40 transition"
+                  >
+                    {t("login")}
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Hamburger — mobile only */}
           <button
