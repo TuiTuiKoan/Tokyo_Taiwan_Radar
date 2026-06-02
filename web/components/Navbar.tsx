@@ -103,7 +103,6 @@ function NavbarLangSwitcher({ locale }: NavbarLangSwitcherProps) {
 export default function Navbar({ locale }: Props) {
   const t = useTranslations("nav");
   const pathname = usePathname();
-  const supabase = createClient();
   const [user, setUser] = useState<NavbarUser | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -111,6 +110,10 @@ export default function Navbar({ locale }: Props) {
   const logoutHref = `/auth/logout?next=/${locale}`;
 
   useEffect(() => {
+    // createClient() must live inside useEffect to avoid stale closure.
+    // A top-level call creates a new instance on every render, causing
+    // the old onAuthStateChange subscription to be torn down immediately.
+    const supabase = createClient();
     let alive = true;
 
     async function loadMe() {
@@ -136,7 +139,7 @@ export default function Navbar({ locale }: Props) {
       alive = false;
       listener.subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, []);
 
   return (
     <>

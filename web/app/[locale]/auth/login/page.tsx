@@ -54,12 +54,14 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
     setError(null);
     const origin = window.location.origin;
     const locale = window.location.pathname.split("/")[1];
+    // Forward ?next= if present (e.g. set by saved/page redirect), otherwise default to locale root.
+    const nextParam = new URLSearchParams(window.location.search).get("next") ?? `/${locale}`;
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           // Must match the URL added in Supabase → Authentication → URL Configuration
-          redirectTo: `${origin}/auth/callback?next=/${locale}`,
+          redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(nextParam)}`,
           skipBrowserRedirect: true,
         },
       });
@@ -87,11 +89,13 @@ export default function LoginPage({ params }: { params: Promise<Props> }) {
     setError(null);
     const origin = window.location.origin;
     const locale = window.location.pathname.split("/")[1];
+    // Forward ?next= if present, otherwise default to locale root.
+    const nextParam = new URLSearchParams(window.location.search).get("next") ?? `/${locale}`;
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         // Must match the URL added in Supabase → Authentication → URL Configuration
-        emailRedirectTo: `${origin}/auth/callback?next=/${locale}`,
+        emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(nextParam)}`,
       },
     });
     if (error) {

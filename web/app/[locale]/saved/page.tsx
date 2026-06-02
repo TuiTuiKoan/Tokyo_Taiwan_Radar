@@ -55,7 +55,7 @@ export default async function SavedPage({ params }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(`/${locale}/auth/login`);
+    redirect(`/${locale}/auth/login?next=/${locale}/saved`);
   }
 
   const { data: savedRows } = await supabase
