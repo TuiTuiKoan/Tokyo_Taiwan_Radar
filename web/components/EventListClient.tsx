@@ -8,12 +8,9 @@ import { type Locale, type Event, getEventName } from "@/lib/types";
 import { getCityLabel } from "@/lib/cityLabel";
 import { CategoryThumbnail } from "@/lib/design/CategoryThumbnail";
 import SaveButton from "@/components/SaveButton";
-import {
-  REGIONS_WITH_CITY,
-  matchesCity,
-  type RegionWithCity,
-} from "@/lib/regionPrefectures";
-import { matchesLocation } from "@/lib/locationMarkers";
+import SortControl, { type SortKey } from "@/components/SortControl";
+import { filterEvents } from "@/lib/eventFilter";
+import { isShelfEvent } from "@/lib/eventClassify";
 
 interface Props {
   events: Event[];
@@ -21,91 +18,68 @@ interface Props {
   locale: Locale;
 }
 
+const SORT_KEYS: SortKey[] = ["newest", "date", "endingSoon"];
+
+function parseSort(value: string | null): SortKey {
+  return (SORT_KEYS as string[]).includes(value ?? "")
+    ? (value as SortKey)
+    : "newest";
+}
+
+function sortEvents(events: Event[], sort: SortKey): Event[] {
+  const arr = [...events];
+  if (sort === "date") {
+    arr.sort((a, b) =>
+      (a.start_date ?? "\uffff").localeCompare(b.start_date ?? "\uffff"),
+    );
+  } else if (sort === "endingSoon") {
+    // events without end_date sort last
+    arr.sort((a, b) =>
+      (a.end_date ?? "\uffff").localeCompare(b.end_date ?? "\uffff"),
+    );
+  } else {
+    // newest: created_at desc
+    arr.sort((a, b) =>
+      (b.created_at ?? "").localeCompare(a.created_at ?? ""),
+    );
+  }
+  return arr;
+}
+
 export default function EventListClient({ events, parentMap, locale }: Props) {
   const sp = useSearchParams();
   const tEvent = useTranslations("event");
   const tCat = useTranslations("categories");
   const tGeneral = useTranslations("general");
+  const tHome = useTranslations("home");
+
+  const sort = parseSort(sp.get("sort"));
 
   const filtered = useMemo(() => {
-    const q = sp.get("q")?.trim().toLowerCase() ?? "";
-    const categoryParam = sp.get("category") ?? "";
-    const cats = categoryParam ? categoryParam.split(",").filter(Boolean) : [];
-    const fromStr = sp.get("from") ?? "";
-    const toStr = sp.get("to") ?? "";
-    const paid = sp.get("paid") ?? "";
-    const timeMode = sp.get("timeMode") ?? "active";
-    const location = sp.get("location") ?? "";
-    const city = sp.get("city") ?? "";
-    const today = new Date().toISOString().slice(0, 10);
-
-    return events.filter((e) => {
-      // keyword (name + organizer only — descriptions are not in the payload)
-      if (q) {
-        const hay = [
-          e.name_ja,
-          e.name_zh,
-          e.name_en,
-          e.organizer ?? null,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-
-      // category — overlap (event has any of the selected cats)
-      if (cats.length > 0) {
-        const eventCats = e.category ?? [];
-        if (!cats.some((c) => eventCats.includes(c))) return false;
-      }
-
-      // time mode
-      if (timeMode === "active") {
-        if (e.end_date && e.end_date.slice(0, 10) < today) return false;
-      } else if (timeMode === "past") {
-        if (fromStr && e.start_date && e.start_date.slice(0, 10) < fromStr)
-          return false;
-        if (toStr && e.start_date && e.start_date.slice(0, 10) > toStr)
-          return false;
-      }
-
-      // paid
-      if (paid === "free" && e.is_paid !== false) return false;
-      if (paid === "paid" && e.is_paid !== true) return false;
-
-      // location
-      if (location) {
-        if (!matchesLocation(e, location)) return false;
-      }
-
-      // city sub-filter
-      if (city && (REGIONS_WITH_CITY as readonly string[]).includes(location)) {
-        const ok = matchesCity(
-          city,
-          (e as { location_address?: string | null }).location_address,
-          (e as { location_prefectures?: string[] | null })
-            .location_prefectures,
-          location as RegionWithCity,
-        );
-        if (!ok) return false;
-      }
-
-      return true;
-    });
-  }, [events, sp]);
-
-  if (filtered.length === 0) {
-    return (
-      <p className="text-center text-fg-muted mt-16 text-lg">
-        {tGeneral("noResults")}
-      </p>
-    );
-  }
+    const base = filterEvents(events, new URLSearchParams(sp.toString()));
+    // Long-term / persistent events live in the shelf; exclude them here so
+    // they are not double-listed.
+    const main = base.filter((e) => !isShelfEvent(e));
+    return sortEvents(main, sort);
+  }, [events, sp, sort]);
 
   return (
-    <div className="flex flex-col gap-2 mt-4">
-      {filtered.map((event: Event) => {
+    <div>
+      {/* Main list header: title + sort segmented control */}
+      <div className="flex items-center justify-between gap-3 flex-wrap mt-2">
+        <h2 className="font-display font-bold text-fg-strong text-xl">
+          {tHome("listTitle")}
+        </h2>
+        <SortControl value={sort} />
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-center text-fg-muted mt-16 text-lg">
+          {tGeneral("noResults")}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2 mt-4">
+          {filtered.map((event: Event) => {
         const name = getEventName(event, locale);
         const ended =
           event.end_date && new Date(event.end_date) < new Date();
@@ -222,6 +196,8 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
           </div>
         );
       })}
+        </div>
+      )}
     </div>
   );
 }

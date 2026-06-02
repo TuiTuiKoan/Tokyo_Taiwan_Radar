@@ -4,6 +4,7 @@ import { type Locale, type Event, getEventName } from "@/lib/types";
 import FilterBar from "@/components/FilterBar";
 import ListScrollManager from "@/components/ListScrollManager";
 import EventListClient from "@/components/EventListClient";
+import EventShelf from "@/components/EventShelf";
 import { FloatingShapes } from "@/lib/design/FloatingShapes";
 import { MascotAvatar } from "@/lib/design";
 import Link from "next/link";
@@ -49,10 +50,10 @@ export default async function HomePage({ params, searchParams }: PageProps) {
   const { data: rawEvents, error } = await supabase
     .from("events")
     .select(
-      "id, source_name, name_ja, name_zh, name_en, organizer, location_name, location_address, location_prefectures, category, start_date, end_date, is_paid, image_url, parent_event_id, work_id",
+      "id, source_name, name_ja, name_zh, name_en, organizer, location_name, location_address, location_prefectures, category, start_date, end_date, is_paid, image_url, parent_event_id, work_id, created_at, event_form",
     )
     .eq("is_active", true)
-    .order("start_date", { ascending: true });
+    .order("created_at", { ascending: false });
 
   if (error) {
     console.error("Error fetching events:", error);
@@ -193,6 +194,10 @@ export default async function HomePage({ params, searchParams }: PageProps) {
       <FilterBar locale={locale} currentFilters={{ ...sp, city: sp.city ?? "" }} />
       <Suspense fallback={null}>
         <ListScrollManager />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <EventShelf events={events} locale={locale} />
       </Suspense>
 
       <EventListClient events={events} parentMap={parentMap} locale={locale} />
