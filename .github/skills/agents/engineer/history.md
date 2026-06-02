@@ -16,6 +16,1240 @@
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
 2026-06-03 | `2b9ee650`（`google_news_rss`）是台灣公共電視平台上架台語配音動畫的新聞稿，不是日本事件，卻因 `name_ja` 含 `配信`、`end_date=NULL`、`event_form=[]` 仍留在 active pool，最後被 persistent shelf 吸入 | 這類薄內容新聞條目的問題不在前端分類，而在 DB active pool 缺少人工排除；只要 row 仍是 active，前端 classifier 就會被欄位訊號誤導 | 直接做單筆 DB patch：`is_active=false`，`deactivated_reason='out_of_scope: Taiwan-only streaming news article — not a Japan event'`，並同步回寫 scraper-expert / source history 與規則 | **教訓：** 對於 `google_news_rss` 的台灣限定串流新聞，若同類 active 候選池很小（`<20`），先做一次性手動停用與驗證，不要先重寫 scraper 或做大型 backfill。`category=['report']` 的純配信消息不可只因標題含 `配信` 就留在 active 池。
 
+
+## 2026-06-03 - 完修首頁/內頁 FloatingShapes 幾何背景動畫防重疊、Slot 綁定與 unique-path 機制
+
+**問題：** 幾何飄浮圖形在首頁有時會發生完全重疊、黏在一起平行前進的現象（視覺打架），開場載入集中從邊緣彈出不夠自然，且全版最大與次大幾何物件多達 4 個過於擁擠。
+
+**修復：**
+- 重構 [web/lib/design/FloatingShapes.tsx](web/lib/design/FloatingShapes.tsx)。
+- 將 background geometric slots 數量從 10 縮減至 8 個，採用 `[0, 0, 1, 1, 2, 2, 3, 4]` 之 size tier 分配防止大圖擁擠。
+- 建立 `shuffle` 函式。在 initialization 時對這 8 個 Slot 分配 1-to-1 的 `shuffledDrifts`（絕對唯一行進軌跡）。
+- 在 `handleCycle` 時傳入 `prev`，使在生命週期重啟時仍可自動繼承並鎖定其原專屬唯一的 `drift` 軌跡。
+- 放寬 mount 時的 `initialPhase` 係數至全生命週期進度 `Math.random() * duration`，消弭初次開盤排隊冒出的生硬感。
+- 同步更新設計師手冊 [.github/skills/agents/designer/SKILL.md](.github/skills/agents/designer/SKILL.md) 與 [.github/skills/agents/designer/history.md](.github/skills/agents/designer/history.md)。
+- 通過 `cd web && npx tsc --noEmit` 無編譯警告，並完成本地測試。
+
+**教訓：**
+- 動態背景效果如果採用完全隨機機制，隨時間推移以及隨機衝突，一定會產生機率性軌跡重疊；應使用對 Slot 1-to-1 的 unique shuffle 綁定並在生命週期內傳遞 prev 進行傳承。
+
+## 2026-06-03 - 解決爬蟲與首頁優化衝突，無縫整合並成功 NPM Build
+
+**問題：** 工作區具有多個 Stash（含爬蟲專家與首頁改動 Stash），直接 Apply 時在 `scraper-expert.agent.md`、`history.md`、`hanmoto.py` 及 `ndl_opensearch.py` 發生多重內容衝突，阻礙首頁優化元件的無縫倒回與整合。
+
+**修復：**
+- 針對 4 個衝突檔案手動執行 merge-conflict 處理，保留 `waseda_taiwan`、`google_news_rss` 的完整 history 與 WordPress 活動頁標籤防漏抓規則。
+- 清理非暫存區編譯輔助檔，將臨時 translation 與 types 存入 Stash 動態備份，成功導入 `stash@{1}`（前身為 `stash@{0}`）的首頁大幅優化變更（包含 `EventShelf.tsx`、`SortControl.tsx`、`eventClassify.ts` 與 `eventFilter.ts`、翻譯檔等）。
+- 移除一次性過渡腳本 `tmp/add_home_i18n.py`。
+- 本地 `npm run build` 正式通過，並具有零 TypeScript 錯誤與 Next.js 16/Turbopack 建置成果。
+
+**教訓：**
+- 合併多重 Stash 時，可先封存非暫存區（changes not staged），將其作為獨立 Stash 以解除 merge blocking。
+- 手動解決 markdown 的 history.md 衝突時，宜將 upstream 與 stashed 內容依時間線並存，確保兩邊的實踐歷史都不會遺失。
+
+## 2026-06-02 - one-off backfill lacked deterministic verification evidence
+
+**問題：** `scraper/_oneoff_backfill_gnews_streaming_fields.py` 原本僅輸出候選摘要，缺少固定排序的 `event_id` 清單與 `auto_payload` 欄位摘要；Tester 無法用同一批資料可重現驗證。
+
+**修復：** 新增 deterministic 報表輸出（候選/套用 `event_id` 固定排序清單、逐筆 `event_id`、`auto_payload` 欄位名摘要），並加入 `--id`（可重複）與 `--ids-file` 固定驗證集合。
+
+**教訓：** 一次性 backfill 腳本若要可驗證，必須支援固定樣本輸入與固定排序輸出。至少應輸出：候選 IDs、每筆 auto payload 欄位名、實際更新 IDs。
+
+## 2026-06-02 - one-off script file duplicated by parallel same-file create operations
+
+**問題：** 在建立 `scraper/_oneoff_backfill_gnews_streaming_fields.py` 時，對同一路徑做了平行 `create_file`，導致檔案被重複內容污染（同一份腳本出現兩段 `from __future__ import annotations`）。
+
+**修復：** 立即停止增量 patch，改為整檔覆寫成單一版本，並用 `get_errors` + 讀檔確認尾端不再重複後才繼續驗證流程。
+
+**教訓：** 同一檔案的建立/修改不可在同一個平行工具批次中執行。若已發生重複污染，優先採用整檔重寫回到單一真實版本，再做後續 patch。
+
+## 2026-06-02 - authoritative venue dry-run false conflict due to Unicode minus in address
+
+**問題：** `scraper/_oneoff_seed_authoritative_venues.py --dry-run` 對 `誠品生活日本橋` 持續報 `conflict=1`。根因是地址中 `−`（U+2212）未被 `_normalize_addr()` 轉成 ASCII `-`，導致 `_STREET_NUM_RE` 無法截取街道號碼，進而把同址誤判為衝突。
+
+**修復：** 在 `_normalize_addr()` 新增 `replace("−", "-")`，讓 street-prefix 比對可正確處理全形/Unicode 連字號變體；同時依既有 active event 最小調整 2 筆 seed 地址後重跑 dry-run，最終 `conflict=0`。
+
+**教訓：** 任何地址正規化流程若依賴 `\d+-\d+` 類 regex，必須先統一 Unicode 連字號（至少 U+2212）到 ASCII `-`，否則 pre-flight 會出現假衝突並阻斷正確 upsert。
+
+## 2026-06-02 - Node verification script failed from env sourcing and module resolution
+
+**問題：** noindex/sitemap 驗證過程先後遇到三個指令層錯誤：`.env.local` 直接 `source` 出現 unmatched quote、在 `/tmp` 執行 `.mjs` 找不到 `@supabase/supabase-js`、`tsx -e` 因 CJS 輸出不支援 top-level await 而失敗。
+
+**修復：** 改用 Node 腳本直接讀取 `.env.local` 字串解析環境變數，並將驗證腳本放在 `web/tmp`（workspace 內）執行以使用本地依賴；最後統一以 `node` 執行單次驗證，不再用 `tsx -e` top-level await。
+
+**教訓：** 一次性驗證腳本若依賴專案套件與 async 查詢，優先用 workspace 內 `.mjs` + `node` 執行；不要假設 `.env.local` 可被 shell 安全 `source`，也不要在 `tsx -e` CJS 模式使用 top-level await。
+
+## 2026-06-01 - SaveButton saved_events existence check returned 406 for normal empty state
+
+**問題：** [web/components/SaveButton.tsx](/Users/flyingship/development/Tokyo%20Taiwan%20Radar/web/components/SaveButton.tsx) 在 mount 時用 `.single()` 查 `saved_events` 是否存在。對尚未收藏的事件，0 筆結果會被 PostgREST 回成 406，造成前端 console noise，但這其實是正常未收藏狀態。
+
+**修復：** 將存在性查詢從 `.single()` 改為 `.maybeSingle()`，保留 `setSaved(!!data)` 與既有 toggle 流程不變，讓 0 筆結果回傳 `null` 而非 406。
+
+**教訓：** Supabase/PostgREST 的「0 或 1 筆」存在性查詢必須用 `.maybeSingle()`；只有把 1 筆結果視為強約束時才應使用 `.single()`。
+
+## 2026-05-31 — feat(annotator): auto-create eiga-verified film works for fixed cinemas (`e5dbbd9`)
+
+**実装内容：**
+- `_get_or_create_film_work()`: `works` テーブルへの atomic get-or-create ヘルパー。一意制約違反（race）は `23505` で捕捉し再クエリ。
+- `_norm_work_key()`: NFKC 正規化 + strip で去重アンカーを統一（全角/半角・スペース差異を吸収）。
+- `enrich_movie_titles()` 拡張: FC locked `name_zh`/`name_en` がある映画イベントは `works` レコードを自動生成し `work_id` を紐付ける。
+- 新 CLI フラグ: `--enrich-dry-run`、`--enrich-source <name>`、`--enrich-limit <N>`
+
+**設計ルール（§4 参照基準）：**
+- **§4-B アンカー**: `original_title` には `name_zh` 優先 → `name_en` フォールバック。`name_ja` や未検証 GPT 値は使わない。
+- **§4-E**: auto-create 時は GPT director を `works.director` に書かない（未検証値汚染防止）。
+- **NFKC**: `_norm_work_key()` を経由しないと全角/半角ゆれで重複 works が生まれる。caller 責務で正規化すること。
+- **dry_run**: `--enrich-dry-run` で DB 書き込みなしの pre-flight 確認が可能。
+
+---
+
+
+## 2026-05-31 — matsumoto_cinema_select 手動マージ後の primary event フィールド修正
+
+**実施内容：**
+- XiXi `dd792b98`：`name_ja` `【NPO】` suffix 除去 + FC lock、`name_en` を `works.title_en='XiXi, Let Me Dance'` 使用に変更 + FC lock、`annotation_status` error → pending
+- 月老 `e4516272`：`name_zh` の FC lock 誤値（`'電影《赤い糸 輪廻のひみつ》...'` → `'電影《月老》...'`）を upsert で上書き、`name_en` を `works.title_en='Till We Meet Again'` 使用に変更 + FC lock、`name_ja` `【NPO】` suffix 除去 + FC lock、`annotation_status` error → pending
+
+**教訓：** 手動マージ後の primary event は `annotation_status` と全 name フィールドをセットで確認する。`error` 状態では enrichment も走らず `name_ja` に raw_title の suffix が残る。FC lock 誤値の上書きは `field_corrections.upsert(on_conflict='event_id,field_name')` で可能。
+
+---
+
+## 2026-05-31 — Phase D+A: auto_qa performer gap detection + annotator SYSTEM_PROMPT event_form branching（commit `67951af`）
+
+**実装：**
+- `auto_qa.py` Phase D: `_detect_missing_performers()` 偵測器新增。`_PERFORMER_SIGNAL_RE`（クリエイター/出演者/登壇者等）と `_PERFORMER_SIGNAL_FORMS` frozenset（market/exhibition/lecture 等）の OR 条件で performer が null のイベントを検出。`QA_TYPES` タプルと `run()` に `"auto_qa_missing_performers"` を追加。
+- `annotator.py` Phase A: SYSTEM_PROMPT PERFORMER EXTRACTION RULES に `ROLE KEYWORDS BY EVENT FORM` ブロックを追加（market/exhibition は named brands を `performers[]` エントリとする `MARKET / EXHIBITION EXCEPTION` 付き）。rule 1 から旧 food market null ルールを削除。`DESCRIPTION CONTENT RULE — TAIWAN PARTICIPANTS` 段落を追加。
+
+**教訓：** `_PERFORMER_SIGNAL_FORMS` は frozenset にする（`in` 演算が list より O(1)）。performer gap 検出は「シグナルキーワード OR シグナルフォーム」の OR 条件が適切（AND にすると検出漏れが増える）。
+
+---
+
+## 2026-05-31 — merger._normalize() 末尾 【...】 strip（commit `e53c106`）
+
+**問題：** `matsumoto_cinema_select` の `【ＮＰＯ松本シネマセレクト】` 末尾アノテーションが merger Pass 1 類似度を 0.764 に低下させ、2 ペアの重複イベントが発生（XiXi・赤い糸）。
+
+**修正：** `_normalize()` に `re.sub(r"【[^】]*】\s*$", "", name)` を追加。wrapping bracket strip（末尾 `】` を消費）より**前**に実行しないとマッチしない。4 ケースガードスポットチェック全 PASS（bracket-annotation 1.000 新規）。
+
+**教訓：** 複数の strip パターンを `_normalize()` に追加するとき、後発パターンが先行パターンの副作用でマッチ不可になる順序依存バグが起きる。追加後は必ずスポットチェックで全 4 ケース通過を確認する。
+
+---
+
+## 2026-05-31 - annotator Phase B buffer/disk mismatch left runtime on old FC logic
+
+**問題：** `scraper/annotator.py` 在編輯器內容已顯示新版 Phase B，但新 Python process `inspect.getsource()` 仍載入舊版 runtime：`_load_human_field_map()` 還是 `dict[str, set[str]]`，`_resolve_movie_titles_for_event()` 也仍以未剝前綴的 `title` 做 lookup。
+
+**修復：** 對 [scraper/annotator.py](/Users/flyingship/development/Tokyo%20Taiwan%20Radar/scraper/annotator.py) 做實質 patch，強制將已修正的 buffer 寫回磁碟；之後用全新 Python process 驗證 `_load_human_field_map()` 已改為 `dict[event_id][field]=corrected_value`，且 report prefix title lookup 與無前綴版本一致。
+
+**教訓：** 針對 Python runtime 行為修復時，不能只看 editor/read_file 片段；必須用新 process 的 `inspect.getsource()` 或等價磁碟驗證確認 import 到的就是落地版本，再做行為驗證。
+
+## 2026-05-31 - Validation script could not import `annotator`
+
+**問題：** 驗證腳本放在 `/tmp` 執行時，`import annotator` 失敗（`ModuleNotFoundError`）。
+
+**修復：** 在腳本中加入 `sys.path.insert(0, '/Users/flyingship/development/Tokyo Taiwan Radar/scraper')`，明確把 `scraper/` 加入模組搜尋路徑。
+
+**教訓：** 以 `/tmp` 一次性腳本驗證專案模組時，要先設定 `sys.path` 或改用專案目錄內可匯入的腳本位置。
+
+## 2026-05-31 - Phase D UUID prefix query failed on `ilike`
+
+**問題：** D-2/D-3 一次性修復腳本對 `events.id`（UUID）使用 `.ilike('id', 'prefix%')`，Postgres 回傳 `operator does not exist: uuid ~~* unknown`（42883）。
+
+**修復：** 改為先以 `source_name='google_news_rss'` 分頁載入候選事件，再在 Python 端做 `id.startswith(prefix)` 對應短 ID 前綴，避免 UUID 欄位做文字運算。
+
+**教訓：** UUID 欄位不可直接用 `like/ilike` 前綴查詢。需要短碼對應時，應使用完整 UUID 精確匹配，或先查文字欄位後在應用層比對。
+
+## 2026-05-31 — weekly_line_broadcast URL 過多 + venue-name-as-address city label 缺失
+
+**問題 1：** nearterm・monthly セクションの全イベントに URL が付いてメッセージが長すぎる
+- **根本原因：** `_build_message()` が精選段と同じ `lines.append(f"  {url}")` を nearterm group ループ・monthly ループにも持っていた
+- **修復：** 両ループの `url` 変数宣言と `lines.append(f"  {url}")` を削除。URL は `【小霧精選】` 段のみ残す
+- **教訓：** broadcast メッセージに URL を追加するときは「精選段のみ」を原則とする。nearterm/monthly は日付・都市ラベルだけで十分
+
+**問題 2：** `location_address == location_name`（venue 名がそのまま住所に入っている）イベントで `_city_label()` が空になる
+- **事例：** 早稲田大学早稲田キャンパス11号館 → `location_address='早稲田大学早稲田キャンパス11号館710教室'`、`location_prefectures=null`
+- **根本原因：** `_city_label()` は `location_prefectures` or `location_address.startswith(都道府県)` で判定するが、venue 名では両方とも miss する
+- **修復：** `location_address='東京都新宿区西早稲田1-6-1'`、`location_prefectures=['東京都']` に修正し FC ロック
+- **教訓：** `location_address == location_name` の場合は **venue 名であり住所ではない**。`auto_qa_address_is_venue_name` アラートが出たイベントは必ず正式住所を調べて FC ロックする
+
+**Commits:** `cedbaac`（URL 削除）、DB FC ロック（半導体イベント 75a46729）
+
+---
+
+## 2026-05-31 — Venue business_hours 傳播 + auto_qa 品質缺口修補 + Event Form Sync
+
+**修改：**
+- `scraper/database.py` `_populate_entity_fks()`：新增 `venue_hours_lookup`（1-b 查詢 is_authoritative venues），aliases 迴圈擴展 select，FC 保護 pre-fetch，mutate rows 加入 business_hours 傳播，`bh_hits` 計數
+- `scraper/database.py` `_VALID_EVENT_FORMS`：加入 `"tasting"`, `"broadcast"`, `"study_abroad"`
+- `scraper/auto_qa.py` `_detect_missing_hours()`：新增 30 天時間窗口，status 改為 `in_(["annotated","reviewed"])`，`_TIME_RE` 加入日文時間格式 `[時:]`
+- `scraper/auto_qa.py`：新增 `_PRICE_KW_RE`、`_BOOKING_DOMAINS` 常數；新增 `_detect_missing_price()` 偵測器；`QA_TYPES` 加入 `auto_qa_missing_price`；`run()` 加入對應呼叫
+**Commit:** `33678f0` (database.py), `2f63bcf` (auto_qa.py)
+**Phase 1：** 需人工在 Supabase Dashboard 執行 `supabase/migrations/081_venues_business_hours.sql`
+
+---
+
+## 2026-05-31 — API Route JSON Safety Guard 新增至 SKILL.md
+**新增/修改：**
+- 新增 `## API Route JSON Safety Guard` 段落：try/catch 包整個 POST handler 確保永遠回傳 JSON（Safari SyntaxError 防護）
+- 配套規則：file extension 消毒、client-side `.json().catch()` fallback、service role key 顯式 guard
+**來源：** daily-skills-review（commit `616eecc` Safari 上傳圖片全失敗，Chrome 無感）
+
+---
+
+## 2026-05-31 — Phase 3 空白事件重抓（refetch_thin_events.py + workflow）
+
+**實作：**
+1. 新增 `scraper/refetch_thin_events.py`：讀取 `event_reports` 中 `report_types ov auto_qa_thin_content + status=pending` 的報告，跳過 SKIP_SOURCES（google_news_rss / nhk_rss / prtimes / note_creators / walkerplus）及 inactive 事件，httpx HEAD probe 偵測死連結，Playwright 抓取頁面文字（移除 script/style/nav/header/footer），符合 is_significant_improvement（new_len >= 200 且 > max(old*1.5, old+100)）才更新 DB。
+2. 新增 `.github/workflows/refetch-thin-events.yml`：每日 14:00 JST（cron 0 5 * * *）觸發，guard 為 `vars.REFETCH_THIN_LIVE == 'true'`，執行 refetch → annotator --limit 100。
+3. 驗證：dry-run 列出 5 筆（SKIP_SOURCES 正確過濾），taiwan_prism 真實測試 old=38 → new=1084，annotation_status 更新為 pending，admin_notes 追加 refetched:2026-05-31 note。
+
+**教訓：**
+- `event_reports.report_types` 是 `text[]`，查詢用 `.ov()` 方法（overlap），不是 `.contains()`。
+- Playwright 移除噪音元素後直接用 `page.inner_text("body")` 比 `page.evaluate("document.body.innerText")` 更可靠（前者等待 DOM 穩定）。
+
+## 2026-05-30 — PR1 電影院 scraper 統合基盤（Phase 1A + 1B + 1C）
+
+**實作：**
+1. **Phase 1A**：新增 `_cinema_constants.py`（FIXED_CINEMA_SOURCES）、`_cinema_base.py`（CinemaScraper + make_film_source_id + _normalize_film_title）、`_cinema_dates.py`（parse_date_range / parse_japanese_date / extract_showtimes）。
+2. **Phase 1B**：`kyoto_cinema.py` 改繼承 `CinemaScraper`，source_id 從 `kyoto_cinema_{movie_id}` 改為 `make_film_source_id("kyoto_cinema", title)`（hash 穩定化）；日期/時刻改用共通函式。新增 `_oneoff_migrate_kyoto_source_id.py`（dry-run 預設）。
+3. **Phase 1C**：`web/app/[locale]/events/[id]/page.tsx` relatedScreenings query 加三件過濾（`.eq("is_active",true)` + `.is("merged_into_event_id",null)` + `.or("end_date.is.null,end_date.gte.${today}")`）；刪除 client-side `upcomingScreenings`/`pastScreenings` const；移除 past 區塊 JSX；i18n key `pastScreeningsLabel` 保留。
+
+**Guard 落實：**
+- `_normalize_film_title` 的 NFKC 正規化確保全形英數不影響 hash。
+- `_STATUS_WORDS` regex 剝除狀態詞但保留版本資訊（Same-Venue Different-Work Collision Guard）。
+- 所有日期函式明確 `return None` / `return None, None`（Date-Parser Exhaustive Return Guard）。
+- `.or()` 保留 `end_date.is.null` 分支，避免 NULL 被 SQL 三值邏輯誤隱藏（缺陷 N1）。
+- related query 維持 service role（RLS Cross-Status Query Guard）。
+
+## 2026-05-20 — 管理画面 OCR + annotate-event の event_form / category プロンプトが DB / types.ts と乖離（管理画面 event 保存が 400 / 不正な i18n キー表示）
+
+**問題：**
+1. 海報を OCR で保存しようとすると `Save failed: new row for relation "events" violates check constraint "events_event_form_check"` で 400 エラー。「保存中…」が 1 分以上ハングして見える。
+2. 保存成功後、カテゴリーに `categories.health` という生 i18n キーが表示される（翻訳なし）。
+
+**根本原因：**
+1. `web/app/api/admin/extract-from-image/route.ts` L58 と `web/app/api/admin/annotate-event/route.ts` L382 の GPT プロンプト内 `event_form` リストが **migration 047 以降の DB CHECK constraint と乖離**。プロンプトは pre-047 命名（`concert`, `lecture_seminar`, `film_screening`, `festival`, `sports`）、DB は新命名（`performance`, `lecture`, `screening`, `broadcast`, `tasting`, `study_abroad` 等 15 値）。重複 4 値のみ（`exhibition`, `market`, `study_abroad`, `other`）。
+2. 同 2 ファイル L59/L381 の `category` リストが **`web/lib/types.ts` の 38 値より 20 値不足**（`healthcare`, `tea_alcohol`, `drama`, `documentary`, `parenting`, `scholarship`, `study_abroad`, `indigenous`, `folklore`, `history`, `urban`, `workshop`, `literature`, `tv_program`, `radio_program`, `exhibition`, `design_craft`, `herbal`, `taiwan_mandarin`, `market` が欠落）。GPT は欠落値の代わりに `health` を捏造 → 前端で i18n key 未マッチ → `categories.health` のまま表示。
+
+**修正：**
+1. `extract-from-image/route.ts` L58 / `annotate-event/route.ts` L382 の `event_form` リストを DB 047 の 15 値に同期（commit `9ecaae6`）。
+2. 同 2 ファイル L59/L381 の `category` リストを types.ts の 38 値に同期（commit `997378c`）。
+3. DB 内 `category=['health',...]` を `['healthcare','workshop','lecture']` に修正 + `field_corrections` ロック。
+4. `scraper/annotator.py` `VALID_EVENT_FORMS` (L863) と `VALID_CATEGORIES` (L224) は既に正しい — 影響は Web API プロンプトのみ。
+
+**教訓：**
+- **GPT プロンプト内の enum リストは「第 4 の同期位置」**：DB constraint → annotator → web API プロンプト × 2。Architect SKILL の Category/Event Form Addition Checklist に **`web/app/api/admin/{extract-from-image,annotate-event}/route.ts`** を明記する必要がある。
+- TypeScript の型チェックは prompt 文字列内の列挙値を検証しない。リストはコードコメントとして劣化する。**migration を追加するたびに、両 API ファイルを `grep` で確認すべし。**
+- GPT は与えられた enum 以外の値を **静かに捏造する**（`concert` の代わりに `concert` を返さず、`performance` も知らない → `concert` 維持 / `health` 創作）。validation は DB CHECK constraint と前端 i18n の 2 か所にしかない。
+
+---
+
+## 2026-05-20 — annotate-event の SELECT で end_date 欠落 → ユーザー入力が GPT 幻覚で上書き
+
+**問題：** 管理画面で event を作成し end_date を明示的に選択 → 保存 → annotate-event 自動実行後、end_date が `2023-10-14` 等の幻覚値に置き換わっていた。
+
+**根本原因：** `web/app/api/admin/annotate-event/route.ts` L258 の `select(...)` 句が **`start_date` のみ含み `end_date` を欠落**。「ユーザー入力済みフィールドを保持」ロジック
+```ts
+if (cur === null || cur === undefined || cur === "") returnedFields[k] = v;
+```
+は `event.end_date` が `undefined`（SELECT に無いため）なら「空」と判定 → GPT が返した任意の値で上書き。OCR から GPT を 2 回通過する間にハルシネーションが入る。
+
+**修正：** L258 SELECT 句に `end_date` を追加（commit `e0a5ea8`）。
+
+**教訓：**
+- **保持したいフィールドは必ず SELECT に含める**。「empty なら上書き」パターンの落とし穴：SELECT 漏れ ＝ undefined ＝ empty 扱い ＝ サイレント上書き。
+- `extractionFields` 配列に列挙されているのに SELECT で fetch していないフィールドは 100% バグ。**新規 extractionField を追加する時は SELECT 句も同時更新する**ことを `annotate-event/route.ts` 冒頭にコメントで明記すべし。
+- ユーザーが「明確に選択した」フィールドが知らぬ間に変わる症状を見たら、まず該当 API の SELECT 句を確認。
+
+---
+
+## 2026-05-20 — performers[] 繁体字混入 + performers_zh[] ステージネーム GPT ハルシネーション（DB 直接修正）
+
+**問題：** 霧のごとく（映画 大濛）11 件の `performers[]` に繁体字（`['范少勳', '區偉', '9m88', '曾敬驊']`）が入り、日本語ロケールで映画サイトのカタカナではなく漢字が表示された。さらに `performers_zh[]` に `9m88 → 'Ju 88轟炸機'`（WW2 ユンカース爆撃機）という GPT ハルシネーションが混入。`field_corrections` も誤った値でロックされ汚染が固定化していた。
+
+**根本原因：** annotator が繁体字 film DB から performers[] を生成し、日本語ソースページのカタカナではなく漢字をセット。`performers_zh[]` 生成時に GPT がステージネーム `9m88` を軍用機型番「Ju 88」と誤一致させた。
+
+**修正：**
+1. 全 11 件の `performers[]` をカタカナ（京都シネマ公式ページ準拠）に更新。
+2. `performers_zh[]` を繁体字 6 名に修正（劉冠廷・宋芸樺 2 名追加）。
+3. `field_corrections` を全件削除 → 正しい値で再ロック。
+4. `works.cast_summary` もカタカナ 6 名に更新。
+5. 他 3 件（赤い糸・優雅な邂逅・ナルワンアワー）の performer 区切り文字も null クリア。QA レポート 14 件全確認済み。
+
+**教訓：**
+- `performers[]` は **日本語（カタカナ）ソースページから取得した名前** が正しい値。繁体字 film DB から補完したデータは `performers_zh[]` に入れる（`performers[]` ではない）。
+- `performers_zh[]` 生成時、英数字・記号含むステージネーム（`9m88`、`88rising` 等）は **翻訳禁止**。言語横断で同一表記のまま維持する。
+- PostgREST で UUID 列に `.like('%prefix%')` を使うと `operator does not exist: uuid ~~ unknown` エラー。UUID フィルタには `eq(full_uuid)` または name/source_name 等の TEXT 列で代替する。
+
+---
+
+## 2026-05-20 — auto_qa_performer_multi_value_pollution: ステールレポート 10 件 + event_reports カラム名誤認（DB 直接修正）
+
+**問題：** `auto_qa_performer_multi_value_pollution` ペンディングレポート 14 件のうち 10 件は underlying の `performer` がすでに null に修正済みのステール。調査時に `event_reports.details` カラムを参照したところ `column event_reports.details does not exist` エラーが発生した。
+
+**根本原因：** (1) QA レポートは underlying data が修正されても自動でクローズされない。(2) `event_reports` に `details` カラムは存在せず、正しいカラム名は `report_types TEXT[]`（複数形）。
+
+**修正：** pending レポートを対象に `events.performer` を確認し、区切り文字がなくなった 10 件を `status='confirmed'` に更新。残り 4 件（performer に区切り文字残存）は performer を null に修正した上でクローズ。
+
+**教訓：** (1) `event_reports` の正しいカラム: `report_types TEXT[]`（複数形）、`status`、`confirmed_at`。`details`・`report_type`（単数）は存在しない。(2) データ修正後 QA レポートは手動でクローズが必要 — `auto_qa.py` は「作成」のみ。
+
+---
+
+## 2026-05-20 — field_corrections.corrected_value NOT NULL: performer=null は `""` で表現（DB 直接修正）
+
+**問題：** `performer = null` を表現するために `corrected_value = None` で `field_corrections` upsert したところ `null value in column "corrected_value" violates not-null constraint` が発生した（event `13d618e5` sakurazaka 修正時）。
+
+**根本原因：** `field_corrections.corrected_value` カラムは NOT NULL 制約あり。null performers を保存する既存慣例（`corrected_value = ""`）を事前確認しなかった。
+
+**修正：** `corrected_value = ""` （空文字列）が `performer = null` を表す既存慣例と確認し `None` → `""` に変更。
+
+**教訓：** `field_corrections` で `performer = null` をロックするときは `corrected_value = ""`（空文字列）。Python `None` は DB NOT NULL 制約で弾かれる。
+
+---
+
+## 2026-05-19 — eplus performer → raw_description 修正（SKILL.md performer ルール違反）（commit `fe72ea2`）
+
+**問題：** `_fetch_detail_info()` が `<dt>出演</dt>` の performer を `ev.performer` に直接セット。SKILL.md「Scraper 層用不到 — performer は annotator GPT 層が raw_description から抽出する」ルール違反。
+
+**修正：** performer/program を `raw_description` に `出演: …\n曲目・演目: …` 形式で追記するよう変更（`fe72ea2`）。
+
+**教訓：** scraper に performer 関連フィールドを追加する前に SKILL.md `## performer / performers[] 注解規則` を確認する。
+
+---
+
+## 2026-05-19 — enrich_addresses: 市区レベルアドレスの VAGUE 未判定 + FC ロックによる二重ブロック（commit `113fceb`）
+
+**問題：** eplus が市区レベル（`'福岡市'`）まで補完しても `enrich_addresses.py` が街路補完を適用しなかった（アクロス福岡 `7cdd06cb`）。原因は 2 つ：(1) `VAGUE_ADDRESS_VALUES` に市区名が未収録、(2) `field_corrections` に古い `'福岡県'` がロックされ eplus の補完が毎回上書きされていた。
+
+**修正：** `_VAGUE_GEO_RE = re.compile(r'^[^\s]{2,10}[都道府県市区]$')` 追加（`113fceb`）。FC 削除 + NULL リセット後に enrich_addresses 実行 → `'福岡県福岡市中央区天神1-1-1'`（gpt-4o-search-preview, conf=high）。
+
+**教訓：**
+- FC ロックは enrich_addresses を完全ブロックする。手動で街路補完が必要な場合は FC 削除 + `location_address = NULL` が前提。
+- スクレイパー側の部分補完（都道府県→市区）と enrich_addresses の街路補完は 2 段階。後段が前段の出力を VAGUE と見なすことで初めてパイプラインが繋がる。
+
+---
+
+## 2026-05-19 — Peatix: `inner_text()` ページ全体テキスト blob ガード（commit `f839508`）
+
+**問題：** Playwright `inner_text()` がグループアンカーに対してページ全体テキスト（数千文字）を返し、`organizer_name` が汚染されるケースがあった。
+
+**修正（commit `f839508`）：** 主パス・fallback パス両方に `len(_txt) <= 100` ガード追加。
+
+**教訓：** `inner_text()` を短い文字列フィールドに使う場合は必ず長さガードを設ける。名前・タイトル・ラベル系は `if _txt and len(_txt) <= 100` が標準パターン。
+
+---
+
+## 2026-05-19 — Peatix: `organizer_name` 抽出しながら `Event()` に渡し忘れ（commit `24198d0`）
+
+**問題：** `organizer_name` はブロックリスト照合のために抽出されていたが `Event()` コンストラクタに未渡しで `ev.organizer = null` のまま保存されていた。
+
+**根本原因：** 変数が「ブロックリスト照合のみ」として追加された際に「DB 保存」という第 2 の用途が見落とされた。「Extract but not store」anti-pattern。
+
+**修正（commit `24198d0`）：** `Event()` の引数に `organizer=organizer_name or None` 追加。
+
+**教訓：** PR 提出前に「スクレイパー内の抽出変数が全て `Event()` コンストラクタに渡っているか」を確認する。ブロックリスト照合だけのために定義した変数も `Event()` に渡すことを忘れない。
+
+---
+
+## 2026-05-19 — eplus: `_fetch_city_from_detail()` が同一レスポンスの `dt/dd` を無視（commit `e897d29`）
+
+**問題：** eplus 詳細ページへのアクセスは既に実装されていたが `<dt>出演</dt><dd>…</dd>` 等の performer 情報が一切取得されておらず `ev.performer = null` が続いていた。
+
+**根本原因：** 「1 リクエスト 1 フィールド」の設計。都市名抽出専用の関数として作られ、同一 HTTP レスポンスに含まれる他のデータを取る設計になっていなかった。
+
+**修正（commit `e897d29`）：** `_fetch_city_from_detail()` → `_fetch_detail_info()` に拡張し、同一リクエストで city / performer / program を一括取得。
+
+**教訓：** 詳細ページを 1 回 fetch したら、そのレスポンスで取れる全フィールドを抽出する設計にする。「追加フィールドが必要になるたびにリクエストを 1 回増やす」は CI コストとレートリミットの観点から避ける。
+
+---
+
+## 2026-05-19 — enrich_addresses A1-A4 強化（commit `1022303`）
+
+**実装内容：**
+- A1: `VAGUE_ADDRESS_VALUES` 定数追加（`東京`・`大阪府` 等）、DB フィルタを Python 側に移動して vague address イベントも対象に追加
+- A2: 処理前にバッチ FC lock チェック、update 後に `field_corrections` upsert（location_address）
+- A3: `_normalize_venue()` ヘルパーで `城市｜会場名` 形式を正規化し、lookup に渡す前に prefix 除去
+- A4: `--limit` フラグ追加（CI は `--limit 30`、手動は無制限）
+
+**事前確認：** `location_name_zh/en` の `｜` 汚染は 1件のみ（curator 名）、会場prefix 形式ではなかったため A3 の zh/en 対応は実装不要と判断。
+
+**教訓：** DB 側フィルタで null のみ対象にすると vague 住所（都道府県名だけ等）が永久に漏れる。候補フィルタを Python 側に持ち FC lock と組み合わせるパターンが堅牢。
+
+---
+
+## 2026-05-19 — Peatix `/us/event/` URL 正規化：URL 収集段階での locale prefix 除去（commit `8b901ec`）
+
+**問題：** `source_url` に `https://peatix.com/us/event/4994536` のようなロケールプレフィックス付き URL が保存されており、`302 → peatix.com トップ` にリダイレクトされ「リンク消失」に見えた。実際のイベントページは `/event/4994536`（prefix なし）で正常に存在。
+
+**根本原因：** Playwright の headless ブラウザに Peatix が US ロケール URL を返していた。`_scrape_group_events` と `_search_events` がそのまま保存。DB に 7 件混入。
+
+**修正（commit `8b901ec`）：** `_normalize_peatix_url()` ヘルパーを追加し URL 収集ループで適用。DB 7 件：重複 5 件は `merged_into_event_id` で soft-delete、重複なし 1 件（`55d766ae`）は `source_url`/`source_id` を正規化、inactive 1 件は skip。
+
+**教訓：** URL 正規化は `_scrape_detail()` より上流の収集段階（`_search_events`・`_scrape_group_events`）で行う。`source_id = md5(url)` なので URL 変更 = `source_id` 変更 → 正規化前後で重複レコードが生じる。DB 修正は「重複チェック → DUP: merge soft-delete / NO-DUP: update in place」の 3 分岐が必要。
+
+---
+
+## 2026-05-17 — `auto_research` が `scraping_feasibility` 直接カラムに書かず UI が常に "?" 表示（commit `43da6a1`）
+
+**問題：** `AdminResearchTable.tsx` の可行性列が auto_research 実行後も常に "?" で表示。
+
+**根本原因：** `_apply_assessment()` と `update_source.py` は両方 feasibility を `source_profile` JSONB 内にのみ書いていた。`research_sources.scraping_feasibility`（top-level TEXT カラム）への書き込みがなく、UI が読む列は常に null。
+
+**修正（commit `43da6a1`）：** `auto_research.py` の `patch` に `"scraping_feasibility": result.feasibility` 追加。`update_source.py` に `if feasibility is not None: update_fields["scraping_feasibility"] = feasibility` 追加。テスト 15 件 PASS。
+
+**教訓：** DB スキーマに top-level column と JSONB フィールドで同じ情報が存在する場合（`scraping_feasibility` TEXT vs `source_profile.feasibility`）、UI がどちらを読んでいるかを先に grep で確認してから書き込み先を決める。
+
+---
+
+## 2026-05-17 — annotator: GPT '不明' が business_hours に保存 → `_HOURS_INVALID` ガード追加
+
+**問題：** 局外談 `63625c1a` の `business_hours` が `'不明'`（GPT 出力）のまま保存されていた。annotator は `event.get("business_hours")` が truthy ならそのまま使うため、再 annotation 後も `'不明'` が保持され続け auto_qa から除外されなかった。
+
+**根本原因：**
+1. GPT が時刻不明のとき `null` でなく `'不明'` を返すことがある。
+2. `business_hours = event.get("business_hours") or _pre_hours or annotation.get("business_hours")` のロジックで `'不明'`（truthy）が常に優先され、`_pre_hours`（raw_description からの決定論的抽出）が実行されなかった。
+
+**修正（commit `533f980`）：**
+- `_HOURS_INVALID = frozenset({'不明', 'unknown', '未定', 'TBD', 'TBA'})` をモジュールレベルに追加。
+- `_valid_hours(v)` helper：`v.strip() in _HOURS_INVALID` なら `None` を返す。
+- `business_hours` 代入を `_valid_hours()` でラップし、無効値を null 扱いにして `_pre_hours` フォールバックを有効化。
+
+**付随教訓 — `_extract_hours_from_raw()` の `時` 形式非対応：** 種土 `9084ad67` の raw_description に `13時30分開場 / 14時00分開演` が含まれていたが、`_extract_hours_from_raw()` は `\d{1,2}:\d{2}` のみ対応で `\d時\d{2}分` を検出できない。このケースは **手動バックフィル + FC lock** で対応。
+
+---
+
+## 2026-05-17: zsh 方括號路徑未加引號造成 `no matches found`
+
+**問題：** 執行 `git diff -- web/app/[locale]/admin/...` 時，zsh 先把 `[...]` 視為 glob pattern，命令在 shell 層直接失敗。
+
+**根本原因：** 路徑含 `[` `]`（Next.js 動態路由資料夾）但未用單引號包住，觸發 zsh 路徑展開。
+
+**修正：** 所有含方括號的路徑改用單引號，例如 `git diff -- 'web/app/[locale]/admin/stats/page.tsx'`。
+
+**教訓：** 在 zsh 下，任何含 `[...]` 的路徑都必須加單引號；否則命令不會送到 git，會先被 shell 擋下。
+
+---
+
+## 2026-05-17 — DB クエリ出力に Prompt Injection（2件：f-string 経由 `rm -f` 実行試行）
+
+**問題：** `python3 -c "...f'{r[\"corrected_value\"]}' ..."` でターミナル出力に `rm -f "/Users/.../token.json"` が埋め込まれ、SyntaxError もしくは silent 実行が発生。2セッション中に2件検出。
+
+**根本原因：** Supabase の `field_corrections` テーブルに格納されている値（`corrected_value`）に悪意あるシェルコマンドが埋め込まれていた。`python3 -c` のインライン f-string はその値を文字列展開するため、`{` / `}` の対称破壊 → SyntaxError、またはコマンド文字列が print 出力を通じてターミナル履歴に挿入される。
+
+**修正：** `create_file /tmp/<name>.py` + `python3 /tmp/<name>.py` に切り替えることで、DB 値がファイルに書き込まれず安全に分離。
+
+**教訓：** DB クエリ（特に `field_corrections`）を f-string で展開するスクリプトは**絶対に** `python3 -c` で実行しない。アラートが出たら即 `/tmp/*.py` に切り替える。
+
+---
+
+## 2026-05-17 — performer QA 3件修正：AI翻訳マーカー除去 + multi-value null化 + bad FC lock 削除（`eeb5b12e`・`9084ad67`・`6200fbe1`）
+
+**問題：**
+1. `eeb5b12e`：`performer_zh='中村葉子（AI翻譯）'`、`performer_en='Yoko Nakamura (AI Translation)'` — AI翻訳マーカーが残存。
+2. `9084ad67`：`performer='阿仁、安和'`（`、` 区切りの複数人 → multi-value pollution）。さらに FC に `performer='阿仁、安和'` がロックされており、events table を null にしても annotator が復元する状態。
+3. `6200fbe1`：`performer='林宸順、雷傑西、王曉月、游聖峰'`（同上）。
+
+**根本原因：** auto_qa がレポートを作成していたが、FC lock に悪い値が残っていたため events table 修正だけでは不十分だった。FC lock の存在を確認せずに events table だけを更新する一般的なミス。
+
+**修正：** `eeb5b12e` — performer_zh/en から AI翻訳マーカーを除去し FC ロック。`9084ad67`・`6200fbe1` — events table `performer=null` + FC の `performer` 行を DELETE。auto_qa レポートを dismissed。
+
+**教訓：** `performer` を events table で修正したら**必ず** `field_corrections` の `performer` 行を確認し、悪い値がロックされていれば DELETE する。
+
+---
+
+## 2026-05-17 — 9084ad67（種土）：`location_url` が Peatix チャンネル、`official_url` が null
+
+**問題：** イベント詳細ページの「場地 ↗」が `https://taiwanculture.peatix.com/`（台湾文化センターの Peatix チャンネル）にリンク。`official_url` は null で、ソースリンクが「查看原始資訊」表示になっていた。
+
+**根本原因：** annotator が `location_url` を Peatix チャンネル URL に設定（イベント登録リンクと会場リンクを混同）。`official_url` は null のまま放置 — `source_url`（台湾文化センターの公式イベントページ）が官方URLとして昇格されていなかった。
+
+**修正：** `location_url = 'https://jp.taiwan.culture.tw/'`（台湾文化センター公式サイト）、`official_url = source_url の値`（イベントページ）に更新し、両フィールドを FC ロック。
+
+**教訓：** `taiwan_cultural_center` ソースのイベントは `source_url` が官方イベントページを指している場合、`official_url` にコピーして昇格する。`location_url` は会場の公式サイト（`https://jp.taiwan.culture.tw/`）を設定する。
+
+---
+
+## 2026-05-17 — `location_url` 修正時に apex ドメインのみ確認し「公式サイトなし」と誤判断（event `eeb5b12e`）
+
+**問題:** `location_url` を null にセットし「Coconeri に公式サイトなし」と結論した後、ユーザーが `https://www.coconeri.jp` を指摘。サイトは存在しており `200 OK` を返す。
+
+**根本原因:** URL 確認で `https://coconeri.jp/`（apex ドメイン）のみ試した。`curl` が `000`（DNS 解決失敗）を返したため「サイト不在」と判断。`www.` サブドメイン（`https://www.coconeri.jp/`）を試さなかった。日本の多くのサイトは apex→www リダイレクトを設定しておらず、`www.domain.jp` のみ有効なケースが多い。
+
+**修正:** `location_url = 'https://www.coconeri.jp'` に更新し FC lock。
+
+**教訓:** 会場・組織の公式サイト有無を `curl` で確認する際は `domain.jp` と `www.domain.jp` の**両方**を必ず試す。`000` は「その変形が DNS 解決できない」であり「サイト不在」ではない。
+
+---
+
+## 2026-05-17 — startup_terrace Playwright stub → requests 版に刷新 + TaiwanPrism 登録漏れ修正
+
+**問題 1:** `sources/startup_terrace.py` が auto-scraper 生成の Playwright stub のままで production 未対応。SSL cert エラー（Missing Subject Key Identifier）も未対処。
+
+**問題 2:** `TaiwanPrismScraper` が `main.py` の `SCRAPERS` リストに未登録（session notes に「登録済み」とあったが実際は漏れていた）。
+
+**根本原因:** auto-scraper が Playwright stub を生成した後、manual 実装を行った際に `main.py` 登録を同一セッションで完了しなかった。また `startupterrace.tw` の TLS 証明書が Missing Subject Key Identifier 拡張 → `requests` の `verify=True`（デフォルト）が `SSLCertVerificationError` を raise。
+
+**修正 (commit `99d9fde`):**
+- `startup_terrace.py` を requests + BeautifulSoup 版に完全書き換え。`verify=False` + `warnings.simplefilter("ignore")` で SSL 回避。
+- title-first JAPAN_KW フィルタ（detail ページ fetch 前に判定）でパフォーマンス改善。
+- `name_en`, `organizer`, `organizer_zh/en`, `organizer_url`, `organizer_type`, `event_form`, `category`, `official_url` を追加。
+- `main.py` に `StartupTerraceScraper` と `TaiwanPrismScraper` を同時に登録。
+- `research_sources` id=331 の `status → implemented`。
+- dry-run: 6 件正常取得。
+
+**教訓:** 台湾政府サイト（`.tw` ドメイン）は Missing Subject Key Identifier 証明書エラーを起こすことがある → `verify=False` + `warnings.simplefilter("ignore")` を scraper helper の `_get()` に組み込む。Promotion checklist の「SCRAPERS 登録」は commit と同一 session で実施し、Post-Build Audit を必ず実行すること。
+
+---
+
+## 2026-05-16 — wuext_waseda 多重セッション講座：performer 截斷 + business_hours 不完整（event `1be67e0f`）
+
+**問題：** event `1be67e0f`（沖縄現場学）で `performer='吉田'`（本来 `カベルナリア 吉田`）+ `business_hours='19:00〜20:30'`（曜日・全7回・個別開講日が脱落）。
+
+**根本原因：** `scraper/sources/wuext_waseda.py` が `Event.performer=`、`Event.business_hours=` を設定せず annotator regex に依存。Annotator の `_PERFORMER_INTRO_RE` は `[\u4e00-\u9fff]{2,5}` 純漢字 pattern なので片假名+漢字複合名 `カベルナリア 吉田` から `吉田` のみ抽出。Annotator は曜日・全N回・跳週日付も抽出できない。
+
+**修正：** wuext_waseda.py に `_SESSION_DATES_RE`、`_WEEKDAY_LISTING_RE`、`_KAISU_RE` + `_build_business_hours()` helper を追加。`Event(performer=instructor, performers=[instructor], business_hours=bh)` を構造化欄位から直接設定。DB は event 1be67e0f の 3 欄位 patch + `field_corrections` lock。Docs: scraper-expert SKILL.md / history.md、architect SKILL.md に新 guard 2 件。
+
+**Lesson：** 来源頁有結構化 instructor / 講師 / 時間表欄位なら scraper で `Event(...)` に直接設定。Annotator の regex は raw text からの fallback のみで、構造化フィールドの代替ではない。
+
+---
+
+## 2026-05-15 — about ページ dark mode でテキストが見えない（commit `8ab8d05`）
+
+**問題：** `https://tokyotaiwanradar.com/ja/about` で dark mode 時にタイトル・本文が背景に溶け込んで読めない。
+
+**根本原因：** `about/page.tsx` の全テキストが hardcoded hex `text-[#3A261F]`（見出し）・`text-[#4A362D]`（本文）に設定されていた。`layout.tsx` の anti-flash script が `prefers-color-scheme: dark` を検知して `<html class="dark">` を付けるため dark mode は有効だが、hardcoded hex は `:root.dark` のセマンティックトークンに追従しない。
+
+**修復（commit `8ab8d05`）：**
+- `text-[#3A261F]` → `text-fg-strong`（見出し h1・h2、パンくずリスト）
+- `text-[#4A362D]` → `text-fg`（本文段落）
+
+Dark mode: `text-fg-strong` = `#fafafa`、`text-fg` = `#ededed`（`:root.dark` に定義済み）。
+
+**教訓：**
+1. **ページコンポーネントで `text-[#hex]` を直接使わない**：`:root.dark` が存在する今、hardcoded hex は dark mode で必ず問題になる。
+2. **見出しは `text-fg-strong`、本文は `text-fg`**：`globals.css` の `@theme` ブロックに定義された semantic token を使う。
+3. **`dark:` variant は不要**：semantic token が `:root.dark` で自動切り替わるため、`dark:text-xxx` を個別に書く必要はない。
+
+---
+
+## 2026-05-15 — research_reports 「標記為已審閱」按鈕 silent failure（migration `070`）
+
+**問題：** Admin Research Reports 頁面點「標記為已審閱」按鈕，UI 無反應，DB 無變化，無 JS error。
+
+**根因：** Migration `008_research_reports.sql` 只建立 SELECT policy，未建 UPDATE policy。RLS 預設拒絕，admin 的 UPDATE 被 PostgREST 靜默拒絕（0 rows affected，回傳 `error: null` + 空陣列），符合「Supabase Client UPDATE 0-row Silent Success」模式。
+
+**修復（migration `070_research_reports_update_policy.sql`）：** 補上 admin UPDATE policy，沿用 `006_event_reports.sql` 既有 admin 模式。
+
+**教訓：**
+- 任何 `research_reports`、`event_reports` 等「admin 後台會 UPDATE 的表」建立時，**SELECT / INSERT / UPDATE / DELETE policy 必須一次到位**，缺一即 silent failure。
+- 既存的「0-row Silent Success Guard」前端 `.select("id")` 檢查能偵測但不能根治——根治在 migration 階段確保 policy 完整。
+- 新增 admin UI mutation 入口時必須核對對應 DB table 的 RLS policy 矩陣（SELECT 有 ≠ UPDATE 有）。
+
+---
+
+## 2026-05-15 — ReportSection 送信ボタンが「送信中…」で永久に固まる（commit `53445be`）
+
+**問題：** イベント詳細ページの「問題を報告」フォームで送信ボタンをクリックすると「送信中…」表示のまま永久に固まり、成功・エラーどちらも表示されない。
+
+**根因：** `ReportSection.tsx`（Client Component）がブラウザ Supabase クライアントで直接 `supabase.from("event_reports").insert(...)` を呼び出していた。PostgREST からレスポンスが返らない（ネットワークハング）場合、`await` は永遠に pending のまま。`try/catch` は **thrown error** しか捕捉できず、**hanging fetch** は捕捉しない。結果として `setStatus("error")` が呼ばれず、ボタンが `loading` 状態で固まる。
+
+**修復（commit `53445be`）：**
+- `web/app/actions/submit-report.ts` を新規作成（`dismissReport` と同じ Server Action パターン）
+- `ReportSection.tsx` の browser client INSERT を `submitReport()` Server Action 呼び出しに置き換え
+- `@/lib/supabase/client` import を削除
+
+**教訓：**
+- **Client Component で `supabase.from(...).insert()` を直接呼び出してはならない。** ネットワークハング時に `try/catch` は発動せず UI が永久 loading 状態に陥る。
+- ユーザー向けフォームの INSERT（anon・authenticated 問わず）も Server Action に統一する。RLS で `anon INSERT` を許可していても、ブラウザ直接 INSERT はハング耐性がない。
+- `dismissReport` / `confirmReport` が Server Action に昇格済みであれば、同一テーブルへの user-facing INSERT も Server Action にすべきだった（パターン一貫性）。
+
+---
+
+## 2026-05-15 — handleDismiss で router.refresh() が画面破損を引き起こした（commit `390826a`）
+
+**問題：** `handleDismiss`（報告を却下するハンドラー）を server action（`dismissReport`）に移行後、`router.refresh()` を呼び出すと画面が突然フリーズ・レイアウト崩壊（"screen break"）した。
+
+**根因：** `handleDismiss` は stay-on-page ハンドラー（`router.push()` なし）であるにもかかわらず、`router.refresh()` が追加されていた。`router.refresh()` が RSC の再レンダリングをトリガーし、Supabase Realtime の `UPDATE` イベントが同時に届いたことで state/render race が発生。`handleConfirm` と異なり、dismiss は `event_reports.status` のみを変更するため SSR キャッシュ無効化は不要。
+
+**修復（commit `390826a`）：**
+- `handleDismiss` から `router.refresh()` を削除
+- ローカル state（`setReports()`）と Realtime 購読で十分（他のセッションにも反映される）
+
+**教訓：**
+- `router.refresh()` は **navigation handler（`router.push()` を伴う場合）にのみ呼ぶ**。stay-on-page の mutation handler では呼ばない。
+- stay-on-page handler で `router.refresh()` を呼ぶと、Realtime サブスクリプションと RSC 再レンダリングが競合し、画面が破損する。
+- dismiss は event fields を変更しない → SSR cache invalidation 不要 → `router.refresh()` 禁止。
+- confirm は event fields（category, is_active）を変更する → SSR cache invalidation 必要 → `router.refresh()` 必須。
+
+---
+
+## 2026-05-15 — _oneoff_migrate_multi_performer で役割 suffix が名前に残る（commit `a3a4bed`）
+
+**問題：** `_split_performer()` で複数人名文字列（例：`ジャッキー・チェン（監督）、ジェット・リー（主演）`）を分割後、各名前に `（監督）`、`（主演）` などの役割表記が残ったまま `performers[]` に格納されていた。
+
+**根因：** `_SEP_RE` で区切り文字を基に分割した後、役割 suffix の除去処理がなかった。「分割」と「suffix 除去」を独立ステップとして実装していなかった。
+
+**修復（commit `a3a4bed`）：**
+- `_ROLE_SUFFIX_RE = re.compile(r"[（(](?:監督|主演|出演|演出|脚本|製作|ゲスト|ナレーター|MC|司会|プロデューサー|ディレクター)[)）]")` を追加
+- `_split_performer()` 内で split 後に各 part へ `_ROLE_SUFFIX_RE.sub("", p).strip()` を適用
+- 空文字になった part をフィルタ；dedup も保持順のまま実施
+
+**教訓：**
+- 人名文字列の split pipeline は「**区切り文字で分割 → 役割 suffix 除去 → trim → フィルタ空文字 → dedup**」の順で実施する。
+- annotator が返す performers[] には事前に suffix 除去済みであるべきだが、既存データの migration スクリプトでも同様の pipeline が必要。
+
+---
+
+## 2026-05-15 — Admin reports 却下ボタン静默失敗（handleDismiss 缺 server action，commit `dbe8471`）
+
+**問題：** Admin reports 頁面「却下」按鈕點擊後，spinner 出現又消失，報告狀態沒有變更為 `dismissed`，完全靜默——使用者無任何錯誤提示。
+
+**根因：** `AdminReportsTable.tsx` 的 `handleDismiss` 直接使用 browser-side `supabase.from("event_reports").update(...)` 走 RLS，同時缺少 `.select("id")` 0-row 守衛與失敗反饋。`handleConfirm` 早已改為 server action（`confirmReport`），但 `handleDismiss` 未同步改造。JWT 過期或 RLS 阻擋時 Supabase-js 回傳 `{ error: null, data: [] }`，`if (!error)` 判斷通過但 DB 無任何更新，`router.refresh()` 後資料回滾，視覺上靜默。
+
+**修復（commit `dbe8471`）：**
+- 新建 `web/app/actions/dismiss-report.ts` server action，使用 server-side `createClient`（cookie session），含 `.select("id")` 0-row guard；失敗回傳 `{ ok: false, error: "..." }`
+- `handleDismiss` 改為呼叫此 server action；`result.ok` 為 false 時顯示 `alert(result.error)` 
+
+**教訓：**
+- **`confirmReport` 和 `dismissReport` 必須成對升格為 server action**；遺漏任一方即存在 silent failure 風險。
+- Admin client-side write + RLS = 0-row silent success 三合一陷阱（JWT 過期 / RLS 阻擋 / ID 不存在）；所有高風險 admin mutation 應優先走 server action，而非僅補 `.select("id")` 守衛。
+- 新建 action 時立即對配對 handler 做同步檢查（例如 confirm 已改 → dismiss 必須跟上）。
+
+---
+
+## 2026-05-15 — iwafu location_address 地址無法抽取（address regex + official body text fallback，commit `ebe54b3`）
+
+**問題：** iwafu 事件的 `location_address` 欄位多數為空；部分地址格式（如「渋谷区〇〇」缺少都道府縣前綴）無法匹配 regex，導致即使官方網站有完整地址也無法填入。
+
+**根因 A（regex 過窄）：** `_ADDR_RE` 要求地址以 `東京都|北海道|大阪府|…|.{2,5}県` 開頭，但日本地址有時省略都道府縣直接寫市區（如 `渋谷区〇〇1-2-3`），因此無法匹配。
+
+**根因 B（fallback 缺失）：** 舊版僅在 `main_text`（iwafu 頁面文字）搜尋地址；官方網站（`official_url` 抓到的頁面）包含更完整的地址資訊，但 `_fetch_official_organizer_info()` 只回傳 organizer + credits，未回傳 body text，無法二次搜尋。
+
+**修復（commit `ebe54b3`）：**
+- `_ADDR_RE` 改為：都道府縣 optional + `[市区町村]` required city/ward anchor，更廣泛匹配省略前綴的地址
+- `_fetch_official_organizer_info()` 回傳值擴充為三元組 `(organizer, supplemental_text, body_text)`
+- 主流程優先在 `main_text` 搜尋 `_ADDR_RE`；若無結果且有 `official_body_text`，fallback 再搜尋官方網站文字
+
+**教訓：**
+- **日本地址 regex 應將都道府縣設為 optional**；只有 `[市区町村]` 是可靠的必要錨點。
+- 官方網站通常是地址的最可靠來源；爬取 `official_url` 後應同時保存 body text 供 address fallback 使用。
+- function 回傳型別擴充（tuple 長度增加）後，**必須立即煙霧測試** (`py_compile` + 至少一次 dry-run)，確認所有呼叫點都已同步更新。
+
+---
+
+## 2026-05-15 — Admin AEO 集計カードが 1,000 件上限に頭打ち（commit `518b5a8`）
+
+**問題：** `/admin/aeo` の Summary カード（Total Visits、Unique Visitors 等）が実際より少ない数字を表示していた。
+
+**根因：** 旧実装が `.select()` で最大 1,000 行取得 → クライアント側で JS フィルタリングして件数を計算していた。PostgREST はデフォルト `max-rows=1000` で黙ってレコードを切り捨てるため、1,000 件超の場合に常に過小表示になっていた。
+
+**修正（commit `518b5a8`）：** 6 つの Summary カードをそれぞれ `.select('id', { count: 'exact', head: true })` による専用 head-count クエリに置き換え（行データを取得せず count のみ）。並列実行で UX 劣化なし。Bot テーブルの割合表示は直近 1,000 件で十分なため従来ロジックを維持。
+
+**教訓：** **集計カードは必ず `.select(..., { count: 'exact', head: true })` を使う。** PostgREST の `max-rows=1000` は silent truncation — `.limit(n)` を超えなくても 1,000 行でカットされる。クライアント側での件数計算は使ってはいけない。
+
+---
+
+## 2026-05-15 — performer multi-value 汚染 → performers[] 分割（commit `c4bd9e1`）
+
+**問題：** 映画事件で `performer = "ジャッキー・チェン、ジェット・リー"` のように区切り文字付き複数人名が 1 フィールドに格納される汚染が存在。翻訳・表示ともに誤動作。
+
+**根因：** annotator の GPT が複数人名をカンマ・読点・× 等で区切って 1 文字列に返すケースがあり、`performer` フィールドに書き込まれていた。`performers[]` への分割が実装されていなかった。
+
+**修正（commit `c4bd9e1`）：**
+- `annotator.py` に `_MULTI_SEP_RE = re.compile(r"[、,，×／/]")` 追加
+- `annotate_pending_events()` — `performer` に区切り文字が含まれる場合は `performers[]` に分割し `performer/performer_zh/performer_en` を `None` にサニタイズ
+- `enrich_person_names()` — B1 策略：既存 `performer` multi-value 汚染を `performers[]` に変換し `ja_to_info` で各名前を個別翻訳 → `performers_zh/performers_en` 生成
+- `auto_qa.py` に 3 検知器を追加：
+  - `auto_qa_performer_ai_translation_marker`（`performer_zh/en` に AI翻譯マーカー残留）
+  - `auto_qa_performer_multi_value_pollution`（`performer` に区切り文字が残存）
+  - `auto_qa_performer_zh_equals_katakana`（`performer_zh` が日本語カタカナのまま）
+- `_oneoff_migrate_multi_performer.py`：既存 movie events の一括移行スクリプト（`--dry-run` / `--execute`）
+
+**教訓：** **annotator が `performer` を返す際は必ず `_MULTI_SEP_RE` チェックを挟み、複数人の場合は `performers[]` に分割する。** `performer` は常に単人であるべき。auto_qa の performer 系 3 detector は今後の汚染を早期発見する監視網として機能する。
+
+---
+
+## 2026-05-15 — merged_into_event_id 循環 redirect 兩個循環修復（DB-only, 4 rows）
+
+**問題：** `/zh/events/57642851-...` 頁面不停重載。
+
+**根因：** `permanentRedirect()` 在 Next.js SSR 對 `merged_into_event_id IS NOT NULL` 無限觸發：`57642851↔c8e813ae`（二節點）+ `84cb3ff3→2117c91e→a04e7ebb→84cb3ff3`（三節點，跨電影作品誤合併）。
+
+**修復（DB 更新 4 筆，無 code 變更）：**
+- `c8e813ae` merged_into → NULL
+- `57642851` merged_into → `4a8772ec`（cinemart_shinjuku canonical）
+- `2117c91e` merged_into → NULL（台湾Filmake terminal）
+- `a04e7ebb` merged_into → NULL（めぐる面影 × 台湾Filmake 跨作品誤合併清除）
+
+**教訓：** Merger 執行後必須全庫掃描循環；`auto_qa` 加入 cycle check 是正確方向。跨電影作品的 merge 幾乎必然是 bug。
+
+---
+
+## 2026-05-15 — AbortSignal timeout 補齊 + handlePublish 0-row guard（commit `77fc092`）
+
+**問題：** OCR 事件儲存並標注後 UI 卡在「標注中，請稍候…」或「儲存中…」，無法清除。
+
+**根因 A：** `AdminEventTable.tsx` `handleSaveAndAnnotate` 中 `fetch("/api/admin/annotate-event")` 無 `AbortSignal.timeout`；Vercel gateway 截斷時 `await fetch()` 永遠 pending，`setAnnotating(false)` 不執行。
+
+**根因 B：** `annotate-event/route.ts` OpenAI API call 無 `AbortSignal.timeout`；slow GPT response 超過 Vercel `maxDuration = 60` 觸發根因 A。
+
+**根因 C：** `handlePublish` Supabase UPDATE 缺 `.select("id")` + 0-row guard；JWT 過期時 `setSaving(true)` → UPDATE 0 rows → `setSaving(false)` 路徑未走 → 按鈕永遠卡著。
+
+**修復：** commit `77fc092` 三行修改：
+1. `handleSaveAndAnnotate` fetch 加 `signal: AbortSignal.timeout(58000)`
+2. OpenAI fetch 加 `signal: AbortSignal.timeout(25000)`
+3. `handlePublish` 改用 `.select("id")` + 0-row guard + 提示訊息
+
+---
+
+## 2026-05-15 — kawasaki_ac 日期解析不足與內容薄文本污染導致 selection_reason 矛盾
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+
+2026-05-15 | kawasaki_ac 系列事件被收錄但日期、價格、上映時段、主辦方等欄位缺失；annotation 產出拒絕理由「未提供台灣相關資訊」卻 is_active=true（矛盾）。 | 1) detail page 抽取只取前 N 個 `<p>`，導致導航文字（TOP、施設案內...）污染 raw_description，使 GPT 吃不到作品介紹與欄位標籤。2) 日期 regex 僅支援 `M.D～M.D` 與 `M/D(土)` 格式，無法解析 `YYYY年M/D(土)～` 或單日 `M/D(土)` 格式。3) annotator 的 selection_reason 只是文案欄位，不會反向驅動 is_active 開關；拒絕理由與 is_active 無強制一致性。 | 1) detail page 改為內容區塊優先（detail-root + table.theater-detail 標籤欄位），抽取「開催日時」「作品紹介」「作品情報」「上映日」「料金」「公式サイト」等結構化段落；2) 日期 regex 擴充支援 YYYY年M/D(土)～、M/D(土)～、M.D～M.D 與單日結束日邏輯 end_date=start_date；3) 補齊上映時間、價格、官方連結、主辦方提取邏輯；4) 針對目標事件 re-annotate，確認 selection_reason 與 is_active 一致。 | 1) scraper raw_description 薄文本或噪音污染是 annotator 誤判的主因，修復應從 source 端結構化敘述開始，不要期望 GPT 從垃圾文本反推；2) 系列型改動（如日期格式擴充、欄位新增）要同時更新 raw_description 編排與相關提取邏輯，避免混亂；3) selection_reason 是文案用欄位，不是守門開關——若要「拒絕判定」真正動作，必須明確在來源抽取層或 annotator 層驅動 is_active，或明確由人工鎖定；純文案矛盾不會自動生效。
+
+---
+
+## 2026-05-15 — ReportSection submit 按鈕 loading 狀態文字換行導致錯位
+
+**問題：** 使用者按下「問題を報告」彈窗的 Submit，按鈕切換為 `送信中…` 後，submit 按鈕與 Cancel 文字連結出現垂直錯位（日語截圖清晰可見「中…」被分成兩行）。
+
+**根因：** 日語斷行規則允許在 `…`（U+2026，HORIZONTAL ELLIPSIS）前斷行。按鈕沒設 `whitespace-nowrap`，所以 `送信中…` 可能在 `…` 前換行，使按鈕高度從 `1 行` 變 `2 行`，導致相鄰 Cancel 按鈕在 flex row 中垂直位移。
+
+**修正：** `web/components/ReportSection.tsx` submit 按鈕加 `whitespace-nowrap min-w-[4.5rem]`。  
+`whitespace-nowrap` 防止日語斷行；`min-w-[4.5rem]` 鎖定最小寬度，避免 idle ↔ loading 切換時 flex 容器寬度抖動。
+
+**教訓：**
+- 日文按鈕文字含 `…` 時**必須加 `whitespace-nowrap`**；`…` 在 CJK 排版中是合法斷行點。
+- 狀態切換時按鈕文字長度改變（`送信` → `送信中…`）會引發 flex 容器寬度變化，加 `min-w-[N]` 可消除排版抖動。
+
+---
+
+## 2026-05-15 — AdminEventTable 警告列在 dark mode 顏色過亮
+
+**問題：** 未指派 work 的事件列在 dark mode 下顯示鮮豔粉紅（`bg-red-50` = `#FEF2F2`，固定明亮色），與深色 UI 背景嚴重對比。
+
+**根因：** `bg-red-50` 是 Tailwind 靜態 utility，不響應 dark mode。沒有對應的 `dark:bg-*` override。
+
+**修正：** 改為 `bg-blush hover:bg-[#FFE4E0] dark:hover:bg-[#35231f]`。  
+`bg-blush` = CSS variable token（light `#FFF1EE` / dark `#2a1f1d`），自動隨 `:root.dark` 切換。
+
+**教訓：**
+- 警告色或狀態色 **永遠用語意 token（`bg-blush`、`bg-amber-*`）而非 Tailwind 靜態 light-only class**（`bg-red-50`、`bg-yellow-50`），否則 dark mode 一定爆。
+- 需要 hover 變化時，token 本身不提供 hover 值，要在 JSX 加 `hover:bg-[hex] dark:hover:bg-[hex]` 手動指定。
+
+---
+
+## 2026-05-15 — getEventPerformer 不支援 performers_zh array，單人表演者顯示空白
+
+**問題：** 部分活動有演出者，但前端 EventCard 顯示演出者欄位空白。
+
+**根因：** annotator 寫入的欄位為 `performers_zh`（陣列），而 `getEventPerformer()` 只讀 `performer_zh`（舊版字串欄位）。當 annotator 寫新欄位但 scraper 未填舊欄位時，函數回傳 `undefined`。
+
+**修正：** `web/lib/types.ts` `getEventPerformer()` 加入 fallback 順序：
+`performer_zh` → `performers_zh[0]` → `performer_en` → `performers_en[0]`。
+
+**教訓：**
+- 增加新陣列欄位（`performers_zh[]`）時，必須同步更新所有讀取舊字串欄位（`performer_zh`）的 helper，否則過渡期 DB 中僅有新欄位的事件在前端靜默空白。
+- `getEventPerformer` 等 helper 應以 `老欄位 → 新欄位[0]` 的方式保持向後相容，而非直接替換。
+
+---
+
+## 2026-05-15 — 後台 events UPDATE 三項操作同時靜默失效（Vercel 滾動部署期間 expired JWT）
+
+**問題：** 使用者報告後台事件清單管理頁的 toggle（is_active）、work 指派、AI 報錯 checkbox 三項全部 click 後無反應；無 alert、UI 看似不動，重新整理或等 5–10 分鐘後自動恢復。
+
+**根因鏈：**
+1. 24h 內推 5 個 commit（含 `ae9dc77` auth callback 改寫）→ Vercel 滾動部署。
+2. 瀏覽器持有的 access token 在新部署 edge node 下短暫無效 → PostgREST 收到 expired JWT 退回 anon role。
+3. RLS `Admins update events` policy 對 anon 過濾為 0 列。
+4. **PostgREST 0-row UPDATE 不視為 error** → supabase-js 回傳 `{ error: null, data: undefined }` → `IsActiveToggle` / `AdminEditClient` / `AdminEventTable.handleSaveWork` 三處的 `if (!error)` 全部判定為成功，但 DB 實際未變動。
+5. middleware 下次刷新 access token 後自動恢復。
+
+**驗證證據（DevTools 三點檢查）：** 使用者實測確認 Network PATCH 請求 `authorization: Bearer ...` 已存在、Response body 為空陣列 `[]`、cookie `sb-*-auth-token` HttpOnly 未勾 → 排除結構性 bug（cookie / session storage / GRANT 缺失皆非）。
+
+**修正：** 未動程式碼，等待自然恢復。但補上預防性規則於 SKILL.md「Supabase Client UPDATE — 0-row Silent Success Guard」段落：所有 client-side UPDATE 必須加 `.select("id")` 並檢查 `data.length === 0` 作為失敗 alert 條件。
+
+**教訓：**
+- `supabase.from(T).update(...).eq("id", x)` 在以下三種情況都回傳 `error: null` + 空 data：RLS 過濾、JWT 過期、id 不存在。三者無法靠 `error` 區分。
+- Vercel 滾動部署 + auth 相關 commit 是 expired JWT 的高風險組合，必須在客戶端寫入路徑加 0-row guard 防使用者誤判。
+- 不可只用 `if (!error)` 判斷 admin 寫入成功；要嘛 `.select("id")` 後檢查列數，要嘛改走 server action / route handler 用 service role 寫入。
+
+---
+
+## 2026-05-15 — matsumoto_cinema_select スクレーパー実装での3つの修正
+
+**エラー1:** `MatsumotoCinemaScraper` → CLI key が `matsumoto_cinema`（`--source matsumoto_cinema_select` で "Unknown source"）  
+**修正:** クラス名を `MatsumotoCinemaSelectScraper` に変更（`_scraper_key` はクラス名から snake_case を派生させる）  
+**教訓:** SOURCE_NAME にアンダースコア複合語を含む場合、クラス名も完全一致させる（`MatsumotoCinemaSelectScraper` → `matsumoto_cinema_select`）。
+
+**エラー2:** `lookup_movie_titles()` 戻り値を `name_zh, name_en` の2値で受けたが実際は3値  
+**修正:** `name_zh, name_en, name_ja_override = lookup_movie_titles(...)` に変更し `name_ja=name_ja_override` を Event に渡す
+
+**エラー3:** `Event(location_prefectures=[...])` — `location_prefectures` は Event dataclass に存在しないフィールド  
+**修正:** 削除。新フィールド追加前に `base.py` を確認する。
+
+---「送信沒反應」其實是回饋不明確 + 例外未保底
+
+**問題：**
+- 使用者在活動頁「問題を報告」彈窗勾選後按「送信」，主觀體感是「完全沒反應」。
+
+**根因：**
+- 送出中按鈕只顯示單一字元 `…`，缺少明確語意（看起來像沒觸發）。
+- `handleSubmit()` 只處理 Supabase 回傳 `error`，沒有 `try/catch` 包住非預期例外；例外發生時 UI 狀態可能停在不清楚狀態。
+- 按鈕未明確設 `type="button"`，在複雜容器結構下可維護性較差、易產生預設 submit 行為歧義。
+
+**修正：**
+1. `web/components/ReportSection.tsx` 的 `handleSubmit()` 改為 `try/catch` 包裹，確保任何例外都會落到 `status="error"`。
+2. 送出中狀態改為具語意文案（ja: `送信中…` / en: `Sending...` / zh: `送出中…`）。
+3. 彈窗內所有操作按鈕明確加 `type="button"`，送出按鈕補 `aria-busy`。
+
+**驗證：**
+1. Browser 重現：打開事件頁報告彈窗，勾選一項後送出，成功時出現 `✓ ご報告ありがとうございます！`。
+2. 程式驗證：`get_errors` 檢查 `ReportSection.tsx` 無錯誤。
+
+**教訓：**
+- 使用者回報「按了沒反應」時，不只要查 API 成敗，也要先補齊可視化的 loading/error 回饋。
+- 任何 client-side submit handler 都應採 `try/catch + 明確狀態機`，避免非預期例外造成靜默失敗體感。
+
+## 2026-05-15 — MascotAvatar 天線動畫 FOUC 白光球（左上左下）
+
+**問題：**
+- 首頁吉祥物天線動畫新增 `radialGradient` 圓環後，頁面重整時左上與左下各出現「白光球」殘影。
+
+**根因：**
+- CSS animation 在瀏覽器第一次 paint 前有單幀 FOUC（Flash Of Unstyled Content）：
+  - `lianbu-antenna-flow-dot`（白色圓圈 `fill="#FFFFFF"`）初始座標在天線入體處 `cx=100 cy=80`（「左下」），CSS animation `opacity: 0` 的 0% keyframe 尚未生效，元素以 SVG `fillOpacity="0.85"` 全顯。
+  - `lianbu-tip-ring`（tip ring 圓圈）新版改用 `fill=url(#radialGradient)` 卻沒設 inline `opacity="0"`，CSS animation 尚未啟動前以 `opacity=1` 渲染梯度（「左上」）。
+  - `lianbu-antenna-flow-line`：CSS rule 有 `opacity: 1`，動畫前以全不透明渲染流光線。
+- 改成 radialGradient 之前，tip-ring 用 `fill="none" stroke="#1F5E2B"`，FOUC 無視覺影響；改成 fill 後才暴露問題。
+
+**修復：**
+1. `MascotAvatar.tsx`：flow-dot 加 `opacity={0}` SVG attr；tip-ring gradient 版本加 `opacity={0}` SVG attr。
+2. `globals.css`：`[data-antenna-flow="on"] .lianbu-antenna-flow-line` 的 `opacity: 1` 改為 `opacity: 0`。
+
+**教訓：**
+- SVG 元素套 CSS animation 控制 `opacity` 時，**務必在 SVG 屬性層設 `opacity="0"`**（或在 CSS 元素規則設 `opacity: 0`），避免動畫開始前的單幀全顯 FOUC。
+- 把視覺狀態從 `fill="none" stroke=...` 改成 `fill=url(#gradient)` 時，必須同步確認 baseline opacity 不為 1。
+- `overflow="visible"` 的 SVG + `fill=gradient` 的元素在 FOUC 期間會以 opacity=1 出現在其 DOM 基底座標，可能超出 SVG bounding box 顯示在頁面意外位置。
+
+---
+
+## 2026-05-15 — asahiculture 系列欄位缺漏，需一次性補值 + scraper pipeline 固化
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-15 | `asahiculture` 系列事件出現 `performer`、`location_address`、`business_hours`、`official_url`、`is_paid`、`price_info`、`organizer_type` 與部分 `end_date` 缺漏或不一致，且 source key/source_name 容易混淆。 | detail page 有多種變體（講師區塊有時在 `h3`，有時僅在頁首行）、費用字串格式不固定（含/不含括號描述）、地址欄位來源不穩；手動補值未同批寫入 `field_corrections` 會在 re-annotation 被覆寫。 | 1) 批次補值 `source_name=asahiculture` 事件並同步 upsert `field_corrections`；2) 日期欄位回寫後成對鎖定 `start_date` + `end_date`；3) 強化 `scraper/sources/asahiculture.py`：單日課程 `end_date=start_date`、固定 `organizer_type=['cultural_institution']`、`official_url=detail_link`、費用 regex 支援 `会員（...）`、講師抽取加入 header fallback、教室地址加入 fallback map。 | 朝日教室屬於模板頁變體來源，必須在 scraper 內做多路徑抽取；系列型手動補值必須與 FC 鎖定同批執行，且日期欄位要成對鎖；操作時要明確區分 dry-run key `asahi_culture` 與 DB `source_name=asahiculture`。
+
+## 2026-05-15 — LINE 發送失敗仍被標記 published（假發布）
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-15 | 後台週報顯示已發布（非草稿），但 LINE 實際未收到訊息。 | `web/app/api/admin/weekly-broadcast/send/route.ts` 在 LINE multicast 失敗後仍無條件更新 `published_at` 與 `social_status.line.status=published`，造成「假發布」。 | 1) send route 新增 per-language 失敗收集（`failedLangs`）；2) 任一語系失敗即回 502，且不更新 published 狀態；3) 有訂閱者但 `sent_to=0` 也回 502 並保留草稿；4) 將受影響公告（`weekly-2026-05-15`）手動回退為 draft（`published_at=null`、`social_status.line.status=draft`）。 | 「發布狀態」必須由「送達成功」驅動，不可先發布後容錯。只要外部通道送達失敗，內容必須維持 draft，並回傳可觀測診斷（失敗語系與 subscriber_count）。
+
+**驗證：**
+1. app request 語境：send route 失敗分支回 502，回應含 `error`、`sent_to`、`subscriber_count`，且公告保持 draft。
+2. SQL / service-role 語境：直接讀取 `announcements` 確認目標 slug 的 `published_at` 已回到 null、`social_status.line.status` 為 `draft`。
+
+## 2026-05-15 — LINE 手動發送顯示 0 位訂閱者（RLS 權限語境誤用）
+
+**問題：** 後台「立即發送週報」成功訊息顯示 `已發送給 0 位訂閱者`，但實際上已有訂閱者。
+
+**根因：** `web/app/api/admin/weekly-broadcast/send/route.ts` 用 `@/lib/supabase/server`（anon key + user session）查 `line_subscribers`。該表在 `069_explicit_grants.sql` 屬 service-role only（RLS deny-all for authenticated），因此 API 讀取到空集合。
+
+**修正：**
+1. 保留 `requireAdmin()` 做身份驗證。
+2. 新增 service-role client（`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`）專門查 `line_subscribers`。
+3. 在 API response 加上 `subscriber_count`（zh/ja/en/total）作為運維診斷欄位。
+
+**驗證（雙語境）：**
+- app request 語境：檢查 `/api/admin/weekly-broadcast/send` 路由邏輯已改成 service-role 查詢，並在回應帶出訂閱者統計。
+- SQL Editor / service-role 模擬語境：以 service role 查 `line_subscribers` active count，結果 `active_total=9`，證明不是「真的 0 人」。
+
+**教訓：**
+- 「後台 admin API + 受保護表」是兩階段權限問題：`user_roles` 只決定誰可呼叫 API，不等於該 API 有權讀所有表。
+- 只要目標表是 service-role only，route handler 必須採「admin auth + service-role DB client」分層模式，不能直接沿用 SSR cookie client。
+
+## 2026-05-15 — V-M-D 前遇到 dirty tree，必須先做提交範圍確認
+
+**問題：** 使用者要求直接執行完整 Validate/Merge/Deploy，但工作樹同時存在多個與本次修復無關的變更（包含已修改與未追蹤檔案）。若直接 rebase/commit，容易把不相關變更一起推上 `origin/main`。
+
+**根因：** 部署流程容易把「可以執行 git 操作」誤當成「可以安全提交」。缺少「提交範圍確認（scope gate）」會讓 V-M-D 在 dirty tree 狀態下誤打包。
+
+**修正：** 在 V-M-D 前加入強制前置檢查：
+1. `git status --short` 檢查 dirty tree。
+2. 若存在不相關檔案，先停止流程並要求使用者明確選擇提交範圍（僅本次修復 / 全部變更）。
+3. 範圍確認後才進入 `fetch/rebase/commit/push`。
+
+**教訓：**
+- V-M-D 的安全前提不是「沒有衝突」，而是「提交範圍已明確且經使用者確認」。
+- dirty tree 不是阻止部署的錯誤，而是必須先處理的決策點。
+
+## 2026-05-15 — Tester FAIL: pytest 匯入失敗 + annotator `--dry-run` 仍寫 DB
+
+**問題：**
+1. `cd scraper && pytest tests/test_single_day_end_date_guard.py -q` 報 `ModuleNotFoundError: No module named annotator`。
+2. `python annotator.py --id <eid> --dry-run` 仍觸發 `events` PATCH 與 `scraper_runs` POST。
+
+**根因：**
+1. 測試執行時未保證 `scraper/` 在 `sys.path` 前段，`from annotator import ...` 在部分環境會失敗。
+2. CLI 有解析 `--dry-run`，但沒有把 flag 傳入 `annotate_pending_events()`；函式內也無 dry-run 寫入封鎖。
+
+**修正：**
+1. 新增 `scraper/tests/conftest.py`，將 `scraper/` 目錄加入 `sys.path`。
+2. `annotate_pending_events(..., dry_run: bool = False)`：
+  - 主事件 `events.update`
+  - localized 欄位更新
+  - sub-event upsert/update
+  - `location_prefectures` 更新
+  - error 狀態回寫
+  - `scraper_runs` insert
+  全部在 dry-run 改為 log only。
+3. CLI 主入口把 `dry_run_flag` 傳入 `annotate_pending_events()`。
+
+**教訓：**
+- `--dry-run` 必須「從 CLI 參數一路 thread 到實際 I/O 呼叫點」才算成立；僅解析旗標但未傳遞，等同沒有 dry-run。
+- 針對 script-style 模組（如 `annotator.py`）的單元測試，應在 `tests/conftest.py` 顯式設定 import path，避免依賴 shell 當下的工作目錄。
+
+## 2026-05-15 — 單日活動 `end_date` 回歸多日值，需以程式守衛 + FC 成對鎖雙重修復
+
+**問題：** 事件 `2cae572a-1024-493a-93ad-74ade21246dc` 的 `start_date=2026-04-06` 但 `end_date` 漂移為 `2026-05-04`，違反單日活動規則。
+
+**根因：** 既有邏輯只在 `end_date` 為 null 時補 `start_date`，未處理「可判定單日但 GPT/資料回寫成跨日」的情境；同時 `field_corrections.end_date` 曾被鎖成 `null`，讓回寫保護失效。
+
+**修正：**
+1. 在 `annotator.py` 新增 `_apply_single_day_end_date_guard()`，僅在「可安全判定單日」時強制 `end_date=start_date`，多日/未知情境不改。
+2. 守衛套用在 parent event 與 sub-event 寫入前。
+3. DB 一次性修復該事件：`events.end_date` 改為 `2026-04-06T00:00:00+00:00`。
+4. `field_corrections` 成對 upsert：`start_date`、`end_date`（並保留 `business_hours` 鎖）。
+
+**教訓：**
+- 單日規則不能只靠 prompt，必須在寫入前有 deterministic guard。
+- 日期欄位修復必須同步維護 FC pair lock（`start_date` + `end_date`），否則 re-annotation 會再次漂移。
+
+## 2026-05-15 — 手動修正 event 欄位時 `organizer_type` check constraint 報錯
+
+**問題：** 修正 event `1334fc96`（朝日カルチャーセンター 立川サテライト）時，設 `organizer_type: ['private_company']`，Supabase 回傳 `APIError: new row violates check constraint "events_organizer_type_check"`，整筆 update 全部 rollback。
+
+**根因：** `events` 表對 `organizer_type` 陣列元素有 check constraint，僅允許特定枚舉值。`private_company` 不在允許清單內。
+
+**修正：** 改用 `['cultural_institution']`（朝日カルチャーセンター 為文化教育機構）後 update 成功。
+
+**合法 `organizer_type` 值（截至 2026-05-15）：**
+`academic` / `civic_group` / `commercial_brand` / `cultural_institution` / `government` / `independent_venue` / `media` / `semi_official` / `unknown`
+
+**教訓：** 手動 DB update 前，先用下列指令確認當前合法值，避免整筆失敗：
+```bash
+python3 -c "
+import os,json; from dotenv import load_dotenv; from supabase import create_client
+load_dotenv('scraper/.env')
+sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+vals = set()
+for row in sb.table('events').select('organizer_type').limit(500).execute().data:
+    for v in (row.get('organizer_type') or []):
+        vals.add(v)
+print(sorted(vals))
+"
+```
+
+---
+
+## 2026-05-15 — Agent handoff `send: true` 雙向互觸造成無限迴圈
+
+**問題：** 每次跑完 V-M-D → Update History → V-M-D → Update History…永不停止，使用者無法中斷。
+
+**根因：** `validate-merge-deploy.agent.md`（V-M-D → Update History）與 `update-history-agent.agent.md`（Update History → V-M-D）兩個 handoff 都設了 `send: true`。V-M-D 完成 docs commit 後，自動觸發 Update History；Update History 完成後，又自動觸發 V-M-D；如此循環。
+
+**修正：** 移除 `update-history-agent.agent.md` 中「🚀 Validate, merge & deploy」handoff 的 `send: true`，改為手動點擊。V-M-D → Update History 保留 `send: true`（部署後自動記錄是合理的），但反向不可自動觸發。
+
+**教訓：** 若 A → B 設有 `send: true`，B → A 的 handoff 絕對不可再設 `send: true`，否則形成無限迴圈。每個「會產生 commit」的 agent 結尾都可能再觸發 Update History，而 Update History → V-M-D 的 `send: true` 只要存在就必然循環。
+
+---
+
+## 2026-05-15 — 發現 agent 和 SKILL.md 內的建構指令錯誤（`npm run build` 應為 `pnpm run build`）
+
+**問題：** V-M-D agent、engineer SKILL.md、engineer history.md 均寫 `npm run build`，但此專案使用 `pnpm`。
+
+**根因：** Agent 和文件建立時尚未明確將 pnpm 定為建構工具，後續修改未同步欄位。
+
+**修正：**
+- `validate-merge-deploy.agent.md` Step 3：`npm run build` → `pnpm run build`，加入 dev server pre-flight（kill port 3000 + rm -rf web/.next）
+- `engineer/SKILL.md` 「後台壞掉了」排查清單第 2、3 項：`npm run build` → `pnpm run build`
+- `engineer/history.md` zombie build 條目的程式片段：`npm run build` → `pnpm run build`
+
+**教訓：** 建構指令是專案級規格，**不可將 npm/pnpm/yarn 視為同義詞**。`package.json` 對處有 `packageManager: pnpm@...` 字段為權威来源。新增任何 agent 文件、SKILL.md、history.md 內容沿用建構指令前，先執行 `cat web/package.json | grep packageManager` 確認包管理器。
+
+## 2026-05-15 — zombie `next build` 程序封鎖 validate 流程
+
+**問題：** 執行 `npm run build` 時出現 `⨯ Another next build process is already running`，無法重試。
+
+**根因：** 一個早先在背景啟動的 `next build` 程序（pid 52644，4:41AM 啟動）從未結束，`next build` 的 lock 機制偵測到仍在跑就拒絕新啟動。
+
+**修正：**
+```bash
+# 1. 找到殘留 build 程序
+ps aux | grep "next build" | grep -v grep
+# 2. 強制終止
+kill -9 <pid>
+# 3. 等 2 秒後重試
+sleep 2 && pnpm run build
+```
+
+**教訓：** validate 流程在執行 `pnpm run build` 前，應先確認沒有殘留 build 程序。若 build 失敗並提示 `already running`，先 `ps aux | grep "next build"` 找 pid，`kill -9` 後再重試，不要刪 `.next/` 目錄（那是 cache，不是 lock）。
+
+## 2026-05-15 — CI web-darkmode-smoke 一直失敗（HTTP 500）
+
+**問題：** `web-darkmode-smoke` workflow 自建立以來每次都失敗。`pnpm dev` 啟動後健康檢查對 `/zh` 發出 GET 一直收到 500。
+
+**根因：** "Start Next.js app" 步驟沒有設任何 env vars。`NEXT_PUBLIC_SUPABASE_URL` 和 `NEXT_PUBLIC_SUPABASE_ANON_KEY` 在 CI 環境中為 `undefined`，`createServerClient(undefined, undefined, ...)` 在首頁渲染時拋出 → 500。此外，`pnpm dev` 不觸發 `prebuild` hook（prebuild 只在 `next build` 時執行），如果有路由 import 的檔案（如 `specs-snapshot.json`）不存在，也會 500。
+
+**修正：**
+1. 在 "Start Next.js app" 步驟加入 `env:` 區塊：`NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}` 和 `NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_KEY }}`
+2. 在 Start 前加入 "Generate specs snapshot" 步驟：`pnpm run build-specs-snapshot`
+3. 健康檢查超時時自動 dump `/tmp/web-darkmode-smoke-next.log` 輔助排查
+
+**教訓：**
+- CI 啟動 Next.js dev server 時**必須**注入所有 `NEXT_PUBLIC_*` env vars；否則 Supabase client 拿到 `undefined` URL 導致 500。
+- Repo secret 對應：`NEXT_PUBLIC_SUPABASE_URL = secrets.SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY = secrets.SUPABASE_KEY`。
+- `prebuild` 只在 `npm/pnpm run build` 時觸發，`pnpm dev` **不**觸發；CI 若有 build-time 生成的 JSON（如 `specs-snapshot.json`），需在啟動 dev server 前單獨執行 `pnpm run build-specs-snapshot`。
+- 診斷 health check 500 時，優先 dump Next.js dev log（`/tmp/web-darkmode-smoke-next.log`）確認根因，而非盲目猜測。
+
+## 2026-05-15 — CategoryThumbnail 呼叫端 props 介面不符（TS2322）
+
+**問題：** `npm run build` 失敗；`npx tsc --noEmit` 顯示 3 個 TS2322 錯誤，位於 `page.tsx`、`EventListClient.tsx`、`EventCardMockup.tsx`。錯誤訊息：`Type 'string[] | null | undefined' is not assignable to type 'string[] | undefined'`。
+
+**根因：** `CategoryThumbnail.tsx` 的介面已演進，但 3 個呼叫端仍用舊 API：使用不存在的 `seed` prop（應為 `id`）、不存在的 `size` prop（尺寸只能透過 `className` 控制）、並用 `as string[] | null | undefined` 型別轉換規避 null check。`next dev`（Turbopack）不做完整 TS 檢查，所以錯誤在開發期間無症狀。
+
+**修正：** 三個檔案全部改用正確 API：`id={event.id}`、移除 `size` prop、`categories={event.category ?? undefined}`（null-safe，非強制轉型）。
+
+**教訓：**
+- **CategoryThumbnail 現行介面（永遠以 `web/lib/design/CategoryThumbnail.tsx` 為準）：**
+  - `id: string` — 作為 PRNG seed（事件 ID）
+  - `categories?: string[]` — **不接受 null**，必須用 `?? undefined`
+  - `className?: string` — 唯一控制尺寸的方式（例：`"w-[108px] h-[108px]"`）
+  - `forceMotifIdx?: number` — 可選，覆蓋 motif 選取
+  - **無 `seed` prop、無 `size` prop**
+- `next build`（webpack）做完整 TS 檢查；`next dev`（Turbopack）不做。介面修改後，呼叫端可能在開發期間無症狀，直到 CI/Vercel build 才炸。
+- 修改 `CategoryThumbnail` 介面後必須同步搜尋所有呼叫端：`grep -r "CategoryThumbnail" web/`。
+
+---
+
+## 2026-05-15 — Sources 卡片樣式漂移 + 部署前 MM 漂移風險
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-05-15 | `/[locale]/sources` 在 light mode 卡片未統一 paper 底色，hover 也未對齊全站卡片規格；同輪部署驗證中發現同一檔案出現 `MM`（staged 與 working tree 不同版本） | Sources 列表沒有使用共用 `CARD_LINK` 樣式，仍保留頁面內自定義 class；部署前未檢查「同檔 staged/unstaged 漂移」導致驗證版本與實際提交版本可能不一致 | `web/app/[locale]/sources/page.tsx` 改用 `CARD_LINK` + `group-hover`（亮色固定 paper 底、hover 綠底綠字）；提交前對 `MM` 檔案先重新 `git add` 最新版本，再以 `git diff --cached` 確認最終提交內容 | 1) 清單型超連結卡片禁止重寫 hover/paper 風格，統一走 `web/lib/classNames.ts` 的 `CARD_LINK`。2) 任何部署流程在 commit 前必做 `MM` 檢查，避免「驗證的是 A、推上去的是 B」。
+
+## 2026-05-15 — `end_date` 被 re-annotation 覆寫為 None（FC 鎖缺失）
+
+**問題：** 事件 `b4d97c35`（GAGA 大阪上映会）在 2026-05-14 被再次 annotate，`end_date` 遭覆寫為 `None`。`start_date` 有 FC 鎖所以保留正確值，但 `end_date` 無 FC 鎖，被 annotator 的 `end_date = start_date` 自動補填邏輯或清空邏輯覆寫。
+
+**根因：** 手動修正 `start_date` 時只補了 `start_date` 的 FC 鎖，忘記同時鎖 `end_date`。Annotator 在 re-annotation 時若 `end_date` 非 null，會以 `start_date` 覆蓋（`not fix_reviewed` 路徑下）；若有條件清空，則設為 `None`。
+
+**修正：** 補回 `end_date = '2025-08-17T00:00:00+00:00'`，同時 upsert FC 鎖（`field_name='end_date'`）。
+
+**教訓：**
+- **手動修正日期欄位，start_date 和 end_date 必須同時 FC 鎖**。兩者是一組，缺一不可。
+- 單日活動：`end_date = start_date`，同樣需要鎖定，不可省略。
+- 判斷標準：活動標題含「x月y日」等具體日期→ end_date 設為同一天並 FC 鎖。
+
+---
+
+## 2026-05-14 - Admin 事件總數卡在 1000（Supabase 預設回傳上限）
+
+**問題：**
+Admin 首頁統計使用 `events.length`，資料來源是 `.from("events").select("*")`。
+該查詢未分頁時受 Supabase 預設單次回傳上限影響，超過 1000 筆後會被截斷，導致「事件總數」長期停在 1000。
+
+**修正：**
+1. `web/app/[locale]/admin/page.tsx` 改為 `.range()` 分頁迴圈抓完整 events（每批 1000）。
+2. 事件總數改為 `.select("id", { count: "exact", head: true })` 的 `totalEventsCount`，不再用 `events.length` 當總數。
+3. `AdminEventTable` 改傳分頁彙整後的完整 events，避免列表也被截斷。
+
+**教訓：**
+在 Supabase 計數場景，禁止用未分頁 `select()` 的陣列長度代表總筆數。總數必須使用 `count: "exact"`；要拿完整資料時必須顯式分頁。
+
+---
+
+## 2026-05-14 - Tester FAIL: signalAnimation 退場不完整（首頁/元件/CSS 殘留）
+
+**問題：**
+Tester 回報 `signalAnimation` 功能仍在三層殘留：首頁呼叫參數、`MascotAvatar` prop 與動畫圖層、`globals.css` 的 `lianbu-*`/`data-signal-animation` 規則。
+
+**修正：**
+1. `web/app/[locale]/page.tsx`：移除 `<MascotAvatar ... signalAnimation />` 啟用參數。
+2. `web/lib/design/MascotAvatar.tsx`：刪除 `signalAnimation` prop、inline variant 的動畫 defs/style/data-attribute，以及所有 `lianbu-*` 動畫圖層；保留 framed 變體不變。
+3. `web/app/globals.css`：刪除整段 `data-signal-animation` selector 與 `lianbu-*` keyframes（含 reduced-motion 分支）。
+
+**教訓：**
+停用 UI 特效必須做「三層同步退場」檢查：呼叫端、元件 API、全域樣式。只改其中一層會造成功能假下線，實際仍可被啟用或殘留死碼。
+
+---
+
+## 2026-05-14 - MascotAvatar SVG ID generation triggered React purity lint
+
+**問題：**
+首頁吉祥物動畫實作在 `MascotAvatar.tsx` 使用 `Math.random()` 產生 SVG gradient/mask ID。`pnpm -C web lint` 觸發 `react-hooks/purity`：render 期間呼叫 impure function。
+
+**修正：**
+改用 `useId()` 產生穩定 ID，並在同檔把 framed variant 既有的 random ID 一併改為 `useId()`。
+
+**教訓：**
+React 元件 render 期間不得使用 `Math.random()`、`Date.now()` 等 impure API 建立 ID。需要唯一但穩定的 DOM/SVG ID 時，優先使用 `useId()`。
+
+---
+
+## 2026-05-14 — Tailwind v4 `@theme` 靜態解析：`bg-paper` 無法 dark mode（commits `3470e28`, `a2b558c`）
+
+**問題：**
+`CARD_LINK` 使用 `bg-paper dark:bg-paper` 作為預設底色，期望 dark mode 下卡片顯示深色 paper（`#262422`）。實際上 dark mode 下卡片仍顯示白色 `#FFFDF5`。
+
+**根因：**
+Tailwind v4 的 `@theme` block **在 build time 靜態解析** CSS 變數：
+```css
+@theme { --color-paper: #FFFDF5; }  /* build time baked in */
+```
+因此 `bg-paper` 被編譯為固定的 `#FFFDF5`（靜態常數），而非 `var(--color-paper)`。`dark:bg-paper` 雖然生成 `.dark\:bg-paper { background-color: var(--color-paper) }` 能用 CSS 變數，但 plain `bg-paper` 已是靜態值，`html.dark { --color-paper: #262422 }` 對它完全無效。
+
+**修復：**
+`CARD_LINK` 改為 `bg-[#FFFDF5]`（移除 `dark:bg-paper`）。  
+`globals.css` line 378：
+```css
+html.dark .bg-\[\#FFFDF5\] { background-color: var(--color-paper); }
+```
+此 unlayered 選擇器在 runtime 將 `bg-[#FFFDF5]` 覆蓋為 `#262422`，正確實現 dark mode paper 底色。
+
+**教訓：**
+- Tailwind v4 `@theme` = build-time 靜態值，**不是** runtime CSS 變數代理。`bg-paper` 永遠是固定色，dark mode 切換對它無效。
+- **Paper 背景 dark mode 正確寫法：只用 `bg-[#FFFDF5]`**（不加 `dark:bg-paper`），依賴 globals.css line 378 的 `html.dark` 覆蓋。
+- 所有 `bg-paper` 的出現都應檢查是否需要 dark mode 支援；若需要，改為 `bg-[#FFFDF5]`。
+
+---
+
+## 2026-05-14 — Mermaid 架構圖自動縮放問題與修復（commits `e776fd5`, `75e4479`, `d321619`）
+
+**問題：**
+Architecture Explorer 中的 Mermaid 圖在顯示時文字過小、圖形被壓縮至不可讀。多次嘗試透過強制 inline width/min-width 修復均未達預期。
+
+**根因：**
+1. **`e776fd5`**：Mermaid 注入 `width:100%` 的 inline style 到 SVG，導致 wide diagrams 被壓縮。嘗試透過 viewBox 的 pixel width 強制覆蓋解決，但造成 overflow canvas 和 text overlap。
+2. **更根本問題**（`d321619`）：`ArchitectureFlowExplorer.tsx` 建構圖表時把全部 90 個 base nodes 都加入，即使只選一個 flow，Mermaid 仍嘗試在同一 canvas 渲染全部節點，造成圖形過大後被極度縮放。
+
+**修復：**
+- `75e4479`：revert Mermaid.tsx 到 pre-width-overrides baseline，消除多次 patch 的副作用。
+- `d321619`：`ArchitectureFlowExplorer.tsx` 改為只渲染所選 flow 的 steps 對應節點（with virtual fallback nodes），而非預加載全部 base nodes。stats panel 仍顯示總 node/action/flow 數。
+
+**教訓：**
+- Mermaid 圖太小/不可讀的**根本原因通常是資料量**，不是 CSS 設定。先確認圖中節點數量，再考慮 CSS 修復。
+- `width:100%` inline style 問題若不能從 data 層解決，應 revert 到已知正常狀態，不要疊加多層 CSS hack。
+- `git revert` 到 baseline 再從 data 層修才是正確策略（先 revert，再 fix root cause）。
+
+---
+
+## 2026-05-14 — Card-link hover 統一化：classNames.ts + group-hover 箭頭修復（commits `199e331`, `ed0d200`, `0efc5dd`）
+
+**問題：**
+全站卡片型連結 hover 樣式分散各處，沒有統一規格，且缺少 dark mode：
+- `events/[id]/page.tsx` 部分連結用 `hover:bg-green-50`（無 dark mode）
+- `announcements/[slug]/page.tsx` 用 `hover:bg-green-50 hover:text-green-700`（無 dark mode）
+- 箭頭 span（`↗`/`→`）有 `text-fg-subtle` class，**覆蓋父元素的 `hover:text-*`**，hover 時箭頭不跟著變色
+
+**根因：**
+1. Tailwind class 未集中管理，各頁面各自 copy-paste 且只處理 light mode
+2. CSS 的 class 優先度問題：子元素上的 `text-fg-subtle` 比繼承的 `hover:text-*` 優先度高，hover color 不生效
+3. Tailwind 的 hover utilities 基於「繼承」，但直接指定 text color class 會截斷繼承鏈
+
+**修復：**
+1. 新建 `web/lib/classNames.ts`，匯出兩個常數：
+   ```ts
+   export const CARD_LINK = "group flex items-center transition hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400";
+   export const CARD_LINK_ARROW = "text-fg-subtle group-hover:text-[#1F5E2B] dark:group-hover:text-green-400 shrink-0";
+   ```
+2. `events/[id]/page.tsx` 5 個卡片連結全部改用 `CARD_LINK`/`CARD_LINK_ARROW`；`announcements/[slug]/page.tsx` 亦同
+3. `CARD_LINK` 已包含 `group`（父元素不需再加）；`CARD_LINK_ARROW` 使用 `group-hover:` 方案繞過 CSS class 優先度問題
+
+**教訓：**
+- 重複使用的 Tailwind class 組合**必須**提取到 `web/lib/classNames.ts` 統一管理（hover pattern、常見按鈕樣式等）
+- 子元素有直接 text color class 時，不可用父元素 `hover:text-*` 控制 hover 色；須改用 `group` + `group-hover:` 方案
+- 所有 hover style 都需同時提供 dark mode（`dark:hover:bg-*` + `dark:hover:text-*`），否則暗色模式下 hover 時前景/背景色可能衝突
+
+---
+
+## 2026-05-14 — 「後台壞掉了」診斷：307 → /auth/login = 認證保護正常，非真正壞掉
+
+**問題：**
+用戶回報 `https://tokyotaiwanradar.com/ja/admin/specs/architecture` 壞掉（由 VMD "🔧 Fix issues found" handoff 觸發調查）。`curl -sI` 回傳 `HTTP/2 307 → location: /ja/auth/login`，看似頁面無法存取。
+
+**根因：**
+307 是 Next.js middleware 對未登入請求的正常 auth redirect，不代表頁面本身壞掉。深入調查確認：
+- `tsc --noEmit` 通過、`npm run build` 成功（architecture 頁面正常列出）
+- 近期 commit `171bea4`（punk Bauhaus OG image）確實引入 TS2873，但已在 `4d8b873` 修正，Vercel 部署已基於修正版本
+- Production `/zh` HTTP 200、OG image 正常回傳（248KB）
+- admin 頁面在登入狀態下可正常存取
+
+**教訓：**
+- 未認證的 `curl` 對 admin route 永遠得到 307 redirect，**不能作為「頁面是否壞掉」的判斷依據**。
+- 「後台壞掉了」的正確診斷順序（見 SKILL.md — Admin 頁面「壞掉了」診斷流程）：
+  1. `pnpm run build` 是否通過（TS error → Vercel build 失敗 → 舊版被保留）
+  2. 近期 commit 有無 TS error（`git log -5 -- web/`）
+  3. Production 非 admin 頁面是否 HTTP 200
+  4. 若全部正常 → admin 只是需要登入，非真正壞掉
+- OG image route (`opengraph-image.tsx`) 的 TS error 會導致**整個 Vercel build 失敗**，讓所有頁面看起來都「沒更新」，但 admin 特別顯眼因為 auth redirect 像錯誤。
+
+---
+
+## 2026-05-14 — OG Image `export const size` 只改單一維度導致空白下半部
+
+**問題：**
+`opengraph-image.tsx` 的 punk Bauhaus 重設計完成後，在一次局部還原中只把 `size.height` 從 `1200` 改回 `630`，但 SVG `viewBox`、所有幾何圖形座標與 ghost echo label 的絕對位置都是為 `1200×1200` 設計的，沒有同步更新。結果渲染出空白下半部（`630px` 以下全黑/空）。
+
+**修正：** `git restore web/app/[locale]/events/[id]/opengraph-image.tsx`，回到完整的 `1200×1200` 版本。
+
+**教訓：**
+- `export const size = { width, height }` 不是單純的數值宣告；它同時決定 Satori canvas 與所有 SVG 元素的座標系。
+- **任何對 `size` 的修改都必須在同一個 commit 裡更新全部相關座標**：SVG `viewBox`、`<rect>`/`<circle>` 的 `x`/`y`/`cx`/`cy`、ghost echo label 的 `top`/`right` 等。
+- 永遠不要只改 `size.height` 或 `size.width` 而不改 layout。
+
+---
+
+## 2026-05-14 — VMD "問題未重現"（"Fix issues found" 觸發後全部 pass）
+
+**問題：**
+User 點 VMD agent 的 "🔧 Fix issues found" handoff 按鈕，提示詞為「部署驗證發現問題，請修復後重新部署。」但執行完整驗證（`tsc --noEmit`、`npm run build`、token gate、`curl Vercel`）全部通過，找不到任何問題。
+
+**根因：** handoff 按鈕只是一個預設提示，不代表實際有問題存在。VMD 完成時可能就在正常狀態，使用者也可能誤觸按鈕。
+
+**教訓：**
+- 收到「請修復後重新部署」提示時，**先執行完整驗證**（`tsc`、build、token gate、Vercel curl），若全部 pass 就明確回報「問題未重現，目前狀態健康」，不要強行尋找不存在的問題。
+- VMD agent 的 Step 3 應同時包含 `get_errors`（tsc）**與** `pnpm run build`，兩者缺一不可：tsc pass ≠ build pass（route handler 錯誤、missing file 等可以通過 tsc 但 build 失敗）。
+
+---
+
+## 2026-05-14 — `void` 運算符誤用為標記式運算式中歾（TS2873， commit `4d8b873`）
+
+**問題：**
+`opengraph-image.tsx` 在 punk Bauhaus 重設計時，將原有 `getEventName()` 呼叫改為歾碼形式 `void event ? getEventName(event as Event, locale) : undefined`。TypeScript 報 TS2873：`void` 運算符會把任何表達式轉為 `undefined`，所以 `void event` 永遠是 falsy，三元運算式的標記部分才是問題所在。
+
+**修正：**
+1. 刪除歾碼行（該行對實際用途沒有貢獻）
+2. 移除不再使用的 import：`type Event`、`getEventName`
+
+**教訓：**
+- `void expr` 的語意是「評估 expr 然後丟棄結果」，返回內建的 `undefined`。刨3元運算符的**標記部分**前加 `void` 就變成 `undefined ? ... : ...`，永遠為 falsy。正確用法是 `const _ = expr` 或直接刪除。
+- 重設計移除功能時，必須同步清除相關 import。不用的 import 不僅增加 bundle 大小，還會導致 TypeScript 報無用變數/import 警告。
+
+---
+
+## 2026-05-14 — session memory 路徑不存在 (`/memories/session/plan.md` → 實際在 `grandchild-event-analysis.md`)
+
+**問題：**
+User 要求「執行 `/memories/session/plan.md` 的計畫」，但該路徑不存在。正確的計畫文件是 `/memories/session/grandchild-event-analysis.md`（孫子事件分析與修復方案）。因為 session memory 只列出文件名而非完整路徑，導致初始查找失敗。
+
+**修正：**
+呼叫 `memory view /memories/session/` 列出目錄，找到唯一文件 `grandchild-event-analysis.md`，確認這就是計畫文件，並依其內容執行修復。
+
+**教訓：**
+- Session memory 的文件名由建立者決定，不一定叫 `plan.md`。每次被要求「執行計畫」前，**必須先 view `/memories/session/` 目錄**，確認實際文件名，不要假設路徑。
+- 呼叫 session memory 前先 `view /memories/session/` 這個步驟應加入 Update History, Skill, Agent agent 的 Required Steps。
+
+---
+
 ## 2026-05-14 — Validate, Merge & Deploy agent も handoffs 未設定（commit `b96ac15`）
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
