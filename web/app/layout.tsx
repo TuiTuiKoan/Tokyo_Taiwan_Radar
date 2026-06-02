@@ -10,6 +10,11 @@ export const metadata: Metadata = {
     template: "%s | Tokyo Taiwan Radar",
     default: "Tokyo Taiwan Radar",
   },
+  icons: {
+    icon: "/lianbu-favicon.svg",
+    shortcut: "/lianbu-favicon.svg",
+    apple: "/lianbu-favicon.svg",
+  },
 };
 
 const websiteJsonLd = {

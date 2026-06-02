@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Lianbu favicon">
+  <defs>
+    <linearGradient id="fruit" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff8fa6"/>
+      <stop offset="1" stop-color="#e94867"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#69c07e"/>
+      <stop offset="1" stop-color="#2f8f55"/>
+    </linearGradient>
+  </defs>
+  <path d="M30 16c-8 0-15 6-15 14 0 13 8 24 17 24s17-11 17-24c0-8-7-14-19-14z" fill="url(#fruit)"/>
+  <path d="M18 28c2 2 5 4 9 4" fill="none" stroke="#ffc6d3" stroke-linecap="round" stroke-width="3"/>
+  <ellipse cx="44" cy="12" rx="11" ry="7" fill="url(#leaf)" transform="rotate(-22 44 12)"/>
+  <path d="M33 19c5-4 10-7 15-7" fill="none" stroke="#2c7b4b" stroke-linecap="round" stroke-width="3"/>
+</svg>
