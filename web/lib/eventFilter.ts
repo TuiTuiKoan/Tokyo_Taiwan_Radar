@@ -27,6 +27,9 @@ export function filterEvents(
   const today = new Date().toISOString().slice(0, 10);
 
   return events.filter((e) => {
+    // Exclude malformed events with absolutely no names
+    if (!e.name_ja && !e.name_zh && !e.name_en) return false;
+
     // keyword (name + organizer only — descriptions are not in the payload)
     if (q) {
       const hay = [e.name_ja, e.name_zh, e.name_en, e.organizer ?? null]

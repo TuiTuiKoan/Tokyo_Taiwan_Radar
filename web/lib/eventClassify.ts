@@ -4,12 +4,19 @@ import type { Event } from "@/lib/types";
 // pulled out of the main vertical list into the horizontal shelf.
 export const LONG_TERM_DAYS = 30;
 
-// `event_form` values that represent always-on / streaming style listings.
-// These are treated as "persistent" (常設配信) regardless of end_date.
-const PERSISTENT_FORMS = new Set(["broadcast"]);
-
 // Text markers (in name / location) that hint an online / streaming listing.
 const ONLINE_MARKERS = ["オンライン", "配信", "ストリーミング", "online", "streaming"];
+
+const ONE_OFF_FORMS = new Set([
+  "broadcast",
+  "lecture",
+  "screening",
+  "screening_with_talk",
+  "workshop",
+  "talk",
+  "concert",
+  "performing_arts",
+]);
 
 /**
  * Whole-day duration between two ISO date(time) strings, or null when either
@@ -42,11 +49,31 @@ export function isLongTerm(event: Event): boolean {
   return d != null && d > LONG_TERM_DAYS;
 }
 
-/** Always-on / streaming style listing: no end_date, streaming form, or online marker. */
+/** Always-on / streaming style listing: must be online, long duration or without end date, and not a one-off. */
 export function isPersistent(event: Event): boolean {
-  if (!event.end_date) return true;
-  if (event.event_form?.some((f) => PERSISTENT_FORMS.has(f))) return true;
-  return hasOnlineMarker(event);
+  // 1. Must have online/streaming indicator to be under "常設配信"
+  if (!hasOnlineMarker(event)) return false;
+
+  // 2. If it has both start and end dates, its duration must run longer than LONG_TERM_DAYS
+  if (event.start_date && event.end_date) {
+    const days = durationDays(event.start_date, event.end_date);
+    if (days !== null && days <= LONG_TERM_DAYS) return false;
+  }
+
+  // 3. If it has only start_date (no end_date) but has a one-off style event form, it is NOT persistent
+  if (event.start_date) {
+    if (event.event_form?.some((f) => ONE_OFF_FORMS.has(f))) {
+      return false;
+    }
+    // If it has a specific scheduled hour start (not T00:00:00) and starts in the future,
+    // it's a scheduled one-off webinar or broadcast, not a permanent archive.
+    const isScheduledTime =
+      !event.start_date.endsWith("T00:00:00Z") &&
+      !event.start_date.endsWith("T00:00:00+00:00");
+    if (isScheduledTime) return false;
+  }
+
+  return true;
 }
 
 /** Whether the event belongs in the horizontal "長期・常設" shelf. */
