@@ -112,29 +112,39 @@ export default function Navbar({ locale }: Props) {
   const logoutHref = `/auth/logout?next=/${locale}`;
 
   useEffect(() => {
-    // createClient() must live inside useEffect to avoid stale closure.
-    // A top-level call creates a new instance on every render, causing
-    // the old onAuthStateChange subscription to be torn down immediately.
     const supabase = createClient();
     let alive = true;
 
-    async function loadMe() {
+    async function syncAuthState() {
       try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!alive) return;
+        setUser(sessionData.session?.user ? { id: sessionData.session.user.id, email: sessionData.session.user.email } : null);
+
+        if (!sessionData.session?.user) {
+          setIsAdmin(false);
+          return;
+        }
+
         const res = await fetch("/api/me", { cache: "no-store" });
         const data = await res.json();
         if (!alive) return;
         setIsAdmin(Boolean(data?.isAdmin));
-        setUser(data?.user ?? null);
       } catch {
         if (!alive) return;
         setIsAdmin(false);
-        setUser(null);
       }
     }
 
-    void loadMe();
-    const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      void loadMe();
+    void syncAuthState();
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!alive) return;
+      setUser(session?.user ? { id: session.user.id, email: session.user.email } : null);
+      if (!session?.user) {
+        setIsAdmin(false);
+        return;
+      }
+      void syncAuthState();
     });
 
     return () => {
