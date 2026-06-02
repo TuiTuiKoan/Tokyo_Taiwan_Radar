@@ -179,7 +179,7 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
   const [filterTimeMode, setFilterTimeMode] = useState<"active" | "all" | "past">("all");
   const [filterDateFrom, setFilterDateFrom] = useState("2024-01-01");
   const [filterDateTo, setFilterDateTo] = useState("");
-  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "kanto" | "tohoku" | "chubu" | "chugoku" | "online" | "tv" | "overseas">("")
+  const [filterLocation, setFilterLocation] = useState<"" | "tokyo" | "kanto" | "tohoku" | "chubu" | "chugoku" | "taiwan" | "online" | "tv" | "overseas">("")
   const [filterCity, setFilterCity] = useState("");
   const [filterAnnotation, setFilterAnnotation] = useState<"" | "pending" | "annotated" | "reviewed" | "error">("");;  const [filterSource, setFilterSource] = useState("");
   const [filterOrgType, setFilterOrgType] = useState("");
@@ -346,11 +346,18 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
         if (!hasPrefecture(CHUBU_KINKI_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false;
       } else if (filterLocation === "chugoku") {
         if (!hasPrefecture(CHUGOKU_KYUSHU_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false;
+      } else if (filterLocation === "taiwan") {
+        const TAIWAN_MARKERS_ADMIN = REGION_PREFECTURES.taiwan;
+        if (!hasPrefecture(TAIWAN_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false;
       } else if (filterLocation === "online") {
-        if (!(e.location_name || "").includes("オンライン")) return false;
+        if (!(e.location_name || "").includes("オンライン") && !(e.location_address || "").includes("線上")) return false;
       } else if (filterLocation === "overseas") {
-        const TAIWAN_MARKERS_ADMIN = ["台北", "台中", "高雄", "台南", "新竹", "嘉義", "花蓮", "台東", "基隆", "宜蘭", "桃園", "屏東", "南投", "彰化", "雲林", "澎湖"];
-        if (!TAIWAN_MARKERS_ADMIN.some((m) => (e.location_address || "").includes(m))) return false;
+        // Now only non-Taiwan overseas
+        const TAIWAN_MARKERS_ADMIN = REGION_PREFECTURES.taiwan;
+        if (hasPrefecture(TAIWAN_MARKERS_ADMIN, e.location_address, (e as any).location_prefectures)) return false;
+        // Basic check for other overseas - usually has no Japanese prefecture
+        const ALL_JP_MARKERS = [...TOKYO_MARKERS_ADMIN, ...KANTO_MARKERS_ADMIN, ...TOHOKU_MARKERS_ADMIN, ...CHUBU_KINKI_MARKERS_ADMIN, ...CHUGOKU_KYUSHU_MARKERS_ADMIN];
+        if (hasPrefecture(ALL_JP_MARKERS, e.location_address, (e as any).location_prefectures)) return false;
       }
       // City sub-filter
       if (filterCity && (REGIONS_WITH_CITY as readonly string[]).includes(filterLocation)) {
@@ -1329,6 +1336,7 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
                 { value: "tohoku", label: tFilters("locationTohoku") },
                 { value: "chubu", label: tFilters("locationChubu") },
                 { value: "chugoku", label: tFilters("locationChugoku") },
+                { value: "taiwan", label: tFilters("locationTaiwan") },
                 { value: "online", label: tFilters("locationOnline") },
                 { value: "overseas", label: tFilters("locationOverseas") },
               ]}

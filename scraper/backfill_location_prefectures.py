@@ -83,12 +83,12 @@ def extract_prefecture(address: str | None) -> str | None:
     """Extract prefecture name from a Japanese or Taiwanese address string."""
     if not address:
         return None
-    # Support Taiwan cities: 台北市, 台北縣, 基隆市, etc. (including 臺 variants)
-    tw_re = re.compile(r"([臺台]北|新北|桃園|[臺台]中|[臺台]南|高雄|基隆|新竹|苗栗|彰化|南投|雲林|嘉義|屏東|宜蘭|花蓮|[臺台]東|澎湖|金門|連江)(市|縣|県)")
+    # Support Taiwan cities: 台北市, 台北縣, 基隆市, etc. (including 臺 variants and suffix-less "台北")
+    tw_re = re.compile(r"([臺台]北|新北|桃園|[臺台]中|[臺台]南|高雄|基隆|新竹|苗栗|彰化|南投|雲林|嘉義|屏東|宜蘭|花蓮|[臺台]東|澎湖|金門|連江)(市|縣|県)?")
     m_tw = tw_re.search(address)
     if m_tw:
-        # Return full name with suffix e.g. "台北市"
-        return m_tw.group(1) + m_tw.group(2)
+        # Return short name e.g. "台北"
+        return m_tw.group(1).replace("臺", "台")
 
     address = _PREFIX_RE.sub("", address).lstrip()
     # Japan prefecture names (anchored to start after prefix removal).
@@ -276,9 +276,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     # Smoke-test the extractor: Taiwan addresses must now match.
-    assert extract_prefecture("桃園市中壢區") == "桃園市"
-    assert extract_prefecture("台北市信義區") == "台北市"
-    assert extract_prefecture("新北市板橋區") == "新北市"
+    assert extract_prefecture("桃園市中壢區") == "桃園"
+    assert extract_prefecture("台北市信義區") == "台北"
+    assert extract_prefecture("新北市板橋區") == "新北"
+    assert extract_prefecture("台北") == "台北"
     assert extract_prefecture("福岡市博多区博多駅前1-1-1") == "福岡県"
     assert extract_prefecture("横浜市西区") == "神奈川県"
     assert extract_prefecture("東京都渋谷区") == "東京都"

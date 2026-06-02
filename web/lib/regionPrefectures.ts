@@ -11,10 +11,14 @@
 export const CITY_OTHER = "_other" as const;
 
 /** Regions that expose a prefecture sub-select. */
-export const REGIONS_WITH_CITY = ["kanto", "tohoku", "chubu", "chugoku"] as const;
+export const REGIONS_WITH_CITY = ["kanto", "tohoku", "chubu", "chugoku", "taiwan"] as const;
 export type RegionWithCity = (typeof REGIONS_WITH_CITY)[number];
 
 export const REGION_PREFECTURES: Record<RegionWithCity, string[]> = {
+  taiwan: [
+    "台北", "新北", "桃園", "台中", "台南", "高雄", "基隆", "新竹", "苗栗",
+    "彰化", "南投", "雲林", "嘉義", "屏東", "宜蘭", "花蓮", "台東", "澎湖", "金門", "連江",
+  ],
   kanto: [
     "神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬", "山梨",
   ],

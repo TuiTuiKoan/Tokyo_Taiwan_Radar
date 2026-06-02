@@ -162,8 +162,8 @@ export default function Navbar({ locale }: Props) {
       }
     }
 
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("pointerdown", handleClick);
+    return () => document.removeEventListener("pointerdown", handleClick);
   }, []);
 
   return (
@@ -238,7 +238,12 @@ export default function Navbar({ locale }: Props) {
           </Suspense>
 
           {/* Account menu */}
-          <div className="relative" ref={accountRef}>
+          <div
+            className="relative"
+            ref={accountRef}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               type="button"
               onClick={() => setAccountOpen((o) => !o)}

@@ -37,11 +37,12 @@
     "locationTohoku": "Tohoku / Hokkaido",
     "locationChubu": "Chubu / Kinki",
     "locationChugoku": "Chugoku / Kyushu / Shikoku",
+    "locationTaiwan": "Taiwan",
     "cityAll": "All prefectures",
     "cityOther": "Other",
     "cityLabel": "Prefecture",
     "selectedLabel": "Selected: ",
-    "locationOverseas": "Overseas (Taiwan Cities)"
+    "locationOverseas": "Other Overseas"
   },
   "categories": {
     "movie": "Film",

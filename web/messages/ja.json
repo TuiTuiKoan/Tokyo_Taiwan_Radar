@@ -37,11 +37,12 @@
     "locationTohoku": "東北・北海道",
     "locationChubu": "中部・近畿",
     "locationChugoku": "中国・九州・四国",
+    "locationTaiwan": "台湾",
     "cityAll": "すべての都道府県",
     "cityOther": "その他",
     "cityLabel": "都道府県",
     "selectedLabel": "選択中：",
-    "locationOverseas": "海外（台湾各都市）"
+    "locationOverseas": "その他海外"
   },
   "categories": {
     "movie": "映画",
