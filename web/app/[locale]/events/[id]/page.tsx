@@ -311,6 +311,9 @@ export default async function EventDetailPage({ params }: PageProps) {
     s.replace(/^〒\d{3}-\d{4}\s*/, "").trim();
   const venueSegments = splitVenues(locationName);
   const addressSegments = splitVenues(locationAddress).map(stripPostal).filter(Boolean);
+  const isTvProgramEvent =
+    event.source_name === "gguide_tv" ||
+    (event.category ?? []).includes("tv_program");
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
 
@@ -888,7 +891,9 @@ export default async function EventDetailPage({ params }: PageProps) {
             <tr>
               <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("paid")}</td>
               <td className="px-4 py-3">
-                {event.is_paid === false ? (
+                {isTvProgramEvent ? (
+                  <span className="text-fg-muted">{t("tvProgramTermsNotice")}</span>
+                ) : event.is_paid === false ? (
                   <span className="text-[#1F5E2B] font-medium">{t("free")}</span>
                 ) : event.is_paid === true ? (
                   <span>
