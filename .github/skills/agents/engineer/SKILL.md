@@ -44,11 +44,53 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - When combining an attribute selector with a class on the **same element** (e.g., `data-preserve-theme` and `group` on the same `<Link>`), never insert a space between them.
 - For theme-exception rules like `[data-preserve-theme='light'].group:hover h2`, verify: (1) the attribute and the class are on the same DOM element, (2) combined specificity beats any competing rule, (3) use `getComputedStyle` via Playwright to confirm hover color changes.
 
+## E2E Local Server Prerequisite
+
+- When running Playwright smoke tests that navigate to local paths (for example `/ja/announcements`), start a local Next server first (`npm run dev` or configured `webServer`) and verify port 3000 is reachable.
+- Treat `net::ERR_CONNECTION_REFUSED` as an execution-environment failure first, not an application regression.
+- After the test run, stop any background dev server to avoid orphaned processes and cross-session interference.
+
+## Admin GPT routes — server-side enum whitelist intersect（2026-05-26 教訓）
+
+Admin OCR/annotate API routes（`web/app/api/admin/extract-from-image/route.ts`、`web/app/api/admin/annotate-event/route.ts`）由 GPT 直接輸出 enum 欄位（`category[]`、`event_form`、`prefecture_code`），**寫入 DB 前必須做白名單過濾**。三道天然防線對此無效：
+
+| 防線 | 為何失效 |
+|---|---|
+| TypeScript | 只檢查靜態型別，不檢查 runtime LLM 輸出 |
+| DB CHECK constraint | `text[]` 陣列**元素**無法 CHECK，只能 CHECK 整個陣列存在性 |
+| `scraper/annotator.py::_validate_categories()` | 只有 daily scraper 路徑會跑，admin route 完全繞過 |
+
+**規則：** 兩個 admin route 在 GPT 回傳後、`upsert` 前必須：
+
+```ts
+const VALID_CATEGORIES = new Set([
+  /* 與 web/lib/types.ts CATEGORIES 同步 */
+]);
+const sanitized = (parsed.category ?? []).filter((c: string) => VALID_CATEGORIES.has(c));
+```
+
+`VALID_CATEGORIES` 集合可從 `web/lib/types.ts` 匯入 `CATEGORIES` 陣列轉成 Set，避免雙重維護。同理適用 `event_form`、`prefecture_code` 等所有 enum 欄位。
+
+**Reference incident:** 2026-05-26 — event `25e27de9` GPT 自創 `photography` 入庫，前端顯示 `categories.photography` raw i18n key（commit `264afed` 解了眼前事件，未實作 whitelist filter，列 backlog）。
+
 ## Database
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`
 - When adding a DB column, wire up the code that populates it in the same commit. Empty columns = silent data gaps.
 - Wrap non-critical DB inserts (logging, analytics) in `try/except`. Never let a failed log write break the main pipeline.
 - **`supabase/migrations/` must contain only `NNN_name.sql` files.** Never place `.md` files, smoke-test scripts, validation reports, or any non-migration artifacts in this directory. Supabase CLI and tooling will attempt to run every `.sql` file in this directory as a migration — a misplaced file will cause schema errors or no-op runs. If a migration agent produces a smoke-test or verification file alongside the SQL, place it anywhere outside `supabase/` (e.g. a temp directory or delete it). Example incident: `027_smoke_test.sql`, `027_VALIDATION.md`, `027_VERIFICATION_REPORT.md` were accidentally created in `migrations/` by a previous agent and had to be manually deleted (commit `chore(migrations): remove non-migration 027 artifacts`).
+- **PostgREST COUNT は必ず `{ count: 'exact', head: true }` を使う。** `.limit(n)` + client-side filter でカウントを計算すると PostgREST の `max-rows=1000` silent truncation により 1,000 件超で常に過小表示になる。カウントのみ必要な場合は行データを取得しない head-count クエリを使う：
+  ```ts
+  // ❌ client-side count — PostgREST silently truncates at 1000
+  const { data } = await supabase.from("events").select("id").eq("is_active", true);
+  const count = data?.length ?? 0;
+
+  // ✅ head-count — 正確な COUNT、行データ不要
+  const { count } = await supabase
+    .from("events")
+    .select("id", { count: "exact", head: true })
+    .eq("is_active", true);
+  ```
+  複数の COUNT クエリは `Promise.all([...])` で並列実行すること（直列 await は不要）。Reference incident: AEO summary cards capped at 1,000 (commit `518b5a8`, 2026-05-15).
 - When a logging table gains new `NOT NULL` columns (e.g. `success`, `duration_seconds`), **both** the success path and the `except` block must write those columns explicitly. Pattern from `scraper_runs`:
   ```python
   # success path
@@ -63,6 +105,117 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
   - **Tier C** (service-role only): `GRANT SELECT, INSERT, UPDATE, DELETE ON ... TO service_role;`
   Always `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` before adding GRANTs.
 - **GRANT scope を決める前に「誰が書くか」を Python コードから逆引きする。** RLS ポリシーのみ参照すると書き込み GRANT が漏れる。典型的な漏れパターン：`scraper_runs`・`research_reports` は scraper/annotator が service_role で INSERT するため `service_role INSERT` が必要。`creators` は admin UI から `authenticated` が CRUD するため `authenticated CRUD` が必要。
+- **Admin が UPDATE/DELETE するテーブルには SELECT だけでなく全 DML の RLS policy を migration 時に一括作成する。** `CREATE TABLE` 時に SELECT policy のみ追加し UPDATE policy を漏らすと、admin UI からの更新が PostgREST により 0-row silent success として返り、JS 側では `error: null` なので原因特定が困難になる。チェックリスト（admin 操作テーブル）：`SELECT` / `INSERT` / `UPDATE` / `DELETE` の 4 種 policy を全て作成したか確認すること。参照インシデント：`research_reports` が UPDATE policy なしのため「標記為已審閱」ボタンが無反応（migration `070`、2026-05-15）。
+
+## Supabase Client UPDATE — 0-row Silent Success Guard
+
+任何 **client-side** `supabase.from(T).update(...).eq("id", x)` 在以下三種情況都會回傳 `error: null` + 空 `data`，supabase-js **不會丟錯**：
+
+1. RLS policy 過濾掉（角色不對、anon 落地）
+2. JWT expired，supabase-js 來不及自動 refresh
+3. `id` 在 DB 不存在
+
+三者透過 `error` 無法區分。Vercel 滾動部署期間 access token 短暫失效正是情境 (2)，曾於 2026-05-15 在 production 同時打掉 toggle / work 指派 / AI 報錯 checkbox 三個入口。
+
+**規則：** 後台所有 client-side UPDATE 必須加 `.select("id")` 並檢查回傳列數，0 列視為失敗：
+
+```ts
+const { error, data } = await supabase
+  .from("events")
+  .update(update)
+  .eq("id", eventId)
+  .select("id");
+
+if (error) {
+  alert(`操作失敗：${error.message}`);
+} else if (!data || data.length === 0) {
+  alert("操作未生效（session 可能已過期），請重新整理頁面後再試。");
+} else {
+  // success path
+}
+```
+
+**已知需套用的呼叫點（截至 2026-05-15）：**
+- `web/components/IsActiveToggle.tsx` `handleToggle`
+- `web/components/AdminEditClient.tsx` `handleSave`
+- `web/components/AdminEventTable.tsx` `handleToggleActive` / `handleBulkToggleActive` / `handleBulkForceRescrape` / category bulk update / `handleSaveWork`
+- `web/components/AdminCreatorsClient.tsx` `toggleActive`
+- `web/components/AdminReportsTable.tsx` 所有 bulk-confirm 路徑
+
+替代設計：高風險寫入改走 server action / route handler 用 service role key，繞過 client JWT 過期問題。
+
+## RLS Policy Matrix Completeness Guard（建表時 SELECT/INSERT/UPDATE/DELETE 缺一即 silent failure）
+
+任何含 admin 後台 UPDATE/DELETE 入口的表，建表 migration 必須**同時建立**對應的 RLS policy。缺失任一動詞的 policy，PostgREST 會靜默拒絕（0 rows affected，`error: null`），符合「0-row Silent Success」模式——前端看不出來，DB log 也只是普通 RLS deny。
+
+**規則：** 設計新表 migration 時，逐一檢查 admin UI 是否會對該表執行：
+
+| 動詞 | 觸發場景 | 必要 policy |
+|------|---------|-------------|
+| SELECT | 列表頁、詳情頁 | `FOR SELECT` |
+| INSERT | 新增按鈕、表單送出 | `FOR INSERT` |
+| UPDATE | 「標記為…」按鈕、toggle、編輯 | `FOR UPDATE` |
+| DELETE | 「刪除」按鈕 | `FOR DELETE` |
+
+任一動詞會被 admin UI 觸發但 policy 不存在 → 後續一定要回頭補一支 migration（如 `070_research_reports_update_policy.sql`）。
+
+**已知 incident：** Migration `008_research_reports.sql` 只建 SELECT policy，admin「標記為已審閱」按鈕 silent failure（2026-05-15 補 migration `070`）。
+
+**偵測 SQL（在 Supabase Dashboard 跑）：**
+```sql
+SELECT tablename, cmd, count(*)
+FROM pg_policies
+WHERE schemaname = 'public'
+GROUP BY tablename, cmd
+ORDER BY tablename, cmd;
+-- 任何 admin UI 操作的表，cmd 必須涵蓋 SELECT + UPDATE 至少。
+```
+
+## Admin Mutation 成對原則（confirm / dismiss / toggle）
+
+**admin mutation handler は必ずペアで同じ実装パターンを使う。**
+
+`confirmReport` が server action ならば `dismissReport` も server action でなければならない。片方だけ昇格させると、残った方が 0-row silent success トラップに落ちる（2026-05-15 `handleDismiss` 事例）。
+
+**チェックリスト（新規 admin mutation を追加する前に確認）：**
+1. 同じテーブル・同じ権限を必要とする配対 handler が他にないか？
+2. 配対 handler が client-side UPDATE のままなら、同時に server action へ昇格させる。
+3. server action は `.select("id")` + `data.length === 0` guard + `return { ok: false, error }` パターンを必ず含める。
+4. client-side handler は `result.ok` を確認し、false の場合 `alert(result.error)` で即時フィードバックを表示する。
+
+```ts
+// web/app/actions/dismiss-report.ts — server action テンプレート
+"use server";
+import { createClient } from "@/lib/supabase/server";
+export async function dismissReport(reportId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { error, data } = await supabase
+    .from("event_reports")
+    .update({ status: "dismissed" })
+    .eq("id", reportId)
+    .select("id");
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) return { ok: false, error: "0 rows updated" };
+  return { ok: true };
+}
+```
+
+## URL 存在確認 — apex と www の両方を試す
+
+会場・組織の公式サイト有無を `curl` で確認する際は **apex ドメインと `www.` サブドメインの両方**を必ず試すこと。
+
+```bash
+# ❌ apex のみ確認 — 日本サイトは www なしを DNS に登録しないことが多い
+curl -s --max-time 5 -o /dev/null -w "%{http_code}" "https://example.jp/"   # → 000 (DNS 失敗)
+
+# ✅ 両方確認
+curl -s --max-time 5 -o /dev/null -w "%{http_code}" "https://example.jp/"     # 000
+curl -s --max-time 5 -o /dev/null -w "%{http_code}" "https://www.example.jp/" # 200 ← 正解
+```
+
+- `000` = curl が DNS 解決に失敗した = 「その変形が存在しない」であり「サイト全体が存在しない」ではない
+- `2xx` が返るまで apex / www / 短縮ドメインを試し、すべて失敗した場合のみ「公式サイトなし」と判断する
+- 参照インシデント: `coconeri.jp` → `000`、`www.coconeri.jp` → `200`（2026-05-17、event `eeb5b12e`）
 
 ## annotation_status エラーイベントの定期リセット
 
@@ -86,6 +239,103 @@ sb.table('events').update({'annotation_status': 'pending'}).in_('id', ids).execu
 - `daily_report.py` は `.limit(5)` でエラー件数を表示するため、実際の件数と一致しない。COUNT で別途確認すること。
 - 薄い `raw_description`（1行のみ）の sub-event も、親イベントのコンテキストを参照することで正常アノテーション可能。
 - error 件数が多い場合は `annotator.py` の GPT JSON パースロジックに問題がある可能性もある（レスポンス形式の変化等）。
+
+## Async Fetch AbortSignal Timeout Guard（UI 永久 loading 防護）
+
+後台任何「觸發外部 API + 等待結果 + 更新 UI 狀態」的 client-side fetch **必須**加 `signal: AbortSignal.timeout(N)` 防護：
+
+**問題場景：** `fetch("/api/admin/annotate-event", ...)` 無 AbortSignal → Vercel function 被 gateway 截斷時（504 但無正常 HTTP 回應），`await fetch()` 永遠 pending → `setAnnotating(false)` 不執行 → UI 卡在「標注中，請稍候…」。
+
+**規則：**
+```ts
+// client-side：呼叫可能耗時 >5s 的 API 一律加 AbortSignal
+const res = await fetch("/api/admin/annotate-event", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ eventId }),
+  signal: AbortSignal.timeout(58000), // 58s hard cap
+});
+
+// API route 端：外部 AI API（OpenAI 等）也必須加 timeout
+const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+  ...
+  signal: AbortSignal.timeout(25000), // 防止超過 Vercel maxDuration
+});
+```
+
+**已修復（commit `77fc092`，2026-05-15）：**
+- `AdminEventTable.tsx` `handleSaveAndAnnotate` 的 annotate-event fetch
+- `annotate-event/route.ts` OpenAI call
+- `AdminEventTable.tsx` `handlePublish` 補 `.select("id")` + 0-row guard
+
+## Client Component 直接 INSERT 禁止 — Server Action 義務化
+
+**Client Component 内で `supabase.from(...).insert()` を直接呼び出してはならない（admin・一般ユーザー問わず）。**
+
+ブラウザ→PostgREST のリクエストがネットワークレベルでハングすると、`await` は永遠に pending → `try/catch` は発動しない（thrown error ではなく hanging fetch のため） → `setStatus("error")` が呼ばれない → ボタンが loading 状態で固まる（2026-05-15 `ReportSection` commit `53445be`、2026-05-20 `AdminEventTable` Safari hang）。
+
+**規則：**
+- ユーザー向けフォームの INSERT（anon・authenticated 問わず）は必ず Server Action で行う。
+- RLS で `anon INSERT` を許可していても、ブラウザ直接 INSERT はハング耐性がない。
+- **Safari は特に hang しやすい**。Chrome で動いても Safari で再現する。
+
+**暫定防護（Server Action 化が間に合わないとき）：** `withClientTimeout(promise, ms, label)` helper で `supabase.from(...).insert/.update()` を包む。Promise.race + setTimeout で hard cap reject → catch 分岐が必ず発動 → `setSaving(false)` 復帰。
+- insert：20 秒
+- update（軽い）：15 秒
+- bulk handlers + works fetch 等、Server Action 化が未完了の path 用の保底メカニズム。
+
+**完了済み Server Action 化（2026-05-22 commit）：** `web/components/AdminEventTable.tsx` の `handleSaveNew` / `handleSaveAndAnnotate` / `handlePublish` は `@/app/actions/admin-events.ts` の `createEventNoAnnotate` / `createDraftEvent` / `publishEvent` を呼び出す。共通 admin 認証は `@/app/actions/_shared/admin-guard.ts` (`requireAdmin()`)。`withClientTimeout` ラップは defense-in-depth として保持。
+
+**残存技術債（同 file 内 7+ 處）：** `AdminEventTable.tsx` の bulk handlers（`handleBulkToggleActive` / `handleBulkForceRescrape` / `handleBulkRemoveCategory` / `handleBulkAssignWork` / `handleBulkAddCategory`）と単列 toggle（`force_rescrape` / `is_active`）はまだ client-side `supabase.from("events").update()` を使用。Safari hang が再発したら同 pattern で Server Action 化する。
+
+```ts
+function withClientTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    Promise.resolve(p).then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+```
+
+## annotate-event SELECT 紀律（ユーザー入力欄を守る）
+
+`web/app/api/admin/annotate-event/route.ts` は **「OCR 已填值は保持、空欄のみ GPT 補完」** パターン：
+```ts
+const cur = (event as Record<string, unknown>)[k];
+if (cur === null || cur === undefined || cur === "") {
+  returnedFields[k] = v;  // GPT 値で上書き
+}
+```
+
+**これは SELECT 句で fetch したフィールドにしか効かない**。SELECT 漏れ ＝ `undefined` ＝ 空判定 ＝ サイレント上書き。
+
+**規則：**
+1. `extractionFields` 配列に列挙したフィールドは **すべて L258 の SELECT 句に含める**。
+2. 新規「保持したい」フィールドを追加するときは 3 箇所同時編集：
+   - L258 SELECT 句
+   - `extractionFields` 配列（L437 付近）
+   - 必要なら `alwaysOverwriteFields`（description 系のみ）
+3. PR レビュー時：`extractionFields` の各 key が SELECT 句にあるか目視確認。
+
+**Reference incident:** 2026-05-20 — `end_date` が `extractionFields` にあるのに SELECT に無く、ユーザーが画面で選択した `end_date` が毎回 GPT 幻覚（例：`2023-10-14`）で上書きされていた（commit `e0a5ea8`）。
+- Server Action はネットワークハング時も Next.js が適切なエラーレスポンスを返すため `catch` ブロックが確実に発動する。
+
+```ts
+// ❌ Client Component での直接 INSERT — ハング時に永久 loading
+const supabase = createClient(); // browser client
+const { error } = await supabase.from("event_reports").insert({ ... }); // may hang silently
+
+// ✅ Server Action 経由 INSERT — ハング耐性あり
+const result = await submitReport({ eventId, reportTypes, locale, suggestedCategory });
+if (!result.ok) { setStatus("error"); return; }
+```
+
+**参照：** `web/app/actions/submit-report.ts`（user-facing）、`web/app/actions/dismiss-report.ts`（admin）
+
+---
 
 ## Supabase Realtime
 
@@ -184,13 +434,20 @@ router.push('/admin');
 | 同一 tab 內的即時 row 更新（新報告、狀態變更） | Supabase Realtime 訂閱（`INSERT` + `UPDATE`）|
 | 跨頁面導航後列表顯示最新資料 | `router.refresh()` before `router.push()` |
 
-**規則：** 任何 Admin 頁面的 save / confirm / dismiss handler，只要後面接 `router.push()`，一律在其前加 `router.refresh()`。這是 Next.js App Router 的必要模式，不是 optional 優化。
+**規則：** 任何 Admin 頁面的 save / confirm handler，只要後面接 `router.push()`，一律在其前加 `router.refresh()`。這是 Next.js App Router 的必要模式，不是 optional 優化。
+
+**⚠️ 逆に stay-on-page handler（`router.push()` を伴わない dismiss / toggle など）では `router.refresh()` を呼ばない。** `router.refresh()` が RSC 再レンダリングをトリガーし、Realtime `UPDATE` イベントと同時着火することで state/render race → 画面破損が起きる（2026-05-15 `handleDismiss` commit `390826a`）。ローカル state（`setReports()`）と Realtime 購読で十分。
+
+| ハンドラータイプ | `router.refresh()` | 理由 |
+|---|---|---|
+| confirm（event fields 変更 → `router.push()` あり） | ✅ 必要 | SSR キャッシュ無効化が必要 |
+| dismiss（report status のみ変更、stay-on-page） | ❌ 不要・禁止 | Realtime と RSC re-render が競合し画面破損 |
 
 ## Python
 - When changing a function's return type (e.g. `dict` → `tuple`), immediately smoke-test before committing: `python -c "from module import fn; print(type(fn(...)))"`
 - Use `getattr(obj, 'attr', default)` when reading an attribute that may not exist on all subclasses.
 - **Pipeline parity rule:** Any post-processing step added to CI workflow (`scraper.yml`) must also be called in `main.py`'s normal (non-dry-run) flow. Otherwise manual scraper runs produce incomplete results. Current full pipeline in `main.py`: scrape → merger → annotate → `enrich_movie_titles()` → `enrich_person_names()` → IndexNow. Enrich functions are idempotent — double execution (main.py + CI) is safe (just extra DB queries). When adding a new enrichment function: (1) add to `main.py` after `annotate_pending_events()`; (2) add CLI flag + step to `scraper.yml`.
-- **Inline Python safety rule:** Never use `python3 -c "..."` or heredoc `python3 << 'PY' ... PY` for scripts that contain f-strings with `{` / `}`. Shell history pollution can inject malicious fragments into f-string braces, causing SyntaxError or silent code execution. **Rule:** If inline Python fails with SyntaxError pointing at a brace `{`, immediately switch to `create_file /tmp/<name>.py` + `python3 /tmp/<name>.py`. File-based execution is fully isolated from the shell.
+- **Inline Python safety rule — Prompt Injection:** Never use `python3 -c "..."` or heredoc `python3 << 'PY' ... PY` for scripts that **interpolate DB values** (e.g. f-strings over `field_corrections.corrected_value`, event fields, or any user-supplied text). Two attack vectors: (1) shell history pollution injects code into f-string braces; (2) **DB data itself can contain injected shell commands** — rows in `field_corrections` or other tables may embed `rm -f ...` or similar, which then appear inside `{...}` braces and corrupt the inline script. **Rule:** Always use `create_file /tmp/<name>.py` + `python3 /tmp/<name>.py` for any script that queries the DB and formats results with f-strings. File-based execution is fully isolated from the shell. If SyntaxError points at a `{` in `-c` mode, treat it as a **prompt injection alert** and switch to file mode immediately.
 - **`requests.Session()` must always mount HTTPAdapter with Retry**: Any scraper using `requests.Session()` must mount a retry adapter in `__init__`. Without it, a single transient network blip from GitHub Actions runners raises `Max retries exceeded` and triggers Sentry. Required pattern:
   ```python
   from requests.adapters import HTTPAdapter
@@ -210,6 +467,47 @@ router.push('/admin');
 ## Next.js / Sentry
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
+
+## API Route JSON Safety Guard（Safari SyntaxError 防護）
+
+**所有 API route POST handler 必須用 try/catch 包整個函式體，確保任何情況下都回傳 JSON。**
+
+Safari 的 `fetch().then(r => r.json())` 遇到非 JSON 回應（如原始 HTML error page）直接拋 `SyntaxError: The string did not match the expected pattern.`；Chrome 在同樣情況下靜默失敗。不包 try/catch 的 route 在 uncaught exception 時回傳 HTML 500，Safari 用戶看到崩潰，Chrome 用戶靜默無感——跨瀏覽器行為完全不同，難以 debug。
+
+```ts
+// ❌ 未包 try/catch — uncaught exception 回傳 HTML, Safari 拋 SyntaxError
+export async function POST(request: Request) {
+  const data = await request.formData(); // 若此行拋例外 → 回傳 HTML 500
+  return NextResponse.json({ url: "..." });
+}
+
+// ✅ 包整個函式體
+export async function POST(request: Request) {
+  try {
+    const data = await request.formData();
+    // … all logic …
+    return NextResponse.json({ url: "..." });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Server error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+```
+
+**配套規則：**
+- **File extension 必須消毒**：從 user-uploaded filename 取副檔名前必須過濾特殊字元，防止破壞 Supabase storage path：
+  ```ts
+  const rawExt = file.name.split(".").pop() ?? "jpg";
+  const ext = rawExt.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "jpg";
+  ```
+- **Client side fallback**：`const json = await res.json().catch(() => ({ error: "Upload failed (server error)" }))` — 防止 non-JSON 500 在 client 端拋 SyntaxError。
+- **`SUPABASE_SERVICE_ROLE_KEY` 必須顯式 guard**：若依賴 service role 的 route 缺 key，要回傳明確錯誤訊息而非 undefined 引爆 TypeError：
+  ```ts
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) return NextResponse.json({ error: "Server misconfiguration: storage key not set" }, { status: 500 });
+  ```
+
+Reference incident: 2026-05-31 — `web/app/api/upload/route.ts` 未包 try/catch + extension 未消毒，Safari 上傳圖片全失敗；Chrome 無感（commit `616eecc`）。
 
 ## Homepage vs EventCard — Two Render Paths
 
@@ -246,7 +544,9 @@ Reference incident: 2026-05-09 — migration 054 新增多語言欄位後 UI 未
 |-------|------|------|
 | `performer` | `TEXT` | 日文單人主表演者；annotator GPT/regex 輸出；`getEventPerformer()` fallback 錨點 |
 | `performer_zh` / `performer_en` | `TEXT` | performer 的語言翻譯（一對一對應）；GPT 填入或人工設定 |
-| `performers[]` | `TEXT[]` | 多人顯示陣列；學術研討會全體發表者；annotator 自動 sync 自 `performer` |
+| `performers[]` | `TEXT[]` | **日本語（カタカナ）多人陣列**；日本語ソースページのキャスト表記を使用；`performers_zh[]` は繁体字対応 |
+| `performers_zh[]` | `TEXT[]` | performers の繁体字対応；`getEventPerformer(event,'zh')` が参照する |
+| `performers_en[]` | `TEXT[]` | performers の英語対応；`getEventPerformer(event,'en')` が参照する |
 
 **⚠ 絕不可刪除 `performer`**：`performer_zh/en` 錨定於它；34+ 處程式碼引用它；`performers[]` 有多人時翻譯欄位才有意義。
 
@@ -257,6 +557,13 @@ Reference incident: 2026-05-09 — migration 054 新增多語言欄位後 UI 未
 4. `performers` 未在 `field_corrections` 保護中
 
 此機制確保 UI 永遠能從 `performers[]` 讀取，不需在前端 fallback 回 `performer`。
+
+**performers[] 言語規則**：`performers[]` は必ず**日本語（カタカナ）**で入力する。繁体字 film DB・works.cast_summary から補完したデータは `performers_zh[]` に入れること。日本語の映画サイト・劇場サイトのキャスト欄（例：`出演：ケイトリン・ファン、ウィル・オー、9m88...`）が権威ソース。繁体字が `performers[]` に混入すると日本語ロケールで漢字が表示される（incident: 霧のごとく 11 件, 2026-05-20）。
+
+**performer multi-value 淨化規則（commit `c4bd9e1`）**：`performer` 字段必須是單一人物名。annotator 輸出 `performer` 時必須經過 `_MULTI_SEP_RE`（`[、,，×／/]`）檢查：
+- 包含區切符 → `performers[]` に分割し、`performer / performer_zh / performer_en` を `None` にクリア
+- `enrich_person_names()` の B1 策略が `performers[]` の各名前を `ja_to_info` で翻訳 → `performers_zh/performers_en` を生成
+- 既存汚染 DB の一括移行は `_oneoff_migrate_multi_performer.py --execute` で実行する（`--dry-run` で事前確認）
 
 ## TSX Component vs Helper — react-hooks/static-components Rule
 
@@ -607,6 +914,14 @@ This pattern applies to any `<select>` filter whose options map 1-to-1 with a fi
 
 **Annotation status label consistency rule:** One status value = one i18n key, used consistently in **all** display surfaces: badge (`getAnnotationLabel`), filter dropdown `<option>`, any column header. Use the **short-form keys**: `t("filterAnnotatedShort")`, `t("filterReviewedShort")`, `t("filterErrorShort")`, `t("filterPendingShort")`. The long-form family (`annotated`, `reviewed`, `error`, `pending`) has been deleted — do not recreate it.
 
+**OCR-回填 array 欄位 sync rule:** `handleExtractFromImage` 的 `ARRAY_FIELDS = new Set([...])` 必須涵蓋**所有** OCR Vision prompt 會回傳的陣列欄位。未列入集合的 array 會走 `String(val)` 分支被強轉成字串，**污染 form state**（型別變成字串而非 `string[] | null`），但 TypeScript 不會報錯（`updateField` 接 `unknown`）。新增任何 array OCR 欄位時，這四處必須同 commit 同步：
+1. `web/app/api/admin/extract-from-image/route.ts` Vision prompt 加欄位定義（含視覺位置提示，如「海報底部 credit block」）
+2. `web/components/AdminEventTable.tsx` `ARRAY_FIELDS` 集合擴增該欄位 key
+3. `web/lib/types.ts` Event interface 欄位定義為 `string[] | null`
+4. `web/components/AdminEventForm.tsx` 表單 state 初始值（避免新增欄位卻無 input UI）
+
+Reference incident: 2026-05-26 — `co_organizers` / `sponsors` 三路徑 sync 同時補齊（commits `280fdc4` + `e54b925`）。
+
 ## AdminSourcesTable.tsx — agent_category Sync Rule
 
 `web/components/AdminSourcesTable.tsx` maintains a `SOURCE_TYPE_LABELS` map and a `getFilteredSources` function. Both must be updated whenever a new `agent_category` value is introduced in `discovery_accounts.py`:
@@ -702,6 +1017,10 @@ Every route slug must appear the **same number of times** (= total number of adm
 - `raw_title` and `raw_description` store original scraped text. **Never overwrite** them with translated or processed content.
 - Date rules: follow the 4-tier cascade in `.github/skills/date-extraction/SKILL.md`. Tier 4 (publish date fallback) fires only when tiers 1–3 all fail.
 - Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` whenever `start_date` is known.
+- **Structured `raw_description` extraction — prioritize content blocks over enumeration:** Detail pages often contain navigation noise (navigation links, footers, breadcrumbs). Never enumerate `<p>` tags or slice first N elements to populate `raw_description`. Instead: (1) identify structural blocks (e.g., `<table class="theater-detail">`, `<div class="detail-root">`, or semantic headers) that contain event metadata, (2) extract each block as a labeled section (e.g., `"作品紹介: ..."`, `"料金: ..."`, `"公式サイト: <url>"`), (3) join with `\n\n`. This ensures annotator receives clean context rather than noisy text, preventing misclassification. Incident (2026-05-15): `kawasaki_ac` extracted first 8 `<p>` tags (mostly navigation), caused GPT to reject valid Taiwan film events as "unrelated".
+- **Address conflict pre-flight normalization (2026-06-02):** Any scraper/oneoff logic that compares street numbers using regex (for example `\d+(?:-\d+)+`) must normalize Unicode minus variants before matching. Minimum required transform: `"−" -> "-"` inside address normalization. Without this, `venues` pre-flight conflict checks can report false positives for the same location written with `U+2212` in one source and ASCII hyphen in another.
+- **Series-type scraper pattern — coordinate date format support with field extraction:** When expanding a scraper's date parsing to support new formats (e.g., adding `YYYY年M/D(土)～` support), **simultaneously** audit all related field extraction (pricing, times, location, organizer). Series-type sources often embed metadata in structured page sections (cinema event blocks, performance program tables) that depend on date parsing success to identify the correct block. If date parsing changes but pricing/times extraction doesn't, you risk incomplete or misaligned records. Pattern from `kawasaki_ac` (2026-05-15): supporting new date formats required also upgrading `raw_description` structure and extraction of `business_hours`, `price_info`, and `official_url` from the same detail page. Rule: **When modifying a scraper's date logic, assume you must also update 3-5 other fields in the same commit.**
+- **selection_reason is documentation, not a gate:** The `selection_reason` field records why an event was annotated (e.g., "Taiwan-related" vs "not selected"). It is **not** an enforcement mechanism. Three dangers: (1) a negative `selection_reason` written by annotator does NOT set `is_active=false` automatically, (2) upstream layers cannot rely on `selection_reason` to exclude bad data from downstream, (3) contradictions (e.g., `is_active=true` with `selection_reason="not selected"`) silently propagate. To enforce exclusions, either: (a) have the scraper skip bad records entirely (preferred), (b) have annotator explicitly set `is_active=false` when rejecting, or (c) add consistency checks in DB with a `CHECK` constraint on `(is_active, selection_reason)` pairs. Do not rely on `selection_reason` text alone.
 - **New scraper checklist — all 4 steps required:**
   1. Create `scraper/sources/<name>.py` extending `BaseScraper`
   2. Register in `scraper/main.py` → `SCRAPERS` (import + add instance)
@@ -709,8 +1028,11 @@ Every route slug must appear the **same number of times** (= total number of adm
   4. Validate: `python main.py --dry-run --source <key>` returns events cleanly
 - `_warn_unregistered_scrapers()` in `main.py` runs on every non-dry-run and emits a WARNING for any scraper key missing from `research_sources`. Check CI logs if you see `⚠️ scraper(s) NOT registered`.
 - **Auto-QA via `event_reports` queue (2026-05-01):** New automated content-quality checks must write findings into `event_reports` with an `auto_*` prefix in `report_types[]` (e.g. `auto_qa_simplified_zh`, `auto_qa_missing_address`). Do NOT build a separate admin queue — the existing `/admin/reports` confirm/dismiss flow handles auto-findings unchanged. Always dedup against existing rows of the same `auto_*` type per `event_id` — check **ALL statuses** (`pending`, `confirmed`, `dismissed`), not just `pending`. A confirmed/dismissed report means the admin has already reviewed it; re-creating it undoes admin work. Also dedup within a single run via in-memory set. See `scraper/auto_qa.py` and engineer `history.md` 2026-05-01 / 2026-05-05.
+  Current `QA_TYPES` (as of 2026-05-15): `auto_qa_simplified_zh`, `auto_qa_missing_address`, `auto_qa_missing_hours`, `auto_simplified_chinese`, `auto_qa_same_work_duplicate`, `auto_qa_performer_ai_translation_marker`, `auto_qa_performer_multi_value_pollution`, `auto_qa_performer_zh_equals_katakana`.
+- **Admin dashboard count — use `head=True` queries (2026-05-15, commit `518b5a8`):** Any summary/count card in admin pages must use `.select('id', count='exact', head=True)` rather than fetching rows and counting client-side. PostgREST silently truncates at `max-rows=1000` regardless of `.limit()` — client-side count is always wrong for large tables. The `head: true` option fetches only the `Content-Range` header with the total count, returning no rows.
 - **`SIMP_RE` / `SC_ONLY` / `annotator._SIMP_TO_TRAD` char addition rule (2026-05-01, updated 2026-05-11):** Only add a char when its Traditional Chinese / Japanese form is **a different glyph**. Verify each candidate via CC-CEDICT or kanji.jitenon.jp **before** adding. Counter-example: `亮` is identical in Trad/Simp (`照亮` is valid Trad) and triggered a false positive in production. When adding a new char, update **all three** simultaneously: `annotator.py._SIMP_TO_TRAD`, `auto_qa.py.SIMP_RE`, and `auto_qa.py.SC_ONLY`. Ensure `SC_ONLY ⊆ _SIMP_TO_TRAD_RAW.keys()` — detection must never find chars that fix cannot convert. See scraper-expert `history.md` 2026-05-01 and engineer `history.md` 2026-05-11.
 - **Cron-driven slot rotation modulo wrap (2026-05-01):** When N weekdays drive a `(DAY-1) % M` slot selector with `M < N`, days M+1..N silently re-run slots 0..(N-M-1). Acceptable when slots are idempotent (search + `skip_hint` dedup); NOT acceptable for slots requiring fixed cadence (e.g. Peatix slot 3 only on Thursdays). Override via `DISCOVERY_SLOT` env on extra cron entries, or raise `SLOT_COUNT`. See `discovery-accounts.yml` and engineer `history.md` 2026-05-01.
+- **Body article > sidebar/footer widget rule (2026-05-22):** When a single-source homepage shows the same event in multiple places (e.g. main `<article>` body **and** a footer/sidebar widget), always parse the **body article first** and fall back to the widget only if missing. Widgets are common "set once, forgotten on update" traps — main article is where editors focus. When both parse successfully and disagree, log a warning and prefer the body. Pattern: `_parse_body_article()` + `_parse_widget()` → `chosen = body or widget`. Date regex must support year-prefixed format (`(20\d{2})年(\d{1,2})月(\d{1,2})日.*?～(?:(\d{1,2})月)?(\d{1,2})日`). Incident: `taiwan_festival_tokyo` (event `80214e50`) was stuck on widget's stale 6/25–28 dates while main article said 7/9–7/12.
 - **Multi-city tour detection — never hardcode venue address (2026-05-01):** Any scraper with a hardcoded `location_address` must add multi-city detection logic. Pattern for `taiwan_cultural_center.py`:
   - Check `description + name` for ≥2 regional keywords (`_MULTI_CITY_REGIONS = ["北海道", "大阪", "京都", "神奈川", "福岡", "名古屋", "仙台"]`)
   - Threshold = **2** (not 1) to avoid false positives where a Tokyo event's description merely mentions another city
@@ -724,6 +1046,27 @@ Every route slug must appear the **same number of times** (= total number of adm
 **Rule:** All broadcast/feed queries must include `.in_("annotation_status", ["annotated", "reviewed"])` — do NOT assume all `is_active` events are fully annotated.
 
 **Reference:** `weekly_line_broadcast.py` `_fetch_upcoming_events()` — pool filter added in commit `b2864ea` after pending events appeared with Japanese-only titles in the LINE weekly broadcast.
+
+### weekly_line_broadcast URL placement rule
+
+URLs belong **only in the `【小霧精選】` weekly picks section**. The nearterm (type-grouped) and monthly sections must NOT append `lines.append(f"  {url}")` — message length is the concern.
+
+Checklist when editing `_build_message()`:
+- `weekly_events` loop → URL line ✅ keep
+- nearterm group loop → URL line ❌ remove
+- monthly loop → URL line ❌ remove
+
+### city_label diagnosis checklist
+
+`_city_label()` returns empty when **both** of these are missing:
+1. `location_prefectures` is `null`
+2. `location_address` does not start with a prefecture name (e.g. `東京都…`)
+
+Common cause: `location_address == location_name` (venue name written as address — caught by `auto_qa_address_is_venue_name`). Typical sub-patterns:
+- Address starts with a non-prefecture prefix like `会場は…` (→ `startswith` miss)
+- Address is just the venue hall name (e.g. `早稲田大学早稲田キャンパス11号館710教室`)
+
+**Fix**: look up the real street address, set `location_address = '東京都…'` and `location_prefectures = ['東京都']`, FC-lock both fields.
 
 ## Person Name Lookup Pattern
 
@@ -876,6 +1219,31 @@ Current agent_category values and their labels:
 
 **Incident (2026-05-05):** 14 candidates silently skipped for days. Detected by noticing cron ran with 0 processed rows. Fixed in commit `5d2585d`; 14 existing rows manually reset to NULL.
 
+## Tailwind CSS Dark Mode — Semantic Tokens Rule
+
+The app uses **class-based dark mode** (`html.dark` set by anti-flash script in `layout.tsx`). The `:root.dark` block in `globals.css` overrides all semantic token variables.
+
+**Rule: Never use hardcoded hex for text/background colors in page components.**
+
+| Use case | Correct class | Dark mode value |
+|---|---|---|
+| Headings (h1, h2) | `text-fg-strong` | `#fafafa` |
+| Body paragraphs | `text-fg` | `#ededed` |
+| Secondary text | `text-fg-muted` | `#a1a1aa` |
+| Breadcrumb current | `text-fg-strong` | `#fafafa` |
+| Page background | `bg-surface` | `#1f1f1f` |
+
+**Do NOT use:**
+- `text-[#3A261F]` (mocha brown — invisible on dark background)
+- `text-[#4A362D]` (dark brown — invisible on dark background)
+- `dark:text-xxx` variants — semantic tokens self-switch via `:root.dark`, no need for per-class dark variants
+
+**`dark:` variants are still valid** for decorative colors not covered by semantic tokens (e.g. `dark:bg-zinc-800`).
+
+Reference: `about/page.tsx` commit `8ab8d05` (2026-05-15).
+
+---
+
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/agents/engineer/history.md` (newest at top).
 2. If the lesson generalizes, add a rule to this file.
@@ -914,6 +1282,15 @@ sb.table('field_corrections').delete().eq('event_id', eid).eq('field_name', '<fi
 ```
 
 Reference incident: 2026-05-09 — `c6d5232a` 手動修正把污染後的 `name_zh=大濛` 鎖進 FC，需手動 delete + 正確值 re-upsert 才能修復。
+
+**⚠️ performer 修正後 FC cleanup 必須：** `events` テーブルで `performer=null` にセットした後、同じ event_id の `field_corrections` に `performer` 行が残っていると、次回 annotator 実行時に悪い値が復元される。必ずセットで確認・削除すること：
+```python
+# FC performer lock が残っていれば削除
+fc = sb.table('field_corrections').select('id,corrected_value').eq('event_id', eid).eq('field_name', 'performer').execute()
+if fc.data:
+    sb.table('field_corrections').delete().eq('event_id', eid).eq('field_name', 'performer').execute()
+```
+Reference incident: 2026-05-17 — `9084ad67` の `performer='阿仁、安和'` FC lock が残存し、events table 修正（null化）が次回 annotation で上書きされるリスクがあった。
 
 **Why both tiers are needed:**
 - P0 alone: `--all` mode or admin overriding a non-null AI value with a different value → correction lost on next re-annotation.
