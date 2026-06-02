@@ -2,31 +2,31 @@
 Scraper for Taiwan-related books via 版元ドットコム (hanmoto.com).
 
 Strategy:
-  1. Search https://www.hanmoto.com/bd/search/keyword/台湾/sdate_desc
-  2. Paginate via /order/desc/offset/{offset} (20 per page, max 3 pages = 60 items)
-  3. Extract ISBN, title, publication date, publisher from book cards
-  4. source_id: hanmoto_{isbn13} or hanmoto_{md5(detail_url)[:12]}
-  5. start_date = end_date = 発売日 (UTC midnight)
-  6. hanmoto already server-side filters by "台湾"; still apply client-side filter
-     as a safety net against server-side regression
+    1. Load the current search UI URL for keyword=台湾 sorted by release date desc
+    2. Paginate by clicking page buttons in the JS search UI (20 per page, max 3 pages)
+    3. Extract ISBN, title, release date, and publisher from .bd-booklist-item-book cards
+    4. source_id: hanmoto_{isbn13} or hanmoto_{md5(detail_url)[:12]}
+    5. start_date = end_date = 発売日 (UTC midnight)
+    6. Stop once release dates fall outside the rolling 365-day window
 """
 
 import hashlib
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
-from .base import BaseScraper, Event, dedup_events
+from .base import BaseScraper, Event, dedup_events, is_jpro_placeholder_date
 
 logger = logging.getLogger(__name__)
 
 SOURCE_NAME = "hanmoto"
-BASE_URL = "https://www.hanmoto.com/bd/search/keyword/台湾/sdate_desc"
+BASE_URL = "https://www.hanmoto.com/bd/search/top?keyword=%E5%8F%B0%E6%B9%BE&sdate_desc=1"
 _MAX_PAGES = 3
 _PAGE_SIZE = 20
+_CUTOFF_DAYS = 365
 
 TAIWAN_KEYWORDS = [
     "台湾", "臺灣", "Taiwan", "台北", "台南", "台中", "高雄",
@@ -77,31 +77,8 @@ def _extract_isbn_from_href(href: str) -> Optional[str]:
     return None
 
 
-# Candidate CSS selectors for book cards on hanmoto.com.
-# The first selector that returns at least one element will be used.
-_CARD_SELECTORS = [
-    "div.booklist-item",
-    "ul.bookList > li",
-    "div.list-item",
-    ".booklist .item",
-]
-
-# Candidate selectors for sub-fields within a card
-_TITLE_SELECTORS  = ["h2", "h3", ".book-title", ".title", "a.ttl"]
-_DATE_SELECTORS   = [".hdate", ".date", ".pubdate", "time", ".release"]
-_PUB_SELECTORS    = [".publisher", ".pub", ".imprint", ".hanbaiten"]
-_DESC_SELECTORS   = [".description", ".desc", ".catch", "p"]
-
-
-def _first_text(card, selectors: list[str]) -> str:
-    """Return inner_text from the first matching selector, or empty string."""
-    for sel in selectors:
-        el = card.query_selector(sel)
-        if el is not None:
-            txt = el.inner_text().strip()
-            if txt:
-                return txt
-    return ""
+# CSS selector for book cards (confirmed 2026-06)
+_CARD_SEL = ".bd-booklist-item-book"
 
 
 class HanmotoScraper(BaseScraper):
@@ -109,6 +86,7 @@ class HanmotoScraper(BaseScraper):
 
     def scrape(self) -> list[Event]:
         events: list[Event] = []
+        cutoff_date = (datetime.now(timezone.utc) - timedelta(days=_CUTOFF_DAYS)).date()
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
             page = browser.new_page(
@@ -120,60 +98,53 @@ class HanmotoScraper(BaseScraper):
             )
             page.set_extra_http_headers({"Accept-Language": "ja,en-US;q=0.9"})
 
-            for page_num in range(_MAX_PAGES):
-                offset = page_num * _PAGE_SIZE
-                if offset == 0:
-                    url = BASE_URL
+            for page_num in range(1, _MAX_PAGES + 1):
+                if page_num == 1:
+                    try:
+                        page.goto(BASE_URL, timeout=30000, wait_until="domcontentloaded")
+                    except PWTimeout:
+                        logger.warning("hanmoto: initial page timeout")
+                        break
+                    except Exception as exc:
+                        logger.warning("hanmoto: initial navigation error: %s", exc)
+                        break
                 else:
-                    url = (
-                        f"https://www.hanmoto.com/bd/search/keyword/台湾"
-                        f"/order/desc/offset/{offset}"
-                    )
+                    btn = page.query_selector(f".page-item-page{page_num} button")
+                    if btn is None:
+                        logger.debug("hanmoto: no page-%d button, stopping", page_num)
+                        break
+                    btn.click()
+                    try:
+                        page.wait_for_load_state("networkidle", timeout=15000)
+                    except PWTimeout:
+                        pass  # proceed with whatever loaded
 
                 try:
-                    page.goto(url, timeout=30000, wait_until="domcontentloaded")
+                    page.wait_for_selector(_CARD_SEL, timeout=10000)
                 except PWTimeout:
-                    logger.warning("hanmoto: page timeout at offset %d", offset)
-                    break
-                except Exception as exc:
-                    logger.warning("hanmoto: navigation error at offset %d: %s", offset, exc)
+                    logger.warning("hanmoto: no book cards on page %d", page_num)
                     break
 
-                # Detect card selector for this page
-                cards = []
-                for sel in _CARD_SELECTORS:
-                    try:
-                        page.wait_for_selector(sel, timeout=8000)
-                        cards = page.query_selector_all(sel)
-                        if cards:
-                            logger.debug("hanmoto: using selector %r at offset %d", sel, offset)
-                            break
-                    except PWTimeout:
-                        continue
-
+                cards = page.query_selector_all(_CARD_SEL)
                 if not cards:
-                    logger.warning(
-                        "hanmoto: no book cards found at offset %d (page %d)",
-                        offset, page_num + 1,
-                    )
                     break
 
+                page_exhausted = False
                 for card in cards:
                     try:
-                        title = _first_text(card, _TITLE_SELECTORS)
+                        # Title
+                        title_el = card.query_selector('[data-content-name="title"]')
+                        title = title_el.inner_text().strip() if title_el is not None else ""
                         title = _strip_null(title) or ""
 
-                        # Link / href
-                        link_el = card.query_selector("a[href]")
+                        # Link and ISBN
+                        link_el = card.query_selector('a[href*="/bd/isbn/"]')
                         href = link_el.get_attribute("href") if link_el is not None else ""
                         href = href or ""
                         if href and not href.startswith("http"):
                             href = f"https://www.hanmoto.com{href}"
 
-                        # ISBN from data-isbn attribute or href path
-                        isbn = card.get_attribute("data-isbn") or ""
-                        if not (isbn and len(isbn) == 13 and isbn.isdigit()):
-                            isbn = _extract_isbn_from_href(href) or ""
+                        isbn = _extract_isbn_from_href(href) or ""
 
                         # source_id
                         if isbn and len(isbn) == 13 and isbn.isdigit():
@@ -181,20 +152,33 @@ class HanmotoScraper(BaseScraper):
                         elif href:
                             source_id = f"hanmoto_{hashlib.md5(href.encode()).hexdigest()[:12]}"
                         else:
-                            continue  # cannot build stable ID
-
-                        # Client-side Taiwan filter
-                        description = _first_text(card, _DESC_SELECTORS)
-                        description = _strip_null(description) or ""
-                        if not _is_taiwan(f"{title} {description}"):
                             continue
 
-                        # Publication date
-                        date_text = _first_text(card, _DATE_SELECTORS)
+                        # Client-side Taiwan filter (title only; server already filtered)
+                        if not _is_taiwan(title):
+                            continue
+
+                        # Publication date — find span containing '発売' + year pattern
+                        date_text = ""
+                        for span in card.query_selector_all("span"):
+                            txt = span.inner_text()
+                            if "発売" in txt and re.search(r"\d{4}年", txt):
+                                date_text = txt
+                                break
                         start_dt = _parse_date(date_text)
 
-                        # Publisher (organizer per-book; organizer_type is always "media")
-                        publisher = _first_text(card, _PUB_SELECTORS)
+                        # Recency cutoff: since sorted by release date desc,
+                        # stop pagination once we hit books older than _CUTOFF_DAYS
+                        if start_dt is not None and start_dt.date() < cutoff_date:
+                            page_exhausted = True
+                            break
+
+                        if is_jpro_placeholder_date(start_dt):
+                            start_dt = None
+
+                        # Publisher
+                        pub_el = card.query_selector('[data-content-name="imprint"]')
+                        publisher = pub_el.inner_text().strip() if pub_el is not None else None
                         publisher = _strip_null(publisher) or None
 
                         source_url = _strip_null(href) or BASE_URL
@@ -206,7 +190,7 @@ class HanmotoScraper(BaseScraper):
                             original_language="ja",
                             name_ja=_strip_null(title) or None,
                             raw_title=_strip_null(title) or None,
-                            raw_description=_strip_null(description) or None,
+                            raw_description=None,
                             start_date=start_dt,
                             end_date=start_dt,
                             location_name=None,
@@ -222,8 +206,8 @@ class HanmotoScraper(BaseScraper):
                         logger.debug("hanmoto: card parse error: %s", exc)
                         continue
 
-                if len(cards) < _PAGE_SIZE:
-                    break  # No more pages
+                if page_exhausted or len(cards) < _PAGE_SIZE:
+                    break
 
             browser.close()
 

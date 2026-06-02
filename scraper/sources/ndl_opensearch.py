@@ -3,13 +3,15 @@ Scraper for Taiwan-related books via NDL OpenSearch API.
 
 Strategy:
   1. Fetch NDL OpenSearch API (https://ndlsearch.ndl.go.jp/api/opensearch)
-     with q="台湾", mediatype=1 (books), cnt=100 per page
+      with title="台湾" and a rolling from=YYYY-MM-DD server-side filter.
+      A short from= window makes NDL return results in publication-date
+      descending order, so recently published books are not pushed out of
+      the _MAX_RESULTS=500 window by relevance ranking.
   2. Paginate via &idx= (1-based offset) up to 500 results total
-  3. Client-side 180-day recency filter — NDL sorts by relevance/biblio ID,
-     NOT publication date, so server-side filtering is unreliable
+  3. Skip periodical issues client-side via link suffix -iNNNNN
   4. Taiwan relevance filter on title + description (client-side)
   5. source_id: ndl_{trailing digits of dc:identifier} or ndl_{md5(link)[:12]}
-  6. start_date = end_date = 発売日 (UTC midnight)
+  6. start_date = end_date = publication date (UTC midnight)
 """
 
 import hashlib
@@ -23,16 +25,16 @@ from typing import Optional
 
 import requests
 
-from .base import BaseScraper, Event, dedup_events
+from .base import BaseScraper, Event, dedup_events, is_jpro_placeholder_date
 
 logger = logging.getLogger(__name__)
 
 SOURCE_NAME = "ndl_opensearch"
 NDL_API = "https://ndlsearch.ndl.go.jp/api/opensearch"
 
+# Dynamic params built per-run (from= computed at runtime)
 _BASE_PARAMS: dict[str, str] = {
-    "q": "台湾",
-    "mediatype": "1",
+    "title": "台湾",
     "cnt": "100",
 }
 
@@ -43,7 +45,10 @@ NS = {
 
 _MAX_RESULTS = 500
 _PAGE_SIZE = 100
-_STALE_DAYS = 180
+# A short from= window makes NDL sort by publication date descending, keeping
+# recent new releases inside the _MAX_RESULTS=500 window instead of being
+# pushed out by relevance ranking under a large window.
+_LOOKBACK_DAYS = 90
 _REQUEST_DELAY = 1.0
 
 TAIWAN_KEYWORDS = [
@@ -65,7 +70,8 @@ def _strip_null(s: Optional[str]) -> Optional[str]:
 
 def _parse_issued_date(value: str) -> Optional[date]:
     """Parse dcterms:issued / dc:date values such as '2024', '2024-03', '2024-03-15'."""
-    value = value.strip()
+    value = value.strip().translate(str.maketrans("０１２３４５６７８９", "0123456789"))
+    value = value.replace("．", ".")
     m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", value)
     if m:
         try:
@@ -98,11 +104,12 @@ class NdlOpensearchScraper(BaseScraper):
 
     def scrape(self) -> list[Event]:
         events: list[Event] = []
-        cutoff = date.today() - timedelta(days=_STALE_DAYS)
+        from_date = (date.today() - timedelta(days=_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
         offset = 1  # NDL uses 1-based idx
 
         while offset <= _MAX_RESULTS:
             params = dict(_BASE_PARAMS)
+            params["from"] = from_date
             params["idx"] = str(offset)
             try:
                 resp = requests.get(
@@ -131,6 +138,10 @@ class NdlOpensearchScraper(BaseScraper):
                 link_raw = _get_text(item.find("link"))
                 description_raw = _get_text(item.find("description"))
 
+                # Skip periodical issues (link ends in -iNNNNN = newspaper issue)
+                if re.search(r"-i\d+$", link_raw):
+                    continue
+
                 # Taiwan filter (client-side)
                 if not _is_taiwan(f"{title_raw} {description_raw}"):
                     continue
@@ -156,11 +167,6 @@ class NdlOpensearchScraper(BaseScraper):
                         except Exception:
                             pass
 
-                # 180-day client-side recency filter
-                # (NDL sorts by relevance / biblio ID — NOT by publication date)
-                if issued_date is not None and issued_date < cutoff:
-                    continue
-
                 # source_id: prefer trailing digits from dc:identifier, else md5(link)
                 identifier_el = item.find("dc:identifier", NS)
                 identifier_text = _get_text(identifier_el)
@@ -181,6 +187,8 @@ class NdlOpensearchScraper(BaseScraper):
                         issued_date.year, issued_date.month, issued_date.day,
                         tzinfo=timezone.utc,
                     )
+                if is_jpro_placeholder_date(start_dt):
+                    start_dt = None
 
                 raw_desc = _strip_null(description_raw) or ""
                 if organizer:

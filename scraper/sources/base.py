@@ -234,6 +234,17 @@ def dedup_events(events: list[Event]) -> list[Event]:
     return result
 
 
+def is_jpro_placeholder_date(dt: Optional[datetime]) -> bool:
+    """True if dt is the JPRO 近刊情報 year-end placeholder (MM-DD = 12-31).
+
+    JPRO registers forthcoming books with 12/31 of the registration year when
+    the publisher has not yet fixed a release date. NDL Search and 版元ドットコム
+    (hanmoto) both inherit this placeholder. Callers should treat it as
+    'date undecided' (set start_date/end_date to None) rather than a real date.
+    """
+    return dt is not None and dt.month == 12 and dt.day == 31
+
+
 class BaseScraper(ABC):
     """All source scrapers must implement this interface."""
 

@@ -47,10 +47,6 @@ NON_DAILY_SOURCES: frozenset[str] = frozenset({
     "ifi", "waseda_icl", "tuat_global",
     "tokyo_now", "fukuoka_now", "hankyu_umeda",
     "nagano_aioiza", "maruhiro", "whitestone_gallery",
-    # Cinemas that rarely/never screen Taiwan films (0 events in 180d)
-    "human_trust_cinema", "cineswitch_ginza", "cine_gallery",
-    # Low-frequency venues / feeds (0 events in 180d; selectors confirmed OK)
-    "morc_asagaya", "tokyo_city_i", "jposa_ja",
 })
 
 # Sources that legitimately return 0 events during quiet periods.
@@ -113,6 +109,9 @@ ZERO_EVENT_OK_SOURCES: frozenset[str] = frozenset({
     "fukuoka_now",
     "hankyu_umeda",
     "maruhiro",
+    "ndl_opensearch",  # 台湾フィルタ後 0 件は正常（出版サイクル依存）
+    "kawade_rss",      # 同上（nhk_rss と同性質）
+    # hanmoto は server-side で台湾検索済み → 0 件は異常、追加しない
 })
 
 
