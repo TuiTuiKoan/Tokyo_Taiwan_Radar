@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { saveProfile, type ProfileInput, type ProfileErrorCode } from "@/app/actions/profile";
+import DesignSelect from "@/components/DesignSelect";
 import { ACTOR_CATEGORIES, type ActorCategory } from "@/lib/actorTypes";
 import type { Locale } from "@/lib/types";
 
@@ -122,6 +123,13 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
   }
 
   const errorMessage = error ? t(`errors.${error}`) : null;
+  const categoryOptions = [
+    { value: "", label: t("categoryPlaceholder") },
+    ...ACTOR_CATEGORIES.map((category) => ({
+      value: category,
+      label: tActor(category),
+    })),
+  ];
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6" aria-busy={saving || avatarUploading}>
@@ -214,20 +222,13 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
             <label htmlFor="category" className="block text-sm font-medium text-fg mb-1">
               {t("category")}
             </label>
-            <select
+            <DesignSelect
               id="category"
-              name="category"
               value={form.category ?? ""}
-              onChange={(event) => setField("category", event.target.value)}
-              className="w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              <option value="">{t("categoryPlaceholder")}</option>
-              {ACTOR_CATEGORIES.map((category) => (
-                <option key={category} value={category}>
-                  {tActor(category)}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setField("category", value)}
+              options={categoryOptions}
+              placeholder={t("categoryPlaceholder")}
+            />
           </div>
           <div>
             <label htmlFor="region" className="block text-sm font-medium text-fg mb-1">

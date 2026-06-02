@@ -2,6 +2,14 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-03 — 086 account profiles migration 縮權前漏查既有 direct writes
+
+**問題：** Batch A 初版 `086_account_profiles.sql` 先撤掉 `events` authenticated write grants，並刪除 `creators` admin policy 後只補 self profile SELECT。這忽略了既有 `AdminEventTable` 與 `AdminCreatorsClient` 仍有 authenticated browser-client direct writes，套用後會讓後台活動與 creators 管理失效。
+
+**修正：** `creators` 補回 admin `FOR ALL` policy；`events` 保留 authenticated write grants，實際寫入仍由既有 admin-only RLS policies 限制。`public_creator_profiles` 保持 `security_invoker=on`，同時補 anon 安全欄位 column-level SELECT 與 public-row RLS policy，避免 view 讀不到或繞過敏感欄位邊界。
+
+**教訓：** 設計 migration 縮權前，必須先 grep 既有 browser-client `.insert()` / `.update()` / `.delete()` 路徑，區分「授權 grant」與「RLS row policy」的責任。`security_invoker` view 不能只 grant view，本體表也要有最小欄位 grant 與對應 RLS policy。
+
 ## 2026-05-31 — 吉祥物英語表記を "Lianbu" に統一（commit `a32b57a`）
 
 **変更：** `.github/copilot-instructions.md` に吉祥物命名規則表を追加。English: **Lianbu**（ローマ字・正式）/ **Bubu**（愛称）、繁体中文: 蓮霧 / 小霧、日本語: レンブ / レンブちゃん の四言語対応表を全エージェントへのグローバル規範として確立。

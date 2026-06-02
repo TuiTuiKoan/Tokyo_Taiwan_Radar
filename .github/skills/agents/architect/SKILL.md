@@ -13,6 +13,7 @@ Read this at the start of every session before producing any plan.
 - Identify all code paths affected by a data model change — not just the obvious one (a new column needs both the table AND every writer that populates it).
 - Never ship a plan with an untested API or signature change. Include an explicit smoke-test step.
 - Confirm that all pending migrations are applied before designing features that build on them.
+- **RLS/GRANT 縮權前先查 direct writes（2026-06-03 教訓）**：任何 migration 若要 `REVOKE` authenticated table grants、drop/recreate RLS policy、或改 view security 行為，必須先 grep `web/` 是否仍有 browser-client `.insert()` / `.update()` / `.delete()` 使用該表。admin browser-client writes 可保留 table grant，實際權限由 admin-only RLS policy 限制。`security_invoker` view 也必須同步確認底層表的最小欄位 grants 與 row policy，不能只 grant view。
 - **Supabase 分頁完整性先驗證（2026-05-26 教訓）**：凡計畫依賴 `select(...).execute()` 載入「保護判斷資料」（例如 `field_corrections`、blacklist、mapping）時，必須先驗證是否被預設分頁截斷。最少要做三件事：
    - 比對 `first_page_count` 與 `count='exact'`
    - 以 `.range(offset, offset+999)` 全量掃描一次確認總筆數

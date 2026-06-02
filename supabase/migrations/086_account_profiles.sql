@@ -212,9 +212,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.creators TO authenticated, servic
 
 GRANT SELECT ON public.public_creator_profiles TO anon, authenticated, service_role;
 
-REVOKE INSERT, UPDATE, DELETE ON public.events FROM authenticated;
 GRANT SELECT ON public.events TO anon, authenticated, service_role;
-GRANT INSERT, UPDATE, DELETE ON public.events TO service_role;
+GRANT INSERT, UPDATE, DELETE ON public.events TO authenticated, service_role;
 
 REVOKE ALL ON public.account_usage FROM anon, authenticated;
 GRANT SELECT ON public.account_usage TO authenticated;
