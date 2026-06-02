@@ -14,6 +14,8 @@ Checks performed:
   5. tokyoartbeat active events where start_date differs from the date
      embedded in source_url (upstream Contentful data was corrected after
      scrape but upsert skipped the event as already-existing)
+  6. events where business_hours already has concrete schedule details
+     but business_hours_zh/en are still legacy summary text
 
 The list of expected sources is derived from scraper_runs history (sources
 seen in the past 7 days) to avoid hardcoding the SCRAPERS list here.
@@ -113,6 +115,52 @@ ZERO_EVENT_OK_SOURCES: frozenset[str] = frozenset({
     "kawade_rss",      # 同上（nhk_rss と同性質）
     # hanmoto は server-side で台湾検索済み → 0 件は異常、追加しない
 })
+
+_DATE_MD_RE = re.compile(r"\b\d{1,2}/\d{1,2}\b")
+_TIME_RANGE_RE = re.compile(
+    r"\b(?:[01]?\d|2[0-3]):[0-5]\d\s*[-~〜～]\s*(?:[01]?\d|2[0-3]):[0-5]\d\b"
+)
+
+_LEGACY_BH_ZH_TOKENS: frozenset[str] = frozenset({
+    "上映中～終映日未定",
+    "詳見官方",
+    "請參照原始來源",
+    "請參閱官方",
+    "請見原始來源",
+    "請以官方公告為準",
+})
+_LEGACY_BH_EN_TOKENS: frozenset[str] = frozenset({
+    "currently screening - end date undecided",
+    "see official",
+    "refer to official",
+    "check the official",
+    "please refer to the source",
+    "please check the source",
+    "for details, see",
+})
+
+
+def _is_detailed_business_hours(value: str) -> bool:
+    return bool(_DATE_MD_RE.search(value) and _TIME_RANGE_RE.search(value))
+
+
+def _is_legacy_bh_translation_zh(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    normalized = value.strip()
+    if not normalized:
+        return False
+    return any(token in normalized for token in _LEGACY_BH_ZH_TOKENS)
+
+
+def _is_legacy_bh_translation_en(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    normalized = value.strip().lower()
+    if not normalized:
+        return False
+    return any(token in normalized for token in _LEGACY_BH_EN_TOKENS)
+
 
 
 def _supabase_client():
@@ -217,7 +265,40 @@ def run_check(dry_run: bool = False, always_notify: bool = False) -> None:
     except Exception as exc:
         logger.warning("Check 5 (tokyoartbeat date audit) failed: %s", exc)
 
-    # ── 6. Build report ───────────────────────────────────────────────────
+    # ── 6. business_hours detailed, but zh/en still legacy summary ────────
+    stale_business_hours_i18n: list[dict] = []
+    try:
+        bh_rows = (
+            sb.table("events")
+            .select("id,name_ja,source_name,business_hours,business_hours_zh,business_hours_en")
+            .eq("is_active", True)
+            .not_.is_("business_hours", None)
+            .execute()
+        ).data or []
+        for row in bh_rows:
+            bh = (row.get("business_hours") or "").strip()
+            if not bh:
+                continue
+            if not _is_detailed_business_hours(bh):
+                continue
+            stale_fields: list[str] = []
+            if _is_legacy_bh_translation_zh(row.get("business_hours_zh")):
+                stale_fields.append("zh")
+            if _is_legacy_bh_translation_en(row.get("business_hours_en")):
+                stale_fields.append("en")
+            if stale_fields:
+                stale_business_hours_i18n.append(
+                    {
+                        "id": row["id"],
+                        "source_name": row.get("source_name") or "",
+                        "title": (row.get("name_ja") or "")[:30],
+                        "stale_fields": stale_fields,
+                    }
+                )
+    except Exception as exc:
+        logger.warning("Check 6 (business_hours stale i18n) failed: %s", exc)
+
+    # ── 7. Build report ───────────────────────────────────────────────────
     issues: list[str] = []
 
     if failed:
@@ -256,6 +337,16 @@ def run_check(dry_run: bool = False, always_notify: bool = False) -> None:
             )
         if len(tab_mismatch) > 5:
             issues.append(f"  …（共 {len(tab_mismatch)} 筆）")
+
+    if stale_business_hours_i18n:
+        issues.append("🟠 business_hours 已是具體時段，但 business_hours_zh/en 仍是舊摘要：")
+        for row in stale_business_hours_i18n[:5]:
+            issues.append(
+                f"  • {row['id']} src={row['source_name']} stale={','.join(row['stale_fields'])} {row['title']}"
+            )
+        if len(stale_business_hours_i18n) > 5:
+            issues.append(f"  …（共 {len(stale_business_hours_i18n)} 筆）")
+
 
     has_issues = bool(issues)
     ran_count = len(ran_today)
