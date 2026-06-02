@@ -4,7 +4,7 @@ import { createClient as createSsrClient } from "@/lib/supabase/server";
 import { unstable_noStore } from "next/cache";
 import { notFound, permanentRedirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { type Locale, type Event, getEventName, getEventDescription, getEventLocationName, getEventLocationAddress, getEventBusinessHours, getEventPerformer, getEventDirector, getEventOrganizer } from "@/lib/types";
+import { type Locale, type Event, getEventName, getEventDescription, getEventLocationName, getEventLocationAddress, getEventBusinessHours, getEventPerformer, getEventDirector, getEventOrganizer, isPureReportEvent } from "@/lib/types";
 import SaveButton from "@/components/SaveButton";
 import { CategoryThumbnail } from "@/lib/design/CategoryThumbnail";
 import RawDataSection from "@/components/RawDataSection";
@@ -108,7 +108,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   );
   const { data: event } = await supabase
     .from("events")
-    .select("name_ja, name_zh, name_en, description_ja, description_zh, description_en, updated_at, start_date")
+    .select("name_ja, name_zh, name_en, description_ja, description_zh, description_en, updated_at, start_date, category, event_form")
     .eq("id", id)
     .single();
 
@@ -125,6 +125,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ja: "Tokyo Taiwan Radar 東京台湾レーダー",
   };
   const siteName = SITE_NAMES[locale] ?? "Tokyo Taiwan Radar";
+  const noindex = isPureReportEvent(event.category, event.event_form);
 
   return {
     title: name ? `${name} | ${siteName}` : siteName,
@@ -152,6 +153,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description: description?.slice(0, 160) ?? undefined,
       images: [image],
     },
+    robots: noindex ? { index: false, follow: true } : undefined,
   };
 }
 
@@ -833,7 +835,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               <td className="px-4 py-3">
                 {subEventPrefectures.length > 1
                   ? subEventPrefectures.join("・")
-                  : event.source_name === "gguide_tv"
+                  : isTvProgramEvent
                   ? t("tvChannel")
                   : event.source_name === "rti_jp"
                   ? t("radioChannel")
