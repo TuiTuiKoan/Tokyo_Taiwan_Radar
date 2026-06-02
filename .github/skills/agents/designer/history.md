@@ -146,6 +146,12 @@ Newest entries at top. Each entry: date, observation, fix, lesson.
 
 ---
 
+## 2026-06-03 — Designer 規範未明示 design system 優先，導致可能回退原生 control
+
+- **Observation**: 雖然 `DesignSelect` 等站內 design-token 元件已存在，但 Designer 的 agent / skill 只寫了 token 與 i18n 規範，沒有把「先用本站 design system，native control 只當 fallback」明文制度化。
+- **Fix**: 在 `.github/agents/designer.agent.md` 新增 design system 優先原則，並在 `.github/skills/agents/designer/SKILL.md` 新增 `Design System First Guard`。
+- **Lesson**: 視覺設計規範不只是色彩與間距，元件選型本身也是 design system 的一部分。若不把優先順序寫進 Designer agent，native control 會在不同頁面悄悄回流。
+
 ## 2026-05-10 — Designer agent created
 
 - **Observation**: UI / 視覺工作散落在 Engineer + Architect 之間，缺乏專責 owner。Dark mode rollout（Phase 1–4）後 token 系統已就緒，但缺長期維護者。

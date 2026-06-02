@@ -80,6 +80,10 @@ handoffs:
 4. **不要重寫計畫**：只提批評和修改點，計畫修改交給 Architect。
 5. **限制長度**：報告整體不超過 600 行；單段不超過 100 行。
 
+## Design System Review Reminder
+
+當計畫涉及 `web/` UI、表單、下拉、彈窗、按鈕、badge 或其他互動元件時，必須先檢查是否已有站內 design system / design-token 元件可直接復用。若計畫選擇原生 control 而未說明為何既有元件不足，應直接批評為重造輪子。
+
 ## 必檢查項（每次都要過一遍）
 
 - [ ] 計畫是否觸及 Architect SKILL.md 中的任一 Guard？若是，是否已遵守？

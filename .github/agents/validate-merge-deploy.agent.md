@@ -23,6 +23,10 @@ handoffs:
 
 ## 工作流
 
+## UI Design System Check
+
+在檢查 `web/` 變更時，先確認互動元件是否優先採用既有 design system / design-token 元件。若新 UI 回退成原生 `<select>`、不一致的 dropdown、或與站內 token 視覺不符，必須在部署前要求修正。
+
 ### Step 0: Stash Awareness Check（多線開發保險）
 
 執行 `./scripts/stash-status.sh list`，分析輸出：

@@ -2,6 +2,14 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-03 — 設計元件未明示 design system 優先，導致 UI 容易回退原生 control
+
+**問題：** profile 類型下拉在調整時，雖然已有本站 `DesignSelect`，但規範層面沒有把「所有設計元件優先採用 design system / design token」寫成 Architect 的明文守則，容易讓後續計畫再度預設用原生 HTML control。
+
+**修正：** 在 `.github/agents/architect.agent.md` 新增 `Design System Guard`，並在 `SKILL.md` 的 Planning 段加入「Design system first」規則，要求 `web/` UI 計畫優先使用既有 design system 元件，只有在語意或互動模式無法覆蓋時才考慮原生 fallback。
+
+**教訓：** 只在單一元件層修掉 native control 不夠，Architect 的計畫與 skill 必須先把 design system 優先順序制度化，否則同類型 UI 很容易在其他頁面再度長出原生 control。
+
 ## 2026-06-03 — 086 account profiles migration 縮權前漏查既有 direct writes
 
 **問題：** Batch A 初版 `086_account_profiles.sql` 先撤掉 `events` authenticated write grants，並刪除 `creators` admin policy 後只補 self profile SELECT。這忽略了既有 `AdminEventTable` 與 `AdminCreatorsClient` 仍有 authenticated browser-client direct writes，套用後會讓後台活動與 creators 管理失效。

@@ -51,6 +51,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
   const tActor = useTranslations("actorCategory");
   const router = useRouter();
   const supabase = createClient();
+  const avatarInputId = "avatar_upload";
   const [form, setForm] = useState<ProfileInput>(() => ({
     ...emptyProfile(),
     ...initialProfile,
@@ -229,6 +230,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
               options={categoryOptions}
               placeholder={t("categoryPlaceholder")}
             />
+            <p className="mt-1 text-xs text-fg-subtle">{t("categoryHint")}</p>
           </div>
           <div>
             <label htmlFor="region" className="block text-sm font-medium text-fg mb-1">
@@ -276,18 +278,26 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
           />
         )}
         <div>
-          <label htmlFor="avatar_upload" className="block text-sm font-medium text-fg mb-1">
+          <p className="block text-sm font-medium text-fg mb-1">
             {t("avatarUpload")}
-          </label>
+          </p>
           <input
-            id="avatar_upload"
+            id={avatarInputId}
             type="file"
             accept="image/jpeg,image/png,image/webp"
             disabled={avatarUploading}
             onChange={(event) => handleAvatarUpload(event.target.files?.[0] ?? null)}
-            className="block w-full text-sm text-fg-muted file:mr-4 file:rounded-lg file:border-0 file:bg-green-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-green-700 disabled:opacity-60"
+            className="sr-only"
           />
-          <p className="mt-1 text-xs text-fg-subtle">{t("avatarUploadHint")}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <label
+              htmlFor={avatarInputId}
+              className="inline-flex cursor-pointer items-center rounded-lg border border-line-strong bg-paper px-4 py-2 text-sm font-medium text-fg hover:bg-elevated focus-within:outline-none focus-within:ring-2 focus-within:ring-green-500 transition disabled:opacity-60"
+            >
+              {avatarUploading ? t("saving") : t("avatarUploadButton")}
+            </label>
+            <span className="text-xs text-fg-subtle">{t("avatarUploadHint")}</span>
+          </div>
         </div>
         <div>
           <label htmlFor="avatar_url" className="block text-sm font-medium text-fg mb-1">

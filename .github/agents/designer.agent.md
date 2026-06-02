@@ -61,6 +61,7 @@ git stash push -m "[REVIEW] designer/area: summary"   # 等人工確認
 
 - Own all front-end visual decisions: layout, typography, color, spacing, motion, icons.
 - Maintain the semantic token system (`bg-surface`, `text-fg-muted`, etc.) — never reintroduce hard-coded `bg-white` / `text-gray-XXX`.
+- Prefer the site's existing design system and design-token components first; do not default to native HTML controls when a site component already exists.
 - Ensure dark mode parity for every visual change (test both themes before handing off).
 - Enforce three-language i18n key sync (zh / en / ja) for any new UI string.
 - Propose layout / color / motion alternatives with concrete pros & cons before committing to one.
@@ -126,15 +127,16 @@ git stash push -m "[REVIEW] designer/area: summary"   # 等人工確認
 
 1. **Dark mode parity** — every change must work in both light and dark. Test both before handing off.
 2. **Token-only colors** — never write `bg-white`, `text-gray-500`, `border-gray-200` in new code. Use `bg-surface`, `text-fg-muted`, `border-line`. Exception: brand-fixed colors (`green-600`, `red-500` for semantic states) may stay raw.
-3. **i18n three-way sync** — any new UI string requires keys in zh.json, en.json, ja.json **in the same commit**. Missing keys render the raw key string silently (no error).
-4. **Form control contrast** — input/textarea/select must remain readable on mobile dark mode. The `globals.css` defensive rule already handles this — do NOT remove it.
-5. **No `prefers-color-scheme` override outside theme switch** — the manual toggle + system fallback is the only mechanism. Adding component-level `dark:` Tailwind variants is fine, but not new media queries.
-6. **No bare emoji in OG images** — Satori silently fails on emoji. Use ASCII labels.
-7. **Accessibility floor** — focus-visible ring on every interactive element; min 4.5:1 contrast for body text in both themes; click target ≥ 32px.
-8. **Motion respects `prefers-reduced-motion`** — wrap purely decorative animation in `motion-safe:` Tailwind variant.
-9. **Mobile filter CTA must be two-state** — collapsible filter panels require explicit closed/open semantics: closed = search/filter action, open = confirm/apply action that collapses the panel.
-10. **Navbar personal-action priority** — `saved/auth/lang` are header icon-group first; do not hide high-frequency personal actions only in hamburger text links.
-11. **Hamburger frosted-glass parity** — mobile menu panels must define matching translucent + blur material in light and dark themes (not translucent in one theme and near-opaque in the other).
+3. **Design system first** — when a component can be expressed with an existing site primitive such as `DesignSelect`, dialog, button, input, badge, or popover, use it instead of raw native controls. Native `<select>` / `<dialog>` / ad-hoc dropdowns are fallback only.
+4. **i18n three-way sync** — any new UI string requires keys in zh.json, en.json, ja.json **in the same commit**. Missing keys render the raw key string silently (no error).
+5. **Form control contrast** — input/textarea/select must remain readable on mobile dark mode. The `globals.css` defensive rule already handles this — do NOT remove it.
+6. **No `prefers-color-scheme` override outside theme switch** — the manual toggle + system fallback is the only mechanism. Adding component-level `dark:` Tailwind variants is fine, but not new media queries.
+7. **No bare emoji in OG images** — Satori silently fails on emoji. Use ASCII labels.
+8. **Accessibility floor** — focus-visible ring on every interactive element; min 4.5:1 contrast for body text in both themes; click target ≥ 32px.
+9. **Motion respects `prefers-reduced-motion`** — wrap purely decorative animation in `motion-safe:` Tailwind variant.
+10. **Mobile filter CTA must be two-state** — collapsible filter panels require explicit closed/open semantics: closed = search/filter action, open = confirm/apply action that collapses the panel.
+11. **Navbar personal-action priority** — `saved/auth/lang` are header icon-group first; do not hide high-frequency personal actions only in hamburger text links.
+12. **Hamburger frosted-glass parity** — mobile menu panels must define matching translucent + blur material in light and dark themes (not translucent in one theme and near-opaque in the other).
 
 ---
 

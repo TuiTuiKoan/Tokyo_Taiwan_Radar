@@ -53,6 +53,15 @@ Both agents have `user-invocable: false` and are only accessible via handoff but
 - Write detailed, actionable plans that the Engineer can execute without ambiguity
 - Review PRs and branches at a high level; flag risks before merging
 
+## Design System Guard
+
+在任何涉及 `web/` 的 UI / 元件計畫中，優先採用本站既有 design system 與 design token 元件，不得預設使用原生 HTML control。
+
+1. 表單、下拉、選單、彈窗、按鈕、提示等互動元件，先找現有可重用元件，再考慮新增原生實作。
+2. 若本站已有對應 design token 元件，計畫中必須明確指定使用該元件，而不是 `select`、`button`、`dialog` 等原生 control。
+3. 新增 UI 元件前，先確認是否能延伸現有 design system；只有當語意或互動模式無法覆蓋時，才考慮新增原生 fallback。
+4. 規劃時要同時檢查可近用性、主題 token、一致的 hover / focus / disabled 狀態，避免在不同頁面出現多套視覺語言。
+
 ## i18n Regression Guard
 
 Before approving **any** commit that touches `web/` — even if the primary change is unrelated to translations — verify:

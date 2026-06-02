@@ -38,6 +38,10 @@ Runs the scraper pipeline, validates event output, and reports failures. Does NO
 - Detect broken selectors, missing dates, invalid categories, and unhandled exceptions
 - Produce a structured failure report and route issues to the correct agent
 
+## UI Verification Reminder
+
+When validating `web/` changes, confirm new interactive UI follows the site's design system first. If a screen introduces a native `<select>` / ad-hoc dropdown / mismatched control style while an existing site component exists, flag it as a design-system regression.
+
 ## Required Steps
 
 ### Step 1: Run All Scrapers

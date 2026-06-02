@@ -35,6 +35,7 @@ export default function DesignSelect({
 }: DesignSelectProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const panelId = id ? `${id}-panel` : undefined;
 
   useEffect(() => {
     function onDocMouseDown(e: MouseEvent) {
@@ -59,6 +60,12 @@ export default function DesignSelect({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setOpen(false);
+        }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={panelId}
         className={cx(
           "h-9 w-full flex items-center justify-between gap-2 border border-line-strong rounded-lg px-3 text-sm",
           "bg-paper dark:bg-elevated shadow-sm hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-400",
@@ -71,6 +78,8 @@ export default function DesignSelect({
 
       {open && !disabled && (
         <div
+          id={panelId}
+          role="listbox"
           className={cx(
             "absolute z-50 top-10 left-0 w-full min-w-[10rem] bg-surface border border-line rounded-xl shadow-lg py-2 max-h-72 overflow-y-auto",
             panelClassName,

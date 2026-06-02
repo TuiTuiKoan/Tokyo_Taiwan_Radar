@@ -5,6 +5,15 @@
 Unless the user explicitly requests otherwise, **always respond in Traditional Chinese (繁體中文)**.
 This applies to all agents (Researcher, Architect, Engineer, Scraper Expert, Tester, etc.).
 
+## Event Link Output Rule
+
+When listing events in chat, never output event IDs alone.
+Always include a clickable event page URL for each event in this format:
+
+`https://tokyotaiwanradar.com/ja/events/<event_id>`
+
+If locale is explicitly requested, replace `ja` with the requested locale.
+
 ## Project overview
 
 Tokyo Taiwan Radar aggregates Taiwan-related cultural events **anywhere in Japan（全日本）**,

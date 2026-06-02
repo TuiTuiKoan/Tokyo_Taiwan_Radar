@@ -64,6 +64,14 @@ When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
 2. Update code + docs + agent references in one batch (no partial wording updates).
 3. Treat `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` as the canonical checklist source.
 
+## Design System First
+
+在任何 `web/` UI 實作中，先使用本站既有 design system / design-token 元件；只有在現有元件無法表達語意或互動時，才考慮原生 HTML control。
+
+1. 若有 `DesignSelect`、既有 dialog / popover / button / badge / input，應優先復用，不要自行重做 native 下拉或 ad-hoc panel。
+2. 新增 UI 前先檢查 `web/components/` 是否已有相同或近似元件，避免重造輪子。
+3. 若必須新增元件，需維持 token / spacing / focus / dark mode 與站內既有視覺語言一致。
+
 ## Required Steps
 
 ### Step 1: Understand

@@ -18,6 +18,15 @@ Read at the start of every session before proposing UI changes.
 - Theme toggle: `web/components/ThemeToggle.tsx`
 - Anti-flash script: `web/app/layout.tsx` (inline `<script>` in `<head>`)
 
+## Design System First Guard
+
+在任何 `web/` 視覺設計與元件重構中，優先使用本站既有 design system 與 design-token 元件，不得預設回到原生 HTML control。
+
+1. 若已有可重用元件（例如 `DesignSelect`、現成 dialog / popover / button / badge / input），設計稿與實作說明必須先選它們。
+2. Native `<select>`、`<dialog>`、手寫 dropdown / popover 只能作為 fallback，且要說明為何既有 design system 不足。
+3. 新增視覺互動之前，先確認是否能延伸現有 token、spacing、radius、shadow 與 hover/focus 模式，而不是另起一套樣式語言。
+4. 若要引入新設計元件，需同時說明它如何符合現有 design system 的語意與維護成本，避免 component sprawl。
+
 ## Semantic Token Catalog
 
 These are the **only** color tokens to use in new component code. Defined in `globals.css`.
