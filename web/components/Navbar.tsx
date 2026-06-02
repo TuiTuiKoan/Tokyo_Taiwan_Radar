@@ -136,13 +136,14 @@ export default function Navbar({ locale }: Props) {
     }
 
     void loadMe();
-    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
       if (!alive) return;
-      if (event === "SIGNED_OUT") {
-        setUser(null);
-        setIsAdmin(false);
-        return;
-      }
+      // Always re-verify against the server (/api/me) instead of trusting the
+      // browser client's event. The browser client can emit a spurious
+      // SIGNED_OUT a few seconds after login when its refresh token loses the
+      // rotation race against the proxy / /api/me getUser() calls. In that case
+      // the server session is still valid, so loadMe() keeps the user logged in
+      // and only clears when the server itself reports no user.
       void loadMe();
     });
 
@@ -283,6 +284,7 @@ export default function Navbar({ locale }: Props) {
                   <>
                     <Link
                       href={logoutHref}
+                      prefetch={false}
                       aria-disabled={loggingOut}
                       onClick={() => {
                         setLoggingOut(true);
@@ -292,18 +294,18 @@ export default function Navbar({ locale }: Props) {
                     >
                       {t("logout")}
                     </Link>
-                    <Link
-                      href={`/${locale}/account`}
-                      onClick={(e) => {
-                        e.preventDefault();
+                    <button
+                      type="button"
+                      onClick={() => {
                         void goToMyEvents();
                       }}
-                      className="flex items-center px-3 py-2 text-sm text-fg hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition"
+                      className="w-full flex items-center px-3 py-2 text-sm text-fg hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition text-left"
                     >
                       {profileLoading ? t("loading") : tAccount("myEventsTab")}
-                    </Link>
+                    </button>
                     <Link
                       href={`/${locale}/saved`}
+                      prefetch={false}
                       onClick={() => setAccountOpen(false)}
                       className="flex items-center px-3 py-2 text-sm text-fg hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition"
                     >
