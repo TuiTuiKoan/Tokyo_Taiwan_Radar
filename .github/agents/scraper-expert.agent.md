@@ -86,6 +86,8 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 
   18. **CMS/WordPress 活動頁主辦與講者欄位檢查（必做）**: 如果來源頁是 WordPress 或類 CMS 結構，人物/主辦欄位不得只抓單一 label。開發時至少驗證 `講演者`、`講師`、`登壇者`、`司会`、`報告者`、`主催`（必要時 `共催`）是否都能覆蓋，並把 `主催:` / `講師:` 明確寫入 `raw_description`。若線上事件觸發 `auto_qa_missing_organizer` 或 `auto_qa_missing_performers`，先回查 scraper label fallback，而不是先改前端顯示邏輯。
 
+  19. **`gguide_tv` report 誤判防護（劇情中的「報告」≠ 活動報導）**: 若事件來源是 `gguide_tv`，不得僅因 raw_description 內出現單詞 `報告` 就注入 `report` category 或加上 `【レポート】` 接頭辭。電視劇劇情簡介常出現 `交際の報告`、`上司に報告` 等語境，這是劇情文本而非活動報導。`report` 判定對 `gguide_tv` 必須以節目型態/ジャンル為主（如 `報道`、`ドキュメンタリー`），不可直接套用 generic keyword trigger。
+
 1. Run `cd scraper && python main.py --dry-run --source <name> 2>&1 | head -80`.
 2. Verify: `start_date` is populated, not the publish date; `category` values are canonical; no unhandled exceptions.
 3. **For `gguide_tv` events specifically**: confirm `tv_program` appears in `category`. If `movie` appears alone (without `tv_program`), the annotator's `_inject_keyword_categories` was bypassed — check that `raw_description` contains `放送:` / `ジャンル:` markers.

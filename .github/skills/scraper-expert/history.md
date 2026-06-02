@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-06-02 — gguide_tv 劇情文案「報告」觸發 report 誤判，標題被加上【レポート】
+
+**問題：** 事件 `808da4b5`（source: `gguide_tv`）前端顯示 `【レポート】台湾ドラマ...`。`raw_title` 原始值沒有 `レポート`，但 `name_ja` 被 annotator 加上接頭辭。
+
+**根本原因：** `annotator.py` 的 generic `_REPORT_TRIGGER_RE` 包含關鍵字 `報告`。該事件 `raw_description` 劇情摘要含有「交際の報告を済ませた」，被誤判為活動報導，導致自動注入 `category: report`，並由 `_inject_report_prefix()` 加上 `【レポート】`。
+
+**修正：** 在 agent / skill 規則新增 `gguide_tv` 防護：`gguide_tv` 不可僅因 `報告` 一詞觸發 `report`。此來源的 `report` 必須以 TV genre/context（`報道`、`ドキュメンタリー`）判定。
+
+**教訓：** generic report keyword 規則不可直接套用到 TV 劇情來源。若來源文本是節目摘要，`報告`、`記録` 等字詞需先判斷語境，避免把劇情敘述當成活動報導。
+
+---
+
 ## 2026-06-02 — waseda_taiwan 漏抓主催/講師導致前端主辦資訊區塊不顯示
 
 **問題：**

@@ -651,6 +651,7 @@ applyTo: scraper/sources/<source_name>.py
 3. **Year inference**: Schedule strings (`4月29日 水曜 12:00`) have no year — try current year; if result is older than `LOOKBACK_DAYS` days, try `current_year + 1` (handles Dec→Jan boundary).
 4. **テレサ・テン filter**: Only keep programs where the full string `テレサ・テン` appears in the title; blocks variety shows where テレサ is a minor guest alongside other artists.
 5. **`台湾ドラマ` is redundant**: All results from `台湾ドラマ` are already returned by the `台湾` keyword search — do not add it to `SEARCH_KEYWORDS`.
+6. **Report false-positive guard (`報告` in drama synopsis)**: Do NOT classify a `gguide_tv` event as `report` solely because `raw_description` contains the word `報告`. TV drama summaries often contain phrases like `交際の報告` / `上司に報告`, which are plot narration, not event reports. For `gguide_tv`, `report` should be driven by TV genre/context (e.g. `報道`, `ドキュメンタリー`) rather than generic report keywords.
 
 ## livepocket-specific
 - **`dl` class is `event-detail-info__list`**, not `event-detail-info`. The `dt`/`dd` pairs are wrapped in `div.event-detail-info__block` inside the `dl`. Use `_get_dd_text(dl, label)` iterating `div.event-detail-info__block`.

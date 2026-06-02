@@ -1535,7 +1535,8 @@ print('Missing from VALID_CATEGORIES:', missing or 'ALL CLEAR')
   - `_genre_to_category()` 已正確產生 `["tv_program"]` 初始分類；annotator 透過 `_inject_keyword_categories` 的 `_TV_PROGRAM_KEYWORDS` 確保 tv_program 注入
   - `放送: [channel]` + `ジャンル: [genre]` 是 gguide_tv 的固定 raw_description 格式標記（`_TV_PROGRAM_KEYWORDS = frozenset(["放送:", "放送：", "ジャンル:", "ジャンル："])`）
   - 映画 genre（`ジャンル: 映画`）的 TV 廣播 → 保留 `movie` + 加 `tv_program`；其他 genre（バラエティ/ドラマ/ドキュメンタリー 等）→ 只有 `tv_program`，絕不單獨用 `movie`
-  - `_inject_keyword_categories` 邏輯：含 TV markers → 加 `tv_program`；同時若有 `movie` 且非「ジャンル: 映画」→ 移除錯誤的 `movie`
+    - `_inject_keyword_categories` 邏輯：含 TV markers → 加 `tv_program`；同時若有 `movie` 且非「ジャンル: 映画」→ 移除錯誤的 `movie`
+- **`report` 誤判防護（劇情文本中的「報告」）**：`gguide_tv` 的劇情摘要常含「交際の報告」「上司に報告」等詞，這不是活動報導。`gguide_tv` 不可只因 generic `_REPORT_TRIGGER_RE` 命中 `報告` 就注入 `report` 或加 `【レポート】`。`report` 需以 TV genre/context（`報道`、`ドキュメンタリー`）判定為主。
 
 ## DeepL Tracking
 - Add `self._deepl_chars_used: int = 0` to `BaseScraper.__init__`.
