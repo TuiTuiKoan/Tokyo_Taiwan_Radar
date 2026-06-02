@@ -8,7 +8,7 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `084_fix_security_invoker_views.sql` (next = `085`). Previous milestones: `076_venues_authority.sql`, `077_*`, `078_performer_url.sql`, `079` (skipped), `080_fc_metric_fix.sql`, `081_venues_business_hours.sql`, `082_announcements_storage_bucket.sql`.
+- Number migrations sequentially: `001`, `002`, … Latest is `087_increment_account_usage_rpc.sql` (next = `088`). Previous milestones: `076_venues_authority.sql`, `077_*`, `078_performer_url.sql`, `079` (skipped), `080_fc_metric_fix.sql`, `081_venues_business_hours.sql`, `082_announcements_storage_bucket.sql`, `083_event_views_country_region.sql`, `084_fix_security_invoker_views.sql`, `085_event_views_traffic_source.sql`, `086_account_profiles.sql`.
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped; `029_aeo_visits.sql` + `029b_realtime_events.sql`; `038_performer.sql` + `038b_field_corrections.sql`
 
@@ -99,6 +99,7 @@ Unique constraint: `(source_name, source_id)`
 
 - `saved_events` — `(user_id uuid, event_id uuid)` for user bookmarks
 - `user_roles` — `(user_id uuid, role text)` e.g. `'admin'`
+- `account_usage` — `(user_id uuid, usage_date date, annotate_count int)` tracks daily quota usages (migration 086/087)
 - `category_corrections` — admin feedback for AI annotator retraining
 - `event_reports` — user-submitted corrections / reports on events
 - `scraper_runs` — per-run logs (source, event counts, success, duration_seconds)
@@ -137,7 +138,7 @@ Unique constraint: `(source_name, source_id)`
 
 ## Migration checklist
 
-1. Number the file `NNN_descriptive_name.sql` (next = `085`)
+1. Number the file `NNN_descriptive_name.sql` (next = `088`)
 2. Use `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE … ADD COLUMN IF NOT EXISTS`
 3. Add RLS with `ALTER TABLE … ENABLE ROW LEVEL SECURITY` + policies
 4. Test in Supabase SQL Editor before committing
