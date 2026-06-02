@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-06-02 — google_news_rss（TVGuide 配信記事）頻道/價格/演員欄位漏填，前端資訊不完整
+
+**問題：** 事件 `c768b418`（source: `google_news_rss`）原文明確包含「BS11+」「見放題・単品レンタル配信」「演じたのは、ウー・ピンチェン / ホアン・リーフォン」，但 DB 的 `location_name` / `business_hours` / `is_paid` / `price_info` / `performers` 皆為空，前端只顯示泛標題與最小資訊。
+
+**根本原因：** `google_news_rss` 為二手聚合來源，`raw_description` 為長段落新聞文本。annotator 對「配信平台 + 料金 + 出演者」的結構化抽取在此類文本上並不穩定，導致事件欄位落空。
+
+**修正：**
+- DB 直接回填：
+  - `location_name = BS11+`
+  - `business_hours = 2026年5月25日から配信中`（單行）
+  - `is_paid = true`
+  - `price_info = 見放題・単品レンタル配信`
+  - `event_form = ["broadcast"]`
+  - `performers = ["ウー・ピンチェン", "ホアン・リーフォン"]`
+- 對上述欄位建立 `field_corrections` lock，防止後續 annotation 覆蓋。
+
+**教訓：**
+- `google_news_rss` 的影視配信新聞屬於薄結構文本來源。若原文有平台/價格/演員而欄位為空，需以「手動回填 + FC lock」作為標準修復流程。
+- `business_hours` 在配信型事件應保持單行可讀（例如 `YYYY年M月D日から配信中`），避免把長段原文直接塞入造成 UI 雜訊。
+- `field_corrections.corrected_by` 在此環境常為 UUID 欄位；手動 upsert 若填入任意字串會觸發 `22P02`。不確定型別時先只寫 `event_id/field_name/corrected_value`。
+
 ## 2026-06-02 — gguide_tv 劇情文案「報告」觸發 report 誤判，標題被加上【レポート】
 
 **問題：** 事件 `808da4b5`（source: `gguide_tv`）前端顯示 `【レポート】台湾ドラマ...`。`raw_title` 原始值沒有 `レポート`，但 `name_ja` 被 annotator 加上接頭辭。

@@ -303,6 +303,9 @@ GET /entries/{venue_id}  → fields.fullName, fields.address, fields.closedDays,
 - `source_id`: `gnews_{md5(url)[:12]}` — stable across runs; `url` is guid if real article URL, else `<link>` tag value
 - Skip entries older than 60 days (based on pubDate)
 - Google `<guid>` may contain real article URL; prefer it over `<link>` tag when it starts with `http` and does not contain `news.google.com`
+- **配信記事欄位補齊（manual hotfix）**: 若 article text 明確包含平台/價格/出演者（`BS11+`, `見放題・単品レンタル配信`, `演じたのは`）但事件欄位為空，手動回填 `location_name`, `business_hours`, `is_paid`, `price_info`, `event_form=["broadcast"]`, `performers`。
+- **`business_hours` for streaming events must be one-line**: use concise format `YYYY年M月D日から配信中`; do not paste long article paragraphs into `business_hours`.
+- **FC lock is mandatory after manual backfill**: upsert `field_corrections` for all corrected fields immediately. If `corrected_by` column type is uncertain, omit it and write only `event_id + field_name + corrected_value` to avoid `22P02` UUID errors.
 - **`_NEWS_SOURCES` member**: `merger.py` uses Pass 2 (date-range + location-overlap) — NOT name similarity — to merge google_news_rss events into official primaries. This is intentional: article titles don't match event names. Never add `google_news_rss` to Pass 1 name-similarity matching.
 
 ## nhk_rss-specific
