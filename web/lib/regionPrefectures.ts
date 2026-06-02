@@ -51,6 +51,11 @@ export const PREFECTURE_LABELS_EN: Record<string, string> = {
   福岡: "Fukuoka", 佐賀: "Saga", 長崎: "Nagasaki", 熊本: "Kumamoto",
   大分: "Oita", 宮崎: "Miyazaki", 鹿児島: "Kagoshima", 沖縄: "Okinawa",
   高知: "Kochi", 愛媛: "Ehime", 徳島: "Tokushima", 香川: "Kagawa",
+  // Taiwan
+  台北: "Taipei", 新北: "New Taipei", 桃園: "Taoyuan", 台中: "Taichung", 台南: "Tainan", 高雄: "Kaohsiung",
+  基隆: "Keelung", 新竹: "Hsinchu", 苗栗: "Miaoli", 彰化: "Changhua", 南投: "Nantou", 雲林: "Yunlin",
+  嘉義: "Chiayi", 屏東: "Pingtung", 宜蘭: "Yilan", 花蓮: "Hualien", 台東: "Taitung", 澎湖: "Penghu",
+  金門: "Kinmen", 連江: "Lienchiang", 臺北: "Taipei", 臺中: "Taichung", 臺南: "Tainan", 臺東: "Taitung",
 };
 
 /**

@@ -338,10 +338,11 @@ export async function POST(req: NextRequest) {
         persist.organizer_url = originUrl;
         returnedFields.organizer_url = originUrl;
       }
-      if (!event.location_url && originUrl) {
-        persist.location_url = originUrl;
-        returnedFields.location_url = originUrl;
-      }
+      // NOTE: location_url is intentionally NOT set here.
+      // originUrl = origin of the search-result page (event organizer's site,
+      // Peatix, etc.) — which is NEVER the venue's own website.
+      // location_url must only come from GPT extraction of explicit venue links
+      // in the page text, or from field_corrections / venue_registry.
       await adminClient.from("events").update(persist).eq("id", eventId);
     }
   }
@@ -402,7 +403,7 @@ Extraction fields (omit if not visible in the web page):
 - organizer_url: organizer official URL (full https URL, the org's homepage). LOOK CAREFULLY in the web page header/footer/contact section. If the page is hosted on the organizer's own domain (e.g. www.library.chiyoda.tokyo.jp), the homepage URL of that domain IS the organizer_url.
 - location_name: venue name in Japanese
 - location_address: full Japanese postal address (with 〒)
-- location_url: venue official website URL (full https URL, the venue's homepage). Same heuristic as organizer_url — if the venue runs the page, the site root is the location_url.
+- location_url: venue official website URL (full https URL, the venue's OWN homepage — e.g. https://www.bunkamura.co.jp for Bunkamura). IMPORTANT: location_url is a COMPLETELY DIFFERENT URL from organizer_url and from the event page URL. The venue is a physical place; its URL is its own website. Do NOT use the event page URL, Peatix URL, or organizer domain as location_url. Only set this if you can identify a URL that specifically belongs to the venue building/facility itself. If unsure, omit it.
 - business_hours: opening hours / show times (e.g. "10:00〜20:00")
 - performer: main performer or speaker name (single person or group)
 - price_info: ticket price text (e.g. "入場無料" or "一般 ¥1,500")

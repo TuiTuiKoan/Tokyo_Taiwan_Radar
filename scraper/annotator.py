@@ -417,26 +417,22 @@ _SLOT_TITLE_RE = re.compile(
     r'^(第\d+報告|第\d+講演?|基調講演|特別講演|招待講演|総合討論|パネルディスカッション)\s*$'
 )
 
-# Prefecture extraction — mirrors web/app/[locale]/events/[id]/page.tsx extractPrefecture()
+# Prefecture extraction — mirrors web/lib/cityLabel.ts extractCity()
 _PREFECTURE_RE = re.compile(
-    r"^(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県]{2,4}[都道府県])"
+    r"(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県\d〒-]{2,4}[都道府県]|(?:[臺台]北|新北|桃園|[臺台]中|[臺台]南|高雄|基隆|新竹|苗栗|彰化|南投|雲林|嘉義|屏東|宜蘭|花蓮|[臺台]東|澎湖|金門|連江)[市縣県])"
 )
 
+
 def _extract_prefecture(address: str | None) -> str | None:
-    """Return prefecture name (e.g. '東京', '大阪') from a Japanese address, or None."""
+    """Return full prefecture name (e.g. '東京都', '台北市') from an address, or None."""
     if not address:
         return None
-    m = _PREFECTURE_RE.match(address)
+    # Use search instead of match to find prefecture anywhere (e.g. after postal code).
+    m = _PREFECTURE_RE.search(address)
     if not m:
         return None
     full = m.group(1)
-    if full == "北海道":
-        return "北海道"
-    if full in ("大阪市", "大阪府"):
-        return "大阪"
-    if full in ("京都市", "京都府"):
-        return "京都"
-    return full.rstrip("都道府県")
+    return full
 
 # Regex for deterministic venue extraction from raw_description
 # before GPT annotation — matches 会場：/場所：label lines.
@@ -923,7 +919,7 @@ Respond with valid JSON matching this schema:
   "business_hours_en": "opening hours in English" or null,
   "is_paid": false or true or null,
   "price_info": "price details" or null,
-  "location_url": "official website URL of the venue, extracted from the text only — NEVER infer or hallucinate; set null if not explicitly stated" or null,
+  "location_url": "official website of the VENUE FACILITY ITSELF (e.g. https://www.bunkamura.co.jp for Bunkamura) — extracted from text only. MUST be the venue's own site, NOT the event page URL, NOT the organizer URL, NOT source_url. Set null if a distinct venue URL is not explicitly stated in the text." or null,
   "organizer": "primary host name in original language" or null,
   "organizer_zh": "Traditional Chinese name of the primary organizer. If explicitly in source: use as-is. If translated from Japanese: append\u300c\uff08AI\u7ffb\u8b6f\uff09\u300d" or null,
   "organizer_en": "English name of the primary organizer. If explicitly in source: use as-is. If translated: append ' (AI translated)'" or null,

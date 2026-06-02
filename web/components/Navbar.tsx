@@ -137,10 +137,12 @@ export default function Navbar({ locale }: Props) {
     }
 
     void syncAuthState();
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (!alive) return;
-      setUser(session?.user ? { id: session.user.id, email: session.user.email } : null);
-      if (!session?.user) {
+      if (session?.user) {
+        setUser({ id: session.user.id, email: session.user.email });
+      } else if (event === "SIGNED_OUT") {
+        setUser(null);
         setIsAdmin(false);
         return;
       }
