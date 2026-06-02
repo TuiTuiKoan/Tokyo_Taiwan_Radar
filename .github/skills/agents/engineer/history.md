@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-06-03 — `location_url` が会場 URL ではなくイベントページ URL に繰り返し誤設定される根本原因修正（commits `6b3e5ef`, `1313985`）
+
+**日付 | 問題簡述 | 根本原因 | 修復方法 | 学んだ教訓**
+2026-06-03 | 会場・チャンネル超連結（`location_url`）が繰り返し主催者 URL / Peatix URL など「イベントページ URL」に設定されており、管理者が手動修正し続けていた | **3 箇所の根本原因**：①`route.ts` の Web Search フォールバックが `new URL(foundUrl).origin` を `location_url` に自動代入（検索ヒットページ = 主催者サイト ≠ 会場）；②`annotator.py` SYSTEM_PROMPT で「Same heuristic as organizer_url」と説明したため GPT が「検索結果ドメイン = 会場 URL」と誤解；③`annotator.py` に `location_url == source_url/official_url` の衝突ガードがなかった | 3 層修正：(1) `route.ts` の `location_url=originUrl` 自動代入を削除しコメントで意図を明示（`6b3e5ef`）、(2) GPT プロンプトを「会場施設自身の OWN サイト限定・イベントページ/Peatix/主催者ドメイン禁止」に書き直し（`1313985`）、(3) `annotator.py` 後処理ガード（`location_url == source_url or official_url` → WARNING + null にリセット）、(4) `auto_qa.py` に `auto_qa_location_url_is_event_url` 検出器を追加し既存汚染データを捕捉 | **教訓：** `location_url` は `source_url`/`official_url` と完全に別ドメインでなければならない。Web Search で見つかった URL の origin は「主催者/イベントプラットフォーム」であり「会場施設」ではない。新たな汚染データのバックグラウンドチェックには `auto_qa_location_url_is_event_url` を走らせること。
+
+---
+
 ## 2026-06-03 — `google_news_rss` 薄內容串流新聞誤留 active pool，前端常設 shelf 誤吸入
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

@@ -1729,17 +1729,19 @@ for e in [x for x in events if x['name_ja'] != x['raw_title']]:
 ## `location_url` — 官方會場網站 URL（migration 031）
 
 - `location_url: Optional[str] = None` in `Event` dataclass（`scraper/sources/base.py`）— 填入官方場館/會場的完整 URL（非活動頁面 URL）。
-- **填寫來源**：scraper 從場館官網連結萃取，或管理員在 Admin UI 手動輸入。
-- **Annotator 不填寫**：GPT 容易 hallucinate URL，`annotator.py` 的 schema 不包含 `location_url`。
+- **填寫來源**：scraper 從場館官網連結萃取，或管理員在 Admin UI 手動輸入。優先以 scraper 直接設值；annotator 的 GPT 抽取是輔助 fallback，但不可靠。
+- **Annotator GPT 抽取有後處理 guard**（commit `1313985`）：若 GPT 回傳的 `location_url` 與 `source_url` 或 `official_url` 相同，`annotator.py` 會自動拒絕並設為 `null`（WARNING log 輸出）。理由：`source_url`/`official_url` 是「活動頁面」URL，不可能同時是「會場施設」URL。
 - **Web 渲染**：Event detail page 以條件渲染實作——`location_url` 存在時將 `location_name` 包在 `<a href={location_url} target="_blank" rel="noopener noreferrer">` 內，並顯示 ↗ 指示符。
 - **`sub_row` 繼承規則**：`annotator.py` 的 `sub_row` 不自動繼承父事件欄位。新增 `location_url` 後，若父事件有 venue URL，`sub_row` 需明確設定 `"location_url": event.get("location_url")`。
 - **Seed 順序**：含 `location_url` 的 Python client seed 必須在 Supabase Dashboard 執行 migration `031` 後才能執行；否則報 `PGRST204`。
+- **⚠ `source_url`/`official_url` と同じドメイン禁止（最多発 bug）**：`location_url` は `source_url` や `official_url` と**必ず異なるドメイン**でなければならない。Web Search で見つかった URL の origin（Peatix, connpass, 主催者サイト等）を自動代入してはならない。`location_url` = 「会場施設自身のウェブサイト」（例：`https://www.bunkamura.co.jp`）。`auto_qa_location_url_is_event_url` 検出器が衝突を自動フラグ。
 - **⚠ 申込表單 URL 禁止填入 `location_url`**：Google Forms（`forms.gle/...`）、Peatix、Connpass 等**申込/登録表單 URL** 絕對不能填入 `location_url`。`location_url` 語義是「會場的官方 URL」（大学キャンパスページ、施設公式サイト等）。申込表單屬於 `source_url` 或 `official_url` 的責任範圍。DB 手動修正時若發現 `location_url` 含申込表單 → 設為 `null`。
 - **⚠ 主催者 URL 禁止填入 `location_url`**：イベント説明文に主催者・団体のウェブサイト URL が含まれる場合（特に `raw_description` 末尾）、scraper や annotator がそれを `location_url` に誤帰属することがある。主催者 URL は `organizer_url` フィールドへ。DB 手動修正時は `location_url = null`・`organizer_url = <organizer site>` に変更。iwafu 系 scraper で頻発。
 
 Reference incident: `0d97e51c`（2025年台湾史研究会3月例会）`location_url='https://forms.gle/BwseMtpymDKQY4W47'`（申込表單）→ `null` 手動修正（2026-05-07）。
 Reference incident: `c61470db`（赤城で台湾さんぽ）`location_url='https://gunma-taiwan-association.studio.site/'`（主催者サイト）→ `null` + `organizer_url` に移動（2026-05-30）。
 Reference incident: `c52caa6e`（THE SILENCE）`location_url='https://www.diginoa.net/silencepuppet'`（イベントページ）→ `null` + `official_url` に移動（venue URL = `https://theater-green.com/theater/base/` に修正）（2026-05-30）。
+Reference incident: `route.ts` f16b987 → 6b3e5ef：Web Search origin 自動代入を削除；`annotator.py` 1313985：衝突 guard + GPT プロンプト強化（2026-06-03）。
 
 **`official_url` vs `source_url` — フロントエンド表示区別：**
 - `official_url` が設定されている → イベント詳細ページに **「公式サイト ↗」** として表示
