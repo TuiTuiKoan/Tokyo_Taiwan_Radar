@@ -446,8 +446,9 @@ def _build_movie_extend_row(event: Event, existing_state: dict) -> dict | None:
     excluded — those are owned by the annotator and protected by
     field_corrections (P3.2 invariant).
 
-    annotation_status is flipped to 'pending' iff raw_description actually
-    changed, so the annotator re-runs translation on the new schedule text.
+    annotation_status is flipped to 'pending' when any translation-dependent
+    source field changes (raw_description, business_hours, start_date, end_date),
+    so the annotator re-runs with the latest schedule and date context.
 
     Returns None if nothing meaningful would change.
     """
@@ -488,7 +489,7 @@ def _build_movie_extend_row(event: Event, existing_state: dict) -> dict | None:
         "end_date": merged_end,
         "scraped_at": datetime.now().isoformat(),
     }
-    if desc_changed:
+    if desc_changed or hours_changed or start_changed or end_changed:
         row["annotation_status"] = "pending"
     return row
 
