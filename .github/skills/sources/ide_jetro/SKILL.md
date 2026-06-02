@@ -29,6 +29,48 @@ applyTo: scraper/sources/ide_jetro.py
 | `location_name` | IDE venue (usually 幕張メッセ or 研究所内) from body |
 | `raw_description` | Detail page body text |
 
+### Structured fields required from detail page
+
+For seminar pages, scraper must parse heading-based sections in detail HTML and map them explicitly:
+
+| Detail section | Target field | Rule |
+|---|---|---|
+| `開催日程` | `business_hours` | extract time range (`HH:MM〜HH:MM` or `HH時MM分〜HH時MM分`) |
+| `会場` | `location_name` | keep venue text; online webinars should stay `オンライン` |
+| `主催` | `organizer` | use exact text from section block |
+| `講師・プログラム` table | `performers` (via annotator) | collect speaker names from speaker column and inject into `raw_description` |
+
+Do not rely on one generic paragraph-only description. If these sections are not parsed, front-end detail pages lose organizer/speaker/hours.
+
+## IDE CMS Block Structure Guard
+
+IDE pages are rendered with nested blocks (`pbNested`, `paragraph`, `table-basic`) after `<h4>` headings. Traditional sibling-only scraping can return empty strings even when content exists.
+
+Required pattern:
+
+1. Locate heading (`開催日程`, `会場`, `主催`, `講師・プログラム`).
+2. Find the first nested content block after that heading (`div` with class containing `pbNested|paragraph|table-basic`).
+3. Extract plain text / table cells from that block.
+
+When this guard is violated, typical symptoms are:
+
+* `business_hours = null`
+* `organizer = null`
+* `performer(s) = null`
+
+for events that clearly have these fields on the source page.
+
+## Raw Description Structure Rule
+
+Always prepend structured lines before free-text summary when values exist:
+
+* `会場: ...`
+* `主催: ...`
+* `時間: ...`
+* `講師: ...`
+
+This ensures annotator can deterministically recover organizer and performer fields.
+
 ## Taiwan Title Filter
 
 The listing contains hundreds of seminars; only keep items whose title contains `台湾`:

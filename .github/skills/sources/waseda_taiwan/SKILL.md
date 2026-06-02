@@ -56,10 +56,30 @@ Regex: `r"(?:場\s*所|会\s*場|開催場所)"` handles all variants.
 | `start_date` | Content: date label variants above |
 | `location_name` | Venue field, first part (before full address) |
 | `location_address` | `東京都...` prefix extracted if present, else venue |
+| `organizer` (via annotator) | `raw_description` line: `主催: ...` |
+| `performer(s)` (via annotator) | `raw_description` line: `講師: ...` (speaker fallback) |
 | `source_url` | Post `link` |
 | `source_id` | `waseda_taiwan_{post_id}` |
 | `is_paid` | `False` (all events free, academic) |
 | `category` | `["academic", "taiwan_japan"]` |
+
+## Speaker / Organizer Label Fallback
+
+Waseda event posts do not use one fixed person label. Use this fallback chain when extracting speaker-like fields:
+
+1. `講演者`
+2. `講師`
+3. `登壇者`
+4. `司会`
+5. `報告者`
+
+Always extract `主催` (and `共催` when present) and append these structured lines to `raw_description`:
+
+- `主催: ...`
+- `共催: ...` (optional)
+- `講師: ...`
+
+Without these structured lines, annotator may leave `organizer` / `performer` as null.
 
 ## Address Extraction
 

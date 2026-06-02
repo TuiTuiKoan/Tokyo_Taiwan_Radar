@@ -195,6 +195,7 @@ AUDIT
   self._session.mount("http://", HTTPAdapter(max_retries=_retry))
   ```
   Backoff: 2s → 4s → 8s. Mount both `https://` and `http://`.
+- **WordPress 活動頁標籤變體防漏抓（主催/講師）**: 對 WordPress/類 CMS 活動頁，人物與主辦欄位不得只依賴單一標籤。至少實作 `講演者 → 講師 → 登壇者` 的 fallback，並同時抽取 `主催`（必要時 `共催`）。此外，需將 `主催:` 與 `講師:` 顯式寫入 `raw_description`，確保 annotator 可在結構化文本中穩定回填 `organizer` / `performer`，避免觸發 `auto_qa_missing_organizer` / `auto_qa_missing_performers`。
 
 ## WordPress RSS — `<strong>` Strip 後空格問題
 
@@ -2789,7 +2790,7 @@ heartbeat itself. Keep entries ≤ 1 line, format: `- R-CLASS | detector report_
 - R-ENRICH-MISS | auto_qa_performer_zh_equals_katakana | retry `enrich_person_names_single`; on miss, leave for human review
 - R-SCR-ADDR-MISS | auto_qa_missing_address | TBD - handler vs detector precision review (see Issue #111)
 - R-SCR-HOURS-MISS | auto_qa_missing_hours | TBD - detector covers business_hours nullability; handler design pending
-- R-UNCLASSIFIED | auto_qa_taiwan_venue / auto_qa_address_is_venue_name | review-only; no auto-handler (catch-all for unclassified detectors)
+- R-UNCLASSIFIED | auto_qa_taiwan_venue / auto_qa_address_is_venue_name / auto_qa_missing_organizer / auto_qa_missing_performers | review-only; no auto-handler (catch-all for unclassified detectors)
 - R-AMBIGUOUS | any | append note to report; leave for human review (no auto-write)
 <!-- qa-root-cause-catalog-end -->
 

@@ -97,10 +97,36 @@ def _fetch_detail(url: str) -> dict:
     title = re.sub(r"\s*[-－]\s*アジア経済研究所.*$", "", title).strip()
 
     # Extract a description snippet from the main content area
-    main = soup.find("div", id="maincolumn") or soup.find(
-        "div", class_=re.compile(r"category-main|main-content")
+    main = (
+        soup.find("div", id="maincolumn")
+        or soup.find("div", id="mainArea")
+        or soup.find("div", id=re.compile(r"area\d+"))
+        or soup.find("div", class_=re.compile(r"category-main|main-content|pbNested"))
     )
     description = ""
+    business_hours = None
+    organizer = None
+    venue = None
+    speaker_names: list[str] = []
+
+    def _next_text_after_heading(heading_text: str) -> str:
+        """Get plain text from the first content block after a heading."""
+        if not main:
+            return ""
+        # IDE pages use h4 headings like: 開催日程 / 会場 / 主催
+        h = None
+        for cand in main.find_all(["h4", "dt", "th"]):
+            if heading_text in cand.get_text(" ", strip=True):
+                h = cand
+                break
+        if not h:
+            return ""
+        nxt = h.find_next(
+            "div",
+            class_=re.compile(r"pbNested|paragraph|table-basic"),
+        )
+        return nxt.get_text(" ", strip=True) if nxt else ""
+
     if main:
         for el in main.find_all(["p"]):
             text = el.get_text(" ", strip=True)
@@ -111,7 +137,51 @@ def _fetch_detail(url: str) -> dict:
                 description = text[:800]
                 break
 
-    return {"title": title, "description": description}
+        # Structured fields for annotator and UI
+        schedule_text = _next_text_after_heading("開催日程")
+        venue_text = _next_text_after_heading("会場")
+        organizer_text = _next_text_after_heading("主催")
+        if venue_text:
+            venue = venue_text
+        if organizer_text:
+            organizer = organizer_text
+        if schedule_text:
+            # Extract HH:MM～HH:MM or HH時MM分～HH時MM分 range.
+            t = re.search(r"(\d{1,2}:\d{2}\s*[〜～]\s*\d{1,2}:\d{2})", schedule_text)
+            if not t:
+                t = re.search(
+                    r"(\d{1,2}時\d{0,2}分?\s*[〜～]\s*\d{1,2}時\d{0,2}分?)",
+                    schedule_text,
+                )
+            if t:
+                business_hours = t.group(1).replace(" ", "")
+
+        # Parse speaker names from the 講師・プログラム table.
+        for row in main.select("table tr"):
+            cells = [c.get_text(" ", strip=True) for c in row.find_all(["th", "td"])]
+            if len(cells) < 3:
+                continue
+            speaker_cell = cells[2]
+            if not speaker_cell or speaker_cell in {"講師", "-", "ー"}:
+                continue
+            speaker_cell = re.sub(r"^モデレーター[:：]\s*", "", speaker_cell)
+            for name in re.split(r"[、,/／・]\s*", speaker_cell):
+                name = name.strip()
+                if not name:
+                    continue
+                if re.search(r"趣旨説明|質疑応答|休憩", name):
+                    continue
+                if name not in speaker_names:
+                    speaker_names.append(name)
+
+    return {
+        "title": title,
+        "description": description,
+        "business_hours": business_hours,
+        "organizer": organizer,
+        "location_name": venue,
+        "speakers": speaker_names,
+    }
 
 
 class IdeJetroScraper(BaseScraper):
@@ -184,17 +254,28 @@ class IdeJetroScraper(BaseScraper):
             else:
                 date_prefix = f"開催日時: {date_text}\n\n"
 
-            raw_desc_body = detail.get("description") or title_text
-            raw_description = date_prefix + raw_desc_body
+            raw_desc_parts = [date_prefix.rstrip()]
+            if detail.get("location_name"):
+                raw_desc_parts.append(f"会場: {detail['location_name']}")
+            if detail.get("organizer"):
+                raw_desc_parts.append(f"主催: {detail['organizer']}")
+            if detail.get("business_hours"):
+                raw_desc_parts.append(f"時間: {detail['business_hours']}")
+            if detail.get("speakers"):
+                raw_desc_parts.append(f"講師: {'、'.join(detail['speakers'])}")
+            raw_desc_parts.append(detail.get("description") or title_text)
+            raw_description = "\n\n".join([p for p in raw_desc_parts if p])
 
             # Members-only events (賛助会限定) — include but flag as paid
             is_paid: Optional[bool] = None
             if "賛助会限定" in title_text:
                 is_paid = True
 
-            location_name: Optional[str] = None
+            location_name: Optional[str] = detail.get("location_name")
             if "オンライン" in title_text or "オンライン" in name_ja:
-                location_name = "オンライン"
+                location_name = location_name or "オンライン"
+
+            business_hours: Optional[str] = detail.get("business_hours")
 
             seen_ids.add(source_id)
             events.append(
@@ -208,6 +289,8 @@ class IdeJetroScraper(BaseScraper):
                     start_date=start_date,
                     end_date=end_date,
                     location_name=location_name,
+                    business_hours=business_hours,
+                    organizer=detail.get("organizer") or "アジア経済研究所",
                     raw_title=title_text,
                     raw_description=raw_description,
                     is_paid=is_paid,

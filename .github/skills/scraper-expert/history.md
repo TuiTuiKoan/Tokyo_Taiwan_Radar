@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-06-02 — waseda_taiwan 漏抓主催/講師導致前端主辦資訊區塊不顯示
+
+**問題：**
+- 事件 `19aecffd-0c07-4b72-9617-d83667c89664`（source: `waseda_taiwan`）在前端看不到主辦單位與主講人資訊。
+- DB 實際狀態為 `organizer=null`、`performer/performers=null`，前端區塊採「欄位有值才顯示」策略，因此整段不渲染。
+- 對應 QA 訊號為 `auto_qa_missing_organizer`、`auto_qa_missing_performers`（目前歸類到 `R-UNCLASSIFIED` 路由）。
+
+**根本原因：**
+- `scraper/sources/waseda_taiwan.py` 只抽 `講演者`，未覆蓋來源頁常見標籤變體 `講師`。
+- 同時未抽取 `主催`，也未把主辦/講師資訊寫入 `raw_description` 提供 annotator 使用。
+
+**修正：**
+- 擴充講者 fallback：`講演者` → `講師` → `登壇者` → `司会` → `報告者`。
+- 新增 `主催` / `共催` 抽取，並追加到 `raw_description`（`主催:`、`共催:`、`講師:`）。
+- 針對目標事件補寫 `raw_description` 並重跑單筆 annotate，最終回填 `organizer=早稲田大学台湾研究所`、`performer=石原忠浩`。
+
+**教訓：**
+- WordPress 活動頁的欄位標籤不可只靠單一 key。任何「人名/主辦」欄位都必須使用 label fallback。
+- 對 annotator 依賴的 scraper，結構化欄位（日期、會場、主催、講師）要顯式寫入 `raw_description`，不可僅依賴正文語意推斷。
+
+---
+
 ## 2026-06-03 — 預設收費政策 & 時間空白回退規則實作 (Cinema Default Pricing & Empty Business Hours Fallback)
 
 **問題：**
