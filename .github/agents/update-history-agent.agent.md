@@ -29,9 +29,34 @@ handoffs:
 2. **更新 history.md**:
    - 找到相應的 `.github/skills/agents/*/history.md` 或 `.github/skills/*/history.md`
    - ⚠️ **必須先用 `read_file` 讀取目標文件的現有內容**，再決定插入位置與措辭，避免用舊版本覆蓋已 commit 的內容（若直接從記憶寫入，會丟失前一個 commit 新增的節）
+   - ⚠️ **`str_replace` 冒頭挿入の安全パターン** — `old_str` には必ず `---` セパレーターと**既存の最新エントリ見出し行**（`## [YYYY-MM-DD]...`）を含めること。`<!-- Append new entries at the top -->` だけを `old_str` にするとファイル全体が置き換え対象になり大量削除が起きる（incident: `b1873cc` — 1,227行誤削除）。
+
+     ```
+     # old_str の最低限のパターン（最新エントリ見出しを含む）
+     <!-- Append new entries at the top -->
+
+     ---
+
+     ## 2026-XX-XX — [既存の最新エントリ見出し]
+     ```
+
+     ```
+     # new_str のパターン（新エントリ + 既存見出しを保持）
+     <!-- Append new entries at the top -->
+
+     ---
+
+     ## 2026-YY-YY — [新しいエントリ見出し]
+     [エントリ本文]
+
+     ---
+
+     ## 2026-XX-XX — [既存の最新エントリ見出し]
+     ```
+
    - 在最上面添加新項目（YYYY-MM-DD 格式）
    - 格式：**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
-   - 寫入後執行 `git diff <file>` 確認：僅有新增行（`+`），無已 commit 的行被刪除（`-`）
+   - 寫入後執行 `git diff --stat <file>` 確認：僅有新增行（`+N/-0`），出現 `-` 行則立即執行 `git restore <file>` 回滾
 
 3. **更新 SKILL.md**:
    - 檢查相應的 `SKILL.md` 檔案

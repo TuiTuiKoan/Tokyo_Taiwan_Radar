@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-06-03 — Update History agent の `str_replace` が `engineer/history.md` の 1,227行を誤削除（commits `b1873cc`, `d583f2a`）
+
+**日付 | 問題簡述 | 根本原因 | 修復方法 | 学んだ教訓**
+2026-06-03 | `b1873cc`（docs(scraper): document taiwan-only gnews deactivation rule）で `engineer/history.md` から 1,227行が誤削除された | Update History agent が `str_replace` で冒頭エントリを追加する際、`old_str` に `<!-- Append new entries at the top -->` だけを含め、直後の `---` セパレーターも既存の最新エントリ見出しも含めなかったため、ファイル先頭の 1,237行全体が「置き換え対象」になった | `d583f2a` で `git show b1873cc~1:.../history.md` からバックアップを復元し、`b1873cc`・`75c5518` 以降の新エントリと Python スクリプトでマージして完全復元 | **教訓：** `history.md` への `str_replace` 追記では、`old_str` に必ず `---` セパレーターと既存の最新エントリ見出し（`## [YYYY-MM-DD]...`）を含めること。書き込み後は `git diff --stat <file>` で `+N/-0` を確認し、`-` 行があれば即座に `git restore` で復元すること。
+
+---
+
 ## 2026-06-03 — `location_url` が会場 URL ではなくイベントページ URL に繰り返し誤設定される根本原因修正（commits `6b3e5ef`, `1313985`）
 
 **日付 | 問題簡述 | 根本原因 | 修復方法 | 学んだ教訓**
