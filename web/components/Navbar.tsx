@@ -107,6 +107,8 @@ export default function Navbar({ locale }: Props) {
   const [user, setUser] = useState<NavbarUser | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const logoutHref = `/auth/logout?next=/${locale}`;
 
   useEffect(() => {
     let alive = true;
@@ -135,11 +137,6 @@ export default function Navbar({ locale }: Props) {
       listener.subscription.unsubscribe();
     };
   }, [supabase]);
-
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    window.location.reload();
-  }
 
   return (
     <>
@@ -214,9 +211,11 @@ export default function Navbar({ locale }: Props) {
 
           {/* Auth — icon only */}
           {user ? (
-            <button
-              onClick={handleLogout}
+            <Link
+              href={logoutHref}
               title={t("logout")}
+              aria-disabled={loggingOut}
+              onClick={() => setLoggingOut(true)}
               className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 text-[#3A261F] dark:text-fg-muted hover:text-[#1F5E2B] dark:hover:text-green-400 transition"
             >
               {/* Logout icon */}
@@ -225,7 +224,7 @@ export default function Navbar({ locale }: Props) {
                 <polyline points="16 17 21 12 16 7" />
                 <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
-            </button>
+            </Link>
           ) : (
             <Link
               href={`/${locale}/auth/login`}
@@ -302,12 +301,16 @@ export default function Navbar({ locale }: Props) {
             </Link>
           )}
           {user && (
-            <button
-              onClick={() => { setMenuOpen(false); handleLogout(); }}
+            <Link
+              href={logoutHref}
+              onClick={() => {
+                setMenuOpen(false);
+                setLoggingOut(true);
+              }}
               className="text-left px-3 py-2.5 rounded-md text-red-500 hover:bg-red-50 transition"
             >
               {t("logout")}
-            </button>
+            </Link>
           )}
         </div>
       </nav>

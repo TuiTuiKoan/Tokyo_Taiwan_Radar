@@ -13,7 +13,14 @@ export const metadata: Metadata = {
   icons: {
     icon: "/lianbu-favicon.svg",
     shortcut: "/lianbu-favicon.svg",
-    apple: "/lianbu-favicon.svg",
+    apple: "/lianbu-favicon.png",
+    other: [
+      {
+        rel: "mask-icon",
+        url: "/lianbu-favicon.svg",
+        color: "#E84860",
+      },
+    ],
   },
 };
 
