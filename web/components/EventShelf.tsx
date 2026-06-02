@@ -42,6 +42,16 @@ function dateRange(event: Event, locale: Locale): string | null {
   return start;
 }
 
+function sortByEndDateAsc(a: Event, b: Event): number {
+  const d1 = a.end_date ? new Date(a.end_date).getTime() : Infinity;
+  const d2 = b.end_date ? new Date(b.end_date).getTime() : Infinity;
+  if (d1 !== d2) return d1 - d2;
+  const s1 = a.start_date ? new Date(a.start_date).getTime() : Infinity;
+  const s2 = b.start_date ? new Date(b.start_date).getTime() : Infinity;
+  if (s1 !== s2) return s1 - s2;
+  return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
+}
+
 export default function EventShelf({ events, locale }: Props) {
   const sp = useSearchParams();
   const t = useTranslations("home");
@@ -52,8 +62,8 @@ export default function EventShelf({ events, locale }: Props) {
     const filtered = filterEvents(events, new URLSearchParams(sp.toString()));
     const shelf = filtered.filter(isShelfEvent);
     return {
-      longTerm: shelf.filter((e) => shelfTab(e) === "longTerm"),
-      persistent: shelf.filter((e) => shelfTab(e) === "persistent"),
+      longTerm: shelf.filter((e) => shelfTab(e) === "longTerm").sort(sortByEndDateAsc),
+      persistent: shelf.filter((e) => shelfTab(e) === "persistent").sort(sortByEndDateAsc),
     };
   }, [events, sp]);
 
