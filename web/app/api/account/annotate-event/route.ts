@@ -1,0 +1,497 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
+
+export const maxDuration = 60;
+
+const UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36";
+
+// ── Web search helpers ────────────────────────────────────────────────────
+
+async function braveSearch(query: string): Promise<string[]> {
+  const key = process.env.BRAVE_SEARCH_API_KEY;
+  if (!key) return [];
+  try {
+    const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&country=JP&search_lang=jp&count=10`;
+    const res = await fetch(url, {
+      headers: { "X-Subscription-Token": key, Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { web?: { results?: Array<{ url: string }> } };
+    const urls = data.web?.results?.map((r) => r.url).filter(Boolean) ?? [];
+    return urls.slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+async function ddgSearch(query: string): Promise<string[]> {
+  try {
+    const body = new URLSearchParams({ q: query, kl: "jp-jp" });
+    const res = await fetch("https://html.duckduckgo.com/html/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": UA,
+        "Accept-Language": "ja,en;q=0.9",
+        Accept: "text/html",
+      },
+      body: body.toString(),
+      signal: AbortSignal.timeout(10000),
+    });
+    const html = await res.text();
+    const urls: string[] = [];
+    const seen = new Set<string>();
+    for (const m of html.matchAll(/(?:uddg=|href=")(https?%3A[^"&]+|https?:\/\/[^"\s<>]+)/g)) {
+      let u = m[1];
+      try { u = decodeURIComponent(u); } catch { /* skip */ }
+      if (!u.startsWith("http")) continue;
+      if (u.includes("duckduckgo.com")) continue;
+      if (/\.(css|js|ico|png|svg|woff)/.test(u)) continue;
+      if (seen.has(u)) continue;
+      seen.add(u);
+      urls.push(u);
+      if (urls.length >= 5) break;
+    }
+    return urls;
+  } catch {
+    return [];
+  }
+}
+
+async function bingSearch(query: string): Promise<string[]> {
+  try {
+    const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&cc=jp&setlang=ja`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA, "Accept-Language": "ja,en;q=0.9", Accept: "text/html" },
+      signal: AbortSignal.timeout(10000),
+    });
+    const html = await res.text();
+    const urls: string[] = [];
+    const seen = new Set<string>();
+    for (const m of html.matchAll(/<a[^>]+href="(https?:\/\/[^"]+)"/gi)) {
+      const u = m[1];
+      if (u.includes("bing.com") || u.includes("microsoft.com") || u.includes("msn.com")) continue;
+      if (u.includes("go.microsoft.com")) continue;
+      if (/\.(css|js|ico|png|svg|woff)/.test(u)) continue;
+      if (seen.has(u)) continue;
+      seen.add(u);
+      urls.push(u);
+      if (urls.length >= 5) break;
+    }
+    return urls;
+  } catch {
+    return [];
+  }
+}
+
+async function fetchPageText(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA, "Accept-Language": "ja,en;q=0.9", Accept: "text/html" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return "";
+    const html = await res.text();
+    const text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return text.slice(0, 8000);
+  } catch {
+    return "";
+  }
+}
+
+function scorePage(text: string, nameJa: string, locationName: string): number {
+  let score = 0;
+  const cleaned = nameJa.replace(/[「」『』《》〝〞"'()（）\[\]【】]/g, " ");
+  const words = cleaned
+    .split(/[\s　・…〜~‐\-―ー－—]+/)
+    .filter((w) => w.length >= 2)
+    .filter((w) => !/^(展示|展覧|企画|特別|研究|室|文化|2026|2025)$/.test(w));
+  let nameHits = 0;
+  for (const w of words) if (text.includes(w)) { score += 2; nameHits += 1; }
+
+  let locHit = false;
+  if (locationName) {
+    const locParts = locationName
+      .split(/[\s　・]+/)
+      .flatMap((p) => [p, p.replace(/\d+階.*$/, "").replace(/[ホール会議室]+$/, "")])
+      .filter((p) => p.length >= 4);
+    for (const p of locParts) {
+      if (text.includes(p)) { locHit = true; break; }
+    }
+    if (!locHit && text.includes(locationName)) locHit = true;
+  }
+  if (locHit) score += 5;
+
+  if (nameHits === 0) return -1;
+  if (nameHits === 1 && !locHit) return -1;
+  for (const kw of ["開催", "会場", "主催", "チケット", "入場", "日時"])
+    if (text.includes(kw)) score += 1;
+  return score;
+}
+
+async function enrichEvent(
+  nameJa: string,
+  locationName: string,
+  startDate: string
+): Promise<{ url: string; text: string; debug: any }> {
+  const year = (startDate || "").slice(0, 4);
+  const cleanName = nameJa.replace(/[「」『』《》〝〞"]/g, " ").replace(/\s+/g, " ").trim();
+  const queries: string[] = [];
+  if (locationName) queries.push(`${cleanName} ${locationName} ${year}`);
+  queries.push(`${cleanName} ${year} 公式`);
+  queries.push(`${cleanName} ${year}`);
+
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+  let braveCount = 0;
+  let ddgCount = 0;
+  let bingCount = 0;
+
+  for (const q of queries) {
+    const r = await braveSearch(q);
+    braveCount += r.length;
+    for (const u of r) {
+      if (!seen.has(u)) { seen.add(u); candidates.push(u); }
+    }
+    if (candidates.length >= 5) break;
+  }
+
+  if (candidates.length === 0) {
+    for (const q of queries) {
+      const r = await ddgSearch(q);
+      ddgCount += r.length;
+      for (const u of r) {
+        if (!seen.has(u)) { seen.add(u); candidates.push(u); }
+      }
+      if (candidates.length >= 5) break;
+    }
+  }
+
+  if (candidates.length === 0) {
+    for (const q of queries) {
+      const r = await bingSearch(q);
+      bingCount += r.length;
+      for (const u of r) {
+        if (!seen.has(u)) { seen.add(u); candidates.push(u); }
+      }
+      if (candidates.length >= 5) break;
+    }
+  }
+
+  let bestUrl = "", bestText = "", bestScore = -1;
+  const candidateScores: Array<{ url: string; score: number }> = [];
+  for (const url of candidates.slice(0, 5)) {
+    const text = await fetchPageText(url);
+    if (!text) { candidateScores.push({ url, score: -2 }); continue; }
+    const score = scorePage(text, nameJa, locationName);
+    candidateScores.push({ url, score });
+    if (score > bestScore) { bestScore = score; bestUrl = url; bestText = text; }
+  }
+
+  return {
+    url: bestScore >= 3 ? bestUrl : "",
+    text: bestScore >= 3 ? bestText : "",
+    debug: {
+      braveCount, ddgCount, bingCount,
+      candidateCount: candidates.length,
+      bestScore,
+      queries,
+      topCandidates: candidateScores,
+    },
+  };
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────
+
+export async function POST(req: NextRequest) {
+  // 1. Authenticate user
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const serviceClient = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  // 1b. Check if banned
+  const { data: roleRow } = await serviceClient
+    .from("user_roles")
+    .select("publish_banned_until")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (roleRow?.publish_banned_until) {
+    const banDate = new Date(roleRow.publish_banned_until);
+    if (banDate > new Date()) {
+      return NextResponse.json(
+        { error: "publishBanned", raw: banDate.toISOString() },
+        { status: 403 }
+      );
+    }
+  }
+
+  const { eventId } = (await req.json()) as { eventId: string };
+  if (!eventId) return NextResponse.json({ error: "eventId required" }, { status: 400 });
+
+  // 1c. OWASP A01 Gate - verify owner of the event
+  const { data: event, error: fetchErr } = await serviceClient
+    .from("events")
+    .select(
+      "owner_user_id,name_ja,name_zh,name_en,description_ja,location_name,location_address,location_url,organizer,organizer_url,performer,price_info,business_hours,category,event_form,primary_language,has_japanese_support,has_chinese_support,has_english_support,is_paid,start_date,end_date,source_url,official_url,annotation_status"
+    )
+    .eq("id", eventId)
+    .single();
+
+  if (fetchErr || !event) {
+    return NextResponse.json({ error: "Event not found" }, { status: 404 });
+  }
+
+  if (event.owner_user_id !== user.id) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  // 2. Atomic Quota Gate (API4 Prevention)
+  const { data: usageVal, error: rpcError } = await serviceClient.rpc(
+    "increment_account_usage",
+    {
+      user_id_param: user.id,
+      limit_per_user: 5,
+      limit_system: 200,
+    }
+  );
+
+  if (rpcError) {
+    console.error("[annotate-event] quota RPC failed:", rpcError);
+    return NextResponse.json({ error: "saveFailed" }, { status: 500 });
+  }
+
+  if (usageVal === -1) {
+    return NextResponse.json({ error: "quotaExceeded" }, { status: 429 });
+  }
+  if (usageVal === -2) {
+    return NextResponse.json({ error: "systemMeltdown" }, { status: 429 });
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey)
+    return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });
+
+  // 3. Web search enrichment
+  let webText = "";
+  let foundUrl = "";
+  const returnedFields: Record<string, unknown> = {};
+  let searchDebug: any = null;
+  let sourceUrlFetchOk: boolean | null = null;
+
+  const needsUrlEnrichment =
+    !event.source_url ||
+    !event.official_url ||
+    !event.organizer_url ||
+    !event.location_url;
+
+  if (needsUrlEnrichment && event.name_ja) {
+    if (event.source_url) {
+      const text = await fetchPageText(event.source_url as string);
+      sourceUrlFetchOk = text.length > 0;
+      const score = text ? scorePage(text, event.name_ja as string, (event.location_name as string) || "") : -1;
+      if (text && score >= 3) {
+        foundUrl = event.source_url as string;
+        webText = text;
+      }
+    }
+    if (!webText) {
+      const enriched = await enrichEvent(
+        event.name_ja,
+        event.location_name || "",
+        (event.start_date || "").toString()
+      );
+      searchDebug = enriched.debug;
+      if (enriched.url && enriched.text) {
+        foundUrl = enriched.url;
+        webText = enriched.text;
+      }
+    }
+    if (webText) {
+      const persist: Record<string, unknown> = { raw_description: webText };
+      let originUrl = "";
+      try { originUrl = new URL(foundUrl).origin; } catch { /* skip */ }
+
+      const sourceUrlIsStale = event.source_url && event.source_url !== foundUrl;
+
+      if (!event.source_url || sourceUrlIsStale) {
+        persist.source_url = foundUrl;
+        returnedFields.source_url = foundUrl;
+      }
+      if (!event.official_url || sourceUrlIsStale) {
+        persist.official_url = foundUrl;
+        returnedFields.official_url = foundUrl;
+      }
+      if (!event.organizer_url && originUrl) {
+        persist.organizer_url = originUrl;
+        returnedFields.organizer_url = originUrl;
+      }
+      await serviceClient.from("events").update(persist).eq("id", eventId);
+    }
+  }
+
+  // 4. GPT annotation using all available info
+  const existingCategory = Array.isArray(event.category) && event.category.length > 0;
+  const existingEventForm = Array.isArray(event.event_form) && event.event_form.length > 0;
+
+  const eventInfo = [
+    event.name_ja && `活動名（日文）: ${event.name_ja}`,
+    event.name_zh && `活動名（中文）: ${event.name_zh}`,
+    event.name_en && `活動名（英文）: ${event.name_en}`,
+    event.description_ja && `説明: ${String(event.description_ja).slice(0, 400)}`,
+    foundUrl && `参考ウェブページのURL: ${foundUrl}`,
+    webText && `参考ウェブページ全文:\n${webText.slice(0, 4000)}`,
+    event.location_name && `現在の場地: ${event.location_name}`,
+    event.location_address && `現在の住所: ${event.location_address}`,
+    event.organizer && `現在の主催: ${event.organizer}`,
+    event.performer && `現在の出演者: ${event.performer}`,
+    event.price_info && `現在の料金: ${event.price_info}`,
+    event.business_hours && `現在の時間: ${event.business_hours}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const payload = {
+    model: "gpt-4o-mini",
+    max_tokens: 2500,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: `You annotate Taiwan-related cultural events held in Japan for a multilingual event database.
+
+Given event info AND a fetched web page (if provided), return a JSON with these fields. Extract data from the web page when fields are missing or to enrich existing values.
+
+Classification fields (always required):
+- category: array of 1–3 values from: ${CATEGORIES.join(" | ")}
+- event_form: array of 1–2 values from: ${EVENT_FORMS.join(" | ")}
+- primary_language: "ja" | "zh" | "en" | "mixed"
+- has_japanese_support: boolean
+- has_chinese_support: boolean
+- has_english_support: boolean
+- is_paid: boolean (true = admission fee required, false = free)
+
+Name translations (always required when name_ja is provided):
+- name_ja: event name in Japanese
+- name_zh: event name in Traditional Chinese (繁體中文)
+- name_en: event name in English
+
+Description text (always required):
+- description_ja: 2–4 sentence description in natural Japanese (丁寧体)
+- description_zh: 2–4 sentence description in Traditional Chinese (繁體中文)
+- description_en: 2–4 sentence description in natural English
+
+Extraction fields (omit if not visible):
+- organizer: organizer name in Japanese
+- organizer_url: organizer official URL
+- location_name: venue name in Japanese
+- location_address: full Japanese postal address (with 〒)
+- business_hours: opening hours / show times (e.g. "10:00〜20:00")
+- performer: main performer or speaker name
+- price_info: ticket price text
+- start_date: YYYY-MM-DD
+- end_date: YYYY-MM-DD
+
+Rules:
+- For Chinese, use Traditional Chinese characters only (繁體字). Never simplified.
+- Do not fabricate. If not mentioned, omit.
+- Return ONLY valid JSON.`,
+      },
+      { role: "user", content: eventInfo || "（no info provided）" },
+    ],
+  };
+
+  const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(25000),
+  });
+
+  if (openaiRes.ok) {
+    const openaiData = (await openaiRes.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    const content = openaiData.choices?.[0]?.message?.content ?? "{}";
+    try {
+      const annotated = JSON.parse(content) as Record<string, unknown>;
+      const extractionFields = [
+        "organizer", "organizer_url", "location_name", "location_address",
+        "business_hours", "performer", "price_info", "start_date", "end_date",
+        "name_ja", "name_zh", "name_en",
+      ];
+      const alwaysOverwriteFields = [
+        "description_ja", "description_zh", "description_en",
+      ];
+      for (const [k, v] of Object.entries(annotated)) {
+        if (v === null || v === undefined || v === "") continue;
+        if (alwaysOverwriteFields.includes(k)) {
+          returnedFields[k] = v;
+        } else if (extractionFields.includes(k)) {
+          const cur = (event as Record<string, unknown>)[k];
+          if (cur === null || cur === undefined || cur === "") {
+            returnedFields[k] = v;
+          }
+        } else {
+          returnedFields[k] = v;
+        }
+      }
+      if (existingCategory) returnedFields.category = event.category;
+      if (existingEventForm) returnedFields.event_form = event.event_form;
+    } catch { /* parse err */ }
+  }
+
+  const validCategories = new Set<string>(CATEGORIES);
+  const validEventForms = new Set<string>(EVENT_FORMS);
+
+  if (Array.isArray(returnedFields.category)) {
+    const filtered = (returnedFields.category as string[]).filter(v => typeof v === "string" && validCategories.has(v));
+    if (filtered.length > 0) returnedFields.category = filtered;
+    else delete returnedFields.category;
+  }
+
+  if (Array.isArray(returnedFields.event_form)) {
+    const filtered = (returnedFields.event_form as string[]).filter(v => typeof v === "string" && validEventForms.has(v));
+    if (filtered.length > 0) returnedFields.event_form = filtered;
+    else delete returnedFields.event_form;
+  }
+
+  if (Object.keys(returnedFields).length > 0) {
+    await serviceClient
+      .from("events")
+      .update({ ...returnedFields, annotation_status: "annotated" })
+      .eq("id", eventId);
+  }
+
+  return NextResponse.json({
+    success: true,
+    foundUrl: foundUrl || null,
+    fields: returnedFields,
+    searchDebug,
+    webTextLength: webText.length,
+    needsUrlEnrichment,
+    sourceUrlFetchOk,
+    eventUrls: {
+      source_url: event.source_url || null,
+      official_url: event.official_url || null,
+      organizer_url: event.organizer_url || null,
+      location_url: null,
+    },
+  });
+}

@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { type Event, type Locale, getEventName } from "@/lib/types";
 import { getCityLabel } from "@/lib/cityLabel";
 import { CategoryThumbnail } from "@/lib/design/CategoryThumbnail";
+import OwnerEventTable from "@/components/OwnerEventTable";
 
 export type AccountEvent = Event & {
   owner_user_id?: string | null;
@@ -188,13 +189,15 @@ export default function AccountHomeClient({
             {t("profileMissingCta")}
           </Link>
         </div>
+      ) : activeTab === "myEvents" && hasProfile ? (
+        <OwnerEventTable events={myEvents} locale={locale} />
       ) : activeEvents.length === 0 ? (
         <p className="mt-16 text-center text-fg-muted">
           {activeTab === "favorites" ? t("favoritesEmpty") : t("myEventsEmpty")}
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          {activeEvents.map((event) => renderEvent(event as AccountEvent))}
+          {activeEvents.map((event: Event | AccountEvent) => renderEvent(event as AccountEvent))}
         </div>
       )}
     </div>

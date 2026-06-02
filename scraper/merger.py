@@ -67,6 +67,7 @@ SOURCE_PRIORITY: dict[str, int] = {
     "arukikata": 12,
     "ide_jetro": 13,
     "walkerplus": 14,
+    "user_submission": 99,  # UGC has the lowest priority (absorbed by official scrapers if they collide)
 }
 
 # Minimum name similarity to consider two events duplicates.
@@ -75,7 +76,7 @@ _SIMILARITY_THRESHOLD = 0.85
 # Sources that publish news/article titles rather than event names.
 # They are matched via date-range + location-overlap (Pass 2), never by
 # name similarity (Pass 1).
-_NEWS_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss", "walkerplus"})
+_NEWS_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss", "walkerplus", "user_submission"})
 
 # Sources enabled for within-source aggregator dedup (Pass 1.5).
 _WITHIN_SOURCE_DEDUP_SOURCES = frozenset({"iwafu"})

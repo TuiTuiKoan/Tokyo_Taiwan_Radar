@@ -61,7 +61,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
   const [avatarUploading, setAvatarUploading] = useState(false);
 
   function setField<K extends keyof ProfileInput>(key: K, value: ProfileInput[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev: ProfileInput) => ({ ...prev, [key]: value }));
   }
 
   async function handleAvatarUpload(file: File | null) {

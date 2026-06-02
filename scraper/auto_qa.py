@@ -923,6 +923,15 @@ def run(dry_run: bool = False) -> dict:
     events = res.data or []
     logger.info("Scanning %d events (last %d days)", len(events), QA_WINDOW_DAYS)
 
+    # Fetch user-submitted events to filter them out of QA
+    user_sub_res = (
+        sb.table("events")
+        .select("id")
+        .eq("is_user_submitted", True)
+        .execute()
+    )
+    user_submitted_ids = {row["id"] for row in user_sub_res.data or []}
+
     # Build candidate findings
     candidates: list[tuple[str, str, str]] = []  # (event_id, type, note)
     for ev in events:
@@ -952,6 +961,9 @@ def run(dry_run: bool = False) -> dict:
         candidates.append((item["event_id"], item["report_type"], item["details"]))
     for item in _detect_location_url_is_event_url(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
+
+    # Filter out user-submitted events to bypass automated QA
+    candidates = [c for c in candidates if c[0] not in user_submitted_ids]
 
     # Dedup against latest auto_qa reports for each event/type.
     #

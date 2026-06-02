@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useRef, useState, Suspense } from "react";
@@ -102,12 +102,15 @@ function NavbarLangSwitcher({ locale }: NavbarLangSwitcherProps) {
 
 export default function Navbar({ locale }: Props) {
   const t = useTranslations("nav");
+  const tAccount = useTranslations("account");
   const pathname = usePathname();
+  const router = useRouter();
   const [user, setUser] = useState<NavbarUser | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
   const logoutHref = `/auth/logout?next=/${locale}`;
 
@@ -115,38 +118,32 @@ export default function Navbar({ locale }: Props) {
     const supabase = createClient();
     let alive = true;
 
-    async function syncAuthState() {
+    // Single source of truth: server-side /api/me (reads the httpOnly auth
+    // cookie refreshed by middleware). Avoids the client-side getSession()
+    // hydration race that made the navbar flash logged-out on navigation.
+    async function loadMe() {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!alive) return;
-        setUser(sessionData.session?.user ? { id: sessionData.session.user.id, email: sessionData.session.user.email } : null);
-
-        if (!sessionData.session?.user) {
-          setIsAdmin(false);
-          return;
-        }
-
         const res = await fetch("/api/me", { cache: "no-store" });
         const data = await res.json();
         if (!alive) return;
         setIsAdmin(Boolean(data?.isAdmin));
+        setUser(data?.user ?? null);
       } catch {
         if (!alive) return;
         setIsAdmin(false);
+        setUser(null);
       }
     }
 
-    void syncAuthState();
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+    void loadMe();
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (!alive) return;
-      if (session?.user) {
-        setUser({ id: session.user.id, email: session.user.email });
-      } else if (event === "SIGNED_OUT") {
+      if (event === "SIGNED_OUT") {
         setUser(null);
         setIsAdmin(false);
         return;
       }
-      void syncAuthState();
+      void loadMe();
     });
 
     return () => {
@@ -154,6 +151,28 @@ export default function Navbar({ locale }: Props) {
       listener.subscription.unsubscribe();
     };
   }, []);
+
+  async function goToMyEvents() {
+    if (!user) {
+      router.push(`/${locale}/auth/login`);
+      return;
+    }
+
+    setProfileLoading(true);
+    try {
+      const supabase = createClient();
+      const { data: profile } = await supabase
+        .from("creators")
+        .select("user_handle")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      router.push(profile?.user_handle ? `/${locale}/account` : `/${locale}/account/profile`);
+      setAccountOpen(false);
+    } finally {
+      setProfileLoading(false);
+    }
+  }
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -275,17 +294,20 @@ export default function Navbar({ locale }: Props) {
                     </Link>
                     <Link
                       href={`/${locale}/account`}
-                      onClick={() => setAccountOpen(false)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        void goToMyEvents();
+                      }}
                       className="flex items-center px-3 py-2 text-sm text-fg hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition"
                     >
-                      我辦的活動
+                      {profileLoading ? t("loading") : tAccount("myEventsTab")}
                     </Link>
                     <Link
                       href={`/${locale}/saved`}
                       onClick={() => setAccountOpen(false)}
                       className="flex items-center px-3 py-2 text-sm text-fg hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition"
                     >
-                      我的最愛
+                      {t("saved")}
                     </Link>
                   </>
                 ) : (

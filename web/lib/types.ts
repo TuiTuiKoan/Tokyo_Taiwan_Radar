@@ -79,6 +79,9 @@ export interface Event {
   merged_into_event_id?: string | null;
   deactivated_reason?: string | null;
   location_prefectures?: string[] | null;
+  owner_user_id?: string | null;
+  closed_by_owner?: boolean | null;
+  is_user_submitted?: boolean | null;
 }
 
 export type WorkType = "film" | "stage" | "exhibition" | "concert_tour" | "tv_drama" | "tv_variety" | "other";
