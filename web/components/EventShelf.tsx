@@ -115,17 +115,9 @@ export default function EventShelf({ events, locale }: Props) {
         </div>
       </div>
 
-      {/* Horizontal scroll-snap row with edge fade masks */}
-      <div className="relative">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 w-8 z-10 bg-gradient-to-r from-[var(--color-bg)] to-transparent"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 w-8 z-10 bg-gradient-to-l from-[var(--color-bg)] to-transparent"
-        />
-        <ul className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 px-1 -mx-1">
+      {/* Horizontal scroll-snap row with bleeding margins so cards scroll flush to the viewport edges */}
+      <div className="relative -mx-4 overflow-hidden">
+        <ul className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 px-4 scroll-smooth">
           {list.map((event) => {
             const name = getEventName(event, locale);
             const range = dateRange(event, locale);

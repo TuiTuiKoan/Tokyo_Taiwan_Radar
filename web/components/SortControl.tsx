@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useState, useEffect } from "react";
 
 export type SortKey = "newest" | "date" | "endingSoon";
 
@@ -24,8 +24,19 @@ export default function SortControl({ value }: Props) {
   const pathname = usePathname();
   const sp = useSearchParams();
 
+  // Eager client visual state for instant interactive transitions.
+  const [activeValue, setActiveValue] = useState<SortKey>(value);
+  const [prevValue, setPrevValue] = useState<SortKey>(value);
+
+  // Instantly reflect external/prop value changes (e.g. backward history navigations or initial loads).
+  if (value !== prevValue) {
+    setActiveValue(value);
+    setPrevValue(value);
+  }
+
   const setSort = useCallback(
     (key: SortKey) => {
+      setActiveValue(key); // Instant animation triggers on first frame
       const params = new URLSearchParams(sp.toString());
       if (key === "newest") params.delete("sort");
       else params.set("sort", key);
@@ -35,13 +46,13 @@ export default function SortControl({ value }: Props) {
     [router, pathname, sp],
   );
 
-  const activeIndex = ORDER.indexOf(value);
+  const activeIndex = ORDER.indexOf(activeValue);
 
   return (
     <div
       role="radiogroup"
       aria-label={t("sortLabel")}
-      className="relative inline-flex items-center rounded-full bg-muted p-1 text-xs font-medium"
+      className="relative inline-flex items-center rounded-full bg-muted p-1 text-xs font-medium w-[270px] sm:w-[300px]"
     >
       {/* Sliding selected indicator */}
       <span
@@ -53,7 +64,7 @@ export default function SortControl({ value }: Props) {
         }}
       />
       {ORDER.map((key) => {
-        const selected = key === value;
+        const selected = key === activeValue;
         return (
           <button
             key={key}
@@ -61,7 +72,7 @@ export default function SortControl({ value }: Props) {
             role="radio"
             aria-checked={selected}
             onClick={() => setSort(key)}
-            className={`relative z-10 px-3 py-1.5 rounded-full whitespace-nowrap transition-colors hover:text-fg-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+            className={`flex-1 text-center relative z-10 px-1 sm:px-3 py-1.5 rounded-full whitespace-nowrap transition-colors hover:text-fg-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
               selected
                 ? "text-fg-strong font-bold"
                 : "text-fg-muted"
