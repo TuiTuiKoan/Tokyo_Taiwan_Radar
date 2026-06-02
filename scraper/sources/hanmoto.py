@@ -175,6 +175,7 @@ class HanmotoScraper(BaseScraper):
 
                         if is_jpro_placeholder_date(start_dt):
                             start_dt = None
+
                         # Publisher
                         pub_el = card.query_selector('[data-content-name="imprint"]')
                         publisher = pub_el.inner_text().strip() if pub_el is not None else None

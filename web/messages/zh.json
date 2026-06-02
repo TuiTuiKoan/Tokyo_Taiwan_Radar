@@ -905,7 +905,18 @@
     "heroPara": "日本全國的台灣相關活動，每日更新！「Tokyo Taiwan Radar」提供日、英、繁體中文三語，涵蓋電影、音樂、美食、展覽、講座、市集——每天早上，傳遞你家附近的「台灣」信號。",
     "introP1": "東京台灣雷達致力於蒐集日本國內所有與台灣相關的訊號（資訊），加深台灣與日本之間的相互理解，並促進文化、社會、經濟層面的經驗交流。",
     "introP2": "目前自動監控 100+ 個資料來源，每日 09:00 JST 更新。涵蓋全日本的台灣文化活動：電影放映、表演藝術、講座、食物市集、學術交流等 30+ 個分類。",
-    "introP3": "除了東京之外，大阪、京都、福岡、札幌、名古屋等地的活動同樣完整收錄。資料來自官方主辦方、票務平台（Peatix、Eventbrite）、新聞媒體與電影院官網。"
+    "introP3": "除了東京之外，大阪、京都、福岡、札幌、名古屋等地的活動同樣完整收錄。資料來自官方主辦方、票務平台（Peatix、Eventbrite）、新聞媒體與電影院官網。",
+    "sortLabel": "排序",
+    "sortNewest": "最新收錄",
+    "sortDate": "開催日",
+    "sortEndingSoon": "即將結束",
+    "shelfTitle": "長期・常設",
+    "shelfLongTerm": "長期開催",
+    "shelfPersistent": "常設配信",
+    "listTitle": "開催活動",
+    "badgeNew": "NEW",
+    "portalCta": "發表活動 / 我的個人頁",
+    "portalProfile": "我的個人頁"
   },
   "eventNarrative": {
     "p1WithEnd": "{name} 將於 {start} 至 {end} 在 {location} 舉行。",

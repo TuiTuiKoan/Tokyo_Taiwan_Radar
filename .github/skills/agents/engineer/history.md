@@ -1,6 +1,52 @@
 # Engineer Error History
 
 <!-- Append new entries at the top -->
+## 2026-06-03 - 解決爬蟲與首頁優化衝突，無縫整合並成功 NPM Build
+
+**問題：** 工作區具有多個 Stash（含爬蟲專家與首頁改動 Stash），直接 Apply 時在 `scraper-expert.agent.md`、`history.md`、`hanmoto.py` 及 `ndl_opensearch.py` 發生多重內容衝突，阻礙首頁優化元件的無縫倒回與整合。
+
+**修復：**
+- 針對 4 個衝突檔案手動執行 merge-conflict 處理，保留 `waseda_taiwan`、`google_news_rss` 的完整 history 與 WordPress 活動頁標籤防漏抓規則。
+- 清理非暫存區編譯輔助檔，將臨時 translation 與 types 存入 Stash 動態備份，成功導入 `stash@{1}`（前身為 `stash@{0}`）的首頁大幅優化變更（包含 `EventShelf.tsx`、`SortControl.tsx`、`eventClassify.ts` 與 `eventFilter.ts`、翻譯檔等）。
+- 移除一次性過渡腳本 `tmp/add_home_i18n.py`。
+- 本地 `npm run build` 正式通過，並具有零 TypeScript 錯誤與 Next.js 16/Turbopack 建置成果。
+
+**教訓：**
+- 合併多重 Stash 時，可先封存非暫存區（changes not staged），將其作為獨立 Stash 以解除 merge blocking。
+- 手動解決 markdown 的 history.md 衝突時，宜將 upstream 與 stashed 內容依時間線並存，確保兩邊的實踐歷史都不會遺失。
+
+## 2026-06-02 - one-off backfill lacked deterministic verification evidence
+
+**問題：** `scraper/_oneoff_backfill_gnews_streaming_fields.py` 原本僅輸出候選摘要，缺少固定排序的 `event_id` 清單與 `auto_payload` 欄位摘要；Tester 無法用同一批資料可重現驗證。
+
+**修復：** 新增 deterministic 報表輸出（候選/套用 `event_id` 固定排序清單、逐筆 `event_id`、`auto_payload` 欄位名摘要），並加入 `--id`（可重複）與 `--ids-file` 固定驗證集合。
+
+**教訓：** 一次性 backfill 腳本若要可驗證，必須支援固定樣本輸入與固定排序輸出。至少應輸出：候選 IDs、每筆 auto payload 欄位名、實際更新 IDs。
+
+## 2026-06-02 - one-off script file duplicated by parallel same-file create operations
+
+**問題：** 在建立 `scraper/_oneoff_backfill_gnews_streaming_fields.py` 時，對同一路徑做了平行 `create_file`，導致檔案被重複內容污染（同一份腳本出現兩段 `from __future__ import annotations`）。
+
+**修復：** 立即停止增量 patch，改為整檔覆寫成單一版本，並用 `get_errors` + 讀檔確認尾端不再重複後才繼續驗證流程。
+
+**教訓：** 同一檔案的建立/修改不可在同一個平行工具批次中執行。若已發生重複污染，優先採用整檔重寫回到單一真實版本，再做後續 patch。
+
+## 2026-06-02 - authoritative venue dry-run false conflict due to Unicode minus in address
+
+**問題：** `scraper/_oneoff_seed_authoritative_venues.py --dry-run` 對 `誠品生活日本橋` 持續報 `conflict=1`。根因是地址中 `−`（U+2212）未被 `_normalize_addr()` 轉成 ASCII `-`，導致 `_STREET_NUM_RE` 無法截取街道號碼，進而把同址誤判為衝突。
+
+**修復：** 在 `_normalize_addr()` 新增 `replace("−", "-")`，讓 street-prefix 比對可正確處理全形/Unicode 連字號變體；同時依既有 active event 最小調整 2 筆 seed 地址後重跑 dry-run，最終 `conflict=0`。
+
+**教訓：** 任何地址正規化流程若依賴 `\d+-\d+` 類 regex，必須先統一 Unicode 連字號（至少 U+2212）到 ASCII `-`，否則 pre-flight 會出現假衝突並阻斷正確 upsert。
+
+## 2026-06-02 - Node verification script failed from env sourcing and module resolution
+
+**問題：** noindex/sitemap 驗證過程先後遇到三個指令層錯誤：`.env.local` 直接 `source` 出現 unmatched quote、在 `/tmp` 執行 `.mjs` 找不到 `@supabase/supabase-js`、`tsx -e` 因 CJS 輸出不支援 top-level await 而失敗。
+
+**修復：** 改用 Node 腳本直接讀取 `.env.local` 字串解析環境變數，並將驗證腳本放在 `web/tmp`（workspace 內）執行以使用本地依賴；最後統一以 `node` 執行單次驗證，不再用 `tsx -e` top-level await。
+
+**教訓：** 一次性驗證腳本若依賴專案套件與 async 查詢，優先用 workspace 內 `.mjs` + `node` 執行；不要假設 `.env.local` 可被 shell 安全 `source`，也不要在 `tsx -e` CJS 模式使用 top-level await。
+
 ## 2026-06-01 - SaveButton saved_events existence check returned 406 for normal empty state
 
 **問題：** [web/components/SaveButton.tsx](/Users/flyingship/development/Tokyo%20Taiwan%20Radar/web/components/SaveButton.tsx) 在 mount 時用 `.single()` 查 `saved_events` 是否存在。對尚未收藏的事件，0 筆結果會被 PostgREST 回成 406，造成前端 console noise，但這其實是正常未收藏狀態。

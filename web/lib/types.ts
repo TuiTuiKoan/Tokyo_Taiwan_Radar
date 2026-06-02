@@ -411,3 +411,13 @@ export interface SourceExclusion {
   auto_disabled_at: string | null;
   auto_disabled_reason: string | null;
 }
+
+/** True only for pure report/news-article events (noindex candidates). */
+export function isPureReportEvent(
+  category: string[] | null | undefined,
+  eventForm: string[] | null | undefined
+): boolean {
+  const cats = category ?? [];
+  const forms = eventForm ?? [];
+  return cats.includes("report") && forms.every((f) => f === "other");
+}

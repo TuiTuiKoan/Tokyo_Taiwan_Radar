@@ -89,6 +89,64 @@ function extractPrefecture(address: string | null): string | null {
   return full.replace(/[都道府県]$/, "");
 }
 
+function parseYmdToUtc(dateStr: string): number | null {
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  return Date.UTC(year, month - 1, day);
+}
+
+function getExpandedBusinessHoursForDisplay(params: {
+  businessHours: string | null | undefined;
+  startDate: string | null | undefined;
+  endDate: string | null | undefined;
+  locale: Locale;
+}): string | null {
+  const { businessHours, startDate, endDate, locale } = params;
+  if (!businessHours) return null;
+  if (!startDate || !endDate) return businessHours;
+  if (/\r|\n/.test(businessHours)) return businessHours;
+
+  const normalized = businessHours.trim();
+  const timeRange = normalized.match(/^(\d{2}:\d{2})\s*(?:〜|～|-)\s*(\d{2}:\d{2})$/);
+  if (!timeRange) return businessHours;
+
+  const startUtc = parseYmdToUtc(startDate);
+  const endUtc = parseYmdToUtc(endDate);
+  if (startUtc === null || endUtc === null || endUtc < startUtc) return businessHours;
+
+  const dayCount = Math.floor((endUtc - startUtc) / 86400000) + 1;
+  if (dayCount < 2 || dayCount > 31) return businessHours;
+
+  const weekdaysZh = ["日", "一", "二", "三", "四", "五", "六"] as const;
+  const weekdaysJa = ["日", "月", "火", "水", "木", "金", "土"] as const;
+  const weekdaysEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+  const startTime = timeRange[1];
+  const endTime = timeRange[2];
+
+  const lines: string[] = [];
+  for (let i = 0; i < dayCount; i += 1) {
+    const d = new Date(startUtc + i * 86400000);
+    const month = d.getUTCMonth() + 1;
+    const day = d.getUTCDate();
+    const w = d.getUTCDay();
+
+    if (locale === "zh") {
+      lines.push(`${month}/${day}（週${weekdaysZh[w]}） ${startTime}-${endTime}`);
+      continue;
+    }
+    if (locale === "ja") {
+      lines.push(`${month}/${day}（${weekdaysJa[w]}） ${startTime}-${endTime}`);
+      continue;
+    }
+    lines.push(`${month}/${day} (${weekdaysEn[w]}) ${startTime}-${endTime}`);
+  }
+
+  return lines.join("\n");
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { locale, id } = await params;
   // Resolve merged events first using service role (RLS bypass — is_active may be false).
@@ -305,6 +363,12 @@ export default async function EventDetailPage({ params }: PageProps) {
   const locationName = getEventLocationName(event as Event, locale);
   const locationAddress = getEventLocationAddress(event as Event, locale);
   const businessHours = getEventBusinessHours(event as Event, locale);
+  const displayBusinessHours = getExpandedBusinessHoursForDisplay({
+    businessHours,
+    startDate: event.start_date,
+    endDate: event.end_date,
+    locale,
+  });
   // Split multi-venue strings on Japanese fullwidth comma; trim and drop blanks.
   const splitVenues = (s: string | null | undefined): string[] =>
     (s ?? "").split("、").map((v) => v.trim()).filter(Boolean);
@@ -835,7 +899,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               <td className="px-4 py-3">
                 {subEventPrefectures.length > 1
                   ? subEventPrefectures.join("・")
-                  : isTvProgramEvent
+                  : event.source_name === "gguide_tv"
                   ? t("tvChannel")
                   : event.source_name === "rti_jp"
                   ? t("radioChannel")
@@ -873,8 +937,8 @@ export default async function EventDetailPage({ params }: PageProps) {
             <tr>
               <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("hours")}</td>
               <td className="px-4 py-3 whitespace-pre-wrap">
-                {businessHours ? (
-                  businessHours
+                {displayBusinessHours ? (
+                  displayBusinessHours
                 ) : ((event as Event).official_url || event.source_url) ? (
                   <a
                     href={(event as Event).official_url || event.source_url || "#"}

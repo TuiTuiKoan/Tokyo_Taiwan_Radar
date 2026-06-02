@@ -905,7 +905,18 @@
     "heroPara": "Every day we catch Taiwan-related events happening across Japan! Tokyo Taiwan Radar lets you browse them in Japanese, English, and Traditional Chinese on one page. Cinema, music, food, exhibitions, lectures, markets — the Taiwan you'll find around your neighborhood, delivered every morning.",
     "introP1": "Tokyo Taiwan Radar is dedicated to collecting every Taiwan-related signal across Japan, deepening mutual understanding between Taiwan and Japan, and fostering exchange of cultural, social, and economic experience.",
     "introP2": "We currently monitor 100+ sources automatically and update daily at 09:00 JST. Coverage spans Taiwan-related events across all of Japan, including film screenings, performing arts, lectures, food markets, academic exchange, and 30+ other categories.",
-    "introP3": "Beyond Tokyo, we cover Osaka, Kyoto, Fukuoka, Sapporo, Nagoya and many more regions. Data comes from official organisers, ticketing platforms (Peatix, Eventbrite), news outlets, and arthouse cinema websites."
+    "introP3": "Beyond Tokyo, we cover Osaka, Kyoto, Fukuoka, Sapporo, Nagoya and many more regions. Data comes from official organisers, ticketing platforms (Peatix, Eventbrite), news outlets, and arthouse cinema websites.",
+    "sortLabel": "Sort",
+    "sortNewest": "Newest",
+    "sortDate": "By date",
+    "sortEndingSoon": "Ending soon",
+    "shelfTitle": "Long-running",
+    "shelfLongTerm": "Long-running",
+    "shelfPersistent": "Always on",
+    "listTitle": "Events",
+    "badgeNew": "NEW",
+    "portalCta": "Submit Event / My Page",
+    "portalProfile": "My Page"
   },
   "eventNarrative": {
     "p1WithEnd": "{name} runs from {start} to {end} at {location}.",

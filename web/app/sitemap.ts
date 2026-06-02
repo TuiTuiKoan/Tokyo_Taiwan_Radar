@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { createClient } from "@supabase/supabase-js";
+import { isPureReportEvent } from "@/lib/types";
 
 const LOCALES = ["zh", "en", "ja"] as const;
 const BASE =
@@ -34,11 +35,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Active top-level event pages
   const { data: events } = await supabase
     .from("events")
-    .select("id, updated_at")
+    .select("id, updated_at, category, event_form")
     .eq("is_active", true)
     .is("parent_event_id", null);
 
-  const eventPages: MetadataRoute.Sitemap = (events ?? []).flatMap((e) =>
+  const indexableEvents = (events ?? []).filter(
+    (e) => !isPureReportEvent(e.category, e.event_form)
+  );
+
+  const eventPages: MetadataRoute.Sitemap = indexableEvents.flatMap((e) =>
     LOCALES.map((locale) => ({
       url: `${BASE}/${locale}/events/${e.id}`,
       lastModified: new Date(e.updated_at),

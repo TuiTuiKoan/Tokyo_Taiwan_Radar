@@ -20,6 +20,9 @@ import re
 import sys
 import time
 from datetime import datetime, timezone
+from html import unescape
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 UTC = timezone.utc
 from pathlib import Path
@@ -183,6 +186,70 @@ def _to_trad(val: str | None) -> str | None:
 # ---------------------------------------------------------------------------
 _GNEWS_ARTICLE_MAX_CHARS = 4000
 _GNEWS_FETCH_TIMEOUT_MS = 20_000
+_ARTIST_PROFILE_URL_RE = re.compile(
+    r"https?://faam\.city\.fukuoka\.lg\.jp/residence/[^\s<>)\]\"']+"
+)
+_HTML_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+_ARTIST_PROFILE_TITLE_NAME_RE = re.compile(
+    r"^\s*([^（(]{1,80}?)\s*[（(]\s*([\u3400-\u9fff]{2,40})\s*[）)]"
+)
+_PROFILE_FETCH_TIMEOUT = 10
+
+
+def _normalize_person_key(name: str | None) -> str:
+    return re.sub(r"\s+", "", (name or "")).strip()
+
+
+def _fetch_html_title(url: str) -> str | None:
+    """Fetch an HTML page and return its <title> text."""
+    try:
+        req = Request(
+            url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (compatible; TokyoTaiwanRadar/1.0; +https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar)"
+                )
+            },
+        )
+        with urlopen(req, timeout=_PROFILE_FETCH_TIMEOUT) as resp:
+            body = resp.read(250_000).decode("utf-8", errors="ignore")
+    except (URLError, TimeoutError, OSError) as exc:
+        logger.debug("profile title fetch failed %s: %s", url, exc)
+        return None
+    m = _HTML_TITLE_RE.search(body)
+    if not m:
+        return None
+    title = unescape(m.group(1)).strip()
+    title = re.sub(r"\s+", " ", title)
+    return title or None
+
+
+def _extract_artistcafe_profile_name_map(text: str | None) -> dict[str, str]:
+    """Build ja->zh person name map from FAAM profile links in artistcafe text."""
+    if not text:
+        return {}
+    urls = list(dict.fromkeys(_ARTIST_PROFILE_URL_RE.findall(text)))[:8]
+    mapping: dict[str, str] = {}
+    for url in urls:
+        title = _fetch_html_title(url)
+        if not title:
+            continue
+        m = _ARTIST_PROFILE_TITLE_NAME_RE.search(title)
+        if not m:
+            continue
+        ja_name = m.group(1).strip()
+        zh_name = _to_trad(m.group(2).strip())
+        if not ja_name or not zh_name:
+            continue
+        mapping[ja_name] = zh_name
+        mapping[_normalize_person_key(ja_name)] = zh_name
+    return mapping
+
+
+def _lookup_profile_zh_name(name: str | None, profile_map: dict[str, str]) -> str | None:
+    if not name or not profile_map:
+        return None
+    return profile_map.get(name) or profile_map.get(_normalize_person_key(name))
 
 
 def _fetch_gnews_article_text(gnews_url: str, browser: "Browser") -> str | None:
@@ -280,6 +347,24 @@ def _check_category_sync() -> None:
 _NEWS_MOVIE_SOURCES = frozenset({"google_news_rss", "prtimes", "nhk_rss"})
 _BRACKET_TITLE_RE = re.compile(r"[\u300c\u300e]([^\u300d\u300f]+)[\u300d\u300f]")
 
+
+def _film_person_enrich_reasons(event: dict[str, Any]) -> list[str]:
+    cats = set(event.get("category") or [])
+    forms = set(event.get("event_form") or [])
+    reasons: list[str] = []
+    if "movie" in cats or "documentary" in cats:
+        reasons.append("category")
+    if any(f in {"screening", "screening_with_talk"} for f in forms):
+        reasons.append("event_form")
+    if bool(event.get("work_id")):
+        reasons.append("work_id")
+    return reasons
+
+
+def _is_film_person_enrich_eligible(event: dict[str, Any]) -> bool:
+    # Eligibility is based on work-like screening signals, not only topic category.
+    return bool(_film_person_enrich_reasons(event))
+
 # Sources where raw_title is a news article headline rather than an event name.
 # For these sources, GPT is permitted to propose a rewritten name_ja extracted
 # from the article body (e.g., the actual movie title or event name).
@@ -300,6 +385,7 @@ _KNOWN_PERSON_MAP: dict[str, tuple[str, str]] = {
     "ギデンズ・コー": ("九把刀", "Giddens Ko"),
     "ジャッキー・チェン": ("成龍", "Jackie Chan"),
     "チェン・ユーシュン": ("陳玉勳", "Chen Yu-Hsun"),
+    "チェン・イェンチー": ("陳彥齊", "Chen Yen-Chi"),
     "ノラ・ミャオ": ("苗可秀", "Nora Miao"),
     "ビビアン・ソン": ("宋芸樺", "Vivian Sung"),
     "ホアン・イーウェン": ("黃以文", "Huang Yi-Wen"),
@@ -2847,6 +2933,7 @@ def enrich_person_names(
         .select(
             "id,name_ja,raw_title,raw_description,name_zh,name_en,"
             "description_zh,description_en,annotation_status,source_name,category,"
+            "event_form,work_id,"
             "performer,performer_zh,performer_en,"
             "performers,performers_zh,performers_en,director,director_zh,director_en"
         )
@@ -2865,14 +2952,25 @@ def enrich_person_names(
     )
 
     patched = 0
-    for event in events:
+    eligible_events = [e for e in events if _is_film_person_enrich_eligible(e)]
+    ineligible_count = len(events) - len(eligible_events)
+    if ineligible_count:
+        logger.info(
+            "enrich_person_names: skipped %d ineligible events",
+            ineligible_count,
+        )
+    for event in eligible_events:
         if enrich_person_names_single(
             sb, event_id=event["id"], event=event, client=client,
             force_fc_override=force_fc_override, model=model,
         ).get("patched"):
             patched += 1
 
-    logger.info("enrich_person_names: patched %d/%d events", patched, len(events))
+    logger.info(
+        "enrich_person_names: patched %d/%d eligible events",
+        patched,
+        len(eligible_events),
+    )
 
 
 def enrich_person_names_single(
@@ -2898,6 +2996,7 @@ def enrich_person_names_single(
             .select(
                 "id,name_ja,raw_title,raw_description,name_zh,name_en,"
                 "description_zh,description_en,annotation_status,source_name,category,"
+                "event_form,work_id,"
                 "performer,performer_zh,performer_en,"
                 "performers,performers_zh,performers_en,director,director_zh,director_en"
             )
@@ -2911,22 +3010,52 @@ def enrich_person_names_single(
 
     source = event.get("source_name", "")
     categories = event.get("category") or []
-    is_movie = "movie" in categories
+    eligible_reasons = _film_person_enrich_reasons(event)
+    is_film_eligible = bool(eligible_reasons)
+
+    title_source = "none"
+    title = ""
+    if source in _NEWS_MOVIE_SOURCES:
+        raw = event.get("raw_title") or ""
+        m = _BRACKET_TITLE_RE.search(raw)
+        if m:
+            title_source = "bracket"
+            title = m.group(1).strip()
+        else:
+            m = _BRACKET_TITLE_RE.search(event.get("name_ja") or "")
+            if m:
+                title_source = "bracket"
+                title = m.group(1).strip()
+            elif event.get("name_ja"):
+                title_source = "name_ja"
+                title = event.get("name_ja") or ""
+            elif event.get("raw_title"):
+                title_source = "raw_title"
+                title = event.get("raw_title") or ""
+    else:
+        if event.get("name_ja"):
+            title_source = "name_ja"
+            title = event.get("name_ja") or ""
+        elif event.get("raw_title"):
+            title_source = "raw_title"
+            title = event.get("raw_title") or ""
+
+    logger.info(
+        "[enrich_person_names] event_id=%s source_name=%s eligible=%s eligible_by=%s title_source=%s",
+        event["id"],
+        source,
+        "true" if is_film_eligible else "false",
+        "|".join(eligible_reasons) if eligible_reasons else "none",
+        title_source,
+    )
 
     people: dict[str, "PersonInfo"] = {}
 
-    if is_movie:
-        if source in _NEWS_MOVIE_SOURCES:
-            raw = event.get("raw_title") or ""
-            m = _BRACKET_TITLE_RE.search(raw)
-            if not m:
-                m = _BRACKET_TITLE_RE.search(event.get("name_ja") or "")
-            title = m.group(1).strip() if m else ""
-        else:
-            title = event.get("name_ja") or event.get("raw_title") or ""
+    if is_film_eligible and title:
         if title:
             people = lookup_person_names(title)
-    else:
+
+    if not people:
         raw_desc = event.get("raw_description") or ""
         raw_title = event.get("raw_title") or event.get("name_ja") or ""
         text = f"{raw_title}\n{raw_desc}"
@@ -2936,7 +3065,15 @@ def enrich_person_names_single(
             if info:
                 people[name] = info
 
-    if not people:
+    profile_zh_map: dict[str, str] = {}
+    if source == "artistcafe":
+        # Artist Cafe detail pages often include FAAM profile links with title
+        # format: カタカナ名（中文名）.
+        profile_zh_map = _extract_artistcafe_profile_name_map(
+            event.get("raw_description") or ""
+        )
+
+    if not people and not profile_zh_map:
         return {"patched": False, "updated_fields": []}
 
     update: dict[str, Any] = {}
@@ -2987,12 +3124,21 @@ def enrich_person_names_single(
             update["performers_en"] = new_performers_en
 
     cur_performers_zh = event.get("performers_zh") or []
+    cur_performers_ja = event.get("performers") or []
     if cur_performers_zh:
         new_performers_zh = []
         changed = False
-        for name in cur_performers_zh:
-            if name in ja_to_info and ja_to_info[name].name_zh:
+        for i, name in enumerate(cur_performers_zh):
+            ja_name = cur_performers_ja[i] if i < len(cur_performers_ja) else ""
+            profile_zh = _lookup_profile_zh_name(name, profile_zh_map) or _lookup_profile_zh_name(ja_name, profile_zh_map)
+            if profile_zh:
+                new_performers_zh.append(profile_zh)
+                changed = True
+            elif name in ja_to_info and ja_to_info[name].name_zh:
                 new_performers_zh.append(_to_trad(ja_to_info[name].name_zh))
+                changed = True
+            elif ja_name in ja_to_info and ja_to_info[ja_name].name_zh:
+                new_performers_zh.append(_to_trad(ja_to_info[ja_name].name_zh))
                 changed = True
             else:
                 new_performers_zh.append(name)
@@ -3063,6 +3209,15 @@ def enrich_person_names_single(
                     break
         if perf_info is None and "\u30fb" in cur_performer:
             perf_info = lookup_single_person(cur_performer)
+        if perf_info is None:
+            profile_zh = _lookup_profile_zh_name(cur_performer, profile_zh_map)
+            cur_perf_zh = event.get("performer_zh") or ""
+            if profile_zh and (
+                not cur_perf_zh
+                or "AI\u7FFB\u8B6F" in cur_perf_zh
+                or cur_perf_zh != profile_zh
+            ):
+                update["performer_zh"] = profile_zh
         if perf_info:
             cur_perf_zh = event.get("performer_zh") or ""
             cur_perf_en = event.get("performer_en") or ""

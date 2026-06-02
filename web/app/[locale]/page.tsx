@@ -9,6 +9,7 @@ import { FloatingShapes } from "@/lib/design/FloatingShapes";
 import { MascotAvatar } from "@/lib/design";
 import Link from "next/link";
 import AnnouncementCard from "@/components/AnnouncementCard";
+import AccountPortalButton from "@/components/AccountPortalButton";
 import { Suspense } from "react";
 
 // ISR: revalidate every 10 minutes. All filter logic runs client-side so
@@ -163,6 +164,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
               </span>
               {tHome("lineCta")}
             </a>
+            <AccountPortalButton locale={locale} />
           </div>
         </div>
       </section>
