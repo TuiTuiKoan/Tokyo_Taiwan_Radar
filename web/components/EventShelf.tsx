@@ -131,7 +131,7 @@ export default function EventShelf({ events, locale }: Props) {
                   className="group relative flex flex-col h-full rounded-xl border border-line bg-paper/70 backdrop-blur-md overflow-hidden transition hover:shadow-md hover:border-green-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                 >
                   {isNew(event.created_at) && (
-                    <span className="absolute top-2 left-2 z-10 text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#E84860] text-white">
+                    <span className="absolute top-2 left-2 z-10 text-[9px] font-extrabold px-1.5 py-0.5 rounded-sm border-2 border-[#E84860] text-[#E84860] bg-surface/95 -rotate-3 select-none tracking-wider shadow-sm shadow-[#E84860]/20">
                       {t("badgeNew")}
                     </span>
                   )}
