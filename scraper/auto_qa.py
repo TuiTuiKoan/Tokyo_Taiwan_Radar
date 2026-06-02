@@ -136,6 +136,7 @@ QA_TYPES = (
     "auto_qa_missing_category",
     "auto_qa_missing_title",
     "auto_qa_missing_prefectures",
+    "auto_qa_location_url_is_event_url",
 )
 
 # Precise SC-only char set for the broad auto_simplified_chinese detector.
@@ -778,6 +779,45 @@ def _detect_thin_content(sb) -> list[dict]:
     return reports
 
 
+def _detect_location_url_is_event_url(sb) -> list[dict]:
+    """Detect events where location_url == source_url or == official_url.
+
+    This is the most common form of the location_url pollution bug: the annotator
+    or admin UI sets location_url to the event page URL (organizer's site /
+    Peatix / etc.) instead of the VENUE's own website.
+    """
+    rows = (
+        sb.table("events")
+        .select("id,source_name,source_url,official_url,location_url,location_name")
+        .eq("is_active", True)
+        .not_.is_("location_url", "null")
+        .execute()
+        .data
+    )
+    reports = []
+    for row in rows:
+        loc_url = (row.get("location_url") or "").rstrip("/")
+        src_url = (row.get("source_url") or "").rstrip("/")
+        off_url = (row.get("official_url") or "").rstrip("/")
+        if not loc_url:
+            continue
+        collision = None
+        if src_url and loc_url == src_url:
+            collision = "source_url"
+        elif off_url and loc_url == off_url:
+            collision = "official_url"
+        if collision:
+            reports.append({
+                "event_id": row["id"],
+                "report_type": "auto_qa_location_url_is_event_url",
+                "details": (
+                    f"location_url と {collision} が同一 URL → 会場 URL ではなくイベントページ URL が誤設定されている; "
+                    f"venue={row.get('location_name') or '?'}; url={loc_url[:120]}"
+                ),
+            })
+    return reports
+
+
 def detect(event: dict) -> list[tuple[str, str]]:
     """Return list of (report_type, admin_note) detected for one event."""
     findings: list[tuple[str, str]] = []
@@ -909,6 +949,8 @@ def run(dry_run: bool = False) -> dict:
     for item in _detect_missing_performers(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
     for item in _detect_thin_content(sb):
+        candidates.append((item["event_id"], item["report_type"], item["details"]))
+    for item in _detect_location_url_is_event_url(sb):
         candidates.append((item["event_id"], item["report_type"], item["details"]))
 
     # Dedup against latest auto_qa reports for each event/type.

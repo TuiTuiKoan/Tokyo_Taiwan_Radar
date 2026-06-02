@@ -419,12 +419,12 @@ _SLOT_TITLE_RE = re.compile(
 
 # Prefecture extraction — mirrors web/lib/cityLabel.ts extractCity()
 _PREFECTURE_RE = re.compile(
-    r"(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県\d〒-]{2,4}[都道府県]|(?:[臺台]北|新北|桃園|[臺台]中|[臺台]南|高雄|基隆|新竹|苗栗|彰化|南投|雲林|嘉義|屏東|宜蘭|花蓮|[臺台]東|澎湖|金門|連江)[市縣県])"
+    r"(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県\d〒-]{2,4}[都道府県]|(?:[臺台]北|新北|桃園|[臺台]中|[臺台]南|高雄|基隆|新竹|苗栗|彰化|南投|雲林|嘉義|屏東|宜蘭|花蓮|[臺台]東|澎湖|金門|連江)(?:[市縣県])?)"
 )
 
 
 def _extract_prefecture(address: str | None) -> str | None:
-    """Return full prefecture name (e.g. '東京都', '台北市') from an address, or None."""
+    """Return full prefecture name (e.g. '東京都', '台北市') or short Taiwan name (e.g. '台北') from an address, or None."""
     if not address:
         return None
     # Use search instead of match to find prefecture anywhere (e.g. after postal code).
@@ -432,6 +432,14 @@ def _extract_prefecture(address: str | None) -> str | None:
     if not m:
         return None
     full = m.group(1)
+    # For Taiwan cities, we normalize to short name (e.g. "臺北" -> "台北")
+    tw_names = {"臺北": "台北", "臺中": "台中", "臺南": "台南", "臺東": "台東"}
+    for k, v in tw_names.items():
+        if full.startswith(k):
+            return v + full[len(k):].replace("市", "").replace("縣", "").replace("県", "")
+    if any(x in full for x in ["市", "縣", "県"]) and not any(x in full for x in ["都", "道", "府", "県"]):
+        # This is a Taiwan city with suffix, strip it
+        return full.replace("市", "").replace("縣", "").replace("県", "")
     return full
 
 # Regex for deterministic venue extraction from raw_description
@@ -1974,6 +1982,19 @@ def annotate_pending_events(
             # Added conditionally so null never overwrites an admin-entered value.
             if not fix_reviewed:
                 _loc_url = update_data.get("location_url") or event.get("location_url") or _str(annotation.get("location_url"))
+                if _loc_url:
+                    # Guard: location_url must NOT be the same as source_url or
+                    # official_url (those are EVENT page URLs, not venue websites).
+                    _src_url  = event.get("source_url") or ""
+                    _off_url  = event.get("official_url") or ""
+                    if _loc_url in (_src_url, _off_url) and _loc_url:
+                        logger.warning(
+                            "location_url guard: rejected '%s' (same as %s) for event %s",
+                            _loc_url,
+                            "source_url" if _loc_url == _src_url else "official_url",
+                            event.get("id", "?"),
+                        )
+                        _loc_url = None
                 if _loc_url:
                     update_data["location_url"] = _loc_url
 
