@@ -64,31 +64,24 @@ export async function GET(req: Request) {
     // Load active and inactive events in the range
     // Loop paging to fetch all records (completely removing limit)
     let allEvents: any[] = [];
-    let page = 0;
+    let offset = 0;
     const pageSize = 5000;
-    let hasMore = true;
 
-    while (hasMore) {
+    while (true) {
       const { data: pageData, error: fetchErr } = await supabase
         .from("events")
         .select("id, created_at, start_date, end_date, category, location_name, location_address, location_prefectures, is_active")
         .or(`start_date.lte.${rangeEnd},created_at.gte.${rangeStart}`)
-        .range(page * pageSize, (page + 1) * pageSize - 1);
+        .range(offset, offset + pageSize - 1);
 
       if (fetchErr) {
         return NextResponse.json({ error: fetchErr.message }, { status: 500 });
       }
 
-      if (pageData && pageData.length > 0) {
-        allEvents = allEvents.concat(pageData);
-        if (pageData.length < pageSize) {
-          hasMore = false;
-        } else {
-          page++;
-        }
-      } else {
-        hasMore = false;
-      }
+      if (!pageData || pageData.length === 0) break;
+      allEvents = allEvents.concat(pageData);
+      // Use actual returned size to support project-level row caps (often 1000).
+      offset += pageData.length;
     }
 
     // Apply location filter (JS server-side post-filter)

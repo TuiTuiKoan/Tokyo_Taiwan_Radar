@@ -133,32 +133,25 @@ export async function GET(req: Request) {
     // Fetch meeting records
     // Loop paging to fetch all records (completely removing limit)
     let views: any[] = [];
-    let page = 0;
+    let offset = 0;
     const pageSize = 5000;
-    let hasMore = true;
 
-    while (hasMore) {
+    while (true) {
       const { data: pageData, error: fetchErr } = await supabase
         .from("event_views")
         .select("viewed_at, country, country_region, traffic_source, locale, event_id, events(category, location_name, location_address, location_prefectures)")
         .gte("viewed_at", rangeStart)
         .lte("viewed_at", rangeEnd)
-        .range(page * pageSize, (page + 1) * pageSize - 1);
+        .range(offset, offset + pageSize - 1);
 
       if (fetchErr) {
         return NextResponse.json({ error: fetchErr.message }, { status: 500 });
       }
 
-      if (pageData && pageData.length > 0) {
-        views = views.concat(pageData);
-        if (pageData.length < pageSize) {
-          hasMore = false;
-        } else {
-          page++;
-        }
-      } else {
-        hasMore = false;
-      }
+      if (!pageData || pageData.length === 0) break;
+      views = views.concat(pageData);
+      // Use actual returned size to support project-level row caps (often 1000).
+      offset += pageData.length;
     }
 
     // Filter server-side
