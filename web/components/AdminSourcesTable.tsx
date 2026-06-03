@@ -591,81 +591,91 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
       {/* Add note.com creator form */}
       <div className="mb-4">
         <button
-          onClick={() => setShowAddForm((v) => !v)}
+          onClick={() => setShowAddForm(true)}
           className="text-xs px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition font-medium"
         >
-          {showAddForm ? "✕ " : "＋ "}{t("addNoteCreator")}
+          ＋ {t("addNoteCreator")}
         </button>
 
         {showAddForm && (
-          <form
-            onSubmit={handleAddCreator}
-            className="mt-3 p-4 bg-surface border border-green-200 rounded-xl space-y-3 max-w-lg"
-          >
-            <p className="text-xs text-fg-muted">{t("addNoteCreatorHint")}</p>
-            <div>
-              <label className="block text-xs font-medium text-fg-muted mb-1">
-                {t("addNoteCreatorSlug")} <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={creatorSlug}
-                onChange={(e) => setCreatorSlug(e.target.value)}
-                placeholder="kuroshio2026"
-                required
-                className="w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
-              {creatorSlug.trim() && (
-                <p className="text-xs text-fg-subtle mt-1">
-                  → https://note.com/{creatorSlug.trim().replace(/^https?:\/\/note\.com\/?/, "").replace(/\/$/, "")}
-                </p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <form
+              onSubmit={handleAddCreator}
+              className="w-full max-w-lg max-h-screen overflow-y-auto rounded-xl border border-green-200 bg-surface p-4 sm:p-5 shadow-lg"
+            >
+              <h2 className="mb-2 text-base font-semibold text-fg">{t("addNoteCreator")}</h2>
+              <p className="mb-4 text-xs text-fg-muted">{t("addNoteCreatorHint")}</p>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-fg-muted">
+                    {t("addNoteCreatorSlug")} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={creatorSlug}
+                    onChange={(e) => setCreatorSlug(e.target.value)}
+                    placeholder="kuroshio2026"
+                    required
+                    className="w-full rounded-lg border border-line px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                  {creatorSlug.trim() && (
+                    <p className="mt-1 text-xs text-fg-subtle">
+                      → https://note.com/{creatorSlug.trim().replace(/^https?:\/\/note\.com\/?/, "").replace(/\/$/, "")}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-fg-muted">
+                    {t("addNoteCreatorName")} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={creatorName}
+                    onChange={(e) => setCreatorName(e.target.value)}
+                    placeholder="黒潮ネット"
+                    required
+                    className="w-full rounded-lg border border-line px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-fg-muted">
+                    {t("addNoteCreatorLocation")}
+                  </label>
+                  <input
+                    type="text"
+                    value={creatorLocation}
+                    onChange={(e) => setCreatorLocation(e.target.value)}
+                    placeholder="東京都文京区"
+                    className="w-full rounded-lg border border-line px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                </div>
+              </div>
+
+              {addError && (
+                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  {addError}
+                </div>
               )}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-fg-muted mb-1">
-                {t("addNoteCreatorName")} <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={creatorName}
-                onChange={(e) => setCreatorName(e.target.value)}
-                placeholder="黒潮ネット"
-                required
-                className="w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-fg-muted mb-1">
-                {t("addNoteCreatorLocation")}
-              </label>
-              <input
-                type="text"
-                value={creatorLocation}
-                onChange={(e) => setCreatorLocation(e.target.value)}
-                placeholder="東京都文京区"
-                className="w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
-            </div>
-            {addError && (
-              <p className="text-xs text-red-600">{addError}</p>
-            )}
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={adding}
-                className="text-xs px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition"
-              >
-                {adding ? "…" : t("addNoteCreatorSubmit")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAddForm(false)}
-                className="text-xs px-4 py-1.5 bg-muted text-fg-muted rounded-lg hover:bg-gray-200 transition"
-              >
-                {t("cancel")}
-              </button>
-            </div>
-          </form>
+
+              <div className="mt-5 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm(false)}
+                  className="rounded-lg border border-line px-4 py-2 text-xs text-fg-muted hover:bg-muted transition"
+                >
+                  {t("cancel")}
+                </button>
+                <button
+                  type="submit"
+                  disabled={adding}
+                  className="rounded-lg bg-green-600 px-4 py-2 text-xs font-medium text-white hover:bg-green-700 transition disabled:opacity-50"
+                >
+                  {adding ? "…" : t("addNoteCreatorSubmit")}
+                </button>
+              </div>
+            </form>
+          </div>
         )}
       </div>
 
