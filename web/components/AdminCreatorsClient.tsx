@@ -67,6 +67,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<CreatorForm>(EMPTY_FORM);
   const [saving, startSaving] = useTransition();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function openAdd() {
@@ -172,6 +173,23 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
       setCreators((prev) =>
         prev.map((x) => (x.id === c.id ? (data as Creator) : x))
       );
+    }
+  }
+
+  async function deleteCreator(c: Creator) {
+    if (!confirm("Delete creator " + c.name + "?")) return;
+    setDeletingId(c.id);
+    const supabase = createClient();
+    const { error: err } = await supabase.from("creators").delete().eq("id", c.id);
+    setDeletingId(null);
+    if (!err) {
+      setCreators((prev) => prev.filter((x) => x.id !== c.id));
+      if (editId === c.id) {
+        setShowForm(false);
+        setEditId(null);
+      }
+    } else {
+      setError(err.message);
     }
   }
 
@@ -336,13 +354,13 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
       {/* Add / Edit form modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-lg max-h-screen overflow-y-auto rounded-2xl bg-surface p-6 shadow-xl">
-            <h2 className="text-lg font-semibold mb-4">
+          <div className="w-full max-w-lg max-h-screen overflow-y-auto rounded-xl border border-green-200 bg-surface p-4 sm:p-5 shadow-lg">
+            <h2 className="text-base font-semibold mb-2 text-fg">
               {editId ? t("creatorsEdit") : t("creatorsAdd")}
             </h2>
 
             {error && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                 {error}
               </div>
             )}
@@ -350,33 +368,33 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-fg mb-1">
+                  <label className="block text-xs font-medium text-fg-muted mb-1">
                     {t("creatorsName")} *
                   </label>
                   <input
                     name="name"
                     value={form.name}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
                     placeholder="Display name"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-fg mb-1">
+                  <label className="block text-xs font-medium text-fg-muted mb-1">
                     {t("creatorsName")} (ZH)
                   </label>
                   <input
                     name="name_zh"
                     value={form.name_zh ?? ""}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
                     placeholder="中文名稱（選填）"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-fg mb-1">
+                <label className="block text-xs font-medium text-fg-muted mb-1">
                   {t("creatorsProfileUrl")} *
                 </label>
                 <input
@@ -384,14 +402,14 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   value={form.profile_url}
                   onChange={handleChange}
                   type="url"
-                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
                   placeholder="https://..."
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-fg mb-1">
+                  <label className="block text-xs font-medium text-fg-muted mb-1">
                     {t("creatorsPlatform")}
                   </label>
                   <DesignSelect
@@ -401,14 +419,14 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-fg mb-1">
+                  <label className="block text-xs font-medium text-fg-muted mb-1">
                     {t("creatorsHandle")}
                   </label>
                   <input
                     name="handle"
                     value={form.handle ?? ""}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
                     placeholder="@handle"
                   />
                 </div>
@@ -416,7 +434,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-fg mb-1">
+                  <label className="block text-xs font-medium text-fg-muted mb-1">
                     {t("creatorsCategory")}
                   </label>
                   <DesignSelect
@@ -429,7 +447,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-fg mb-1">
+                  <label className="block text-xs font-medium text-fg-muted mb-1">
                     {t("creatorsLocation")}
                   </label>
                   <DesignSelect
@@ -445,7 +463,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-fg mb-1">
+                  <label className="block text-xs font-medium text-fg-muted mb-1">
                     {t("creatorsNationality")}
                   </label>
                   <DesignSelect
@@ -458,7 +476,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-fg mb-1">
+                  <label className="block text-xs font-medium text-fg-muted mb-1">
                     {t("creatorsFollowers")}
                   </label>
                   <input
@@ -467,14 +485,14 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                     onChange={handleChange}
                     type="number"
                     min={0}
-                    className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
                     placeholder="0"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-fg mb-1">
+                <label className="block text-xs font-medium text-fg-muted mb-1">
                   {t("creatorsLastPost")}
                 </label>
                 <input
@@ -482,12 +500,12 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   value={form.last_post_at ?? ""}
                   onChange={handleChange}
                   type="date"
-                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-fg mb-1">
+                <label className="block text-xs font-medium text-fg-muted mb-1">
                   {t("creatorsNotes")}
                 </label>
                 <textarea
@@ -495,7 +513,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   value={form.notes ?? ""}
                   onChange={handleChange}
                   rows={3}
-                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full text-sm border border-line rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
               </div>
 
@@ -506,7 +524,7 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
                   type="checkbox"
                   checked={form.is_active}
                   onChange={handleChange}
-                  className="h-4 w-4 rounded border-line-strong text-green-600 focus:ring-green-500"
+                  className="h-4 w-4 rounded border-line text-green-600 focus:ring-green-400"
                 />
                 <label
                   htmlFor="is_active"
@@ -517,17 +535,31 @@ export default function AdminCreatorsClient({ initialCreators, locale }: Props) 
               </div>
             </div>
 
-            <div className="mt-5 flex justify-end gap-3">
-              <button
-                onClick={() => setShowForm(false)}
-                className="rounded-lg border border-line-strong px-4 py-2 text-sm text-fg-muted hover:bg-elevated transition"
-              >
-                Cancel
-              </button>
+            <div className="mt-5 flex items-center justify-between gap-3">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowForm(false)}
+                  className="rounded-lg border border-line px-4 py-2 text-xs text-fg-muted hover:bg-muted transition"
+                >
+                  Cancel
+                </button>
+                {editId && (
+                  <button
+                    onClick={() => {
+                      const current = creators.find((item) => item.id === editId);
+                      if (current) void deleteCreator(current);
+                    }}
+                    disabled={Boolean(deletingId)}
+                    className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-medium text-red-700 hover:bg-red-100 transition disabled:opacity-60"
+                  >
+                    {deletingId === editId ? "..." : "Delete"}
+                  </button>
+                )}
+              </div>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition disabled:opacity-60"
+                className="rounded-lg bg-green-600 px-4 py-2 text-xs font-medium text-white hover:bg-green-700 transition disabled:opacity-60"
               >
                 {saving ? "..." : "Save"}
               </button>
