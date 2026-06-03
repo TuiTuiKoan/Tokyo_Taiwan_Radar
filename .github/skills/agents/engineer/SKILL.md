@@ -494,6 +494,7 @@ router.push('/admin');
   Backoff: 2s → 4s → 8s. Apply to both `https://` and `http://` mounts.
 
 ## Next.js / Sentry
+- **Server Component から client module の純関数を呼ばない:** `"use client"` file exports belong to the client module graph. If a Server Component needs a parser, filter builder, or URL state helper, put the type/function in a server-safe `web/lib/*.ts` module and import only client components/hooks from the client file. Do not add compatibility re-exports from client context modules. Reference incident: 2026-06-03 homepage `buildInitialFilters()` render error.
 - Never set `autoInstrumentServerFunctions: false` — it silently disables server-side error capture.
 - Gate source map upload: `sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN }`.
 

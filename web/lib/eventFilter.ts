@@ -6,6 +6,32 @@ import {
 } from "@/lib/regionPrefectures";
 import { matchesLocation } from "@/lib/locationMarkers";
 
+export type EventFilters = {
+  q: string;
+  category: string;
+  from: string;
+  to: string;
+  paid: string;
+  timeMode: string;
+  location: string;
+  city: string;
+  sort: string;
+};
+
+export function buildInitialFilters(sp: URLSearchParams): EventFilters {
+  return {
+    q: sp.get("q") ?? "",
+    category: sp.get("category") ?? "",
+    from: sp.get("from") ?? "",
+    to: sp.get("to") ?? "",
+    paid: sp.get("paid") ?? "",
+    timeMode: sp.get("timeMode") ?? "active",
+    location: sp.get("location") ?? "",
+    city: sp.get("city") ?? "",
+    sort: sp.get("sort") ?? "newest",
+  };
+}
+
 /**
  * Shared FilterBar predicate. Mirrors the URL-driven filters (keyword,
  * category, time mode, paid, location, city) so the shelf and the main list

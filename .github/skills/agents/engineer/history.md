@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-06-03 - 首頁 Server Component 呼叫 client module 純函式導致 production render error
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-03 | `/ja` fresh render 發生 Server Components render error：`Attempted to call buildInitialFilters() from the server but buildInitialFilters is on the client` | `web/components/EventFilterContext.tsx` 是 `"use client"` module，卻匯出純 parser `buildInitialFilters()`；server component `web/app/[locale]/page.tsx` 從 client module 匯入並直接呼叫，踩到 Next.js 16 client/server module graph 邊界 | 將 `EventFilters` type 與 `buildInitialFilters()` 搬到 server-safe 的 `web/lib/eventFilter.ts`，`EventFilterContext.tsx` 只保留 provider/hooks 並 type-only 匯入 `EventFilters`，首頁改從 `@/lib/eventFilter` 匯入純函式 | **教訓：** Server Component 不可從 `"use client"` module 匯入並呼叫非 component 函式。filter parser、URL state builder 等純邏輯應放在 `web/lib/*.ts` server-safe module；client context 不要 re-export server 會呼叫的 helper。
+
+---
+
 ## 2026-06-03 — ログイン後にナビバーが数秒で「未ログイン」へ戻る／ホバーで誤ログアウトする二重不具合（commit `c4e1bde`）
 
 **日付 | 問題簡述 | 根本原因 | 修復方法 | 学んだ教訓**

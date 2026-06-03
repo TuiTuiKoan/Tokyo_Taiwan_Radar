@@ -3,31 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import type { Locale } from "@/lib/types";
-
-export type EventFilters = {
-  q: string;
-  category: string;
-  from: string;
-  to: string;
-  paid: string;
-  timeMode: string;
-  location: string;
-  city: string;
-  sort: string;
-};
-
-const DEFAULT_FILTERS: EventFilters = {
-  q: "",
-  category: "",
-  from: "",
-  to: "",
-  paid: "",
-  timeMode: "active",
-  location: "",
-  city: "",
-  sort: "newest",
-};
+import type { EventFilters } from "@/lib/eventFilter";
 
 const EventFilterContext = createContext<{
   filters: EventFilters;
@@ -80,18 +56,4 @@ export function useEventFilters() {
   const ctx = useMaybeEventFilters();
   if (!ctx) throw new Error("useEventFilters must be used within EventFilterProvider");
   return ctx;
-}
-
-export function buildInitialFilters(sp: URLSearchParams): EventFilters {
-  return {
-    q: sp.get("q") ?? "",
-    category: sp.get("category") ?? "",
-    from: sp.get("from") ?? "",
-    to: sp.get("to") ?? "",
-    paid: sp.get("paid") ?? "",
-    timeMode: sp.get("timeMode") ?? "active",
-    location: sp.get("location") ?? "",
-    city: sp.get("city") ?? "",
-    sort: sp.get("sort") ?? "newest",
-  };
 }
