@@ -229,7 +229,7 @@ export default function OwnerCreateClient({ locale }: Props) {
             type="button"
             onClick={() => posterFileRef.current?.click()}
             disabled={extracting}
-            className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium bg-paper hover:bg-elevated transition disabled:opacity-50 shadow-sm"
+            className="inline-flex min-w-[10rem] items-center justify-center whitespace-nowrap rounded-lg border border-line-strong px-4 py-2 text-sm font-medium bg-paper hover:bg-elevated transition disabled:opacity-50 shadow-sm"
           >
             {extracting ? t("saving") : t("extract") || "由海報提取資訊"}
           </button>
@@ -308,7 +308,7 @@ export default function OwnerCreateClient({ locale }: Props) {
           type="button"
           onClick={ocrFilled ? handleAIAnnotate : handleSaveEvent}
           disabled={saving || extracting || annotating}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 shadow-sm ${
+          className={`inline-flex min-w-[11rem] items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 shadow-sm ${
             ocrFilled
               ? "bg-blue-600 hover:bg-blue-700"
               : "bg-green-600 hover:bg-green-700"

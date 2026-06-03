@@ -300,7 +300,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
             </div>
           )}
           {/* Cover image URL + upload */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="w-24 text-xs text-fg-muted shrink-0">{tAnn("coverImage")}</span>
             <input
               type="url"
@@ -313,7 +313,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="shrink-0 text-xs px-3 py-2 border border-line-strong rounded-lg hover:bg-elevated disabled:opacity-50"
+              className="inline-flex min-w-[7.5rem] items-center justify-center whitespace-nowrap shrink-0 text-xs px-3 py-2 border border-line-strong rounded-lg hover:bg-elevated disabled:opacity-50"
             >
               {uploading ? "上傳中…" : "📁 上傳"}
             </button>

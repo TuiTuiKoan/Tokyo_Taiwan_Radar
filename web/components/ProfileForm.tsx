@@ -292,7 +292,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
           <div className="flex flex-wrap items-center gap-3">
             <label
               htmlFor={avatarInputId}
-              className="inline-flex cursor-pointer items-center rounded-lg border border-line-strong bg-paper px-4 py-2 text-sm font-medium text-fg hover:bg-elevated focus-within:outline-none focus-within:ring-2 focus-within:ring-green-500 transition disabled:opacity-60"
+              className="inline-flex min-w-[9.5rem] cursor-pointer items-center justify-center whitespace-nowrap rounded-lg border border-line-strong bg-paper px-4 py-2 text-sm font-medium text-fg hover:bg-elevated focus-within:outline-none focus-within:ring-2 focus-within:ring-green-500 transition disabled:opacity-60"
             >
               {avatarUploading ? t("saving") : t("avatarUploadButton")}
             </label>
@@ -326,7 +326,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
         <button
           type="submit"
           disabled={saving || avatarUploading}
-          className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition disabled:opacity-60"
+          className="inline-flex min-w-[9rem] items-center justify-center whitespace-nowrap rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition disabled:opacity-60"
         >
           {saving ? t("saving") : t("save")}
         </button>

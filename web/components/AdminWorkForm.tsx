@@ -300,7 +300,7 @@ export default function AdminWorkForm({ work, linkedEvents = [], locale, onSucce
         </button>
         <Link
           href={`/${locale}/admin/works`}
-          className="border border-line-strong hover:bg-elevated text-sm px-4 py-2 rounded-lg transition"
+          className="inline-flex min-w-[7rem] items-center justify-center whitespace-nowrap bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-lg transition disabled:opacity-50"
         >
           {t("cancel")}
         </Link>
