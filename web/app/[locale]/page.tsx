@@ -5,6 +5,7 @@ import FilterBar from "@/components/FilterBar";
 import ListScrollManager from "@/components/ListScrollManager";
 import EventListClient from "@/components/EventListClient";
 import EventShelf from "@/components/EventShelf";
+import { EventFilterProvider, buildInitialFilters } from "@/components/EventFilterContext";
 import { FloatingShapes } from "@/lib/design/FloatingShapes";
 import { MascotAvatar } from "@/lib/design";
 import Link from "next/link";
@@ -193,18 +194,27 @@ export default async function HomePage({ params, searchParams }: PageProps) {
         </section>
       )}
 
-      <FilterBar locale={locale} currentFilters={{ ...sp, city: sp.city ?? "" }} />
-      <Suspense fallback={null}>
-        <ListScrollManager />
-      </Suspense>
+      <EventFilterProvider
+        initialFilters={buildInitialFilters(
+          new URLSearchParams(
+            Object.entries(sp)
+              .flatMap(([key, value]) => (value ? [[key, value]] : [])),
+          ),
+        )}
+      >
+        <FilterBar locale={locale} currentFilters={{ ...sp, city: sp.city ?? "" }} />
+        <Suspense fallback={null}>
+          <ListScrollManager />
+        </Suspense>
 
-      <Suspense fallback={null}>
-        <EventShelf events={events} locale={locale} />
-      </Suspense>
+        <Suspense fallback={null}>
+          <EventShelf events={events} locale={locale} />
+        </Suspense>
 
-      <Suspense fallback={null}>
-        <EventListClient events={events} parentMap={parentMap} locale={locale} />
-      </Suspense>
+        <Suspense fallback={null}>
+          <EventListClient events={events} parentMap={parentMap} locale={locale} />
+        </Suspense>
+      </EventFilterProvider>
     </div>
   );
 }

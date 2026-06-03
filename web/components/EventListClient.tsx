@@ -1,6 +1,5 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -11,6 +10,8 @@ import SaveButton from "@/components/SaveButton";
 import SortControl, { type SortKey } from "@/components/SortControl";
 import { filterEvents } from "@/lib/eventFilter";
 import { isShelfEvent } from "@/lib/eventClassify";
+import { useMaybeEventFilters } from "@/components/EventFilterContext";
+import { useSearchParams } from "next/navigation";
 
 interface Props {
   events: Event[];
@@ -52,16 +53,23 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
   const tCat = useTranslations("categories");
   const tGeneral = useTranslations("general");
   const tHome = useTranslations("home");
+  const shared = useMaybeEventFilters();
 
-  const sort = parseSort(sp.get("sort"));
+  const sort = parseSort(shared?.filters.sort ?? sp.get("sort"));
 
   const filtered = useMemo(() => {
-    const base = filterEvents(events, new URLSearchParams(sp.toString()));
+    const query = shared
+      ? Object.entries(shared.filters).reduce((params, [key, value]) => {
+          if (value) params.set(key, value);
+          return params;
+        }, new URLSearchParams())
+      : new URLSearchParams(sp.toString());
+    const base = filterEvents(events, query);
     // Long-term / persistent events live in the shelf; exclude them here so
     // they are not double-listed.
     const main = base.filter((e) => !isShelfEvent(e));
     return sortEvents(main, sort);
-  }, [events, sp, sort]);
+  }, [events, shared, sort, sp]);
 
   return (
     <div>

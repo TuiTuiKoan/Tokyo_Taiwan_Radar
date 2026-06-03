@@ -1,11 +1,11 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CATEGORY_GROUPS, type Locale } from "@/lib/types";
-import { useState, useCallback, useRef, useEffect, useTransition } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, type RegionWithCity } from "@/lib/regionPrefectures";
 import { FilterChip } from "@/lib/design";
+import { useMaybeEventFilters } from "@/components/EventFilterContext";
 
 interface Props {
   locale: Locale;
@@ -26,13 +26,9 @@ interface Props {
 export default function FilterBar({ locale: _locale, currentFilters, hiddenFilters = [] }: Props) {
   const t = useTranslations("filters");
   const tCat = useTranslations("categories");
-  const router = useRouter();
-  const pathname = usePathname();
-  const [, startTransition] = useTransition();
-
-  const [draft, setDraft] = useState({
+  const shared = useMaybeEventFilters();
+  const [localDraft, setLocalDraft] = useState({
     q: currentFilters.q ?? "",
-    // category is comma-separated, e.g. "movie,art"
     category: currentFilters.category ?? "",
     from: currentFilters.from ?? "",
     to: currentFilters.to ?? "",
@@ -40,7 +36,10 @@ export default function FilterBar({ locale: _locale, currentFilters, hiddenFilte
     timeMode: currentFilters.timeMode ?? "active",
     location: currentFilters.location ?? "",
     city: currentFilters.city ?? "",
+    sort: "newest",
   });
+  const draft = shared?.filters ?? localDraft;
+  const setDraft = shared?.setFilters ?? setLocalDraft;
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [catDropdownOpen, setCatDropdownOpen] = useState(false);
@@ -68,48 +67,31 @@ export default function FilterBar({ locale: _locale, currentFilters, hiddenFilte
   }, []);
 
   const set = (key: string, value: string) =>
-    setDraft((prev) => ({ ...prev, [key]: value }));
+    setDraft({ ...draft, [key]: value });
 
   /** Push URL immediately with an updated state snapshot. */
   const pushWith = useCallback((next: typeof draft) => {
-    const params = new URLSearchParams();
-    Object.entries(next).forEach(([k, v]) => {
-      if (v) params.set(k, v);
-    });
-    startTransition(() => {
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    });
-  }, [pathname, router]);
+    setDraft(next);
+  }, [setDraft]);
 
   /** Immediately push URL when a select changes. */
   const applyWith = useCallback((key: string, value: string) => {
-    setDraft((prev) => {
-      const next = { ...prev, [key]: value };
-      pushWith(next);
-      return next;
-    });
+    pushWith({ ...draft, [key]: value });
   }, [pushWith]);
 
   /** Toggle a category — multi-select, updates URL immediately. */
   const toggleCategory = useCallback((cat: string) => {
-    setDraft((prev) => {
-      const current = prev.category ? prev.category.split(",") : [];
-      const next = current.includes(cat)
-        ? current.filter((c) => c !== cat)
-        : [...current, cat];
-      const nextDraft = { ...prev, category: next.join(",") };
-      pushWith(nextDraft);
-      return nextDraft;
-    });
+    const current = draft.category ? draft.category.split(",") : [];
+    const next = current.includes(cat)
+      ? current.filter((c) => c !== cat)
+      : [...current, cat];
+    pushWith({ ...draft, category: next.join(",") });
   }, [pushWith]);
 
   const clearAll = useCallback(() => {
-    const reset = { q: "", category: "", from: "", to: "", paid: "", timeMode: "active", location: "", city: "" };
+    const reset = { q: "", category: "", from: "", to: "", paid: "", timeMode: "active", location: "", city: "", sort: "newest" };
     setDraft(reset);
-    startTransition(() => {
-      router.replace(pathname, { scroll: false });
-    });
-  }, [pathname, router]);
+  }, [setDraft]);
 
   const selectedCats = draft.category ? draft.category.split(",") : [];
   const fieldIds = {
