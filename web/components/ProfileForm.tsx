@@ -52,6 +52,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
   const router = useRouter();
   const supabase = createClient();
   const avatarInputId = "avatar_upload";
+  const controlClassName = "w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500";
   const [form, setForm] = useState<ProfileInput>(() => ({
     ...emptyProfile(),
     ...initialProfile,
@@ -152,7 +153,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
             required
             pattern="[a-z0-9]+"
             onChange={(event) => setField("user_handle", event.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""))}
-            className="w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className={controlClassName}
             placeholder={t("userHandlePlaceholder")}
           />
           <p className="mt-1 text-xs text-fg-subtle">{t("userHandleHint")}</p>
@@ -169,7 +170,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
               value={form.organizer_name_zh}
               required
               onChange={(event) => setField("organizer_name_zh", event.target.value)}
-              className="w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className={controlClassName}
             />
           </div>
           <div>
@@ -182,7 +183,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
               value={form.organizer_name_ja}
               required
               onChange={(event) => setField("organizer_name_ja", event.target.value)}
-              className="w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className={controlClassName}
             />
           </div>
           <div>
@@ -195,7 +196,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
               value={form.organizer_name_en}
               required
               onChange={(event) => setField("organizer_name_en", event.target.value)}
-              className="w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className={controlClassName}
             />
           </div>
         </div>
@@ -211,7 +212,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
             value={form.website_url}
             required
             onChange={(event) => setField("website_url", event.target.value)}
-            className="w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className={controlClassName}
             placeholder={t("urlPlaceholder")}
           />
         </div>
@@ -241,7 +242,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
               name="region"
               value={form.region ?? ""}
               onChange={(event) => setField("region", event.target.value)}
-              className="w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className={controlClassName}
               placeholder={t("regionPlaceholder")}
             />
           </div>
@@ -261,7 +262,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
                 type="url"
                 value={form[field] ?? ""}
                 onChange={(event) => setField(field, event.target.value)}
-                className="w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                className={controlClassName}
                 placeholder={t("urlPlaceholder")}
               />
             </div>
@@ -309,7 +310,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
             type="url"
             value={form.avatar_url ?? ""}
             onChange={(event) => setField("avatar_url", event.target.value)}
-            className="w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className={controlClassName}
             placeholder={t("urlPlaceholder")}
           />
         </div>

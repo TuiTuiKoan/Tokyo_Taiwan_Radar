@@ -8,6 +8,10 @@ applyTo: .github/agents/scraper-expert.agent.md
 
 Read this at the start of every session before writing any scraper.
 
+## Language Rule
+
+- Use English for rule bodies in this file. Keep Japanese and Chinese only for code literals, incident titles, and short source-specific phrases that must match the site content.
+
 ## Taiwan Relevance & Selection Reason Guidelines
 
 - **The "Wansei" (湾生) Signal**: For any Japanese artist or historical figure, check if they were born in Taiwan during the colonial period. This "Wansei" status is a primary signal for High Taiwan Relevance. Explicitly mention this in the `description` and `selection_reason`.
@@ -16,13 +20,17 @@ Read this at the start of every session before writing any scraper.
   - "Exhibition features 15th-century artifacts from Taiwan's Yami people."
   - "Film directed by Z, who won the Golden Horse Award in Taiwan."
   - "Lecture discussing Japan's infrastructure legacy in Taiwan."
+- **Selection reason filter order**: Apply the three-pass `go_taiwan` filter in this order and do not reorder the stages. Stage 1 = title Taiwan-only rejection, Stage 2 = Taiwan-venue rejection with the Japanese-visitor exception, Stage 3 = Japan-keyword acceptance. If Stage 2 rejects, Stage 3 must not override it.
 - **Category Enrichment**: Events with direct Taiwan-Japan historical or biographical links (like Wansei artists) MUST include the `taiwan_japan` category in addition to `art`, `history`, etc.
 
 ## BaseScraper Contract
 - Every scraper must extend `BaseScraper` and implement `scrape() → list[Event]`.
 - `source_id` must be stable across runs — derive from URL slug or platform ID, never from title or list position.
 - Always set `start_date` explicitly. Never fall back silently to the page's publish/update date.
-- Prepend `開催日時: YYYY年MM月DD日\n\n` to `raw_description` when the event date is found in the page body.
+- Prepend a date prefix to `raw_description` only after the scraper has finished extracting the structured fields it needs from the body.
+  - Standard / non-cinema calendar-date scrapers: prepend `開催日時: YYYY年MM月DD日\n\n` when a single event date is found in the page body.
+  - When `end_date` is known and differs from `start_date`, prepend the full range `開催日時: YYYY年MM月DD日〜YYYY年MM月DD日`.
+  - Cinema Type 3 scrapers with no known `end_date` must not prepend a fallback date prefix that would trigger the annotator SINGLE-DAY RULE.
 - **`.tw` ドメインの SSL 証明書エラー (Missing Subject Key Identifier)**: 台湾政府サイト（`startupterrace.tw` 等）は TLS 証明書に Subject Key Identifier 拡張が欠落しており、`requests` のデフォルト `verify=True` が `SSLCertVerificationError` を raise する。該当サイトには `verify=False` + `warnings.simplefilter("ignore")` を使う helper `_get()` を定義すること。
   ```python
   def _get(url: str) -> requests.Response:
@@ -32,9 +40,9 @@ Read this at the start of every session before writing any scraper.
           return requests.get(url, headers=_HEADERS, timeout=15, verify=False)
   ```
   (Incident: startup_terrace `99d9fde`, 2026-05-17.)
-- **`start_date`/`end_date` must use `tzinfo=timezone.utc`**: Never pass JST-aware datetimes (`tzinfo=_JST` / `timezone(timedelta(hours=9))`). Supabase stores datetimes in UTC, so `2026-05-08T00:00:00+09:00` → `2026-05-07T15:00:00+00:00` — the calendar date regresses by one day on Vercel's UTC server. Use `datetime(y, m, d, tzinfo=timezone.utc)` to preserve the date. Audit after every fix: `grep -rn "tzinfo=_JST\|tzinfo=JST" scraper/sources/`. (Incidents: Stranger `b7dc34f`, shin_bungeiza `bcb6142`.)
+- **`start_date`/`end_date` must use `tzinfo=timezone.utc` for calendar dates**: For all-day calendar dates, never pass JST-aware datetimes (`tzinfo=_JST` / `timezone(timedelta(hours=9))`) to Supabase. Use `datetime(y, m, d, tzinfo=timezone.utc)` so the date stays on the intended calendar day. For event times that are explicitly written in JST and need hour-level precision, convert the JST timestamp to UTC before storing it, then strip the tzinfo only if the caller expects a naive UTC datetime. Audit after every fix: `grep -rn "tzinfo=_JST\|tzinfo=JST" scraper/sources/`. (Incidents: Stranger `b7dc34f`, shin_bungeiza `bcb6142`.)
 - **Strip null bytes from all scraped text**: Before writing any string to `raw_description`, `name_ja`, or speaker fields, call `.replace("\x00", "")`. Null bytes (`\u0000`) can appear in web-scraped text and cause Postgres error `22P05: unsupported Unicode escape sequence`. (Incident: taiwan_prism.py `c7e9b73` — `×\u0000栖来ひかり` in speakers field broke all 13 events.)
-- **`parent_event_id` must be a real UUID, never a source_id string**: `parent_event_id` is a `uuid` column. Passing a source_id string (e.g. `f"scraper_{year}"`) causes Postgres `22P02`. Use `database.get_event_id_by_source(SOURCE_NAME, parent_source_id)` to resolve the UUID. On the **first run**, if parent and sub-events are in the same batch, the parent UUID does not yet exist — `get_event_id_by_source()` returns `None`. Plan for a second run or manual patch to backfill `parent_event_id`. (Incident: taiwan_prism `c7e9b73`)
+- **`parent_event_id` must be a real UUID, never a source_id string**: `parent_event_id` is a `uuid` column. Passing a source_id string (e.g. `f"scraper_{year}"`) causes Postgres `22P02`. Use `database.get_event_id_by_source(SOURCE_NAME, parent_source_id)` to resolve the UUID. On the first run, when the parent UUID does not yet exist, emit the child with `parent_event_id=None` and log a WARNING. Do not skip the sub-event. The second run will upsert the correct UUID via the normal scrape cycle. (Incident: taiwan_prism `c7e9b73`)
 - **List-page / search-card `location_name` ≠ actual venue (multi-page scrapers):** When a platform shows events on a search/list page AND has a separate detail page, the list card may display the **admin/managing branch** (e.g. `新宿教室`) rather than the **actual venue** (e.g. `立川サテライト教室`). Always fetch the detail page to extract the real `location_name`. Pattern to look for on detail page: table row `備考` → `「会場名」` bracket pattern; fall back to card branch only if the detail page yields nothing. (Incident: `asahiculture` `da3ac31`, 2026-05-15.)
 - **Multi-classroom scrapers: detect online courses BEFORE resolving physical address.** Platforms like 朝日カルチャーセンター serve both in-person (classroom) and online courses. If `"オンライン" in raw_title or "オンライン" in location_name`, set `location_name = "オンライン"`, `location_address = None` and skip `CLASSROOM_ADDRESS_MAP` lookup entirely. Failure to check causes the course's managing classroom address to be written to DB even though the event is online-only. (Incident: asahiculture `d617e8c4`, 2026-05-15.)
   ```python
@@ -58,7 +66,7 @@ Read this at the start of every session before writing any scraper.
   (Incident: `cinemaclair.py` and `human_trust_cinema.py` missing `organizer=`, 2026-05-15.)
 - **Never restrict geographic scope**: The project covers all of Japan（全日本）. Regional keyword filters (e.g. `_TOKYO_KANTO_KEYWORDS`) must never be added to any scraper.
 - **Date-parser helper functions must have exhaustive return paths**: Any `_extract_dates()` / `_parse_*_date()` helper must have an explicit `return` on every branch — never rely on Python's implicit `None`. A function that falls through returns `None`, and callers that do `start, end = helper()` will raise `TypeError: cannot unpack non-iterable NoneType object` — this is silently swallowed by outer try-except, causing the entire page's events to be dropped with **no ERROR log**. Add `return None, None` as the final fallback. (Incident: peatix `_extract_peatix_dates`, commit `2a9540c`, 7 days of silent 0 events.)
-- **After fixing a filter bug**: Run `python main.py --source <name>` (non-dry-run) immediately after the fix. A dry-run confirms the fix works but does NOT write to DB — the data gap remains until the next CI cycle.
+- **After fixing a filter bug**: Run `python main.py --source <name>` (non-dry-run) after the fix is committed and peer-reviewed. This rule applies specifically to filter bugs that caused events to be silently dropped. A dry-run confirms the fix works but does NOT write to DB — the data gap remains until the next CI cycle.
 - **`--source X` is NOT cost-bounded — it always runs the full annotator/merger over the whole DB after scraping**. `scraper/main.py` unconditionally calls `annotate_pending_events()` + `enrich_movie_titles()` + `enrich_person_names()` regardless of `--source`. These scan the entire `events` table for `annotation_status='pending'`, so **looping `--source X` over N sources locally triggers the annotator N times** and burns ~N× the OpenAI quota of the daily cron. Use cases:
   - **Local staging / quota check / SCRAPERS audit across many sources** → `python main.py --dry-run --source X` (no DB writes, no annotator/merger, no OpenAI calls).
   - **Verify a single scraper's DB upsert path after a fix** → `python main.py --source X` (one call, accept the annotator pass as cost).
@@ -127,41 +135,7 @@ Read this at the start of every session before writing any scraper.
 **新しい scraper ファイルを作成・編集するたびに、task_complete 前に必ずこのコマンドを実行し、両方 ALL CLEAR を確認すること。**
 
 ```bash
-cd scraper && python3 -W ignore - << 'AUDIT'
-import re, glob, os, sys
-from dotenv import load_dotenv; load_dotenv('.env')
-from supabase import create_client
-
-errors = []
-
-# ── 1. SCRAPERS registration audit ──────────────────────────────────────────
-registered = set(re.findall(r'(\w+Scraper)\(\)', open('main.py').read()))
-for f in glob.glob('sources/*.py'):
-    c = open(f).read()
-    m = re.search(r'class (\w+Scraper)\b', c)
-    if m and m.group(1) not in registered and m.group(1) != 'BaseScraper':
-        errors.append(f'❌ UNREGISTERED in main.py: {m.group(1)} ({f})')
-if not any('UNREGISTERED' in e for e in errors):
-    print('✅ SCRAPERS: all registered')
-
-# ── 2. research_sources.scraper_source_name audit ───────────────────────────
-sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
-rows = sb.table('research_sources').select('name,scraper_source_name,status').eq('status','implemented').execute().data
-missing = [r for r in rows if not r['scraper_source_name']]
-if missing:
-    for r in missing:
-        errors.append(f'❌ scraper_source_name NULL: "{r["name"]}" (status=implemented)')
-else:
-    print('✅ research_sources: all implemented rows have scraper_source_name')
-
-# ── Result ───────────────────────────────────────────────────────────────────
-if errors:
-    for e in errors:
-        print(e)
-    sys.exit(1)
-else:
-    print('🎉 ALL CLEAR — safe to commit')
-AUDIT
+python3 -W ignore scraper/audit_post_build.py
 ```
 
 **出力例（正常）:**
@@ -709,7 +683,7 @@ business_hours = "\n".join(
 
 ### 共通禁止事項
 
-1. **`end_date = start_date` は禁止（ただし movie-extend 用 fallback を除く）**: `end_date` を設定する場合、少なくとも `start_date + 1日` でなければならない。ただし **movie-extend 機能を持つ映画館 scraper**（Type 3 の継続上映型）では `end_date = None` のままでは `_build_movie_extend_row` の MAX ロジックが機能しないため `end_date = start_date` を明示的 fallback として設定することが許容される。この場合 movie-extend が毎日 MAX で端を延ばす。（Incident: `kyoto_cinema`, 2026-05-20）
+1. **`end_date = start_date` の扱い**: cinema scrapers では原則として `end_date = start_date` を新たに作らない。`end_date` を持つ場合は少なくとも `start_date + 1日` にする。例外は movie-extend 用の明示的 fallback だけで、その場合に限り `end_date = start_date` を許容する。（Incident: `kyoto_cinema`, 2026-05-20）
 2. **空文字列 `business_hours = ""` 禁止**: 場次が取得できない場合は `None` を設定。空文字列は DB に不要なデータを残す。
 3. **推測による `end_date` 禁止**: 「通常2〜3週間上映」などの仮定で `end_date` を算出してはいけない。ソースから取得できない場合は `None`。
 4. **視覚上に場次時間があるのに `business_hours = None` は scraper bug**: サイトを目視確認して時刻要素のセレクタを追加すること。
@@ -736,7 +710,7 @@ Incident: `human_trust_cinema` commit `7849021`。
 
 - `raw_description` の前綴に**必ず上映期間全体**を記載する: `上映期間: YYYY年M月D日〜YYYY年M月D日`
 - Type 1 scraper で `end_date` が取得できた場合は前綴を期間表示に置き換える（単日 `より公開` 記述のまま放置しない）
-- **Type 3 で `end_date` が取得不可の場合は date prefix を入れない**: サイトに end_date 情報がない場合に `"上映開始: YYYY年M月D日"` を入れると SINGLE-DAY RULE が発動し `end_date=start_date` に上書きされる。`start_date` はフィールドに正しく格納済みなので raw_description に繰り返す必要はない。（Incident: `human_trust_cinema` commit `7849021`）
+- **Type 3 で `end_date` が取得不可の場合は date prefix を入れない**: サイトに end_date 情報がない場合は、`raw_description` に日付前綴を追加しない。`start_date` はフィールドに正しく格納済みなので raw_description に繰り返す必要はない。（Incident: `human_trust_cinema` commit `7849021`）
 
 ### 稽核表 ghost エントリ防止
 
@@ -1306,7 +1280,7 @@ Reference incident: 2026-05-05 — GPT extracted `仙六屋カフェ` from `会�
 ## koryu-specific
 - **location_address fallback**: `_extract_location_address()` searches for `所在地/住所` sections. When absent (common for 後援-type posts), set `location_address = None` — **do NOT fall back to the venue name**. The annotator will fill the address via PARENT VENUE ADDRESS RULE. Old pattern `or (venue if venue else None)` was removed (commit `9d6e0fc`) because it echoed venue name as address, blocking annotator correction.
 - **404 on old koryu URLs**: When a koryu event page returns 404, `main_text` will be a redirect message with no venue section. `_extract_venue` returns `None`, so `location_address` is also `None`. This is acceptable — the event is stale.
-- **Single-day end_date**: Always set `end_date = start_date` at the end of `_extract_event_fields`. Taiwan Kyokai events are single-day ceremonies/lectures.
+- **Single-day end_date**: Taiwan Kyokai events are single-day ceremonies/lectures. For koryu-only events, set `end_date = start_date` at the end of `_extract_event_fields`.
 - **Publish-date false positive**: The page body starts with the article publish date (`2026年4月20日`) before the actual event content. Do NOT rely solely on the generic `YYYY年MM月DD日` fallback — it will pick up the publish date if no structured `日時：` field exists.
 - **DOW-qualified date extraction**: Dates like `5月16日（土）` (with day-of-week) are actual event dates. Extract these BEFORE the generic fallback, then infer the year from the nearest `20XX年` in the text.
 - **後援公告の prose 日付 (`（後援）` 始まりの title)**：後援公告ページには `日時:` ラベルがない。正しい活動日は body text 中の `MM月DD日（曜日）に開催` という prose パターンに年号なしで出現する。`日時：` / `時間：` / DOW-qualified 全て失敗したら、`r'(\d{1,2})月(\d{1,2})日[（(][月火水木金土日祝][）)]\s*に開催'` を検索し、年号は pub_date から推定する（月が pub_date より大幅に前なら翌年）。この prose 検索は generic `YYYY年MM月DD日` fallback より **前に** 実施すること。
@@ -1729,8 +1703,8 @@ for e in [x for x in events if x['name_ja'] != x['raw_title']]:
 ## `location_url` — 官方會場網站 URL（migration 031）
 
 - `location_url: Optional[str] = None` in `Event` dataclass（`scraper/sources/base.py`）— 填入官方場館/會場的完整 URL（非活動頁面 URL）。
-- **填寫來源**：scraper 從場館官網連結萃取，或管理員在 Admin UI 手動輸入。優先以 scraper 直接設值；annotator 的 GPT 抽取是輔助 fallback，但不可靠。
-- **Annotator GPT 抽取有後處理 guard**（commit `1313985`）：若 GPT 回傳的 `location_url` 與 `source_url` 或 `official_url` 相同，`annotator.py` 會自動拒絕並設為 `null`（WARNING log 輸出）。理由：`source_url`/`official_url` 是「活動頁面」URL，不可能同時是「會場施設」URL。
+- **填寫來源**：scraper 從場館官網連結萃取，或管理員在 Admin UI 手動輸入。
+- **Annotator 不填寫**：GPT 容易 hallucinate URL，`annotator.py` 的 schema 不包含 `location_url`。
 - **Web 渲染**：Event detail page 以條件渲染實作——`location_url` 存在時將 `location_name` 包在 `<a href={location_url} target="_blank" rel="noopener noreferrer">` 內，並顯示 ↗ 指示符。
 - **`sub_row` 繼承規則**：`annotator.py` 的 `sub_row` 不自動繼承父事件欄位。新增 `location_url` 後，若父事件有 venue URL，`sub_row` 需明確設定 `"location_url": event.get("location_url")`。
 - **Seed 順序**：含 `location_url` 的 Python client seed 必須在 Supabase Dashboard 執行 migration `031` 後才能執行；否則報 `PGRST204`。
@@ -1856,7 +1830,7 @@ Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田�
 - Fetches 4 Google News RSS queries; Taiwan-filtered; `category: ["report"]` (annotator refines)
 - **`start_date` must NOT fall back to pubDate**: RSS `<description>` is a short snippet (often just the article title) — it never contains event dates. `pubDate` is the article publish date, completely unrelated to when the event takes place. If no date pattern is found in the description, return `None`. (Fixed in commit `9510a05`; 40 events with wrong pub_date fallback were deactivated.) The annotator handles date extraction by fetching the full article body via Playwright — see engineer `SKILL.md § Annotator — google_news_rss 文章補抓`.
 - `source_id`: `gnews_{md5(url)[:12]}` — stable across runs; `url` is guid if real article URL, else `<link>` tag value
-- **`_STALE_DAYS = 21`**: Skip entries older than 21 days (based on pubDate). Google News redirect URLs (`news.google.com/rss/articles/...`) expire within ~2–3 weeks — any link older than 21 days is likely dead. The previous value of 60 was too long.
+- **`_STALE_DAYS = 21`**: Skip entries older than 21 days (based on pubDate). Google News redirect URLs (`news.google.com/rss/articles/...`) expire within ~2–3 weeks, so entries older than 21 days must be skipped unconditionally based on age alone. Do not attempt to fetch the URL first. The previous value of 60 was too long.
 - Google `<guid>` may contain real article URL; prefer it over `<link>` tag when it starts with `http` and does not contain `news.google.com`
 - **Google News redirect URL decoding**: Use `googlenewsdecoder.new_decoderv1(url, interval=0)` to decode `news.google.com/rss/articles/...` URLs server-side. Add `time.sleep(_DECODE_SLEEP)` (1.0 s) after each call. Add `googlenewsdecoder>=0.1.6` to `requirements.txt`. Do NOT attempt base64 decoding of the URL path (it is encrypted protobuf, not base64) and do NOT use `requests.get()` directly (returns HTTP 400 with JavaScript redirect).
 - **RSS description href is also a Google News URL**: The `<a href>` inside `<description>` HTML points to `news.google.com/rss/articles/...` — NOT the original article. A "non-google.com" filter on this href yields zero results. Always decode the RSS `<link>` URL with `googlenewsdecoder`, not the description href.
@@ -2016,7 +1990,7 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 
 **`start_date` rule for currently-showing movies:** Use `datetime.now()` (today). Do NOT use the movie's release date (`劇場公開日`) as `start_date` unless the movie is not yet showing.
 
-**`start_date` rule for upcoming / COMING SOON movies:** When the movie page shows "COMING SOON" or a pre-announcement article without a confirmed release date, set `start_date = null` rather than using any date on the page. Pages scraped before the official release announcement may contain only an article publication date or a vague season label — using such a date produces a wrong `start_date` that persists until the next scrape (e.g. ナギ日記: scraper set `2026-05-01`, actual release `2026-09-25`). Priority order for extracting a movie release date: `「○月○日（曜日）公開」` pattern in body → `「公開日：YYYY年MM月DD日」` labeled field → null.
+**`start_date` rule for upcoming / COMING SOON movies:** When the movie page shows "COMING SOON" or a pre-announcement article without an explicit `MM月DD日` or `YYYY/MM/DD` release date, set `start_date = null` rather than using any date on the page. Season labels, year-only values, and month-only values are not confirmed release dates and must not be used. Pages scraped before the official release announcement may contain only an article publication date or a vague season label — using such a date produces a wrong `start_date` that persists until the next scrape (e.g. ナギ日記: scraper set `2026-05-01`, actual release `2026-09-25`). Priority order for extracting a movie release date: `「○月○日（曜日）公開」` pattern in body → `「公開日：YYYY年MM月DD日」` labeled field → null.
 
 ## taiwan_matsuri-specific
 - **Geographic scope**: taiwan-matsuri.com hosts events all over Japan (Gunma, Kumamoto, Fukuoka, Nara, Shimane, etc.). Never add a regional keyword filter — the project covers 全日本.
@@ -2209,6 +2183,12 @@ These rules apply to any manual or scripted DB operation. Violating them has cau
 cd scraper && python main.py --dry-run --source <source_name> 2>&1 | head -80
 ```
 Confirm: `start_date` populated, no unhandled exceptions, events count is non-zero (or zero for an expected reason).
+
+### 5. Combined Post-Build Audit — run the committed audit script
+```bash
+python3 -W ignore scraper/audit_post_build.py
+```
+Confirm: SCRAPERS registration and implemented research source rows both report ALL CLEAR.
 
 ## maruhiro-specific
 - **All data on list page**: Detail pages contain only a JPEG image. Never fetch detail pages — title, date, floor, and store name are all in `p.card-text` on the list page.
