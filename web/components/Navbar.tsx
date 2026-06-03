@@ -168,7 +168,7 @@ export default function Navbar({ locale }: Props) {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      router.push(profile?.user_handle ? `/${locale}/account` : `/${locale}/account/profile`);
+      router.push(profile?.user_handle ? `/${locale}/account?tab=myEvents` : `/${locale}/account/profile`);
       setAccountOpen(false);
     } finally {
       setProfileLoading(false);
