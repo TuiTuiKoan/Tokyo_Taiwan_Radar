@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { CATEGORIES } from "@/lib/types";
 import { LOCATION_KEYS, LocationKey } from "@/lib/locationMarkers";
@@ -23,6 +23,15 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
   const tAdmin = useTranslations("admin");
   const tFilters = useTranslations("filters");
   const tCat = useTranslations("categories");
+
+  const countryDisplayNames = useMemo(() => {
+    const displayLocale = locale === "zh" ? "zh-TW" : locale === "ja" ? "ja-JP" : "en-US";
+    try {
+      return new Intl.DisplayNames([displayLocale], { type: "region" });
+    } catch {
+      return null;
+    }
+  }, [locale]);
 
   // Initial date window (last 12 months)
   const defaultTo = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
@@ -198,6 +207,13 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
     if (src === "other") return tAdmin("trafficSourceOther");
     if (src === "unknown") return tAdmin("trafficSourceUnknown");
     return src;
+  };
+
+  const getCountryLabel = (countryCode: string) => {
+    if (countryCode === "UNKNOWN") return tAdmin("analyticsUnknownCountry");
+    const normalized = countryCode.trim().toUpperCase().slice(0, 2);
+    if (!/^[A-Z]{2}$/.test(normalized)) return countryCode;
+    return countryDisplayNames?.of(normalized) ?? normalized;
   };
 
   // Calculate maximums for inline progress bar ratios
@@ -519,10 +535,10 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
                 <ul className="space-y-2">
                   {viewData.byVisitorCountry.map((c) => {
                     const pct = Math.round((c.count / maxCountryCount) * 100) || 0;
-                    const displayLabel = c.country === "UNKNOWN" ? tAdmin("analyticsUnknownCountry") : c.country;
+                    const displayLabel = getCountryLabel(c.country);
                     return (
                       <li key={c.country} className="flex items-center gap-3 text-sm">
-                        <span className="w-20 truncate text-xs text-fg-muted shrink-0 font-mono">{displayLabel}</span>
+                        <span className="w-28 truncate text-xs text-fg-muted shrink-0">{displayLabel}</span>
                         <div className="flex-1 h-3 rounded-full bg-muted">
                           <div
                             className="h-3 rounded-full bg-emerald-500 transition-all duration-300"
