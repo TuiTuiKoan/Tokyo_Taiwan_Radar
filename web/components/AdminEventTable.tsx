@@ -1077,35 +1077,14 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
 
       {/* New event overlay modal */}
       {showNew && (
-        <div className="fixed inset-0 z-[100] bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4 md:p-6 lg:p-12 overflow-y-auto flex items-start justify-center">
-          <div className="bg-surface dark:bg-zinc-900 border border-line rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col p-6 my-auto relative">
+        <div className="fixed inset-0 z-[100] bg-black/60 dark:bg-black/80 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto flex items-center justify-center">
+          <div className="bg-surface dark:bg-zinc-900 border-0 sm:border border-line w-full h-full sm:h-auto sm:max-h-[95vh] sm:max-w-4xl lg:max-w-5xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
             
-            {/* Header: title + image OCR button + Close button */}
-            <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-line">
-              <div className="flex items-center gap-3">
-                <h2 className="font-bold text-lg">{t("newEvent")}</h2>
-                <button
-                  type="button"
-                  onClick={() => posterFileRef.current?.click()}
-                  disabled={extracting}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-line-strong rounded-lg hover:bg-elevated disabled:opacity-50 transition bg-surface dark:bg-zinc-800"
-                >
-                  {t("extractFromImage")}
-                </button>
-                <input
-                  ref={posterFileRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleExtractFromImage(file);
-                    e.target.value = "";
-                  }}
-                />
-                {extracting && <span className="text-sm text-blue-500 animate-pulse">{t("extracting")}</span>}
-                {extractError && <span className="text-sm text-red-500">{extractError}</span>}
-              </div>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface dark:bg-zinc-900/50">
+              <h2 className="text-lg font-bold text-fg-strong">
+                {t("newEvent")}
+              </h2>
               <button
                 type="button"
                 disabled={saving || extracting || annotating}
@@ -1120,103 +1099,145 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
                     cancelNew();
                   }
                 }}
-                className="text-fg-muted hover:text-fg p-1.5 rounded-lg hover:bg-elevated transition text-xl font-medium disabled:opacity-50"
-                title={t("cancel")}
+                className="text-fg-muted hover:text-fg-strong font-semibold p-1"
               >
                 ✕
               </button>
             </div>
 
-            {/* Body: form left + image preview right */}
-            <div className={posterPreview ? "flex flex-col-reverse lg:flex-row gap-6 items-start w-full" : "w-full"}>
-              <div className={posterPreview ? "flex-1 min-w-0 w-full" : "w-full"}>
-                <AdminEventForm
-                  form={form}
-                  t={t}
-                  tCat={tCat}
-                  tEventForm={tEventForm}
-                  updateField={updateField}
-                  toggleCategory={toggleCategory}
-                  events={events}
-                  editingId={null}
-                  locale={locale}
-                />
-                <div className="flex flex-col gap-3 mt-4">
-                  <div className="flex gap-3">
-                    {ocrFilled ? (
-                      <button
-                        onClick={handleSaveAndAnnotate}
-                        disabled={saving || annotating}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        {saving ? t("saving") : annotating ? (
-                          <span className="flex items-center gap-1.5">
-                            <span className="animate-pulse text-blue-200">●</span>
-                            {t("annotating")}{annotatingElapsed > 0 ? ` (${annotatingElapsed}s)` : ""}
-                          </span>
-                        ) : enrichedReady ? t("reannotate") : t("saveAndAnnotate")}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleSaveNew}
-                        disabled={saving}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
-                      >
-                        {saving ? "..." : t("save")}
-                      </button>
-                    )}
-                    <button
-                      onClick={cancelNew}
-                      disabled={annotating}
-                      className="border border-line-strong px-4 py-2 rounded-lg text-sm hover:bg-elevated disabled:opacity-50"
-                    >
-                      {t("cancel")}
-                    </button>
-                  </div>
-
-                  {annotationError && (
-                    <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                      <span>⚠</span>
-                      <span>{annotationError}</span>
-                    </div>
+            {/* Scrollable Container */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              {/* Image poster extraction */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => posterFileRef.current?.click()}
+                    disabled={extracting}
+                    className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium hover:bg-elevated transition disabled:opacity-50 bg-surface dark:bg-zinc-850"
+                  >
+                    {extracting ? t("saving") : t("extractFromImage")}
+                  </button>
+                  <input
+                    ref={posterFileRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleExtractFromImage(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  {extracting && (
+                    <span className="text-sm text-fg-muted font-medium animate-pulse">
+                      {t("extracting")}
+                    </span>
                   )}
-
-                  {enrichedReady && (
-                    <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <span className="text-sm text-blue-700">{t("annotationDone")}</span>
-                      <button
-                        onClick={handlePublish}
-                        disabled={saving}
-                        className="ml-auto bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 font-medium"
-                      >
-                        {saving ? "..." : t("publish")}
-                      </button>
-                    </div>
+                  {extractError && (
+                    <span className="text-sm text-red-500 font-semibold">
+                      {extractError}
+                    </span>
                   )}
                 </div>
-              </div>
 
-              {posterPreview && (
-                <div className="w-full lg:w-[480px] xl:w-[540px] shrink-0 lg:sticky lg:top-4 bg-elevated/30 p-3 rounded-xl border border-line-strong">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-fg-muted">海報預覽</span>
+                {posterPreview && (
+                  <div className="-mx-6 sm:mx-0 overflow-hidden sm:rounded-xl border border-line bg-surface relative group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={posterPreview}
+                      alt="Poster preview"
+                      className="w-full max-h-96 object-contain bg-elevated/30"
+                    />
                     <button
                       type="button"
                       onClick={() => setPosterPreview(null)}
-                      className="text-xs text-fg-muted hover:text-fg px-1"
+                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1.5 hover:bg-black/80 transition text-xs font-semibold cursor-pointer"
+                      title="移除海報"
                     >
                       ✕ 關閉
                     </button>
                   </div>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={posterPreview}
-                    alt="poster preview"
-                    className="w-full rounded-lg border border-line object-contain max-h-[70vh] lg:max-h-[85vh]"
-                  />
+                )}
+              </div>
+
+              {annotationError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                  <span>⚠</span>
+                  <span>{annotationError}</span>
                 </div>
               )}
+
+              {enrichedReady && (
+                <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <span className="text-sm text-blue-700">{t("annotationDone")}</span>
+                  <button
+                    onClick={handlePublish}
+                    disabled={saving}
+                    className="ml-auto bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 font-medium cursor-pointer"
+                  >
+                    {saving ? "..." : t("publish")}
+                  </button>
+                </div>
+              )}
+
+              {/* Core Event Form */}
+              <AdminEventForm
+                form={form}
+                t={t}
+                tCat={tCat}
+                tEventForm={tEventForm}
+                updateField={updateField}
+                toggleCategory={toggleCategory}
+                events={events}
+                editingId={null}
+                locale={locale}
+              />
             </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-line bg-surface dark:bg-zinc-900/50">
+              <button
+                type="button"
+                onClick={() => {
+                  const isEdited = JSON.stringify(form) !== JSON.stringify(EMPTY_FORM);
+                  if (isEdited) {
+                    if (window.confirm(t("unsaved_confirm"))) {
+                      cancelNew();
+                    }
+                  } else {
+                    cancelNew();
+                  }
+                }}
+                disabled={annotating}
+                className="rounded-lg border border-line-strong px-4 py-2 text-sm font-semibold text-fg-muted hover:bg-elevated transition cursor-pointer"
+              >
+                {t("cancel")}
+              </button>
+              {ocrFilled ? (
+                <button
+                  onClick={handleSaveAndAnnotate}
+                  disabled={saving || annotating}
+                  className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer"
+                >
+                  {saving ? t("saving") : annotating ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="animate-pulse text-blue-200">●</span>
+                      {t("annotating")}{annotatingElapsed > 0 ? ` (${annotatingElapsed}s)` : ""}
+                    </span>
+                  ) : enrichedReady ? t("reannotate") : t("saveAndAnnotate")}
+                </button>
+              ) : (
+                <button
+                  onClick={handleSaveNew}
+                  disabled={saving}
+                  className="rounded-lg bg-green-600 hover:bg-green-700 px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer"
+                >
+                  {saving ? "..." : t("save")}
+                </button>
+              )}
+            </div>
+
           </div>
         </div>
       )}

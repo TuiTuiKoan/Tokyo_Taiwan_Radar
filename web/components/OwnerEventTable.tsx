@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useRef, useTransition, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { type Event, type Locale, getEventName } from "@/lib/types";
 import { useRouter } from "next/navigation";
@@ -32,6 +32,18 @@ export default function OwnerEventTable({ events: initialEvents, locale }: Props
   const [annotating, setAnnotating] = useState(false);
   const [annotationError, setAnnotationError] = useState<string | null>(null);
   const [savedEventId, setSavedEventId] = useState<string | null>(null);
+  const [ocrFilled, setOcrFilled] = useState(false);
+  const [annotationDone, setAnnotationDone] = useState(false);
+
+  useEffect(() => {
+    if (showModal) {
+      const oldOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = oldOverflow;
+      };
+    }
+  }, [showModal]);
 
   const posterFileRef = useRef<HTMLInputElement>(null);
   const [, startTransition] = useTransition();
@@ -58,6 +70,8 @@ export default function OwnerEventTable({ events: initialEvents, locale }: Props
     setPosterPreview(null);
     setExtractError(null);
     setAnnotationError(null);
+    setOcrFilled(false);
+    setAnnotationDone(false);
     setShowNew(true);
   }
 
@@ -102,6 +116,8 @@ export default function OwnerEventTable({ events: initialEvents, locale }: Props
     setPosterPreview(null);
     setExtractError(null);
     setAnnotationError(null);
+    setOcrFilled(false);
+    setAnnotationDone(false);
     setShowNew(true);
   }
 
@@ -139,6 +155,9 @@ export default function OwnerEventTable({ events: initialEvents, locale }: Props
         if (typeof fields.has_japanese_support === "boolean") updateField("has_japanese_support", fields.has_japanese_support);
         if (typeof fields.has_english_support === "boolean") updateField("has_english_support", fields.has_english_support);
         if (typeof fields.has_chinese_support === "boolean") updateField("has_chinese_support", fields.has_chinese_support);
+
+        setOcrFilled(true);
+        setAnnotationDone(false);
       } catch (err: any) {
         setExtractError(err.message || "Failed to extract");
       } finally {
@@ -154,27 +173,30 @@ export default function OwnerEventTable({ events: initialEvents, locale }: Props
 
   async function handleAIAnnotate() {
     setAnnotationError(null);
-    let eventId = savedEventId;
-
-    if (!eventId) {
-      setSaving(true);
-      const res = await createOwnerDraft(form);
-      setSaving(false);
-      if (!res.ok) {
-        setAnnotationError(res.error ? t(res.error) : "Draft save failed");
-        return;
-      }
-      eventId = res.data.id;
-      setSavedEventId(eventId);
-      setEvents((prev) => [res.data, ...prev]);
-    }
+    let eventId = editingId || savedEventId;
 
     setAnnotating(true);
     try {
+      if (!eventId) {
+        const res = await createOwnerDraft(form);
+        if (!res.ok) {
+          throw new Error(res.error ? t(res.error) : "Draft save failed");
+        }
+        eventId = res.data.id;
+        setSavedEventId(eventId);
+        setEvents((prev) => [res.data, ...prev]);
+      } else {
+        const res = await updateOwnerEvent(eventId, form);
+        if (!res.ok) {
+          throw new Error(res.error ? t(res.error) : "Draft save failed");
+        }
+      }
+
       const res = await fetch("/api/account/annotate-event", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId }),
+        signal: AbortSignal.timeout(58000),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ? t(data.error) : "Annotation failed");
@@ -185,7 +207,8 @@ export default function OwnerEventTable({ events: initialEvents, locale }: Props
         updateField(key, val);
       }
       
-      // Fetch latest row to refresh UI
+      setOcrFilled(false);
+      setAnnotationDone(true);
       router.refresh();
     } catch (err: any) {
       setAnnotationError(err.message || "Annotation failed");
@@ -232,6 +255,15 @@ export default function OwnerEventTable({ events: initialEvents, locale }: Props
     startTransition(() => {
       router.refresh();
     });
+  }
+
+  function handleDismiss() {
+    if (JSON.stringify(form) !== JSON.stringify(EMPTY_FORM)) {
+      if (!window.confirm(tAdmin("unsaved_confirm"))) {
+        return;
+      }
+    }
+    setShowNew(false);
   }
 
   return (
@@ -327,8 +359,8 @@ export default function OwnerEventTable({ events: initialEvents, locale }: Props
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-paper border border-line rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-paper w-full h-full sm:h-auto sm:max-h-[95vh] sm:max-w-4xl lg:max-w-5xl sm:rounded-2xl border-0 sm:border border-line shadow-2xl flex flex-col overflow-hidden relative z-50">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface">
               <h2 className="text-lg font-bold text-fg-strong">
@@ -336,7 +368,7 @@ export default function OwnerEventTable({ events: initialEvents, locale }: Props
               </h2>
               <button
                 type="button"
-                onClick={() => setShowNew(false)}
+                onClick={handleDismiss}
                 className="text-fg-muted hover:text-fg-strong font-semibold p-1"
               >
                 ✕
@@ -346,11 +378,8 @@ export default function OwnerEventTable({ events: initialEvents, locale }: Props
             {/* Scrollable Container */}
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
               {/* Image poster extraction */}
-              <div>
-                <label className="block text-sm font-semibold text-fg-strong mb-2">
-                  {tAdmin("labelPosterImage") || "宣傳海報圖片 (Poster)"}
-                </label>
-                <div className="flex flex-wrap items-center gap-4">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={() => posterFileRef.current?.click()}
@@ -366,39 +395,42 @@ export default function OwnerEventTable({ events: initialEvents, locale }: Props
                     accept="image/*"
                     onChange={handleImageExtract}
                   />
-                  {posterPreview && (
-                    // eslint-disable-next-line @next/next/no-img-element
+                  {extracting && (
+                    <span className="text-sm text-fg-muted font-medium animate-pulse">
+                      {t("extracting") || "解析中..."}
+                    </span>
+                  )}
+                </div>
+
+                {posterPreview && (
+                  <div className="-mx-6 sm:mx-0 overflow-hidden sm:rounded-xl border border-line bg-surface">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={posterPreview}
                       alt="Poster preview"
-                      className="h-16 w-16 object-cover rounded-lg border border-line"
+                      className="w-full max-h-96 object-contain"
                     />
-                  )}
-                </div>
+                  </div>
+                )}
+
                 {extractError && (
                   <p className="mt-1 text-sm text-red-500 font-semibold">{extractError}</p>
                 )}
               </div>
 
-              {/* AI Auto-annotate */}
-              <div className="bg-surface rounded-xl p-4 border border-line flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-sm font-bold text-fg-strong">
-                    {t("annotate") || "AI 標註與翻譯"}
-                  </h3>
-                  <p className="text-xs text-fg-muted mt-0.5">
-                    基於名稱和參考網頁，自動翻譯三語、生成摘要、預分類。
-                  </p>
+              {annotationDone && (
+                <div className="rounded-xl bg-green-500/10 border border-green-500/20 p-4 text-green-700 dark:text-green-300 text-sm font-semibold flex items-center justify-between">
+                  <span>{tAdmin("annotationDone") || "✅ 標注完成，請確認資料後發布"}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAnnotationDone(false)}
+                    className="text-green-500 hover:text-green-700 dark:hover:text-green-100 font-bold px-1"
+                  >
+                    ✕
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAIAnnotate}
-                  disabled={annotating || saving}
-                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition disabled:opacity-50"
-                >
-                  {annotating ? t("saving") : t("annotate")}
-                </button>
-              </div>
+              )}
+
               {annotationError && (
                 <p className="text-sm text-red-500 font-semibold">{annotationError}</p>
               )}
@@ -421,18 +453,26 @@ export default function OwnerEventTable({ events: initialEvents, locale }: Props
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-line bg-surface">
               <button
                 type="button"
-                onClick={() => setShowNew(false)}
+                onClick={handleDismiss}
                 className="rounded-lg border border-line-strong px-4 py-2 text-sm font-semibold text-fg-muted hover:bg-elevated transition"
               >
                 {tAdmin("cancel")}
               </button>
               <button
                 type="button"
-                onClick={handleSaveEvent}
+                onClick={ocrFilled ? handleAIAnnotate : handleSaveEvent}
                 disabled={saving || extracting || annotating}
-                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition disabled:opacity-50"
+                className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 ${
+                  ocrFilled
+                    ? "bg-blue-600 hover:bg-blue-700"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
               >
-                {saving ? t("saving") : tAdmin("save")}
+                {ocrFilled ? (
+                  annotating ? t("saving") || "解析中..." : tAdmin("saveAndAnnotate") || "儲存並標注"
+                ) : (
+                  saving ? t("saving") : tAdmin("save")
+                )}
               </button>
             </div>
           </div>
