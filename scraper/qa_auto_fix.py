@@ -26,6 +26,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from dotenv import load_dotenv
+from openai import OpenAI
 
 from annotator import _lock_fields_via_corrections, _to_trad
 from line_notify import send_line_message
@@ -50,6 +51,7 @@ SIMPLIFIED_REPORT_TYPES = (
 SAFE_REPORT_TYPES = SIMPLIFIED_REPORT_TYPES + (
     "auto_qa_performer_ai_translation_marker",
     "auto_qa_performer_multi_value_pollution",
+    "auto_qa_location_url_is_event_url",
 )
 
 FIX_FIELDS = (
@@ -61,6 +63,54 @@ FIX_FIELDS = (
     "organizer_zh",
 )
 DATE_IN_TAB_URL_RE = re.compile(r"/(\d{4}-\d{2}-\d{2})$")
+
+
+def _openai_client() -> OpenAI:
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY must be set")
+    return OpenAI(api_key=api_key)
+
+
+def _search_venue_homepage_openai(venue_name: str, address: str | None = None) -> str | None:
+    """Fallback venue homepage search using OpenAI search-preview.
+
+    Returns the venue's own official website when the deterministic DuckDuckGo
+    pass cannot find a reliable result.
+    """
+    client = _openai_client()
+    query = f"{venue_name} 公式サイト"
+    if address:
+        query = f"{venue_name} {address} 公式サイト"
+    prompt = (
+        "Find the official website homepage for this Japanese venue. "
+        "Return JSON only with keys: url, confidence. "
+        "Use a venue homepage, not an event page, organizer page, or social profile. "
+        "If you cannot verify an official homepage, return null for url. "
+        f"Venue: {venue_name}\nAddress: {address or ''}\nSearch query: {query}"
+    )
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-search-preview",
+            web_search_options={"search_context_size": "low"},
+            messages=[
+                {"role": "system", "content": "You are a precise venue homepage lookup assistant. Return JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=200,
+        )
+        raw = (resp.choices[0].message.content or "").strip()
+        if raw.startswith("```"):
+            raw = raw.split("```", 2)[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+        parsed = json.loads(raw)
+        url = (parsed.get("url") or "").strip()
+        return url.rstrip("/") or None
+    except Exception as exc:
+        logger.debug("OpenAI venue homepage search failed for %s: %s", venue_name, exc)
+        return None
 
 
 def _supabase_client():
@@ -751,11 +801,97 @@ def handle_performer_ai_translation_marker(sb, event_id: str, report: dict, *, d
     return any_applied
 
 
+def handle_location_url_is_event_url(sb, event_id: str, report: dict, *, dry_run: bool = False) -> bool:
+    """Replace polluted location_url values with a venue homepage search result.
+
+    This fixes the common case where location_url was copied from source_url or
+    organizer_url. We search for the venue's own homepage using venue name and,
+    when available, the venue address. If search fails, we leave the event as-is
+    and keep the report pending for manual review.
+    """
+    from annotator import _search_venue_homepage
+
+    row = (
+        sb.table("events")
+        .select("id,source_url,official_url,organizer_url,location_name,location_address,location_url")
+        .eq("id", event_id)
+        .single()
+        .execute()
+    ).data or {}
+    if not row:
+        return False
+
+    current = (row.get("location_url") or "").strip().rstrip("/")
+    source_url = (row.get("source_url") or "").strip().rstrip("/")
+    official_url = (row.get("official_url") or "").strip().rstrip("/")
+    organizer_url = (row.get("organizer_url") or "").strip().rstrip("/")
+    if not current:
+        _append_report_note(sb, report.get("id", ""), "skipped: location_url already empty", dry_run=dry_run)
+        return False
+
+    if current not in {source_url, official_url, organizer_url}:
+        _append_report_note(sb, report.get("id", ""), "skipped: location_url no longer collides with source/official URL", dry_run=dry_run)
+        return False
+
+    venue_name = (row.get("location_name") or "").strip()
+    venue_address = (row.get("location_address") or "").strip()
+    if not venue_name:
+        _append_report_note(sb, report.get("id", ""), "skipped: missing location_name for homepage lookup", dry_run=dry_run)
+        return False
+
+    # Try the canonical venue name first, then a normalized version when the
+    # venue includes a regional prefix like "東京六本木｜EX THEATER ROPPONGI".
+    candidates = []
+    if venue_name:
+        candidates.append(venue_name)
+        if "｜" in venue_name:
+            candidates.append(venue_name.split("｜", 1)[1].strip())
+
+    found = None
+    for candidate in candidates:
+        found = _search_venue_homepage(candidate, venue_address or None)
+        if found:
+            break
+
+    if not found:
+        for candidate in candidates:
+            found = _search_venue_homepage_openai(candidate, venue_address or None)
+            if found:
+                break
+
+    if not found:
+        _append_report_note(sb, report.get("id", ""), f"venue homepage search failed for {venue_name}", dry_run=dry_run)
+        return False
+
+    found = found.rstrip("/")
+    if found in {source_url, official_url, current}:
+        _append_report_note(sb, report.get("id", ""), "venue homepage search returned same URL as event/original URL", dry_run=dry_run)
+        return False
+
+    ok = unlock_and_write(
+        sb,
+        event_id=event_id,
+        field_name="location_url",
+        new_value=found,
+        mode="lock_clean",
+        unlock_reason="auto_fix_location_url_from_venue_search",
+        report_id=report.get("id"),
+        r_class="R-SCR-LOCURL",
+        model_used="rule:_search_venue_homepage",
+        confidence=0.90,
+        dry_run=dry_run,
+    )
+    if ok and report.get("id"):
+        _confirm_report(sb, report["id"], note=f"auto-fixed venue homepage: {found}", dry_run=dry_run)
+    return ok
+
+
 HANDLER_MAP: dict[str, Any] = {
     "auto_qa_simplified_zh": handle_simplified_zh,
     "auto_simplified_chinese": handle_simplified_zh,
     "auto_qa_performer_ai_translation_marker": handle_performer_ai_translation_marker,
     "auto_qa_performer_multi_value_pollution": handle_performer_multi_value_split,
+    "auto_qa_location_url_is_event_url": handle_location_url_is_event_url,
 }
 
 

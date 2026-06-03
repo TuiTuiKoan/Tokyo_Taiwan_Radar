@@ -794,7 +794,7 @@ def _detect_thin_content(sb) -> list[dict]:
 
 
 def _detect_location_url_is_event_url(sb) -> list[dict]:
-    """Detect events where location_url == source_url or == official_url.
+    """Detect events where location_url == source_url / official_url / organizer_url.
 
     This is the most common form of the location_url pollution bug: the annotator
     or admin UI sets location_url to the event page URL (organizer's site /
@@ -802,7 +802,7 @@ def _detect_location_url_is_event_url(sb) -> list[dict]:
     """
     rows = (
         sb.table("events")
-        .select("id,source_name,source_url,official_url,location_url,location_name")
+        .select("id,source_name,source_url,official_url,organizer_url,location_url,location_name")
         .eq("is_active", True)
         .not_.is_("location_url", "null")
         .execute()
@@ -813,6 +813,7 @@ def _detect_location_url_is_event_url(sb) -> list[dict]:
         loc_url = (row.get("location_url") or "").rstrip("/")
         src_url = (row.get("source_url") or "").rstrip("/")
         off_url = (row.get("official_url") or "").rstrip("/")
+        org_url = (row.get("organizer_url") or "").rstrip("/")
         if not loc_url:
             continue
         collision = None
@@ -820,6 +821,8 @@ def _detect_location_url_is_event_url(sb) -> list[dict]:
             collision = "source_url"
         elif off_url and loc_url == off_url:
             collision = "official_url"
+        elif org_url and loc_url == org_url:
+            collision = "organizer_url"
         if collision:
             reports.append({
                 "event_id": row["id"],

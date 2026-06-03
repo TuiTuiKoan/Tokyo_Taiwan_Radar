@@ -65,6 +65,7 @@ R_CLASSES = (
     "R-AMBIGUOUS",         # GPT could not classify confidently
     "R-SCR-ADDR-MISS",     # scraper/annotator missing location_address (NEW v9)
     "R-SCR-HOURS-MISS",    # scraper missing business_hours (NEW v9)
+    "R-SCR-LOCURL",        # location_url copied from source/official organizer URL
     "R-UNCLASSIFIED",      # catch-all for detectors without a dedicated R-class (NEW v9)
 )
 
@@ -75,6 +76,7 @@ ROUTING: dict[str, dict[str, Any]] = {
     "R-SCR-PERF-MULTI": {"handler_key": "auto_qa_performer_multi_value_pollution", "min_confidence": 0.85},
     "R-ENRICH-MISS": {"handler_key": "__enrich_person__", "min_confidence": 0.75},
     "R-ANN-PERF-PHON": {"handler_key": "__enrich_person__", "min_confidence": 0.80},
+    "R-SCR-LOCURL": {"handler_key": "auto_qa_location_url_is_event_url", "min_confidence": 0.85},
     "R-AMBIGUOUS": {"handler_key": None, "min_confidence": 0.0},
     # NEW (v9) — review-only 登録、handler 未実装
     "R-SCR-ADDR-MISS": {"handler_key": None, "min_confidence": 0.0},
@@ -107,6 +109,7 @@ _CLASSIFIER_SYSTEM = (
     "  R-SCR-PERF-MULTI  — scraper concatenated multiple performers into one field with separator (、, ／, ×)\n"
     "  R-ANN-PERF-PHON   — annotator phonetic-translated a katakana performer name (visible by char drift)\n"
     "  R-ENRICH-MISS     — enrich_person_names left katakana untranslated\n"
+    "  R-SCR-LOCURL      — location_url was copied from source/official organizer URL\n"
     "  R-AMBIGUOUS       — cannot decide confidently\n\n"
     "Reply STRICT JSON: {\"r_class\": str, \"confidence\": 0..1, \"reason\": str (<=120 chars)}.\n"
     "Be conservative — when in doubt, pick R-AMBIGUOUS with low confidence."
@@ -132,6 +135,10 @@ def _classify(client, report: dict, event: dict, max_input_chars: int, model: st
             "category": event.get("category"),
             "name_ja": _truncate_payload(event.get("name_ja"), 200),
             "name_zh": _truncate_payload(event.get("name_zh"), 200),
+            "location_name": _truncate_payload(event.get("location_name"), 200),
+            "location_url": _truncate_payload(event.get("location_url"), 200),
+            "organizer_url": _truncate_payload(event.get("organizer_url"), 200),
+            "official_url": _truncate_payload(event.get("official_url"), 200),
             "description_zh": _truncate_payload(event.get("description_zh"), max_input_chars),
             "performer": _truncate_payload(event.get("performer"), 300),
             "performer_zh": _truncate_payload(event.get("performer_zh"), 300),
