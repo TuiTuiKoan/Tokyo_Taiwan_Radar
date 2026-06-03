@@ -6,6 +6,26 @@ import { buildMonthRange, bucketCollected, bucketOngoing } from "@/lib/analytics
 
 export const dynamic = "force-dynamic";
 
+const MAX_ANALYTICS_EVENT_SPAN_DAYS = 365;
+
+function toDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+function isReasonableDuration(startDate: string | null | undefined, endDate: string | null | undefined): boolean {
+  const start = toDate(startDate);
+  if (!start) return false;
+  const end = toDate(endDate ?? startDate);
+  if (!end) return false;
+  const spanMs = end.getTime() - start.getTime();
+  if (spanMs < 0) return false;
+  const spanDays = spanMs / 86400000;
+  return spanDays <= MAX_ANALYTICS_EVENT_SPAN_DAYS;
+}
+
 export async function GET(req: Request) {
   try {
     // Auth check
@@ -106,7 +126,10 @@ export async function GET(req: Request) {
     // Generate month buckets
     const monthsList = buildMonthRange(fromMonth, toMonth);
     const collectedMap = bucketCollected(allEvents, monthsList);
-    const ongoingMap = bucketOngoing(allEvents, monthsList);
+
+    // Exclude abnormal long-span events from ongoing analytics to avoid distorted trends.
+    const ongoingEvents = allEvents.filter((e) => isReasonableDuration(e.start_date, e.end_date));
+    const ongoingMap = bucketOngoing(ongoingEvents, monthsList);
 
     const monthsResult = monthsList.map(m => {
       return {
@@ -123,7 +146,7 @@ export async function GET(req: Request) {
       return monthsList.includes(yymm);
     });
 
-    const ongoingCountObj = allEvents.filter(e => {
+    const ongoingCountObj = ongoingEvents.filter(e => {
       if (!e.start_date) return false;
       const startStr = e.start_date;
       const endStr = e.end_date || startStr;
@@ -138,11 +161,21 @@ export async function GET(req: Request) {
       });
     });
 
+    const today = new Date();
+    const todayStr = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}-${String(today.getUTCDate()).padStart(2, "0")}`;
+    const ongoingNowCount = ongoingEvents.filter((e) => {
+      if (!e.start_date) return false;
+      const startStr = e.start_date.substring(0, 10);
+      const endStr = (e.end_date || e.start_date).substring(0, 10);
+      return startStr <= todayStr && endStr >= todayStr;
+    }).length;
+
     return NextResponse.json({
       months: monthsResult,
       totals: {
         collected: collectedCountObj.length,
-        ongoing: ongoingCountObj.length
+        ongoing: ongoingCountObj.length,
+        ongoingNow: ongoingNowCount
       }
     });
 

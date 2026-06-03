@@ -53,7 +53,7 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
   // Data states
   const [eventData, setEventData] = useState<{
     months: Array<{ month: string; collected: number; ongoing: number }>;
-    totals: { collected: number; ongoing: number };
+    totals: { collected: number; ongoing: number; ongoingNow?: number };
   } | null>(null);
 
   const [viewData, setViewData] = useState<{
@@ -387,7 +387,7 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
             <h3 className="text-sm font-semibold text-fg mb-4">
               {tAdmin("analyticsPageTitle")} ({fromYm} ~ {toYm})
             </h3>
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
               <div className="border border-line rounded-lg p-3 bg-surface">
                 <p className="text-xs text-fg-subtle mb-0.5">{tAdmin("Collected")}</p>
                 <p className="text-xl font-bold text-amber-500 tabular-nums">{eventData.totals.collected}</p>
@@ -395,6 +395,10 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
               <div className="border border-line rounded-lg p-3 bg-surface">
                 <p className="text-xs text-fg-subtle mb-0.5">{tAdmin("Ongoing")}</p>
                 <p className="text-xl font-bold text-sky-500 tabular-nums">{eventData.totals.ongoing}</p>
+              </div>
+              <div className="border border-line rounded-lg p-3 bg-surface">
+                <p className="text-xs text-fg-subtle mb-0.5">{tAdmin("OngoingNow")}</p>
+                <p className="text-xl font-bold text-teal-500 tabular-nums">{eventData.totals.ongoingNow ?? 0}</p>
               </div>
             </div>
 
