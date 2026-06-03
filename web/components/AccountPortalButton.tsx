@@ -16,7 +16,7 @@ export default function AccountPortalButton({ locale }: Props) {
 
   function handleClick() {
     setLoading(true);
-    router.push(`/${locale}/account`);
+    router.push(`/${locale}/account?tab=myEvents`);
   }
 
   return (
