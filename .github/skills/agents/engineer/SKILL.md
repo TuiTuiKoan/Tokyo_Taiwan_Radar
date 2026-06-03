@@ -337,6 +337,35 @@ if (!result.ok) { setStatus("error"); return; }
 
 ---
 
+## Auth — ブラウザ `SIGNED_OUT` を単独の真実源にしない / route handler `<Link>` の prefetch 副作用（2026-06-03 教訓）
+
+ログイン状態を扱う Client Component（`Navbar` など）の二大落とし穴。両方とも「ログイン直後に勝手にログアウトされる」症状を出す。
+
+**① `onAuthStateChange` の `SIGNED_OUT` を信用しない — 必ずサーバで再検証する。**
+Supabase SSR では `proxy.ts`（middleware）・`/api/me`・ブラウザ client が同じ refresh token をほぼ同時にローテーション要求する。token rotation 有効環境ではレースの敗者が `Invalid Refresh Token` を受け取り、ブラウザ client が**偽の `SIGNED_OUT`** を発火する。このときサーバ session はまだ有効なので、`SIGNED_OUT` で無条件に `setUser(null)` するとログイン直後に未ログイン表示へ戻る（フリッカー）。
+
+```tsx
+// ❌ ブラウザ client のイベント種別を真実源にする — 偽 SIGNED_OUT でログアウト化
+supabase.auth.onAuthStateChange((event) => {
+  if (event === "SIGNED_OUT") { setUser(null); return; }
+  void loadMe();
+});
+
+// ✅ 常にサーバ (/api/me の getUser()) を真実源として再検証し、
+//    サーバが user なしと返したときのみクリアする
+supabase.auth.onAuthStateChange(() => { void loadMe(); });
+// loadMe() は fetch("/api/me", { cache: "no-store" }) → setUser(data?.user ?? null)
+```
+
+**② `<Link>` が route handler（副作用を伴う GET）を指す場合は必ず `prefetch={false}`。**
+Next.js の `<Link>` はホバーで対象 URL を prefetch する。対象が route handler だと**実 GET が飛ぶ**。ログアウトリンク（`/auth/logout` → `supabase.auth.signOut()`）を `<Link>` で置くと、メニュー内で隣の項目へマウスを動かしただけでホバー prefetch が `signOut()` を実行し、ユーザーが勝手にログアウトする。
+
+- ログアウト等、副作用を伴う route handler への `<Link>` には `prefetch={false}` 必須。
+- 受保護ルート（`/saved`・`/account` 等）への `<Link>` も prefetch が login へ redirect されるため `prefetch={false}` が安全。
+- クライアント側ロジックでナビゲートする項目（権限分岐など）は `<Link>` ではなく `<button onClick>` にして prefetch 自体を発生させない。
+
+Reference incident: `Navbar` auth flicker + hover logout（2026-06-03 commit `c4e1bde`）.
+
 ## Supabase Realtime
 
 Supabase Realtime is **NOT enabled by default** for tables. Frontend `.on("postgres_changes", ...)` subscriptions will silently never fire unless the table has been added to the publication first.

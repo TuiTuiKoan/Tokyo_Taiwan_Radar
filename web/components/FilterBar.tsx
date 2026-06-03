@@ -3,7 +3,7 @@
 import { useRouter, usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CATEGORY_GROUPS, type Locale } from "@/lib/types";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useTransition } from "react";
 import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, type RegionWithCity } from "@/lib/regionPrefectures";
 import { FilterChip } from "@/lib/design";
 
@@ -28,6 +28,7 @@ export default function FilterBar({ locale: _locale, currentFilters, hiddenFilte
   const tCat = useTranslations("categories");
   const router = useRouter();
   const pathname = usePathname();
+  const [, startTransition] = useTransition();
 
   const [draft, setDraft] = useState({
     q: currentFilters.q ?? "",
@@ -75,7 +76,9 @@ export default function FilterBar({ locale: _locale, currentFilters, hiddenFilte
     Object.entries(next).forEach(([k, v]) => {
       if (v) params.set(k, v);
     });
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    });
   }, [pathname, router]);
 
   /** Immediately push URL when a select changes. */
@@ -103,7 +106,9 @@ export default function FilterBar({ locale: _locale, currentFilters, hiddenFilte
   const clearAll = useCallback(() => {
     const reset = { q: "", category: "", from: "", to: "", paid: "", timeMode: "active", location: "", city: "" };
     setDraft(reset);
-    router.replace(pathname, { scroll: false });
+    startTransition(() => {
+      router.replace(pathname, { scroll: false });
+    });
   }, [pathname, router]);
 
   const selectedCats = draft.category ? draft.category.split(",") : [];

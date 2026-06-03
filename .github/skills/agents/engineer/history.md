@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-06-03 — ログイン後にナビバーが数秒で「未ログイン」へ戻る／ホバーで誤ログアウトする二重不具合（commit `c4e1bde`）
+
+**日付 | 問題簡述 | 根本原因 | 修復方法 | 学んだ教訓**
+2026-06-03 | ① 全 locale でログイン成功の数秒後にナビバーが未ログイン表示へ戻る（フリッカー）。② アカウントメニューを開いて「我辦的活動」付近へマウスを動かすとログイン画面へ飛ぶ | ① `proxy.ts`・`/api/me`・ブラウザ supabase client が同じ refresh token をほぼ同時にローテーション要求し、敗者のブラウザ client が偽の `SIGNED_OUT` を発火。`Navbar.tsx` の `onAuthStateChange` が無条件に `setUser(null)` していたため、サーバ session が有効でも未ログイン化。② ログアウトリンクが route handler (`/auth/logout`) を指す `<Link>` で、Next.js のホバー prefetch が実 GET を送り `supabase.auth.signOut()` を実行していた | ① `onAuthStateChange` を「イベント種別を信用せず常に `/api/me`（サーバが真実源）を再取得」へ変更し、サーバが user なしと返したときのみクリア。② ログアウト `<Link>` に `prefetch={false}` を付与、「我辦的活動」を `<button>`+`onClick` に変更、ドロップダウンの「収藏」`<Link>` にも `prefetch={false}` を付与 | **教訓：** (1) Supabase SSR で refresh token rotation が有効な環境では、ブラウザ client の `SIGNED_OUT` を単独の真実源にしてはならない。必ずサーバ (`/api/me` の `getUser()`) で再検証する。(2) `<Link>` が route handler（特に `signOut`/副作用を伴う GET）を指す場合は必ず `prefetch={false}` を付ける。ホバー prefetch が副作用を発火させる。受保護ルートへの `<Link>` も prefetch で login へ redirect されるため `prefetch={false}` が安全。
+
+---
+
 ## 2026-06-03 — Update History agent の `str_replace` が `engineer/history.md` の 1,227行を誤削除（commits `b1873cc`, `d583f2a`）
 
 **日付 | 問題簡述 | 根本原因 | 修復方法 | 学んだ教訓**
