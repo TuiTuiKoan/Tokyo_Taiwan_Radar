@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-06-04 — 出版相關 pending QA 批次清理：來源級 one-off 收斂與 eslite_spectrum 保守分流
+
+**問題：** 出版相關來源（`ndl_opensearch`、`hanmoto`、`kawade_rss`、`eslite_spectrum`）累積大量 pending `event_reports`，後台數字無法靠既有安全 auto-fix 自然下降。
+
+**根本原因：** 這批 backlog 的性質不是單一 selector drift，而是出版型語意與一般場館型 QA 的不一致；其中 `eslite_spectrum` 還混有宣傳講座、展覽與新書刊行訊號，不能用一刀切規則處理。
+
+**修正：** 新增單用途 one-off 批次腳本，僅處理出版來源 pending 報告，透過既有 `confirmed` / `dismissed` 狀態流收斂；`eslite_spectrum` 只處理明顯出版語境事件，宣傳講座與展覽保留人工判斷。最後 pending 由 373 降至 153，出版範圍歸零。
+
+**教訓：** 出版型 backlog 要以「來源級、單次、可追溯」方式清理，不應抽象成新的通用 QA 引擎；混合型來源（尤其 `eslite_spectrum`）必須保守分流，不能把宣傳講座與新書刊行事件硬綁成同一批次規則。
+
+---
+
 ## 2026-06-03 — 灣生藝術家個展時間與背景優化 (Wansei Artist Background & Date Correction)
 
 **問題：** 事件 `f8100bd2-e95d-4047-b98e-ad41da2c3f1d`（多田美波個展）展期錯誤（標註為單日）、選案理由說明不足，且未提及藝術家關鍵的「灣生」身分與台日淵源。
