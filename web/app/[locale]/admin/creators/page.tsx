@@ -3,8 +3,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale } from "@/lib/types";
 import AdminTabNav from "@/components/AdminTabNav";
-import Link from "next/link";
-import AdminCreatorsClient from "@/components/AdminCreatorsClient";
+import AdminCreatorsManager from "@/components/AdminCreatorsManager";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
@@ -59,9 +58,6 @@ export default async function AdminCreatorsPage({ params }: PageProps) {
     <div>
       <h1 className="text-2xl font-bold mb-4">{t("creatorsPageTitle")}</h1>
 
-      {/* Tab nav */}
-
-
       <AdminTabNav locale={locale} activeTab="creators" />
 
       {error && (
@@ -70,7 +66,7 @@ export default async function AdminCreatorsPage({ params }: PageProps) {
         </div>
       )}
 
-      <AdminCreatorsClient
+      <AdminCreatorsManager
         initialCreators={(creators ?? []) as Creator[]}
         locale={locale}
       />

@@ -31,6 +31,8 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - Keep high-risk classes (for example selector drift or source-structure breakage) in human-review only paths; safe auto-fix should only touch deterministic transforms.
 - Every LINE alert message must include a direct next action (exact workflow name + trigger mode). A warning without CTA is operational noise.
 - For publication-related pending QA, clean by source and status transition first. If a source is mixed-content like `eslite_spectrum`, keep the rule set conservative and do not fold promotional talk events into the same batch.
+- Venue homepage repairs (`location_url`) are provenance-sensitive. The only safe auto-fix target is the venue's own official homepage; never promote `source_url`, `official_url`, or `organizer_url` into `location_url` just because a search hit looks plausible.
+- If a venue cannot be verified to have its own homepage, leave the report pending for human review. Shared municipal spaces and parent-organization pages are especially prone to false positives.
 
 ## Agent Handoff Reliability
 

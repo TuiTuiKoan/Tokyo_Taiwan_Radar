@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-06-04 — `location_url` 被誤寫成主辦/活動頁：provenance 混淆與 venue homepage 回填防線
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-04 | 場地頁 `location_url` 被多筆誤寫成 `source_url` / `official_url` / `organizer_url`，後台持續出現「場地網頁缺失，實際填成主辦單位網頁」 | 不是單一 scraper bug，而是三層一起出錯：① 來源/管理表單把 event page URL 當 venue URL；② annotator/enrichment 沒有把「場地官方頁」和「主辦/活動頁」嚴格分開；③ auto-qa/auto-fix 只看 URL 命中，沒有驗證是否為 venue homepage | 在 `qa_auto_fix.py` 新增 `auto_qa_location_url_is_event_url` handler，先用既有 venue search helper，再用 search-preview fallback；新增 `location_url` collision detector，並在 municipal/shared venues 逐筆確認後才鎖定 `field_corrections` | **教訓：** `location_url` 的真實根因是 provenance 混淆，不是單純欄位缺值。修正時一定要驗證「這是不是場地自己的首頁」，不要把活動頁、主辦單位頁、品牌 landing page 當成場地頁寫回去。
+
+---
+
 ## 2026-06-04 — 出版相關 pending QA 批次清理改為單用途來源級腳本
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

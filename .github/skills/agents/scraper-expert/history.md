@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-06-04 — `location_url` 誤寫成主辦/活動頁：venue homepage provenance guard 補強
+
+**問題：** 多筆事件的 `location_url` 被誤寫成 `source_url` / `official_url` / `organizer_url`，導致前端把主辦單位頁或活動頁誤顯示成場地網頁。
+
+**根本原因：** `location_url` 的來源定義在 scraper、annotator、admin/auto-fix 三處沒有完全一致：上游把「找到一個 URL」誤當「找到場地官方頁」，而下游又缺少對 event/organizer URL 的 collision 驗證。
+
+**修正：** 在 QA auto-fix 新增 `auto_qa_location_url_is_event_url`，只允許經驗證的 venue homepage 回填；找不到明確場地首頁時保留 pending，不再默認升級成 event/organizer URL。
+
+**教訓：** `location_url` 不能被當成「任意可用網站」欄位。只要來源不是場地自己的官方首頁，就應保留 null 或待人工確認，否則後台會反覆把主辦單位頁當成場地頁。
+
+---
+
 ## 2026-06-04 — 出版相關 pending QA 批次清理：來源級 one-off 收斂與 eslite_spectrum 保守分流
 
 **問題：** 出版相關來源（`ndl_opensearch`、`hanmoto`、`kawade_rss`、`eslite_spectrum`）累積大量 pending `event_reports`，後台數字無法靠既有安全 auto-fix 自然下降。
