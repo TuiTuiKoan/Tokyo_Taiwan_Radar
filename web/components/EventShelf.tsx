@@ -116,7 +116,7 @@ export default function EventShelf({ events, locale }: Props) {
                 }`}
               >
                 <span className="relative -top-px">{t(TAB_LABEL[key])}</span>
-                <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-paper border border-[#EDD8D0] text-fg-muted text-[10px] leading-none shadow-sm">
+                <span className="inline-flex shrink-0 items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-paper border border-[#EDD8D0] text-fg-muted text-[10px] leading-none font-mono tabular-nums shadow-sm">
                   {counts[key]}
                 </span>
               </button>
