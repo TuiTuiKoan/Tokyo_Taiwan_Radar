@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useEffect, useState, useRef, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { type Event, type Locale } from "@/lib/types";
 import { useRouter } from "next/navigation";
@@ -63,7 +63,28 @@ export default function OwnerEditClient({ event, locale }: Props) {
   const [annotationDone, setAnnotationDone] = useState(false);
 
   const posterFileRef = useRef<HTMLInputElement>(null);
+  const busyStartedAtRef = useRef<number | null>(null);
+  const [busyElapsedMs, setBusyElapsedMs] = useState(0);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!saving && !annotating) {
+      busyStartedAtRef.current = null;
+      setBusyElapsedMs(0);
+      return;
+    }
+
+    if (!busyStartedAtRef.current) {
+      busyStartedAtRef.current = Date.now();
+    }
+
+    const timer = window.setInterval(() => {
+      const startedAt = busyStartedAtRef.current ?? Date.now();
+      setBusyElapsedMs(Date.now() - startedAt);
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [saving, annotating]);
 
   function updateField(k: string, v: any) {
     setForm((prev) => ({ ...prev, [k]: v }));
@@ -299,9 +320,13 @@ export default function OwnerEditClient({ event, locale }: Props) {
           }`}
         >
           {ocrFilled ? (
-            annotating ? t("saving") || "解析中..." : tAdmin("saveAndAnnotate") || "儲存並標注"
+            annotating
+              ? `解析中... ${Math.floor(busyElapsedMs / 1000)} 秒`
+              : tAdmin("saveAndAnnotate") || "儲存並標注"
           ) : (
-            saving ? t("saving") : tAdmin("save")
+            saving
+              ? `儲存中... ${Math.floor(busyElapsedMs / 1000)} 秒`
+              : tAdmin("save")
           )}
         </button>
       </div>

@@ -81,7 +81,7 @@ export default function AdminEventForm({
             type="text"
             value={(form as any)[`name_${lang}`]}
             onChange={(e) => updateField(`name_${lang}`, e.target.value)}
-            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </div>
       ))}
@@ -93,7 +93,7 @@ export default function AdminEventForm({
           type="date"
           value={form.start_date}
           onChange={(e) => updateField("start_date", e.target.value)}
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
         />
       </div>
       <div>
@@ -102,7 +102,7 @@ export default function AdminEventForm({
           type="date"
           value={form.end_date}
           onChange={(e) => updateField("end_date", e.target.value)}
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
         />
       </div>
 
@@ -113,7 +113,7 @@ export default function AdminEventForm({
           type="text"
           value={form.location_name}
           onChange={(e) => updateField("location_name", e.target.value)}
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
         />
       </div>
       <div>
@@ -122,7 +122,7 @@ export default function AdminEventForm({
           type="text"
           value={form.location_address}
           onChange={(e) => updateField("location_address", e.target.value)}
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
         />
       </div>
 
@@ -133,7 +133,7 @@ export default function AdminEventForm({
           type="url"
           value={(form as any).location_url ?? ""}
           onChange={(e) => updateField("location_url", e.target.value)}
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
         />
       </div>
 
@@ -144,7 +144,7 @@ export default function AdminEventForm({
           type="text"
           value={form.business_hours}
           onChange={(e) => updateField("business_hours", e.target.value)}
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
         />
       </div>
 
@@ -156,7 +156,7 @@ export default function AdminEventForm({
           value={(form as any).performer ?? ""}
           onChange={(e) => updateField("performer", e.target.value)}
           placeholder="例: 李映萱、唐 顥芸"
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
         />
       </div>
 
@@ -167,7 +167,7 @@ export default function AdminEventForm({
           type="text"
           value={(form as any).organizer ?? ""}
           onChange={(e) => updateField("organizer", e.target.value)}
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
         />
       </div>
       <div>
@@ -176,7 +176,7 @@ export default function AdminEventForm({
           type="url"
           value={(form as any).organizer_url ?? ""}
           onChange={(e) => updateField("organizer_url", e.target.value)}
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
         />
       </div>
 
@@ -215,7 +215,7 @@ export default function AdminEventForm({
           value={(form as any).co_organizers ?? ""}
           onChange={(e) => updateField("co_organizers", e.target.value)}
           placeholder="例: A機構, B機構"
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
         />
       </div>
       <div>
@@ -364,7 +364,7 @@ export default function AdminEventForm({
             rows={3}
             value={(form as any)[`description_${lang}`]}
             onChange={(e) => updateField(`description_${lang}`, e.target.value)}
-            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper resize-y focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </div>
       ))}
@@ -384,7 +384,7 @@ export default function AdminEventForm({
                   updated[i] = { ...updated[i], title: e.target.value };
                   updateField("record_links", updated);
                 }}
-                className="flex-1 border border-line-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="flex-1 border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper focus:outline-none focus:ring-2 focus:ring-green-400"
               />
               <input
                 type="url"
@@ -395,7 +395,7 @@ export default function AdminEventForm({
                   updated[i] = { ...updated[i], url: e.target.value };
                   updateField("record_links", updated);
                 }}
-                className="flex-1 border border-line-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="flex-1 border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper focus:outline-none focus:ring-2 focus:ring-green-400"
               />
               <label className="flex items-center gap-1 text-xs text-fg-muted shrink-0 cursor-pointer select-none">
                 <input

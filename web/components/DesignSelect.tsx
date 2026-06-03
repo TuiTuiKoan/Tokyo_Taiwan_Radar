@@ -81,7 +81,7 @@ export default function DesignSelect({
           id={panelId}
           role="listbox"
           className={cx(
-            "absolute z-50 top-10 left-0 w-full min-w-[10rem] bg-surface border border-line rounded-xl shadow-lg py-2 max-h-72 overflow-y-auto",
+            "absolute z-50 top-10 left-0 w-full min-w-[10rem] bg-paper border border-line rounded-xl shadow-lg py-2 max-h-72 overflow-y-auto",
             panelClassName,
           )}
         >

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -54,6 +54,28 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
     record_links: (event.record_links as { title: string; url: string }[]) ?? [],
   });
   const [saving, setSaving] = useState(false);
+  const busyStartedAtRef = useRef<number | null>(null);
+  const [busyElapsedMs, setBusyElapsedMs] = useState(0);
+  const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!saving) {
+      busyStartedAtRef.current = null;
+      setBusyElapsedMs(0);
+      return;
+    }
+
+    if (!busyStartedAtRef.current) {
+      busyStartedAtRef.current = Date.now();
+    }
+
+    const timer = window.setInterval(() => {
+      const startedAt = busyStartedAtRef.current ?? Date.now();
+      setBusyElapsedMs(Date.now() - startedAt);
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [saving]);
 
   function updateField(key: string, value: any) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -263,7 +285,7 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
             disabled={saving}
             className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 shadow-sm transition"
           >
-            {saving ? "..." : t("save")}
+            {saving ? `儲存中... ${Math.floor(busyElapsedMs / 1000)} 秒` : t("save")}
           </button>
           <button
             onClick={handleCancel}

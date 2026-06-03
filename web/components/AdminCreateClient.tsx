@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useEffect, useState, useRef, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { type Event, type Locale } from "@/lib/types";
 import { useRouter } from "next/navigation";
@@ -30,7 +30,28 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
   const [annotationDone, setAnnotationDone] = useState(false);
 
   const posterFileRef = useRef<HTMLInputElement>(null);
+  const busyStartedAtRef = useRef<number | null>(null);
+  const [busyElapsedMs, setBusyElapsedMs] = useState(0);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!saving && !extracting && !annotating) {
+      busyStartedAtRef.current = null;
+      setBusyElapsedMs(0);
+      return;
+    }
+
+    if (!busyStartedAtRef.current) {
+      busyStartedAtRef.current = Date.now();
+    }
+
+    const timer = window.setInterval(() => {
+      const startedAt = busyStartedAtRef.current ?? Date.now();
+      setBusyElapsedMs(Date.now() - startedAt);
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [saving, extracting, annotating]);
 
   function updateField(k: string, v: any) {
     setForm((prev) => ({ ...prev, [k]: v }));
@@ -278,9 +299,13 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
           }`}
         >
           {ocrFilled ? (
-            annotating ? "解析中..." : t("saveAndAnnotate") || "儲存並標注"
+            annotating
+              ? `解析中... ${Math.floor(busyElapsedMs / 1000)} 秒`
+              : t("saveAndAnnotate") || "儲存並標注"
           ) : (
-            saving ? "儲存中..." : t("save")
+            saving
+              ? `儲存中... ${Math.floor(busyElapsedMs / 1000)} 秒`
+              : t("save")
           )}
         </button>
       </div>
