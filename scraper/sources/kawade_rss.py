@@ -135,7 +135,7 @@ class KawadeRssScraper(BaseScraper):
                 location_address=None,
                 location_prefectures=[],
                 category=category,
-                event_form=["other"],
+                event_form=["publication"],
                 name_ja_locked=True,
                 organizer="河出書房新社",
                 organizer_type=["media"],

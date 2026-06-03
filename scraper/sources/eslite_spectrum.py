@@ -42,6 +42,10 @@ TAIWAN_KEYWORDS = [
     "台日", "日台",
 ]
 
+PUBLICATION_KEYWORDS = [
+    "出版", "刊行", "新刊", "新書", "書籍", "書店", "book launch", "publication",
+]
+
 # Patterns in title that clearly indicate non-event administrative content
 _SKIP_TITLE_RE = re.compile(
     r"会員募集|メンバーズカード|ワークショップカレンダー|ポイント|お知らせ|営業時間|定休日|リニューアル"
@@ -202,6 +206,10 @@ class EsliteSpectrumScraper(BaseScraper):
         if start_date:
             description = f"開催日時: {start_date.strftime('%Y年%m月%d日')}\n\n{description}"
 
+        event_form = ["other"]
+        if any(keyword.lower() in f"{title}\n{description}".lower() for keyword in PUBLICATION_KEYWORDS):
+            event_form = ["publication"]
+
         catalog_id = item["catalog_id"]
 
         return Event(
@@ -217,4 +225,5 @@ class EsliteSpectrumScraper(BaseScraper):
             category=["community"],
             location_name=LOCATION_NAME,
             location_address=LOCATION_ADDRESS,
+            event_form=event_form,
         )

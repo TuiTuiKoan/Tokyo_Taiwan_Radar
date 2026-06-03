@@ -235,17 +235,17 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
   }
 
   return (
-    <div className="max-w-4xl">
-      <div className="flex items-center gap-3 mb-6">
+    <div className="mx-auto max-w-3xl space-y-6">
+      <div className="flex items-center gap-3">
         <button
           onClick={handleCancel}
-          className="text-sm text-fg-muted hover:text-fg-strong"
+          className="text-sm font-medium text-fg-muted hover:text-fg-strong transition"
         >
           ← {t("back")}
         </button>
-        <h1 className="text-2xl font-bold">{t("edit")}</h1>
+        <h1 className="text-2xl font-bold text-fg-strong">{t("edit")}</h1>
       </div>
-      <div className="border border-green-300 rounded-xl p-6 bg-green-50">
+      <div className="space-y-6">
         <AdminEventForm
           form={form}
           t={t}
@@ -257,17 +257,17 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
           editingId={event.id}
           locale={locale}
         />
-        <div className="flex gap-3 mt-6">
+        <div className="flex gap-3 pt-4 border-t border-line">
           <button
             onClick={handleSave}
             disabled={saving}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
+            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 shadow-sm transition"
           >
             {saving ? "..." : t("save")}
           </button>
           <button
             onClick={handleCancel}
-            className="border border-line-strong px-4 py-2 rounded-lg text-sm hover:bg-elevated"
+            className="border border-line-strong bg-paper px-4 py-2 rounded-lg text-sm font-semibold hover:bg-elevated transition shadow-sm"
           >
             {t("cancel")}
           </button>

@@ -220,7 +220,7 @@
     "hasJapaneseSupport": "日本語対応",
     "hasEnglishSupport": "英語対応",
     "hasChineseSupport": "中国語対応",
-    "isPaid": "有料",
+    "isPaid": "料金",
     "priceInfo": "料金詳細",
     "sourceUrl": "元のURL",
     "recordLinksSection": "活動記録リンク",
@@ -894,7 +894,8 @@
     "tasting": "試飲・品嚐会",
     "other": "その他",
     "broadcast": "テレビ放送",
-    "study_abroad": "留学説明会"
+    "study_abroad": "留学説明会",
+    "publication": "出版"
   },
   "home": {
     "introTitle": "東京台湾レーダー",

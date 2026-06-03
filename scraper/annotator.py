@@ -884,6 +884,7 @@ Decision guides:
 - ツアー / 巡迴 / 街歩き = ["tour"].
 - コンテスト / コンクール / 公募 = ["competition"].
 - 留学プログラム / 大学院進学 / 修士課程募集 / 奨学金付き海外留学 = ["study_abroad"].
+- 出版記念 / 刊行記念 / book release / book launch = ["publication"]
 - If genuinely none apply = ["other"]. NEVER leave event_form empty.
 
 LANGUAGE RULES:
@@ -1052,7 +1053,7 @@ VALID_ORGANIZER_TYPES = frozenset([
 VALID_EVENT_FORMS = frozenset([
     "exhibition", "screening", "lecture", "performance", "market", "workshop",
     "conference", "networking", "screening_with_talk", "tour", "competition",
-    "tasting", "broadcast", "study_abroad", "other",
+    "tasting", "broadcast", "study_abroad", "publication", "other",
 ])
 VALID_PRIMARY_LANGUAGES = frozenset(["ja", "zh", "en", "mixed"])
 
@@ -1729,6 +1730,17 @@ def annotate_pending_events(
                         update_data["is_paid"] = True
                     if update_data.get("is_paid") is True and not update_data.get("price_info"):
                         update_data["price_info"] = "有料"
+
+                if _source_name == "ndl_opensearch":
+                    publication_text = "新書購買請洽各通路"
+                    if not update_data.get("location_name"):
+                        update_data["location_name"] = publication_text
+                    if not update_data.get("location_address"):
+                        update_data["location_address"] = publication_text
+                    if not update_data.get("business_hours"):
+                        update_data["business_hours"] = publication_text
+                    if not update_data.get("price_info"):
+                        update_data["price_info"] = publication_text
 
                 # Organizer translations — KNOWN_ORGANIZER_MAP overrides GPT
                 if update_data.get("organizer"):

@@ -196,7 +196,7 @@ class HanmotoScraper(BaseScraper):
                             location_address=None,
                             location_prefectures=[],
                             category=["books_media"],
-                            event_form=["other"],
+                            event_form=["publication"],
                             name_ja_locked=True,
                             organizer=publisher,
                             organizer_type=["media"],

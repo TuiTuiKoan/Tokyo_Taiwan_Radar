@@ -51,7 +51,6 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
   const supabase = createClient();
 
   const [events, setEvents] = useState<Event[]>(initialEvents);
-  const [showNew, setShowNew] = useState(false);
 
   // Works list — pre-populated from server-side fetch (initialWorks prop),
   // client-side effect re-fetches after a new work is created via the modal.
@@ -91,25 +90,6 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     }
     return m;
   }, [events]);
-  const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
-  const [saving, setSaving] = useState(false);
-  const [extracting, setExtracting] = useState(false);
-  const [extractError, setExtractError] = useState<string | null>(null);
-  const [posterPreview, setPosterPreview] = useState<string | null>(null);
-  const [ocrFilled, setOcrFilled] = useState(false);
-  const [annotating, setAnnotating] = useState(false);
-  const [annotatingElapsed, setAnnotatingElapsed] = useState(0);
-  const [annotationError, setAnnotationError] = useState<string | null>(null);
-  const [savedEventId, setSavedEventId] = useState<string | null>(null);
-  const [enrichedReady, setEnrichedReady] = useState(false);
-  const posterFileRef = useRef<HTMLInputElement>(null);
-  // Elapsed-time counter for annotation progress
-  useEffect(() => {
-    if (!annotating) { setAnnotatingElapsed(0); return; }
-    setAnnotatingElapsed(0);
-    const id = setInterval(() => setAnnotatingElapsed((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, [annotating]);
   const [viewMode, setViewMode] = useState<"annotated" | "raw">("annotated");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -506,261 +486,6 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     return t("filterPendingShort");
   }
 
-  function startNew() {
-    setShowNew(true);
-    setForm({ ...EMPTY_FORM });
-  }
-
-  function cancelNew() {
-    setShowNew(false);
-    setPosterPreview(null);
-    setExtractError(null);
-    setOcrFilled(false);
-    setAnnotating(false);
-    setSavedEventId(null);
-    setEnrichedReady(false);
-  }
-
-  // 鎖定與還原 body 滾動
-  useEffect(() => {
-    if (showNew) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [showNew]);
-
-  // Escape 鍵全螢幕 Modal 防護
-  useEffect(() => {
-    if (!showNew) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (saving || extracting || annotating) return;
-        const isEdited = JSON.stringify(form) !== JSON.stringify(EMPTY_FORM);
-        if (isEdited) {
-          if (window.confirm(t("unsaved_confirm"))) {
-            cancelNew();
-          }
-        } else {
-          cancelNew();
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [showNew, form, cancelNew, saving, extracting, annotating, t]);
-
-  function updateField(key: string, value: any) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function toggleCategory(cat: string) {
-    setForm((prev) => ({
-      ...prev,
-      category: prev.category.includes(cat)
-        ? prev.category.filter((c) => c !== cat)
-        : [...prev.category, cat],
-    }));
-  }
-
-  async function handleExtractFromImage(file: File) {
-    setExtracting(true);
-    setExtractError(null);
-    try {
-      const reader = new FileReader();
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      setPosterPreview(dataUrl);
-      const res = await fetch("/api/admin/extract-from-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: dataUrl }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Extraction failed");
-      const fields = data.fields as Record<string, unknown>;
-      const ARRAY_FIELDS = new Set(["event_form", "category", "co_organizers", "sponsors"]);
-      for (const [key, val] of Object.entries(fields)) {
-        if (val === null || val === undefined) continue;
-        if (ARRAY_FIELDS.has(key) && Array.isArray(val)) {
-          updateField(key, val);
-        } else if (!ARRAY_FIELDS.has(key)) {
-          updateField(key, val === true ? true : val === false ? false : String(val));
-        }
-      }
-      if (typeof fields.is_paid === "boolean") updateField("is_paid", fields.is_paid);
-      if (typeof fields.has_japanese_support === "boolean") updateField("has_japanese_support", fields.has_japanese_support);
-      if (typeof fields.has_english_support === "boolean") updateField("has_english_support", fields.has_english_support);
-      if (typeof fields.has_chinese_support === "boolean") updateField("has_chinese_support", fields.has_chinese_support);
-      setOcrFilled(true);
-    } catch (e: unknown) {
-      setExtractError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setExtracting(false);
-    }
-  }
-
-  async function handleSaveNew() {
-    setSaving(true);
-    try {
-      const res = await withClientTimeout(
-        createEventNoAnnotate(form),
-        20000,
-        "createEventNoAnnotate",
-      );
-      if (!res.ok) {
-        console.error("Insert failed:", res.error);
-        alert(`Save failed: ${res.error}`);
-        return;
-      }
-      setEvents((prev) => [res.data, ...prev]);
-      setShowNew(false);
-    } catch (e) {
-      console.error("Insert threw:", e);
-      alert(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSaveAndAnnotate() {
-    setAnnotationError(null);
-    setSaving(true);
-    let created: Event | null = null;
-    try {
-      const res = await withClientTimeout(
-        createDraftEvent(form),
-        20000,
-        "createDraftEvent",
-      );
-      if (!res.ok) {
-        console.error("Insert failed:", res.error);
-        alert(`Save failed: ${res.error}`);
-        setSaving(false);
-        return;
-      }
-      created = res.data;
-    } catch (insertErr) {
-      console.error("Insert threw:", insertErr);
-      alert(`Save failed: ${insertErr instanceof Error ? insertErr.message : String(insertErr)}`);
-      setSaving(false);
-      return;
-    }
-
-    if (!created) {
-      alert("Save failed: no data returned.");
-      setSaving(false);
-      return;
-    }
-
-    const eventId = created.id;
-    setSavedEventId(eventId);
-    setEvents((prev) => [created as Event, ...prev]);
-    setSaving(false);
-    setAnnotating(true);
-    setEnrichedReady(false);
-
-    // Directly annotate + web-search enrich via API
-    try {
-      const res = await fetch("/api/admin/annotate-event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId }),
-        signal: AbortSignal.timeout(58000), // 58s hard cap — prevents infinite hang on Vercel timeout or localhost
-      });
-      if (res.ok) {
-        const respJson = (await res.json()) as {
-          fields: Record<string, unknown>;
-          foundUrl: string | null;
-          searchDebug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number; queries: string[]; topCandidates: Array<{ url: string; score: number }> } | null;
-          webTextLength: number;
-          needsUrlEnrichment?: boolean;
-          sourceUrlFetchOk?: boolean | null;
-          eventUrls?: Record<string, string | null>;
-        };
-        const { fields, foundUrl } = respJson;
-        for (const [k, v] of Object.entries(fields)) {
-          if (v !== null && v !== undefined) {
-            updateField(k, v);
-          }
-        }
-        if (foundUrl) {
-          updateField("source_url", foundUrl);
-          updateField("official_url", foundUrl);
-        }
-        console.info("[annotate]", respJson);
-        if (!foundUrl && respJson.needsUrlEnrichment === false) {
-          console.warn("[annotate] Web search SKIPPED — all URL fields already had values:", respJson.eventUrls);
-        } else if (!foundUrl && respJson.searchDebug) {
-          const d = respJson.searchDebug;
-          console.warn(
-            `[annotate] No URL found. Brave=${d.braveCount} DDG=${d.ddgCount} Bing=${d.bingCount} candidates=${d.candidateCount} bestScore=${d.bestScore}. ` +
-            (d.candidateCount === 0
-              ? (d.braveCount === 0 && d.ddgCount === 0 && d.bingCount === 0
-                  ? "All search engines returned 0 — set BRAVE_SEARCH_API_KEY env var on Vercel."
-                  : "")
-              : d.bestScore < 1 ? "Found candidates but pages did not match event name." : "")
-          );
-        }
-      } else {
-        const errText = await res.text().catch(() => `HTTP ${res.status}`);
-        console.warn("Annotation API failed:", errText);
-        setAnnotationError(`標注失敗（${res.status}）— 請確認事件已儲存，再點「重新標注」。`);
-      }
-    } catch (e) {
-      console.warn("Annotation error:", e);
-      const isTimeout = e instanceof Error && e.name === "TimeoutError";
-      setAnnotationError(isTimeout ? "標注逾時（58s）— 請點「重新標注」再試一次。" : "標注失敗，請點「重新標注」再試。");
-    }
-
-    setAnnotating(false);
-    setEnrichedReady(true);
-  }
-
-  async function handlePublish() {
-    if (!savedEventId) return;
-    setSaving(true);
-    try {
-      const res = await withClientTimeout(
-        publishEvent(savedEventId),
-        15000,
-        "publishEvent",
-      );
-      if (!res.ok) {
-        const msg = res.error === "publish_no_rows"
-          ? "発布未生效（session 可能已過期），請重新整理頁面後再試。"
-          : `Publish failed: ${res.error}`;
-        alert(msg);
-        setSaving(false);
-        return;
-      }
-      // Refresh event in list
-      setEvents((prev) =>
-        prev.map((e) =>
-          e.id === savedEventId ? { ...e, is_active: true, annotation_status: "reviewed" as const } : e
-        )
-      );
-      setSaving(false);
-    } catch (e) {
-      console.error("Publish threw:", e);
-      alert(e instanceof Error ? e.message : String(e));
-      setSaving(false);
-      return;
-    }
-    setShowNew(false);
-    cancelNew();
-  }
-
   async function handleBulkToggleActive(targetActive: boolean) {
     if (selected.size === 0) return;
     setBulkToggling(true);
@@ -1043,18 +768,16 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     <div>
       {/* View toggle + New event button */}
       <div className="flex items-center gap-3 mb-4">
-        {!showNew && (
-          <button
-            onClick={startNew}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition"
-          >
-            + {t("newEvent")}
-          </button>
-        )}
-        <div className="flex rounded-lg border border-line-strong overflow-hidden ml-auto">
+        <button
+          onClick={() => router.push(`/${locale}/admin/events/new`)}
+          className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 transition shadow-sm"
+        >
+          + {t("newEvent")}
+        </button>
+        <div className="flex rounded-lg border border-line-strong overflow-hidden ml-auto shadow-sm">
           <button
             onClick={() => setViewMode("annotated")}
-            className={`px-3 py-1.5 text-xs font-medium transition ${
+            className={`px-3 py-1.5 text-xs font-semibold transition ${
               viewMode === "annotated"
                 ? "bg-green-600 text-white"
                 : "bg-surface text-fg-muted hover:bg-elevated"
@@ -1064,7 +787,7 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
           </button>
           <button
             onClick={() => setViewMode("raw")}
-            className={`px-3 py-1.5 text-xs font-medium transition ${
+            className={`px-3 py-1.5 text-xs font-semibold transition ${
               viewMode === "raw"
                 ? "bg-green-600 text-white"
                 : "bg-surface text-fg-muted hover:bg-elevated"
@@ -1074,173 +797,6 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
           </button>
         </div>
       </div>
-
-      {/* New event overlay modal */}
-      {showNew && (
-        <div className="fixed inset-0 z-[100] bg-black/60 dark:bg-black/80 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto flex items-center justify-center">
-          <div className="bg-surface dark:bg-zinc-900 border-0 sm:border border-line w-full h-full sm:h-auto sm:max-h-[95vh] sm:max-w-4xl lg:max-w-5xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
-            
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface dark:bg-zinc-900/50">
-              <h2 className="text-lg font-bold text-fg-strong">
-                {t("newEvent")}
-              </h2>
-              <button
-                type="button"
-                disabled={saving || extracting || annotating}
-                onClick={() => {
-                  if (saving || extracting || annotating) return;
-                  const isEdited = JSON.stringify(form) !== JSON.stringify(EMPTY_FORM);
-                  if (isEdited) {
-                    if (window.confirm(t("unsaved_confirm"))) {
-                      cancelNew();
-                    }
-                  } else {
-                    cancelNew();
-                  }
-                }}
-                className="text-fg-muted hover:text-fg-strong font-semibold p-1"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Scrollable Container */}
-            <div className="p-6 overflow-y-auto flex-1 space-y-6">
-              {/* Image poster extraction */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => posterFileRef.current?.click()}
-                    disabled={extracting}
-                    className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium hover:bg-elevated transition disabled:opacity-50 bg-surface dark:bg-zinc-850"
-                  >
-                    {extracting ? t("saving") : t("extractFromImage")}
-                  </button>
-                  <input
-                    ref={posterFileRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleExtractFromImage(file);
-                      e.target.value = "";
-                    }}
-                  />
-                  {extracting && (
-                    <span className="text-sm text-fg-muted font-medium animate-pulse">
-                      {t("extracting")}
-                    </span>
-                  )}
-                  {extractError && (
-                    <span className="text-sm text-red-500 font-semibold">
-                      {extractError}
-                    </span>
-                  )}
-                </div>
-
-                {posterPreview && (
-                  <div className="-mx-6 sm:mx-0 overflow-hidden sm:rounded-xl border border-line bg-surface relative group">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={posterPreview}
-                      alt="Poster preview"
-                      className="w-full max-h-96 object-contain bg-elevated/30"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setPosterPreview(null)}
-                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1.5 hover:bg-black/80 transition text-xs font-semibold cursor-pointer"
-                      title="移除海報"
-                    >
-                      ✕ 關閉
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {annotationError && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  <span>⚠</span>
-                  <span>{annotationError}</span>
-                </div>
-              )}
-
-              {enrichedReady && (
-                <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <span className="text-sm text-blue-700">{t("annotationDone")}</span>
-                  <button
-                    onClick={handlePublish}
-                    disabled={saving}
-                    className="ml-auto bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 font-medium cursor-pointer"
-                  >
-                    {saving ? "..." : t("publish")}
-                  </button>
-                </div>
-              )}
-
-              {/* Core Event Form */}
-              <AdminEventForm
-                form={form}
-                t={t}
-                tCat={tCat}
-                tEventForm={tEventForm}
-                updateField={updateField}
-                toggleCategory={toggleCategory}
-                events={events}
-                editingId={null}
-                locale={locale}
-              />
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-line bg-surface dark:bg-zinc-900/50">
-              <button
-                type="button"
-                onClick={() => {
-                  const isEdited = JSON.stringify(form) !== JSON.stringify(EMPTY_FORM);
-                  if (isEdited) {
-                    if (window.confirm(t("unsaved_confirm"))) {
-                      cancelNew();
-                    }
-                  } else {
-                    cancelNew();
-                  }
-                }}
-                disabled={annotating}
-                className="rounded-lg border border-line-strong px-4 py-2 text-sm font-semibold text-fg-muted hover:bg-elevated transition cursor-pointer"
-              >
-                {t("cancel")}
-              </button>
-              {ocrFilled ? (
-                <button
-                  onClick={handleSaveAndAnnotate}
-                  disabled={saving || annotating}
-                  className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer"
-                >
-                  {saving ? t("saving") : annotating ? (
-                    <span className="flex items-center gap-1.5">
-                      <span className="animate-pulse text-blue-200">●</span>
-                      {t("annotating")}{annotatingElapsed > 0 ? ` (${annotatingElapsed}s)` : ""}
-                    </span>
-                  ) : enrichedReady ? t("reannotate") : t("saveAndAnnotate")}
-                </button>
-              ) : (
-                <button
-                  onClick={handleSaveNew}
-                  disabled={saving}
-                  className="rounded-lg bg-green-600 hover:bg-green-700 px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer"
-                >
-                  {saving ? "..." : t("save")}
-                </button>
-              )}
-            </div>
-
-          </div>
-        </div>
-      )}
 
       {/* Sticky wrapper: filter bar + bulk action bar scroll together */}
       <div ref={filterBarRef} className="sticky top-14 z-20 space-y-2 mb-3">

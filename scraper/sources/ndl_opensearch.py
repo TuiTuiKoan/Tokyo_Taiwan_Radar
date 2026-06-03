@@ -10,8 +10,9 @@ Strategy:
   2. Paginate via &idx= (1-based offset) up to 500 results total
   3. Skip periodical issues client-side via link suffix -iNNNNN
   4. Taiwan relevance filter on title + description (client-side)
-  5. source_id: ndl_{trailing digits of dc:identifier} or ndl_{md5(link)[:12]}
-  6. start_date = end_date = publication date (UTC midnight)
+    5. source_id: ndl_{trailing digits of dc:identifier} or ndl_{md5(link)[:12]}
+    6. start_date = end_date = publication date (UTC midnight)
+    7. For book-publication records, map dc:publisher to organizer and dc:creator to performer.
 """
 
 import hashlib
@@ -180,6 +181,8 @@ class NdlOpensearchScraper(BaseScraper):
 
                 publisher_el = item.find("dc:publisher", NS)
                 organizer = _strip_null(_get_text(publisher_el)) or None
+                creator_el = item.find("dc:creator", NS)
+                performer = _strip_null(_get_text(creator_el)) or None
 
                 start_dt: Optional[datetime] = None
                 if issued_date is not None:
@@ -193,6 +196,8 @@ class NdlOpensearchScraper(BaseScraper):
                 raw_desc = _strip_null(description_raw) or ""
                 if organizer:
                     raw_desc = f"出版社: {organizer}\n\n{raw_desc}".strip()
+                if performer:
+                    raw_desc = f"著者: {performer}\n\n{raw_desc}".strip()
 
                 events.append(Event(
                     source_name=SOURCE_NAME,
@@ -208,10 +213,11 @@ class NdlOpensearchScraper(BaseScraper):
                     location_address=None,
                     location_prefectures=[],
                     category=["books_media"],
-                    event_form=["other"],
+                    event_form=["publication"],
                     name_ja_locked=True,
                     organizer=organizer,
                     organizer_type=["government"],
+                    performer=performer,
                 ))
 
             if len(items) < _PAGE_SIZE:
