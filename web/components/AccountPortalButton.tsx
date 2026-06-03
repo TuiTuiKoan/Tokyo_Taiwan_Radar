@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { createClient } from "@/lib/supabase/client";
 import type { Locale } from "@/lib/types";
 
 interface Props {
@@ -13,31 +12,11 @@ interface Props {
 export default function AccountPortalButton({ locale }: Props) {
   const t = useTranslations("home");
   const router = useRouter();
-  const supabase = createClient();
   const [loading, setLoading] = useState(false);
 
-  async function handleClick() {
+  function handleClick() {
     setLoading(true);
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        router.push(`/${locale}/auth/login`);
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from("creators")
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      router.push(profile ? `/${locale}/account` : `/${locale}/account/profile`);
-    } finally {
-      setLoading(false);
-    }
+    router.push(`/${locale}/account`);
   }
 
   return (

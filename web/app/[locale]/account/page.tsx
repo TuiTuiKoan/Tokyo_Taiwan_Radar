@@ -24,12 +24,17 @@ export default async function AccountPage({ params }: PageProps) {
     redirect(`/${locale}/auth/login`);
   }
 
-  const [{ data: profile }, { data: savedRows }, { data: ownRows }] = await Promise.all([
-    supabase
-      .from("creators")
-      .select("user_handle")
-      .eq("user_id", user.id)
-      .maybeSingle(),
+  const { data: profileRow } = await supabase
+    .from("creators")
+    .select("user_handle")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!profileRow?.user_handle) {
+    redirect(`/${locale}/account/profile`);
+  }
+
+  const [{ data: savedRows }, { data: ownRows }] = await Promise.all([
     supabase
       .from("saved_events")
       .select(`event_id, events(${EVENT_SELECT})`)
@@ -85,7 +90,7 @@ export default async function AccountPage({ params }: PageProps) {
           favoriteEvents={favoriteEvents}
           myEvents={myEvents}
           parentMap={parentMap}
-          hasProfile={Boolean(profile?.user_handle)}
+          hasProfile={Boolean(profileRow?.user_handle)}
         />
       </Suspense>
     </div>
