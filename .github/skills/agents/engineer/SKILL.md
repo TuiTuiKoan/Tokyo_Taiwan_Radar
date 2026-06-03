@@ -30,6 +30,7 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - For alert-driven automation, split into two stages: `triage` first, `auto-fix` second. Never mix high-risk remediation into the triage stage.
 - Keep high-risk classes (for example selector drift or source-structure breakage) in human-review only paths; safe auto-fix should only touch deterministic transforms.
 - Every LINE alert message must include a direct next action (exact workflow name + trigger mode). A warning without CTA is operational noise.
+- For publication-related pending QA, clean by source and status transition first. If a source is mixed-content like `eslite_spectrum`, keep the rule set conservative and do not fold promotional talk events into the same batch.
 
 ## Agent Handoff Reliability
 

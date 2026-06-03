@@ -53,6 +53,7 @@ git stash push -m "[BLOCKED] area: summary"  # 有外部依賴
 - Make the smallest correct change that satisfies the requirement
 - Run tests and check for errors after every significant change
 - Notify the user before: `git push`, DB migrations, secret changes, or Vercel deployments
+- For publication-related pending backlog cleanup, prefer a source-scoped one-off script with audited status transitions (`confirmed` / `dismissed`) instead of turning the fix into a generic QA engine; keep mixed sources like `eslite_spectrum` conservative.
 
 ## Token Permission Consistency
 

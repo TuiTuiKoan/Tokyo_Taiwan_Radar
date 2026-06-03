@@ -53,6 +53,7 @@ items = root.findall("{http://purl.org/rss/1.0/}item")
 
 ## 特殊規則
 
+- **出版事件欄位模板**: 書籍系は `location_name` / `location_address` / `business_hours` / `price_info` を `新書購買請洽各通路` に統一し、`performer` は作者、`organizer` は出版社名、`event_form = ["publication"]` を基本とする。著者イベントは内容に応じて別途 lecture 分流する。
 - **null-byte strip 必須**: 全外部テキストに `.replace("\x00", "")` を適用
 - **`tzinfo=timezone.utc`**: `datetime(y, m, d, tzinfo=timezone.utc)` を使用
 - `name_ja_locked = True`

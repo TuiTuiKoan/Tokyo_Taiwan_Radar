@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-06-04 — 出版相關 pending QA 批次清理改為單用途來源級腳本
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-04 | 出版來源 pending `event_reports` 長期堆積，後台數字無法靠既有安全 auto-fix 收斂 | 出版型語意與一般 QA 規則不一致，且 `eslite_spectrum` 屬混合型來源，若用通用引擎會誤把宣傳講座或展覽一起清掉 | 新增單用途 one-off 批次腳本，只處理 `ndl_opensearch`、`hanmoto`、`kawade_rss`、`eslite_spectrum`，並沿用 `confirmed` / `dismissed` 狀態流；`eslite_spectrum` 保守分流，宣傳講座不與出版事件硬綁 | **教訓：** 來源級 backlog 清理應維持單次、可追溯、最小作用範圍，不要再抽象成新的通用 QA 引擎；混合來源必須保守分流，否則會誤傷人工判斷項目。
+
+---
+
 ## 2026-06-03 - 首頁 Server Component 呼叫 client module 純函式導致 production render error
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

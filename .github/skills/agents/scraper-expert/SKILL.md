@@ -18,6 +18,13 @@ Read this at the start of every session before writing any scraper.
   - "Lecture discussing Japan's infrastructure legacy in Taiwan."
 - **Category Enrichment**: Events with direct Taiwan-Japan historical or biographical links (like Wansei artists) MUST include the `taiwan_japan` category in addition to `art`, `history`, etc.
 
+## Publication Backlog Cleanup Rule
+
+- Publication-related backlog must be handled as a **source-level one-off cleanup**, not as a generic QA engine.
+- Core publication sources (`ndl_opensearch`, `hanmoto`, `kawade_rss`) may be batch-confirmed or dismissed only after source-specific report_type review.
+- Mixed sources like `eslite_spectrum` must be treated conservatively: apply publication rules only when the event is clearly in book-release / publication / book-launch context; keep promotional lectures, exhibitions, and other ambiguous items for manual review.
+- Never convert publication cleanup into a permanent cross-source dismiss workflow. Use existing `qa_auto_fix.py`, `qa_heartbeat.py`, and `qa_triage.py` flow as the source of truth for status transitions.
+
 ## BaseScraper Contract
 - Every scraper must extend `BaseScraper` and implement `scrape() → list[Event]`.
 - `source_id` must be stable across runs — derive from URL slug or platform ID, never from title or list position.
