@@ -209,8 +209,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
             id="website_url"
             name="website_url"
             type="url"
-            value={form.website_url}
-            required
+            value={form.website_url ?? ""}
             onChange={(event) => setField("website_url", event.target.value)}
             className={controlClassName}
             placeholder={t("urlPlaceholder")}

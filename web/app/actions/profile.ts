@@ -19,7 +19,7 @@ export type ProfileInput = {
   organizer_name_zh: string;
   organizer_name_ja: string;
   organizer_name_en: string;
-  website_url: string;
+  website_url?: string | null;
   social_x?: string | null;
   social_instagram?: string | null;
   social_note?: string | null;
@@ -79,7 +79,7 @@ export async function saveProfile(input: ProfileInput): Promise<ProfileActionRes
   const organizerNameZh = text(input.organizer_name_zh);
   const organizerNameJa = text(input.organizer_name_ja);
   const organizerNameEn = text(input.organizer_name_en);
-  const websiteUrl = text(input.website_url);
+  const websiteUrl = optionalText(input.website_url);
   const category = optionalText(input.category);
 
   if (!userHandle) {
@@ -91,10 +91,7 @@ export async function saveProfile(input: ProfileInput): Promise<ProfileActionRes
   if (!organizerNameZh || !organizerNameJa || !organizerNameEn) {
     return { ok: false, error: "organizerNamesRequired" };
   }
-  if (!websiteUrl) {
-    return { ok: false, error: "websiteRequired" };
-  }
-  if (!isValidHttpUrl(websiteUrl)) {
+  if (websiteUrl && !isValidHttpUrl(websiteUrl)) {
     return { ok: false, error: "websiteInvalid" };
   }
   if (category && !isActorCategory(category)) {
@@ -113,7 +110,7 @@ export async function saveProfile(input: ProfileInput): Promise<ProfileActionRes
     organizer_name_zh: string;
     organizer_name_ja: string;
     organizer_name_en: string;
-    website_url: string;
+    website_url: string | null;
     avatar_url: string | null;
     category: ActorCategory | null;
     region: string | null;
