@@ -91,13 +91,13 @@ export default function EventShelf({ events, locale }: Props) {
         <div
           role="tablist"
           aria-label={t("shelfTitle")}
-          className="relative inline-flex items-center rounded-full bg-muted p-1 text-xs font-medium"
+          className="relative inline-flex items-center rounded-full bg-mascot-pink/20 p-1.5 text-xs font-medium"
         >
           <span
             aria-hidden
-            className="absolute top-1 bottom-1 left-1 rounded-full bg-surface dark:bg-elevated shadow-sm motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out"
+            className="absolute top-1 bottom-1 left-1 rounded-full bg-blush dark:bg-elevated shadow-sm motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out"
             style={{
-              width: `calc((100% - 0.5rem) / ${TABS.length})`,
+              width: `calc((100% - 0.75rem) / ${TABS.length})`,
               transform: `translateX(${TABS.indexOf(activeTab) * 100}%)`,
             }}
           />
@@ -111,11 +111,11 @@ export default function EventShelf({ events, locale }: Props) {
                 aria-selected={selected}
                 disabled={counts[key] === 0}
                 onClick={() => setTab(key)}
-                className={`relative z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap transition-colors hover:text-fg-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40 disabled:cursor-not-allowed ${
+                className={`relative z-10 inline-flex items-center gap-1.5 px-3 py-1.75 rounded-full whitespace-nowrap transition-colors hover:text-fg-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40 disabled:cursor-not-allowed ${
                   selected ? "text-fg-strong font-bold" : "text-fg-muted"
                 }`}
               >
-                {t(TAB_LABEL[key])}
+                <span className="relative -top-px">{t(TAB_LABEL[key])}</span>
                 <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-paper text-fg-muted text-[10px] leading-none">
                   {counts[key]}
                 </span>
