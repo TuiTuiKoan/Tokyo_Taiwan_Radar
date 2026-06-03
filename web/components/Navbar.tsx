@@ -175,6 +175,23 @@ export default function Navbar({ locale }: Props) {
     }
   }
 
+  async function handleLogout() {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+    setAccountOpen(false);
+    setMenuOpen(false);
+    setUser(null);
+    setIsAdmin(false);
+
+    try {
+      await fetch(logoutHref, { cache: "no-store" });
+      router.refresh();
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (accountRef.current && !accountRef.current.contains(e.target as Node)) {
@@ -284,18 +301,16 @@ export default function Navbar({ locale }: Props) {
               <div className="absolute right-0 top-10 min-w-[180px] rounded-xl border border-line bg-surface shadow-lg py-1 z-50">
                 {user ? (
                   <>
-                    <Link
-                      href={logoutHref}
-                      prefetch={false}
-                      aria-disabled={loggingOut}
+                    <button
+                      type="button"
+                      disabled={loggingOut}
                       onClick={() => {
-                        setLoggingOut(true);
-                        setAccountOpen(false);
+                        void handleLogout();
                       }}
                       className="flex items-center px-3 py-2 text-sm font-semibold text-mascot-red hover:bg-[#FFF2F4] dark:hover:bg-red-950/40 transition"
                     >
                       {t("logout")}
-                    </Link>
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -389,16 +404,16 @@ export default function Navbar({ locale }: Props) {
             </Link>
           )}
           {user && (
-            <Link
-              href={logoutHref}
+            <button
+              type="button"
+              disabled={loggingOut}
               onClick={() => {
-                setMenuOpen(false);
-                setLoggingOut(true);
+                void handleLogout();
               }}
               className="text-left px-3 py-2.5 rounded-md text-red-500 hover:bg-red-50 transition"
             >
               {t("logout")}
-            </Link>
+            </button>
           )}
         </div>
       </nav>
