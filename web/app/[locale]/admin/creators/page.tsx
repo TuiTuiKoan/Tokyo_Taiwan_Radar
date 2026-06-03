@@ -57,7 +57,7 @@ export default async function AdminCreatorsPage({ params }: PageProps) {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-4">{t("title")}</h1>
+      <h1 className="text-2xl font-bold mb-4">{t("creatorsPageTitle")}</h1>
 
       {/* Tab nav */}
 

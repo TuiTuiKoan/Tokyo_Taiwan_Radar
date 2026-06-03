@@ -100,7 +100,6 @@ export default function AdminWorkForm({ work, linkedEvents = [], locale, onSucce
         onSuccess();
       } else {
         router.push(`/${locale}/admin/works`);
-        router.refresh();
       }
     });
   }

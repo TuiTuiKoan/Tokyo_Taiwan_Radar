@@ -31,6 +31,7 @@ export default function OwnerCreateClient({ locale }: Props) {
 
   const posterFileRef = useRef<HTMLInputElement>(null);
   const busyStartedAtRef = useRef<number | null>(null);
+  const actionLockRef = useRef(false);
   const [busyElapsedMs, setBusyElapsedMs] = useState(0);
   const [, startTransition] = useTransition();
 
@@ -118,6 +119,8 @@ export default function OwnerCreateClient({ locale }: Props) {
   }
 
   async function handleAIAnnotate() {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     setAnnotationError(null);
     let eventId = savedEventId;
 
@@ -159,10 +162,13 @@ export default function OwnerCreateClient({ locale }: Props) {
       setAnnotationError(err.message || "Annotation failed");
     } finally {
       setAnnotating(false);
+      actionLockRef.current = false;
     }
   }
 
   async function handleSaveEvent() {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     setSaving(true);
     try {
       let res;
@@ -180,12 +186,12 @@ export default function OwnerCreateClient({ locale }: Props) {
       alert(t("saveSuccess"));
       startTransition(() => {
         router.push(`/${locale}/account`);
-        router.refresh();
       });
     } catch (e: any) {
       alert(e.message || t("saveFailed"));
     } finally {
       setSaving(false);
+      actionLockRef.current = false;
     }
   }
 

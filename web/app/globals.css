@@ -59,6 +59,12 @@
   --color-mocha: #3A261F;          /* warm brown (same as brand mocha) */
   --color-forest: #1F5E2B;         /* dark forest green */
 
+  /* Font stacks — kept local so Turbopack never needs Google font fetches. */
+  --font-display: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Kyokasho", "Noto Serif JP", serif;
+  --font-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-accent: "Bagel Fat One", "Zen Maru Gothic", cursive;
+
   /* Aliases kept for legacy references (do not remove) */
   --background: var(--color-bg);
   --foreground: var(--color-text);
@@ -217,6 +223,32 @@ html:has([data-site-bg]) body {
   textarea::placeholder {
     color: var(--color-text-subtle);
     opacity: 1;
+  }
+
+  button,
+  [role="button"],
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:focus:not(:focus-visible),
+  [role="button"]:focus:not(:focus-visible),
+  input[type="button"]:focus:not(:focus-visible),
+  input[type="submit"]:focus:not(:focus-visible),
+  input[type="reset"]:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
+  }
+
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  input[type="button"]:focus-visible,
+  input[type="submit"]:focus-visible,
+  input[type="reset"]:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
   }
 }
 

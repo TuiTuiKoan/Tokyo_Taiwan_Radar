@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 import DesignSelect from "@/components/DesignSelect";
 
 export interface ResearchSource {
@@ -105,17 +106,12 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function AdminSourcesTable({ sources, eventCountBySourceName = {} }: Props) {
   const t = useTranslations("admin");
+  const locale = useLocale();
   const supabase = createClient();
   const [filter, setFilter] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [keyword, setKeyword] = useState<string>("");
   const [sourceList, setSourceList] = useState<ResearchSource[]>(sources);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [creatorSlug, setCreatorSlug] = useState("");
-  const [creatorName, setCreatorName] = useState("");
-  const [creatorLocation, setCreatorLocation] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
   const [promotingId, setPromotingId] = useState<number | null>(null);
 
   // Immediate rescrape state
@@ -134,13 +130,6 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
   const [scheduleEdits, setScheduleEdits] = useState<Record<number, { times: number; hours: number[] }>>({});
   const [scheduleSaving, setScheduleSaving] = useState<number | null>(null);
   const [scheduleSaved, setScheduleSaved] = useState<Set<number>>(new Set());
-
-  // Type override editor (modal)
-  const [showTypeEditor, setShowTypeEditor] = useState(false);
-  const [draftOverrides, setDraftOverrides] = useState<Record<number, string>>({});
-  const [savingOverrides, setSavingOverrides] = useState(false);
-  const [editorSearch, setEditorSearch] = useState("");
-  const [editorCatFilter, setEditorCatFilter] = useState<Set<string> | null>(null); // null = 全選
 
   function toggleSelect(sourceKey: string) {
     setSelected((prev) => {
@@ -273,48 +262,6 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
     }
   }
 
-  async function handleAddCreator(e: React.FormEvent) {
-    e.preventDefault();
-    const slug = creatorSlug.trim().replace(/^https?:\/\/note\.com\/?/, "").replace(/\/$/, "");
-    if (!slug || !creatorName.trim()) return;
-    setAdding(true);
-    setAddError(null);
-
-    const url = `https://note.com/${slug}`;
-    const sourceProfile = creatorLocation.trim()
-      ? { location_name: creatorLocation.trim(), categories: ["taiwan_japan"] }
-      : { categories: ["taiwan_japan"] };
-
-    const { data, error } = await supabase
-      .from("research_sources")
-      .insert({
-        name: creatorName.trim(),
-        url,
-        status: "implemented",
-        agent_category: "social",
-        category: "taiwan_japan",
-        event_types: "台灣相關活動 (note.com RSS)",
-        source_profile: sourceProfile,
-        reason: `note.com 創作者 @${slug}，手動新增`,
-        url_verified: true,
-      })
-      .select()
-      .single();
-
-    setAdding(false);
-    if (error) {
-      setAddError(error.message);
-      return;
-    }
-    if (data) {
-      setSourceList((prev) => [data as ResearchSource, ...prev]);
-    }
-    setCreatorSlug("");
-    setCreatorName("");
-    setCreatorLocation("");
-    setShowAddForm(false);
-  }
-
   // 14-value source type list — must match supabase/migrations/067 + 068
   // Display labels are looked up via i18n namespace `sourceType`.
   const tType = useTranslations("sourceType");
@@ -425,258 +372,22 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
   return (
     <div>
       {/* Type map editor modal */}
-      {showTypeEditor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-line">
-              <h2 className="text-base font-semibold text-fg-strong">{t("sourcesEditTypeMapTitle")}</h2>
-              <button
-                onClick={() => setShowTypeEditor(false)}
-                className="text-fg-subtle hover:text-fg-muted text-xl leading-none"
-              >✕</button>
-            </div>
-            <div className="px-5 py-3 border-b border-line">
-              <input
-                type="search"
-                value={editorSearch}
-                onChange={(e) => setEditorSearch(e.target.value)}
-                placeholder="搜尋來源名稱…"
-                className="w-full h-8 border border-line rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
-            </div>
-            {/* Category filter checkboxes */}
-            <div className="px-5 py-2 border-b border-line flex flex-wrap gap-x-3 gap-y-1 items-center">
-              <button
-                onClick={() => setEditorCatFilter(null)}
-                className={`text-xs px-2 py-0.5 rounded-full border transition ${editorCatFilter === null ? "bg-green-600 text-white border-green-600" : "border-line text-fg-muted hover:border-green-400"}`}
-              >全選</button>
-              {Object.entries(SOURCE_TYPE_LABELS)
-                .filter(([k]) => k !== "all")
-                .map(([key, label]) => {
-                  const checked = editorCatFilter === null || editorCatFilter.has(key);
-                  return (
-                    <label key={key} className="flex items-center gap-1 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => {
-                          setEditorCatFilter((prev) => {
-                            // 從全選狀態開始：展開為全集再移除這個
-                            const base = prev === null
-                              ? new Set(Object.keys(SOURCE_TYPE_LABELS).filter((k) => k !== "all"))
-                              : new Set(prev);
-                            if (base.has(key)) {
-                              base.delete(key);
-                            } else {
-                              base.add(key);
-                            }
-                            // 若全部都勾了，回到 null（全選）
-                            const allCats = Object.keys(SOURCE_TYPE_LABELS).filter((k) => k !== "all");
-                            return base.size === allCats.length ? null : base;
-                          });
-                        }}
-                        className="rounded"
-                      />
-                      <span className={`text-xs ${checked ? "text-fg" : "text-fg-subtle"}`}>{label}</span>
-                    </label>
-                  );
-                })}
-            </div>
-            <div className="overflow-y-auto flex-1 px-5 py-3 space-y-1">
-              {sourceList
-                .filter((s) => {
-                  if (editorSearch && !s.name.toLowerCase().includes(editorSearch.toLowerCase()) && !String(s.id).includes(editorSearch)) return false;
-                  if (editorCatFilter !== null) {
-                    const effective = draftOverrides[s.id] ?? s.display_type ?? "other";
-                    if (!editorCatFilter.has(effective)) return false;
-                  }
-                  return true;
-                })
-                .sort((a, b) => {
-                  const ta = draftOverrides[a.id] ?? a.display_type ?? "other";
-                  const tb = draftOverrides[b.id] ?? b.display_type ?? "other";
-                  return ta.localeCompare(tb) || a.name.localeCompare(b.name);
-                })
-                .map((src) => {
-                  const effective = draftOverrides[src.id] ?? src.display_type ?? "other";
-                  const isOverridden = src.id in draftOverrides;
-                  return (
-                    <div key={src.id} className="flex items-center gap-3 py-1.5 border-b border-gray-50">
-                      <span className="text-xs text-fg-subtle w-6 text-right shrink-0">{src.id}</span>
-                      <span className={`text-sm flex-1 truncate min-w-0 ${isOverridden ? "font-medium text-green-800" : "text-fg"}`}>
-                        {src.url ? (
-                          <a
-                            href={src.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:underline"
-                            title={src.url}
-                          >
-                            {src.name}
-                          </a>
-                        ) : src.name}
-                      </span>
-                      <DesignSelect
-                        value={effective}
-                        onChange={(v) => setDraftOverrides((prev) => ({ ...prev, [src.id]: v }))}
-                        options={SOURCE_TYPE_KEYS.map((key) => ({
-                          value: key,
-                          label: SOURCE_TYPE_LABELS[key],
-                        }))}
-                        className="w-40 shrink-0"
-                        panelClassName="max-h-60"
-                      />
-                      {isOverridden && (
-                        <button
-                          onClick={() => setDraftOverrides((prev) => {
-                            const next = { ...prev };
-                            delete next[src.id];
-                            return next;
-                          })}
-                          className="text-xs text-fg-subtle hover:text-red-500 shrink-0"
-                          title="還原預設"
-                        >↩</button>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-            <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-line">
-              <span className="text-xs text-fg-subtle">
-                {Object.keys(draftOverrides).length} 筆已覆蓋
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowTypeEditor(false)}
-                  disabled={savingOverrides}
-                  className="text-xs px-4 py-1.5 bg-muted text-fg-muted rounded-lg hover:bg-gray-200 disabled:opacity-50 transition"
-                >取消</button>
-                <button
-                  onClick={async () => {
-                    const entries = Object.entries(draftOverrides);
-                    if (entries.length === 0) { setShowTypeEditor(false); return; }
-                    setSavingOverrides(true);
-                    const failed: number[] = [];
-                    for (const [idStr, dt] of entries) {
-                      const id = Number(idStr);
-                      try {
-                        const res = await fetch(`/api/admin/research-sources/${id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ display_type: dt }),
-                        });
-                        if (!res.ok) failed.push(id);
-                      } catch { failed.push(id); }
-                    }
-                    if (failed.length === 0) {
-                      setSourceList((prev) => prev.map((s) => (
-                        s.id in draftOverrides ? { ...s, display_type: draftOverrides[s.id] } : s
-                      )));
-                      setDraftOverrides({});
-                      setShowTypeEditor(false);
-                    } else {
-                      alert(`儲存失敗：${failed.length} 筆（IDs: ${failed.slice(0, 10).join(", ")}）`);
-                    }
-                    setSavingOverrides(false);
-                  }}
-                  disabled={savingOverrides}
-                  className="text-xs px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition font-medium"
-                >{savingOverrides ? "儲存中…" : "儲存"}</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Add note.com creator form */}
-      <div className="mb-4">
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="text-xs px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition font-medium"
-        >
-          ＋ {t("addNoteCreator")}
-        </button>
-
-        {showAddForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <form
-              onSubmit={handleAddCreator}
-              className="w-full max-w-lg max-h-screen overflow-y-auto rounded-xl border border-green-200 bg-surface p-4 sm:p-5 shadow-lg"
-            >
-              <h2 className="mb-2 text-base font-semibold text-fg">{t("addNoteCreator")}</h2>
-              <p className="mb-4 text-xs text-fg-muted">{t("addNoteCreatorHint")}</p>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-fg-muted">
-                    {t("addNoteCreatorSlug")} <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={creatorSlug}
-                    onChange={(e) => setCreatorSlug(e.target.value)}
-                    placeholder="kuroshio2026"
-                    required
-                    className="w-full rounded-lg border border-line px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                  />
-                  {creatorSlug.trim() && (
-                    <p className="mt-1 text-xs text-fg-subtle">
-                      → https://note.com/{creatorSlug.trim().replace(/^https?:\/\/note\.com\/?/, "").replace(/\/$/, "")}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-fg-muted">
-                    {t("addNoteCreatorName")} <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={creatorName}
-                    onChange={(e) => setCreatorName(e.target.value)}
-                    placeholder="黒潮ネット"
-                    required
-                    className="w-full rounded-lg border border-line px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-fg-muted">
-                    {t("addNoteCreatorLocation")}
-                  </label>
-                  <input
-                    type="text"
-                    value={creatorLocation}
-                    onChange={(e) => setCreatorLocation(e.target.value)}
-                    placeholder="東京都文京区"
-                    className="w-full rounded-lg border border-line px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                  />
-                </div>
-              </div>
-
-              {addError && (
-                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  {addError}
-                </div>
-              )}
-
-              <div className="mt-5 flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(false)}
-                  className="rounded-lg border border-line px-4 py-2 text-xs text-fg-muted hover:bg-muted transition"
-                >
-                  {t("cancel")}
-                </button>
-                <button
-                  type="submit"
-                  disabled={adding}
-                  className="rounded-lg bg-green-600 px-4 py-2 text-xs font-medium text-white hover:bg-green-700 transition disabled:opacity-50"
-                >
-                  {adding ? "…" : t("addNoteCreatorSubmit")}
-                </button>
-              </div>
-            </form>
+      <div className="mb-4 rounded-xl border border-line bg-surface p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-fg-strong">{t("creatorsPageTitle")}</p>
+            <p className="mt-1 text-sm text-fg-muted">
+              note creator 入口已統一到創辦者清單頁，可在那裡新增、停用或刪除帳號。
+            </p>
           </div>
-        )}
+          <Link
+            href={`/${locale}/admin/creators`}
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition shrink-0"
+          >
+            + {t("creatorsAdd")}
+          </Link>
+        </div>
       </div>
 
       {/* Filter dropdowns */}
@@ -729,17 +440,12 @@ export default function AdminSourcesTable({ sources, eventCountBySourceName = {}
           />
         </div>
         <span className="text-xs text-fg-subtle self-center">{filtered.length} 筆</span>
-        <button
-          onClick={() => {
-            setDraftOverrides({});
-            setEditorSearch("");
-            setEditorCatFilter(null);
-            setShowTypeEditor(true);
-          }}
+        <Link
+          href={`/${locale}/admin/creators`}
           className="ml-auto text-xs px-3 py-1.5 bg-elevated text-fg-muted border border-line rounded-lg hover:bg-muted transition"
         >
-          ✏️ {t("sourcesEditTypeMap")}
-        </button>
+          ✏️ {t("creatorsEdit")}
+        </Link>
       </div>
 
       {/* Bulk action bar */}

@@ -131,6 +131,14 @@ _TAIWAN_VENUE_RE = re.compile(
 
 _RELEASE_PATH_IDS_RE = re.compile(r"/(\d{9})\.(\d{9})\.html$")
 
+_PLACEHOLDER_TITLE_RE = re.compile(
+    r"^(?:" 
+    r"[\s\-—–_・・]*" 
+    r"|(?:\(|（)(?:未命名|無題|無標題)(?:\)|）)" 
+    r"|(?:未命名|無題|無標題)" 
+    r")[\s\-—–_・]*$"
+)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -242,6 +250,17 @@ def _build_source_id(release_id: int | str, company_id: int | str | None, releas
     return f"prtimes_{rid}"
 
 
+def _is_blank_or_placeholder_title(title: str) -> bool:
+    cleaned = (title or "").strip()
+    if not cleaned:
+        return True
+    if _PLACEHOLDER_TITLE_RE.match(cleaned):
+        return True
+    # Skip strings that contain no meaningful characters after removing common punctuation.
+    stripped = re.sub(r"[\s\-—–_・「」『』（）()【】\[\]…。，．、/]+", "", cleaned)
+    return not stripped
+
+
 def _fetch_detail(url: str, session: requests.Session) -> tuple[str, str]:
     """Fetch a PR detail page and return (body_text, raw_description).
 
@@ -334,6 +353,9 @@ class PrtimesScraper(BaseScraper):
                         continue
 
                     title = rel.get("title", "")
+                    if _is_blank_or_placeholder_title(title):
+                        logger.debug("Skip placeholder title: %s", title[:60])
+                        continue
                     # Must contain Taiwan keyword in title
                     if not _TAIWAN_KW.search(title):
                         continue

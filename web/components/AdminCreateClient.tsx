@@ -31,6 +31,7 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
 
   const posterFileRef = useRef<HTMLInputElement>(null);
   const busyStartedAtRef = useRef<number | null>(null);
+  const actionLockRef = useRef(false);
   const [busyElapsedMs, setBusyElapsedMs] = useState(0);
   const [, startTransition] = useTransition();
 
@@ -118,6 +119,8 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
   }
 
   async function handleAIAnnotate() {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     setAnnotationError(null);
     setAnnotating(true);
     let eventId = savedEventId;
@@ -154,10 +157,13 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
       setAnnotationError(err.message || "Annotation failed");
     } finally {
       setAnnotating(false);
+      actionLockRef.current = false;
     }
   }
 
   async function handleSaveEvent() {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     setSaving(true);
     try {
       const res = await createEventNoAnnotate(form);
@@ -170,12 +176,12 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
       alert("儲存成功");
       startTransition(() => {
         router.push(`/${locale}/admin`);
-        router.refresh();
       });
     } catch (e: any) {
       alert(e.message || "儲存失敗");
     } finally {
       setSaving(false);
+      actionLockRef.current = false;
     }
   }
 
@@ -215,7 +221,7 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
             disabled={extracting}
             className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium bg-paper hover:bg-elevated transition disabled:opacity-50 shadow-sm"
           >
-            {extracting ? "儲存中..." : t("extractFromImage") || "由海報提取資訊"}
+              {extracting ? t("extracting") || "解析中..." : t("extractFromImage") || "由海報提取資訊"}
           </button>
           <input
             type="file"
@@ -226,7 +232,7 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
           />
           {extracting && (
             <span className="text-sm text-fg-muted font-medium animate-pulse">
-              解析中...
+              {t("extracting") || "解析中..."}
             </span>
           )}
         </div>

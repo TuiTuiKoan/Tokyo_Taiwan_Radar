@@ -40,7 +40,8 @@ export default function SaveButton({ eventId, initialSaved, locale, compact = fa
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      window.location.href = `/${locale}/auth/login`;
+      const next = `${window.location.pathname}${window.location.search}`;
+      window.location.href = `/${locale}/auth/login?next=${encodeURIComponent(next)}`;
       return;
     }
 

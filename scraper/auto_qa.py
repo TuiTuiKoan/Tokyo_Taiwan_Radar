@@ -118,6 +118,10 @@ _ONLINE_ADDR_RE = re.compile(r'^オンライン$|^online$|^zoom$', re.IGNORECASE
 # Max raw_description length considered "thin content".
 THIN_CONTENT_MAX_LEN = 50
 
+PLACEHOLDER_TITLE_RE = re.compile(
+    r"^(?:[\s\-—–_・・]*|(?:\(|（)(?:未命名|無題|無標題)(?:\)|）)|(?:未命名|無題|無標題))[\s\-—–_・]*$"
+)
+
 QA_TYPES = (
     "auto_qa_simplified_zh",
     "auto_qa_missing_address",
@@ -213,6 +217,16 @@ def _is_online_or_tv(name: str | None) -> bool:
     if not name:
         return False
     return any(kw in name for kw in ADDRESS_SKIP_KEYWORDS)
+
+
+def _is_blank_or_placeholder_title(value: str | None) -> bool:
+    text = (value or "").strip()
+    if not text:
+        return True
+    if PLACEHOLDER_TITLE_RE.match(text):
+        return True
+    stripped = re.sub(r"[\s\-—–_・「」『』（）()【】\[\]…。，．、/]+", "", text)
+    return not stripped
 
 
 def _parse_ts(value: str | None) -> datetime | None:
@@ -871,10 +885,10 @@ def detect(event: dict) -> list[tuple[str, str]]:
         ))
 
     # 5. Missing title (name_ja is NULL — rare but fatal)
-    if not event.get("name_ja"):
+    if _is_blank_or_placeholder_title(event.get("name_ja")) or _is_blank_or_placeholder_title(event.get("raw_title")):
         findings.append((
             "auto_qa_missing_title",
-            f"name_ja 欠落 source={event.get('source_name')}",
+            f"title placeholder/missing source={event.get('source_name')} raw={str(event.get('raw_title') or '')[:40]!r}",
         ))
 
     # 6. Has location_address but missing location_prefectures (region filter broken)
@@ -914,7 +928,7 @@ def run(dry_run: bool = False) -> dict:
         .select(
             "id, updated_at, created_at, source_name, name_ja, name_zh, description_zh, "
             "category, location_name, location_name_zh, location_address, location_address_zh, "
-            "location_prefectures"
+            "location_prefectures, raw_title"
         )
         .eq("is_active", True)
         .gte("created_at", since)

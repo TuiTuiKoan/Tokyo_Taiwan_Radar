@@ -22,6 +22,7 @@ import time
 from datetime import datetime, timezone
 from html import unescape
 from urllib.error import URLError
+from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
 UTC = timezone.utc
@@ -194,6 +195,14 @@ _ARTIST_PROFILE_TITLE_NAME_RE = re.compile(
     r"^\s*([^（(]{1,80}?)\s*[（(]\s*([\u3400-\u9fff]{2,40})\s*[）)]"
 )
 _PROFILE_FETCH_TIMEOUT = 10
+_DDG_VENUE_SEARCH_TIMEOUT = 15
+_DDG_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
+    ),
+    "Accept-Language": "ja,en;q=0.9",
+}
 
 
 def _normalize_person_key(name: str | None) -> str:
@@ -222,6 +231,35 @@ def _fetch_html_title(url: str) -> str | None:
     title = unescape(m.group(1)).strip()
     title = re.sub(r"\s+", " ", title)
     return title or None
+
+
+def _search_venue_homepage(venue_name: str | None, address: str | None = None) -> str | None:
+    """Best-effort venue homepage lookup via DuckDuckGo HTML."""
+    if not venue_name:
+        return None
+    query_parts = [venue_name.strip()]
+    if address:
+        query_parts.append(address.strip())
+    query_parts.append("公式サイト")
+    query = " ".join(part for part in query_parts if part)
+    req = Request(
+        f"https://html.duckduckgo.com/html/?q={quote_plus(query)}",
+        headers=_DDG_HEADERS,
+    )
+    try:
+        with urlopen(req, timeout=_DDG_VENUE_SEARCH_TIMEOUT) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+    except Exception as exc:
+        logger.debug("venue homepage search failed %s: %s", venue_name, exc)
+        return None
+
+    for href in re.findall(r'href="(https?://[^"&]+)"', html):
+        if "duckduckgo.com" in href:
+            continue
+        if any(skip in href for skip in ("/l/?", "bing.com", "google.com", "yahoo.co.jp")):
+            continue
+        return href.rstrip("/")
+    return None
 
 
 def _extract_artistcafe_profile_name_map(text: str | None) -> dict[str, str]:
@@ -1917,6 +1955,10 @@ def annotate_pending_events(
                             and not event.get("business_hours")
                         ):
                             update_data["business_hours"] = _vh
+                    elif not update_data.get("location_url") and not event.get("location_url"):
+                        _venue_url = _search_venue_homepage(_loc_name_for_lookup, update_data.get("location_address") or event.get("location_address"))
+                        if _venue_url:
+                            update_data["location_url"] = _venue_url
 
             # Auto-sync location_prefectures from location_address.
             # Handles the case where location_address was manually FC-corrected but

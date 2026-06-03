@@ -64,6 +64,7 @@ export default function OwnerEditClient({ event, locale }: Props) {
 
   const posterFileRef = useRef<HTMLInputElement>(null);
   const busyStartedAtRef = useRef<number | null>(null);
+  const actionLockRef = useRef(false);
   const [busyElapsedMs, setBusyElapsedMs] = useState(0);
   const [, startTransition] = useTransition();
 
@@ -151,6 +152,8 @@ export default function OwnerEditClient({ event, locale }: Props) {
   }
 
   async function handleAIAnnotate() {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     setAnnotationError(null);
     setAnnotating(true);
     try {
@@ -181,10 +184,13 @@ export default function OwnerEditClient({ event, locale }: Props) {
       setAnnotationError(err.message || "Annotation failed");
     } finally {
       setAnnotating(false);
+      actionLockRef.current = false;
     }
   }
 
   async function handleSaveEvent() {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     setSaving(true);
     try {
       const res = await updateOwnerEvent(event.id, form);
@@ -197,12 +203,12 @@ export default function OwnerEditClient({ event, locale }: Props) {
       alert(t("saveSuccess"));
       startTransition(() => {
         router.push(`/${locale}/account`);
-        router.refresh();
       });
     } catch (e: any) {
       alert(e.message || t("saveFailed"));
     } finally {
       setSaving(false);
+      actionLockRef.current = false;
     }
   }
 
@@ -222,7 +228,7 @@ export default function OwnerEditClient({ event, locale }: Props) {
           ← {t("back") || "返回"}
         </button>
         <h1 className="text-2xl font-bold text-fg-strong">
-          {t("editingEvent") || "編輯活動"}
+          {t("editingEvent") || t("editEvent") || "編輯活動"}
         </h1>
         <div className="w-10" />
       </div>
@@ -236,7 +242,7 @@ export default function OwnerEditClient({ event, locale }: Props) {
             disabled={extracting}
             className="rounded-lg border border-line-strong px-4 py-2 text-sm font-medium bg-paper hover:bg-elevated transition disabled:opacity-50 shadow-sm"
           >
-            {extracting ? t("saving") : t("extract") || "由海報提取資訊"}
+              {extracting ? t("extracting") || "解析中..." : t("extract") || "由海報提取資訊"}
           </button>
           <input
             type="file"

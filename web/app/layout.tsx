@@ -11,16 +11,9 @@ export const metadata: Metadata = {
     default: "Tokyo Taiwan Radar",
   },
   icons: {
-    icon: "/lianbu-favicon.svg",
-    shortcut: "/lianbu-favicon.svg",
+    icon: "/lianbu-favicon.png",
+    shortcut: "/lianbu-favicon.png",
     apple: "/lianbu-favicon.png",
-    other: [
-      {
-        rel: "mask-icon",
-        url: "/lianbu-favicon.svg",
-        color: "#E84860",
-      },
-    ],
   },
 };
 
@@ -51,7 +44,7 @@ const websiteJsonLd = {
       url: BASE,
       logo: {
         "@type": "ImageObject",
-        url: `${BASE}/favicon.ico`,
+        url: `${BASE}/lianbu-favicon.png`,
         width: 32,
         height: 32,
       },
@@ -68,7 +61,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ja" className={fontVariables} suppressHydrationWarning>
+    <html lang="ja" className={fontVariables || undefined} suppressHydrationWarning>
       <head>
         {/*
           Anti-flash script: runs before first paint to apply the saved theme class.
