@@ -10,6 +10,7 @@ import { type Locale, LOCALES } from "@/lib/types";
 type NavbarUser = {
   id: string;
   email?: string | null;
+  displayName?: string | null;
 };
 
 interface Props {
@@ -301,13 +302,16 @@ export default function Navbar({ locale }: Props) {
               <div className="absolute right-0 top-10 min-w-[180px] rounded-xl border border-line bg-surface shadow-lg py-1 z-50">
                 {user ? (
                   <>
+                    <div className="w-full px-3 pt-2 pb-1 text-xs font-medium text-fg-subtle truncate">
+                      {user.displayName || user.email || ""}
+                    </div>
                     <button
                       type="button"
                       disabled={loggingOut}
                       onClick={() => {
                         void handleLogout();
                       }}
-                      className="flex items-center px-3 py-2 text-sm font-semibold text-mascot-red hover:bg-[#FFF2F4] dark:hover:bg-red-950/40 transition"
+                      className="w-full flex items-center px-3 py-2 text-sm font-semibold text-mascot-red text-left hover:bg-[#FFF2F4] dark:hover:bg-red-950/40 transition"
                     >
                       {t("logout")}
                     </button>
@@ -316,7 +320,7 @@ export default function Navbar({ locale }: Props) {
                       onClick={() => {
                         void goToMyEvents();
                       }}
-                      className="w-full flex items-center px-3 py-2 text-sm text-fg hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition text-left"
+                      className="w-full flex items-center px-3 py-2 text-sm text-fg text-left hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition"
                     >
                       {profileLoading ? t("loading") : tAccount("myEventsTab")}
                     </button>
@@ -324,7 +328,7 @@ export default function Navbar({ locale }: Props) {
                       href={`/${locale}/saved`}
                       prefetch={false}
                       onClick={() => setAccountOpen(false)}
-                      className="flex items-center px-3 py-2 text-sm text-fg hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition"
+                      className="w-full flex items-center px-3 py-2 text-sm text-fg text-left hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition"
                     >
                       {t("saved")}
                     </Link>
@@ -333,7 +337,7 @@ export default function Navbar({ locale }: Props) {
                   <Link
                     href={`/${locale}/auth/login`}
                     onClick={() => setAccountOpen(false)}
-                    className="flex items-center px-3 py-2 text-sm font-semibold text-mascot-red hover:bg-[#FFF2F4] dark:hover:bg-red-950/40 transition"
+                    className="w-full flex items-center px-3 py-2 text-sm font-semibold text-mascot-red text-left hover:bg-[#FFF2F4] dark:hover:bg-red-950/40 transition"
                   >
                     {t("login")}
                   </Link>

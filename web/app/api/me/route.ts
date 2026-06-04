@@ -14,8 +14,17 @@ export async function GET() {
     .select("role")
     .eq("user_id", user.id)
     .single();
+  const { data: creatorRow } = await supabase
+    .from("creators")
+    .select("user_handle")
+    .eq("user_id", user.id)
+    .maybeSingle();
   return NextResponse.json({
     isAdmin: roleRow?.role === "admin",
-    user: { id: user.id, email: user.email },
+    user: {
+      id: user.id,
+      email: user.email,
+      displayName: creatorRow?.user_handle || user.email,
+    },
   });
 }
