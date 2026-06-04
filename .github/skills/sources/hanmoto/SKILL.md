@@ -61,6 +61,7 @@ hanmoto は server-side で台湾検索済みのため、0 件は異常（scrape
 ## 特殊規則
 
 - **出版事件欄位模板**: `location_name` / `location_address` / `business_hours` / `price_info` 統一填 `新書購買請洽各通路`，`performer` 填作者，`organizer` は出版社名，`event_form = ["publication"]`。
+- **sync 規則**: 上記出版模板は `scraper/annotator.py::_PUBLICATION_SOURCES` の白名單と双方向同期する。hanmoto を出版來源として扱う規則は source SKILL と annotator の両方を同時に更新する。
 - **null-byte strip 必須**
 - **`tzinfo=timezone.utc`**: `datetime(y, m, d, tzinfo=timezone.utc)` を使用
 - `name_ja_locked = True`

@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-06-04 - 出版來源 re-annotation 白名單與 live schema 必須同步驗證
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-04 | `ndl_opensearch` / `hanmoto` 出版事件長期卡在 `annotation_status='error'`，`name_zh` / `name_en` 與出版模板欄位都沒補上；單筆 `hanmoto` 驗證時還撞上 live DB `events_event_form_check` | 兩層 drift 同時存在：① `scraper/annotator.py` 的出版模板白名單只硬編 `ndl_opensearch`，漏掉 `hanmoto` / `kawade_rss`；② live DB 尚未反映 migration `047_add_broadcast_event_form.sql`，不接受 `event_form=["publication"]` | 在 `annotator.py` 新增 `_PUBLICATION_SOURCES` 並讓出版模板 fallback 共用白名單；補一支 `_oneoff_reset_publication_error.py` 做 source-scoped reset + re-annotation，預設跳過任何有 `field_corrections` 的事件；同步更新 engineer/source SKILL，明訂白名單與 source 規則必須一起改 | 出版來源的修復不是只改 annotator prompt。每次 batch 前都要同時驗證三件事：`_PUBLICATION_SOURCES` 是否覆蓋目標來源、source SKILL 是否同步、live DB 是否已套 migration 047。少驗任一項，都會在全量時變成 silent miss 或 DB constraint failure。
+
+---
+
 ## 2026-06-04 - `OwnerCreateClient` targeted lint FAIL：effect 內 busy reset 與 `any` 洩漏
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

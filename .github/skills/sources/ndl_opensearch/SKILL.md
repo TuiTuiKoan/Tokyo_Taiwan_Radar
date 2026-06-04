@@ -47,6 +47,7 @@ Server-side の日付フィルタは NDL API が提供していないため省�
 ## 特殊規則
 
 - **出版事件欄位模板**: `location_name` / `location_address` / `business_hours` / `price_info` 統一填 `新書購買請洽各通路`，`performer` 填作者，`organizer` 視為出版社，`event_form = ["publication"]`。
+- **sync 規則**: 上記出版模板は `scraper/annotator.py::_PUBLICATION_SOURCES` の白名單と双方向同期する。出版來源を追加・削除する時は source SKILL と annotator 白名單を同一変更で更新する。
 - **null-byte strip 必須**: 全外部テキストに `.replace("\x00", "")` を適用
 - **`tzinfo=timezone.utc`**: JST-aware datetime 禁止。`datetime(y, m, d, tzinfo=timezone.utc)` を使用
 - `name_ja_locked = True`: 書名は NDL の確定値を保持する

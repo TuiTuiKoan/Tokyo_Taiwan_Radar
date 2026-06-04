@@ -51,6 +51,8 @@ from sources._cinema_constants import FIXED_CINEMA_SOURCES
 
 logger = logging.getLogger(__name__)
 
+_PUBLICATION_SOURCES = {"ndl_opensearch", "hanmoto", "kawade_rss"}
+
 # ---------------------------------------------------------------------------
 # Simplified → Traditional Chinese character-level conversion table.
 # GPT-4o-mini occasionally outputs SC chars even when instructed to use TC.
@@ -1769,7 +1771,7 @@ def annotate_pending_events(
                     if update_data.get("is_paid") is True and not update_data.get("price_info"):
                         update_data["price_info"] = "有料"
 
-                if _source_name == "ndl_opensearch":
+                if _source_name in _PUBLICATION_SOURCES:
                     publication_text = "新書購買請洽各通路"
                     if not update_data.get("location_name"):
                         update_data["location_name"] = publication_text
@@ -4054,6 +4056,7 @@ if __name__ == "__main__":
             fix_translations=fix_tr,
             fix_reviewed=fix_rev,
             event_id=event_id_arg,
+            event_ids=event_ids_list,
             dry_run=dry_run_flag,
         )
 
