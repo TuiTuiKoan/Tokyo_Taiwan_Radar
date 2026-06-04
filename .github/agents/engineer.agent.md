@@ -62,6 +62,8 @@ git stash push -m "[BLOCKED] area: summary"  # 有外部依賴
 - If a fix adds or force-writes an `event_form` value, treat it as a four-surface sync: DB constraint / migration, annotator logic, `web/lib/types.ts`, and `web/messages/*.json`. Do not hand off before confirming the page no longer renders a raw key.
 - For venue homepage problems, treat `location_url` as provenance-sensitive. The only acceptable auto-fix target is the venue's own official homepage; never promote `source_url`, `official_url`, or `organizer_url` into `location_url` just because a search hit looks plausible.
 - If a venue cannot be verified to have its own homepage, leave the QA report pending for human review. Ambiguous municipal/shared venues are especially prone to parent-site leakage.
+- For pending QA backlog cleanup, prefer `qa_heartbeat.py` over `qa_auto_fix.py` when the goal is to dispatch safe auto-fix handlers across `event_reports`. The `qa_auto_fix.py` CLI is only for its own maintenance batches, so a dry-run there does not represent the full backlog.
+- If the task only updates DB rows through QA tooling and does not touch tracked files, do not push or deploy. Report the result instead of forcing a code release.
 
 ## Token Permission Consistency
 
