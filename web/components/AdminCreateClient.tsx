@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { type Event, type Locale } from "@/lib/types";
 import { useRouter } from "next/navigation";
+import Button from "@/components/Button";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 import { createDraftEvent, createEventNoAnnotate } from "@/app/actions/admin-events";
 
@@ -199,13 +200,9 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
     <div className="mx-auto max-w-3xl space-y-6">
       {/* Navigation and Header */}
       <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="text-sm font-medium text-fg-muted hover:text-fg-strong transition"
-        >
+        <Button type="button" variant="ghost" onClick={handleCancel} className="px-0 py-0 text-sm font-medium">
           ← {t("back") || "返回"}
-        </button>
+        </Button>
         <h1 className="text-2xl font-bold text-fg-strong">
           {t("newEvent") || "新增活動"}
         </h1>
@@ -215,14 +212,16 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
       {/* Floating Poster Section */}
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <button
+          <Button
             type="button"
+            variant="secondary"
             onClick={() => posterFileRef.current?.click()}
             disabled={extracting}
-            className="inline-flex min-w-[10rem] items-center justify-center whitespace-nowrap rounded-lg border border-line-strong px-4 py-2 text-sm font-medium bg-paper hover:bg-elevated transition disabled:opacity-50 shadow-sm"
+            loading={extracting}
+            className="min-w-[10rem] shadow-sm"
           >
-              {extracting ? t("extracting") || "解析中..." : t("extractFromImage") || "由海報提取資訊"}
-          </button>
+            {t("extractFromImage") || "由海報提取資訊"}
+          </Button>
           <input
             type="file"
             ref={posterFileRef}
@@ -256,13 +255,9 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
       {annotationDone && (
         <div className="rounded-xl bg-green-500/10 border border-green-500/20 p-4 text-green-700 dark:text-green-300 text-sm font-semibold flex items-center justify-between">
           <span>{t("annotationDone") || "標注完成，請確認資料後發布"}</span>
-          <button
-            type="button"
-            onClick={() => setAnnotationDone(false)}
-            className="text-green-500 hover:text-green-700 dark:hover:text-green-100 font-bold px-1"
-          >
+          <Button type="button" variant="ghost" onClick={() => setAnnotationDone(false)} className="px-1 py-0 text-green-500 hover:text-green-700 dark:hover:text-green-100 font-bold">
             ✕
-          </button>
+          </Button>
         </div>
       )}
 
@@ -287,33 +282,18 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
 
       {/* Floating Save Actions Section */}
       <div className="flex items-center gap-3 pt-4 border-t border-line">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="rounded-lg border border-line-strong bg-paper px-4 py-2 text-sm font-semibold text-fg-muted hover:bg-elevated transition shadow-sm"
-        >
+        <Button type="button" variant="secondary" onClick={handleCancel} className="shadow-sm">
           {t("cancel")}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           onClick={ocrFilled ? handleAIAnnotate : handleSaveEvent}
           disabled={saving || extracting || annotating}
-          className={`inline-flex min-w-[11rem] items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 shadow-sm ${
-            ocrFilled
-              ? "bg-blue-600 hover:bg-blue-700"
-              : "bg-green-600 hover:bg-green-700"
-          }`}
+          loading={saving || annotating}
+          className={`min-w-[11rem] shadow-sm ${ocrFilled ? "bg-blue-600 hover:bg-blue-700" : ""}`}
         >
-          {ocrFilled ? (
-            annotating
-              ? `解析中... ${Math.floor(busyElapsedMs / 1000)} 秒`
-              : t("saveAndAnnotate") || "儲存並標注"
-          ) : (
-            saving
-              ? `儲存中... ${Math.floor(busyElapsedMs / 1000)} 秒`
-              : t("save")
-          )}
-        </button>
+          {ocrFilled ? t("saveAndAnnotate") || "儲存並標注" : t("save")}
+        </Button>
       </div>
     </div>
   );

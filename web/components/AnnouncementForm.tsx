@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { Announcement, SocialPlatform, Locale } from "@/lib/types";
 import type { Event } from "@/lib/types";
+import Button from "@/components/Button";
 import DesignSelect from "@/components/DesignSelect";
 
 const PLATFORMS: { key: SocialPlatform; label: string; color: string }[] = [
@@ -280,8 +281,9 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
             <div className="relative group rounded-lg overflow-hidden border border-line bg-elevated">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={coverImageUrl} alt="cover preview" className="w-full h-auto max-h-72 object-contain" />
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={handleDeleteImage}
                 disabled={deleting}
                 title="刪除圖片"
@@ -296,7 +298,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
                     <path fillRule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 0 1 3.878.512.75.75 0 1 1-.256 1.478l-.209-.035-1.005 13.07a3 3 0 0 1-2.991 2.77H8.084a3 3 0 0 1-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 0 1-.256-1.478A48.567 48.567 0 0 1 7.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 0 1 3.369 0c1.603.051 2.815 1.387 2.815 2.951Zm-6.136-1.452a51.196 51.196 0 0 1 3.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 0 0-6 0v-.113c0-.794.609-1.428 1.364-1.452Zm-.355 5.945a.75.75 0 1 0-1.5.058l.347 9a.75.75 0 1 0 1.499-.058l-.346-9Zm5.48.058a.75.75 0 1 0-1.498-.058l-.347 9a.75.75 0 0 0 1.5.058l.345-9Z" clipRule="evenodd" />
                   </svg>
                 )}
-              </button>
+              </Button>
             </div>
           )}
           {/* Cover image URL + upload */}
@@ -309,14 +311,16 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
               placeholder="https://..."
               className="flex-1 border border-line rounded-lg px-3 py-2 text-sm"
             />
-            <button
+            <Button
               type="button"
+              variant="secondary"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="inline-flex min-w-[7.5rem] items-center justify-center whitespace-nowrap shrink-0 text-xs px-3 py-2 border border-line-strong rounded-lg hover:bg-elevated disabled:opacity-50"
+              loading={uploading}
+              className="min-w-[7.5rem] shrink-0 text-xs"
             >
-              {uploading ? "上傳中…" : "📁 上傳"}
-            </button>
+              📁 上傳
+            </Button>
           </div>
           <input
             ref={fileInputRef}
@@ -409,13 +413,9 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
 
       {/* Save button */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
-        >
-          {saving ? tAdmin("save") + "…" : tAdmin("save")}
-        </button>
+        <Button type="button" onClick={handleSave} loading={saving} className="px-5">
+          {tAdmin("save")}
+        </Button>
         {saveError && <p className="text-sm text-red-600">{saveError}</p>}
       </div>
 
@@ -439,13 +439,9 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
                     options={LOCALES.map((l) => ({ value: l.key, label: l.label }))}
                     className="min-w-[8rem]"
                   />
-                  <button
-                    onClick={() => handlePublish(key)}
-                    disabled={isPublishing}
-                    className="px-3 py-1 text-xs bg-muted hover:bg-gray-200 rounded-lg disabled:opacity-50"
-                  >
-                    {isPublishing ? tAnn("publishing") : tAnn("publishNow")}
-                  </button>
+                  <Button type="button" variant="secondary" onClick={() => handlePublish(key)} loading={isPublishing} className="px-3 py-1 text-xs">
+                    {tAnn("publishNow")}
+                  </Button>
                   {statusBadge(key)}
                   {status?.status === "published" && status.post_id && (
                     <span className="text-xs text-fg-subtle font-mono">{status.post_id.slice(0, 20)}</span>

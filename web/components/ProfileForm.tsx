@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { saveProfile, type ProfileInput, type ProfileErrorCode } from "@/app/actions/profile";
+import Button from "@/components/Button";
 import DesignSelect from "@/components/DesignSelect";
 import { ACTOR_CATEGORIES, type ActorCategory } from "@/lib/actorTypes";
 import type { Locale } from "@/lib/types";
@@ -52,6 +53,7 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
   const router = useRouter();
   const supabase = createClient();
   const avatarInputId = "avatar_upload";
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const controlClassName = "w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500";
   const [form, setForm] = useState<ProfileInput>(() => ({
     ...emptyProfile(),
@@ -105,6 +107,16 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
     } finally {
       setAvatarUploading(false);
     }
+  }
+
+  function triggerAvatarUpload() {
+    avatarInputRef.current?.click();
+  }
+
+  async function handleAvatarInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    await handleAvatarUpload(file);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -283,19 +295,17 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
           </p>
           <input
             id={avatarInputId}
+            ref={avatarInputRef}
             type="file"
             accept="image/jpeg,image/png,image/webp"
             disabled={avatarUploading}
-            onChange={(event) => handleAvatarUpload(event.target.files?.[0] ?? null)}
+            onChange={handleAvatarInputChange}
             className="sr-only"
           />
           <div className="flex flex-wrap items-center gap-3">
-            <label
-              htmlFor={avatarInputId}
-              className="inline-flex min-w-[9.5rem] cursor-pointer items-center justify-center whitespace-nowrap rounded-lg border border-line-strong bg-paper px-4 py-2 text-sm font-medium text-fg hover:bg-elevated focus-within:outline-none focus-within:ring-2 focus-within:ring-green-500 transition disabled:opacity-60"
-            >
-              {avatarUploading ? t("saving") : t("avatarUploadButton")}
-            </label>
+            <Button type="button" variant="secondary" loading={avatarUploading} onClick={triggerAvatarUpload} className="min-w-[9.5rem] whitespace-nowrap">
+              {t("avatarUploadButton")}
+            </Button>
             <span className="text-xs text-fg-subtle">{t("avatarUploadHint")}</span>
           </div>
         </div>
@@ -316,20 +326,22 @@ export default function ProfileForm({ locale, initialProfile }: Props) {
       </section>
 
       <div className="flex justify-end gap-3">
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => router.push(`/${locale}/account`)}
-          className="rounded-lg border border-line-strong px-4 py-2 text-sm text-fg-muted hover:bg-elevated transition"
+          className="min-w-[5.5rem]"
         >
           {t("cancel")}
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
-          disabled={saving || avatarUploading}
-          className="inline-flex min-w-[9rem] items-center justify-center whitespace-nowrap rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition disabled:opacity-60"
+          loading={saving}
+          disabled={avatarUploading}
+          className="min-w-[9rem] whitespace-nowrap"
         >
-          {saving ? t("saving") : t("save")}
-        </button>
+          {t("save")}
+        </Button>
       </div>
     </form>
   );

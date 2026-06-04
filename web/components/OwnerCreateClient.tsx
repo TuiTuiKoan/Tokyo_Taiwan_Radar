@@ -5,6 +5,7 @@ import { flushSync } from "react-dom";
 import { useTranslations } from "next-intl";
 import { type Locale } from "@/lib/types";
 import { useRouter } from "next/navigation";
+import Button from "@/components/Button";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 import { createOwnerEvent, createOwnerDraft, updateOwnerEvent } from "@/app/actions/owner-events";
 
@@ -248,7 +249,7 @@ export default function OwnerCreateClient({ locale }: Props) {
       }
 
       if (!res.ok) {
-        setActionError(t(res.error) || t("saveFailed"));
+        setActionError(t(res.error) || res.error || t("saveFailed"));
         return;
       }
 
@@ -376,34 +377,18 @@ export default function OwnerCreateClient({ locale }: Props) {
 
       {/* Floating Save Actions Section */}
       <div className="flex items-center gap-3 pt-4 border-t border-line">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="rounded-lg border border-line-strong bg-paper px-4 py-2 text-sm font-semibold text-fg-muted hover:bg-elevated transition shadow-sm"
-        >
+        <Button type="button" variant="secondary" onClick={handleCancel} className="shadow-sm">
           {tAdmin("cancel")}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           onClick={ocrFilled ? handleAIAnnotate : handleSaveEvent}
           disabled={saving || extracting || annotating}
-          aria-busy={saving || annotating}
-          className={`inline-flex min-w-[11rem] items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 shadow-sm ${
-            ocrFilled
-              ? "bg-blue-600 hover:bg-blue-700"
-              : "bg-green-600 hover:bg-green-700"
-          }`}
+          loading={saving || annotating}
+          className={`min-w-[11rem] shadow-sm ${ocrFilled ? "bg-blue-600 hover:bg-blue-700" : ""}`}
         >
-          {ocrFilled ? (
-            annotating
-              ? `${t("extracting")} ${Math.floor(busyElapsedMs / 1000)}s`
-              : tAdmin("saveAndAnnotate") || "儲存並標注"
-          ) : (
-            saving
-              ? `${t("saving")} ${Math.floor(busyElapsedMs / 1000)}s`
-              : tAdmin("save")
-          )}
-        </button>
+          {ocrFilled ? tAdmin("saveAndAnnotate") || "儲存並標注" : tAdmin("save")}
+        </Button>
       </div>
     </div>
   );

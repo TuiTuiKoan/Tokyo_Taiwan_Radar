@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { type Event, type Locale } from "@/lib/types";
+import Button from "@/components/Button";
 import AdminEventForm, { type FormState } from "@/components/AdminEventForm";
 
 interface Props {
@@ -259,12 +260,9 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center gap-3">
-        <button
-          onClick={handleCancel}
-          className="text-sm font-medium text-fg-muted hover:text-fg-strong transition"
-        >
+        <Button type="button" variant="ghost" onClick={handleCancel} className="px-0 py-0 text-sm font-medium">
           ← {t("back")}
-        </button>
+        </Button>
         <h1 className="text-2xl font-bold text-fg-strong">{t("edit")}</h1>
       </div>
       <div className="space-y-6">
@@ -280,19 +278,12 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
           locale={locale}
         />
         <div className="flex gap-3 pt-4 border-t border-line">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 shadow-sm transition"
-          >
-            {saving ? `儲存中... ${Math.floor(busyElapsedMs / 1000)} 秒` : t("save")}
-          </button>
-          <button
-            onClick={handleCancel}
-            className="border border-line-strong bg-paper px-4 py-2 rounded-lg text-sm font-semibold hover:bg-elevated transition shadow-sm"
-          >
+          <Button type="button" loading={saving} onClick={handleSave} className="shadow-sm">
+            {t("save")}
+          </Button>
+          <Button type="button" variant="secondary" onClick={handleCancel} className="shadow-sm">
             {t("cancel")}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
