@@ -281,10 +281,20 @@ html:has([data-site-bg]) body {
     }
 
     /* Navbar icon buttons hold an SVG, not CJK text, so the centering nudge
-       above does not apply and only pushes the icon down — restore them. */
-    header button {
+       above does not apply and only pushes the icon down — restore them.
+       Scope to icon buttons only (`:has(> svg)`) so dropdown menu buttons,
+       which are also inside <header>, are NOT collapsed. */
+    header button:has(> svg) {
       padding-top: 0 !important;
       padding-bottom: 0 !important;
+    }
+
+    /* Account dropdown menu rows mix <button> and <a>; the asymmetric nudge
+       only hits the <button> rows and breaks row-height consistency. Restore
+       them to their native `py-2` so all rows share one line spacing. */
+    [role="menu"] button {
+      padding-top: 0.5rem !important;
+      padding-bottom: 0.5rem !important;
     }
   }
 }

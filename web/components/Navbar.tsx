@@ -299,7 +299,7 @@ export default function Navbar({ locale }: Props) {
             </button>
 
             {accountOpen && (
-              <div className="absolute right-0 top-10 min-w-[180px] rounded-xl border border-line bg-surface shadow-lg py-1 z-50">
+              <div role="menu" className="absolute right-0 top-10 min-w-[180px] rounded-xl border border-line bg-surface shadow-lg py-1 z-50">
                 {user ? (
                   <>
                     <div className="w-full px-3 pt-2 pb-1 text-xs font-medium text-fg-subtle truncate">
