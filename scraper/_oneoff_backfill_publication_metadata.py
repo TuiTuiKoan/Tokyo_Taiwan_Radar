@@ -19,8 +19,10 @@ import time
 
 from annotator import (
     _fetch_ndl_publication_context,
+    _fetch_publication_page_description,
     _get_supabase,
     _lock_fields_via_corrections,
+    _prefix_publication_name,
     _to_trad,
 )
 
@@ -47,12 +49,16 @@ def _with_retry(fetch_fn, *, label: str):
     raise RuntimeError(f"{label} failed after 3 attempts: {last_exc}") from last_exc
 
 
+def _compact_text(value: str | None) -> str:
+    return "".join((value or "").split())
+
+
 def _fetch_candidates(sb, sources: list[str], event_ids: list[str] | None, limit: int | None) -> list[dict]:
     rows = _with_retry(
         lambda: (
             sb.table("events")
             .select(
-                "id,source_name,name_ja,name_zh,name_en,organizer,location_name,location_address,business_hours,price_info,description_ja,description_zh,description_en,raw_description,is_active,event_form,annotation_status,source_url"
+                "id,source_name,name_ja,name_zh,name_en,organizer,location_name,location_address,business_hours,price_info,description_ja,description_zh,description_en,raw_description,is_active,event_form,annotation_status,source_url,official_url"
             )
             .eq("is_active", True)
             .in_("source_name", sources)
@@ -79,11 +85,16 @@ def _build_update(event: dict) -> dict:
     publication_text_zh = (context.get("publication_label_zh") or _PUBLICATION_PLACEHOLDER_ZH).strip()
     publication_text_en = (context.get("publication_label_en") or _PUBLICATION_PLACEHOLDER_EN).strip()
     raw_desc = (event.get("raw_description") or "").strip()
+    publication_page_url = (event.get("official_url") or event.get("source_url") or "").strip() or None
+    if publication_page_url:
+        fetched_desc = _fetch_publication_page_description(publication_page_url)
+        if fetched_desc:
+            raw_desc = fetched_desc
 
     update["event_form"] = ["publication"]
-    update["location_name"] = publication_text_ja
-    update["location_name_zh"] = publication_text_zh
-    update["location_name_en"] = publication_text_en
+    update["location_name"] = _prefix_publication_name(publication_text_ja)
+    update["location_name_zh"] = _prefix_publication_name(publication_text_zh)
+    update["location_name_en"] = _prefix_publication_name(publication_text_en)
     if raw_desc:
         update["description_ja"] = raw_desc
         update["description_zh"] = _to_trad(raw_desc)
@@ -94,10 +105,18 @@ def _build_update(event: dict) -> dict:
         current_name_zh = (event.get("name_zh") or "").strip()
         current_name_en = (event.get("name_en") or "").strip()
 
-        if current_name_ja and not current_name_ja.startswith("期刊專文："):
-            update["name_ja"] = f"期刊專文：{current_name_ja}"
-            update["name_zh"] = f"期刊專文：{current_name_zh or publication_text_ja}"
-            update["name_en"] = f"Periodical article: {current_name_en or publication_text_en}"
+        if current_name_ja:
+            update["name_ja"] = _prefix_publication_name(current_name_ja, periodical_label="期刊專文：")
+        if current_name_zh or publication_text_ja:
+            update["name_zh"] = _prefix_publication_name(
+                current_name_zh or publication_text_ja,
+                periodical_label="期刊專文：",
+            )
+        if current_name_en or publication_text_en:
+            update["name_en"] = _prefix_publication_name(
+                current_name_en or publication_text_en,
+                periodical_label="Periodical article: ",
+            )
 
         update["location_address"] = None
         update["location_address_zh"] = None
@@ -124,6 +143,12 @@ def _build_update(event: dict) -> dict:
         update["business_hours_en"] = publication_text_en
         if not event.get("price_info"):
             update["price_info"] = publication_text_zh
+        if event.get("name_ja"):
+            update["name_ja"] = _prefix_publication_name(event.get("name_ja"))
+        if event.get("name_zh"):
+            update["name_zh"] = _prefix_publication_name(event.get("name_zh"))
+        if event.get("name_en"):
+            update["name_en"] = _prefix_publication_name(event.get("name_en"))
 
     if source_name == "ndl_opensearch" and context.get("organizer") and not event.get("organizer"):
         update["organizer"] = context["organizer"]
@@ -136,11 +161,12 @@ def run(*, apply_changes: bool, sources: list[str], event_ids: list[str] | None,
     rows = _fetch_candidates(sb, sources, event_ids, limit)
 
     protected_fields: dict[str, set[str]] = {}
+    protected_values: dict[tuple[str, str], str] = {}
     if rows:
         fc_rows = _with_retry(
             lambda: (
                 sb.table("field_corrections")
-                .select("event_id,field_name")
+                .select("event_id,field_name,corrected_value")
                 .in_("event_id", [row["id"] for row in rows])
                 .execute()
                 .data
@@ -150,6 +176,7 @@ def run(*, apply_changes: bool, sources: list[str], event_ids: list[str] | None,
         )
         for row in fc_rows:
             protected_fields.setdefault(row["event_id"], set()).add(row["field_name"])
+            protected_values[(row["event_id"], row["field_name"])] = row.get("corrected_value") or ""
 
     planned: list[tuple[dict, dict]] = []
     for row in rows:
@@ -157,6 +184,13 @@ def run(*, apply_changes: bool, sources: list[str], event_ids: list[str] | None,
         if not update:
             continue
         blocked_fields = protected_fields.get(row["id"], set())
+        for repair_field in ("location_name", "location_address", "business_hours"):
+            if repair_field not in blocked_fields:
+                continue
+            locked_value = protected_values.get((row["id"], repair_field), "")
+            if _compact_text(locked_value) == _compact_text(_PUBLICATION_PLACEHOLDER_ZH) and _compact_text(update.get(repair_field)) == _compact_text(_PUBLICATION_PLACEHOLDER_JA):
+                blocked_fields = set(blocked_fields)
+                blocked_fields.discard(repair_field)
         safe_update = {key: value for key, value in update.items() if key not in blocked_fields}
         if safe_update:
             planned.append((row, safe_update))

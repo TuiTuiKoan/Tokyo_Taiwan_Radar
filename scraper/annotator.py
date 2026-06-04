@@ -19,6 +19,7 @@ import os
 import re
 import sys
 import time
+from functools import lru_cache
 from datetime import datetime, timezone
 from html import unescape
 from urllib.error import URLError
@@ -129,6 +130,103 @@ def _fetch_ndl_publication_context(source_url: str | None) -> dict[str, Any]:
         break
 
     return context
+
+
+def _normalize_publication_description_text(value: str | None) -> str | None:
+    if not value:
+        return None
+    lines = [re.sub(r"\s+", " ", line).strip() for line in value.splitlines()]
+    cleaned = "\n".join(line for line in lines if line).strip()
+    return cleaned or None
+
+
+def _prefix_publication_name(name: str | None, *, periodical_label: str | None = None) -> str | None:
+    if not name:
+        return name
+    prefix = "[新刊出版]"
+    cleaned = name.strip()
+    if cleaned.startswith(prefix):
+        cleaned = cleaned[len(prefix):].strip()
+    if periodical_label:
+        if cleaned.startswith(periodical_label):
+            cleaned = cleaned[len(periodical_label):].strip()
+        cleaned = f"{periodical_label}{cleaned}"
+    return f"{prefix}{cleaned}"
+
+
+def _iter_jsonld_nodes(value: Any):
+    if isinstance(value, dict):
+        yield value
+        for nested_key in ("@graph", "itemListElement"):
+            nested = value.get(nested_key)
+            if isinstance(nested, (dict, list)):
+                yield from _iter_jsonld_nodes(nested)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _iter_jsonld_nodes(item)
+
+
+def _extract_publication_description_from_soup(soup: BeautifulSoup) -> str | None:
+    for script in soup.select('script[type="application/ld+json"]'):
+        script_text = (script.string or script.get_text(" ", strip=True) or "").strip()
+        if not script_text:
+            continue
+        try:
+            payload = json.loads(script_text)
+        except Exception:
+            continue
+        for node in _iter_jsonld_nodes(payload):
+            if not isinstance(node, dict):
+                continue
+            description = node.get("description")
+            if isinstance(description, str):
+                cleaned = _normalize_publication_description_text(description)
+                if cleaned:
+                    return cleaned
+    for selector in (
+        'meta[property="og:description"]',
+        'meta[name="description"]',
+    ):
+        meta = soup.select_one(selector)
+        if meta and meta.get("content"):
+            cleaned = _normalize_publication_description_text(meta.get("content"))
+            if cleaned:
+                return cleaned
+    main = soup.select_one("main") or soup.select_one("article")
+    if main:
+        cleaned = _normalize_publication_description_text(main.get_text("\n", strip=True))
+        if cleaned:
+            return cleaned
+    body = soup.body
+    if body:
+        cleaned = _normalize_publication_description_text(body.get_text("\n", strip=True))
+        if cleaned:
+            return cleaned
+    return None
+
+
+@lru_cache(maxsize=256)
+def _fetch_publication_page_description(page_url: str | None) -> str | None:
+    if not page_url:
+        return None
+    try:
+        req = Request(
+            page_url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (compatible; TokyoTaiwanRadar/1.0; +https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar)"
+                ),
+                "Accept-Language": "ja,en;q=0.9",
+            },
+        )
+        with urlopen(req, timeout=_PROFILE_FETCH_TIMEOUT) as resp:
+            html = resp.read(600_000).decode("utf-8", errors="ignore")
+    except Exception as exc:
+        logger.debug("publication page description fetch failed %s: %s", page_url, exc)
+        return None
+
+    soup = BeautifulSoup(html, "html.parser")
+    return _extract_publication_description_from_soup(soup)
 
 # ---------------------------------------------------------------------------
 # Simplified → Traditional Chinese character-level conversion table.
@@ -1829,7 +1927,7 @@ def annotate_pending_events(
                     "annotated_at": datetime.utcnow().isoformat(),
                 }
                 # Cinema default pricing fallback policy
-                # If cinema-related event and not from Taiwan Cultural Center, default to paid ("有料")
+                # If cinema-related event and not from Taiwan Cultural Center, default to pricing label ("料金")
                 _is_cinema = False
                 _source_name = event.get("source_name") or ""
                 _event_form = update_data.get("event_form") or []
@@ -1854,7 +1952,7 @@ def annotate_pending_events(
                     if update_data.get("is_paid") is None:
                         update_data["is_paid"] = True
                     if update_data.get("is_paid") is True and not update_data.get("price_info"):
-                        update_data["price_info"] = "有料"
+                        update_data["price_info"] = "料金"
 
                 if _source_name in _PUBLICATION_SOURCES:
                     publication_context = (
@@ -1875,13 +1973,18 @@ def annotate_pending_events(
                         or _PUBLICATION_PLACEHOLDER_EN
                     )
                     publication_description_ja = _str(event.get("raw_description"))
+                    publication_page_url = _str(event.get("official_url")) or _str(event.get("source_url"))
+                    if publication_page_url:
+                        fetched_publication_description = _fetch_publication_page_description(publication_page_url)
+                        if fetched_publication_description:
+                            publication_description_ja = fetched_publication_description
                     publication_description_zh = _to_trad(publication_description_ja)
                     publication_description_en = publication_description_ja
                     if "event_form" not in _human_protected:
                         update_data["event_form"] = ["publication"]
-                    update_data["location_name"] = publication_text_ja
-                    update_data["location_name_zh"] = publication_text_zh
-                    update_data["location_name_en"] = publication_text_en
+                    update_data["location_name"] = _prefix_publication_name(publication_text_ja)
+                    update_data["location_name_zh"] = _prefix_publication_name(publication_text_zh)
+                    update_data["location_name_en"] = _prefix_publication_name(publication_text_en)
                     if publication_context.get("is_periodical"):
                         update_data["location_address"] = None
                         update_data["location_address_zh"] = None
@@ -1894,12 +1997,18 @@ def annotate_pending_events(
                             _PUBLICATION_PLACEHOLDER_EN,
                         }:
                             update_data["price_info"] = None
-                        if update_data.get("name_ja") and not update_data["name_ja"].startswith("期刊專文："):
-                            update_data["name_ja"] = f"期刊專文：{update_data['name_ja']}"
-                            if update_data.get("name_zh"):
-                                update_data["name_zh"] = f"期刊專文：{update_data['name_zh']}"
-                            if update_data.get("name_en"):
-                                update_data["name_en"] = f"Periodical article: {update_data['name_en']}"
+                        if update_data.get("name_ja"):
+                            update_data["name_ja"] = _prefix_publication_name(
+                                update_data["name_ja"], periodical_label="期刊專文："
+                            )
+                        if update_data.get("name_zh"):
+                            update_data["name_zh"] = _prefix_publication_name(
+                                update_data["name_zh"], periodical_label="期刊專文："
+                            )
+                        if update_data.get("name_en"):
+                            update_data["name_en"] = _prefix_publication_name(
+                                update_data["name_en"], periodical_label="Periodical article: "
+                            )
                         if publication_text_ja:
                             publication_description_ja = f"掲載誌：{publication_text_ja}\n\n{publication_description_ja}".strip()
                             publication_description_zh = f"刊載期刊：{publication_text_zh}\n\n{publication_description_zh}".strip()
@@ -1913,6 +2022,12 @@ def annotate_pending_events(
                         update_data["business_hours_en"] = publication_text_en
                         if not update_data.get("price_info"):
                             update_data["price_info"] = publication_text_zh
+                        if update_data.get("name_ja"):
+                            update_data["name_ja"] = _prefix_publication_name(update_data["name_ja"])
+                        if update_data.get("name_zh"):
+                            update_data["name_zh"] = _prefix_publication_name(update_data["name_zh"])
+                        if update_data.get("name_en"):
+                            update_data["name_en"] = _prefix_publication_name(update_data["name_en"])
                     if not update_data.get("organizer") and publication_context.get("organizer"):
                         update_data["organizer"] = publication_context["organizer"]
                     if not update_data.get("location_url"):
