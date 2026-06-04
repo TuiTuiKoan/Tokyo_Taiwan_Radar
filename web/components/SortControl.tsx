@@ -83,7 +83,7 @@ export default function SortControl({ value }: Props) {
             role="radio"
             aria-checked={selected}
             onClick={() => setSort(key)}
-            className={`flex-1 text-center relative z-10 px-1 sm:px-3 py-1.75 rounded-full whitespace-nowrap transition-colors hover:text-fg-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+            className={`flex-1 text-center relative z-10 px-1 sm:px-3 py-1.75 rounded-full whitespace-nowrap leading-none transition-colors hover:text-fg-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
               selected
                 ? "text-fg-strong font-bold"
                 : "text-fg-muted"
