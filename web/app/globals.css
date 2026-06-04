@@ -252,6 +252,18 @@ html:has([data-site-bg]) body {
   }
 }
 
+@supports (-webkit-touch-callout: none) {
+  @layer base {
+    button,
+    [role="button"],
+    [role="tab"],
+    [role="radio"],
+    a.inline-flex {
+      line-height: 1.2 !important;
+    }
+  }
+}
+
 /* Unified chevron arrow for FilterBar <select> elements */
 .select-arrow {
   appearance: none;
