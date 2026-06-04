@@ -46,9 +46,13 @@ const CONTENT_WHITE_LIST = [
   "price_amount",
   "price_currency",
   "price_info",
+  "source_url",
   "event_form",
   "category",
 ] as const;
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app";
+const OWNER_SUBMISSION_SOURCE_FALLBACK = `${SITE_URL}/ja/account`;
 
 function sanitizeOwnerForm(form: FormState, ownerUserId: string): Record<string, any> {
   const payload: Record<string, any> = {};
@@ -72,6 +76,8 @@ function sanitizeOwnerForm(form: FormState, ownerUserId: string): Record<string,
   payload.is_user_submitted = true;
   payload.is_active = true; // Auto-publish for UGC
   payload.annotation_status = "annotated"; // Skip scraper processing but mark as annotated
+
+  payload.source_url = payload.source_url || payload.organizer_url || payload.location_url || null;
   
   return payload;
 }
@@ -185,10 +191,15 @@ export async function createOwnerEvent(form: FormState): Promise<ActionResult<Ev
 
   // 4. Sanitize and prepare payload
   const payload = sanitizeOwnerForm(form, user.id);
+  const needsFallbackSourceUrl = !payload.source_url;
 
   // 5. Try insert with retry on source_id collision
   for (let attempt = 0; attempt < 2; attempt++) {
-    const row = { ...payload, source_id: genSourceId() };
+    const row = {
+      ...payload,
+      source_id: genSourceId(),
+      source_url: payload.source_url || OWNER_SUBMISSION_SOURCE_FALLBACK,
+    };
     const { data: inserted, error } = await serviceClient
       .from("events")
       .insert(row)
@@ -196,9 +207,22 @@ export async function createOwnerEvent(form: FormState): Promise<ActionResult<Ev
       .single();
 
     if (!error && inserted) {
+      if (needsFallbackSourceUrl) {
+        const canonicalSourceUrl = `${SITE_URL}/ja/events/${inserted.id}`;
+        const { error: sourceUrlError } = await serviceClient
+          .from("events")
+          .update({ source_url: canonicalSourceUrl })
+          .eq("id", inserted.id);
+        if (sourceUrlError) {
+          console.error("[createOwnerEvent] failed to backfill source_url", sourceUrlError);
+        } else {
+          (inserted as Event).source_url = canonicalSourceUrl;
+        }
+      }
       return { ok: true, data: inserted as Event };
     }
     if (error && error.code === "23505" && attempt === 0) continue;
+    console.error("[createOwnerEvent] insert failed", error);
     return { ok: false, error: error?.message ?? "saveFailed" };
   }
 
@@ -244,13 +268,18 @@ export async function createOwnerDraft(form: FormState): Promise<ActionResult<Ev
   const payload = sanitizeOwnerForm(form, user.id);
   payload.is_active = false;
   payload.annotation_status = "pending";
+  const needsFallbackSourceUrl = !payload.source_url;
 
   if (!payload.name_ja) {
     payload.name_ja = payload.name_zh?.trim() || payload.name_en?.trim() || "Draft Event";
   }
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const row = { ...payload, source_id: genSourceId() };
+    const row = {
+      ...payload,
+      source_id: genSourceId(),
+      source_url: payload.source_url || OWNER_SUBMISSION_SOURCE_FALLBACK,
+    };
     const { data: inserted, error } = await serviceClient
       .from("events")
       .insert(row)
@@ -258,12 +287,26 @@ export async function createOwnerDraft(form: FormState): Promise<ActionResult<Ev
       .single();
 
     if (!error && inserted) {
+      if (needsFallbackSourceUrl) {
+        const canonicalSourceUrl = `${SITE_URL}/ja/events/${inserted.id}`;
+        const { error: sourceUrlError } = await serviceClient
+          .from("events")
+          .update({ source_url: canonicalSourceUrl })
+          .eq("id", inserted.id);
+        if (sourceUrlError) {
+          console.error("[createOwnerDraft] failed to backfill source_url", sourceUrlError);
+        } else {
+          (inserted as Event).source_url = canonicalSourceUrl;
+        }
+      }
       return { ok: true, data: inserted as Event };
     }
     if (error && error.code === "23505" && attempt === 0) continue;
+    console.error("[createOwnerDraft] insert failed", error);
+    return { ok: false, error: error?.message ?? "saveFailed" };
   }
 
-  return { ok: false, error: "saveFailed" };
+  return { ok: false, error: "source_id_conflict" };
 }
 
 export async function updateOwnerEvent(
