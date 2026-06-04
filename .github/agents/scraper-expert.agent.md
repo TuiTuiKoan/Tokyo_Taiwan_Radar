@@ -44,6 +44,7 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 - For new sources: create `scraper/sources/<source_name>.py` extending `BaseScraper`
 - For bugs: isolate the failing tier (date extraction, selector, dedup key) and fix the smallest unit
 - Validate with `--dry-run` before handing off to Tester
+- After fixing venue or address issues, verify every user-facing surface that renders the same event, including narrative summary, FAQ, calendar export, and address card, so postal codes and other display-only artifacts stay consistent.
 
 ## hanmoto publication-specific
 
@@ -51,6 +52,7 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 - `official_url` should point to the book's official detail page when available.
 - `organizer_url` should point to the publisher home page.
 - `location_name` stays null for publication events; `location_address` keeps the placeholder text and must not become a Maps target.
+- If a publication placeholder is shown in the UI, use locale-matched strings for `location_name`, `location_address`, and `business_hours` so Japanese pages do not show Chinese fallback text.
 - For hanmoto date fallback, prefer `発売日` first and `登録日` second.
 
 ## Required Phases

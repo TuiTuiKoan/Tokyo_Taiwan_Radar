@@ -29,6 +29,7 @@ _MAX_PAGES = 3
 _PAGE_SIZE = 20
 _CUTOFF_DAYS = 365
 _PLACEHOLDER_TEXT = "新書購買請洽各通路"
+_PLACEHOLDER_TEXT_EN = "Please check each sales channel to purchase this new book."
 
 TAIWAN_KEYWORDS = [
     "台湾", "臺灣", "Taiwan", "台北", "台南", "台中", "高雄",
@@ -92,6 +93,17 @@ def _extract_detail_field(text: str, labels: tuple[str, ...]) -> Optional[str]:
             value = _clean_text(m.group(1).splitlines()[0])
             if value:
                 return value
+    return None
+
+
+def _extract_detail_link(text: str, labels: tuple[str, ...], base_url: str) -> Optional[str]:
+    for label in labels:
+        m = re.search(rf"{re.escape(label)}\s*[:：]?\s*(https?://[^\s\)）]+)", text)
+        if m:
+            return m.group(1).rstrip(".,、)")
+        m = re.search(rf"{re.escape(label)}\s*[:：]?\s*(/[^\s\)）]+)", text)
+        if m:
+            return urljoin(base_url, m.group(1).rstrip(".,、)"))
     return None
 
 
@@ -200,8 +212,8 @@ class HanmotoScraper(BaseScraper):
 
                         detail_text = _clean_text(detail_text) or ""
                         performer = _extract_detail_field(detail_text, ("著者", "作者", "編者", "訳者"))
-                        official_url = _extract_detail_field(detail_text, ("書籍詳細", "商品ページ", "公式サイト"))
-                        organizer_url = _extract_detail_field(detail_text, ("出版社サイト", "出版社", "出版元サイト"))
+                        official_url = _extract_detail_link(detail_text, ("書籍詳細", "商品ページ", "公式サイト", "詳細ページ"), "https://www.hanmoto.com")
+                        organizer_url = _extract_detail_link(detail_text, ("出版社サイト", "出版社", "出版元サイト"), "https://www.hanmoto.com")
                         price_info = _extract_detail_field(detail_text, ("定価", "価格", "本体価格"))
 
                         # Publication date — find span containing '発売' + year pattern
@@ -238,7 +250,7 @@ class HanmotoScraper(BaseScraper):
                             original_language="ja",
                             name_ja=_strip_null(title) or None,
                             raw_title=_strip_null(title) or None,
-                            raw_description=None,
+                            raw_description=detail_text or None,
                             start_date=start_dt,
                             end_date=end_dt,
                             location_name=None,
@@ -255,6 +267,10 @@ class HanmotoScraper(BaseScraper):
                             price_info=_clean_text(price_info) or _PLACEHOLDER_TEXT,
                             organizer_type=["media"],
                             business_hours=_PLACEHOLDER_TEXT,
+                            business_hours_zh=_PLACEHOLDER_TEXT,
+                            business_hours_en=_PLACEHOLDER_TEXT_EN,
+                            location_address_zh=_PLACEHOLDER_TEXT,
+                            location_address_en=_PLACEHOLDER_TEXT_EN,
                             location_url=None,
                         ))
                     except Exception as exc:

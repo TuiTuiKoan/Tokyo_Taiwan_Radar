@@ -5,6 +5,11 @@
 - publication 事件の address は Maps 用ではなく占位文字として扱う方針を明記。
 - `performer` / `organizer_url` / `official_url` の補完ルールを source skill 側でも統一。
 
+## 2026-06-04 — publication placeholders locale sync
+
+- 日本語 UI の既定占位文は `新刊のご購入は各販売チャネルでお願いします`。
+- publication の占位文字は `location_name` / `location_address` / `business_hours` すべて locale ごとに一致させる。
+
 ## 2026-05-31 — 初版実装
 
 - 新規スクレイパー（Publication Intel 計画 v3.1）

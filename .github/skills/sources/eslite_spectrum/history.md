@@ -9,6 +9,12 @@ Newest at top.
 - Added a publication-specific note so placeholder addresses stay display-only and do not become map links.
 - Aligned the publication field roles with the shared scraper rules: `performer`, `organizer_url`, and `official_url`.
 
+## 2026-06-04 — publication placeholders locale sync
+
+- Publication placeholders now stay locale-matched across `location_name`, `location_address`, and `business_hours`.
+- Japanese UI uses `新刊のご購入は各販売チャネルでお願いします` as the default placeholder.
+- The Japanese UI should not show Chinese fallback text for publication display placeholders.
+
 
 ## 2026-04-26 — 誠品 keyword false positive issue
 

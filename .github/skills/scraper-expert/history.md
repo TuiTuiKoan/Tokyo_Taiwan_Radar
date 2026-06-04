@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-06-04 — Event detail venue display must strip postal codes consistently
+
+**問題：** 事件詳情頁在不同區塊對同一地址的展示不一致，會將 `〒` 郵遞區號直接顯示在敘述摘要、FAQ、行事曆地點等位置，造成使用者看到的 venue/address 文案混雜。
+
+**根本原因：** 前端只在地址表格的其中一段做了 `stripPostal()`，但摘要段落、Add to Calendar 位置與 FAQ 回答仍直接使用原始 `location_address`。
+
+**修正：** 新增單一 `displayLocationAddress` 顯示值，並將敘述摘要、FAQ 與行事曆地點全部改用同一個去郵遞區號後的字串。
+
+**教訓：** 任何 user-facing 的 venue/address 顯示都應先收斂到同一個 display helper，再分別餵給摘要、FAQ、卡片、行事曆與地圖連結，否則同一事件會在不同區塊出現不同地址格式。
+
+## 2026-06-04 — publication 占位字串要依語系輸出，會場/通路欄位不得連 Maps
+
+**問題：** publication 類事件的 `location_name`、`location_address`、`business_hours` 需要保留占位文字供 UI 顯示，但日文模式下若直接保留中文，會造成語系混雜；同時會場欄也不應再產生 Google Maps 連結。
+
+**修正：**
+- publication 的占位文字改為依語系輸出，`ja/zh/en` 分別填入對應文案。
+- `location_name` 與 `location_address` 都保留占位文字，但前端對 publication 類事件一律以純文字顯示，不轉 Maps。
+- `business_hours` 也同步改為三語占位文案，避免 UI 出現中日混排。
+
+**教訓：** publication 類事件的「展示字串」與「可點擊地圖地址」是兩個不同概念，且必須跟 locale 一起處理，不能只做單語占位。
+
 ## 2026-06-04 — publication 地址占位與 hanmoto 回填規則同步
 
 **問題：** publication 類事件需要保留 `location_address` 占位文字供前端顯示，但不應生成 Google Maps 連結；同時 hanmoto 單筆熱修需要補齊作者、官方頁、出版社頁、價格與日期 fallback。

@@ -57,6 +57,7 @@ Read this at the start of every session before writing any scraper.
 - **Keyword-filtered description scan silently hides structured fields:** If `_fetch_detail*` only collects paragraphs containing Taiwan keywords (`台湾/Taiwan`), any structured field in a non-keyword section — lecturer `<h3>`, schedule table, venue `備考` row — will never be captured. Always scan the full detail page with separate passes for each structured field type (table rows, headings) **independent of keyword filtering**. (Incident: `asahiculture` performer `村山 秀太郎` extracted as `"記"`, 2026-05-15.)
 - **`location_address ≠ location_name` rule (ALL scrapers):** `location_address` must NEVER equal `location_name`. When a scraper has a single combined "location" field, parse it: venue name → `location_name`, street address (using `_ADDR_RE`: `〒` or prefecture+city+street pattern) → `location_address`. If no real street address can be extracted, set `location_address = None`. This is enforced by `auto_qa_address_is_venue_name` detector. Also note: `_ai_or_existing()` in annotator preserves non-null DB values, so a scraper writing the wrong value cannot be corrected by the annotator.
 - **Publication events keep placeholder address text, not maps URLs:** For `event_form=["publication"]`, keep `location_name = None`, preserve a neutral placeholder in `location_address` / `business_hours`, and never emit Google Maps links for that address in the detail page.
+- **Publication placeholder text is locale-aware:** When publication entries use display placeholders, fill `*_zh` and `*_en` with matching translations instead of leaving mixed-language fallback text in a Japanese UI.
 - **Publication source sync:** `_PUBLICATION_SOURCES` and each publication-style scraper must stay in sync. `performer` = author, `organizer_url` = publisher homepage, `official_url` = book detail/official page, and hanmoto date fallback order is `発売日 > 登録日`.
 - **Fixed-venue scrapers (cinema, gallery, theater) MUST set `organizer=` and `organizer_type=["commercial_brand"]`:** `location_name` is stored in DB and shown in the venue column, but it does NOT appear in the admin event card. The 🏢 venue line in the event card is powered by the `organizer` field. A fixed-venue scraper that sets only `location_name` without `organizer` produces events that look venue-less in the admin list. Correct pattern (see `kyoto_cinema.py`, `kino_shinsaibashi.py`, `sakurazaka.py`):
   ```python
@@ -131,6 +132,9 @@ Read this at the start of every session before writing any scraper.
    在 `annotator.py` AI enrichment 過程中，針對電影院類別（`event_form` 含有 `screening` 或 `screening_with_talk`，或 `category` 是 `movie`，或 `source_name` 符合電影院來源（如 `cinema`, `cinemart`, `cineswitch`, `eurospace`, `human_trust`, `bungeiza`, `cinemarine`, `morc`））：
    - 若 `is_paid` 為空，且**非**台灣文化中心（`source_name="taiwan_cultural_center"` 或 organizer 含有台灣文化中心）主辦，預設為 `is_paid = True`（有料）。
    - 若 `is_paid` 為 `True` 且 `price_info` 為空白，預設為 `price_info = "有料"`，避免前台因沒有票價顯示留空或破圖。
+
+3. **Venue/address display must be normalized once**:
+  When an address contains a postal prefix such as `〒123-4567`, create one cleaned display string and reuse it across every user-facing surface that renders the same event. The narrative summary, FAQ answer, calendar export, and address card must all use the same cleaned value. Keep the raw address only for map/search queries when needed.
 
 ## ⚡ Combined Post-Build Audit — 新規 scraper 完成後に必ず実行
 

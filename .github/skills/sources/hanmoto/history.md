@@ -6,6 +6,12 @@
 - 詳細ページから `performer` / `official_url` / `organizer_url` / `price_info` を補完する方針を明記。
 - 日付 fallback を `発売日 > 登録日` に固定。
 
+## 2026-06-04 — publication placeholders locale sync
+
+- publication の占位文字は `location_name` / `location_address` / `business_hours` すべて locale に合わせて出し分ける。
+- 日本語 UI の既定占位文は `新刊のご購入は各販売チャネルでお願いします`。
+- 日本語 UI で中国語の占位文字が残らないよう、`*_zh` / `*_en` も同時に埋める。
+
 ## 2026-05-31 — 初版実装
 
 - 新規スクレイパー（Publication Intel 計画 v3.1）

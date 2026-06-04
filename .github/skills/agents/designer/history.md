@@ -1,3 +1,32 @@
+## 2026-06-04 — Safari 控制項 CJK 文字置中偏高：偵測式錯誤 + 對齊連帶影響三類元素
+
+**問題：**
+1. 首頁膠囊（segmented tab）、排序按鈕、下拉選單在 Safari 的 CJK 文字渲染比 Chrome 偏高（未置中）。
+2. 先前已連續推 4 次 Safari-only padding / translateY 微調，但在 Safari **完全沒有視覺變化**。
+3. 改用正確偵測式後修好膠囊文字，卻陸續引發三處連帶副作用：膠囊內數字徽章（37 / 1）被推太低、navbar 右上三個 icon 被壓低、「キーワード検索」搜尋框 placeholder 沒跟著下移。
+
+**根因：**
+1. **偵測式錯誤（核心）**：舊規則用 `@supports (-webkit-touch-callout: none)`。`-webkit-touch-callout` 是 **iOS 專用**屬性，桌面 macOS Safari **不支援**，所以該條件對桌面 Chrome 與桌面 Safari **皆不成立** → 整段規則靜默失效，4 次微調全部沒套到使用者的 Safari。
+2. **對齊 hack 的連帶影響**：Safari-only 非對稱 padding 會推動整個 flex 內容與所有命中選取器的元素：
+   - flex 內已置中的數字徽章被一起下推
+   - navbar `w-8 h-8` 的 SVG icon button（無 CJK 文字）也被命中下推
+   - `input[type="search"]` 不在選取器內，placeholder 沒被下移
+
+**修正：**
+1. 改用 `@supports (-webkit-hyphens: none)`（桌面 + iOS Safari 都成立、Chrome 不成立）。用 Chromium 跑 `CSS.supports()` 實測驗證 Chrome 回報 `false` 後才套用（不盲猜）。
+2. 收斂成單一機制：只用非對稱 padding（上 +2px / 下 −2px），移除從未生效的 padding+translateY 雙重位移。
+3. 逐一修正連帶影響：
+   - 數字徽章：`[role="tab"]/[role="radio"] span.rounded-full { transform: translateY(-2px); }`（靠 `rounded-full` 區分徽章與文字 label）
+   - navbar icon：`header button { padding-top/bottom: 0 !important; }` 還原
+   - 搜尋框：把 `input[type="search"]` 加進選取器
+
+**教訓：**
+- **Safari-only 偵測必須用 `@supports (-webkit-hyphens: none)`，絕不可用 `-webkit-touch-callout: none`**（後者僅 iOS）。「沒有任何視覺變化」往往代表規則根本沒命中，而非位移量不夠 — 應先驗證偵測式是否成立，而非繼續加大數值。
+- **不要盲猜**：跨瀏覽器條件用 `CSS.supports()` 在 Chromium 實測確認 Chrome 被排除，再動手。
+- **對齊 hack 套用後務必檢查三類連帶影響**：①flex 內已置中的子元素 ②同選取器但無文字的元素（icon button）③漏網的同類控制項（search input）。
+
+---
+
 ## 2026-06-04 — 解決「未命名」活動異常卡片與最佳化常設/長期活動分類邏輯
 
 **問題：**

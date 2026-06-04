@@ -361,6 +361,16 @@ interface MascotAvatarProps {
 > - Keyframes：可見期（通常 17–22%）設 `visibility: visible`，其餘設 `visibility: hidden`
 > - SVG attribute：同步加 `visibility="hidden"` 作為 CSS 載入前的雙重防護（CSS animation specificity > SVG presentation attribute，`visibility: visible` keyframe 可正確覆寫）
 
+> ⚠️ **Safari-only 偵測必須用 `@supports (-webkit-hyphens: none)`，不可用 `-webkit-touch-callout: none`** — `-webkit-touch-callout` 是 **iOS 專用**屬性，桌面 macOS Safari **不支援**，因此 `@supports (-webkit-touch-callout: none)` 對桌面 Chrome 與桌面 Safari **皆不成立**，整段規則靜默失效（曾連續 4 次微調 padding/translateY 完全無視覺變化）。正確偵測：
+> - 桌面 + iOS Safari 都成立、Chrome 不成立的條件是 `@supports (-webkit-hyphens: none)`
+> - 驗證方法（不要盲猜）：用 Chromium 跑 `CSS.supports('-webkit-touch-callout','none')` → `false`、`CSS.supports('-webkit-hyphens','none')` → `false`，確認 Chrome 被排除後再套用
+>
+> ⚠️ **Safari WebKit CJK 行高置中偏高 — 對齊修正會連帶影響子元素與兄弟元素，需逐一排除** — 用 Safari-only 非對稱 padding（`padding-top: calc(.375rem + 2px); padding-bottom: calc(.375rem - 2px)`）把膠囊/按鈕 CJK 文字往下推時，會連帶推動：
+> - **flex 內已置中的子元素**（如 segmented tab 內的數字徽章）→ 用 `transform: translateY(-2px)` 推回，靠 `rounded-full` class 區分徽章 span 與文字 label span
+> - **同選取器但無 CJK 文字的元素**（如 navbar `w-8 h-8` 的 SVG icon button）→ 在 `header button` 還原 `padding-top/bottom: 0 !important`
+> - **未被選取器涵蓋的同類控制項**（如 `input[type="search"]` 的 placeholder）→ 需主動加進選取器，否則高度不一致
+> - 通則：對齊 hack 套用後務必逐一檢視「子元素 / 同選取器無文字元素 / 漏網同類控制項」三類連帶影響
+
 **Start-point dwell via SMIL keyTimes:**
 ```tsx
 <animateMotion

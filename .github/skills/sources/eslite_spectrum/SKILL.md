@@ -44,7 +44,7 @@ Class: `EsliteSpectrumScraper` → key auto-derived as `eslite_spectrum` (matche
 
 ## Publication Rule Sync
 
-- Publication-style events keep `location_name = null` and preserve placeholder text in `location_address` for display only.
+- Publication-style events keep `location_name` / `location_address` / `business_hours` as locale-matched placeholder text and preserve the display-only behavior across `*_zh` and `*_en`. For Japanese UI, use `新刊のご購入は各販売チャネルでお願いします` instead of the Chinese fallback string.
 - The address shown in the UI must not become a Google Maps link when the event is a publication entry.
 - For publication entries, `performer` = author, `organizer_url` = publisher homepage, `official_url` = book official/detail page.
 
