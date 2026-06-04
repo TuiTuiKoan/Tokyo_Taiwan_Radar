@@ -252,7 +252,13 @@ html:has([data-site-bg]) body {
   }
 }
 
-@supports (-webkit-touch-callout: none) {
+/* Safari-only vertical centering fix.
+   NOTE: `-webkit-touch-callout` is iOS-only and is NOT supported by desktop
+   macOS Safari, so it previously matched neither Chrome nor desktop Safari
+   (verified: Chromium CSS.supports('-webkit-touch-callout','none') === false).
+   `-webkit-hyphens: none` is supported by all Safari (desktop + iOS) and is
+   reported false by Chrome/Chromium, so it correctly isolates Safari. */
+@supports (-webkit-hyphens: none) {
   @layer base {
     button,
     [role="button"],
@@ -260,17 +266,8 @@ html:has([data-site-bg]) body {
     [role="radio"],
     a.inline-flex,
     select {
-      line-height: 1.15 !important;
-      padding-top: calc(0.375rem + 3px) !important;
-      padding-bottom: calc(0.375rem - 3px) !important;
-    }
-
-    [role="tab"],
-    [role="radio"],
-    button,
-    [role="button"],
-    a.inline-flex {
-      transform: translateY(3px);
+      padding-top: calc(0.375rem + 2px) !important;
+      padding-bottom: calc(0.375rem - 2px) !important;
     }
   }
 }
