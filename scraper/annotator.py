@@ -1781,6 +1781,8 @@ def annotate_pending_events(
 
                 if _source_name in _PUBLICATION_SOURCES:
                     publication_text = "新書購買請洽各通路"
+                    if "event_form" not in _human_protected:
+                        update_data["event_form"] = ["publication"]
                     if not update_data.get("location_name"):
                         update_data["location_name"] = publication_text
                     if not update_data.get("location_address"):
