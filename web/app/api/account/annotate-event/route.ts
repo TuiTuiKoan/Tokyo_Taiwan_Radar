@@ -267,8 +267,8 @@ export async function POST(req: NextRequest) {
     "increment_account_usage",
     {
       user_id_param: user.id,
-      limit_per_user: 5,
-      limit_system: 200,
+      limit_per_user: 100000,
+      limit_system: 100000,
     }
   );
 
