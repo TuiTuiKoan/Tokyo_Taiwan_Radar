@@ -21,6 +21,8 @@ interface Props {
   myEvents: AccountEvent[];
   parentMap: Record<string, Event>;
   hasProfile: boolean;
+  displayName?: string | null;
+  avatarUrl?: string | null;
 }
 
 type AccountTab = "favorites" | "myEvents";
@@ -41,6 +43,8 @@ export default function AccountHomeClient({
   myEvents,
   parentMap,
   hasProfile,
+  displayName,
+  avatarUrl,
 }: Props) {
   const t = useTranslations("account");
   const tEvent = useTranslations("event");
@@ -145,7 +149,32 @@ export default function AccountHomeClient({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Avatar + handle */}
+      <div className="flex items-center gap-3">
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt=""
+            className="h-14 w-14 rounded-full object-cover shrink-0 border border-line"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/60 text-xl font-bold text-green-700 dark:text-green-300 border border-line">
+            {(displayName || "?").charAt(0).toUpperCase()}
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-fg-strong">{displayName || ""}</p>
+          <Link
+            href={`/${locale}/account/profile`}
+            className="text-xs text-fg-muted hover:text-green-700 transition"
+          >
+            {t("editProfile")}
+          </Link>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
         <div className="inline-flex rounded-lg border border-line bg-paper p-1">
           <button
             type="button"
@@ -170,12 +199,6 @@ export default function AccountHomeClient({
             {t("myEventsTab")}
           </button>
         </div>
-        <Link
-          href={`/${locale}/account/profile`}
-          className="rounded-lg border border-line-strong px-3 py-1.5 text-sm font-medium text-fg-muted hover:bg-elevated transition"
-        >
-          {t("editProfile")}
-        </Link>
       </div>
 
       {activeTab === "myEvents" && !hasProfile ? (

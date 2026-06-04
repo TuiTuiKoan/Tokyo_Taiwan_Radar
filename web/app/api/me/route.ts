@@ -16,7 +16,7 @@ export async function GET() {
     .single();
   const { data: creatorRow } = await supabase
     .from("creators")
-    .select("user_handle")
+    .select("user_handle, avatar_url")
     .eq("user_id", user.id)
     .maybeSingle();
   return NextResponse.json({
@@ -25,6 +25,7 @@ export async function GET() {
       id: user.id,
       email: user.email,
       displayName: creatorRow?.user_handle || user.email,
+      avatarUrl: creatorRow?.avatar_url ?? null,
     },
   });
 }

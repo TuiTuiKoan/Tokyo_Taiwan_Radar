@@ -26,7 +26,7 @@ export default async function AccountPage({ params }: PageProps) {
 
   const { data: profileRow } = await supabase
     .from("creators")
-    .select("user_handle")
+    .select("user_handle, avatar_url")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -91,6 +91,8 @@ export default async function AccountPage({ params }: PageProps) {
           myEvents={myEvents}
           parentMap={parentMap}
           hasProfile={Boolean(profileRow?.user_handle)}
+          displayName={profileRow?.user_handle || user.email || null}
+          avatarUrl={profileRow?.avatar_url ?? null}
         />
       </Suspense>
     </div>

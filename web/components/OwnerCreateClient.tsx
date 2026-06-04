@@ -278,7 +278,7 @@ export default function OwnerCreateClient({ locale }: Props) {
         return;
       }
     }
-    router.push(`/${locale}/account`);
+    router.push(`/${locale}/account?tab=myEvents`);
   }
 
   return (

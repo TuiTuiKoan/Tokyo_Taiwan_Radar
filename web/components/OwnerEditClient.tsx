@@ -202,7 +202,7 @@ export default function OwnerEditClient({ event, locale }: Props) {
 
       alert(t("saveSuccess"));
       startTransition(() => {
-        router.push(`/${locale}/account`);
+        router.push(`/${locale}/account?tab=myEvents`);
       });
     } catch (e: any) {
       alert(e.message || t("saveFailed"));
@@ -213,7 +213,7 @@ export default function OwnerEditClient({ event, locale }: Props) {
   }
 
   function handleCancel() {
-    router.push(`/${locale}/account`);
+    router.push(`/${locale}/account?tab=myEvents`);
   }
 
   return (

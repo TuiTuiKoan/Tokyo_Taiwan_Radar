@@ -11,6 +11,7 @@ type NavbarUser = {
   id: string;
   email?: string | null;
   displayName?: string | null;
+  avatarUrl?: string | null;
 };
 
 interface Props {
@@ -279,8 +280,22 @@ export default function Navbar({ locale }: Props) {
               <div role="menu" className="absolute right-0 top-10 min-w-[180px] rounded-xl border border-line bg-surface shadow-lg py-1 z-50">
                 {user ? (
                   <>
-                    <div className="w-full px-3 pt-2 pb-1 text-xs font-medium text-fg-subtle truncate">
-                      {user.displayName || user.email || ""}
+                    <div className="w-full flex items-center gap-2 px-3 pt-2 pb-1">
+                      {user.avatarUrl ? (
+                        <img
+                          src={user.avatarUrl}
+                          alt=""
+                          className="h-7 w-7 rounded-full object-cover shrink-0"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/60 text-xs font-bold text-green-700 dark:text-green-300">
+                          {(user.displayName || user.email || "?").charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <span className="text-xs font-medium text-fg-subtle truncate">
+                        {user.displayName || user.email || ""}
+                      </span>
                     </div>
                     <button
                       type="button"
