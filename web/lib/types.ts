@@ -280,6 +280,7 @@ export const EVENT_FORMS = [
   "tasting",
   "broadcast",
   "study_abroad",
+  "publication",
   "other",
 ] as const;
 

@@ -1,13 +1,7 @@
 "use client";
 
-import { type Event, type Locale, CATEGORY_GROUPS, getEventName } from "@/lib/types";
+import { type Event, type Locale, CATEGORY_GROUPS, EVENT_FORMS, getEventName } from "@/lib/types";
 import DesignSelect from "@/components/DesignSelect";
-
-const VALID_EVENT_FORMS = [
-  "exhibition", "screening", "lecture", "performance", "market",
-  "workshop", "conference", "networking", "screening_with_talk",
-  "tour", "competition", "tasting", "other",
-] as const;
 
 export const EMPTY_FORM = {
   name_ja: "",
@@ -184,7 +178,7 @@ export default function AdminEventForm({
       <div className="">
         <label className="block text-xs text-fg-muted mb-2">{t("eventForm")}</label>
         <div className="flex flex-wrap gap-2">
-          {VALID_EVENT_FORMS.map((ef) => (
+          {EVENT_FORMS.map((ef) => (
             <button
               key={ef}
               type="button"
