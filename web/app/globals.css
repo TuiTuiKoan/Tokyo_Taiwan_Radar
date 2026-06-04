@@ -260,6 +260,8 @@ html:has([data-site-bg]) body {
     [role="radio"],
     a.inline-flex {
       line-height: 1.2 !important;
+      padding-top: calc(0.375rem + 1px) !important;
+      padding-bottom: calc(0.375rem - 1px) !important;
     }
   }
 }
