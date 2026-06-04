@@ -390,6 +390,18 @@ export default function OwnerCreateClient({ locale }: Props) {
           {ocrFilled ? tAdmin("saveAndAnnotate") || "儲存並標注" : tAdmin("save")}
         </Button>
       </div>
+
+      {/* Inline feedback next to the action buttons so it is always visible */}
+      {actionError && (
+        <p className="text-sm font-semibold text-red-500" aria-live="assertive">
+          {actionError}
+        </p>
+      )}
+      {annotationDone && !actionError && (
+        <p className="text-sm font-semibold text-green-600">
+          {tAdmin("annotationDone") || "標注完成，請確認資料後發布"}
+        </p>
+      )}
     </div>
   );
 }
