@@ -1785,33 +1785,22 @@ def annotate_pending_events(
                     publication_description = _str(event.get("raw_description"))
                     if "event_form" not in _human_protected:
                         update_data["event_form"] = ["publication"]
-                    if not update_data.get("location_name"):
-                        update_data["location_name"] = publication_text_ja
-                    if not update_data.get("location_name_zh"):
-                        update_data["location_name_zh"] = publication_text_zh
-                    if not update_data.get("location_name_en"):
-                        update_data["location_name_en"] = "Please check each sales channel to purchase this new book."
-                    if not update_data.get("location_address"):
-                        update_data["location_address"] = publication_text_ja
-                    if not update_data.get("location_address_zh"):
-                        update_data["location_address_zh"] = publication_text_zh
-                    if not update_data.get("location_address_en"):
-                        update_data["location_address_en"] = "Please check each sales channel to purchase this new book."
-                    if not update_data.get("business_hours"):
-                        update_data["business_hours"] = publication_text_ja
-                    if not update_data.get("business_hours_zh"):
-                        update_data["business_hours_zh"] = publication_text_zh
-                    if not update_data.get("business_hours_en"):
-                        update_data["business_hours_en"] = "Please check each sales channel to purchase this new book."
+                    update_data["location_name"] = publication_text_ja
+                    update_data["location_name_zh"] = publication_text_zh
+                    update_data["location_name_en"] = "Please check each sales channel to purchase this new book."
+                    update_data["location_address"] = publication_text_ja
+                    update_data["location_address_zh"] = publication_text_zh
+                    update_data["location_address_en"] = "Please check each sales channel to purchase this new book."
+                    update_data["business_hours"] = publication_text_ja
+                    update_data["business_hours_zh"] = publication_text_zh
+                    update_data["business_hours_en"] = "Please check each sales channel to purchase this new book."
                     if not update_data.get("price_info"):
                         update_data["price_info"] = publication_text_zh
                     if not update_data.get("location_url"):
                         update_data["location_url"] = None
-                    if publication_description and not update_data.get("description_ja"):
+                    if publication_description:
                         update_data["description_ja"] = publication_description
-                    if publication_description and not update_data.get("description_zh"):
                         update_data["description_zh"] = _to_trad(publication_description)
-                    if publication_description and not update_data.get("description_en"):
                         update_data["description_en"] = publication_description
 
                 # Organizer translations — KNOWN_ORGANIZER_MAP overrides GPT

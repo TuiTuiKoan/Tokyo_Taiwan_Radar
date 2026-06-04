@@ -305,19 +305,18 @@ export default async function EventDetailPage({ params }: PageProps) {
   const locationName = getEventLocationName(event as Event, locale);
   const locationAddress = getEventLocationAddress(event as Event, locale);
   const businessHours = getEventBusinessHours(event as Event, locale);
-  const isPublicationEvent = (event.category ?? []).includes("books_media") && (event.event_form ?? []).includes("publication");
   // Split multi-venue strings on Japanese fullwidth comma; trim and drop blanks.
   const splitVenues = (s: string | null | undefined): string[] =>
     (s ?? "").split("、").map((v) => v.trim()).filter(Boolean);
   // Strip Japanese postal code prefix "〒NNN-NNNN " from each segment.
   const stripPostal = (s: string): string =>
     s.replace(/^〒\d{3}-\d{4}\s*/, "").trim();
-  const displayLocationAddress = locationAddress ? stripPostal(locationAddress) : null;
   const venueSegments = splitVenues(locationName);
   const addressSegments = splitVenues(locationAddress).map(stripPostal).filter(Boolean);
   const isTvProgramEvent =
     event.source_name === "gguide_tv" ||
     (event.category ?? []).includes("tv_program");
+  const isPublicationEvent = (event.event_form ?? []).includes("publication");
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
 
@@ -546,7 +545,7 @@ export default async function EventDetailPage({ params }: PageProps) {
   } else if (locationName) {
     faqQuestions.push({
       q: faqL.where,
-      a: faqL.whereA(locationName, displayLocationAddress ?? null),
+      a: faqL.whereA(locationName, locationAddress ?? null),
     });
   }
   if (event.is_paid === false) {
@@ -625,7 +624,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               startDate={event.start_date}
               endDate={event.end_date}
               businessHours={businessHours}
-              location={displayLocationAddress || locationName}
+              location={locationAddress || locationName}
               eventUrl={`${base}/${locale}/events/${event.id}`}
               locale={locale}
             />
@@ -734,8 +733,8 @@ export default async function EventDetailPage({ params }: PageProps) {
         let p4 = "";
         if (isOnline) {
           p4 = tNarr("p4Online");
-        } else if (locationName && displayLocationAddress) {
-          p4 = tNarr("p4VenueWithAddress", { venue: locationName, address: displayLocationAddress });
+        } else if (locationName && locationAddress) {
+          p4 = tNarr("p4VenueWithAddress", { venue: locationName, address: locationAddress });
         } else if (locationName) {
           p4 = tNarr("p4VenueOnly", { venue: locationName });
         }
@@ -841,6 +840,8 @@ export default async function EventDetailPage({ params }: PageProps) {
                   ? t("tvChannel")
                   : event.source_name === "rti_jp"
                   ? t("radioChannel")
+                  : isPublicationEvent
+                  ? (locationAddress || "—")
                   : addressSegments.length > 1
                   ? addressSegments.map((addr, i) => (
                       <span key={i}>
@@ -855,12 +856,9 @@ export default async function EventDetailPage({ params }: PageProps) {
                         </a>
                       </span>
                     ))
-                  : (displayLocationAddress || locationName) ? (() => {
-                      const displayAddr = stripPostal(displayLocationAddress || locationName || "");
+                  : (locationAddress || locationName) ? (() => {
+                      const displayAddr = stripPostal(locationAddress || locationName || "");
                       const queryAddr = displayAddr || locationName || "";
-                      if (isPublicationEvent) {
-                        return displayAddr || locationName || "—";
-                      }
                       return (
                         <a
                           href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryAddr)}`}

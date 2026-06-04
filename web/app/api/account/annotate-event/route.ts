@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
@@ -502,6 +503,9 @@ Rules:
         { error: "annotateSaveFailed", detail: updateErr.message },
         { status: 500 }
       );
+    }
+    for (const locale of ["ja", "zh", "en"] as const) {
+      revalidatePath(`/${locale}/events/${eventId}`);
     }
   }
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
@@ -531,10 +532,20 @@ Rules:
   // 5. Save annotation to DB
   if (Object.keys(returnedFields).length > 0) {
     const nextAnnotationStatus = event.annotation_status === "reviewed" ? "reviewed" : "annotated";
-    await adminClient
+    const { error: updateErr } = await adminClient
       .from("events")
       .update({ ...returnedFields, annotation_status: nextAnnotationStatus })
       .eq("id", eventId);
+    if (updateErr) {
+      console.error("[annotate-event] DB update failed:", updateErr);
+      return NextResponse.json(
+        { error: "annotateSaveFailed", detail: updateErr.message },
+        { status: 500 }
+      );
+    }
+    for (const locale of ["ja", "zh", "en"] as const) {
+      revalidatePath(`/${locale}/events/${eventId}`);
+    }
   }
 
   return NextResponse.json({
