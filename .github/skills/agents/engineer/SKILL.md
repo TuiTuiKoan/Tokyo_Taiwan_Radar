@@ -47,6 +47,12 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - When combining an attribute selector with a class on the **same element** (e.g., `data-preserve-theme` and `group` on the same `<Link>`), never insert a space between them.
 - For theme-exception rules like `[data-preserve-theme='light'].group:hover h2`, verify: (1) the attribute and the class are on the same DOM element, (2) combined specificity beats any competing rule, (3) use `getComputedStyle` via Playwright to confirm hover color changes.
 
+## Cross-browser Baseline Checks
+
+- When a UI change touches shared pills, buttons, tabs, or dropdown triggers, verify the result in both Chrome and Safari before broadening the fix.
+- If Safari alone looks vertically off, prefer the smallest browser-specific baseline correction over reworking every related component.
+- Recheck computed `line-height`, `padding`, and element height in Safari after any shared `inline-flex` / `rounded-full` refactor.
+
 ## E2E Local Server Prerequisite
 
 - When running Playwright smoke tests that navigate to local paths (for example `/ja/announcements`), start a local Next server first (`npm run dev` or configured `webServer`) and verify port 3000 is reachable.

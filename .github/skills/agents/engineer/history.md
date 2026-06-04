@@ -2,6 +2,11 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-04 - Safari 互動元素文字偏高：shared pill refactor 暴露 browser baseline 差異
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-04 | Chrome 正常、Safari 內首頁 CTA / 篩選器 / 排序膠囊 / shelf tab 文字整體偏高，看起來像整頁按鈕都被往上頂 | 最近把多個共享互動元素統一成 `inline-flex + rounded-full + px/py` 的膠囊樣式後，原本分散在各元件的微小基線補償（例如局部 `-top-px`、不同 `leading`、不同內距）被移除；Safari 的 line box / font metrics 比 Chrome 更保守，讓同一套 shared styles 一起露出偏高問題 | 先把使用者明確反饋的首頁 CTA、篩選器、排序膠囊回復到更接近原始寫法，再用 Safari-only baseline 修正做最小範圍補償；同步保留 Chrome 的既有外觀，避免再擴大改動範圍 | 共享膠囊樣式重構後，不能只在 Chrome 驗證。任何看似「只是把按鈕統一」的改動，都可能把原本隱性的瀏覽器差異放大。之後做跨瀏覽器 UI 調整時，先鎖定最小受影響集合，再用 Safari/Chrome 實際量測比對，不要一次把全站互動元素都重新修到失真。
+
 ## 2026-06-04 - `annotate_pending_events()` `event_ids` 漂移先擋住 publication reset one-off
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

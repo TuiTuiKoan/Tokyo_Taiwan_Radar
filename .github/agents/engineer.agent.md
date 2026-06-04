@@ -26,6 +26,11 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 1. Append an entry to `.github/skills/agents/engineer/history.md` (newest at top): date, error, fix, lesson.
 2. If the lesson generalizes, add or update a rule in `SKILL.md`.
 
+## Cross-browser UI Fixes
+1. When a shared button/pill/tab change is reported as wrong in Safari but not Chrome, treat it as a browser-baseline issue first.
+2. Inspect the smallest affected surface and prefer a Safari-specific baseline correction over widening the refactor.
+3. After the fix, verify the same page in both browsers before committing or handing off.
+
 ## Available Handoffs
 
 - **🏗️ Plan this first** — Before writing code, hand off to Architect to review design.
