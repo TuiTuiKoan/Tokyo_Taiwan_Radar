@@ -68,6 +68,41 @@ export async function createEventNoAnnotate(form: FormState): Promise<ActionResu
   return insertWithRetry(auth.supabase, sanitizeForm(form));
 }
 
+export async function updateAdminEvent(
+  eventId: string,
+  form: FormState,
+  options?: { isActive?: boolean },
+): Promise<ActionResult<Event>> {
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+
+  const { data: existing, error: loadError } = await auth.supabase
+    .from("events")
+    .select("id")
+    .eq("id", eventId)
+    .single();
+
+  if (loadError || !existing) return { ok: false, error: "eventNotFound" };
+
+  const payload = sanitizeForm(form);
+  delete payload.source_id;
+  delete payload.source_name;
+
+  if (typeof options?.isActive === "boolean") {
+    payload.is_active = options.isActive;
+  }
+
+  const { data: updated, error: updateError } = await auth.supabase
+    .from("events")
+    .update(payload)
+    .eq("id", eventId)
+    .select()
+    .single();
+
+  if (updateError) return { ok: false, error: updateError.message };
+  return { ok: true, data: updated as Event };
+}
+
 export async function publishEvent(eventId: string): Promise<ActionResult<null>> {
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };

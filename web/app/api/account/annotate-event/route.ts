@@ -249,9 +249,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { eventId, lockedFields } = (await req.json()) as {
+  const { eventId, lockedFields, overwriteableFields } = (await req.json()) as {
     eventId: string;
     lockedFields?: string[];
+    overwriteableFields?: string[];
   };
   if (!eventId) return NextResponse.json({ error: "eventId required" }, { status: 400 });
 
@@ -285,6 +286,9 @@ export async function POST(req: NextRequest) {
   let bestScore = -1;
   const manualLockedFields = Array.isArray(lockedFields)
     ? lockedFields.filter((field): field is string => typeof field === "string")
+    : [];
+  const overwriteableLocationFields = Array.isArray(overwriteableFields)
+    ? overwriteableFields.filter((field): field is string => typeof field === "string")
     : [];
 
   const needsUrlEnrichment =
@@ -404,6 +408,8 @@ Extraction fields (omit if not visible):
 
 Rules:
 - For Chinese, use Traditional Chinese characters only (繁體字). Never simplified.
+- Glossary: translate 記念講演会 as 紀念演講 in Traditional Chinese.
+- Glossary: translate 記念講演会 as Commemorative Lecture in English.
 - Do not fabricate. If not mentioned, omit.
 - Return ONLY valid JSON.`,
       },
@@ -449,18 +455,21 @@ Rules:
           returnedFields[k] = v;
         } else if (extractionFields.includes(k)) {
           const cur = (event as Record<string, unknown>)[k];
-          if (
-            (k === "location_name" || k === "location_address") &&
-            shouldApplyAnnotatedLocationField(k, cur, v, {
+          if (k === "location_name" || k === "location_address") {
+            if (shouldApplyAnnotatedLocationField(k, cur, v, {
               bestScore,
               lockedFields: manualLockedFields,
+              overwriteableFields: overwriteableLocationFields,
               currentLocationName: typeof event.location_name === "string" ? event.location_name : null,
               currentLocationAddress:
                 typeof event.location_address === "string" ? event.location_address : null,
-            })
-          ) {
-            returnedFields[k] = v;
-          } else if (cur === null || cur === undefined || cur === "") {
+            })) {
+              returnedFields[k] = v;
+            }
+            continue;
+          }
+
+          if (cur === null || cur === undefined || cur === "") {
             returnedFields[k] = v;
           }
         } else {

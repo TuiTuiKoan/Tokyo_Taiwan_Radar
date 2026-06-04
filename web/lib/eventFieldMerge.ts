@@ -20,6 +20,7 @@ type LocationField = "location_name" | "location_address";
 type MergeContext = {
   bestScore: number;
   lockedFields?: Iterable<string>;
+  overwriteableFields?: Iterable<string>;
   currentLocationName?: string | null;
   currentLocationAddress?: string | null;
 };
@@ -92,11 +93,14 @@ export function shouldApplyAnnotatedLocationField(
   const next = asString(nextValue);
   if (!next) return false;
 
+  const lockedFields = new Set(context.lockedFields ?? []);
+  if (lockedFields.has(field)) return false;
+
   const current = asString(currentValue);
   if (!current) return context.bestScore >= FILL_SCORE_THRESHOLD;
 
-  const lockedFields = new Set(context.lockedFields ?? []);
-  if (lockedFields.has(field)) return false;
+  const overwriteableFields = new Set(context.overwriteableFields ?? []);
+  if (!overwriteableFields.has(field)) return false;
   if (context.bestScore < OVERWRITE_SCORE_THRESHOLD) return false;
 
   if (field === "location_name") {

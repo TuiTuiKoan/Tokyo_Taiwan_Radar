@@ -1,12 +1,23 @@
 "use client";
 
 import { useEffect, useState, useRef, useTransition } from "react";
+import { flushSync } from "react-dom";
 import { useTranslations } from "next-intl";
 import { type Event, type Locale } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
-import { createDraftEvent, createEventNoAnnotate } from "@/app/actions/admin-events";
+import {
+  createDraftEvent,
+  createEventNoAnnotate,
+  updateAdminEvent,
+} from "@/app/actions/admin-events";
+import {
+  ANNOTATE_LOCATION_FIELDS,
+  getActionErrorMessage,
+  pickReturnedFormFields,
+  readJsonResponse,
+} from "@/lib/eventIntakeClient";
 
 interface Props {
   locale: Locale;
@@ -25,7 +36,7 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
   const [extractError, setExtractError] = useState<string | null>(null);
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
   const [annotating, setAnnotating] = useState(false);
-  const [annotationError, setAnnotationError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [savedEventId, setSavedEventId] = useState<string | null>(null);
   const [ocrFilled, setOcrFilled] = useState(false);
   const [annotationDone, setAnnotationDone] = useState(false);
@@ -33,8 +44,20 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
   const posterFileRef = useRef<HTMLInputElement>(null);
   const busyStartedAtRef = useRef<number | null>(null);
   const actionLockRef = useRef(false);
+  const autoFilledFieldsRef = useRef<Set<string>>(new Set());
+  const manualEditedFieldsRef = useRef<Set<string>>(new Set());
   const [busyElapsedMs, setBusyElapsedMs] = useState(0);
   const [, startTransition] = useTransition();
+
+  function isFormFieldKey(key: string): key is keyof FormState {
+    return key in EMPTY_FORM;
+  }
+
+  function isAnnotateLocationField(
+    key: string,
+  ): key is (typeof ANNOTATE_LOCATION_FIELDS)[number] {
+    return ANNOTATE_LOCATION_FIELDS.includes(key as (typeof ANNOTATE_LOCATION_FIELDS)[number]);
+  }
 
   useEffect(() => {
     if (!saving && !extracting && !annotating) {
@@ -55,8 +78,72 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
     return () => window.clearInterval(timer);
   }, [saving, extracting, annotating]);
 
-  function updateField(k: string, v: any) {
-    setForm((prev) => ({ ...prev, [k]: v }));
+  function updateField(k: string, v: unknown) {
+    if (!isFormFieldKey(k)) return;
+
+    if (isAnnotateLocationField(k)) {
+      manualEditedFieldsRef.current.add(k);
+    }
+
+    setForm((prev) => ({ ...prev, [k]: v as FormState[typeof k] }));
+  }
+
+  function applyReturnedFields(fields: Record<string, unknown>) {
+    const nextFields = pickReturnedFormFields(EMPTY_FORM, fields);
+
+    if (Object.keys(nextFields).length === 0) return;
+    setForm((prev) => ({ ...prev, ...nextFields }));
+  }
+
+  function applyOcrFields(fields: Record<string, unknown>) {
+    const nextFields = pickReturnedFormFields(EMPTY_FORM, fields);
+
+    if (Object.keys(nextFields).length === 0) return;
+
+    for (const key of Object.keys(nextFields)) {
+      if (!isAnnotateLocationField(key)) continue;
+      autoFilledFieldsRef.current.add(key);
+      manualEditedFieldsRef.current.delete(key);
+    }
+
+    setForm((prev) => ({ ...prev, ...nextFields }));
+  }
+
+  function getLockedLocationFields() {
+    return ANNOTATE_LOCATION_FIELDS.filter((field) => manualEditedFieldsRef.current.has(field));
+  }
+
+  function getOverwriteableLocationFields() {
+    return ANNOTATE_LOCATION_FIELDS.filter(
+      (field) =>
+        autoFilledFieldsRef.current.has(field) &&
+        !manualEditedFieldsRef.current.has(field),
+    );
+  }
+
+  function beginPrimaryAction(mode: "save" | "annotate") {
+    actionLockRef.current = true;
+    busyStartedAtRef.current = Date.now();
+
+    flushSync(() => {
+      setBusyElapsedMs(0);
+      setActionError(null);
+      setAnnotationDone(false);
+      if (mode === "annotate") {
+        setAnnotating(true);
+      } else {
+        setSaving(true);
+      }
+    });
+  }
+
+  function finishPrimaryAction(mode: "save" | "annotate") {
+    actionLockRef.current = false;
+    if (mode === "annotate") {
+      setAnnotating(false);
+      return;
+    }
+    setSaving(false);
   }
 
   function toggleCategory(cat: string) {
@@ -72,6 +159,8 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
   async function handleImageExtract(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    busyStartedAtRef.current = Date.now();
+    setBusyElapsedMs(0);
     setExtracting(true);
     setExtractError(null);
 
@@ -86,28 +175,18 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ image: dataUrl }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ? t(data.error) : "Extraction failed");
-        
-        const fields = data.fields as Record<string, any>;
-        const ARRAY_FIELDS = new Set(["event_form", "category", "co_organizers", "sponsors"]);
-        for (const [key, val] of Object.entries(fields)) {
-          if (val === null || val === undefined) continue;
-          if (ARRAY_FIELDS.has(key) && Array.isArray(val)) {
-            updateField(key, val);
-          } else if (!ARRAY_FIELDS.has(key)) {
-            updateField(key, val === true ? true : val === false ? false : String(val));
-          }
+        const data = await readJsonResponse(res);
+        if (!res.ok) {
+          const errorKey = typeof data.error === "string" ? data.error : null;
+          throw new Error(errorKey ? t(errorKey) : "Extraction failed");
         }
-        if (typeof fields.is_paid === "boolean") updateField("is_paid", fields.is_paid);
-        if (typeof fields.has_japanese_support === "boolean") updateField("has_japanese_support", fields.has_japanese_support);
-        if (typeof fields.has_english_support === "boolean") updateField("has_english_support", fields.has_english_support);
-        if (typeof fields.has_chinese_support === "boolean") updateField("has_chinese_support", fields.has_chinese_support);
+
+        applyOcrFields((data.fields ?? {}) as Record<string, unknown>);
 
         setOcrFilled(true);
         setAnnotationDone(false);
-      } catch (err: any) {
-        setExtractError(err.message || "Failed to extract");
+      } catch (error: unknown) {
+        setExtractError(getActionErrorMessage(error, "Failed to extract"));
       } finally {
         setExtracting(false);
       }
@@ -121,68 +200,73 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
 
   async function handleAIAnnotate() {
     if (actionLockRef.current) return;
-    actionLockRef.current = true;
-    setAnnotationError(null);
-    setAnnotating(true);
+    beginPrimaryAction("annotate");
     let eventId = savedEventId;
 
     try {
       if (!eventId) {
         const res = await createDraftEvent(form);
         if (!res.ok) {
-          throw new Error(res.error ? String(res.error) : "Draft save failed");
+          throw new Error(res.error ? t(res.error) : "Draft save failed");
         }
         eventId = res.data.id;
         setSavedEventId(eventId);
+      } else {
+        const res = await updateAdminEvent(eventId, form, { isActive: false });
+        if (!res.ok) {
+          throw new Error(res.error ? t(res.error) : "Draft save failed");
+        }
       }
 
       const annotateRes = await fetch("/api/admin/annotate-event", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId }),
+        body: JSON.stringify({
+          eventId,
+          lockedFields: getLockedLocationFields(),
+          overwriteableFields: getOverwriteableLocationFields(),
+        }),
         signal: AbortSignal.timeout(58000),
       });
 
-      const data = await annotateRes.json();
-      if (!annotateRes.ok) throw new Error(data.error ? String(data.error) : "Annotation failed");
-
-      const fields = data.fields as Record<string, any>;
-      for (const [key, val] of Object.entries(fields)) {
-        if (val === null || val === undefined || val === "") continue;
-        updateField(key, val);
+      const data = await readJsonResponse(annotateRes);
+      if (!annotateRes.ok) {
+        const errorKey = typeof data.error === "string" ? data.error : null;
+        const detail = typeof data.detail === "string" ? data.detail : null;
+        const baseMsg = errorKey ? t(errorKey) : t("saveFailed");
+        throw new Error(detail ? `${baseMsg}（${detail}）` : baseMsg);
       }
-      
+
+      applyReturnedFields((data.fields ?? {}) as Record<string, unknown>);
       setOcrFilled(false);
       setAnnotationDone(true);
-    } catch (err: any) {
-      setAnnotationError(err.message || "Annotation failed");
+    } catch (error: unknown) {
+      setActionError(getActionErrorMessage(error, t("saveFailed")));
     } finally {
-      setAnnotating(false);
-      actionLockRef.current = false;
+      finishPrimaryAction("annotate");
     }
   }
 
   async function handleSaveEvent() {
     if (actionLockRef.current) return;
-    actionLockRef.current = true;
-    setSaving(true);
+    beginPrimaryAction("save");
     try {
-      const res = await createEventNoAnnotate(form);
+      const res = savedEventId
+        ? await updateAdminEvent(savedEventId, form, { isActive: true })
+        : await createEventNoAnnotate(form);
 
       if (!res.ok) {
-        alert(t(res.error) || t("saveFailed") || "儲存失敗");
+        setActionError(t(res.error) || res.error || t("saveFailed"));
         return;
       }
 
-      alert("儲存成功");
       startTransition(() => {
         router.push(`/${locale}/admin`);
       });
-    } catch (e: any) {
-      alert(e.message || "儲存失敗");
+    } catch (error: unknown) {
+      setActionError(getActionErrorMessage(error, t("saveFailed")));
     } finally {
-      setSaving(false);
-      actionLockRef.current = false;
+      finishPrimaryAction("save");
     }
   }
 
@@ -248,7 +332,7 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
         )}
 
         {extractError && (
-          <p className="text-sm text-red-500 font-semibold">{extractError}</p>
+          <p className="text-sm text-red-500 font-semibold" aria-live="polite">{extractError}</p>
         )}
       </div>
 
@@ -261,8 +345,19 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
         </div>
       )}
 
-      {annotationError && (
-        <p className="text-sm text-red-500 font-semibold">{annotationError}</p>
+      {(saving || annotating) && (
+        <div
+          aria-live="polite"
+          className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
+        >
+          {annotating
+            ? `${t("extracting")} ${Math.floor(busyElapsedMs / 1000)}s`
+            : `${t("saving")} ${Math.floor(busyElapsedMs / 1000)}s`}
+        </div>
+      )}
+
+      {actionError && (
+        <p className="text-sm text-red-500 font-semibold" aria-live="polite">{actionError}</p>
       )}
 
       {/* Floating Event Form Fields */}
@@ -295,6 +390,23 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
           {ocrFilled ? t("saveAndAnnotate") || "儲存並標注" : t("save")}
         </Button>
       </div>
+
+      {extractError && (
+        <p className="text-sm font-semibold text-red-500" aria-live="assertive">
+          {extractError}
+        </p>
+      )}
+
+      {actionError && (
+        <p className="text-sm font-semibold text-red-500" aria-live="assertive">
+          {actionError}
+        </p>
+      )}
+      {annotationDone && !actionError && (
+        <p className="text-sm font-semibold text-green-600">
+          {t("annotationDone") || "標注完成，請確認資料後發布"}
+        </p>
+      )}
     </div>
   );
 }

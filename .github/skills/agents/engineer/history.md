@@ -2,6 +2,18 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-05 - Create-page annotate overwrite 必須同時有 source confidence 與 auto-filled provenance
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-05 | owner/admin 新建活動頁的 annotate 對 location 欄位要嘛永遠 fill-only、無法升級 OCR 弱值，要嘛在 route 端只靠 `lockedFields`，共享 route 一旦被沒有 provenance 的呼叫點使用，就有機會把人工值當成可覆寫值 | overwrite 規則只做了一半：`bestScore` gate 與 shared sanitize 已在部分 route 落地，但 create client 沒有把「哪些欄位是 OCR auto-filled、哪些欄位已被手動編輯」送到 annotate route；admin create 另外還缺少 draft update path，annotate 後 save 會脫離既有 draft 流程 | 在 `web/lib/eventFieldMerge.ts` 補上 `overwriteableFields` gate，讓非空覆寫必須同時滿足 `bestScore >= 6`、欄位不在 `lockedFields`、且欄位存在於 `overwriteableFields`；owner/admin create client 追蹤 OCR 自動填入與手動編輯過的 location 欄位，annotate 時送出 `lockedFields` + `overwriteableFields`；admin create 再補 `updateAdminEvent()`，讓 annotate 後 save 更新既有 draft，而不是另插一筆新 event | 只在 route 端加 overwrite helper 還不夠。凡是 create/edit UI 允許「OCR 先填、annotate 再升級」的流程，都必須從 client 額外提供 provenance signal；沒有 provenance 時，shared annotate route 對非空欄位應預設回退成 fill-only，寧可保守也不要冒著覆寫人工值的風險。
+
+## 2026-06-05 - Publication backfill needs source-scoped runs and NDL periodicals must become `期刊專文`
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-05 | 想把所有 publication rows 一次補齊時，NDL OpenSearch 的期刊/雜誌條目仍停留在通路占位模板，標題也沒有顯示「期刊專文」前綴，導致單筆內容仍然模糊 | 來源分成兩類：一般出版條目與 NDL 期刊/雜誌條目。前者可維持共用 publication placeholder，後者必須額外抓頁面 breadcrumb 與出版者 metadata，並把名稱提升成 `期刊專文：...`；若把所有來源混在同一個粗批次裡，還會遇到 NDL 頁面抓取慢、apply 進度不穩的問題 | 將 `_oneoff_backfill_publication_metadata.py` 改成與 `annotator.py` 同步的共用 publication 規則，NDL periodical rows 以 breadcrumb 推出 `publication_label` 與 publisher organizer，再分來源執行：先確認 `hanmoto` 已全部被 FC 保護，再把 `ndl_opensearch` 單獨 apply 完 98 筆；回填後以單筆 NDL row 驗證 `name_ja/name_zh/name_en`、organizer、description 三語都落地 | 出版 backfill 不要把「一般出版」和「期刊專文」混在同一個粗批次思維裡。先分 source，再分內容型態；NDL 期刊類必須依頁面 metadata 升級為 `期刊專文`，並把出版者當作 organizer 回填，否則標題與來源語義永遠模糊。
+
+---
+
 ## 2026-06-05 - Safari `<button>` 直接套 `flex` 導致高度比相鄰按鈕高（WebKit #169700）
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
-
-const VALID_PRIMARY_LANGUAGES = new Set(["ja", "zh", "en", "mixed"]);
+import {
+  sanitizeCategoryValues,
+  sanitizeEventFormValues,
+  sanitizePrimaryLanguageValue,
+} from "@/lib/eventFieldMerge";
 
 export async function POST(req: NextRequest) {
   // 1. Authenticate user
@@ -63,10 +66,10 @@ Extract all visible information and return a JSON object with these fields (omit
 - location_address: full address in Japanese (include 〒 if visible)
 - location_url: venue official website URL (if printed on poster)
 - business_hours: show times or opening hours (e.g. "14:00〜16:00" or "10:00-18:00")
-- performer: main performer/artist/speaker name (single person or group, Japanese)
+- performer: main performer/artist/speaker name (single person or group, Japanese). Look for cue words like "出演", "登壇", "講師", "演奏", "ゲスト", "司会" and face-name captions near portraits/headshots.
 - organizer: primary organizer name (Japanese, single string). Look for "主催" label.
-- co_organizers: array of co-host / supporting organizations (Japanese). Look for "共催", "協力", "後援" labels. Return [] if none visible.
-- sponsors: array of sponsor names (Japanese). Look for "協賛", "助成", "Sponsored by" labels. Return [] if none visible.
+- co_organizers: array of co-host / supporting organizations (Japanese). Look for "共催", "協力", "後援" labels — typically printed in small text in the credit block at the bottom of the poster. Return [] if none visible.
+- sponsors: array of sponsor names (Japanese). Look for "協賛", "助成", "Sponsored by" labels in the credit block. Return [] if none visible.
 - organizer_url: organizer website URL (if printed on poster)
 - source_url: event official page URL (if printed on poster)
 - price_info: ticket price info as string (e.g. "一般 ¥1,500 / 学生 ¥1,000" or "入場無料")
@@ -81,10 +84,18 @@ Extract all visible information and return a JSON object with these fields (omit
 Title rules:
 - Read the poster top to bottom and capture the COMPLETE title (main title + sub-title + series name).
 - Do not stop at the first line break. Subtitles printed below or beside the main title are part of name_ja.
-- If multiple language versions of the title appear, populate name_ja / name_zh / name_en accordingly.
+- If multiple language versions of the title appear, populate name_ja / name_zh / name_en accordingly. If a language version is missing on the poster, omit that field (annotator will translate later).
+
+URL rules:
+- Only extract URLs that are LEGIBLY printed on the poster (full https:// URL or qr-code annotation).
+- Do not invent URLs from organization names. If unsure, omit.
 
 Chinese rules:
 - Use Traditional Chinese characters only (繁體字), never Simplified.
+
+Glossary:
+- Translate "記念講演会" as "紀念演講" in Traditional Chinese.
+- Translate "記念講演会" as "Commemorative Lecture" in English.
 
 Return ONLY the JSON. Omit any field you cannot confidently read. Do not guess or fabricate data.`,
       },
@@ -97,7 +108,7 @@ Return ONLY the JSON. Omit any field you cannot confidently read. Do not guess o
           },
           {
             type: "text",
-            text: "Extract ALL event information from this promotional poster.",
+            text: "Extract ALL event information from this promotional poster. Be thorough — capture the full title including subtitles, all dates, venue address, organizer, prices, URLs, and ALL co-hosts (共催/協力/後援) and sponsors (協賛) printed in the credit block.",
           },
         ],
       },
@@ -136,29 +147,17 @@ Return ONLY the JSON. Omit any field you cannot confidently read. Do not guess o
     );
   }
 
-  const validCategories = new Set<string>(CATEGORIES);
-  const validEventForms = new Set<string>(EVENT_FORMS);
+  const sanitizedCategories = sanitizeCategoryValues(fields.category);
+  if (sanitizedCategories) fields.category = sanitizedCategories;
+  else delete fields.category;
 
-  if (Array.isArray(fields.category)) {
-    const filtered = (fields.category as unknown[])
-      .filter((value): value is string => typeof value === "string")
-      .filter((value) => validCategories.has(value));
-    if (filtered.length > 0) fields.category = filtered;
-    else delete fields.category;
-  }
+  const sanitizedEventForms = sanitizeEventFormValues(fields.event_form);
+  if (sanitizedEventForms) fields.event_form = sanitizedEventForms;
+  else delete fields.event_form;
 
-  if (Array.isArray(fields.event_form)) {
-    const filtered = (fields.event_form as unknown[])
-      .filter((value): value is string => typeof value === "string")
-      .filter((value) => validEventForms.has(value));
-    if (filtered.length > 0) fields.event_form = filtered;
-    else delete fields.event_form;
-  }
-
-  if (
-    typeof fields.primary_language === "string" &&
-    !VALID_PRIMARY_LANGUAGES.has(fields.primary_language)
-  ) {
+  const sanitizedPrimaryLanguage = sanitizePrimaryLanguageValue(fields.primary_language);
+  if (sanitizedPrimaryLanguage) fields.primary_language = sanitizedPrimaryLanguage;
+  else if (fields.primary_language !== undefined) {
     delete fields.primary_language;
   }
 

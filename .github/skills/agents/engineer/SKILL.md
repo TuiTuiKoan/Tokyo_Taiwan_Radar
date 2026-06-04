@@ -35,6 +35,7 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - If a venue cannot be verified to have its own homepage, leave the report pending for human review. Shared municipal spaces and parent-organization pages are especially prone to false positives.
 - For pending QA cleanup, use `qa_heartbeat.py` as the real dispatch entry. `qa_auto_fix.py` CLI only runs its own built-in maintenance batches (simplified Chinese + tokyoartbeat date sync); do not assume it will process the full safe-report backlog.
 - Database-only QA cleanup does not require git push or deployment. Only change code or docs when the cleanup logic itself needs to be adjusted.
+- For publication metadata backfills, keep the helper logic source-scoped: NDL OpenSearch periodical rows need breadcrumb-derived labels and publisher-backed organizer, while non-periodical publication rows may keep the generic publication placeholder.
 
 ## Agent Handoff Reliability
 
@@ -105,7 +106,7 @@ const sanitized = (parsed.category ?? []).filter((c: string) => VALID_CATEGORIES
 
 **Shared lib rule（2026-06-05 教訓）：** 兩條以上 annotate route 做相同 LLM 輸出過濾時，立刻抽到 `web/lib/eventFieldMerge.ts`（或同目錄的 shared module），不要各自內聯。`account/annotate-event` 與 `admin/annotate-event` 原本各自複製 `validCategories` / `validEventForms` / `VALID_PRIMARY_LANGUAGES`，2026-06-05 已統一到 `sanitizeCategoryValues()`、`sanitizeEventFormValues()`、`sanitizePrimaryLanguageValue()`。
 
-**Location field overwrite protection：** annotate route 不可用 `cur === null || cur === ""` 的空值檢查來決定是否覆寫 `location_name`/`location_address`。必須同時考量：(1) web search score（`bestScore`）是否達信心閾值（≥ 3），(2) 使用者是否明確鎖定欄位（`lockedFields`）。邏輯已封裝在 `shouldApplyAnnotatedLocationField(field, cur, v, { bestScore, lockedFields })`，任何新 annotate route 都應呼叫此函式而非自行寫 overwrite 條件。
+**Location field overwrite protection：** annotate route 不可用 `cur === null || cur === ""` 的空值檢查來決定是否覆寫 `location_name`/`location_address`。必須同時考量：(1) web search score（空值填入 ≥ 3，非空 upgrade-overwrite ≥ 6），(2) 使用者是否明確鎖定欄位（`lockedFields`），(3) 欄位是否明確來自本次 create/edit session 的 auto-fill provenance（`overwriteableFields`，通常只包含 OCR 自動填入且尚未被手動改過的欄位）。邏輯已封裝在 `shouldApplyAnnotatedLocationField(field, cur, v, { bestScore, lockedFields, overwriteableFields })`。**缺少 provenance 時，非空欄位必須預設維持 fill-only，不得冒然覆寫。** 任何新 annotate route 與對應 create client 都應使用這組 shared contract，而不是各自內聯 overwrite 條件。
 
 ## Database
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`

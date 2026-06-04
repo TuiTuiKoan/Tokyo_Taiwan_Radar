@@ -3,9 +3,14 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
+import {
+  sanitizeCategoryValues,
+  sanitizeEventFormValues,
+  sanitizePrimaryLanguageValue,
+  shouldApplyAnnotatedLocationField,
+} from "@/lib/eventFieldMerge";
 
 export const maxDuration = 60;
-const VALID_PRIMARY_LANGUAGES = new Set(["ja", "zh", "en", "mixed"]);
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36";
@@ -242,7 +247,11 @@ export async function POST(req: NextRequest) {
   if (!roleRow || roleRow.role !== "admin")
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { eventId } = (await req.json()) as { eventId: string };
+  const { eventId, lockedFields, overwriteableFields } = (await req.json()) as {
+    eventId: string;
+    lockedFields?: string[];
+    overwriteableFields?: string[];
+  };
   if (!eventId) return NextResponse.json({ error: "eventId required" }, { status: 400 });
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -277,6 +286,13 @@ export async function POST(req: NextRequest) {
   const returnedFields: Record<string, unknown> = {};
   let searchDebug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number; queries: string[]; topCandidates: Array<{ url: string; score: number }> } | null = null;
   let sourceUrlFetchOk: boolean | null = null;
+  let bestScore = -1;
+  const manualLockedFields = Array.isArray(lockedFields)
+    ? lockedFields.filter((field): field is string => typeof field === "string")
+    : [];
+  const overwriteableLocationFields = Array.isArray(overwriteableFields)
+    ? overwriteableFields.filter((field): field is string => typeof field === "string")
+    : [];
 
   const needsUrlEnrichment =
     !event.source_url ||
@@ -291,6 +307,7 @@ export async function POST(req: NextRequest) {
       // Verify the existing source_url actually matches the event — a wrong
       // URL persisted from a previous bad search must NOT be reused.
       const score = text ? scorePage(text, event.name_ja as string, (event.location_name as string) || "") : -1;
+      bestScore = score;
       if (text && score >= 3) {
         foundUrl = event.source_url as string;
         webText = text;
@@ -309,6 +326,7 @@ export async function POST(req: NextRequest) {
         `bestScore=${enriched.debug.bestScore} candidates=${JSON.stringify(enriched.debug.topCandidates)} ` +
         `queries=${JSON.stringify(enriched.debug.queries)}`
       );
+      bestScore = enriched.debug.bestScore;
       if (enriched.url && enriched.text) {
         foundUrl = enriched.url;
         webText = enriched.text;
@@ -414,6 +432,8 @@ Extraction fields (omit if not visible in the web page):
 
 Rules:
 - For Chinese, use Traditional Chinese characters only (繁體字). Never simplified.
+- Glossary: translate 記念講演会 as 紀念演講 in Traditional Chinese.
+- Glossary: translate 記念講演会 as Commemorative Lecture in English.
 - Do not fabricate. If the web page does not mention a field, omit it.
 - Descriptions should be factual and event-focused. No marketing fluff.
 - Return ONLY valid JSON.`,
@@ -429,20 +449,28 @@ Rules:
     signal: AbortSignal.timeout(25000), // 25s — prevents OpenAI slow response from exceeding Vercel maxDuration
   });
 
-  if (openaiRes.ok) {
+  if (!openaiRes.ok) {
+    let detail = "";
+    try { detail = (await openaiRes.text()).slice(0, 300); } catch { /* ignore */ }
+    console.error("[annotate-event] OpenAI error:", openaiRes.status, detail);
+    return NextResponse.json(
+      { error: "annotateAiFailed", detail: `OpenAI ${openaiRes.status}${detail ? `: ${detail}` : ""}` },
+      { status: 502 }
+    );
+  }
+
+  {
     const openaiData = (await openaiRes.json()) as {
       choices: Array<{ message: { content: string } }>;
     };
     const content = openaiData.choices?.[0]?.message?.content ?? "{}";
     try {
       const annotated = JSON.parse(content) as Record<string, unknown>;
-      // Preserve OCR-filled values: only fill extraction fields that are currently empty
       const extractionFields = [
         "organizer", "organizer_url", "location_name", "location_address", "location_url",
         "business_hours", "performer", "price_info", "start_date", "end_date",
         "name_ja", "name_zh", "name_en",
       ];
-      // Description and translation fields always overwrite (annotator-generated)
       const alwaysOverwriteFields = [
         "description_ja", "description_zh", "description_en",
       ];
@@ -451,8 +479,21 @@ Rules:
         if (alwaysOverwriteFields.includes(k)) {
           returnedFields[k] = v;
         } else if (extractionFields.includes(k)) {
-          // Only set if event currently has no value
           const cur = (event as Record<string, unknown>)[k];
+          if (k === "location_name" || k === "location_address") {
+            if (shouldApplyAnnotatedLocationField(k, cur, v, {
+              bestScore,
+              lockedFields: manualLockedFields,
+              overwriteableFields: overwriteableLocationFields,
+              currentLocationName: typeof event.location_name === "string" ? event.location_name : null,
+              currentLocationAddress:
+                typeof event.location_address === "string" ? event.location_address : null,
+            })) {
+              returnedFields[k] = v;
+            }
+            continue;
+          }
+
           if (cur === null || cur === undefined || cur === "") {
             returnedFields[k] = v;
           }
@@ -460,57 +501,31 @@ Rules:
           returnedFields[k] = v;
         }
       }
-      // Preserve OCR-filled category / event_form
       if (existingCategory) returnedFields.category = event.category;
       if (existingEventForm) returnedFields.event_form = event.event_form;
-    } catch { /* GPT parse error — still return web-search results */ }
+    } catch (parseErr) {
+      console.error("[annotate-event] JSON parse failed:", parseErr);
+      if (Object.keys(returnedFields).length === 0) {
+        return NextResponse.json(
+          { error: "annotateAiFailed", detail: "AI response was not valid JSON" },
+          { status: 502 }
+        );
+      }
+    }
   }
 
   // ── Enum whitelist validation (OWASP A03) ───────────────────────────────
-  // Alias normalization: migration 047 old names → current names
-  const EVENT_FORM_ALIASES: Record<string, string> = {
-    concert: "performance",
-    lecture_seminar: "lecture",
-    film_screening: "screening",
-    festival: "other",
-    sports: "other",
-  };
-  const validCategories = new Set<string>(CATEGORIES);
-  const validEventForms = new Set<string>(EVENT_FORMS);
+  const sanitizedCategories = sanitizeCategoryValues(returnedFields.category);
+  if (sanitizedCategories) returnedFields.category = sanitizedCategories;
+  else delete returnedFields.category;
 
-  if (Array.isArray(returnedFields.category)) {
-    const filtered = (returnedFields.category as string[])
-      .filter((v): v is string => typeof v === "string")
-      .filter(v => validCategories.has(v));
-    if (filtered.length > 0) {
-      returnedFields.category = filtered;
-    } else {
-      console.error("[annotate-event] category whitelist: all values invalid, dropped", {
-        eventId, raw: returnedFields.category,
-      });
-      delete returnedFields.category;
-    }
-  }
+  const sanitizedEventForms = sanitizeEventFormValues(returnedFields.event_form);
+  if (sanitizedEventForms) returnedFields.event_form = sanitizedEventForms;
+  else delete returnedFields.event_form;
 
-  if (Array.isArray(returnedFields.event_form)) {
-    const normalized = (returnedFields.event_form as string[])
-      .filter((v): v is string => typeof v === "string")
-      .map(v => EVENT_FORM_ALIASES[v] ?? v)
-      .filter(v => validEventForms.has(v));
-    if (normalized.length > 0) {
-      returnedFields.event_form = normalized;
-    } else {
-      console.error("[annotate-event] event_form whitelist: all values invalid, dropped", {
-        eventId, raw: returnedFields.event_form,
-      });
-      delete returnedFields.event_form;
-    }
-  }
-
-  if (
-    typeof returnedFields.primary_language === "string" &&
-    !VALID_PRIMARY_LANGUAGES.has(returnedFields.primary_language)
-  ) {
+  const sanitizedPrimaryLanguage = sanitizePrimaryLanguageValue(returnedFields.primary_language);
+  if (sanitizedPrimaryLanguage) returnedFields.primary_language = sanitizedPrimaryLanguage;
+  else if (returnedFields.primary_language !== undefined) {
     delete returnedFields.primary_language;
   }
 

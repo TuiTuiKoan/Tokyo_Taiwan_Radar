@@ -8,6 +8,12 @@ import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 import { createOwnerEvent, createOwnerDraft, updateOwnerEvent } from "@/app/actions/owner-events";
+import {
+  ANNOTATE_LOCATION_FIELDS,
+  getActionErrorMessage,
+  pickReturnedFormFields,
+  readJsonResponse,
+} from "@/lib/eventIntakeClient";
 
 interface Props {
   locale: Locale;
@@ -34,11 +40,19 @@ export default function OwnerCreateClient({ locale }: Props) {
   const posterFileRef = useRef<HTMLInputElement>(null);
   const busyStartedAtRef = useRef<number | null>(null);
   const actionLockRef = useRef(false);
+  const autoFilledFieldsRef = useRef<Set<string>>(new Set());
+  const manualEditedFieldsRef = useRef<Set<string>>(new Set());
   const [busyElapsedMs, setBusyElapsedMs] = useState(0);
   const [, startTransition] = useTransition();
 
   function isFormFieldKey(key: string): key is keyof FormState {
     return key in EMPTY_FORM;
+  }
+
+  function isAnnotateLocationField(
+    key: string,
+  ): key is (typeof ANNOTATE_LOCATION_FIELDS)[number] {
+    return ANNOTATE_LOCATION_FIELDS.includes(key as (typeof ANNOTATE_LOCATION_FIELDS)[number]);
   }
 
   useEffect(() => {
@@ -62,18 +76,44 @@ export default function OwnerCreateClient({ locale }: Props) {
   function updateField(k: string, v: unknown) {
     if (!isFormFieldKey(k)) return;
 
+    if (isAnnotateLocationField(k)) {
+      manualEditedFieldsRef.current.add(k);
+    }
+
     setForm((prev) => ({ ...prev, [k]: v as FormState[typeof k] }));
   }
 
   function applyReturnedFields(fields: Record<string, unknown>) {
-    const nextFields = Object.fromEntries(
-      Object.entries(fields).filter(
-        ([key, value]) => isFormFieldKey(key) && value !== null && value !== undefined && value !== ""
-      )
-    ) as Partial<FormState>;
+    const nextFields = pickReturnedFormFields(EMPTY_FORM, fields);
 
     if (Object.keys(nextFields).length === 0) return;
     setForm((prev) => ({ ...prev, ...nextFields }));
+  }
+
+  function applyOcrFields(fields: Record<string, unknown>) {
+    const nextFields = pickReturnedFormFields(EMPTY_FORM, fields);
+
+    if (Object.keys(nextFields).length === 0) return;
+
+    for (const key of Object.keys(nextFields)) {
+      if (!isAnnotateLocationField(key)) continue;
+      autoFilledFieldsRef.current.add(key);
+      manualEditedFieldsRef.current.delete(key);
+    }
+
+    setForm((prev) => ({ ...prev, ...nextFields }));
+  }
+
+  function getLockedLocationFields() {
+    return ANNOTATE_LOCATION_FIELDS.filter((field) => manualEditedFieldsRef.current.has(field));
+  }
+
+  function getOverwriteableLocationFields() {
+    return ANNOTATE_LOCATION_FIELDS.filter(
+      (field) =>
+        autoFilledFieldsRef.current.has(field) &&
+        !manualEditedFieldsRef.current.has(field),
+    );
   }
 
   function beginPrimaryAction(mode: "save" | "annotate") {
@@ -99,35 +139,6 @@ export default function OwnerCreateClient({ locale }: Props) {
       return;
     }
     setSaving(false);
-  }
-
-  function getActionErrorMessage(error: unknown, fallbackMessage: string) {
-    if (
-      error instanceof DOMException &&
-      (error.name === "AbortError" || error.name === "TimeoutError")
-    ) {
-      return fallbackMessage;
-    }
-
-    if (error instanceof Error) {
-      if (error.message.startsWith("Unexpected token")) {
-        return fallbackMessage;
-      }
-      return error.message || fallbackMessage;
-    }
-
-    return fallbackMessage;
-  }
-
-  async function readJsonResponse(res: Response) {
-    const responseText = await res.text();
-    if (!responseText) return {} as Record<string, unknown>;
-
-    try {
-      return JSON.parse(responseText) as Record<string, unknown>;
-    } catch {
-      return {} as Record<string, unknown>;
-    }
   }
 
   function toggleCategory(cat: string) {
@@ -159,23 +170,13 @@ export default function OwnerCreateClient({ locale }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ image: dataUrl }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ? t(data.error) : "Extraction failed");
-
-        const fields = (data.fields ?? {}) as Record<string, unknown>;
-        const ARRAY_FIELDS = new Set(["event_form", "category", "co_organizers", "sponsors"]);
-        for (const [key, val] of Object.entries(fields)) {
-          if (!isFormFieldKey(key) || val === null || val === undefined) continue;
-          if (ARRAY_FIELDS.has(key) && Array.isArray(val)) {
-            updateField(key, val);
-          } else if (!ARRAY_FIELDS.has(key)) {
-            updateField(key, val === true ? true : val === false ? false : String(val));
-          }
+        const data = await readJsonResponse(res);
+        if (!res.ok) {
+          const errorKey = typeof data.error === "string" ? data.error : null;
+          throw new Error(errorKey ? t(errorKey) : "Extraction failed");
         }
-        if (typeof fields.is_paid === "boolean") updateField("is_paid", fields.is_paid);
-        if (typeof fields.has_japanese_support === "boolean") updateField("has_japanese_support", fields.has_japanese_support);
-        if (typeof fields.has_english_support === "boolean") updateField("has_english_support", fields.has_english_support);
-        if (typeof fields.has_chinese_support === "boolean") updateField("has_chinese_support", fields.has_chinese_support);
+
+        applyOcrFields((data.fields ?? {}) as Record<string, unknown>);
 
         setOcrFilled(true);
         setAnnotationDone(false);
@@ -215,7 +216,11 @@ export default function OwnerCreateClient({ locale }: Props) {
       const res = await fetch("/api/account/annotate-event", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId }),
+        body: JSON.stringify({
+          eventId,
+          lockedFields: getLockedLocationFields(),
+          overwriteableFields: getOverwriteableLocationFields(),
+        }),
         signal: AbortSignal.timeout(58000),
       });
 
