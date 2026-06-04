@@ -36,6 +36,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 from openai import OpenAI
 from playwright.sync_api import sync_playwright, Browser, TimeoutError as PWTimeout
 from supabase import create_client, Client
+from bs4 import BeautifulSoup
 
 from category_feedback import load_corrections, build_feedback_prompt
 from selection_reason_feedback import load_sr_corrections, build_sr_feedback_prompt
@@ -52,6 +53,82 @@ from sources._cinema_constants import FIXED_CINEMA_SOURCES
 logger = logging.getLogger(__name__)
 
 _PUBLICATION_SOURCES = {"ndl_opensearch", "hanmoto", "kawade_rss", "eslite_spectrum"}
+_PUBLICATION_PLACEHOLDER_JA = "新刊のご購入は各販売チャネルでお願いします"
+_PUBLICATION_PLACEHOLDER_ZH = "新書購買請洽各通路"
+_PUBLICATION_PLACEHOLDER_EN = "Please check each sales channel to purchase this new book."
+
+
+def _normalize_publication_publisher(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = re.sub(r"^\s*[^:：]+[:：]\s*", "", value).strip()
+    cleaned = re.sub(r"\s*[;；].*$", "", cleaned).strip()
+    return cleaned or None
+
+
+def _fetch_ndl_publication_context(source_url: str | None) -> dict[str, Any]:
+    """Fetch NDL bibliographic metadata for publication rows.
+
+    NDL magazine / journal article pages expose the issue title and volume in
+    breadcrumbs.  We use that to replace the generic purchase-channel placeholder
+    for periodical articles and to backfill organizer from the page's publisher.
+    """
+    if not source_url:
+        return {}
+    try:
+        req = Request(
+            source_url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (compatible; TokyoTaiwanRadar/1.0; +https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar)"
+                ),
+                "Accept-Language": "ja,en;q=0.9",
+            },
+        )
+        with urlopen(req, timeout=_PROFILE_FETCH_TIMEOUT) as resp:
+            html = resp.read(600_000).decode("utf-8", errors="ignore")
+    except Exception as exc:
+        logger.debug("publication metadata fetch failed %s: %s", source_url, exc)
+        return {}
+
+    soup = BeautifulSoup(html, "html.parser")
+    context: dict[str, Any] = {
+        "publication_label_ja": None,
+        "publication_label_zh": None,
+        "publication_label_en": None,
+        "organizer": None,
+        "is_periodical": False,
+    }
+
+    material_el = soup.select_one("span.breadcrumb-title-material")
+    title_el = soup.select_one("a.breadcrumb-title-title")
+    volume_el = soup.select_one("a.breadcrumb-book-volume")
+    material = material_el.get_text(" ", strip=True) if material_el else ""
+    if material == "雑誌" and title_el:
+        issue_title = title_el.get_text(" ", strip=True)
+        volume_text = volume_el.get_text(" ", strip=True) if volume_el else ""
+        issue_suffix = None
+        volume_match = re.search(r"(\d{4}年\d{1,2}月(?:\d{1,2}日)?)", volume_text)
+        if volume_match:
+            issue_suffix = volume_match.group(1)
+        elif volume_text:
+            issue_suffix = re.sub(r"^\((?:通号|第)?[^)]*\)\s*", "", volume_text).strip() or None
+        label = issue_title if not issue_suffix else f"{issue_title} {issue_suffix}"
+        context["publication_label_ja"] = label
+        context["publication_label_zh"] = label
+        context["publication_label_en"] = label
+        context["is_periodical"] = True
+
+    for dt in soup.find_all("dt"):
+        label_el = dt.find("span")
+        if not label_el or label_el.get_text(" ", strip=True) != "出版者":
+            continue
+        dd = dt.find_next_sibling("dd")
+        if dd:
+            context["organizer"] = _normalize_publication_publisher(dd.get_text(" ", strip=True))
+        break
+
+    return context
 
 # ---------------------------------------------------------------------------
 # Simplified → Traditional Chinese character-level conversion table.
@@ -1780,28 +1857,70 @@ def annotate_pending_events(
                         update_data["price_info"] = "有料"
 
                 if _source_name in _PUBLICATION_SOURCES:
-                    publication_text_ja = "新刊のご購入は各販売チャネルでお願いします"
-                    publication_text_zh = "新書購買請洽各通路"
-                    publication_description = _str(event.get("raw_description"))
+                    publication_context = (
+                        _fetch_ndl_publication_context(event.get("source_url"))
+                        if _source_name == "ndl_opensearch"
+                        else {}
+                    )
+                    publication_text_ja = (
+                        _str(publication_context.get("publication_label_ja"))
+                        or _PUBLICATION_PLACEHOLDER_JA
+                    )
+                    publication_text_zh = (
+                        _str(publication_context.get("publication_label_zh"))
+                        or _PUBLICATION_PLACEHOLDER_ZH
+                    )
+                    publication_text_en = (
+                        _str(publication_context.get("publication_label_en"))
+                        or _PUBLICATION_PLACEHOLDER_EN
+                    )
+                    publication_description_ja = _str(event.get("raw_description"))
+                    publication_description_zh = _to_trad(publication_description_ja)
+                    publication_description_en = publication_description_ja
                     if "event_form" not in _human_protected:
                         update_data["event_form"] = ["publication"]
                     update_data["location_name"] = publication_text_ja
                     update_data["location_name_zh"] = publication_text_zh
-                    update_data["location_name_en"] = "Please check each sales channel to purchase this new book."
-                    update_data["location_address"] = publication_text_ja
-                    update_data["location_address_zh"] = publication_text_zh
-                    update_data["location_address_en"] = "Please check each sales channel to purchase this new book."
-                    update_data["business_hours"] = publication_text_ja
-                    update_data["business_hours_zh"] = publication_text_zh
-                    update_data["business_hours_en"] = "Please check each sales channel to purchase this new book."
-                    if not update_data.get("price_info"):
-                        update_data["price_info"] = publication_text_zh
+                    update_data["location_name_en"] = publication_text_en
+                    if publication_context.get("is_periodical"):
+                        update_data["location_address"] = None
+                        update_data["location_address_zh"] = None
+                        update_data["location_address_en"] = None
+                        update_data["business_hours"] = None
+                        update_data["business_hours_zh"] = None
+                        update_data["business_hours_en"] = None
+                        if not update_data.get("price_info") or update_data.get("price_info") in {
+                            _PUBLICATION_PLACEHOLDER_ZH,
+                            _PUBLICATION_PLACEHOLDER_EN,
+                        }:
+                            update_data["price_info"] = None
+                        if update_data.get("name_ja") and not update_data["name_ja"].startswith("期刊專文："):
+                            update_data["name_ja"] = f"期刊專文：{update_data['name_ja']}"
+                            if update_data.get("name_zh"):
+                                update_data["name_zh"] = f"期刊專文：{update_data['name_zh']}"
+                            if update_data.get("name_en"):
+                                update_data["name_en"] = f"Periodical article: {update_data['name_en']}"
+                        if publication_text_ja:
+                            publication_description_ja = f"掲載誌：{publication_text_ja}\n\n{publication_description_ja}".strip()
+                            publication_description_zh = f"刊載期刊：{publication_text_zh}\n\n{publication_description_zh}".strip()
+                            publication_description_en = f"Published in: {publication_text_en}\n\n{publication_description_en}".strip()
+                    else:
+                        update_data["location_address"] = publication_text_ja
+                        update_data["location_address_zh"] = publication_text_zh
+                        update_data["location_address_en"] = publication_text_en
+                        update_data["business_hours"] = publication_text_ja
+                        update_data["business_hours_zh"] = publication_text_zh
+                        update_data["business_hours_en"] = publication_text_en
+                        if not update_data.get("price_info"):
+                            update_data["price_info"] = publication_text_zh
+                    if not update_data.get("organizer") and publication_context.get("organizer"):
+                        update_data["organizer"] = publication_context["organizer"]
                     if not update_data.get("location_url"):
                         update_data["location_url"] = None
-                    if publication_description:
-                        update_data["description_ja"] = publication_description
-                        update_data["description_zh"] = _to_trad(publication_description)
-                        update_data["description_en"] = publication_description
+                    if publication_description_ja:
+                        update_data["description_ja"] = publication_description_ja
+                        update_data["description_zh"] = publication_description_zh
+                        update_data["description_en"] = publication_description_en
 
                 # Organizer translations — KNOWN_ORGANIZER_MAP overrides GPT
                 if update_data.get("organizer"):
