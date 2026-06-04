@@ -33,6 +33,8 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - For publication-related pending QA, clean by source and status transition first. If a source is mixed-content like `eslite_spectrum`, keep the rule set conservative and do not fold promotional talk events into the same batch.
 - Venue homepage repairs (`location_url`) are provenance-sensitive. The only safe auto-fix target is the venue's own official homepage; never promote `source_url`, `official_url`, or `organizer_url` into `location_url` just because a search hit looks plausible.
 - If a venue cannot be verified to have its own homepage, leave the report pending for human review. Shared municipal spaces and parent-organization pages are especially prone to false positives.
+- For pending QA cleanup, use `qa_heartbeat.py` as the real dispatch entry. `qa_auto_fix.py` CLI only runs its own built-in maintenance batches (simplified Chinese + tokyoartbeat date sync); do not assume it will process the full safe-report backlog.
+- Database-only QA cleanup does not require git push or deployment. Only change code or docs when the cleanup logic itself needs to be adjusted.
 
 ## Agent Handoff Reliability
 
@@ -52,6 +54,18 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - When a UI change touches shared pills, buttons, tabs, or dropdown triggers, verify the result in both Chrome and Safari before broadening the fix.
 - If Safari alone looks vertically off, prefer the smallest browser-specific baseline correction over reworking every related component.
 - Recheck computed `line-height`, `padding`, and element height in Safari after any shared `inline-flex` / `rounded-full` refactor.
+
+## Click Hit-Area Integrity
+
+- Overriding a shared `Button`'s padding with `px-0 py-0` shrinks the clickable hit area down to the text glyphs — the element looks present but is effectively unclickable in the padding zone.
+- To visually align a button flush with its container edge, offset with a negative margin (e.g. `-ml-4`) instead of zeroing the padding. Keep the component's native `px-4 py-2` hit area.
+- In a `flex justify-between` row, always give the adjacent heading `truncate` and give the interactive element `shrink-0`. A long (often English) title can otherwise overlap and steal a low-padding sibling's hit area.
+
+## API Route Error Surfacing
+
+- "Success" for an API route is NOT "did not throw." Every external call (LLM, DB write, third-party fetch) must explicitly check `res.ok` / `error` and return a non-2xx status with a readable `detail`.
+- Anti-pattern that hides root cause for days: `if (extRes.ok) { ... }` with no `else`, empty `catch {}` around `JSON.parse`, and unchecked `await supabase...update()` — then returning `200 { success: true }` regardless. The frontend's `t(res.error)` then has nothing to show and only the generic `saveFailed` appears.
+- When adding a new backend error code, surface it end-to-end: non-2xx + `{ error, detail }` on the server, append `detail` to the frontend message, and add the i18n key to all three `messages/*.json` simultaneously.
 
 ## E2E Local Server Prerequisite
 

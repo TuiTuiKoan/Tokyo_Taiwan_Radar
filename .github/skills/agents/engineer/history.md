@@ -2,6 +2,27 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-05 - QA backlog 清理要走 `qa_heartbeat.py`，`qa_auto_fix.py` CLI 只處理兩個內建批次
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-05 | 使用者看到後台還有約 150 筆 pending error，以為需要再推送程式碼；實際上真正需要的是跑資料庫 QA 清理，不是重新 deploy | `qa_auto_fix.py --dry-run` 只會跑簡轉繁與 tokyoartbeat date-sync，真正會派發 `auto_qa_location_url_is_event_url`、`auto_qa_performer_multi_value_pollution` 等 safe handler 的入口是 `qa_heartbeat.py`；若誤用前者，就會看錯 backlog 組成 | 先用 Supabase 查出 `event_reports.report_types` 與 `status` 分佈，再用 `qa_heartbeat.py --dry-run --limit 200` 驗證只會安全處理 18 筆；接著執行實跑，閉合 17 筆可逆修正（15 筆 performer 多值污染 + 2 筆 venue homepage 污染） | 資料庫清理不等於程式碼改動。先分清「偵測器 / 派發器 / CLI」三層入口，再決定要不要 push；若只是在 DB 裡把可逆的 QA 報告閉合，通常不需要 commit、push 或 redeploy。
+
+---
+
+## 2026-06-05 - 共用 `Button` 被 `px-0 py-0` 歸零導致點擊命中區只剩文字字形
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-05 | `/[locale]/admin/events/new` 英文版的「← Back to list」按鈕看起來整顆按不到，只有文字本身偶爾有反應 | `AdminCreateClient.tsx` / `AdminEditClient.tsx` 的 back 按鈕用共用 `Button`（base `px-4 py-2`），卻用 `className="px-0 py-0"` 把 padding 完全歸零，命中區縮成只剩文字字形範圍；外層又是 `flex justify-between`，英文長標題（h1 無 `truncate`）會往左壓到這個零 padding 的小命中區，視覺上像整顆失效 | 移除 `px-0 py-0`，改用 `-ml-4` 抵銷左 padding 以維持原本左對齊外觀，恢復 `Button` 原生 `px-4 py-2` 命中區；並加 `shrink-0`、`relative z-10`，h1 加 `truncate` 防止長標題擠壓 | 覆寫共用 `Button` 的 padding 等同縮小可點區域。要視覺貼齊容器邊時，用負 margin 抵銷而非把 padding 歸零；對 `justify-between` 行內的相鄰文字一律加 `truncate` + `shrink-0`，避免長字串擠掉互動元素的命中區。
+
+---
+
+## 2026-06-05 - `/api/account/annotate-event` 三處靜默吞錯，前端永遠只看到泛用 `saveFailed`
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-05 | 使用者投稿頁「儲存並標注」反覆失敗多日，畫面只顯示「保存に失敗しました」，無法判斷真因 | `web/app/api/account/annotate-event/route.ts` 有三個靜默吞錯點：① OpenAI 回非 200 時 `if (openaiRes.ok)` 直接跳過；② GPT 回傳非合法 JSON 被空 `catch` 吞掉；③ 最終 `events` update 不檢查 error；三者最後一律回 `200 { success: true }`，前端 `OwnerCreateClient` 即使有 `t(res.error)` 也拿不到任何錯誤碼 | 後端改為：OpenAI 非 200 → `502 annotateAiFailed` 帶 `detail`；JSON parse 失敗且無任何欄位 → `502 annotateAiFailed`；DB update 失敗 → `500 annotateSaveFailed` 帶 db message。前端把 `detail` 接到錯誤訊息後綴，三語補上 `annotateAiFailed` / `annotateSaveFailed` | API route 的「成功」不能用「沒有 throw」定義。每個外部呼叫（LLM、DB write）都要顯式檢查 status / error 並回非 2xx + 可讀 `detail`，否則前端再怎麼 i18n 都只能顯示泛用訊息，真因被永久吞掉。
+
+---
+
 ## 2026-06-04 - publication batch 不能只補模板欄位，`event_form` 與前台 label 也要同步收斂
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
