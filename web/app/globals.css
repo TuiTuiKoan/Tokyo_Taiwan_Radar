@@ -269,6 +269,15 @@ html:has([data-site-bg]) body {
       padding-top: calc(0.375rem + 2px) !important;
       padding-bottom: calc(0.375rem - 2px) !important;
     }
+
+    /* The count badge inside segmented tabs is already vertically centered;
+       the asymmetric padding above would drag it down too, so pull it back
+       up by the same amount. The badge span is distinguishable from the text
+       label by its `rounded-full` pill class. */
+    [role="tab"] span.rounded-full,
+    [role="radio"] span.rounded-full {
+      transform: translateY(-2px);
+    }
   }
 }
 
