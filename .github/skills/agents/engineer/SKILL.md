@@ -36,7 +36,7 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - For pending QA cleanup, use `qa_heartbeat.py` as the real dispatch entry. `qa_auto_fix.py` CLI only runs its own built-in maintenance batches (simplified Chinese + tokyoartbeat date sync); do not assume it will process the full safe-report backlog.
 - Database-only QA cleanup does not require git push or deployment. Only change code or docs when the cleanup logic itself needs to be adjusted.
 - For publication metadata backfills, keep the helper logic source-scoped: NDL OpenSearch periodical rows need breadcrumb-derived labels and publisher-backed organizer, while non-periodical publication rows may keep the generic publication placeholder.
-- For publication metadata backfills, also prefer the official product page description when `official_url` is present, and prefix publication titles with `[新刊出版]` across locale variants. Keep the periodical `期刊專文：` prefix only for NDL magazine and journal rows.
+- For publication metadata backfills, also prefer the official product page description when `official_url` is present, and prefix publication titles with `[新刊出版]` across locale variants. NDL magazine and journal rows should use bracketed periodical labels like `[期刊專文]`.
 
 ## Agent Handoff Reliability
 

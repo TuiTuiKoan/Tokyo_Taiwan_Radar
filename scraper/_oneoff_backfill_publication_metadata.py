@@ -2,7 +2,7 @@
 
 Scope:
     - active publication events from all publication sources
-    - NDL OpenSearch periodical/article rows get a periodical-specific label
+    - NDL OpenSearch periodical/article rows get a bracketed periodical label
 
 This script mirrors the publication metadata rules used by annotator.py so the
 same logic can be applied to existing rows and future re-annotations.
@@ -106,16 +106,16 @@ def _build_update(event: dict) -> dict:
         current_name_en = (event.get("name_en") or "").strip()
 
         if current_name_ja:
-            update["name_ja"] = _prefix_publication_name(current_name_ja, periodical_label="期刊專文：")
+            update["name_ja"] = _prefix_publication_name(current_name_ja, periodical_label="[期刊專文]")
         if current_name_zh or publication_text_ja:
             update["name_zh"] = _prefix_publication_name(
                 current_name_zh or publication_text_ja,
-                periodical_label="期刊專文：",
+                periodical_label="[期刊專文]",
             )
         if current_name_en or publication_text_en:
             update["name_en"] = _prefix_publication_name(
                 current_name_en or publication_text_en,
-                periodical_label="Periodical article: ",
+                periodical_label="[Periodical article]",
             )
 
         update["location_address"] = None
