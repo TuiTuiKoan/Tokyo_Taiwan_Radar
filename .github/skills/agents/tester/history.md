@@ -1,6 +1,27 @@
+---
+description: "Tester validation failure history and lessons learned"
+ms.date: 2026-06-04
+---
+
 # Tester Error History
 
 <!-- Append new entries at the top -->
+
+## 2026-06-04 - OwnerCreateClient 目標 lint 未過，build 與 type 雖通過仍不能判綠
+
+**問題：** 針對 `web/components/OwnerCreateClient.tsx` 與
+`web/app/[locale]/account/events/new/page.tsx` 執行目標 ESLint 時，回報 5 個 error，
+包含 `react-hooks/set-state-in-effect` 與多個 `@typescript-eslint/no-explicit-any`。
+
+**根因：** 直接受影響的元件目前不符合 repo 現行 ESLint 規則；其中本次驗證也踩到一個
+zsh 特性，對 `app/[locale]/...` 這類路徑若未加引號，shell 會先把方括號當成 glob，
+導致 `no matches found`，必須先排除這個指令層噪音後才能得到真實 lint 結果。
+
+**修正：** 對 App Router 方括號路徑加引號後重跑 ESLint；產品面則需清掉
+`OwnerCreateClient.tsx` 目前的 5 個 lint error，之後再重新驗證 build、type、lint。
+
+**教訓：** 對直接受影響檔案做獨立驗證時，不能只看 build 與 TypeScript；若 repo 有 ESLint，
+至少要對變更切面做一次目標 lint，而且在 zsh 下所有含 `[` `]` 的路徑都要加引號。
 
 ---
 

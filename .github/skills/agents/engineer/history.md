@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-06-04 - `OwnerCreateClient` targeted lint FAIL：effect 內 busy reset 與 `any` 洩漏
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-04 | Tester 對 `web/components/OwnerCreateClient.tsx` 的 targeted ESLint 回報 5 個 error，包含 1 個 `react-hooks/set-state-in-effect` 與 4 個 `@typescript-eslint/no-explicit-any` | busy 計時器在 `useEffect` 的 idle branch 直接 `setBusyElapsedMs(0)`；同檔案的 `updateField()`、OCR/annotate 回傳欄位與 extract catch path 仍以 `any` 穿透型別邊界 | 將 busy reset 移到 action 與 image extract 起點，讓 `useEffect` 只負責 interval 訂閱與清理；新增 `isFormFieldKey()` 守衛，將欄位更新與 API 回傳型別收斂為 `unknown` / `Record<string, unknown>`，並用 targeted ESLint + `pnpm exec tsc --noEmit` 驗證 | 有 elapsed timer 的 client component，不要在 `useEffect` body 內做同步 reset state；effect 應只管理 timer 訂閱，輸入型別則先收斂到 `unknown` 再做欄位守衛。
+
+---
+
+## 2026-06-04 - `/[locale]/account/events/new`「儲存並標注」需要連點且回填像殘影
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-04 | 使用者在新增活動頁第一次點擊「儲存並標注」時，按鈕看起來像沒反應，幾秒後才回彈；annotate 成功後欄位逐格回填，視覺上像殘影 | `OwnerCreateClient` 用 `actionLockRef` 防重入，但 busy 回饋只靠 async state，首擊到可見 pending 之間留下誤判空窗；annotate 成功後又逐欄 `updateField()`，造成多次重繪；save 失敗仍只用 `alert`，沒有固定頁內錯誤訊號 | 在 `OwnerCreateClient.tsx` 用 `flushSync` 讓第一次點擊先同步切到 `saving`/`annotating` busy 態並重設計時器，新增頁內 busy banner 與 inline error，並把 annotate 回傳欄位改成單次 `setForm()` 批次套用 | 長流程 client submit 不能只靠 ref 鎖與稍後 render。第一次點擊必須先把 busy 狀態畫到畫面上，且伺服器回填資料應單次 patch，避免多次重繪造成「殘影」體感。
+
 ## 2026-06-04 — `location_url` 被誤寫成主辦/活動頁：provenance 混淆與 venue homepage 回填防線
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

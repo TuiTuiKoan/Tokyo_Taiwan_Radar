@@ -271,6 +271,17 @@ const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
 - `annotate-event/route.ts` OpenAI call
 - `AdminEventTable.tsx` `handlePublish` 補 `.select("id")` + 0-row guard
 
+## React busy timer reset rule
+
+Client component 如果要顯示 save / extract / annotate 的 elapsed 秒數，`useEffect` 只能負責 timer 的啟停與 cleanup，不要在 effect body 內同步呼叫 `setState` 做 reset。React 19 lint 會以 `react-hooks/set-state-in-effect` 直接報錯。
+
+**Rules:**
+- 將 `setBusyElapsedMs(0)` 這類 reset 與 `busyStartedAtRef.current = Date.now()` 放在事件入口，例如 `handleSave`、`handleImageExtract`、`beginPrimaryAction`。
+- `useEffect` 只做三件事：判斷 timer 是否需要運行、掛上 `setInterval`、在 cleanup 清除 interval。
+- busy 結束時可以清空 ref；若 UI 需要下一次從 `0s` 開始，應在下一次 action 開始時設定，不要在 effect 的 idle branch 內 reset。
+
+Reference incident: 2026-06-04 `OwnerCreateClient.tsx` targeted lint FAIL.
+
 ## Client Component 直接 INSERT 禁止 — Server Action 義務化
 
 **Client Component 内で `supabase.from(...).insert()` を直接呼び出してはならない（admin・一般ユーザー問わず）。**

@@ -29,6 +29,7 @@ Read this at the start of every session before running any test.
 - **Never embed bare `!` characters in inline shell commands** (e.g. `python -c "print(repr(x))"` with `!r` formatting flag). zsh expands `!r`, `!$`, `!!` from shell history *before* quoting takes effect, even inside single quotes.
 - **Always use quoted heredocs** for multi-line scripts: `python3 - <<'PY'` (note the quoted `'PY'`). Quoted delimiter disables both variable interpolation and history expansion.
 - **If `!` is unavoidable in a single-line command, escape it**: `\!r` instead of `!r`.
+- **Always quote paths containing `[` or `]`** (for example `app/[locale]/account/events/new/page.tsx`) when passing them to zsh commands such as `eslint`, `grep`, or `sed`; otherwise zsh treats them as glob patterns and can fail with `no matches found`.
 - **Preflight (machines without `NO_BANG_HIST`)**: `[[ -o BANG_HIST ]] && echo "WARN: history expansion enabled, use heredoc"`.
 - **Detection signals during execution**: `zsh: event not found`, or an echoed command that doesn't match what you typed → stop immediately, do NOT press enter on follow-up prompts.
 - This repo's owner shell has `setopt NO_BANG_HIST` permanently set in `~/.zshrc` since 2026-05-26 after a near-miss `rm` resurrection (see `history.md` 2026-05-26 entry).

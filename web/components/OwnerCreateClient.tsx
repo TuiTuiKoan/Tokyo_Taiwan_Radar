@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useTransition } from "react";
+import { flushSync } from "react-dom";
 import { useTranslations } from "next-intl";
 import { type Locale } from "@/lib/types";
 import { useRouter } from "next/navigation";
@@ -24,7 +25,7 @@ export default function OwnerCreateClient({ locale }: Props) {
   const [extractError, setExtractError] = useState<string | null>(null);
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
   const [annotating, setAnnotating] = useState(false);
-  const [annotationError, setAnnotationError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [savedEventId, setSavedEventId] = useState<string | null>(null);
   const [ocrFilled, setOcrFilled] = useState(false);
   const [annotationDone, setAnnotationDone] = useState(false);
@@ -35,10 +36,13 @@ export default function OwnerCreateClient({ locale }: Props) {
   const [busyElapsedMs, setBusyElapsedMs] = useState(0);
   const [, startTransition] = useTransition();
 
+  function isFormFieldKey(key: string): key is keyof FormState {
+    return key in EMPTY_FORM;
+  }
+
   useEffect(() => {
     if (!saving && !extracting && !annotating) {
       busyStartedAtRef.current = null;
-      setBusyElapsedMs(0);
       return;
     }
 
@@ -54,8 +58,75 @@ export default function OwnerCreateClient({ locale }: Props) {
     return () => window.clearInterval(timer);
   }, [saving, extracting, annotating]);
 
-  function updateField(k: string, v: any) {
-    setForm((prev) => ({ ...prev, [k]: v }));
+  function updateField(k: string, v: unknown) {
+    if (!isFormFieldKey(k)) return;
+
+    setForm((prev) => ({ ...prev, [k]: v as FormState[typeof k] }));
+  }
+
+  function applyReturnedFields(fields: Record<string, unknown>) {
+    const nextFields = Object.fromEntries(
+      Object.entries(fields).filter(
+        ([key, value]) => isFormFieldKey(key) && value !== null && value !== undefined && value !== ""
+      )
+    ) as Partial<FormState>;
+
+    if (Object.keys(nextFields).length === 0) return;
+    setForm((prev) => ({ ...prev, ...nextFields }));
+  }
+
+  function beginPrimaryAction(mode: "save" | "annotate") {
+    actionLockRef.current = true;
+    busyStartedAtRef.current = Date.now();
+
+    flushSync(() => {
+      setBusyElapsedMs(0);
+      setActionError(null);
+      setAnnotationDone(false);
+      if (mode === "annotate") {
+        setAnnotating(true);
+      } else {
+        setSaving(true);
+      }
+    });
+  }
+
+  function finishPrimaryAction(mode: "save" | "annotate") {
+    actionLockRef.current = false;
+    if (mode === "annotate") {
+      setAnnotating(false);
+      return;
+    }
+    setSaving(false);
+  }
+
+  function getActionErrorMessage(error: unknown, fallbackMessage: string) {
+    if (
+      error instanceof DOMException &&
+      (error.name === "AbortError" || error.name === "TimeoutError")
+    ) {
+      return fallbackMessage;
+    }
+
+    if (error instanceof Error) {
+      if (error.message.startsWith("Unexpected token")) {
+        return fallbackMessage;
+      }
+      return error.message || fallbackMessage;
+    }
+
+    return fallbackMessage;
+  }
+
+  async function readJsonResponse(res: Response) {
+    const responseText = await res.text();
+    if (!responseText) return {} as Record<string, unknown>;
+
+    try {
+      return JSON.parse(responseText) as Record<string, unknown>;
+    } catch {
+      return {} as Record<string, unknown>;
+    }
   }
 
   function toggleCategory(cat: string) {
@@ -71,6 +142,8 @@ export default function OwnerCreateClient({ locale }: Props) {
   async function handleImageExtract(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    busyStartedAtRef.current = Date.now();
+    setBusyElapsedMs(0);
     setExtracting(true);
     setExtractError(null);
 
@@ -87,11 +160,11 @@ export default function OwnerCreateClient({ locale }: Props) {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ? t(data.error) : "Extraction failed");
-        
-        const fields = data.fields as Record<string, any>;
+
+        const fields = (data.fields ?? {}) as Record<string, unknown>;
         const ARRAY_FIELDS = new Set(["event_form", "category", "co_organizers", "sponsors"]);
         for (const [key, val] of Object.entries(fields)) {
-          if (val === null || val === undefined) continue;
+          if (!isFormFieldKey(key) || val === null || val === undefined) continue;
           if (ARRAY_FIELDS.has(key) && Array.isArray(val)) {
             updateField(key, val);
           } else if (!ARRAY_FIELDS.has(key)) {
@@ -105,8 +178,8 @@ export default function OwnerCreateClient({ locale }: Props) {
 
         setOcrFilled(true);
         setAnnotationDone(false);
-      } catch (err: any) {
-        setExtractError(err.message || "Failed to extract");
+      } catch (error: unknown) {
+        setExtractError(getActionErrorMessage(error, "Failed to extract"));
       } finally {
         setExtracting(false);
       }
@@ -120,11 +193,9 @@ export default function OwnerCreateClient({ locale }: Props) {
 
   async function handleAIAnnotate() {
     if (actionLockRef.current) return;
-    actionLockRef.current = true;
-    setAnnotationError(null);
+    beginPrimaryAction("annotate");
     let eventId = savedEventId;
 
-    setAnnotating(true);
     try {
       if (!eventId) {
         const res = await createOwnerDraft(form);
@@ -147,29 +218,27 @@ export default function OwnerCreateClient({ locale }: Props) {
         signal: AbortSignal.timeout(58000),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ? t(data.error) : "Annotation failed");
-
-      const fields = data.fields as Record<string, any>;
-      for (const [key, val] of Object.entries(fields)) {
-        if (val === null || val === undefined || val === "") continue;
-        updateField(key, val);
+      const data = await readJsonResponse(res);
+      if (!res.ok) {
+        const errorKey = typeof data.error === "string" ? data.error : null;
+        throw new Error(errorKey ? t(errorKey) : t("saveFailed"));
       }
-      
+
+      const fields = (data.fields ?? {}) as Record<string, unknown>;
+      applyReturnedFields(fields);
+
       setOcrFilled(false);
       setAnnotationDone(true);
-    } catch (err: any) {
-      setAnnotationError(err.message || "Annotation failed");
+    } catch (error: unknown) {
+      setActionError(getActionErrorMessage(error, t("saveFailed")));
     } finally {
-      setAnnotating(false);
-      actionLockRef.current = false;
+      finishPrimaryAction("annotate");
     }
   }
 
   async function handleSaveEvent() {
     if (actionLockRef.current) return;
-    actionLockRef.current = true;
-    setSaving(true);
+    beginPrimaryAction("save");
     try {
       let res;
       if (savedEventId) {
@@ -179,7 +248,7 @@ export default function OwnerCreateClient({ locale }: Props) {
       }
 
       if (!res.ok) {
-        alert(t(res.error) || t("saveFailed"));
+        setActionError(t(res.error) || t("saveFailed"));
         return;
       }
 
@@ -187,11 +256,10 @@ export default function OwnerCreateClient({ locale }: Props) {
       startTransition(() => {
         router.push(`/${locale}/account`);
       });
-    } catch (e: any) {
-      alert(e.message || t("saveFailed"));
+    } catch (error: unknown) {
+      setActionError(getActionErrorMessage(error, t("saveFailed")));
     } finally {
-      setSaving(false);
-      actionLockRef.current = false;
+      finishPrimaryAction("save");
     }
   }
 
@@ -276,8 +344,19 @@ export default function OwnerCreateClient({ locale }: Props) {
         </div>
       )}
 
-      {annotationError && (
-        <p className="text-sm text-red-500 font-semibold">{annotationError}</p>
+      {(saving || annotating) && (
+        <div
+          aria-live="polite"
+          className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
+        >
+          {annotating
+            ? `${t("extracting")} ${Math.floor(busyElapsedMs / 1000)}s`
+            : `${t("saving")} ${Math.floor(busyElapsedMs / 1000)}s`}
+        </div>
+      )}
+
+      {actionError && (
+        <p className="text-sm text-red-500 font-semibold" aria-live="polite">{actionError}</p>
       )}
 
       {/* Floating Event Form Fields */}
@@ -308,6 +387,7 @@ export default function OwnerCreateClient({ locale }: Props) {
           type="button"
           onClick={ocrFilled ? handleAIAnnotate : handleSaveEvent}
           disabled={saving || extracting || annotating}
+          aria-busy={saving || annotating}
           className={`inline-flex min-w-[11rem] items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 shadow-sm ${
             ocrFilled
               ? "bg-blue-600 hover:bg-blue-700"
@@ -316,11 +396,11 @@ export default function OwnerCreateClient({ locale }: Props) {
         >
           {ocrFilled ? (
             annotating
-              ? `解析中... ${Math.floor(busyElapsedMs / 1000)} 秒`
+              ? `${t("extracting")} ${Math.floor(busyElapsedMs / 1000)}s`
               : tAdmin("saveAndAnnotate") || "儲存並標注"
           ) : (
             saving
-              ? `儲存中... ${Math.floor(busyElapsedMs / 1000)} 秒`
+              ? `${t("saving")} ${Math.floor(busyElapsedMs / 1000)}s`
               : tAdmin("save")
           )}
         </button>
