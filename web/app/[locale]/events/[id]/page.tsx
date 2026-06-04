@@ -312,6 +312,7 @@ export default async function EventDetailPage({ params }: PageProps) {
   // Strip Japanese postal code prefix "〒NNN-NNNN " from each segment.
   const stripPostal = (s: string): string =>
     s.replace(/^〒\d{3}-\d{4}\s*/, "").trim();
+  const displayLocationAddress = locationAddress ? stripPostal(locationAddress) : null;
   const venueSegments = splitVenues(locationName);
   const addressSegments = splitVenues(locationAddress).map(stripPostal).filter(Boolean);
   const isTvProgramEvent =
@@ -545,7 +546,7 @@ export default async function EventDetailPage({ params }: PageProps) {
   } else if (locationName) {
     faqQuestions.push({
       q: faqL.where,
-      a: faqL.whereA(locationName, locationAddress ?? null),
+      a: faqL.whereA(locationName, displayLocationAddress ?? null),
     });
   }
   if (event.is_paid === false) {
@@ -624,7 +625,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               startDate={event.start_date}
               endDate={event.end_date}
               businessHours={businessHours}
-              location={locationAddress || locationName}
+              location={displayLocationAddress || locationName}
               eventUrl={`${base}/${locale}/events/${event.id}`}
               locale={locale}
             />
@@ -733,8 +734,8 @@ export default async function EventDetailPage({ params }: PageProps) {
         let p4 = "";
         if (isOnline) {
           p4 = tNarr("p4Online");
-        } else if (locationName && locationAddress) {
-          p4 = tNarr("p4VenueWithAddress", { venue: locationName, address: locationAddress });
+        } else if (locationName && displayLocationAddress) {
+          p4 = tNarr("p4VenueWithAddress", { venue: locationName, address: displayLocationAddress });
         } else if (locationName) {
           p4 = tNarr("p4VenueOnly", { venue: locationName });
         }
@@ -854,8 +855,8 @@ export default async function EventDetailPage({ params }: PageProps) {
                         </a>
                       </span>
                     ))
-                  : (locationAddress || locationName) ? (() => {
-                      const displayAddr = stripPostal(locationAddress || locationName || "");
+                  : (displayLocationAddress || locationName) ? (() => {
+                      const displayAddr = stripPostal(displayLocationAddress || locationName || "");
                       const queryAddr = displayAddr || locationName || "";
                       if (isPublicationEvent) {
                         return displayAddr || locationName || "—";
