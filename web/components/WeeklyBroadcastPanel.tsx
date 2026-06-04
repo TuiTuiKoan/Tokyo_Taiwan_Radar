@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import type { Locale } from "@/lib/types";
+import { ToggleSwitch } from "@/components/UiControls";
 
 interface DraftInfo {
   id: string;
@@ -121,25 +122,12 @@ export default function WeeklyBroadcastPanel({ locale }: Props) {
         {/* Auto-publish toggle */}
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <span className="text-xs text-blue-700 dark:text-blue-300">{t("weeklyBroadcastAutoPublish")}</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={settings.auto_publish}
+          <ToggleSwitch
+            checked={settings.auto_publish}
             disabled={toggling}
             onClick={() => handleToggle(!settings.auto_publish)}
-            className={[
-              "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500",
-              settings.auto_publish ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600",
-              toggling ? "opacity-50 cursor-not-allowed" : "",
-            ].join(" ")}
-          >
-            <span
-              className={[
-                "inline-block h-4 w-4 transform rounded-full bg-surface transition-transform",
-                settings.auto_publish ? "translate-x-6" : "translate-x-1",
-              ].join(" ")}
-            />
-          </button>
+            className={`${settings.auto_publish ? "bg-blue-600" : ""} ${toggling ? "opacity-50 cursor-not-allowed" : ""}`}
+          />
         </label>
       </div>
 

@@ -115,3 +115,33 @@ export async function publishEvent(eventId: string): Promise<ActionResult<null>>
   if (!data || data.length === 0) return { ok: false, error: "publish_no_rows" };
   return { ok: true, data: null };
 }
+
+export async function deleteUserSubmittedEvent(eventId: string): Promise<ActionResult<null>> {
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+
+  const { data: existing, error: loadError } = await auth.supabase
+    .from("events")
+    .select("id,is_user_submitted")
+    .eq("id", eventId)
+    .single();
+
+  if (loadError || !existing) return { ok: false, error: "eventNotFound" };
+  if (!existing.is_user_submitted) return { ok: false, error: "not_user_submitted" };
+
+  const { data, error } = await auth.supabase
+    .from("events")
+    .update({
+      is_active: false,
+      closed_by_owner: true,
+      deactivated_at: new Date().toISOString(),
+      deactivated_reason: "deleted_by_admin",
+      deactivated_by_pass: "admin_manual",
+    })
+    .eq("id", eventId)
+    .select("id");
+
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) return { ok: false, error: "delete_no_rows" };
+  return { ok: true, data: null };
+}

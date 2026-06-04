@@ -2,6 +2,7 @@
 
 import { type Event, type Locale, CATEGORY_GROUPS, EVENT_FORMS, getEventName } from "@/lib/types";
 import DesignSelect from "@/components/DesignSelect";
+import { PillButton } from "@/components/UiControls";
 
 export const EMPTY_FORM = {
   name_ja: "",
@@ -179,9 +180,8 @@ export default function AdminEventForm({
         <label className="block text-xs text-fg-muted mb-2">{t("eventForm")}</label>
         <div className="flex flex-wrap gap-2">
           {EVENT_FORMS.map((ef) => (
-            <button
+            <PillButton
               key={ef}
-              type="button"
               onClick={() => {
                 const cur: string[] = (form as any).event_form ?? [];
                 updateField(
@@ -189,14 +189,11 @@ export default function AdminEventForm({
                   cur.includes(ef) ? cur.filter((x) => x !== ef) : [...cur, ef]
                 );
               }}
-              className={`px-3 py-1 rounded-full text-xs border transition ${
-                ((form as any).event_form ?? []).includes(ef)
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "border-line-strong hover:border-blue-400"
-              }`}
+              active={((form as any).event_form ?? []).includes(ef)}
+              tone="blue"
             >
               {tEventForm ? tEventForm(ef as any) : ef}
-            </button>
+            </PillButton>
           ))}
         </div>
       </div>
@@ -313,18 +310,13 @@ export default function AdminEventForm({
               <span className="text-xs text-fg-subtle font-medium pt-1 text-right leading-tight shrink-0">{tCat(group.labelKey as any)}</span>
               <div className="flex flex-wrap gap-2">
               {group.categories.map((cat) => (
-                <button
+                <PillButton
                   key={cat}
-                  type="button"
                   onClick={() => toggleCategory(cat)}
-                  className={`px-3 py-1 rounded-full text-xs border transition ${
-                    form.category.includes(cat)
-                      ? "bg-green-600 text-white border-green-600"
-                      : "border-line-strong hover:border-green-400"
-                  }`}
+                  active={form.category.includes(cat)}
                 >
                   {tCat(cat as any)}
-                </button>
+                </PillButton>
               ))}
               </div>
             </div>

@@ -9,7 +9,8 @@ import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEv
 import AdminCreateWorkModal from "@/components/AdminCreateWorkModal";
 import DesignSelect from "@/components/DesignSelect";
 import { assignWorkToEvent } from "@/app/actions/works";
-import { createDraftEvent, createEventNoAnnotate, publishEvent } from "@/app/actions/admin-events";
+import { createDraftEvent, createEventNoAnnotate, deleteUserSubmittedEvent, publishEvent } from "@/app/actions/admin-events";
+import { StatusBadge, ToggleSwitch } from "@/components/UiControls";
 import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, matchesCity, type RegionWithCity } from "@/lib/regionPrefectures";
 import { getCityLabel } from "@/lib/cityLabel";
 
@@ -731,6 +732,20 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     }
   }
 
+  async function handleDeleteUserSubmittedEvent(id: string) {
+    const event = events.find((e) => e.id === id);
+    if (!event?.is_user_submitted) return;
+    if (!window.confirm(t("confirmDelete"))) return;
+
+    const previousEvents = events;
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+    const result = await deleteUserSubmittedEvent(id);
+    if (!result.ok) {
+      setEvents(previousEvents);
+      alert(`${t("error")}: ${result.error}`);
+    }
+  }
+
   const hasFilters = Boolean(
     filterQ ||
     filterCategories.length > 0 ||
@@ -1359,22 +1374,16 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
                     })()}
                   </td>
                   <td className="py-2 pr-4">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${getAnnotationBadgeClass(event.annotation_status)}`}>
+                    <StatusBadge className={getAnnotationBadgeClass(event.annotation_status)}>
                       {getAnnotationLabel(event.annotation_status)}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td className="py-2 pr-4">
-                    <button
+                    <ToggleSwitch
+                      checked={Boolean(event.is_active)}
                       onClick={() => handleToggleActive(event.id, !event.is_active)}
                       title={event.is_active ? t("filterActive") : t("filterInactive")}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus:outline-none ${
-                        event.is_active ? "bg-green-500" : "bg-gray-300"
-                      }`}
-                    >
-                      <span className={`inline-block h-4 w-4 mt-0.5 rounded-full bg-surface shadow transition-transform duration-200 ${
-                        event.is_active ? "translate-x-4" : "translate-x-0.5"
-                      }`} />
-                    </button>
+                    />
                   </td>
                   <td className="py-2 pr-4 whitespace-nowrap">
                     <div className="flex gap-3">
@@ -1394,6 +1403,14 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
                       >
                         🔁
                       </button>
+                      {event.is_user_submitted && (
+                        <button
+                          onClick={() => handleDeleteUserSubmittedEvent(event.id)}
+                          className="text-xs font-medium text-mascot-red hover:underline"
+                        >
+                          {t("delete")}
+                        </button>
+                      )}
                     </div>
                   </td>
                   <td className="py-2 pr-4 max-w-xs">
@@ -1671,9 +1688,9 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
                     })()}
                   </td>
                   <td className="py-2 pr-4">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${getAnnotationBadgeClass(event.annotation_status)}`}>
+                    <StatusBadge className={getAnnotationBadgeClass(event.annotation_status)}>
                       {getAnnotationLabel(event.annotation_status)}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td className="py-2 pr-4 whitespace-nowrap">
                     <div className="flex gap-3">
@@ -1693,6 +1710,14 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
                       >
                         🔁
                       </button>
+                      {event.is_user_submitted && (
+                        <button
+                          onClick={() => handleDeleteUserSubmittedEvent(event.id)}
+                          className="text-xs font-medium text-mascot-red hover:underline"
+                        >
+                          {t("delete")}
+                        </button>
+                      )}
                     </div>
                   </td>
                   <td className="py-2 pr-4 max-w-sm">
