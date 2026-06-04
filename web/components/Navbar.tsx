@@ -29,6 +29,8 @@ const LOCALE_LABELS: Record<Locale, string> = {
   ja: "日本語",
 };
 
+const TRI_LANGUAGE_LABEL = "繁體中文 / 日本語 / English";
+
 interface NavbarLangSwitcherProps {
   locale: Locale;
 }
@@ -62,10 +64,10 @@ function NavbarLangSwitcher({ locale }: NavbarLangSwitcherProps) {
     <div className="relative" ref={langRef}>
       <button
         onClick={() => setLangOpen((o) => !o)}
-        title={LOCALE_LABELS[locale]}
+        title={TRI_LANGUAGE_LABEL}
         aria-expanded={langOpen}
-        aria-label="Switch language"
-        className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 text-[#3A261F] dark:text-fg-muted hover:text-[#1F5E2B] dark:hover:text-green-400 transition"
+        aria-label={TRI_LANGUAGE_LABEL}
+        className="flex h-8 items-center gap-1.5 rounded px-2 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 text-[#3A261F] dark:text-fg-muted hover:text-[#1F5E2B] dark:hover:text-green-400 transition"
       >
         {/* Globe icon */}
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -73,6 +75,9 @@ function NavbarLangSwitcher({ locale }: NavbarLangSwitcherProps) {
           <line x1="2" y1="12" x2="22" y2="12" />
           <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
         </svg>
+        <span className="hidden lg:inline text-[10px] font-medium leading-none tracking-wide text-fg-muted">
+          {TRI_LANGUAGE_LABEL}
+        </span>
       </button>
 
       {langOpen && (
@@ -152,16 +157,6 @@ export default function Navbar({ locale }: Props) {
       listener.subscription.unsubscribe();
     };
   }, []);
-
-  function goToMyEvents() {
-    if (!user) {
-      router.push(`/${locale}/auth/login`);
-      return;
-    }
-
-    router.push(`/${locale}/account?tab=myEvents`);
-    setAccountOpen(false);
-  }
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -302,15 +297,14 @@ export default function Navbar({ locale }: Props) {
                     >
                       {t("logout")}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void goToMyEvents();
-                      }}
+                    <Link
+                      href={`/${locale}/account?tab=myEvents`}
+                      prefetch={false}
+                      onClick={() => setAccountOpen(false)}
                       className="w-full flex items-center px-3 py-2 text-sm text-fg text-left hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition"
                     >
                       {tAccount("myEventsTab")}
-                    </button>
+                    </Link>
                     <Link
                       href={`/${locale}/saved`}
                       prefetch={false}
