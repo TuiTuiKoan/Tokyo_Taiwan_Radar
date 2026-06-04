@@ -2,6 +2,27 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-05 - Safari `<button>` 直接套 `flex` 導致高度比相鄰按鈕高（WebKit #169700）
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-05 | Safari 登入頁 Google 按鈕比下方 Email 按鈕高一截，Chrome 正常 | Safari 的 WebKit 在 `<button>` 元素直接套 `display: flex`（Tailwind `flex items-center justify-center gap-3`）時，高度計算與 Chrome 不一致（WebKit bug #169700）；Chrome 無此問題所以本地開發沒被發現 | 把 `flex items-center justify-center gap-3` 從 `<button>` className 移到內層 `<span>`，讓 button 保持原生 block 高度；SVG icon 同步加 `shrink-0` 防壓縮 | 凡是在 `<button>` 上直接加 `flex` 的情況，都要在 Safari 實機或 Simulator 確認高度一致。修正方式：把 flex layout 包到內層 `<span>`，button 只保留 padding / border / background。
+
+---
+
+## 2026-06-05 - `goToMyEvents()` async DB 預檢讓 Navbar 點擊延遲並可能在 fetch 時段遮掉目的地
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-05 | Navbar「自分のイベント」按鈕點擊後有明顯延遲，且 profile 查詢失敗時路由不確定 | `goToMyEvents()` 原本先 async 查 `creators` table 的 `user_handle`，再依結果路由到 `/account?tab=myEvents` 或 `/account/profile`；這個預檢把網路延遲引入 nav click，且 account page 本身就能處理「有沒有 profile」的路由邏輯 | 移除 async 預檢，直接 `router.push(\`/${locale}/account?tab=myEvents\`)`；讓 account page 決定是否重導到 profile 頁；同時移除 `profileLoading` state 與相關 loading 文字 | Nav action 不應做 DB pre-flight 來決定路由目的地。「先查再跳」= 把 DB 延遲嫁接到點擊回饋；應讓目的地 page 自行處理 conditional redirect，nav 只負責跳過去。
+
+---
+
+## 2026-06-05 - `account/annotate-event` 與 `admin/annotate-event` enum 過濾邏輯各自重複，location overwrite 無保護
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-05 | 兩條 annotate route 各自內聯 `validCategories`、`validEventForms`、`VALID_PRIMARY_LANGUAGES` 過濾，容易各自演化成不同版本；account 路由在 web search score 低時也會把 LLM 猜的 `location_name`/`location_address` 蓋掉使用者填的正確值 | enum 過濾與 field merge 邏輯散落在兩個 route file，沒有 single source of truth；field overwrite 只用 `cur === null || cur === ""` 條件，不考慮 bestScore 或 lockedFields | 抽取 `web/lib/eventFieldMerge.ts`，集中 `sanitizeCategoryValues`、`sanitizeEventFormValues`、`sanitizePrimaryLanguageValue`；新增 `shouldApplyAnnotatedLocationField(field, cur, v, { bestScore, lockedFields })` 在 bestScore < 3 且欄位不在 lockedFields 時拒絕覆寫 | 兩個以上 route 做相同 LLM 輸出過濾時，第一時間就要抽 `lib/` 模組；location field merge 要同時考量「web search 品質（bestScore）」和「使用者鎖定（lockedFields）」，不可只靠 empty-check。
+
+---
+
 ## 2026-06-05 - QA backlog 清理要走 `qa_heartbeat.py`，`qa_auto_fix.py` CLI 只處理兩個內建批次
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

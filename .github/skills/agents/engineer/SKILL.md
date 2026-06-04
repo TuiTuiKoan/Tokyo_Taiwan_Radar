@@ -54,6 +54,7 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - When a UI change touches shared pills, buttons, tabs, or dropdown triggers, verify the result in both Chrome and Safari before broadening the fix.
 - If Safari alone looks vertically off, prefer the smallest browser-specific baseline correction over reworking every related component.
 - Recheck computed `line-height`, `padding`, and element height in Safari after any shared `inline-flex` / `rounded-full` refactor.
+- **Safari WebKit #169700 — `flex` on `<button>` mis-calculates height.** Never put `flex items-center justify-center gap-3` directly on a `<button>` className. Wrap the content in an inner `<span className="flex items-center justify-center gap-3">` instead. The `<button>` keeps only padding / border / background and remains at its native block height in both Chrome and Safari.
 
 ## Click Hit-Area Integrity
 
@@ -66,6 +67,12 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - "Success" for an API route is NOT "did not throw." Every external call (LLM, DB write, third-party fetch) must explicitly check `res.ok` / `error` and return a non-2xx status with a readable `detail`.
 - Anti-pattern that hides root cause for days: `if (extRes.ok) { ... }` with no `else`, empty `catch {}` around `JSON.parse`, and unchecked `await supabase...update()` — then returning `200 { success: true }` regardless. The frontend's `t(res.error)` then has nothing to show and only the generic `saveFailed` appears.
 - When adding a new backend error code, surface it end-to-end: non-2xx + `{ error, detail }` on the server, append `detail` to the frontend message, and add the i18n key to all three `messages/*.json` simultaneously.
+
+## Navigation Action Pattern
+
+- Nav click handlers must NOT do async DB pre-flight to decide the routing target. "Fetch-then-route" binds DB latency to click feedback and makes the action fragile if the fetch fails or times out.
+- Let the destination page handle conditional redirects (e.g. profile-required check). The nav only pushes the canonical URL; the page reads its own state and redirects if needed.
+- Remove any `loading` state that was only there to cover the pre-flight gap — users should see an immediate page transition, not a loading spinner inside the nav dropdown.
 
 ## E2E Local Server Prerequisite
 
@@ -95,6 +102,10 @@ const sanitized = (parsed.category ?? []).filter((c: string) => VALID_CATEGORIES
 `VALID_CATEGORIES` 集合可從 `web/lib/types.ts` 匯入 `CATEGORIES` 陣列轉成 Set，避免雙重維護。同理適用 `event_form`、`prefecture_code` 等所有 enum 欄位。
 
 **Reference incident:** 2026-05-26 — event `25e27de9` GPT 自創 `photography` 入庫，前端顯示 `categories.photography` raw i18n key（commit `264afed` 解了眼前事件，未實作 whitelist filter，列 backlog）。
+
+**Shared lib rule（2026-06-05 教訓）：** 兩條以上 annotate route 做相同 LLM 輸出過濾時，立刻抽到 `web/lib/eventFieldMerge.ts`（或同目錄的 shared module），不要各自內聯。`account/annotate-event` 與 `admin/annotate-event` 原本各自複製 `validCategories` / `validEventForms` / `VALID_PRIMARY_LANGUAGES`，2026-06-05 已統一到 `sanitizeCategoryValues()`、`sanitizeEventFormValues()`、`sanitizePrimaryLanguageValue()`。
+
+**Location field overwrite protection：** annotate route 不可用 `cur === null || cur === ""` 的空值檢查來決定是否覆寫 `location_name`/`location_address`。必須同時考量：(1) web search score（`bestScore`）是否達信心閾值（≥ 3），(2) 使用者是否明確鎖定欄位（`lockedFields`）。邏輯已封裝在 `shouldApplyAnnotatedLocationField(field, cur, v, { bestScore, lockedFields })`，任何新 annotate route 都應呼叫此函式而非自行寫 overwrite 條件。
 
 ## Database
 - Always verify a migration has been applied in Supabase before writing code that depends on it. Check: `SELECT table_name FROM information_schema.tables WHERE table_name = 'X';`
