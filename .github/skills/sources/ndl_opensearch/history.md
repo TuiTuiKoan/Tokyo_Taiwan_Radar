@@ -1,9 +1,9 @@
 # ndl_opensearch scraper 修訂歷史
 
-## 2026-06-04 — publication hotfix sync
+## 2026-06-04 — publication venue field null-sync
 
-- publication 事件の address は Maps 用ではなく占位文字として扱う方針を明記。
-- `performer` / `organizer_url` / `official_url` の補完ルールを source skill 側でも統一。
+- publication 事件の `location_name` は `None` に固定し、占位文字は `location_address` / `business_hours` のみに残す。
+- annotator 側の publication 分岐と source skill の記述を同期し、`[新刊出版]` が会場欄に入る回帰を防ぐ。
 
 ## 2026-06-04 — publication placeholders locale sync
 

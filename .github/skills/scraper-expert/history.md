@@ -14,9 +14,13 @@
 
 **教訓：** 任何 user-facing 的 venue/address 顯示都應先收斂到同一個 display helper，再分別餵給摘要、FAQ、卡片、行事曆與地圖連結，否則同一事件會在不同區塊出現不同地址格式。
 
-## 2026-06-04 — publication 占位字串要依語系輸出，會場/通路欄位不得連 Maps
+## 2026-06-04 — publication 占位字串は会場欄に入れない
 
-**問題：** publication 類事件的 `location_name`、`location_address`、`business_hours` 需要保留占位文字供 UI 顯示，但日文模式下若直接保留中文，會造成語系混雜；同時會場欄也不應再產生 Google Maps 連結。
+**問題：** publication 類事件で `[新刊出版]` が `location_name` に混入し、会場欄に不必要な占位字串が表示された。
+
+**修正：** annotator の publication 分岐で `location_name` を `None` に固定し、占位文字は `location_address` / `business_hours` 側にだけ残す。
+
+**教訓：** publication の表示文言と会場欄は分離し、会場欄に prefix や販売案内を流用しない。
 
 **修正：**
 - publication 的占位文字改為依語系輸出，`ja/zh/en` 分別填入對應文案。

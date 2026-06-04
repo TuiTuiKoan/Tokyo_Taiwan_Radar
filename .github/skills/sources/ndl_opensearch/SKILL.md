@@ -46,7 +46,7 @@ Server-side の日付フィルタは NDL API が提供していないため省�
 
 ## 特殊規則
 
-- **出版事件欄位模板**: `location_name` / `location_address` / `business_hours` は占位文字を locale に合わせて維持する。日本語 UI では `新刊のご購入は各販売チャネルでお願いします` を使い、`location_name_zh` / `location_name_en`、`location_address_zh` / `location_address_en`、`business_hours_zh` / `business_hours_en` を必ず同時に埋める。`performer` は作者、`organizer` は出版社扱い、`organizer_url` は出版社ホームページ、`official_url` は書籍詳細ページ、`event_form = ["publication"]`。
+- **出版事件欄位模板**: `location_name` は `None` に固定し、`location_address` / `business_hours` は占位文字を locale に合わせて維持する。日本語 UI では `新刊のご購入は各販売チャネルでお願いします` を使い、`location_address_zh` / `location_address_en`、`business_hours_zh` / `business_hours_en` を必ず同時に埋める。`performer` は作者、`organizer` は出版社扱い、`organizer_url` は出版社ホームページ、`official_url` は書籍詳細ページ、`event_form = ["publication"]`。
 - **sync 規則**: 上記出版模板は `scraper/annotator.py::_PUBLICATION_SOURCES` の白名單と双方向同期する。出版來源を追加・削除する時は source SKILL と annotator 白名單を同一変更で更新する。
 - **null-byte strip 必須**: 全外部テキストに `.replace("\x00", "")` を適用
 - **`tzinfo=timezone.utc`**: JST-aware datetime 禁止。`datetime(y, m, d, tzinfo=timezone.utc)` を使用

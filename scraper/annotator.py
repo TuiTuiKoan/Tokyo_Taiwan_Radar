@@ -1982,9 +1982,9 @@ def annotate_pending_events(
                     publication_description_en = publication_description_ja
                     if "event_form" not in _human_protected:
                         update_data["event_form"] = ["publication"]
-                    update_data["location_name"] = _prefix_publication_name(publication_text_ja)
-                    update_data["location_name_zh"] = _prefix_publication_name(publication_text_zh)
-                    update_data["location_name_en"] = _prefix_publication_name(publication_text_en)
+                    update_data["location_name"] = None
+                    update_data["location_name_zh"] = None
+                    update_data["location_name_en"] = None
                     if publication_context.get("is_periodical"):
                         update_data["location_address"] = None
                         update_data["location_address_zh"] = None
@@ -1999,15 +1999,15 @@ def annotate_pending_events(
                             update_data["price_info"] = None
                         if update_data.get("name_ja"):
                             update_data["name_ja"] = _prefix_publication_name(
-                                update_data["name_ja"], periodical_label="期刊專文："
+                                update_data["name_ja"], periodical_label="[期刊專文]"
                             )
                         if update_data.get("name_zh"):
                             update_data["name_zh"] = _prefix_publication_name(
-                                update_data["name_zh"], periodical_label="期刊專文："
+                                update_data["name_zh"], periodical_label="[期刊專文]"
                             )
                         if update_data.get("name_en"):
                             update_data["name_en"] = _prefix_publication_name(
-                                update_data["name_en"], periodical_label="Periodical article: "
+                                update_data["name_en"], periodical_label="[Periodical article]"
                             )
                         if publication_text_ja:
                             publication_description_ja = f"掲載誌：{publication_text_ja}\n\n{publication_description_ja}".strip()
