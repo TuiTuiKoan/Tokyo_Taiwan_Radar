@@ -1,5 +1,10 @@
 # ndl_opensearch scraper 修訂歷史
 
+## 2026-06-04 — publication hotfix sync
+
+- publication 事件の address は Maps 用ではなく占位文字として扱う方針を明記。
+- `performer` / `organizer_url` / `official_url` の補完ルールを source skill 側でも統一。
+
 ## 2026-05-31 — 初版実装
 
 - 新規スクレイパー（Publication Intel 計画 v3.1）

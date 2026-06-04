@@ -4,6 +4,12 @@ Newest at top.
 
 ---
 
+## 2026-06-04 — publication rule sync
+
+- Added a publication-specific note so placeholder addresses stay display-only and do not become map links.
+- Aligned the publication field roles with the shared scraper rules: `performer`, `organizer_url`, and `official_url`.
+
+
 ## 2026-04-26 — 誠品 keyword false positive issue
 
 **Error**: All 5 news articles were matching the Taiwan filter when `"誠品"` was included in `TAIWAN_KEYWORDS`.

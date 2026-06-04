@@ -249,6 +249,8 @@ sb.table('events').update({'annotation_status': 'pending'}).in_('id', ids).execu
 - 出版來源の error backlog は source-scoped one-off で reset する。`eslite_spectrum` は混合來源なので同じ batch に混ぜない。
 - reset 対象は `is_active=true` かつ `annotation_status='error'` を基本にし、`field_corrections` が 1 件でもあるイベントは丸ごと skip する。人工修正済みイベントを再注入しないため。
 - batch 実行前に live DB が migration `047_add_broadcast_event_form.sql` を反映済みか確認する。未反映だと `event_form=['publication']` の書き戻しが `events_event_form_check` で失敗する。
+- publication 系の修正で `event_form` を追加・強制する場合は、同じ変更で 4 箇所を同期する: Supabase constraint / migration、`scraper/annotator.py`（`VALID_EVENT_FORMS` と source-specific overwrite）、`web/lib/types.ts` の `EVENT_FORMS`、`web/messages/*.json` の `eventForm` namespace。どれか 1 つ欠けると `23514` constraint error か raw key 表示になる。
+- publication batch の完了判定は `annotation_status` だけでは不十分。対象 source の active rows が期待する `event_form` に収斂していることを DB query で確認し、前台で raw key が出ないところまで確認する。
 
 **注意事項：**
 - `daily_report.py` は `.limit(5)` でエラー件数を表示するため、実際の件数と一致しない。COUNT で別途確認すること。

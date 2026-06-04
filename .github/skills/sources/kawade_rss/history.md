@@ -1,5 +1,10 @@
 # kawade_rss scraper 修訂歷史
 
+## 2026-06-04 — publication hotfix sync
+
+- publication 事件の address は占位文字として保持し、Maps 連結にしない方針を追加。
+- `performer` / `organizer_url` / `official_url` の役割を hanmoto と揃える形で明記。
+
 ## 2026-05-31 — 初版実装
 
 - 新規スクレイパー（Publication Intel 計画 v3.1）

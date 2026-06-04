@@ -59,6 +59,7 @@ git stash push -m "[BLOCKED] area: summary"  # 有外部依賴
 - Run tests and check for errors after every significant change
 - Notify the user before: `git push`, DB migrations, secret changes, or Vercel deployments
 - For publication-related pending backlog cleanup, prefer a source-scoped one-off script with audited status transitions (`confirmed` / `dismissed`) instead of turning the fix into a generic QA engine; keep mixed sources like `eslite_spectrum` conservative.
+- If a fix adds or force-writes an `event_form` value, treat it as a four-surface sync: DB constraint / migration, annotator logic, `web/lib/types.ts`, and `web/messages/*.json`. Do not hand off before confirming the page no longer renders a raw key.
 - For venue homepage problems, treat `location_url` as provenance-sensitive. The only acceptable auto-fix target is the venue's own official homepage; never promote `source_url`, `official_url`, or `organizer_url` into `location_url` just because a search hit looks plausible.
 - If a venue cannot be verified to have its own homepage, leave the QA report pending for human review. Ambiguous municipal/shared venues are especially prone to parent-site leakage.
 

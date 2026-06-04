@@ -14,6 +14,11 @@ Read this at the start of every session before running any test.
 - Verify `source_id` is stable across two separate runs before declaring a scraper production-ready. Run twice, diff the IDs.
 - For TCC scraper: confirm `start_date` is NOT the page update date (visible at the bottom of the page as `日付：`).
 
+## Batch Repair Validation
+- For any reset + re-annotate / backfill run, do not stop at command success or `annotation_status`. Query the affected slice and verify the intended structural end-state (`event_form`, required template fields, missing translations) in DB.
+- For publication backfills, confirm the target sources' active rows collapse to `event_form=['publication']` and `missing_name_zh` / `missing_name_en` are zero before calling the run a pass.
+- If the repaired slice includes named public figures or other high-risk proper nouns, add at least one human semantic spot check on `name_en` / `name_zh`. GPT can fill all required fields while still hallucinating a person name.
+
 ## Reporting
 - Report failures with: source name, event title, field name, expected value, actual value.
 - If > 20% of events from a source have null `start_date`, escalate to Engineer before proceeding.

@@ -2,6 +2,11 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-04 - publication batch 不能只補模板欄位，`event_form` 與前台 label 也要同步收斂
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-04 | publication sources 全量 re-annotation 後雖然 `annotation_status` 全回到 `annotated`、`name_zh` / `name_en` 補齊，但公開頁仍可能露出 raw key，且 corpus 內部分事件沒有被強制收斂到 `event_form=["publication"]` | 先前的出版 fallback 只保證 `location_name` / `location_address` / `business_hours` / `price_info` 模板欄位，不保證未受保護事件一定寫回 publication；同時前台顯示依賴 `web/lib/types.ts` 的 `EVENT_FORMS` 與 `web/messages/*.json` 的 `eventForm` namespace，任一漏同步都會讓前台顯示 `eventForm.publication` | 在 `scraper/annotator.py` 的 `_PUBLICATION_SOURCES` 分支對未受 human protection 的事件強制 `event_form=["publication"]`，同步補齊 web 端 `EVENT_FORMS` / i18n label，並以 live DB 統計確認 `ndl_opensearch` 186 筆、`hanmoto` 34 筆 active rows 全收斂到 `['publication']` | 出版來源 batch 的完成標準不能只看 status 或翻譯欄位，還要確認 target corpus 的 structural enum 已收斂，且 DB constraint、annotator、web enum、i18n label 四處同步；少一處，前台就會用 raw key 洩漏 drift。
+
 ## 2026-06-04 - Safari 互動元素文字偏高：shared pill refactor 暴露 browser baseline 差異
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

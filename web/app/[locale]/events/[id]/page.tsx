@@ -305,6 +305,7 @@ export default async function EventDetailPage({ params }: PageProps) {
   const locationName = getEventLocationName(event as Event, locale);
   const locationAddress = getEventLocationAddress(event as Event, locale);
   const businessHours = getEventBusinessHours(event as Event, locale);
+  const isPublicationEvent = (event.category ?? []).includes("books_media") && (event.event_form ?? []).includes("publication");
   // Split multi-venue strings on Japanese fullwidth comma; trim and drop blanks.
   const splitVenues = (s: string | null | undefined): string[] =>
     (s ?? "").split("、").map((v) => v.trim()).filter(Boolean);
@@ -856,6 +857,9 @@ export default async function EventDetailPage({ params }: PageProps) {
                   : (locationAddress || locationName) ? (() => {
                       const displayAddr = stripPostal(locationAddress || locationName || "");
                       const queryAddr = displayAddr || locationName || "";
+                      if (isPublicationEvent) {
+                        return displayAddr || locationName || "—";
+                      }
                       return (
                         <a
                           href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryAddr)}`}

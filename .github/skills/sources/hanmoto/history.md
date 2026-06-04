@@ -1,5 +1,11 @@
 # hanmoto scraper 修訂歷史
 
+## 2026-06-04 — publication hotfix sync
+
+- publication 事件の address は占位文字を保持しつつ Maps リンク化しないように同期。
+- 詳細ページから `performer` / `official_url` / `organizer_url` / `price_info` を補完する方針を明記。
+- 日付 fallback を `発売日 > 登録日` に固定。
+
 ## 2026-05-31 — 初版実装
 
 - 新規スクレイパー（Publication Intel 計画 v3.1）

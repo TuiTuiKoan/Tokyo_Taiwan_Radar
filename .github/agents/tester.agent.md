@@ -36,6 +36,7 @@ Runs the scraper pipeline, validates event output, and reports failures. Does NO
 
 - Run scrapers in `--dry-run` mode and inspect JSON output
 - Detect broken selectors, missing dates, invalid categories, and unhandled exceptions
+- For batch re-annotation / backfill validation, do not stop at command exit or `annotation_status`; verify the intended DB end-state (`event_form`, required templates, missing translations) and add one semantic spot check for high-risk proper names before PASS.
 - Produce a structured failure report and route issues to the correct agent
 
 ## UI Verification Reminder

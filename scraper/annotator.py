@@ -1784,13 +1784,19 @@ def annotate_pending_events(
                     if "event_form" not in _human_protected:
                         update_data["event_form"] = ["publication"]
                     if not update_data.get("location_name"):
-                        update_data["location_name"] = publication_text
+                        update_data["location_name"] = None
                     if not update_data.get("location_address"):
                         update_data["location_address"] = publication_text
                     if not update_data.get("business_hours"):
                         update_data["business_hours"] = publication_text
+                    if not update_data.get("business_hours_zh"):
+                        update_data["business_hours_zh"] = publication_text
+                    if not update_data.get("business_hours_en"):
+                        update_data["business_hours_en"] = publication_text
                     if not update_data.get("price_info"):
                         update_data["price_info"] = publication_text
+                    if not update_data.get("location_url"):
+                        update_data["location_url"] = None
 
                 # Organizer translations — KNOWN_ORGANIZER_MAP overrides GPT
                 if update_data.get("organizer"):

@@ -89,18 +89,21 @@ const sanitized = (gpt_response.category ?? []).filter(c => VALID_CATEGORIES.has
 
 Architect 在「新增 enum 值」計畫**外**，遇到相關 admin route 修改時，應主動建議加白名單過濾器。Reference: 2026-05-26 event `25e27de9` `categories.photography` raw key（commit `264afed` 修分類但未加過濾器，已建 backlog）。
 
-## Event Form Addition Checklist（新增 event_form 值的必備 4 步驟）
+## Event Form Addition Checklist（新增 event_form 值的必備 5 步驟）
 
-每次新增 `event_form` 值，以下 **4 個位置必須同一 commit 同步**：
+每次新增 `event_form` 值，以下 **5 個位置必須同一 commit 同步**：
 
 | 步驟 | 位置 | 說明 |
 |------|------|------|
 | 1 | `supabase/migrations/<NNN>_*.sql` | `events_event_form_check` CHECK constraint（**authoritative source**）|
 | 2 | `scraper/annotator.py` | `VALID_EVENT_FORMS` frozenset（L863 附近）+ EVENT FORM RULES prompt 區塊（L686 附近） |
-| 3 | `web/app/api/admin/extract-from-image/route.ts` + `web/app/api/admin/annotate-event/route.ts` | 兩個 GPT prompt 內的 `event_form:` 枚舉清單 |
-| 4 | `web/messages/{zh,en,ja}.json` | `eventForms.<key>`（三語各一）|
+| 3 | `web/lib/types.ts` | `EVENT_FORMS` array / `EventForm` type，前台與 admin form 共同依賴 |
+| 4 | `web/app/api/admin/extract-from-image/route.ts` + `web/app/api/admin/annotate-event/route.ts` | 兩個 GPT prompt 內的 `event_form:` 枚舉清單 |
+| 5 | `web/messages/{zh,en,ja}.json` | `eventForm.<key>`（三語各一）|
 
-**Reference incident:** 2026-05-20 — migration 047 加入 `broadcast`/`tasting`/`study_abroad` 等新值並重命名舊值（`concert`→`performance`、`lecture_seminar`→`lecture`、`film_screening`→`screening`、`festival`→ 移除、`sports`→ 移除）。annotator.py 跟上了，但兩個 admin API prompt 留在 pre-047 命名 → OCR 回傳舊值 → DB CHECK 拒絕 → 管理画面保存 400 失敗（commit `9ecaae6`）。教訓：建立此 checklist。
+**Reference incidents:**
+* 2026-05-20 — migration 047 加入 `broadcast`/`tasting`/`study_abroad` 等新值並重命名舊值（`concert`→`performance`、`lecture_seminar`→`lecture`、`film_screening`→`screening`、`festival`→ 移除、`sports`→ 移除）。annotator.py 跟上了，但兩個 admin API prompt 留在 pre-047 命名 → OCR 回傳舊值 → DB CHECK 拒絕 → 管理画面保存 400 失敗（commit `9ecaae6`）。教訓：建立此 checklist。
+* 2026-06-04 — publication repair 證明前台還依賴 `web/lib/types.ts` `EVENT_FORMS` 與 `web/messages/*.json` 的 `eventForm` namespace。少同步任一處，會出現 raw key 或前後端 enum 漂移。
 
 ## 🔁 Lesson-in-fix-commit Rule（避免 V-M-D ↔ docs update 循環）
 

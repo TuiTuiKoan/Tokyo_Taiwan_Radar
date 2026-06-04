@@ -1045,7 +1045,7 @@
     "annotate": "AI Annotate",
     "extract": "Extract Image",
     "extracting": "Parsing...",
-    "back": "← Back",
+    "back": "Back",
     "annotateError": "AI annotation failed",
     "requiredFieldsMissing": "Please fill in all required fields (dates, location name/address, category & event form)."
   },

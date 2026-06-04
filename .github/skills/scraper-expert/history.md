@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-06-04 — publication 地址占位與 hanmoto 回填規則同步
+
+**問題：** publication 類事件需要保留 `location_address` 占位文字供前端顯示，但不應生成 Google Maps 連結；同時 hanmoto 單筆熱修需要補齊作者、官方頁、出版社頁、價格與日期 fallback。
+
+**修正：**
+- 補上 publication 事件規則：`location_name` 保持 `null`，`location_address` 保留占位文字，前端不再把 publication 地址導向 Maps。
+- 同步 publication 源規則：`performer` = 作者、`organizer_url` = 出版社官網、`official_url` = 書籍官方連結。
+- 記錄 hanmoto 日期 fallback 順序：`発売日 > 登録日`。
+
+**教訓：** publication 類事件要區分「展示用占位文字」與「地圖可點擊地址」兩條路徑，不能把占位字串當成實體 venue。
+
 ## 2026-06-03 — 灣生藝術家個展時間與背景優化 (Wansei Artist Background & Date Correction)
 
 **問題：** 事件 `f8100bd2-e95d-4047-b98e-ad41da2c3f1d`（多田美波個展）展期錯誤（標註為單日）、選案理由說明不足，且未提及藝術家關鍵的「灣生」身分與台日淵源。

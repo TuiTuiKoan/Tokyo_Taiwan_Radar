@@ -8,6 +8,21 @@ ms.date: 2026-06-04
 <!-- Append new entries at the top -->
 
 
+## 2026-06-04 - publication 全量驗收不能只看 annotated，還要抽查 `event_form` 與政治人物譯名
+
+**問題：**
+publication 全量重跑後，若只檢查 `annotation_status` 與缺翻譯數，會得到「全部 annotated」的假陽性；抽樣時另發現 `75964eb4` 把卓榮泰的英文名誤生為 `Su Tseng-chang`。
+
+**根因：**
+batch re-annotation 可以把欄位補滿，但不保證 structural enum 正確，也不保證 GPT 對高風險專有名詞不 hallucinate。
+
+**修正：**
+最終驗收新增兩道檢查：① 直接查 DB 確認 `ndl_opensearch` / `hanmoto` active rows 的 `event_form` 全數為 `['publication']` 且 `missing_name_zh=0`、`missing_name_en=0`；② 對含政治人物名稱的樣本做人審 spot check，錯誤樣本以 `field_corrections` 鎖定後再重驗。
+
+**教訓：**
+對 batch repair，command 成功與 status 收斂不等於資料語意正確。Tester 至少要補一個 structural check（enum / template）和一個 semantic spot check（高風險人名 / 專有名詞），才有資格判 PASS。
+
+
 ## 2026-06-04 - publication reset one-off 已越過 event_ids blocker，最小阻塞點改為 remote events_event_form_check
 
 **問題：**

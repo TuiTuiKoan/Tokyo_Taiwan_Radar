@@ -15,6 +15,7 @@ import logging
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from urllib.parse import urljoin
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
@@ -27,6 +28,7 @@ BASE_URL = "https://www.hanmoto.com/bd/search/top?keyword=%E5%8F%B0%E6%B9%BE&sda
 _MAX_PAGES = 3
 _PAGE_SIZE = 20
 _CUTOFF_DAYS = 365
+_PLACEHOLDER_TEXT = "新書購買請洽各通路"
 
 TAIWAN_KEYWORDS = [
     "台湾", "臺灣", "Taiwan", "台北", "台南", "台中", "高雄",
@@ -74,6 +76,22 @@ def _extract_isbn_from_href(href: str) -> Optional[str]:
     m = re.search(r"/isbn/(\d{13})", href)
     if m:
         return m.group(1)
+    return None
+
+
+def _clean_text(text: Optional[str]) -> Optional[str]:
+    if text is None:
+        return None
+    return text.replace("\x00", "").strip() or None
+
+
+def _extract_detail_field(text: str, labels: tuple[str, ...]) -> Optional[str]:
+    for label in labels:
+        m = re.search(rf"{re.escape(label)}\s*[:：]?\s*(.+)", text)
+        if m:
+            value = _clean_text(m.group(1).splitlines()[0])
+            if value:
+                return value
     return None
 
 
@@ -158,14 +176,45 @@ class HanmotoScraper(BaseScraper):
                         if not _is_taiwan(title):
                             continue
 
+                        detail_text = ""
+                        detail_url = None
+                        if link_el is not None:
+                            href = link_el.get_attribute("href") or ""
+                            if href:
+                                detail_url = urljoin("https://www.hanmoto.com", href)
+                        if detail_url:
+                            detail_page = None
+                            try:
+                                detail_page = page.context.new_page()
+                                detail_page.set_extra_http_headers({"Accept-Language": "ja,en-US;q=0.9"})
+                                detail_page.goto(detail_url, timeout=15000, wait_until="domcontentloaded")
+                                detail_text = detail_page.locator("body").inner_text(timeout=5000)
+                            except Exception as exc:
+                                logger.debug("hanmoto: detail fetch error: %s", exc)
+                            finally:
+                                if detail_page is not None:
+                                    try:
+                                        detail_page.close()
+                                    except Exception:
+                                        pass
+
+                        detail_text = _clean_text(detail_text) or ""
+                        performer = _extract_detail_field(detail_text, ("著者", "作者", "編者", "訳者"))
+                        official_url = _extract_detail_field(detail_text, ("書籍詳細", "商品ページ", "公式サイト"))
+                        organizer_url = _extract_detail_field(detail_text, ("出版社サイト", "出版社", "出版元サイト"))
+                        price_info = _extract_detail_field(detail_text, ("定価", "価格", "本体価格"))
+
                         # Publication date — find span containing '発売' + year pattern
                         date_text = ""
                         for span in card.query_selector_all("span"):
                             txt = span.inner_text()
-                            if "発売" in txt and re.search(r"\d{4}年", txt):
+                            if ("発売" in txt or "登録" in txt) and re.search(r"\d{4}年", txt):
                                 date_text = txt
                                 break
                         start_dt = _parse_date(date_text)
+                        if start_dt is None:
+                            start_dt = _parse_date(detail_text)
+                        end_dt = start_dt
 
                         # Recency cutoff: since sorted by release date desc,
                         # stop pagination once we hit books older than _CUTOFF_DAYS
@@ -178,7 +227,7 @@ class HanmotoScraper(BaseScraper):
                         # Publisher
                         pub_el = card.query_selector('[data-content-name="imprint"]')
                         publisher = pub_el.inner_text().strip() if pub_el is not None else None
-                        publisher = _strip_null(publisher) or None
+                        publisher = _clean_text(publisher)
 
                         source_url = _strip_null(href) or BASE_URL
 
@@ -191,7 +240,7 @@ class HanmotoScraper(BaseScraper):
                             raw_title=_strip_null(title) or None,
                             raw_description=None,
                             start_date=start_dt,
-                            end_date=start_dt,
+                            end_date=end_dt,
                             location_name=None,
                             location_address=None,
                             location_prefectures=[],
@@ -199,7 +248,14 @@ class HanmotoScraper(BaseScraper):
                             event_form=["publication"],
                             name_ja_locked=True,
                             organizer=publisher,
+                            organizer_url=_clean_text(organizer_url),
+                            official_url=_clean_text(official_url),
+                            performer=_clean_text(performer),
+                            is_paid=True,
+                            price_info=_clean_text(price_info) or _PLACEHOLDER_TEXT,
                             organizer_type=["media"],
+                            business_hours=_PLACEHOLDER_TEXT,
+                            location_url=None,
                         ))
                     except Exception as exc:
                         logger.debug("hanmoto: card parse error: %s", exc)

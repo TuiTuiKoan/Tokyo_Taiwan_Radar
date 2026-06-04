@@ -2,6 +2,14 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-04 - Architect 的 event_form checklist 漂移，少列 web enum 且 i18n namespace 寫錯
+
+**問題：** `Architect` 的 `Event Form Addition Checklist` 仍停在舊版 4 個同步點，只列 migration、annotator、admin API prompt、messages，漏掉實際前端也依賴的 `web/lib/types.ts` `EVENT_FORMS`；同時把 i18n namespace 寫成 `eventForms.<key>`，但 repo 實際使用的是 `eventForm.<key>`。
+
+**修正：** 將 `SKILL.md` 的 `event_form` checklist 更新為 5 個同步點：DB constraint、annotator、`web/lib/types.ts`、admin API prompts、`web/messages/*.json` 的 `eventForm` namespace，避免 Architect 後續計畫再少算一層同步面。
+
+**教訓：** Architect 的 checklist 不能只記第一次事故暴露的同步點，之後若實作又證明還有額外 surface，就必須回寫 skill。對 `event_form` 而言，真正的 source-of-truth 不是只有 migration 和 annotator，前台 enum 與 i18n key 也屬同一組 drift surface。
+
 ## 2026-06-03 — 設計元件未明示 design system 優先，導致 UI 容易回退原生 control
 
 **問題：** profile 類型下拉在調整時，雖然已有本站 `DesignSelect`，但規範層面沒有把「所有設計元件優先採用 design system / design token」寫成 Architect 的明文守則，容易讓後續計畫再度預設用原生 HTML control。

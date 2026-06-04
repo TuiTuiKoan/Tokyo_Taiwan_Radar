@@ -42,6 +42,12 @@ Class: `EsliteSpectrumScraper` → key auto-derived as `eslite_spectrum` (matche
 | `location_address` | Always `"東京都中央区日本橋室町3-2-1 COREDO室町テラス2F"` (hardcoded) |
 | `raw_description` | `"開催日時: YYYY年MM月DD日\n\n" + main body text` |
 
+## Publication Rule Sync
+
+- Publication-style events keep `location_name = null` and preserve placeholder text in `location_address` for display only.
+- The address shown in the UI must not become a Google Maps link when the event is a publication entry.
+- For publication entries, `performer` = author, `organizer_url` = publisher homepage, `official_url` = book official/detail page.
+
 ## Taiwan Filter Rules
 
 **IMPORTANT**: Keywords are checked against main content only:
