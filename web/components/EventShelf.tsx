@@ -105,7 +105,7 @@ export default function EventShelf({ events, locale }: Props) {
                 onClick={() => setTab(key)}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.75 rounded-full whitespace-nowrap transition-colors hover:text-fg-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40 disabled:cursor-not-allowed ${
                   selected
-                    ? "bg-blush text-fg-strong font-bold shadow-sm dark:bg-elevated"
+                    ? "bg-blush text-fg-strong shadow-sm dark:bg-elevated"
                     : "text-fg-muted"
                 }`}
               >
