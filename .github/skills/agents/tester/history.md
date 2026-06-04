@@ -7,6 +7,31 @@ ms.date: 2026-06-04
 
 <!-- Append new entries at the top -->
 
+
+## 2026-06-04 - publication reset one-off 已越過 event_ids blocker，最小阻塞點改為 remote events_event_form_check
+
+**問題：**
+重新執行
+`python _oneoff_reset_publication_error.py --source hanmoto --event-id 5131a17c-8006-4fee-8db0-38f16cac2533 --apply`
+後，已不再出現
+`TypeError: annotate_pending_events() got an unexpected keyword argument 'event_ids'`。
+流程會進入 annotation path，接著因 remote DB check constraint
+`events_event_form_check` 失敗，回報 Supabase error code `23514`。
+
+**根因：**
+本地 `annotate_pending_events()` 的函式簽名與 `event_ids` 查詢分支已補齊，
+剩餘阻塞點已縮小為遠端 `events` table 的 schema constraint，代表 targeted fix
+已越過原本的本地 blocker。
+
+**修正：**
+保留本地修正，後續交由 Engineer 檢查 annotation path 寫入的 `event_form`
+值是否符合資料庫 `events_event_form_check` 定義。
+
+**教訓：**
+針對會先 reset 再 annotate 的 one-off，重新驗證時要同時確認兩件事：
+是否真的越過本地 blocker，以及失敗後樣本事件是否回到 `error` 而非殘留在
+`pending`。
+
 ## 2026-06-04 - publication reset one-off 在本地 TypeError 前已部分改寫樣本狀態
 
 **問題：**

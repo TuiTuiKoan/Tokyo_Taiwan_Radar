@@ -2,6 +2,11 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-04 - `annotate_pending_events()` `event_ids` 漂移先擋住 publication reset one-off
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-04 | `python _oneoff_reset_publication_error.py --source hanmoto --event-id 5131a17c-8006-4fee-8db0-38f16cac2533 --apply` 在本地先報 `TypeError: annotate_pending_events() got an unexpected keyword argument 'event_ids'`，導致 focused apply 還沒進 annotation path 就中斷 | `scraper/annotator.py` 的 CLI 與 one-off 呼叫端都已經傳 `event_ids`，但 `annotate_pending_events()` 仍只接受舊的 `event_id` 參數；one-off 也缺少失敗時把剛改成 `pending` 的樣本列回復成 `error` 的保護 | 在 `scraper/annotator.py` 為 `annotate_pending_events()` 補上 `event_ids` 查詢分支，保持舊 `event_id` 行為不變；在 `scraper/_oneoff_reset_publication_error.py` 加入失敗時 `pending -> error` 的回復；重跑 focused apply 後已越過本地 `TypeError`，下一個真實阻塞點是 remote DB `events_event_form_check` | 當 annotator 增加新的 target-id 入口時，函式簽名、CLI 與 one-off 呼叫端必須同批對齊；對先改狀態再進後續處理的 one-off，至少要保證失敗後不留下 `pending` 半套狀態。
+
 ---
 
 ## 2026-06-04 - 出版來源 re-annotation 白名單與 live schema 必須同步驗證
