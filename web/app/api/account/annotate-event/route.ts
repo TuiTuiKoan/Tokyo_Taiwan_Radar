@@ -262,28 +262,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  // 2. Atomic Quota Gate (API4 Prevention)
-  const { data: usageVal, error: rpcError } = await serviceClient.rpc(
-    "increment_account_usage",
-    {
-      user_id_param: user.id,
-      limit_per_user: 100000,
-      limit_system: 100000,
-    }
-  );
-
-  if (rpcError) {
-    console.error("[annotate-event] quota RPC failed:", rpcError);
-    return NextResponse.json({ error: "saveFailed" }, { status: 500 });
-  }
-
-  if (usageVal === -1) {
-    return NextResponse.json({ error: "quotaExceeded" }, { status: 429 });
-  }
-  if (usageVal === -2) {
-    return NextResponse.json({ error: "systemMeltdown" }, { status: 429 });
-  }
-
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey)
     return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });

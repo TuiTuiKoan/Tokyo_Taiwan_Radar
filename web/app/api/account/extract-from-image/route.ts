@@ -33,29 +33,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 2. Atomic Quota Gate (API4 Prevention)
-  const { data: usageVal, error: rpcError } = await serviceClient.rpc(
-    "increment_account_usage",
-    {
-      user_id_param: user.id,
-      limit_per_user: 5,
-      limit_system: 200,
-    }
-  );
-
-  if (rpcError) {
-    console.error("[extract-image] quota RPC failed:", rpcError);
-    return NextResponse.json({ error: "saveFailed" }, { status: 500 });
-  }
-
-  if (usageVal === -1) {
-    return NextResponse.json({ error: "quotaExceeded" }, { status: 429 });
-  }
-  if (usageVal === -2) {
-    return NextResponse.json({ error: "systemMeltdown" }, { status: 429 });
-  }
-
-  // 3. Parse body
+  // 2. Parse body
   const { image } = (await req.json()) as { image: string };
   if (!image) return NextResponse.json({ error: "image required" }, { status: 400 });
 
@@ -63,7 +41,7 @@ export async function POST(req: NextRequest) {
   if (!apiKey)
     return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });
 
-  // 4. Call GPT-4o Vision via REST API
+  // 3. Call GPT-4o Vision via REST API
   const payload = {
     model: "gpt-4o",
     max_tokens: 2500,
