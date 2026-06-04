@@ -220,20 +220,20 @@ export default function Navbar({ locale }: Props) {
         <div className="flex items-center gap-1">
           {/* Desktop nav links */}
           <nav className="hidden md:flex items-center gap-4 text-sm mr-2 text-[#3A261F] dark:text-fg">
-            <Link href={`/${locale}`} className="hover:text-[#1F5E2B] dark:hover:text-green-400 transition">
+            <Link href={`/${locale}`} className="inline-flex items-center rounded px-2 py-1 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition">
               {t("home")}
             </Link>
-            <Link href={`/${locale}/announcements`} className="hover:text-[#1F5E2B] dark:hover:text-green-400 transition">
+            <Link href={`/${locale}/announcements`} className="inline-flex items-center rounded px-2 py-1 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition">
               {t("news")}
             </Link>
-            <Link href={`/${locale}/about`} className="hover:text-[#1F5E2B] dark:hover:text-green-400 transition">
+            <Link href={`/${locale}/about`} className="inline-flex items-center rounded px-2 py-1 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition">
               {t("about")}
             </Link>
-            <Link href={`/${locale}/sources`} className="hover:text-[#1F5E2B] dark:hover:text-green-400 transition">
+            <Link href={`/${locale}/sources`} className="inline-flex items-center rounded px-2 py-1 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition">
               {t("sources")}
             </Link>
             {isAdmin && (
-              <Link href={`/${locale}/admin`} className="hover:text-[#1F5E2B] dark:hover:text-green-400 transition">
+              <Link href={`/${locale}/admin`} className="inline-flex items-center rounded px-2 py-1 hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition">
                 {t("admin")}
               </Link>
             )}
