@@ -4,6 +4,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
 
 export const maxDuration = 60;
+const VALID_PRIMARY_LANGUAGES = new Set(["ja", "zh", "en", "mixed"]);
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36";
@@ -402,7 +403,17 @@ Rules:
     signal: AbortSignal.timeout(25000),
   });
 
-  if (openaiRes.ok) {
+  if (!openaiRes.ok) {
+    let detail = "";
+    try { detail = (await openaiRes.text()).slice(0, 300); } catch { /* ignore */ }
+    console.error("[annotate-event] OpenAI error:", openaiRes.status, detail);
+    return NextResponse.json(
+      { error: "annotateAiFailed", detail: `OpenAI ${openaiRes.status}${detail ? `: ${detail}` : ""}` },
+      { status: 502 }
+    );
+  }
+
+  {
     const openaiData = (await openaiRes.json()) as {
       choices: Array<{ message: { content: string } }>;
     };
@@ -432,7 +443,15 @@ Rules:
       }
       if (existingCategory) returnedFields.category = event.category;
       if (existingEventForm) returnedFields.event_form = event.event_form;
-    } catch { /* parse err */ }
+    } catch (parseErr) {
+      console.error("[annotate-event] JSON parse failed:", parseErr);
+      if (Object.keys(returnedFields).length === 0) {
+        return NextResponse.json(
+          { error: "annotateAiFailed", detail: "AI response was not valid JSON" },
+          { status: 502 }
+        );
+      }
+    }
   }
 
   const validCategories = new Set<string>(CATEGORIES);
@@ -450,11 +469,40 @@ Rules:
     else delete returnedFields.event_form;
   }
 
+  if (
+    typeof returnedFields.primary_language === "string" &&
+    !VALID_PRIMARY_LANGUAGES.has(returnedFields.primary_language)
+  ) {
+    delete returnedFields.primary_language;
+  }
+
+  const resolvedStartDate =
+    typeof returnedFields.start_date === "string" && returnedFields.start_date.trim()
+      ? returnedFields.start_date
+      : typeof event.start_date === "string" && event.start_date.trim()
+        ? event.start_date
+        : null;
+
+  if (
+    resolvedStartDate &&
+    (typeof returnedFields.end_date !== "string" || !returnedFields.end_date.trim()) &&
+    (typeof event.end_date !== "string" || !event.end_date.trim())
+  ) {
+    returnedFields.end_date = resolvedStartDate;
+  }
+
   if (Object.keys(returnedFields).length > 0) {
-    await serviceClient
+    const { error: updateErr } = await serviceClient
       .from("events")
       .update({ ...returnedFields, annotation_status: "annotated" })
       .eq("id", eventId);
+    if (updateErr) {
+      console.error("[annotate-event] DB update failed:", updateErr);
+      return NextResponse.json(
+        { error: "annotateSaveFailed", detail: updateErr.message },
+        { status: 500 }
+      );
+    }
   }
 
   return NextResponse.json({

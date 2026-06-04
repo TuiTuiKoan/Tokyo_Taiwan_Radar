@@ -1041,6 +1041,8 @@
     "forbidden": "権限がありません",
     "saveSuccess": "保存が成功しました",
     "saveFailed": "保存に失敗しました",
+    "annotateAiFailed": "AIアノテーションサービスが一時的に利用できません。時間をおいて再試行してください",
+    "annotateSaveFailed": "アノテーション結果のデータベース保存に失敗しました",
     "saving": "保存中...",
     "annotate": "AI注釈",
     "extract": "画像から抽出",

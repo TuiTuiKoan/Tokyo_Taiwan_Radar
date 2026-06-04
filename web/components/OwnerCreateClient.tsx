@@ -222,7 +222,9 @@ export default function OwnerCreateClient({ locale }: Props) {
       const data = await readJsonResponse(res);
       if (!res.ok) {
         const errorKey = typeof data.error === "string" ? data.error : null;
-        throw new Error(errorKey ? t(errorKey) : t("saveFailed"));
+        const detail = typeof data.detail === "string" ? data.detail : null;
+        const baseMsg = errorKey ? t(errorKey) : t("saveFailed");
+        throw new Error(detail ? `${baseMsg}（${detail}）` : baseMsg);
       }
 
       const fields = (data.fields ?? {}) as Record<string, unknown>;
@@ -390,6 +392,12 @@ export default function OwnerCreateClient({ locale }: Props) {
           {ocrFilled ? tAdmin("saveAndAnnotate") || "儲存並標注" : tAdmin("save")}
         </Button>
       </div>
+
+      {extractError && (
+        <p className="text-sm font-semibold text-red-500" aria-live="assertive">
+          {extractError}
+        </p>
+      )}
 
       {/* Inline feedback next to the action buttons so it is always visible */}
       {actionError && (

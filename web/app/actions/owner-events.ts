@@ -53,6 +53,7 @@ const CONTENT_WHITE_LIST = [
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app";
 const OWNER_SUBMISSION_SOURCE_FALLBACK = `${SITE_URL}/ja/account`;
+const VALID_PRIMARY_LANGUAGES = new Set(["ja", "zh", "en", "mixed"]);
 
 function sanitizeOwnerForm(form: FormState, ownerUserId: string): Record<string, any> {
   const payload: Record<string, any> = {};
@@ -78,6 +79,13 @@ function sanitizeOwnerForm(form: FormState, ownerUserId: string): Record<string,
   payload.annotation_status = "annotated"; // Skip scraper processing but mark as annotated
 
   payload.source_url = payload.source_url || payload.organizer_url || payload.location_url || null;
+  if (
+    typeof payload.primary_language === "string" &&
+    payload.primary_language &&
+    !VALID_PRIMARY_LANGUAGES.has(payload.primary_language)
+  ) {
+    payload.primary_language = null;
+  }
   
   return payload;
 }

@@ -199,14 +199,14 @@ export default function AdminCreateClient({ locale, allEvents }: Props) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {/* Navigation and Header */}
-      <div className="flex items-center justify-between">
-        <Button type="button" variant="ghost" onClick={handleCancel} className="px-0 py-0 text-sm font-medium">
+      <div className="flex items-center justify-between gap-3">
+        <Button type="button" variant="ghost" onClick={handleCancel} className="-ml-4 shrink-0 text-sm font-medium relative z-10">
           ← {t("back") || "返回"}
         </Button>
-        <h1 className="text-2xl font-bold text-fg-strong">
+        <h1 className="text-2xl font-bold text-fg-strong text-center truncate">
           {t("newEvent") || "新增活動"}
         </h1>
-        <div className="w-10" />
+        <div className="w-10 shrink-0" />
       </div>
 
       {/* Floating Poster Section */}

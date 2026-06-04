@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
 
+const VALID_PRIMARY_LANGUAGES = new Set(["ja", "zh", "en", "mixed"]);
+
 export async function POST(req: NextRequest) {
   // 1. Authenticate user
   const supabase = await createClient();
@@ -132,6 +134,40 @@ Return ONLY the JSON. Omit any field you cannot confidently read. Do not guess o
       { error: "Failed to parse GPT response", raw: content },
       { status: 500 }
     );
+  }
+
+  const validCategories = new Set<string>(CATEGORIES);
+  const validEventForms = new Set<string>(EVENT_FORMS);
+
+  if (Array.isArray(fields.category)) {
+    const filtered = (fields.category as unknown[])
+      .filter((value): value is string => typeof value === "string")
+      .filter((value) => validCategories.has(value));
+    if (filtered.length > 0) fields.category = filtered;
+    else delete fields.category;
+  }
+
+  if (Array.isArray(fields.event_form)) {
+    const filtered = (fields.event_form as unknown[])
+      .filter((value): value is string => typeof value === "string")
+      .filter((value) => validEventForms.has(value));
+    if (filtered.length > 0) fields.event_form = filtered;
+    else delete fields.event_form;
+  }
+
+  if (
+    typeof fields.primary_language === "string" &&
+    !VALID_PRIMARY_LANGUAGES.has(fields.primary_language)
+  ) {
+    delete fields.primary_language;
+  }
+
+  if (
+    typeof fields.start_date === "string" &&
+    fields.start_date.trim() &&
+    (typeof fields.end_date !== "string" || !fields.end_date.trim())
+  ) {
+    fields.end_date = fields.start_date;
   }
 
   return NextResponse.json({ fields });

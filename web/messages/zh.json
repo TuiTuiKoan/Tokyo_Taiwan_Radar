@@ -1041,6 +1041,8 @@
     "forbidden": "無權限",
     "saveSuccess": "保存成功",
     "saveFailed": "保存失敗",
+    "annotateAiFailed": "AI 標註服務暫時無法使用，請稍後再試",
+    "annotateSaveFailed": "標註結果寫入資料庫時發生錯誤",
     "saving": "保存中...",
     "annotate": "AI 標註",
     "extract": "圖片提取",

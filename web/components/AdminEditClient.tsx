@@ -260,10 +260,10 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center gap-3">
-        <Button type="button" variant="ghost" onClick={handleCancel} className="px-0 py-0 text-sm font-medium">
+        <Button type="button" variant="ghost" onClick={handleCancel} className="-ml-4 shrink-0 text-sm font-medium relative z-10">
           ← {t("back")}
         </Button>
-        <h1 className="text-2xl font-bold text-fg-strong">{t("edit")}</h1>
+        <h1 className="text-2xl font-bold text-fg-strong truncate">{t("edit")}</h1>
       </div>
       <div className="space-y-6">
         <AdminEventForm

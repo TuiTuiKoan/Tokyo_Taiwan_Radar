@@ -4,6 +4,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
 
 export const maxDuration = 60;
+const VALID_PRIMARY_LANGUAGES = new Set(["ja", "zh", "en", "mixed"]);
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36";
@@ -503,6 +504,28 @@ Rules:
       });
       delete returnedFields.event_form;
     }
+  }
+
+  if (
+    typeof returnedFields.primary_language === "string" &&
+    !VALID_PRIMARY_LANGUAGES.has(returnedFields.primary_language)
+  ) {
+    delete returnedFields.primary_language;
+  }
+
+  const resolvedStartDate =
+    typeof returnedFields.start_date === "string" && returnedFields.start_date.trim()
+      ? returnedFields.start_date
+      : typeof event.start_date === "string" && event.start_date.trim()
+        ? event.start_date
+        : null;
+
+  if (
+    resolvedStartDate &&
+    (typeof returnedFields.end_date !== "string" || !returnedFields.end_date.trim()) &&
+    (typeof event.end_date !== "string" || !event.end_date.trim())
+  ) {
+    returnedFields.end_date = resolvedStartDate;
   }
 
   // 5. Save annotation to DB

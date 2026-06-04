@@ -1041,6 +1041,8 @@
     "forbidden": "Forbidden",
     "saveSuccess": "Saved successfully",
     "saveFailed": "Failed to save",
+    "annotateAiFailed": "The AI annotation service is temporarily unavailable. Please try again later",
+    "annotateSaveFailed": "Failed to save annotation to the database",
     "saving": "Saving...",
     "annotate": "AI Annotate",
     "extract": "Extract Image",
