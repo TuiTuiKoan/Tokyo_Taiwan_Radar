@@ -1044,6 +1044,8 @@
     "saving": "保存中...",
     "annotate": "AI注釈",
     "extract": "画像から抽出",
+    "extracting": "解析中...",
+    "back": "← 戻る",
     "annotateError": "AI注釈に失敗しました",
     "requiredFieldsMissing": "すべての必須項目（開催日時、場所名、住所、カテゴリ、開催形式）を入力してください"
   },

@@ -1044,6 +1044,8 @@
     "saving": "保存中...",
     "annotate": "AI 標註",
     "extract": "圖片提取",
+    "extracting": "解析中...",
+    "back": "← 返回",
     "annotateError": "AI 標註失敗",
     "requiredFieldsMissing": "請填寫所有必填欄位 (開始/結束日期、地點/地址、以及至少一個分類和呈現形式)"
   },
