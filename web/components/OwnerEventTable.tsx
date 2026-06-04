@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { type Event, type Locale, getEventName } from "@/lib/types";
 import { useRouter } from "next/navigation";
-import { deactivateOwnEvent } from "@/app/actions/owner-events";
+import { deactivateOwnEvent, deleteOwnEvent } from "@/app/actions/owner-events";
 
 interface Props {
   events: Event[];
@@ -21,6 +21,18 @@ export default function OwnerEventTable({ events, locale }: Props) {
     const res = await deactivateOwnEvent(id);
     if (!res.ok) {
       alert(t(res.error) || "Deactivation failed");
+      return;
+    }
+    startTransition(() => {
+      router.refresh();
+    });
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm(t("deleteConfirm") + "\n\n" + t("deleteConfirmDesc"))) return;
+    const res = await deleteOwnEvent(id);
+    if (!res.ok) {
+      alert(t(res.error) || "Delete failed");
       return;
     }
     startTransition(() => {
@@ -109,6 +121,13 @@ export default function OwnerEventTable({ events, locale }: Props) {
                           className="text-stone-500 hover:text-red-600 font-medium text-xs py-1 px-2.5 rounded border border-line hover:border-red-200 transition"
                         >
                           {t("tableActionDeactivate")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(event.id)}
+                          className="text-red-600 hover:text-red-700 font-medium text-xs py-1 px-2.5 rounded border border-red-200 hover:border-red-300 transition"
+                        >
+                          {t("tableActionDelete")}
                         </button>
                       </>
                     )}

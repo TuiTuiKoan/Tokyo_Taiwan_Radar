@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { revalidatePath } from "next/cache";
 import type { Event } from "@/lib/types";
 import type { FormState } from "@/components/AdminEventForm";
 
@@ -433,6 +434,52 @@ export async function deactivateOwnEvent(eventId: string): Promise<ActionResult<
   if (updateError) {
     return { ok: false, error: updateError.message };
   }
+
+  revalidatePath("/[locale]/account", "page");
+  revalidatePath("/[locale]/account/events/[id]/edit", "page");
+
+  return { ok: true, data: null };
+}
+
+export async function deleteOwnEvent(eventId: string): Promise<ActionResult<null>> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const serviceClient = getServiceRoleClient();
+
+  const { data: existing, error: loadError } = await serviceClient
+    .from("events")
+    .select("owner_user_id, is_active")
+    .eq("id", eventId)
+    .single();
+
+  if (loadError || !existing) {
+    return { ok: false, error: "eventNotFound" };
+  }
+
+  if (existing.owner_user_id !== user.id) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  if (!existing.is_active) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const { error: deleteError } = await serviceClient
+    .from("events")
+    .delete()
+    .eq("id", eventId);
+
+  if (deleteError) {
+    return { ok: false, error: deleteError.message };
+  }
+
+  revalidatePath("/[locale]/account", "page");
+  revalidatePath("/[locale]/saved", "page");
 
   return { ok: true, data: null };
 }
