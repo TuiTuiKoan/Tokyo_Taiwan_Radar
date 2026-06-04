@@ -278,6 +278,13 @@ html:has([data-site-bg]) body {
     [role="radio"] span.rounded-full {
       transform: translateY(-2px);
     }
+
+    /* Navbar icon buttons hold an SVG, not CJK text, so the centering nudge
+       above does not apply and only pushes the icon down — restore them. */
+    header button {
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
   }
 }
 
