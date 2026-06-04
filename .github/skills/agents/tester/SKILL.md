@@ -36,4 +36,5 @@ Read this at the start of every session before running any test.
 
 ## After a Test Failure
 1. Append an entry to `.github/skills/agents/tester/history.md` (newest at top).
-2. If the lesson generalizes, add a rule to this file.
+2. If the failing command already crossed a DB write boundary before crashing, immediately re-query the sample row and restore the pre-test state before continuing.
+3. If the lesson generalizes, add a rule to this file.

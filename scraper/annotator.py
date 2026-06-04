@@ -1299,6 +1299,7 @@ def annotate_pending_events(
     fix_translations: bool = False,
     fix_reviewed: bool = False,
     event_id: str | None = None,
+    event_ids: list[str] | None = None,
     limit: int | None = None,
     dry_run: bool = False,
 ) -> None:
@@ -1373,6 +1374,13 @@ def annotate_pending_events(
             sb.table("events")
             .select("*")
             .eq("id", event_id)
+            .neq("annotation_status", "reviewed")
+        )
+    elif event_ids:
+        query = (
+            sb.table("events")
+            .select("*")
+            .in_("id", event_ids)
             .neq("annotation_status", "reviewed")
         )
     elif fix_reviewed:

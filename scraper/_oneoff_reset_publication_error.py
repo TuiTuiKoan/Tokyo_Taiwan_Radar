@@ -1,7 +1,7 @@
 """One-off reset + re-annotate for publication sources stuck in error.
 
 Scope:
-    - source_name in: ndl_opensearch, hanmoto
+    - source_name in: ndl_opensearch, hanmoto, kawade_rss
   - annotation_status = error
   - is_active = true
   - skip any event that has field_corrections rows
@@ -17,7 +17,7 @@ from collections import Counter
 
 from annotator import _get_supabase, annotate_pending_events
 
-TARGET_SOURCES = ("ndl_opensearch", "hanmoto")
+TARGET_SOURCES = ("ndl_opensearch", "hanmoto", "kawade_rss")
 ANNOTATE_CHUNK_SIZE = 50
 QUERY_CHUNK_SIZE = 200
 
@@ -75,6 +75,13 @@ def _fetch_status_rows(sb, event_ids: list[str]) -> list[dict]:
             )
         )
     return rows
+
+
+def _restore_pending_to_error(sb, event_ids: list[str]) -> None:
+    for chunk in _chunked(event_ids, QUERY_CHUNK_SIZE):
+        sb.table("events").update({"annotation_status": "error"}).in_("id", chunk).eq(
+            "annotation_status", "pending"
+        ).execute()
 
 
 def _print_summary(label: str, rows: list[dict], protected_ids: set[str]) -> None:
@@ -155,8 +162,13 @@ def run(*, apply_changes: bool, sources: list[str], event_ids: list[str] | None,
             "annotation_status", "error"
         ).execute()
 
-    for chunk in _chunked(runnable_ids, ANNOTATE_CHUNK_SIZE):
-        annotate_pending_events(event_ids=chunk)
+    try:
+        for chunk in _chunked(runnable_ids, ANNOTATE_CHUNK_SIZE):
+            annotate_pending_events(event_ids=chunk)
+    except Exception:
+        _restore_pending_to_error(sb, runnable_ids)
+        print("restored_pending_to_error=true")
+        raise
 
     post_rows = _fetch_status_rows(sb, runnable_ids)
     _print_post_run(post_rows, set(runnable_ids))

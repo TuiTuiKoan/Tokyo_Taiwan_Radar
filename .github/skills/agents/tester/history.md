@@ -7,6 +7,30 @@ ms.date: 2026-06-04
 
 <!-- Append new entries at the top -->
 
+## 2026-06-04 - publication reset one-off 在本地 TypeError 前已部分改寫樣本狀態
+
+**問題：**
+`python _oneoff_reset_publication_error.py --source hanmoto --event-id 5131a17c-8006-4fee-8db0-38f16cac2533 --apply`
+沒有走到 Engineer 宣稱的 remote `events_event_form_check`，而是在先把樣本事件
+`annotation_status` 從 `error` 改成 `pending` 之後，才因
+`TypeError: annotate_pending_events() got an unexpected keyword argument 'event_ids'`
+中斷。
+
+**根因：**
+`scraper/_oneoff_reset_publication_error.py` 與 `scraper/annotator.py` 的 CLI 都開始傳
+`event_ids=...`，但 `annotate_pending_events()` 的函式簽名仍只有 `event_id`，
+實際 write path 在本地就炸掉。
+
+**修正：**
+先把測試造成的樣本事件狀態恢復回 `error`，再回報 Engineer 修正
+`annotate_pending_events()` 與呼叫端的參數一致性，之後才有資格再驗 remote schema
+constraint。
+
+**教訓：**
+對會先做 DB 更新、再進入後續處理的 one-off，`--apply` 驗證一旦失敗，不能假設遠端
+完全沒被改到。Tester 必須立刻重查樣本列是否已部分變更，必要時先恢復原狀，再繼續判讀
+最小阻塞點。
+
 ## 2026-06-04 - OwnerCreateClient 目標 lint 未過，build 與 type 雖通過仍不能判綠
 
 **問題：** 針對 `web/components/OwnerCreateClient.tsx` 與
