@@ -3,9 +3,14 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
+import {
+  sanitizeCategoryValues,
+  sanitizeEventFormValues,
+  sanitizePrimaryLanguageValue,
+  shouldApplyAnnotatedLocationField,
+} from "@/lib/eventFieldMerge";
 
 export const maxDuration = 60;
-const VALID_PRIMARY_LANGUAGES = new Set(["ja", "zh", "en", "mixed"]);
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36";
@@ -244,7 +249,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { eventId } = (await req.json()) as { eventId: string };
+  const { eventId, lockedFields } = (await req.json()) as {
+    eventId: string;
+    lockedFields?: string[];
+  };
   if (!eventId) return NextResponse.json({ error: "eventId required" }, { status: 400 });
 
   // 1c. OWASP A01 Gate - verify owner of the event
@@ -274,6 +282,10 @@ export async function POST(req: NextRequest) {
   const returnedFields: Record<string, unknown> = {};
   let searchDebug: any = null;
   let sourceUrlFetchOk: boolean | null = null;
+  let bestScore = -1;
+  const manualLockedFields = Array.isArray(lockedFields)
+    ? lockedFields.filter((field): field is string => typeof field === "string")
+    : [];
 
   const needsUrlEnrichment =
     !event.source_url ||
@@ -286,6 +298,7 @@ export async function POST(req: NextRequest) {
       const text = await fetchPageText(event.source_url as string);
       sourceUrlFetchOk = text.length > 0;
       const score = text ? scorePage(text, event.name_ja as string, (event.location_name as string) || "") : -1;
+      bestScore = score;
       if (text && score >= 3) {
         foundUrl = event.source_url as string;
         webText = text;
@@ -298,6 +311,7 @@ export async function POST(req: NextRequest) {
         (event.start_date || "").toString()
       );
       searchDebug = enriched.debug;
+      bestScore = enriched.debug.bestScore;
       if (enriched.url && enriched.text) {
         foundUrl = enriched.url;
         webText = enriched.text;
@@ -435,7 +449,18 @@ Rules:
           returnedFields[k] = v;
         } else if (extractionFields.includes(k)) {
           const cur = (event as Record<string, unknown>)[k];
-          if (cur === null || cur === undefined || cur === "") {
+          if (
+            (k === "location_name" || k === "location_address") &&
+            shouldApplyAnnotatedLocationField(k, cur, v, {
+              bestScore,
+              lockedFields: manualLockedFields,
+              currentLocationName: typeof event.location_name === "string" ? event.location_name : null,
+              currentLocationAddress:
+                typeof event.location_address === "string" ? event.location_address : null,
+            })
+          ) {
+            returnedFields[k] = v;
+          } else if (cur === null || cur === undefined || cur === "") {
             returnedFields[k] = v;
           }
         } else {
@@ -455,25 +480,17 @@ Rules:
     }
   }
 
-  const validCategories = new Set<string>(CATEGORIES);
-  const validEventForms = new Set<string>(EVENT_FORMS);
+  const sanitizedCategories = sanitizeCategoryValues(returnedFields.category);
+  if (sanitizedCategories) returnedFields.category = sanitizedCategories;
+  else delete returnedFields.category;
 
-  if (Array.isArray(returnedFields.category)) {
-    const filtered = (returnedFields.category as string[]).filter(v => typeof v === "string" && validCategories.has(v));
-    if (filtered.length > 0) returnedFields.category = filtered;
-    else delete returnedFields.category;
-  }
+  const sanitizedEventForms = sanitizeEventFormValues(returnedFields.event_form);
+  if (sanitizedEventForms) returnedFields.event_form = sanitizedEventForms;
+  else delete returnedFields.event_form;
 
-  if (Array.isArray(returnedFields.event_form)) {
-    const filtered = (returnedFields.event_form as string[]).filter(v => typeof v === "string" && validEventForms.has(v));
-    if (filtered.length > 0) returnedFields.event_form = filtered;
-    else delete returnedFields.event_form;
-  }
-
-  if (
-    typeof returnedFields.primary_language === "string" &&
-    !VALID_PRIMARY_LANGUAGES.has(returnedFields.primary_language)
-  ) {
+  const sanitizedPrimaryLanguage = sanitizePrimaryLanguageValue(returnedFields.primary_language);
+  if (sanitizedPrimaryLanguage) returnedFields.primary_language = sanitizedPrimaryLanguage;
+  else if (returnedFields.primary_language !== undefined) {
     delete returnedFields.primary_language;
   }
 

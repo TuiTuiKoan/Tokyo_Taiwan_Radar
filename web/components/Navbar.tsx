@@ -24,8 +24,8 @@ const LOCALE_FLAGS: Record<Locale, string> = {
 };
 
 const LOCALE_LABELS: Record<Locale, string> = {
-  zh: "繁中",
-  en: "EN",
+  zh: "繁體中文",
+  en: "English",
   ja: "日本語",
 };
 
@@ -62,7 +62,7 @@ function NavbarLangSwitcher({ locale }: NavbarLangSwitcherProps) {
     <div className="relative" ref={langRef}>
       <button
         onClick={() => setLangOpen((o) => !o)}
-        title={locale.toUpperCase()}
+        title={LOCALE_LABELS[locale]}
         aria-expanded={langOpen}
         aria-label="Switch language"
         className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 text-[#3A261F] dark:text-fg-muted hover:text-[#1F5E2B] dark:hover:text-green-400 transition"
@@ -111,7 +111,6 @@ export default function Navbar({ locale }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [profileLoading, setProfileLoading] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
   const logoutHref = `/auth/logout?next=/${locale}`;
 
@@ -154,26 +153,14 @@ export default function Navbar({ locale }: Props) {
     };
   }, []);
 
-  async function goToMyEvents() {
+  function goToMyEvents() {
     if (!user) {
       router.push(`/${locale}/auth/login`);
       return;
     }
 
-    setProfileLoading(true);
-    try {
-      const supabase = createClient();
-      const { data: profile } = await supabase
-        .from("creators")
-        .select("user_handle")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      router.push(profile?.user_handle ? `/${locale}/account?tab=myEvents` : `/${locale}/account/profile`);
-      setAccountOpen(false);
-    } finally {
-      setProfileLoading(false);
-    }
+    router.push(`/${locale}/account?tab=myEvents`);
+    setAccountOpen(false);
   }
 
   async function handleLogout() {
@@ -322,7 +309,7 @@ export default function Navbar({ locale }: Props) {
                       }}
                       className="w-full flex items-center px-3 py-2 text-sm text-fg text-left hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 transition"
                     >
-                      {profileLoading ? t("loading") : tAccount("myEventsTab")}
+                      {tAccount("myEventsTab")}
                     </button>
                     <Link
                       href={`/${locale}/saved`}
