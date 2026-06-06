@@ -9,7 +9,7 @@ import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEv
 import AdminCreateWorkModal from "@/components/AdminCreateWorkModal";
 import DesignSelect from "@/components/DesignSelect";
 import { assignWorkToEvent } from "@/app/actions/works";
-import { createDraftEvent, createEventNoAnnotate, deleteUserSubmittedEvent, publishEvent } from "@/app/actions/admin-events";
+import { createDraftEvent, createEventNoAnnotate, deleteUserSubmittedEvent, publishEvent, deleteAdminEvent } from "@/app/actions/admin-events";
 import { StatusBadge, ToggleSwitch } from "@/components/UiControls";
 import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, matchesCity, type RegionWithCity } from "@/lib/regionPrefectures";
 import { getCityLabel } from "@/lib/cityLabel";
@@ -746,6 +746,18 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     }
   }
 
+  async function handleDeleteAdminEvent(id: string) {
+    if (!window.confirm("確認要【徹底刪除】此活動嗎？此操作將在資料庫中永久移除（Hard Delete）該活動，無法復原。")) return;
+
+    const previousEvents = events;
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+    const result = await deleteAdminEvent(id);
+    if (!result.ok) {
+      setEvents(previousEvents);
+      alert(`${t("error") || "錯誤"}: ${result.error}`);
+    }
+  }
+
   const hasFilters = Boolean(
     filterQ ||
     filterCategories.length > 0 ||
@@ -1403,14 +1415,13 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
                       >
                         🔁
                       </button>
-                      {event.is_user_submitted && (
-                        <button
-                          onClick={() => handleDeleteUserSubmittedEvent(event.id)}
-                          className="text-xs font-medium text-mascot-red hover:underline"
-                        >
-                          {t("delete")}
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleDeleteAdminEvent(event.id)}
+                        className="text-xs font-medium text-mascot-red hover:underline"
+                        title="永久徹底刪除此活動（此操作無法復原）"
+                      >
+                        {t("delete")}
+                      </button>
                     </div>
                   </td>
                   <td className="py-2 pr-4 max-w-xs">
@@ -1710,14 +1721,13 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
                       >
                         🔁
                       </button>
-                      {event.is_user_submitted && (
-                        <button
-                          onClick={() => handleDeleteUserSubmittedEvent(event.id)}
-                          className="text-xs font-medium text-mascot-red hover:underline"
-                        >
-                          {t("delete")}
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleDeleteAdminEvent(event.id)}
+                        className="text-xs font-medium text-mascot-red hover:underline"
+                        title="永久徹底刪除此活動（此操作無法復原）"
+                      >
+                        {t("delete")}
+                      </button>
                     </div>
                   </td>
                   <td className="py-2 pr-4 max-w-sm">

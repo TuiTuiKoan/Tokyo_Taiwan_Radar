@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { type Event, type Locale, getEventName } from "@/lib/types";
 import { useRouter } from "next/navigation";
@@ -15,6 +15,11 @@ export default function OwnerEventTable({ events, locale }: Props) {
   const t = useTranslations("account");
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const [localEvents, setLocalEvents] = useState<Event[]>(events);
+
+  useEffect(() => {
+    setLocalEvents(events);
+  }, [events]);
 
   async function handleDeactivate(id: string) {
     if (!confirm(t("deactivateConfirm") + "\n\n" + t("deactivateConfirmDesc"))) return;
@@ -23,6 +28,9 @@ export default function OwnerEventTable({ events, locale }: Props) {
       alert(t(res.error) || "Deactivation failed");
       return;
     }
+    setLocalEvents((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, is_active: false, closed_by_owner: true } : e))
+    );
     startTransition(() => {
       router.refresh();
     });
@@ -35,6 +43,7 @@ export default function OwnerEventTable({ events, locale }: Props) {
       alert(t(res.error) || "Delete failed");
       return;
     }
+    setLocalEvents((prev) => prev.filter((e) => e.id !== id));
     startTransition(() => {
       router.refresh();
     });
@@ -63,7 +72,7 @@ export default function OwnerEventTable({ events, locale }: Props) {
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {events.map((event) => {
+            {localEvents.map((event) => {
               const name = getEventName(event, locale);
               const isClosed = event.closed_by_owner;
               const isMerged = !!event.merged_into_event_id;

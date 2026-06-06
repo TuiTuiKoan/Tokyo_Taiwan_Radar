@@ -465,10 +465,6 @@ export async function deleteOwnEvent(eventId: string): Promise<ActionResult<null
     return { ok: false, error: "forbidden" };
   }
 
-  if (!existing.is_active) {
-    return { ok: false, error: "forbidden" };
-  }
-
   const { error: deleteError } = await serviceClient
     .from("events")
     .delete()

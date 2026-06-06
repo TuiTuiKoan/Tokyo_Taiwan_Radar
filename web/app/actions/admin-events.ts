@@ -145,3 +145,16 @@ export async function deleteUserSubmittedEvent(eventId: string): Promise<ActionR
   if (!data || data.length === 0) return { ok: false, error: "delete_no_rows" };
   return { ok: true, data: null };
 }
+
+export async function deleteAdminEvent(eventId: string): Promise<ActionResult<null>> {
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+
+  const { error } = await auth.supabase
+    .from("events")
+    .delete()
+    .eq("id", eventId);
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: null };
+}
