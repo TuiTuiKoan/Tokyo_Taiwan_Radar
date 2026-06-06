@@ -392,7 +392,17 @@ class PrtimesScraper(BaseScraper):
                     # Skip events whose venue is clearly in Taiwan
                     # Exception: keep Taiwan-held events that explicitly target Japanese visitors
                     # (e.g. 日台交流ツアー, 日本人向け, 日本から参加可能)
-                    _JAPAN_VISITOR_KW = ("日本人向け", "日本語対応", "日本から", "日本発", "ファムトリップ", "日台交流ツアー")
+                    # Keep Taiwan-held events only when the body explicitly targets Japanese visitors.
+                    _JAPAN_VISITOR_KW = (
+                        "日本人向け",
+                        "日本語対応",
+                        "日本語サポート付",
+                        "日本語サポート付き",
+                        "日本から",
+                        "日本発",
+                        "ファムトリップ",
+                        "日台交流ツアー",
+                    )
                     if venue and _TAIWAN_VENUE_RE.search(venue):
                         if not any(kw in body_text or kw in title for kw in _JAPAN_VISITOR_KW):
                             logger.debug("Skip Taiwan venue '%s': %s", venue[:30], title[:50])
