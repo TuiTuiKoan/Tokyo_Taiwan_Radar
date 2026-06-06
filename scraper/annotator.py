@@ -1982,9 +1982,9 @@ def annotate_pending_events(
                     publication_description_en = publication_description_ja
                     if "event_form" not in _human_protected:
                         update_data["event_form"] = ["publication"]
-                    update_data["location_name"] = None
-                    update_data["location_name_zh"] = None
-                    update_data["location_name_en"] = None
+                    update_data["location_name"] = publication_text_ja
+                    update_data["location_name_zh"] = publication_text_zh
+                    update_data["location_name_en"] = publication_text_en
                     if publication_context.get("is_periodical"):
                         update_data["location_address"] = None
                         update_data["location_address_zh"] = None

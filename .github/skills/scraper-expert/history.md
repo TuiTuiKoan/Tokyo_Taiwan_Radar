@@ -14,13 +14,13 @@
 
 **教訓：** 任何 user-facing 的 venue/address 顯示都應先收斂到同一個 display helper，再分別餵給摘要、FAQ、卡片、行事曆與地圖連結，否則同一事件會在不同區塊出現不同地址格式。
 
-## 2026-06-04 — publication 占位字串は会場欄に入れない
+## 2026-06-04 — publication 占位字串は prefix なしで会場欄に出す
 
-**問題：** publication 類事件で `[新刊出版]` が `location_name` に混入し、会場欄に不必要な占位字串が表示された。
+**問題：** publication 類事件で `[新刊出版]` が `location_name` に混入し、会場欄に販売案内 prefix が表示された。
 
-**修正：** annotator の publication 分岐で `location_name` を `None` に固定し、占位文字は `location_address` / `business_hours` 側にだけ残す。
+**修正：** annotator の publication 分岐で `location_name` は占位文字を維持しつつ prefix を付けず、`新刊のご購入は各販売チャネルでお願いします` をそのまま出す。
 
-**教訓：** publication の表示文言と会場欄は分離し、会場欄に prefix や販売案内を流用しない。
+**教訓：** publication の会場欄は空にしすぎず、prefix だけを除去して占位文は残す。
 
 **修正：**
 - publication 的占位文字改為依語系輸出，`ja/zh/en` 分別填入對應文案。
