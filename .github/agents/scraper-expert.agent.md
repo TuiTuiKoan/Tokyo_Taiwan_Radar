@@ -45,6 +45,7 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 - For bugs: isolate the failing tier (date extraction, selector, dedup key) and fix the smallest unit
 - Validate with `--dry-run` before handing off to Tester
 - After fixing venue or address issues, verify every user-facing surface that renders the same event, including narrative summary, FAQ, calendar export, and address card, so postal codes and other display-only artifacts stay consistent.
+- **Hybrid Venue Verification**: For events with both physical and online components, confirm both are present in `location_name` and the physical address is preserved. Verify the `field_corrections` are applied.
 
 ## hanmoto publication-specific
 

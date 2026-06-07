@@ -2,6 +2,15 @@
 
 <!-- Append new entries at the top -->
 
+--- 
+
+## 2026-06-07 — Taiwan region filter & Taiwan city chip support in Admin UI 
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓** 
+2026-06-07 | 後台 Admin UI 遺漏日本地址 chip，且缺乏台灣區域過濾與縣市標籤 | ① 日本地址 Regex 因 〒 錨點失敗；② regionPrefectures.ts 缺少 taiwan 定義；③ AdminEventTable.tsx 缺少台灣過濾選項 | ① 移除 Regex 錨點並同步台日提取邏輯；② 在 regionPrefectures.ts 新增 22 縣市對應之 taiwan 區域；③ 更新過濾器 UI 增加台灣選項 | 所有的都道府縣/縣市提取（Backend Py & Frontend TS）必須保持 Regex 同步，且 UI filter 需手動跟進新區域的定義。 
+
+---
+
 ## 2026-06-07 - auto_qa reconcile: 批次掃描器只新增、從不關閉導致 436 筆 pending 長期累積
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
@@ -134,6 +143,14 @@
 
 **日付 | 問題簡述 | 根本原因 | 修復方法 | 学んだ教訓**
 2026-06-03 | `b1873cc`（docs(scraper): document taiwan-only gnews deactivation rule）で `engineer/history.md` から 1,227行が誤削除された | Update History agent が `str_replace` で冒頭エントリを追加する際、`old_str` に `<!-- Append new entries at the top -->` だけを含め、直後の `---` セパレーターも既存の最新エントリ見出しも含めなかったため、ファイル先頭の 1,237行全体が「置き換え対象」になった | `d583f2a` で `git show b1873cc~1:.../history.md` からバックアップを復元し、`b1873cc`・`75c5518` 以降の新エントリと Python スクリプトでマージして完全復元 | **教訓：** `history.md` への `str_replace` 追記では、`old_str` に必ず `---` セパレーターと既存の最新エントリ見出し（`## [YYYY-MM-DD]...`）を含めること。書き込み後は `git diff --stat <file>` で `+N/-0` を確認し、`-` 行があれば即座に `git restore` で復元すること。
+
+--- 
+
+## 2026-06-07 — Taiwan region filter & Taiwan city chip support in Admin UI 
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓** 
+2026-06-07 | 後台 Admin UI 遺漏日本地址 chip，且缺乏台灣區域過濾與縣市標籤 | ① 日本地址 Regex 因 〒 錨點失敗；② regionPrefectures.ts 缺少 taiwan 定義；③ AdminEventTable.tsx 缺少台灣過濾選項 | ① 移除 Regex 錨點並同步台日提取邏輯；② 在 regionPrefectures.ts 新增 22 縣市對應之 taiwan 區域；③ 更新過濾器 UI 增加台灣選項 | 所有的都道府縣/縣市提取（Backend Py & Frontend TS）必須保持 Regex 同步，且 UI filter 需手動跟進新區域的定義。 
+
 
 ---
 
@@ -3683,6 +3700,14 @@ Separately, `candidate`, `researched`, and `recommended` status values were adde
 
 <!-- Append new entries at the top -->
 
+--- 
+
+## 2026-06-07 — Taiwan region filter & Taiwan city chip support in Admin UI 
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓** 
+2026-06-07 | 後台 Admin UI 遺漏日本地址 chip，且缺乏台灣區域過濾與縣市標籤 | ① 日本地址 Regex 因 〒 錨點失敗；② regionPrefectures.ts 缺少 taiwan 定義；③ AdminEventTable.tsx 缺少台灣過濾選項 | ① 移除 Regex 錨點並同步台日提取邏輯；② 在 regionPrefectures.ts 新增 22 縣市對應之 taiwan 區域；③ 更新過濾器 UI 增加台灣選項 | 所有的都道府縣/縣市提取（Backend Py & Frontend TS）必須保持 Regex 同步，且 UI filter 需手動跟進新區域的定義。 
+
+
 ---
 ## 2026-04-26 - Bulk remove common categories from selected events in admin
 **Feature:** Added bulk common-category removal to `AdminEventTable.tsx`. When multiple events are selected, a second row appears in the Bulk Action Bar listing category tags that are **common to all selected events** (set intersection). Clicking a tag removes it from all selected events via parallel Supabase updates.
@@ -3925,6 +3950,14 @@ After writing, always verify with `grep "key" web/messages/XX.json` before commi
 
 <!-- Append new entries at the top -->
 
+--- 
+
+## 2026-06-07 — Taiwan region filter & Taiwan city chip support in Admin UI 
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓** 
+2026-06-07 | 後台 Admin UI 遺漏日本地址 chip，且缺乏台灣區域過濾與縣市標籤 | ① 日本地址 Regex 因 〒 錨點失敗；② regionPrefectures.ts 缺少 taiwan 定義；③ AdminEventTable.tsx 缺少台灣過濾選項 | ① 移除 Regex 錨點並同步台日提取邏輯；② 在 regionPrefectures.ts 新增 22 縣市對應之 taiwan 區域；③ 更新過濾器 UI 增加台灣選項 | 所有的都道府縣/縣市提取（Backend Py & Frontend TS）必須保持 Regex 同步，且 UI filter 需手動跟進新區域的定義。 
+
+
 ---
 ## 2026-04-26 - Bulk remove common categories from selected events in admin
 **Feature:** Added bulk common-category removal to `AdminEventTable.tsx`. When multiple events are selected, a second row appears in the Bulk Action Bar listing category tags that are **common to all selected events** (set intersection). Clicking a tag removes it from all selected events via parallel Supabase updates.
@@ -4142,6 +4175,14 @@ After writing, always verify with `grep "key" web/messages/XX.json` before commi
 
 <!-- Append new entries at the top -->
 
+--- 
+
+## 2026-06-07 — Taiwan region filter & Taiwan city chip support in Admin UI 
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓** 
+2026-06-07 | 後台 Admin UI 遺漏日本地址 chip，且缺乏台灣區域過濾與縣市標籤 | ① 日本地址 Regex 因 〒 錨點失敗；② regionPrefectures.ts 缺少 taiwan 定義；③ AdminEventTable.tsx 缺少台灣過濾選項 | ① 移除 Regex 錨點並同步台日提取邏輯；② 在 regionPrefectures.ts 新增 22 縣市對應之 taiwan 區域；③ 更新過濾器 UI 增加台灣選項 | 所有的都道府縣/縣市提取（Backend Py & Frontend TS）必須保持 Regex 同步，且 UI filter 需手動跟進新區域的定義。 
+
+
 ---
 ## 2026-04-26 - Bulk remove common categories from selected events in admin
 **Feature:** Added bulk common-category removal to `AdminEventTable.tsx`. When multiple events are selected, a second row appears in the Bulk Action Bar listing category tags that are **common to all selected events** (set intersection). Clicking a tag removes it from all selected events via parallel Supabase updates.
@@ -4358,6 +4399,14 @@ After writing, always verify with `grep "key" web/messages/XX.json` before commi
 # Engineer Error History
 
 <!-- Append new entries at the top -->
+
+--- 
+
+## 2026-06-07 — Taiwan region filter & Taiwan city chip support in Admin UI 
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓** 
+2026-06-07 | 後台 Admin UI 遺漏日本地址 chip，且缺乏台灣區域過濾與縣市標籤 | ① 日本地址 Regex 因 〒 錨點失敗；② regionPrefectures.ts 缺少 taiwan 定義；③ AdminEventTable.tsx 缺少台灣過濾選項 | ① 移除 Regex 錨點並同步台日提取邏輯；② 在 regionPrefectures.ts 新增 22 縣市對應之 taiwan 區域；③ 更新過濾器 UI 增加台灣選項 | 所有的都道府縣/縣市提取（Backend Py & Frontend TS）必須保持 Regex 同步，且 UI filter 需手動跟進新區域的定義。 
+
 
 ---
 ## 2026-04-26 - Bulk remove common categories from selected events in admin

@@ -328,10 +328,7 @@ export default async function EventDetailPage({ params }: PageProps) {
   const isTvProgramEvent =
     event.source_name === "gguide_tv" ||
     (event.category ?? []).includes("tv_program");
-  const isPublicationEvent =
-    (event.event_form ?? []).includes("publication") ||
-    (event.category ?? []).includes("books_media") ||
-    event.source_name === "hanmoto";
+  const isPublicationEvent = (event.event_form ?? []).includes("publication");
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
 
@@ -794,125 +791,119 @@ export default async function EventDetailPage({ params }: PageProps) {
               </td>
             </tr>
             {/* End date */}
-            {!isPublicationEvent && (
-              <tr>
-                <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("endDate")}</td>
-                <td className="px-4 py-3">
-                  {event.end_date
-                    ? <time dateTime={event.end_date}>{new Date(event.end_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}</time>
-                    : "—"}
-                  {ended && (
-                    <>
-                      <span className="ml-2 text-xs bg-muted text-fg-subtle px-2 py-0.5 rounded-full">
-                        {t("ended")}
-                      </span>
-                      {(() => {
-                        const recordLinks = (event as Event).record_links ?? [];
-                        const featured = recordLinks.find((l) => l.recommended) ?? recordLinks[0];
-                        return featured ? (
-                          <a
-                            href={featured.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ml-2 text-xs bg-[#F7FFE8] text-[#1F5E2B] px-2 py-0.5 rounded-full hover:underline"
-                          >
-                            {t("recordLinksBadge")} ↗
-                          </a>
-                        ) : null;
-                      })()}
-                    </>
-                  )}
-                </td>
-              </tr>
-            )}
+            <tr>
+              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("endDate")}</td>
+              <td className="px-4 py-3">
+                {event.end_date
+                  ? <time dateTime={event.end_date}>{new Date(event.end_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}</time>
+                  : "—"}
+                {ended && (
+                  <>
+                    <span className="ml-2 text-xs bg-muted text-fg-subtle px-2 py-0.5 rounded-full">
+                      {t("ended")}
+                    </span>
+                    {(() => {
+                      const recordLinks = (event as Event).record_links ?? [];
+                      const featured = recordLinks.find((l) => l.recommended) ?? recordLinks[0];
+                      return featured ? (
+                        <a
+                          href={featured.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-2 text-xs bg-[#F7FFE8] text-[#1F5E2B] px-2 py-0.5 rounded-full hover:underline"
+                        >
+                          {t("recordLinksBadge")} ↗
+                        </a>
+                      ) : null;
+                    })()}
+                  </>
+                )}
+              </td>
+            </tr>
             {/* Location */}
-            {!isPublicationEvent && (
-              <tr>
-                <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("location")}</td>
-                <td className="px-4 py-3">
-                  {subEventPrefectures.length > 1
-                    ? subEventPrefectures.join("・")
-                    : event.source_name === "rti_jp"
-                      ? <a href="https://www.rti.org.tw/jp" target="_blank" rel="noopener noreferrer" className="hover:underline">RTI台湾国際放送（日本語部門）↗</a>
-                      : venueSegments.length > 1
-                        ? venueSegments.map((v, i) => (
-                            <span key={i}>
-                              {i > 0 && <br />}
-                              {v}
-                            </span>
-                          ))
-                        : locationName
-                          ? event.location_url
-                            ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{locationName} ↗</a>
-                            : locationName
-                          : "—"}
-                </td>
-              </tr>
-            )}
+            <tr>
+              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("location")}</td>
+              <td className="px-4 py-3">
+                {subEventPrefectures.length > 1
+                  ? subEventPrefectures.join("・")
+                  : event.source_name === "rti_jp"
+                    ? <a href="https://www.rti.org.tw/jp" target="_blank" rel="noopener noreferrer" className="hover:underline">RTI台湾国際放送（日本語部門）↗</a>
+                    : venueSegments.length > 1
+                      ? venueSegments.map((v, i) => (
+                          <span key={i}>
+                            {i > 0 && <br />}
+                            {v}
+                          </span>
+                        ))
+                      : locationName
+                        ? event.location_url
+                          ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{locationName} ↗</a>
+                          : locationName
+                        : "—"}
+              </td>
+            </tr>
             {/* Address */}
-            {!isPublicationEvent && (
-              <tr>
-                <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("address")}</td>
-                <td className="px-4 py-3">
-                  {subEventPrefectures.length > 1
-                    ? subEventPrefectures.join("・")
-                    : event.source_name === "gguide_tv"
-                    ? t("tvChannel")
-                    : event.source_name === "rti_jp"
-                    ? t("radioChannel")
-                    : addressSegments.length > 1
-                    ? addressSegments.map((addr, i) => (
-                        <span key={i}>
-                          {i > 0 && <br />}
-                          <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:underline"
-                          >
-                            {addr} ↗
-                          </a>
-                        </span>
-                      ))
-                    : (locationAddress || locationName) ? (() => {
-                        const displayAddr = stripPostal(locationAddress || locationName || "");
-                        const queryAddr = displayAddr || locationName || "";
-                        return (
-                          <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryAddr)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:underline"
-                          >
-                            {displayAddr || locationName} ↗
-                          </a>
-                        );
-                      })() : "—"}
-                </td>
-              </tr>
-            )}
+            <tr>
+              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("address")}</td>
+              <td className="px-4 py-3">
+                {subEventPrefectures.length > 1
+                  ? subEventPrefectures.join("・")
+                  : event.source_name === "gguide_tv"
+                  ? t("tvChannel")
+                  : event.source_name === "rti_jp"
+                  ? t("radioChannel")
+                  : isPublicationEvent
+                  ? (locationAddress || "—")
+                  : addressSegments.length > 1
+                  ? addressSegments.map((addr, i) => (
+                      <span key={i}>
+                        {i > 0 && <br />}
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {addr} ↗
+                        </a>
+                      </span>
+                    ))
+                  : (locationAddress || locationName) ? (() => {
+                      const displayAddr = stripPostal(locationAddress || locationName || "");
+                      const queryAddr = displayAddr || locationName || "";
+                      return (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryAddr)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {displayAddr || locationName} ↗
+                        </a>
+                      );
+                    })() : "—"}
+              </td>
+            </tr>
             {/* Business hours */}
-            {!isPublicationEvent && (
-              <tr>
-                <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("hours")}</td>
-                <td className="px-4 py-3 whitespace-pre-wrap">
-                  {businessHours ? (
-                    businessHours
-                  ) : ((event as Event).official_url || event.source_url) ? (
-                    <a
-                      href={(event as Event).official_url || event.source_url || "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-amber-600 hover:underline inline-flex items-center gap-1"
-                    >
-                      {t("referToOriginalSource")} ↗
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-              </tr>
-            )}
+            <tr>
+              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("hours")}</td>
+              <td className="px-4 py-3 whitespace-pre-wrap">
+                {businessHours ? (
+                  businessHours
+                ) : ((event as Event).official_url || event.source_url) ? (
+                  <a
+                    href={(event as Event).official_url || event.source_url || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-amber-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    {t("referToOriginalSource")} ↗
+                  </a>
+                ) : (
+                  "—"
+                )}
+              </td>
+            </tr>
             {/* Price */}
             <tr>
               <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("paid")}</td>
