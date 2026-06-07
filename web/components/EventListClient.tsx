@@ -91,6 +91,10 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
         const name = getEventName(event, locale);
         const ended =
           event.end_date && new Date(event.end_date) < new Date();
+        const isPublicationEvent =
+          (event.event_form ?? []).includes("publication") ||
+          (event.category ?? []).includes("books_media") ||
+          event.source_name === "hanmoto";
         return (
           <div key={event.id} className="relative group/row">
             <Link
@@ -117,6 +121,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                     {new Date(event.start_date).getUTCDate()}
                   </div>
                   {event.end_date &&
+                    !isPublicationEvent &&
                     event.end_date.slice(0, 10) !==
                       event.start_date.slice(0, 10) && (
                       <div className="text-[10px] text-fg-muted mt-0.5 leading-tight">

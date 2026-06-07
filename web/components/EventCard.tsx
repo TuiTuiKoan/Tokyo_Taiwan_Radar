@@ -71,7 +71,7 @@ export default async function EventCard({ event, locale }: Props) {
       {/* Date + location */}
       <div className="text-xs text-fg-muted space-y-1">
         {event.start_date && (
-          <DateChip start={event.start_date} end={event.end_date} locale={locale} />
+          <DateChip start={event.start_date} end={isPublicationEvent ? null : event.end_date} locale={locale} />
         )}
         {event.location_name && !isPublicationEvent && (
           <p className="flex items-center gap-1 flex-wrap">

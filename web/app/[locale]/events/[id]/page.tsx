@@ -794,35 +794,37 @@ export default async function EventDetailPage({ params }: PageProps) {
               </td>
             </tr>
             {/* End date */}
-            <tr>
-              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("endDate")}</td>
-              <td className="px-4 py-3">
-                {event.end_date
-                  ? <time dateTime={event.end_date}>{new Date(event.end_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}</time>
-                  : "—"}
-                {ended && (
-                  <>
-                    <span className="ml-2 text-xs bg-muted text-fg-subtle px-2 py-0.5 rounded-full">
-                      {t("ended")}
-                    </span>
-                    {(() => {
-                      const recordLinks = (event as Event).record_links ?? [];
-                      const featured = recordLinks.find((l) => l.recommended) ?? recordLinks[0];
-                      return featured ? (
-                        <a
-                          href={featured.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-2 text-xs bg-[#F7FFE8] text-[#1F5E2B] px-2 py-0.5 rounded-full hover:underline"
-                        >
-                          {t("recordLinksBadge")} ↗
-                        </a>
-                      ) : null;
-                    })()}
-                  </>
-                )}
-              </td>
-            </tr>
+            {!isPublicationEvent && (
+              <tr>
+                <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("endDate")}</td>
+                <td className="px-4 py-3">
+                  {event.end_date
+                    ? <time dateTime={event.end_date}>{new Date(event.end_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}</time>
+                    : "—"}
+                  {ended && (
+                    <>
+                      <span className="ml-2 text-xs bg-muted text-fg-subtle px-2 py-0.5 rounded-full">
+                        {t("ended")}
+                      </span>
+                      {(() => {
+                        const recordLinks = (event as Event).record_links ?? [];
+                        const featured = recordLinks.find((l) => l.recommended) ?? recordLinks[0];
+                        return featured ? (
+                          <a
+                            href={featured.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2 text-xs bg-[#F7FFE8] text-[#1F5E2B] px-2 py-0.5 rounded-full hover:underline"
+                          >
+                            {t("recordLinksBadge")} ↗
+                          </a>
+                        ) : null;
+                      })()}
+                    </>
+                  )}
+                </td>
+              </tr>
+            )}
             {/* Location */}
             {!isPublicationEvent && (
               <tr>
@@ -890,25 +892,27 @@ export default async function EventDetailPage({ params }: PageProps) {
               </tr>
             )}
             {/* Business hours */}
-            <tr>
-              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("hours")}</td>
-              <td className="px-4 py-3 whitespace-pre-wrap">
-                {businessHours ? (
-                  businessHours
-                ) : ((event as Event).official_url || event.source_url) ? (
-                  <a
-                    href={(event as Event).official_url || event.source_url || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-amber-600 hover:underline inline-flex items-center gap-1"
-                  >
-                    {t("referToOriginalSource")} ↗
-                  </a>
-                ) : (
-                  "—"
-                )}
-              </td>
-            </tr>
+            {!isPublicationEvent && (
+              <tr>
+                <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("hours")}</td>
+                <td className="px-4 py-3 whitespace-pre-wrap">
+                  {businessHours ? (
+                    businessHours
+                  ) : ((event as Event).official_url || event.source_url) ? (
+                    <a
+                      href={(event as Event).official_url || event.source_url || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-600 hover:underline inline-flex items-center gap-1"
+                    >
+                      {t("referToOriginalSource")} ↗
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+              </tr>
+            )}
             {/* Price */}
             <tr>
               <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("paid")}</td>

@@ -283,6 +283,15 @@ def _latest_auto_qa_reports(sb, event_ids: list[str]) -> dict[str, dict[str, dic
 
 def _check_missing_hours(ev: dict) -> str | None:
     """Return note if event has null business_hours but time pattern in raw_description."""
+    # Check if a publication/book event (no business hours required, no error reported)
+    is_pub_event = (
+        "publication" in (ev.get("event_form") or [])
+        or "books_media" in (ev.get("category") or [])
+        or ev.get("source_name") == "hanmoto"
+    )
+    if is_pub_event:
+        return None
+
     source_name = ev.get("source_name")
     category = ev.get("category") or ""
     if (
@@ -311,7 +320,7 @@ def _detect_missing_hours(sb) -> list[dict]:
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
-        .select("id,source_name,raw_description,category,business_hours")
+        .select("id,source_name,raw_description,category,business_hours,event_form")
         .eq("is_active", True)
         .in_("annotation_status", ["annotated", "reviewed"])
         .is_("business_hours", "null")
