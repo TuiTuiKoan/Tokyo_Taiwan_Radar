@@ -2,8 +2,10 @@ name: Weekly LINE Broadcast
 
 on:
   schedule:
-    # Thursday 09:00 JST (Thu 00:00 UTC) — generate weekly draft announcement
-    - cron: "0 0 * * 4"
+    # Thursday 09:17 JST (Thu 00:17 UTC) — generate weekly draft announcement
+    - cron: "17 0 * * 4"
+    # Thursday 15:17 JST (Thu 06:17 UTC) — fallback if the 09:17 run was skipped by GitHub
+    - cron: "17 6 * * 4"
     # Friday 12:00 JST (Fri 03:00 UTC) — auto-send if toggle is enabled
     - cron: "0 3 * * 5"
     # Saturday 12:00 JST (Sat 03:00 UTC) — safety fallback if Friday cron was skipped by GitHub
@@ -41,9 +43,9 @@ jobs:
         run: pip install -r scraper/requirements.txt
 
       # Thursday: generate a draft announcement (does NOT send)
-      - name: Generate draft (Thursday 09:00 JST)
+      - name: Generate draft (Thursday)
         if: >-
-          (github.event_name == 'schedule' && github.event.schedule == '0 0 * * 4') ||
+          (github.event_name == 'schedule' && (github.event.schedule == '17 0 * * 4' || github.event.schedule == '17 6 * * 4')) ||
           github.event.inputs.action == 'generate-draft'
         working-directory: scraper
         env:
