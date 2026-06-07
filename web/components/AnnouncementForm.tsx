@@ -53,6 +53,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
   const [coverImageUrl, setCoverImageUrl] = useState(announcement?.cover_image_url ?? "");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [addQrCode, setAddQrCode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isFeatured, setIsFeatured] = useState(announcement?.is_featured ?? false);
   const [publishedAt, setPublishedAt] = useState(
@@ -99,7 +100,7 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
     setCoverImageUrl("");
   };
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = async (file: File, withQr = false) => {
     setUploading(true);
     setUploadError(null);
     try {
@@ -109,10 +110,11 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
       }
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const endpoint = withQr ? "/api/upload-with-qr" : "/api/upload";
+      const res = await fetch(endpoint, { method: "POST", body: fd });
       // Read raw text first so we can show it even if JSON.parse fails
       const rawText = await res.text();
-      let data: { url?: string; error?: string };
+      let data: { url?: string; error?: string; corner?: string };
       try {
         data = JSON.parse(rawText);
       } catch {
@@ -329,10 +331,25 @@ export default function AnnouncementForm({ announcement, recentEvents, locale }:
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) handleUpload(file);
+              if (file) handleUpload(file, addQrCode);
               e.target.value = "";
             }}
           />
+          {/* QR code toggle */}
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={addQrCode}
+              onChange={(e) => setAddQrCode(e.target.checked)}
+              className="w-3.5 h-3.5 rounded"
+            />
+            <span className="text-xs text-fg-muted">
+              自動加入 QR 碼（AI 選角・Tokyo Taiwan Radar）
+            </span>
+          </label>
+          {uploading && addQrCode && (
+            <p className="text-xs text-fg-subtle">🤖 AI 選角中，合成 QR 碼…</p>
+          )}
           {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
         </div>
       </div>
