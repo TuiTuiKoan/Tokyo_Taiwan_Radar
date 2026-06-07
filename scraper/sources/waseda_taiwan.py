@@ -194,14 +194,12 @@ class WasedaTaiwanScraper(BaseScraper):
                 )
                 # Take first part up to common delimiters
                 venue = re.split(r"[（(]東京都|　|プログラム", venue_raw)[0].strip()[:120]
-                # Include full address if it has prefecture prefix
-                location_address = venue_raw.split()[0][:150] if venue_raw else None
-                # If venue contains full address (東京都...) use it directly
+                # Only set location_address if it contains a real prefecture prefix.
+                # (NEVER echo venue name as address — let annotator geocode instead)
+                location_address = None
                 addr_m = re.search(r"(東京都[^\s]{5,60})", venue_raw)
                 if addr_m:
                     location_address = addr_m.group(1).rstrip("）)）")
-                # no real address found — let annotator fill it
-                # (NEVER echo venue name as address)
 
                 # Extract organizer/speaker/moderator for annotator
                 organizer_raw = _extract_after_label(content, r"主催")

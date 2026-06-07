@@ -99,6 +99,12 @@ _BOOKING_DOMAINS = frozenset({
     "ticket.pia.jp", "l-tike.com", "teket.jp", "passmarket.yahoo.co.jp",
 })
 
+JST = timezone(timedelta(hours=9))
+
+# Pre-compiled patterns for _check_* pure predicate functions
+_TIME_RE = re.compile(r'\d{1,2}[時:]\d{2}')
+_SEP = re.compile(r"[、,，×／/]")
+
 # Keyword signals that a named performer/creator should exist in the event.
 _PERFORMER_SIGNAL_RE = re.compile(
     r'クリエイター|出展者|出展ブランド|デザイナー|登壇者?|講師|モデレーター'
@@ -275,15 +281,37 @@ def _latest_auto_qa_reports(sb, event_ids: list[str]) -> dict[str, dict[str, dic
     return out
 
 
+def _check_missing_hours(ev: dict) -> str | None:
+    """Return note if event has null business_hours but time pattern in raw_description."""
+    source_name = ev.get("source_name")
+    category = ev.get("category") or ""
+    if (
+        source_name in FIXED_CINEMA_SOURCES
+        or source_name == "gguide_tv"
+        or "movie" in category
+        or "tv_program" in category
+    ):
+        return None
+    if ev.get("business_hours"):
+        return None
+    raw = ev.get("raw_description") or ""
+    if not raw:
+        return None
+    if _TIME_RE.search(raw):
+        return (
+            f"business_hours is null but raw_description contains time pattern; "
+            f"source={source_name}"
+        )
+    return None
+
+
 def _detect_missing_hours(sb) -> list[dict]:
     """Flag annotated/reviewed events with null business_hours but extractable time
     info in raw_description. Human-review only — no auto-fix."""
-    import re as _re
-    _TIME_RE = _re.compile(r'\d{1,2}[時:]\d{2}')
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
-        .select("id,source_name,raw_description,category")
+        .select("id,source_name,raw_description,category,business_hours")
         .eq("is_active", True)
         .in_("annotation_status", ["annotated", "reviewed"])
         .is_("business_hours", "null")
@@ -294,30 +322,53 @@ def _detect_missing_hours(sb) -> list[dict]:
     )
     reports = []
     for row in rows:
-        source_name = row.get("source_name")
-        category = row.get("category") or ""
-        if (
-            source_name in FIXED_CINEMA_SOURCES
-            or source_name == "gguide_tv"
-            or "movie" in category
-            or "tv_program" in category
-        ):
-            continue
-        raw = row.get("raw_description") or ""
-        if _TIME_RE.search(raw):
+        note = _check_missing_hours(row)
+        if note:
             reports.append({
                 "event_id": row["id"],
                 "report_type": "auto_qa_missing_hours",
-                "details": (
-                    f"business_hours is null but raw_description contains time pattern; "
-                    f"source={row['source_name']}"
-                ),
+                "details": note,
             })
     return reports
 
 
+def _check_simplified_chinese(ev: dict) -> str | None:
+    """Return note if event has ≥2 SC-only chars in zh fields; None if resolved.
+
+    Skips human-reviewed events. Checks name_zh, description_zh, selection_reason.zh.
+    """
+    import json as _json
+    if ev.get("annotation_status") == "reviewed":
+        return None
+    bad_fields = []
+    total_sc = 0
+    for field in ("name_zh", "description_zh"):
+        val = ev.get(field) or ""
+        n = sum(1 for c in val if c in SC_ONLY)
+        if n > 0:
+            bad_fields.append(field)
+            total_sc += n
+    sr = ev.get("selection_reason")
+    if sr:
+        try:
+            sr_dict = _json.loads(sr) if isinstance(sr, str) else sr
+            zh_val = (sr_dict.get("zh") or "") if isinstance(sr_dict, dict) else ""
+            n = sum(1 for c in zh_val if c in SC_ONLY)
+            if n > 0:
+                bad_fields.append("selection_reason.zh")
+                total_sc += n
+        except (ValueError, TypeError, AttributeError):
+            pass
+    if total_sc >= 2:
+        return (
+            f"簡體字偵測({total_sc}字) fields={','.join(bad_fields)} "
+            f"source={ev.get('source_name', '?')}"
+        )
+    return None
+
+
 def _detect_simplified_chinese(sb) -> list[dict]:
-    """Scan ALL active, annotated/reviewed events for SC chars in zh fields.
+    """Scan ALL active, annotated events for SC chars in zh fields.
 
     Uses the precise SC_ONLY char set with threshold ≥2 to avoid false positives.
     Also checks selection_reason.zh (JSON-parsed).
@@ -326,7 +377,6 @@ def _detect_simplified_chinese(sb) -> list[dict]:
     scans events created in the last 30 days — stops perpetual re-flagging of
     historical events that admins have already reviewed/accepted.
     """
-    import json as _json
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
@@ -339,36 +389,12 @@ def _detect_simplified_chinese(sb) -> list[dict]:
     )
     reports = []
     for row in rows:
-        bad_fields = []
-        total_sc = 0
-
-        for field in ("name_zh", "description_zh"):
-            val = row.get(field) or ""
-            n = sum(1 for c in val if c in SC_ONLY)
-            if n > 0:
-                bad_fields.append(field)
-                total_sc += n
-
-        sr = row.get("selection_reason")
-        if sr:
-            try:
-                sr_dict = _json.loads(sr) if isinstance(sr, str) else sr
-                zh_val = sr_dict.get("zh", "")
-                n = sum(1 for c in zh_val if c in SC_ONLY)
-                if n > 0:
-                    bad_fields.append("selection_reason.zh")
-                    total_sc += n
-            except (ValueError, TypeError, AttributeError):
-                pass
-
-        if total_sc >= 2:
+        note = _check_simplified_chinese(row)
+        if note:
             reports.append({
                 "event_id": row["id"],
                 "report_type": "auto_simplified_chinese",
-                "details": (
-                    f"簡體字偵測({total_sc}字) fields={','.join(bad_fields)} "
-                    f"source={row.get('source_name', '?')}"
-                ),
+                "details": note,
             })
     return reports
 
@@ -484,6 +510,41 @@ def _detect_performer_ai_marker(sb) -> list[dict]:
     return reports
 
 
+def _check_performer_multi_value(ev: dict, *, sb=None) -> str | None:
+    """Return note if performer field contains separator chars.
+
+    Skips reviewed events.
+    When sb is provided, checks field_corrections for sentinel lock (FC.performer='').
+    When sb is None, skips sentinel check (caller must pre-filter sentinels).
+    """
+    if ev.get("annotation_status") == "reviewed":
+        return None
+    pf = ev.get("performer") or ""
+    if not pf:
+        return None
+    if not _SEP.search(pf):
+        return None
+    # Sentinel check: FC.performer='' means field is locked empty
+    if sb is not None:
+        ev_id = ev.get("id")
+        if ev_id:
+            fc_rows = (
+                sb.table("field_corrections")
+                .select("corrected_value")
+                .eq("event_id", ev_id)
+                .eq("field_name", "performer")
+                .execute()
+                .data or []
+            )
+            for fc in fc_rows:
+                if fc.get("corrected_value") == "":
+                    return None  # sentinel: locked empty
+    return (
+        f"performer 含分隔符（未拆解到 performers[]）: performer={pf!r} "
+        f"source={ev.get('source_name', '?')}"
+    )
+
+
 def _detect_performer_multi_value(sb) -> list[dict]:
     """Flag movie events where performer field still contains separator chars
     — indicates the field was not split to performers[] array.
@@ -496,7 +557,7 @@ def _detect_performer_multi_value(sb) -> list[dict]:
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
-        .select("id,source_name,performer")
+        .select("id,source_name,performer,annotation_status")
         .eq("is_active", True)
         .neq("annotation_status", "reviewed")
         .gte("created_at", thirty_days_ago_iso)
@@ -505,11 +566,7 @@ def _detect_performer_multi_value(sb) -> list[dict]:
         .execute()
         .data
     )
-    reports = []
-    import re as _re
-    _SEP = _re.compile(r"[、,，×／/]")
-
-    # Build sentinel set: event_ids where FC.performer='' sentinel is in place
+    # Pre-fetch sentinel IDs: FC.performer='' means field is locked empty
     candidate_ids = [row["id"] for row in rows]
     sentinel_ids: set[str] = set()
     if candidate_ids:
@@ -529,30 +586,24 @@ def _detect_performer_multi_value(sb) -> list[dict]:
                     sentinel_ids.add(fc["event_id"])
                     skip_skipped += 1
         if skip_skipped:
-            import logging as _logging
-            _logging.getLogger(__name__).info(
-                "_detect_performer_multi_value: skip by sentinel=%d, skip by archived=0 (pre-filtered by is_active)",
+            logger.info(
+                "_detect_performer_multi_value: skip by sentinel=%d",
                 skip_skipped,
             )
-
+    reports = []
     newly_reported = 0
     for row in rows:
         if row["id"] in sentinel_ids:
             continue
-        pf = row.get("performer") or ""
-        if _SEP.search(pf):
+        note = _check_performer_multi_value(row, sb=None)  # sentinels pre-filtered above
+        if note:
             reports.append({
                 "event_id": row["id"],
                 "report_type": "auto_qa_performer_multi_value_pollution",
-                "details": (
-                    f"performer 含分隔符（未拆解到 performers[]）: performer={pf!r} "
-                    f"source={row.get('source_name', '?')}"
-                ),
+                "details": note,
             })
             newly_reported += 1
-
-    import logging as _logging
-    _logging.getLogger(__name__).info(
+    logger.info(
         "_detect_performer_multi_value: newly reported=%d, skip by sentinel=%d",
         newly_reported, len(sentinel_ids),
     )
@@ -588,6 +639,21 @@ def _detect_performer_zh_katakana(sb) -> list[dict]:
     return reports
 
 
+def _check_missing_date(ev: dict) -> str | None:
+    """Return note if event has null or January-placeholder start_date."""
+    start_date = ev.get("start_date")
+    source_name = ev.get("source_name")
+    if start_date is None:
+        return f"start_date missing/placeholder (value={start_date!r}); source={source_name}"
+    try:
+        month = datetime.fromisoformat(start_date).month
+    except (ValueError, TypeError):
+        return None
+    if month == 1 and source_name not in PUBLISH_DATE_SOURCES:
+        return f"start_date missing/placeholder (value={start_date!r}); source={source_name}"
+    return None
+
+
 def _detect_missing_date(sb) -> list[dict]:
     """Flag active annotated/reviewed events with missing or placeholder
     start_date. Review-only — no auto-fix.
@@ -607,26 +673,32 @@ def _detect_missing_date(sb) -> list[dict]:
     )
     reports = []
     for row in rows:
-        start_date = row.get("start_date")
-        source_name = row.get("source_name")
-        if start_date is None:
+        note = _check_missing_date(row)
+        if note:
             reports.append({
                 "event_id": row["id"],
                 "report_type": "auto_qa_missing_date",
-                "details": f"start_date missing/placeholder (value={start_date!r}); source={source_name}",
-            })
-            continue
-        try:
-            month = datetime.fromisoformat(start_date).month
-        except (ValueError, TypeError):
-            continue
-        if month == 1 and source_name not in PUBLISH_DATE_SOURCES:
-            reports.append({
-                "event_id": row["id"],
-                "report_type": "auto_qa_missing_date",
-                "details": f"start_date missing/placeholder (value={start_date!r}); source={source_name}",
+                "details": note,
             })
     return reports
+
+
+def _check_missing_organizer(ev: dict) -> str | None:
+    """Return note if event has null organizer (skipping source/category exceptions)."""
+    source_name = ev.get("source_name")
+    category = ev.get("category") or ""
+    if (
+        source_name in FIXED_CINEMA_SOURCES
+        or source_name == "gguide_tv"
+        or "movie" in category
+        or "tv_program" in category
+    ):
+        return None
+    if source_name in THIN_CONTENT_SOURCES:
+        return None
+    if ev.get("organizer"):
+        return None
+    return f"organizer is null; source={source_name}"
 
 
 def _detect_missing_organizer(sb) -> list[dict]:
@@ -649,22 +721,13 @@ def _detect_missing_organizer(sb) -> list[dict]:
     )
     reports = []
     for row in rows:
-        source_name = row.get("source_name")
-        category = row.get("category") or ""
-        if (
-            source_name in FIXED_CINEMA_SOURCES
-            or source_name == "gguide_tv"
-            or "movie" in category
-            or "tv_program" in category
-        ):
-            continue
-        if source_name in THIN_CONTENT_SOURCES:
-            continue
-        reports.append({
-            "event_id": row["id"],
-            "report_type": "auto_qa_missing_organizer",
-            "details": f"organizer is null; source={source_name}",
-        })
+        note = _check_missing_organizer(row)
+        if note:
+            reports.append({
+                "event_id": row["id"],
+                "report_type": "auto_qa_missing_organizer",
+                "details": note,
+            })
     return reports
 
 
@@ -710,6 +773,29 @@ def _detect_missing_price(sb) -> list[dict]:
     return reports
 
 
+def _check_missing_performers(ev: dict) -> str | None:
+    """Return note if event should have performers[] but it is null/empty."""
+    source_name = ev.get("source_name") or ""
+    parent_event_id = ev.get("parent_event_id")
+    category = ev.get("category") or ""
+    if parent_event_id is not None or "movie" in category or "tv_program" in category:
+        return None
+    if source_name in THIN_CONTENT_SOURCES:
+        return None
+    if ev.get("performers"):
+        return None
+    forms = ev.get("event_form") or []
+    if not any(f in _PERFORMER_SIGNAL_FORMS for f in forms):
+        return None
+    raw = ((ev.get("raw_title") or "") + " " + (ev.get("raw_description") or ""))[:2000]
+    if _PERFORMER_SIGNAL_RE.search(raw):
+        return (
+            f"performers[] null but role signal in raw text; "
+            f"event_form={forms}; source={source_name}"
+        )
+    return None
+
+
 def _detect_missing_performers(sb) -> list[dict]:
     """Flag events where performers[] is empty but role-signal keywords appear
     in raw_title or raw_description, and event_form is a performer-relevant form.
@@ -717,7 +803,7 @@ def _detect_missing_performers(sb) -> list[dict]:
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
-        .select("id,source_name,raw_title,raw_description,event_form,parent_event_id,category")
+        .select("id,source_name,raw_title,raw_description,event_form,parent_event_id,category,performers")
         .eq("is_active", True)
         .in_("annotation_status", ["annotated", "reviewed"])
         .is_("performers", "null")
@@ -727,27 +813,38 @@ def _detect_missing_performers(sb) -> list[dict]:
     )
     reports = []
     for row in rows:
-        source_name = row.get("source_name") or ""
-        parent_event_id = row.get("parent_event_id")
-        category = row.get("category") or ""
-        if parent_event_id is not None or "movie" in category or "tv_program" in category:
-            continue
-        if source_name in THIN_CONTENT_SOURCES:
-            continue
-        forms = row.get("event_form") or []
-        if not any(f in _PERFORMER_SIGNAL_FORMS for f in forms):
-            continue
-        raw = ((row.get("raw_title") or "") + " " + (row.get("raw_description") or ""))[:2000]
-        if _PERFORMER_SIGNAL_RE.search(raw):
+        note = _check_missing_performers(row)
+        if note:
             reports.append({
                 "event_id": row["id"],
                 "report_type": "auto_qa_missing_performers",
-                "details": (
-                    f"performers[] null but role signal in raw text; "
-                    f"event_form={forms}; source={source_name}"
-                ),
+                "details": note,
             })
     return reports
+
+
+def _check_thin_content(ev: dict) -> str | None:
+    """Return note if event has thin metadata."""
+    source_name = ev.get("source_name") or ""
+    if source_name in THIN_CONTENT_SOURCES:
+        return None
+    raw = ev.get("raw_description")
+    raw_len = len(raw) if raw else 0
+    reasons = []
+    if raw is None or raw_len < THIN_CONTENT_MAX_LEN:
+        reasons.append("thin_raw")
+    if (
+        ev.get("start_date") is None
+        and ev.get("location_name") is None
+        and ev.get("organizer") is None
+    ):
+        reasons.append("triple_null")
+    if reasons:
+        return (
+            f"thin content [{','.join(reasons)}]: raw_len={raw_len}; "
+            f"source={source_name}; url={ev.get('source_url')}"
+        )
+    return None
 
 
 def _detect_thin_content(sb) -> list[dict]:
@@ -770,25 +867,12 @@ def _detect_thin_content(sb) -> list[dict]:
     )
     reports = []
     for row in rows:
-        raw = row.get("raw_description")
-        raw_len = len(raw) if raw else 0
-        reasons = []
-        if raw is None or raw_len < THIN_CONTENT_MAX_LEN:
-            reasons.append("thin_raw")
-        if (
-            row.get("start_date") is None
-            and row.get("location_name") is None
-            and row.get("organizer") is None
-        ):
-            reasons.append("triple_null")
-        if reasons:
+        note = _check_thin_content(row)
+        if note:
             reports.append({
                 "event_id": row["id"],
                 "report_type": "auto_qa_thin_content",
-                "details": (
-                    f"thin content [{','.join(reasons)}]: raw_len={raw_len}; "
-                    f"source={row.get('source_name')}; url={row.get('source_url')}"
-                ),
+                "details": note,
             })
     return reports
 
@@ -1125,11 +1209,203 @@ def fix_simplified(dry_run: bool = False) -> dict:
     return {"scanned": len(rows), "fixed": fixed_count}
 
 
+def _reconcile_check(rt: str, ev: dict, *, sb=None) -> str | None:
+    """Return note if problem still exists, None if resolved. No time-window.
+
+    Dispatches by report_type to the appropriate predicate.
+    Returns a non-None sentinel ('no_predicate_keep') for types without a predicate
+    so the caller can distinguish 'resolved' from 'unknown'.
+    """
+    # detect()-derived 6 types — re-run detect() and look up the matching type
+    _DETECT_TYPES = frozenset({
+        "auto_qa_simplified_zh",
+        "auto_qa_missing_address",
+        "auto_qa_missing_location_name",
+        "auto_qa_missing_category",
+        "auto_qa_missing_title",
+        "auto_qa_missing_prefectures",
+    })
+    if rt in _DETECT_TYPES:
+        for det_t, det_note in detect(ev):
+            if det_t == rt:
+                return det_note
+        return None  # resolved
+
+    # 7 extracted _check_* types
+    if rt == "auto_simplified_chinese":
+        return _check_simplified_chinese(ev)
+    if rt == "auto_qa_missing_hours":
+        return _check_missing_hours(ev)
+    if rt == "auto_qa_missing_date":
+        return _check_missing_date(ev)
+    if rt == "auto_qa_missing_organizer":
+        return _check_missing_organizer(ev)
+    if rt == "auto_qa_missing_performers":
+        return _check_missing_performers(ev)
+    if rt == "auto_qa_thin_content":
+        return _check_thin_content(ev)
+    if rt == "auto_qa_performer_multi_value_pollution":
+        return _check_performer_multi_value(ev, sb=sb)
+
+    # Other auto_qa types without a predicate → safe default: keep pending
+    return "no_predicate_keep"
+
+
+def reconcile(dry_run: bool = False) -> dict:
+    """Close resolved or inactive auto_qa pending reports.
+
+    For each pending auto_qa report:
+    - event deleted / inactive  → dismiss
+    - event reviewed by admin   → confirm
+    - predicate no longer fires → confirm (issue resolved)
+    - predicate still fires     → keep pending
+    - no predicate (human types or unknown) → skip entirely
+
+    Manual report types (wrongCategory, irrelevant, etc.) are never touched.
+    """
+    sb = _supabase_client()
+    today = datetime.now(timezone.utc).astimezone(JST).strftime("%Y-%m-%d")
+    AUTO_TYPES = frozenset(QA_TYPES)
+
+    # 1. Paginate all pending reports
+    rows: list[dict] = []
+    off = 0
+    while True:
+        batch = (
+            sb.table("event_reports")
+            .select("id,event_id,report_types,admin_notes,status")
+            .eq("status", "pending")
+            .range(off, off + 999)
+            .execute()
+            .data or []
+        )
+        rows.extend(batch)
+        if len(batch) < 1000:
+            break
+        off += 1000
+
+    # 2. Separate auto vs manual reports
+    auto_rows: list[dict] = []
+    for r in rows:
+        rt = (r.get("report_types") or ["?"])[0]
+        if rt in AUTO_TYPES:
+            auto_rows.append(r)
+        # Manual types (wrongCategory, irrelevant, fieldEdit:*, etc.) → never touched
+
+    # 3. Load corresponding events (full fields for all check functions)
+    eids = list({r["event_id"] for r in auto_rows})
+    ev_map: dict[str, dict] = {}
+    for i in range(0, len(eids), 200):
+        chunk = eids[i : i + 200]
+        data = (
+            sb.table("events")
+            .select(
+                "id,is_active,annotation_status,source_name,name_ja,raw_title,"
+                "location_name,location_address,location_prefectures,"
+                "category,start_date,organizer,business_hours,"
+                "performers,performer,parent_event_id,description_zh,"
+                "name_zh,location_name_zh,location_address_zh,business_hours_zh,"
+                "organizer_zh,selection_reason,event_form,raw_description,source_url,created_at"
+            )
+            .in_("id", chunk)
+            .execute()
+            .data or []
+        )
+        for e in data:
+            ev_map[e["id"]] = e
+
+    # 4. Classify each auto report
+    confirmed_ids: list[tuple[str, str, str]] = []  # (id, orig_note, reason)
+    dismissed_ids: list[tuple[str, str, str]] = []
+    by_reason: dict[str, int] = {
+        "event_missing": 0, "inactive": 0, "reviewed": 0, "resolved": 0, "kept": 0
+    }
+    by_type: dict[str, dict[str, int]] = {}
+
+    for r in auto_rows:
+        rid = r["id"]
+        eid = r["event_id"]
+        rt = (r.get("report_types") or ["?"])[0]
+        orig_note = r.get("admin_notes") or ""
+        ev = ev_map.get(eid)
+
+        def _inc(bucket: str) -> None:
+            by_type.setdefault(rt, {"confirmed": 0, "dismissed": 0, "kept": 0})[bucket] += 1
+
+        if ev is None:
+            dismissed_ids.append((rid, orig_note, "event deleted"))
+            by_reason["event_missing"] += 1
+            _inc("dismissed")
+            continue
+
+        if not ev.get("is_active"):
+            dismissed_ids.append((rid, orig_note, "event inactive"))
+            by_reason["inactive"] += 1
+            _inc("dismissed")
+            continue
+
+        if ev.get("annotation_status") == "reviewed":
+            confirmed_ids.append((rid, orig_note, "event reviewed by admin"))
+            by_reason["reviewed"] += 1
+            _inc("confirmed")
+            continue
+
+        note = _reconcile_check(rt, ev, sb=sb)
+        if note is None:
+            confirmed_ids.append((rid, orig_note, "issue resolved"))
+            by_reason["resolved"] += 1
+            _inc("confirmed")
+        else:
+            by_reason["kept"] += 1
+            _inc("kept")
+
+    # 5. Apply batch updates
+    now_iso = datetime.now(timezone.utc).isoformat()
+    prefix = f"reconcile {today}: "
+
+    if not dry_run:
+        for rid, orig_note, reason in confirmed_ids:
+            new_note = prefix + reason + (f" | {orig_note}" if orig_note else "")
+            sb.table("event_reports").update({
+                "status": "confirmed",
+                "confirmed_at": now_iso,
+                "admin_notes": new_note,
+            }).eq("id", rid).eq("status", "pending").execute()
+        for rid, orig_note, reason in dismissed_ids:
+            new_note = prefix + reason + (f" | {orig_note}" if orig_note else "")
+            sb.table("event_reports").update({
+                "status": "dismissed",
+                "confirmed_at": now_iso,
+                "admin_notes": new_note,
+            }).eq("id", rid).eq("status", "pending").execute()
+
+    summary = {
+        "scanned_pending": len(auto_rows),
+        "confirmed": len(confirmed_ids),
+        "dismissed": len(dismissed_ids),
+        "kept_pending": by_reason["kept"],
+        "skipped_manual": len(rows) - len(auto_rows),
+        "by_reason": by_reason,
+        "by_type": by_type,
+    }
+    logger.info("reconcile summary: %s", summary)
+    if dry_run:
+        import json as _json
+        print("\n--- RECONCILE DRY-RUN ---")
+        print(_json.dumps(summary, ensure_ascii=False, indent=2))
+        print("--- end ---\n")
+    return summary
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--fix", action="store_true", help="Auto-fix Simplified Chinese chars instead of just reporting")
+    parser.add_argument("--reconcile", action="store_true", help="Close resolved/inactive pending auto_qa reports")
     args = parser.parse_args()
+    if args.reconcile:
+        reconcile(dry_run=args.dry_run)
+        return
     if args.fix:
         fix_simplified(dry_run=args.dry_run)
     else:

@@ -107,6 +107,98 @@ def _extract_detail_link(text: str, labels: tuple[str, ...], base_url: str) -> O
     return None
 
 
+def _scrape_hanmoto_detail(detail_url: str) -> dict:
+    """Fetch and parse book details directly using requests and BeautifulSoup."""
+    import requests
+    from bs4 import BeautifulSoup
+
+    res = {
+        "raw_description": "",
+        "price_info": None,
+        "price_amount": None,
+        "performer": None,
+        "image_url": None,
+    }
+    try:
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "ja,en-US;q=0.9",
+        }
+        resp = requests.get(detail_url, headers=headers, timeout=15)
+        if resp.status_code != 200:
+            return res
+
+        soup = BeautifulSoup(resp.content, "html.parser")
+        
+        # 1. Collect rich description
+        desc_parts = []
+        
+        # 內容介紹
+        kaisetsu = soup.select_one(".book-kaisetsu-section")
+        if kaisetsu:
+            txt = kaisetsu.get_text("\n", strip=True)
+            if txt:
+                desc_parts.append(f"【内容紹介】\n{txt}")
+                
+        # 目次/目錄
+        toc = soup.select_one(".book-toc-section")
+        if toc:
+            txt = toc.get_text("\n", strip=True)
+            if txt:
+                desc_parts.append(f"【目次】\n{txt}")
+                
+        # 作者簡介
+        profiles = soup.select_one(".book-author-profiles-section")
+        if profiles:
+            txt = profiles.get_text("\n", strip=True)
+            if txt:
+                desc_parts.append(f"【著者プロフィール】\n{txt}")
+                
+        if desc_parts:
+            res["raw_description"] = "\n\n".join(desc_parts)
+        else:
+            main_el = soup.select_one("main") or soup.select_one("#content") or soup.body
+            if main_el:
+                res["raw_description"] = main_el.get_text("\n", strip=True)
+
+        # 2. Price info and numerical amount
+        price_sec = soup.select_one(".book-price-section")
+        if price_sec:
+            price_text = price_sec.get_text(" ", strip=True)
+            if price_text:
+                res["price_info"] = price_text
+                # extract numerical price_amount
+                nums = re.findall(r"\d[\d,]*", price_text)
+                if nums:
+                    m_body = re.search(r"本体\s*(\d[\d,]*)[円yen]?", price_text, re.IGNORECASE)
+                    if m_body:
+                        res["price_amount"] = float(m_body.group(1).replace(",", ""))
+                    else:
+                        res["price_amount"] = float(nums[0].replace(",", ""))
+
+        # 3. Performer
+        authors_sec = soup.select_one(".book-authors-section")
+        if authors_sec:
+            authors_text = authors_sec.get_text(" ", strip=True)
+            if authors_text:
+                cleaned = re.sub(r"^(著者|作者|編者|訳者|著|編|訳)\s*[:：]?\s*", "", authors_text)
+                res["performer"] = cleaned
+
+        # 4. Image URL (cover)
+        img_el = soup.select_one("img.book-image")
+        if img_el and img_el.get("src"):
+            res["image_url"] = urljoin(detail_url, img_el.get("src"))
+
+    except Exception as exc:
+        logger.debug("hanmoto details fetch failed: %s", exc)
+
+    return res
+
+
 # CSS selector for book cards (confirmed 2026-06)
 _CARD_SEL = ".bd-booklist-item-book"
 
@@ -150,9 +242,9 @@ class HanmotoScraper(BaseScraper):
                         pass  # proceed with whatever loaded
 
                 try:
-                    page.wait_for_selector(_CARD_SEL, timeout=10000)
+                    page.wait_for_selector('.bd-booklist-item-book [data-content-name="title"]', timeout=15000)
                 except PWTimeout:
-                    logger.warning("hanmoto: no book cards on page %d", page_num)
+                    logger.warning("hanmoto: book titles did not load on page %d", page_num)
                     break
 
                 cards = page.query_selector_all(_CARD_SEL)
@@ -189,32 +281,34 @@ class HanmotoScraper(BaseScraper):
                             continue
 
                         detail_text = ""
+                        performer = None
+                        price_info = None
+                        price_amount = None
+                        image_url = None
+                        official_url = None
+                        organizer_url = None
+
                         detail_url = None
                         if link_el is not None:
                             href = link_el.get_attribute("href") or ""
                             if href:
                                 detail_url = urljoin("https://www.hanmoto.com", href)
+
                         if detail_url:
-                            detail_page = None
-                            try:
-                                detail_page = page.context.new_page()
-                                detail_page.set_extra_http_headers({"Accept-Language": "ja,en-US;q=0.9"})
-                                detail_page.goto(detail_url, timeout=15000, wait_until="domcontentloaded")
-                                detail_text = detail_page.locator("body").inner_text(timeout=5000)
-                            except Exception as exc:
-                                logger.debug("hanmoto: detail fetch error: %s", exc)
-                            finally:
-                                if detail_page is not None:
-                                    try:
-                                        detail_page.close()
-                                    except Exception:
-                                        pass
+                            detail_res = _scrape_hanmoto_detail(detail_url)
+                            detail_text = detail_res["raw_description"]
+                            performer = detail_res["performer"]
+                            price_info = detail_res["price_info"]
+                            price_amount = detail_res["price_amount"]
+                            image_url = detail_res["image_url"]
 
                         detail_text = _clean_text(detail_text) or ""
-                        performer = _extract_detail_field(detail_text, ("著者", "作者", "編者", "訳者"))
+                        if not performer:
+                            performer = _extract_detail_field(detail_text, ("著者", "作者", "編者", "訳者"))
                         official_url = _extract_detail_link(detail_text, ("書籍詳細", "商品ページ", "公式サイト", "詳細ページ"), "https://www.hanmoto.com")
                         organizer_url = _extract_detail_link(detail_text, ("出版社サイト", "出版社", "出版元サイト"), "https://www.hanmoto.com")
-                        price_info = _extract_detail_field(detail_text, ("定価", "価格", "本体価格"))
+                        if not price_info:
+                            price_info = _extract_detail_field(detail_text, ("定価", "価格", "本体価格"))
 
                         # Publication date — find span containing '発売' + year pattern
                         date_text = ""
@@ -265,12 +359,10 @@ class HanmotoScraper(BaseScraper):
                             performer=_clean_text(performer),
                             is_paid=True,
                             price_info=_clean_text(price_info) or _PLACEHOLDER_TEXT,
+                            price_amount=price_amount,
+                            image_url=image_url,
                             organizer_type=["media"],
                             business_hours=_PLACEHOLDER_TEXT,
-                            business_hours_zh=_PLACEHOLDER_TEXT,
-                            business_hours_en=_PLACEHOLDER_TEXT_EN,
-                            location_address_zh=_PLACEHOLDER_TEXT,
-                            location_address_en=_PLACEHOLDER_TEXT_EN,
                             location_url=None,
                         ))
                     except Exception as exc:

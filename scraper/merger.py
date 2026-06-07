@@ -86,6 +86,22 @@ _WITHIN_SOURCE_DEDUP_SOURCES = frozenset({"iwafu"})
 _PRESS_RELEASE_LOOKBACK_DAYS = 90
 
 
+def _extract_isbn(source_id: str | None, source_url: str | None) -> str | None:
+    """Extract standard 13-digit or 10-digit ISBN."""
+    for text in [source_id, source_url]:
+        if not text:
+            continue
+        # Look for 13-digit ISBN (978... or 979...)
+        m13 = re.search(r"(97[89]\d{10})", text)
+        if m13:
+            return m13.group(1)
+        # Look for 10-digit ISBN
+        m10 = re.search(r"\b(\d{10})\b", text)
+        if m10:
+            return m10.group(1)
+    return None
+
+
 def _normalize(name: str) -> str:
     """Strip all whitespace and lowercase for similarity comparison."""
     # Normalize registered trademark symbol variants (e.g. iwafu uses ®, official uses (R))
@@ -345,7 +361,7 @@ def run_merger(dry_run: bool = False) -> int:
 
     logger.info("Merger Pass 0: %d google_news_rss within-source pair(s) handled", pass0_count)
 
-    # Fetch all active events that have a start_date and name_ja.
+    # Fetch all active events that have a name_ja.
     # Note: gnews sub-events (source_id contains '_sub') ARE included here so
     # Pass 1/2 can match them against official sources by name+location/date.
     # Same-source within-article dedup is handled by Pass 0.
@@ -354,10 +370,10 @@ def run_merger(dry_run: bool = False) -> int:
         .select(
             "id,source_name,source_id,source_url,official_url,name_ja,start_date,end_date,"
             "location_name,location_address,raw_description,secondary_source_urls,"
-            "annotation_status,work_id,category,parent_event_id,location_prefectures"
+            "annotation_status,work_id,category,parent_event_id,location_prefectures,"
+            "image_url,performer,price_info,price_amount"
         )
         .eq("is_active", True)
-        .not_.is_("start_date", None)
         .not_.is_("name_ja", None)
         .execute()
     )
@@ -367,13 +383,179 @@ def run_merger(dry_run: bool = False) -> int:
     # Group by start_date (YYYY-MM-DD prefix)
     date_groups: dict[str, list] = defaultdict(list)
     for ev in events:
-        date_key = (ev["start_date"] or "")[:10]
-        if date_key:
+        start_date = ev.get("start_date")
+        if start_date:
+            date_key = start_date[:10]
             date_groups[date_key].append(ev)
 
     # Track secondary IDs already handled in this run to avoid double-processing
     handled_secondary_ids: set[str] = set()
     merge_count = 0
+
+    # ------------------------------------------------------------------
+    # Pass 1.1 — ISBN-based books cross-source dedup
+    # For events in 'books_media' category, extract ISBN.
+    # If standard ISBN matches, merge without date restrictions (up to 30 days gap or None).
+    # Higher authority (e.g., ndl_opensearch) wins as Primary.
+    # Propagate rich metadata from secondary to primary.
+    # ------------------------------------------------------------------
+    pass1_1_count = 0
+    
+    # Filter out books from events
+    book_events = [ev for ev in events if "books_media" in (ev.get("category") or [])]
+    
+    # Sub priority for books authority (lower number = higher)
+    # ndl_opensearch has highest priority. hanmoto is second, others next.
+    BOOK_PRIORITY = {
+        "ndl_opensearch": 1,
+        "hanmoto": 2,
+        "kawade_rss": 3,
+        "eslite_spectrum": 4,
+    }
+    
+    isbn_groups: dict[str, list[dict]] = defaultdict(list)
+    for ev in book_events:
+        isbn = _extract_isbn(ev.get("source_id"), ev.get("source_url"))
+        if isbn:
+            isbn_groups[isbn].append(ev)
+
+    for isbn, group in sorted(isbn_groups.items()):
+        if len(group) < 2:
+            continue
+            
+        # Process pairs within this ISBN group
+        for i in range(len(group)):
+            ev_a = group[i]
+            if ev_a["id"] in handled_secondary_ids:
+                continue
+                
+            for j in range(i + 1, len(group)):
+                ev_b = group[j]
+                if ev_b["id"] in handled_secondary_ids:
+                    continue
+                
+                # Check date compatibility: JPRO 12-31 is placeholder and can be ignored
+                date_a_str = ev_a.get("start_date")
+                date_b_str = ev_b.get("start_date")
+                
+                date_compatible = False
+                if date_a_str is None or date_b_str is None:
+                    date_compatible = True
+                else:
+                    try:
+                        from datetime import datetime
+                        # Parse with fallback to isolate YYYY-MM-DD
+                        da_dt = datetime.fromisoformat(date_a_str.replace("Z", "+00:00"))
+                        db_dt = datetime.fromisoformat(date_b_str.replace("Z", "+00:00"))
+                        
+                        # If a date is Dec 31, treat it as placeholder (None)
+                        if (da_dt.month == 12 and da_dt.day == 31) or (db_dt.month == 12 and db_dt.day == 31):
+                            date_compatible = True
+                        else:
+                            if abs((da_dt.date() - db_dt.date()).days) <= 30:
+                                date_compatible = True
+                    except Exception:
+                        date_compatible = True
+                
+                if not date_compatible:
+                    continue
+
+                # Determine primary / secondary
+                pri_a = BOOK_PRIORITY.get(ev_a["source_name"], 99)
+                pri_b = BOOK_PRIORITY.get(ev_b["source_name"], 99)
+                
+                if pri_a < pri_b:
+                    primary, secondary = ev_a, ev_b
+                elif pri_b < pri_a:
+                    primary, secondary = ev_b, ev_a
+                else:
+                    if _richness_score(ev_a) >= _richness_score(ev_b):
+                        primary, secondary = ev_a, ev_b
+                    else:
+                        primary, secondary = ev_b, ev_a
+
+                secondary_url = secondary["source_url"]
+                existing_urls = primary.get("secondary_source_urls") or []
+                already_merged = secondary_url in existing_urls
+
+                logger.info(
+                    "%s  [%s] '%s'  ←  [%s] '%s'  (ISBN Pass 1.1: %s)",
+                    "EXISTS" if already_merged else "MERGE ",
+                    primary["source_name"],
+                    (primary["name_ja"] or "")[:40],
+                    secondary["source_name"],
+                    (secondary["name_ja"] or "")[:40],
+                    isbn,
+                )
+
+                if dry_run:
+                    pass1_1_count += 1
+                    handled_secondary_ids.add(secondary["id"])
+                    continue
+
+                new_secondary_urls = list(dict.fromkeys(existing_urls + [secondary_url]))
+                primary_update: dict = {"secondary_source_urls": new_secondary_urls}
+
+                if not primary.get("official_url") and secondary.get("official_url"):
+                    primary_update["official_url"] = secondary["official_url"]
+
+                # Metadata propagation:
+                # If primary lacks any key attribute, propagate from secondary.
+                # Treat year-end (12-31) start_date as missing as well!
+                for field in ["performer", "price_info", "price_amount", "image_url", "start_date", "end_date"]:
+                    val_p = primary.get(field)
+                    val_s = secondary.get(field)
+                    
+                    is_placeholder_a = False
+                    if field in ("start_date", "end_date") and val_p:
+                        try:
+                            from datetime import datetime
+                            dt_p = datetime.fromisoformat(val_p.replace("Z", "+00:00"))
+                            is_placeholder_a = dt_p.month == 12 and dt_p.day == 31
+                        except Exception:
+                            is_placeholder_a = False
+                    
+                    if not val_p or is_placeholder_a:
+                        if val_s:
+                            primary_update[field] = val_s
+
+                if not already_merged:
+                    primary_desc = (primary.get("raw_description") or "").strip()
+                    secondary_desc = (secondary.get("raw_description") or "").strip()
+
+                    if secondary_desc and secondary_desc not in primary_desc:
+                        combined = (
+                            primary_desc
+                            + f"\n\n---\n別来源補足 ({secondary['source_name']})\n{secondary_desc}"
+                        )
+                        primary_update["raw_description"] = combined
+
+                    primary_update["annotation_status"] = "pending"
+
+                try:
+                    sb.table("events").update(primary_update).eq("id", primary["id"]).execute()
+                    sb.table("events").update(
+                        _deactivate_as_merged(
+                            primary["id"],
+                            f"merged into {primary['id']} via Pass 1.1 ISBN matching {isbn}",
+                            "merger_pass_1_1",
+                        )
+                    ).eq("id", secondary["id"]).execute()
+                    pass1_1_count += 1
+                    handled_secondary_ids.add(secondary["id"])
+                    
+                    # Store updated values locally
+                    for k, v in primary_update.items():
+                        primary[k] = v
+                except Exception as exc:
+                    logger.error(
+                        "Merger Pass 1.1: failed to merge %s ← %s: %s",
+                        primary["source_id"],
+                        secondary["source_id"],
+                        exc,
+                    )
+
+    logger.info("Merger: Pass 1.1 done (%d pairs)", pass1_1_count)
 
     # ------------------------------------------------------------------
     # Pass 1.5 — Within-source aggregator dedup (allowlist)

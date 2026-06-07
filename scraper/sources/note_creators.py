@@ -304,6 +304,61 @@ def _parse_date_from_body(body: str, pub_year: int, pub_month: int) -> Optional[
         return None
 
 
+# ── Event-evidence and media/report gate helpers ──────────────────────────
+
+# Strong positive signals: date/time labels in body or title
+_EVENT_DATE_RE = re.compile(
+    r'日時[：: ・]|開催日[：: ・]|開催日時[：: ・]|■日時|📅'
+    r'|\d{1,2}月\d{1,2}日'
+    r'|(?:^|[\s（(「])(\d{1,2})/(\d{1,2})(?!\d)'
+)
+# Venue/time/price/access labels
+_VENUE_LABELS_RE = re.compile(r'会場|場所|アクセス|参加費|料金|時間[：: ・]')
+# Attendable activity terms
+_ACTIVITY_TERMS_RE = re.compile(r'開催|参加|申込|申し込み|講座|上映会|交流会|説明会|ワークショップ')
+# Registration/signup context (pairs with activity terms)
+_SIGNUP_CONTEXT_RE = re.compile(r'申込|申し込み|登録|予約|参加受付|受付中')
+# Media/report/recap negative signals
+_MEDIA_SIGNALS_RE = re.compile(
+    r'ニュースで紹介されました|メディア掲載|取材[をさにでをされ]|報道[さされにで]|記事になりました|YouTubeで紹介'
+    r'|活動報告|開催報告|レポート|行ってきた|観てきた|鑑賞レポ'
+)
+
+
+def _has_event_evidence(title: str, plain_desc: str, official_url: str | None) -> bool:
+    """Return True when at least one strong positive event signal is present."""
+    combined = title + " " + plain_desc
+
+    # 1. Explicit date/time label in title or body
+    if _EVENT_DATE_RE.search(combined):
+        return True
+
+    # 2. Signup/registration URL from known event-platform hosts
+    if official_url:
+        from urllib.parse import urlparse as _up
+        host = _up(official_url).netloc.lower().lstrip("www.")
+        if any(host == h or host.endswith("." + h) for h in _SIGNUP_HOSTS_NOTE):
+            return True
+
+    # 3. Venue/time/price labels
+    if _VENUE_LABELS_RE.search(combined):
+        return True
+
+    # 4. Attendable activity term paired with date or signup context
+    if _ACTIVITY_TERMS_RE.search(combined) and (
+        _EVENT_DATE_RE.search(combined) or _SIGNUP_CONTEXT_RE.search(combined)
+    ):
+        return True
+
+    return False
+
+
+def _is_media_or_report(title: str, plain_desc: str) -> bool:
+    """Return True when content is only media coverage, recap, or report."""
+    combined = title + " " + plain_desc
+    return bool(_MEDIA_SIGNALS_RE.search(combined))
+
+
 def _parse_pubdate(pub_date_str: str) -> Optional[datetime]:
     """Parse RFC 2822 pubDate string to datetime."""
     try:
@@ -438,6 +493,23 @@ class NoteCreatorsScraper(BaseScraper):
             if not _is_signup:
                 effective_location_name = None
                 effective_location_address = None
+
+        # M1 intake gate ─────────────────────────────────────────────────────
+        # Require positive event evidence before creating an Event object.
+        if _is_media_or_report(title, plain_desc) and not _has_event_evidence(title, plain_desc, official_url):
+            logger.info("note_creators skipped non-event/media post: %s", title)
+            return None
+        if not _has_event_evidence(title, plain_desc, official_url):
+            logger.info("note_creators skipped missing event date: %s", title)
+            return None
+
+        # pubDate guard: if start_date is still the pubDate fallback (no parsed
+        # event date found in title or body), clear it so the annotator can
+        # determine the correct date rather than using a misleading pubDate.
+        if start_date is not None and pub_dt is not None and start_date == pub_dt:
+            start_date = None
+            logger.debug("note_creators cleared pubDate fallback start_date for %s", title)
+        # ─────────────────────────────────────────────────────────────────────
 
         # A3: fetch ref text from official_url and append to raw_description.
         # fail-safe: SSL failure / thin response → fallback to note body only.
