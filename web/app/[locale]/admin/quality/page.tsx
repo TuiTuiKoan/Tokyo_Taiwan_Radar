@@ -47,7 +47,7 @@ export default async function AdminQualityPage({ params, searchParams }: PagePro
 
   let missingAddrQuery = supabase
     .from("events")
-    .select("id, raw_title, source_name, location_name, location_prefectures")
+    .select("id, raw_title, source_name, location_name, location_prefectures, category, event_form")
     .eq("is_active", true)
     .not("location_name", "is", null)
     .is("location_address", null)
@@ -76,8 +76,15 @@ export default async function AdminQualityPage({ params, searchParams }: PagePro
   const annotatedNoCat = (annotatedNoCatRes.data ?? []) as QualityRow[];
   // DB filters: location_name IS NOT NULL (has venue) AND location_address IS NULL (missing address)
   // Additional client-side filter: exclude short city/area names (≤6 chars, no spaces) and
-  // multi-city venue names (contains ・ with location_prefectures implying multiple cities).
-  const missingAddr = ((missingAddrRes.data ?? []) as QualityRow[]).filter((e) => {
+  // multi-city venue names (contains ・ with location_prefectures implying multiple cities). Also exclude book/publication events.
+  const missingAddr = ((missingAddrRes.data ?? []) as any[]).filter((e) => {
+    // Exclude publication/book events — venue and address don't need configuration
+    const isBookPub =
+      (e.event_form as string[] ?? []).includes("publication") ||
+      (e.category as string[] ?? []).includes("books_media") ||
+      e.source_name === "hanmoto";
+    if (isBookPub) return false;
+
     const loc = e.location_name ?? "";
     // Short geographic name only (e.g. 東京, 香港, 岡山, 文京区) — no actionable address exists
     if (loc.length <= 6 && !loc.includes(" ") && !loc.includes("　")) return false;

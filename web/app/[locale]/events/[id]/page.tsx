@@ -328,7 +328,10 @@ export default async function EventDetailPage({ params }: PageProps) {
   const isTvProgramEvent =
     event.source_name === "gguide_tv" ||
     (event.category ?? []).includes("tv_program");
-  const isPublicationEvent = (event.event_form ?? []).includes("publication");
+  const isPublicationEvent =
+    (event.event_form ?? []).includes("publication") ||
+    (event.category ?? []).includes("books_media") ||
+    event.source_name === "hanmoto";
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
 
@@ -821,69 +824,71 @@ export default async function EventDetailPage({ params }: PageProps) {
               </td>
             </tr>
             {/* Location */}
-            <tr>
-              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("location")}</td>
-              <td className="px-4 py-3">
-                {subEventPrefectures.length > 1
-                  ? subEventPrefectures.join("・")
-                  : event.source_name === "rti_jp"
-                    ? <a href="https://www.rti.org.tw/jp" target="_blank" rel="noopener noreferrer" className="hover:underline">RTI台湾国際放送（日本語部門）↗</a>
-                    : venueSegments.length > 1
-                      ? venueSegments.map((v, i) => (
-                          <span key={i}>
-                            {i > 0 && <br />}
-                            {v}
-                          </span>
-                        ))
-                      : locationName
-                        ? event.location_url
-                          ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{locationName} ↗</a>
-                          : locationName
-                        : "—"}
-              </td>
-            </tr>
+            {!isPublicationEvent && (
+              <tr>
+                <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("location")}</td>
+                <td className="px-4 py-3">
+                  {subEventPrefectures.length > 1
+                    ? subEventPrefectures.join("・")
+                    : event.source_name === "rti_jp"
+                      ? <a href="https://www.rti.org.tw/jp" target="_blank" rel="noopener noreferrer" className="hover:underline">RTI台湾国際放送（日本語部門）↗</a>
+                      : venueSegments.length > 1
+                        ? venueSegments.map((v, i) => (
+                            <span key={i}>
+                              {i > 0 && <br />}
+                              {v}
+                            </span>
+                          ))
+                        : locationName
+                          ? event.location_url
+                            ? <a href={event.location_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{locationName} ↗</a>
+                            : locationName
+                          : "—"}
+                </td>
+              </tr>
+            )}
             {/* Address */}
-            <tr>
-              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("address")}</td>
-              <td className="px-4 py-3">
-                {subEventPrefectures.length > 1
-                  ? subEventPrefectures.join("・")
-                  : event.source_name === "gguide_tv"
-                  ? t("tvChannel")
-                  : event.source_name === "rti_jp"
-                  ? t("radioChannel")
-                  : isPublicationEvent
-                  ? (locationAddress || "—")
-                  : addressSegments.length > 1
-                  ? addressSegments.map((addr, i) => (
-                      <span key={i}>
-                        {i > 0 && <br />}
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                        >
-                          {addr} ↗
-                        </a>
-                      </span>
-                    ))
-                  : (locationAddress || locationName) ? (() => {
-                      const displayAddr = stripPostal(locationAddress || locationName || "");
-                      const queryAddr = displayAddr || locationName || "";
-                      return (
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryAddr)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                        >
-                          {displayAddr || locationName} ↗
-                        </a>
-                      );
-                    })() : "—"}
-              </td>
-            </tr>
+            {!isPublicationEvent && (
+              <tr>
+                <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("address")}</td>
+                <td className="px-4 py-3">
+                  {subEventPrefectures.length > 1
+                    ? subEventPrefectures.join("・")
+                    : event.source_name === "gguide_tv"
+                    ? t("tvChannel")
+                    : event.source_name === "rti_jp"
+                    ? t("radioChannel")
+                    : addressSegments.length > 1
+                    ? addressSegments.map((addr, i) => (
+                        <span key={i}>
+                          {i > 0 && <br />}
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                          >
+                            {addr} ↗
+                          </a>
+                        </span>
+                      ))
+                    : (locationAddress || locationName) ? (() => {
+                        const displayAddr = stripPostal(locationAddress || locationName || "");
+                        const queryAddr = displayAddr || locationName || "";
+                        return (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryAddr)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                          >
+                            {displayAddr || locationName} ↗
+                          </a>
+                        );
+                      })() : "—"}
+                </td>
+              </tr>
+            )}
             {/* Business hours */}
             <tr>
               <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("hours")}</td>

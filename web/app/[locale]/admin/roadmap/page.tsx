@@ -109,6 +109,7 @@ async function computeFillRates(): Promise<
     "organizer_type",
     "location_prefectures",
     "performer",
+    "source_name",
   ].join(",");
   const { data } = await sb
     .from("events")
@@ -118,8 +119,21 @@ async function computeFillRates(): Promise<
     .in("annotation_status", ["annotated", "reviewed"]);
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
   const total = rows.length || 1;
+
+  const isBookPub = (r: Record<string, any>) =>
+    (r.event_form as string[] ?? []).includes("publication") ||
+    (r.category as string[] ?? []).includes("books_media") ||
+    r.source_name === "hanmoto";
+
   const filled = (k: string, predicate: (v: unknown) => boolean) =>
-    rows.filter((r) => predicate(r[k])).length;
+    rows.filter((r) => {
+      // For books/publications, location fields (name, address, prefectures) are optional/none and counted as filled.
+      if ((k === "location_name" || k === "location_address" || k === "location_prefectures") && isBookPub(r)) {
+        return true;
+      }
+      return predicate(r[k]);
+    }).length;
+
   const nonEmpty = (v: unknown): boolean => {
     if (v === null || v === undefined) return false;
     if (Array.isArray(v)) return v.length > 0;

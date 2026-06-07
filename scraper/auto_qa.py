@@ -923,6 +923,13 @@ def detect(event: dict) -> list[tuple[str, str]]:
     """Return list of (report_type, admin_note) detected for one event."""
     findings: list[tuple[str, str]] = []
 
+    # Check if a publication/book event (no venue/address required, no error reported)
+    is_pub_event = (
+        "publication" in (event.get("event_form") or [])
+        or "books_media" in (event.get("category") or [])
+        or event.get("source_name") == "hanmoto"
+    )
+
     # 1. Simplified Chinese in any *_zh field
     bad_fields = [f for f in ZH_FIELDS if _has_simplified(event.get(f))]
     if bad_fields:
@@ -932,12 +939,13 @@ def detect(event: dict) -> list[tuple[str, str]]:
             f"簡體字偵測 fields={','.join(bad_fields)} sample={sample[:80]}",
         ))
 
-    # 2. Has location_name but no location_address (skip online / TV / multi-city)
+    # 2. Has location_name but no location_address (skip online / TV / multi-city / book publications)
     loc_name = event.get("location_name") or ""
     loc_addr = event.get("location_address") or ""
     loc_prefs = event.get("location_prefectures") or []
     if (
-        loc_name.strip()
+        not is_pub_event
+        and loc_name.strip()
         and not loc_addr.strip()
         and not _is_online_or_tv(loc_name)
         and event.get("source_name") != "gguide_tv"
@@ -950,12 +958,13 @@ def detect(event: dict) -> list[tuple[str, str]]:
             f"地址缺失 venue={loc_name[:80]}",
         ))
 
-    # 3. Missing location_name (skip online/TV events and gguide_tv source)
+    # 3. Missing location_name (skip online/TV events, book publications, and gguide_tv source)
     if not event.get("location_name"):
         source_nm = event.get("source_name") or ""
         name_ja_val = event.get("name_ja") or ""
         if (
-            source_nm != "gguide_tv"
+            not is_pub_event
+            and source_nm != "gguide_tv"
             and not any(kw in name_ja_val for kw in ADDRESS_SKIP_KEYWORDS)
         ):
             findings.append((
@@ -1015,7 +1024,7 @@ def run(dry_run: bool = False) -> dict:
         .select(
             "id, updated_at, created_at, source_name, name_ja, name_zh, description_zh, "
             "category, location_name, location_name_zh, location_address, location_address_zh, "
-            "location_prefectures, raw_title"
+            "location_prefectures, raw_title, event_form"
         )
         .eq("is_active", True)
         .gte("created_at", since)

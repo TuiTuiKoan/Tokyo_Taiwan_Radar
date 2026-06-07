@@ -19,11 +19,18 @@ export default async function EventCard({ event, locale }: Props) {
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
 
+  const isPublicationEvent =
+    (event.event_form ?? []).includes("publication") ||
+    (event.category ?? []).includes("books_media") ||
+    event.source_name === "hanmoto";
+
   // Derive city label (shared helper used by homepage list too).
-  const cityLabel = getCityLabel(
-    (event as any).location_prefectures as string[] | null | undefined,
-    (event as any).location_address as string | null,
-  );
+  const cityLabel = isPublicationEvent
+    ? null
+    : getCityLabel(
+        (event as any).location_prefectures as string[] | null | undefined,
+        (event as any).location_address as string | null,
+      );
 
   return (
     <Link
@@ -66,7 +73,7 @@ export default async function EventCard({ event, locale }: Props) {
         {event.start_date && (
           <DateChip start={event.start_date} end={event.end_date} locale={locale} />
         )}
-        {event.location_name && (
+        {event.location_name && !isPublicationEvent && (
           <p className="flex items-center gap-1 flex-wrap">
             <span>📍</span>
             {cityLabel && (
