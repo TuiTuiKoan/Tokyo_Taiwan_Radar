@@ -107,7 +107,7 @@ export default async function CityPage({ params }: PageProps) {
     .from("events")
     .select("*")
     .eq("is_active", true)
-    .eq("annotation_status", "annotated")
+    .in("annotation_status", ["annotated", "reviewed"])
     .is("parent_event_id", null)
     .or(`end_date.gte.${today},end_date.is.null`)
     .order("start_date", { ascending: true })

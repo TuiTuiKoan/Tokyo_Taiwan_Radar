@@ -37,6 +37,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .from("events")
     .select("id, updated_at, category, event_form")
     .eq("is_active", true)
+    .in("annotation_status", ["annotated", "reviewed"])
     .is("parent_event_id", null);
 
   const indexableEvents = (events ?? []).filter(

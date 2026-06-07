@@ -56,6 +56,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
       "id, source_name, name_ja, name_zh, name_en, organizer, location_name, location_address, location_prefectures, category, start_date, end_date, is_paid, image_url, parent_event_id, work_id, created_at, event_form",
     )
     .eq("is_active", true)
+    .in("annotation_status", ["annotated", "reviewed"])
     .order("created_at", { ascending: false });
 
   if (error) {

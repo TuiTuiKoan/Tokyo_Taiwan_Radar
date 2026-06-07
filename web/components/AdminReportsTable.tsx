@@ -160,7 +160,17 @@ function getFieldLocaleValues(
     case "description": return { zh: ev.description_zh, en: ev.description_en, ja: ev.description_ja };
     case "start_date": { const v = ev.start_date ? new Date(ev.start_date).toLocaleDateString("ja-JP") : null; return { zh: v, en: v, ja: v }; }
     case "end_date": { const v = ev.end_date ? new Date(ev.end_date).toLocaleDateString("ja-JP") : null; return { zh: v, en: v, ja: v }; }
-    case "price": { const v = ev.is_paid === null ? null : `${ev.is_paid ? "有料" : "無料"}${ev.price_info ? ` / ${ev.price_info}` : ""}`; return { zh: v, en: v, ja: v }; }
+    case "price": {
+      if (ev.is_paid === null) return { zh: null, en: null, ja: null };
+      const rawPriceInfo = (ev.price_info ?? "").trim();
+      const isDefaultPriceInfo = ["有料", "有料（預設）", "有料 (預設)", "有料(預設)", "料金", "料金（預設）", "料金 (預設)", "料金(預設)", "Paid", "paid", "收費", "收费"].includes(rawPriceInfo);
+      const priceInfo = ev.price_info && !isDefaultPriceInfo ? ` / ${ev.price_info}` : "";
+      return {
+        zh: `${ev.is_paid ? "費用" : "免費"}${priceInfo}`,
+        en: `${ev.is_paid ? "Price" : "Free"}${priceInfo}`,
+        ja: `${ev.is_paid ? "料金" : "無料"}${priceInfo}`,
+      };
+    }
     default: return { zh: null, en: null, ja: null };
   }
 }

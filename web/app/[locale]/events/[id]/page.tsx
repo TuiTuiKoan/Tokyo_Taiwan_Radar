@@ -95,13 +95,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const admin = adminClient();
   const { data: stub } = await admin
     .from("events")
-    .select("id, merged_into_event_id, is_active")
+    .select("id, merged_into_event_id, is_active, annotation_status")
     .eq("id", id)
     .maybeSingle();
   if (stub?.merged_into_event_id) {
     permanentRedirect(`/${locale}/events/${stub.merged_into_event_id}`);
   }
-  if (!stub || !stub.is_active) return {};
+  if (!stub || !stub.is_active || (stub.annotation_status !== "annotated" && stub.annotation_status !== "reviewed")) return {};
   const supabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -175,13 +175,18 @@ export default async function EventDetailPage({ params }: PageProps) {
   const admin = adminClient();
   const { data: stub } = await admin
     .from("events")
-    .select("id, merged_into_event_id, is_active")
+    .select("id, merged_into_event_id, is_active, annotation_status")
     .eq("id", id)
     .maybeSingle();
   if (stub?.merged_into_event_id) {
     permanentRedirect(`/${locale}/events/${stub.merged_into_event_id}`);
   }
   if (!stub || !stub.is_active) {
+    notFound();
+  }
+  // Annotation gate: non-annotated/reviewed events → 404 for public
+  const stubStatus = (stub as { annotation_status?: string | null }).annotation_status;
+  if (stubStatus !== "annotated" && stubStatus !== "reviewed") {
     notFound();
   }
 
@@ -205,12 +210,19 @@ export default async function EventDetailPage({ params }: PageProps) {
     notFound();
   }
 
+  // Annotation gate: non-annotated/reviewed active events → 404 for public
+  const eventAnnotationStatus = (event as { annotation_status?: string | null }).annotation_status;
+  if (eventAnnotationStatus !== "annotated" && eventAnnotationStatus !== "reviewed") {
+    notFound();
+  }
+
   // Fetch sub-events (children of this event)
   const { data: subEvents } = await supabase
     .from("events")
     .select("id, name_ja, name_zh, name_en, start_date, end_date, category, location_address")
     .eq("parent_event_id", id)
     .eq("is_active", true)
+    .in("annotation_status", ["annotated", "reviewed"])
     .order("start_date", { ascending: true });
 
   // Fetch parent event if this is a sub-event.
@@ -502,7 +514,7 @@ export default async function EventDetailPage({ params }: PageProps) {
       whereA: (loc, addr) => addr ? `活動於${loc}舉辦，地址：${addr}。` : `活動於${loc}舉辦。`,
       price: "活動費用是多少？",
       priceFree: "本活動為免費入場。",
-      pricePaid: (info) => info ? `本活動為付費活動。${info}` : "本活動為付費活動，詳細費用請見官方網站。",
+      pricePaid: (info) => info ? `本活動為收費活動。${info}` : "本活動為收費活動，詳細費用請見官方網站。",
       source: "活動資訊來源是什麼？",
       sourceA: (host) => `活動資訊來自 ${host}。`,
     },
@@ -511,9 +523,9 @@ export default async function EventDetailPage({ params }: PageProps) {
       whenA: (s, e) => e && e !== s ? `${s} から ${e} まで開催されます。` : `${s} に開催されます。`,
       where: "開催場所はどこですか？",
       whereA: (loc, addr) => addr ? `${loc}で開催されます。住所：${addr}` : `${loc}で開催されます。`,
-      price: "参加費はいくらですか？",
+      price: "料金はいくらですか？",
       priceFree: "本イベントは入場無料です。",
-      pricePaid: (info) => info ? `有料イベントです。${info}` : "有料イベントです。詳細は公式サイトをご確認ください。",
+      pricePaid: (info) => info ? `料金が必要です。${info}` : "料金が必要です。詳細は公式サイトをご確認ください。",
       source: "情報の出典は？",
       sourceA: (host) => `情報は ${host} から取得しています。`,
     },
@@ -524,7 +536,7 @@ export default async function EventDetailPage({ params }: PageProps) {
       whereA: (loc, addr) => addr ? `The event is held at ${loc} (${addr}).` : `The event is held at ${loc}.`,
       price: "How much does it cost?",
       priceFree: "This event is free to attend.",
-      pricePaid: (info) => info ? `This is a paid event. ${info}` : "This is a paid event. Please check the official website for details.",
+      pricePaid: (info) => info ? `This event has a fee. ${info}` : "This event has a fee. Please check the official website for details.",
       source: "What is the source of this information?",
       sourceA: (host) => `Event information sourced from ${host}.`,
     },
@@ -904,7 +916,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                   <span>
                     <span className="text-amber-600 font-medium">{t("paid")}</span>
                     {event.price_info && 
-                     !["有料", "有料（預設）", "有料 (預設)", "有料(預設)", "Paid", "paid", "收費", "收费"].includes(event.price_info.trim()) && (
+                     !["有料", "有料（預設）", "有料 (預設)", "有料(預設)", "料金", "料金（預設）", "料金 (預設)", "料金(預設)", "Paid", "paid", "收費", "收费"].includes(event.price_info.trim()) && (
                       <span className="text-fg-muted ml-2">{event.price_info}</span>
                     )}
                   </span>
