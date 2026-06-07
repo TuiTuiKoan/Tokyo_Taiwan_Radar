@@ -371,7 +371,7 @@ def run_merger(dry_run: bool = False) -> int:
             "id,source_name,source_id,source_url,official_url,name_ja,start_date,end_date,"
             "location_name,location_address,raw_description,secondary_source_urls,"
             "annotation_status,work_id,category,parent_event_id,location_prefectures,"
-            "image_url,performer,price_info,price_amount"
+            "image_url,performer,price_info,price_amount,event_form"
         )
         .eq("is_active", True)
         .not_.is_("name_ja", None)
@@ -401,8 +401,13 @@ def run_merger(dry_run: bool = False) -> int:
     # ------------------------------------------------------------------
     pass1_1_count = 0
     
-    # Filter out books from events
-    book_events = [ev for ev in events if "books_media" in (ev.get("category") or [])]
+    # Filter out books from events (matching category books_media, event_form publication, or source_name hanmoto)
+    book_events = [
+        ev for ev in events
+        if "books_media" in (ev.get("category") or [])
+        or "publication" in (ev.get("event_form") or [])
+        or ev.get("source_name") == "hanmoto"
+    ]
     
     # Sub priority for books authority (lower number = higher)
     # ndl_opensearch has highest priority. hanmoto is second, others next.
