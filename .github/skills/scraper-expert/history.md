@@ -22,6 +22,14 @@
 
 **教訓：** publication の会場欄は空にしすぎず、prefix だけを除去して占位文は残す。
 
+## 2026-06-07 — publication title prefix must be locale-aware
+
+**問題：** publication / periodical title prefix が日本語前提で、英語タイトルや periodical label に不自然な表記が残った。
+
+**修正：** title prefix を locale-aware にし、`name_en` は `[New Release]`、periodical article の `name_ja` は `[雑誌記事]`、`name_en` は `[Periodical Article]` に統一する。
+
+**教訓：** publication の title prefix は venue placeholder とは独立に設計し、locale ごとの自然な語彙に固定する。
+
 **修正：**
 - publication 的占位文字改為依語系輸出，`ja/zh/en` 分別填入對應文案。
 - `location_name` 與 `location_address` 都保留占位文字，但前端對 publication 類事件一律以純文字顯示，不轉 Maps。

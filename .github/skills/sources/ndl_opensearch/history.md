@@ -5,6 +5,11 @@
 - publication 事件の `location_name` は占位文字を維持し、`[新刊出版]` の接頭辞は付けない。
 - annotator 側の publication 分岐と source skill の記述を同期し、会場欄に販売案内の prefix が入る回帰を防ぐ。
 
+## 2026-06-07 — publication title prefix locale sync
+
+- publication title prefix は `name_ja`/`name_zh` = `[新刊出版]`、`name_en` = `[New Release]` に統一。
+- periodical article は `name_ja=[雑誌記事]`、`name_zh=[期刊專文]`、`name_en=[Periodical Article]` に変更し、`[期刊專文]` を日本語へ流用しない。
+
 ## 2026-06-04 — publication placeholders locale sync
 
 - 日本語 UI の既定占位文は `新刊のご購入は各販売チャネルでお願いします`。

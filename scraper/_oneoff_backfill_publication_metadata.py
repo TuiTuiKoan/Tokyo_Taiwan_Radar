@@ -21,6 +21,12 @@ from annotator import (
     _fetch_ndl_publication_context,
     _fetch_publication_page_description,
     _get_supabase,
+    _PERIODICAL_LABEL_EN,
+    _PERIODICAL_LABEL_JA,
+    _PERIODICAL_LABEL_ZH,
+    _PUBLICATION_PREFIX_EN,
+    _PUBLICATION_PREFIX_JA,
+    _PUBLICATION_PREFIX_ZH,
     _lock_fields_via_corrections,
     _prefix_publication_name,
     _to_trad,
@@ -92,9 +98,9 @@ def _build_update(event: dict) -> dict:
             raw_desc = fetched_desc
 
     update["event_form"] = ["publication"]
-    update["location_name"] = _prefix_publication_name(publication_text_ja)
-    update["location_name_zh"] = _prefix_publication_name(publication_text_zh)
-    update["location_name_en"] = _prefix_publication_name(publication_text_en)
+    update["location_name"] = publication_text_ja
+    update["location_name_zh"] = publication_text_zh
+    update["location_name_en"] = publication_text_en
     if raw_desc:
         update["description_ja"] = raw_desc
         update["description_zh"] = _to_trad(raw_desc)
@@ -106,16 +112,22 @@ def _build_update(event: dict) -> dict:
         current_name_en = (event.get("name_en") or "").strip()
 
         if current_name_ja:
-            update["name_ja"] = _prefix_publication_name(current_name_ja, periodical_label="[期刊專文]")
+            update["name_ja"] = _prefix_publication_name(
+                current_name_ja,
+                prefix=_PUBLICATION_PREFIX_JA,
+                periodical_label=_PERIODICAL_LABEL_JA,
+            )
         if current_name_zh or publication_text_ja:
             update["name_zh"] = _prefix_publication_name(
                 current_name_zh or publication_text_ja,
-                periodical_label="[期刊專文]",
+                prefix=_PUBLICATION_PREFIX_ZH,
+                periodical_label=_PERIODICAL_LABEL_ZH,
             )
         if current_name_en or publication_text_en:
             update["name_en"] = _prefix_publication_name(
                 current_name_en or publication_text_en,
-                periodical_label="[Periodical article]",
+                prefix=_PUBLICATION_PREFIX_EN,
+                periodical_label=_PERIODICAL_LABEL_EN,
             )
 
         update["location_address"] = None
@@ -144,11 +156,20 @@ def _build_update(event: dict) -> dict:
         if not event.get("price_info"):
             update["price_info"] = publication_text_zh
         if event.get("name_ja"):
-            update["name_ja"] = _prefix_publication_name(event.get("name_ja"))
+            update["name_ja"] = _prefix_publication_name(
+                event.get("name_ja"),
+                prefix=_PUBLICATION_PREFIX_JA,
+            )
         if event.get("name_zh"):
-            update["name_zh"] = _prefix_publication_name(event.get("name_zh"))
+            update["name_zh"] = _prefix_publication_name(
+                event.get("name_zh"),
+                prefix=_PUBLICATION_PREFIX_ZH,
+            )
         if event.get("name_en"):
-            update["name_en"] = _prefix_publication_name(event.get("name_en"))
+            update["name_en"] = _prefix_publication_name(
+                event.get("name_en"),
+                prefix=_PUBLICATION_PREFIX_EN,
+            )
 
     if source_name == "ndl_opensearch" and context.get("organizer") and not event.get("organizer"):
         update["organizer"] = context["organizer"]

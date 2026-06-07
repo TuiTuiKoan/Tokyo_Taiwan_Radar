@@ -57,6 +57,24 @@ _PUBLICATION_SOURCES = {"ndl_opensearch", "hanmoto", "kawade_rss", "eslite_spect
 _PUBLICATION_PLACEHOLDER_JA = "新刊のご購入は各販売チャネルでお願いします"
 _PUBLICATION_PLACEHOLDER_ZH = "新書購買請洽各通路"
 _PUBLICATION_PLACEHOLDER_EN = "Please check each sales channel to purchase this new book."
+_PUBLICATION_PREFIX_JA = "[新刊出版]"
+_PUBLICATION_PREFIX_ZH = "[新刊出版]"
+_PUBLICATION_PREFIX_EN = "[New Release]"
+_PERIODICAL_LABEL_JA = "[雑誌記事]"
+_PERIODICAL_LABEL_ZH = "[期刊專文]"
+_PERIODICAL_LABEL_EN = "[Periodical Article]"
+
+_PUBLICATION_PREFIXES = (
+    _PUBLICATION_PREFIX_JA,
+    _PUBLICATION_PREFIX_ZH,
+    _PUBLICATION_PREFIX_EN,
+)
+_PERIODICAL_PREFIXES = (
+    _PERIODICAL_LABEL_JA,
+    _PERIODICAL_LABEL_ZH,
+    "[Periodical article]",
+    _PERIODICAL_LABEL_EN,
+)
 
 
 def _normalize_publication_publisher(value: str | None) -> str | None:
@@ -140,17 +158,30 @@ def _normalize_publication_description_text(value: str | None) -> str | None:
     return cleaned or None
 
 
-def _prefix_publication_name(name: str | None, *, periodical_label: str | None = None) -> str | None:
+def _strip_publication_prefixes(name: str) -> str:
+    cleaned = name.strip()
+    changed = True
+    while changed:
+        changed = False
+        for prefix in (*_PUBLICATION_PREFIXES, *_PERIODICAL_PREFIXES):
+            if cleaned.startswith(prefix):
+                cleaned = cleaned[len(prefix):].strip()
+                changed = True
+                break
+    return cleaned
+
+
+def _prefix_publication_name(
+    name: str | None,
+    *,
+    prefix: str,
+    periodical_label: str | None = None,
+) -> str | None:
     if not name:
         return name
-    prefix = "[新刊出版]"
-    cleaned = name.strip()
-    if cleaned.startswith(prefix):
-        cleaned = cleaned[len(prefix):].strip()
+    cleaned = _strip_publication_prefixes(name)
     if periodical_label:
-        if cleaned.startswith(periodical_label):
-            cleaned = cleaned[len(periodical_label):].strip()
-        cleaned = f"{periodical_label}{cleaned}"
+        return f"{prefix}{periodical_label}{cleaned}"
     return f"{prefix}{cleaned}"
 
 
@@ -1999,15 +2030,21 @@ def annotate_pending_events(
                             update_data["price_info"] = None
                         if update_data.get("name_ja"):
                             update_data["name_ja"] = _prefix_publication_name(
-                                update_data["name_ja"], periodical_label="[期刊專文]"
+                                update_data["name_ja"],
+                                prefix=_PUBLICATION_PREFIX_JA,
+                                periodical_label=_PERIODICAL_LABEL_JA,
                             )
                         if update_data.get("name_zh"):
                             update_data["name_zh"] = _prefix_publication_name(
-                                update_data["name_zh"], periodical_label="[期刊專文]"
+                                update_data["name_zh"],
+                                prefix=_PUBLICATION_PREFIX_ZH,
+                                periodical_label=_PERIODICAL_LABEL_ZH,
                             )
                         if update_data.get("name_en"):
                             update_data["name_en"] = _prefix_publication_name(
-                                update_data["name_en"], periodical_label="[Periodical article]"
+                                update_data["name_en"],
+                                prefix=_PUBLICATION_PREFIX_EN,
+                                periodical_label=_PERIODICAL_LABEL_EN,
                             )
                         if publication_text_ja:
                             publication_description_ja = f"掲載誌：{publication_text_ja}\n\n{publication_description_ja}".strip()
@@ -2023,11 +2060,20 @@ def annotate_pending_events(
                         if not update_data.get("price_info"):
                             update_data["price_info"] = publication_text_zh
                         if update_data.get("name_ja"):
-                            update_data["name_ja"] = _prefix_publication_name(update_data["name_ja"])
+                            update_data["name_ja"] = _prefix_publication_name(
+                                update_data["name_ja"],
+                                prefix=_PUBLICATION_PREFIX_JA,
+                            )
                         if update_data.get("name_zh"):
-                            update_data["name_zh"] = _prefix_publication_name(update_data["name_zh"])
+                            update_data["name_zh"] = _prefix_publication_name(
+                                update_data["name_zh"],
+                                prefix=_PUBLICATION_PREFIX_ZH,
+                            )
                         if update_data.get("name_en"):
-                            update_data["name_en"] = _prefix_publication_name(update_data["name_en"])
+                            update_data["name_en"] = _prefix_publication_name(
+                                update_data["name_en"],
+                                prefix=_PUBLICATION_PREFIX_EN,
+                            )
                     if not update_data.get("organizer") and publication_context.get("organizer"):
                         update_data["organizer"] = publication_context["organizer"]
                     if not update_data.get("location_url"):
