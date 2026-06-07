@@ -2,6 +2,11 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-07 - auto_qa reconcile: 批次掃描器只新增、從不關閉導致 436 筆 pending 長期累積
+
+**日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**
+2026-06-07 | `/admin/reports` 佇列積累 436 筆 pending 報告（涵蓋 314 事件）。事件問題早已修復但報告未關閉（stale），或事件已停用（inactive），或 `annotation_status=reviewed`（reviewed），但每日 `auto_qa.py run()` 只 insert 新報告、從不 close 已解決的 | `run()` 的 dedup 機制只跳過「已有 pending 報告」的事件——這正確防止了重複新建，但同時意味著已解決的問題永遠不會被自動關閉。SC→TC 修正與 performer 分割都是 `qa_auto_fix.py` 負責，但該腳本不定期跑，因此修正後的 stale 報告繼續留在佇列 | Phase 1：從 7 個 `_detect_*` 函式中抽出純判定函式 `_check_*(ev)` → 無時間窗口、保留語意 skip；Phase 2：實作 `reconcile(dry_run)` — 載入所有 pending auto_qa 報告，重新對每筆事件執行對應 predicate，`inactive→dismissed` / `reviewed/resolved→confirmed` / predicate 仍觸發→kept；人工型永不碰；Phase 3：一次性清理（SC fix 0 件、performer split 14 件 ok、reconcile live 79 confirmed + 50 dismissed）；Phase 4：`scraper.yml` 加 `--reconcile` 步驟（在 auto-qa scan 前每日自動跑）。最終 436 → 293 pending（−143 件），manual 11 筆全保留 | 任何只「新增 pending」的 QA scanner 都必須配備對應的「關閉已解決報告」機制（reconcile/close pass），否則佇列只會無限成長。reconcile 的 predicate 函式應與 scanner 完全解耦且無時間窗口——scanner 的時間窗口只是為了效能，不代表「超過 N 天就無問題」。
+
 ## 2026-06-05 - Publication backfill now prefers official product descriptions and prefixes publication titles with `[新刊出版]`
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓**

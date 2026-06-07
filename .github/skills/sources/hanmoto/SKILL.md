@@ -67,6 +67,13 @@ hanmoto は server-side で台湾検索済みのため、0 件は異常（scrape
 - **`tzinfo=timezone.utc`**: `datetime(y, m, d, tzinfo=timezone.utc)` を使用
 - `name_ja_locked = True`
 - `organizer_type = ["media"]` 固定（各書籍の出版社名は `organizer` フィールドに格納）
+- **BeautifulSoup 詳細解読**: 詳細ページの巡回は Playwright `new_page()` を使わず、極めて軽量な `requests` + `BeautifulSoup` (`_scrape_hanmoto_detail`) を用いて行う。
+- **書籍メタデータ解析要件**:
+  - `raw_description`: `.book-kaisetsu-section` (内容紹介), `.book-toc-section` (目次), `.book-author-profiles-section` (著者プロフィール) を抽出し、独自のセクションヘッダー（【内容紹介】など）付きで結合する。
+  - `performer`: `.book-authors-section` から抽出し、`著/編/訳/作者` 等の接頭辞をストリップする。
+  - `price_amount`: `.book-price-section` の中から「本体 XXXX 円」の数値を正規表現抽出し、数値（float型）として格納する。
+  - `image_url`: 書籍表面のカバー画像を `img.book-image` から絶対URL化して抽出し、格納する。
+- **スケルトン・ローディング防止措置（2026-06-07 教訓）**: hanmoto リストページは、クライアントサイドでプレースホルダー（Skeleton）カードを先にロードするため、`wait_for_selector(".bd-booklist-item-book")` は空のデータを誤検知して終了してしまう。必ず、より深い実コンテンツ上の要素である `.bd-booklist-item-book [data-content-name="title"]` などを監視対象とすること。
 
 ## 既知の問題
 

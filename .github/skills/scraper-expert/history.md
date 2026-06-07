@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-06-07 — note_creators 時區偏移致 start_date 漂移，與發布日 fallback 污染
+
+**問題：** note 爬蟲在解析文章發布日與活動開始日期時，時常發生 1 天的換日偏移；且許多一般網誌/二手報導文章，因無實體活動日期而直接繼承了文章發布日作為活動開始日，導致首頁出現大量將發布日誤標為活動日的髒數據。
+
+**根本原因：**
+1. 轉換 RFC 2822 的帶時區 `pubDate` 時，直接進行 `.replace(tzinfo=None)` 拋棄時區資訊，導致在 UTC 換日臨界點（如 23:00 UTC，對應隔天 08:00 JST）時產生 1 日的 start_date 偏移誤差。
+2. 缺乏對 fallback start_date 的過濾清洗，將文章發布日直接作為 fallback start_date 使用，導致不具備實體活動證據的文章強行被當作 Active 活動。
+
+**修正：**
+1. 修正 `_parse_pubdate` 去除 tz 的時區校準。
+2. 在 M1 intake gate 引入 **pubDate guard**：若偵測到 `start_date == pub_dt` (即 start_date 是無 parsed 物理日期而直接退回的發布日)，將其設為 `None` 清除 fallback。以便後續進入 `annotator.py` 時可以由 GPT 高精度在內文中判定真正日期，或在無活動證據時及早將其剔除，避免髒數據。
+3. 對於庫存受污染條目，結合 Supabase 執行手動 `field_corrections` locks 校準與鎖定。
+
+**教訓：** 對於長文字/部落格聚合類來源（如 note.com、新聞 rss），**絕對不可盲目將文章發布日（pubDate）默認為活動開始日**，這會破壞日曆時間線。如果內文未含明確實體日期，應主動將 `start_date` 清空（設為 `None`），讓 annotator 異步分析或依 ruleset 拒絕，絕不可使其攜帶假的發布日入庫。
+
+---
+
 ## 2026-06-04 — Event detail venue display must strip postal codes consistently
 
 **問題：** 事件詳情頁在不同區塊對同一地址的展示不一致，會將 `〒` 郵遞區號直接顯示在敘述摘要、FAQ、行事曆地點等位置，造成使用者看到的 venue/address 文案混雜。

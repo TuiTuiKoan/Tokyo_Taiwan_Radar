@@ -2,6 +2,56 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-07 — Books & Publication Intel 合併、hanmoto 爬蟲與 Web/Timezone 綜合修復
+
+**問題：**
+在本次系統診斷與修復中，團隊解決了圖書及多數據源查重合流中的四大關鍵 Bug：
+1. **書籍 ISBN 自動查重限制**：不同來源（NDL、Kawade、hanmoto、eslite）出版日期有 offset 或使用 Dec 31 佔位符，導致 unique ISBN 書籍無法自動查重合併，造成資料庫圖書重複。
+2. **hanmoto 詳情抓取低效與 TypeScript 錯誤**：Playwright `new_page` 逐筆加載極為緩慢卡頓，且易因 skeleton loading 虛假觸發 `wait_for_selector` 導致 payload 丟失；建構 Dataclass 時塞入 `*_zh` 等 placeholder 欄位造成 runtime constructor 的 `TypeError`。
+3. **Web 前台 Next.js/TypeScript 建置失敗**：前台 compiler 靜態型別編譯報錯，因 `actorTypes.ts` 對照之 `messages/*.json` 缺少完整的 `"actorCategory"` i18n 字典。
+4. **note_creators timezone/start_date 時區漂移**：文章發表日 pubDate 時區轉換不當（直掉 tzinfo 造成边界換日偏移），或在查無實際活動日期時直接繼承文章發布日作為活動開始日，導致天數漂移與髒數據。
+
+**根本原因：**
+1. 舊版 merger 連接 Supabase 時嚴格限制了 `.not_.is_("start_date", None)`，且其分群和去重逻辑僅在 strict YYYY-MM-DD same-date 比對。
+2. hanmoto 爬蟲未充分利用輕量 BeautifulSoup 輔助，且 `wait_for_selector` 卡在 skeleton card 骨架層；在 Event 實例建置階段過早注入 localized placeholder 屬性，不符基底 `BaseScraper` 唯一定義。
+3. 歷史 Localization 重構時，`messages/{en,ja,zh}.json` 漏配了 `actorCategory` 字典。
+4. 處理 RFC 2822 時未使用正確 aware-timezone 換算，且 note 自動 intake 缺乏對 fallback 日期的清除防線。
+
+**修復方法：**
+1. **新增 Pass 1.1 ISBN 查重**：在 `merger.py` 中，先開放無 `start_date` 條目，針對具有 standard ISBN 屬性之 `books_media` 新刊進行 cross-source 合併（容許 30 天內或 Dec 31 發布日），並套用 `ndl_opensearch` > `hanmoto` > `kawade_rss` 權威度分流傳導。
+2. **BeautifulSoup 升級與防禦校準**：改用 BeautifulSoup + `requests` 完成 `_scrape_hanmoto_detail` 細節目次、著者、價格 `price_amount`、大圖 `image_url` 的極速高精準度抓取，將 `wait_for_selector` 精準鎖定為實際標題節點避開 skeleton，並移除非 Dataclass localized properties。
+3. **i18n Messages 補全**：補齊 `web/messages/{zh,ja,en}.json` 所有的 `"actorCategory"` 映射對照字典（包含 `government`, `traveler`, `semi_official` 等）。
+4. **note_creators 日期落空防護**：修正 `_parse_pubdate` 去除 tz 換日問題。在 M1 intake gate 啟用 pubDate guard，若 `start_date == pub_dt` (查無內文日期而繼承發布日) 時將其設為 `None` 後送，讓後續 annotator 自由標注避開漂移錯誤。
+
+**教訓：**
+1. 對於具備 standard UID（如 ISBN）的特殊 event_form，應跳脫 start_date strict-date matching 的限制，優先做強標識符（Pass 1.1）匹配，並做好 secondary fields 的傳導演算法。
+2. Playwright 慎用於 detail-page 逐筆輪詢，應以 BeautifulSoup 優先；對 Skeleton UI 渲染鏈，`wait_for_selector` 應深入至文字或實際 title 容器層級。
+3. 前台 i18n mappings 作為 TypeScript compiler 靜態類型的一部分，具有連鎖 build 阻塞性偏誤，任何類型命名異動必須强制在三語 Json 中徹底對齊。
+4. timezone timezone/start_date 計算必須先 aware 對齊；長文字部落格類別（如 note）的 intake，必須建立 Fallback-Start-Date 攔截清理。
+
+---
+
+## 2026-06-05 — Owner/Admin 創辦活動流程漂移與自製手動保護/信心閘欄防護 (v3 核心落地)
+
+**問題：**
+使用者反應 Owner New Event 頁在處理 `performer` 提取時較弱，而 Admin New Event 頁在處理 `location_address` 標註時又常抓不到。
+調查發現此「不對稱弱點」源於：
+1. **系統行為分裂 (Functional Drift)**：兩端 OCR Vision 系統提示詞、Alias 映射、與 HTML 表單元件各自撰寫/局部維護，功能逐漸漂移。
+2. **過度保守的 Fill-only 策略**：舊版標註僅對 NULL 欄位進行填充，若 OCR 識別出了一个結構不良或短縮的地址，後續 Web 標註時會因為「非空」而直接跳過品質升級，導致更優的 Geolocated 標註地址無法蓋掉弱 Vision 地址。
+3. **欠缺手動保護 (Manual-value clobbering)**：如果標註時直接實作無腦 Coverage 覆寫（Upgrade Overwrite），又會導致標註把使用者在本 session 手動編輯過的值直接清空或蓋掉。
+
+**修正：**
+1. **極致對齊 (Byte-for-byte Parity)**：海報 OCR vision-prompts 的結構、Credit/出演/登壇提示、以及 glossaries 完全共用與校準。將 `記念講演会` -> `紀念演講` 寫入 prompt 專屬 glossary（不污染 runtime translator）。
+2. **中心化共用模組 (Event Intake Core Shared)**：建立 `web/lib/eventIntakeClient.ts`（共享 client 動作、錯誤解析、Alert 控制、雙區塊 inline notices）與 `web/lib/eventFieldMerge.ts`（合併 upgrade 演算法與 schema 白名單）。
+3. **信心強度閘門 (Source-confidence gate)**：對非空欄位做品質升級時，限定高度相關搜尋結果（`bestScore >= 6`）；一般空欄填充則放寬為 `bestScore >= 3`。
+4. **手動值保護機制 (Manual-value protect via lockedFields)**：在 client 端維護 `lockedFields` 指紋陣列，標註更新時主動跳過使用者本 session 手動修改的任意欄位。
+5. **成功、錯誤通知同步**：在 Admin 頁同步加入 owner 的 dual-zone (頂部+底部) 同步鏡像通知與讀秒按鈕載入動畫狀態機。
+
+**教訓：**
+1. 多角色對等系統（如使用者與管理員的創辦新事件流程）一旦各自演進，必然出現功能和抽取漂移。必須在首個版本就把 AI intake 的 Prompt 表單預填與 Web-search merge 合併模組徹底 **「中心化共用」**。
+2. 在設計實作合併 API 升級策略時，**「品質覆寫」** 是必須的（用 Geocoded/Enriched 位址替換 Vision 短縮字），但它必須有一組 **「手動編輯指紋保護」** 與 **「來源相關度 Confidence score 閘門」** 做為左右護欄，否則將高概率出現「好地址被搜尋雜訊毀掉」或「手動心血被自動 annotate 動態蓋掉」的災難性 Regression。
+
+
 ## 2026-06-04 - Architect 的 event_form checklist 漂移，少列 web enum 且 i18n namespace 寫錯
 
 **問題：** `Architect` 的 `Event Form Addition Checklist` 仍停在舊版 4 個同步點，只列 migration、annotator、admin API prompt、messages，漏掉實際前端也依賴的 `web/lib/types.ts` `EVENT_FORMS`；同時把 i18n namespace 寫成 `eventForms.<key>`，但 repo 實際使用的是 `eventForm.<key>`。

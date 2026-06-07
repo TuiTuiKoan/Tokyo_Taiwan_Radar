@@ -1089,6 +1089,25 @@ Reference incident: 2026-05-07 — 鼎泰豐30周年（`2cb72ee9`）子活動省
 
 Reference incident: 2026-05-07 — `dec5031b` `location_prefectures=['東京']` → `['東京都']` FC ロック。
 
+## Event Intake Alignment & Upgrade Guards (建立與標註活動防漂移守護)
+
+在審核或設計任何涉及使用者手動建活動、海報 OCR（Vision 分類）、或是前台標註活動（Annotate Web）功能的計畫或修改時，**必須**強制執行本三層防護：
+
+1. **同步與中心化共享規則（Shared Modules Mandate）**：
+   - 審核時必須確認 Admin 與 Owner 的創辦活動頁面（`web/components/AdminCreateClient.tsx` / `web/components/OwnerCreateClient.tsx`）的表單欄位映射、成功與錯誤 UI 回饋、狀態機、讀秒動畫、雙區塊同位 notice 頁面以及標註 client action **全數共用** `web/lib/eventIntakeClient.ts`。絕對禁止各自撰寫相似表單處理。
+   - 兩端的 OCR Vision GPT prompts（`extract-from-image/route.ts`）在所有文字提示字、欄位清單、以及 Web-only glossary（例如特定的 `記念講演会` -> `紀念演講`/`Commemorative Lecture`）必須保持字元級同步。
+
+2. **合併升級限制與來源信心閘門（Source-Confidence Gate）**：
+   在 Web 搜尋標註進行欄位合併覆寫（`eventFieldMerge.ts`）時，為避免「弱相關搜尋」產生的髒資料破壞 OCR 抓取的特徵，或直接洗掉已存在的值，必須確認套用以下雙信心階梯：
+   - **填充覆寫（Fill Null）**：若現有欄位為空（`null`、`""`、`[]`），只要外部搜尋結果具有基本相關性即套用（要求 `bestScore >= 3`）。
+   - **升級覆寫（Upgrade Overwrite）**：若現有欄位**非空**（例如地址為是不含郵遞區號的短縮字或簡體字，欲升級為 Geolocated 正確格式），外部搜尋來源必須是高度可信關聯（要求最高命中評分 `bestScore >= 6`；若不足直接跳過，不污染現非空欄位）。
+
+3. **本地手動指紋保護鎖（Manual-Value fingerprinted lock）**：
+   - 為了避免自動標註（Annotate Event Action）在後台回傳時直接蓋掉使用者在本 session *手動編輯* 的精確調整，前端 form state 必須在 `onChange` 時記錄已手動修改的欄位鍵值（`lockedFields: string[]`）。
+   - 當 API 返回標註結果進行 merge 覆寫時，**必須排除 `lockedFields` 指紋列表中的所有欄位**。
+
+Reference incident: 2026-06-05 — v3-parity 合體落地，解決 OCR 遺漏/漂移弱點，並同步後台 Alert/讀秒行為，提供完美的一致性體驗。
+
 ## Required Phases
 
 ### Phase 1: Research

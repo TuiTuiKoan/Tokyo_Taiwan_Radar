@@ -25,6 +25,8 @@ Read this at the start of every session before producing any plan.
   - **`20–100 個事件`** → 一次性 backfill 腳本，跑完 archive，不接 CI
   - **`> 100 個事件`且持續累積** → 才考慮做成 daily CI step
   違反這條會徒增 CI 時間 + 檔案維護成本，且 Plan Critic 會擋下。Reference: 2026-05-26 enrich_organizers.py 計畫瘦身（5 Phase → 3 Phase）。
+- **強標識符 (Strong Identifier) 優先去重原則（2026-06-07 教訓）**：凡具有 standard UID (如 ISBN、行銷條碼、官網極致 unique URL 等) 的特定 `category`/`event_form` 類型，在設計其查重合流機制（merger）時，應設置專屬的 Pass (例如 Pass 1.1) 優先於 `start_date` same-day 分組匹配之外執行。在時差 30 日內或年末佔位符階段（如 12-31）強制合併，並提供權威源 metadata 傳遞演算，確保不會受 scraper date extraction 漂移造成重複入庫。
+- **三語 Localization 硬配對守則（2026-06-07 教訓）**：任何 front-end categories, actor_types, 或者是 web schemas 異動，必須將 `web/messages/{en,ja,zh}.json` 三包語系檔做 simultaneous update 同步更新。若有漏配，會阻礙 production next build compiler 通過。
 
 ## OCR Vision Array 欄位 — 三路徑 Sync Point（2026-05-26 教訓）
 
@@ -747,6 +749,23 @@ Before approving any change to `annotator.py` annotation field priority, verify:
 4. **`name_ja` special case**: when `name_ja_locked=true`, the scraper's value is preserved verbatim. The source title may be in Japanese, Chinese, or English — `name_ja` is a field identifier, not a language constraint.
 5. **`location_url`** — conditional write: GPT may extract it from `raw_description` text (schema prompt must say "extract from text only, no hallucination"). Write only when non-null (`_loc_url = event.get("location_url") or _str(annotation.get("location_url"))`); never write `null` back to DB — `null` would overwrite admin-entered values. This is a field shared between scraper/GPT extraction and admin manual entry. (commit `fb568c4`, 2026-05-02)
 6. The safe way to fix a GPT-overwritten date: prepend `開催日時: YYYY年MM月DD日` header to `raw_description`, then set `annotation_status='pending'` to trigger re-annotation.
+
+## Event Intake Alignment & Upgrade Guards (建立與標註活動防漂移守護)
+
+在審核任何涉及使用者手動建活動、海報 OCR、或是前台標註活動（Annotate Web）功能的計畫或修改時，**必須**強制執行本三層守護守則：
+
+### 1. 同步與中心化共享規則（Shared Modules Mandate）
+- **絕對禁止各自撰寫相似表單處理**：Admin 與 Owner 的創辦活動頁面（`web/components/AdminCreateClient.tsx` 與 `web/components/OwnerCreateClient.tsx`）的表單欄位映射、成功與錯誤 UI 回饋、狀態機、讀秒動畫、雙區塊同位 notice 頁面以及標註 client action **必須 100% 共用** `web/lib/eventIntakeClient.ts` 的輔助函式。
+- **Byte-for-byte OCR 提示詞對齊**：兩端的 OCR Vision GPT prompts（`extract-from-image/route.ts`）在所有文字提示字、欄位清單、以及 Web-only glossary（例如特定的 `記念講演会` -> `紀念演講`/`Commemorative Lecture`）必須保持字元級同步，防止單邊擷取能力失衡。
+
+### 2. 合併升級限制與來源信心閘門（Source-Confidence Gate）
+在 Web 搜尋標註進行欄位合併覆寫（`eventFieldMerge.ts`）時，為避免「弱相關搜尋」產生的髒資料破壞 OCR 抓取的特徵，或直接洗掉已存在的值，必須套用以下雙信心階梯：
+- **填充覆寫（Fill Null）**：若現有欄位為空（`null`、`""`、`[]`），只要外部搜尋結果具有基本相關性即套用（要求 `bestScore >= 3`）。
+- **升級覆寫（Upgrade Overwrite）**：若現有欄位**非空**（例如地址可能是不含郵遞區號的短縮字或簡體字，欲升級為 Geolocated 正確格式），外部搜尋來源必須是高可信度關聯（要求最高命中評分 `bestScore >= 6`）。若評分不足，禁止覆蓋現有非空欄位。
+
+### 3. 本地手動指紋保護鎖（Manual-Value fingerprinted lock）
+- 為了避免自動標註（Annotate Event Action）在後台回傳時直接蓋掉使用者在本 session *手動編輯* 的精確調整，前端 form state 必須在 `onChange` 時記錄已手動修改的欄位鍵值（`lockedFields: string[]`）。
+- 當 API 返回標註結果進行 merge 覆寫時，**必須排除 `lockedFields` 指紋列表中的所有欄位**。這確保了「手動修改永久優先於 Annotate Web 自動補全」的安全保證。
 
 ## Scraper Date Timezone Guard（爬蟲日期時區守護）
 
