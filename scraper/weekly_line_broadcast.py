@@ -394,11 +394,11 @@ def _build_message(
     }
     h_title, h_week, h_month = headers[lang]
 
-    # Header shows: broadcast Friday (next Friday on or after today) → broadcast Friday + 7 days
-    days_to_fri = (4 - today.weekday()) % 7  # 0 if today is already Friday
-    broadcast_fri = today + timedelta(days=days_to_fri)
-    nearterm_start_label = broadcast_fri.strftime("%-m/%-d")
-    nearterm_end_label = (broadcast_fri + timedelta(days=7)).strftime("%-m/%-d")
+    # Header shows: this Sunday → Sunday two weeks later (mirrors _generate_weekly_content window)
+    days_since_sunday = (today.weekday() - 6) % 7  # Sun=6→0, Mon=0→1, Fri=4→5
+    nearterm_sunday = today - timedelta(days=days_since_sunday)
+    nearterm_start_label = nearterm_sunday.strftime("%-m/%-d")
+    nearterm_end_label = (nearterm_sunday + timedelta(days=14)).strftime("%-m/%-d")
     nearterm_range = f"{nearterm_start_label}–{nearterm_end_label}"
     nearterm_hdrs: dict[str, str] = {
         "zh": f"─ 本週・下週全部活動（{nearterm_range}）─",
@@ -507,7 +507,7 @@ def _generate_weekly_content(sb, ai, today: datetime) -> tuple[list[dict], list[
     """Fetch events and run AI selection.
 
     Returns (weekly_events, monthly_events, nearterm_events).
-    nearterm_events: all active annotated events from today (send_date, Fri) through today+9 (next Sun)
+    nearterm_events: all active annotated events in the Sunday-to-Sunday window (this Sun → +14 days)
     that are NOT already in the curated weekly top-10 — listed for exhaustive near-term reference.
     """
     events = _fetch_upcoming_events(sb)
@@ -522,10 +522,13 @@ def _generate_weekly_content(sb, ai, today: datetime) -> tuple[list[dict], list[
     weekly_id_set = {e["id"] for e in weekly_events}
     monthly_events = [event_map[i] for i in monthly_ids if i in event_map and i not in weekly_id_set]
 
-    # Near-term exhaustive list: all events from today (Fri) through today+9 (next Sun)
-    # that are not already in the curated top-10 picks — includes gguide_tv (TV programs)
-    nearterm_end = today + timedelta(days=9)
-    nearterm_start_iso = today.date().isoformat()
+    # Near-term exhaustive list: this Sunday → Sunday two weeks later (Sunday-to-Sunday window).
+    # "today" here is send_date (Friday in normal CI cycle, or later if manually triggered).
+    # We snap back to the Sunday on or before today, then extend 14 days to the next-next Sunday.
+    days_since_sunday = (today.weekday() - 6) % 7  # Sun=6→0, Mon=0→1, Fri=4→5
+    nearterm_start = today - timedelta(days=days_since_sunday)
+    nearterm_end = nearterm_start + timedelta(days=14)
+    nearterm_start_iso = nearterm_start.date().isoformat()
     nearterm_end_iso = nearterm_end.date().isoformat()
     # Fetch gguide_tv events separately for near-term (excluded from AI selection pool)
     tv_res = (
