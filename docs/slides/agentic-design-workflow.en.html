@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design Workflow in the Age of Agentic AI — A Practical Guide to Normativity Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;700&family=Bagel+Fat+One&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+ * Tokyo Taiwan Radar — Design tokens (mirrored from web/lib/design/tokens.ts)
+ * ============================================================ */
+:root{
+ --paper:#FFFDF5; --blush:#FFF1EE; --matcha:#F7FFE8;
+ --mocha:#3A261F; --coal:#1A1818;
+ --red:#E84860; --pink:#FF7AA0; --pink-deep:#D85862;
+ --forest:#1F5E2B; --green:#78B94E; --leaf:#C4E86F;
+ --gold:#C9A227;
+ --line:#e8e2d4;
+ --font-display:"Zen Maru Gothic",ui-sans-serif,system-ui,"Noto Sans TC",sans-serif;
+ --font-body:ui-sans-serif,system-ui,"Noto Sans TC","Noto Sans JP",sans-serif;
+ --font-mono:"JetBrains Mono",monospace;
+ --font-accent:"Bagel Fat One","Zen Maru Gothic",cursive;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--paper);}
+body{
+ background:var(--paper);
+ font-family:var(--font-body);
+ color:var(--mocha);
+ overflow:hidden;
+ display:flex;align-items:center;justify-content:center;
+}
+
+/* ---------- Deck / slide scaling ---------- */
+#deck{
+ position:relative;
+ width:1280px;height:720px;
+ transform-origin:center center;
+ box-shadow:0 20px 80px rgba(0,0,0,0.15); /* added subtle shadow to define slide area */
+}
+.slide{
+ position:absolute;inset:0;
+ display:none;
+ flex-direction:column;
+ padding:64px 80px;
+ /* layered gradient — paper base + leaf bloom (top-right) + pink bloom (bottom-left), mirrors SiteBackground depth */
+ background:
+  radial-gradient(125% 90% at 80% 8%, rgba(196,232,111,.30) 0%, transparent 48%),
+  radial-gradient(90% 85% at 8% 100%, rgba(255,122,160,.40) 0%, transparent 52%),
+  linear-gradient(135deg,var(--paper) 0%,var(--blush) 58%,var(--matcha) 100%);
+ overflow:hidden;
+}
+.slide.active{display:flex;}
+
+/* paper grid texture — Lianbu Pink grid lines, matches site SiteBackground #gridPink (#F56A82, 20px) */
+.slide::before{
+ content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+ background-image:
+  linear-gradient(rgba(245,106,130,.17) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(245,106,130,.17) 1px,transparent 1px);
+ background-size:20px 20px;
+ mask-image:radial-gradient(ellipse 120% 120% at 50% 42%,#000 80%,transparent 100%);
+}
+/* keep gradient + grid at the bottom, lift every real element above them */
+.slide>*{position:relative;z-index:1;}
+
+/* ---------- Decorative floating shapes ---------- */
+.shape{position:absolute;opacity:.85;pointer-events:none;}
+
+/* ---------- Typography ---------- */
+h1,h2,h3{font-family:var(--font-display);color:var(--mocha);line-height:1.15;}
+.eyebrow{
+ font-family:var(--font-mono);font-size:15px;letter-spacing:.18em;
+ text-transform:uppercase;color:#06C755;font-weight:700;
+ display:flex;align-items:center;gap:10px;margin-bottom:18px;
+}
+.eyebrow::before{content:"";width:28px;height:3px;background:#06C755;border-radius:2px;}
+.slide[data-accent="forest"] .eyebrow{color:#06C755;}
+.slide[data-accent="forest"] .eyebrow::before{background:#06C755;}
+.slide[data-accent="gold"] .eyebrow{color:#06C755;}
+.slide[data-accent="gold"] .eyebrow::before{background:#06C755;}
+
+.title-xl{font-size:64px;font-weight:900;letter-spacing:-.01em;}
+.title-lg{font-size:46px;font-weight:900;}
+.title-md{font-size:34px;font-weight:700;}
+.lead{font-size:21px;line-height:1.7;color:#5b4a40;max-width:60ch;}
+.fineprint{font-size:16px;color:#8a7a6e;font-family:var(--font-mono);}
+
+/* page number — LINE bright green */
+.pageno{
+ position:absolute;right:34px;bottom:26px;
+ font-family:var(--font-accent);font-size:40px;color:#06C755;
+ line-height:1;
+}
+.brandfoot{
+ position:absolute;left:80px;bottom:30px;
+ font-family:var(--font-mono);font-size:13px;letter-spacing:.1em;
+ color:#a99a8c;
+}
+
+/* ---------- Reusable blocks ---------- */
+.grid2{display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:22px;}
+.grid2>*{min-width:0;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.card{
+ background:rgba(255,255,255,.72);
+ border:1.5px solid var(--line);
+ border-radius:16px;
+ padding:24px 26px;
+ box-shadow:0 4px 12px rgba(58,38,31,.06);
+ position:relative;overflow:hidden;
+}
+.card::after{content:"";position:absolute;top:0;right:0;width:54px;height:30px;opacity:.25;pointer-events:none;}
+.card:nth-child(3n+1)::after{background-image:radial-gradient(circle,#F56A82 1.4px,transparent 1.6px);background-size:8px 8px;background-position:4px 4px;}
+.card:nth-child(3n+2)::after{background-image:repeating-linear-gradient(-45deg,var(--red) 0,var(--red) 0.8px,transparent 0.8px,transparent 4px);opacity:.2;}
+.card:nth-child(3n+3)::after{background-image:linear-gradient(var(--forest) 0.8px,transparent 0.8px),linear-gradient(90deg,var(--forest) 0.8px,transparent 0.8px);background-size:8px 8px;opacity:.25;}
+.card h3{font-size:22px;margin-bottom:10px;}
+.card p,.card li{font-size:16.5px;line-height:1.62;color:#5b4a40;}
+.card ul{padding-left:18px;}
+.card .tag{
+ display:inline-block;font-family:var(--font-mono);font-size:13px;font-weight:700;
+ padding:3px 10px;border-radius:999px;margin-bottom:10px;
+}
+/* unified light grass-green chip (mirrors site success badge #C4E86F/40 + forest text) */
+.tag.red,.tag.forest,.tag.gold,.tag.coal{background:rgba(196,232,111,.42);color:var(--forest);}
+
+.kbd{font-family:var(--font-mono);background:#ece8e3;border:1px solid var(--line);
+ border-radius:6px;padding:2px 7px;font-size:13px;color:var(--mocha);}
+
+/* pill list */
+.pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;}
+.pill{
+ font-family:var(--font-mono);font-size:14px;
+ background:rgba(255,255,255,.8);border:1.5px solid var(--line);
+ border-radius:999px;padding:7px 15px;color:var(--mocha);
+}
+
+/* layer stack */
+.stack{display:flex;flex-direction:column;gap:12px;margin-top:6px;}
+.layer{
+ display:flex;align-items:center;gap:18px;
+ background:rgba(255,255,255,.72);border:1.5px solid var(--line);
+ border-radius:12px;padding:14px 20px;
+}
+.layer .lv{font-family:var(--font-display);font-weight:900;font-size:28px;color:var(--red);
+ min-width:46px;}
+.layer h3{font-size:19px;margin:0;}
+.layer p{font-size:15px;color:#6b5a4e;margin-top:2px;}
+.layer[data-c="1"] .lv{color:var(--red);}
+.layer[data-c="2"] .lv{color:var(--pink-deep);}
+.layer[data-c="3"] .lv{color:var(--forest);}
+.layer[data-c="4"] .lv{color:var(--gold);}
+.layer .motif{width:46px;height:46px;flex-shrink:0;margin:0 2px;}
+.layer .lv{min-width:34px;}
+
+/* flow arrow */
+.flow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px;}
+.flow .node{background:rgba(255,255,255,.8);border:1.5px solid var(--line);
+ border-radius:12px;padding:12px 18px;font-size:16px;font-weight:600;}
+.flow .arr{color:var(--red);font-size:24px;font-weight:900;}
+
+.callout{
+ background:rgba(255,122,160,0.32);
+ border-radius:14px;padding:18px 22px;margin-top:16px;
+}
+.callout.forest{background:rgba(31,94,43,.07);}
+.callout strong{color:var(--mocha);}
+
+.two-col-list{columns:2;column-gap:42px;}
+.two-col-list li{font-size:16.5px;line-height:1.7;color:#5b4a40;margin-bottom:6px;
+ break-inside:avoid;list-style:none;padding-left:20px;position:relative;}
+.two-col-list li::before{content:"●";position:absolute;left:0;color:var(--red);font-size:10px;top:6px;}
+
+ul.clean{list-style:none;}
+ul.clean li{position:relative;padding-left:22px;font-size:17px;line-height:1.7;color:#5b4a40;margin-bottom:8px;}
+ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font-weight:900;}
+
+/* ---------- Cover ---------- */
+.cover{justify-content:center;padding-left:440px;}
+.cover .kicker{font-family:var(--font-mono);font-size:18px;letter-spacing:.22em;
+ color:var(--red);font-weight:700;text-transform:uppercase;margin-bottom:22px;}
+.cover h1{font-size:41px;font-weight:900;line-height:1.22;max-width:30ch;}
+.cover .sub{font-size:24px;color:#5b4a40;margin-top:24px;font-weight:500;}
+
+
+
+/* global floating background — ported from homepage Design Library */
+.floaters{position:absolute;inset:0;overflow:hidden;pointer-events:none;}
+.slide > .floaters{position:absolute;inset:0;z-index:1;}
+.mermaid{width:100%;min-width:0;display:flex;align-items:center;justify-content:center;}
+.mermaid svg{max-width:100%!important;max-height:58vh!important;height:auto!important;width:auto!important;}
+.mini-mermaid .mermaid svg{max-height:34vh!important;}
+.big-mermaid .mermaid svg{max-height:60vh!important;}
+/* compact body text — unify inner font size, used on p.11 right column */
+.compact-text .callout{font-size:15px;padding:13px 16px;margin-top:12px;}
+.compact-text ul.clean li{font-size:14.5px;line-height:1.6;margin-bottom:6px;}
+.compact-text .callout.forest{padding:11px 15px;}
+/* p.8 agent-layer columns — labels aligned in a top row, English in round font */
+.agflow{display:flex;align-items:stretch;justify-content:center;gap:8px;margin-top:26px;}
+.agcol{flex:1;display:flex;flex-direction:column;gap:10px;}
+.agcol-hl{flex:1.35;}
+.agcol-head{font-family:var(--font-display);font-weight:800;font-size:18px;color:var(--mocha);
+ text-align:center;background:rgba(255,255,255,.7);border:1.5px solid var(--line);
+ border-radius:12px;padding:12px 8px;}
+.agcol-head-hl{background:rgba(196,232,111,.42);border-color:var(--forest);color:var(--forest);}
+.agcol-body{flex:1;display:flex;flex-direction:column;gap:7px;background:rgba(255,255,255,.5);
+ border:1.5px solid var(--line);border-radius:12px;padding:14px 12px;}
+.agcol-hl .agcol-body{background:rgba(196,232,111,.22);border-color:var(--forest);border-style:solid;}
+.agcol-body .en{font-family:var(--font-display);font-weight:500;font-size:15px;color:#5b4a40;text-align:center;}
+.agdesc{font-size:14px;line-height:1.55;color:var(--forest);margin-top:6px;font-weight:600;}
+.agarr{align-self:center;color:var(--forest);font-size:26px;font-weight:900;}
+/* p.8 left red frames + signal card */
+.agleft{flex:2;display:flex;flex-direction:column;gap:8px;}
+.agleft-row{display:flex;gap:8px;}
+.agleft-row .agcol{flex:1;}
+.agcol-red .agcol-head{border-color:var(--red);color:var(--red);background:rgba(255,122,160,0.32);}
+.agcol-red .agcol-body{border-color:var(--red);}
+.agsignal{font-family:var(--font-display);font-weight:800;font-size:18px;color:var(--red);
+ text-align:center;background:rgba(255,122,160,0.32);border:1.5px solid var(--red);
+ border-radius:12px;padding:14px 8px;}
+/* compact agflow for p.9 */
+.agflow.compact{margin-top:8px;gap:6px;}
+.agflow.compact .agcol-head{font-size:14px;padding:8px 6px;}
+.agflow.compact .agcol-body{padding:8px 8px;gap:4px;}
+.agflow.compact .agcol-body .en{font-size:12.5px;}
+.agflow.compact .agdesc{font-size:11.5px;margin-top:4px;}
+.agflow.compact .agsignal{font-size:14px;padding:8px 6px;}
+.agflow.compact .agarr{font-size:20px;}
+/* all-red layer numbers (p.9 / p.17 / p.18) */
+.lv-red .layer .lv{color:var(--red)!important;}
+/* note-paper yellow + decorated header (p.10 / p.12) — wax-apple pink dots + grid corner, matcha wave underline */
+.np-head th{background:linear-gradient(135deg,#FFF6D1 0%,#FFE9A8 100%)!important;color:var(--mocha)!important;position:relative;overflow:hidden;}
+.np-head th::after{content:"";position:absolute;top:0;right:0;width:62px;height:34px;opacity:0.6;pointer-events:none;}
+.np-head th:nth-child(3n+1)::after{background-image:radial-gradient(circle,#F56A82 1.6px,transparent 1.8px);background-size:10px 10px;background-position:5px 5px;}
+.np-head th:nth-child(3n+2)::after{background-image:repeating-linear-gradient(-45deg,var(--red) 0,var(--red) 1px,transparent 1px,transparent 4.5px);opacity:.4;}
+.np-head th:nth-child(3n+3)::after{background-image:linear-gradient(var(--forest) 0.8px,transparent 0.8px),linear-gradient(90deg,var(--forest) 0.8px,transparent 0.8px);background-size:10px 10px;opacity:.45;}
+.floaters .fl{position:absolute;opacity:0;will-change:transform;
+ animation-timing-function:linear;animation-iteration-count:infinite;}
+
+/* Diverse drift directions — edge-to-edge sweep */
+@keyframes drift-tl-br {
+ 0%  { transform: translate(-760px, -460px) rotate(0deg); opacity: 0; }
+ 6%  { opacity: var(--op, 0.22); }
+ 94% { opacity: var(--op, 0.22); }
+ 100% { transform: translate(760px, 460px) rotate(var(--dr, 240deg)); opacity: 0; }
+}
+@keyframes drift-tr-bl {
+ 0%  { transform: translate(760px, -460px) rotate(0deg); opacity: 0; }
+ 6%  { opacity: var(--op, 0.22); }
+ 94% { opacity: var(--op, 0.22); }
+ 100% { transform: translate(-760px, 460px) rotate(var(--dr, -300deg)); opacity: 0; }
+}
+@keyframes drift-bl-tr {
+ 0%  { transform: translate(-760px, 460px) rotate(0deg); opacity: 0; }
+ 6%  { opacity: var(--op, 0.22); }
+ 94% { opacity: var(--op, 0.22); }
+ 100% { transform: translate(760px, -460px) rotate(var(--dr, 180deg)); opacity: 0; }
+}
+@keyframes drift-br-tl {
+ 0%  { transform: translate(760px, 460px) rotate(0deg); opacity: 0; }
+ 6%  { opacity: var(--op, 0.22); }
+ 94% { opacity: var(--op, 0.22); }
+ 100% { transform: translate(-760px, -460px) rotate(var(--dr, -200deg)); opacity: 0; }
+}
+@keyframes drift-l-r {
+ 0%  { transform: translate(-820px, 0) rotate(0deg); opacity: 0; }
+ 6%  { opacity: var(--op, 0.22); }
+ 94% { opacity: var(--op, 0.22); }
+ 100% { transform: translate(820px, 0) rotate(var(--dr, 360deg)); opacity: 0; }
+}
+@keyframes drift-r-l {
+ 0%  { transform: translate(820px, 0) rotate(0deg); opacity: 0; }
+ 6%  { opacity: var(--op, 0.22); }
+ 94% { opacity: var(--op, 0.22); }
+ 100% { transform: translate(-820px, 0) rotate(var(--dr, -360deg)); opacity: 0; }
+}
+@keyframes drift-t-b {
+ 0%  { transform: translate(0, -500px) rotate(0deg); opacity: 0; }
+ 6%  { opacity: var(--op, 0.22); }
+ 94% { opacity: var(--op, 0.22); }
+ 100% { transform: translate(0, 500px) rotate(var(--dr, 120deg)); opacity: 0; }
+}
+@keyframes drift-b-t {
+ 0%  { transform: translate(0, 500px) rotate(0deg); opacity: 0; }
+ 6%  { opacity: var(--op, 0.22); }
+ 94% { opacity: var(--op, 0.22); }
+ 100% { transform: translate(0, -500px) rotate(var(--dr, -150deg)); opacity: 0; }
+}
+
+/* cover — large mascot Lianbu, on the left, bottom kept at/above the title's last line */
+.cover .cover-mascot{position:absolute;left:110px;right:auto;top:50%;transform:translateY(-74%);
+ width:300px;height:360px;z-index:5;}
+.cover .cover-mascot .m{width:100%;height:100%;overflow:visible;
+ filter:drop-shadow(0 20px 48px rgba(232,72,96,.18));}
+
+/* Antenna Flow Animations — faster leaf-vein pulse */
+.lianbu-antenna-flow-line {
+ animation: lianbu-antenna-flow-line 8s linear infinite;
+}
+@keyframes lianbu-antenna-flow-line {
+ 0%, 22% { stroke-dashoffset: 0; opacity: 0; visibility: hidden; }
+ 24% { stroke-dashoffset: 0; opacity: 0.96; visibility: visible; }
+ 29% { stroke-dashoffset: -147; opacity: 0.96; visibility: visible; }
+ 30%, 100% { stroke-dashoffset: -171; opacity: 0; visibility: hidden; }
+}
+
+@keyframes lianbu-tip-core-flash {
+ 0%, 100% { fill: #1F5E2B; }
+ 10% { fill: #FFD700; }
+ 24% { fill: #1F5E2B; }
+}
+.lianbu-tip-core {
+ animation: lianbu-tip-core-flash 8s linear infinite;
+}
+
+@keyframes lianbu-tip-spark-flash {
+ 0%, 24%, 100% { fill: #C4E86F; opacity: 1; }
+ 10%, 18% { fill: #C4E86F; opacity: 0; }
+}
+.lianbu-tip-spark {
+ animation: lianbu-tip-spark-flash 8s linear infinite;
+}
+
+@media (prefers-reduced-motion:reduce){
+ .floaters .fl,.cover .cover-mascot .m,.lianbu-antenna-flow-line{animation:none;}
+ .floaters .fl{opacity:var(--op,.4);}
+}
+\n\n/* ---------- Section divider ---------- */
+.divider{justify-content:center;align-items:flex-start;}
+.divider .big-num{font-family:var(--font-accent);font-size:200px;color:var(--leaf);
+ -webkit-text-stroke:4px var(--forest);line-height:.8;opacity:.9;}
+.divider h2{font-size:66px;font-weight:900;margin-top:6px;}
+.divider .pillar-key{font-family:var(--font-accent);font-size:30px;color:var(--red);margin-bottom:8px;}
+.divider[data-accent="forest"] .pillar-key{color:var(--forest);}
+.divider[data-accent="gold"] .pillar-key{color:var(--gold);}
+/* giant pillar word — wax-apple red, super-bold round, replaces key+number */
+.divider .pillar-word{font-family:var(--font-display);font-weight:900;font-size:120px;
+ color:var(--red);line-height:.92;letter-spacing:-.02em;margin-bottom:4px;}
+
+/* ---------- Controls / progress ---------- */
+#progress{position:fixed;top:0;left:0;height:4px;background:var(--red);z-index:50;
+ transition:width .25s ease;}
+#hud{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
+ font-family:var(--font-mono);font-size:12px;color:#d9cbbd;letter-spacing:.12em;
+ background:rgba(0,0,0,.28);padding:5px 14px;border-radius:999px;z-index:50;}
+#hud b{color:#fff;}
+
+@media print{
+ @page{size:1280px 720px;margin:0;}
+ body{display:block;background:#fff;overflow:visible;}
+ #deck{width:1280px;height:auto;transform:none!important;}
+ .slide{display:flex!important;position:relative;page-break-after:always;}
+ #progress,#hud{display:none;}
+}
+
+.card.glass{background:rgba(255, 253, 245, 0.72)!important;border-color:rgba(58,38,31,.1)!important;}
+.card.no-decor::after{display:none!important;}
+.no-decor::after{display:none!important;}
+
+/* Mascot Clone (Clone) Animation - Slide 20 */
+.mascot-clones {
+ position: relative;
+ height: 240px;
+ margin-top: -60px;
+}
+.mascot-clones svg {
+ position: absolute;
+ opacity: 0;
+ animation: mascot-flash-fade 12s linear infinite;
+}
+.mascot-clones svg:nth-child(1) { animation-delay: 0s; }
+.mascot-clones svg:nth-child(2) { animation-delay: 4s; }
+.mascot-clones svg:nth-child(3) { animation-delay: 8s; }
+
+@keyframes mascot-flash-fade {
+ 0%   { opacity: 0; transform: scale(0.92) rotate(-14deg); }
+ 10%  { opacity: 0.8; transform: scale(1.02) rotate(-8deg); } /* ease in */
+ 20%  { opacity: 0.6; transform: scale(1) rotate(-2deg); }
+ 30%  { opacity: 0.3; transform: scale(1) rotate(4deg); }
+ 38%  { opacity: 0; transform: scale(0.96) rotate(10deg); }   /* smooth fade out */
+ 100% { opacity: 0; transform: scale(0.92) rotate(10deg); }
+}
+
+/* Floating & Glowing Mascot for p.8 Persona */
+.persona-mascot {
+ position: absolute;
+ top: -20px;
+ right: -40px;
+ width: 160px; /* 32px * 5 = 160px */
+ height: 160px;
+ z-index: 10;
+ pointer-events: none;
+ filter: drop-shadow(0 0 15px rgba(255, 122, 160, 0.6)) drop-shadow(0 0 30px rgba(232, 72, 96, 0.4));
+ animation: persona-float 6s ease-in-out infinite, persona-glow 4s ease-in-out infinite alternate;
+}
+
+@keyframes persona-float {
+ 0%, 100% { transform: translateY(0) rotate(5deg); }
+ 50% { transform: translateY(-15px) rotate(-5deg); }
+}
+
+@keyframes persona-glow {
+ 0% { filter: drop-shadow(0 0 10px rgba(255, 122, 160, 0.4)) drop-shadow(0 0 20px rgba(232, 72, 96, 0.2)); }
+ 100% { filter: drop-shadow(0 0 20px rgba(255, 122, 160, 0.8)) drop-shadow(0 0-40px rgba(232, 72, 96, 0.6)); }
+}
+
+/* Fix Mermaid Responsive Overflow — constrain by HEIGHT so card stays above brandfoot */
+.big-mermaid{min-width:0!important;align-self:start!important;}
+.big-mermaid .mermaid svg{
+  width:auto!important;
+  height:auto!important;
+  max-width:100%!important;
+  max-height:420px!important;
+}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div id="hud">← → Navigation ・ <b id="hud-cur">1</b>/<b id="hud-tot">21</b> ・ F Fullscreen</div>
+
+<!-- Mascot symbol (wax-apple Lianbu) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <defs id="floater-defs">
+  <linearGradient id="flow-grad" x1="160" y1="30" x2="100" y2="80" gradientUnits="userSpaceOnUse">
+   <stop offset="0%" stop-color="#FAEAB0" />
+   <stop offset="50%" stop-color="#C4E86F" />
+   <stop offset="100%" stop-color="#FFFFFF" />
+  </linearGradient>
+  <radialGradient id="tip-ring-grad" cx="164" cy="26" r="64" gradientUnits="userSpaceOnUse">
+   <stop offset="0%" stop-color="#FFD700" stop-opacity="0.95" />
+   <stop offset="50%" stop-color="#FFED4D" stop-opacity="0.7" />
+   <stop offset="100%" stop-color="#A8D840" stop-opacity="0" />
+  </radialGradient>
+  <mask id="tip-ring-mask" maskUnits="userSpaceOnUse" x="100" y="-38" width="128" height="128">
+   <circle cx="164" cy="26" r="64" fill="white" />
+   <circle cx="164" cy="26" r="0" fill="black">
+    <animate attributeName="r" values="0;0;64;64;0;0" keyTimes="0;0.075;0.24;0.25;0.251;1" dur="8s" repeatCount="indefinite" calcMode="linear" />
+   </circle>
+  </mask>
+  <filter id="flow-glow" x="-50%" y="-50%" width="200%" height="200%">
+   <feGaussianBlur stdDeviation="3.4" result="blur" />
+   <feMerge>
+    <feMergeNode in="blur" />
+    <feMergeNode in="SourceGraphic" />
+   </feMerge>
+  </filter>
+ </defs>
+ <symbol id="lianbu" viewBox="0 -50 250 320">
+  <g transform="translate(20 0) rotate(3 100 150)">
+   <path d="M100,80 C110,30 60,0 80,20 C100,40 140,50 160,30" fill="none" stroke="#1F5E2B" stroke-width="4.5" stroke-linecap="round"/>
+   <path class="lianbu-antenna-flow-line" d="M160,30 C140,50 100,40 80,20 C60,0 110,30 100,80" fill="none" stroke="url(#flow-grad)" stroke-width="3.6" stroke-linecap="round" opacity="0" visibility="hidden" stroke-dasharray="171 171" />
+   <circle class="lianbu-antenna-flow-dot" cx="100" cy="80" r="4.2" fill="#FFFFFF" filter="url(#flow-glow)" opacity="0" visibility="hidden">
+    <animateMotion dur="12s" repeatCount="indefinite" rotate="auto" path="M160,30 C140,50 100,40 80,20 C60,0 110,30 100,80" keyTimes="0;0.24;0.29;1" keyPoints="0;0;1;1" calcMode="linear" />
+   </circle>
+   <g>
+    <circle cx="164" cy="26" r="11" fill="none" stroke="#1F5E2B" stroke-width="1.4" opacity="0.4" />
+    <circle class="lianbu-tip-ring" cx="164" cy="26" r="11" fill="url(#tip-ring-grad)" opacity="0" mask="url(#tip-ring-mask)">
+     <animate attributeName="r" values="11;64;64;11;11" keyTimes="0;0.10;0.24;0.25;1" dur="8s" repeatCount="indefinite" calcMode="linear" />
+     <animate attributeName="opacity" values="0;0.95;0.95;0;0" keyTimes="0;0.10;0.24;0.25;1" dur="8s" repeatCount="indefinite" calcMode="linear" />
+    </circle>
+    <circle class="lianbu-tip-core" cx="164" cy="26" r="6" fill="#1F5E2B" />
+    <circle class="lianbu-tip-spark" cx="164" cy="26" r="2.2" fill="#C4E86F" />
+   </g>
+   <path d="M100,80 C 86,80 78,88 74,98 C 72,108 66,116 60,128 C 46,146 30,166 36,190 C 44,210 72,216 102,216 C 132,216 160,210 164,190 C 170,166 154,146 140,128 C 134,116 128,108 126,98 C 122,88 114,80 100,80 Z" fill="#E84860"/>
+   <ellipse cx="58" cy="142" rx="13.3" ry="8" fill="#FF7AA0" opacity="0.65" transform="rotate(-10 58 142)"/>
+   <ellipse cx="146" cy="150" rx="12" ry="6.5" fill="#FF7AA0" opacity="0.75" transform="rotate(12 146 150)"/>
+   <ellipse cx="80" cy="116" rx="13" ry="14" fill="white"/>
+   <circle cx="78" cy="118" r="7" fill="#1A1818"/>
+   <circle cx="75" cy="115" r="2.6" fill="white"/>
+   <path d="M116,128 Q124,118 132,128" fill="none" stroke="#1A1818" stroke-width="4.5" stroke-linecap="round"/>
+  </g>
+ </symbol>
+</svg>
+
+
+<div id="deck">
+ 
+
+ <!-- 1 ▸ COVER -->
+ <section class="slide cover active" data-accent="red">
+  <div class="cover-mascot" aria-hidden="true">
+   <svg class="m" viewBox="0 -50 250 270"><use href="#lianbu"></use></svg>
+  </div>
+  <div class="kicker">Normativity Design</div>
+
+  <h1>Design Workflow<br>in the Age of Agentic AI</h1>
+  <div class="sub">A Practical Guide to Normativity Design</div>
+  <div class="meta">Case Study: Tokyo Taiwan Radar</div>
+ </section>
+
+ <!-- 2 ▸ §1 Show the Site -->
+ <section class="slide" data-accent="red">
+  <svg class="shape" style="top:-50px;left:-40px;width:200px" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#FF7AA0" opacity=".4"/></svg>
+  <div class="eyebrow">01 ・ Intro</div>
+  <h2 class="title-lg">Show the Site First</h2>
+  <p class="lead" style="margin-top:18px">Before we dive into today's topic, let's look at a <strong>real-world case study</strong> — a live product that updates automatically every day.</p>
+  <div class="grid3" style="margin-top:30px">
+   <div class="card glass"><span class="tag red">LIVE</span><h3>Trilingual Platform</h3><p>Aggregates Taiwan-related cultural events across Japan, synchronized in TW, JA, and EN.</p></div>
+   <div class="card glass"><span class="tag forest">Automation</span><h3>Daily Scraper + Annotation</h3><p>Multi-source scraping → AI annotation → Translation → Launch, fully agent-driven.</p></div>
+   <div class="card glass"><span class="tag coal">Design System</span><h3>Lianbu Mascot</h3><p>Procedural Bauhaus visuals; this slide deck uses the same design tokens.</p></div>
+  </div>
+  <div class="callout">🔗 <strong>Live Demo:</strong> tokyotaiwanradar.com — Observe where every field on the screen comes from as we talk.</div>
+  <span class="brandfoot">TOKYO TAIWAN RADAR</span><span class="pageno">02</span>
+ </section>
+
+ <!-- 3 ▸ §2 Outline -->
+ <section class="slide" data-accent="red">
+  <div class="eyebrow">02 ・ Outline</div>
+  <h2 class="title-lg">Three Pillars: F ・ S ・ B</h2>
+  <div class="grid3" style="margin-top:36px">
+   <div class="card glass">
+    <span class="tag red">F — Function</span>
+    <h3>How the site works</h3>
+    <p>What does the product do? What should be automated? Mapping Design Thinking to MVP.</p>
+   </div>
+   <div class="card glass">
+    <span class="tag forest">S — Structure</span>
+    <h3>How the site is built</h3>
+    <p>Where does the agent live? Workflow vs. Agent, Agentic DevOps, and Skill update loops.</p>
+   </div>
+   <div class="card glass">
+    <span class="tag gold">B — Behaviour</span>
+    <h3>Design & Build</h3>
+    <p>The relationship between humans and agentic products, FBS thinking, and the four levels of design.</p>
+   </div>
+  </div>
+  <div class="callout">Core Proposition: <strong>Normativity Design = Gradually converging "probabilistic behavior" into "auditable norms."</strong></div>
+  <span class="brandfoot">F · S · B</span><span class="pageno">03</span>
+ </section>
+
+ <!-- 4 ▸ §3 F divider -->
+ <section class="slide divider" data-accent="red">
+  <use href="#lianbu" width="120" height="132" style="position:absolute;top:80px;right:120px;transform:rotate(3deg)"></use>
+  <div class="pillar-word">Function</div>
+  <h2>How the site works</h2>
+  <p class="lead" style="margin-top:18px">Distinguish between "tasks to automate" and "tasks requiring flexible judgment" — this step determines where agents can truly add value.</p>
+  <span class="pageno">04</span>
+ </section>
+
+ <!-- 5 ▸ F-1/2/3 -->
+ <section class="slide" data-accent="red">
+  <div class="eyebrow">03 ・ F — Three Modalities</div>
+  <h2 class="title-md">F1 Stable & Auditable · F2 Flexible Judgment · F3 Discerning Structure</h2>
+  <div class="grid3" style="margin-top:26px">
+   <div class="card glass">
+    <span class="tag coal">F1</span><h3>Stable · Auditable</h3>
+    <ul class="clean">
+     <li>Processing repetitive/complex tasks</li>
+     <li>Traditional automation</li>
+     <li>High compliance requirements, high precision data</li>
+    </ul>
+    <p style="margin-top:10px;color:var(--pink-deep);font-weight:600">→ Often doesn't need an agent</p>
+   </div>
+   <div class="card glass">
+    <span class="tag forest">F2</span><h3>Adaptability</h3>
+    <ul class="clean">
+     <li>High cost</li>
+     <li>Flexible judgment required</li>
+     <li>No standard answer</li>
+    </ul>
+    <p style="margin-top:10px;color:var(--red);font-weight:600">→ Where agents truly shine</p>
+   </div>
+   <div class="card glass">
+    <span class="tag gold">F3</span><h3>Discerning Structure</h3>
+    <ul class="clean">
+     <li>Step 1: Determine if it's F1 or F2</li>
+     <li>F1 → Deterministic Rules / Code</li>
+     <li>F2 → Implement Agents</li>
+    </ul>
+   </div>
+  </div>
+  <div class="callout">F1, F2, and F3 require very different approaches — understand how "Function" translates, then think about "Structure."</div>
+  <span class="brandfoot">FUNCTION</span><span class="pageno">05</span>
+ </section>
+
+ <!-- 6 ▸ F Minimum Scope -->
+ <section class="slide" data-accent="red">
+  <svg class="shape" style="bottom:-40px;right:-30px;width:240px" viewBox="0 0 100 100"><polygon points="50,0 100,100 0,100" fill="#C4E86F" opacity=".45"/></svg>
+  <div class="eyebrow">03 ・ F — Starting Point</div>
+  <h2 class="title-lg">Min Scope · Target · User Needs</h2>
+  <p class="lead" style="margin-top:18px">The key to Function isn't "how much can be done," but narrowing the scope to the absolute minimum — linking Design Thinking to MVP.</p>
+  <div class="flow" style="margin-top:30px">
+   <div class="node">User Needs</div><span class="arr">→</span>
+   <div class="node">Target Audience</div><span class="arr">→</span>
+   <div class="node">Minimum Scope</div><span class="arr">→</span>
+   <div class="node" style="border:1.5px solid #16a34a;color:#15803d;background:var(--paper)">Verifiable MVP</div>
+  </div>
+  <div class="callout" style="margin-top:28px">
+   <strong>Design Thinking:</strong> Understand the real problem before deciding on an agent.<br>
+   <strong>MVP:</strong> Run a minimum end-to-end path before talking about scale.
+  </div>
+  <span class="brandfoot">FUNCTION</span><span class="pageno">06</span>
+ </section>
+
+ <!-- 7 ▸ §4 S divider -->
+ <section class="slide divider" data-accent="forest">
+  <use href="#lianbu" width="120" height="132" style="position:absolute;top:80px;right:120px;transform:rotate(3deg)"></use>
+  <div class="pillar-word">Structure</div>
+  <h2>How the site is built</h2>
+  <p class="lead" style="margin-top:18px">Where does the agent live? The boundary between Workflow and Agent. How traditional DevOps evolves into a Skill Update Loop.</p>
+  <span class="pageno">07</span>
+ </section>
+
+ <!-- 8 ▸ S-1 where-is-agent concept -->
+ <section class="slide" data-accent="forest">
+  <div class="eyebrow">04 ・ S-1</div>
+  <h2 class="title-md">Where is the agent?</h2>
+  <p class="lead" style="margin-top:6px;color:#6b5a4e">In Multi-Agent platforms, UX is hidden beneath the surface — agents live in the "Processing Layer."</p>
+  <div class="agflow">
+   <div class="agleft">
+    <div class="agleft-row">
+     <div class="agcol agcol-red">
+      <div class="agcol-head">User</div>
+      <div class="agcol-body"><span class="en">Input / Utterance</span><span class="en">1~N intents</span><span class="en">multi-turns</span></div>
+     </div>
+     <div class="agcol agcol-red">
+      <div class="agcol-head">ChatUI / VUI</div>
+      <div class="agcol-body" style="position:relative">
+              <span class="en">Persona</span>
+              <div class="persona-mascot">
+                <svg viewBox="0 -50 250 320" style="width:100%;height:100%"><use href="#lianbu"></use></svg>
+              </div>
+            </div>
+     </div>
+    </div>
+    <div class="agsignal">Signal</div>
+   </div>
+   <span class="agarr">⇄</span>
+   <div class="agcol agcol-hl">
+    <div class="agcol-head agcol-head-hl">★ Agent Processing Layer</div>
+    <div class="agcol-body">
+     <span class="en">Orchestrator / Selector</span>
+     <span class="en">Agent A ・ Agent B ・ Agent C</span>
+     <p class="agdesc">This is the area we are discussing — the Orchestrator plans and dispatches multiple agents, each with its Model, Memory, Skill, and Tool.</p>
+    </div>
+   </div>
+   <span class="agarr">⇄</span>
+   <div class="agcol">
+    <div class="agcol-head">System / Data Sources</div>
+    <div class="agcol-body"><span class="en">Database</span><span class="en">Web Search</span><span class="en">Product / System</span><span class="en">Dev Env</span></div>
+   </div>
+  </div>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">08</span>
+ </section>
+
+ <!-- 9 ▸ S-1 4 layers -->
+ <section class="slide" data-accent="forest">
+  <div class="eyebrow">04 ・ S-1</div>
+  <h2 class="title-md">Where is the agent? — 4 Layers</h2>
+  <div class="agflow compact">
+   <div class="agleft">
+    <div class="agleft-row">
+     <div class="agcol agcol-red">
+      <div class="agcol-head">User</div>
+      <div class="agcol-body"><span class="en">Input / Utterance</span><span class="en">1~N intents</span><span class="en">multi-turns</span></div>
+     </div>
+     <div class="agcol agcol-red">
+      <div class="agcol-head">ChatUI / VUI</div>
+      <div class="agcol-body" style="position:relative">
+              <span class="en">Persona</span>
+              <div class="persona-mascot">
+                <svg viewBox="0 -50 250 320" style="width:100%;height:100%"><use href="#lianbu"></use></svg>
+              </div>
+            </div>
+     </div>
+    </div>
+    <div class="agsignal">Signal</div>
+   </div>
+   <span class="agarr">⇄</span>
+   <div class="agcol agcol-hl">
+    <div class="agcol-head agcol-head-hl">★ Agent Processing Layer</div>
+    <div class="agcol-body">
+     <span class="en">Orchestrator / Selector</span>
+     <span class="en">Agent A ・ Agent B ・ Agent C</span>
+     <p class="agdesc">This is the area we are discussing — the Orchestrator plans and dispatches multiple agents, each with its Model, Memory, Skill, and Tool.</p>
+    </div>
+   </div>
+   <span class="agarr">⇄</span>
+   <div class="agcol">
+    <div class="agcol-head">System / Data Sources</div>
+    <div class="agcol-body"><span class="en">Database</span><span class="en">Web Search</span><span class="en">Product / System</span><span class="en">Dev Env</span></div>
+   </div>
+  </div>
+  <div class="stack lv-red" style="margin-top:14px">
+   <div style="display:grid;grid-template-columns:0.9fr 1.1fr;gap:18px">
+    <div class="layer" data-c="1"><span class="lv">1</span><div><h3>Conversational UI</h3><p>Chatbots, CS, Q&A.</p></div></div>
+    <div class="layer" data-c="2"><span class="lv">2</span><div><h3>Task Execution</h3><p>Scraping, Annotation, Audit.</p></div></div>
+   </div>
+   <div class="layer" data-c="3"><span class="lv">3</span><div><h3>Dev Layer</h3><p>Building the product: plan → engineer → tester.</p></div></div>
+   <div class="layer" data-c="4"><span class="lv">4</span><div><h3>Ops Layer</h3><p>Feedback loops, metrics, eval.</p></div></div>
+  </div>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">09</span>
+ </section>
+
+ <!-- 9 ▸ S-2 workflow vs agent -->
+ <section class="slide" data-accent="forest">
+  <div class="eyebrow">04 ・ S-2</div>
+  <h2 class="title-md">Workflow vs Agent</h2>
+  <div class="flow" style="margin-top:16px">
+   <div class="node">Fixed Workflow</div><span class="arr">⇄</span>
+   <div class="node" style="border:1.50px solid #16a34a;color:#15803d;background:var(--paper)">Flexible Agent</div>
+   <span style="margin-left:14px;color:#6b5a4e">Sliding based on "judgment requirement"</span>
+  </div>
+  <div style="margin-top:22px;border:1px solid #d8cfc4;border-radius:14px;overflow:hidden">
+  <table style="width:100%;border-collapse:collapse;font-size:18px">
+   <thead>
+    <tr class="np-head">
+     <th style="padding:12px 16px;text-align:left;border:1px solid #d8cfc4;width:230px">Workflow vs Agent</th>
+     <th style="padding:12px 16px;text-align:left;border:1px solid #d8cfc4">Fixed Workflow: Fixed steps, predictable</th>
+     <th style="padding:12px 16px;text-align:left;border:1px solid #d8cfc4">Flexible Agent: Needs judgment</th>
+    </tr>
+   </thead>
+   <tbody>
+    <tr><td style="padding:12px 16px;border:1px solid #d8cfc4;font-weight:700;background:var(--paper)">CS chatbot → agent</td><td style="padding:12px 16px;border:1px solid #d8cfc4;background:var(--paper)">"Answers by script"</td><td style="padding:12px 16px;border:1px solid #d8cfc4;background:var(--paper)">"Research, judge, drive"</td></tr>
+    <tr><td style="padding:12px 16px;border:1px solid #d8cfc4;font-weight:700;background:var(--paper)">Internal Audit agent</td><td style="padding:12px 16px;border:1px solid #d8cfc4;background:var(--paper)">"Audit against strict norms & data"</td><td style="padding:12px 16px;border:1px solid #d8cfc4;background:var(--paper)">"Research, judge, drive"</td></tr>
+   </tbody>
+  </table>
+  </div>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">09</span>
+ </section>
+
+ <!-- 11 ▸ S-2 site architecture -->
+ <section class="slide" data-accent="forest">
+  <div class="eyebrow">04 ・ S-2</div>
+  <h2 class="title-md">Site Architecture: Agents inside Workflow</h2>
+  <div class="grid2" style="margin-top:14px;gap:12px;grid-template-columns:repeat(2, minmax(0, 1fr));align-items:center">
+   <div class="card big-mermaid no-decor" style="padding:8px;overflow:hidden;display:flex;flex-direction:column;align-items:center;text-align:center">
+    <div style="display:flex;gap:6px;margin-bottom:6px;width:100%">
+     <div style="flex:1;text-align:center;font-weight:800;font-size:14px;color:var(--mocha);background:rgba(58,38,31,.06);border-radius:8px;padding:6px 4px">Workflow Skeleton</div>
+     <div style="flex:1;text-align:center;font-weight:800;font-size:14px;color:var(--forest);background:rgba(196,232,111,.42);border-radius:8px;padding:6px 4px">Agentic Judgment</div>
+    </div>
+    <pre class="mermaid" style="margin:0;background:none;border:none;width:100%;">
+%%{init: {"flowchart":{"htmlLabels":false},"themeVariables":{"fontSize":"28px"}}}%%
+graph TD
+ subgraph WF[" "]
+  Cron[Daily Cron] --&gt; Scrape[Scrapers: Static]
+  Scrape --&gt; Merger[Merger: Rules]
+  Merger --&gt; Storage[(Supabase: Data)]
+  Storage --&gt; Web[Next.js Web: UI]
+ end
+ subgraph AG[" "]
+  Researcher[Researcher: Discovery]
+  Poster[Poster: Vision]
+  Annotator[Annotator: Logic]
+  Researcher ~~~ Poster ~~~ Annotator
+ end
+ Researcher -.-&gt; Cron
+ Scrape -.-&gt; Poster
+ Merger -.-&gt; Annotator
+ Annotator -.-&gt; Storage
+ linkStyle 6 stroke:#E84860,stroke-width:3px,stroke-dasharray:6 6
+ linkStyle 7,8,9 stroke:#F56A82,stroke-width:3px,stroke-dasharray:6 6
+    </pre>
+   </div>
+   <div class="compact-text">
+    <div class="callout" style="margin-top:0"><strong>Agents Embedded within Workflow</strong></div>
+    <ul class="clean" style="margin-top:12px">
+     <li><strong>Workflow provides context:</strong> Triggered by Cron, feeding raw data to agents.</li>
+     <li><strong>Agent executes judgment:</strong> Annotator performs semantic parsing per event.</li>
+     <li><strong>Workflow ensures landing:</strong> Results are written back to Supabase.</li>
+    </ul>
+    <div class="callout"><strong>Stability of automation</strong> combined with the <strong>flexibility</strong> of AI.</strong>.</div>
+   </div>
+  </div>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">11</span>
+ </section>
+
+ <!-- S-3 unification (moved before DevOps) -->
+ <section class="slide" data-accent="forest">
+  <div class="eyebrow">04 ・ S-3</div>
+  <h2 class="title-md">S-3 ・ 32 Scrapers, Not 32 Agents</h2>
+  <div class="callout forest" style="margin-top:14px">
+   I combined crawers for 32 cinemas — not 32 agents, but
+   <strong>32 workflows + shared modules + agentic judgment</strong>.
+  </div>
+  <div style="margin-top:20px;border:1px solid #d8cfc4;border-radius:14px;overflow:hidden">
+  <table style="width:100%;border-collapse:collapse;font-size:18px">
+   <thead>
+    <tr class="np-head no-decor">
+     <th style="padding:10px 14px;text-align:left;border:1px solid #d8cfc4;width:130px"></th>
+     <th style="padding:10px 14px;text-align:left;border:1px solid #d8cfc4">Code Shared Modules</th>
+     <th style="padding:10px 14px;text-align:left;border:1px solid #d8cfc4">agent / skill</th>
+    </tr>
+   </thead>
+   <tbody>
+    <tr><td style="padding:10px 14px;border:1px solid #d8cfc4;font-weight:700;background:var(--paper)">Run Time</td><td style="padding:10px 14px;border:1px solid #d8cfc4;background:var(--paper)">Daily CI run</td><td style="padding:10px 14px;border:1px solid #d8cfc4;background:var(--paper)">During Coding (Dev)</td></tr>
+    <tr><td style="padding:10px 14px;border:1px solid #d8cfc4;font-weight:700;background:var(--paper)">What it is</td><td style="padding:10px 14px;border:1px solid #d8cfc4;background:var(--paper)">Python Shared Code</td><td style="padding:10px 14px;border:1px solid #d8cfc4;background:var(--paper)">Markdown Docs</td></tr>
+    <tr><td style="padding:10px 14px;border:1px solid #d8cfc4;font-weight:700;background:var(--paper)">Scale</td><td style="padding:10px 14px;border:1px solid #d8cfc4;background:var(--paper)">32 scrapers, 1 module</td><td style="padding:10px 14px;border:1px solid #d8cfc4;background:var(--paper)">1 KB for all scrapers</td></tr>
+    <tr><td style="padding:10px 14px;border:1px solid #d8cfc4;font-weight:700;background:var(--paper)">Unification</td><td style="padding:10px 14px;border:1px solid #d8cfc4;background:var(--paper)">DRY, maintainability</td><td style="padding:10px 14px;border:1px solid #d8cfc4;background:var(--paper)">Single Source of Truth</td></tr>
+   </tbody>
+  </table>
+  </div>
+  <p class="fineprint" style="margin-top:12px">＊ See source code</p>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">10</span>
+ </section>
+
+ <!-- S-4 DevOps (moved after unification) -->
+ <section class="slide" data-accent="forest">
+  <div class="eyebrow">04 ・ S-4</div>
+  <h2 class="title-md">DevOps Evolution: From Code to Skill</h2>
+  <div class="grid2" style="margin-top:auto;margin-bottom:auto">
+   <div class="card glass">
+    <span class="tag coal">S-4a ・ Traditional DevOps</span>
+    <div class="flow"><div class="node">Build</div><span class="arr">→</span><div class="node">Operate</div><span class="arr">→</span><div class="node">Feedback</div></div>
+   </div>
+   <div class="card glass">
+    <span class="tag forest">S-4b ・ Agentic DevOps</span>
+    <div class="flow"><div class="node">Build</div><span class="arr">→</span><div class="node">Operate</div><span class="arr">→</span><div class="node" style="border:1.5px solid #16a34a;color:#15803d;background:var(--paper)">Skill Update</div></div>
+    <p style="margin-top:10px">Feedback doesn't just change code; it crystallizes into <strong>Skills</strong>.</p>
+   </div>
+  </div>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">12</span>
+ </section>
+
+ <!-- S-5 agent Three Modalities of Collaboration -->
+ <section class="slide" data-accent="forest">
+  <div class="eyebrow">04 ・ S-5</div>
+  <h2 class="title-md">Agent Architectures & Collaboration</h2>
+  <div class="stack" style="margin-top:22px">
+   <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">1</span><div><h3>Atomic: One Agent + Skill + History</h3><p>Atomic unit: A single agent with dedicated SKILL.md and history.md, capable of independent completion and self-learning.</p></div></div>
+   <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">2</span><div><h3>Multi-Agent Orchestration</h3><p>Tree-based: plan → engineer → tester. Specialized agents interconnected for parallel multitasking.</p></div></div>
+   <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">3</span><div><h3>AutonomousOperate agent (Longrun agent)</h3><p>Runs on schedules or signals without human triggers — daily reviews, audits, and health checks.</p></div></div>
+  </div>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">14</span>
+ </section>
+
+ <!-- 11 ▸ §5 B divider -->
+ <section class="slide divider" data-accent="gold">
+  <use href="#lianbu" width="120" height="132" style="position:absolute;top:80px;right:120px;transform:rotate(3deg)"></use>
+  <div class="pillar-word">Behavior</div>
+  <h2>Design & Build</h2>
+  <p class="lead" style="margin-top:18px">How does the Mindset shift from "determinism" to "probabilistic control" when designing AI products?</p>
+  <span class="pageno">11</span>
+ </section>
+
+ <!-- 12 ▸ B-1 Probabilistic Control + FBS -->
+ <section class="slide" data-accent="gold">
+  <div class="eyebrow">05 ・ B-1</div>
+  <h2 class="title-md">Re-evaluating Design Variables</h2>
+  <div style="display:grid;grid-template-columns:1.8fr 1fr;gap:16px;margin-top:16px;align-items:start">
+   <div class="card glass shadow-sm" style="background:rgba(255, 253, 245, 0.72);border:none;padding:10px">
+    <svg viewBox="0 0 480 340" style="width:auto;max-width:100%;height:auto;max-height:330px;display:block;margin:0 auto" font-family="inherit">
+     <defs>
+      <marker id="fbs-ar" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+       <path d="M0 0L10 5L0 10z" fill="#7a6a3a"/>
+      </marker>
+      <marker id="fbs-ar-pink" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+       <path d="M0 0L10 5L0 10z" fill="#E84860"/>
+      </marker>
+      <marker id="fbs-ar-blue" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+       <path d="M0 0L10 5L0 10z" fill="#3B5BA9"/>
+      </marker>
+     </defs>
+     <!-- brown single-headed: 1(R→F) 1(F→Be) 5(S→D) 3(S→Bs) -->
+     <g stroke="#7a6a3a" stroke-width="1.8" fill="none" marker-end="url(#fbs-ar)">
+      <line x1="66" y1="86" x2="118" y2="86"/>
+      <path d="M146 112 C 148 150, 150 200, 156 242"/>
+      <line x1="348" y1="86" x2="418" y2="86"/>
+      <path d="M322 112 C 318 162, 326 216, 321 232"/>
+     </g>
+     <!-- brown reversed: 2(Be→S) arrow at S end -->
+     <g stroke="#7a6a3a" stroke-width="1.8" fill="none" marker-start="url(#fbs-ar)">
+      <path d="M314 108 C 256 168, 224 214, 188 245"/>
+     </g>
+     <!-- pink single-headed: 6 7 8 -->
+     <g stroke="#E84860" stroke-width="1.8" fill="none" marker-end="url(#fbs-ar-pink)">
+      <path d="M320 72 C 306 34, 356 34, 338 70"/>
+      <path d="M336 106 C 410 130, 395 295, 240 305 C 200 305, 175 300, 162 284"/>
+      <path d="M344 112 C 435 150, 435 320, 240 332 C 120 332, 105 250, 126 106"/>
+     </g>
+     <!-- comparison arrow (double-headed) 4(Be↔Bs) -->
+     <g stroke="#7a6a3a" stroke-width="1.8" fill="none" marker-end="url(#fbs-ar)" marker-start="url(#fbs-ar)">
+      <line x1="188" y1="260" x2="276" y2="260"/>
+     </g>
+     <!-- node letters -->
+     <g font-size="34" font-weight="800" text-anchor="middle" fill="#7a6a3a" font-style="italic">
+      <text x="46" y="98">R</text>
+      <text x="138" y="98">F</text>
+      <text x="322" y="98">S</text>
+      <text x="446" y="98">D</text>
+      <text x="160" y="270">Be</text>
+      <text x="314" y="270">Bs</text>
+     </g>
+     <!-- brown step numbers: 1 1 4 5 2 3 -->
+     <g font-size="15" fill="#b07d2a" font-weight="700" text-anchor="middle">
+      <text x="92" y="76">1</text>
+      <text x="168" y="166">1</text>
+      <text x="232" y="282">4</text>
+      <text x="384" y="76">5</text>
+      <text x="238" y="176">2</text>
+      <text x="346" y="166">3</text>
+     </g>
+     <!-- pink step numbers: 6 7 8 -->
+     <g font-size="15" fill="#E84860" font-weight="800" text-anchor="middle">
+      <text x="321" y="31">6</text>
+      <text x="185" y="316">7</text>
+      <text x="100" y="128">8</text>
+     </g>
+    </svg>
+    <p style="margin:8px 0 0;font-size:13px;color:#6b5a4e;line-height:1.6">
+     R: Req, F: Func, Be: Exp. Behavior, Bs: Str. Behavior, S: Struct, D: Design Desc.<br>Single arrow＝Transformation, Double arrow＝Comparison.
+    </p>
+   </div>
+   <div class="compact-text">
+    <div class="card" style="margin-top:0;background:rgba(201,162,39,.24);border-color:var(--gold);padding:13px 15px">
+     <ul class="clean" style="font-size:15px">
+      <li>How the site works ─ <strong>F</strong></li>
+      <li>How the site is built ─ <strong>S</strong></li>
+      <li>Relationship between Design and Build ─ <strong>B</strong></li>
+     </ul>
+    </div>
+    <div class="callout">
+     <strong>Everything is Probabilistic Control.</strong><br>
+     Goal: "Narrow the probability of failure," eventually "hardcoding" it into norms.
+    </div>
+    <div class="card" style="margin-top:12px;background:rgba(201,162,39,.24);border-color:var(--gold);padding:13px 15px">
+     <span class="tag gold">FBS Principle</span>
+     <p style="font-size:14.5px;line-height:1.6">Generating "Structure S" directly from "Req R" using LLMs often fails — it violates the FBS principle that <strong>Function cannot directly link to Structure</strong> without Behavior.</p>
+    </div>
+   </div>
+  </div>
+  <span class="brandfoot">BEHAVIOUR</span><span class="pageno">12</span>
+ </section>
+
+ <!-- 13 ▸ B-2 Four Levels -->
+ <section class="slide" data-accent="gold">
+  <div class="eyebrow">05 ・ B-2</div>
+  <h2 class="title-md">AI Era ProductBuild = Designing four things at once</h2>
+  <div class="stack lv-red" style="margin-top:14px">
+   <div class="layer" data-c="1"><span class="lv">1</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg1a" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M7 0 L0 0 0 7" fill="none" stroke="#E84860" stroke-width="1"/></pattern><clipPath id="mc1a"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc1a)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#FFE9DD"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg1a)" opacity="0.5"/><path d="M9 32 Q5 15 22 13 Q41 12 39 28 Q37 41 21 39 Q9 38 9 32 Z" fill="#E84860" opacity="0.16"/><g transform="translate(2.4 2.4)" fill="#3A261F" opacity="0.26"><path d="M14 25 a10 10 0 0 1 20 0 Z"/><rect x="14" y="25" width="20" height="10"/></g><g fill="#E84860"><path d="M14 25 a10 10 0 0 1 20 0 Z"/><rect x="14" y="25" width="20" height="10"/></g></g></svg><div><h3>Structure · Building the Car</h3><p>IA, layout, data model, conversation design.</p></div></div>
+   <div class="layer" data-c="2"><span class="lv" style="color:#3B5BA9">2</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg2a" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(20)"><circle cx="3" cy="3" r="1.4" fill="#3B5BA9"/></pattern><clipPath id="mc2a"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc2a)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#E0EBFF"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg2a)" opacity="0.5"/><path d="M11 28 Q8 13 24 12 Q40 13 37 29 Q34 41 22 39 Q12 38 11 28 Z" fill="#3B5BA9" opacity="0.16"/><g transform="translate(2.4 2.4)" fill="#3A261F" opacity="0.26"><path d="M24 12 L36 32 L12 32 Z"/><circle cx="24" cy="29" r="6"/></g><g fill="#3B5BA9"><path d="M24 12 L36 32 L12 32 Z"/><circle cx="24" cy="29" r="6"/></g></g></svg><div><h3>Dynamic Content · Navigation</h3><p>Generative output, Generative UI — content that changes with every run.</p></div></div>
+   <div class="layer" data-c="3"><span class="lv">3</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg3a" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#1F5E2B" stroke-width="1.4"/></pattern><clipPath id="mc3a"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc3a)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#E8F6D6"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg3a)" opacity="0.4"/><path d="M10 30 Q7 14 24 13 Q40 14 38 29 Q36 41 22 40 Q11 39 10 30 Z" fill="#1F5E2B" opacity="0.14"/><g transform="translate(2.4 2.4)" fill="#3A261F" opacity="0.26"><path d="M13 35 L13 24 a11 11 0 0 1 22 0 L35 35 Z"/></g><g fill="#1F5E2B"><path d="M13 35 L13 24 a11 11 0 0 1 22 0 L35 35 Z"/></g></g></svg><div><h3>Dev Side · Building the Factory</h3><p>Git, skills, history: plan → engineer → tester; plan → critic → tester → skill feedback.</p></div></div>
+   <div class="layer" data-c="4"><span class="lv" style="color:#7B4FB8">4</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg4a" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M7 0 L0 0 0 7" fill="none" stroke="#7B4FB8" stroke-width="1"/></pattern><clipPath id="mc4a"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc4a)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#F0E6FF"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg4a)" opacity="0.45"/><path d="M10 29 Q7 14 24 13 Q40 14 38 28 Q36 41 22 40 Q11 39 10 29 Z" fill="#7B4FB8" opacity="0.16"/><g transform="translate(2.4 2.4)" opacity="0.26" fill="#3A261F"><circle cx="24" cy="24" r="12"/></g><circle cx="24" cy="24" r="12" fill="#7B4FB8"/><circle cx="24" cy="24" r="7" fill="#F0E6FF"/><circle cx="24" cy="24" r="3" fill="#7B4FB8"/></g></svg><div><h3>Ops Side · Driving School</h3><p>Feedback loop, golden dataset, baseline, metrics, eval (focusing on precision, not A/B).</p></div></div>
+  </div>
+  <span class="brandfoot">BEHAVIOUR</span><span class="pageno">13</span>
+ </section>
+
+ <!-- NEW-A ▸ Four Domains What Design can do -->
+ <section class="slide" data-accent="gold">
+  <div class="eyebrow">05 ・ B-3</div>
+  <h2 class="title-md">Design's Role Across the 4 Domains</h2>
+  <div class="stack lv-red" style="margin-top:14px">
+   <div class="layer" data-c="1"><span class="lv">1</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg1b" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M7 0 L0 0 0 7" fill="none" stroke="#E84860" stroke-width="1"/></pattern><clipPath id="mc1b"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc1b)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#FFE9DD"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg1b)" opacity="0.5"/><path d="M9 32 Q5 15 22 13 Q41 12 39 28 Q37 41 21 39 Q9 38 9 32 Z" fill="#E84860" opacity="0.16"/><g transform="translate(2.4 2.4)" fill="#3A261F" opacity="0.26"><path d="M14 25 a10 10 0 0 1 20 0 Z"/><rect x="14" y="25" width="20" height="10"/></g><g fill="#E84860"><path d="M14 25 a10 10 0 0 1 20 0 Z"/><rect x="14" y="25" width="20" height="10"/></g></g></svg><div><h3>Structure · UX Foundations + Data</h3><p>Leverage traditional UX skills while <strong>focusing on Data</strong> — data models, quality, and structural integrity.</p></div></div>
+   <div class="layer" data-c="2"><span class="lv" style="color:#3B5BA9">2</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg2b" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(20)"><circle cx="3" cy="3" r="1.4" fill="#3B5BA9"/></pattern><clipPath id="mc2b"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc2b)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#E0EBFF"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg2b)" opacity="0.5"/><path d="M11 28 Q8 13 24 12 Q40 13 37 29 Q34 41 22 39 Q12 38 11 28 Z" fill="#3B5BA9" opacity="0.16"/><g transform="translate(2.4 2.4)" fill="#3A261F" opacity="0.26"><path d="M24 12 L36 32 L12 32 Z"/><circle cx="24" cy="29" r="6"/></g><g fill="#3B5BA9"><path d="M24 12 L36 32 L12 32 Z"/><circle cx="24" cy="29" r="6"/></g></g></svg><div><h3>Dynamic Content · Human-Data interaction</h3><p><strong style="color:var(--red)">NEW:</strong> Focus on <strong>Human-Data Interaction</strong> — designing for probabilistic, generative content.</p></div></div>
+   <div class="layer" data-c="3"><span class="lv">3</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg3b" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#1F5E2B" stroke-width="1.4"/></pattern><clipPath id="mc3b"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc3b)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#E8F6D6"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg3b)" opacity="0.4"/><path d="M10 30 Q7 14 24 13 Q40 14 38 29 Q36 41 22 40 Q11 39 10 30 Z" fill="#1F5E2B" opacity="0.14"/><g transform="translate(2.4 2.4)" fill="#3A261F" opacity="0.26"><path d="M13 35 L13 24 a11 11 0 0 1 22 0 L35 35 Z"/></g><g fill="#1F5E2B"><path d="M13 35 L13 24 a11 11 0 0 1 22 0 L35 35 Z"/></g></g></svg><div><h3>Dev Side · Accumulating Coding Experience</h3><p><strong style="color:var(--red)">NEW: </strong>Designers accumulate coding <strong>Experience</strong>; Because every future user could be a Builder, Design must truly understand users.</p></div></div>
+   <div class="layer" data-c="4"><span class="lv" style="color:#7B4FB8">4</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg4b" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M7 0 L0 0 0 7" fill="none" stroke="#7B4FB8" stroke-width="1"/></pattern><clipPath id="mc4b"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc4b)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#F0E6FF"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg4b)" opacity="0.45"/><path d="M10 29 Q7 14 24 13 Q40 14 38 28 Q36 41 22 40 Q11 39 10 29 Z" fill="#7B4FB8" opacity="0.16"/><g transform="translate(2.4 2.4)" opacity="0.26" fill="#3A261F"><circle cx="24" cy="24" r="12"/></g><circle cx="24" cy="24" r="12" fill="#7B4FB8"/><circle cx="24" cy="24" r="7" fill="#F0E6FF"/><circle cx="24" cy="24" r="3" fill="#7B4FB8"/></g></svg><div><h3>Ops Side · Integrating Data Science</h3><p><strong style="color:var(--red)">NEW:</strong> Understanding <strong>Data Science workflows</strong> and combining them with UX experiments (metrics, eval).</p></div></div>
+  </div>
+  <span class="brandfoot">BEHAVIOUR</span><span class="pageno">15</span>
+ </section>
+
+ <!-- NEW-B ▸ dd1 From Data Discovery to HCI Design -->
+ <section class="slide" data-accent="gold">
+  <div class="eyebrow">05 ・ B-4</div>
+  <h2 class="title-md">From Data Discovery to Human-Data interaction</h2>
+  <div style="display:flex;gap:12px;margin-top:20px;align-items:stretch">
+   <div class="card glass" style="flex:1"><span class="tag gold">01</span><h3>Data Acquisition</h3><p>Targeting <strong>clearly defined business—User Needs</strong> for Data Acquisition.</p></div>
+   <span class="arr" style="align-self:center">→</span>
+   <div class="card glass" style="flex:1"><span class="tag gold">02</span><h3>Framing the Skeleton</h3><p>Wireframe high-level <strong>Human-Data interactions</strong>.</p></div>
+   <span class="arr" style="align-self:center">→</span>
+   <div class="card glass" style="flex:1"><span class="tag gold">03</span><h3>Building the Baseline</h3><p>Create a functional baseline at the <strong>implementation level</strong>.</p></div>
+   <span class="arr" style="align-self:center">→</span>
+   <div class="card glass" style="flex:1"><span class="tag gold">04</span><h3>Eval & Roadmap</h3><p>Assess and iterate using a <strong>Roadmap</strong>.</p></div>
+  </div>
+  <div class="callout" style="margin-top:22px"><strong>Interpret PROBLEM → SOLUTION</strong>: Bring<strong>Business Metrics</strong>and<strong>Technical Possibility</strong>, back to<strong>Real Users</strong>.</div>
+  <span class="brandfoot">BEHAVIOUR</span><span class="pageno">16</span>
+ </section>
+
+ <!-- NEW-C ▸ dd2 Data Scientist x Designer Key Activities -->
+ <section class="slide" data-accent="gold">
+  <div class="eyebrow">05 ・ B-5</div>
+  <h2 class="title-md">Data Scientist × Designer: Key Activities</h2>
+  <div style="display:flex;gap:10px;margin-top:16px;align-items:stretch">
+   <div class="card glass" style="flex:1;padding:14px"><span class="tag coal">Phase 1 · Discovery</span>
+    <ul class="clean" style="margin-top:8px">
+     <li>Design Thinking for AI</li>
+     <li>Contextual／Domain Research</li>
+    </ul></div>
+   <div class="card glass" style="flex:1;padding:14px"><span class="tag red">Phase 2 · Framing</span>
+    <ul class="clean" style="margin-top:8px">
+     <li>Human-Data Interaction Flow Discovery</li>
+     <li>Data Exploration / Data Intro Template</li>
+    </ul></div>
+   <div class="card glass" style="flex:1;padding:14px"><span class="tag forest">Phase 3 · Baseline</span>
+    <ul class="clean" style="margin-top:8px">
+     <li>Early RAI Impact Assessment / Conv. Design</li>
+     <li>Baseline / Trade-off Prioritization</li>
+    </ul></div>
+   <div class="card glass" style="flex:1;padding:14px"><span class="tag gold">Phase 4 · Evaluation</span>
+    <ul class="clean" style="margin-top:8px">
+     <li>Data Schema / Business Metrics / Ground Truth</li>
+     <li>Eval / Usability Testing / Value Validation</li>
+    </ul></div>
+  </div>
+  <span class="brandfoot">BEHAVIOUR</span><span class="pageno">17</span>
+ </section>
+
+ <!-- NEW ▸ Human-Data Interaction Flow journey sample -->
+ <section class="slide" data-accent="red">
+  <div class="eyebrow">05 ・ B-5 ・ Example</div>
+  <h2 class="title-md">Human-Data Interaction Flow: Structured Ideation Example</h2>
+  <div style="flex:1;min-height:0;margin-top:32px;display:flex;align-items:center;justify-content:center">
+   <img src="TTR%20sharing/human-data.png" alt="Human-Data Interaction Flow journey sample"
+    style="max-width:100%;max-height:440px;object-fit:contain;border:1.5px solid rgba(58,38,31,.15);border-radius:14px;box-shadow:0 6px 22px rgba(58,38,31,.12)"/>
+  </div>
+  <span class="pageno">18</span>
+ </section>
+
+ <!-- 14 ▸ §6 Case Study divider -->
+ <section class="slide divider" data-accent="red">
+  <use href="#lianbu" width="140" height="154" style="position:absolute;top:60px;right:110px;transform:rotate(3deg)"></use>
+  <div class="pillar-word">Case Study</div>
+  <h2>Tokyo Taiwan Radar</h2>
+  <p class="lead" style="margin-top:18px">Applying the F, S, and B pillars to a real, evolving product.</p>
+  <span class="pageno">14</span>
+ </section>
+
+ <!-- 15 ▸ Case Study Starting from 0 MVP + DevOps -->
+ <section class="slide" data-accent="red">
+  <div class="eyebrow">06 ・ Starting From Zero</div>
+  <h2 class="title-md">Planning MVP: End-to-End First</h2>
+  <div class="grid2" style="margin-top:22px">
+   <div class="card glass">
+    <span class="tag red">MVP</span><h3>Planning from 0</h3>
+    <ul class="clean">
+     <li>component-architecture (like full-stack sitemap) </li>
+     <li>Start with **2 sources**</li>
+     <li>Prove E2E before scaling</li>
+    </ul>
+   </div>
+   <div class="card glass">
+    <span class="tag forest">DevOps</span><h3>Agent + Workflow</h3>
+    <ul class="clean">
+     <li>Daily Scheduled Scraper (workflow) </li>
+     <li>Annotate / Translate / Audit (Agents)</li>
+     <li>Auto-alerts & Auditable</li>
+    </ul>
+   </div>
+  </div>
+  <div class="callout">Principle: <strong>Build End-to-End first</strong>, then evolve each pipeline.</div>
+  <span class="brandfoot">CASE STUDY</span><span class="pageno">15</span>
+ </section>
+
+ <!-- 16 ▸ Case Study Three pipeline -->
+ <section class="slide" data-accent="red">
+  <div class="eyebrow">06 ・ Evolving Pipelines</div>
+  <h2 class="title-md">Three Evolving Pipelines + Explainability</h2>
+  <div class="grid3" style="margin-top:24px">
+   <div class="card glass" style="color:var(--mocha)"><h3>Source Research</h3><p>Continuously discovering and evaluating new sources.</p></div>
+   <div class="card glass" style="color:var(--mocha)"><h3>Annotation</h3><p>Categories, Locations, Dates — AI Annotation + Rules.</p></div>
+   <div class="card glass" style="color:var(--mocha)"><h3>Translation</h3><p>TW/JA/EN translation; locking manual fixes.</p></div>
+  </div>
+  <div class="callout" style="margin-top:22px"><strong>Explainability + Feedback:</strong> Why this value? Errors feed back into next-gen norms.</div>
+  <span class="brandfoot">CASE STUDY</span><span class="pageno">16</span>
+ </section>
+
+ <!-- 17 ▸ Case Study Movie Minimum Scope -->
+ <section class="slide" data-accent="red">
+  <div class="eyebrow">06 ・ Minimum Scope Testing</div>
+  <h2 class="title-md">Movie Case Study: Element Sources</h2>
+  <p class="lead" style="margin-top:14px">Using Movies as a sandbox — narrow scope reveals the source & risk of every field.</p>
+  <div class="grid3" style="margin-top:24px">
+   <div class="card glass" style="color:var(--mocha)"><span class="tag coal">Date</span><p>Opening vs Publish date? Timezones? Multi-day?</p></div>
+   <div class="card glass" style="color:var(--mocha)"><span class="tag coal">Location</span><p>Venue, Address, Multi-site, Hybrid?</p></div>
+   <div class="card glass" style="color:var(--mocha)"><span class="tag coal">Dupes</span><p>Deduplicating multiple screenings across sources.</p></div>
+  </div>
+  <div class="callout">For every UI element, ask: <strong>Origin? Trustworthiness? Potential conflicts?</strong></div>
+  <span class="brandfoot">CASE STUDY</span><span class="pageno">17</span>
+ </section>
+
+ <!-- 18 ▸ Case Study Self-Learning + Narrowing Probabilities -->
+ <section class="slide" data-accent="red">
+  <div class="eyebrow">06 ・ Actions of Normativity Design</div>
+  <h2 class="title-md">Self-Learning · Narrowing Failure Prob.</h2>
+  <div class="grid2" style="margin-top:20px">
+   <div class="card glass">
+    <span class="tag red">Skill ・ History</span><h3>Self-Learning from Errors</h3>
+    <p>Lessons Learned, Log into <span class="kbd">history.md; generalizable ones become SKILL.md rules.</p>
+   </div>
+   <div class="card glass">
+    <span class="tag forest">Independent Validation</span><h3>Daily Review Skills</h3>
+    <p>Audit agents perform daily reviews to find "silent fails."</p>
+   </div>
+  </div>
+  <div class="callout" style="margin-top:18px">
+   <strong>Narrowing Probabilities:</strong> Pinning long-tail edge cases as Skills
+   (e.g., "Online Event" missing from address logic).<br>
+   Not yet "hardcoded"; errors are still possible, necessitating continuous validation.
+  </div>
+  <span class="brandfoot">CASE STUDY</span><span class="pageno">18</span>
+ </section>
+
+ <!-- 19 ▸ Case Study SourceIndependence + Commonality -->
+ <section class="slide" data-accent="red">
+  <div class="eyebrow">06 ・ Independence and Commonality</div>
+  <h2 class="title-md">Source Independence vs. Commonality</h2>
+  <div class="grid2" style="margin-top:24px">
+   <div class="card glass">
+    <span class="tag red">Independence</span><h3>One Source, One Skill-History</h3>
+    <ul class="clean">
+     <li>Each data source corresponds to an independent agent / skill</li>
+     <li>Optimizing for source-specific quirks</li>
+    </ul>
+   </div>
+   <div class="card glass">
+    <span class="tag forest">Commonality</span><h3>Cross-Agent Shared Skills</h3>
+    <ul class="clean">
+     <li>Shared logic (Taxonomy, Geocoding)</li>
+     <li>One fix benefits all sources</li>
+     <li>Driving architectural evolution</li>
+    </ul>
+   </div>
+  </div>
+  <span class="brandfoot">CASE STUDY</span><span class="pageno">19</span>
+ </section>
+
+ <!-- 20 ▸ Case Study Architecture Migration + Lessons -->
+ <section class="slide" data-accent="red">
+  <div class="eyebrow">06 ・ Migration & Scale Lessons</div>
+  <h2 class="title-md">Building the Modular Engine</h2>
+  <div style="display:grid;grid-template-columns:220px 1fr;gap:40px;margin-top:24px;align-items:start">
+   <div class="mascot-clones">
+    <svg viewBox="0 -20 200 240" style="top:0;left:10px;width:140px;height:180px;overflow:visible"><use href="#lianbu"></use></svg>
+    <svg viewBox="0 -20 200 240" style="top:30px;left:60px;width:160px;height:210px;z-index:2;overflow:visible"><use href="#lianbu"></use></svg>
+    <svg viewBox="0 -20 200 240" style="top:100px;left:10px;width:140px;height:180px;overflow:visible"><use href="#lianbu"></use></svg>
+   </div>
+   <div>
+    <ul class="two-col-list" style="margin:0;columns:1;font-size:15.5px">
+     <li><strong>Shared Architecture</strong>: scheduling, taxonomy updates</li>
+     <li><strong>Dev Agent Changes</strong>: Tree-based parallel multitasking, Streamlined auto-planning→Build→Validation→Deploy</li>
+     <li><strong>Self-Learning</strong> from platform-scale errors</li>
+     <li><strong>Ground Truth Tables</strong>: Cinemas, Addresses, Sites, Movie metadata</li>
+     <li><strong>Hard Lessons</strong>: Found after two months, Site-wide 19 buttons Not Sharing a Unified Component</li>
+    </ul>
+    <div class="callout" style="margin-top:22px;padding:12px 18px"><strong>The Essence of Normativity Design:</strong> Crystallizing accidents into defaults.</div>
+   </div>
+  </div>
+  <span class="brandfoot">CASE STUDY</span><span class="pageno">20</span>
+ </section>
+
+ <!-- 21 ▸ Ending -->
+ <section class="slide cover" data-accent="red">
+  <svg class="shape" style="top:-40px;left:-40px;width:240px" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#C4E86F" opacity=".5"/></svg>
+  <use href="#lianbu" width="160" height="176" style="position:absolute;bottom:50px;right:70px;transform:rotate(3deg)"></use>
+  <div class="kicker">Thank You</div>
+  <h1>Converging Probabilities<br>into Norms.</h1>
+  <div class="sub">F: Find Problem · S: Frame Structure · B: Govern Behavior</div>
+  <div class="meta">Tokyo Taiwan Radar ・ tokyotaiwanradar.com</div>
+  <div style="position:absolute;bottom:46px;left:64px;display:flex;align-items:center;gap:40px">
+   <div style="display:flex;align-items:center;gap:14px">
+    <div style="background:#fff;padding:10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.12)">
+     <img src="TTR%20sharing/TTR%20site.png" alt="Tokyo Taiwan Radar site QR" style="display:block;width:108px;height:108px;object-fit:contain"/>
+    </div>
+    <div style="font-size:14px;line-height:1.5;color:var(--mocha)">
+     <strong>Tokyo Taiwan Radar</strong><br>Visit our site
+    </div>
+   </div>
+   <div style="display:flex;align-items:center;gap:14px">
+    <div style="background:#fff;padding:10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.12)">
+     <img src="TTR%20sharing/linkedin-qr.png" alt="LinkedIn QR" style="display:block;width:108px;height:108px;object-fit:contain"/>
+    </div>
+    <div style="font-size:14px;line-height:1.5;color:var(--mocha)">
+     <strong>Connect on LinkedIn</strong><br>Scan the QR code
+    </div>
+   </div>
+  </div>
+  <span class="pageno">21</span>
+ </section>
+
+</div>
+
+
+
+<script>
+/* Floating Shapes Engine — ported from web/lib/design/FloatingShapes.tsx */
+(function() {
+ const COLORS = ["#E84860", "#C4E86F"];
+ const DRIFTS = [
+  "drift-tl-br", "drift-tr-bl", "drift-bl-tr", "drift-br-tl",
+  "drift-l-r", "drift-r-l", "drift-t-b", "drift-b-t",
+ ];
+ const TIERS = [
+  [40, 75, 12, 18],
+  [110, 150, 24, 32],
+  [200, 290, 40, 60],
+  [380, 460, 70, 95],
+  [560, 700, 100, 140],
+ ];
+ const SHAPES = ["triangle", "pentagon", "hexagon", "star8", "star10", "sector", "halfCircle", "circle", "diamond"];
+ const FILLS = ["solid", "outlineThin", "outlineThick", "dashed", "dotsDense", "dotsSparse", "stripes", "hatch", "grid"];
+
+ function getShapePath(kind) {
+  switch (kind) {
+   case "triangle":  return { tag: "polygon", attrs: { points: "50,8 92,92 8,92" } };
+   case "pentagon":  return { tag: "polygon", attrs: { points: "50,6 95,38 78,93 22,93 5,38" } };
+   case "hexagon":  return { tag: "polygon", attrs: { points: "50,5 90,27 90,73 50,95 10,73 10,27" } };
+   case "star8":   return { tag: "polygon", attrs: { points: "50,8 60,40 92,50 60,60 50,92 40,60 8,50 40,40" } };
+   case "star10":   return { tag: "polygon", attrs: { points: "50,4 58,36 92,40 66,58 76,92 50,72 24,92 34,58 8,40 42,36" } };
+   case "sector":   return { tag: "path", attrs: { d: "M 50 50 L 50 5 A 45 45 0 0 1 88 70 Z" } };
+   case "halfCircle": return { tag: "path", attrs: { d: "M 50 0 A 50 50 0 0 1 50 100 Z" } };
+   case "diamond":  return { tag: "polygon", attrs: { points: "50,5 92,50 50,95 8,50" } };
+   case "circle":
+   default:      return { tag: "circle", attrs: { cx: 50, cy: 50, r: 46 } };
+  }
+ }
+
+ function createPattern(defId, fill, color, rotation) {
+  const t = `rotate(${rotation})`;
+  let content = "";
+  switch (fill) {
+   case "dotsDense":
+    content = `<circle cx="3" cy="3" r="1.6" fill="${color}" />`;
+    return `<pattern id="${defId}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="${t}">${content}</pattern>`;
+   case "dotsSparse":
+    content = `<circle cx="5.5" cy="5.5" r="1.4" fill="${color}" />`;
+    return `<pattern id="${defId}" width="11" height="11" patternUnits="userSpaceOnUse" patternTransform="${t}">${content}</pattern>`;
+   case "stripes":
+    content = `<line x1="0" y1="0" x2="0" y2="7" stroke="${color}" stroke-width="2.4" />`;
+    return `<pattern id="${defId}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="${t}">${content}</pattern>`;
+   case "hatch":
+    content = `<line x1="0" y1="0" x2="0" y2="9" stroke="${color}" stroke-width="2" />`;
+    return `<pattern id="${defId}" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(${rotation + 45})">${content}</pattern>`;
+   case "grid":
+    content = `<path d="M 10 0 L 0 0 0 10" fill="none" stroke="${color}" stroke-width="1.2" />`;
+    return `<pattern id="${defId}" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="${t}">${content}</pattern>`;
+  }
+  return "";
+ }
+
+ function initFloaters(container, tiers) {
+  const svgDefs = document.getElementById("floater-defs");
+  tiers.forEach((tierIdx, slot) => {
+   createFloater(container, svgDefs, tierIdx, slot);
+  });
+ }
+
+ function createFloater(container, svgDefs, tierIdx, slotIdx) {
+  const tier = TIERS[tierIdx];
+  const [minPx, maxPx, minSec, maxSec] = tier;
+  const size = Math.round(minPx + Math.random() * (maxPx - minPx));
+  const duration = Math.round(minSec + Math.random() * (maxSec - minSec));
+  const delay = -Math.random() * duration;
+  const drift = DRIFTS[Math.floor(Math.random() * DRIFTS.length)];
+  const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+  const fill = FILLS[Math.floor(Math.random() * FILLS.length)];
+  const color = (fill === "solid" && tierIdx > 1) ? "#C4E86F" : COLORS[Math.floor(Math.random() * COLORS.length)];
+  const opacity = 0.12 + Math.random() * 0.18;
+  const rotation = Math.round(Math.random() * 360);
+  const patternRotation = Math.round(Math.random() * 90) - 45;
+
+  const id = `f-${tierIdx}-${slotIdx}`;
+  const patId = `pat-${id}`;
+
+  const isPat = ["dotsDense", "dotsSparse", "stripes", "hatch", "grid"].includes(fill);
+  if (isPat) {
+    svgDefs.insertAdjacentHTML('beforeend', createPattern(patId, fill, color, patternRotation));
+  }
+
+  const { tag, attrs } = getShapePath(shape);
+  let attrStr = "";
+  Object.keys(attrs).forEach(k => attrStr += ` ${k}="${attrs[k]}"`);
+
+  let fillAttr = color;
+  let strokeAttr = "none";
+  let dashAttr = "";
+  if (isPat) {
+   fillAttr = `url(#${patId})`;
+  } else if (fill !== "solid") {
+   fillAttr = "none";
+   strokeAttr = color;
+   const sw = fill === "outlineThin" ? 1.6 : fill === "dashed" ? 2.8 : 4;
+   attrStr += ` stroke-width="${sw}"`;
+   if (fill === "dashed") dashAttr = ` stroke-dasharray="6 4"`;
+  }
+
+  const floater = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  floater.setAttribute("class", "fl");
+  floater.setAttribute("viewBox", "0 0 100 100");
+  floater.style.width = size + "px";
+  /* anchor every floater on the screen centre so its drift path passes through it */
+  floater.style.left = "50%";
+  floater.style.top = "50%";
+  floater.style.marginLeft = (-size / 2) + "px";
+  floater.style.marginTop = (-size / 2) + "px";
+  floater.style.setProperty('--op', opacity);
+  floater.style.animationName = drift;
+  floater.style.animationDuration = duration + "s";
+  floater.style.animationDelay = delay + "s";
+  floater.style.setProperty("--dr", (Math.random() > 0.5 ? "" : "-") + (360 + Math.random() * 360) + "deg");
+
+  floater.innerHTML = `<${tag}${attrStr} fill="${fillAttr}" stroke="${strokeAttr}"${dashAttr} transform="rotate(${rotation} 50 50)" />`;
+  container.appendChild(floater);
+ }
+
+ window.initFloatingShapes = initFloaters;
+})();
+
+const slides = document.querySelectorAll(".slide");
+slides.forEach((slide, idx) => {
+ const fl = document.createElement("div");
+ fl.className = "floaters";
+ slide.insertBefore(fl, slide.firstChild);
+ const isCover = !!slide.querySelector(".cover-mascot");
+ /* cover: 5 sizes — three smallest appear twice, two largest once; inner: three smallest */
+ const tiers = isCover ? [0, 0, 1, 1, 2, 2, 3, 4] : [0, 1, 2];
+ window.initFloatingShapes(fl, tiers);
+});
+
+/* ---- navigation ---- */
+(function () {
+ const all = Array.from(document.querySelectorAll(".slide"));
+ const tot = all.length;
+ const hudTot = document.getElementById("hud-tot");
+ const hudCur = document.getElementById("hud-cur");
+ const prog = document.getElementById("progress");
+ if (hudTot) hudTot.textContent = tot;
+ all.forEach((s, i) => {
+  const pn = s.querySelector(".pageno");
+  if (pn) pn.textContent = String(i + 1).padStart(2, "0");
+ });
+ let cur = 0;
+ const clamp = n => Math.max(0, Math.min(tot - 1, n));
+ function show(n) {
+  cur = clamp(n);
+  all.forEach((s, i) => s.classList.toggle("active", i === cur));
+  if (hudCur) hudCur.textContent = cur + 1;
+  if (prog) prog.style.width = (tot > 1 ? (cur / (tot - 1)) * 100 : 0) + "%";
+  const want = "#" + (cur + 1);
+  if (location.hash !== want) history.replaceState(null, "", want);
+  if (window.__renderMermaid) window.__renderMermaid(all[cur]);
+ }
+ window.__navShowCurrent = () => show(cur);
+ function fromHash() {
+  const n = parseInt((location.hash || "").replace("#", ""), 10);
+  show(isNaN(n) ? 0 : n - 1);
+ }
+ window.addEventListener("keydown", e => {
+  if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { show(cur + 1); e.preventDefault(); }
+  else if (e.key === "ArrowLeft" || e.key === "PageUp") { show(cur - 1); e.preventDefault(); }
+  else if (e.key === "Home") { show(0); e.preventDefault(); }
+  else if (e.key === "End") { show(tot - 1); e.preventDefault(); }
+  else if (e.key === "f" || e.key === "F") {
+   if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+   else document.exitFullscreen();
+  }
+ });
+ window.addEventListener("hashchange", fromHash);
+ fromHash();
+
+  /* ---- scaling ---- */
+  function scaleDeck() {
+   const deck = document.getElementById("deck");
+   if (!deck) return;
+   const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+   deck.style.transform = `scale(${scale})`;
+  }
+  window.addEventListener("resize", scaleDeck);
+  scaleDeck();
+ })();
+</script>
+
+<script type="module">
+ import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+ mermaid.initialize({
+  startOnLoad: false,
+  theme: "base",
+  flowchart: { htmlLabels: false, padding: 8, nodeSpacing: 34, rankSpacing: 40, useMaxWidth: true },
+  themeVariables: {
+   primaryColor: "#FFFFFF",
+   primaryBorderColor: "#1F5E2B",
+   primaryTextColor: "#2b2b2b",
+   lineColor: "#1F5E2B",
+   fontFamily: "system-ui, -apple-system, 'Noto Sans TC', 'PingFang TC', sans-serif",
+   fontSize: "15px"
+  }
+ });
+ // Render lazily: mermaid in a display:none slide measures 0, so only
+ // run it once the slide becomes active (called from nav show()).
+ window.__renderMermaid = (root) => {
+  if (!root) return;
+  const nodes = root.querySelectorAll(".mermaid:not([data-processed])");
+  if (nodes.length) mermaid.run({ nodes: Array.from(nodes) });
+ };
+ // Render whichever slide is currently active on first load.
+ if (window.__navShowCurrent) window.__navShowCurrent();
+</script>
+
+</body>
+</html>
+
+
