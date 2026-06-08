@@ -334,6 +334,7 @@ Admin 撰寫發文（三語 title + body + images）
 | `eval-annotator.yml` | PR(annotator 相關路徑) / 手動 | Annotator Golden Set regression eval（frozen 模式，不接 DB）|
 | `eval-annotator-stage2.yml` | 週日 03:00 JST / 手動 | Annotator Stage 2 weekly eval（budget guard + KPI 門檻） |
 | `qa-heartbeat.yml` | 每日 04:00 UTC / 手動 | QA 自動修復（qa_heartbeat.py — 解鎖 field_corrections、重標注、驗證） |
+| `i18n-guard.yml` | push(main, web/messages/**) / 手動 | i18n key regression 偵測（key 刪除 / 三語不同步）→ LINE 告警 + GitHub Issue 自動起票 |
 
 ### 每日 Pipeline（scraper.yml）
 
