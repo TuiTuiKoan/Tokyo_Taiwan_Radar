@@ -1049,7 +1049,10 @@ NAME WRITING RULES — CRITICAL:
      - Fallback (no address): if only a Japanese venue name is present (e.g. 誠品生活日本橋), use that name as location_name and set location_address = null.
    The non-Japan venue may be mentioned in description_* for context, but MUST NOT be used as location_name, location_address, or location_prefectures.
    Do NOT create sub_events solely to represent the non-Japan venue.
-   ONLINE EVENTS: If the event is conducted online (Zoom, online webinar, streaming, オンライン開催, 線上, ウェビナー) — regardless of organizer's country — set location_name = "オンライン" and location_address = null and location_prefectures = null. This includes study_abroad application webinars, online lectures, and hybrid events where the main audience participation is online.
+   ONLINE & HYBRID EVENTS (CRITICAL):
+   - PURE ONLINE: If the event is ONLY conducted online (Zoom, streaming, オンライン開催, 線上, ウェビナー), set location_name = "オンライン", location_address = null, and location_prefectures = null.
+   - HYBRID (PHYSICAL + ONLINE): If the event has BOTH a physical venue AND an online stream (e.g. "Live at venue X / streaming online"), set location_name = "Venue Name / オンライン", set location_address = the physical address, and set location_prefectures accordingly. NEVER zero out physical venue info just because an online option is available.
+   - PERFORMING ARTS: Many concerts and stage performances are hybrid. For these, always capture both: name = "Venue / オンライン", then provide the physical address and prefecture.
    APPLICATION-TYPE EVENTS: For study abroad / scholarship / grant application events (study_abroad event_form), if the application process or info session is online, treat as オンライン. Do NOT use the university's physical campus address as location.
 7. For pricing: is_paid=false if free/無料/免費, is_paid=true if there's a fee, null if unknown.
    GRANT/SUBSIDY EXCEPTION: For grant applications, call-for-submissions, and scholarship events
@@ -2083,10 +2086,21 @@ def annotate_pending_events(
                         update_data["description_zh"] = publication_description_zh
                         update_data["description_en"] = publication_description_en
 
-                # Organizer translations — KNOWN_ORGANIZER_MAP overrides GPT
+                # Organizer translations — KNOWN_ORGANIZER_MAP overrides GPT.
+                # Guard against hallucinated organizers that do not appear in the source text.
                 if update_data.get("organizer"):
                     _org_name = update_data["organizer"]
-                    if _org_name in _KNOWN_ORGANIZER_MAP:
+                    _source_text = f"{raw_title or ''}\n{event.get('raw_description') or ''}"
+                    if _org_name not in _source_text:
+                        logger.warning(
+                            "Discarding hallucinated organizer %r for event %s because it does not appear in raw_title/raw_description",
+                            _org_name,
+                            event.get("id"),
+                        )
+                        update_data["organizer"] = None
+                        update_data.pop("organizer_zh", None)
+                        update_data.pop("organizer_en", None)
+                    elif _org_name in _KNOWN_ORGANIZER_MAP:
                         _ko_zh, _ko_en = _KNOWN_ORGANIZER_MAP[_org_name]
                         update_data["organizer_zh"] = _ko_zh
                         update_data["organizer_en"] = _ko_en

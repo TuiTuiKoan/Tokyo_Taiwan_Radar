@@ -27,6 +27,7 @@ Read this at the start of every session before producing any plan.
   違反這條會徒增 CI 時間 + 檔案維護成本，且 Plan Critic 會擋下。Reference: 2026-05-26 enrich_organizers.py 計畫瘦身（5 Phase → 3 Phase）。
 - **強標識符 (Strong Identifier) 優先去重原則（2026-06-07 教訓）**：凡具有 standard UID (如 ISBN、行銷條碼、官網極致 unique URL 等) 的特定 `category`/`event_form` 類型，在設計其查重合流機制（merger）時，應設置專屬的 Pass (例如 Pass 1.1) 優先於 `start_date` same-day 分組匹配之外執行。在時差 30 日內或年末佔位符階段（如 12-31）強制合併，並提供權威源 metadata 傳遞演算，確保不會受 scraper date extraction 漂移造成重複入庫。
 - **三語 Localization 硬配對守則（2026-06-07 教訓）**：任何 front-end categories, actor_types, 或者是 web schemas 異動，必須將 `web/messages/{en,ja,zh}.json` 三包語系檔做 simultaneous update 同步更新。若有漏配，會阻礙 production next build compiler 通過。
+- **Hybrid Venue 同時標註則（2026-06-07 教訓）**：針對 `performing_arts` 等混合型活動（現場+線上），設計上必須同時保留實體 `location_address` 與在 `location_name` 中並列 `オンライン`。記得兩個都標，不可因線上屬性而抹除地址資料。
 
 ## OCR Vision Array 欄位 — 三路徑 Sync Point（2026-05-26 教訓）
 

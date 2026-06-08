@@ -62,8 +62,9 @@ Read this at the start of every session before writing any scraper.
   - **Japan**: Address regex must NOT use start-of-string anchors (`^`). Many addresses start with `〒123-4567` which blocks static anchors. Use local searching for the 47 prefectures.
   - **Taiwan**: Support 22 cities. Normalize `臺` to `台` before extraction. Ensure the 22 cities (e.g., `台北市`, `台東縣`) are mapped to their standard names (stripping `市/縣` suffixes for chips).
 - **`Hybrid Venue (Physical + Online) Rule (2026-06-07)`**:
-  - For events that have both a physical venue AND an online stream, set `location_name` to a joined string (e.g., `“D-Bop”Jazz Club Sapporo / オンライン`).
+  - For events that have both a physical venue AND an online stream (common in **performing_arts**), set `location_name` to a joined string (e.g., `“D-Bop”Jazz Club Sapporo / オンライン`).
   - **MUST** retain the physical address in `location_address` and its prefecture in `location_prefectures` so the event appears in regional filters and maps.
+  - **Marking Rule**: "Remember to mark both" (記得兩個都標) means capturing both the venue context in name and the physical coordinates in address/prefecture.
   - Apply `field_corrections` to these fields to prevent AI from reverting the event to "Online only".
 - **Publication events keep placeholder address text, not maps URLs:** For `event_form=["publication"]`, keep `location_name = None`, preserve a neutral placeholder in `location_address` / `business_hours`, and never emit Google Maps links for that address in the detail page.
 - **Publication title prefixes are locale-aware:** `name_ja`/`name_zh` keep `[新刊出版]`, `name_en` uses `[New Release]`, and periodical articles should use `name_ja=[雑誌記事]`, `name_zh=[期刊專文]`, `name_en=[Periodical Article]`. Do not reuse `[期刊專文]` in Japanese titles.

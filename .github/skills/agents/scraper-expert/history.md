@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-06-07 — Hybrid venue (Physical + Online) marking rule
+
+**問題：** 音樂/表演活動（如 `380c0ab2-1713-4bc9-86c5-6101d8ec741a`）同時有現場與線上時，常被誤標為純線上。
+
+**修復：**
+1. **兩個都標**：確立 `location_name` 必須並列（如 `D-Bop / オンライン`）。
+2. **保留地址**：必須保留實體地址與都道府縣，不可因線上選項而抹除。
+3. **加鎖**：此類複合型場地務必鎖定 `field_corrections`。
+4. **系統提示**：已更新 `annotator.py` 的 `SYSTEM_PROMPT` 以自動處理此邏輯。
+
+**教訓：** 複合型活動的地址對於區域過濾至關重要，不要讓線上屬性完全覆蓋實體屬性。記得現場名稱與線上都要標。
+
+---
+
 ## 2026-06-04 — `location_url` 誤寫成主辦/活動頁：venue homepage provenance guard 補強
 
 **問題：** 多筆事件的 `location_url` 被誤寫成 `source_url` / `official_url` / `organizer_url`，導致前端把主辦單位頁或活動頁誤顯示成場地網頁。

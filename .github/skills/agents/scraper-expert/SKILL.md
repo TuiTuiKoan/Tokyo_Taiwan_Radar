@@ -18,6 +18,14 @@ Read this at the start of every session before writing any scraper.
   - "Lecture discussing Japan's infrastructure legacy in Taiwan."
 - **Category Enrichment**: Events with direct Taiwan-Japan historical or biographical links (like Wansei artists) MUST include the `taiwan_japan` category in addition to `art`, `history`, etc.
 
+## Hybrid Venue (Physical + Online) Rule (2026-06-07)
+
+- For events with both physical and online components (common in **performing_arts**), set `location_name` to a joined string (e.g., `“D-Bop”Jazz Club Sapporo / オンライン`).
+- **MUST** retain the physical address and prefecture code for regional filters.
+- **Marking Rule**: "Remember to mark both" (記得兩個都標) means capturing both the venue context in name and the physical coordinates in address/prefecture.
+- Apply `field_corrections` manual lock to prevent AI from cleaning the address to null.
+- Example case: `380c0ab2-1713-4bc9-86c5-6101d8ec741a`.
+
 ## Publication Backlog Cleanup Rule
 
 - Publication-related backlog must be handled as a **source-level one-off cleanup**, not as a generic QA engine.

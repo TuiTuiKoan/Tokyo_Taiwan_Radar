@@ -2,6 +2,20 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-07 — Hybrid Venue (Physical + Online) Marking Policy
+
+**問題：** 許多混合型活動（如表演藝術類演唱會，例 `380c0ab2-1713-4bc9-86c5-6101d8ec741a`）同時提供現場與線上參與，但在資料提取階段常被簡化為純線上，導致遺漏重要的實體位址資訊與都道府縣標籤。
+
+**修復：**
+1. **策略調整**：從「Online 優先」改為「Hybrid 優先支援」。若活動同時包含實體與線上，其 `location_name` 應並列（例：`會場名 / オンライン`）。
+2. **地址保留**：強制要求保留實體地址與 `location_prefectures`，以確保活動能正確出現在地圖、區域過濾與 `AdminEventTable` 的都道府縣標籤中。
+3. **系統化落實**：更新 `annotator.py` 的 `SYSTEM_PROMPT` 納入此規則，並在 `Scraper Expert` 與 `Engineer` 的 `SKILL.md` 中同步此決策。
+4. **人工覆寫（FC）**：確認現有混合型活動需透過 `field_corrections` 手動修正並鎖定，防止自動管線因「線上」關鍵字再次誤導。
+
+**教訓：** 在處理複合參與模式時，必須採取「訊息累加」而非「路徑覆寫」的設計。地址資訊是本站核心功能（區域導航）的基石，不得輕易為線上屬性而犧牲。記得現場名稱與線上都要標。
+
+---
+
 ## 2026-06-07 — Books & Publication Intel 合併、hanmoto 爬蟲與 Web/Timezone 綜合修復
 
 **問題：**
