@@ -252,49 +252,18 @@ html:has([data-site-bg]) body {
   }
 }
 
-/* Safari-only vertical centering fix.
-   NOTE: `-webkit-touch-callout` is iOS-only and is NOT supported by desktop
-   macOS Safari, so it previously matched neither Chrome nor desktop Safari
-   (verified: Chromium CSS.supports('-webkit-touch-callout','none') === false).
-   `-webkit-hyphens: none` is supported by all Safari (desktop + iOS) and is
-   reported false by Chrome/Chromium, so it correctly isolates Safari. */
+/* Safari-only CJK vertical centering — OPT-IN class only.
+   The former broad `button, [role=button], a.inline-flex, select, input[type=search]` selector has
+   been removed because it was a blast-radius band-aid: it mutated every button site-wide with
+   !important, requiring 3 exception rules to undo its damage on icon buttons, menu rows, and tab
+   badges. The correct fix lives at the control level (inline-flex + min-h + leading-none + inner span).
+   This class is kept as a fallback escape hatch. Apply it only to a specific control if Safari visual
+   inspection (see web/public/_uitest.html) confirms that per-control geometry alone is NOT enough. */
 @supports (-webkit-hyphens: none) {
-  @layer base {
-    button,
-    [role="button"],
-    [role="tab"],
-    [role="radio"],
-    a.inline-flex,
-    select,
-    input[type="search"] {
+  @layer utilities {
+    .ttr-cjk-center {
       padding-top: calc(0.375rem + 2px) !important;
       padding-bottom: calc(0.375rem - 2px) !important;
-    }
-
-    /* The count badge inside segmented tabs is already vertically centered;
-       the asymmetric padding above would drag it down too, so pull it back
-       up by the same amount. The badge span is distinguishable from the text
-       label by its `rounded-full` pill class. */
-    [role="tab"] span.rounded-full,
-    [role="radio"] span.rounded-full {
-      transform: translateY(-2px);
-    }
-
-    /* Navbar icon buttons hold an SVG, not CJK text, so the centering nudge
-       above does not apply and only pushes the icon down — restore them.
-       Scope to icon buttons only (`:has(> svg)`) so dropdown menu buttons,
-       which are also inside <header>, are NOT collapsed. */
-    header button:has(> svg) {
-      padding-top: 0 !important;
-      padding-bottom: 0 !important;
-    }
-
-    /* Account dropdown menu rows mix <button> and <a>; the asymmetric nudge
-       only hits the <button> rows and breaks row-height consistency. Restore
-       them to their native `py-2` so all rows share one line spacing. */
-    [role="menu"] button {
-      padding-top: 0.5rem !important;
-      padding-bottom: 0.5rem !important;
     }
   }
 }

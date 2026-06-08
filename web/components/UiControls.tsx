@@ -56,6 +56,24 @@ export function PillButton({ active = false, tone = "green", className = "", chi
   );
 }
 
+type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  label: string; // aria-label (required for accessibility)
+  children: ReactNode;
+};
+
+export function IconButton({ label, className = "", children, ...props }: IconButtonProps) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-1 ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function StatusBadge({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <span className={`inline-flex min-h-5 items-center rounded-full px-2 text-xs leading-none ${className}`}>
