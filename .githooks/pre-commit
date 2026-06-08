@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# pre-commit hook (tracked in .githooks/, installed via scripts/install-hooks.sh)
+#
+# Contains three guards:
+#   (a) Remove VS Code Copilot auto-injected `tools:` blocks from agent files
+#   (b) i18n regression guard — calls scripts/check_i18n_parity.py --staged
+#   (c) Supabase migration number conflict auto-rename
+#
+# NOTE: This hook can be bypassed with `git commit --no-verify`.
+# VMD agent is PROHIBITED from using --no-verify (see .github/agents/validate-merge-deploy.agent.md).
+# Non-bypassable enforcement requires server-side branch protection (not adopted in this repo).
+
+set -euo pipefail
+
+# --- (a) Remove VS Code Copilot auto-injected `tools:` blocks from agent files -
+AGENT_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.agent\.md$' || true)
+
+if [[ -n "$AGENT_FILES" ]]; then
+  CHANGED=0
+
+  for FILE in $AGENT_FILES; do
+    if [[ ! -f "$FILE" ]]; then
+      continue
+    fi
+
+    if grep -q 'vscode/getProjectSetupInfo\|vscode/installExtension\|execute/runInTerminal' "$FILE"; then
+      echo "pre-commit: stripping auto-injected tools: block from $FILE"
+
+      python3 - "$FILE" <<'PYEOF'
+import sys, re
+
+path = sys.argv[1]
+with open(path, 'r', encoding='utf-8') as f:
+    content = f.read()
+
+parts = content.split('---', 2)
+if len(parts) >= 3:
+    frontmatter = parts[1]
+    cleaned = re.sub(r'\ntools:\n\[.*?\]\n', '\n', frontmatter, flags=re.DOTALL)
+    cleaned = re.sub(r'\ntools: \[.*?\]\n', '\n', cleaned, flags=re.DOTALL)
+    if cleaned != frontmatter:
+        parts[1] = cleaned
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write('---'.join(parts))
+        print(f"  cleaned: {path}")
+PYEOF
+
+      git add "$FILE"
+      CHANGED=1
+    fi
+  done
+fi
+
+# --- (b) i18n regression guard -----------------------------------------------
+# Delegates to scripts/check_i18n_parity.py for testability and CI reuse.
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+if python3 "$REPO_ROOT/scripts/check_i18n_parity.py" --staged; then
+  : # pass
+else
+  exit 1
+fi
+
+# --- (c) migration numbering guard --------------------------------------------
+NEW_MIGS=$(git diff --cached --name-only --diff-filter=A | grep '^supabase/migrations/[0-9][0-9][0-9]_.*\.sql$' || true)
+
+if [[ -n "$NEW_MIGS" ]]; then
+  python3 - $NEW_MIGS <<'PYEOF'
+import sys, re, subprocess
+from pathlib import Path
+
+MIGS_DIR = Path("supabase/migrations")
+staged_paths = [Path(p) for p in sys.argv[1:] if Path(p).exists()]
+
+if not staged_paths or not MIGS_DIR.exists():
+    sys.exit(0)
+
+all_nums: set = set()
+for f in MIGS_DIR.iterdir():
+    m = re.match(r"^(\d{3})_", f.name)
+    if m:
+        all_nums.add(int(m.group(1)))
+
+renamed = []
+for sp in staged_paths:
+    m = re.match(r"^(\d{3})_(.+)$", sp.name)
+    if not m:
+        continue
+    num, suffix = int(m.group(1)), m.group(2)
+
+    conflict = [
+        f for f in MIGS_DIR.iterdir()
+        if re.match(rf"^{num:03d}_", f.name) and f.resolve() != sp.resolve()
+    ]
+    if not conflict:
+        continue
+
+    new_num = max(all_nums) + 1
+    new_name = f"{new_num:03d}_{suffix}"
+    new_path = MIGS_DIR / new_name
+
+    sp.rename(new_path)
+    subprocess.run(["git", "rm", "--cached", str(sp)], check=True, capture_output=True)
+    subprocess.run(["git", "add", str(new_path)], check=True, capture_output=True)
+    all_nums.add(new_num)
+    renamed.append((sp.name, new_name))
+    print(f"pre-commit: migration conflict detected — {sp.name} → {new_name}")
+
+if renamed:
+    print(f"pre-commit: {len(renamed)} migration(s) auto-renumbered ✓")
+PYEOF
+fi
+
+exit 0

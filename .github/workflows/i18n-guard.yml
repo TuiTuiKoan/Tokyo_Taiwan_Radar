@@ -1,0 +1,105 @@
+# i18n Guard — post-push detection workflow
+#
+# PURPOSE: Detect i18n key regressions (key deletions or three-locale parity
+# mismatches) after a push to main. This workflow runs AFTER the commit is
+# already on main — it CANNOT block pollution from entering main.
+# Its value is compressing detection latency from "days" to "minutes".
+
+name: i18n Guard (post-push detection)
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/messages/**']
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Base SHA for manual dry-run (optional)'
+        required: false
+        default: ''
+      head:
+        description: 'Head SHA for manual dry-run (optional)'
+        required: false
+        default: ''
+
+jobs:
+  check-i18n-parity:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Determine base and head SHAs
+        id: refs
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            BASE="${{ github.event.inputs.base }}"
+            HEAD="${{ github.event.inputs.head }}"
+            if [[ -z "$BASE" ]]; then BASE="$(git rev-parse HEAD~1)"; fi
+            if [[ -z "$HEAD" ]]; then HEAD="$(git rev-parse HEAD)"; fi
+          else
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+            if [[ "$BASE" == "0000000000000000000000000000000000000000" ]]; then
+              BASE="$(git rev-parse HEAD~1 2>/dev/null || echo "$HEAD")"
+            fi
+          fi
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "head=$HEAD" >> "$GITHUB_OUTPUT"
+          echo "Checking range: $BASE..$HEAD"
+
+      - name: Run i18n parity check
+        id: parity
+        run: |
+          python3 scripts/check_i18n_parity.py --range "${{ steps.refs.outputs.base }}..${{ steps.refs.outputs.head }}"
+
+      - name: Send LINE alert on failure
+        if: failure()
+        env:
+          LINE_CHANNEL_TOKEN: "${{ secrets.LINE_CHANNEL_TOKEN }}"
+          LINE_USER_ID: "${{ secrets.LINE_USER_ID }}"
+        run: |
+          if [[ -z "$LINE_CHANNEL_TOKEN" || -z "$LINE_USER_ID" ]]; then
+            echo "LINE_CHANNEL_TOKEN or LINE_USER_ID not set — skipping LINE alert"
+            exit 0
+          fi
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          PAYLOAD=$(jq -n \
+            --arg to "$LINE_USER_ID" \
+            --arg text "i18n regression detected on main
+Push: ${SHORT_SHA}
+Pushed by: ${{ github.actor }}
+Please revert immediately.
+https://github.com/${{ github.repository }}/commit/${{ github.sha }}" \
+            '{to: $to, messages: [{type: "text", text: $text}]}')
+          curl -s -X POST https://api.line.me/v2/bot/message/push \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LINE_CHANNEL_TOKEN" \
+            -d "$PAYLOAD" || true
+
+      - name: Open GitHub issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = '${{ github.sha }}';
+            const actor = '${{ github.actor }}';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `i18n regression detected: push ${sha.slice(0,7)}`,
+              body: `## i18n Key Regression Alert\n\n**Push**: ${sha}\n**Pushed by**: ${actor}\n**Detected by**: i18n-guard workflow\n\n### What happened\nOne or more \`web/messages/*.json\` files lost keys relative to the previous commit, or the three locales became out of sync.\n\nThis is a \`be94500\`-type regression.\n\n### Action required\n1. Identify the regression: \`git diff HEAD~1 -- web/messages/\`\n2. Restore the missing keys\n3. Commit and push the fix\n\n### Recovery command\n\`\`\`bash\ngit show HEAD~1:web/messages/zh.json > web/messages/zh.json\ngit show HEAD~1:web/messages/en.json > web/messages/en.json\ngit show HEAD~1:web/messages/ja.json > web/messages/ja.json\ngit add web/messages/ && git commit -m "fix(i18n): restore keys lost in ${sha.slice(0,7)}"\ngit push origin main\n\`\`\`\n\n_Auto-opened by [i18n-guard workflow](https://github.com/${{ github.repository }}/actions/workflows/i18n-guard.yml)_`,
+              labels: ['bug', 'i18n']
+            });

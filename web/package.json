@@ -7,7 +7,7 @@
     "dev": "next dev",
     "test:e2e:dark-smoke": "playwright test tests/e2e/darkmode-navbar-related.smoke.spec.ts",
     "build-specs-snapshot": "tsx scripts/build-specs-snapshot.ts",
-    "prebuild": "tsx scripts/build-specs-snapshot.ts",
+    "prebuild": "tsx scripts/assert-i18n-parity.ts && tsx scripts/build-specs-snapshot.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

@@ -71,6 +71,20 @@ handoffs:
 5. 若同一檔案出現 `MM`（staged + unstaged 同時存在），先 re-stage 最新版本並用 `git diff --cached <file>` 確認後再進入 Step 2
 6. 提醒用戶解決任何待處理項目
 
+### Step 1.x: 提交紀律（Commit Discipline）— 強制規則
+
+> 以下五條規則為**強制禁止**，違反任一條即為 STOP 條件。
+
+1. **禁止 `git add -A` / `git add .`**：只 stage 當前任務 Changes Log 明列的檔案路徑（逐一 `git add <path>`）。若需 stage 新檔，必須逐一列出路徑，不得使用萬用符號批量 stage。
+
+2. **禁止 `--no-verify`**：任何情況都不得使用 `git commit --no-verify` 或 `git push --no-verify`。若 pre-commit hook 攔截，必須回報 hook 輸出並**停止流程**，等待用戶指示，不得繞過。
+
+3. **禁止不觸發 git hook 的提交路徑**：一律走標準 `git commit`（會觸發 `.githooks/pre-commit`）。禁止經 VS Code/GUI source-control 提交、`git commit --amend`/rebase 重寫已含 staged 變更等可能繞過 hook 的路徑。
+
+4. **範圍外髒檔強制 STOP**（升級現有 Step 1.4 的軟提醒為強制停止）：commit 前執行 `git status --short`；若出現「modified 但不在本任務 Changes Log 宣告清單」的檔案（特別是 `web/messages/*.json`）→ **STOP 並詢問用戶、列出未知檔案 diff 摘要、等待決定**，不得繼續。
+
+5. **i18n 檔特別警示**：若 staged 檔案包含 `web/messages/*.json`，commit 前強制執行 `python3 scripts/check_i18n_parity.py --staged`，exit code ≠ 0 即中止。（此步驟已由 `.githooks/pre-commit` 自動執行；此規則為明示確認，確保 agent 不繞過 hook。）
+
 ### Step 2: Rebase（如果需要）
 1. 先執行 `git fetch origin main`，更新 remote tracking
 2. 檢查 `git log HEAD..origin/main --oneline` — 若 origin 有新 commit（**並行 commit 為常態，不要假設無事**），預設執行 `git rebase origin/main`
@@ -144,3 +158,6 @@ handoffs:
 - ❌ token wording gate（default 或 strict）失敗
 - ❌ Vercel 部署失敗（查看部署日誌）
 - ❌ 推送被拒絕（遠端有新提交）
+- ❌ 範圍外髒檔未確認即繼續提交（Step 1.x 規則 4）
+- ❌ 使用了 `--no-verify` 或不觸發 hook 的提交路徑（Step 1.x 規則 2、3）
+- ❌ i18n parity 檢查失敗（`python3 scripts/check_i18n_parity.py --staged` exit code ≠ 0）

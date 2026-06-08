@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# pre-push hook (tracked in .githooks/, installed via scripts/install-hooks.sh)
+#
+# Checks i18n parity for all commits being pushed to origin/main.
+# NOTE on coverage: This hook covers the narrow case where pre-commit was
+# bypassed or not triggered, but git push runs normally.
+# Both L2 (pre-commit) and L2.5 (pre-push) share the same bypass vector:
+# `git push --no-verify` skips this hook too.
+# Non-bypassable enforcement requires server-side branch protection (not adopted).
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+REMOTE="$1"
+URL="$2"
+
+if [[ "$REMOTE" != "origin" ]]; then
+  exit 0
+fi
+
+while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ "$local_sha" == "0000000000000000000000000000000000000000" ]]; then
+    continue
+  fi
+
+  if [[ "$remote_sha" == "0000000000000000000000000000000000000000" ]]; then
+    continue
+  fi
+
+  RANGE="${remote_sha}..${local_sha}"
+
+  CHANGED=$(git diff --name-only "$RANGE" -- 'web/messages/*.json' 2>/dev/null || true)
+  if [[ -z "$CHANGED" ]]; then
+    continue
+  fi
+
+  echo "pre-push: checking i18n parity for range $RANGE ..."
+  if ! python3 "$REPO_ROOT/scripts/check_i18n_parity.py" --range "$RANGE"; then
+    echo ""
+    echo "pre-push: i18n regression detected — push blocked!"
+    echo "  Fix the key regression, then re-push."
+    echo "  To bypass (use with caution): git push --no-verify"
+    exit 1
+  fi
+done
+
+exit 0
