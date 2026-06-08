@@ -13,18 +13,18 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@sentry/nextjs": "^10.49.0",
+    "@sentry/nextjs": "^10.56.0",
     "@supabase/ssr": "^0.10.2",
-    "@supabase/supabase-js": "^2.103.3",
+    "@supabase/supabase-js": "^2.108.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "gray-matter": "^4.0.3",
     "mermaid": "^11.14.0",
-    "next": "16.2.6",
-    "next-intl": "^4.9.1",
+    "next": "16.2.7",
+    "next-intl": "^4.13.0",
     "qrcode": "^1.5.4",
-    "react": "19.2.6",
-    "react-dom": "19.2.6",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "sharp": "^0.34.5"
@@ -37,9 +37,9 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "16.2.7",
     "tailwindcss": "^4",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   },
   "pnpm": {
