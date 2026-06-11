@@ -156,10 +156,18 @@ def main():
     group.add_argument("--staged", action="store_true", help="Check staged files vs HEAD")
     group.add_argument("--range", dest="git_range", metavar="BASE..HEAD",
                        help="Check key counts across git range")
+    group.add_argument("--base", dest="base_ref", metavar="REF",
+                       help="Shorthand for --range <REF>..HEAD")
     args = parser.parse_args()
 
     if args.staged:
         sys.exit(check_staged())
+    elif args.base_ref:
+        head = __import__("subprocess").run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, cwd=REPO_ROOT
+        ).stdout.strip()
+        sys.exit(check_range(f"{args.base_ref}..{head}"))
     else:
         sys.exit(check_range(args.git_range))
 

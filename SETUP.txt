@@ -116,7 +116,10 @@ STEP 6 │ 安裝套件 & 本地測試
 A. 安裝爬蟲套件：
    bash setup_scraper.sh
 
-B. 測試本地網站：
+B. 安裝 Git hooks（i18n regression guard + agent tools cleanup）：
+   bash scripts/install-hooks.sh
+
+C. 測試本地網站：
    cd web
    npm run dev
    打開瀏覽器前往 http://localhost:3000
