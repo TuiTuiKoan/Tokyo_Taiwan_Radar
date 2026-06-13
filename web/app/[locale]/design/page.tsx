@@ -200,17 +200,6 @@ export default async function DesignPage({
       {/* Floating Bauhaus shapes — ~100 procedurally generated, deterministic. */}
       <FloatingShapes />
 
-      {/* Old-film noise overlay — brief flickers */}
-      <div
-        aria-hidden
-        className="fixed inset-0 -z-[5] pointer-events-none mix-blend-multiply"
-        style={{
-          animation: "noise-flicker 7s steps(2, end) infinite",
-          backgroundImage:
-            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.2  0 0 0 0 0.15  0 0 0 0 0.12  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
-        }}
-      />
-
       {/* Mock TopNav removed — production <Navbar> is already rendered by [locale]/layout.tsx */}
 
       <div className="max-w-6xl mx-auto px-4 py-10 space-y-12 relative z-0">
