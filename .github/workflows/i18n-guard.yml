@@ -76,13 +76,12 @@ jobs:
           fi
           SHORT_SHA="${{ github.sha }}"
           SHORT_SHA="${SHORT_SHA:0:7}"
-          PAYLOAD=$(jq -n \
-            --arg to "$LINE_USER_ID" \
-            --arg text "i18n regression detected on main
-Push: ${SHORT_SHA}
-Pushed by: ${{ github.actor }}
-Please revert immediately.
-https://github.com/${{ github.repository }}/commit/${{ github.sha }}" \
+          TEXT=$(printf 'i18n regression detected on main\nPush: %s (%s)\nPushed by: %s\nPlease revert immediately.\nhttps://github.com/%s/commit/%s' \
+            "$SHORT_SHA" "${{ github.sha }}" \
+            "${{ github.actor }}" \
+            "${{ github.repository }}" \
+            "${{ github.sha }}")
+          PAYLOAD=$(jq -n --arg to "$LINE_USER_ID" --arg text "$TEXT" \
             '{to: $to, messages: [{type: "text", text: $text}]}')
           curl -s -X POST https://api.line.me/v2/bot/message/push \
             -H "Content-Type: application/json" \
