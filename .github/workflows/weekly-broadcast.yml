@@ -4,8 +4,12 @@ on:
   schedule:
     # Thursday 09:17 JST (Thu 00:17 UTC) — generate weekly draft announcement
     - cron: "17 0 * * 4"
-    # Thursday 15:17 JST (Thu 06:17 UTC) — fallback if the 09:17 run was skipped by GitHub
+    # Thursday 15:17 JST (Thu 06:17 UTC) — fallback #1 if 09:17 was skipped
     - cron: "17 6 * * 4"
+    # Thursday 19:17 JST (Thu 10:17 UTC) — fallback #2
+    - cron: "17 10 * * 4"
+    # Thursday 23:17 JST (Thu 14:17 UTC) — fallback #3 (last chance)
+    - cron: "17 14 * * 4"
     # Friday 12:00 JST (Fri 03:00 UTC) — auto-send if toggle is enabled
     - cron: "0 3 * * 5"
     # Saturday 12:00 JST (Sat 03:00 UTC) — safety fallback if Friday cron was skipped by GitHub
@@ -45,7 +49,12 @@ jobs:
       # Thursday: generate a draft announcement (does NOT send)
       - name: Generate draft (Thursday)
         if: >-
-          (github.event_name == 'schedule' && (github.event.schedule == '17 0 * * 4' || github.event.schedule == '17 6 * * 4')) ||
+          (github.event_name == 'schedule' && (
+            github.event.schedule == '17 0 * * 4' ||
+            github.event.schedule == '17 6 * * 4' ||
+            github.event.schedule == '17 10 * * 4' ||
+            github.event.schedule == '17 14 * * 4'
+          )) ||
           github.event.inputs.action == 'generate-draft'
         working-directory: scraper
         env:
