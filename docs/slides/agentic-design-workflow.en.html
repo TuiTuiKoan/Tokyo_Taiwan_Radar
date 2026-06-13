@@ -653,55 +653,6 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
   <span class="brandfoot">STRUCTURE</span><span class="pageno">08</span>
  </section>
 
- <!-- 9 ▸ S-1 4 layers -->
- <section class="slide" data-accent="forest">
-  <div class="eyebrow">04 ・ S-1</div>
-  <h2 class="title-md">Where is the agent? — 4 Layers</h2>
-  <div class="agflow compact">
-   <div class="agleft">
-    <div class="agleft-row">
-     <div class="agcol agcol-red">
-      <div class="agcol-head">User</div>
-      <div class="agcol-body"><span class="en">Input / Utterance</span><span class="en">1~N intents</span><span class="en">multi-turns</span></div>
-     </div>
-     <div class="agcol agcol-red">
-      <div class="agcol-head">ChatUI / VUI</div>
-      <div class="agcol-body" style="position:relative">
-              <span class="en">Persona</span>
-              <div class="persona-mascot">
-                <svg viewBox="0 -50 250 320" style="width:100%;height:100%"><use href="#lianbu"></use></svg>
-              </div>
-            </div>
-     </div>
-    </div>
-    <div class="agsignal">Signal</div>
-   </div>
-   <span class="agarr">⇄</span>
-   <div class="agcol agcol-hl">
-    <div class="agcol-head agcol-head-hl">★ Agent Processing Layer</div>
-    <div class="agcol-body">
-     <span class="en">Orchestrator / Selector</span>
-     <span class="en">Agent A ・ Agent B ・ Agent C</span>
-     <p class="agdesc">This is the area we are discussing — the Orchestrator plans and dispatches multiple agents, each with its Model, Memory, Skill, and Tool.</p>
-    </div>
-   </div>
-   <span class="agarr">⇄</span>
-   <div class="agcol">
-    <div class="agcol-head">System / Data Sources</div>
-    <div class="agcol-body"><span class="en">Database</span><span class="en">Web Search</span><span class="en">Product / System</span><span class="en">Dev Env</span></div>
-   </div>
-  </div>
-  <div class="stack lv-red" style="margin-top:14px">
-   <div style="display:grid;grid-template-columns:0.9fr 1.1fr;gap:18px">
-    <div class="layer" data-c="1"><span class="lv">1</span><div><h3>Conversational UI</h3><p>Chatbots, CS, Q&A.</p></div></div>
-    <div class="layer" data-c="2"><span class="lv">2</span><div><h3>Task Execution</h3><p>Scraping, Annotation, Audit.</p></div></div>
-   </div>
-   <div class="layer" data-c="3"><span class="lv">3</span><div><h3>Dev Layer</h3><p>Building the product: plan → engineer → tester.</p></div></div>
-   <div class="layer" data-c="4"><span class="lv">4</span><div><h3>Ops Layer</h3><p>Feedback loops, metrics, eval.</p></div></div>
-  </div>
-  <span class="brandfoot">STRUCTURE</span><span class="pageno">09</span>
- </section>
-
  <!-- 9 ▸ S-2 workflow vs agent -->
  <section class="slide" data-accent="forest">
   <div class="eyebrow">04 ・ S-2</div>
@@ -726,7 +677,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
    </tbody>
   </table>
   </div>
-  <span class="brandfoot">STRUCTURE</span><span class="pageno">10</span>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">09</span>
  </section>
 
  <!-- 11 ▸ S-2 site architecture -->
@@ -783,7 +734,7 @@ graph LR
    </pre>
   </div>
   <div style="margin-top:10px;display:flex;gap:16px;align-items:stretch">
-   <div style="flex:0 0 auto;max-width:240px;display:flex;flex-direction:column;justify-content:center;gap:6px;background:rgba(255,122,160,0.32);border:1.5px solid var(--red);border-radius:12px;padding:12px 18px">
+   <div style="flex:0 0 auto;max-width:240px;display:flex;flex-direction:column;justify-content:center;gap:6px;background:rgba(255,122,160,0.32);border-radius:12px;padding:12px 18px">
     <span style="font-weight:800;color:var(--mocha);font-size:15px;line-height:1.4">Agents embedded within Workflow</span>
     <span style="color:var(--forest);font-weight:800;font-size:15px;line-height:1.4">＝ Automation stability ＋ AI flexibility</span>
    </div>
@@ -793,7 +744,68 @@ graph LR
     <li><strong>Workflow ensures landing</strong> — results written back to Supabase</li>
    </ul>
   </div>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">10</span>
+ </section>
+
+ <!-- 9 ▸ S-1 4 layers -->
+ <section class="slide" data-accent="forest">
+  <div class="eyebrow">04 ・ S-2</div>
+  <h2 class="title-md">Where is the agent? — 4 Layers</h2>
+  <div class="agflow compact">
+   <div class="agleft">
+    <div class="agleft-row">
+     <div class="agcol agcol-red">
+      <div class="agcol-head">User</div>
+      <div class="agcol-body"><span class="en">Input / Utterance</span><span class="en">1~N intents</span><span class="en">multi-turns</span></div>
+     </div>
+     <div class="agcol agcol-red">
+      <div class="agcol-head">ChatUI / VUI</div>
+      <div class="agcol-body" style="position:relative">
+              <span class="en">Persona</span>
+              <div class="persona-mascot">
+                <svg viewBox="0 -50 250 320" style="width:100%;height:100%"><use href="#lianbu"></use></svg>
+              </div>
+            </div>
+     </div>
+    </div>
+    <div class="agsignal">Signal</div>
+   </div>
+   <span class="agarr">⇄</span>
+   <div class="agcol agcol-hl">
+    <div class="agcol-head agcol-head-hl">★ Agent Processing Layer</div>
+    <div class="agcol-body">
+     <span class="en">Orchestrator / Selector</span>
+     <span class="en">Agent A ・ Agent B ・ Agent C</span>
+     <p class="agdesc">This is the area we are discussing — the Orchestrator plans and dispatches multiple agents, each with its Model, Memory, Skill, and Tool.</p>
+    </div>
+   </div>
+   <span class="agarr">⇄</span>
+   <div class="agcol">
+    <div class="agcol-head">System / Data Sources</div>
+    <div class="agcol-body"><span class="en">Database</span><span class="en">Web Search</span><span class="en">Product / System</span><span class="en">Dev Env</span></div>
+   </div>
+  </div>
+  <div class="stack lv-red" style="margin-top:14px">
+   <div style="display:grid;grid-template-columns:0.9fr 1.1fr;gap:18px">
+    <div class="layer" data-c="1"><span class="lv">1</span><div><h3>Conversational UI</h3><p>Chatbots, CS, Q&A.</p></div></div>
+    <div class="layer" data-c="2"><span class="lv">2</span><div><h3>Task Execution</h3><p>Scraping, Annotation, Audit.</p></div></div>
+   </div>
+   <div class="layer" data-c="3"><span class="lv">3</span><div><h3>Dev Layer</h3><p>Building the product: plan → engineer → tester.</p></div></div>
+   <div class="layer" data-c="4"><span class="lv">4</span><div><h3>Ops Layer</h3><p>Feedback loops, metrics, eval.</p></div></div>
+  </div>
   <span class="brandfoot">STRUCTURE</span><span class="pageno">11</span>
+ </section>
+
+ <!-- S-5 agent Three Modalities of Collaboration -->
+ <section class="slide" data-accent="forest">
+  <div class="eyebrow">04 ・ S-2</div>
+  <h2 class="title-md">Agent Architectures & Collaboration</h2>
+  <div class="stack" style="margin-top:22px">
+   <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">1</span><div><h3>Atomic: One Agent + Skill + History</h3><p>Atomic unit: A single agent with dedicated SKILL.md and history.md, capable of independent completion and self-learning.</p></div></div>
+   <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">2</span><div><h3>Multi-Agent Orchestration</h3><p>Tree-based: plan → engineer → tester. Specialized agents interconnected for parallel multitasking.</p></div></div>
+   <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">3</span><div><h3>AutonomousOperate agent (Longrun agent)</h3><p>Runs on schedules or signals without human triggers — daily reviews, audits, and health checks.</p></div></div>
+  </div>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">12</span>
  </section>
 
  <!-- S-3 unification (moved before DevOps) -->
@@ -822,7 +834,7 @@ graph LR
   </table>
   </div>
   <p class="fineprint" style="margin-top:12px">＊ See source code</p>
-  <span class="brandfoot">STRUCTURE</span><span class="pageno">12</span>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">13</span>
  </section>
 
  <!-- S-4c Normative Design — Where It Applies -->
@@ -835,7 +847,7 @@ graph LR
    <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">3</span><div><h3>Agent Layer ・ How dev &amp; ops agents actually operate</h3><p>Agent Session Start Checklist: read <code style="font-size:14px">SKILL.md</code> before implementing. Next time you fix a bug, crystallize the lesson back into Skill.<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/agents/scraper-expert.agent.md#L20-L24" target="_blank" style="color:#9a8a7e;text-decoration:underline">agent.md#L20–24</a></span></p></div></div>
   </div>
   <div class="callout" style="margin-top:12px">Core principle: Code solidifies, Skills evolve, Agents execute—three layers iterate to drive "auditable norms."</div>
-  <span class="brandfoot">NORMATIVE DESIGN</span><span class="pageno">13</span>
+  <span class="brandfoot">NORMATIVE DESIGN</span><span class="pageno">14</span>
  </section>
 
  <!-- S-4 DevOps (moved after unification) -->
@@ -852,18 +864,6 @@ graph LR
     <div class="flow"><div class="node">Build</div><span class="arr">→</span><div class="node">Operate</div><span class="arr">→</span><div class="node" style="border:1.5px solid #16a34a;color:#15803d;background:var(--paper)">Skill Update</div></div>
     <p style="margin-top:10px">Feedback doesn't just change code; it crystallizes into <strong>Skills</strong>.</p>
    </div>
-  </div>
-  <span class="brandfoot">STRUCTURE</span><span class="pageno">14</span>
- </section>
-
- <!-- S-5 agent Three Modalities of Collaboration -->
- <section class="slide" data-accent="forest">
-  <div class="eyebrow">04 ・ S-5</div>
-  <h2 class="title-md">Agent Architectures & Collaboration</h2>
-  <div class="stack" style="margin-top:22px">
-   <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">1</span><div><h3>Atomic: One Agent + Skill + History</h3><p>Atomic unit: A single agent with dedicated SKILL.md and history.md, capable of independent completion and self-learning.</p></div></div>
-   <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">2</span><div><h3>Multi-Agent Orchestration</h3><p>Tree-based: plan → engineer → tester. Specialized agents interconnected for parallel multitasking.</p></div></div>
-   <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">3</span><div><h3>AutonomousOperate agent (Longrun agent)</h3><p>Runs on schedules or signals without human triggers — daily reviews, audits, and health checks.</p></div></div>
   </div>
   <span class="brandfoot">STRUCTURE</span><span class="pageno">15</span>
  </section>

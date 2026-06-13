@@ -653,55 +653,6 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
     <span class="brandfoot">STRUCTURE</span><span class="pageno">08</span>
   </section>
 
-  <!-- 9 ▸ S-1 4 layers -->
-  <section class="slide" data-accent="forest">
-    <div class="eyebrow">04 ・ S-1</div>
-    <h2 class="title-md">Where is the agent? — 四個層次</h2>
-    <div class="agflow compact">
-      <div class="agleft">
-        <div class="agleft-row">
-          <div class="agcol agcol-red">
-            <div class="agcol-head">User</div>
-            <div class="agcol-body"><span class="en">Input / Utterance</span><span class="en">1~N intents</span><span class="en">multi-turns</span></div>
-          </div>
-          <div class="agcol agcol-red">
-            <div class="agcol-head">ChatUI / VUI</div>
-            <div class="agcol-body" style="position:relative">
-              <span class="en">Persona</span>
-              <div class="persona-mascot">
-                <svg viewBox="0 -50 250 320" style="width:100%;height:100%"><use href="#lianbu"></use></svg>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="agsignal">Signal</div>
-      </div>
-      <span class="agarr">⇄</span>
-      <div class="agcol agcol-hl">
-        <div class="agcol-head agcol-head-hl">★ Agent 處理層</div>
-        <div class="agcol-body">
-          <span class="en">Orchestrator / Selector</span>
-          <span class="en">Agent A ・ Agent B ・ Agent C</span>
-          <p class="agdesc">就是我們要討論的區域 —— Orchestrator 規劃、調度多個 agent，各自帶 Model・Memory・Skill・Tool。</p>
-        </div>
-      </div>
-      <span class="agarr">⇄</span>
-      <div class="agcol">
-        <div class="agcol-head">System / Data Sources</div>
-        <div class="agcol-body"><span class="en">Database</span><span class="en">Web Search</span><span class="en">Product / System</span><span class="en">Dev Env</span></div>
-      </div>
-    </div>
-    <div class="stack lv-red" style="margin-top:14px">
-      <div style="display:grid;grid-template-columns:0.9fr 1.1fr;gap:18px">
-        <div class="layer" data-c="1"><span class="lv">1</span><div><h3>對話介面層</h3><p>chatbot、客服、問答。</p></div></div>
-        <div class="layer" data-c="2"><span class="lv">2</span><div><h3>任務執行層</h3><p>抓取、標註、稽核、生成。</p></div></div>
-      </div>
-      <div class="layer" data-c="3"><span class="lv">3</span><div><h3>開發層 (Dev)</h3><p>用 agent 打造產品本身：plan → engineer → tester。</p></div></div>
-      <div class="layer" data-c="4"><span class="lv">4</span><div><h3>營運層 (Op)</h3><p>feedback loop、metrics、eval。</p></div></div>
-    </div>
-    <span class="brandfoot">STRUCTURE</span><span class="pageno">09</span>
-  </section>
-
   <!-- 9 ▸ S-2 workflow vs agent -->
   <section class="slide" data-accent="forest">
     <div class="eyebrow">04 ・ S-2</div>
@@ -726,7 +677,7 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
       </tbody>
     </table>
     </div>
-    <span class="brandfoot">STRUCTURE</span><span class="pageno">10</span>
+    <span class="brandfoot">STRUCTURE</span><span class="pageno">09</span>
   </section>
 
   <!-- 11 ▸ S-2 site architecture -->
@@ -783,7 +734,7 @@ graph LR
       </pre>
     </div>
     <div style="margin-top:10px;display:flex;gap:16px;align-items:stretch">
-      <div style="flex:0 0 auto;max-width:240px;display:flex;flex-direction:column;justify-content:center;gap:6px;background:rgba(255,122,160,0.32);border:1.5px solid var(--red);border-radius:12px;padding:12px 18px">
+      <div style="flex:0 0 auto;max-width:240px;display:flex;flex-direction:column;justify-content:center;gap:6px;background:rgba(255,122,160,0.32);border-radius:12px;padding:12px 18px">
         <span style="font-weight:800;color:var(--mocha);font-size:15px;line-height:1.4">Agent 嵌入在 Workflow 之中</span>
         <span style="color:var(--forest);font-weight:800;font-size:15px;line-height:1.4">＝ 自動化穩定性 ＋ AI 靈活性</span>
       </div>
@@ -793,7 +744,68 @@ graph LR
         <li><strong>Workflow 確保落地</strong> — agent 產出寫回 Supabase</li>
       </ul>
     </div>
+    <span class="brandfoot">STRUCTURE</span><span class="pageno">10</span>
+  </section>
+
+  <!-- 9 ▸ S-1 4 layers -->
+  <section class="slide" data-accent="forest">
+    <div class="eyebrow">04 ・ S-2</div>
+    <h2 class="title-md">Where is the agent? — 四個層次</h2>
+    <div class="agflow compact">
+      <div class="agleft">
+        <div class="agleft-row">
+          <div class="agcol agcol-red">
+            <div class="agcol-head">User</div>
+            <div class="agcol-body"><span class="en">Input / Utterance</span><span class="en">1~N intents</span><span class="en">multi-turns</span></div>
+          </div>
+          <div class="agcol agcol-red">
+            <div class="agcol-head">ChatUI / VUI</div>
+            <div class="agcol-body" style="position:relative">
+              <span class="en">Persona</span>
+              <div class="persona-mascot">
+                <svg viewBox="0 -50 250 320" style="width:100%;height:100%"><use href="#lianbu"></use></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="agsignal">Signal</div>
+      </div>
+      <span class="agarr">⇄</span>
+      <div class="agcol agcol-hl">
+        <div class="agcol-head agcol-head-hl">★ Agent 處理層</div>
+        <div class="agcol-body">
+          <span class="en">Orchestrator / Selector</span>
+          <span class="en">Agent A ・ Agent B ・ Agent C</span>
+          <p class="agdesc">就是我們要討論的區域 —— Orchestrator 規劃、調度多個 agent，各自帶 Model・Memory・Skill・Tool。</p>
+        </div>
+      </div>
+      <span class="agarr">⇄</span>
+      <div class="agcol">
+        <div class="agcol-head">System / Data Sources</div>
+        <div class="agcol-body"><span class="en">Database</span><span class="en">Web Search</span><span class="en">Product / System</span><span class="en">Dev Env</span></div>
+      </div>
+    </div>
+    <div class="stack lv-red" style="margin-top:14px">
+      <div style="display:grid;grid-template-columns:0.9fr 1.1fr;gap:18px">
+        <div class="layer" data-c="1"><span class="lv">1</span><div><h3>對話介面層</h3><p>chatbot、客服、問答。</p></div></div>
+        <div class="layer" data-c="2"><span class="lv">2</span><div><h3>任務執行層</h3><p>抓取、標註、稽核、生成。</p></div></div>
+      </div>
+      <div class="layer" data-c="3"><span class="lv">3</span><div><h3>開發層 (Dev)</h3><p>用 agent 打造產品本身：plan → engineer → tester。</p></div></div>
+      <div class="layer" data-c="4"><span class="lv">4</span><div><h3>營運層 (Op)</h3><p>feedback loop、metrics、eval。</p></div></div>
+    </div>
     <span class="brandfoot">STRUCTURE</span><span class="pageno">11</span>
+  </section>
+
+  <!-- S-5 agent 協作的三種形態 -->
+  <section class="slide" data-accent="forest">
+    <div class="eyebrow">04 ・ S-2</div>
+    <h2 class="title-md">Agent 的多種架構組合</h2>
+    <div class="stack" style="margin-top:22px">
+      <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">1</span><div><h3>一個 agent ＋ skill ＋ history</h3><p>最小單位：單一 agent 配上專屬的 <span class="kbd">SKILL.md</span> 與 <span class="kbd">history.md</span>，能獨立完成一類任務並自我學習。</p></div></div>
+      <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">2</span><div><h3>多個 agent 協作</h3><p>plan → engineer → tester 的樹狀分工；不同 agent 各司其職，互相串接、平行多工。</p></div></div>
+      <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">3</span><div><h3>常態性自動營運 agent (Longrun agent)</h3><p>不需人觸發、依排程或訊號常駐運作 —— 每日覆盤、稽核、健康檢查。</p></div></div>
+    </div>
+    <span class="brandfoot">STRUCTURE</span><span class="pageno">12</span>
   </section>
 
   <!-- S-3 unification (moved before DevOps) -->
@@ -822,7 +834,7 @@ graph LR
     </table>
     </div>
     <p class="fineprint" style="margin-top:12px">＊ 參見原始碼</p>
-    <span class="brandfoot">STRUCTURE</span><span class="pageno">12</span>
+    <span class="brandfoot">STRUCTURE</span><span class="pageno">13</span>
   </section>
 
   <!-- S-4c 規範設計的實際應用角度 -->
@@ -835,7 +847,7 @@ graph LR
       <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">3</span><div><h3>Agent 層 ・「規範」開發與營運 agent 的實際運作步驟</h3><p>Agent 的 Session Start Checklist：先讀 <code style="font-size:14px">SKILL.md</code>，再實作爬蟲。下次 fix bug 時把教訓沉澱回 Skill。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/agents/scraper-expert.agent.md#L20-L24" target="_blank" style="color:#9a8a7e;text-decoration:underline">agent.md#L20–24</a></span></p></div></div>
     </div>
     <div class="callout" style="margin-top:12px">核心：Code 定型、Skill 演進、Agent 執行 —— 三層交互推進「可審計的規範」。</div>
-    <span class="brandfoot">NORMATIVE DESIGN</span><span class="pageno">13</span>
+    <span class="brandfoot">NORMATIVE DESIGN</span><span class="pageno">14</span>
   </section>
 
   <!-- S-4 DevOps (moved after unification) -->
@@ -852,18 +864,6 @@ graph LR
         <div class="flow"><div class="node">開發</div><span class="arr">→</span><div class="node">營運</div><span class="arr">→</span><div class="node" style="border:1.5px solid #16a34a;color:#15803d;background:var(--paper)">Skill Update</div></div>
         <p style="margin-top:10px">反饋不只改 code，更<strong>沉澱成 skill</strong>。</p>
       </div>
-    </div>
-    <span class="brandfoot">STRUCTURE</span><span class="pageno">14</span>
-  </section>
-
-  <!-- S-5 agent 協作的三種形態 -->
-  <section class="slide" data-accent="forest">
-    <div class="eyebrow">04 ・ S-5</div>
-    <h2 class="title-md">Agent 的多種架構組合</h2>
-    <div class="stack" style="margin-top:22px">
-      <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">1</span><div><h3>一個 agent ＋ skill ＋ history</h3><p>最小單位：單一 agent 配上專屬的 <span class="kbd">SKILL.md</span> 與 <span class="kbd">history.md</span>，能獨立完成一類任務並自我學習。</p></div></div>
-      <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">2</span><div><h3>多個 agent 協作</h3><p>plan → engineer → tester 的樹狀分工；不同 agent 各司其職，互相串接、平行多工。</p></div></div>
-      <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">3</span><div><h3>常態性自動營運 agent (Longrun agent)</h3><p>不需人觸發、依排程或訊號常駐運作 —— 每日覆盤、稽核、健康檢查。</p></div></div>
     </div>
     <span class="brandfoot">STRUCTURE</span><span class="pageno">15</span>
   </section>
