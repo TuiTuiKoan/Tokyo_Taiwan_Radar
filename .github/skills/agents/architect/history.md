@@ -8,6 +8,7 @@
 - **Fix**: Added lowercase kebab-case fallback path `normativity-design`.
 - **Lesson**: Standardize on lowercase kebab-case for all public asset directories to ensure cross-platform accessibility.
 
+---
 ## 2026-06-07 — Hybrid Venue (Physical + Online) Marking Policy
 
 **問題：** 許多混合型活動（如表演藝術類演唱會，例 `380c0ab2-1713-4bc9-86c5-6101d8ec741a`）同時提供現場與線上參與，但在資料提取階段常被簡化為純線上，導致遺漏重要的實體位址資訊與都道府縣標籤。

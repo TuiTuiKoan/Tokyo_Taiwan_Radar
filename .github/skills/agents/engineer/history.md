@@ -17,7 +17,6 @@ another exception → whack-a-mole for ~20 commits.
 Safari FIRST (see `web/public/_uitest.html`), then apply any nudge as a scoped per-control class only.
 
 ---
-
 ## 2026-06-07 — Hybrid Venue (Physical + Online) marking rule 
 
 **日期 | 問題簡述 | 根本原因 | 修復方法 | 學到的教訓** 
