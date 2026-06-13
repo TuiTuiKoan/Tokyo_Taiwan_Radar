@@ -91,6 +91,51 @@
     "photography": "Photography",
     "human_rights": "Human Rights"
   },
+  "designPreview": {
+    "title": "Design System Preview",
+    "subtitle": "A localized preview surface for contributors to check motif thumbnails, design tokens, and component states.",
+    "localeSwitcherLabel": "Locale",
+    "motifs": {
+      "title": "Category motif thumbnails",
+      "description": "Each event category shows five fixed motif variants so coverage, proportions, and dark-mode readability are easy to inspect.",
+      "groupLabel": "{group} group",
+      "variantLabel": "v{index}"
+    },
+    "tokens": {
+      "indexTitle": "Token index",
+      "colorTitle": "Color tokens",
+      "primitiveTitle": "Primitive colors",
+      "brandTitle": "Brand semantic colors",
+      "gradientTitle": "Gradients",
+      "typographyTitle": "Typography tokens",
+      "fontTitle": "Font families",
+      "sizeTitle": "Font sizes",
+      "weightTitle": "Font weights",
+      "lineHeightTitle": "Line heights",
+      "spacingTitle": "Spacing tokens",
+      "radiusTitle": "Radius tokens",
+      "shadowTitle": "Shadow tokens",
+      "motionTitle": "Motion tokens",
+      "durationTitle": "Durations",
+      "easingTitle": "Easing curves"
+    },
+    "components": {
+      "filterChipNote": "When the filter panel is collapsed, chips mirror the active filters.",
+      "filterChipStripTitle": "FilterBar selected chips strip",
+      "filterChipInteractiveTitle": "FilterChip interactive preview",
+      "filterChipInteractiveNote": "Click remove to log to the console; this preview page does not change real filters.",
+      "filterMovie": "Film",
+      "filterPerformingArts": "Music & Performance",
+      "filterTaiwanJapan": "Taiwan-Japan exchange",
+      "filterKeyword": "\"keyword\""
+    },
+    "emptyLiveEvents": "No live events are available for preview; Supabase public environment variables may be missing during this build.",
+    "liveEventHint": "Click any card to open the real event page on this site.",
+    "liveEventTitle": "Live EventCard preview ({count})",
+    "mobilePreviewTitle": "Mobile preview (390px)",
+    "mobilePreviewNote": "EventCard rendered inside a phone-width frame for RWD checks.",
+    "footer": "Tokyo Taiwan Radar — design system v1 · use the navbar to toggle dark mode and verify contrast."
+  },
   "event": {
     "source": "Source",
     "location": "Venue / Channel",

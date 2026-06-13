@@ -43,5 +43,3 @@ scraper/auto_scraper/runs/*/
 # Generated monthly reports (local output, not committed)
 scraper/reports/
 
-# Local-only design mockup preview (not for production)
-web/app/\[locale\]/design/

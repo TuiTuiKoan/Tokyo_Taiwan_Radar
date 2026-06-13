@@ -91,6 +91,51 @@
     "photography": "攝影",
     "human_rights": "人權"
   },
+  "designPreview": {
+    "title": "設計系統預覽",
+    "subtitle": "供貢獻者檢查 motif 縮圖、設計 token 與元件狀態的在地化預覽頁。",
+    "localeSwitcherLabel": "語言",
+    "motifs": {
+      "title": "分類 motif 縮圖",
+      "description": "每個活動分類固定展示 5 種 motif 變體，方便檢查圖案覆蓋、比例與深色模式可讀性。",
+      "groupLabel": "{group} 分組",
+      "variantLabel": "v{index}"
+    },
+    "tokens": {
+      "indexTitle": "Token 索引",
+      "colorTitle": "色彩 token",
+      "primitiveTitle": "基礎色",
+      "brandTitle": "品牌語意色",
+      "gradientTitle": "漸層",
+      "typographyTitle": "字體 token",
+      "fontTitle": "字體家族",
+      "sizeTitle": "字級",
+      "weightTitle": "字重",
+      "lineHeightTitle": "行高",
+      "spacingTitle": "間距 token",
+      "radiusTitle": "圓角 token",
+      "shadowTitle": "陰影 token",
+      "motionTitle": "動態 token",
+      "durationTitle": "持續時間",
+      "easingTitle": "緩動曲線"
+    },
+    "components": {
+      "filterChipNote": "篩選面板收合時，chips 反映目前啟用的條件。",
+      "filterChipStripTitle": "FilterBar 已選 chips 列",
+      "filterChipInteractiveTitle": "FilterChip 互動預覽",
+      "filterChipInteractiveNote": "點擊移除按鈕會輸出到 console；此預覽頁不會真的變更篩選狀態。",
+      "filterMovie": "電影",
+      "filterPerformingArts": "音樂・表演藝術",
+      "filterTaiwanJapan": "台日交流",
+      "filterKeyword": "\"關鍵字\""
+    },
+    "emptyLiveEvents": "目前沒有可展示的即時活動；建置環境可能未設定 Supabase 公開環境變數。",
+    "liveEventHint": "點擊任一卡片可前往本站實際活動頁。",
+    "liveEventTitle": "即時 EventCard 預覽（{count} 件）",
+    "mobilePreviewTitle": "行動版預覽（390px）",
+    "mobilePreviewNote": "EventCard 置於手機寬度容器中，用於檢查 RWD 呈現。",
+    "footer": "Tokyo Taiwan Radar — design system v1 · 可透過導覽列切換深色模式檢查對比。"
+  },
   "event": {
     "source": "資料來源",
     "location": "場地・頻道",

@@ -91,6 +91,51 @@
     "photography": "写真",
     "human_rights": "人権"
   },
+  "designPreview": {
+    "title": "デザインシステムプレビュー",
+    "subtitle": "コントリビューターが motif サムネイル、デザイントークン、コンポーネント状態を確認するためのローカライズ済みプレビュー画面です。",
+    "localeSwitcherLabel": "言語",
+    "motifs": {
+      "title": "カテゴリ motif サムネイル",
+      "description": "各イベントカテゴリにつき 5 種類の固定 motif 変体を表示し、図案の網羅性、比率、ダークモードでの読みやすさを確認できます。",
+      "groupLabel": "{group} グループ",
+      "variantLabel": "v{index}"
+    },
+    "tokens": {
+      "indexTitle": "Token インデックス",
+      "colorTitle": "カラー token",
+      "primitiveTitle": "プリミティブカラー",
+      "brandTitle": "ブランドセマンティックカラー",
+      "gradientTitle": "グラデーション",
+      "typographyTitle": "タイポグラフィ token",
+      "fontTitle": "フォントファミリー",
+      "sizeTitle": "フォントサイズ",
+      "weightTitle": "フォントウェイト",
+      "lineHeightTitle": "行の高さ",
+      "spacingTitle": "スペーシング token",
+      "radiusTitle": "角丸 token",
+      "shadowTitle": "シャドウ token",
+      "motionTitle": "モーション token",
+      "durationTitle": "持続時間",
+      "easingTitle": "イージング曲線"
+    },
+    "components": {
+      "filterChipNote": "フィルターパネルを閉じた状態で、chips が有効な条件を反映します。",
+      "filterChipStripTitle": "FilterBar 選択中 chips 列",
+      "filterChipInteractiveTitle": "FilterChip インタラクションプレビュー",
+      "filterChipInteractiveNote": "削除ボタンをクリックすると console に出力します。このプレビュー画面では実際の絞り込み状態は変わりません。",
+      "filterMovie": "映画",
+      "filterPerformingArts": "音楽・演劇",
+      "filterTaiwanJapan": "台日交流",
+      "filterKeyword": "\"キーワード\""
+    },
+    "emptyLiveEvents": "表示できるライブイベントがありません。ビルド環境で Supabase の公開環境変数が未設定の可能性があります。",
+    "liveEventHint": "カードをクリックすると、このサイトの実際のイベントページを開きます。",
+    "liveEventTitle": "Live EventCard プレビュー（{count} 件）",
+    "mobilePreviewTitle": "モバイルプレビュー（390px）",
+    "mobilePreviewNote": "EventCard をスマートフォン幅の枠内に表示し、RWD を確認します。",
+    "footer": "Tokyo Taiwan Radar — design system v1 · ナビバーでダークモードに切り替えてコントラストを確認できます。"
+  },
   "event": {
     "source": "出典",
     "location": "会場・チャンネル",
