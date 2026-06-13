@@ -797,6 +797,19 @@ graph TD
     <span class="brandfoot">STRUCTURE</span><span class="pageno">12</span>
   </section>
 
+  <!-- S-4c 規範設計的三層 -->
+  <section class="slide" data-accent="forest">
+    <div class="eyebrow">04 ・ S-4c</div>
+    <h2 class="title-md">規範設計的三層</h2>
+    <div class="stack" style="margin-top:18px">
+      <div class="layer" data-c="3"><span class="lv">Ⅰ</span><div><h3>Code 層 ・ Event dataclass</h3><p><code style="font-size:14px">source_id</code>（穩定）、<code style="font-size:14px">start_date</code>（不 fallback）、多語<code style="font-size:14px">name_ja/zh/en</code>、地點三欄組（<code style="font-size:14px">location_name/address/prefectures</code>）。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/scraper/sources/base.py#L120-L165" target="_blank" style="color:#9a8a7e;text-decoration:underline">base.py#L120–165</a></span></p></div></div>
+      <div class="layer" data-c="3"><span class="lv">Ⅱ</span><div><h3>Skill 層 ・ Taiwan Relevance 規則</h3><p>「<strong>Wansei</strong>」訊號、「具體選擇理由」格式、三階段 filter 順序（title → venue → keyword）。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/skills/scraper-expert/SKILL.md#L15-L31" target="_blank" style="color:#9a8a7e;text-decoration:underline">SKILL.md#L15–31</a></span></p></div></div>
+      <div class="layer" data-c="3"><span class="lv">Ⅲ</span><div><h3>Agent 層 ・ 讀規則後才動手</h3><p>Agent 的 Session Start Checklist：先讀 <code style="font-size:14px">SKILL.md</code>，再實作爬蟲。下次 fix bug 時把教訓沉澱回 Skill。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/agents/scraper-expert.agent.md#L20-L24" target="_blank" style="color:#9a8a7e;text-decoration:underline">agent.md#L20–24</a></span></p></div></div>
+    </div>
+    <div class="callout" style="margin-top:12px">核心：Code 定型、Skill 演進、Agent 執行 —— 三層交互推進「可審計的規範」。</div>
+    <span class="brandfoot">NORMATIVE DESIGN</span><span class="pageno">13</span>
+  </section>
+
   <!-- S-4 DevOps (moved after unification) -->
   <section class="slide" data-accent="forest">
     <div class="eyebrow">04 ・ S-4</div>
@@ -812,20 +825,7 @@ graph TD
         <p style="margin-top:10px">反饋不只改 code，更<strong>沉澱成 skill</strong>。</p>
       </div>
     </div>
-    <span class="brandfoot">STRUCTURE</span><span class="pageno">13</span>
-  </section>
-
-  <!-- S-4c 規範設計的三層 -->
-  <section class="slide" data-accent="forest">
-    <div class="eyebrow">04 ・ S-4c</div>
-    <h2 class="title-md">規範設計的三層</h2>
-    <div class="stack" style="margin-top:18px">
-      <div class="layer" data-c="3"><span class="lv">Ⅰ</span><div><h3>Code 層 ・ Event dataclass</h3><p><code style="font-size:14px">source_id</code>（穩定）、<code style="font-size:14px">start_date</code>（不 fallback）、多語<code style="font-size:14px">name_ja/zh/en</code>、地點三欄組（<code style="font-size:14px">location_name/address/prefectures</code>）。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/scraper/sources/base.py#L120-L165" target="_blank" style="color:#9a8a7e;text-decoration:underline">base.py#L120–165</a></span></p></div></div>
-      <div class="layer" data-c="3"><span class="lv">Ⅱ</span><div><h3>Skill 層 ・ Taiwan Relevance 規則</h3><p>「<strong>Wansei</strong>」訊號、「具體選擇理由」格式、三階段 filter 順序（title → venue → keyword）。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/skills/scraper-expert/SKILL.md#L15-L31" target="_blank" style="color:#9a8a7e;text-decoration:underline">SKILL.md#L15–31</a></span></p></div></div>
-      <div class="layer" data-c="3"><span class="lv">Ⅲ</span><div><h3>Agent 層 ・ 讀規則後才動手</h3><p>Agent 的 Session Start Checklist：先讀 <code style="font-size:14px">SKILL.md</code>，再實作爬蟲。下次 fix bug 時把教訓沉澱回 Skill。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/agents/scraper-expert.agent.md#L20-L24" target="_blank" style="color:#9a8a7e;text-decoration:underline">agent.md#L20–24</a></span></p></div></div>
-    </div>
-    <div class="callout" style="margin-top:12px">核心：Code 定型、Skill 演進、Agent 執行 —— 三層交互推進「可審計的規範」。</div>
-    <span class="brandfoot">NORMATIVE DESIGN</span><span class="pageno">14</span>
+    <span class="brandfoot">STRUCTURE</span><span class="pageno">14</span>
   </section>
 
   <!-- S-5 agent 協作的三種形態 -->

@@ -797,6 +797,19 @@ graph TD
   <span class="brandfoot">STRUCTURE</span><span class="pageno">12</span>
  </section>
 
+ <!-- S-4c Three Layers of Normative Design -->
+ <section class="slide" data-accent="forest">
+  <div class="eyebrow">04 ・ S-4c</div>
+  <h2 class="title-md">How Normative Design Manifests Across Three Layers</h2>
+  <div class="stack" style="margin-top:18px">
+   <div class="layer" data-c="3"><span class="lv">Ⅰ</span><div><h3>Code Layer ・ Event dataclass</h3><p>Standardized fields: <code style="font-size:14px">source_id</code> (stable), <code style="font-size:14px">start_date</code> (no fallback), multi-language <code style="font-size:14px">name_ja/zh/en</code>, three-part location (<code style="font-size:14px">location_name/address/prefectures</code>).<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/scraper/sources/base.py#L120-L165" target="_blank" style="color:#9a8a7e;text-decoration:underline">base.py#L120–165</a></span></p></div></div>
+   <div class="layer" data-c="3"><span class="lv">Ⅱ</span><div><h3>Skill Layer ・ Taiwan Relevance Rules</h3><p>The "Wansei" signal, concrete selection reason format, three-stage filter order (title → venue → keyword).<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/skills/scraper-expert/SKILL.md#L15-L31" target="_blank" style="color:#9a8a7e;text-decoration:underline">SKILL.md#L15–31</a></span></p></div></div>
+   <div class="layer" data-c="3"><span class="lv">Ⅲ</span><div><h3>Agent Layer ・ Read rules before acting</h3><p>Agent Session Start Checklist: read <code style="font-size:14px">SKILL.md</code> before implementing. Next time you fix a bug, crystallize the lesson back into Skill.<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/agents/scraper-expert.agent.md#L20-L24" target="_blank" style="color:#9a8a7e;text-decoration:underline">agent.md#L20–24</a></span></p></div></div>
+  </div>
+  <div class="callout" style="margin-top:12px">Core principle: Code solidifies, Skills evolve, Agents execute—three layers iterate to drive "auditable norms."</div>
+  <span class="brandfoot">NORMATIVE DESIGN</span><span class="pageno">13</span>
+ </section>
+
  <!-- S-4 DevOps (moved after unification) -->
  <section class="slide" data-accent="forest">
   <div class="eyebrow">04 ・ S-4</div>
@@ -812,20 +825,7 @@ graph TD
     <p style="margin-top:10px">Feedback doesn't just change code; it crystallizes into <strong>Skills</strong>.</p>
    </div>
   </div>
-  <span class="brandfoot">STRUCTURE</span><span class="pageno">13</span>
- </section>
-
- <!-- S-4c Three Layers of Normative Design -->
- <section class="slide" data-accent="forest">
-  <div class="eyebrow">04 ・ S-4c</div>
-  <h2 class="title-md">How Normative Design Manifests Across Three Layers</h2>
-  <div class="stack" style="margin-top:18px">
-   <div class="layer" data-c="3"><span class="lv">Ⅰ</span><div><h3>Code Layer ・ Event dataclass</h3><p>Standardized fields: <code style="font-size:14px">source_id</code> (stable), <code style="font-size:14px">start_date</code> (no fallback), multi-language <code style="font-size:14px">name_ja/zh/en</code>, three-part location (<code style="font-size:14px">location_name/address/prefectures</code>).<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/scraper/sources/base.py#L120-L165" target="_blank" style="color:#9a8a7e;text-decoration:underline">base.py#L120–165</a></span></p></div></div>
-   <div class="layer" data-c="3"><span class="lv">Ⅱ</span><div><h3>Skill Layer ・ Taiwan Relevance Rules</h3><p>The "Wansei" signal, concrete selection reason format, three-stage filter order (title → venue → keyword).<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/skills/scraper-expert/SKILL.md#L15-L31" target="_blank" style="color:#9a8a7e;text-decoration:underline">SKILL.md#L15–31</a></span></p></div></div>
-   <div class="layer" data-c="3"><span class="lv">Ⅲ</span><div><h3>Agent Layer ・ Read rules before acting</h3><p>Agent Session Start Checklist: read <code style="font-size:14px">SKILL.md</code> before implementing. Next time you fix a bug, crystallize the lesson back into Skill.<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/agents/scraper-expert.agent.md#L20-L24" target="_blank" style="color:#9a8a7e;text-decoration:underline">agent.md#L20–24</a></span></p></div></div>
-  </div>
-  <div class="callout" style="margin-top:12px">Core principle: Code solidifies, Skills evolve, Agents execute—three layers iterate to drive "auditable norms."</div>
-  <span class="brandfoot">NORMATIVE DESIGN</span><span class="pageno">14</span>
+  <span class="brandfoot">STRUCTURE</span><span class="pageno">14</span>
  </section>
 
  <!-- S-5 agent Three Modalities of Collaboration -->
