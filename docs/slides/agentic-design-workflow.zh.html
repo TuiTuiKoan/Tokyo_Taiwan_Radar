@@ -408,13 +408,20 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
 }
 
 /* Fix Mermaid Responsive Overflow — constrain by HEIGHT so card stays above brandfoot */
-.big-mermaid{min-width:0!important;align-self:start!important;}
+.big-mermaid{min-width:0!important;align-self:stretch!important;}
 .big-mermaid .mermaid svg{
   width:auto!important;
   height:auto!important;
   max-width:100%!important;
-  max-height:420px!important;
+  max-height:455px!important;
 }
+/* Mermaid measures foreignObject label width narrower than the painted font,
+   so the default overflow:hidden clips the last chars. The node rects are wide
+   enough — let labels overflow the foreignObject to render in full. */
+.big-mermaid .mermaid svg foreignObject{overflow:visible!important;}
+.big-mermaid .mermaid svg foreignObject .nodeLabel,
+.big-mermaid .mermaid svg foreignObject div,
+.big-mermaid .mermaid svg foreignObject span{overflow:visible!important;white-space:nowrap!important;}
 </style>
 </head>
 <body>
@@ -646,55 +653,6 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
     <span class="brandfoot">STRUCTURE</span><span class="pageno">08</span>
   </section>
 
-  <!-- 9 ▸ S-1 4 layers -->
-  <section class="slide" data-accent="forest">
-    <div class="eyebrow">04 ・ S-1</div>
-    <h2 class="title-md">Where is the agent? — 四個層次</h2>
-    <div class="agflow compact">
-      <div class="agleft">
-        <div class="agleft-row">
-          <div class="agcol agcol-red">
-            <div class="agcol-head">User</div>
-            <div class="agcol-body"><span class="en">Input / Utterance</span><span class="en">1~N intents</span><span class="en">multi-turns</span></div>
-          </div>
-          <div class="agcol agcol-red">
-            <div class="agcol-head">ChatUI / VUI</div>
-            <div class="agcol-body" style="position:relative">
-              <span class="en">Persona</span>
-              <div class="persona-mascot">
-                <svg viewBox="0 -50 250 320" style="width:100%;height:100%"><use href="#lianbu"></use></svg>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="agsignal">Signal</div>
-      </div>
-      <span class="agarr">⇄</span>
-      <div class="agcol agcol-hl">
-        <div class="agcol-head agcol-head-hl">★ Agent 處理層</div>
-        <div class="agcol-body">
-          <span class="en">Orchestrator / Selector</span>
-          <span class="en">Agent A ・ Agent B ・ Agent C</span>
-          <p class="agdesc">就是我們要討論的區域 —— Orchestrator 規劃、調度多個 agent，各自帶 Model・Memory・Skill・Tool。</p>
-        </div>
-      </div>
-      <span class="agarr">⇄</span>
-      <div class="agcol">
-        <div class="agcol-head">System / Data Sources</div>
-        <div class="agcol-body"><span class="en">Database</span><span class="en">Web Search</span><span class="en">Product / System</span><span class="en">Dev Env</span></div>
-      </div>
-    </div>
-    <div class="stack lv-red" style="margin-top:14px">
-      <div style="display:grid;grid-template-columns:0.9fr 1.1fr;gap:18px">
-        <div class="layer" data-c="1"><span class="lv">1</span><div><h3>對話介面層</h3><p>chatbot、客服、問答。</p></div></div>
-        <div class="layer" data-c="2"><span class="lv">2</span><div><h3>任務執行層</h3><p>抓取、標註、稽核、生成。</p></div></div>
-      </div>
-      <div class="layer" data-c="3"><span class="lv">3</span><div><h3>開發層 (Dev)</h3><p>用 agent 打造產品本身：plan → engineer → tester。</p></div></div>
-      <div class="layer" data-c="4"><span class="lv">4</span><div><h3>營運層 (Op)</h3><p>feedback loop、metrics、eval。</p></div></div>
-    </div>
-    <span class="brandfoot">STRUCTURE</span><span class="pageno">09</span>
-  </section>
-
   <!-- 9 ▸ S-2 workflow vs agent -->
   <section class="slide" data-accent="forest">
     <div class="eyebrow">04 ・ S-2</div>
@@ -719,53 +677,70 @@ ul.clean li::before{content:"▸";position:absolute;left:0;color:var(--red);font
       </tbody>
     </table>
     </div>
-    <span class="brandfoot">STRUCTURE</span><span class="pageno">10</span>
+    <span class="brandfoot">STRUCTURE</span><span class="pageno">09</span>
   </section>
 
   <!-- 11 ▸ S-2 site architecture -->
   <section class="slide" data-accent="forest">
     <div class="eyebrow">04 ・ S-2</div>
     <h2 class="title-md">本站架構 ・ Agent 嵌在 Workflow 之中</h2>
-    <div class="grid2" style="margin-top:14px;gap:12px;grid-template-columns:repeat(2, minmax(0, 1fr));align-items:center">
-      <div class="card big-mermaid no-decor" style="padding:8px;overflow:hidden;display:flex;flex-direction:column;align-items:center;text-align:center">
-        <div style="display:flex;gap:6px;margin-bottom:6px;width:100%">
-          <div style="flex:1;text-align:center;font-weight:800;font-size:14px;color:var(--mocha);background:rgba(58,38,31,.06);border-radius:8px;padding:6px 4px">Workflow 自動化骨架</div>
-          <div style="flex:1;text-align:center;font-weight:800;font-size:14px;color:var(--forest);background:rgba(196,232,111,.42);border-radius:8px;padding:6px 4px">Agents 智能判斷</div>
-        </div>
-        <pre class="mermaid" style="margin:0;background:none;border:none;width:100%;">
-%%{init: {"flowchart":{"htmlLabels":false},"themeVariables":{"fontSize":"28px"}}}%%
-graph TD
-  subgraph WF[" "]
-    Cron[每日 Cron] --&gt; Scrape[Scrapers: 靜態抓取]
-    Scrape --&gt; Merger[Merger: 規則去重]
-    Merger --&gt; Storage[(Supabase: 結構化儲存)]
-    Storage --&gt; Web[Next.js Web: 多語渲染]
+    <div class="card big-mermaid no-decor" style="margin-top:8px;padding:6px 10px;overflow:hidden;display:flex;flex-direction:column;align-items:center;text-align:center">
+      <div style="display:flex;gap:10px;margin-bottom:2px">
+        <div style="font-weight:800;font-size:13px;color:var(--mocha);background:rgba(58,38,31,.06);border-radius:8px;padding:3px 12px">■ Workflow 自動化骨架</div>
+        <div style="font-weight:800;font-size:13px;color:var(--forest);background:rgba(196,232,111,.42);border-radius:8px;padding:3px 12px">■ Agents 智能判斷</div>
+      </div>
+      <pre class="mermaid" style="margin:0;background:none;border:none;width:100%;">
+%%{init: {"flowchart":{"htmlLabels":false,"useMaxWidth":true,"padding":12,"nodeSpacing":45,"rankSpacing":50},"themeVariables":{"fontSize":"17px"}}}%%
+graph LR
+  subgraph DAILY["① 每日 Pipeline ・ Workflow 骨架"]
+    direction LR
+    Cron[每日 Cron] --&gt; Scrape["Scrapers ×32"]
+    Scrape --&gt; Merger[Merger 去重]
+    Merger --&gt; DB[(Supabase)]
+    DB --&gt; Web[Next.js Web]
   end
-  subgraph AG[" "]
-    Researcher[Researcher: 挖掘新來源]
-    Poster[Poster Enricher: 視覺提取]
-    Annotator[Annotator: 語義解析與分類]
-    Researcher ~~~ Poster ~~~ Annotator
+  subgraph EMBED["② 嵌入式 Agents"]
+    direction TB
+    Researcher[Researcher 挖掘來源]
+    Poster[Poster 海報視覺]
+    Annotator[Annotator 語義標註]
+    AutoQA[auto_qa 稽核]
+  end
+  subgraph GOV["③ 定期治理 ・ Workflow ×22 cron"]
+    direction TB
+    QA[QA heartbeat・triage・fix ／日]
+    Health[Health Check ／日]
+    Weekly[Weekly Review ／週]
+    Monthly[Monthly Review ／月]
+  end
+  subgraph DEV["④ 開發期 Agents ×14"]
+    direction LR
+    Arch[Architect] --&gt; Eng[Engineer]
+    Eng --&gt; Test[Tester]
+    Test --&gt; Deploy[Validate＆Deploy]
+    Rev[Reviewer 月度覆盤]
   end
   Researcher -.-&gt; Cron
   Scrape -.-&gt; Poster
   Merger -.-&gt; Annotator
-  Annotator -.-&gt; Storage
-  linkStyle 6 stroke:#E84860,stroke-width:3px,stroke-dasharray:6 6
-  linkStyle 7,8,9 stroke:#F56A82,stroke-width:3px,stroke-dasharray:6 6
-        </pre>
-      </div>
-      <div class="compact-text">
-        <div class="callout" style="margin-top:0"><strong>Agent 嵌入在 Workflow 之中</strong></div>
-        <ul class="clean" style="margin-top:12px">
-          <li><strong>Workflow 提供脈絡</strong>：Cron 觸發，把原始資料餵給 agent。</li>
-          <li><strong>Agent 執行判斷</strong>：annotator 對每筆事件做價值判斷與多語轉換。</li>
-          <li><strong>Workflow 確保落地</strong>：agent 產出寫回 Supabase。</li>
-        </ul>
-        <div class="callout"><strong>既保留自動化的穩定性</strong>，又具備 AI 處理跨國語言與複雜分類的<strong>靈活性</strong>。</div>
-      </div>
+  Annotator -.-&gt; DB
+  AutoQA -.-&gt; DB
+  Health -.-&gt; DB
+  Deploy -.-&gt; Cron
+  classDef wf fill:#EFEAE0,stroke:#3A261F,color:#3A261F;
+  classDef ag fill:#E8F4C8,stroke:#1F5E2B,color:#1F5E2B;
+  class Cron,Scrape,Merger,DB,Web,QA,Health,Weekly,Monthly wf;
+  class Researcher,Poster,Annotator,AutoQA,Arch,Eng,Test,Deploy,Rev ag;
+      </pre>
     </div>
-    <span class="brandfoot">STRUCTURE</span><span class="pageno">11</span>
+    <div style="margin-top:6px;font-size:12.5px;line-height:1.5;color:#5b4a40;display:flex;gap:14px;flex-wrap:wrap;justify-content:center;align-items:baseline">
+      <span style="font-weight:800;color:var(--mocha)">Agent 嵌入在 Workflow 之中：</span>
+      <span><strong>Workflow 提供脈絡</strong> — Cron 觸發，把原始資料餵給 agent</span>
+      <span><strong>Agent 執行判斷</strong> — annotator 對每筆事件做價值判斷與多語轉換</span>
+      <span><strong>Workflow 確保落地</strong> — agent 產出寫回 Supabase</span>
+      <span style="color:var(--forest);font-weight:800">＝ 自動化穩定性 ＋ AI 靈活性</span>
+    </div>
+    <span class="brandfoot">STRUCTURE</span><span class="pageno">10</span>
   </section>
 
   <!-- S-3 unification (moved before DevOps) -->
@@ -794,20 +769,20 @@ graph TD
     </table>
     </div>
     <p class="fineprint" style="margin-top:12px">＊ 參見原始碼</p>
-    <span class="brandfoot">STRUCTURE</span><span class="pageno">12</span>
+    <span class="brandfoot">STRUCTURE</span><span class="pageno">11</span>
   </section>
 
-  <!-- S-4c 規範設計的三層 -->
+  <!-- S-4c 規範設計的實際應用角度 -->
   <section class="slide" data-accent="forest">
     <div class="eyebrow">04 ・ S-4c</div>
-    <h2 class="title-md">規範設計的三層</h2>
+    <h2 class="title-md">規範設計的實際應用角度</h2>
     <div class="stack" style="margin-top:18px">
-      <div class="layer" data-c="3"><span class="lv">Ⅰ</span><div><h3>Code 層 ・ Event dataclass</h3><p><code style="font-size:14px">source_id</code>（穩定）、<code style="font-size:14px">start_date</code>（不 fallback）、多語<code style="font-size:14px">name_ja/zh/en</code>、地點三欄組（<code style="font-size:14px">location_name/address/prefectures</code>）。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/scraper/sources/base.py#L120-L165" target="_blank" style="color:#9a8a7e;text-decoration:underline">base.py#L120–165</a></span></p></div></div>
-      <div class="layer" data-c="3"><span class="lv">Ⅱ</span><div><h3>Skill 層 ・ Taiwan Relevance 規則</h3><p>「<strong>Wansei</strong>」訊號、「具體選擇理由」格式、三階段 filter 順序（title → venue → keyword）。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/skills/scraper-expert/SKILL.md#L15-L31" target="_blank" style="color:#9a8a7e;text-decoration:underline">SKILL.md#L15–31</a></span></p></div></div>
-      <div class="layer" data-c="3"><span class="lv">Ⅲ</span><div><h3>Agent 層 ・ 讀規則後才動手</h3><p>Agent 的 Session Start Checklist：先讀 <code style="font-size:14px">SKILL.md</code>，再實作爬蟲。下次 fix bug 時把教訓沉澱回 Skill。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/agents/scraper-expert.agent.md#L20-L24" target="_blank" style="color:#9a8a7e;text-decoration:underline">agent.md#L20–24</a></span></p></div></div>
+      <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">1</span><div><h3>Code 層 ・「規範」最終具體資料點</h3><p><code style="font-size:14px">source_id</code>（穩定）、<code style="font-size:14px">start_date</code>（不 fallback）、多語<code style="font-size:14px">name_ja/zh/en</code>、地點三欄組（<code style="font-size:14px">location_name/address/prefectures</code>）。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/scraper/sources/base.py#L120-L165" target="_blank" style="color:#9a8a7e;text-decoration:underline">base.py#L120–165</a></span></p></div></div>
+      <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">2</span><div><h3>Skill 層 ・「規範」什麼是台灣雷達要抓的「台灣」信號</h3><p>「<strong>Wansei</strong>」訊號、「具體選擇理由」格式、三階段 filter 順序（title → venue → keyword）。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/skills/scraper-expert/SKILL.md#L15-L31" target="_blank" style="color:#9a8a7e;text-decoration:underline">SKILL.md#L15–31</a></span></p></div></div>
+      <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">3</span><div><h3>Agent 層 ・「規範」開發與營運 agent 的實際運作步驟</h3><p>Agent 的 Session Start Checklist：先讀 <code style="font-size:14px">SKILL.md</code>，再實作爬蟲。下次 fix bug 時把教訓沉澱回 Skill。<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/agents/scraper-expert.agent.md#L20-L24" target="_blank" style="color:#9a8a7e;text-decoration:underline">agent.md#L20–24</a></span></p></div></div>
     </div>
     <div class="callout" style="margin-top:12px">核心：Code 定型、Skill 演進、Agent 執行 —— 三層交互推進「可審計的規範」。</div>
-    <span class="brandfoot">NORMATIVE DESIGN</span><span class="pageno">13</span>
+    <span class="brandfoot">NORMATIVE DESIGN</span><span class="pageno">12</span>
   </section>
 
   <!-- S-4 DevOps (moved after unification) -->
@@ -825,19 +800,26 @@ graph TD
         <p style="margin-top:10px">反饋不只改 code，更<strong>沉澱成 skill</strong>。</p>
       </div>
     </div>
-    <span class="brandfoot">STRUCTURE</span><span class="pageno">14</span>
+    <span class="brandfoot">STRUCTURE</span><span class="pageno">13</span>
   </section>
 
   <!-- S-5 agent 協作的三種形態 -->
   <section class="slide" data-accent="forest">
     <div class="eyebrow">04 ・ S-5</div>
     <h2 class="title-md">Agent 的多種架構組合</h2>
-    <div class="stack" style="margin-top:22px">
+    <p class="fineprint" style="margin-top:10px;color:#8a7a6e">Where is the agent？ — agent 位於 ChatUI 與 System 之間的處理層</p>
+    <div class="flow" style="margin-top:8px;justify-content:center;gap:10px">
+      <div class="node">User</div><span class="arr" style="color:var(--forest)">⇄</span>
+      <div class="node">ChatUI / VUI</div><span class="arr" style="color:var(--forest)">⇄</span>
+      <div class="node" style="border:1.5px solid var(--forest);color:var(--forest);background:rgba(196,232,111,.42);font-weight:800">★ Agent 處理層</div><span class="arr" style="color:var(--forest)">⇄</span>
+      <div class="node">System / Data</div>
+    </div>
+    <div class="stack" style="margin-top:14px">
       <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">1</span><div><h3>一個 agent ＋ skill ＋ history</h3><p>最小單位：單一 agent 配上專屬的 <span class="kbd">SKILL.md</span> 與 <span class="kbd">history.md</span>，能獨立完成一類任務並自我學習。</p></div></div>
       <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">2</span><div><h3>多個 agent 協作</h3><p>plan → engineer → tester 的樹狀分工；不同 agent 各司其職，互相串接、平行多工。</p></div></div>
       <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">3</span><div><h3>常態性自動營運 agent (Longrun agent)</h3><p>不需人觸發、依排程或訊號常駐運作 —— 每日覆盤、稽核、健康檢查。</p></div></div>
     </div>
-    <span class="brandfoot">STRUCTURE</span><span class="pageno">15</span>
+    <span class="brandfoot">STRUCTURE</span><span class="pageno">14</span>
   </section>
 
   <!-- 11 ▸ §5 B divider -->
@@ -846,7 +828,7 @@ graph TD
     <div class="pillar-word">Behavior</div>
     <h2>設計與打造的關係</h2>
     <p class="lead" style="margin-top:18px">設計師怎麼設計「帶有 agentic AI 的產品」？心態如何從「確定性」轉向「機率控制」？</p>
-    <span class="pageno">16</span>
+    <span class="pageno">15</span>
   </section>
 
   <!-- 12 ▸ B-1 機率控制 + FBS -->
@@ -935,7 +917,7 @@ graph TD
         </div>
       </div>
     </div>
-    <span class="brandfoot">BEHAVIOUR</span><span class="pageno">17</span>
+    <span class="brandfoot">BEHAVIOUR</span><span class="pageno">16</span>
   </section>
 
   <!-- 13 ▸ B-2 四個 level -->
@@ -948,7 +930,7 @@ graph TD
       <div class="layer" data-c="3"><span class="lv">3</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg3a" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#1F5E2B" stroke-width="1.4"/></pattern><clipPath id="mc3a"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc3a)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#E8F6D6"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg3a)" opacity="0.4"/><path d="M10 30 Q7 14 24 13 Q40 14 38 29 Q36 41 22 40 Q11 39 10 30 Z" fill="#1F5E2B" opacity="0.14"/><g transform="translate(2.4 2.4)" fill="#3A261F" opacity="0.26"><path d="M13 35 L13 24 a11 11 0 0 1 22 0 L35 35 Z"/></g><g fill="#1F5E2B"><path d="M13 35 L13 24 a11 11 0 0 1 22 0 L35 35 Z"/></g></g></svg><div><h3>Dev Side ・ 建造工廠</h3><p>git、skill、history、harness：plan→engineer→tester；plan→critic→engineer→tester→skill feedback。</p></div></div>
       <div class="layer" data-c="4"><span class="lv" style="color:#7B4FB8">4</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg4a" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M7 0 L0 0 0 7" fill="none" stroke="#7B4FB8" stroke-width="1"/></pattern><clipPath id="mc4a"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc4a)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#F0E6FF"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg4a)" opacity="0.45"/><path d="M10 29 Q7 14 24 13 Q40 14 38 28 Q36 41 22 40 Q11 39 10 29 Z" fill="#7B4FB8" opacity="0.16"/><g transform="translate(2.4 2.4)" opacity="0.26" fill="#3A261F"><circle cx="24" cy="24" r="12"/></g><circle cx="24" cy="24" r="12" fill="#7B4FB8"/><circle cx="24" cy="24" r="7" fill="#F0E6FF"/><circle cx="24" cy="24" r="3" fill="#7B4FB8"/></g></svg><div><h3>Op Side ・ 建造駕訓班</h3><p>feedback loop、golden dataset、baseline、metrics、eval（實驗組/對照組，重點在「準」，與 A/B testing 不同）。</p></div></div>
     </div>
-    <span class="brandfoot">BEHAVIOUR</span><span class="pageno">18</span>
+    <span class="brandfoot">BEHAVIOUR</span><span class="pageno">17</span>
   </section>
 
   <!-- NEW-A ▸ 四個領域 設計可以做什麼 -->
@@ -961,7 +943,7 @@ graph TD
       <div class="layer" data-c="3"><span class="lv">3</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg3b" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#1F5E2B" stroke-width="1.4"/></pattern><clipPath id="mc3b"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc3b)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#E8F6D6"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg3b)" opacity="0.4"/><path d="M10 30 Q7 14 24 13 Q40 14 38 29 Q36 41 22 40 Q11 39 10 30 Z" fill="#1F5E2B" opacity="0.14"/><g transform="translate(2.4 2.4)" fill="#3A261F" opacity="0.26"><path d="M13 35 L13 24 a11 11 0 0 1 22 0 L35 35 Z"/></g><g fill="#1F5E2B"><path d="M13 35 L13 24 a11 11 0 0 1 22 0 L35 35 Z"/></g></g></svg><div><h3>Dev Side ・ 增加 coding 的「經驗」</h3><p><strong style="color:var(--red)">新：</strong>設計師開始累積 coding 的<strong>經驗</strong>；因為未來所有用戶都可能是開發者，設計必須真正了解用戶。</p></div></div>
       <div class="layer" data-c="4"><span class="lv" style="color:#7B4FB8">4</span><svg class="motif" viewBox="0 0 48 48"><defs><pattern id="mg4b" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M7 0 L0 0 0 7" fill="none" stroke="#7B4FB8" stroke-width="1"/></pattern><clipPath id="mc4b"><rect x="1.5" y="1.5" width="45" height="45" rx="8"/></clipPath></defs><g clip-path="url(#mc4b)"><rect x="1.5" y="1.5" width="45" height="45" rx="8" fill="#F0E6FF"/><rect x="1.5" y="1.5" width="45" height="45" fill="url(#mg4b)" opacity="0.45"/><path d="M10 29 Q7 14 24 13 Q40 14 38 28 Q36 41 22 40 Q11 39 10 29 Z" fill="#7B4FB8" opacity="0.16"/><g transform="translate(2.4 2.4)" opacity="0.26" fill="#3A261F"><circle cx="24" cy="24" r="12"/></g><circle cx="24" cy="24" r="12" fill="#7B4FB8"/><circle cx="24" cy="24" r="7" fill="#F0E6FF"/><circle cx="24" cy="24" r="3" fill="#7B4FB8"/></g></svg><div><h3>Op Side ・ 結合 Data Science 工作流</h3><p><strong style="color:var(--red)">新：</strong>開始了解 <strong>Data Science 的工作流</strong>，並結合 UX 實驗一起做驗證（baseline、metrics、eval）。</p></div></div>
     </div>
-    <span class="brandfoot">BEHAVIOUR</span><span class="pageno">19</span>
+    <span class="brandfoot">BEHAVIOUR</span><span class="pageno">18</span>
   </section>
 
   <!-- NEW-B ▸ dd1 從發現新資料到 HCI 設計 -->
@@ -978,7 +960,7 @@ graph TD
       <div class="card glass" style="flex:1"><span class="tag gold">04</span><h3>評估與藍圖</h3><p>用一張 <strong>roadmap</strong> 進行評估與迭代。</p></div>
     </div>
     <div class="callout" style="margin-top:22px"><strong>Interpret PROBLEM → SOLUTION</strong>：把<strong>商業指標</strong>與<strong>技術可能性</strong>，連回<strong>真實使用者</strong>。</div>
-    <span class="brandfoot">BEHAVIOUR</span><span class="pageno">20</span>
+    <span class="brandfoot">BEHAVIOUR</span><span class="pageno">19</span>
   </section>
 
   <!-- NEW-C ▸ dd2 Data Scientist x Designer 關鍵活動 -->
@@ -1007,7 +989,7 @@ graph TD
           <li>Evaluation／Usability Testing／商業價值驗證</li>
         </ul></div>
     </div>
-    <span class="brandfoot">BEHAVIOUR</span><span class="pageno">21</span>
+    <span class="brandfoot">BEHAVIOUR</span><span class="pageno">20</span>
   </section>
 
   <!-- NEW ▸ Human-Data Interaction Flow journey sample -->
@@ -1018,7 +1000,7 @@ graph TD
       <img src="TTR%20sharing/human-data.png" alt="Human-Data Interaction Flow journey sample"
         style="max-width:100%;max-height:440px;object-fit:contain;border:1.5px solid rgba(58,38,31,.15);border-radius:14px;box-shadow:0 6px 22px rgba(58,38,31,.12)"/>
     </div>
-    <span class="pageno">22</span>
+    <span class="pageno">21</span>
   </section>
 
   <!-- 14 ▸ §6 案例 divider -->
@@ -1027,7 +1009,7 @@ graph TD
     <div class="pillar-word">Case Study</div>
     <h2>東京台灣雷達</h2>
     <p class="lead" style="margin-top:18px">把 F・S・B 三條主線，放回一個真實、演化中的產品來看。</p>
-    <span class="pageno">23</span>
+    <span class="pageno">22</span>
   </section>
 
   <!-- 15 ▸ 案例 從0 MVP + DevOps -->
@@ -1053,7 +1035,7 @@ graph TD
       </div>
     </div>
     <div class="callout">原則：<strong>先有一個端到端</strong>，再逐條 pipeline 演化。</div>
-    <span class="brandfoot">CASE STUDY</span><span class="pageno">24</span>
+    <span class="brandfoot">CASE STUDY</span><span class="pageno">23</span>
   </section>
 
   <!-- 16 ▸ 案例 三條 pipeline -->
@@ -1066,7 +1048,7 @@ graph TD
       <div class="card glass" style="color:var(--mocha)"><h3>Translation</h3><p>繁中・日・英三語，鎖定人工修正避免被覆寫。</p></div>
     </div>
     <div class="callout" style="margin-top:22px"><strong>Explainability + Feedback Loop：</strong>每個欄位都能回答「為什麼是這個值」，錯誤能回流成下一輪的規範。</div>
-    <span class="brandfoot">CASE STUDY</span><span class="pageno">25</span>
+    <span class="brandfoot">CASE STUDY</span><span class="pageno">24</span>
   </section>
 
   <!-- 17 ▸ 案例 電影最小範圍 -->
@@ -1080,7 +1062,7 @@ graph TD
       <div class="card glass" style="color:var(--mocha)"><span class="tag coal">重複</span><p>同來源的多場次、不同來源的同一活動如何去重。</p></div>
     </div>
     <div class="callout">畫面上每個元素，都要問：<strong>它從哪來、可不可信、會不會跟別的衝突。</strong></div>
-    <span class="brandfoot">CASE STUDY</span><span class="pageno">26</span>
+    <span class="brandfoot">CASE STUDY</span><span class="pageno">25</span>
   </section>
 
   <!-- 18 ▸ 案例 自我學習 + 縮小負面機率 -->
@@ -1102,7 +1084,7 @@ graph TD
       （例：地址欄位的「線上活動」從沒被規劃進篩選選項）。<br>
       但這與真正「寫死」仍有差距 —— <strong>依舊可能犯錯、缺漏</strong>，所以才需要持續的獨立驗證。
     </div>
-    <span class="brandfoot">CASE STUDY</span><span class="pageno">27</span>
+    <span class="brandfoot">CASE STUDY</span><span class="pageno">26</span>
   </section>
 
   <!-- 19 ▸ 案例 來源獨立性 + 共通性 -->
@@ -1126,7 +1108,7 @@ graph TD
         </ul>
       </div>
     </div>
-    <span class="brandfoot">CASE STUDY</span><span class="pageno">28</span>
+    <span class="brandfoot">CASE STUDY</span><span class="pageno">27</span>
   </section>
 
   <!-- 20 ▸ 案例 架構遷移 + 教訓 -->
@@ -1150,7 +1132,7 @@ graph TD
         <div class="callout" style="margin-top:22px;padding:12px 18px"><strong>規範設計的真諦：</strong>把一次次的「意外」，沉澱成下一次的「預設」。</div>
       </div>
     </div>
-    <span class="brandfoot">CASE STUDY</span><span class="pageno">29</span>
+    <span class="brandfoot">CASE STUDY</span><span class="pageno">28</span>
   </section>
 
   <!-- 21 ▸ 結尾 -->
@@ -1179,7 +1161,7 @@ graph TD
         </div>
       </div>
     </div>
-    <span class="pageno">30</span>
+    <span class="pageno">29</span>
   </section>
 
 </div>
