@@ -707,11 +707,12 @@ graph LR
     AutoQA[auto_qa 稽核]
   end
   subgraph GOV["③ 定期治理 ・ Workflow ×22 cron"]
-    direction TB
+    direction LR
     QA["QA heartbeat<br/>triage・fix ／日"]
     Health[Health Check ／日]
     Weekly[Weekly Review ／週]
     Monthly[Monthly Review ／月]
+    QA ~~~ Health ~~~ Weekly ~~~ Monthly
   end
   subgraph DEV["④ 開發期 Agents ×14"]
     direction TB
@@ -1019,11 +1020,12 @@ graph LR
     AutoQA[auto_qa 稽核]
   end
   subgraph GOV["③ 定期治理 ・ Workflow ×22 cron"]
-    direction TB
+    direction LR
     QA["QA heartbeat<br/>triage・fix ／日"]
     Health[Health Check ／日]
     Weekly[Weekly Review ／週]
     Monthly[Monthly Review ／月]
+    QA ~~~ Health ~~~ Weekly ~~~ Monthly
   end
   subgraph DEV["④ 開發期 Agents ×14"]
     direction TB

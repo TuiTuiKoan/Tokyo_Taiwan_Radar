@@ -707,11 +707,12 @@ graph LR
   AutoQA[auto_qa Audit]
  end
  subgraph GOV["③ Governance ・ Workflow ×22 cron"]
-  direction TB
+  direction LR
   QA["QA heartbeat<br/>triage・fix / daily"]
   Health[Health Check / daily]
   Weekly[Weekly Review / weekly]
   Monthly[Monthly Review / monthly]
+    QA ~~~ Health ~~~ Weekly ~~~ Monthly
  end
  subgraph DEV["④ Dev-time Agents ×14"]
   direction TB
@@ -1019,11 +1020,12 @@ graph LR
   AutoQA[auto_qa Audit]
  end
  subgraph GOV["③ Governance ・ Workflow ×22 cron"]
-  direction TB
+  direction LR
   QA["QA heartbeat<br/>triage・fix / daily"]
   Health[Health Check / daily]
   Weekly[Weekly Review / weekly]
   Monthly[Monthly Review / monthly]
+    QA ~~~ Health ~~~ Weekly ~~~ Monthly
  end
  subgraph DEV["④ Dev-time Agents ×14"]
   direction TB
