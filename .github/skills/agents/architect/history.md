@@ -2,6 +2,14 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-08 — Safari CJK centering: isolated spike was a false positive
+
+- **Error**: 規劃移除全域 Safari `!important` padding hack 時，用一個獨立的 inline-CSS spike（`web/public/_uitest.html`）驗證「per-control 幾何（inline-flex + min-h + leading-none + inner span）已足夠」。spike 在 Safari `file://` 下 PASS，於是採「移除全域規則 + 保留未使用的 opt-in class」的保守路徑並部署。實際上真實控制項（EventShelf 膠囊 tab、FilterBar 搜尋按鈕）在 Safari 中文字仍偏移——保守修復讓這些控制項失去原本的補償，反而更糟。
+- **Root cause**: spike 與真實控制項有兩個關鍵差異被忽略：(1) 真實 tab 的文字 span 旁有一個 `h-6` 數字 badge，把 flex 行撐高、放大 CJK 字框偏移；(2) spike 用非 `<button>` host 且無 Tailwind preflight。這兩點讓 spike 無法重現真實偏移，產生假陽性（正是先前 Plan Critic R2-a 的預測）。
+- **Fix**: 新增 `.ttr-cjk-nudge`（Safari-only，`position: relative; top: var(--ttr-cjk-shift, 2px)`），只位移文字 span、**不改變控制項盒高**（比原 padding hack 安全），套到 EventShelf tab 文字與 FilterBar 搜尋按鈕文字。位移量 2px 來自原本「修好過很久」的 padding hack 幾何（padding-top +2 / padding-bottom −2 → 內容下移 2px），是有驗證根據的值而非猜測。
+- **Lesson**: 驗證 Safari-only 視覺缺陷時，spike 必須複製真實控制項的**完整環境**——相同 host 元素（`<button>`）、相同 sibling（badge）、相同字體大小與 Tailwind preflight。否則 spike PASS 是假陽性。Safari-only 視覺缺陷的唯一可靠驗收標準是真人在 Safari 上目視確認；自動化工具（Chromium-based）無法重現，不可作為「PASS」依據。修復這類缺陷後，push 前務必保留真實 Safari 確認步驟。
+
+---
 ## 2026-06-08 — Case-sensitivity 404 in static asset deployment
 
 - **Error**: Initially used CamelCase `NormativityDesign` in `web/public/`, which resulted in a 404 on Vercel's case-sensitive environment.

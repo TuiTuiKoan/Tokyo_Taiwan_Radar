@@ -4,6 +4,21 @@
 
 --- 
 
+## 2026-06-13 - Design preview mobile frame caused 390px horizontal overflow
+
+**Error**: The design preview used a fixed `width: 390px` mobile frame inside a padded page. At a
+390px viewport, the frame plus page padding pushed document `scrollWidth` to 422px even though the
+preview was meant to represent that exact device width.
+
+**Fix**: Changed the preview shell to `w-full max-w-[390px]` so the frame preserves the target size on
+wide screens and shrinks inside narrow padded containers.
+
+**Lesson**: Fixed-width device preview frames must be capped with responsive constraints. For mobile
+smoke checks, assert `documentElement.scrollWidth <= clientWidth` and distinguish real page overflow
+from intentional horizontal scroll regions.
+
+---
+
 ## 2026-06-08 — Safari CJK centering: scoped opt-in vs global hack
 
 **Error**: `globals.css` accumulated a global `@supports(-webkit-hyphens:none) { button { !important } }`
