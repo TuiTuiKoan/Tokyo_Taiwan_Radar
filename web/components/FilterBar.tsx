@@ -143,7 +143,7 @@ export default function FilterBar({ locale: _locale, currentFilters, hiddenFilte
               </>
             )}
           </svg>
-          <span>{mobileOpen ? t("confirm") : t("searchOrFilter")}</span>
+          <span className="ttr-cjk-nudge">{mobileOpen ? t("confirm") : t("searchOrFilter")}</span>
           {!mobileOpen && hasFilters && (
             <span className="ml-1 w-2 h-2 rounded-full bg-white/90 inline-block" />
           )}

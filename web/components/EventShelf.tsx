@@ -109,7 +109,7 @@ export default function EventShelf({ events, locale }: Props) {
                     : "text-fg-muted"
                 }`}
               >
-                <span className="leading-none">{t(TAB_LABEL[key])}</span>
+                <span className="leading-none ttr-cjk-nudge">{t(TAB_LABEL[key])}</span>
                 <span className="inline-flex shrink-0 items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-paper border border-[#EDD8D0] text-fg-muted text-[10px] leading-none font-mono tabular-nums shadow-sm">
                   {counts[key]}
                 </span>
