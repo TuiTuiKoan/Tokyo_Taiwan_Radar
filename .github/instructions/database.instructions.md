@@ -8,7 +8,7 @@ applyTo: "supabase/**"
 
 - Project ref: `cjtndektjjpvvjofdvzr`
 - Run migrations via **Supabase Dashboard → SQL Editor** (no CLI access configured)
-- Number migrations sequentially: `001`, `002`, … Latest is `087_increment_account_usage_rpc.sql` (next = `088`). Previous milestones: `076_venues_authority.sql`, `077_*`, `078_performer_url.sql`, `079` (skipped), `080_fc_metric_fix.sql`, `081_venues_business_hours.sql`, `082_announcements_storage_bucket.sql`, `083_event_views_country_region.sql`, `084_fix_security_invoker_views.sql`, `085_event_views_traffic_source.sql`, `086_account_profiles.sql`.
+- Number migrations sequentially: `001`, `002`, … Latest is `089_annotation_retry_count.sql` (next = `090`). Previous milestones: `076_venues_authority.sql`, `077_*`, `078_performer_url.sql`, `079` (skipped), `080_fc_metric_fix.sql`, `081_venues_business_hours.sql`, `082_announcements_storage_bucket.sql`, `083_event_views_country_region.sql`, `084_fix_security_invoker_views.sql`, `085_event_views_traffic_source.sql`, `086_account_profiles.sql`, `087_increment_account_usage_rpc.sql`, `088_rls_perf_account.sql`, `089_annotation_retry_count.sql`.
 - If the next sequence number is already taken, append `b` (e.g. `012b_event_reports_suggested_category.sql`) and add a comment at the top of the SQL file explaining the conflict. Do not skip numbers silently.
 - Known conflicts: `011_force_rescrape.sql` + `011_secondary_source_urls.sql`; `018_official_url.sql` + `018b_scraped_at.sql`; `020_creators.sql` was the intended 019 but 019 was skipped; `029_aeo_visits.sql` + `029b_realtime_events.sql`; `038_performer.sql` + `038b_field_corrections.sql`
 
@@ -71,8 +71,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.your_table
 | `raw_title` | `text` | Original scrape, never overwritten |
 | `raw_description` | `text` | Original scrape, never overwritten |
 | `selection_reason` | `text` | JSON: `{"ja":"…","zh":"…","en":"…"}` |
-| `annotation_status` | `text` | `'pending'` → `'annotated'` → `'reviewed'` (human-confirmed, fully protected) |
+| `annotation_status` | `text` | `'pending'` → `'annotated'` → `'reviewed'` (human-confirmed, fully protected); `'error'` set by annotator on parse failure, recovered by `error_recovery.py` |
 | `annotated_at` | `timestamptz` | |
+| `annotation_retry_count` | `int` | default `0`; `error_recovery.py` retry counter for stuck `'error'` events (migration 089) |
 | `force_rescrape` | `boolean` | When `true`, next scraper run fully overwrites and resets to `pending` |
 | `secondary_source_urls` | `text[]` | Secondary source URLs appended by `merger.py` |
 | `official_url` | `text` | Authoritative organiser URL; takes display priority over `source_url`; `NULL` = unknown |
@@ -138,7 +139,7 @@ Unique constraint: `(source_name, source_id)`
 
 ## Migration checklist
 
-1. Number the file `NNN_descriptive_name.sql` (next = `088`)
+1. Number the file `NNN_descriptive_name.sql` (next = `090`)
 2. Use `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE … ADD COLUMN IF NOT EXISTS`
 3. Add RLS with `ALTER TABLE … ENABLE ROW LEVEL SECURITY` + policies
 4. Test in Supabase SQL Editor before committing

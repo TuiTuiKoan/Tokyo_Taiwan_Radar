@@ -335,6 +335,8 @@ python main.py --dry-run --source <name>
 | `.github/agents/scraper-expert.agent.md` | B2/C | Scraper Expert Agent 指令 |
 | `scraper/refetch_thin_events.py` | D | 空白事件重抓 — 重抓 `auto_qa_thin_content` 事件的詳細頁 |
 | `.github/workflows/refetch-thin-events.yml` | D | 每日 14:00 JST 重抓（`REFETCH_THIN_LIVE` 控制）|
+| `scraper/error_recovery.py` | D | 標注錯誤回收 — 掃描 `annotation_status='error'` 卡死事件，分流 HEAL/RETRY/ESCALATE |
+| `.github/workflows/error-recovery.yml` | D | 每日 15:00 JST 修復（`ERROR_RECOVERY_LIVE` 控制）|
 
 ---
 

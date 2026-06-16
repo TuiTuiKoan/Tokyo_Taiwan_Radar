@@ -1,0 +1,59 @@
+name: Error Recovery
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 15:00 JST (after refetch-thin-events at 14:00)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run without writing to DB or sending LINE'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    if: vars.ERROR_RECOVERY_LIVE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: scraper
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Recover stuck error events
+        env:
+          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          LINE_CHANNEL_TOKEN: "${{ secrets.LINE_CHANNEL_TOKEN }}"
+          LINE_USER_ID: "${{ secrets.LINE_USER_ID }}"
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python error_recovery.py --limit 100 --dry-run
+          else
+            python error_recovery.py --limit 100
+          fi
+
+      - name: Re-annotate reset pending events
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+          DEEPL_API_KEY: "${{ secrets.DEEPL_API_KEY }}"
+        run: python annotator.py --limit 150
