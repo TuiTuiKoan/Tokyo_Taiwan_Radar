@@ -4,7 +4,21 @@
 
 ---
 
-## 2026-06-07 — Japan postal code anchor & Taiwan city extraction support
+## 2026-06-16 — Generic annotator `report` keyword 假陽性：寬泛 `記録` 命中票房文案
+
+**問題：** 大濛（霧のごとく）多個真實上映場次（stranger / kyoto_cinema / uedaeigeki / starcat_cinema / cinemart_shinjuku / cinemaclair / sakurazaka / uplink_cinema 共 8 筆）被誤注入 `report` 分類，stranger 的 `name_ja` 被污染成 `【レポート】霧のごとく`，連帶卡在 `annotation_status='error'` 而首頁不顯示。
+
+**根本原因：** `_REPORT_TRIGGER_RE` 的 `記録` 字面太寬泛。`_inject_keyword_categories()` 對 `raw_title + " " + raw_description` 掃描時，命中大濛文案中的票房描述「興行収入は…現在も記録を更新中」，誤判為 post-event report。同樣寬泛的 `記録` 也寫在 SYSTEM_PROMPT 的 sub-event report/recap 例外，GPT 會被提示把 `記録する`/`記録と記憶` 類標題判成 report。這是 generic annotator 問題，不是單一 source 問題。
+
+**修法：**
+1. `_REPORT_TRIGGER_RE`：寬泛 `記録` → composite terms `活動記録|開催記録|鑑賞記録|記録[｜|]`。`記録を更新中`/`記録する`/`記録と記憶`/`6年にわたって記録` 不命中；`活動記録｜`/`開催記録`/`鑑賞記録` 仍命中。
+2. SYSTEM_PROMPT report/recap 例外同步精確化（不移除學術語境的「報告」規則）。
+3. 8 筆以 `annotator.py --event-ids` 重標，P1 FC guard 保護人工鎖定值。
+4. stranger `name_ja` deterministic cleanup（`霧のごとく`）+ FC lock。
+
+**教訓：** report 觸發關鍵字必須是 composite/有界詞，不可用會落入正面文案（票房「記録を更新中」、史料「記録する」）的單字。改 `_REPORT_TRIGGER_RE` 必須同步 SYSTEM_PROMPT 的 report/recap 例外，否則 regex 防住、GPT prompt 仍漂移。
+
+---
 
 **問題：** 許多日本活動在後台 Admin UI 遺漏都道府縣 chip，且台灣活動完全缺乏縣市標籤支援。
 

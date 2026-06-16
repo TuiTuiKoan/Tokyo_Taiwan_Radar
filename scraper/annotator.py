@@ -946,7 +946,7 @@ OTHER RULES:
    ALSO: if the description lists 3+ distinct venue locations in **different cities/prefectures** each with a specific address (e.g., a food fair with restaurants across Tokyo, Kyoto, and Osaka), list each venue as a sub-event with its own location_name, location_address, and business_hours; use the same start_date/end_date as the parent.
    ALSO: if event_form is "conference" and the description lists 3 or more distinct named presentations/reports (報告, 発表, セッション) with individually named presenters (発表者, 報告者, 登壇者), generate a sub-event for each presentation. Use the same start_date/end_date and venue as the parent, set business_hours to that session's time slot (e.g. "12:30～13:50"), and put the presenter's name in both the "performer" string and the "performers" array. The sub-event name_ja should be the presentation title.
    EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
-   EXCEPTION — DO NOT create sub_events when the article is a report/recap. If the raw_title contains レポート, レポ, 報告, 記録, アーカイブ, or recap (case-insensitive), the article is a post-event report and describes a single completed event — return sub_events: [] always. Treat the report as one event and extract its single set of fields (date, performer, etc.) from the body.
+   EXCEPTION — DO NOT create sub_events when the article is a report/recap. If the raw_title contains レポート, レポ, 報告, 活動記録, 開催記録, 鑑賞記録, 記録｜, 記録|, アーカイブ, or recap (case-insensitive), the article is a post-event report and describes a single completed event — return sub_events: [] always. Treat the report as one event and extract its single set of fields (date, performer, etc.) from the body.
    NOTE: For events with exactly two venues across different countries (e.g. Japan + Taiwan), do NOT create sub_events. Use the Japan venue as the single primary location (see MULTI-COUNTRY VENUE RULE above).
 2. Categories must be from this list: movie, performing_arts, senses, photography, tea_alcohol, drama, documentary, retail, nature, tech, tourism, lifestyle_food, books_media, gender, parenting, geopolitics, human_rights, art, lecture, taiwan_japan, scholarship, study_abroad, business, academic, competition, indigenous, folklore, history, urban, workshop, literature, tv_program, radio_program, exhibition, design_craft, herbal, taiwan_mandarin, healthcare, report
    - "taiwan_japan" = Taiwan-Japan bilateral relations, diplomacy, civil exchange, friendship events between Taiwan and Japan
@@ -1406,8 +1406,10 @@ _TV_PROGRAM_KEYWORDS = frozenset(["放送:", "放送：", "ジャンル:", "ジ�
 
 # Report article detection: these keywords in raw_title or raw_description
 # signal a post-event recap/report rather than an upcoming event.
+# NOTE: bare 記録 is too broad (matches box-office 記録を更新中, 記録する,
+# 記録と記憶) — use composite report terms + 記録 followed by a delimiter.
 _REPORT_TRIGGER_RE = re.compile(
-    r"レポート|レポ|報告|記録|アーカイブ|recap|行ってきた|観てきた|見てきた|鑑賞レポ|結果発表",
+    r"レポート|レポ|報告|活動記録|開催記録|鑑賞記録|記録[｜|]|アーカイブ|recap|行ってきた|観てきた|見てきた|鑑賞レポ|結果発表",
     re.IGNORECASE,
 )
 

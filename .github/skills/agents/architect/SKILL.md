@@ -430,7 +430,7 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）多次被修又�
 
 1. **`_inject_report_prefix()` 只對兩種情況注入前綴**（2026-05-22 修正後）：
    - 來源屬於 `_HEADLINE_REWRITE_SOURCES`（`google_news_rss`、`nhk_rss`、`prtimes`、`walkerplus`、`note_creators`）：標題是新聞標題非活動名，GPT 分類 `report` 可信
-   - `raw_title` 本身含有 `_REPORT_TRIGGER_RE` 關鍵字（`レポート|レポ|報告|記録|アーカイブ|recap|行ってきた|観てきた|鑑賞レポ|結果発表`）
+   - `raw_title` 本身含有 `_REPORT_TRIGGER_RE` 關鍵字（`レポート|レポ|報告|活動記録|開催記録|鑑賞記録|記録[｜|]|アーカイブ|recap|行ってきた|観てきた|鑑賞レポ|結果発表`）
 2. **peatix、eplus、doorkeeper 等爬蟲來源的 `raw_title` 是官方活動標題**：GPT 可能把「ZINE Fes（ZINE 市集）」或「講演会」的部分面向誤分類為 `report`，此時 `raw_title` 不含 report 關鍵字，必須跳過前綴注入。
 3. **靜默污染特性**：`report` category 注入後 `name_ja` 加上 `【レポート】`；`name_zh` 加上 `【活動報導】`；`name_en` 加上 `[Report] `；若無 FC lock，下次 re-annotation 會還原，但已對外顯示污染名稱。
 4. **防護修正（commit 7b2f821 後）**：
@@ -442,6 +442,8 @@ Reference incident: 2026-05-05 — event `f970e4e3`（月老）多次被修又�
    ```
 
 Reference incident: 2026-05-22 — event `6850265d`（ZINE Fes 誠品生活日本橋）。GPT 分類 `['senses', 'workshop', 'lecture', 'report']`，`_inject_report_prefix()` 對 peatix 爬蟲來源注入 `【レポート】`，`name_ja`/`name_zh`/`name_en` 三欄全被污染。修正：annotator.py 加入 `_src_is_rewrite or _title_is_report` 守衛 + FC lock `name_ja`/`name_en`/`end_date`。
+
+Reference incident: 2026-06-13 — 大濛（霧のごとく）/ stranger `f3554212`。`_REPORT_TRIGGER_RE` 的寬泛 `記録` 命中票房文案「興行収入は…現在も記録を更新中」，`_inject_keyword_categories()` 誤注入 `report`，stranger `name_ja` 被污染成 `【レポート】霧のごとく`，全面 8 筆大濛上映場次卡在 `error`、首頁不顯示。修正（2026-06-16）：`記録` → composite terms `活動記録|開催記録|鑑賞記録|記録[｜|]`，並同步 SYSTEM_PROMPT report/recap 例外。
 
 ## Re-annotation Date Clearing Guard（再 annotation 時的日期清除守護）
 

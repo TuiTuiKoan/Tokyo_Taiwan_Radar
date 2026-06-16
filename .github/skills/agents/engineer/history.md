@@ -4,6 +4,19 @@
 
 --- 
 
+## 2026-06-16 — `_REPORT_TRIGGER_RE` 寬泛 `記録` 改 composite terms（大濛首頁修復 follow-up）
+
+**Error**: 大濛（霧のごとく） 8 筆真實上映場次卡在首頁不顯示。根因是 annotator 的 `report` keyword 假陽性：寬泛 `記録` 命中票房文案「記録を更新中」，注入 `report` 分類並污染 stranger `name_ja` 為 `【レポート】霧のごとく`。
+
+**Fix**:
+1. `scraper/annotator.py`：`_REPORT_TRIGGER_RE` 的單獨 `記録` → `活動記録|開催記録|鑑賞記録|記録[｜|]`；SYSTEM_PROMPT report/recap 例外同步。
+2. 8 筆 `annotator.py --event-ids` re-annotate（不加 `--all`/`--force-fc-override`）。
+3. stranger `name_ja` cleanup（`霧のごとく`）+ `_lock_fields_via_corrections` FC lock + 即時 FC row 驗證。
+
+**Lesson**: report 觸發詞必須是 composite/有界詞。修 `_REPORT_TRIGGER_RE` 一律連帶同步 SYSTEM_PROMPT report/recap 例外（regex 防新污染、prompt 防 GPT 漂移）。舊污染的 `name_ja` 不會被 re-annotation 自動清除（`name_ja` policy 保留 DB 既有值），必須手動 cleanup + FC lock。本條 supersede 2026-05-11 report injection 的寬泛 `記録` 行為。
+
+---
+
 ## 2026-06-13 - Design preview mobile frame caused 390px horizontal overflow
 
 **Error**: The design preview used a fixed `width: 390px` mobile frame inside a padded page. At a
@@ -1732,6 +1745,7 @@ Python インタープリタが `{zhrm ...}` を未閉じブレースとして `
 - FC ロック field のスキップは `field_corrections` の keys を確認するだけで実装できる（`if field not in fc_keys`）
 - バックフィルは必ず `dry_run=True` で影響範囲を確認してから `dry_run=False` を実行すること
 - `start_date` / `location` の自動修正は実装しない——raw_description から機械的に正しい活動日・会場を特定する信頼できる方法がなく、誤修正リスクが高い
+- **Superseded (2026-06-16)**: `_REPORT_TRIGGER_RE` の単独 `記録` は box-office「記録を更新中」等で false positive を起こすため、`活動記録|開催記録|鑑賞記録|記録[｜|]` の composite terms に精綻化。SYSTEM_PROMPT の report/recap 例外も同期。元の commit `1e00933` の振る舞い説明は変更しない。
 
 ---
 

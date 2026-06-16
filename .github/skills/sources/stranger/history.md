@@ -2,6 +2,12 @@
 
 ---
 
+## 2026-06-16 — `霧のごとく` は有効な上映ページ、旧 `【レポート】` は annotation 汚染
+
+**補足（source-specific）：** stranger の `f3554212` は `stranger.jp/coming` の実上映ページ（2026/5/8 公開〜上映中、票価・時刻表あり）。`raw_title='霧のごとく'` に report keyword は無い。旧 `name_ja='【レポート】霧のごとく'` は annotator の `report` 假陽性による汚染であり、stranger scraper 側の問題ではない。汎用的な根本原因と修法は scraper-expert `history.md` 2026-06-16 を参照。今回 `name_ja='霧のごとく'` に cleanup し FC lock 済み。
+
+---
+
 ## 2026-05-31 — openDate で start_date を安定化・scan lookback 14 日延長（commit `75b36dc`）
 
 **問題 1（start_date 上書き）：** Eigaland API の 5/15〜5/29 booking 空白期間後、日次 cron が 6/1 に再び booking を検出すると `_build_movie_extend_row` が `merged_start = new_start`（6/1）をセット。本来の初映日 5/8 が消滅した。
