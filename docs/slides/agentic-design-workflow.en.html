@@ -845,17 +845,17 @@ graph LR
   <span class="brandfoot">STRUCTURE</span><span class="pageno">13</span>
  </section>
 
- <!-- S-4c Normative Design — Where It Applies -->
+ <!-- S-4c Normativity Design — Where It Applies -->
  <section class="slide" data-accent="forest">
   <div class="eyebrow">04 ・ S-4c</div>
-  <h2 class="title-md">Normative Design ・ Where It Actually Applies</h2>
+  <h2 class="title-md">Normativity Design ・ Where It Actually Applies</h2>
   <div class="stack" style="margin-top:18px">
    <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">1</span><div><h3>Code Layer ・ Norms as concrete data points</h3><p>Standardized fields: <code style="font-size:14px">source_id</code> (stable), <code style="font-size:14px">start_date</code> (no fallback), multi-language <code style="font-size:14px">name_ja/zh/en</code>, three-part location (<code style="font-size:14px">location_name/address/prefectures</code>).<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/scraper/sources/base.py#L120-L165" target="_blank" style="color:#9a8a7e;text-decoration:underline">base.py#L120–165</a></span></p></div></div>
    <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">2</span><div><h3>Skill Layer ・ Which "Taiwan" signals the Radar captures</h3><p>The "Wansei" signal, concrete selection reason format, three-stage filter order (title → venue → keyword).<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/skills/scraper-expert/SKILL.md#L15-L31" target="_blank" style="color:#9a8a7e;text-decoration:underline">SKILL.md#L15–31</a></span></p></div></div>
    <div class="layer" data-c="3"><span class="lv" style="color:var(--red)">3</span><div><h3>Agent Layer ・ How dev &amp; ops agents actually operate</h3><p>Agent Session Start Checklist: read <code style="font-size:14px">SKILL.md</code> before implementing. Next time you fix a bug, crystallize the lesson back into Skill.<br><span class="fineprint" style="color:#9a8a7e;margin-top:6px">📎 <a href="https://github.com/TuiTuiKoan/Tokyo_Taiwan_Radar/blob/main/.github/agents/scraper-expert.agent.md#L20-L24" target="_blank" style="color:#9a8a7e;text-decoration:underline">agent.md#L20–24</a></span></p></div></div>
   </div>
   <div class="callout" style="margin-top:12px">Core principle: Code solidifies, Skills evolve, Agents execute—three layers iterate to drive "auditable norms."</div>
-  <span class="brandfoot">NORMATIVE DESIGN</span><span class="pageno">14</span>
+  <span class="brandfoot">NORMATIVITY DESIGN</span><span class="pageno">14</span>
  </section>
 
  <!-- S-4 DevOps (moved after unification) -->
