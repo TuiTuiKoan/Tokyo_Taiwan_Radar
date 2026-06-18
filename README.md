@@ -6,6 +6,9 @@
 
 🇹🇼🇯🇵 Trilingual (Chinese / Japanese / English)
 
+- 6/17 -
+Delivered 3 sharings across Japan, US, and Taiwan on Tokyo Taiwan Radar around "Design Workflow in the Age of Agentic AI - A Practical Guide to Normativity Design".  Through preparation, I also get deeper understanding on the overall architecture.  As the speed to debug is slow down, I am also ruminating on the next step.
+
 - 6/1 -
 This is a learning and optimizing week.  Auto qa pipeline gradually assembled. Most importantly, I start collecting groundtruth table for venues, official urls, which I haven't thought before.  1 click to calendar is online. Source expands to book publishing.  Still don't have any idea on SNS.  Positioning carefully would be more important for managing energy.
 
