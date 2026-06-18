@@ -21,6 +21,9 @@ concurrency:
   group: qa-self-healing
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   heartbeat:
     runs-on: ubuntu-latest

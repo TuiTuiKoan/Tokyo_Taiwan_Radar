@@ -3,6 +3,9 @@ name: Annotate Now
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   annotate:
     runs-on: ubuntu-latest

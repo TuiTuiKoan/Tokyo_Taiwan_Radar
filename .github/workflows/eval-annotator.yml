@@ -62,7 +62,7 @@ jobs:
           "
 
       - name: Post PR comment
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2
         if: github.event_name == 'pull_request' && hashFiles('scraper/report.md') != ''
         with:
           path: scraper/report.md

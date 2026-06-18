@@ -5,6 +5,9 @@ on:
     - cron: '0 5 * * *'   # 14:00 JST
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   refetch:
     if: vars.REFETCH_THIN_LIVE == 'true'
