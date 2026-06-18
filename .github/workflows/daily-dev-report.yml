@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0   # full history needed for git log
 
@@ -33,7 +33,7 @@ jobs:
         run: echo "REPORT_DATE=$(TZ=Asia/Tokyo date '+%Y-%m-%d')" >> $GITHUB_ENV
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
