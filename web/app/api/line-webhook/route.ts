@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { LIANBU_REPLY_SYSTEM_PROMPT, LIANBU_REPLY_TRIGGERS } from "@/lib/lianbu-persona";
 
@@ -147,7 +147,12 @@ async function verifySignature(body: string, signature: string): Promise<boolean
   const secret = process.env.LINE_CHANNEL_SECRET;
   if (!secret) return false;
   const expected = createHmac("sha256", secret).update(body).digest("base64");
-  return expected === signature;
+  const expectedBuf = Buffer.from(expected);
+  const signatureBuf = Buffer.from(signature);
+  if (expectedBuf.length !== signatureBuf.length) {
+    return false;
+  }
+  return timingSafeEqual(expectedBuf, signatureBuf);
 }
 
 // ---------------------------------------------------------------------------
