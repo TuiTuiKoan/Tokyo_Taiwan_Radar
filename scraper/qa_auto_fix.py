@@ -166,6 +166,7 @@ def _fix_simplified_for_events(sb, event_ids: set[str], dry_run: bool) -> dict:
     fixed_events = 0
     fixed_fields = 0
     fixed_ids: list[str] = []
+    reconciled_ids: list[str] = []
 
     for row in rows:
         update: dict[str, Any] = {}
@@ -192,6 +193,9 @@ def _fix_simplified_for_events(sb, event_ids: set[str], dry_run: bool) -> dict:
                 pass
 
         if not update:
+            # Reconcile stale pending reports: value already has no SC chars.
+            # We should confirm pending simplified reports for this event_id.
+            reconciled_ids.append(row["id"])
             continue
 
         if dry_run:
@@ -205,14 +209,15 @@ def _fix_simplified_for_events(sb, event_ids: set[str], dry_run: bool) -> dict:
         fixed_ids.append(row["id"])
 
     closed_reports = 0
-    if fixed_ids:
+    to_confirm_ids = sorted(set(fixed_ids + reconciled_ids))
+    if to_confirm_ids:
         now_iso = datetime.now(timezone.utc).isoformat()
         if dry_run:
             for report_type in SIMPLIFIED_REPORT_TYPES:
                 logger.info(
                     "[DRY] would confirm pending reports type=%s for %d event(s)",
                     report_type,
-                    len(fixed_ids),
+                    len(to_confirm_ids),
                 )
         else:
             for report_type in SIMPLIFIED_REPORT_TYPES:
@@ -221,7 +226,7 @@ def _fix_simplified_for_events(sb, event_ids: set[str], dry_run: bool) -> dict:
                     .update({"status": "confirmed", "confirmed_at": now_iso})
                     .eq("status", "pending")
                     .contains("report_types", [report_type])
-                    .in_("event_id", fixed_ids)
+                    .in_("event_id", to_confirm_ids)
                     .execute()
                 )
                 closed_reports += len(res.data or [])
@@ -230,6 +235,7 @@ def _fix_simplified_for_events(sb, event_ids: set[str], dry_run: bool) -> dict:
         "pending_events": len(event_ids),
         "scanned": len(rows),
         "fixed_events": fixed_events,
+        "reconciled_events": len(reconciled_ids),
         "closed_reports": closed_reports,
         "fixed_fields": fixed_fields,
     }
