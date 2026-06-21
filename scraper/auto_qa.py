@@ -928,6 +928,21 @@ def _detect_location_url_is_event_url(sb) -> list[dict]:
     return reports
 
 
+# Structurally venue-less sources (TV broadcast / news / blog feeds): these never
+# have a physical venue, so venue-type QA (missing_address / missing_location_name
+# / missing_prefectures) is always a false positive for them. Kept separate from
+# the publication (is_pub_event) check to avoid conflating news/TV with books.
+_NO_VENUE_QA_SOURCES = frozenset({
+    "gguide_tv", "google_news_rss", "nhk_rss", "prtimes", "walkerplus", "note_creators",
+})
+
+
+def _should_skip_venue_qa(event: dict) -> bool:
+    """Structural no-venue sources (TV/news/blog): skip venue-type QA
+    (missing_address / missing_location_name / missing_prefectures)."""
+    return event.get("source_name") in _NO_VENUE_QA_SOURCES
+
+
 def detect(event: dict) -> list[tuple[str, str]]:
     """Return list of (report_type, admin_note) detected for one event."""
     findings: list[tuple[str, str]] = []
@@ -954,6 +969,7 @@ def detect(event: dict) -> list[tuple[str, str]]:
     loc_prefs = event.get("location_prefectures") or []
     if (
         not is_pub_event
+        and not _should_skip_venue_qa(event)
         and loc_name.strip()
         and not loc_addr.strip()
         and not _is_online_or_tv(loc_name)
@@ -973,6 +989,7 @@ def detect(event: dict) -> list[tuple[str, str]]:
         name_ja_val = event.get("name_ja") or ""
         if (
             not is_pub_event
+            and not _should_skip_venue_qa(event)
             and source_nm != "gguide_tv"
             and not any(kw in name_ja_val for kw in ADDRESS_SKIP_KEYWORDS)
         ):
@@ -1001,7 +1018,7 @@ def detect(event: dict) -> list[tuple[str, str]]:
     #    (backfill_location_prefectures.py may not have run yet).
     loc_addr_val = event.get("location_address") or ""
     loc_prefs_val = event.get("location_prefectures") or []
-    if loc_addr_val.strip() and not loc_prefs_val:
+    if loc_addr_val.strip() and not loc_prefs_val and not _should_skip_venue_qa(event):
         # Skip non-Japan addresses — Taiwan events have no prefecture
         if _TAIWAN_ADDR_RE.search(loc_addr_val):
             pass

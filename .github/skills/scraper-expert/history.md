@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-06-22 — auto_qa venue QA 對無場地來源（TV/news/blog）誤報
+
+**問題：** 6 月 `event_reports` pending 從 22 暴增到 506，主因是 `auto_qa.py` 的 `detect()` 對結構上無實體場地的來源仍產生 venue 類報告。`gguide_tv`（電視）、`google_news_rss`/`nhk_rss`（新聞 RSS）、`prtimes`（新聞稿）、`note_creators`（部落格）這些來源本質沒有會場，卻被報 `missing_address` / `missing_location_name` / `missing_prefectures`。樣本量化（detect() 直跑）：gguide_tv 都府縣 10、google_news_rss 7/7/2、prtimes 3/3/11、nhk_rss 0/2/1、note_creators 2/1/1，合計 venue 假陽性 50 筆。
+
+**根本原因：** `is_pub_event`（publication/books_media/hanmoto）只排除出版品，未涵蓋 TV/news/blog；且 `missing_prefectures` 分支（branch 6）連 `is_pub_event` 都沒檢查，導致任何「有 address 但無都府縣」的無場地來源都被報。
+
+**修法：** 新增獨立 helper `_should_skip_venue_qa(event)` + `_NO_VENUE_QA_SOURCES` frozenset（gguide_tv, google_news_rss, nhk_rss, prtimes, walkerplus, note_creators），於 `detect()` 三個 venue 分支（missing_address / missing_location_name / missing_prefectures）各加 `and not _should_skip_venue_qa(event)`。**不擴張 `is_pub_event` 語意**——避免未來維護者把 news/TV 誤當 publication。before/after：六來源 venue 假陽性 50→0；peatix（活動平台，**不在 skip 範圍**）仍報 missing_address=1 / missing_location_name=8；真有場館名缺地址者仍報（7 筆不變）。
+
+**教訓：**
+- auto_qa venue QA 對無實體場地來源（TV/news/blog）會持續誤報；修法用**獨立 helper**（`_should_skip_venue_qa()`）而非擴張 publication 判斷，保持語意清晰。
+- **活動平台（peatix/kokuchpro/doorkeeper/connpass）不可放進 skip 範圍**——它們無 venue 通常是抓取缺漏（真問題），一刀切會誤殺。
+- 收緊 detector 必須做 before/after dry-run，且因 auto_qa dedup（`skipped_existing`）會把 post-dedup `by_type` 全壓成 0，必須**直接跑 `detect()`** 量測 raw 行為，不能只看 `run()` 的 `inserted`。
+
+---
+
 ## 2026-06-16 — Generic annotator `report` keyword 假陽性：寬泛 `記録` 命中票房文案
 
 **問題：** 大濛（霧のごとく）多個真實上映場次（stranger / kyoto_cinema / uedaeigeki / starcat_cinema / cinemart_shinjuku / cinemaclair / sakurazaka / uplink_cinema 共 8 筆）被誤注入 `report` 分類，stranger 的 `name_ja` 被污染成 `【レポート】霧のごとく`，連帶卡在 `annotation_status='error'` 而首頁不顯示。
