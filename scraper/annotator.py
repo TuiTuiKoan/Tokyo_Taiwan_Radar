@@ -378,6 +378,10 @@ _SIMP_TO_TRAD_RAW = {
     "万": "萬", "两": "兩", "卖": "賣", "围": "圍",
     "岚": "嵐", "师": "師", "绕": "繞", "绝": "絕",
     "费": "費", "赵": "趙", "黄": "黃",
+    # SC chars found surviving G2 batch-annotation post-QA full-SIMP_RE scan (2026-06-22).
+    # All present in auto_qa.SIMP_RE but missing here, so 内/湾/学 converted while these did not.
+    # One-to-one mappings (no surname/ambiguity risk). 当->當 写->寫 圆->圓.
+    "当": "當", "写": "寫", "圆": "圓",
 }
 # Remove identity mappings (same char in both) and build translation table
 _SIMP_TO_TRAD = str.maketrans({k: v for k, v in _SIMP_TO_TRAD_RAW.items() if k != v})

@@ -4,6 +4,19 @@
 
 --- 
 
+## 2026-06-22 — `_SIMP_TO_TRAD` 缺 `当`/`写`/`圆`（G2 batch annotation post-QA gap）
+
+**Error**: G2 backlog 標注後，2 筆 hanmoto publication 的 `description_zh` 殘留簡體 `当`（auto_qa `SIMP_RE` 會旗標但 `_to_trad()` 沒轉，因為 `当` 不在 `annotator._SIMP_TO_TRAD_RAW`）。修 `当` 後依規範跑全庫 full-`SIMP_RE` 掃描，又發現同類缺字 `写`、`圆`，其中一筆 `当` 修補後的 row 仍殘留 `写`。
+
+**Fix**:
+1. `scraper/annotator.py`：`_SIMP_TO_TRAD_RAW` 補 `当→當`、`写→寫`、`圆→圓`（三者皆已在 `auto_qa.SIMP_RE`，one-to-one 無姓氏歧義）。`auto_qa.SIMP_RE` 已含，免動。
+2. DB 定向單字 replace 修補受影響 rows（`当` 15 筆、`写`/`圆` 9 筆），皆 `annotated`（0 reviewed），全程 `assert status!='reviewed'`。root-cause 已修，re-annotation 會重現正確值 → 免 FC lock。
+3. 全庫 re-scan 確認 `当`/`写`/`圆` 殘留 = 0。剩 7 筆 `is_active=False` stale residue（字已在 map，舊 row 未重跑；含 `范`/`钟` 一對多姓氏歧義）→ 不 bulk patch，留給 qa_heartbeat→admin 人工 confirm。
+
+**Lesson**: 改 char map 後**必跑全庫 full-`SIMP_RE` 掃描**（mode Step 3 #7）——單字修補會漏同 row 的 sibling 缺字。只把「SIMP_RE 有、map 沒、且 one-to-one 安全」的缺字加進 `_SIMP_TO_TRAD`；一對多歧義字（`范`→範/范姓、`钟`→鐘/鍾姓）**禁止**自動轉，必須走 admin review。已 mapped 的 stale residue 屬 qa_heartbeat 範疇，非單次 backlog 任務該 bulk patch，尤其 inactive row。
+
+---
+
 ## 2026-06-16 — `_REPORT_TRIGGER_RE` 寬泛 `記録` 改 composite terms（大濛首頁修復 follow-up）
 
 **Error**: 大濛（霧のごとく） 8 筆真實上映場次卡在首頁不顯示。根因是 annotator 的 `report` keyword 假陽性：寬泛 `記録` 命中票房文案「記録を更新中」，注入 `report` 分類並污染 stranger `name_ja` 為 `【レポート】霧のごとく`。
