@@ -2505,112 +2505,127 @@ def annotate_pending_events(
             _existing_subs = {e["source_id"]: e for e in (existing_subs_res.data or [])}
 
             for j, sub in enumerate(sub_events):
-                sub_cats = _validate_categories(sub.get("category", categories))
-                sub_cats = _inject_keyword_categories(sub_cats, sub.get("name_ja", "") + " " + (sub.get("description_ja") or ""))
-                sub_start = _str(sub.get("start_date"))
-                sub_end = _str(sub.get("end_date"))
-                _sub_guard_text = " ".join(
-                    [
-                        _str(sub.get("name_ja")) or "",
-                        _str(sub.get("description_ja")) or "",
-                        _str(sub.get("business_hours")) or "",
-                    ]
-                )
-                sub_start, sub_end = _apply_single_day_end_date_guard(
-                    sub_start,
-                    sub_end,
-                    _sub_guard_text,
-                )
-
-                sub_source_id = f"{event['source_id']}_sub{j+1}"
-                _prev = _existing_subs.get(sub_source_id)
-                # Preserve existing name_ja/raw_title on re-annotation
-                sub_name_ja = (_prev["name_ja"] if _prev else None) or sub.get("name_ja", "")
-                sub_raw_title = (_prev["raw_title"] if _prev else None) or sub.get("name_ja", "")
-
-                sub_row = {
-                    "source_name": event["source_name"],
-                    "source_id": sub_source_id,
-                    "source_url": event["source_url"],
-                    "original_language": event.get("original_language", "ja"),
-                    "name_ja": sub_name_ja,
-                    "name_zh": _to_trad(sub.get("name_zh")),
-                    "name_en": sub.get("name_en"),
-                    "description_ja": sub.get("description_ja"),
-                    "description_zh": _to_trad(sub.get("description_zh")),
-                    "description_en": sub.get("description_en"),
-                    "category": sub_cats,
-                    "start_date": sub_start,
-                    "end_date": sub_end,
-                    "location_name": sub.get("location_name") or update_data["location_name"],
-                    "location_address": sub.get("location_address") or update_data["location_address"],
-                    "business_hours": sub.get("business_hours") or update_data["business_hours"],
-                    "is_paid": sub.get("is_paid") if sub.get("is_paid") is not None else update_data["is_paid"],
-                    "price_info": sub.get("price_info") or update_data["price_info"],
-                    "organizer": _str(sub.get("organizer")) or update_data.get("organizer"),
-                    "co_organizers": [s for s in (sub.get("co_organizers") or []) if isinstance(s, str)],
-                    "co_organizer_types": _validate_organizer_types_list(sub.get("co_organizer_types") or []),
-                    "sponsors": [s for s in (sub.get("sponsors") or []) if isinstance(s, str)],
-                    "sponsor_types": _validate_organizer_types_list(sub.get("sponsor_types") or []),
-                    "organizer_type": _validate_organizer_types(sub.get("organizer_type", [])) or update_data.get("organizer_type", []),
-                    "event_form": _validate_event_forms(sub.get("event_form", [])),
-                    "primary_language": _validate_primary_language(sub.get("primary_language")) or update_data.get("primary_language"),
-                    "has_japanese_support": _validate_bool_or_none(sub.get("has_japanese_support")),
-                    "has_english_support": _validate_bool_or_none(sub.get("has_english_support")),
-                    "is_active": True,
-                    "parent_event_id": eid,
-                    "raw_title": sub_raw_title,
-                    "performer": _str(sub.get("performer")),
-                    "performers": [p for p in (sub.get("performers") or []) if isinstance(p, str)],
-                    "performer_zh": _str(sub.get("performer_zh")),
-                    "performer_en": _str(sub.get("performer_en")),
-                    "director": _str(sub.get("director")),
-                    "director_zh": _str(sub.get("director_zh")),
-                    "director_en": _str(sub.get("director_en")),
-                    "raw_description": sub.get("description_ja"),
-                    "annotation_status": "annotated",
-                    "annotated_at": datetime.utcnow().isoformat(),
-                    # Inherit parent's scraped_at so the admin クロール日時 column
-                    # shows a meaningful value instead of NULL for sub-events.
-                    "scraped_at": event.get("scraped_at"),
-                }
-
-                if dry_run:
-                    logger.info(
-                        "  [DRY-RUN] would upsert sub-event source_id=%s",
-                        sub_source_id,
+                # Per-sub-event isolation (mirrors the localized-location /
+                # prefectures precise-isolation pattern). A malformed GPT payload
+                # (e.g. name_ja=null) or an upsert error must only skip THIS
+                # sub-event — it must NEVER propagate to the parent's except
+                # handler below, which would revert the already-committed parent
+                # back to annotation_status='error'.
+                try:
+                    sub_cats = _validate_categories(sub.get("category", categories))
+                    sub_cats = _inject_keyword_categories(sub_cats, (sub.get("name_ja") or "") + " " + (sub.get("description_ja") or ""))
+                    sub_start = _str(sub.get("start_date"))
+                    sub_end = _str(sub.get("end_date"))
+                    _sub_guard_text = " ".join(
+                        [
+                            _str(sub.get("name_ja")) or "",
+                            _str(sub.get("description_ja")) or "",
+                            _str(sub.get("business_hours")) or "",
+                        ]
                     )
-                else:
-                    sb.table("events").upsert(
-                        sub_row, on_conflict="source_name,source_id"
-                    ).execute()
+                    sub_start, sub_end = _apply_single_day_end_date_guard(
+                        sub_start,
+                        sub_end,
+                        _sub_guard_text,
+                    )
 
-                # Also try localized location fields for sub-events (migration 010)
-                sub_loc = {k: v for k, v in {
-                    "location_name_zh": _loc_zh(sub.get("location_name_zh")) or localized_location_data.get("location_name_zh"),
-                    "location_name_en": _loc(sub.get("location_name_en")) or localized_location_data.get("location_name_en"),
-                    "location_address_zh": _loc_zh(sub.get("location_address_zh")) or localized_location_data.get("location_address_zh"),
-                    "location_address_en": _loc(sub.get("location_address_en")) or localized_location_data.get("location_address_en"),
-                    "business_hours_zh": _str(sub.get("business_hours_zh")) or localized_location_data.get("business_hours_zh"),
-                    "business_hours_en": _str(sub.get("business_hours_en")) or localized_location_data.get("business_hours_en"),
-                }.items() if v is not None}
-                if sub_loc:
-                    try:
-                        if dry_run:
-                            logger.info(
-                                "  [DRY-RUN] would update sub-event localized fields source_id=%s (keys=%s)",
-                                sub_source_id,
-                                sorted(sub_loc.keys()),
-                            )
-                        else:
-                            # Get the upserted sub-event id
-                            sub_result = sb.table("events").select("id").eq("source_name", event["source_name"]).eq("source_id", f"{event['source_id']}_sub{j+1}").single().execute()
-                            if sub_result.data:
-                                sb.table("events").update(sub_loc).eq("id", sub_result.data["id"]).execute()
-                    except Exception:
-                        pass  # migration 010 not applied yet, skip silently
+                    sub_source_id = f"{event['source_id']}_sub{j+1}"
+                    _prev = _existing_subs.get(sub_source_id)
+                    # Preserve existing name_ja/raw_title on re-annotation
+                    sub_name_ja = (_prev["name_ja"] if _prev else None) or (sub.get("name_ja") or "")
+                    sub_raw_title = (_prev["raw_title"] if _prev else None) or (sub.get("name_ja") or "")
 
-                logger.info("  + sub-event %d: %s", j + 1, sub.get("name_ja", "")[:50])
+                    sub_row = {
+                        "source_name": event["source_name"],
+                        "source_id": sub_source_id,
+                        "source_url": event["source_url"],
+                        "original_language": event.get("original_language", "ja"),
+                        "name_ja": sub_name_ja,
+                        "name_zh": _to_trad(sub.get("name_zh")),
+                        "name_en": sub.get("name_en"),
+                        "description_ja": sub.get("description_ja"),
+                        "description_zh": _to_trad(sub.get("description_zh")),
+                        "description_en": sub.get("description_en"),
+                        "category": sub_cats,
+                        "start_date": sub_start,
+                        "end_date": sub_end,
+                        "location_name": sub.get("location_name") or update_data["location_name"],
+                        "location_address": sub.get("location_address") or update_data["location_address"],
+                        "business_hours": sub.get("business_hours") or update_data["business_hours"],
+                        "is_paid": sub.get("is_paid") if sub.get("is_paid") is not None else update_data["is_paid"],
+                        "price_info": sub.get("price_info") or update_data["price_info"],
+                        "organizer": _str(sub.get("organizer")) or update_data.get("organizer"),
+                        "co_organizers": [s for s in (sub.get("co_organizers") or []) if isinstance(s, str)],
+                        "co_organizer_types": _validate_organizer_types_list(sub.get("co_organizer_types") or []),
+                        "sponsors": [s for s in (sub.get("sponsors") or []) if isinstance(s, str)],
+                        "sponsor_types": _validate_organizer_types_list(sub.get("sponsor_types") or []),
+                        "organizer_type": _validate_organizer_types(sub.get("organizer_type", [])) or update_data.get("organizer_type", []),
+                        "event_form": _validate_event_forms(sub.get("event_form", [])),
+                        "primary_language": _validate_primary_language(sub.get("primary_language")) or update_data.get("primary_language"),
+                        "has_japanese_support": _validate_bool_or_none(sub.get("has_japanese_support")),
+                        "has_english_support": _validate_bool_or_none(sub.get("has_english_support")),
+                        "is_active": True,
+                        "parent_event_id": eid,
+                        "raw_title": sub_raw_title,
+                        "performer": _str(sub.get("performer")),
+                        "performers": [p for p in (sub.get("performers") or []) if isinstance(p, str)],
+                        "performer_zh": _str(sub.get("performer_zh")),
+                        "performer_en": _str(sub.get("performer_en")),
+                        "director": _str(sub.get("director")),
+                        "director_zh": _str(sub.get("director_zh")),
+                        "director_en": _str(sub.get("director_en")),
+                        "raw_description": sub.get("description_ja"),
+                        "annotation_status": "annotated",
+                        "annotated_at": datetime.utcnow().isoformat(),
+                        # Inherit parent's scraped_at so the admin クロール日時 column
+                        # shows a meaningful value instead of NULL for sub-events.
+                        "scraped_at": event.get("scraped_at"),
+                    }
+
+                    if dry_run:
+                        logger.info(
+                            "  [DRY-RUN] would upsert sub-event source_id=%s",
+                            sub_source_id,
+                        )
+                    else:
+                        sb.table("events").upsert(
+                            sub_row, on_conflict="source_name,source_id"
+                        ).execute()
+
+                    # Also try localized location fields for sub-events (migration 010)
+                    sub_loc = {k: v for k, v in {
+                        "location_name_zh": _loc_zh(sub.get("location_name_zh")) or localized_location_data.get("location_name_zh"),
+                        "location_name_en": _loc(sub.get("location_name_en")) or localized_location_data.get("location_name_en"),
+                        "location_address_zh": _loc_zh(sub.get("location_address_zh")) or localized_location_data.get("location_address_zh"),
+                        "location_address_en": _loc(sub.get("location_address_en")) or localized_location_data.get("location_address_en"),
+                        "business_hours_zh": _str(sub.get("business_hours_zh")) or localized_location_data.get("business_hours_zh"),
+                        "business_hours_en": _str(sub.get("business_hours_en")) or localized_location_data.get("business_hours_en"),
+                    }.items() if v is not None}
+                    if sub_loc:
+                        try:
+                            if dry_run:
+                                logger.info(
+                                    "  [DRY-RUN] would update sub-event localized fields source_id=%s (keys=%s)",
+                                    sub_source_id,
+                                    sorted(sub_loc.keys()),
+                                )
+                            else:
+                                # Get the upserted sub-event id
+                                sub_result = sb.table("events").select("id").eq("source_name", event["source_name"]).eq("source_id", f"{event['source_id']}_sub{j+1}").single().execute()
+                                if sub_result.data:
+                                    sb.table("events").update(sub_loc).eq("id", sub_result.data["id"]).execute()
+                        except Exception:
+                            pass  # migration 010 not applied yet, skip silently
+
+                    logger.info("  + sub-event %d: %s", j + 1, (sub.get("name_ja") or "")[:50])
+                except Exception as sub_exc:
+                    # Skip only this sub-event; the parent stays 'annotated'.
+                    logger.error(
+                        "  ✗ sub-event %d skipped (parent kept annotated): %s",
+                        j + 1,
+                        sub_exc,
+                    )
+                    continue
 
             # After all sub-events are created, aggregate prefecture names and
             # update parent event's location_prefectures (migration 012).

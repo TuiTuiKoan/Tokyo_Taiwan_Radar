@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-06-23 — sub-event 標注失敗連坐把已標注 parent 打回 error
+
+**問題：** `annotator.py` 處理含 sub-event 的事件時，GPT 對某些事件回傳 `"name_ja": null`。`sub.get("name_ja", "")` 因 key 存在（值為 `None`）而不套用 default，回傳 `None`，後續 `None + " "` 拋 `TypeError`。該例外沿用 parent 的 `try`，導致整個事件被當成標注失敗，連坐把**已標注成功的 parent** 打回 `annotation_status='error'`，前端不顯示。觀察到 9 件 `is_active=True` 的 error（updated_at 同批 2026-06-22T11:39），其中 1 件 peatix（`4930e835`）原本 zh/en 都有值，屬被連坐回歸。
+
+**根本原因：** (1) `dict.get(key, default)` 在 key 存在但值為 `None` 時不套 default — JSON `null` 會穿透成 `None`；(2) sub-event 迴圈與 parent 共用同一個 `try`，任一 sub 失敗即整體回滾 parent 狀態，缺乏失敗隔離。
+
+**修法：**
+1. Trigger fix：所有 `sub.get("name_ja", "")` 改為 None-safe `(sub.get("name_ja") or "")`。
+2. Structural fix：每個 sub-event 處理包進獨立 `try: ... except Exception as sub_exc:`，失敗只 skip 該 sub（log「✗ sub-event %d skipped (parent kept annotated)」），parent 維持 `annotated` 不回滾。
+
+**教訓：**
+- sub-event 處理必須與 parent 例外隔離 — sub 失敗絕不可回滾已 commit 的 parent 狀態。
+- 解析外部 JSON 時，`dict.get(k, "")` 對 `null` 值無效（回 `None` 非 `""`）；一律用 `(d.get(k) or "")` 防 `None`。
+
+---
+
 ## 2026-06-22 — auto_qa venue QA 對無場地來源（TV/news/blog）誤報
 
 **問題：** 6 月 `event_reports` pending 從 22 暴增到 506，主因是 `auto_qa.py` 的 `detect()` 對結構上無實體場地的來源仍產生 venue 類報告。`gguide_tv`（電視）、`google_news_rss`/`nhk_rss`（新聞 RSS）、`prtimes`（新聞稿）、`note_creators`（部落格）這些來源本質沒有會場，卻被報 `missing_address` / `missing_location_name` / `missing_prefectures`。樣本量化（detect() 直跑）：gguide_tv 都府縣 10、google_news_rss 7/7/2、prtimes 3/3/11、nhk_rss 0/2/1、note_creators 2/1/1，合計 venue 假陽性 50 筆。
