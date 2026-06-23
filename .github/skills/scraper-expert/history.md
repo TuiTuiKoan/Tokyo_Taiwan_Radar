@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-06-24 — sub-event `_subN` 位置序號漂移 + 既有窄標題卡住（台灣布袋戲文化月）
+
+**問題：** 台灣布袋戲文化月（`taiwan_cultural_center`，parent `7446190c`）海報列 6 個節目，DB 只有 5 個子活動，缺第二個展覽 `7/7〜7/30 ワセダギャラリー「台湾布袋戯と李天禄布袋戯文物館收蔵品展」`。補上後又發現 7/7 子活動前台一直顯示「講演1」，而非整體開幕活動。
+
+**根本原因：**
+1. **位置序號漂移**：annotator 用 `source_id = f"{parent}_sub{j+1}"`，序號跟著 GPT 當次輸出順序走。若把缺漏的展覽插到第 2 位，既有 `_sub2`〜`_sub5` 會被後面的活動覆寫成不同內容。
+2. **窄標題保留**：annotator 為防 GPT 改寫 katakana，會無條件保留既有子活動的 `name_ja`/`raw_title`。`_sub2` 舊資料是「講演①」窄標題，於是即使重標也卡死成「講演1」。
+3. **bundle 拆解不穩**：GPT 對複雜 program list 波動，有時把 7/7「開幕式＋講演①＋講演②＋映画」整段拆成多個 component，有時又漏抓展覽；不能假設同一 prompt 每次輸出同一子活動集合。
+
+**修法：**
+1. **內容穩定匹配**：annotator 改為先用正規化標題＋`start_date` 比對既有子活動，命中才復用原 `source_id`；新子活動只 append 到目前最大 `_subN` 之後（`_allocate_sub_source_id()`）。
+2. **bundle component 去重**：同日既有子活動若是 bundle（含「開幕」或「公演」），GPT 拆出的 `講演/映画/上映/解説` component 會命中該 bundle 並 `skip duplicate`，不再產生 `_sub7/_sub8`。
+3. **窄標題只在同活動時保留**：新增 `_same_sub_event_title()`，僅當新舊標題互為包含（同一活動）才保留舊 `name_ja`/`raw_title`，否則採用 GPT 的較完整標題。
+4. **sub-event 尊重 field_corrections**：sub-event upsert 套用 `human_field_map`——文字欄位用 FC 文字值，非文字欄位（category/event_form/performers）用 DB-native 值，避免型別污染。
+5. **DB patch**：手動補 `_sub6`（缺的展覽），並把 `_sub2` 改寫成「開幕イベント（開幕式・講演・映画『戯夢継承』）」、寫入 17:00～20:15、`performers=['平林宣和','李俊寛']`，再把標題/說明/時間/日期/分類/形式全鎖進 `field_corrections`。
+
+**教訓：**
+- annotator-generated 子活動的 `source_id` 是位置序號，**不是內容穩定識別**。任何會在中間插入/補漏子活動的修法，必須先做「標題＋日期匹配既有子活動 → 復用 source_id；新子活動 → append 新序號」，否則會 silent 覆寫既鄰活動。
+- 既有子活動是 bundle（開幕イベント、公演＋解説）時，要防 GPT 把它拆成 component 後新增 `_subN` duplicate。
+- 「無條件保留既有子活動標題」會讓窄標題（講演①）卡死；保留前要先確認新舊是同一活動。
+- 手動修正子活動後必須 FC lock，且 sub-event upsert 路徑也要尊重 field_corrections（先前只有 parent 路徑有保護）。
+- 舊規則「漏抓就先刪光全部子活動再 upsert」已被內容穩定匹配取代——現在可安全做單筆 targeted 補建，不必砍掉重建。
+
+---
+
 ## 2026-06-23 — sub-event 標注失敗連坐把已標注 parent 打回 error
 
 **問題：** `annotator.py` 處理含 sub-event 的事件時，GPT 對某些事件回傳 `"name_ja": null`。`sub.get("name_ja", "")` 因 key 存在（值為 `None`）而不套用 default，回傳 `None`，後續 `None + " "` 拋 `TypeError`。該例外沿用 parent 的 `try`，導致整個事件被當成標注失敗，連坐把**已標注成功的 parent** 打回 `annotation_status='error'`，前端不顯示。觀察到 9 件 `is_active=True` 的 error（updated_at 同批 2026-06-22T11:39），其中 1 件 peatix（`4930e835`）原本 zh/en 都有值，屬被連坐回歸。

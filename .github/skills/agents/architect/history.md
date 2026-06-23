@@ -2,6 +2,15 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-24 — Sub-event insertion drift from positional `_subN` IDs
+
+- **Error**: 初次分析台灣布袋戲文化月少一筆子活動時，先誤判缺的是 7/7 開幕式，且只打算用 prompt 修正。實際缺的是 `7/7〜7/30` ワセダギャラリー展。更重要的是，annotator 用 `_sub1`、`_sub2` 這種位置序號產生 `source_id`；若 GPT 修正後把缺項插到第 2 位，既有 `_sub2` 到 `_sub5` 會被後續活動覆寫。
+- **Root cause**: 將「子活動抽取漏項」視為單純 prompt 問題，忽略了 upsert key 是序號而非內容穩定識別。GPT 對複雜 program list 也有波動，不能假設同一 prompt 每次都輸出同一子活動集合。
+- **Fix**: `annotator.py` 先用標題與日期匹配既有子活動，匹配成功才復用原 `source_id`；新增漏項則分配目前最大 `_subN` 後的新 ID。對既有活動手動補入 `cb6e9800981b2c45_sub6`，前台確認附屬活動變成 6 筆。後續又修正 `_sub2`，將「講演①」改為整體 `開幕イベント（開幕式・講演・映画『戯夢継承』）`，並讓開幕式/講演/電影等 component 命中同日 bundle 時跳過 duplicate allocation。
+- **Lesson**: 規劃系列活動子活動修復時，必須先檢查 `source_id` 是否為位置序號。任何會在中間插入新子活動的修正，都要先設計「既有子活動內容匹配 → 復用 source_id；新子活動 → append 新 ID」的防漂移策略，再執行 re-annotation 或 DB patch。若既有子活動是 bundle，還要確認 GPT 拆出的 component 不會產生新的 `_subN` duplicate；手動修正子活動後，也要讓 sub-event upsert 尊重 field_corrections。
+
+---
+
 ## 2026-06-08 — Safari CJK centering: isolated spike was a false positive
 
 - **Error**: 規劃移除全域 Safari `!important` padding hack 時，用一個獨立的 inline-CSS spike（`web/public/_uitest.html`）驗證「per-control 幾何（inline-flex + min-h + leading-none + inner span）已足夠」。spike 在 Safari `file://` 下 PASS，於是採「移除全域規則 + 保留未使用的 opt-in class」的保守路徑並部署。實際上真實控制項（EventShelf 膠囊 tab、FilterBar 搜尋按鈕）在 Safari 中文字仍偏移——保守修復讓這些控制項失去原本的補償，反而更糟。

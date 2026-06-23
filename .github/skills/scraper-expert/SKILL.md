@@ -2035,7 +2035,22 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 - For series with 6+ sub-events (film screening series, multi-session lectures, repeated workshops), **generate sub-events in the scraper layer**, not via annotator.
 - Pattern: emit each session as a separate `Event(parent_event_id=parent_uuid, source_id=f"{parent_source_id}_sub{n}")`. Each child is annotated independently.
 - The annotator truncation limit is 20,000 chars (raised from 12,000 in commit `ff2a2ac`). Even with the higher limit, dense long descriptions still cause GPT to stop early.
-- If sub-events were already inserted with fewer entries than expected: delete existing subs first, then `upsert` the full corrected set.
+
+### Sub-event `source_id` is content-stable, NOT positional (2026-06-24 教訓)
+
+- **`_subN` 序號不是穩定識別**：annotator 不再用 GPT 當次輸出位置 `f"{parent}_sub{j+1}"` 當 `source_id`。它先用正規化標題＋`start_date` 比對既有子活動（`_find_existing_sub_event()`），命中就**復用原 `source_id`**；只有真正的新子活動才 `_allocate_sub_source_id()` append 到目前最大 `_subN` 之後。
+- **為何重要**：GPT 對複雜 program list 輸出順序會變動。若沿用位置序號，把缺漏項插到中間就會 silent 覆寫既鄰的 `_sub2`〜`_subN`（變成不同活動）。任何手動補漏或 re-annotation 前，都要假設 GPT 順序不穩。
+- **Targeted 補建現在是安全的**：因為改用內容匹配，漏抓單筆子活動時可直接補一筆新 `_subN`，**不必**再「砍光全部子活動再重建」（舊規則已淘汰）。delete-and-recreate 只在子活動整批錯亂、無法靠標題匹配修復時才用。
+- **Bundle component 去重**：若同日既有子活動是 bundle（標題含「開幕」或「公演」等整體活動），GPT 把它拆出的 `講演/映画/上映/解説` component 會命中該 bundle 並被 `skip duplicate sub-event component`，不會新增 `_sub7/_sub8`。
+- **窄標題只在同活動時保留**：annotator 保留既有 `name_ja`/`raw_title` 前會先用 `_same_sub_event_title()` 確認新舊標題互為包含（同一活動）。否則採用 GPT 較完整的標題——避免舊窄標題（如「講演①」）卡死整體活動名。
+- **Sub-event upsert 尊重 `field_corrections`**：手動修正子活動後務必 FC lock。sub-event upsert 路徑會套用 `human_field_map`：文字欄位用 FC 文字值，非文字欄位（`category`/`event_form`/`performers` 等 `_NON_TEXT_FC_FIELDS`）用 DB-native 值，避免型別污染。
+
+### Multi-exhibition / bundled opening — SYSTEM_PROMPT 拆分規則
+
+- **多展覽要逐一拆**：一個 program 頁若列出多個展覽（標題、日期範圍、或會場各不相同），每個展覽各建一個 sub-event。不可把第二個展覽併進開幕活動、講演區塊或 parent 摘要。常見漏抓模式：`7月7日〜7月30日 [會場]` 後接一個帶引號的展覽標題＝獨立展覽 sub-event。
+- **單日開幕活動要合成一筆**：若某單日開幕活動有「整體時段＋會場」，底下再列 `開幕式`、`講演①`、`講演②`、`映画上映` 等內容但**沒有各自時刻**，則整個開幕活動建**一筆** sub-event（標題如「開幕イベント（開幕式・講演・映画…）」），不要縮成「講演①」，也不要拆成多個 component。
+
+- **If sub-events are整批錯亂 and cannot be matched by title**: delete existing subs first, then `upsert` the full corrected set (last-resort path only — prefer targeted 內容匹配 補建 above).
 
 ## merger.py
 

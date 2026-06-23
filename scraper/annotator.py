@@ -948,6 +948,9 @@ CRITICAL DATE EXTRACTION RULES:
 OTHER RULES:
 1. If the description mentions multiple separate events/sessions with different dates (e.g., a film screening series with individual dates), list them as sub_events.
    ALSO: if the description lists 3+ distinct venue locations in **different cities/prefectures** each with a specific address (e.g., a food fair with restaurants across Tokyo, Kyoto, and Osaka), list each venue as a sub-event with its own location_name, location_address, and business_hours; use the same start_date/end_date as the parent.
+    ALSO: if a program page lists multiple exhibitions/displays with distinct titles, date ranges, or venues, create one sub-event for each exhibition/display. Do not collapse a second exhibition into an opening event, lecture block, or parent summary.
+    IMPORTANT PROGRAM-LIST CASE: a block like "7月7日〜7月30日 [venue]" followed by a quoted exhibition title is a standalone exhibition sub-event, even if the next block on the same page is a one-day opening event, lecture, film, or performance. Extract that exhibition as its own sub_event with the full date range and venue.
+    ALSO: if a one-day opening event block has an overall time slot and venue, then lists bundled contents such as 開幕式, 講演①, 講演②, and film screening without separate times for each content item, create ONE sub-event for the whole opening event. Do not reduce it to only the first lecture, and do not create separate lecture/film sub-events unless each item has its own date/time.
    ALSO: if event_form is "conference" and the description lists 3 or more distinct named presentations/reports (報告, 発表, セッション) with individually named presenters (発表者, 報告者, 登壇者), generate a sub-event for each presentation. Use the same start_date/end_date and venue as the parent, set business_hours to that session's time slot (e.g. "12:30～13:50"), and put the presenter's name in both the "performer" string and the "performers" array. The sub-event name_ja should be the presentation title.
    EXCEPTION — DO NOT create sub_events for a single-film cinema screening (movie category) that simply has multiple show-time slots. For example, '4/25(土)～5/1(金)10:00、5/2(土)～8(金)14:40' is ONE film with two show-time windows — use start_date = first date, end_date = last date, put the slot details in business_hours. Sub_events in this context are for DIFFERENT FILMS in a series or DIFFERENT PHYSICAL VENUES, not different show times of the same film.
    EXCEPTION — DO NOT create sub_events when the article is a report/recap. If the raw_title contains レポート, レポ, 報告, 活動記録, 開催記録, 鑑賞記録, 記録｜, 記録|, アーカイブ, or recap (case-insensitive), the article is a post-event report and describes a single completed event — return sub_events: [] always. Treat the report as one event and extract its single set of fields (date, performer, etc.) from the body.
@@ -2499,10 +2502,77 @@ def annotate_pending_events(
                 sub_events = []
             # Pre-fetch existing sub-events to preserve name_ja on re-annotation
             # (same preservation policy as parent events — GPT may rewrite katakana to kanji).
-            existing_subs_res = sb.table("events").select(
-                "source_id,name_ja,raw_title"
-            ).eq("parent_event_id", eid).execute()
+            existing_subs_res = sb.table("events").select("*").eq("parent_event_id", eid).execute()
             _existing_subs = {e["source_id"]: e for e in (existing_subs_res.data or [])}
+
+            def _sub_event_match_key(name: str | None, start_date: str | None) -> str | None:
+                if not name:
+                    return None
+                normalized_name = re.sub(r"\s+", "", str(name))
+                normalized_name = re.sub(r"^[「『《\"'(（［【]+", "", normalized_name)
+                normalized_name = re.sub(r"[」』》\"')）］】]+$", "", normalized_name)
+                return f"{(start_date or '')[:10]}:{normalized_name}"
+
+            def _sub_event_name_token(name: str | None) -> str:
+                if not name:
+                    return ""
+                token = re.sub(r"\s+", "", str(name))
+                token = re.sub(r"^[「『《\"'(（［【]+", "", token)
+                token = re.sub(r"[」』》\"')）］】]+$", "", token)
+                return token
+
+            def _same_sub_event_title(a: str | None, b: str | None) -> bool:
+                token_a = _sub_event_name_token(a)
+                token_b = _sub_event_name_token(b)
+                return bool(
+                    len(token_a) >= 6
+                    and len(token_b) >= 6
+                    and (token_a in token_b or token_b in token_a)
+                )
+
+            def _find_existing_sub_event(name: str | None, start_date: str | None) -> dict | None:
+                key = _sub_event_match_key(name, start_date)
+                matched = _existing_subs_by_key.get(key) if key else None
+                if matched:
+                    return matched
+                date_prefix = (start_date or "")[:10]
+                incoming_token = _sub_event_name_token(name)
+                if not date_prefix:
+                    return None
+                for existing_sub in _existing_subs.values():
+                    if (existing_sub.get("start_date") or "")[:10] != date_prefix:
+                        continue
+                    for title_field in ("name_ja", "raw_title"):
+                        existing_token = _sub_event_name_token(existing_sub.get(title_field))
+                        if len(existing_token) >= 6 and (existing_token in incoming_token or incoming_token in existing_token):
+                            return existing_sub
+                        if "開幕" in existing_token and re.search(r"講演|映画|上映|開幕式", incoming_token):
+                            return existing_sub
+                        if "公演" in existing_token and re.search(r"講演|解説|解說", incoming_token):
+                            return existing_sub
+                return None
+
+            _existing_subs_by_key: dict[str, dict] = {}
+            for existing_sub in _existing_subs.values():
+                for title_field in ("name_ja", "raw_title"):
+                    key = _sub_event_match_key(existing_sub.get(title_field), existing_sub.get("start_date"))
+                    if key:
+                        _existing_subs_by_key.setdefault(key, existing_sub)
+
+            _sub_suffix_re = re.compile(rf"^{re.escape(event['source_id'])}_sub(\d+)$")
+            _next_sub_index = max(
+                (int(match.group(1)) for source_id in _existing_subs for match in [_sub_suffix_re.match(source_id)] if match),
+                default=0,
+            ) + 1
+            _used_sub_source_ids: set[str] = set()
+
+            def _allocate_sub_source_id() -> str:
+                nonlocal _next_sub_index
+                while True:
+                    candidate = f"{event['source_id']}_sub{_next_sub_index}"
+                    _next_sub_index += 1
+                    if candidate not in _existing_subs and candidate not in _used_sub_source_ids:
+                        return candidate
 
             for j, sub in enumerate(sub_events):
                 # Per-sub-event isolation (mirrors the localized-location /
@@ -2529,11 +2599,36 @@ def annotate_pending_events(
                         _sub_guard_text,
                     )
 
-                    sub_source_id = f"{event['source_id']}_sub{j+1}"
+                    matched_sub = _find_existing_sub_event(sub.get("name_ja"), sub_start)
+                    if matched_sub and matched_sub["source_id"] in _used_sub_source_ids:
+                        logger.info(
+                            "  = skip duplicate sub-event component for source_id=%s: %s",
+                            matched_sub["source_id"],
+                            (sub.get("name_ja") or "")[:50],
+                        )
+                        continue
+                    if matched_sub:
+                        sub_source_id = matched_sub["source_id"]
+                    else:
+                        sub_source_id = _allocate_sub_source_id()
+                    _used_sub_source_ids.add(sub_source_id)
                     _prev = _existing_subs.get(sub_source_id)
-                    # Preserve existing name_ja/raw_title on re-annotation
-                    sub_name_ja = (_prev["name_ja"] if _prev else None) or (sub.get("name_ja") or "")
-                    sub_raw_title = (_prev["raw_title"] if _prev else None) or (sub.get("name_ja") or "")
+                    _incoming_sub_name_ja = sub.get("name_ja") or ""
+                    _prev_title_is_same = bool(
+                        _prev
+                        and (
+                            _same_sub_event_title(_prev.get("name_ja"), _incoming_sub_name_ja)
+                            or _same_sub_event_title(_prev.get("raw_title"), _incoming_sub_name_ja)
+                        )
+                    )
+                    sub_name_ja = (
+                        (_prev["name_ja"] if _prev_title_is_same else None)
+                        or _incoming_sub_name_ja
+                    )
+                    sub_raw_title = (
+                        (_prev["raw_title"] if _prev_title_is_same else None)
+                        or _incoming_sub_name_ja
+                    )
 
                     sub_row = {
                         "source_name": event["source_name"],
@@ -2582,6 +2677,14 @@ def annotate_pending_events(
                         "scraped_at": event.get("scraped_at"),
                     }
 
+                    _sub_protected = human_field_map.get(_prev.get("id") if _prev else "", {})
+                    for _pf, _fc_val in _sub_protected.items():
+                        if _pf in sub_row:
+                            if _pf in _NON_TEXT_FC_FIELDS:
+                                sub_row[_pf] = _prev.get(_pf) if _prev else sub_row.get(_pf)
+                            else:
+                                sub_row[_pf] = _fc_val
+
                     if dry_run:
                         logger.info(
                             "  [DRY-RUN] would upsert sub-event source_id=%s",
@@ -2611,7 +2714,7 @@ def annotate_pending_events(
                                 )
                             else:
                                 # Get the upserted sub-event id
-                                sub_result = sb.table("events").select("id").eq("source_name", event["source_name"]).eq("source_id", f"{event['source_id']}_sub{j+1}").single().execute()
+                                sub_result = sb.table("events").select("id").eq("source_name", event["source_name"]).eq("source_id", sub_source_id).single().execute()
                                 if sub_result.data:
                                     sb.table("events").update(sub_loc).eq("id", sub_result.data["id"]).execute()
                         except Exception:
