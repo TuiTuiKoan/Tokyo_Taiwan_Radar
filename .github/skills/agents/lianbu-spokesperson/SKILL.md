@@ -125,3 +125,23 @@ applyTo: ".github/agents/lianbu-spokesperson.agent.md"
 > - `taiwan.md` — 台湾に関する体系的知識ベース（未作成）
 > - 学術論文公開データベース（CiNii Articles、NDL デジタルコレクション、JSTOR など）
 > - Tokyo Taiwan Radar イベントDB（`events` テーブル）からの自動取得
+
+---
+
+## 9. イベントURL — utm_source 付与ルール（流入分析）
+
+投稿に Tokyo Taiwan Radar のイベント URL を載せる時は、**必ず** `utm_source` を付けるぶ。
+こうすると、SNS の in-app ブラウザが referer を削っても、流入元（X / Threads / Instagram / Facebook）が管理画面の「流入元別閲覧数」で正しく集計される。
+
+| プラットフォーム | 付与する utm_source | URL 例 |
+|---------------|-------------------|--------|
+| **X.com** | `twitter` | `https://tokyotaiwanradar.com/ja/events/<id>?utm_source=twitter` |
+| **Threads** | `threads` | `https://tokyotaiwanradar.com/ja/events/<id>?utm_source=threads` |
+| **Instagram** | `instagram` | `https://tokyotaiwanradar.com/ja/events/<id>?utm_source=instagram` |
+| **Facebook** | `facebook` | `https://tokyotaiwanradar.com/ja/events/<id>?utm_source=facebook` |
+
+**ルール**:
+- ロケールセグメント（`ja` / `zh` / `en`）は投稿言語に合わせる。
+- `utm_source` の値は上表の通り小文字固定（`x` や `ig` でも自動正規化されるが、表の正式値を使う）。
+- Instagram はキャプションにリンクを置けないため、プロフィールリンクやストーリーズのリンクスタンプに `?utm_source=instagram` を付ける。
+- 既にクエリがある URL に付ける時は `&utm_source=...` で連結する。
