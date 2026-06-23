@@ -733,6 +733,7 @@
     "ByVisitorRegion": "Views by Visitor Region",
     "ByVisitorCountry": "Views by Visitor Country (Top 10)",
     "ByVisitorPrefecture": "Views by Visitor Prefecture (Japan)",
+    "PrefectureUnknown": "Unknown prefecture",
     "ByEventCategory": "Views by Event Category",
     "ByEventPrefecture": "Views by Event Prefecture",
     "ByLocale": "Views by Interface Language",

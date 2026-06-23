@@ -61,6 +61,7 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
     byVisitorRegion: Array<{ region: string; count: number }>;
     byVisitorCountry: Array<{ country: string; count: number }>;
     byVisitorPrefecture: Array<{ prefecture: string; count: number }>;
+    jpUnknownPrefectureCount?: number;
     byEventCategory: Array<{ category: string; count: number }>;
     byEventPrefecture: Array<{ prefecture: string; count: number }>;
     byLocale: Array<{ locale: string; count: number }>;
@@ -560,26 +561,34 @@ export default function AnalyticsDashboard({ locale }: AnalyticsDashboardProps) 
             {/* Views by Visitor Prefecture (Japan) */}
             <div className="border border-line rounded-lg p-4 bg-elevated">
               <h3 className="text-sm font-semibold text-fg mb-4">{tAdmin("ByVisitorPrefecture")}</h3>
-              {viewData.byVisitorPrefecture.length === 0 ? (
+              {viewData.byVisitorPrefecture.length === 0 && !viewData.jpUnknownPrefectureCount ? (
                 <p className="text-sm text-fg-subtle text-center py-4">{tAdmin("NoData")}</p>
               ) : (
-                <ul className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
-                  {viewData.byVisitorPrefecture.map((p) => {
-                    const pct = Math.round((p.count / maxVisitorPrefCount) * 100) || 0;
-                    return (
-                      <li key={p.prefecture} className="flex items-center gap-3 text-sm">
-                        <span className="w-24 truncate text-xs text-fg-muted shrink-0">{getPrefectureLabel(p.prefecture)}</span>
-                        <div className="flex-1 h-3 rounded-full bg-muted">
-                          <div
-                            className="h-3 rounded-full bg-rose-500 transition-all duration-300"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="w-12 text-right text-xs text-fg-subtle shrink-0 tabular-nums">{p.count}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <>
+                  <ul className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                    {viewData.byVisitorPrefecture.map((p) => {
+                      const pct = Math.round((p.count / maxVisitorPrefCount) * 100) || 0;
+                      return (
+                        <li key={p.prefecture} className="flex items-center gap-3 text-sm">
+                          <span className="w-24 truncate text-xs text-fg-muted shrink-0">{getPrefectureLabel(p.prefecture)}</span>
+                          <div className="flex-1 h-3 rounded-full bg-muted">
+                            <div
+                              className="h-3 rounded-full bg-rose-500 transition-all duration-300"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="w-12 text-right text-xs text-fg-subtle shrink-0 tabular-nums">{p.count}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {viewData.jpUnknownPrefectureCount !== undefined && viewData.jpUnknownPrefectureCount > 0 && (
+                    <div className="mt-3 pt-3 border-t border-line text-xs text-fg-subtle flex justify-between items-center">
+                      <span>{tAdmin("PrefectureUnknown")}</span>
+                      <span className="font-mono tabular-nums">{viewData.jpUnknownPrefectureCount}</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

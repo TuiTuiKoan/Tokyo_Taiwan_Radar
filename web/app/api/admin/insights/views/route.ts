@@ -231,14 +231,19 @@ export async function GET(req: Request) {
       .slice(0, 10);
 
     // 3b. byVisitorPrefecture (JP only)
+    // JP views whose country_region is missing or unmapped go to an "unknown" bucket
+    // so that (sum of prefectures + unknown) reconciles with the Japan region total.
     const visitorPrefMap: Record<string, number> = {};
+    let jpUnknownPrefectureCount = 0;
     for (const v of filteredViews) {
       const code = normalizeCountryCode(v.country);
       if (code !== "JP") continue;
-      if (!v.country_region) continue;
-      const key = String(v.country_region).padStart(2, "0");
-      const pref = JP_REGION_TO_PREFECTURE[key];
-      if (!pref) continue;
+      const key = v.country_region ? String(v.country_region).padStart(2, "0") : null;
+      const pref = key ? JP_REGION_TO_PREFECTURE[key] : null;
+      if (!pref) {
+        jpUnknownPrefectureCount++;
+        continue;
+      }
       visitorPrefMap[pref] = (visitorPrefMap[pref] ?? 0) + 1;
     }
     const byVisitorPrefecture = Object.entries(visitorPrefMap)
@@ -323,6 +328,7 @@ export async function GET(req: Request) {
       byEventPrefecture,
       byLocale,
       byVisitorCity: [],
+      jpUnknownPrefectureCount,
       bySource,
       unknownSourceCount: unknownCount,
     });
