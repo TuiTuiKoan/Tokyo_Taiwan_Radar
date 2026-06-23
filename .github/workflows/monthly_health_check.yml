@@ -10,6 +10,10 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+concurrency:
+  group: monthly-health-check-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   health_check:
     runs-on: ubuntu-latest
@@ -19,6 +23,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
@@ -29,6 +35,10 @@ jobs:
 
       - name: Install Python dependencies
         run: pip install -r scraper/requirements.txt
+
+      - name: Sync to latest main
+        if: github.ref == 'refs/heads/main'
+        run: git pull --ff-only origin main
 
       - name: Run monthly health check and send LINE notification
         working-directory: scraper
@@ -56,8 +66,42 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "1. 開啟 VS Code Copilot Chat" >> $GITHUB_STEP_SUMMARY
           echo '2. 選擇 Agent: "Reviewer"' >> $GITHUB_STEP_SUMMARY
-          echo "3. 輸入：請進行本月治理復盤，分析爬蟲健康、Skills 新鮮度與 Agent scope overlap，輸出報告至 docs/monthly_review/$(date +%Y-%m).md" >> $GITHUB_STEP_SUMMARY
+          PREV_MONTH=$(TZ=Asia/Tokyo date -d "$(TZ=Asia/Tokyo date +%Y-%m-01) -1 day" +%Y-%m)
+          echo "3. 輸入：請進行本月治理復盤，分析爬蟲健康、Skills 新鮮度與 Agent scope overlap。上月（${PREV_MONTH}）數據型月報已由 docs_report.py 自動生成於 docs/monthly_review/${PREV_MONTH}.md，請在其基礎上補充深度治理分析。" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Generate monthly docs report
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scraper/docs_report.py --mode monthly
+
+      - name: Commit & push monthly report
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if [ -z "$(git status --porcelain docs/monthly_review/)" ]; then
+            echo "No monthly report changes to commit (idempotent no-op)"
+            exit 0
+          fi
+          CHANGED=$(git status --porcelain docs/monthly_review/ | awk '{print $NF}' | head -1)
+          KEY=$(basename "$CHANGED" .md)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/monthly_review/
+          git commit -m "docs(monthly_review): ${KEY} monthly review"
+          n=0
+          until git push origin HEAD:main; do
+            n=$((n + 1))
+            if [ "$n" -ge 3 ]; then
+              echo "::error::monthly report push failed after ${n} attempts"
+              exit 1
+            fi
+            echo "::warning::push rejected (attempt ${n}); rebasing onto origin/main"
+            git fetch origin main && git rebase origin/main || {
+              echo "::error::rebase conflict on monthly report; manual intervention required"
+              exit 1
+            }
+          done
 
       - name: Run SKILL.md scanner
         working-directory: scraper
@@ -76,14 +120,20 @@ jobs:
       - name: Commit scan report
         if: success()
         run: |
-          if [ -n "$(git status --porcelain docs/skill_scan/)" ]; then
+          if [ "${{ github.ref }}" = "refs/heads/main" ] && [ -n "$(git status --porcelain docs/skill_scan/)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add docs/skill_scan/
             git commit -m "chore(governance): monthly SKILL.md scan report $(date +%Y-%m)"
-            git push
+            n=0
+            until git push origin HEAD:main; do
+              n=$((n + 1))
+              if [ "$n" -ge 3 ]; then echo "::error::scan report push failed after ${n} attempts"; exit 1; fi
+              echo "::warning::push rejected (attempt ${n}); rebasing onto origin/main"
+              git fetch origin main && git rebase origin/main || { echo "::error::rebase conflict on scan report"; exit 1; }
+            done
           else
-            echo "No scan report changes to commit"
+            echo "No scan report changes to commit (or not on main)"
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "> Reviewer agent 為唯讀分析，不修改程式碼。詳見 \`.github/agents/reviewer.agent.md\`" >> $GITHUB_STEP_SUMMARY
@@ -105,11 +155,19 @@ jobs:
 
       - name: Commit monthly evaluation outputs
         run: |
-          if [ -n "$(git status --porcelain docs/evaluation/ docs/monthly_review/)" ]; then
+          if [ "${{ github.ref }}" = "refs/heads/main" ] && [ -n "$(git status --porcelain docs/evaluation/)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add docs/evaluation/ docs/monthly_review/
+            git add docs/evaluation/
             git commit -m "chore(evaluation): monthly annotator baseline $(date +%Y-%m)"
-            git push
+            n=0
+            until git push origin HEAD:main; do
+              n=$((n + 1))
+              if [ "$n" -ge 3 ]; then echo "::error::evaluation push failed after ${n} attempts"; exit 1; fi
+              echo "::warning::push rejected (attempt ${n}); rebasing onto origin/main"
+              git fetch origin main && git rebase origin/main || { echo "::error::rebase conflict on evaluation outputs"; exit 1; }
+            done
+          else
+            echo "No evaluation changes to commit (or not on main)"
           fi
 

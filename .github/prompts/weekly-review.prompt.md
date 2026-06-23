@@ -128,16 +128,16 @@ git log --since="7 days ago" --oneline --no-merges | wc -l
 
 ## Step 4：撰寫週報並存檔
 
-整合以上所有資料，撰寫完整週報 markdown。
+> **自動化說明**：常態週報已由 `.github/workflows/weekly-docs-report.yml` 於每週一 00:10 JST 自動產出 — 它呼叫 `python scraper/docs_report.py --mode weekly`，以「上一個完整 Mon–Sun 週」的週末星期日日期為 file key，冪等寫入 `docs/weekly_review/<YYYY-MM-DD>.md`，並由 `github-actions[bot]` 提交。重跑只會更新同一檔案，不會產生重複檔。
+>
+> 本 prompt 用於**人工深度復盤**：在自動數據型週報之上補充判讀、風險與下週優先事項。
 
-撰寫完成後：
-1. 用 `create_file` 工具存到 `docs/weekly_review/YYYY-MM-DD.md`（YYYY-MM-DD = 本週日期）。
-2. 執行 git commit + push：
-   ```bash
-   git add docs/weekly_review/ && \
-   git commit -m "docs(weekly_review): $(date +%Y-%m-%d) weekly review" && \
-   git push origin main
-   ```
+整合以上所有資料，撰寫完整週報 markdown，沿用下方輸出格式。
+
+**存檔方式（擇一）：**
+
+1. **建議**：直接編輯自動產出的 `docs/weekly_review/<YYYY-MM-DD>.md`，於數據段落之後補上人工分析，交由既有自動提交流程處理。
+2. **手動補跑**（自動流程未執行時）：執行 `python scraper/docs_report.py --mode weekly --date <YYYY-MM-DD>`（`--date` 會自動 snap 到該週的週末星期日），確認 `docs/weekly_review/` 內容後再循正常 git 流程提交。
 
 ### 週報輸出格式
 
@@ -190,129 +190,3 @@ git log --since="7 days ago" --oneline --no-merges | wc -l
 3. 🟢 P2 ...
 ```
 
-
----
-
-## Step 1：查詢上週爬蟲執行資料
-
-執行 terminal 指令，查詢過去 7 天的 `scraper_runs` 資料：
-
-```bash
-cd scraper && python - <<'PY'
-import os
-from dotenv import load_dotenv
-from supabase import create_client
-from datetime import datetime, timedelta, timezone
-
-load_dotenv('.env')
-sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
-since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-
-res = sb.table('scraper_runs').select('source,events_processed,cost_usd,success,ran_at').gte('ran_at', since).execute()
-rows = res.data or []
-
-by_source = {}
-for r in rows:
-    s = r['source']
-    if s not in by_source:
-        by_source[s] = {'count': 0, 'success': 0, 'events': 0, 'cost': 0.0}
-    by_source[s]['count'] += 1
-    if r.get('success', True):
-        by_source[s]['success'] += 1
-    by_source[s]['events'] += r.get('events_processed', 0)
-    by_source[s]['cost'] += float(r.get('cost_usd', 0))
-
-for src, d in sorted(by_source.items()):
-    rate = d['success'] / d['count'] if d['count'] else 0
-    print(f"{src}: {d['count']} 次, 成功率 {rate:.0%}, {d['events']} 件, ${d['cost']:.6f}")
-PY
-```
-
-分析各來源的：成功率、事件數、費用趨勢。
-
----
-
-## Step 1.5：盤點本週 Git 推送
-
-執行以下指令，取得本週 commit 清單與新增檔案：
-
-```bash
-# Commits（無 merge，依 conventional commit type 分類）
-git log --since="7 days ago" --pretty=format:"%h %s" --no-merges
-
-# 新增爬蟲檔
-git log --since="7 days ago" --diff-filter=A --name-only --pretty=format: -- scraper/sources/ | grep "\.py$"
-
-# 新增 Migration
-git log --since="7 days ago" --diff-filter=A --name-only --pretty=format: -- supabase/migrations/ | grep "\.sql$"
-
-# Commit 數快計
-git log --since="7 days ago" --oneline --no-merges | wc -l
-```
-
-依以下維度整理（可並行與 Step 1 一起跑）：
-
-| 維度 | 說明 |
-|---|---|
-| 🚙 車身（web/admin） | `feat(web)` `fix(web)` `style` `design` |
-| 🧭 導航（annotator/AI） | `fix(annotator)` `feat(annotator)` `fix(scraper)` |
-| 🏭 後勤工廠（CI/DB/infra） | `fix(ci)` `fix(database)` `feat(governance)` `chore` |
-| 🔁 駕訓場（評估/文件） | `docs(skills)` `docs(agents)` `feat(evaluation)` |
-| 📡 資料來源（scraper） | `feat(scraper)` `feat(sources)` 新增爬蟲 |
-
----
-
-## Step 2：列出本週 Session Memory 中的問題
-
-讀取 `/memories/session/` 目錄，若有記錄本週工作問題則列出；若無 session memory 則略過此步驟。
-
----
-
-## Step 3：分析反覆出現的問題
-
-判斷哪些問題類型在過去 7 天內出現超過 2 次：
-
-- 同一來源的爬蟲失敗
-- 日期解析錯誤
-- 標注品質問題
-- TypeScript/lint 錯誤
-
----
-
-## Step 4：輸出結構化報告
-
-```
-# 週報 — {{日期範圍}}
-
-## 🟢 健康
-（列出成功率 100%、事件數正常的來源）
-
-## 🟡 待觀察
-（列出成功率 50%～99%，或事件數明顯低於平均的來源）
-
-## 🔴 需修復
-（列出成功率 0%、7 天內無執行記錄，或持續 0 件的來源）
-
-## 📊 費用摘要
-- 本週總費用：$X.XXXXXX
-- 費用最高來源：XXX（$X.XXXXXX）
-
-## � 本週推送摘要
-- Commits：N 個（feat N / fix N / docs N / chore N）
-- 新增爬蟲：N 個（列出名稱）
-- 新增 Migration：N 個（列出編號）
-- 新增功能亮點（3–5 個最重要的 feat commit）
-
-## ✅ 優點
-1. （本週做對的事，值得延續的模式）
-2. ...
-
-## ⚠️ 缺點與風險
-1. （技術債、設計不一致、遺留問題）
-2. ...
-
-## 📌 下週優先事項（最多 5 項，🔴P0 / 🟡P1 / 🟢P2）
-1. 🔴 ...
-2. 🟡 ...
-3. 🟢 ...
-```

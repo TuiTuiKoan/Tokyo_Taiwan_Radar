@@ -467,6 +467,322 @@ def _researcher_health(sb) -> dict:
     return {**counts, "total": total, "approval_rate": approval_rate}
 
 
+# ─── Read-only window-bounded metric helper (for deterministic docs reports) ──
+
+def collect_monthly_health_metrics(
+    sb,
+    *,
+    window_start: datetime,
+    window_end_exclusive: datetime,
+) -> dict:
+    """Read-only governance + A1-A4 + researcher metrics for an explicit window.
+
+    Every time-windowed query below is bounded by the explicit
+    ``[window_start, window_end_exclusive)`` arguments and never infers the
+    current month from execution time. This helper performs NO side effects:
+    no LINE send, no DB cleanup, no markdown write. It is the only path the
+    deterministic docs reporter should use.
+
+    Args:
+        sb: Supabase client.
+        window_start: Inclusive JST window start.
+        window_end_exclusive: Exclusive JST window end.
+
+    Returns:
+        Dict with confirmed reports, corrections, protect hits, exclusion hits,
+        integrity flags, A1-A4 metrics, and researcher health — all bounded to
+        the window.
+    """
+    start_iso = window_start.isoformat()
+    end_iso = window_end_exclusive.isoformat()
+
+    # ── Confirmed reports (by confirmed_at) ──────────────────────────────────
+    reports = dict(irrelevant=0, wrongCategory=0, wrongDetails=0, wrongSelectionReason=0, total=0)
+    try:
+        rows = (
+            sb.table("event_reports")
+            .select("report_types")
+            .eq("status", "confirmed")
+            .gte("confirmed_at", start_iso)
+            .lt("confirmed_at", end_iso)
+            .execute()
+            .data or []
+        )
+        for r in rows:
+            reports["total"] += 1
+            for t in (r.get("report_types") or []):
+                if t in reports:
+                    reports[t] += 1
+    except Exception as exc:
+        logger.warning("collect_monthly_health_metrics: confirmed reports failed: %s", exc)
+
+    # ── Corrections counts (by created_at) ───────────────────────────────────
+    corrections: dict[str, int | None] = {}
+    for table in ("field_corrections", "category_corrections", "selection_reason_corrections"):
+        try:
+            resp = (
+                sb.table(table)
+                .select("id", count="exact", head=True)
+                .gte("created_at", start_iso)
+                .lt("created_at", end_iso)
+                .execute()
+            )
+            corrections[table] = resp.count or 0
+        except Exception as exc:
+            logger.warning("collect_monthly_health_metrics: %s count failed: %s", table, exc)
+            corrections[table] = None
+
+    # ── Protect hits + annotated (annotator scraper_runs notes, by ran_at) ───
+    protect_hits = 0
+    annotated_total = 0
+    try:
+        run_rows = (
+            sb.table("scraper_runs")
+            .select("notes,ran_at")
+            .eq("source", "annotator")
+            .gte("ran_at", start_iso)
+            .lt("ran_at", end_iso)
+            .execute()
+            .data or []
+        )
+        for r in run_rows:
+            notes = r.get("notes") or ""
+            m_hits = re.search(r"field_protect_hits=(\d+)", notes)
+            m_ann = re.search(r"annotated=(\d+)", notes)
+            if m_hits:
+                protect_hits += int(m_hits.group(1))
+            if m_ann:
+                annotated_total += int(m_ann.group(1))
+    except Exception as exc:
+        logger.warning("collect_monthly_health_metrics: protect_hits failed: %s", exc)
+        protect_hits = -1
+
+    a2 = {
+        "hits": protect_hits,
+        "annotated": annotated_total,
+        "rate": round(protect_hits / annotated_total, 4) if annotated_total and protect_hits >= 0 else None,
+    }
+
+    # ── Exclusion hits (by matched_at) ───────────────────────────────────────
+    excl_hits = 0
+    try:
+        resp = (
+            sb.table("source_exclusion_hits")
+            .select("id", count="exact", head=True)
+            .gte("matched_at", start_iso)
+            .lt("matched_at", end_iso)
+            .execute()
+        )
+        excl_hits = resp.count or 0
+    except Exception as exc:
+        logger.debug("collect_monthly_health_metrics: exclusion_hits failed: %s", exc)
+
+    # ── Shared helper: source_name lookup for a set of event_ids ─────────────
+    def _sources_for(event_ids: list[str]) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for i in range(0, len(event_ids), 200):
+            batch = event_ids[i:i + 200]
+            try:
+                rows = (
+                    sb.table("events").select("id,source_name").in_("id", batch).execute().data or []
+                )
+                for r in rows:
+                    out[r["id"]] = r.get("source_name", "unknown")
+            except Exception as exc:
+                logger.warning("collect_monthly_health_metrics: events source batch failed: %s", exc)
+        return out
+
+    # ── A1: recurrence (source×field corrected ≥2 within window) ─────────────
+    a1 = {"recurrence_pairs": 0, "top_pairs": []}
+    try:
+        fc_rows = (
+            sb.table("field_corrections")
+            .select("event_id,field_name,created_at")
+            .gte("created_at", start_iso)
+            .lt("created_at", end_iso)
+            .execute()
+            .data or []
+        )
+        if fc_rows:
+            source_by_event = _sources_for(list({r["event_id"] for r in fc_rows if r.get("event_id")}))
+            pair_counts: dict[tuple[str, str], int] = {}
+            for row in fc_rows:
+                source = source_by_event.get(row.get("event_id", ""), "unknown")
+                field = row.get("field_name", "")
+                if source and field:
+                    pair_counts[(source, field)] = pair_counts.get((source, field), 0) + 1
+            recurring = {p: c for p, c in pair_counts.items() if c >= 2}
+            top = sorted(recurring.items(), key=lambda x: -x[1])[:10]
+            a1 = {
+                "recurrence_pairs": len(recurring),
+                "top_pairs": [
+                    {"source_name": src, "field_name": fld, "count": cnt}
+                    for (src, fld), cnt in top
+                ],
+            }
+    except Exception as exc:
+        logger.warning("collect_monthly_health_metrics: A1 recurrence failed: %s", exc)
+        a1 = {"recurrence_pairs": -1, "top_pairs": []}
+
+    # ── A3: first-pass accuracy (events created within window) ───────────────
+    a3 = {"sources": []}
+    try:
+        events = (
+            sb.table("events")
+            .select("id,source_name,created_at")
+            .gte("created_at", start_iso)
+            .lt("created_at", end_iso)
+            .eq("is_active", True)
+            .is_("parent_event_id", "null")
+            .execute()
+            .data or []
+        )
+        if events:
+            created_at_by_id = {e["id"]: e["created_at"] for e in events}
+            event_ids = [e["id"] for e in events]
+            reports_within_24h: dict[str, bool] = {}
+            for i in range(0, len(event_ids), 200):
+                batch = event_ids[i:i + 200]
+                try:
+                    reps = (
+                        sb.table("event_reports")
+                        .select("event_id,created_at")
+                        .in_("event_id", batch)
+                        .execute()
+                        .data or []
+                    )
+                    for rep in reps:
+                        eid = rep.get("event_id")
+                        ev_created = created_at_by_id.get(eid)
+                        rep_created = rep.get("created_at")
+                        if eid and ev_created and rep_created:
+                            try:
+                                ev_dt = datetime.fromisoformat(ev_created.replace("Z", "+00:00"))
+                                rep_dt = datetime.fromisoformat(rep_created.replace("Z", "+00:00"))
+                                if 0 <= (rep_dt - ev_dt).total_seconds() < 86400:
+                                    reports_within_24h[eid] = True
+                            except Exception:
+                                pass
+                except Exception as exc:
+                    logger.warning("collect_monthly_health_metrics: A3 reports batch failed: %s", exc)
+            source_total: dict[str, int] = {}
+            source_reported: dict[str, int] = {}
+            for e in events:
+                src = e.get("source_name", "unknown")
+                source_total[src] = source_total.get(src, 0) + 1
+                if e["id"] in reports_within_24h:
+                    source_reported[src] = source_reported.get(src, 0) + 1
+            rows = []
+            for src, total in source_total.items():
+                reported = source_reported.get(src, 0)
+                rows.append({
+                    "source_name": src,
+                    "total_new": total,
+                    "reported_within_24h": reported,
+                    "error_rate": round(reported / total, 4) if total else 0.0,
+                })
+            rows.sort(key=lambda x: -x["error_rate"])
+            a3 = {"sources": rows[:10]}
+    except Exception as exc:
+        logger.warning("collect_monthly_health_metrics: A3 first-pass failed: %s", exc)
+
+    # ── A4: repair latency (field_corrections created within window) ─────────
+    a4 = {"sources": []}
+    try:
+        fc_rows = (
+            sb.table("field_corrections")
+            .select("event_id,created_at")
+            .gte("created_at", start_iso)
+            .lt("created_at", end_iso)
+            .execute()
+            .data or []
+        )
+        if fc_rows:
+            event_ids = list({r["event_id"] for r in fc_rows if r.get("event_id")})
+            event_created_at: dict[str, str] = {}
+            event_source: dict[str, str] = {}
+            for i in range(0, len(event_ids), 200):
+                batch = event_ids[i:i + 200]
+                try:
+                    rows = (
+                        sb.table("events")
+                        .select("id,created_at,source_name")
+                        .in_("id", batch)
+                        .execute()
+                        .data or []
+                    )
+                    for r in rows:
+                        event_created_at[r["id"]] = r["created_at"]
+                        event_source[r["id"]] = r.get("source_name", "unknown")
+                except Exception as exc:
+                    logger.warning("collect_monthly_health_metrics: A4 events batch failed: %s", exc)
+            source_latencies: dict[str, list[float]] = {}
+            for fc in fc_rows:
+                eid = fc.get("event_id")
+                if not eid or eid not in event_created_at:
+                    continue
+                try:
+                    ev_dt = datetime.fromisoformat(event_created_at[eid].replace("Z", "+00:00"))
+                    fc_dt = datetime.fromisoformat(fc["created_at"].replace("Z", "+00:00"))
+                    days = max(0.0, (fc_dt - ev_dt).total_seconds() / 86400)
+                except Exception:
+                    continue
+                source_latencies.setdefault(event_source.get(eid, "unknown"), []).append(days)
+            rows = []
+            for src, lats in source_latencies.items():
+                if lats:
+                    rows.append({"source_name": src, "n_corrections": len(lats), "median_days": round(median(lats), 1)})
+            rows.sort(key=lambda x: -x["median_days"])
+            a4 = {"sources": rows[:5]}
+    except Exception as exc:
+        logger.warning("collect_monthly_health_metrics: A4 repair latency failed: %s", exc)
+
+    # ── Researcher health (research_sources created within window) ───────────
+    counts = {"implemented": 0, "not_viable": 0, "candidate": 0, "researched": 0, "other": 0}
+    try:
+        rs_rows = (
+            sb.table("research_sources")
+            .select("status")
+            .gte("created_at", start_iso)
+            .lt("created_at", end_iso)
+            .execute()
+            .data or []
+        )
+        for r in rs_rows:
+            st = (r.get("status") or "").strip().lower()
+            if st == "implemented":
+                counts["implemented"] += 1
+            elif st in ("not-viable", "not_viable", "rejected"):
+                counts["not_viable"] += 1
+            elif st in ("candidate", "pending"):
+                counts["candidate"] += 1
+            elif st == "researched":
+                counts["researched"] += 1
+            else:
+                counts["other"] += 1
+        rs_total = sum(counts.values())
+        denom = counts["implemented"] + counts["not_viable"]
+        researcher = {**counts, "total": rs_total, "approval_rate": round(counts["implemented"] / denom, 4) if denom else None}
+    except Exception as exc:
+        logger.warning("collect_monthly_health_metrics: researcher health failed: %s", exc)
+        researcher = {**counts, "total": -1, "approval_rate": None}
+
+    return {
+        "window_start": start_iso,
+        "window_end_exclusive": end_iso,
+        "reports": reports,
+        "corrections": corrections,
+        "protect_hits": protect_hits,
+        "exclusion_hits": excl_hits,
+        "integrity_flags": _integrity_flags(reports, corrections),
+        "a1_recurrence": a1,
+        "a2_protect_trend": a2,
+        "a3_first_pass": a3,
+        "a4_repair_latency": a4,
+        "researcher_health": researcher,
+    }
+
+
 def build_line_message(reports: dict, corrections: dict, protect_hits: int, excl_hits: int,
                        cleanup: dict | None = None,
                        a1: dict | None = None, a2: dict | None = None,
@@ -585,9 +901,14 @@ def _write_evaluation_md(
     protect_hits: int, corrections: dict,
     researcher: dict | None = None,
 ) -> Path:
-    """Write detailed A1–A4 evaluation markdown to docs/monthly_review/."""
+    """Write detailed A1–A4 evaluation markdown to docs/evaluation/feedback_loop/.
+
+    Kept under docs/evaluation/ (not docs/monthly_review/) so it never becomes a
+    second canonical monthly-review main file. The canonical merged monthly
+    review is produced by docs_report.py at docs/monthly_review/<YYYY-MM>.md.
+    """
     month = datetime.now(tz=JST).strftime("%Y-%m")
-    docs_dir = Path(__file__).resolve().parent.parent / "docs" / "monthly_review"
+    docs_dir = Path(__file__).resolve().parent.parent / "docs" / "evaluation" / "feedback_loop"
     docs_dir.mkdir(parents=True, exist_ok=True)
     out_path = docs_dir / f"{month}-evaluation.md"
 
