@@ -1691,6 +1691,7 @@ for e in [x for x in events if x['name_ja'] != x['raw_title']]:
 
 ## Annotator output cleaning
 - Empty strings from GPT (`""`) must be treated as `None` — use `_str()` helper that returns `None` for falsy/blank strings. Prevents empty `name_zh`/`name_en` from blocking the `||` fallback chain in `getEventName`.
+- **JSON `null` passes through as Python `None`, not the dict default** — `d.get(k, "")` returns `None` (not `""`) when the key exists with a `null` value, so `d.get(k, "") + " "` raises `TypeError`. Always use the None-safe form `(d.get(k) or "")` when reading GPT/JSON fields that may be `null` (e.g. `sub.get("name_ja")`).
 - Location fields must be stripped of leading label separators — use `_loc()` helper that calls `.lstrip("：；:; \u3000")`. GPT often includes the `会場：` or `場所：` separator as the first character of `location_name`.
 - Apply `_loc()` to both `location_name` and `location_address`.
 - Events with existing `""` in name/description fields need manual DB reset (`null` + `annotation_status = 'pending'`) then re-run `annotator.py`. The `_str()` helper only prevents future empty strings.
@@ -1699,6 +1700,7 @@ for e in [x for x in events if x['name_ja'] != x['raw_title']]:
 - `sub_row` in `annotator.py` must **explicitly include `scraped_at`** inherited from the parent event: `"scraped_at": event.get("scraped_at")`. Fields omitted from `sub_row` default to `NULL` — they are not inherited automatically.
 - Rule of thumb: any field that is meaningful for admin operations (e.g. `scraped_at` / クロール日時) must be carried over from parent to sub-event explicitly.
 - When adding a new column to the `events` table, check whether `sub_row` in `annotator.py` also needs updating.
+- **Sub-event annotation must be exception-isolated from the parent.** Wrap each sub-event in its own `try/except`; a failed sub logs and skips (`✗ sub-event %d skipped (parent kept annotated)`) but must **never** revert the already-annotated parent to `annotation_status='error'`. Sharing one `try` across the sub-event loop and the parent means a single sub failure (e.g. a `null` `name_ja` → `TypeError`) cascades into wiping the parent's good annotation — observed 2026-06-23 when 9 active events (incl. peatix `4930e835` that already had zh/en) were reverted to `error` (commit `e561ddf`).
 
 ## Admin form (web) — nullable fields
 - `AdminEditClient.tsx` initializes form fields with `event.field ?? ""`, converting `null` → `""`. On save, this writes `""` to the DB — which silences the locale fallback chain in `getEventName`/`getEventDescription`.

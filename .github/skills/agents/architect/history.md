@@ -2,6 +2,20 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-24 — daily-skills-review：SC→TC 同步驗證指令 + Venue QA Skip Guard（含 113 字 backlog 發現）
+
+**決策背景：** 執行 `daily-skills-review`（「這幾天有沒有可以固化的經驗？」）。近日 commit 多已詳實記錄於各 history，僅找到兩處 history-only、未升級為 review-time Guard 的缺口，從 architect SKILL 補強。
+
+**新增/修改：**
+1. `SC→TC Mapping Maintenance Burden Guard` 補點 5：可執行的同步驗證指令，比對 `SIMP_RE` / `SC_ONLY`（偵測集）每個字元是否都在 `_SIMP_TO_TRAD_RAW`（映射表）。先前此不變式只在 `Three-Layer Defence Model` 描述（「SC_ONLY 必須是 map 子集」），無可執行檢查，故 commit `21b9c97`（補 当/写/圆）僅修冰山一角而未被察覺。
+2. 新增 `Venue QA Skip Source Registration Guard`（鏡像 `NON_DAILY_SOURCES Registration Guard` 格式）：規範 `auto_qa.py` 的 `_NO_VENUE_QA_SOURCES` 登記，並明訂活動平台（peatix/kokuchpro/doorkeeper/connpass）絕不可加入 skip。對應 scraper-expert history 2026-06-22（commit `e101d46`，pending 22→506、venue 假陽性 50→0）。
+
+**意外發現（待 Engineer 跟進）：** 實測新驗證指令揭露偵測集已大幅領先映射表——`SIMP_RE` 缺 10 字、`SC_ONLY` 缺 110 字（union 113 唯一字元），`_to_trad()` 對這些字原樣輸出（修不掉），正中 SKILL 已明文禁止的反模式「偵測到但無法修復 → 無限 dismiss 循環」。已在 Guard 點 5 記為已知 backlog；長期解為導入 OpenCC（Maintenance Burden Guard 點 2）。
+
+**來源：** daily-skills-review（Step 4 建議）。
+
+---
+
 ## 2026-06-24 — Sub-event insertion drift from positional `_subN` IDs
 
 - **Error**: 初次分析台灣布袋戲文化月少一筆子活動時，先誤判缺的是 7/7 開幕式，且只打算用 prompt 修正。實際缺的是 `7/7〜7/30` ワセダギャラリー展。更重要的是，annotator 用 `_sub1`、`_sub2` 這種位置序號產生 `source_id`；若 GPT 修正後把缺項插到第 2 位，既有 `_sub2` 到 `_sub5` 會被後續活動覆寫。

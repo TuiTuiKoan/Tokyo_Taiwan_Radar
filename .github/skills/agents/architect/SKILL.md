@@ -362,6 +362,19 @@ Reference incident: 2026-05-08 — commit `95c7ad8`：migration 059 + annotator 
 2. **長期方案**：評估 OpenCC 或完整 Unicode SC→TC 映射庫，一次解決完整性問題。在正式導入前，繼續維護手動表。
 3. **新增字時必須同步更新兩處**：`annotator.py` 的 `_SIMP_TO_TRAD_RAW` + `auto_qa.py` 的 `SIMP_RE`。
 4. **DB patch**：新增字後立即批量修正現有事件（scan all `*_zh` fields + translate + FC lock）。
+5. **同步驗證指令（每次改 `_SIMP_TO_TRAD_RAW` / `SIMP_RE` / `SC_ONLY` 後必跑）**：偵測集（`SIMP_RE`、`SC_ONLY`）的每個字元都必須在 `_SIMP_TO_TRAD_RAW` 有映射，否則「偵測得到但 `_to_trad()` 修不掉」→ 無限 dismiss 循環（見下方 Three-Layer 反模式）。在 `scraper/` venv 內執行：
+   ```bash
+   python3 -c "
+   from annotator import _SIMP_TO_TRAD_RAW
+   from auto_qa import SIMP_RE, SC_ONLY
+   mapped = set(_SIMP_TO_TRAD_RAW)
+   simp = set(SIMP_RE.pattern) - {'[', ']'}
+   print('SIMP_RE 缺映射:', ''.join(sorted(simp - mapped)) or 'OK')
+   print('SC_ONLY 缺映射:', ''.join(sorted(SC_ONLY - mapped)) or 'OK')
+   "
+   ```
+   理想兩行皆 `OK`；列出的任何字元 = 偵測得到但無法自動修復，必須補進 `_SIMP_TO_TRAD_RAW` 或自偵測集移除。
+   > ⚠️ **已知 backlog（2026-06-24 實測）**：`SIMP_RE` 缺 10 字、`SC_ONLY` 缺 110 字（union 113 唯一字元），偵測集長期領先映射表。新增映射時優先消化此 backlog；長期解仍是點 2 的 OpenCC。此 backlog 代表 commit `21b9c97`（補 `当`/`写`/`圆` 三字）只解決冰山一角——只補真實資料出現的字，不代表偵測集與映射表已一致。
 
 ## SC→TC Three-Layer Defence Model
 
@@ -1976,6 +1989,24 @@ Reference incident: 2026-05-06 — `workflow-failure-notify.yml` 自我觸發 �
 4. **同時更新 checklist**：若有 source 進入 `NON_DAILY_SOURCES`，在對應的 workflow yml 加上 comment 標注告警視窗。
 
 Reference incident: 2026-05-06 — `weekly_broadcast` 因 `NON_DAILY_SOURCES = frozenset()` 為空，被 health_check 每天誤報 missing（commit `7df9f56`）。
+
+## Venue QA Skip Source Registration Guard
+
+在審核任何涉及 `auto_qa.py` venue 類偵測器（`missing_address` / `missing_location_name` / `missing_prefectures`）或新增無實體場地來源的計畫前，**必須**確認：
+
+1. **無實體場地的來源必須登記進 `_NO_VENUE_QA_SOURCES`**：電視（`gguide_tv`）、新聞 RSS（`google_news_rss`、`nhk_rss`）、新聞稿（`prtimes`）、彙整站（`walkerplus`）、部落格（`note_creators`）本質沒有會場，三個 venue 分支必須各加 `and not _should_skip_venue_qa(event)`。
+   ```python
+   _NO_VENUE_QA_SOURCES: frozenset[str] = frozenset({
+       "gguide_tv", "google_news_rss", "nhk_rss",
+       "prtimes", "walkerplus", "note_creators",
+       # <new_no_venue_source>,
+   })
+   ```
+2. **活動平台（`peatix` / `kokuchpro` / `doorkeeper` / `connpass`）絕不可加入 skip 範圍**：它們缺場地通常是**抓取缺漏（真問題）**，一刀切會誤殺真實 QA。peatix 仍應正常報 `missing_address` / `missing_location_name`。
+3. **用獨立 helper，不擴張 `is_pub_event` 語意**：venue skip 用 `_should_skip_venue_qa()`，不可把 TV/news/blog 塞進 publication 判斷——避免未來維護者把新聞當出版品。`missing_prefectures` 分支（branch 6）尤其容易遺漏 skip 檢查，三個分支都要加。
+4. **收緊 detector 必跑 before/after，且直接跑 `detect()`**：`auto_qa` 的 dedup（`skipped_existing`）會把 `run()` 的 post-dedup `by_type` 全壓成 0，量測 raw 行為必須直接呼叫 `detect()`，不能只看 `run()` 的 `inserted`。
+
+Reference incident: 2026-06-22 — `event_reports` pending 22→506，因 venue QA 對 6 個無場地來源誤報（venue 假陽性 50→0 after fix）；peatix 不在 skip 範圍仍正常報 missing（commit `e101d46`）。
 
 ## GitHub Actions YAML Guard
 

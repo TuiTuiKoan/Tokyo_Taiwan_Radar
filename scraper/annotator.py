@@ -394,6 +394,48 @@ def _to_trad(val: str | None) -> str | None:
     return val.translate(_SIMP_TO_TRAD)
 
 
+def _build_sub_localized_location(
+    sub: dict[str, Any],
+    parent_location_name: str | None,
+    localized_location_data: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Compute a sub-event's localized location fields with an inheritance guard.
+
+    A sub-event with its own distinct venue does NOT inherit the parent's
+    localized location; one with its own business hours does NOT inherit the
+    parent's office hours. Same-location sub-events keep the parent fallback so
+    existing behaviour is preserved. This prevents a multi-venue parent (e.g. a
+    culture-month umbrella event) from polluting differently-located sub-events.
+
+    Cleaning matches the annotator's nested _loc/_loc_zh/_str helpers exactly:
+    location_* strip a leading label separator; _zh fields are traditionalised;
+    business_hours_* are only emptiness-checked (no separator strip).
+    """
+    parent_loc = localized_location_data or {}
+    sub_loc_name = sub.get("location_name")
+    distinct_loc = bool(sub_loc_name) and sub_loc_name != parent_location_name
+    loc_ctx = {} if distinct_loc else parent_loc
+    hours_ctx = {} if (distinct_loc or sub.get("business_hours")) else parent_loc
+
+    def _clean(val: Any) -> str | None:
+        s = val if isinstance(val, str) and val.strip() else None
+        if s:
+            s = s.lstrip("：；:; \u3000")
+        return s or None
+
+    def _plain(val: Any) -> str | None:
+        return val if isinstance(val, str) and val.strip() else None
+
+    return {k: v for k, v in {
+        "location_name_zh": _to_trad(_clean(sub.get("location_name_zh"))) or loc_ctx.get("location_name_zh"),
+        "location_name_en": _clean(sub.get("location_name_en")) or loc_ctx.get("location_name_en"),
+        "location_address_zh": _to_trad(_clean(sub.get("location_address_zh"))) or loc_ctx.get("location_address_zh"),
+        "location_address_en": _clean(sub.get("location_address_en")) or loc_ctx.get("location_address_en"),
+        "business_hours_zh": _plain(sub.get("business_hours_zh")) or hours_ctx.get("business_hours_zh"),
+        "business_hours_en": _plain(sub.get("business_hours_en")) or hours_ctx.get("business_hours_en"),
+    }.items() if v is not None}
+
+
 # ---------------------------------------------------------------------------
 # Google News article fetcher
 # ---------------------------------------------------------------------------
@@ -2695,15 +2737,15 @@ def annotate_pending_events(
                             sub_row, on_conflict="source_name,source_id"
                         ).execute()
 
-                    # Also try localized location fields for sub-events (migration 010)
-                    sub_loc = {k: v for k, v in {
-                        "location_name_zh": _loc_zh(sub.get("location_name_zh")) or localized_location_data.get("location_name_zh"),
-                        "location_name_en": _loc(sub.get("location_name_en")) or localized_location_data.get("location_name_en"),
-                        "location_address_zh": _loc_zh(sub.get("location_address_zh")) or localized_location_data.get("location_address_zh"),
-                        "location_address_en": _loc(sub.get("location_address_en")) or localized_location_data.get("location_address_en"),
-                        "business_hours_zh": _str(sub.get("business_hours_zh")) or localized_location_data.get("business_hours_zh"),
-                        "business_hours_en": _str(sub.get("business_hours_en")) or localized_location_data.get("business_hours_en"),
-                    }.items() if v is not None}
+                    # Also try localized location fields for sub-events (migration 010).
+                    # Guard inside _build_sub_localized_location: a sub-event with its
+                    # own distinct venue / business hours does NOT inherit the parent's
+                    # localized location / office hours (prevents a multi-venue parent
+                    # from polluting differently-located sub-events). Same-location subs
+                    # keep the existing inheritance behaviour unchanged.
+                    sub_loc = _build_sub_localized_location(
+                        sub, update_data.get("location_name"), localized_location_data
+                    )
                     if sub_loc:
                         try:
                             if dry_run:

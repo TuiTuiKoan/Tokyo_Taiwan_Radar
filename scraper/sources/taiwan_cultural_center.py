@@ -157,6 +157,89 @@ def _detect_multi_city_prefectures(text: str) -> list[str]:
             found.append(pref)
     return found
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# External-venue detection (additive override of the TCC default location).
+#
+# TCC articles expose no dedicated location field, so the scraper defaults to the
+# centre itself. That default is correct for the majority of events (verified:
+# of 21 active TCC parent events, 15 have no venue label and genuinely run at the
+# centre). This detector is an override-on-signal helper (same shape as
+# _detect_multi_city_prefectures): it returns an external venue ONLY when the
+# body carries an explicit venue label or a known external hall, otherwise None
+# so the TCC default is preserved.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Generic venue-context labels that introduce an explicit external venue name.
+_EXPLICIT_VENUE_LABEL_RE = re.compile(
+    r"(?:会\s*場|場\s*所|開催地|開催場所)\s*[：:]\s*(.+)"
+)
+
+# TCC self-references — these are the organiser / contact address, never an
+# external venue. Must not trigger an override (root-cause fix step 5).
+_TCC_SELF_NAMES = (
+    "台湾文化センター",
+    "台北駐日経済文化代表処",
+    "台湾文化中心",
+)
+
+# Known external halls that reinforce detection (whitelist supplement only — the
+# primary logic is the generic label extractor above, NOT a per-event hardcode).
+_KNOWN_EXTERNAL_VENUES = (
+    "早稲田大学坪内博士記念演劇博物館",
+    "ワセダギャラリー",
+    "小野記念講堂",
+)
+
+# Prefecture hints for known external halls (used when no full prefecture name
+# is present in the venue string itself).
+_KNOWN_EXTERNAL_VENUE_PREFECTURE = {
+    "早稲田大学坪内博士記念演劇博物館": "東京都",
+    "ワセダギャラリー": "東京都",
+    "小野記念講堂": "東京都",
+}
+
+
+def _derive_venue_prefecture(name: str) -> Optional[str]:
+    """Best-effort prefecture for an external venue name; None when unknown."""
+    if name in _KNOWN_EXTERNAL_VENUE_PREFECTURE:
+        return _KNOWN_EXTERNAL_VENUE_PREFECTURE[name]
+    for pref in _MULTI_CITY_REGIONS:
+        if pref in name:
+            return pref
+    return None
+
+
+def _extract_explicit_location_from_body(text: str) -> tuple[Optional[str], Optional[str]]:
+    """Return (venue_name, prefecture_or_None) for an explicit external venue.
+
+    Override-on-signal: returns (None, None) when no external venue is present so
+    the caller keeps the TCC default. Primary logic is the generic venue-label
+    extractor; named halls are only a reinforcement whitelist. TCC self-names
+    (organiser / contact) never count as an external venue.
+    """
+    if not text:
+        return None, None
+
+    # Primary: generic venue-context label extraction (会場：/場所：/開催地：…).
+    for m in _EXPLICIT_VENUE_LABEL_RE.finditer(text):
+        raw = m.group(1).strip()
+        candidate = re.split(r"[\n\r。、，,（(／/｜|]", raw, maxsplit=1)[0]
+        candidate = candidate.strip("　 ・-—–:：")
+        if len(candidate) < 3:
+            continue
+        if any(self_name in candidate for self_name in _TCC_SELF_NAMES):
+            continue  # organiser/contact line, not an external venue
+        return candidate, _derive_venue_prefecture(candidate)
+
+    # Reinforcement: known external halls mentioned anywhere in the body.
+    for venue in _KNOWN_EXTERNAL_VENUES:
+        if venue in text:
+            return venue, _derive_venue_prefecture(venue)
+
+    return None, None
+
+
 # Tier 1b: dot-separated date in labeled body section — e.g. "10.11 Sat" or "10.11 (Sat)"
 # Matches M.DD or MM.DD followed by an English weekday abbreviation
 _DOTDAY_DATE = re.compile(
@@ -504,6 +587,15 @@ class TaiwanCulturalCenterScraper(BaseScraper):
             location_name = "・".join(_short_name(r) for r in _found_regions)
             location_address = None
             location_prefectures = list(_found_regions)
+        else:
+            # Single explicit external venue (会場：… or a known external hall)
+            # overrides the TCC default. TCC self-references (organiser/contact)
+            # are ignored, and a no-signal result preserves the TCC default.
+            _ext_venue, _ext_pref = _extract_explicit_location_from_body(_desc_check)
+            if _ext_venue:
+                location_name = _ext_venue
+                location_address = None
+                location_prefectures = [_ext_pref] if _ext_pref else None
 
         # --- Price ---
         # Extract from description text if available

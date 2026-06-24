@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-06-24 — daily-skills-review：將 sub-event 失敗隔離 + JSON None-safety 升級為主動規則
+
+**決策背景：** 執行 `daily-skills-review`。2026-06-23（commit `e561ddf`）的教訓已詳載於本 history，但 `SKILL.md` 仍缺對應的主動編碼規則。本次把兩條 history-only 教訓升級為 SKILL 規則，避免未來重蹈。
+
+**新增/修改：**
+1. `Annotator output cleaning` 補一條 JSON None-safety：JSON `null` 會穿透成 Python `None`，`d.get(k, "")` 在 key 存在但值為 `null` 時回 `None`（非 `""`），`None + " "` 拋 `TypeError`；一律改用 `(d.get(k) or "")`。
+2. `Annotator sub-event row fields` 補一條失敗隔離：每個 sub-event 包獨立 `try/except`，sub 失敗只 skip 該 sub（log `✗ sub-event %d skipped (parent kept annotated)`），**絕不**把已標注的 parent 打回 `annotation_status='error'`。
+
+**來源：** daily-skills-review（Step 4 建議）。源 commit `e561ddf`（2026-06-23，9 件 active 被連坐回退，含 peatix `4930e835`）。
+
+---
+
 ## 2026-06-24 — sub-event `_subN` 位置序號漂移 + 既有窄標題卡住（台灣布袋戲文化月）
 
 **問題：** 台灣布袋戲文化月（`taiwan_cultural_center`，parent `7446190c`）海報列 6 個節目，DB 只有 5 個子活動，缺第二個展覽 `7/7〜7/30 ワセダギャラリー「台湾布袋戯と李天禄布袋戯文物館收蔵品展」`。補上後又發現 7/7 子活動前台一直顯示「講演1」，而非整體開幕活動。
