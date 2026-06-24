@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-06-25 — G3.1：publication missing_organizer backlog 清理 + auto_qa 根因防治
+
+**決策背景：** 後台 pending `event_reports` 中 `auto_qa_missing_organizer` 為最大宗，core publication 來源 `{ndl_opensearch, hanmoto}` 佔大部分。publication 的「主辦方」角色由出版社擔任，organizer 為 null 並非真缺漏。但 `auto_qa.py` 舊邏輯對這些來源持續產生 missing_organizer 假陽性。G3.1 先前已 LIVE 清理一批，卻在 commit 根因修復前被中斷；期間平行 session 的每日 auto_qa detect 跑了**舊 origin 程式碼**（缺 `_should_skip_publication_organizer_qa`），對 11 件 ndl + 4 件 hanmoto 重新產生 15 件 missing_organizer pending。
+
+**新增/修改：**
+1. `scraper/auto_qa.py`：抽出共用分類訊號 `_publication_signals()`，並分出兩條 policy-specific skip：`_should_skip_publication_venue_qa()`（venue/hours 用，沿用 books_media／hanmoto／publication 語意）與 `_should_skip_publication_organizer_qa()`（organizer 用，**只認** core source `{ndl_opensearch, hanmoto}` 或明確 `event_form=publication`；`books_media` category alone 不得 suppress，避免 book launch/reading 仍需主辦方者被誤跳，R3-F1）。`_check_missing_organizer` 套用此 skip → 不再對 core publication 產生新 missing_organizer。
+2. `scraper/_oneoff_g3_close_safe_reports.py`（G3.0）、`scraper/_oneoff_g3_publication_organizer_reports.py`（G3.1）：source-scoped one-off。G3.1 對 core publication missing_organizer 逐列判定：出版社（raw_description 內 `出版社: <name>`）verbatim 出現 → 回填 `events.organizer` + FC lock + report `confirmed`（BACKFILL）；organizer 已有值 → `confirmed`（CONFIRM_STALE）；無法 deterministic 取得出版社 → `dismissed`（publication 不需 organizer）。non-core 來源（iwafu/peatix/go_taiwan…）一律 SKIP_OUT_OF_SCOPE 維持 pending（G3.2 範圍）；multi-type 列 SKIP_MULTI_TYPE 維持 pending（R3-G1）。re-apply 對 15 件 regenerated 報告全數 DISMISS，ndl/hanmoto missing_organizer pending 歸零（212→197）。
+
+**教訓：** DB-only cleanup 若把根因 guard 留著未 commit，下一輪 auto_qa detect 會用舊程式碼把同樣的假陽性重新寫回 backlog——**程式碼修復與 DB 清理必須同一 commit 出貨**。Organizer Non-Hallucination：出版社必須 verbatim 在 raw text，否則 DISMISS（安全回退），絕不幻覺寫入 `events.organizer`。
+
+**來源：** G3 plan §9.4（`/memories/session/plan.md`）；commit `fix(scraper): close G3 stale and publication organizer reports`。
+
+---
+
 ## 2026-06-24 — daily-skills-review：將 sub-event 失敗隔離 + JSON None-safety 升級為主動規則
 
 **決策背景：** 執行 `daily-skills-review`。2026-06-23（commit `e561ddf`）的教訓已詳載於本 history，但 `SKILL.md` 仍缺對應的主動編碼規則。本次把兩條 history-only 教訓升級為 SKILL 規則，避免未來重蹈。

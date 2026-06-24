@@ -91,6 +91,12 @@ PUBLISH_DATE_SOURCES = frozenset({"note_creators", "google_news_rss", "prtimes",
 # missing_organizer detection (organizer is rarely available for these).
 THIN_CONTENT_SOURCES = frozenset({"note_creators", "google_news_rss", "prtimes", "nhk_rss", "walkerplus"})
 
+# Core publication sources (library / book-trade feeds): a published work's
+# "organizer" role is filled by the publisher, so missing_organizer is a false
+# positive for these. Kept DELIBERATELY narrow — does NOT include mixed /
+# review-only publication-like sources (e.g. kawade_rss, eslite_spectrum).
+_CORE_PUBLICATION_SOURCES = frozenset({"ndl_opensearch", "hanmoto"})
+
 _PRICE_KW_RE = re.compile(
     r'[¥￥]\s*\d|円[（(]|参加費|入場料|チケット代|参加料|受講料|鑑賞料'
 )
@@ -281,15 +287,39 @@ def _latest_auto_qa_reports(sb, event_ids: list[str]) -> dict[str, dict[str, dic
     return out
 
 
+def _publication_signals(ev: dict) -> dict:
+    """Atomic publication classification signals for one event. Policy-specific
+    skip rules combine these differently so venue/hours QA and organizer QA do
+    NOT share a single conflated rule (R3-F1)."""
+    return {
+        "publication_form": "publication" in (ev.get("event_form") or []),
+        "books_media": "books_media" in (ev.get("category") or []),
+        "hanmoto": ev.get("source_name") == "hanmoto",
+        "core_source": ev.get("source_name") in _CORE_PUBLICATION_SOURCES,
+    }
+
+
+def _should_skip_publication_venue_qa(ev: dict) -> bool:
+    """Venue/hours QA skip: publications & book events have no physical venue or
+    business hours. Preserves the prior is_pub_event semantics — a books_media
+    category (or hanmoto source, or explicit publication event_form) is enough."""
+    sig = _publication_signals(ev)
+    return sig["publication_form"] or sig["books_media"] or sig["hanmoto"]
+
+
+def _should_skip_publication_organizer_qa(ev: dict) -> bool:
+    """Organizer QA skip: ONLY core publication sources {ndl_opensearch, hanmoto}
+    or an explicit event_form=publication suppress missing_organizer. A
+    books_media category ALONE does NOT — a book launch / reading / media event
+    can still legitimately need an organizer (R3-F1)."""
+    sig = _publication_signals(ev)
+    return sig["core_source"] or sig["publication_form"]
+
+
 def _check_missing_hours(ev: dict) -> str | None:
     """Return note if event has null business_hours but time pattern in raw_description."""
-    # Check if a publication/book event (no business hours required, no error reported)
-    is_pub_event = (
-        "publication" in (ev.get("event_form") or [])
-        or "books_media" in (ev.get("category") or [])
-        or ev.get("source_name") == "hanmoto"
-    )
-    if is_pub_event:
+    # Publication/book events have no business hours required (no error reported).
+    if _should_skip_publication_venue_qa(ev):
         return None
 
     source_name = ev.get("source_name")
@@ -705,6 +735,11 @@ def _check_missing_organizer(ev: dict) -> str | None:
         return None
     if source_name in THIN_CONTENT_SOURCES:
         return None
+    # Core publications / explicit publication event_form: the organizer role is
+    # filled by the publisher → not a real gap (R3-F1; books_media category
+    # alone never suppresses this).
+    if _should_skip_publication_organizer_qa(ev):
+        return None
     if ev.get("organizer"):
         return None
     return f"organizer is null; source={source_name}"
@@ -947,12 +982,8 @@ def detect(event: dict) -> list[tuple[str, str]]:
     """Return list of (report_type, admin_note) detected for one event."""
     findings: list[tuple[str, str]] = []
 
-    # Check if a publication/book event (no venue/address required, no error reported)
-    is_pub_event = (
-        "publication" in (event.get("event_form") or [])
-        or "books_media" in (event.get("category") or [])
-        or event.get("source_name") == "hanmoto"
-    )
+    # Publication/book events have no physical venue/address required.
+    is_pub_event = _should_skip_publication_venue_qa(event)
 
     # 1. Simplified Chinese in any *_zh field
     bad_fields = [f for f in ZH_FIELDS if _has_simplified(event.get(f))]
