@@ -412,6 +412,44 @@ python main.py --dry-run --source <name>
 | `.github/workflows/external-stats-pull.yml` | 每月 CI workflow |
 
 
+---
+
+## Layer F — 自動治理報告（Governance Docs Reporting）
+
+每週 / 每月自動產生 deterministic 治理報告，從 Supabase 與 git 歷史彙整，**唯讀、不影響事件爬蟲主 pipeline**。所有時間視窗由 report key 決定（非執行時間），同一 key 重跑冪等、不產生重複檔案。
+
+```text
+report_window.py: resolve_report_window() → ReportWindow
+        │   （report_key / window_start / window_end_exclusive / output path）
+        │
+        ├─ docs_report.py --mode weekly   （weekly-docs-report.yml，週一 00:10 + 00:40 fallback）
+        │     → docs/weekly_review/<週日>.md      （上一完整 Mon–Sun JST 週）
+        │
+        └─ docs_report.py --mode monthly  （monthly_health_check.yml，每月 1 日 09:00 JST）
+              → docs/monthly_review/<YYYY-MM>.md   （上一完整曆月）
+                 └ collect_monthly_health_metrics()  （唯讀，不送 LINE / 不清理 DB）
+```
+
+### 設計要點
+
+| 要點 | 說明 |
+|------|------|
+| 視窗來源 | Supabase 查詢、git inventory、markdown metadata、輸出路徑全部來自同一 `ReportWindow`，不用相對視窗 |
+| 冪等 | 同 report key + 同資料 → byte-identical；目標檔內容相同則不寫 |
+| 無 volatile 欄位 | committed markdown 只含 `report_key`/`report_type`/`window_start`/`window_end`，不寫 `generated_at`/SHA |
+| 無副作用 | monthly 走 `collect_monthly_health_metrics()` 唯讀 helper，不呼叫會清理 DB / 送 LINE 的 `run()`；`monthly_health_check.py` 不 import `docs_report.py`（避免循環）|
+| git 過濾 | 盤點排除報告路徑（`docs/{weekly,monthly}_review`、`docs/evaluation`、`docs/skill_scan`）與 bot subject scope，防止報告 commit 污染 fallback / 重跑 |
+
+### 檔案對照
+
+| 檔案 | 用途 |
+|------|------|
+| `scraper/report_window.py` | `ReportWindow` + `resolve_report_window()` — 報告視窗唯一真實來源 |
+| `scraper/docs_report.py` | 週/月 docs 報告 CLI 編排器（`--mode weekly` / `--mode monthly`，冪等寫入）|
+| `scraper/monthly_health_check.py` | `collect_monthly_health_metrics()` 唯讀 helper（月報治理數據來源）|
+| `.github/workflows/weekly-docs-report.yml` | 每週一 00:10 JST（+ 00:40 fallback）自動產生週報 |
+| `.github/workflows/monthly_health_check.yml` | 每月 1 日整合月報產生（main-only push）|
+
 ## 相關文件
 
 - 全站架構：[ARCHITECTURE.md](ARCHITECTURE.md)

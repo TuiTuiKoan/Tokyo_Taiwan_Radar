@@ -324,11 +324,12 @@ Admin 撰寫發文（三語 title + body + images）
 | `auto-generate.yml` | 每日 01:00 JST | 自動代碼生成 + sandbox（Layer B2）|
 | `weekly-broadcast.yml` | 每週一 10:30 JST | LINE 週報推播 |
 | `weekly-report.yml` | 每週 | 營運週報產生 |
+| `weekly-docs-report.yml` | 每週一 00:10 JST（+ 00:40 fallback）| 自動產生上一完整週 docs 週報（`docs/weekly_review/<週日>.md`，冪等）|
 | `daily-dev-report.yml` | 每日 | 開發日報 |
 | `backup.yml` | — | DB 備份 |
 | `daily-health-check.yml` | 每日 | 健康監控 |
 | `secret-rotation-reminder.yml` | — | 密鑰輪替提醒 |
-| `monthly_health_check.yml` | 每月 1 日 09:00 JST | 月度 feedback-loop 健康檢查 |
+| `monthly_health_check.yml` | 每月 1 日 09:00 JST | 月度 feedback-loop 健康檢查 + 上月 docs 月報產生（`docs/monthly_review/<YYYY-MM>.md`）|
 | `external-stats-pull.yml` | 每月 1 日 09:30 JST | JNTO / MOJ / e-Stat 外部統計拉取 |
 | `web-darkmode-smoke.yml` | push(main, web/**) / 手動 | dark mode smoke 測試（Navbar + 發文詳情相關活動） |
 | `eval-annotator.yml` | PR(annotator 相關路徑) / 手動 | Annotator Golden Set regression eval（frozen 模式，不接 DB）|
