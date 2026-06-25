@@ -30,6 +30,30 @@ Read this at the start of every session before producing any plan.
 - **三語 Localization 硬配對守則（2026-06-07 教訓）**：任何 front-end categories, actor_types, 或者是 web schemas 異動，必須將 `web/messages/{en,ja,zh}.json` 三包語系檔做 simultaneous update 同步更新。若有漏配，會阻礙 production next build compiler 通過。
 - **Hybrid Venue 同時標註則（2026-06-07 教訓）**：針對 `performing_arts` 等混合型活動（現場+線上），設計上必須同時保留實體 `location_address` 與在 `location_name` 中並列 `オンライン`。記得兩個都標，不可因線上屬性而抹除地址資料。
 
+## Pre-flight Parallel-Operation & Baseline-Drift Guard（執行前並行操作與 baseline 漂移檢查）
+
+計畫 gate 中的 DB count assertion 與 git HEAD 假設只在**規劃時**算一次。派工後若有並行 session（使用者另一視窗、手動腳本、cron）動到 DB 或 push，baseline 會漂移而 gate 仍用舊值放行。審核任何**依賴 DB count 或 git HEAD 的計畫 gate** 時，必須要求 Engineer 在 **Step 0（執行開始）** re-confirm 三點，偵測到 drift 即 STOP、先 reconcile 再進 gate：
+
+1. **HEAD 對齊**：`git fetch origin` 後 `git rev-parse HEAD` == `git rev-parse origin/main`。
+2. **Baseline count 對齊**：重查計畫 baseline 的 DB count，與計畫值比對。
+3. **無預期外新 report_types**：distinct `report_type` 必須 ⊆ 計畫快照（並行 `auto_qa.py` live run 會注入 `auto_simplified_chinese`、`missing_date` 等新型別）。
+
+```python
+# scraper/ venv，Engineer Step 0
+r = sb.table('event_reports').select('report_type', count='exact').eq('status', 'pending').execute()
+print('pending total:', r.count)            # 必須 == 計畫 baseline
+types = sorted({row['report_type'] for row in r.data})
+print('report_types:', types)               # 必須 ⊆ 計畫快照
+```
+
+**配套規則（同次事件學到）：**
+- **DB cleanup 與 root-cause code fix 同一 atomic commit**：只清 DB、抑制再生的 guard 留 uncommitted，nightly cron 跑 OLD origin code 會立即重生清掉的 reports。計畫 Verification 段必須明示兩者同 commit 並儘速 push。
+- **中斷的 Engineer 帶 live DB work → 先做 3 點取證**：(a) 哪些變更已 LIVE 在 DB、(b) code 是否已 commit、(c) rollback snapshot 是否完整；三點清楚才決定 fix-forward 或 rollback。
+- **report cleanup verify assertion 先分支 single-type vs multi-type**：multi-type row 可能被 multi-type assertion 合法留 pending，「某型別 MUST NOT APPEAR」是過度簡化，會誤報。
+- **uuid 欄位禁用 `.like()`**：`.like('id', prefix+'%')` 觸發 Postgres `42883 (uuid ~~ unknown)`；改用 full-uuid `.eq()`、對 text 欄位（如 `field_corrections.event_id`）比對，或 Python 過濾。
+
+Reference incident: 2026-06-25 — G3.0+G3.1 並行 session 漂移 baseline（pending 350→212→197）+ HEAD（`60240df`/`631efb6`），Engineer 中斷帶 live DB 變更但 code 未 commit（fix-forward commit `34bca54`，Tester PASS 5/5）。詳見 architect `history.md`。
+
 ## OCR Vision Array 欄位 — 三路徑 Sync Point（2026-05-26 教訓）
 
 任何要在「OCR 上傳海報建活動」流程新增 array 結構欄位（如 co_organizers / sponsors / tags），**必須同時改 4 處**，缺一即 silent failure：

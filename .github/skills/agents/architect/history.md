@@ -2,6 +2,24 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-25 — G3.0+G3.1 平行操作執行週期：baseline drift 偵測缺口、DB cleanup 原子性、subagent 中斷取證
+
+**背景：** 一份 G3 計畫（backend pending `event_reports` 清理）核可後派工給 Engineer，計畫 §9.1 設定 baseline pending≈350。執行期間，使用者自己的**另一個平行 session**（事後確認已停止）獨立做了兩件事：(a) commit+push 兩筆（`60240df`、`631efb6`，皆 docs）推進 origin/main HEAD；(b) 在 2026-06-24T17:46:16 手動跑 `auto_qa.py` live detect，注入新 report types（`auto_simplified_chinese` 43、`missing_date` 18）並 REGENERATE 15 筆 ndl/hanmoto `missing_organizer`。Engineer 已在 DB 上 LIVE 完成 G3.0+G3.1（pending 350→212，再 reprocess 15 筆後 →197），但在 commit code / 寫 history / 回傳 Changes Log 前被 INTERRUPTED。Architect 做取證評估，確認工作品質高、rollback snapshot 完整，取得使用者核可採 fix-forward（option A），重新派 Engineer 收尾（commit `34bca54`）、派 Tester（PASS 5/5），經 Validate-Merge-Deploy clean fast-forward 推上 origin/main。
+
+**教訓：**
+
+1. **平行操作偵測缺口（baseline drift）：** 計畫的 gate（如 §9.1 `pending=350` assertion）只在規劃時計算一次，執行時從未 re-confirm。並行 session 在執行中漂移了 DB baseline（350→212→197）與 git HEAD。**規則：進入任何依賴 DB count 或 git HEAD 的計畫 gate 前，必須在執行開始時 RE-CONFIRM 並偵測 drift——(a) HEAD == 預期 origin/main、(b) pending count == 計畫 baseline、(c) 無預期外的新 report_types。偵測到 drift 即 STOP 並先 reconcile，再進 gate。**
+
+2. **DB-only cleanup 必須與其 root-cause guard 同一個 pushed commit：** G3.1 清了 DB，但 root-cause fix（`auto_qa.py` 重構，抑制假陽性）留在 uncommitted；nightly cron 跑的是 OLD origin code，立刻把清掉的 reports 重新生成。**規則：DB cleanup 與其防止再生的 code change 是一個 atomic unit——一起 commit、儘速 push，否則 cleanup 會被 automation 默默還原。**
+
+3. **驗證腳本 assertion 必須容許合法的多型別保留（R3-G1）：** Engineer 的 verifier 把 ndl/hanmoto `missing_organizer` 標為「MUST NOT APPEAR」，但這個過度簡化的檢查無法區分 single-type row（真 miss）與被 multi-type assertion 合法留 pending 的 multi-type row。**規則：替 report cleanup 寫驗證 assertion 時，先分支 single-type vs multi-type，再判定 violation。**
+
+4. **Subagent 中斷取證協議：** Engineer 中斷時帶有 live DB 變更但 code 未 commit。決定 fix-forward 或 rollback 前，Architect 必須驗證三點：(a) 哪些變更已 LIVE 在 DB、(b) code 是否已 commit、(c) rollback snapshot 是否完整。**規則：把這個三點取證檢查固化為「Engineer 執行 live DB work 後被中斷」的標準回應。**
+
+5. **Harness 陷阱（uuid 欄位禁用 `.like()`）：** 對 uuid 欄位用 `.like('id', uuid_prefix+'%')` 會觸發 Postgres `42883 operator does not exist: uuid ~~ unknown`。**規則：要用 uuid prefix 比對時，改用 full-uuid `.eq()`、對 text 欄位比對（如 `field_corrections.event_id`）、或在 Python 內過濾——絕不對 uuid 欄位用 `.like()`。**
+
+---
+
 ## 2026-06-24 — daily-skills-review：SC→TC 同步驗證指令 + Venue QA Skip Guard（含 113 字 backlog 發現）
 
 **決策背景：** 執行 `daily-skills-review`（「這幾天有沒有可以固化的經驗？」）。近日 commit 多已詳實記錄於各 history，僅找到兩處 history-only、未升級為 review-time Guard 的缺口，從 architect SKILL 補強。
