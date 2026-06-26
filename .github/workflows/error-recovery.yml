@@ -36,6 +36,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Install Playwright browsers
+        if: github.event.inputs.dry_run != 'true'
+        run: playwright install chromium --with-deps
+
       - name: Recover stuck error events
         env:
           SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
