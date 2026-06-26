@@ -39,6 +39,41 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      # Preflight: verify OPENAI_API_KEY before the OpenAI-dependent flow.
+      # Fails fast with a clear, actionable message instead of a deep SDK traceback.
+      - name: OpenAI key preflight (fail fast)
+        if: >-
+          (github.event_name == 'schedule' && (
+            github.event.schedule == '17 0 * * 4' ||
+            github.event.schedule == '17 6 * * 4' ||
+            github.event.schedule == '17 10 * * 4' ||
+            github.event.schedule == '17 14 * * 4'
+          )) ||
+          (github.event_name == 'workflow_dispatch' && (
+            github.event.inputs.action == 'generate-draft' ||
+            github.event.inputs.action == 'dry-run'
+          ))
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error title=OPENAI_API_KEY missing::The OPENAI_API_KEY secret is empty. Set it at Settings -> Secrets and variables -> Actions -> OPENAI_API_KEY."
+            exit 1
+          fi
+          HTTP_CODE=$(curl -sS -o /tmp/openai_preflight.json -w "%{http_code}" \
+            --max-time 20 \
+            https://api.openai.com/v1/models \
+            -H "Authorization: Bearer $OPENAI_API_KEY") || HTTP_CODE="000"
+          echo "OpenAI /v1/models HTTP status: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error title=OPENAI_API_KEY preflight failed::OpenAI returned HTTP $HTTP_CODE. The CI secret is invalid/expired or out of quota. Update it at Settings -> Secrets and variables -> Actions -> OPENAI_API_KEY, then re-run this workflow."
+            # Redact any sk-... key fragments before printing the body (OpenAI 401 echoes a key tail).
+            echo "----- OpenAI response body (redacted) -----"
+            sed -E 's/sk-[A-Za-z0-9._-]+/[redacted]/g' /tmp/openai_preflight.json || true
+            exit 1
+          fi
+          echo "OPENAI_API_KEY preflight passed (HTTP 200)"
+
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
         with:
