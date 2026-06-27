@@ -776,6 +776,7 @@
     "brokenLink": "元のリンクが無効",
     "selectionReasonHint": "理由を記述してください（既定のテキストを編集可）",
     "fieldEditHint": "修正内容を記述してください（既定のテキストを編集可）",
+    "auto_security_prompt_injection": "プロンプトインジェクション疑い",
     "auto_simplified_chinese": "簡体字混入"
   },
   "saved": {

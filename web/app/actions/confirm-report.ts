@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { isConfirmationOnlyReport, BROKEN_LINK_REPORT_TYPE } from "@/lib/reportTypes";
 
 const GITHUB_REPO = "TuiTuiKoan/Tokyo_Taiwan_Radar";
 const HISTORY_PATH = ".github/skills/scraper-expert/history.md";
@@ -353,9 +354,11 @@ export async function confirmReport(
     finalAnnotationStatus
   );
 
-  // 5. Append "Pending Rule" to per-source SKILL.md if one exists
+  // 5. Append "Pending Rule" to per-source SKILL.md if one exists.
+  //    Confirmation-only reports (security / brokenLink) are not scraper extraction
+  //    defects, so they must not write a per-source pending rule.
   const skillPath = input.sourceName ? SOURCE_SKILL_PATHS[input.sourceName] : undefined;
-  if (skillPath) {
+  if (skillPath && !isConfirmationOnlyReport(input.reportTypes)) {
     await appendPendingRuleToSkill(skillPath, input, wrongFields);
   }
 
@@ -395,7 +398,15 @@ async function appendToHistoryFile(
 
     // Build new entry
     const date = new Date().toISOString().slice(0, 10);
-    const baseTypes = input.reportTypes.filter((t) => !t.startsWith("field:"));
+    // Hide machine / payload tokens from the audit trail (hash / severity / field payloads).
+    const baseTypes = input.reportTypes.filter(
+      (t) =>
+        !t.startsWith("field:") &&
+        !t.startsWith("fieldEdit:") &&
+        !t.startsWith("selectionReason:") &&
+        !t.startsWith("securityHash:") &&
+        !t.startsWith("securitySeverity:")
+    );
     const types = baseTypes.join(", ");
     const notes = input.adminNotes?.trim() || "—";
     const source = input.sourceName ?? "unknown";
@@ -431,6 +442,11 @@ async function appendToHistoryFile(
       actionLine = "Category cleared — re-annotation triggered (annotation_status=pending).";
     } else if (wrongFields.some(f => f in ANNOTATOR_FIELDS)) {
       actionLine = "Annotatable fields nulled out — re-annotation triggered. Will auto-reactivate after annotator runs.";
+    } else if (isConfirmationOnlyReport(input.reportTypes)) {
+      // Confirmation-only report — event data is left untouched.
+      actionLine = input.reportTypes.includes(BROKEN_LINK_REPORT_TYPE)
+        ? "Broken link report confirmed; event data unchanged (source link flagged for manual review)"
+        : "Security report confirmed; event data unchanged";
     } else {
       actionLine = "Event deactivated — re-annotation triggered (annotation_status=pending).";
     }
@@ -512,7 +528,15 @@ async function appendPendingRuleToSkill(
     const sha: string = fileData.sha;
 
     const date = new Date().toISOString().slice(0, 10);
-    const baseTypes = input.reportTypes.filter((t) => !t.startsWith("field:"));
+    // Hide machine / payload tokens from the audit trail (hash / severity / field payloads).
+    const baseTypes = input.reportTypes.filter(
+      (t) =>
+        !t.startsWith("field:") &&
+        !t.startsWith("fieldEdit:") &&
+        !t.startsWith("selectionReason:") &&
+        !t.startsWith("securityHash:") &&
+        !t.startsWith("securitySeverity:")
+    );
     const types = baseTypes.join(", ");
     const notes = input.adminNotes?.trim() || "—";
     const fieldsLine = wrongFields.length > 0

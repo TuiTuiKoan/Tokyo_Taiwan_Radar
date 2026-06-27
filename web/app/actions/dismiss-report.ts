@@ -11,7 +11,12 @@ export async function dismissReport(reportId: string): Promise<{ ok: boolean; er
 
   const { error, data } = await supabase
     .from("event_reports")
-    .update({ status: "dismissed" })
+    // Write confirmed_at as the handled timestamp so the security-report
+    // lifecycle treats a dismissed finding as resolved (mirrors auto_qa.py,
+    // which also stamps confirmed_at on dismissed rows). Without this the
+    // handled_at falls back to created_at and a later event update would
+    // wrongly re-open the pending report.
+    .update({ status: "dismissed", confirmed_at: new Date().toISOString() })
     .eq("id", reportId)
     .select("id");
 

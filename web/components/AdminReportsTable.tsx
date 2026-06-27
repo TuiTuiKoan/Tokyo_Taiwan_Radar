@@ -9,6 +9,7 @@ import Link from "next/link";
 import { confirmReport } from "@/app/actions/confirm-report";
 import { dismissReport } from "@/app/actions/dismiss-report";
 import { createExclusion } from "@/app/actions/source-exclusions";
+import { isConfirmationOnlyReport } from "@/lib/reportTypes";
 
 // Extract up to 3 candidate patterns (katakana ≥4 chars or kanji ≥3 chars) from a title.
 // Used by ExclusionSuggest to offer one-click block-rule chips after an
@@ -275,12 +276,23 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   }
 
   function formatTypes(types: string[]): string {
-    const baseTypes = types.filter((t) => !t.startsWith("field:"));
+    // Hide machine / payload tokens — only base report types get a human label.
+    const baseTypes = types.filter(
+      (t) =>
+        !t.startsWith("field:") &&
+        !t.startsWith("fieldEdit:") &&
+        !t.startsWith("selectionReason:") &&
+        !t.startsWith("securityHash:") &&
+        !t.startsWith("securitySeverity:")
+    );
     const fields = types.filter((t) => t.startsWith("field:")).map((t) => t.replace("field:", ""));
     const labels = baseTypes.map((type) => {
       if (type === "irrelevant") return tReport("irrelevant");
       if (type === "wrongDetails") return tReport("wrongDetails");
       if (type === "wrongCategory") return tReport("wrongCategory");
+      if (type === "wrongSelectionReason") return tReport("wrongSelectionReason");
+      if (type === "brokenLink") return tReport("brokenLink");
+      if (type === "auto_security_prompt_injection") return tReport("auto_security_prompt_injection");
       return type;
     });
     if (fields.length > 0) {
@@ -734,6 +746,8 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                       // Also check user-submitted suggestions (pre-filled values in inputs)
                       const hasUserSuggestions = row.report_types.some((entry) => entry.startsWith("fieldEdit:"));
                       if (hasAdminCorrections || hasUserSuggestions) return t("applyCorrections");
+                      // Confirmation-only reports (security / brokenLink): mark handled, do not re-annotate.
+                      if (isConfirmationOnlyReport(row.report_types)) return t("confirmReport");
                       return t("actionReannotate");
                     })()}
                   </button>

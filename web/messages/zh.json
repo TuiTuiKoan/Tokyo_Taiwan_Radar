@@ -776,6 +776,7 @@
     "brokenLink": "原始連結失效",
     "selectionReasonHint": "請說明理由（可修改預設內容）",
     "fieldEditHint": "請補充說明（可修改預設內容）",
+    "auto_security_prompt_injection": "疑似提示注入",
     "auto_simplified_chinese": "簡體中文"
   },
   "saved": {

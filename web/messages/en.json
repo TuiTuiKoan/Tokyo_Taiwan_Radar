@@ -776,6 +776,7 @@
     "brokenLink": "Original link is broken",
     "selectionReasonHint": "Please describe (you may edit the pre-filled text)",
     "fieldEditHint": "Please describe the correction (you may edit the pre-filled text)",
+    "auto_security_prompt_injection": "Suspected prompt injection",
     "auto_simplified_chinese": "Simplified Chinese"
   },
   "saved": {
