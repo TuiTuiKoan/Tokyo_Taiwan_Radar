@@ -36,6 +36,36 @@ function adminClient() {
   );
 }
 
+/**
+ * Generic free-price labels that carry no extra information beyond "this is
+ * free". When price_info matches one of these, the free branch suppresses it to
+ * avoid redundant "免費 無料" output. Non-generic values (e.g. registration notes
+ * with a Peatix URL, "一般1000円、学生無料") are shown after the free label.
+ */
+const GENERIC_FREE_PRICE = new Set(["無料", "入場無料", "参加無料", "参加費無料", "免費", "免费", "入場免費", "入場免费", "入場料：無料", "入場料: 無料", "受講料 ¥ 0", "入場無料 ｜ Free", "参加無料、事前申し込み制", "無料（要事前申込）", "無料（要事前予約）", "無料 (要事前予約)", "無料・事前登録制", "無料・予約不要", "入場無料・予約不要", "参加無料・事前申込不要", "参加無料・要事前申込", "参加無料ですが、事前の申し込みが必要です。", "入場無料（ただいま予約受付中）", "Free", "free"]);
+
+/**
+ * Render a price_info note, linkifying any URL substrings as safe React <a>
+ * elements (no dangerouslySetInnerHTML). Plain-text fragments render as-is.
+ */
+function renderPriceInfoNote(text: string) {
+  return text.split(/(https?:\/\/\S+)/g).map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-amber-600 hover:underline break-all"
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
+
 /** Detect platform from a URL and return a branded SVG icon element. */
 function PerformerUrlIcon({ url }: { url: string }) {
   const lower = url.toLowerCase();
@@ -971,7 +1001,12 @@ export default async function EventDetailPage({ params }: PageProps) {
                 {isTvProgramEvent ? (
                   <span className="text-fg-muted">{t("tvProgramTermsNotice")}</span>
                 ) : event.is_paid === false ? (
-                  <span className="text-[#1F5E2B] font-medium">{t("free")}</span>
+                  <span>
+                    <span className="text-[#1F5E2B] font-medium">{t("free")}</span>
+                    {event.price_info && !GENERIC_FREE_PRICE.has(event.price_info.trim()) && (
+                      <span className="text-fg-muted ml-2">{renderPriceInfoNote(event.price_info.trim())}</span>
+                    )}
+                  </span>
                 ) : event.is_paid === true ? (
                   <span>
                     <span className="text-amber-600 font-medium">{t("paid")}</span>
