@@ -6,6 +6,7 @@ interface Props {
   selectionReason: string | null;
   locale: string;
   reportSection?: React.ReactNode;
+  hideSelectionReason?: boolean;
 }
 
 function parseSelectionReason(raw: string | null, locale: string): string | null {
@@ -22,12 +23,17 @@ function parseSelectionReason(raw: string | null, locale: string): string | null
   return raw;
 }
 
-export default function RawDataSection({ rawTitle, rawDescription, selectionReason, locale, reportSection }: Props) {
+export default function RawDataSection({ rawTitle, rawDescription, selectionReason, locale, reportSection, hideSelectionReason }: Props) {
   const t = useTranslations("event");
 
   if (!selectionReason && !reportSection) return null;
 
   const displayedReason = parseSelectionReason(selectionReason, locale);
+
+  // 人工創建活動（user_submission / manual）沒有 AI 選別理由：略過 amber 框，僅保留報錯按鈕
+  if (hideSelectionReason) {
+    return reportSection ? <div className="mb-8">{reportSection}</div> : null;
+  }
 
   return (
     <div className="mb-8">

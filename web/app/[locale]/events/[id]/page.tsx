@@ -387,6 +387,8 @@ export default async function EventDetailPage({ params }: PageProps) {
     event.source_name === "gguide_tv" ||
     (event.category ?? []).includes("tv_program");
   const isPublicationEvent = (event.event_form ?? []).includes("publication");
+  const isManualEvent =
+    event.source_name === "user_submission" || event.source_name === "manual";
   const now = new Date();
   const ended = event.end_date && new Date(event.end_date) < now;
 
@@ -1240,7 +1242,8 @@ export default async function EventDetailPage({ params }: PageProps) {
         rawDescription={event.raw_description}
         selectionReason={event.selection_reason}
         locale={locale}
-        reportSection={<ReportSection eventId={event.id} locale={locale} currentCategories={(event.category ?? []) as import("@/lib/types").Category[]} selectionReasonAll={(() => {
+        hideSelectionReason={isManualEvent}
+        reportSection={<ReportSection eventId={event.id} locale={locale} hideSelectionReason={isManualEvent} currentCategories={(event.category ?? []) as import("@/lib/types").Category[]} selectionReasonAll={(() => {
           if (!event.selection_reason) return null;
           try {
             const parsed = JSON.parse(event.selection_reason);

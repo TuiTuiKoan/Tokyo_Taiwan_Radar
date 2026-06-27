@@ -11,6 +11,7 @@ interface Props {
   selectionReasonAll?: Partial<Record<LocaleKey, string | null>> | null;
   currentCategories?: Category[];
   eventFields?: Partial<Record<WrongDetailField, Partial<Record<LocaleKey, string | null>>>>;
+  hideSelectionReason?: boolean;
 }
 
 const REPORT_TYPES = ["irrelevant", "wrongDetails", "wrongCategory", "wrongSelectionReason", "brokenLink"] as const;
@@ -46,7 +47,7 @@ const FIELD_I18N: Record<WrongDetailField, string> = {
   description: "fieldDescription",
 };
 
-export default function ReportSection({ eventId, locale, selectionReasonAll, currentCategories, eventFields }: Props) {
+export default function ReportSection({ eventId, locale, selectionReasonAll, currentCategories, eventFields, hideSelectionReason }: Props) {
   const t = useTranslations("report");
   const tCat = useTranslations("categories");
   const [open, setOpen] = useState(false);
@@ -173,6 +174,11 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
     );
   }
 
+  // 人工創建活動沒有 AI 選別理由 → 隱藏「選ばれた理由が違う」回報選項
+  const visibleReportTypes = hideSelectionReason
+    ? REPORT_TYPES.filter((rt) => rt !== "wrongSelectionReason")
+    : REPORT_TYPES;
+
   return (
     <div className="mt-3 border-t border-amber-200 pt-3">
       <p className="text-xs text-amber-700 mb-2">{t("aiDisclaimer")}</p>
@@ -186,7 +192,7 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
         </button>
       ) : (
         <div className="space-y-1.5">
-          {REPORT_TYPES.map((type) => (
+          {visibleReportTypes.map((type) => (
             <div key={type}>
               <label className="flex items-center gap-2 text-xs text-amber-800 cursor-pointer select-none">
                 <input
