@@ -395,13 +395,14 @@ class CategoryAgent:
         logger.info("CategoryAgent[%s]: starting search", cat["id"])
 
         try:
-            # Build domain-level block list from implemented/researched/not-viable entries.
+            # Build domain-level block list from ALL known entries (any status).
             # Passing domains (not exact URLs) prevents GPT from suggesting new paths
             # on already-known domains (e.g. different event pages on iwafu.com).
+            # candidate/recommended domains are already in the pool — skip them too.
             block_domains = {
                 _domain(url)
-                for url, status in self.known_urls.items()
-                if status in ("implemented", "researched", "not-viable") and _domain(url)
+                for url in self.known_urls
+                if _domain(url)
             }
             response = self.client.chat.completions.create(
                 model="gpt-4o-search-preview",
@@ -414,6 +415,9 @@ class CategoryAgent:
                             f"Search for: {cat['query_ja']}\n"
                             f"Also search: {cat['query_en']}\n\n"
                             f"Find up to 3 event source websites NOT already in: {EXISTING_SOURCES}\n\n"
+                            "Return only event LISTING/INDEX pages — do NOT return individual "
+                            "news-release or article URLs (e.g. prtimes.jp/main/html/rd/p/..., "
+                            ".../article/news/...).\n\n"
                             + (f"SKIP these already-covered domains entirely — do NOT suggest any URL from them: {', '.join(sorted(block_domains))}\n\n" if block_domains else "")
                             + f"Also provide 2-3 recent Taiwan-related news bullets and top trend keywords.\n\n"
                             f"Respond ONLY as valid JSON matching this schema:\n{SOURCE_SCHEMA}"
@@ -436,6 +440,17 @@ class CategoryAgent:
 
             data = json.loads(text)
             sources = data.get("sources", [])
+
+            # Drop individual news-release / article URLs — these are not listing pages
+            # and pollute the candidate pool (prtimes.jp news releases, /article/news/, ...).
+            kept_sources = []
+            for src in sources:
+                url = src.get("url", "")
+                if url and _ARTICLE_URL_RE.search(url):
+                    logger.info("Dropped article URL: %s", url)
+                    continue
+                kept_sources.append(src)
+            sources = kept_sources
 
             # Playwright URL verification
             for src in sources:
@@ -492,13 +507,34 @@ def _domain(url: str) -> str:
         return ""
 
 
-def _get_known_urls(sb) -> tuple[dict[str, str], dict[str, str]]:
+def _normalize_url(url: str) -> str:
+    """Canonical form for dedup: lowercase host, strip www., drop scheme/query/fragment, strip trailing slash."""
+    try:
+        p = urlparse(url)
+        host = p.netloc.lower().replace("www.", "")
+        path = p.path.rstrip("/")
+        return f"{host}{path}" if host else url.strip().rstrip("/").lower()
+    except Exception:
+        return url.strip().rstrip("/").lower()
+
+
+# Individual news-release / article URLs (not event LISTING pages). Dropped before
+# verification so they never pollute the candidate pool (e.g. prtimes.jp news releases).
+_ARTICLE_URL_RE = re.compile(
+    r"(prtimes\.jp/main/html/rd/p/|/article/news/|/news/\d|/\d{6,}\.html?$)",
+    re.IGNORECASE,
+)
+
+
+def _get_known_urls(sb) -> tuple[dict[str, str], dict[str, str], set[str]]:
     """Fetch all known URLs and their statuses from research_sources table.
 
     Returns:
-        known_urls:    {url -> status}    for exact-URL dedup
-        known_domains: {domain -> status} for domain-level dedup
-                       (status = highest-priority status seen for that domain)
+        known_urls:      {url -> status}    for exact-URL dedup
+        known_domains:   {domain -> status} for domain-level dedup
+                         (status = highest-priority status seen for that domain)
+        known_norm_urls: set of _normalize_url(url) for normalized exact-URL dedup
+                         (www/non-www, trailing slash and scheme insensitive)
     """
     STATUS_PRIORITY = {
         "implemented": 0,
@@ -511,19 +547,21 @@ def _get_known_urls(sb) -> tuple[dict[str, str], dict[str, str]]:
         rows = sb.table("research_sources").select("url,status").execute()
         known_urls: dict[str, str] = {}
         known_domains: dict[str, str] = {}
+        known_norm_urls: set[str] = set()
         for r in (rows.data or []):
             url = r["url"]
             status = r["status"]
             known_urls[url] = status
+            known_norm_urls.add(_normalize_url(url))
             dom = _domain(url)
             if dom:
                 current = known_domains.get(dom)
                 if current is None or STATUS_PRIORITY.get(status, 99) < STATUS_PRIORITY.get(current, 99):
                     known_domains[dom] = status
-        return known_urls, known_domains
+        return known_urls, known_domains, known_norm_urls
     except Exception as exc:
         logger.warning("Could not fetch known URLs: %s", exc)
-        return {}, {}
+        return {}, {}, set()
 
 
 def _upsert_sources(
@@ -784,8 +822,9 @@ def run_research(dry_run: bool = False, category_id: str | None = None) -> None:
     # Fetch known URLs to skip (only when writing to DB)
     known_urls: dict[str, str] = {}
     known_domains: dict[str, str] = {}
+    known_norm_urls: set[str] = set()
     if sb:
-        known_urls, known_domains = _get_known_urls(sb)
+        known_urls, known_domains, known_norm_urls = _get_known_urls(sb)
         logger.info("Known URLs to skip: %d (domains: %d)", len(known_urls), len(known_domains))
 
     # Run one agent per category in this slot
@@ -834,11 +873,13 @@ def run_research(dry_run: bool = False, category_id: str | None = None) -> None:
         logger.warning("Could not upsert research_sources: %s", exc)
 
     # Filter duplicate sources (already in DB before this run) out of the report.
-    # known_urls was fetched before running agents, so it correctly represents
-    # the pre-run state. Duplicates are silently dropped — not sent via LINE.
+    # known_domains / known_norm_urls were fetched before running agents, so they
+    # represent the pre-run state. Only genuinely NEW domains survive — a new path
+    # on an already-known domain is dropped, not sent via LINE.
     report["top_sources"] = [
         s for s in report["top_sources"]
-        if s.get("url") not in known_urls
+        if _domain(s.get("url", "")) not in known_domains
+        and _normalize_url(s.get("url", "")) not in known_norm_urls
     ]
 
     # Save to DB
