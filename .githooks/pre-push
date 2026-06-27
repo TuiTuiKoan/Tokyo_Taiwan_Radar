@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # pre-push hook (tracked in .githooks/, installed via scripts/install-hooks.sh)
 #
-# Checks i18n parity for all commits being pushed to origin/main.
+# Runs two checks for every ref being pushed to origin:
+#   1. Secret scan (Layer 2) — gitleaks over the push range, with a regex
+#      fallback (placeholder-allowlist-aware) when gitleaks is not installed.
+#   2. i18n parity for all commits in the push range.
 # NOTE on coverage: This hook covers the narrow case where pre-commit was
 # bypassed or not triggered, but git push runs normally.
 # Both L2 (pre-commit) and L2.5 (pre-push) share the same bypass vector:
@@ -32,6 +35,41 @@ while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
     RANGE="${MERGE_BASE}..${local_sha}"
   else
     RANGE="${remote_sha}..${local_sha}"
+  fi
+
+  # --- secret scan (Layer 2): gitleaks if available, else regex fallback ------
+  # Last local gate before push. Bypassable via `git push --no-verify`.
+  if command -v gitleaks >/dev/null 2>&1; then
+    if ! gitleaks git --no-banner --redact -c "$REPO_ROOT/.gitleaks.toml" --log-opts="$RANGE"; then
+      echo ""
+      echo "pre-push: gitleaks detected a potential secret in range $RANGE — push blocked!"
+      echo "  Remove the secret from history, or allowlist a documented placeholder in .gitleaks.toml."
+      echo "  To bypass (use with caution): git push --no-verify"
+      exit 1
+    fi
+  else
+    # gitleaks not installed — lightweight regex fallback. The fallback does NOT
+    # read .gitleaks.toml, so it carries its OWN placeholder allowlist (kept in
+    # sync with .gitleaks.toml). Named placeholders in tracked docs (e.g.
+    # github_pat_REPLACE_WITH_YOUR_TOKEN) exceed the {20,} threshold and would
+    # otherwise be false positives — they are filtered out BEFORE deciding.
+    SECRET_RE='github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+'
+    PLACEHOLDER_RE='github_pat_xxx|github_pat_REPLACE_WITH_YOUR_TOKEN|github_pat_<NEW_TOKEN_VALUE>|github_pat_<NEW_TOKEN>'
+    SECRET_HITS=$(
+      git diff "$RANGE" 2>/dev/null \
+        | grep -E '^\+' \
+        | grep -vE '^\+\+\+' \
+        | grep -oE "$SECRET_RE" \
+        | grep -vE "$PLACEHOLDER_RE" \
+        || true
+    )
+    if [[ -n "$SECRET_HITS" ]]; then
+      echo ""
+      echo "pre-push: potential secret detected in range $RANGE (regex fallback — gitleaks not installed) — push blocked!"
+      echo "  Install gitleaks for accurate, allowlist-aware scanning: brew install gitleaks"
+      echo "  To bypass (use with caution): git push --no-verify"
+      exit 1
+    fi
   fi
 
   CHANGED=$(git diff --name-only "$RANGE" -- 'web/messages/*.json' 2>/dev/null || true)

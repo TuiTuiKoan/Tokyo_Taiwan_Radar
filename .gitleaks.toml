@@ -1,0 +1,32 @@
+# gitleaks config — Tokyo Taiwan Radar
+#
+# Used by the three-layer secret scanning defense (Phase 3):
+#   Layer 1  .githooks/pre-commit  — gitleaks git --staged (fail-open)
+#   Layer 2  .githooks/pre-push    — gitleaks git --log-opts=<range> (regex fallback)
+#   Layer 3  .github/workflows/secret-scan.yml — CI merge gate / audit
+#
+# None of the three layers is non-bypassable (`git push --no-verify` skips the
+# hooks; CI only blocks merge, not history). They reduce risk, not eliminate it.
+#
+# Allowlist note: the documented placeholder PAT tokens used in tracked docs
+# (docs/GITHUB_TOKEN_SYNC_CHECKLIST.md, .github/instructions/token-rotation.instructions.md)
+# are explicitly allowlisted so they are never reported as real secrets. The
+# shell regex fallback in pre-push and the Public Repo Secret Hygiene Check carry
+# the SAME placeholder allowlist semantics — keep all three in sync if changed.
+
+title = "Tokyo Taiwan Radar gitleaks config"
+
+# Inherit every default gitleaks rule (real-secret detection), then layer on the
+# project-specific placeholder allowlist below.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Documented placeholder PAT tokens in tracked docs (not real secrets)"
+regexTarget = "match"
+regexes = [
+  '''github_pat_xxx''',
+  '''github_pat_REPLACE_WITH_YOUR_TOKEN''',
+  '''github_pat_<NEW_TOKEN_VALUE>''',
+  '''github_pat_<NEW_TOKEN>''',
+]

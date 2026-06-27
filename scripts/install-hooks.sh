@@ -35,9 +35,21 @@ if [[ -n "$OTHER_HOOKS" ]]; then
   echo "   Consider copying them to .githooks/ manually."
 fi
 
+# 5. Check for gitleaks (used by the secret-scan layers in pre-commit / pre-push)
+if command -v gitleaks >/dev/null 2>&1; then
+  echo "OK gitleaks found: $(gitleaks version 2>/dev/null | head -1)"
+else
+  echo ""
+  echo "NOTE: gitleaks is not installed."
+  echo "   pre-commit secret scan is fail-open (skipped) and pre-push falls back"
+  echo "   to a lightweight regex check. For full, allowlist-aware scanning, install it:"
+  echo "     brew install gitleaks            # macOS"
+  echo "     # or see https://github.com/gitleaks/gitleaks#installing"
+fi
+
 echo ""
 echo "=== Hook installation complete ==="
-echo "   pre-commit: .githooks/pre-commit (i18n guard + agent tools cleanup + migration rename)"
-echo "   pre-push:   .githooks/pre-push   (i18n parity range check)"
+echo "   pre-commit: .githooks/pre-commit (i18n guard + agent tools cleanup + gitleaks secret scan + migration rename)"
+echo "   pre-push:   .githooks/pre-push   (gitleaks secret scan + i18n parity range check)"
 echo ""
 echo "To verify: git config core.hooksPath"

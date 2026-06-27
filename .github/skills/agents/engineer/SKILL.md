@@ -83,6 +83,20 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - After the test run, stop any background dev server to avoid orphaned processes and cross-session interference.
 - Fixed-width device preview frames must use responsive constraints such as `w-full max-w-[390px]`; do not set `width: 390px` inside padded mobile pages. In visual smoke tests, assert document `scrollWidth <= clientWidth` and distinguish expected horizontal carousels from real page overflow.
 
+## Secret Scanning — Three-Layer Defense（fail-open；2026-06-28 教訓）
+
+新增/修改密鑰掃描時三層必須一致，且都是「降低風險」非 non-bypassable（真正強制需 server-side branch protection）：
+
+| Layer | 位置 | 行為 |
+|-------|------|------|
+| 1 | `.githooks/pre-commit` | `gitleaks git --staged -c .gitleaks.toml`；缺 binary → 警告 + `exit 0`（fail-open，不擋本機 commit）|
+| 2 | `.githooks/pre-push` | 有 gitleaks → 掃 push range；無 → regex fallback 擋 `github_pat_…{20,}` / `sk-…` / `eyJ…` JWT |
+| 3 | `.github/workflows/secret-scan.yml` | CI merge gate；version-pinned + checksum-verified gitleaks binary（非 gitleaks-action，免 org license）；`permissions: contents: read` |
+
+- **regex fallback 必含 placeholder allowlist**：shell fallback **不讀** `.gitleaks.toml`。tracked docs 的具名 placeholder（`github_pat_REPLACE_WITH_YOUR_TOKEN`、`github_pat_<NEW_TOKEN_VALUE>` 等）長度超過 `{20,}`，裸 fallback 會誤判為真 secret → 命中後先 `grep -vE '<placeholder>'` 過濾再判定。三份 allowlist（`.gitleaks.toml`、pre-push fallback、Hygiene git grep）同一份語意，改一處要三處同步。
+- **Public Repo Secret Hygiene**：掃 tracked 檔用 `gitleaks git --redact --no-banner -c .gitleaks.toml`（命中數須為 0；allowlist-aware + redacted）。**禁止 repo-root `grep -rn`**——會讀進被 .gitignore 忽略的 `scraper/.env`，把真 PAT 印到 terminal / transcript / CI log。`git check-ignore -v scraper/.env` 須命中、`git ls-files --error-unmatch scraper/.env` 須失敗。
+- **token docs 存在性檢查改 masked**：任何文件不得叫人 `grep "^GITHUB_TOKEN=" .env`（會印 token 行）；改 `awk -F= '/^GITHUB_TOKEN=/{print "present, len="length($2)", prefix_ok="...}'`（length/prefix，不印值）。canonical 來源 `docs/GITHUB_TOKEN_SYNC_CHECKLIST.md` 與同步副本 `.github/instructions/token-rotation.instructions.md` 必須同 commit 保持一致。
+
 ## Admin GPT routes — server-side enum whitelist intersect（2026-05-26 教訓）
 
 Admin OCR/annotate API routes（`web/app/api/admin/extract-from-image/route.ts`、`web/app/api/admin/annotate-event/route.ts`）由 GPT 直接輸出 enum 欄位（`category[]`、`event_form`、`prefecture_code`），**寫入 DB 前必須做白名單過濾**。三道天然防線對此無效：

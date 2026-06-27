@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # pre-commit hook (tracked in .githooks/, installed via scripts/install-hooks.sh)
 #
-# Contains three guards:
+# Contains four guards:
 #   (a) Remove VS Code Copilot auto-injected `tools:` blocks from agent files
 #   (b) i18n regression guard — calls scripts/check_i18n_parity.py --staged
+#   (b2) secret scan — gitleaks git --staged (fail-open if gitleaks absent)
 #   (c) Supabase migration number conflict auto-rename
 #
 # NOTE: This hook can be bypassed with `git commit --no-verify`.
@@ -58,6 +59,23 @@ if python3 "$REPO_ROOT/scripts/check_i18n_parity.py" --staged; then
   : # pass
 else
   exit 1
+fi
+
+# --- (b2) secret scan — gitleaks (Layer 1, fail-open) ------------------------
+# Early signal only. fail-open: if gitleaks is not installed we warn but do NOT
+# block the commit (pre-push Layer 2 and CI Layer 3 still apply). Bypassable via
+# `git commit --no-verify` like every other guard here.
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks git --staged --no-banner --redact -c "$REPO_ROOT/.gitleaks.toml"; then
+    echo ""
+    echo "pre-commit: gitleaks detected a potential secret in staged changes — commit blocked!"
+    echo "  Remove the secret, or (for a documented placeholder) add it to .gitleaks.toml allowlist."
+    echo "  To bypass (use with caution): git commit --no-verify"
+    exit 1
+  fi
+else
+  echo "pre-commit: gitleaks not installed — skipping secret scan (fail-open)."
+  echo "  Install with: brew install gitleaks"
 fi
 
 # --- (c) migration numbering guard --------------------------------------------

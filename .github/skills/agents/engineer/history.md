@@ -4,6 +4,24 @@
 
 --- 
 
+## 2026-06-28 — Security Hardening Round 1：注入防護 + 安全報告型別 + 三層密鑰掃描
+
+**Context**: Security Hardening Plan v16 Round 1。把「不可信事件內容」當攻擊面，一次落地四道 guard（Phase 0/1 已 commit `a81f61f` scraper / `bd8f7d0` web；Phase 3/4/4b 本批 hooks + CI + docs）。
+
+**Fix（四道 guard）**:
+1. **Prompt injection guard（scraper）**：`security.injection_guard` 掃 raw_title/raw_desc，GPT 輸入以 `<UNTRUSTED_EVENT_DATA>` 包裹（`build_event_user_content`，production 與 `eval_annotator` 共用同一 helper）；sev>=2 寫 `event_reports`。掛點必須在**截斷後 payload**（與 GPT 實際看到的 20000-cutoff 一致），否則掃到 GPT 看不到的片段 → 假告警。
+2. **安全報告型別 lifecycle**：`auto_security_prompt_injection` + `securityHash:<sha1>` + `securitySeverity:<n>` 寫 `event_reports`；dedup 從 `report_types[]` 解析 hash（非僅查 pending），confirm/dismiss 皆寫 `confirmed_at` 當 handled_at；`updated_at > handled_at` 或 hash 變更才重開 pending。
+3. **新 report type 的 admin UI 同步（四面）**：`web/lib/reportTypes.ts`（shared predicate，client + server 共用一份，deny-by-default allowlist）、`AdminReportsTable`（隱藏 payload token、label + Confirm-only 行為）、confirm/dismiss-report server action、三語 `messages` 的 `report` namespace。payload token（`securityHash:`/`securitySeverity:`/`fieldEdit:`/`selectionReason:`）一律不顯示、不寫 SKILL pending rule。
+4. **三層密鑰掃描（fail-open）**：Layer 1 pre-commit `gitleaks git --staged`（缺 binary → 警告 + `exit 0`）、Layer 2 pre-push gitleaks 掃 range（無 gitleaks → regex fallback，**必含 placeholder allowlist**）、Layer 3 CI `secret-scan.yml`（version-pinned + checksum-verified gitleaks binary，`permissions: contents: read`）。
+
+**Lesson**:
+- **不可信內容掃描掛點 = GPT 實際 payload**（截斷後），不是原始 raw_description；否則 cutoff 後片段會產生 GPT 看不到的假告警。
+- **shell regex fallback 不讀 `.gitleaks.toml`**：任何「regex 補掃」都要自帶與 `.gitleaks.toml` 同語意的 placeholder allowlist，否則無 gitleaks 的開發者推 token docs 被假陽性逼 `--no-verify`，反削弱 gate。三份 allowlist（`.gitleaks.toml` / pre-push fallback / Hygiene git grep）改一處要三處同步。
+- **三層皆 fail-open / 可 `--no-verify` 繞過**，非 non-bypassable；真正強制需 server-side branch protection（本 repo 未採用）。文件不可宣稱任一層 fail-closed。
+- **Public Repo Secret Hygiene**：掃 git-tracked 一律用 `gitleaks git --redact -c .gitleaks.toml`（allowlist-aware + redacted）；**禁止 repo-root `grep -rn`**——會讀進被 .gitignore 忽略的 `scraper/.env`，把真 PAT 印到 terminal / CI log。token docs 的存在性檢查改 masked awk（length/prefix），不印 token 值。
+
+---
+
 ## 2026-06-22 — `_SIMP_TO_TRAD` 缺 `当`/`写`/`圆`（G2 batch annotation post-QA gap）
 
 **Error**: G2 backlog 標注後，2 筆 hanmoto publication 的 `description_zh` 殘留簡體 `当`（auto_qa `SIMP_RE` 會旗標但 `_to_trad()` 沒轉，因為 `当` 不在 `annotator._SIMP_TO_TRAD_RAW`）。修 `当` 後依規範跑全庫 full-`SIMP_RE` 掃描，又發現同類缺字 `写`、`圆`，其中一筆 `当` 修補後的 row 仍殘留 `写`。
