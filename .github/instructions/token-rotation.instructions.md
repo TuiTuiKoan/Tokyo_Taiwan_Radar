@@ -121,8 +121,8 @@ GITHUB_TOKEN=github_pat_<NEW_TOKEN_VALUE>
 Run these checks to confirm token is working:
 
 ```bash
-# 1. Verify env var is set
-cd scraper && grep "^GITHUB_TOKEN=" .env
+# 1. Verify env var is set (masked — never prints the token value)
+cd scraper && awk -F= '/^GITHUB_TOKEN=/{print "GITHUB_TOKEN present, len="length($2)", prefix_ok="(($2 ~ /^github_pat_/)?"yes":"no")}' .env
 
 # 2. Test token locally (if you have a research source URL)
 source venv/bin/activate
@@ -192,8 +192,9 @@ graph TD
 - **Fix**: 
   ```bash
   cd scraper
-  grep "^GITHUB_TOKEN=" .env   # Should return the token line
-  # If empty, follow Step 1 and Step 2 above
+  # masked — confirms presence/length/prefix without printing the token
+  awk -F= '/^GITHUB_TOKEN=/{print "GITHUB_TOKEN present, len="length($2)", prefix_ok="(($2 ~ /^github_pat_/)?"yes":"no")}' .env
+  # If it prints nothing, the key is missing — follow Step 1 and Step 2 above
   ```
 
 ### Error: `GitHub API error 401` or `401: Bad credentials`

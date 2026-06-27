@@ -35,10 +35,10 @@ estimated_reading_time: 4
 * 內容格式: GITHUB_TOKEN=github_pat_xxx
 * 說明: 這是執行期實際使用的 token 值
 
-驗證方式:
+驗證方式（masked — 不印出 token 值，只回報是否存在、長度與前綴是否正確）:
 
 ```bash
-grep "^GITHUB_TOKEN=" scraper/.env
+awk -F= '/^GITHUB_TOKEN=/{print "GITHUB_TOKEN present, len="length($2)", prefix_ok="(($2 ~ /^github_pat_/)?"yes":"no")}' scraper/.env
 ```
 
 ### 2. 讀取與錯誤提示位置
@@ -126,7 +126,7 @@ python update_source.py --url "https://example.com" --status researched --create
 
 ## 驗收標準
 
-* grep 可讀到新的 GITHUB_TOKEN 值
+* masked awk 檢查（length / prefix）確認 GITHUB_TOKEN 已存在且前綴為 github_pat_（不印出 token 值）
 * create-issue 指令可成功建立 Issue
 * researcher.agent.md 的權限描述與實際 token 類型一致
 * Git 歷史未出現 pat 明文外洩

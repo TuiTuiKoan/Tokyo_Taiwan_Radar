@@ -336,6 +336,12 @@ Admin 撰寫發文（三語 title + body + images）
 | `eval-annotator-stage2.yml` | 週日 03:00 JST / 手動 | Annotator Stage 2 weekly eval（budget guard + KPI 門檻） |
 | `qa-heartbeat.yml` | 每日 04:00 UTC / 手動 | QA 自動修復（qa_heartbeat.py — 解鎖 field_corrections、重標注、驗證） |
 | `i18n-guard.yml` | push(main, web/messages/**) / 手動 | i18n key regression 偵測（key 刪除 / 三語不同步）→ LINE 告警 + GitHub Issue 自動起票 |
+| `secret-scan.yml` | push(main) / PR / 手動 | 密鑰掃描 Layer 3（gitleaks，version-pinned + checksum-verified binary）— merge gate；`permissions: contents: read` |
+
+### 安全模組（注入防護 + 密鑰掃描）
+
+- **不可信內容注入防護**：`scraper/security/injection_guard` 在標注前掃描爬取文字（raw_title / raw_description）的 prompt-injection 樣式；GPT 輸入以 `<UNTRUSTED_EVENT_DATA>` 分隔符包裹（`annotator.build_event_user_content`，production 與 `eval_annotator` 共用）；嚴重度 >= 2 的命中以 `auto_security_prompt_injection` 寫入 `event_reports`，於 `/admin/reports` 人工複核。
+- **三層密鑰掃描（fail-open）**：Layer 1 `.githooks/pre-commit`（gitleaks `--staged`，缺 binary → 警告不擋）、Layer 2 `.githooks/pre-push`（gitleaks 掃 range，無 gitleaks → regex fallback + placeholder allowlist）、Layer 3 `secret-scan.yml`（CI merge gate）。三層皆可 `--no-verify` 繞過，非 non-bypassable；真正強制需 server-side branch protection。allowlist 設定見 repo root `.gitleaks.toml`。
 
 ### 每日 Pipeline（scraper.yml）
 
