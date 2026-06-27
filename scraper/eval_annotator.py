@@ -36,7 +36,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 # Import SYSTEM_PROMPT from annotator (same directory).
 # _annotate_one is sync; we implement annotate_one_async below using AsyncOpenAI.
-from annotator import SYSTEM_PROMPT, _get_supabase, _resolve_movie_titles_for_event
+from annotator import SYSTEM_PROMPT, _get_supabase, _resolve_movie_titles_for_event, build_event_user_content
 from category_feedback import load_corrections, build_feedback_prompt
 from selection_reason_feedback import load_sr_corrections, build_sr_feedback_prompt
 
@@ -72,12 +72,7 @@ async def annotate_one_async(
     Returns (annotation_dict, usage) matching _annotate_one's return signature.
     """
     system_content = SYSTEM_PROMPT + feedback_prompt + sr_feedback_prompt
-    user_content = (
-        f"Raw Title: {raw_title or '(no title)'}\n\n"
-        f"Raw Description:\n{raw_description or '(no description)'}"
-    )
-    if len(user_content) > 20000:
-        user_content = user_content[:20000] + "\n\n[... truncated ...]"
+    user_content = build_event_user_content(raw_title, raw_description)
 
     response = await client.chat.completions.create(
         model="gpt-4o-mini",
