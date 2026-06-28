@@ -44,7 +44,10 @@
   },
   "pnpm": {
     "overrides": {
-      "postcss": ">=8.5.10"
+      "postcss": ">=8.5.10",
+      "dompurify": "^3.4.11",
+      "@babel/core": "^7.29.6",
+      "js-yaml@4": "^4.2.0"
     }
   }
 }
