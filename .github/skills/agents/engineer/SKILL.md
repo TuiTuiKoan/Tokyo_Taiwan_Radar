@@ -1352,6 +1352,27 @@ Current agent_category values and their labels:
 
 **Incident (2026-05-05):** 14 candidates silently skipped for days. Detected by noticing cron ran with 0 processed rows. Fixed in commit `5d2585d`; 14 existing rows manually reset to NULL.
 
+### Phase 2 — `generate.py` `run_batch` (`auto_scraper_status`) — SAME rule applies
+
+The **same filter-completeness rule** applies to `generate.py` `run_batch()` (`auto_scraper_status`), not just `auto_research.py`:
+
+```python
+# CORRECT — retry transient llm-error too (key outages, rate limits)
+.or_("auto_scraper_status.is.null,auto_scraper_status.eq.sandbox-failed,auto_scraper_status.eq.llm-error")
+
+# WRONG — permanently strands sources marked llm-error during an OpenAI outage
+.or_("auto_scraper_status.is.null,auto_scraper_status.eq.sandbox-failed")
+```
+
+**Why `llm-error` must be retryable:** `llm-error` is a *transient* failure (OpenAI 401/429/5xx, key expiry). Once the key recovers, those sources must re-enter the batch. Excluding `llm-error` makes a temporary outage permanent — the source is never retried even after the root cause is fixed.
+
+**Incident (2026-06-29):** During the 2026-06-03~06 CI OpenAI 401 outage, 13 sources were marked `llm-error`. The key recovered on 06-25, but `run_batch` excluded `llm-error` → 30 days of `0 success` cron runs (a textbook repeat of the 2026-05-04 `auto_research` `pending` bug). Fixed in commit `e194fda`.
+
+**Diagnosing CI-key vs. query bug** (when a pipeline silently produces 0 output):
+- `conclusion=success` on the GitHub Actions run does NOT mean the OpenAI call succeeded — `generate.py` catches the 401, marks the source `llm-error`, and exits 0.
+- A batch log showing "no 401" does NOT prove the key recovered if the query fetched 0 rows to begin with.
+- Verify the CI key directly with a single-source dry-run: `gh workflow run auto-generate.yml -f source_id=<id> -f dry_run=true` (the `--source-id` path uses `run()` and bypasses the batch query).
+
 ## Tailwind CSS Dark Mode — Semantic Tokens Rule
 
 The app uses **class-based dark mode** (`html.dark` set by anti-flash script in `layout.tsx`). The `:root.dark` block in `globals.css` overrides all semantic token variables.
