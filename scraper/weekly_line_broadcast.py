@@ -281,6 +281,20 @@ _PREF_LABEL: dict[str, dict[str, str]] = {
     "栃木県": {"zh": "栃木", "ja": "栃木", "en": "Tochigi"},
 }
 
+# 47 都道府縣由北至南地理排序（用於週報 nearterm 地區分組順序）。
+# 東京特殊置頂(-1)、台灣置於日本各縣之後(100)、未標註地區最後(999)——皆於 _region_geo_rank() 處理。
+# 東京在標準序原為 index 12，此處刻意留空（神奈川=13），東京改由 -1 置頂。
+_PREF_GEO_RANK: dict[str, int] = {
+    "北海道": 0, "青森": 1, "岩手": 2, "宮城": 3, "秋田": 4, "山形": 5,
+    "福島": 6, "茨城": 7, "栃木": 8, "群馬": 9, "埼玉": 10, "千葉": 11,
+    "神奈川": 13, "新潟": 14, "富山": 15, "石川": 16, "福井": 17, "山梨": 18,
+    "長野": 19, "岐阜": 20, "静岡": 21, "愛知": 22, "三重": 23, "滋賀": 24,
+    "京都": 25, "大阪": 26, "兵庫": 27, "奈良": 28, "和歌山": 29, "鳥取": 30,
+    "島根": 31, "岡山": 32, "広島": 33, "山口": 34, "徳島": 35, "香川": 36,
+    "愛媛": 37, "高知": 38, "福岡": 39, "佐賀": 40, "長崎": 41, "熊本": 42,
+    "大分": 43, "宮崎": 44, "鹿児島": 45, "沖縄": 46,
+}
+
 _TOKYO_PREFIXES = ("東京都", "東京")
 _TOKYO_LABEL: dict[str, str] = {"zh": "東京", "ja": "東京", "en": "Tokyo"}
 _TOKYO_EN_HINTS = ("tokyo",)
@@ -387,6 +401,39 @@ def _city_label(event: dict, lang: str) -> str:
     return ""
 
 
+def _region_geo_rank(event: dict) -> int:
+    """Return a north-to-south geographic rank for nearterm region grouping order.
+
+    Tokyo is pinned first (-1); Taiwan is placed after all Japan prefectures (100);
+    events with no resolvable region sink last (999). Detection order mirrors
+    _city_label() so each group's label and its sort rank stay consistent.
+    """
+    addr = (event.get("location_address") or "").strip()
+    if addr:
+        if any(p in addr for p in _TOKYO_PREFIXES) or any(h in addr.lower() for h in _TOKYO_EN_HINTS):
+            return -1
+        if any(p in addr for p in _TAIWAN_ADDRESS_PREFIXES):
+            return 100
+        for pref, rank in _PREF_GEO_RANK.items():
+            if pref in addr:
+                return rank
+    prefs = event.get("location_prefectures") or []
+    if prefs:
+        p0 = prefs[0]
+        if p0 in ("東京都", "東京"):
+            return -1
+        # rstrip("都道府県") handles 大阪府→大阪, 茨城県→茨城; the extra checks
+        # recover 北海道 (full name) and 京都府 (rstrip over-strips 都→京).
+        short = p0.rstrip("都道府県")
+        if short in _PREF_GEO_RANK:
+            return _PREF_GEO_RANK[short]
+        if p0 in _PREF_GEO_RANK:
+            return _PREF_GEO_RANK[p0]
+        if p0 and p0[-1] in "都道府県" and p0[:-1] in _PREF_GEO_RANK:
+            return _PREF_GEO_RANK[p0[:-1]]
+    return 999
+
+
 def _build_message(
     weekly_events: list[dict],
     monthly_events: list[dict],
@@ -487,9 +534,17 @@ def _build_message(
                 region_name = region_label or unknown_region[lang]
             region_groups.setdefault(region_name, []).append(e)
 
-        ordered_regions = [r for r in region_groups if r != unknown_region[lang]]
-        if unknown_region[lang] in region_groups:
-            ordered_regions.append(unknown_region[lang])
+        # Region order: Tokyo first, then Japan prefectures north→south, Taiwan after
+        # Japan, unspecified last. Within the same rank, fall back to the group's
+        # earliest event date. (National-scope books/online/TV sections above are
+        # already pinned to the top.)
+        def _region_sort_key(name: str) -> tuple[int, str]:
+            if name == unknown_region[lang]:
+                return (999, "")
+            first = region_groups[name][0]
+            return (_region_geo_rank(first), first.get("start_date") or "")
+
+        ordered_regions = sorted(region_groups.keys(), key=_region_sort_key)
 
         for region_name in ordered_regions:
             if not first_block:
