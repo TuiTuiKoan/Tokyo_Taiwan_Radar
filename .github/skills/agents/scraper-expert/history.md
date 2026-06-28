@@ -4,6 +4,36 @@
 
 ---
 
+## 2026-06-29 — auto_scraper `generate.py` `run_batch` 永久跳過 `llm-error`（30 天 0 產出，commit `e194fda`）
+
+**問題：** Layer B auto_scraper Phase 2 codegen cron 連續 30 天 `0 success`，但 GitHub Actions run 全部 `conclusion=success`、無報錯。
+
+**根本原因：** `generate.py` `run_batch()`（L861）的批次查詢 `.or_(...)` 只取 `auto_scraper_status` 為 `null` 或 `sandbox-failed` 的來源，**漏掉 `llm-error`**。2026-06-03~06 CI OpenAI 金鑰 401 期間有 13 個來源被標 `llm-error`；金鑰 06-25 恢復後，這些來源因查詢排除而永遠不再進入批次 → 暫時故障變永久。這是 2026-05-04 `auto_research.py` 漏 `pending` DEFAULT 值（commit `5d2585d`）的同型復發。
+
+**修復（commit `e194fda`）：** 在 `run_batch()` 查詢補上 `,auto_scraper_status.eq.llm-error`，使金鑰恢復後 `llm-error` 來源可重試；同步清理 4 筆不可行來源（324/325/355/359 → not-viable）。Tester 驗證：舊查詢撈 0 筆、新查詢撈 7 筆。
+
+**教訓：**
+1. **診斷 0 產出先別信 `conclusion=success`**：`generate.py` 會吞 401、標 `llm-error` 後正常退出，CI 仍顯示成功。要直接驗 OpenAI 金鑰，用單來源 dry-run（`gh workflow run auto-generate.yml -f source_id=<id> -f dry_run=true`，走 `run()` 繞過批次查詢）。
+2. **批次查詢必須涵蓋所有「暫時失敗/未處理」狀態**：`llm-error`、`sandbox-failed`、`null`、DEFAULT 值都要列入 OR 條件，否則暫時故障會被永久排除。
+3. **同型 bug 會跨 pipeline 復發**：auto_research 的 `pending` 漏網教訓沒擴及 generate.py，導致同一錯誤重演。修一處批次查詢時，檢查所有同類查詢（auto_research + generate）是否一致。
+
+---
+
+## 2026-06-29 — PR TIMES Rental819 Taiwan trade-show PR exclusion
+
+**問題：** `prtimes` 事件 `22eae44b-65c5-4140-a485-e694fe89858d` 是日本租車企業在台北商展面向台灣騎士的訪日促銷 PR，卻被收為 active event。
+
+**根本原因：** `_extract_venue_from_body()` 先把 `会場：南港展覽館 二館（台湾・台北市）` 的括號內容剝掉，Taiwan venue guard 只看到 `南港展覽館 二館`，因此漏過 `台湾・台北市` 訊號。
+
+**修正：**
+- 新增 raw venue-context guard，在清洗 display venue 前檢查會場 label 的完整內容。
+- 新增精準 `source_exclusions` 規則：`raw_description` substring `訪日台湾ライダー`。
+- 將既有 out-of-scope event 停用並保留原始欄位供稽核。
+
+**教訓：** Taiwan venue checks must inspect raw labeled venue context, not only cleaned display venue. Taiwan-held PRs targeting Taiwanese inbound consumers are not Rule 4 unless they explicitly target Japanese participants/audience.
+
+---
+
 ## 2026-06-07 — Hybrid venue (Physical + Online) marking rule
 
 **問題：** 音樂/表演活動（如 `380c0ab2-1713-4bc9-86c5-6101d8ec741a`）同時有現場與線上時，常被誤標為純線上。

@@ -129,6 +129,17 @@ _TAIWAN_VENUE_RE = re.compile(
     r"Taiwan|Taipei|Kaohsiung|Tainan|Taichung|Hsinchu"
 )
 
+_JAPAN_VISITOR_KW = (
+    "日本人向け",
+    "日本語対応",
+    "日本語サポート付",
+    "日本語サポート付き",
+    "日本から",
+    "日本発",
+    "ファムトリップ",
+    "日台交流ツアー",
+)
+
 _RELEASE_PATH_IDS_RE = re.compile(r"/(\d{9})\.(\d{9})\.html$")
 
 _PLACEHOLDER_TITLE_RE = re.compile(
@@ -225,6 +236,31 @@ def _extract_venue_from_body(body_text: str) -> Optional[str]:
         if venue:
             return venue
     return None
+
+
+def _extract_venue_context_from_body(body_text: str) -> str:
+    m = _VENUE_LABELS.search(body_text)
+    if not m:
+        return ""
+    return m.group(1).strip()
+
+
+def _targets_japanese_visitors(title: str, body_text: str) -> bool:
+    return any(kw in title or kw in body_text for kw in _JAPAN_VISITOR_KW)
+
+
+def _is_taiwan_venue_context(body_text: str, venue: str | None) -> bool:
+    venue_context = _extract_venue_context_from_body(body_text)
+    return bool(
+        (venue and _TAIWAN_VENUE_RE.search(venue))
+        or (venue_context and _TAIWAN_VENUE_RE.search(venue_context))
+    )
+
+
+def _should_skip_taiwan_venue(title: str, body_text: str, venue: str | None) -> bool:
+    return _is_taiwan_venue_context(body_text, venue) and not _targets_japanese_visitors(
+        title, body_text
+    )
 
 
 def _build_source_id(release_id: int | str, company_id: int | str | None, release_url_path: str) -> str:
@@ -388,27 +424,11 @@ class PrtimesScraper(BaseScraper):
 
                     start_date = _extract_date_from_body(body_text, released_dt)
                     venue = _extract_venue_from_body(body_text)
-
-                    # Skip events whose venue is clearly in Taiwan
-                    # Exception: keep Taiwan-held events that explicitly target Japanese visitors
-                    # (e.g. 日台交流ツアー, 日本人向け, 日本から参加可能)
-                    # Keep Taiwan-held events only when the body explicitly targets Japanese visitors.
-                    _JAPAN_VISITOR_KW = (
-                        "日本人向け",
-                        "日本語対応",
-                        "日本語サポート付",
-                        "日本語サポート付き",
-                        "日本から",
-                        "日本発",
-                        "ファムトリップ",
-                        "日台交流ツアー",
-                    )
-                    if venue and _TAIWAN_VENUE_RE.search(venue):
-                        if not any(kw in body_text or kw in title for kw in _JAPAN_VISITOR_KW):
-                            logger.debug("Skip Taiwan venue '%s': %s", venue[:30], title[:50])
-                            seen_ids.discard(source_id)
-                            new_count -= 1
-                            continue
+                    if _should_skip_taiwan_venue(title, body_text, venue):
+                        logger.debug("Skip Taiwan venue '%s': %s", (venue or "")[:30], title[:50])
+                        seen_ids.discard(source_id)
+                        new_count -= 1
+                        continue
 
                     # Sanity-check date: reject if more than 2 years in the past
                     now = datetime.now()

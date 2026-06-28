@@ -1829,7 +1829,11 @@ Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田�
 - **`_TAIWAN_BASED_TITLE_RE` must be precise**: Overly broad patterns like `台湾.*?で` match Japan-held Taiwan fairs (e.g. `台湾フェア」で`). Only match explicit Taiwan-location context:
   - `台湾国内|現地|本島|の地.*?で`
   - `in 台湾` / `in Taiwan`
-  - `台湾出展|輸出|進出|販路|海外展示|海外販売`- **Taiwan venue exception (`_JAPAN_VISITOR_KW`)**: If `_TAIWAN_VENUE_RE` matches but `body_text` or `title` contains a Japanese-visitor keyword (`日本人向け`, `ファムトリップ`, `日台交流ツアー`, `日本発`, `日本から` etc.), do NOT skip — the event targets Japanese visitors and is in scope. Categorize as `tourism` and/or `taiwan_japan`. Use the real Taiwan address as `location_address`.- **When a PR TIMES article is missing, check in order**:
+  - `台湾出展|輸出|進出|販路|海外展示|海外販売`
+- **Taiwan venue guard uses raw venue context**: When venue labels include parenthetical country/city hints (e.g. `会場：南港展覽館 二館（台湾・台北市）`), run `_TAIWAN_VENUE_RE` against the raw `_VENUE_LABELS` capture before stripping display venue punctuation or parentheses.
+- **Taiwan venue exception (`_JAPAN_VISITOR_KW`)**: If `_TAIWAN_VENUE_RE` matches but `body_text` or `title` contains a Japanese-visitor keyword (`日本人向け`, `ファムトリップ`, `日台交流ツアー`, `日本発`, `日本から` etc.), do NOT skip — the event targets Japanese visitors and is in scope. Categorize as `tourism` and/or `taiwan_japan`. Use the real Taiwan address as `location_address`.
+- **Rule 4 boundary**: Taiwan-held PRs targeting Taiwanese inbound consumers are not Rule 4. Rule 4 requires clear Japanese participants/audience signals such as `日本人向け`, `日本から参加`, `日本発`, or `日台交流ツアー`.
+- **When a PR TIMES article is missing, check in order**:
   1. `_SEARCH_KEYWORDS` — does any keyword contain a city/region name?
   2. `_EVENT_KW` — does the event-type word (e.g. `フェア`) appear in the list?
   3. `_TAIWAN_BASED_TITLE_RE` — is the pattern falsely matching a Japan-based Taiwan event?
