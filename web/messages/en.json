@@ -139,11 +139,12 @@
   "event": {
     "source": "Source",
     "location": "Venue / Channel",
-    "hours": "Hours",
+    "hours": "Opening Hours / Showtimes",
     "startDate": "Start",
     "endDate": "End",
     "free": "Free",
     "paid": "Paid",
+    "priceLabel": "Price",
     "save": "Save",
     "unsave": "Unsave",
     "viewOriginal": "View original",

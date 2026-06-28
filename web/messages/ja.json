@@ -139,11 +139,12 @@
   "event": {
     "source": "出典",
     "location": "会場・チャンネル",
-    "hours": "営業時間",
+    "hours": "営業・開演時間",
     "startDate": "開始",
     "endDate": "終了",
     "free": "無料",
     "paid": "有料",
+    "priceLabel": "料金",
     "save": "保存",
     "unsave": "保存解除",
     "viewOriginal": "元のページを見る",

@@ -139,11 +139,12 @@
   "event": {
     "source": "資料來源",
     "location": "場地・頻道",
-    "hours": "營業時間",
+    "hours": "營業・開演時間",
     "startDate": "開始日期",
     "endDate": "結束日期",
     "free": "免費",
     "paid": "收費",
+    "priceLabel": "費用",
     "save": "收藏",
     "unsave": "取消收藏",
     "viewOriginal": "查看原始連結",

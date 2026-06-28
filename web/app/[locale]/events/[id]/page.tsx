@@ -1000,7 +1000,7 @@ export default async function EventDetailPage({ params }: PageProps) {
             </tr>
             {/* Price */}
             <tr>
-              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("paid")}</td>
+              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("priceLabel")}</td>
               <td className="px-4 py-3">
                 {isTvProgramEvent ? (
                   <span className="text-fg-muted">{t("tvProgramTermsNotice")}</span>
