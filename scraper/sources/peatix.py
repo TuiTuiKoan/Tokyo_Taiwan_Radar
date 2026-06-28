@@ -124,6 +124,13 @@ _EVENT_CATEGORIES = frozenset([
 ])
 
 
+def _looks_like_cookie_banner(text: str | None) -> bool:
+    """True if text is the OneTrust cookie-consent wall, not real event content."""
+    if not text:
+        return False
+    return text.strip().lower().startswith("about cookies on this site")
+
+
 def _safe_text(page: Page, selector: str) -> Optional[str]:
     try:
         el = page.query_selector(selector)
@@ -425,6 +432,21 @@ class PeatixScraper(BaseScraper):
 
         # --- Check if this is actually Taiwan-related ---
         page_text = page.inner_text("body") or ""
+        # Layer 1 — active wait: give the React SPA time to render the real event
+        # body so the OneTrust cookie-consent wall can't masquerade as the
+        # description. Best-effort; passive guards below catch any failure.
+        try:
+            page.wait_for_selector(".event-description", state="visible", timeout=8000)
+        except PWTimeout:
+            pass
+        # If the body text is still the cookie banner, the Taiwan keyword check
+        # below would be unreliable — wait once more and re-read the body.
+        if _looks_like_cookie_banner(page_text):
+            try:
+                page.wait_for_selector(".event-description", state="visible", timeout=5000)
+            except PWTimeout:
+                pass
+            page_text = page.inner_text("body") or ""
         if not any(kw in page_text for kw in TAIWAN_KEYWORDS):
             logger.debug("Peatix: skipping non-Taiwan event %s", url)
             return None
@@ -504,6 +526,11 @@ class PeatixScraper(BaseScraper):
         # Strip it so raw_description only contains actual event content.
         if description_ja:
             description_ja = re.sub(r'^Event\s+description\s*\n+', '', description_ja).strip() or None
+        # Layer 2 — passive guard: never store the OneTrust cookie-consent wall as the
+        # event body (it nulls out all downstream location/translation fields).
+        if _looks_like_cookie_banner(description_ja):
+            logger.warning("Peatix: description matched cookie banner, discarding: %s", url)
+            description_ja = None
 
         # --- Date ---
         # Extract dates from full page text using regex (more reliable than CSS selectors
@@ -619,6 +646,8 @@ class PeatixScraper(BaseScraper):
                 date_prefix += f"〜{end_date.strftime('%Y年%m月%d日')}"
             date_prefix += "\n\n"
         raw_desc_with_date = date_block + date_prefix + (description_ja or "")
+        if not (description_ja or "").strip():
+            logger.warning("Peatix: empty event body after guards (date-prefix only): %s", url)
 
         # Rule: single-day events must have end_date = start_date (never null)
         if start_date and end_date is None:
