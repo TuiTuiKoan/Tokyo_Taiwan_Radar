@@ -9,6 +9,7 @@ import hashlib
 import logging
 import re
 import time
+import unicodedata
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -137,6 +138,65 @@ def _safe_text(page: Page, selector: str) -> Optional[str]:
         return el.inner_text().strip() if el else None
     except Exception:
         return None
+
+
+_PRICE_LABEL_RE = re.compile(
+    r"(?:^|[\s【\[（(・●■★◆◇※\-–—])"
+    r"(?:参加費|料金|入場料|入場|チケット|費用)"
+    r"[】\]）)\s]*"
+    r"(?:[:：|｜]\s*|\s+|(?=無料|無償|[0-9０-９¥￥]))"
+    r"(?P<value>[^\n]{1,120})",
+    re.IGNORECASE,
+)
+_PRICE_SIGNAL_RE = re.compile(r"無料|無償|円|¥|￥|JPY", re.IGNORECASE)
+_PRICE_GENERIC_RE = re.compile(r"^(?:参加費|料金|入場料|入場|チケット|費用|価格)$")
+
+
+def _is_generic_price_text(text: str | None) -> bool:
+    if not text:
+        return False
+    normalized = unicodedata.normalize("NFKC", text).strip(" \t\n\r:：|｜/")
+    return bool(_PRICE_GENERIC_RE.fullmatch(normalized))
+
+
+def _extract_price_from_text(text: str | None) -> Optional[str]:
+    if not text:
+        return None
+    for raw_line in text.replace("\r", "\n").split("\n"):
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = _PRICE_LABEL_RE.search(line)
+        if not match:
+            continue
+        value = match.group("value").strip(" \t　:：|｜/")
+        if value and _PRICE_SIGNAL_RE.search(value):
+            return value
+    return None
+
+
+def _extract_price_amount(price_text: str | None) -> Optional[int]:
+    if not price_text:
+        return None
+    normalized = unicodedata.normalize("NFKC", price_text)
+    if re.search(r"\d[\d,]*\s*(?:[~〜～\-ー]|から|より)\s*\d", normalized):
+        return None
+    amounts = re.findall(r"(?:¥\s*([0-9][0-9,]*)|([0-9][0-9,]*)\s*円)", normalized)
+    parsed = {int((left or right).replace(",", "")) for left, right in amounts}
+    if len(parsed) == 1:
+        return parsed.pop()
+    return None
+
+
+def _derive_is_paid(price_text: str | None) -> Optional[bool]:
+    if not price_text:
+        return None
+    normalized = unicodedata.normalize("NFKC", price_text)
+    if re.search(r"円|¥|JPY", normalized, re.IGNORECASE):
+        return True
+    if re.search(r"無料|無償", normalized):
+        return False
+    return None
 
 
 def _parse_peatix_date(raw: Optional[str]) -> Optional[datetime]:
@@ -630,7 +690,10 @@ class PeatixScraper(BaseScraper):
         # --- Price ---
         # Peatix shows "無料" or ticket prices
         price_text = _safe_text(page, ".ticket-price") or _safe_text(page, "[class*='price']")
-        is_paid = False if "無料" in (price_text or "") else (True if price_text else None)
+        if not price_text or _is_generic_price_text(price_text):
+            price_text = _extract_price_from_text(description_ja) or _extract_price_from_text(page_text)
+        price_amount = _extract_price_amount(price_text)
+        is_paid = _derive_is_paid(price_text)
 
         source_id = hashlib.md5(url.encode()).hexdigest()[:16]
 
@@ -669,5 +732,6 @@ class PeatixScraper(BaseScraper):
             location_address=location_address,
             is_paid=is_paid,
             price_info=price_text,
+            price_amount=price_amount,
             category=["culture"],
         )

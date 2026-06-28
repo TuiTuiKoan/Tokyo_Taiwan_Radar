@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-06-29 - Peatix 5044551 cookie raw 殘留與正文票價未抽取
+
+**Context**: event `9cf9be52-9774-47cf-a325-dabb281e8f84` / `source_id=80e16a585a0953bd` 的 `raw_description` 仍是舊 OneTrust cookie wall，導致 `business_hours` 為空；`price_info` 只剩 generic `料金`。目前 Peatix detail scraper 已可抓到乾淨正文，但價格只看 `.ticket-price` / `[class*='price']`，沒有從正文 `参加費｜800円(税込)` 回填。
+
+**Fix**:
+1. `scraper/sources/peatix.py` 新增高信心正文價格 label fallback，僅匹配 `参加費` / `料金` / `入場料` / `入場` / `チケット` / `費用`，selector 為空或只回傳泛稱時啟用。
+2. 單一金額才寫 `price_amount=int`；範圍或多金額保留 `price_info` 原文，`price_amount=None`。
+3. 以單頁 Playwright scrape + `upsert_events(..., force_keys=...)` 只 force-upsert 該 Peatix event，再用 `annotator.py --event-id` 只重跑 1 筆。DB re-read 確認 `raw_description` 不再是 cookie wall、`business_hours=14:00〜15:00`、`price_info=800円(税込)`、`price_amount=800`、`is_paid=true`。
+4. 新增 `scraper/tests/test_peatix_price_fallback.py` 覆蓋同列 label、免費、日圓符號、單一金額、範圍、多金額與未標 label 金額。
+
+**Lesson**: Ticketing platform selector price fields may degrade to a label-only value. For Peatix, keep selector output as primary data, but treat label-only strings as empty and fall back to body text only when the line starts from a known price label and contains a price/free signal.
+
+---
+
 ## 2026-06-29 — 誠品 venue ground truth 合併三步驟 + TOHO BEADS name 幻覺修正 + 覆蓋特定 slug draft（純 DB）
 
 **Context**: 6 筆 Peatix／eslite 事件因 cookie banner 污染與 GPT 翻譯幻覺，前台顯示「地域未設定」與錯誤譯名（多和比／多和美／山雀／Toho Bees）。誠品生活日本橋雖已是 authoritative venue，但 ground truth 不完整：address 缺都道府縣前綴、3 筆重複非權威 venue、13 筆事件 `venue_id` 未連。**全程純 DB 操作 + `/tmp` 一次性 script，零 production code 變更，無 commit/push。** Engineer 執行 → Tester 獨立重查 T1–T7 全 PASS。
