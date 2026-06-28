@@ -4,6 +4,25 @@
 
 --- 
 
+## 2026-06-28 — weekly_line_broadcast 近期活動改「全國分類置頂＋都道府縣分組」+ 地區比對改 substring
+
+**Context**: round-2 週報升級。`_build_message()` 的「今週・来週の全イベント」段從舊的「依 type 分組（活動/電影/書籍/線上/電視）」重構為**全國級分類置頂 + 都道府縣分組**，並把地址比對從 `startswith` 放寬為 `substring`。working tree 重構（待 commit），edge-case 測試 TEST3/4a/4b/4c 全 PASS。
+
+**Fix（`scraper/weekly_line_broadcast.py`）**:
+1. **近期活動雙層結構**：(a) 全國級類別（books/online/TV，無地域屬性）置頂為獨立 section，順序固定 **書籍 → 線上 → 電視**；(b) 其餘（regular + film 合併）依 `_city_label` 都道府縣**扁平分組、日期排序**，移除舊的「活動/電影」type subheader 與 film venue label。未知地區（地域未設定/未標註地區/Unspecified Region）固定排最後。
+2. **edge-case 防護**：空的全國 section 不洩漏 header；無地域活動時不產生 orphan「地域未設定」；空 nearterm list 不洩漏主 header；section/region 間僅單空行（禁止 `\n\n\n` 雙空行）。
+3. **`_is_online_event()` 新 helper**：線上偵測從 `location_name == "オンライン"`（精確）放寬為 location_name **或** location_address 含 `オンライン/online/virtual`（任一 token、大小寫不敏感）。
+4. **`_city_label()` 比對 `startswith` → `substring`**：都道府縣／東京／台灣前綴改 `pref in addr`（match anywhere），新增 `_TOKYO_EN_HINTS=("tokyo",)` 認英文地址；補 `栃木/栃木県` 到 `_PREF_LABEL`。
+5. **標題文案統一**：`_build_message()` 與 `run_generate_draft()` 兩處標題之前不一致（`今週のレーダー` vs `週間巡回`），統一為 **検知速報 / 偵測快報 / Detection Bulletin**。
+
+**Lesson**:
+- **公開輸出的分組模型要區分「全國級 vs 地域級」**：books/online/TV 無實體地點，硬塞地區分組會產生 orphan「地域未設定」；正解是把無地域類別抽成置頂 section，地域類別才走都道府縣分組。
+- **分組顯示必測四種 edge case**：空全國段、空地域段、orphan unknown-region、空清單——每種都可能洩漏空 header 或產生雙空行。改 `_build_message()` 後務必跑 TEST3/4a/4b/4c 等價檢查。
+- **`startswith` → `substring` 是刻意放寬**：venue-name-as-address（`会場は東京都…`、非開頭前綴）用 startswith 會漏判地區；改 substring 後 match anywhere。trade-off 是理論上可能誤判含他地名的地址，但週報情境 recall 優先於 precision。
+- **同一訊息標題若由兩個 code path 產生（`_build_message` + `run_generate_draft`），改文案要兩處同步**，否則 preview 與實際送出標題不一致。
+
+---
+
 ## 2026-06-28 — Security Hardening Round 1：注入防護 + 安全報告型別 + 三層密鑰掃描
 
 **Context**: Security Hardening Plan v16 Round 1。把「不可信事件內容」當攻擊面，一次落地四道 guard（Phase 0/1 已 commit `a81f61f` scraper / `bd8f7d0` web；Phase 3/4/4b 本批 hooks + CI + docs）。

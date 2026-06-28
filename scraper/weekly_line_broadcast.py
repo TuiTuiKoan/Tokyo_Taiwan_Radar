@@ -277,10 +277,13 @@ _PREF_LABEL: dict[str, dict[str, str]] = {
     "広島県": {"zh": "廣島", "ja": "広島", "en": "Hiroshima"},
     "静岡": {"zh": "靜岡", "ja": "静岡", "en": "Shizuoka"},
     "静岡県": {"zh": "靜岡", "ja": "静岡", "en": "Shizuoka"},
+    "栃木": {"zh": "栃木", "ja": "栃木", "en": "Tochigi"},
+    "栃木県": {"zh": "栃木", "ja": "栃木", "en": "Tochigi"},
 }
 
 _TOKYO_PREFIXES = ("東京都", "東京")
 _TOKYO_LABEL: dict[str, str] = {"zh": "東京", "ja": "東京", "en": "Tokyo"}
+_TOKYO_EN_HINTS = ("tokyo",)
 
 # Taiwan city address prefixes → show [台灣]/[台湾]/[Taiwan]
 _TAIWAN_ADDRESS_PREFIXES = (
@@ -312,7 +315,7 @@ def _group_by_type(events: list[dict]) -> tuple[list[dict], list[dict], list[dic
     for e in events:
         if e.get("source_name") == "gguide_tv":
             tv.append(e)
-        elif (e.get("location_name") or "").strip() == "オンライン":
+        elif _is_online_event(e):
             online.append(e)
         elif "movie" in (e.get("category") or []):
             film.append(e)
@@ -323,14 +326,22 @@ def _group_by_type(events: list[dict]) -> tuple[list[dict], list[dict], list[dic
     return regular, film, books, online, tv
 
 
+def _is_online_event(event: dict) -> bool:
+    """Return True when event location indicates online/virtual participation."""
+    loc_name = (event.get("location_name") or "").strip().lower()
+    loc_addr = (event.get("location_address") or "").strip().lower()
+    online_tokens = ("オンライン", "online", "virtual")
+    return any(tok in loc_name for tok in online_tokens) or any(tok in loc_addr for tok in online_tokens)
+
+
 def _city_label(event: dict, lang: str) -> str:
     """Return a bracketed city label for every event, including Tokyo.
 
     Detection order:
     0. source_name == 'gguide_tv' → TV program label
-    1. location_name == 'オンライン' → online label
-    2. location_address starts with '東京都'/'東京' → '[東京]'
-    3. location_address starts with a known non-Tokyo prefix → use _PREF_LABEL
+    1. location_name/location_address indicates online participation → online label
+    2. location_address contains '東京都'/'東京' → '[東京]'
+    3. location_address contains a known non-Tokyo prefecture string → use _PREF_LABEL
     4. location_prefectures[0] fallback when location_address is absent
     5. Still nothing → no label
     """
@@ -340,23 +351,23 @@ def _city_label(event: dict, lang: str) -> str:
         label = tv_labels.get(lang, "テレビ番組")
         return f"[{label}]"
     # Online events get a language-appropriate label
-    if (event.get("location_name") or "").strip() == "オンライン":
+    if _is_online_event(event):
         online_labels = {"zh": "線上", "en": "Online", "ja": "オンライン"}
         label = online_labels.get(lang, "オンライン")
         return f"[{label}]"
     addr = (event.get("location_address") or "").strip()
     if addr:
         # Tokyo
-        if addr.startswith(_TOKYO_PREFIXES):
+        if any(prefix in addr for prefix in _TOKYO_PREFIXES) or any(hint in addr.lower() for hint in _TOKYO_EN_HINTS):
             label = _TOKYO_LABEL.get(lang) or _TOKYO_LABEL["ja"]
             return f"[{label}]"
         # Taiwan address
-        if addr.startswith(_TAIWAN_ADDRESS_PREFIXES):
+        if any(prefix in addr for prefix in _TAIWAN_ADDRESS_PREFIXES):
             label = _TAIWAN_LABEL.get(lang) or _TAIWAN_LABEL["zh"]
             return f"[{label}]"
-        # Check known non-Tokyo prefectures
+        # Check known non-Tokyo prefectures (match anywhere in address, not only at the start)
         for pref, labels in _PREF_LABEL.items():
-            if addr.startswith(pref):
+            if pref in addr:
                 label = labels.get(lang) or labels["ja"]
                 return f"[{label}]"
     # Fallback: use location_prefectures array
@@ -388,9 +399,9 @@ def _build_message(
 
     date_label = today.strftime("%Y/%m/%d")
     headers = {
-        "zh": (f"🗓 東京台灣雷達「一週偵測」 {date_label}", "【小霧精選】", "【下個月不可錯過】"),
-        "ja": (f"🗓 東京台湾レーダー「今週のレーダー」 {date_label}", "【レンブ厳選】", "【来月の注目】"),
-        "en": (f'🗓 Tokyo Taiwan Radar "Weekly Scan" {date_label}', "【Bubu's Picks】", "【Don't Miss Next Month】"),
+        "zh": (f"🗓 東京台灣雷達偵測快報 {date_label}", "【小霧精選】", "【下個月不可錯過】"),
+        "ja": (f"🗓 東京台湾レーダー検知速報 {date_label}", "【レンブ厳選】", "【来月の注目】"),
+        "en": (f"🗓 Tokyo Taiwan Radar Detection Bulletin {date_label}", "【Bubu's Picks】", "【Don't Miss Next Month】"),
     }
     h_title, h_week, h_month = headers[lang]
 
@@ -427,28 +438,66 @@ def _build_message(
         lines.append(f"  {url}")
 
     if nearterm_events:
-        lines.extend(["", nearterm_hdrs[lang]])
-        h_ev, h_film, h_book, h_on, h_tv = _TYPE_GROUP_HDRS[lang]
-        regular, film_evts, book_evts, online_evts, tv_evts = _group_by_type(nearterm_events)
-        first_group = True
-        for group_hdr, group in [(h_ev, regular), (h_film, film_evts), (h_book, book_evts), (h_on, online_evts), (h_tv, tv_evts)]:
-            if not group:
-                continue
-            if not first_group:
-                lines.append("")
-            first_group = False
-            lines.append(group_hdr)
-            lines.append("")
-            for e in group:
+        # Keep one visual spacer between the nearterm major header and first subgroup header.
+        lines.extend(["", nearterm_hdrs[lang], ""])
+
+        # National-scope categories (books / online / TV) float to the top as
+        # standalone sections; prefecture groups follow with a flat, date-sorted list.
+        unknown_region = {
+            "zh": "未標註地區",
+            "ja": "地域未設定",
+            "en": "Unspecified Region",
+        }
+        sorted_nearterm = sorted(
+            nearterm_events,
+            key=lambda e: ((e.get("start_date") or ""), (e.get(name_col) or "")),
+        )
+        _, _, h_book, h_on, h_tv = _TYPE_GROUP_HDRS[lang]
+        regular, film_evts, nat_books, nat_online, nat_tv = _group_by_type(sorted_nearterm)
+        rest = sorted(
+            regular + film_evts,
+            key=lambda e: ((e.get("start_date") or ""), (e.get(name_col) or "")),
+        )
+
+        def _emit_events(evts: list[dict]) -> None:
+            for e in evts:
                 title = _title(e)
                 date_str = _format_date(e.get("start_date"))
-                city = _city_label(e, lang)
-                prefix = f"{city}" if city else ""
-                if group is film_evts:
-                    venue = e.get("location_name") or ""
-                    if venue:
-                        prefix = f"{prefix}[{venue}]"
-                lines.append(f"• {prefix}{title}　{date_str}")
+                lines.append(f"• {title}\u3000{date_str}")
+
+        first_block = True
+        # (1) National-scope sections pinned to the top: books → online → TV.
+        for header, evts in [(h_book, nat_books), (h_on, nat_online), (h_tv, nat_tv)]:
+            if not evts:
+                continue
+            if not first_block:
+                lines.append("")
+            first_block = False
+            lines.append(header)
+            lines.append("")
+            _emit_events(evts)
+
+        # (2) Prefecture groups: flat, date-sorted list under each city heading.
+        region_groups: dict[str, list[dict]] = {}
+        for e in rest:
+            region_label = _city_label(e, lang)
+            if region_label.startswith("[") and region_label.endswith("]"):
+                region_name = region_label[1:-1]
+            else:
+                region_name = region_label or unknown_region[lang]
+            region_groups.setdefault(region_name, []).append(e)
+
+        ordered_regions = [r for r in region_groups if r != unknown_region[lang]]
+        if unknown_region[lang] in region_groups:
+            ordered_regions.append(unknown_region[lang])
+
+        for region_name in ordered_regions:
+            if not first_block:
+                lines.append("")
+            first_block = False
+            lines.append(f"【{region_name}】")
+            lines.append("")
+            _emit_events(region_groups[region_name])
 
     if monthly_events:
         lines.extend(["", h_month])
@@ -583,9 +632,9 @@ def run_generate_draft() -> None:
 
     slug = f"weekly-{send_date.strftime('%Y-%m-%d')}"
     date_str = send_date.strftime('%Y/%m/%d')
-    title_zh = f"🗓 東京台灣雷達「一週偵測」 {date_str}"
-    title_ja = f"🗓 東京台湾レーダー「週間巡回」 {date_str}"
-    title_en = f"🗓 Tokyo Taiwan Radar 'Weekly Scan' {date_str}"
+    title_zh = f"🗓 東京台灣雷達偵測快報 {date_str}"
+    title_ja = f"🗓 東京台湾レーダー検知速報 {date_str}"
+    title_en = f"🗓 Tokyo Taiwan Radar Detection Bulletin {date_str}"
     body_zh = _build_message(weekly_events, monthly_events, "zh", base_url, send_date, nearterm_events)
     body_ja = _build_message(weekly_events, monthly_events, "ja", base_url, send_date, nearterm_events)
     body_en = _build_message(weekly_events, monthly_events, "en", base_url, send_date, nearterm_events)
