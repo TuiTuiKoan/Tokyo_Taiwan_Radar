@@ -699,6 +699,8 @@ export default async function EventDetailPage({ params }: PageProps) {
       {parentEvent && (
         <Link
           href={`/${locale}/events/${parentEvent.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-sm text-[#1F5E2B] mb-4"
         >
           ← {t("viewParent")}：{getEventName(parentEvent as Event, locale)}
@@ -743,6 +745,8 @@ export default async function EventDetailPage({ params }: PageProps) {
               <span className="text-green-600 font-bold text-sm">→</span>
               <Link
                 href={`/${locale}/events/${primaryEvent.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-bold border border-green-300 hover:bg-green-200 whitespace-nowrap"
                 title={tAdmin("mergedIntoBadgeTitle")}
               >
@@ -1310,6 +1314,8 @@ export default async function EventDetailPage({ params }: PageProps) {
                 <Link
                   key={sub.id}
                   href={`/${locale}/events/${sub.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="group flex items-center gap-3 px-4 py-3 bg-[#FFFDF5] hover:bg-[#F7FFE8] dark:hover:bg-green-900/40 hover:text-[#1F5E2B] dark:hover:text-green-400 transition"
                 >
                   <div className="w-12 text-center flex-shrink-0">
@@ -1424,7 +1430,7 @@ export default async function EventDetailPage({ params }: PageProps) {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {relatedScreenings.map((rel) => (
-              <EventCard key={rel.id} event={rel} locale={locale} />
+              <EventCard key={rel.id} event={rel} locale={locale} openInNewTab />
             ))}
           </div>
         </section>

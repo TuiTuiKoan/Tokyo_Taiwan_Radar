@@ -7,9 +7,10 @@ import { Badge, DateChip } from "@/lib/design";
 interface Props {
   event: Event;
   locale: Locale;
+  openInNewTab?: boolean;
 }
 
-export default async function EventCard({ event, locale }: Props) {
+export default async function EventCard({ event, locale, openInNewTab }: Props) {
   const t = await getTranslations("event");
   const tCat = await getTranslations("categories");
   const tOrgType = await getTranslations("organizerType");
@@ -36,6 +37,8 @@ export default async function EventCard({ event, locale }: Props) {
     <Link
       href={`/${locale}/events/${event.id}`}
       aria-label={t("eventLink", { name })}
+      target={openInNewTab ? "_blank" : undefined}
+      rel={openInNewTab ? "noopener noreferrer" : undefined}
       className="block border border-line rounded-xl p-4 hover:shadow-md hover:border-green-300 transition bg-surface group"
     >
       {/* Status + paid badges */}
