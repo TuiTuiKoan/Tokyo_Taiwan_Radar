@@ -22,6 +22,26 @@
 
 ---
 
+## 2026-06-28 — researcher 每日研究重複回報已知來源（dedup 粒度三處不一致）
+
+**Error**: `researcher.py` 每日研究持續用 LINE 回報已知來源（屋台湾フェス / 台湾文化祭 prtimes / シネマート），白費 `gpt-4o-search-preview` 費用與通知噪音。實測最近 40 份報告 → 23 個回報來源 100% 落在已知 domain 上。
+
+**Root cause（dedup 粒度不一致）**: 同一「已知來源」概念在三處判定，比對粒度不一：(1) GPT `block_domains` 用 domain，但**只篩 `implemented/researched/not-viable`**，漏掉 `candidate/recommended`；(2) LINE report filter 用 **exact-URL**（`s.get("url") not in known_urls`）→ 已知 domain 的新路徑（iwafu 不同活動頁、prtimes 不同新聞稿）漏網被當新來源；(3) 無 URL 正規化，`www`/scheme/trailing-slash 變體繞過 exact-dedup（249 筆帶 `www.`）；(4) prtimes 等新聞稿每篇 URL 都不同，exact-dedup 永遠擋不住。
+
+**Fix**（`scraper/researcher.py`，d7e6e02）:
+1. `_normalize_url()`：lowercase host + strip `www.` + drop scheme/query/fragment + strip trailing slash → 正規化後 exact-dedup（新增 `known_norm_urls` set）。
+2. `block_domains` 擴及**所有已知狀態**（`{_domain(url) for url in self.known_urls if _domain(url)}`），不再篩狀態。
+3. LINE report filter 改 **domain + normalized-URL 雙重比對**：`_domain(url) not in known_domains and _normalize_url(url) not in known_norm_urls` → 只有全新 domain 存活。
+4. `_ARTICLE_URL_RE`（`prtimes rd/p`、`/article/news/`、`/news/\d`、長數字 `.html`）在 Playwright 驗證前丟棄 article URL；GPT prompt 明示「只回 LISTING/INDEX 頁」。
+
+**Lesson**:
+- **dedup 粒度三處必須一致**：同一「已知來源」在 GPT block list / DB upsert skip / LINE report filter 三處判定，任一處用較鬆粒度（exact-URL）就漏網。根因正是「擋了 GPT、卻用 exact-URL 放行 LINE」。改去重一律三處同步檢查粒度。
+- **dedup ≠ 省費用**：`gpt-4o-search-preview` 在 call 當下就真去搜網路並計費；dedup 只減 LINE 噪音與 DB 污染，**不降 API 費用**。要省費用得減 call 頻率／數量。
+- **news-release 平台（prtimes…）每篇 URL 都新**：exact-URL dedup 永遠擋不住，必須在來源層攔截（domain block + article-URL pattern + 要求 GPT 只回 listing 頁）。
+- **exact-dedup 前必先正規化 URL**（www/scheme/trailing-slash），否則同頁變體放行。
+
+---
+
 ## 2026-06-22 — `_SIMP_TO_TRAD` 缺 `当`/`写`/`圆`（G2 batch annotation post-QA gap）
 
 **Error**: G2 backlog 標注後，2 筆 hanmoto publication 的 `description_zh` 殘留簡體 `当`（auto_qa `SIMP_RE` 會旗標但 `_to_trad()` 沒轉，因為 `当` 不在 `annotator._SIMP_TO_TRAD_RAW`）。修 `当` 後依規範跑全庫 full-`SIMP_RE` 掃描，又發現同類缺字 `写`、`圆`，其中一筆 `当` 修補後的 row 仍殘留 `写`。
