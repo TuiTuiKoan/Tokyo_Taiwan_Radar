@@ -6,6 +6,9 @@
 
 🇹🇼🇯🇵 Trilingual (Chinese / Japanese / English)
 
+- 6/28 -
+Preparing for round 2 weekly news upgrading, including cover visual style and template based on perfectures and categories.  Meanwhile, rebuilding the self-event publishing function with 2 methods, poster-oriented and full manual.  In parallel, a series of cyber security approach is introduced to guard prompt injecttion and other risks.
+
 - 6/17 -
 Delivered 3 sharings across Japan, US, and Taiwan on Tokyo Taiwan Radar around "Design Workflow in the Age of Agentic AI - A Practical Guide to Normativity Design".  Through preparation, I also get deeper understanding on the overall architecture.  As the speed to debug is slow down, I am also ruminating on the next step.
 
