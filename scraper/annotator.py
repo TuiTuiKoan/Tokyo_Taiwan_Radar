@@ -814,6 +814,34 @@ def _extract_hours_from_raw(text: str) -> str | None:
     if not text:
         return None
     _TIME = r'\d{1,2}:\d{2}'
+    _year_m = re.search(r'開催日時\s*[：:]\s*(\d{4})年', text)
+    _year = int(_year_m.group(1)) if _year_m else None
+    _weekdays = "月火水木金土日"
+    _dated_ranges: list[tuple[int, int, str, str]] = []
+    for _dm in re.finditer(
+        rf'(\d{{1,2}})\s*月\s*(\d{{1,2}})\s*日\s*'
+        rf'(?:[（(][^）)]{{0,8}}[）)]\s*)?'
+        rf'({_TIME})\s*[〜~～\-－]\s*({_TIME})',
+        text,
+    ):
+        month, day = int(_dm.group(1)), int(_dm.group(2))
+        if (month, day) not in {
+            (seen_month, seen_day)
+            for seen_month, seen_day, _, _ in _dated_ranges
+        }:
+            _dated_ranges.append((month, day, _dm.group(3), _dm.group(4)))
+    if len({(month, day) for month, day, _, _ in _dated_ranges}) >= 2:
+        lines = []
+        for month, day, start, end in _dated_ranges:
+            if _year:
+                try:
+                    weekday = _weekdays[datetime(_year, month, day).weekday()]
+                    lines.append(f"{month}/{day}（{weekday}） {start}〜{end}")
+                    continue
+                except ValueError:
+                    pass
+            lines.append(f"{month}/{day} {start}〜{end}")
+        return "\n".join(lines)
     # Range: 10:00〜16:00 or 10:00-16:00 or 10:00～16:00 or 10:00－16:00 (U+FF0D)
     m = re.search(rf'({_TIME})\s*[〜~～\-－]\s*({_TIME})', text)
     if m:

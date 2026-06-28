@@ -18,6 +18,19 @@
 
 ---
 
+## 2026-06-29 - 鄭成功まつり 7/14 business_hours 被第一段時間覆蓋
+
+**Context**: event `d4456255-f9c4-4dbf-9017-38b556f79eac`（iwafu 鄭成功まつり）是 2026-07-13 到 2026-07-14 的兩日活動。`raw_description` 明確列出前夜祭 `7月13日17:00～20:00` 與神事 `7月14日10:00～11:30`，但 `events.business_hours` 只有 `17:00〜20:00`。事件詳情頁的多日展開邏輯因此把第一段時間套到 7/14。
+
+**Fix**:
+1. Live DB repair 只更新該 event 的 `business_hours` / `business_hours_zh` / `business_hours_en`，並用 `_lock_fields_via_corrections()` 寫入三個 `field_corrections` 鎖。寫入後 re-read `events` row 與 FC rows，全部 assert 通過。
+2. `scraper/annotator.py::_extract_hours_from_raw()` 在 generic first-range regex 前新增多日 date-specific detector。當 raw text 有兩個以上 distinct `M月D日 HH:MM-HH:MM` pair 時，輸出 date-labelled multiline hours；有 `開催日時: 2026年...` prefix 時才計算日文曜日。
+3. 新增 `scraper/tests/test_annotator_extract_hours.py`，覆蓋 iwafu multi-day case、single-date fallback、simple range、kanji time fallback。
+
+**Lesson**: `business_hours` 的 deterministic pre-extraction 會先於 GPT 執行；多日活動若 raw text 明確列出各日期時間，不能先 collapse 成第一個 bare range。bare range 只適合整段活動共用同一時段，否則前端的多日展開會正確地放大這個錯誤。
+
+---
+
 ## 2026-06-29 — 誠品 venue ground truth 合併三步驟 + TOHO BEADS name 幻覺修正 + 覆蓋特定 slug draft（純 DB）
 
 **Context**: 6 筆 Peatix／eslite 事件因 cookie banner 污染與 GPT 翻譯幻覺，前台顯示「地域未設定」與錯誤譯名（多和比／多和美／山雀／Toho Bees）。誠品生活日本橋雖已是 authoritative venue，但 ground truth 不完整：address 缺都道府縣前綴、3 筆重複非權威 venue、13 筆事件 `venue_id` 未連。**全程純 DB 操作 + `/tmp` 一次性 script，零 production code 變更，無 commit/push。** Engineer 執行 → Tester 獨立重查 T1–T7 全 PASS。
