@@ -851,14 +851,14 @@ def run_batch(opts: BatchOptions, *, sb: Any | None = None) -> tuple[int, int]:
     """Process up to opts.max_sources researched sources. Returns (success_count, failed_count)."""
     sb = sb or _get_supabase()
 
-    # Query: researched + easy/medium + not yet attempted (or sandbox-failed)
+    # Query: researched + easy/medium + not yet attempted (or sandbox-failed / llm-error retry)
     rows = (
         sb.table("research_sources")
         .select("*")
         .eq("status", "researched")
         .eq("url_verified", True)
         .in_("scraping_feasibility", ["easy", "medium"])
-        .or_("auto_scraper_status.is.null,auto_scraper_status.eq.sandbox-failed")
+        .or_("auto_scraper_status.is.null,auto_scraper_status.eq.sandbox-failed,auto_scraper_status.eq.llm-error")
         .order("id")
         .limit(opts.max_sources)
         .execute()
