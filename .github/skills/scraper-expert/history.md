@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-06-29 — eslite_spectrum location 抽取 bug：出版品文案誤抽成地點（待修觀察）
+
+**問題：** `eslite_spectrum` 來源 2 筆事件（`50c83c11` 中間淳太トーク、`db307e93` 誠品選書書單）的 `location_name`/`location_address` 被抓成出版品文案雜訊「新刊のご購入は各販売チャネルでお願いします」「誠品書店」，而非實際場館「誠品生活日本橋」。前台因而顯示雜訊地點。
+
+**根本原因：** `eslite_spectrum` scraper 的 location 抽取把詳情頁的「新書購買通路提示」段落誤判為場地欄位（疑似抓錯 selector 或缺場館 fallback）。同時 localized 4 欄（`location_name_zh/en`、`location_address_zh/en`）一併帶入同雜訊。
+
+**本次處置（DB-only，未修 scraper）：** Engineer 已將 `50c83c11` 的 base location 修為「誠品生活日本橋」+ 正確地址 + FC 鎖，localized 4 欄清 NULL（fallback base）；`db307e93`（active=False 月度書單）僅改指 authoritative venue。**scraper 本體抽取邏輯未修**，下次爬取仍可能重現。
+
+**待修教訓：** eslite_spectrum 需補「場館 ground truth fallback」——當詳情頁無明確場地段落時，套用固定場館「誠品生活日本橋」而非抓任意文案段落。修 scraper 時應同時驗證 `venue_registry.lookup_venue('誠品生活日本橋')` 命中，讓 annotator venue 套用自動補正 address。屬 `R-ENRICH-MISS` 鄰近類別（location enrichment miss），但本案為**抽取錯誤**非單純缺漏，建議修 scraper 抽取而非僅靠 enrichment。
+
+**來源：** 誠品 venue 清理任務（`/memories/session/plan.md`）；關聯 engineer history 2026-06-29。
+
+---
+
 ## 2026-06-25 — G3.1：publication missing_organizer backlog 清理 + auto_qa 根因防治
 
 **決策背景：** 後台 pending `event_reports` 中 `auto_qa_missing_organizer` 為最大宗，core publication 來源 `{ndl_opensearch, hanmoto}` 佔大部分。publication 的「主辦方」角色由出版社擔任，organizer 為 null 並非真缺漏。但 `auto_qa.py` 舊邏輯對這些來源持續產生 missing_organizer 假陽性。G3.1 先前已 LIVE 清理一批，卻在 commit 根因修復前被中斷；期間平行 session 的每日 auto_qa detect 跑了**舊 origin 程式碼**（缺 `_should_skip_publication_organizer_qa`），對 11 件 ndl + 4 件 hanmoto 重新產生 15 件 missing_organizer pending。

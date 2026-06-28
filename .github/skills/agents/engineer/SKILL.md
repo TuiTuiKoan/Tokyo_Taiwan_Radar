@@ -1139,6 +1139,19 @@ Every route slug must appear the **same number of times** (= total number of adm
   - When triggered: set `location_name` to a generic tour label (e.g. `台湾文化センター（全国巡回）`) and set `location_address = None`
   - For DB-patching already-scraped tours: update `location_name`, clear `location_address` directly in Supabase
 
+## Venue ground truth merge & DB schema gotchas
+
+When consolidating duplicate venues onto an authoritative `venues` row (e.g. 誠品生活日本橋), follow this three-step merge and heed the schema traps:
+
+1. **Fix the authoritative row first** — ensure `address` carries the prefecture prefix (`東京都…`); the venue-registry/annotator copies this verbatim into events.
+2. **Add sub-venue names as `aliases`, but never generic names** — a hall/space name containing a clear venue identifier (`誠品生活日本橋 イベントスペース「FORUM」`) is safe to alias (include BOTH the half-width and full-width `\u3000` space variants). A **generic** name (`誠品書店`, bare `イベントスペース`) must NOT be aliased — it will false-match other branches/locations later; handle those events individually.
+3. **Repoint events then delete orphans** — set `events.venue_id` to the authoritative id for all referencing events, re-verify `refs=0`, then delete the duplicate venue rows.
+
+Schema gotchas (each caused a real PostgREST/SQL error):
+- **`venues` has NO `name` column** — use `canonical_name_ja` / `canonical_name_zh` / `canonical_name_en`. Selecting/filtering `name` returns 400.
+- **`events.id` is `uuid` — `.like('8-char-prefix%')` is invalid** (uuid columns reject pattern match). Either fetch rows and prefix-match in Python, or resolve full uuids first (e.g. via `venue_id`) then `.eq()`.
+- **Fixing a noisy `location_*` base field requires clearing the localized mirror columns too** — `location_name_zh/en` and `location_address_zh/en` carry the same scraped noise; if you only fix the base, the front end still renders the localized noise per locale. Set the 4 localized columns to `NULL` so the front end falls back to the corrected base (matches existing sibling rows). When the base is FC-locked, the localized NULLs need no separate lock.
+
 ## Broadcast / Public Output Quality Gate
 
 **Any public-facing output** (LINE weekly broadcast, RSS feeds, API responses, etc.) must exclude `annotation_status='pending'` events. Pending events have incomplete data (null `name_zh`/`name_en`, missing category, etc.) and will surface as Japanese-only or broken entries to end users.
@@ -1155,6 +1168,13 @@ Checklist when editing `_build_message()`:
 - `weekly_events` loop → URL line ✅ keep
 - nearterm sections (national + prefecture) → URL line ❌ remove
 - monthly loop → URL line ❌ remove
+
+### weekly_line_broadcast — regenerate / overwrite an existing draft slug
+
+`run_generate_draft()` has **no date parameter** — it always computes `send_date = now()+1day` and `slug = weekly-<send_date>`. To regenerate/overwrite a specific existing slug (e.g. re-render `weekly-2026-06-28` after DB fixes), write a `/tmp` oneoff that reuses the internals with a fixed date:
+- `send_date = datetime(Y,M,D, tzinfo=JST)`; reuse `_generate_weekly_content(sb, ai, send_date)` + `_build_message(...)` for zh/ja/en; `upsert(on_conflict="slug")` then replace `announcement_events`.
+- **Pre-flight: check `published_at` of that slug.** If it is non-NULL (already sent), DO NOT overwrite — the upsert resets `published_at=NULL`, re-arming it for a duplicate send. Only overwrite drafts that are still pending.
+- The draft body is a **render-time snapshot**: fixing event rows in DB does NOT update an existing draft. You must regenerate to reflect name/location corrections.
 
 ### weekly_line_broadcast nearterm grouping model
 

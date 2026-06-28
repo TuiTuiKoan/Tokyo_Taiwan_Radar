@@ -2,6 +2,27 @@
 
 <!-- Append new entries at the top -->
 
+---
+
+## 2026-06-29 — 誠品 venue ground truth 合併三步驟 + TOHO BEADS name 幻覺修正 + 覆蓋特定 slug draft（純 DB）
+
+**Context**: 6 筆 Peatix／eslite 事件因 cookie banner 污染與 GPT 翻譯幻覺，前台顯示「地域未設定」與錯誤譯名（多和比／多和美／山雀／Toho Bees）。誠品生活日本橋雖已是 authoritative venue，但 ground truth 不完整：address 缺都道府縣前綴、3 筆重複非權威 venue、13 筆事件 `venue_id` 未連。**全程純 DB 操作 + `/tmp` 一次性 script，零 production code 變更，無 commit/push。** Engineer 執行 → Tester 獨立重查 T1–T7 全 PASS。
+
+**Fix（三部分）**:
+1. **venue 合併三步驟**：(a) authoritative venue address 補「東京都」前綴；(b) 3 筆重複子場地名加入 `aliases`（FORUM 半形/全形空格變體 + イベントスペース），但**泛名「誠品書店」不加**（避免未來其他誠品分店誤命中）；(c) 13 筆事件（6 TOHO + 7 重複）`venue_id` 改指 authoritative，再刪 3 筆孤兒 venue（刪前驗證 `refs=0`）。
+2. **name 幻覺修正 6 筆 + FC 鎖三欄**：保留品牌原文 `TOHO BEADS`（不音譯）；`ヤマムスメ→台灣藍鵲/Taiwan Blue Magpie`（原誤為山雀）；`Bees→Beads`；移除 name_ja 殘留日期前綴「7/4(土)」「7/12(日)」。每筆鎖 `name_ja/name_zh/name_en` 防 re-annotation 還原。
+3. **draft 覆蓋特定 slug**：`run_generate_draft()` 無日期參數（永遠 `now()+1`），改寫 `/tmp` oneoff 重用 `_generate_weekly_content`+`_build_message`+`upsert(on_conflict="slug")`，固定 `send_date=2026-06-28` 覆蓋既有 pending draft；先確認 `published_at IS NULL`（未發送）才覆蓋。
+
+**Lesson**:
+- **`venues` 表無 `name` 欄**——一律用 `canonical_name_ja/zh/en`；誤用 `name` 會 PostgREST 400。
+- **`events.id` 是 uuid，不可 `.like('xxxx%')`**——uuid 欄無法 pattern match；要嘛先 `select` 再程式端 prefix 比對，要嘛用完整 uuid `.eq()`。本次 V4 改以 `venue_id` 解析完整 id。
+- **修 base location 必連帶清 localized 4 欄**：`location_name_zh/en` + `location_address_zh/en` 也會帶同一筆雜訊（scraper 把出版品文案誤抽成 location）；只修 base 前端各語系仍 render 雜訊。修法：localized=NULL → 前端 fallback 已修正 base（與既有 sibling 慣例一致），base 已 FC 鎖則 localized 免再鎖。
+- **venue 合併「加 alias」要分辨子場地名 vs 泛名**：含明確場館識別（「日本橋」）的子場地名加 alias 安全；泛名（單獨「誠品書店」「イベントスペース」）會在未來誤命中其他分店，一律不加、留人工處理。
+- **覆蓋特定週報 slug**：`run_generate_draft()` slug 完全由 `now()+1` 決定、無覆寫參數；要重生既有 slug 必須 oneoff 重用內部函式固定 `send_date`，且**前置檢查 `published_at`**——非 NULL（已發送）則禁止 upsert 覆蓋（會把 `published_at` 重設為 NULL → 重複發送風險）。
+- **name 幻覺四型 + FC 鎖**：品牌音譯（保留原文）／專名誤譯（ヤマムスメ≠山雀）／拼字（Bees≠Beads）／日期前綴殘留（raw_title 帶日期 → name_ja 也要清）。四型修後都要 FC 鎖三語，否則 daily re-annotation 從 raw_title 還原。
+
+**來源**: `/memories/session/plan.md`；前序 cookie guard commit `a62c390`（peatix.py）。無本次 commit（純 DB）。
+
 --- 
 
 ## 2026-06-28 — weekly_line_broadcast 近期活動改「全國分類置頂＋都道府縣分組」+ 地區比對改 substring
