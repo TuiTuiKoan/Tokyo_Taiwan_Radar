@@ -399,9 +399,9 @@ def _build_message(
 
     date_label = today.strftime("%Y/%m/%d")
     headers = {
-        "zh": (f"🗓 東京台灣雷達偵測快報 {date_label}", "【小霧精選】", "【下個月不可錯過】"),
-        "ja": (f"🗓 東京台湾レーダー検知速報 {date_label}", "【レンブ厳選】", "【来月の注目】"),
-        "en": (f"🗓 Tokyo Taiwan Radar Detection Bulletin {date_label}", "【Bubu's Picks】", "【Don't Miss Next Month】"),
+        "zh": (f"\U0001F4E1 小霧的台灣雷達週報 {date_label}", "【小霧精選】", "【下個月不可錯過】"),
+        "ja": (f"\U0001F4E1 レンブの台湾レーダー週報 {date_label}", "【レンブ厳選】", "【来月の注目】"),
+        "en": (f"\U0001F4E1 Bubu's Taiwan Radar Weekly {date_label}", "【Bubu's Picks】", "【Don't Miss Next Month】"),
     }
     h_title, h_week, h_month = headers[lang]
 
@@ -632,9 +632,9 @@ def run_generate_draft() -> None:
 
     slug = f"weekly-{send_date.strftime('%Y-%m-%d')}"
     date_str = send_date.strftime('%Y/%m/%d')
-    title_zh = f"🗓 東京台灣雷達偵測快報 {date_str}"
-    title_ja = f"🗓 東京台湾レーダー検知速報 {date_str}"
-    title_en = f"🗓 Tokyo Taiwan Radar Detection Bulletin {date_str}"
+    title_zh = f"\U0001F4E1 小霧的台灣雷達週報 {date_str}"
+    title_ja = f"\U0001F4E1 レンブの台湾レーダー週報 {date_str}"
+    title_en = f"\U0001F4E1 Bubu's Taiwan Radar Weekly {date_str}"
     body_zh = _build_message(weekly_events, monthly_events, "zh", base_url, send_date, nearterm_events)
     body_ja = _build_message(weekly_events, monthly_events, "ja", base_url, send_date, nearterm_events)
     body_en = _build_message(weekly_events, monthly_events, "en", base_url, send_date, nearterm_events)
