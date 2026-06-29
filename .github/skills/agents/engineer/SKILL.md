@@ -81,6 +81,7 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - When running Playwright smoke tests that navigate to local paths (for example `/ja/announcements`), start a local Next server first (`npm run dev` or configured `webServer`) and verify port 3000 is reachable.
 - Treat `net::ERR_CONNECTION_REFUSED` as an execution-environment failure first, not an application regression.
 - After the test run, stop any background dev server to avoid orphaned processes and cross-session interference.
+- **worktree localhost = frozen base.** A linked worktree freezes its branch base at branch-creation time; main keeps advancing. Before previewing a feature in a worktree dev server, run `git fetch origin && git rebase origin/main` so localhost shows the real latest design, not a behind-by-N snapshot. A feature can't be tested on `main` until merged — after rebase the worktree equals `main + feature`, so test there to avoid two-location switching.
 - Fixed-width device preview frames must use responsive constraints such as `w-full max-w-[390px]`; do not set `width: 390px` inside padded mobile pages. In visual smoke tests, assert document `scrollWidth <= clientWidth` and distinguish expected horizontal carousels from real page overflow.
 
 ## Secret Scanning — Three-Layer Defense（fail-open；2026-06-28 教訓）

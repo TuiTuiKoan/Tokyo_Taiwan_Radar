@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-06-29 - isolated worktree base 凍結，localhost 測到落後 main 9 commit 的舊設計
+
+**Context**: v8 投稿精靈在 `ttr-v8-worktree`（base `7a89528`）隔離開發；隔離期間 origin/main 已被推進 9 個 commit（含台灣最新 bauhaus 設計）。在 worktree/web 起 dev server 後，使用者反映「localhost 沒套用最新設計」。worktree 隔離了並行 session 的 stash 污染，但同時把 base 凍在開分支當下——main 之後合入的設計 commit 一個都沒進來。
+
+**Fix**: kill dev server → `cd ttr-v8-worktree && git fetch origin && git rebase origin/main`（乾淨無衝突，落後 9→0）→ 重啟 dev server。feature branch 變成 `main + 精靈`，最新設計就位。使用者另問「為何不直接在主分支測」——因 feature 尚未 merge，main 上沒有精靈；rebase 後 worktree 等價 `main + feature`，可在 worktree 測，省雙處切換。
+
+**Lesson**: worktree 隔離 WIP 很安全，但 base 會凍在開分支當下；別人持續推 main，你的 localhost 永遠是舊設計。中型 feature 用 worktree 後，每次本地測試前先 `git fetch && git rebase origin/main` 對齊，否則白測（看到的不是真實最新狀態）。在 feature branch 而非 main 測新功能，是因 branch 未 merge；rebase 後 worktree = main + feature 等價可測。
+
+---
+
 ## 2026-06-29 - v8 投稿精靈：並行 session 反覆吞掉 WIP，改用 isolated worktree
 
 **Context**: 投稿精靈改版 v8（中型 feature，跨 EventIntakeWizard/AdminEventForm/owner-admin actions/i18n）開發中被中斷數次，中途產物未 commit。重啟後發現產物消失——3-4 個並行 session（使用者其他視窗、V-M-D 流程）把 v8 未提交檔當「unrelated before deploy」`git stash` 掃走，散落 5 個 stash。
