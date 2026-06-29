@@ -2,6 +2,18 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-06-29 — 週報 nearterm 地區地理排序：rstrip("都道府県") 過度剝離京都府/北海道
+
+**背景：** 週報「本週・下週全部活動」的地區分組順序原沿用 dict 插入序（各組最早活動日期），看似雜亂。使用者要求改為「全國置頂 → 東京置頂 → 其餘地區由北至南」。新增 `_PREF_GEO_RANK`（47 都道府縣 0–46）+ `_region_geo_rank()`，nearterm 地區改用 `sorted()`。初版用 `prefecture.rstrip("都道府県")` 正規化後查 rank 表，dry-run 發現京都/北海道 unmap（rank 998），en 版地區排序錯亂。
+
+**根本原因：** `rstrip("都道府県")` 是字元集合剝除（非後綴剝除），集合含「都」會把 `京都府`→`京`、`東京都`→`東京`（連內字「都」也剝）；`北海道`→`北海`，三者皆不在 rank 表。rstrip 只對「末字唯一且非首/內字」的 大阪府→大阪、茨城県→茨城 安全。
+
+**修復：** `_region_geo_rank()` prefecture fallback 改 3 段查詢：(1) rstrip 後 lookup、(2) 原字串 direct get（救北海道全名）、(3) 去末字 `p0[:-1]`（救京都府→京都）。同步修 06-29 reorder 腳本 `build_label_rank`。20/20 測試 PASS（含 6 子字串陷阱 + 京都府25/北海道0/大阪府26）。commit `3c590e4`。
+
+**教訓：** `rstrip(set)` 是字元集合剝除，任何含重複字的後綴集（都/道/府/県，「都」同時是京都/東京內字）都會過度剝離。日文都道府縣正規化必須用多段 fallback（精確 label match → rstrip → 原值 direct → 去末字），不可單靠 rstrip。已知範圍外缺陷：en body 非 `_PREF_LABEL` 縣 label 顯示日文（`_city_label` 既有），rank 正確僅標籤未羅馬字化，未來擴 `_PREF_LABEL` 至 47 縣或加 romaji。
+
+---
+
 ## 2026-06-25 — G3.0+G3.1 平行操作執行週期：baseline drift 偵測缺口、DB cleanup 原子性、subagent 中斷取證
 
 **背景：** 一份 G3 計畫（backend pending `event_reports` 清理）核可後派工給 Engineer，計畫 §9.1 設定 baseline pending≈350。執行期間，使用者自己的**另一個平行 session**（事後確認已停止）獨立做了兩件事：(a) commit+push 兩筆（`60240df`、`631efb6`，皆 docs）推進 origin/main HEAD；(b) 在 2026-06-24T17:46:16 手動跑 `auto_qa.py` live detect，注入新 report types（`auto_simplified_chinese` 43、`missing_date` 18）並 REGENERATE 15 筆 ndl/hanmoto `missing_organizer`。Engineer 已在 DB 上 LIVE 完成 G3.0+G3.1（pending 350→212，再 reprocess 15 筆後 →197），但在 commit code / 寫 history / 回傳 Changes Log 前被 INTERRUPTED。Architect 做取證評估，確認工作品質高、rollback snapshot 完整，取得使用者核可採 fix-forward（option A），重新派 Engineer 收尾（commit `34bca54`）、派 Tester（PASS 5/5），經 Validate-Merge-Deploy clean fast-forward 推上 origin/main。

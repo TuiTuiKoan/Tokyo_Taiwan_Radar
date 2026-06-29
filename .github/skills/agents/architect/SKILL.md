@@ -29,6 +29,7 @@ Read this at the start of every session before producing any plan.
 - **Sub-event source_id drift guard（2026-06-24 教訓）**：任何會新增、移除、或在中間插入 annotator-generated 子活動的計畫，必須先檢查子活動 `source_id` 是否為 `_subN` 位置序號。修法必須先用標題與日期匹配既有子活動並復用原 `source_id`，新子活動只能 append 到目前最大 `_subN` 之後，避免 re-annotation 把既有 `_sub2`〜`_subN` 覆寫成不同活動。若同日既有子活動是 bundle（開幕イベント、表演＋解說等），GPT 拆出的 component（講演、映画、解説）必須命中並跳過 duplicate allocation；sub-event upsert 也必須尊重 field_corrections。
 - **三語 Localization 硬配對守則（2026-06-07 教訓）**：任何 front-end categories, actor_types, 或者是 web schemas 異動，必須將 `web/messages/{en,ja,zh}.json` 三包語系檔做 simultaneous update 同步更新。若有漏配，會阻礙 production next build compiler 通過。
 - **Hybrid Venue 同時標註則（2026-06-07 教訓）**：針對 `performing_arts` 等混合型活動（現場+線上），設計上必須同時保留實體 `location_address` 與在 `location_name` 中並列 `オンライン`。記得兩個都標，不可因線上屬性而抹除地址資料。
+- **日文都道府縣正規化禁用單一 `rstrip("都道府県")`（2026-06-29 教訓）**：rstrip 是字元集合剝除非後綴剝除，`京都府`→`京`、`東京都`→`東京`、`北海道`→`北海` 皆過度剝離（「都」同時是京都/東京內字）。任何依縣名建查表/分組/排序的計畫，必須要求多段 fallback（精確 label match → rstrip → 原值 direct → 去末字 `[:-1]`），並列子字串陷阱測試（東京都≠京都、神奈川≠奈良、和歌山≠山形/岡山、福岡≠福島/福井）。Reference: 2026-06-29 週報 geo-sort（commit `3c590e4`）。
 
 ## Pre-flight Parallel-Operation & Baseline-Drift Guard（執行前並行操作與 baseline 漂移檢查）
 
