@@ -185,6 +185,17 @@ export default function AdminEventForm({
         </div>
       ))}
 
+      {/* Source URL */}
+      <div>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldPromoUrl", "sourceUrl")}</label>
+        <input
+          type="url"
+          value={form.source_url}
+          onChange={(e) => updateField("source_url", e.target.value)}
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+        />
+      </div>
+
       {/* Dates */}
       <div>
         <label className="block text-xs text-fg-muted mb-1">{label("fieldStartDate", "startDate")}{mark(true)}</label>
@@ -321,17 +332,6 @@ export default function AdminEventForm({
           value={(form as any).sponsors ?? ""}
           onChange={(e) => updateField("sponsors", e.target.value)}
           placeholder="例: C企業, D企業"
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
-        />
-      </div>
-
-      {/* Source URL */}
-      <div>
-        <label className="block text-xs text-fg-muted mb-1">{label("fieldPromoUrl", "sourceUrl")}</label>
-        <input
-          type="url"
-          value={form.source_url}
-          onChange={(e) => updateField("source_url", e.target.value)}
           className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
         />
       </div>

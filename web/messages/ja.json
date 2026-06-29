@@ -1015,7 +1015,7 @@
     "fieldVenuePlaceholder": "会場名を入力してください。オンラインまたはハイブリッドの場合は補足してください",
     "fieldAddress": "住所",
     "fieldVenueUrl": "会場公式サイト",
-    "fieldBusinessHours": "営業時間",
+    "fieldBusinessHours": "営業・開演時間",
     "fieldPerformer": "出演者・発表者",
     "fieldOrganizer": "主催",
     "fieldOrganizerUrl": "主催公式サイト",
