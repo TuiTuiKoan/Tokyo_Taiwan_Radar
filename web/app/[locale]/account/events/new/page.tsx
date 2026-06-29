@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import OwnerCreateClient from "@/components/OwnerCreateClient";
+import EventIntakeWizard from "@/components/EventIntakeWizard";
 import type { Locale } from "@/lib/types";
 
 interface PageProps {
@@ -29,6 +29,6 @@ export default async function OwnerCreatePage({ params }: PageProps) {
   }
 
   return (
-    <OwnerCreateClient locale={locale} />
+    <EventIntakeWizard context="owner" locale={locale} />
   );
 }

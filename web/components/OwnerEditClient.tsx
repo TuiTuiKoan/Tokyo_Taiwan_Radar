@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useState, useRef, useTransition } from "react";
+import { useState, useRef, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { type Event, type Locale } from "@/lib/types";
 import { useRouter } from "next/navigation";
-import AdminEventForm, { type FormState } from "@/components/AdminEventForm";
+import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 import Button from "@/components/Button";
-import { updateOwnerEvent, createOwnerDraft } from "@/app/actions/owner-events";
+import { updateOwnerEvent, updateOwnerDraft } from "@/app/actions/owner-events";
+import {
+  TRANSLATION_LOCK_FIELDS,
+  getActionErrorMessage,
+  pickReturnedFormFields,
+  readJsonResponse,
+} from "@/lib/eventIntakeClient";
 
 interface Props {
   event: Event;
@@ -18,7 +24,10 @@ export default function OwnerEditClient({ event, locale }: Props) {
   const tAdmin = useTranslations("admin");
   const tCat = useTranslations("categories");
   const tEventForm = useTranslations("eventForm");
+  const tIntake = useTranslations("eventIntake");
   const router = useRouter();
+
+  const isPublished = event.is_active === true;
 
   const [form, setForm] = useState<FormState>({
     name_ja: event.name_ja || "",
@@ -62,34 +71,40 @@ export default function OwnerEditClient({ event, locale }: Props) {
   const [annotationError, setAnnotationError] = useState<string | null>(null);
   const [ocrFilled, setOcrFilled] = useState(false);
   const [annotationDone, setAnnotationDone] = useState(false);
+  const [paidChoice, setPaidChoice] = useState<"" | "free" | "paid">(
+    event.is_paid === true ? "paid" : event.is_paid === false ? "free" : ""
+  );
 
   const posterFileRef = useRef<HTMLInputElement>(null);
-  const busyStartedAtRef = useRef<number | null>(null);
   const actionLockRef = useRef(false);
-  const [busyElapsedMs, setBusyElapsedMs] = useState(0);
+  const translationEditedFieldsRef = useRef<Set<string>>(new Set());
   const [, startTransition] = useTransition();
 
-  useEffect(() => {
-    if (!saving && !annotating) {
-      busyStartedAtRef.current = null;
-      setBusyElapsedMs(0);
-      return;
+  function updateField(k: string, v: unknown) {
+    if ((TRANSLATION_LOCK_FIELDS as readonly string[]).includes(k)) {
+      translationEditedFieldsRef.current.add(k);
     }
+    setForm((prev) => ({ ...prev, [k]: v }) as FormState);
+  }
 
-    if (!busyStartedAtRef.current) {
-      busyStartedAtRef.current = Date.now();
+  function handlePaidChoiceChange(choice: "free" | "paid") {
+    setPaidChoice(choice);
+    setForm((prev) => ({ ...prev, is_paid: choice === "paid" }));
+  }
+
+  function applyOcrFields(fields: Record<string, unknown>) {
+    if (typeof fields.is_paid === "boolean") {
+      handlePaidChoiceChange(fields.is_paid ? "paid" : "free");
     }
+    const next = pickReturnedFormFields(EMPTY_FORM, fields);
+    if (Object.keys(next).length > 0) setForm((prev) => ({ ...prev, ...next }));
+  }
 
-    const timer = window.setInterval(() => {
-      const startedAt = busyStartedAtRef.current ?? Date.now();
-      setBusyElapsedMs(Date.now() - startedAt);
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [saving, annotating]);
-
-  function updateField(k: string, v: any) {
-    setForm((prev) => ({ ...prev, [k]: v }));
+  function applyReturnedFields(fields: Record<string, unknown>) {
+    // Phase H client merge guard: never re-apply a locked translation field.
+    const ignore = Array.from(translationEditedFieldsRef.current);
+    const next = pickReturnedFormFields(EMPTY_FORM, fields, ignore);
+    if (Object.keys(next).length > 0) setForm((prev) => ({ ...prev, ...next }));
   }
 
   function toggleCategory(cat: string) {
@@ -119,28 +134,18 @@ export default function OwnerEditClient({ event, locale }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ image: dataUrl }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ? t(data.error) : "Extraction failed");
-        
-        const fields = data.fields as Record<string, any>;
-        const ARRAY_FIELDS = new Set(["event_form", "category", "co_organizers", "sponsors"]);
-        for (const [key, val] of Object.entries(fields)) {
-          if (val === null || val === undefined) continue;
-          if (ARRAY_FIELDS.has(key) && Array.isArray(val)) {
-            updateField(key, val);
-          } else if (!ARRAY_FIELDS.has(key)) {
-            updateField(key, val === true ? true : val === false ? false : String(val));
-          }
+        const data = await readJsonResponse(res);
+        if (!res.ok) {
+          const errKey = typeof data.error === "string" ? data.error : null;
+          throw new Error(errKey ? t(errKey) : "Extraction failed");
         }
-        if (typeof fields.is_paid === "boolean") updateField("is_paid", fields.is_paid);
-        if (typeof fields.has_japanese_support === "boolean") updateField("has_japanese_support", fields.has_japanese_support);
-        if (typeof fields.has_english_support === "boolean") updateField("has_english_support", fields.has_english_support);
-        if (typeof fields.has_chinese_support === "boolean") updateField("has_chinese_support", fields.has_chinese_support);
+        
+        applyOcrFields((data.fields ?? {}) as Record<string, unknown>);
 
         setOcrFilled(true);
         setAnnotationDone(false);
-      } catch (err: any) {
-        setExtractError(err.message || "Failed to extract");
+      } catch (err: unknown) {
+        setExtractError(getActionErrorMessage(err, "Failed to extract"));
       } finally {
         setExtracting(false);
       }
@@ -158,43 +163,58 @@ export default function OwnerEditClient({ event, locale }: Props) {
     setAnnotationError(null);
     setAnnotating(true);
     try {
-      const res = await updateOwnerEvent(event.id, form);
-      if (!res.ok) {
-        throw new Error(res.error ? t(res.error) : "Draft save failed");
+      // Save before annotating, branching on the event's publish state so the
+      // annotate flow never silently deactivates a live event nor force-publishes
+      // a draft.
+      const saveRes = isPublished
+        ? await updateOwnerEvent(event.id, form, { paidChoiceMade: paidChoice !== "" })
+        : await updateOwnerDraft(event.id, form);
+      if (!saveRes.ok) {
+        throw new Error(saveRes.error ? t(saveRes.error) : "Draft save failed");
       }
 
       const annotateRes = await fetch("/api/account/annotate-event", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: event.id }),
+        body: JSON.stringify({
+          eventId: event.id,
+          lockedTranslationFields: Array.from(translationEditedFieldsRef.current),
+        }),
         signal: AbortSignal.timeout(58000),
       });
 
-      const data = await annotateRes.json();
-      if (!annotateRes.ok) throw new Error(data.error ? t(data.error) : "Annotation failed");
-
-      const fields = data.fields as Record<string, any>;
-      for (const [key, val] of Object.entries(fields)) {
-        if (val === null || val === undefined || val === "") continue;
-        updateField(key, val);
+      const data = await readJsonResponse(annotateRes);
+      if (!annotateRes.ok) {
+        const errKey = typeof data.error === "string" ? data.error : null;
+        throw new Error(errKey ? t(errKey) : "Annotation failed");
       }
+
+      applyReturnedFields((data.fields ?? {}) as Record<string, unknown>);
       
       setOcrFilled(false);
       setAnnotationDone(true);
-    } catch (err: any) {
-      setAnnotationError(err.message || "Annotation failed");
+    } catch (err: unknown) {
+      setAnnotationError(getActionErrorMessage(err, "Annotation failed"));
     } finally {
       setAnnotating(false);
       actionLockRef.current = false;
     }
   }
 
-  async function handleSaveEvent() {
+  async function handleSaveChanges() {
+    // Publish-state-preserving save:
+    //   draft     -> updateOwnerDraft  (stays is_active=false / pending)
+    //   published -> updateOwnerEvent  (stays is_active=true; never deactivate)
     if (actionLockRef.current) return;
     actionLockRef.current = true;
     setSaving(true);
     try {
-      const res = await updateOwnerEvent(event.id, form);
+      const res = isPublished
+        ? await updateOwnerEvent(event.id, form, {
+            lockedTranslationFields: Array.from(translationEditedFieldsRef.current),
+            paidChoiceMade: paidChoice !== "",
+          })
+        : await updateOwnerDraft(event.id, form);
 
       if (!res.ok) {
         alert(t(res.error) || t("saveFailed"));
@@ -205,8 +225,36 @@ export default function OwnerEditClient({ event, locale }: Props) {
       startTransition(() => {
         router.push(`/${locale}/account?tab=myEvents`);
       });
-    } catch (e: any) {
-      alert(e.message || t("saveFailed"));
+    } catch (e: unknown) {
+      alert(getActionErrorMessage(e, t("saveFailed")));
+    } finally {
+      setSaving(false);
+      actionLockRef.current = false;
+    }
+  }
+
+  async function handlePublishDraft() {
+    // Draft-only "公開發佈": flip to active via the owner publish gate.
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
+    setSaving(true);
+    try {
+      const res = await updateOwnerEvent(event.id, form, {
+        lockedTranslationFields: Array.from(translationEditedFieldsRef.current),
+        paidChoiceMade: paidChoice !== "",
+      });
+
+      if (!res.ok) {
+        alert(t(res.error) || t("saveFailed"));
+        return;
+      }
+
+      alert(t("saveSuccess"));
+      startTransition(() => {
+        router.push(`/${locale}/account?tab=myEvents`);
+      });
+    } catch (e: unknown) {
+      alert(getActionErrorMessage(e, t("saveFailed")));
     } finally {
       setSaving(false);
       actionLockRef.current = false;
@@ -216,6 +264,41 @@ export default function OwnerEditClient({ event, locale }: Props) {
   function handleCancel() {
     router.push(`/${locale}/account?tab=myEvents`);
   }
+
+  // Plain string labels only — never pass a translation function across the
+  // server/client boundary (RSC guard).
+  const fieldLabels: Record<string, string> = {
+    langJa: tIntake("langJa"),
+    langZh: tIntake("langZh"),
+    langEn: tIntake("langEn"),
+    fieldEventNameLang: tIntake("fieldEventNameLang"),
+    fieldEventDescLang: tIntake("fieldEventDescLang"),
+    fieldEventName: tIntake("fieldEventName"),
+    fieldEventDesc: tIntake("fieldEventDesc"),
+    fieldStartDate: tIntake("fieldStartDate"),
+    fieldEndDate: tIntake("fieldEndDate"),
+    fieldVenue: tIntake("fieldVenue"),
+    fieldAddress: tIntake("fieldAddress"),
+    fieldVenueUrl: tIntake("fieldVenueUrl"),
+    fieldBusinessHours: tIntake("fieldBusinessHours"),
+    fieldPerformer: tIntake("fieldPerformer"),
+    fieldOrganizer: tIntake("fieldOrganizer"),
+    fieldOrganizerUrl: tIntake("fieldOrganizerUrl"),
+    fieldEventForm: tIntake("fieldEventForm"),
+    fieldCoOrganizers: tIntake("fieldCoOrganizers"),
+    fieldSponsors: tIntake("fieldSponsors"),
+    primaryLanguageLabel: tIntake("primaryLanguageLabel"),
+    fieldJaSupport: tIntake("fieldJaSupport"),
+    fieldEnSupport: tIntake("fieldEnSupport"),
+    fieldZhSupport: tIntake("fieldZhSupport"),
+    fieldPromoUrl: tIntake("fieldPromoUrl"),
+    fieldPaidLabel: tIntake("fieldPaidLabel"),
+    paidFree: tIntake("paidFree"),
+    paidPaid: tIntake("paidPaid"),
+    fieldPriceInfo: tIntake("fieldPriceInfo"),
+    fieldCategory: tIntake("fieldCategory"),
+    fieldRecordLinks: tIntake("fieldRecordLinks"),
+  };
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -304,23 +387,68 @@ export default function OwnerEditClient({ event, locale }: Props) {
           events={[]}
           editingId={event.id}
           locale={locale}
+          fieldLabels={fieldLabels}
+          nameDescriptionLangs={["ja", "zh", "en"]}
+          showParentEvent={false}
+          showIsActive={false}
+          requiredMarkers
+          paidMode="choice"
+          paidChoice={paidChoice}
+          onPaidChoiceChange={handlePaidChoiceChange}
+          hideMixedLanguage
+          venuePlaceholder={tIntake("fieldVenuePlaceholder")}
+          supportMode="toggle"
         />
       </div>
 
       {/* Floating Save Actions Section */}
       <div className="flex items-center gap-3 pt-4 border-t border-line">
         <Button type="button" variant="secondary" onClick={handleCancel} className="shadow-sm">
-          {tAdmin("cancel")}
+          {tIntake("cancel")}
         </Button>
-        <Button
-          type="button"
-          onClick={ocrFilled ? handleAIAnnotate : handleSaveEvent}
-          disabled={saving || extracting || annotating}
-          loading={saving || annotating}
-          className={`min-w-[11rem] shadow-sm ${ocrFilled ? "border-blue-600 bg-blue-600 hover:bg-blue-700" : ""}`}
-        >
-          {ocrFilled ? (annotating ? tAdmin("annotating") : tAdmin("saveAndAnnotate")) : (saving ? tAdmin("saving") : tAdmin("save"))}
-        </Button>
+        {ocrFilled ? (
+          <Button
+            type="button"
+            onClick={handleAIAnnotate}
+            disabled={saving || extracting || annotating}
+            loading={annotating}
+            className="min-w-[11rem] shadow-sm border-blue-600 bg-blue-600 hover:bg-blue-700"
+          >
+            {tIntake("saveAndTranslate")}
+          </Button>
+        ) : isPublished ? (
+          <Button
+            type="button"
+            onClick={handleSaveChanges}
+            disabled={saving || extracting || annotating}
+            loading={saving}
+            className="min-w-[11rem] shadow-sm"
+          >
+            {tIntake("saveChanges")}
+          </Button>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleSaveChanges}
+              disabled={saving || extracting || annotating}
+              loading={saving}
+              className="min-w-[9rem] shadow-sm"
+            >
+              {tIntake("saveDraft")}
+            </Button>
+            <Button
+              type="button"
+              onClick={handlePublishDraft}
+              disabled={saving || extracting || annotating}
+              loading={saving}
+              className="min-w-[9rem] shadow-sm"
+            >
+              {tIntake("publish")}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

@@ -5,6 +5,8 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import type { Event } from "@/lib/types";
 import type { FormState } from "@/components/AdminEventForm";
+import { collectMissingRequiredFields } from "@/lib/eventIntakeValidation";
+import { persistTranslationLocks, toFieldCorrectionValue } from "@/lib/fieldCorrections.server";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -50,6 +52,8 @@ const CONTENT_WHITE_LIST = [
   "source_url",
   "event_form",
   "category",
+  "is_paid",
+  "record_links",
 ] as const;
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app";
@@ -122,17 +126,21 @@ async function recordFieldCorrections(
       : oldVal;
 
     if (normalizedNew !== normalizedOld) {
-      await serviceClient.from("field_corrections").upsert({
+      const { error } = await serviceClient.from("field_corrections").upsert({
         event_id: eventId,
         field_name: field,
-        original_value: oldVal === null ? null : (Array.isArray(oldVal) ? oldVal : String(oldVal)),
-        corrected_value: newVal === null ? null : (Array.isArray(newVal) ? newVal : String(newVal)),
-        corrected_by: `user-${userId}`,
+        original_value: toFieldCorrectionValue(oldVal),
+        corrected_value: toFieldCorrectionValue(newVal),
+        corrected_by: userId,
       }, { onConflict: "event_id,field_name" });
+      if (error) {
+        console.error("[recordFieldCorrections] upsert failed", field, error);
+      }
     }
   }
 }
 
+// legacy: no active call site after EventIntakeWizard migration (replaced by createOwnerDraft + updateOwnerEvent). Retained for reference; safe to remove.
 export async function createOwnerEvent(form: FormState): Promise<ActionResult<Event>> {
   const supabase = await createClient();
   const {
@@ -320,7 +328,8 @@ export async function createOwnerDraft(form: FormState): Promise<ActionResult<Ev
 
 export async function updateOwnerEvent(
   eventId: string,
-  form: FormState
+  form: FormState,
+  options?: { lockedTranslationFields?: string[]; paidChoiceMade?: boolean }
 ): Promise<ActionResult<Event>> {
   const supabase = await createClient();
   const {
@@ -347,40 +356,96 @@ export async function updateOwnerEvent(
     return { ok: false, error: "forbidden" };
   }
 
-  // 2. UGC Required Fields Gate (Server-side validation)
-  const startDate = form.start_date?.trim();
-  const endDate = form.end_date?.trim();
-  const locationName = form.location_name?.trim();
-  const locationAddress = form.location_address?.trim();
-  const categories = form.category;
-  const eventForms = form.event_form;
-
-  if (!startDate || !endDate || !locationName || !locationAddress) {
-    return { ok: false, error: "requiredFieldsMissing" };
-  }
-  if (!Array.isArray(categories) || categories.length < 1) {
-    return { ok: false, error: "requiredFieldsMissing" };
-  }
-  if (!Array.isArray(eventForms) || eventForms.length < 1) {
+  // 2. Publish gate — requires primary-language content (no fallback to ja).
+  const primaryLang = typeof form.primary_language === "string" ? form.primary_language : "";
+  const missing = collectMissingRequiredFields(form, {
+    requirePrimaryContent: true,
+    primaryLang,
+    paidChoiceMade: options?.paidChoiceMade === true,
+  });
+  if (missing.length > 0) {
     return { ok: false, error: "requiredFieldsMissing" };
   }
 
-  let nameJa = form.name_ja?.trim();
-  if (!nameJa) {
+  // 3. name_ja fallback for DB safety (only after the gate has passed).
+  if (!form.name_ja?.trim()) {
     const otherVal = form.name_zh?.trim() || form.name_en?.trim();
-    if (otherVal) {
-      nameJa = otherVal;
-      form.name_ja = otherVal;
-    } else {
-      return { ok: false, error: "requiredFieldsMissing" };
-    }
+    if (otherVal) form.name_ja = otherVal;
   }
 
-  // 3. Record field corrections (FC Guard) before writing updates
+  // 4. Record organizer field corrections (provenance) before writing updates.
   await recordFieldCorrections(eventId, user.id, existing as Event, form);
 
-  // 4. Sanitize and update
+  // 5. FC-first: lock confirmed translations BEFORE publishing. A lock failure
+  //    aborts the publish so the annotator can never clobber the translation.
+  const lockResult = await persistTranslationLocks({
+    client: serviceClient,
+    eventId,
+    userId: user.id,
+    form: form as unknown as Record<string, unknown>,
+    lockedTranslationFields: options?.lockedTranslationFields ?? [],
+  });
+  if (!lockResult.ok) {
+    return { ok: false, error: lockResult.error };
+  }
+
+  // 6. Sanitize and update (sanitizeOwnerForm forces is_active=true / annotated).
   const payload = sanitizeOwnerForm(form, user.id);
+  // Keep original source_id & source_name
+  delete payload.source_name;
+  delete payload.source_id;
+
+  const { data: updated, error: updateError } = await serviceClient
+    .from("events")
+    .update(payload)
+    .eq("id", eventId)
+    .select()
+    .single();
+
+  if (updateError) {
+    return { ok: false, error: updateError.message };
+  }
+
+  return { ok: true, data: updated as Event };
+}
+
+export async function updateOwnerDraft(
+  eventId: string,
+  form: FormState
+): Promise<ActionResult<Event>> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const serviceClient = getServiceRoleClient();
+
+  // Load existing event
+  const { data: existing, error: loadError } = await serviceClient
+    .from("events")
+    .select("owner_user_id")
+    .eq("id", eventId)
+    .single();
+
+  if (loadError || !existing) {
+    return { ok: false, error: "eventNotFound" };
+  }
+
+  // OWASP A01 Gate - verify owner
+  if (existing.owner_user_id !== user.id) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  // Drafts have no required-fields gate, only a non-null name_ja for DB safety.
+  if (!form.name_ja?.trim()) {
+    form.name_ja = form.name_zh?.trim() || form.name_en?.trim() || "Draft Event";
+  }
+
+  const payload = sanitizeOwnerForm(form, user.id);
+  payload.is_active = false;
+  payload.annotation_status = "pending";
   // Keep original source_id & source_name
   delete payload.source_name;
   delete payload.source_id;
