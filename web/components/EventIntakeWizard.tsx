@@ -538,6 +538,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      <h1 className="text-2xl font-bold text-fg-strong">{tIntake("chooseTitle")}</h1>
       <EventIntakeStepper
         steps={totalSteps}
         current={step}
