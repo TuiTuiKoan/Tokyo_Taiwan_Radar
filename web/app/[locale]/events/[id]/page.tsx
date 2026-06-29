@@ -197,6 +197,13 @@ function parseYmdToUtc(dateStr: string): number | null {
   return Date.UTC(year, month - 1, day);
 }
 
+function stripBusinessHoursTimezoneForDisplay(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+GMT[+-]\d{2}:?\d{2}[ \t]*(\r?)$/, "$1"))
+    .join("\n");
+}
+
 function getExpandedBusinessHoursForDisplay(params: {
   businessHours: string | null | undefined;
   startDate: string | null | undefined;
@@ -205,16 +212,17 @@ function getExpandedBusinessHoursForDisplay(params: {
 }): string | null {
   const { businessHours, startDate, endDate, locale } = params;
   if (!businessHours) return null;
-  if (!startDate || !endDate) return businessHours;
-  if (/\r|\n/.test(businessHours)) return businessHours;
+  const displayBusinessHours = stripBusinessHoursTimezoneForDisplay(businessHours);
+  if (!startDate || !endDate) return displayBusinessHours;
+  if (/\r|\n/.test(businessHours)) return displayBusinessHours;
   const normalized = businessHours.trim();
   const timeRange = normalized.match(/^(\d{2}:\d{2})\s*(?:〜|～|-)\s*(\d{2}:\d{2})$/);
-  if (!timeRange) return businessHours;
+  if (!timeRange) return displayBusinessHours;
   const startUtc = parseYmdToUtc(startDate);
   const endUtc = parseYmdToUtc(endDate);
-  if (startUtc === null || endUtc === null || endUtc < startUtc) return businessHours;
+  if (startUtc === null || endUtc === null || endUtc < startUtc) return displayBusinessHours;
   const dayCount = Math.floor((endUtc - startUtc) / 86400000) + 1;
-  if (dayCount < 2 || dayCount > 31) return businessHours;
+  if (dayCount < 2 || dayCount > 31) return displayBusinessHours;
   const weekdaysZh = ["日", "一", "二", "三", "四", "五", "六"] as const;
   const weekdaysJa = ["日", "月", "火", "水", "木", "金", "土"] as const;
   const weekdaysEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -236,7 +244,7 @@ function getExpandedBusinessHoursForDisplay(params: {
     }
     lines.push(`${month}/${day} (${weekdaysEn[w]}) ${startTime}-${endTime}`);
   }
-  return lines.join("\n");
+  return stripBusinessHoursTimezoneForDisplay(lines.join("\n"));
 }
 
 export default async function EventDetailPage({ params }: PageProps) {
