@@ -2,8 +2,11 @@
 
 import { requireAdmin } from "./_shared/admin-guard";
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Event } from "@/lib/types";
 import type { FormState } from "@/components/AdminEventForm";
+import { collectMissingRequiredFields } from "@/lib/eventIntakeValidation";
+import { persistTranslationLocks } from "@/lib/fieldCorrections.server";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -114,6 +117,65 @@ export async function publishEvent(eventId: string): Promise<ActionResult<null>>
   if (error) return { ok: false, error: error.message };
   if (!data || data.length === 0) return { ok: false, error: "publish_no_rows" };
   return { ok: true, data: null };
+}
+
+/**
+ * Publish an event created through the unified intake wizard (admin context).
+ * Enforces the same required-field gate as the owner publish flow and locks
+ * admin-confirmed translations into field_corrections (FC-first) before the
+ * row is flipped to active/reviewed.
+ */
+export async function publishAdminWizardEvent(
+  eventId: string,
+  form: FormState,
+  options?: { lockedTranslationFields?: string[]; paidChoiceMade?: boolean },
+): Promise<ActionResult<Event>> {
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+
+  const {
+    data: { user },
+  } = await auth.supabase.auth.getUser();
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const { data: existing, error: loadError } = await auth.supabase
+    .from("events")
+    .select("id")
+    .eq("id", eventId)
+    .single();
+  if (loadError || !existing) return { ok: false, error: "eventNotFound" };
+
+  const primaryLang =
+    typeof form.primary_language === "string" ? form.primary_language : "";
+  const missing = collectMissingRequiredFields(form, {
+    requirePrimaryContent: true,
+    primaryLang,
+    paidChoiceMade: options?.paidChoiceMade === true,
+  });
+  if (missing.length > 0) return { ok: false, error: "requiredFieldsMissing" };
+
+  const payload = sanitizeForm(form);
+  delete payload.source_id;
+  delete payload.source_name;
+
+  const lockResult = await persistTranslationLocks({
+    client: auth.supabase as unknown as SupabaseClient,
+    eventId,
+    userId: user.id,
+    form: form as unknown as Record<string, unknown>,
+    lockedTranslationFields: options?.lockedTranslationFields ?? [],
+  });
+  if (!lockResult.ok) return { ok: false, error: lockResult.error };
+
+  const { data: updated, error: updateError } = await auth.supabase
+    .from("events")
+    .update({ ...payload, is_active: true, annotation_status: "reviewed" })
+    .eq("id", eventId)
+    .select()
+    .single();
+
+  if (updateError) return { ok: false, error: updateError.message };
+  return { ok: true, data: updated as Event };
 }
 
 export async function deleteUserSubmittedEvent(eventId: string): Promise<ActionResult<null>> {

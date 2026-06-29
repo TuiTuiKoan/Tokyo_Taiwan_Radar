@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { type Locale, type Event } from "@/lib/types";
-import AdminCreateClient from "@/components/AdminCreateClient";
+import EventIntakeWizard from "@/components/EventIntakeWizard";
 
 interface PageProps {
   params: Promise<{ locale: Locale }>;
@@ -36,7 +36,8 @@ export default async function AdminCreatePage({ params }: PageProps) {
 
   return (
     <div>
-      <AdminCreateClient
+      <EventIntakeWizard
+        context="admin"
         locale={locale}
         allEvents={(allEvents ?? []) as Event[]}
       />

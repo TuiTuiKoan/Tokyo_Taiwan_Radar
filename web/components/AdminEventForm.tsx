@@ -2,7 +2,7 @@
 
 import { type Event, type Locale, CATEGORY_GROUPS, EVENT_FORMS, getEventName } from "@/lib/types";
 import DesignSelect from "@/components/DesignSelect";
-import { PillButton } from "@/components/UiControls";
+import { PillButton, ToggleSwitch } from "@/components/UiControls";
 
 export const EMPTY_FORM = {
   name_ja: "",
@@ -50,6 +50,19 @@ interface Props {
   events: Event[];
   editingId: string | null;
   locale: Locale;
+  /** Intake-wizard label overrides keyed by eventIntake namespace keys. */
+  fieldLabels?: Partial<Record<string, string>>;
+  /** Languages to render for name/description blocks. Defaults to all three. */
+  nameDescriptionLangs?: Locale[];
+  showParentEvent?: boolean;
+  showIsActive?: boolean;
+  requiredMarkers?: boolean;
+  paidMode?: "checkbox" | "choice";
+  paidChoice?: "" | "free" | "paid";
+  onPaidChoiceChange?: (choice: "free" | "paid") => void;
+  hideMixedLanguage?: boolean;
+  venuePlaceholder?: string;
+  supportMode?: "checkbox" | "toggle";
 }
 
 export default function AdminEventForm({
@@ -62,19 +75,48 @@ export default function AdminEventForm({
   events,
   editingId,
   locale,
+  fieldLabels,
+  nameDescriptionLangs = ["ja", "zh", "en"],
+  showParentEvent = true,
+  showIsActive = true,
+  requiredMarkers = false,
+  paidMode = "checkbox",
+  paidChoice = "",
+  onPaidChoiceChange,
+  hideMixedLanguage = false,
+  venuePlaceholder,
+  supportMode = "checkbox",
 }: Props) {
   const parentCandidates = events.filter((e) => e.id !== editingId);
+  const labels = fieldLabels;
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  const langName = (lang: Locale): string =>
+    labels?.[`lang${cap(lang)}`] ?? (lang === "ja" ? "日本語" : lang === "zh" ? "中文" : "English");
+  const label = (intakeKey: string, adminKey: string): string => labels?.[intakeKey] ?? t(adminKey);
+  const mark = (required: boolean): string => (requiredMarkers && required ? " *" : "");
+  const nameLabel = (lang: Locale): string => {
+    const tpl = labels?.fieldEventNameLang;
+    return tpl ? tpl.replace("{lang}", langName(lang)) : t(`name${cap(lang)}`);
+  };
+  const descLabel = (lang: Locale): string => {
+    const tpl = labels?.fieldEventDescLang;
+    return tpl ? tpl.replace("{lang}", langName(lang)) : t(`desc${cap(lang)}`);
+  };
+  const primaryLang = form.primary_language;
+  const singleLang = nameDescriptionLangs.length === 1;
   return (
     <div className="grid grid-cols-1 gap-4">
       {/* Multilingual names */}
-      {(["ja", "zh", "en"] as const).map((lang) => (
+      {nameDescriptionLangs.map((lang) => (
         <div key={lang}>
           <label className="block text-xs text-fg-muted mb-1">
-            {t(`name${lang.charAt(0).toUpperCase() + lang.slice(1)}` as any)}
+            {singleLang
+              ? `${label("fieldEventName", `name${cap(lang)}`)}${mark(true)}`
+              : `${nameLabel(lang)}${mark(lang === primaryLang)}`}
           </label>
           <input
             type="text"
-            value={(form as any)[`name_${lang}`]}
+            value={(form as any)[`name_${lang}`] ?? ""}
             onChange={(e) => updateField(`name_${lang}`, e.target.value)}
             className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper focus:outline-none focus:ring-2 focus:ring-green-400"
           />
@@ -83,7 +125,7 @@ export default function AdminEventForm({
 
       {/* Dates */}
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("startDate")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldStartDate", "startDate")}{mark(true)}</label>
         <input
           type="date"
           value={form.start_date}
@@ -92,7 +134,7 @@ export default function AdminEventForm({
         />
       </div>
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("endDate")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldEndDate", "endDate")}{mark(true)}</label>
         <input
           type="date"
           value={form.end_date}
@@ -103,16 +145,17 @@ export default function AdminEventForm({
 
       {/* Location */}
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("location")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldVenue", "location")}{mark(true)}</label>
         <input
           type="text"
           value={form.location_name}
           onChange={(e) => updateField("location_name", e.target.value)}
+          placeholder={venuePlaceholder || undefined}
           className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
         />
       </div>
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("address")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldAddress", "address")}{mark(true)}</label>
         <input
           type="text"
           value={form.location_address}
@@ -123,7 +166,7 @@ export default function AdminEventForm({
 
       {/* Venue website URL */}
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("locationUrl")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldVenueUrl", "locationUrl")}</label>
         <input
           type="url"
           value={(form as any).location_url ?? ""}
@@ -134,7 +177,7 @@ export default function AdminEventForm({
 
       {/* Hours */}
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("hours")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldBusinessHours", "hours")}</label>
         <input
           type="text"
           value={form.business_hours}
@@ -145,7 +188,7 @@ export default function AdminEventForm({
 
       {/* Performer */}
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("performer")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldPerformer", "performer")}</label>
         <input
           type="text"
           value={(form as any).performer ?? ""}
@@ -157,7 +200,7 @@ export default function AdminEventForm({
 
       {/* Organizer + Organizer URL */}
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("organizer")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldOrganizer", "organizer")}{mark(true)}</label>
         <input
           type="text"
           value={(form as any).organizer ?? ""}
@@ -166,7 +209,7 @@ export default function AdminEventForm({
         />
       </div>
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("organizerUrl")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldOrganizerUrl", "organizerUrl")}</label>
         <input
           type="url"
           value={(form as any).organizer_url ?? ""}
@@ -177,7 +220,7 @@ export default function AdminEventForm({
 
       {/* Event Form (multi-checkbox) */}
       <div className="">
-        <label className="block text-xs text-fg-muted mb-2">{t("eventForm")}</label>
+        <label className="block text-xs text-fg-muted mb-2">{label("fieldEventForm", "eventForm")}{mark(true)}</label>
         <div className="flex flex-wrap gap-2">
           {EVENT_FORMS.map((ef) => (
             <PillButton
@@ -200,7 +243,7 @@ export default function AdminEventForm({
 
       {/* Co-organizers + Sponsors */}
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("coOrganizers")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldCoOrganizers", "coOrganizers")}</label>
         <input
           type="text"
           value={(form as any).co_organizers ?? ""}
@@ -210,7 +253,7 @@ export default function AdminEventForm({
         />
       </div>
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("sponsors")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldSponsors", "sponsors")}</label>
         <input
           type="text"
           value={(form as any).sponsors ?? ""}
@@ -222,7 +265,7 @@ export default function AdminEventForm({
 
       {/* Primary language */}
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("primaryLanguage")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("primaryLanguageLabel", "primaryLanguage")}{mark(true)}</label>
         <DesignSelect
           value={(form as any).primary_language ?? ""}
           onChange={(v) => updateField("primary_language", v)}
@@ -231,33 +274,43 @@ export default function AdminEventForm({
             { value: "ja", label: "日本語" },
             { value: "zh", label: "中文" },
             { value: "en", label: "English" },
-            { value: "mixed", label: "Mixed" },
+            ...(hideMixedLanguage ? [] : [{ value: "mixed", label: "Mixed" }]),
           ]}
         />
       </div>
 
-      {/* Language support checkboxes */}
+      {/* Language support */}
       <div className="flex items-center gap-4">
         {([
-          ["has_japanese_support", t("hasJapaneseSupport")],
-          ["has_english_support", t("hasEnglishSupport")],
-          ["has_chinese_support", t("hasChineseSupport")],
-        ] as [string, string][]).map(([key, label]) => (
-          <label key={key} className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={!!(form as any)[key]}
-              onChange={(e) => updateField(key, e.target.checked)}
-              className="w-3.5 h-3.5"
-            />
-            {label}
-          </label>
-        ))}
+          ["has_japanese_support", labels?.fieldJaSupport ?? t("hasJapaneseSupport")],
+          ["has_english_support", labels?.fieldEnSupport ?? t("hasEnglishSupport")],
+          ["has_chinese_support", labels?.fieldZhSupport ?? t("hasChineseSupport")],
+        ] as [string, string][]).map(([key, lbl]) =>
+          supportMode === "toggle" ? (
+            <div key={key} className="flex items-center gap-2 text-xs">
+              <ToggleSwitch
+                checked={!!(form as any)[key]}
+                onClick={() => updateField(key, !(form as any)[key])}
+              />
+              <span>{lbl}</span>
+            </div>
+          ) : (
+            <label key={key} className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={!!(form as any)[key]}
+                onChange={(e) => updateField(key, e.target.checked)}
+                className="w-3.5 h-3.5"
+              />
+              {lbl}
+            </label>
+          )
+        )}
       </div>
 
       {/* Source URL */}
       <div>
-        <label className="block text-xs text-fg-muted mb-1">{t("sourceUrl")}</label>
+        <label className="block text-xs text-fg-muted mb-1">{label("fieldPromoUrl", "sourceUrl")}</label>
         <input
           type="url"
           value={form.source_url}
@@ -267,43 +320,61 @@ export default function AdminEventForm({
       </div>
 
       {/* Paid */}
-      <div className="flex items-center gap-3">
-        <input
-          type="checkbox"
-          id="is_paid"
-          checked={form.is_paid}
-          onChange={(e) => updateField("is_paid", e.target.checked)}
-          className="w-4 h-4"
-        />
-        <label htmlFor="is_paid" className="text-sm">{t("isPaid")}</label>
-      </div>
+      {paidMode === "choice" ? (
+        <div>
+          <label className="block text-xs text-fg-muted mb-2">{label("fieldPaidLabel", "isPaid")}{mark(true)}</label>
+          <div className="flex gap-2">
+            <PillButton active={paidChoice === "free"} onClick={() => onPaidChoiceChange?.("free")}>
+              {labels?.paidFree ?? "免費"}
+            </PillButton>
+            <PillButton active={paidChoice === "paid"} onClick={() => onPaidChoiceChange?.("paid")}>
+              {labels?.paidPaid ?? "收費"}
+            </PillButton>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            id="is_paid"
+            checked={form.is_paid}
+            onChange={(e) => updateField("is_paid", e.target.checked)}
+            className="w-4 h-4"
+          />
+          <label htmlFor="is_paid" className="text-sm">{t("isPaid")}</label>
+        </div>
+      )}
 
       {/* Active */}
-      <div className="flex items-center gap-3">
-        <input
-          type="checkbox"
-          id="is_active"
-          checked={form.is_active}
-          onChange={(e) => updateField("is_active", e.target.checked)}
-          className="w-4 h-4"
-        />
-        <label htmlFor="is_active" className="text-sm">{t("isActive")}</label>
-      </div>
+      {showIsActive && (
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            id="is_active"
+            checked={form.is_active}
+            onChange={(e) => updateField("is_active", e.target.checked)}
+            className="w-4 h-4"
+          />
+          <label htmlFor="is_active" className="text-sm">{t("isActive")}</label>
+        </div>
+      )}
 
       {/* Price info */}
-      <div className="">
-        <label className="block text-xs text-fg-muted mb-1">{t("priceInfo")}</label>
-        <input
-          type="text"
-          value={form.price_info}
-          onChange={(e) => updateField("price_info", e.target.value)}
-          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
-        />
-      </div>
+      {(paidMode !== "choice" || paidChoice === "paid") && (
+        <div className="">
+          <label className="block text-xs text-fg-muted mb-1">{label("fieldPriceInfo", "priceInfo")}{mark(paidMode === "choice" && paidChoice === "paid")}</label>
+          <input
+            type="text"
+            value={form.price_info}
+            onChange={(e) => updateField("price_info", e.target.value)}
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
+      )}
 
       {/* Categories */}
       <div className="">
-        <label className="block text-xs text-fg-muted mb-2">{t("category")}</label>
+        <label className="block text-xs text-fg-muted mb-2">{label("fieldCategory", "category")}{mark(true)}</label>
         <div className="space-y-2">
           {CATEGORY_GROUPS.map((group) => (
             <div key={group.labelKey} className="grid grid-cols-[4.5rem_1fr] gap-x-3 items-start">
@@ -325,30 +396,34 @@ export default function AdminEventForm({
       </div>
 
       {/* Parent event */}
-      <div className="">
-        <label className="block text-xs text-fg-muted mb-1">{t("parentEvent")}</label>
-        <DesignSelect
-          value={form.parent_event_id}
-          onChange={(v) => updateField("parent_event_id", v)}
-          options={[
-            { value: "", label: t("noParent") },
-            ...parentCandidates.map((e) => ({
-              value: e.id,
-              label: `${getEventName(e, locale)} (${e.start_date?.slice(0, 10) ?? "—"})`,
-            })),
-          ]}
-        />
-      </div>
+      {showParentEvent && (
+        <div className="">
+          <label className="block text-xs text-fg-muted mb-1">{t("parentEvent")}</label>
+          <DesignSelect
+            value={form.parent_event_id}
+            onChange={(v) => updateField("parent_event_id", v)}
+            options={[
+              { value: "", label: t("noParent") },
+              ...parentCandidates.map((e) => ({
+                value: e.id,
+                label: `${getEventName(e, locale)} (${e.start_date?.slice(0, 10) ?? "—"})`,
+              })),
+            ]}
+          />
+        </div>
+      )}
 
       {/* Multilingual descriptions */}
-      {(["ja", "zh", "en"] as const).map((lang) => (
+      {nameDescriptionLangs.map((lang) => (
         <div key={lang} className="">
           <label className="block text-xs text-fg-muted mb-1">
-            {t(`desc${lang.charAt(0).toUpperCase() + lang.slice(1)}` as any)}
+            {singleLang
+              ? `${label("fieldEventDesc", `desc${cap(lang)}`)}${mark(true)}`
+              : `${descLabel(lang)}${mark(lang === primaryLang)}`}
           </label>
           <textarea
             rows={3}
-            value={(form as any)[`description_${lang}`]}
+            value={(form as any)[`description_${lang}`] ?? ""}
             onChange={(e) => updateField(`description_${lang}`, e.target.value)}
             className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper resize-y focus:outline-none focus:ring-2 focus:ring-green-400"
           />
@@ -357,7 +432,7 @@ export default function AdminEventForm({
 
       {/* Record links */}
       <div className="">
-        <label className="block text-xs text-fg-muted mb-2">{t("recordLinksSection" as any)}</label>
+        <label className="block text-xs text-fg-muted mb-2">{label("fieldRecordLinks", "recordLinksSection")}</label>
         <div className="space-y-2">
           {form.record_links.map((link, i) => (
             <div key={i} className="flex gap-2 items-center">

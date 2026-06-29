@@ -9,6 +9,7 @@ import {
   sanitizePrimaryLanguageValue,
   shouldApplyAnnotatedLocationField,
 } from "@/lib/eventFieldMerge";
+import { TRANSLATION_LOCK_FIELDS } from "@/lib/eventIntakeClient";
 
 export const maxDuration = 60;
 
@@ -247,11 +248,13 @@ export async function POST(req: NextRequest) {
   if (!roleRow || roleRow.role !== "admin")
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { eventId, lockedFields, overwriteableFields } = (await req.json()) as {
-    eventId: string;
-    lockedFields?: string[];
-    overwriteableFields?: string[];
-  };
+  const { eventId, lockedFields, overwriteableFields, lockedTranslationFields } =
+    (await req.json()) as {
+      eventId: string;
+      lockedFields?: string[];
+      overwriteableFields?: string[];
+      lockedTranslationFields?: string[];
+    };
   if (!eventId) return NextResponse.json({ error: "eventId required" }, { status: 400 });
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -292,6 +295,13 @@ export async function POST(req: NextRequest) {
     : [];
   const overwriteableLocationFields = Array.isArray(overwriteableFields)
     ? overwriteableFields.filter((field): field is string => typeof field === "string")
+    : [];
+  const lockedTranslationSet = new Set<string>(TRANSLATION_LOCK_FIELDS as readonly string[]);
+  const manualLockedTranslations = Array.isArray(lockedTranslationFields)
+    ? lockedTranslationFields.filter(
+        (field): field is string =>
+          typeof field === "string" && lockedTranslationSet.has(field),
+      )
     : [];
 
   const needsUrlEnrichment =
@@ -542,6 +552,11 @@ Rules:
     (typeof event.end_date !== "string" || !event.end_date.trim())
   ) {
     returnedFields.end_date = resolvedStartDate;
+  }
+
+  // Honor user-confirmed translations: never overwrite locked name/description fields.
+  for (const field of manualLockedTranslations) {
+    delete returnedFields[field];
   }
 
   // 5. Save annotation to DB
