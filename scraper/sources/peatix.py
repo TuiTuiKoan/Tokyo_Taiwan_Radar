@@ -10,7 +10,7 @@ import logging
 import re
 import time
 import unicodedata
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeout
@@ -20,6 +20,7 @@ from .base import BaseScraper, Event
 logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://peatix.com/search"
+_JST = timezone(timedelta(hours=9))
 
 # Peatix sometimes serves locale-prefixed URLs (e.g. /us/event/, /ja/event/) to
 # headless browsers. These redirect to the homepage instead of the event page.
@@ -199,6 +200,24 @@ def _derive_is_paid(price_text: str | None) -> Optional[bool]:
     return None
 
 
+def _as_utc_midnight(value: datetime) -> datetime:
+    return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+
+
+def _as_utc_from_peatix_time(value: datetime, tz: timezone = _JST) -> datetime:
+    return value.replace(tzinfo=tz).astimezone(timezone.utc)
+
+
+def _parse_peatix_gmt_offset(raw: str | None) -> timezone:
+    if not raw:
+        return _JST
+    match = re.fullmatch(r"GMT([+\-])(\d{2}):(\d{2})", raw.strip())
+    if not match:
+        return _JST
+    sign = 1 if match.group(1) == "+" else -1
+    return timezone(sign * timedelta(hours=int(match.group(2)), minutes=int(match.group(3))))
+
+
 def _parse_peatix_date(raw: Optional[str]) -> Optional[datetime]:
     if not raw:
         return None
@@ -207,6 +226,12 @@ def _parse_peatix_date(raw: Optional[str]) -> Optional[datetime]:
         "%Y/%m/%d %H:%M",
         "%Y年%m月%d日 %H:%M",
         "%Y-%m-%dT%H:%M:%S",
+    ):
+        try:
+            return _as_utc_from_peatix_time(datetime.strptime(raw, fmt))
+        except ValueError:
+            continue
+    for fmt in (
         "%Y/%m/%d",
         "%Y年%m月%d日",
         # English formats used by Peatix (e.g. "Mon, May 12, 2025")
@@ -214,7 +239,7 @@ def _parse_peatix_date(raw: Optional[str]) -> Optional[datetime]:
         "%b %d, %Y",
     ):
         try:
-            return datetime.strptime(raw, fmt)
+            return _as_utc_midnight(datetime.strptime(raw, fmt))
         except ValueError:
             continue
     return None
@@ -278,18 +303,20 @@ def _extract_peatix_dates(page_text: str) -> tuple[Optional[datetime], Optional[
 
     # Look for time range on the following lines: "1:00 PM - 2:00 PM"
     time_match = re.search(
-        r'(\d{1,2}:\d{2}\s*[AP]M)\s*[-–]\s*(\d{1,2}:\d{2}\s*[AP]M)',
+        r'(\d{1,2}:\d{2}\s*[AP]M)\s*[-–]\s*'
+        r'(\d{1,2}:\d{2}\s*[AP]M)(?:\s*(GMT[+\-]\d{2}:\d{2}))?',
         page_text[date_match.start():date_match.start() + 200]
     )
     if time_match:
         try:
+            tz = _parse_peatix_gmt_offset(time_match.group(3))
             start_time = datetime.strptime(
                 f"{date_str} {time_match.group(1).replace(' ', '')}", "%a, %b %d, %Y %I:%M%p"
             )
             end_time = datetime.strptime(
                 f"{date_str} {time_match.group(2).replace(' ', '')}", "%a, %b %d, %Y %I:%M%p"
             )
-            return start_time, end_time
+            return _as_utc_from_peatix_time(start_time, tz), _as_utc_from_peatix_time(end_time, tz)
         except ValueError:
             pass
 
