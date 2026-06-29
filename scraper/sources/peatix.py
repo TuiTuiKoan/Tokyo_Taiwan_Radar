@@ -297,6 +297,111 @@ def _extract_peatix_dates(page_text: str) -> tuple[Optional[datetime], Optional[
     return start, None
 
 
+def _extract_peatix_business_hours(page_text: str, date_text: str | None = None) -> str | None:
+    """
+    Extract business hours (time range) from Peatix event page text.
+
+    Supports:
+    - English block: "DATE AND TIME\n\n...\n\n1:00 PM - 2:00 PM GMT+09:00"
+    - Japanese block: "日時\n\nYYYY/M/D ...\n\n14:00 - 15:30 GMT+09:00"
+    - Body label: "時　間｜14:00~15:30" or "時間：14:00-15:30"
+
+    Returns the time range string (e.g., "14:00 - 15:30 GMT+09:00") or None.
+    """
+    # Pattern 1: English DATE AND TIME block with time range
+    dt_match = re.search(
+        r'DATE AND TIME.*?\n.*?\n.*?(\d{1,2}:\d{2}\s*[AP]M\s*[-–~]\s*\d{1,2}:\d{2}\s*[AP]M(?:\s*GMT[+\-]\d{2}:\d{2})?)',
+        page_text,
+        re.DOTALL | re.IGNORECASE
+    )
+    if dt_match:
+        return dt_match.group(1).strip()
+
+    # Pattern 2: Japanese 日時 block with time range
+    jp_dt_match = re.search(
+        r'日時.*?\n.*?\n.*?(\d{1,2}:\d{2}\s*[-–~]\s*\d{1,2}:\d{2}(?:\s*GMT[+\-]\d{2}:\d{2})?)',
+        page_text,
+        re.DOTALL
+    )
+    if jp_dt_match:
+        return jp_dt_match.group(1).strip()
+
+    # Pattern 3: Body label 時間｜ or 時　間｜ or 時間：
+    time_label_match = re.search(
+        r'時[　\s]*間[｜：:]+\s*(\d{1,2}:\d{2}\s*[~〜～\-–]\s*\d{1,2}:\d{2})',
+        page_text
+    )
+    if time_label_match:
+        return time_label_match.group(1).strip()
+
+    # Fallback: if date_text provided (from CSS selector), try extracting time range from it
+    if date_text:
+        time_match = re.search(r'(\d{1,2}:\d{2}\s*[-–~]\s*\d{1,2}:\d{2})', date_text)
+        if time_match:
+            return time_match.group(1).strip()
+
+    return None
+
+
+def _extract_peatix_location_from_text(page_text: str) -> tuple[str | None, str | None]:
+    """
+    Extract location_name and location_address from Peatix event page text.
+
+    Supports:
+    - English block: "LOCATION\n\n<venue>\n\n<address>\n\nJapan"
+    - Japanese block: "場所\n\n<venue>\n\n<address>\n\nJapan"
+
+    Returns (location_name, location_address).
+    Special handling: if "Online event" / "オンライン" detected, returns ("オンライン", "オンライン").
+    """
+    _ONLINE_MARKERS = re.compile(
+        r'Online\s+event|オンライン|ONLINE|online event|ライブ配信|配信のみ',
+        re.IGNORECASE,
+    )
+
+    # Check English LOCATION block for online events
+    loc_online_m = re.search(r'LOCATION\n\n(Online\s+event|オンライン|ライブ配信)', page_text, re.IGNORECASE)
+    if loc_online_m:
+        return 'オンライン', 'オンライン'
+
+    # Check Japanese 場所 block for online events
+    jp_loc_online_m = re.search(r'場所\n\n(Online\s+event|オンライン|ライブ配信)', page_text, re.IGNORECASE)
+    if jp_loc_online_m:
+        return 'オンライン', 'オンライン'
+
+    # Physical venue — English LOCATION block
+    loc_block_m = re.search(r'LOCATION\n\n(.{3,100})\n\n([^\n]{3,200})', page_text)
+    if loc_block_m:
+        location_name = loc_block_m.group(1).strip()
+        addr_candidate = loc_block_m.group(2).strip()
+        # Skip generic country labels and accidental online markers
+        if addr_candidate.lower() not in ('japan', 'online', 'オンライン'):
+            return location_name, addr_candidate
+        else:
+            # Venue name present, but address is generic country label
+            return location_name, None
+
+    # Physical venue — Japanese 場所 block
+    jp_loc_block_m = re.search(r'場所\n\n(.{3,100})\n\n([^\n]{3,200})', page_text)
+    if jp_loc_block_m:
+        location_name = jp_loc_block_m.group(1).strip()
+        addr_candidate = jp_loc_block_m.group(2).strip()
+        # Skip generic labels; 東京都 alone without ward/address is too broad (ignore)
+        if addr_candidate not in ('Japan', 'japan', 'オンライン', '東京都', '東京都中央区'):
+            # If address only has ward but no street (e.g., "中央区"), we need more detail
+            # Accept it if it has street-level info (丁目 / 番地 / building name)
+            if '丁目' in addr_candidate or '番地' in addr_candidate or len(addr_candidate) > 10:
+                return location_name, addr_candidate
+            else:
+                # Too vague — return venue name only
+                return location_name, None
+        else:
+            return location_name, None
+
+    # No structured block found
+    return None, None
+
+
 class PeatixScraper(BaseScraper):
     """Scrapes Taiwan-related events from Peatix in Tokyo."""
 
@@ -617,39 +722,15 @@ class PeatixScraper(BaseScraper):
             date_block = f"DATE AND TIME: {dt_match.group(1).strip()}\n\n"
 
         # --- Location ---
-        # Primary: LOCATION block from page text.
-        # Peatix renders one of two formats:
-        #   Online:  "LOCATION\n\nOnline event\n\n..."  (first group is an online marker)
-        #   Physical: "LOCATION\n\n<venue>\n\n<address>\n\nJapan"
-        # IMPORTANT: detect online FIRST and set is_confirmed_online=True so that no
-        # address fallback (CSS, regex, description text) can overwrite it with a
-        # physical address that may appear in the event description body.
+        # Primary: LOCATION / 場所 block from page text (supports both English and Japanese)
         _ONLINE_MARKERS = re.compile(
             r'Online\s+event|オンライン|ONLINE|online event|ライブ配信|配信のみ',
             re.IGNORECASE,
         )
-        location_name = None
-        location_address = None
-        is_confirmed_online = False
+        location_name, location_address = _extract_peatix_location_from_text(page_text)
+        is_confirmed_online = (location_name == 'オンライン')
 
-        # Step 1: check whether LOCATION block explicitly says "Online event"
-        loc_online_m = re.search(r'LOCATION\n\n(Online\s+event|オンライン|ライブ配信)', page_text, re.IGNORECASE)
-        if loc_online_m:
-            is_confirmed_online = True
-            location_name = 'オンライン'
-            location_address = 'オンライン'
-
-        if not is_confirmed_online:
-            # Step 2: two-part physical-venue pattern
-            loc_block_m = re.search(r'LOCATION\n\n(.{3,100})\n\n([^\n]{3,200})', page_text)
-            if loc_block_m:
-                location_name = loc_block_m.group(1).strip()
-                addr_candidate = loc_block_m.group(2).strip()
-                # Skip generic country labels and accidental online markers
-                if addr_candidate.lower() not in ('japan', 'online', 'オンライン'):
-                    location_address = addr_candidate
-
-        # CSS fallbacks — only for non-online events
+        # CSS fallbacks — only for non-online events when text extraction returned nothing
         if not is_confirmed_online and not location_name:
             location_name = (
                 _safe_text(page, ".venue-name")
@@ -686,6 +767,9 @@ class PeatixScraper(BaseScraper):
         if location_name and _ONLINE_MARKERS.search(location_name):
             location_name = 'オンライン'
             location_address = 'オンライン'
+
+        # --- Business Hours (Time Range) ---
+        business_hours = _extract_peatix_business_hours(page_text, date_text)
 
         # --- Price ---
         # Peatix shows "無料" or ticket prices
@@ -730,6 +814,7 @@ class PeatixScraper(BaseScraper):
             organizer=organizer_name or None,
             location_name=location_name,
             location_address=location_address,
+            business_hours=business_hours,
             is_paid=is_paid,
             price_info=price_text,
             price_amount=price_amount,
