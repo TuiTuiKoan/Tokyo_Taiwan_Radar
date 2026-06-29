@@ -22,6 +22,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from .base import BaseScraper, Event
+from movie_title_lookup import lookup_movie_titles
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,9 @@ LOCATION_NAME = "あまや座"
 LOCATION_ADDRESS = "茨城県那珂市瓜連1724-2"
 
 TAIWAN_KEYWORDS = ["台湾", "台灣", "Taiwan", "taiwan"]
+_BUSINESS_HOURS_RE = re.compile(
+    r"\b([01]?\d|2[0-3]):([0-5]\d)\s*[〜～\-－]\s*([01]?\d|2[0-3]):([0-5]\d)\b"
+)
 
 
 def _is_taiwan(text: str) -> bool:
@@ -65,6 +69,38 @@ def _parse_dates_from_title(title: str) -> tuple[Optional[datetime], Optional[da
         return None, None
 
 
+def _clean_detail_title(title: str) -> str:
+    title = re.sub(r"\s+", " ", title.replace("\u3000", " ")).strip()
+    return re.sub(r"\s*(?:[|｜]|[-–—])\s*(?:あまや座|AMAYAZA|Amayaza).*$", "", title).strip()
+
+
+def _extract_detail_title(soup: BeautifulSoup) -> str:
+    meta = soup.select_one("meta[property='og:title'], meta[name='og:title']")
+    if meta:
+        title = _clean_detail_title(meta.get("content", ""))
+        if title:
+            return title
+
+    page_title = soup.select_one("title")
+    if page_title:
+        title = _clean_detail_title(page_title.get_text(" ", strip=True))
+        if title:
+            return title
+
+    for selector in ("article h1", "h1.entry-title", ".entry-title", "h1"):
+        elem = soup.select_one(selector)
+        if not elem:
+            continue
+        title = _clean_detail_title(elem.get_text(" ", strip=True))
+        if title and title != LOCATION_NAME:
+            return title
+    return ""
+
+
+def _select_post_title(listing_title: str, detail_title: str) -> str:
+    return listing_title.strip() or _clean_detail_title(detail_title)
+
+
 def _extract_film_title(post_title: str) -> str:
     """Extract clean film name from post title like '『花様年華4K』　2026/4/25...' """
     m = re.match(r"[『「]([^』」]+)[』」]", post_title)
@@ -73,6 +109,14 @@ def _extract_film_title(post_title: str) -> str:
     # Fall back to text before date
     m2 = re.match(r"([^　\s]+)", post_title)
     return m2.group(1).strip("『』「」") if m2 else post_title
+
+
+def _extract_business_hours(text: str) -> Optional[str]:
+    m = _BUSINESS_HOURS_RE.search(text)
+    if not m:
+        return None
+    start_hour, start_minute, end_hour, end_minute = m.groups()
+    return f"{int(start_hour):02d}:{start_minute}〜{int(end_hour):02d}:{end_minute}"
 
 
 class AmayazaScraper(BaseScraper):
@@ -107,9 +151,16 @@ class AmayazaScraper(BaseScraper):
                 continue
             for a in soup.select("a[href*='/post-']"):
                 href = a.get("href", "")
-                if not href or href in posts:
+                post_title = a.get_text(" ", strip=True) or a.get("title", "").strip()
+                if not post_title:
+                    img = a.select_one("img[alt]")
+                    post_title = img.get("alt", "").strip() if img else ""
+                if not href:
                     continue
-                post_title = a.get_text(strip=True)
+                if href in posts:
+                    if not posts[href]["post_title"] and post_title:
+                        posts[href]["post_title"] = post_title
+                    continue
                 posts[href] = {"post_url": href, "post_title": post_title}
         return list(posts.values())
 
@@ -120,6 +171,7 @@ class AmayazaScraper(BaseScraper):
             return result
 
         result["full_text"] = soup.get_text(" ", strip=True)
+        result["title"] = _extract_detail_title(soup)
 
         content = soup.select_one(".entry-content") or soup.select_one("article")
         if content:
@@ -136,10 +188,11 @@ class AmayazaScraper(BaseScraper):
 
         for post in film_posts:
             post_url = post["post_url"]
-            post_title = post["post_title"]
+            listing_title = post["post_title"]
 
             time.sleep(0.5)
             detail = self._scrape_post(post_url)
+            post_title = _select_post_title(listing_title, detail.get("title", ""))
 
             if not _is_taiwan(detail["full_text"]):
                 logger.debug("Skipping non-Taiwan post: %s", post_title[:40])
@@ -158,6 +211,10 @@ class AmayazaScraper(BaseScraper):
                     + (f"〜{end_date.strftime('%Y年%m月%d日')}" if end_date else "")
                     + "\n\n" + raw_desc
                 )
+            business_hours = _extract_business_hours(raw_desc or detail["description"] or detail["full_text"] or post_title)
+            name_zh, name_en = None, None
+            if film_title:
+                name_zh, name_en, _ = lookup_movie_titles(film_title)
 
             event = Event(
                 source_name=self.SOURCE_NAME,
@@ -165,6 +222,8 @@ class AmayazaScraper(BaseScraper):
                 source_url=post_url,
                 original_language="ja",
                 name_ja=film_title,
+                name_zh=name_zh,
+                name_en=name_en,
                 raw_title=film_title,
                 raw_description=raw_desc or post_title,
                 description_ja=detail["description"] or None,
@@ -173,6 +232,7 @@ class AmayazaScraper(BaseScraper):
                 end_date=end_date,
                 location_name=LOCATION_NAME,
                 location_address=LOCATION_ADDRESS,
+                business_hours=business_hours,
             )
             events.append(event)
             logger.info("Found Taiwan film: %s", film_title)
