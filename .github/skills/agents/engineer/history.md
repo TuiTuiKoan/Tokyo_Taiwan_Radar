@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-06-29 - v8 投稿精靈：並行 session 反覆吞掉 WIP，改用 isolated worktree
+
+**Context**: 投稿精靈改版 v8（中型 feature，跨 EventIntakeWizard/AdminEventForm/owner-admin actions/i18n）開發中被中斷數次，中途產物未 commit。重啟後發現產物消失——3-4 個並行 session（使用者其他視窗、V-M-D 流程）把 v8 未提交檔當「unrelated before deploy」`git stash` 掃走，散落 5 個 stash。
+
+**Fix**:
+1. 全數搶救：`git stash show -p` 逐一導出至 `/tmp/v8-rescue/*.patch` 雙重備份。
+2. 改 `git worktree add ttr-v8-worktree feat/event-intake-wizard` 隔離開發——linked worktree 自帶獨立 working dir，並行 session 的 stash/clean 完全碰不到。
+3. 完成後 worktree 內可安全 `git add -A`（隔離無雜質），commit 18 檔；pre-push gitleaks + i18n parity 守門通過。
+
+**Lesson**: 多並行 session 環境下，未 commit 的 feature WIP 隨時會被別的 session 當垃圾 stash/clean。中型以上 feature 一律先 `git worktree add` 隔離；產物即時 patch 備份。runSubagent 同步但 return 常被截斷——驗收看 `git status`/`git diff` 不看回傳訊息。主 repo 並行時 selective add，worktree 內才可 add -A。
+
+---
+
 ## 2026-06-29 - weekly_line_broadcast 地域順を地理順に固定
 
 **Context**: `weekly_line_broadcast.py` 的 nearterm 地域分組已改成「全國級分類置頂 + 都道府縣分組」，但地域群組順序仍可能受 dict 插入順、事件日期、或 label 文字排序影響。東京以外的地方活動在週報中會前後漂移，閱讀順序不穩。

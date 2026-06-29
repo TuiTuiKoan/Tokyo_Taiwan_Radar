@@ -52,6 +52,7 @@ print('report_types:', types)               # 必須 ⊆ 計畫快照
 - **中斷的 Engineer 帶 live DB work → 先做 3 點取證**：(a) 哪些變更已 LIVE 在 DB、(b) code 是否已 commit、(c) rollback snapshot 是否完整；三點清楚才決定 fix-forward 或 rollback。
 - **report cleanup verify assertion 先分支 single-type vs multi-type**：multi-type row 可能被 multi-type assertion 合法留 pending，「某型別 MUST NOT APPEAR」是過度簡化，會誤報。
 - **uuid 欄位禁用 `.like()`**：`.like('id', prefix+'%')` 觸發 Postgres `42883 (uuid ~~ unknown)`；改用 full-uuid `.eq()`、對 text 欄位（如 `field_corrections.event_id`）比對，或 Python 過濾。
+- **中型以上 feature 用 isolated worktree 防 WIP 被掃走**：規劃跨多檔的中型改動時，建議 Engineer 在 `git worktree add` 隔離分支開發。並行 session 的 `git stash`/clean 碰不到 linked worktree，避免未 commit WIP 被當「unrelated before deploy」掃走（2026-06-29 v8 投稿精靈 WIP 散落 5 stash 事件）。runSubagent 同步但 return 常截斷——驗收看 git status/diff 不看回傳。
 
 Reference incident: 2026-06-25 — G3.0+G3.1 並行 session 漂移 baseline（pending 350→212→197）+ HEAD（`60240df`/`631efb6`），Engineer 中斷帶 live DB 變更但 code 未 commit（fix-forward commit `34bca54`，Tester PASS 5/5）。詳見 architect `history.md`。
 
