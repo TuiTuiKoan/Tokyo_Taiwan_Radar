@@ -106,6 +106,51 @@ export default function AdminEventForm({
   const singleLang = nameDescriptionLangs.length === 1;
   return (
     <div className="grid grid-cols-1 gap-4">
+      {/* Primary language */}
+      <div>
+        <label className="block text-xs text-fg-muted mb-1">{label("primaryLanguageLabel", "primaryLanguage")}{mark(true)}</label>
+        <DesignSelect
+          value={(form as any).primary_language ?? ""}
+          onChange={(v) => updateField("primary_language", v)}
+          options={[
+            { value: "", label: "—" },
+            { value: "ja", label: "日本語" },
+            { value: "zh", label: "中文" },
+            { value: "en", label: "English" },
+            ...(hideMixedLanguage ? [] : [{ value: "mixed", label: "Mixed" }]),
+          ]}
+        />
+      </div>
+
+      {/* Language support */}
+      <div className="flex items-center gap-4">
+        {([
+          ["has_japanese_support", labels?.fieldJaSupport ?? t("hasJapaneseSupport")],
+          ["has_english_support", labels?.fieldEnSupport ?? t("hasEnglishSupport")],
+          ["has_chinese_support", labels?.fieldZhSupport ?? t("hasChineseSupport")],
+        ] as [string, string][]).map(([key, lbl]) =>
+          supportMode === "toggle" ? (
+            <div key={key} className="flex items-center gap-2 text-xs">
+              <ToggleSwitch
+                checked={!!(form as any)[key]}
+                onClick={() => updateField(key, !(form as any)[key])}
+              />
+              <span>{lbl}</span>
+            </div>
+          ) : (
+            <label key={key} className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={!!(form as any)[key]}
+                onChange={(e) => updateField(key, e.target.checked)}
+                className="w-3.5 h-3.5"
+              />
+              {lbl}
+            </label>
+          )
+        )}
+      </div>
+
       {/* Multilingual names */}
       {nameDescriptionLangs.map((lang) => (
         <div key={lang}>
@@ -119,6 +164,23 @@ export default function AdminEventForm({
             value={(form as any)[`name_${lang}`] ?? ""}
             onChange={(e) => updateField(`name_${lang}`, e.target.value)}
             className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper focus:outline-none focus:ring-2 focus:ring-green-400"
+          />
+        </div>
+      ))}
+
+      {/* Multilingual descriptions */}
+      {nameDescriptionLangs.map((lang) => (
+        <div key={lang} className="">
+          <label className="block text-xs text-fg-muted mb-1">
+            {singleLang
+              ? `${label("fieldEventDesc", `desc${cap(lang)}`)}${mark(true)}`
+              : `${descLabel(lang)}${mark(lang === primaryLang)}`}
+          </label>
+          <textarea
+            rows={3}
+            value={(form as any)[`description_${lang}`] ?? ""}
+            onChange={(e) => updateField(`description_${lang}`, e.target.value)}
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper resize-y focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </div>
       ))}
@@ -263,51 +325,6 @@ export default function AdminEventForm({
         />
       </div>
 
-      {/* Primary language */}
-      <div>
-        <label className="block text-xs text-fg-muted mb-1">{label("primaryLanguageLabel", "primaryLanguage")}{mark(true)}</label>
-        <DesignSelect
-          value={(form as any).primary_language ?? ""}
-          onChange={(v) => updateField("primary_language", v)}
-          options={[
-            { value: "", label: "—" },
-            { value: "ja", label: "日本語" },
-            { value: "zh", label: "中文" },
-            { value: "en", label: "English" },
-            ...(hideMixedLanguage ? [] : [{ value: "mixed", label: "Mixed" }]),
-          ]}
-        />
-      </div>
-
-      {/* Language support */}
-      <div className="flex items-center gap-4">
-        {([
-          ["has_japanese_support", labels?.fieldJaSupport ?? t("hasJapaneseSupport")],
-          ["has_english_support", labels?.fieldEnSupport ?? t("hasEnglishSupport")],
-          ["has_chinese_support", labels?.fieldZhSupport ?? t("hasChineseSupport")],
-        ] as [string, string][]).map(([key, lbl]) =>
-          supportMode === "toggle" ? (
-            <div key={key} className="flex items-center gap-2 text-xs">
-              <ToggleSwitch
-                checked={!!(form as any)[key]}
-                onClick={() => updateField(key, !(form as any)[key])}
-              />
-              <span>{lbl}</span>
-            </div>
-          ) : (
-            <label key={key} className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={!!(form as any)[key]}
-                onChange={(e) => updateField(key, e.target.checked)}
-                className="w-3.5 h-3.5"
-              />
-              {lbl}
-            </label>
-          )
-        )}
-      </div>
-
       {/* Source URL */}
       <div>
         <label className="block text-xs text-fg-muted mb-1">{label("fieldPromoUrl", "sourceUrl")}</label>
@@ -412,23 +429,6 @@ export default function AdminEventForm({
           />
         </div>
       )}
-
-      {/* Multilingual descriptions */}
-      {nameDescriptionLangs.map((lang) => (
-        <div key={lang} className="">
-          <label className="block text-xs text-fg-muted mb-1">
-            {singleLang
-              ? `${label("fieldEventDesc", `desc${cap(lang)}`)}${mark(true)}`
-              : `${descLabel(lang)}${mark(lang === primaryLang)}`}
-          </label>
-          <textarea
-            rows={3}
-            value={(form as any)[`description_${lang}`] ?? ""}
-            onChange={(e) => updateField(`description_${lang}`, e.target.value)}
-            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper resize-y focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
-        </div>
-      ))}
 
       {/* Record links */}
       <div className="">

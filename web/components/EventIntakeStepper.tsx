@@ -3,9 +3,10 @@
 interface EventIntakeStepperProps {
   steps: number;
   current: number;
+  labels?: string[];
 }
 
-export default function EventIntakeStepper({ steps, current }: EventIntakeStepperProps) {
+export default function EventIntakeStepper({ steps, current, labels }: EventIntakeStepperProps) {
   const items = Array.from({ length: Math.max(steps, 1) }, (_, i) => i + 1);
   return (
     <div
@@ -40,6 +41,15 @@ export default function EventIntakeStepper({ steps, current }: EventIntakeSteppe
                 step
               )}
             </div>
+            {labels?.[idx] && (
+              <span
+                className={`ml-2 text-sm font-medium ${
+                  isCurrent ? "text-green-600" : "text-fg-muted"
+                }`}
+              >
+                {labels[idx]}
+              </span>
+            )}
             {idx < items.length - 1 && (
               <div
                 aria-hidden

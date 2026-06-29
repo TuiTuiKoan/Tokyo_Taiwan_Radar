@@ -996,6 +996,8 @@
     "chooseImage": "Upload a poster, AI extracts the content",
     "manualStep1Desc": "Choose the main language and fill in the event details. After you submit, the system automatically translates and completes the other languages.",
     "manualStep2Desc": "Translation is complete. Please review the content, then you can publish it.",
+    "stepBasicInfo": "Enter event info",
+    "stepReview": "Review & publish",
     "imageStep1Desc": "Choose a poster image. After uploading, the system automatically extracts the event title and description.",
     "imageStep2Desc": "Extraction is complete. Please review the content and fill in the required fields. The system will then automatically translate and complete the other languages.",
     "imageStep3Desc": "Translation is complete. Please review the content, then you can publish it.",

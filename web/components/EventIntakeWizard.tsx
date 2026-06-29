@@ -538,7 +538,11 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <EventIntakeStepper steps={totalSteps} current={step} />
+      <EventIntakeStepper
+        steps={totalSteps}
+        current={step}
+        labels={mode === "manual" ? [tIntake("stepBasicInfo"), tIntake("stepReview")] : undefined}
+      />
       <p className="text-sm text-fg-muted">{stepDesc}</p>
 
       {mode === "image" && step === 1 && (
