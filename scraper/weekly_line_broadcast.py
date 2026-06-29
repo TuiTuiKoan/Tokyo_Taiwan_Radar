@@ -295,6 +295,23 @@ _PREF_GEO_RANK: dict[str, int] = {
     "大分": 43, "宮崎": 44, "鹿児島": 45, "沖縄": 46,
 }
 
+# 47 都道府縣羅馬字（bare key），供 _city_label 的 en fallback——非 _PREF_LABEL 的
+# 縣不再顯示日文短名，改顯羅馬字。zh/ja 仍用漢字短名。
+_PREF_ROMAJI: dict[str, str] = {
+    "北海道": "Hokkaido", "青森": "Aomori", "岩手": "Iwate", "宮城": "Miyagi",
+    "秋田": "Akita", "山形": "Yamagata", "福島": "Fukushima", "茨城": "Ibaraki",
+    "栃木": "Tochigi", "群馬": "Gunma", "埼玉": "Saitama", "千葉": "Chiba",
+    "東京": "Tokyo", "神奈川": "Kanagawa", "新潟": "Niigata", "富山": "Toyama",
+    "石川": "Ishikawa", "福井": "Fukui", "山梨": "Yamanashi", "長野": "Nagano",
+    "岐阜": "Gifu", "静岡": "Shizuoka", "愛知": "Aichi", "三重": "Mie",
+    "滋賀": "Shiga", "京都": "Kyoto", "大阪": "Osaka", "兵庫": "Hyogo",
+    "奈良": "Nara", "和歌山": "Wakayama", "鳥取": "Tottori", "島根": "Shimane",
+    "岡山": "Okayama", "広島": "Hiroshima", "山口": "Yamaguchi", "徳島": "Tokushima",
+    "香川": "Kagawa", "愛媛": "Ehime", "高知": "Kochi", "福岡": "Fukuoka",
+    "佐賀": "Saga", "長崎": "Nagasaki", "熊本": "Kumamoto", "大分": "Oita",
+    "宮崎": "Miyazaki", "鹿児島": "Kagoshima", "沖縄": "Okinawa",
+}
+
 _TOKYO_PREFIXES = ("東京都", "東京")
 _TOKYO_LABEL: dict[str, str] = {"zh": "東京", "ja": "東京", "en": "Tokyo"}
 _TOKYO_EN_HINTS = ("tokyo",)
@@ -384,6 +401,11 @@ def _city_label(event: dict, lang: str) -> str:
             if pref in addr:
                 label = labels.get(lang) or labels["ja"]
                 return f"[{label}]"
+        for pref in _PREF_ROMAJI:
+            if pref in addr:
+                if lang == "en":
+                    return f"[{_PREF_ROMAJI[pref]}]"
+                return f"[{pref}]"
     # Fallback: use location_prefectures array
     prefs = event.get("location_prefectures") or []
     if prefs:
@@ -395,9 +417,21 @@ def _city_label(event: dict, lang: str) -> str:
             if pref == known_pref:
                 label = labels.get(lang) or labels["ja"]
                 return f"[{label}]"
-        # Strip suffix and use raw prefecture short name
+        # Strip suffix; en uses romaji, zh/ja use the kanji short name.
+        # rstrip("都道府県") over-strips 京都府→京/北海道→北海, so recover via
+        # direct match then drop-last-char before falling back to the rstrip value.
         short = pref.rstrip("都道府県")
-        return f"[{short}]"
+        if pref in _PREF_ROMAJI:
+            key = pref
+        elif short in _PREF_ROMAJI:
+            key = short
+        elif pref and pref[:-1] in _PREF_ROMAJI:
+            key = pref[:-1]
+        else:
+            key = short
+        if lang == "en":
+            return f"[{_PREF_ROMAJI.get(key, key)}]"
+        return f"[{key}]"
     return ""
 
 
