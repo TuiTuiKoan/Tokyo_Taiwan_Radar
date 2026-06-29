@@ -1026,6 +1026,8 @@ Reference incident: 2026-05-10 — event `a7a05be6`（台湾薬膳文化体験�
 ## Peatix-specific
 - Blocked organizer patterns live in `BLOCKED_ORGANIZER_PATTERNS` in `peatix.py` — always check before adding new title-based blocks.
 - 台東区 false positive: `台東` in `TAIWAN_KEYWORDS` can match the Tokyo ward 台東区. Use `_TAIWAN_KW_NO_TAITO` guard list.
+- **Detail text blocks are primary for venue/time**: Parse `LOCATION` / `場所` and `DATE AND TIME` / `日時` blocks before CSS fallback. Detect `Online event` / `オンライン` before any physical address fallback, reject generic address candidates (`Japan`, `東京都`, ward-only fragments), and write `business_hours` from the text block or body labels such as `時間：14:00-15:30`.
+- **Price selector label-only fallback**: If `.ticket-price` or `[class*='price']` returns only a generic label (`料金`, `参加費`, `チケット`, etc.), treat it as empty and read body lines that start with a known price label plus a price/free signal. Do not extract unlabeled amounts from descriptive body copy.
 - **Locale-prefixed URLs must be normalized before `page.goto()`**: Peatix redirects to `/us/event/{id}` or `/jp/event/{id}` depending on browser locale. Strip the prefix in both the collection stage (`_search_events`/`_scrape_group_events`) AND `_scrape_detail()` so `source_url` is always `https://peatix.com/event/{id}`.
   (Incidents: peatix `e9c6f80b` 2026-05-17, `55d766ae` 2026-05-19.)
 - **`inner_text()` length guard for short-string fields**: Playwright `inner_text()` on a group anchor or any interactive DOM element can return the **entire page content** (e.g. starting with "Translate this page...") instead of just the element text. Always add a length guard for fields expected to be short:  
@@ -1878,11 +1880,11 @@ Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田�
 
 `scraper/annotator.py` の `enrich_movie_titles()` は `works` テーブルとの照合成功時に `work_id` を自動付与する（2026-05-30 以降）。
 
-### `_resolve_movie_titles_for_event()` は 7-tuple を返す
+### `_resolve_movie_titles_for_event()` は 8-tuple を返す
 
 ```python
-# ✅ CORRECT — 7-tuple
-name_zh, name_en, official_url, works_performer, works_director, works_id, title = (
+# ✅ CORRECT — 8-tuple
+name_zh, name_en, official_url, works_performer, works_director, works_id, title, resolution_kind = (
     _resolve_movie_titles_for_event(event, sb)
 )
 
@@ -1892,9 +1894,10 @@ name_zh, name_en, official_url, works_performer, works_director, title = (
 )
 ```
 
-**全 return 分岐が 7-tuple であることを守ること**（early return も含む）:
-- 失敗 early return: `return None, None, None, None, None, None, ""`（6×None + 空文字列）
-- 正常 return: `return name_zh, name_en, official_url, works_performer, works_director, works_id, title_used`
+**全 return 分岐が 8-tuple であることを守ること**（early return も含む）:
+- 失敗 early return: `return None, None, None, None, None, None, "", "none"`（6×None + 空文字列 + resolution kind）
+- 正常 return: `return name_zh, name_en, official_url, works_performer, works_director, works_id, title_used, resolution_kind`
+- `resolution_kind == "embedded_bracket"` の場合、talk show / release wrapper は保持し、括弧内の映画タイトルだけを置換する。
 
 ### `work_id` フィールドは FC 保護外
 
@@ -1940,6 +1943,8 @@ name_zh, name_en = lookup_movie_titles(name_ja)
 - Events with `name_ja_locked=True` in DB (already manually verified)
 
 **`official_url` from lookup:** When eiga.com finds the movie, the third tuple value is the eiga.com movie page URL. This is a valid `official_url` for the event — use it instead of constructing a Google search fallback.
+
+**Release suffix handling:** Lookup must try the original title before stripped candidates. If `4Kレストア`, `4Kレストア版`, or remaster suffixes are stripped to find the base movie, reattach deterministic locale suffixes such as `4K修復版` / `4K Restoration` instead of dropping the edition label.
 
 **For Taiwan-produced films not found on eiga.com:** Check GHFF (`goldenhorse.org.tw/film/about/archive/`) — see `§ 台湾映画の権威ソース優先順位`.
 

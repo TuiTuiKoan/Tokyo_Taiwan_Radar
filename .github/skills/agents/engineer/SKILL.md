@@ -1182,6 +1182,7 @@ Checklist when editing `_build_message()`:
 The nearterm (今週・来週の全イベント) block uses a **two-tier layout** (重構 2026-06-28):
 1. **National-scope sections pinned to top**, fixed order **books → online → TV** (no physical location).
 2. **Prefecture groups** below — flat, date-sorted list under each `_city_label` heading; unknown-region (`地域未設定`) bucket always last.
+3. **Geographic order is explicit**, not incidental: Tokyo first, Japan prefectures north-to-south, Taiwan after Japan, unknown-region last. `_region_geo_rank()` detection must mirror `_city_label()` so the visible label and sort rank come from the same evidence.
 
 Re-test these edge cases after ANY `_build_message()` change (empty groups must NOT leak headers):
 - national-only (no prefecture) → no orphan `地域未設定`
@@ -1210,9 +1211,9 @@ GPT-4o-mini translates katakana person names phonetically, producing wrong Chine
 ### Movie events (structured lookup via eiga.com)
 1. **eiga.com movie page** → extract cast/crew list (role, katakana name, person URL)
 2. **eiga.com person page** → extract English name (`英語表記`) and origin country (`出身`)
-3. **zh.wikipedia** → search English name + origin country for Chinese name. Fallback: **ja.wikipedia** CJK title or zh interlanguage link.
+3. **Wikipedia lookup** → search English name + origin country first, then retry without misleading origin, then use a role-aware query such as `film director` when the cast/crew role is known.
 - Uses `lookup_person_names(name_ja)` → returns all cast/crew.
-- Wikipedia uses `strict=False` (default) — allows CJK title fallback because input is known to be a person.
+- Do not accept a loose CJK title fallback unless the result passes person validation. Ambiguous inputs such as `エドワード・ヤン` plus `origin=中国／上海` can otherwise resolve to non-person zh-wiki pages.
 
 ### Non-movie events (general katakana extraction)
 1. **Regex extraction**: `extract_katakana_names(text)` extracts katakana patterns with ・ separator (e.g. `リン・チーリン`, `ツァイ・インウェン`).
@@ -1425,6 +1426,8 @@ Admin corrections are recorded in `field_corrections(event_id, field_name, origi
 **Write path:** `confirm-report.ts` writes corrections to BOTH the `events` table AND `field_corrections` table in the same request.
 
 **Few-shot context:** The annotator injects past corrections as few-shot examples into the SYSTEM_PROMPT, so GPT learns from admin feedback over time.
+
+**修正已被 FC 鎖住的錯值**：如果 bad value 已存在於 `field_corrections`，只更新 `events` 不夠。必須同時 upsert 或刪除再寫入同一個 `(event_id, field_name)` 的 FC row，然後 re-read `events` 與 `field_corrections` 確認兩邊都指向新值。否則下一次 enrichment guard 會正確地把舊錯值保護回來。
 
 **⚠️ 手動 upsert 前必須驗證值來自 raw_description**：FC 的 P1 保護是「永久覆寫保護」，一旦鎖入錯誤值，後續 re-annotation 永遠無法自動修復（污染 + 鎖定 = 永久污染）。操作前必須先執行：
 ```sql
@@ -2055,6 +2058,8 @@ The location filter is implemented in **three separate files** that must always 
 6. **`original_title` UNIQUE**：migration 048 在 `original_title` 上建立 unique index，backfill 才能用 `on_conflict='original_title'` 或「先 select 再 update」。新增腳本若需 idempotent upsert，先用 `.eq('original_title', ...).limit(1)` 檢查，避免依賴 PostgREST `on_conflict` 對複合條件的 brittle 行為。
 7. **merger Pass 1 整合**：同 `work_id` 跨 venue 的 movie/performing_arts pair 不再合併（會破壞「同作品多場次」呈現）。`merger.py` 已在 Pass 1 加入兩個跳過條件：(a) 雙方 `work_id` 非空且不同 → skip；(b) category 含 movie/performing_arts 且 `_location_overlap()=False` → skip。輸出 `[Pass 1 SKIP]` log。
 8. **`original_title`（中文片名）必須先用 `lookup_movie_titles(title_ja)` 查 eiga.com**：`scraper/movie_title_lookup.py` 已有完整 pipeline 從 eiga.com 的 `原題または英題` 欄位取得正確中文片名。函式回傳 **3-tuple** `(name_zh, name_en, official_url)`（commit `a4ecdba`，2026-05-12 起）。批次建立 works 時，必須先對每筆 `title_ja` 呼叫此函式；僅對回傳 `(None, None, None)` 的才需用維基百科、台灣電影網或 IMDb 人工交叉驗證。解包時必須用 3-tuple：`name_zh, name_en, official_url = lookup_movie_titles(title_ja)`，不可沿用舊 2-tuple 解包（`name_zh, name_en = ...`）——會觸發 `ValueError: too many values to unpack`。禁止用 GPT 直譯生成 `original_title`——日文片名與中文原始片名的關係不可預測（如 `超低予算ムービー大作戦` 的原題是 `導演你有病`，不是 `超低預算電影大作戰`）。
+  - Release suffix normalization must preserve the original query first. Try the full title (`海辺の一日 4Kレストア`) before stripped candidates; if a stripped title matches, deterministically reattach locale labels such as `4K修復版` / `4K Restoration`.
+  - For bracket-embedded talk or release events, replace only the bracketed movie title in `name_zh` / `name_en`; keep wrapper semantics such as `公開記念トークショー`.
 9. **batch 腳本必須呼叫 `post_batch_enrich(event_ids)`**：所有 `_oneoff_*.py` 在寫入 DB 後，必須 `from annotator import post_batch_enrich` 並呼叫。此函式自動執行 eiga.com 片名 lookup + `field_corrections` 鎖定。人名修正需額外執行 `python annotator.py --enrich-person-names`。禁止在 batch 腳本中用 GPT 直譯生成 `name_zh`/`name_en`。
 
 **Reference**: 月老 (`f970e4e3` shin_bungeiza ↔ `4a8772ec` cinemart_shinjuku) 與 大濛 (`dec5031b` cinemart_shinjuku ↔ `d201c261` taioan_dokyokai) — migration 048 + Phase 7 cohort.

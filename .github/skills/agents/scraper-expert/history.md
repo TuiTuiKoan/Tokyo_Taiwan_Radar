@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-06-29 — Peatix detail text blocks for location and business_hours
+
+**問題：** Peatix detail pages can expose the authoritative venue and time range only in rendered text blocks such as `LOCATION` / `場所` and `DATE AND TIME` / `日時`. CSS selectors alone can miss Japanese pages, online-event markers, and body-level time labels, leaving `location_name`, `location_address`, or `business_hours` empty.
+
+**根本原因：** The scraper treated English DOM selectors as the primary source and did not model Peatix's text-block structure as a first-class contract. Address fallback could then run without knowing whether the event was already confirmed online, and vague labels such as `Japan`, `東京都`, or ward-only fragments could be written as if they were precise addresses.
+
+**修復：** Promote text-block extraction into explicit helpers: `_extract_peatix_location_from_text(page_text)` handles English and Japanese venue blocks, detects online events before any physical fallback, and rejects generic or vague address candidates; `_extract_peatix_business_hours(page_text, date_text)` reads English/Japanese date blocks, body labels, and CSS fallback date text. Add focused extractor tests for the text cases.
+
+**教訓：** For Peatix, detail-page text blocks are the owning abstraction for venue and time. Parse `LOCATION` / `場所` and `DATE AND TIME` / `日時` before CSS fallback, treat online detection as a terminal state, and reject generic address labels instead of letting annotator preserve bad scraper values. This uses existing missing-location / missing-hours QA categories and does not require a new R-class.
+
+---
+
 ## 2026-06-29 — auto_scraper `generate.py` `run_batch` 永久跳過 `llm-error`（30 天 0 產出，commit `e194fda`）
 
 **問題：** Layer B auto_scraper Phase 2 codegen cron 連續 30 天 `0 success`，但 GitHub Actions run 全部 `conclusion=success`、無報錯。

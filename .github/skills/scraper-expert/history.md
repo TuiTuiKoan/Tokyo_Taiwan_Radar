@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-06-29 — Peatix detail text blocks for location and business_hours
+
+**問題：** Peatix detail pages can expose the authoritative venue and time range only in rendered text blocks such as `LOCATION` / `場所` and `DATE AND TIME` / `日時`. CSS selectors alone can miss Japanese pages, online-event markers, and body-level time labels, leaving `location_name`, `location_address`, or `business_hours` empty.
+
+**根本原因：** The scraper treated English DOM selectors as the primary source and did not model Peatix's text-block structure as a first-class contract. Address fallback could then run without knowing whether the event was already confirmed online, and vague labels such as `Japan`, `東京都`, or ward-only fragments could be written as if they were precise addresses.
+
+**修復：** Promote text-block extraction into explicit helpers: `_extract_peatix_location_from_text(page_text)` handles English and Japanese venue blocks, detects online events before any physical fallback, and rejects generic or vague address candidates; `_extract_peatix_business_hours(page_text, date_text)` reads English/Japanese date blocks, body labels, and CSS fallback date text. Add focused extractor tests for the text cases.
+
+**教訓：** For Peatix, detail-page text blocks are the owning abstraction for venue and time. Parse `LOCATION` / `場所` and `DATE AND TIME` / `日時` before CSS fallback, treat online detection as a terminal state, and reject generic address labels instead of letting annotator preserve bad scraper values. This uses existing missing-location / missing-hours QA categories and does not require a new R-class.
+
+---
+
 ## 2026-06-29 — eslite_spectrum location 抽取 bug：出版品文案誤抽成地點（待修觀察）
 
 **問題：** `eslite_spectrum` 來源 2 筆事件（`50c83c11` 中間淳太トーク、`db307e93` 誠品選書書單）的 `location_name`/`location_address` 被抓成出版品文案雜訊「新刊のご購入は各販売チャネルでお願いします」「誠品書店」，而非實際場館「誠品生活日本橋」。前台因而顯示雜訊地點。

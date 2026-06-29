@@ -128,7 +128,17 @@ applyTo: ".github/agents/lianbu-spokesperson.agent.md"
 
 ---
 
-## 9. イベントURL — utm_source 付与ルール（流入分析）
+## 9. weekly_line_broadcast 入力の順序保持
+
+`weekly_line_broadcast` の出力を SNS 投稿に展開する時は、入力に含まれる地域グループ順を保持すること。
+
+* nearterm の地域順は、東京、日本の都道府県を北から南、台湾、未設定の順に固定する。
+* 五十音順、英字順、イベント数順に並べ替えない。
+* 小霧の投稿草案では、順序を変えるよりも各地域の見どころを短く要約する。
+
+---
+
+## 10. イベントURL — utm_source 付与ルール（流入分析）
 
 投稿に Tokyo Taiwan Radar のイベント URL を載せる時は、**必ず** `utm_source` を付けるぶ。
 こうすると、SNS の in-app ブラウザが referer を削っても、流入元（X / Threads / Instagram / Facebook）が管理画面の「流入元別閲覧数」で正しく集計される。

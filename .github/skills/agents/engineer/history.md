@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-06-29 - weekly_line_broadcast 地域順を地理順に固定
+
+**Context**: `weekly_line_broadcast.py` 的 nearterm 地域分組已改成「全國級分類置頂 + 都道府縣分組」，但地域群組順序仍可能受 dict 插入順、事件日期、或 label 文字排序影響。東京以外的地方活動在週報中會前後漂移，閱讀順序不穩。
+
+**Fix**:
+1. 新增 `_PREF_GEO_RANK`，定義北海道到沖繩的 47 都道府縣北到南順序。
+2. 新增 `_region_geo_rank(event)`，東京固定第一，台灣排在日本各縣之後，未知地區最後。
+3. `_region_geo_rank()` 的偵測順序鏡像 `_city_label()`，先看 `location_address`，再看 `location_prefectures`，避免顯示 label 與排序依據不一致。
+
+**Lesson**: 公開 broadcast 的地域順不能依賴資料進入順或字母/五十音排序。顯示 label 與 sort rank 必須從同一套 evidence 推導，否則同一批事件在不同語言或不同 scrape order 下會呈現不同敘事順序。
+
+---
+
+## 2026-06-29 - Edward Yang 4K 片名 suffix 與人名 false positive 修正
+
+**Context**: `lookup_movie_titles()` 對 `海辺の一日 4Kレストア`、`エドワード・ヤンの恋愛時代 4Kレストア版` 直接查 eiga.com 會失敗，但基底片名可查到 canonical title。`person_name_lookup._resolve_person()` 對 `エドワード・ヤン` 會把 eiga.com `origin=中国／上海` 帶進 loose zh-wiki 查詢，可能錯取 `白紙運動` 這類非人名結果。部分 production rows 還有 FC 鎖住錯值，例如 `name_en=Bagdad Cafe`。
+
+**Fix**:
+1. `movie_title_lookup.py` 新增 release suffix candidates，原始 title 優先，失敗後才剝結尾 `4Kレストア` / `4Kレストア版` / remaster suffix；基底片名命中後 deterministic reattach `4K修復版` / `4K Restoration`。
+2. `person_name_lookup.py` 的電影 cast/crew path 改用 strict Wikipedia person validation，先用 origin，再移除可能誤導的 origin，最後用 role-aware `film director` query 與 ja-wiki strict fallback。
+3. `annotator.py` 對 bracket-embedded talk show wrapper 只替換括號內片名，保留 `公開記念トークショー` 事件語意。
+4. DB hotfix 逐筆 targeted replace 並 re-read `events` + `field_corrections`，覆寫舊 FC。建立 `works` canonical row `海灘的一天 / That Day, on the Beach`，只連實際 screening rows，不連 talk show wrapper。
+
+**Lesson**: 電影片名 lookup 必須先保留原始查詢，再用 release suffix normalization 補救；電影人名 enrichment 不可用 loose CJK title fallback 當中文人名。已被 FC 鎖住的錯值必須明確覆寫並重新鎖定，否則後續 enrichment guard 會正確地保護錯誤資料。
+
+---
+
 ## 2026-06-29 - Peatix 5044551 cookie raw 殘留與正文票價未抽取
 
 **Context**: event `9cf9be52-9774-47cf-a325-dabb281e8f84` / `source_id=80e16a585a0953bd` 的 `raw_description` 仍是舊 OneTrust cookie wall，導致 `business_hours` 為空；`price_info` 只剩 generic `料金`。目前 Peatix detail scraper 已可抓到乾淨正文，但價格只看 `.ticket-price` / `[class*='price']`，沒有從正文 `参加費｜800円(税込)` 回填。
