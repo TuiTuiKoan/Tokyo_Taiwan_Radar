@@ -57,6 +57,16 @@ _TC_TO_JP = str.maketrans({
 
 # In-memory cache: name_ja → (name_zh, name_en, official_url)
 _cache: dict[str, tuple[str | None, str | None, str | None]] = {}
+_resolution_cache: dict[str, str] = {}
+
+_RELEASE_SUFFIXES: tuple[tuple[re.Pattern[str], str, str], ...] = (
+    (re.compile(r"\s*[《（(]4Kレストア版[》）)]\s*$"), "4K修復版", "4K Restoration"),
+    (re.compile(r"\s*4Kレストア版\s*$"), "4K修復版", "4K Restoration"),
+    (re.compile(r"\s*4Kレストア\s*$"), "4K修復版", "4K Restoration"),
+    (re.compile(r"\s*デジタル・リマスター版\s*$"), "數位修復版", "Digital Remaster"),
+    (re.compile(r"\s*デジタルリマスター版\s*$"), "數位修復版", "Digital Remaster"),
+    (re.compile(r"\s*リマスター版\s*$"), "修復版", "Remastered Version"),
+)
 
 _TMDB_API_KEY: str | None = os.environ.get("TMDB_API_KEY")
 _TMDB_SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
@@ -79,6 +89,27 @@ _session.headers.update({
     "User-Agent": _USER_AGENT,
     "Accept-Language": "ja,en;q=0.9",
 })
+
+
+def _movie_lookup_candidates(
+    name_ja: str,
+) -> list[tuple[str, str | None, str | None]]:
+    key = name_ja.strip()
+    candidates: list[tuple[str, str | None, str | None]] = [(key, None, None)]
+    for pattern, zh_suffix, en_suffix in _RELEASE_SUFFIXES:
+        base = pattern.sub("", key).strip()
+        if base and base != key:
+            candidates.append((base, zh_suffix, en_suffix))
+            break
+    return candidates
+
+
+def _append_release_suffix(title: str | None, suffix: str | None) -> str | None:
+    if not title or not suffix:
+        return title
+    if title.endswith(suffix):
+        return title
+    return f"{title} {suffix}"
 
 
 def _parse_original_title(data_text: str) -> tuple[str | None, str | None]:
@@ -231,19 +262,7 @@ def _tmdb_lookup(name_ja: str) -> tuple[str | None, str | None, str | None]:
         return None, None, None
 
 
-def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None, str | None]:
-    """Return (name_zh, name_en, official_url) for a Japanese movie title via eiga.com.
-
-    Returns (None, None, None) if the title is not found, or on any network/parse error.
-    Results are cached for the lifetime of the current process.
-    """
-    if not name_ja or not name_ja.strip():
-        return None, None, None
-
-    key = name_ja.strip()
-    if key in _cache:
-        return _cache[key]
-
+def _lookup_movie_titles_exact(key: str) -> tuple[str | None, str | None, str | None]:
     # Normalise Traditional Chinese characters to Japanese kanji equivalents
     # before searching eiga.com (which indexes Japanese titles only).
     search_key = key.translate(_TC_TO_JP)
@@ -304,8 +323,52 @@ def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None, str | Non
 
     except Exception as exc:
         logger.debug("lookup_movie_titles: error for %r: %s", key, exc)
-        _cache[key] = (None, None, None)
         return None, None, None
+
+
+def lookup_movie_titles_with_metadata(
+    name_ja: str,
+) -> tuple[str | None, str | None, str | None, str]:
+    """Return (name_zh, name_en, official_url, resolution_kind) for a movie title.
+
+    Returns (None, None, None) if the title is not found, or on any network/parse error.
+    Results are cached for the lifetime of the current process.
+    """
+    if not name_ja or not name_ja.strip():
+        return None, None, None, "none"
+
+    key = name_ja.strip()
+    if key in _cache:
+        return (*_cache[key], _resolution_cache.get(key, "exact"))
+
+    official_url: str | None = None
+    for index, (lookup_key, zh_suffix, en_suffix) in enumerate(_movie_lookup_candidates(key)):
+        name_zh, name_en, candidate_url = _lookup_movie_titles_exact(lookup_key)
+        official_url = official_url or candidate_url
+        if name_zh or name_en:
+            result = (
+                _append_release_suffix(name_zh, zh_suffix),
+                _append_release_suffix(name_en, en_suffix),
+                candidate_url or official_url,
+            )
+            resolution_kind = "suffix_normalized" if index else "exact"
+            _cache[key] = result
+            _resolution_cache[key] = resolution_kind
+            return (*result, resolution_kind)
+
+    _cache[key] = (None, None, official_url)
+    _resolution_cache[key] = "none"
+    return *_cache[key], "none"
+
+
+def lookup_movie_titles(name_ja: str) -> tuple[str | None, str | None, str | None]:
+    """Return (name_zh, name_en, official_url) for a Japanese movie title via eiga.com.
+
+    Returns (None, None, None) if the title is not found, or on any network/parse error.
+    Results are cached for the lifetime of the current process.
+    """
+    name_zh, name_en, official_url, _resolution_kind = lookup_movie_titles_with_metadata(name_ja)
+    return name_zh, name_en, official_url
 
 
 _DISTRIBUTOR_RE = re.compile(r"配給[：:]\s*([^\n\/（劇]+?)(?=劇場公開日|配信開始日|\n|$)")

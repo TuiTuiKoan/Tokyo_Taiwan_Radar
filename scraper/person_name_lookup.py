@@ -303,11 +303,19 @@ def _resolve_person(person_url: str, ja_name: str = "") -> tuple[str | None, str
 
     try:
         name_en, origin = _lookup_person_en_and_origin(person_url)
-        name_zh = _lookup_zh_via_wikipedia(name_en, origin) if name_en else None
+        name_zh = None
+        if name_en:
+            name_zh = _lookup_zh_via_wikipedia(name_en, origin, strict=True)
+            if not name_zh and origin:
+                name_zh = _lookup_zh_via_wikipedia(name_en, None, strict=True)
+            if not name_zh:
+                name_zh = _lookup_zh_via_wikipedia(
+                    f"{name_en} film director", None, strict=True,
+                )
 
         # Fallback: search ja.wikipedia with katakana name
         if not name_zh and ja_name:
-            name_zh = _lookup_zh_via_ja_wikipedia(ja_name)
+            name_zh = _lookup_zh_via_ja_wikipedia(ja_name, strict=True)
 
         _person_cache[person_url] = (name_en, name_zh)
         return name_en, name_zh

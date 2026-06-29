@@ -473,7 +473,7 @@ async def run_golden(
                 continue
             inp = case.get("input", {})
             source_name = case.get("source_name") or ""
-            name_zh, name_en, _url, _wp, _wd, _wi, title = _resolve_movie_titles_for_event(
+            name_zh, name_en, _url, _wp, _wd, _wi, title, _resolution_kind = _resolve_movie_titles_for_event(
                 sb_for_pipeline,
                 inp.get("raw_title"),
                 ann.get("name_ja") or inp.get("raw_title"),

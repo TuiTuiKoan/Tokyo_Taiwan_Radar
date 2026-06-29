@@ -41,7 +41,7 @@ from bs4 import BeautifulSoup
 
 from category_feedback import load_corrections, build_feedback_prompt
 from selection_reason_feedback import load_sr_corrections, build_sr_feedback_prompt
-from movie_title_lookup import lookup_movie_titles
+from movie_title_lookup import lookup_movie_titles, lookup_movie_titles_with_metadata
 from venue_registry import lookup_venue
 from security.injection_guard import (
     scan_for_injection,
@@ -976,6 +976,63 @@ def _replace_title_in_desc(desc: str, old_titles: list[str], new_title: str) -> 
             if old_bracketed in result:
                 result = result.replace(old_bracketed, f"{open_b}{new_title}{close_b}")
     return result
+
+
+_MOVIE_WRAPPER_RE = re.compile(
+    r"公開記念|公開紀念|release commemorative|トークショー|トークイベント|talk show|"
+    r"座談会|座談會|講演|lecture|【オンライン】|【会場観覧】",
+    re.IGNORECASE,
+)
+
+
+def _replace_first_bracketed_title(value: str, new_title: str) -> str | None:
+    for open_b, close_b in _TITLE_BRACKETS:
+        start = value.find(open_b)
+        if start < 0:
+            continue
+        end = value.find(close_b, start + len(open_b))
+        if end < 0:
+            continue
+        inner = value[start + len(open_b):end]
+        if 2 <= len(inner) <= 120 and inner != new_title:
+            return f"{value[:start + len(open_b)]}{new_title}{value[end:]}"
+    return None
+
+
+def _movie_title_name_updates(
+    event: dict[str, Any],
+    *,
+    name_zh: str | None,
+    name_en: str | None,
+    resolution_kind: str,
+) -> dict[str, str]:
+    old_name_zh = event.get("name_zh") or ""
+    old_name_en = event.get("name_en") or ""
+    wrapper_text = "\n".join(
+        str(event.get(key) or "")
+        for key in ("raw_title", "name_ja", "name_zh", "name_en")
+    )
+    preserve_wrapper = (
+        resolution_kind == "embedded_bracket"
+        and bool(_MOVIE_WRAPPER_RE.search(wrapper_text))
+    )
+
+    update: dict[str, str] = {}
+    if name_zh:
+        if preserve_wrapper:
+            replaced_zh = _replace_first_bracketed_title(old_name_zh, name_zh)
+            if replaced_zh:
+                update["name_zh"] = replaced_zh
+        else:
+            update["name_zh"] = name_zh
+    if name_en:
+        if preserve_wrapper:
+            replaced_en = _replace_first_bracketed_title(old_name_en, name_en)
+            if replaced_en:
+                update["name_en"] = replaced_en
+        else:
+            update["name_en"] = name_en
+    return update
 
 # ---------------------------------------------------------------------------
 # GPT System Prompt
@@ -3049,7 +3106,7 @@ def _resolve_movie_titles_for_event(
     name_ja: str | None,
     source_name: str | None,
     has_parent: bool = False,
-) -> tuple[str | None, str | None, str | None, str | None, str | None, str | None, str]:
+) -> tuple[str | None, str | None, str | None, str | None, str | None, str | None, str, str]:
     """Resolve canonical movie titles via works table + eiga.com.
 
     Mirrors enrich_movie_titles() title-resolution logic and is reused by
@@ -3060,7 +3117,7 @@ def _resolve_movie_titles_for_event(
 
     sb may be None to skip works lookup (eval frozen mode without DB).
 
-    Returns: (name_zh, name_en, official_url, works_performer, works_director, works_id, title_used)
+    Returns: (name_zh, name_en, official_url, works_performer, works_director, works_id, title_used, resolution_kind)
     """
     # Determine the lookup title from raw_title / name_ja per source rules.
     if source_name in _NEWS_MOVIE_SOURCES:
@@ -3072,13 +3129,13 @@ def _resolve_movie_titles_for_event(
         # Guard: news sub-events whose brackets only come from GPT name_ja
         # may be hallucinated — skip resolution.
         if m and not title_from_raw and has_parent:
-            return None, None, None, None, None, None, ""
+            return None, None, None, None, None, None, "", "none"
         title = m.group(1).strip() if m else ""
     else:
         title = name_ja or raw_title or ""
 
     if not title:
-        return None, None, None, None, None, None, ""
+        return None, None, None, None, None, None, "", "none"
 
     _lookup_title = title
     for _pfx in _REPORT_PREFIXES.values():
@@ -3092,6 +3149,7 @@ def _resolve_movie_titles_for_event(
     works_performer: str | None = None
     works_director: str | None = None
     works_id: str | None = None
+    resolution_kind = "exact"
 
     def _query_works(t: str) -> dict | None:
         if sb is None:
@@ -3129,13 +3187,15 @@ def _resolve_movie_titles_for_event(
 
     # Fallback: eiga.com lookup for whatever is still missing.
     if not name_zh or not name_en:
-        lz, le, lurl = lookup_movie_titles(_lookup_title)
+        lz, le, lurl, lkind = lookup_movie_titles_with_metadata(_lookup_title)
         if not name_zh:
             name_zh = lz
         if not name_en:
             name_en = le
         if lurl:
             official_url = lurl
+        if lz or le:
+            resolution_kind = lkind
 
     # Bracket-embedded title fallback (existing behavior).
     if not name_zh and not name_en and source_name not in _NEWS_MOVIE_SOURCES:
@@ -3152,17 +3212,20 @@ def _resolve_movie_titles_for_event(
                     works_director = works_director or w_row2.get("director")
                     works_id = works_id or w_row2.get("id")
                 if not name_zh or not name_en:
-                    ez, ee, eurl = lookup_movie_titles(extracted)
+                    ez, ee, eurl, ekind = lookup_movie_titles_with_metadata(extracted)
                     if not name_zh:
                         name_zh = ez
                     if not name_en:
                         name_en = ee
                     if eurl and not official_url:
                         official_url = eurl
+                    if ez or ee:
+                        resolution_kind = ekind
                 if name_zh or name_en:
                     title = extracted
+                    resolution_kind = "embedded_bracket"
 
-    return name_zh, name_en, official_url, works_performer, works_director, works_id, title
+    return name_zh, name_en, official_url, works_performer, works_director, works_id, title, resolution_kind
 
 
 import unicodedata
@@ -3286,7 +3349,7 @@ def enrich_movie_titles(
                 )
                 continue
 
-        name_zh, name_en, official_url, works_performer, works_director, works_id, title = (
+        name_zh, name_en, official_url, works_performer, works_director, works_id, title, resolution_kind = (
             _resolve_movie_titles_for_event(
                 sb,
                 event.get("raw_title"),
@@ -3309,11 +3372,12 @@ def enrich_movie_titles(
         old_name_zh = event.get("name_zh") or ""
         old_name_en = event.get("name_en") or ""
 
-        update: dict[str, Any] = {}
-        if name_zh:
-            update["name_zh"] = name_zh
-        if name_en:
-            update["name_en"] = name_en
+        update: dict[str, Any] = _movie_title_name_updates(
+            event,
+            name_zh=name_zh,
+            name_en=name_en,
+            resolution_kind=resolution_kind,
+        )
         if not event.get("performer") and works_performer:
             update["performer"] = works_performer
         if not event.get("director") and works_director:
