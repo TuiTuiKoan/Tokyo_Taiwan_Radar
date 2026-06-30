@@ -113,7 +113,7 @@ export default function AdminEventForm({
   return (
     <div className="space-y-8">
       {/* ===== Section 1: Basic info ===== */}
-      <section className="grid grid-cols-1 gap-4">
+      <section className="grid grid-cols-1 gap-4 rounded-2xl bg-mascot-pink/20 p-5">
         <div className="text-sm font-semibold text-fg-strong">{sectionLabel("sectionBasicInfo", "基本情報")}</div>
 
         {/* Primary language */}
@@ -350,7 +350,7 @@ export default function AdminEventForm({
       </section>
 
       {/* ===== Section 2: Date & venue ===== */}
-      <section className="grid grid-cols-1 gap-4 border-t border-line pt-6">
+      <section className="grid grid-cols-1 gap-4 rounded-2xl bg-mascot-pink/20 p-5">
         <div className="text-sm font-semibold text-fg-strong">{sectionLabel("sectionDateLocation", "日時・会場")}</div>
 
         {/* Start date */}
@@ -422,7 +422,7 @@ export default function AdminEventForm({
       </section>
 
       {/* ===== Section 3: Organizer & format ===== */}
-      <section className="grid grid-cols-1 gap-4 border-t border-line pt-6">
+      <section className="grid grid-cols-1 gap-4 rounded-2xl bg-mascot-pink/20 p-5">
         <div className="text-sm font-semibold text-fg-strong">{sectionLabel("sectionOrganizer", "主催・開催形式")}</div>
 
         {/* Performer */}
