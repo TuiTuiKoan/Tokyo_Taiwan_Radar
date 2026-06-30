@@ -229,15 +229,17 @@ Classification fields (always required):
 - has_english_support: boolean
 - is_paid: boolean (true = admission fee required, false = free)
 
-Name translations (always required when name_ja is provided):
+Name translations (always required — fill ALL three languages):
 - name_ja: event name in Japanese
 - name_zh: event name in Traditional Chinese (繁體中文)
 - name_en: event name in English
+- The event name may be provided in ANY one of the three languages. Translate from whichever language is present into the other two. If only the Chinese name is given, produce the Japanese and English names from it; if only Japanese is given, produce Chinese and English. NEVER leave a name field empty when any language version is provided.
 
-Description text (always required):
+Description text (always required — fill ALL three languages):
 - description_ja: 2–4 sentence description in natural Japanese (丁寧体)
 - description_zh: 2–4 sentence description in Traditional Chinese (繁體中文)
 - description_en: 2–4 sentence description in natural English
+- The description may be provided in ANY one of the three languages. Translate from whichever language is present into the other two, basing the content on the provided description and any web page info. NEVER leave a description field empty when any language version is provided.
 
 Extraction fields (omit if not visible):
 - organizer: organizer name in Japanese
@@ -341,10 +343,14 @@ Rules:
   if (sanitizedEventForms) returnedFields.event_form = sanitizedEventForms;
   else delete returnedFields.event_form;
 
-  // primary_language is a user-selected field in the wizard (開催言語). The user
-  // explicitly chose it on step 1, so annotation must never override it — strip
-  // any value GPT returned so the client keeps the user's choice.
+  // primary_language and the on-site language-support flags are user-selected in
+  // the wizard (開催言語 + 活動現場語言対応). The user explicitly chose them on
+  // step 1, so annotation must never override them — strip any value GPT returned
+  // so the client keeps the user's choices.
   delete returnedFields.primary_language;
+  delete returnedFields.has_japanese_support;
+  delete returnedFields.has_chinese_support;
+  delete returnedFields.has_english_support;
 
   const resolvedStartDate =
     typeof returnedFields.start_date === "string" && returnedFields.start_date.trim()

@@ -333,10 +333,14 @@ Rules:
   if (sanitizedEventForms) returnedFields.event_form = sanitizedEventForms;
   else delete returnedFields.event_form;
 
-  // primary_language is a user-selected field in the wizard (開催言語). The user
-  // explicitly chose it on step 1, so annotation must never override it — strip
-  // any value GPT returned so the client keeps the user's choice.
+  // primary_language and the on-site language-support flags are user-selected in
+  // the wizard (開催言語 + 活動現場語言対応). The user explicitly chose them on
+  // step 1, so annotation must never override them — strip any value GPT returned
+  // so the client keeps the user's choices.
   delete returnedFields.primary_language;
+  delete returnedFields.has_japanese_support;
+  delete returnedFields.has_chinese_support;
+  delete returnedFields.has_english_support;
 
   const resolvedStartDate =
     typeof returnedFields.start_date === "string" && returnedFields.start_date.trim()
