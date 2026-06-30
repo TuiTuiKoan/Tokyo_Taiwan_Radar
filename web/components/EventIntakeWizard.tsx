@@ -591,23 +591,6 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
         </div>
       )}
 
-      {busy && (
-        <div
-          aria-live="polite"
-          className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
-        >
-          {extracting
-            ? `${tIntake("busyExtracting")} ${elapsedSec}s`
-            : `${tIntake("busyTranslating")} ${elapsedSec}s`}
-        </div>
-      )}
-
-      {actionError && (
-        <p className="text-sm font-semibold text-red-500" aria-live="assertive">
-          {actionError}
-        </p>
-      )}
-
       {showForm && (
         <div className="space-y-6">
           <AdminEventForm
@@ -633,6 +616,23 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
             venuePlaceholder={tIntake("fieldVenuePlaceholder")}
           />
         </div>
+      )}
+
+      {busy && (
+        <div
+          aria-live="polite"
+          className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
+        >
+          {extracting
+            ? `${tIntake("busyExtracting")} ${elapsedSec}s`
+            : `${tIntake("busyTranslating")} ${elapsedSec}s`}
+        </div>
+      )}
+
+      {actionError && (
+        <p className="text-sm font-semibold text-red-500" aria-live="assertive">
+          {actionError}
+        </p>
       )}
 
       <div className="flex items-center gap-3 pt-4 border-t border-line">

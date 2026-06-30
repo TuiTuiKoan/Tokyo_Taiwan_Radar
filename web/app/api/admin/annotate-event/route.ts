@@ -6,7 +6,6 @@ import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
 import {
   sanitizeCategoryValues,
   sanitizeEventFormValues,
-  sanitizePrimaryLanguageValue,
   shouldApplyAnnotatedLocationField,
 } from "@/lib/eventFieldMerge";
 import { TRANSLATION_LOCK_FIELDS } from "@/lib/eventIntakeClient";
@@ -16,86 +15,7 @@ export const maxDuration = 60;
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36";
 
-// ── Web search helpers ────────────────────────────────────────────────────
-
-async function braveSearch(query: string): Promise<string[]> {
-  const key = process.env.BRAVE_SEARCH_API_KEY;
-  if (!key) return [];
-  try {
-    const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&country=JP&search_lang=jp&count=10`;
-    const res = await fetch(url, {
-      headers: { "X-Subscription-Token": key, Accept: "application/json" },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return [];
-    const data = (await res.json()) as { web?: { results?: Array<{ url: string }> } };
-    const urls = data.web?.results?.map((r) => r.url).filter(Boolean) ?? [];
-    return urls.slice(0, 5);
-  } catch {
-    return [];
-  }
-}
-
-async function ddgSearch(query: string): Promise<string[]> {
-  try {
-    const body = new URLSearchParams({ q: query, kl: "jp-jp" });
-    const res = await fetch("https://html.duckduckgo.com/html/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": UA,
-        "Accept-Language": "ja,en;q=0.9",
-        Accept: "text/html",
-      },
-      body: body.toString(),
-      signal: AbortSignal.timeout(10000),
-    });
-    const html = await res.text();
-    const urls: string[] = [];
-    const seen = new Set<string>();
-    for (const m of html.matchAll(/(?:uddg=|href=")(https?%3A[^"&]+|https?:\/\/[^"\s<>]+)/g)) {
-      let u = m[1];
-      try { u = decodeURIComponent(u); } catch { /* skip */ }
-      if (!u.startsWith("http")) continue;
-      if (u.includes("duckduckgo.com")) continue;
-      if (/\.(css|js|ico|png|svg|woff)/.test(u)) continue;
-      if (seen.has(u)) continue;
-      seen.add(u);
-      urls.push(u);
-      if (urls.length >= 5) break;
-    }
-    return urls;
-  } catch {
-    return [];
-  }
-}
-
-async function bingSearch(query: string): Promise<string[]> {
-  try {
-    const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&cc=jp&setlang=ja`;
-    const res = await fetch(url, {
-      headers: { "User-Agent": UA, "Accept-Language": "ja,en;q=0.9", Accept: "text/html" },
-      signal: AbortSignal.timeout(10000),
-    });
-    const html = await res.text();
-    const urls: string[] = [];
-    const seen = new Set<string>();
-    // Bing wraps result links as <a href="https://...">; pull any external link
-    for (const m of html.matchAll(/<a[^>]+href="(https?:\/\/[^"]+)"/gi)) {
-      const u = m[1];
-      if (u.includes("bing.com") || u.includes("microsoft.com") || u.includes("msn.com")) continue;
-      if (u.includes("go.microsoft.com")) continue;
-      if (/\.(css|js|ico|png|svg|woff)/.test(u)) continue;
-      if (seen.has(u)) continue;
-      seen.add(u);
-      urls.push(u);
-      if (urls.length >= 5) break;
-    }
-    return urls;
-  } catch {
-    return [];
-  }
-}
+// ── Page fetch helpers ────────────────────────────────────────────────────
 
 async function fetchPageText(url: string): Promise<string> {
   try {
@@ -150,86 +70,6 @@ function scorePage(text: string, nameJa: string, locationName: string): number {
   return score;
 }
 
-async function enrichEvent(
-  nameJa: string,
-  locationName: string,
-  startDate: string
-): Promise<{ url: string; text: string; debug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number; queries: string[]; topCandidates: Array<{ url: string; score: number }> } }> {
-  const year = (startDate || "").slice(0, 4);
-  // Strip phrase-search quotes — Brave/DDG often miss when title contains
-  // wrapping brackets like 「」『』 or unusual punctuation. Use plain keywords.
-  const cleanName = nameJa.replace(/[「」『』《》〝〞"]/g, " ").replace(/\s+/g, " ").trim();
-  const queries: string[] = [];
-  if (locationName) queries.push(`${cleanName} ${locationName} ${year}`);
-  queries.push(`${cleanName} ${year} 公式`);
-  queries.push(`${cleanName} ${year}`);
-
-  const seen = new Set<string>();
-  const candidates: string[] = [];
-  let braveCount = 0;
-  let ddgCount = 0;
-  let bingCount = 0;
-
-  // 1. Brave Search API (paid, requires BRAVE_SEARCH_API_KEY env var)
-  for (const q of queries) {
-    const r = await braveSearch(q);
-    braveCount += r.length;
-    for (const u of r) {
-      if (!seen.has(u)) { seen.add(u); candidates.push(u); }
-    }
-    if (candidates.length >= 5) break;
-  }
-
-  // 2. DDG fallback
-  if (candidates.length === 0) {
-    for (const q of queries) {
-      const r = await ddgSearch(q);
-      ddgCount += r.length;
-      for (const u of r) {
-        if (!seen.has(u)) { seen.add(u); candidates.push(u); }
-      }
-      if (candidates.length >= 5) break;
-    }
-  }
-
-  // 3. Bing fallback
-  if (candidates.length === 0) {
-    for (const q of queries) {
-      const r = await bingSearch(q);
-      bingCount += r.length;
-      for (const u of r) {
-        if (!seen.has(u)) { seen.add(u); candidates.push(u); }
-      }
-      if (candidates.length >= 5) break;
-    }
-  }
-
-  let bestUrl = "", bestText = "", bestScore = -1;
-  const candidateScores: Array<{ url: string; score: number }> = [];
-  for (const url of candidates.slice(0, 5)) {
-    const text = await fetchPageText(url);
-    if (!text) { candidateScores.push({ url, score: -2 }); continue; }
-    const score = scorePage(text, nameJa, locationName);
-    candidateScores.push({ url, score });
-    if (score > bestScore) { bestScore = score; bestUrl = url; bestText = text; }
-  }
-
-  // Require bestScore >= 3 to count as a real match (covers ≥1 name token + a
-  // generic keyword, OR a location_name hit). Below that, the page is too
-  // weakly related and risks polluting the event with unrelated info.
-  return {
-    url: bestScore >= 3 ? bestUrl : "",
-    text: bestScore >= 3 ? bestText : "",
-    debug: {
-      braveCount, ddgCount, bingCount,
-      candidateCount: candidates.length,
-      bestScore,
-      queries,
-      topCandidates: candidateScores,
-    },
-  };
-}
-
 // ── Main handler ──────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -270,7 +110,7 @@ export async function POST(req: NextRequest) {
   const { data: event, error: fetchErr } = await adminClient
     .from("events")
     .select(
-      "name_ja,name_zh,name_en,description_ja,location_name,location_address,location_url,organizer,organizer_url,performer,price_info,business_hours,category,event_form,primary_language,has_japanese_support,has_chinese_support,has_english_support,is_paid,start_date,end_date,source_url,official_url,annotation_status"
+      "name_ja,name_zh,name_en,description_ja,description_zh,description_en,location_name,location_address,location_url,organizer,organizer_url,performer,price_info,business_hours,category,event_form,primary_language,has_japanese_support,has_chinese_support,has_english_support,is_paid,start_date,end_date,source_url,official_url,annotation_status"
     )
     .eq("id", eventId)
     .single();
@@ -287,7 +127,7 @@ export async function POST(req: NextRequest) {
   let webText = "";
   let foundUrl = "";
   const returnedFields: Record<string, unknown> = {};
-  let searchDebug: { braveCount: number; ddgCount: number; bingCount: number; candidateCount: number; bestScore: number; queries: string[]; topCandidates: Array<{ url: string; score: number }> } | null = null;
+  const searchDebug = null;
   let sourceUrlFetchOk: boolean | null = null;
   let bestScore = -1;
   const manualLockedFields = Array.isArray(lockedFields)
@@ -310,70 +150,26 @@ export async function POST(req: NextRequest) {
     !event.organizer_url ||
     !event.location_url;
 
-  if (needsUrlEnrichment && event.name_ja) {
-    if (event.source_url) {
-      const text = await fetchPageText(event.source_url as string);
-      sourceUrlFetchOk = text.length > 0;
-      // Verify the existing source_url actually matches the event — a wrong
-      // URL persisted from a previous bad search must NOT be reused.
-      const score = text ? scorePage(text, event.name_ja as string, (event.location_name as string) || "") : -1;
-      bestScore = score;
-      if (text && score >= 3) {
-        foundUrl = event.source_url as string;
-        webText = text;
-      }
-      // else: fall through to fresh search; do not trust the stored URL
-    }
-    if (!webText) {
-      const enriched = await enrichEvent(
-        event.name_ja,
-        event.location_name || "",
-        (event.start_date || "").toString()
-      );
-      searchDebug = enriched.debug;
-      console.info(
-        `[annotate-event] enrich name="${event.name_ja}" loc="${event.location_name}" ` +
-        `bestScore=${enriched.debug.bestScore} candidates=${JSON.stringify(enriched.debug.topCandidates)} ` +
-        `queries=${JSON.stringify(enriched.debug.queries)}`
-      );
-      bestScore = enriched.debug.bestScore;
-      if (enriched.url && enriched.text) {
-        foundUrl = enriched.url;
-        webText = enriched.text;
-      } else {
-        console.warn(
-          `[annotate-event] no usable page for "${event.name_ja}" location=${event.location_name} year=${(event.start_date || "").slice(0, 4)} debug=${JSON.stringify(enriched.debug)}`
-        );
-      }
-    }
-    if (webText) {
-      const persist: Record<string, unknown> = { raw_description: webText };
-      let originUrl = "";
-      try { originUrl = new URL(foundUrl).origin; } catch { /* skip */ }
-
-      // If the existing source_url was rejected by the score check (foundUrl
-      // came from a fresh search and differs), OVERWRITE it. This is critical
-      // when a previous run persisted a wrong URL.
-      const sourceUrlIsStale = event.source_url && event.source_url !== foundUrl;
-
-      if (!event.source_url || sourceUrlIsStale) {
-        persist.source_url = foundUrl;
-        returnedFields.source_url = foundUrl;
-      }
-      if (!event.official_url || sourceUrlIsStale) {
-        persist.official_url = foundUrl;
-        returnedFields.official_url = foundUrl;
-      }
-      if (!event.organizer_url && originUrl) {
-        persist.organizer_url = originUrl;
-        returnedFields.organizer_url = originUrl;
-      }
-      // NOTE: location_url is intentionally NOT set here.
-      // originUrl = origin of the search-result page (event organizer's site,
-      // Peatix, etc.) — which is NEVER the venue's own website.
-      // location_url must only come from GPT extraction of explicit venue links
-      // in the page text, or from field_corrections / venue_registry.
-      await adminClient.from("events").update(persist).eq("id", eventId);
+  // Wizard URL policy: the user owns every URL field. We never run a web search
+  // to guess URLs, and we never write source_url / official_url / organizer_url
+  // from search results — doing so produced hallucinated links for manually
+  // created events. If the user (or OCR) already provided a source_url, fetch it
+  // ONLY to give GPT extra page context for translation/extraction; the URL
+  // fields themselves stay exactly as the user left them.
+  if (event.source_url && event.name_ja) {
+    const text = await fetchPageText(event.source_url as string);
+    sourceUrlFetchOk = text.length > 0;
+    const score = text
+      ? scorePage(text, event.name_ja as string, (event.location_name as string) || "")
+      : -1;
+    bestScore = score;
+    if (text && score >= 3) {
+      foundUrl = event.source_url as string;
+      webText = text;
+      await adminClient
+        .from("events")
+        .update({ raw_description: webText })
+        .eq("id", eventId);
     }
   }
 
@@ -385,7 +181,9 @@ export async function POST(req: NextRequest) {
     event.name_ja && `活動名（日文）: ${event.name_ja}`,
     event.name_zh && `活動名（中文）: ${event.name_zh}`,
     event.name_en && `活動名（英文）: ${event.name_en}`,
-    event.description_ja && `説明: ${String(event.description_ja).slice(0, 400)}`,
+    event.description_ja && `説明（日文）: ${String(event.description_ja).slice(0, 400)}`,
+    event.description_zh && `説明（中文）: ${String(event.description_zh).slice(0, 400)}`,
+    event.description_en && `説明（英文）: ${String(event.description_en).slice(0, 400)}`,
     foundUrl && `参考ウェブページのURL: ${foundUrl}`,
     webText && `参考ウェブページ全文（最重要・主催/会場/料金等を抜き出すこと）:\n${webText.slice(0, 4000)}`,
     event.location_name && `現在の場地: ${event.location_name}`,
@@ -418,15 +216,17 @@ Classification fields (always required):
 - has_english_support: boolean
 - is_paid: boolean (true = admission fee required, false = free)
 
-Name translations (always required when name_ja is provided):
-- name_ja: event name in Japanese (use existing if provided, else extract)
+Name translations (always required — fill ALL three languages):
+- name_ja: event name in Japanese
 - name_zh: event name in Traditional Chinese (繁體中文)
 - name_en: event name in English
+- The event name may be provided in ANY one of the three languages. Translate from whichever language is present into the other two. If only the Chinese name is given, produce the Japanese and English names from it; if only Japanese is given, produce Chinese and English. NEVER leave a name field empty when any language version is provided.
 
-Description text (always required — generate based on web page or existing info):
+Description text (always required — fill ALL three languages):
 - description_ja: 2–4 sentence description in natural Japanese (丁寧体)
 - description_zh: 2–4 sentence description in Traditional Chinese (繁體中文)
 - description_en: 2–4 sentence description in natural English
+- The description may be provided in ANY one of the three languages. Translate from whichever language is present into the other two, basing the content on the provided description and any web page info. NEVER leave a description field empty when any language version is provided.
 
 Extraction fields (omit if not visible in the web page):
 - organizer: organizer name in Japanese (e.g. "千代田区立日比谷図書文化館")
@@ -533,11 +333,10 @@ Rules:
   if (sanitizedEventForms) returnedFields.event_form = sanitizedEventForms;
   else delete returnedFields.event_form;
 
-  const sanitizedPrimaryLanguage = sanitizePrimaryLanguageValue(returnedFields.primary_language);
-  if (sanitizedPrimaryLanguage) returnedFields.primary_language = sanitizedPrimaryLanguage;
-  else if (returnedFields.primary_language !== undefined) {
-    delete returnedFields.primary_language;
-  }
+  // primary_language is a user-selected field in the wizard (開催言語). The user
+  // explicitly chose it on step 1, so annotation must never override it — strip
+  // any value GPT returned so the client keeps the user's choice.
+  delete returnedFields.primary_language;
 
   const resolvedStartDate =
     typeof returnedFields.start_date === "string" && returnedFields.start_date.trim()
@@ -557,6 +356,15 @@ Rules:
   // Honor user-confirmed translations: never overwrite locked name/description fields.
   for (const field of manualLockedTranslations) {
     delete returnedFields[field];
+  }
+
+  // Wizard URL policy (continued): without fetched page context GPT has no
+  // factual basis for any URL, so strip fabricated URL fields and keep the
+  // user's explicit (often empty) URL choices intact.
+  if (!webText) {
+    for (const urlField of ["source_url", "official_url", "organizer_url", "location_url"]) {
+      delete returnedFields[urlField];
+    }
   }
 
   // 5. Save annotation to DB
