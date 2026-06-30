@@ -336,7 +336,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
           lockedFields: getLockedLocationFields(),
           overwriteableFields: getOverwriteableLocationFields(),
           lockedTranslationFields: mergeLockedTranslations({
-            includePrimaryProvenance: mode === "manual",
+            includePrimaryProvenance: true,
           }),
         }),
         signal: AbortSignal.timeout(58000),
@@ -374,7 +374,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
     try {
       const res = await cfg.publish(eventId, form, {
         lockedTranslationFields: mergeLockedTranslations({
-          includePrimaryProvenance: mode === "manual",
+          includePrimaryProvenance: true,
         }),
         paidChoiceMade: paidChoice !== "",
       });
@@ -474,7 +474,9 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
 
   const totalSteps = mode === "manual" ? 2 : 3;
   const nameDescriptionLangs: Locale[] =
-    mode === "manual" && step === 1 ? [primaryLang] : CONTENT_LANGS;
+    (mode === "manual" && step === 1) || (mode === "image" && step === 2)
+      ? [primaryLang]
+      : CONTENT_LANGS;
   const showForm = !(mode === "image" && step === 1);
   const busy = saving || extracting || annotating;
   const elapsedSec = Math.floor(busyElapsedMs / 1000);
