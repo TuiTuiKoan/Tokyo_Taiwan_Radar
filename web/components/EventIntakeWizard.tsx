@@ -444,12 +444,21 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
     fieldEnSupport: tIntake("fieldEnSupport"),
     fieldZhSupport: tIntake("fieldZhSupport"),
     fieldPromoUrl: tIntake("fieldPromoUrl"),
+    fieldSubmissionUrl: tIntake("fieldSubmissionUrl"),
+    fieldSourceUrl: tIntake("fieldSourceUrl"),
     fieldPaidLabel: tIntake("fieldPaidLabel"),
     paidFree: tIntake("paidFree"),
     paidPaid: tIntake("paidPaid"),
     fieldPriceInfo: tIntake("fieldPriceInfo"),
     fieldCategory: tIntake("fieldCategory"),
     fieldRecordLinks: tIntake("fieldRecordLinks"),
+    sectionBasicInfo: tIntake("sectionBasicInfo"),
+    sectionDateLocation: tIntake("sectionDateLocation"),
+    sectionOrganizer: tIntake("sectionOrganizer"),
+    fieldPublicDisplay: tIntake("fieldPublicDisplay"),
+    fieldVisibilityPublic: tIntake("fieldVisibilityPublic"),
+    fieldVisibilityPrivate: tIntake("fieldVisibilityPrivate"),
+    fieldVisibilityLockedNote: tIntake("fieldVisibilityLockedNote"),
   };
 
   const stepDesc =
@@ -609,13 +618,13 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
             nameDescriptionLangs={nameDescriptionLangs}
             showParentEvent={cfg.showParentEvent}
             showIsActive={false}
+            showSourceUrl={false}
             requiredMarkers
             paidMode="choice"
             paidChoice={paidChoice}
             onPaidChoiceChange={handlePaidChoiceChange}
             hideMixedLanguage
             venuePlaceholder={tIntake("fieldVenuePlaceholder")}
-            supportMode="toggle"
           />
         </div>
       )}

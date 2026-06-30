@@ -30,6 +30,10 @@ function sanitizeForm(form: FormState): EventInsert {
     parent_event_id: empty(f.parent_event_id),
     co_organizers: f.co_organizers ?? null,
     sponsors: f.sponsors ?? null,
+    official_url: empty(f.official_url),
+    submission_url: empty(f.submission_url),
+    // provenance: explicit source_url wins, else fall back to the announcement URL, else null
+    source_url: empty(f.source_url) ?? empty(f.official_url) ?? null,
   };
 }
 

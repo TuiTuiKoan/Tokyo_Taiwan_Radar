@@ -56,6 +56,47 @@ export function PillButton({ active = false, tone = "green", className = "", chi
   );
 }
 
+type RadioGroupOption = { value: string; label: ReactNode };
+type RadioGroupProps = {
+  value: string;
+  options: RadioGroupOption[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  className?: string;
+};
+
+export function RadioGroup({ value, options, onChange, disabled = false, className = "" }: RadioGroupProps) {
+  return (
+    <div role="radiogroup" className={`flex flex-wrap gap-2 ${className}`}>
+      {options.map((opt) => {
+        const selected = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            disabled={disabled}
+            onClick={() => {
+              if (!disabled) onChange(opt.value);
+            }}
+            className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 text-sm leading-none transition focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-1 ${
+              selected
+                ? "border-green-600 bg-green-50 text-fg-strong dark:bg-green-900/20"
+                : "border-line bg-surface text-fg hover:border-green-400"
+            } ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+          >
+            <span aria-hidden className={`text-base leading-none ${selected ? "text-green-600" : "text-fg-subtle"}`}>
+              {selected ? "\u25C9" : "\u25CB"}
+            </span>
+            <span className="leading-none">{opt.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   label: string; // aria-label (required for accessibility)
   children: ReactNode;

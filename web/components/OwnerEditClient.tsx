@@ -55,6 +55,8 @@ export default function OwnerEditClient({ event, locale }: Props) {
     has_chinese_support: event.has_chinese_support || false,
     is_paid: event.is_paid || false,
     price_info: event.price_info || "",
+    official_url: event.official_url || "",
+    submission_url: event.submission_url || "",
     source_url: event.source_url || "",
     source_name: event.source_name || "user_submission",
     original_language: event.original_language || "zh",
@@ -292,12 +294,21 @@ export default function OwnerEditClient({ event, locale }: Props) {
     fieldEnSupport: tIntake("fieldEnSupport"),
     fieldZhSupport: tIntake("fieldZhSupport"),
     fieldPromoUrl: tIntake("fieldPromoUrl"),
+    fieldSubmissionUrl: tIntake("fieldSubmissionUrl"),
+    fieldSourceUrl: tIntake("fieldSourceUrl"),
     fieldPaidLabel: tIntake("fieldPaidLabel"),
     paidFree: tIntake("paidFree"),
     paidPaid: tIntake("paidPaid"),
     fieldPriceInfo: tIntake("fieldPriceInfo"),
     fieldCategory: tIntake("fieldCategory"),
     fieldRecordLinks: tIntake("fieldRecordLinks"),
+    sectionBasicInfo: tIntake("sectionBasicInfo"),
+    sectionDateLocation: tIntake("sectionDateLocation"),
+    sectionOrganizer: tIntake("sectionOrganizer"),
+    fieldPublicDisplay: tIntake("fieldPublicDisplay"),
+    fieldVisibilityPublic: tIntake("fieldVisibilityPublic"),
+    fieldVisibilityPrivate: tIntake("fieldVisibilityPrivate"),
+    fieldVisibilityLockedNote: tIntake("fieldVisibilityLockedNote"),
   };
 
   return (
@@ -397,7 +408,6 @@ export default function OwnerEditClient({ event, locale }: Props) {
           onPaidChoiceChange={handlePaidChoiceChange}
           hideMixedLanguage
           venuePlaceholder={tIntake("fieldVenuePlaceholder")}
-          supportMode="toggle"
         />
       </div>
 

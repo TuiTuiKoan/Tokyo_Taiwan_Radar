@@ -18,6 +18,7 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
   const t = useTranslations("admin");
   const tCat = useTranslations("categories");
   const tEventForm = useTranslations("eventForm");
+  const tIntake = useTranslations("eventIntake");
   const router = useRouter();
   const supabase = createClient();
 
@@ -47,6 +48,8 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
     has_chinese_support: (event as any).has_chinese_support ?? false,
     is_paid: event.is_paid ?? false,
     price_info: event.price_info ?? "",
+    official_url: event.official_url ?? "",
+    submission_url: event.submission_url ?? "",
     source_url: event.source_url,
     source_name: event.source_name,
     original_language: event.original_language,
@@ -54,6 +57,9 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
     parent_event_id: event.parent_event_id ?? "",
     record_links: (event.record_links as { title: string; url: string }[]) ?? [],
   });
+  const [paidChoice, setPaidChoice] = useState<"" | "free" | "paid">(
+    event.is_paid === true ? "paid" : event.is_paid === false ? "free" : ""
+  );
   const [saving, setSaving] = useState(false);
   const busyStartedAtRef = useRef<number | null>(null);
   const [busyElapsedMs, setBusyElapsedMs] = useState(0);
@@ -80,6 +86,11 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
 
   function updateField(key: string, value: any) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function handlePaidChoiceChange(choice: "free" | "paid") {
+    setPaidChoice(choice);
+    updateField("is_paid", choice === "paid");
   }
 
   function toggleCategory(cat: string) {
@@ -257,6 +268,50 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
     router.push(`/${locale}/admin`);
   }
 
+  // Plain string labels only — never pass a translation function across the
+  // server/client boundary (RSC guard).
+  const fieldLabels: Record<string, string> = {
+    langJa: tIntake("langJa"),
+    langZh: tIntake("langZh"),
+    langEn: tIntake("langEn"),
+    fieldEventNameLang: tIntake("fieldEventNameLang"),
+    fieldEventDescLang: tIntake("fieldEventDescLang"),
+    fieldEventName: tIntake("fieldEventName"),
+    fieldEventDesc: tIntake("fieldEventDesc"),
+    fieldStartDate: tIntake("fieldStartDate"),
+    fieldEndDate: tIntake("fieldEndDate"),
+    fieldVenue: tIntake("fieldVenue"),
+    fieldAddress: tIntake("fieldAddress"),
+    fieldVenueUrl: tIntake("fieldVenueUrl"),
+    fieldBusinessHours: tIntake("fieldBusinessHours"),
+    fieldPerformer: tIntake("fieldPerformer"),
+    fieldOrganizer: tIntake("fieldOrganizer"),
+    fieldOrganizerUrl: tIntake("fieldOrganizerUrl"),
+    fieldEventForm: tIntake("fieldEventForm"),
+    fieldCoOrganizers: tIntake("fieldCoOrganizers"),
+    fieldSponsors: tIntake("fieldSponsors"),
+    primaryLanguageLabel: tIntake("primaryLanguageLabel"),
+    fieldJaSupport: tIntake("fieldJaSupport"),
+    fieldEnSupport: tIntake("fieldEnSupport"),
+    fieldZhSupport: tIntake("fieldZhSupport"),
+    fieldPromoUrl: tIntake("fieldPromoUrl"),
+    fieldSubmissionUrl: tIntake("fieldSubmissionUrl"),
+    fieldSourceUrl: tIntake("fieldSourceUrl"),
+    fieldPaidLabel: tIntake("fieldPaidLabel"),
+    paidFree: tIntake("paidFree"),
+    paidPaid: tIntake("paidPaid"),
+    fieldPriceInfo: tIntake("fieldPriceInfo"),
+    fieldCategory: tIntake("fieldCategory"),
+    fieldRecordLinks: tIntake("fieldRecordLinks"),
+    sectionBasicInfo: tIntake("sectionBasicInfo"),
+    sectionDateLocation: tIntake("sectionDateLocation"),
+    sectionOrganizer: tIntake("sectionOrganizer"),
+    fieldPublicDisplay: tIntake("fieldPublicDisplay"),
+    fieldVisibilityPublic: tIntake("fieldVisibilityPublic"),
+    fieldVisibilityPrivate: tIntake("fieldVisibilityPrivate"),
+    fieldVisibilityLockedNote: tIntake("fieldVisibilityLockedNote"),
+  };
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center gap-3">
@@ -276,6 +331,17 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
           events={allEvents}
           editingId={event.id}
           locale={locale}
+          fieldLabels={fieldLabels}
+          nameDescriptionLangs={["ja", "zh", "en"]}
+          showSourceUrl={true}
+          showIsActive={true}
+          isActiveLocked={false}
+          showParentEvent={true}
+          requiredMarkers
+          paidMode="choice"
+          paidChoice={paidChoice}
+          onPaidChoiceChange={handlePaidChoiceChange}
+          hideMixedLanguage
         />
         <div className="flex gap-3 pt-4 border-t border-line">
           <Button type="button" loading={saving} onClick={handleSave} className="shadow-sm">

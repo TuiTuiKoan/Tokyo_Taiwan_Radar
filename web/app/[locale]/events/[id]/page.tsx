@@ -1047,6 +1047,16 @@ export default async function EventDetailPage({ params }: PageProps) {
                       {t("officialSite")} ↗
                     </a>
                   ) : null}
+                  {(event as Event).submission_url ? (
+                    <a
+                      href={(event as Event).submission_url!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium hover:underline"
+                    >
+                      {t("applyLink")} ↗
+                    </a>
+                  ) : null}
                   {event.source_url && event.source_url !== (event as Event).official_url ? (
                     <a
                       href={event.source_url}

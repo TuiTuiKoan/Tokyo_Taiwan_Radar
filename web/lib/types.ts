@@ -40,6 +40,7 @@ export interface Event {
   secondary_source_urls: string[] | null;
   record_links: { title: string; url: string; recommended?: boolean }[] | null;
   official_url?: string | null;
+  submission_url?: string | null;
   selection_reason: string | null;
   annotation_status: string;
   annotated_at: string | null;

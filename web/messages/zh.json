@@ -166,7 +166,7 @@
     "statusAnnotated": "已整理",
     "statusError": "處理失敗",
     "category": "活動類別",
-    "recordLinksSection": "報導・活動紀錄",
+    "recordLinksSection": "活動紀錄相關連結",
     "recordLinksAdd": "新增連結",
     "recordLinksRemove": "移除",
     "recordLinksLinkTitle": "標題",
@@ -197,7 +197,8 @@
     "tvProgramTermsNotice": "請參照個人的收視契約與訂閱方案",
     "addToCalendar": "添加",
     "addToGoogleCalendar": "Google",
-    "addToAppleCalendar": "Apple"
+    "addToAppleCalendar": "Apple",
+    "applyLink": "報名連結"
   },
   "auth": {
     "loginTitle": "登入",
@@ -1011,7 +1012,7 @@
     "fieldEventDesc": "活動說明",
     "fieldStartDate": "開始日期",
     "fieldEndDate": "結束日期",
-    "fieldVenue": "場地",
+    "fieldVenue": "場地・頻道",
     "fieldVenuePlaceholder": "請填寫活動場地名稱，如果是線上或混合形態，請補充填寫",
     "fieldAddress": "地址",
     "fieldVenueUrl": "場地官網",
@@ -1025,7 +1026,7 @@
     "fieldJaSupport": "現場日文支援",
     "fieldEnSupport": "現場英文支援",
     "fieldZhSupport": "現場中文支援",
-    "fieldPromoUrl": "活動宣傳・報名網址",
+    "fieldPromoUrl": "活動宣傳網址",
     "fieldCategory": "活動類別",
     "fieldRecordLinks": "活動紀錄相關連結",
     "fieldPaidLabel": "收費方式",
@@ -1045,7 +1046,16 @@
     "requiredFieldsMissing": "請填寫所有必填欄位",
     "priceInfoRequired": "選擇收費時請填寫費用說明",
     "paidChoiceRequired": "請選擇收費方式",
-    "translationLockFailed": "翻譯鎖定失敗，請重試"
+    "translationLockFailed": "翻譯鎖定失敗，請重試",
+    "sectionBasicInfo": "基礎訊息",
+    "sectionDateLocation": "時間地點",
+    "sectionOrganizer": "主辦與活動形式",
+    "fieldSubmissionUrl": "報名網址",
+    "fieldSourceUrl": "出處網址",
+    "fieldPublicDisplay": "公開／非公開",
+    "fieldVisibilityPublic": "公開",
+    "fieldVisibilityPrivate": "非公開",
+    "fieldVisibilityLockedNote": "非公開（僅管理者可重新公開）"
   },
   "eventNarrative": {
     "p1WithEnd": "{name} 將於 {start} 至 {end} 在 {location} 舉行。",

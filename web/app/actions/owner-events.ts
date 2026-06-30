@@ -49,6 +49,8 @@ const CONTENT_WHITE_LIST = [
   "price_amount",
   "price_currency",
   "price_info",
+  "official_url",
+  "submission_url",
   "source_url",
   "event_form",
   "category",
@@ -83,7 +85,7 @@ function sanitizeOwnerForm(form: FormState, ownerUserId: string): Record<string,
   payload.is_active = true; // Auto-publish for UGC
   payload.annotation_status = "annotated"; // Skip scraper processing but mark as annotated
 
-  payload.source_url = payload.source_url || payload.organizer_url || payload.location_url || null;
+  payload.source_url = payload.source_url || payload.official_url || payload.organizer_url || payload.location_url || null;
   if (
     typeof payload.primary_language === "string" &&
     payload.primary_language &&
@@ -394,6 +396,19 @@ export async function updateOwnerEvent(
   // Keep original source_id & source_name
   delete payload.source_name;
   delete payload.source_id;
+
+  // 6a. is_active irreversibility (OWASP A01 / business rule).
+  //   - Owner-closed events (is_active=false + closed_by_owner) stay private;
+  //     only an admin can re-publish them. sanitizeOwnerForm's is_active=true is overridden.
+  //   - When the owner explicitly switches a live event to private, persist the
+  //     closure + reason so the guard above applies on every later save.
+  if (existing.is_active !== true && existing.closed_by_owner === true) {
+    payload.is_active = false;
+  } else if (existing.is_active === true && form.is_active === false) {
+    payload.is_active = false;
+    payload.closed_by_owner = true;
+    payload.deactivated_reason = "closed_by_owner";
+  }
 
   const { data: updated, error: updateError } = await serviceClient
     .from("events")
