@@ -999,6 +999,8 @@
     "manualStep2Desc": "Translation is complete. Please review the content, then you can publish it.",
     "stepBasicInfo": "Enter event info",
     "stepReview": "Review & publish",
+    "stepImageUpload": "Upload image",
+    "stepImageReview": "Review event info",
     "imageStep1Desc": "Choose a poster image. After uploading, the system automatically extracts the event title and description.",
     "imageStep2Desc": "Extraction is complete. Please review the content and fill in the required fields. The system will then automatically translate and complete the other languages.",
     "imageStep3Desc": "Translation is complete. Please review the content, then you can publish it.",

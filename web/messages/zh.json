@@ -999,6 +999,8 @@
     "manualStep2Desc": "翻譯補全已完成，請檢查內容，確認之後就可以公開發佈。",
     "stepBasicInfo": "輸入活動基本訊息",
     "stepReview": "檢查並發佈",
+    "stepImageUpload": "上傳圖片",
+    "stepImageReview": "檢視活動基本資訊",
     "imageStep1Desc": "請選取宣傳圖片，上傳之後，系統會自動提取活動標題與內容說明。",
     "imageStep2Desc": "提取已完成，請檢查內容，並補充必填欄位。確認之後，交由系統自動翻譯補全其他語言。",
     "imageStep3Desc": "翻譯補全已完成，請檢查內容，確認之後就可以公開發佈。",
