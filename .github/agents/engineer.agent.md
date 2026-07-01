@@ -5,16 +5,16 @@ model: claude-sonnet-4-5
 handoffs:
   - label: "🏗️ Plan this first"
     agent: Architect
+    prompt: "請先針對目前需求產出實作計畫，確認資料模型、受影響路徑、驗證步驟與風險。"
   - label: "🧪 Test the result"
     agent: Tester
+    prompt: "請根據最近完成的變更執行相關測試與驗證，回報 pass/fail、命令輸出摘要與剩餘風險。"
   - label: "📝 Update history/skill/agent"
     agent: Update History, Skill, Agent
     prompt: "根據最近的修改和所學的教訓，幫助我更新 history.md、SKILL.md 和 agent 檔案。"
-    send: true
   - label: "🚀 Validate, merge & deploy"
     agent: Validate, Merge & Deploy
     prompt: "執行完整的驗證流程：檢查衝突、rebase、commit 和推送到 origin/main，最後確認 Vercel 部署。"
-    send: true
 ---
 
 # Engineer

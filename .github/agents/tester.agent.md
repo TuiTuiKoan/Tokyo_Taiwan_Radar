@@ -18,7 +18,6 @@ handoffs:
   - label: "🚀 Validate, merge & deploy"
     agent: Validate, Merge & Deploy
     prompt: "執行完整的驗證流程：檢查衝突、rebase、commit 和推送到 origin/main，最後確認 Vercel 部署。"
-    send: true
 ---
 
 # Tester

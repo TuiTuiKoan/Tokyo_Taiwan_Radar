@@ -53,6 +53,7 @@ print('report_types:', types)               # 必須 ⊆ 計畫快照
 - **report cleanup verify assertion 先分支 single-type vs multi-type**：multi-type row 可能被 multi-type assertion 合法留 pending，「某型別 MUST NOT APPEAR」是過度簡化，會誤報。
 - **uuid 欄位禁用 `.like()`**：`.like('id', prefix+'%')` 觸發 Postgres `42883 (uuid ~~ unknown)`；改用 full-uuid `.eq()`、對 text 欄位（如 `field_corrections.event_id`）比對，或 Python 過濾。
 - **中型以上 feature 用 isolated worktree 防 WIP 被掃走**：規劃跨多檔的中型改動時，建議 Engineer 在 `git worktree add` 隔離分支開發。並行 session 的 `git stash`/clean 碰不到 linked worktree，避免未 commit WIP 被當「unrelated before deploy」掃走（2026-06-29 v8 投稿精靈 WIP 散落 5 stash 事件）。runSubagent 同步但 return 常截斷——驗收看 git status/diff 不看回傳。
+- **worktree 並存期，任何「現況值」斷言先 grep 主 repo + worktree 兩邊對照**：worktree（如 `ttr-v8-worktree/`）常領先主 repo 數個未 merge 改動；使用者跑 worktree dev server 時，畫面反映的是 worktree 而非主 repo。只讀主 repo 會把「主 repo 落後」誤判成「需要改 worktree」。**推論表單/UI 實際 render 的 i18n 值，必須跟著元件 `useTranslations(ns)` 的 namespace 走到源頭**——同名 key（如 `fieldVenue` 同時存在於 designSystem preview 與 `eventIntake` 兩個 namespace）只憑 grep 第一個命中行號就斷言會誤判。使用者對自己畫面的觀察優先於先前 summary-derived 結論；被質疑時第一動作是查證兩邊實體（grep 主+worktree、追元件 namespace），不是辯護原判斷（2026-07-01 Phase B2 fieldVenue namespace／codebase 誤判事件，詳見 `history.md`）。
 
 Reference incident: 2026-06-25 — G3.0+G3.1 並行 session 漂移 baseline（pending 350→212→197）+ HEAD（`60240df`/`631efb6`），Engineer 中斷帶 live DB 變更但 code 未 commit（fix-forward commit `34bca54`，Tester PASS 5/5）。詳見 architect `history.md`。
 
@@ -1690,7 +1691,7 @@ handoffs:
 1. **Name consistency**: Agent `name:` in frontmatter must match the handoff `agent:` field exactly (case-sensitive).
 2. **Chinese instructions in prompt**: Always include `prompt:` field with clear Chinese task description to ensure context transfer.
 3. **Never set `user-invocable: false` on handoff targets** — this silently breaks all buttons pointing to that agent.
-4. **Always include `send: true`** on handoffs that have a `prompt:` field, or the prompt won't appear.
+4. **Do NOT set `send: true`** on handoffs. Since 2026-05-14, VS Code auto-fires `send: true` prompts — the button sends immediately and the user cannot review, edit, or push first (e.g. it jumps to "Update history" before the user can push). Omit it; the `prompt:` then lands in the input box awaiting the user's Enter. See the `send: true` section above.
 5. **Workflow grouping**: If two agents form a natural sequence (e.g., Plan → Implement → Review), add all three as handoffs in each agent to enable any→any routing.
 6. **Testing**: After adding handoffs, `Developer: Reload Window`, then verify buttons appear in the response area after a message.
 

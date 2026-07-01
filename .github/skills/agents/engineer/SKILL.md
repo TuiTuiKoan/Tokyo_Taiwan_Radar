@@ -41,7 +41,7 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 ## Agent Handoff Reliability
 
 - For workflow agents, treat handoffs as a required output path, not optional UI polish.
-- If a handoff defines `prompt:`, set `send: true` when the intended behavior is one-click execution.
+- Do NOT set `send: true` on handoffs. Since 2026-05-14 VS Code auto-fires `send: true` prompts, blocking the user from reviewing or pushing first. Omit it so the `prompt:` lands in the input box for user confirmation.
 - Pre-ship check for agent changes: verify target agent names resolve correctly and at least one post-task handoff exists for the expected next action.
 - **Every new agent file must include `handoffs:` at creation time.** An agent with no handoffs leaves users stranded after task completion.
 
