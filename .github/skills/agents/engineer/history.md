@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-07-01 — 事件投稿精靈必填清單改版（雙 codebase 同步）+ actionError 位置 bug + 必填 * 綠色
+
+**Context**: admin／creator 的事件創建頁與編輯頁，preflight 失敗只顯示泛稱「必須項目をすべて入力してください」，不告訴使用者**還缺哪些**。使用者另反映「保存して自動翻訳 必填全點了為何不動」。同時要求：輸入框底色統一、必填 `*` 改成 CTA 綠色。改動橫跨主 repo `web/` 與 `ttr-v8-worktree/web/` 兩套 codebase，各 7 檔。
+
+**Fix**:
+1. **驗證訊息清單化（`eventIntakeValidation.ts`）**：`primary_content` 拆成 `primary_name` + `primary_description`；新增 `MISSING_FIELD_DISPLAY_ORDER`、`MISSING_FIELD_LABEL_KEYS`、`buildMissingFieldsMessage(missing, t)`，依固定順序輸出 `✘` 逐項清單（開催言語→イベント名→イベント説明→料金区分→カテゴリ→開始日→終了日→会場・チャンネル→住所→主催→開催形式）。三語新增 `requiredFieldsMissingTitle`。
+2. **actionError 位置 bug（`EventIntakeWizard.tsx` / `OwnerEditClient.tsx`）**：錯誤訊息原本 render 在表單**頂部**，CTA 按鈕在**底部**——使用者點底部按鈕，錯誤出現在捲動範圍外，看似「按了沒反應」。改成移到 CTA 按鈕**正上方** + `whitespace-pre-line` 多行顯示（單次 render，不重複）。
+3. **必填 `*` 綠色（`AdminEventForm.tsx`）**：`mark()` 由回傳模板字串改為回傳 `<span className="text-green-600">{" *"}</span>` JSX；name/desc label 一併轉 JSX。
+4. **底色統一**：`sponsors` / `price_info`（主 repo 另含 `source_url`）補 `bg-paper`。
+5. **雙 codebase 同步**：主 repo + worktree 各 7 檔對稱改；`eventIntake.fieldVenue` 僅**主 repo 落後**需補「会場・チャンネル／場地・頻道／Venue / Channel」，worktree 本已正確（見 architect history 同日 fieldVenue 誤判事件）。
+
+**Lesson**:
+- **驗證訊息必須「可行動」**：preflight 失敗只說「有缺」使用者無從下手；要列出**具體缺哪些欄位**並固定顯示順序，而非單一泛稱句。
+- **inline error 的 render 位置必須貼近觸發它的 CTA**：錯誤在表單頂部、按鈕在底部 = 長表單捲動後看不到 → 使用者誤判「按鈕壞掉／沒反應」。錯誤訊息放 CTA 正上方是唯一正解。
+- **雙 codebase（主 repo + worktree）並存期，任何 UI／i18n 改動要兩套同步**：漏改一套會出現「編輯器／dev server 看到的是 worktree，但 main 落後」的錯亂；`fieldVenue` 就是主 repo 落後 worktree 一版的實例。改「現況值」前務必 grep 兩套對照。
+- **RSC 邊界不可傳遞 translation function**：`buildMissingFieldsMessage(missing, t)` 由呼叫端注入 `t`，不在函式內跨 client／server 邊界取 translation，避免 server component 序列化錯誤。
+
+---
+
 ## 2026-06-29 - merge commit 觸發 remote secret hook，ff 線性 push 過
 
 **Context**: v8 精靈 worktree rebase 後 `git merge --no-ff` 進 main，push 被 remote pre-receive `rejected leak detected` 擋。本機 `gitleaks` 帶 `.gitleaks.toml` 0 leaks、裸掃 push range 0、36 檔零 30+ 連續字串、無 github_pat/eyJ/sk-。docs commit 單獨 ff push 成功，唯獨 merge commit 被擋。

@@ -2,6 +2,22 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-07-01 — 事件表單必填清單改版：Phase B2 誤判 fieldVenue 的 namespace 與 codebase 現況
+
+**背景：** 使用者要求把 admin/creator 建立表單 + creator 編輯表單的 generic 錯誤「必須項目をすべて入力してください」改為「列出缺哪些必填」（併 UI 一致性 + 「保存して自動翻訳沒反應」bug 修復）。計畫 v2 的 Phase B2 我斷言「表單場地 label `fieldVenue` 目前是『会場』，需改成『会場・チャンネル』讓錯誤清單一致」，並把它定位到 `messages/*.json` 的 line 767。使用者質疑：「表單場地欄位已經是『会場・チャンネル』，你說的不一致是哪一頁？」
+
+**根本原因：** 兩個複合誤判。(1) **只讀主 repo、忽略 worktree 現況**：使用者實際開發/預覽的是 `ttr-v8-worktree/`，其 `eventIntake.fieldVenue` 三語**早已**是「会場・チャンネル / 場地・頻道 / Venue / Channel」，只有主 repo 停在「会場 / 場地 / Venue」——真正的不一致是 **codebase 之間**（worktree 領先、主 repo 落後），不是頁面之間。(2) **同名 key 跨 namespace 誤判**：`fieldVenue` 至少存在於兩個 namespace（line ~767 designSystem preview、line ~1014 `eventIntake`），我把 line 767 誤當表單用的 key。表單實際走 `tIntake`（eventIntake namespace）＋ AdminEventForm 的 `label("fieldVenue","location")` → `fieldLabels["fieldVenue"]`（= `eventIntake.fieldVenue`），與 line 767 無關。
+
+**修復：** grep 兩 codebase × 三語的 `eventIntake.fieldVenue` 實際值對照，確認 worktree 已改、主 repo 落後；再追 `label()`／`fieldLabels`／`useTranslations("eventIntake")` 機制，確認表單 render 的是 eventIntake namespace。Phase B2 改為「worktree 不動、僅主 repo 三語 `eventIntake.fieldVenue` 同步（選項 i）」；錯誤清單 location_name 沿用現有 `fieldVenue` key，無需新增。Engineer 實作 14 檔、Tester 6 項全 PASS（tsc 0 error、build 成功、i18n 僅 3 行 fieldVenue 改值無誤刪）。
+
+**教訓：**
+1. **雙 codebase（worktree）並存期，任何「現況值」斷言必須先 grep 主 repo + worktree 對照。** worktree 常領先主 repo 數個未 merge 改動；只看主 repo 會把「主 repo 落後」誤判成「需要改 worktree」。使用者若在跑 worktree dev server，其畫面反映的是 worktree，不是主 repo。
+2. **同名 i18n key 跨 namespace 極易誤判。** 定位表單用的 key，必須找元件實際 `useTranslations(ns)` 的那個 namespace（此處 `"eventIntake": {` 之後那一個），不能只憑 grep 命中的第一個行號就斷言。
+3. **追表單實際 render 的 label 要走完 `label()`／`fieldLabels` → namespace 源頭再下結論**，不要用 summary-derived 的行號假設。
+4. **使用者對自己畫面的觀察優先於先前結論。** 被質疑時第一動作是查證實體（grep 兩邊、追元件 namespace），不是辯護原判斷。
+
+---
+
 ## 2026-06-29 — 週報 nearterm 地區地理排序：rstrip("都道府県") 過度剝離京都府/北海道
 
 **背景：** 週報「本週・下週全部活動」的地區分組順序原沿用 dict 插入序（各組最早活動日期），看似雜亂。使用者要求改為「全國置頂 → 東京置頂 → 其餘地區由北至南」。新增 `_PREF_GEO_RANK`（47 都道府縣 0–46）+ `_region_geo_rank()`，nearterm 地區改用 `sorted()`。初版用 `prefecture.rstrip("都道府県")` 正規化後查 rank 表，dry-run 發現京都/北海道 unmap（rank 998），en 版地區排序錯亂。
