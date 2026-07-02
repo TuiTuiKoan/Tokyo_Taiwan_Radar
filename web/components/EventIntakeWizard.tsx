@@ -8,6 +8,7 @@ import { type Event, type Locale } from "@/lib/types";
 import Button from "@/components/Button";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 import EventIntakeStepper from "@/components/EventIntakeStepper";
+import PosterLightbox from "@/components/PosterLightbox";
 import { createOwnerDraft, updateOwnerDraft, updateOwnerEvent } from "@/app/actions/owner-events";
 import {
   createDraftEvent,
@@ -56,6 +57,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
   const [actionError, setActionError] = useState<string | null>(null);
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
   const [posterDataUrl, setPosterDataUrl] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [, startTransition] = useTransition();
 
   const posterFileRef = useRef<HTMLInputElement>(null);
@@ -71,7 +73,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
     publish: (
       id: string,
       form: FormState,
-      opt: { lockedTranslationFields?: string[]; paidChoiceMade?: boolean },
+      opt: { lockedTranslationFields?: string[]; paidChoiceMade?: boolean; requireBusinessHours?: boolean },
     ) => Promise<ActionResult<Event>>;
     extractEndpoint: string;
     annotateEndpoint: string;
@@ -298,6 +300,8 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
     if (actionLockRef.current) return;
     const missing = collectMissingRequiredFields(form, {
       requirePrimaryContent: true,
+      requirePrimaryDescription: mode === "manual",
+      requireBusinessHours: true,
       primaryLang: form.primary_language,
       paidChoiceMade: paidChoice !== "",
     });
@@ -346,7 +350,16 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
   // Shared by manual step2 and image step3.
   async function handlePublish() {
     if (actionLockRef.current) return;
-    const missing = collectMissingRequiredFields(form, { paidChoiceMade: paidChoice !== "" });
+    // [C2] Client preflight must mirror the server publish gate so clearing
+    // primary name/description/business_hours on the review step surfaces the
+    // actionable missing-field list instead of a generic server error.
+    const missing = collectMissingRequiredFields(form, {
+      requirePrimaryContent: true,
+      requirePrimaryDescription: true,
+      requireBusinessHours: true,
+      primaryLang: form.primary_language,
+      paidChoiceMade: paidChoice !== "",
+    });
     if (missing.length > 0) {
       setActionError(describePreflight(missing));
       return;
@@ -363,6 +376,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
           includePrimaryProvenance: mode === "manual",
         }),
         paidChoiceMade: paidChoice !== "",
+        requireBusinessHours: true,
       });
       if (!res.ok) {
         setActionError(describeServerError(res.error));
@@ -459,8 +473,9 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
           : tIntake("imageStep3Desc");
 
   const totalSteps = mode === "manual" ? 2 : 3;
-  const nameDescriptionLangs: Locale[] =
-    mode === "manual" && step === 1 ? [primaryLang] : CONTENT_LANGS;
+  const isBasicInfoStep =
+    (mode === "manual" && step === 1) || (mode === "image" && step === 2);
+  const nameDescriptionLangs: Locale[] = isBasicInfoStep ? [primaryLang] : CONTENT_LANGS;
   const showForm = !(mode === "image" && step === 1);
   const busy = saving || extracting || annotating;
   const elapsedSec = Math.floor(busyElapsedMs / 1000);
@@ -571,19 +586,17 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
       {posterPreview && (
         <div className="-mx-6 sm:mx-0 overflow-hidden sm:rounded-xl border border-line bg-surface">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={posterPreview} alt="Poster preview" className="w-full max-h-96 object-contain" />
+          <img
+            src={posterPreview}
+            alt="Poster preview"
+            onClick={() => setLightboxOpen(true)}
+            className="w-full max-h-96 object-contain cursor-zoom-in"
+          />
         </div>
       )}
 
-      {busy && (
-        <div
-          aria-live="polite"
-          className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
-        >
-          {extracting
-            ? `${tIntake("busyExtracting")} ${elapsedSec}s`
-            : `${tIntake("busyTranslating")} ${elapsedSec}s`}
-        </div>
+      {lightboxOpen && posterPreview && (
+        <PosterLightbox src={posterPreview} onClose={() => setLightboxOpen(false)} />
       )}
 
       {showForm && (
@@ -608,6 +621,8 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
             paidChoice={paidChoice}
             onPaidChoiceChange={handlePaidChoiceChange}
             hideMixedLanguage
+            businessHoursRequired={true}
+            descriptionRequired={!(mode === "image" && step === 2)}
             venuePlaceholder={tIntake("fieldVenuePlaceholder")}
           />
         </div>
@@ -620,6 +635,17 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
         >
           {actionError}
         </p>
+      )}
+
+      {busy && (
+        <div
+          aria-live="polite"
+          className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
+        >
+          {extracting
+            ? `${tIntake("busyExtracting")} ${elapsedSec}s`
+            : `${tIntake("busyTranslating")} ${elapsedSec}s`}
+        </div>
       )}
 
       <div className="flex items-center gap-3 pt-4 border-t border-line">

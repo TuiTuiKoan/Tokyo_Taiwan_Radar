@@ -45,6 +45,9 @@ Extract all visible information and return a JSON object with these fields (omit
 - name_ja: FULL event name in Japanese, including main title AND any subtitle/series name. If the poster shows a hierarchy (large title + smaller subtitle on next line), join them with "――" or "ー" preserving both. Do NOT truncate. Example: "国立公文書館特別展　台湾と日本　歴史の中で交差する物語"
 - name_zh: full event name in Traditional Chinese
 - name_en: full event name in English
+- description_ja: main Japanese description/summary text printed on the poster (the paragraph explaining the event content, theme, or highlights). Capture the core description faithfully (lightly condense if very long). Omit if the poster has no description text.
+- description_zh: event description in Traditional Chinese — ONLY if the poster prints a Chinese description.
+- description_en: event description in English — ONLY if the poster prints an English description.
 - start_date: YYYY-MM-DD format
 - end_date: YYYY-MM-DD format (if range shown)
 - location_name: venue name (Japanese)
@@ -70,6 +73,10 @@ Title rules:
 - Read the poster top to bottom and capture the COMPLETE title (main title + sub-title + series name).
 - Do not stop at the first line break. Subtitles printed below or beside the main title are part of name_ja.
 - If multiple language versions of the title appear, populate name_ja / name_zh / name_en accordingly. If a language version is missing on the poster, omit that field (annotator will translate later).
+
+Description rules:
+- Only extract the description language versions actually PRINTED on the poster; omit any language not present (the annotator translates the rest later).
+- If the poster has no description/summary text at all, omit all description fields. Do NOT fabricate a description.
 
 URL rules:
 - Only extract URLs that are LEGIBLY printed on the poster (full https:// URL or qr-code annotation).

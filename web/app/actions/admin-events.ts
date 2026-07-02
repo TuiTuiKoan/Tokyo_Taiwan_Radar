@@ -134,7 +134,7 @@ export async function publishEvent(eventId: string): Promise<ActionResult<null>>
 export async function publishAdminWizardEvent(
   eventId: string,
   form: FormState,
-  options?: { lockedTranslationFields?: string[]; paidChoiceMade?: boolean },
+  options?: { lockedTranslationFields?: string[]; paidChoiceMade?: boolean; requireBusinessHours?: boolean },
 ): Promise<ActionResult<Event>> {
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
@@ -157,6 +157,7 @@ export async function publishAdminWizardEvent(
     requirePrimaryContent: true,
     primaryLang,
     paidChoiceMade: options?.paidChoiceMade === true,
+    requireBusinessHours: options?.requireBusinessHours === true,
   });
   if (missing.length > 0) return { ok: false, error: "requiredFieldsMissing" };
 

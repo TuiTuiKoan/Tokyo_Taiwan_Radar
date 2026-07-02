@@ -240,6 +240,7 @@ Description text (always required — fill ALL three languages):
 - description_zh: 2–4 sentence description in Traditional Chinese (繁體中文)
 - description_en: 2–4 sentence description in natural English
 - The description may be provided in ANY one of the three languages. Translate from whichever language is present into the other two, basing the content on the provided description and any web page info. NEVER leave a description field empty when any language version is provided.
+- If ALL three description languages are empty, generate a coherent, factual 2–4 sentence description in each language from the event name and any available info (dates, venue, organizer, category); the three languages must convey the same content. Never leave the descriptions blank.
 
 Extraction fields (omit if not visible):
 - organizer: organizer name in Japanese

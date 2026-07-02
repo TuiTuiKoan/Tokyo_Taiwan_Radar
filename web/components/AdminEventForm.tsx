@@ -67,6 +67,10 @@ interface Props {
   paidChoice?: "" | "free" | "paid";
   onPaidChoiceChange?: (choice: "free" | "paid") => void;
   hideMixedLanguage?: boolean;
+  /** Mark business_hours as required (create flow only). Defaults to false. */
+  businessHoursRequired?: boolean;
+  /** Mark the primary-language description as required. Defaults to true. */
+  descriptionRequired?: boolean;
   venuePlaceholder?: string;
 }
 
@@ -90,6 +94,8 @@ export default function AdminEventForm({
   paidChoice = "",
   onPaidChoiceChange,
   hideMixedLanguage = false,
+  businessHoursRequired = false,
+  descriptionRequired = true,
   venuePlaceholder,
 }: Props) {
   const parentCandidates = events.filter((e) => e.id !== editingId);
@@ -173,7 +179,7 @@ export default function AdminEventForm({
           <div key={lang} className="">
             <label className="block text-xs text-fg-muted mb-1">
               {singleLang ? label("fieldEventDesc", `desc${cap(lang)}`) : descLabel(lang)}
-              {mark(singleLang || lang === primaryLang)}
+              {mark((singleLang || lang === primaryLang) && descriptionRequired)}
             </label>
             <textarea
               rows={3}
@@ -410,7 +416,7 @@ export default function AdminEventForm({
 
         {/* Business hours */}
         <div>
-          <label className="block text-xs text-fg-muted mb-1">{label("fieldBusinessHours", "hours")}</label>
+          <label className="block text-xs text-fg-muted mb-1">{label("fieldBusinessHours", "hours")}{mark(businessHoursRequired)}</label>
           <input
             type="text"
             value={form.business_hours}

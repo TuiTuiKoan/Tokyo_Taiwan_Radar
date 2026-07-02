@@ -6,6 +6,7 @@ import { type Event, type Locale } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 import Button from "@/components/Button";
+import PosterLightbox from "@/components/PosterLightbox";
 import { updateOwnerEvent, updateOwnerDraft } from "@/app/actions/owner-events";
 import {
   TRANSLATION_LOCK_FIELDS,
@@ -73,6 +74,7 @@ export default function OwnerEditClient({ event, locale }: Props) {
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [annotating, setAnnotating] = useState(false);
   const [annotationError, setAnnotationError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -104,7 +106,20 @@ export default function OwnerEditClient({ event, locale }: Props) {
       handlePaidChoiceChange(fields.is_paid ? "paid" : "free");
     }
     const next = pickReturnedFormFields(EMPTY_FORM, fields);
-    if (Object.keys(next).length > 0) setForm((prev) => ({ ...prev, ...next }));
+    if (Object.keys(next).length === 0) return;
+    setForm((prev) => {
+      const merged = { ...prev, ...next };
+      // [C1] Edit-page empty-only guard: OCR (shared extract endpoint) must not
+      // overwrite an existing human/AI description. Re-uploading a poster only
+      // fills description fields that are currently blank.
+      for (const key of ["description_ja", "description_zh", "description_en"] as const) {
+        const current = prev[key];
+        if (typeof current === "string" && current.trim() !== "") {
+          merged[key] = current;
+        }
+      }
+      return merged;
+    });
   }
 
   function applyReturnedFields(fields: Record<string, unknown>) {
@@ -394,9 +409,14 @@ export default function OwnerEditClient({ event, locale }: Props) {
             <img
               src={posterPreview}
               alt="Poster preview"
-              className="w-full max-h-96 object-contain"
+              onClick={() => setLightboxOpen(true)}
+              className="w-full max-h-96 object-contain cursor-zoom-in"
             />
           </div>
+        )}
+
+        {lightboxOpen && posterPreview && (
+          <PosterLightbox src={posterPreview} onClose={() => setLightboxOpen(false)} />
         )}
 
         {extractError && (

@@ -1058,7 +1058,11 @@
     "fieldPublicDisplay": "公開／非公開",
     "fieldVisibilityPublic": "公開",
     "fieldVisibilityPrivate": "非公開",
-    "fieldVisibilityLockedNote": "非公開（僅管理者可重新公開）"
+    "fieldVisibilityLockedNote": "非公開（僅管理者可重新公開）",
+    "lightboxClose": "關閉",
+    "lightboxZoomIn": "放大",
+    "lightboxZoomOut": "縮小",
+    "lightboxReset": "重設"
   },
   "eventNarrative": {
     "p1WithEnd": "{name} 將於 {start} 至 {end} 在 {location} 舉行。",

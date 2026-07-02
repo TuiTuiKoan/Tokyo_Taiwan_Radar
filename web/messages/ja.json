@@ -1058,7 +1058,11 @@
     "fieldPublicDisplay": "公開・非公開",
     "fieldVisibilityPublic": "公開",
     "fieldVisibilityPrivate": "非公開",
-    "fieldVisibilityLockedNote": "非公開（再公開は管理者のみ）"
+    "fieldVisibilityLockedNote": "非公開（再公開は管理者のみ）",
+    "lightboxClose": "閉じる",
+    "lightboxZoomIn": "拡大",
+    "lightboxZoomOut": "縮小",
+    "lightboxReset": "リセット"
   },
   "eventNarrative": {
     "p1WithEnd": "{name} は {start} から {end} まで、{location} にて開催されます。",

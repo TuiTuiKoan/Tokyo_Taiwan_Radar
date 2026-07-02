@@ -1058,7 +1058,11 @@
     "fieldPublicDisplay": "Visibility",
     "fieldVisibilityPublic": "Public",
     "fieldVisibilityPrivate": "Private",
-    "fieldVisibilityLockedNote": "Private — only admins can re-publish"
+    "fieldVisibilityLockedNote": "Private — only admins can re-publish",
+    "lightboxClose": "Close",
+    "lightboxZoomIn": "Zoom in",
+    "lightboxZoomOut": "Zoom out",
+    "lightboxReset": "Reset"
   },
   "eventNarrative": {
     "p1WithEnd": "{name} runs from {start} to {end} at {location}.",

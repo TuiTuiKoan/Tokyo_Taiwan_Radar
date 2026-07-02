@@ -10,6 +10,7 @@ export type IntakeFormLike = {
   end_date?: string | null;
   location_name?: string | null;
   location_address?: string | null;
+  business_hours?: string | null;
   organizer?: string | null;
   event_form?: string[] | null;
   primary_language?: string | null;
@@ -20,6 +21,10 @@ export type IntakeFormLike = {
 
 export type CollectMissingOptions = {
   requirePrimaryContent?: boolean;
+  /** When false, skip the primary-language description check (image step 2). Defaults to true. */
+  requirePrimaryDescription?: boolean;
+  /** When true, business_hours becomes required (create flow only). Defaults to false. */
+  requireBusinessHours?: boolean;
   primaryLang?: string;
   paidChoiceMade?: boolean;
 };
@@ -42,6 +47,8 @@ export function collectMissingRequiredFields(
   if (isBlank(form.end_date)) missing.push("end_date");
   if (isBlank(form.location_name)) missing.push("location_name");
   if (isBlank(form.location_address)) missing.push("location_address");
+  if (opts.requireBusinessHours === true && isBlank(form.business_hours))
+    missing.push("business_hours");
   if (isBlank(form.organizer)) missing.push("organizer");
 
   const eventForms = Array.isArray(form.event_form) ? form.event_form : [];
@@ -59,15 +66,17 @@ export function collectMissingRequiredFields(
   if (form.is_paid === true && isBlank(form.price_info)) missing.push("price_info");
 
   if (opts.requirePrimaryContent) {
+    const requireDescription = opts.requirePrimaryDescription !== false;
     const lang = typeof opts.primaryLang === "string" ? opts.primaryLang : "";
     if (!VALID_PRIMARY_CONTENT_LANGS.has(lang)) {
       // No fallback to ja — a mixed/empty primary language has no single
       // authoritative content field, so the caller must resolve it explicitly.
       missing.push("primary_name");
-      missing.push("primary_description");
+      if (requireDescription) missing.push("primary_description");
     } else {
       if (isBlank(form[`name_${lang}`])) missing.push("primary_name");
-      if (isBlank(form[`description_${lang}`])) missing.push("primary_description");
+      if (requireDescription && isBlank(form[`description_${lang}`]))
+        missing.push("primary_description");
     }
   }
 
@@ -85,6 +94,7 @@ export const MISSING_FIELD_DISPLAY_ORDER: string[] = [
   "end_date",
   "location_name",
   "location_address",
+  "business_hours",
   "organizer",
   "event_form",
   "price_info",
@@ -101,6 +111,7 @@ export const MISSING_FIELD_LABEL_KEYS: Record<string, string> = {
   end_date: "fieldEndDate",
   location_name: "fieldVenue",
   location_address: "fieldAddress",
+  business_hours: "fieldBusinessHours",
   organizer: "fieldOrganizer",
   event_form: "fieldEventForm",
   price_info: "fieldPriceInfo",

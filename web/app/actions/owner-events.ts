@@ -331,7 +331,7 @@ export async function createOwnerDraft(form: FormState): Promise<ActionResult<Ev
 export async function updateOwnerEvent(
   eventId: string,
   form: FormState,
-  options?: { lockedTranslationFields?: string[]; paidChoiceMade?: boolean }
+  options?: { lockedTranslationFields?: string[]; paidChoiceMade?: boolean; requireBusinessHours?: boolean }
 ): Promise<ActionResult<Event>> {
   const supabase = await createClient();
   const {
@@ -364,6 +364,7 @@ export async function updateOwnerEvent(
     requirePrimaryContent: true,
     primaryLang,
     paidChoiceMade: options?.paidChoiceMade === true,
+    requireBusinessHours: options?.requireBusinessHours === true,
   });
   if (missing.length > 0) {
     return { ok: false, error: "requiredFieldsMissing" };
