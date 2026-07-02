@@ -152,6 +152,9 @@ const sanitized = (parsed.category ?? []).filter((c: string) => VALID_CATEGORIES
   {"success": False, "duration_seconds": 0}
   ```
   If only the success path is updated, failure rows leave the column NULL and break `NOT NULL` constraints (or silently insert the default, hiding failures).
+- **NOT NULL 欄位在 web server-action 的 write 路徑也要對稱保護（insert + 全部 update）。** 同上 `scraper_runs` success/except 對稱規則的 web 版。owner 建活動的 `source_url`（`events` NOT NULL）：insert 路徑 `createOwnerDraft` 有 `|| OWNER_SUBMISSION_SOURCE_FALLBACK` + canonical `/ja/events/{id}` backfill，但 `updateOwnerEvent`（publish）／`updateOwnerDraft` 一度直接 `.update(sanitizeOwnerForm(form))`，而 `sanitizeOwnerForm` 在使用者未填任何 URL 時給 `source_url = ... || null` → update 用 null 覆蓋 DB 現有 canonical 值 → `null value in column "source_url" ... violates not-null constraint`，卡住發佈（`cd55e57`, 2026-07-03）。
+  - **修法＝update 前從 payload 移除該 key，不要填 fallback**：`if (!payload.source_url) { delete payload.source_url; }`（讓 update 不動該欄位、保留 canonical；填 fallback 會用較差 URL 覆蓋 `/ja/events/{id}`）。
+  - **同一 write bug 在 owner／admin 走不同 action，先確認使用者實際路徑**：`EventIntakeWizard` 以 `context="owner"|"admin"` 分派 —— owner → `owner-events.ts`、admin → `admin-events.ts`（`sanitizeForm` 用 `?? SITE_URL` 永不 null，本就安全）。只改一端＝沒改。
 - **Every migration that creates a new table MUST include explicit `GRANT` statements** (Supabase policy change, effective October 30, 2026). Without them, PostgREST/supabase-js returns `42501` permission error silently. Migration `069_explicit_grants.sql` retroactively covers all pre-existing tables. Use the tier template in `.github/instructions/database.instructions.md §GRANT template`:
   - **Tier A** (public-read): `GRANT SELECT ON ... TO anon, authenticated, service_role;`
   - **Tier B** (admin-only): `GRANT SELECT, INSERT, UPDATE, DELETE ON ... TO authenticated, service_role;`

@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-07-03 — 圖片精靈 stepper 三語標籤 regression + owner source_url NOT NULL 阻擋發佈 + 卡片半透明
+
+**Context**: 承接前一批 4-bug 修復（`b9554cf`）部署後，使用者回報兩個問題並要求一項 UI 調整：
+1. 圖片上傳創建活動流程的 stepper 三步驟只剩數字圓圈，三語文字標籤消失（manual 模式正常）。
+2. owner「手動輸入活動」最後 Review & publish 提交報 `null value in column "source_url" ... violates not-null constraint`，無法發佈。上次改 `admin-events.ts` 加 `?? SITE_URL` 對此**完全無效**。
+3. 創建表單 section card 紙色改透明度 60、移除邊框。
+
+**Fix**:
+1. **Stepper 三語標籤（`EventIntakeWizard.tsx`，`3c3ef7f`）**：image 模式的 `<EventIntakeStepper labels={...}>` 從 `undefined` 恢復為 `[tIntake("stepImageUpload"), tIntake("stepImageReview"), tIntake("stepReview")]`；manual 維持 `[stepBasicInfo, stepReview]`。三語 i18n keys 本就齊全，只是元件接線在 commit `1c6b388`（必填清單功能）被意外 revert 成 undefined。
+2. **owner source_url NOT NULL（`owner-events.ts`，`cd55e57`）**：`updateOwnerEvent`（publish／「Review & publish」）+ `updateOwnerDraft` 各在 `delete payload.source_id;` 後加 `if (!payload.source_url) delete payload.source_url;`，避免 `sanitizeOwnerForm`（`... || null`）產生的 null 覆蓋 draft 階段已 backfill 的 canonical `/ja/events/{id}` URL。insert 路徑 `createOwnerDraft` 本就有 `|| OWNER_SUBMISSION_SOURCE_FALLBACK` + backfill，未動；`admin-events.ts` `sanitizeForm` 用 `?? SITE_URL`（永不 null），admin 路徑本就安全，未動。
+3. **卡片半透明（`AdminEventForm.tsx`，`f9989ff`）**：3 處 section card `rounded-2xl border border-line bg-paper p-5` → `rounded-2xl bg-paper/60 p-5`（去邊框 + 60% 不透明；使用者明確要求，屬 Designer border-first 慣例的例外）。
+
+**Lesson**:
+- **「i18n keys 存活但元件接線被 revert」的 regression**：後續功能 commit（`1c6b388` 必填清單）在改動同一區塊時，意外把不相關的 `labels={mode === "manual" ? [...] : undefined}` image 分支 revert 成 undefined。keys 三語都在、只是沒接上，且**只在 image 模式可見**（manual 正常）。改 `labels={mode ? [...] : [...]}` 這類三元運算子時，務必保留**兩個分支**的接線；review diff 時特別留意「看似無關」的 UI 接線被順手改掉。
+- **同一 bug 在 owner／admin 走不同 action path，改錯邊等於沒改**：`source_url` NOT NULL 在 admin 端（`admin-events.ts`）與 owner 端（`owner-events.ts`）是兩套完全獨立的 code path，由 `EventIntakeWizard` 的 `context="owner"|"admin"` 分派。使用者「手動輸入活動」是 owner，上次只改 admin 端毫無效果。**修 write bug 前先確認使用者實際走哪條 action**（grep wizard 的 context 分派 → 找對應 action 檔）。
+- **NOT NULL 欄位：insert 有保護、update 路徑也必須對稱保護**（呼應本 SKILL 的 `scraper_runs` success/except 對稱規則）。`createOwnerDraft`（insert）有 fallback + canonical backfill，但 `updateOwnerEvent`／`updateOwnerDraft`（update）直接 `.update(payload)` 沒有同等保護，用 null 覆蓋 NOT NULL 欄位 → constraint violation。凡 sanitize helper 可能產出 null 的 NOT NULL 欄位，**每條 write 路徑（insert + 全部 update）都要有對稱保護**。
+- **NOT NULL 欄位的 update 保護＝從 payload 移除該 key，而非填 fallback**：`if (!payload.source_url) delete payload.source_url;` 讓 update 不動該欄位、保留 DB 現有 canonical 值；若改填 fallback（如 `/ja/account`）會用較差的 URL 覆蓋更好的 canonical `/ja/events/{id}`。
+- **驗證語境**：此修為 server-action 組 payload 邏輯，本地以 `tsc --noEmit` + `npm run build` 驗證通過；但 NOT NULL 行為只在實際 Supabase insert/update（app request 語境）才觸發，無法純以 SQL Editor 模擬 —— 真正的回歸驗證需 owner 帳號實測「不填任何 URL → Review & publish」能成功發佈。
+
+---
+
 ## 2026-07-01 — 事件投稿精靈必填清單改版（雙 codebase 同步）+ actionError 位置 bug + 必填 * 綠色
 
 **Context**: admin／creator 的事件創建頁與編輯頁，preflight 失敗只顯示泛稱「必須項目をすべて入力してください」，不告訴使用者**還缺哪些**。使用者另反映「保存して自動翻訳 必填全點了為何不動」。同時要求：輸入框底色統一、必填 `*` 改成 CTA 綠色。改動橫跨主 repo `web/` 與 `ttr-v8-worktree/web/` 兩套 codebase，各 7 檔。

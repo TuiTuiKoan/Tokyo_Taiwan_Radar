@@ -138,6 +138,7 @@ When designing new components, **mirror the existing patterns**:
 - Inline SVG icons (24×24 viewBox, `currentColor` stroke, `strokeWidth=2`)
 - `rounded-lg` for inputs/buttons, `rounded-xl` for cards/dropdowns, `rounded-full` for badges/chips
 - Border-first design: `border border-line` on most surfaces, shadow only on raised modals/dropdowns
+  - **例外（使用者明確要求，勿自動加回邊框）**：事件創建精靈（`AdminEventForm.tsx`）的三個 section card 用 `rounded-2xl bg-paper/60 p-5` —— **無邊框 + 60% 半透明紙色**（`f9989ff`, 2026-07-03）。這是刻意的 borderless 例外，未來 review「為何沒有 border-line」時不要改回 `border border-line bg-paper`。
 - Spacing scale: `gap-1` (4px), `gap-2` (8px), `gap-3` (12px), `gap-4` (16px), `gap-6` (24px), `gap-8` (32px)
 
 ## FilterBar Dropdown Convention
