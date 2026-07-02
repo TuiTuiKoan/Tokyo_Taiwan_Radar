@@ -1046,6 +1046,7 @@
     "busyExtracting": "Extracting…",
     "requiredMark": "Required",
     "requiredFieldsMissing": "Please fill in all required fields",
+    "requiredFieldsMissingTitle": "Please complete the following required fields:",
     "priceInfoRequired": "Please enter price details when the event is paid",
     "paidChoiceRequired": "Please choose a pricing option",
     "translationLockFailed": "Failed to lock translations, please try again",

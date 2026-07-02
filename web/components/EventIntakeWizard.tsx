@@ -14,7 +14,7 @@ import {
   updateAdminEvent,
   publishAdminWizardEvent,
 } from "@/app/actions/admin-events";
-import { collectMissingRequiredFields } from "@/lib/eventIntakeValidation";
+import { collectMissingRequiredFields, buildMissingFieldsMessage } from "@/lib/eventIntakeValidation";
 import {
   ANNOTATE_LOCATION_FIELDS,
   TRANSLATION_LOCK_FIELDS,
@@ -34,17 +34,6 @@ interface Props {
 }
 
 const CONTENT_LANGS: Locale[] = ["ja", "zh", "en"];
-const HARD_REQUIRED = new Set([
-  "start_date",
-  "end_date",
-  "location_name",
-  "location_address",
-  "organizer",
-  "event_form",
-  "primary_language",
-  "category",
-  "primary_content",
-]);
 
 export default function EventIntakeWizard({ context, locale, allEvents }: Props) {
   const tIntake = useTranslations("eventIntake");
@@ -246,10 +235,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
   }
 
   function describePreflight(missing: string[]): string {
-    if (missing.some((m) => HARD_REQUIRED.has(m))) return tIntake("requiredFieldsMissing");
-    if (missing.includes("price_info")) return tIntake("priceInfoRequired");
-    if (missing.includes("paid_choice")) return tIntake("paidChoiceRequired");
-    return tIntake("requiredFieldsMissing");
+    return buildMissingFieldsMessage(missing, tIntake);
   }
   function describeServerError(error: string): string {
     if (error === "translationLockFailed") return tIntake("translationLockFailed");
@@ -336,7 +322,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
           lockedFields: getLockedLocationFields(),
           overwriteableFields: getOverwriteableLocationFields(),
           lockedTranslationFields: mergeLockedTranslations({
-            includePrimaryProvenance: true,
+            includePrimaryProvenance: mode === "manual",
           }),
         }),
         signal: AbortSignal.timeout(58000),
@@ -374,7 +360,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
     try {
       const res = await cfg.publish(eventId, form, {
         lockedTranslationFields: mergeLockedTranslations({
-          includePrimaryProvenance: true,
+          includePrimaryProvenance: mode === "manual",
         }),
         paidChoiceMade: paidChoice !== "",
       });
@@ -474,9 +460,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
 
   const totalSteps = mode === "manual" ? 2 : 3;
   const nameDescriptionLangs: Locale[] =
-    (mode === "manual" && step === 1) || (mode === "image" && step === 2)
-      ? [primaryLang]
-      : CONTENT_LANGS;
+    mode === "manual" && step === 1 ? [primaryLang] : CONTENT_LANGS;
   const showForm = !(mode === "image" && step === 1);
   const busy = saving || extracting || annotating;
   const elapsedSec = Math.floor(busyElapsedMs / 1000);
@@ -553,11 +537,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
       <EventIntakeStepper
         steps={totalSteps}
         current={step}
-        labels={
-          mode === "manual"
-            ? [tIntake("stepBasicInfo"), tIntake("stepReview")]
-            : [tIntake("stepImageUpload"), tIntake("stepImageReview"), tIntake("stepReview")]
-        }
+        labels={mode === "manual" ? [tIntake("stepBasicInfo"), tIntake("stepReview")] : undefined}
       />
       <p className="text-sm text-fg-muted">{stepDesc}</p>
 
@@ -591,6 +571,17 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
         </div>
       )}
 
+      {busy && (
+        <div
+          aria-live="polite"
+          className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
+        >
+          {extracting
+            ? `${tIntake("busyExtracting")} ${elapsedSec}s`
+            : `${tIntake("busyTranslating")} ${elapsedSec}s`}
+        </div>
+      )}
+
       {showForm && (
         <div className="space-y-6">
           <AdminEventForm
@@ -618,19 +609,11 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
         </div>
       )}
 
-      {busy && (
-        <div
-          aria-live="polite"
-          className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
-        >
-          {extracting
-            ? `${tIntake("busyExtracting")} ${elapsedSec}s`
-            : `${tIntake("busyTranslating")} ${elapsedSec}s`}
-        </div>
-      )}
-
       {actionError && (
-        <p className="text-sm font-semibold text-red-500" aria-live="assertive">
+        <p
+          className="text-sm font-semibold text-red-500 whitespace-pre-line"
+          aria-live="assertive"
+        >
           {actionError}
         </p>
       )}

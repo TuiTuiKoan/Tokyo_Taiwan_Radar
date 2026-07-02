@@ -99,7 +99,8 @@ export default function AdminEventForm({
     labels?.[`lang${cap(lang)}`] ?? (lang === "ja" ? "日本語" : lang === "zh" ? "中文" : "English");
   const label = (intakeKey: string, adminKey: string): string => labels?.[intakeKey] ?? t(adminKey);
   const sectionLabel = (intakeKey: string, fallback: string): string => labels?.[intakeKey] ?? fallback;
-  const mark = (required: boolean): string => (requiredMarkers && required ? " *" : "");
+  const mark = (required: boolean) =>
+    requiredMarkers && required ? <span className="text-green-600">{" *"}</span> : null;
   const nameLabel = (lang: Locale): string => {
     const tpl = labels?.fieldEventNameLang;
     return tpl ? tpl.replace("{lang}", langName(lang)) : t(`name${cap(lang)}`);
@@ -113,7 +114,7 @@ export default function AdminEventForm({
   return (
     <div className="space-y-8">
       {/* ===== Section 1: Basic info ===== */}
-      <section className="grid grid-cols-1 gap-4 rounded-2xl bg-paper/70 p-5">
+      <section className="grid grid-cols-1 gap-4 rounded-2xl bg-mascot-pink/20 p-5">
         <div className="text-sm font-semibold text-fg-strong">{sectionLabel("sectionBasicInfo", "基本情報")}</div>
 
         {/* Primary language */}
@@ -155,9 +156,8 @@ export default function AdminEventForm({
         {nameDescriptionLangs.map((lang) => (
           <div key={lang}>
             <label className="block text-xs text-fg-muted mb-1">
-              {singleLang
-                ? `${label("fieldEventName", `name${cap(lang)}`)}${mark(true)}`
-                : `${nameLabel(lang)}${mark(lang === primaryLang)}`}
+              {singleLang ? label("fieldEventName", `name${cap(lang)}`) : nameLabel(lang)}
+              {mark(singleLang || lang === primaryLang)}
             </label>
             <input
               type="text"
@@ -172,9 +172,8 @@ export default function AdminEventForm({
         {nameDescriptionLangs.map((lang) => (
           <div key={lang} className="">
             <label className="block text-xs text-fg-muted mb-1">
-              {singleLang
-                ? `${label("fieldEventDesc", `desc${cap(lang)}`)}${mark(true)}`
-                : `${descLabel(lang)}${mark(lang === primaryLang)}`}
+              {singleLang ? label("fieldEventDesc", `desc${cap(lang)}`) : descLabel(lang)}
+              {mark(singleLang || lang === primaryLang)}
             </label>
             <textarea
               rows={3}
@@ -241,7 +240,7 @@ export default function AdminEventForm({
               type="text"
               value={form.price_info}
               onChange={(e) => updateField("price_info", e.target.value)}
-              className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
             />
           </div>
         )}
@@ -350,7 +349,7 @@ export default function AdminEventForm({
       </section>
 
       {/* ===== Section 2: Date & venue ===== */}
-      <section className="grid grid-cols-1 gap-4 rounded-2xl bg-paper/70 p-5">
+      <section className="grid grid-cols-1 gap-4 rounded-2xl bg-mascot-pink/20 p-5">
         <div className="text-sm font-semibold text-fg-strong">{sectionLabel("sectionDateLocation", "日時・会場")}</div>
 
         {/* Start date */}
@@ -422,7 +421,7 @@ export default function AdminEventForm({
       </section>
 
       {/* ===== Section 3: Organizer & format ===== */}
-      <section className="grid grid-cols-1 gap-4 rounded-2xl bg-paper/70 p-5">
+      <section className="grid grid-cols-1 gap-4 rounded-2xl bg-mascot-pink/20 p-5">
         <div className="text-sm font-semibold text-fg-strong">{sectionLabel("sectionOrganizer", "主催・開催形式")}</div>
 
         {/* Performer */}
@@ -502,7 +501,7 @@ export default function AdminEventForm({
             value={(form as any).sponsors ?? ""}
             onChange={(e) => updateField("sponsors", e.target.value)}
             placeholder="例: C企業, D企業"
-            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm"
+            className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
           />
         </div>
       </section>

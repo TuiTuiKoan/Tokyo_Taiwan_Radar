@@ -13,6 +13,10 @@ import {
   pickReturnedFormFields,
   readJsonResponse,
 } from "@/lib/eventIntakeClient";
+import {
+  collectMissingRequiredFields,
+  buildMissingFieldsMessage,
+} from "@/lib/eventIntakeValidation";
 
 interface Props {
   event: Event;
@@ -71,6 +75,7 @@ export default function OwnerEditClient({ event, locale }: Props) {
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
   const [annotating, setAnnotating] = useState(false);
   const [annotationError, setAnnotationError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [ocrFilled, setOcrFilled] = useState(false);
   const [annotationDone, setAnnotationDone] = useState(false);
   const [paidChoice, setPaidChoice] = useState<"" | "free" | "paid">(
@@ -208,6 +213,18 @@ export default function OwnerEditClient({ event, locale }: Props) {
     //   draft     -> updateOwnerDraft  (stays is_active=false / pending)
     //   published -> updateOwnerEvent  (stays is_active=true; never deactivate)
     if (actionLockRef.current) return;
+    setSaveError(null);
+    if (isPublished) {
+      const missing = collectMissingRequiredFields(form, {
+        requirePrimaryContent: true,
+        primaryLang: form.primary_language,
+        paidChoiceMade: paidChoice !== "",
+      });
+      if (missing.length > 0) {
+        setSaveError(buildMissingFieldsMessage(missing, tIntake));
+        return;
+      }
+    }
     actionLockRef.current = true;
     setSaving(true);
     try {
@@ -219,7 +236,11 @@ export default function OwnerEditClient({ event, locale }: Props) {
         : await updateOwnerDraft(event.id, form);
 
       if (!res.ok) {
-        alert(t(res.error) || t("saveFailed"));
+        if (res.error === "requiredFieldsMissing") {
+          setSaveError(tIntake("requiredFieldsMissing"));
+        } else {
+          setSaveError(t(res.error) || t("saveFailed"));
+        }
         return;
       }
 
@@ -238,6 +259,16 @@ export default function OwnerEditClient({ event, locale }: Props) {
   async function handlePublishDraft() {
     // Draft-only "公開發佈": flip to active via the owner publish gate.
     if (actionLockRef.current) return;
+    setSaveError(null);
+    const missing = collectMissingRequiredFields(form, {
+      requirePrimaryContent: true,
+      primaryLang: form.primary_language,
+      paidChoiceMade: paidChoice !== "",
+    });
+    if (missing.length > 0) {
+      setSaveError(buildMissingFieldsMessage(missing, tIntake));
+      return;
+    }
     actionLockRef.current = true;
     setSaving(true);
     try {
@@ -247,7 +278,11 @@ export default function OwnerEditClient({ event, locale }: Props) {
       });
 
       if (!res.ok) {
-        alert(t(res.error) || t("saveFailed"));
+        if (res.error === "requiredFieldsMissing") {
+          setSaveError(tIntake("requiredFieldsMissing"));
+        } else {
+          setSaveError(t(res.error) || t("saveFailed"));
+        }
         return;
       }
 
@@ -410,6 +445,15 @@ export default function OwnerEditClient({ event, locale }: Props) {
           venuePlaceholder={tIntake("fieldVenuePlaceholder")}
         />
       </div>
+
+      {saveError && (
+        <p
+          className="text-sm font-semibold text-red-500 whitespace-pre-line"
+          aria-live="assertive"
+        >
+          {saveError}
+        </p>
+      )}
 
       {/* Floating Save Actions Section */}
       <div className="flex items-center gap-3 pt-4 border-t border-line">

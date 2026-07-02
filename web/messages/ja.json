@@ -1046,6 +1046,7 @@
     "busyExtracting": "抽出中…",
     "requiredMark": "必須",
     "requiredFieldsMissing": "必須項目をすべて入力してください",
+    "requiredFieldsMissingTitle": "以下の必須項目を入力してください：",
     "priceInfoRequired": "有料の場合は料金の詳細を入力してください",
     "paidChoiceRequired": "料金区分を選択してください",
     "translationLockFailed": "翻訳のロックに失敗しました。もう一度お試しください",

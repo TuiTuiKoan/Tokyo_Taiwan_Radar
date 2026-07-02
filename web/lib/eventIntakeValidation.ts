@@ -63,13 +63,60 @@ export function collectMissingRequiredFields(
     if (!VALID_PRIMARY_CONTENT_LANGS.has(lang)) {
       // No fallback to ja — a mixed/empty primary language has no single
       // authoritative content field, so the caller must resolve it explicitly.
-      missing.push("primary_content");
+      missing.push("primary_name");
+      missing.push("primary_description");
     } else {
-      const nameValue = form[`name_${lang}`];
-      const descValue = form[`description_${lang}`];
-      if (isBlank(nameValue) || isBlank(descValue)) missing.push("primary_content");
+      if (isBlank(form[`name_${lang}`])) missing.push("primary_name");
+      if (isBlank(form[`description_${lang}`])) missing.push("primary_description");
     }
   }
 
   return missing;
+}
+
+// 錯誤清單顯示順序（使用者指定）
+export const MISSING_FIELD_DISPLAY_ORDER: string[] = [
+  "primary_language",
+  "primary_name",
+  "primary_description",
+  "paid_choice",
+  "category",
+  "start_date",
+  "end_date",
+  "location_name",
+  "location_address",
+  "organizer",
+  "event_form",
+  "price_info",
+];
+
+// missing key → eventIntake i18n label key
+export const MISSING_FIELD_LABEL_KEYS: Record<string, string> = {
+  primary_language: "primaryLanguageLabel",
+  primary_name: "fieldEventName",
+  primary_description: "fieldEventDesc",
+  paid_choice: "fieldPaidLabel",
+  category: "fieldCategory",
+  start_date: "fieldStartDate",
+  end_date: "fieldEndDate",
+  location_name: "fieldVenue",
+  location_address: "fieldAddress",
+  organizer: "fieldOrganizer",
+  event_form: "fieldEventForm",
+  price_info: "fieldPriceInfo",
+};
+
+export function buildMissingFieldsMessage(
+  missing: string[],
+  t: (key: string) => string,
+): string {
+  const present = new Set(missing);
+  const ordered = MISSING_FIELD_DISPLAY_ORDER.filter((k) => present.has(k));
+  const extras = missing.filter(
+    (m) => !MISSING_FIELD_DISPLAY_ORDER.includes(m) && MISSING_FIELD_LABEL_KEYS[m],
+  );
+  const keys = [...ordered, ...extras];
+  if (keys.length === 0) return t("requiredFieldsMissing");
+  const lines = keys.map((k) => `✘ ${t(MISSING_FIELD_LABEL_KEYS[k])}`);
+  return [t("requiredFieldsMissingTitle"), ...lines].join("\n");
 }

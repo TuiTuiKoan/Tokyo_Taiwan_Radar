@@ -1046,6 +1046,7 @@
     "busyExtracting": "提取中…",
     "requiredMark": "必填",
     "requiredFieldsMissing": "請填寫所有必填欄位",
+    "requiredFieldsMissingTitle": "請填寫以下必填項目：",
     "priceInfoRequired": "選擇收費時請填寫費用說明",
     "paidChoiceRequired": "請選擇收費方式",
     "translationLockFailed": "翻譯鎖定失敗，請重試",
