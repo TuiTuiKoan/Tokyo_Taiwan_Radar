@@ -8,6 +8,8 @@ import type { FormState } from "@/components/AdminEventForm";
 import { collectMissingRequiredFields } from "@/lib/eventIntakeValidation";
 import { persistTranslationLocks } from "@/lib/fieldCorrections.server";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app";
+
 export type ActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
@@ -32,8 +34,8 @@ function sanitizeForm(form: FormState): EventInsert {
     sponsors: f.sponsors ?? null,
     official_url: empty(f.official_url),
     submission_url: empty(f.submission_url),
-    // provenance: explicit source_url wins, else fall back to the announcement URL, else null
-    source_url: empty(f.source_url) ?? empty(f.official_url) ?? null,
+    // provenance: explicit source_url wins, else fall back to the announcement URL, else the site URL
+    source_url: empty(f.source_url) ?? empty(f.official_url) ?? SITE_URL,
   };
 }
 

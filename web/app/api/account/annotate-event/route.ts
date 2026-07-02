@@ -290,9 +290,9 @@ Rules:
       const extractionFields = [
         "organizer", "organizer_url", "location_name", "location_address",
         "business_hours", "performer", "price_info", "start_date", "end_date",
-        "name_ja", "name_zh", "name_en",
       ];
       const alwaysOverwriteFields = [
+        "name_ja", "name_zh", "name_en",
         "description_ja", "description_zh", "description_en",
       ];
       for (const [k, v] of Object.entries(annotated)) {

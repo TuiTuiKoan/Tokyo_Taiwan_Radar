@@ -4,6 +4,7 @@ import { useTransition, useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { type Event, type Locale, getEventName } from "@/lib/types";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { deactivateOwnEvent, deleteOwnEvent } from "@/app/actions/owner-events";
 
 interface Props {
@@ -106,7 +107,9 @@ export default function OwnerEventTable({ events, locale }: Props) {
               return (
                 <tr key={event.id} className="hover:bg-elevated transition">
                   <td className="px-4 py-3 font-semibold text-fg-strong max-w-sm truncate">
-                    {name}
+                    <Link href={`/${locale}/events/${event.id}`} className="hover:text-green-700 transition-colors">
+                      {name}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-fg-muted">
                     {event.start_date ? event.start_date.substring(0, 10) : "-"}
