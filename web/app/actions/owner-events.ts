@@ -397,6 +397,13 @@ export async function updateOwnerEvent(
   delete payload.source_name;
   delete payload.source_id;
 
+  // source_url is NOT NULL in DB. sanitizeOwnerForm yields null when the form
+  // carries no explicit URL — never overwrite the draft-backfilled canonical
+  // source_url with null.
+  if (!payload.source_url) {
+    delete payload.source_url;
+  }
+
   // 6a. is_active irreversibility (OWASP A01 / business rule).
   //   - Owner-closed events (is_active=false + closed_by_owner) stay private;
   //     only an admin can re-publish them. sanitizeOwnerForm's is_active=true is overridden.
@@ -464,6 +471,13 @@ export async function updateOwnerDraft(
   // Keep original source_id & source_name
   delete payload.source_name;
   delete payload.source_id;
+
+  // source_url is NOT NULL in DB. sanitizeOwnerForm yields null when the form
+  // carries no explicit URL — never overwrite the draft-backfilled canonical
+  // source_url with null.
+  if (!payload.source_url) {
+    delete payload.source_url;
+  }
 
   const { data: updated, error: updateError } = await serviceClient
     .from("events")
