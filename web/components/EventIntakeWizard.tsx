@@ -537,7 +537,11 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
       <EventIntakeStepper
         steps={totalSteps}
         current={step}
-        labels={mode === "manual" ? [tIntake("stepBasicInfo"), tIntake("stepReview")] : undefined}
+        labels={
+          mode === "manual"
+            ? [tIntake("stepBasicInfo"), tIntake("stepReview")]
+            : [tIntake("stepImageUpload"), tIntake("stepImageReview"), tIntake("stepReview")]
+        }
       />
       <p className="text-sm text-fg-muted">{stepDesc}</p>
 
