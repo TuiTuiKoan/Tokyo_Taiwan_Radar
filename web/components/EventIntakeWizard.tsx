@@ -639,8 +639,8 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
         </p>
       )}
 
-      <div className="sticky bottom-0 space-y-3 border-t border-line bg-paper pt-4 pb-4">
-        {busy && (
+      <div className="sticky bottom-0 space-y-3 border-t border-line pt-4 pb-4">
+        {(extracting || annotating) && (
           <div
             aria-live="polite"
             className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
