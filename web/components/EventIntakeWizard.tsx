@@ -55,6 +55,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
   const [annotating, setAnnotating] = useState(false);
   const [busyElapsedMs, setBusyElapsedMs] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [footerH, setFooterH] = useState(0);
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
   const [posterDataUrl, setPosterDataUrl] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -66,6 +67,8 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
   const autoFilledFieldsRef = useRef<Set<string>>(new Set());
   const manualEditedFieldsRef = useRef<Set<string>>(new Set());
   const translationEditedFieldsRef = useRef<Set<string>>(new Set());
+  const footerRef = useRef<HTMLDivElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
 
   const cfg: {
     createDraft: (form: FormState) => Promise<ActionResult<Event>>;
@@ -114,6 +117,29 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
       setBusyElapsedMs(0);
     };
   }, [saving, extracting, annotating]);
+
+  // Measure the fixed footer so the form reserves matching bottom padding —
+  // a fixed footer is out of flow, so without this the last fields hide behind it.
+  useEffect(() => {
+    const el = footerRef.current;
+    if (!el) {
+      setFooterH(0);
+      return;
+    }
+    const ro = new ResizeObserver(() => setFooterH(el.offsetHeight));
+    ro.observe(el);
+    setFooterH(el.offsetHeight);
+    return () => ro.disconnect();
+  }, [mode]);
+
+  // On a validation/submit error, scroll the message into view. The CTA lives in
+  // the fixed footer while the error sits at the bottom of the form, so without
+  // this the user could tap Save and see no visible response (esp. on mobile).
+  useEffect(() => {
+    if (actionError && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [actionError]);
 
   function isFormFieldKey(key: string): key is keyof FormState {
     return key in EMPTY_FORM;
@@ -549,7 +575,10 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div
+      className="mx-auto max-w-3xl space-y-6"
+      style={footerH ? { paddingBottom: footerH + 24 } : undefined}
+    >
       <h1 className="text-2xl font-bold text-fg-strong">{tIntake("chooseTitle")}</h1>
       <EventIntakeStepper
         steps={totalSteps}
@@ -631,36 +660,65 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
       )}
 
       {actionError && (
-        <p
-          className="text-sm font-semibold text-red-500 whitespace-pre-line"
+        <div
+          ref={errorRef}
+          role="alert"
           aria-live="assertive"
+          className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-semibold text-red-600 whitespace-pre-line dark:text-red-300"
         >
           {actionError}
-        </p>
+        </div>
       )}
 
-      <div className="sticky bottom-0 space-y-3 border-t border-line pt-4 pb-4">
-        {(extracting || annotating) && (
+      <div
+        ref={footerRef}
+        className="fixed inset-x-0 bottom-0 z-40 overflow-hidden border-t border-line"
+      >
+        {/* Footer background mirrors SiteBackground (same gradient + #gridPink),
+            full-viewport-wide and bottom-anchored so its grid is pixel-aligned to
+            the page background. overflow-hidden clips the viewport-tall layer to
+            the bar height; the layer is opaque so scrolled content stays hidden. */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-screen">
           <div
-            aria-live="polite"
-            className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
+            className="absolute inset-0"
+            style={{ background: "linear-gradient(135deg, #FFFDF5 0%, #FFF1EE 58%, #F7FFE8 100%)" }}
+          />
+          <div
+            className="absolute inset-0 opacity-0 dark:opacity-100"
+            style={{ background: "linear-gradient(135deg, #201510 0%, #1b1918 50%, #0d1c11 100%)" }}
+          />
+          <svg
+            className="absolute inset-0 h-full w-full"
+            preserveAspectRatio="xMidYMin slice"
+            viewBox="0 0 1440 1200"
           >
-            {extracting
-              ? `${tIntake("busyExtracting")} ${elapsedSec}s`
-              : `${tIntake("busyTranslating")} ${elapsedSec}s`}
+            <rect width="100%" height="100%" fill="url(#gridPink)" opacity="0.6" />
+          </svg>
+        </div>
+
+        <div className="mx-auto max-w-3xl space-y-3 px-4 pt-4 pb-4">
+          {(extracting || annotating) && (
+            <div
+              aria-live="polite"
+              className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
+            >
+              {extracting
+                ? `${tIntake("busyExtracting")} ${elapsedSec}s`
+                : `${tIntake("busyTranslating")} ${elapsedSec}s`}
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleCancel}
+              disabled={busy}
+              className="shadow-sm"
+            >
+              {tIntake("cancel")}
+            </Button>
+            {renderPrimaryButton()}
           </div>
-        )}
-        <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={handleCancel}
-            disabled={busy}
-            className="shadow-sm"
-          >
-            {tIntake("cancel")}
-          </Button>
-          {renderPrimaryButton()}
         </div>
       </div>
     </div>
