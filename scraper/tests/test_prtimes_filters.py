@@ -69,6 +69,49 @@ def test_title_taiwan_popular_sweets_japan_debut_is_kept():
     assert _TAIWAN_BASED_TITLE_RE.search('台湾で人気のスイーツ、日本初上陸イベント開催') is None
 
 
+# --- Title guard 漏洞 C: 台湾 + place quantifier + で/にて + verb (event 4e558c1c) --
+
+
+def test_title_taiwan_3_cities_sake_overseas_expansion_is_skipped():
+    # Target event 4e558c1c: Japan sake brand HENGE running overseas-expansion
+    # dinner events in Taipei/Taichung/Kaohsiung — held in Taiwan, out of scope.
+    title = '台湾3都市で日本酒イベントを開催。高級日本酒ブランド「HENGE」、初の海外進出へ。'
+    assert _TAIWAN_BASED_TITLE_RE.search(title) is not None
+
+
+def test_title_taiwan_everywhere_fair_is_skipped():
+    assert _TAIWAN_BASED_TITLE_RE.search('台湾各地でフェアを実施') is not None
+
+
+def test_title_taiwan_major_3_cities_briefing_is_skipped():
+    assert _TAIWAN_BASED_TITLE_RE.search('台湾主要3都市で説明会を開催') is not None
+
+
+def test_title_japan_3_cities_taiwan_fair_is_kept():
+    # Quantifier is preceded by 日本, not 台湾 — Japan-held Taiwan fair.
+    assert _TAIWAN_BASED_TITLE_RE.search('日本3都市で台湾フェアを開催') is None
+
+
+def test_title_taiwan_everywhere_popular_gourmet_japan_nationwide_is_kept():
+    # Japan-pivot: 台湾各地で人気 → 日本各地で開催 (held across Japan).
+    assert _TAIWAN_BASED_TITLE_RE.search('台湾各地で人気のグルメ、日本各地で開催') is None
+
+
+def test_title_taiwan_fair_in_tokyo_is_kept():
+    # 台湾 not directly followed by a place quantifier — Japan-held.
+    assert _TAIWAN_BASED_TITLE_RE.search('台湾フェアを東京で開催') is None
+
+
+def test_title_taiwan_3_cities_popular_gourmet_held_in_tokyo_is_kept():
+    # Japan-venue: quantifier present but event 東京で開催 — must NOT skip.
+    assert _TAIWAN_BASED_TITLE_RE.search('台湾3都市で人気のグルメを東京で開催') is None
+
+
+def test_title_taiwan_major_3_cities_brand_held_in_osaka_is_kept():
+    # Japan-venue: quantifier present but event 大阪でイベント開催 — must NOT skip.
+    assert _TAIWAN_BASED_TITLE_RE.search('台湾主要3都市で話題のブランドが大阪でイベント開催') is None
+
+
 # --- Body guard (_TAIWAN_HELD_BODY_RE via _should_skip_taiwan_venue, L427) --
 
 

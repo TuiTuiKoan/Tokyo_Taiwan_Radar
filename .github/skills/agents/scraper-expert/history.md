@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-07-04 — PR TIMES 第三個 Japan-brand-held-in-Taiwan 先例（漏洞 C／event 4e558c1c）
+
+**問題：** `prtimes` 事件 `4e558c1c-c796-42a6-968c-7caf08175d26`（日本高級日本酒品牌 HENGE／株式会社Cypher）在**台北・台中・高雄**辦「進出記念ディナーイベント」，「初の海外輸出先として台湾を選定」，對象為台灣的日本酒愛好家／餐飲業者／buyer（Japan→Taiwan 商業拓展、輸出／進出），卻被收為 active event（annotator 已把 `location_address='台北'` 卻仍 active）。此為 2026-06-29 Rental819（`22eae44b`）、2026-07-04 b90f0b77（ハミガキドッグ）之後**第三個 Japan-brand-held-in-Taiwan 先例**。已於本次手動停用（`deactivated_reason` 記 out_of_scope、raw_* 保留）並補 root-cause title guard。
+
+**根本原因（漏洞 C，兩層 guard 皆漏過）：**
+
+- **C-title（title 句式未涵蓋）：** `_TAIWAN_BASED_TITLE_RE` 既有四分支皆不匹配「台湾3都市で…開催」——分支 1 要「台湾国内/現地/本島/の地」（「3都市」不符）、分支 4（b90f0b77 新增）要「台湾にて/において」（本 PR 用「で」）、分支 3 要「台湾」緊接「進出/輸出」（本 PR 是「初の海外輸出先として台湾」「海外進出」，前面不是「台湾」）。
+- **C-body（body 無 venue label）：** body **完全沒有** `開催地：`/`会場：`/`場所：` 等 `_VENUE_LABELS`；台灣信號（台北・台中・高雄、台湾進出）全散在敘述文 → `_extract_venue_from_body` 回 None、`_TAIWAN_HELD_BODY_RE`（需 label+：+台湾）也不命中 → body guard 完全失效。
+
+**修復（title guard-only，治本 + 治標）：**
+
+- 2a — `_TAIWAN_BASED_TITLE_RE` 新增第 5 分支「台湾 + 地點量詞（`[\d０-９]+都市`/`各地`/`主要都市`/`複数都市`/`全土`…）+ `で`/`にて` + 活動動詞」。negative lookahead 同時排除兩類誤殺：(1) Japan-pivot（`日本上陸/各地/初/進出`，如「台湾で人気→日本上陸」）；(2) Japan-venue（`東京/大阪…で・にて`，如「台湾3都市で人気の…を東京で開催」= 東京主辦）。**不排「日本酒」**（「日本」後接「酒」不在 lookahead 清單，目標 title 中段含「日本酒」仍正常命中）。
+- 精準 `source_exclusions` 規則：`raw_title` regex `台湾[\d０-９]+都市で`（即時雙保險，下次 scrape 立即生效，範圍刻意窄於 code guard——只攔 numeric N都市で）。
+- 手動停用 event `4e558c1c`。
+
+**決定不動 body guard 的理由：** 目標事件用 title guard（在 detail fetch 前先跑）即可攔截，body guard 不會執行到。對「body 無 label 的敘述文」做廣泛台灣信號偵測風險高（易誤殺「東京で台湾フェア、台北の名店が出店」型），且**無其他樣本**支持 → 違反「不為單一事件過度抽象」。同理不加「海外進出／海外輸出」廣義 title signal（台灣企業進軍日本的「海外進出」可能 in scope，誤殺風險高）。
+
+**教訓：** Japan→Taiwan 商業拓展（輸出／進出／販路開拓）在台灣舉辦、面向台灣受眾的 PR 為 out of scope，即使 title 同時含「台湾」與「開催」。title guard 除「台湾国内/現地」「台湾にて/において」外，還要涵蓋「台湾 + 地點量詞（N都市/各地/主要都市…）+ で/にて…開催」寫法；並用 Japan-venue negative lookahead 鎖住「台灣N都市有人氣、實際在日本開催」的誤殺。沿用 Rental819／b90f0b77 的 title guard + `source_exclusions` 雙保險做法。
+
+---
+
 ## 2026-07-04 — PR TIMES 第二個 Japan-brand-held-in-Taiwan 先例（event b90f0b77）
 
 **問題：** `prtimes` 事件 `b90f0b77-3d1a-4864-bc5d-1282f488faf7`（大阪的日本寵物口腔護理品牌 ハミガキドッグ）2026/7/3 在**台灣**辦「台湾にて海外初となる…合宿講座」，對象是台灣美容沙龍／寵物店／動物醫院業者（Japan→Taiwan 商業／教育拓展），卻被收為 active event。此為 2026-06-29 Rental819（`22eae44b`）之後**第二個 Japan-brand-held-in-Taiwan 先例**。admin 已於 2026-07-03 手動停用（`deactivated_reason='admin confirmed irrelevant'`、raw_* 保留），本次補 root-cause guard。

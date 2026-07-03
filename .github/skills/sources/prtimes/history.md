@@ -2,6 +2,23 @@
 
 ---
 
+## 2026-07-04 — filter calibration: 台湾 + 地点量詞 + で/にて…開催（漏洞 C／event 4e558c1c）
+
+**Context:** イベント `4e558c1c`（日本の高級日本酒ブランド HENGE が台北・台中・高雄で開催する「進出記念ディナーイベント」、Japan→Taiwan の輸出／進出＝商業展開）が active event として収録された。2026-06-29 Rental819、同日 b90f0b77 に続く 3 例目の Japan-brand-held-in-Taiwan（漏洞 C）。title「台湾3都市で…開催」は既存 4 分岐すべてに非該当、body には `開催地：`/`会場：` 等の venue label が一切なく（台北・台中・高雄は叙述文に散在）、両層 guard が取りこぼした。
+
+**Filter calibration（今回の進化）：**
+
+- **Title guard 第 5 分岐**：`_TAIWAN_BASED_TITLE_RE` に「台湾 + 地点量詞（`[\d０-９]+都市`／`各地`／`主要都市`／`複数都市`／`全土`…）+ `で`／`にて` + 活動動詞（開催／実施／開講／スタート）」を追加。従来は「台湾国内／現地／本島／の地」または「台湾にて／において」が必須で、「台湾3都市で…」を取りこぼしていた。
+- **二重 negative lookahead**：(1) Japan-pivot（`日本上陸／各地／初／進出`）＝「台湾で人気→日本上陸」型；(2) **Japan-venue（`東京／大阪…で・にて`）**＝「台湾3都市で人気の…を東京で開催」（東京主催）を除外。numeric-quantifier 入口ゆえ Japan-venue 誤除外の防御が必須。
+- **「日本酒」は除外しない**：lookahead は `上陸／各地／初／進出` のみ列挙するため、「日本」の直後が「酒」の場合は該当せず、目標 title 中段の「日本酒」を含んでも正常に命中する。
+- **source_exclusions**：`raw_title` regex `台湾[\d０-９]+都市で` を追加（次回 scrape で即時有効）。範囲は意図的に code guard より狭く numeric `N都市で` のみ——サンプルが 1 件のため `各地／主要／複数／全土` 系は code guard の CI 反映に委ね、DB 規則の誤除外リスクを抑える。既知の盲点：この DB regex は Japan-venue lookahead を含まないため `台湾3都市で人気の…を東京で開催` を誤除外し得るが、当該句式は実サンプル未出現で、code guard が根本防線・DB 規則は CI 反映までの短期保険。
+
+**body-no-label 型で venue guard を強化しない取捨：** 目標イベントは title guard（detail fetch 前に実行）で捕捉でき、body guard は到達しない。label のない叙述文に広範な台湾シグナル検出を入れると「東京で台湾フェア、台北の名店が出店」型の誤除外リスクが高く、他サンプルも無いため過度な抽象化を避けた。
+
+**教訓：** Japan→Taiwan の輸出／進出 PR は台湾開催・台湾受け手向けなら out of scope。title guard は「台湾国内／現地」「台湾にて／において」に加え「台湾 + 地点量詞 + で／にて…開催」もカバーし、numeric 入口には Japan-venue negative lookahead で「台湾N都市で人気→日本開催」型の誤除外を必ず塞ぐ。
+
+---
+
 ## 2026-07-04 — filter calibration: 台湾にて/において…開催 + 開催地：台湾 国名 guard
 
 **Context:** イベント `b90f0b77`（日本のペットオーラルケアブランドが台湾で開催する業者向け合宿講座、Japan→Taiwan の商業／教育展開）が active event として収録された。2026-06-29 Rental819 に続く 2 例目の Japan-brand-held-in-Taiwan。

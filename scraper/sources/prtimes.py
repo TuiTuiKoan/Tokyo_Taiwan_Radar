@@ -118,7 +118,18 @@ _TAIWAN_BASED_TITLE_RE = re.compile(
     r"(?:台湾(?:国内|現地|本島|の地).*?(?:で|にて|開催))|"  # 台湾国内で開催 (explicit context)
     r"(?:(?:in |IN )(?:台湾|Taiwan|台中|台北|高雄))|"        # in 台湾 / in Taiwan
     r"台湾(?:出展|輸出|進出|販路|海外展示|海外販売)|"          # business/export context
-    r"(?:台湾(?:にて|において)(?:(?!日本).){0,40}?(?:開催|実施|開講|スタート))"  # 台湾にて…開催 (held in Taiwan, no Japan pivot)
+    r"(?:台湾(?:にて|において)(?:(?!日本).){0,40}?(?:開催|実施|開講|スタート))|"  # 台湾にて…開催 (held in Taiwan, no Japan pivot)
+    # 漏洞 C：台湾 directly modifies a place quantifier (台湾3都市 / 台湾各地 /
+    # 台湾主要都市…) + で/にて + activity verb = held in Taiwan. The negative
+    # lookahead rejects two false-skip classes:
+    #   (1) Japan-pivot: 日本上陸/各地/初/進出 ("台湾で人気→日本上陸" type);
+    #   (2) Japan-venue: 東京/大阪…で・にて ("台湾3都市で人気の…を東京で開催" =
+    #       held in Tokyo). "日本酒" and other legit mid-words are NOT excluded —
+    #       "日本" followed by 酒 is not in the lookahead list, so it still matches.
+    r"(?:台湾(?:[\d０-９]+都市|各地|主要[\d０-９]*都市|複数都市|各都市|全土|数都市)"
+    r"(?:で|にて)(?:(?!日本(?:上陸|各地|初|進出)"
+    r"|(?:東京|大阪|京都|名古屋|福岡|札幌|仙台|横浜|神戸|広島|沖縄|日本)(?:で|にて|・|、))"
+    r".){0,25}?(?:開催|実施|開講|スタート))"
 )
 
 # Body-level "held in Taiwan" guard — catches PRs whose venue label lists only
