@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { type Event, type Locale, getEventName } from "@/lib/types";
 import { getCityLabel } from "@/lib/cityLabel";
@@ -49,13 +49,15 @@ export default function AccountHomeClient({
   const t = useTranslations("account");
   const tEvent = useTranslations("event");
   const tCat = useTranslations("categories");
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const activeTab: AccountTab = searchParams.get("tab") === "myEvents" ? "myEvents" : "favorites";
+  const [activeTab, setActiveTab] = useState<AccountTab>(
+    searchParams.get("tab") === "myEvents" ? "myEvents" : "favorites",
+  );
 
   function setTab(tab: AccountTab) {
+    setActiveTab(tab);
     const params = new URLSearchParams(searchParams.toString());
     if (tab === "favorites") {
       params.delete("tab");
@@ -63,7 +65,9 @@ export default function AccountHomeClient({
       params.set("tab", tab);
     }
     const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    const url = query ? `${pathname}?${query}` : pathname;
+    // Sync the URL without triggering a Next.js navigation / server re-fetch.
+    window.history.replaceState(null, "", url);
   }
 
   const activeEvents = useMemo(
