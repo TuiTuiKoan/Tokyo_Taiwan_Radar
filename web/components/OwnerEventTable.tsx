@@ -77,6 +77,7 @@ export default function OwnerEventTable({ events, locale }: Props) {
               const name = getEventName(event, locale);
               const isClosed = event.closed_by_owner;
               const isMerged = !!event.merged_into_event_id;
+              const isPublic = event.is_active && !isClosed && !isMerged;
 
               let statusNode = (
                 <span className="inline-flex rounded-full bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-200">
@@ -107,9 +108,18 @@ export default function OwnerEventTable({ events, locale }: Props) {
               return (
                 <tr key={event.id} className="hover:bg-elevated transition">
                   <td className="px-4 py-3 font-semibold text-fg-strong max-w-sm truncate">
-                    <Link href={`/${locale}/events/${event.id}`} className="hover:text-green-700 transition-colors">
-                      {name}
-                    </Link>
+                    {isPublic ? (
+                      <Link
+                        href={`/${locale}/events/${event.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-green-700 transition-colors"
+                      >
+                        {name}
+                      </Link>
+                    ) : (
+                      <span className="text-fg-muted">{name}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-fg-muted">
                     {event.start_date ? event.start_date.substring(0, 10) : "-"}
