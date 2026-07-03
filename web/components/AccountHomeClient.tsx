@@ -79,13 +79,10 @@ export default function AccountHomeClient({
       (event as { location_address?: string | null }).location_address,
     );
     const parent = event.parent_event_id ? parentMap[event.parent_event_id] : null;
+    const isNonPublic = activeTab === "myEvents" && !event.is_active;
 
-    return (
-      <Link
-        key={event.id}
-        href={`/${locale}/events/${event.id}`}
-        className="group flex gap-3 sm:gap-4 items-stretch border border-line rounded-xl bg-paper hover:shadow-md hover:border-green-400 transition overflow-hidden"
-      >
+    const cardInner = (
+      <>
         <div className="shrink-0 self-center pl-3">
           <CategoryThumbnail
             id={event.id}
@@ -124,7 +121,7 @@ export default function AccountHomeClient({
               </span>
             ))}
           </div>
-          <p className="font-display text-[14px] font-bold leading-snug text-[#3A261F] line-clamp-2 group-hover:text-green-700 dark:text-fg dark:group-hover:text-green-400 sm:text-[15px]">
+          <p className={`font-display text-[14px] font-bold leading-snug line-clamp-2 sm:text-[15px] ${isNonPublic ? "text-fg-muted" : "text-[#3A261F] group-hover:text-green-700 dark:text-fg dark:group-hover:text-green-400"}`}>
             {parent && (
               <span className="mb-0.5 block truncate text-[11px] font-normal text-green-700">
                 {t("parentEvent", { name: getEventName(parent, locale) })}
@@ -143,6 +140,29 @@ export default function AccountHomeClient({
             </p>
           )}
         </div>
+      </>
+    );
+
+    if (isNonPublic) {
+      return (
+        <div
+          key={event.id}
+          className="flex gap-3 sm:gap-4 items-stretch border border-line rounded-xl bg-paper overflow-hidden opacity-70"
+        >
+          {cardInner}
+        </div>
+      );
+    }
+
+    return (
+      <Link
+        key={event.id}
+        href={`/${locale}/events/${event.id}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group flex gap-3 sm:gap-4 items-stretch border border-line rounded-xl bg-paper hover:shadow-md hover:border-green-400 transition overflow-hidden"
+      >
+        {cardInner}
       </Link>
     );
   }
