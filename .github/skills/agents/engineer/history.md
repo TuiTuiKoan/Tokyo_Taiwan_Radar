@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-07-04 — account 頁三修：co_organizers text[] malformed array、tab 切換 server round-trip、myEvents 連結渲染在 OwnerEventTable
+
+**Context**: 使用者在「建立活動」（owner UGC）回報三事：(1) 協辦單位手動輸入逗號分隔多機構（`株式会社インターサポート, 毎日エデュケーション（毎日留学ナビ）, 株式会社DEOW（台湾留学センター）`），點「儲存並自動翻譯補全」報 `malformed array literal: "..."`；(2) 切換「收藏」/「我的活動」tab 有很長延遲；(3) myEvents 清單要求已公開活動標題另開分頁、非公開/Draft 不顯示連結。
+
+**Fix**:
+1. **co_organizers/sponsors text[]（`owner-events.ts`，`f080fd5`）**：`sanitizeOwnerForm` 的 `typeof val === "string"` 分支把逗號字串直接塞進 `co_organizers`/`sponsors`（Postgres `text[]`）。新增 `parseCommaArray` + `COMMA_SEPARATED_ARRAY_FIELDS`（split 半形逗號、全形逗號 `，`、頓號 `、`），套用於 `sanitizeOwnerForm`（涵蓋 create/update × event/draft 四條 write path）與 `recordFieldCorrections`（讓 update 寫陣列而非字串）。admin 端 `AdminEditClient.tsx`（L128-129）本就有 `.split(",").map(trim).filter(Boolean)`，owner 端漏了。
+2. **tab 效能（`AccountHomeClient.tsx`，`54bb040`）**：`setTab` 原用 `router.replace()` 改 `?tab=` URL param → App Router 重跑 `account/page.tsx` server component + 5 個 Supabase 查詢（auth／creators／saved_events join／owned events／parents）+ 重序列化整個 RSC payload，但兩份 list 早在 client props。改 `activeTab` 為 `useState`（初始讀 URL 供 deep link）+ `window.history.replaceState` 同步 URL、不觸發 Next 導航。
+3. **myEvents 連結（`OwnerEventTable.tsx` + `AccountHomeClient.tsx`，`9405ebe`→`243aad4`）**：先誤改 `AccountHomeClient.renderEvent`（favorites 卡片路徑）無效、還誤令 favorites 另開分頁；還原後改對地方——myEvents（`hasProfile` 時）渲染 `<OwnerEventTable>`（表格），在標題加 `isPublic = is_active && !closed_by_owner && !merged`：公開 → `<Link target="_blank" rel="noopener noreferrer">`，非公開/Draft/已合併/已下架 → 純文字 `text-fg-muted`。
+
+**Lesson**:
+- **表單自由文字 input → Postgres `text[]` 欄位，write 前必須 split 成陣列**，否則逗號字串觸發 `malformed array literal`。`co_organizers`/`sponsors` 在 `AdminEventForm` 是純 text `<input>`（型別雖標 `string[] | null` 但實際綁字串），DB 卻是 `text[]`。
+- **owner/admin 兩 action path 的欄位正規化必須對齊**：admin（`AdminEditClient` 提交前 split）對了、owner（`sanitizeOwnerForm`）沒跟上 = 只在 owner UGC 觸發的 bug。這是 07-03「同一 bug 在 owner／admin 走不同 path，改錯邊等於沒改」的同型延伸——這次是「admin 早已正確但 owner 分支從未補上」。改任一端欄位處理，務必 grep 另一端是否對稱。
+- **同一欄位的所有寫入面都要正規化**：不只 `events` 表，`field_corrections` 也要（`recordFieldCorrections` 原存原始字串 → 未來套回 `text[]` 會再度 malformed，且字串 vs 陣列比較每次誤判變更）。凡「表單字串 → 陣列欄位」的修復，events 寫入 + FC 記錄兩面一起改。
+- **資料已全在 client（props）時，tab/filter 純顯示切換別用 URL param + `router.replace` 驅動**：App Router 任何 URL 變更都重跑 server component 全部查詢 + 重序列化 RSC，即使資料沒變。用 `useState` + `window.history.replaceState`（初始值讀 URL）兼得即時切換、deep link、重整保留、零 server round-trip。
+- **account 頁 myEvents 與 favorites 是兩套不同渲染**：`activeTab === "myEvents" && hasProfile ? <OwnerEventTable>（表格） : renderEvent（卡片）`。改 myEvents 行為（連結/狀態/欄位）要改 `OwnerEventTable`，別假設與 favorites 共用 `renderEvent`；改前先讀 JSX 分派分支確認實際渲染哪個元件（本次先改錯 renderEvent 白費一輪並污染 favorites）。
+- **驗證語境**：三修皆以 `pnpm run build` 通過驗證；但 `malformed array literal` 只在實際 Supabase insert/update（app request 語境）觸發，SQL Editor 無法模擬「表單逗號字串 → text[]」路徑 → 真正回歸需 owner 帳號實測逗號/頓號分隔輸入能成功發佈，tab 效能亦需線上（Vercel）實測切換延遲消失。
+
+---
+
 ## 2026-07-03 — Terminal CJK 亂碼根因：/etc/zprofile fallback 到 macOS 不支援的 C.UTF-8
 
 **Context**: 使用者持續回報 agent 讀 `run_in_terminal` 輸出間歇性亂碼，尤其在多命令串接與 CJK 內容（`git log` 的中文／日文 commit message，如「営業・開演時間」「誠品」）時爆發，一直靠「輸出導向 `/tmp` 檔再 `read_file`」繞過。表面像 shell integration 對多命令的 marker 問題，但純 ASCII 多命令輸出其實乾淨。

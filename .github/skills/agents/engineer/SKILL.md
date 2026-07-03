@@ -76,6 +76,12 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - Let the destination page handle conditional redirects (e.g. profile-required check). The nav only pushes the canonical URL; the page reads its own state and redirects if needed.
 - Remove any `loading` state that was only there to cover the pre-flight gap — users should see an immediate page transition, not a loading spinner inside the nav dropdown.
 
+## Client-only tab/filter switching（避免 RSC round-trip；2026-07-04 教訓）
+
+- 頁面資料已全在 client props 時，tab/filter 這類**純顯示切換**別用 URL param + `router.replace()` 驅動。App Router 中任何 URL 變更（即使只改 `?tab=` query）都會重跑該 route 的 server component、重發其全部 Supabase 查詢、重序列化整個 RSC payload —— 即使資料沒變。account 頁切換「收藏」/「我的活動」曾因此每次 round-trip 重跑 5 個查詢（auth／creators／saved_events join／owned events／parents，`54bb040`, 2026-07-04）。
+- **正解＝`useState` + `window.history.replaceState`**：`const [tab, setTab] = useState(searchParams.get("tab") ?? default)`（初始讀 URL 供 deep link／重整保留），切換時 `setTab(x)` + `window.history.replaceState(null, "", url)` 同步 URL 但**不觸發 Next 導航**。兼得即時切換、deep link、零 server fetch。
+- 反例辨識：切 tab/filter 有可感延遲、且每次切換都重打 RSC/DB → 就是 URL-driven state 的 round-trip，改成 client state。
+
 ## E2E Local Server Prerequisite
 
 - When running Playwright smoke tests that navigate to local paths (for example `/ja/announcements`), start a local Next server first (`npm run dev` or configured `webServer`) and verify port 3000 is reachable.
@@ -172,6 +178,10 @@ const sanitized = (parsed.category ?? []).filter((c: string) => VALID_CATEGORIES
 - **NOT NULL 欄位在 web server-action 的 write 路徑也要對稱保護（insert + 全部 update）。** 同上 `scraper_runs` success/except 對稱規則的 web 版。owner 建活動的 `source_url`（`events` NOT NULL）：insert 路徑 `createOwnerDraft` 有 `|| OWNER_SUBMISSION_SOURCE_FALLBACK` + canonical `/ja/events/{id}` backfill，但 `updateOwnerEvent`（publish）／`updateOwnerDraft` 一度直接 `.update(sanitizeOwnerForm(form))`，而 `sanitizeOwnerForm` 在使用者未填任何 URL 時給 `source_url = ... || null` → update 用 null 覆蓋 DB 現有 canonical 值 → `null value in column "source_url" ... violates not-null constraint`，卡住發佈（`cd55e57`, 2026-07-03）。
   - **修法＝update 前從 payload 移除該 key，不要填 fallback**：`if (!payload.source_url) { delete payload.source_url; }`（讓 update 不動該欄位、保留 canonical；填 fallback 會用較差 URL 覆蓋 `/ja/events/{id}`）。
   - **同一 write bug 在 owner／admin 走不同 action，先確認使用者實際路徑**：`EventIntakeWizard` 以 `context="owner"|"admin"` 分派 —— owner → `owner-events.ts`、admin → `admin-events.ts`（`sanitizeForm` 用 `?? SITE_URL` 永不 null，本就安全）。只改一端＝沒改。
+- **表單自由文字 input → Postgres `text[]` 欄位，write 前必 split 成陣列。** `AdminEventForm` 的 `co_organizers`／`sponsors` 是純 text `<input>`（值型別雖標 `string[] | null`，實際綁逗號字串），DB 欄位卻是 `text[]`；直接寫字串 → `malformed array literal: "A, B, C"`，阻斷 owner 發佈（`f080fd5`, 2026-07-04）。
+  - **修法＝write 前 `.split(/[,，、]/).map(s => s.trim()).filter(Boolean)`**（含全形逗號 `，`、頓號 `、`，貼合日文輸入），空陣列 → `null`。owner 端封裝為 `owner-events.ts::parseCommaArray` + `COMMA_SEPARATED_ARRAY_FIELDS`。
+  - **owner／admin 對齊（同上 source_url 規則）**：admin（`AdminEditClient` 提交前已 `.split(",")`）本就對，owner（`sanitizeOwnerForm`）漏了 → 只在 owner UGC 觸發。改任一端欄位正規化，grep 另一端是否對稱。
+  - **同一欄位所有寫入面都要 split**：`events` 表 + `field_corrections`（`recordFieldCorrections`）。後者若存原始字串，未來 annotator 套回 `text[]` 會再度 malformed，且字串 vs 陣列比較每次誤判為「變更」而灌 FC。凡「表單字串 → 陣列欄位」修復，events 寫入 + FC 記錄兩面一起改。
 - **Every migration that creates a new table MUST include explicit `GRANT` statements** (Supabase policy change, effective October 30, 2026). Without them, PostgREST/supabase-js returns `42501` permission error silently. Migration `069_explicit_grants.sql` retroactively covers all pre-existing tables. Use the tier template in `.github/instructions/database.instructions.md §GRANT template`:
   - **Tier A** (public-read): `GRANT SELECT ON ... TO anon, authenticated, service_role;`
   - **Tier B** (admin-only): `GRANT SELECT, INSERT, UPDATE, DELETE ON ... TO authenticated, service_role;`
