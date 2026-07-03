@@ -62,6 +62,23 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar
 const OWNER_SUBMISSION_SOURCE_FALLBACK = `${SITE_URL}/ja/account`;
 const VALID_PRIMARY_LANGUAGES = new Set(["ja", "zh", "en", "mixed"]);
 
+// text[] columns whose form input is a single free-text field. AdminEventForm
+// renders these as plain inputs, so the raw value arrives as "A, B, C" and must
+// be split into a Postgres array — otherwise the write fails with
+// "malformed array literal". Splits on half-width comma, full-width comma, and
+// the Japanese ideographic comma (、).
+const COMMA_SEPARATED_ARRAY_FIELDS = new Set<string>(["co_organizers", "sponsors"]);
+
+function parseCommaArray(val: unknown): string[] | null {
+  const parts = Array.isArray(val)
+    ? val.map((s) => String(s).trim())
+    : typeof val === "string"
+      ? val.split(/[,，、]/).map((s) => s.trim())
+      : [];
+  const cleaned = parts.filter(Boolean);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 function sanitizeOwnerForm(form: FormState, ownerUserId: string): Record<string, any> {
   const payload: Record<string, any> = {};
   
@@ -69,7 +86,9 @@ function sanitizeOwnerForm(form: FormState, ownerUserId: string): Record<string,
   for (const field of CONTENT_WHITE_LIST) {
     if (field in form) {
       const val = (form as any)[field];
-      if (typeof val === "string") {
+      if (COMMA_SEPARATED_ARRAY_FIELDS.has(field)) {
+        payload[field] = parseCommaArray(val);
+      } else if (typeof val === "string") {
         const trimmed = val.trim();
         payload[field] = trimmed === "" ? null : trimmed;
       } else {
@@ -116,7 +135,10 @@ async function recordFieldCorrections(
   const serviceClient = getServiceRoleClient();
 
   for (const field of fieldsToCheck) {
-    const newVal = (newForm as any)[field];
+    const rawNew = (newForm as any)[field];
+    const newVal = COMMA_SEPARATED_ARRAY_FIELDS.has(field)
+      ? parseCommaArray(rawNew)
+      : rawNew;
     const oldVal = (oldEvent as any)[field];
 
     // Simple robust comparison for strings and arrays
