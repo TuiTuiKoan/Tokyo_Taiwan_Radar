@@ -209,7 +209,7 @@ export default async function DesignPage({
           <div className="relative inline-flex flex-col items-center mx-auto md:mx-0 shrink-0">
             <MascotAvatar variant="inline" size={240} />
             <div
-              className="absolute bottom-0 right-4 px-3 py-1.5 bg-paper border-2 text-[10px] font-accent font-black tracking-widest text-[#3A261F] -rotate-6 text-center z-10"
+              className="absolute bottom-0 right-4 px-3 py-1.5 bg-paper border-2 text-[10px] font-display font-black tracking-widest text-[#3A261F] -rotate-6 text-center z-10"
               style={{ borderColor: "var(--color-mocha, #3A261F)" }}
             >
               Lianbu
