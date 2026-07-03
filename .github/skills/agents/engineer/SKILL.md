@@ -85,6 +85,14 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - **merge commit may trip the remote secret hook when ff doesn't.** A `--no-ff` merge has two parents, so the remote pre-receive scans full-reachable history and can flag an old blob the local `.gitleaks.toml` allowlists; a linear ff push scans only the increment and passes. This is NOT a safe bypass — after the ff succeeds, run `gitleaks dir .` on the whole tree to confirm 0 real secrets. Fix path: reset main, rebase the worktree onto latest main into one linear commit, `git push origin HEAD:main`. Never use `--no-verify`.
 - Fixed-width device preview frames must use responsive constraints such as `w-full max-w-[390px]`; do not set `width: 390px` inside padded mobile pages. In visual smoke tests, assert document `scrollWidth <= clientWidth` and distinguish expected horizontal carousels from real page overflow.
 
+## Commit & Push State Awareness（防「no changes added」誤判；2026-07-03 教訓）
+
+- Commit/push 前先 `git status -sb` 分類本地狀態，別對空 index 重跑 `git add`/`git commit`：
+  - **`ahead N, working tree clean`**（無 `M`/`??`）→ 變更**已提交**，跳過 commit **直接 `git push`**。此時的「nothing to commit / no changes added」是**誤判非失敗**。
+  - **有 `M`/`??`（modified／untracked）** → 照常 stage + commit。
+  - **`ahead 0, working tree clean`** 且 origin 無新 commit → 無待推送變更，無事可做。
+- V-M-D 反覆卡「no changes added」的根因＝把「前一輪已 commit（ahead+clean）」誤當「還要再 commit」，於是對空 index 空轉。唯一待辦是 push，不是再 commit，更不是部署失敗。
+
 ## Secret Scanning — Three-Layer Defense（fail-open；2026-06-28 教訓）
 
 新增/修改密鑰掃描時三層必須一致，且都是「降低風險」非 non-bypassable（真正強制需 server-side branch protection）：

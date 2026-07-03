@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-07-03 — V-M-D 反覆卡「no changes added」：ahead+clean 是誤判非失敗
+
+**Context**: 使用者回報 V-M-D 流程持續遇到「no changes added」（commit 時 index 空）。實查 `git status`：`nothing to commit, working tree clean`、`ahead of origin/main by 1 commit`（`5e54391 feat(web): unify poster wizard...`）；`git status --short` 空、`rev-list --left-right --count origin/main...HEAD` 為 `0 1`。變更早在前一輪已 commit，唯一待辦是 push。V-M-D 每次重進又跑 `git add`+`git commit`，對空 index 空轉才誤報「no changes added」。
+
+**Fix**: 判讀 `ahead N, working tree clean` → **跳過 commit，直接 `git push origin main`**。`git fetch origin main` 確認 origin 無並行 commit（不需 rebase）→ `pnpm run build` pass → push `ef5c0cf..5e54391 main -> main` → `/ja` HTTP 200；token gate exit 0。同步在 `validate-merge-deploy.agent.md` Step 1 加「提交狀態分類」區塊、Step 4 加「已提交偵測（Step 4.0）」跳過 commit，並補「no changes added 誤判」註記。
+
+**Lesson**: 「no changes added / nothing to commit」在 `ahead N, working tree clean` 語境下是**誤判不是失敗**——變更已提交，重跑 `git add`/`git commit` 只會對空 index 空轉。V-M-D 進 stage/commit 前必先 `git status -sb` 分類：(1) `ahead + clean` → 跳過 commit 直接 push；(2) 有 `M`/`??` → 照常 commit；(3) `ahead 0 + clean` 且 origin 無新 commit → 無事可做。把「前一輪已提交」誤當「還要再 commit」，正是流程迴圈的根因。
+
+---
+
 ## 2026-07-03 — 圖片精靈 stepper 三語標籤 regression + owner source_url NOT NULL 阻擋發佈 + 卡片半透明
 
 **Context**: 承接前一批 4-bug 修復（`b9554cf`）部署後，使用者回報兩個問題並要求一項 UI 調整：

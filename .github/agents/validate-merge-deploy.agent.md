@@ -41,6 +41,13 @@ handoffs:
 ---
 
 ### Step 1: 檢查 Git 狀態
+
+> **⚡ 先判讀 `git status -sb` 的提交狀態（防「no changes added」誤判迴圈）**
+> 進 stage/commit 前，先分類本地狀態，避免對空 index 重複 `git add`/`git commit`：
+> - **`ahead N, working tree clean`**（無 `M`/`??`）→ 變更**已提交**（前一輪 V-M-D 或 Engineer 已 commit）。**跳過 Step 1.x 提交紀律與 Step 4.1 commit**，直接進 Step 2 rebase 檢查 → Step 4.2 `git push`。此時再 `git add`/`git commit` 只會得到「nothing to commit / no changes added」的空 index——**誤判非失敗**，唯一待辦是 push。
+> - **出現 `M`/`??`（modified／untracked）** → 照常走 Step 1.x + Step 4.1 commit。
+> - **`ahead 0, working tree clean`**（且 origin 無新 commit）→ 無待推送變更，回報「無事可做」。
+
 1. 檢查是否有未解決的 merge/rebase 衝突
 1a. **🔁 未配對 docs commit 偵測（防 V-M-D ↔ docs 循環）**：執行以下檢查，若觸發**停止 V-M-D 並回到 Engineer 補 docs**：
    ```bash
@@ -121,7 +128,8 @@ handoffs:
    不屬於架構性改動（不需要更新 docs）：bug fix、單一 scraper 新增、i18n 修改、CSS 調整。
 
 ### Step 4: Commit & Push
-1. 使用原子化、描述清楚的提交消息
+0. **已提交偵測（呼應 Step 1 分類）**：若本地為「`ahead N, working tree clean`」→ **跳過本步驟 1（commit）**，直接執行 2（push）。不要對空 index 重跑 `git commit`（會得到「no changes added」誤判）。
+1. 使用原子化、描述清楚的提交消息（僅在有 staged 變更時）
 2. 執行 `git push origin main`
 3. 確認推送成功（無被拒絕的更新）
 
@@ -148,6 +156,8 @@ handoffs:
 - ✅ 部署驗證通過（無 502/500 錯誤）
 
 > **「問題未重現」情形**：若收到「請修復後重新部署」提示但 Step 3 全部 pass、Vercel HTTP 200，則明確回報「問題未重現，目前狀態健康」——不要強行尋找不存在的問題。
+
+> **「no changes added」誤判**：commit 時 index 空，且 `git status` 為 `ahead N, working tree clean`，代表變更**已提交非失敗**。直接 push（Step 4.2）即可，切勿反覆重試 commit 或誤判成部署失敗。
 
 ## 中止條件
 如果遇到以下情況，停止並報告：
