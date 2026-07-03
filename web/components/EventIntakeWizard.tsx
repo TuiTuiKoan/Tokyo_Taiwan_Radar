@@ -530,6 +530,7 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
         <div className="grid gap-4 sm:grid-cols-2">
           <Button
             type="button"
+            variant="secondary"
             onClick={handleChooseManual}
             className="h-24 text-base shadow-sm"
           >
@@ -537,7 +538,6 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
           </Button>
           <Button
             type="button"
-            variant="secondary"
             onClick={handleChooseImage}
             className="h-24 text-base shadow-sm"
           >
