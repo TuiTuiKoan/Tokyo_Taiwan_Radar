@@ -1,4 +1,8 @@
-from sources.prtimes import _extract_venue_from_body, _should_skip_taiwan_venue
+from sources.prtimes import (
+    _TAIWAN_BASED_TITLE_RE,
+    _extract_venue_from_body,
+    _should_skip_taiwan_venue,
+)
 
 
 def test_taiwan_parenthetical_venue_context_rejects_inbound_promotion():
@@ -31,4 +35,60 @@ def test_japan_venue_is_kept():
     venue = _extract_venue_from_body(body)
 
     assert venue == '東京ビッグサイト'
+    assert _should_skip_taiwan_venue(title, body, venue) is False
+
+
+# --- Title guard (_TAIWAN_BASED_TITLE_RE, used standalone at L402) ---------
+
+
+def test_title_taiwan_nite_held_is_skipped():
+    # Japan brand running an overseas program IN Taiwan (event b90f0b77 type).
+    title = '株式会社ハミガキドッグ、台湾にて海外初となる「OraBio認定歯みがきサロン合宿講座」を開催'
+    assert _TAIWAN_BASED_TITLE_RE.search(title) is not None
+
+
+def test_title_taiwan_nioite_held_is_skipped():
+    title = 'あるペットブランド、台湾において新プログラムを開催'
+    assert _TAIWAN_BASED_TITLE_RE.search(title) is not None
+
+
+def test_title_japan_held_taiwan_festival_is_kept():
+    assert _TAIWAN_BASED_TITLE_RE.search('台湾フェスティバル2026を東京で開催') is None
+
+
+def test_title_taiwan_night_market_in_odaiba_is_kept():
+    assert _TAIWAN_BASED_TITLE_RE.search('台湾夜市 in お台場') is None
+
+
+def test_title_taiwan_film_screening_is_kept():
+    assert _TAIWAN_BASED_TITLE_RE.search('台湾映画上映会') is None
+
+
+def test_title_taiwan_popular_sweets_japan_debut_is_kept():
+    # 台湾で人気→日本初上陸: negative lookahead (?!日本) must prevent a false skip.
+    assert _TAIWAN_BASED_TITLE_RE.search('台湾で人気のスイーツ、日本初上陸イベント開催') is None
+
+
+# --- Body guard (_TAIWAN_HELD_BODY_RE via _should_skip_taiwan_venue, L427) --
+
+
+def test_body_held_in_taiwan_country_only_is_skipped():
+    title = '株式会社ハミガキドッグ、海外初の合宿講座を開催'
+    for body in ('開催地：台湾', '場所：台湾', '会場名：台湾'):
+        venue = _extract_venue_from_body(body)
+        assert _should_skip_taiwan_venue(title, body, venue) is True, body
+
+
+def test_body_held_in_taiwan_country_with_parenthetical_venue_is_skipped():
+    title = '株式会社ハミガキドッグ、海外初の合宿講座を開催'
+    body = '開催地：台湾（新北市）'
+    venue = _extract_venue_from_body(body)
+    assert _should_skip_taiwan_venue(title, body, venue) is True
+
+
+def test_body_taiwan_night_market_in_tokyo_is_kept():
+    # Venue name starts with 台湾 but the event is in Tokyo — must NOT be skipped.
+    title = '台湾夜市を東京で開催'
+    body = '会場：台湾夜市（東京・お台場）\n台湾グルメを紹介します。'
+    venue = _extract_venue_from_body(body)
     assert _should_skip_taiwan_venue(title, body, venue) is False

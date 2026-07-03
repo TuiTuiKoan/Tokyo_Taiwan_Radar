@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-07-04 — PR TIMES 第二個 Japan-brand-held-in-Taiwan 先例（event b90f0b77）
+
+**問題：** `prtimes` 事件 `b90f0b77-3d1a-4864-bc5d-1282f488faf7`（大阪的日本寵物口腔護理品牌 ハミガキドッグ）2026/7/3 在**台灣**辦「台湾にて海外初となる…合宿講座」，對象是台灣美容沙龍／寵物店／動物醫院業者（Japan→Taiwan 商業／教育拓展），卻被收為 active event。此為 2026-06-29 Rental819（`22eae44b`）之後**第二個 Japan-brand-held-in-Taiwan 先例**。admin 已於 2026-07-03 手動停用（`deactivated_reason='admin confirmed irrelevant'`、raw_* 保留），本次補 root-cause guard。
+
+**根本原因 A（title guard 太窄）：** `_TAIWAN_BASED_TITLE_RE` 第一分支硬性要求「台湾」後緊跟 `国内|現地|本島|の地`。本 PR 用「台湾**にて**…開催」（無修飾詞）→ 漏過。
+
+**根本原因 B（body venue guard 缺國名）：** `_TAIWAN_VENUE_RE` 只列城市名（台北／台中…）+ 英文 Taiwan，**缺日文國名「台湾」**。本 PR body 寫「開催地：台湾」（只寫國名），`_is_taiwan_venue_context` 檢查不含「台湾」→ False → 漏過。
+
+**修復：**
+
+- 2a — `_TAIWAN_BASED_TITLE_RE` 新增分支 `台湾(?:にて|において)(?:(?!日本).){0,40}?(?:開催|実施|開講|スタート)`，中間負向排除「日本」避免「台湾にて人気→日本上陸」型誤殺。
+- 2b — 新增 `_TAIWAN_HELD_BODY_RE`（body-level held-in-Taiwan guard，命中「開催地：台湾」國名寫法，terminator 含全形／半形括號涵蓋「開催地：台湾（新北市）」），整合進 `_should_skip_taiwan_venue`；抽 `_VENUE_LABEL_ALT` 讓 `_VENUE_LABELS` 與新 guard 共用同一 label 集合（杜絕漂移）。
+- 精準 `source_exclusions` 規則：`raw_title` substring `台湾にて海外初`（即時雙保險，下次 scrape 立即生效，不必等 CI 部署）。
+
+**教訓：** Taiwan-held PR 只有在**明確面向日本人**（日本人向け／日本から参加／ファムトリップ／日台交流ツアー 等）才收；日本品牌把課程／商品拓展到台灣、面向台灣業者或消費者的 PR，即使標題同時含「台湾」與「開催」仍 out of scope。title guard 要涵蓋「台湾にて／において…開催」無修飾詞寫法，body guard 要涵蓋只寫國名「台湾」的 venue label。沿用 Rental819 的 scraper guard + `source_exclusions` 雙保險做法。
+
+---
+
 ## 2026-06-29 — Peatix detail text blocks for location and business_hours
 
 **問題：** Peatix detail pages can expose the authoritative venue and time range only in rendered text blocks such as `LOCATION` / `場所` and `DATE AND TIME` / `日時`. CSS selectors alone can miss Japanese pages, online-event markers, and body-level time labels, leaving `location_name`, `location_address`, or `business_hours` empty.

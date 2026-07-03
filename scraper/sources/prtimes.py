@@ -99,9 +99,14 @@ _RELEASE_DATE_RE = re.compile(
     r"(\d{4})年(\d{1,2})月(\d{1,2})日\s*(\d{1,2})時(\d{2})分"
 )
 
-# Venue extraction from PR body
+# Venue extraction from PR body.
+# Single source of truth for the venue-label alternation, shared with the
+# held-in-Taiwan body guard below so the label set never drifts. Longer labels
+# come first as a defensive measure (each label is anchored by a following
+# [：:] so 会場 cannot swallow 会場名：).
+_VENUE_LABEL_ALT = r"開催場所|会場名|会場|開催地|場所"
 _VENUE_LABELS = re.compile(
-    r"(?:開催場所|会場|場所|開催地|会場名)[：:]\s*([^\n。]{2,80})",
+    rf"(?:{_VENUE_LABEL_ALT})[：:]\s*([^\n。]{{2,80}})",
     re.MULTILINE,
 )
 
@@ -112,7 +117,18 @@ _VENUE_LABELS = re.compile(
 _TAIWAN_BASED_TITLE_RE = re.compile(
     r"(?:台湾(?:国内|現地|本島|の地).*?(?:で|にて|開催))|"  # 台湾国内で開催 (explicit context)
     r"(?:(?:in |IN )(?:台湾|Taiwan|台中|台北|高雄))|"        # in 台湾 / in Taiwan
-    r"台湾(?:出展|輸出|進出|販路|海外展示|海外販売)"          # business/export context
+    r"台湾(?:出展|輸出|進出|販路|海外展示|海外販売)|"          # business/export context
+    r"(?:台湾(?:にて|において)(?:(?!日本).){0,40}?(?:開催|実施|開講|スタート))"  # 台湾にて…開催 (held in Taiwan, no Japan pivot)
+)
+
+# Body-level "held in Taiwan" guard — catches PRs whose venue label lists only
+# the country name (e.g. 開催地：台湾), which the city-name-based _TAIWAN_VENUE_RE
+# misses. Reuses _VENUE_LABEL_ALT so the label set stays in sync. The terminator
+# set includes （ and ( so「開催地：台湾（新北市）」(country + parenthesised venue)
+# still matches, while「台湾夜市（東京開催）」does not (its label is not followed
+# by a bare 台湾 + boundary).
+_TAIWAN_HELD_BODY_RE = re.compile(
+    rf"(?:{_VENUE_LABEL_ALT})[：:]\s*(?:台湾|台灣|Taiwan)(?:[\s。、）・（(]|にて|において|国内|$)"
 )
 
 # Multi-city event section pattern — e.g. "東京｜2026年5月2日" / "大阪｜5月9日"
@@ -258,8 +274,10 @@ def _is_taiwan_venue_context(body_text: str, venue: str | None) -> bool:
 
 
 def _should_skip_taiwan_venue(title: str, body_text: str, venue: str | None) -> bool:
-    return _is_taiwan_venue_context(body_text, venue) and not _targets_japanese_visitors(
-        title, body_text
+    if _targets_japanese_visitors(title, body_text):
+        return False
+    return _is_taiwan_venue_context(body_text, venue) or bool(
+        _TAIWAN_HELD_BODY_RE.search(body_text)
     )
 
 
