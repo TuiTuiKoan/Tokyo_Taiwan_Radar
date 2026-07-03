@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-07-03 — Terminal CJK 亂碼根因：/etc/zprofile fallback 到 macOS 不支援的 C.UTF-8
+
+**Context**: 使用者持續回報 agent 讀 `run_in_terminal` 輸出間歇性亂碼，尤其在多命令串接與 CJK 內容（`git log` 的中文／日文 commit message，如「営業・開演時間」「誠品」）時爆發，一直靠「輸出導向 `/tmp` 檔再 `read_file`」繞過。表面像 shell integration 對多命令的 marker 問題，但純 ASCII 多命令輸出其實乾淨。
+
+**Fix**: 逐步診斷確認根因是 **locale**：`locale` 顯示 `LANG=C.UTF-8`，而 `locale -a` 證實 macOS BSD libc **不提供 `C.UTF-8`**（只有 `en_US.UTF-8`／`zh_*.UTF-8`）→ `setlocale` 退化 POSIX/C **byte-mode** → CJK 字元寬度計算錯誤 → terminal 換行或 OSC-633 標記切在多 byte 字元中間 → agent 讀到半個字元＝亂碼。來源為 `/etc/zprofile` 第 6–8 行 `if [ -z "$LANG" ]; then export LANG=C.UTF-8; fi`，在 VS Code 從 Dock/Finder 啟動（不繼承 shell 的 `LANG`）使 `$LANG` 為空時觸發。修復兩處：(1) `~/.zshenv`（zsh 載入序早於 `/etc/zprofile`）最前面加 `export LANG=en_US.UTF-8`，讓 fallback 永不觸發、涵蓋所有 zsh session；(2) VS Code User `settings.json` 加 `"terminal.integrated.env.osx": { "LANG": "en_US.UTF-8" }`，terminal process spawn 即帶正確 locale。驗證：`env -i HOME=... PATH=... TERM=... /bin/zsh -lic 'echo $LANG'` 模擬空 `LANG` 的全新 login shell → 得 `en_US.UTF-8`（修復前為 `C.UTF-8`）。
+
+**Lesson**:
+- **純 ASCII 多命令輸出乾淨、只有含 CJK 才亂碼 → 是 locale byte-mode 問題，不是 shell integration 的多命令 marker bug**。診斷亂碼先跑「純 ASCII 多命令 vs 含 CJK 命令」對照，別急著怪 shell integration。
+- **`C.UTF-8` 在 macOS 是「假 locale」**：`locale` 只 echo 回設定值，不代表 `setlocale` 成功；務必 `locale -a | grep -i utf` 確認系統真的提供。macOS 只認 `en_US.UTF-8` 這類，不認 glibc 專有的 `C.UTF-8`。
+- **Python 因 PEP 540 UTF-8 mode 容忍 `C.UTF-8`**（`setlocale` 回傳 `C.UTF-8`、`getpreferredencoding` 仍 UTF-8），純 Python 檢查看不出退化；要用 BSD 工具（git pager／sort／awk／less）或 raw byte 對照才驗得出。
+- **`~/.zshenv` 是攔截 `/etc/zprofile` fallback 的最早點**（載入序 `/etc/zshenv → ~/.zshenv → /etc/zprofile → …`）；在此設 `LANG` 後 `[ -z "$LANG" ]` 永為 false。VS Code `terminal.integrated.env.osx` 則讓 terminal 從 process spawn 就對，雙保險。
+- **locale 只是放大器，真正的間歇主因是本 workspace 已知的 VS Code shell integration 不穩定**（見 user memory：`$PATH` mid-command 變空、`command not found: git/rm`）。修 locale 降頻但無法根治；仍需繞法：輸出導向檔案再 `read_file`、純 ASCII + 絕對路徑 `/bin/bash` script、真的卡住 **Reload Window** 清 poisoning。
+- 根因與繞法已記入 repo memory `terminal-cjk-mojibake-locale.md`。
+
+---
+
 ## 2026-07-03 — V-M-D 反覆卡「no changes added」：ahead+clean 是誤判非失敗
 
 **Context**: 使用者回報 V-M-D 流程持續遇到「no changes added」（commit 時 index 空）。實查 `git status`：`nothing to commit, working tree clean`、`ahead of origin/main by 1 commit`（`5e54391 feat(web): unify poster wizard...`）；`git status --short` 空、`rev-list --left-right --count origin/main...HEAD` 為 `0 1`。變更早在前一輪已 commit，唯一待辦是 push。V-M-D 每次重進又跑 `git add`+`git commit`，對空 index 空轉才誤報「no changes added」。

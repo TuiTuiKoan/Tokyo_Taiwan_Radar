@@ -23,6 +23,7 @@ Executes full-stack implementation across the scraper (Python), web (Next.js 16)
 
 ## Session Start Checklist
 1. Read `.github/skills/agents/engineer/SKILL.md` — apply all rules before starting.
+2. If `run_in_terminal` output shows intermittent CJK mojibake, it's a locale (`C.UTF-8`) issue, not your command — see SKILL.md → "Terminal Mojibake / Locale". Redirect output to a file and `read_file` it as the immediate workaround.
 
 ## After Fixing Any Error
 1. Append an entry to `.github/skills/agents/engineer/history.md` (newest at top): date, error, fix, lesson.

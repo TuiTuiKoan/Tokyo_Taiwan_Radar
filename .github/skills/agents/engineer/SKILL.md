@@ -85,6 +85,15 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - **merge commit may trip the remote secret hook when ff doesn't.** A `--no-ff` merge has two parents, so the remote pre-receive scans full-reachable history and can flag an old blob the local `.gitleaks.toml` allowlists; a linear ff push scans only the increment and passes. This is NOT a safe bypass — after the ff succeeds, run `gitleaks dir .` on the whole tree to confirm 0 real secrets. Fix path: reset main, rebase the worktree onto latest main into one linear commit, `git push origin HEAD:main`. Never use `--no-verify`.
 - Fixed-width device preview frames must use responsive constraints such as `w-full max-w-[390px]`; do not set `width: 390px` inside padded mobile pages. In visual smoke tests, assert document `scrollWidth <= clientWidth` and distinguish expected horizontal carousels from real page overflow.
 
+## Terminal Mojibake / Locale（macOS；agent 讀 terminal 亂碼；2026-07-03 教訓）
+
+- If agent-read `run_in_terminal` output shows **intermittent CJK mojibake** (esp. multi-command chains or `git log` with Chinese/Japanese commit messages), suspect **locale first, not shell-integration markers**. Diagnose by contrasting a pure-ASCII multi-command run (stays clean) vs a CJK-containing run (garbles).
+- macOS BSD libc does NOT ship `C.UTF-8`. `locale` only echoes the value — confirm real support with `locale -a | grep -i utf` (macOS lists `en_US.UTF-8`, `zh_*.UTF-8`, never `C.UTF-8`). `LANG=C.UTF-8` means `setlocale` degraded to POSIX/C byte-mode → CJK char-width miscalc → a terminal wrap or OSC-633 marker splits a multi-byte char → half char = mojibake.
+- Source: `/etc/zprofile` `if [ -z "$LANG" ]; then export LANG=C.UTF-8; fi`, triggered when VS Code launches from Dock/Finder (does not inherit `LANG`).
+- Fix: `export LANG=en_US.UTF-8` in `~/.zshenv` (loads before `/etc/zprofile`, so the fallback never fires) + `"terminal.integrated.env.osx": { "LANG": "en_US.UTF-8" }` in VS Code settings. Verify: `env -i HOME="$HOME" PATH="$PATH" TERM=xterm-256color /bin/zsh -lic 'echo $LANG'` must print `en_US.UTF-8`. Existing terminals need Reload Window / new terminal.
+- Python tolerates `C.UTF-8` (PEP 540) so python-only checks look clean — test BSD tools instead.
+- Locale is only an AMPLIFIER; the main intermittent cause is VS Code shell-integration flakiness (`$PATH` blanks mid-command). Workarounds still needed: redirect output to a file then `read_file`, pure-ASCII output via absolute-path `/bin/bash` script, or Reload Window to clear poisoning.
+
 ## Commit & Push State Awareness（防「no changes added」誤判；2026-07-03 教訓）
 
 - Commit/push 前先 `git status -sb` 分類本地狀態，別對空 index 重跑 `git add`/`git commit`：
