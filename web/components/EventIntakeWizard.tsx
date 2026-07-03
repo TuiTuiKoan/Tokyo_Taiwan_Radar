@@ -304,6 +304,8 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
       requireBusinessHours: true,
       primaryLang: form.primary_language,
       paidChoiceMade: paidChoice !== "",
+      // image mode：任一語言 name 有值即可，annotate 會翻譯填滿其他語言空欄。
+      allowAnyContentLang: mode === "image",
     });
     if (missing.length > 0) {
       setActionError(describePreflight(missing));
@@ -637,28 +639,29 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
         </p>
       )}
 
-      {busy && (
-        <div
-          aria-live="polite"
-          className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
-        >
-          {extracting
-            ? `${tIntake("busyExtracting")} ${elapsedSec}s`
-            : `${tIntake("busyTranslating")} ${elapsedSec}s`}
+      <div className="sticky bottom-0 space-y-3 border-t border-line bg-paper pt-4 pb-4">
+        {busy && (
+          <div
+            aria-live="polite"
+            className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300"
+          >
+            {extracting
+              ? `${tIntake("busyExtracting")} ${elapsedSec}s`
+              : `${tIntake("busyTranslating")} ${elapsedSec}s`}
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleCancel}
+            disabled={busy}
+            className="shadow-sm"
+          >
+            {tIntake("cancel")}
+          </Button>
+          {renderPrimaryButton()}
         </div>
-      )}
-
-      <div className="flex items-center gap-3 pt-4 border-t border-line">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={handleCancel}
-          disabled={busy}
-          className="shadow-sm"
-        >
-          {tIntake("cancel")}
-        </Button>
-        {renderPrimaryButton()}
       </div>
     </div>
   );

@@ -25,6 +25,11 @@ export type CollectMissingOptions = {
   requirePrimaryDescription?: boolean;
   /** When true, business_hours becomes required (create flow only). Defaults to false. */
   requireBusinessHours?: boolean;
+  /**
+   * image save+translate 用：任一語言 name 有值即可（不綁 primaryLang），
+   * annotate 端點會從有值語言翻譯填滿其他空欄。
+   */
+  allowAnyContentLang?: boolean;
   primaryLang?: string;
   paidChoiceMade?: boolean;
 };
@@ -67,16 +72,28 @@ export function collectMissingRequiredFields(
 
   if (opts.requirePrimaryContent) {
     const requireDescription = opts.requirePrimaryDescription !== false;
-    const lang = typeof opts.primaryLang === "string" ? opts.primaryLang : "";
-    if (!VALID_PRIMARY_CONTENT_LANGS.has(lang)) {
-      // No fallback to ja — a mixed/empty primary language has no single
-      // authoritative content field, so the caller must resolve it explicitly.
-      missing.push("primary_name");
-      if (requireDescription) missing.push("primary_description");
+    if (opts.allowAnyContentLang === true) {
+      // image save+translate：任一語言 name 有值即可，annotate 會翻譯填空欄。
+      const anyName = ["ja", "zh", "en"].some((l) => !isBlank(form[`name_${l}`]));
+      if (!anyName) missing.push("primary_name");
+      if (requireDescription) {
+        const anyDescription = ["ja", "zh", "en"].some(
+          (l) => !isBlank(form[`description_${l}`]),
+        );
+        if (!anyDescription) missing.push("primary_description");
+      }
     } else {
-      if (isBlank(form[`name_${lang}`])) missing.push("primary_name");
-      if (requireDescription && isBlank(form[`description_${lang}`]))
-        missing.push("primary_description");
+      const lang = typeof opts.primaryLang === "string" ? opts.primaryLang : "";
+      if (!VALID_PRIMARY_CONTENT_LANGS.has(lang)) {
+        // No fallback to ja — a mixed/empty primary language has no single
+        // authoritative content field, so the caller must resolve it explicitly.
+        missing.push("primary_name");
+        if (requireDescription) missing.push("primary_description");
+      } else {
+        if (isBlank(form[`name_${lang}`])) missing.push("primary_name");
+        if (requireDescription && isBlank(form[`description_${lang}`]))
+          missing.push("primary_description");
+      }
     }
   }
 
