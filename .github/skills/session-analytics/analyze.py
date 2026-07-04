@@ -24,6 +24,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from detectors import Anomaly, detect_all, parse_events
+
 
 # ── 路徑探索 ─────────────────────────────────────────────────────────────────
 
@@ -44,16 +46,7 @@ def find_transcript_files(days: int | None = None) -> list[Path]:
 
 def parse_session(path: Path) -> dict:
     session_id = path.stem
-    events = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                events.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
+    events = parse_events(path)
 
     if not events:
         return None
@@ -186,6 +179,27 @@ def print_aggregate(sessions: list[dict]) -> None:
         print(f"    {name:<40} {cnt:>5}  {bar}")
 
 
+def print_anomalies(anomalies: list[Anomaly]) -> None:
+    print("\nSession anomaly report")
+    print(f"  Total: {len(anomalies)}")
+
+    by_severity: dict[str, list[Anomaly]] = collections.defaultdict(list)
+    for anomaly in anomalies:
+        by_severity[anomaly.severity].append(anomaly)
+
+    for severity in ("high", "medium", "low"):
+        items = by_severity.get(severity, [])
+        if not items:
+            continue
+        print(f"\n[{severity.upper()}] {len(items)}")
+        for item in items:
+            sid = item.session_id[:8]
+            tool = f" tool={item.tool_name}" if item.tool_name else ""
+            print(f"  {sid} T{item.turn_index:02d} {item.kind}{tool} :: {item.signal}")
+            if item.evidence:
+                print(f"    evidence: {item.evidence}")
+
+
 # ── 主程式 ────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -195,6 +209,7 @@ def main() -> None:
     parser.add_argument("--top", type=int, help="只顯示最多回合的 N 個 sessions")
     parser.add_argument("--verbose", "-v", action="store_true", help="顯示每個 session 的工具明細")
     parser.add_argument("--json", action="store_true", help="輸出 JSON 格式")
+    parser.add_argument("--anomalies", action="store_true", help="偵測 transcript 異常訊號")
     args = parser.parse_args()
 
     files = find_transcript_files(days=args.days)
@@ -209,6 +224,18 @@ def main() -> None:
         if not files:
             print(f"找不到 session ID 以 '{args.session}' 開頭的記錄。")
             sys.exit(1)
+
+    if args.anomalies:
+        anomalies: list[Anomaly] = []
+        for f in files:
+            anomalies.extend(detect_all(parse_events(f), session_id=f.stem))
+
+        if args.json:
+            print(json.dumps([a.to_dict() for a in anomalies], ensure_ascii=False, indent=2))
+            return
+
+        print_anomalies(anomalies)
+        return
 
     sessions = []
     for f in files:

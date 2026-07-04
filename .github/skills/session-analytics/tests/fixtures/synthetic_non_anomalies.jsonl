@@ -1,0 +1,22 @@
+{"type":"session.start","timestamp":"2026-07-04T01:00:00Z","data":{"sessionId":"synthetic-non-anomalies","startTime":"2026-07-04T01:00:00Z","copilotVersion":"fixture"}}
+{"type":"user.message","timestamp":"2026-07-04T01:00:01Z","data":{"content":"Discuss safe stash handling."}}
+{"type":"assistant.turn_start","timestamp":"2026-07-04T01:00:02Z","data":{}}
+{"type":"assistant.message","timestamp":"2026-07-04T01:00:03Z","data":{"content":"A standalone git stash note is only a low-risk signal."}}
+{"type":"user.message","timestamp":"2026-07-04T01:01:00Z","data":{"content":"Run a harmless command."}}
+{"type":"assistant.turn_start","timestamp":"2026-07-04T01:01:01Z","data":{}}
+{"type":"tool.execution_start","timestamp":"2026-07-04T01:01:02Z","data":{"toolName":"run_in_terminal","toolCallId":"shell-ok","arguments":{"command":"git status --short"}}}
+{"type":"tool.execution_complete","timestamp":"2026-07-04T01:01:03Z","data":{"toolCallId":"shell-ok","success":true}}
+{"type":"assistant.message","timestamp":"2026-07-04T01:01:04Z","data":{"content":"The shell check completed without errors."}}
+{"type":"user.message","timestamp":"2026-07-04T01:02:00Z","data":{"content":"Record a successful push."}}
+{"type":"assistant.turn_start","timestamp":"2026-07-04T01:02:01Z","data":{}}
+{"type":"tool.execution_start","timestamp":"2026-07-04T01:02:02Z","data":{"toolName":"run_in_terminal","toolCallId":"push-ok","arguments":{"command":"git push origin HEAD:main"}}}
+{"type":"tool.execution_complete","timestamp":"2026-07-04T01:02:03Z","data":{"toolCallId":"push-ok","success":true}}
+{"type":"assistant.message","timestamp":"2026-07-04T01:02:04Z","data":{"content":"push 成功, and the transcript contains the corresponding successful git push command."}}
+{"type":"user.message","timestamp":"2026-07-04T01:03:00Z","data":{"content":"Write memory successfully."}}
+{"type":"assistant.turn_start","timestamp":"2026-07-04T01:03:01Z","data":{}}
+{"type":"tool.execution_start","timestamp":"2026-07-04T01:03:02Z","data":{"toolName":"memory","toolCallId":"memory-ok","arguments":{"command":"create","path":"/memories/session/check.md"}}}
+{"type":"tool.execution_complete","timestamp":"2026-07-04T01:03:03Z","data":{"toolCallId":"memory-ok","success":true}}
+{"type":"assistant.message","timestamp":"2026-07-04T01:03:04Z","data":{"content":"memory 已更新，後續檢查也確認內容存在."}}
+{"type":"user.message","timestamp":"2026-07-04T01:04:00Z","data":{"content":"Mention prompt injection without a fetched page."}}
+{"type":"assistant.turn_start","timestamp":"2026-07-04T01:04:01Z","data":{}}
+{"type":"assistant.message","timestamp":"2026-07-04T01:04:02Z","data":{"content":"Prompt injection is a general class of risk, but no external content was fetched in this turn."}}
