@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
+import { MascotAvatar } from "@/lib/design";
 import type { Locale } from "@/lib/types";
 
 export const revalidate = 86400;
@@ -53,18 +54,35 @@ export default async function AboutPage({ params }: PageProps) {
   const t = await getTranslations({ locale, namespace: "about" });
   return (
     <section className="max-w-4xl mx-auto">
-      <nav className="text-sm text-fg-muted mb-4">
-        <Link href={`/${locale}`} className="text-green-500 hover:underline">
-          Tokyo Taiwan Radar
-        </Link>
-        {" › "}
-        <span className="text-fg-strong">{t("heroTitle")}</span>
-      </nav>
-
       <h1 className="text-3xl font-bold mb-6 text-fg-strong">{t("heroTitle")}</h1>
 
       <section className="mb-8">
-        <p className="text-base leading-relaxed text-fg">{t("story")}</p>
+        <p className="text-base leading-relaxed text-fg">
+          {t("story")}{" "}
+          {t.rich("storyContact", {
+            mail: (chunks) => (
+              <a
+                href="mailto:hello@tokyotaiwanradar.com"
+                className="text-green-500 hover:underline"
+              >
+                {chunks}
+              </a>
+            ),
+          })}
+        </p>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-xl font-semibold mb-3 text-fg-strong">{t("mascotTitle")}</h2>
+        <div className="flex flex-col sm:flex-row gap-5 items-start">
+          <MascotAvatar
+            variant="framed"
+            shape="square"
+            size={140}
+            className="shrink-0 mx-auto sm:mx-0"
+          />
+          <p className="text-base leading-relaxed text-fg">{t("mascotBody")}</p>
+        </div>
       </section>
 
       <section className="mb-8">
@@ -92,11 +110,6 @@ export default async function AboutPage({ params }: PageProps) {
           </a>
           。
         </p>
-      </section>
-
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3 text-fg-strong">{t("contactTitle")}</h2>
-        <p className="text-base leading-relaxed text-fg">{t("contactBody")}</p>
       </section>
     </section>
   );
