@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { MascotAvatar } from "@/lib/design";
+import SocialLinks from "@/components/SocialLinks";
 import type { Locale } from "@/lib/types";
 
 export const revalidate = 86400;
@@ -70,6 +71,7 @@ export default async function AboutPage({ params }: PageProps) {
             ),
           })}
         </p>
+        <SocialLinks className="mt-4" />
       </section>
 
       <section className="mb-8">
