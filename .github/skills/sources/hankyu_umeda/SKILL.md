@@ -1,7 +1,7 @@
 ---
 name: hankyu_umeda
 description: "Platform rules, HTML structure, and Taiwan relevance filter for the 阪急うめだ本店 scraper"
-applyTo: scraper/sources/hankyu_umeda.py
+applyTo: scraper/sources/hankyu.py
 ---
 
 # hankyu_umeda Scraper Skill
