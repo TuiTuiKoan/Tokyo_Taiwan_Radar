@@ -58,6 +58,7 @@ from sources.jats import JatsScraper
 from sources.waseda_taiwan import WasedaTaiwanScraper
 from sources.taiwanshi import TaiwanshiScraper
 from sources.tobunken import TobunkenScraper
+from sources.nagoya_tcs import NagoyaTcsScraper
 from sources.ks_cinema import KsCinemaScraper
 from sources.cinemart_shinjuku import CinemartShinjukuScraper
 from sources.kokuchpro import KokuchproScraper
@@ -193,6 +194,7 @@ SCRAPERS = [
     WasedaTaiwanScraper(),
     TaiwanshiScraper(),
     TobunkenScraper(),
+    NagoyaTcsScraper(),
     KsCinemaScraper(),
     CinemartShinjukuScraper(),
     KokuchproScraper(),
