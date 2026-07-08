@@ -116,6 +116,8 @@ Before running `update_source.py --status researched --feasibility easy`, the Re
 > ⚠️ **SCOPE REMINDER**: The question is "does this source have Taiwan events anywhere in Japan?" NOT "are the events in Tokyo?"
 >
 > ⚠️ **TAIWAN-BASED EVENTS IN SCOPE**: Tours, study programs, and cultural exchange activities **held IN Taiwan but organized for Japanese participants** are also in scope (e.g., SNET台湾 student tours, school修学旅行, academic exchange programs targeting Japanese audiences). Do NOT reject a source solely because its events take place in Taiwan. Evaluate whether the target audience is Japanese.
+>
+> ⚠️ **JAPAN→TAIWAN COMMERCIAL PROMOTION OUT OF SCOPE**: A Japanese brand/company holding a promotional event **in Taiwan for Taiwanese consumers (B2C)** — product pop-ups, brand launches, overseas-expansion (輸出/進出) PR — or **exhibiting at a Taiwan trade show (B2B)** is out of scope; reject such sources. The in-scope exceptions still apply: study tours, Japanese-participant programs, and Japan↔Taiwan official/cultural exchange (e.g. 日本台湾交流協会) remain in scope. Judge by **target audience** (Japanese = in, Taiwanese consumers/B2B = out), not by title keywords.
 
 For each promising source, answer:
 

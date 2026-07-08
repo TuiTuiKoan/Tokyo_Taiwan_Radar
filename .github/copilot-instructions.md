@@ -23,6 +23,8 @@ trilingual Next.js web app.
 > **Geographic Scope**: Events in Tokyo, Osaka, Kyoto, Fukuoka, Sapporo, and all other regions are in scope. Do NOT reject an event or source solely because it is outside Tokyo.
 >
 > **Taiwan-based events are also in scope** when they are organized specifically for Japanese audiences or by Japan-based organizations for Japan↔Taiwan exchange (e.g., study tours, cultural immersion programs, academic exchanges targeting Japanese participants). These represent the "go to Taiwan" side of Japan-Taiwan cultural exchange and are a valid part of the project's mission.
+>
+> **However, Japan→Taiwan commercial expansion is OUT of scope**: a Japanese brand/company holding a promotional event **in Taiwan for Taiwanese consumers (B2C)** — product pop-ups, brand launches, overseas-expansion (輸出/進出) dinners — or **exhibiting at a Taiwan trade show (B2B)** is NOT a Japan event, even if the title contains 台湾 and 開催. The in-scope exceptions above still apply: study tours, Japanese-participant auditions/programs, and Japan↔Taiwan official or cultural exchange (e.g. events hosted by 日本台湾交流協会) remain in scope. Judge by **who the event is for** — Japanese participants = in scope; Taiwanese consumers or B2B = out of scope — not by title keywords.
 
 - GitHub: TuiTuiKoan/Tokyo_Taiwan_Radar (main branch)
 - Supabase project: cjtndektjjpvvjofdvzr
