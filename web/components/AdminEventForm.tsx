@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { type Event, type Locale, CATEGORY_GROUPS, EVENT_FORMS, getEventName } from "@/lib/types";
-import DesignSelect from "@/components/DesignSelect";
+import DesignSelect, { type DesignSelectOption } from "@/components/DesignSelect";
+import Button from "@/components/Button";
 import { PillButton, RadioGroup } from "@/components/UiControls";
 
 export const EMPTY_FORM = {
@@ -72,6 +74,15 @@ interface Props {
   /** Mark the primary-language description as required. Defaults to true. */
   descriptionRequired?: boolean;
   venuePlaceholder?: string;
+  /** Parent-event candidate load state. Defaults to "loaded" (edit page eager-loads). */
+  parentEventsStatus?: "idle" | "loading" | "loaded" | "error";
+  /** Admin create: fired when the parent-event select first opens (lazy load). */
+  onParentEventsOpen?: () => void;
+  /** Admin create: retry the parent-event candidate load after an error. */
+  onRetryParentEvents?: () => void;
+  parentEventsLoadingLabel?: string;
+  parentEventsLoadErrorLabel?: string;
+  retryParentEventsLabel?: string;
 }
 
 export default function AdminEventForm({
@@ -97,8 +108,33 @@ export default function AdminEventForm({
   businessHoursRequired = false,
   descriptionRequired = true,
   venuePlaceholder,
+  parentEventsStatus = "loaded",
+  onParentEventsOpen,
+  onRetryParentEvents,
+  parentEventsLoadingLabel,
+  parentEventsLoadErrorLabel,
+  retryParentEventsLabel,
 }: Props) {
-  const parentCandidates = events.filter((e) => e.id !== editingId);
+  const parentCandidates = useMemo(
+    () => events.filter((e) => e.id !== editingId),
+    [events, editingId],
+  );
+  const parentEventOptions = useMemo<DesignSelectOption[]>(() => {
+    const base: DesignSelectOption[] = [{ value: "", label: t("noParent") }];
+    if (parentEventsStatus === "loading") {
+      return [
+        ...base,
+        { value: "__loading__", label: parentEventsLoadingLabel ?? "\u2026", disabled: true },
+      ];
+    }
+    return [
+      ...base,
+      ...parentCandidates.map((e) => ({
+        value: e.id,
+        label: `${getEventName(e, locale)} (${e.start_date?.slice(0, 10) ?? "\u2014"})`,
+      })),
+    ];
+  }, [t, parentEventsStatus, parentEventsLoadingLabel, parentCandidates, locale]);
   const labels = fieldLabels;
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
   const langName = (lang: Locale): string =>
@@ -520,14 +556,26 @@ export default function AdminEventForm({
             <DesignSelect
               value={form.parent_event_id}
               onChange={(v) => updateField("parent_event_id", v)}
-              options={[
-                { value: "", label: t("noParent") },
-                ...parentCandidates.map((e) => ({
-                  value: e.id,
-                  label: `${getEventName(e, locale)} (${e.start_date?.slice(0, 10) ?? "—"})`,
-                })),
-              ]}
+              onOpen={onParentEventsOpen}
+              options={parentEventOptions}
             />
+            {parentEventsStatus === "error" && (
+              <div className="mt-2 space-y-2">
+                <p role="alert" className="text-xs font-medium text-red-600 dark:text-red-400">
+                  {parentEventsLoadErrorLabel ?? "Failed to load"}
+                </p>
+                {onRetryParentEvents && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={onRetryParentEvents}
+                    className="min-h-8 px-3 py-1 text-xs"
+                  >
+                    {retryParentEventsLabel ?? "Retry"}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </section>
       )}

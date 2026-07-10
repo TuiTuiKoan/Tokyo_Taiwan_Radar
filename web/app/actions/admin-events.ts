@@ -77,6 +77,21 @@ export async function createEventNoAnnotate(form: FormState): Promise<ActionResu
   return insertWithRetry(auth.supabase, sanitizeForm(form));
 }
 
+// Admin-only lazy fetch for the parent-event dropdown on the create wizard.
+// The create page no longer eager-loads the full events table; the wizard calls
+// this the first time an admin opens the parent-event select. Must go through
+// requireAdmin() — never a browser-side Supabase read.
+export async function fetchParentEventCandidates(): Promise<ActionResult<Event[]>> {
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { data, error } = await auth.supabase
+    .from("events")
+    .select("id, name_ja, name_zh, name_en, start_date")
+    .order("created_at", { ascending: false });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: (data ?? []) as Event[] };
+}
+
 export async function updateAdminEvent(
   eventId: string,
   form: FormState,

@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
-import { type Locale, type Event } from "@/lib/types";
+import { type Locale } from "@/lib/types";
 import EventIntakeWizard from "@/components/EventIntakeWizard";
 
 interface PageProps {
@@ -10,7 +9,6 @@ interface PageProps {
 
 export default async function AdminCreatePage({ params }: PageProps) {
   const { locale } = await params;
-  await getTranslations("admin");
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -29,18 +27,9 @@ export default async function AdminCreatePage({ params }: PageProps) {
     redirect(`/${locale}`);
   }
 
-  const { data: allEvents } = await supabase
-    .from("events")
-    .select("id, name_ja, name_zh, name_en, start_date")
-    .order("created_at", { ascending: false });
-
   return (
     <div>
-      <EventIntakeWizard
-        context="admin"
-        locale={locale}
-        allEvents={(allEvents ?? []) as Event[]}
-      />
+      <EventIntakeWizard context="admin" locale={locale} />
     </div>
   );
 }

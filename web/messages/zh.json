@@ -992,6 +992,9 @@
     "portalLoading": "確認中..."
   },
   "eventIntake": {
+    "parentEventsLoading": "載入中",
+    "parentEventsLoadError": "載入失敗",
+    "retryParentEvents": "重試",
     "chooseTitle": "建立活動",
     "chooseManual": "手動輸入活動內容",
     "chooseImage": "上傳宣傳圖片，AI擷取內容",

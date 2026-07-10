@@ -992,6 +992,9 @@
     "portalLoading": "Checking..."
   },
   "eventIntake": {
+    "parentEventsLoading": "Loading…",
+    "parentEventsLoadError": "Failed to load",
+    "retryParentEvents": "Retry",
     "chooseTitle": "Create Event",
     "chooseManual": "Enter event details manually",
     "chooseImage": "Upload a poster, AI extracts the content",

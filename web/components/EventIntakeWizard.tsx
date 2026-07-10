@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { flushSync } from "react-dom";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,7 @@ import {
   createDraftEvent,
   updateAdminEvent,
   publishAdminWizardEvent,
+  fetchParentEventCandidates,
 } from "@/app/actions/admin-events";
 import { collectMissingRequiredFields, buildMissingFieldsMessage } from "@/lib/eventIntakeValidation";
 import {
@@ -31,12 +32,11 @@ type PaidChoice = "" | "free" | "paid";
 interface Props {
   context: "owner" | "admin";
   locale: Locale;
-  allEvents?: Event[];
 }
 
 const CONTENT_LANGS: Locale[] = ["ja", "zh", "en"];
 
-export default function EventIntakeWizard({ context, locale, allEvents }: Props) {
+export default function EventIntakeWizard({ context, locale }: Props) {
   const tIntake = useTranslations("eventIntake");
   const tAdmin = useTranslations("admin");
   const tCat = useTranslations("categories");
@@ -61,14 +61,42 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [, startTransition] = useTransition();
 
+  // Admin-only: parent-event candidates are fetched lazily the first time the
+  // admin opens the parent-event select (the create page no longer eager-loads
+  // the full events table). Cached in wizard state for the wizard session.
+  const [parentEvents, setParentEvents] = useState<Event[]>([]);
+  const [parentEventsStatus, setParentEventsStatus] =
+    useState<"idle" | "loading" | "loaded" | "error">("idle");
+
   const posterFileRef = useRef<HTMLInputElement>(null);
   const busyStartedAtRef = useRef<number | null>(null);
   const actionLockRef = useRef(false);
+  const parentEventsInFlightRef = useRef(false);
   const autoFilledFieldsRef = useRef<Set<string>>(new Set());
   const manualEditedFieldsRef = useRef<Set<string>>(new Set());
   const translationEditedFieldsRef = useRef<Set<string>>(new Set());
   const footerRef = useRef<HTMLDivElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
+
+  // Lazy loader for parent-event candidates. Never touches actionLockRef so it
+  // cannot block save/annotate; guarded by its own in-flight ref + status so
+  // rapid open/close or a cached result never re-fetches. Retries on "error".
+  const loadParentEvents = useCallback(async () => {
+    if (!isAdmin) return;
+    if (parentEventsStatus === "loaded" || parentEventsInFlightRef.current) return;
+    parentEventsInFlightRef.current = true;
+    setParentEventsStatus("loading");
+    try {
+      const res = await fetchParentEventCandidates();
+      if (!res.ok) throw new Error(res.error);
+      setParentEvents(res.data);
+      setParentEventsStatus("loaded");
+    } catch {
+      setParentEventsStatus("error");
+    } finally {
+      parentEventsInFlightRef.current = false;
+    }
+  }, [isAdmin, parentEventsStatus]);
 
   const cfg: {
     createDraft: (form: FormState) => Promise<ActionResult<Event>>;
@@ -639,12 +667,18 @@ export default function EventIntakeWizard({ context, locale, allEvents }: Props)
             tEventForm={tEventForm}
             updateField={updateField}
             toggleCategory={toggleCategory}
-            events={isAdmin ? allEvents ?? [] : []}
+            events={isAdmin ? parentEvents : []}
             editingId={null}
             locale={locale}
             fieldLabels={fieldLabels}
             nameDescriptionLangs={nameDescriptionLangs}
             showParentEvent={cfg.showParentEvent}
+            parentEventsStatus={parentEventsStatus}
+            onParentEventsOpen={loadParentEvents}
+            onRetryParentEvents={loadParentEvents}
+            parentEventsLoadingLabel={tIntake("parentEventsLoading")}
+            parentEventsLoadErrorLabel={tIntake("parentEventsLoadError")}
+            retryParentEventsLabel={tIntake("retryParentEvents")}
             showIsActive={false}
             showSourceUrl={false}
             requiredMarkers

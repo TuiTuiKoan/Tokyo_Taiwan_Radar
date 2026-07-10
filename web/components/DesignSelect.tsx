@@ -17,6 +17,8 @@ interface DesignSelectProps {
   panelClassName?: string;
   disabled?: boolean;
   id?: string;
+  /** Fired only on a closed→open transition (button click / Enter / Space). */
+  onOpen?: () => void;
 }
 
 function cx(...parts: Array<string | false | null | undefined>): string {
@@ -32,6 +34,7 @@ export default function DesignSelect({
   panelClassName,
   disabled = false,
   id,
+  onOpen,
 }: DesignSelectProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -59,7 +62,10 @@ export default function DesignSelect({
         id={id}
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) onOpen?.();
+          setOpen((v) => !v);
+        }}
         onKeyDown={(event) => {
           if (event.key === "Escape") setOpen(false);
         }}

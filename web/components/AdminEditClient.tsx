@@ -337,6 +337,7 @@ export default function AdminEditClient({ event, allEvents, locale }: Props) {
           showIsActive={true}
           isActiveLocked={false}
           showParentEvent={true}
+          parentEventsStatus="loaded"
           requiredMarkers
           paidMode="choice"
           paidChoice={paidChoice}

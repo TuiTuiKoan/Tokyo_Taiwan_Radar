@@ -992,6 +992,9 @@
     "portalLoading": "確認中..."
   },
   "eventIntake": {
+    "parentEventsLoading": "読み込み中",
+    "parentEventsLoadError": "読み込みに失敗しました",
+    "retryParentEvents": "再試行",
     "chooseTitle": "イベントを作成",
     "chooseManual": "内容を手動で入力",
     "chooseImage": "宣伝画像をアップロードしてAIで抽出",
