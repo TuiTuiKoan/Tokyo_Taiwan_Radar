@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { type Event, type Locale, getEventName, CATEGORY_GROUPS, type Work, getWorkTitle } from "@/lib/types";
 import { useRouter } from "next/navigation";
+import Button from "@/components/Button";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 import AdminCreateWorkModal from "@/components/AdminCreateWorkModal";
 import DesignSelect from "@/components/DesignSelect";
@@ -50,6 +51,8 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
   const tEventForm = useTranslations("eventForm");
   const router = useRouter();
   const supabase = createClient();
+
+  const [navPending, startNav] = useTransition();
 
   const [events, setEvents] = useState<Event[]>(initialEvents);
 
@@ -795,12 +798,15 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     <div>
       {/* View toggle + New event button */}
       <div className="flex items-center gap-3 mb-4">
-        <button
-          onClick={() => router.push(`/${locale}/admin/events/new`)}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 transition shadow-sm"
+        <Button
+          type="button"
+          loading={navPending}
+          disabled={navPending}
+          onClick={() => startNav(() => router.push(`/${locale}/admin/events/new`))}
+          className="shadow-sm"
         >
-          + {t("newEvent")}
-        </button>
+          {navPending ? t("Loading") : `+ ${t("newEvent")}`}
+        </Button>
         <div className="flex rounded-lg border border-line-strong overflow-hidden ml-auto shadow-sm">
           <button
             onClick={() => setViewMode("annotated")}
