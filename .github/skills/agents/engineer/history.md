@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-07-10 — Spec ⟺ Worktree 工作流：2 個 docs commit 在 18 筆無關 WIP 中 scope-isolated push；docs-only 不跑 web build
+
+**Context**: 實作 Plan A（git policy 對齊 trunk-based，`47c66bb`，1 檔）+ v2（spec⟺worktree 耦合，`8b88bba`，8 檔）。工作樹同時有約 18 筆**與本次無關**的並行 WIP（hanshin scraper、health_check、annotator、web i18n、admin API 等別 session/任務的未完成產物）。
+
+**Fix / 做法**:
+1. **scope-isolated commit**：每個計畫只 `git add` 目標路徑（A=1 檔、v2=8 檔），commit 前 `git diff --cached --name-only` 確認恰好那些檔；全程禁 `git add -A`、禁 stash/clean。18 筆無關 WIP push 前後 `git status --porcelain` byte-identical。
+2. **V-M-D docs-only 跳過 web build**：兩 commit 都是 `.github/` + `docs/` 純文件、零 web 變更。明確要 V-M-D **不跑 `pnpm build`/`lint`**——build 跑的是**含無關 web WIP 的工作樹**，那些 WIP 未完成（`pnpm lint` exit 1），build 會失敗而**誤擋這個無辜的 docs push**。
+3. **push 走 fetch→ff**，備妥 behind>0 fallback：用 `git worktree add --detach ... origin/main` + cherry-pick 到隔離 worktree 再 push，**絕不 rebase 帶 dirty WIP 的主工作樹**（會被迫 stash）。兩次都 behind=0 直接 ff。
+4. **canonical 單一來源**：worktree 命令只寫進 `git.instructions.md § Isolated worktree`，architect/engineer/V-M-D agent 只 defer 引用，避免「N 同步點漂移」。
+
+**Lesson**:
+- **docs-only（`.github/`/`docs/`）commit 的 V-M-D 驗證應跳過 web build/lint gate**：root 是 `web/`，這類 commit 不觸發 Vercel 也不影響 build；但工作樹若有無關 web WIP，跑 build 會因別人的半成品失敗而誤擋。判斷＝push range 是否觸及 `web/`（`git diff --name-only origin/main..HEAD | grep '^web/'`），無則跳過。已寫進 `validate-merge-deploy.agent.md` Step 3。
+- **重 WIP 環境的 push＝commit 層 scope isolation**：commit 已 scope-isolated 後，push 只送 commit、不送工作樹，故 dirty WIP 與 push 無關；behind>0 才需處理，且用隔離 worktree cherry-pick，永不 stash 主工作樹。
+- **治理文件的命令集中 canonical、agent 只 defer**：避免同一串 `git worktree add` 散落多檔造成日後漂移（呼應 SCRAPERS/category 的「N 同步點」教訓）。
+
+---
+
 ## 2026-07-04 — account 頁三修：co_organizers text[] malformed array、tab 切換 server round-trip、myEvents 連結渲染在 OwnerEventTable
 
 **Context**: 使用者在「建立活動」（owner UGC）回報三事：(1) 協辦單位手動輸入逗號分隔多機構（`株式会社インターサポート, 毎日エデュケーション（毎日留学ナビ）, 株式会社DEOW（台湾留学センター）`），點「儲存並自動翻譯補全」報 `malformed array literal: "..."`；(2) 切換「收藏」/「我的活動」tab 有很長延遲；(3) myEvents 清單要求已公開活動標題另開分頁、非公開/Draft 不顯示連結。

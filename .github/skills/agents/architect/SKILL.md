@@ -30,6 +30,7 @@ Read this at the start of every session before producing any plan.
 - **三語 Localization 硬配對守則（2026-06-07 教訓）**：任何 front-end categories, actor_types, 或者是 web schemas 異動，必須將 `web/messages/{en,ja,zh}.json` 三包語系檔做 simultaneous update 同步更新。若有漏配，會阻礙 production next build compiler 通過。
 - **Hybrid Venue 同時標註則（2026-06-07 教訓）**：針對 `performing_arts` 等混合型活動（現場+線上），設計上必須同時保留實體 `location_address` 與在 `location_name` 中並列 `オンライン`。記得兩個都標，不可因線上屬性而抹除地址資料。
 - **日文都道府縣正規化禁用單一 `rstrip("都道府県")`（2026-06-29 教訓）**：rstrip 是字元集合剝除非後綴剝除，`京都府`→`京`、`東京都`→`東京`、`北海道`→`北海` 皆過度剝離（「都」同時是京都/東京內字）。任何依縣名建查表/分組/排序的計畫，必須要求多段 fallback（精確 label match → rstrip → 原值 direct → 去末字 `[:-1]`），並列子字串陷阱測試（東京都≠京都、神奈川≠奈良、和歌山≠山形/岡山、福岡≠福島/福井）。Reference: 2026-06-29 週報 geo-sort（commit `3c590e4`）。
+- **工作流／治理計畫三查（2026-07-10 教訓）**：規劃涉及 (a) push/merge 行為 → 先讀 `.github/instructions/git.instructions.md` 現行政策**並**比對實務（V-M-D／CI 實際怎麼推），矛盾拆獨立任務對齊，不在子段落暗改全 repo 政策；(b) 新增「供追蹤」的 metadata 欄位（spec frontmatter／DB 欄位）→ 先追其 type/parser/consumer，無 consumer＝dead field 會被靜默丟棄（v1 的 `worktree:` frontmatter 就會被 spec dashboard snapshot parser 丟掉），可推導值優先於新增可過期欄位；(c) 強制／1:1 規則 → 只 prospective 套用並 grandfather 既有資產。詳見 `history.md` 2026-07-10 spec⟺worktree v1 三 P0。
 
 ## Pre-flight Parallel-Operation & Baseline-Drift Guard（執行前並行操作與 baseline 漂移檢查）
 

@@ -111,6 +111,9 @@ handoffs:
 5. Rebase 後再次 `get_errors` 確認沒有因合併產生破壞
 
 ### Step 3: Verify Changes
+
+> **⚡ docs-only commit 跳過 web build（2026-07-10 教訓）**：若 push range 未觸及任何 `web/` 檔（`git diff --name-only origin/main..HEAD | grep '^web/'` 為空）→ **跳過本 Step 的 `pnpm run build`/`lint` gate**。`.github/`／`docs/` 純文件 commit 不觸發 Vercel、不影響 web build；且工作樹若有**無關的 web WIP（別 session 未完成產物）**，跑 build 會因別人半成品失敗而**誤擋這個無辜的 docs push**。仍執行 `get_errors`（markdown lint）與 token/i18n gate（若 diff 觸及對應檔）。
+
 1. 運行 `get_errors` 檢查語法錯誤（所有修改的文件）
 2. **Build 前置清理（必做）**：dev server 與 `next build` 共用 `.next/`，dev server 存活時直接跑 build 會出現 ENOENT 或 lock 衝突
    ```bash

@@ -2,6 +2,27 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-07-10 — Spec ⟺ Worktree 工作流計畫 v1：3 個 P0 被 Plan Critic 擋下（政策矛盾／dead frontmatter／流程重複）
+
+**背景：** 使用者要求把「建立 worktree」納入 Architect/Engineer 規劃流程（大型 feature 隔離開發，避免 stash 踩踏與 push 干擾）。我產出 plan v1（spec ⟺ worktree 1:1、9 檔），交 Plan Critic 批評。
+
+**根本原因（v1 的 3 個 P0）：**
+1. **政策矛盾未查證**：v1 寫「小改動直接 push main」，但 `git.instructions.md` 明文「Never push directly to main / open a PR」。我沒先確認實際 merge policy，等於用一個小計畫暗改全 repo 政策。
+2. **新增會被程式消費的欄位卻沒查資料鏈**：v1 要在 spec `proposal.md` 加 `worktree:` frontmatter「供追蹤」，但既有 spec dashboard 的 `SpecFrontmatter` type、`build-specs-snapshot.ts` parser、admin page 全都只認 `branch`——新欄位會被**靜默丟棄**，是 dead field。
+3. **流程重複**：v1 的 V-M-D Step 0.6 又寫一套 rebase→build→push，與既有 Step 1–5 重複。
+
+另兩個問題：1:1 規則沒 grandfather 既有 active specs（會一次要求建十多個 worktree）；把 9 檔改動自稱「small change」與計畫自身新規則矛盾。
+
+**修復：** 依 critique 改 v2——移除 direct-main 語意（merge policy 拆成獨立 Plan A 先落地）；丟棄 `worktree:` frontmatter 改用 `slug` 推導 + runtime `git worktree list --porcelain` 驗證（不動 `web/`）；V-M-D Step 0.6 只做偵測+進入、重用既有 Steps；1:1 規則限 prospective + grandfather；canonical 命令集中 `git.instructions.md`，agent/SKILL 只 defer。Plan A（`47c66bb`）+ v2（`8b88bba`）皆已 push。
+
+**教訓：**
+1. **計畫若宣告任何 push/merge 行為，先讀 `git.instructions.md` 現行政策並比對實務**（V-M-D／CI 實際怎麼推）；矛盾要拆獨立任務對齊，絕不在子段落暗改全 repo 政策。
+2. **規劃「供追蹤」的 metadata 欄位（frontmatter／DB 欄位）前，先追它的 type/parser/consumer**；沒有 consumer＝dead field，會被靜默丟棄。可推導的值（worktree path 由 slug 推導）優先於新增可過期欄位。
+3. **工作流治理的強制／1:1 規則要 grandfather 既有資產**，只 prospective 套用，否則一次回溯炸出大量假陽性工作。
+4. **新流程 step 落地前，先比對既有 agent 是否已有等價 step**；重複＝雙重執行 + 不同中止條件。
+
+---
+
 ## 2026-07-01 — 事件表單必填清單改版：Phase B2 誤判 fieldVenue 的 namespace 與 codebase 現況
 
 **背景：** 使用者要求把 admin/creator 建立表單 + creator 編輯表單的 generic 錯誤「必須項目をすべて入力してください」改為「列出缺哪些必填」（併 UI 一致性 + 「保存して自動翻訳沒反應」bug 修復）。計畫 v2 的 Phase B2 我斷言「表單場地 label `fieldVenue` 目前是『会場』，需改成『会場・チャンネル』讓錯誤清單一致」，並把它定位到 `messages/*.json` 的 line 767。使用者質疑：「表單場地欄位已經是『会場・チャンネル』，你說的不一致是哪一頁？」
