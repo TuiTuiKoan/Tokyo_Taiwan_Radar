@@ -52,6 +52,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Store registry
 # ---------------------------------------------------------------------------
+# NOTE: _Store and _HankyuBase are shared by hanshin.py (H2O sister store that
+# subclasses _HankyuBase and overrides _store) — confirm those imports before
+# renaming either symbol.
 
 
 @dataclass(frozen=True)
@@ -256,6 +259,9 @@ def _fetch_taiwan_detail_evidence(detail_url: str) -> tuple[bool, str]:
 
 class _HankyuBase(BaseScraper):
     """Shared scrape/parse logic for all Hankyu department stores.
+
+    H2O CMS base — shared across the 阪急阪神 (Hankyu-Hanshin) group: hanshin.py
+    subclasses this and overrides ``_store`` (see the shared-symbol note above).
 
     Concrete subclasses set ``SOURCE_NAME`` and ``_STORE_KEY``. The class name
     must snake_case to ``SOURCE_NAME`` (main._scraper_key), e.g.

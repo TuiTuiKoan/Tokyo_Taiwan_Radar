@@ -48,7 +48,7 @@ NON_DAILY_SOURCES: frozenset[str] = frozenset({
     "oaff", "tokyo_filmex", "tiff", "tiff_jp",
     "ifi", "waseda_icl", "tuat_global",
     "tokyo_now", "fukuoka_now", "hankyu_umeda",
-    "hankyu_hakata", "hankyu_kobe",
+    "hankyu_hakata", "hankyu_kobe", "hanshin_umeda",
     "nagano_aioiza", "maruhiro", "whitestone_gallery",
 })
 
@@ -115,6 +115,7 @@ ZERO_EVENT_OK_SOURCES: frozenset[str] = frozenset({
     "hankyu_umeda",
     "hankyu_hakata",
     "hankyu_kobe",
+    "hanshin_umeda",
     "maruhiro",
     "ndl_opensearch",  # 台湾フィルタ後 0 件は正常（出版サイクル依存）
     "kawade_rss",      # 同上（nhk_rss と同性質）

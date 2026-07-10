@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-07-10 — 阪神百貨 hanshin：繼承 `_HankyuBase` 複用 H2O CMS（姊妹百貨零重寫）
+
+**背景：** 新增阪神百貨爬蟲。阪神與阪急同屬 H2O Retailing 集團，實測 event 頁（`www.hanshin-dept.jp/hshonten/event/`）與阪急 100% 同構（`article > div.o-event > p.o-event__title` + `p.o-event__desc` + `div.o-event__detail`，日期 marker 同為 `[◎●]`），只有 domain 不同（`hanshin-dept.jp` vs `hankyu-dept.co.jp`）。
+
+**決策：** 不抽 `_h2o_dept.py` base 重構已上線的 `hankyu.py`（工程量大、需重測阪急），改用「繼承 `_HankyuBase` + 只覆寫 `_store`」——`hankyu.py` 的 `_parse_event(div, today, store)` 已完全參數化（`store: _Store` 帶 base_url/display_name/source_name/address/prefectures），唯一模組耦合是 `_store` property 查模組層級 `_STORES`。`hanshin.py` 覆寫 `_store` 指向阪神 registry 即複用全部解析（date parser、two-tier Taiwan filter、`_fetch_taiwan_detail_evidence`、`_build_source_id`），零 regression。
+
+**實作：** 新建 `scraper/sources/hanshin.py`（`_HanshinBase(_HankyuBase)` + `HanshinUmedaScraper`，`source_name=hanshin_umeda`，`_Store.base_url` 吃不同 domain）；同步 4 清單（`main.py WEEKLY_SOURCES`、`health_check.py NON_DAILY_SOURCES`+`ZERO_EVENT_OK_SOURCES`、`qa_triage.py NON_DAILY_SOURCES`）+ SCRAPERS + import；migration 092 註冊 `hanshin_umeda`（`department_store`/`weekly`）；在 `hankyu.py` 的 `_Store`/`_HankyuBase` 加「shared by hanshin.py」註解降低 private-import 耦合（未動任何解析邏輯）。
+
+**教訓：** 同集團姊妹品牌（H2O 的阪急→阪神）常共用同一套 CMS → 先驗證 listing 頁 selector/marker 同構，再用「繼承既有 base + 覆寫最小耦合點（`_store`）」複用，比抽新 base 重構已上線 code 更安全。複用他模組 private symbol（`_HankyuBase`/`_Store`）時，務必在被引用端加 shared 註解，避免日後 refactor 改名靜默壞。
+
+## 2026-07-10 - johakyu UTF-8 mojibake 與 ZERO_EVENT_OK 長尾來源噪音
+
+**問題：** `johakyu` scraper 成功執行但連續多日 0 件，沒有 traceback；`nhk_rss`、`walkerplus`、`bookandbeer`、`internet_museum` 四個長尾來源每天被 `health_check` 誤標為 selector concern。
+
+**根本原因：** `johakyu.co.jp/schedule.html` 的 HTTP `Content-Type` 沒有 charset，HTML 才有 `<meta charset="UTF-8">`。`requests` 對 `text/html` 無 charset 的 `resp.text` fallback 到 `ISO-8859-1`，導致 `月` / `日` / `台湾` mojibake，讓 `_WEEK_RE` 與 `_TAIWAN_KEYWORDS` 全部失效。`ZERO_EVENT_OK_SOURCES` 原規則偏向 cinema/galleries，漏掉 keyword-filtered feed / aggregator / listing 類來源。
+
+**修復：** `scraper/sources/johakyu.py` 將主 schedule page 的 parser 改為 `BeautifulSoup(resp.content, "html.parser")`，讓 BeautifulSoup 依 `<meta charset="UTF-8">` 解碼 bytes；`scraper/health_check.py` 新增 `nhk_rss`、`walkerplus`、`bookandbeer`、`internet_museum` 到 `ZERO_EVENT_OK_SOURCES`；`johakyu` 本次未加入，保留監控。
+
+**驗證：** dry-run 從 0 件恢復，抓到 `ギデンズ・コーの功夫(カンフー)`，`raw_description` 正常含 `開催日時: 2026年7月3日〜2026年7月9日`，未見 mojibake / `�`；`ZERO_EVENT_OK_SOURCES` 以 frozenset 正負向檢查確認新增四來源，且 `johakyu` / `taipei_fukuoka` / `jinf` / `morc_asagaya` 未加入。已 push commits：`1cc92bd`、`abc913e`。
+
+**教訓：** 先修 selector / encoding bug，再決定是否加入 `ZERO_EVENT_OK_SOURCES`；keyword-filtered long-tail sources 在 scraper logic 已驗證後可以加入零事件豁免；跨天等待 push 的修復不可裸留工作區，至少 commit 到 branch 或 safety branch。
+
 ## 2026-07-08 — 單店 hankyu_umeda 一般化為多店 hankyu（梅田／博多／神戸）
 
 **問題：** 舊 `hankyu_umeda` 爬蟲只涵蓋阪急梅田本店（`honten`），漏掉博多店與神戸店的台灣相關活動；且博多店「アジアンフェスティバル 台湾特集」的 listing 標題只寫「アジアンフェスティバル」不含「台湾」，被泛亞洲 filter 漏抓。
