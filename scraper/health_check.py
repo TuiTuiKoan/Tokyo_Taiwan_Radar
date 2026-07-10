@@ -99,6 +99,8 @@ ZERO_EVENT_OK_SOURCES: frozenset[str] = frozenset({
     "tokyo_now",           # Tribe Events API; 168+ events but Taiwan ones are rare
     "tokyo_city_i",        # KITTE tourist center; ~2-5 Taiwan events/year
     "jposa_ja",            # Osaka TECO RSS; ~1-3 cultural events/month, rest are diplomatic
+    "walkerplus",          # KADOKAWA 活動聚合，標題台灣關鍵字過濾；0 件 = 無台灣活動（正常）
+    "bookandbeer",         # 本屋B&B，client 端台灣關鍵字過濾；0 件 = 無台灣書店活動（正常）
     # Seasonal film festivals — only active during festival period
     "oaff",
     "tokyo_filmex",
@@ -116,6 +118,8 @@ ZERO_EVENT_OK_SOURCES: frozenset[str] = frozenset({
     "maruhiro",
     "ndl_opensearch",  # 台湾フィルタ後 0 件は正常（出版サイクル依存）
     "kawade_rss",      # 同上（nhk_rss と同性質）
+    "nhk_rss",         # NHK 新聞 RSS，台灣關鍵字過濾；0 件 = 今日無台灣新聞（正常，同 kawade_rss 性質）
+    "internet_museum", # museum.or.jp 13 區聚合，台灣關鍵字過濾；0 件 = 無台灣館展（正常）
     # hanmoto は server-side で台湾検索済み → 0 件は異常、追加しない
 })
 
