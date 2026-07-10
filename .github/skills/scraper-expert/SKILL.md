@@ -1845,11 +1845,15 @@ Reference incident: `0d97e51c`（2025年3月例会）に `['陳志剛', '福田�
 - **多城市活動偵測（`_MULTI_CITY_SECTION_RE`）**: 當 PR 文章前半為商品介紹、活動行程落在後半時，固定截斷（`text[:3000]`）會漏掉多城市日程。解法：在 `_fetch_detail()` 用正則偵測「東京｜日期」/「大阪｜日期」等多城市模式，偵測到時選擇性延長（前段 2,000 字 + `---[イベント開催情報]---` 分隔標記 + 行程區塊 4,000 字），未偵測到則維持原 3,000 字上限。
 - **多城市子活動補建標準流程**（偵測到漏建時）：① 手動建子活動確認資料正確 → ② 刪除手動建的子活動 → ③ 修正 scraper raw_description 邏輯 → ④ 重新抓取 + 更新 DB + 重置 `annotation_status = pending` → ⑤ 執行 `annotator.py` 自動生成正確 sub_events。不可跳過步驟 ②（保留手動建的子活動會導致重複）。
 
-## hankyu_umeda-specific
-- **Static HTML, no Playwright**: requests + BeautifulSoup only. Page at `https://www.hankyu-dept.co.jp/honten/event/` returns full HTML.
-- **Seasonal pattern**: Taiwan展（台湾ライフ等）is typically in **autumn (September–November)**. Returning 0 events during spring/summer is **correct** — do not treat it as a scraper bug.
-- **source_id**: `hankyu_umeda_{slug}` where slug = last path segment of the detail URL (e.g. `taiwan_life`). SHA1 fallback `hankyu_umeda_{sha1(title+date_str)[:10]}` for events without a unique detail page.
-- **Date format**: `◎M月D日（曜日）～D日（曜日）` (same-month) or cross-month variant. Three regexes: `_DATE_DIFF_MONTH`, `_DATE_SAME_MONTH`, `_DATE_SINGLE`. Year inferred from current date with Dec→Jan rollover.
+## hankyu-specific (multi-store: umeda / hakata / kobe)
+- **Multi-store scraper**: `scraper/sources/hankyu.py` covers 3 阪急 department stores via a `_Store` config table. Concrete classes `HankyuUmedaScraper` (梅田本店/大阪), `HankyuHakataScraper` (博多/福岡), `HankyuKobeScraper` (神戸/兵庫); source_name = `hankyu_umeda` / `hankyu_hakata` / `hankyu_kobe`. Adding a store = one config row.
+- **Static HTML, no Playwright**: requests + BeautifulSoup only. Each store's listing at `https://www.hankyu-dept.co.jp/{store}/event/` (honten/hakata/kobe) has identical structure: `article > div.o-event > p.o-event__title` + `p.o-event__desc` + `div.o-event__detail`.
+- **Date marker varies by store**: 梅田 uses `◎`, 博多/神戸 use `●` → regexes use `_MARK = r"[◎●]"`. Also supports an optional `前半|後半` prefix (e.g. `◎前半：7月1日（水）～6日（月）`). Three regexes: `_DATE_DIFF_MONTH`, `_DATE_SAME_MONTH`, `_DATE_SINGLE`.
+- **Two-tier Taiwan filter**: L1 = `_TAIWAN_RE` on title+desc (direct hit). L2 = pan-Asia listings (`_ASIA_RE`: アジア/Asian) with no direct hit → `_fetch_taiwan_detail_evidence(detail_url)` fetches the detail page, checks `<meta name="description">` + 台湾 `<img alt>`, and **appends the evidence to `raw_description`** (meta first, alt deduped, ~2500-char cap) so the annotator sees the 台湾特集 context. This is what catches 博多's 「アジアンフェスティバル 台湾特集」 whose listing title lacks 台湾. Detail-fetch failure returns `(False, "")` → conservatively skip.
+- **Seasonal pattern**: Taiwan events (e.g. 梅田 台湾ライフ, autumn) are intermittent — all 3 stores returning 0 events off-season is **correct**, not a bug. All three are weekly sources: present in `main.py WEEKLY_SOURCES`, `health_check.py NON_DAILY_SOURCES` + `ZERO_EVENT_OK_SOURCES`, and `qa_triage.py NON_DAILY_SOURCES`.
+- **source_id**: `{source_name}_{slug}` (slug = last path segment of detail URL). 梅田 keeps `hankyu_umeda_{slug}` unchanged for DB dedup compatibility.
+- **official_url = source_url**: official department-store source, not an aggregator.
+- **sources registry**: migration 091 registers `hankyu_hakata`/`hankyu_kobe` as `department_store`/`weekly` and sets `hankyu_umeda` frequency=weekly.
 
 ## google_news_rss-specific
 - Fetches 4 Google News RSS queries; Taiwan-filtered; `category: ["report"]` (annotator refines)

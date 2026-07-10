@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-07-08 — 單店 hankyu_umeda 一般化為多店 hankyu（梅田／博多／神戸）
+
+**問題：** 舊 `hankyu_umeda` 爬蟲只涵蓋阪急梅田本店（`honten`），漏掉博多店與神戸店的台灣相關活動；且博多店「アジアンフェスティバル 台湾特集」的 listing 標題只寫「アジアンフェスティバル」不含「台湾」，被泛亞洲 filter 漏抓。
+
+**根本原因：** ① 來源設計綁死單一分店 subdomain（`honten`），未考慮阪急百貨其他分店（博多／神戸）有同構的活動頁；② 泛亞洲活動（アジア／Asian）的台灣信號常只出現在 detail page（`<meta name="description">` 或 台湾 `<img alt>`），listing 標題／desc 不一定命中，單層 title/desc filter 會漏。
+
+**修復：**
+- 新建 `scraper/sources/hankyu.py`，用 `_Store` config 表把單店一般化為多店：concrete class `HankyuUmedaScraper`（梅田本店/大阪）、`HankyuHakataScraper`（博多/福岡）、`HankyuKobeScraper`（神戸/兵庫），source_name = `hankyu_umeda`/`hankyu_hakata`/`hankyu_kobe`；三店共用同一組 selector（`article > div.o-event > p.o-event__title` + `p.o-event__desc` + `div.o-event__detail`）與 URL pattern `https://www.hankyu-dept.co.jp/{store}/event/`。刪除舊 `hankyu_umeda.py`。
+- 日期 marker 一般化：梅田用 `◎`、博多／神戸用 `●` → regex 改用 `_MARK = r"[◎●]"`，並支援 `前半|後半` 前綴。
+- 兩層 Taiwan filter：L1 標題／desc 直接命中；L2 泛亞洲活動（`_ASIA_RE`）無直接命中時，`_fetch_taiwan_detail_evidence()` 抓 detail page 的 `<meta name="description">` + 台湾 `<img alt>`，把證據 append 到 `raw_description`（meta 優先、alt 去重、~2500 字上限）讓 annotator 看到台湾特集脈絡；抓取失敗回 `(False, "")` 保守跳過。這解決博多アジアンフェスティバル漏抓。
+- migration 091 註冊 `hankyu_hakata`／`hankyu_kobe`（`department_store`/`weekly`）並修 `hankyu_umeda` frequency=weekly；三店同步登錄 `main.py WEEKLY_SOURCES`、`health_check.py NON_DAILY_SOURCES`+`ZERO_EVENT_OK_SOURCES`、`qa_triage.py NON_DAILY_SOURCES`。
+
+**教訓：** 連鎖百貨（阪急／大丸松坂屋等）的各分店通常有**獨立 subdomain／路徑但同構的頁面**；新增或重構這類來源時，先確認是否有姊妹分店可用同一 selector 一併涵蓋，用 config 表（一列一店）取代複製爬蟲。泛亞洲／跨區活動的台灣信號可能只藏在 detail page metadata，要用「listing 直接命中 + detail 證據補抓」兩層 filter，並把證據寫回 `raw_description` 供 annotator 判讀，而非在 scraper 端硬判 in/out scope。
+
+---
+
 ## 2026-07-04 — PR TIMES 第三個 Japan-brand-held-in-Taiwan 先例（漏洞 C／event 4e558c1c）
 
 **問題：** `prtimes` 事件 `4e558c1c-c796-42a6-968c-7caf08175d26`（日本高級日本酒品牌 HENGE／株式会社Cypher）在**台北・台中・高雄**辦「進出記念ディナーイベント」，「初の海外輸出先として台湾を選定」，對象為台灣的日本酒愛好家／餐飲業者／buyer（Japan→Taiwan 商業拓展、輸出／進出），卻被收為 active event（annotator 已把 `location_address='台北'` 卻仍 active）。此為 2026-06-29 Rental819（`22eae44b`）、2026-07-04 b90f0b77（ハミガキドッグ）之後**第三個 Japan-brand-held-in-Taiwan 先例**。已於本次手動停用（`deactivated_reason` 記 out_of_scope、raw_* 保留）並補 root-cause title guard。
