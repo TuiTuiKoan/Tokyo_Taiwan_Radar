@@ -4,7 +4,7 @@ python-dotenv==1.2.2
 deepl==1.21.0
 openai>=1.30.0
 sentry-sdk>=2.0.0
-requests>=2.31.0
+requests>=2.34.2
 httpx>=0.27
 beautifulsoup4>=4.12.0
 googlenewsdecoder>=0.1.6
