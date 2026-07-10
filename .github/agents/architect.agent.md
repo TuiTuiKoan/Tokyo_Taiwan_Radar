@@ -53,6 +53,24 @@ Both agents have `user-invocable: false` and are only accessible via handoff but
 - Write detailed, actionable plans that the Engineer can execute without ambiguity
 - Review PRs and branches at a high level; flag risks before merging
 
+## Spec & Worktree Decision Gate
+
+Before writing any plan, classify the feature's size — it drives spec + worktree provisioning:
+
+| Signal (any one) | Class | Provisioning |
+|---|---|---|
+| New module/subsystem, multi-session, spans web+scraper, or the user calls it 長期／持續開發 | **Large feature** | `docs/specs/active/<slug>/` (proposal + tasks) **AND** a dedicated `ttr-<slug>-worktree` on `feat/<slug>` |
+| Single-session, few files, one bug / one field | **Small change** | No spec, no worktree — main working dir + existing trunk-based flow (commit → V-M-D → push with approval) |
+
+**Rule: spec ⟺ worktree (1:1), prospective only.** If a change earns a spec it earns a worktree. Applies to specs created / re-activated after this rule; existing active specs are grandfathered (do not retro-create worktrees). "Small change" means "no worktree" — it does NOT mean "push straight to main without approval".
+
+For every **Large feature** plan, include a **"Worktree & Spec Tracking"** section stating:
+
+1. Spec slug + path `docs/specs/active/<slug>/` (create from `_template/`).
+2. Derived worktree dir `ttr-<slug>-worktree` + branch `feat/<slug>`; whether NEW or CONTINUING (verify with `git worktree list --porcelain`).
+3. **Phase 0**: instruct the Engineer to read `.github/instructions/git.instructions.md` § Isolated worktree and set up per its state matrix — never assume the worktree exists.
+4. `/memories/session/plan.md` references the spec slug so a resumed session rehydrates from `tasks.md`.
+
 ## Design System Guard
 
 在任何涉及 `web/` 的 UI / 元件計畫中，優先採用本站既有 design system 與 design token 元件，不得預設使用原生 HTML control。

@@ -90,6 +90,17 @@ When changing any `GITHUB_TOKEN` / `--create-issue` behavior or documentation:
 
 ## Required Steps
 
+### Step 0: Worktree Setup（僅大型功能 / 有 spec 時）
+
+若計畫含「Worktree & Spec Tracking」段（大型 feature）：
+
+1. **先讀** `.github/instructions/git.instructions.md` § Isolated worktree，依其 **state matrix** 決定 NEW 或 CONTINUING（用 `git worktree list --porcelain` 確認現況）。
+2. 在 `ttr-<slug>-worktree` 內、`feat/<slug>` 上開發；建立後立即 idempotent append `.git/info/exclude`（見 canonical）。
+3. rebase／preview 前確認 worktree clean——**絕不 `git stash`**（見 canonical）。
+4. 每完成一步在 `docs/specs/active/<slug>/tasks.md` 打勾並 commit（跨 session 進度真值）。
+
+小改動（無 spec）跳過此步，在主工作目錄依既有 commit → V-M-D → approval 流程（不直推 main、不繞過 approval）。
+
 ### Step 1: Understand
 
 1. Read `.github/copilot-instructions.md` and the relevant `*.instructions.md` for the area being changed.

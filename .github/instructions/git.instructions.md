@@ -37,17 +37,54 @@ Use for large / multi-session features, parallel-session-churn-prone work, or sh
 - Never `git merge --no-ff` into `main`: a two-parent merge makes the remote secret hook rescan full-reachable history and can flag an allowlisted blob that a linear fast-forward push passes. Never `--no-verify`.
 - `main` is guarded only by these agent gates plus local hooks; treat a direct push as privileged — always get user approval first.
 
-## Parallel agent work
+## Isolated worktree for large / multi-session features
 
-True parallel execution is not possible in a single VS Code window. Use one of:
+> **Single source of truth** for worktree mechanics. The Architect / Engineer / V-M-D agents reference this section for the "how"; they own the "when".
 
-1. **Sequential work with state in `.copilot-tracking/`**: each agent saves its progress; the next agent reads and continues.
-2. **Multiple VS Code windows on git worktrees**:
-   ```bash
-   git worktree add ../tokyo-radar-feat-connpass feat/source-connpass
-   code ../tokyo-radar-feat-connpass
-   ```
-3. **GitHub Copilot Workspace** (cloud-based): supports true parallel agents — use when available.
+**When** — a feature that earns a `docs/specs/active/<slug>/` entry (multi-session, multi-file, or a new module) gets a dedicated worktree. Small one-shot changes stay in the main working directory and follow the trunk-based flow above (no spec, no worktree). This applies **prospectively** to specs created / re-activated after this rule; existing specs are grandfathered.
+
+**Why** — parallel sessions (other VS Code windows, V-M-D, cron) run `git stash` / `git clean` and can silently destroy uncommitted WIP in the main working dir. A linked worktree has its own working dir they cannot touch.
+
+**Naming** — `ttr-<slug>-worktree` at the repo root, on branch `feat/<slug>` (matches the existing `ttr-v8-worktree`). Derive the path from the spec `slug`; do not persist it in spec frontmatter. Verify reality each session with `git worktree list --porcelain`.
+
+### Create — state matrix (choose by current git state)
+
+| State | Command |
+|-------|---------|
+| branch missing | `git worktree add ttr-<slug>-worktree -b feat/<slug>` |
+| branch exists, no worktree | `git worktree add ttr-<slug>-worktree feat/<slug>` (no `-b`) |
+| worktree already mounted | skip `add`; `cd ttr-<slug>-worktree`; verify path + branch match |
+| path exists but NOT a registered worktree | **STOP** — report and ask the user (never `-f`) |
+
+Then hide the worktree dir from the main repo (idempotent, local-only, not committed):
+
+```bash
+grep -qxF 'ttr-<slug>-worktree/' .git/info/exclude || echo 'ttr-<slug>-worktree/' >> .git/info/exclude
+```
+
+Without this line the main repo shows the worktree as untracked and a careless `git add -A` in a parallel session sweeps it in.
+
+### Work inside the worktree
+
+- All feature commits happen inside `ttr-<slug>-worktree/` on `feat/<slug>`. `git add -A` is safe INSIDE the worktree (isolated); in the MAIN repo with parallel sessions still use selective `git add <path>`.
+- Before any local preview/build **or** rebase, the working tree must be clean (`git status --porcelain` empty). If dirty, commit — **never `git stash`** (a repo-wide stash reintroduces the very trampling this isolates against).
+- A linked worktree freezes its base at creation time. Before previewing, align to latest main: `cd ttr-<slug>-worktree && git fetch origin && git rebase origin/main` — otherwise localhost shows a behind-by-N snapshot.
+
+### Merge back
+
+Rebase onto `origin/main` to keep history linear, then hand to V-M-D, which pushes per the trunk-based direct fast-forward flow in the Branch strategy / Agent workflow sections above. Never `git merge --no-ff` into `main` (see the Engineer SKILL gitleaks note); never `--no-verify`. Merge within ~24h to avoid `SCRAPERS`-list conflicts.
+
+### Cleanup (all STOP conditions must pass first)
+
+Verify: worktree clean (no uncommitted) · no unpushed commits (feature HEAD is an ancestor of the target remote branch) · no rebase/merge in progress. Then:
+
+```bash
+git worktree remove ttr-<slug>-worktree     # never --force
+git branch -d feat/<slug>                    # never -D
+# remove the ttr-<slug>-worktree/ line from .git/info/exclude
+```
+
+If any check fails → STOP, report, do not force. `git worktree prune` is safe — it drops only stale records, never branches or commits.
 
 ## State persistence for agents
 

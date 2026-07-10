@@ -40,6 +40,19 @@ handoffs:
 
 ---
 
+### Step 0.6: Worktree detect + enter（大型功能）
+
+執行 `git worktree list --porcelain`。若本次任務對應某 `ttr-<slug>-worktree`（feature 在該 worktree 而非主 repo）：
+
+1. `cd` 進該 worktree，確認 `git rev-parse --abbrev-ref HEAD` == `feat/<slug>` 且路徑相符；不符 → STOP 回報。
+2. **接著照常走既有 Steps 1–5**（狀態分類、rebase、verify、push、deploy）——**不要**在此另做一套 rebase/build/push。
+3. Step 4 push 時 **branch-aware**：push 當前 worktree 的正確 HEAD（rebase 成 linear 後 `git push origin HEAD:main`），保留 explicit user approval 與既有 gitleaks/i18n gate；禁 `--no-ff`、禁 `--no-verify`。
+4. push 成功後（依 canonical STOP 條件）可提示使用者 cleanup worktree。
+
+主 repo（無對應 worktree）維持既有流程不變。
+
+---
+
 ### Step 1: 檢查 Git 狀態
 
 > **⚡ 先判讀 `git status -sb` 的提交狀態（防「no changes added」誤判迴圈）**
