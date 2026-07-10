@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-07-10 — 阪神候補三分店（西宮／御影／尼崎）：同集團分店純 config 一行擴充
+
+**背景：** 阪神本店（`hanshin_umeda`）上線後追加三個兵庫県分店。實測三店 event 頁（`/nishinomiya/event/`、`/mikage/event/`、`/amagasaki/event/`）與阪神本店/阪急 100% 同構（`o-event` selector 齊全、marker 皆 `●`），皆小店（4–16 件）、目前 0 台灣活動；兩層 filter 仍會接住偶發催事，成本極低故順手納入。
+
+**實作：** 純 config 擴充、零解析程式碼改動——`_HANSHIN_STORES` 加 3 筆 `_Store` + 3 個 concrete class（`HanshinNishinomiyaScraper`/`HanshinMikageScraper`/`HanshinAmagasakiScraper`，命名讓 `_scraper_key()` 推出正確 source_name），全部複用 `_HanshinBase`。同步 4 清單（`main.py` SCRAPERS+import+`WEEKLY_SOURCES`、`health_check.py NON_DAILY_SOURCES`+`ZERO_EVENT_OK_SOURCES`、`qa_triage.py NON_DAILY_SOURCES`）+ migration 093 註冊三店（`department_store`/`weekly`, sort_order 904/905/906）。
+
+**教訓：** `display_name` 一定要從頁面 `<title>`/`og:title` 核對，勿信計畫暫定值——實測西宮/御影官方表記是「阪神・にしのみや」「阪神・御影」（中黑點分隔），非暫定的「阪神西宮」「阪神御影」；尼崎「あまがさき阪神」才符合暫定。base（`_HanshinBase`/`_HankyuBase`）既已完全參數化，加同集團分店 = 1 config row + 1 class + 4 清單同步，零 regression。
+
 ## 2026-07-10 — 阪神百貨 hanshin：繼承 `_HankyuBase` 複用 H2O CMS（姊妹百貨零重寫）
 
 **背景：** 新增阪神百貨爬蟲。阪神與阪急同屬 H2O Retailing 集團，實測 event 頁（`www.hanshin-dept.jp/hshonten/event/`）與阪急 100% 同構（`article > div.o-event > p.o-event__title` + `p.o-event__desc` + `div.o-event__detail`，日期 marker 同為 `[◎●]`），只有 domain 不同（`hanshin-dept.jp` vs `hankyu-dept.co.jp`）。

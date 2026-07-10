@@ -80,7 +80,12 @@ from sources.maruhiro import MaruhiroScraper
 from sources.eurospace import EurospaceScraper
 from sources.tokyoartbeat import TokyoArtBeatScraper
 from sources.hankyu import HankyuUmedaScraper, HankyuHakataScraper, HankyuKobeScraper
-from sources.hanshin import HanshinUmedaScraper
+from sources.hanshin import (
+    HanshinUmedaScraper,
+    HanshinNishinomiyaScraper,
+    HanshinMikageScraper,
+    HanshinAmagasakiScraper,
+)
 from sources.daimaru_matsuzakaya import DaimaruMatsuzakayaScraper
 from sources.cinemarine import CineMarineScraper
 from sources.eslite_spectrum import EsliteSpectrumScraper
@@ -220,6 +225,9 @@ SCRAPERS = [
     HankyuHakataScraper(),
     HankyuKobeScraper(),
     HanshinUmedaScraper(),
+    HanshinNishinomiyaScraper(),
+    HanshinMikageScraper(),
+    HanshinAmagasakiScraper(),
     DaimaruMatsuzakayaScraper(),
     CineMarineScraper(),
     EsliteSpectrumScraper(),
@@ -306,6 +314,7 @@ WEEKLY_SOURCES: frozenset[str] = frozenset({
     "ifi", "waseda_icl", "tuat_global",
     "tokyo_now", "fukuoka_now", "hankyu_umeda",
     "hankyu_hakata", "hankyu_kobe", "hanshin_umeda",
+    "hanshin_nishinomiya", "hanshin_mikage", "hanshin_amagasaki",
     "nagano_aioiza", "maruhiro", "whitestone_gallery",
     # Cinemas that rarely/never screen Taiwan films (0 events in 180d)
     "human_trust_cinema", "cineswitch_ginza", "cine_gallery",

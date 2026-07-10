@@ -41,6 +41,7 @@ NON_DAILY_SOURCES = frozenset({
     "ifi", "waseda_icl", "tuat_global",
     "tokyo_now", "fukuoka_now", "hankyu_umeda",
     "hankyu_hakata", "hankyu_kobe", "hanshin_umeda",
+    "hanshin_nishinomiya", "hanshin_mikage", "hanshin_amagasaki",
     "nagano_aioiza", "maruhiro", "whitestone_gallery",
     # Cinemas that rarely/never screen Taiwan films (0 events in 180d)
     "human_trust_cinema", "cineswitch_ginza", "cine_gallery",

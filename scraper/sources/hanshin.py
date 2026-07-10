@@ -13,10 +13,16 @@ Only the domain and store metadata differ:
     ``_Store.base_url`` already supports a per-store base URL.
 
 Enabled stores (2026-07):
-  - hanshin_umeda  阪神梅田本店  /hshonten/event/  (Osaka) — hosts 「阪神の台湾展」
+  - hanshin_umeda        阪神梅田本店      /hshonten/event/     (Osaka) — hosts 「阪神の台湾展」
+  - hanshin_nishinomiya  阪神・にしのみや  /nishinomiya/event/  (Hyogo)
+  - hanshin_mikage       阪神・御影        /mikage/event/       (Hyogo)
+  - hanshin_amagasaki    あまがさき阪神    /amagasaki/event/    (Hyogo)
 
-Adding another verified Hanshin branch (e.g. 西宮 / 御影 / 尼崎) is a one-line
-entry in ``_HANSHIN_STORES`` once its ``/event/`` page is confirmed.
+The three Hyogo branches share the identical H2O CMS (confirmed 2026-07-10) and
+are low-volume (0 Taiwan events at time of adding); the two-tier filter still
+catches occasional Taiwan/Asia fairs. Adding another verified Hanshin branch is
+a one-line entry in ``_HANSHIN_STORES`` (plus a concrete class) once its
+``/event/`` page is confirmed.
 """
 
 from .hankyu import _HankyuBase, _Store
@@ -31,6 +37,30 @@ _HANSHIN_STORES: dict[str, _Store] = {
         base_url=_HANSHIN_BASE_URL,
         location_address="大阪府大阪市北区梅田1-13-13 阪神梅田本店",
         location_prefectures=("大阪府",),
+    ),
+    "hanshin_nishinomiya": _Store(
+        source_name="hanshin_nishinomiya",
+        display_name="阪神・にしのみや",
+        event_url=f"{_HANSHIN_BASE_URL}/nishinomiya/event/",
+        base_url=_HANSHIN_BASE_URL,
+        location_address="兵庫県西宮市田中町1-26 阪神・にしのみや",
+        location_prefectures=("兵庫県",),
+    ),
+    "hanshin_mikage": _Store(
+        source_name="hanshin_mikage",
+        display_name="阪神・御影",
+        event_url=f"{_HANSHIN_BASE_URL}/mikage/event/",
+        base_url=_HANSHIN_BASE_URL,
+        location_address="兵庫県神戸市東灘区御影中町3丁目2番1号 阪神・御影",
+        location_prefectures=("兵庫県",),
+    ),
+    "hanshin_amagasaki": _Store(
+        source_name="hanshin_amagasaki",
+        display_name="あまがさき阪神",
+        event_url=f"{_HANSHIN_BASE_URL}/amagasaki/event/",
+        base_url=_HANSHIN_BASE_URL,
+        location_address="兵庫県尼崎市潮江1丁目3番1号 あまがさき阪神",
+        location_prefectures=("兵庫県",),
     ),
 }
 
@@ -53,3 +83,24 @@ class HanshinUmedaScraper(_HanshinBase):
 
     SOURCE_NAME = "hanshin_umeda"
     _STORE_KEY = "hanshin_umeda"
+
+
+class HanshinNishinomiyaScraper(_HanshinBase):
+    """阪神・にしのみや (Nishinomiya, Hyogo) — weekly event schedule."""
+
+    SOURCE_NAME = "hanshin_nishinomiya"
+    _STORE_KEY = "hanshin_nishinomiya"
+
+
+class HanshinMikageScraper(_HanshinBase):
+    """阪神・御影 (Mikage, Kobe, Hyogo) — weekly event schedule."""
+
+    SOURCE_NAME = "hanshin_mikage"
+    _STORE_KEY = "hanshin_mikage"
+
+
+class HanshinAmagasakiScraper(_HanshinBase):
+    """あまがさき阪神 (Amagasaki, Hyogo) — weekly event schedule."""
+
+    SOURCE_NAME = "hanshin_amagasaki"
+    _STORE_KEY = "hanshin_amagasaki"
