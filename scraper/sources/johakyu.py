@@ -140,7 +140,7 @@ class JohakyuScraper(BaseScraper):
             logger.error("johakyu: failed to fetch schedule: %s", exc)
             return []
 
-        soup = BeautifulSoup(resp.text, "html.parser")
+        soup = BeautifulSoup(resp.content, "html.parser")
 
         schedule_secs = soup.select(".schedule-sec")
         logger.info("johakyu: found %d schedule sections", len(schedule_secs))
