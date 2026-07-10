@@ -69,6 +69,10 @@ Extract all visible information and return a JSON object with these fields (omit
 - event_form: array using only these values: ${EVENT_FORMS.join(" | ")}
 - category: array using only these values: ${CATEGORIES.join(" | ")}
 
+Classification guidance:
+- Use "history" when a featured author, artist, creator, or performer is explicitly Taiwan-born, 台湾出身, 台湾生まれ, or born in/from a Taiwan city. Do not use history for education or work experience in Taiwan alone.
+- If no 主催 label is printed, organizer may be the small venue/shop/gallery/museum public name only when the poster is clearly hosted by that venue. Do not use generic rental halls, universities, convention centers, aggregator platforms, or source names as organizer.
+
 Title rules:
 - Read the poster top to bottom and capture the COMPLETE title (main title + sub-title + series name).
 - Do not stop at the first line break. Subtitles printed below or beside the main title are part of name_ja.

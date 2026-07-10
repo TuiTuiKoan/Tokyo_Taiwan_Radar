@@ -243,6 +243,8 @@ Extraction fields (omit if not visible in the web page):
 
 Rules:
 - For Chinese, use Traditional Chinese characters only (繁體字). Never simplified.
+- Use "history" when a featured author, artist, creator, or performer is explicitly Taiwan-born, 台湾出身, 台湾生まれ, or born in/from a Taiwan city. Do not use history for education or work experience in Taiwan alone.
+- If no 主催 label appears, organizer may be the small venue/shop/gallery/museum public name only when the web page is clearly hosted by that venue. Do not use generic rental halls, universities, convention centers, aggregator platforms, or source names as organizer.
 - Glossary: translate 記念講演会 as 紀念演講 in Traditional Chinese.
 - Glossary: translate 記念講演会 as Commemorative Lecture in English.
 - Do not fabricate. If the web page does not mention a field, omit it.

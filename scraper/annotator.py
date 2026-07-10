@@ -1096,7 +1096,7 @@ OTHER RULES:
    - "competition" = contests, competitions, awards, championships, public calls for entries (コンテスト, 大会, 選手権, 公募, コンクール)
    - "academic" = academic research, seminars, symposiums, papers, university events, scholarly conferences
    - "indigenous" = events related to Taiwan's indigenous peoples (原住民族), tribal culture, indigenous arts or languages (アミ族, パイワン族, タイヤル族, etc.)
-   - "history" = historical events, exhibitions on history, cultural heritage, archives, museums, war memory, historical figures
+    - "history" = historical events, exhibitions on history, cultural heritage, archives, museums, war memory, historical figures, and biographical roots/origin when a featured author, artist, creator, or performer is explicitly born in or from Taiwan. Education or work history in Taiwan alone is not enough.
    - "workshop" = hands-on workshops, experience classes, craft workshops, cooking classes, pottery, weaving, tea ceremony, atelier sessions (体験, ワークショップ, 手作り, クラフト)
    - "movie" = film screenings, movie events, documentary showings, film festivals. IMPORTANT: any event with 上映, 映画, film, screening, cinema in its title or description MUST include "movie" as a category, even if it also involves talks or other elements.
    - "performing_arts" = LIVE stage performances ONLY: concerts, theater, dance, opera. NOT for film screenings. For Asia/Japan tour events (アジアツアー, 日本ツアー), only use if the Tokyo show is confirmed a live performance.
@@ -1107,7 +1107,7 @@ OTHER RULES:
    - "lecture" = talks, presentations, lectures, panels, Q&A sessions. MANDATORY when title/description contains any of: トークイベント, トークショー, 講演会, 講演, 講座, シンポジウム, 勉強会, 例会, 基調講演, 映後座談, セッション, 研究会. Also ALWAYS add lecture when movie + トーク/座談 co-occur.
    - "geopolitics" = Taiwan political history, cross-strait relations, Taiwan identity/sovereignty, Taiwan Strait crisis, Japan-Taiwan national security strategy, government/public policy (移民政策, 給食政策, デジタル政府). Add alongside history or academic for relevant films, books, talks. Trigger keywords: 危機, 海峡, 独立, 民主化, 移民政策, インド太平洋, 日台関係 (security/policy sense), 主権, 国際フォーラム.
     - "human_rights" = human rights, democracy, civil liberties, judicial justice, transitional justice, political persecution memory, advocacy events. Use for events centered on rights discourse (言論自由, 司法正義, 轉型正義, 人權倡議).
-   - "history" = historical events, Taiwan colonial era, war memory. MANDATORY for: films/docs about colonial-era or war-era Taiwan (日本統治, 戦没者, 同化, 傷痕); historical figures (李登輝, 蒋介石); photo exhibitions of historical Taiwan. Keywords: 戦没, 植民地, 統治, 秘録, 同化, 傷痕, 歴史.
+    - "history" = historical events, Taiwan colonial era, war memory, cultural heritage, and roots/origin. MANDATORY for: films/docs about colonial-era or war-era Taiwan (日本統治, 戦没者, 同化, 傷痕); historical figures (李登輝, 蒋介石); photo exhibitions of historical Taiwan; featured authors/artists/creators/performers explicitly described as 台湾出身, 台湾生まれ, 台北市出身, Taiwan-born, or born in Taiwan. Do NOT use history merely because someone studied at a Taiwan university, studied abroad in Taiwan, or works in Taiwan. Keywords: 戦没, 植民地, 統治, 秘録, 同化, 傷痕, 歴史.
    - "taiwan_japan" = Taiwan-Japan BILATERAL relations ONLY. Use for: formal diplomatic/exchange events; Taiwanese diaspora in Japan (台湾系移住民); Taiwan veteran memorials (台湾出身戦没者); academic research on bilateral topics. DO NOT USE for: Taiwan food events, Taiwan concerts/tours, Taiwan children's books, Taiwan tourism promotion seminars, general Taiwan cultural events without explicit bilateral focus.
    - "report" = event reports/recaps (only if the text IS a report about a past event, not an upcoming event)
    - "tv_program" = TV broadcasts, television programs. MANDATORY for any event from a TV broadcast source (look for 放送: / ジャンル: markers in raw_description). A TV drama should have BOTH tv_program AND drama. A TV movie broadcast should have BOTH tv_program AND movie.
@@ -1241,7 +1241,7 @@ ORGANIZER EXTRACTION RULES:
    - "○○の協賛" / "○○の助成" / "sponsored by ○○" / "funded by ○○" → sponsors += [○○]
    - Example: "HOSEIミュージアムは、新竹県北埔郷公所 鄧南光影像紀念館との共催、法政大学法学部福田円研究室の協力により実施します。"
      → organizer="HOSEIミュージアム", co_organizers=["新竹県北埔郷公所 鄧南光影像紀念館","法政大学法学部福田円研究室"]
-4. NEVER fabricate organizer names. If 主催 is not explicitly stated and cannot be safely inferred from the venue's official role (e.g. an exhibition at a museum is hosted by that museum), set organizer = null.
+4. NEVER fabricate organizer names. If 主催 is not explicitly stated and cannot be safely inferred from the venue's official role, set organizer = null. For small gallery/shop/cafe/bookstore/craft-venue/museum exhibition pages hosted on the venue's own site, the public-facing venue or shop name may be the organizer when no 主催 label is present. Prefer the public venue/store name over legal footer company names. Do NOT infer organizer from generic rental halls, convention centers, universities, aggregator platforms, or news/source names.
 5. organizer_type: classify the primary organizer into one or more of:
    - "government" — central/local government bodies (外交部, 文化部, 都道府県, 市役所); Taiwan representative offices in Japan (台北駐日経済文化代表処, 台北駐○○経済文化事務所, 台湾文化センター, 台北経済文化代表処, any 台北駐／台湾駐 office)
    - "semi_official" — quasi-governmental foundations and exchange associations (公益財団法人日本台湾交流協会, JICA-style 外郭団体, 財団法人 type organizations); NOT Taiwan representative offices (those are "government")
@@ -1678,6 +1678,65 @@ _HISTORY_KEYWORDS = frozenset([
     "日本統治", "総督府", "霧のごとく", "大濛",
 ])
 
+_TAIWAN_PLACE_RE = r"台湾|台灣|臺灣|Taiwan|台北|臺北|台中|臺中|高雄|台南|臺南|桃園|基隆|新竹|嘉義|屏東|宜蘭|花蓮|台東|臺東|澎湖|苗栗|彰化|雲林|南投"
+_TAIWAN_ROOTS_RE = re.compile(
+    rf"(?:{_TAIWAN_PLACE_RE})(?:[都道府県市縣县区區\s・、,]*)?(?:出身|生まれ|出生)|"
+    rf"(?:出身地|出生地)\s*[：:]\s*(?:{_TAIWAN_PLACE_RE})|"
+    r"\bTaiwan-born\b|\bborn\s+in\s+(?:Taiwan|Taipei|Taichung|Kaohsiung|Tainan)\b",
+    re.IGNORECASE,
+)
+
+_SMALL_VENUE_FALLBACK_BLOCKED_SOURCES = frozenset([
+    "tokyoartbeat", "google_news_rss", "nhk_rss", "prtimes", "walkerplus",
+    "peatix", "note_creators", "internet_museum",
+])
+_SMALL_VENUE_CULTURAL_TERMS = frozenset(["ギャラリー", "画廊", "美術館", "ミュージアム", "博物館"])
+_SMALL_VENUE_INDEPENDENT_TERMS = frozenset(["書店", "カフェ", "喫茶", "工房", "ショップ", "店", "器"])
+_LARGE_RENTAL_VENUE_TERMS = frozenset([
+    "ホール", "会議室", "国際展示場", "ビッグサイト", "大学", "センター", "コンベンション",
+])
+
+
+def _has_taiwan_roots_signal(text: str) -> bool:
+    return bool(_TAIWAN_ROOTS_RE.search(text or ""))
+
+
+def _apply_small_venue_organizer_fallback(
+    event: dict[str, Any],
+    update_data: dict[str, Any],
+    raw_text: str,
+    protected_fields: dict[str, str] | None = None,
+) -> None:
+    protected_fields = protected_fields or {}
+    if "organizer" in protected_fields or update_data.get("organizer") or event.get("organizer"):
+        return
+    if event.get("source_name") in _SMALL_VENUE_FALLBACK_BLOCKED_SOURCES:
+        return
+
+    location_name = update_data.get("location_name") or event.get("location_name")
+    if not isinstance(location_name, str) or not location_name.strip() or "オンライン" in location_name:
+        return
+    location_name = location_name.strip()
+    if location_name not in (raw_text or ""):
+        return
+
+    forms = update_data.get("event_form") or event.get("event_form") or []
+    categories = update_data.get("category") or event.get("category") or []
+    if "exhibition" not in forms and "exhibition" not in categories:
+        return
+    if any(term in location_name for term in _LARGE_RENTAL_VENUE_TERMS):
+        return
+
+    is_cultural = any(term in location_name for term in _SMALL_VENUE_CULTURAL_TERMS)
+    is_independent = any(term in location_name for term in _SMALL_VENUE_INDEPENDENT_TERMS)
+    if not is_cultural and not is_independent:
+        return
+
+    update_data["organizer"] = location_name
+    current_type = update_data.get("organizer_type") or event.get("organizer_type") or []
+    if "organizer_type" not in protected_fields and (not current_type or current_type == ["unknown"]):
+        update_data["organizer_type"] = ["cultural_institution" if is_cultural else "independent_venue"]
+
 _TV_PROGRAM_KEYWORDS = frozenset(["放送:", "放送：", "ジャンル:", "ジャンル："])
 
 # Report article detection: these keywords in raw_title or raw_description
@@ -1727,8 +1786,8 @@ def _inject_keyword_categories(categories: list[str], text: str) -> list[str]:
     # geopolitics: Taiwan political/policy topics
     if "geopolitics" not in cats and any(kw in text for kw in _GEOPOLITICS_KEYWORDS):
         cats.append("geopolitics")
-    # history: colonial/war-era Taiwan
-    if "history" not in cats and any(kw in text for kw in _HISTORY_KEYWORDS):
+    # history: colonial/war-era Taiwan or explicit Taiwan birthplace/origin
+    if "history" not in cats and (any(kw in text for kw in _HISTORY_KEYWORDS) or _has_taiwan_roots_signal(text)):
         cats.append("history")
     # tv_program: TV broadcast markers (gguide_tv raw_description pattern)
     if "tv_program" not in cats and any(kw in text for kw in _TV_PROGRAM_KEYWORDS):
@@ -2381,11 +2440,13 @@ def annotate_pending_events(
                         update_data["description_zh"] = publication_description_zh
                         update_data["description_en"] = publication_description_en
 
+                _source_text = f"{raw_title or ''}\n{event.get('raw_description') or ''}"
+                _apply_small_venue_organizer_fallback(event, update_data, _source_text, _human_protected)
+
                 # Organizer translations — KNOWN_ORGANIZER_MAP overrides GPT.
                 # Guard against hallucinated organizers that do not appear in the source text.
                 if update_data.get("organizer"):
                     _org_name = update_data["organizer"]
-                    _source_text = f"{raw_title or ''}\n{event.get('raw_description') or ''}"
                     if _org_name not in _source_text:
                         logger.warning(
                             "Discarding hallucinated organizer %r for event %s because it does not appear in raw_title/raw_description",
@@ -3652,14 +3713,21 @@ def _lock_fields_via_corrections(
     """
     if not fields:
         return
+
+    def _corrected_value(fname: str, fvalue: Any) -> str:
+        if fvalue is None:
+            return ""
+        if isinstance(fvalue, str):
+            return _to_trad(fvalue) if fname.endswith("_zh") else fvalue
+        if isinstance(fvalue, (list, dict, bool)):
+            return json.dumps(fvalue, ensure_ascii=False)
+        return str(fvalue)
+
     rows = [
         {
             "event_id": event_id,
             "field_name": fname,
-            "corrected_value": str(
-                _to_trad(fvalue) if isinstance(fvalue, str) and fname.endswith("_zh")
-                else fvalue
-            ) if fvalue is not None else "",
+            "corrected_value": _corrected_value(fname, fvalue),
             "corrected_by": None,
         }
         for fname, fvalue in fields.items()

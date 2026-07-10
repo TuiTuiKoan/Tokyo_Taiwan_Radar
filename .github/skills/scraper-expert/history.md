@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-07-10 - annotator history roots 與小型場館 organizer fallback
+
+**問題：** annotator category / organizer 規則需要收斂兩種容易混淆的情境：創作者明確為台灣出生或台灣出身時應注入 `history`，但僅有台灣求學或工作經歷不應注入；小型場館官方頁缺少 `主催` 標籤時可用公開場館名補 organizer，但不能把 aggregator、新聞來源、通用租借場館、會展中心或大學誤當主辦。
+
+**修復：** `annotator.py` 補 Taiwan roots signal，只接受 `台湾出身`、`台湾生まれ`、台灣城市出身 / 出生與 `Taiwan-born` / `born in Taiwan` 等明確 roots；新增小型 exhibition venue fallback，僅在無既有 organizer、未被 FC 保護、來源不在 blocked list、場館名出現在 raw text、且場館名像 gallery / museum / shop / cafe / bookstore / craft venue 時回填 organizer。admin annotate / image extraction prompts 同步此 policy，避免 GPT 端先漂移。
+
+**驗證：** `tests/test_annotator_category_organizer_rules.py` 覆蓋 Taiwan roots positive、台灣工作 / 台灣大學求學 negative、小型場館 fallback、大型場館 / aggregator / 既有 organizer / field_corrections 保護 negative；web messages 三語保留新增 category 與 group label。
+
+**教訓：** `history` roots 判準必須要求出生 / 出身這類身份根源訊號，不能把台灣活動、留學或任職履歷當成歷史分類。organizer fallback 只能服務小型 venue-owned exhibition 頁面的公開場館名；blocked sources、generic rental halls、universities、aggregators 與 news/headline sources 一律維持 null，交給人工或來源修正。
+
+## 2026-07-10 - johakyu UTF-8 mojibake 與 ZERO_EVENT_OK 長尾來源噪音
+
+**問題：** `johakyu` scraper 成功執行但連續多日 0 件，沒有 traceback；`nhk_rss`、`walkerplus`、`bookandbeer`、`internet_museum` 四個長尾來源每天被 `health_check` 誤標為 selector concern。
+
+**根本原因：** `johakyu.co.jp/schedule.html` 的 HTTP `Content-Type` 沒有 charset，HTML 才有 `<meta charset="UTF-8">`。`requests` 對 `text/html` 無 charset 的 `resp.text` fallback 到 `ISO-8859-1`，導致 `月` / `日` / `台湾` mojibake，讓 `_WEEK_RE` 與 `_TAIWAN_KEYWORDS` 全部失效。`ZERO_EVENT_OK_SOURCES` 原規則偏向 cinema/galleries，漏掉 keyword-filtered feed / aggregator / listing 類來源。
+
+**修復：** `scraper/sources/johakyu.py` 將主 schedule page 的 parser 改為 `BeautifulSoup(resp.content, "html.parser")`，讓 BeautifulSoup 依 `<meta charset="UTF-8">` 解碼 bytes；`scraper/health_check.py` 新增 `nhk_rss`、`walkerplus`、`bookandbeer`、`internet_museum` 到 `ZERO_EVENT_OK_SOURCES`；`johakyu` 本次未加入，保留監控。
+
+**驗證：** dry-run 從 0 件恢復，抓到 `ギデンズ・コーの功夫(カンフー)`，`raw_description` 正常含 `開催日時: 2026年7月3日〜2026年7月9日`，未見 mojibake / `�`；`ZERO_EVENT_OK_SOURCES` 以 frozenset 正負向檢查確認新增四來源，且 `johakyu` / `taipei_fukuoka` / `jinf` / `morc_asagaya` 未加入。已 push commits：`1cc92bd`、`abc913e`。
+
+**教訓：** 先修 selector / encoding bug，再決定是否加入 `ZERO_EVENT_OK_SOURCES`；keyword-filtered long-tail sources 在 scraper logic 已驗證後可以加入零事件豁免；跨天等待 push 的修復不可裸留工作區，至少 commit 到 branch 或 safety branch。
+
 ## 2026-06-29 — Peatix detail text blocks for location and business_hours
 
 **問題：** Peatix detail pages can expose the authoritative venue and time range only in rendered text blocks such as `LOCATION` / `場所` and `DATE AND TIME` / `日時`. CSS selectors alone can miss Japanese pages, online-event markers, and body-level time labels, leaving `location_name`, `location_address`, or `business_hours` empty.
