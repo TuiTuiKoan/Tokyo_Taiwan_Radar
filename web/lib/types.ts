@@ -1,3 +1,7 @@
+import type { Locale } from "@/i18n/locales";
+
+export { LOCALES, type Locale } from "@/i18n/locales";
+
 export type Json =
   | string
   | number
@@ -179,8 +183,6 @@ export interface EventReport {
   created_at: string;
 }
 
-export type Locale = "zh" | "en" | "ja";
-
 export type Category =
   | "movie"
   | "performing_arts"
@@ -314,8 +316,6 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
     categories: ["report"],
   },
 ];
-
-export const LOCALES: Locale[] = ["zh", "en", "ja"];
 
 /** Return the best available name for an event given the current locale. */
 export function getEventName(event: Event, locale: Locale): string {

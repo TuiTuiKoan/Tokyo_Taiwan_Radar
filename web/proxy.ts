@@ -1,12 +1,18 @@
 import createMiddleware from "next-intl/middleware";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest, type NextFetchEvent } from "next/server";
-import { LOCALES } from "@/lib/types";
+import { LOCALES } from "@/i18n/locales";
 
 const intlMiddleware = createMiddleware({
   locales: LOCALES,
   defaultLocale: "ja",
   localePrefix: "always",
+  localeCookie: {
+    name: "NEXT_LOCALE",
+    sameSite: "lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+  },
 });
 
 // AEO monitoring — User-Agent → bot name

@@ -9,6 +9,7 @@ import FilterBar from "@/components/FilterBar";
 import MovieWorksList, { type MovieEventRow, type WorkGroupData } from "@/components/MovieWorksList";
 import Link from "next/link";
 import { shortPrefecture } from "@/lib/cityLabel";
+import { serializeJsonLd } from "@/lib/security/jsonLd";
 
 // ── Types & helpers ───────────────────────────────────────────────────────────
 
@@ -292,7 +293,7 @@ export default async function CategoryPage({ params }: PageProps) {
     <main className="max-w-4xl mx-auto">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(collectionLd) }}
       />
 
       {/* Breadcrumb */}

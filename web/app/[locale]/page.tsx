@@ -13,6 +13,7 @@ import Link from "next/link";
 import AnnouncementCard from "@/components/AnnouncementCard";
 import { Suspense } from "react";
 import AccountPortalButton from "@/components/AccountPortalButton";
+import { serializeJsonLd } from "@/lib/security/jsonLd";
 
 // ISR: revalidate every 10 minutes. All filter logic runs client-side so
 // every URL (with or without query params) shares the same cached payload.
@@ -119,7 +120,7 @@ export default async function HomePage({ params, searchParams }: PageProps) {
       {itemListLd && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(itemListLd) }}
         />
       )}
 

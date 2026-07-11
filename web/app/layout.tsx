@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { fontVariables } from "@/lib/design/fonts";
+import { serializeJsonLd } from "@/lib/security/jsonLd";
 
 const BASE =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyotaiwanradar.com";
@@ -83,7 +84,7 @@ export default function RootLayout({
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteJsonLd) }}
         />
       </head>
       <body>{children}</body>

@@ -15,6 +15,7 @@ import EventCard from "@/components/EventCard";
 import BackToListButton from "@/components/BackToListButton";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
 import Link from "next/link";
+import { serializeJsonLd } from "@/lib/security/jsonLd";
 
 export const revalidate = 3600;
 
@@ -688,16 +689,16 @@ export default async function EventDetailPage({ params }: PageProps) {
     <article className="max-w-3xl mx-auto">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbLd) }}
       />
       {faqLd && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqLd) }}
         />
       )}
       <ViewTracker eventId={id} locale={locale} />

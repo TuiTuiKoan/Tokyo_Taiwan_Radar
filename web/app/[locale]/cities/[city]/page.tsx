@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { type Locale, type Event, CATEGORIES, getEventName } from "@/lib/types";
 import EventCard from "@/components/EventCard";
 import Link from "next/link";
+import { serializeJsonLd } from "@/lib/security/jsonLd";
 
 export const revalidate = 3600;
 
@@ -149,7 +150,7 @@ export default async function CityPage({ params }: PageProps) {
     <main className="max-w-4xl mx-auto">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(collectionLd) }}
       />
 
       {/* Breadcrumb */}
