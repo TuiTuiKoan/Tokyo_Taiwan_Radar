@@ -2,6 +2,22 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-07-11 — Poster placeholder pollution planning miss: domain-surface audit omitted `enrich_poster.py`
+
+**背景：** Publication policy Wave 1 manifest 在 location conflict gate 持續卡住 8 筆 non-Eslite rows（`大阪城ホール` + `start_date=2023-10-14`）。回溯後確認這 8 筆皆為 exact pure Hanmoto/NDL 書誌，使用同一張 Hanmoto `noimage.jpg`，且同批 `field_corrections` 將 `location_name/start_date`（另 3 筆含 `organizer=コミックマーケット準備会`）寫入，屬 poster Vision 誤讀污染。
+
+**根本原因：** 原本 publication-policy 規劃雖有分類 gate 與 pure cleanup，但 domain-surface audit 漏掉 `scraper/enrich_poster.py`。候選查詢未納入 `event_form`/`source_name`/`image_url` guard，也沒有 write 前 re-read guard，導致 exact pure + placeholder image 可直接進入 Vision 與 FC 寫入。
+
+**修復：**
+1. `enrich_poster.py` 新增候選 guard 欄位（`event_form/source_name/image_url`）與 canonical Hanmoto placeholder helper，送 Vision 前即排除 exact pure/noimage。
+2. Vision 回傳後，`events.update()`/FC write 前 re-read row 並再次執行 pure + placeholder guard，阻止 TOCTOU 與 helper 直呼繞過 filter。
+3. Manifest 新增窄化 `poster_placeholder_pollution_repair` pre-action，只命中已研究 8 筆 signature（UUID + source + canonical noimage + `大阪城ホール` + `2023-10-14` + FC batch evidence），先修污染欄位再進 pure cleanup。
+
+**教訓：**
+1. 任何衍生 enrichment 功能（Vision/OCR、web search、標題補齊、人名補齊）都必須列入 planning 的 domain-surface audit；只看 annotator/writer 不夠。
+2. Candidate filter 不是安全邊界，write 前 re-read guard 才是最後防線。
+3. Placeholder image 防護要 canonical + source-aware，拒絕已知 placeholder 變體，不可 blanket 阻斷整個來源的真實資產。
+
 ## 2026-07-10 — Spec ⟺ Worktree 工作流計畫 v1：3 個 P0 被 Plan Critic 擋下（政策矛盾／dead frontmatter／流程重複）
 
 **背景：** 使用者要求把「建立 worktree」納入 Architect/Engineer 規劃流程（大型 feature 隔離開發，避免 stash 踩踏與 push 干擾）。我產出 plan v1（spec ⟺ worktree 1:1、9 檔），交 Plan Critic 批評。

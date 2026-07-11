@@ -54,25 +54,27 @@ from person_name_lookup import (
     lookup_person_names,
     lookup_single_person,
 )
+from publication_rules import (
+    PUBLICATION_NULL_FIELDS,
+    is_pure_publication_record,
+    normalize_publisher_name,
+    validated_registry_homepage,
+)
 from sources._cinema_constants import FIXED_CINEMA_SOURCES
 
 logger = logging.getLogger(__name__)
 
-_PUBLICATION_SOURCES = {"ndl_opensearch", "hanmoto", "kawade_rss", "eslite_spectrum"}
-_PUBLICATION_PLACEHOLDER_JA = "新刊のご購入は各販売チャネルでお願いします"
-_PUBLICATION_PLACEHOLDER_ZH = "新書購買請洽各通路"
-_PUBLICATION_PLACEHOLDER_EN = "Please check each sales channel to purchase this new book."
-_PUBLICATION_PREFIX_JA = "[新刊出版]"
-_PUBLICATION_PREFIX_ZH = "[新刊出版]"
-_PUBLICATION_PREFIX_EN = "[New Release]"
+_PUBLICATION_LABEL_PREFIX_JA = "[新刊出版]"
+_PUBLICATION_LABEL_PREFIX_ZH = "[新刊出版]"
+_PUBLICATION_LABEL_PREFIX_EN = "[New Release]"
 _PERIODICAL_LABEL_JA = "[雑誌記事]"
 _PERIODICAL_LABEL_ZH = "[期刊專文]"
 _PERIODICAL_LABEL_EN = "[Periodical Article]"
 
-_PUBLICATION_PREFIXES = (
-    _PUBLICATION_PREFIX_JA,
-    _PUBLICATION_PREFIX_ZH,
-    _PUBLICATION_PREFIX_EN,
+_PUBLICATION_LABEL_PREFIXES = (
+    _PUBLICATION_LABEL_PREFIX_JA,
+    _PUBLICATION_LABEL_PREFIX_ZH,
+    _PUBLICATION_LABEL_PREFIX_EN,
 )
 _PERIODICAL_PREFIXES = (
     _PERIODICAL_LABEL_JA,
@@ -168,7 +170,7 @@ def _strip_publication_prefixes(name: str) -> str:
     changed = True
     while changed:
         changed = False
-        for prefix in (*_PUBLICATION_PREFIXES, *_PERIODICAL_PREFIXES):
+        for prefix in (*_PUBLICATION_LABEL_PREFIXES, *_PERIODICAL_PREFIXES):
             if cleaned.startswith(prefix):
                 cleaned = cleaned[len(prefix):].strip()
                 changed = True
@@ -1275,7 +1277,8 @@ Decision guides:
 - ツアー / 巡迴 / 街歩き = ["tour"].
 - コンテスト / コンクール / 公募 = ["competition"].
 - 留学プログラム / 大学院進学 / 修士課程募集 / 奨学金付き海外留学 = ["study_abroad"].
-- 出版記念 / 刊行記念 / book release / book launch = ["publication"]
+- "publication" is ONLY for publication metadata with no physical attendance, venue, or session.
+- 出版記念, 刊行記念, book launch, Talk, signing, lecture, or workshop with physical participation must use the matching physical form (lecture/networking/workshop/etc.) and must not include "publication".
 - If genuinely none apply = ["other"]. NEVER leave event_form empty.
 
 LANGUAGE RULES:
@@ -1840,6 +1843,110 @@ def _load_default_organizer_map(sb: "Client") -> dict[str, dict[str, str]]:
         return {}
 
 
+def _load_publisher_registry(sb: "Client") -> dict[str, dict[str, Any]]:
+    registry: dict[str, dict[str, Any]] = {}
+    offset = 0
+    page_size = 1000
+    while True:
+        result = (
+            sb.table("organizers")
+            .select("id,canonical_name_ja,aliases,homepage")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows = list(result.data or [])
+        for row in rows:
+            names = [row.get("canonical_name_ja"), *(row.get("aliases") or [])]
+            for name in names:
+                normalized = normalize_publisher_name(name)
+                if normalized:
+                    registry[normalized] = row
+        if len(rows) < page_size:
+            break
+        offset += page_size
+    return registry
+
+
+def _finalize_publication_update(
+    event: dict[str, Any],
+    update_data: dict[str, Any],
+    localized_location_data: dict[str, Any],
+    protected_fields: dict[str, str],
+    publisher_registry: dict[str, dict[str, Any]],
+) -> bool:
+    effective = {**event, **update_data}
+    if not is_pure_publication_record(effective):
+        return False
+
+    conflicts = [
+        field for field in PUBLICATION_NULL_FIELDS
+        if field in protected_fields and protected_fields.get(field) not in (None, "")
+    ]
+    if conflicts:
+        raise RuntimeError(
+            "Pure publication policy conflicts with non-empty field corrections: "
+            + ", ".join(sorted(conflicts))
+        )
+
+    update_data["event_form"] = ["publication"]
+    for field in PUBLICATION_NULL_FIELDS:
+        update_data[field] = None
+        localized_location_data.pop(field, None)
+    update_data["location_url"] = None
+    update_data.pop("venue_id", None)
+
+    publisher = event.get("organizer") or update_data.pop("_publisher_evidence", None)
+    update_data["organizer"] = publisher
+    update_data["organizer_url"] = event.get("organizer_url")
+    normalized = normalize_publisher_name(publisher)
+    registry_row = publisher_registry.get(normalized or "")
+    if registry_row:
+        update_data["organizer_id"] = registry_row.get("id")
+        if not update_data.get("organizer_url") and registry_row.get("homepage"):
+            validated_homepage = validated_registry_homepage(
+                publisher,
+                registry_row.get("homepage"),
+                aliases=registry_row.get("aliases") or (),
+            )
+            if validated_homepage:
+                update_data["organizer_url"] = validated_homepage
+    return True
+
+
+def _verify_publication_postcondition(sb: "Client", event_id: str) -> None:
+    result = (
+        sb.table("events")
+        .select("id," + ",".join(PUBLICATION_NULL_FIELDS))
+        .eq("id", event_id)
+        .limit(1)
+        .execute()
+    )
+    rows = list(result.data or [])
+    if len(rows) != 1 or any(rows[0].get(field) is not None for field in PUBLICATION_NULL_FIELDS):
+        raise RuntimeError(f"Pure publication annotation postcondition failed for {event_id}")
+
+
+def _assert_pure_publication_payload(
+    update_data: dict[str, Any],
+    localized_location_data: dict[str, Any],
+) -> None:
+    if not is_pure_publication_record(update_data):
+        return
+    payload_violations = [
+        field for field in PUBLICATION_NULL_FIELDS
+        if update_data.get(field) is not None
+    ]
+    localized_violations = [
+        field for field in PUBLICATION_NULL_FIELDS
+        if localized_location_data.get(field) is not None
+    ]
+    if payload_violations or localized_violations:
+        raise RuntimeError(
+            "Pure publication payload postcondition failed before write: "
+            f"payload={sorted(payload_violations)} localized={sorted(localized_violations)}"
+        )
+
+
 def annotate_pending_events(
     re_annotate_all: bool = False,
     fix_translations: bool = False,
@@ -1908,6 +2015,11 @@ def annotate_pending_events(
     _default_org_map = _load_default_organizer_map(sb)
     if _default_org_map:
         logger.info("Loaded %d source default organizers", len(_default_org_map))
+    try:
+        _publisher_registry = _load_publisher_registry(sb)
+    except Exception as registry_error:
+        logger.warning("Publisher registry lookup skipped: %s", registry_error)
+        _publisher_registry = {}
 
     # Fetch events to annotate
     # Always exclude 'reviewed' events — they are human-confirmed and must not be
@@ -2307,7 +2419,7 @@ def annotate_pending_events(
                             else _validate_organizer_types(annotation.get("organizer_type", []))
                         )
                     ),
-                    "event_form": _validate_event_forms(annotation.get("event_form", [])),
+                    "event_form": _validate_event_forms(event.get("event_form") or annotation.get("event_form", [])),
                     "primary_language": _validate_primary_language(annotation.get("primary_language")),
                     "has_japanese_support": _validate_bool_or_none(annotation.get("has_japanese_support")),
                     "has_english_support": _validate_bool_or_none(annotation.get("has_english_support")),
@@ -2342,24 +2454,15 @@ def annotate_pending_events(
                     if update_data.get("is_paid") is True and not update_data.get("price_info"):
                         update_data["price_info"] = "料金"
 
-                if _source_name in _PUBLICATION_SOURCES:
+                if is_pure_publication_record({**event, **update_data}):
                     publication_context = (
                         _fetch_ndl_publication_context(event.get("source_url"))
                         if _source_name == "ndl_opensearch"
                         else {}
                     )
-                    publication_text_ja = (
-                        _str(publication_context.get("publication_label_ja"))
-                        or _PUBLICATION_PLACEHOLDER_JA
-                    )
-                    publication_text_zh = (
-                        _str(publication_context.get("publication_label_zh"))
-                        or _PUBLICATION_PLACEHOLDER_ZH
-                    )
-                    publication_text_en = (
-                        _str(publication_context.get("publication_label_en"))
-                        or _PUBLICATION_PLACEHOLDER_EN
-                    )
+                    publication_text_ja = _str(publication_context.get("publication_label_ja"))
+                    publication_text_zh = _str(publication_context.get("publication_label_zh"))
+                    publication_text_en = _str(publication_context.get("publication_label_en"))
                     publication_description_ja = _str(event.get("raw_description"))
                     publication_page_url = _str(event.get("official_url")) or _str(event.get("source_url"))
                     if publication_page_url:
@@ -2374,33 +2477,22 @@ def annotate_pending_events(
                     update_data["location_name_zh"] = publication_text_zh
                     update_data["location_name_en"] = publication_text_en
                     if publication_context.get("is_periodical"):
-                        update_data["location_address"] = None
-                        update_data["location_address_zh"] = None
-                        update_data["location_address_en"] = None
-                        update_data["business_hours"] = None
-                        update_data["business_hours_zh"] = None
-                        update_data["business_hours_en"] = None
-                        if not update_data.get("price_info") or update_data.get("price_info") in {
-                            _PUBLICATION_PLACEHOLDER_ZH,
-                            _PUBLICATION_PLACEHOLDER_EN,
-                        }:
-                            update_data["price_info"] = None
                         if update_data.get("name_ja"):
                             update_data["name_ja"] = _prefix_publication_name(
                                 update_data["name_ja"],
-                                prefix=_PUBLICATION_PREFIX_JA,
+                                prefix=_PUBLICATION_LABEL_PREFIX_JA,
                                 periodical_label=_PERIODICAL_LABEL_JA,
                             )
                         if update_data.get("name_zh"):
                             update_data["name_zh"] = _prefix_publication_name(
                                 update_data["name_zh"],
-                                prefix=_PUBLICATION_PREFIX_ZH,
+                                prefix=_PUBLICATION_LABEL_PREFIX_ZH,
                                 periodical_label=_PERIODICAL_LABEL_ZH,
                             )
                         if update_data.get("name_en"):
                             update_data["name_en"] = _prefix_publication_name(
                                 update_data["name_en"],
-                                prefix=_PUBLICATION_PREFIX_EN,
+                                prefix=_PUBLICATION_LABEL_PREFIX_EN,
                                 periodical_label=_PERIODICAL_LABEL_EN,
                             )
                         if publication_text_ja:
@@ -2408,31 +2500,23 @@ def annotate_pending_events(
                             publication_description_zh = f"刊載期刊：{publication_text_zh}\n\n{publication_description_zh}".strip()
                             publication_description_en = f"Published in: {publication_text_en}\n\n{publication_description_en}".strip()
                     else:
-                        update_data["location_address"] = publication_text_ja
-                        update_data["location_address_zh"] = publication_text_zh
-                        update_data["location_address_en"] = publication_text_en
-                        update_data["business_hours"] = publication_text_ja
-                        update_data["business_hours_zh"] = publication_text_zh
-                        update_data["business_hours_en"] = publication_text_en
-                        if not update_data.get("price_info"):
-                            update_data["price_info"] = publication_text_zh
                         if update_data.get("name_ja"):
                             update_data["name_ja"] = _prefix_publication_name(
                                 update_data["name_ja"],
-                                prefix=_PUBLICATION_PREFIX_JA,
+                                prefix=_PUBLICATION_LABEL_PREFIX_JA,
                             )
                         if update_data.get("name_zh"):
                             update_data["name_zh"] = _prefix_publication_name(
                                 update_data["name_zh"],
-                                prefix=_PUBLICATION_PREFIX_ZH,
+                                prefix=_PUBLICATION_LABEL_PREFIX_ZH,
                             )
                         if update_data.get("name_en"):
                             update_data["name_en"] = _prefix_publication_name(
                                 update_data["name_en"],
-                                prefix=_PUBLICATION_PREFIX_EN,
+                                prefix=_PUBLICATION_LABEL_PREFIX_EN,
                             )
-                    if not update_data.get("organizer") and publication_context.get("organizer"):
-                        update_data["organizer"] = publication_context["organizer"]
+                    if publication_context.get("organizer"):
+                        update_data["_publisher_evidence"] = publication_context["organizer"]
                     if not update_data.get("location_url"):
                         update_data["location_url"] = None
                     if publication_description_ja:
@@ -2598,7 +2682,8 @@ def annotate_pending_events(
                             update_data[_pf] = _parent_event.get(_pf)
 
                 _loc_name_for_lookup = update_data.get("location_name")
-                if not _is_multi_city_parent(_loc_name_for_lookup):
+                _effective_is_pure = is_pure_publication_record({**event, **update_data})
+                if not _effective_is_pure and not _is_multi_city_parent(_loc_name_for_lookup):
                     _venue = lookup_venue(_loc_name_for_lookup)
                     if _venue:
                         _venue_cols = {
@@ -2643,6 +2728,7 @@ def annotate_pending_events(
             #   4. Single-prefecture events only (multi-city arrays are not touched)
             if (
                 not fix_reviewed
+                and not is_pure_publication_record({**event, **update_data})
                 and "location_prefectures" not in _human_protected
                 and "location_prefectures" not in update_data
             ):
@@ -2785,6 +2871,15 @@ def annotate_pending_events(
                             update_data.get(_rp_field), _rp_lang
                         )
 
+            _is_pure_publication = _finalize_publication_update(
+                event,
+                update_data,
+                localized_location_data,
+                _human_protected,
+                _publisher_registry,
+            )
+            _assert_pure_publication_payload(update_data, localized_location_data)
+
             if dry_run:
                 logger.info(
                     "  [DRY-RUN] would update events id=%s (keys=%s)",
@@ -2794,6 +2889,8 @@ def annotate_pending_events(
                 events_ok += 1
             else:
                 sb.table("events").update(update_data).eq("id", eid).execute()
+                if _is_pure_publication:
+                    _verify_publication_postcondition(sb, eid)
                 events_ok += 1
             logger.info("  ✓ annotated (categories: %s)", categories)
 
@@ -2814,6 +2911,8 @@ def annotate_pending_events(
 
             # Handle sub-events
             sub_events = annotation.get("sub_events", [])
+            if _is_pure_publication:
+                sub_events = []
             # Never create grandchild events: if this event is itself a sub-event
             # (has parent_event_id), skip sub-event creation entirely.
             if event.get("parent_event_id"):

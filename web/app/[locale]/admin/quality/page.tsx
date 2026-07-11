@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { type Locale } from "@/lib/types";
+import { isPurePublicationRecord, type Locale } from "@/lib/types";
 import AdminTabNav from "@/components/AdminTabNav";
 import QualitySection, { type QualityRow } from "@/components/QualitySection";
 import QualityRealtimeRefresh from "@/components/QualityRealtimeRefresh";
@@ -10,6 +10,12 @@ interface PageProps {
   params: Promise<{ locale: Locale }>;
   searchParams: Promise<{ source?: string }>;
 }
+
+type MissingAddressRow = QualityRow & {
+  location_name: string | null;
+  location_prefectures: string[] | null;
+  event_form: string[] | null;
+};
 
 export default async function AdminQualityPage({ params, searchParams }: PageProps) {
   const { locale } = await params;
@@ -47,7 +53,7 @@ export default async function AdminQualityPage({ params, searchParams }: PagePro
 
   let missingAddrQuery = supabase
     .from("events")
-    .select("id, raw_title, source_name, location_name, location_prefectures, category, event_form")
+    .select("id, raw_title, source_name, location_name, location_prefectures, event_form")
     .eq("is_active", true)
     .not("location_name", "is", null)
     .is("location_address", null)
@@ -76,14 +82,9 @@ export default async function AdminQualityPage({ params, searchParams }: PagePro
   const annotatedNoCat = (annotatedNoCatRes.data ?? []) as QualityRow[];
   // DB filters: location_name IS NOT NULL (has venue) AND location_address IS NULL (missing address)
   // Additional client-side filter: exclude short city/area names (≤6 chars, no spaces) and
-  // multi-city venue names (contains ・ with location_prefectures implying multiple cities). Also exclude book/publication events.
-  const missingAddr = ((missingAddrRes.data ?? []) as any[]).filter((e) => {
-    // Exclude publication/book events — venue and address don't need configuration
-    const isBookPub =
-      (e.event_form as string[] ?? []).includes("publication") ||
-      (e.category as string[] ?? []).includes("books_media") ||
-      e.source_name === "hanmoto";
-    if (isBookPub) return false;
+  // multi-city venue names (contains ・ with location_prefectures implying multiple cities). Also exclude exact pure publications.
+  const missingAddr = ((missingAddrRes.data ?? []) as MissingAddressRow[]).filter((e) => {
+    if (isPurePublicationRecord(e)) return false;
 
     const loc = e.location_name ?? "";
     // Short geographic name only (e.g. 東京, 香港, 岡山, 文京区) — no actionable address exists

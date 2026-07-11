@@ -4,7 +4,12 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { type Locale, type Event, getEventName } from "@/lib/types";
+import {
+  type Locale,
+  type Event,
+  getEventName,
+  getPublicationPresentationFlags,
+} from "@/lib/types";
 import { CategoryThumbnail } from "@/lib/design/CategoryThumbnail";
 import { filterEvents } from "@/lib/eventFilter";
 import { isShelfEvent, shelfTab, isNew, type ShelfTab } from "@/lib/eventClassify";
@@ -21,7 +26,7 @@ const TAB_LABEL: Record<ShelfTab, string> = {
   persistent: "shelfPersistent",
 };
 
-function dateRange(event: Event, locale: Locale): string | null {
+function dateRange(event: Event, locale: Locale, hideEnd: boolean): string | null {
   if (!event.start_date) return null;
   const start = new Date(event.start_date).toLocaleDateString(locale, {
     month: "short",
@@ -29,6 +34,7 @@ function dateRange(event: Event, locale: Locale): string | null {
     timeZone: "UTC",
   });
   if (
+    !hideEnd &&
     event.end_date &&
     event.end_date.slice(0, 10) !== event.start_date.slice(0, 10)
   ) {
@@ -124,7 +130,8 @@ export default function EventShelf({ events, locale }: Props) {
         <ul className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 px-4 scroll-smooth">
           {list.map((event) => {
             const name = getEventName(event, locale);
-            const range = dateRange(event, locale);
+            const publicationFlags = getPublicationPresentationFlags(event);
+            const range = dateRange(event, locale, publicationFlags.hideEnd);
             return (
               <li
                 key={event.id}
@@ -148,7 +155,7 @@ export default function EventShelf({ events, locale }: Props) {
                   </div>
                   <div className="px-3 pb-3 flex flex-col gap-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {event.is_paid === false && (
+                      {!publicationFlags.hidePrice && event.is_paid === false && (
                         <span className="text-[10px] bg-[#C4E86F]/40 text-[#1F5E2B] dark:bg-green-900/70 dark:text-green-200 px-1.5 py-0.5 rounded-full font-bold">
                           {tEvent("free")}
                         </span>
@@ -162,7 +169,7 @@ export default function EventShelf({ events, locale }: Props) {
                     <p className="font-display font-bold text-fg-strong text-[13px] leading-snug line-clamp-2 group-hover:text-green-700 dark:group-hover:text-green-400">
                       {name}
                     </p>
-                    {event.location_name && (
+                    {event.location_name && !publicationFlags.hideVenue && (
                       <p className="text-[11px] text-fg-muted line-clamp-1">
                         📍 {event.location_name}
                       </p>

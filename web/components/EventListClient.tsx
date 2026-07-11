@@ -3,7 +3,12 @@
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { type Locale, type Event, getEventName } from "@/lib/types";
+import {
+  type Locale,
+  type Event,
+  getEventName,
+  getPublicationPresentationFlags,
+} from "@/lib/types";
 import { getCityLabel } from "@/lib/cityLabel";
 import { CategoryThumbnail } from "@/lib/design/CategoryThumbnail";
 import SaveButton from "@/components/SaveButton";
@@ -89,12 +94,11 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
         <div className="flex flex-col gap-2 mt-4">
           {filtered.map((event: Event) => {
         const name = getEventName(event, locale);
+        const publicationFlags = getPublicationPresentationFlags(event);
         const ended =
-          event.end_date && new Date(event.end_date) < new Date();
-        const isPublicationEvent =
-          (event.event_form ?? []).includes("publication") ||
-          (event.category ?? []).includes("books_media") ||
-          event.source_name === "hanmoto";
+          publicationFlags.hideEventStatus
+            ? false
+            : !!(event.end_date && new Date(event.end_date) < new Date());
         return (
           <div key={event.id} className="relative group/row">
             <Link
@@ -121,7 +125,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                     {new Date(event.start_date).getUTCDate()}
                   </div>
                   {event.end_date &&
-                    !isPublicationEvent &&
+                    !publicationFlags.hideEnd &&
                     event.end_date.slice(0, 10) !==
                       event.start_date.slice(0, 10) && (
                       <div className="text-[10px] text-fg-muted mt-0.5 leading-tight">
@@ -151,14 +155,15 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
             {/* Main content */}
             <div className="flex-1 min-w-0 py-3 pr-3">
               <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                {ended ? (
-                  <span className="text-[10px] bg-muted dark:bg-stone-700/60 text-fg-muted dark:text-stone-200 px-2 py-0.5 rounded-full font-medium">
-                    {tEvent("ended")}
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-green-700 font-bold">●</span>
-                )}
-                {event.is_paid === false && (
+                {!publicationFlags.hideEventStatus &&
+                  (ended ? (
+                    <span className="text-[10px] bg-muted dark:bg-stone-700/60 text-fg-muted dark:text-stone-200 px-2 py-0.5 rounded-full font-medium">
+                      {tEvent("ended")}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-green-700 font-bold">●</span>
+                  ))}
+                {!publicationFlags.hidePrice && event.is_paid === false && (
                   <span className="text-[10px] bg-[#C4E86F]/40 text-[#1F5E2B] dark:bg-green-900/70 dark:text-green-200 px-2 py-0.5 rounded-full font-bold">
                     {tEvent("free")}
                   </span>
@@ -181,6 +186,7 @@ export default function EventListClient({ events, parentMap, locale }: Props) {
                 {name}
               </p>
               {event.location_name &&
+                !publicationFlags.hideVenue &&
                 (() => {
                   const cityLabel = getCityLabel(
                     (event as { location_prefectures?: string[] | null })

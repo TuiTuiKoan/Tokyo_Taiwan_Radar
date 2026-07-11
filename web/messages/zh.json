@@ -178,6 +178,7 @@
     "publicationSection": "出版資訊",
     "organizer": "主辦單位",
     "publisher": "出版社",
+    "publisherWebsite": "出版社官方網站",
     "performer": "表演者・發表者",
     "performers": "表演者・發表者",
     "author": "作者",
@@ -1083,7 +1084,14 @@
     "p3Unknown": "票價資訊請參考主辦方頁面。",
     "p4VenueWithAddress": "會場位於 {venue}（{address}）。",
     "p4VenueOnly": "會場為 {venue}。",
-    "p4Online": "本活動於線上舉行，請參考活動連結加入。"
+    "p4Online": "本活動於線上舉行，請參考活動連結加入。",
+    "publicationP1WithPublisher": "{name} 由 {publisher} 於 {date} 出版。",
+    "publicationP1": "{name} 於 {date} 出版。",
+    "publicationP2": "本頁呈現出版資料記錄。出典來源：{source}。",
+    "faqPublicationDateQuestion": "這份出版品的出版日期是何時？",
+    "faqPublicationDateAnswer": "出版日期為 {date}。",
+    "faqSourceQuestion": "這則資訊的來源是什麼？",
+    "faqSourceAnswer": "資訊來源為 {host} 的公開資料。"
   },
   "about": {
     "heroTitle": "關於東京台灣雷達",

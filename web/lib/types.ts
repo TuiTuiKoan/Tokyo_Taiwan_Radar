@@ -289,6 +289,70 @@ export const EVENT_FORMS = [
 
 export type EventForm = (typeof EVENT_FORMS)[number];
 
+type PublicationRecord = Pick<Event, "source_name" | "event_form" | "source_url" | "official_url" | "record_links">;
+
+export interface PublicationPresentationFlags {
+  isPurePublication: boolean;
+  hideEnd: boolean;
+  hideVenue: boolean;
+  hideHours: boolean;
+  hidePrice: boolean;
+  hideCalendar: boolean;
+  hideEventStatus: boolean;
+}
+
+export function normalizeEventForms(value: unknown): string[] {
+  const values = typeof value === "string" ? [value] : Array.isArray(value) ? value : [];
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const item of values) {
+    if (typeof item !== "string") continue;
+    const canonical = item.trim();
+    if (!canonical || seen.has(canonical)) continue;
+    seen.add(canonical);
+    normalized.push(canonical);
+  }
+  return normalized;
+}
+
+export function isPurePublicationRecord(record: Pick<Event, "event_form">): boolean {
+  const forms = normalizeEventForms(record.event_form);
+  return forms.length === 1 && forms[0] === "publication";
+}
+
+export function isPublicationMetricIntentionalNull(
+  record: Pick<Event, "event_form">,
+  field: string
+): boolean {
+  return isPurePublicationRecord(record)
+    && (field === "location_address" || field === "location_prefectures");
+}
+
+export function isNdlPeriodicalArticle(record: PublicationRecord): boolean {
+  if (!isPurePublicationRecord(record) || record.source_name !== "ndl_opensearch") return false;
+  const urls = [
+    record.source_url,
+    record.official_url,
+    ...(record.record_links ?? []).map((link) => link.url),
+  ];
+  return urls.some((url) => url?.toUpperCase().includes("R000000004"));
+}
+
+export function getPublicationPresentationFlags(
+  record: Pick<Event, "event_form">
+): PublicationPresentationFlags {
+  const isPurePublication = isPurePublicationRecord(record);
+  return {
+    isPurePublication,
+    hideEnd: isPurePublication,
+    hideVenue: isPurePublication,
+    hideHours: isPurePublication,
+    hidePrice: isPurePublication,
+    hideCalendar: isPurePublication,
+    hideEventStatus: isPurePublication,
+  };
+}
+
 export interface CategoryGroup {
   labelKey: string;
   categories: Category[];

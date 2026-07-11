@@ -1,5 +1,11 @@
 # ndl_opensearch scraper 修訂歷史
 
+## 2026-07-11 — publication phase 3 invariant sync
+
+- pure publication 判定改為 exact `event_form=['publication']`，不再依賴 category/source/title。
+- 純出版 rows 對齊 `PUBLICATION_NULL_FIELDS` 七欄與 empty sentinel；真實 DB 價格保留，只在 pure publication UI / JSON-LD 隱藏。
+- publisher/organizer 保持必填；mixed rows（含 lecture/workshop）明確保留 physical 行為。
+
 ## 2026-06-04 — publication venue placeholder sync
 
 - publication 事件の `location_name` は占位文字を維持し、`[新刊出版]` の接頭辞は付けない。

@@ -12,6 +12,7 @@ interface Props {
   currentCategories?: Category[];
   eventFields?: Partial<Record<WrongDetailField, Partial<Record<LocaleKey, string | null>>>>;
   hideSelectionReason?: boolean;
+  excludedDetailFields?: WrongDetailField[];
 }
 
 const REPORT_TYPES = ["irrelevant", "wrongDetails", "wrongCategory", "wrongSelectionReason", "brokenLink"] as const;
@@ -47,7 +48,7 @@ const FIELD_I18N: Record<WrongDetailField, string> = {
   description: "fieldDescription",
 };
 
-export default function ReportSection({ eventId, locale, selectionReasonAll, currentCategories, eventFields, hideSelectionReason }: Props) {
+export default function ReportSection({ eventId, locale, selectionReasonAll, currentCategories, eventFields, hideSelectionReason, excludedDetailFields }: Props) {
   const t = useTranslations("report");
   const tCat = useTranslations("categories");
   const [open, setOpen] = useState(false);
@@ -58,6 +59,8 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
   const [selectionReasonTexts, setSelectionReasonTexts] = useState<Record<LocaleKey, string>>({ zh: "", en: "", ja: "" });
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const submittingLabel = locale === "ja" ? "送信中…" : locale === "en" ? "Sending..." : "送出中…";
+  const excludedFieldSet = new Set<WrongDetailField>(excludedDetailFields ?? []);
+  const visibleWrongDetailFields = WRONG_DETAIL_FIELDS.filter((field) => !excludedFieldSet.has(field));
 
   function toggle(type: ReportType) {
     setSelected((prev) => {
@@ -85,6 +88,8 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
   }
 
   function toggleField(field: WrongDetailField) {
+    if (excludedFieldSet.has(field)) return;
+
     setWrongFields((prev) => {
       const next = new Set(prev);
       if (next.has(field)) {
@@ -112,14 +117,17 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
 
   async function handleSubmit() {
     if (selected.size === 0) return;
+    const selectedWrongDetailFields = Array.from(wrongFields).filter(
+      (field) => !excludedFieldSet.has(field)
+    );
     // Require at least one field selected when wrongDetails is checked
-    if (selected.has("wrongDetails") && wrongFields.size === 0) return;
+    if (selected.has("wrongDetails") && selectedWrongDetailFields.length === 0) return;
     setStatus("loading");
 
     // Build report_types: base types + "field:xxx" for wrong detail fields
     const reportTypes: string[] = Array.from(selected);
     if (selected.has("wrongDetails")) {
-      for (const field of wrongFields) {
+      for (const field of selectedWrongDetailFields) {
         reportTypes.push(`field:${field}`);
         const localeEdits = fieldEdits[field] ?? {};
         for (const loc of LOCALES_ORDER) {
@@ -163,7 +171,7 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
 
   const canSubmit =
     selected.size > 0 &&
-    (!selected.has("wrongDetails") || wrongFields.size > 0) &&
+    (!selected.has("wrongDetails") || Array.from(wrongFields).some((field) => !excludedFieldSet.has(field))) &&
     status !== "loading";
 
   if (status === "success") {
@@ -207,7 +215,7 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
               {/* Sub-field checkboxes for wrongDetails */}
               {type === "wrongDetails" && selected.has("wrongDetails") && (
                 <div className="ml-5 mt-1 space-y-1.5">
-                  {WRONG_DETAIL_FIELDS.map((field) => (
+                  {visibleWrongDetailFields.map((field) => (
                     <div key={field}>
                       <label className="flex items-center gap-2 text-xs text-amber-700 cursor-pointer select-none">
                         <input
@@ -216,7 +224,7 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
                           onChange={() => toggleField(field)}
                           className="accent-amber-500"
                         />
-                        {t(FIELD_I18N[field] as any)}
+                        {t(FIELD_I18N[field] as Parameters<typeof t>[0])}
                       </label>
                       {wrongFields.has(field) && (
                         <div className="mt-1.5 ml-4 space-y-2">
@@ -250,7 +258,7 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
                   <div className="grid grid-cols-1 gap-y-2">
                     {CATEGORY_GROUPS.map((group) => (
                       <div key={group.labelKey} className="grid grid-cols-[4.5rem_1fr] gap-x-3 items-start">
-                        <span className="text-xs text-amber-400 pt-0.5 leading-tight text-right">{tCat(group.labelKey as any)}</span>
+                        <span className="text-xs text-amber-400 pt-0.5 leading-tight text-right">{tCat(group.labelKey as Parameters<typeof tCat>[0])}</span>
                         <div className="flex flex-wrap gap-1.5">
                           {group.categories.map((cat) => {
                           const isSelected = suggestedCategories.has(cat);
@@ -272,7 +280,7 @@ export default function ReportSection({ eventId, locale, selectionReasonAll, cur
                                   : "border-amber-300 text-amber-700 hover:border-amber-500"
                               }`}
                             >
-                              {tCat(cat as any)}
+                                {tCat(cat as Parameters<typeof tCat>[0])}
                             </button>
                           );
                         })}

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/">
+  <channel>
+    <item>
+      <title>台湾研究の期刊記事</title>
+      <link>https://ndlsearch.ndl.go.jp/books/R100000002-I999999999?recordFamily=R000000004</link>
+      <description>台湾研究に関する期刊記事。</description>
+      <dc:identifier>JP999999999</dc:identifier>
+      <dc:publisher>期刊出版社</dc:publisher>
+      <dc:creator>研究者A</dc:creator>
+      <dcterms:issued>2026-06-20</dcterms:issued>
+    </item>
+  </channel>
+</rss>

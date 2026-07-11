@@ -34,6 +34,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from dotenv import load_dotenv
+from publication_rules import is_pure_publication_record
 from sources._cinema_constants import FIXED_CINEMA_SOURCES
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
@@ -90,12 +91,6 @@ PUBLISH_DATE_SOURCES = frozenset({"note_creators", "google_news_rss", "prtimes",
 # Sources that legitimately produce thin metadata (news/article feeds) — skip
 # missing_organizer detection (organizer is rarely available for these).
 THIN_CONTENT_SOURCES = frozenset({"note_creators", "google_news_rss", "prtimes", "nhk_rss", "walkerplus"})
-
-# Core publication sources (library / book-trade feeds): a published work's
-# "organizer" role is filled by the publisher, so missing_organizer is a false
-# positive for these. Kept DELIBERATELY narrow — does NOT include mixed /
-# review-only publication-like sources (e.g. kawade_rss, eslite_spectrum).
-_CORE_PUBLICATION_SOURCES = frozenset({"ndl_opensearch", "hanmoto"})
 
 _PRICE_KW_RE = re.compile(
     r'[¥￥]\s*\d|円[（(]|参加費|入場料|チケット代|参加料|受講料|鑑賞料'
@@ -287,38 +282,18 @@ def _latest_auto_qa_reports(sb, event_ids: list[str]) -> dict[str, dict[str, dic
     return out
 
 
-def _publication_signals(ev: dict) -> dict:
-    """Atomic publication classification signals for one event. Policy-specific
-    skip rules combine these differently so venue/hours QA and organizer QA do
-    NOT share a single conflated rule (R3-F1)."""
-    return {
-        "publication_form": "publication" in (ev.get("event_form") or []),
-        "books_media": "books_media" in (ev.get("category") or []),
-        "hanmoto": ev.get("source_name") == "hanmoto",
-        "core_source": ev.get("source_name") in _CORE_PUBLICATION_SOURCES,
-    }
+def _is_exact_pure_publication(ev: dict) -> bool:
+    return is_pure_publication_record(ev)
 
 
 def _should_skip_publication_venue_qa(ev: dict) -> bool:
-    """Venue/hours QA skip: publications & book events have no physical venue or
-    business hours. Preserves the prior is_pub_event semantics — a books_media
-    category (or hanmoto source, or explicit publication event_form) is enough."""
-    sig = _publication_signals(ev)
-    return sig["publication_form"] or sig["books_media"] or sig["hanmoto"]
-
-
-def _should_skip_publication_organizer_qa(ev: dict) -> bool:
-    """Organizer QA skip: ONLY core publication sources {ndl_opensearch, hanmoto}
-    or an explicit event_form=publication suppress missing_organizer. A
-    books_media category ALONE does NOT — a book launch / reading / media event
-    can still legitimately need an organizer (R3-F1)."""
-    sig = _publication_signals(ev)
-    return sig["core_source"] or sig["publication_form"]
+    """Venue/hours/prefecture QA skips only exact pure publications."""
+    return _is_exact_pure_publication(ev)
 
 
 def _check_missing_hours(ev: dict) -> str | None:
     """Return note if event has null business_hours but time pattern in raw_description."""
-    # Publication/book events have no business hours required (no error reported).
+    # Only exact pure publications have no business hours requirement.
     if _should_skip_publication_venue_qa(ev):
         return None
 
@@ -723,7 +698,7 @@ def _detect_missing_date(sb) -> list[dict]:
 
 
 def _check_missing_organizer(ev: dict) -> str | None:
-    """Return note if event has null organizer (skipping source/category exceptions)."""
+    """Return note if event has null organizer (publisher is still required for pure publication records)."""
     source_name = ev.get("source_name")
     category = ev.get("category") or ""
     if (
@@ -734,11 +709,6 @@ def _check_missing_organizer(ev: dict) -> str | None:
     ):
         return None
     if source_name in THIN_CONTENT_SOURCES:
-        return None
-    # Core publications / explicit publication event_form: the organizer role is
-    # filled by the publisher → not a real gap (R3-F1; books_media category
-    # alone never suppresses this).
-    if _should_skip_publication_organizer_qa(ev):
         return None
     if ev.get("organizer"):
         return None
@@ -755,7 +725,7 @@ def _detect_missing_organizer(sb) -> list[dict]:
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
-        .select("id,source_name,organizer,category")
+        .select("id,source_name,organizer,category,event_form")
         .eq("is_active", True)
         .in_("annotation_status", ["annotated", "reviewed"])
         .is_("organizer", "null")
@@ -775,16 +745,37 @@ def _detect_missing_organizer(sb) -> list[dict]:
     return reports
 
 
+def _check_missing_price(ev: dict) -> str | None:
+    """Return note if price signals exist but is_paid/price_info are null."""
+    from urllib.parse import urlparse
+
+    source_name = ev.get("source_name") or ""
+    if source_name in THIN_CONTENT_SOURCES:
+        return None
+    if source_name == "gguide_tv":
+        return None
+    if _is_exact_pure_publication(ev):
+        return None
+
+    raw = ev.get("raw_description") or ""
+    official_url = ev.get("official_url") or ""
+    price_in_desc = bool(_PRICE_KW_RE.search(raw))
+    domain = urlparse(official_url).hostname or ""
+    booking_url = any(domain.endswith(d) for d in _BOOKING_DOMAINS)
+    if not (price_in_desc or booking_url):
+        return None
+
+    reason = "price_keyword" if price_in_desc else f"booking_domain:{domain}"
+    return f"is_paid/price_info null but {reason}; source={source_name}"
+
+
 def _detect_missing_price(sb) -> list[dict]:
     """Flag events where is_paid/price_info are null but price signals exist
     in raw_description or official_url. Review-only — no auto-fix."""
-    from urllib.parse import urlparse
-    import re as _re
-
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
-        .select("id,source_name,raw_description,official_url")
+        .select("id,source_name,raw_description,official_url,event_form")
         .eq("is_active", True)
         .in_("annotation_status", ["annotated", "reviewed"])
         .is_("is_paid", "null")
@@ -795,24 +786,12 @@ def _detect_missing_price(sb) -> list[dict]:
     )
     reports = []
     for row in rows:
-        source_name = row.get("source_name") or ""
-        if source_name in THIN_CONTENT_SOURCES:
-            continue
-        if source_name == "gguide_tv":
-            continue
-        raw = row.get("raw_description") or ""
-        official_url = row.get("official_url") or ""
-        price_in_desc = bool(_PRICE_KW_RE.search(raw))
-        domain = urlparse(official_url).hostname or ""
-        booking_url = any(domain.endswith(d) for d in _BOOKING_DOMAINS)
-        if price_in_desc or booking_url:
-            reason = "price_keyword" if price_in_desc else f"booking_domain:{domain}"
+        note = _check_missing_price(row)
+        if note:
             reports.append({
                 "event_id": row["id"],
                 "report_type": "auto_qa_missing_price",
-                "details": (
-                    f"is_paid/price_info null but {reason}; source={source_name}"
-                ),
+                "details": note,
             })
     return reports
 
@@ -982,7 +961,7 @@ def detect(event: dict) -> list[tuple[str, str]]:
     """Return list of (report_type, admin_note) detected for one event."""
     findings: list[tuple[str, str]] = []
 
-    # Publication/book events have no physical venue/address required.
+    # Only exact pure publications have no physical venue/address requirements.
     is_pub_event = _should_skip_publication_venue_qa(event)
 
     # 1. Simplified Chinese in any *_zh field
@@ -1049,7 +1028,12 @@ def detect(event: dict) -> list[tuple[str, str]]:
     #    (backfill_location_prefectures.py may not have run yet).
     loc_addr_val = event.get("location_address") or ""
     loc_prefs_val = event.get("location_prefectures") or []
-    if loc_addr_val.strip() and not loc_prefs_val and not _should_skip_venue_qa(event):
+    if (
+        not is_pub_event
+        and loc_addr_val.strip()
+        and not loc_prefs_val
+        and not _should_skip_venue_qa(event)
+    ):
         # Skip non-Japan addresses — Taiwan events have no prefecture
         if _TAIWAN_ADDR_RE.search(loc_addr_val):
             pass
@@ -1317,15 +1301,62 @@ def _reconcile_check(rt: str, ev: dict, *, sb=None) -> str | None:
     return "no_predicate_keep"
 
 
+def _single_auto_report_type(report_types: list[str] | None) -> str | None:
+    types = [t for t in (report_types or []) if isinstance(t, str) and t]
+    if len(types) != 1:
+        return None
+    report_type = types[0]
+    if report_type not in QA_TYPES:
+        return None
+    return report_type
+
+
+def _all_auto_report_types(report_types: list[str] | None) -> list[str] | None:
+    """Return the report's type list only if every type is a known auto type.
+
+    A single auto type or a compound row where ALL types are auto both qualify.
+    Any manual/unknown type anywhere in the list disqualifies the whole row —
+    it must never be touched by reconcile (R3-F1: no report_types[0]-only checks).
+    """
+    types = [t for t in (report_types or []) if isinstance(t, str) and t]
+    if not types:
+        return None
+    if any(t not in QA_TYPES for t in types):
+        return None
+    return types
+
+
+def _resolve_report_disposition(
+    ev: dict | None, types: list[str], *, sb=None
+) -> tuple[str, str]:
+    """Pure decision for one pending report given its (all-auto) types and event.
+
+    Returns (disposition, reason) where disposition is one of
+    "confirm", "dismiss", "keep". A compound row only confirms when EVERY
+    type in `types` resolves — it never partially closes a compound report.
+    """
+    if ev is None:
+        return "dismiss", "event deleted"
+    if not ev.get("is_active"):
+        return "dismiss", "event inactive"
+    if ev.get("annotation_status") == "reviewed":
+        return "confirm", "event reviewed by admin"
+    notes = [_reconcile_check(rt, ev, sb=sb) for rt in types]
+    if all(note is None for note in notes):
+        return "confirm", "issue resolved"
+    return "keep", "predicate still fires"
+
+
 def reconcile(dry_run: bool = False) -> dict:
     """Close resolved or inactive auto_qa pending reports.
 
     For each pending auto_qa report:
     - event deleted / inactive  → dismiss
     - event reviewed by admin   → confirm
-    - predicate no longer fires → confirm (issue resolved)
-    - predicate still fires     → keep pending
-    - no predicate (human types or unknown) → skip entirely
+    - all report_types resolved → confirm (issue resolved); compound rows only
+      confirm when EVERY type in report_types resolves, never partially
+    - any report_type still fires → keep pending
+    - any manual/unknown type present → skip entirely, never touched
 
     Manual report types (wrongCategory, irrelevant, etc.) are never touched.
     """
@@ -1350,16 +1381,24 @@ def reconcile(dry_run: bool = False) -> dict:
             break
         off += 1000
 
-    # 2. Separate auto vs manual reports
-    auto_rows: list[dict] = []
+    # 2. Separate auto (single or all-auto compound) vs manual/unknown reports
+    auto_rows: list[tuple[dict, list[str]]] = []
+    skipped_manual = 0
+    skipped_mixed_or_unknown = 0
     for r in rows:
-        rt = (r.get("report_types") or ["?"])[0]
-        if rt in AUTO_TYPES:
-            auto_rows.append(r)
-        # Manual types (wrongCategory, irrelevant, fieldEdit:*, etc.) → never touched
+        types = _all_auto_report_types(r.get("report_types"))
+        if types is None:
+            raw_types = [t for t in (r.get("report_types") or []) if isinstance(t, str) and t]
+            if len(raw_types) >= 1 and any(t not in AUTO_TYPES for t in raw_types):
+                skipped_manual += 1
+            else:
+                skipped_mixed_or_unknown += 1
+            continue
+        auto_rows.append((r, types))
+        # Manual/unknown rows are never touched.
 
     # 3. Load corresponding events (full fields for all check functions)
-    eids = list({r["event_id"] for r in auto_rows})
+    eids = list({r["event_id"] for r, _types in auto_rows})
     ev_map: dict[str, dict] = {}
     for i in range(0, len(eids), 200):
         chunk = eids[i : i + 200]
@@ -1388,42 +1427,28 @@ def reconcile(dry_run: bool = False) -> dict:
     }
     by_type: dict[str, dict[str, int]] = {}
 
-    for r in auto_rows:
+    for r, types in auto_rows:
         rid = r["id"]
         eid = r["event_id"]
-        rt = (r.get("report_types") or ["?"])[0]
         orig_note = r.get("admin_notes") or ""
         ev = ev_map.get(eid)
 
-        def _inc(bucket: str) -> None:
-            by_type.setdefault(rt, {"confirmed": 0, "dismissed": 0, "kept": 0})[bucket] += 1
+        def _inc_all(bucket: str) -> None:
+            for rt in types:
+                by_type.setdefault(rt, {"confirmed": 0, "dismissed": 0, "kept": 0})[bucket] += 1
 
-        if ev is None:
-            dismissed_ids.append((rid, orig_note, "event deleted"))
-            by_reason["event_missing"] += 1
-            _inc("dismissed")
-            continue
-
-        if not ev.get("is_active"):
-            dismissed_ids.append((rid, orig_note, "event inactive"))
-            by_reason["inactive"] += 1
-            _inc("dismissed")
-            continue
-
-        if ev.get("annotation_status") == "reviewed":
-            confirmed_ids.append((rid, orig_note, "event reviewed by admin"))
-            by_reason["reviewed"] += 1
-            _inc("confirmed")
-            continue
-
-        note = _reconcile_check(rt, ev, sb=sb)
-        if note is None:
-            confirmed_ids.append((rid, orig_note, "issue resolved"))
-            by_reason["resolved"] += 1
-            _inc("confirmed")
+        disposition, reason = _resolve_report_disposition(ev, types, sb=sb)
+        if disposition == "dismiss":
+            dismissed_ids.append((rid, orig_note, reason))
+            by_reason["event_missing" if reason == "event deleted" else "inactive"] += 1
+            _inc_all("dismissed")
+        elif disposition == "confirm":
+            confirmed_ids.append((rid, orig_note, reason))
+            by_reason["reviewed" if reason == "event reviewed by admin" else "resolved"] += 1
+            _inc_all("confirmed")
         else:
             by_reason["kept"] += 1
-            _inc("kept")
+            _inc_all("kept")
 
     # 5. Apply batch updates
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -1450,7 +1475,8 @@ def reconcile(dry_run: bool = False) -> dict:
         "confirmed": len(confirmed_ids),
         "dismissed": len(dismissed_ids),
         "kept_pending": by_reason["kept"],
-        "skipped_manual": len(rows) - len(auto_rows),
+        "skipped_manual": skipped_manual,
+        "skipped_mixed_or_unknown": skipped_mixed_or_unknown,
         "by_reason": by_reason,
         "by_type": by_type,
     }

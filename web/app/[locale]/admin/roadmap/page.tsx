@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { type Locale } from "@/lib/types";
+import { isPublicationMetricIntentionalNull, type Locale } from "@/lib/types";
 import AdminTabNav from "@/components/AdminTabNav";
 
 export const dynamic = "force-dynamic";
@@ -120,15 +120,17 @@ async function computeFillRates(): Promise<
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
   const total = rows.length || 1;
 
-  const isBookPub = (r: Record<string, any>) =>
-    (r.event_form as string[] ?? []).includes("publication") ||
-    (r.category as string[] ?? []).includes("books_media") ||
-    r.source_name === "hanmoto";
+  const publicationRecord = (r: Record<string, unknown>) => {
+    const eventForm = Array.isArray(r.event_form)
+      ? r.event_form.filter((f: unknown): f is string => typeof f === "string")
+      : null;
+    return { event_form: eventForm };
+  };
 
   const filled = (k: string, predicate: (v: unknown) => boolean) =>
     rows.filter((r) => {
-      // For books/publications, location fields (name, address, prefectures) are optional/none and counted as filled.
-      if ((k === "location_name" || k === "location_address" || k === "location_prefectures") && isBookPub(r)) {
+      // Pure publications intentionally omit address and prefectures; location_name remains an actual fill metric.
+      if (isPublicationMetricIntentionalNull(publicationRecord(r), k)) {
         return true;
       }
       return predicate(r[k]);

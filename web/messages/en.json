@@ -178,6 +178,7 @@
     "publicationSection": "Publication Info",
     "organizer": "Organizer",
     "publisher": "Publisher",
+    "publisherWebsite": "Publisher website",
     "performer": "Performer / Speaker",
     "performers": "Performer / Speaker",
     "author": "Author",
@@ -1083,7 +1084,14 @@
     "p3Unknown": "Please refer to the organiser's page for ticket information.",
     "p4VenueWithAddress": "The venue is {venue} ({address}).",
     "p4VenueOnly": "The venue is {venue}.",
-    "p4Online": "This event is held online — please use the link above to join."
+    "p4Online": "This event is held online — please use the link above to join.",
+    "publicationP1WithPublisher": "{name} was published on {date} by {publisher}.",
+    "publicationP1": "{name} was published on {date}.",
+    "publicationP2": "This page records publication metadata. Source: {source}.",
+    "faqPublicationDateQuestion": "When was this publication released?",
+    "faqPublicationDateAnswer": "The publication date is {date}.",
+    "faqSourceQuestion": "What is the source of this record?",
+    "faqSourceAnswer": "This record is based on public information from {host}."
   },
   "about": {
     "heroTitle": "About Tokyo Taiwan Radar",

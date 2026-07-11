@@ -1,0 +1,605 @@
+---
+title: Pure Publication Policy Changes Log
+description: publication-policy 實作、驗證、資料 dry-run 與剩餘風險的持續交付紀錄
+---
+
+## Status
+
+* State: VALIDATED RELEASE CANDIDATE, independent Tester PASS
+* Worktree: `ttr-publication-policy-worktree`
+* Branch: `feat/publication-policy`
+* Base SHA: `2ef1a94721a8f685e5b3f2223bffe6628fc1125a`
+* Spec: active
+* Local feature commits: one atomic feature commit (this changeset; hash assigned by Git)
+* Final Tester verdict: PASS; the prior 11/11 governance exact-parity and tracking blockers are resolved
+
+## Safety Boundaries
+
+* Live DB writes: none
+* Backfill apply: not executed
+* QA live reconcile: not executed
+* DuckDuckGo/OpenAI publisher search: not executed
+* Git push: not executed
+* Merge: not executed
+* Deploy: not executed
+* Main worktree WIP: not modified, staged, stashed, or reset
+
+## Phase 0 Results
+
+### Worktree and environment
+
+* `main` and `origin/main` both resolved to `2ef1a947` before provisioning
+* Target path and branch were absent, so state matrix result was NEW
+* Worktree path/branch/HEAD matched the approved plan and was clean
+* Main repo `.git/info/exclude` now contains `ttr-publication-policy-worktree/`
+* Python uses the existing repo venv with Python 3.14.3 and Supabase 2.30.0
+* Web dependencies were installed from the pnpm store with `--offline --frozen-lockfile`
+* Next.js 16.2.10 local docs were read for Server/Client Components, dynamic params,
+  route handlers, metadata, JSON-LD, Playwright, and Vitest
+
+### Read-only baseline drift
+
+Baseline generated at `2026-07-11T10:58:44Z` by full pagination with exact-count
+cross-checks. Raw output is stored in ignored
+`tmp/publication-policy/baseline.json`.
+
+| Metric | Approved-plan baseline | Current read-only baseline | Drift |
+|--------|------------------------|----------------------------|-------|
+| Events containing `publication` | 326 | 333 | +7 |
+| Active containing `publication` | 307 | 314 | +7 |
+| Exact pure rows | 324 expected core rows | 332 | +8 before conflict exclusion |
+| Exact mixed rows | 2 | 1 | -1 because Eslite is now misclassified exact pure |
+| NDL rows | 269 | 275 | +6 |
+| Hanmoto rows | 55 | 56 | +1 |
+| NDL periodical family | 119 | 125 | +6 |
+| All field corrections | 6,859 | 6,877 | +18 |
+| Publication field corrections | 3,173 | 3,180 | +7 |
+| Relevant non-empty policy locks | 856 | 857 | +1 |
+| Events with relevant non-empty locks | 146 | 146 | 0 |
+| Empty sentinel policy locks | 0 | 0 | 0 |
+| Pending publication QA rows | 57 | 59 | +2 |
+| Pending prefecture false positives | 37 | 39 | +2 |
+| Pending missing-date rows | 20 | 20 | 0 |
+| Organizer rows | 204 | 204 | 0 |
+| Organizer homepages | 0 | 0 | 0 |
+
+Pure rows currently violating at least one intentional-null field: 231.
+Non-null counts are address 231, localized addresses 214 each, hours 210 in each
+locale, and prefectures 11.
+
+### Classification conflicts and exclusions
+
+* Classification conflict: one active Eslite row is exact pure but has physical-event
+  evidence. It is a release Talk at 誠品生活日本橋 with a Tokyo address, prefecture,
+  lottery fee, and a known article UUID URL. The current source identity still uses
+  `eslite_spectrum_9` and `/news/catalog/9`. It must be excluded from pure cleanup
+  and handled only by the gated Eslite migration action.
+* Exact mixed exclusion: one inactive user submission has forms
+  `lecture + publication + networking`. It remains excluded and untouched.
+* Expected Wave 1 pure cleanup cohort before later manifest conflict scans: 331
+  NDL/Hanmoto rows. This is a drift-derived expectation, not a hardcoded apply gate.
+
+### Concurrent-writer gate
+
+* Local publication backfill, annotator, auto-QA, and scraper processes: none
+* GitHub Actions in-progress runs: none
+* GitHub Actions queued runs: one stale `web-darkmode-smoke` run created on
+  2026-05-15; it is not a publication/data writer
+
+## Modified Files
+
+### Python
+
+Runtime implementation is complete in the worktree across the shared publication policy,
+writer, annotator, QA, four source adapters, manifest planner, and poster guard. The
+targeted Tester fix did not modify Python runtime code.
+
+### Web
+
+Web implementation is complete in the worktree across shared helpers, presentation,
+structured data, intake guidance, admin metrics, and deterministic fixtures. The
+targeted Tester fix did not modify TypeScript runtime code.
+
+### Tests
+
+Deterministic Python, Web, structured-data, i18n, build, and browser evidence is
+summarized in the Phase 6 release-candidate section below.
+
+### Governance and Docs
+
+* `docs/specs/active/publication-policy/proposal.md`
+* `docs/specs/active/publication-policy/tasks.md`
+* `docs/specs/active/publication-policy/changes-log.md`
+* `.github/instructions/scraper.instructions.md`
+* `.github/agents/engineer.agent.md`
+* `.github/agents/scraper-expert.agent.md`
+* `.github/skills/agents/engineer/SKILL.md`
+* `.github/skills/agents/scraper-expert/SKILL.md`
+* `.github/skills/agents/tester/SKILL.md`
+* `.github/skills/scraper-expert/SKILL.md`
+* `.github/skills/sources/eslite_spectrum/SKILL.md`
+* `.github/skills/sources/hanmoto/SKILL.md`
+* `.github/skills/sources/kawade_rss/SKILL.md`
+* `.github/skills/sources/ndl_opensearch/SKILL.md`
+
+## Phase Summary
+
+### Phase 0
+
+PASS. Worktree/spec provisioning, instruction loading, local dependency setup,
+read-only baseline, drift capture, and concurrent-writer gate are complete.
+
+### Phases 1 to 5
+
+PASS for worktree implementation and deterministic validation. Wave 1 live apply,
+Eslite live remap, and QA live reconcile remain intentionally unexecuted.
+
+### Phase 6
+
+PASS. Independent Tester re-verification found no blockers after the 11/11 governance
+exact-parity and release-tracking corrections. Live DB apply, Wave 2, push, merge,
+and deploy remain intentionally unexecuted.
+
+## Validation Log
+
+| Command or check | Result |
+|------------------|--------|
+| `git fetch origin` plus ahead/behind check | PASS, 0 ahead and 0 behind |
+| Worktree state matrix and registration check | PASS, exact path/branch/HEAD |
+| `git check-ignore` for worktree directory | PASS |
+| Initial worktree diagnostics | PASS, no errors |
+| Spec Markdown diagnostics | PASS, no errors |
+| `pnpm install --offline --frozen-lockfile` | PASS, 752 reused and 0 downloaded |
+| `git check-ignore` for baseline/manifest/snapshot | PASS, all matched `tmp/` |
+| Baseline Python diagnostics | PASS, no errors |
+| Full paginated Supabase read-only baseline | PASS, all exact counts matched fetched rows |
+| Local writer process scan | PASS, none found |
+| GitHub Actions in-progress scan | PASS, none found |
+
+## Phase 2A Source Slice (2026-07-11)
+
+### Scope
+
+* Only Phase 2A source slice was implemented in this pass.
+* No live DB writes, remap apply, push, merge, or deploy were performed.
+* Eslite UUID identity migration gate remains default-blocked and requires explicit offline override (`ESLITE_ALLOW_UUID_IDENTITY=1`) for verification runs.
+
+### Modified files in this slice
+
+* `scraper/sources/hanmoto.py`
+* `scraper/sources/eslite_spectrum.py`
+* `scraper/sources/ndl_opensearch.py` (existing fix retained; no rework)
+* `scraper/sources/kawade_rss.py` (existing fix retained; no rework)
+* `scraper/tests/test_publication_sources.py`
+* `scraper/tests/fixtures/publication/ndl_feed.xml`
+* `scraper/tests/fixtures/publication/ndl_periodical_feed.xml`
+* `scraper/tests/fixtures/publication/kawade_feed.rdf`
+* `scraper/tests/fixtures/publication/eslite_news.html`
+* `scraper/tests/fixtures/publication/eslite_article_talk.html`
+* `scraper/tests/fixtures/publication/hanmoto_detail.html`
+* `docs/specs/active/publication-policy/tasks.md` (Phase 2A checkboxes only)
+* `docs/specs/active/publication-policy/changes-log.md` (this appended section)
+
+### Command results
+
+| Command | Result |
+|---------|--------|
+| `/Users/flyingship/development/Tokyo Taiwan Radar/.venv/bin/python -m pytest scraper/tests/test_publication_sources.py scraper/tests/test_publication_rules.py -q` (first run) | `2 failed, 17 passed in 2.20s` |
+| `/Users/flyingship/development/Tokyo Taiwan Radar/.venv/bin/python -m pytest scraper/tests/test_publication_sources.py scraper/tests/test_publication_rules.py -q` (after source fix) | `19 passed in 1.29s` |
+
+### Implemented outcomes
+
+* Hanmoto now removes fake hours/price placeholders, preserves real book price metadata, keeps detail anchor href evidence in `raw_description`, and separates URL semantics (`official_url` content page only; `organizer_url` strict validator only).
+* Eslite now accepts only `/news/<UUID>` listing targets, uses article UUID for `source_id`, separates page publish date from event datetime, prioritizes physical talk/seminar/workshop signals, preserves venue/address/hours/price for physical records, and enforces an explicit migration gate.
+* NDL/Kawade previously passing Phase 2A behavior was preserved without rework; fixture tests now cover ordinary pure book, NDL periodical, Kawade physical talk, Eslite physical talk, Hanmoto real price/URL semantics, and source/category negative.
+
+## Remaining Risks and Tester Focus
+
+* Eslite is currently misclassified exact pure. The migration gate must prevent
+  duplicate old/new identities, and no live remap may occur in this delivery.
+* All 857 relevant FC locks are non-empty legacy values. Writer overwrite and
+  seven-field read-back tests are a release-critical surface.
+* Baseline drift added seven source rows and six NDL periodicals. Manifest tests
+  must derive current counts and must not reuse planning numbers as apply criteria.
+* No organizer homepage currently exists in the registry. Wave 1 must treat
+  unresolved homepage as valid and must not invoke Wave 2 providers.
+* Browser and structured-data fixtures must prove a physical books-media Talk is
+  not hidden merely because of category, source, or title wording.
+
+## Phase 2B + 2C Core Slice (2026-07-11)
+
+### Scope
+
+* 僅完成 publication-policy 的 Phase 2B + 2C core slice，並在既有 worktree WIP 上增量修補。
+* 無 DB write、無 network data write、無 push、無 merge、無 deploy。
+* 僅調整 writer/annotator/publication helper、對應 publication 測試與 spec 追蹤文件。
+
+### Modified files in this slice
+
+* `scraper/database.py`
+* `scraper/annotator.py`
+* `scraper/publication_rules.py`
+* `scraper/tests/test_database_publication.py`
+* `scraper/tests/test_annotator_publication.py`
+* `docs/specs/active/publication-policy/tasks.md`
+* `docs/specs/active/publication-policy/changes-log.md`
+
+### Implemented outcomes
+
+* Writer contract:
+  * `publication` 已納入 writer valid forms。
+  * `_event_to_row()` 在任何 entity enrichment 前即 enforce exact-pure 七欄 NULL policy。
+  * writer 明確支援 `location_prefectures` 與 `location_url`。
+  * exact pure rows 跳過 venue lookup / venue FK / venue-hours propagation。
+  * organizer registry homepage 回填改為 validated-only（透過 `publication_rules.validated_registry_homepage()`）。
+  * force-rescrape 在 FC 套用後再次 enforce pure policy；舊 non-empty policy FC 會 raise observable conflict。
+  * upsert 取得 UUID 後，以 `ignore_duplicates=False` 覆寫七個 empty-sentinel FC。
+  * read-back 同時驗證 events 七欄 NULL 與 FC 七欄 empty sentinel；任一失敗直接 raise，非靜默成功。
+  * `_auto_lock_location()` 以 normalized row / pure flag 跳過 pure rows。
+* Annotator contract:
+  * 不以 source whitelist 作 pure domain truth；以 exact `event_form == ["publication"]` 為準。
+  * pure publication 流程移除 address/hours/price 假占位寫入。
+  * publisher 僅採 scraper/DB/registry evidence；registry homepage 僅在 validation 通過時回填。
+  * normal / fix-reviewed / re-annotate-all 共用最後一層 pure final normalization。
+  * 舊 non-empty policy FC 會產生 conflict（raise）而非恢復 placeholder。
+  * 新增 pre-write payload guard；pure postcondition violation 會進入 error path，不會以成功完成收斂。
+
+### Command results
+
+| Command | Result |
+|---------|--------|
+| `/Users/flyingship/development/Tokyo Taiwan Radar/.venv/bin/python -m pytest scraper/tests/test_database_publication.py scraper/tests/test_annotator_publication.py scraper/tests/test_publication_rules.py -q` | `31 passed, 11 warnings in 2.08s` |
+| `/Users/flyingship/development/Tokyo Taiwan Radar/.venv/bin/python -m pytest scraper/tests/test_annotator_*.py -q` | `32 passed in 1.95s` |
+
+### Notes
+
+* warning 僅為既有 `datetime.utcnow()` deprecation，非本 slice 新引入。
+* 本次未修改 source/web/QA/admin/governance 以外 contract 面，並保留所有既有 WIP 檔案狀態。
+
+## Phase 3 Tracking Close (2026-07-11)
+
+### Scope
+
+* 只封閉既有 Phase 3 實作的驗證與 tracking，不擴大到 Phase 4/5。
+* 無 DB write、無 network write、無 push、無 commit、無 deploy。
+* State 維持 IN PROGRESS（Phase 4/5 未完成）。
+
+### Phase 3 Plan Cross-check
+
+* QA venue/hours/prefecture/price 只略過 exact pure：已落地（`scraper/auto_qa.py` + `scraper/tests/test_auto_qa_publication.py`）。
+* Pure missing publisher 維持 pending：已落地（`_check_missing_organizer` 不再 pure-skip + test 覆蓋）。
+* Reconcile 全 report types 與 compound/manual 保護：已落地（`_all_auto_report_types`、`_resolve_report_disposition` + tests）。
+* source-based cleanup live apply path 退役：已落地（`_oneoff_cleanup_publication_pending_qa.py` dry-run only）。
+* Admin quality/roadmap 改用 pure helper 與 `event_form` prerequisite：已落地。
+* 四 intake routes 採 shared constant：已落地（`PURE_PUBLICATION_EVENT_FORM_GUIDANCE`）。
+* 四 route parity tests：已落地（`web/tests/intake-guidance-parity.test.ts`）。
+* scraper instruction、Engineer/Scraper Expert docs：已落地（`.github/instructions/` + `.github/agents/` + `.github/skills/agents/`）。
+* Tester 與四個 source skills：已落地（`.github/skills/agents/tester/` + `.github/skills/sources/*/`）。
+* 相應 history lessons：已落地（agents/source skills history 檔已更新）。
+
+### Command Results
+
+| Command | Result |
+|---------|--------|
+| `/Users/flyingship/development/Tokyo Taiwan Radar/.venv/bin/python -m pytest scraper/tests/test_auto_qa_publication.py scraper/tests/test_publication_pending_cleanup.py -q` | `13 passed in 0.04s` |
+| `cd web && pnpm exec tsx --test tests/intake-guidance-parity.test.ts tests/publication-policy.test.ts` | `8 passed` |
+| `/Users/flyingship/development/Tokyo Taiwan Radar/.venv/bin/python -m pytest scraper/tests/test_auto_qa_publication.py -k 'compound or all_auto_report_types or single_auto_report_type or resolve_report_disposition' -q` | `6 passed, 6 deselected in 0.10s` |
+
+### Static and Unit Confirmation
+
+* 四 intake routes shared constant：4 條 route 都 `import { PURE_PUBLICATION_EVENT_FORM_GUIDANCE } from "@/lib/intakeGuidance"`，且 prompt 內容都注入同一 constant。
+* admin select event_form：
+  * `web/app/[locale]/admin/quality/page.tsx` 的 missing-address query 已 `select(..., event_form)` 並用 `isPurePublicationRecord` 過濾 exact pure。
+  * `web/app/[locale]/admin/roadmap/page.tsx` 的 `cols` 已含 `event_form`，且 fill-rate 判定走 `isPurePublicationRecord`。
+* compound reconcile：`scraper/auto_qa.py` 已採 `_all_auto_report_types` + `_resolve_report_disposition`，不再依賴 `report_types[0]`。
+
+### Governance Modified Files
+
+* `.github/agents/engineer.agent.md`
+* `.github/agents/scraper-expert.agent.md`
+* `.github/instructions/scraper.instructions.md`
+* `.github/skills/agents/engineer/SKILL.md`
+* `.github/skills/agents/engineer/history.md`
+* `.github/skills/agents/scraper-expert/SKILL.md`
+* `.github/skills/agents/scraper-expert/history.md`
+
+## Admin Metric Lint and Contract Fix (2026-07-11)
+
+### Scope
+
+* `admin/quality` missing-address rows now use a local concrete row type with
+  typed `event_form`, `location_name`, and `location_prefectures`; the
+  `any[]` cast was removed.
+* `admin/roadmap` now uses `Record<string, unknown>` and narrows
+  `event_form` to strings before exact-pure evaluation.
+* Pure publication fill-rate exemptions are limited to
+  `location_address` and `location_prefectures`. `location_name` is measured
+  from its actual value.
+* `web/tests/publication-policy.test.ts` asserts that `location_name` cannot
+  re-enter the intentional-null metric allowlist.
+* No DB write, push, commit, merge, or deploy was performed.
+
+### Command Results
+
+| Command | Result |
+|---------|--------|
+| `pnpm exec tsx --test tests/publication-policy.test.ts tests/publication-rendering-structured-data.test.ts tests/intake-guidance-parity.test.ts` | PASS, 16 tests passed, 0 failed |
+| `pnpm exec tsc --noEmit` | PASS, exit 0 |
+| Full publication touched-file `pnpm exec eslint` command | PASS, exit 0; jsx-ast-utils emitted its upstream `TSNonNullExpression` resolver notice with no lint warning or error |
+* `.github/skills/agents/tester/SKILL.md`
+* `.github/skills/agents/tester/history.md`
+* `.github/skills/sources/eslite_spectrum/SKILL.md`
+* `.github/skills/sources/eslite_spectrum/history.md`
+* `.github/skills/sources/hanmoto/SKILL.md`
+* `.github/skills/sources/hanmoto/history.md`
+* `.github/skills/sources/kawade_rss/SKILL.md`
+* `.github/skills/sources/kawade_rss/history.md`
+* `.github/skills/sources/ndl_opensearch/SKILL.md`
+* `.github/skills/sources/ndl_opensearch/history.md`
+
+### Slice checkpoint status
+
+* At this slice checkpoint, Phase 4 public presentation and structured data were still open; later sections record their completed validation.
+* At this slice checkpoint, Phase 5 immutable manifest and Wave 1 dry-run were still open; later sections record their completed validation.
+
+## Phase 5 Immutable Manifest and Wave 2 Boundary (2026-07-11)
+
+### Scope
+
+* 重構既有 `scraper/_oneoff_backfill_publication_metadata.py`，沒有新增第二支 apply script。
+* Pure planning、immutable JSON、apply drift gate、rollback snapshot 與 read-back contract 都收斂在既有 script，unit tests 不需連線 DB。
+* 本輪只有全量唯讀 Wave 1 dry-run。未執行 apply、Eslite live remap、QA live reconcile、network search、commit、push、merge或 deploy。
+* `tmp/publication-policy/*.json` 由主 repo `.git/info/exclude` 的 `tmp/` 規則忽略，manifest 寫入前與寫入後都已用 `git check-ignore` 驗證。
+
+### Modified files in this slice
+
+* `scraper/_oneoff_backfill_publication_metadata.py`
+* `scraper/tests/test_publication_manifest.py`
+* `docs/specs/active/publication-policy/tasks.md`
+* `docs/specs/active/publication-policy/changes-log.md`
+
+### Implemented contract
+
+* 預設 CLI 使用 mutation-blocking Supabase proxy，拒絕 `insert`、`update`、`upsert`、`delete` 與 `rpc`。只有同時提供 `--apply --manifest PATH` 才能進入 future apply path。
+* 四張表都先以 `count="exact", head=True` 取 exact count，再以 500 rows 分頁全量讀取。每張表的 fetched count 必須等於 exact count。
+* Candidate universe 只取正規化 `event_form` 含 `publication` 的 rows。只有 shared `is_pure_publication_record()` exact helper 決定 pure cleanup；source、category與 title prefix只寫入 evidence。
+* Manifest 包含 schema/version、generated timestamp、四表 hash/read fingerprint、candidate UUID/source identity/updated timestamp/full before hash、classification evidence、完整 event before/after、FC before/after、report planned disposition與 organizer before/after。
+* Pure cleanup 對七欄逐欄計畫 `qa_auto_fix.unlock_and_write(..., mode="lock_empty")`。Apply contract要求每欄與每 row read-back。
+* Apply 只讀 manifest 中既定 changes，不重新計算。任何 full-table fingerprint drift 或 unresolved non-Eslite classification/location conflict 都在 snapshot與 DB write前停止。
+* Apply 前的 immutable rollback snapshot包含 events、field corrections、event reports與 organizers四張完整表，並記錄 restore order、conflict keys與逐 row read-back要求。
+* Eslite Talk 是獨立 migration action，記錄 old/new source ID、article URL、physical form與需保留的 date/venue/address/prefecture/location URL/venue ID/price。此次沒有 live remap。
+* NDL periodical title repair只在 R000000004來源 evidence成立時規劃；任何既有 title FC都保持不動。
+* `price_info` 僅在三個明確 fake placeholder allowlist值完全符合時清除；`—`及任何真實價格都保留。
+* Wave 2 schema明列 DuckDuckGo HTML與 OpenAI search-preview provider evidence、cost unit與獨立 manifest boundary。本輪兩者皆 disabled、network disallowed、max cost 0。
+
+### Dry-run command and exact result
+
+首次執行因 worktree沒有 `.env` 而在任何 network/DB operation前停止。後續以 `PUBLICATION_MANIFEST_ENV_FILE` 指向主工作樹既有 ignored `scraper/.env`，沒有複製或修改 secret：
+
+```bash
+cd ttr-publication-policy-worktree/scraper
+PUBLICATION_MANIFEST_MODE=read-only \
+PUBLICATION_MANIFEST_ENV_FILE="/Users/flyingship/development/Tokyo Taiwan Radar/scraper/.env" \
+  "/Users/flyingship/development/Tokyo Taiwan Radar/.venv/bin/python" \
+  _oneoff_backfill_publication_metadata.py \
+  --manifest-output ../tmp/publication-policy/wave1-manifest-20260711-phase5-v2.json
+```
+
+| Metric | Exact result |
+|--------|--------------|
+| Events exact/fetched | 2,101 / 2,101 |
+| Field corrections exact/fetched | 6,877 / 6,877 |
+| Event reports exact/fetched | 2,717 / 2,717 |
+| Organizers exact/fetched | 204 / 204 |
+| Manifest candidates | 333 |
+| Included pure cleanup | 323 |
+| Eslite migration actions | 1 |
+| Mixed exclusions | 1 |
+| Classification/location conflicts | 9, including Eslite |
+| Non-Eslite location conflict blockers | 8 |
+| Candidates with legacy non-empty policy FC | 145 |
+| NDL periodical candidates | 125 |
+| Candidates with planned periodical title repair | 46 |
+| Explicit fake prices planned for clear | 146 |
+| Real/non-allowlisted prices preserved | 65 |
+| Resolved existing/registry homepages | 1 |
+| Unresolved publisher homepages, valid Wave 1 outcome | 322 |
+| Planned NULL count per policy field | 323 each |
+| Planned empty sentinel count per policy field | 323 each |
+| Planned report dispositions | confirm 39, keep 20, unchanged 1,063 |
+
+### Conflicts and exclusions
+
+* Eslite physical Talk `50c83c11-ed64-481a-bb5a-caa3e9981943` has `location_name=誠品生活日本橋`。Manifest excludes it from pure cleanup and preserves venue/address/prefecture/price while planning the separate UUID identity migration。
+* Inactive mixed user submission `c56fbc6a-3d66-48f2-ae36-0a053126925c` has forms `lecture, publication, networking`。Manifest excludes it unchanged。
+* Eight additional exact-pure rows contain `location_name=大阪城ホール` and remain excluded as classification/location conflicts: `0ca66140-4eb1-45a8-b3c4-9b61740705e4`, `3995e531-4ebe-403a-ac4d-f1bc7119c5c9`, `3dd4c8c8-d433-4221-961a-3b3c9b58d05e`, `407b750a-5f6c-427c-8206-542a278deb04`, `66aa80d7-7db2-41d4-882c-5ab759be4419`, `77d0177e-1709-4b09-9402-80c32a71e2b4`, `c1be1d3b-3708-42ba-9fe7-1c081dfe6d35`, `c865cbda-b9d3-4bc9-b14c-289771ec1260`。
+* Future apply is intentionally blocked at zero writes while these eight non-Eslite conflicts remain in the manifest。They require human classification before a fresh manifest can be approved。
+
+### Validation results
+
+| Command or check | Result |
+|------------------|--------|
+| Focused manifest tests plus publication rules/writer/annotator/QA/cleanup regressions | PASS, 59 tests passed, 11 existing `datetime.utcnow()` warnings |
+| Manifest immutable hash reload | PASS |
+| Exact count equals fetched count for all four tables | PASS |
+| Seven fields planned NULL and seven FC sentinels planned empty for every included pure row | PASS, 323 per field |
+| Eslite preservation and inactive mixed exclusion assertions | PASS |
+| Secret-like regex and loaded environment-value scan | PASS, no secret material |
+| Wave 2 provider call count | 0 |
+| Apply execution | NOT RUN |
+| QA live reconcile | NOT RUN |
+
+### Phase 5 v2 checkpoint blockers
+
+* Eight `大阪城ホール` location conflicts required correction at this checkpoint; the poster-placeholder targeted fix below resolves them and regenerates the manifest with zero unresolved non-Eslite location conflicts。
+* The Eslite migration action remains planned only。Live remap requires a later explicit approval and a fresh no-drift manifest。
+* Wave 2 homepage enrichment remains a separate future task with a separate manifest、cost approval、evidence review與 Tester gate。
+
+## Poster Placeholder Pollution Targeted Fix (2026-07-11)
+
+### Scope
+
+* 在既有 publication worktree 原地接續，針對 poster-placeholder pollution 做 root-cause targeted fix。
+* 僅修改允許範圍內檔案：`scraper/enrich_poster.py`、publication manifest script/tests、spec tasks/changes-log、architect skill/history。
+* 全程未執行 DB write/apply、未執行 network search、未 push、未 commit、未 deploy。
+
+### Research evidence captured for the 8-row signature
+
+* 8 筆全為 exact pure publication。
+* source 僅 `hanmoto` / `ndl_opensearch`，且 `image_url` 都是 Hanmoto canonical placeholder（`noimage.jpg` 變體）。
+* 同時具備污染 signature：`location_name='大阪城ホール'` + `start_date='2023-10-14T00:00:00+00:00'`。
+* `field_corrections_before` 同批證據完整：`location_name/start_date` 皆由 null → 污染值；其中 3 筆另有 `organizer` 污染為 `コミックマーケット準備会`。
+* 日期修復 evidence：7 筆使用未污染 `end_date`，1 筆（`3995e531`）使用同 ISBN `hanmoto_9784816379222` 交叉驗證。
+
+### Implementation
+
+* `scraper/enrich_poster.py`
+  * 候選 select 補 `event_form`；前置 guard 使用 exact pure helper + canonical placeholder helper。
+  * 新增 canonical placeholder helper，拒絕 Hanmoto `noimage/no-cover` 變體（scheme/query/fragment 正規化），不 blanket 拒絕 Hanmoto 真實封面。
+  * Vision 回傳後，任何 `events.update()` / FC write 前 re-read row 再做 pure + placeholder guard，防 TOCTOU 與 helper 直呼繞過。
+* `scraper/_oneoff_backfill_publication_metadata.py`
+  * schema version 升級至 `2`。
+  * 新增窄化 `poster_placeholder_pollution_repair` pre-action：只命中 8 筆 audited UUID/signature。
+  * pre-action 先 lock_clean 修復 `location_name/start_date`，3 筆另修 `organizer`；再進既有 pure cleanup 七欄 lock-empty。
+  * signature/evidence 不完整時改列 conflict（不進 pre-action、不進 pure cleanup）。
+  * summary 增加 `poster_placeholder_pollution_repair_actions` 與 `unresolved_non_eslite_location_conflicts`。
+  * apply contract 增加 `candidate_ordering`（pre-action → pure_cleanup → readback）。
+* `scraper/tests/test_enrich_poster_publication.py`
+  * 新增 pure/noimage 不呼叫 Vision、不寫 event/FC。
+  * 新增 TOCTOU re-read guard 測試。
+  * 新增 physical Hanmoto 真封面可 enrich、ordinary nonpublication 不受影響。
+* `scraper/tests/test_publication_manifest.py`
+  * 新增 exact 8 signature 命中測試。
+  * 新增 near-miss 不命中測試。
+  * 新增 FC before/after、date/publisher repair 測試。
+  * 新增 future apply ordering（pre-action → pure cleanup → readback）測試。
+* `docs/specs/active/publication-policy/tasks.md`
+  * 新增並勾選 Phase 2D、Phase 5 items 10-13 對應任務與驗證。
+* `.github/skills/agents/architect/SKILL.md` / `.github/skills/agents/architect/history.md`
+  * 新增 planning-mistake lesson：domain surface audit 漏 `enrich_poster.py`，補上 derived enrichment candidate audit + placeholder image guard 一般化規則。
+
+### Focused regression tests
+
+```bash
+cd ttr-publication-policy-worktree/scraper
+"/Users/flyingship/development/Tokyo Taiwan Radar/.venv/bin/python" -m pytest \
+  tests/test_enrich_poster_publication.py \
+  tests/test_publication_manifest.py \
+  tests/test_publication_rules.py \
+  tests/test_database_publication.py \
+  tests/test_annotator_publication.py \
+  tests/test_auto_qa_publication.py -q
+```
+
+Result: PASS, `67 passed`, `11 warnings`（既有 `datetime.utcnow()` deprecation）。
+
+### Read-only manifest regeneration
+
+```bash
+cd ttr-publication-policy-worktree/scraper
+PUBLICATION_MANIFEST_MODE=read-only \
+PUBLICATION_MANIFEST_ENV_FILE="/Users/flyingship/development/Tokyo Taiwan Radar/scraper/.env" \
+  "/Users/flyingship/development/Tokyo Taiwan Radar/.venv/bin/python" \
+  _oneoff_backfill_publication_metadata.py \
+  --manifest-output ../tmp/publication-policy/wave1-manifest-20260711-phase5-v3-poster-fix.json
+```
+
+Summary:
+
+| Metric | Result |
+|--------|--------|
+| Manifest candidates | 333 |
+| Included pure cleanup | 331 |
+| Poster repair pre-actions | 8 |
+| Non-Eslite unresolved location conflicts | 0 |
+| Eslite migration actions | 1 |
+| Mixed exclusions | 1 |
+
+Evidence sanity check:
+
+* 8 筆都顯示 `pre_actions[0].action_type = poster_placeholder_pollution_repair`。
+* 8 筆都顯示 `pre_actions[0].ordering = before_pure_cleanup`。
+* 8 筆 `poster_pollution_repair.evidence.complete = true`。
+
+Safety confirmation:
+
+* Apply execution: NOT RUN
+* DB writes: NOT RUN
+* QA live reconcile: NOT RUN
+* DuckDuckGo/OpenAI search providers: NOT RUN
+
+## Phase 6 Release Candidate Verification (2026-07-11)
+
+### Formal Tester evidence
+
+| Gate | Result |
+|------|--------|
+| Python deterministic publication suite | PASS, 75 tests |
+| Web publication and structured-data suites | PASS, 14 + 2 tests |
+| TypeScript `tsc --noEmit` | PASS |
+| i18n parity/removal/category guard | PASS, 1,161 checks |
+| Focused touched-file ESLint | PASS |
+| Next.js production build | PASS, 250/250 |
+| Browser pure Book fixture | PASS, end date/address/hours/price hidden |
+| Browser ordinary Event fixture | PASS, end date/address/hours/price retained |
+| Full-repo lint | 247 pre-existing baseline findings; no feature regression |
+
+### Manifest safety evidence
+
+* Manifest: `tmp/publication-policy/wave1-manifest-20260711-phase5-v3-poster-fix.json`
+* SHA-256: `e6e96f6d3d0126c77ce156561d1108d3d1a633743e0d309a89d19d872dad552c`
+* Candidates: 333
+* Action distribution: 331 `pure_cleanup`, 1 `eslite_physical_identity_migration`, 1 `excluded`
+* Poster-placeholder repair pre-actions: 8
+* Unresolved non-Eslite location conflicts: 0
+* Apply contract retains full-batch fingerprint drift gate, rollback snapshot before any write, deterministic candidate ordering, and row read-back
+
+### Targeted governance correction
+
+* Active governance now uses the exact `PUBLICATION_NULL_FIELDS` contract:
+  `location_address`, `location_address_zh`, `location_address_en`,
+  `business_hours`, `business_hours_zh`, `business_hours_en`, and
+  `location_prefectures`.
+* Real DB price metadata (`is_paid`, `price_info`, `price_amount`) remains preserved.
+  Pure-publication price is hidden only in UI and JSON-LD; price fields are not part
+  of the NULL/clear policy.
+* `location_name` and `location_url` are not part of the seven intentional-null fields.
+
+### Targeted fix validation
+
+| Check | Result |
+|-------|--------|
+| Direct import of `PUBLICATION_NULL_FIELDS` against active governance | PASS, 11/11 exact ordered matches |
+| `.github` active contradiction and hard-coded old-pattern scans | PASS, 0 hits |
+| Active governance DB-price preservation statements | PASS, 11/11 files |
+| YAML frontmatter required keys | PASS, 14/14 files |
+| Non-code relative Markdown links | PASS, 1/1 link |
+| `git diff --check` | PASS |
+| Worktree status guard | PASS, `MM=0`, `staged=0` |
+
+### Release boundary
+
+* Live source dry-runs: NOT EXECUTED in this targeted fix; offline source fixtures passed
+* DB-backed Auto-QA reconcile dry-run: NOT EXECUTED; deterministic reconcile tests passed
+* Live DB apply, Eslite live remap, and QA live reconcile: NOT EXECUTED
+* Wave 2 DuckDuckGo/OpenAI publisher search: DEFERRED / NOT EXECUTED
+* One atomic local feature commit: prepared by this changeset; hash assigned by Git at commit time
+* Push, merge, and deploy: NOT EXECUTED
+* Final Tester verdict: PASS; no blocking findings
+
+### Final Test Report
+
+| Gate | Final result |
+|------|--------------|
+| Python publication suite | PASS, 75 tests |
+| Web deterministic suites | PASS, 14 + 2 tests |
+| TypeScript and i18n | PASS, `tsc --noEmit` and 1,161 parity checks |
+| Focused ESLint | PASS, zero feature findings |
+| Production build | PASS, 250/250 pages |
+| Browser fixtures | PASS, pure Book and ordinary Event behavior |
+| Manifest safety | PASS, SHA-256 verified and 333 actions distributed 331/1/1 |
+| Governance exact parity | PASS, 11/11 files |
+| Full-repo lint | 247 pre-existing baseline findings; no feature regression |
+
+Live DB apply, Eslite live remap, QA live reconcile, Wave 2 provider calls,
+push, merge, and deploy remain outside this local delivery and were not executed.

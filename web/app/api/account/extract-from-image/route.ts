@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
+import { PURE_PUBLICATION_EVENT_FORM_GUIDANCE } from "@/lib/intakeGuidance";
 import {
   sanitizeCategoryValues,
   sanitizeEventFormValues,
@@ -83,6 +84,8 @@ Extract all visible information and return a JSON object with these fields (omit
 - has_english_support: true/false
 - event_form: array using only these values: ${EVENT_FORMS.join(" | ")}
 - category: array using only these values: ${CATEGORIES.join(" | ")}
+
+${PURE_PUBLICATION_EVENT_FORM_GUIDANCE}
 
 Title rules:
 - Read the poster top to bottom and capture the COMPLETE title (main title + sub-title + series name).

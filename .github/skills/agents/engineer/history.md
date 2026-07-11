@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-07-11 - publication governance seven-field contract correction
+
+**Error**: Active governance replaced `PUBLICATION_NULL_FIELDS` with a semantic shorthand that incorrectly included `location_name`, `location_url`, `is_paid`, and `price_info`, while omitting localized address and hours fields. Tracking also remained open after deterministic release gates passed.
+
+**Fix**: Synced every active publication governance surface to the exact authoritative seven-field tuple, preserved real DB prices while hiding them only in UI and JSON-LD, and closed release-candidate tracking without claiming Tester PASS or any live operation.
+
+**Lesson**: Data-clearing governance must be validated by importing the authoritative field tuple. Persistence policy and presentation policy are separate contracts and must not share shorthand labels such as venue/address/hours/price.
+
+## 2026-07-11 - publication phase 3 invariant sync（QA/admin/intake/governance）
+
+**Error**: publication policy drifted across QA/admin/intake docs and prompts. Some surfaces still treated `books_media` or `hanmoto` as blanket pure, and intake prompts lacked a single shared rule for excluding `publication` from physical launch/talk/signing rows.
+
+**Fix**:
+1. Locked QA/admin policy to exact pure invariant (`event_form == ['publication']`) and removed category/source blanket skips.
+2. Introduced one shared intake guidance constant reused by all four annotate/extract routes.
+3. Updated instruction/agent/skill/source-skill docs to the same contract: seven intentional-null + sentinel surfaces, publisher required, mixed negative kept physical, writer whitelist included.
+
+**Lesson**: publication policy has nine sync surfaces (QA detect/check/reconcile, admin metrics, intake prompts, scraper instruction, agent skills, source skills, writer whitelist, tests, spec logs). Changing only one surface recreates false positives or silent policy drift.
+
 ## 2026-07-10 — Spec ⟺ Worktree 工作流：2 個 docs commit 在 18 筆無關 WIP 中 scope-isolated push；docs-only 不跑 web build
 
 **Context**: 實作 Plan A（git policy 對齊 trunk-based，`47c66bb`，1 檔）+ v2（spec⟺worktree 耦合，`8b88bba`，8 檔）。工作樹同時有約 18 筆**與本次無關**的並行 WIP（hanshin scraper、health_check、annotator、web i18n、admin API 等別 session/任務的未完成產物）。

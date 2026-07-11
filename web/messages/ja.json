@@ -178,6 +178,7 @@
     "publicationSection": "出版情報",
     "organizer": "主催",
     "publisher": "出版社",
+    "publisherWebsite": "出版社公式サイト",
     "performer": "出演者・発表者",
     "performers": "出演者・発表者",
     "author": "著者",
@@ -1083,7 +1084,14 @@
     "p3Unknown": "料金情報については主催者ページをご確認ください。",
     "p4VenueWithAddress": "会場は {venue}（{address}）です。",
     "p4VenueOnly": "会場は {venue} です。",
-    "p4Online": "本イベントはオンライン開催です。上記リンクからご参加ください。"
+    "p4Online": "本イベントはオンライン開催です。上記リンクからご参加ください。",
+    "publicationP1WithPublisher": "{name} は {date} に {publisher} から刊行されました。",
+    "publicationP1": "{name} は {date} に刊行されました。",
+    "publicationP2": "本ページは出版メタデータの記録です。出典: {source}。",
+    "faqPublicationDateQuestion": "この出版物の刊行日はいつですか？",
+    "faqPublicationDateAnswer": "刊行日は {date} です。",
+    "faqSourceQuestion": "この情報の出典は何ですか？",
+    "faqSourceAnswer": "この情報は {host} の公開情報に基づいています。"
   },
   "about": {
     "heroTitle": "東京台湾レーダーについて",

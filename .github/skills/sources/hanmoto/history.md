@@ -1,5 +1,11 @@
 # hanmoto scraper 修訂歷史
 
+## 2026-07-11 — publication phase 3 invariant sync
+
+- hanmoto publication 規則改為 exact `event_form=['publication']` 判定，避免 source/category blanket skip。
+- 純出版資料模型改為 metadata-only（七欄 intentional null + sentinel），不再依賴 locale placeholder 語意。
+- publisher required 與 mixed negative（`['publication','lecture']` 仍 physical）一併入規範。
+
 ## 2026-06-07 — BeautifulSoup 輕量爬取、書籍細節解析功能升級與書籍封面大圖抓取
 
 - **BeautifulSoup+requests 重構**：詳細頁 fetch 原本對 Playwright `new_page()` 負載極重。改用 requests 及 BeautifulSoup 直接抓取網頁原始碼，速度提升 10 倍以上且執行極為穩定。

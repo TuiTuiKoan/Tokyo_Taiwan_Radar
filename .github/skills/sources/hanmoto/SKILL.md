@@ -60,9 +60,12 @@ hanmoto は server-side で台湾検索済みのため、0 件は異常（scrape
 
 ## 特殊規則
 
-- **出版事件欄位模板**: `location_name` / `location_address` / `business_hours` は占位文字を locale に合わせて維持する。日本語 UI では `新刊のご購入は各販売チャネルでお願いします` を使い、`location_name_zh` / `location_name_en`、`location_address_zh` / `location_address_en`、`business_hours_zh` / `business_hours_en` を必ず同時に埋める。`performer` は作者、`organizer` は出版社名、`organizer_url` は出版社公式サイト、`official_url` は書籍の公式詳細ページ、`event_form = ["publication"]`。
+- **純出版 invariant（exact-only）**: pure 判定は正規化後 `event_form == ["publication"]` のみ。
+  intentional-null 七欄は `location_address` / `location_address_zh` / `location_address_en` / `business_hours` / `business_hours_zh` / `business_hours_en` / `location_prefectures` とし、empty sentinel で保護する。
+  真實 DB 價格（`is_paid` / `price_info` / `price_amount`）は保持し、pure publication の UI / JSON-LD だけで隠す。価格欄、`location_name`、`location_url` は七欄の NULL / clear policy に含めない。`organizer`（publisher）は必須。
 - **date fallback**: hanmoto の日付抽出は `発売日 > 登録日` の順でフォールバックする。
 - **sync 規則**: 上記出版模板は `scraper/annotator.py::_PUBLICATION_SOURCES` の白名單と双方向同期する。hanmoto を出版來源として扱う規則は source SKILL と annotator の両方を同時に更新する。
+- **mixed negative**: `['publication', 'lecture']` など physical form を含む rows は pure 扱いにしない。
 - **null-byte strip 必須**
 - **`tzinfo=timezone.utc`**: `datetime(y, m, d, tzinfo=timezone.utc)` を使用
 - `name_ja_locked = True`

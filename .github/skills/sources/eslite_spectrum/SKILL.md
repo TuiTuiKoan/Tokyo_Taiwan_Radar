@@ -44,9 +44,11 @@ Class: `EsliteSpectrumScraper` → key auto-derived as `eslite_spectrum` (matche
 
 ## Publication Rule Sync
 
-- Publication-style events keep `location_name` / `location_address` / `business_hours` as locale-matched placeholder text and preserve the display-only behavior across `*_zh` and `*_en`. For Japanese UI, use `新刊のご購入は各販売チャネルでお願いします` instead of the Chinese fallback string.
-- The address shown in the UI must not become a Google Maps link when the event is a publication entry.
-- For publication entries, `performer` = author, `organizer_url` = publisher homepage, `official_url` = book official/detail page.
+- Pure publication classification is exact-only: normalized `event_form` must equal `['publication']`.
+- Pure publication rows keep seven intentional-null fields with sentinel locks: `location_address`, `location_address_zh`, `location_address_en`, `business_hours`, `business_hours_zh`, `business_hours_en`, `location_prefectures`.
+- Preserve real DB prices (`is_paid`, `price_info`, `price_amount`); hide pure-publication prices only in UI and JSON-LD. Price fields, `location_name`, and `location_url` are outside the seven-field NULL/clear policy.
+- Publisher (`organizer`) stays required even for pure publication rows.
+- Mixed physical rows (book launch/talk/signing/lecture/workshop) must not include `publication` in `event_form`.
 
 ## Taiwan Filter Rules
 

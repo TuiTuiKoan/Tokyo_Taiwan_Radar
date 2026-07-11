@@ -15,9 +15,10 @@ import logging
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+from publication_rules import validate_publisher_homepage
 
 from .base import BaseScraper, Event, dedup_events, is_jpro_placeholder_date
 
@@ -28,8 +29,10 @@ BASE_URL = "https://www.hanmoto.com/bd/search/top?keyword=%E5%8F%B0%E6%B9%BE&sda
 _MAX_PAGES = 3
 _PAGE_SIZE = 20
 _CUTOFF_DAYS = 365
-_PLACEHOLDER_TEXT = "新書購買請洽各通路"
-_PLACEHOLDER_TEXT_EN = "Please check each sales channel to purchase this new book."
+_OFFICIAL_LINK_HINTS = ("書籍", "詳細", "公式", "商品", "特設", "紹介", "試し読み")
+_ORGANIZER_LINK_HINTS = ("出版社", "出版元", "発行元")
+_DENIED_CONTENT_PATH_FRAGMENTS = ("/search", "/cart", "/login", "/account")
+_DENIED_CONTENT_SUFFIXES = (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx")
 
 TAIWAN_KEYWORDS = [
     "台湾", "臺灣", "Taiwan", "台北", "台南", "台中", "高雄",
@@ -107,6 +110,79 @@ def _extract_detail_link(text: str, labels: tuple[str, ...], base_url: str) -> O
     return None
 
 
+def _is_external_book_content_url(url: str) -> bool:
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").lower()
+    path = (parsed.path or "").lower()
+    if not host or host.endswith("hanmoto.com"):
+        return False
+    if path in {"", "/"}:
+        return False
+    if path.endswith(_DENIED_CONTENT_SUFFIXES):
+        return False
+    if any(fragment in path for fragment in _DENIED_CONTENT_PATH_FRAGMENTS):
+        return False
+    return True
+
+
+def _pick_anchor_url(label: str, url: str, hints: tuple[str, ...]) -> bool:
+    if not _is_external_book_content_url(url):
+        return False
+    return any(hint in label for hint in hints)
+
+
+def _is_external_organizer_url(url: str) -> bool:
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").lower()
+    path = (parsed.path or "").lower()
+    if not host or host.endswith("hanmoto.com"):
+        return False
+    if path.endswith(_DENIED_CONTENT_SUFFIXES):
+        return False
+    if any(fragment in path for fragment in _DENIED_CONTENT_PATH_FRAGMENTS):
+        return False
+    return True
+
+
+def _normalize_official_url(candidate: Optional[str]) -> Optional[str]:
+    cleaned = _clean_text(candidate)
+    if not cleaned:
+        return None
+    if not _is_external_book_content_url(cleaned):
+        return None
+    return cleaned
+
+
+def _normalize_organizer_url(
+    candidate: Optional[str],
+    publisher: Optional[str],
+    detail_text: str,
+) -> Optional[str]:
+    cleaned = _clean_text(candidate)
+    name = _clean_text(publisher)
+    if not cleaned or not name:
+        return None
+    host = (urlsplit(cleaned).hostname or "").lower().split(".")
+    alias = host[0] if host else ""
+    aliases: tuple[str, ...] = (alias,) if alias and alias != "www" else ()
+    validation = validate_publisher_homepage(
+        cleaned,
+        name,
+        page_title=name,
+        page_text=detail_text,
+        aliases=aliases,
+    )
+    if not validation.accepted:
+        return None
+    return validation.canonical_url
+
+
 def _scrape_hanmoto_detail(detail_url: str) -> dict:
     """Fetch and parse book details directly using requests and BeautifulSoup."""
     import requests
@@ -118,6 +194,8 @@ def _scrape_hanmoto_detail(detail_url: str) -> dict:
         "price_amount": None,
         "performer": None,
         "image_url": None,
+        "official_url": None,
+        "organizer_url": None,
     }
     try:
         headers = {
@@ -158,12 +236,47 @@ def _scrape_hanmoto_detail(detail_url: str) -> dict:
             if txt:
                 desc_parts.append(f"【著者プロフィール】\n{txt}")
                 
+        main_el = soup.select_one("main") or soup.select_one("#content") or soup.body
+        if not desc_parts and main_el:
+            fallback_text = main_el.get_text("\n", strip=True)
+            if fallback_text:
+                desc_parts.append(fallback_text)
+
+        if main_el:
+            link_lines: list[str] = []
+            seen_links: set[str] = set()
+            for anchor in main_el.select("a[href]"):
+                href = anchor.get("href") or ""
+                href = href.strip()
+                if not href:
+                    continue
+                absolute_url = urljoin(detail_url, href)
+                if not absolute_url.startswith("http"):
+                    continue
+                if absolute_url in seen_links:
+                    continue
+                seen_links.add(absolute_url)
+                label = _clean_text(anchor.get_text(" ", strip=True)) or absolute_url
+                link_lines.append(f"{label}: {absolute_url}")
+
+                if (
+                    res["organizer_url"] is None
+                    and any(hint in label for hint in _ORGANIZER_LINK_HINTS)
+                    and _is_external_organizer_url(absolute_url)
+                ):
+                    res["organizer_url"] = absolute_url
+                if (
+                    res["official_url"] is None
+                    and _pick_anchor_url(label, absolute_url, _OFFICIAL_LINK_HINTS)
+                    and not any(hint in label for hint in _ORGANIZER_LINK_HINTS)
+                ):
+                    res["official_url"] = absolute_url
+
+            if link_lines:
+                desc_parts.append("【関連リンク】\n" + "\n".join(link_lines))
+
         if desc_parts:
             res["raw_description"] = "\n\n".join(desc_parts)
-        else:
-            main_el = soup.select_one("main") or soup.select_one("#content") or soup.body
-            if main_el:
-                res["raw_description"] = main_el.get_text("\n", strip=True)
 
         # 2. Price info and numerical amount
         price_sec = soup.select_one(".book-price-section")
@@ -286,7 +399,7 @@ class HanmotoScraper(BaseScraper):
                         price_amount = None
                         image_url = None
                         official_url = None
-                        organizer_url = None
+                        organizer_url_candidate = None
 
                         detail_url = None
                         if link_el is not None:
@@ -301,12 +414,24 @@ class HanmotoScraper(BaseScraper):
                             price_info = detail_res["price_info"]
                             price_amount = detail_res["price_amount"]
                             image_url = detail_res["image_url"]
+                            official_url = detail_res["official_url"]
+                            organizer_url_candidate = detail_res["organizer_url"]
 
                         detail_text = _clean_text(detail_text) or ""
                         if not performer:
                             performer = _extract_detail_field(detail_text, ("著者", "作者", "編者", "訳者"))
-                        official_url = _extract_detail_link(detail_text, ("書籍詳細", "商品ページ", "公式サイト", "詳細ページ"), "https://www.hanmoto.com")
-                        organizer_url = _extract_detail_link(detail_text, ("出版社サイト", "出版社", "出版元サイト"), "https://www.hanmoto.com")
+                        if not official_url:
+                            official_url = _extract_detail_link(
+                                detail_text,
+                                ("書籍詳細", "商品ページ", "公式サイト", "詳細ページ"),
+                                "https://www.hanmoto.com",
+                            )
+                        if not organizer_url_candidate:
+                            organizer_url_candidate = _extract_detail_link(
+                                detail_text,
+                                ("出版社サイト", "出版社", "出版元サイト"),
+                                "https://www.hanmoto.com",
+                            )
                         if not price_info:
                             price_info = _extract_detail_field(detail_text, ("定価", "価格", "本体価格"))
 
@@ -334,6 +459,16 @@ class HanmotoScraper(BaseScraper):
                         pub_el = card.query_selector('[data-content-name="imprint"]')
                         publisher = pub_el.inner_text().strip() if pub_el is not None else None
                         publisher = _clean_text(publisher)
+                        normalized_official_url = _normalize_official_url(official_url)
+                        normalized_organizer_url = _normalize_organizer_url(
+                            organizer_url_candidate,
+                            publisher,
+                            detail_text,
+                        )
+                        if normalized_official_url and normalized_official_url == normalized_organizer_url:
+                            normalized_official_url = None
+
+                        normalized_price_info = _clean_text(price_info)
 
                         source_url = _strip_null(href) or BASE_URL
 
@@ -354,15 +489,13 @@ class HanmotoScraper(BaseScraper):
                             event_form=["publication"],
                             name_ja_locked=True,
                             organizer=publisher,
-                            organizer_url=_clean_text(organizer_url),
-                            official_url=_clean_text(official_url),
+                            organizer_url=normalized_organizer_url,
+                            official_url=normalized_official_url,
                             performer=_clean_text(performer),
-                            is_paid=True,
-                            price_info=_clean_text(price_info) or _PLACEHOLDER_TEXT,
+                            is_paid=True if normalized_price_info else None,
+                            price_info=normalized_price_info,
                             price_amount=price_amount,
                             image_url=image_url,
-                            organizer_type=["media"],
-                            business_hours=_PLACEHOLDER_TEXT,
                             location_url=None,
                         ))
                     except Exception as exc:

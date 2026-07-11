@@ -41,6 +41,24 @@ TAIWAN_KEYWORDS = [
     "minnan", "hakka",
 ]
 
+PUBLISHER_HOMEPAGE = "https://www.kawade.co.jp/"
+_PHYSICAL_EVENT_RE = re.compile(
+    r"【イベント】|トーク|講演|講座|セミナー|ワークショップ|サイン(?:会)?|署名|"
+    r"お渡し会|出版記念|刊行記念|発売記念|book\s*launch|会場|定員|申込|参加",
+    re.IGNORECASE,
+)
+_WORKSHOP_RE = re.compile(r"ワークショップ|workshop", re.IGNORECASE)
+_LECTURE_RE = re.compile(r"トーク|講演|講座|セミナー|lecture|talk", re.IGNORECASE)
+_DATE_RANGE_RE = re.compile(
+    r"(20\d{2})年\s*(\d{1,2})月\s*(\d{1,2})日"
+    r"(?:[^\d]{0,12}(?:[〜～~\-]|から)\s*(?:(20\d{2})年\s*)?"
+    r"(?:(\d{1,2})月\s*)?(\d{1,2})日)?"
+)
+_TIME_RE = re.compile(
+    r"(?<!\d)((?:[01]?\d|2[0-3]):[0-5]\d)"
+    r"(?:\s*[〜～~\-]\s*((?:[01]?\d|2[0-3]):[0-5]\d))?"
+)
+
 
 def _is_taiwan(text: str) -> bool:
     return any(kw in text for kw in TAIWAN_KEYWORDS)
@@ -73,6 +91,53 @@ def _el_text(item: ET.Element, ns_uri: str, local: str) -> str:
     if el is None:
         return ""
     return (el.text or "").strip().replace("\x00", "")
+
+
+def _classify_event_form(title: str, description: str) -> list[str]:
+    text = f"{title}\n{description}"
+    if not _PHYSICAL_EVENT_RE.search(text):
+        return ["publication"]
+    if _WORKSHOP_RE.search(text):
+        return ["workshop"]
+    if _LECTURE_RE.search(text):
+        return ["lecture"]
+    return ["networking"]
+
+
+def _extract_event_dates(text: str) -> tuple[Optional[datetime], Optional[datetime]]:
+    match = _DATE_RANGE_RE.search(text)
+    if not match:
+        return None, None
+    year, month, day = (int(match.group(index)) for index in (1, 2, 3))
+    try:
+        start = datetime(year, month, day, tzinfo=timezone.utc)
+        end = start
+        if match.group(6):
+            end_year = int(match.group(4) or year)
+            end_month = int(match.group(5) or month)
+            end = datetime(end_year, end_month, int(match.group(6)), tzinfo=timezone.utc)
+        return start, end
+    except ValueError:
+        return None, None
+
+
+def _extract_labeled_value(text: str, labels: tuple[str, ...]) -> Optional[str]:
+    for label in labels:
+        match = re.search(rf"(?:^|\n)\s*{re.escape(label)}\s*[:：]\s*([^\n]+)", text)
+        if match:
+            return match.group(1).strip() or None
+    return None
+
+
+def _extract_business_hours(text: str) -> Optional[str]:
+    matches = []
+    for match in _TIME_RE.finditer(text):
+        value = match.group(1)
+        if match.group(2):
+            value = f"{value}〜{match.group(2)}"
+        if value not in matches:
+            matches.append(value)
+    return "\n".join(matches) or None
 
 
 class KawadeRssScraper(BaseScraper):
@@ -117,9 +182,20 @@ class KawadeRssScraper(BaseScraper):
 
             start_dt: Optional[datetime] = _parse_dc_date(dc_date) if dc_date else None
 
-            # 【イベント】 prefix → category includes "lecture"
-            is_event = title.startswith("【イベント】")
-            category = ["books_media", "lecture"] if is_event else ["books_media"]
+            event_form = _classify_event_form(title, desc)
+            is_physical = event_form != ["publication"]
+            category = ["books_media"]
+            if is_physical and event_form[0] in {"lecture", "workshop"}:
+                category.append(event_form[0])
+            explicit_start, explicit_end = _extract_event_dates(f"{title}\n{desc}")
+            if is_physical:
+                start_dt = explicit_start or start_dt
+                end_dt = explicit_end or start_dt
+            else:
+                end_dt = start_dt
+            location_name = _extract_labeled_value(desc, ("会場", "場所")) if is_physical else None
+            location_address = _extract_labeled_value(desc, ("住所", "所在地")) if is_physical else None
+            business_hours = _extract_business_hours(desc) if is_physical else None
 
             events.append(Event(
                 source_name=SOURCE_NAME,
@@ -130,15 +206,16 @@ class KawadeRssScraper(BaseScraper):
                 raw_title=_strip_null(title) or None,
                 raw_description=_strip_null(desc) or None,
                 start_date=start_dt,
-                end_date=start_dt,
-                location_name=None,
-                location_address=None,
+                end_date=end_dt,
+                location_name=location_name,
+                location_address=location_address,
                 location_prefectures=[],
                 category=category,
-                event_form=["publication"],
+                event_form=event_form,
                 name_ja_locked=True,
                 organizer="河出書房新社",
-                organizer_type=["media"],
+                organizer_url=PUBLISHER_HOMEPAGE,
+                business_hours=business_hours,
             ))
 
         result = dedup_events(events)

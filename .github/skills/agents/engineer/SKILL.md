@@ -31,12 +31,18 @@ Writing to a top-level `skills/<name>/` path recreates deleted directories. Alwa
 - Keep high-risk classes (for example selector drift or source-structure breakage) in human-review only paths; safe auto-fix should only touch deterministic transforms.
 - Every LINE alert message must include a direct next action (exact workflow name + trigger mode). A warning without CTA is operational noise.
 - For publication-related pending QA, clean by source and status transition first. If a source is mixed-content like `eslite_spectrum`, keep the rule set conservative and do not fold promotional talk events into the same batch.
+- Pure publication classification is exact-only: use normalized `event_form == ['publication']`; never infer pure from `books_media`, source name, or title prefix.
+- Pure publication rows keep seven intentional-null fields plus empty sentinels in lockstep: `location_address`, `location_address_zh`, `location_address_en`, `business_hours`, `business_hours_zh`, `business_hours_en`, `location_prefectures`.
+- Preserve real DB prices (`is_paid`, `price_info`, `price_amount`); hide pure-publication prices only in UI and JSON-LD. Price fields, `location_name`, and `location_url` are outside the seven-field NULL/clear policy.
+- Publisher (`organizer`) remains required for pure publication rows; missing publisher stays a QA finding.
+- Mixed rows (for example `['publication', 'lecture']`) are physical events and must not inherit pure skip behavior.
 - Venue homepage repairs (`location_url`) are provenance-sensitive. The only safe auto-fix target is the venue's own official homepage; never promote `source_url`, `official_url`, or `organizer_url` into `location_url` just because a search hit looks plausible.
 - If a venue cannot be verified to have its own homepage, leave the report pending for human review. Shared municipal spaces and parent-organization pages are especially prone to false positives.
 - For pending QA cleanup, use `qa_heartbeat.py` as the real dispatch entry. `qa_auto_fix.py` CLI only runs its own built-in maintenance batches (simplified Chinese + tokyoartbeat date sync); do not assume it will process the full safe-report backlog.
 - Database-only QA cleanup does not require git push or deployment. Only change code or docs when the cleanup logic itself needs to be adjusted.
 - For publication metadata backfills, keep the helper logic source-scoped: NDL OpenSearch periodical rows need breadcrumb-derived labels and publisher-backed organizer, while non-periodical publication rows may keep the generic publication placeholder.
 - For publication metadata backfills, also prefer the official product page description when `official_url` is present, and prefix publication titles with `[新刊出版]` across locale variants. NDL magazine and journal rows should use bracketed periodical labels like `[期刊專文]`.
+- Publication event-form sync includes writer whitelist: keep `scraper/database.py::_VALID_EVENT_FORMS` and its tests updated whenever `publication` handling changes.
 
 ## Agent Handoff Reliability
 

@@ -29,6 +29,11 @@ Read this at the start of every session before writing any scraper.
 ## Publication Backlog Cleanup Rule
 
 - Publication-related backlog must be handled as a **source-level one-off cleanup**, not as a generic QA engine.
+- Pure publication classification is exact-only: normalized `event_form` must equal `['publication']`.
+- Pure publication rows keep seven intentional-null fields with matching empty-sentinel locks: `location_address`, `location_address_zh`, `location_address_en`, `business_hours`, `business_hours_zh`, `business_hours_en`, `location_prefectures`.
+- Preserve real DB prices (`is_paid`, `price_info`, `price_amount`); hide pure-publication prices only in UI and JSON-LD. Price fields, `location_name`, and `location_url` are outside the seven-field NULL/clear policy.
+- Publisher (`organizer`) is still required for pure publication rows.
+- Mixed rows such as `['publication', 'lecture']` are physical events and must not be treated as pure.
 - Core publication sources (`ndl_opensearch`, `hanmoto`, `kawade_rss`) may be batch-confirmed or dismissed only after source-specific report_type review.
 - Mixed sources like `eslite_spectrum` must be treated conservatively: apply publication rules only when the event is clearly in book-release / publication / book-launch context; keep promotional lectures, exhibitions, and other ambiguous items for manual review.
 - Never convert publication cleanup into a permanent cross-source dismiss workflow. Use existing `qa_auto_fix.py`, `qa_heartbeat.py`, and `qa_triage.py` flow as the source of truth for status transitions.

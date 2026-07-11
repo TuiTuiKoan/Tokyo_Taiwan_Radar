@@ -28,9 +28,12 @@ import re
 import sys
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import unquote, urlsplit
 
 import requests
 from dotenv import load_dotenv
+
+from publication_rules import is_pure_publication_record
 
 load_dotenv()
 
@@ -39,6 +42,33 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 _CONFIDENCE_THRESHOLD = 0.8
 _MAX_IMAGE_BYTES = 4 * 1024 * 1024  # 4 MB safety cap
+_GUARD_SELECT = "id,event_form,source_name,image_url,raw_description"
+_HANMOTO_PLACEHOLDER_RE = re.compile(
+    r"^no[-_]?(?:image|cover)(?:[-_][a-z0-9]+)?\.(?:gif|jpe?g|png|webp)$",
+    re.IGNORECASE,
+)
+
+
+def _is_placeholder_image_url(image_url: object) -> bool:
+    if not isinstance(image_url, str) or not image_url.strip():
+        return False
+    try:
+        parsed = urlsplit(image_url.strip())
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if host != "hanmoto.com" and not host.endswith(".hanmoto.com"):
+        return False
+    filename = unquote(parsed.path).rstrip("/").rsplit("/", 1)[-1]
+    return bool(_HANMOTO_PLACEHOLDER_RE.fullmatch(filename))
+
+
+def _poster_guard_reason(event: dict) -> Optional[str]:
+    if is_pure_publication_record(event):
+        return "exact pure publication"
+    if _is_placeholder_image_url(event.get("image_url")):
+        return "known placeholder image"
+    return None
 
 
 def _get_supabase():
@@ -61,7 +91,7 @@ def _fetch_candidates(sb, max_events: Optional[int] = None, event_id: Optional[s
         sb.table("events")
         .select(
             "id,source_name,name_ja,start_date,end_date,location_name,organizer,"
-            "annotation_status,image_url,raw_description"
+            "annotation_status,image_url,raw_description,event_form"
         )
         .eq("is_active", True)
         .not_.is_("image_url", "null")
@@ -72,7 +102,19 @@ def _fetch_candidates(sb, max_events: Optional[int] = None, event_id: Optional[s
     if max_events:
         q = q.limit(max_events)
     result = q.execute()
-    return result.data or []
+    return [event for event in (result.data or []) if not _poster_guard_reason(event)]
+
+
+def _read_current_event(sb, event_id: str) -> Optional[dict]:
+    result = (
+        sb.table("events")
+        .select(_GUARD_SELECT)
+        .eq("id", event_id)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    return rows[0] if rows else None
 
 
 def _get_fc_protected_fields(sb, event_id: str) -> set:
@@ -209,6 +251,21 @@ def _apply_if_confident(
     Blog/Creator Source Thin Content Guard: for thin-content events
     (raw_description < 100 chars), organizer is NOT applied.
     """
+    guard_reason = _poster_guard_reason(event)
+    if guard_reason:
+        logger.info("  Skip %s - %s", event["id"][:8], guard_reason)
+        return False
+
+    current = _read_current_event(sb, event["id"])
+    if not current:
+        logger.info("  Skip %s - event no longer exists", event["id"][:8])
+        return False
+    guard_reason = _poster_guard_reason(current)
+    if guard_reason:
+        logger.info("  Skip %s - %s after Vision", event["id"][:8], guard_reason)
+        return False
+    event = {**event, **current}
+
     confidence = float(extracted.get("confidence") or 0)
     if confidence < _CONFIDENCE_THRESHOLD:
         logger.info(

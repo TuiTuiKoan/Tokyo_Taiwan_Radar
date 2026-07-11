@@ -4,6 +4,12 @@ Newest at top.
 
 ---
 
+## 2026-07-11 — publication phase 3 invariant sync
+
+- publication 判定統一為 exact `event_form=['publication']`，不再以 source/category 當 pure shortcut。
+- 純出版 rows 對齊 metadata-only（七欄 intentional null + sentinel），publisher 維持 required。
+- eslite 的 physical launch/talk/signing/lecture/workshop rows 明確標記 mixed negative：不得含 `publication`。
+
 ## 2026-06-04 — publication rule sync
 
 - Added a publication-specific note so placeholder addresses stay display-only and do not become map links.

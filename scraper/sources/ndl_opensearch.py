@@ -216,7 +216,6 @@ class NdlOpensearchScraper(BaseScraper):
                     event_form=["publication"],
                     name_ja_locked=True,
                     organizer=organizer,
-                    organizer_type=["government"],
                     performer=performer,
                 ))
 

@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-07-11 - publication phase 3: exact pure invariant and mixed negative lock
+
+**問題：** publication 規則在多處被舊 placeholder 語意覆蓋，造成 `books_media`/source 名被誤當 pure，進而影響 QA/admin 判讀。
+
+**修正：** 統一為 exact pure invariant（正規化後 `event_form == ['publication']`），pure 只保留 metadata，七欄保持 intentional null + sentinel；publisher 保持必填；`['publication', 'lecture']` 這類 mixed rows 維持 physical 行為。
+
+**教訓：** publication 判定只能看 `event_form`，不能再用 category/source/title 代判。source skill、agent skill、QA 規則要同批同步，不然會在不同入口出現互斥判定。
+
 ## 2026-07-10 — 阪神候補三分店（西宮／御影／尼崎）：同集團分店純 config 一行擴充
 
 **背景：** 阪神本店（`hanshin_umeda`）上線後追加三個兵庫県分店。實測三店 event 頁（`/nishinomiya/event/`、`/mikage/event/`、`/amagasaki/event/`）與阪神本店/阪急 100% 同構（`o-event` selector 齊全、marker 皆 `●`），皆小店（4–16 件）、目前 0 台灣活動；兩層 filter 仍會接住偶發催事，成本極低故順手納入。

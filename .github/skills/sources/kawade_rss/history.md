@@ -1,5 +1,11 @@
 # kawade_rss scraper 修訂歷史
 
+## 2026-07-11 — publication phase 3 invariant sync
+
+- publication 判定統一為 exact `event_form=['publication']`，不再用來源或類別代判 pure。
+- 純出版 rows 明確落在 metadata-only contract（七欄 intentional null + sentinel）。
+- `['publication','lecture']` 等 mixed rows 明確保留 physical event 行為。
+
 ## 2026-06-04 — publication hotfix sync
 
 - publication 事件の address は占位文字として保持し、Maps 連結にしない方針を追加。

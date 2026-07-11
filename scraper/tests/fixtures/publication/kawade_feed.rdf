@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <item rdf:about="https://www.kawade.co.jp/book/pure">
+    <title>台湾文学の新刊</title>
+    <link>https://www.kawade.co.jp/book/pure</link>
+    <description>台湾文学を読むための新刊案内です。</description>
+    <dc:date>2026-07-01</dc:date>
+  </item>
+  <item rdf:about="https://www.kawade.co.jp/event/talk">
+    <title>【イベント】台湾文学 発売記念トーク</title>
+    <link>https://www.kawade.co.jp/event/talk</link>
+    <description>開催日時：2026年7月20日 13:00〜15:00
+会場：河出ホール
+住所：東京都新宿区1-2-3
+台湾文学の刊行記念イベントです。</description>
+    <dc:date>2026-07-03</dc:date>
+  </item>
+</rdf:RDF>

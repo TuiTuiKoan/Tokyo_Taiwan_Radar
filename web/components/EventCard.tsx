@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { type Event, type Locale, getEventName, getEventLocationName } from "@/lib/types";
+import {
+  type Event,
+  type Locale,
+  getEventName,
+  getEventLocationName,
+  getPublicationPresentationFlags,
+} from "@/lib/types";
 import { getTranslations } from "next-intl/server";
 import { getCityLabel } from "@/lib/cityLabel";
 import { Badge, DateChip } from "@/lib/design";
@@ -17,20 +23,21 @@ export default async function EventCard({ event, locale, openInNewTab }: Props) 
 
   const name = getEventName(event, locale);
   const locationName = getEventLocationName(event, locale);
+  const publicationFlags = getPublicationPresentationFlags(event);
   const now = new Date();
-  const ended = event.end_date && new Date(event.end_date) < now;
-
-  const isPublicationEvent =
-    (event.event_form ?? []).includes("publication") ||
-    (event.category ?? []).includes("books_media") ||
-    event.source_name === "hanmoto";
+  const cityInput: Pick<Event, "location_prefectures" | "location_address"> = event;
+  const organizerTypeKey = event.organizer_type?.[0] as Parameters<typeof tOrgType>[0] | undefined;
+  const ended =
+    publicationFlags.hideEventStatus
+      ? false
+      : !!(event.end_date && new Date(event.end_date) < now);
 
   // Derive city label (shared helper used by homepage list too).
-  const cityLabel = isPublicationEvent
+  const cityLabel = publicationFlags.hideVenue
     ? null
     : getCityLabel(
-        (event as any).location_prefectures as string[] | null | undefined,
-        (event as any).location_address as string | null,
+        cityInput.location_prefectures,
+        cityInput.location_address,
       );
 
   return (
@@ -43,15 +50,20 @@ export default async function EventCard({ event, locale, openInNewTab }: Props) 
     >
       {/* Status + paid badges */}
       <div className="flex items-center gap-2 mb-2">
-        {ended ? (
-          <Badge tone="neutral">{t("ended")}</Badge>
-        ) : (
-          <Badge tone="success">●&nbsp;Open</Badge>
+        {!publicationFlags.hideEventStatus &&
+          (ended ? (
+            <Badge tone="neutral">{t("ended")}</Badge>
+          ) : (
+            <Badge tone="success">●&nbsp;Open</Badge>
+          ))}
+        {!publicationFlags.hidePrice && event.is_paid === false && (
+          <Badge tone="info">{t("free")}</Badge>
         )}
-        {event.is_paid === false && <Badge tone="info">{t("free")}</Badge>}
-        {event.is_paid === true && <Badge tone="warning">{t("paid")}</Badge>}
-        {event.organizer_type?.[0] && event.organizer_type[0] !== "unknown" && (
-          <Badge tone="accent">{tOrgType(event.organizer_type[0] as any)}</Badge>
+        {!publicationFlags.hidePrice && event.is_paid === true && (
+          <Badge tone="warning">{t("paid")}</Badge>
+        )}
+        {organizerTypeKey && event.organizer_type?.[0] !== "unknown" && (
+          <Badge tone="accent">{tOrgType(organizerTypeKey)}</Badge>
         )}
       </div>
 
@@ -65,7 +77,7 @@ export default async function EventCard({ event, locale, openInNewTab }: Props) 
         <div className="flex flex-wrap gap-1 mb-3">
           {event.category.slice(0, 3).map((cat) => (
             <Badge key={cat} tone="neutral">
-              {tCat(cat as any)}
+              {tCat(cat as Parameters<typeof tCat>[0])}
             </Badge>
           ))}
         </div>
@@ -74,9 +86,13 @@ export default async function EventCard({ event, locale, openInNewTab }: Props) 
       {/* Date + location */}
       <div className="text-xs text-fg-muted space-y-1">
         {event.start_date && (
-          <DateChip start={event.start_date} end={isPublicationEvent ? null : event.end_date} locale={locale} />
+          <DateChip
+            start={event.start_date}
+            end={publicationFlags.hideEnd ? null : event.end_date}
+            locale={locale}
+          />
         )}
-        {event.location_name && !isPublicationEvent && (
+        {event.location_name && !publicationFlags.hideVenue && (
           <p className="flex items-center gap-1 flex-wrap">
             <span>📍</span>
             {cityLabel && (

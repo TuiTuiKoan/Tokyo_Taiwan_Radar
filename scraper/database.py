@@ -11,6 +11,11 @@ from typing import Any
 
 from supabase import create_client, Client
 
+from publication_rules import (
+    PUBLICATION_NULL_FIELDS,
+    is_pure_publication_record,
+    validated_registry_homepage,
+)
 from sources.base import Event
 from source_exclusions import load_exclusions, event_matches_exclusion, record_hits
 
@@ -27,7 +32,7 @@ _VALID_ORGANIZER_TYPES = frozenset([
 _VALID_EVENT_FORMS = frozenset([
     "exhibition", "screening", "lecture", "performance", "market", "workshop",
     "conference", "networking", "screening_with_talk", "tour", "competition",
-    "tasting", "broadcast", "study_abroad", "other",
+    "tasting", "broadcast", "study_abroad", "publication", "other",
 ])
 _VALID_PRIMARY_LANGUAGES = frozenset(["ja", "zh", "en", "mixed"])
 
@@ -55,6 +60,16 @@ def _dt_iso(dt: datetime | None) -> str | None:
     return dt.isoformat() if dt else None
 
 
+def _apply_pure_publication_policy(row: dict[str, Any]) -> bool:
+    if not is_pure_publication_record(row):
+        return False
+    for field in PUBLICATION_NULL_FIELDS:
+        row[field] = None
+    row["location_url"] = None
+    row.pop("venue_id", None)
+    return True
+
+
 def _event_to_row(event: Event) -> dict[str, Any]:
     """Convert an Event dataclass to a dict matching the Supabase `events` table schema."""
     row: dict[str, Any] = {
@@ -73,6 +88,7 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         "end_date": _dt_iso(event.end_date),
         "location_name": event.location_name,
         "location_address": event.location_address,
+        "location_prefectures": event.location_prefectures or None,
         "business_hours": event.business_hours,
         "is_paid": event.is_paid,
         "price_info": event.price_info,
@@ -86,6 +102,8 @@ def _event_to_row(event: Event) -> dict[str, Any]:
     # Requires migration 018_official_url.sql to be applied before writing.
     if event.official_url is not None:
         row["official_url"] = event.official_url
+    if event.location_url is not None:
+        row["location_url"] = event.location_url
     # Only include name_ja_locked when True — omitting preserves the default (false).
     # Requires migration 034_name_ja_locked.sql to be applied before writing.
     if event.name_ja_locked:
@@ -153,6 +171,8 @@ def _event_to_row(event: Event) -> dict[str, Any]:
     if event.image_url is not None:
         row["image_url"] = event.image_url
 
+    _apply_pure_publication_policy(row)
+
     return row
 
 
@@ -172,20 +192,22 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
     organizer_strs = sorted({r["organizer"] for r in rows
                              if isinstance(r.get("organizer"), str) and r["organizer"].strip()})
     venue_strs = sorted({r["location_name"] for r in rows
-                         if isinstance(r.get("location_name"), str) and r["location_name"].strip()})
+                         if not is_pure_publication_record(r)
+                         and isinstance(r.get("location_name"), str) and r["location_name"].strip()})
 
-    org_lookup: dict[str, str] = {}
+    org_lookup: dict[str, tuple[str, str | None, tuple[str, ...]]] = {}
     if organizer_strs:
         try:
             # Match on canonical_name_ja first.
             resp = (
                 client.table("organizers")
-                .select("id,canonical_name_ja,aliases")
+                .select("id,canonical_name_ja,aliases,homepage")
                 .in_("canonical_name_ja", organizer_strs)
                 .execute()
             )
             for r in resp.data or []:
-                org_lookup[r["canonical_name_ja"]] = r["id"]
+                aliases = tuple(a for a in (r.get("aliases") or []) if isinstance(a, str) and a.strip())
+                org_lookup[r["canonical_name_ja"]] = (r["id"], r.get("homepage"), aliases)
             # Then alias hits — separate query per string (PostgREST `cs.{x}`).
             still_missing = [s for s in organizer_strs if s not in org_lookup]
             if still_missing:
@@ -195,13 +217,18 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
                     try:
                         ar = (
                             client.table("organizers")
-                            .select("id")
+                            .select("id,homepage,aliases")
                             .contains("aliases", [s])
                             .limit(1)
                             .execute()
                         )
                         if ar.data:
-                            org_lookup[s] = ar.data[0]["id"]
+                            aliases = tuple(
+                                a
+                                for a in (ar.data[0].get("aliases") or [])
+                                if isinstance(a, str) and a.strip()
+                            )
+                            org_lookup[s] = (ar.data[0]["id"], ar.data[0].get("homepage"), aliases)
                     except Exception:
                         pass
         except Exception as exc:
@@ -299,8 +326,22 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
     for r in rows:
         org = r.get("organizer")
         if isinstance(org, str) and org in org_lookup:
-            r["organizer_id"] = org_lookup[org]
+            organizer_id, homepage, aliases = org_lookup[org]
+            r["organizer_id"] = organizer_id
+            if homepage and not r.get("organizer_url"):
+                if is_pure_publication_record(r):
+                    validated_homepage = validated_registry_homepage(
+                        org,
+                        homepage,
+                        aliases=aliases,
+                    )
+                    if validated_homepage:
+                        r["organizer_url"] = validated_homepage
+                else:
+                    r["organizer_url"] = homepage
             org_hits += 1
+        if is_pure_publication_record(r):
+            continue
         loc = r.get("location_name")
         if isinstance(loc, str) and loc in venue_lookup:
             r["venue_id"] = venue_lookup[loc]
@@ -407,17 +448,17 @@ def get_event_id_by_source(source_name: str, source_id: str) -> str | None:
         return None
 
 
-def _auto_lock_location(client, eid_to_event: dict) -> None:
+def _auto_lock_location(client, eid_to_row: dict[str, dict[str, Any]]) -> None:
     """Auto-lock scraper-provided location fields so annotator cannot overwrite."""
     import json
     fc_records = []
-    for eid, event in eid_to_event.items():
-        if not event.location_name:
+    for eid, row in eid_to_row.items():
+        if is_pure_publication_record(row) or not row.get("location_name"):
             continue
         for field, value in [
-            ("location_name",        event.location_name),
-            ("location_address",     event.location_address),
-            ("location_prefectures", event.location_prefectures),
+            ("location_name",        row.get("location_name")),
+            ("location_address",     row.get("location_address")),
+            ("location_prefectures", row.get("location_prefectures")),
         ]:
             if value is None or value == []:
                 continue
@@ -431,9 +472,68 @@ def _auto_lock_location(client, eid_to_event: dict) -> None:
             on_conflict="event_id,field_name",
             ignore_duplicates=True,
         ).execute()
-        logger.info("Auto-locked location fields for %d new event(s).", len(eid_to_event))
+        logger.info("Auto-locked location fields for %d new event(s).", len(eid_to_row))
     except Exception as exc:
         logger.warning("Auto-lock location FC failed (non-critical): %s", exc)
+
+
+def _write_pure_publication_sentinels(
+    client: Client,
+    pure_rows: list[dict[str, Any]],
+    upserted_rows: list[dict[str, Any]],
+) -> None:
+    if not pure_rows:
+        return
+    ids_by_key = {
+        (row.get("source_name"), row.get("source_id")): row.get("id")
+        for row in upserted_rows
+        if row.get("id")
+    }
+    event_ids: list[str] = []
+    for row in pure_rows:
+        event_id = ids_by_key.get((row.get("source_name"), row.get("source_id")))
+        if not event_id:
+            raise RuntimeError("Pure publication upsert did not return an event UUID")
+        event_ids.append(event_id)
+
+    sentinel_rows = [
+        {"event_id": event_id, "field_name": field, "corrected_value": ""}
+        for event_id in event_ids
+        for field in PUBLICATION_NULL_FIELDS
+    ]
+    client.table("field_corrections").upsert(
+        sentinel_rows,
+        on_conflict="event_id,field_name",
+        ignore_duplicates=False,
+    ).execute()
+
+    event_result = (
+        client.table("events")
+        .select("id," + ",".join(PUBLICATION_NULL_FIELDS))
+        .in_("id", event_ids)
+        .execute()
+    )
+    events_by_id = {row["id"]: row for row in (event_result.data or [])}
+    for event_id in event_ids:
+        event_row = events_by_id.get(event_id)
+        if event_row is None or any(event_row.get(field) is not None for field in PUBLICATION_NULL_FIELDS):
+            raise RuntimeError(f"Pure publication NULL postcondition failed for {event_id}")
+
+    fc_result = (
+        client.table("field_corrections")
+        .select("event_id,field_name,corrected_value")
+        .in_("event_id", event_ids)
+        .in_("field_name", list(PUBLICATION_NULL_FIELDS))
+        .execute()
+    )
+    sentinels = {
+        (row.get("event_id"), row.get("field_name")): row.get("corrected_value")
+        for row in (fc_result.data or [])
+    }
+    for event_id in event_ids:
+        for field in PUBLICATION_NULL_FIELDS:
+            if sentinels.get((event_id, field)) != "":
+                raise RuntimeError(f"Pure publication FC postcondition failed for {event_id}:{field}")
 
 
 def _build_movie_extend_row(event: Event, existing_state: dict) -> dict | None:
@@ -673,19 +773,20 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
             force_source_ids_list = [r["source_id"] for r in force_rows]
             id_map_res = (
                 client.table("events")
-                .select("id,source_id")
+                .select("id,source_name,source_id")
                 .in_("source_id", force_source_ids_list)
                 .execute()
             )
-            src_to_eid: dict[str, str] = {
-                row["source_id"]: row["id"] for row in (id_map_res.data or [])
+            key_to_eid: dict[tuple[str, str], str] = {
+                (row["source_name"], row["source_id"]): row["id"]
+                for row in (id_map_res.data or [])
             }
-            event_uuids = list(src_to_eid.values())
+            event_uuids = list(key_to_eid.values())
 
             if event_uuids:
                 fc_res = (
                     client.table("field_corrections")
-                    .select("event_id,field_name")
+                    .select("event_id,field_name,corrected_value")
                     .in_("event_id", event_uuids)
                     .execute()
                 )
@@ -695,24 +796,43 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
                     eid_protected.setdefault(fc["event_id"], set()).add(fc["field_name"])
 
                 if eid_protected:
-                    # Invert to source_id → set of protected columns
-                    eid_to_src = {v: k for k, v in src_to_eid.items()}
-                    src_protected: dict[str, set[str]] = {
-                        eid_to_src[eid]: cols
+                    eid_to_key = {event_id: key for key, event_id in key_to_eid.items()}
+                    key_protected: dict[tuple[str, str], set[str]] = {
+                        eid_to_key[eid]: cols
                         for eid, cols in eid_protected.items()
-                        if eid in eid_to_src
+                        if eid in eid_to_key
                     }
+                    policy_conflicts = [
+                        fc for fc in (fc_res.data or [])
+                        if fc.get("field_name") in PUBLICATION_NULL_FIELDS
+                        and fc.get("corrected_value") not in (None, "")
+                        and any(
+                            is_pure_publication_record(row)
+                            and key_to_eid.get((row["source_name"], row["source_id"])) == fc.get("event_id")
+                            for row in force_rows
+                        )
+                    ]
+                    if policy_conflicts:
+                        conflict = policy_conflicts[0]
+                        raise RuntimeError(
+                            "Pure publication policy conflicts with a non-empty field correction: "
+                            f"{conflict['event_id']}:{conflict['field_name']}"
+                        )
                     scrubbed = 0
                     for row in force_rows:
-                        for col in src_protected.get(row["source_id"], set()):
+                        key = (row["source_name"], row["source_id"])
+                        for col in key_protected.get(key, set()):
                             if col in row:
                                 del row[col]
                                 scrubbed += 1
+                        _apply_pure_publication_policy(row)
                     if scrubbed:
                         logger.info(
                             "Stripped %d field_corrections-protected column(s) from %d force row(s).",
                             scrubbed, len(force_rows),
                         )
+        except RuntimeError:
+            raise
         except Exception as fc_exc:
             logger.debug("field_corrections check for force_rows skipped: %s", fc_exc)
 
@@ -721,6 +841,11 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
         try:
             resp = client.table("events").upsert(all_rows, on_conflict="source_name,source_id").execute()
             logger.info("Upserted %d events to Supabase.", len(all_rows))
+            _write_pure_publication_sentinels(
+                client,
+                [row for row in all_rows if is_pure_publication_record(row)],
+                list(resp.data or []),
+            )
             # Collect IDs of newly-inserted events only (not force-updates)
             # Supabase returns the upserted rows — match source_id against new_rows
             new_source_ids = {r["source_id"] for r in new_rows}
@@ -728,21 +853,19 @@ def upsert_events(events: list[Event], force_keys: set[tuple[str, str]] | None =
                 if row.get("source_id") in new_source_ids and row.get("id"):
                     new_event_ids.append(row["id"])
             # ── Auto-lock scraper-provided location fields ────────────────────
-            new_src_to_event = {
-                e.source_id: e for e in events
-                if (e.source_name, e.source_id) not in existing_keys
-                and (e.source_name, e.source_id) not in blocked_keys
-                and (e.source_name, e.source_id) not in reviewed_keys
-                and e.location_name
+            new_key_to_row = {
+                (row["source_name"], row["source_id"]): row for row in new_rows
+                if row.get("location_name") and not is_pure_publication_record(row)
             }
-            if new_src_to_event:
-                src_to_eid = {
-                    row["source_id"]: row["id"]
+            if new_key_to_row:
+                key_to_eid = {
+                    (row["source_name"], row["source_id"]): row["id"]
                     for row in (resp.data or [])
-                    if row.get("source_id") in new_src_to_event and row.get("id")
+                    if (row.get("source_name"), row.get("source_id")) in new_key_to_row
+                    and row.get("id")
                 }
-                eid_to_event = {eid: new_src_to_event[src] for src, eid in src_to_eid.items()}
-                _auto_lock_location(client, eid_to_event)
+                eid_to_row = {event_id: new_key_to_row[key] for key, event_id in key_to_eid.items()}
+                _auto_lock_location(client, eid_to_row)
         except Exception as exc:
             logger.error("Failed to upsert events: %s", exc)
             raise

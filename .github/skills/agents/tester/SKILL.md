@@ -16,7 +16,11 @@ Read this at the start of every session before running any test.
 
 ## Batch Repair Validation
 - For any reset + re-annotate / backfill run, do not stop at command success or `annotation_status`. Query the affected slice and verify the intended structural end-state (`event_form`, required template fields, missing translations) in DB.
-- For publication backfills, confirm the target sources' active rows collapse to `event_form=['publication']` and `missing_name_zh` / `missing_name_en` are zero before calling the run a pass.
+- For publication backfills, confirm pure rows are exact-only (`event_form=['publication']`) and mixed rows (for example `['publication', 'lecture']`) are not folded into pure behavior.
+- For pure publication rows, verify seven intentional-null fields and matching empty sentinels: `location_address`, `location_address_zh`, `location_address_en`, `business_hours`, `business_hours_zh`, `business_hours_en`, `location_prefectures`.
+- Preserve real DB prices (`is_paid`, `price_info`, `price_amount`) and verify they are hidden only from pure-publication UI and JSON-LD. Price fields, `location_name`, and `location_url` must not enter the seven-field NULL/clear policy.
+- For publication backfills, confirm publisher/organizer remains present and `missing_name_zh` / `missing_name_en` are zero before calling the run a pass.
+- When publication handling changes, include a writer-whitelist check (`scraper/database.py::_VALID_EVENT_FORMS` includes `publication`) in regression validation.
 - If the repaired slice includes named public figures or other high-risk proper nouns, add at least one human semantic spot check on `name_en` / `name_zh`. GPT can fill all required fields while still hallucinating a person name.
 
 ## Reporting

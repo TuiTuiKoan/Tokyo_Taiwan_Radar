@@ -9,6 +9,7 @@ import {
   shouldApplyAnnotatedLocationField,
 } from "@/lib/eventFieldMerge";
 import { TRANSLATION_LOCK_FIELDS } from "@/lib/eventIntakeClient";
+import { PURE_PUBLICATION_EVENT_FORM_GUIDANCE } from "@/lib/intakeGuidance";
 
 export const maxDuration = 60;
 
@@ -228,6 +229,8 @@ Classification fields (always required):
 - has_chinese_support: boolean
 - has_english_support: boolean
 - is_paid: boolean (true = admission fee required, false = free)
+
+${PURE_PUBLICATION_EVENT_FORM_GUIDANCE}
 
 Name translations (always required — fill ALL three languages):
 - name_ja: event name in Japanese

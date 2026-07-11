@@ -1,4 +1,5 @@
 ---
+description: "Coding standards for scraper sources, event fields, validation, and publication policy"
 applyTo: "scraper/**"
 ---
 
@@ -50,11 +51,21 @@ When a single TCC page lists multiple independent programme items (e.g. differen
 ## Default Fallback & Pricing Policies (預設收費政策 & 時間空白回退)
 
 - **時間空白回退**: 當事件無 `business_hours` (場次/營業時間) 時，前端在 UI 上不應只顯示 `"—"`。
-  - 若 `official_url` 或 `source_url` 存在，前端會顯示 `「請參照原始來源」` 並加上指向該 URL 的超連結。這由 [web/app/[locale]/events/[id]/page.tsx](web/app/%5Blocale%5D/events/%5Bid%5D/page.tsx) 中實作。
+  - 若 `official_url` 或 `source_url` 存在，前端會顯示 `「請參照原始來源」` 並加上指向該 URL 的超連結。這由 [web/app/[locale]/events/[id]/page.tsx](../../web/app/%5Blocale%5D/events/%5Bid%5D/page.tsx) 中實作。
 - **電影院類的預設有料 (Cinema Default Pricing Fallback)**:
   - 針對電影院類別（`event_form` 含有 `screening` 或 `screening_with_talk`，或 `category` 是 `movie`，或 `source_name` 符合電影院來源（如 `cinema`, `cinemart`, `cineswitch`, `eurospace`, `human_trust`, `bungeiza`, `cinemarine`, `morc`））：
     - 若 `is_paid` 為空，且**非**台灣文化中心（`source_name="taiwan_cultural_center"` 或 organizer 含有台灣文化中心）主辦，預設為 `is_paid = True`（有料）。
     - 若 `is_paid` 為 `True` 且 `price_info` 為空白，預設為 `price_info = "有料"`，避免前台因沒有票價顯示留空或破圖。
+
+## Publication Policy Invariant (Phase 3)
+
+- 純出版紀錄只能由 exact invariant 判定：`event_form` 正規化後必須嚴格等於 `['publication']`。
+- 純出版紀錄是 metadata-only：不得用 `books_media` 類別、`hanmoto` 來源名、或標題前綴取代判定。
+- 純出版七欄保持 intentional null，並以 `field_corrections` empty sentinel 鎖定：`location_address`、`location_address_zh`、`location_address_en`、`business_hours`、`business_hours_zh`、`business_hours_en`、`location_prefectures`。
+- 保留真實 DB 價格（`is_paid`、`price_info`、`price_amount`）；pure publication 價格只在 UI／JSON-LD 隱藏，不得納入 NULL／清除政策。`location_name` 與 `location_url` 也不屬於上述七欄。
+- `publisher/organizer` 對純出版仍是必填語意，不可因 pure 判定而跳過 missing organizer QA。
+- mixed records（例如 `['publication', 'lecture']`）必須保留 physical event 行為，不得套用 pure skip。
+- 任何 scraper/backfill 若寫入 `event_form=['publication']`，必須同步 DB writer whitelist（`_VALID_EVENT_FORMS`）與對應測試。
 
 ## selection_reason format
 

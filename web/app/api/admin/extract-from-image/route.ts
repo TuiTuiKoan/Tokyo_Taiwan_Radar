@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { CATEGORIES, EVENT_FORMS } from "@/lib/types";
+import { PURE_PUBLICATION_EVENT_FORM_GUIDANCE } from "@/lib/intakeGuidance";
 import {
   sanitizeCategoryValues,
   sanitizeEventFormValues,
@@ -68,6 +69,8 @@ Extract all visible information and return a JSON object with these fields (omit
 - has_english_support: true/false
 - event_form: array using only these values: ${EVENT_FORMS.join(" | ")}
 - category: array using only these values: ${CATEGORIES.join(" | ")}
+
+${PURE_PUBLICATION_EVENT_FORM_GUIDANCE}
 
 Classification guidance:
 - Use "history" when a featured author, artist, creator, or performer is explicitly Taiwan-born, 台湾出身, 台湾生まれ, or born in/from a Taiwan city. Do not use history for education or work experience in Taiwan alone.

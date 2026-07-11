@@ -68,10 +68,11 @@ Read this at the start of every session before writing any scraper.
   - **MUST** retain the physical address in `location_address` and its prefecture in `location_prefectures` so the event appears in regional filters and maps.
   - **Marking Rule**: "Remember to mark both" (記得兩個都標) means capturing both the venue context in name and the physical coordinates in address/prefecture.
   - Apply `field_corrections` to these fields to prevent AI from reverting the event to "Online only".
-- **Publication events keep placeholder address text, not maps URLs:** For `event_form=["publication"]`, keep `location_name = None`, preserve a neutral placeholder in `location_address` / `business_hours`, and never emit Google Maps links for that address in the detail page.
+- **Pure publication is exact-only:** Only normalized `event_form == ["publication"]` is pure. Source, category, title prefix, and placeholder text are drift evidence, not classification inputs.
+- **Pure publication intentional-null contract:** Keep `location_address`, `location_address_zh`, `location_address_en`, `business_hours`, `business_hours_zh`, `business_hours_en`, and `location_prefectures` NULL with matching empty sentinels.
+- **Pure publication price presentation:** Preserve real DB prices (`is_paid`, `price_info`, `price_amount`) and hide them only in pure-publication UI and JSON-LD. Price fields, `location_name`, and `location_url` are outside the seven-field NULL/clear policy.
 - **Publication title prefixes are locale-aware:** `name_ja`/`name_zh` keep `[新刊出版]`, `name_en` uses `[New Release]`, and periodical articles should use `name_ja=[雑誌記事]`, `name_zh=[期刊專文]`, `name_en=[Periodical Article]`. Do not reuse `[期刊專文]` in Japanese titles.
-- **Publication placeholder text is locale-aware:** When publication entries use display placeholders, fill `*_zh` and `*_en` with matching translations instead of leaving mixed-language fallback text in a Japanese UI.
-- **Publication source sync:** `_PUBLICATION_SOURCES` and each publication-style scraper must stay in sync. `performer` = author, `organizer_url` = publisher homepage, `official_url` = book detail/official page, and hanmoto date fallback order is `発売日 > 登録日`.
+- **Publication metadata semantics:** `performer` = author, `organizer_url` = publisher homepage, `official_url` = book detail/official page, and Hanmoto date fallback order is `発売日 > 登録日`.
 - **Fixed-venue scrapers (cinema, gallery, theater) MUST set `organizer=` and `organizer_type=["commercial_brand"]`:** `location_name` is stored in DB and shown in the venue column, but it does NOT appear in the admin event card. The 🏢 venue line in the event card is powered by the `organizer` field. A fixed-venue scraper that sets only `location_name` without `organizer` produces events that look venue-less in the admin list. Correct pattern (see `kyoto_cinema.py`, `kino_shinsaibashi.py`, `sakurazaka.py`):
   ```python
   location_name="シネマ・クレール 丸の内１・２",

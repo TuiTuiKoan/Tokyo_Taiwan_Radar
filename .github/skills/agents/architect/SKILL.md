@@ -15,6 +15,7 @@ Read this at the start of every session before producing any plan.
 - Confirm that all pending migrations are applied before designing features that build on them.
 - **Design system first（2026-06-03 教訓）**：任何 `web/` UI 計畫，優先採用本站既有 design system / design token 元件，不得預設用原生 HTML control。若已有 `DesignSelect`、dialog、button、input、badge 等對應元件，計畫中必須明列使用它；只有在設計系統無法表達互動語意時，才考慮新增原生 fallback。
 - **RLS/GRANT 縮權前先查 direct writes（2026-06-03 教訓）**：任何 migration 若要 `REVOKE` authenticated table grants、drop/recreate RLS policy、或改 view security 行為，必須先 grep `web/` 是否仍有 browser-client `.insert()` / `.update()` / `.delete()` 使用該表。admin browser-client writes 可保留 table grant，實際權限由 admin-only RLS policy 限制。`security_invoker` view 也必須同步確認底層表的最小欄位 grants 與 row policy，不能只 grant view。
+- **Derived enrichment candidate audit（2026-07-11 教訓）**：任何衍生 enrichment pipeline（Vision/OCR、web search、title/person enrichment）在規劃時必做雙層審計：`candidate select` 必須顯式載入 domain guard 欄位（例：`event_form`/`source_name`/`image_url`），且在實際 write 前必須 re-read 同一 row 再次驗證 guard，避免 TOCTOU 與 helper 直呼繞過查詢 filter。若來源存在共用 placeholder 媒體（例：Hanmoto `noimage.jpg`/`no-cover`），需以 canonical helper 精準拒絕 placeholder 變體，不得 blanket 禁用整個來源的真實內容。
 - **Supabase 分頁完整性先驗證（2026-05-26 教訓）**：凡計畫依賴 `select(...).execute()` 載入「保護判斷資料」（例如 `field_corrections`、blacklist、mapping）時，必須先驗證是否被預設分頁截斷。最少要做三件事：
    - 比對 `first_page_count` 與 `count='exact'`
    - 以 `.range(offset, offset+999)` 全量掃描一次確認總筆數

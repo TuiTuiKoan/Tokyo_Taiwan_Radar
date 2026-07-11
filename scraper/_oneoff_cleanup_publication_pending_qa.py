@@ -1,11 +1,11 @@
-"""One-off cleanup for publication-related pending QA reports.
+"""One-off dry-run summary for publication-related pending QA reports.
 
 Scope:
   - source_name in: ndl_opensearch, hanmoto, kawade_rss, eslite_spectrum
   - only pending event_reports
   - conservative handling for eslite_spectrum: only if explicitly matched
 
-Default mode is dry-run. Use --apply to write status updates.
+The historical live apply path is retired. This script is dry-run only.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import os
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 
@@ -50,11 +49,6 @@ def _supabase_client():
 
 def _batch(seq: list[str], size: int) -> list[list[str]]:
     return [seq[i : i + size] for i in range(0, len(seq), size)]
-
-
-def _append_note(existing: str | None, note: str) -> str:
-    prev = (existing or "").strip()
-    return f"{prev}\n[publication-batch] {note}" if prev else f"[publication-batch] {note}"
 
 
 def _fetch_pending_reports(sb) -> list[dict]:
@@ -102,7 +96,7 @@ def _classify(item: dict) -> str:
     return "manual"
 
 
-def run(apply_changes: bool = False) -> dict:
+def run() -> dict:
     sb = _supabase_client()
     pending = _fetch_pending_reports(sb)
 
@@ -131,49 +125,14 @@ def run(apply_changes: bool = False) -> dict:
     for report_type, count in summary["by_type"].most_common():
         print(f"  {report_type}: {count}")
 
-    if not apply_changes:
-        print("dry-run only; no rows updated")
-        return summary
-
-    now_iso = datetime.now(timezone.utc).isoformat()
-    for item in buckets["confirmed"]:
-        report = item["report"]
-        event = item["event"]
-        note = _append_note(
-            report.get("admin_notes"),
-            f"confirmed by publication batch for {event.get('source_name')} / {','.join(report.get('report_types') or [])}",
-        )
-        sb.table("event_reports").update(
-            {
-                "status": "confirmed",
-                "confirmed_at": now_iso,
-                "admin_notes": note,
-            }
-        ).eq("id", report["id"]).eq("status", "pending").execute()
-
-    for item in buckets["dismissed"]:
-        report = item["report"]
-        event = item["event"]
-        note = _append_note(
-            report.get("admin_notes"),
-            f"dismissed by publication batch for {event.get('source_name')} / {','.join(report.get('report_types') or [])}",
-        )
-        sb.table("event_reports").update(
-            {
-                "status": "dismissed",
-                "admin_notes": note,
-            }
-        ).eq("id", report["id"]).eq("status", "pending").execute()
-
-    print("updates applied")
+    print("dry-run only; no rows updated")
     return summary
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="One-off publication pending QA cleanup")
-    parser.add_argument("--apply", action="store_true", help="Write status updates")
-    args = parser.parse_args()
-    run(apply_changes=args.apply)
+    parser = argparse.ArgumentParser(description="One-off publication pending QA cleanup (dry-run summary only)")
+    parser.parse_args()
+    run()
 
 
 if __name__ == "__main__":

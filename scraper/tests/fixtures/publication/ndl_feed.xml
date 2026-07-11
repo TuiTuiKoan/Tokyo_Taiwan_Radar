@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/">
+  <channel>
+    <item>
+      <title>台湾文化の新刊</title>
+      <link>https://ndlsearch.ndl.go.jp/books/R100000002-I123456789</link>
+      <description>台湾文化を紹介する書籍。</description>
+      <dc:identifier>JP123456789</dc:identifier>
+      <dc:publisher>架空出版社</dc:publisher>
+      <dc:creator>著者名</dc:creator>
+      <dcterms:issued>2026-07-01</dcterms:issued>
+    </item>
+  </channel>
+</rss>

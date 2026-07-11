@@ -7,6 +7,16 @@ ms.date: 2026-06-04
 
 <!-- Append new entries at the top -->
 
+## 2026-07-11 - publication phase 3 驗收新增 exact pure 與 mixed-negative 檢查
+
+**問題：** 既有 publication 驗收偏重 `annotation_status` 與翻譯欄位，未覆蓋「exact pure vs mixed physical」與七欄 intentional-null + sentinel 一致性，容易把 policy drift 誤判為通過。
+
+**根因：** 測試只驗結果欄位存在，不驗判定邏輯來源（`event_form`）與 writer/QA/admin/intake 的橫向一致。
+
+**修正：** 將 Tester 驗收基準補為四項：exact pure 判定、mixed negative 不降級、七欄 null+sentinel、publisher required，並要求 publication 變更附 writer whitelist 回歸檢查。
+
+**教訓：** publication policy 的回歸不能只看「有沒有補值」，必須同時驗「哪些欄位應該故意不填」。
+
 
 ## 2026-06-04 - publication 全量驗收不能只看 annotated，還要抽查 `event_form` 與政治人物譯名
 

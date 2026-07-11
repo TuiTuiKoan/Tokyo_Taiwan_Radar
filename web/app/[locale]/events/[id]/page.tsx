@@ -4,7 +4,19 @@ import { createClient as createSsrClient } from "@/lib/supabase/server";
 import { unstable_noStore } from "next/cache";
 import { notFound, permanentRedirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { type Locale, type Event, getEventName, getEventDescription, getEventLocationName, getEventLocationAddress, getEventBusinessHours, getEventPerformer, getEventDirector, getEventOrganizer, isPureReportEvent } from "@/lib/types";
+import {
+  type Locale,
+  type Event,
+  getEventName,
+  getEventDescription,
+  getEventLocationName,
+  getEventLocationAddress,
+  getEventBusinessHours,
+  getEventPerformer,
+  getEventDirector,
+  getEventOrganizer,
+  isPureReportEvent,
+} from "@/lib/types";
 import SaveButton from "@/components/SaveButton";
 import { CategoryThumbnail } from "@/lib/design/CategoryThumbnail";
 import RawDataSection from "@/components/RawDataSection";
@@ -16,6 +28,12 @@ import BackToListButton from "@/components/BackToListButton";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
 import Link from "next/link";
 import { serializeJsonLd } from "@/lib/security/jsonLd";
+import {
+  buildCanonicalSourceLinks,
+  getDetailPresentationPolicy,
+  getReportExcludedDetailFields,
+} from "@/lib/publicationPresentation";
+import { buildEventStructuredData } from "@/lib/publicationStructuredData";
 
 export const revalidate = 3600;
 
@@ -425,11 +443,15 @@ export default async function EventDetailPage({ params }: PageProps) {
   const isTvProgramEvent =
     event.source_name === "gguide_tv" ||
     (event.category ?? []).includes("tv_program");
-  const isPublicationEvent = (event.event_form ?? []).includes("publication");
+  const detailPolicy = getDetailPresentationPolicy(event as Event);
+  const sourceLinks = buildCanonicalSourceLinks(event as Event);
+  const reportExcludedDetailFields = getReportExcludedDetailFields(event as Event);
   const isManualEvent =
     event.source_name === "user_submission" || event.source_name === "manual";
   const now = new Date();
-  const ended = event.end_date && new Date(event.end_date) < now;
+  const ended =
+    detailPolicy.showEventStatus &&
+    !!(event.end_date && new Date(event.end_date) < now);
 
   // Calendar expiry: independent check — compare last day against today UTC 00:00
   // (do NOT reuse `ended`; start_date stores JST day as UTC midnight, using `now`
@@ -457,124 +479,19 @@ export default async function EventDetailPage({ params }: PageProps) {
     ja: "イベント一覧",
     en: "Event List",
   };
-  const jsonLd = (() => {
-    const EVENT_STATUS_MAP: Record<string, string> = {
-      scheduled: "https://schema.org/EventScheduled",
-      cancelled: "https://schema.org/EventCancelled",
-      postponed: "https://schema.org/EventPostponed",
-      rescheduled: "https://schema.org/EventRescheduled",
-    };
-
-    const ev = event as Event;
-
-    // organizer：有資料用真實主辦方，無資料 fallback 本站
-    const organizerLd = ev.organizer
-      ? {
-          "@type": "Organization",
-          name: getEventOrganizer(ev as Event, locale) || ev.organizer,
-          ...(ev.organizer_url ?? ev.official_url
-            ? { url: ev.organizer_url ?? ev.official_url }
-            : {}),
-        }
-      : { "@type": "Organization", name: "Tokyo Taiwan Radar", url: base };
-
-    // performer: output only when DB has a real person name
-    const _performerStr = getEventPerformer(ev as Event, locale);
-    const performerLd =
-      ev.performers && ev.performers.length > 0
-        ? ev.performers.map(n => ({ "@type": "Person", name: n }))
-        : _performerStr
-          ? { "@type": "Person", name: _performerStr }
-          : null;
-
-    const directorLd = ev.director
-      ? { "@type": "Person", name: getEventDirector(ev as Event, locale) }
-      : null;
-
-    // location → Schema.org Event location MUST be present (required field).
-    // Detect online events across all three locale labels.
-    const isOnline =
-      locationName === "オンライン" ||
-      locationName === "線上" ||
-      locationName === "Online";
-
-    let placeLd: Record<string, unknown>;
-    let attendanceMode: string;
-    if (isOnline) {
-      attendanceMode = "https://schema.org/OnlineEventAttendanceMode";
-      placeLd = {
-        "@type": "VirtualLocation",
-        url:
-          ev.official_url ??
-          ev.source_url ??
-          `${base}/${locale}/events/${id}`,
-      };
-    } else if (locationName) {
-      attendanceMode = "https://schema.org/OfflineEventAttendanceMode";
-      placeLd = {
-        "@type": "Place",
-        name: locationName,
-        address: locationAddress
-          ? {
-              "@type": "PostalAddress",
-              streetAddress: locationAddress,
-              addressCountry: "JP",
-            }
-          : { "@type": "PostalAddress", addressCountry: "JP" },
-      };
-    } else {
-      // Fallback: physical event with no venue name (rare) — use country-only address.
-      attendanceMode = "https://schema.org/OfflineEventAttendanceMode";
-      placeLd = {
-        "@type": "Place",
-        name: locale === "en" ? "Japan" : "日本",
-        address: { "@type": "PostalAddress", addressCountry: "JP" },
-      };
-    }
-
-    // offers
-    const offerUrl = ev.official_url ?? ev.source_url;
-    const priceCurrency = ev.price_currency ?? "JPY";
-    let offersLd: Record<string, unknown> | null = null;
-    if (ev.is_paid === false) {
-      offersLd = {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency,
-        availability: "https://schema.org/InStock",
-        ...(ev.scraped_at ? { validFrom: ev.scraped_at } : {}),
-        ...(offerUrl ? { url: offerUrl } : {}),
-      };
-    } else if (ev.is_paid === true) {
-      offersLd = {
-        "@type": "Offer",
-        priceCurrency,
-        ...(ev.price_amount != null ? { price: String(ev.price_amount) } : {}),
-        availability: "https://schema.org/InStock",
-        ...(ev.scraped_at ? { validFrom: ev.scraped_at } : {}),
-        ...(offerUrl ? { url: offerUrl } : {}),
-      };
-    }
-
-    return {
-      "@context": "https://schema.org",
-      "@type": "Event",
-      name: name ?? ev.name_ja ?? undefined,
-      startDate: ev.start_date ?? undefined,
-      endDate: ev.end_date ?? undefined,
-      description: description ?? undefined,
-      url: `${base}/${locale}/events/${id}`,
-      image: `${base}/${locale}/events/${id}/opengraph-image`,
-      eventAttendanceMode: attendanceMode,
-      eventStatus: EVENT_STATUS_MAP[ev.event_status ?? "scheduled"],
-      location: placeLd,
-      organizer: organizerLd,
-      ...(performerLd ? { performer: performerLd } : {}),
-      ...(directorLd ? { director: directorLd } : {}),
-      ...(offersLd ? { offers: offersLd } : {}),
-      ...(ev.is_paid === false ? { isAccessibleForFree: true } : {}),
-    };
-  })();
+  const canonicalEventUrl = `${base}/${locale}/events/${id}`;
+  const jsonLd = buildEventStructuredData({
+    event: event as Event,
+    locale,
+    eventId: id,
+    baseUrl: base,
+    canonicalUrl: canonicalEventUrl,
+    imageUrl: `${base}/${locale}/events/${id}/opengraph-image`,
+    displayName: name,
+    displayDescription: description,
+    displayLocationName: locationName,
+    displayLocationAddress: locationAddress,
+  });
   const breadcrumbLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -642,38 +559,63 @@ export default async function EventDetailPage({ params }: PageProps) {
   };
   const faqL = FAQ_LABELS[locale] ?? FAQ_LABELS.zh;
   const faqQuestions: Array<{ q: string; a: string }> = [];
-  if (event.start_date) {
-    faqQuestions.push({
-      q: faqL.when,
-      a: faqL.whenA(event.start_date, event.end_date ?? null),
-    });
+
+  if (detailPolicy.isPurePublication) {
+    if (event.start_date) {
+      faqQuestions.push({
+        q: tNarr("faqPublicationDateQuestion"),
+        a: tNarr("faqPublicationDateAnswer", {
+          date: new Date(event.start_date).toLocaleDateString(locale, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }),
+        }),
+      });
+    }
+  } else {
+    if (event.start_date) {
+      faqQuestions.push({
+        q: faqL.when,
+        a: faqL.whenA(event.start_date, event.end_date ?? null),
+      });
+    }
+    if (detailPolicy.showFaqWhere) {
+      if (subEventPrefectures.length > 1) {
+        faqQuestions.push({
+          q: faqL.where,
+          a: faqL.whereA(subEventPrefectures.join("・"), null),
+        });
+      } else if (locationName) {
+        faqQuestions.push({
+          q: faqL.where,
+          a: faqL.whereA(locationName, locationAddress ?? null),
+        });
+      }
+    }
+    if (detailPolicy.showFaqPrice) {
+      if (event.is_paid === false) {
+        faqQuestions.push({ q: faqL.price, a: faqL.priceFree });
+      } else if (event.is_paid === true) {
+        faqQuestions.push({ q: faqL.price, a: faqL.pricePaid(event.price_info ?? null) });
+      }
+    }
   }
-  if (subEventPrefectures.length > 1) {
-    faqQuestions.push({
-      q: faqL.where,
-      a: faqL.whereA(subEventPrefectures.join("・"), null),
-    });
-  } else if (locationName) {
-    faqQuestions.push({
-      q: faqL.where,
-      a: faqL.whereA(locationName, locationAddress ?? null),
-    });
-  }
-  if (event.is_paid === false) {
-    faqQuestions.push({ q: faqL.price, a: faqL.priceFree });
-  } else if (event.is_paid === true) {
-    faqQuestions.push({ q: faqL.price, a: faqL.pricePaid(event.price_info ?? null) });
-  }
+
   const sourceUrl = (event as Event).official_url ?? event.source_url;
   if (sourceUrl) {
     try {
       const host = new URL(sourceUrl).hostname.replace(/^www\./, "");
-      faqQuestions.push({ q: faqL.source, a: faqL.sourceA(host) });
+      faqQuestions.push(
+        detailPolicy.isPurePublication
+          ? { q: tNarr("faqSourceQuestion"), a: tNarr("faqSourceAnswer", { host }) }
+          : { q: faqL.source, a: faqL.sourceA(host) }
+      );
     } catch {
       // ignore malformed URLs
     }
   }
-  const faqLd = faqQuestions.length >= 2
+  const faqLd = faqQuestions.length >= (detailPolicy.isPurePublication ? 1 : 2)
     ? {
         "@context": "https://schema.org",
         "@type": "FAQPage",
@@ -730,7 +672,7 @@ export default async function EventDetailPage({ params }: PageProps) {
             initialSaved={false}
             locale={locale}
           />
-          {event.start_date && !calendarExpired && (
+          {event.start_date && detailPolicy.showCalendar && !calendarExpired && (
             <AddToCalendarButton
               title={name ?? event.name_ja ?? ""}
               description={description}
@@ -792,6 +734,43 @@ export default async function EventDetailPage({ params }: PageProps) {
           locationName === "線上" ||
           locationName === "Online";
         const displayName = name ?? ev.name_ja ?? "";
+
+        if (detailPolicy.isPurePublication) {
+          const publisherName = getEventOrganizer(ev, locale) || ev.organizer || null;
+          const publicationParagraphs: string[] = [];
+
+          if (startStr && displayName && publisherName) {
+            publicationParagraphs.push(
+              tNarr("publicationP1WithPublisher", {
+                name: displayName,
+                date: startStr,
+                publisher: publisherName,
+              })
+            );
+          } else if (startStr && displayName) {
+            publicationParagraphs.push(
+              tNarr("publicationP1", {
+                name: displayName,
+                date: startStr,
+              })
+            );
+          }
+
+          publicationParagraphs.push(
+            tNarr("publicationP2", {
+              source: ev.source_name,
+            })
+          );
+
+          if (publicationParagraphs.length === 0) return null;
+          return (
+            <section className="mb-6 space-y-2 text-sm leading-relaxed text-fg-muted">
+              {publicationParagraphs.map((paragraph, index) => (
+                <p key={index}>{paragraph}</p>
+              ))}
+            </section>
+          );
+        }
 
         // Paragraph 1 — when / where overview
         let p1 = "";
@@ -877,7 +856,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                   <div className="flex flex-wrap gap-1.5">
                     {event.category.map((cat: string) => (
                       <span key={cat} className="bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded-full">
-                        {tCat(cat as any)}
+                        {tCat(cat as Parameters<typeof tCat>[0])}
                       </span>
                     ))}
                   </div>
@@ -894,35 +873,37 @@ export default async function EventDetailPage({ params }: PageProps) {
               </td>
             </tr>
             {/* End date */}
-            <tr>
-              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("endDate")}</td>
-              <td className="px-4 py-3">
-                {event.end_date
-                  ? <time dateTime={event.end_date}>{new Date(event.end_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}</time>
-                  : "—"}
-                {ended && (
-                  <>
-                    <span className="ml-2 text-xs bg-muted text-fg-subtle px-2 py-0.5 rounded-full">
-                      {t("ended")}
-                    </span>
-                    {(() => {
-                      const recordLinks = (event as Event).record_links ?? [];
-                      const featured = recordLinks.find((l) => l.recommended) ?? recordLinks[0];
-                      return featured ? (
-                        <a
-                          href={featured.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-2 text-xs bg-[#F7FFE8] text-[#1F5E2B] px-2 py-0.5 rounded-full hover:underline"
-                        >
-                          {t("recordLinksBadge")} ↗
-                        </a>
-                      ) : null;
-                    })()}
-                  </>
-                )}
-              </td>
-            </tr>
+            {detailPolicy.showEndDate && (
+              <tr>
+                <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("endDate")}</td>
+                <td className="px-4 py-3">
+                  {event.end_date
+                    ? <time dateTime={event.end_date}>{new Date(event.end_date).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })}</time>
+                    : "—"}
+                  {ended && (
+                    <>
+                      <span className="ml-2 text-xs bg-muted text-fg-subtle px-2 py-0.5 rounded-full">
+                        {t("ended")}
+                      </span>
+                      {(() => {
+                        const recordLinks = (event as Event).record_links ?? [];
+                        const featured = recordLinks.find((l) => l.recommended) ?? recordLinks[0];
+                        return featured ? (
+                          <a
+                            href={featured.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2 text-xs bg-[#F7FFE8] text-[#1F5E2B] px-2 py-0.5 rounded-full hover:underline"
+                          >
+                            {t("recordLinksBadge")} ↗
+                          </a>
+                        ) : null;
+                      })()}
+                    </>
+                  )}
+                </td>
+              </tr>
+            )}
             {/* Location */}
             <tr>
               <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("location")}</td>
@@ -946,138 +927,114 @@ export default async function EventDetailPage({ params }: PageProps) {
               </td>
             </tr>
             {/* Address */}
-            <tr>
-              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("address")}</td>
-              <td className="px-4 py-3">
-                {subEventPrefectures.length > 1
-                  ? subEventPrefectures.join("・")
-                  : event.source_name === "gguide_tv"
-                  ? t("tvChannel")
-                  : event.source_name === "rti_jp"
-                  ? t("radioChannel")
-                  : isPublicationEvent
-                  ? (locationAddress || "—")
-                  : addressSegments.length > 1
-                  ? addressSegments.map((addr, i) => (
-                      <span key={i}>
-                        {i > 0 && <br />}
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                        >
-                          {addr} ↗
-                        </a>
-                      </span>
-                    ))
-                  : (locationAddress || locationName) ? (() => {
-                      const displayAddr = stripPostal(locationAddress || locationName || "");
-                      const queryAddr = displayAddr || locationName || "";
-                      return (
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryAddr)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                        >
-                          {displayAddr || locationName} ↗
-                        </a>
-                      );
-                    })() : "—"}
-              </td>
-            </tr>
+            {detailPolicy.showAddress && (
+              <tr>
+                <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("address")}</td>
+                <td className="px-4 py-3">
+                  {subEventPrefectures.length > 1
+                    ? subEventPrefectures.join("・")
+                    : event.source_name === "gguide_tv"
+                    ? t("tvChannel")
+                    : event.source_name === "rti_jp"
+                    ? t("radioChannel")
+                    : addressSegments.length > 1
+                    ? addressSegments.map((addr, i) => (
+                        <span key={i}>
+                          {i > 0 && <br />}
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                          >
+                            {addr} ↗
+                          </a>
+                        </span>
+                      ))
+                    : (locationAddress || locationName) ? (() => {
+                        const displayAddr = stripPostal(locationAddress || locationName || "");
+                        const queryAddr = displayAddr || locationName || "";
+                        return (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryAddr)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                          >
+                            {displayAddr || locationName} ↗
+                          </a>
+                        );
+                      })() : "—"}
+                </td>
+              </tr>
+            )}
             {/* Business hours */}
-            <tr>
-              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("hours")}</td>
-              <td className="px-4 py-3 whitespace-pre-wrap">
-                {displayBusinessHours ? (
-                  displayBusinessHours
-                ) : ((event as Event).official_url || event.source_url) ? (
-                  <a
-                    href={(event as Event).official_url || event.source_url || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-amber-600 hover:underline inline-flex items-center gap-1"
-                  >
-                    {t("referToOriginalSource")} ↗
-                  </a>
-                ) : (
-                  "—"
-                )}
-              </td>
-            </tr>
+            {detailPolicy.showBusinessHours && (
+              <tr>
+                <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("hours")}</td>
+                <td className="px-4 py-3 whitespace-pre-wrap">
+                  {displayBusinessHours ? (
+                    displayBusinessHours
+                  ) : ((event as Event).official_url || event.source_url) ? (
+                    <a
+                      href={(event as Event).official_url || event.source_url || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-600 hover:underline inline-flex items-center gap-1"
+                    >
+                      {t("referToOriginalSource")} ↗
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+              </tr>
+            )}
             {/* Price */}
-            <tr>
-              <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("priceLabel")}</td>
-              <td className="px-4 py-3">
-                {isTvProgramEvent ? (
-                  <span className="text-fg-muted">{t("tvProgramTermsNotice")}</span>
-                ) : event.is_paid === false ? (
-                  <span>
-                    <span className="text-[#1F5E2B] font-medium">{t("free")}</span>
-                    {event.price_info && !GENERIC_FREE_PRICE.has(event.price_info.trim()) && (
-                      <span className="text-fg-muted ml-2">{renderPriceInfoNote(event.price_info.trim())}</span>
-                    )}
-                  </span>
-                ) : event.is_paid === true ? (
-                  <span>
-                    <span className="text-amber-600 font-medium">{t("paid")}</span>
-                    {event.price_info && 
-                     !["有料", "有料（預設）", "有料 (預設)", "有料(預設)", "料金", "料金（預設）", "料金 (預設)", "料金(預設)", "Paid", "paid", "收費", "收费"].includes(event.price_info.trim()) && (
-                      <span className="text-fg-muted ml-2">{event.price_info}</span>
-                    )}
-                  </span>
-                ) : (
-                  "—"
-                )}
-              </td>
-            </tr>
+            {detailPolicy.showPrice && (
+              <tr>
+                <td className="px-4 py-3 text-fg-subtle w-28 whitespace-nowrap">{t("priceLabel")}</td>
+                <td className="px-4 py-3">
+                  {isTvProgramEvent ? (
+                    <span className="text-fg-muted">{t("tvProgramTermsNotice")}</span>
+                  ) : event.is_paid === false ? (
+                    <span>
+                      <span className="text-[#1F5E2B] font-medium">{t("free")}</span>
+                      {event.price_info && !GENERIC_FREE_PRICE.has(event.price_info.trim()) && (
+                        <span className="text-fg-muted ml-2">{renderPriceInfoNote(event.price_info.trim())}</span>
+                      )}
+                    </span>
+                  ) : event.is_paid === true ? (
+                    <span>
+                      <span className="text-amber-600 font-medium">{t("paid")}</span>
+                      {event.price_info &&
+                        !["有料", "有料（預設）", "有料 (預設)", "有料(預設)", "料金", "料金（預設）", "料金 (預設)", "料金(預設)", "Paid", "paid", "收費", "收费"].includes(event.price_info.trim()) && (
+                          <span className="text-fg-muted ml-2">{event.price_info}</span>
+                        )}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+              </tr>
+            )}
             {/* Source link — official first */}
             <tr>
               <td className="px-4 py-3 text-fg-subtle w-28 align-top whitespace-nowrap">{t("source")}</td>
               <td className="px-4 py-3">
                 <div className="flex flex-col gap-1">
-                  {(event as Event).official_url ? (
+                  {sourceLinks.map((link) => (
                     <a
-                      href={(event as Event).official_url!}
+                      key={`${link.labelKey}:${link.url}`}
+                      href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-medium hover:underline"
+                      className={link.labelKey === "officialSite" || link.labelKey === "publisherWebsite" ? "font-medium hover:underline" : "hover:underline"}
                     >
-                      {t("officialSite")} ↗
+                      {t(link.labelKey)} ↗
                     </a>
-                  ) : null}
-                  {(event as Event).submission_url ? (
-                    <a
-                      href={(event as Event).submission_url!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium hover:underline"
-                    >
-                      {t("applyLink")} ↗
-                    </a>
-                  ) : null}
-                  {event.source_url && event.source_url !== (event as Event).official_url ? (
-                    <a
-                      href={event.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline"
-                    >
-                      {t("viewOriginal")} ↗
-                    </a>
-                  ) : event.source_url && !(event as Event).official_url ? (
-                    <a
-                      href={event.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline"
-                    >
-                      {t("viewOriginal")} ↗
-                    </a>
-                  ) : null}
-                  {!(event as Event).official_url && !event.source_url && "—"}
+                  ))}
+                  {sourceLinks.length === 0 && "—"}
                 </div>
               </td>
             </tr>
@@ -1102,7 +1059,9 @@ export default async function EventDetailPage({ params }: PageProps) {
           <dl className="space-y-2 text-sm">
             {(event as Event).organizer && (
               <div className="flex gap-2">
-                <dt className="shrink-0 text-fg-muted min-w-[5rem]">{t("organizer")}：</dt>
+                <dt className="shrink-0 text-fg-muted min-w-[5rem]">
+                  {detailPolicy.isPurePublication ? t("publisher") : t("organizer")}：
+                </dt>
                 <dd className="text-fg-strong">
                   {(event as Event).organizer_url ? (
                     <a
@@ -1119,7 +1078,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                   {((event as Event).organizer_type ?? [])[0] &&
                     ((event as Event).organizer_type ?? [])[0] !== "unknown" && (
                       <span className="ml-2 text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
-                        {tOrgType(((event as Event).organizer_type ?? [])[0] as any)}
+                        {tOrgType(((event as Event).organizer_type ?? [])[0] as Parameters<typeof tOrgType>[0])}
                       </span>
                   )}
                 </dd>
@@ -1209,7 +1168,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                       {((event as Event).co_organizer_types ?? [])[i] &&
                         ((event as Event).co_organizer_types ?? [])[i] !== "unknown" && (
                           <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
-                            {tOrgType(((event as Event).co_organizer_types ?? [])[i] as any)}
+                            {tOrgType(((event as Event).co_organizer_types ?? [])[i] as Parameters<typeof tOrgType>[0])}
                           </span>
                       )}
                     </span>
@@ -1227,7 +1186,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                       {((event as Event).sponsor_types ?? [])[i] &&
                         ((event as Event).sponsor_types ?? [])[i] !== "unknown" && (
                           <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
-                            {tOrgType(((event as Event).sponsor_types ?? [])[i] as any)}
+                            {tOrgType(((event as Event).sponsor_types ?? [])[i] as Parameters<typeof tOrgType>[0])}
                           </span>
                       )}
                     </span>
@@ -1241,7 +1200,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                 <dd className="flex flex-wrap gap-1">
                   {((event as Event).event_form ?? []).map((f) => (
                     <span key={f} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
-                      {tEventForm(f as any)}
+                      {tEventForm(f as Parameters<typeof tEventForm>[0])}
                     </span>
                   ))}
                 </dd>
@@ -1301,7 +1260,7 @@ export default async function EventDetailPage({ params }: PageProps) {
         selectionReason={event.selection_reason}
         locale={locale}
         hideSelectionReason={isManualEvent}
-        reportSection={<ReportSection eventId={event.id} locale={locale} hideSelectionReason={isManualEvent} currentCategories={(event.category ?? []) as import("@/lib/types").Category[]} selectionReasonAll={(() => {
+        reportSection={<ReportSection eventId={event.id} locale={locale} hideSelectionReason={isManualEvent} excludedDetailFields={reportExcludedDetailFields} currentCategories={(event.category ?? []) as import("@/lib/types").Category[]} selectionReasonAll={(() => {
           if (!event.selection_reason) return null;
           try {
             const parsed = JSON.parse(event.selection_reason);
@@ -1355,7 +1314,7 @@ export default async function EventDetailPage({ params }: PageProps) {
                     <p className="text-sm font-medium text-fg-strong line-clamp-1">{subName}</p>
                     {sub.category?.slice(0, 2).map((cat: string) => (
                       <span key={cat} className="text-xs bg-muted text-fg-muted px-1.5 py-0.5 rounded mr-1">
-                        {tCat(cat as any)}
+                        {tCat(cat as Parameters<typeof tCat>[0])}
                       </span>
                     ))}
                   </div>

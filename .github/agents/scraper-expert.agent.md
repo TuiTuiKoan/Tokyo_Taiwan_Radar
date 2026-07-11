@@ -51,8 +51,11 @@ Builds and debugs scrapers for all data sources. Dispatches to per-source subage
 - `performer` must come from the book author when the source is publication-style.
 - `official_url` should point to the book's official detail page when available.
 - `organizer_url` should point to the publisher home page.
-- `location_name` stays null for publication events; `location_address` keeps the placeholder text and must not become a Maps target.
-- If a publication placeholder is shown in the UI, use locale-matched strings for `location_name`, `location_address`, and `business_hours` so Japanese pages do not show Chinese fallback text.
+- Pure publication means exact `event_form == ["publication"]` only; do not infer pure from category/source/title.
+- Pure publication rows keep exactly these intentional-null fields: `location_address`, `location_address_zh`, `location_address_en`, `business_hours`, `business_hours_zh`, `business_hours_en`, and `location_prefectures`.
+- Preserve real DB prices (`is_paid`, `price_info`, `price_amount`); hide pure-publication prices only in UI and JSON-LD. Price fields, `location_name`, and `location_url` are outside the seven-field NULL/clear policy.
+- Publisher (`organizer`) is still required for pure publication rows.
+- Physical launch/talk/signing/lecture/workshop events must not include `publication` in `event_form`.
 - For hanmoto date fallback, prefer `発売日` first and `登録日` second.
 
 ## Required Phases
