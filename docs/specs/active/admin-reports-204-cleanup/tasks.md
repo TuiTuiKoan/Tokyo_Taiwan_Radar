@@ -12,10 +12,10 @@
 
 ## Phase D0: 交 Engineer 前的文件修訂（第二輪 critique，僅文字）
 
-- [ ] diff A（notes §4.1）：統一 proposal.md 兩張 disposition 表的基準
-- [ ] diff B（notes §4.2）：修 Group F step 1 措辭殘留「in the immutable ledger」
-- [ ] diff C（notes §4.3）：明示 `confirmReport()` 縮減版對 compound row 的行為
-- [ ] 確認上述已落地後，才進入實作 handoff
+- [x] diff A（notes §4.1）：統一 proposal.md 兩張 disposition 表的基準（加註 baseline Deterministic 11 / Human 23）
+- [x] diff B（notes §4.2）：修 Group F step 1 措辭殘留「in the immutable ledger」（計畫修訂時已套用為 execution manifest）
+- [x] diff C（notes §4.3）：明示 `confirmReport()` 縮減版對 compound row 的行為（Group E step 5 補述：不 partial-close，走人工分支）
+- [x] 確認上述已落地後，才進入實作 handoff
 
 ## Phase 0: 隔離工作並凍結 discovery 基線
 

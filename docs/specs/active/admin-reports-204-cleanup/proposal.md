@@ -76,7 +76,7 @@ The 204 rows have a complete, mutually exclusive accounting. Counts are report r
 
 The immutable `baseline_disposition` values and JSONL digest remain unchanged. Derive a separate execution manifest from that protected ledger; only its `current_disposition` may change. The Critic-approved execution manifest moves the single missing-category row from deterministic repair to manual review. Therefore Wave A executes 117 baseline IDs and the initial execution-time manual queue contains 44 IDs. Group F organizer rows may move to manual later only after the cycle-2 evidence inventory.
 
-For execution planning, the 98 non-prefecture, non-date, non-simplified Auto-QA rows break down by `current_disposition` as follows:
+For execution planning, the 98 non-prefecture, non-date, non-simplified Auto-QA rows break down by `current_disposition` as follows. The Deterministic and Human columns show `current_disposition`; within this 98-row subset the corresponding immutable baseline is Deterministic 11 and Human 23, because the single `auto_qa_missing_category` row moved from deterministic repair to manual review.
 
 | Report type                               | Stale | Deterministic | Structural FP | Source repair | Human | Total |
 |-------------------------------------------|------:|--------------:|--------------:|--------------:|------:|------:|
@@ -331,7 +331,7 @@ After Phase 1, Group A through Group E form **deployment cycle 1** and may run i
 2. Keep the existing audit trail and `lock_empty` sentinel behavior.
 3. Do not add organizer guessing or broad location search to this deterministic path.
 4. Reclassify the single `auto_qa_missing_category` row as manual-only before implementation. Do not modify the Peatix category writer in this plan; record that writer defect as a separate follow-up and do not let it block Wave A.
-5. Apply the minimum `confirmReport()` safety repair: check and return every existing event/correction write error, then move the `event_reports.status='confirmed'` update after all existing writes. Any earlier failure returns an error while the report remains pending.
+5. Apply the minimum `confirmReport()` safety repair: check and return every existing event/correction write error, then move the `event_reports.status='confirmed'` update after all existing writes. Any earlier failure returns an error while the report remains pending. Because this reduced action still sets a single per-row status, it cannot close one type of a compound row while leaving the other pending; the two compound rows are therefore handled through the existing manual Admin branch and are never closed by this action, and per-type partial close stays within the separate cross-table compensation follow-up.
 6. Do not add a manual cross-table compensation protocol, new before-image machinery, or new correction-table semantics in this plan. Track those as a separate web-safety follow-up; this cleanup only requires fail-fast status-last behavior.
 7. Run the category synchronization guard because `annotator.py` is touched. Verify `VALID_CATEGORIES`, the annotator prompt, all three message catalogs, and both admin API prompts remain aligned. No category enum is added and no message file should change.
 
