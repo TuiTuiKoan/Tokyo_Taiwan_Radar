@@ -508,25 +508,32 @@ def unlock_and_write(
     if mode not in {"lock_clean", "lock_empty", "unlock_only", "review_only"}:
         raise ValueError(f"unknown unlock_and_write mode: {mode}")
 
-    # Snapshot current state
-    ev = (
-        sb.table("events")
-        .select(f"id,{field_name}")
-        .eq("id", event_id)
-        .single()
-        .execute()
-    ).data or {}
-    before_val = ev.get(field_name)
+    # Snapshot current state. "review_only" carries a sentinel field_name (e.g.
+    # "__review__" from qa_heartbeat) that is NOT a real events column, so its
+    # column reads are skipped — a select("id,__review__") would raise Postgres
+    # 42703 (undefined_column). Real write modes still snapshot before_val and
+    # fc_before exactly as before, including under dry_run.
+    before_val = None
+    fc_before = None
+    if mode != "review_only":
+        ev = (
+            sb.table("events")
+            .select(f"id,{field_name}")
+            .eq("id", event_id)
+            .single()
+            .execute()
+        ).data or {}
+        before_val = ev.get(field_name)
 
-    fc_existing = (
-        sb.table("field_corrections")
-        .select("original_value,corrected_value,corrected_by,report_id")
-        .eq("event_id", event_id)
-        .eq("field_name", field_name)
-        .limit(1)
-        .execute()
-    ).data or []
-    fc_before = fc_existing[0] if fc_existing else None
+        fc_existing = (
+            sb.table("field_corrections")
+            .select("original_value,corrected_value,corrected_by,report_id")
+            .eq("event_id", event_id)
+            .eq("field_name", field_name)
+            .limit(1)
+            .execute()
+        ).data or []
+        fc_before = fc_existing[0] if fc_existing else None
 
     audit_id = _audit_start(
         sb,
