@@ -36,6 +36,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 from line_notify import send_line_message  # noqa: E402
+# Reuse H0's writer-safety primitives rather than re-implementing them: the
+# exactly-one-row pending CAS close and the shared annotation_error_stuck
+# resolution predicate both live in auto_qa (single source of truth).
+from auto_qa import (  # noqa: E402
+    _check_annotation_error_stuck,
+    close_report_exactly_one,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -144,6 +151,115 @@ def _settle_previous_round(sb, dry_run: bool) -> int:
     return healed
 
 
+def _is_single_escalation_row(report_types) -> bool:
+    """True only when report_types is exactly [ESCALATE_REPORT_TYPE].
+
+    annotation_error_stuck is error_recovery's own escalation type, not a known
+    Auto-QA type, so auto_qa.single_auto_type() never matches it. This mirrors
+    H0's single-type eligibility for it directly: any compound / multi-type row
+    — including one carrying a `field:` / `fieldEdit:` / `selectionReason:`
+    payload token — is disqualified and left for manual review.
+    """
+    cleaned = [t for t in (report_types or []) if isinstance(t, str) and t]
+    return cleaned == [ESCALATE_REPORT_TYPE]
+
+
+def _settle_recovered_escalations(sb, dry_run: bool) -> int:
+    """Close pending annotation_error_stuck reports whose event has recovered.
+
+    The escalation half (_file_escalation_report) only ever INSERTs; this is its
+    settlement counterpart. For each pending single-type escalation row it runs a
+    status-last, all-or-compensate lifecycle:
+
+      1. verify event recovery — annotation reached a verified-complete state
+         (annotated/reviewed) via H0's shared _check_annotation_error_stuck
+         predicate; otherwise the report is left pending.
+      2. retry reset — annotation_retry_count -> 0 (skipped when already 0 to
+         avoid a redundant write); if the write touches != 1 row the report is
+         left pending and NOT closed.
+      3. report confirmation — close_report_exactly_one(status='confirmed') with
+         a full report_id + status='pending' CAS requiring EXACTLY ONE row.
+
+    The report-status write is the FINAL Supabase write, so any earlier failure
+    (recovery unverified, retry-reset raises / touches != 1 row, or the close CAS
+    misses) leaves the report pending — there is no half-settled state. A retry
+    reset that already succeeded is not rolled back: annotation_retry_count == 0
+    on a recovered event is always correct, so keeping it breaks no invariant.
+    Only single-type rows are eligible; compound / payload rows stay for manual
+    review. Returns the number settled (would-settle count in dry-run).
+    """
+    reports = (
+        sb.table("event_reports")
+        .select("id, event_id, report_types")
+        .ov("report_types", [ESCALATE_REPORT_TYPE])
+        .eq("status", "pending")
+        .execute()
+        .data
+        or []
+    )
+    settled = 0
+    seen: set[str] = set()
+    for rep in reports:
+        rid = rep.get("id")
+        eid = rep.get("event_id")
+        if not rid or not eid or rid in seen:
+            continue
+        if not _is_single_escalation_row(rep.get("report_types")):
+            continue  # compound / payload row — never auto-settle here
+
+        rows = (
+            sb.table("events")
+            .select("id, annotation_status, annotation_retry_count")
+            .eq("id", eid)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        ev = rows[0] if rows else None
+        # Step 1 — verify event recovery (shared type-specific resolution predicate)
+        if ev is None or _check_annotation_error_stuck(ev) is not None:
+            continue  # not recovered → leave report pending
+
+        if dry_run:
+            settled += 1
+            seen.add(rid)
+            continue
+
+        try:
+            # Step 2 — retry reset (idempotent; require exactly one updated row)
+            if (ev.get("annotation_retry_count") or 0) != 0:
+                rr = (
+                    sb.table("events")
+                    .update({"annotation_retry_count": 0})
+                    .eq("id", eid)
+                    .execute()
+                )
+                if len(rr.data or []) != 1:
+                    logger.warning(
+                        "  SETTLE %s retry-reset touched %d rows — report left pending",
+                        eid[:8], len(rr.data or []),
+                    )
+                    continue
+            # Step 3 — report confirmation LAST (full-id + pending CAS, exactly one)
+            note = (
+                "annotation 已恢復（annotated/reviewed），"
+                "error_recovery 自動結案 annotation_error_stuck。"
+            )
+            ok, _n = close_report_exactly_one(sb, rid, status="confirmed", note=note)
+        except Exception as exc:  # noqa: BLE001 — leave report pending on any failure
+            logger.warning("  SETTLE %s aborted (%s) — report left pending", eid[:8], exc)
+            continue
+
+        if ok:
+            settled += 1
+            seen.add(rid)
+            logger.info("  SETTLE %s → report %s confirmed (recovered)", eid[:8], rid[:8])
+        else:
+            logger.warning("  SETTLE %s report-close CAS miss — report left pending", eid[:8])
+    return settled
+
+
 # ---------------------------------------------------------------------------
 # Phase 1 — escalation report row
 # ---------------------------------------------------------------------------
@@ -200,6 +316,7 @@ def _build_report(summary: dict, by_source_stats: dict) -> str:
         f"# Error Recovery — {today}",
         "",
         f"- healed last round (上一輪 reset 後成功重標): {summary['healed_last_round']}",
+        f"- settled (recovered escalations → confirmed): {summary['settled']}",
         f"- scanned (error events this run): {summary['scanned']}",
         f"- HEAL → reviewed: {summary['heal']}",
         f"- RETRY → pending: {summary['retry']}",
@@ -247,6 +364,7 @@ def _send_line_summary(summary: dict, by_source_stats: dict) -> None:
     msg = (
         f"[Error Recovery] {date.today().isoformat()}\n"
         f"上一輪修復成功: {summary['healed_last_round']}\n"
+        f"結案(恢復後): {summary['settled']}\n"
         f"本輪 error 掃描: {summary['scanned']}\n"
         f"HEAL→reviewed: {summary['heal']}\n"
         f"RETRY→pending: {summary['retry']}\n"
@@ -267,10 +385,13 @@ def run(dry_run: bool = False, limit: int = 100, source: str | None = None,
     # Phase 0 — settle previous round (report_only still settles; dry_run does not write)
     healed_last_round = _settle_previous_round(sb, dry_run)
     logger.info("Phase 0 — healed last round: %d", healed_last_round)
+    settled_reports = _settle_recovered_escalations(sb, dry_run)
+    logger.info("Phase 0 — settled recovered escalations: %d", settled_reports)
 
     summary = {
         "scanned": 0, "heal": 0, "retry": 0, "escalate": 0,
-        "healed_last_round": healed_last_round, "by_source": {},
+        "healed_last_round": healed_last_round, "settled": settled_reports,
+        "by_source": {},
     }
 
     # Phase 1 — scan + classify
