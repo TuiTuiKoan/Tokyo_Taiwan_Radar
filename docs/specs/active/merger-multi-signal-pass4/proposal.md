@@ -1,11 +1,13 @@
 ---
 slug: merger-multi-signal-pass4
 title: Merger Phase E — Multi-signal Pass 4 (跨來源去重)
-status: active
+status: parked
 branch: feat/merger-multi-signal-pass4
 created: 2026-05-05
 tags: [scraper, merger, deduplication]
 ---
+
+> ⛔ **PARKED (2026-07-19)** — `scraper/merger.py` is currently owned by Round G / LANE G3 of `admin-reports-204-cleanup`. Do **NOT** start `feat/merger-multi-signal-pass4` until G3 ships. No branch was started for this spec.
 
 ## What（做什麼）
 
