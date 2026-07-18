@@ -34,6 +34,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from dotenv import load_dotenv
+from merger import same_work_eligible
 from publication_rules import is_pure_publication_record
 from sources._cinema_constants import FIXED_CINEMA_SOURCES
 

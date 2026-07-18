@@ -201,6 +201,166 @@ def _deactivate_as_merged(primary_id: str, reason: str, pass_id: str) -> dict:
     return payload
 
 
+# Same-work eligibility window: two events for the same work_id (or the same
+# gnews film) count as the same run only when their start dates fall within this
+# many days of each other.
+_SAME_WORK_WINDOW_DAYS = 14
+
+# Works metadata copied from a merged-away secondary onto the surviving primary
+# (only when the primary field is empty). Order defines the reported sync order.
+_WORKS_SYNC_FIELDS = [
+    "work_id",
+    "director",
+    "release_year",
+    "cast_summary",
+    "description",
+    "performer",
+]
+
+
+def same_work_eligible(
+    date_a: str | None,
+    date_b: str | None,
+    loc_a: str | None,
+    loc_b: str | None,
+    *,
+    require_location_overlap: bool,
+    require_both_dates: bool = False,
+    window_days: int = _SAME_WORK_WINDOW_DAYS,
+) -> bool:
+    """Shared same-work date/location eligibility predicate.
+
+    Single source of truth for merger Pass 5 (merger mode) and Auto-QA
+    same-work detection / reconciliation (detection mode):
+
+    - Merger mode (``require_location_overlap=True``) requires the two venues to
+      overlap and allows a one-sided/absent date (leaning on the location
+      guard), mirroring the historical Pass 5 window+location check.
+    - Detection mode (``require_location_overlap=False``,
+      ``require_both_dates=True``) ignores location but demands both dates.
+
+    Date rule: when both dates are present they must parse and fall within
+    ``window_days`` of each other; an unparseable pair is never eligible
+    (mirroring the historical ``continue``). When a date is missing,
+    ``require_both_dates`` decides eligibility.
+    """
+    if date_a and date_b:
+        try:
+            diff = abs(
+                (_date.fromisoformat(date_a[:10]) - _date.fromisoformat(date_b[:10])).days
+            )
+        except (ValueError, TypeError):
+            return False
+        if diff > window_days:
+            return False
+    elif require_both_dates:
+        return False
+    if require_location_overlap:
+        return _location_overlap(loc_a, loc_b)
+    return True
+
+
+def apply_targeted_merge(
+    sb: Any,
+    primary: dict,
+    secondary: dict,
+    *,
+    reason: str,
+    pass_id: str,
+    primary_update: dict | None = None,
+    repair_children: bool = False,
+    sync_works: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Deactivate ``secondary`` as merged into ``primary`` with full audit fields.
+
+    The single targeted-merge primitive shared by every merger pass and future
+    manifest tooling — never fork a second merge implementation.
+
+    Guards (raise ``ValueError``): a falsy primary/secondary id, a self-merge, an
+    inactive primary, or a cycle (primary already merged into the secondary).
+
+    On apply (skipped entirely when ``dry_run``): optionally sync missing works
+    metadata from the secondary, apply the caller's ``primary_update``,
+    deactivate the secondary via :func:`_deactivate_as_merged`, and optionally
+    re-parent the secondary's children onto the primary. Report status is never
+    written here.
+
+    Returns ``{"dry_run", "deactivated", "repaired_children", "synced_fields"}``.
+    """
+    primary_id = primary.get("id")
+    secondary_id = secondary.get("id")
+    if not primary_id:
+        raise ValueError("apply_targeted_merge: primary id is required")
+    if not secondary_id:
+        raise ValueError("apply_targeted_merge: secondary id is required")
+    if primary_id == secondary_id:
+        raise ValueError(f"apply_targeted_merge: self-merge rejected ({primary_id})")
+    if primary.get("is_active") is False:
+        raise ValueError(
+            f"apply_targeted_merge: inactive primary rejected ({primary_id})"
+        )
+    if primary.get("merged_into_event_id") == secondary_id:
+        raise ValueError(
+            f"apply_targeted_merge: cycle rejected ({primary_id} <-> {secondary_id})"
+        )
+
+    result: dict = {
+        "dry_run": dry_run,
+        "deactivated": False,
+        "repaired_children": [],
+        "synced_fields": [],
+    }
+    if dry_run:
+        return result
+
+    # 1. Sync works metadata from the secondary into any empty primary field.
+    if sync_works:
+        sync_update: dict = {}
+        synced: list[str] = []
+        for field in _WORKS_SYNC_FIELDS:
+            if not primary.get(field) and secondary.get(field):
+                sync_update[field] = secondary[field]
+                synced.append(field)
+        if sync_update:
+            sb.table("events").update(sync_update).eq("id", primary_id).execute()
+            for k, v in sync_update.items():
+                primary[k] = v
+        result["synced_fields"] = synced
+
+    # 2. Apply the caller's primary update.
+    if primary_update:
+        sb.table("events").update(primary_update).eq("id", primary_id).execute()
+
+    # 3. Deactivate the secondary as merged into the primary.
+    sb.table("events").update(
+        _deactivate_as_merged(primary_id, reason, pass_id)
+    ).eq("id", secondary_id).execute()
+    result["deactivated"] = True
+
+    # 4. Re-parent the secondary's children onto the primary.
+    if repair_children:
+        children = (
+            sb.table("events")
+            .select("id")
+            .eq("parent_event_id", secondary_id)
+            .execute()
+            .data
+        ) or []
+        repaired: list[str] = []
+        for child in children:
+            cid = child.get("id")
+            if not cid:
+                continue
+            sb.table("events").update(
+                {"parent_event_id": primary_id}
+            ).eq("id", cid).execute()
+            repaired.append(cid)
+        result["repaired_children"] = repaired
+
+    return result
+
+
 def _date_in_range(
     date_str: str | None, start_str: str | None, end_str: str | None,
     lookback_days: int = 0,
@@ -422,14 +582,12 @@ def run_merger(dry_run: bool = False) -> int:
                 upd["annotation_status"] = "pending"
 
             try:
-                sb.table("events").update(upd).eq("id", primary["id"]).execute()
-                sb.table("events").update(
-                    _deactivate_as_merged(
-                        primary["id"],
-                        f"merged into {primary['id']} (gnews within-source dedup)",
-                        "merger_pass_0",
-                    )
-                ).eq("id", secondary["id"]).execute()
+                apply_targeted_merge(
+                    sb, primary, secondary,
+                    primary_update=upd,
+                    reason=f"merged into {primary['id']} (gnews within-source dedup)",
+                    pass_id="merger_pass_0",
+                )
                 pass0_count += 1
                 pass0_handled.add(secondary["id"])
             except Exception as exc:
@@ -620,14 +778,12 @@ def run_merger(dry_run: bool = False) -> int:
                     primary_update["annotation_status"] = "pending"
 
                 try:
-                    sb.table("events").update(primary_update).eq("id", primary["id"]).execute()
-                    sb.table("events").update(
-                        _deactivate_as_merged(
-                            primary["id"],
-                            f"merged into {primary['id']} via Pass 1.1 ISBN matching {isbn}",
-                            "merger_pass_1_1",
-                        )
-                    ).eq("id", secondary["id"]).execute()
+                    apply_targeted_merge(
+                        sb, primary, secondary,
+                        primary_update=primary_update,
+                        reason=f"merged into {primary['id']} via Pass 1.1 ISBN matching {isbn}",
+                        pass_id="merger_pass_1_1",
+                    )
                     pass1_1_count += 1
                     handled_secondary_ids.add(secondary["id"])
                     
@@ -802,14 +958,12 @@ def run_merger(dry_run: bool = False) -> int:
                         primary_update["annotation_status"] = "pending"
 
                 try:
-                    sb.table("events").update(primary_update).eq("id", primary["id"]).execute()
-                    sb.table("events").update(
-                        _deactivate_as_merged(
-                            primary["id"],
-                            f"merged into {primary['id']} via Pass 1.5 within-source dedup",
-                            "merger_pass_1_5",
-                        )
-                    ).eq("id", secondary["id"]).execute()
+                    apply_targeted_merge(
+                        sb, primary, secondary,
+                        primary_update=primary_update,
+                        reason=f"merged into {primary['id']} via Pass 1.5 within-source dedup",
+                        pass_id="merger_pass_1_5",
+                    )
                     pass1_5_count += 1
                     handled_secondary_ids.add(secondary["id"])
                 except Exception as exc:
@@ -1286,24 +1440,14 @@ def run_merger(dry_run: bool = False) -> int:
                 if ev_a["id"] in handled_secondary_ids or ev_b["id"] in handled_secondary_ids:
                     continue
 
-                # Date guard: start_dates must be ≤ 14 days apart
-                date_a = ev_a.get("start_date")
-                date_b = ev_b.get("start_date")
-                if date_a and date_b:
-                    try:
-                        diff = abs(
-                            (_date.fromisoformat(date_a[:10]) - _date.fromisoformat(date_b[:10])).days
-                        )
-                        if diff > 14:
-                            continue
-                    except ValueError:
-                        continue
-                elif date_a or date_b:
-                    # One has date, other doesn't — still allow if location matches
-                    pass
-
-                # Location guard: must overlap (prevents merging same film at different cities)
-                if not _location_overlap(ev_a.get("location_name"), ev_b.get("location_name")):
+                # Merger-mode same-work guard: start dates ≤ 14 days apart (a
+                # one-sided/absent date is tolerated) AND overlapping venue
+                # (prevents merging the same film at different cities).
+                if not same_work_eligible(
+                    ev_a.get("start_date"), ev_b.get("start_date"),
+                    ev_a.get("location_name"), ev_b.get("location_name"),
+                    require_location_overlap=True,
+                ):
                     continue
 
                 # Quality score: prefer has_date > has_location > longer description
