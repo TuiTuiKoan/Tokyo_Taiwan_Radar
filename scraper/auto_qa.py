@@ -106,6 +106,18 @@ JST = timezone(timedelta(hours=9))
 _TIME_RE = re.compile(r'\d{1,2}[時:]\d{2}')
 _SEP = re.compile(r"[、,，×／/]")
 
+# A clock time (HH:MM) counts as a real EVENT time only when an event-time label
+# sits within a small window of it AND no deadline / sales / publication / update
+# label dominates that same window — this keeps missing-hours from firing on
+# application deadlines, ticket-sale windows and article/publish timestamps.
+_EVENT_TIME_LABEL_RE = re.compile(
+    r'開場|開演|開始|開廷|上映|受付開始|集合|スタート|start\s*time|doors?\s*open'
+)
+_TIME_REJECT_CONTEXT_RE = re.compile(
+    r'締切|締め切り|〆切|締切り|発売|販売|申込|申し込み|応募|受付終了|'
+    r'掲載|公開日|更新|投稿|配信開始|予約開始|エントリー|deadline|until'
+)
+
 # Keyword signals that a named performer/creator should exist in the event.
 _PERFORMER_SIGNAL_RE = re.compile(
     r'クリエイター|出展者|出展ブランド|デザイナー|登壇者?|講師|モデレーター'
@@ -116,6 +128,17 @@ _PERFORMER_SIGNAL_FORMS = frozenset({
     "market", "exhibition", "lecture", "conference",
     "performance", "workshop", "networking",
 })
+
+# Conservative evidence that a SPECIFIC named person appears in raw text: a
+# middle-dot katakana full name, a name carrying a personal honorific/title, or
+# an explicit "role: name" list entry. Generic role/group words alone
+# (クリエイター / 出展ブランド / デザイナー …) are NOT sufficient.
+_KATAKANA_FULLNAME_RE = re.compile(r'[ァ-ヶー]{2,}[・･][ァ-ヶー]{2,}')
+_HONORIFIC_NAME_RE = re.compile(r'[一-龥ぁ-んァ-ヶーA-Za-z]{2,12}(?:氏|先生|教授|監督)')
+_PERFORMER_LIST_RE = re.compile(
+    r'(?:出演者?|登壇者?|講師|ゲスト|司会|モデレーター|演奏|パフォーマー|'
+    r'アーティスト)\s*[:：]\s*[^\s、,，。\n]{2,}'
+)
 
 _TAIWAN_ADDR_RE = re.compile(
     r'台北|台中|台南|高雄|台湾|基隆|新竹|桃園|彰化|嘉義|花蓮|宜蘭|台東|台灣'
@@ -291,6 +314,51 @@ def _should_skip_publication_venue_qa(ev: dict) -> bool:
     return _is_exact_pure_publication(ev)
 
 
+def _has_event_time_context(text: str | None) -> bool:
+    """True iff the text contains a clock time (HH:MM) that is plausibly an
+    EVENT start/open time. A time qualifies only when an event-time label
+    (開場 / 開演 / 開始 / 上映 / …) appears within ±12 chars AND no deadline /
+    sales / publication / update label appears in that same window. A time that
+    only sits near a reject label (締切 / 発売 / 掲載 / 更新 / …), or carries no
+    label at all, does not qualify. Pure and deterministic (no I/O)."""
+    if not text:
+        return False
+    for m in _TIME_RE.finditer(text):
+        window = text[max(0, m.start() - 12):m.end() + 12]
+        if _EVENT_TIME_LABEL_RE.search(window) and not _TIME_REJECT_CONTEXT_RE.search(window):
+            return True
+    return False
+
+
+def _has_named_person_candidate(text: str | None) -> bool:
+    """Conservative evidence that a specific PERSON is named — a middle-dot
+    katakana full name, a name carrying a personal honorific/title, or an
+    explicit 'role: name' list entry. Generic role or group words without an
+    accompanying name do NOT qualify. Pure and deterministic (no I/O)."""
+    if not text:
+        return False
+    return bool(
+        _KATAKANA_FULLNAME_RE.search(text)
+        or _HONORIFIC_NAME_RE.search(text)
+        or _PERFORMER_LIST_RE.search(text)
+    )
+
+
+def _has_thin_content_context(ev: dict) -> bool:
+    """True when the event is a sub-event (has parent_event_id) that already
+    carries enough of its own structured data — a start_date, a location_name,
+    an organizer, or performers — that a short raw_description is expected rather
+    than a quality defect (the parent series supplies the shared context). Pure."""
+    if ev.get("parent_event_id") is None:
+        return False
+    return bool(
+        ev.get("start_date")
+        or ev.get("location_name")
+        or ev.get("organizer")
+        or ev.get("performers")
+    )
+
+
 def _check_missing_hours(ev: dict) -> str | None:
     """Return note if event has null business_hours but time pattern in raw_description."""
     # Only exact pure publications have no business hours requirement.
@@ -311,7 +379,7 @@ def _check_missing_hours(ev: dict) -> str | None:
     raw = ev.get("raw_description") or ""
     if not raw:
         return None
-    if _TIME_RE.search(raw):
+    if _has_event_time_context(raw):
         return (
             f"business_hours is null but raw_description contains time pattern; "
             f"source={source_name}"
@@ -810,7 +878,7 @@ def _check_missing_performers(ev: dict) -> str | None:
     if not any(f in _PERFORMER_SIGNAL_FORMS for f in forms):
         return None
     raw = ((ev.get("raw_title") or "") + " " + (ev.get("raw_description") or ""))[:2000]
-    if _PERFORMER_SIGNAL_RE.search(raw):
+    if _PERFORMER_SIGNAL_RE.search(raw) and _has_named_person_candidate(raw):
         return (
             f"performers[] null but role signal in raw text; "
             f"event_form={forms}; source={source_name}"
@@ -850,6 +918,8 @@ def _check_thin_content(ev: dict) -> str | None:
     source_name = ev.get("source_name") or ""
     if source_name in THIN_CONTENT_SOURCES:
         return None
+    if _has_thin_content_context(ev):
+        return None
     raw = ev.get("raw_description")
     raw_len = len(raw) if raw else 0
     reasons = []
@@ -880,7 +950,7 @@ def _detect_thin_content(sb) -> list[dict]:
         sb.table("events")
         .select(
             "id,source_name,source_url,raw_description,start_date,"
-            "location_name,organizer,created_at"
+            "location_name,organizer,parent_event_id,performers,created_at"
         )
         .eq("is_active", True)
         .gte("created_at", thirty_days_ago_iso)
@@ -963,14 +1033,10 @@ def detect(event: dict) -> list[tuple[str, str]]:
     # Only exact pure publications have no physical venue/address requirements.
     is_pub_event = _should_skip_publication_venue_qa(event)
 
-    # 1. Simplified Chinese in any *_zh field
-    bad_fields = [f for f in ZH_FIELDS if _has_simplified(event.get(f))]
-    if bad_fields:
-        sample = next((event[f] for f in bad_fields if event.get(f)), "")
-        findings.append((
-            "auto_qa_simplified_zh",
-            f"簡體字偵測 fields={','.join(bad_fields)} sample={sample[:80]}",
-        ))
+    # Simplified-Chinese detection is emitted solely by the dedicated
+    # _detect_simplified_chinese scanner (canonical type auto_simplified_chinese)
+    # using the precise SC_ONLY set. detect() no longer emits the legacy
+    # auto_qa_simplified_zh finding, so the same defect never produces two rows.
 
     # 2. Has location_name but no location_address (skip online / TV / multi-city / book publications)
     loc_name = event.get("location_name") or ""
@@ -1196,13 +1262,58 @@ def run(dry_run: bool = False) -> dict:
     return summary
 
 
+def _sc_only_chars_in_event(ev: dict) -> set:
+    """All SC_ONLY (unambiguously simplified-only) chars present across the
+    event's zh fields and selection_reason.zh. Pure."""
+    import json as _json
+
+    found: set = set()
+    for field in ("name_zh", "description_zh", "location_name_zh",
+                  "location_address_zh", "business_hours_zh", "organizer_zh"):
+        for ch in (ev.get(field) or ""):
+            if ch in SC_ONLY:
+                found.add(ch)
+    sr = ev.get("selection_reason")
+    if sr:
+        try:
+            sr_dict = _json.loads(sr) if isinstance(sr, str) else sr
+            zh_val = (sr_dict.get("zh") or "") if isinstance(sr_dict, dict) else ""
+            for ch in zh_val:
+                if ch in SC_ONLY:
+                    found.add(ch)
+        except (ValueError, TypeError, AttributeError):
+            pass
+    return found
+
+
+def _sc_unmapped_chars(ev: dict, mapping) -> set:
+    """SC_ONLY chars in the event that have NO entry in the SC->TC conversion map
+    (i.e. cannot be auto-repaired by _to_trad). Pure given a mapping."""
+    return {ch for ch in _sc_only_chars_in_event(ev) if ch not in mapping}
+
+
+def sc_row_is_auto_eligible(ev: dict, mapping=None) -> bool:
+    """True iff the event contains at least one SC_ONLY char AND every SC_ONLY
+    char it contains is present in the SC->TC conversion map (fully
+    auto-repairable). An event carrying ANY unmapped SC_ONLY char is NOT
+    auto-eligible and must be left for manual review — otherwise a
+    detected-but-unfixable character loops through dismiss/recreate. Pure given a
+    mapping; loads annotator's _SIMP_TO_TRAD_RAW lazily when mapping is None."""
+    if mapping is None:
+        from annotator import _SIMP_TO_TRAD_RAW as mapping
+    chars = _sc_only_chars_in_event(ev)
+    if not chars:
+        return False
+    return all(ch in mapping for ch in chars)
+
+
 def fix_simplified(dry_run: bool = False) -> dict:
     """Auto-fix Simplified Chinese chars in all active annotated/reviewed events.
 
     Applies the same _SIMP_TO_TRAD conversion used by annotator.py.
     Does NOT change annotation_status — events remain annotated/reviewed.
     """
-    from annotator import _to_trad, _lock_fields_via_corrections
+    from annotator import _to_trad, _lock_fields_via_corrections, _SIMP_TO_TRAD_RAW
 
     sb = _supabase_client()
     _FIX_FIELDS = (
@@ -1220,7 +1331,20 @@ def fix_simplified(dry_run: bool = False) -> dict:
     )
 
     fixed_count = 0
+    left_manual = 0
     for row in rows:
+        # SC->TC gate: an event carrying ANY SC-only char that is not in the
+        # conversion map cannot be fully auto-repaired — leave it for manual
+        # review rather than partially fixing it (which would loop the unfixable
+        # character through dismiss/recreate).
+        unmapped = _sc_unmapped_chars(row, _SIMP_TO_TRAD_RAW)
+        if unmapped:
+            left_manual += 1
+            logger.info(
+                "  [MANUAL] %s: unmapped SC chars %s — left for manual review",
+                row["id"][:8], "".join(sorted(unmapped)),
+            )
+            continue
         update: dict[str, Any] = {}
 
         for field in _FIX_FIELDS:
@@ -1254,8 +1378,23 @@ def fix_simplified(dry_run: bool = False) -> dict:
                 logger.info("  ✓ fixed+locked SC chars: %s fields=%s", row["id"][:8], list(update.keys()))
             fixed_count += 1
 
-    logger.info("fix_simplified: %s %d/%d events", "would fix" if dry_run else "fixed", fixed_count, len(rows))
-    return {"scanned": len(rows), "fixed": fixed_count}
+    logger.info(
+        "fix_simplified: %s %d/%d events (%d left for manual review)",
+        "would fix" if dry_run else "fixed", fixed_count, len(rows), left_manual,
+    )
+    return {"scanned": len(rows), "fixed": fixed_count, "left_manual": left_manual}
+
+
+def _check_annotation_error_stuck(ev: dict) -> str | None:
+    """Resolution predicate for the annotation_error_stuck escalation inserted by
+    error_recovery.py. Returns None (resolved) only when the event's annotation
+    reached a verified-complete state (annotated or reviewed); otherwise a note
+    that the error is still unresolved. G1 owns only this predicate — settlement
+    (closing the row) is performed by error_recovery in G3."""
+    status = ev.get("annotation_status")
+    if status in ("annotated", "reviewed"):
+        return None
+    return f"annotation_status={status!r} is not annotated/reviewed; error unresolved"
 
 
 def _reconcile_check(rt: str, ev: dict, *, sb=None) -> str | None:
@@ -1265,9 +1404,8 @@ def _reconcile_check(rt: str, ev: dict, *, sb=None) -> str | None:
     Returns a non-None sentinel ('no_predicate_keep') for types without a predicate
     so the caller can distinguish 'resolved' from 'unknown'.
     """
-    # detect()-derived 6 types — re-run detect() and look up the matching type
+    # detect()-derived 5 types — re-run detect() and look up the matching type
     _DETECT_TYPES = frozenset({
-        "auto_qa_simplified_zh",
         "auto_qa_missing_address",
         "auto_qa_missing_location_name",
         "auto_qa_missing_category",
@@ -1280,8 +1418,16 @@ def _reconcile_check(rt: str, ev: dict, *, sb=None) -> str | None:
                 return det_note
         return None  # resolved
 
-    # 7 extracted _check_* types
-    if rt == "auto_simplified_chinese":
+    # annotation_error_stuck (inserted by error_recovery; settled in G3) resolves
+    # only when the event's annotation reached a verified-complete state. This is
+    # the ONLY type whose resolution rule reads annotation_status directly.
+    if rt == "annotation_error_stuck":
+        return _check_annotation_error_stuck(ev)
+
+    # Simplified-Chinese: the canonical auto_simplified_chinese and the legacy
+    # auto_qa_simplified_zh alias share one predicate so historical legacy rows
+    # stay reconcilable without detect() ever emitting new legacy rows.
+    if rt in ("auto_simplified_chinese", "auto_qa_simplified_zh"):
         return _check_simplified_chinese(ev)
     if rt == "auto_qa_missing_hours":
         return _check_missing_hours(ev)
