@@ -13,6 +13,8 @@ Read this at the start of every session before producing any plan.
 - Identify all code paths affected by a data model change — not just the obvious one (a new column needs both the table AND every writer that populates it).
 - Never ship a plan with an untested API or signature change. Include an explicit smoke-test step.
 - Confirm that all pending migrations are applied before designing features that build on them.
+- **Domain-policy surface audit（2026-07-11 教訓）**：需求若把某類記錄的欄位定義為「不適用、隱藏、免 QA、不得自動補值」，不可只改公開頁面的摘要列。計畫起草前必須建立 surface matrix，逐層追查：(1) scraper 分類與提取、(2) database writer／entity enrichment、(3) annotator／field corrections、(4) backfill 與 rollback、(5) QA detect／fix／reconcile、(6) admin quality metrics、(7) 公開摘要／敘事／FAQ／Calendar／回報 UI、(8) JSON-LD／SEO。每層都要明列適用 predicate、未來寫入守衛、legacy cleanup 與負向 fixture；缺任一層都可能讓已隱藏資料從衍生輸出重新洩漏。
+- **量詞轉 acceptance matrix（2026-07-11 教訓）**：使用者說「所有 A」「A 與 B」「除 C 外」時，計畫必須把每個集合展開成驗收矩陣，逐列列出 UI、DB、QA、SEO 的期望行為，並加入邊界反例。不得把全集合靜默縮成某個 subtype（例如把「所有純出版記錄隱藏料金」縮成「只有雜誌文章隱藏料金」）。source、category、標題前綴不可代替真正的 domain invariant；混合型記錄必須有 negative fixture 防止過度套用。
 - **Design system first（2026-06-03 教訓）**：任何 `web/` UI 計畫，優先採用本站既有 design system / design token 元件，不得預設用原生 HTML control。若已有 `DesignSelect`、dialog、button、input、badge 等對應元件，計畫中必須明列使用它；只有在設計系統無法表達互動語意時，才考慮新增原生 fallback。
 - **RLS/GRANT 縮權前先查 direct writes（2026-06-03 教訓）**：任何 migration 若要 `REVOKE` authenticated table grants、drop/recreate RLS policy、或改 view security 行為，必須先 grep `web/` 是否仍有 browser-client `.insert()` / `.update()` / `.delete()` 使用該表。admin browser-client writes 可保留 table grant，實際權限由 admin-only RLS policy 限制。`security_invoker` view 也必須同步確認底層表的最小欄位 grants 與 row policy，不能只 grant view。
 - **Derived enrichment candidate audit（2026-07-11 教訓）**：任何衍生 enrichment pipeline（Vision/OCR、web search、title/person enrichment）在規劃時必做雙層審計：`candidate select` 必須顯式載入 domain guard 欄位（例：`event_form`/`source_name`/`image_url`），且在實際 write 前必須 re-read 同一 row 再次驗證 guard，避免 TOCTOU 與 helper 直呼繞過查詢 filter。若來源存在共用 placeholder 媒體（例：Hanmoto `noimage.jpg`/`no-cover`），需以 canonical helper 精準拒絕 placeholder 變體，不得 blanket 禁用整個來源的真實內容。
@@ -32,6 +34,19 @@ Read this at the start of every session before producing any plan.
 - **Hybrid Venue 同時標註則（2026-06-07 教訓）**：針對 `performing_arts` 等混合型活動（現場+線上），設計上必須同時保留實體 `location_address` 與在 `location_name` 中並列 `オンライン`。記得兩個都標，不可因線上屬性而抹除地址資料。
 - **日文都道府縣正規化禁用單一 `rstrip("都道府県")`（2026-06-29 教訓）**：rstrip 是字元集合剝除非後綴剝除，`京都府`→`京`、`東京都`→`東京`、`北海道`→`北海` 皆過度剝離（「都」同時是京都/東京內字）。任何依縣名建查表/分組/排序的計畫，必須要求多段 fallback（精確 label match → rstrip → 原值 direct → 去末字 `[:-1]`），並列子字串陷阱測試（東京都≠京都、神奈川≠奈良、和歌山≠山形/岡山、福岡≠福島/福井）。Reference: 2026-06-29 週報 geo-sort（commit `3c590e4`）。
 - **工作流／治理計畫三查（2026-07-10 教訓）**：規劃涉及 (a) push/merge 行為 → 先讀 `.github/instructions/git.instructions.md` 現行政策**並**比對實務（V-M-D／CI 實際怎麼推），矛盾拆獨立任務對齊，不在子段落暗改全 repo 政策；(b) 新增「供追蹤」的 metadata 欄位（spec frontmatter／DB 欄位）→ 先追其 type/parser/consumer，無 consumer＝dead field 會被靜默丟棄（v1 的 `worktree:` frontmatter 就會被 spec dashboard snapshot parser 丟掉），可推導值優先於新增可過期欄位；(c) 強制／1:1 規則 → 只 prospective 套用並 grandfather 既有資產。詳見 `history.md` 2026-07-10 spec⟺worktree v1 三 P0。
+
+### Security Release Acceptance Matrix Guard（資安發布驗收分層）
+
+自 2026-07-18 起，資安敏感 Web 發布的計畫與驗收必須分別蒐集四層證據：
+
+1. Static／build：security assertions、build 與 changed-hunk lint。
+2. Deployment provenance：記錄 pushed SHA，確認它仍等於 GitHub `main`，且 Production deployment 成功綁定同一 SHA。
+3. Public production behavior：透過 production custom domain 驗證 headers、routes、robots、cookie 與 JSON-LD。
+4. Authenticated authorization behavior：驗證 OAuth、email magic link、session refresh／logout、ordinary-user deny 與登入後 Admin CRUD。
+
+第 1 至 3 層 PASS 不代表第 4 層 PASS。缺少 auth credentials 或 test context 時，未測流程必須明列為 `NOT TESTED` residual risk／backlog，不得改寫成 PASS。Report-Only CSP 只提供 observability，不是 enforcement；後續切換 enforced CSP 前，必須先完成 violation inventory 與 regression testing。
+
+若 immutable deployment URL 回傳 Deployment Protection 訊號（`302`、`_vercel_sso_nonce`、平台 `X-Robots-Tag: noindex`），不得弱化保護或判為 app regression。改以 GitHub／Vercel exact-SHA provenance 確認部署，再透過 production custom domain 做 app-level smoke。Full-file lint debt 與 changed-hunk regression 必須分開回報；零 changed-hunk overlap 可讓本次 feature 通過，但不會關閉既有 lint backlog。
 
 ## Pre-flight Parallel-Operation & Baseline-Drift Guard（執行前並行操作與 baseline 漂移檢查）
 
@@ -122,21 +137,23 @@ const sanitized = (gpt_response.category ?? []).filter(c => VALID_CATEGORIES.has
 
 Architect 在「新增 enum 值」計畫**外**，遇到相關 admin route 修改時，應主動建議加白名單過濾器。Reference: 2026-05-26 event `25e27de9` `categories.photography` raw key（commit `264afed` 修分類但未加過濾器，已建 backlog）。
 
-## Event Form Addition Checklist（新增 event_form 值的必備 5 步驟）
+## Event Form Addition Checklist（新增 event_form 值的必備 6 步驟）
 
-每次新增 `event_form` 值，以下 **5 個位置必須同一 commit 同步**：
+每次新增 `event_form` 值，以下 **6 個位置必須同一 commit 同步**：
 
 | 步驟 | 位置 | 說明 |
 |------|------|------|
 | 1 | `supabase/migrations/<NNN>_*.sql` | `events_event_form_check` CHECK constraint（**authoritative source**）|
 | 2 | `scraper/annotator.py` | `VALID_EVENT_FORMS` frozenset（L863 附近）+ EVENT FORM RULES prompt 區塊（L686 附近） |
-| 3 | `web/lib/types.ts` | `EVENT_FORMS` array / `EventForm` type，前台與 admin form 共同依賴 |
-| 4 | `web/app/api/admin/extract-from-image/route.ts` + `web/app/api/admin/annotate-event/route.ts` | 兩個 GPT prompt 內的 `event_form:` 枚舉清單 |
-| 5 | `web/messages/{zh,en,ja}.json` | `eventForm.<key>`（三語各一）|
+| 3 | `scraper/database.py` | `_VALID_EVENT_FORMS` writer whitelist + `_event_to_row()` regression test；缺值時 scraper 輸出會在入庫前靜默被剝除 |
+| 4 | `web/lib/types.ts` | `EVENT_FORMS` array / `EventForm` type，前台與 admin form 共同依賴 |
+| 5 | `web/app/api/admin/extract-from-image/route.ts` + `web/app/api/admin/annotate-event/route.ts` | 兩個 GPT prompt 內的 `event_form:` 枚舉清單 |
+| 6 | `web/messages/{zh,en,ja}.json` | `eventForm.<key>`（三語各一）|
 
 **Reference incidents:**
 * 2026-05-20 — migration 047 加入 `broadcast`/`tasting`/`study_abroad` 等新值並重命名舊值（`concert`→`performance`、`lecture_seminar`→`lecture`、`film_screening`→`screening`、`festival`→ 移除、`sports`→ 移除）。annotator.py 跟上了，但兩個 admin API prompt 留在 pre-047 命名 → OCR 回傳舊值 → DB CHECK 拒絕 → 管理画面保存 400 失敗（commit `9ecaae6`）。教訓：建立此 checklist。
 * 2026-06-04 — publication repair 證明前台還依賴 `web/lib/types.ts` `EVENT_FORMS` 與 `web/messages/*.json` 的 `eventForm` namespace。少同步任一處，會出現 raw key 或前後端 enum 漂移。
+* 2026-07-11 — publication policy inventory 發現 `scraper/database.py::_VALID_EVENT_FORMS` 漏列既有 `publication`；scraper 即使正確輸出該值，`_event_to_row()` 仍會在 DB writer 層靜默剝除。教訓：writer whitelist 與 regression test 是第 6 個同步點。
 
 ## 🔁 Lesson-in-fix-commit Rule（避免 V-M-D ↔ docs update 循環）
 
@@ -1890,11 +1907,9 @@ Reference incident: 2026-05-08 — commit `694a363` 做 import 重排，意外�
 
 在審核任何美術館/博物館類 scraper 的 PR 前，**必須**確認：
 
-1. **`organizer` 欄位已設定**：若 scraper 只有 venue 資訊，應設 `organizer = venue_name`。  
-   美術館/博物館展示中，venue 通常即主辦方。
+1. **`organizer` 欄位已設定**：若 scraper 只有 venue 資訊，應設 `organizer = venue_name`。美術館/博物館展示中，venue 通常即主辦方。
 2. **`raw_description` header 包含 `主催:` 行**：確保 GPT annotator 有明確主辦信號，不靠推斷。
-3. **`event_form` 已設定**：展覽類 scraper 應 hardcode `event_form = ["exhibition"]`；  
-   reviewed 事件的 event_form 被 annotator 跳過，scraper 層是唯一機會。
+3. **`event_form` 已設定**：展覽類 scraper 應 hardcode `event_form = ["exhibition"]`；reviewed 事件的 event_form 被 annotator 跳過，scraper 層是唯一機會。
 
 Reference incident: 2026-05-05 — tokyoartbeat organizer 未設 → GPT 幻想 横浜美術館；event_form 未設且已 reviewed → 永遠空 (commit a1e58a9)。
 

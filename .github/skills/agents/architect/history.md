@@ -2,6 +2,26 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-07-18 — 資安發布驗收混合了部署、公開行為與登入授權證據
+
+**背景：** 資安強化 commit `e450c6b42f4764ac6bb4ec23115aaedf9572462d` 完成 rebase 與 push。CSP 刻意採 Report-Only，以先收集 violation 而不阻擋既有資源。公開頁面與 header 的 production 測試通過；production custom domain 的三項檢查為 3/3 PASS。
+
+**問題／驗證缺口：** OAuth、email magic link、authenticated session refresh／logout、ordinary-user denial 與登入後 Admin CRUD 都未執行，不能隨公開 smoke test 一併宣告 PASS。immutable Vercel URL 受 Deployment Protection 保護，回傳平台 `302`、`_vercel_sso_nonce` 與平台 `X-Robots-Tag: noindex`，這是平台邊界而非應用程式 regression。另有 pre-existing full-file lint findings，但 changed hunks 沒有重疊。V-M-D subagent 雖然回傳不可用且前後不一致的摘要，Git／GitHub 證據仍顯示 commit、rebase 與 push 已發生。
+
+**根本原因：** 發布驗收沒有預先拆成 static／build、exact-SHA deployment provenance、public app behavior 與 authenticated authorization behavior 四層，導致較容易取得的公開證據可能被誤外推到未測的登入流程。驗證過程也一度把 subagent prose 與受保護 deployment URL 的平台回應當成應用狀態，而沒有先以 repo、GitHub 與 Vercel 的可重建證據判定。
+
+**修復：** 以 Git、GitHub 與 Vercel 證據獨立重建最終狀態，核對 pushed SHA、GitHub `main` 與對應 Production deployment，再改由 `https://tokyotaiwanradar.com` 執行 app-level smoke。公開測試照實記錄 PASS，所有未具備 auth context 的流程標為 `NOT TESTED` residual risk。Report-Only CSP 留作 observability，full-file lint debt 與 changed-hunk regression 分開分類。
+
+**教訓：**
+
+1. Static／build、exact-SHA deployment provenance、public production behavior 與 authenticated authorization behavior 是四套獨立證據；前三層 PASS 不代表第四層 PASS。
+2. Subagent 文字不是 authoritative evidence；摘要缺漏、失序或與狀態矛盾時，必須回查 repo state 與 GitHub／Vercel API 後才下結論。
+3. 受 Deployment Protection 保護的 URL 所回傳 `302`、`_vercel_sso_nonce` 與平台 `noindex` 屬平台邊界；不可弱化保護或誤報為 app regression，應以 exact-SHA provenance 加 production custom domain 驗證。
+4. Report-Only CSP 只提供觀測，不是 enforcement；改為 enforced CSP 前必須先盤點 violation 並執行 regression tests。
+5. Pre-existing full-file lint findings 與 changed-hunk regressions 必須分開回報；零 changed-hunk overlap 可讓本次 feature 通過，但不會關閉既有 lint backlog。
+
+---
+
 ## 2026-07-11 — Poster placeholder pollution planning miss: domain-surface audit omitted `enrich_poster.py`
 
 **背景：** Publication policy Wave 1 manifest 在 location conflict gate 持續卡住 8 筆 non-Eslite rows（`大阪城ホール` + `start_date=2023-10-14`）。回溯後確認這 8 筆皆為 exact pure Hanmoto/NDL 書誌，使用同一張 Hanmoto `noimage.jpg`，且同批 `field_corrections` 將 `location_name/start_date`（另 3 筆含 `organizer=コミックマーケット準備会`）寫入，屬 poster Vision 誤讀污染。
@@ -17,6 +37,27 @@
 1. 任何衍生 enrichment 功能（Vision/OCR、web search、標題補齊、人名補齊）都必須列入 planning 的 domain-surface audit；只看 annotator/writer 不夠。
 2. Candidate filter 不是安全邊界，write 前 re-read guard 才是最後防線。
 3. Placeholder image 防護要 canonical + source-aware，拒絕已知 placeholder 變體，不可 blanket 阻斷整個來源的真實資產。
+
+---
+
+## 2026-07-11 — Publication policy 初版漏查資料生命週期，並把料金範圍錯限為雜誌文章
+
+**背景：** 使用者要求所有新刊出版記錄不顯示終了日、住所、営業・開演時間，DB 與 QA 也不應補住所／時間；主催要填出版社，來源區補出版社官網。使用者另要求所有新刊出版與雑誌記事都隱藏料金。
+
+**錯誤：** 初版計畫把需求縮成公開詳情頁表格的條件渲染，只盤點 End／Address／Hours 三列，漏掉 scraper 分類、database writer、annotator、field corrections、legacy backfill、QA reconcile、admin metrics、敘事文案、FAQ、Calendar、ReportSection 與 JSON-LD。擴充計畫後又把料金隱藏誤限於 NDL periodical，沒有覆蓋所有 pure publication，違反使用者的「所有新刊出版與雑誌記事」量詞。
+
+**根本原因：** 我把「隱藏欄位」當成單一 UI 任務，而不是 domain policy；也沒有先把使用者的集合量詞展開為 acceptance matrix。調查後還發現 `scraper/database.py::_VALID_EVENT_FORMS` 漏 `publication`，證明 controlled vocabulary 的同步面不只 migration、annotator、web enum、admin prompts 與 i18n，還包含 DB writer whitelist。
+
+**修復：** 最終計畫改以正規化後 `event_form == ["publication"]` 作 source-independent pure-record invariant，建立 scraper → writer → annotator／FC → backfill → QA／admin → public UI → structured data 的 surface matrix。所有 pure publication 一律隱藏 End／Address／Hours／Price 與其衍生輸出；混合型實體活動保留 Event 行為。Event Form checklist 加入 `scraper/database.py` whitelist 與 writer regression test。
+
+**教訓：**
+
+1. 「欄位不適用／隱藏／QA 免檢」是資料生命週期政策，不是表格 CSS；必須追到所有 writer、修復器、衍生輸出與治理指標。
+2. 使用者的「所有 A／A 與 B」必須轉成逐類 acceptance matrix；不得在規劃過程把集合靜默縮成 subtype。
+3. source、category 與標題前綴只能作 evidence，不能取代 domain invariant；混合型記錄需要負向 fixture。
+4. controlled vocabulary 的同步點包含 ingestion database writer；writer whitelist 漏值會造成無錯誤訊息的資料遺失。
+
+---
 
 ## 2026-07-10 — Spec ⟺ Worktree 工作流計畫 v1：3 個 P0 被 Plan Critic 擋下（政策矛盾／dead frontmatter／流程重複）
 
@@ -1371,24 +1412,30 @@ gnews 原始資料「赤い糸 輪廻のひみつ 新文芸坐」
 
 ### AdminEventTable 改進（commits cb1bf83, 979725f）
 
-**問題 A — 中繼節點 badge 缺失**：事件同時具有「N件統合」（是主事件）且「統合済み」（本身被另一主事件吸收）時，管理表格未顯示任何視覺提示，難以識別資料關係異常。  
+**問題 A — 中繼節點 badge 缺失**：事件同時具有「N件統合」（是主事件）且「統合済み」（本身被另一主事件吸收）時，管理表格未顯示任何視覺提示，難以識別資料關係異常。
+
 **問題 A 修復（commit cb1bf83）**：新增黃色「⚠ 中繼節點」badge。同時新增灰色「未公開」badge：`merged_into` 目標 `is_active=false` 時取代裸箭頭顯示。
 
-**問題 B（根本 bug）— rowIndexMap 只覆蓋 displayEvents**：`rowIndexMap` 從篩選後的 `displayEvents` 建立，當 `merged_into` 目標被篩選掉時，`rowIndexMap[targetId]` 為 `undefined`，無法顯示全域行號。  
+**問題 B（根本 bug）— rowIndexMap 只覆蓋 displayEvents**：`rowIndexMap` 從篩選後的 `displayEvents` 建立，當 `merged_into` 目標被篩選掉時，`rowIndexMap[targetId]` 為 `undefined`，無法顯示全域行號。
+
 **問題 B 修復（commit 979725f）**：新增 `globalIndexMap`（從完整 `events` prop 陣列建立，不受篩選影響），`merged_into` 引用優先從 `globalIndexMap` 查詢。
 
 **教訓**：client-side map 從 `displayEvents` 建立是「篩選後的截面」，任何跨篩選的 ID 引用（`merged_into`、`parent_event_id` 等）都需要獨立的全域 map（從 props 的完整 `events` 建立）。TypeScript 不報錯，行為靜默錯誤（map miss = `undefined`）。
 
 ### 資料不一致 bug pattern：is_active=True + merged_into_event_id IS NOT NULL
 
-`b891cc5e`：`is_active=True` 但已有 `merged_into_event_id`（資料不一致），正確狀態應為 `is_active=False`。僅補 `is_active=False`，不覆寫其他欄位。  
+`b891cc5e`：`is_active=True` 但已有 `merged_into_event_id`（資料不一致），正確狀態應為 `is_active=False`。僅補 `is_active=False`，不覆寫其他欄位。
+
 **教訓**：手動合併後必須確認 `is_active` 同步更新為 `False`。這是合併操作最常見的遺漏步驟。
 
 ### 電影合併清理
 
-**霧のごとく 大濛**：7 active → 5 active。`172047f5`（純上映）→ `16c3fa42`（上映＋トーク），`16c3fa42` 加 secondary URL。全部 10 筆均有正確 work_id。  
-**海をみつめる日**（北海道大學）：3 active → 1 active（`16c3fa42` 主事件）；`secondary_source_urls` 擴展為 2 個。  
-**ソウル・オブ・ソイル**：4 active → 1 active（`9084ad67`，上映＆トーク）。events 補充 `director=イェン・ランチュアン`、`performer=イェン・ランチュアン`；works 表補充 `director=顏蘭權`、`release_year=2024`、`cast_summary=アレン（阿仁）、アンホー（安和）`、description。`bedd3ba4`（2026-01-15）停用（同一告知頁面重複抓取，日期解析錯誤）。  
+**霧のごとく 大濛**：7 active → 5 active。`172047f5`（純上映）→ `16c3fa42`（上映＋トーク），`16c3fa42` 加 secondary URL。全部 10 筆均有正確 work_id。
+
+**海をみつめる日**（北海道大學）：3 active → 1 active（`16c3fa42` 主事件）；`secondary_source_urls` 擴展為 2 個。
+
+**ソウル・オブ・ソイル**：4 active → 1 active（`9084ad67`，上映＆トーク）。events 補充 `director=イェン・ランチュアン`、`performer=イェン・ランチュアン`；works 表補充 `director=顏蘭權`、`release_year=2024`、`cast_summary=アレン（阿仁）、アンホー（安和）`、description。`bedd3ba4`（2026-01-15）停用（同一告知頁面重複抓取，日期解析錯誤）。
+
 **教訓**：works 合併必須同時補 `director`/`performer` 欄位（events 表 + works 表雙更新），不能只做 event 合併。
 
 ---
@@ -3308,7 +3355,8 @@ SKILL.md 新增三節 —
 ---
 ## 2026-05-01 — AEO 架構設計（Phase A/B/C）：AI Engine Optimization 全域規劃
 
-**工作內容：**  
+**工作內容：**
+
 設計並規劃 AEO 三階段實作，涵蓋 AI 搜尋引擎可見度提升、IndexNow 即時提交、監控追蹤。
 
 **架構決策：**
@@ -3648,7 +3696,8 @@ In the same session, the previous turn had wrongly "verified" and patched this s
 2. 選擇邏輯：優先選 Japanese locale 的電影標題 `name_ja`，而非使用者 `locale` 變數
 3. DB backfill：在 scraper 新增欄位後，必須**立即執行一次手動檢查**，確認新抽取的 official_url 不是偽造 / 過期連結
 
-**Lesson：** 
+**Lesson：**
+
 - Cinema 官網連結提取必須包含 domain whitelist（避免第三方票券販賣站）
 - Google search 結果中的電影名稱取決於 search box locale，與用戶 locale 無關；務必優先使用 `name_ja`（日本官網）而非 locale 參數
 - 新增欄位後不能依賴日後人工驗證；須立即執行 dry-run 並手檢前 5 筆

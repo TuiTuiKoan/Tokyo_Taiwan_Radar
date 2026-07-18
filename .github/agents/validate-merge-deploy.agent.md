@@ -150,11 +150,17 @@ handoffs:
 3. 確認推送成功（無被拒絕的更新）
 
 ### Step 5: Verify Deployment
-1. 確認 Vercel 部署已觸發（檢查 GitHub 動作日誌或 Vercel dashboard）
-   - **⚠️ Docs-only commit 不觸發 Vercel**：Vercel root directory 設為 `web/`，只有 `web/` 內的檔案變更才觸發部署。`.github/`、`scraper/`、`docs/` 的 commit 推送後 GitHub commit status 會顯示 `pending`（舊狀態）或完全不更新——這是**正常現象**，不代表部署失敗。此時應檢查最後一次 *web* commit 的部署狀態，而非當前 commit。
-2. 確認部署完成且無錯誤
-3. 可選：檢查 https://tokyo-taiwan-radar.vercel.app/ 是否顯示最新變更（**注意：production URL 含連字號 `tokyo-taiwan-radar`，不是 `tokyotaiwanradar`**）
-4. 若含 Supabase migration，明確回報「需在 Supabase SQL Editor 手動執行」與最小驗證清單（admin pass / non-admin deny）
+1. Push 後立即記錄 `PUSHED_SHA=$(git rev-parse HEAD)`，重新 fetch `origin/main`，確認 GitHub `main` 的 SHA 仍等於 `PUSHED_SHA`。若不相等，停止並先釐清遠端是否被並行 push 推進。
+2. 若本次 push range 觸及 `web/`，透過 GitHub commit status 與 Vercel dashboard／API 查詢綁定 `PUSHED_SHA` 的 **Production** deployment，記錄 exact-SHA deployment URL 與 status，並等待成功。不得用較舊 deployment 代替本次 SHA 的部署驗證。
+  - **Docs-only commit 不觸發 Vercel**：Vercel root directory 設為 `web/`，只有 `web/` 變更才觸發部署。`.github/`、`scraper/`、`docs/` 的 push 若沒有新 deployment，記錄 deployment 為 `NOT APPLICABLE (docs-only)`；不要把舊 web deployment 當成當前 SHA 的證據。
+  - 可選：以 `https://tokyo-taiwan-radar.vercel.app/` 作補充 app-level 檢查（production URL 含連字號 `tokyo-taiwan-radar`，不是 `tokyotaiwanradar`），但此 alias 不得取代 exact-SHA provenance。
+3. 若 immutable deployment URL 回傳 `302`、`_vercel_sso_nonce` 或平台 `X-Robots-Tag: noindex`，分類為 **Deployment Protection boundary**，不是 application failure。保留保護設定，以 GitHub／Vercel exact-SHA provenance 確認部署，並改用 <https://tokyotaiwanradar.com> 執行 app-level production smoke；不得為了測試而弱化 Deployment Protection。
+4. Security-sensitive web release 必須逐層回報驗證矩陣：
+  - Public production behavior：custom-domain headers、routes、robots、cookie 與 JSON-LD。
+  - Authenticated authorization behavior：在既有安全 credentials／test setup 可用時，驗證 OAuth、email magic link、session refresh／logout、ordinary-user role denial 與登入後 Admin CRUD。
+  - 絕不要求使用者把 password、token、magic-link code 或其他 secrets 傳給 model。若安全 auth context 不可用，上述 authenticated flows 一律標為 `NOT TESTED` residual risk，不得宣告 PASS。
+5. 若含 Supabase migration，明確回報「需在 Supabase SQL Editor 手動執行」與最小驗證清單（admin pass / non-admin deny）。
+6. Subagent prose 只作線索，不是 authoritative evidence。若摘要缺失、不可理解或與實際狀態衝突，必須獨立核對 repo state、GitHub `main`／commit status 與 Vercel deployment API，再判定成功或失敗。
 
 ## External URL Verification Rule
 
@@ -167,9 +173,20 @@ handoffs:
 ## 成功指標
 - ✅ 無衝突或已解決
 - ✅ 所有語法檢查通過（`get_errors` + `pnpm run build`）
-- ✅ Commit 已推送到 origin/main
-- ✅ Vercel 部署已觸發並完成
-- ✅ 部署驗證通過（無 502/500 錯誤）
+- ✅ Final commit 已推送，且 GitHub `main` 仍等於 captured pushed SHA
+- ✅ 適用時，同一 SHA 的 Vercel Production deployment 已成功；docs-only 則明列 `NOT APPLICABLE`
+- ✅ Production custom-domain public smoke 通過，且每個未執行的 auth flow 明列 `NOT TESTED` residual risk
+
+最終回報必須包含下列 evidence fields，不得只回傳「部署成功」摘要：
+
+1. Final commit SHA 與 message。
+2. Rebase 結果與 conflict 處理情形。
+3. Push 結果，以及 push 後 GitHub `main` 的 exact SHA。
+4. 綁定該 SHA 的 Production deployment URL 與 status，或 docs-only `NOT APPLICABLE`。
+5. Production custom-domain smoke results，逐項列出 public headers／routes／robots／cookie／JSON-LD。
+6. 所有 `NOT TESTED` 項目，尤其 OAuth、magic link、session refresh／logout、role denial 與登入後 Admin CRUD。
+7. Accepted residual risks，包括 Report-Only CSP、未測 auth flows 與 pre-existing full-file lint debt。
+8. Worktree cleanliness／isolation，包括實際 path、branch、是否 clean，以及範圍外 WIP 是否保持不變。
 
 > **「問題未重現」情形**：若收到「請修復後重新部署」提示但 Step 3 全部 pass、Vercel HTTP 200，則明確回報「問題未重現，目前狀態健康」——不要強行尋找不存在的問題。
 
