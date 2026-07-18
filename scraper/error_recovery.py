@@ -149,7 +149,13 @@ def _settle_previous_round(sb, dry_run: bool) -> int:
 # ---------------------------------------------------------------------------
 
 def _file_escalation_report(sb, event_id: str, source_name: str, retry_count: int) -> bool:
-    """Insert a deduped 'annotation_error_stuck' event_report. Returns True if written."""
+    """Insert a deduped 'annotation_error_stuck' event_report. Returns True if written.
+
+    Writer-safety (see auto_qa consumer matrix): this consumer only INSERTs a
+    single-type escalation row and never transitions an existing report's
+    status. Settling / closing these escalation rows is deferred to Round G3, so
+    no pending-CAS close path is added here in H0.
+    """
     existing = (
         sb.table("event_reports")
         .select("id")

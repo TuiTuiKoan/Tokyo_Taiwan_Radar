@@ -181,8 +181,14 @@ def _classify(client, report: dict, event: dict, max_input_chars: int, model: st
 
 
 def _fetch_pending_reports(sb, limit: int) -> list[dict]:
-    """Pending auto_qa_* reports, oldest first."""
+    """Pending auto_qa_* reports, oldest first — single known-auto type only.
+
+    Compound rows (>=2 types) and any manual/payload token are rejected here so
+    the classifier/dispatcher never mutates an event on behalf of a report that
+    also carries a second, unaddressed finding.
+    """
     from qa_auto_fix import SAFE_REPORT_TYPES
+    from auto_qa import single_auto_type
 
     rows: list[dict] = []
     for rt in SAFE_REPORT_TYPES:
@@ -196,13 +202,17 @@ def _fetch_pending_reports(sb, limit: int) -> list[dict]:
             .execute()
         )
         rows.extend(res.data or [])
-    # Dedup by id and re-sort
+    # Dedup by id, reject compound/manual/payload rows, re-sort oldest first.
     seen: set[str] = set()
     out: list[dict] = []
     for r in sorted(rows, key=lambda x: x.get("created_at") or ""):
-        if r["id"] in seen:
+        rid = r.get("id")
+        if not rid or rid in seen:
             continue
-        seen.add(r["id"])
+        st = single_auto_type(r.get("report_types"))
+        if st is None or st not in SAFE_REPORT_TYPES:
+            continue
+        seen.add(rid)
         out.append(r)
         if len(out) >= limit:
             break

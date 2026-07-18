@@ -349,11 +349,11 @@ def _detect_missing_hours(sb) -> list[dict]:
 def _check_simplified_chinese(ev: dict) -> str | None:
     """Return note if event has ≥2 SC-only chars in zh fields; None if resolved.
 
-    Skips human-reviewed events. Checks name_zh, description_zh, selection_reason.zh.
+    Checks name_zh, description_zh, selection_reason.zh. Runs for reviewed events
+    too — reconcile is the sole authority on whether the issue is resolved (the
+    detection scan filters reviewed at the DB level).
     """
     import json as _json
-    if ev.get("annotation_status") == "reviewed":
-        return None
     bad_fields = []
     total_sc = 0
     for field in ("name_zh", "description_zh"):
@@ -527,12 +527,11 @@ def _detect_performer_ai_marker(sb) -> list[dict]:
 def _check_performer_multi_value(ev: dict, *, sb=None) -> str | None:
     """Return note if performer field contains separator chars.
 
-    Skips reviewed events.
+    Runs for reviewed events too (the detection scan filters reviewed at the DB
+    level; reconcile is the sole authority on resolution).
     When sb is provided, checks field_corrections for sentinel lock (FC.performer='').
     When sb is None, skips sentinel check (caller must pre-filter sentinels).
     """
-    if ev.get("annotation_status") == "reviewed":
-        return None
     pf = ev.get("performer") or ""
     if not pf:
         return None
@@ -1301,29 +1300,149 @@ def _reconcile_check(rt: str, ev: dict, *, sb=None) -> str | None:
     return "no_predicate_keep"
 
 
+# ---------------------------------------------------------------------------
+# Event-report writer-safety — centralized eligibility (imported by consumers)
+#
+# Single source of truth for classifying an `event_reports.report_types[]`
+# array BEFORE any automated writer (reconcile, qa_auto_fix, qa_heartbeat,
+# refetch_thin_events) mutates the event or transitions the report. Rows are
+# classified by token identity and membership in the known Auto-QA set — never
+# by list length alone. Payload tokens (`field:` / `fieldEdit:` /
+# `selectionReason:`) and any manual/unknown/human report type disqualify the
+# whole row from every automatic writer.
+#
+# Consumer matrix (checked-in; asserted by
+# tests/test_event_report_consumer_eligibility.py):
+#
+#   consumer             | reads                        | eligibility gate           | report write
+#   -------------------- | ---------------------------- | -------------------------- | ------------------------
+#   auto_qa.reconcile    | all pending reports          | all_known_auto_types       | close_report_exactly_one
+#                        |                              |   (compound confirms only  |   confirmed / dismissed
+#                        |                              |   if EVERY predicate       |
+#                        |                              |   resolves; never partial) |
+#   qa_auto_fix (daily + | pending SIMPLIFIED_REPORT_   | single_auto_type           | close_report_exactly_one
+#     heartbeat handlers)|   TYPES / SAFE_REPORT_TYPES  |   (one known auto type)     |   confirmed
+#   qa_heartbeat         | pending SAFE_REPORT_TYPES     | single_auto_type           | via qa_auto_fix handlers
+#   refetch_thin_events  | pending auto_qa_thin_content  | report_types ==            | admin_notes note only,
+#                        |                              |   ["auto_qa_thin_content"] |   pending CAS
+#   error_recovery       | — (inserts escalation only)  | single-type INSERT;        | INSERT annotation_error_
+#                        |                              |   settlement deferred G3   |   stuck (never closes)
+# ---------------------------------------------------------------------------
+
+KNOWN_AUTO_QA_TYPES = frozenset(QA_TYPES)
+
+# Structured payload markers some report rows carry alongside a type. They are
+# never Auto-QA types and must never make a row eligible for automatic writes.
+PAYLOAD_TOKEN_PREFIXES = ("field:", "fieldEdit:", "selectionReason:")
+
+
+def is_payload_token(token: str) -> bool:
+    """True if `token` is a structured payload marker, not a report type."""
+    return isinstance(token, str) and token.startswith(PAYLOAD_TOKEN_PREFIXES)
+
+
+def is_known_auto_type(token: str) -> bool:
+    """True only for an exact known Auto-QA type (payload tokens excluded)."""
+    return isinstance(token, str) and token in KNOWN_AUTO_QA_TYPES
+
+
+def _clean_report_types(report_types: list[str] | None) -> list[str]:
+    return [t for t in (report_types or []) if isinstance(t, str) and t]
+
+
+def classify_report_types(report_types: list[str] | None) -> str:
+    """Classify a report_types[] array for automatic-writer eligibility.
+
+    Returns one of:
+      "empty"          — no usable tokens
+      "single_auto"    — exactly one token, a known Auto-QA type
+      "compound_auto"  — >=2 tokens, EVERY token a known Auto-QA type
+      "manual"         — anything else (payload token, unknown/human type, or a
+                         mix of auto + non-auto)
+
+    Keys on token identity + membership, never on length alone: a two-element
+    list is only "compound_auto" when both are known auto types.
+    """
+    types = _clean_report_types(report_types)
+    if not types:
+        return "empty"
+    if any(not is_known_auto_type(t) for t in types):
+        return "manual"
+    return "single_auto" if len(types) == 1 else "compound_auto"
+
+
+def single_auto_type(report_types: list[str] | None) -> str | None:
+    """The lone known Auto-QA type, or None unless classify == 'single_auto'."""
+    if classify_report_types(report_types) != "single_auto":
+        return None
+    return _clean_report_types(report_types)[0]
+
+
+def all_known_auto_types(report_types: list[str] | None) -> list[str] | None:
+    """Full type list when every token is a known Auto-QA type, else None.
+
+    A single auto type or an all-auto compound both qualify. Any manual/unknown
+    type or payload token anywhere in the list disqualifies the whole row — it
+    must never be touched by reconcile (no report_types[0]-only checks).
+    """
+    if classify_report_types(report_types) in ("single_auto", "compound_auto"):
+        return _clean_report_types(report_types)
+    return None
+
+
+def close_report_exactly_one(
+    sb,
+    report_id: str,
+    *,
+    status: str,
+    note: str | None = None,
+    dry_run: bool = False,
+) -> tuple[bool, int]:
+    """Transition exactly one PENDING report to `status` by full report_id.
+
+    Compare-and-set on status='pending' so a concurrent admin action is never
+    overwritten; this report-status write is the FINAL Supabase write a consumer
+    performs (event + field_corrections writes happen first). The uuid column is
+    always matched with .eq() — never .like(). Returns (ok, updated_count) where
+    ok is True only when exactly one pending row transitioned.
+    """
+    if not report_id or not isinstance(report_id, str):
+        return False, 0
+    if status not in ("confirmed", "dismissed"):
+        raise ValueError(f"close_report_exactly_one: invalid status {status!r}")
+    if dry_run:
+        return True, 1
+    update: dict[str, Any] = {
+        "status": status,
+        "confirmed_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if note is not None:
+        update["admin_notes"] = note
+    res = (
+        sb.table("event_reports")
+        .update(update)
+        .eq("id", report_id)
+        .eq("status", "pending")
+        .execute()
+    )
+    rows = res.data or []
+    ok = len(rows) == 1
+    if not ok:
+        logger.warning(
+            "close_report_exactly_one: report %s expected 1 pending row, updated %d",
+            report_id[:8], len(rows),
+        )
+    return ok, len(rows)
+
+
+# Backward-compatible aliases (kept for existing call sites; delegate to the
+# centralized classifiers above).
 def _single_auto_report_type(report_types: list[str] | None) -> str | None:
-    types = [t for t in (report_types or []) if isinstance(t, str) and t]
-    if len(types) != 1:
-        return None
-    report_type = types[0]
-    if report_type not in QA_TYPES:
-        return None
-    return report_type
+    return single_auto_type(report_types)
 
 
 def _all_auto_report_types(report_types: list[str] | None) -> list[str] | None:
-    """Return the report's type list only if every type is a known auto type.
-
-    A single auto type or a compound row where ALL types are auto both qualify.
-    Any manual/unknown type anywhere in the list disqualifies the whole row —
-    it must never be touched by reconcile (R3-F1: no report_types[0]-only checks).
-    """
-    types = [t for t in (report_types or []) if isinstance(t, str) and t]
-    if not types:
-        return None
-    if any(t not in QA_TYPES for t in types):
-        return None
-    return types
+    return all_known_auto_types(report_types)
 
 
 def _resolve_report_disposition(
@@ -1332,17 +1451,36 @@ def _resolve_report_disposition(
     """Pure decision for one pending report given its (all-auto) types and event.
 
     Returns (disposition, reason) where disposition is one of
-    "confirm", "dismiss", "keep". A compound row only confirms when EVERY
-    type in `types` resolves — it never partially closes a compound report.
+    "confirm", "dismiss", "keep".
+
+    Single known-auto type (len == 1):
+      - event deleted / inactive  → dismiss
+      - otherwise run the predicate (INCLUDING reviewed events — there is no
+        reviewed shortcut; the type-specific predicate is the sole authority)
+      - predicate resolved         → confirm
+      - predicate still fires       → keep
+
+    Compound all-auto row (len >= 2): a deleted, inactive, reviewed, or missing
+    event never auto-closes it. It confirms ONLY when EVERY type resolves; any
+    unresolved (or unevaluatable) type keeps it pending for manual review. A
+    compound row is never dismissed and never partially closed.
     """
+    is_compound = len(types) >= 2
+    if is_compound:
+        if ev is None:
+            return "keep", "compound: event missing, cannot resolve every type"
+        notes = [_reconcile_check(rt, ev, sb=sb) for rt in types]
+        if all(note is None for note in notes):
+            return "confirm", "compound: every type resolved"
+        return "keep", "compound: a type still fires"
+
+    # Single known-auto type.
     if ev is None:
         return "dismiss", "event deleted"
     if not ev.get("is_active"):
         return "dismiss", "event inactive"
-    if ev.get("annotation_status") == "reviewed":
-        return "confirm", "event reviewed by admin"
-    notes = [_reconcile_check(rt, ev, sb=sb) for rt in types]
-    if all(note is None for note in notes):
+    note = _reconcile_check(types[0], ev, sb=sb)
+    if note is None:
         return "confirm", "issue resolved"
     return "keep", "predicate still fires"
 
@@ -1350,15 +1488,19 @@ def _resolve_report_disposition(
 def reconcile(dry_run: bool = False) -> dict:
     """Close resolved or inactive auto_qa pending reports.
 
-    For each pending auto_qa report:
-    - event deleted / inactive  → dismiss
-    - event reviewed by admin   → confirm
-    - all report_types resolved → confirm (issue resolved); compound rows only
-      confirm when EVERY type in report_types resolves, never partially
-    - any report_type still fires → keep pending
-    - any manual/unknown type present → skip entirely, never touched
+    For each pending auto_qa report (single or all-auto compound):
+    - single type, event deleted / inactive → dismiss
+    - single type, predicate resolved        → confirm (reviewed events run the
+      predicate too; there is no reviewed shortcut)
+    - single type, predicate still fires      → keep pending
+    - compound row → confirm ONLY when EVERY type resolves; a deleted, inactive,
+      reviewed, or missing event keeps it pending (never dismissed, never
+      partially closed)
+    - any manual/unknown/payload token present → skip entirely, never touched
 
     Manual report types (wrongCategory, irrelevant, etc.) are never touched.
+    Every status transition goes through close_report_exactly_one (full
+    report_id + pending CAS + exactly-one-row verification).
     """
     sb = _supabase_client()
     today = datetime.now(timezone.utc).astimezone(JST).strftime("%Y-%m-%d")
@@ -1451,24 +1593,15 @@ def reconcile(dry_run: bool = False) -> dict:
             _inc_all("kept")
 
     # 5. Apply batch updates
-    now_iso = datetime.now(timezone.utc).isoformat()
     prefix = f"reconcile {today}: "
 
     if not dry_run:
         for rid, orig_note, reason in confirmed_ids:
             new_note = prefix + reason + (f" | {orig_note}" if orig_note else "")
-            sb.table("event_reports").update({
-                "status": "confirmed",
-                "confirmed_at": now_iso,
-                "admin_notes": new_note,
-            }).eq("id", rid).eq("status", "pending").execute()
+            close_report_exactly_one(sb, rid, status="confirmed", note=new_note, dry_run=False)
         for rid, orig_note, reason in dismissed_ids:
             new_note = prefix + reason + (f" | {orig_note}" if orig_note else "")
-            sb.table("event_reports").update({
-                "status": "dismissed",
-                "confirmed_at": now_iso,
-                "admin_notes": new_note,
-            }).eq("id", rid).eq("status", "pending").execute()
+            close_report_exactly_one(sb, rid, status="dismissed", note=new_note, dry_run=False)
 
     summary = {
         "scanned_pending": len(auto_rows),

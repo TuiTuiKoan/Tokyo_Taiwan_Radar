@@ -29,6 +29,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from annotator import _lock_fields_via_corrections, _to_trad
+from auto_qa import close_report_exactly_one, single_auto_type
 from line_notify import send_line_message
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
@@ -123,32 +124,54 @@ def _supabase_client():
     return create_client(url, key)
 
 
-def _pending_simplified_report_event_ids(sb) -> set[str]:
-    event_ids: set[str] = set()
+def _pending_simplified_reports(sb) -> list[dict]:
+    """Pending simplified-Chinese reports that are safe to auto-close.
+
+    Only single-type rows whose lone report_type is a known simplified auto type
+    qualify. Compound rows (which carry a second, unresolved finding) and any
+    manual/payload token are excluded here, so confirming a report never masks
+    another unaddressed issue on the same event. Returns [{id, event_id}, ...]
+    deduped by full report id.
+    """
+    out: list[dict] = []
+    seen: set[str] = set()
     for report_type in SIMPLIFIED_REPORT_TYPES:
         rows = (
             sb.table("event_reports")
-            .select("event_id")
+            .select("id,event_id,report_types")
             .eq("status", "pending")
             .contains("report_types", [report_type])
             .execute()
         ).data or []
         for row in rows:
+            rid = row.get("id")
             eid = row.get("event_id")
-            if eid:
-                event_ids.add(eid)
-    return event_ids
+            if not rid or not eid or rid in seen:
+                continue
+            st = single_auto_type(row.get("report_types"))
+            if st is None or st not in SIMPLIFIED_REPORT_TYPES:
+                continue
+            seen.add(rid)
+            out.append({"id": rid, "event_id": eid})
+    return out
 
 
-def _fix_simplified_for_events(sb, event_ids: set[str], dry_run: bool) -> dict:
-    if not event_ids:
+def _fix_simplified_for_events(sb, reports: list[dict], dry_run: bool) -> dict:
+    if not reports:
         return {
             "pending_events": 0,
             "scanned": 0,
             "fixed_events": 0,
+            "reconciled_events": 0,
             "closed_reports": 0,
             "fixed_fields": 0,
         }
+
+    # Map event_id → its eligible single-type report id(s).
+    reports_by_event: dict[str, list[str]] = {}
+    for r in reports:
+        reports_by_event.setdefault(r["event_id"], []).append(r["id"])
+    event_ids = set(reports_by_event)
 
     rows: list[dict] = []
     event_id_list = sorted(event_ids)
@@ -165,8 +188,8 @@ def _fix_simplified_for_events(sb, event_ids: set[str], dry_run: bool) -> dict:
 
     fixed_events = 0
     fixed_fields = 0
-    fixed_ids: list[str] = []
-    reconciled_ids: list[str] = []
+    reconciled_events = 0
+    resolved_event_ids: set[str] = set()
 
     for row in rows:
         update: dict[str, Any] = {}
@@ -193,9 +216,10 @@ def _fix_simplified_for_events(sb, event_ids: set[str], dry_run: bool) -> dict:
                 pass
 
         if not update:
-            # Reconcile stale pending reports: value already has no SC chars.
-            # We should confirm pending simplified reports for this event_id.
-            reconciled_ids.append(row["id"])
+            # Value already free of SC chars → the single-type report is a
+            # resolved false-positive; still eligible to confirm.
+            reconciled_events += 1
+            resolved_event_ids.add(row["id"])
             continue
 
         if dry_run:
@@ -206,36 +230,27 @@ def _fix_simplified_for_events(sb, event_ids: set[str], dry_run: bool) -> dict:
 
         fixed_events += 1
         fixed_fields += len(update)
-        fixed_ids.append(row["id"])
+        resolved_event_ids.add(row["id"])
 
+    # Close EXACTLY the eligible single-type reports whose event resolved, keyed
+    # by full report id with a pending CAS + exactly-one-row check. Compound rows
+    # are never in `reports_by_event`, so they are never touched here.
     closed_reports = 0
-    to_confirm_ids = sorted(set(fixed_ids + reconciled_ids))
-    if to_confirm_ids:
-        now_iso = datetime.now(timezone.utc).isoformat()
-        if dry_run:
-            for report_type in SIMPLIFIED_REPORT_TYPES:
-                logger.info(
-                    "[DRY] would confirm pending reports type=%s for %d event(s)",
-                    report_type,
-                    len(to_confirm_ids),
-                )
-        else:
-            for report_type in SIMPLIFIED_REPORT_TYPES:
-                res = (
-                    sb.table("event_reports")
-                    .update({"status": "confirmed", "confirmed_at": now_iso})
-                    .eq("status", "pending")
-                    .contains("report_types", [report_type])
-                    .in_("event_id", to_confirm_ids)
-                    .execute()
-                )
-                closed_reports += len(res.data or [])
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for eid in sorted(resolved_event_ids):
+        for rid in reports_by_event.get(eid, []):
+            ok, _ = close_report_exactly_one(
+                sb, rid, status="confirmed",
+                note=f"auto-fixed SC→TC ({now_iso})", dry_run=dry_run,
+            )
+            if ok:
+                closed_reports += 1
 
     return {
         "pending_events": len(event_ids),
         "scanned": len(rows),
         "fixed_events": fixed_events,
-        "reconciled_events": len(reconciled_ids),
+        "reconciled_events": reconciled_events,
         "closed_reports": closed_reports,
         "fixed_fields": fixed_fields,
     }
@@ -320,8 +335,8 @@ def run(dry_run: bool = False) -> dict:
     sb = _supabase_client()
     today_jst = datetime.now(timezone.utc).astimezone(JST).strftime("%Y/%m/%d")
 
-    pending_event_ids = _pending_simplified_report_event_ids(sb)
-    simplified_summary = _fix_simplified_for_events(sb, pending_event_ids, dry_run=dry_run)
+    pending_reports = _pending_simplified_reports(sb)
+    simplified_summary = _fix_simplified_for_events(sb, pending_reports, dry_run=dry_run)
     tab_summary = _fix_tokyoartbeat_dates(sb, dry_run=dry_run)
 
     summary = {
@@ -373,20 +388,17 @@ def _split_performer_str(raw: str) -> list[str]:
 
 
 def _confirm_report(sb, report_id: str, note: str | None = None, *, dry_run: bool = False) -> None:
-    """Mark a pending event_report as confirmed. Idempotent — safe to call
-    multiple times for the same report id."""
+    """Mark exactly one PENDING event_report as confirmed by full report_id.
+
+    Idempotent — a second call finds no pending row and is a safe no-op. Uses
+    close_report_exactly_one (pending CAS + exactly-one-row verification) so a
+    report is never confirmed by matching anything other than its own id."""
     if not report_id:
         return
     if dry_run:
         logger.info("[DRY] would confirm report %s — %s", report_id[:8], note or "")
         return
-    update: dict[str, Any] = {
-        "status": "confirmed",
-        "confirmed_at": datetime.now(timezone.utc).isoformat(),
-    }
-    if note:
-        update["admin_notes"] = note
-    sb.table("event_reports").update(update).eq("id", report_id).eq("status", "pending").execute()
+    close_report_exactly_one(sb, report_id, status="confirmed", note=note, dry_run=False)
 
 
 def _append_report_note(sb, report_id: str, note: str, *, dry_run: bool = False) -> None:

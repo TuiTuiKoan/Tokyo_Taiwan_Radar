@@ -127,12 +127,26 @@ def main() -> None:
     # ------------------------------------------------------------------
     query = (
         sb.table("event_reports")
-        .select("id, event_id, admin_notes")
+        .select("id, event_id, report_types, admin_notes")
         .ov("report_types", ["auto_qa_thin_content"])
         .eq("status", "pending")
     )
-    reports = query.execute().data
-    logger.info("Found %d pending auto_qa_thin_content reports", len(reports))
+    all_reports = query.execute().data or []
+    # Only single-type thin_content rows. A compound row (e.g.
+    # ["auto_qa_thin_content", "auto_qa_missing_date"]) carries a second,
+    # unresolved finding, so re-fetching its event / touching its note here
+    # would silently act on behalf of that other finding too.
+    reports = [
+        r
+        for r in all_reports
+        if [t for t in (r.get("report_types") or []) if isinstance(t, str) and t]
+        == ["auto_qa_thin_content"]
+    ]
+    logger.info(
+        "Found %d pending auto_qa_thin_content reports (%d single-type eligible)",
+        len(all_reports),
+        len(reports),
+    )
 
     if not reports:
         logger.info("Nothing to process.")
@@ -225,7 +239,15 @@ def main() -> None:
         if status_code is None or status_code >= 400:
             label = f"dead_url:{status_code or 'network_error'}"
             new_note = _append_note(report.get("admin_notes"), label)
-            sb.table("event_reports").update({"admin_notes": new_note}).eq("id", report_id).execute()
+            res = (
+                sb.table("event_reports")
+                .update({"admin_notes": new_note})
+                .eq("id", report_id)
+                .eq("status", "pending")
+                .execute()
+            )
+            if len(res.data or []) != 1:
+                logger.warning("  → report %s no longer pending; note skipped", report_id[:8])
             logger.info("  → %s (no is_active change)", label)
             dead += 1
             continue
@@ -257,9 +279,15 @@ def main() -> None:
             "annotation_status": "pending",
         }).eq("id", event_id).execute()
 
-        sb.table("event_reports").update({
-            "admin_notes": new_note,
-        }).eq("id", report_id).execute()
+        note_res = (
+            sb.table("event_reports")
+            .update({"admin_notes": new_note})
+            .eq("id", report_id)
+            .eq("status", "pending")
+            .execute()
+        )
+        if len(note_res.data or []) != 1:
+            logger.warning("  → report %s no longer pending; refetch note skipped", report_id[:8])
 
         logger.info("  → Updated: old=%d → new=%d chars", old_len, new_len)
         updated += 1

@@ -130,7 +130,7 @@ def test_resolve_report_disposition_confirms_compound_row_only_when_all_resolved
         resolved_event, ["auto_qa_missing_title", "auto_qa_missing_category"]
     )
     assert disposition == "confirm"
-    assert reason == "issue resolved"
+    assert reason == "compound: every type resolved"
 
 
 def test_resolve_report_disposition_keeps_compound_row_when_one_type_still_fires():
@@ -149,8 +149,16 @@ def test_resolve_report_disposition_dismisses_deleted_and_inactive_events():
     assert _resolve_report_disposition(inactive_event, ["auto_qa_missing_address"])[0] == "dismiss"
 
 
-def test_resolve_report_disposition_confirms_admin_reviewed_events():
-    reviewed_event = _base_event(annotation_status="reviewed")
-    disposition, reason = _resolve_report_disposition(reviewed_event, ["auto_qa_missing_address"])
+def test_resolve_report_disposition_runs_predicate_for_reviewed_events():
+    # H0: the admin-reviewed shortcut was removed. A reviewed event runs the
+    # type predicate like any other row — reconcile is the sole authority on
+    # whether the flagged issue is actually resolved.
+    still_missing = _base_event(annotation_status="reviewed", location_address="")
+    disposition, reason = _resolve_report_disposition(still_missing, ["auto_qa_missing_address"])
+    assert disposition == "keep"
+    assert reason == "predicate still fires"
+
+    resolved = _base_event(annotation_status="reviewed", location_address="東京都千代田区1-1")
+    disposition, reason = _resolve_report_disposition(resolved, ["auto_qa_missing_address"])
     assert disposition == "confirm"
-    assert reason == "event reviewed by admin"
+    assert reason == "issue resolved"
