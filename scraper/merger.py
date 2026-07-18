@@ -218,6 +218,87 @@ def _date_in_range(
         return False
 
 
+# ---------------------------------------------------------------------------
+# Pagination helpers
+# PostgREST silently caps a single response at 1000 rows, so an un-paginated
+# .execute() drops every event past the first 1000.  Each active-event scan and
+# id-batched lookup in run_merger routes through these helpers.  Mirrors the G2
+# backfill_location_prefectures.fetch_all_rows contract; merger stays
+# self-contained (no cross-module import).
+# ---------------------------------------------------------------------------
+def _fetch_all_rows(
+    sb: Any,
+    table: str,
+    columns: str,
+    *,
+    apply_filters=None,
+    order_col: str = "id",
+    page_size: int = 1000,
+    label: str = "",
+) -> list[dict]:
+    """Return every row of a filtered query, paginating past the 1000-row cap
+    via .range() windows.  Filters are applied to both the exact-count head
+    query and every page."""
+    tag = label or table
+    count_q = sb.table(table).select(order_col, count="exact", head=True)
+    if apply_filters:
+        count_q = apply_filters(count_q)
+    exact = count_q.execute().count
+    logger.info("  [%s] exact count = %s", tag, exact)
+
+    rows: list[dict] = []
+    start = 0
+    while True:
+        page_q = sb.table(table).select(columns)
+        if apply_filters:
+            page_q = apply_filters(page_q)
+        page = (
+            page_q.order(order_col)
+            .range(start, start + page_size - 1)
+            .execute()
+            .data
+        ) or []
+        rows.extend(page)
+        logger.info(
+            "  [%s] page @%d: +%d (accumulated %d)", tag, start, len(page), len(rows)
+        )
+        if len(page) < page_size:
+            break
+        start += page_size
+
+    if exact is not None and len(rows) != exact:
+        logger.warning(
+            "  [%s] accumulated %d != exact count %d", tag, len(rows), exact
+        )
+    return rows
+
+
+def _fetch_by_ids(
+    sb: Any,
+    table: str,
+    ids,
+    columns: str,
+    *,
+    chunk_size: int = 200,
+    label: str = "",
+) -> list[dict]:
+    """Return rows for a list of ids, de-duplicated preserving first-seen order
+    and chunked so a large .in_() lookup never caps at 1000."""
+    tag = label or table
+    unique_ids = list(dict.fromkeys(i for i in ids if i is not None))
+    rows: list[dict] = []
+    if not unique_ids:
+        return rows
+    for i in range(0, len(unique_ids), chunk_size):
+        batch = unique_ids[i : i + chunk_size]
+        page = sb.table(table).select(columns).in_("id", batch).execute().data or []
+        rows.extend(page)
+        logger.info(
+            "  [%s] ids @%d: +%d (accumulated %d)", tag, i, len(page), len(rows)
+        )
+    return rows
+
+
 def run_merger(dry_run: bool = False) -> int:
     """
     Detect and merge cross-source duplicate events in the DB.
@@ -243,18 +324,18 @@ def run_merger(dry_run: bool = False) -> int:
     #   - Both events have non-null location AND they don't overlap: skip —
     #     same film at different venues should remain separate events.
     # ------------------------------------------------------------------
-    gnews_res = (
-        sb.table("events")
-        .select(
-            "id,source_name,source_id,source_url,name_ja,start_date,"
-            "location_name,raw_description,secondary_source_urls,annotation_status"
-        )
-        .eq("is_active", True)
-        .eq("source_name", "google_news_rss")
-        .not_.is_("name_ja", None)
-        .execute()
+    gnews_events = _fetch_all_rows(
+        sb,
+        "events",
+        "id,source_name,source_id,source_url,name_ja,start_date,"
+        "location_name,raw_description,secondary_source_urls,annotation_status",
+        apply_filters=lambda q: (
+            q.eq("is_active", True)
+            .eq("source_name", "google_news_rss")
+            .not_.is_("name_ja", None)
+        ),
+        label="pass0_gnews",
     )
-    gnews_events = gnews_res.data or []
     logger.info("Merger Pass 0: %d active google_news_rss events", len(gnews_events))
 
     def _gnews_base_id(source_id: str | None) -> str:
@@ -365,19 +446,20 @@ def run_merger(dry_run: bool = False) -> int:
     # Note: gnews sub-events (source_id contains '_sub') ARE included here so
     # Pass 1/2 can match them against official sources by name+location/date.
     # Same-source within-article dedup is handled by Pass 0.
-    res = (
-        sb.table("events")
-        .select(
-            "id,source_name,source_id,source_url,official_url,name_ja,start_date,end_date,"
-            "location_name,location_address,raw_description,secondary_source_urls,"
-            "annotation_status,work_id,category,parent_event_id,location_prefectures,"
-            "image_url,performer,price_info,price_amount,event_form"
-        )
-        .eq("is_active", True)
-        .not_.is_("name_ja", None)
-        .execute()
+    # is_active is filtered with .neq(False) rather than .eq(True): identical in
+    # Postgres (is_active is NOT NULL) but keeps the DB-side filter while the
+    # scan paginates, and stays compatible with the pagination regression fake
+    # (which treats a missing is_active key as active).
+    events = _fetch_all_rows(
+        sb,
+        "events",
+        "id,source_name,source_id,source_url,official_url,name_ja,start_date,end_date,"
+        "location_name,location_address,raw_description,secondary_source_urls,"
+        "annotation_status,work_id,category,parent_event_id,location_prefectures,"
+        "image_url,performer,price_info,price_amount,event_form",
+        apply_filters=lambda q: q.neq("is_active", False).not_.is_("name_ja", None),
+        label="pass1_2_events",
     )
-    events = res.data or []
     logger.info("Merger: loaded %d active events for Pass 1/2", len(events))
 
     # Group by start_date (YYYY-MM-DD prefix)
@@ -1012,32 +1094,28 @@ def run_merger(dry_run: bool = False) -> int:
     # For each orphan, find the matching sub under the surviving primary
     # parent and merge them.  If no match exists, deactivate the orphan.
     # ------------------------------------------------------------------
-    sub_res = (
-        sb.table("events")
-        .select(
-            "id,source_name,source_id,source_url,official_url,name_ja,"
-            "start_date,end_date,location_name,location_address,raw_description,"
-            "secondary_source_urls,annotation_status,parent_event_id,work_id"
-        )
-        .eq("is_active", True)
-        .not_.is_("parent_event_id", None)
-        .execute()
+    all_subs = _fetch_all_rows(
+        sb,
+        "events",
+        "id,source_name,source_id,source_url,official_url,name_ja,"
+        "start_date,end_date,location_name,location_address,raw_description,"
+        "secondary_source_urls,annotation_status,parent_event_id,work_id",
+        apply_filters=lambda q: (
+            q.eq("is_active", True).not_.is_("parent_event_id", None)
+        ),
+        label="pass3_orphan_subs",
     )
-    all_subs = sub_res.data or []
 
-    # Build parent info map
-    parent_ids = list({s["parent_event_id"] for s in all_subs})
+    # Build parent info map (chunked .in_() so a large id list never caps at 1000)
     parent_map: dict = {}
-    for i in range(0, len(parent_ids), 100):
-        batch = parent_ids[i:i + 100]
-        pres = (
-            sb.table("events")
-            .select("id,is_active,source_url,secondary_source_urls")
-            .in_("id", batch)
-            .execute()
-        )
-        for p in pres.data or []:
-            parent_map[p["id"]] = p
+    for p in _fetch_by_ids(
+        sb,
+        "events",
+        [s["parent_event_id"] for s in all_subs],
+        "id,is_active,source_url,secondary_source_urls",
+        label="pass3_parents",
+    ):
+        parent_map[p["id"]] = p
 
     orphaned: list[tuple] = []
     for sub in all_subs:
@@ -1311,30 +1389,32 @@ def _flatten_grandchild_events(sb: Any, dry_run: bool = False) -> int:
     Returns the number of grandchild events processed.
     """
     # Fetch all active sub-events
-    all_subs_res = (
-        sb.table("events")
-        .select("id,source_id,source_name,parent_event_id,name_ja,start_date,location_name")
-        .not_.is_("parent_event_id", "null")
-        .eq("is_active", True)
-        .execute()
+    all_subs = _fetch_all_rows(
+        sb,
+        "events",
+        "id,source_id,source_name,parent_event_id,name_ja,start_date,location_name",
+        apply_filters=lambda q: (
+            q.not_.is_("parent_event_id", "null").eq("is_active", True)
+        ),
+        label="pass4_subs",
     )
-    all_subs = all_subs_res.data or []
 
     if not all_subs:
         return 0
 
-    # Batch-fetch all parent events to check their own parent_event_id
-    parent_ids = list({s["parent_event_id"] for s in all_subs})
-    if not parent_ids:
+    # Batch-fetch all parent events (chunked .in_() so it never caps at 1000)
+    parent_map = {
+        p["id"]: p
+        for p in _fetch_by_ids(
+            sb,
+            "events",
+            [s["parent_event_id"] for s in all_subs],
+            "id,parent_event_id",
+            label="pass4_parents",
+        )
+    }
+    if not parent_map:
         return 0
-
-    parents_res = (
-        sb.table("events")
-        .select("id,parent_event_id")
-        .in_("id", parent_ids)
-        .execute()
-    )
-    parent_map = {p["id"]: p for p in (parents_res.data or [])}
 
     # Grandchildren = sub-events whose parent is also a sub-event
     grandchildren = [
@@ -1354,13 +1434,13 @@ def _flatten_grandchild_events(sb: Any, dry_run: bool = False) -> int:
         root_id = parent["parent_event_id"]
 
         # Fetch root's direct children to check for duplicates
-        siblings_res = (
-            sb.table("events")
-            .select("id,location_name,start_date")
-            .eq("parent_event_id", root_id)
-            .execute()
+        siblings = _fetch_all_rows(
+            sb,
+            "events",
+            "id,location_name,start_date",
+            apply_filters=lambda q: q.eq("parent_event_id", root_id),
+            label="pass4_root_siblings",
         )
-        siblings = siblings_res.data or []
 
         gc_loc = (gc.get("location_name") or "").strip()
         gc_date = (gc.get("start_date") or "")[:10]
