@@ -1,89 +1,83 @@
 # Tasks — admin-reports-204-cleanup
 
 每完成一步把 `- [ ]` 改 `- [x]`，並 commit（即使只改這一行）。
-完整設計與驗證細節見 [proposal.md](./proposal.md)；第二輪 critique 見 [notes.md](./notes.md)。
+完整設計見 [proposal.md](./proposal.md) 與權威計畫 `/memories/session/plan.md`；第二輪 critique 見 [notes.md](./notes.md)。
 
-基線算術：Wave A 117（78+31+8）+ Wave B 43（16+27）+ 人工佇列 44（24+4+16）= 204。
+歷史觀測值（204 / 237 / 251）僅供彙總比較，**不是** apply gate，也不寫入任何 manifest。
+新 manifest 的分割為動態 $P_0 = A + S + M$（自動修復／證據合格 source 修復／人工審查），不保留 117 / 43 / 44 固定執行數。
 
-## Phase W: Worktree Setup（實作開始前）
+## Phase D0：交 Engineer 前的文件修訂（僅文字）
 
-- [ ] 依 `.github/instructions/git.instructions.md § Isolated worktree` 建 `ttr-admin-reports-204-cleanup-worktree`（branch `feat/admin-reports-204-cleanup`）
-- [ ] idempotent append `ttr-admin-reports-204-cleanup-worktree/` 至 `.git/info/exclude`
+- [x] diff A（notes §4.1）：統一 disposition 基準
+- [x] diff B（notes §4.2）：修 Group F 措辭殘留
+- [x] diff C（notes §4.3）：明示 `confirmReport()` 對 compound row 的行為
+- [x] 依此計畫改寫 proposal.md／tasks.md：204 標為歷史；刪除「204 JSONL 可從 session resource 取出」宣稱；刪除固定 117 / 43 / 44 Wave 數與舊 Wave A/B 拓撲；改為 H0-first、動態 $P_0=A+S+M$、五條 G lane、Round T-P/T-A、decision-16a 維護鎖遷移、per-artifact 核准拓撲；`notes.md` 不動
 
-## Phase D0: 交 Engineer 前的文件修訂（第二輪 critique，僅文字）
+## Round H0：部署 SHA 上的緊急 writer-safety 熱修
 
-- [x] diff A（notes §4.1）：統一 proposal.md 兩張 disposition 表的基準（加註 baseline Deterministic 11 / Human 23）
-- [x] diff B（notes §4.2）：修 Group F step 1 措辭殘留「in the immutable ledger」（計畫修訂時已套用為 execution manifest）
-- [x] diff C（notes §4.3）：明示 `confirmReport()` 縮減版對 compound row 的行為（Group E step 5 補述：不 partial-close，走人工分支）
-- [x] 確認上述已落地後，才進入實作 handoff
+- [ ] docs-only commit（proposal.md、tasks.md）先行，與 H0 code 分開
+- [ ] 凍結 read-only production impact ledger（deployed SHA、workflow enabled 狀態、active runs、fresh exact pending baseline、`deployment_at <= created_at <= observed_through_utc` 全 ID 集合，deterministic ordering + 完整分頁 + exact-count 交叉核對，掃兩次 byte-identical，`0400` 雙份 + SHA-256、證明 byte 相等、零機密）；不改任何 row
+- [ ] 建 `fix/event-report-writer-safety` worktree（基於含 docs commit 的 `origin/main`，`feb530e` 為 ancestor）
+- [ ] 產出 event_reports consumer matrix（auto_qa / qa_auto_fix / qa_heartbeat / refetch_thin_events / error_recovery / annotator insert / web confirm-dismiss-submit / admin-owner-works / read-only / 禁用 G1-G3 one-off）
+- [ ] 移除 `auto_qa.reconcile()` 泛用 reviewed→confirm 捷徑與 predicate-level reviewed skip
+- [ ] 加 token-prefix aware、all-known-Auto 資格判定（`field:` / `fieldEdit:` / `selectionReason:` / unknown 永不自動處理）
+- [ ] compound lifecycle invariant：deleted / inactive / reviewed / missing 不自動關閉 all-Auto compound
+- [ ] `qa_auto_fix` / `qa_heartbeat` / `refetch_thin_events` / error-recovery 加 single-type 資格 + full report ID + pending CAS + exactly-one-row
+- [ ] 先寫 fixtures（single、`[auto,auto]`、`[auto,human]`、`[human,auto]`、payload-token、unknown、empty、reordered；all-Auto compound deleted / inactive / reviewed / missing；reviewed no-FC / non-empty-FC / intentional-empty-FC）
+- [ ] Verification 全綠、Tester PASS、取得含排程效果授權的核准後才部署
 
-## Phase 0: 隔離工作並凍結 discovery 基線
+## Round G：殘餘 runtime prevention（五 lane）
 
-- [ ] 產出 immutable discovery ledger artifact（204 個 report ID + SHA-256 digest）
-- [ ] 確認 read-only 基線計數：204 pending / 179 events / 180 Auto-QA / 8 stuck / 16 human
+- [ ] 建 `ttr-admin-reports-204-cleanup-worktree`（branch `feat/admin-reports-204-cleanup`），H0 已進 `origin/main` 才建；idempotent append `.git/info/exclude`
+- [ ] 確認 tracked spec 已於 H0 step 0 修正且仍相符（204 歷史、無 missing-artifact／固定數指示）
+- [ ] G3 前解決 `scraper/merger.py` 與 `merger-multi-signal-pass4` spec 的所有權衝突
+- [ ] G1 Auto-QA predicate 正確性（與 G3 序列化整合）
+- [ ] G2 prefecture 抽取 + 完整分頁
+- [ ] G3 merger 分頁 + 共用 same-work primitive + annotation-error 結算
+- [ ] G4a 跨 decision-16a 互動 writer 的共用維護鎖 + 三個 browser writer 改走 guarded server action + decision-16a 遷移
+- [ ] G4b report-lifecycle status-last + deterministic QA 排程
+- [ ] Verification 全綠、Tester PASS、deploy 核准明確接受／拒絕下一次排程 runtime writes
+- [ ] 部署並觀察一個完整授權週期；任何 regenerated defect 阻擋後續 tooling／data cleanup
 
-## Phase 1: 先寫回歸測試（改 production 邏輯前）
+## Round T-P：共用 primitives + publication rollback 工具
 
-- [ ] 於 `scraper/tests/` 新增聚焦測試，涵蓋 detector predicate、publication 語意、prefecture 解析、lifecycle
-- [ ] 測試先紅（重現缺陷）再進入 Phase 2
+- [ ] 建 `feat/admin-reports-cleanup-primitives` worktree（H0 / G1 / G4a 為 ancestor）
+- [ ] 從 publication manifest 與 `unlock_and_write()` 抽取 immutable / pagination / snapshot / drift / journaled-write / after-image helpers
+- [ ] 加 full-report-ID publication rollback + failure-injection／rollback rehearsal 測試
+- [ ] Tester PASS、tools-only 核准（不授權任何 DB write）
 
-## Phase 2: 防復發（Group A–F）
+## Round T-A：Admin cleanup CLI
 
-- [ ] Group A：修正 publication writer 語意（不再寫 physical-field placeholder）
-- [ ] Group B：收斂並統一 QA predicate（detection / repair / reconcile 共用同一 helper）
-- [ ] Group C：修復 prefecture 抽取（完整分頁 + bounded address 解析）
-- [ ] Group D：補齊 report lifecycle（recovered rows 有 owner 關閉）
-- [ ] Group E：deterministic handler 與 human review 改為 status-last
-- [ ] Group F：先量化 43 列的 organizer 證據，只對有明確 `主催`／結構化 metadata 的子集修 parser
+- [ ] 建 `feat/admin-reports-cleanup-tooling` worktree（T-P 與五 G lane 皆 ancestor）
+- [ ] 重用 T-P primitives，加 discovery / classify / freeze / apply / rollback / export CLI（全 full report ID、journaled per-field）
+- [ ] failure-injection／rollback rehearsal 測試
+- [ ] Tester PASS、tools-only 核准（不授權任何 DB write）
 
-## Phase 3: 部署週期 1 — 驗證並部署 Group A–E
+## Round D：digest-bound 生產操作（各自核准）
 
-- [ ] 跑 Verification commands（見 proposal.md）全綠
-- [ ] Tester 回 PASS
-- [ ] 使用者核准後 push；部署 Group A–E + cleanup 工具
+- [ ] Publication manifest（prereq：H0、G1、G4a、T-P）
+- [ ] Fresh Admin automatic manifest（prereq：H0、G1、G2、G3、G4a、G4b、T-A）
+- [ ] Source manifest（上述 + Round S）
+- [ ] Reconcile-manifest（僅當 immediate reconcile 凍結為 full-ID manifest；預設走已授權的 recurring reconcile）
+- [ ] Rollback apply（僅作為已預先授權的 partial-failure 回應）
 
-## Phase 4: 部署後凍結 Wave A apply 基線
+## Round S：證據合格 source release
 
-- [ ] 記錄部署 commit SHA 至 Wave A apply snapshot
-- [ ] 產出 Wave A execution manifest（78+31+8）
+- [ ] 於 fresh ledger + 自動清理識別出實際 source defect 後才開始
+- [ ] 依凍結的 evidence inventory 改對應 source 檔 + fixtures
+- [ ] 獨立 implement／test／deploy／apply；deploy 核准明確涵蓋或暫停排程 scraper 效果
 
-## Phase 5: Wave A 清理（117 列）
-
-- [ ] Batch A1：結構性偽陽性 + publication 精度，78 列（dry-run → apply）
-- [ ] Batch A2：deterministic 修復，31 列（dry-run → apply）
-- [ ] Batch A3：stale reconciliation，8 列（dry-run → apply）
-- [ ] 每批 partial failure 即停，未驗證的 report 留 pending
-
-## Phase 6: 部署週期 2 + Wave B source-specific 修復（43 列）
-
-- [ ] Wave A 完成自己的 nightly 觀察後才開始 Group F 實作
-- [ ] Venue / region group，16 列
-- [ ] Event metadata group，27 列
-- [ ] 部署週期 2 → 產出 Wave B manifest（snapshot post-Wave-A state）
-
-## Phase 7: 匯出人工 review 佇列（44 列，禁 Python apply）
-
-- [ ] Uncertain Auto-QA，24 列
-- [ ] Live annotation errors，4 列
-- [ ] Human reports，16 列
-- [ ] 匯出含完整 UUID + 證據 + 明確決定至 `tmp/`
-
-## Phase 8: 對帳、重掃、觀察一個 nightly 週期
-
-- [ ] 全量分頁計數 == `count='exact'`
-- [ ] 每個基線 report ID 恰有一個 disposition
-- [ ] fresh scan + nightly 不重建已解決的基線列
-
-## Verification（每個部署週期都要過）
+## Verification（每個 code release 都要過）
 
 - [ ] `python -m pytest scraper/tests` 通過
 - [ ] `python -m compileall -q scraper` 通過
-- [ ] 各 `--dry-run`（backfill_location_prefectures / merger / auto_qa --reconcile / auto_qa / qa_auto_fix / error_recovery）無異常
+- [ ] 各 `--dry-run`（auto_qa --reconcile／auto_qa／qa_auto_fix／qa_heartbeat／refetch_thin_events／error_recovery／backfill_location_prefectures／merger）無異常
 - [ ] 每個被改的 source `python main.py --dry-run --source <name>` 正常
-- [ ] 無 `web/messages/` 變更；`confirmReport()` fail-fast 且 status-last
+- [ ] 無 `web/messages/` 變更；`confirmReport()` fail-fast 且 status-last；唯一遷移為 decision-16a 維護鎖
 - [ ] Tester 回 PASS；push 前取得使用者明確同意
 
 ## Done（歸檔條件）
 
-- [ ] 兩個部署週期都完成、nightly 不再重建已解決列
-- [ ] `git mv docs/specs/active/admin-reports-204-cleanup docs/specs/archive/$(date +%Y-%m)-admin-reports-204-cleanup`
+- [ ] 每個部署週期後 fresh scan + nightly 不再重建已解決列
+- [ ] 動態 $P_0 = A + S + M$ 分割驗證通過；人工列全數匯出且無 Python apply 可關閉
+- [ ] `git mv docs/specs/active/admin-reports-204-cleanup docs/specs/archive/$(date +%Y-%m)-admin-reports-204-cleanup`；proposal.md status=archived；notes.md 保留
