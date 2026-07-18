@@ -12,8 +12,12 @@ Three passes (order matters):
      but whose parent has a usable address, inherit prefecture from parent
      (writes location_prefectures only; does NOT modify location_address).
 
-Run AFTER migration 012 has been applied in Supabase Dashboard:
-    cd scraper && source ../.venv/bin/activate && python backfill_location_prefectures.py [--no-single] [--dry-run]
+Run AFTER migration 012 has been applied in Supabase Dashboard. Dry-run is the
+DEFAULT (no DB writes); pass --apply to persist:
+    cd scraper && source ../.venv/bin/activate && python backfill_location_prefectures.py --apply [--no-single]
+
+NOTE: automated callers (.github/workflows/scraper.yml) must pass --apply, or the
+daily backfill becomes a no-op dry-run.
 """
 import argparse
 import os
@@ -75,41 +79,170 @@ _CITY_TO_PREF: dict[str, str] = {
 # English address fallback (e.g. "4-1-1 Miyoshi, Koto-ku, Tokyo").
 _EN_TO_PREF: dict[str, str] = {"tokyo": "東京都", "osaka": "大阪府", "kyoto": "京都府"}
 
-# Strip leading noise such as `日本、` and postal code `〒xxx-xxxx ` before matching.
-_PREFIX_RE = re.compile(r"^(?:日本[、,]?\s*)?(?:〒\s*\d{3}-?\d{4}[\s　]*)?")
+# Formal Japanese prefectures, anchored to the START of a normalized address.
+# 東京都 is listed before 京都府 so it wins the alternation (avoids the 京都
+# substring pitfall). Every non-県 prefecture is enumerated explicitly, so the
+# generic branch only needs 2-3 stem chars + 県 (神奈川/和歌山/鹿児島 are the
+# 3-char stems) — no over-stripping via rstrip("都道府県").
+_JP_PREF_RE = re.compile(
+    r"^(北海道|東京都|大阪府|京都府|大阪市|京都市|[^\s都道府県\d〒-]{2,3}県)"
+)
+
+# Taiwan locality aliases (short names, incl. 臺 variants).
+_TW_ALIASES = (
+    r"[臺台]北|新北|桃園|[臺台]中|[臺台]南|高雄|基隆|新竹|苗栗|彰化|"
+    r"南投|雲林|嘉義|屏東|宜蘭|花蓮|[臺台]東|澎湖|金門|連江"
+)
+# Taiwan matches ONLY when the alias sits at the normalized address START
+# followed by a Taiwan suffix/delimiter (市 / 縣 / 區 / space / digit / end), OR
+# when it carries an explicit 市/縣 suffix anywhere. A bare mid-string alias
+# (e.g. 新北 inside 大阪府…住之江区新北島) must NOT match. Taiwan uses 區(U+5340)
+# / 縣(U+7E23) whereas Japan uses 区(U+533A) / 県(U+770C), so 台東区 (Tokyo) is
+# never treated as Taiwan — it is resolved earlier via _CITY_TO_PREF.
+_TW_START_RE = re.compile(rf"^({_TW_ALIASES})(?:[市縣區]|[\s　]|$|[0-9０-９])")
+_TW_SUFFIX_RE = re.compile(rf"({_TW_ALIASES})[市縣]")
+
+# Bounded label / country / postal prefixes stripped before prefecture matching.
+_LABEL_PREFIX_RE = re.compile(
+    r"^(?:会場住所|会場所在地|開催場所|開催地|所在地|住所|会場|場所)(?:は|:|：)?[\s　、,]*"
+)
+_COUNTRY_PREFIX_RE = re.compile(r"^日本[、,]?[\s　]*")
+_POSTAL_PREFIX_RE = re.compile(r"^〒?\s*\d{3}-?\d{4}[\s　]*")
+
+
+def _normalize_address(address: str) -> str:
+    """Strip stacked label / country / postal prefixes (bounded loop)."""
+    s = address.strip()
+    prev = None
+    for _ in range(6):  # bounded: handles stacked prefixes, never loops unbounded
+        if s == prev:
+            break
+        prev = s
+        s = _LABEL_PREFIX_RE.sub("", s)
+        s = _COUNTRY_PREFIX_RE.sub("", s)
+        s = _POSTAL_PREFIX_RE.sub("", s)
+        s = s.lstrip("　 \t、,:：")
+    return s
 
 
 def extract_prefecture(address: str | None) -> str | None:
-    """Extract prefecture name from a Japanese or Taiwanese address string."""
+    """Extract a prefecture name from a Japanese or Taiwanese address string.
+
+    Japanese prefectures are matched FIRST (anchored, canonical forms), then
+    政令市 / ward lookup, then — only as a last, restricted step — Taiwan
+    aliases. This ordering ensures a Japanese address that merely contains a
+    Taiwan-like substring (大阪府…新北島) resolves to 大阪府, never 新北.
+    """
     if not address:
         return None
-    # Support Taiwan cities: 台北市, 台北縣, 基隆市, etc. (including 臺 variants and suffix-less "台北")
-    tw_re = re.compile(r"([臺台]北|新北|桃園|[臺台]中|[臺台]南|高雄|基隆|新竹|苗栗|彰化|南投|雲林|嘉義|屏東|宜蘭|花蓮|[臺台]東|澎湖|金門|連江)(市|縣|県)?")
-    m_tw = tw_re.search(address)
-    if m_tw:
-        # Return short name e.g. "台北"
-        return m_tw.group(1).replace("臺", "台")
 
-    address = _PREFIX_RE.sub("", address).lstrip()
-    # Japan prefecture names (anchored to start after prefix removal).
-    m = re.match(r"^(北海道|東京都|(?:大阪|京都)府|大阪市|京都市|[^\s都道府県\d〒-]{2,4}[都道府県])", address)
+    norm = _normalize_address(address)
+    if not norm:
+        return None
+
+    # 1) Formal Japanese prefecture at the start (canonical values).
+    m = _JP_PREF_RE.match(norm)
     if m:
         full = m.group(1)
         if full in ("大阪市", "大阪府"):
             return "大阪府"
         if full in ("京都市", "京都府"):
             return "京都府"
-        return full  # 北海道, 東京都, ○○府, ○○道, ○○県 — suffix already included
-    # Fallback: bare 政令市 name without 都道府県 prefix.
+        return full  # 北海道 / 東京都 / ○○県 — suffix already canonical
+
+    # 2) Bare 政令市 / 23-ward / 県庁所在地 name without a 都道府県 prefix.
     for city, pref in _CITY_TO_PREF.items():
-        if address.startswith(city):
+        if norm.startswith(city):
             return pref
-    # English address fallback.
-    low = address.lower()
+
+    # 3) Taiwan localities — restricted (start-anchored or explicit 市/縣 suffix).
+    m_tw = _TW_START_RE.match(norm) or _TW_SUFFIX_RE.search(norm)
+    if m_tw:
+        return m_tw.group(1).replace("臺", "台")
+
+    # 4) English address fallback.
+    low = norm.lower()
     for k, v in _EN_TO_PREF.items():
         if k in low:
             return v
     return None
+
+
+def fetch_all_rows(
+    sb,
+    table: str,
+    columns: str,
+    *,
+    apply_filters=None,
+    order_col: str = "id",
+    page_size: int = 1000,
+    label: str = "",
+) -> list[dict]:
+    """Fetch ALL rows for a query, paginating past Supabase's ~1000-row cap.
+
+    Supabase silently caps a single response at 1000 rows, so an unpaginated
+    ``.execute()`` drops later events. This reads the exact count, then
+    accumulates fixed-size pages via ``.range()`` ordered by ``order_col`` for
+    stable slicing, logging per-page / exact / accumulated counts.
+
+    ``apply_filters`` is an optional callable applied to BOTH the count-head
+    request and each page request, e.g.
+    ``lambda q: q.not_.is_("parent_event_id", "null")``.
+    """
+    tag = label or table
+
+    count_q = sb.table(table).select(order_col, count="exact", head=True)
+    if apply_filters:
+        count_q = apply_filters(count_q)
+    exact = count_q.execute().count
+    logger.info("  [%s] exact count = %s", tag, exact)
+
+    rows: list[dict] = []
+    start = 0
+    while True:
+        page_q = sb.table(table).select(columns)
+        if apply_filters:
+            page_q = apply_filters(page_q)
+        page = (
+            page_q.order(order_col)
+            .range(start, start + page_size - 1)
+            .execute()
+            .data
+        ) or []
+        rows.extend(page)
+        logger.info(
+            "  [%s] page @%d: +%d (accumulated %d)", tag, start, len(page), len(rows)
+        )
+        if len(page) < page_size:
+            break
+        start += page_size
+
+    if exact is not None and len(rows) != exact:
+        logger.warning("  [%s] accumulated %d != exact count %d", tag, len(rows), exact)
+    return rows
+
+
+def _verify_write(sb, event_id: str, expected: list[str]) -> None:
+    """Re-read location_prefectures after a write; warn on mismatch (G2 step 7).
+
+    This backfill only writes the events table (no field_corrections rows), so
+    there is no FC row to re-read.
+    """
+    try:
+        rb = (
+            sb.table("events")
+            .select("location_prefectures")
+            .eq("id", event_id)
+            .execute()
+            .data
+        )
+        got = rb[0].get("location_prefectures") if rb else None
+        if got != expected:
+            logger.warning(
+                "  read-back mismatch id=%s: wrote %s got %s", event_id, expected, got
+            )
+    except Exception as e:  # read-back must never abort the backfill
+        logger.warning("  read-back failed id=%s: %s", event_id, e)
 
 
 def main() -> None:
@@ -118,10 +251,18 @@ def main() -> None:
                         help="Skip single-row + sub-event passes; only do multi-aggregation for parents (legacy).")
     parser.add_argument("--include-single", action="store_true",
                         help="(deprecated, kept for compat) Single-row pass is now default ON.")
-    parser.add_argument("--dry-run", action="store_true", help="Print would-update counts only; no DB writes.")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Force dry-run (no DB writes). Dry-run is already the DEFAULT.")
+    parser.add_argument("--apply", action="store_true",
+                        help="Persist changes to Supabase. Without --apply this is a dry-run.")
     args = parser.parse_args()
 
     do_single = not args.no_single
+    # Dry-run is the DEFAULT; writes require an explicit --apply. --dry-run still
+    # forces dry-run and wins if both are given (safety-first).
+    dry_run = args.dry_run or not args.apply
+    if dry_run and not args.dry_run:
+        logger.info("No --apply flag: DRY-RUN mode (no DB writes). Pass --apply to persist.")
 
     sb = create_client(
         os.environ["SUPABASE_URL"],
@@ -130,17 +271,18 @@ def main() -> None:
 
     # Fetch ALL sub-events with location_address (including inactive — backfill
     # historical rows so reports & roadmap reflect total fill rate, not just active).
-    logger.info("Fetching sub-events...")
-    subs = (
-        sb.table("events")
-        .select("parent_event_id,location_address")
-        .not_.is_("parent_event_id", "null")
-        .execute()
+    logger.info("Fetching sub-events (aggregation pass)...")
+    subs_data = fetch_all_rows(
+        sb,
+        "events",
+        "parent_event_id,location_address",
+        apply_filters=lambda q: q.not_.is_("parent_event_id", "null"),
+        label="sub-agg",
     )
 
     # Aggregate prefectures per parent
     parent_prefectures: dict[str, set[str]] = defaultdict(set)
-    for s in subs.data:
+    for s in subs_data:
         pid = s["parent_event_id"]
         pref = extract_prefecture(s["location_address"])
         if pref:
@@ -150,12 +292,13 @@ def main() -> None:
     # Filter `location_prefectures IS NULL` is enforced row-by-row below to keep
     # idempotency (we still want to emit `skipped_existing` counter for visibility).
     logger.info("Fetching parent events (all is_active states)...")
-    parents = (
-        sb.table("events")
-        .select("id,name_ja,location_address,location_prefectures")
-        .is_("parent_event_id", "null")
-        .execute()
-    ).data
+    parents = fetch_all_rows(
+        sb,
+        "events",
+        "id,name_ja,location_address,location_prefectures",
+        apply_filters=lambda q: q.is_("parent_event_id", "null"),
+        label="parents",
+    )
 
     scanned = len(parents)
     multi_updated = 0
@@ -190,12 +333,13 @@ def main() -> None:
             skipped_no_pref += 1
             continue
 
-        if args.dry_run:
+        if dry_run:
             logger.info("  [dry-run %s] PAR %s → %s", kind, name, new_value)
         else:
             try:
                 sb.table("events").update({"location_prefectures": new_value}).eq("id", pid).execute()
                 logger.info("  ✓ [%s] PAR %s → %s", kind, name, new_value)
+                _verify_write(sb, pid, new_value)
             except Exception as e:
                 logger.error("  ✗ %s: %s", pid, e)
                 continue
@@ -214,12 +358,13 @@ def main() -> None:
 
     if do_single:
         logger.info("Fetching sub-events (full rows for backfill)...")
-        sub_rows = (
-            sb.table("events")
-            .select("id,name_ja,parent_event_id,location_address,location_prefectures")
-            .not_.is_("parent_event_id", "null")
-            .execute()
-        ).data
+        sub_rows = fetch_all_rows(
+            sb,
+            "events",
+            "id,name_ja,parent_event_id,location_address,location_prefectures",
+            apply_filters=lambda q: q.not_.is_("parent_event_id", "null"),
+            label="sub-full",
+        )
         sub_scanned = len(sub_rows)
 
         for s in sub_rows:
@@ -244,12 +389,13 @@ def main() -> None:
                 continue
 
             new_value = [pref]
-            if args.dry_run:
+            if dry_run:
                 logger.info("  [dry-run %s] SUB %s → %s", kind, name, new_value)
             else:
                 try:
                     sb.table("events").update({"location_prefectures": new_value}).eq("id", sid).execute()
                     logger.info("  ✓ [%s] SUB %s → %s", kind, name, new_value)
+                    _verify_write(sb, sid, new_value)
                 except Exception as e:
                     logger.error("  ✗ %s: %s", sid, e)
                     continue
@@ -270,8 +416,8 @@ def main() -> None:
     logger.info("  Parent-address updated:      %d", sub_parent_fallback_updated)
     logger.info("  Skipped (already set):       %d", sub_skipped_existing)
     logger.info("  Skipped (no prefecture):     %d", sub_skipped_no_pref)
-    if args.dry_run:
-        logger.info("(dry-run — no DB writes)")
+    if dry_run:
+        logger.info("(dry-run — no DB writes; pass --apply to persist)")
 
 
 if __name__ == "__main__":
