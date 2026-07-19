@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { isConfirmationOnlyReport, BROKEN_LINK_REPORT_TYPE } from "@/lib/reportTypes";
 
 const GITHUB_REPO = "TuiTuiKoan/Tokyo_Taiwan_Radar";
@@ -60,62 +60,109 @@ interface ConfirmReportResult {
 export async function confirmReport(
   input: ConfirmReportInput
 ): Promise<ConfirmReportResult> {
+  // Dynamic import so unit tests can import this module (and the testable core
+  // below) without pulling next/headers at load time; createClient reads cookies.
+  const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
+  return runConfirmReport(supabase, input);
+}
 
+// Testable core. Accepts an injected Supabase client so the status-last ordering,
+// identity-from-DB, pending compare-and-set, and idempotent retry semantics can be
+// unit-tested with a fake. Exported (async) from this "use server" module; no client
+// component imports it, so it is never invoked as a client-callable action with a
+// non-serializable argument.
+export async function runConfirmReport(
+  supabase: SupabaseClient,
+  input: ConfirmReportInput
+): Promise<ConfirmReportResult> {
   // Verify admin session
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, githubUpdated: false, error: "Unauthorized" };
 
-  const { data: roleRow } = await supabase
+  const { data: roleRow, error: roleError } = await supabase
     .from("user_roles")
     .select("role")
     .eq("user_id", user.id)
     .single();
-  if (!roleRow || roleRow.role !== "admin") {
+  if (roleError || !roleRow || roleRow.role !== "admin") {
     return { ok: false, githubUpdated: false, error: "Forbidden" };
   }
 
   const now = new Date().toISOString();
 
-  // Parse field:xxx entries from report_types
-  const wrongFields = input.reportTypes
+  // 1. Identity from the DB, not from client input. Read the unique PENDING report by
+  //    full reportId; derive eventId and report types from that row. A 0-row or a
+  //    multi-row lookup fails (a report that was already handled is no longer pending).
+  const { data: reportRows, error: reportLookupError } = await supabase
+    .from("event_reports")
+    .select("id,event_id,report_types,status")
+    .eq("id", input.reportId)
+    .eq("status", "pending");
+  if (reportLookupError) {
+    return { ok: false, githubUpdated: false, error: reportLookupError.message };
+  }
+  if (!reportRows || reportRows.length === 0) {
+    return { ok: false, githubUpdated: false, error: "Report not found or not pending" };
+  }
+  if (reportRows.length > 1) {
+    return { ok: false, githubUpdated: false, error: "Multiple pending reports for id" };
+  }
+  const report = reportRows[0] as { event_id: string; report_types: string[] | null };
+  const eventId = report.event_id;
+  const reportTypes = report.report_types ?? [];
+
+  // Parse field:xxx entries from the DB report types (client reportTypes never drive writes)
+  const wrongFields = reportTypes
     .filter((t) => t.startsWith("field:"))
     .map((t) => t.replace("field:", ""));
-  const hasAnnotatorFixableFields = wrongFields.some((f) => f in ANNOTATOR_FIELDS);
   const hasScraperOnlyFields = wrongFields.some((f) => SCRAPER_FIELDS.includes(f));
 
-  // 1. Update event_reports
-  const { error: reportError } = await supabase
-    .from("event_reports")
-    .update({
-      status: "confirmed",
-      confirmed_at: now,
-      admin_notes: input.adminNotes || null,
-    })
-    .eq("id", input.reportId);
-
-  if (reportError) {
-    return { ok: false, githubUpdated: false, error: reportError.message };
-  }
-
-  // 2. Update the event based on what was reported wrong
-  const eventUpdate: Record<string, unknown> = {};
-  const { data: currentEvent, error: currentEventError } = await supabase
-    .from("events")
-    .select("annotation_status")
-    .eq("id", input.eventId)
-    .single();
-  if (currentEventError) {
-    return { ok: false, githubUpdated: false, error: currentEventError.message };
-  }
-  const currentAnnotationStatus = currentEvent?.annotation_status;
-  const isWrongCategory = input.reportTypes.includes("wrongCategory");
-  const isWrongDetails = input.reportTypes.includes("wrongDetails") && wrongFields.length > 0;
-  const isIrrelevant = input.reportTypes.includes("irrelevant");
-  const isWrongSelectionReason = input.reportTypes.includes("wrongSelectionReason");
+  // 2. Capture the complete event before-image in ONE read, BEFORE any write, so that
+  //    field_corrections.original_value and selection_reason ai_sr record the true
+  //    originals instead of values a later event update already overwrote.
+  const isWrongCategory = reportTypes.includes("wrongCategory");
+  const isWrongDetails = reportTypes.includes("wrongDetails") && wrongFields.length > 0;
+  const isIrrelevant = reportTypes.includes("irrelevant");
+  const isWrongSelectionReason = reportTypes.includes("wrongSelectionReason");
   const corrections = input.fieldCorrections ?? {};
+
+  const fcOriginalCols = isWrongDetails
+    ? wrongFields
+        .flatMap((f) => Object.values(FIELD_LOCALE_COL[f] ?? {}))
+        .filter((v): v is string => Boolean(v))
+    : [];
+  const beforeCols = Array.from(
+    new Set([
+      "annotation_status",
+      "updated_at",
+      "raw_title",
+      "raw_description",
+      "selection_reason",
+      ...fcOriginalCols,
+    ])
+  );
+  const { data: beforeEvent, error: beforeEventError } = await supabase
+    .from("events")
+    .select(beforeCols.join(","))
+    .eq("id", eventId)
+    .single();
+  if (beforeEventError) {
+    return { ok: false, githubUpdated: false, error: beforeEventError.message };
+  }
+  if (!beforeEvent) {
+    return { ok: false, githubUpdated: false, error: "Event not found" };
+  }
+  const before = beforeEvent as unknown as Record<string, unknown>;
+  const currentAnnotationStatus =
+    typeof before["annotation_status"] === "string"
+      ? (before["annotation_status"] as string)
+      : undefined;
+
+  // 3. Build the event update from the DB-derived report types.
+  const eventUpdate: Record<string, unknown> = {};
 
   if (isWrongCategory) {
     // Determine the category to apply: admin > user suggestion > keep empty for re-annotation
@@ -215,72 +262,63 @@ export async function confirmReport(
       ? (eventUpdate["annotation_status"] as string)
       : currentAnnotationStatus;
 
+  // 4. Pre-status write: event update. A value-setting update is idempotent on retry;
+  //    .select("id") + exactly-one-row is the 0-row guard so a deleted or
+  //    permission-filtered event returns an error instead of a silent success.
   if (Object.keys(eventUpdate).length > 0) {
-    const { error: eventError } = await supabase
+    const { data: updatedRows, error: eventError } = await supabase
       .from("events")
       .update(eventUpdate)
-      .eq("id", input.eventId);
+      .eq("id", eventId)
+      .select("id");
 
     if (eventError) {
       return { ok: false, githubUpdated: false, error: eventError.message };
     }
+    if (!updatedRows || updatedRows.length !== 1) {
+      return { ok: false, githubUpdated: false, error: "Event not found or changed" };
+    }
   }
 
-  // 3. If wrongCategory report: save correction record (admin selection > user suggestion)
+  // 5. If wrongCategory report: save correction record (admin selection > user suggestion).
+  //    A failed correction write returns before the status flip so the report stays
+  //    pending and a retry re-runs the identical writes.
   const finalCategory = (input.correctCategory && input.correctCategory.length > 0)
     ? input.correctCategory
     : (input.suggestedCategory && input.suggestedCategory.length > 0)
       ? input.suggestedCategory
       : null;
 
-  if (input.reportTypes.includes("wrongCategory") && finalCategory) {
-    const { data: eventData } = await supabase
-      .from("events")
-      .select("raw_title, raw_description")
-      .eq("id", input.eventId)
-      .single();
-
-    await supabase.from("category_corrections").upsert(
+  if (isWrongCategory && finalCategory) {
+    const { error: ccError } = await supabase.from("category_corrections").upsert(
       {
-        event_id: input.eventId,
-        raw_title: eventData?.raw_title ?? null,
-        raw_description: eventData?.raw_description ?? null,
+        event_id: eventId,
+        raw_title: (before["raw_title"] as string | null) ?? null,
+        raw_description: (before["raw_description"] as string | null) ?? null,
         ai_category: input.currentCategory ?? [],
         corrected_category: finalCategory,
         corrected_by: user.id,
       },
       { onConflict: "event_id" }
     );
-    await supabase.from("field_corrections").upsert(
-      { event_id: input.eventId, field_name: "category", corrected_value: JSON.stringify(finalCategory) },
+    if (ccError) {
+      return { ok: false, githubUpdated: false, error: ccError.message };
+    }
+    const { error: catFcError } = await supabase.from("field_corrections").upsert(
+      { event_id: eventId, field_name: "category", corrected_value: JSON.stringify(finalCategory) },
       { onConflict: "event_id,field_name" }
     );
+    if (catFcError) {
+      return { ok: false, githubUpdated: false, error: catFcError.message };
+    }
   }
 
-  // 3b. Persist field-level corrections to field_corrections table (P1).
+  // 5b. Persist field-level corrections to field_corrections table (P1).
   //     One row per (event_id, field_name). Upserts overwrite on repeat corrections.
   //     The annotator reads this table at startup and skips AI output for any
-  //     (event_id, field_name) pair already corrected by a human.
+  //     (event_id, field_name) pair already corrected by a human. Original values come
+  //     from the before-image captured prior to the event update above.
   if (isWrongDetails) {
-    // Fetch original values from DB for the diff record
-    const colsToFetch = wrongFields
-      .flatMap((f) => Object.values(FIELD_LOCALE_COL[f] ?? {}))
-      .filter((v): v is string => Boolean(v));
-
-    const originalValues: Record<string, string | null> = {};
-    if (colsToFetch.length > 0) {
-      const { data: origRow } = await supabase
-        .from("events")
-        .select(colsToFetch.join(","))
-        .eq("id", input.eventId)
-        .single();
-      if (origRow) {
-        for (const col of colsToFetch) {
-          originalValues[col] = (origRow as unknown as Record<string, unknown>)[col] as string | null ?? null;
-        }
-      }
-    }
-
     const fcRows: {
       event_id: string;
       field_name: string;
@@ -292,15 +330,13 @@ export async function confirmReport(
 
     for (const field of wrongFields) {
       const localeColMap = FIELD_LOCALE_COL[field] ?? {};
-      for (const [, dbCol] of Object.entries(localeColMap) as [string, string][]) {
-        const corrected = (corrections[field]?.[
-          Object.entries(localeColMap).find(([, c]) => c === dbCol)?.[0] ?? ""
-        ] ?? "").trim();
+      for (const [loc, dbCol] of Object.entries(localeColMap) as [string, string][]) {
+        const corrected = (corrections[field]?.[loc] ?? "").trim();
         if (corrected) {
           fcRows.push({
-            event_id: input.eventId,
+            event_id: eventId,
             field_name: dbCol,
-            original_value: originalValues[dbCol] ?? null,
+            original_value: (before[dbCol] as string | null) ?? null,
             corrected_value: corrected,
             corrected_by: user.id,
             report_id: input.reportId ?? null,
@@ -310,56 +346,83 @@ export async function confirmReport(
     }
 
     if (fcRows.length > 0) {
-      await supabase
+      const { error: fcError } = await supabase
         .from("field_corrections")
         .upsert(fcRows, { onConflict: "event_id,field_name" });
+      if (fcError) {
+        return { ok: false, githubUpdated: false, error: fcError.message };
+      }
     }
   }
 
-  // 3c. Persist selection_reason correction to selection_reason_corrections (P3.3 — migration 040).
+  // 5c. Persist selection_reason correction to selection_reason_corrections (P3.3 — migration 040).
   //     Records the original AI output vs admin correction as a few-shot training example.
   //     annotator.py reads this table at startup via selection_reason_feedback.py.
+  //     The AI original comes from the before-image, not a post-update re-read.
   if (isWrongSelectionReason && input.correctedSelectionReason) {
-    const { data: srOrigRow } = await supabase
-      .from("events")
-      .select("selection_reason,raw_title,raw_description")
-      .eq("id", input.eventId)
-      .single();
-
-    const aiSr: unknown = srOrigRow?.selection_reason
-      ? (() => { try { return JSON.parse(srOrigRow.selection_reason as string); } catch { return null; } })()
+    const aiSr: unknown = before["selection_reason"]
+      ? (() => { try { return JSON.parse(before["selection_reason"] as string); } catch { return null; } })()
       : null;
     const correctedSrParsed: unknown = (() => {
       try { return JSON.parse(input.correctedSelectionReason); } catch { return null; }
     })();
 
     if (correctedSrParsed) {
-      await supabase.from("selection_reason_corrections").upsert(
+      const { error: srError } = await supabase.from("selection_reason_corrections").upsert(
         {
-          event_id: input.eventId,
-          raw_title: (srOrigRow?.raw_title as string | null) ?? null,
-          raw_description: (srOrigRow?.raw_description as string | null) ?? null,
+          event_id: eventId,
+          raw_title: (before["raw_title"] as string | null) ?? null,
+          raw_description: (before["raw_description"] as string | null) ?? null,
           ai_sr: aiSr ?? null,
           corrected_sr: correctedSrParsed,
           corrected_by: user.id,
         },
         { onConflict: "event_id" }
       );
+      if (srError) {
+        return { ok: false, githubUpdated: false, error: srError.message };
+      }
     }
   }
+  // 6. STATUS LAST. Every event/correction write above has already succeeded; only now
+  //    flip the report to confirmed with a pending compare-and-set. .select("id") +
+  //    exactly-one-row means a concurrent confirm/dismiss that already moved this report
+  //    off pending loses the race and this call reports the conflict instead of
+  //    double-confirming an already-handled report.
+  const { data: statusRows, error: statusError } = await supabase
+    .from("event_reports")
+    .update({
+      status: "confirmed",
+      confirmed_at: now,
+      admin_notes: input.adminNotes || null,
+    })
+    .eq("id", input.reportId)
+    .eq("status", "pending")
+    .select("id");
+  if (statusError) {
+    return { ok: false, githubUpdated: false, error: statusError.message };
+  }
+  if (!statusRows || statusRows.length !== 1) {
+    return { ok: false, githubUpdated: false, error: "Report already handled or not pending" };
+  }
+
+  // 7. Best-effort GitHub audit trail AFTER the status commit. A GitHub failure must not
+  //    falsify the DB outcome — the report is already confirmed, so githubUpdated=false is
+  //    reported while ok stays true.
   const githubUpdated = await appendToHistoryFile(
     input,
+    reportTypes,
     wrongFields,
     hasScraperOnlyFields,
     finalAnnotationStatus
   );
 
-  // 5. Append "Pending Rule" to per-source SKILL.md if one exists.
-  //    Confirmation-only reports (security / brokenLink) are not scraper extraction
-  //    defects, so they must not write a per-source pending rule.
+  //    Append "Pending Rule" to per-source SKILL.md if one exists. Confirmation-only
+  //    reports (security / brokenLink) are not scraper extraction defects, so they must
+  //    not write a per-source pending rule.
   const skillPath = input.sourceName ? SOURCE_SKILL_PATHS[input.sourceName] : undefined;
-  if (skillPath && !isConfirmationOnlyReport(input.reportTypes)) {
-    await appendPendingRuleToSkill(skillPath, input, wrongFields);
+  if (skillPath && !isConfirmationOnlyReport(reportTypes)) {
+    await appendPendingRuleToSkill(skillPath, input, reportTypes, wrongFields);
   }
 
   return { ok: true, githubUpdated, wasReviewed: finalAnnotationStatus === "reviewed" };
@@ -368,6 +431,7 @@ export async function confirmReport(
 
 async function appendToHistoryFile(
   input: ConfirmReportInput,
+  reportTypes: string[],
   wrongFields: string[],
   hasScraperOnlyFields: boolean,
   finalAnnotationStatus?: string
@@ -399,7 +463,7 @@ async function appendToHistoryFile(
     // Build new entry
     const date = new Date().toISOString().slice(0, 10);
     // Hide machine / payload tokens from the audit trail (hash / severity / field payloads).
-    const baseTypes = input.reportTypes.filter(
+    const baseTypes = reportTypes.filter(
       (t) =>
         !t.startsWith("field:") &&
         !t.startsWith("fieldEdit:") &&
@@ -412,7 +476,7 @@ async function appendToHistoryFile(
     const source = input.sourceName ?? "unknown";
 
     // Before / After diff for category changes
-    const isWrongCat = input.reportTypes.includes("wrongCategory");
+    const isWrongCat = reportTypes.includes("wrongCategory");
     const finalCat = (input.correctCategory && input.correctCategory.length > 0)
       ? input.correctCategory
       : (input.suggestedCategory && input.suggestedCategory.length > 0)
@@ -434,7 +498,7 @@ async function appendToHistoryFile(
 
     // Action description
     let actionLine: string;
-    if (input.reportTypes.includes("irrelevant")) {
+    if (reportTypes.includes("irrelevant")) {
       actionLine = "Event hidden (is_active=false). Irrelevant content.";
     } else if (isWrongCat && finalCat) {
       actionLine = `Category corrected inline — event remains active (is_active=true, annotation_status=${finalAnnotationStatus ?? "annotated"}).`;
@@ -442,9 +506,9 @@ async function appendToHistoryFile(
       actionLine = "Category cleared — re-annotation triggered (annotation_status=pending).";
     } else if (wrongFields.some(f => f in ANNOTATOR_FIELDS)) {
       actionLine = "Annotatable fields nulled out — re-annotation triggered. Will auto-reactivate after annotator runs.";
-    } else if (isConfirmationOnlyReport(input.reportTypes)) {
+    } else if (isConfirmationOnlyReport(reportTypes)) {
       // Confirmation-only report — event data is left untouched.
-      actionLine = input.reportTypes.includes(BROKEN_LINK_REPORT_TYPE)
+      actionLine = reportTypes.includes(BROKEN_LINK_REPORT_TYPE)
         ? "Broken link report confirmed; event data unchanged (source link flagged for manual review)"
         : "Security report confirmed; event data unchanged";
     } else {
@@ -508,6 +572,7 @@ async function appendToHistoryFile(
 async function appendPendingRuleToSkill(
   skillPath: string,
   input: ConfirmReportInput,
+  reportTypes: string[],
   wrongFields: string[]
 ): Promise<void> {
   const token = process.env.GITHUB_TOKEN;
@@ -529,7 +594,7 @@ async function appendPendingRuleToSkill(
 
     const date = new Date().toISOString().slice(0, 10);
     // Hide machine / payload tokens from the audit trail (hash / severity / field payloads).
-    const baseTypes = input.reportTypes.filter(
+    const baseTypes = reportTypes.filter(
       (t) =>
         !t.startsWith("field:") &&
         !t.startsWith("fieldEdit:") &&
@@ -553,7 +618,7 @@ async function appendPendingRuleToSkill(
       : (input.suggestedCategory && input.suggestedCategory.length > 0)
         ? input.suggestedCategory
         : null;
-    const classifierHint = input.reportTypes.includes("wrongCategory") && finalCat
+    const classifierHint = reportTypes.includes("wrongCategory") && finalCat
       ? `- **Classifier hint:** AI labelled as [${(input.currentCategory ?? []).join(", ") || "unknown"}] → should be [${finalCat.join(", ")}]. Admin notes: "${notes}". Update annotator prompt or category_corrections if this pattern recurs.\n`
       : "";
 
