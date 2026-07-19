@@ -133,7 +133,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         working-directory: scraper
-        run: python backfill_location_prefectures.py
+        run: python backfill_location_prefectures.py --apply
 
       - name: Geocode events
         working-directory: scraper
