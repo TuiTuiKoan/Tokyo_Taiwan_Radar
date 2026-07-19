@@ -55,6 +55,12 @@ SAFE_REPORT_TYPES = SIMPLIFIED_REPORT_TYPES + (
     "auto_qa_location_url_is_event_url",
 )
 
+# Single report type wired into the daily run() performer-split path (below).
+# Eligibility is gated by auto_qa.single_auto_type, so only a lone-token report
+# of exactly this type is auto-handled here; compound/manual/payload rows are
+# left for qa_heartbeat / human review.
+PERFORMER_MULTI_VALUE_REPORT_TYPE = "auto_qa_performer_multi_value_pollution"
+
 FIX_FIELDS = (
     "name_zh",
     "description_zh",
@@ -310,9 +316,60 @@ def _fix_tokyoartbeat_dates(sb, dry_run: bool) -> dict:
     }
 
 
+def _pending_performer_multi_value_reports(sb) -> list[dict]:
+    """Pending performer multi-value pollution reports safe to auto-split.
+
+    Mirrors `_pending_simplified_reports`: only single-type rows whose lone
+    report_type is exactly `auto_qa_performer_multi_value_pollution` qualify.
+    Compound rows (which carry a second, unresolved finding) and any
+    manual/payload token are excluded via `single_auto_type`, so splitting the
+    performer and confirming the report never masks another unaddressed issue
+    on the same event. Returns [{id, event_id}, ...] deduped by full report id.
+    """
+    out: list[dict] = []
+    seen: set[str] = set()
+    rows = (
+        sb.table("event_reports")
+        .select("id,event_id,report_types")
+        .eq("status", "pending")
+        .contains("report_types", [PERFORMER_MULTI_VALUE_REPORT_TYPE])
+        .execute()
+    ).data or []
+    for row in rows:
+        rid = row.get("id")
+        eid = row.get("event_id")
+        if not rid or not eid or rid in seen:
+            continue
+        if single_auto_type(row.get("report_types")) != PERFORMER_MULTI_VALUE_REPORT_TYPE:
+            continue
+        seen.add(rid)
+        out.append({"id": rid, "event_id": eid})
+    return out
+
+
+def _fix_performer_multi_value(sb, reports: list[dict], dry_run: bool) -> dict:
+    """Split each eligible report's polluted `performer` into `performers[]`.
+
+    Delegates to the deterministic `handle_performer_multi_value_split` handler
+    (audit + unlock_and_write + exactly-one-row confirm), tallying how many
+    reports it handled vs. skipped (false positive, already-split, or
+    reviewed). Returns a no-op summary when there are no eligible reports.
+    """
+    handled = 0
+    for r in reports:
+        if handle_performer_multi_value_split(sb, r["event_id"], r, dry_run=dry_run):
+            handled += 1
+    return {
+        "pending_reports": len(reports),
+        "handled": handled,
+        "skipped": len(reports) - handled,
+    }
+
+
 def _build_message(today_jst: str, summary: dict) -> str:
     simp = summary["simplified_fix"]
     tab = summary["tokyoartbeat_date_sync"]
+    perf = summary["performer_multi_value_split"]
 
     lines = [
         f"🛠️ QA Auto Fix（{today_jst}）",
@@ -327,6 +384,11 @@ def _build_message(today_jst: str, summary: dict) -> str:
         "B) tokyoartbeat date-sync",
         f"- mismatch found: {tab['mismatch']}",
         f"- fixed: {tab['fixed']}",
+        "",
+        "C) performer multi-value split",
+        f"- pending reports: {perf['pending_reports']}",
+        f"- handled: {perf['handled']}",
+        f"- skipped: {perf['skipped']}",
     ]
     return "\n".join(lines)
 
@@ -338,10 +400,13 @@ def run(dry_run: bool = False) -> dict:
     pending_reports = _pending_simplified_reports(sb)
     simplified_summary = _fix_simplified_for_events(sb, pending_reports, dry_run=dry_run)
     tab_summary = _fix_tokyoartbeat_dates(sb, dry_run=dry_run)
+    performer_reports = _pending_performer_multi_value_reports(sb)
+    performer_summary = _fix_performer_multi_value(sb, performer_reports, dry_run=dry_run)
 
     summary = {
         "simplified_fix": simplified_summary,
         "tokyoartbeat_date_sync": tab_summary,
+        "performer_multi_value_split": performer_summary,
     }
     message = _build_message(today_jst, summary)
 
