@@ -147,41 +147,7 @@ Read this at the start of every session before writing any scraper.
 **新しい scraper ファイルを作成・編集するたびに、task_complete 前に必ずこのコマンドを実行し、両方 ALL CLEAR を確認すること。**
 
 ```bash
-cd scraper && python3 -W ignore - << 'AUDIT'
-import re, glob, os, sys
-from dotenv import load_dotenv; load_dotenv('.env')
-from supabase import create_client
-
-errors = []
-
-# ── 1. SCRAPERS registration audit ──────────────────────────────────────────
-registered = set(re.findall(r'(\w+Scraper)\(\)', open('main.py').read()))
-for f in glob.glob('sources/*.py'):
-    c = open(f).read()
-    m = re.search(r'class (\w+Scraper)\b', c)
-    if m and m.group(1) not in registered and m.group(1) != 'BaseScraper':
-        errors.append(f'❌ UNREGISTERED in main.py: {m.group(1)} ({f})')
-if not any('UNREGISTERED' in e for e in errors):
-    print('✅ SCRAPERS: all registered')
-
-# ── 2. research_sources.scraper_source_name audit ───────────────────────────
-sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
-rows = sb.table('research_sources').select('name,scraper_source_name,status').eq('status','implemented').execute().data
-missing = [r for r in rows if not r['scraper_source_name']]
-if missing:
-    for r in missing:
-        errors.append(f'❌ scraper_source_name NULL: "{r["name"]}" (status=implemented)')
-else:
-    print('✅ research_sources: all implemented rows have scraper_source_name')
-
-# ── Result ───────────────────────────────────────────────────────────────────
-if errors:
-    for e in errors:
-        print(e)
-    sys.exit(1)
-else:
-    print('🎉 ALL CLEAR — safe to commit')
-AUDIT
+python3 -W ignore scraper/audit_post_build.py
 ```
 
 **出力例（正常）:**
@@ -2075,6 +2041,13 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 - **`is_paid=False`**: Confirmed on all events — admission is free.
 - **After a bug fix**: Always run a non-dry-run (`python main.py --source taiwan_matsuri`) immediately after fixing a filter bug. A dry-run-only fix leaves the data gap until the next CI cycle.
 - **Cross-source duplicates**: `taiwan_matsuri` events appear as duplicates in `iwafu`, `google_news_rss`, and other aggregators. `merger.py` handles this automatically — see `## merger.py` section below.
+
+## taiwan_expo_japan-specific
+
+- Parse the annual Wix SSR homepage through visible semantic text. Never depend on generated `comp-*` IDs, rich-text classes, or `data-testid` values.
+- Require the official title year and the complete `YYYY.M.D - M.D` range year to agree. Missing, invalid, reversed, or mismatched ranges return no event; never fall back to blog dates, sitemap `lastmod`, registration URLs, or the current year.
+- Emit exactly one event with `source_id=taiwan_expo_japan_<year>`. Stop the description before previous-year results or the first later `イベントスケジュール`; never copy the day-by-day program into `raw_description`.
+- Strip NUL bytes from emitted text. Parse a real address only from the venue's local text window, and never copy `location_name` into `location_address`.
 
 ## taiwan_cultural_center-specific
 - **Date extraction tiers**: Tier 1 (`_BODY_DATE_LABELS`) → Tier 1b (dot-day) → Tier 1.3 (unlabeled range) → Tier 1.5 (prose DOW) → Tier 2 (title slash) → Tier 3 (publish date fallback). Always add new date patterns at the correct tier before the publish-date fallback.

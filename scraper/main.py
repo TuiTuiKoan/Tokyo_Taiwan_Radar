@@ -42,6 +42,7 @@ from sources.peatix import PeatixScraper
 from sources.taioan_dokyokai import TaioanDokyokaiScraper
 from sources.iwafu import IwafuScraper
 from sources.taiwan_festival_tokyo import TaiwanFestivalTokyoScraper
+from sources.taiwan_expo_japan import TaiwanExpoJapanScraper
 from sources.koryu import KoryuScraper
 from sources.taiwan_kyokai import TaiwanKyokaiScraper
 from sources.doorkeeper import DoorkeeperScraper
@@ -184,6 +185,7 @@ SCRAPERS = [
     FtipScraper(),
     IwafuScraper(),
     TaiwanFestivalTokyoScraper(),
+    TaiwanExpoJapanScraper(),
     KoryuScraper(),
     TaiwanKyokaiScraper(),
     DoorkeeperScraper(),

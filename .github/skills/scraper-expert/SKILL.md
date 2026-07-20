@@ -2054,6 +2054,13 @@ Applies to: `cineswitch_ginza`, `uplink_cinema`, `human_trust_cinema`, and any f
 - **After a bug fix**: Always run a non-dry-run (`python main.py --source taiwan_matsuri`) immediately after fixing a filter bug. A dry-run-only fix leaves the data gap until the next CI cycle.
 - **Cross-source duplicates**: `taiwan_matsuri` events appear as duplicates in `iwafu`, `google_news_rss`, and other aggregators. `merger.py` handles this automatically — see `## merger.py` section below.
 
+## taiwan_expo_japan-specific
+
+- Parse the annual Wix SSR homepage through visible semantic text. Never depend on generated `comp-*` IDs, rich-text classes, or `data-testid` values.
+- Require the official title year and the complete `YYYY.M.D - M.D` range year to agree. Missing, invalid, reversed, or mismatched ranges return no event; never fall back to blog dates, sitemap `lastmod`, registration URLs, or the current year.
+- Emit exactly one event with `source_id=taiwan_expo_japan_<year>`. Stop the description before previous-year results or the first later `イベントスケジュール`; never copy the day-by-day program into `raw_description`.
+- Strip NUL bytes from emitted text. Parse a real address only from the venue's local text window, and never copy `location_name` into `location_address`.
+
 ## taiwan_cultural_center-specific
 - **Date extraction tiers**: Tier 1 (`_BODY_DATE_LABELS`) → Tier 1b (dot-day) → Tier 1.3 (unlabeled range) → Tier 1.5 (prose DOW) → Tier 2 (title slash) → Tier 3 (publish date fallback). Always add new date patterns at the correct tier before the publish-date fallback.
 - **Month-only date ranges**: `期間：2026年5月～10月` is a valid date range for multi-month series. `_parse_date()` handles `YYYY年M月` (no day) → first day of month. End date is adjusted to last day of month via `calendar.monthrange`.

@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-07-20 - Taiwan Expo Japan annual Wix SSR source
+
+### Context
+
+Taiwan Expo Japan publishes one official annual event on a Wix homepage. The server-rendered HTML contains reliable visible headings but only generated container IDs and generic rich-text classes. The same page also contains previous-year material and a detailed daily schedule that could trigger unintended annotator sub-events.
+
+### Implementation
+
+Added a requests-based scraper with retry adapters, strict title-year and complete-date-year agreement, timezone-aware UTC-midnight dates, semantic description boundaries, NUL stripping, and one stable `taiwan_expo_japan_<year>` ID. Focused tests rename every Wix ID, class, and test ID, cover compact and cross-month date variants, and verify fail-closed behavior. The live orchestrator dry-run produced one 2026 event and excluded schedule sessions.
+
+The mandatory audit exposed two older gate defects. Commit `25fc2bbd` had documented `scraper/audit_post_build.py` without ever adding the file, while the remaining inline copy treated abstract bases and intentionally removed `ConnpassScraper` as production omissions. Added an AST-based audit with explicit intentional-disable handling and repaired six `peatix_organizer` rows to use their owning `scraper_source_name=peatix`. Independent DB reads confirmed all six values and row 709 before the combined audit printed `ALL CLEAR`.
+
+### Lesson
+
+Annual Wix pages need semantic text anchors and a year-consistency guard, not generated selectors or current-year inference. A one-event source must bound its description before the program schedule so downstream annotation cannot invent a multi-session event tree.
+
 ## 2026-07-10 - annotator history roots 與小型場館 organizer fallback
 
 **問題：** annotator category / organizer 規則需要收斂兩種容易混淆的情境：創作者明確為台灣出生或台灣出身時應注入 `history`，但僅有台灣求學或工作經歷不應注入；小型場館官方頁缺少 `主催` 標籤時可用公開場館名補 organizer，但不能把 aggregator、新聞來源、通用租借場館、會展中心或大學誤當主辦。
