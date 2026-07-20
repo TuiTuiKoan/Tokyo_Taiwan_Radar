@@ -213,22 +213,35 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
             if still_missing:
                 # `aliases @> ARRAY[…]` via `cs` filter on TEXT[] column.
                 # One round-trip per string (small N expected — usually < 50/run).
+                # No `.limit(1)`: an alias must resolve to exactly one organizer.
+                # If it matches multiple rows the alias is ambiguous — fail closed
+                # (leave organizer_id unset) instead of arbitrarily taking the
+                # first row. Mirrors the organizer_registry duplicate-alias guard.
                 for s in still_missing:
                     try:
                         ar = (
                             client.table("organizers")
                             .select("id,homepage,aliases")
                             .contains("aliases", [s])
-                            .limit(1)
                             .execute()
                         )
-                        if ar.data:
+                        matches = ar.data or []
+                        if len(matches) > 1:
+                            logger.warning(
+                                "organizer alias %r matched %d organizer rows; "
+                                "leaving organizer_id unset (fail closed).",
+                                s,
+                                len(matches),
+                            )
+                            continue
+                        if matches:
+                            hit = matches[0]
                             aliases = tuple(
                                 a
-                                for a in (ar.data[0].get("aliases") or [])
+                                for a in (hit.get("aliases") or [])
                                 if isinstance(a, str) and a.strip()
                             )
-                            org_lookup[s] = (ar.data[0]["id"], ar.data[0].get("homepage"), aliases)
+                            org_lookup[s] = (hit["id"], hit.get("homepage"), aliases)
                     except Exception:
                         pass
         except Exception as exc:
