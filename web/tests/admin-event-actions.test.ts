@@ -218,6 +218,8 @@ test("bulk event update rejects zero, partial, and unexpected ID sets", async (t
     ["zero", []],
     ["partial", [{ id: EVENT_1 }]],
     ["unexpected", [{ id: EVENT_1 }, { id: EVENT_3 }]],
+    ["malformed returned ID", [{ id: EVENT_1 }, { id: "not-a-uuid" }]],
+    ["canonical duplicate returned IDs", [{ id: EVENT_1 }, { id: EVENT_1.toUpperCase() }]],
   ] as const) {
     await t.test(name, async () => {
       const { client } = makeClient(route({ "events:update": { data: rows, error: null } }));
@@ -243,6 +245,79 @@ test("bulk event update deduplicates IDs and accepts an exact returned set", asy
   assert.deepEqual(callsOf(calls, "events", "update")[0].filters, [
     ["in", "id", [EVENT_1, EVENT_2]],
   ]);
+});
+
+test("UUID inputs use canonical lowercase for dedupe, filters, writes, and exact matches", async (t) => {
+  await t.test("event IDs", async () => {
+    const { client, calls } = makeClient(route({
+      "events:update": { data: [{ id: EVENT_1 }], error: null },
+    }));
+    const result = await runSetAdminEventsForceRescrape(
+      client,
+      [EVENT_1.toUpperCase(), EVENT_1],
+      true,
+      "bulk",
+    );
+    assert.deepEqual(result, { ok: true, data: { ids: [EVENT_1] } });
+    assert.deepEqual(callsOf(calls, "events", "update")[0].filters, [
+      ["in", "id", [EVENT_1]],
+    ]);
+  });
+
+  await t.test("AdminEdit event, actor, and parent IDs", async () => {
+    const { client, calls } = makeClient((call) => {
+      if (call.table === "events" && call.op === "select") {
+        return { data: beforeEvent(), error: null };
+      }
+      if (call.table === "events" && call.op === "update") {
+        return { data: { ...beforeEvent(), id: EVENT_1 }, error: null };
+      }
+      return { data: null, error: null };
+    });
+    const form = { ...BASE_FORM, parent_event_id: EVENT_2.toUpperCase() };
+    const result = await runSaveAdminEditedEvent(
+      client,
+      EVENT_1.toUpperCase(),
+      form,
+      ADMIN_1.toUpperCase(),
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(callsOf(calls, "events", "select")[0].filters, [
+      ["eq", "id", EVENT_1],
+    ]);
+    const eventWrite = callsOf(calls, "events", "update")[0];
+    assert.deepEqual(eventWrite.filters, [["eq", "id", EVENT_1]]);
+    assert.equal((eventWrite.payload as Record<string, unknown>).parent_event_id, EVENT_2);
+    const fieldRows = callsOf(calls, "field_corrections", "upsert")[0]
+      .payload as Array<Record<string, unknown>>;
+    assert.equal(fieldRows[0].corrected_by, ADMIN_1);
+  });
+
+  await t.test("work assignment and work mutation IDs", async () => {
+    const { client, calls } = makeClient(route({
+      "events:update": { data: [{ id: EVENT_1 }], error: null },
+      "works:update": { data: [{ id: WORK_1 }], error: null },
+    }));
+    const assignment = await runAssignWorkToEvents(
+      client,
+      [EVENT_1.toUpperCase()],
+      WORK_1.toUpperCase(),
+      "single",
+    );
+    const workUpdate = await runUpdateWorkExact(
+      client,
+      WORK_1.toUpperCase(),
+      { original_title: "Work" },
+    );
+    assert.deepEqual(assignment, { ok: true, data: { ids: [EVENT_1] } });
+    assert.deepEqual(workUpdate, { ok: true, data: { ids: [WORK_1] } });
+    const assignmentCall = callsOf(calls, "events", "update")[0];
+    assert.deepEqual(assignmentCall.filters, [["in", "id", [EVENT_1]]]);
+    assert.deepEqual(assignmentCall.payload, { work_id: WORK_1 });
+    assert.deepEqual(callsOf(calls, "works", "update")[0].filters, [
+      ["eq", "id", WORK_1],
+    ]);
+  });
 });
 
 test("runtime ID, category, and boolean inputs fail without database calls", async (t) => {
@@ -271,23 +346,121 @@ test("runtime ID, category, and boolean inputs fail without database calls", asy
 });
 
 test("malformed AdminEdit forms fail before reading or writing", async (t) => {
-  for (const [name, form, expectedError] of [
+  const cases: Array<[string, unknown, string]> = [
     ["undefined", undefined, "form_invalid"],
     ["null", null, "form_invalid"],
     ["string", "not-a-form", "form_invalid"],
     ["array", [], "form_invalid"],
+    ["non-plain object", new Date(), "form_invalid"],
     ["missing arrays", {}, "categories_invalid"],
-    ["string boolean", { ...BASE_FORM, is_active: "true" }, "form_invalid"],
+    ["non-string category member", { ...BASE_FORM, category: ["art", null] }, "categories_invalid"],
+    ["unknown category", { ...BASE_FORM, category: ["not-a-category"] }, "categories_invalid"],
+    ["non-string event form member", { ...BASE_FORM, event_form: ["exhibition", null] }, "event_forms_invalid"],
+    ["unknown event form", { ...BASE_FORM, event_form: ["not-an-event-form"] }, "event_forms_invalid"],
+    ["co-organizer null member", { ...BASE_FORM, co_organizers: [null] }, "form_invalid"],
+    ["numeric sponsors", { ...BASE_FORM, sponsors: 42 }, "form_invalid"],
+    ["numeric record link", { ...BASE_FORM, record_links: [42] }, "form_invalid"],
+    ["array record link", { ...BASE_FORM, record_links: [[]] }, "form_invalid"],
+    ["record link missing title", { ...BASE_FORM, record_links: [{ url: "https://example.test" }] }, "form_invalid"],
+    ["record link missing URL", { ...BASE_FORM, record_links: [{ title: "Source" }] }, "form_invalid"],
+    ["record link numeric title", { ...BASE_FORM, record_links: [{ title: 42, url: "https://example.test" }] }, "form_invalid"],
+    ["record link object URL", { ...BASE_FORM, record_links: [{ title: "Source", url: {} }] }, "form_invalid"],
+    ["record link invalid recommended", { ...BASE_FORM, record_links: [{ title: "Source", url: "https://example.test", recommended: "true" }] }, "form_invalid"],
+    ["record link extra object", { ...BASE_FORM, record_links: [{ title: "Source", url: "https://example.test", metadata: {} }] }, "form_invalid"],
+    ["invalid parent UUID", { ...BASE_FORM, parent_event_id: "not-a-uuid" }, "parent_event_id_invalid"],
+    ["numeric parent UUID", { ...BASE_FORM, parent_event_id: 42 }, "parent_event_id_invalid"],
+  ];
+
+  for (const field of [
+    "name_ja",
+    "name_zh",
+    "name_en",
+    "description_ja",
+    "description_zh",
+    "description_en",
+    "start_date",
+    "end_date",
+    "location_name",
+    "location_address",
+    "location_url",
+    "business_hours",
+    "performer",
+    "organizer",
+    "organizer_url",
+    "primary_language",
+    "price_info",
+    "official_url",
+    "submission_url",
+    "source_url",
+    "original_language",
   ] as const) {
+    cases.push([
+      `non-string ${field}`,
+      { ...BASE_FORM, [field]: field === "location_name" ? {} : 42 },
+      "form_invalid",
+    ]);
+  }
+
+  for (const field of [
+    "has_japanese_support",
+    "has_english_support",
+    "has_chinese_support",
+    "is_paid",
+    "is_active",
+  ] as const) {
+    cases.push([`non-boolean ${field}`, { ...BASE_FORM, [field]: "false" }, "form_invalid"]);
+  }
+
+  for (const [name, form, expectedError] of cases) {
     await t.test(name, async () => {
       const { client, calls } = makeClient(() => {
         throw new Error("invalid form must not reach the database");
       });
-      const result = await runSaveAdminEditedEvent(client, EVENT_1, form, ADMIN_1);
+      let result: Awaited<ReturnType<typeof runSaveAdminEditedEvent>> | undefined;
+      await assert.doesNotReject(async () => {
+        result = await runSaveAdminEditedEvent(client, EVENT_1, form, ADMIN_1);
+      });
       assert.deepEqual(result, { ok: false, error: expectedError });
       assert.equal(calls.length, 0);
     });
   }
+});
+
+test("AdminEdit accepts legal empty and client boundary values", async () => {
+  const { client, calls } = makeClient((call) => {
+    if (call.table === "events" && call.op === "select") {
+      return { data: beforeEvent(), error: null };
+    }
+    if (call.table === "events" && call.op === "update") {
+      return { data: { ...beforeEvent(), id: EVENT_1 }, error: null };
+    }
+    return { data: null, error: null };
+  });
+  const form = {
+    ...BASE_FORM,
+    category: [],
+    event_form: [],
+    co_organizers: "A機構，B機構",
+    sponsors: ["C企業", "", "D企業"],
+    parent_event_id: null,
+    record_links: [
+      { title: "", url: "" },
+      { title: "Official", url: "https://example.test/official", recommended: false },
+    ],
+  };
+  const result = await runSaveAdminEditedEvent(client, EVENT_1, form, ADMIN_1);
+  assert.equal(result.ok, true);
+  const payload = callsOf(calls, "events", "update")[0].payload as Record<string, unknown>;
+  assert.deepEqual(payload.category, []);
+  assert.deepEqual(payload.event_form, []);
+  assert.deepEqual(payload.co_organizers, ["A機構", "B機構"]);
+  assert.deepEqual(payload.sponsors, ["C企業", "D企業"]);
+  assert.equal(payload.parent_event_id, null);
+  assert.deepEqual(payload.record_links, [
+    { title: "Official", url: "https://example.test/official", recommended: false },
+  ]);
+  assert.equal(payload.is_paid, false);
+  assert.equal(payload.is_active, true);
 });
 
 test("single reannotation requires exactly the requested event", async () => {

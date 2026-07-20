@@ -11,9 +11,32 @@ export type EventCategoryResult = {
   category: string[];
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const VALID_CATEGORIES = new Set<string>(CATEGORIES);
 const VALID_EVENT_FORMS = new Set<string>(EVENT_FORMS);
+const ADMIN_EDIT_STRING_FIELDS = [
+  "name_ja",
+  "name_zh",
+  "name_en",
+  "description_ja",
+  "description_zh",
+  "description_en",
+  "start_date",
+  "end_date",
+  "location_name",
+  "location_address",
+  "location_url",
+  "business_hours",
+  "performer",
+  "organizer",
+  "organizer_url",
+  "primary_language",
+  "price_info",
+  "official_url",
+  "submission_url",
+  "source_url",
+  "original_language",
+] as const;
 const FORM_BOOLEAN_FIELDS = [
   "has_japanese_support",
   "has_english_support",
@@ -53,6 +76,25 @@ const ADMIN_EDIT_BEFORE_COLUMNS = [
 
 type MutationMode = "single" | "bulk";
 type IdRow = { id: string };
+type AdminEditStringField = (typeof ADMIN_EDIT_STRING_FIELDS)[number];
+type AdminEditRecordLink = {
+  title: string;
+  url: string;
+  recommended?: boolean;
+};
+type ValidatedAdminEditForm = Record<AdminEditStringField, string> & {
+  category: string[];
+  event_form: string[];
+  co_organizers: string[];
+  sponsors: string[];
+  has_japanese_support: boolean;
+  has_english_support: boolean;
+  has_chinese_support: boolean;
+  is_paid: boolean;
+  is_active: boolean;
+  parent_event_id: string | null;
+  record_links: AdminEditRecordLink[];
+};
 type AdminEditBefore = Record<string, unknown> & {
   id: string;
   raw_title: string | null;
@@ -64,13 +106,21 @@ function failure<T>(error: string): CoreMutationResult<T> {
   return { ok: false, error };
 }
 
+function canonicalUuid(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const canonical = value.trim().toLowerCase();
+  return UUID_RE.test(canonical) ? canonical : null;
+}
+
 function normalizeIds(ids: unknown, label: string): CoreMutationResult<string[]> {
   if (!Array.isArray(ids)) return failure(`${label}_ids_invalid`);
   if (ids.some((id) => typeof id !== "string")) return failure(`${label}_ids_invalid`);
-  const normalized = Array.from(new Set((ids as string[]).map((id) => id.trim())));
-  if (normalized.length === 0 || normalized.some((id) => !UUID_RE.test(id))) {
+  const canonicalIds = (ids as string[]).map(canonicalUuid);
+  if (canonicalIds.some((id) => id === null)) {
     return failure(`${label}_ids_invalid`);
   }
+  const normalized = Array.from(new Set(canonicalIds as string[]));
+  if (normalized.length === 0) return failure(`${label}_ids_invalid`);
   return { ok: true, data: normalized };
 }
 
@@ -91,17 +141,28 @@ function exactIds(
   label: string,
 ): CoreMutationResult<{ ids: string[] }> {
   if (!Array.isArray(data)) return failure(`${label}_exact_id_mismatch`);
-  const returnedIds = data
-    .map((row) => (row && typeof row === "object" ? (row as IdRow).id : null))
-    .filter((id): id is string => typeof id === "string");
-  const returnedSet = new Set(returnedIds);
-  const requestedSet = new Set(requestedIds);
-  const matches = returnedIds.length === requestedIds.length
-    && returnedSet.size === returnedIds.length
-    && requestedIds.every((id) => returnedSet.has(id))
-    && returnedIds.every((id) => requestedSet.has(id));
+  const returnedIds = data.map((row) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+    return canonicalUuid((row as IdRow).id);
+  });
+  const canonicalRequestedIds = requestedIds.map(canonicalUuid);
+  if (
+    returnedIds.some((id) => id === null)
+    || canonicalRequestedIds.some((id) => id === null)
+  ) {
+    return failure(`${label}_exact_id_mismatch`);
+  }
+  const validReturnedIds = returnedIds as string[];
+  const validRequestedIds = canonicalRequestedIds as string[];
+  const returnedSet = new Set(validReturnedIds);
+  const requestedSet = new Set(validRequestedIds);
+  const matches = validReturnedIds.length === validRequestedIds.length
+    && returnedSet.size === validReturnedIds.length
+    && requestedSet.size === validRequestedIds.length
+    && validRequestedIds.every((id) => returnedSet.has(id))
+    && validReturnedIds.every((id) => requestedSet.has(id));
   return matches
-    ? { ok: true, data: { ids: requestedIds } }
+    ? { ok: true, data: { ids: validRequestedIds } }
     : failure(`${label}_exact_id_mismatch`);
 }
 
@@ -119,30 +180,124 @@ function normalizeCategoryInput(categories: unknown): CoreMutationResult<string[
   return { ok: true, data: normalized };
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeCommaArrayInput(value: unknown): CoreMutationResult<string[]> {
+  if (value === null) return { ok: true, data: [] };
+  if (typeof value === "string") {
+    return {
+      ok: true,
+      data: value.split(/[,，、]/).map((item) => item.trim()).filter(Boolean),
+    };
+  }
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+    return failure("form_invalid");
+  }
+  return {
+    ok: true,
+    data: value.map((item) => item.trim()).filter(Boolean),
+  };
+}
+
+function normalizeRecordLinks(value: unknown): CoreMutationResult<AdminEditRecordLink[]> {
+  if (!Array.isArray(value)) return failure("form_invalid");
+  const normalized: AdminEditRecordLink[] = [];
+  for (const link of value) {
+    if (!isPlainRecord(link)) return failure("form_invalid");
+    if (Object.keys(link).some((key) => !["title", "url", "recommended"].includes(key))) {
+      return failure("form_invalid");
+    }
+    if (typeof link.title !== "string" || typeof link.url !== "string") {
+      return failure("form_invalid");
+    }
+    if (link.recommended !== undefined && typeof link.recommended !== "boolean") {
+      return failure("form_invalid");
+    }
+    if (!link.url.trim()) continue;
+    normalized.push({
+      title: link.title,
+      url: link.url,
+      ...(link.recommended === undefined ? {} : { recommended: link.recommended }),
+    });
+  }
+  return { ok: true, data: normalized };
+}
+
 function validateAdminEditFormInput(
   form: unknown,
-): CoreMutationResult<Record<string, unknown>> {
-  if (!form || typeof form !== "object" || Array.isArray(form)) {
+): CoreMutationResult<ValidatedAdminEditForm> {
+  if (!isPlainRecord(form)) return failure("form_invalid");
+  try {
+    if (
+      !Array.isArray(form.category)
+      || form.category.some((category) => typeof category !== "string")
+      || form.category.some((category) => !VALID_CATEGORIES.has(category))
+    ) {
+      return failure("categories_invalid");
+    }
+    if (
+      !Array.isArray(form.event_form)
+      || form.event_form.some((eventForm) => typeof eventForm !== "string")
+      || form.event_form.some((eventForm) => !VALID_EVENT_FORMS.has(eventForm))
+    ) {
+      return failure("event_forms_invalid");
+    }
+    if (ADMIN_EDIT_STRING_FIELDS.some((field) => typeof form[field] !== "string")) {
+      return failure("form_invalid");
+    }
+    if (FORM_BOOLEAN_FIELDS.some((field) => typeof form[field] !== "boolean")) {
+      return failure("form_invalid");
+    }
+
+    const coOrganizers = normalizeCommaArrayInput(form.co_organizers);
+    if (!coOrganizers.ok) return coOrganizers;
+    const sponsors = normalizeCommaArrayInput(form.sponsors);
+    if (!sponsors.ok) return sponsors;
+    const recordLinks = normalizeRecordLinks(form.record_links);
+    if (!recordLinks.ok) return recordLinks;
+
+    let parentEventId: string | null = null;
+    if (form.parent_event_id !== null && form.parent_event_id !== undefined) {
+      if (typeof form.parent_event_id !== "string") {
+        return failure("parent_event_id_invalid");
+      }
+      if (form.parent_event_id.trim()) {
+        parentEventId = canonicalUuid(form.parent_event_id);
+        if (!parentEventId) return failure("parent_event_id_invalid");
+      }
+    }
+
+    const stringFields = Object.fromEntries(
+      ADMIN_EDIT_STRING_FIELDS.map((field) => [field, form[field]]),
+    ) as Record<AdminEditStringField, string>;
+    return {
+      ok: true,
+      data: {
+        ...stringFields,
+        category: [...form.category] as string[],
+        event_form: [...form.event_form] as string[],
+        co_organizers: coOrganizers.data,
+        sponsors: sponsors.data,
+        has_japanese_support: form.has_japanese_support as boolean,
+        has_english_support: form.has_english_support as boolean,
+        has_chinese_support: form.has_chinese_support as boolean,
+        is_paid: form.is_paid as boolean,
+        is_active: form.is_active as boolean,
+        parent_event_id: parentEventId,
+        record_links: recordLinks.data,
+      },
+    };
+  } catch {
     return failure("form_invalid");
   }
-  const formRecord = form as Record<string, unknown>;
-  if (
-    !Array.isArray(formRecord.category)
-    || formRecord.category.some((category) => typeof category !== "string")
-  ) {
-    return failure("categories_invalid");
-  }
-  if (
-    !Array.isArray(formRecord.event_form)
-    || formRecord.event_form.some((eventForm) => typeof eventForm !== "string")
-  ) {
-    return failure("event_forms_invalid");
-  }
-  if (!Array.isArray(formRecord.record_links)) return failure("form_invalid");
-  if (FORM_BOOLEAN_FIELDS.some((field) => typeof formRecord[field] !== "boolean")) {
-    return failure("form_invalid");
-  }
-  return { ok: true, data: formRecord };
 }
 
 function stripNullBytes(value: unknown, maxLength?: number): string | null {
@@ -153,19 +308,6 @@ function stripNullBytes(value: unknown, maxLength?: number): string | null {
 
 function nullify(value: unknown): string | null {
   return typeof value === "string" ? value.trim() || null : null;
-}
-
-function formString(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function commaArray(value: unknown): string[] {
-  const values = Array.isArray(value)
-    ? value.map((item) => String(item).trim())
-    : typeof value === "string"
-      ? value.split(/[,，、]/).map((item) => item.trim())
-      : [];
-  return values.filter(Boolean);
 }
 
 function stringArray(value: unknown): string[] {
@@ -184,31 +326,9 @@ function formCommaText(value: unknown): string {
 }
 
 function sanitizeAdminEditForm(
-  formRecord: Record<string, unknown>,
+  formRecord: ValidatedAdminEditForm,
   rawTitle: string | null,
 ): CoreMutationResult<Record<string, unknown>> {
-  const category = stringArray(formRecord.category);
-  if (category.some((item) => !VALID_CATEGORIES.has(item))) {
-    return failure("categories_invalid");
-  }
-  const eventForm = stringArray(formRecord.event_form);
-  if (eventForm.some((item) => !VALID_EVENT_FORMS.has(item))) {
-    return failure("event_forms_invalid");
-  }
-
-  const parentEventId = nullify(formRecord.parent_event_id);
-  if (parentEventId && !UUID_RE.test(parentEventId)) {
-    return failure("parent_event_id_invalid");
-  }
-
-  const recordLinks = Array.isArray(formRecord.record_links)
-    ? formRecord.record_links.filter((link) => {
-        if (!link || typeof link !== "object") return false;
-        return typeof (link as { url?: unknown }).url === "string"
-          && (link as { url: string }).url.trim().length > 0;
-      })
-    : [];
-
   const payload: Record<string, unknown> = {
     name_ja: nullify(formRecord.name_ja) ?? rawTitle,
     name_zh: nullify(formRecord.name_zh),
@@ -216,32 +336,32 @@ function sanitizeAdminEditForm(
     description_ja: nullify(formRecord.description_ja),
     description_zh: nullify(formRecord.description_zh),
     description_en: nullify(formRecord.description_en),
-    category,
+    category: formRecord.category,
     start_date: nullify(formRecord.start_date),
     end_date: nullify(formRecord.end_date),
-    location_name: formString(formRecord.location_name),
-    location_address: formString(formRecord.location_address),
-    location_url: formString(formRecord.location_url),
-    business_hours: formString(formRecord.business_hours),
+    location_name: formRecord.location_name,
+    location_address: formRecord.location_address,
+    location_url: formRecord.location_url,
+    business_hours: formRecord.business_hours,
     performer: nullify(formRecord.performer),
     organizer: nullify(formRecord.organizer),
     organizer_url: nullify(formRecord.organizer_url),
-    event_form: eventForm,
-    co_organizers: commaArray(formRecord.co_organizers),
-    sponsors: commaArray(formRecord.sponsors),
+    event_form: formRecord.event_form,
+    co_organizers: formRecord.co_organizers,
+    sponsors: formRecord.sponsors,
     primary_language: nullify(formRecord.primary_language),
-    has_japanese_support: formRecord.has_japanese_support === true ? true : null,
-    has_english_support: formRecord.has_english_support === true ? true : null,
-    has_chinese_support: formRecord.has_chinese_support === true ? true : null,
-    is_paid: formRecord.is_paid === true,
-    price_info: formString(formRecord.price_info),
-    official_url: formString(formRecord.official_url),
-    submission_url: formString(formRecord.submission_url),
-    source_url: formString(formRecord.source_url),
-    original_language: formString(formRecord.original_language),
-    is_active: formRecord.is_active === true,
-    parent_event_id: parentEventId,
-    record_links: recordLinks,
+    has_japanese_support: formRecord.has_japanese_support ? true : null,
+    has_english_support: formRecord.has_english_support ? true : null,
+    has_chinese_support: formRecord.has_chinese_support ? true : null,
+    is_paid: formRecord.is_paid,
+    price_info: formRecord.price_info,
+    official_url: formRecord.official_url,
+    submission_url: formRecord.submission_url,
+    source_url: formRecord.source_url,
+    original_language: formRecord.original_language,
+    is_active: formRecord.is_active,
+    parent_event_id: formRecord.parent_event_id,
+    record_links: formRecord.record_links,
   };
   return { ok: true, data: payload };
 }
@@ -345,7 +465,7 @@ export async function runChangeAdminEventCategories(
   if (!readIds.ok) return readIds;
 
   const rowMap = new Map(
-    (rows as AdminEditBefore[]).map((row) => [row.id, row]),
+    (rows as AdminEditBefore[]).map((row) => [canonicalUuid(row.id), row]),
   );
   const categorySet = new Set(categoryResult.data);
   const results: EventCategoryResult[] = [];
@@ -425,7 +545,9 @@ export async function runSaveAdminEditedEvent(
   if (beforeError) return failure(beforeError.message);
   if (!beforeData || typeof beforeData !== "object") return failure("eventNotFound");
   const before = beforeData as AdminEditBefore;
-  if (before.id !== idResult.data) return failure("admin_edit_before_exact_id_mismatch");
+  if (canonicalUuid(before.id) !== idResult.data) {
+    return failure("admin_edit_before_exact_id_mismatch");
+  }
 
   const formRecord = formResult.data;
   const payloadResult = sanitizeAdminEditForm(formRecord, before.raw_title);
@@ -506,7 +628,11 @@ export async function runSaveAdminEditedEvent(
     .select()
     .single();
   if (updateError) return failure(updateError.message);
-  if (!updatedData || typeof updatedData !== "object" || (updatedData as IdRow).id !== idResult.data) {
+  if (
+    !updatedData
+    || typeof updatedData !== "object"
+    || canonicalUuid((updatedData as IdRow).id) !== idResult.data
+  ) {
     return failure("admin_edit_exact_id_mismatch");
   }
 
@@ -524,10 +650,8 @@ export async function runAssignWorkToEvents(
   const modeResult = validateMode(idsResult.data, mode, "work_assignment");
   if (!modeResult.ok) return modeResult;
   if (workId !== null && typeof workId !== "string") return failure("work_id_invalid");
-  const normalizedWorkId = typeof workId === "string" ? workId.trim() : null;
-  if (normalizedWorkId !== null && !UUID_RE.test(normalizedWorkId)) {
-    return failure("work_id_invalid");
-  }
+  const normalizedWorkId = workId === null ? null : canonicalUuid(workId);
+  if (workId !== null && !normalizedWorkId) return failure("work_id_invalid");
   return updateEventsExact(
     client,
     idsResult.data,
