@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "./_shared/admin-guard";
 import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
+import {
+  runAssignWorkToEvents,
+  runDeleteWorkExact,
+  runUpdateWorkExact,
+} from "@/lib/adminEventMutationsCore";
 
 type WorkInput = {
   work_type: string;
@@ -79,11 +84,12 @@ export async function updateWork(id: string, input: WorkInput): Promise<{ ok: bo
   if (!auth.ok) return { ok: false, error: auth.error };
   try {
     const row = sanitize(input);
-    const { error } = await auth.supabase
-      .from("works")
-      .update(row)
-      .eq("id", id);
-    if (error) return { ok: false, error: error.message };
+    const result = await runUpdateWorkExact(
+      auth.supabase,
+      id,
+      row as Record<string, unknown>,
+    );
+    if (!result.ok) return result;
     revalidatePath("/[locale]/admin/works", "page");
     revalidatePath(`/[locale]/admin/works/${id}`, "page");
     return { ok: true };
@@ -97,11 +103,8 @@ export async function deleteWork(id: string): Promise<{ ok: boolean; error?: str
   if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
-  const { error } = await auth.supabase
-    .from("works")
-    .delete()
-    .eq("id", id);
-  if (error) return { ok: false, error: error.message };
+  const result = await runDeleteWorkExact(auth.supabase, id);
+  if (!result.ok) return result;
   revalidatePath("/[locale]/admin/works", "page");
   return { ok: true };
 }
@@ -111,10 +114,27 @@ export async function assignWorkToEvent(eventId: string, workId: string | null):
   if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
-  const { error } = await auth.supabase
-    .from("events")
-    .update({ work_id: workId })
-    .eq("id", eventId);
-  if (error) return { ok: false, error: error.message };
+  const result = await runAssignWorkToEvents(
+    auth.supabase,
+    [eventId],
+    workId,
+    "single",
+  );
+  if (!result.ok) return result;
+  return { ok: true };
+}
+
+export async function assignWorkToEvents(eventIds: string[], workId: string | null): Promise<{ ok: boolean; error?: string }> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const result = await runAssignWorkToEvents(
+    auth.supabase,
+    eventIds,
+    workId,
+    "bulk",
+  );
+  if (!result.ok) return result;
   return { ok: true };
 }

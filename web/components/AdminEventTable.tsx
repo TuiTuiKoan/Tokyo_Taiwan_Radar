@@ -9,32 +9,23 @@ import Button from "@/components/Button";
 import AdminEventForm, { EMPTY_FORM, type FormState } from "@/components/AdminEventForm";
 import AdminCreateWorkModal from "@/components/AdminCreateWorkModal";
 import DesignSelect from "@/components/DesignSelect";
-import { assignWorkToEvent } from "@/app/actions/works";
-import { createDraftEvent, createEventNoAnnotate, deleteUserSubmittedEvent, publishEvent, deleteAdminEvent } from "@/app/actions/admin-events";
+import { assignWorkToEvent, assignWorkToEvents } from "@/app/actions/works";
+import {
+  changeAdminEventCategories,
+  createDraftEvent,
+  createEventNoAnnotate,
+  deleteAdminEvent,
+  deleteUserSubmittedEvent,
+  publishEvent,
+  reannotateAdminEvent,
+  setAdminEventActive,
+  setAdminEventForceRescrape,
+  setAdminEventsActive,
+  setAdminEventsForceRescrape,
+} from "@/app/actions/admin-events";
 import { StatusBadge, ToggleSwitch } from "@/components/UiControls";
 import { REGIONS_WITH_CITY, REGION_PREFECTURES, PREFECTURE_LABELS_EN, CITY_OTHER, matchesCity, type RegionWithCity } from "@/lib/regionPrefectures";
 import { getCityLabel } from "@/lib/cityLabel";
-
-// Safari 等瀏覽器在某些網路情境下會讓 supabase.from(...).insert/update 的 fetch 永久 pending；
-// try/catch 不會觸發、按鈕一直停在 "保存中…"。用 Promise.race 加 hard timeout 保底。
-function withClientTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`${label} timed out after ${ms}ms — 通常為 Safari/網路掛起，請重新整理頁面再試。`)),
-      ms,
-    );
-    Promise.resolve(p).then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (e) => {
-        clearTimeout(timer);
-        reject(e);
-      },
-    );
-  });
-}
 
 interface Props {
   events: Event[];
@@ -494,30 +485,24 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     if (selected.size === 0) return;
     setBulkToggling(true);
     const ids = Array.from(selected);
-    const update: Record<string, unknown> = { is_active: targetActive };
-    if (!targetActive) {
-      update.deactivated_at = new Date().toISOString();
-      update.deactivated_reason = "manually deactivated by admin (bulk)";
-      update.deactivated_by_pass = "admin_manual";
-    } else {
-      update.deactivated_at = null;
-      update.deactivated_reason = null;
-      update.deactivated_by_pass = null;
-    }
-    const { error, data: toggleRows } = await supabase.from("events").update(update).in("id", ids).select("id");
-    if (error) {
-      alert(`操作失敗：${error.message}`);
+    try {
+      const result = await setAdminEventsActive(ids, targetActive);
+      if (!result.ok) {
+        if (result.error.includes("exact_id_mismatch")) {
+          alert("批次切換未生效（session 可能已過期），請重新整理頁面後再試。");
+        } else {
+          alert(`操作失敗：${result.error}`);
+        }
+        return;
+      }
+      const updatedIds = new Set(result.data.ids);
+      setEvents((prev) => prev.map((e) => updatedIds.has(e.id) ? { ...e, is_active: targetActive } : e));
+      setSelected(new Set());
+    } catch (error) {
+      alert(`操作失敗：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
       setBulkToggling(false);
-      return;
     }
-    if (!toggleRows || toggleRows.length === 0) {
-      alert("批次切換未生效（session 可能已過期），請重新整理頁面後再試。");
-      setBulkToggling(false);
-      return;
-    }
-    setEvents((prev) => prev.map((e) => selected.has(e.id) ? { ...e, is_active: targetActive } : e));
-    setSelected(new Set());
-    setBulkToggling(false);
   }
 
   function toggleSelect(id: string) {
@@ -547,8 +532,8 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
   }
 
   async function handleReannotate(id: string) {
-    const { data: reannRows } = await supabase.from("events").update({ annotation_status: "pending" }).eq("id", id).select("id");
-    if (reannRows && reannRows.length > 0) {
+    const result = await reannotateAdminEvent(id);
+    if (result.ok) {
       setEvents((prev) =>
         prev.map((e) => (e.id === id ? { ...e, annotation_status: "pending" } : e))
       );
@@ -559,66 +544,49 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     if (selected.size === 0) return;
     setBulkForceRescrapings(true);
     const ids = Array.from(selected);
-    const { error, data: rescrapeRows } = await supabase.from("events").update({ force_rescrape: true }).in("id", ids).select("id");
-    if (error) {
-      alert(`操作失敗：${error.message}`);
+    try {
+      const result = await setAdminEventsForceRescrape(ids, true);
+      if (!result.ok) {
+        if (result.error.includes("exact_id_mismatch")) {
+          alert("批次強制重新爬取標記未生效（session 可能已過期），請重新整理頁面後再試。");
+        } else {
+          alert(`操作失敗：${result.error}`);
+        }
+        return;
+      }
+      const updatedIds = new Set(result.data.ids);
+      setEvents((prev) => prev.map((e) => updatedIds.has(e.id) ? { ...e, force_rescrape: true } : e));
+      setSelected(new Set());
+    } catch (error) {
+      alert(`操作失敗：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
       setBulkForceRescrapings(false);
-      return;
     }
-    if (!rescrapeRows || rescrapeRows.length === 0) {
-      alert("批次強制重新爬取標記未生效（session 可能已過期），請重新整理頁面後再試。");
-      setBulkForceRescrapings(false);
-      return;
-    }
-    setEvents((prev) => prev.map((e) => selected.has(e.id) ? { ...e, force_rescrape: true } : e));
-    setSelected(new Set());
-    setBulkForceRescrapings(false);
   }
 
   async function handleBulkRemoveCategory(cat: string) {
     if (selected.size === 0) return;
     setBulkRemovingCategory(true);
-    const selectedEvents = events.filter((e) => selected.has(e.id));
-    let hasError = false;
-
-    await Promise.all(
-      selectedEvents.map(async (e) => {
-        const prevCategory = e.category ?? [];
-        const newCategory = prevCategory.filter((c) => c !== cat);
-        // Update event category
-        const { error, data: rmCatRows } = await supabase.from("events").update({ category: newCategory }).eq("id", e.id).select("id");
-        if (error || !rmCatRows || rmCatRows.length === 0) { hasError = true; return; }
-        // Write correction to category_corrections for AI feedback loop
-        await supabase.from("category_corrections").upsert(
-          {
-            event_id: e.id,
-            raw_title: e.raw_title ?? null,
-            raw_description: e.raw_description ? e.raw_description.slice(0, 2000) : null,
-            ai_category: prevCategory,
-            corrected_category: newCategory,
-          },
-          { onConflict: "event_id" }
-        );
-        await supabase.from("field_corrections").upsert(
-          { event_id: e.id, field_name: "category", corrected_value: JSON.stringify(newCategory) },
-          { onConflict: "event_id,field_name" }
-        );
-      })
-    );
-
-    if (hasError) {
-      alert("部分更新失敗，請重新整理頁面確認結果");
-    } else {
+    try {
+      const result = await changeAdminEventCategories(Array.from(selected), "remove", [cat]);
+      if (!result.ok) {
+        alert("部分更新失敗，請重新整理頁面確認結果");
+        return;
+      }
+      const updated = new Map(result.data.events.map((event) => [event.id, event.category]));
       setEvents((prev) =>
         prev.map((e) =>
-          selected.has(e.id)
-            ? { ...e, category: (e.category ?? []).filter((c) => c !== cat) }
+          updated.has(e.id)
+            ? { ...e, category: updated.get(e.id)! }
             : e
         )
       );
       setSelected(new Set());
+    } catch {
+      alert("部分更新失敗，請重新整理頁面確認結果");
+    } finally {
+      setBulkRemovingCategory(false);
     }
-    setBulkRemovingCategory(false);
   }
 
   async function handleBulkAssignWork(workId: string) {
@@ -626,58 +594,33 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     setBulkAssigningWork(true);
     setBulkWorkOpen(false);
     setBulkWorkQuery("");
-    await Promise.all(
-      Array.from(selected).map(async (eventId) => {
-        const { error, data: workRows } = await supabase.from("events").update({ work_id: workId }).eq("id", eventId).select("id");
-        if (!error && workRows && workRows.length > 0) {
-          setEvents((prev) => prev.map((e) => e.id === eventId ? { ...e, work_id: workId } : e));
-        }
-      })
-    );
-    setBulkAssigningWork(false);
+    const ids = Array.from(selected);
+    try {
+      const result = await assignWorkToEvents(ids, workId);
+      if (result.ok) {
+        const updatedIds = new Set(ids);
+        setEvents((prev) => prev.map((e) => updatedIds.has(e.id) ? { ...e, work_id: workId } : e));
+      }
+    } finally {
+      setBulkAssigningWork(false);
+    }
   }
 
   async function handleBulkAddCategory() {
     if (selected.size === 0 || bulkAddCatPending.size === 0) return;
     setBulkAddingCategory(true);
-    const selectedEvents = events.filter((e) => selected.has(e.id));
     const catsToAdd = Array.from(bulkAddCatPending);
-    let hasError = false;
 
     try {
-      await Promise.all(
-        selectedEvents.map(async (e) => {
-          const prevCategory = e.category ?? [];
-          const newCategory = Array.from(new Set([...prevCategory, ...catsToAdd]));
-          if (newCategory.length === prevCategory.length && catsToAdd.every((c) => prevCategory.includes(c))) return;
-          const { error, data: addCatRows } = await supabase.from("events").update({ category: newCategory }).eq("id", e.id).select("id");
-          if (error || !addCatRows || addCatRows.length === 0) { hasError = true; return; }
-          // raw_description may contain null bytes (\u0000) — strip before writing to DB
-          const safeDesc = e.raw_description ? e.raw_description.slice(0, 2000).replace(/\u0000/g, "") : null;
-          await supabase.from("category_corrections").upsert(
-            {
-              event_id: e.id,
-              raw_title: e.raw_title ?? null,
-              raw_description: safeDesc,
-              ai_category: prevCategory,
-              corrected_category: newCategory,
-            },
-            { onConflict: "event_id" }
-          );
-          await supabase.from("field_corrections").upsert(
-            { event_id: e.id, field_name: "category", corrected_value: JSON.stringify(newCategory) },
-            { onConflict: "event_id,field_name" }
-          );
-        })
-      );
-
-      if (hasError) {
+      const result = await changeAdminEventCategories(Array.from(selected), "add", catsToAdd);
+      if (!result.ok) {
         alert("部分更新失敗，請重新整理頁面確認結果");
       } else {
+        const updated = new Map(result.data.events.map((event) => [event.id, event.category]));
         setEvents((prev) =>
           prev.map((e) =>
-            selected.has(e.id)
-              ? { ...e, category: Array.from(new Set([...(e.category ?? []), ...catsToAdd])) }
+            updated.has(e.id)
+              ? { ...e, category: updated.get(e.id)! }
               : e
           )
         );
@@ -696,8 +639,8 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     const ev = events.find((e) => e.id === id);
     if (!ev) return;
     const newValue = !ev.force_rescrape;
-    const { data: frRows } = await supabase.from("events").update({ force_rescrape: newValue }).eq("id", id).select("id");
-    if (frRows && frRows.length > 0) {
+    const result = await setAdminEventForceRescrape(id, newValue);
+    if (result.ok) {
       setEvents((prev) => prev.map((e) => e.id === id ? { ...e, force_rescrape: newValue } : e));
     }
   }
@@ -707,31 +650,22 @@ export default function AdminEventTable({ events: initialEvents, locale, initial
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, is_active: newValue } : e))
     );
-    const update: Record<string, unknown> = { is_active: newValue };
-    if (!newValue) {
-      update.deactivated_at = new Date().toISOString();
-      update.deactivated_reason = "manually deactivated by admin";
-      update.deactivated_by_pass = "admin_manual";
-    } else {
-      update.deactivated_at = null;
-      update.deactivated_reason = null;
-      update.deactivated_by_pass = null;
-    }
-    const { error, data: activeRows } = await supabase.from("events").update(update).eq("id", id).select("id");
-    if (error) {
-      // Revert optimistic update
+    try {
+      const result = await setAdminEventActive(id, newValue);
+      if (result.ok) return;
       setEvents((prev) =>
         prev.map((e) => (e.id === id ? { ...e, is_active: !newValue } : e))
       );
-      alert(`切換公開狀態失敗：${error.message}`);
-      return;
-    }
-    if (!activeRows || activeRows.length === 0) {
-      // Revert optimistic update
+      if (result.error.includes("exact_id_mismatch")) {
+        alert("切換未生效（session 可能已過期），請重新整理頁面後再試。");
+      } else {
+        alert(`切換公開狀態失敗：${result.error}`);
+      }
+    } catch (error) {
       setEvents((prev) =>
         prev.map((e) => (e.id === id ? { ...e, is_active: !newValue } : e))
       );
-      alert("切換未生效（session 可能已過期），請重新整理頁面後再試。");
+      alert(`切換公開狀態失敗：${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

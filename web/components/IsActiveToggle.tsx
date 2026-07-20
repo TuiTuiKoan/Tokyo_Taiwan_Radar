@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { setAdminEventActive } from "@/app/actions/admin-events";
 
 interface Props {
   eventId: string;
@@ -14,31 +14,23 @@ export default function IsActiveToggle({ eventId, initialIsActive }: Props) {
 
   async function handleToggle() {
     setLoading(true);
-    const supabase = createClient();
     const targetActive = !isActive;
-    const update: Record<string, unknown> = { is_active: targetActive };
-    if (!targetActive) {
-      update.deactivated_at = new Date().toISOString();
-      update.deactivated_reason = "manually deactivated by admin";
-      update.deactivated_by_pass = "admin_manual";
-    } else {
-      update.deactivated_at = null;
-      update.deactivated_reason = null;
-      update.deactivated_by_pass = null;
+    try {
+      const result = await setAdminEventActive(eventId, targetActive);
+      if (!result.ok) {
+        if (result.error.includes("exact_id_mismatch")) {
+          alert("切換未生效（session 可能已過期），請重新整理頁面後再試。");
+        } else {
+          alert(`切換公開狀態失敗：${result.error}`);
+        }
+      } else {
+        setIsActive(targetActive);
+      }
+    } catch (error) {
+      alert(`切換公開狀態失敗：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setLoading(false);
     }
-    const { error, data: updatedRows } = await supabase
-      .from("events")
-      .update(update)
-      .eq("id", eventId)
-      .select("id");
-    if (error) {
-      alert(`切換公開狀態失敗：${error.message}`);
-    } else if (!updatedRows || updatedRows.length === 0) {
-      alert("切換未生效（session 可能已過期），請重新整理頁面後再試。");
-    } else {
-      setIsActive(targetActive);
-    }
-    setLoading(false);
   }
 
   return (

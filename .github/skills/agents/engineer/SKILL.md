@@ -261,6 +261,14 @@ ORDER BY tablename, cmd;
 -- 任何 admin UI 操作的表，cmd 必須涵蓋 SELECT + UPDATE 至少。
 ```
 
+## Public Server Action Runtime Boundary and Multi-write Failure Semantics
+
+- Treat every public Server Action argument as untrusted runtime data. TypeScript declarations do not validate values received over the action boundary.
+- Accept `unknown` in injected-client cores. Validate arrays before iteration, validate every element before `.trim()` or regex checks, reject non-boolean values before boolean-column writes, and reject non-object or structurally invalid forms before any DB call.
+- Return typed `{ ok: false, error: "..._invalid" }` results for invalid input. Do not let malformed input throw or reach Supabase.
+- Correction-first multi-table writes are non-transactional unless implemented by an explicit database transaction or RPC. If correction upserts succeed and the event write errors or returns 0 rows, return `ok:false`; do not claim rollback. Keep correction upserts idempotent so the caller can retry.
+- Test both failure directions: a correction write error must stop before the event write, and a final event write failure must never be reported as success after earlier corrections persisted.
+
 ## Admin Mutation 成對原則（confirm / dismiss / toggle）
 
 **admin mutation handler は必ずペアで同じ実装パターンを使う。**

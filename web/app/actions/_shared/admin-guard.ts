@@ -14,5 +14,5 @@ export async function requireAdmin() {
   if (!roleRow || roleRow.role !== "admin") {
     return { ok: false as const, error: "forbidden" };
   }
-  return { ok: true as const, supabase };
+  return { ok: true as const, supabase, user };
 }

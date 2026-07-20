@@ -8,6 +8,10 @@ import type { FormState } from "@/components/AdminEventForm";
 import { collectMissingRequiredFields } from "@/lib/eventIntakeValidation";
 import { persistTranslationLocks, toFieldCorrectionValue } from "@/lib/fieldCorrections.server";
 import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
+import {
+  runDeactivateOwnerEventExact,
+  runDeleteOwnerEventExact,
+} from "@/lib/adminEventMutationsCore";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -554,14 +558,8 @@ export async function deactivateOwnEvent(eventId: string): Promise<ActionResult<
   }
 
   // 2. Perform deactivation (one-way only)
-  const { error: updateError } = await serviceClient
-    .from("events")
-    .update({ is_active: false, closed_by_owner: true, deactivated_reason: "closed_by_owner" })
-    .eq("id", eventId);
-
-  if (updateError) {
-    return { ok: false, error: updateError.message };
-  }
+  const result = await runDeactivateOwnerEventExact(serviceClient, eventId);
+  if (!result.ok) return result;
 
   revalidatePath("/[locale]/account", "page");
   revalidatePath("/[locale]/account/events/[id]/edit", "page");
@@ -595,14 +593,8 @@ export async function deleteOwnEvent(eventId: string): Promise<ActionResult<null
     return { ok: false, error: "forbidden" };
   }
 
-  const { error: deleteError } = await serviceClient
-    .from("events")
-    .delete()
-    .eq("id", eventId);
-
-  if (deleteError) {
-    return { ok: false, error: deleteError.message };
-  }
+  const result = await runDeleteOwnerEventExact(serviceClient, eventId);
+  if (!result.ok) return result;
 
   revalidatePath("/[locale]/account", "page");
   revalidatePath("/[locale]/saved", "page");

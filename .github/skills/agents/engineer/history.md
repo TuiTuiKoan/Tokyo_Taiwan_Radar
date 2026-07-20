@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-07-20 - public Server Action runtime input and correction-first failure semantics
+
+**Error**: G4a Slice 3 的 injected-client core 只依賴 TypeScript 宣告，對 ID 與 category 元素直接呼叫 `.trim()`。`undefined`、`null`、非字串陣列元素或 malformed form 可在 Server Action runtime 拋例外。Correction-first 路徑也缺少 correction 成功後 event update error 或 0-row 的回歸測試，容易把 non-transactional partial write 誤報為成功或 rollback。
+
+**Fix**: 所有 core boundary 改以 `unknown` 驗證 ID、category、form 與 public boolean inputs，無效輸入在任何 DB call 前回 typed `{ ok: false, error: "..._invalid" }`。Focused tests 鎖定 correction write error 不執行 event update，並鎖定 correction 已成功後 event error 或 0-row 仍回 `ok:false`。
+
+**Lesson**: TypeScript 型別會在 Server Action runtime 消失。公開 action 的輸入必須先驗證容器與元素型別，再做 trim、regex 或 DB write。Correction-first 多表寫入是 non-transactional：先前 correction upsert 不 rollback，後段失敗必回失敗並允許以 idempotent upsert 重試，不得宣稱 transaction 或 rollback。
+
+---
+
 ## 2026-07-20 - server action exposed injected-client writer cores
 
 **Error**: `confirm-report.ts` and `dismiss-report.ts` used module-level `"use server"` while exporting injected-client writer cores. The public wrappers checked the maintenance lock, but direct imports of the cores bypassed that guard. Coverage exemptions hid both runtime exports.

@@ -13,6 +13,13 @@ const ACTION_CONTRACTS = [
     guarded: [
       "createDraftEvent",
       "createEventNoAnnotate",
+      "saveAdminEditedEvent",
+      "setAdminEventActive",
+      "setAdminEventsActive",
+      "setAdminEventForceRescrape",
+      "setAdminEventsForceRescrape",
+      "reannotateAdminEvent",
+      "changeAdminEventCategories",
       "updateAdminEvent",
       "publishEvent",
       "publishAdminWizardEvent",
@@ -39,7 +46,7 @@ const ACTION_CONTRACTS = [
   },
   {
     path: "app/actions/works.ts",
-    guarded: ["createWork", "updateWork", "deleteWork", "assignWorkToEvent"],
+    guarded: ["createWork", "updateWork", "deleteWork", "assignWorkToEvent", "assignWorkToEvents"],
     exempt: [],
   },
   {
@@ -220,6 +227,18 @@ function assertGuardIsFirst(
   }
 }
 
+function assertNoInjectedClientParameter(
+  sourceFile: ts.SourceFile,
+  functionName: string,
+) {
+  const declaration = findExportedFunction(sourceFile, functionName);
+  const parameters = declaration.parameters.map((parameter) => parameter.getText(sourceFile));
+  assert.ok(
+    parameters.every((parameter) => !/\b(?:client|supabase|corrected_by|correctedBy)\b/.test(parameter)),
+    `${functionName} must derive its database client and correction actor on the server`,
+  );
+}
+
 function assertRouteGuardIsFirst(sourceFile: ts.SourceFile, functionName: string) {
   const declaration = findExportedFunction(sourceFile, functionName);
   const statements = declaration.body!.statements;
@@ -359,6 +378,7 @@ test("all Slice 2a action writers guard before auth, client, or database initial
           ? contract.extraDeniedFalseProperties
           : [],
       );
+      assertNoInjectedClientParameter(sourceFile, functionName);
     }
   }
 });
@@ -388,15 +408,25 @@ test("every GitHub workflow dispatch preserves its request and has a bounded abo
   }
 });
 
-test("report action modules do not expose injected-client cores", async () => {
+test("action modules do not expose injected-client cores", async () => {
+  const adminAction = readAction("app/actions/admin-events.ts").sourceFile;
+  const worksAction = readAction("app/actions/works.ts").sourceFile;
   const confirmAction = readAction("app/actions/confirm-report.ts").sourceFile;
   const dismissAction = readAction("app/actions/dismiss-report.ts").sourceFile;
 
+  assert.ok(!runtimeExportNames(adminAction).some((name) => name.startsWith("run")));
+  assert.ok(!runtimeExportNames(worksAction).some((name) => name.startsWith("run")));
   assert.deepEqual(runtimeExportNames(confirmAction), ["confirmReport"]);
   assert.deepEqual(runtimeExportNames(dismissAction), ["dismissReport"]);
 
+  const adminModule = await import("../app/actions/admin-events");
+  const worksModule = await import("../app/actions/works");
   const confirmModule = await import("../app/actions/confirm-report");
   const dismissModule = await import("../app/actions/dismiss-report");
+  assert.equal("runSaveAdminEditedEvent" in adminModule, false);
+  assert.equal("runChangeAdminEventCategories" in adminModule, false);
+  assert.equal("runAssignWorkToEvents" in worksModule, false);
+  assert.equal("runDeleteWorkExact" in worksModule, false);
   assert.equal("runConfirmReport" in confirmModule, false);
   assert.equal("runDismissReport" in dismissModule, false);
 });

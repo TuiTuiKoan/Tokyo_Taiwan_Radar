@@ -8,6 +8,15 @@ import type { Event } from "@/lib/types";
 import type { FormState } from "@/components/AdminEventForm";
 import { collectMissingRequiredFields } from "@/lib/eventIntakeValidation";
 import { persistTranslationLocks } from "@/lib/fieldCorrections.server";
+import {
+  runChangeAdminEventCategories,
+  runDeleteAdminEventExact,
+  runReannotateAdminEvent,
+  runSaveAdminEditedEvent,
+  runSetAdminEventsActive,
+  runSetAdminEventsForceRescrape,
+  type EventCategoryResult,
+} from "@/lib/adminEventMutationsCore";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tokyo-taiwan-radar.vercel.app";
 
@@ -95,6 +104,99 @@ export async function fetchParentEventCandidates(): Promise<ActionResult<Event[]
     .order("created_at", { ascending: false });
   if (error) return { ok: false, error: error.message };
   return { ok: true, data: (data ?? []) as Event[] };
+}
+
+export async function saveAdminEditedEvent(
+  eventId: unknown,
+  form: unknown,
+): Promise<ActionResult<Event>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  return runSaveAdminEditedEvent(auth.supabase, eventId, form, auth.user.id);
+}
+
+export async function setAdminEventActive(
+  eventId: unknown,
+  targetActive: unknown,
+): Promise<ActionResult<{ ids: string[] }>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  return runSetAdminEventsActive(auth.supabase, [eventId], targetActive, "single");
+}
+
+export async function setAdminEventsActive(
+  eventIds: unknown,
+  targetActive: unknown,
+): Promise<ActionResult<{ ids: string[] }>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  return runSetAdminEventsActive(auth.supabase, eventIds, targetActive, "bulk");
+}
+
+export async function setAdminEventForceRescrape(
+  eventId: unknown,
+  forceRescrape: unknown,
+): Promise<ActionResult<{ ids: string[] }>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  return runSetAdminEventsForceRescrape(
+    auth.supabase,
+    [eventId],
+    forceRescrape,
+    "single",
+  );
+}
+
+export async function setAdminEventsForceRescrape(
+  eventIds: unknown,
+  forceRescrape: unknown,
+): Promise<ActionResult<{ ids: string[] }>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  return runSetAdminEventsForceRescrape(
+    auth.supabase,
+    eventIds,
+    forceRescrape,
+    "bulk",
+  );
+}
+
+export async function reannotateAdminEvent(
+  eventId: unknown,
+): Promise<ActionResult<{ ids: string[] }>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  return runReannotateAdminEvent(auth.supabase, eventId);
+}
+
+export async function changeAdminEventCategories(
+  eventIds: unknown,
+  operation: unknown,
+  categories: unknown,
+): Promise<ActionResult<{ events: EventCategoryResult[] }>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  return runChangeAdminEventCategories(
+    auth.supabase,
+    eventIds,
+    operation,
+    categories,
+    auth.user.id,
+  );
 }
 
 export async function updateAdminEvent(
@@ -248,12 +350,7 @@ export async function deleteAdminEvent(eventId: string): Promise<ActionResult<nu
   if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
-
-  const { error } = await auth.supabase
-    .from("events")
-    .delete()
-    .eq("id", eventId);
-
-  if (error) return { ok: false, error: error.message };
+  const result = await runDeleteAdminEventExact(auth.supabase, eventId);
+  if (!result.ok) return result;
   return { ok: true, data: null };
 }
