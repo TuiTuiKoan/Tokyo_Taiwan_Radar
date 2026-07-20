@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "./_shared/admin-guard";
+import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
 
 type WorkInput = {
   work_type: string;
@@ -52,6 +53,8 @@ function sanitize(input: WorkInput): Partial<WorkInput> {
 }
 
 export async function createWork(input: WorkInput): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
   try {
@@ -70,6 +73,8 @@ export async function createWork(input: WorkInput): Promise<{ ok: boolean; id?: 
 }
 
 export async function updateWork(id: string, input: WorkInput): Promise<{ ok: boolean; error?: string }> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
   try {
@@ -88,6 +93,8 @@ export async function updateWork(id: string, input: WorkInput): Promise<{ ok: bo
 }
 
 export async function deleteWork(id: string): Promise<{ ok: boolean; error?: string }> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
   const { error } = await auth.supabase
@@ -100,6 +107,8 @@ export async function deleteWork(id: string): Promise<{ ok: boolean; error?: str
 }
 
 export async function assignWorkToEvent(eventId: string, workId: string | null): Promise<{ ok: boolean; error?: string }> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
   const { error } = await auth.supabase

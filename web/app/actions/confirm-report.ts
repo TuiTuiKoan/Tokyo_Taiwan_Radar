@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isConfirmationOnlyReport, BROKEN_LINK_REPORT_TYPE } from "@/lib/reportTypes";
+import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
 
 const GITHUB_REPO = "TuiTuiKoan/Tokyo_Taiwan_Radar";
 const HISTORY_PATH = ".github/skills/scraper-expert/history.md";
@@ -60,6 +61,11 @@ interface ConfirmReportResult {
 export async function confirmReport(
   input: ConfirmReportInput
 ): Promise<ConfirmReportResult> {
+  // Maintenance-lock gate (decision-16a): refuse the write while the Admin
+  // Reports cleanup window is open. Placed on the entry (not the testable core)
+  // so runConfirmReport's injected-client G4b logic stays untouched.
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, githubUpdated: false, error: "maintenance_active" };
   // Dynamic import so unit tests can import this module (and the testable core
   // below) without pulling next/headers at load time; createClient reads cookies.
   const { createClient } = await import("@/lib/supabase/server");

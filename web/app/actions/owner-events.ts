@@ -7,6 +7,7 @@ import type { Event } from "@/lib/types";
 import type { FormState } from "@/components/AdminEventForm";
 import { collectMissingRequiredFields } from "@/lib/eventIntakeValidation";
 import { persistTranslationLocks, toFieldCorrectionValue } from "@/lib/fieldCorrections.server";
+import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -166,6 +167,8 @@ async function recordFieldCorrections(
 
 // legacy: no active call site after EventIntakeWizard migration (replaced by createOwnerDraft + updateOwnerEvent). Retained for reference; safe to remove.
 export async function createOwnerEvent(form: FormState): Promise<ActionResult<Event>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const supabase = await createClient();
   const {
     data: { user },
@@ -271,6 +274,8 @@ export async function createOwnerEvent(form: FormState): Promise<ActionResult<Ev
 }
 
 export async function createOwnerDraft(form: FormState): Promise<ActionResult<Event>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const supabase = await createClient();
   const {
     data: { user },
@@ -355,6 +360,8 @@ export async function updateOwnerEvent(
   form: FormState,
   options?: { lockedTranslationFields?: string[]; paidChoiceMade?: boolean; requireBusinessHours?: boolean }
 ): Promise<ActionResult<Event>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const supabase = await createClient();
   const {
     data: { user },
@@ -458,6 +465,8 @@ export async function updateOwnerDraft(
   eventId: string,
   form: FormState
 ): Promise<ActionResult<Event>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const supabase = await createClient();
   const {
     data: { user },
@@ -517,6 +526,8 @@ export async function updateOwnerDraft(
 }
 
 export async function deactivateOwnEvent(eventId: string): Promise<ActionResult<null>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const supabase = await createClient();
   const {
     data: { user },
@@ -559,6 +570,8 @@ export async function deactivateOwnEvent(eventId: string): Promise<ActionResult<
 }
 
 export async function deleteOwnEvent(eventId: string): Promise<ActionResult<null>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const supabase = await createClient();
   const {
     data: { user },

@@ -2,6 +2,7 @@
 
 import { requireAdmin } from "./_shared/admin-guard";
 import { createClient } from "@/lib/supabase/server";
+import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Event } from "@/lib/types";
 import type { FormState } from "@/components/AdminEventForm";
@@ -61,6 +62,8 @@ async function insertWithRetry(
 }
 
 export async function createDraftEvent(form: FormState): Promise<ActionResult<Event>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
   const payload: EventInsert = {
@@ -72,6 +75,8 @@ export async function createDraftEvent(form: FormState): Promise<ActionResult<Ev
 }
 
 export async function createEventNoAnnotate(form: FormState): Promise<ActionResult<Event>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
   return insertWithRetry(auth.supabase, sanitizeForm(form));
@@ -97,6 +102,8 @@ export async function updateAdminEvent(
   form: FormState,
   options?: { isActive?: boolean },
 ): Promise<ActionResult<Event>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
 
@@ -128,6 +135,8 @@ export async function updateAdminEvent(
 }
 
 export async function publishEvent(eventId: string): Promise<ActionResult<null>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
   const { data, error } = await auth.supabase
@@ -151,6 +160,8 @@ export async function publishAdminWizardEvent(
   form: FormState,
   options?: { lockedTranslationFields?: string[]; paidChoiceMade?: boolean; requireBusinessHours?: boolean },
 ): Promise<ActionResult<Event>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
 
@@ -201,6 +212,8 @@ export async function publishAdminWizardEvent(
 }
 
 export async function deleteUserSubmittedEvent(eventId: string): Promise<ActionResult<null>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
 
@@ -231,6 +244,8 @@ export async function deleteUserSubmittedEvent(eventId: string): Promise<ActionR
 }
 
 export async function deleteAdminEvent(eventId: string): Promise<ActionResult<null>> {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
 

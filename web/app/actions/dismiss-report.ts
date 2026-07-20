@@ -1,12 +1,18 @@
 "use server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
 
 /**
  * Dismiss an event report.  Runs server-side so the admin session is resolved
  * from the cookie by createClient (no RLS/JWT issues from browser client).
  */
 export async function dismissReport(reportId: string): Promise<{ ok: boolean; error?: string }> {
+  // Maintenance-lock gate (decision-16a): refuse the write while the Admin
+  // Reports cleanup window is open. Placed on the entry (not the testable core)
+  // so runDismissReport's injected-client CAS logic stays untouched.
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) return { ok: false, error: "maintenance_active" };
   // Dynamic import so unit tests can import this module (and the testable core
   // below) without pulling next/headers at load time; createClient reads cookies.
   const { createClient } = await import("@/lib/supabase/server");
