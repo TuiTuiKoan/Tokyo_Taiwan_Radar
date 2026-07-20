@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { runConfirmReport } from "../app/actions/confirm-report";
+import { runConfirmReport } from "../lib/reportActionsCore";
 
 globalThis.fetch = (async () => {
   throw new Error("network disabled in tests");

@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-07-20 - server action exposed injected-client writer cores
+
+**Error**: `confirm-report.ts` and `dismiss-report.ts` used module-level `"use server"` while exporting injected-client writer cores. The public wrappers checked the maintenance lock, but direct imports of the cores bypassed that guard. Coverage exemptions hid both runtime exports.
+
+**Fix**: Moved the cores, types, and supporting logic to `web/lib/reportActionsCore.ts`. The action modules now export only guarded public wrappers, G4b tests import the non-action core, and AST coverage enumerates direct declarations, exported variables, and re-exports. Dynamic import assertions verify that neither core remains available from an action module.
+
+**Lesson**: A module-level `"use server"` directive turns every runtime export into an action surface. Keep injected-client test cores in a non-action internal module, import them privately into guard-first wrappers, and never exempt writer exports by name in action coverage.
+
 ## 2026-07-11 - publication governance seven-field contract correction
 
 **Error**: Active governance replaced `PUBLICATION_NULL_FIELDS` with a semantic shorthand that incorrectly included `location_name`, `location_url`, `is_paid`, and `price_info`, while omitting localized address and hours fields. Tracking also remained open after deterministic release gates passed.

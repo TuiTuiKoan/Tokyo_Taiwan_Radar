@@ -290,6 +290,14 @@ export async function dismissReport(reportId: string): Promise<{ ok: boolean; er
 }
 ```
 
+### `"use server"` writer export boundary
+
+* Never export or re-export an injected-client writer core from a module with a module-level `"use server"` directive. A direct import can invoke that runtime export without passing through the guarded public wrapper.
+* Place testable writer cores, their types, and supporting logic in an internal non-action module such as `web/lib/`. The action module imports the core privately and runtime-exports only the public Server Action.
+* The public wrapper's first executable operation must be `await assertWritesAllowed()`. A denied result must return before auth, client construction, dynamic imports that initialize a client, or database access.
+* Action coverage must enumerate function declarations, exported variables, and export declarations or re-exports. It must require exact runtime exports and must not grant name-based exemptions to writer cores.
+* Add a dynamic import regression assertion for sensitive action modules so `"runCore" in actionModule` remains false. Reference: 2026-07-20 G4a Slice 2a.
+
 ## URL 存在確認 — apex と www の両方を試す
 
 会場・組織の公式サイト有無を `curl` で確認する際は **apex ドメインと `www.` サブドメインの両方**を必ず試すこと。

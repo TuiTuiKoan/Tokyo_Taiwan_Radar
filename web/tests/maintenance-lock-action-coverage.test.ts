@@ -24,13 +24,13 @@ const ACTION_CONTRACTS = [
   {
     path: "app/actions/confirm-report.ts",
     guarded: ["confirmReport"],
-    exempt: ["runConfirmReport"],
+    exempt: [],
     extraDeniedFalseProperties: ["githubUpdated"],
   },
   {
     path: "app/actions/dismiss-report.ts",
     guarded: ["dismissReport"],
-    exempt: ["runDismissReport"],
+    exempt: [],
   },
   {
     path: "app/actions/submit-report.ts",
@@ -79,7 +79,43 @@ function findExportedFunction(sourceFile: ts.SourceFile, name: string): ts.Funct
   );
   assert.ok(declaration, `${name} must remain an exported function`);
   assert.ok(declaration.body, `${name} must have a function body`);
+  assert.ok(
+    ts.getModifiers(declaration)?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword),
+    `${name} must remain async`,
+  );
   return declaration;
+}
+
+function runtimeExportNames(sourceFile: ts.SourceFile): string[] {
+  const names: string[] = [];
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name && hasExportModifier(statement)) {
+      names.push(statement.name.text);
+    } else if (ts.isVariableStatement(statement) && hasExportModifier(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name)) names.push(declaration.name.text);
+      }
+    } else if (ts.isClassDeclaration(statement) && statement.name && hasExportModifier(statement)) {
+      names.push(statement.name.text);
+    } else if (ts.isEnumDeclaration(statement) && hasExportModifier(statement)) {
+      names.push(statement.name.text);
+    } else if (ts.isExportAssignment(statement)) {
+      names.push("default");
+    } else if (ts.isExportDeclaration(statement) && !statement.isTypeOnly) {
+      if (!statement.exportClause) {
+        names.push("*");
+      } else if (ts.isNamedExports(statement.exportClause)) {
+        for (const element of statement.exportClause.elements) {
+          if (!element.isTypeOnly) names.push(element.name.text);
+        }
+      } else {
+        names.push(statement.exportClause.name.text);
+      }
+    }
+  }
+
+  return names.sort();
 }
 
 function namedProperty(
@@ -154,13 +190,7 @@ test("all Slice 2a action writers guard before auth, client, or database initial
       `${contract.path} must import the shared maintenance guard`,
     );
 
-    const exportedFunctions = sourceFile.statements
-      .filter(
-        (statement): statement is ts.FunctionDeclaration =>
-          ts.isFunctionDeclaration(statement) && Boolean(statement.name) && hasExportModifier(statement),
-      )
-      .map((statement) => statement.name!.text)
-      .sort();
+    const exportedFunctions = runtimeExportNames(sourceFile);
     const classifiedFunctions = [...contract.guarded, ...contract.exempt].sort();
     assert.deepEqual(
       exportedFunctions,
@@ -178,6 +208,19 @@ test("all Slice 2a action writers guard before auth, client, or database initial
       );
     }
   }
+});
+
+test("report action modules do not expose injected-client cores", async () => {
+  const confirmAction = readAction("app/actions/confirm-report.ts").sourceFile;
+  const dismissAction = readAction("app/actions/dismiss-report.ts").sourceFile;
+
+  assert.deepEqual(runtimeExportNames(confirmAction), ["confirmReport"]);
+  assert.deepEqual(runtimeExportNames(dismissAction), ["dismissReport"]);
+
+  const confirmModule = await import("../app/actions/confirm-report");
+  const dismissModule = await import("../app/actions/dismiss-report");
+  assert.equal("runConfirmReport" in confirmModule, false);
+  assert.equal("runDismissReport" in dismissModule, false);
 });
 
 test("shared helper is read-only and cannot acquire or release the lock", () => {
