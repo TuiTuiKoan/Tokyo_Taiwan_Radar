@@ -1,10 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
+import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
 import { NextResponse } from "next/server";
 
 const GITHUB_REPO = "TuiTuiKoan/Tokyo_Taiwan_Radar";
 const WORKFLOW_ID = "annotate-now.yml";
+const WORKFLOW_DISPATCH_TIMEOUT_MS = 10_000;
 
 export async function POST() {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) {
+    return NextResponse.json({ error: "maintenance_active" }, { status: 503 });
+  }
+
   // 1. Auth check
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -34,18 +41,25 @@ export async function POST() {
     return NextResponse.json({ error: "GITHUB_TOKEN not configured" }, { status: 500 });
   }
 
-  const ghRes = await fetch(
-    `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${WORKFLOW_ID}/dispatches`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github.v3+json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ ref: "main" }),
-    }
-  );
+  let ghRes: Response;
+  try {
+    ghRes = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${WORKFLOW_ID}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github.v3+json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ref: "main" }),
+        signal: AbortSignal.timeout(WORKFLOW_DISPATCH_TIMEOUT_MS),
+      }
+    );
+  } catch (error) {
+    console.error("[annotate-now] GitHub API request failed:", error);
+    return NextResponse.json({ error: "Failed to trigger workflow" }, { status: 502 });
+  }
 
   if (!ghRes.ok) {
     const errorText = await ghRes.text();

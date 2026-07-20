@@ -10,6 +10,7 @@ import {
 } from "@/lib/eventFieldMerge";
 import { TRANSLATION_LOCK_FIELDS } from "@/lib/eventIntakeClient";
 import { PURE_PUBLICATION_EVENT_FORM_GUIDANCE } from "@/lib/intakeGuidance";
+import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
 
 export const maxDuration = 60;
 
@@ -78,6 +79,11 @@ function scorePage(text: string, nameJa: string, locationName: string): number {
 // ── Main handler ──────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) {
+    return NextResponse.json({ error: "maintenance_active" }, { status: 503 });
+  }
+
   // 1. Authenticate user
   const supabase = await createClient();
   const {

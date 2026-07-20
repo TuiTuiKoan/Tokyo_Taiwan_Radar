@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { assertWritesAllowed } from "@/lib/maintenanceLock.server";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -10,8 +11,13 @@ interface PatchBody {
   target?: unknown;
 }
 
-export async function PATCH(request: Request, { params }: RouteParams) {
-  const { id } = await params;
+export async function PATCH(request: Request, context: RouteParams) {
+  const gate = await assertWritesAllowed();
+  if (!gate.allowed) {
+    return NextResponse.json({ error: "maintenance_active" }, { status: 503 });
+  }
+
+  const { id } = await context.params;
   if (!id) {
     return NextResponse.json({ error: "Invalid event id" }, { status: 400 });
   }
