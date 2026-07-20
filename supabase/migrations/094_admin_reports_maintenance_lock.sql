@@ -27,9 +27,9 @@
 --   release it.
 --
 -- FAIL-CLOSED SEMANTICS:
---   Writes are ALLOWED only when the lock row EXISTS and value->>'active'
---   is exactly the string 'false'. A missing row, 'active' != 'false', or a
---   malformed value all evaluate to DENY.
+--   Writes are ALLOWED only when the lock row EXISTS and value->'active'
+--   is exactly the JSON boolean false. A missing row, missing key, JSON null,
+--   string "false", or any other malformed value all evaluate to DENY.
 --
 -- FOUR-QUADRANT VERIFICATION (run at bring-up, once as service_role and
 -- once as a normal authenticated admin):
@@ -43,7 +43,8 @@
 
 -- ------------------------------------------------------------
 -- 1. Fail-closed predicate: TRUE = DENY writes (maintenance active).
---    Returns FALSE (allow) ONLY when the row exists AND active == 'false'.
+--    Returns FALSE (allow) ONLY when the row exists AND active is the exact
+--    JSON boolean false.
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.admin_reports_maintenance_active()
 RETURNS boolean
@@ -53,11 +54,11 @@ STABLE
 SET search_path = public
 AS $$
   -- true = DENY writes. Allow (false) ONLY when the row exists AND
-  -- value->>'active' is exactly the string 'false'.
+  -- value->'active' is exactly the JSON boolean false.
   SELECT NOT EXISTS (
     SELECT 1 FROM public.app_settings
     WHERE key = 'admin_reports_cleanup_maintenance'
-      AND value->>'active' = 'false'
+      AND value->'active' = 'false'::jsonb
   );
 $$;
 

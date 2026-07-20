@@ -16,11 +16,18 @@ an active / malformed / stale-token row, and a window_id-scoped release.
 """
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 
 import _oneoff_admin_reports_maintenance as maint
 
 LOCK_KEY = maint.LOCK_KEY
+MIGRATION_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "supabase/migrations/094_admin_reports_maintenance_lock.sql"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +130,19 @@ def _seed(sb=None):
     sb = sb or FakeSupabase()
     maint.seed_inactive(sb)
     return sb
+
+
+def test_migration_allows_only_typed_json_boolean_false():
+    migration_sql = MIGRATION_PATH.read_text(encoding="utf-8")
+
+    assert re.search(
+        r"value\s*->\s*'active'\s*=\s*'false'\s*::\s*jsonb",
+        migration_sql,
+    )
+    assert not re.search(
+        r"value\s*->>\s*'active'\s*=\s*'false'",
+        migration_sql,
+    )
 
 
 # ---------------------------------------------------------------------------

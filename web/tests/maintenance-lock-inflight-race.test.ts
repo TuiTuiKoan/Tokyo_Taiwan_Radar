@@ -48,6 +48,13 @@ const REQUIRED_ACTION_IMPORTS = {
 
 type LockState = "inactive" | "active" | "missing" | "malformed";
 type WriterRole = "authenticated" | "service_role";
+type MaintenanceLockRow = { value: unknown } | null;
+
+function migrationAllowsAuthenticatedWrite(row: MaintenanceLockRow): boolean {
+  if (row === null || typeof row.value !== "object" || row.value === null) return false;
+  if (Array.isArray(row.value)) return false;
+  return (row.value as Record<string, unknown>).active === false;
+}
 
 function handlerAllows(state: LockState): boolean {
   return state === "inactive";
@@ -68,8 +75,9 @@ function deferred() {
 test("migration 094 contract rejects an authenticated write if the lock activates after handler check", () => {
   assert.match(
     NORMALIZED_SQL,
-    /SELECT NOT EXISTS \( SELECT 1 FROM public\.app_settings WHERE key = 'admin_reports_cleanup_maintenance' AND value->>'active' = 'false' \);/,
+    /SELECT NOT EXISTS \( SELECT 1 FROM public\.app_settings WHERE key = 'admin_reports_cleanup_maintenance' AND value->'active' = 'false'::jsonb \);/,
   );
+  assert.doesNotMatch(NORMALIZED_SQL, /value->>'active'\s*=\s*'false'/);
 
   let restrictivePolicies = 0;
   for (const table of GUARDED_TABLES) {
@@ -88,6 +96,32 @@ test("migration 094 contract rejects an authenticated write if the lock activate
   assert.equal(handlerAllows(lockState), true);
   lockState = "active";
   assert.equal(statementAllows("authenticated", lockState), false);
+});
+
+test("migration 094 typed predicate allows only exact JSON boolean false", () => {
+  const cases: Array<{
+    label: string;
+    row: MaintenanceLockRow;
+    expected: boolean;
+  }> = [
+    {
+      label: "boolean false",
+      row: { value: { active: false, window_id: null } },
+      expected: true,
+    },
+    { label: "missing row", row: null, expected: false },
+    { label: "missing key", row: { value: {} }, expected: false },
+    { label: "JSON null", row: { value: { active: null } }, expected: false },
+    { label: "string false", row: { value: { active: "false" } }, expected: false },
+    { label: "number zero", row: { value: { active: 0 } }, expected: false },
+    { label: "object", row: { value: { active: {} } }, expected: false },
+    { label: "array", row: { value: { active: [] } }, expected: false },
+    { label: "boolean true", row: { value: { active: true } }, expected: false },
+  ];
+
+  for (const { label, row, expected } of cases) {
+    assert.equal(migrationAllowsAuthenticatedWrite(row), expected, label);
+  }
 });
 
 test("service-role in-flight model drains before the settle margin while new requests are blocked", async () => {
