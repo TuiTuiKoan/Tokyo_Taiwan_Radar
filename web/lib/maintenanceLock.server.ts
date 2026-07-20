@@ -17,7 +17,7 @@
  * boolean false. A missing row, a read error, unconfigured env, or any malformed
  * / non-`false` value all deny — mirroring the DB predicate installed by
  * migration 094 (`admin_reports_maintenance_active()`), which allows writes only
- * when `value->>'active' = 'false'`.
+ * when `value->'active' = 'false'::jsonb` (the exact JSON boolean false).
  */
 import { createClient } from "@supabase/supabase-js";
 import {
