@@ -43,6 +43,7 @@ from category_feedback import load_corrections, build_feedback_prompt
 from selection_reason_feedback import load_sr_corrections, build_sr_feedback_prompt
 from movie_title_lookup import lookup_movie_titles, lookup_movie_titles_with_metadata
 from venue_registry import lookup_venue
+from organizer_registry import lookup_organizer
 from security.injection_guard import (
     scan_for_injection,
     finding_fingerprint,
@@ -1740,6 +1741,104 @@ def _apply_small_venue_organizer_fallback(
     if "organizer_type" not in protected_fields and (not current_type or current_type == ["unknown"]):
         update_data["organizer_type"] = ["cultural_institution" if is_cultural else "independent_venue"]
 
+
+def _apply_organizer_registry(
+    event: dict[str, Any],
+    data: dict[str, Any],
+    protected_fields: "dict[str, str] | set[str] | None" = None,
+) -> None:
+    """Overlay verified organizer-registry types onto assembled annotation data.
+
+    Runs AFTER the LLM result is assembled into ``data`` and BEFORE the
+    field_corrections restore, so the authority order stays
+    ``FC > registry > source default > existing > LLM``. Only the *type*
+    fields (``organizer_type`` / ``co_organizer_types`` / ``sponsor_types``)
+    are touched — the raw ``organizer`` / ``co_organizers`` / ``sponsors``
+    name text is never rewritten.
+
+    Graceful degradation: until migration 095 is applied, ``lookup_organizer``
+    returns ``None`` for every name, so every branch below is a no-op and
+    ``data`` is left field-for-field identical to the pre-registry state
+    (registry no-op == zero behaviour change).
+    """
+    protected_fields = protected_fields or {}
+
+    # ---- Primary organizer_type: scalar registry value → events.text[] field ----
+    if "organizer_type" not in protected_fields:
+        primary_name = data.get("organizer") or event.get("organizer")
+        entity = lookup_organizer(primary_name) if primary_name else None
+        registry_type = entity.get("organizer_type") if entity else None
+        if (
+            isinstance(registry_type, str)
+            and registry_type in VALID_ORGANIZER_TYPES
+            and registry_type != "unknown"
+        ):
+            current = data.get("organizer_type")
+            if current is None:
+                current = event.get("organizer_type") or []
+            valid = [
+                t for t in current
+                if isinstance(t, str) and t in VALID_ORGANIZER_TYPES and t != "unknown"
+            ]
+            if not valid:
+                # (a) empty / all-unknown → adopt registry type.
+                data["organizer_type"] = [registry_type]
+            elif registry_type in valid:
+                # (b) already contains registry type → preserve as-is (no flatten/reorder).
+                pass
+            elif len(valid) == 1:
+                # (c) single conflicting valid type → registry wins; record conflict.
+                logger.info(
+                    "organizer_registry primary conflict: organizer=%r had %s, "
+                    "registry=%s → overriding with registry type",
+                    primary_name, valid, registry_type,
+                )
+                data["organizer_type"] = [registry_type]
+            else:
+                # (d) >=2 valid types, none is the registry type → fail closed.
+                logger.warning(
+                    "organizer_registry primary manual-conflict-queue: organizer=%r "
+                    "has multi-type %s, registry=%s → preserving original array "
+                    "(no auto-flatten)",
+                    primary_name, valid, registry_type,
+                )
+
+    # ---- Co-organizer / Sponsor parallel arrays: per-index type overlay ----
+    # Only rebuild a type array when the registry resolves at least one index; a
+    # fully-missing registry leaves the array untouched (graceful no-op) so the
+    # pre-existing cardinality is preserved for the A.5 / migration-095 path.
+    for _names_field, _types_field in (
+        ("co_organizers", "co_organizer_types"),
+        ("sponsors", "sponsor_types"),
+    ):
+        if _types_field in protected_fields:
+            continue
+        names = data.get(_names_field)
+        if not isinstance(names, list) or not names:
+            continue
+        existing_types = data.get(_types_field) or []
+        rebuilt: list[str] = []
+        registry_touched = False
+        for i, nm in enumerate(names):
+            prev = existing_types[i] if i < len(existing_types) else None
+            prev = prev if (isinstance(prev, str) and prev in VALID_ORGANIZER_TYPES) else "unknown"
+            entity = lookup_organizer(nm) if isinstance(nm, str) and nm else None
+            registry_type = entity.get("organizer_type") if entity else None
+            if (
+                isinstance(registry_type, str)
+                and registry_type in VALID_ORGANIZER_TYPES
+                and registry_type != "unknown"
+            ):
+                rebuilt.append(registry_type)
+                registry_touched = True
+            else:
+                rebuilt.append(prev)
+        if registry_touched:
+            # Registry wrote at least one index → guarantee cardinality parity
+            # (cardinality(names) == cardinality(types)) per migration 095 CHECK.
+            data[_types_field] = rebuilt
+
+
 _TV_PROGRAM_KEYWORDS = frozenset(["放送:", "放送：", "ジャンル:", "ジャンル："])
 
 # Report article detection: these keywords in raw_title or raw_description
@@ -1763,7 +1862,12 @@ _REPORT_PREFIXES: dict[str, str] = {
 _NON_TEXT_FC_FIELDS = {
     "category", "event_form", "performers",
     "performers_zh", "performers_en",
-    "location_prefectures", "organizer_type", "co_organizers",
+    "location_prefectures", "organizer_type",
+    # co-organizer / sponsor name + parallel type arrays are all DB-native
+    # list columns; keep them symmetric so a TEXT corrected_value never
+    # pollutes a text[] column (DB-native restore instead).
+    "co_organizers", "co_organizer_types",
+    "sponsors", "sponsor_types",
     "is_paid", "is_active",
     "selection_reason",
 }
@@ -2821,6 +2925,13 @@ def annotate_pending_events(
                     selection_reason = json.dumps(selection_reason, ensure_ascii=False)
                 update_data["selection_reason"] = selection_reason
 
+            # Authoritative organizer registry: overlay verified entity types onto
+            # organizer_type / co_organizer_types / sponsor_types AFTER LLM assembly
+            # and BEFORE the field_corrections restore below, keeping the authority
+            # order FC > registry > source default > existing > LLM. No-op until
+            # migration 095 seeds authoritative rows (lookup_organizer → None).
+            _apply_organizer_registry(event, update_data, _human_protected)
+
             # P1 field-protection: restore DB values for any field in field_corrections.
             # _ai_or_existing() was defined but never wired into update_data construction.
             # This post-processing step closes the gap: after GPT fills update_data,
@@ -3124,6 +3235,7 @@ def annotate_pending_events(
                     }
 
                     _sub_protected = human_field_map.get(_prev.get("id") if _prev else "", {})
+                    _apply_organizer_registry(_prev or {}, sub_row, _sub_protected)
                     for _pf, _fc_val in _sub_protected.items():
                         if _pf in sub_row:
                             if _pf in _NON_TEXT_FC_FIELDS:
