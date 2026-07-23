@@ -42,8 +42,6 @@ export default async function AdminTabNav({ locale, activeTab }: Props) {
     const className = isActive
       ? "px-4 py-2 text-sm font-medium text-green-700 border-b-2 border-green-600 flex items-center gap-1"
       : "px-4 py-2 text-sm text-fg-muted hover:text-green-700 transition flex items-center gap-1";
-    // For the reports tab: use client component so the count stays live
-    // via Supabase Realtime without a page refresh.
     const badge = isReports ? <AdminReportsBadge initialCount={pending} /> : null;
     if (isActive) {
       return (

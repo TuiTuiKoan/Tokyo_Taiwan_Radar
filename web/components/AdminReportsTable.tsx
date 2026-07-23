@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { type Category, CATEGORIES, CATEGORY_GROUPS, type Locale } from "@/lib/types";
 import Link from "next/link";
 import { confirmReport } from "@/app/actions/confirm-report";
@@ -196,7 +195,6 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const t = useTranslations("admin");
   const tReport = useTranslations("report");
   const tCat = useTranslations("categories");
-  const supabase = createClient();
   const router = useRouter();
 
   const [reports, setReports] = useState<ReportRow[]>(initialReports);
@@ -209,63 +207,6 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [selectionReasonEdits, setSelectionReasonEdits] = useState<Record<string, Record<string, string>>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkConfirming, setBulkConfirming] = useState(false);
-
-  // Realtime: push newly-created reports to the top of the list, and keep
-  // existing rows in sync when another admin confirms / dismisses a report.
-  useEffect(() => {
-    // Create the client inside the effect so the subscription always uses a
-    // fresh, stable instance regardless of parent re-renders.
-    const rt = createClient();
-    const REPORT_SELECT = "*, events(name_ja, name_zh, name_en, source_url, source_name, category, start_date, end_date, location_name, location_name_zh, location_name_en, location_address, location_address_zh, location_address_en, business_hours, business_hours_zh, business_hours_en, is_paid, price_info, description_ja, description_zh, description_en, selection_reason)";
-
-    const channel = rt
-      .channel("admin-reports-live")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "event_reports" },
-        async (payload) => {
-          const { data } = await rt
-            .from("event_reports")
-            .select(REPORT_SELECT)
-            .eq("id", payload.new.id)
-            .single();
-          if (data) {
-            setReports((prev) => {
-              if (prev.some((r) => r.id === data.id)) return prev;
-              return [data as ReportRow, ...prev];
-            });
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "event_reports" },
-        async (payload) => {
-          // Another admin session confirmed / dismissed a report — update in-place
-          const { data } = await rt
-            .from("event_reports")
-            .select(REPORT_SELECT)
-            .eq("id", payload.new.id)
-            .single();
-          if (data) {
-            setReports((prev) =>
-              prev.map((r) => (r.id === data.id ? (data as ReportRow) : r))
-            );
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "events" },
-        () => {
-          // An admin updated an event (e.g. from the events list tab) —
-          // re-fetch SSR data so embedded event fields in report cards stay fresh.
-          router.refresh();
-        }
-      )
-      .subscribe();
-    return () => { rt.removeChannel(channel); };
-  }, []);
 
   function getEventName(row: ReportRow): string {
     const ev = row.events;
@@ -408,8 +349,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       setExpandedId(null);
       // Note: router.refresh() is intentionally omitted here.
       // Dismiss only changes the report status — no event fields are modified,
-      // so SSR cache invalidation is unnecessary. Local state is already updated
-      // by setReports(), and Realtime subscription keeps other sessions in sync.
+      // so SSR cache invalidation is unnecessary. Local state is already updated.
     } else {
       alert(result.error ?? "保存に失敗しました。ページを再読み込みしてください。");
     }
