@@ -1999,7 +1999,8 @@ def _finalize_publication_update(
     update_data["location_url"] = None
     update_data.pop("venue_id", None)
 
-    publisher = event.get("organizer") or update_data.pop("_publisher_evidence", None)
+    publisher_evidence = update_data.pop("_publisher_evidence", None)
+    publisher = event.get("organizer") or publisher_evidence
     update_data["organizer"] = publisher
     update_data["organizer_url"] = event.get("organizer_url")
     normalized = normalize_publisher_name(publisher)

@@ -1,83 +1,119 @@
-# Tasks — admin-reports-204-cleanup
+---
+title: Admin Reports Cleanup Tasks
+description: Round 5 delivery checklist for Admin Reports cleanup
+status: active
+updated: 2026-07-29
+---
 
-每完成一步把 `- [ ]` 改 `- [x]`，並 commit（即使只改這一行）。
-完整設計見 [proposal.md](./proposal.md) 與權威計畫 `/memories/session/plan.md`；第二輪 critique 見 [notes.md](./notes.md)。
+完整設計見 [proposal.md](./proposal.md) 與權威計畫 `/memories/session/plan.md`；歷史 critique 見 [notes.md](./notes.md)。
 
-歷史觀測值（204 / 237 / 251）僅供彙總比較，**不是** apply gate，也不寫入任何 manifest。
-新 manifest 的分割為動態 $P_0 = A + S + M$（自動修復／證據合格 source 修復／人工審查），不保留 117 / 43 / 44 固定執行數。
+歷史觀測值 204、237、251 僅供彙總比較，不是 apply gate。2026-07-29 09:04 JST 的 174-row 觀測是 $B_{2026-07-29}$，不是 $P_0$。未來 manifest 採動態 $P_0=A+S+M$，不保留 117、43、44 的固定執行數。
 
-## Phase D0：交 Engineer 前的文件修訂（僅文字）
+## 已交付的 audit history
 
-- [x] diff A（notes §4.1）：統一 disposition 基準
-- [x] diff B（notes §4.2）：修 Group F 措辭殘留
-- [x] diff C（notes §4.3）：明示 `confirmReport()` 對 compound row 的行為
-- [x] 依此計畫改寫 proposal.md／tasks.md：204 標為歷史；刪除「204 JSONL 可從 session resource 取出」宣稱；刪除固定 117 / 43 / 44 Wave 數與舊 Wave A/B 拓撲；改為 H0-first、動態 $P_0=A+S+M$、五條 G lane、Round T-P/T-A、decision-16a 維護鎖遷移、per-artifact 核准拓撲；`notes.md` 不動
+* [x] Publication-policy 已交付：`feb530e`
+* [x] H0 writer safety 已交付：`5457b5f2`
+* [x] G1 Auto-QA predicate correctness 已交付：`a2ba5bbe`
+* [x] G2 prefecture 與 pagination 已交付：`796aa7f8`，scheduled apply gate `56e677e2`
+* [x] G3 merger pagination 已交付：`77741cd5`
+* [x] G3 annotation-error settlement 已交付：`e8552682`
+* [x] G4a migration、operator 與 application guard 已交付：`60978b5c` 至 `1295ca4d`
+* [x] G4b status-last 已交付：`e6203c09`、`6b739a42`
+* [x] G4b deterministic performer dispatch 已交付：`90e5e9fd`、`c7f42c4c`
+* [x] Migration 094 與 inactive maintenance row 已上線，RPC 回傳 `false`
+* [ ] 第一個 maintenance window 前 retrieve 或重新驗證四象限 auth evidence
+* [ ] 第一個 maintenance window 前以足夠權限擷取 workflow 與 variable 狀態
 
-## Round H0：部署 SHA 上的緊急 writer-safety 熱修
+## Round 5 spec sync
 
-- [ ] docs-only commit（proposal.md、tasks.md）先行，與 H0 code 分開
-- [ ] 凍結 read-only production impact ledger（deployed SHA、workflow enabled 狀態、active runs、fresh exact pending baseline、`deployment_at <= created_at <= observed_through_utc` 全 ID 集合，deterministic ordering + 完整分頁 + exact-count 交叉核對，掃兩次 byte-identical，`0400` 雙份 + SHA-256、證明 byte 相等、零機密）；不改任何 row
-- [ ] 建 `fix/event-report-writer-safety` worktree（基於含 docs commit 的 `origin/main`，`feb530e` 為 ancestor）
-- [ ] 產出 event_reports consumer matrix（auto_qa / qa_auto_fix / qa_heartbeat / refetch_thin_events / error_recovery / annotator insert / web confirm-dismiss-submit / admin-owner-works / read-only / 禁用 G1-G3 one-off）
-- [ ] 移除 `auto_qa.reconcile()` 泛用 reviewed→confirm 捷徑與 predicate-level reviewed skip
-- [ ] 加 token-prefix aware、all-known-Auto 資格判定（`field:` / `fieldEdit:` / `selectionReason:` / unknown 永不自動處理）
-- [ ] compound lifecycle invariant：deleted / inactive / reviewed / missing 不自動關閉 all-Auto compound
-- [ ] `qa_auto_fix` / `qa_heartbeat` / `refetch_thin_events` / error-recovery 加 single-type 資格 + full report ID + pending CAS + exactly-one-row
-- [ ] 先寫 fixtures（single、`[auto,auto]`、`[auto,human]`、`[human,auto]`、payload-token、unknown、empty、reordered；all-Auto compound deleted / inactive / reviewed / missing；reviewed no-FC / non-empty-FC / intentional-empty-FC）
-- [ ] Verification 全綠、Tester PASS、取得含排程效果授權的核准後才部署
+* [x] 指定 worktree 與 branch 驗證通過，且線性快轉至最新 `origin/main`
+* [x] `proposal.md` 與 `tasks.md` 更新至 2026-07-29，spec 保持 active
+* [x] H0 與 G1 至 G4b 由 active implementation 改列已交付 audit history
+* [x] G-P 列為下一個 code delivery，與 T-P 和 production data work 分離
+* [x] T-P 改為原 publication CLI 內延伸，不預抽 generic primitives
+* [x] 補齊 logical 與 observed after-image、rollback horizon、Phase 4 prerequisite 與 service-role-safe window close order
+* [x] 記錄 $B_{2026-07-29}$，保留 204、237、251 為歷史比較
+* [x] `notes.md` 保持 bytes 不變
 
-## Round G：殘餘 runtime prevention（五 lane）
+## Round G-P：publication annotation hotfix
 
-- [ ] 建 `ttr-admin-reports-204-cleanup-worktree`（branch `feat/admin-reports-204-cleanup`），H0 已進 `origin/main` 才建；idempotent append `.git/info/exclude`
-- [ ] 確認 tracked spec 已於 H0 step 0 修正且仍相符（204 歷史、無 missing-artifact／固定數指示）
-- [ ] G3 前解決 `scraper/merger.py` 與 `merger-multi-signal-pass4` spec 的所有權衝突
-- [ ] G1 Auto-QA predicate 正確性（與 G3 序列化整合）
-- [ ] G2 prefecture 抽取 + 完整分頁
-- [ ] G3 merger 分頁 + 共用 same-work primitive + annotation-error 結算
-- [ ] G4a 跨 decision-16a 互動 writer 的共用維護鎖 + 三個 browser writer 改走 guarded server action + decision-16a 遷移
-- [ ] G4b report-lifecycle status-last + deterministic QA 排程
-- [ ] Verification 全綠、Tester PASS、deploy 核准明確接受／拒絕下一次排程 runtime writes
-- [ ] 部署並觀察一個完整授權週期；任何 regenerated defect 阻擋後續 tooling／data cleanup
+* [x] 先加 truthy-organizer regression，證明 pre-fix 會洩漏 `_publisher_evidence`
+* [x] 加 empty 或 missing organizer fallback regression，證明 evidence 會成為 organizer 且 internal key 被移除
+* [x] 將 finalizer 改為先 `pop` evidence，再套用 event organizer precedence
+* [x] 保留 pure publication null policy、registry lookup、organizer URL 與所有 public payload semantics
+* [x] Focused publication tests、完整 scraper tests、compileall 與文件檢查通過
+* [x] 獨立 Tester 回 PASS
+* [ ] 取得 G-P push、merge、deploy 與 scheduled annotation effects 核准
+* [ ] 部署 exact G-P SHA，觀察完整授權週期，確認沒有新 publication `PGRST204` 或 internal-key leak
+* [x] 不執行 reset、re-annotation batch、report settlement、manifest apply 或 DB write
 
-## Round T-P：共用 primitives + publication rollback 工具
+## Round T-P：現有 publication CLI 的 reset 與 rollback
 
-- [ ] 建 `feat/admin-reports-cleanup-primitives` worktree（H0 / G1 / G4a 為 ancestor）
-- [ ] 從 publication manifest 與 `unlock_and_write()` 抽取 immutable / pagination / snapshot / drift / journaled-write / after-image helpers
-- [ ] 加 full-report-ID publication rollback + failure-injection／rollback rehearsal 測試
-- [ ] Tester PASS、tools-only 核准（不授權任何 DB write）
+* [ ] 在 `scraper/_oneoff_backfill_publication_metadata.py` 內延伸 exact error reset
+* [ ] Manifest 僅批准 logical expected after-image，apply read-back 記錄 observed physical after-image 與 trigger-generated `updated_at`
+* [ ] Rollback eligibility 比對 observed physical after-image
+* [ ] 實作 rollback preview、rollback apply 與 bounded rollback horizon
+* [ ] 加 failure-injection 與 rollback rehearsal tests
+* [ ] 不預抽 `cleanup_manifest.py` 或 generic primitives
+* [ ] Tester PASS 並取得 tools-only 核准，不授權 DB write
 
 ## Round T-A：Admin cleanup CLI
 
-- [ ] 建 `feat/admin-reports-cleanup-tooling` worktree（T-P 與五 G lane 皆 ancestor）
-- [ ] 重用 T-P primitives，加 discovery / classify / freeze / apply / rollback / export CLI（全 full report ID、journaled per-field）
-- [ ] failure-injection／rollback rehearsal 測試
-- [ ] Tester PASS、tools-only 核准（不授權任何 DB write）
+* [ ] T-P 與五條 G lane 都已部署後才開始
+* [ ] Admin CLI 成為第二 consumer 時才抽 shared policy-neutral helpers
+* [ ] 實作 discover、classify、freeze、apply、rollback、export-review
+* [ ] 全部 action 使用 full report UUID、完整 before-image 與 journaled per-field write
+* [ ] 加 failure-injection 與 rollback rehearsal tests
+* [ ] Tester PASS 並取得 tools-only 核准，不授權 DB write
 
-## Round D：digest-bound 生產操作（各自核准）
+## Phase 4：publication manifest 與 live repair
 
-- [ ] Publication manifest（prereq：H0、G1、G4a、T-P）
-- [ ] Fresh Admin automatic manifest（prereq：H0、G1、G2、G3、G4a、G4b、T-A）
-- [ ] Source manifest（上述 + Round S）
-- [ ] Reconcile-manifest（僅當 immediate reconcile 凍結為 full-ID manifest；預設走已授權的 recurring reconcile）
-- [ ] Rollback apply（僅作為已預先授權的 partial-failure 回應）
+* [ ] 驗證 exact deployed H0 `5457b5f2`、G1 `a2ba5bbe`、G4a `60978b5c` 至 `1295ca4d`、G3 settlement `e8552682`
+* [ ] 驗證 exact G-P SHA、clean authorized cycle 與 exact T-P SHA
+* [ ] 驗證 maintenance inactive row、false RPC 與四象限 auth evidence
+* [ ] 以 full UUID 產生 immutable publication manifest，明確排除 `cfb4050b-bcec-4478-a120-5cc9d1a3198a`
+* [ ] Reset 僅允許 `error -> pending`、retry count 歸零與其他欄位不變
+* [ ] Apply journal 記錄 observed physical after-image，不預猜 `updated_at`
+* [ ] Writers disabled 時完成 verify 與 rollback preview
+* [ ] 先 release lock 並確認 inactive，再 restore workflow 與 variable
+* [ ] 第一個 scheduled 或 GPT write 後關閉 rollback horizon，後續只 fix-forward
+* [ ] 正常 annotation 成功後，僅由下一次 `error_recovery.py` 執行 settlement
+* [ ] 每個 manifest、window、apply 與 rollback 都取得各自 digest-bound 核准
 
-## Round S：證據合格 source release
+## 後續 Admin cleanup 與資料工作
 
-- [ ] 於 fresh ledger + 自動清理識別出實際 source defect 後才開始
-- [ ] 依凍結的 evidence inventory 改對應 source 檔 + fixtures
-- [ ] 獨立 implement／test／deploy／apply；deploy 核准明確涵蓋或暫停排程 scraper 效果
+* [ ] 部署 T-A 後凍結 fresh $P_0$ ledger，兩次完整掃描 byte-identical
+* [ ] 驗證 $P_0=A+S+M$，每個 full report ID 只有一個 current class
+* [ ] Automatic batch 不含 compound、human、mixed、unknown、empty 或 payload token
+* [ ] Digest-bound automatic manifest apply 與 rollback preview
+* [ ] Evidence-qualified Round S source release、manifest 與 apply
+* [ ] Manual reports 產出 digest-bound review export
+* [ ] Final reconcile 與完整 scheduled observation 不重建已修復 defect
 
-## Verification（每個 code release 都要過）
+## Approval gates
 
-- [ ] `python -m pytest scraper/tests` 通過
-- [ ] `python -m compileall -q scraper` 通過
-- [ ] 各 `--dry-run`（auto_qa --reconcile／auto_qa／qa_auto_fix／qa_heartbeat／refetch_thin_events／error_recovery／backfill_location_prefectures／merger）無異常
-- [ ] 每個被改的 source `python main.py --dry-run --source <name>` 正常
-- [ ] 無 `web/messages/` 變更；`confirmReport()` fail-fast 且 status-last；唯一遷移為 decision-16a 維護鎖
-- [ ] Tester 回 PASS；push 前取得使用者明確同意
+* [x] 本次核准僅涵蓋 spec sync 與 G-P implementation、validation
+* [ ] G-P push、merge、deploy 與 scheduled effects 另行核准
+* [ ] T-P 與 T-A 各自 tools-only 核准
+* [ ] Maintenance window 的 lock 與 writer state 操作另行核准
+* [ ] 每個 production manifest apply 以既存 SHA-256 與 literal command 另行核准
+* [ ] 最終 docs-only archive 另行核准
 
-## Done（歸檔條件）
+## 本次驗證
 
-- [ ] 每個部署週期後 fresh scan + nightly 不再重建已解決列
-- [ ] 動態 $P_0 = A + S + M$ 分割驗證通過；人工列全數匯出且無 Python apply 可關閉
-- [ ] `git mv docs/specs/active/admin-reports-204-cleanup docs/specs/archive/$(date +%Y-%m)-admin-reports-204-cleanup`；proposal.md status=archived；notes.md 保留
+* [x] Pre-fix focused test 以預期 assertion failure 證明 regression 有效
+* [x] `scraper/tests/test_annotator_publication.py` 通過
+* [x] 完整 `scraper/tests` 通過
+* [x] `python -m compileall -q scraper` 通過
+* [x] Frontmatter、Markdown、stale topology 與 `git diff --check` 通過
+* [x] 僅四個核准檔案 modified，`notes.md` SHA-256 未變
+* [x] 無 `web/messages` diff，無 production DB write
+
+## Done：歸檔條件
+
+* [ ] G-P、T-P、T-A 與需要時的 Round S 均獨立測試、部署並完成觀察
+* [ ] Phase 4 與後續 data apply 全部使用核准的 immutable manifest
+* [ ] Fresh $P_0=A+S+M$ 驗證完成，manual rows 有 digest-bound export
+* [ ] 每個 window 都先驗證 lock inactive，才 restore service-role writers
+* [ ] Final exact scan 與完整 scheduled cycle 不重建已修復 defect
+* [ ] 將 spec directory 移至 `docs/specs/archive/<YYYY-MM>-admin-reports-204-cleanup/`，並保留 `notes.md`

@@ -51,6 +51,37 @@ def test_all_annotation_modes_apply_final_pure_normalization(mode):
     assert localized == {}
 
 
+def test_pure_finalizer_consumes_publisher_evidence_with_existing_organizer():
+    event = {
+        "event_form": ["publication"],
+        "organizer": "既存出版社",
+        "organizer_url": None,
+    }
+    update = {
+        "event_form": ["publication"],
+        "_publisher_evidence": "証拠出版社",
+    }
+
+    assert _finalize_publication_update(event, update, {}, {}, {})
+    assert update["organizer"] == "既存出版社"
+    assert "_publisher_evidence" not in update
+
+
+def test_pure_finalizer_uses_publisher_evidence_without_event_organizer():
+    event = {
+        "event_form": ["publication"],
+        "organizer_url": None,
+    }
+    update = {
+        "event_form": ["publication"],
+        "_publisher_evidence": "証拠出版社",
+    }
+
+    assert _finalize_publication_update(event, update, {}, {}, {})
+    assert update["organizer"] == "証拠出版社"
+    assert "_publisher_evidence" not in update
+
+
 def test_publication_capable_source_physical_talk_is_unchanged():
     event = {
         "source_name": "eslite_spectrum",
