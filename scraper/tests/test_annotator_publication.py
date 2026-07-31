@@ -1,3 +1,5 @@
+import json
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -67,6 +69,42 @@ def test_pure_finalizer_consumes_publisher_evidence_with_existing_organizer():
     assert "_publisher_evidence" not in update
 
 
+def test_pure_finalizer_logs_sanitized_path_after_consuming_evidence(caplog):
+    event = {
+        "id": "publication-observability-event",
+        "event_form": ["publication"],
+        "organizer": "既存出版社",
+        "organizer_url": None,
+    }
+    update = {
+        "event_form": ["publication"],
+        "_publisher_evidence": "証拠出版社",
+    }
+
+    with caplog.at_level(logging.INFO, logger="annotator"):
+        assert _finalize_publication_update(event, update, {}, {}, {})
+
+    marker_records = [
+        record
+        for record in caplog.records
+        if record.name == "annotator"
+        and record.getMessage().startswith("publication_finalizer_path ")
+    ]
+    assert len(marker_records) == 1
+    marker = json.loads(marker_records[0].getMessage().split(" ", 1)[1])
+    assert marker == {
+        "event_id": "publication-observability-event",
+        "pure_publication": True,
+        "existing_organizer_truthy": True,
+        "publisher_evidence_present": True,
+        "internal_key_consumed": True,
+    }
+    assert "既存出版社" not in caplog.text
+    assert "証拠出版社" not in caplog.text
+    assert "_publisher_evidence" not in update
+    assert update["organizer"] == "既存出版社"
+
+
 def test_pure_finalizer_uses_publisher_evidence_without_event_organizer():
     event = {
         "event_form": ["publication"],
@@ -82,7 +120,7 @@ def test_pure_finalizer_uses_publisher_evidence_without_event_organizer():
     assert "_publisher_evidence" not in update
 
 
-def test_publication_capable_source_physical_talk_is_unchanged():
+def test_publication_capable_source_physical_talk_is_unchanged(caplog):
     event = {
         "source_name": "eslite_spectrum",
         "event_form": ["lecture"],
@@ -95,9 +133,11 @@ def test_publication_capable_source_physical_talk_is_unchanged():
         "location_prefectures": ["東京都"],
     }
 
-    assert not _finalize_publication_update(event, update, {}, {}, {})
+    with caplog.at_level(logging.INFO, logger="annotator"):
+        assert not _finalize_publication_update(event, update, {}, {}, {})
     assert update["business_hours"] == "13:00〜"
     assert update["location_address"].startswith("東京都")
+    assert "publication_finalizer_path" not in caplog.text
 
 
 def test_pure_finalizer_rejects_nonempty_policy_field_correction():

@@ -1979,8 +1979,12 @@ def _finalize_publication_update(
     publisher_registry: dict[str, dict[str, Any]],
 ) -> bool:
     effective = {**event, **update_data}
-    if not is_pure_publication_record(effective):
+    pure_publication = is_pure_publication_record(effective)
+    if not pure_publication:
         return False
+
+    existing_organizer_truthy = bool(event.get("organizer"))
+    publisher_evidence_present = bool(update_data.get("_publisher_evidence"))
 
     conflicts = [
         field for field in PUBLICATION_NULL_FIELDS
@@ -2015,6 +2019,21 @@ def _finalize_publication_update(
             )
             if validated_homepage:
                 update_data["organizer_url"] = validated_homepage
+    internal_key_consumed = "_publisher_evidence" not in update_data
+    logger.info(
+        "publication_finalizer_path %s",
+        json.dumps(
+            {
+                "event_id": event.get("id"),
+                "pure_publication": pure_publication,
+                "existing_organizer_truthy": existing_organizer_truthy,
+                "publisher_evidence_present": publisher_evidence_present,
+                "internal_key_consumed": internal_key_consumed,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+    )
     return True
 
 
