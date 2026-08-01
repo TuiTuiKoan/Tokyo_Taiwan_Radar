@@ -2,7 +2,7 @@
 title: Admin Reports Cleanup Tasks
 description: Round 5 delivery checklist for Admin Reports cleanup
 status: active
-updated: 2026-07-31
+updated: 2026-08-01
 ---
 
 完整設計見 [proposal.md](./proposal.md) 與權威計畫 `/memories/session/plan.md`；歷史 critique 見 [notes.md](./notes.md)。
@@ -70,6 +70,10 @@ updated: 2026-07-31
 * [x] `updated_at`-only drift 以 warning 記錄；stable non-target drift、third state、FC/report drift 或 CAS 0/multi-row 均停止
 * [x] 新增 `scraper/tests/test_reset_publication_error.py`，focused Lane R tests 目前 `17 passed`
 * [x] Full scraper suite、compileall、`git diff --check`、diagnostics 與 final status 驗證通過
+* [x] Lane R independent Tester PASS 完成，tools-only commit/push 已發布至 `origin/main`
+* [x] Lane R exact SHA `fadbe289cb57d49f018d00cc22db0c5bdd87729d`，subject `fix(scraper): harden publication error reset`
+* [x] Lane R push 後曾確認 `HEAD == origin/main == fadbe289cb57d49f018d00cc22db0c5bdd87729d`，`HEAD...origin/main = 0 0`
+* [ ] Production data apply、runtime acceptance 與 reset window 仍 pending separate gates；未驗證，也未聲稱 Vercel 或 workflow run
 
 ## Round T-A：Admin cleanup CLI
 
@@ -107,8 +111,8 @@ updated: 2026-07-31
 ## Approval gates
 
 * [x] G-P 與 G-P.1 release approval、push、merge 及發布均已完成
-* [x] 本次使用者「請執行」授權 Lane R tools implementation 與本地 validation，不授權 production reset、lock、workflow dispatch、manual annotation dispatch、migration apply、git push 或 Vercel deploy
-* [ ] Lane R independent Tester、commit、push、merge、release 與 deployed SHA 記錄仍待另行核准
+* [x] Lane R independent Tester PASS、tools-only commit/push/merge to `origin/main` 已完成，exact SHA 已記錄
+* [ ] Production reset、maintenance lock、workflow/manual annotation dispatch、migration apply、report settlement、live DB write、runtime acceptance 與 reset window 仍待另行核准
 * [ ] T-A tools-only implementation 與 validation 另行核准
 * [ ] Maintenance window 的 lock 與 writer state 操作另行核准
 * [ ] 每個 production reset apply 以 exact IDs/count、deployed SHA、literal command 與 state-restoration procedure 另行核准
@@ -124,8 +128,9 @@ updated: 2026-07-31
 * [x] `/Users/flyingship/development/Tokyo Taiwan Radar/.venv/bin/python -m compileall -q scraper` 通過
 * [x] `git diff --check` 通過
 * [x] Modified-file diagnostics 通過
-* [x] Final status 僅三個 Lane R path：reset script、focused test、tasks ledger
-* [x] 無 staged 內容、commit、push、workflow dispatch、maintenance lock、production reset、manual annotation dispatch、migration apply、Vercel deploy 或 live DB write
+* [x] Push 前確認無 unrelated staged 內容；Lane R commit/push 已完成
+* [x] Lane R push 後曾確認 `HEAD == origin/main == fadbe289cb57d49f018d00cc22db0c5bdd87729d`，`HEAD...origin/main = 0 0`
+* [x] 無 workflow dispatch、maintenance lock、production reset、manual annotation dispatch、migration apply、report settlement、Vercel deploy 或 live DB write
 
 ## Done：歸檔條件
 
