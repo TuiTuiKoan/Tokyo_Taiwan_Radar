@@ -4,18 +4,17 @@
 -- (organizers authority columns + events co/sponsor cardinality guards),
 -- merged into one transaction-wrapped, rollback-safe migration.
 --
--- ⛔ APPLY PREREQUISITE (READ BEFORE RUNNING) — fail-closed by design:
+-- APPLY STATUS: APPLIED in production (confirmed 2026-08-01).
+--   Gate 2A (Phase A.5 remediation -> table-wide co/sponsor mismatch = 0) was
+--   satisfied first; this file is gate 2B. The whole migration is wrapped in
+--   BEGIN/COMMIT, so a successful apply means every section took effect.
+--   Live confirmation 2026-08-01: organizers.is_authoritative exists (206 rows,
+--   4 authoritative) and organizer_type holds only scalar values.
+--
 --   The two events cardinality CHECK constraints in section 3 are ordinary
---   VALIDATED constraints (NOT "NOT VALID"). At authoring time the live DB
---   has 70 parallel-array mismatches (66 distinct events; co=63 / sponsor=7;
---   17 active / 53 inactive) across the WHOLE table. Applying this migration
---   before Phase A.5 remediation has driven that count to 0 will make the
---   `ALTER TABLE events ADD CONSTRAINT ...` step ERROR and abort the entire
---   transaction, leaving nothing half-applied. This is intentional:
---       gate 2A  = Phase A.5 apply  -> table-wide co/sponsor mismatch = 0
---       gate 2B  = THIS migration
---   Do NOT paste this into the SQL Editor until the gate-2A read-back shows a
---   table-wide (active + inactive) mismatch of 0.
+--   VALIDATED constraints (NOT "NOT VALID"), so they are now enforced across
+--   the WHOLE table: every writer must keep co_organizers/co_organizer_types
+--   and sponsors/sponsor_types the same length or the write is rejected.
 --
 -- SCOPE / NON-SCOPE:
 --   * Touches: research_sources (CHECK swap), organizers (normalize + new

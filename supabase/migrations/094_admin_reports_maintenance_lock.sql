@@ -3,14 +3,14 @@
 -- Decision-16a — database-level maintenance lock for the Admin
 -- Reports (#204) cleanup window.
 --
--- APPLY POLICY (IMPORTANT — read before running):
---   This migration is applied ONLY during an approved decision-16b
---   bring-up, and ONLY AFTER the inactive lock row has been seeded:
+-- APPLY STATUS: APPLIED in production (confirmed 2026-08-01).
+--   The inactive lock row was seeded first via:
 --     python scraper/_oneoff_admin_reports_maintenance.py seed-inactive
 --   (seeds app_settings['admin_reports_cleanup_maintenance'] = {"active": false})
---   At bring-up run the four-quadrant verification below both before and
---   after an acquire/release cycle. Until decision-16b is approved this
---   file is AUTHORED, NOT APPLIED. Do NOT paste it into the SQL Editor yet.
+--   Live confirmation 2026-08-01: the lock row exists with active=false and
+--   RPC admin_reports_maintenance_active() returns false.
+--   Run the four-quadrant verification below before and after every
+--   acquire/release cycle.
 --
 -- WHAT IT DOES:
 --   Adds a fail-closed predicate function + per-command RESTRICTIVE RLS
