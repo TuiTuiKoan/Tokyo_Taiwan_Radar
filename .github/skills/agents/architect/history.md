@@ -2,6 +2,142 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-08-01：把「已推 main」當成部署證據，以及文件 apply-status 腐化
+
+**背景：** Lane A/Lane R 收尾。Migration 096 關閉 `search_path` 契約漂移後，
+14 筆 `ndl_opensearch` pure-publication error 完成 reset。過程中逐一核對五個
+gate：資料修復、production 部署 SHA、lock safety、dry-run snapshot、reset 核准。
+
+**錯誤：** 第二個 gate 我先前只確認 commit 已推上 `origin/main`，就在回報中把它
+當成「production 已在使用」。這是把 repository state 誤當成 runtime evidence，
+正是 Runtime Maintenance Gate 第 2 條明文禁止的推論，而該條規則就寫在同一份
+SKILL 裡。使用者追問「這些都完成了嗎」時我才補查 `gh run list`，取得
+2026-08-01 的 scraper 執行 SHA 為 `fadbe289`（含 G-P 與 G-P.1）。若當時沒被追問，
+這個未驗證的斷言會直接留在紀錄裡。
+
+同一天另外發現三處文件與 live 狀態脫節：`094` 與 `095` 的檔頭仍寫
+「AUTHORED, NOT APPLIED / Do NOT paste into the SQL Editor」，但兩者早已套用；
+`database.instructions.md` 的 events schema 表把 `organizer_type` 記成 `text`
+（實為 `text[]`）、`event_form` 記成 `in_person/online/hybrid`（live 為 0 筆，實際
+是 16 值集合）、`primary_language` 記成 `multi`（live 為 0 筆，實際是 `mixed`）。
+
+**根本原因：** 「推送」「部署」「執行」被壓成同一個概念。Migration 檔頭與
+instructions 描述的是**撰寫當下**的狀態，套用後沒有任何機制迫使它們更新，於是
+逐漸腐化成假資訊——而 `event_form` 那類錯誤會讓 writer 撞上 CHECK constraint 卻
+查不出原因。
+
+**修復：** 凡宣稱 production 具備某行為，一律先取 exact-SHA runtime 證據
+（`gh run list --workflow=<name> --json headSha,conclusion`），未取得就明說未驗證。
+Migration 套用後，於同一次作業把檔頭改為 `APPLY STATUS: APPLIED in production
+(confirmed <date>)` 並附 post-apply 驗證結果，同時更新
+`database.instructions.md`。schema 表中的 enum 與型別以 live 資料反查驗證，不採信
+既有敘述。
+
+**教訓：**
+
+1. `origin/main` 有某 commit，只證明程式碼存在，不證明任何 runtime 正在執行它。
+   部署主張必須有 exact-SHA 的執行紀錄佐證。
+2. Migration 檔頭的 apply-status 與 `database.instructions.md` 是會腐化的斷言；
+   套用 migration 時必須在同一次作業更新，否則會誤導後續操作者。
+3. Schema 文件中的 enum／型別，在依賴它做判斷前先用 live 資料反查一次；三個欄位
+   同時錯誤代表這類漂移是常態而非例外。
+4. Production 資料變更的核准要求明確字句。把簡短的「請繼續」解讀為對特定破壞性
+   操作的核准，是過寬的判讀；即使結果正確，也應先確認語意。
+
+---
+
+## 2026-07-31：維護鎖安全契約漂移、開窗順序與 clean-cycle 分母缺口
+
+**背景：** 權威計畫 decision 16a 核准
+`admin_reports_maintenance_active()` 使用 `SET search_path = pg_catalog`、以
+`public.app_settings` schema-qualified 存取資料，並明定 EXECUTE revoke/grant。
+然而已發布的 tracked migration
+`094_admin_reports_maintenance_lock.sql` 實際使用 `SET search_path = public`。
+Live `proconfig` 尚未取得，因此只能確認 tracked SQL 違反 approved contract，不能
+宣稱 production 函式目前的設定值。同期舊計畫把 maintenance window 寫成先取得
+lock，再記錄並暫停 workflows；G-P clean-cycle 又只要求 exact-SHA workflow success
+與零筆 PGRST204。
+
+**錯誤：** Spec、Engineer、Tester 與 V-M-D 都未逐項比對 approved SECURITY
+DEFINER contract，讓 migration 的 `search_path` 漂移通過審核。開窗順序也在
+service-role writers 尚未停用及 drain 前取得 lock，但這些 writers 會 bypass RLS，
+lock 本身不能阻止它們寫入。Clean-cycle 驗收則缺少真正走過缺陷路徑的分母；
+annotator 會捕捉 per-event exception，workflow step 甚至可 continue-on-error，因此
+workflow success 與零筆 PGRST204 都可能是假綠燈。
+
+**根本原因：** Handoff 與 review 將計畫中的 security intent 視為已由 migration
+落實，沒有把 language、volatility、`search_path`、schema qualification、owner、
+EXECUTE ACL 與 RLS policy mode 轉成逐項阻擋式檢查。維護流程也混淆了 RLS lock 與
+service-role writer quiescence，並把「沒有觀察到錯誤」誤當成「已執行目標路徑且
+成功」。
+
+**修復：** 維護開始前先逐項比對 approved contract、tracked SQL 與 live DDL；任一
+不一致即阻擋 window。開窗固定為 capture exact workflow states、disable
+service-role writers、drain active runs、acquire lock、等待最長 protected
+service-role route 的 `maxDuration` 加明確 margin（目前 `60s + margin`），再重新驗證
+lock ownership、writer idleness 與資料穩定性後才 freeze/apply。關窗仍保持 writers
+disabled，先 verify 與 rollback preview，再 release lock 並確認 inactive，最後恢復
+exact prior states。G-P clean-cycle 以兩筆 retry=2、位於 Error Recovery 前 100 的
+NDL pure-publication events 作天然 path denominator；以 full UUID before/after 與 run
+logs 證明它們經 reset 並走過 truthy organizer 加 `_publisher_evidence` 路徑。若兩筆
+未被處理，結果只能是 `INCONCLUSIVE`。
+
+**教訓：**
+
+1. SECURITY DEFINER 的 approved contract 必須轉成逐欄 review checklist；plan、
+  tracked SQL 與 live DDL 任一漂移都要在 maintenance window 前阻擋。
+2. Service-role maintenance 的安全開窗依賴 writer quiescence，不依賴 RLS lock；必須
+  先 capture、disable、drain，取得 lock 後再 settle 與 reverify。
+3. Clean-cycle PASS 必須證明目標路徑有非零分母，並保留 logs 與 full-ID
+  before/after；零候選不是 PASS，而是 `INCONCLUSIVE`。
+
+---
+
+## 2026-07-26：Admin Reports Cleanup Round G-P / Phase 4 維護計畫錯誤
+
+**背景：** Admin Reports Cleanup Round G-P 的 Phase 4 會對歷史資料執行 apply，
+同一份計畫也包含不寫 DB、且不修改 publication hotfix 同檔案的 T-P tools-only
+實作與測試。當時 publication `_publisher_evidence` hotfix 尚待 clean-cycle evidence，
+maintenance window 另需協調 scheduled Python workflows、maintenance lock、manifest
+與 rollback journal。
+
+**錯誤：** 計畫把 publication hotfix 的 clean-cycle evidence 設成整個後續階段的
+總 gate，連沒有 code 或 data prerequisite 的 T-P tools-only 工作也被阻擋。計畫也把
+maintenance window 的關閉順序寫成先恢復 workflows、再 release lock；但 scheduled
+Python workflows 使用 service role，會 bypass RLS，恢復後可在 lock 仍存在時寫入。
+此外，計畫要求 manifest 預先批准 literal physical after-image，忽略
+`events.updated_at` trigger 會在 UPDATE 時產生不可預知值；又只因 settlement 函式已
+存在於 worktree/repo，就把依賴該 runtime behavior 的 prerequisite 視為完成，沒有
+核對 production exact deployed SHA。
+
+**根本原因：** 計畫把 implementation、deployment、observation 與 data apply 四種
+不同 gate 壓成單一 phase gate，也把 logical approval、observed physical state 與
+rollback eligibility 視為同一件事。對 service-role writer 的權限邊界判斷沿用了
+RLS client 的假設，並把 repository presence 誤當成 production runtime evidence。
+
+**修復：** 將 publication clean-cycle evidence 限定為 Phase 4 歷史資料 apply 的
+前置條件；T-P tools-only 實作與測試可獨立進行。Maintenance window 保持 workflows
+disabled，先完成驗證與 rollback preview，再 release lock 並確認 inactive，最後才
+恢復 workflows/variables 並監控第一個 run。Manifest 只批准 logical expected
+after-image；apply 後把 trigger 產生的 observed physical after-image 寫入
+journal/snapshot，rollback eligibility 以該 observed state 比對。凡依賴 runtime
+behavior 的 phase，改以 exact deployed SHA 作 gate，不以 worktree/repo 中存在函式
+代替部署證據。
+
+**教訓：**
+
+1. Dependency gate 只能阻擋具有實際 code 或 data prerequisite 的 downstream；
+  implementation/test、deployment、observation 與 data apply 必須分開判定。
+2. Scheduled service-role writer 會 bypass RLS；維護結束順序必須是驗證與 rollback
+  preview 完成，再 release lock 並確認 inactive，最後恢復 workflows/variables。
+3. Trigger 產生動態欄位時，manifest 批准 logical expected after-image，journal 記錄
+  observed physical after-image，rollback 比對 observed state。第一個後續 scheduled
+  writer 或 GPT write 是 rollback horizon，之後只能 fix-forward。
+4. 依賴 production runtime behavior 的 prerequisite 必須核對 exact deployed SHA；
+  函式存在於 worktree 或 repo 不代表 production 已具備該行為。
+
+---
+
 ## 2026-07-18 — 資安發布驗收混合了部署、公開行為與登入授權證據
 
 **背景：** 資安強化 commit `e450c6b42f4764ac6bb4ec23115aaedf9572462d` 完成 rebase 與 push。CSP 刻意採 Report-Only，以先收集 violation 而不阻擋既有資源。公開頁面與 header 的 production 測試通過；production custom domain 的三項檢查為 3/3 PASS。

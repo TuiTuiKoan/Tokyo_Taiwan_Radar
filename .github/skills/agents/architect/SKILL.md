@@ -48,6 +48,46 @@ Read this at the start of every session before producing any plan.
 
 若 immutable deployment URL 回傳 Deployment Protection 訊號（`302`、`_vercel_sso_nonce`、平台 `X-Robots-Tag: noindex`），不得弱化保護或判為 app regression。改以 GitHub／Vercel exact-SHA provenance 確認部署，再透過 production custom domain 做 app-level smoke。Full-file lint debt 與 changed-hunk regression 必須分開回報；零 changed-hunk overlap 可讓本次 feature 通過，但不會關閉既有 lint backlog。
 
+### Runtime Maintenance Gate Extension
+
+1. Dependency gate 依 mutation surface 分層：implementation/test、deployment、
+   observation 與 data apply 分開判定。Prerequisite 只能阻擋具有實際 code 或 data
+   依賴的 downstream；不寫 DB 且不碰相依檔案的 tools-only 工作不得被連帶阻擋。
+2. Phase 若依賴 production runtime behavior，必須 gate exact deployed SHA。
+   函式存在於 worktree 或 repo 不構成 production prerequisite evidence。
+3. Scheduled service-role writer 會 bypass RLS。Maintenance close order 必須是保持
+   workflows disabled 完成驗證與 rollback preview，再 release lock 並確認 inactive，
+   最後恢復 workflows/variables 並監控第一個 run。
+4. Trigger 會產生動態 physical value 時，manifest 只批准 logical expected
+   after-image；apply 後將 observed physical after-image 寫入 journal/snapshot，rollback
+   eligibility 比對 observed state。第一個後續 scheduled writer 或 GPT write 是
+   rollback horizon，之後只能 fix-forward。
+5. SECURITY DEFINER migration 的 handoff 與 review 必須逐項比對 approved contract：
+   language、volatility、`search_path`、schema qualification、owner、EXECUTE ACL 與
+   RLS policy mode。Tracked SQL、live DDL 與 plan 任一不一致，即阻擋 maintenance
+   window；未取得 live evidence 時不得推定 production 值。
+6. Service-role maintenance 開窗順序固定為 capture exact states、disable writers、
+   drain active runs、acquire lock、settle（最長 protected route `maxDuration` 加明確
+   margin）、reverify ownership/idleness/stability，再 operate。關窗順序維持第 3 點。
+7. Runtime clean-cycle acceptance 必須同時具備 exact-SHA provenance、非零 path
+   denominator、run logs 與 full-ID before/after。零 candidates 或目標事件未實際走過
+   缺陷路徑時，結果是 `INCONCLUSIVE`，不得判為 PASS。
+8. 「commit 已在 `origin/main`」不是部署證據。任何「production 已具備此行為」的主張，
+   必須附 exact-SHA 執行紀錄（`gh run list --workflow=<name> --json headSha,conclusion`
+   取排程 runtime；web 行為則取線上實測回應）。未取得證據時明寫「未驗證」，不得以
+   repository state 代替。
+9. Migration 套用後，同一次作業必須更新該 `.sql` 檔頭為
+   `APPLY STATUS: APPLIED in production (confirmed <date>)` 並附 post-apply 驗證結果，
+   同時更新 `.github/instructions/database.instructions.md` 的 Latest／next 與該
+   migration 的敘述。檔頭與 instructions 是會腐化的斷言，過期的「NOT APPLIED」會直接
+   誤導後續操作者。
+10. 依賴 `database.instructions.md` 的 enum 或欄位型別做判斷前，先用 live 資料反查
+    驗證。2026-08-01 一次就發現 `organizer_type`（`text` vs 實際 `text[]`）、
+    `event_form`（`in_person/online/hybrid` 在 live 為 0 筆）、`primary_language`
+    （`multi` 為 0 筆，實際 `mixed`）三處同時錯誤——此類漂移是常態而非例外。
+11. Production 資料變更需要明確的核准字句。簡短的「請繼續」「好」不足以構成對特定
+    破壞性操作的核准；先複述將執行的動作並取得確認，即使預期結果正確也一樣。
+
 ## Pre-flight Parallel-Operation & Baseline-Drift Guard（執行前並行操作與 baseline 漂移檢查）
 
 計畫 gate 中的 DB count assertion 與 git HEAD 假設只在**規劃時**算一次。派工後若有並行 session（使用者另一視窗、手動腳本、cron）動到 DB 或 push，baseline 會漂移而 gate 仍用舊值放行。審核任何**依賴 DB count 或 git HEAD 的計畫 gate** 時，必須要求 Engineer 在 **Step 0（執行開始）** re-confirm 三點，偵測到 drift 即 STOP、先 reconcile 再進 gate：
