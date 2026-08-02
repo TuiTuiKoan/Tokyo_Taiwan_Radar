@@ -31,6 +31,8 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from supabase import create_client
 
+from publication_rules import is_pure_publication_in_db, partition_pure_publications
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -275,10 +277,13 @@ def main() -> None:
     subs_data = fetch_all_rows(
         sb,
         "events",
-        "parent_event_id,location_address",
+        "parent_event_id,location_address,event_form",
         apply_filters=lambda q: q.not_.is_("parent_event_id", "null"),
         label="sub-agg",
     )
+    subs_data, subs_publications = partition_pure_publications(subs_data)
+    if subs_publications:
+        logger.info("  [sub-agg] skipped %d pure publication rows", len(subs_publications))
 
     # Aggregate prefectures per parent
     parent_prefectures: dict[str, set[str]] = defaultdict(set)
@@ -295,10 +300,13 @@ def main() -> None:
     parents = fetch_all_rows(
         sb,
         "events",
-        "id,name_ja,location_address,location_prefectures",
+        "id,name_ja,location_address,location_prefectures,event_form",
         apply_filters=lambda q: q.is_("parent_event_id", "null"),
         label="parents",
     )
+    parents, parent_publications = partition_pure_publications(parents)
+    if parent_publications:
+        logger.info("  [parents] skipped %d pure publication rows", len(parent_publications))
 
     scanned = len(parents)
     multi_updated = 0
@@ -336,6 +344,9 @@ def main() -> None:
         if dry_run:
             logger.info("  [dry-run %s] PAR %s → %s", kind, name, new_value)
         else:
+            if is_pure_publication_in_db(sb, pid):
+                logger.warning("  SKIP pure publication (re-check): %s", pid[:8])
+                continue
             try:
                 sb.table("events").update({"location_prefectures": new_value}).eq("id", pid).execute()
                 logger.info("  ✓ [%s] PAR %s → %s", kind, name, new_value)
@@ -361,10 +372,13 @@ def main() -> None:
         sub_rows = fetch_all_rows(
             sb,
             "events",
-            "id,name_ja,parent_event_id,location_address,location_prefectures",
+            "id,name_ja,parent_event_id,location_address,location_prefectures,event_form",
             apply_filters=lambda q: q.not_.is_("parent_event_id", "null"),
             label="sub-full",
         )
+        sub_rows, sub_publications = partition_pure_publications(sub_rows)
+        if sub_publications:
+            logger.info("  [sub-full] skipped %d pure publication rows", len(sub_publications))
         sub_scanned = len(sub_rows)
 
         for s in sub_rows:
@@ -392,6 +406,9 @@ def main() -> None:
             if dry_run:
                 logger.info("  [dry-run %s] SUB %s → %s", kind, name, new_value)
             else:
+                if is_pure_publication_in_db(sb, sid):
+                    logger.warning("  SKIP pure publication (re-check): %s", sid[:8])
+                    continue
                 try:
                     sb.table("events").update({"location_prefectures": new_value}).eq("id", sid).execute()
                     logger.info("  ✓ [%s] SUB %s → %s", kind, name, new_value)

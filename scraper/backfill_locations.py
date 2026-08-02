@@ -26,6 +26,8 @@ from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 from supabase import create_client
 
+from publication_rules import is_pure_publication_in_db, partition_pure_publications
+
 load_dotenv(".env")
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -107,6 +109,21 @@ def _extract_peatix_location(page) -> tuple[Optional[str], Optional[str]]:
     return loc_name or None, loc_addr or None
 
 
+def _apply_updates(sb, updates: list[dict]) -> int:
+    """Persist collected location updates, re-checking the publication policy per row."""
+    applied = 0
+    for u in updates:
+        if is_pure_publication_in_db(sb, u["id"]):
+            logger.warning("  SKIP pure publication (re-check): %s", u["id"][:8])
+            continue
+        try:
+            sb.table("events").update(u["payload"]).eq("id", u["id"]).execute()
+            applied += 1
+        except Exception as exc:
+            logger.error("  Failed to update %s: %s", u["id"][:8], exc)
+    return applied
+
+
 def run(dry_run: bool) -> None:
     load_dotenv(".env")
     sb = create_client(
@@ -118,7 +135,7 @@ def run(dry_run: bool) -> None:
     # 2. peatix: events with NULL location_address
     res_generic = (
         sb.table("events")
-        .select("id,source_name,source_url,location_name,location_address")
+        .select("id,source_name,source_url,location_name,location_address,event_form")
         .eq("is_active", True)
         .in_("source_name", ["iwafu", "koryu"])
         .execute()
@@ -131,7 +148,7 @@ def run(dry_run: bool) -> None:
 
     res_peatix = (
         sb.table("events")
-        .select("id,source_name,source_url,location_name,location_address")
+        .select("id,source_name,source_url,location_name,location_address,event_form")
         .eq("is_active", True)
         .eq("source_name", "peatix")
         .is_("location_address", "null")
@@ -140,6 +157,9 @@ def run(dry_run: bool) -> None:
     peatix_candidates = res_peatix.data or []
 
     candidates = generic_candidates + peatix_candidates
+    candidates, publications = partition_pure_publications(candidates)
+    if publications:
+        logger.info("Skipped %d pure publication events (no venue by policy)", len(publications))
 
     logger.info(
         "Found %d generic-address events (iwafu/koryu) + %d null-address peatix events to backfill",
@@ -245,13 +265,7 @@ def run(dry_run: bool) -> None:
         return
 
     # Apply updates
-    applied = 0
-    for u in updates:
-        try:
-            sb.table("events").update(u["payload"]).eq("id", u["id"]).execute()
-            applied += 1
-        except Exception as exc:
-            logger.error("  Failed to update %s: %s", u["id"][:8], exc)
+    applied = _apply_updates(sb, updates)
 
     logger.info("Applied %d location updates to DB.", applied)
 

@@ -32,6 +32,8 @@ import requests
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
+from publication_rules import is_pure_publication_in_db, partition_pure_publications
+
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -191,7 +193,7 @@ def run(dry_run: bool, limit: int) -> None:
     try:
         rows = (
             sb.table("events")
-            .select("id, source_id, location_address, venue_id, latitude")
+            .select("id, source_id, location_address, venue_id, latitude, event_form")
             .eq("is_active", True)
             .not_.is_("location_address", "null")
             .is_("latitude", "null")
@@ -209,7 +211,7 @@ def run(dry_run: bool, limit: int) -> None:
             )
             rows = (
                 sb.table("events")
-                .select("id, source_id, location_address, venue_id")
+                .select("id, source_id, location_address, venue_id, event_form")
                 .eq("is_active", True)
                 .not_.is_("location_address", "null")
                 .neq("location_name", "オンライン")
@@ -220,6 +222,9 @@ def run(dry_run: bool, limit: int) -> None:
             candidates = [dict(e, latitude=None) for e in (rows.data or [])]
         else:
             raise
+    candidates, publications = partition_pure_publications(candidates)
+    if publications:
+        logger.info("Skipped %d pure publication events (no venue by policy)", len(publications))
     logger.info("Found %d candidate events to geocode (limit=%d)", len(candidates), limit)
 
     geocoded = 0
@@ -243,6 +248,9 @@ def run(dry_run: bool, limit: int) -> None:
                         source_id, address, lat, lng,
                     )
                 else:
+                    if is_pure_publication_in_db(sb, event_id):
+                        logger.warning("SKIP pure publication (re-check): %s", event_id[:8])
+                        continue
                     sb.table("events").update({"latitude": lat, "longitude": lng}).eq("id", event_id).execute()
                     logger.info("[CACHE] %s | %s → lat=%.6f lng=%.6f", source_id, address, lat, lng)
                 cache_hits += 1
@@ -264,6 +272,9 @@ def run(dry_run: bool, limit: int) -> None:
             )
         else:
             # A4: Write events.latitude / longitude (never overwrite existing non-NULL)
+            if is_pure_publication_in_db(sb, event_id):
+                logger.warning("SKIP pure publication (re-check): %s", event_id[:8])
+                continue
             sb.table("events").update({"latitude": lat, "longitude": lng}).eq("id", event_id).is_("latitude", "null").execute()
             logger.info("[API] %s | %s → lat=%.6f lng=%.6f", source_id, address, lat, lng)
 

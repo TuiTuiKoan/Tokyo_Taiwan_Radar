@@ -102,7 +102,12 @@ def _fetch_candidates(sb, max_events: Optional[int] = None, event_id: Optional[s
     if max_events:
         q = q.limit(max_events)
     result = q.execute()
-    return [event for event in (result.data or []) if not _poster_guard_reason(event)]
+    rows = result.data or []
+    candidates = [event for event in rows if not _poster_guard_reason(event)]
+    if len(candidates) != len(rows):
+        logger.info("  Skipped %d guarded rows (pure publication / placeholder image)",
+                    len(rows) - len(candidates))
+    return candidates
 
 
 def _read_current_event(sb, event_id: str) -> Optional[dict]:

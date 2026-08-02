@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 import re
 import unicodedata
@@ -93,6 +93,36 @@ def normalize_event_forms(value: object) -> list[str]:
 
 def is_pure_publication_record(record: object) -> bool:
     return normalize_event_forms(_record_value(record, "event_form")) == ["publication"]
+
+
+def partition_pure_publications(rows: Iterable[Any]) -> tuple[list[Any], list[Any]]:
+    """Split enrichment candidates into (physical, pure_publication) rows.
+
+    Pure publications have no venue and no opening hours, so every location /
+    address / prefecture / geocode enrichment must drop them at candidate stage.
+    """
+    physical: list[Any] = []
+    publications: list[Any] = []
+    for row in rows:
+        (publications if is_pure_publication_record(row) else physical).append(row)
+    return physical, publications
+
+
+def is_pure_publication_in_db(sb: Any, event_id: str) -> bool:
+    """Re-read event_form immediately before a write (TOCTOU guard).
+
+    Candidate queries can go stale, and enrichment write helpers can be called
+    directly, so the PUBLICATION_NULL_FIELDS policy is re-verified per write.
+    """
+    rows = (
+        sb.table("events")
+        .select("event_form")
+        .eq("id", event_id)
+        .limit(1)
+        .execute()
+        .data
+    ) or []
+    return bool(rows) and is_pure_publication_record(rows[0])
 
 
 def is_ndl_periodical_article(record: object) -> bool:

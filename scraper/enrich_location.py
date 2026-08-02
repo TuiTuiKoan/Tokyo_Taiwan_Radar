@@ -30,6 +30,8 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 from openai import OpenAI
 from supabase import create_client
 
+from publication_rules import is_pure_publication_in_db, partition_pure_publications
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -85,7 +87,10 @@ def main() -> None:
     # Fetch all active events with NULL or empty location_address
     res = (
         sb.table("events")
-        .select("id, source_name, name_ja, location_name, location_address, raw_description")
+        .select(
+            "id, source_name, name_ja, location_name, location_address, "
+            "raw_description, event_form"
+        )
         .eq("is_active", True)
         .execute()
     )
@@ -94,6 +99,9 @@ def main() -> None:
         e for e in all_events
         if not e.get("location_address") or e["location_address"].strip() == ""
     ]
+    targets, publications = partition_pure_publications(targets)
+    if publications:
+        logger.info("Skipped %d pure publication events (no venue by policy)", len(publications))
 
     logger.info("Found %d active events with NULL/empty location_address", len(targets))
 
@@ -113,8 +121,11 @@ def main() -> None:
                 addr = TCC_ADDRESS
                 logger.info("[%d/%d] TCC fallback (no desc): %s → %s", i, len(targets), name[:40], addr)
                 if not args.dry_run:
-                    sb.table("events").update({"location_address": addr}).eq("id", event["id"]).execute()
-                    updated += 1
+                    if is_pure_publication_in_db(sb, event["id"]):
+                        logger.warning("  SKIP pure publication (re-check): %s", event["id"][:8])
+                    else:
+                        sb.table("events").update({"location_address": addr}).eq("id", event["id"]).execute()
+                        updated += 1
             else:
                 logger.info("[%d/%d] SKIP (no raw_description): %s", i, len(targets), name[:40])
             continue
@@ -138,6 +149,8 @@ def main() -> None:
             venue = (event.get("location_name") or "").strip()
             if venue and addr.strip() == venue:
                 logger.warning("  SKIP identical (address == venue name): %s", addr)
+            elif is_pure_publication_in_db(sb, event["id"]):
+                logger.warning("  SKIP pure publication (re-check): %s", event["id"][:8])
             else:
                 sb.table("events").update({"location_address": addr}).eq("id", event["id"]).execute()
                 updated += 1

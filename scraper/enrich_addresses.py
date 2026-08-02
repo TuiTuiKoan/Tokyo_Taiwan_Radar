@@ -19,6 +19,7 @@ from openai import OpenAI
 from supabase import create_client
 
 from annotator import _to_trad
+from publication_rules import is_pure_publication_in_db, partition_pure_publications
 
 load_dotenv()
 
@@ -112,7 +113,7 @@ def main():
 
     query = (
         sb.table("events")
-        .select("id, name_ja, location_name, location_address, source_name")
+        .select("id, name_ja, location_name, location_address, source_name, event_form")
         .eq("is_active", True)
         .not_.is_("location_name", None)
     )
@@ -128,6 +129,9 @@ def main():
         and e["source_name"] not in SKIP_SOURCES
         and not any(kw in (e["location_name"] or "") for kw in SKIP_VENUE_KEYWORDS)
     ]
+    candidates, publications = partition_pure_publications(candidates)
+    if publications:
+        print(f"Skipped {len(publications)} pure publication events (no venue by policy)")
 
     if args.limit > 0:
         candidates = candidates[:args.limit]
@@ -176,6 +180,10 @@ def main():
             print(f"     en: {result['location_address_en']}")
 
         if not args.dry_run:
+            if is_pure_publication_in_db(sb, e["id"]):
+                print(f"  → [SKIP] pure publication (re-check): {e['id'][:8]}")
+                skipped += 1
+                continue
             patch = {
                 "location_address": addr_ja,
             }
