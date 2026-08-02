@@ -350,6 +350,10 @@ def test_backfill_prefectures_drops_pure_publication_candidates(monkeypatch):
             location_address="愛知県名古屋市昭和区山里町18",
         ),
     ])
+    # The write-point re-check keeps event_writes empty on its own, so also assert
+    # the dropped candidate never reaches processing — otherwise a broken candidate
+    # filter stays green while still burning per-row API budget.
+    monkeypatch.setattr(backfill_location_prefectures, "extract_prefecture", _boom)
 
     _run_backfill_prefectures(monkeypatch, client)
 
