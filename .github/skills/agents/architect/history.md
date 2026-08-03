@@ -4062,3 +4062,22 @@ In the same session, the previous turn had wrongly "verified" and patched this s
 **Error:** Designed and handed off the full monitoring stack (scraper_runs table, /admin/stats page, Sentry) without first confirming that pending migrations 006 and 007 had been applied in the Supabase project. On first load, the stats page showed an error banner and the event_reports admin tab was broken.
 **Fix:** Retrospectively identified missing migrations as Step 1 (manual) in the remediation plan.
 **Lesson:** Check migration state as Phase 1 research whenever a feature assumes or extends DB schema. → Added to SKILL.md under Planning.
+## 2026-08-03：Organizer Type Authority — entity registry 權威化
+
+**背景：** `organizer_type` 由 GPT 每次重新推斷，同一 entity 跨 events 漂移（`台湾文化センター` 38 events 帶 academic／cultural_institution／government／semi_official 四型；連鎖書店依活動主題被誤判為 cultural_institution／independent_venue）。event-level FC 只能逐筆修，無法阻止同一 entity 在新事件重複出錯。
+
+**架構決策：**
+1. 優先序定為 `FC > authoritative registry > source default > existing valid > LLM > unknown`；沿用既有 `organizers` 表加 `is_authoritative`，不新增第二張主表（避免第二個真相來源）。
+2. 交付拆兩波：Wave 1 用既有機制修高信心案例（零新 code），Wave 2 才建 registry；避免高 ROI 修正被 migration gate 阻塞。
+3. Production apply 拆三個獨立 gate（2A 清資料 → 2B migration → 2C seed/backfill），每步 read-back 才進下一步。
+
+**教訓：**
+1. **event-level FC 不能替代 entity authority**：修 N 筆事件 ≠ 修 1 個 entity；新事件會再犯。
+2. **pre-migration remediation 必須 table-wide**：只掃 active 會漏 inactive（實例：active 17 vs 全表 70 pairs），而 validated CHECK 掃整表，漏掉就 migration abort。
+3. **graceful degradation 讓 code 與 migration 解耦**：registry 在欄位未 migrate 時 no-op，使 6 commit 可安全先 merge，migration 後補 apply，期間每日 CI 零行為改變。
+4. **scalar → array 需防壓平**：registry 是 scalar，events 是多值 `text[]`；未定義覆蓋規則會靜默摧毀 `["academic","media"]` 這類合法多值。
+5. **DB constraint 才是持久防線**：68/70 筆 parallel-array mismatch 的根因是 migration 058 未加 cardinality 約束；只靠應用層 test invariant 擋不住直寫。
+6. **FC 優先於 registry 是正確且會被觀察到的**：backfill 尊重 363 個 FC-locked event；若 FC 本身鎖了錯值（梅田蔦屋鎖成 independent_venue），需人工刪 FC 而非放寬 precedence。
+
+**驗證：** Gate 2A mismatch 70→0；Gate 2B migration 095 四個 constraint validated；Gate 2C seed 4 entity + backfill 8 events（conflict=0）。資料面事故細節見 `.github/skills/scraper-expert/history.md` 2026-08-03。
+

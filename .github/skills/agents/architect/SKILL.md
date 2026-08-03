@@ -2227,3 +2227,22 @@ Reference incident: 2026-05-15 — migration 047 `study_abroad`（1 筆）不在
 
 Reference incident: 2026-05-15 — gguide_tv（media）、cinema 來源（independent_venue）、wuext_waseda（academic）等批次推斷後 organizer_type 非 unknown 從 70% 提升至 92.1%。
 
+> ⚠️ **2026-08-03 更正 — supersedes 上方第 4 點**：`organizer_type` 現已納入 `annotator._NON_TEXT_FC_FIELDS`，FC **可以**保護且**必須**用於人工修正（本次 production 已驗證：backfill 對 363 個 FC-locked event 正確跳過）。手動修正 organizer_type 時務必寫入 `field_corrections`，否則下次 re-annotation 會被覆寫。
+
+## Organizer Authority Guard（entity registry 權威化守護）
+
+在審核任何涉及 `organizers` registry、`organizer_type` resolver、或 co/sponsor parallel type arrays 的計畫前，**必須**確認：
+
+1. **scalar registry type 不得靜默壓平 events 的多值 array**：`events.organizer_type` 是 `text[]`（允許 `["academic","media"]`），但 `organizers.organizer_type` 是 scalar。resolver 必須實作四案：(a) 空／全 `unknown` → adopt registry；(b) 既有多值已含 registry type → **完整保留**；(c) 單一合法值衝突 → registry 勝出並記 conflict；(d) ≥2 合法值且不含 registry type → **fail closed**，保留原陣列進 manual queue。
+2. **pre-migration remediation 的 scope 必須 table-wide**：validated CHECK 掃描整表，`is_active=false` 的 mismatch 同樣會讓 migration abort。只掃 active 會嚴重低估（實例：active 17 vs 全表 70 pairs／66 events）。
+3. **validated CHECK 是刻意的 fail-closed 設計**：`ALTER TABLE ... ADD CONSTRAINT`（非 `NOT VALID`）在資料未清零時整個 transaction abort、不留半套 schema。migration 檔頂部必須標明 apply 前置條件。
+4. **新欄位的 registry 必須 graceful degradation**：欄位尚未 migrate 時，registry load 失敗要回**空 registry + debug log**、絕不 raise。這讓 code 可先 merge、migration 後補 apply，期間每日 CI 行為零改變（no-op）。
+5. **scalar 與 array 欄位的 constraint 語法不同**：scalar 用 `IS NULL OR x IN (...)`；array 用 `x <@ ARRAY[...]`。不可互相照抄。
+6. **alias 解析 fail-closed**：alias 命中多個 authoritative entity 時不得 `.limit(1)` 任選，應記 collision 並保留原值。
+7. **`_NON_TEXT_FC_FIELDS` 對稱性**：co/sponsor 的名稱與 type array（`co_organizers`／`co_organizer_types`／`sponsors`／`sponsor_types`）必須全數納入，避免 TEXT corrected_value 污染 `text[]` 欄位。
+8. **LLM 永不回寫 registry**：`is_authoritative` 只能由人工／deterministic evidence 設定；LLM inference vocabulary 可比 storage vocabulary 更窄（現行 9 值 vs 10 值，`individual` 為 storage-only）。
+
+**驗收條件**：(1) resolver 四案各有 unit test；(2) migration apply 前 read-back 全表 mismatch=0；(3) `pg_constraint.convalidated=true`；(4) registry 空時 annotation 輸出逐欄位不變。
+
+Reference: 2026-08-03 Organizer Type Authority（migration 095 + `organizer_registry.py`）；資料面事故見 `.github/skills/scraper-expert/history.md` 2026-08-03。
+
