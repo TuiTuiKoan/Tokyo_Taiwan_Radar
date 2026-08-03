@@ -137,6 +137,18 @@ Read this at the start of every session before writing any scraper.
    - 衝突チェックは **active イベントのみ**（`is_active=True`）を対象にする。inactive gnews イベントの住所は不完全なことが多く、seed を誤ブロックする原因になる。
    - SKIP が出た場合は event_id sample を確認し、住所が本当に異なるか（別場所）または単なるフォーマット差異かを判別すること。
 
+## Organizer Type & Registry 使用慣例
+
+1. **Classify by the organization's legal/operating identity, never by the event topic.** A commercial bookstore chain hosting a Taiwan culture talk is still `commercial_brand`; a university press conference about a film is still `academic`. Event content must never decide `organizer_type`.
+2. **Chain bookstores, department stores, and retailers are `commercial_brand`** — `紀伊國屋書店`, `誠品生活`, `蔦屋書店`, `有隣堂`. Do not use `cultural_institution` (reserved for museums, galleries, foundations, public theaters) or `independent_venue` (reserved for a single independently operated venue) for a retail chain.
+3. **Venue ≠ organizer.** A department-store event hall (`催事場`) is normally rented out, so the store is not the organizer. Never add a source-level default organizer for a platform whose events are run by rotating third parties, that spans multiple branches/tenants, or whose `organizer` is legitimately null. Rejected in 2026-08 for exactly these reasons: `tsutaya_portal` (many branches), `eslite_spectrum` (誠品 + 有隣堂 dual organizer), `hankyu_hakata` / `hanshin_umeda` (organizer null, hall rented out).
+4. **A `research_sources` source default must be a name+type PAIR.** `_load_default_organizer_map()` only loads a row whose `default_organizer` is non-empty, so a type-only row (`default_organizer_type` set, `default_organizer` null) is dormant, silently does nothing, and must be cleared rather than left in place.
+5. **Event form is orthogonal to organizer type.** `market`, `exhibition`, and `publication` describe what the event *is*; they say nothing about who runs it. Do not infer `organizer_type` from `event_form`, nor `event_form` from the organizer.
+6. **Registry precedence** (highest first): `field_corrections` > authoritative `organizers` registry > `research_sources` source default > existing valid DB value > LLM inference > `unknown`. `annotator._apply_organizer_registry()` runs after the LLM payload is assembled and before FC restore, so an FC lock always wins.
+7. **Alias collisions fail closed.** `organizer_registry.lookup_organizer()` and `database._populate_entity_fks()` must never resolve an ambiguous name with `.limit(1)`. On multiple matches, return no match and leave the FK unset so the ambiguity surfaces for review.
+8. **LLM inference vocabulary (9 values) is narrower than storage vocabulary (10 values).** The prompt must not emit `individual` — it is storage/registry-only. Adding a value to the DB constraint does not make it a valid model output, and vice versa.
+9. **Before proposing a new authoritative entity**, run `python3 scraper/audit_organizers.py` and confirm the entity resolves to one stable type across its events. A multi-type entity must be repaired first; setting `is_authoritative` on a drifting entity freezes the drift into authority.
+
 ## Default Fallback & Pricing Policies (系統預設回退與收費政策)
 
 1. **時間空白回退 (Empty Business Hours Fallback)**:

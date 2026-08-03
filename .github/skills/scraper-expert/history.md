@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-08-03 - organizer entity 型別漂移與 registry 權威化
+
+**問題：** `organizer_type` 由 GPT 逐 event 重新推斷，同一 entity 在不同 events 之間漂移。audit 實測：`台湾文化センター`（38 events）同時存在 `academic` / `cultural_institution` / `government` / `semi_official` 四型；連鎖商業書店（誠品、蔦屋、有隣堂、紀伊國屋）被依「活動主題是文化講座」誤判成 `cultural_institution` / `independent_venue`。
+
+**根本原因：** 分類依據被錯置成「活動內容」而非「組織的法律／營運身份」，且沒有 entity 級權威來源——event-level `field_corrections` 只能鎖住個別 event，同一 entity 的新 event 仍會重新漂移。
+
+**修復：** 改為 entity-first 權威模型：`FC > authoritative registry > source default > existing valid > LLM > unknown`。新增 `scraper/organizer_registry.py`（鏡像 `venue_registry.py`，只載 `is_authoritative=true`）、`scraper/audit_organizers.py`（entity-first audit manifest），`annotator._apply_organizer_registry()` 在 LLM 組裝後、FC restore 前套用；seed 紀伊國屋／誠品／有隣堂／蔦屋 4 個 entity 為 `commercial_brand` + `is_authoritative`。奈良蔦屋書店 `cultural_institution`→`commercial_brand`、株式会社有隣堂 `independent_venue`→`commercial_brand`。百貨 source defaults 判斷後**一律不設**（`tsutaya_portal` 多分店、`eslite_spectrum` 雙 organizer、`hankyu_hakata` / `hanshin_umeda` organizer null 且催事場外租），並清除 `eslite_spectrum` 既有的 dormant type-only default（`default_organizer_type` 有值但 `default_organizer=null`，`_load_default_organizer_map()` 根本不會載入）。
+
+**驗證：** backfill 8 events，`primary_conflicts=0`、`fc_skipped=363`；最終 read-back 蔦屋 8 筆 active 全為 `commercial_brand`，4 個 entity 相關 events 的非 `commercial_brand` 殘留為 0。
+
+**教訓：**
+
+1. **場地 ≠ 主辦方。** 百貨催事場常出租給外部主辦方，貿然設 source default 會把外部主辦活動誤標成百貨主辦。
+2. **source default 必須 name+type 成對**，type-only 是永遠不會生效的無效設定，留著只會誤導後續判斷。
+3. **FC 鎖可能鎖住錯誤值。** 梅田蔦屋 `4d6658d0` 有舊 FC 把 type 鎖成 `independent_venue`，backfill 正確尊重 FC 而未覆蓋（`FC > registry` 如設計預期）；正解是刪除該錯誤 FC 並改回 registry 維持，而不是提高 registry 優先序。
+4. **organizer 為 null 不必然是 scraper regression。** iwafu 15 筆 organizer-null 診斷結果：regression=0、未回填=0、來源本身無證據=35；其中 2 筆（台湾發祭2026、Taiwan Faasai 2026）的 `主催` 根本不在 iwafu 頁面 body，而在 merger 附加的「別来源補足 (prtimes)」區塊——屬 **merge-provenance artifact**（存活 `source_name=iwafu`，但 organizer 證據在被 merge 掉的 sibling source）。在 `iwafu.py` 加 parser 會是永不觸發的 dead code。診斷 organizer 缺漏時，必須先分類 (a) regression / (b) 未回填 / (c) 來源無證據，再決定要不要改 scraper。
+
+架構面決策與 migration 教訓見 `.github/skills/agents/architect/history.md` 2026-08-03。
+
 ## 2026-07-20 - Taiwan Expo Japan annual Wix SSR source
 
 ### Context
