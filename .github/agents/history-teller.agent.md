@@ -19,6 +19,7 @@ handoffs:
 1. **先讀後改**：改任何檔前先 `read_file` 讀現有內容，從頂部插入，禁止憑記憶覆寫已 commit 的章節。
 2. **terminal 驗證,非 grep_search**：`.github` 被 search.exclude，grep_search 回假 0。改完一律用 terminal：
    `grep -rnE '<pattern>' .github/agents/ | wc -l` 或讀目標行確認。
+   驗證必須比對**新增內容的特徵字串**（如新標題、新 Guard 名）；`git diff --numstat` 的行數會被同檔既有 WIP 混淆而誤判為已寫入。
 3. **同型失敗 2 次即停**：第 2 次驗證仍未變更 → 停手，回報「工具不發」+ 貼 git diff 證據，不做第 3 次盲試。
 4. **小改自己做**：≤10 檔的文件改動不委派 subagent，直接 multi_replace + 1 次 terminal 驗證。
 

@@ -4081,3 +4081,4 @@ In the same session, the previous turn had wrongly "verified" and patched this s
 
 **驗證：** Gate 2A mismatch 70→0；Gate 2B migration 095 四個 constraint validated；Gate 2C seed 4 entity + backfill 8 events（conflict=0）。資料面事故細節見 `.github/skills/scraper-expert/history.md` 2026-08-03。
 
+7. **過時的 Guard 斷言會被 production 事實推翻，用 supersede 而非刪除**：本檔 SKILL 舊規則寫「organizer_type 不在 `TRACKED_FIELDS`、補值後不需寫 `field_corrections`」，實際已納入 `_NON_TEXT_FC_FIELDS` 且 FC 確實生效。修法：在舊條目後附「⚠️ 日期 更正 — supersedes 上方第 N 點」，保留原文以便追溯認知演進，不直接改寫已 commit 的斷言。
