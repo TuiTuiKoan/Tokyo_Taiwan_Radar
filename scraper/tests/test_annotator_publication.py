@@ -6,6 +6,7 @@ import pytest
 
 from annotator import (
     PUBLICATION_NULL_FIELDS,
+    PUBLICATION_VENUE_NAME_FIELDS,
     _assert_pure_publication_payload,
     _finalize_publication_update,
     _verify_publication_postcondition,
@@ -140,6 +141,89 @@ def test_publication_capable_source_physical_talk_is_unchanged(caplog):
     assert "publication_finalizer_path" not in caplog.text
 
 
+def test_pure_finalizer_clears_unprotected_venue_names():
+    event = {"id": "pure-venue", "event_form": ["publication"], "organizer": "架空出版社"}
+    update = {
+        "event_form": ["publication"],
+        "location_name": "誠品生活日本橋",
+        "location_name_zh": "誠品生活日本橋",
+        "location_name_en": "Eslite Spectrum Nihonbashi",
+    }
+    localized = {
+        "location_name_zh": "誠品生活日本橋",
+        "location_name_en": "Eslite Spectrum Nihonbashi",
+    }
+
+    assert _finalize_publication_update(event, update, localized, {}, {})
+    assert all(update[field] is None for field in PUBLICATION_VENUE_NAME_FIELDS)
+    assert localized == {}
+
+
+def test_pure_finalizer_keeps_venue_name_with_nonempty_field_correction(caplog):
+    event = {"id": "pure-fc", "event_form": ["publication"], "organizer": "架空出版社"}
+    update = {
+        "event_form": ["publication"],
+        "location_name": "大阪城ホール",
+        "location_name_zh": "GPTが推測した会場",
+        "location_name_en": "GPT guessed venue",
+    }
+    localized = {"location_name_zh": "GPTが推測した会場"}
+
+    with caplog.at_level(logging.INFO, logger="annotator"):
+        assert _finalize_publication_update(
+            event, update, localized, {"location_name": "大阪城ホール"}, {}
+        )
+
+    assert update["location_name"] == "大阪城ホール"
+    assert update["location_name_zh"] is None
+    assert update["location_name_en"] is None
+    assert localized == {}
+
+    markers = [
+        record
+        for record in caplog.records
+        if record.getMessage().startswith("publication_venue_name_fc_exemption ")
+    ]
+    assert len(markers) == 1
+    assert json.loads(markers[0].getMessage().split(" ", 1)[1]) == {
+        "event_id": "pure-fc",
+        "fields": ["location_name"],
+    }
+    assert "大阪城ホール" not in caplog.text
+
+
+def test_pure_finalizer_treats_empty_venue_field_correction_as_unprotected():
+    event = {"id": "pure-empty-fc", "event_form": ["publication"], "organizer": "架空出版社"}
+    update = {"event_form": ["publication"], "location_name": "誠品生活日本橋"}
+
+    assert _finalize_publication_update(event, update, {}, {"location_name": ""}, {})
+    assert update["location_name"] is None
+
+
+def test_pure_finalizer_keeps_venue_names_for_mixed_publication_form(caplog):
+    event = {
+        "id": "mixed-form",
+        "event_form": ["publication", "lecture"],
+        "organizer": "誠品生活日本橋",
+    }
+    update = {
+        "event_form": ["publication", "lecture"],
+        "location_name": "誠品生活日本橋",
+        "location_name_zh": "誠品生活日本橋",
+        "business_hours": "13:00〜",
+        "location_url": "https://venue.example.test/",
+    }
+
+    with caplog.at_level(logging.INFO, logger="annotator"):
+        assert not _finalize_publication_update(event, update, {}, {}, {})
+
+    assert update["location_name"] == "誠品生活日本橋"
+    assert update["location_name_zh"] == "誠品生活日本橋"
+    assert update["business_hours"] == "13:00〜"
+    assert update["location_url"] == "https://venue.example.test/"
+    assert "publication_venue_name_fc_exemption" not in caplog.text
+
+
 def test_pure_finalizer_rejects_nonempty_policy_field_correction():
     event = {"event_form": ["publication"], "organizer": "架空出版社"}
     update = {"event_form": ["publication"]}
@@ -185,6 +269,41 @@ def test_pure_payload_guard_raises_before_write_on_non_null_policy_fields():
         )
 
 
+def test_pure_payload_guard_rejects_unprotected_venue_name():
+    with pytest.raises(RuntimeError, match="venue="):
+        _assert_pure_publication_payload(
+            {
+                "event_form": ["publication"],
+                **{field: None for field in PUBLICATION_NULL_FIELDS},
+                "location_name": "誠品生活日本橋",
+            },
+            {},
+        )
+
+
+def test_pure_payload_guard_allows_venue_name_with_nonempty_correction():
+    _assert_pure_publication_payload(
+        {
+            "event_form": ["publication"],
+            **{field: None for field in PUBLICATION_NULL_FIELDS},
+            "location_name": "大阪城ホール",
+        },
+        {},
+        {"location_name": "大阪城ホール"},
+    )
+
+
+def test_pure_payload_guard_ignores_mixed_publication_form():
+    _assert_pure_publication_payload(
+        {
+            "event_form": ["publication", "lecture"],
+            "location_name": "誠品生活日本橋",
+            "business_hours": "13:00〜",
+        },
+        {"location_name_zh": "誠品生活日本橋"},
+    )
+
+
 class PostconditionQuery:
     def __init__(self, rows):
         self.rows = rows
@@ -217,3 +336,41 @@ def test_annotation_postcondition_failure_raises():
 
     with pytest.raises(RuntimeError, match="postcondition failed"):
         _verify_publication_postcondition(PostconditionClient([row]), "pure-1")
+
+
+def test_annotation_postcondition_rejects_residual_venue_name():
+    row = {
+        "id": "pure-2",
+        **{field: None for field in PUBLICATION_NULL_FIELDS},
+        "location_name": "誠品生活日本橋",
+    }
+
+    with pytest.raises(RuntimeError, match="postcondition failed"):
+        _verify_publication_postcondition(PostconditionClient([row]), "pure-2")
+
+
+def test_annotation_postcondition_accepts_protected_venue_name():
+    row = {
+        "id": "pure-3",
+        **{field: None for field in PUBLICATION_NULL_FIELDS},
+        "location_name": "大阪城ホール",
+        "location_name_zh": None,
+        "location_name_en": None,
+    }
+
+    _verify_publication_postcondition(
+        PostconditionClient([row]), "pure-3", {"location_name": "大阪城ホール"}
+    )
+
+
+def test_annotation_postcondition_rejects_protected_venue_name_mismatch():
+    row = {
+        "id": "pure-4",
+        **{field: None for field in PUBLICATION_NULL_FIELDS},
+        "location_name": "別の会場",
+    }
+
+    with pytest.raises(RuntimeError, match="postcondition failed"):
+        _verify_publication_postcondition(
+            PostconditionClient([row]), "pure-4", {"location_name": "大阪城ホール"}
+        )

@@ -155,3 +155,46 @@ description: publication-policy 各 phase、Wave 邊界、驗證與交付狀態
 - [ ] NOT EXECUTED: push、merge與 deploy
 - [ ] NOT EXECUTED: live DB apply、Eslite live remap與 QA live reconcile
 - [x] 安全邊界確認：無 live DB write、push、merge或 deploy
+
+## Delivery Batch 1: Venue Writer Stop + Writer Matrix（code-only）
+
+### Phase 0: Worktree 前置
+
+- [x] 依 git instructions state matrix 確認 CONTINUING，於 `ttr-publication-policy-worktree` / `feat/publication-policy` 作業
+- [x] `git fetch origin` 後 fast-forward 至 `origin/main`（`ff499aa2`），既有 web WIP 位元組完全保留
+- [x] 確認主工作樹與其他 worktree 的不相關 WIP 未被本批次觸及
+
+### Phase 1a: 停掉兩個 pure-publication venue writer
+
+- [x] 移除 annotator 將 NDL `publication_label_*` 複製進三個 `location_name*` 的 assignment
+- [x] `_finalize_publication_update()` 清除三個 venue-name 欄位與其 localized staging 值
+- [x] 非空 field_correction 時保留精確值並發出 structured warning marker，不 raise
+- [x] 七個 canonical `PUBLICATION_NULL_FIELDS` 的 hard failure 維持不變，未替 venue-name 建立 empty sentinel
+- [x] `_assert_pure_publication_payload()` 接受 protected-field context 並拒絕未豁免的非 null venue payload
+- [x] `_verify_publication_postcondition()` 驗證未受保護欄位為 NULL、受保護欄位等於預期保留值
+- [x] `database.py::_apply_pure_publication_policy()` 對 exact-pure row 清除三個 venue-name 欄位
+- [x] NDL `publication_label_*` 僅保留於 periodical `description_*` prefix，docstring 改述為 publisher/periodical enrichment
+- [x] 保留所有 legacy placeholder 常數與 fixtures 作為歷史污染 detector
+
+### Phase 1a 測試
+
+- [x] annotator 新增 unprotected 清除、non-empty FC 豁免、empty FC 視為未保護三類案例
+- [x] annotator 新增 payload guard 與 postcondition 的 venue-name 正負向案例
+- [x] database 證明 exact-pure 清除 scraper venue 值，`["lecture"]` 保留
+- [x] 關鍵負向斷言：`["publication","lecture"]` 混合型不得被當成 pure 處理
+
+### Phase 1b: Writer matrix 稽核（唯讀）
+
+- [x] 稽核 13 個目標欄位的所有可呼叫 writer，判準為是否 select `event_form` 與 mutation 前是否重檢 exact-pure
+- [x] 明確涵蓋 5 個 location-enrichment guards、`annotator.py`、`database.py`、organizer_type authority path 與 venue/prefecture backfills
+- [x] 矩陣寫入 `changes-log.md`，區分 covered、uncovered 與 verified non-writers
+- [x] 發現 11 個未覆蓋 producer，已標示 blocks Phase 3（不阻擋 Batch 1 釋出）
+
+### Batch 1 驗證與邊界
+
+- [x] 聚焦測試 PASS（36 tests）
+- [x] 全量 scraper 測試 PASS（473 passed, 1 skipped）
+- [x] `compileall` 與 `git diff --check` PASS
+- [x] `web/messages/*.json` 本批次零 diff；測試期間無 production DB 連線或寫入
+- [ ] NOT EXECUTED（授權邊界）: Phase 3、`qa_auto_fix.py`、`_oneoff_backfill_publication_metadata.py`、`test_publication_manifest.py`
+- [ ] NOT EXECUTED（授權邊界）: live DB apply、SQL migration、`web/` 變更、push、merge 與 deploy

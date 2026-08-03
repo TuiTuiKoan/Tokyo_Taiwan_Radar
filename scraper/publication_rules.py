@@ -17,6 +17,14 @@ PUBLICATION_NULL_FIELDS = (
     "location_prefectures",
 )
 
+# Cleared for exact-pure rows like PUBLICATION_NULL_FIELDS, but deliberately NOT
+# part of it: these carry no empty-sentinel field_correction contract.
+PUBLICATION_VENUE_NAME_FIELDS = (
+    "location_name",
+    "location_name_zh",
+    "location_name_en",
+)
+
 _NDL_PERIODICAL_FAMILY = "R000000004"
 _PUBLISHER_TYPE_MARKERS_RE = re.compile(
     r"^(?:株式会社|有限会社|合同会社|一般社団法人|一般財団法人|公益社団法人|公益財団法人|\(株\)|㈱)"

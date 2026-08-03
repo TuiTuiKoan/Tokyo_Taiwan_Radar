@@ -13,6 +13,7 @@ from supabase import create_client, Client
 
 from publication_rules import (
     PUBLICATION_NULL_FIELDS,
+    PUBLICATION_VENUE_NAME_FIELDS,
     is_pure_publication_record,
     validated_registry_homepage,
 )
@@ -64,6 +65,8 @@ def _apply_pure_publication_policy(row: dict[str, Any]) -> bool:
     if not is_pure_publication_record(row):
         return False
     for field in PUBLICATION_NULL_FIELDS:
+        row[field] = None
+    for field in PUBLICATION_VENUE_NAME_FIELDS:
         row[field] = None
     row["location_url"] = None
     row.pop("venue_id", None)

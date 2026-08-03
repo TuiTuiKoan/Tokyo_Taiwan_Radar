@@ -57,6 +57,7 @@ from person_name_lookup import (
 )
 from publication_rules import (
     PUBLICATION_NULL_FIELDS,
+    PUBLICATION_VENUE_NAME_FIELDS,
     is_pure_publication_record,
     normalize_publisher_name,
     validated_registry_homepage,
@@ -97,8 +98,8 @@ def _fetch_ndl_publication_context(source_url: str | None) -> dict[str, Any]:
     """Fetch NDL bibliographic metadata for publication rows.
 
     NDL magazine / journal article pages expose the issue title and volume in
-    breadcrumbs.  We use that to replace the generic purchase-channel placeholder
-    for periodical articles and to backfill organizer from the page's publisher.
+    breadcrumbs.  That label enriches the periodical ``description_*`` prefix and
+    the page's publisher backfills organizer; neither is a venue value.
     """
     if not source_url:
         return {}
@@ -1971,6 +1972,24 @@ def _load_publisher_registry(sb: "Client") -> dict[str, dict[str, Any]]:
     return registry
 
 
+def _exempt_publication_venue_fields(
+    protected_fields: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Venue-name fields whose non-empty field_correction defers the pure clear.
+
+    Temporary carve-out so legacy rows still carrying an admin venue correction
+    stay re-annotatable instead of hard-failing; the seven canonical
+    PUBLICATION_NULL_FIELDS keep their strict conflict error.
+    """
+    if not protected_fields:
+        return {}
+    return {
+        field: protected_fields[field]
+        for field in PUBLICATION_VENUE_NAME_FIELDS
+        if protected_fields.get(field) not in (None, "")
+    }
+
+
 def _finalize_publication_update(
     event: dict[str, Any],
     update_data: dict[str, Any],
@@ -2000,6 +2019,22 @@ def _finalize_publication_update(
     for field in PUBLICATION_NULL_FIELDS:
         update_data[field] = None
         localized_location_data.pop(field, None)
+    venue_exemptions = _exempt_publication_venue_fields(protected_fields)
+    for field in PUBLICATION_VENUE_NAME_FIELDS:
+        localized_location_data.pop(field, None)
+        update_data[field] = venue_exemptions.get(field)
+    if venue_exemptions:
+        logger.warning(
+            "publication_venue_name_fc_exemption %s",
+            json.dumps(
+                {
+                    "event_id": event.get("id"),
+                    "fields": sorted(venue_exemptions),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        )
     update_data["location_url"] = None
     update_data.pop("venue_id", None)
 
@@ -2037,22 +2072,38 @@ def _finalize_publication_update(
     return True
 
 
-def _verify_publication_postcondition(sb: "Client", event_id: str) -> None:
+def _verify_publication_postcondition(
+    sb: "Client",
+    event_id: str,
+    protected_fields: dict[str, Any] | None = None,
+) -> None:
+    venue_exemptions = _exempt_publication_venue_fields(protected_fields)
+    columns = ("id",) + PUBLICATION_NULL_FIELDS + PUBLICATION_VENUE_NAME_FIELDS
     result = (
         sb.table("events")
-        .select("id," + ",".join(PUBLICATION_NULL_FIELDS))
+        .select(",".join(columns))
         .eq("id", event_id)
         .limit(1)
         .execute()
     )
     rows = list(result.data or [])
-    if len(rows) != 1 or any(rows[0].get(field) is not None for field in PUBLICATION_NULL_FIELDS):
-        raise RuntimeError(f"Pure publication annotation postcondition failed for {event_id}")
+    failure = f"Pure publication annotation postcondition failed for {event_id}"
+    if len(rows) != 1:
+        raise RuntimeError(failure)
+    row = rows[0]
+    if any(row.get(field) is not None for field in PUBLICATION_NULL_FIELDS):
+        raise RuntimeError(failure)
+    if any(
+        row.get(field) != venue_exemptions.get(field)
+        for field in PUBLICATION_VENUE_NAME_FIELDS
+    ):
+        raise RuntimeError(failure)
 
 
 def _assert_pure_publication_payload(
     update_data: dict[str, Any],
     localized_location_data: dict[str, Any],
+    protected_fields: dict[str, Any] | None = None,
 ) -> None:
     if not is_pure_publication_record(update_data):
         return
@@ -2064,10 +2115,20 @@ def _assert_pure_publication_payload(
         field for field in PUBLICATION_NULL_FIELDS
         if localized_location_data.get(field) is not None
     ]
-    if payload_violations or localized_violations:
+    venue_exemptions = _exempt_publication_venue_fields(protected_fields)
+    venue_violations = [
+        field for field in PUBLICATION_VENUE_NAME_FIELDS
+        if field not in venue_exemptions
+        and (
+            update_data.get(field) is not None
+            or localized_location_data.get(field) is not None
+        )
+    ]
+    if payload_violations or localized_violations or venue_violations:
         raise RuntimeError(
             "Pure publication payload postcondition failed before write: "
-            f"payload={sorted(payload_violations)} localized={sorted(localized_violations)}"
+            f"payload={sorted(payload_violations)} localized={sorted(localized_violations)} "
+            f"venue={sorted(venue_violations)}"
         )
 
 
@@ -2597,9 +2658,6 @@ def annotate_pending_events(
                     publication_description_en = publication_description_ja
                     if "event_form" not in _human_protected:
                         update_data["event_form"] = ["publication"]
-                    update_data["location_name"] = publication_text_ja
-                    update_data["location_name_zh"] = publication_text_zh
-                    update_data["location_name_en"] = publication_text_en
                     if publication_context.get("is_periodical"):
                         if update_data.get("name_ja"):
                             update_data["name_ja"] = _prefix_publication_name(
@@ -3009,7 +3067,9 @@ def annotate_pending_events(
                 _human_protected,
                 _publisher_registry,
             )
-            _assert_pure_publication_payload(update_data, localized_location_data)
+            _assert_pure_publication_payload(
+                update_data, localized_location_data, _human_protected
+            )
 
             if dry_run:
                 logger.info(
@@ -3021,7 +3081,7 @@ def annotate_pending_events(
             else:
                 sb.table("events").update(update_data).eq("id", eid).execute()
                 if _is_pure_publication:
-                    _verify_publication_postcondition(sb, eid)
+                    _verify_publication_postcondition(sb, eid, _human_protected)
                 events_ok += 1
             logger.info("  ✓ annotated (categories: %s)", categories)
 

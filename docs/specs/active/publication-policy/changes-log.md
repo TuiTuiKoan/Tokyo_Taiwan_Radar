@@ -603,3 +603,102 @@ Safety confirmation:
 
 Live DB apply, Eslite live remap, QA live reconcile, Wave 2 provider calls,
 push, merge, and deploy remain outside this local delivery and were not executed.
+
+## Delivery Batch 1 (code-only)
+
+* Base SHA: `ff499aa2571614ea278b155421b4d357a81466d1` (worktree fast-forwarded to `origin/main`)
+* Scope: Phase 1a (stop pure-publication venue writers) and Phase 1b (writer matrix audit)
+* Boundary: no production DB write, no migration, no `web/` change, no push, no deploy
+
+### Phase 1a — code changes
+
+| File | Change |
+|------|--------|
+| `scraper/publication_rules.py` | Added `PUBLICATION_VENUE_NAME_FIELDS` (`location_name`, `location_name_zh`, `location_name_en`), documented as cleared for exact-pure rows but deliberately outside `PUBLICATION_NULL_FIELDS` because they carry no empty-sentinel field-correction contract |
+| `scraper/annotator.py` | Removed the three assignments that copied NDL `publication_label_ja/zh/en` into `location_name` / `location_name_zh` / `location_name_en` |
+| `scraper/annotator.py` | Added `_exempt_publication_venue_fields()` returning venue-name fields whose field_correction is non-empty |
+| `scraper/annotator.py` | `_finalize_publication_update()` now clears the three venue-name fields and their localized staging values; a non-empty field_correction keeps the exact value and emits the structured `publication_venue_name_fc_exemption` warning marker (field names only, no values) without raising. The seven canonical `PUBLICATION_NULL_FIELDS` keep their unchanged hard `policy conflicts` failure |
+| `scraper/annotator.py` | `_assert_pure_publication_payload()` accepts optional protected-field context and rejects any non-null `location_name*` payload or localized staging value unless that field has a non-empty field-correction exemption |
+| `scraper/annotator.py` | `_verify_publication_postcondition()` accepts optional protected-field context; after write it requires the seven canonical fields to be NULL, unprotected venue-name fields to be NULL, and protected venue-name fields to equal the expected retained value |
+| `scraper/annotator.py` | Both call sites now pass `_human_protected` |
+| `scraper/annotator.py` | `_fetch_ndl_publication_context()` docstring rewritten as publisher / periodical-description enrichment instead of placeholder replacement; the label still feeds only the existing periodical `description_*` prefix |
+| `scraper/database.py` | `_apply_pure_publication_policy()` also clears `location_name`, `location_name_zh`, `location_name_en` on every exact-pure row |
+
+Legacy placeholder constants and fixtures were kept — they remain the detectors for historical pollution.
+
+### Phase 1a — tests
+
+| File | Test |
+|------|------|
+| `scraper/tests/test_annotator_publication.py` | `test_pure_finalizer_clears_unprotected_venue_names` |
+| `scraper/tests/test_annotator_publication.py` | `test_pure_finalizer_keeps_venue_name_with_nonempty_field_correction` |
+| `scraper/tests/test_annotator_publication.py` | `test_pure_finalizer_treats_empty_venue_field_correction_as_unprotected` |
+| `scraper/tests/test_annotator_publication.py` | `test_pure_finalizer_keeps_venue_names_for_mixed_publication_form` |
+| `scraper/tests/test_annotator_publication.py` | `test_pure_payload_guard_rejects_unprotected_venue_name` |
+| `scraper/tests/test_annotator_publication.py` | `test_pure_payload_guard_allows_venue_name_with_nonempty_correction` |
+| `scraper/tests/test_annotator_publication.py` | `test_pure_payload_guard_ignores_mixed_publication_form` |
+| `scraper/tests/test_annotator_publication.py` | `test_annotation_postcondition_rejects_residual_venue_name` |
+| `scraper/tests/test_annotator_publication.py` | `test_annotation_postcondition_accepts_protected_venue_name` |
+| `scraper/tests/test_annotator_publication.py` | `test_annotation_postcondition_rejects_protected_venue_name_mismatch` |
+| `scraper/tests/test_database_publication.py` | `test_event_to_row_clears_scraper_venue_names_for_exact_pure` |
+| `scraper/tests/test_database_publication.py` | `test_event_to_row_keeps_venue_name_for_physical_form` |
+| `scraper/tests/test_database_publication.py` | `test_event_to_row_keeps_venue_and_policy_fields_for_mixed_form` |
+| `scraper/tests/test_database_publication.py` | `test_apply_pure_publication_policy_ignores_mixed_form_row` |
+
+All tests are offline; no Supabase client is constructed against production.
+
+### Phase 1b — writer matrix
+
+Target fields: the seven canonical `PUBLICATION_NULL_FIELDS` plus `location_name`,
+`location_name_zh`, `location_name_en`, `location_url`, `venue_id`, `organizer_type`.
+"Pure re-check" means the exact-pure state is re-confirmed immediately before the mutation.
+
+#### Covered writers
+
+| Writer | Entry point | Target fields written | Selects `event_form` | Pure re-check before write |
+|--------|-------------|----------------------|----------------------|----------------------------|
+| `scraper/annotator.py` | `_finalize_publication_update()` → `events.update()` | all 13 | Yes | Yes — pure computed from freshly read event merged with payload, `_assert_pure_publication_payload()` before write, `_verify_publication_postcondition()` read-back after write |
+| `scraper/database.py` | `_apply_pure_publication_policy()` in `_event_to_row()` and after force-rescrape field-correction apply | 7 canonical + 3 venue names + `location_url` + `venue_id` + `organizer_type` | Yes | Yes — applied to the row itself as the last step before the upsert payload is finalized, and re-applied after field corrections |
+| `scraper/enrich_addresses.py` | address enrichment | `location_address*`, `location_name` | Yes | Yes — `partition_pure_publications()` at candidate stage plus `is_pure_publication_in_db()` before write |
+| `scraper/enrich_location.py` | location enrichment | `location_address` | Yes | Yes — same two-stage guard |
+| `scraper/geocode_events.py` | geocoding | `venue_id`-adjacent geocode columns | Yes | Yes — same two-stage guard |
+| `scraper/backfill_locations.py` | location backfill | `location_address`, `location_name` | Yes | Yes — same two-stage guard |
+| `scraper/backfill_location_prefectures.py` | prefecture backfill | `location_prefectures` | Yes | Yes — same two-stage guard |
+| `scraper/enrich_poster.py` | Vision poster enrichment | `location_name` | Yes | Yes — `_read_current_event()` re-reads `_GUARD_SELECT` and `_poster_guard_reason()` re-checks pure after Vision, before write |
+| `scraper/_oneoff_backfill_publication_metadata.py` | publication metadata backfill | `business_hours*`, `location_name`, `location_url` | Yes | Yes — per-row exact-pure verification before action; out of scope for modification in this batch |
+
+#### Uncovered producers — blocks Phase 3
+
+These paths can mutate a target field on an exact-pure row without ever reading `event_form`.
+They do not block the Batch 1 release, but Phase 3 cannot be considered safe until each is closed.
+
+| Writer | Entry point | Target fields written | Selects `event_form` | Pure re-check | Note |
+|--------|-------------|----------------------|----------------------|---------------|------|
+| `scraper/auto_qa.py` | simplified-Chinese fix, candidate select is `"id," + _FIX_FIELDS + ",selection_reason,annotation_status"` | `location_name_zh`, `location_address_zh`, `business_hours_zh` (via `ZH_FIELDS`) | No | No | Also writes matching field-correction locks, so a violation persists |
+| `scraper/qa_auto_fix.py` | batch fix over `FIX_FIELDS` | `location_name_zh`, `location_address_zh`, `business_hours_zh` | No | No | Out of scope for modification in this batch |
+| `scraper/qa_auto_fix.py` | `handle_location_url_is_event_url()` | `location_url` | No | No | Selects `location_name` / `location_address` but not `event_form` |
+| `scraper/qa_heartbeat.py` | rollback path, `events.update({field: before})` | any audited field, including `location_url` and the `*_zh` trio | No | No | `_fetch_event()` selects no `event_form` |
+| `scraper/backfill_entities.py` | venue cluster backfill | `venue_id` | No | No | Candidate select is `id,{column}` only |
+| `scraper/backfill_organizer_authority.py` | authority apply | `organizer_type`, `co_organizer_types`, `sponsor_types` | No | No | `_EVENT_COLUMNS` has no `event_form` |
+| `scraper/_oneoff_repair_organizer_type_arrays.py` | array repair | `organizer_type`, `co_organizer_types`, `sponsor_types` | No | No | Source-agnostic one-off |
+| `scraper/_oneoff_fix_puppet_month_locations.py` | one-off location repair | 12 of the 13 | No | No | Source-scoped one-off |
+| `scraper/_oneoff_fix_tcc_locations.py` | one-off location repair | 7 of the 13 | No | No | Source-scoped one-off |
+| `scraper/_oneoff_backfill_gnews_streaming_fields.py` | gnews backfill | `business_hours`, `location_name` | Yes | No | Selects `event_form` only to default it to `["broadcast"]`; source-scoped |
+| Cinema `source_id` migration one-offs and `_oneoff_seed_authoritative_venues.py` | one-off migrations | `business_hours` | No | No | Source-scoped to non-publication cinema sources |
+
+#### Verified non-writers
+
+`scraper/merger.py` reads the location fields but never writes them.
+`scraper/audit_organizers.py` is read-only for `events` — its only `.update()` is a Python set method.
+`scraper/seed_authoritative_organizers.py` writes `organizer_type` on the `organizers` table, not on `events`.
+
+### Batch 1 verification
+
+| Gate | Result |
+|------|--------|
+| `pytest scraper/tests/test_annotator_publication.py scraper/tests/test_database_publication.py -q` | PASS, 36 tests |
+| `pytest scraper/tests -q` | PASS, 473 passed, 1 skipped |
+| `python -m compileall -q scraper` | PASS |
+| `git diff --check` | PASS |
+| `web/messages/*.json` diff from this batch | none |
+| Production DB access during tests | none |

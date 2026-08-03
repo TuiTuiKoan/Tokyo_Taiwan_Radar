@@ -21,6 +21,7 @@ def _event(**overrides):
         "source_url": "https://example.test/source",
         "original_language": "ja",
         "event_form": ["publication"],
+        "location_name": "紀伊國屋書店",
         "location_address": "東京都千代田区1-1",
         "location_prefectures": ["東京都"],
         "location_url": "https://venue.example.test/",
@@ -42,6 +43,47 @@ def test_event_to_row_preserves_publication_form_and_enforces_null_policy():
     assert row["business_hours_en"] is None
     assert row["location_prefectures"] is None
     assert row["location_url"] is None
+
+
+def test_event_to_row_clears_scraper_venue_names_for_exact_pure():
+    row = _event_to_row(_event())
+
+    assert row["location_name"] is None
+    assert row["location_name_zh"] is None
+    assert row["location_name_en"] is None
+
+
+def test_event_to_row_keeps_venue_name_for_physical_form():
+    row = _event_to_row(_event(event_form=["lecture"]))
+
+    assert row["location_name"] == "紀伊國屋書店"
+    assert "location_name_zh" not in row
+    assert "location_name_en" not in row
+
+
+def test_event_to_row_keeps_venue_and_policy_fields_for_mixed_form():
+    row = _event_to_row(_event(event_form=["publication", "lecture"]))
+
+    assert row["event_form"] == ["publication", "lecture"]
+    assert row["location_name"] == "紀伊國屋書店"
+    assert row["location_address"] == "東京都千代田区1-1"
+    assert row["location_prefectures"] == ["東京都"]
+    assert row["business_hours"] == "10:00-18:00"
+    assert row["location_url"] == "https://venue.example.test/"
+
+
+def test_apply_pure_publication_policy_ignores_mixed_form_row():
+    row = {
+        "event_form": ["publication", "lecture"],
+        "location_name": "紀伊國屋書店",
+        "business_hours": "10:00-18:00",
+        "venue_id": "venue-id",
+    }
+
+    assert database._apply_pure_publication_policy(row) is False
+    assert row["location_name"] == "紀伊國屋書店"
+    assert row["business_hours"] == "10:00-18:00"
+    assert row["venue_id"] == "venue-id"
 
 
 def test_event_to_row_keeps_physical_location_fields():
