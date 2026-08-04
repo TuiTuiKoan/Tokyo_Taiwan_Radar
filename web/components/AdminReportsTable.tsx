@@ -63,7 +63,7 @@ function ExclusionSuggest({ reportId, sourceName, title, locale }: ExclusionSugg
       setApplied((s) => new Set([...s, pattern]));
     } catch (err) {
       console.error("[applyPattern] unexpected error:", err);
-      setError("failed");
+      setError(t("error"));
     } finally {
       setBusy(null);
     }
@@ -385,7 +385,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       }
     } catch (err) {
       console.error("[handleDismiss] unexpected error:", err);
-      alert("保存に失敗しました。ページを再読み込みしてください。");
+      alert(t("error"));
     } finally {
       setSaving(null);
     }
