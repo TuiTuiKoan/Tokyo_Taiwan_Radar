@@ -172,6 +172,21 @@ def _poster_pollution_fixture():
     return events, field_corrections
 
 
+# The live row's location_url: a book purchase channel, never the venue.
+ESLITE_BOOK_SALES_URL = "https://eslitespectrum-nihonbashi.shop/items/69907e237a275c0041dfeeff"
+# The live body copy legitimately links to that purchase page. Body text is
+# source material, not a write surface, so the cleanup must leave it intact.
+ESLITE_LIVE_BODY_JA = (
+    "誠品生活日本橋で開催するトークイベント。"
+    f"書籍のご購入・お申し込みは {ESLITE_BOOK_SALES_URL} から。"
+)
+ESLITE_LIVE_BODY_ZH = f"於誠品生活日本橋舉辦的講座。購書與報名請至 {ESLITE_BOOK_SALES_URL}。"
+ESLITE_LIVE_BODY_EN = (
+    "A talk event at Eslite Spectrum Nihonbashi. "
+    f"Buy the book and apply at {ESLITE_BOOK_SALES_URL}."
+)
+
+
 def _eslite_talk(**overrides):
     return _event(
         manifest.ESLITE_TALK_ID,
@@ -179,11 +194,18 @@ def _eslite_talk(**overrides):
         source_id=manifest.ESLITE_OLD_SOURCE_ID,
         source_url="https://www.eslitespectrum.jp/news/catalog/9",
         location_name="誠品生活日本橋",
+        location_name_zh=None,
+        location_name_en=None,
         location_address="東京都中央区日本橋室町3-2-1",
         location_address_zh=None,
         location_address_en=None,
+        location_url=ESLITE_BOOK_SALES_URL,
         business_hours="新刊のご購入は各販売チャネルでお願いします",
         price_info="書籍代2,200円 + 手数料990円",
+        raw_description=ESLITE_LIVE_BODY_JA,
+        description_ja=ESLITE_LIVE_BODY_JA,
+        description_zh=ESLITE_LIVE_BODY_ZH,
+        description_en=ESLITE_LIVE_BODY_EN,
         **overrides,
     )
 
@@ -200,6 +222,18 @@ def _eslite_stale_fcs():
             "fc-eslite-address-en",
             manifest.ESLITE_TALK_ID,
             "location_address_en",
+            "Please check each sales channel to purchase this new book.",
+        ),
+        _fc(
+            "fc-eslite-name-zh",
+            manifest.ESLITE_TALK_ID,
+            "location_name_zh",
+            "新書購買請洽各通路",
+        ),
+        _fc(
+            "fc-eslite-name-en",
+            manifest.ESLITE_TALK_ID,
+            "location_name_en",
             "Please check each sales channel to purchase this new book.",
         ),
     ]
@@ -1124,6 +1158,9 @@ def test_eslite_talk_is_separate_migration_and_preserves_physical_fields():
     assert candidate["event_after"]["business_hours"] == "13:00〜"
     assert candidate["event_after"]["location_address"] == talk["location_address"]
     assert candidate["event_after"]["price_info"] == talk["price_info"]
+    # location_url is registry-resolved, so it is never listed as preserved.
+    assert "location_url" not in candidate["migration"]["preserved_fields"]
+    assert candidate["event_after"]["location_url"] == manifest.ESLITE_VENUE_URL
     assert result["summary"]["eslite_migration_actions"] == 1
 
 
@@ -1149,9 +1186,13 @@ def test_eslite_apply_runs_identity_first_then_locks_and_removals(monkeypatch, t
     assert row["location_address"] == talk["location_address"]
     assert row["price_info"] == talk["price_info"]
     assert row["location_address_zh"] is None
+    assert row["location_url"] == manifest.ESLITE_VENUE_URL
+    assert row["location_name_zh"] == manifest.ESLITE_VENUE_NAME_ZH
+    assert row["location_name_en"] == manifest.ESLITE_VENUE_NAME_EN
 
     locks = {row["field_name"] for row in sb.tables["field_corrections"]}
     assert {"event_form", "business_hours", "location_address"} <= locks
+    assert {"location_url", "location_name_zh", "location_name_en"} <= locks
     assert "location_address_zh" not in locks
     assert "location_address_en" not in locks
 
@@ -1191,6 +1232,106 @@ def test_eslite_identity_patch_is_a_safe_fix_forward_after_interruption():
     )
     with pytest.raises(RuntimeError, match="third state"):
         manifest.execute_identity_patch(third_state, candidate)
+
+
+def test_eslite_venue_fields_come_from_the_authoritative_registry():
+    result = manifest.build_manifest(
+        _state([_eslite_talk()], field_corrections=_eslite_stale_fcs()),
+        generated_at="2026-07-11T00:00:00+00:00",
+        scope="eslite-identity",
+    )
+    candidate = _candidate(result, manifest.ESLITE_TALK_ID)
+    after = candidate["event_after"]
+    modes = {action["field_name"]: action for action in _actions(candidate)}
+
+    # venues.fd330e2a-e8e8-40fb-9fcb-d1af44d7be3a (is_authoritative=true)
+    assert manifest.ESLITE_VENUE_URL == "https://www.eslitespectrum.jp/"
+    assert manifest.ESLITE_VENUE_NAME_ZH == "誠品生活日本橋"
+    assert manifest.ESLITE_VENUE_NAME_EN == "Eslite Spectrum Nihonbashi"
+
+    assert after["location_url"] == manifest.ESLITE_VENUE_URL
+    assert after["location_url"] != ESLITE_BOOK_SALES_URL
+    assert modes["location_url"]["mode"] == "lock_clean"
+    assert modes["location_url"]["new_value"] == manifest.ESLITE_VENUE_URL
+
+    for field, expected in (
+        ("location_name_zh", manifest.ESLITE_VENUE_NAME_ZH),
+        ("location_name_en", manifest.ESLITE_VENUE_NAME_EN),
+    ):
+        assert modes[field]["mode"] == "lock_clean"
+        assert modes[field]["new_value"] == expected
+        assert after[field] == expected
+
+    for field in ("location_address_zh", "location_address_en"):
+        assert modes[field]["mode"] == "unlock_only"
+        assert after[field] is None
+
+    assert "location_url" not in candidate["migration"]["preserved_fields"]
+    assert candidate["migration"]["registry_resolved_fields"] == {
+        "location_url": manifest.ESLITE_VENUE_URL,
+        "location_name_zh": manifest.ESLITE_VENUE_NAME_ZH,
+        "location_name_en": manifest.ESLITE_VENUE_NAME_EN,
+    }
+    # venue_id is read off the event row, so it is preserved, never registry-resolved.
+    assert "venue_id" in candidate["migration"]["preserved_fields"]
+    assert not (
+        set(candidate["migration"]["registry_resolved_fields"])
+        & set(candidate["migration"]["preserved_fields"])
+    )
+
+
+def test_eslite_book_sales_page_never_reaches_a_venue_field():
+    result = manifest.build_manifest(
+        _state([_eslite_talk()], field_corrections=_eslite_stale_fcs()),
+        generated_at="2026-07-11T00:00:00+00:00",
+        scope="eslite-identity",
+    )
+    candidate = _candidate(result, manifest.ESLITE_TALK_ID)
+    after = candidate["event_after"]
+    marker = "eslitespectrum-nihonbashi.shop"
+
+    # Write surface 1 — the event row's venue fields.
+    assert after["location_url"] == manifest.ESLITE_VENUE_URL
+    for field in (
+        "location_url",
+        "location_name",
+        "location_name_zh",
+        "location_name_en",
+        "location_address",
+        "location_address_zh",
+        "location_address_en",
+    ):
+        assert marker not in str(after.get(field) or "")
+
+    # Write surface 2 — every planned field-correction value.
+    for action in candidate["field_correction_actions"]:
+        assert marker not in str(action["new_value"] or "")
+
+    # Write surface 3 — the after-checkpoint's location field corrections.
+    location_rows = [
+        row
+        for row in result["checkpoints"]["eslite-identity.after"]["target_field_corrections"]
+        if str(row["field_name"]).startswith("location_")
+    ]
+    assert location_rows
+    for row in location_rows:
+        assert marker not in str(manifest.decoded_fc_value(row["corrected_value"]) or "")
+
+    # Write surface 4 — the registry-resolved values recorded by the migration.
+    assert marker not in json.dumps(
+        candidate["migration"]["registry_resolved_fields"], ensure_ascii=False, default=str
+    )
+
+    # Body copy is not a write surface: the purchase link is legitimate source
+    # text on the live row and must survive the migration untouched.
+    assert marker in after["raw_description"]
+    assert marker in after["description_ja"]
+    assert marker in after["description_zh"]
+    assert marker in after["description_en"]
+
+    # The before image is the CAS gate, so it must still carry the live value.
+    before_events = result["checkpoints"]["eslite-identity.before"]["events"]
+    assert [row["location_url"] for row in before_events] == [ESLITE_BOOK_SALES_URL]
 
 
 def test_cleanup_phases_never_select_the_eslite_candidate():

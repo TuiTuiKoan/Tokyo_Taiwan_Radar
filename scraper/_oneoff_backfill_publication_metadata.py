@@ -94,6 +94,13 @@ ESLITE_ARTICLE_URL = "https://www.eslitespectrum.jp/news/f0039984-3181-450d-8b59
 ESLITE_PHYSICAL_FORMS = ["lecture"]
 ESLITE_IDENTITY_FIELDS = ("event_form", "source_id", "source_url")
 ESLITE_BUSINESS_HOURS = "13:00〜"
+# Fixed Venue Authority Guard: a fixed venue is resolved from the authoritative
+# registry, never from whatever the event row happens to carry. These mirror
+# venues.fd330e2a-e8e8-40fb-9fcb-d1af44d7be3a (is_authoritative=true):
+# homepage / canonical_name_zh / canonical_name_en.
+ESLITE_VENUE_URL = "https://www.eslitespectrum.jp/"
+ESLITE_VENUE_NAME_ZH = "誠品生活日本橋"
+ESLITE_VENUE_NAME_EN = "Eslite Spectrum Nihonbashi"
 
 PUBLICATION_PREFIXES = (
     "[新刊出版]",
@@ -941,6 +948,14 @@ def eslite_plan(
             "business_hours": ESLITE_BUSINESS_HOURS,
             "business_hours_zh": ESLITE_BUSINESS_HOURS,
             "business_hours_en": ESLITE_BUSINESS_HOURS,
+            # Registry-resolved, never preserved: the live row carries the book
+            # sales page, which is a purchase channel and not the venue.
+            "location_url": ESLITE_VENUE_URL,
+            # After the migration `event_form=['lecture']` makes the venue public,
+            # so the localized names must hold the registry value; leaving them
+            # NULL would fall the EN page back to Japanese.
+            "location_name_zh": ESLITE_VENUE_NAME_ZH,
+            "location_name_en": ESLITE_VENUE_NAME_EN,
         }
     )
     for field in TITLE_FIELDS:
@@ -957,6 +972,9 @@ def eslite_plan(
         "business_hours": ("lock_clean", ESLITE_BUSINESS_HOURS),
         "business_hours_zh": ("lock_clean", ESLITE_BUSINESS_HOURS),
         "business_hours_en": ("lock_clean", ESLITE_BUSINESS_HOURS),
+        "location_url": ("lock_clean", ESLITE_VENUE_URL),
+        "location_name_zh": ("lock_clean", ESLITE_VENUE_NAME_ZH),
+        "location_name_en": ("lock_clean", ESLITE_VENUE_NAME_EN),
     }
     for field in TITLE_FIELDS:
         if after.get(field) != event.get(field):
@@ -1033,6 +1051,10 @@ def eslite_plan(
             "new_source_id": ESLITE_NEW_SOURCE_ID,
             "article_url": ESLITE_ARTICLE_URL,
             "physical_forms": ESLITE_PHYSICAL_FORMS,
+            # Strictly disjoint by construction: preserved_fields are read off the
+            # event row, registry_resolved_fields come from the authoritative
+            # `venues` registry. Treating an event value as registry-resolved is
+            # exactly the confusion that put a book sales page in location_url.
             "preserved_fields": {
                 field: event.get(field)
                 for field in (
@@ -1041,10 +1063,14 @@ def eslite_plan(
                     "location_name",
                     "location_address",
                     "location_prefectures",
-                    "location_url",
                     "venue_id",
                     "price_info",
                 )
+            },
+            "registry_resolved_fields": {
+                "location_url": ESLITE_VENUE_URL,
+                "location_name_zh": ESLITE_VENUE_NAME_ZH,
+                "location_name_en": ESLITE_VENUE_NAME_EN,
             },
         },
         "periodical": {
