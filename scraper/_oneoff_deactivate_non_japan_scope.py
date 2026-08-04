@@ -456,11 +456,14 @@ def write_manifest(path: Path, manifest: dict[str, Any]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         temporary_path.chmod(0o400)
-        if path.exists():
-            raise RuntimeError(f"output path appeared before atomic replace: {path}")
-        os.replace(temporary_path, path)
+        os.link(temporary_path, path)
     finally:
         temporary_path.unlink(missing_ok=True)
+    directory_descriptor = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory_descriptor)
+    finally:
+        os.close(directory_descriptor)
 
 
 def load_manifest(path: Path) -> dict[str, Any]:
@@ -485,19 +488,29 @@ def verify_manifest_digest(manifest: dict[str, Any], expected_digest: str) -> st
 def validate_manifest_contract(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     if manifest.get("schema_version") != SCHEMA_VERSION:
         raise RuntimeError("unsupported manifest schema_version")
-    if manifest.get("target_count") != TARGET_COUNT:
+    if type(manifest.get("target_count")) is not int or manifest["target_count"] != TARGET_COUNT:
         raise RuntimeError(f"manifest target_count must equal {TARGET_COUNT}")
     targets = manifest.get("targets")
     if not isinstance(targets, list) or len(targets) != TARGET_COUNT:
         raise RuntimeError(f"manifest targets must contain exactly {TARGET_COUNT} rows")
-    expected_prefixes = [spec.prefix for spec in TARGET_SPECS]
-    actual_prefixes = [target.get("prefix") for target in targets if isinstance(target, dict)]
-    if actual_prefixes != expected_prefixes:
-        raise RuntimeError("manifest target order or prefixes do not match reviewed set")
     ids: list[str] = []
-    for target in targets:
+    target_fields = {"prefix", "category", "id", "before", "reason", "evidence"}
+    before_fields = set(BEFORE_IMAGE_FIELDS)
+    evidence_fields = {"field", "expected_substring", "observed_excerpt"}
+    for target, spec in zip(targets, TARGET_SPECS, strict=True):
         if not isinstance(target, dict):
             raise RuntimeError("manifest target must be a JSON object")
+        if set(target) != target_fields:
+            raise RuntimeError(
+                f"manifest target fields mismatch for {spec.prefix}: "
+                f"missing={sorted(target_fields - set(target))} extra={sorted(set(target) - target_fields)}"
+            )
+        if target["prefix"] != spec.prefix:
+            raise RuntimeError(f"manifest target prefix mismatch for {spec.prefix}")
+        if target["category"] != spec.category:
+            raise RuntimeError(f"manifest target category mismatch for {spec.prefix}")
+        if target["reason"] != spec.reason:
+            raise RuntimeError(f"manifest target reason mismatch for {spec.prefix}")
         event_id = target.get("id")
         if not isinstance(event_id, str):
             raise RuntimeError("manifest target id must be a full UUID string")
@@ -505,18 +518,57 @@ def validate_manifest_contract(manifest: dict[str, Any]) -> list[dict[str, Any]]
             canonical_id = str(UUID(event_id))
         except ValueError as exc:
             raise RuntimeError(f"invalid manifest target UUID: {event_id}") from exc
-        if canonical_id != event_id or not event_id.startswith(str(target["prefix"])):
+        if canonical_id != event_id or not event_id.startswith(spec.prefix):
             raise RuntimeError(f"manifest target UUID/prefix mismatch: {event_id}")
         before = target.get("before")
         if not isinstance(before, dict) or before.get("id") != event_id:
             raise RuntimeError(f"manifest before-image id mismatch: {event_id}")
-        missing_fields = [field for field in BEFORE_IMAGE_FIELDS if field not in before]
+        missing_fields = sorted(before_fields - set(before))
         if missing_fields:
             raise RuntimeError(f"manifest before-image missing fields for {event_id}: {missing_fields}")
-        if not isinstance(target.get("reason"), str) or not target["reason"]:
-            raise RuntimeError(f"manifest reason missing for {event_id}")
-        if not isinstance(target.get("evidence"), list) or not target["evidence"]:
-            raise RuntimeError(f"manifest evidence missing for {event_id}")
+        extra_fields = sorted(set(before) - before_fields)
+        if extra_fields:
+            raise RuntimeError(f"manifest before-image unexpected fields for {event_id}: {extra_fields}")
+        if not isinstance(before["source_name"], str) or not before["source_name"]:
+            raise RuntimeError(f"manifest before-image source_name invalid for {event_id}")
+        for field in ("raw_title", "location_address", "annotation_status", "updated_at"):
+            if before[field] is not None and not isinstance(before[field], str):
+                raise RuntimeError(f"manifest before-image {field} invalid for {event_id}")
+        prefectures = before["location_prefectures"]
+        if prefectures is not None and (
+            not isinstance(prefectures, list)
+            or any(not isinstance(prefecture, str) for prefecture in prefectures)
+        ):
+            raise RuntimeError(f"manifest before-image location_prefectures invalid for {event_id}")
+        if before["is_active"] is not True:
+            raise RuntimeError(f"manifest before-image is_active must be true for {event_id}")
+        parent_event_id = before["parent_event_id"]
+        if parent_event_id is not None:
+            if not isinstance(parent_event_id, str):
+                raise RuntimeError(f"manifest before-image parent_event_id invalid for {event_id}")
+            try:
+                canonical_parent_id = str(UUID(parent_event_id))
+            except ValueError as exc:
+                raise RuntimeError(
+                    f"manifest before-image parent_event_id invalid for {event_id}"
+                ) from exc
+            if canonical_parent_id != parent_event_id:
+                raise RuntimeError(f"manifest before-image parent_event_id invalid for {event_id}")
+        evidence_items = target["evidence"]
+        if not isinstance(evidence_items, list) or len(evidence_items) != len(spec.evidence):
+            raise RuntimeError(f"manifest evidence mismatch for {event_id}")
+        for item, expected in zip(evidence_items, spec.evidence, strict=True):
+            if not isinstance(item, dict) or set(item) != evidence_fields:
+                raise RuntimeError(f"manifest evidence item malformed for {event_id}")
+            if item["field"] != expected.field:
+                raise RuntimeError(f"manifest evidence field mismatch for {event_id}")
+            if item["expected_substring"] != expected.contains:
+                raise RuntimeError(
+                    f"manifest evidence expected_substring mismatch for {event_id}"
+                )
+            excerpt = item["observed_excerpt"]
+            if not isinstance(excerpt, str) or not excerpt or expected.contains not in excerpt:
+                raise RuntimeError(f"manifest evidence observed_excerpt invalid for {event_id}")
         ids.append(event_id)
     if len(set(ids)) != TARGET_COUNT:
         raise RuntimeError("manifest contains duplicate full UUIDs")
