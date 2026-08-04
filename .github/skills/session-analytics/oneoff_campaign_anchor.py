@@ -37,10 +37,13 @@ indices only.  Message content, tool arguments, prompts, file paths and raw
 
 Provenance
 ----------
-``generator_source_commit`` is the last commit touching this file, never HEAD.
-HEAD moves as soon as the record itself is committed, which would make a rerun
-render different bytes and hit the refuse-to-overwrite guard, and an unrelated
-commit from a parallel session would abort an otherwise legitimate run.
+The record carries no commit sha at all; ``generator_blobs`` is the only
+provenance field.  A blob is content addressed, so rebase, squash and amend
+leave it untouched, while any commit sha the record could cite is rewritten by
+the merge flow and would strand the record from its own provenance.  The run
+still proves the blob reached the object database -- some commit touches this
+file and the blob it recorded equals the working one -- but that commit sha
+stays in memory.  ``git log --find-object=<blob>`` recovers it on demand.
 
 This module is self-contained: it imports nothing from this repository.
 """
@@ -81,7 +84,6 @@ TOP_LEVEL_FIELDS = frozenset(
         "record_kind",
         "campaign_slug",
         "owning_spec_slug",
-        "generator_source_commit",
         "generator_blobs",
         "ledger_path",
         "ledger_digest",
@@ -89,6 +91,10 @@ TOP_LEVEL_FIELDS = frozenset(
         "process",
         "outcome_refs",
     }
+)
+# A history rewrite invalidates any commit sha the record could carry, so none may enter it.
+FORBIDDEN_FIELDS = frozenset(
+    {"generator_source_commit", "generator_commit", "source_commit", "head_commit", "commit"}
 )
 SESSION_FIELDS = (
     "session_id",
@@ -169,9 +175,11 @@ def _git_ok(repo_root: Path, *args: str) -> bool:
 def _generator_state(repo_root: Path, generator_rel: str, generator_path: Path) -> tuple[str, str]:
     """Return (last commit touching the generator, current working blob).
 
-    HEAD is deliberately not used: committing the record moves HEAD, so a rerun would
-    render different bytes and collide with the refuse-to-overwrite guard, and an
-    unrelated commit from a parallel session would abort a legitimate run.
+    The commit is an availability check only -- it proves the blob reached the object
+    database -- and never leaves this process. HEAD is deliberately not used: committing
+    the record moves HEAD, so a rerun would render different bytes and collide with the
+    refuse-to-overwrite guard, and an unrelated commit from a parallel session would
+    abort a legitimate run.
     """
     commit = _git(repo_root, "log", "-1", "--format=%H", "--", generator_rel)
     blob = _git(repo_root, "hash-object", "--", str(generator_path))
@@ -482,6 +490,9 @@ def validate_payload(
     cli_end_event_id: str,
     repo_root: Path,
 ) -> None:
+    forbidden = sorted(set(payload) & FORBIDDEN_FIELDS)
+    if forbidden:
+        raise AnchorError(f"a commit sha field may never enter the record, found {forbidden}")
     if set(payload) != TOP_LEVEL_FIELDS:
         missing = sorted(TOP_LEVEL_FIELDS - set(payload))
         extra = sorted(set(payload) - TOP_LEVEL_FIELDS)
@@ -506,8 +517,6 @@ def validate_payload(
         raise AnchorError(f"owning_spec_slug must be the constant {OWNING_SPEC_SLUG}")
     if not SLUG_RE.match(payload["campaign_slug"]):
         raise AnchorError("campaign_slug is not a lowercase hyphenated slug")
-    if not SHA1_RE.match(payload["generator_source_commit"]):
-        raise AnchorError("generator_source_commit is not a 40-hex sha")
     if not payload["generator_blobs"]:
         raise AnchorError("generator_blobs must not be empty")
     for blob_path, blob_value in payload["generator_blobs"].items():
@@ -667,17 +676,17 @@ def run(argv: list[str] | None = None) -> None:
     repo_root = _resolve_repo_root(args.repo_root)
     generator_path = Path(__file__).resolve()
     generator_rel = _relative_to_repo(repo_root, generator_path)
-    generator_source_commit, working_blob = _generator_state(repo_root, generator_rel, generator_path)
-    if not generator_source_commit:
+    generator_commit, working_blob = _generator_state(repo_root, generator_rel, generator_path)
+    if not generator_commit:
         raise AnchorError(
             f"no commit touches {generator_rel}; commit the generator before freezing an anchor"
         )
-    if not SHA1_RE.match(generator_source_commit):
-        raise AnchorError(f"unexpected generator commit {generator_source_commit!r}")
-    committed_blob = _git(repo_root, "rev-parse", f"{generator_source_commit}:{generator_rel}")
+    if not SHA1_RE.match(generator_commit):
+        raise AnchorError(f"unexpected generator commit {generator_commit!r}")
+    committed_blob = _git(repo_root, "rev-parse", f"{generator_commit}:{generator_rel}")
     if working_blob != committed_blob:
         raise AnchorError(
-            f"{generator_rel} differs from its committed blob at {generator_source_commit}; "
+            f"{generator_rel} differs from its committed blob at {generator_commit}; "
             "commit the generator before freezing an anchor"
         )
 
@@ -708,7 +717,6 @@ def run(argv: list[str] | None = None) -> None:
         "record_kind": RECORD_KIND,
         "campaign_slug": campaign_slug,
         "owning_spec_slug": OWNING_SPEC_SLUG,
-        "generator_source_commit": generator_source_commit,
         "generator_blobs": {generator_rel: f"git-blob-sha1:{working_blob}"},
         "ledger_path": ledger_rel,
         "ledger_digest": ledger_digest,
@@ -733,7 +741,7 @@ def run(argv: list[str] | None = None) -> None:
     ledger_pending = _decide(ledger_file, ledger_bytes)
     record_pending = _decide(record_file, record_bytes)
 
-    if _generator_state(repo_root, generator_rel, generator_path) != (generator_source_commit, working_blob):
+    if _generator_state(repo_root, generator_rel, generator_path) != (generator_commit, working_blob):
         raise AnchorError("the generator changed during the run; nothing was written")
 
     if ledger_pending:

@@ -36,7 +36,6 @@ campaign_slug: "2026-08-03-fixture-campaign"
 description: "Process telemetry for campaign 2026-08-03-fixture-campaign; all metrics recomputable from docs/evaluation/campaigns/ledger/2026-08-03-fixture-campaign-b7d78691c336.jsonl."
 generator_blobs:
   ".github/skills/session-analytics/oneoff_campaign_anchor.py": "git-blob-sha1:__BLOB__"
-generator_source_commit: "__GENERATOR_COMMIT__"
 ledger_digest: "sha256:b7d78691c336142a1a71a785582f2c2ecd768226152ac8d92fe46c002717487b"
 ledger_path: "docs/evaluation/campaigns/ledger/2026-08-03-fixture-campaign-b7d78691c336.jsonl"
 owning_spec_slug: "evaluation-framework"
@@ -391,7 +390,6 @@ def test_golden_record_is_byte_identical(workspace):
     ).stdout.strip()
     expected = (
         GOLDEN_RECORD
-        .replace("__GENERATOR_COMMIT__", workspace.generator_commit)
         .replace("__OUTCOME_REF__", workspace.head)
         .replace("__BLOB__", blob)
     )
@@ -505,17 +503,29 @@ def test_a_generator_no_commit_ever_touched_fails_closed(workspace):
     assert_nothing_written(workspace)
 
 
-def test_provenance_pins_the_generators_own_commit_not_head(workspace):
+def test_the_record_carries_no_commit_sha_outside_outcome_refs(workspace):
     (workspace.root / "unrelated.txt").write_text("parallel session\n", encoding="utf-8")
     git(workspace.root, "add", "unrelated.txt")
     git(workspace.root, "commit", "-qm", "unrelated work")
     moved_head = git(workspace.root, "rev-parse", "HEAD")
-    assert moved_head != workspace.generator_commit
+    git(workspace.root, "update-ref", "refs/remotes/origin/main", moved_head)
+    generator_commit = workspace.generator_commit
+    assert moved_head != generator_commit
 
-    assert workspace.run().returncode == 0
-    frontmatter = workspace.record.read_text(encoding="utf-8")
-    assert f'generator_source_commit: "{workspace.generator_commit}"' in frontmatter
-    assert moved_head not in frontmatter
+    assert workspace.run(outcome_refs=[moved_head]).returncode == 0
+    text = workspace.record.read_text(encoding="utf-8")
+    blob = git(workspace.root, "hash-object", "--", str(workspace.generator))
+
+    assert f'"git-blob-sha1:{blob}"' in text
+    assert "generator_source_commit" not in text
+    assert generator_commit not in text
+
+    quoted = {line[2:].split(":", 1)[0] for line in text.splitlines() if line.startswith("- ")}
+    assert quoted == {moved_head}
+    for sha in re.findall(r"\b[0-9a-f]{40}\b", text):
+        if sha in quoted:
+            continue
+        assert git(workspace.root, "cat-file", "-t", sha) == "blob", sha
 
 
 def test_unrelated_dirty_files_do_not_block_the_run(workspace):
@@ -551,6 +561,32 @@ def test_rerunning_after_the_artifacts_are_committed_is_a_no_op(workspace):
     git(workspace.root, "add", "docs/evaluation/campaigns")
     git(workspace.root, "commit", "-qm", "freeze the campaign anchor")
     assert git(workspace.root, "rev-parse", "HEAD") != workspace.head
+
+    proc = workspace.run()
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.count("unchanged: ") == 2
+    assert (ledger.read_bytes(), workspace.record.read_bytes()) == before
+    assert workspace.stray_temp_files() == []
+
+
+def test_a_generator_history_rewrite_keeps_the_rerun_a_no_op(workspace):
+    pristine = workspace.generator.read_bytes()
+    workspace.generator.write_bytes(pristine + b"# temporary drift\n")
+    git(workspace.root, "add", "--", str(workspace.generator))
+    git(workspace.root, "commit", "-qm", "drift the generator")
+    workspace.generator.write_bytes(pristine)
+    git(workspace.root, "add", "--", str(workspace.generator))
+    git(workspace.root, "commit", "-qm", "restore the generator")
+
+    assert workspace.run().returncode == 0
+    ledger = workspace.ledgers()[0]
+    before = (ledger.read_bytes(), workspace.record.read_bytes())
+    commit_before = workspace.generator_commit
+    blob = git(workspace.root, "hash-object", "--", str(workspace.generator))
+
+    git(workspace.root, "commit", "-q", "--amend", "-m", "restore the generator, reworded")
+    assert workspace.generator_commit != commit_before
+    assert git(workspace.root, "hash-object", "--", str(workspace.generator)) == blob
 
     proc = workspace.run()
     assert proc.returncode == 0, proc.stderr
