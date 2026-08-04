@@ -14,6 +14,7 @@ import test from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { runConfirmReport, runDismissReport } from "../lib/reportActionsCore";
+import { SCOPE_REPORT_TYPE } from "../lib/reportTypes";
 
 globalThis.fetch = (async () => {
   throw new Error("network disabled in tests");
@@ -260,6 +261,7 @@ test("dismiss uses id + status=pending, selects id, and requires exactly one row
   assert.equal(call.returning, true, ".select('id') applied");
   assert.equal(call.columns, "id");
   assert.equal((call.payload as { status: string }).status, "dismissed");
+  assert.equal(callsOf(calls, "events", "update").length, 0, "dismiss never writes events");
 });
 
 test("dismiss fails on a zero-row status CAS", async () => {
@@ -332,5 +334,221 @@ test("an interrupted confirm is idempotent on retry and never claims a rollback"
 
   for (const c of [...p1.calls, ...p2.calls]) {
     assert.notEqual(c.op, "delete", "neither phase issues a compensating/reverse write");
+  }
+});
+
+test("acknowledged scope report deactivates exactly one event and preserves machine notes", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.GITHUB_TOKEN;
+  let fetchCalls = 0;
+  process.env.GITHUB_TOKEN = "test-token";
+  globalThis.fetch = (async () => {
+    fetchCalls += 1;
+    throw new Error("scope history must not fetch");
+  }) as unknown as typeof fetch;
+
+  try {
+    const { client, calls } = makeClient({
+      responder: confirmRoute({
+        "event_reports:select": {
+          data: [{
+            id: "report-1",
+            event_id: "db-event",
+            report_types: [
+              "irrelevant",
+              SCOPE_REPORT_TYPE,
+              "scopeDecision:out_of_scope",
+              "scopeRegion:taiwan",
+              "scopeHash:abc123",
+            ],
+            status: "pending",
+            admin_notes: "machine scope reason",
+          }],
+          error: null,
+        },
+      }),
+    });
+
+    const res = await runConfirmReport(client, baseInput({ scopeAcknowledged: true }));
+
+    assert.equal(res.ok, true);
+    assert.equal(res.historyStatus, "not_applicable");
+    assert.equal(res.githubUpdated, false);
+    assert.equal(fetchCalls, 0, "scope confirm performs no external GitHub fetch");
+
+    const eventWrites = callsOf(calls, "events", "update");
+    assert.equal(eventWrites.length, 1);
+    assert.equal(eventWrites[0].returning, true, "event update requests the written id");
+    assert.equal(eventWrites[0].columns, "id");
+    assert.deepEqual(
+      (eventWrites[0].payload as Record<string, unknown>)["is_active"],
+      false,
+    );
+    assert.match(
+      String((eventWrites[0].payload as Record<string, unknown>)["deactivated_reason"]),
+      /^out_of_scope:/,
+    );
+
+    const statusWrite = callsOf(calls, "event_reports", "update")[0];
+    assert.equal(
+      (statusWrite.payload as Record<string, unknown>)["admin_notes"],
+      "machine scope reason",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = originalToken;
+  }
+});
+
+test("scope report appends non-empty admin notes with a separator", async () => {
+  const { client, calls } = makeClient({
+    responder: confirmRoute({
+      "event_reports:select": {
+        data: [{
+          id: "report-1",
+          event_id: "db-event",
+          report_types: ["irrelevant", SCOPE_REPORT_TYPE],
+          status: "pending",
+          admin_notes: "machine scope reason",
+        }],
+        error: null,
+      },
+    }),
+  });
+
+  const res = await runConfirmReport(
+    client,
+    baseInput({ adminNotes: "reviewed by admin", scopeAcknowledged: true }),
+  );
+
+  assert.equal(res.ok, true);
+  const statusWrite = callsOf(calls, "event_reports", "update")[0];
+  assert.equal(
+    (statusWrite.payload as Record<string, unknown>)["admin_notes"],
+    "machine scope reason\n---\nreviewed by admin",
+  );
+});
+
+test("unacknowledged scope report stops before event, status, or GitHub writes", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.GITHUB_TOKEN;
+  let fetchCalls = 0;
+  process.env.GITHUB_TOKEN = "test-token";
+  globalThis.fetch = (async () => {
+    fetchCalls += 1;
+    throw new Error("unacknowledged scope must not fetch");
+  }) as unknown as typeof fetch;
+
+  try {
+    const { client, calls } = makeClient({
+      responder: confirmRoute({
+        "event_reports:select": {
+          data: [{
+            id: "report-1",
+            event_id: "db-event",
+            report_types: ["irrelevant", SCOPE_REPORT_TYPE],
+            status: "pending",
+            admin_notes: "machine scope reason",
+          }],
+          error: null,
+        },
+      }),
+    });
+
+    const res = await runConfirmReport(client, baseInput());
+
+    assert.equal(res.ok, false);
+    assert.equal(res.error, "scope report requires per-row review");
+    assert.equal(callsOf(calls, "events", "update").length, 0);
+    assert.equal(callsOf(calls, "event_reports", "update").length, 0);
+    assert.equal(fetchCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = originalToken;
+  }
+});
+
+test("missing GitHub token reports skipped history without failing DB success", async () => {
+  const originalToken = process.env.GITHUB_TOKEN;
+  delete process.env.GITHUB_TOKEN;
+  try {
+    const { client } = makeClient({ responder: confirmRoute() });
+    const res = await runConfirmReport(client, baseInput());
+    assert.equal(res.ok, true);
+    assert.equal(res.historyStatus, "skipped");
+    assert.equal(res.githubUpdated, false);
+  } finally {
+    if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = originalToken;
+  }
+});
+
+test("GitHub PUT failure reports skipped history without failing DB success", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.GITHUB_TOKEN;
+  let fetchCalls = 0;
+  process.env.GITHUB_TOKEN = "test-token";
+  globalThis.fetch = (async (_input, init) => {
+    fetchCalls += 1;
+    if (init?.method === "PUT") {
+      return {
+        ok: false,
+        status: 500,
+        text: async () => "put failed",
+      } as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ content: Buffer.from("# History\n", "utf8").toString("base64"), sha: "sha" }),
+      text: async () => "",
+    } as Response;
+  }) as typeof fetch;
+
+  try {
+    const { client } = makeClient({ responder: confirmRoute() });
+    const res = await runConfirmReport(client, baseInput());
+    assert.equal(res.ok, true);
+    assert.equal(res.historyStatus, "skipped");
+    assert.equal(res.githubUpdated, false);
+    assert.equal(fetchCalls, 2, "history attempted GitHub GET then PUT");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = originalToken;
+  }
+});
+
+test("successful GitHub history update reports written for existing report types", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.GITHUB_TOKEN;
+  let fetchCalls = 0;
+  process.env.GITHUB_TOKEN = "test-token";
+  globalThis.fetch = (async (_input, init) => {
+    fetchCalls += 1;
+    if (init?.method === "PUT") {
+      return { ok: true, status: 200, text: async () => "" } as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ content: Buffer.from("# History\n", "utf8").toString("base64"), sha: "sha" }),
+      text: async () => "",
+    } as Response;
+  }) as typeof fetch;
+
+  try {
+    const { client } = makeClient({ responder: confirmRoute() });
+    const res = await runConfirmReport(client, baseInput());
+    assert.equal(res.ok, true);
+    assert.equal(res.historyStatus, "written");
+    assert.equal(res.githubUpdated, true);
+    assert.equal(fetchCalls, 2, "history completed GitHub GET then PUT");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = originalToken;
   }
 });

@@ -8,7 +8,14 @@ import Link from "next/link";
 import { confirmReport } from "@/app/actions/confirm-report";
 import { dismissReport } from "@/app/actions/dismiss-report";
 import { createExclusion } from "@/app/actions/source-exclusions";
-import { isConfirmationOnlyReport } from "@/lib/reportTypes";
+import type { HistoryStatus } from "@/lib/reportActionsCore";
+import {
+  SCOPE_REPORT_TYPE,
+  isBulkConfirmEligible,
+  isConfirmationOnlyReport,
+  isScopeMetadataToken,
+  isSecurityMetadataToken,
+} from "@/lib/reportTypes";
 
 // Extract up to 3 candidate patterns (katakana ≥4 chars or kanji ≥3 chars) from a title.
 // Used by ExclusionSuggest to offer one-click block-rule chips after an
@@ -41,19 +48,25 @@ function ExclusionSuggest({ reportId, sourceName, title, locale }: ExclusionSugg
   async function applyPattern(pattern: string) {
     setBusy(pattern);
     setError(null);
-    const result = await createExclusion({
-      source_name: sourceName,
-      pattern,
-      pattern_type: "substring",
-      match_field: "raw_title",
-      reason: `自動建議 from report ${reportId}`,
-    });
-    setBusy(null);
-    if (!result.ok) {
-      setError(result.error ?? "failed");
-      return;
+    try {
+      const result = await createExclusion({
+        source_name: sourceName,
+        pattern,
+        pattern_type: "substring",
+        match_field: "raw_title",
+        reason: `自動建議 from report ${reportId}`,
+      });
+      if (!result.ok) {
+        setError(result.error ?? "failed");
+        return;
+      }
+      setApplied((s) => new Set([...s, pattern]));
+    } catch (err) {
+      console.error("[applyPattern] unexpected error:", err);
+      setError("failed");
+    } finally {
+      setBusy(null);
     }
-    setApplied((s) => new Set([...s, pattern]));
   }
 
   const formHref = `/${locale}/admin/exclusions?prefill_source=${encodeURIComponent(sourceName)}${title ? `&prefill_pattern=${encodeURIComponent(candidates[0])}` : ""}`;
@@ -201,7 +214,11 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
-  const [confirmFeedback, setConfirmFeedback] = useState<Record<string, { githubUpdated: boolean; wasReviewed?: boolean }>>({}); 
+  const [confirmFeedback, setConfirmFeedback] = useState<Record<string, {
+    githubUpdated: boolean;
+    historyStatus?: HistoryStatus;
+    wasReviewed?: boolean;
+  }>>({});
   const [correctCategory, setCorrectCategory] = useState<Record<string, string[]>>({});
   const [fieldEdits, setFieldEdits] = useState<Record<string, Record<string, Record<string, string>>>>({});;
   const [selectionReasonEdits, setSelectionReasonEdits] = useState<Record<string, Record<string, string>>>({});
@@ -223,8 +240,8 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
         !t.startsWith("field:") &&
         !t.startsWith("fieldEdit:") &&
         !t.startsWith("selectionReason:") &&
-        !t.startsWith("securityHash:") &&
-        !t.startsWith("securitySeverity:")
+        !isSecurityMetadataToken(t) &&
+        !isScopeMetadataToken(t)
     );
     const fields = types.filter((t) => t.startsWith("field:")).map((t) => t.replace("field:", ""));
     const labels = baseTypes.map((type) => {
@@ -234,6 +251,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       if (type === "wrongSelectionReason") return tReport("wrongSelectionReason");
       if (type === "brokenLink") return tReport("brokenLink");
       if (type === "auto_security_prompt_injection") return tReport("auto_security_prompt_injection");
+      if (type === SCOPE_REPORT_TYPE) return tReport("scopeReviewNonJapan");
       return type;
     });
     if (fields.length > 0) {
@@ -242,9 +260,10 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
     return labels.join("、");
   }
 
-  async function handleConfirm(row: ReportRow) {
+  async function handleConfirm(row: ReportRow, acknowledgeScope: boolean) {
     setSaving(row.id);
     try {
+    const isScopeReport = row.report_types.includes(SCOPE_REPORT_TYPE);
     // Re-parse user-submitted fieldEdit suggestions so we can use them as fallback
     // when the admin has not explicitly overridden a value in the input box.
     const parsedUserEdits: Record<string, Record<string, string>> = {};
@@ -311,6 +330,7 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
       eventId: row.event_id,
       adminNotes: notes[row.id] ?? "",
       reportTypes: row.report_types,
+      scopeAcknowledged: isScopeReport && acknowledgeScope ? true : undefined,
       eventName: getEventName(row),
       sourceName: row.events?.source_name ?? null,
       currentCategory: row.events?.category ?? [],
@@ -324,10 +344,19 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
         ...row,
         status: "confirmed",
         confirmed_at: new Date().toISOString(),
-        admin_notes: notes[row.id] ?? null,
+        admin_notes: isScopeReport
+          ? [row.admin_notes, notes[row.id] ?? ""].filter(Boolean).join("\n---\n") || null
+          : notes[row.id] ?? null,
       };
       setReports((prev) => prev.map((r) => (r.id === row.id ? updatedRow : r)));
-      setConfirmFeedback((prev) => ({ ...prev, [row.id]: { githubUpdated: result.githubUpdated, wasReviewed: result.wasReviewed } }));
+      setConfirmFeedback((prev) => ({
+        ...prev,
+        [row.id]: {
+          githubUpdated: result.githubUpdated,
+          historyStatus: result.historyStatus,
+          wasReviewed: result.wasReviewed,
+        },
+      }));
       setExpandedId(row.id); // keep expanded to show feedback
       router.refresh(); // invalidate SSR cache so /admin list reflects updated event fields
     } else if (result.error) {
@@ -343,26 +372,39 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
 
   async function handleDismiss(id: string) {
     setSaving(id);
-    const result = await dismissReport(id);
-    if (result.ok) {
-      setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: "dismissed" } : r)));
-      setExpandedId(null);
-      // Note: router.refresh() is intentionally omitted here.
-      // Dismiss only changes the report status — no event fields are modified,
-      // so SSR cache invalidation is unnecessary. Local state is already updated.
-    } else {
-      alert(result.error ?? "保存に失敗しました。ページを再読み込みしてください。");
+    try {
+      const result = await dismissReport(id);
+      if (result.ok) {
+        setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: "dismissed" } : r)));
+        setExpandedId(null);
+        // Note: router.refresh() is intentionally omitted here.
+        // Dismiss only changes the report status — no event fields are modified,
+        // so SSR cache invalidation is unnecessary. Local state is already updated.
+      } else {
+        alert(result.error ?? "保存に失敗しました。ページを再読み込みしてください。");
+      }
+    } catch (err) {
+      console.error("[handleDismiss] unexpected error:", err);
+      alert("保存に失敗しました。ページを再読み込みしてください。");
+    } finally {
+      setSaving(null);
     }
-    setSaving(null);
   }
 
   async function handleBulkConfirm(rows: ReportRow[]) {
+    const eligibleRows = rows.filter((row) => isBulkConfirmEligible(row.report_types));
     setBulkConfirming(true);
-    for (const row of rows) {
-      await handleConfirm(row);
+    try {
+      for (const row of eligibleRows) {
+        await handleConfirm(row, false);
+      }
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error("[handleBulkConfirm] unexpected error:", err);
+      alert(t("error"));
+    } finally {
+      setBulkConfirming(false);
     }
-    setSelectedIds(new Set());
-    setBulkConfirming(false);
   }
 
   const STATUS_LABELS: Record<string, string> = {
@@ -373,6 +415,13 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
 
   const pending = reports.filter((r) => r.status === "pending");
   const others = reports.filter((r) => r.status !== "pending");
+  const selectedPending = pending.filter((row) => selectedIds.has(row.id));
+  const bulkEligibleSelected = selectedPending.filter((row) =>
+    isBulkConfirmEligible(row.report_types),
+  );
+  const bulkEligiblePending = pending.filter((row) =>
+    isBulkConfirmEligible(row.report_types),
+  );
 
   if (reports.length === 0) {
     return <p className="text-fg-subtle text-sm mt-4">{t("noReports")}</p>;
@@ -448,6 +497,12 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
 
             {row.status === "pending" && (
               <>
+                {row.report_types.includes(SCOPE_REPORT_TYPE) && row.admin_notes && (
+                  <div className="rounded border border-amber-300 bg-amber-50 px-4 py-2 text-amber-800">
+                    <p className="text-xs font-medium mb-1">{t("adminNotes")}</p>
+                    <p className="text-xs whitespace-pre-wrap break-words">{row.admin_notes}</p>
+                  </div>
+                )}
                 {/* Field preview + direct correction (only for wrongDetails) */}
                 {row.report_types.includes("wrongDetails") && row.events && (() => {
                   const wrongFields = row.report_types
@@ -668,11 +723,12 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                 })()}
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleConfirm(row)}
+                    onClick={() => handleConfirm(row, true)}
                     disabled={saving === row.id}
                     className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 disabled:opacity-40 transition"
                   >
                     {saving === row.id ? "…" : (() => {
+                      if (row.report_types.includes(SCOPE_REPORT_TYPE)) return t("actionHide");
                       if (row.report_types.includes("irrelevant")) return t("actionHide");
                       if (row.report_types.includes("wrongCategory")) {
                         const cats = correctCategory[row.id] ?? row.suggested_category ?? [];
@@ -715,14 +771,15 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                     ? t("eventAppliedReviewed")
                     : t("eventDeactivated")}
                 </p>
-                {confirmFeedback[row.id] !== undefined && (
-                  <p className={`text-xs ${confirmFeedback[row.id].githubUpdated ? "text-green-700" : "text-amber-600"}`}>
-                    {confirmFeedback[row.id].githubUpdated
-                      ? t("historyWritten")
-                      : t("historySkipped")}
-                  </p>
+                {confirmFeedback[row.id]?.historyStatus === "written" && (
+                  <p className="text-xs text-green-700">{t("historyWritten")}</p>
                 )}
-                {row.report_types.includes("irrelevant") && row.events?.source_name && (
+                {confirmFeedback[row.id]?.historyStatus === "skipped" && (
+                  <p className="text-xs text-amber-600">{t("historySkipped")}</p>
+                )}
+                {row.report_types.includes("irrelevant") &&
+                  !row.report_types.includes(SCOPE_REPORT_TYPE) &&
+                  row.events?.source_name && (
                   <ExclusionSuggest
                     reportId={row.id}
                     sourceName={row.events.source_name}
@@ -758,24 +815,29 @@ export default function AdminReportsTable({ reports: initialReports, locale }: P
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleBulkConfirm(pending.filter((r) => selectedIds.has(r.id)))}
-                    disabled={bulkConfirming}
+                    onClick={() => handleBulkConfirm(bulkEligibleSelected)}
+                    disabled={bulkConfirming || bulkEligibleSelected.length === 0}
                     className="text-xs border border-green-500 text-green-600 bg-surface rounded-lg px-3 py-1.5 hover:bg-green-600 hover:text-white disabled:opacity-40 transition font-medium"
                   >
-                    {bulkConfirming ? "…" : t("bulkConfirmSelected", { count: selectedIds.size })}
+                    {bulkConfirming ? "…" : t("bulkConfirmSelected", { count: bulkEligibleSelected.length })}
                   </button>
                 </>
               )}
               <button
                 type="button"
-                onClick={() => handleBulkConfirm(pending)}
-                disabled={bulkConfirming || pending.length === 0}
+                onClick={() => handleBulkConfirm(bulkEligiblePending)}
+                disabled={bulkConfirming || bulkEligiblePending.length === 0}
                 className="text-xs border border-green-500 text-green-600 bg-surface rounded-lg px-3 py-1.5 hover:bg-green-600 hover:text-white disabled:opacity-40 transition font-medium"
               >
-                {bulkConfirming ? "…" : t("bulkConfirmAll", { count: pending.length })}
+                {bulkConfirming ? "…" : t("bulkConfirmAll", { count: bulkEligiblePending.length })}
               </button>
             </div>
           </div>
+          {bulkEligiblePending.length < pending.length && (
+            <p className="rounded border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-800 mb-2">
+              {t("bulkExcludedNotice")}
+            </p>
+          )}
           <div className="border border-line rounded-xl overflow-hidden divide-y divide-line">
             {pending.map(renderRow)}
           </div>
