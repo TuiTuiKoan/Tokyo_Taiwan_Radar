@@ -35,6 +35,13 @@ The ledger stores identifiers, timestamps, event types, tool names and turn
 indices only.  Message content, tool arguments, prompts, file paths and raw
 ``data`` payloads are never written.
 
+Provenance
+----------
+``generator_source_commit`` is the last commit touching this file, never HEAD.
+HEAD moves as soon as the record itself is committed, which would make a rerun
+render different bytes and hit the refuse-to-overwrite guard, and an unrelated
+commit from a parallel session would abort an otherwise legitimate run.
+
 This module is self-contained: it imports nothing from this repository.
 """
 
@@ -157,6 +164,18 @@ def _git_ok(repo_root: Path, *args: str) -> bool:
         text=True,
     )
     return proc.returncode == 0
+
+
+def _generator_state(repo_root: Path, generator_rel: str, generator_path: Path) -> tuple[str, str]:
+    """Return (last commit touching the generator, current working blob).
+
+    HEAD is deliberately not used: committing the record moves HEAD, so a rerun would
+    render different bytes and collide with the refuse-to-overwrite guard, and an
+    unrelated commit from a parallel session would abort a legitimate run.
+    """
+    commit = _git(repo_root, "log", "-1", "--format=%H", "--", generator_rel)
+    blob = _git(repo_root, "hash-object", "--", str(generator_path))
+    return commit, blob
 
 
 # ── timestamps ────────────────────────────────────────────────────────────────
@@ -646,13 +665,15 @@ def run(argv: list[str] | None = None) -> None:
         raise AnchorError("at least one --outcome-ref is required")
 
     repo_root = _resolve_repo_root(args.repo_root)
-    generator_source_commit = _git(repo_root, "rev-parse", "HEAD")
-    if not SHA1_RE.match(generator_source_commit):
-        raise AnchorError(f"unexpected HEAD {generator_source_commit!r}")
-
     generator_path = Path(__file__).resolve()
     generator_rel = _relative_to_repo(repo_root, generator_path)
-    working_blob = _git(repo_root, "hash-object", "--", str(generator_path))
+    generator_source_commit, working_blob = _generator_state(repo_root, generator_rel, generator_path)
+    if not generator_source_commit:
+        raise AnchorError(
+            f"no commit touches {generator_rel}; commit the generator before freezing an anchor"
+        )
+    if not SHA1_RE.match(generator_source_commit):
+        raise AnchorError(f"unexpected generator commit {generator_source_commit!r}")
     committed_blob = _git(repo_root, "rev-parse", f"{generator_source_commit}:{generator_rel}")
     if working_blob != committed_blob:
         raise AnchorError(
@@ -712,8 +733,8 @@ def run(argv: list[str] | None = None) -> None:
     ledger_pending = _decide(ledger_file, ledger_bytes)
     record_pending = _decide(record_file, record_bytes)
 
-    if _git(repo_root, "rev-parse", "HEAD") != generator_source_commit:
-        raise AnchorError("HEAD moved during the run; nothing was written")
+    if _generator_state(repo_root, generator_rel, generator_path) != (generator_source_commit, working_blob):
+        raise AnchorError("the generator changed during the run; nothing was written")
 
     if ledger_pending:
         _write_atomic(ledger_file, ledger_bytes)
@@ -725,9 +746,8 @@ def run(argv: list[str] | None = None) -> None:
     if record_file.read_bytes() != record_bytes:
         raise AnchorError("record read-back mismatch")
 
-    state = "written" if (ledger_pending or record_pending) else "unchanged"
-    print(f"{state}: {ledger_rel}")
-    print(f"{state}: {_relative_to_repo(repo_root, record_file)}")
+    print(f"{'written' if ledger_pending else 'unchanged'}: {ledger_rel}")
+    print(f"{'written' if record_pending else 'unchanged'}: {_relative_to_repo(repo_root, record_file)}")
 
 
 def main(argv: list[str] | None = None) -> int:

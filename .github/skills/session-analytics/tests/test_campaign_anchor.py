@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import random
 import re
+import shutil
 import subprocess
 import sys
 
@@ -16,11 +17,13 @@ import pytest
 
 from conftest import (
     CAMPAIGN,
+    GIT_ENV,
     SESSION_ID,
     anchor,
     canonical_events,
     detectors,
     event,
+    git,
     load_generator,
     render_transcript,
     uid,
@@ -33,7 +36,7 @@ campaign_slug: "2026-08-03-fixture-campaign"
 description: "Process telemetry for campaign 2026-08-03-fixture-campaign; all metrics recomputable from docs/evaluation/campaigns/ledger/2026-08-03-fixture-campaign-b7d78691c336.jsonl."
 generator_blobs:
   ".github/skills/session-analytics/oneoff_campaign_anchor.py": "git-blob-sha1:__BLOB__"
-generator_source_commit: "__COMMIT__"
+generator_source_commit: "__GENERATOR_COMMIT__"
 ledger_digest: "sha256:b7d78691c336142a1a71a785582f2c2ecd768226152ac8d92fe46c002717487b"
 ledger_path: "docs/evaluation/campaigns/ledger/2026-08-03-fixture-campaign-b7d78691c336.jsonl"
 owning_spec_slug: "evaluation-framework"
@@ -74,7 +77,7 @@ title: "Campaign close-out: 2026-08-03-fixture-campaign"
 
 ## Outcome references
 
-- __COMMIT__
+- __OUTCOME_REF__
 
 ## Recompute
 
@@ -386,7 +389,12 @@ def test_golden_record_is_byte_identical(workspace):
         text=True,
         check=True,
     ).stdout.strip()
-    expected = GOLDEN_RECORD.replace("__COMMIT__", workspace.head).replace("__BLOB__", blob)
+    expected = (
+        GOLDEN_RECORD
+        .replace("__GENERATOR_COMMIT__", workspace.generator_commit)
+        .replace("__OUTCOME_REF__", workspace.head)
+        .replace("__BLOB__", blob)
+    )
     assert workspace.record.read_bytes() == expected.encode("utf-8")
 
 
@@ -473,7 +481,7 @@ def test_a_record_conflict_leaves_the_ledger_untouched(workspace):
     assert workspace.stray_temp_files() == []
 
 
-# ── 11. provenance and the final HEAD gate ────────────────────────────────────
+# ── 11. provenance pinned to the generator, and the final gate ────────────────
 
 def test_uncommitted_generator_fails_closed(workspace):
     with workspace.generator.open("a", encoding="utf-8") as handle:
@@ -481,6 +489,33 @@ def test_uncommitted_generator_fails_closed(workspace):
     proc = expect_failure(workspace)
     assert "differs from its committed blob" in proc.stderr
     assert_nothing_written(workspace)
+
+
+def test_a_generator_no_commit_ever_touched_fails_closed(workspace):
+    twin = workspace.generator.with_name("oneoff_campaign_anchor_twin.py")
+    shutil.copy2(workspace.generator, twin)
+    proc = subprocess.run(
+        [sys.executable, str(twin), *workspace.argv()],
+        capture_output=True,
+        text=True,
+        env=GIT_ENV,
+    )
+    assert proc.returncode != 0, proc.stdout
+    assert "no commit touches" in proc.stderr
+    assert_nothing_written(workspace)
+
+
+def test_provenance_pins_the_generators_own_commit_not_head(workspace):
+    (workspace.root / "unrelated.txt").write_text("parallel session\n", encoding="utf-8")
+    git(workspace.root, "add", "unrelated.txt")
+    git(workspace.root, "commit", "-qm", "unrelated work")
+    moved_head = git(workspace.root, "rev-parse", "HEAD")
+    assert moved_head != workspace.generator_commit
+
+    assert workspace.run().returncode == 0
+    frontmatter = workspace.record.read_text(encoding="utf-8")
+    assert f'generator_source_commit: "{workspace.generator_commit}"' in frontmatter
+    assert moved_head not in frontmatter
 
 
 def test_unrelated_dirty_files_do_not_block_the_run(workspace):
@@ -491,20 +526,53 @@ def test_unrelated_dirty_files_do_not_block_the_run(workspace):
     assert workspace.record.exists()
 
 
-def test_head_drift_before_the_final_gate_writes_nothing(workspace, monkeypatch):
+def test_an_unrelated_commit_neither_aborts_the_run_nor_changes_the_output(workspace):
+    assert workspace.run().returncode == 0
+    before = (workspace.ledgers()[0].read_bytes(), workspace.record.read_bytes())
+
+    (workspace.root / "unrelated.txt").write_text("parallel session\n", encoding="utf-8")
+    git(workspace.root, "add", "unrelated.txt")
+    git(workspace.root, "commit", "-qm", "unrelated work")
+    assert git(workspace.root, "rev-parse", "HEAD") != workspace.head
+    assert workspace.generator_commit == workspace.head
+
+    proc = workspace.run()
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.count("unchanged: ") == 2
+    assert (workspace.ledgers()[0].read_bytes(), workspace.record.read_bytes()) == before
+    assert workspace.stray_temp_files() == []
+
+
+def test_rerunning_after_the_artifacts_are_committed_is_a_no_op(workspace):
+    assert workspace.run().returncode == 0
+    ledger = workspace.ledgers()[0]
+    before = (ledger.read_bytes(), workspace.record.read_bytes())
+
+    git(workspace.root, "add", "docs/evaluation/campaigns")
+    git(workspace.root, "commit", "-qm", "freeze the campaign anchor")
+    assert git(workspace.root, "rev-parse", "HEAD") != workspace.head
+
+    proc = workspace.run()
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.count("unchanged: ") == 2
+    assert (ledger.read_bytes(), workspace.record.read_bytes()) == before
+    assert workspace.stray_temp_files() == []
+
+
+def test_generator_drift_before_the_final_gate_writes_nothing(workspace, monkeypatch):
     module = load_generator(workspace)
     original = module._git
     seen = {"count": 0}
 
     def drifting(repo_root, *args):
-        if args == ("rev-parse", "HEAD"):
+        if args[:2] == ("log", "-1"):
             seen["count"] += 1
             if seen["count"] > 1:
                 return "0" * 40
         return original(repo_root, *args)
 
     monkeypatch.setattr(module, "_git", drifting)
-    with pytest.raises(module.AnchorError, match="HEAD moved"):
+    with pytest.raises(module.AnchorError, match="generator changed during the run"):
         module.run(workspace.argv())
     assert_nothing_written(workspace)
 

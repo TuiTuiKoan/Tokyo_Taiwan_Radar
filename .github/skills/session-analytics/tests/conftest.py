@@ -119,6 +119,11 @@ class Workspace:
         return self.root / GENERATOR_REL
 
     @property
+    def generator_commit(self) -> str:
+        """The commit the generator pins its provenance to: its own last-touching commit."""
+        return git(self.root, "log", "-1", "--format=%H", "--", GENERATOR_REL)
+
+    @property
     def record(self) -> Path:
         return self.root / "docs/evaluation/campaigns" / f"{CAMPAIGN}.md"
 
