@@ -68,7 +68,7 @@ Phase 0.5 的現行 GPT raw JSON 沒有 `scope_decision`、`is_active` 或其他
 * Phase 3 commits `5cc8f7b8` 與 `6dfab75f` 閉合 admin 逐筆處理及 UI source guards，四個 web test files `36 passed`
 * Phase 4 web build 完成 `250/250` static pages；Phase 1/2 scraper 具名 suites 重跑結果為 `95 passed`
 
-Phase 6a code commit `94f17a33` 新增 digest-bound one-off 與 20 個 focused unit tests。`py_compile`、CLI help、imports、`get_errors` 與 `git diff --check` 均通過。
+Phase 6a code commit `94f17a33` 新增 digest-bound one-off 與 32 個 focused unit tests。`py_compile`、CLI help、imports、`get_errors` 與 `git diff --check` 均通過。
 
 Production 唯讀 snapshot 使用預定輸出路徑 `tmp/scope_manifest_20260804T145452Z.json`。22 個 prefix 均唯一解析為 full UUID，evidence assertions 通過，22 筆皆維持 active；關係 gate 隨後發現 parent `3f693869-c263-4812-96c0-a6433d9be3af` 有以下 4 個 active children，而這 4 筆也都在 target set 且具有 `parent_event_id`：
 
