@@ -2,8 +2,7 @@
 campaign_slug: "2026-08-03-organizer-type-authority"
 description: "Process telemetry for campaign 2026-08-03-organizer-type-authority; all metrics recomputable from docs/evaluation/campaigns/ledger/2026-08-03-organizer-type-authority-cd605c950143.jsonl."
 generator_blobs:
-  ".github/skills/session-analytics/oneoff_campaign_anchor.py": "git-blob-sha1:8bc445c2f9e24f846ad16d6fa92c94a4a07b1ab5"
-generator_source_commit: "765b6be97b698a54ca5283d55a6a89641770e0b9"
+  ".github/skills/session-analytics/oneoff_campaign_anchor.py": "git-blob-sha1:df6d6a07e3b978e9a62caca6838b248a6b6fd7fe"
 ledger_digest: "sha256:cd605c95014358722c54bd3b2470bc606c9b43b4e7d6491a43eac833a76cddad"
 ledger_path: "docs/evaluation/campaigns/ledger/2026-08-03-organizer-type-authority-cd605c950143.jsonl"
 owning_spec_slug: "evaluation-framework"
