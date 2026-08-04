@@ -499,6 +499,7 @@ def _audit_start(
     event_before_value: Any,
     fc_before: dict | None,
     dry_run: bool,
+    field_correction_id: str | None = None,
 ) -> str | None:
     """Write the `started` audit row before mutating. Returns audit id."""
     payload: dict[str, Any] = {
@@ -512,6 +513,8 @@ def _audit_start(
         "event_before_value_json": event_before_value,
         "operation_status": "started",
     }
+    if field_correction_id:
+        payload["field_correction_id"] = field_correction_id
     if fc_before:
         payload["fc_before_original_value"] = fc_before.get("original_value")
         payload["fc_before_corrected_value"] = fc_before.get("corrected_value")
@@ -545,6 +548,42 @@ def _audit_finalize(
     sb.table("field_corrections_audit").update(update).eq("id", audit_id).execute()
 
 
+_UNSET: Any = object()
+
+
+def pg_array_literal(values: Any) -> str:
+    """Render a Python sequence as a PostgREST `text[]` equality literal."""
+    items = []
+    for item in values or []:
+        text = str(item).replace("\\", "\\\\").replace('"', '\\"')
+        items.append(f'"{text}"')
+    return "{" + ",".join(items) + "}"
+
+
+def apply_cas_filter(query, column: str, value: Any):
+    """Add one compare-and-set predicate, using NULL semantics for None."""
+    if value is None:
+        return query.is_(column, "null")
+    if isinstance(value, (list, tuple)):
+        return query.eq(column, pg_array_literal(value))
+    return query.eq(column, value)
+
+
+def _expected_fc_mismatch(expected: Any, actual: dict | None) -> str | None:
+    if expected is None:
+        if actual is None:
+            return None
+        return f"unexpected existing field_correction id={actual.get('id')}"
+    if actual is None:
+        return f"expected field_correction id={expected.get('id')} is missing"
+    if dict(actual) == dict(expected):
+        return None
+    differing = sorted(
+        key for key in set(actual) | set(expected) if actual.get(key) != expected.get(key)
+    )
+    return f"field_correction row drift on {differing}"
+
+
 def unlock_and_write(
     sb,
     *,
@@ -558,6 +597,9 @@ def unlock_and_write(
     model_used: str | None = None,
     confidence: float | None = None,
     dry_run: bool = False,
+    expected_fc: Any = _UNSET,
+    expected_event_value: Any = _UNSET,
+    expected_event_form: Any = None,
 ) -> bool:
     """Apply a single-field correction with audit + post-write verification.
 
@@ -566,6 +608,15 @@ def unlock_and_write(
       - "lock_empty":   write field (clear pollution) + FC corrected_value=NULL
       - "unlock_only":  delete FC row, leave field unchanged (then re-annotate later)
       - "review_only":  no DB write, only audit reasoning for human review
+
+    Manifest contract (all optional, unset by default = legacy behaviour):
+      - `expected_fc`: complete expected `field_corrections` row, or None to
+        require absence. The live row is compared in full before any mutation;
+        `unlock_only` then deletes by full FC identity and requires exactly one
+        returned row. An exact empty sentinel is preserved instead of re-upserted
+        under `lock_empty`, so sentinel existence controls FC creation only.
+      - `expected_event_value` / `expected_event_form`: value-level CAS
+        predicates for the event write; exactly one row must be returned.
 
     Returns True on success, False if verification failed (audit row left at
     operation_status='verify_failed' for later inspection).
@@ -579,20 +630,30 @@ def unlock_and_write(
     # 42703 (undefined_column). Real write modes still snapshot before_val and
     # fc_before exactly as before, including under dry_run.
     before_val = None
+    before_form = None
     fc_before = None
     if mode != "review_only":
+        columns = ["id", field_name]
+        if expected_event_form is not None and "event_form" not in columns:
+            columns.append("event_form")
         ev = (
             sb.table("events")
-            .select(f"id,{field_name}")
+            .select(",".join(columns))
             .eq("id", event_id)
             .single()
             .execute()
         ).data or {}
         before_val = ev.get(field_name)
+        before_form = ev.get("event_form")
 
+        fc_columns = (
+            "*"
+            if expected_fc is not _UNSET
+            else "original_value,corrected_value,corrected_by,report_id"
+        )
         fc_existing = (
             sb.table("field_corrections")
-            .select("original_value,corrected_value,corrected_by,report_id")
+            .select(fc_columns)
             .eq("event_id", event_id)
             .eq("field_name", field_name)
             .limit(1)
@@ -612,6 +673,11 @@ def unlock_and_write(
         event_before_value=before_val,
         fc_before=fc_before,
         dry_run=dry_run,
+        field_correction_id=(
+            str(expected_fc["id"])
+            if isinstance(expected_fc, dict) and expected_fc.get("id")
+            else None
+        ),
     )
 
     if mode == "review_only":
@@ -625,6 +691,40 @@ def unlock_and_write(
         )
         return True
 
+    def _reject(reason: str) -> bool:
+        _audit_finalize(sb, audit_id, status="verify_failed", error_message=reason)
+        return False
+
+    # Pre-mutation contract gate — never fall back to an unguarded write.
+    if expected_fc is not _UNSET:
+        mismatch = _expected_fc_mismatch(expected_fc, fc_before)
+        if mismatch:
+            return _reject(f"expected_fc_mismatch: {mismatch}")
+    if expected_event_value is not _UNSET and before_val != expected_event_value:
+        return _reject(
+            f"expected_event_value_mismatch: expected={expected_event_value!r} got={before_val!r}"
+        )
+    if expected_event_form is not None and list(before_form or []) != list(expected_event_form):
+        return _reject(
+            f"expected_event_form_mismatch: expected={list(expected_event_form)!r} got={before_form!r}"
+        )
+
+    cas_write = expected_event_value is not _UNSET or expected_event_form is not None
+
+    def _write_event_field(value: Any) -> str | None:
+        query = sb.table("events").update({field_name: value}).eq("id", event_id)
+        if not cas_write:
+            query.execute()
+            return None
+        if expected_event_value is not _UNSET:
+            query = apply_cas_filter(query, field_name, expected_event_value)
+        if expected_event_form is not None:
+            query = apply_cas_filter(query, "event_form", list(expected_event_form))
+        rows = (query.select("id").execute()).data or []
+        if len(rows) != 1:
+            return f"event_cas_row_count: expected=1 got={len(rows)}"
+        return None
+
     # field_corrections.corrected_value is TEXT NOT NULL — coerce non-text new_value
     # to JSON string; use "" as sentinel for lock_empty since None violates NOT NULL.
     def _fc_value(v: Any) -> str:
@@ -636,9 +736,24 @@ def unlock_and_write(
 
     try:
         if mode == "unlock_only":
-            sb.table("field_corrections").delete().eq("event_id", event_id).eq("field_name", field_name).execute()
+            if expected_fc is _UNSET:
+                sb.table("field_corrections").delete().eq("event_id", event_id).eq("field_name", field_name).execute()
+            elif expected_fc is not None:
+                removed = (
+                    sb.table("field_corrections")
+                    .delete()
+                    .eq("id", expected_fc["id"])
+                    .eq("event_id", event_id)
+                    .eq("field_name", field_name)
+                    .select("id")
+                    .execute()
+                ).data or []
+                if len(removed) != 1:
+                    return _reject(f"unlock_only_delete_row_count: expected=1 got={len(removed)}")
         elif mode == "lock_clean":
-            sb.table("events").update({field_name: new_value}).eq("id", event_id).execute()
+            failure = _write_event_field(new_value)
+            if failure:
+                return _reject(failure)
             sb.table("field_corrections").upsert(
                 {
                     "event_id": event_id,
@@ -649,16 +764,25 @@ def unlock_and_write(
                 on_conflict="event_id,field_name",
             ).execute()
         elif mode == "lock_empty":
-            sb.table("events").update({field_name: None}).eq("id", event_id).execute()
-            sb.table("field_corrections").upsert(
-                {
-                    "event_id": event_id,
-                    "field_name": field_name,
-                    "corrected_value": "",  # sentinel: locked-as-empty
-                    "report_id": report_id,
-                },
-                on_conflict="event_id,field_name",
-            ).execute()
+            failure = _write_event_field(None)
+            if failure:
+                return _reject(failure)
+            # An exact empty sentinel is a valid policy lock: preserve it instead
+            # of re-upserting. Sentinel existence never decides whether the event
+            # field is cleared — the CAS write above already did that.
+            preserve_sentinel = (
+                isinstance(expected_fc, dict) and expected_fc.get("corrected_value") == ""
+            )
+            if not preserve_sentinel:
+                sb.table("field_corrections").upsert(
+                    {
+                        "event_id": event_id,
+                        "field_name": field_name,
+                        "corrected_value": "",  # sentinel: locked-as-empty
+                        "report_id": report_id,
+                    },
+                    on_conflict="event_id,field_name",
+                ).execute()
     except Exception as exc:  # pragma: no cover — DB failure path
         _audit_finalize(sb, audit_id, status="verify_failed", error_message=f"write_error: {exc!r}")
         return False
@@ -674,11 +798,19 @@ def unlock_and_write(
     after_val = verify.get(field_name)
     expected = new_value if mode == "lock_clean" else (None if mode == "lock_empty" else before_val)
     if after_val != expected:
-        _audit_finalize(
-            sb, audit_id, status="verify_failed",
-            error_message=f"post_write_mismatch: expected={expected!r} got={after_val!r}",
-        )
-        return False
+        return _reject(f"post_write_mismatch: expected={expected!r} got={after_val!r}")
+
+    if mode == "unlock_only" and expected_fc is not _UNSET:
+        remaining = (
+            sb.table("field_corrections")
+            .select("id")
+            .eq("event_id", event_id)
+            .eq("field_name", field_name)
+            .limit(1)
+            .execute()
+        ).data or []
+        if remaining:
+            return _reject(f"unlock_only_fc_still_present: {remaining[0].get('id')}")
 
     _audit_finalize(sb, audit_id, status="applied", event_after_value=after_val)
     return True

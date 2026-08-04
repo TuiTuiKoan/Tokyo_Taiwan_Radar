@@ -702,3 +702,215 @@ They do not block the Batch 1 release, but Phase 3 cannot be considered safe unt
 | `git diff --check` | PASS |
 | `web/messages/*.json` diff from this batch | none |
 | Production DB access during tests | none |
+
+## Delivery Batch 2 — Phase-Aware Manifest Executor (code-only)
+
+### Scope
+
+Implements the Phase 3 execution model (Round 10 option B): `apply_phase` as the sole write
+selector, three scoped checkpoints folded into one manifest digest, and an `expected_fc` /
+value-level CAS contract on `qa_auto_fix.unlock_and_write()`. No migration, no `web/` change,
+no production DB write.
+
+### Modified files in this slice
+
+| File | Change |
+|------|--------|
+| `scraper/_oneoff_backfill_publication_metadata.py` | phase-aware executor, scoped checkpoints, extended-field CAS, Eslite identity ordering |
+| `scraper/qa_auto_fix.py` | `expected_fc` / `expected_event_value` / `expected_event_form` CAS, `field_correction_id` audit anchor, sentinel preservation |
+| `scraper/tests/test_publication_manifest.py` | phase, checkpoint, CAS, and Eslite coverage |
+| `scraper/tests/test_qa_auto_fix_unlock_only.py` | new offline `unlock_and_write` contract suite plus the shared `FakeSupabase` |
+
+### Root cause fixed in this round — after-checkpoint false drift
+
+Eight tests failed with `STOP: <phase>.after target_field_corrections drift; zero writes
+performed`. The manifest records a field correction the phase has yet to create as
+`"id": null`, because Postgres assigns the id during the write. The read-back saw the real
+id (`field_corrections-1` …), so `structural_row_diff()` keyed both sides on `id` and
+reported the same logical row as `missing` (the null-id expectation) and `unexpected` (the
+live row) at once. Seven of the eight failures were this single false positive on
+`event-clear.after` and `eslite-identity.after`.
+
+The fix pairs rows explicitly instead of comparing id-keyed sets:
+
+* `structural_row_diff(expected, observed, *, allow_db_assigned_ids=False)` now matches
+  id-bearing expected rows first, by complete field-correction id, and only then pairs the
+  leftovers.
+* `allow_db_assigned_ids` is opt-in and applies to expected rows with no id — the rows this
+  phase creates. They pair by `(event_id, field_name)` and must match on
+  `corrected_value`, `original_value`, `corrected_by`, and `report_id`
+  (`CHECKPOINT_NEW_ROW_MATCH_FIELDS`). A candidate without a real live id never matches, and
+  an ambiguous identity is reported as `missing` rather than silently accepted.
+* `verify_checkpoint()` passes `allow_db_assigned_ids=True` only for
+  `target_field_corrections` on a `.after` checkpoint. `events`,
+  `preserve_field_corrections`, every `.before` checkpoint, and the `unlock_only` delete path
+  keep full-id matching. Phase 3a's safety core is unchanged.
+
+The eighth failure was unrelated: `test_cleanup_phases_never_select_the_eslite_candidate`
+built its pure candidate with no field corrections, so `fc-remove` had nothing to delete and
+correctly selected nothing. The implementation was right; the fixture now carries a polluted
+`location_name` correction so the control assertion has real work to observe.
+
+### Drift detection is still load-bearing
+
+Two regression tests were added, and each guard was neutralized in a scratch probe to confirm
+the assertions fail when the guard is broken.
+
+| Probe | Guard intact | Guard neutralized |
+|-------|--------------|-------------------|
+| Sentinel `corrected_value` drift on a phase-created row | detected | not detected |
+| Extra unmanifested target field correction | detected | not detected |
+| `fc-remove.before` event drift | detected, zero writes | n/a |
+
+`test_existing_rows_still_match_only_on_the_full_field_correction_id` additionally proves an
+expected row that carries an id is never matched by `(event_id, field_name)`, with or without
+`allow_db_assigned_ids`.
+
+### Preserved contracts
+
+* `fc-remove` mutates no event; `event-clear` deletes no field correction
+* An existing exact sentinel suppresses the upsert but the event value is still CAS-cleared
+* Only the thirteen target fields are executable; `price_info`, titles, `organizer_id`, and
+  `organizer_url` stay byte-for-byte unchanged
+* `poster_pollution_repair_plan()` writes no `PUBLICATION_CHANNEL_LOCATION`
+* `corrected_by IS NOT NULL` remains a hard cleanup exclusion
+* The audit trail reuses the existing `field_correction_id` column; no migration was added
+
+### Batch 2 verification
+
+| Gate | Result |
+|------|--------|
+| `pytest scraper/tests/test_publication_manifest.py scraper/tests/test_qa_auto_fix_unlock_only.py -q` | PASS, 66 passed |
+| `pytest scraper/tests -q` | PASS, 520 passed, 1 skipped |
+| `python -m compileall -q scraper` | PASS |
+| `git --no-pager diff --check` | PASS |
+| `web/` diff from this batch | none |
+| Production DB access during tests | none |
+| Push / merge / deploy / manifest apply | not executed |
+
+## Delivery Batch 2a — Independent Tester FAIL Remediation (code-only)
+
+An independent Tester ran the Batch 2 executor against the offline fake database
+and returned FAIL on three defects. All three are fixed here; no production DB was
+read or written, and `web/` is untouched.
+
+### F-1 (MEDIUM) — an after-gate failure claimed `zero writes performed`
+
+`verify_checkpoint()` emitted one message for both gates. A `.before` gate failure
+really does happen before any write, but the identical text was reused for the
+after gate, which only runs once the phase has finished writing. The Tester
+reproduced it on an ordinary non-Eslite manifest:
+
+```text
+apply succeeded, events written: 8   fc rows created: 7
+MESSAGE: STOP: event-clear.after target_field_corrections drift; zero writes performed: {...}
+```
+
+On-call would read `zero writes performed` and conclude no rollback was needed,
+while the rollback snapshot was in fact mandatory.
+
+Fix — the two gates now speak different languages:
+
+* New `checkpoint_stop_language(is_after_gate, write_context)` returns the drift
+  marker and the remediation clause. Only a before gate may return
+  `zero writes performed`; an after gate always returns ` AFTER writes` plus
+  either the write context or `manual rollback verification required`.
+* `verify_checkpoint(..., write_context=...)` renders
+  `STOP: <checkpoint> <key> drift AFTER writes; rollback snapshot=<path>;
+  applied_event_ids=[...]; fc_created=<n>; fc_deleted=<n>; manual rollback required: {diff}`.
+* The same remediation clause is threaded into `verify_checkpoint_audits()`, so an
+  audit-anchor mismatch at the after gate also names the snapshot.
+* `execute_candidate()` now returns `{"fc_created", "fc_deleted"}`. `fc_created`
+  counts only actions whose `expected_fc` is absent, so a preserved exact sentinel
+  is never reported as a creation. `apply_manifest()` accumulates both counters and
+  passes them, with the snapshot path and applied event ids, as the after gate's
+  `write_context`.
+
+### F-2 (LOW-MEDIUM) — the `event-clear` before gate took the relaxed path
+
+`phase_creates_rows = name.endswith(".after")` inferred the gate's role from the
+checkpoint name. Because `CHECKPOINT_BEFORE["event-clear"]` is `fc-remove.after`,
+the event-clear *before* gate matched that suffix and ran with
+`allow_db_assigned_ids=True`. The Tester confirmed this was not a no-op: a cleanup
+manifest generated before the Eslite apply put six real `id=None` rows on that path.
+
+Fix — the role is now stated by the caller, never inferred:
+
+* `verify_checkpoint(..., is_after_gate: bool = False)` replaces the suffix test.
+* `apply_manifest()` passes `is_after_gate=False` for `CHECKPOINT_BEFORE[...]` and
+  `is_after_gate=True` for `CHECKPOINT_AFTER[...]`.
+* Every before gate is id-exact regardless of the name of the payload it reuses.
+  `events`, `preserve_field_corrections`, and the `unlock_only` delete path were
+  already id-exact and stay that way.
+
+### F-3 (LOW) — a pre-Eslite cleanup manifest wrote before it stopped
+
+`build_manifest(scope="cleanup")` does not exclude the Eslite candidate, so its
+`fc-remove.after` image carried the six `lock_clean` rows that only the
+`eslite-identity` phase can create. `fc-remove` therefore completed the pure
+cohort's writes (1 delete + 1 audit) and only then failed its own after gate.
+
+Fix — new `assert_cleanup_manifest_excludes_eslite(manifest)`, called by
+`apply_manifest()` before the checkpoint gate, before the rollback snapshot, and
+before any write. A cleanup-scope manifest that still contains an
+`eslite_physical_identity_migration` candidate is refused with an instruction to
+apply `--scope eslite-identity` first, read back the migrated rows, and regenerate
+the cleanup manifest. Generation is left intact so the candidate stays inspectable
+as provenance.
+
+### INFO items
+
+* `CHECKPOINT_NEW_ROW_MATCH_FIELDS` now documents why `created_at` is excluded:
+  Postgres assigns it during the same write, so the manifest cannot predict it.
+* An end-to-end `preserve` / `events` id-exactness test was added (below).
+
+### Tests added
+
+| Test | Defect |
+|------|--------|
+| `test_after_gate_failure_names_the_rollback_instead_of_claiming_zero_writes` | F-1 |
+| `test_before_gate_failure_still_reports_zero_writes` | F-1 |
+| `test_the_event_clear_before_gate_is_id_exact_despite_its_after_payload_name` | F-2 |
+| `test_a_cleanup_manifest_predating_the_eslite_migration_is_refused_before_any_write` | F-3 |
+| `test_the_eslite_guard_leaves_a_clean_cleanup_manifest_alone` | F-3 |
+| `test_preserve_row_id_swap_stops_the_after_checkpoint` | INFO-2 |
+
+### Drift detection is still load-bearing
+
+Each new guard was neutralized in place and the suite re-run, then restored and
+verified byte-identical.
+
+| Mutation | Result |
+|----------|--------|
+| After gate reverts to the `zero writes performed` clause | 1 failed — `test_after_gate_failure_names_the_rollback_instead_of_claiming_zero_writes` |
+| Before gate infers the relaxed path from `name.endswith(".after")` | 1 failed — `test_the_event_clear_before_gate_is_id_exact_despite_its_after_payload_name` |
+| `assert_cleanup_manifest_excludes_eslite()` removed from `apply_manifest()` | 1 failed — `test_a_cleanup_manifest_predating_the_eslite_migration_is_refused_before_any_write` |
+
+The F-3 mutation also reproduced the Tester's finding exactly: `fc-remove` applied
+the pure candidate (`fc_deleted=1`) and then failed its own after gate on the six
+Eslite `id=None` rows — reported, with F-1 in place, as ` AFTER writes` with the
+snapshot path rather than as `zero writes performed`.
+
+### Preserved contracts
+
+No drift detection was weakened. `allow_db_assigned_ids` still applies only to the
+current phase's own after-image `target_field_corrections`; `fc-remove` mutates no
+event and `event-clear` deletes no field correction; an existing exact sentinel
+still suppresses only the upsert while the event value is CAS-cleared; the thirteen
+target fields remain the only executable set; `price_info`, titles, `organizer_id`,
+and `organizer_url` stay byte-for-byte unchanged; `poster_pollution_repair_plan()`
+writes no `PUBLICATION_CHANNEL_LOCATION`; `corrected_by IS NOT NULL` remains a hard
+exclusion; the audit trail reuses the existing `field_correction_id` column with no
+migration.
+
+### Batch 2a verification
+
+| Gate | Result |
+|------|--------|
+| `pytest scraper/tests/test_publication_manifest.py scraper/tests/test_qa_auto_fix_unlock_only.py -q` | PASS, 72 passed |
+| `pytest scraper/tests -q` | PASS, 526 passed, 1 skipped |
+| `python -m compileall -q scraper` | PASS |
+| `git --no-pager diff --check` | PASS |
+| `web/` diff from this batch | none |
+| Production DB access | none |
+| Push / merge / deploy / manifest apply | not executed |

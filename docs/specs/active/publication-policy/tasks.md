@@ -198,3 +198,39 @@ description: publication-policy 各 phase、Wave 邊界、驗證與交付狀態
 - [x] `web/messages/*.json` 本批次零 diff；測試期間無 production DB 連線或寫入
 - [ ] NOT EXECUTED（授權邊界）: Phase 3、`qa_auto_fix.py`、`_oneoff_backfill_publication_metadata.py`、`test_publication_manifest.py`
 - [ ] NOT EXECUTED（授權邊界）: live DB apply、SQL migration、`web/` 變更、push、merge 與 deploy
+
+## Delivery Batch 2: Phase-Aware Manifest Executor（code-only）
+
+### Phase 0: Worktree 前置
+
+- [x] 於既有 `ttr-publication-policy-worktree` / `feat/publication-policy` 續作（CONTINUING）
+- [x] 未觸碰 worktree 內既有 `web/` WIP（7 檔位元組保留）
+
+### Phase 3 執行器實作
+
+- [x] `apply_phase` 成為唯一寫入選擇器；`route_action` 取代舊 `phase` provenance key
+- [x] 三個 scoped checkpoint（`fc-remove.before` / `fc-remove.after` / `event-clear.after`）納入單一 manifest digest
+- [x] `unlock_and_write()` 新增 `expected_fc` / `expected_event_value` / `expected_event_form` CAS 契約
+- [x] `_audit_start()` 以既有 `field_correction_id` 欄位錨定 removal，未新增 migration
+- [x] `event-clear` 先跑六欄 value-level CAS patch，再跑七個 canonical `lock_empty`
+- [x] 全 no-op extended patch 被跳過（語意未弱化）
+
+### Batch 2 修復：after-checkpoint 假 drift
+
+- [x] 根因確認：manifest 內尚未建立的 empty sentinel 記為 `id: null`，read-back 讀到 DB 指派的 id，同一筆同時被判 `missing` 與 `unexpected`
+- [x] `structural_row_diff()` 改為配對式比對，新增 `allow_db_assigned_ids` 參數（預設 False）
+- [x] 既有列（before checkpoint、preserve set、`unlock_only` 刪除目標）仍以完整 FC `id` 比對，未一併放寬
+- [x] 本 phase 新建列以 `(event_id, field_name)` + `corrected_value` / `original_value` / `corrected_by` / `report_id` 比對
+- [x] 放寬僅套用於 `.after` checkpoint 的 `target_field_corrections`；`events` 與 `preserve_field_corrections` 維持 id-exact
+- [x] `test_cleanup_phases_never_select_the_eslite_candidate` fixture 補上受污染 FC，讓 `fc-remove` 有真實工作（實作行為正確，無 FC 時不選取）
+- [x] 新增 `test_after_checkpoint_still_rejects_drift_on_phase_created_sentinels`（值漂移與多餘 target FC 皆 STOP）
+- [x] 新增 `test_existing_rows_still_match_only_on_the_full_field_correction_id`（證明既有列未被放寬）
+- [x] red-when-broken 驗證：停用 `_phase_created_row_matches` 與 `structural_row_diff` 後偵測翻為 False
+
+### Batch 2 驗證與邊界
+
+- [x] 聚焦測試 PASS（66 tests）
+- [x] 全量 scraper 測試 PASS（520 passed, 1 skipped）
+- [x] `compileall -q scraper` 與 `git --no-pager diff --check` PASS
+- [x] `web/` 本批次零 diff；測試期間無 production DB 連線或寫入
+- [ ] NOT EXECUTED（授權邊界）: live DB apply、manifest apply、lock 操作、push、merge 與 deploy
