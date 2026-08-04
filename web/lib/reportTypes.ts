@@ -9,6 +9,23 @@
 
 export const SECURITY_REPORT_TYPE = "auto_security_prompt_injection";
 export const BROKEN_LINK_REPORT_TYPE = "brokenLink";
+export const SCOPE_REPORT_TYPE = "scopeReviewNonJapan";
+
+export function isScopeMetadataToken(type: string): boolean {
+  return (
+    type.startsWith("scopeDecision:") ||
+    type.startsWith("scopeRegion:") ||
+    type.startsWith("scopeHash:")
+  );
+}
+
+export function isBulkConfirmEligible(types: string[]): boolean {
+  return !types.includes(SCOPE_REPORT_TYPE);
+}
+
+export function shouldWriteScraperHistory(types: string[]): boolean {
+  return !types.includes(SCOPE_REPORT_TYPE);
+}
 
 // Machine metadata tokens persisted alongside a security report in
 // report_types[] (the finding hash + severity). They ride along in the array

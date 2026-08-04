@@ -388,7 +388,7 @@
     "skillNoteCopied": "Copied!",
     "eventDeactivated": "Event deactivated. Will be re-annotated on next scraper run.",
     "historyWritten": "✓ history.md updated automatically.",
-    "historySkipped": "⚠ GITHUB_TOKEN not set — please update history.md manually.",
+    "historySkipped": "⚠ No GITHUB_TOKEN or the GitHub API failed; history.md was not updated.",
     "noReports": "No reports yet",
     "viewEvent": "View event",
     "fieldPreview": "Field Preview",
@@ -754,7 +754,8 @@
     "trafficSourceTwitter": "X (Twitter)",
     "trafficSourceDirect": "Direct",
     "trafficSourceOther": "Other External",
-    "trafficSourceUnknown": "Untracked (legacy)"
+    "trafficSourceUnknown": "Untracked (legacy)",
+    "bulkExcludedNotice": "Scope review reports are excluded from bulk confirmation. Review and handle each row individually."
   },
   "report": {
     "aiDisclaimer": "AI selection may have errors — report issues here",
@@ -780,7 +781,8 @@
     "selectionReasonHint": "Please describe (you may edit the pre-filled text)",
     "fieldEditHint": "Please describe the correction (you may edit the pre-filled text)",
     "auto_security_prompt_injection": "Suspected prompt injection",
-    "auto_simplified_chinese": "Simplified Chinese"
+    "auto_simplified_chinese": "Simplified Chinese",
+    "scopeReviewNonJapan": "Non-Japan audience scope review"
   },
   "saved": {
     "title": "Saved Events",

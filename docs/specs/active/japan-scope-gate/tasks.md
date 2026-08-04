@@ -24,10 +24,11 @@ updated: 2026-08-04
 * [x] Phase 2：擴充 manual consumer eligibility tests
 * [x] Phase 2：在 isolated worktree 更新 Architect Dead Instruction Guard 與 Baseline Snapshot Completeness Guard
 * [x] Phase 2 checkpoint：imports OK，focused `21 passed`，regression `74 passed`，建立 atomic local commit
-* [ ] Phase 3：閉合 admin per-row confirm、bulk exclusion、history status 與 machine-note visibility
-* [ ] Phase 3：三語 i18n、core behavior tests 與 AST/source assertions PASS
-* [ ] Phase 3 checkpoint：建立 atomic local web commit，確認 i18n diff 沒有 key removal
-* [ ] Phase 4：imports、具名 scraper tests、`pnpm build` 與具名 web tests 全部 PASS
+* [x] Phase 3：閉合 admin per-row confirm、bulk exclusion、history status 與 machine-note visibility
+* [x] Phase 3：三語 i18n、指定 web tests `36 passed` 與 production build `250/250` static pages PASS
+* [x] Phase 3 checkpoint：本 atomic web commit 收尾，三語 i18n diff `0 key deletion`
+* [x] Phase 4（web）：指定四檔 tests `36 passed`，`pnpm build` PASS（`250/250` static pages）
+* [ ] Phase 4（scraper）：imports 與具名 scraper tests 全部 PASS
 * [ ] Phase 6a：實作 one-off snapshot/apply safety interface與 unit tests
 * [ ] Phase 6a：只執行 immutable `--snapshot`，確認 22 筆唯一解析且無 parent/child 牽連
 * [ ] Phase 7：更新 Google News RSS source history與本 spec 的 commits/tests/approval state

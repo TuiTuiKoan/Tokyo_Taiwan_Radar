@@ -388,7 +388,7 @@
     "skillNoteCopied": "コピーしました！",
     "eventDeactivated": "イベントを非表示にしました。次回スクレイピング時に再アノテーションされます。",
     "historyWritten": "✓ history.md を自動更新しました。",
-    "historySkipped": "⚠ GITHUB_TOKEN が未設定です。手動で history.md を更新してください。",
+    "historySkipped": "⚠ GITHUB_TOKEN がないか GitHub API に失敗したため、history.md は更新されませんでした。",
     "noReports": "報告はまだありません",
     "viewEvent": "イベントを見る",
     "fieldPreview": "原文プレビュー",
@@ -754,7 +754,8 @@
     "trafficSourceTwitter": "X (Twitter)",
     "trafficSourceDirect": "直接アクセス",
     "trafficSourceOther": "その他の外部リンク",
-    "trafficSourceUnknown": "未計測（旧データ）"
+    "trafficSourceUnknown": "未計測（旧データ）",
+    "bulkExcludedNotice": "スコープ確認レポートは一括承認から除外されます。1件ずつ確認して処理してください。"
   },
   "report": {
     "aiDisclaimer": "AIの選定には誤りがある場合があります。問題を見つけた場合はご報告ください",
@@ -780,7 +781,8 @@
     "selectionReasonHint": "理由を記述してください（既定のテキストを編集可）",
     "fieldEditHint": "修正内容を記述してください（既定のテキストを編集可）",
     "auto_security_prompt_injection": "プロンプトインジェクション疑い",
-    "auto_simplified_chinese": "簡体字混入"
+    "auto_simplified_chinese": "簡体字混入",
+    "scopeReviewNonJapan": "日本国外の対象者に関するスコープ確認"
   },
   "saved": {
     "title": "お気に入り",

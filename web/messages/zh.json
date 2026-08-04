@@ -388,7 +388,7 @@
     "skillNoteCopied": "已複製！",
     "eventDeactivated": "活動已下架，待下次爬蟲重新標注。",
     "historyWritten": "✓ history.md 已自動更新。",
-    "historySkipped": "⚠ GITHUB_TOKEN 未設定，請手動更新 history.md。",
+    "historySkipped": "⚠ 無 GITHUB_TOKEN 或 GitHub API 失敗，history.md 未更新。",
     "noReports": "目前沒有提報",
     "viewEvent": "查看活動",
     "fieldPreview": "原始資料預覽",
@@ -754,7 +754,8 @@
     "trafficSourceTwitter": "X (Twitter)",
     "trafficSourceDirect": "直接訪問",
     "trafficSourceOther": "其他外部連結",
-    "trafficSourceUnknown": "未追蹤（舊資料）"
+    "trafficSourceUnknown": "未追蹤（舊資料）",
+    "bulkExcludedNotice": "範圍複審報告已排除於批次確認，請逐筆檢視後處理。"
   },
   "report": {
     "aiDisclaimer": "AI選取可能有誤差，如果發現問題，歡迎提報",
@@ -780,7 +781,8 @@
     "selectionReasonHint": "請說明理由（可修改預設內容）",
     "fieldEditHint": "請補充說明（可修改預設內容）",
     "auto_security_prompt_injection": "疑似提示注入",
-    "auto_simplified_chinese": "簡體中文"
+    "auto_simplified_chinese": "簡體中文",
+    "scopeReviewNonJapan": "非日本受眾範圍複審"
   },
   "saved": {
     "title": "我的收藏",

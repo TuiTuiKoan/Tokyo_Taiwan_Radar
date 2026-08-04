@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isConfirmationOnlyReport, BROKEN_LINK_REPORT_TYPE } from "@/lib/reportTypes";
+import {
+  BROKEN_LINK_REPORT_TYPE,
+  SCOPE_REPORT_TYPE,
+  isConfirmationOnlyReport,
+  shouldWriteScraperHistory,
+} from "@/lib/reportTypes";
 
 const GITHUB_REPO = "TuiTuiKoan/Tokyo_Taiwan_Radar";
 const HISTORY_PATH = ".github/skills/scraper-expert/history.md";
@@ -35,6 +40,7 @@ export interface ConfirmReportInput {
   eventId: string;
   adminNotes: string;
   reportTypes: string[];
+  scopeAcknowledged?: boolean;
   eventName: string;
   sourceName: string | null;
   currentCategory?: string[] | null;
@@ -44,9 +50,12 @@ export interface ConfirmReportInput {
   correctedSelectionReason?: string;
 }
 
+export type HistoryStatus = "written" | "not_applicable" | "skipped";
+
 export interface ConfirmReportResult {
   ok: boolean;
   githubUpdated: boolean;
+  historyStatus?: HistoryStatus;
   wasReviewed?: boolean;
   error?: string;
 }
@@ -73,7 +82,7 @@ export async function runConfirmReport(
 
   const { data: reportRows, error: reportLookupError } = await supabase
     .from("event_reports")
-    .select("id,event_id,report_types,status")
+    .select("id,event_id,report_types,status,admin_notes")
     .eq("id", input.reportId)
     .eq("status", "pending");
   if (reportLookupError) {
@@ -85,9 +94,21 @@ export async function runConfirmReport(
   if (reportRows.length > 1) {
     return { ok: false, githubUpdated: false, error: "Multiple pending reports for id" };
   }
-  const report = reportRows[0] as { event_id: string; report_types: string[] | null };
+  const report = reportRows[0] as {
+    event_id: string;
+    report_types: string[] | null;
+    admin_notes: string | null;
+  };
   const eventId = report.event_id;
   const reportTypes = report.report_types ?? [];
+  const isScopeReport = reportTypes.includes(SCOPE_REPORT_TYPE);
+  if (isScopeReport && input.scopeAcknowledged !== true) {
+    return {
+      ok: false,
+      githubUpdated: false,
+      error: "scope report requires per-row review",
+    };
+  }
 
   const wrongFields = reportTypes
     .filter((t) => t.startsWith("field:"))
@@ -126,7 +147,10 @@ export async function runConfirmReport(
   if (!beforeEvent) {
     return { ok: false, githubUpdated: false, error: "Event not found" };
   }
-  const before = beforeEvent as unknown as Record<string, unknown>;
+  const before: Record<string, unknown> = {
+    ...(beforeEvent as unknown as Record<string, unknown>),
+    admin_notes: report.admin_notes,
+  };
   const currentAnnotationStatus =
     typeof before["annotation_status"] === "string"
       ? (before["annotation_status"] as string)
@@ -203,7 +227,9 @@ export async function runConfirmReport(
   if (isIrrelevant && !isWrongCategory && !isWrongDetails) {
     eventUpdate["is_active"] = false;
     eventUpdate["deactivated_at"] = new Date().toISOString();
-    eventUpdate["deactivated_reason"] = "admin confirmed irrelevant";
+    eventUpdate["deactivated_reason"] = isScopeReport
+      ? "out_of_scope: non-Japan audience — admin confirmed"
+      : "admin confirmed irrelevant";
     eventUpdate["deactivated_by_pass"] = "admin_manual";
   }
 
@@ -329,7 +355,9 @@ export async function runConfirmReport(
     .update({
       status: "confirmed",
       confirmed_at: now,
-      admin_notes: input.adminNotes || null,
+      admin_notes: isScopeReport
+        ? [before["admin_notes"], input.adminNotes].filter(Boolean).join("\n---\n") || null
+        : input.adminNotes || null,
     })
     .eq("id", input.reportId)
     .eq("status", "pending")
@@ -341,20 +369,31 @@ export async function runConfirmReport(
     return { ok: false, githubUpdated: false, error: "Report already handled or not pending" };
   }
 
-  const githubUpdated = await appendToHistoryFile(
-    input,
-    reportTypes,
-    wrongFields,
-    hasScraperOnlyFields,
-    finalAnnotationStatus
-  );
+  const writeScraperHistory = shouldWriteScraperHistory(reportTypes);
+  const historyStatus: HistoryStatus = !writeScraperHistory
+    ? "not_applicable"
+    : (await appendToHistoryFile(
+        input,
+        reportTypes,
+        wrongFields,
+        hasScraperOnlyFields,
+        finalAnnotationStatus
+      ))
+      ? "written"
+      : "skipped";
+  const githubUpdated = historyStatus === "written";
 
   const skillPath = input.sourceName ? SOURCE_SKILL_PATHS[input.sourceName] : undefined;
-  if (skillPath && !isConfirmationOnlyReport(reportTypes)) {
+  if (writeScraperHistory && skillPath && !isConfirmationOnlyReport(reportTypes)) {
     await appendPendingRuleToSkill(skillPath, input, reportTypes, wrongFields);
   }
 
-  return { ok: true, githubUpdated, wasReviewed: finalAnnotationStatus === "reviewed" };
+  return {
+    ok: true,
+    githubUpdated,
+    historyStatus,
+    wasReviewed: finalAnnotationStatus === "reviewed",
+  };
 }
 
 export async function runDismissReport(

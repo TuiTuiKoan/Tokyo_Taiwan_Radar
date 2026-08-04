@@ -459,3 +459,45 @@ test("shared helper is read-only and cannot acquire or release the lock", () => 
   assert.doesNotMatch(source, /\.(?:insert|update|upsert|delete|rpc)\s*\(/);
   assert.doesNotMatch(source, /\b(?:acquire|release)\w*\s*\(/i);
 });
+
+test("admin scope reports remain per-row only across bulk and exclusion actions", () => {
+  const componentPath = path.join(WEB_ROOT, "components/AdminReportsTable.tsx");
+  const source = fs.readFileSync(componentPath, "utf8");
+
+  assert.match(
+    source,
+    /const eligibleRows = rows\.filter\(\(row\) => isBulkConfirmEligible\(row\.report_types\)\);/,
+    "bulk handler must defensively filter scope reports",
+  );
+  assert.match(
+    source,
+    /await handleConfirm\(row,\s*false\);/,
+    "bulk handler must never acknowledge a scope report",
+  );
+  assert.match(
+    source,
+    /onClick=\{\(\) => handleConfirm\(row,\s*true\)\}/,
+    "only the per-row confirm action may acknowledge a scope report",
+  );
+  assert.match(
+    source,
+    /const bulkEligibleSelected = selectedPending\.filter\(\(row\) =>\s*isBulkConfirmEligible\(row\.report_types\),?\s*\);/,
+    "selected bulk action must derive an eligible row set",
+  );
+  assert.match(
+    source,
+    /const bulkEligiblePending = pending\.filter\(\(row\) =>\s*isBulkConfirmEligible\(row\.report_types\),?\s*\);/,
+    "confirm-all must derive an eligible row set",
+  );
+  assert.match(source, /onClick=\{\(\) => handleBulkConfirm\(bulkEligibleSelected\)\}/);
+  assert.match(source, /disabled=\{bulkConfirming \|\| bulkEligibleSelected\.length === 0\}/);
+  assert.match(source, /t\("bulkConfirmSelected", \{ count: bulkEligibleSelected\.length \}\)/);
+  assert.match(source, /onClick=\{\(\) => handleBulkConfirm\(bulkEligiblePending\)\}/);
+  assert.match(source, /disabled=\{bulkConfirming \|\| bulkEligiblePending\.length === 0\}/);
+  assert.match(source, /t\("bulkConfirmAll", \{ count: bulkEligiblePending\.length \}\)/);
+  assert.match(
+    source,
+    /row\.report_types\.includes\("irrelevant"\) &&\s*!row\.report_types\.includes\(SCOPE_REPORT_TYPE\) &&\s*row\.events\?\.source_name/,
+    "scope reports must never render ExclusionSuggest",
+  );
+});
