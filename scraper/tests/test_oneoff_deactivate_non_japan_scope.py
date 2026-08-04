@@ -197,6 +197,25 @@ def test_existing_output_is_never_overwritten(tmp_path):
     assert path.read_text(encoding="utf-8") == "keep"
 
 
+def test_manifest_publication_race_preserves_competitor_and_removes_temp(tmp_path, monkeypatch):
+    path = tmp_path / "manifest.json"
+    competitor = b"competitor-won\n"
+    real_link = cleanup.os.link
+
+    def race_link(source, destination):
+        assert destination == path
+        path.write_bytes(competitor)
+        return real_link(source, destination)
+
+    monkeypatch.setattr(cleanup.os, "link", race_link)
+
+    with pytest.raises(FileExistsError):
+        cleanup.write_manifest(path, _manifest())
+
+    assert path.read_bytes() == competitor
+    assert list(tmp_path.glob(f".{path.name}.*.tmp")) == []
+
+
 def test_manifest_write_is_read_only_and_digest_round_trips(tmp_path):
     path = tmp_path / "nested" / "manifest.json"
     manifest = _manifest()
@@ -230,6 +249,54 @@ def test_inactive_child_is_recorded_as_warning_and_manifest_relation():
 
     assert manifest["relations"]["inactive_children"] == [child]
     assert manifest["warnings"] == [f"inactive_child={child['id']} parent={rows[0]['id']}"]
+
+
+@pytest.mark.parametrize(
+    "tamper, expected_error",
+    [
+        ("category", "category mismatch"),
+        ("reason", "reason mismatch"),
+        ("evidence_empty", "evidence mismatch"),
+        ("evidence_malformed", "evidence mismatch"),
+        ("evidence_extra_key", "evidence item"),
+        ("evidence_field", "evidence field mismatch"),
+        ("evidence_substring", "evidence expected_substring mismatch"),
+        ("evidence_excerpt", "evidence observed_excerpt"),
+        ("evidence_excerpt_missing_substring", "evidence observed_excerpt"),
+        ("before_inactive", "before-image is_active"),
+        ("before_missing", "before-image missing fields"),
+    ],
+)
+def test_rebound_digest_does_not_bypass_manifest_contract(tamper, expected_error):
+    manifest = _manifest()
+    target = manifest["targets"][0]
+    if tamper == "category":
+        target["category"] = "tampered"
+    elif tamper == "reason":
+        target["reason"] = "tampered"
+    elif tamper == "evidence_empty":
+        target["evidence"] = []
+    elif tamper == "evidence_malformed":
+        target["evidence"] = [{}]
+    elif tamper == "evidence_extra_key":
+        target["evidence"][0]["extra"] = "tampered"
+    elif tamper == "evidence_field":
+        target["evidence"][0]["field"] = "raw_description"
+    elif tamper == "evidence_substring":
+        target["evidence"][0]["expected_substring"] = "tampered"
+    elif tamper == "evidence_excerpt":
+        target["evidence"][0]["observed_excerpt"] = ""
+    elif tamper == "evidence_excerpt_missing_substring":
+        target["evidence"][0]["observed_excerpt"] = "unrelated evidence"
+    elif tamper == "before_inactive":
+        target["before"]["is_active"] = False
+    else:
+        del target["before"]["source_name"]
+    manifest = cleanup.bind_manifest_digest(manifest)
+
+    cleanup.verify_manifest_digest(manifest, manifest["manifest_digest"])
+    with pytest.raises(RuntimeError, match=expected_error):
+        cleanup.validate_manifest_contract(manifest)
 
 
 @pytest.mark.parametrize("drift", ["stable", "inactive", "active_child", "target_parent"])

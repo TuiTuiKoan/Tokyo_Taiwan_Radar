@@ -29,7 +29,7 @@ updated: 2026-08-04
 * [x] Phase 3 checkpoint：本 atomic web commit 收尾，三語 i18n diff `0 key deletion`
 * [x] Phase 4（web）：指定四檔 tests `36 passed`，`pnpm build` PASS（`250/250` static pages）
 * [x] Phase 4（scraper）：imports OK；Phase 1/2 具名 suites `95 passed`
-* [x] Phase 6a：commit `94f17a33` 實作 one-off snapshot/apply safety interface；focused tests `20 passed`
+* [x] Phase 6a：commit `94f17a33` 實作 one-off snapshot/apply safety interface；focused tests `32 passed`
 * [x] Phase 6a：執行唯讀 snapshot attempt，22 個 prefix 唯一解析、evidence 與 active state 通過
 * [ ] Phase 6a acceptance：關係 gate STOP。Parent `3f693869-c263-4812-96c0-a6433d9be3af` 有 4 個 active target children，4 筆皆具有 `parent_event_id`：
 	* `47262b02-d817-4c4b-a1b0-a5f3fae06cd2`
