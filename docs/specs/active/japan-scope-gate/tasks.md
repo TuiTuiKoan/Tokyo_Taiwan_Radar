@@ -28,11 +28,16 @@ updated: 2026-08-04
 * [x] Phase 3：三語 i18n、指定 web tests `36 passed` 與 production build `250/250` static pages PASS
 * [x] Phase 3 checkpoint：本 atomic web commit 收尾，三語 i18n diff `0 key deletion`
 * [x] Phase 4（web）：指定四檔 tests `36 passed`，`pnpm build` PASS（`250/250` static pages）
-* [ ] Phase 4（scraper）：imports 與具名 scraper tests 全部 PASS
-* [ ] Phase 6a：實作 one-off snapshot/apply safety interface與 unit tests
-* [ ] Phase 6a：只執行 immutable `--snapshot`，確認 22 筆唯一解析且無 parent/child 牽連
-* [ ] Phase 7：更新 Google News RSS source history與本 spec 的 commits/tests/approval state
-* [ ] Final checkpoint：worktree clean，Changes Log 含每個 commit SHA、validation、manifest path/digest
+* [x] Phase 4（scraper）：imports OK；Phase 1/2 具名 suites `95 passed`
+* [x] Phase 6a：commit `94f17a33` 實作 one-off snapshot/apply safety interface；focused tests `20 passed`
+* [x] Phase 6a：執行唯讀 snapshot attempt，22 個 prefix 唯一解析、evidence 與 active state 通過
+* [ ] Phase 6a acceptance：關係 gate STOP。Parent `3f693869-c263-4812-96c0-a6433d9be3af` 有 4 個 active target children，4 筆皆具有 `parent_event_id`：
+	* `47262b02-d817-4c4b-a1b0-a5f3fae06cd2`
+	* `7c6c1e7f-1693-4c94-b3f2-04067a997eee`
+	* `a62ce9e1-ddc5-4fd7-8327-2c47f54fe0ec`
+	* `fe47a25c-ec38-4f0d-be21-7d06607cbbb2`
+* [x] Phase 7：更新 Google News RSS source history與本 spec 的 commits/tests/approval state
+* [x] Final checkpoint：本次 docs commit 完成後確認 tracked worktree clean；Changes Log 含 commits、validation 與 snapshot STOP 證據
 
 ## Wave 2：明確延後
 
@@ -44,8 +49,19 @@ updated: 2026-08-04
 ## Approval Gates
 
 * [ ] Phase 5：push、merge、deploy、exact-SHA workflow 與三筆 runtime canary，等待 Tester PASS 與使用者另行核准
-* [ ] Phase 6b：`--apply` production DB mutation，等待 manifest digest-bound 明確核准
+* [ ] Phase 6b：`--apply` production DB mutation，等待成功 manifest 的 exact digest-bound 明確核准
 * [ ] Phase 6c：production read-back，僅能在 Phase 6b 核准並完成後執行
+
+## Changes Log
+
+* `0495539e`：記錄 v3.1 preflight、baseline 與 isolated worktree
+* `23072d8e`：抽出 canonical location region classifier
+* `7f974490`：新增 consumable annotator scope decision 與 report lifecycle
+* `5cc8f7b8`：新增 admin 逐筆 scope report action
+* `6dfab75f`：加強 scope report UI source guards
+* `94f17a33`：新增 digest-bound scope cleanup manifest 與 unit tests
+
+Snapshot attempt：`tmp/scope_manifest_20260804T145452Z.json` 在寫入前 STOP，因此檔案不存在，digest unavailable。`--apply` NOT RUN。
 
 ## Prohibited This Round
 
