@@ -20,10 +20,10 @@ updated: 2026-08-04
 
 * [x] Phase 1：抽出 canonical location classifier，保留 backfill re-export 與既有 tests
 * [x] Phase 1 checkpoint：focused location tests `15 passed`，建立 atomic local commit
-* [ ] Phase 2：新增 annotator scope contract、runtime validation、effective-location decision 與 report lifecycle
-* [ ] Phase 2：擴充 manual consumer eligibility tests
-* [ ] Phase 2：在 isolated worktree 更新 Architect Dead Instruction Guard 與 Baseline Snapshot Completeness Guard
-* [ ] Phase 2 checkpoint：focused/regression scraper tests PASS，建立 atomic local commit
+* [x] Phase 2：新增 annotator scope contract、runtime validation、effective-location decision 與 report lifecycle
+* [x] Phase 2：擴充 manual consumer eligibility tests
+* [x] Phase 2：在 isolated worktree 更新 Architect Dead Instruction Guard 與 Baseline Snapshot Completeness Guard
+* [x] Phase 2 checkpoint：imports OK，focused `21 passed`，regression `74 passed`，建立 atomic local commit
 * [ ] Phase 3：閉合 admin per-row confirm、bulk exclusion、history status 與 machine-note visibility
 * [ ] Phase 3：三語 i18n、core behavior tests 與 AST/source assertions PASS
 * [ ] Phase 3 checkpoint：建立 atomic local web commit，確認 i18n diff 沒有 key removal

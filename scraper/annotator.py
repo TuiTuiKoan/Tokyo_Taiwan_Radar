@@ -13,6 +13,7 @@ Usage:
     python annotator.py --all    # Re-annotate ALL events
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -42,6 +43,7 @@ from bs4 import BeautifulSoup
 from category_feedback import load_corrections, build_feedback_prompt
 from selection_reason_feedback import load_sr_corrections, build_sr_feedback_prompt
 from movie_title_lookup import lookup_movie_titles, lookup_movie_titles_with_metadata
+from location_region import OTHER_FOREIGN, TAIWAN, _normalize_address, classify_region
 from venue_registry import lookup_venue
 from organizer_registry import lookup_organizer
 from security.injection_guard import (
@@ -1052,7 +1054,7 @@ A direct connection means:
   - Taiwanese artist/author/performer/director is the primary subject.
   - The event explicitly features Taiwan culture/products/identity as its main theme.
   - "Wansei" (灣生 - individuals born in Taiwan during the Japanese colonial era) are featured: events involving Wansei artists, authors, or historical figures are inherently relevant.
-REJECT (set is_active=false in your mind; write selection_reason explaining why it is marginal) if:
+MARK AS MARGINAL (write selection_reason explaining why) if:
   - The Taiwan link is only "this tour includes Taiwan" or "the author was inspired by Asia"
   - The event is a book launch where Taiwan appears only as a passing reference in the description
   - The event is a Japanese TV programme that once covered Taiwan
@@ -1064,9 +1066,14 @@ This radar covers events with a Japan connection. An event qualifies if it meets
   Rule 2: Physically takes place IN Japan AND features joint Taiwan-Japan participation.
   Rule 3: Physically takes place IN Japan, organized by a Japanese entity, with Taiwanese artists/speakers/performers participating.
   Rule 4: Physically takes place IN Taiwan but is explicitly designed to attract Japanese participants (study abroad, tourism, business exchange, cultural immersion for Japanese audiences).
-EXCLUSION: If an event takes place ONLY in Taiwan AND does not meet Rule 4, set is_active = false and explain in selection_reason.
+Always output scope_decision and scope_reason. scope_decision must be:
+    - "in_scope" when the event meets Rule 1, 2, 3, or 4.
+    - "out_of_scope" when it takes place only outside Japan and is for Taiwanese consumers, a foreign local audience, or B2B commercial expansion rather than Japanese participants.
+    - "uncertain" when the source does not provide enough evidence to identify who the event is FOR.
+scope_reason must be one sentence naming the intended audience evidence. Do not change is_active; scope findings are sent to human review.
+EXCLUSION: If an event takes place ONLY in Taiwan AND does not meet Rule 4, output scope_decision="out_of_scope" and explain who it is for in scope_reason.
 IMPORTANT INTEGRATION: Rule 4 corresponds to category labels tourism, study_abroad, scholarship, and business when the target audience is Japanese. If GPT has already assigned any of these categories AND the description clearly targets Japanese participants, the event PASSES the LOCATION GATE — regardless of whether the physical location is in Taiwan. Do NOT double-penalise.
-SCOPE — PROSPECTIVE ONLY: This gate applies at annotation time to events in pending / re-annotation state. Do NOT use this gate to retroactively set is_active = false for events that already have field_corrections locking any field (i.e. human-reviewed events). Those must be handled manually.
+SCOPE — PROSPECTIVE ONLY: This gate applies at annotation time to events in pending / re-annotation state. Human-reviewed events remain active; any scope concern must be handled manually.
 
 LANGUAGE RULE — CRITICAL: ALL *_zh fields (name_zh, description_zh, location_name_zh, location_address_zh, business_hours_zh, selection_reason.zh, and sub-event zh fields) MUST be written in Traditional Chinese (繁體中文). NEVER use Simplified Chinese (简体字). This applies to every single zh field without exception.
 
@@ -1351,6 +1358,8 @@ Respond with valid JSON matching this schema:
     "zh": "1-2句繁體中文，說明此活動與台灣的關聯及具體的收錄原因（避免籠統描述，需包含具體人物或主題細節）",
     "en": "1-2 sentences in English explaining specific Taiwan relevance, including concrete details like artist names or topics; AVOID generic phrases."
   },
+    "scope_decision": "in_scope" or "out_of_scope" or "uncertain",
+    "scope_reason": "1 sentence explaining who the event is FOR: Japanese participants, Taiwanese consumers/B2B, another local audience, or unclear",
   "sub_events": [
     {
       "name_ja": "sub-event name in Japanese",
@@ -1409,6 +1418,9 @@ _UNTRUSTED_CLOSE = "</UNTRUSTED_EVENT_DATA>"
 _TRUNCATION_MARK = "\n\n[... truncated ...]\n" + _UNTRUSTED_CLOSE
 
 SECURITY_REPORT_TYPE = "auto_security_prompt_injection"
+SCOPE_REPORT_TYPE = "scopeReviewNonJapan"
+_VALID_SCOPE_DECISIONS = frozenset({"in_scope", "out_of_scope", "uncertain"})
+_SCOPE_REASON_MAX = 300
 
 
 def build_event_user_content(raw_title: str | None, raw_description: str | None) -> str:
@@ -1533,6 +1545,164 @@ def _persist_injection_finding(sb, event: dict, hits, *, dry_run: bool, in_run_s
     except Exception as _ins_err:
         logger.warning("failed to queue security report for %s: %s", eid[:8], _ins_err)
     in_run_seen.add(eid)
+
+
+def _validate_scope_decision(value: Any) -> str:
+    return (
+        value
+        if isinstance(value, str) and value in _VALID_SCOPE_DECISIONS
+        else "in_scope"
+    )
+
+
+def _sanitize_scope_reason(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return value.replace("\x00", "").strip()[:_SCOPE_REASON_MAX] or None
+
+
+def _build_scope_finding(
+    event: dict[str, Any],
+    update_data: dict[str, Any],
+    annotation: dict[str, Any],
+) -> dict[str, Any]:
+    effective = {**event, **update_data}
+    effective_address = effective.get("location_address")
+    if not isinstance(effective_address, str):
+        effective_address = None
+    raw_prefectures = effective.get("location_prefectures")
+    effective_prefectures = (
+        [value for value in raw_prefectures if isinstance(value, str)]
+        if isinstance(raw_prefectures, list)
+        else None
+    )
+    decision = _validate_scope_decision(annotation.get("scope_decision"))
+    reason = _sanitize_scope_reason(annotation.get("scope_reason"))
+    region = classify_region(effective_address, effective_prefectures)
+    normalized_address = (
+        _normalize_address(effective_address) if effective_address else ""
+    )
+    fingerprint = hashlib.sha256(
+        f"{decision} | {region} | {normalized_address}".encode("utf-8")
+    ).hexdigest()[:16]
+    report_types = [
+        "irrelevant",
+        SCOPE_REPORT_TYPE,
+        f"scopeDecision:{decision}",
+        f"scopeRegion:{region}",
+        f"scopeHash:{fingerprint}",
+    ]
+    admin_notes = (
+        "Auto-detected possible out-of-scope event (Japan→Taiwan). "
+        f"decision={decision}; region={region}; address={effective_address!r}. "
+        f"Reason: {reason or 'No scope reason supplied.'}"
+    )
+    return {
+        "decision": decision,
+        "reason": reason,
+        "region": region,
+        "effective_address": effective_address,
+        "normalized_address": normalized_address,
+        "fingerprint": fingerprint,
+        "should_queue": decision != "in_scope" and region in {TAIWAN, OTHER_FOREIGN},
+        "report_types": report_types,
+        "admin_notes": admin_notes,
+    }
+
+
+def _latest_scope_report(sb, event_id: str) -> dict[str, Any] | None:
+    try:
+        response = (
+            sb.table("event_reports")
+            .select("id, report_types, status, created_at, confirmed_at")
+            .eq("event_id", event_id)
+            .contains("report_types", [SCOPE_REPORT_TYPE])
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        return None
+    rows = response.data or []
+    if not rows:
+        return None
+    row = rows[0]
+    stored_hash = next(
+        (
+            token.removeprefix("scopeHash:")
+            for token in row.get("report_types") or []
+            if isinstance(token, str) and token.startswith("scopeHash:")
+        ),
+        None,
+    )
+    return {
+        "id": row.get("id"),
+        "status": row.get("status"),
+        "created_at": row.get("created_at"),
+        "confirmed_at": row.get("confirmed_at"),
+        "hash": stored_hash,
+    }
+
+
+def _persist_scope_finding(
+    sb,
+    event: dict[str, Any],
+    finding: dict[str, Any],
+    *,
+    dry_run: bool,
+    in_run_seen: set,
+) -> None:
+    event_id = event["id"]
+    logger.info(
+        "scope evaluation for %s: decision=%s region=%s address=%r",
+        event_id[:8],
+        finding["decision"],
+        finding["region"],
+        finding["effective_address"],
+    )
+    if not finding["should_queue"] or event_id in in_run_seen:
+        return
+
+    existing = _latest_scope_report(sb, event_id)
+    if existing:
+        if existing.get("status") == "pending":
+            in_run_seen.add(event_id)
+            return
+        if existing.get("hash") == finding["fingerprint"]:
+            handled_at = _parse_injection_ts(
+                existing.get("confirmed_at") or existing.get("created_at")
+            )
+            updated_at = _parse_injection_ts(event.get("updated_at"))
+            if handled_at and updated_at and updated_at <= handled_at:
+                in_run_seen.add(event_id)
+                return
+
+    payload = {
+        "event_id": event_id,
+        "report_types": finding["report_types"],
+        "status": "pending",
+        "admin_notes": finding["admin_notes"],
+    }
+    if dry_run:
+        logger.info(
+            "[DRY-RUN] would queue scope report for %s payload=%s",
+            event_id[:8],
+            json.dumps(payload, ensure_ascii=False, sort_keys=True),
+        )
+        in_run_seen.add(event_id)
+        return
+
+    try:
+        sb.table("event_reports").insert(payload).execute()
+        logger.warning(
+            "queued scope report for %s: decision=%s region=%s",
+            event_id[:8],
+            finding["decision"],
+            finding["region"],
+        )
+    except Exception as error:
+        logger.warning("failed to queue scope report for %s: %s", event_id[:8], error)
+    in_run_seen.add(event_id)
 
 
 def _annotate_one(client: OpenAI, raw_title: str, raw_description: str, feedback_prompt: str = "", sr_feedback_prompt: str = "") -> dict:
@@ -2275,6 +2445,7 @@ def annotate_pending_events(
     field_protect_hits: int = 0  # P4 #5: count of fields protected by field_corrections table
     # Security Hardening v16 — per-run dedup of prompt-injection reports.
     _injection_in_run_seen: set[str] = set()
+    _scope_in_run_seen: set[str] = set()
 
     # Count how many google_news_rss events need article fetch.
     # Fetch when start_date is missing (original case) OR raw_description is
@@ -3083,6 +3254,18 @@ def annotate_pending_events(
                 if _is_pure_publication:
                     _verify_publication_postcondition(sb, eid, _human_protected)
                 events_ok += 1
+
+            try:
+                _scope_finding = _build_scope_finding(event, update_data, annotation)
+                _persist_scope_finding(
+                    sb,
+                    event,
+                    _scope_finding,
+                    dry_run=dry_run,
+                    in_run_seen=_scope_in_run_seen,
+                )
+            except Exception as _scope_error:
+                logger.warning("scope evaluation failed for %s: %s", eid[:8], _scope_error)
             logger.info("  ✓ annotated (categories: %s)", categories)
 
             # Apply localized location/hours fields separately — columns were added

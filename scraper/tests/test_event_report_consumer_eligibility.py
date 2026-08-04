@@ -40,6 +40,13 @@ LOCATION_URL = "auto_qa_location_url_is_event_url"
 HUMAN = "wrongCategory"
 UNKNOWN = "mystery_type"
 PAYLOAD_TOKENS = ("field:price_info", "fieldEdit:name_ja", "selectionReason:foo")
+SCOPE_ROW = [
+    "irrelevant",
+    "scopeReviewNonJapan",
+    "scopeDecision:out_of_scope",
+    "scopeRegion:taiwan",
+    "scopeHash:abc123",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +160,7 @@ class FakeSupabase:
 # 1. Pure token-prefix classification matrix
 # ---------------------------------------------------------------------------
 def test_classify_report_types_matrix():
+    assert "scopeReviewNonJapan" not in QA_TYPES
     assert classify_report_types([AUTO_A]) == "single_auto"
     assert classify_report_types([AUTO_A, AUTO_B]) == "compound_auto"
     # reordered all-auto is still compound_auto (order independent)
@@ -174,6 +182,7 @@ def test_classify_report_types_matrix():
     # empty/None tokens are stripped before length is judged
     assert classify_report_types([AUTO_A, ""]) == "single_auto"
     assert classify_report_types([AUTO_A, None]) == "single_auto"
+    assert classify_report_types(SCOPE_ROW) == "manual"
 
 
 def test_single_auto_type_matrix():
@@ -188,6 +197,7 @@ def test_single_auto_type_matrix():
     assert single_auto_type([UNKNOWN]) is None
     assert single_auto_type([]) is None
     assert single_auto_type(None) is None
+    assert single_auto_type(SCOPE_ROW) is None
 
 
 def test_all_known_auto_types_matrix():
@@ -205,6 +215,7 @@ def test_all_known_auto_types_matrix():
     assert all_known_auto_types([UNKNOWN]) is None
     assert all_known_auto_types([]) is None
     assert all_known_auto_types(None) is None
+    assert all_known_auto_types(SCOPE_ROW) is None
 
 
 def test_is_payload_token_and_is_known_auto_type():

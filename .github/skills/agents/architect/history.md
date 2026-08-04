@@ -2,6 +2,37 @@
 
 <!-- Append new entries at the top -->
 
+## 2026-08-04：Japan scope gate 的 dead instruction 與不完整 baseline
+
+**背景：** Japan scope gate 計畫追查 `3d74504d` 這筆在台北、面向台灣消費者的日本品牌
+活動。Annotator prompt 已有 LOCATION GATE，計畫也要求以 active count 與 pending report
+types 作 execution preflight。
+
+**錯誤：** LOCATION GATE 要求模型在心中設定 `is_active=false`，但 JSON example 無
+`is_active` 或 scope decision，主事件 writer 也沒有 consumer。Phase 0.5 的 raw JSON
+證明模型只輸出正向 `selection_reason`，政策文字無法控制資料流。原計畫另一個 gate 要求
+pending count 與 token snapshot 一致，卻未保存 expected count、完整 token set、pagination
+或 identity digest，執行時無從判定一致。
+
+**根本原因：** 計畫把 prompt instruction 視為已實作行為，沒有追到 model output、runtime
+validator 與 writer。Baseline 則只保存敘述，沒有保存可重算的 identity evidence。
+
+**修復：** Prompt 與 JSON example 新增三值 `scope_decision` 及 reviewer-visible
+`scope_reason`，runtime 以 fail-safe validator 消費，並在 deterministic region gate 後建立
+manual `event_reports` finding，不新增 events 欄位或自動停用。Preflight 重新 capture exact
+counts、完整 pagination、full-ID digest、expected token set 與 identity drift explanation。
+
+**教訓：**
+
+1. LLM 要求的每個輸出都必須同時存在於 JSON schema/example 與 explicit consumer；prompt
+  本身不是 implementation。
+2. Manual report consumer 必須具備 reviewer-visible evidence 與可執行 action，否則只是把
+  dead instruction 搬到 queue。
+3. Baseline gate 必須保存 query、expected values、pagination 與 identity digest。Count 相同
+  不能證明集合相同。
+
+---
+
 ## 2026-08-01：把「已推 main」當成部署證據，以及文件 apply-status 腐化
 
 **背景：** Lane A/Lane R 收尾。Migration 096 關閉 `search_path` 契約漂移後，

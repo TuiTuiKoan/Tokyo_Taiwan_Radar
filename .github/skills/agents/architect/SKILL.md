@@ -112,6 +112,34 @@ print('report_types:', types)               # 必須 ⊆ 計畫快照
 - **Spec ⟺ Worktree coupling（大型 feature 隔離；決策見 agent Gate，命令見 canonical）**：凡值得建 `docs/specs/active/<slug>/` 的長期 feature（跨 session／多檔／新模塊），計畫必須 provision 一個 `ttr-<slug>-worktree`（branch `feat/<slug>`），1:1 綁定、**僅適用規則上線後新建/重啟的 spec**（既有 spec grandfather）。小改動不建 spec、不建 worktree，走主工作目錄 + trunk-based 流程。並行 session 的 `git stash`/clean 碰不到 linked worktree，避免未 commit WIP 被當「unrelated before deploy」掃走（2026-06-29 v8 投稿精靈 WIP 散落 5 stash 事件）。**worktree 命令細節（state matrix、`.git/info/exclude`、STOP 條件）一律 defer `.github/instructions/git.instructions.md § Isolated worktree`，SKILL 只管「何時決策」。** runSubagent 同步但 return 常截斷——驗收看 git status/diff 不看回傳。
 - **worktree 並存期，任何「現況值」斷言先 grep 主 repo + worktree 兩邊對照**：worktree（如 `ttr-v8-worktree/`）常領先主 repo 數個未 merge 改動；使用者跑 worktree dev server 時，畫面反映的是 worktree 而非主 repo。只讀主 repo 會把「主 repo 落後」誤判成「需要改 worktree」。**推論表單/UI 實際 render 的 i18n 值，必須跟著元件 `useTranslations(ns)` 的 namespace 走到源頭**——同名 key（如 `fieldVenue` 同時存在於 designSystem preview 與 `eventIntake` 兩個 namespace）只憑 grep 第一個命中行號就斷言會誤判。使用者對自己畫面的觀察優先於先前 summary-derived 結論；被質疑時第一動作是查證兩邊實體（grep 主+worktree、追元件 namespace），不是辯護原判斷（2026-07-01 Phase B2 fieldVenue namespace／codebase 誤判事件，詳見 `history.md`）。
 
+### Dead Instruction Guard
+
+審核 LLM prompt 中要求「設定欄位」或「做出判斷」的計畫前，必須確認輸出同時存在於
+JSON example/schema，且有明確 consumer。consumer 可以是 DB writer、report writer、
+validator 或 control-flow branch，不必是 event row writer。驗證時搜尋欄位名，確認 schema
+與 consumer 路徑各至少一處；prompt 文字本身不算 consumer。
+
+人工佇列也是 consumer contract 的一部分。若輸出只會建立 report，還必須確認 reviewer
+看得到判斷依據，且有語意一致的 confirm/dismiss action。只產生無法處理或無證據的 report，
+等同把 dead instruction 從 prompt 搬到 queue。
+
+Reference incident: 2026-08-04 的 annotator LOCATION GATE 要求
+`is_active=false`，但 JSON 無 scope 欄位，writer 也不讀該決策，Japan-to-Taiwan B2C
+活動因此持續入庫。
+
+### Baseline Snapshot Completeness Guard
+
+任何要求「與 baseline 一致」的阻擋式 gate，都必須在計畫內保存 capture window、完整
+query predicate、expected scalar/set、分頁證據、排序後 identity digest，以及 drift 時
+輸出的 symmetric difference。只引用外部或未保存的「快照」，等同不可執行 gate。
+
+總數相同不能取代 identity digest。分頁後 unique ID count 必須與 exact count 相等，且
+capture 前後 count 必須穩定，才能宣告 baseline 完整。
+
+Reference incident: 2026-08-04 的 japan-scope-gate v3 起初要求 pending count 與 token set
+吻合，卻未保存 expected values；執行時只能正確停止並重新 capture。v3.1 補入完整
+pagination、identity SHA-256 與 drift reconciliation 後才可執行。
+
 Reference incident: 2026-06-25 — G3.0+G3.1 並行 session 漂移 baseline（pending 350→212→197）+ HEAD（`60240df`/`631efb6`），Engineer 中斷帶 live DB 變更但 code 未 commit（fix-forward commit `34bca54`，Tester PASS 5/5）。詳見 architect `history.md`。
 
 ## OCR Vision Array 欄位 — 三路徑 Sync Point（2026-05-26 教訓）
