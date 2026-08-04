@@ -21,7 +21,6 @@ daily backfill becomes a no-op dry-run.
 """
 import argparse
 import os
-import re
 import logging
 from collections import defaultdict
 
@@ -31,143 +30,23 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from supabase import create_client
 
+from location_region import (
+    _CITY_TO_PREF,
+    _COUNTRY_PREFIX_RE,
+    _EN_TO_PREF,
+    _JP_PREF_RE,
+    _LABEL_PREFIX_RE,
+    _POSTAL_PREFIX_RE,
+    _TW_ALIASES,
+    _TW_START_RE,
+    _TW_SUFFIX_RE,
+    _normalize_address,
+    extract_prefecture,
+)
 from publication_rules import is_pure_publication_in_db, partition_pure_publications
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
-
-
-# 政令指定都市 / major cities → prefecture (used when address omits 都道府県 prefix).
-# Taiwan-style city names (台北市, 桃園市, etc.) are deliberately absent so they
-# never match here; the 都道府県 regex above also rejects them, returning None.
-_CITY_TO_PREF: dict[str, str] = {
-    # 政令指定都市
-    "横浜市": "神奈川県",
-    "川崎市": "神奈川県",
-    "相模原市": "神奈川県",
-    "名古屋市": "愛知県",
-    "福岡市": "福岡県",
-    "北九州市": "福岡県",
-    "札幌市": "北海道",
-    "仙台市": "宮城県",
-    "神戸市": "兵庫県",
-    "さいたま市": "埼玉県",
-    "千葉市": "千葉県",
-    "広島市": "広島県",
-    "新潟市": "新潟県",
-    "静岡市": "静岡県",
-    "浜松市": "静岡県",
-    "堺市": "大阪府",
-    "岡山市": "岡山県",
-    "熊本市": "熊本県",
-    # Tokyo 23 special wards (a 23-ward address with no 都 prefix is unambiguously Tokyo).
-    **{w: "東京都" for w in [
-        "千代田区", "中央区", "港区", "新宿区", "文京区", "台東区", "墨田区",
-        "江東区", "品川区", "目黒区", "大田区", "世田谷区", "渋谷区", "中野区",
-        "杉並区", "豊島区", "北区", "荒川区", "板橋区", "練馬区", "足立区",
-        "葛飾区", "江戸川区",
-    ]},
-    # 県庁所在地 (non-seirei) — capital cities of remaining prefectures.
-    "青森市": "青森県", "盛岡市": "岩手県", "秋田市": "秋田県", "山形市": "山形県",
-    "福島市": "福島県", "水戸市": "茨城県", "宇都宮市": "栃木県", "前橋市": "群馬県",
-    "富山市": "富山県", "金沢市": "石川県", "福井市": "福井県", "甲府市": "山梨県",
-    "長野市": "長野県", "岐阜市": "岐阜県", "津市": "三重県", "大津市": "滋賀県",
-    "奈良市": "奈良県", "和歌山市": "和歌山県", "鳥取市": "鳥取県", "松江市": "島根県",
-    "山口市": "山口県", "徳島市": "徳島県", "高松市": "香川県", "松山市": "愛媛県",
-    "高知市": "高知県", "佐賀市": "佐賀県", "長崎市": "長崎県", "大分市": "大分県",
-    "宮崎市": "宮崎県", "鹿児島市": "鹿児島県", "那覇市": "沖縄県",
-}
-
-# English address fallback (e.g. "4-1-1 Miyoshi, Koto-ku, Tokyo").
-_EN_TO_PREF: dict[str, str] = {"tokyo": "東京都", "osaka": "大阪府", "kyoto": "京都府"}
-
-# Formal Japanese prefectures, anchored to the START of a normalized address.
-# 東京都 is listed before 京都府 so it wins the alternation (avoids the 京都
-# substring pitfall). Every non-県 prefecture is enumerated explicitly, so the
-# generic branch only needs 2-3 stem chars + 県 (神奈川/和歌山/鹿児島 are the
-# 3-char stems) — no over-stripping via rstrip("都道府県").
-_JP_PREF_RE = re.compile(
-    r"^(北海道|東京都|大阪府|京都府|大阪市|京都市|[^\s都道府県\d〒-]{2,3}県)"
-)
-
-# Taiwan locality aliases (short names, incl. 臺 variants).
-_TW_ALIASES = (
-    r"[臺台]北|新北|桃園|[臺台]中|[臺台]南|高雄|基隆|新竹|苗栗|彰化|"
-    r"南投|雲林|嘉義|屏東|宜蘭|花蓮|[臺台]東|澎湖|金門|連江"
-)
-# Taiwan matches ONLY when the alias sits at the normalized address START
-# followed by a Taiwan suffix/delimiter (市 / 縣 / 區 / space / digit / end), OR
-# when it carries an explicit 市/縣 suffix anywhere. A bare mid-string alias
-# (e.g. 新北 inside 大阪府…住之江区新北島) must NOT match. Taiwan uses 區(U+5340)
-# / 縣(U+7E23) whereas Japan uses 区(U+533A) / 県(U+770C), so 台東区 (Tokyo) is
-# never treated as Taiwan — it is resolved earlier via _CITY_TO_PREF.
-_TW_START_RE = re.compile(rf"^({_TW_ALIASES})(?:[市縣區]|[\s　]|$|[0-9０-９])")
-_TW_SUFFIX_RE = re.compile(rf"({_TW_ALIASES})[市縣]")
-
-# Bounded label / country / postal prefixes stripped before prefecture matching.
-_LABEL_PREFIX_RE = re.compile(
-    r"^(?:会場住所|会場所在地|開催場所|開催地|所在地|住所|会場|場所)(?:は|:|：)?[\s　、,]*"
-)
-_COUNTRY_PREFIX_RE = re.compile(r"^日本[、,]?[\s　]*")
-_POSTAL_PREFIX_RE = re.compile(r"^〒?\s*\d{3}-?\d{4}[\s　]*")
-
-
-def _normalize_address(address: str) -> str:
-    """Strip stacked label / country / postal prefixes (bounded loop)."""
-    s = address.strip()
-    prev = None
-    for _ in range(6):  # bounded: handles stacked prefixes, never loops unbounded
-        if s == prev:
-            break
-        prev = s
-        s = _LABEL_PREFIX_RE.sub("", s)
-        s = _COUNTRY_PREFIX_RE.sub("", s)
-        s = _POSTAL_PREFIX_RE.sub("", s)
-        s = s.lstrip("　 \t、,:：")
-    return s
-
-
-def extract_prefecture(address: str | None) -> str | None:
-    """Extract a prefecture name from a Japanese or Taiwanese address string.
-
-    Japanese prefectures are matched FIRST (anchored, canonical forms), then
-    政令市 / ward lookup, then — only as a last, restricted step — Taiwan
-    aliases. This ordering ensures a Japanese address that merely contains a
-    Taiwan-like substring (大阪府…新北島) resolves to 大阪府, never 新北.
-    """
-    if not address:
-        return None
-
-    norm = _normalize_address(address)
-    if not norm:
-        return None
-
-    # 1) Formal Japanese prefecture at the start (canonical values).
-    m = _JP_PREF_RE.match(norm)
-    if m:
-        full = m.group(1)
-        if full in ("大阪市", "大阪府"):
-            return "大阪府"
-        if full in ("京都市", "京都府"):
-            return "京都府"
-        return full  # 北海道 / 東京都 / ○○県 — suffix already canonical
-
-    # 2) Bare 政令市 / 23-ward / 県庁所在地 name without a 都道府県 prefix.
-    for city, pref in _CITY_TO_PREF.items():
-        if norm.startswith(city):
-            return pref
-
-    # 3) Taiwan localities — restricted (start-anchored or explicit 市/縣 suffix).
-    m_tw = _TW_START_RE.match(norm) or _TW_SUFFIX_RE.search(norm)
-    if m_tw:
-        return m_tw.group(1).replace("臺", "台")
-
-    # 4) English address fallback.
-    low = norm.lower()
-    for k, v in _EN_TO_PREF.items():
-        if k in low:
-            return v
-    return None
 
 
 def fetch_all_rows(
