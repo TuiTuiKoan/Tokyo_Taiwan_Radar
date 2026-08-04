@@ -12,6 +12,17 @@
 - 第三方套件（尤其是小型、單一維護者的套件）在 `requirements.txt` 必須鎖定已驗證版本，並一併鎖住會被它拉進來的間接依賴；`>=` 會讓上游發版直接改變 CI 行為。
 - 任何來源模組在 import 階段失敗都會拖垮 `main.py` 的全部來源。非核心依賴應在模組內 guard import 並提供降級路徑，讓單一來源壞掉只影響自己。
 - 排查 CI 連續失敗時，先看失敗步驟的耗時與 traceback（本次 `Run scraper` 1 秒就結束 = import 錯誤），再比對上游套件發佈時間與首次失敗時間，不要先假設是認證問題。
+---
+
+## 2026-08-04: Japan→Taiwan B2C 活動誤留 active pool（event `3d74504d`）
+
+**問題：** `3d74504d` 是台北收費體驗展，場地為台北市中山區，入場費為 NTD 350。活動面向台灣當地參加者，不是日本境內活動，卻因 Google News RSS 的台灣相關性判定而保留為 active。
+
+**根因：** `google_news_rss.py::_is_taiwan()` 判斷新聞是否與台灣相關，不是活動地點或受眾 filter。Annotator 的舊 LOCATION GATE 又沒有可被 schema 或 writer 消費的輸出，因此無法把這類 Taiwan-local B2C 活動送入可執行的人工複審流程。
+
+**處理：** Wave 1 已閉合 annotator scope decision、非日本地點雙閘門與 admin 逐筆確認路徑。Phase 6a 只建立 digest-bound cleanup 工具並執行唯讀 snapshot；snapshot 因已審核名單含 active parent/child 關係而 fail closed，沒有建立 manifest，也沒有執行 production mutation。
+
+**教訓：** 台灣相關性不能替代活動地點與受眾判斷。Google News RSS 的 source-level narrow guard 屬 Wave 2，尚未實作，不得把本次共用 scope gate 誤記為來源層過濾已完成。
 
 ## 2026-06-03 — 台灣限定串流新聞誤留 active pool，手動停用（event `2b9ee650`）
 
