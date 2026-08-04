@@ -301,6 +301,174 @@ function collectCallExpressions(sourceFile: ts.SourceFile): ts.CallExpression[] 
   return calls;
 }
 
+function collectNodes<T extends ts.Node>(
+  root: ts.Node,
+  predicate: (node: ts.Node) => node is T,
+): T[] {
+  const nodes: T[] = [];
+  const visit = (node: ts.Node) => {
+    if (predicate(node)) nodes.push(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return nodes;
+}
+
+function collectNamedCalls(root: ts.Node, name: string): ts.CallExpression[] {
+  return collectNodes(root, ts.isCallExpression).filter(
+    (call) => ts.isIdentifier(call.expression) && call.expression.text === name,
+  );
+}
+
+function unwrapParentheses(expression: ts.Expression): ts.Expression {
+  let current = expression;
+  while (ts.isParenthesizedExpression(current)) current = current.expression;
+  return current;
+}
+
+function findNamedFunction(sourceFile: ts.SourceFile, name: string): ts.FunctionDeclaration {
+  const declarations = collectNodes(sourceFile, ts.isFunctionDeclaration).filter(
+    (declaration) => declaration.name?.text === name,
+  );
+  assert.equal(declarations.length, 1, `${name} must have exactly one declaration`);
+  assert.ok(declarations[0].body, `${name} must have a function body`);
+  return declarations[0];
+}
+
+function findVariableInitializer(root: ts.Node, name: string): ts.Expression {
+  const declarations = collectNodes(root, ts.isVariableDeclaration).filter(
+    (declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === name,
+  );
+  assert.equal(declarations.length, 1, `${name} must have exactly one declaration`);
+  assert.ok(declarations[0].initializer, `${name} must have an initializer`);
+  return unwrapParentheses(declarations[0].initializer);
+}
+
+function findJsxAttribute(
+  openingElement: ts.JsxOpeningElement,
+  name: string,
+): ts.JsxAttribute {
+  const attribute = openingElement.attributes.properties.find(
+    (property): property is ts.JsxAttribute =>
+      ts.isJsxAttribute(property)
+      && ts.isIdentifier(property.name)
+      && property.name.text === name,
+  );
+  assert.ok(attribute, `<${openingElement.tagName.getText()}> must have ${name}`);
+  return attribute;
+}
+
+function jsxAttributeExpression(attribute: ts.JsxAttribute): ts.Expression {
+  const initializer = attribute.initializer;
+  assert.ok(initializer && ts.isJsxExpression(initializer), `${attribute.name.getText()} must use a JSX expression`);
+  assert.ok(initializer.expression, `${attribute.name.getText()} must not be empty`);
+  return initializer.expression;
+}
+
+function containsNode(root: ts.Node, predicate: (node: ts.Node) => boolean): boolean {
+  let found = false;
+  const visit = (node: ts.Node) => {
+    if (found) return;
+    if (predicate(node)) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return found;
+}
+
+function isIdentifierNamed(node: ts.Node, name: string): node is ts.Identifier {
+  return ts.isIdentifier(node) && node.text === name;
+}
+
+function isLengthAccess(node: ts.Node, identifierName: string): node is ts.PropertyAccessExpression {
+  return ts.isPropertyAccessExpression(node)
+    && isIdentifierNamed(node.expression, identifierName)
+    && node.name.text === "length";
+}
+
+function isScopeReportIncludesCall(node: ts.Node): node is ts.CallExpression {
+  if (!ts.isCallExpression(node) || node.arguments.length !== 1) return false;
+  const callee = node.expression;
+  if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== "includes") return false;
+  const reportTypes = callee.expression;
+  return ts.isPropertyAccessExpression(reportTypes)
+    && isIdentifierNamed(reportTypes.expression, "row")
+    && reportTypes.name.text === "report_types"
+    && isIdentifierNamed(node.arguments[0], "SCOPE_REPORT_TYPE");
+}
+
+function assertEligibleRowsArgument(
+  sourceFile: ts.SourceFile,
+  argument: ts.Expression,
+) {
+  assert.ok(ts.isIdentifier(argument), "bulk confirm must receive a named eligible row set");
+  const filterCall = findVariableInitializer(sourceFile, argument.text);
+  assert.ok(ts.isCallExpression(filterCall), `${argument.text} must be derived by filter()`);
+  assert.ok(ts.isPropertyAccessExpression(filterCall.expression));
+  assert.equal(filterCall.expression.name.text, "filter");
+  assert.equal(filterCall.arguments.length, 1);
+
+  const predicate = filterCall.arguments[0];
+  assert.ok(ts.isArrowFunction(predicate), `${argument.text} filter must use an arrow predicate`);
+  assert.equal(predicate.parameters.length, 1);
+  const rowParameter = predicate.parameters[0].name;
+  assert.ok(ts.isIdentifier(rowParameter));
+  if (ts.isBlock(predicate.body)) assert.fail(`${argument.text} filter must return eligibility directly`);
+
+  const eligibilityCall = unwrapParentheses(predicate.body);
+  assert.ok(ts.isCallExpression(eligibilityCall));
+  assert.ok(isIdentifierNamed(eligibilityCall.expression, "isBulkConfirmEligible"));
+  assert.equal(eligibilityCall.arguments.length, 1);
+  const reportTypes = eligibilityCall.arguments[0];
+  assert.ok(ts.isPropertyAccessExpression(reportTypes));
+  assert.ok(isIdentifierNamed(reportTypes.expression, rowParameter.text));
+  assert.equal(reportTypes.name.text, "report_types");
+}
+
+function assertBulkButtonState(
+  onClick: ts.JsxAttribute,
+  eligibleRowsName: string,
+  labelKey: string,
+) {
+  const attributes = onClick.parent;
+  assert.ok(ts.isJsxAttributes(attributes));
+  const openingElement = attributes.parent;
+  assert.ok(ts.isJsxOpeningElement(openingElement));
+  assert.ok(isIdentifierNamed(openingElement.tagName, "button"));
+
+  const disabled = jsxAttributeExpression(findJsxAttribute(openingElement, "disabled"));
+  assert.ok(
+    containsNode(disabled, (node) => isIdentifierNamed(node, "bulkConfirming")),
+    `${eligibleRowsName} button must disable while confirming`,
+  );
+  assert.ok(
+    containsNode(
+      disabled,
+      (node) =>
+        ts.isBinaryExpression(node)
+        && node.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken
+        && isLengthAccess(node.left, eligibleRowsName)
+        && ts.isNumericLiteral(node.right)
+        && node.right.text === "0",
+    ),
+    `${eligibleRowsName} button must disable when no eligible rows remain`,
+  );
+
+  const button = openingElement.parent;
+  assert.ok(ts.isJsxElement(button));
+  const labelCalls = collectNamedCalls(button, "t").filter(
+    (call) => ts.isStringLiteral(call.arguments[0]) && call.arguments[0].text === labelKey,
+  );
+  assert.equal(labelCalls.length, 1, `${eligibleRowsName} button must use ${labelKey}`);
+  const labelArgs = labelCalls[0].arguments[1];
+  assert.ok(ts.isObjectLiteralExpression(labelArgs));
+  const count = namedProperty(labelArgs, "count");
+  assert.ok(count && isLengthAccess(count.initializer, eligibleRowsName));
+}
+
 function assertWorkflowDispatchTimeout(sourceFile: ts.SourceFile, relativePath: string) {
   const timeoutDeclaration = sourceFile.statements
     .filter(ts.isVariableStatement)
@@ -460,44 +628,135 @@ test("shared helper is read-only and cannot acquire or release the lock", () => 
   assert.doesNotMatch(source, /\b(?:acquire|release)\w*\s*\(/i);
 });
 
+function assertAdminScopeReportUiGuards(source: string) {
+  const componentPath = path.join(WEB_ROOT, "components/AdminReportsTable.tsx");
+  const sourceFile = ts.createSourceFile(
+    componentPath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const onClickAttributes = collectNodes(sourceFile, ts.isJsxAttribute).filter(
+    (attribute) => ts.isIdentifier(attribute.name) && attribute.name.text === "onClick",
+  );
+  const callsInOnClick = (name: string) => onClickAttributes.flatMap((attribute) => {
+    const initializer = attribute.initializer;
+    if (!initializer || !ts.isJsxExpression(initializer) || !initializer.expression) return [];
+    return collectNamedCalls(initializer.expression, name).map((call) => ({ attribute, call }));
+  });
+
+  const bulkCallSites = callsInOnClick("handleBulkConfirm");
+  assert.equal(bulkCallSites.length, 2, "scope-safe bulk confirm must have exactly two JSX call sites");
+  const expectedBulkRows = new Map([
+    ["bulkEligibleSelected", "bulkConfirmSelected"],
+    ["bulkEligiblePending", "bulkConfirmAll"],
+  ]);
+  const seenBulkRows: string[] = [];
+  for (const { attribute, call } of bulkCallSites) {
+    assert.equal(call.arguments.length, 1);
+    const rows = call.arguments[0];
+    assert.ok(ts.isIdentifier(rows));
+    const labelKey = expectedBulkRows.get(rows.text);
+    assert.ok(labelKey, `unexpected bulk row set: ${rows.text}`);
+    assertEligibleRowsArgument(sourceFile, rows);
+    assertBulkButtonState(attribute, rows.text, labelKey);
+    seenBulkRows.push(rows.text);
+  }
+  assert.deepEqual(seenBulkRows.sort(), [...expectedBulkRows.keys()].sort());
+
+  const rowConfirmCallSites = callsInOnClick("handleConfirm");
+  assert.equal(rowConfirmCallSites.length, 1, "per-row confirm must have exactly one JSX call site");
+  const rowConfirmCall = rowConfirmCallSites[0].call;
+  assert.equal(rowConfirmCall.arguments.length, 2);
+  assert.ok(isIdentifierNamed(rowConfirmCall.arguments[0], "row"));
+  assert.equal(rowConfirmCall.arguments[1].kind, ts.SyntaxKind.TrueKeyword);
+
+  const bulkHandler = findNamedFunction(sourceFile, "handleBulkConfirm");
+  assert.equal(
+    collectNamedCalls(bulkHandler.body!, "confirmReport").length,
+    0,
+    "bulk confirm must not call confirmReport directly",
+  );
+  const bulkRowCalls = collectNamedCalls(bulkHandler.body!, "handleConfirm");
+  assert.equal(bulkRowCalls.length, 1);
+  assert.equal(bulkRowCalls[0].arguments.length, 2);
+  assert.ok(isIdentifierNamed(bulkRowCalls[0].arguments[0], "row"));
+  assert.equal(bulkRowCalls[0].arguments[1].kind, ts.SyntaxKind.FalseKeyword);
+
+  const confirmHandler = findNamedFunction(sourceFile, "handleConfirm");
+  assert.ok(isScopeReportIncludesCall(findVariableInitializer(confirmHandler.body!, "isScopeReport")));
+  const confirmReportCalls = collectNamedCalls(sourceFile, "confirmReport");
+  assert.equal(confirmReportCalls.length, 1, "confirmReport must have exactly one per-row call site");
+  let containingFunction: ts.Node | undefined = confirmReportCalls[0].parent;
+  while (containingFunction && !ts.isFunctionDeclaration(containingFunction)) {
+    containingFunction = containingFunction.parent;
+  }
+  assert.ok(containingFunction && ts.isFunctionDeclaration(containingFunction));
+  assert.equal(containingFunction.name?.text, "handleConfirm");
+  assert.equal(confirmReportCalls[0].arguments.length, 1);
+  const payload = confirmReportCalls[0].arguments[0];
+  assert.ok(ts.isObjectLiteralExpression(payload));
+  const scopeAcknowledged = namedProperty(payload, "scopeAcknowledged");
+  assert.ok(scopeAcknowledged);
+  const acknowledgement = unwrapParentheses(scopeAcknowledged.initializer);
+  assert.ok(ts.isConditionalExpression(acknowledgement));
+  const acknowledgementCondition = unwrapParentheses(acknowledgement.condition);
+  assert.ok(ts.isBinaryExpression(acknowledgementCondition));
+  assert.equal(acknowledgementCondition.operatorToken.kind, ts.SyntaxKind.AmpersandAmpersandToken);
+  assert.ok(isIdentifierNamed(acknowledgementCondition.left, "isScopeReport"));
+  assert.ok(isIdentifierNamed(acknowledgementCondition.right, "acknowledgeScope"));
+  assert.equal(acknowledgement.whenTrue.kind, ts.SyntaxKind.TrueKeyword);
+  assert.ok(isIdentifierNamed(acknowledgement.whenFalse, "undefined"));
+
+  const exclusionElements = collectNodes(sourceFile, ts.isJsxSelfClosingElement).filter(
+    (element) => isIdentifierNamed(element.tagName, "ExclusionSuggest"),
+  );
+  assert.equal(exclusionElements.length, 1, "ExclusionSuggest must have exactly one JSX call site");
+  let exclusionControl: ts.Node | undefined = exclusionElements[0].parent;
+  while (exclusionControl && !ts.isJsxExpression(exclusionControl)) {
+    exclusionControl = exclusionControl.parent;
+  }
+  assert.ok(exclusionControl && ts.isJsxExpression(exclusionControl));
+  assert.ok(exclusionControl.expression && ts.isBinaryExpression(exclusionControl.expression));
+  assert.equal(exclusionControl.expression.operatorToken.kind, ts.SyntaxKind.AmpersandAmpersandToken);
+  assert.ok(
+    containsNode(
+      exclusionControl.expression,
+      (node) =>
+        ts.isPrefixUnaryExpression(node)
+        && node.operator === ts.SyntaxKind.ExclamationToken
+        && isScopeReportIncludesCall(node.operand),
+    ),
+    "ExclusionSuggest control condition must negate scope report membership",
+  );
+}
+
 test("admin scope reports remain per-row only across bulk and exclusion actions", () => {
   const componentPath = path.join(WEB_ROOT, "components/AdminReportsTable.tsx");
   const source = fs.readFileSync(componentPath, "utf8");
+  assertAdminScopeReportUiGuards(source);
 
-  assert.match(
-    source,
-    /const eligibleRows = rows\.filter\(\(row\) => isBulkConfirmEligible\(row\.report_types\)\);/,
-    "bulk handler must defensively filter scope reports",
+  const thirdBulkCall = source.replace(
+    "onClick={() => handleBulkConfirm(bulkEligiblePending)}",
+    `onClick={() => {
+                  handleBulkConfirm(bulkEligiblePending);
+                  handleBulkConfirm(bulkEligiblePending);
+                }}`,
   );
-  assert.match(
-    source,
-    /await handleConfirm\(row,\s*false\);/,
-    "bulk handler must never acknowledge a scope report",
+  assert.notEqual(thirdBulkCall, source, "third bulk call mutation must apply");
+  assert.throws(
+    () => assertAdminScopeReportUiGuards(thirdBulkCall),
+    /exactly two JSX call sites/,
   );
-  assert.match(
-    source,
-    /onClick=\{\(\) => handleConfirm\(row,\s*true\)\}/,
-    "only the per-row confirm action may acknowledge a scope report",
+
+  const missingScopeNegation = source.replace(
+    "!row.report_types.includes(SCOPE_REPORT_TYPE)",
+    "row.report_types.includes(SCOPE_REPORT_TYPE)",
   );
-  assert.match(
-    source,
-    /const bulkEligibleSelected = selectedPending\.filter\(\(row\) =>\s*isBulkConfirmEligible\(row\.report_types\),?\s*\);/,
-    "selected bulk action must derive an eligible row set",
-  );
-  assert.match(
-    source,
-    /const bulkEligiblePending = pending\.filter\(\(row\) =>\s*isBulkConfirmEligible\(row\.report_types\),?\s*\);/,
-    "confirm-all must derive an eligible row set",
-  );
-  assert.match(source, /onClick=\{\(\) => handleBulkConfirm\(bulkEligibleSelected\)\}/);
-  assert.match(source, /disabled=\{bulkConfirming \|\| bulkEligibleSelected\.length === 0\}/);
-  assert.match(source, /t\("bulkConfirmSelected", \{ count: bulkEligibleSelected\.length \}\)/);
-  assert.match(source, /onClick=\{\(\) => handleBulkConfirm\(bulkEligiblePending\)\}/);
-  assert.match(source, /disabled=\{bulkConfirming \|\| bulkEligiblePending\.length === 0\}/);
-  assert.match(source, /t\("bulkConfirmAll", \{ count: bulkEligiblePending\.length \}\)/);
-  assert.match(
-    source,
-    /row\.report_types\.includes\("irrelevant"\) &&\s*!row\.report_types\.includes\(SCOPE_REPORT_TYPE\) &&\s*row\.events\?\.source_name/,
-    "scope reports must never render ExclusionSuggest",
+  assert.notEqual(missingScopeNegation, source, "scope negation mutation must apply");
+  assert.throws(
+    () => assertAdminScopeReportUiGuards(missingScopeNegation),
+    /must negate scope report membership/,
   );
 });
