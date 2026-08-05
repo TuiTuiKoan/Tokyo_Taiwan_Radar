@@ -52,17 +52,17 @@ description: authoritative-venue-repair 的隔離、實作、驗證與兩階段 
 
 ## Phase 3: Database FK population
 
-* [ ] Canonical venue query 只接受 authoritative rows
-* [ ] Alias query 移除 `.limit(1)` 並讀取完整 authoritative matches
-* [ ] 只有唯一命中才寫 `venue_id` 與 canonical fields
-* [ ] 傳播 JA/ZH/EN names、address、prefectures、stable homepage 與 fill-only hours
-* [ ] 所有 venue field writes 遵守 FC precedence 與既有 override-attempt accounting
-* [ ] Pure publication bypass venue resolution
-* [ ] Multi-venue output 保持 FK 與 physical addresses null
-* [ ] Ambiguous/non-authoritative lookup 保持 unset 並輸出可測試 warning
-* [ ] 不把 source、official、submission、organizer、ticket 或 schedule URL 提升為 location URL
-* [ ] 測試 canonical、alias、ambiguous、non-authoritative、multi、publication 與 URL ownership
-* [ ] 測試 normal 與 force-rescrape FC precedence
+* [x] Canonical venue query 只接受 authoritative rows
+* [x] Alias query 移除 `.limit(1)` 並讀取完整 authoritative matches
+* [x] 只有唯一命中才寫 `venue_id` 與 canonical fields
+* [x] 傳播 JA/ZH/EN names、address、prefectures、stable homepage 與 fill-only hours
+* [x] 所有 venue field writes 遵守 FC precedence 與既有 override-attempt accounting
+* [x] Pure publication bypass venue resolution
+* [x] Multi-venue output 保持 FK 與 physical addresses null
+* [x] Ambiguous/non-authoritative lookup 保持 unset 並輸出可測試 warning
+* [x] 不把 source、official、submission、organizer、ticket 或 schedule URL 提升為 location URL
+* [x] 測試 canonical、alias、ambiguous、non-authoritative、multi、publication 與 URL ownership
+* [x] 測試 normal 與 force-rescrape FC precedence
 
 ## Phase 4: TIFF venue-tree routing
 

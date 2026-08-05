@@ -4,9 +4,10 @@ Supabase database client for upserting scraped events.
 Uses the service role key (bypasses RLS) so the scraper can write freely.
 """
 
+import json
 import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from supabase import create_client, Client
@@ -41,6 +42,70 @@ _VALID_PRIMARY_LANGUAGES = frozenset(["ja", "zh", "en", "mixed"])
 _VALID_EVENT_STATUSES = frozenset({"scheduled", "cancelled", "postponed", "rescheduled"})
 import re as _re_mod_db
 _CURRENCY_RE_DB = _re_mod_db.compile(r'^[A-Z]{3}$')
+_VENUE_SELECT_FIELDS = (
+    "id,canonical_name_ja,canonical_name_zh,canonical_name_en,address,"
+    "prefecture,prefectures,homepage,aliases,is_authoritative,"
+    "is_multi_venue,business_hours"
+)
+_VENUE_PROPAGATED_FIELDS = (
+    "venue_id",
+    "location_name",
+    "location_name_zh",
+    "location_name_en",
+    "location_address",
+    "location_address_zh",
+    "location_address_en",
+    "location_prefectures",
+    "location_url",
+    "business_hours",
+)
+
+
+def _field_correction_value(field: str, value: Any) -> Any:
+    if value == "" and field in {
+        "venue_id",
+        "location_address",
+        "location_address_zh",
+        "location_address_en",
+        "location_url",
+        "business_hours",
+    }:
+        return None
+    if field == "location_prefectures" and isinstance(value, str):
+        if not value:
+            return None
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return value
+        return parsed
+    return value
+
+
+def _record_fc_override_attempt(client: Client, fc: dict[str, Any], attempted: Any) -> None:
+    try:
+        now_iso = datetime.now(UTC).isoformat()
+        attempted_value = (
+            json.dumps(attempted, ensure_ascii=False, sort_keys=True)
+            if isinstance(attempted, (list, dict))
+            else str(attempted)
+        )
+        update = {
+            "last_override_attempted_at": now_iso,
+            "override_attempted_value": attempted_value[:1000],
+            "override_attempt_count": (fc.get("override_attempt_count") or 0) + 1,
+        }
+        if not fc.get("first_override_attempted_at"):
+            update["first_override_attempted_at"] = now_iso
+        client.table("field_corrections").update(update).eq("id", fc["id"]).execute()
+        fc.update(update)
+    except Exception as exc:
+        logger.debug(
+            "field_corrections venue override-log skipped for %s/%s: %s",
+            fc.get("event_id"),
+            fc.get("field_name"),
+            exc,
+        )
 
 
 def _get_client() -> Client:
@@ -181,10 +246,12 @@ def _event_to_row(event: Event) -> dict[str, Any]:
 
 def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
     """
-    Mutate `rows` in-place: set `organizer_id` / `venue_id` when a matching
-    `organizers` / `venues` entity already exists (either as canonical_name_ja
-    or alias). Missing entity → leave FK unset; raw text columns (organizer,
-    location_name) are unaffected.
+    Mutate `rows` in-place from unique organizer and authoritative venue matches.
+
+    Venue matches supply canonical names, physical address, prefectures, stable
+    homepage, and fill-only business hours. Field corrections take precedence
+    over every propagated venue field. Missing or ambiguous entities leave venue
+    fields unchanged.
 
     Entity tables come from migration 050 (Tier 2 normalization). On older
     databases without the tables, the lookup query fails silently and the
@@ -250,90 +317,107 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
         except Exception as exc:
             logger.debug("organizer entity lookup skipped (table may not exist yet): %s", exc)
 
-    venue_lookup: dict[str, str] = {}
-    venue_hours_lookup: dict[str, str] = {}
+    venue_lookup: dict[str, dict[str, Any]] = {}
     if venue_strs:
         try:
-            # 1-a. venue_id lookup (canonical_name_ja).
-            resp = (
+            candidates: dict[str, dict[str, dict[str, Any]]] = {
+                name: {} for name in venue_strs
+            }
+            incomplete_candidates: set[str] = set()
+            canonical_resp = (
                 client.table("venues")
-                .select("id,canonical_name_ja,aliases")
-                .in_("canonical_name_ja", venue_strs)
-                .execute()
-            )
-            for r in resp.data or []:
-                venue_lookup[r["canonical_name_ja"]] = r["id"]
-
-            # 1-b. venue_hours_lookup（is_authoritative=True only）
-            venue_hours_resp = (
-                client.table("venues")
-                .select("canonical_name_ja,business_hours")
+                .select(_VENUE_SELECT_FIELDS)
                 .in_("canonical_name_ja", venue_strs)
                 .eq("is_authoritative", True)
-                .not_.is_("business_hours", "null")
                 .execute()
             )
-            for r in venue_hours_resp.data or []:
-                if r.get("business_hours"):
-                    venue_hours_lookup[r["canonical_name_ja"]] = r["business_hours"]
+            for hit in canonical_resp.data or []:
+                canonical = hit.get("canonical_name_ja")
+                if canonical in candidates:
+                    candidates[canonical][hit["id"]] = hit
 
-            still_missing = [s for s in venue_strs if s not in venue_lookup]
-            if still_missing:
-                for s in still_missing:
-                    try:
-                        ar = (
-                            client.table("venues")
-                            .select("id,business_hours,is_authoritative")
-                            .contains("aliases", [s])
-                            .limit(1)
-                            .execute()
-                        )
-                        if ar.data:
-                            venue_lookup[s] = ar.data[0]["id"]
-                            bh = ar.data[0].get("business_hours")
-                            if bh and ar.data[0].get("is_authoritative"):
-                                venue_hours_lookup[s] = bh
-                    except Exception:
-                        pass
+            for name in venue_strs:
+                try:
+                    alias_resp = (
+                        client.table("venues")
+                        .select(_VENUE_SELECT_FIELDS)
+                        .contains("aliases", [name])
+                        .eq("is_authoritative", True)
+                        .execute()
+                    )
+                    for hit in alias_resp.data or []:
+                        candidates[name][hit["id"]] = hit
+                except Exception as exc:
+                    incomplete_candidates.add(name)
+                    logger.warning(
+                        "venue alias lookup failed for %r; cannot prove a unique "
+                        "authoritative match, leaving venue fields unset: %s",
+                        name,
+                        exc,
+                    )
+
+            for name, by_id in candidates.items():
+                if name in incomplete_candidates:
+                    continue
+                if len(by_id) == 1:
+                    venue_lookup[name] = next(iter(by_id.values()))
+                elif len(by_id) > 1:
+                    logger.warning(
+                        "venue lookup %r is ambiguous across %d authoritative rows; "
+                        "leaving venue fields unset (fail closed).",
+                        name,
+                        len(by_id),
+                    )
         except Exception as exc:
             logger.debug("venue entity lookup skipped (table may not exist yet): %s", exc)
 
-    # FC 保護：預查 DB 取 business_hours 候選事件的 UUID
-    bh_candidates = [r for r in rows if not r.get("business_hours")
-                     and r.get("location_name") in venue_hours_lookup]
-    fc_protected_bh_ids: set[str] = set()
+    protected_by_key: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
     id_map: dict[tuple, str] = {}
-    if bh_candidates:
+    venue_candidates = [
+        row for row in rows
+        if not is_pure_publication_record(row)
+        and isinstance(row.get("location_name"), str)
+        and row.get("location_name") in venue_lookup
+    ]
+    if venue_candidates:
         from collections import defaultdict
         by_sn: dict[str, list[str]] = defaultdict(list)
-        for r in bh_candidates:
-            by_sn[r["source_name"]].append(r["source_id"])
+        for row in venue_candidates:
+            by_sn[row["source_name"]].append(row["source_id"])
         for sn, sids in by_sn.items():
             try:
                 id_resp = (
                     client.table("events")
-                    .select("id,source_id")
+                    .select("id,source_name,source_id")
                     .eq("source_name", sn)
                     .in_("source_id", sids)
                     .execute()
                 )
                 for item in id_resp.data or []:
-                    id_map[(sn, item["source_id"])] = item["id"]
-            except Exception:
-                pass
+                    id_map[(item.get("source_name") or sn, item["source_id"])] = item["id"]
+            except Exception as exc:
+                logger.debug("venue FC event-id lookup failed for %s: %s", sn, exc)
         candidate_uuids = list(id_map.values())
         if candidate_uuids:
             try:
                 fc_resp = (
                     client.table("field_corrections")
-                    .select("event_id")
-                    .eq("field_name", "business_hours")
+                    .select(
+                        "id,event_id,field_name,corrected_value,override_attempt_count,"
+                        "first_override_attempted_at"
+                    )
                     .in_("event_id", candidate_uuids)
+                    .in_("field_name", list(_VENUE_PROPAGATED_FIELDS))
                     .execute()
                 )
-                fc_protected_bh_ids = {r["event_id"] for r in fc_resp.data or []}
-            except Exception:
-                pass
+                eid_to_key = {event_id: key for key, event_id in id_map.items()}
+                for fc in fc_resp.data or []:
+                    key = eid_to_key.get(fc.get("event_id"))
+                    field = fc.get("field_name")
+                    if key and field:
+                        protected_by_key.setdefault(key, {})[field] = fc
+            except Exception as exc:
+                logger.debug("venue field_corrections lookup failed: %s", exc)
 
     # Mutate rows in-place.
     org_hits = 0
@@ -359,17 +443,53 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
         if is_pure_publication_record(r):
             continue
         loc = r.get("location_name")
-        if isinstance(loc, str) and loc in venue_lookup:
-            r["venue_id"] = venue_lookup[loc]
-            venue_hits += 1
-        # business_hours 傳播（僅 authoritative venues，無 FC 鎖）
-        if (not r.get("business_hours")
-                and isinstance(loc, str)
-                and loc in venue_hours_lookup):
-            row_uuid = id_map.get((r.get("source_name"), r.get("source_id")))
-            if row_uuid is None or row_uuid not in fc_protected_bh_ids:
-                r["business_hours"] = venue_hours_lookup[loc]
+        if not isinstance(loc, str) or loc not in venue_lookup:
+            continue
+        venue = venue_lookup[loc]
+        prefectures = venue.get("prefectures")
+        if not prefectures and venue.get("prefecture"):
+            prefectures = [venue["prefecture"]]
+        proposed: dict[str, Any] = {
+            "location_name": venue.get("canonical_name_ja"),
+            "location_name_zh": venue.get("canonical_name_zh"),
+            "location_name_en": venue.get("canonical_name_en"),
+            "location_prefectures": prefectures,
+        }
+        if venue.get("is_multi_venue"):
+            proposed.update({
+                "venue_id": None,
+                "location_address": None,
+                "location_address_zh": None,
+                "location_address_en": None,
+                "location_url": None,
+            })
+        else:
+            proposed.update({
+                "venue_id": venue["id"],
+                "location_address": venue.get("address"),
+                "location_url": venue.get("homepage"),
+            })
+        if (
+            not venue.get("is_multi_venue")
+            and not r.get("business_hours")
+            and venue.get("business_hours")
+        ):
+            proposed["business_hours"] = venue["business_hours"]
+
+        key = (r.get("source_name"), r.get("source_id"))
+        protected = protected_by_key.get(key, {})
+        for field, value in proposed.items():
+            fc = protected.get(field)
+            if fc is not None:
+                corrected = _field_correction_value(field, fc.get("corrected_value"))
+                if value != corrected:
+                    _record_fc_override_attempt(client, fc, value)
+                r[field] = corrected
+                continue
+            r[field] = value
+            if field == "business_hours":
                 bh_hits += 1
+        venue_hits += 1
     if org_hits or venue_hits:
         logger.info("Entity FK lookup: organizer_id matched %d row(s); venue_id matched %d row(s).",
                     org_hits, venue_hits)
