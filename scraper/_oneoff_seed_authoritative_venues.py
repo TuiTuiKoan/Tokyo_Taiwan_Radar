@@ -21,6 +21,7 @@ from database import _get_client
 
 SEED_DATA: list[dict[str, Any]] = [
     {
+        "_expected_id": "4e010225-f963-4556-a439-2bc4a35afb12",
         "canonical_name_ja": "台北駐日経済文化代表処 台湾文化センター",
         "canonical_name_zh": "台北駐日經濟文化代表處 台灣文化中心",
         "canonical_name_en": "Taiwan Cultural Center, Taipei Economic and Cultural Representative Office in Japan",
@@ -33,7 +34,7 @@ SEED_DATA: list[dict[str, Any]] = [
             "台北駐日経済文化代表処台湾文化センター",
             "台湾文化中心",
         ],
-        "homepage": "https://www.taiwanembassy.org/jp_ja/post/84095.html",
+        "homepage": "https://jp.taiwan.culture.tw/",
         "is_authoritative": True,
         "is_multi_venue": False,
         "business_hours": "平日 10:00〜17:00 / 土日祝休館",
@@ -123,6 +124,8 @@ SEED_DATA: list[dict[str, Any]] = [
         "business_hours": "10:00〜18:00（木・金曜日は20:00まで）/ 月曜休館",
     },
     {
+        "_expected_id": "597eaa36-191b-48d4-9a34-cd7c128579f1",
+        "_preserve_existing_fields": ["homepage"],
         "canonical_name_ja": "東京国際映画祭",
         "canonical_name_zh": "東京國際影展",
         "canonical_name_en": "Tokyo International Film Festival",
@@ -130,10 +133,52 @@ SEED_DATA: list[dict[str, Any]] = [
         "prefecture": "東京都",
         "prefectures": ["東京都"],
         "city": "千代田区",
-        "aliases": ["TIFF", "東京国際映画祭2026"],
+        "aliases": ["TIFF"],
         "homepage": "https://2025.tiff-jp.net/",
         "is_authoritative": True,
         "is_multi_venue": True,
+    },
+    {
+        "canonical_name_ja": "ヒューリックホール東京",
+        "canonical_name_zh": "Hulic Hall 東京",
+        "canonical_name_en": "Hulic Hall Tokyo",
+        "address": "東京都千代田区有楽町2-5-1 有楽町マリオン11F",
+        "prefecture": "東京都",
+        "prefectures": ["東京都"],
+        "city": "千代田区",
+        "aliases": ["HULIC HALL TOKYO"],
+        "homepage": "https://hulic-theater.com/access/",
+        "is_authoritative": True,
+        "is_multi_venue": False,
+        "business_hours": "上映スケジュールによる",
+    },
+    {
+        "canonical_name_ja": "TOHOシネマズ シャンテ",
+        "canonical_name_zh": "TOHO Cinemas Chanter",
+        "canonical_name_en": "TOHO Cinemas Chanter",
+        "address": "東京都千代田区有楽町1-2-2",
+        "prefecture": "東京都",
+        "prefectures": ["東京都"],
+        "city": "千代田区",
+        "aliases": ["TOHOシネマズシャンテ"],
+        "homepage": "https://www.tohotheater.jp/theater/081/access.html",
+        "is_authoritative": True,
+        "is_multi_venue": False,
+        "business_hours": "上映スケジュールによる",
+    },
+    {
+        "canonical_name_ja": "TOHOシネマズ 日比谷 スクリーン12・13",
+        "canonical_name_zh": "TOHO Cinemas 日比谷 12・13廳",
+        "canonical_name_en": "TOHO Cinemas Hibiya Screens 12 and 13",
+        "address": "東京都千代田区有楽町1-1-3 東京宝塚ビル地下1F",
+        "prefecture": "東京都",
+        "prefectures": ["東京都"],
+        "city": "千代田区",
+        "aliases": ["TOHOシネマズ日比谷 スクリーン12・13"],
+        "homepage": "https://www.tohotheater.jp/theater/081/access.html",
+        "is_authoritative": True,
+        "is_multi_venue": False,
+        "business_hours": "上映スケジュールによる",
     },
     {
         "canonical_name_ja": "大阪アジアン映画祭",
@@ -229,6 +274,8 @@ SEED_DATA: list[dict[str, Any]] = [
         "business_hours": "上映スケジュールによる",
     },
     {
+        "_expected_id": "1de8358d-f100-487d-aff3-cff7f686ae0a",
+        "_preserve_existing_fields": ["homepage"],
         "canonical_name_ja": "高田世界館",
         "canonical_name_zh": "高田世界館",
         "canonical_name_en": "Takada Sekaikan",
@@ -243,6 +290,7 @@ SEED_DATA: list[dict[str, Any]] = [
         "business_hours": "上映スケジュールによる",
     },
     {
+        "_expected_id": "10a9aa7a-f8e1-4721-9fd8-77af830b74d2",
         "canonical_name_ja": "八丁座",
         "canonical_name_zh": "八丁座",
         "canonical_name_en": "Hatchobori",
@@ -250,22 +298,23 @@ SEED_DATA: list[dict[str, Any]] = [
         "prefecture": "広島県",
         "prefectures": ["広島県"],
         "city": "広島市",
-        "aliases": ["八丁座", "Hatchobori", "サロンシネマ", "サロンシネマ1・2"],
-        "homepage": "https://johakyu.co.jp",
+        "aliases": ["Hatchobori"],
+        "homepage": "https://johakyu.co.jp/",
         "is_authoritative": True,
         "is_multi_venue": False,
         "business_hours": "上映スケジュールによる",
     },
     {
+        "_expected_id": "29fef1e9-67d1-457f-81a2-17b1d80437f8",
         "canonical_name_ja": "サロンシネマ",
         "canonical_name_zh": "沙龍影城",
         "canonical_name_en": "Salon Cinema",
-        "address": "広島県広島市中区八丁堀16-10 タカタビル8F",
+        "address": "広島県広島市中区八丁堀16-10 広島東映プラザビル8階",
         "prefecture": "広島県",
         "prefectures": ["広島県"],
         "city": "広島市",
-        "aliases": ["サロンシネマ", "サロンシネマ1・2", "Salon Cinema"],
-        "homepage": "https://johakyu.co.jp",
+        "aliases": ["サロンシネマ1・2", "Salon Cinema"],
+        "homepage": "https://johakyu.co.jp/",
         "is_authoritative": True,
         "is_multi_venue": False,
         "business_hours": "上映スケジュールによる",
@@ -711,15 +760,16 @@ SEED_DATA: list[dict[str, Any]] = [
         "is_multi_venue": False,
     },
     {
+        "_expected_id": "e2f5fd1f-f92c-4e61-9f5f-383ac84c5d8b",
         "canonical_name_ja": "センチュリーシネマ",
         "canonical_name_zh": "世紀影城",
         "canonical_name_en": "Century Cinema",
-        "address": "愛知県名古屋市中区栄3-15-13 スカイルビル地下2F",
+        "address": "愛知県名古屋市中区栄3-29-1 名古屋パルコ東館8F",
         "prefecture": "愛知県",
         "prefectures": ["愛知県"],
         "city": "名古屋市",
-        "aliases": ["センチュリーシネマ"],
-        "homepage": "https://www.starcat-ticket.com/cc/theater/century/schedule",
+        "aliases": [],
+        "homepage": "https://eiga.starcat.co.jp/theater/century/",
         "is_authoritative": True,
         "is_multi_venue": False,
     },
@@ -796,60 +846,106 @@ _AUTHORITY_COLUMNS = (
     "homepage",
     "prefectures",
 )
+_VENUE_SELECT_COLUMNS = (
+    "id,canonical_name_ja,canonical_name_zh,canonical_name_en,address,"
+    "prefecture,prefectures,city,aliases,homepage,is_authoritative,"
+    "is_multi_venue,business_hours"
+)
+_DASH_RE = re.compile(r"[−‐‑‒–—―﹘﹣－]")
+_POSTAL_RE = re.compile(r"(?:〒|郵便番号)?\s*\d{3}\s*-?\s*\d{4}\s*")
+_STREET_NUM_RE = re.compile(r"\d+(?:-\d+)+")
+
+
+class SeedCollisionError(RuntimeError):
+    pass
 
 
 def _distinct_non_empty(values: list[str | None]) -> list[str]:
     return sorted({(v or "").strip() for v in values if (v or "").strip()})
 
 
-# ── Address normalisation helpers ────────────────────────────────────────────
-
-_STREET_NUM_RE = re.compile(r"\d+(?:-\d+)+")
-
-
 def _normalize_addr(addr: str) -> str:
-    """NFKC-normalise (collapses full-width spaces/digits) and strip."""
     a = unicodedata.normalize("NFKC", addr or "")
-    return a.replace("−", "-").strip()
+    a = _DASH_RE.sub("-", a)
+    a = _POSTAL_RE.sub("", a, count=1)
+    return re.sub(r"\s+", "", a).strip()
 
 
-def _street_prefix(addr: str) -> str:
-    """Return the address truncated at the end of the street number (番地),
-    discarding building name / floor details.
-
-    Examples:
-      '東京都港区虎ノ門1-1-12 虎ノ門ビル2階'  →  '東京都港区虎ノ門1-1-12'
-      '福岡県福岡市博多区下川端町3-1 リバレイン7F・8F'  →  '福岡県福岡市博多区下川端町3-1'
-    """
+def _street_parts(addr: str) -> tuple[str, str]:
     a = _normalize_addr(addr)
     m = _STREET_NUM_RE.search(a)
-    return a[: m.end()].strip() if m else a
+    if not m:
+        return "", a
+    return m.group(0), a[:m.start()]
 
 
 def _addresses_compatible(a: str, b: str) -> bool:
-    """Return True when *a* and *b* describe the same physical location.
-
-    Handles:
-    - Full-width characters (\u3000, ２, etc.) via NFKC normalisation
-    - Missing prefecture prefix (e.g. '港区虎ノ門1-1-12' vs '東京都港区虎ノ門1-1-12')
-    - Differing building/floor detail (shorter = less detail is OK)
-    - 7F vs 7F・8F (both truncated to same street prefix)
-    """
-    pa, pb = _street_prefix(a), _street_prefix(b)
-    if not pa or not pb:
+    number_a, location_a = _street_parts(a)
+    number_b, location_b = _street_parts(b)
+    if not number_a or not number_b:
         return _normalize_addr(a) == _normalize_addr(b)
-    # Exact street match, or one is a suffix of the other (missing prefecture prefix)
-    return pa == pb or pa.endswith(pb) or pb.endswith(pa)
+    return (
+        number_a == number_b
+        and (location_a == location_b or location_a.endswith(location_b) or location_b.endswith(location_a))
+    )
 
 
-def _merge_aliases(existing: list[str] | None, incoming: list[str] | None, canonical: str) -> list[str]:
-    merged = {(a or "").strip() for a in (existing or []) + (incoming or []) if (a or "").strip()}
-    merged.discard(canonical)
-    return sorted(merged)
+def _normalize_name(value: str | None) -> str:
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", value or "")).strip()
+
+
+def _desired_aliases(incoming: list[str] | None, canonical: str) -> list[str]:
+    canonical_key = _normalize_name(canonical)
+    aliases: list[str] = []
+    seen: set[str] = set()
+    for alias in incoming or []:
+        value = (alias or "").strip()
+        key = _normalize_name(value)
+        if not key or key == canonical_key or key in seen:
+            continue
+        seen.add(key)
+        aliases.append(value)
+    return aliases
+
+
+def _desired_payload(seed_row: dict[str, Any], existing: dict[str, Any] | None) -> dict[str, Any]:
+    payload = {key: value for key, value in seed_row.items() if not key.startswith("_")}
+    canonical = payload["canonical_name_ja"]
+    payload["aliases"] = _desired_aliases(payload.get("aliases"), canonical)
+    for field in seed_row.get("_preserve_existing_fields") or []:
+        if existing is None:
+            payload.pop(field, None)
+        else:
+            payload[field] = existing.get(field)
+    if existing is None and seed_row.get("_expected_id"):
+        payload["id"] = seed_row["_expected_id"]
+    return payload
+
+
+def check_key_collisions(rows: list[dict[str, Any]]) -> dict[str, list[str]]:
+    owners: dict[str, dict[str, str]] = {}
+    labels: dict[str, str] = {}
+    for index, row in enumerate(rows):
+        canonical = (row.get("canonical_name_ja") or "").strip()
+        canonical_key = _normalize_name(canonical)
+        if not canonical_key:
+            continue
+        owner = str(row.get("id") or f"seed:{index}:{canonical_key}")
+        labels[owner] = canonical
+        owners.setdefault(canonical_key, {})[owner] = "canonical"
+        for alias in _desired_aliases(row.get("aliases"), canonical):
+            owners.setdefault(_normalize_name(alias), {})[owner] = "alias"
+    return {
+        key: sorted(labels[owner] for owner in by_owner)
+        for key, by_owner in owners.items()
+        if len(by_owner) > 1
+    }
 
 
 def _get_event_rows_for_seed(sb, row: dict[str, Any]) -> list[dict[str, Any]]:
-    names = [row["canonical_name_ja"]] + (row.get("aliases") or [])
+    names = [row["canonical_name_ja"]] + _desired_aliases(
+        row.get("aliases"), row["canonical_name_ja"]
+    )
     name_rows = (
         sb.table("events")
         .select("id,location_name,location_address,is_active")
@@ -899,70 +995,125 @@ def _assert_authority_columns_ready(sb) -> None:
         raise SystemExit(2)
 
 
-def run(dry_run: bool) -> None:
+def _load_venues(sb) -> list[dict[str, Any]]:
+    return sb.table("venues").select(_VENUE_SELECT_COLUMNS).execute().data or []
+
+
+def _build_plan(sb) -> list[dict[str, Any]]:
+    existing_rows = _load_venues(sb)
+    by_canonical: dict[str, list[dict[str, Any]]] = {}
+    by_id = {row.get("id"): row for row in existing_rows if row.get("id")}
+    for row in existing_rows:
+        key = _normalize_name(row.get("canonical_name_ja"))
+        if key:
+            by_canonical.setdefault(key, []).append(row)
+
+    seed_keys = {
+        _normalize_name(row["canonical_name_ja"])
+        for row in SEED_DATA
+        if row.get("is_authoritative") is True
+    }
+    prospective = [
+        dict(row)
+        for row in existing_rows
+        if row.get("is_authoritative") and _normalize_name(row.get("canonical_name_ja")) not in seed_keys
+    ]
+    structural_conflicts: dict[str, list[str]] = {}
+    seed_existing: dict[str, dict[str, Any] | None] = {}
+    for seed_row in SEED_DATA:
+        canonical = seed_row["canonical_name_ja"]
+        key = _normalize_name(canonical)
+        matches = by_canonical.get(key, [])
+        if len(matches) > 1:
+            structural_conflicts[key] = [str(row.get("id")) for row in matches]
+            continue
+        existing = matches[0] if matches else None
+        expected_id = seed_row.get("_expected_id")
+        if expected_id and existing is not None and existing.get("id") != expected_id:
+            structural_conflicts[key] = [str(existing.get("id")), str(expected_id)]
+            continue
+        if expected_id and existing is None and expected_id in by_id:
+            structural_conflicts[key] = [str(expected_id), str(by_id[expected_id].get("canonical_name_ja"))]
+            continue
+        seed_existing[key] = existing
+        if seed_row.get("is_authoritative") is True:
+            desired = _desired_payload(seed_row, existing)
+            if existing is not None:
+                desired["id"] = existing["id"]
+            prospective.append(desired)
+
+    collisions = check_key_collisions(prospective)
+    collisions.update(structural_conflicts)
+    if collisions:
+        detail = "; ".join(f"{key}={values}" for key, values in sorted(collisions.items()))
+        raise SeedCollisionError(f"authoritative venue key collision: {detail}")
+
+    plans: list[dict[str, Any]] = []
+    for seed_row in SEED_DATA:
+        canonical = seed_row["canonical_name_ja"]
+        existing = seed_existing.get(_normalize_name(canonical))
+        payload = _desired_payload(seed_row, existing)
+        if seed_row.get("is_authoritative") is not True:
+            action = "skip"
+            evidence: dict[str, Any] = {"reason": "not_authoritative"}
+        else:
+            matches = _get_event_rows_for_seed(sb, seed_row)
+            has_conflict, db_addresses, conflicts = _has_conflict(seed_row, matches)
+            if has_conflict:
+                action = "conflict"
+                evidence = {
+                    "db_addresses": db_addresses,
+                    "conflicts": conflicts,
+                    "event_ids": [
+                        row["id"] for row in matches
+                        if (row.get("location_address") or "").strip() in conflicts
+                    ],
+                }
+            elif existing is None:
+                action = "insert"
+                evidence = {}
+            elif all(existing.get(key) == value for key, value in payload.items()):
+                action = "noop"
+                evidence = {}
+            else:
+                action = "update"
+                evidence = {}
+        plans.append({
+            "canonical_name_ja": canonical,
+            "action": action,
+            "existing": existing,
+            "payload": payload,
+            "evidence": evidence,
+        })
+    return plans
+
+
+def run(dry_run: bool) -> dict[str, Any]:
     sb = _get_client()
     _assert_authority_columns_ready(sb)
-    stats = Counter(insert=0, update=0, skip=0, conflict=0)
+    plans = _build_plan(sb)
+    stats = Counter(plan["action"] for plan in plans)
 
-    skip_keys: set[str] = set()
-    for row in SEED_DATA:
-        matches = _get_event_rows_for_seed(sb, row)
-        has_conflict, db_addresses, conflicts = _has_conflict(row, matches)
-        if not has_conflict:
+    for plan in plans:
+        action = plan["action"]
+        canonical = plan["canonical_name_ja"]
+        if dry_run or action in {"noop", "conflict", "skip"}:
+            print(f"[{'DRY-RUN' if dry_run else 'APPLY'} {action}] {canonical}")
             continue
-        stats["conflict"] += 1
-        stats["skip"] += 1
-        skip_keys.add(row["canonical_name_ja"])
-        example_ids = [m["id"][:8] for m in matches if (m.get("location_address") or "").strip() in conflicts][:5]
-        print(
-            "[WARN conflict]",
-            row["canonical_name_ja"],
-            "seed=",
-            row.get("address"),
-            "db=",
-            db_addresses,
-            "event_ids=",
-            example_ids,
-        )
-
-    for row in SEED_DATA:
-        canonical = row["canonical_name_ja"]
-        if canonical in skip_keys:
-            print(f"[SKIP] {canonical} (pre-flight conflict)")
-            continue
-
-        existing = (
-            sb.table("venues")
-            .select("id,aliases")
-            .eq("canonical_name_ja", canonical)
-            .limit(1)
-            .execute()
-            .data
-            or []
-        )
-
-        payload = dict(row)
-        payload["aliases"] = _merge_aliases(
-            existing[0].get("aliases") if existing else None,
-            payload.get("aliases") or [],
-            canonical,
-        )
-
-        action = "update" if existing else "insert"
-        stats[action] += 1
-
-        if dry_run:
-            print(f"[DRY-RUN {action}] {canonical} aliases={len(payload['aliases'])}")
-            continue
-
-        sb.table("venues").upsert(payload, on_conflict="canonical_name_ja").execute()
+        if action == "insert":
+            sb.table("venues").insert(plan["payload"]).execute()
+        else:
+            sb.table("venues").update(plan["payload"]).eq(
+                "id", plan["existing"]["id"]
+            ).execute()
         print(f"[APPLY {action}] {canonical}")
 
     mode = "DRY-RUN" if dry_run else "APPLY"
     print(
         f"[{mode}] done | insert={stats['insert']} update={stats['update']} "
-        f"skip={stats['skip']} conflict={stats['conflict']}"
+        f"noop={stats['noop']} conflict={stats['conflict']} skip={stats['skip']}"
     )
+    return {"plans": plans, "stats": dict(stats)}
 
 
 def main() -> None:

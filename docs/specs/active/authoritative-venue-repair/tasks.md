@@ -40,15 +40,15 @@ description: authoritative-venue-repair 的隔離、實作、驗證與兩階段 
 
 ## Phase 2: Desired-state venue seed
 
-* [ ] Alias union 改為 tracked desired-state exact replacement
-* [ ] Seed-wide canonical/alias all-tier collision preflight fail closed
-* [ ] Postal-code、NFKC、dash、whitespace 與 street address normalization
-* [ ] 保留 active-event conflict guard
-* [ ] Dry-run 精確分類 insert、update、noop、conflict 與 skip
-* [ ] 修正 TCC、TIFF、八丁座、サロンシネマ、Century 與高田世界館 verified values
-* [ ] 八丁座 aliases 移除 `サロンシネマ` 與 `サロンシネマ1・2`
-* [ ] 新增三個 TIFF physical authoritative seeds，但不預猜 production UUID
-* [ ] 測試 stale alias removal、collision、address compatibility、active conflict、noop 與零寫入
+* [x] Alias union 改為 tracked desired-state exact replacement
+* [x] Seed-wide canonical/alias all-tier collision preflight fail closed
+* [x] Postal-code、NFKC、dash、whitespace 與 street address normalization
+* [x] 保留 active-event conflict guard
+* [x] Dry-run 精確分類 insert、update、noop、conflict 與 skip
+* [x] 修正 TCC、八丁座、サロンシネマ、Century 與高田地址；高田/TIFF homepage preserve live
+* [x] 八丁座 aliases 移除 `サロンシネマ` 與 `サロンシネマ1・2`
+* [x] 新增三個 TIFF physical authoritative seeds，但不預猜 production UUID
+* [x] 測試 stale alias removal、collision、address compatibility、active conflict、noop 與零寫入
 
 ## Phase 3: Database FK population
 
