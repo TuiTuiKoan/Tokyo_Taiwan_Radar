@@ -28,15 +28,15 @@ description: authoritative-venue-repair 的隔離、實作、驗證與兩階段 
 
 ## Phase 1: Authoritative registry
 
-* [ ] 建立分離 canonical 與 alias indexes
-* [ ] 只載入 `is_authoritative = true` rows
-* [ ] Reject canonical/canonical same-tier collision
-* [ ] Reject alias/alias same-tier collision
-* [ ] Reject canonical/alias 與 alias/canonical cross-tier collision
-* [ ] Load failure 清空並 cache empty registry，不留下 partial/stale data
-* [ ] 新增 test-only cache reset helper
-* [ ] 測試 canonical、alias、unknown、各 collision、load failure 與 reset/reload
-* [ ] 第一個 substantive edit 後立即跑 registry focused suite
+* [x] 建立分離 canonical 與 alias indexes
+* [x] 只載入 `is_authoritative = true` rows
+* [x] Reject canonical/canonical same-tier collision
+* [x] Reject alias/alias same-tier collision
+* [x] Reject canonical/alias 與 alias/canonical cross-tier collision
+* [x] Load failure 清空並 cache empty registry，不留下 partial/stale data
+* [x] 新增 test-only cache reset helper
+* [x] 測試 canonical、alias、unknown、各 collision、load failure 與 reset/reload
+* [x] 第一個 substantive edit 後立即跑 registry focused suite
 
 ## Phase 2: Desired-state venue seed
 
