@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcndl="http://ndl.go.jp/dcndl/terms/">
+  <channel>
+    <item>
+      <title>台湾研究の掲載誌つき記事</title>
+      <link>https://ndlsearch.ndl.go.jp/books/R100000002-I111111111?recordFamily=R000000004</link>
+      <description>台湾研究に関する記事。</description>
+      <dc:identifier>JP111111111</dc:identifier>
+      <dc:publisher>秋田大学高等教育グローバルセンター</dc:publisher>
+      <dc:creator>研究者A</dc:creator>
+      <dc:description>出版タイプ： VoR</dc:description>
+      <dc:description>掲載誌：秋田大学高等教育グローバルセンター紀要 2026-03-20 p.11-16</dc:description>
+      <dcndl:seriesTitle>退職記念号</dcndl:seriesTitle>
+      <dcterms:issued>2026-03-20</dcterms:issued>
+    </item>
+    <item>
+      <title>台湾文化の掲載誌なし書籍</title>
+      <link>https://ndlsearch.ndl.go.jp/books/R100000002-I222222222</link>
+      <description>台湾文化を紹介する書籍。</description>
+      <dc:identifier>JP222222222</dc:identifier>
+      <dc:publisher>架空出版社</dc:publisher>
+      <dc:creator>著者名</dc:creator>
+      <dc:description>出版タイプ： VoR</dc:description>
+      <dcndl:seriesTitle>退職記念号</dcndl:seriesTitle>
+      <dcterms:issued>2026-07-01</dcterms:issued>
+    </item>
+  </channel>
+</rss>

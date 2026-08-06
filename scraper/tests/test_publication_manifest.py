@@ -501,6 +501,92 @@ def test_legacy_placeholder_detector_fixtures_still_match():
     assert manifest.location_conflict_reason(_event("x", location_name="丸善丸の内本店"))
 
 
+# --- PN-3a.0: bibliographic catalogue sources carry no physical venue ---------
+
+
+NDL_JOURNAL_LOCATION_NAME = "秋田大学高等教育グローバルセンター紀要 7"
+TOKYO_DOME_EVENT_ID = "2b75e683-0231-46c3-99f0-5db207dcbc18"
+
+
+def test_catalog_source_journal_title_is_not_a_location_conflict():
+    event = _event(
+        "ndl-journal",
+        source_name="ndl_opensearch",
+        source_id="ndl_1c05e6d1b5a2",
+        source_url="https://ndlsearch.ndl.go.jp/books/R100000002-I111111111?recordFamily=R000000004",
+        location_name=NDL_JOURNAL_LOCATION_NAME,
+    )
+    assert manifest.PHYSICAL_LOCATION_RE.search(NDL_JOURNAL_LOCATION_NAME)
+    assert manifest.location_conflict_reason(event) is None
+
+    result = manifest.build_manifest(_state([event]), generated_at="2026-08-06T00:00:00+00:00")
+    candidate = _candidate(result, "ndl-journal")
+
+    assert candidate["classification"]["location_conflict"] is None
+    assert candidate["action_type"] == "pure_cleanup"
+    assert candidate["event_after"]["location_name"] is None
+    assert result["summary"]["included_pure"] == 1
+    assert result["summary"]["unresolved_non_eslite_location_conflicts"] == 0
+
+
+def test_non_catalog_source_physical_venue_still_conflicts():
+    assert "hanmoto" not in manifest.BIBLIOGRAPHIC_CATALOG_SOURCES
+    event = _event("hanmoto-osaka", location_name=manifest.POSTER_POLLUTION_LOCATION)
+    reason = manifest.location_conflict_reason(event)
+    assert reason and manifest.POSTER_POLLUTION_LOCATION in reason
+
+    result = manifest.build_manifest(_state([event]), generated_at="2026-08-06T00:00:00+00:00")
+    candidate = _candidate(result, "hanmoto-osaka")
+
+    assert candidate["action_type"] == "excluded"
+    assert result["summary"]["unresolved_non_eslite_location_conflicts"] == 1
+
+
+def test_poster_pollution_rows_keep_evidence_only_routing_under_the_catalog_exemption():
+    events, corrections = _poster_pollution_fixture()
+    result = manifest.build_manifest(
+        _state(events, field_corrections=corrections),
+        generated_at="2026-08-06T00:00:00+00:00",
+    )
+
+    evidence_ids = {
+        candidate["event_id"]
+        for candidate in result["candidates"]
+        if candidate.get("poster_pollution_repair", {}).get("status") == "evidence_only"
+    }
+    assert evidence_ids == set(manifest.POSTER_POLLUTION_REPAIRS)
+    assert result["summary"]["poster_placeholder_pollution_evidence_rows"] == 8
+
+    catalog_poster_ids = [
+        event_id
+        for event_id, expected in manifest.POSTER_POLLUTION_REPAIRS.items()
+        if expected["source_name"] in manifest.BIBLIOGRAPHIC_CATALOG_SOURCES
+    ]
+    assert catalog_poster_ids
+    for event_id in catalog_poster_ids:
+        candidate = _candidate(result, event_id)
+        assert candidate["action_type"] == "pure_cleanup"
+        assert candidate["poster_pollution_repair"]["executable_repair"] is False
+        assert candidate["pre_actions"] == []
+
+
+def test_hanmoto_tokyo_dome_row_stays_an_included_pure_cleanup_candidate():
+    assert TOKYO_DOME_EVENT_ID not in manifest.POSTER_POLLUTION_REPAIRS
+    event = _event(
+        TOKYO_DOME_EVENT_ID,
+        source_id="hanmoto_9784575320985",
+        location_name="東京ドーム",
+    )
+    assert manifest.location_conflict_reason(event) is None
+
+    result = manifest.build_manifest(_state([event]), generated_at="2026-08-06T00:00:00+00:00")
+    candidate = _candidate(result, TOKYO_DOME_EVENT_ID)
+
+    assert candidate["action_type"] == "pure_cleanup"
+    assert candidate["event_after"]["location_name"] is None
+    assert result["summary"]["unresolved_non_eslite_location_conflicts"] == 0
+
+
 def test_pure_cleanup_plans_thirteen_targets_with_seven_sentinels_and_six_cas_clears():
     result = manifest.build_manifest(_state([_event("pure")]), generated_at="2026-07-11T00:00:00+00:00")
     candidate = _candidate(result, "pure")

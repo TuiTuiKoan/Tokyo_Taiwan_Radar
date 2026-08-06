@@ -145,6 +145,9 @@ PHYSICAL_LOCATION_RE = re.compile(
     r"(?:東京都|北海道|(?:京都|大阪)府|.{2,3}県).{0,20}(?:市|区|町|村|丁目))",
     re.IGNORECASE,
 )
+# A library catalogue record describes a bibliographic item, never a place, so its
+# location_name cannot be physical venue evidence (it holds the journal title).
+BIBLIOGRAPHIC_CATALOG_SOURCES = frozenset({"ndl_opensearch"})
 POSTER_POLLUTION_LOCATION = "大阪城ホール"
 POSTER_POLLUTION_START_DATE = "2023-10-14T00:00:00+00:00"
 POSTER_POLLUTION_ORGANIZER = "コミックマーケット準備会"
@@ -405,6 +408,8 @@ def is_fake_price(value: Any) -> bool:
 
 
 def location_conflict_reason(event: dict[str, Any]) -> str | None:
+    if event.get("source_name") in BIBLIOGRAPHIC_CATALOG_SOURCES:
+        return None
     value = str(event.get("location_name") or "").strip()
     if not value or any(marker in value for marker in PUBLICATION_LOCATION_MARKERS):
         return None
