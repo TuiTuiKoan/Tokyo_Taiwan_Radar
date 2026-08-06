@@ -5,6 +5,7 @@ description: Add a consumable non-Japan audience decision and a review-safe admi
 status: active
 branch: feat/japan-scope-gate
 created: 2026-08-04
+updated: 2026-08-06
 tags:
   - scraper
   - admin
@@ -42,7 +43,7 @@ Wave 2 延後以下工作：
 * Publisher domain risk、`startup_terrace` 存廢與任何 `source_exclusions`
 * Security 或 broken-link history routing 改動
 
-本輪也不做 DB migration、QA consumer 改動、sub-event active 行為改動、production apply、push、merge或部署。
+本輪不做 DB migration、QA consumer 改動或 sub-event active 行為改動。Code delivery 已進入 PR、merge 與 deploy 流程；production cleanup 仍是獨立工作流，不包含在 code delivery 核准內。
 
 ## Baseline（v3.1）
 
@@ -58,26 +59,53 @@ Capture window `2026-08-04T11:09:30.624644Z` 至 `2026-08-04T11:09:34.759722Z`�
 
 Phase 0.5 的現行 GPT raw JSON 沒有 `scope_decision`、`is_active` 或其他 scope output。正向 `selection_reason` 只描述 Taiwan relevance，沒有回答活動受眾，因此可繼續實作 structured consumer。
 
-## Implementation Status（2026-08-04）
+## Implementation Status（2026-08-06）
 
-目前分支的 commit 與本地實測紀錄如下。這些結果不是 push、merge 或 deploy 證據：
+### Delivery branch
 
-* Phase 0 commit `0495539e` 記錄 v3.1 preflight、baseline 與 isolated worktree
-* Phase 1 commit `23072d8e` 抽出 canonical location classifier，focused tests `15 passed`
-* Phase 2 commit `7f974490` 閉合 annotator scope contract，imports OK、focused tests `21 passed`、regressions `74 passed`
-* Phase 3 commits `5cc8f7b8` 與 `6dfab75f` 閉合 admin 逐筆處理及 UI source guards，四個 web test files `36 passed`
-* Phase 4 web build 完成 `250/250` static pages；Phase 1/2 scraper 具名 suites 重跑結果為 `95 passed`
+先前測試過的 branch 已發布至 `origin/feat/japan-scope-gate`，遠端 SHA 為 `28d01f25`。PR review 修正完成後，本地 branch 於 2026-08-06 重放到最新 `origin/main=9b2f6368`，結果為 behind `0`、merge commits `0`。下列 10 個 rebased code/history commits 位於本次文件更新之前。舊遠端 branch 未被 force push；PR 將使用新的 linear remote ref。
 
-Phase 6a code commit `94f17a33` 新增 digest-bound one-off 與 32 個 focused unit tests。`py_compile`、CLI help、imports、`get_errors` 與 `git diff --check` 均通過。
+Rebased commits：
 
-Production 唯讀 snapshot 使用預定輸出路徑 `tmp/scope_manifest_20260804T145452Z.json`。22 個 prefix 均唯一解析為 full UUID，evidence assertions 通過，22 筆皆維持 active；關係 gate 隨後發現 parent `3f693869-c263-4812-96c0-a6433d9be3af` 有以下 4 個 active children，而這 4 筆也都在 target set 且具有 `parent_event_id`：
+* `c098147a`：記錄 v3.1 preflight、baseline 與 isolated worktree
+* `3c0639c3`：抽出 canonical location region classifier
+* `bb614391`：新增 consumable annotator scope decision 與 report lifecycle
+* `99303b6f`：新增 admin 逐筆 scope report action
+* `51050092`：加強 scope report UI source guards
+* `321a0859`：新增 digest-bound scope cleanup manifest
+* `442d4e5a`：記錄 Google News RSS scope incident
+* `a18e1a49`：使 scope manifest publication 嚴格 immutable
+* `fe66a9d2`：關閉 target-row CAS、relation query 與 scope report lifecycle races
+* `cd4c2b04`：在 transactional RPC 完成前禁用 non-transactional cleanup apply
+
+### Validation
+
+最新 main 上的本地驗證結果：
+
+* Cleanup safety suite：`36 passed`
+* Location classifier 與 scope lifecycle suites：`23 passed`
+* Scope admin web suites：`36 passed`
+* Full scraper suite：`606 passed, 1 skipped`，另有 14 個既有 `datetime.utcnow()` deprecation warnings
+* Web i18n parity：三語各 `1163` keys
+* JSON-LD security assertions：PASS
+* Next.js production build：compile、TypeScript 與 static pages `250/250` PASS
+* VS Code diagnostics：0
+* `git diff --check`：PASS
+
+### Cleanup Safety Boundary
+
+Production 唯讀 snapshot 曾使用預定輸出路徑 `tmp/scope_manifest_20260804T145452Z.json`。22 個 prefix 均唯一解析為 full UUID，evidence assertions 通過，22 筆皆維持 active；關係 gate 隨後發現 parent `3f693869-c263-4812-96c0-a6433d9be3af` 有 4 個 active target children：
 
 * `47262b02-d817-4c4b-a1b0-a5f3fae06cd2`
 * `7c6c1e7f-1693-4c94-b3f2-04067a997eee`
 * `a62ce9e1-ddc5-4fd7-8327-2c47f54fe0ec`
 * `fe47a25c-ec38-4f0d-be21-7d06607cbbb2`
 
-Snapshot 在寫檔前 STOP，預定 path 不存在，沒有 manifest digest。Phase 5、Phase 6b 與 Phase 6c 仍 pending；Phase 6b 仍需一份成功產生的 immutable manifest 及引用其 exact digest 的明確核准。`--apply` 未執行，沒有 push、merge 或 deploy，spec 維持 active。
+Snapshot 在寫檔前 STOP，因此該 path 不存在，也沒有 manifest digest。Review remediation 已把 target stable before-image 綁入每筆 CAS，並將 relation read 改為 target-scoped query；但 sequential PostgREST calls 無法原子保證 parent 與 children 在驗證後不漂移。Web maintenance lock 也不能阻擋 service-role scraper writers。
+
+因此本版 CLI 在讀 manifest 或建立 Supabase client 前即拒絕 `--apply`。解除限制需要另一個 cleanup workstream：建立 service-role-only transaction/RPC，在單一 transaction 中驗證完整 before-images、parent/child relations 並更新整個 action set；同時 pause、drain、resume 所有 service-role writers。RPC 完成後仍須重新產生 immutable manifest，並以新 digest 取得當下的 production apply 明確核准。
+
+目前沒有 production DB mutation。Code PR、merge 與 deploy 不構成 cleanup apply 核准，spec 維持 active。
 
 ## References
 

@@ -2,7 +2,7 @@
 title: Japan Scope Gate Tasks
 description: Wave 1 delivery checklist and approval boundaries for the Japan scope gate
 status: active
-updated: 2026-08-04
+updated: 2026-08-06
 ---
 
 ## Phase 0：阻擋式 preflight
@@ -29,15 +29,21 @@ updated: 2026-08-04
 * [x] Phase 3 checkpoint：本 atomic web commit 收尾，三語 i18n diff `0 key deletion`
 * [x] Phase 4（web）：指定四檔 tests `36 passed`，`pnpm build` PASS（`250/250` static pages）
 * [x] Phase 4（scraper）：imports OK；Phase 1/2 具名 suites `95 passed`
-* [x] Phase 6a：commit `94f17a33` 實作 one-off snapshot/apply safety interface；focused tests `32 passed`
+* [x] Phase 6a：commit `321a0859` 實作 one-off snapshot/apply safety interface
 * [x] Phase 6a：執行唯讀 snapshot attempt，22 個 prefix 唯一解析、evidence 與 active state 通過
-* [ ] Phase 6a acceptance：關係 gate STOP。Parent `3f693869-c263-4812-96c0-a6433d9be3af` 有 4 個 active target children，4 筆皆具有 `parent_event_id`：
-	* `47262b02-d817-4c4b-a1b0-a5f3fae06cd2`
-	* `7c6c1e7f-1693-4c94-b3f2-04067a997eee`
-	* `a62ce9e1-ddc5-4fd7-8327-2c47f54fe0ec`
-	* `fe47a25c-ec38-4f0d-be21-7d06607cbbb2`
+* [x] Phase 6a review：關係 gate 正確 STOP。Parent `3f693869-c263-4812-96c0-a6433d9be3af` 有 4 個 active target children，4 筆皆具有 `parent_event_id`：
+  * `47262b02-d817-4c4b-a1b0-a5f3fae06cd2`
+  * `7c6c1e7f-1693-4c94-b3f2-04067a997eee`
+  * `a62ce9e1-ddc5-4fd7-8327-2c47f54fe0ec`
+  * `fe47a25c-ec38-4f0d-be21-7d06607cbbb2`
+* [x] PR review remediation：manifest no-replace publication、strict contract、target stable-field CAS、target-scoped relation read
+* [x] PR review remediation：scope lookup fail closed、changed pending finding refresh、DB-derived admin event ID assertion
+* [x] PR review remediation：non-transactional CLI `--apply` 在 manifest 或 DB access 前 STOP
+* [x] Phase 6a focused validation：cleanup safety suite `36 passed`
 * [x] Phase 7：更新 Google News RSS source history與本 spec 的 commits/tests/approval state
-* [x] Final checkpoint：本次 docs commit 完成後確認 tracked worktree clean；Changes Log 含 commits、validation 與 snapshot STOP 證據
+* [x] Rebase checkpoint：同步 `origin/main=9b2f6368`，behind `0`、merge commits `0`
+* [x] Rebase validation：scope lifecycle `23 passed`、scope web `36 passed`、full scraper `606 passed, 1 skipped`
+* [x] Rebase validation：i18n `1163` keys、JSON-LD security PASS、Next.js static pages `250/250`
 
 ## Wave 2：明確延後
 
@@ -48,23 +54,34 @@ updated: 2026-08-04
 
 ## Approval Gates
 
-* [ ] Phase 5：push、merge、deploy、exact-SHA workflow 與三筆 runtime canary，等待 Tester PASS 與使用者另行核准
-* [ ] Phase 6b：`--apply` production DB mutation，等待成功 manifest 的 exact digest-bound 明確核准
-* [ ] Phase 6c：production read-back，僅能在 Phase 6b 核准並完成後執行
+* [x] Phase 5 code delivery approval：使用者已要求同步最新 main、重驗、PR、merge 與 deploy
+* [x] Phase 5 sync：feature commits 已 rebase 到 `origin/main=9b2f6368`，本地 linear history 驗證完成
+* [ ] Phase 5 push：發布新的 linear PR remote ref，不 force push 舊 branch
+* [ ] Phase 5 PR：重建 PR reference、獨立 review、建立 PR 並等待 required checks
+* [ ] Phase 5 merge：以 linear merge strategy 整合 main，確認 exact merged SHA
+* [ ] Phase 5 deploy：確認 exact-SHA Vercel deployment 與三筆 runtime canary
+* [ ] Phase 6b：建立 transactional DB RPC，盤點並 pause/drain/resume service-role writers
+* [ ] Phase 6b：以 RPC 重新 capture immutable manifest，取得新 digest-bound production apply 核准
+* [ ] Phase 6c：production apply 與 read-back，僅能在 Phase 6b 新核准後執行
 
 ## Changes Log
 
-* `0495539e`：記錄 v3.1 preflight、baseline 與 isolated worktree
-* `23072d8e`：抽出 canonical location region classifier
-* `7f974490`：新增 consumable annotator scope decision 與 report lifecycle
-* `5cc8f7b8`：新增 admin 逐筆 scope report action
-* `6dfab75f`：加強 scope report UI source guards
-* `94f17a33`：新增 digest-bound scope cleanup manifest 與 unit tests
+* `c098147a`：記錄 v3.1 preflight、baseline 與 isolated worktree
+* `3c0639c3`：抽出 canonical location region classifier
+* `bb614391`：新增 consumable annotator scope decision 與 report lifecycle
+* `99303b6f`：新增 admin 逐筆 scope report action
+* `51050092`：加強 scope report UI source guards
+* `321a0859`：新增 digest-bound scope cleanup manifest 與 unit tests
+* `442d4e5a`：記錄 Google News RSS scope incident
+* `a18e1a49`：使 scope manifest publication 嚴格 immutable
+* `fe66a9d2`：關閉 target-row CAS、relation query 與 scope report lifecycle races
+* `cd4c2b04`：禁用 non-transactional production cleanup apply
 
-Snapshot attempt：`tmp/scope_manifest_20260804T145452Z.json` 在寫入前 STOP，因此檔案不存在，digest unavailable。`--apply` NOT RUN。
+Snapshot attempt：`tmp/scope_manifest_20260804T145452Z.json` 在寫入前 STOP，因此檔案不存在，digest unavailable。`--apply` NOT RUN，且目前由 CLI fail closed。
 
-## Prohibited This Round
+## Cleanup Safety Boundaries
 
-* [x] 不執行 `git push`、merge、V-M-D、Vercel deploy 或 workflow dispatch
 * [x] 不執行 one-off `--apply` 或其他 production DB mutation
+* [x] 不把 code delivery 核准解讀為 digest-bound production apply 核准
+* [x] Transactional RPC 完成前，由 CLI 強制拒絕 non-transactional apply
 * [x] 不新增 migration、不改 QA auto-consumer、不改 sub-event active contract
