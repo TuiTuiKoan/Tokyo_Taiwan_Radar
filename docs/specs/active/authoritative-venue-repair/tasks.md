@@ -128,22 +128,110 @@ description: authoritative-venue-repair 的隔離、實作、驗證與兩階段 
 
 ## Phase 8: Engineer validation
 
-* [ ] Registry focused tests PASS
-* [ ] Database FK/force-rescrape FC tests PASS
-* [ ] Seed desired-state/collision/address/noop/dry-run tests PASS
-* [ ] TIFF 2025 fixture與 failure paths PASS
-* [ ] Johakyu、Starcat 與 TCC regression tests PASS
-* [ ] Repair capture/apply/rollback/CAS/idempotency/conflict/order tests PASS
-* [ ] `python -m compileall -q .` PASS from `scraper/`
-* [ ] `python -m pytest tests` PASS from `scraper/`
+* [x] Registry focused tests PASS
+* [x] Database FK/force-rescrape FC tests PASS
+* [x] Seed desired-state/collision/address/noop/dry-run tests PASS
+* [x] TIFF 2025 fixture與 failure paths PASS
+* [x] Johakyu、Starcat 與 TCC regression tests PASS
+* [x] Repair capture/apply/rollback/CAS/idempotency/conflict/order tests PASS
+* [x] `python -m compileall -q .` PASS from `scraper/`
+* [x] `python -m pytest tests` PASS from `scraper/`
 * [ ] Tiff source dry-run完成；current-year empty 只標 graceful empty
 * [ ] Johakyu source dry-run PASS
 * [ ] Starcat source dry-run PASS
-* [ ] Taiwan Cultural Center source dry-run PASS
-* [ ] `git diff --check` PASS
-* [ ] Scope assertion 無 `web/**`、`supabase/**`、`scraper/main.py` 或 merger diff
-* [ ] 主工作樹既有 WIP 保持原樣
-* [ ] Engineer Changes Log 列出 commits、paths、tests、dry-runs、risks 與 no-production-write
+* [x] Taiwan Cultural Center source dry-run PASS
+* [x] `git diff --check` PASS
+* [x] Scope assertion 無 `web/**`、`supabase/**`、`scraper/main.py` 或 merger diff
+* [x] 主工作樹既有 WIP 保持原樣
+* [x] Engineer Changes Log 列出 commits、paths、tests、dry-runs、risks 與 no-production-write
+
+### Phase 8 Changes Log (2026-08-06)
+
+Validated implementation commits before the docs-only validation commit:
+
+* `3b59beae4b70d053610d6336158eb626301ef2ed` establish the active spec
+* `3aae7dadf96f51395c4db4b2d4ba50963d7b0a2e` make the registry collision-safe
+* `f2da30bb7f3398e30edcf83d096584423f3ce23e` enforce seed desired state
+* `29b13ab78569ccf2f196dd4f64bc35e302aee18f` enforce authoritative propagation
+* `0d82677adcf0dd3a8fd502dbc932c7b694f5b551` route TIFF films to physical venues
+* `e2afa4eba5b18985078b8c2f15060702ce2e52fa` update fixed venue locations
+* `46c66cd90c3914028427356331be657d259fd0cf` add the immutable repair tool
+* `f2237f7d5fa914d803e071654ca74b92d9b0ec3a` add production action planning
+
+Feature paths at the validation boundary:
+
+* `docs/specs/active/authoritative-venue-repair/proposal.md`
+* `docs/specs/active/authoritative-venue-repair/tasks.md`
+* `scraper/_oneoff_repair_authoritative_venues.py`
+* `scraper/_oneoff_seed_authoritative_venues.py`
+* `scraper/database.py`
+* `scraper/sources/base.py`
+* `scraper/sources/johakyu.py`
+* `scraper/sources/starcat_cinema.py`
+* `scraper/sources/tiff.py`
+* `scraper/tests/fixtures/tiff_2025_films.json`
+* `scraper/tests/fixtures/tiff_2025_venues.json`
+* `scraper/tests/test_authoritative_venue_repair.py`
+* `scraper/tests/test_database_venue_fks.py`
+* `scraper/tests/test_fixed_source_venue_contracts.py`
+* `scraper/tests/test_seed_authoritative_venues.py`
+* `scraper/tests/test_taiwan_cultural_center_location.py`
+* `scraper/tests/test_tiff_venue_routing.py`
+* `scraper/tests/test_venue_registry.py`
+* `scraper/venue_registry.py`
+
+Focused and broad validation from `scraper/`:
+
+* `python -m pytest tests/test_venue_registry.py -ra`: 9 passed in 1.40s
+* `python -m pytest tests/test_database_venue_fks.py -ra`: 11 passed, 1 warning in 1.54s
+* `python -m pytest tests/test_seed_authoritative_venues.py -ra`: 10 passed in 1.47s
+* `python -m pytest tests/test_tiff_venue_routing.py -ra`: 7 passed, 2 warnings in 1.12s
+* `python -m pytest tests/test_fixed_source_venue_contracts.py tests/test_taiwan_cultural_center_location.py -ra`: 19 passed, 8 warnings in 1.20s
+* `python -m pytest tests/test_authoritative_venue_repair.py -ra`: 48 passed in 2.54s
+* `python -m pytest tests/test_tiff_venue_routing.py::test_2025_fixture_routes_films_in_first_act_order -vv -ra`: 1 passed in 1.25s
+* `python -m compileall -q .`: PASS, 0.79s wall time
+* `python -m pytest tests -ra`: 622 passed, 1 skipped, 25 warnings in 13.86s; 15.04s wall time
+
+The 25 full-suite warnings are the existing `datetime.utcnow()` deprecation at
+`database.py:167`. The skipped test is the opt-in read-only DB gate, which remained disabled
+because this phase forbids production queries.
+
+The 2025 offline fixture test loaded both committed JSON fixtures and proved these ordered
+routes: `木々の隙間` to Chanter; `エイプリル` to Hulic, Chanter, and Cineswitch;
+`ダブル・ハピネス` to Hibiya screens 12/13 and Cineswitch; `人生は海のように` to
+Chanter, Hibiya screens 12/13, and Cineswitch. The same focused suite proved unknown-screen,
+unresolved-venue, and venues-API failure paths skip the whole film.
+
+All source commands used the repository venv and `main.py --dry-run --source <name>` from
+`scraper/`, with the main repository `scraper/.env` loaded read-only. An out-of-worktree
+fail-closed guard replaced Supabase client entry points, cleared Sentry, and reported zero DB
+access attempts for every command.
+
+* `python main.py --dry-run --source tiff`: 0 events. The 2026 films API hostname did not
+	resolve, so this is graceful degradation and remains INCONCLUSIVE, not parser proof.
+* `python main.py --dry-run --source johakyu`: 0 events after finding two schedule sections.
+	Zero output remains INCONCLUSIVE and is not recorded as PASS.
+* `python main.py --dry-run --source starcat_cinema`: 5 events. Century used the corrected
+	`栄3-29-1 名古屋パルコ東館8F` address and kept the ticket URL out of `location_url`.
+	One event, `鯨が消えた入り江`, had `start_date=2026-08-20` after
+	`end_date=2026-08-13`; the source gate remains FAIL because date repair is outside this
+	feature's approved venue-only scope.
+* `python main.py --dry-run --source taiwan_cultural_center`: 20 events, all with non-null
+	start and end dates. It preserved TCC, Euro Live, Keio, Chuo, and Kyoto external venue
+	distinctions. Eight date-parse warnings used fallback extraction without dropping records.
+
+`git diff --check`, fail-closed path scope, no-`web/messages/*.json`, and editor diagnostics
+for all modified Python files passed. Gitleaks 8.30.1 scanned all eight implementation commits
+(about 285 KB) with redaction and found no leaks; the executable pre-commit hook also contains
+the staged gitleaks gate.
+
+The main worktree remained at `8c701799a29f39c1891c9103f79e8a3b88c5a61b`, with the same
+13 WIP paths, identical tracked diff hash, empty index, and empty stash. One untracked prompt
+changed concurrently immediately after the initial raw-file snapshot, but remained untracked;
+no feature command wrote, staged, stashed, cleaned, or restored any main-worktree path.
+
+No push, manifest preview or capture, repair apply or rollback, production query, production
+write, or other production mutation was executed. Phase 9 and Gate 1 remain entirely open.
 
 ## Phase 9: Independent Tester
 
