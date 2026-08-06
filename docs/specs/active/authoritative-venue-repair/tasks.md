@@ -94,25 +94,25 @@ description: authoritative-venue-repair 的隔離、實作、驗證與兩階段 
 
 ## Phase 6: Immutable production repair tool
 
-* [ ] 新增 `_oneoff_repair_authoritative_venues.py`
-* [ ] Default invocation mechanically read-only
-* [ ] Capture、apply、rollback CLI modes 互斥且不隱式切換
-* [ ] Capture output 限定 ignored `tmp/` path 並 exclusive create
-* [ ] Manifest 保存 schema、timestamp、project ref 與 exact origin SHA
-* [ ] Manifest 保存 per-action dependency、eligibility、digest 與 fixed order
-* [ ] Manifest 保存完整 venue/event/FC before/after image 與 explicit FC absence
-* [ ] Manifest canonical bytes 與 whole-manifest SHA-256 可重算驗證
-* [ ] Capture 後檔案不可更新、補值或重新排序
-* [ ] Event/FC actions 使用 `unlock_and_write()` expected event/FC CAS
-* [ ] Null sentinel、array JSON 與 unrelated FC preservation 符合 repository contract
-* [ ] Human FC 與不同 nonempty submission URL 分類為 review conflict
-* [ ] Venue update/delete 使用 full-row CAS 與 local journal
-* [ ] Venue insert 同時驗證 UUID absence 與 canonical-name absence
-* [ ] Venue delete 在 mutation 時再次驗證 zero references
-* [ ] Apply 先全批 before gate，再依 venue、event/FC、invariant、duplicate delete 排序
-* [ ] Rollback 逆序並以 post-apply exact CAS，apply failure 不自動 rollback
-* [ ] Exact after state 分類 already-applied，partial/third state STOP
-* [ ] 同 manifest 第二次 apply 全部 noop/already-applied 且零 mutation
+* [x] 新增 `_oneoff_repair_authoritative_venues.py`
+* [x] Default invocation mechanically read-only
+* [x] Capture、apply、rollback CLI modes 互斥且不隱式切換
+* [x] Capture output 限定 ignored `tmp/` path 並 exclusive create
+* [x] Manifest 保存 schema、timestamp、project ref 與 exact origin SHA
+* [x] Manifest 保存 per-action dependency、eligibility、digest 與 fixed order
+* [x] Manifest 保存完整 venue/event/FC before/after image 與 explicit FC absence
+* [x] Manifest canonical bytes 與 whole-manifest SHA-256 可重算驗證
+* [x] Capture 後檔案不可更新、補值或重新排序
+* [x] Event/FC actions 使用 `unlock_and_write()` expected event/FC CAS
+* [x] Null sentinel、array JSON 與 unrelated FC preservation 符合 repository contract
+* [x] Human FC 與不同 nonempty submission URL 分類為 review conflict
+* [x] Venue update/delete 使用 full-row CAS 與 local journal
+* [x] Venue insert 同時驗證 UUID absence 與 canonical-name absence
+* [x] Venue delete 在 mutation 時再次驗證 zero references
+* [x] Apply 先全批 before gate，再依 venue、event/FC、invariant、duplicate delete 排序
+* [x] Rollback 逆序並以 post-apply exact CAS，apply failure 不自動 rollback
+* [x] Exact after state 分類 already-applied，partial/third state STOP
+* [x] 同 manifest 第二次 apply 全部 noop/already-applied 且零 mutation
 
 ## Phase 7: Production action classification tests
 
