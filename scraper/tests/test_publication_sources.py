@@ -1,7 +1,12 @@
+import re
 from pathlib import Path
 
 from publication_rules import is_ndl_periodical_article, is_pure_publication_record
-from sources.eslite_spectrum import EsliteSpectrumScraper
+from sources.eslite_spectrum import (
+    _HISTORY_FLOOR,
+    _SKIP_TITLE_RE,
+    EsliteSpectrumScraper,
+)
 from sources.hanmoto import (
     _normalize_official_url,
     _normalize_organizer_url,
@@ -112,6 +117,94 @@ def test_eslite_fixture_uses_uuid_identity_and_physical_priority(monkeypatch):
     assert event.is_paid is True
     assert "ページ公開日: 2026年07月05日" in (event.raw_description or "")
     assert "開催日時: 2026年07月20日" in (event.raw_description or "")
+
+
+def _eslite_fake_get(detail_html: bytes):
+    listing_html = (FIXTURES / "eslite_news.html").read_bytes()
+
+    def fake_get(session, url, timeout=15):
+        if url.endswith("/news"):
+            return FakeResponse(listing_html)
+        if "f0039984-3181-450d-8b59-e024a8eea070" in url:
+            return FakeResponse(detail_html)
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    return fake_get
+
+
+def _eslite_detail_with_event_date(event_date: str) -> bytes:
+    body = (FIXTURES / "eslite_article_talk.html").read_text(encoding="utf-8")
+    return body.replace("2026年7月20日", event_date).encode("utf-8")
+
+
+def test_eslite_emits_events_with_gate_default_and_no_env(monkeypatch):
+    monkeypatch.delenv("ESLITE_ALLOW_UUID_IDENTITY", raising=False)
+    monkeypatch.setattr(
+        "sources.eslite_spectrum.requests.Session.get",
+        _eslite_fake_get((FIXTURES / "eslite_article_talk.html").read_bytes()),
+    )
+
+    events = EsliteSpectrumScraper().scrape()
+
+    assert len(events) == 1
+    assert re.fullmatch(
+        r"eslite_spectrum_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+        events[0].source_id,
+    )
+
+
+def test_eslite_gate_still_closable_by_env(monkeypatch):
+    monkeypatch.setenv("ESLITE_ALLOW_UUID_IDENTITY", "0")
+    monkeypatch.setattr(
+        "sources.eslite_spectrum.requests.Session.get",
+        _eslite_fake_get((FIXTURES / "eslite_article_talk.html").read_bytes()),
+    )
+
+    assert EsliteSpectrumScraper().scrape() == []
+
+
+def test_eslite_history_floor_drops_archive_and_keeps_floor_day(monkeypatch):
+    monkeypatch.delenv("ESLITE_ALLOW_UUID_IDENTITY", raising=False)
+
+    monkeypatch.setattr(
+        "sources.eslite_spectrum.requests.Session.get",
+        _eslite_fake_get(_eslite_detail_with_event_date("2025年12月31日")),
+    )
+    assert EsliteSpectrumScraper().scrape() == []
+
+    monkeypatch.setattr(
+        "sources.eslite_spectrum.requests.Session.get",
+        _eslite_fake_get(_eslite_detail_with_event_date("2026年1月1日")),
+    )
+    kept = EsliteSpectrumScraper().scrape()
+    assert len(kept) == 1
+    assert kept[0].start_date.date() == _HISTORY_FLOOR
+
+
+def test_eslite_skip_patterns_drop_promotions_but_keep_real_events():
+    promotions = [
+        "2023年 誠品生活日本橋「新春福袋」",
+        "春の週替わりノベルティキャンペーン",
+        "食で学ぶ台湾「好吃・好喝キャンペーン」開催！",
+        "誠品禮物節「会えるのが、いちばんのギフト」",
+        "母の日ギフト2023「HAPPY MOTHER'S DAY」",
+        "父の日ギフト2022「父親節」",
+        "誠品生活日本橋ご出店者関係者内覧会",
+        "中文書特急便　サービス開始のご案内",
+        "【誠品選書】2026年7月おすすめ書籍",
+    ]
+    for title in promotions:
+        assert _SKIP_TITLE_RE.search(title), title
+
+    real_events = [
+        "【クッキング】「居酒屋だけメシ」この日限りの特別オープン！",
+        "6周年記念24時間営業「Culture Wonderland」書籍フェア",
+        "『台湾夜市大全』刊行記念 三文字昌也さんトークイベント",
+        "物外YSTUDIO 書くことの体験ワークショップ",
+        "「中間淳太の満福台湾ガイド」発売記念トークイベント",
+    ]
+    for title in real_events:
+        assert not _SKIP_TITLE_RE.search(title), title
 
 
 def test_hanmoto_detail_keeps_real_price_and_anchor_href(monkeypatch):

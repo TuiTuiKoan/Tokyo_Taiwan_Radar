@@ -153,7 +153,7 @@ description: publication-policy 各 phase、Wave 邊界、驗證與交付狀態
 - [x] Final independent Tester re-verdict PASS; no blockers
 - [x] 本 changeset 將建立單一原子 local feature commit
 - [ ] NOT EXECUTED: push、merge與 deploy
-- [ ] NOT EXECUTED: live DB apply、Eslite live remap與 QA live reconcile
+- [ ] NOT EXECUTED: live DB apply、Eslite live remap與 QA live reconcile（Eslite live remap 已於 2026-08-04T11:41:04Z 執行，詳 Delivery Batch 3；live DB apply 與 QA live reconcile 仍未執行）
 - [x] 安全邊界確認：無 live DB write、push、merge或 deploy
 
 ## Delivery Batch 1: Venue Writer Stop + Writer Matrix（code-only）
@@ -234,3 +234,43 @@ description: publication-policy 各 phase、Wave 邊界、驗證與交付狀態
 - [x] `compileall -q scraper` 與 `git --no-pager diff --check` PASS
 - [x] `web/` 本批次零 diff；測試期間無 production DB 連線或寫入
 - [ ] NOT EXECUTED（授權邊界）: live DB apply、manifest apply、lock 操作、push、merge 與 deploy
+
+## Delivery Batch 3: Eslite Gate Release（code + docs）
+
+### Phase 0: 前置驗證
+
+- [x] 於既有 `ttr-publication-policy-worktree` / `feat/publication-policy` 續作（CONTINUING）
+- [x] 未觸碰 worktree 內既有 `web/` WIP（7 檔位元組保留）
+- [x] 確認 remap 已執行：rollback 快照僅含舊值，DB `updated_at` 晚 46 秒
+- [x] 確認 `source_id` 於 `eslite_spectrum` 及全表均唯一
+- [x] 以 `ESLITE_ALLOW_UUID_IDENTITY=1` 做 dry-run 審視（355 筆，2019–2026）
+
+### 程式修復
+
+- [x] `_MIGRATION_GATE_DEFAULT = True`，保留 env override（`=0` 仍可關閉）
+- [x] 新增固定下限 `_HISTORY_FLOOR = date(2026, 1, 1)`（非滾動視窗）
+- [x] 歷史底線於 `start_date` 解析後、identity 指派前套用；`start_date` 為空時維持原行為
+- [x] `_SKIP_TITLE_RE` 新增八條 alternative，逐條對 355 筆驗證無誤殺
+- [x] 以 `禮物節` + `(?:母の日|父の日)ギフト` 取代裸 `ギフト`；剔除冗餘且高風險的 `のご案内`
+- [x] 不加 `オープン` 與 `営業`（實測會誤殺兩筆真實活動），並以註解鎖定
+- [x] `誠品選書` 列入 skip，依據：全表唯一一筆為 `is_active=false`，且 `event_form` 分類不穩定
+
+### 測試
+
+- [x] `test_eslite_emits_events_with_gate_default_and_no_env`（預設會產生事件 + `source_id` 格式）
+- [x] `test_eslite_gate_still_closable_by_env`（override 語意保留）
+- [x] `test_eslite_history_floor_drops_archive_and_keeps_floor_day`（邊界日通過）
+- [x] `test_eslite_skip_patterns_drop_promotions_but_keep_real_events`（含兩筆誤殺風險樣本）
+- [x] `pytest scraper/tests -q` PASS（532 passed, 1 skipped；HEAD 實測基準 528 + 4 新測試。計畫寫的 526 已過期，以 528 為準）
+
+### 文件更正
+
+- [x] changes-log 新增 Delivery Batch 3，記錄 remap 執行時間、證據與四項決策
+- [x] 標註四處過期斷言為 SUPERSEDED（changes-log 兩處段落、一處清單、本檔一處）
+
+### 驗證與邊界
+
+- [x] S5 實測過濾結果：355 → 底線 −310 → 45 → skip −7 → **38**（以修改後模組的真實常數重跑）
+- [x] 7 筆 skip 移除全為【誠品選書】月度書單，零誤殺；兩筆誤殺風險樣本已逐項確認
+- [x] 最終集最早日期 `2026-01-24`、`location_name` 全含「誠品」、既有 active 事件仍在集內（UPDATE 非重複）
+- [ ] NOT EXECUTED（授權邊界）: production DB write、push、merge 與 deploy；實際入庫交給 push 後的每日 cron

@@ -18,7 +18,7 @@ import logging
 import os
 import re
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 from urllib.parse import urljoin
 
@@ -51,9 +51,20 @@ PHYSICAL_KEYWORDS = [
     "サイン", "signing", "会場", "参加", "登壇", "来場", "対談",
 ]
 
-# Patterns in title that clearly indicate non-event administrative content
+# Fixed lower bound, not a rolling window: the /news archive reaches back to 2019 and a
+# rolling cutoff would keep re-excluding already-published events. Historical import is a
+# separate task; this floor only blocks the one-off seven-year backfill.
+_HISTORY_FLOOR = date(2026, 1, 1)
+
+# Patterns in title that clearly indicate non-event administrative content.
+# Retail promotions (福袋/キャンペーン/ノベルティ/ギフト) and trade previews (内覧会) are
+# store merchandising, not dated public events. 誠品選書 is the monthly staff-pick book
+# list, which the project already treats as non-event content.
+# Deliberately NOT matched: bare オープン and 営業 — real events use them
+# (「…この日限りの特別オープン！」, 「6周年記念24時間営業…書籍フェア」).
 _SKIP_TITLE_RE = re.compile(
     r"会員募集|メンバーズカード|ワークショップカレンダー|ポイント|お知らせ|営業時間|定休日|リニューアル"
+    r"|福袋|ノベルティ|キャンペーン|禮物節|(?:母の日|父の日)ギフト|内覧会|サービス開始|誠品選書"
 )
 
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -72,7 +83,9 @@ _PRICE_LABEL_RE = re.compile(r"(?:参加費|料金|費用|入場料)\s*[:：]\s*
 _FREE_RE = re.compile(r"無料|free", re.IGNORECASE)
 
 _MIGRATION_GATE_ENV = "ESLITE_ALLOW_UUID_IDENTITY"
-_MIGRATION_GATE_DEFAULT = False
+# Open since the live identity remap completed on 2026-08-04T11:41:04Z with no duplicate
+# source_id. The env override stays so the gate can be closed again without a code change.
+_MIGRATION_GATE_DEFAULT = True
 
 
 def _migration_gate_open() -> bool:
@@ -321,10 +334,19 @@ class EsliteSpectrumScraper(BaseScraper):
             end_date = event_end or start_date
             business_hours = event_hours
 
+        if start_date and start_date.date() < _HISTORY_FLOOR:
+            logger.debug(
+                "eslite_spectrum: skipping pre-%s archive item %s (%s)",
+                _HISTORY_FLOOR.isoformat(),
+                title,
+                url,
+            )
+            return None
+
         source_id = f"eslite_spectrum_{item['article_uuid']}"
         if not _migration_gate_open():
             logger.info(
-                "eslite_spectrum: migration gate blocked UUID identity %s (set %s=1 for offline migration verification)",
+                "eslite_spectrum: migration gate blocked UUID identity %s (unset %s to restore the default open gate)",
                 source_id,
                 _MIGRATION_GATE_ENV,
             )
