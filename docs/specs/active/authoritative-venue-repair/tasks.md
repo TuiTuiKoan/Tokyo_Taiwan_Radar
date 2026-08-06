@@ -84,13 +84,13 @@ description: authoritative-venue-repair 的隔離、實作、驗證與兩階段 
 
 ## Phase 5: Fixed sources and TCC regression
 
-* [ ] Johakyu 八丁座地址改為胡町福屋八丁堀本店8F
-* [ ] Johakyu サロンシネマ地址改為八丁堀広島東映プラザビル8階
-* [ ] Johakyu facility homepage 由 registry 提供，不由 schedule URL 提供
-* [ ] Starcat 只更新 Century 至栄3-29-1名古屋パルコ東館8F
-* [ ] Century ticket schedule 仍只作排片 input
-* [ ] TCC source writer 零 production-code diff
-* [ ] TCC tests 覆蓋 default center、explicit external、multi-city 與 online/multi-event
+* [x] Johakyu 八丁座地址改為胡町福屋八丁堀本店8F
+* [x] Johakyu サロンシネマ地址改為八丁堀広島東映プラザビル8階
+* [x] Johakyu facility homepage 由 registry 提供，不由 schedule URL 提供
+* [x] Starcat 只更新 Century 至栄3-29-1名古屋パルコ東館8F
+* [x] Century ticket schedule 仍只作排片 input
+* [x] TCC source writer 零 production-code diff
+* [x] TCC tests 覆蓋 default center、explicit external、multi-city 與 online/multi-event
 
 ## Phase 6: Immutable production repair tool
 
