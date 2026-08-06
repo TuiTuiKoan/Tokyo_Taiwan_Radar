@@ -13,6 +13,8 @@ Strategy:
     5. source_id: ndl_{trailing digits of dc:identifier} or ndl_{md5(link)[:12]}
     6. start_date = end_date = publication date (UTC midnight)
     7. For book-publication records, map dc:publisher to organizer and dc:creator to performer.
+    8. Capture the bibliographic container (journal) title from the dc:description
+       element labelled '掲載誌：' into raw_description.
 """
 
 import hashlib
@@ -58,6 +60,12 @@ TAIWAN_KEYWORDS = [
     "minnan", "hakka",
 ]
 
+# NDL labels the container title with a full-width colon; the half-width form is
+# accepted defensively.
+CONTAINER_TITLE_LABEL = "掲載誌"
+_CONTAINER_TITLE_LABEL_RE = re.compile(rf"^{CONTAINER_TITLE_LABEL}[：:]?\s*")
+CONTAINER_TITLE_PREFIX = "掲載誌: "
+
 
 def _is_taiwan(text: str) -> bool:
     return any(kw in text for kw in TAIWAN_KEYWORDS)
@@ -98,6 +106,22 @@ def _get_text(el: Optional[ET.Element]) -> str:
     if el is None:
         return ""
     return (el.text or "").strip().replace("\x00", "")
+
+
+def _container_title(item: ET.Element) -> Optional[str]:
+    """Return the journal container title from the '掲載誌：…' dc:description.
+
+    An item may carry several dc:description elements (e.g. '出版タイプ： VoR');
+    only the one labelled 掲載誌 holds the bibliographic container title.
+    dcndl:seriesTitle is a book-series title and is deliberately never used.
+    """
+    for el in item.findall("dc:description", NS):
+        text = _strip_null(_get_text(el)) or ""
+        if text.startswith(CONTAINER_TITLE_LABEL):
+            value = _CONTAINER_TITLE_LABEL_RE.sub("", text).strip()
+            if value:
+                return value
+    return None
 
 
 class NdlOpensearchScraper(BaseScraper):
@@ -183,6 +207,7 @@ class NdlOpensearchScraper(BaseScraper):
                 organizer = _strip_null(_get_text(publisher_el)) or None
                 creator_el = item.find("dc:creator", NS)
                 performer = _strip_null(_get_text(creator_el)) or None
+                container_title = _container_title(item)
 
                 start_dt: Optional[datetime] = None
                 if issued_date is not None:
@@ -198,6 +223,8 @@ class NdlOpensearchScraper(BaseScraper):
                     raw_desc = f"出版社: {organizer}\n\n{raw_desc}".strip()
                 if performer:
                     raw_desc = f"著者: {performer}\n\n{raw_desc}".strip()
+                if container_title:
+                    raw_desc = f"{CONTAINER_TITLE_PREFIX}{container_title}\n\n{raw_desc}".strip()
 
                 events.append(Event(
                     source_name=SOURCE_NAME,

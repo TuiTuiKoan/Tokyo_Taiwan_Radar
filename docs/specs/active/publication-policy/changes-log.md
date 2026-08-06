@@ -134,6 +134,9 @@ read-only baseline, drift capture, and concurrent-writer gate are complete.
 PASS for worktree implementation and deterministic validation. Wave 1 live apply,
 Eslite live remap, and QA live reconcile remain intentionally unexecuted.
 
+> SUPERSEDED for Eslite only: the live remap was executed on 2026-08-04T11:41:04Z.
+> See "Delivery Batch 3". Wave 1 live apply and QA live reconcile are unchanged.
+
 ### Phase 6
 
 PASS. Independent Tester re-verification found no blockers after the 11/11 governance
@@ -163,6 +166,7 @@ and deploy remain intentionally unexecuted.
 * Only Phase 2A source slice was implemented in this pass.
 * No live DB writes, remap apply, push, merge, or deploy were performed.
 * Eslite UUID identity migration gate remains default-blocked and requires explicit offline override (`ESLITE_ALLOW_UUID_IDENTITY=1`) for verification runs.
+  * SUPERSEDED by Delivery Batch 3: the gate now defaults to open, because the remap it guarded completed on 2026-08-04T11:41:04Z. `ESLITE_ALLOW_UUID_IDENTITY=0` still closes it.
 
 ### Modified files in this slice
 
@@ -581,7 +585,7 @@ Safety confirmation:
 
 * Live source dry-runs: NOT EXECUTED in this targeted fix; offline source fixtures passed
 * DB-backed Auto-QA reconcile dry-run: NOT EXECUTED; deterministic reconcile tests passed
-* Live DB apply, Eslite live remap, and QA live reconcile: NOT EXECUTED
+* Live DB apply, Eslite live remap, and QA live reconcile: NOT EXECUTED *(Eslite remap: SUPERSEDED — executed 2026-08-04T11:41:04Z, see Delivery Batch 3)*
 * Wave 2 DuckDuckGo/OpenAI publisher search: DEFERRED / NOT EXECUTED
 * One atomic local feature commit: prepared by this changeset; hash assigned by Git at commit time
 * Push, merge, and deploy: NOT EXECUTED
@@ -603,6 +607,9 @@ Safety confirmation:
 
 Live DB apply, Eslite live remap, QA live reconcile, Wave 2 provider calls,
 push, merge, and deploy remain outside this local delivery and were not executed.
+
+> SUPERSEDED for Eslite only: the remap was executed on 2026-08-04T11:41:04Z in a
+> later batch. Every other item in this paragraph still stands for this delivery.
 
 ## Delivery Batch 1 (code-only)
 
@@ -914,3 +921,211 @@ migration.
 | `web/` diff from this batch | none |
 | Production DB access | none |
 | Push / merge / deploy / manifest apply | not executed |
+
+## Delivery Batch 3: Eslite Gate Release (code + docs)
+
+* Base SHA: `c1183703` (`feat/publication-policy`)
+* Scope: reopen the Eslite UUID identity gate, add a fixed history floor, extend the
+  non-event title skips, and correct the stale remap assertions in this log
+* Boundary: no production DB write, no migration, no `web/` change, no push, no deploy
+
+### Why the gate was still closed
+
+`ESLITE_ALLOW_UUID_IDENTITY` defaulted to `False` so the daily scraper could not mint
+UUID identities before the old `eslite_spectrum_<n>` rows had been atomically remapped
+and verified duplicate-free, which is the release condition written in `proposal.md`.
+The remap ran on 2026-08-04, but nobody reopened the gate. The gate was not broken; it
+was forgotten. Every daily run since produced zero `eslite_spectrum` events while the
+source kept publishing Taiwan-related events.
+
+### Evidence that the remap completed
+
+| Evidence | Value |
+|----------|-------|
+| Rollback snapshot | `eslite-identity-rollback-20260804T114018Z` holds only the OLD values `eslite_spectrum_9` and `news/catalog/9`, and no UUID |
+| Live `updated_at` of `50c83c11` | `2026-08-04T11:41:04Z`, 46 seconds after the snapshot |
+| Live identity | `source_id = eslite_spectrum_f0039984-3181-450d-8b59-e024a8eea070`, `source_url = /news/f0039984-…` |
+| Duplicate check | `source_id` unique across `eslite_spectrum` and across the whole `events` table |
+
+A rollback snapshot is written before the write it protects. A snapshot that contains
+only pre-remap values, followed 46 seconds later by a live row already carrying the
+post-remap UUID, is decisive: the remap executed and was not rolled back.
+
+### Decision 1 — gate default flipped, override preserved
+
+`_MIGRATION_GATE_DEFAULT = True`. The `ESLITE_ALLOW_UUID_IDENTITY` reader is unchanged,
+so `ESLITE_ALLOW_UUID_IDENTITY=0` still closes the gate without a code change. The
+blocked-path log line now points at unsetting the variable rather than at the retired
+offline-verification workflow.
+
+### Decision 2 — fixed history floor, not a rolling window
+
+`_HISTORY_FLOOR = date(2026, 1, 1)`. Opening the gate alone would have backfilled the
+entire `/news` archive: an offline dry-run with the override produced 355 events
+spanning 2019 to 2026, of which 310 were historical.
+
+The floor is a fixed date and deliberately not a rolling window. A rolling cutoff would
+keep re-excluding events that had already been published, so the site would silently
+drop its own records as time passed. A fixed floor only blocks the one-off seven-year
+backfill; every future event passes forever. Historical import stays a separate task.
+
+Cumulative year counts from the same dry-run: 45 at `>= 2026`, 136 at `>= 2025`, 203 at
+`>= 2024`, 355 in total.
+
+### Decision 3 — skip patterns, each verified against all 355 rows
+
+Every added alternative was run against the full 355-row dry-run set and the titles it
+removes were read individually. No pattern removed a real event.
+
+| Added pattern | Titles removed | Post-floor removals |
+|---------------|----------------|---------------------|
+| `福袋` | `福袋予約スタート！` (2024-01-02), `2023年 誠品生活日本橋「新春福袋」` (2022-12-23) | 0 |
+| `ノベルティ` | `【キャンペーン】冬の“週替わり”ノベルティプレゼントキャンペーン` (2022-12-02), `春の週替わりノベルティキャンペーン` (2022-03-11) | 0 |
+| `キャンペーン` | `食で学ぶ台湾「好吃・好喝キャンペーン」開催！` (2024-04-05), `冬の特別ギフトキャンペーン開催！` (2023-12-01), `【好年節】2023年 癸卯「五福」キャンペーン〜5つの福をお届け〜` (2023-01-10), plus the two ノベルティ titles above | 0 |
+| `禮物節` | `誠品禮物節「会えるのが、いちばんのギフト」` (2023-11-10) | 0 |
+| `(?:母の日\|父の日)ギフト` | `母の日ギフト2023「HAPPY MOTHER'S DAY」` (2023-04-24), `父の日ギフト2022「父親節」` (2022-06-04), `母の日ギフト2022「母親節」` (2022-04-25) | 0 |
+| `内覧会` | `誠品生活日本橋ご出店者関係者内覧会` (2019-09-25) | 0 |
+| `サービス開始` | `中文書特急便　サービス開始のご案内` (2021-02-05) | 0 |
+| `誠品選書` | 42 monthly `【誠品選書】YYYY年M月おすすめ書籍` rows, 2022-04-01 through 2026-07-01 | 7 |
+
+Two candidates from the plan were narrowed or dropped after verification:
+
+* Bare `ギフト` was replaced by `禮物節` and `(?:母の日|父の日)ギフト`. The narrow pair
+  removes all five observed gift-promotion titles, and does not put a future
+  gift-making workshop at risk.
+* `のご案内` was dropped. Its only hit in 355 rows was `中文書特急便　サービス開始のご案内`,
+  which `サービス開始` already covers, so it added no coverage while `〜開催のご案内` is
+  standard Japanese phrasing for a real event announcement.
+
+### Deliberately not added — `オープン` and `営業`
+
+Both would have removed real events, confirmed against the dataset:
+
+| Pattern | Real event it would have killed |
+|---------|--------------------------------|
+| `オープン` | `【クッキング】「居酒屋だけメシ」この日限りの特別オープン！` (2026-07-04, post-floor) |
+| `営業` | `6周年記念24時間営業「Culture Wonderland」書籍フェア` (2025-10-04) |
+
+The existing `営業時間` alternative is unaffected: `24時間営業` does not contain it. A
+code comment records both exclusions so the patterns are not "simplified" later.
+
+### Decision 4 — 誠品選書 treated as non-event
+
+`【誠品選書】` is the store's monthly staff-pick book list, not a dated event.
+
+| Evidence | Result |
+|----------|--------|
+| Rows matching `誠品選書` anywhere in `events` | exactly 1, `db307e93` |
+| Its `is_active` | `false` |
+| Its `event_form` | `["other"]` |
+| Classifier stability across the 42 archive rows | unstable: the same monthly format was classified `publication`, `lecture`, and `networking` |
+
+The project had already deactivated the single record that reached the database, and the
+classifier cannot assign it a stable `event_form`, so it is skipped at the source. This
+is flagged for publication-policy review: if the workflow later decides that a monthly
+staff-pick list is a legitimate pure-publication record, remove the `誠品選書`
+alternative rather than reworking the classifier.
+
+### Code changes
+
+| File | Change |
+|------|--------|
+| `scraper/sources/eslite_spectrum.py` | `_HISTORY_FLOOR = date(2026, 1, 1)` with a rationale comment; floor enforced after `start_date` resolution and before identity assignment; `_SKIP_TITLE_RE` extended by eight alternatives with a comment recording the `オープン`/`営業` exclusions; `_MIGRATION_GATE_DEFAULT = True`; blocked-path log line updated |
+| `scraper/tests/test_publication_sources.py` | four new tests, listed below |
+
+The floor only rejects when `start_date` is known and below the floor. A record with no
+resolvable `start_date` keeps its previous behavior, so this change adds no new silent
+drop path.
+
+### Tests added
+
+| Test | Assertion |
+|------|-----------|
+| `test_eslite_emits_events_with_gate_default_and_no_env` | with the env var deleted, the fixture still yields one event, and its `source_id` matches `eslite_spectrum_<uuid>` exactly. This is the regression guard against the gate being silently closed again |
+| `test_eslite_gate_still_closable_by_env` | `ESLITE_ALLOW_UUID_IDENTITY=0` yields zero events, proving the override semantics survived the default flip |
+| `test_eslite_history_floor_drops_archive_and_keeps_floor_day` | the same fixture dated 2025-12-31 is dropped and dated 2026-01-01 is kept, asserting the boundary day itself passes |
+| `test_eslite_skip_patterns_drop_promotions_but_keep_real_events` | nine promotion titles match `_SKIP_TITLE_RE`; five real-event titles do not, including both false-kill risks (`…この日限りの特別オープン！` and `6周年記念24時間営業…書籍フェア`) |
+
+### Suite result and baseline correction
+
+`pytest scraper/tests -q` → **532 passed, 1 skipped** (16.92s, exit 0).
+
+The plan carried an out-of-date regression baseline of 526. The measured baseline on the
+real HEAD is **528 passed, 1 skipped**, so 528 + 4 new tests = 532 is the correct
+arithmetic. The 526 figure predates tests landed by an earlier batch and should not be
+reused.
+
+### Post-change filter result — measured, not estimated
+
+The 355-row dry-run set captured with the override was re-filtered through the **modified**
+module's own `_HISTORY_FLOOR` and `_SKIP_TITLE_RE`, so the numbers below are the code's
+actual behaviour rather than a hand estimate.
+
+| Stage | Count | Removed |
+|-------|-------|---------|
+| Dry-run set with gate open | 355 | — |
+| After `_HISTORY_FLOOR = 2026-01-01` | 45 | −310 historical |
+| After extended `_SKIP_TITLE_RE` | **38** | −7 |
+
+Derivation chain: **355 → −310 (floor) → 45 → −7 (skip) → 38.**
+
+The table above bills the floor first, but the code runs the two filters in the opposite
+order: `_SKIP_TITLE_RE` at `eslite_spectrum.py` L301, `_HISTORY_FLOOR` at L337. Billed in
+code order the same run reads **355 → −55 (skip) → 300 → −262 (floor) → 38**. Both
+accountings were computed against the same dataset and yield the identical 38-row set
+(verified by `source_id` set equality), only the credit for the 55 − 7 = 48 rows that
+both filters would reject moves between the two stages. Quote whichever chain matches
+the question being asked, but do not mix figures across the two.
+
+All 7 post-floor skip removals are the monthly staff-pick list, so the post-floor skip
+cost is entirely 誠品選書 and nothing else:
+
+```
+2026-07-01 / 2026-06-01 / 2026-05-01 / 2026-04-01 / 2026-03-01 / 2026-02-01 / 2026-01-01
+【誠品選書】2026年N月おすすめ書籍
+```
+
+Zero false kills, re-confirmed against the two titles identified as at risk:
+
+| Title | Date | Outcome |
+|-------|------|---------|
+| `【クッキング】「居酒屋だけメシ」この日限りの特別オープン！` | 2026-07-04 | `_SKIP_TITLE_RE` does not match; **present in the final 38** |
+| `6周年記念24時間営業「Culture Wonderland」書籍フェア` | 2025-10-04 | `_SKIP_TITLE_RE` does not match; absent only because it predates the floor, not because of a skip |
+
+A sibling row `6周年特別営業24時間企画「Culture Wonderland」` (2025-09-12) behaves
+identically — unmatched by the skip patterns, excluded by the floor alone.
+
+### Final-set characteristics
+
+| Check | Result |
+|-------|--------|
+| Earliest `start_date` | `2026-01-24` — no pre-2026 row survives |
+| `event_form` distribution | `lecture` 15, `workshop` 13, `networking` 8, `other` 2 |
+| `location_name` | every row contains 誠品; no foreign venue leaked in |
+| Existing active event `eslite_spectrum_f0039984-3181-450d-8b59-e024a8eea070` | present in the final 38 → the daily run will UPDATE it, not create a duplicate |
+
+No `publication` rows remain in the final set — measured on the final 38, not inferred.
+The 41 raw `publication` rows are **not** all 誠品選書, and they do not all leave by the
+same door:
+
+| Group | Count | Removed by |
+|-------|-------|------------|
+| `【誠品選書】` monthly list | 30 | `_SKIP_TITLE_RE` (all 30 match; 5 of them sit after the floor and are removed by the skip alone) |
+| Promotions also caught by a skip pattern | 3 | `_SKIP_TITLE_RE` — `中文書特急便　サービス開始のご案内` (2021-02-05), `【キャンペーン】冬の“週替わり”ノベルティプレゼントキャンペーン` (2022-12-02), `冬の特別ギフトキャンペーン開催！` (2023-12-01) |
+| Archive rows no skip pattern touches | 8 | `_HISTORY_FLOOR` alone — the four `【2021台湾文学展】` parts, `「2021 TAIWAN BOOKSTAR」小冊子`, `ただいま東京プラス クーポン加盟店`, the 2019 store-opening announcement, and one 2022 collaboration item |
+
+Those 8 span 2019-10-16 to 2023-03-23 and every one of them is `<= 2023-12`, so the floor
+is the only thing standing between them and the site. Do not read the 誠品選書 skip
+pattern as the reason the raw set has no publication survivors: 33 of the 41 leave by a
+skip and 8 leave by the floor.
+
+The 42-row 誠品選書 archive and the 30 `publication`-form rows are different sets. Only
+30 of the 42 monthly rows were classified `event_form == ["publication"]`; the rest landed
+on `lecture`, `networking`, or `other`, which is the classifier instability recorded in
+Decision 4. For the same reason the 7 post-floor 誠品選書 rows contain only 5
+`publication`-form rows — the 7 and the 5 are not interchangeable figures.
+
+### Boundary
+
+No production DB write, no push, no merge, no deploy. Actual ingestion is left to the
+daily cron after the change is pushed.
