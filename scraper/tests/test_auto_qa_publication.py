@@ -1,8 +1,12 @@
+from types import SimpleNamespace
+
 from auto_qa import (
     _all_auto_report_types,
+    _check_missing_date,
     _check_missing_hours,
     _check_missing_organizer,
     _check_missing_price,
+    _detect_missing_date,
     _resolve_report_disposition,
     _single_auto_report_type,
     detect,
@@ -33,6 +37,41 @@ def _base_event(**overrides):
 
 def _types(event):
     return {report_type for report_type, _note in detect(event)}
+
+
+class _FakeQuery:
+    """Minimal PostgREST stand-in that projects rows down to the selected columns."""
+
+    def __init__(self, rows):
+        self._rows = rows
+        self.selected = ""
+
+    def select(self, columns):
+        self.selected = columns
+        return self
+
+    def eq(self, *_args):
+        return self
+
+    def in_(self, *_args):
+        return self
+
+    def gte(self, *_args):
+        return self
+
+    def execute(self):
+        columns = [column.strip() for column in self.selected.split(",")]
+        return SimpleNamespace(
+            data=[{k: v for k, v in row.items() if k in columns} for row in self._rows]
+        )
+
+
+class _FakeSupabase:
+    def __init__(self, rows):
+        self.query = _FakeQuery(rows)
+
+    def table(self, _name):
+        return self.query
 
 
 def test_detect_skips_venue_checks_only_for_exact_pure_publication():
@@ -97,6 +136,60 @@ def test_missing_price_skips_only_exact_pure_publication():
     assert _check_missing_price(pure) is None
     assert "price_keyword" in (_check_missing_price(physical) or "")
     assert "price_keyword" in (_check_missing_price(mixed) or "")
+
+
+def test_january_placeholder_skips_only_exact_pure_publication():
+    pure = _base_event(
+        source_name="ndl_opensearch", event_form=["publication"], start_date="2026-01-01"
+    )
+    physical = _base_event(source_name="ndl_opensearch", event_form=["lecture"], start_date="2026-01-01")
+    mixed = _base_event(
+        source_name="ndl_opensearch", event_form=["publication", "lecture"], start_date="2026-01-01"
+    )
+
+    assert _check_missing_date(pure) is None
+    assert "start_date missing/placeholder" in (_check_missing_date(physical) or "")
+    assert "start_date missing/placeholder" in (_check_missing_date(mixed) or "")
+
+
+def test_null_start_date_still_fires_for_pure_publication():
+    pure = _base_event(source_name="ndl_opensearch", event_form=["publication"], start_date=None)
+
+    assert "start_date missing/placeholder" in (_check_missing_date(pure) or "")
+
+
+def test_publish_date_sources_january_behaviour_is_unchanged():
+    for source in ("note_creators", "google_news_rss", "prtimes", "nhk_rss", "walkerplus"):
+        feed = _base_event(source_name=source, event_form=["other"], start_date="2026-01-15")
+        assert _check_missing_date(feed) is None, source
+        assert "start_date missing/placeholder" in (
+            _check_missing_date(_base_event(source_name=source, event_form=["other"], start_date=None)) or ""
+        ), source
+
+
+def test_non_january_pure_publication_is_not_flagged():
+    pure = _base_event(
+        source_name="ndl_opensearch", event_form=["publication"], start_date="2026-05-01"
+    )
+
+    assert _check_missing_date(pure) is None
+
+
+def test_detect_missing_date_selects_event_form():
+    # The January exemption reads event_form, so dropping it from the select
+    # silently reinstates the false positives the predicate was fixed for.
+    pure = _base_event(
+        id="ev-pure", source_name="ndl_opensearch", event_form=["publication"], start_date="2026-01-01"
+    )
+    physical = _base_event(
+        id="ev-physical", source_name="ndl_opensearch", event_form=["lecture"], start_date="2026-01-01"
+    )
+    sb = _FakeSupabase([pure, physical])
+
+    reports = _detect_missing_date(sb)
+
+    assert "event_form" in [column.strip() for column in sb.query.selected.split(",")]
+    assert [report["event_id"] for report in reports] == ["ev-physical"]
 
 
 def test_single_auto_report_type_protects_manual_unknown_and_compound_rows():

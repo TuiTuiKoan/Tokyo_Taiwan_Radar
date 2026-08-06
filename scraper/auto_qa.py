@@ -731,9 +731,14 @@ def _check_missing_date(ev: dict) -> str | None:
         month = datetime.fromisoformat(start_date).month
     except (ValueError, TypeError):
         return None
-    if month == 1 and source_name not in PUBLISH_DATE_SOURCES:
-        return f"start_date missing/placeholder (value={start_date!r}); source={source_name}"
-    return None
+    if month != 1:
+        return None
+    # The January rule is a Contentful placeholder heuristic; it does not apply to
+    # catalogue records whose bibliography supplies only a publication year (NDL
+    # etc.), which legitimately normalise to YYYY-01-01.
+    if source_name in PUBLISH_DATE_SOURCES or _is_exact_pure_publication(ev):
+        return None
+    return f"start_date missing/placeholder (value={start_date!r}); source={source_name}"
 
 
 def _detect_missing_date(sb) -> list[dict]:
@@ -741,12 +746,13 @@ def _detect_missing_date(sb) -> list[dict]:
     start_date. Review-only — no auto-fix.
 
     A start_date in January is treated as a Contentful placeholder and flagged,
-    EXCEPT for publish-date sources whose January dates may be legitimate.
+    EXCEPT for publish-date sources whose January dates may be legitimate and
+    exact pure publications dated by publication year alone.
     """
     thirty_days_ago_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = (
         sb.table("events")
-        .select("id,source_name,start_date,annotation_status")
+        .select("id,source_name,start_date,annotation_status,event_form")
         .eq("is_active", True)
         .in_("annotation_status", ["annotated", "reviewed"])
         .gte("created_at", thirty_days_ago_iso)
