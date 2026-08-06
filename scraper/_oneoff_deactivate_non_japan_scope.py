@@ -1,7 +1,7 @@
 """Digest-bound one-off for reviewed non-Japan scope events.
 
-Snapshot mode is read-only. Apply mode accepts only the exact full UUIDs in an
-immutable manifest and is never selected implicitly.
+Snapshot mode is read-only. CLI apply remains disabled until a database RPC can
+atomically validate and deactivate related targets.
 """
 
 from __future__ import annotations
@@ -25,6 +25,10 @@ SCHEMA_VERSION = "non-japan-scope-deactivation.v1"
 TARGET_COUNT = 22
 PAGE_SIZE = 500
 DEACTIVATED_BY_PASS = "admin_manual"
+APPLY_DISABLED_MESSAGE = (
+    "production apply is disabled until a transactional database RPC atomically "
+    "validates and deactivates parent/child targets"
+)
 STABLE_FIELDS = (
     "source_name",
     "raw_title",
@@ -782,11 +786,15 @@ def get_supabase() -> Any:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Create or apply a digest-bound manifest for reviewed non-Japan scope events"
+        description="Create a digest-bound manifest for reviewed non-Japan scope events"
     )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--snapshot", action="store_true", help="Create a read-only immutable manifest")
-    mode.add_argument("--apply", action="store_true", help="Apply an exact digest-bound manifest")
+    mode.add_argument(
+        "--apply",
+        action="store_true",
+        help="Disabled pending a transactional parent/child database RPC",
+    )
     parser.add_argument("--out", type=Path, help="New immutable snapshot path")
     parser.add_argument("--manifest", type=Path, help="Existing immutable manifest path")
     parser.add_argument("--expect-digest", help="Expected lowercase SHA-256 manifest digest")
@@ -804,6 +812,7 @@ def validate_cli_args(parser: argparse.ArgumentParser, args: argparse.Namespace)
         parser.error("--apply requires --manifest and --expect-digest")
     if args.out is not None:
         parser.error("--apply does not accept --out")
+    parser.error(APPLY_DISABLED_MESSAGE)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
