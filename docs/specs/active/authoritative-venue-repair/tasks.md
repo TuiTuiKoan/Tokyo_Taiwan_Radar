@@ -295,13 +295,41 @@ and did not push.
 
 ## Phase 9: Independent Tester
 
-* [ ] Tester 重新執行完整 focused 與 broad validation matrix
-* [ ] Tester 證明 2025 fixture 實際 exercise，不以 current-year empty 取代
-* [ ] Tester 證明 mocks 實際檢查 mutation payload 與 exact read-back
-* [ ] Tester 證明 31 target UUID 可由 read-only classification path 讀取
-* [ ] Tester scope assertion PASS
-* [ ] Tester verdict 明確 PASS
-* [ ] FAIL/INCONCLUSIVE 時完成 Engineer fix and Tester retry，最多三輪
+* [x] Tester 重新執行完整 focused 與 broad validation matrix
+* [x] Tester 證明 2025 fixture 實際 exercise，不以 current-year empty 取代
+* [x] Tester 證明 mocks 實際檢查 mutation payload 與 exact read-back
+* [x] Tester 證明 31 target UUID 可由 read-only classification path 讀取
+* [x] Tester scope assertion PASS
+* [x] Tester verdict 明確 PASS；correction cycle 1 完成
+
+### Final Test Report (2026-08-06)
+
+Independent Tester correction cycle 1 reported PASS against exact pre-closure HEAD
+`c9184c034c7bb7a80a6cc9df32c6cc1f271ec64d`.
+
+* Focused suites totaled 104 passed; the full suite reported 622 passed, 1 skipped, and
+  25 warnings
+* Five high-risk nodes passed
+* Fail-closed dry-runs made zero DB attempts: `tiff` returned 0 events, `johakyu`
+  returned 0, `starcat_cinema` returned 5, and `taiwan_cultural_center` returned 20
+* The read-only planner classified all 31 target UUIDs and 64 eligible actions; the
+  second apply produced zero mutations
+* Scope and safety assertions passed, including changed paths, production access,
+  production mutation, manifest capture, push, and main-worktree preservation
+
+Residuals remain visible and intentionally unfixed:
+
+* Starcat retains one base-identical inverted date range
+* The byte-identical TCC writer retains noncanonical `culture` and four publish-date
+  fallbacks
+* TIFF 2026 remains unavailable because of DNS failure, while the committed 2025 fixture
+  proves the parser contract
+* Johakyu's parser was fully exercised and found zero Taiwan hits
+
+The governing scope forbids event-date and category fixes in this feature. Causality proof
+shows that Starcat has exactly one changed address line and the TCC writer has zero diff.
+Gate 1 remains entirely unchecked because the validated changeset has not yet been presented
+to the user and no current push approval has been requested or granted.
 
 ## Gate 1: Push approval
 
