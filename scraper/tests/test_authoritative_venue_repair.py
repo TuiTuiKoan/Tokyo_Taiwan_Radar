@@ -23,6 +23,52 @@ VENUE_DELETE_ACTION_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
 VENUE_UPDATE_ID = "77777777-7777-4777-8777-777777777777"
 VENUE_INSERT_ID = "88888888-8888-4888-8888-888888888888"
 VENUE_DELETE_ID = "99999999-9999-4999-8999-999999999999"
+CAPTURED_AT = "2026-08-06T00:00:00+00:00"
+FROZEN_NEW_VENUE_IDS = {
+    "ヒューリックホール東京": "10000000-0000-4000-8000-000000000001",
+    "TOHOシネマズ シャンテ": "10000000-0000-4000-8000-000000000002",
+    "TOHOシネマズ 日比谷 スクリーン12・13": "10000000-0000-4000-8000-000000000003",
+}
+CINESWITCH_VENUE_ID = "10000000-0000-4000-8000-000000000004"
+COHORT_EVENT_IDS = tuple(
+    f"20000000-0000-4000-8000-{number:012x}"
+    for number in range(1, 29)
+)
+EXPECTED_EXPLICIT_TARGET_EVENT_IDS = frozenset(
+    {
+        "8c94aaff-cb37-4f57-a135-6e141103116b",
+        "3f56d510-d9e1-4fb2-bd4f-335df4e30965",
+        "6e0ebbc0-4c08-463a-a46b-9a047587be97",
+        "2aa24af5-c945-4727-ba37-8e943d6dc570",
+        "35a9f571-0c79-46a5-8065-5019d8e96f46",
+        "83a05243-bdc4-467e-bc7b-6ad7028dbf07",
+        "744fb475-1107-45e8-a193-a4ae676110fe",
+        "bf420307-5a31-469c-8144-38ea3a7b6f00",
+        "0fb1e608-8c8e-4024-86fa-33c4145b034c",
+        "6236f51f-d53a-46eb-b392-8536cf842ab2",
+        "b9a1eb56-32bf-4f1c-b552-207e8f7379c4",
+        "07597d1e-71ae-45d4-8d03-9e61bcfb2b00",
+        "10d8bcb3-a237-4344-9213-0e7bde732d0d",
+        "cb0f58dc-6110-4c9c-b16d-c347e0b31360",
+        "8355f633-1383-43c0-81f2-227199ed23fe",
+        "c14dc455-dc04-4337-8fe1-a6fe648f4718",
+        "18aa3c4b-8439-4ba4-a1ef-a257b35295ca",
+        "f1088869-d2b6-4881-ac4c-f8103450fc0f",
+        "d18339d5-350a-420b-9cd3-218a3a7391e4",
+        "081b1743-40a0-44af-9adc-eb1e512c86ad",
+        "6794648b-39e3-4f07-8378-08ccb581307f",
+        "51f7cd44-1a45-4f01-af24-0d6750536f41",
+        "e94e8dd2-c684-4d71-8509-7c4541250efe",
+        "dec284a5-983a-4149-a093-b24dd6212a9a",
+        "d21b8f8d-03ea-4cf7-8227-4417836f5f43",
+        "e2aa2c15-9aea-4f8a-b754-4691f937f9cd",
+        "603fce9e-f48f-4307-9462-7939f99dc5a8",
+        "f7b8a599-efd8-4982-b480-a896cd4080f1",
+        "d0d85c6e-7b33-4477-9055-e9f18bde4861",
+        "4a372b17-ca36-4e61-a9db-2a93323ad88e",
+        "d3bff09a-bb0e-4991-afc0-21376d62400d",
+    }
+)
 
 
 def _fc(row_id: str, field_name: str, corrected_value: str, **overrides):
@@ -320,6 +366,311 @@ def _batch_fixture():
     return client, actions
 
 
+def _production_venue(
+    venue_id,
+    name_ja,
+    name_zh,
+    name_en,
+    address,
+    prefectures,
+    homepage,
+    *,
+    aliases=None,
+    is_multi_venue=False,
+    business_hours=None,
+):
+    return {
+        "id": venue_id,
+        "canonical_name_ja": name_ja,
+        "canonical_name_zh": name_zh,
+        "canonical_name_en": name_en,
+        "address": address,
+        "prefecture": prefectures[0] if prefectures else None,
+        "city": None,
+        "latitude": None,
+        "longitude": None,
+        "aliases": list(aliases or []),
+        "notes": None,
+        "created_at": CAPTURED_AT,
+        "updated_at": CAPTURED_AT,
+        "is_authoritative": True,
+        "is_multi_venue": is_multi_venue,
+        "homepage": homepage,
+        "prefectures": deepcopy(prefectures),
+        "business_hours": business_hours,
+    }
+
+
+def _production_event(event_id, *, venue_id=None, **overrides):
+    row = {
+        "id": event_id,
+        "source_name": "synthetic_phase7",
+        "source_id": event_id,
+        "source_url": f"https://source.example/{event_id}",
+        "name_ja": f"Synthetic event {event_id}",
+        "category": ["art"],
+        "organizer": "Synthetic organizer",
+        "is_active": True,
+        "event_form": ["exhibition"],
+        "venue_id": venue_id,
+        "location_name": "台湾文化センター",
+        "location_name_zh": "台灣文化中心",
+        "location_name_en": "Taiwan Cultural Center",
+        "location_address": "東京都港区南青山1-1-1",
+        "location_address_zh": None,
+        "location_address_en": None,
+        "location_prefectures": ["東京都"],
+        "location_url": None,
+        "submission_url": None,
+        "updated_at": CAPTURED_AT,
+    }
+    row.update(overrides)
+    return row
+
+
+def _production_fc(event_id, field_name, corrected_value, number, **overrides):
+    row = {
+        "id": f"30000000-0000-4000-8000-{number:012x}",
+        "event_id": event_id,
+        "field_name": field_name,
+        "original_value": None,
+        "corrected_value": corrected_value,
+        "corrected_by": None,
+        "report_id": None,
+        "created_at": CAPTURED_AT,
+    }
+    row.update(overrides)
+    return row
+
+
+def _production_snapshot():
+    tcc = _production_venue(
+        repair.TCC_CANONICAL_VENUE_ID,
+        "台北駐日経済文化代表処 台湾文化センター",
+        "台北駐日經濟文化代表處 台灣文化中心",
+        "Taiwan Cultural Center, Taipei Economic and Cultural Representative Office in Japan",
+        "東京都港区虎ノ門1-1-12 虎ノ門ビル2階",
+        ["東京都"],
+        "https://jp.taiwan.culture.tw/",
+        aliases=["台湾文化センター", "台湾文化中心"],
+        business_hours="平日 10:00〜17:00 / 土日祝休館",
+    )
+    tiff_multi = _production_venue(
+        repair.TIFF_MULTI_VENUE_ID,
+        "東京国際映画祭",
+        "東京國際影展",
+        "Tokyo International Film Festival",
+        None,
+        ["東京都"],
+        "https://2025.tiff-jp.net/",
+        aliases=["TIFF"],
+        is_multi_venue=True,
+    )
+    century = _production_venue(
+        repair.CENTURY_VENUE_ID,
+        "センチュリーシネマ",
+        "世紀影城",
+        "Century Cinema",
+        "愛知県名古屋市中区栄3-29-1 名古屋パルコ東館8F",
+        ["愛知県"],
+        "https://eiga.starcat.co.jp/theater/century/",
+    )
+    japanese_duplicate = _production_venue(
+        repair.TCC_JAPANESE_DUPLICATE_VENUE_ID,
+        "台湾文化センター",
+        None,
+        None,
+        "東京都港区南青山1-1-1",
+        ["東京都"],
+        None,
+    )
+    chinese_duplicate = _production_venue(
+        repair.TCC_CHINESE_DUPLICATE_VENUE_ID,
+        "台湾文化中心",
+        "台灣文化中心",
+        None,
+        "東京都港区南青山1-1-1",
+        ["東京都"],
+        None,
+    )
+    cineswitch = _production_venue(
+        CINESWITCH_VENUE_ID,
+        "シネスイッチ銀座",
+        "シネスイッチ銀座",
+        "Cineswitch Ginza",
+        "東京都中央区銀座4-4-5 簱ビル",
+        ["東京都"],
+        "https://cineswitch.com",
+    )
+    events = []
+    for event_id in repair.TCC_MIGRATE_EVENT_IDS:
+        location_url = "https://jp.taiwan.culture.tw/"
+        if event_id == "3f56d510-d9e1-4fb2-bd4f-335df4e30965":
+            location_url = "https://forms.gle/synthetic-form"
+        elif event_id == "8c94aaff-cb37-4f57-a135-6e141103116b":
+            location_url = "https://synthetic.peatix.com/view/1"
+        events.append(
+            _production_event(
+                event_id,
+                venue_id=repair.TCC_JAPANESE_DUPLICATE_VENUE_ID,
+                location_url=location_url,
+            )
+        )
+    for event_id in repair.TCC_ATTACH_EVENT_IDS:
+        events.append(_production_event(event_id, venue_id=None))
+    for event_id in (
+        *repair.JAPANESE_DUPLICATE_HISTORICAL_EVENT_IDS,
+        *repair.JAPANESE_DUPLICATE_FALSE_EVENT_IDS,
+        *repair.JAPANESE_DUPLICATE_MULTI_EVENT_IDS,
+    ):
+        events.append(
+            _production_event(
+                event_id,
+                venue_id=repair.TCC_JAPANESE_DUPLICATE_VENUE_ID,
+                location_name=f"Historical location {event_id}",
+                location_address=f"Historical address {event_id}",
+                location_prefectures=None,
+                location_url=(
+                    "https://synthetic.peatix.com/view/51"
+                    if event_id == "51f7cd44-1a45-4f01-af24-0d6750536f41"
+                    else None
+                ),
+            )
+        )
+    events.append(
+        _production_event(
+            repair.CHINESE_DUPLICATE_EVENT_ID,
+            venue_id=repair.TCC_CHINESE_DUPLICATE_VENUE_ID,
+            location_name="歷史會場",
+            location_name_zh="歷史會場",
+            location_name_en="Historical Venue",
+            location_address="東京都港区歴史1-2-3",
+            location_prefectures=["東京都"],
+        )
+    )
+    events.append(
+        _production_event(
+            repair.ONLINE_GRANT_EVENT_ID,
+            venue_id=repair.TCC_CANONICAL_VENUE_ID,
+            location_address=tcc["address"],
+            location_prefectures=["東京都"],
+            location_url="https://grant.example/apply/online",
+        )
+    )
+    for event_id in repair.TIFF_EVENT_IDS:
+        events.append(
+            _production_event(
+                event_id,
+                venue_id=repair.TIFF_MULTI_VENUE_ID,
+                location_name=tiff_multi["canonical_name_ja"],
+                location_name_zh=tiff_multi["canonical_name_zh"],
+                location_name_en=tiff_multi["canonical_name_en"],
+                location_address=None,
+                location_prefectures=["東京都"],
+                location_url=tiff_multi["homepage"],
+            )
+        )
+    events.append(
+        _production_event(
+            repair.CENTURY_EVENT_IDS[0],
+            venue_id=repair.CENTURY_VENUE_ID,
+            location_name="センチュリーシネマ",
+            location_address="愛知県名古屋市中区栄3-29-1 名古屋パルコ東館8階",
+            location_prefectures=["愛知県"],
+            location_url=century["homepage"],
+        )
+    )
+    events.append(
+        _production_event(
+            repair.CENTURY_EVENT_IDS[1],
+            venue_id=None,
+            location_name="センチュリーシネマ",
+            location_address="愛知県名古屋市中区栄3-29-1 名古屋パルコ東館8階",
+            location_prefectures=["愛知県"],
+            location_url=century["homepage"],
+        )
+    )
+    for event_id in COHORT_EVENT_IDS:
+        events.append(
+            _production_event(
+                event_id,
+                venue_id=repair.TCC_CANONICAL_VENUE_ID,
+            )
+        )
+    field_corrections = [
+        _production_fc(
+            repair.ONLINE_GRANT_EVENT_ID,
+            "location_address",
+            "null",
+            1,
+        ),
+        _production_fc(
+            repair.ONLINE_GRANT_EVENT_ID,
+            "location_prefectures",
+            "[]",
+            2,
+        ),
+        _production_fc(
+            repair.ONLINE_GRANT_EVENT_ID,
+            "name_ja",
+            "Preserve unrelated correction",
+            3,
+        ),
+        _production_fc(
+            repair.CENTURY_EVENT_IDS[0],
+            "location_address",
+            "愛知県名古屋市中区栄3-29-1 名古屋パルコ東館8階",
+            4,
+        ),
+    ]
+    japanese_refs = sorted(
+        {
+            *repair.TCC_MIGRATE_EVENT_IDS,
+            *repair.JAPANESE_DUPLICATE_HISTORICAL_EVENT_IDS,
+            *repair.JAPANESE_DUPLICATE_FALSE_EVENT_IDS,
+            *repair.JAPANESE_DUPLICATE_MULTI_EVENT_IDS,
+        }
+    )
+    cohort_ids = sorted({repair.ONLINE_GRANT_EVENT_ID, *COHORT_EVENT_IDS})
+    return {
+        "complete": True,
+        "captured_at": CAPTURED_AT,
+        "project_ref": PROJECT_REF,
+        "repository_sha": REPOSITORY_SHA,
+        "events": events,
+        "field_corrections": field_corrections,
+        "field_corrections_complete_event_ids": sorted(row["id"] for row in events),
+        "venues": [
+            tcc,
+            tiff_multi,
+            century,
+            japanese_duplicate,
+            chinese_duplicate,
+            cineswitch,
+        ],
+        "frozen_new_venue_ids": deepcopy(FROZEN_NEW_VENUE_IDS),
+        "tcc_canonical_linked_event_ids": cohort_ids,
+        "venue_references": {
+            repair.TCC_JAPANESE_DUPLICATE_VENUE_ID: japanese_refs,
+            repair.TCC_CHINESE_DUPLICATE_VENUE_ID: [
+                repair.CHINESE_DUPLICATE_EVENT_ID
+            ],
+        },
+    }
+
+
+def _actions_by_id(plan):
+    return {action["id"]: action for action in plan["actions"]}
+
+
+def _classification_ids(plan, classification):
+    return {
+        action["id"]
+        for action in plan["actions"]
+        if action["evidence"].get("classification") == classification
+    }
+
+
 def _journal_path(monkeypatch, tmp_path, name):
     root = tmp_path / "worktree"
     monkeypatch.setattr(repair, "ROOT", root)
@@ -389,6 +740,585 @@ def test_default_cli_dispatch_is_mechanically_read_only_and_query_free():
         "mutations": 0,
     }
     assert client.writes == []
+
+
+def test_production_planner_rejects_missing_explicit_target():
+    missing_id = "35a9f571-0c79-46a5-8065-5019d8e96f46"
+    snapshot = _production_snapshot()
+    snapshot["events"] = [
+        row for row in snapshot["events"] if row["id"] != missing_id
+    ]
+
+    with pytest.raises(
+        RuntimeError,
+        match=f"STOP/INCONCLUSIVE: missing explicit target event UUIDs: {missing_id}",
+    ):
+        repair.build_production_plan(snapshot)
+
+
+def test_production_planner_locks_full_uuid_inventory_and_exact_action_payloads():
+    snapshot = _production_snapshot()
+    plan = repair.build_production_plan(snapshot)
+    actions = _actions_by_id(plan)
+    events = {row["id"]: row for row in snapshot["events"]}
+
+    assert repair.EXPLICIT_TARGET_EVENT_IDS == EXPECTED_EXPLICIT_TARGET_EVENT_IDS
+    assert len(EXPECTED_EXPLICIT_TARGET_EVENT_IDS) == 31
+    assert EXPECTED_EXPLICIT_TARGET_EVENT_IDS <= set(actions)
+    assert _classification_ids(plan, "tcc_migrate") == set(
+        repair.TCC_MIGRATE_EVENT_IDS
+    )
+    assert _classification_ids(plan, "tcc_attach") == set(
+        repair.TCC_ATTACH_EVENT_IDS
+    )
+    assert _classification_ids(plan, "japanese_duplicate_historical_unlink") == set(
+        repair.JAPANESE_DUPLICATE_HISTORICAL_EVENT_IDS
+    )
+    assert _classification_ids(
+        plan, "japanese_duplicate_false_attribution_unlink"
+    ) == set(repair.JAPANESE_DUPLICATE_FALSE_EVENT_IDS)
+    assert _classification_ids(plan, "japanese_duplicate_multi_unlink") == set(
+        repair.JAPANESE_DUPLICATE_MULTI_EVENT_IDS
+    )
+    assert len(snapshot["tcc_canonical_linked_event_ids"]) == 29
+    assert _classification_ids(plan, "tcc_canonical_linked") == set(COHORT_EVENT_IDS)
+    assert plan["conflicts"] == []
+    assert plan["skips"] == []
+
+    tcc_after = actions[repair.TCC_MIGRATE_EVENT_IDS[0]]["after"]["event"]
+    assert tcc_after["venue_id"] == repair.TCC_CANONICAL_VENUE_ID
+    assert tcc_after["location_name"] == "台北駐日経済文化代表処 台湾文化センター"
+    assert tcc_after["location_address"] == "東京都港区虎ノ門1-1-12 虎ノ門ビル2階"
+    assert tcc_after["location_address_zh"] is None
+    assert tcc_after["location_address_en"] is None
+    assert tcc_after["location_prefectures"] == ["東京都"]
+    assert tcc_after["location_url"] == "https://jp.taiwan.culture.tw/"
+
+    expected_rehomes = {
+        "3f56d510-d9e1-4fb2-bd4f-335df4e30965": (
+            "https://forms.gle/synthetic-form",
+            "https://jp.taiwan.culture.tw/",
+        ),
+        "8c94aaff-cb37-4f57-a135-6e141103116b": (
+            "https://synthetic.peatix.com/view/1",
+            "https://jp.taiwan.culture.tw/",
+        ),
+        "51f7cd44-1a45-4f01-af24-0d6750536f41": (
+            "https://synthetic.peatix.com/view/51",
+            None,
+        ),
+        repair.ONLINE_GRANT_EVENT_ID: (
+            "https://grant.example/apply/online",
+            None,
+        ),
+    }
+    for event_id, (submission_url, location_url) in expected_rehomes.items():
+        after = actions[event_id]["after"]["event"]
+        assert after["submission_url"] == submission_url
+        assert after["location_url"] == location_url
+
+    for event_id in (
+        *repair.JAPANESE_DUPLICATE_HISTORICAL_EVENT_IDS,
+        *repair.JAPANESE_DUPLICATE_FALSE_EVENT_IDS,
+        repair.JAPANESE_DUPLICATE_MULTI_EVENT_IDS[0],
+    ):
+        before = actions[event_id]["before"]["event"]
+        after = actions[event_id]["after"]["event"]
+        assert before == events[event_id]
+        assert after["venue_id"] is None
+        assert after["location_name"] == before["location_name"]
+        assert after["location_address"] == before["location_address"]
+        assert after["location_url"] == before["location_url"]
+    chinese = actions[repair.CHINESE_DUPLICATE_EVENT_ID]
+    assert chinese["after"]["event"]["venue_id"] is None
+    assert chinese["after"]["event"]["location_name"] == "歷史會場"
+    assert chinese["after"]["event"]["location_address"] == "東京都港区歴史1-2-3"
+
+    online = actions[repair.ONLINE_GRANT_EVENT_ID]
+    online_after = online["after"]["event"]
+    assert online_after["venue_id"] is None
+    assert online_after["location_name"] == "オンライン"
+    assert online_after["location_name_zh"] == "線上"
+    assert online_after["location_name_en"] == "Online"
+    assert online_after["location_address"] is None
+    assert online_after["location_address_zh"] is None
+    assert online_after["location_address_en"] is None
+    assert online_after["location_prefectures"] is None
+    online_after_fcs = {
+        row["field_name"]: row
+        for row in online["after"]["field_corrections"]["rows"]
+    }
+    assert online_after_fcs["location_address"]["id"] == (
+        "30000000-0000-4000-8000-000000000001"
+    )
+    assert online_after_fcs["location_address"]["corrected_value"] == ""
+    assert online_after_fcs["location_prefectures"]["corrected_value"] == ""
+    unrelated_before = next(
+        row
+        for row in online["before"]["field_corrections"]["rows"]
+        if row["field_name"] == "name_ja"
+    )
+    unrelated_after = next(
+        row
+        for row in online["after"]["field_corrections"]["rows"]
+        if row["field_name"] == "name_ja"
+    )
+    assert unrelated_after == unrelated_before
+
+    parent = actions[repair.TIFF_EVENT_IDS[0]]["after"]["event"]
+    assert parent["venue_id"] == repair.TIFF_MULTI_VENUE_ID
+    assert parent["location_address"] is None
+    assert parent["location_address_zh"] is None
+    assert parent["location_address_en"] is None
+    chanter = actions[repair.TIFF_EVENT_IDS[1]]
+    assert chanter["after"]["event"]["venue_id"] == FROZEN_NEW_VENUE_IDS[
+        "TOHOシネマズ シャンテ"
+    ]
+    assert chanter["after"]["event"]["location_name"] == "TOHOシネマズ シャンテ"
+    assert chanter["dependencies"] == [
+        FROZEN_NEW_VENUE_IDS["TOHOシネマズ シャンテ"]
+    ]
+    assert actions[repair.TIFF_EVENT_IDS[2]]["after"]["event"]["location_name"] == (
+        "ヒューリックホール東京・TOHOシネマズ シャンテ・シネスイッチ銀座"
+    )
+    assert actions[repair.TIFF_EVENT_IDS[3]]["after"]["event"]["location_name"] == (
+        "TOHOシネマズ 日比谷 スクリーン12・13・シネスイッチ銀座"
+    )
+    assert actions[repair.TIFF_EVENT_IDS[4]]["after"]["event"]["location_name"] == (
+        "TOHOシネマズ シャンテ・TOHOシネマズ 日比谷 スクリーン12・13・シネスイッチ銀座"
+    )
+    for event_id in repair.TIFF_EVENT_IDS[2:]:
+        after = actions[event_id]["after"]["event"]
+        assert after["venue_id"] is None
+        assert after["location_address"] is None
+        assert after["location_address_zh"] is None
+        assert after["location_address_en"] is None
+
+    century_keep = actions[repair.CENTURY_EVENT_IDS[0]]
+    assert century_keep["before"]["event"]["venue_id"] == repair.CENTURY_VENUE_ID
+    assert century_keep["after"]["event"]["venue_id"] == repair.CENTURY_VENUE_ID
+    assert century_keep["after"]["event"]["location_address"] == (
+        "愛知県名古屋市中区栄3-29-1 名古屋パルコ東館8F"
+    )
+    century_address_fc = next(
+        row
+        for row in century_keep["after"]["field_corrections"]["rows"]
+        if row["field_name"] == "location_address"
+    )
+    assert century_address_fc["id"] == "30000000-0000-4000-8000-000000000004"
+    assert century_address_fc["corrected_value"] == (
+        "愛知県名古屋市中区栄3-29-1 名古屋パルコ東館8F"
+    )
+    century_attach = actions[repair.CENTURY_EVENT_IDS[1]]["after"]["event"]
+    assert century_attach["venue_id"] == repair.CENTURY_VENUE_ID
+    assert century_attach["location_url"] == (
+        "https://eiga.starcat.co.jp/theater/century/"
+    )
+
+    japanese_delete = actions[repair.TCC_JAPANESE_DUPLICATE_VENUE_ID]
+    chinese_delete = actions[repair.TCC_CHINESE_DUPLICATE_VENUE_ID]
+    assert japanese_delete["before"]["venue_references"] == snapshot[
+        "venue_references"
+    ][repair.TCC_JAPANESE_DUPLICATE_VENUE_ID]
+    assert japanese_delete["dependencies"] == [
+        event_id
+        for event_id in (
+            *repair.TCC_MIGRATE_EVENT_IDS,
+            *repair.JAPANESE_DUPLICATE_HISTORICAL_EVENT_IDS,
+            *repair.JAPANESE_DUPLICATE_FALSE_EVENT_IDS,
+            *repair.JAPANESE_DUPLICATE_MULTI_EVENT_IDS,
+        )
+        if event_id in snapshot["venue_references"][repair.TCC_JAPANESE_DUPLICATE_VENUE_ID]
+    ]
+    assert japanese_delete["after"]["venue"] is None
+    assert japanese_delete["after"]["venue_references"] == []
+    assert chinese_delete["dependencies"] == [repair.CHINESE_DUPLICATE_EVENT_ID]
+    assert [action["type"] for action in plan["actions"]] == sorted(
+        [action["type"] for action in plan["actions"]],
+        key=repair.ACTION_ORDER.index,
+    )
+    assert all(repair._valid_uuid(action["id"]) for action in plan["actions"])
+    assert all(
+        repair._valid_uuid(dependency)
+        for action in plan["actions"]
+        for dependency in action["dependencies"]
+    )
+    for action in plan["actions"]:
+        assert action["apply_expected"] == action["before"]
+        assert action["rollback_expected"] == action["after"]
+        if action["type"] == "event_fc":
+            assert set(action["before"]["event"]) == set(action["after"]["event"])
+            assert action["before"]["event"]["name_ja"] == action["after"]["event"]["name_ja"]
+            assert action["before"]["event"]["category"] == action["after"]["event"]["category"]
+            assert action["before"]["event"]["organizer"] == action["after"]["event"]["organizer"]
+
+    manifest = repair.seal_manifest(plan)
+    repair.verify_manifest(manifest)
+
+
+def test_production_plan_runs_phase6_apply_with_exact_cas_and_idempotent_second_run(
+    monkeypatch,
+    tmp_path,
+):
+    snapshot = _production_snapshot()
+    plan = repair.build_production_plan(snapshot)
+    client = FakeSupabase(
+        {
+            "venues": deepcopy(snapshot["venues"]),
+            "events": deepcopy(snapshot["events"]),
+            "field_corrections": deepcopy(snapshot["field_corrections"]),
+            "field_corrections_audit": [],
+        }
+    )
+    manifest = repair.preview_manifest(
+        client,
+        plan,
+        project_ref=PROJECT_REF,
+        repo_sha_verifier=lambda _sha: True,
+        captured_at=CAPTURED_AT,
+    )
+    helper_calls = []
+
+    def recording_writer(sb, **kwargs):
+        helper_calls.append(deepcopy(kwargs))
+        ok = qa_auto_fix.unlock_and_write(sb, **kwargs)
+        for row in sb.tables["field_corrections"]:
+            row.setdefault("original_value", None)
+            row.setdefault("corrected_by", None)
+            row.setdefault("report_id", None)
+            row.setdefault("created_at", CAPTURED_AT)
+        return ok
+
+    result = _apply(
+        client,
+        manifest,
+        monkeypatch,
+        tmp_path,
+        name="production-first.jsonl",
+        writer=recording_writer,
+    )
+
+    assert result["status"] == "completed"
+    assert result["mutation_count"] == len(plan["actions"])
+    assert result["completed_action_ids"] == [
+        action["id"]
+        for action in manifest["actions"]
+        if action["eligibility"]["status"] == "eligible"
+    ]
+    assert repair.preflight_actions(client, manifest)[0] == "after"
+    assert _fetch_venue(client, repair.TCC_JAPANESE_DUPLICATE_VENUE_ID) is None
+    assert _fetch_venue(client, repair.TCC_CHINESE_DUPLICATE_VENUE_ID) is None
+    assert {
+        _fetch_venue(client, venue_id)["canonical_name_ja"]
+        for venue_id in FROZEN_NEW_VENUE_IDS.values()
+    } == set(FROZEN_NEW_VENUE_IDS)
+    assert _fetch_event(
+        client,
+        "3f56d510-d9e1-4fb2-bd4f-335df4e30965",
+    )["submission_url"] == "https://forms.gle/synthetic-form"
+    assert _fetch_event(client, repair.ONLINE_GRANT_EVENT_ID)["location_name_zh"] == "線上"
+    assert _fetch_event(client, repair.TIFF_EVENT_IDS[2])["location_name"] == (
+        "ヒューリックホール東京・TOHOシネマズ シャンテ・シネスイッチ銀座"
+    )
+    assert _fetch_event(client, repair.CENTURY_EVENT_IDS[0])["location_address"] == (
+        "愛知県名古屋市中区栄3-29-1 名古屋パルコ東館8F"
+    )
+
+    form_call = next(
+        call
+        for call in helper_calls
+        if call["event_id"] == "3f56d510-d9e1-4fb2-bd4f-335df4e30965"
+        and call["field_name"] == "submission_url"
+    )
+    assert form_call["mode"] == "lock_clean"
+    assert form_call["new_value"] == "https://forms.gle/synthetic-form"
+    assert form_call["expected_event_value"] is None
+    assert form_call["expected_fc"] is None
+    malformed_call = next(
+        call
+        for call in helper_calls
+        if call["event_id"] == repair.ONLINE_GRANT_EVENT_ID
+        and call["field_name"] == "location_prefectures"
+    )
+    assert malformed_call["mode"] == "lock_empty"
+    assert malformed_call["new_value"] is None
+    assert malformed_call["expected_event_value"] == ["東京都"]
+    assert malformed_call["expected_fc"]["corrected_value"] == "[]"
+    century_call = next(
+        call
+        for call in helper_calls
+        if call["event_id"] == repair.CENTURY_EVENT_IDS[0]
+        and call["field_name"] == "location_address"
+    )
+    assert century_call["expected_event_value"].endswith("8階")
+    assert century_call["expected_fc"]["id"] == (
+        "30000000-0000-4000-8000-000000000004"
+    )
+    unrelated = next(
+        row
+        for row in client.tables["field_corrections"]
+        if row["event_id"] == repair.ONLINE_GRANT_EVENT_ID
+        and row["field_name"] == "name_ja"
+    )
+    assert unrelated["corrected_value"] == "Preserve unrelated correction"
+
+    writes_after_first = deepcopy(client.writes)
+    second = _apply(
+        client,
+        manifest,
+        monkeypatch,
+        tmp_path,
+        name="production-second.jsonl",
+        writer=recording_writer,
+    )
+
+    assert second["status"] == "noop"
+    assert second["mutation_count"] == 0
+    assert second["completed_action_ids"] == []
+    assert client.writes == writes_after_first
+    second_statuses = [
+        entry["details"].get("status")
+        for entry in _journal_entries(Path(second["journal"]))
+        if entry["event"] == "action_result"
+    ]
+    assert second_statuses == ["already_applied"] * len(plan["actions"])
+
+
+def test_production_planner_requires_all_capture_frozen_venue_ids(monkeypatch):
+    snapshot = _production_snapshot()
+    missing_name = "TOHOシネマズ 日比谷 スクリーン12・13"
+    snapshot["frozen_new_venue_ids"].pop(missing_name)
+    monkeypatch.setattr(
+        repair,
+        "uuid4",
+        lambda: pytest.fail("production planner must not generate venue UUIDs"),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match=f"STOP/INCONCLUSIVE: missing frozen new venue ID for: {missing_name}",
+    ):
+        repair.build_production_plan(snapshot)
+
+    complete = _production_snapshot()
+    plan = repair.build_production_plan(complete)
+    assert _classification_ids(plan, "tiff_venue_insert") == set(
+        FROZEN_NEW_VENUE_IDS.values()
+    )
+
+
+def test_production_planner_human_fc_is_review_conflict_and_zero_write():
+    snapshot = _production_snapshot()
+    event_id = COHORT_EVENT_IDS[0]
+    human_fc = _production_fc(
+        event_id,
+        "location_name_en",
+        "Human preserved name",
+        50,
+        corrected_by="50000000-0000-4000-8000-000000000001",
+    )
+    snapshot["field_corrections"].append(human_fc)
+
+    plan = repair.build_production_plan(snapshot)
+    action = _actions_by_id(plan)[event_id]
+
+    assert action["eligibility"]["status"] == "review_conflict"
+    assert action["apply_operations"] == []
+    assert action["after"] == action["before"]
+    assert action["conflicts"] == [
+        {
+            "type": "human_field_correction",
+            "field_name": "location_name_en",
+            "field_correction_id": human_fc["id"],
+        }
+    ]
+    client = FakeSupabase(
+        {
+            "venues": snapshot["venues"],
+            "events": snapshot["events"],
+            "field_corrections": snapshot["field_corrections"],
+        }
+    )
+    manifest = repair.seal_manifest(plan)
+    with pytest.raises(RuntimeError, match="review_conflict"):
+        repair.preflight_actions(client, manifest)
+    assert client.writes == []
+
+
+@pytest.mark.parametrize(
+    "event_id",
+    [
+        "3f56d510-d9e1-4fb2-bd4f-335df4e30965",
+        "8c94aaff-cb37-4f57-a135-6e141103116b",
+        "51f7cd44-1a45-4f01-af24-0d6750536f41",
+        repair.ONLINE_GRANT_EVENT_ID,
+        repair.CENTURY_EVENT_IDS[1],
+    ],
+)
+def test_production_planner_different_nonempty_submission_is_review_conflict(
+    event_id,
+):
+    snapshot = _production_snapshot()
+    event = next(row for row in snapshot["events"] if row["id"] == event_id)
+    event["submission_url"] = "https://existing.example/do-not-overwrite"
+
+    plan = repair.build_production_plan(snapshot)
+    action = _actions_by_id(plan)[event_id]
+
+    assert action["eligibility"]["status"] == "review_conflict"
+    assert action["apply_operations"] == []
+    assert action["after"]["event"]["submission_url"] == (
+        "https://existing.example/do-not-overwrite"
+    )
+    assert any(
+        conflict["type"] == "submission_url_conflict"
+        for conflict in action["conflicts"]
+    )
+
+
+def test_production_planner_unlisted_duplicate_reference_blocks_delete():
+    snapshot = _production_snapshot()
+    unlisted_id = "40000000-0000-4000-8000-000000000001"
+    snapshot["events"].append(
+        _production_event(
+            unlisted_id,
+            venue_id=repair.TCC_JAPANESE_DUPLICATE_VENUE_ID,
+            location_name="Unlisted duplicate reference",
+        )
+    )
+    references = snapshot["venue_references"][
+        repair.TCC_JAPANESE_DUPLICATE_VENUE_ID
+    ]
+    references.append(unlisted_id)
+    references.sort()
+
+    plan = repair.build_production_plan(snapshot)
+    delete_action = _actions_by_id(plan)[repair.TCC_JAPANESE_DUPLICATE_VENUE_ID]
+
+    assert delete_action["eligibility"]["status"] == "review_conflict"
+    assert delete_action["before"]["venue_references"] == references
+    assert delete_action["conflicts"] == [
+        {"type": "unlisted_duplicate_reference", "event_ids": [unlisted_id]}
+    ]
+    assert unlisted_id not in delete_action["dependencies"]
+    manifest = repair.seal_manifest(plan)
+    client = FakeSupabase(
+        {
+            "venues": snapshot["venues"],
+            "events": snapshot["events"],
+            "field_corrections": snapshot["field_corrections"],
+        }
+    )
+    with pytest.raises(RuntimeError, match="review_conflict"):
+        repair.preflight_actions(client, manifest)
+    assert client.writes == []
+
+
+def test_production_planner_classifies_new_thirtieth_cohort_row_instead_of_ignoring_it():
+    snapshot = _production_snapshot()
+    new_event_id = "40000000-0000-4000-8000-000000000002"
+    snapshot["events"].append(
+        _production_event(
+            new_event_id,
+            venue_id=repair.TCC_CANONICAL_VENUE_ID,
+        )
+    )
+    snapshot["tcc_canonical_linked_event_ids"].append(new_event_id)
+    snapshot["tcc_canonical_linked_event_ids"].sort()
+    snapshot["field_corrections_complete_event_ids"].append(new_event_id)
+    snapshot["field_corrections_complete_event_ids"].sort()
+
+    plan = repair.build_production_plan(snapshot)
+    action = _actions_by_id(plan)[new_event_id]
+
+    assert len(snapshot["tcc_canonical_linked_event_ids"]) == 30
+    assert action["evidence"]["classification"] == "tcc_canonical_linked"
+    assert action["eligibility"]["status"] == "eligible"
+    assert action["before"]["event"] == next(
+        row for row in snapshot["events"] if row["id"] == new_event_id
+    )
+    assert action["after"]["event"]["venue_id"] == repair.TCC_CANONICAL_VENUE_ID
+    assert action["apply_operations"]
+
+
+def test_production_planner_dynamic_cohort_fail_closed_classification_matrix():
+    snapshot = _production_snapshot()
+    cases = {
+        "40000000-0000-4000-8000-000000000010": (
+            {"location_prefectures": ["北海道"], "location_address": "北海道札幌市"},
+            "tcc_cohort_not_tokyo_only",
+        ),
+        "40000000-0000-4000-8000-000000000011": (
+            {"location_prefectures": ["大阪府"], "location_address": "大阪府大阪市"},
+            "tcc_cohort_not_tokyo_only",
+        ),
+        "40000000-0000-4000-8000-000000000012": (
+            {"location_prefectures": ["京都府"], "location_address": "京都府京都市"},
+            "tcc_cohort_not_tokyo_only",
+        ),
+        "40000000-0000-4000-8000-000000000013": (
+            {"location_address": "東京都八王子市"},
+            "tcc_cohort_distinct_location_address",
+        ),
+        "40000000-0000-4000-8000-000000000014": (
+            {"location_address": "東京都港区三田1-1-1"},
+            "tcc_cohort_distinct_location_address",
+        ),
+        "40000000-0000-4000-8000-000000000015": (
+            {"location_prefectures": ["神奈川県"], "location_address": "神奈川県横浜市"},
+            "tcc_cohort_not_tokyo_only",
+        ),
+        "40000000-0000-4000-8000-000000000016": (
+            {"location_name": "別機関の会場"},
+            "tcc_cohort_distinct_location_name",
+        ),
+        "40000000-0000-4000-8000-000000000017": (
+            {"location_name": "オンライン", "event_form": ["online"]},
+            "tcc_cohort_online",
+        ),
+        "40000000-0000-4000-8000-000000000018": (
+            {
+                "location_prefectures": ["東京都", "大阪府"],
+                "event_form": ["multi_venue"],
+            },
+            "tcc_cohort_multi_venue",
+        ),
+        "40000000-0000-4000-8000-000000000019": (
+            {
+                "location_name": None,
+                "location_name_zh": None,
+                "location_name_en": None,
+                "location_address": None,
+                "location_address_zh": None,
+                "location_address_en": None,
+            },
+            "tcc_cohort_ambiguous_location",
+        ),
+    }
+    for event_id, (overrides, _expected_conflict) in cases.items():
+        snapshot["events"].append(
+            _production_event(
+                event_id,
+                venue_id=repair.TCC_CANONICAL_VENUE_ID,
+                **overrides,
+            )
+        )
+        snapshot["tcc_canonical_linked_event_ids"].append(event_id)
+        snapshot["field_corrections_complete_event_ids"].append(event_id)
+    snapshot["tcc_canonical_linked_event_ids"].sort()
+    snapshot["field_corrections_complete_event_ids"].sort()
+
+    plan = repair.build_production_plan(snapshot)
+    actions = _actions_by_id(plan)
+
+    for event_id, (_overrides, expected_conflict) in cases.items():
+        action = actions[event_id]
+        assert action["eligibility"]["status"] == "review_conflict"
+        assert action["apply_operations"] == []
+        assert action["after"] == action["before"]
+        assert expected_conflict in {
+            conflict["type"] for conflict in action["conflicts"]
+        }
 
 
 def test_read_only_proxy_blocks_all_mutators_on_client_and_query_chain():

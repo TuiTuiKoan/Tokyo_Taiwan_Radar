@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 from typing import Any, Callable
@@ -63,6 +64,86 @@ ACTION_REQUIRED_KEYS = frozenset(
         "volatile_event_fields",
     }
 )
+TCC_MIGRATE_EVENT_IDS = (
+    "8c94aaff-cb37-4f57-a135-6e141103116b",
+    "3f56d510-d9e1-4fb2-bd4f-335df4e30965",
+    "6e0ebbc0-4c08-463a-a46b-9a047587be97",
+    "2aa24af5-c945-4727-ba37-8e943d6dc570",
+    "35a9f571-0c79-46a5-8065-5019d8e96f46",
+    "83a05243-bdc4-467e-bc7b-6ad7028dbf07",
+)
+TCC_ATTACH_EVENT_IDS = (
+    "744fb475-1107-45e8-a193-a4ae676110fe",
+    "bf420307-5a31-469c-8144-38ea3a7b6f00",
+    "0fb1e608-8c8e-4024-86fa-33c4145b034c",
+)
+JAPANESE_DUPLICATE_HISTORICAL_EVENT_IDS = (
+    "6236f51f-d53a-46eb-b392-8536cf842ab2",
+    "b9a1eb56-32bf-4f1c-b552-207e8f7379c4",
+    "07597d1e-71ae-45d4-8d03-9e61bcfb2b00",
+)
+JAPANESE_DUPLICATE_FALSE_EVENT_IDS = (
+    "10d8bcb3-a237-4344-9213-0e7bde732d0d",
+    "cb0f58dc-6110-4c9c-b16d-c347e0b31360",
+    "8355f633-1383-43c0-81f2-227199ed23fe",
+    "c14dc455-dc04-4337-8fe1-a6fe648f4718",
+    "18aa3c4b-8439-4ba4-a1ef-a257b35295ca",
+    "f1088869-d2b6-4881-ac4c-f8103450fc0f",
+    "d18339d5-350a-420b-9cd3-218a3a7391e4",
+    "081b1743-40a0-44af-9adc-eb1e512c86ad",
+)
+JAPANESE_DUPLICATE_MULTI_EVENT_IDS = (
+    "6794648b-39e3-4f07-8378-08ccb581307f",
+    "51f7cd44-1a45-4f01-af24-0d6750536f41",
+)
+CHINESE_DUPLICATE_EVENT_ID = "e94e8dd2-c684-4d71-8509-7c4541250efe"
+ONLINE_GRANT_EVENT_ID = "dec284a5-983a-4149-a093-b24dd6212a9a"
+TIFF_EVENT_IDS = (
+    "d21b8f8d-03ea-4cf7-8227-4417836f5f43",
+    "e2aa2c15-9aea-4f8a-b754-4691f937f9cd",
+    "603fce9e-f48f-4307-9462-7939f99dc5a8",
+    "f7b8a599-efd8-4982-b480-a896cd4080f1",
+    "d0d85c6e-7b33-4477-9055-e9f18bde4861",
+)
+CENTURY_EVENT_IDS = (
+    "4a372b17-ca36-4e61-a9db-2a93323ad88e",
+    "d3bff09a-bb0e-4991-afc0-21376d62400d",
+)
+EXPLICIT_TARGET_EVENT_IDS = frozenset(
+    (
+        *TCC_MIGRATE_EVENT_IDS,
+        *TCC_ATTACH_EVENT_IDS,
+        *JAPANESE_DUPLICATE_HISTORICAL_EVENT_IDS,
+        *JAPANESE_DUPLICATE_FALSE_EVENT_IDS,
+        *JAPANESE_DUPLICATE_MULTI_EVENT_IDS,
+        CHINESE_DUPLICATE_EVENT_ID,
+        ONLINE_GRANT_EVENT_ID,
+        *TIFF_EVENT_IDS,
+        *CENTURY_EVENT_IDS,
+    )
+)
+TCC_CANONICAL_VENUE_ID = "4e010225-f963-4556-a439-2bc4a35afb12"
+TCC_JAPANESE_DUPLICATE_VENUE_ID = "e87b461e-8e8d-4fa0-b461-22a7ff2b6fdd"
+TCC_CHINESE_DUPLICATE_VENUE_ID = "124ca4f6-448c-4fd2-894b-5aab2fbcb456"
+TIFF_MULTI_VENUE_ID = "597eaa36-191b-48d4-9a34-cd7c128579f1"
+CENTURY_VENUE_ID = "e2f5fd1f-f92c-4e61-9f5f-383ac84c5d8b"
+NEW_TIFF_VENUE_NAMES = (
+    "ヒューリックホール東京",
+    "TOHOシネマズ シャンテ",
+    "TOHOシネマズ 日比谷 スクリーン12・13",
+)
+EVENT_VENUE_FIELDS = (
+    "venue_id",
+    "location_name",
+    "location_name_zh",
+    "location_name_en",
+    "location_address",
+    "location_address_zh",
+    "location_address_en",
+    "location_prefectures",
+    "location_url",
+)
+_ONLINE_RE = re.compile(r"オンライン|線上|\bonline\b|zoom", re.IGNORECASE)
 
 
 class ReadOnlyProxy:
@@ -86,6 +167,1019 @@ class ReadOnlyProxy:
             return ReadOnlyProxy(result)
 
         return call
+
+
+def build_production_plan(snapshot: dict[str, Any]) -> dict[str, Any]:
+    events = snapshot.get("events")
+    if not isinstance(events, list):
+        raise RuntimeError("STOP/INCONCLUSIVE: production snapshot events are incomplete")
+    events_by_id = _index_snapshot_rows(events, label="event")
+    missing = sorted(EXPLICIT_TARGET_EVENT_IDS - set(events_by_id))
+    if missing:
+        raise RuntimeError(
+            "STOP/INCONCLUSIVE: missing explicit target event UUIDs: "
+            + ", ".join(missing)
+        )
+    if snapshot.get("complete") is not True:
+        raise RuntimeError("STOP/INCONCLUSIVE: production snapshot is not marked complete")
+    captured_at = snapshot.get("captured_at")
+    if not isinstance(captured_at, str) or not captured_at:
+        raise RuntimeError("STOP/INCONCLUSIVE: frozen capture timestamp is missing")
+    venues = snapshot.get("venues")
+    field_corrections = snapshot.get("field_corrections")
+    if not isinstance(venues, list) or not isinstance(field_corrections, list):
+        raise RuntimeError("STOP/INCONCLUSIVE: venue or field-correction rows are incomplete")
+    venues_by_id = _index_snapshot_rows(venues, label="venue")
+    fcs_by_event = _index_field_corrections(field_corrections)
+    cohort_ids = _validated_tcc_cohort(snapshot, events_by_id)
+    required_fc_ids = EXPLICIT_TARGET_EVENT_IDS | cohort_ids
+    complete_fc_ids = set(snapshot.get("field_corrections_complete_event_ids") or [])
+    missing_fc_coverage = sorted(required_fc_ids - complete_fc_ids)
+    if missing_fc_coverage:
+        raise RuntimeError(
+            "STOP/INCONCLUSIVE: incomplete field-correction coverage for event UUIDs: "
+            + ", ".join(missing_fc_coverage)
+        )
+
+    tcc = _require_venue(venues_by_id, TCC_CANONICAL_VENUE_ID)
+    tiff_multi = _require_venue(venues_by_id, TIFF_MULTI_VENUE_ID)
+    century = _require_venue(venues_by_id, CENTURY_VENUE_ID)
+    japanese_duplicate = _require_venue(
+        venues_by_id,
+        TCC_JAPANESE_DUPLICATE_VENUE_ID,
+    )
+    chinese_duplicate = _require_venue(
+        venues_by_id,
+        TCC_CHINESE_DUPLICATE_VENUE_ID,
+    )
+    cineswitch = _require_unique_venue_name(venues, "シネスイッチ銀座")
+    new_venues = _build_frozen_new_venues(snapshot, venues, captured_at=captured_at)
+
+    actions: list[dict[str, Any]] = [
+        _venue_insert_action(
+            row,
+            after_references=(
+                [TIFF_EVENT_IDS[1]]
+                if row["canonical_name_ja"] == "TOHOシネマズ シャンテ"
+                else []
+            ),
+        )
+        for row in new_venues.values()
+    ]
+    event_actions: dict[str, dict[str, Any]] = {}
+
+    for event_id in TCC_MIGRATE_EVENT_IDS:
+        event = events_by_id[event_id]
+        desired = _single_venue_event_fields(tcc)
+        conflicts = _venue_precondition_conflicts(
+            event,
+            allowed={TCC_JAPANESE_DUPLICATE_VENUE_ID, TCC_CANONICAL_VENUE_ID},
+        )
+        if event_id == "3f56d510-d9e1-4fb2-bd4f-335df4e30965":
+            rehome, url_conflicts = _url_rehome(
+                event,
+                kind="forms",
+                final_location_url=tcc.get("homepage"),
+            )
+            desired.update(rehome)
+            conflicts.extend(url_conflicts)
+        elif event_id == "8c94aaff-cb37-4f57-a135-6e141103116b":
+            rehome, url_conflicts = _url_rehome(
+                event,
+                kind="peatix",
+                final_location_url=tcc.get("homepage"),
+            )
+            desired.update(rehome)
+            conflicts.extend(url_conflicts)
+        event_actions[event_id] = _event_fc_action(
+            event,
+            fcs_by_event.get(event_id, []),
+            desired,
+            classification="tcc_migrate",
+            conflicts=conflicts,
+        )
+
+    for event_id in TCC_ATTACH_EVENT_IDS:
+        event = events_by_id[event_id]
+        event_actions[event_id] = _event_fc_action(
+            event,
+            fcs_by_event.get(event_id, []),
+            _single_venue_event_fields(tcc),
+            classification="tcc_attach",
+            conflicts=_venue_precondition_conflicts(
+                event,
+                allowed={None, TCC_CANONICAL_VENUE_ID},
+            ),
+        )
+
+    unlink_groups = (
+        (JAPANESE_DUPLICATE_HISTORICAL_EVENT_IDS, "japanese_duplicate_historical_unlink"),
+        (JAPANESE_DUPLICATE_FALSE_EVENT_IDS, "japanese_duplicate_false_attribution_unlink"),
+        (JAPANESE_DUPLICATE_MULTI_EVENT_IDS, "japanese_duplicate_multi_unlink"),
+    )
+    for event_ids, classification in unlink_groups:
+        for event_id in event_ids:
+            event = events_by_id[event_id]
+            desired: dict[str, Any] = {"venue_id": None}
+            conflicts = _venue_precondition_conflicts(
+                event,
+                allowed={TCC_JAPANESE_DUPLICATE_VENUE_ID, None},
+            )
+            if event_id == "51f7cd44-1a45-4f01-af24-0d6750536f41":
+                rehome, url_conflicts = _url_rehome(
+                    event,
+                    kind="peatix",
+                    final_location_url=None,
+                )
+                desired.update(rehome)
+                conflicts.extend(url_conflicts)
+            event_actions[event_id] = _event_fc_action(
+                event,
+                fcs_by_event.get(event_id, []),
+                desired,
+                classification=classification,
+                conflicts=conflicts,
+            )
+
+    chinese_event = events_by_id[CHINESE_DUPLICATE_EVENT_ID]
+    event_actions[CHINESE_DUPLICATE_EVENT_ID] = _event_fc_action(
+        chinese_event,
+        fcs_by_event.get(CHINESE_DUPLICATE_EVENT_ID, []),
+        {"venue_id": None},
+        classification="chinese_duplicate_historical_unlink",
+        conflicts=_venue_precondition_conflicts(
+            chinese_event,
+            allowed={TCC_CHINESE_DUPLICATE_VENUE_ID, None},
+        ),
+    )
+
+    online_event = events_by_id[ONLINE_GRANT_EVENT_ID]
+    online_rehome, online_conflicts = _url_rehome(
+        online_event,
+        kind="grant",
+        final_location_url=None,
+    )
+    online_desired = {
+        "venue_id": None,
+        "location_name": "オンライン",
+        "location_name_zh": "線上",
+        "location_name_en": "Online",
+        "location_address": None,
+        "location_address_zh": None,
+        "location_address_en": None,
+        "location_prefectures": None,
+        "location_url": None,
+        **online_rehome,
+    }
+    event_actions[ONLINE_GRANT_EVENT_ID] = _event_fc_action(
+        online_event,
+        fcs_by_event.get(ONLINE_GRANT_EVENT_ID, []),
+        online_desired,
+        classification="online_grant",
+        conflicts=online_conflicts,
+    )
+
+    hulic = new_venues["ヒューリックホール東京"]
+    chanter = new_venues["TOHOシネマズ シャンテ"]
+    hibiya = new_venues["TOHOシネマズ 日比谷 スクリーン12・13"]
+    tiff_specs = (
+        (
+            TIFF_EVENT_IDS[0],
+            "tiff_parent_multi_entity",
+            _multi_entity_event_fields(tiff_multi),
+            [],
+        ),
+        (
+            TIFF_EVENT_IDS[1],
+            "tiff_chanter_single",
+            _single_venue_event_fields(chanter),
+            [str(chanter["id"])],
+        ),
+        (
+            TIFF_EVENT_IDS[2],
+            "tiff_hulic_chanter_cineswitch",
+            _multi_venue_event_fields([hulic, chanter, cineswitch]),
+            [str(hulic["id"]), str(chanter["id"])],
+        ),
+        (
+            TIFF_EVENT_IDS[3],
+            "tiff_hibiya_cineswitch",
+            _multi_venue_event_fields([hibiya, cineswitch]),
+            [str(hibiya["id"])],
+        ),
+        (
+            TIFF_EVENT_IDS[4],
+            "tiff_chanter_hibiya_cineswitch",
+            _multi_venue_event_fields([chanter, hibiya, cineswitch]),
+            [str(chanter["id"]), str(hibiya["id"])],
+        ),
+    )
+    for event_id, classification, desired, dependencies in tiff_specs:
+        event_actions[event_id] = _event_fc_action(
+            events_by_id[event_id],
+            fcs_by_event.get(event_id, []),
+            desired,
+            classification=classification,
+            dependencies=dependencies,
+        )
+
+    century_keep = events_by_id[CENTURY_EVENT_IDS[0]]
+    event_actions[CENTURY_EVENT_IDS[0]] = _event_fc_action(
+        century_keep,
+        fcs_by_event.get(CENTURY_EVENT_IDS[0], []),
+        _single_venue_event_fields(century),
+        classification="century_keep_fk",
+        conflicts=_venue_precondition_conflicts(
+            century_keep,
+            allowed={CENTURY_VENUE_ID},
+        ),
+    )
+    century_attach = events_by_id[CENTURY_EVENT_IDS[1]]
+    century_attach_conflicts = _venue_precondition_conflicts(
+        century_attach,
+        allowed={None, CENTURY_VENUE_ID},
+    )
+    if century_attach.get("submission_url"):
+        century_attach_conflicts.append(
+            {
+                "type": "submission_url_conflict",
+                "before": century_attach["submission_url"],
+                "after": None,
+            }
+        )
+    event_actions[CENTURY_EVENT_IDS[1]] = _event_fc_action(
+        century_attach,
+        fcs_by_event.get(CENTURY_EVENT_IDS[1], []),
+        _single_venue_event_fields(century),
+        classification="century_attach_fk",
+        conflicts=century_attach_conflicts,
+    )
+
+    for event_id in sorted(cohort_ids - EXPLICIT_TARGET_EVENT_IDS):
+        event = events_by_id[event_id]
+        event_actions[event_id] = _event_fc_action(
+            event,
+            fcs_by_event.get(event_id, []),
+            _single_venue_event_fields(tcc),
+            classification="tcc_canonical_linked",
+            conflicts=_tcc_cohort_conflicts(event, tcc),
+        )
+
+    missing_actions = sorted(EXPLICIT_TARGET_EVENT_IDS - set(event_actions))
+    if missing_actions:
+        raise RuntimeError(
+            "STOP/INCONCLUSIVE: explicit targets were not classified: "
+            + ", ".join(missing_actions)
+        )
+    event_order = (
+        *TCC_MIGRATE_EVENT_IDS,
+        *TCC_ATTACH_EVENT_IDS,
+        *JAPANESE_DUPLICATE_HISTORICAL_EVENT_IDS,
+        *JAPANESE_DUPLICATE_FALSE_EVENT_IDS,
+        *JAPANESE_DUPLICATE_MULTI_EVENT_IDS,
+        CHINESE_DUPLICATE_EVENT_ID,
+        ONLINE_GRANT_EVENT_ID,
+        *TIFF_EVENT_IDS,
+        *CENTURY_EVENT_IDS,
+        *sorted(cohort_ids - EXPLICIT_TARGET_EVENT_IDS),
+    )
+    actions.extend(event_actions[event_id] for event_id in event_order)
+
+    reference_sets = snapshot.get("venue_references")
+    if not isinstance(reference_sets, dict):
+        raise RuntimeError("STOP/INCONCLUSIVE: duplicate venue reference sets are missing")
+    japanese_expected = set(
+        (
+            *TCC_MIGRATE_EVENT_IDS,
+            *JAPANESE_DUPLICATE_HISTORICAL_EVENT_IDS,
+            *JAPANESE_DUPLICATE_FALSE_EVENT_IDS,
+            *JAPANESE_DUPLICATE_MULTI_EVENT_IDS,
+        )
+    )
+    japanese_refs = _validated_reference_set(
+        reference_sets,
+        venue_id=TCC_JAPANESE_DUPLICATE_VENUE_ID,
+        events_by_id=events_by_id,
+    )
+    chinese_refs = _validated_reference_set(
+        reference_sets,
+        venue_id=TCC_CHINESE_DUPLICATE_VENUE_ID,
+        events_by_id=events_by_id,
+    )
+    japanese_unlisted = sorted(set(japanese_refs) - japanese_expected)
+    chinese_unlisted = sorted(set(chinese_refs) - {CHINESE_DUPLICATE_EVENT_ID})
+    actions.append(
+        _venue_delete_action(
+            japanese_duplicate,
+            references=japanese_refs,
+            dependencies=[event_id for event_id in event_order if event_id in japanese_refs],
+            conflicts=(
+                [{"type": "unlisted_duplicate_reference", "event_ids": japanese_unlisted}]
+                if japanese_unlisted
+                else []
+            ),
+        )
+    )
+    actions.append(
+        _venue_delete_action(
+            chinese_duplicate,
+            references=chinese_refs,
+            dependencies=[
+                event_id
+                for event_id in event_order
+                if event_id in chinese_refs
+            ],
+            conflicts=(
+                [{"type": "unlisted_duplicate_reference", "event_ids": chinese_unlisted}]
+                if chinese_unlisted
+                else []
+            ),
+        )
+    )
+
+    conflicts = sorted(
+        (
+            {"action_id": action["id"], **conflict}
+            for action in actions
+            for conflict in action["conflicts"]
+        ),
+        key=lambda row: canonical_json_bytes(row),
+    )
+    skips = sorted(
+        (
+            {"action_id": action["id"], **skip}
+            for action in actions
+            for skip in action["skips"]
+        ),
+        key=lambda row: canonical_json_bytes(row),
+    )
+    return {
+        "project_ref": snapshot.get("project_ref"),
+        "repository_sha": snapshot.get("repository_sha"),
+        "actions": actions,
+        "conflicts": conflicts,
+        "skips": skips,
+    }
+
+
+def _index_snapshot_rows(
+    rows: list[dict[str, Any]],
+    *,
+    label: str,
+) -> dict[str, dict[str, Any]]:
+    indexed: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict) or not _valid_uuid(row.get("id")):
+            raise RuntimeError(f"STOP/INCONCLUSIVE: incomplete {label} live row")
+        row_id = str(row["id"])
+        if row_id in indexed:
+            raise RuntimeError(f"STOP/INCONCLUSIVE: duplicate {label} UUID: {row_id}")
+        indexed[row_id] = deepcopy(row)
+    return indexed
+
+
+def _index_field_corrections(
+    rows: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    indexed: dict[str, list[dict[str, Any]]] = {}
+    seen_ids: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict) or not FC_REQUIRED_FIELDS.issubset(row):
+            raise RuntimeError("STOP/INCONCLUSIVE: incomplete field-correction live row")
+        row_id = str(row["id"])
+        if row_id in seen_ids:
+            raise RuntimeError(f"STOP/INCONCLUSIVE: duplicate field-correction UUID: {row_id}")
+        seen_ids.add(row_id)
+        indexed.setdefault(str(row["event_id"]), []).append(deepcopy(row))
+    for event_id in indexed:
+        indexed[event_id].sort(key=row_sort_key)
+    return indexed
+
+
+def _validated_tcc_cohort(
+    snapshot: dict[str, Any],
+    events_by_id: dict[str, dict[str, Any]],
+) -> set[str]:
+    declared = snapshot.get("tcc_canonical_linked_event_ids")
+    if not isinstance(declared, list) or declared != sorted(set(declared)):
+        raise RuntimeError(
+            "STOP/INCONCLUSIVE: TCC canonical-linked cohort must be complete and sorted"
+        )
+    declared_ids = set(declared)
+    missing = sorted(declared_ids - set(events_by_id))
+    if missing:
+        raise RuntimeError(
+            "STOP/INCONCLUSIVE: TCC cohort rows are missing: " + ", ".join(missing)
+        )
+    observed = {
+        event_id
+        for event_id, event in events_by_id.items()
+        if event.get("venue_id") == TCC_CANONICAL_VENUE_ID
+    }
+    if observed != declared_ids:
+        raise RuntimeError(
+            "STOP/INCONCLUSIVE: TCC canonical-linked cohort does not match live rows: "
+            f"declared={sorted(declared_ids)} observed={sorted(observed)}"
+        )
+    return declared_ids
+
+
+def _require_venue(
+    venues_by_id: dict[str, dict[str, Any]],
+    venue_id: str,
+) -> dict[str, Any]:
+    venue = venues_by_id.get(venue_id)
+    if venue is None:
+        raise RuntimeError(f"STOP/INCONCLUSIVE: missing target venue UUID: {venue_id}")
+    return deepcopy(venue)
+
+
+def _require_unique_venue_name(
+    venues: list[dict[str, Any]],
+    name: str,
+) -> dict[str, Any]:
+    matches = [row for row in venues if row.get("canonical_name_ja") == name]
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"STOP/INCONCLUSIVE: expected one live venue named {name!r}, got {len(matches)}"
+        )
+    return deepcopy(matches[0])
+
+
+def _build_frozen_new_venues(
+    snapshot: dict[str, Any],
+    live_venues: list[dict[str, Any]],
+    *,
+    captured_at: str,
+) -> dict[str, dict[str, Any]]:
+    frozen_ids = snapshot.get("frozen_new_venue_ids")
+    if not isinstance(frozen_ids, dict):
+        frozen_ids = {}
+    missing = [name for name in NEW_TIFF_VENUE_NAMES if not frozen_ids.get(name)]
+    if missing:
+        raise RuntimeError(
+            "STOP/INCONCLUSIVE: missing frozen new venue ID for: " + ", ".join(missing)
+        )
+    ids = [str(frozen_ids[name]) for name in NEW_TIFF_VENUE_NAMES]
+    if any(not _valid_uuid(value) for value in ids) or len(set(ids)) != len(ids):
+        raise RuntimeError("STOP/INCONCLUSIVE: frozen new venue IDs are invalid or duplicate")
+    from _oneoff_seed_authoritative_venues import SEED_DATA
+
+    seeds = {
+        str(row.get("canonical_name_ja")): row
+        for row in SEED_DATA
+        if row.get("canonical_name_ja") in NEW_TIFF_VENUE_NAMES
+    }
+    if set(seeds) != set(NEW_TIFF_VENUE_NAMES):
+        raise RuntimeError("STOP/INCONCLUSIVE: TIFF venue desired-state seeds are incomplete")
+    rows: dict[str, dict[str, Any]] = {}
+    for name, venue_id in zip(NEW_TIFF_VENUE_NAMES, ids, strict=True):
+        seed = seeds[name]
+        row = {
+            "id": venue_id,
+            "canonical_name_ja": seed.get("canonical_name_ja"),
+            "canonical_name_zh": seed.get("canonical_name_zh"),
+            "canonical_name_en": seed.get("canonical_name_en"),
+            "address": seed.get("address"),
+            "prefecture": seed.get("prefecture"),
+            "city": seed.get("city"),
+            "latitude": None,
+            "longitude": None,
+            "aliases": deepcopy(seed.get("aliases") or []),
+            "notes": None,
+            "created_at": captured_at,
+            "updated_at": captured_at,
+            "is_authoritative": bool(seed.get("is_authoritative")),
+            "is_multi_venue": bool(seed.get("is_multi_venue")),
+            "homepage": seed.get("homepage"),
+            "prefectures": deepcopy(seed.get("prefectures")),
+            "business_hours": seed.get("business_hours"),
+        }
+        by_id = [live for live in live_venues if live.get("id") == venue_id]
+        by_name = [live for live in live_venues if live.get("canonical_name_ja") == name]
+        matches = {str(live.get("id")): live for live in [*by_id, *by_name]}
+        if matches and list(matches.values()) != [row]:
+            raise RuntimeError(
+                f"STOP/INCONCLUSIVE: frozen venue ID/name found third state: {name}"
+            )
+        rows[name] = row
+    return rows
+
+
+def _require_event_fields(event: dict[str, Any], fields: set[str]) -> None:
+    missing = sorted(fields - set(event))
+    if missing:
+        raise RuntimeError(
+            f"STOP/INCONCLUSIVE: event {event.get('id')} lacks complete before columns: {missing}"
+        )
+
+
+def _fc_image_for(
+    event_id: str,
+    target_fields: list[str],
+    rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    ordered_rows = sorted((deepcopy(row) for row in rows), key=row_sort_key)
+    present = {str(row["field_name"]) for row in ordered_rows}
+    return {
+        "event_id": event_id,
+        "target_fields": target_fields,
+        "rows": ordered_rows,
+        "absent_fields": sorted(set(target_fields) - present),
+    }
+
+
+def _generated_fc_row(
+    event_id: str,
+    field_name: str,
+    corrected_value: str,
+) -> dict[str, Any]:
+    return {
+        "id": None,
+        "event_id": event_id,
+        "field_name": field_name,
+        "original_value": None,
+        "corrected_value": corrected_value,
+        "corrected_by": None,
+        "report_id": None,
+        "created_at": None,
+    }
+
+
+def _event_fc_action(
+    event: dict[str, Any],
+    fcs: list[dict[str, Any]],
+    desired: dict[str, Any],
+    *,
+    classification: str,
+    conflicts: list[dict[str, Any]] | None = None,
+    dependencies: list[str] | None = None,
+) -> dict[str, Any]:
+    event_id = str(event["id"])
+    target_fields = sorted(desired)
+    _require_event_fields(event, set(target_fields))
+    before_event = deepcopy(event)
+    before_rows = sorted((deepcopy(row) for row in fcs), key=row_sort_key)
+    target_rows: dict[str, dict[str, Any]] = {}
+    derived_conflicts = deepcopy(conflicts or [])
+    for field_name in target_fields:
+        matches = [row for row in before_rows if row["field_name"] == field_name]
+        if len(matches) > 1:
+            derived_conflicts.append(
+                {
+                    "type": "duplicate_target_field_correction",
+                    "field_name": field_name,
+                    "field_correction_ids": sorted(str(row["id"]) for row in matches),
+                }
+            )
+        elif matches:
+            target_rows[field_name] = matches[0]
+    derived_conflicts.extend(
+        {
+            "type": "human_field_correction",
+            "field_name": row["field_name"],
+            "field_correction_id": row["id"],
+        }
+        for row in before_rows
+        if row.get("corrected_by") is not None
+    )
+    if (
+        "submission_url" in desired
+        and event.get("submission_url")
+        and event.get("submission_url") != desired.get("submission_url")
+    ):
+        derived_conflicts.append(
+            {
+                "type": "submission_url_conflict",
+                "before": event.get("submission_url"),
+                "after": desired.get("submission_url"),
+            }
+        )
+    unique_conflicts = {
+        canonical_json_bytes(conflict): conflict
+        for conflict in derived_conflicts
+    }
+    ordered_conflicts = sorted(unique_conflicts.values(), key=canonical_json_bytes)
+    before_fc = _fc_image_for(event_id, target_fields, before_rows)
+    before = {
+        "venue": None,
+        "event": before_event,
+        "field_corrections": before_fc,
+        "venue_references": [],
+    }
+    evidence = {
+        "complete": True,
+        "source": "complete_live_snapshot",
+        "classification": classification,
+        "event_id": event_id,
+        "target_fields": target_fields,
+    }
+    if ordered_conflicts:
+        after = deepcopy(before)
+        return {
+            "id": event_id,
+            "type": "event_fc",
+            "dependencies": list(dependencies or []),
+            "eligibility": {"status": "review_conflict", "reason": classification},
+            "evidence": evidence,
+            "before": before,
+            "after": after,
+            "apply_expected": deepcopy(before),
+            "rollback_expected": deepcopy(after),
+            "apply_operations": [],
+            "rollback_operations": [],
+            "conflicts": ordered_conflicts,
+            "skips": [],
+            "already_applied": [],
+            "volatile_event_fields": ["updated_at"] if "updated_at" in event else [],
+        }
+
+    after_event = {**before_event, **deepcopy(desired)}
+    after_rows = [
+        deepcopy(row)
+        for row in before_rows
+        if row["field_name"] not in set(target_fields)
+    ]
+    apply_operations: list[dict[str, Any]] = []
+    rollback_operations: list[dict[str, Any]] = []
+    for field_name in target_fields:
+        before_row = target_rows.get(field_name)
+        desired_fc_value = fc_text(desired[field_name])
+        after_row = (
+            {**deepcopy(before_row), "corrected_value": desired_fc_value}
+            if before_row is not None
+            else _generated_fc_row(event_id, field_name, desired_fc_value)
+        )
+        after_rows.append(after_row)
+        if (
+            before_event.get(field_name) == desired[field_name]
+            and before_row is not None
+            and before_row.get("corrected_value") == desired_fc_value
+        ):
+            continue
+        operation = {
+            "field_name": field_name,
+            "mode": "lock_empty" if desired[field_name] is None else "lock_clean",
+            "new_value": deepcopy(desired[field_name]),
+            "expected_event_value": deepcopy(before_event.get(field_name)),
+            "expected_fc": deepcopy(before_row),
+            "report_id": before_row.get("report_id") if before_row else None,
+        }
+        apply_operations.append(operation)
+        restore_mode = "lock_empty" if before_event.get(field_name) is None else "lock_clean"
+        restored_fc = (
+            {**deepcopy(after_row), "corrected_value": fc_text(before_event.get(field_name))}
+            if before_row is None
+            else deepcopy(before_row)
+        )
+        rollback_operations.insert(
+            0,
+            {
+                "field_name": field_name,
+                "mode": restore_mode,
+                "new_value": deepcopy(before_event.get(field_name)),
+                "expected_event_value": deepcopy(desired[field_name]),
+                "expected_fc": deepcopy(after_row),
+                "report_id": before_row.get("report_id") if before_row else None,
+            },
+        )
+        if before_row is None:
+            rollback_operations.insert(
+                1,
+                {
+                    "field_name": field_name,
+                    "mode": "unlock_only",
+                    "new_value": None,
+                    "expected_event_value": deepcopy(before_event.get(field_name)),
+                    "expected_fc": restored_fc,
+                    "report_id": None,
+                },
+            )
+    after_rows.sort(key=row_sort_key)
+    after_fc = _fc_image_for(event_id, target_fields, after_rows)
+    after = {
+        "venue": None,
+        "event": after_event,
+        "field_corrections": after_fc,
+        "venue_references": [],
+    }
+    skips = [] if apply_operations else [{"reason": "exact_desired_state_and_fc_locks"}]
+    status = "eligible" if apply_operations else "skip"
+    return {
+        "id": event_id,
+        "type": "event_fc",
+        "dependencies": list(dependencies or []),
+        "eligibility": {"status": status, "reason": classification},
+        "evidence": evidence,
+        "before": before,
+        "after": after,
+        "apply_expected": deepcopy(before),
+        "rollback_expected": deepcopy(after),
+        "apply_operations": apply_operations,
+        "rollback_operations": rollback_operations,
+        "conflicts": [],
+        "skips": skips,
+        "already_applied": [],
+        "volatile_event_fields": ["updated_at"] if "updated_at" in event else [],
+    }
+
+
+def _venue_insert_action(
+    row: dict[str, Any],
+    *,
+    after_references: list[str],
+) -> dict[str, Any]:
+    before = empty_state_image()
+    after = empty_state_image()
+    after["venue"] = deepcopy(row)
+    after["venue_references"] = sorted(after_references)
+    return {
+        "id": str(row["id"]),
+        "type": "venue_insert",
+        "dependencies": [],
+        "eligibility": {"status": "eligible", "reason": "frozen_tiff_venue_insert"},
+        "evidence": {
+            "complete": True,
+            "source": "complete_live_snapshot",
+            "classification": "tiff_venue_insert",
+            "canonical_name_ja": row["canonical_name_ja"],
+            "frozen_id": row["id"],
+        },
+        "before": before,
+        "after": after,
+        "apply_expected": deepcopy(before),
+        "rollback_expected": deepcopy(after),
+        "apply_operations": [],
+        "rollback_operations": [],
+        "conflicts": [],
+        "skips": [],
+        "already_applied": [],
+        "volatile_event_fields": [],
+    }
+
+
+def _venue_delete_action(
+    row: dict[str, Any],
+    *,
+    references: list[str],
+    dependencies: list[str],
+    conflicts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    before = empty_state_image()
+    before["venue"] = deepcopy(row)
+    before["venue_references"] = sorted(references)
+    after = empty_state_image()
+    status = "review_conflict" if conflicts else "eligible"
+    return {
+        "id": str(row["id"]),
+        "type": "venue_delete",
+        "dependencies": list(dependencies),
+        "eligibility": {"status": status, "reason": "zero_reference_duplicate_delete"},
+        "evidence": {
+            "complete": True,
+            "source": "complete_live_snapshot",
+            "classification": "tcc_duplicate_delete",
+            "live_references": sorted(references),
+        },
+        "before": before,
+        "after": after,
+        "apply_expected": deepcopy(before),
+        "rollback_expected": deepcopy(after),
+        "apply_operations": [],
+        "rollback_operations": [],
+        "conflicts": sorted(deepcopy(conflicts), key=canonical_json_bytes),
+        "skips": [],
+        "already_applied": [],
+        "volatile_event_fields": [],
+    }
+
+
+def _single_venue_event_fields(venue: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "venue_id": venue["id"],
+        "location_name": venue.get("canonical_name_ja"),
+        "location_name_zh": venue.get("canonical_name_zh"),
+        "location_name_en": venue.get("canonical_name_en"),
+        "location_address": venue.get("address"),
+        "location_address_zh": None,
+        "location_address_en": None,
+        "location_prefectures": deepcopy(venue.get("prefectures")),
+        "location_url": venue.get("homepage"),
+    }
+
+
+def _multi_entity_event_fields(venue: dict[str, Any]) -> dict[str, Any]:
+    fields = _single_venue_event_fields(venue)
+    fields.update(
+        {
+            "location_address": None,
+            "location_address_zh": None,
+            "location_address_en": None,
+        }
+    )
+    return fields
+
+
+def _multi_venue_event_fields(venues: list[dict[str, Any]]) -> dict[str, Any]:
+    def joined(field_name: str) -> str | None:
+        values = [str(venue[field_name]) for venue in venues if venue.get(field_name)]
+        return "・".join(values) or None
+
+    prefectures: list[str] = []
+    for venue in venues:
+        for prefecture in venue.get("prefectures") or []:
+            if prefecture not in prefectures:
+                prefectures.append(prefecture)
+    return {
+        "venue_id": None,
+        "location_name": joined("canonical_name_ja"),
+        "location_name_zh": joined("canonical_name_zh"),
+        "location_name_en": joined("canonical_name_en"),
+        "location_address": None,
+        "location_address_zh": None,
+        "location_address_en": None,
+        "location_prefectures": prefectures or None,
+        "location_url": None,
+    }
+
+
+def _venue_precondition_conflicts(
+    event: dict[str, Any],
+    *,
+    allowed: set[str | None],
+) -> list[dict[str, Any]]:
+    if event.get("venue_id") in allowed:
+        return []
+    return [
+        {
+            "type": "unexpected_venue_id",
+            "before": event.get("venue_id"),
+            "allowed": sorted("null" if value is None else value for value in allowed),
+        }
+    ]
+
+
+def _url_matches_kind(url: str, kind: str) -> bool:
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in {"http", "https"} or not host:
+        return False
+    if kind == "forms":
+        return host == "forms.gle" or host == "docs.google.com" and "/forms" in parsed.path
+    if kind == "peatix":
+        return host == "peatix.com" or host.endswith(".peatix.com")
+    return kind == "grant"
+
+
+def _url_rehome(
+    event: dict[str, Any],
+    *,
+    kind: str,
+    final_location_url: str | None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    current_location = event.get("location_url")
+    current_submission = event.get("submission_url")
+    location_candidate = (
+        current_location
+        if isinstance(current_location, str) and _url_matches_kind(current_location, kind)
+        else None
+    )
+    submission_candidate = (
+        current_submission
+        if isinstance(current_submission, str) and _url_matches_kind(current_submission, kind)
+        else None
+    )
+    candidate = location_candidate or submission_candidate
+    conflicts: list[dict[str, Any]] = []
+    if candidate is None:
+        conflicts.append(
+            {
+                "type": "url_ownership_unproven",
+                "kind": kind,
+                "location_url": current_location,
+                "submission_url": current_submission,
+            }
+        )
+        candidate = current_submission
+    if current_submission and current_submission != candidate:
+        conflicts.append(
+            {
+                "type": "submission_url_conflict",
+                "before": current_submission,
+                "after": candidate,
+            }
+        )
+    if current_location not in {candidate, final_location_url, None}:
+        conflicts.append(
+            {
+                "type": "location_url_ownership_conflict",
+                "before": current_location,
+                "after": final_location_url,
+            }
+        )
+    return {
+        "submission_url": candidate,
+        "location_url": final_location_url,
+    }, conflicts
+
+
+def _normalize_location_text(value: Any) -> str:
+    return " ".join(str(value or "").replace("　", " ").split()).casefold()
+
+
+def _tcc_cohort_conflicts(
+    event: dict[str, Any],
+    tcc: dict[str, Any],
+) -> list[dict[str, Any]]:
+    names = [
+        event.get("location_name"),
+        event.get("location_name_zh"),
+        event.get("location_name_en"),
+    ]
+    addresses = [
+        event.get("location_address"),
+        event.get("location_address_zh"),
+        event.get("location_address_en"),
+    ]
+    text = " ".join(str(value or "") for value in [*names, *addresses])
+    conflicts: list[dict[str, Any]] = []
+    if _ONLINE_RE.search(text) or "online" in (event.get("event_form") or []):
+        conflicts.append({"type": "tcc_cohort_online"})
+    prefectures = event.get("location_prefectures")
+    if prefectures != ["東京都"]:
+        conflicts.append(
+            {"type": "tcc_cohort_not_tokyo_only", "location_prefectures": prefectures}
+        )
+    if len(prefectures or []) > 1 or "multi_venue" in (event.get("event_form") or []):
+        conflicts.append({"type": "tcc_cohort_multi_venue"})
+    allowed_names = {
+        _normalize_location_text(value)
+        for value in (
+            tcc.get("canonical_name_ja"),
+            tcc.get("canonical_name_zh"),
+            tcc.get("canonical_name_en"),
+            *(tcc.get("aliases") or []),
+            "台湾文化センター",
+            "台湾文化中心",
+            "台灣文化中心",
+            "Taiwan Cultural Center",
+        )
+        if value
+    }
+    distinct_names = sorted(
+        str(value)
+        for value in names
+        if value and _normalize_location_text(value) not in allowed_names
+    )
+    if distinct_names:
+        conflicts.append(
+            {"type": "tcc_cohort_distinct_location_name", "values": distinct_names}
+        )
+    current_address = _normalize_location_text(tcc.get("address"))
+    distinct_addresses = sorted(
+        str(value)
+        for value in addresses
+        if value
+        and _normalize_location_text(value) != current_address
+        and "南青山" not in str(value)
+    )
+    if distinct_addresses:
+        conflicts.append(
+            {"type": "tcc_cohort_distinct_location_address", "values": distinct_addresses}
+        )
+    if not any(names) and not any(addresses):
+        conflicts.append({"type": "tcc_cohort_ambiguous_location"})
+    unique = {canonical_json_bytes(conflict): conflict for conflict in conflicts}
+    return sorted(unique.values(), key=canonical_json_bytes)
+
+
+def _validated_reference_set(
+    reference_sets: dict[str, Any],
+    *,
+    venue_id: str,
+    events_by_id: dict[str, dict[str, Any]],
+) -> list[str]:
+    references = reference_sets.get(venue_id)
+    if not isinstance(references, list) or references != sorted(set(references)):
+        raise RuntimeError(
+            f"STOP/INCONCLUSIVE: venue reference set is incomplete or unsorted: {venue_id}"
+        )
+    missing = sorted(set(references) - set(events_by_id))
+    if missing:
+        raise RuntimeError(
+            f"STOP/INCONCLUSIVE: referenced event rows are missing for {venue_id}: {missing}"
+        )
+    observed = sorted(
+        event_id
+        for event_id, event in events_by_id.items()
+        if event.get("venue_id") == venue_id
+    )
+    if observed != references:
+        raise RuntimeError(
+            f"STOP/INCONCLUSIVE: venue reference snapshot mismatch for {venue_id}: "
+            f"declared={references} observed={observed}"
+        )
+    return list(references)
 
 
 def canonical_json_bytes(value: Any) -> bytes:
@@ -962,6 +2056,9 @@ def execute_venue_action(
         raise RuntimeError(f"unsupported venue action: {action['type']}")
     observed = observe_action(sb, action)
     expected = action["after"] if direction == "apply" else action["before"]
+    if direction == "apply" and action["type"] == "venue_insert":
+        expected = deepcopy(expected)
+        expected["venue_references"] = deepcopy(action["before"]["venue_references"])
     if direction == "rollback" and action["type"] == "venue_delete":
         expected = deepcopy(action["before"])
         expected["venue_references"] = deepcopy(action["after"]["venue_references"])

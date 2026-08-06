@@ -116,15 +116,15 @@ description: authoritative-venue-repair 的隔離、實作、驗證與兩階段 
 
 ## Phase 7: Production action classification tests
 
-* [ ] TCC six migrate 與 three attach actions 精確命中完整 UUID
-* [ ] Japanese duplicate three historical、eight false、two multi/non-event unlink actions
-* [ ] Chinese duplicate historical-text-preserving unlink action
-* [ ] Online grant pure-online canonical fields 與 malformed system FC repair
-* [ ] 四個 URL rehome actions 保持 URL ownership
-* [ ] Canonical-linked complete live cohort 依 eligibility 重分類，不硬湊 29
-* [ ] TIFF parent、single Chanter 與三個 ordered multi-venue actions
-* [ ] Century keep-FK rewrite 與 attach-FK actions
-* [ ] 全 action tests 檢查 mutation payload、CAS、read-back、conflict 與 idempotency
+* [x] TCC six migrate 與 three attach actions 精確命中完整 UUID
+* [x] Japanese duplicate three historical、eight false、two multi/non-event unlink actions
+* [x] Chinese duplicate historical-text-preserving unlink action
+* [x] Online grant pure-online canonical fields 與 malformed system FC repair
+* [x] 四個 URL rehome actions 保持 URL ownership
+* [x] Canonical-linked complete live cohort 依 eligibility 重分類，不硬湊 29
+* [x] TIFF parent、single Chanter 與三個 ordered multi-venue actions
+* [x] Century keep-FK rewrite 與 attach-FK actions
+* [x] 全 action tests 檢查 mutation payload、CAS、read-back、conflict 與 idempotency
 
 ## Phase 8: Engineer validation
 
