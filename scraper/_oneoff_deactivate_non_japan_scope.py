@@ -31,6 +31,7 @@ STABLE_FIELDS = (
     "location_address",
     "location_prefectures",
     "annotation_status",
+    "parent_event_id",
 )
 BEFORE_IMAGE_FIELDS = (
     "id",
@@ -396,14 +397,17 @@ def validate_target_state(
 
 
 def build_manifest_from_rows(
-    rows: list[dict[str, Any]], *, created_at_utc: str | None = None
+    rows: list[dict[str, Any]],
+    *,
+    created_at_utc: str | None = None,
+    captured_relations: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     resolved = resolve_target_rows(rows)
     captured_evidence = {
         spec.prefix: validate_evidence(row, spec) for spec, row in resolved
     }
     target_ids = {str(row["id"]) for _spec, row in resolved}
-    relations = inspect_relations(rows, target_ids)
+    relations = captured_relations or inspect_relations(rows, target_ids)
     warnings = validate_target_state(resolved, relations, stage="snapshot")
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -439,7 +443,15 @@ def build_manifest_from_rows(
 
 def build_snapshot(sb: Any, *, created_at_utc: str | None = None) -> dict[str, Any]:
     rows = fetch_all_event_rows(sb, SNAPSHOT_QUERY_FIELDS)
-    return build_manifest_from_rows(rows, created_at_utc=created_at_utc)
+    resolved = resolve_target_rows(rows)
+    current = {str(row["id"]): row for _spec, row in resolved}
+    target_ids = set(current)
+    relations = fetch_target_relations(sb, current, target_ids)
+    return build_manifest_from_rows(
+        rows,
+        created_at_utc=created_at_utc,
+        captured_relations=relations,
+    )
 
 
 def write_manifest(path: Path, manifest: dict[str, Any]) -> None:
@@ -600,6 +612,23 @@ def fetch_exact_manifest_rows(sb: Any, targets: list[dict[str, Any]]) -> dict[st
     return current
 
 
+def fetch_target_relations(
+    sb: Any, current: dict[str, dict[str, Any]], target_ids: set[str]
+) -> dict[str, Any]:
+    columns = ",".join(RELATION_QUERY_FIELDS)
+    children = execute_rows(
+        sb.table("events")
+        .select(columns)
+        .in_("parent_event_id", sorted(target_ids))
+    )
+    target_rows = [
+        {field: current[event_id].get(field) for field in RELATION_QUERY_FIELDS}
+        for event_id in sorted(target_ids)
+    ]
+    external_children = [row for row in children if row.get("id") not in target_ids]
+    return inspect_relations([*target_rows, *external_children], target_ids)
+
+
 def preflight_apply(sb: Any, targets: list[dict[str, Any]]) -> list[str]:
     current = fetch_exact_manifest_rows(sb, targets)
     issues: list[str] = []
@@ -619,9 +648,8 @@ def preflight_apply(sb: Any, targets: list[dict[str, Any]]) -> list[str]:
             warnings.append(
                 f"updated_at_only_drift={event_id} before={before.get('updated_at')} current={row.get('updated_at')}"
             )
-    relation_rows = fetch_all_event_rows(sb, RELATION_QUERY_FIELDS)
     target_ids = {target["id"] for target in targets}
-    relations = inspect_relations(relation_rows, target_ids)
+    relations = fetch_target_relations(sb, current, target_ids)
     if relations["target_parents"]:
         issues.append(f"targets have parent_event_id={relations['target_parents']}")
     if relations["active_children"]:
@@ -670,13 +698,25 @@ def cas_deactivate(sb: Any, target: dict[str, Any], apply_timestamp: str) -> lis
         "deactivated_at": apply_timestamp,
         "deactivated_by_pass": DEACTIVATED_BY_PASS,
     }
-    return execute_rows(
+    query = (
         sb.table("events")
         .update(payload)
         .eq("id", target["id"])
         .eq("is_active", True)
-        .select("id")
     )
+    for field in STABLE_FIELDS:
+        value = target["before"][field]
+        if value is None:
+            query = query.is_(field, "null")
+        elif isinstance(value, list):
+            escaped = [
+                '"' + item.replace("\\", "\\\\").replace('"', '\\"') + '"'
+                for item in value
+            ]
+            query = query.filter(field, "eq", "{" + ",".join(escaped) + "}")
+        else:
+            query = query.eq(field, value)
+    return execute_rows(query.select("id"))
 
 
 def apply_manifest(
