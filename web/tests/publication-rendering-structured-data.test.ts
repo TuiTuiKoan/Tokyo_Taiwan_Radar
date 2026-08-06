@@ -54,6 +54,7 @@ test("acceptance matrix: pure publication fixtures hide event-only surfaces", ()
 
   const detailPolicy = getDetailPresentationPolicy(pureBookFixture);
   assert.equal(detailPolicy.showEndDate, false);
+  assert.equal(detailPolicy.showVenue, false);
   assert.equal(detailPolicy.showAddress, false);
   assert.equal(detailPolicy.showBusinessHours, false);
   assert.equal(detailPolicy.showPrice, false);
@@ -64,6 +65,7 @@ test("acceptance matrix: pure publication fixtures hide event-only surfaces", ()
 
   assert.deepEqual(getReportExcludedDetailFields(pureBookFixture), [
     "end_date",
+    "venue",
     "address",
     "business_hours",
     "price",

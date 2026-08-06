@@ -9,6 +9,10 @@ import {
   normalizeEventForms,
   type Event,
 } from "../lib/types";
+import {
+  getDetailPresentationPolicy,
+  getReportExcludedDetailFields,
+} from "../lib/publicationPresentation";
 
 function fixture(overrides: Partial<Event>): Event {
   return {
@@ -120,4 +124,28 @@ test("ordinary non-publication event keeps event presentation", () => {
   assert.equal(flags.hidePrice, false);
   assert.equal(flags.hideCalendar, false);
   assert.equal(flags.hideEventStatus, false);
+});
+
+test("detail policy hides the venue row only for pure publications", () => {
+  assert.equal(getDetailPresentationPolicy(fixture({ event_form: ["publication"] })).showVenue, false);
+  assert.equal(getDetailPresentationPolicy(fixture({ event_form: ["screening"] })).showVenue, true);
+});
+
+test("venue is not reportable when the venue row is hidden", () => {
+  assert.ok(
+    getReportExcludedDetailFields(fixture({ event_form: ["publication"] })).includes("venue")
+  );
+  assert.deepEqual(getReportExcludedDetailFields(fixture({ event_form: ["screening"] })), []);
+});
+
+test("noisy event_form values still resolve to pure and hide the venue", () => {
+  const noisy = fixture({ event_form: [" publication ", "publication", ""] });
+  assert.equal(getDetailPresentationPolicy(noisy).showVenue, false);
+  assert.ok(getReportExcludedDetailFields(noisy).includes("venue"));
+});
+
+test("mixed publication form keeps the venue row visible", () => {
+  const mixed = fixture({ event_form: ["publication", "lecture"] });
+  assert.equal(getDetailPresentationPolicy(mixed).showVenue, true);
+  assert.deepEqual(getReportExcludedDetailFields(mixed), []);
 });

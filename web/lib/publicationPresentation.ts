@@ -12,6 +12,7 @@ export type WrongDetailField =
 
 export const PURE_PUBLICATION_EXCLUDED_REPORT_FIELDS: WrongDetailField[] = [
   "end_date",
+  "venue",
   "address",
   "business_hours",
   "price",
@@ -20,6 +21,7 @@ export const PURE_PUBLICATION_EXCLUDED_REPORT_FIELDS: WrongDetailField[] = [
 export interface DetailPresentationPolicy {
   isPurePublication: boolean;
   showEndDate: boolean;
+  showVenue: boolean;
   showAddress: boolean;
   showBusinessHours: boolean;
   showPrice: boolean;
@@ -42,6 +44,7 @@ export function getDetailPresentationPolicy(
   return {
     isPurePublication: flags.isPurePublication,
     showEndDate: !flags.hideEnd,
+    showVenue: !flags.hideVenue,
     showAddress: !flags.hideVenue,
     showBusinessHours: !flags.hideHours,
     showPrice: !flags.hidePrice,
