@@ -538,3 +538,25 @@ def test_cli_requires_complete_apply_contract_and_mutually_exclusive_modes():
     with pytest.raises(SystemExit) as conflicting_modes:
         cleanup.main(["--snapshot", "--apply", "--out", "manifest.json"])
     assert conflicting_modes.value.code == 2
+
+
+def test_cli_blocks_apply_before_manifest_or_database_access(monkeypatch, capsys):
+    def unexpected_access(*_args, **_kwargs):
+        raise AssertionError("disabled apply accessed production dependencies")
+
+    monkeypatch.setattr(cleanup, "load_manifest", unexpected_access)
+    monkeypatch.setattr(cleanup, "get_supabase", unexpected_access)
+
+    with pytest.raises(SystemExit) as blocked:
+        cleanup.main(
+            [
+                "--apply",
+                "--manifest",
+                "manifest.json",
+                "--expect-digest",
+                "0" * 64,
+            ]
+        )
+
+    assert blocked.value.code == 2
+    assert cleanup.APPLY_DISABLED_MESSAGE in capsys.readouterr().err
