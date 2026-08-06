@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-08-06 - predicate projection must carry the domain invariant
+
+**Error**: NDL year-only publication metadata is validly normalized to `YYYY-01-01`; this is not a date extraction failure. The January placeholder exemption must use the exact-pure domain invariant, normalized `event_form == ['publication']`, and must not fall back to an `ndl_opensearch` source whitelist. Mixed records such as `['publication', 'lecture']` remain subject to the January placeholder check, and `start_date=None` must still be reported. The root-cause change made `_check_missing_date()` depend on `event_form`, but `_detect_missing_date()` omitted `event_form` from its PostgREST `.select()`, so the predicate received an incomplete row. The initial fake ignored projection and always returned the full dict, so it could not kill a column-removal mutation.
+
+**Fix**: Added `event_form` to the select, made the projection-aware fake parse the projection and remove undeclared fields, and made the test explicitly assert that the required column is selected. Removing that column now makes the behavior test fail. The one-off cleanup defaults to dry-run, requires `--apply`, uses an `id + status='pending'` compare-and-set, and processes only single-token reports. It dismissed 31 false positives, retained four true missing-date reports, and left `events` unchanged.
+
+**Lesson**: Query projection is part of the predicate behavior contract. Root-cause code, regression test, and cleanup tool form one release unit. Nightly cron protection may be claimed only after the guard is present on `origin/main`; a pre-push branch must not claim that production cron is already protected.
+
+---
+
 ## 2026-07-20 - public Server Action runtime input and correction-first failure semantics
 
 **Error**: G4a Slice 3 的 injected-client core 只依賴 TypeScript 宣告，對 ID 與 category 元素直接呼叫 `.trim()`。`undefined`、`null`、非字串陣列元素或 malformed form 可在 Server Action runtime 拋例外。Correction-first 路徑也缺少 correction 成功後 event update error 或 0-row 的回歸測試，容易把 non-transactional partial write 誤報為成功或 rollback。
