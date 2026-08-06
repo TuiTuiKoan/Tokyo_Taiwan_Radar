@@ -233,6 +233,66 @@ no feature command wrote, staged, stashed, cleaned, or restored any main-worktre
 No push, manifest preview or capture, repair apply or rollback, production query, production
 write, or other production mutation was executed. Phase 9 and Gate 1 remain entirely open.
 
+### Tester correction cycle 1 triage (2026-08-06)
+
+This targeted cycle rechecked causality against exact feature base
+`f3884ebaf5b10e151e4676f5ea3e92fdf96838f1` and pre-triage HEAD
+`1c8b577430c91975f192aa5bb69b2a33ba82f774` before making this docs-only update.
+
+Exact causality evidence:
+
+* `git diff f3884eba..HEAD -- scraper/sources/starcat_cinema.py` contains exactly one
+  changed line: Century's address changed from the old Skyle building value to
+  `愛知県名古屋市中区栄3-29-1 名古屋パルコ東館8F`. The base and HEAD blobs are
+  `aae4e54055990e2f9dca33fb2f25bedaed8f46f5` and
+  `98472124472da13bfcbd4df3a5fc9023f03a12f5` because of that line alone.
+* The Starcat control path from `_build_ticket_schedule()` through
+  `Event(end_date=schedule_end)` is byte-identical at base and HEAD. Both extracted regions
+  have SHA-256
+  `d7c258a0a744580813c8cff2dafde9d306d88af7fae83edbe826a03e87ef2da9`.
+  Commit `e2afa4eba5b18985078b8c2f15060702ce2e52fa` therefore changed the Century
+  address, not date parsing or schedule lookup.
+* `git diff --exit-code f3884eba..HEAD -- scraper/sources/taiwan_cultural_center.py`
+  returned 0. The base and HEAD writer blobs are both
+  `a1ec1f349f584859410a241f6817b77a958fecf3`, proving zero TCC production-writer
+  change in this feature.
+
+Focused rerun evidence:
+
+* `python -m pytest tests/test_fixed_source_venue_contracts.py -vv -ra` passed all four
+  tests. The contracts preserve current Johakyu addresses, the Century PARCO address,
+  registry-owned facility homepages, and ticket-schedule URL ownership.
+* `python -m pytest tests/test_taiwan_cultural_center_location.py -vv -ra` passed all
+  15 tests with eight existing `datetime.utcnow()` warnings. Default-center, explicit
+  external, multi-city, online, and mixed-batch location behavior remained intact.
+* The guarded Starcat dry-run returned five events and made zero DB access attempts.
+  Its one Century event used the corrected PARCO address, and the ticket URL appeared in
+  none of `source_url`, `official_url`, or `location_url`. The output still exposed
+  `鯨が消えた入り江` with `start=2026-08-20` and `end=2026-08-13`.
+* The guarded Johakyu dry-run found two schedule sections, parsed all six dated week
+  headers, and returned zero events with zero DB access attempts. The live page contained
+  59 valid-title candidates among 67 item containers; eight containers were placeholders.
+  The production path checked 24 deduplicated external references, received 21 nonempty
+  texts, and found zero Taiwan hits in titles or external text. This is a current-source
+  no-relevant-match result, not a zero-candidate or parser-health implementation gap.
+
+The following three residual risks remain visible and intentionally unfixed:
+
+* Starcat emits one inverted date range. Exact byte identity of the full date-control path
+  proves this is pre-existing, while the governing scope permits only the Century address
+  update and forbids event-date changes.
+* The Tester-observed 20 TCC dry-run events retain noncanonical `culture`. The TCC writer
+  blob is identical to the feature base, and the governing scope forbids category changes
+  and requires production-writer zero diff.
+* The Tester-observed five TCC publish-date fallbacks, including at least four incorrect or
+  truncated dates, also come from the byte-identical baseline writer. Date correction is
+  expressly outside this venue-only feature.
+
+The Phase 8 broad Starcat dry-run PASS checkbox remains unchecked because the inverted date
+is still present. Phase 9 and Gate 1 remain unchecked. This correction cycle changed no
+scraper production code, performed no production query or mutation, captured no manifest,
+and did not push.
+
 ## Phase 9: Independent Tester
 
 * [ ] Tester 重新執行完整 focused 與 broad validation matrix
