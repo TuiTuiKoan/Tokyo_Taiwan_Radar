@@ -1,0 +1,138 @@
+[
+  {
+    "film_identifier": "38005WFC13",
+    "title_ja": "エイプリル",
+    "title_en": "April",
+    "original_title": "丟包阿公到我家",
+    "made_in_en": "Taiwan",
+    "director_ja": "フレディ・タン",
+    "acts": [
+      {
+        "act_date": "2025-10-31 00:00:00",
+        "play_at": "15:20:00",
+        "end_at": "17:46:00",
+        "venue_id": 23,
+        "ticket_price_ja": "一般&yen;1800 学生&yen;1400",
+        "ticket_price_en": "Adult &yen;1800<br/>Student &yen;1400"
+      },
+      {
+        "act_date": "2025-11-02 00:00:00",
+        "play_at": "16:40:00",
+        "end_at": "18:36:00",
+        "venue_id": 9,
+        "ticket_price_ja": "一般&yen;1800 学生&yen;1400",
+        "ticket_price_en": "Adult &yen;1800<br/>Student &yen;1400"
+      },
+      {
+        "act_date": "2025-11-04 00:00:00",
+        "play_at": "10:15:00",
+        "end_at": "12:11:00",
+        "venue_id": 33,
+        "ticket_price_ja": "一般&yen;1800 学生&yen;1400",
+        "ticket_price_en": "Adult &yen;1800<br/>Student &yen;1400"
+      }
+    ]
+  },
+  {
+    "film_identifier": "38005WFC14",
+    "title_ja": "木々の隙間",
+    "title_en": "Crown Shyness",
+    "original_title": "樹冠羞避",
+    "made_in_en": "Taiwan",
+    "director_ja": "チャン・ジュンユー",
+    "acts": [
+      {
+        "act_date": "2025-10-30 00:00:00",
+        "play_at": "11:10:00",
+        "end_at": "12:30:00",
+        "venue_id": 8,
+        "ticket_price_ja": "一般&yen;1800 学生&yen;1400",
+        "ticket_price_en": "Adult &yen;1800<br/>Student &yen;1400"
+      },
+      {
+        "act_date": "2025-11-01 00:00:00",
+        "play_at": "21:10:00",
+        "end_at": "23:00:00",
+        "venue_id": 8,
+        "ticket_price_ja": "一般&yen;1800 学生&yen;1400",
+        "ticket_price_en": "Adult &yen;1800<br/>Student &yen;1400"
+      },
+      {
+        "act_date": "2025-11-05 00:00:00",
+        "play_at": "10:50:00",
+        "end_at": "12:10:00",
+        "venue_id": 8,
+        "ticket_price_ja": "一般&yen;1800 学生&yen;1400",
+        "ticket_price_en": "Adult &yen;1800<br/>Student &yen;1400"
+      }
+    ]
+  },
+  {
+    "film_identifier": "38005WFC15",
+    "title_ja": "ダブル・ハピネス",
+    "title_en": "Double Happiness",
+    "original_title": "雙囍",
+    "made_in_en": "Taiwan",
+    "director_ja": "シュー・チェンチエ",
+    "acts": [
+      {
+        "act_date": "2025-10-28 00:00:00",
+        "play_at": "17:40:00",
+        "end_at": "20:20:00",
+        "venue_id": 5,
+        "ticket_price_ja": "一般&yen;1800 学生&yen;1400",
+        "ticket_price_en": "Adult &yen;1800<br/>Student &yen;1400"
+      },
+      {
+        "act_date": "2025-11-02 00:00:00",
+        "play_at": "10:15:00",
+        "end_at": "12:25:00",
+        "venue_id": 5,
+        "ticket_price_ja": "一般&yen;1800 学生&yen;1400",
+        "ticket_price_en": "Adult &yen;1800<br/>Student &yen;1400"
+      },
+      {
+        "act_date": "2025-11-05 00:00:00",
+        "play_at": "15:40:00",
+        "end_at": "17:50:00",
+        "venue_id": 33,
+        "ticket_price_ja": "一般&yen;1800 学生&yen;1400",
+        "ticket_price_en": "Adult &yen;1800<br/>Student &yen;1400"
+      }
+    ]
+  },
+  {
+    "film_identifier": "38005WFC16",
+    "title_ja": "人生は海のように",
+    "title_en": "The Waves Will Carry Us",
+    "original_title": "人生海海",
+    "made_in_en": "Taiwan",
+    "director_ja": "ラウ・ケクフアット",
+    "acts": [
+      {
+        "act_date": "2025-10-27 00:00:00",
+        "play_at": "11:00:00",
+        "end_at": "12:40:00",
+        "venue_id": 8,
+        "ticket_price_ja": "一般&yen;1800 学生&yen;1400",
+        "ticket_price_en": "Adult &yen;1800<br/>Student &yen;1400"
+      },
+      {
+        "act_date": "2025-10-29 00:00:00",
+        "play_at": "17:50:00",
+        "end_at": "20:00:00",
+        "venue_id": 5,
+        "ticket_price_ja": "一般&yen;1800 学生&yen;1400",
+        "ticket_price_en": "Adult &yen;1800<br/>Student &yen;1400"
+      },
+      {
+        "act_date": "2025-11-05 00:00:00",
+        "play_at": "13:00:00",
+        "end_at": "14:40:00",
+        "venue_id": 33,
+        "ticket_price_ja": "一般&yen;1800 学生&yen;1400",
+        "ticket_price_en": "Adult &yen;1800<br/>Student &yen;1400"
+      }
+    ]
+  }
+]

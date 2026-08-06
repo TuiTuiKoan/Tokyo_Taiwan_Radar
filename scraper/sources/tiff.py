@@ -18,7 +18,7 @@ import time
 import random
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 from urllib.request import urlopen
 from urllib.error import URLError
 
@@ -27,6 +27,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 from .base import BaseScraper, Event
 from movie_title_lookup import lookup_movie_titles
+from venue_registry import lookup_venue
 
 logger = logging.getLogger(__name__)
 
@@ -249,8 +250,116 @@ class TiffJpScraper(BaseScraper):
 # ---------------------------------------------------------------------------
 
 _API_URL = "https://api-{year}.tiff-jp.net/api/films"
+_VENUES_API_URL = "https://api-{year}.tiff-jp.net/api/venues"
 _FILM_PAGE_URL = "https://{year}.tiff-jp.net/en/lineup/film_en/{film_id}.html"
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
+_TIFF_CINEMA_NAME_OVERRIDES = {
+    "TOHOシネマズ 日比谷 スクリーン12、13 (東京宝塚ビル地下)": (
+        "TOHOシネマズ 日比谷 スクリーン12・13"
+    ),
+}
+
+
+def _flatten_venue_tree(
+    venues: list[dict[str, Any]],
+) -> tuple[dict[str, dict[str, Any]], dict[str, str | None]]:
+    nodes: dict[str, dict[str, Any]] = {}
+    parents: dict[str, str | None] = {}
+
+    def visit(items: list[dict[str, Any]], parent_key: str | None) -> None:
+        for node in items:
+            if not isinstance(node, dict):
+                continue
+            node_id = node.get("id")
+            node_key = str(node_id) if node_id is not None else None
+            if node_key is not None:
+                nodes[node_key] = node
+                parents[node_key] = parent_key
+            children = node.get("children")
+            if isinstance(children, list):
+                visit(children, node_key or parent_key)
+
+    visit(venues, None)
+    return nodes, parents
+
+
+def _screen_to_nearest_cinema(
+    venues: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    nodes, parents = _flatten_venue_tree(venues)
+    result: dict[str, dict[str, Any]] = {}
+    for node_key, node in nodes.items():
+        if node.get("type") != "screen":
+            continue
+        parent_key = parents.get(node_key)
+        while parent_key is not None:
+            parent = nodes.get(parent_key)
+            if parent is None:
+                break
+            if parent.get("type") == "cinema":
+                result[node_key] = parent
+                break
+            parent_key = parents.get(parent_key)
+    return result
+
+
+def _resolve_film_venues(
+    film: dict[str, Any],
+    screen_map: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]] | None:
+    resolved: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    film_label = film.get("film_identifier") or film.get("title_ja") or "unknown"
+    for act in film.get("acts") or []:
+        screen_id = act.get("venue_id")
+        cinema = screen_map.get(str(screen_id))
+        if cinema is None:
+            logger.warning(
+                "tiff: film %s has unknown TIFF screen venue_id %s; skipping film",
+                film_label,
+                screen_id,
+            )
+            return None
+        api_name = cinema.get("name_ja")
+        registry_name = _TIFF_CINEMA_NAME_OVERRIDES.get(api_name, api_name)
+        venue = lookup_venue(registry_name)
+        if (
+            venue is None
+            or not venue.get("is_authoritative")
+            or venue.get("is_multi_venue")
+            or not venue.get("id")
+            or not venue.get("canonical_name_ja")
+        ):
+            logger.warning(
+                "tiff: unresolved authoritative TIFF venue %r for film %s; "
+                "skipping film",
+                registry_name,
+                film_label,
+            )
+            return None
+        venue_id = str(venue["id"])
+        if venue_id not in seen_ids:
+            resolved.append(venue)
+            seen_ids.add(venue_id)
+    return resolved
+
+
+def _screening_hours(acts: list[dict[str, Any]]) -> str | None:
+    entries: list[str] = []
+    for act in acts:
+        date = str(act.get("act_date") or "")[:10]
+        start = str(act.get("play_at") or act.get("open_at") or "")[:5]
+        end = str(act.get("end_at") or "")[:5]
+        if not date:
+            continue
+        entry = date
+        if start:
+            entry += f" {start}"
+            if end:
+                entry += f"-{end}"
+        if entry not in entries:
+            entries.append(entry)
+    return " / ".join(entries) or None
 
 
 class TiffScraper(BaseScraper):
@@ -263,43 +372,69 @@ class TiffScraper(BaseScraper):
 
     source_name = "tiff"
 
-    def scrape(self) -> list[Event]:
-        year = datetime.now(timezone.utc).year
-        url = _API_URL.format(year=year)
+    def __init__(self, years: list[int] | None = None) -> None:
+        self._years = years
+
+    def _fetch_api(self, url: str, year: int, label: str) -> list[dict[str, Any]] | None:
         try:
             resp = requests.get(url, timeout=15)
             resp.raise_for_status()
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
-            logger.info("tiff: API not available for year %d (%s); returning []", year, exc)
-            return []
+            logger.info(
+                "tiff: %s API not available for year %d (%s); skipping year",
+                label,
+                year,
+                exc,
+            )
+            return None
         except requests.exceptions.HTTPError as exc:
-            logger.warning("tiff: HTTP error from API (%s); returning []", exc)
-            return []
+            logger.warning("tiff: HTTP error from %s API (%s); skipping year", label, exc)
+            return None
         except Exception as exc:
-            logger.warning("tiff: unexpected error fetching API: %s", exc)
-            return []
+            logger.warning("tiff: unexpected error fetching %s API: %s", label, exc)
+            return None
 
         try:
-            films = resp.json()
+            payload = resp.json()
         except Exception as exc:
-            logger.warning("tiff: failed to parse API JSON: %s", exc)
-            return []
+            logger.warning("tiff: failed to parse %s API JSON: %s", label, exc)
+            return None
+        if not isinstance(payload, list):
+            logger.warning("tiff: %s API returned a non-list payload; skipping year", label)
+            return None
+        return [item for item in payload if isinstance(item, dict)]
 
+    def scrape(self) -> list[Event]:
         events: list[Event] = []
-        for film in films:
-            if not isinstance(film, dict):
+        years = self._years or [datetime.now(timezone.utc).year]
+        for year in years:
+            films = self._fetch_api(_API_URL.format(year=year), year, "films")
+            if films is None:
                 continue
-            made_in = film.get("made_in_en") or ""
-            if "Taiwan" not in made_in:
+            venues = self._fetch_api(_VENUES_API_URL.format(year=year), year, "venues")
+            if venues is None:
                 continue
-            event = self._build_event(film, year)
-            if event:
-                events.append(event)
+            screen_map = _screen_to_nearest_cinema(venues)
+            for film in films:
+                made_in = film.get("made_in_en") or ""
+                if "Taiwan" not in made_in:
+                    continue
+                resolved_venues = _resolve_film_venues(film, screen_map)
+                if resolved_venues is None:
+                    continue
+                event = self._build_event(film, year, resolved_venues)
+                if event:
+                    events.append(event)
 
-        logger.info("tiff: %d Taiwan films found (year=%d)", len(events), year)
+        logger.info("tiff: %d Taiwan films found (years=%s)", len(events), years)
         return events
 
-    def _build_event(self, film: dict, year: int) -> Optional[Event]:
+    def _build_event(
+        self,
+        film: dict[str, Any],
+        year: int,
+        venues: list[dict[str, Any]],
+    ) -> Optional[Event]:
         film_id = film.get("film_identifier", "")
         if not film_id:
             return None
@@ -360,6 +495,14 @@ class TiffScraper(BaseScraper):
         parts.append(f"上映日：{', '.join(screening_dates)}")
         raw_description = "\n\n".join(parts).replace("\x00", "")[:4000]
 
+        location_name = "・".join(venue["canonical_name_ja"] for venue in venues) or None
+        prefectures: list[str] = []
+        for venue in venues:
+            venue_prefectures = venue.get("prefectures") or [venue.get("prefecture")]
+            for prefecture in venue_prefectures:
+                if prefecture and prefecture not in prefectures:
+                    prefectures.append(prefecture)
+
         return Event(
             source_name=self.source_name,
             source_id=source_id,
@@ -372,10 +515,13 @@ class TiffScraper(BaseScraper):
             name_zh=name_zh,
             start_date=start_date,
             end_date=end_date,
-            location_name="東京国際映画祭",
+            location_name=location_name,
             location_address=None,
-            location_prefectures=["東京都"],
+            location_prefectures=prefectures,
+            venue_ids=[str(venue["id"]) for venue in venues],
+            business_hours=_screening_hours(acts),
             category=["movie"],
+            event_form=["screening"],
             director=film.get("director_ja"),
             price_info=price_info,
             official_url=film.get("url"),

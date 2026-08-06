@@ -172,6 +172,8 @@ def _event_to_row(event: Event) -> dict[str, Any]:
         row["official_url"] = event.official_url
     if event.location_url is not None:
         row["location_url"] = event.location_url
+    if event.venue_ids:
+        row["_venue_ids"] = list(dict.fromkeys(event.venue_ids))
     # Only include name_ja_locked when True — omitting preserves the default (false).
     # Requires migration 034_name_ja_locked.sql to be applied before writing.
     if event.name_ja_locked:
@@ -259,10 +261,25 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
     """
     if not rows:
         return
+    explicit_venue_ids: dict[tuple[str, str], list[str]] = {}
+    for row in rows:
+        raw_ids = row.pop("_venue_ids", None)
+        key = (row.get("source_name"), row.get("source_id"))
+        if (
+            isinstance(key[0], str)
+            and isinstance(key[1], str)
+            and isinstance(raw_ids, list)
+        ):
+            venue_ids = list(dict.fromkeys(
+                value for value in raw_ids if isinstance(value, str) and value
+            ))
+            if venue_ids:
+                explicit_venue_ids[key] = venue_ids
     organizer_strs = sorted({r["organizer"] for r in rows
                              if isinstance(r.get("organizer"), str) and r["organizer"].strip()})
     venue_strs = sorted({r["location_name"] for r in rows
                          if not is_pure_publication_record(r)
+                         and (r.get("source_name"), r.get("source_id")) not in explicit_venue_ids
                          and isinstance(r.get("location_name"), str) and r["location_name"].strip()})
 
     org_lookup: dict[str, tuple[str, str | None, tuple[str, ...]]] = {}
@@ -318,23 +335,25 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
             logger.debug("organizer entity lookup skipped (table may not exist yet): %s", exc)
 
     venue_lookup: dict[str, dict[str, Any]] = {}
-    if venue_strs:
+    explicit_venue_lookup: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    if venue_strs or explicit_venue_ids:
         try:
             candidates: dict[str, dict[str, dict[str, Any]]] = {
                 name: {} for name in venue_strs
             }
             incomplete_candidates: set[str] = set()
-            canonical_resp = (
-                client.table("venues")
-                .select(_VENUE_SELECT_FIELDS)
-                .in_("canonical_name_ja", venue_strs)
-                .eq("is_authoritative", True)
-                .execute()
-            )
-            for hit in canonical_resp.data or []:
-                canonical = hit.get("canonical_name_ja")
-                if canonical in candidates:
-                    candidates[canonical][hit["id"]] = hit
+            if venue_strs:
+                canonical_resp = (
+                    client.table("venues")
+                    .select(_VENUE_SELECT_FIELDS)
+                    .in_("canonical_name_ja", venue_strs)
+                    .eq("is_authoritative", True)
+                    .execute()
+                )
+                for hit in canonical_resp.data or []:
+                    canonical = hit.get("canonical_name_ja")
+                    if canonical in candidates:
+                        candidates[canonical][hit["id"]] = hit
 
             for name in venue_strs:
                 try:
@@ -368,7 +387,33 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
                         name,
                         len(by_id),
                     )
+            requested_ids = sorted({
+                venue_id
+                for venue_ids in explicit_venue_ids.values()
+                for venue_id in venue_ids
+            })
+            if requested_ids:
+                id_resp = (
+                    client.table("venues")
+                    .select(_VENUE_SELECT_FIELDS)
+                    .in_("id", requested_ids)
+                    .eq("is_authoritative", True)
+                    .execute()
+                )
+                by_id = {str(hit["id"]): hit for hit in (id_resp.data or [])}
+                missing_ids = [venue_id for venue_id in requested_ids if venue_id not in by_id]
+                if missing_ids:
+                    raise RuntimeError(
+                        "authoritative venue ids disappeared before upsert: "
+                        + ", ".join(missing_ids)
+                    )
+                for key, venue_ids in explicit_venue_ids.items():
+                    explicit_venue_lookup[key] = [by_id[venue_id] for venue_id in venue_ids]
         except Exception as exc:
+            if explicit_venue_ids:
+                raise RuntimeError(
+                    "explicit authoritative venue resolution failed before upsert"
+                ) from exc
             logger.debug("venue entity lookup skipped (table may not exist yet): %s", exc)
 
     protected_by_key: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
@@ -376,8 +421,13 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
     venue_candidates = [
         row for row in rows
         if not is_pure_publication_record(row)
-        and isinstance(row.get("location_name"), str)
-        and row.get("location_name") in venue_lookup
+        and (
+            (row.get("source_name"), row.get("source_id")) in explicit_venue_lookup
+            or (
+                isinstance(row.get("location_name"), str)
+                and row.get("location_name") in venue_lookup
+            )
+        )
     ]
     if venue_candidates:
         from collections import defaultdict
@@ -442,20 +492,35 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
             org_hits += 1
         if is_pure_publication_record(r):
             continue
+        key = (r.get("source_name"), r.get("source_id"))
         loc = r.get("location_name")
-        if not isinstance(loc, str) or loc not in venue_lookup:
-            continue
-        venue = venue_lookup[loc]
-        prefectures = venue.get("prefectures")
-        if not prefectures and venue.get("prefecture"):
-            prefectures = [venue["prefecture"]]
+        venues = explicit_venue_lookup.get(key)
+        if venues is None:
+            if not isinstance(loc, str) or loc not in venue_lookup:
+                continue
+            venues = [venue_lookup[loc]]
+        venue = venues[0]
+        is_multi_venue = len(venues) > 1 or venue.get("is_multi_venue")
+        prefectures: list[str] = []
+        for candidate in venues:
+            values = candidate.get("prefectures")
+            if not values and candidate.get("prefecture"):
+                values = [candidate["prefecture"]]
+            for value in values or []:
+                if value and value not in prefectures:
+                    prefectures.append(value)
+
+        def joined(field: str) -> str | None:
+            values = [candidate.get(field) for candidate in venues]
+            return "・".join(value for value in values if value) or None
+
         proposed: dict[str, Any] = {
-            "location_name": venue.get("canonical_name_ja"),
-            "location_name_zh": venue.get("canonical_name_zh"),
-            "location_name_en": venue.get("canonical_name_en"),
-            "location_prefectures": prefectures,
+            "location_name": joined("canonical_name_ja"),
+            "location_name_zh": joined("canonical_name_zh"),
+            "location_name_en": joined("canonical_name_en"),
+            "location_prefectures": prefectures or None,
         }
-        if venue.get("is_multi_venue"):
+        if is_multi_venue:
             proposed.update({
                 "venue_id": None,
                 "location_address": None,
@@ -470,13 +535,12 @@ def _populate_entity_fks(client: Client, rows: list[dict]) -> None:
                 "location_url": venue.get("homepage"),
             })
         if (
-            not venue.get("is_multi_venue")
+            not is_multi_venue
             and not r.get("business_hours")
             and venue.get("business_hours")
         ):
             proposed["business_hours"] = venue["business_hours"]
 
-        key = (r.get("source_name"), r.get("source_id"))
         protected = protected_by_key.get(key, {})
         for field, value in proposed.items():
             fc = protected.get(field)

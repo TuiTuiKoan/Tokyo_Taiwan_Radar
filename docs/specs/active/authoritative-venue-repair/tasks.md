@@ -66,21 +66,21 @@ description: authoritative-venue-repair 的隔離、實作、驗證與兩階段 
 
 ## Phase 4: TIFF venue-tree routing
 
-* [ ] Same-year 同時取得 films API 與 venues API
-* [ ] 遞迴 flatten 完整 venue tree
-* [ ] 每個 act screen 提升至最近的 `type = "cinema"` parent
-* [ ] 每個 physical cinema 經 authoritative resolver 取得 canonical row
-* [ ] Unknown screen、venues fetch failure 與 unprovable venue 跳過整部 film
-* [ ] Single venue 輸出唯一 FK 與完整 canonical fields
-* [ ] Multi venue 依 act 首次出現順序 dedupe 並以 `・` join
-* [ ] Multi venue 保持 FK/address translations null，prefecture 為東京都
-* [ ] `TiffJpScraper` news path 無行為 diff
-* [ ] 建立 2025 films/venues offline fixtures
-* [ ] Fixture 驗證木々の隙間為 Chanter only
-* [ ] Fixture 驗證エイプリル為 Hulic、Chanter、Cineswitch
-* [ ] Fixture 驗證ダブル・ハピネス為 Hibiya screens 12/13、Cineswitch
-* [ ] Fixture 驗證人生は海のように為 Chanter、Hibiya screens 12/13、Cineswitch
-* [ ] Failure-path tests 證明 unknown screen 與 venues failure 不回退 TIFF brand
+* [x] Same-year 同時取得 films API 與 venues API
+* [x] 遞迴 flatten 完整 venue tree
+* [x] 每個 act screen 提升至最近的 `type = "cinema"` parent
+* [x] 每個 physical cinema 經 authoritative resolver 取得 canonical row
+* [x] Unknown screen、venues fetch failure 與 unprovable venue 跳過整部 film
+* [x] Single venue 輸出唯一 FK 與完整 canonical fields
+* [x] Multi venue 依 act 首次出現順序 dedupe 並以 `・` join
+* [x] Multi venue 保持 FK/address translations null，prefecture 為東京都
+* [x] `TiffJpScraper` news path 無行為 diff
+* [x] 建立 2025 films/venues offline fixtures
+* [x] Fixture 驗證木々の隙間為 Chanter only
+* [x] Fixture 驗證エイプリル為 Hulic、Chanter、Cineswitch
+* [x] Fixture 驗證ダブル・ハピネス為 Hibiya screens 12/13、Cineswitch
+* [x] Fixture 驗證人生は海のように為 Chanter、Hibiya screens 12/13、Cineswitch
+* [x] Failure-path tests 證明 unknown screen 與 venues failure 不回退 TIFF brand
 
 ## Phase 5: Fixed sources and TCC regression
 

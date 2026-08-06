@@ -1,0 +1,111 @@
+[
+  {
+    "id": 1,
+    "type": "area",
+    "name_ja": "日比谷",
+    "children": [
+      {
+        "id": 4,
+        "type": "cinema",
+        "name_ja": "TOHOシネマズ 日比谷 スクリーン12、13 (東京宝塚ビル地下)",
+        "parent_id": 1,
+        "children": [
+          {
+            "id": 5,
+            "type": "screen",
+            "name_ja": "TOHOシネマズ 日比谷 スクリーン12 (車椅子スペースあり)",
+            "parent_id": 4,
+            "children": []
+          },
+          {
+            "id": 6,
+            "type": "screen",
+            "name_ja": "TOHOシネマズ 日比谷 スクリーン13 (車椅子スペースあり)",
+            "parent_id": 4,
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "type": "cinema",
+        "name_ja": "TOHOシネマズ シャンテ",
+        "parent_id": 1,
+        "children": [
+          {
+            "id": 8,
+            "type": "screen",
+            "name_ja": "TOHOシネマズ シャンテ スクリーン１ (車椅子スペースあり)",
+            "parent_id": 7,
+            "children": []
+          },
+          {
+            "id": 9,
+            "type": "screen",
+            "name_ja": "TOHOシネマズ シャンテ スクリーン２ (車椅子スペースあり)",
+            "parent_id": 7,
+            "children": []
+          },
+          {
+            "id": 10,
+            "type": "screen",
+            "name_ja": "TOHOシネマズ シャンテ スクリーン３ (車椅子スペースあり)",
+            "parent_id": 7,
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 17,
+    "type": "area",
+    "name_ja": "有楽町",
+    "children": [
+      {
+        "id": 22,
+        "type": "cinema",
+        "name_ja": "ヒューリックホール東京",
+        "parent_id": 17,
+        "children": [
+          {
+            "id": 23,
+            "type": "screen",
+            "name_ja": "ヒューリックホール東京 (車椅子スペースあり)",
+            "parent_id": 22,
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 31,
+    "type": "area",
+    "name_ja": "銀座",
+    "children": [
+      {
+        "id": 32,
+        "type": "cinema",
+        "name_ja": "シネスイッチ銀座",
+        "parent_id": 31,
+        "children": [
+          {
+            "id": 33,
+            "type": "screen",
+            "name_ja": "シネスイッチ銀座１",
+            "parent_id": 32,
+            "children": []
+          },
+          {
+            "id": 34,
+            "type": "screen",
+            "name_ja": "シネスイッチ銀座２",
+            "parent_id": 32,
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+]

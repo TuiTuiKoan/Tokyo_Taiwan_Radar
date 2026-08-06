@@ -200,6 +200,7 @@ class Event:
     performers_zh: list[str] = field(default_factory=list)
     performers_en: list[str] = field(default_factory=list)
     image_url: Optional[str] = None  # poster/OGP image URL
+    venue_ids: list[str] = field(default_factory=list)
 
 
 def dedup_events(events: list[Event]) -> list[Event]:
