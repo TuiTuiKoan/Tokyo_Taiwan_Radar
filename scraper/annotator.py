@@ -1626,18 +1626,15 @@ def _build_scope_finding(
 
 
 def _latest_scope_report(sb, event_id: str) -> dict[str, Any] | None:
-    try:
-        response = (
-            sb.table("event_reports")
-            .select("id, report_types, status, created_at, confirmed_at")
-            .eq("event_id", event_id)
-            .contains("report_types", [SCOPE_REPORT_TYPE])
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-    except Exception:
-        return None
+    response = (
+        sb.table("event_reports")
+        .select("id, report_types, status, created_at, confirmed_at")
+        .eq("event_id", event_id)
+        .contains("report_types", [SCOPE_REPORT_TYPE])
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
     rows = response.data or []
     if not rows:
         return None
@@ -1678,9 +1675,59 @@ def _persist_scope_finding(
     if not finding["should_queue"] or event_id in in_run_seen:
         return
 
-    existing = _latest_scope_report(sb, event_id)
+    try:
+        existing = _latest_scope_report(sb, event_id)
+    except Exception as error:
+        logger.warning(
+            "failed to inspect existing scope reports for %s; queue skipped: %s",
+            event_id[:8],
+            error,
+        )
+        in_run_seen.add(event_id)
+        return
     if existing:
         if existing.get("status") == "pending":
+            if existing.get("hash") != finding["fingerprint"]:
+                if dry_run:
+                    logger.info(
+                        "[DRY-RUN] would refresh pending scope report for %s payload=%s",
+                        event_id[:8],
+                        json.dumps(
+                            {
+                                "report_types": finding["report_types"],
+                                "admin_notes": finding["admin_notes"],
+                            },
+                            ensure_ascii=False,
+                            sort_keys=True,
+                        ),
+                    )
+                else:
+                    try:
+                        response = (
+                            sb.table("event_reports")
+                            .update(
+                                {
+                                    "report_types": finding["report_types"],
+                                    "admin_notes": finding["admin_notes"],
+                                }
+                            )
+                            .eq("id", existing["id"])
+                            .eq("event_id", event_id)
+                            .eq("status", "pending")
+                            .select("id")
+                            .execute()
+                        )
+                        rows = response.data or []
+                        if len(rows) != 1:
+                            raise RuntimeError(
+                                f"pending scope refresh affected {len(rows)} rows"
+                            )
+                    except Exception as error:
+                        logger.warning(
+                            "failed to refresh pending scope report for %s: %s",
+                            event_id[:8],
+                            error,
+                        )
             in_run_seen.add(event_id)
             return
         if existing.get("hash") == finding["fingerprint"]:

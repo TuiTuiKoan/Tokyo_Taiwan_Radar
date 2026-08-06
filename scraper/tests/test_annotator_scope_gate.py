@@ -27,6 +27,7 @@ class _Query:
         self._table = table
         self._rows = list(db.tables.get(table, []))
         self._insert = None
+        self._update = None
 
     def select(self, *_args, **_kwargs):
         return self
@@ -54,6 +55,10 @@ class _Query:
         self._insert = dict(payload)
         return self
 
+    def update(self, payload):
+        self._update = dict(payload)
+        return self
+
     def execute(self):
         if self._insert is not None:
             if self._db.fail_insert:
@@ -61,14 +66,27 @@ class _Query:
             self._db.inserts.append(self._insert)
             self._db.tables.setdefault(self._table, []).append(self._insert)
             return _Result([dict(self._insert)])
+        if self._update is not None:
+            updated = []
+            for row in self._rows:
+                row.update(self._update)
+                updated.append({"id": row.get("id")})
+            self._db.updates.append(
+                {"table": self._table, "payload": self._update, "rows": updated}
+            )
+            return _Result(updated)
+        if self._db.fail_select:
+            raise RuntimeError("select failed")
         return _Result([dict(row) for row in self._rows])
 
 
 class _FakeSupabase:
-    def __init__(self, reports=None, *, fail_insert=False):
+    def __init__(self, reports=None, *, fail_insert=False, fail_select=False):
         self.tables = {"event_reports": list(reports or [])}
         self.fail_insert = fail_insert
+        self.fail_select = fail_select
         self.inserts = []
+        self.updates = []
 
     def table(self, name):
         return _Query(self, name)
@@ -168,6 +186,43 @@ def test_pending_scope_report_is_not_duplicated():
     _persist_scope_finding(db, _event(), finding, dry_run=False, in_run_seen=set())
 
     assert db.inserts == []
+    assert db.updates == []
+
+
+def test_changed_pending_scope_report_is_refreshed_in_place():
+    current = _finding()
+    old = _finding(decision="uncertain", address="香港MOM Livehouse")
+    db = _FakeSupabase([
+        {
+            "id": "report-1",
+            "event_id": "event-1",
+            "report_types": [SCOPE_REPORT_TYPE, f"scopeHash:{old['fingerprint']}"],
+            "status": "pending",
+            "created_at": "2026-08-04T00:00:00Z",
+            "confirmed_at": None,
+        }
+    ])
+
+    _persist_scope_finding(db, _event(), current, dry_run=False, in_run_seen=set())
+
+    assert db.inserts == []
+    assert len(db.updates) == 1
+    assert db.updates[0]["rows"] == [{"id": "report-1"}]
+    assert db.updates[0]["payload"] == {
+        "report_types": current["report_types"],
+        "admin_notes": current["admin_notes"],
+    }
+
+
+def test_scope_report_lookup_failure_skips_insert(caplog):
+    db = _FakeSupabase(fail_select=True)
+    caplog.set_level(logging.WARNING)
+
+    _persist_scope_finding(db, _event(), _finding(), dry_run=False, in_run_seen=set())
+
+    assert db.inserts == []
+    assert db.updates == []
+    assert "queue skipped" in caplog.text
 
 
 def test_same_run_scope_report_is_not_duplicated():

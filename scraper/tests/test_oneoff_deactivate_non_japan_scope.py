@@ -5,6 +5,7 @@ import json
 import stat
 
 import pytest
+from postgrest import SyncPostgrestClient
 
 import _oneoff_deactivate_non_japan_scope as cleanup
 
@@ -52,6 +53,7 @@ class _Query:
         self.operation = "select"
         self.patch = None
         self.filters = []
+        self.in_filters = []
         self.start = None
         self.end = None
 
@@ -69,16 +71,38 @@ class _Query:
         self.filters.append((column, value))
         return self
 
+    def is_(self, column, value):
+        assert value == "null"
+        self.filters.append((column, None))
+        return self
+
+    def filter(self, column, operator, criteria):
+        assert operator == "eq"
+        assert criteria.startswith("{") and criteria.endswith("}")
+        inner = criteria[1:-1]
+        value = json.loads(f"[{inner}]") if inner else []
+        self.filters.append((column, value))
+        return self
+
+    def in_(self, column, values):
+        self.client.in_query_count += 1
+        self.in_filters.append((column, tuple(values)))
+        return self
+
     def order(self, _column, **_kwargs):
         return self
 
     def range(self, start, end):
+        if self.client.forbid_ranges:
+            raise AssertionError("apply preflight attempted offset pagination")
         self.start = start
         self.end = end
         return self
 
     def _matches(self, row):
-        return all(row.get(column) == value for column, value in self.filters)
+        return all(row.get(column) == value for column, value in self.filters) and all(
+            row.get(column) in values for column, values in self.in_filters
+        )
 
     def execute(self):
         rows = self.client.tables.setdefault(self.table, [])
@@ -107,11 +131,13 @@ class _Query:
 
 
 class _Client:
-    def __init__(self, events, *, forbid_mutations=False):
+    def __init__(self, events, *, forbid_mutations=False, forbid_ranges=False):
         self.tables = {"events": deepcopy(events)}
         self.forbid_mutations = forbid_mutations
+        self.forbid_ranges = forbid_ranges
         self.write_attempts = []
         self.update_results = []
+        self.in_query_count = 0
 
     def table(self, name):
         return _Query(self, name)
@@ -234,6 +260,7 @@ def test_snapshot_uses_only_select_queries():
 
     assert manifest["target_count"] == cleanup.TARGET_COUNT
     assert client.write_attempts == []
+    assert client.in_query_count == 1
 
 
 def test_inactive_child_is_recorded_as_warning_and_manifest_relation():
@@ -330,6 +357,16 @@ def test_apply_preflight_drift_and_relations_stop_before_writes(tmp_path, drift)
     assert client.write_attempts == []
 
 
+def test_apply_preflight_relations_do_not_use_offset_pagination():
+    rows = _target_rows()
+    manifest = _manifest(rows)
+    client = _Client(rows, forbid_ranges=True)
+
+    warnings = cleanup.preflight_apply(client, manifest["targets"])
+
+    assert warnings == []
+
+
 def test_updated_at_only_drift_warns_but_allows_apply(tmp_path):
     rows = _target_rows()
     manifest = _manifest(rows)
@@ -368,7 +405,11 @@ def test_apply_uses_exact_one_cas_and_one_timestamp(tmp_path):
     assert len(report["applied_ids"]) == cleanup.TARGET_COUNT
     assert len(client.write_attempts) == cleanup.TARGET_COUNT
     for target, attempt in zip(manifest["targets"], client.write_attempts, strict=True):
-        assert attempt["filters"] == [("id", target["id"]), ("is_active", True)]
+        assert attempt["filters"] == [
+            ("id", target["id"]),
+            ("is_active", True),
+            *((field, target["before"][field]) for field in cleanup.STABLE_FIELDS),
+        ]
         assert attempt["matched"] == 1
         assert attempt["patch"]["is_active"] is False
         assert attempt["patch"]["deactivated_at"] == timestamp
@@ -376,6 +417,50 @@ def test_apply_uses_exact_one_cas_and_one_timestamp(tmp_path):
         assert attempt["patch"]["deactivated_reason"] == (
             f"out_of_scope: {target['reason']} — not a Japan event"
         )
+
+
+def test_stable_drift_after_preflight_fails_the_cas_closed(tmp_path, monkeypatch):
+    rows = _target_rows()
+    manifest = _manifest(rows)
+    client = _Client(rows)
+    first_id = rows[0]["id"]
+    original_cas = cleanup.cas_deactivate
+
+    def drift_then_deactivate(sb, target, apply_timestamp):
+        if target["id"] == first_id:
+            sb.event(first_id)["location_address"] = "changed after preflight"
+        return original_cas(sb, target, apply_timestamp)
+
+    monkeypatch.setattr(cleanup, "cas_deactivate", drift_then_deactivate)
+
+    with pytest.raises(RuntimeError, match=f"CAS affected 0 rows for {first_id}"):
+        cleanup.apply_manifest(
+            client,
+            manifest,
+            manifest_path=tmp_path / "manifest.json",
+            expected_digest=manifest["manifest_digest"],
+        )
+
+    assert client.event(first_id)["is_active"] is True
+
+
+def test_cas_uses_postgrest_exact_null_and_text_array_filters(monkeypatch):
+    target = _manifest()["targets"][0]
+    captured = {}
+
+    def capture_query(query):
+        captured.update(dict(query.request.params))
+        return []
+
+    monkeypatch.setattr(cleanup, "execute_rows", capture_query)
+    client = SyncPostgrestClient("https://example.invalid")
+
+    cleanup.cas_deactivate(client, target, "2026-08-04T02:00:00Z")
+
+    assert captured["id"] == f"eq.{target['id']}"
+    assert captured["is_active"] == "eq.True"
+    assert captured["parent_event_id"] == "is.null"
+    assert captured["location_prefectures"] == 'eq.{"台北"}'
 
 
 @pytest.mark.parametrize("override, count", [([], 0), ([{"id": "one"}, {"id": "two"}], 2)])

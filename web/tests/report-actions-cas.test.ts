@@ -378,6 +378,10 @@ test("acknowledged scope report deactivates exactly one event and preserves mach
 
     const eventWrites = callsOf(calls, "events", "update");
     assert.equal(eventWrites.length, 1);
+    assert.ok(
+      hasFilter(eventWrites[0], "id", "db-event"),
+      "event update filters the full DB-derived event id",
+    );
     assert.equal(eventWrites[0].returning, true, "event update requests the written id");
     assert.equal(eventWrites[0].columns, "id");
     assert.deepEqual(
