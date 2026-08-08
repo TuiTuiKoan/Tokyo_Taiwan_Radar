@@ -7,7 +7,7 @@
 ## Snapshot 基準
 
 * 觀測日期：**2026-08-08**
-* `origin/main`：`7598b411`（docs(prompts): track admin-qa, venue-repair and workstream prompts）
+* `origin/main`：`5d6e4a43`（docs(agents): require worktree confirmation before implementation）
 * 下次更新時請一併更新本區塊，否則勾選狀態會腐化
 
 ---
@@ -91,15 +91,16 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 
 - [x] `organizer_type` 政策
 - [x] 維持共用欄位（決議，無需實作）
-- [ ] 長期展區排除 — WIP 在 publication worktree
-- [ ] 詳情頁區塊標題「出版情報」— i18n key 已在上游，只缺程式碼
-- [ ] 後台出版社標籤 — `admin.publisher` / `admin.publisherUrl`
+- [x] 長期展區排除 — `ab3bbfde`
+- [x] 詳情頁區塊標題「出版情報」— `ab3bbfde`
+- [x] 後台出版社標籤 — `admin.publisher` / `admin.publisherUrl` / `admin.publisherPlaceholder`（`ab3bbfde`）
 - [ ] dashboard error 卡片（無歸屬）
 - [ ] 後台重置按鈕（無歸屬）
 - [ ] 架構頁 service_role 標示（無歸屬）
 - [ ] i18n 標籤統一（無歸屬）
 
-前三項的 WIP 為 7 檔 `+76/−6`，在 `ttr-publication-policy-worktree`。
+前三項已於 `ttr-publication-policy-worktree` 交付（`ab3bbfde`，8 檔 `+191/−6`），
+含兩個純函式 seam（`getOrganizerSectionTitleKey`／`getOrganizerFieldLabelKeys`）與測試。
 
 ---
 
@@ -110,7 +111,7 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 - [x] F-1 詳情頁隱藏會場列（`831871e0`）
 - [ ] Authoritative venue repair（進行中）
 - [ ] F-2 `container_title` 專屬欄位（需 migration）
-- [ ] 決策閘門規則寫入 `SKILL.md`
+- [x] 決策閘門規則寫入 `SKILL.md`（`335e462a`）
 
 ---
 
@@ -135,7 +136,7 @@ Eslite identity migration、PN-3a.0（`b4cb383f`）、F-1（`831871e0`）。
 |---|---|---|---|---|
 | A（successor） | `ttr-admin-qa-cleanup-worktree` | 0/0 | 0 | **未建立** |
 | A（predecessor） | 已移除 | — | — | `admin-reports-204-cleanup`（保留 active） |
-| B | `ttr-publication-policy-worktree` | 0/3 | 7 | `publication-policy` |
+| B | `ttr-publication-policy-worktree` | 3/0 | 0 | `publication-policy` |
 | C | **無** | — | — | **無** |
 | D | 主工作樹 + publication worktree | — | — | **無** |
 | E（venue repair） | `ttr-authoritative-venue-repair-worktree` | 11/6 | 0 | **未建立** |
@@ -197,7 +198,7 @@ git --no-pager cherry origin/main <branch>   # '-' 前綴 = 內容已在上游
 
 ## 操作教訓
 
-### 決策閘門修正（尚未寫入 `SKILL.md`）
+### 決策閘門修正（已寫入 `SKILL.md`，`335e462a`）
 
 現行「small change → 不開 worktree」隱含假設主工作樹乾淨，但本 repo 經常多 session
 同時寫入。建議改為：
