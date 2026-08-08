@@ -186,9 +186,12 @@ git --no-pager cherry origin/main <branch>   # '-' 前綴 = 內容已在上游
 
 ### G4: 其他
 
-- [ ] `ttr-admin-qa-cleanup-worktree/` 出現在主工作樹 `git status` 的 untracked 清單，
-      應依 git instructions idempotent append 至 `.git/info/exclude`
-- [ ] Dependabot 回報 9 個依賴漏洞（8 high、1 moderate），與本專案工作無關但需處理
+- [x] `.git/info/exclude` 補上 `ttr-admin-qa-cleanup-worktree/`，並清除兩個已不存在的
+      殘留項目（`ttr-admin-reports-204-cleanup-worktree/`、`ttr-organizer-authority-wave2-worktree/`）。
+      刪除前已驗證兩者皆無目錄、無 worktree 註冊、無對應分支。
+      現存 8 個 worktree 全數排除，主工作樹 `git status` 的 untracked 清單已清空
+- [ ] Dependabot 回報 9 個依賴漏洞（8 high、1 moderate），與本專案工作無關但需處理。
+      **性質上不屬於工作線盤點**，僅暫置於此；建議另立資安維護歸屬
 
 ---
 
