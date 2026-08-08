@@ -1,4 +1,5 @@
 import type { Event } from "@/lib/types";
+import { isPurePublicationRecord } from "@/lib/types";
 
 // Long-term threshold: events whose run spans more than this many days are
 // pulled out of the main vertical list into the horizontal shelf.
@@ -78,6 +79,10 @@ export function isPersistent(event: Event): boolean {
 
 /** Whether the event belongs in the horizontal "長期・常設" shelf. */
 export function isShelfEvent(event: Event): boolean {
+  // Exact pure publications (ISBN books / periodical articles) are catalog
+  // records, not events. Their start/end dates are publication dates, so a wide
+  // span must never promote them onto the long-term or persistent shelf.
+  if (isPurePublicationRecord(event)) return false;
   return isLongTerm(event) || isPersistent(event);
 }
 

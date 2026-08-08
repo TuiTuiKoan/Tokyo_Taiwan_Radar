@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { type Event, type Locale, CATEGORY_GROUPS, EVENT_FORMS, getEventName } from "@/lib/types";
+import { getOrganizerFieldLabelKeys } from "@/lib/publicationPresentation";
 import DesignSelect, { type DesignSelectOption } from "@/components/DesignSelect";
 import Button from "@/components/Button";
 import { PillButton, RadioGroup } from "@/components/UiControls";
@@ -140,6 +141,7 @@ export default function AdminEventForm({
   const langName = (lang: Locale): string =>
     labels?.[`lang${cap(lang)}`] ?? (lang === "ja" ? "日本語" : lang === "zh" ? "中文" : "English");
   const label = (intakeKey: string, adminKey: string): string => labels?.[intakeKey] ?? t(adminKey);
+  const organizerLabelKeys = getOrganizerFieldLabelKeys({ event_form: form.event_form });
   const sectionLabel = (intakeKey: string, fallback: string): string => labels?.[intakeKey] ?? fallback;
   const mark = (required: boolean) =>
     requiredMarkers && required ? <span className="text-green-600">{" *"}</span> : null;
@@ -478,20 +480,25 @@ export default function AdminEventForm({
           />
         </div>
 
-        {/* Organizer */}
+        {/* Organizer / Publisher (pure publication) */}
         <div>
-          <label className="block text-xs text-fg-muted mb-1">{label("fieldOrganizer", "organizer")}{mark(true)}</label>
+          <label className="block text-xs text-fg-muted mb-1">{label(organizerLabelKeys.organizer.intakeKey, organizerLabelKeys.organizer.adminKey)}{mark(true)}</label>
           <input
             type="text"
             value={(form as any).organizer ?? ""}
             onChange={(e) => updateField("organizer", e.target.value)}
+            placeholder={
+              organizerLabelKeys.placeholder
+                ? label(organizerLabelKeys.placeholder.intakeKey, organizerLabelKeys.placeholder.adminKey)
+                : undefined
+            }
             className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-paper"
           />
         </div>
 
-        {/* Organizer URL */}
+        {/* Organizer / Publisher URL */}
         <div>
-          <label className="block text-xs text-fg-muted mb-1">{label("fieldOrganizerUrl", "organizerUrl")}</label>
+          <label className="block text-xs text-fg-muted mb-1">{label(organizerLabelKeys.organizerUrl.intakeKey, organizerLabelKeys.organizerUrl.adminKey)}</label>
           <input
             type="url"
             value={(form as any).organizer_url ?? ""}

@@ -31,6 +31,7 @@ import { serializeJsonLd } from "@/lib/security/jsonLd";
 import {
   buildCanonicalSourceLinks,
   getDetailPresentationPolicy,
+  getOrganizerSectionTitleKey,
   getReportExcludedDetailFields,
 } from "@/lib/publicationPresentation";
 import { buildEventStructuredData } from "@/lib/publicationStructuredData";
@@ -1057,7 +1058,9 @@ export default async function EventDetailPage({ params }: PageProps) {
         (event as Event).has_chinese_support ||
         (workDistributor !== null && !(event as Event).organizer)) && (
         <section className="mb-8 border border-line rounded-xl p-4 bg-paper dark:bg-paper">
-          <h2 className="font-display font-bold text-[#3A261F] text-base mb-3">{t("organizerSection")}</h2>
+          <h2 className="font-display font-bold text-[#3A261F] text-base mb-3">
+            {t(getOrganizerSectionTitleKey(event as Event))}
+          </h2>
           <dl className="space-y-2 text-sm">
             {(event as Event).organizer && (
               <div className="flex gap-2">

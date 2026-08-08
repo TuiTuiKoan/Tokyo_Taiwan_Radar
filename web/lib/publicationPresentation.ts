@@ -37,6 +37,43 @@ export interface SourceLinkItem {
   url: string;
 }
 
+/** Intake-namespace key first, admin-namespace key as the fallback. */
+export interface FieldLabelKeys {
+  intakeKey: string;
+  adminKey: string;
+}
+
+export interface OrganizerFieldLabelKeys {
+  organizer: FieldLabelKeys;
+  organizerUrl: FieldLabelKeys;
+  placeholder: FieldLabelKeys | null;
+}
+
+export function getOrganizerSectionTitleKey(
+  record: Pick<Event, "event_form">
+): "publicationSection" | "organizerSection" {
+  return getPublicationPresentationFlags(record).isPurePublication
+    ? "publicationSection"
+    : "organizerSection";
+}
+
+export function getOrganizerFieldLabelKeys(
+  record: Pick<Event, "event_form">
+): OrganizerFieldLabelKeys {
+  if (getPublicationPresentationFlags(record).isPurePublication) {
+    return {
+      organizer: { intakeKey: "fieldPublisher", adminKey: "publisher" },
+      organizerUrl: { intakeKey: "fieldPublisherUrl", adminKey: "publisherUrl" },
+      placeholder: { intakeKey: "fieldPublisherPlaceholder", adminKey: "publisherPlaceholder" },
+    };
+  }
+  return {
+    organizer: { intakeKey: "fieldOrganizer", adminKey: "organizer" },
+    organizerUrl: { intakeKey: "fieldOrganizerUrl", adminKey: "organizerUrl" },
+    placeholder: null,
+  };
+}
+
 export function getDetailPresentationPolicy(
   record: Pick<Event, "event_form">
 ): DetailPresentationPolicy {

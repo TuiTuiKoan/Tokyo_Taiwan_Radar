@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   getPublicationPresentationFlags,
@@ -11,8 +14,13 @@ import {
 } from "../lib/types";
 import {
   getDetailPresentationPolicy,
+  getOrganizerFieldLabelKeys,
+  getOrganizerSectionTitleKey,
   getReportExcludedDetailFields,
 } from "../lib/publicationPresentation";
+import { isShelfEvent } from "../lib/eventClassify";
+
+const MESSAGES_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../messages");
 
 function fixture(overrides: Partial<Event>): Event {
   return {
@@ -148,4 +156,120 @@ test("mixed publication form keeps the venue row visible", () => {
   const mixed = fixture({ event_form: ["publication", "lecture"] });
   assert.equal(getDetailPresentationPolicy(mixed).showVenue, true);
   assert.deepEqual(getReportExcludedDetailFields(mixed), []);
+});
+
+test("exact pure publication never enters the long-term shelf", () => {
+  // Vision-polluted books span ~874 days (2023-10-14 → 2026-xx). They must never
+  // surface on the horizontal shelf even though their run is longer than 30 days.
+  const longRun = fixture({
+    event_form: ["publication"],
+    start_date: "2024-01-01T00:00:00Z",
+    end_date: "2026-05-24T00:00:00Z", // ~874 days
+  });
+  assert.equal(isShelfEvent(longRun), false);
+
+  // Normalized duplicates / blanks that still resolve to pure publication are excluded too.
+  const normalizedPure = fixture({
+    event_form: [" publication ", "publication", ""],
+    start_date: "2024-01-01T00:00:00Z",
+    end_date: "2026-05-24T00:00:00Z",
+  });
+  assert.equal(isShelfEvent(normalizedPure), false);
+});
+
+test("exact pure publication is never persistent even without an end date", () => {
+  const onlinePure = fixture({
+    event_form: ["publication"],
+    name_ja: "オンライン新刊フェア",
+    start_date: "2026-01-01T00:00:00Z",
+    end_date: null,
+  });
+  assert.equal(isShelfEvent(onlinePure), false);
+});
+
+test("mixed publication + lecture keeps normal shelf behavior", () => {
+  const longMixed = fixture({
+    event_form: ["publication", "lecture"],
+    start_date: "2026-01-01T00:00:00Z",
+    end_date: "2026-02-15T00:00:00Z", // 45 days > 30
+  });
+  assert.equal(isShelfEvent(longMixed), true);
+
+  const shortMixed = fixture({
+    event_form: ["publication", "lecture"],
+    start_date: "2026-01-01T00:00:00Z",
+    end_date: "2026-01-25T00:00:00Z", // 24 days <= 30, no online marker
+  });
+  assert.equal(isShelfEvent(shortMixed), false);
+});
+
+test("ordinary long-term event still belongs on the shelf", () => {
+  const longExhibit = fixture({
+    event_form: ["exhibition"],
+    start_date: "2026-01-01T00:00:00Z",
+    end_date: "2026-03-01T00:00:00Z", // 59 days > 30
+  });
+  assert.equal(isShelfEvent(longExhibit), true);
+});
+
+test("organizer section title switches only for exact pure publications", () => {
+  assert.equal(
+    getOrganizerSectionTitleKey(fixture({ event_form: ["publication"] })),
+    "publicationSection"
+  );
+  assert.equal(
+    getOrganizerSectionTitleKey(fixture({ event_form: [" publication ", "publication"] })),
+    "publicationSection"
+  );
+  assert.equal(
+    getOrganizerSectionTitleKey(fixture({ event_form: ["publication", "lecture"] })),
+    "organizerSection"
+  );
+  assert.equal(getOrganizerSectionTitleKey(fixture({ event_form: ["screening"] })), "organizerSection");
+});
+
+test("exact pure publication uses publisher field label keys", () => {
+  assert.deepEqual(getOrganizerFieldLabelKeys(fixture({ event_form: ["publication"] })), {
+    organizer: { intakeKey: "fieldPublisher", adminKey: "publisher" },
+    organizerUrl: { intakeKey: "fieldPublisherUrl", adminKey: "publisherUrl" },
+    placeholder: { intakeKey: "fieldPublisherPlaceholder", adminKey: "publisherPlaceholder" },
+  });
+});
+
+test("mixed and ordinary events keep organizer field label keys", () => {
+  const organizerKeys = {
+    organizer: { intakeKey: "fieldOrganizer", adminKey: "organizer" },
+    organizerUrl: { intakeKey: "fieldOrganizerUrl", adminKey: "organizerUrl" },
+    placeholder: null,
+  };
+  assert.deepEqual(
+    getOrganizerFieldLabelKeys(fixture({ event_form: ["publication", "lecture"] })),
+    organizerKeys
+  );
+  assert.deepEqual(getOrganizerFieldLabelKeys(fixture({ event_form: ["screening"] })), organizerKeys);
+  assert.deepEqual(getOrganizerFieldLabelKeys(fixture({ event_form: null })), organizerKeys);
+});
+
+// assert-i18n-parity.ts only proves the three key sets match, so it stays green
+// when every locale drops the same key. This checks presence per locale.
+test("publication label keys are present in every locale", () => {
+  const requiredKeys: [namespace: string, key: string][] = [
+    ["event", "publicationSection"],
+    ["event", "organizerSection"],
+    ["admin", "publisher"],
+    ["admin", "publisherUrl"],
+    ["admin", "publisherPlaceholder"],
+  ];
+
+  for (const locale of ["ja", "zh", "en"]) {
+    const messages = JSON.parse(
+      fs.readFileSync(path.join(MESSAGES_DIR, `${locale}.json`), "utf8")
+    ) as Record<string, Record<string, unknown> | undefined>;
+
+    for (const [namespace, key] of requiredKeys) {
+      const value = messages[namespace]?.[key];
+      assert.equal(typeof value, "string", `${locale}: ${namespace}.${key} must be a string`);
+      assert.notEqual(value, "", `${locale}: ${namespace}.${key} must not be empty`);
+    }
+  }
 });
