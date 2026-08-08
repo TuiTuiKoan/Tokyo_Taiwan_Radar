@@ -3,9 +3,9 @@ slug: admin-reports-204-cleanup
 title: Admin Reports Cleanup Plan
 description: Round 5 delivery and manifest-controlled cleanup plan
 status: active
-branch: feat/admin-reports-204-cleanup
+branch: origin/main
 created: 2026-07-12
-updated: 2026-07-29
+updated: 2026-08-06
 tags: [scraper, web, data-integrity]
 ---
 

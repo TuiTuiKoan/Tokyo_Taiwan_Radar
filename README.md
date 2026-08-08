@@ -4,7 +4,10 @@
 
 📅 An aggregator platform for Taiwan-related events across Japan (Movies, Exhibitions, Lectures, Food)
 
-🇹🇼🇯🇵 Trilingual (Chinese / Japanese / English)
+🇹🇼🇯🇵🇺🇸 Trilingual (Chinese / Japanese / English)
+
+- 8/2 -
+Improving data accuracy and overall site development observability in July.
 
 - 6/28 -
 Preparing for round 2 weekly news upgrading, including cover visual style and template based on perfectures and categories.  Meanwhile, rebuilding the self-event publishing function with 2 methods, poster-oriented and full manual.  In parallel, a series of cyber security approach is introduced to guard prompt injecttion and other risks.
